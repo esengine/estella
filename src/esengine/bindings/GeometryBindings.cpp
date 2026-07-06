@@ -36,14 +36,21 @@ static void flushImmediateDrawIfActive() {
     }
 }
 
-static void restoreImmediateDrawState() {
-    if (g_immediateDrawActive) {
-        auto* dev = g_device;
-        dev->setBlendEnabled(true);
-        dev->setBlendMode(BlendMode::Normal);
-        dev->setDepthTest(false);
-        dev->bindTexture(0, TextureHandle::Invalid);
+// A mesh draw's pipeline: the requested shader + this geometry's vertex layout,
+// with blend/depth taken from the immediate-draw session state (Draw.setBlendMode /
+// setDepthTest apply to mesh draws too). The pipeline cache dedupes repeats.
+static void applyMeshPipeline(GfxDevice& device, const Shader& shader, const CustomGeometry& geom) {
+    PipelineDesc desc{};
+    desc.program = shader.handle();
+    desc.vertexLayout = geom.layoutHandle();
+    desc.blendEnabled = true;
+    desc.depthWrite = true;
+    if (auto* imm = g_immediateDraw) {
+        desc.blend = imm->blendMode();
+        desc.depthTest = imm->depthTest();
     }
+    device.invalidatePipelineCache();
+    device.setPipeline(device.createPipeline(desc));
 }
 
 u32 geometry_create() {
@@ -135,14 +142,14 @@ void draw_mesh(u32 geometryHandle, u32 shaderHandle, uintptr_t transformPtr) {
     const f32* transformData = reinterpret_cast<const f32*>(transformPtr);
     glm::mat4 transform = glm::make_mat4(transformData);
 
-    shader->bind();
+    applyMeshPipeline(*g_device, *shader, *geom);
     shader->setUniform("u_projection", g_currentViewProjection);
     shader->setUniform("u_model", transform);
 
     geom->bind(ctx().require<GfxDevice>());
 
     if (geom->hasIndices()) {
-        auto* ib = geom->getVAO() ? geom->getVAO()->getIndexBuffer().get() : nullptr;
+        auto* ib = geom->indexBuffer();
         if (ib) {
             auto type = ib->is16Bit() ? GfxDataType::UnsignedShort : GfxDataType::UnsignedInt;
             g_device->drawElements(geom->getIndexCount(), type, 0);
@@ -150,9 +157,6 @@ void draw_mesh(u32 geometryHandle, u32 shaderHandle, uintptr_t transformPtr) {
     } else {
         g_device->drawArrays(0, geom->getVertexCount());
     }
-
-    geom->unbind();
-    restoreImmediateDrawState();
 }
 
 void draw_meshWithUniforms(u32 geometryHandle, u32 shaderHandle, uintptr_t transformPtr,
@@ -170,7 +174,7 @@ void draw_meshWithUniforms(u32 geometryHandle, u32 shaderHandle, uintptr_t trans
     const f32* transformData = reinterpret_cast<const f32*>(transformPtr);
     glm::mat4 transform = glm::make_mat4(transformData);
 
-    shader->bind();
+    applyMeshPipeline(*g_device, *shader, *geom);
     shader->setUniform("u_projection", g_currentViewProjection);
     shader->setUniform("u_model", transform);
 
@@ -232,7 +236,7 @@ void draw_meshWithUniforms(u32 geometryHandle, u32 shaderHandle, uintptr_t trans
     geom->bind(ctx().require<GfxDevice>());
 
     if (geom->hasIndices()) {
-        auto* ib = geom->getVAO() ? geom->getVAO()->getIndexBuffer().get() : nullptr;
+        auto* ib = geom->indexBuffer();
         if (ib) {
             auto type = ib->is16Bit() ? GfxDataType::UnsignedShort : GfxDataType::UnsignedInt;
             g_device->drawElements(geom->getIndexCount(), type, 0);
@@ -240,9 +244,6 @@ void draw_meshWithUniforms(u32 geometryHandle, u32 shaderHandle, uintptr_t trans
     } else {
         g_device->drawArrays(0, geom->getVertexCount());
     }
-
-    geom->unbind();
-    restoreImmediateDrawState();
 }
 
 }  // namespace esengine

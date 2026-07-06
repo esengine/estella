@@ -18,21 +18,39 @@
 
 namespace esengine {
 
+namespace {
+
+GfxDataType toGfxDataType(ShaderDataType type) {
+    switch (type) {
+    case ShaderDataType::Int:
+    case ShaderDataType::Int2:
+    case ShaderDataType::Int3:
+    case ShaderDataType::Int4:
+        return GfxDataType::Int;
+    case ShaderDataType::Bool:
+    case ShaderDataType::UByte4N:
+        return GfxDataType::UnsignedByte;
+    default:
+        return GfxDataType::Float;
+    }
+}
+
+}  // namespace
+
 void CustomGeometry::init(GfxDevice& device, const f32* vertices, u32 vertexCount,
                           const VertexLayout& layout, bool dynamic) {
     device_ = &device;
     dynamic_ = dynamic;
     stride_ = layout.getStride();
-    if (stride_ == 0) {
+    if (stride_ == 0 || layout.getAttributes().size() > MAX_VERTEX_ATTRIBUTES) {
         // An empty vertex layout would make the divide below a divide-by-zero
-        // (a wasm trap). Leave the geometry uninitialized: vao_ stays null, so
-        // isValid() is false and bind()/draw become no-ops.
-        ES_LOG_ERROR("CustomGeometry::init: empty vertex layout (stride 0); skipping setup");
+        // (a wasm trap). Leave the geometry uninitialized: layout_ stays Invalid,
+        // so isValid() is false and bind()/draw become no-ops.
+        ES_LOG_ERROR("CustomGeometry::init: unusable vertex layout (stride {}, {} attributes); skipping setup",
+                     stride_, layout.getAttributes().size());
         return;
     }
     vertexCount_ = vertexCount * sizeof(f32) / stride_;
-
-    vao_ = VertexArray::create(device);
 
     if (dynamic) {
         vbo_ = Shared<VertexBuffer>(VertexBuffer::create(device, vertexCount * sizeof(f32)));
@@ -40,23 +58,31 @@ void CustomGeometry::init(GfxDevice& device, const f32* vertices, u32 vertexCoun
     } else {
         vbo_ = Shared<VertexBuffer>(VertexBuffer::createRaw(device, vertices, vertexCount * sizeof(f32)));
     }
-
     vbo_->setLayout(layout);
-    vao_->addVertexBuffer(vbo_);
+
+    VertexLayoutDesc desc;
+    desc.strides[0] = stride_;
+    for (const auto& attr : layout) {
+        GfxVertexAttribute& out = desc.attributes[desc.attributeCount];
+        out.location = desc.attributeCount;
+        out.components = static_cast<u8>(shaderDataTypeComponentCount(attr.type));
+        out.type = toGfxDataType(attr.type);
+        out.normalized = attr.normalized || attr.type == ShaderDataType::UByte4N;
+        out.offset = attr.offset;
+        out.bufferSlot = 0;
+        ++desc.attributeCount;
+    }
+    layout_ = device.createVertexLayout(desc);
 }
 
 void CustomGeometry::setIndices(const u16* indices, u32 indexCount) {
-    if (!vao_ || !device_) return;
-
+    if (!isValid() || !device_) return;
     ibo_ = Shared<IndexBuffer>(IndexBuffer::create(*device_, indices, indexCount));
-    vao_->setIndexBuffer(ibo_);
 }
 
 void CustomGeometry::setIndices(const u32* indices, u32 indexCount) {
-    if (!vao_ || !device_) return;
-
+    if (!isValid() || !device_) return;
     ibo_ = Shared<IndexBuffer>(IndexBuffer::create(*device_, indices, indexCount));
-    vao_->setIndexBuffer(ibo_);
 }
 
 void CustomGeometry::updateVertices(const f32* vertices, u32 vertexCount, u32 offset) {
@@ -75,54 +101,9 @@ void CustomGeometry::updateVertices(const f32* vertices, u32 vertexCount, u32 of
 }
 
 void CustomGeometry::bind(GfxDevice& device) const {
-    if (!vao_) return;
-
-    vao_->bind();
-
-    // Explicitly rebind VBO + attribute pointers + IBO to work around
-    // WeChat WebGL VAO state restoration bug
-    if (vbo_) {
-        vbo_->bind();
-        const auto& layout = vbo_->getLayout();
-        u32 index = 0;
-        for (const auto& attr : layout) {
-            GfxDataType gfxType = GfxDataType::Float;
-            switch (attr.type) {
-            case ShaderDataType::Int:
-            case ShaderDataType::Int2:
-            case ShaderDataType::Int3:
-            case ShaderDataType::Int4:
-                gfxType = GfxDataType::Int;
-                break;
-            case ShaderDataType::Bool:
-            case ShaderDataType::UByte4N:
-                gfxType = GfxDataType::UnsignedByte;
-                break;
-            default:
-                gfxType = GfxDataType::Float;
-                break;
-            }
-            device.enableVertexAttrib(index);
-            device.vertexAttribPointer(
-                index,
-                static_cast<i32>(shaderDataTypeComponentCount(attr.type)),
-                gfxType,
-                attr.normalized,
-                static_cast<i32>(layout.getStride()),
-                attr.offset
-            );
-            ++index;
-        }
-    }
-    if (ibo_) {
-        ibo_->bind();
-    }
-}
-
-void CustomGeometry::unbind() const {
-    if (vao_) {
-        vao_->unbind();
-    }
+    if (!isValid()) return;
+    device.setVertexBuffer(0, vbo_ ? vbo_->handle() : BufferHandle::Invalid, 0);
+    device.setIndexBuffer(ibo_ ? ibo_->handle() : BufferHandle::Invalid);
 }
 
 u32 CustomGeometry::getIndexCount() const {

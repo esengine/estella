@@ -67,8 +67,11 @@ public:
     void updateBuffer(BufferHandle buffer, u32 offsetBytes, const void* data, u32 sizeBytes) override;
     void resizeBuffer(BufferHandle buffer, u32 sizeBytes, const void* data) override;
     void setUniformBuffer(u32 slot, BufferHandle buffer) override;
-    void bindVertexBuffer(BufferHandle buffer) override;
-    void bindIndexBuffer(BufferHandle buffer) override;
+
+    VertexLayoutHandle createVertexLayout(const VertexLayoutDesc& desc) override;
+    void deleteVertexLayout(VertexLayoutHandle layout) override;
+    void setVertexBuffer(u32 slot, BufferHandle buffer, u32 offsetBytes) override;
+    void setIndexBuffer(BufferHandle buffer) override;
 
     TextureHandle createTexture(const TextureDesc& desc, const void* pixels) override;
     TextureHandle createCompressedTexture(const TextureDesc& desc, GfxCompressedFormat format,
@@ -108,14 +111,6 @@ public:
     void setStencilReference(i32 ref) override;
     void invalidatePipelineCache() override;
 
-    u32 createVertexArray() override;
-    void deleteVertexArray(u32 vaoId) override;
-    void bindVertexArray(u32 vaoId) override;
-    void enableVertexAttrib(u32 index) override;
-    void vertexAttribPointer(u32 index, i32 size, GfxDataType type,
-                             bool normalized, i32 stride, u32 offset) override;
-    void vertexAttribDivisor(u32 index, u32 divisor) override;
-
     void drawElements(u32 indexCount, GfxDataType indexType, u32 byteOffset) override;
     void drawArrays(u32 first, u32 vertexCount) override;
     void drawElementsInstanced(u32 indexCount, GfxDataType indexType, u32 byteOffset, u32 instanceCount) override;
@@ -145,9 +140,31 @@ private:
 
     void uploadBufferStore(BufferHandle buffer, u32 offsetBytes, const void* data, u32 sizeBytes, bool respec);
 
+    // Applies the current pipeline's vertex layout to the pending buffer bindings:
+    // the layout's lazily-created VAO is bound, and any slot whose buffer/offset
+    // differs from what the VAO has baked is re-pointed. WebGL2 has no explicit
+    // vertex-input object, so the VAO is purely a backend cache here.
+    void prepareVertexState();
+
     std::vector<PipelineDesc> pipelines_;
     PipelineHandle current_pipeline_ = PipelineHandle::Invalid;
     GfxStencilMode current_stencil_mode_ = GfxStencilMode::Off;
+
+    struct LayoutRecord {
+        VertexLayoutDesc desc;
+        u32 vao = 0;
+        bool alive = false;
+        bool configured = false;
+        u32 bakedVbo[MAX_VERTEX_BUFFER_SLOTS] = {};
+        u32 bakedOffset[MAX_VERTEX_BUFFER_SLOTS] = {};
+        u32 bakedIbo = 0;
+    };
+    std::vector<LayoutRecord> layouts_;
+    VertexLayoutHandle current_layout_ = VertexLayoutHandle::Invalid;
+    u32 pending_vbo_[MAX_VERTEX_BUFFER_SLOTS] = {};
+    u32 pending_vbo_offset_[MAX_VERTEX_BUFFER_SLOTS] = {};
+    u32 pending_ibo_ = 0;
+    u32 bound_vao_ = 0;
 
     // Per-handle metadata the GL bind-to-edit protocol needs but the interface no
     // longer carries: buffer target/usage for uploads, texture transfer format for

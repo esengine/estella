@@ -28,7 +28,10 @@ void TransientBufferPool::shutdown() {
     if (!initialized_) return;
 
     for (auto& s : streams_) {
-        if (s.vao) { device_.deleteVertexArray(s.vao); s.vao = 0; }
+        if (s.layout != VertexLayoutHandle::Invalid) {
+            device_.deleteVertexLayout(s.layout);
+            s.layout = VertexLayoutHandle::Invalid;
+        }
         if (s.vbo != BufferHandle::Invalid) { device_.deleteBuffer(s.vbo); s.vbo = BufferHandle::Invalid; }
         if (s.ebo != BufferHandle::Invalid) { device_.deleteBuffer(s.ebo); s.ebo = BufferHandle::Invalid; }
         if (s.quad_vbo != BufferHandle::Invalid) { device_.deleteBuffer(s.quad_vbo); s.quad_vbo = BufferHandle::Invalid; }
@@ -100,9 +103,8 @@ u32 TransientBufferPool::appendIndices(LayoutId layout, const u32* data, u32 cou
 }
 
 void TransientBufferPool::upload() {
-    // Growth goes through resizeBuffer, which keeps the handle stable — the stream's
-    // VAO association survives. Index uploads are safe against VAO capture because the
-    // device detaches the bound VAO before touching the element-array target.
+    // Growth goes through resizeBuffer, which keeps the handle stable, so per-draw
+    // buffer bindings and the backend's cached vertex state stay valid.
     for (auto& s : streams_) {
         if (s.vbo == BufferHandle::Invalid) continue;
         if (s.vertex_write_pos == 0 && s.index_write_pos == 0) continue;
@@ -124,27 +126,27 @@ void TransientBufferPool::upload() {
             device_.updateBuffer(s.ebo, 0, s.index_staging.data(), eboBytes);
         }
     }
-    // Leave a neutral VAO bound so execute()'s bindLayout starts from a known state.
-    device_.bindVertexArray(0);
 }
 
 void TransientBufferPool::bindLayout(LayoutId layout) {
     const Stream& s = stream(layout);
-    if (s.vao) device_.bindVertexArray(s.vao);
+    if (layout == LayoutId::ParticleInstance) {
+        bindInstanceLayout(layout, 0);
+        return;
+    }
+    device_.setVertexBuffer(0, s.vbo, 0);
+    device_.setIndexBuffer(s.ebo);
 }
 
 void TransientBufferPool::bindInstanceLayout(LayoutId layout, u32 instanceByteOffset) {
-    Stream& s = stream(layout);
-    device_.bindVertexArray(s.vao);
-    // Rebase the per-instance attributes to this emitter's slice (no baseInstance in GLES3).
-    device_.bindVertexBuffer(s.vbo);
-    constexpr u32 IS = 40;
-    device_.vertexAttribPointer(2, 2, GfxDataType::Float, false, IS, instanceByteOffset + 0);
-    device_.vertexAttribPointer(3, 2, GfxDataType::Float, false, IS, instanceByteOffset + 8);
-    device_.vertexAttribPointer(4, 1, GfxDataType::Float, false, IS, instanceByteOffset + 16);
-    device_.vertexAttribPointer(5, 4, GfxDataType::UnsignedByte, true, IS, instanceByteOffset + 20);
-    device_.vertexAttribPointer(6, 2, GfxDataType::Float, false, IS, instanceByteOffset + 24);
-    device_.vertexAttribPointer(7, 2, GfxDataType::Float, false, IS, instanceByteOffset + 32);
+    const Stream& s = stream(layout);
+    device_.setVertexBuffer(0, s.quad_vbo, 0);
+    device_.setVertexBuffer(1, s.vbo, instanceByteOffset);
+    device_.setIndexBuffer(s.ebo);
+}
+
+VertexLayoutHandle TransientBufferPool::layoutHandle(LayoutId layout) const {
+    return stream(layout).layout;
 }
 
 u8* TransientBufferPool::vertexData(LayoutId layout) {
@@ -192,30 +194,22 @@ void TransientBufferPool::setupStream(LayoutId layout) {
         s.ebo = device_.createBuffer(
             {GfxBufferUsage::Index, static_cast<u32>(sizeof(quadIdx)), /*dynamic=*/false}, quadIdx);
 
-        s.vao = device_.createVertexArray();
-        device_.bindVertexArray(s.vao);
-        device_.bindIndexBuffer(s.ebo);
-
-        // Static quad attributes (divisor 0).
-        device_.bindVertexBuffer(s.quad_vbo);
-        device_.enableVertexAttrib(0);
-        device_.vertexAttribPointer(0, 2, GfxDataType::Float, false, 16, 0);
-        device_.enableVertexAttrib(1);
-        device_.vertexAttribPointer(1, 2, GfxDataType::Float, false, 16, 8);
-
-        // Per-instance attributes (divisor 1); offsets rebased per draw in bindInstanceLayout.
-        constexpr u32 IS = 40;
-        device_.bindVertexBuffer(s.vbo);
-        device_.enableVertexAttrib(2); device_.vertexAttribPointer(2, 2, GfxDataType::Float, false, IS, 0);  device_.vertexAttribDivisor(2, 1);
-        device_.enableVertexAttrib(3); device_.vertexAttribPointer(3, 2, GfxDataType::Float, false, IS, 8);  device_.vertexAttribDivisor(3, 1);
-        device_.enableVertexAttrib(4); device_.vertexAttribPointer(4, 1, GfxDataType::Float, false, IS, 16); device_.vertexAttribDivisor(4, 1);
-        device_.enableVertexAttrib(5); device_.vertexAttribPointer(5, 4, GfxDataType::UnsignedByte, true, IS, 20); device_.vertexAttribDivisor(5, 1);
-        device_.enableVertexAttrib(6); device_.vertexAttribPointer(6, 2, GfxDataType::Float, false, IS, 24); device_.vertexAttribDivisor(6, 1);
-        device_.enableVertexAttrib(7); device_.vertexAttribPointer(7, 2, GfxDataType::Float, false, IS, 32); device_.vertexAttribDivisor(7, 1);
-
-        device_.bindVertexArray(0);
-        device_.bindVertexBuffer(BufferHandle::Invalid);
-        device_.bindIndexBuffer(BufferHandle::Invalid);
+        // Slot 0: the static quad (per vertex). Slot 1: the instance stream (per instance),
+        // rebased per draw in bindInstanceLayout.
+        VertexLayoutDesc desc;
+        desc.attributeCount = 8;
+        desc.strides[0] = 16;
+        desc.strides[1] = 40;
+        desc.instanceStep[1] = true;
+        desc.attributes[0] = {0, 2, GfxDataType::Float, false, 0, 0};
+        desc.attributes[1] = {1, 2, GfxDataType::Float, false, 8, 0};
+        desc.attributes[2] = {2, 2, GfxDataType::Float, false, 0, 1};
+        desc.attributes[3] = {3, 2, GfxDataType::Float, false, 8, 1};
+        desc.attributes[4] = {4, 1, GfxDataType::Float, false, 16, 1};
+        desc.attributes[5] = {5, 4, GfxDataType::UnsignedByte, true, 20, 1};
+        desc.attributes[6] = {6, 2, GfxDataType::Float, false, 24, 1};
+        desc.attributes[7] = {7, 2, GfxDataType::Float, false, 32, 1};
+        s.layout = device_.createVertexLayout(desc);
         return;
     }
 
@@ -228,53 +222,36 @@ void TransientBufferPool::setupStream(LayoutId layout) {
     s.ebo = device_.createBuffer(
         {GfxBufferUsage::Index, static_cast<u32>(s.ebo_capacity * sizeof(u32)), /*dynamic=*/true}, nullptr);
 
-    s.vao = device_.createVertexArray();
-    device_.bindVertexArray(s.vao);
-    // VAO captures the ELEMENT_ARRAY_BUFFER binding at this point, and every
-    // subsequent vertexAttribPointer captures the currently-bound ARRAY_BUFFER.
-    device_.bindVertexBuffer(s.vbo);
-    device_.bindIndexBuffer(s.ebo);
-
+    VertexLayoutDesc desc;
     switch (layout) {
-        case LayoutId::Batch: {
-            constexpr u32 STRIDE = 24;  // BatchVertex: pos(8) + color(4) + uv(8) + texIndex(4)
-            device_.enableVertexAttrib(0);
-            device_.vertexAttribPointer(0, 2, GfxDataType::Float, false, STRIDE, 0);
-            device_.enableVertexAttrib(1);
-            device_.vertexAttribPointer(1, 4, GfxDataType::UnsignedByte, true, STRIDE, 8);
-            device_.enableVertexAttrib(2);
-            device_.vertexAttribPointer(2, 2, GfxDataType::Float, false, STRIDE, 12);
-            device_.enableVertexAttrib(3);
-            device_.vertexAttribPointer(3, 1, GfxDataType::Float, false, STRIDE, 20);
+        case LayoutId::Batch:
+            // BatchVertex: pos(8) + color(4) + uv(8) + texIndex(4)
+            desc.attributeCount = 4;
+            desc.strides[0] = 24;
+            desc.attributes[0] = {0, 2, GfxDataType::Float, false, 0, 0};
+            desc.attributes[1] = {1, 4, GfxDataType::UnsignedByte, true, 8, 0};
+            desc.attributes[2] = {2, 2, GfxDataType::Float, false, 12, 0};
+            desc.attributes[3] = {3, 1, GfxDataType::Float, false, 20, 0};
             break;
-        }
-        case LayoutId::Shape: {
-            constexpr u32 STRIDE = 48;
-            device_.enableVertexAttrib(0);
-            device_.vertexAttribPointer(0, 2, GfxDataType::Float, false, STRIDE, 0);
-            device_.enableVertexAttrib(1);
-            device_.vertexAttribPointer(1, 2, GfxDataType::Float, false, STRIDE, 8);
-            device_.enableVertexAttrib(2);
-            device_.vertexAttribPointer(2, 4, GfxDataType::Float, false, STRIDE, 16);
-            device_.enableVertexAttrib(3);
-            device_.vertexAttribPointer(3, 4, GfxDataType::Float, false, STRIDE, 32);
+        case LayoutId::Shape:
+            desc.attributeCount = 4;
+            desc.strides[0] = 48;
+            desc.attributes[0] = {0, 2, GfxDataType::Float, false, 0, 0};
+            desc.attributes[1] = {1, 2, GfxDataType::Float, false, 8, 0};
+            desc.attributes[2] = {2, 4, GfxDataType::Float, false, 16, 0};
+            desc.attributes[3] = {3, 4, GfxDataType::Float, false, 32, 0};
             break;
-        }
-        case LayoutId::MatSprite: {
-            constexpr u32 STRIDE = 32;
-            device_.enableVertexAttrib(0);
-            device_.vertexAttribPointer(0, 2, GfxDataType::Float, false, STRIDE, 0);
-            device_.enableVertexAttrib(1);
-            device_.vertexAttribPointer(1, 2, GfxDataType::Float, false, STRIDE, 8);
-            device_.enableVertexAttrib(2);
-            device_.vertexAttribPointer(2, 4, GfxDataType::Float, false, STRIDE, 16);
+        case LayoutId::MatSprite:
+            desc.attributeCount = 3;
+            desc.strides[0] = 32;
+            desc.attributes[0] = {0, 2, GfxDataType::Float, false, 0, 0};
+            desc.attributes[1] = {1, 2, GfxDataType::Float, false, 8, 0};
+            desc.attributes[2] = {2, 4, GfxDataType::Float, false, 16, 0};
             break;
-        }
+        default:
+            break;
     }
-
-    device_.bindVertexArray(0);
-    device_.bindVertexBuffer(BufferHandle::Invalid);
-    device_.bindIndexBuffer(BufferHandle::Invalid);
+    s.layout = device_.createVertexLayout(desc);
 }
 
 void TransientBufferPool::growVertexStaging(Stream& s, u32 requiredBytes) {

@@ -3,9 +3,9 @@
 /**
  * @file    Buffer.hpp
  * @brief   GPU buffer abstractions for vertex and index data
- * @details VertexBuffer, IndexBuffer and VertexArray are thin RAII handles over
- *          GfxDevice. They hold no GL state directly — every GPU operation is
- *          delegated to the device, so this layer has zero GL dependency.
+ * @details VertexBuffer and IndexBuffer are thin RAII handles over GfxDevice.
+ *          They hold no GL state directly — every GPU operation is delegated
+ *          to the device, so this layer has zero GL dependency.
  *
  * @author  ESEngine Team
  * @date    2026
@@ -255,12 +255,6 @@ public:
     // Operations
     // =========================================================================
 
-    /** @brief Binds the buffer for rendering */
-    void bind() const;
-
-    /** @brief Unbinds the buffer */
-    void unbind() const;
-
     /**
      * @brief Updates buffer data from a span
      */
@@ -402,12 +396,6 @@ public:
     // Operations
     // =========================================================================
 
-    /** @brief Binds the buffer for rendering */
-    void bind() const;
-
-    /** @brief Unbinds the buffer */
-    void unbind() const;
-
     /** @brief Gets the number of indices */
     u32 getCount() const { return count_; }
 
@@ -422,89 +410,6 @@ private:
     BufferHandle handle_ = BufferHandle::Invalid;
     u32 count_ = 0;
     bool is16Bit_ = false;
-};
-
-// =============================================================================
-// Vertex Array Object
-// =============================================================================
-
-/**
- * @brief Encapsulates vertex attribute configuration
- *
- * @details Wraps a GfxDevice vertex array object. Stores the association
- *          between vertex buffers and their attribute layouts.
- *
- * @code
- * auto vao = VertexArray::create(device);
- *
- * auto vbo = VertexBuffer::create(device, vertices);
- * vbo->setLayout({...});
- * vao->addVertexBuffer(std::move(vbo));
- *
- * auto ebo = IndexBuffer::create(device, indices, 6);
- * vao->setIndexBuffer(std::move(ebo));
- *
- * // Rendering
- * vao->bind();
- * device.drawElements(ebo->getCount(), GfxDataType::UnsignedInt, 0);
- * @endcode
- */
-class VertexArray {
-public:
-    VertexArray() = default;
-    ~VertexArray();
-
-    // Non-copyable, movable
-    VertexArray(const VertexArray&) = delete;
-    VertexArray& operator=(const VertexArray&) = delete;
-    VertexArray(VertexArray&& other) noexcept;
-    VertexArray& operator=(VertexArray&& other) noexcept;
-
-    /**
-     * @brief Creates a new vertex array
-     * @param device Graphics device
-     * @return Unique pointer to the VAO
-     */
-    static Unique<VertexArray> create(GfxDevice& device);
-
-    /** @brief Binds the VAO for rendering */
-    void bind() const;
-
-    /** @brief Unbinds the VAO */
-    void unbind() const;
-
-    /**
-     * @brief Adds a vertex buffer to the VAO
-     * @param buffer Shared pointer to the vertex buffer
-     *
-     * @details The buffer's layout must be set before adding.
-     */
-    void addVertexBuffer(Shared<VertexBuffer> buffer);
-
-    /**
-     * @brief Sets the index buffer
-     * @param buffer Shared pointer to the index buffer
-     */
-    void setIndexBuffer(Shared<IndexBuffer> buffer);
-
-    /**
-     * @brief Gets all attached vertex buffers
-     * @return Const reference to buffer vector
-     */
-    const std::vector<Shared<VertexBuffer>>& getVertexBuffers() const { return vertexBuffers_; }
-
-    /**
-     * @brief Gets the index buffer
-     * @return Const reference to the index buffer pointer
-     */
-    const Shared<IndexBuffer>& getIndexBuffer() const { return indexBuffer_; }
-
-private:
-    GfxDevice* device_ = nullptr;  ///< Set by create(); all GL goes through it.
-    u32 arrayId_ = 0;
-    u32 vertexAttribIndex_ = 0;
-    std::vector<Shared<VertexBuffer>> vertexBuffers_;
-    Shared<IndexBuffer> indexBuffer_;
 };
 
 }  // namespace esengine

@@ -15,9 +15,6 @@ struct MockGfxDevice final : GfxDevice {
     // call counters
     int useProgramCalls = 0;
     int bindTextureCalls = 0;
-    int bindVertexArrayCalls = 0;
-    int bindVertexBufferCalls = 0;
-    int bindIndexBufferCalls = 0;
     int bindFramebufferCalls = 0;
     int createProgramCalls = 0;
     int deleteProgramCalls = 0;
@@ -38,16 +35,16 @@ struct MockGfxDevice final : GfxDevice {
     int updateBufferCalls = 0;
     int resizeBufferCalls = 0;
     int setUniformBufferCalls = 0;
-    int createVertexArrayCalls = 0;
-    int deleteVertexArrayCalls = 0;
-    int enableVertexAttribCalls = 0;
-    int vertexAttribPointerCalls = 0;
+    int createVertexLayoutCalls = 0;
+    int deleteVertexLayoutCalls = 0;
+    int setVertexBufferCalls = 0;
+    int setIndexBufferCalls = 0;
     int setPipelineCalls = 0;
 
     u32 nextTextureId = 100;
     u32 nextBufferId = 200;
     u32 nextFramebufferId = 500;
-    u32 nextVaoId = 800;
+    u32 nextVertexLayoutId = 800;
     u32 nextPipelineId = 0;
 
     bool createTextureFails = false;  // toggle to exercise the OOM / lost-context path (-> Invalid)
@@ -55,7 +52,7 @@ struct MockGfxDevice final : GfxDevice {
 
     // last args
     ShaderHandle lastProgram = ShaderHandle::Invalid;
-    u32 lastVao = 0;
+    VertexLayoutDesc lastVertexLayoutDesc{};
     BufferHandle lastVbo = BufferHandle::Invalid;
     BufferHandle lastIbo = BufferHandle::Invalid;
     FramebufferHandle lastFbo = FramebufferHandle::Default;
@@ -105,8 +102,15 @@ struct MockGfxDevice final : GfxDevice {
     void updateBuffer(BufferHandle, u32, const void*, u32) override { ++updateBufferCalls; }
     void resizeBuffer(BufferHandle, u32, const void*) override { ++resizeBufferCalls; }
     void setUniformBuffer(u32, BufferHandle) override { ++setUniformBufferCalls; }
-    void bindVertexBuffer(BufferHandle buffer) override { ++bindVertexBufferCalls; lastVbo = buffer; }
-    void bindIndexBuffer(BufferHandle buffer) override { ++bindIndexBufferCalls; lastIbo = buffer; }
+
+    VertexLayoutHandle createVertexLayout(const VertexLayoutDesc& desc) override {
+        ++createVertexLayoutCalls;
+        lastVertexLayoutDesc = desc;
+        return VertexLayoutHandle{nextVertexLayoutId++};
+    }
+    void deleteVertexLayout(VertexLayoutHandle) override { ++deleteVertexLayoutCalls; }
+    void setVertexBuffer(u32, BufferHandle buffer, u32) override { ++setVertexBufferCalls; lastVbo = buffer; }
+    void setIndexBuffer(BufferHandle buffer) override { ++setIndexBufferCalls; lastIbo = buffer; }
 
     TextureHandle createTexture(const TextureDesc& desc, const void* pixels) override {
         ++createTextureCalls;
@@ -162,13 +166,6 @@ struct MockGfxDevice final : GfxDevice {
     void setPipeline(PipelineHandle) override { ++setPipelineCalls; }
     void setStencilReference(i32) override {}
     void invalidatePipelineCache() override {}
-
-    u32 createVertexArray() override { ++createVertexArrayCalls; return nextVaoId++; }
-    void deleteVertexArray(u32) override { ++deleteVertexArrayCalls; }
-    void bindVertexArray(u32 vaoId) override { ++bindVertexArrayCalls; lastVao = vaoId; }
-    void enableVertexAttrib(u32) override { ++enableVertexAttribCalls; }
-    void vertexAttribPointer(u32, i32, GfxDataType, bool, i32, u32) override { ++vertexAttribPointerCalls; }
-    void vertexAttribDivisor(u32, u32) override {}
 
     void drawElements(u32, GfxDataType, u32) override {}
     void drawArrays(u32, u32) override {}

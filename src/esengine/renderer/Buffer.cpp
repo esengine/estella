@@ -3,8 +3,8 @@
 /**
  * @file    Buffer.cpp
  * @brief   GPU buffer implementations (device-backed)
- * @details VertexBuffer, IndexBuffer and VertexArray delegate every GPU
- *          operation to GfxDevice. This file contains no GL calls.
+ * @details VertexBuffer and IndexBuffer delegate every GPU operation to
+ *          GfxDevice. This file contains no GL calls.
  *
  * @author  ESEngine Team
  * @date    2025
@@ -51,24 +51,6 @@ u32 shaderDataTypeComponentCount(ShaderDataType type) {
     }
 }
 
-namespace {
-
-GfxDataType toGfxDataType(ShaderDataType type) {
-    switch (type) {
-    case ShaderDataType::Int:
-    case ShaderDataType::Int2:
-    case ShaderDataType::Int3:
-    case ShaderDataType::Int4:
-        return GfxDataType::Int;
-    case ShaderDataType::Bool:
-    case ShaderDataType::UByte4N:
-        return GfxDataType::UnsignedByte;
-    default:
-        return GfxDataType::Float;
-    }
-}
-
-}  // namespace
 
 // ========================================
 // VertexBuffer
@@ -110,14 +92,6 @@ Unique<VertexBuffer> VertexBuffer::create(GfxDevice& device, u32 size) {
     buffer->device_ = &device;
     buffer->handle_ = device.createBuffer({GfxBufferUsage::Vertex, size, /*dynamic=*/true}, nullptr);
     return buffer;
-}
-
-void VertexBuffer::bind() const {
-    if (device_) device_->bindVertexBuffer(handle_);
-}
-
-void VertexBuffer::unbind() const {
-    if (device_) device_->bindVertexBuffer(BufferHandle::Invalid);
 }
 
 void VertexBuffer::setDataRaw(const void* data, u32 sizeBytes) {
@@ -179,98 +153,6 @@ Unique<IndexBuffer> IndexBuffer::create(GfxDevice& device, const u16* indices, u
     buffer->handle_ = device.createBuffer(
         {GfxBufferUsage::Index, count * static_cast<u32>(sizeof(u16)), /*dynamic=*/false}, indices);
     return buffer;
-}
-
-void IndexBuffer::bind() const {
-    if (device_) device_->bindIndexBuffer(handle_);
-}
-
-void IndexBuffer::unbind() const {
-    if (device_) device_->bindIndexBuffer(BufferHandle::Invalid);
-}
-
-// ========================================
-// VertexArray
-// ========================================
-
-VertexArray::~VertexArray() {
-    if (arrayId_ != 0 && device_) {
-        device_->deleteVertexArray(arrayId_);
-    }
-}
-
-VertexArray::VertexArray(VertexArray&& other) noexcept
-    : device_(other.device_)
-    , arrayId_(other.arrayId_)
-    , vertexAttribIndex_(other.vertexAttribIndex_)
-    , vertexBuffers_(std::move(other.vertexBuffers_))
-    , indexBuffer_(std::move(other.indexBuffer_)) {
-    other.arrayId_ = 0;
-    other.vertexAttribIndex_ = 0;
-}
-
-VertexArray& VertexArray::operator=(VertexArray&& other) noexcept {
-    if (this != &other) {
-        if (arrayId_ != 0 && device_) {
-            device_->deleteVertexArray(arrayId_);
-        }
-        device_ = other.device_;
-        arrayId_ = other.arrayId_;
-        vertexAttribIndex_ = other.vertexAttribIndex_;
-        vertexBuffers_ = std::move(other.vertexBuffers_);
-        indexBuffer_ = std::move(other.indexBuffer_);
-        other.arrayId_ = 0;
-        other.vertexAttribIndex_ = 0;
-    }
-    return *this;
-}
-
-Unique<VertexArray> VertexArray::create(GfxDevice& device) {
-    auto vao = makeUnique<VertexArray>();
-    vao->device_ = &device;
-    vao->arrayId_ = device.createVertexArray();
-    return vao;
-}
-
-void VertexArray::bind() const {
-    if (device_) device_->bindVertexArray(arrayId_);
-}
-
-void VertexArray::unbind() const {
-    if (device_) device_->bindVertexArray(0);
-}
-
-void VertexArray::addVertexBuffer(Shared<VertexBuffer> buffer) {
-    ES_ASSERT(!buffer->getLayout().getAttributes().empty(), "Vertex buffer has no layout");
-
-    if (device_) {
-        device_->bindVertexArray(arrayId_);
-        buffer->bind();
-
-        const auto& layout = buffer->getLayout();
-        for (const auto& attr : layout) {
-            bool normalized = attr.normalized || attr.type == ShaderDataType::UByte4N;
-            device_->enableVertexAttrib(vertexAttribIndex_);
-            device_->vertexAttribPointer(
-                vertexAttribIndex_,
-                static_cast<i32>(shaderDataTypeComponentCount(attr.type)),
-                toGfxDataType(attr.type),
-                normalized,
-                static_cast<i32>(layout.getStride()),
-                attr.offset
-            );
-            ++vertexAttribIndex_;
-        }
-    }
-    vertexBuffers_.push_back(std::move(buffer));
-}
-
-void VertexArray::setIndexBuffer(Shared<IndexBuffer> buffer) {
-    if (device_) {
-        device_->bindVertexArray(arrayId_);
-        buffer->bind();
-    }
-    indexBuffer_ = std::move(buffer);
 }
 
 }  // namespace esengine

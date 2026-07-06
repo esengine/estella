@@ -1,8 +1,8 @@
-// Native MSVC/CTest harness for Buffer + CustomGeometry (RC5-GfxDevice).
+// Native MSVC/CTest harness for Buffer + CustomGeometry (GfxDevice).
 //
 // Compiles the converted Buffer.cpp + CustomGeometry.cpp against MockGfxDevice.
 // Linking proves they no longer touch GL; the asserts confirm create/upload/
-// attribute-setup/bind/delete all route through GfxDevice.
+// layout-registration/bind/delete all route through GfxDevice.
 
 #include "MockGfxDevice.hpp"
 #include "esengine/renderer/Buffer.hpp"
@@ -51,24 +51,6 @@ int main() {
         CHECK(!ibo->is16Bit(), "u32 indices not flagged 16-bit");
     }
 
-    // --- VertexArray + attribute setup ---
-    {
-        MockGfxDevice d;
-        float verts[] = { 0, 0, 0, 0 };
-        auto vao = VertexArray::create(d);
-        CHECK(d.createVertexArrayCalls == 1, "VertexArray::create -> device.createVertexArray");
-
-        auto vbo = Shared<VertexBuffer>(VertexBuffer::createRaw(d, verts, sizeof(verts)));
-        vbo->setLayout({
-            { ShaderDataType::Float2, "a_position" },
-            { ShaderDataType::Float2, "a_texCoord" },
-        });
-        vao->addVertexBuffer(vbo);
-        CHECK(d.enableVertexAttribCalls == 2, "addVertexBuffer enables one attrib per layout entry");
-        CHECK(d.vertexAttribPointerCalls == 2, "addVertexBuffer sets one pointer per layout entry");
-        CHECK(d.bindVertexArrayCalls >= 1, "addVertexBuffer binds the VAO via device");
-    }
-
     // --- CustomGeometry end-to-end (init + indices + bind, all via device) ---
     {
         MockGfxDevice d;
@@ -80,15 +62,19 @@ int main() {
             { ShaderDataType::Float2, "a_texCoord" },
         });
         CHECK(geom.isValid(), "CustomGeometry initialized");
-        CHECK(d.createVertexArrayCalls == 1, "geom.init creates a VAO via device");
         CHECK(d.createBufferCalls == 1, "geom.init creates a VBO via device");
+        CHECK(d.createVertexLayoutCalls == 1, "geom.init registers its vertex layout via device");
+        CHECK(d.lastVertexLayoutDesc.attributeCount == 2, "layout carries one entry per attribute");
+        CHECK(d.lastVertexLayoutDesc.strides[0] == 16, "layout carries the vertex stride");
+        CHECK(geom.layoutHandle() != VertexLayoutHandle::Invalid, "geometry exposes its layout handle");
 
         geom.setIndices(idx, 3);
         CHECK(geom.hasIndices() && geom.getIndexCount() == 3, "geom.setIndices stored an index buffer");
         CHECK(d.createBufferCalls == 2, "geom.setIndices creates an IBO via device");
 
         geom.bind(d);
-        CHECK(d.bindVertexArrayCalls >= 1, "geom.bind routes through device");
+        CHECK(d.setVertexBufferCalls == 1 && d.setIndexBufferCalls == 1,
+              "geom.bind sets the vertex + index buffers via device");
     }
 
     // --- CustomGeometry: an empty vertex layout must not divide-by-zero ---
@@ -100,8 +86,9 @@ int main() {
         geom.init(d, verts, 4, VertexLayout{});  // empty layout -> stride 0
         CHECK(!geom.isValid(), "init with an empty layout leaves the geometry invalid (no crash)");
         CHECK(d.createBufferCalls == 0, "no VBO is created for an empty layout");
+        CHECK(d.createVertexLayoutCalls == 0, "no device layout is registered for an empty layout");
         geom.bind(d);
-        CHECK(d.bindVertexArrayCalls == 0, "bind on an empty-layout geometry is a no-op");
+        CHECK(d.setVertexBufferCalls == 0, "bind on an empty-layout geometry is a no-op");
     }
 
     if (g_failures == 0) {

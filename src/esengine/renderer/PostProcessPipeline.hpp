@@ -26,6 +26,7 @@ namespace esengine {
 
 class GfxDevice;
 class RenderContext;
+class Shader;
 
 namespace resource {
     class ResourceManager;
@@ -222,6 +223,7 @@ private:
     void ensureFBOs();
     void ensureScreenQuad();
     void drawScreenQuad();
+    void applyPassPipeline(const Shader& shader);
     void renderPass(const PostProcessPass& pass, TextureHandle inputTexture);
     void blitToOutput(TextureHandle texture);
 
@@ -232,7 +234,7 @@ private:
     Unique<Framebuffer> fboA_;
     Unique<Framebuffer> fboB_;
     Unique<Framebuffer> fboOriginal_;
-    u32 screen_quad_vao_ = 0;
+    VertexLayoutHandle screen_quad_layout_ = VertexLayoutHandle::Invalid;
     BufferHandle screen_quad_vbo_ = BufferHandle::Invalid;
     resource::ShaderHandle blitShader_;
 

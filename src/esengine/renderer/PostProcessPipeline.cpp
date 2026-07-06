@@ -122,9 +122,9 @@ void PostProcessPipeline::shutdown() {
         device->deleteBuffer(screen_quad_vbo_);
         screen_quad_vbo_ = BufferHandle::Invalid;
     }
-    if (screen_quad_vao_ != 0 && device) {
-        device->deleteVertexArray(screen_quad_vao_);
-        screen_quad_vao_ = 0;
+    if (screen_quad_layout_ != VertexLayoutHandle::Invalid && device) {
+        device->deleteVertexLayout(screen_quad_layout_);
+        screen_quad_layout_ = VertexLayoutHandle::Invalid;
     }
 
     fboA_.reset();
@@ -245,41 +245,41 @@ PostProcessPass* PostProcessPipeline::findPass(const std::string& name) {
 }
 
 void PostProcessPipeline::ensureScreenQuad() {
-    if (screen_quad_vao_ != 0) return;
+    if (screen_quad_layout_ != VertexLayoutHandle::Invalid) return;
 
-    auto* device = &device_;
-
+    // One fullscreen triangle (position + uv), drawn non-indexed.
     f32 vertices[] = {
         -1.0f, -1.0f,  0.0f, 0.0f,
          3.0f, -1.0f,  2.0f, 0.0f,
         -1.0f,  3.0f,  0.0f, 2.0f,
     };
-
-    constexpr i32 STRIDE = 4 * static_cast<i32>(sizeof(f32));
-
-    u32 vao = device->createVertexArray();
-    device->bindVertexArray(vao);
-
-    BufferHandle vbo = device->createBuffer(
+    screen_quad_vbo_ = device_.createBuffer(
         {GfxBufferUsage::Vertex, static_cast<u32>(sizeof(vertices)), /*dynamic=*/false}, vertices);
-    device->bindVertexBuffer(vbo);
 
-    device->enableVertexAttrib(0);
-    device->vertexAttribPointer(0, 2, GfxDataType::Float, false, STRIDE, 0);
-    device->enableVertexAttrib(1);
-    device->vertexAttribPointer(1, 2, GfxDataType::Float, false, STRIDE, 2 * sizeof(f32));
-
-    device->bindVertexArray(0);
-
-    screen_quad_vao_ = vao;
-    screen_quad_vbo_ = vbo;
+    VertexLayoutDesc desc;
+    desc.attributeCount = 2;
+    desc.strides[0] = 4 * sizeof(f32);
+    desc.attributes[0] = {0, 2, GfxDataType::Float, false, 0, 0};
+    desc.attributes[1] = {1, 2, GfxDataType::Float, false, 2 * sizeof(f32), 0};
+    screen_quad_layout_ = device_.createVertexLayout(desc);
 }
 
 void PostProcessPipeline::drawScreenQuad() {
+    device_.setVertexBuffer(0, screen_quad_vbo_, 0);
+    device_.setIndexBuffer(BufferHandle::Invalid);
+    device_.drawArrays(0, 3);
+}
+
+void PostProcessPipeline::applyPassPipeline(const Shader& shader) {
     ensureScreenQuad();
-    auto* device = &device_;
-    device->bindVertexArray(screen_quad_vao_);
-    device->drawArrays(0, 3);
+    // Fullscreen passes overwrite every pixel: no blend, no depth, no stencil.
+    PipelineDesc desc{};
+    desc.program = shader.handle();
+    desc.vertexLayout = screen_quad_layout_;
+    desc.blendEnabled = false;
+    desc.depthTest = false;
+    desc.depthWrite = false;
+    device_.setPipeline(device_.createPipeline(desc));
 }
 
 void PostProcessPipeline::begin() {
@@ -307,11 +307,10 @@ void PostProcessPipeline::end() {
         if (pass.enabled) enabledCount++;
     }
 
-    device->setDepthTest(false);
-    device->setBlendEnabled(false);
+    // Blend/depth/stencil/color-mask come from the fullscreen pass pipeline;
+    // scissor is dynamic state and must be dropped explicitly.
+    device->invalidatePipelineCache();
     device->setScissorTest(false);
-    device->setStencilTest(false);
-    device->setColorMask(true, true, true, true);
 
     sceneTexture_ = fboOriginal_->getColorAttachment();
     fboOriginal_->unbind();
@@ -344,8 +343,7 @@ void PostProcessPipeline::end() {
         blitToOutput(inputTexture);
     }
 
-    device->setBlendEnabled(true);
-    device->setDepthTest(true);
+    device->invalidatePipelineCache();
     inFrame_ = false;
     output_target_fbo_ = FramebufferHandle::Default;
 }
@@ -357,7 +355,7 @@ void PostProcessPipeline::renderPass(const PostProcessPass& pass, TextureHandle 
     auto* device = &device_;
     device->bindTexture(0, inputTexture);
 
-    shader->bind();
+    applyPassPipeline(*shader);
     shader->setUniform("u_texture", 0);
     // u_sceneTexture and u_resolution are engine-provided builtins that only some
     // passes use (bloom's composite taps the untouched scene; kawase/pixelate/fxaa
@@ -410,7 +408,7 @@ void PostProcessPipeline::blitToOutput(TextureHandle texture) {
 
     device->bindTexture(0, texture);
 
-    shader->bind();
+    applyPassPipeline(*shader);
     shader->setUniform("u_texture", 0);
 
     drawScreenQuad();
@@ -475,15 +473,13 @@ void PostProcessPipeline::executeScreenPasses() {
     }
 
     if (enabledCount == 0) {
+        device->invalidatePipelineCache();
         blitToOutput(screenFBO_->getColorAttachment());
         return;
     }
 
-    device->setDepthTest(false);
-    device->setBlendEnabled(false);
+    device->invalidatePipelineCache();
     device->setScissorTest(false);
-    device->setStencilTest(false);
-    device->setColorMask(true, true, true, true);
 
     ensureFBOs();
     if (!fbosCreated_) return;
@@ -516,8 +512,7 @@ void PostProcessPipeline::executeScreenPasses() {
     device->setViewport(0, 0, width_, height_);
     blitToOutput(inputTexture);
 
-    device->setBlendEnabled(true);
-    device->setDepthTest(true);
+    device->invalidatePipelineCache();
 }
 
 u32 PostProcessPipeline::addScreenPass(const std::string& name, resource::ShaderHandle shader) {

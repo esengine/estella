@@ -22,7 +22,7 @@
 
 #include "../core/Types.hpp"
 #include "BlendMode.hpp"
-#include "GfxEnums.hpp"  // LayoutId
+#include "GfxEnums.hpp"
 
 namespace esengine {
 
@@ -42,7 +42,7 @@ enum class GfxStencilMode : u8 {
  */
 struct PipelineDesc {
     ShaderHandle program = ShaderHandle::Invalid;
-    LayoutId vertexLayout = LayoutId::Batch;
+    VertexLayoutHandle vertexLayout = VertexLayoutHandle::Invalid;
     BlendMode blend = BlendMode::Normal;
     bool blendEnabled = true;
     bool depthTest = false;

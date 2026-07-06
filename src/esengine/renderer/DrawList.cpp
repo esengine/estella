@@ -115,7 +115,7 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
         // caches; a one-entry memo skips the lookup for identical consecutive (sorted) commands.
         PipelineDesc desc{};
         desc.program = ShaderHandle{cmd.shader_id};
-        desc.vertexLayout = cmd.layout_id;
+        desc.vertexLayout = buffers.layoutHandle(cmd.layout_id);
         desc.blend = cmd.blend_mode;
         desc.blendEnabled = true;
         desc.depthTest = cmd.depth_test;

@@ -14,7 +14,7 @@ namespace esengine {
 // reference LayoutId without pulling in the GfxDevice include cycle.
 
 /**
- * Per-frame vertex/index staging with one independent VBO+EBO+VAO per layout.
+ * Per-frame vertex/index staging with one independent VBO+EBO+vertex-layout per stream.
  *
  * Design note: heterogeneous vertex formats (BatchVertex 20B, ShapeVertex 48B,
  * ...) cannot safely share a single VBO because each plugin computes
@@ -46,15 +46,18 @@ public:
     /** Upload every non-empty stream's staging to its VBO/EBO. */
     void upload();
 
-    /** Bind the VAO for this layout (which also binds its EBO — VAO state). */
+    /** Bind this stream's vertex + index buffers for the next draw. */
     void bindLayout(LayoutId layout);
 
     /**
-     * Bind an instanced layout and re-point its per-instance attributes to @p instanceByteOffset.
+     * Bind an instanced stream with its per-instance buffer rebased to @p instanceByteOffset.
      * GLES3 has no baseInstance, so each emitter's instanced draw rebases the instance
-     * attributes here before drawElementsInstanced. The static quad attributes are untouched.
+     * slot here before drawElementsInstanced. The static quad slot is untouched.
      */
     void bindInstanceLayout(LayoutId layout, u32 instanceByteOffset);
+
+    /** The device vertex layout a pipeline drawing this stream must reference. */
+    VertexLayoutHandle layoutHandle(LayoutId layout) const;
 
     /** Direct write-through pointer into a layout's staging, for hot paths
      *  that want to format vertices in place after `allocVertices`. */
@@ -68,8 +71,8 @@ private:
     struct Stream {
         BufferHandle vbo = BufferHandle::Invalid;  // for ParticleInstance: the per-instance (streamed) buffer
         BufferHandle ebo = BufferHandle::Invalid;
-        u32 vao = 0;
-        BufferHandle quad_vbo = BufferHandle::Invalid;  // ParticleInstance only: static unit-quad geometry (divisor 0)
+        VertexLayoutHandle layout = VertexLayoutHandle::Invalid;
+        BufferHandle quad_vbo = BufferHandle::Invalid;  // ParticleInstance only: static unit-quad geometry (slot 0)
         std::vector<u8> vertex_staging;
         std::vector<u32> index_staging;  // 32-bit indices: a single Batch stream can exceed 65535 vertices
         u32 vertex_write_pos = 0;

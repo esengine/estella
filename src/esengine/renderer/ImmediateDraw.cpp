@@ -81,18 +81,20 @@ void ImmediateDraw::init() {
         }
         device_.useProgram(ShaderHandle::Invalid);
 
-        // One immutable pipeline: the batch shader, Batch layout, normal blend, depth
+        // The base pipeline: the batch shader, Batch layout, normal blend, depth
         // test off (write on, matching the world batch path), no stencil, no culling.
-        PipelineDesc desc{};
-        desc.program = batch_shader_;
-        desc.vertexLayout = LayoutId::Batch;
-        desc.blend = BlendMode::Normal;
-        desc.blendEnabled = true;
-        desc.depthTest = false;
-        desc.depthWrite = true;
-        desc.stencil = GfxStencilMode::Off;
-        desc.cullEnabled = false;
-        pipeline_ = device_.createPipeline(desc);
+        // setBlendMode/setDepthTest swap in cached sibling pipelines per state.
+        base_desc_ = PipelineDesc{};
+        base_desc_.program = batch_shader_;
+        base_desc_.vertexLayout = pool_.layoutHandle(LayoutId::Batch);
+        base_desc_.blend = BlendMode::Normal;
+        base_desc_.blendEnabled = true;
+        base_desc_.depthTest = false;
+        base_desc_.depthWrite = true;
+        base_desc_.stencil = GfxStencilMode::Off;
+        base_desc_.cullEnabled = false;
+        current_desc_ = base_desc_;
+        pipeline_ = device_.createPipeline(current_desc_);
     } else {
         ES_LOG_ERROR("ImmediateDraw: failed to create batch shader");
     }
@@ -122,6 +124,27 @@ void ImmediateDraw::begin(const glm::mat4& viewProjection) {
     primitiveCount_ = 0;
     drawCallCount_ = 0;
     inFrame_ = true;
+
+    // Each session starts from the base state; a prior session's blend/depth
+    // overrides do not leak across frames.
+    if (!(current_desc_ == base_desc_)) {
+        current_desc_ = base_desc_;
+        pipeline_ = device_.createPipeline(current_desc_);
+    }
+}
+
+void ImmediateDraw::setBlendMode(BlendMode mode) {
+    if (current_desc_.blend == mode) return;
+    if (pendingGeometry_) flush();
+    current_desc_.blend = mode;
+    pipeline_ = device_.createPipeline(current_desc_);
+}
+
+void ImmediateDraw::setDepthTest(bool enabled) {
+    if (current_desc_.depthTest == enabled) return;
+    if (pendingGeometry_) flush();
+    current_desc_.depthTest = enabled;
+    pipeline_ = device_.createPipeline(current_desc_);
 }
 
 void ImmediateDraw::flush() {

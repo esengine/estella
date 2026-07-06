@@ -160,13 +160,13 @@ u32 draw_getPrimitiveCount() {
 }
 
 void draw_setBlendMode(i32 mode) {
-    flushImmediateDrawIfActive();
-    g_device->setBlendMode(static_cast<BlendMode>(mode));
+    if (!g_immediateDraw) return;
+    g_immediateDraw->setBlendMode(static_cast<BlendMode>(mode));
 }
 
 void draw_setDepthTest(bool enabled) {
-    flushImmediateDrawIfActive();
-    g_device->setDepthTest(enabled);
+    if (!g_immediateDraw) return;
+    g_immediateDraw->setDepthTest(enabled);
 }
 
 }  // namespace esengine

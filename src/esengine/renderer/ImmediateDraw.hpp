@@ -20,6 +20,7 @@
 
 #include "../core/Types.hpp"
 #include "../math/Math.hpp"
+#include "PipelineState.hpp"
 #include "TransientBufferPool.hpp"
 
 #include <glm/glm.hpp>
@@ -148,6 +149,13 @@ public:
     void setDepth(f32 depth) { currentDepth_ = depth; }
     f32 getDepth() const { return currentDepth_; }
 
+    /** Switches the blend mode for subsequent primitives (flushes pending geometry). */
+    void setBlendMode(BlendMode mode);
+    /** Toggles depth testing for subsequent primitives (flushes pending geometry). */
+    void setDepthTest(bool enabled);
+    BlendMode blendMode() const { return current_desc_.blend; }
+    bool depthTest() const { return current_desc_.depthTest; }
+
     // =========================================================================
     // Statistics
     // =========================================================================
@@ -173,6 +181,8 @@ private:
 
     TransientBufferPool pool_;
     ShaderHandle batch_shader_ = ShaderHandle::Invalid;
+    PipelineDesc base_desc_{};
+    PipelineDesc current_desc_{};
     PipelineHandle pipeline_ = PipelineHandle::Invalid;
     u32 white_texture_id_ = 0;
     u32 currentTexture_ = 0;

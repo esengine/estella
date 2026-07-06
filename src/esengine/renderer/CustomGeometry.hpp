@@ -69,20 +69,19 @@ public:
     void updateVertices(const f32* vertices, u32 vertexCount, u32 offset = 0);
 
     /**
-     * @brief Binds the geometry for rendering
+     * @brief Binds the geometry's buffers for the next draw
      */
     void bind(GfxDevice& device) const;
 
     /**
-     * @brief Unbinds the geometry
+     * @brief The device vertex layout a pipeline drawing this geometry must reference
      */
-    void unbind() const;
+    VertexLayoutHandle layoutHandle() const { return layout_; }
 
     /**
-     * @brief Gets the VAO for rendering
+     * @brief Gets the index buffer (null when non-indexed)
      */
-    VertexArray* getVAO() { return vao_.get(); }
-    const VertexArray* getVAO() const { return vao_.get(); }
+    const IndexBuffer* indexBuffer() const { return ibo_.get(); }
 
     /**
      * @brief Gets the index count
@@ -107,11 +106,11 @@ public:
     /**
      * @brief Checks if geometry is initialized
      */
-    bool isValid() const { return vao_ != nullptr; }
+    bool isValid() const { return layout_ != VertexLayoutHandle::Invalid; }
 
 private:
     GfxDevice* device_ = nullptr;  ///< Set in init(); used to create index buffers later.
-    Unique<VertexArray> vao_;
+    VertexLayoutHandle layout_ = VertexLayoutHandle::Invalid;
     Shared<VertexBuffer> vbo_;
     Shared<IndexBuffer> ibo_;
     u32 vertexCount_ = 0;

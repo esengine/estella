@@ -89,6 +89,37 @@ enum class GfxDataType : u8 {
 };
 
 // =============================================================================
+// Vertex Layout (part of a pipeline's identity; see PipelineDesc)
+// =============================================================================
+
+static constexpr u32 MAX_VERTEX_ATTRIBUTES = 8;
+static constexpr u32 MAX_VERTEX_BUFFER_SLOTS = 2;
+
+struct GfxVertexAttribute {
+    u32 location = 0;
+    u8 components = 4;  ///< 1..4
+    GfxDataType type = GfxDataType::Float;
+    bool normalized = false;
+    u32 offset = 0;  ///< Byte offset within one element of its buffer slot.
+    u8 bufferSlot = 0;
+};
+
+/**
+ * @brief Describes how vertex-buffer bytes map to shader attributes.
+ * @details Registered once (createVertexLayout) and referenced by pipelines;
+ *          the buffers themselves bind per draw via setVertexBuffer. A slot with
+ *          `instanceStep` advances per instance (attribute divisor 1).
+ */
+struct VertexLayoutDesc {
+    GfxVertexAttribute attributes[MAX_VERTEX_ATTRIBUTES] = {};
+    u32 attributeCount = 0;
+    u32 strides[MAX_VERTEX_BUFFER_SLOTS] = {};
+    bool instanceStep[MAX_VERTEX_BUFFER_SLOTS] = {};
+};
+
+enum class VertexLayoutHandle : u32 { Invalid = 0 };
+
+// =============================================================================
 // Stencil Function
 // =============================================================================
 

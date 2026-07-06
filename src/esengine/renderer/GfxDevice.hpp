@@ -161,11 +161,25 @@ public:
     /** @brief Binds a buffer to a uniform binding slot (the block index shaders are linked to). */
     virtual void setUniformBuffer(u32 slot, BufferHandle buffer) = 0;
 
-    /** @brief Binds a vertex buffer for vertex-layout setup */
-    virtual void bindVertexBuffer(BufferHandle buffer) = 0;
+    // =========================================================================
+    // Vertex Input (layout in the pipeline, buffers bound per draw)
+    // =========================================================================
 
-    /** @brief Binds an index buffer for vertex-layout setup */
-    virtual void bindIndexBuffer(BufferHandle buffer) = 0;
+    /** @brief Registers an immutable vertex layout; pipelines reference it by handle. */
+    virtual VertexLayoutHandle createVertexLayout(const VertexLayoutDesc& desc) = 0;
+
+    /** @brief Deletes a vertex layout (no pipeline may reference it afterwards) */
+    virtual void deleteVertexLayout(VertexLayoutHandle layout) = 0;
+
+    /**
+     * @brief Binds a vertex buffer to a layout slot for subsequent draws.
+     * @param offsetBytes Byte offset of element 0 — how an instanced draw rebases
+     *        its per-instance stream (GLES3 has no baseInstance).
+     */
+    virtual void setVertexBuffer(u32 slot, BufferHandle buffer, u32 offsetBytes) = 0;
+
+    /** @brief Binds the index buffer for subsequent indexed draws */
+    virtual void setIndexBuffer(BufferHandle buffer) = 0;
 
     // =========================================================================
     // Textures
@@ -305,29 +319,6 @@ public:
      *          geometry — is not mistaken for the current one.
      */
     virtual void invalidatePipelineCache() = 0;
-
-    // =========================================================================
-    // VAO Operations
-    // =========================================================================
-
-    /** @brief Creates a vertex array object */
-    virtual u32 createVertexArray() = 0;
-
-    /** @brief Deletes a vertex array object */
-    virtual void deleteVertexArray(u32 vaoId) = 0;
-
-    /** @brief Binds a vertex array object */
-    virtual void bindVertexArray(u32 vaoId) = 0;
-
-    /** @brief Enables a vertex attribute */
-    virtual void enableVertexAttrib(u32 index) = 0;
-
-    /** @brief Configures a vertex attribute pointer */
-    virtual void vertexAttribPointer(u32 index, i32 size, GfxDataType type,
-                                     bool normalized, i32 stride, u32 offset) = 0;
-
-    /** @brief Sets vertex attribute divisor for instanced rendering */
-    virtual void vertexAttribDivisor(u32 index, u32 divisor) = 0;
 
     // =========================================================================
     // Draw Calls

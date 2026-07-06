@@ -550,6 +550,7 @@ void GLDevice::uploadBufferStore(BufferHandle buffer, u32 offsetBytes, const voi
     // VAO is bound would silently rewire that VAO's index buffer. Detach first.
     if (meta.usage == GfxBufferUsage::Index) {
         glBindVertexArray(0);
+        bound_vao_ = 0;
     }
 
     const GLenum target = toGLBufferTarget(meta.usage);
@@ -587,12 +588,91 @@ void GLDevice::setUniformBuffer(u32 slot, BufferHandle buffer) {
     glBindBufferBase(GL_UNIFORM_BUFFER, slot, static_cast<GLuint>(buffer));
 }
 
-void GLDevice::bindVertexBuffer(BufferHandle buffer) {
-    glBindBuffer(GL_ARRAY_BUFFER, static_cast<GLuint>(buffer));
+// =============================================================================
+// Vertex Input
+// =============================================================================
+
+VertexLayoutHandle GLDevice::createVertexLayout(const VertexLayoutDesc& desc) {
+    LayoutRecord rec;
+    rec.desc = desc;
+    rec.alive = true;
+    layouts_.push_back(rec);
+    return static_cast<VertexLayoutHandle>(layouts_.size());  // 1-based; 0 == Invalid
 }
 
-void GLDevice::bindIndexBuffer(BufferHandle buffer) {
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, static_cast<GLuint>(buffer));
+void GLDevice::deleteVertexLayout(VertexLayoutHandle layout) {
+    const u32 index = static_cast<u32>(layout);
+    if (index == 0 || index > layouts_.size()) return;
+    LayoutRecord& rec = layouts_[index - 1];
+    if (rec.vao != 0) {
+        if (bound_vao_ == rec.vao) {
+            glBindVertexArray(0);
+            bound_vao_ = 0;
+        }
+        glDeleteVertexArrays(1, &rec.vao);
+        rec.vao = 0;
+    }
+    rec.alive = false;
+}
+
+void GLDevice::setVertexBuffer(u32 slot, BufferHandle buffer, u32 offsetBytes) {
+    if (slot >= MAX_VERTEX_BUFFER_SLOTS) return;
+    pending_vbo_[slot] = static_cast<u32>(buffer);
+    pending_vbo_offset_[slot] = offsetBytes;
+}
+
+void GLDevice::setIndexBuffer(BufferHandle buffer) {
+    pending_ibo_ = static_cast<u32>(buffer);
+}
+
+void GLDevice::prepareVertexState() {
+    const u32 index = static_cast<u32>(current_layout_);
+    if (index == 0 || index > layouts_.size()) return;
+    LayoutRecord& rec = layouts_[index - 1];
+    if (!rec.alive) return;
+
+    if (rec.vao == 0) {
+        glGenVertexArrays(1, &rec.vao);
+        rec.configured = false;
+    }
+    if (bound_vao_ != rec.vao) {
+        glBindVertexArray(rec.vao);
+        bound_vao_ = rec.vao;
+    }
+
+    if (!rec.configured || rec.bakedIbo != pending_ibo_) {
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pending_ibo_);
+        rec.bakedIbo = pending_ibo_;
+    }
+
+    for (u32 slot = 0; slot < MAX_VERTEX_BUFFER_SLOTS; ++slot) {
+        bool slotUsed = false;
+        for (u32 a = 0; a < rec.desc.attributeCount; ++a) {
+            if (rec.desc.attributes[a].bufferSlot == slot) { slotUsed = true; break; }
+        }
+        if (!slotUsed) continue;
+        if (rec.configured && rec.bakedVbo[slot] == pending_vbo_[slot]
+            && rec.bakedOffset[slot] == pending_vbo_offset_[slot]) {
+            continue;
+        }
+
+        glBindBuffer(GL_ARRAY_BUFFER, pending_vbo_[slot]);
+        for (u32 a = 0; a < rec.desc.attributeCount; ++a) {
+            const GfxVertexAttribute& attr = rec.desc.attributes[a];
+            if (attr.bufferSlot != slot) continue;
+            glEnableVertexAttribArray(attr.location);
+            glVertexAttribPointer(
+                attr.location, attr.components, toGLDataType(attr.type),
+                attr.normalized ? GL_TRUE : GL_FALSE,
+                static_cast<GLsizei>(rec.desc.strides[slot]),
+                reinterpret_cast<const void*>(
+                    static_cast<uintptr_t>(pending_vbo_offset_[slot] + attr.offset)));
+            glVertexAttribDivisor(attr.location, rec.desc.instanceStep[slot] ? 1 : 0);
+        }
+        rec.bakedVbo[slot] = pending_vbo_[slot];
+        rec.bakedOffset[slot] = pending_vbo_offset_[slot];
+    }
+    rec.configured = true;
 }
 
 u32 GLDevice::getUniformBlockIndex(ShaderHandle program, const char* name) {
@@ -659,6 +739,7 @@ void GLDevice::setPipeline(PipelineHandle handle) {
 
     current_pipeline_ = handle;
     current_stencil_mode_ = desc.stencil;
+    current_layout_ = desc.vertexLayout;
 }
 
 void GLDevice::setStencilReference(i32 ref) {
@@ -680,52 +761,22 @@ void GLDevice::invalidatePipelineCache() {
 }
 
 // =============================================================================
-// VAO Operations
-// =============================================================================
-
-u32 GLDevice::createVertexArray() {
-    GLuint id = 0;
-    glGenVertexArrays(1, &id);
-    return static_cast<u32>(id);
-}
-
-void GLDevice::deleteVertexArray(u32 vaoId) {
-    GLuint id = static_cast<GLuint>(vaoId);
-    glDeleteVertexArrays(1, &id);
-}
-
-void GLDevice::bindVertexArray(u32 vaoId) {
-    glBindVertexArray(vaoId);
-}
-
-void GLDevice::enableVertexAttrib(u32 index) {
-    glEnableVertexAttribArray(index);
-}
-
-void GLDevice::vertexAttribPointer(u32 index, i32 size, GfxDataType type,
-                                   bool normalized, i32 stride, u32 offset) {
-    glVertexAttribPointer(index, size, toGLDataType(type), normalized ? GL_TRUE : GL_FALSE,
-                          stride, reinterpret_cast<const void*>(static_cast<uintptr_t>(offset)));
-}
-
-void GLDevice::vertexAttribDivisor(u32 index, u32 divisor) {
-    glVertexAttribDivisor(index, divisor);
-}
-
-// =============================================================================
 // Draw Calls
 // =============================================================================
 
 void GLDevice::drawElements(u32 indexCount, GfxDataType indexType, u32 byteOffset) {
+    prepareVertexState();
     glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(indexCount), toGLDataType(indexType),
                    reinterpret_cast<const void*>(static_cast<uintptr_t>(byteOffset)));
 }
 
 void GLDevice::drawArrays(u32 first, u32 vertexCount) {
+    prepareVertexState();
     glDrawArrays(GL_TRIANGLES, static_cast<GLint>(first), static_cast<GLsizei>(vertexCount));
 }
 
 void GLDevice::drawElementsInstanced(u32 indexCount, GfxDataType indexType, u32 byteOffset, u32 instanceCount) {
+    prepareVertexState();
     glDrawElementsInstanced(GL_TRIANGLES, static_cast<GLsizei>(indexCount), toGLDataType(indexType),
                             reinterpret_cast<const void*>(static_cast<uintptr_t>(byteOffset)),
                             static_cast<GLsizei>(instanceCount));
