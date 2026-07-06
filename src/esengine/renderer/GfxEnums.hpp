@@ -229,6 +229,20 @@ struct FramebufferDesc {
     TextureHandle depthStencil = TextureHandle::Invalid;
 };
 
+/**
+ * @brief One render pass: a target plus which attachments to clear on entry.
+ * @details Clears use the device's current clear color / clear stencil values
+ *          and ignore write masks a prior pipeline left restrictive (load-op
+ *          semantics) — but they do honor the current scissor rectangle, which
+ *          the TS-driven multi-camera flow relies on for per-camera clears.
+ */
+struct RenderPassDesc {
+    FramebufferHandle target = FramebufferHandle::Default;
+    bool clearColor = false;
+    bool clearDepth = false;
+    bool clearStencil = false;
+};
+
 // =============================================================================
 // Backend Queries (diagnostics / capabilities)
 // =============================================================================

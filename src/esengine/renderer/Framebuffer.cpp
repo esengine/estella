@@ -75,11 +75,11 @@ Unique<Framebuffer> Framebuffer::create(GfxDevice& device, const FramebufferSpec
 // =============================================================================
 
 void Framebuffer::bind() const {
-    if (device_) device_->bindFramebuffer(handle_);
+    if (device_) device_->beginRenderPass({handle_});
 }
 
 void Framebuffer::unbind() const {
-    if (device_) device_->bindFramebuffer(FramebufferHandle::Default);
+    if (device_) device_->endRenderPass();
 }
 
 void Framebuffer::resize(u32 width, u32 height) {

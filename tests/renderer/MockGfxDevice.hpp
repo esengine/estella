@@ -15,7 +15,8 @@ struct MockGfxDevice final : GfxDevice {
     // call counters
     int useProgramCalls = 0;
     int bindTextureCalls = 0;
-    int bindFramebufferCalls = 0;
+    int beginRenderPassCalls = 0;
+    int endRenderPassCalls = 0;
     int createProgramCalls = 0;
     int deleteProgramCalls = 0;
     int setUniform1iCalls = 0;
@@ -55,7 +56,7 @@ struct MockGfxDevice final : GfxDevice {
     VertexLayoutDesc lastVertexLayoutDesc{};
     BufferHandle lastVbo = BufferHandle::Invalid;
     BufferHandle lastIbo = BufferHandle::Invalid;
-    FramebufferHandle lastFbo = FramebufferHandle::Default;
+    RenderPassDesc lastPassDesc{};
     i32 lastUniform1iLoc = -999, lastUniform1iVal = 0;
     BufferDesc lastBufferDesc{};
     bool lastCreateBufferHadData = false;
@@ -177,7 +178,8 @@ struct MockGfxDevice final : GfxDevice {
         return FramebufferHandle{nextFramebufferId++};
     }
     void deleteFramebuffer(FramebufferHandle) override { ++deleteFramebufferCalls; }
-    void bindFramebuffer(FramebufferHandle framebuffer) override { ++bindFramebufferCalls; lastFbo = framebuffer; }
+    void beginRenderPass(const RenderPassDesc& desc) override { ++beginRenderPassCalls; lastPassDesc = desc; }
+    void endRenderPass() override { ++endRenderPassCalls; }
 
     void readPixels(i32, i32, u32, u32, GfxPixelFormat, void*) override {}
 

@@ -347,8 +347,20 @@ public:
     /** @brief Deletes a framebuffer (its attachment textures are owned by the caller) */
     virtual void deleteFramebuffer(FramebufferHandle framebuffer) = 0;
 
-    /** @brief Binds a framebuffer (Default = backbuffer) */
-    virtual void bindFramebuffer(FramebufferHandle framebuffer) = 0;
+    // =========================================================================
+    // Render Pass
+    // =========================================================================
+
+    /**
+     * @brief Targets a framebuffer for subsequent draws and applies the pass's clears.
+     * @details Beginning a pass while another is open retargets directly (the GL
+     *          model has no explicit pass object); endRenderPass returns to the
+     *          backbuffer. A WebGPU backend maps this to real pass boundaries.
+     */
+    virtual void beginRenderPass(const RenderPassDesc& desc) = 0;
+
+    /** @brief Ends the current pass, restoring the default framebuffer */
+    virtual void endRenderPass() = 0;
 
     // =========================================================================
     // Readback

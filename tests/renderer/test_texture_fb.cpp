@@ -119,7 +119,10 @@ int main() {
                   d.lastFramebufferDesc.depthStencil != TextureHandle::Invalid,
                   "both attachments are declared in the framebuffer descriptor");
             fbo->bind();
-            CHECK(d.bindFramebufferCalls >= 1, "bind routes through device.bindFramebuffer");
+            CHECK(d.beginRenderPassCalls == 1 && d.lastPassDesc.target == fbo->handle(),
+                  "bind begins a render pass targeting the framebuffer");
+            fbo->unbind();
+            CHECK(d.endRenderPassCalls == 1, "unbind ends the render pass");
         }
         CHECK(d.deleteFramebufferCalls == 1, "destructor deletes the framebuffer via device");
         CHECK(d.deleteTextureCalls == 2, "destructor deletes both attachments via device");

@@ -117,7 +117,8 @@ public:
 
     FramebufferHandle createFramebuffer(const FramebufferDesc& desc) override;
     void deleteFramebuffer(FramebufferHandle framebuffer) override;
-    void bindFramebuffer(FramebufferHandle framebuffer) override;
+    void beginRenderPass(const RenderPassDesc& desc) override;
+    void endRenderPass() override;
 
     void readPixels(i32 x, i32 y, u32 w, u32 h, GfxPixelFormat format, void* data) override;
 

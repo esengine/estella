@@ -35,7 +35,7 @@ bool postprocess_init(u32 width, u32 height) {
     }
 
     g_postProcessPipeline->init(width, height);
-    g_device->bindFramebuffer(FramebufferHandle::Default);
+    g_device->endRenderPass();
 
     return g_postProcessPipeline->isInitialized();
 }

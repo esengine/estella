@@ -288,10 +288,8 @@ void PostProcessPipeline::begin() {
     ensureFBOs();
     if (!fboOriginalCreated_) return;
 
-    auto* device = &device_;
-    fboOriginal_->bind();
-    device->setViewport(0, 0, width_, height_);
-    device->clear(true, true, false);
+    device_.beginRenderPass({fboOriginal_->handle(), /*clearColor=*/true, /*clearDepth=*/true});
+    device_.setViewport(0, 0, width_, height_);
 
     inFrame_ = true;
     currentFBO_ = 0;
@@ -400,7 +398,7 @@ void PostProcessPipeline::blitToOutput(TextureHandle texture) {
     if (!shader) return;
 
     auto* device = &device_;
-    device->bindFramebuffer(output_target_fbo_);
+    device->beginRenderPass({output_target_fbo_});
 
     if (output_vp_w_ > 0 && output_vp_h_ > 0) {
         device->setViewport(output_vp_x_, output_vp_y_, output_vp_w_, output_vp_h_);
@@ -447,10 +445,8 @@ void PostProcessPipeline::beginScreenCapture() {
     ensureScreenFBO();
     if (!screenFBOCreated_) return;
 
-    auto* device = &device_;
-    screenFBO_->bind();
-    device->setViewport(0, 0, width_, height_);
-    device->clear(true, true, false);
+    device_.beginRenderPass({screenFBO_->handle(), /*clearColor=*/true, /*clearDepth=*/true});
+    device_.setViewport(0, 0, width_, height_);
 
     screenCaptureActive_ = true;
 }
@@ -508,7 +504,7 @@ void PostProcessPipeline::executeScreenPasses() {
     Framebuffer* lastFBO = (pingPong == 0) ? fboA_.get() : fboB_.get();
     lastFBO->unbind();
 
-    device->bindFramebuffer(FramebufferHandle::Default);
+    device->endRenderPass();
     device->setViewport(0, 0, width_, height_);
     blitToOutput(inputTexture);
 

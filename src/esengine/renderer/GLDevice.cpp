@@ -907,8 +907,23 @@ void GLDevice::deleteFramebuffer(FramebufferHandle framebuffer) {
     if (id != 0) glDeleteFramebuffers(1, &id);
 }
 
-void GLDevice::bindFramebuffer(FramebufferHandle framebuffer) {
-    glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(framebuffer));
+void GLDevice::beginRenderPass(const RenderPassDesc& desc) {
+    glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(desc.target));
+    if (desc.clearColor || desc.clearDepth || desc.clearStencil) {
+        // Load-op semantics: a clear must not be vetoed by write masks a prior
+        // pipeline left restrictive (glClear honors them), so force the cleared
+        // attachments' masks open and drop the cached pipeline — the next
+        // setPipeline re-applies its own masks.
+        if (desc.clearColor) setColorMask(true, true, true, true);
+        if (desc.clearDepth) setDepthWrite(true);
+        if (desc.clearStencil) setStencilMask(0xFF);
+        clear(desc.clearColor, desc.clearDepth, desc.clearStencil);
+        invalidatePipelineCache();
+    }
+}
+
+void GLDevice::endRenderPass() {
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 // =============================================================================

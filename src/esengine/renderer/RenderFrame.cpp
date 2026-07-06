@@ -335,12 +335,9 @@ void RenderFrame::replayToDrawCall(i32 stopAtDrawCall) {
     auto* rt = target_manager_.get(replay_rt_);
     if (!rt) return;
 
-    rt->bind();
-    device_.setViewport(0, 0, width_, height_);
     device_.setClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-    device_.clear(true, false, false);
-
-    device_.invalidatePipelineCache();
+    device_.beginRenderPass({rt->getFramebuffer(), /*clearColor=*/true});
+    device_.setViewport(0, 0, width_, height_);
 
     frame_capture_.setReplayMode(stopAtDrawCall + 1);
 
@@ -376,11 +373,9 @@ void RenderFrame::renderToTarget(ecs::Registry& registry, const glm::mat4& viewP
     auto* rt = target_manager_.get(preview_rt_);
     if (!rt) return;
 
-    rt->bind();
-    device_.setViewport(0, 0, w, h);
     device_.setClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-    device_.clear(true, false, false);
-    device_.invalidatePipelineCache();
+    device_.beginRenderPass({rt->getFramebuffer(), /*clearColor=*/true});
+    device_.setViewport(0, 0, w, h);
 
     // A self-contained collect (begin()'s setup minus post-process) + execute (flush()'s body),
     // drawn to the bound preview target. Reuses the real collect+material+execute path so a
