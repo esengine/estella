@@ -512,9 +512,12 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
     // whichever happened to come last in iteration order. Ambient lights sum without a cap.
     std::vector<GpuLight2D> collected;
 
-    auto view = registry.view<ecs::Transform, ecs::Light2D>();
+    // A light's Transform need is type-dependent: Ambient (a flat scene-wide term) and
+    // Directional (parallel rays; direction is intrinsic) have no spatial anchor and work
+    // without one — only Point/Spot sample a world position.
+    auto view = registry.view<ecs::Light2D>();
     for (auto entity : view) {
-        const auto& light = view.get<ecs::Light2D>(entity);
+        const auto& light = view.get(entity);
         if (!light.enabled || light.intensity <= 0.0f) continue;
 
         const auto type = static_cast<ecs::Light2DType>(light.type);
@@ -534,9 +537,10 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
             // Direction in the 2D plane; z=1 flags directional (no attenuation) in the shader.
             gpu.posDir = glm::vec4(light.direction.x, light.direction.y, 1.0f, 0.0f);
         } else {  // Point / Spot — world position from the Transform, w=falloff radius.
-            auto& transform = view.get<ecs::Transform>(entity);
-            transform.ensureDecomposed();
-            const glm::vec3 p = transform.worldPosition;
+            auto* transform = registry.tryGet<ecs::Transform>(entity);
+            if (!transform) continue;  // a positional light with no position casts nothing
+            transform->ensureDecomposed();
+            const glm::vec3 p = transform->worldPosition;
             const f32 typeId = (type == ecs::Light2DType::Spot) ? 2.0f : 0.0f;
             gpu.posDir = glm::vec4(p.x, p.y, typeId, light.radius);
             if (type == ecs::Light2DType::Spot) {

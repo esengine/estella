@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { getAllRegisteredComponents, getUserComponents, getComponent, getComponentAssetFieldDescriptors, getComponentFieldMeta } from 'esengine';
+import { getAllRegisteredComponents, getUserComponents, getComponent, getComponentAssetFieldDescriptors, getComponentFieldMeta, Light2DType } from 'esengine';
 import type { App, SceneData } from 'esengine';
 import type { NodeKind, InspectorField, EnumOption, GradientValue, CurveValue } from '@/types';
 
@@ -36,10 +36,12 @@ export type AnyComp = Parameters<WorldT['has']>[1];
 const HIDDEN_COMPONENTS = new Set(['Parent', 'Children', 'Name']);
 // Components whose enable flag drives the entity's RENDER visibility (the Outliner
 // eye + hidden state). Disabling a non-render component (physics, audio, a script)
-// turns that behaviour off without hiding the entity.
+// turns that behaviour off without hiding the entity. Light2D/ShadowCaster2D belong
+// here too: a hidden entity must stop lighting and shadowing the scene, not just
+// stop drawing its own pixels.
 const RENDER_COMPONENTS = new Set([
   'Sprite', 'ShapeRenderer', 'SpineAnimation', 'BitmapText', 'TilemapLayer', 'ParticleEmitter',
-  'UIVisual', 'Text',
+  'UIVisual', 'Text', 'Light2D', 'ShadowCaster2D',
 ]);
 /** Whether a component's enable flag participates in the entity's render visibility. */
 export function isRenderComponent(name: string): boolean {
@@ -115,9 +117,13 @@ const RAD2DEG = 180 / Math.PI;
 const DEG2RAD = Math.PI / 180;
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
+// Word-split identifiers with acronym + digit-suffix awareness, so 'UIVisual'
+// reads "UI Visual" (not "U I Visual") and 'Light2D' reads "Light 2D" (not "Light2 D").
 export const prettyLabel = (key: string) =>
   key
-    .replace(/([A-Z])/g, ' $1')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2') // acronym→word: UIVisual → UI Visual
+    .replace(/([a-z])([A-Z])/g, '$1 $2') // camelCase: orthoSize → ortho Size
+    .replace(/([a-zA-Z])(\d)/g, '$1 $2') // digit run: Light2D → Light 2D
     .replace(/^./, (c) => c.toUpperCase())
     .trim();
 
@@ -504,10 +510,32 @@ export function modelAddableComponentEntries(
   return out.sort((a, b) => a.label.localeCompare(b.label));
 }
 
+// Light2D types whose contribution samples the entity's world position (the
+// engine skips them without a Transform); Ambient/Directional need none.
+const POSITIONAL_LIGHT_TYPES = new Set([Light2DType.Point, Light2DType.Spot]);
+
+/**
+ * A contextual inspector notice for a component on an entity — an entity state
+ * that leaves the component silently inert, surfaced so the silence is
+ * explainable (e.g. the render path skips a positional light with no Transform).
+ */
+export function componentNotice(compType: string, entity: SceneEntityLike): string | null {
+  const hasTransform = entity.components.some((c) => c.type === 'Transform');
+  if (hasTransform) return null;
+  if (compType === 'Light2D') {
+    const data = entity.components.find((c) => c.type === compType)?.data as { type?: number } | undefined;
+    if (POSITIONAL_LIGHT_TYPES.has(Number(data?.type ?? 0)))
+      return 'Point / Spot lights need a Transform for their position — this light is skipped.';
+  }
+  if (compType === 'ShadowCaster2D') return 'Needs a Transform to place its shadow box — this caster is skipped.';
+  return null;
+}
+
 /** Outliner icon kind for a source entity (which components it carries). */
 export function modelKindOf(entity: SceneEntityLike): NodeKind {
   const types = new Set(entity.components.map((c) => c.type));
   if (types.has('Camera')) return 'camera';
+  if (types.has('Light2D')) return 'light';
   if (types.has('SpineAnimation')) return 'spine';
   if (types.has('Canvas') || types.has('BitmapText')) return 'ui';
   if (types.has('Sprite') || types.has('ShapeRenderer') || types.has('TilemapLayer')) return 'sprite';

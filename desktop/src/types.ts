@@ -130,6 +130,12 @@ export interface InspectorComponent {
    * disagrees (value is the primary's).
    */
   enable?: { key: string; value: boolean; mixed?: boolean };
+  /**
+   * A contextual heads-up shown under the component header — an entity state
+   * that leaves the component silently inert (e.g. a Point light with no
+   * Transform to position it). Informational, not an error.
+   */
+  notice?: string;
 }
 
 export type AssetType =

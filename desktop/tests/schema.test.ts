@@ -14,6 +14,12 @@ describe('prettyLabel', () => {
         expect(prettyLabel('position')).toBe('Position');
         expect(prettyLabel('isActive')).toBe('Is Active');
     });
+    it('keeps acronyms and digit suffixes as words', () => {
+        expect(prettyLabel('UIVisual')).toBe('UI Visual');
+        expect(prettyLabel('Light2D')).toBe('Light 2D');
+        expect(prettyLabel('ShadowCaster2D')).toBe('Shadow Caster 2D');
+        expect(prettyLabel('BitmapText')).toBe('Bitmap Text');
+    });
 });
 
 describe('hexToRgba', () => {

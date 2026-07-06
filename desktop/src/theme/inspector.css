@@ -88,6 +88,8 @@
 .comp.open .comp-body { grid-template-rows: 1fr; }
 .comp-body > .cinner { overflow: hidden; }
 .comp-fields { padding: 5px 8px 8px; }
+/* contextual heads-up under a component header (silently-inert state, not an error) */
+.comp-notice { margin: 6px 8px 0; padding: 5px 8px; font-size: var(--fs-2xs); line-height: 1.45; color: var(--warn); background: rgba(214, 166, 90, 0.10); border: 1px solid rgba(214, 166, 90, 0.25); border-radius: var(--r-sm); }
 
 /* property rows (label col + value col, reset on right) */
 .prop { display: grid; grid-template-columns: 38% 1fr 18px; align-items: center; gap: 4px; min-height: var(--h-prop); padding: 1px 0; position: relative; }

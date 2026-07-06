@@ -5,9 +5,11 @@
  * @brief   2D light source component for the Lit2D material domain.
  * @details A scene's Light2D components are gathered by the render collect path into the
  *          per-frame LightConstants UBO (binding 2); Lit2D-domain material shaders read them
- *          via the injected applyLighting2D() helper. Point/Directional lights occupy a
- *          light slot; Ambient lights sum into the ambient term. World position comes from the
- *          entity's Transform — this component carries only the light's intrinsic parameters.
+ *          via the injected applyLighting2D() helper. Point/Directional/Spot lights occupy a
+ *          light slot; Ambient lights sum into the ambient term. This component carries only
+ *          the light's intrinsic parameters; Point/Spot read their world position from the
+ *          entity's Transform (and are skipped without one), while Ambient/Directional have
+ *          no spatial anchor and need no Transform.
  *
  * @author  ESEngine Team
  * @date    2026

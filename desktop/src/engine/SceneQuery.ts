@@ -9,6 +9,7 @@ import {
   inferField,
   isColorKey,
   componentEnable,
+  componentNotice,
   modelInspectableComponents,
   modelKindOf,
   modelNameOf,
@@ -81,7 +82,7 @@ export function buildInspector(
     const enable = componentEnable(name, cdata) ?? undefined;
     // The enable field is promoted to the header checkbox — drop it from the body.
     const fields = inspectorFields(name, cdata, baseOf?.(name)).filter((f) => f.key !== enable?.key);
-    out.push({ name, label, fields, enable });
+    out.push({ name, label, fields, enable, notice: componentNotice(name, e) ?? undefined });
   }
   return out;
 }
@@ -127,7 +128,7 @@ export function buildMultiInspector(
     for (const f of fields) {
       if (!datas.every((d) => deepEqual(d[f.key], datas[0][f.key]))) f.mixed = true;
     }
-    out.push({ name, label, fields, enable });
+    out.push({ name, label, fields, enable, notice: componentNotice(name, primary) ?? undefined });
   }
   return out;
 }

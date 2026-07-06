@@ -1342,6 +1342,7 @@ function ComponentSection({
       </header>
       <div className="comp-body">
         <div className="cinner">
+          {comp.notice && <div className="comp-notice">{comp.notice}</div>}
           <div className="comp-fields">
             {ungrouped.map(row)}
             {[...groups].map(([cat, fields]) => (
