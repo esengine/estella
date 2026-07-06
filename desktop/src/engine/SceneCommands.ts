@@ -5,6 +5,7 @@ import { TilemapAPI } from 'esengine';
 import type { EntityId, InspectorFieldType, InspectorFieldValue } from '@/types';
 import { EditorHistory, EditorHistoryImpl } from './EditorHistory';
 import { SceneModel, SceneModelImpl } from './SceneModel';
+import { ViewportController } from './ViewportController';
 import { expandInstance } from './PrefabInstance';
 import { setEntityClipboard, getEntityClipboard, remapClipboardEntities } from './entityClipboard';
 import {
@@ -273,11 +274,19 @@ export class SceneCommandsImpl {
     );
   }
 
-  /** Move an entity to a world position (keeps Z). Undoable like any field edit. */
+  /**
+   * Move an entity to a world position (keeps local Z). Undoable like any field
+   * edit. `Transform.position` is parent-local, so a parented entity's world
+   * target is re-expressed in its parent's live world frame before the write —
+   * viewport tools speak world space; the model invariant stays local.
+   */
   setEntityXY(sourceId: EntityId, x: number, y: number): void {
+    const entity = this.model.entityBySource(sourceId);
     const pos = this.modelFieldValue(sourceId, 'Transform', 'position') as { z?: number } | undefined;
-    if (pos === undefined && !this.model.entityBySource(sourceId)) return;
-    this.setField(sourceId, 'Transform', 'position', 'vec3', [x, y, pos?.z ?? 0]);
+    if (pos === undefined && !entity) return;
+    const parentRt = entity?.parent != null ? this.model.runtimeFor(entity.parent) : undefined;
+    const local = ViewportController.worldToParentLocalXY(parentRt, x, y);
+    this.setField(sourceId, 'Transform', 'position', 'vec3', [local.x, local.y, pos?.z ?? 0]);
   }
 
   // — Undoable entity lifecycle (model ops; the Reconciler re-spawns/-despawns) —

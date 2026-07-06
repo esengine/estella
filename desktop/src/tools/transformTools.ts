@@ -76,15 +76,30 @@ function canvasOrigin(): { left: number; top: number } | null {
 function readTarget(sourceId: EntityId): Target | null {
   const rtId = SceneModel.runtimeFor(sourceId);
   if (rtId == null) return null;
-  const pos = ViewportController.getEntityXY(rtId);
+  const pos = ViewportController.getEntityWorldXY(rtId);
   if (!pos) return null;
   const rotDeg = (SceneQuery.getFieldValue(sourceId, 'Transform', 'rotation') as number) ?? 0;
   const sc = (SceneQuery.getFieldValue(sourceId, 'Transform', 'scale') as number[]) ?? [1, 1, 1];
   return { sourceId, start: { x: pos.x, y: pos.y, rotDeg, sx: sc[0] ?? 1, sy: sc[1] ?? 1, sz: sc[2] ?? 1 } };
 }
 
+/**
+ * Drop ids whose ancestor is also selected: transforming the ancestor already
+ * carries its subtree, so transforming the descendant too would apply the
+ * gesture twice (once directly, once through the parent).
+ */
+function pruneDescendants(ids: readonly EntityId[]): EntityId[] {
+  const set = new Set(ids);
+  return ids.filter((id) => {
+    for (let p = SceneModel.entityBySource(id)?.parent; p != null; p = SceneModel.entityBySource(p)?.parent) {
+      if (set.has(p)) return false;
+    }
+    return true;
+  });
+}
+
 function captureTargets(ids: readonly EntityId[]): Target[] {
-  return ids.map(readTarget).filter((t): t is Target => t !== null);
+  return pruneDescendants(ids).map(readTarget).filter((t): t is Target => t !== null);
 }
 
 /** Selection centroid = mean of the live world positions of `ids`. */
@@ -93,7 +108,7 @@ function pivotOf(ids: readonly EntityId[]): Pt | null {
   for (const sid of ids) {
     const rtId = SceneModel.runtimeFor(sid);
     if (rtId == null) continue;
-    const pos = ViewportController.getEntityXY(rtId);
+    const pos = ViewportController.getEntityWorldXY(rtId);
     if (pos) pts.push(pos);
   }
   return pts.length ? groupPivot(pts) : null;
@@ -105,12 +120,12 @@ function primaryOf(ids: readonly EntityId[]): EntityId | null {
   return primary != null && ids.includes(primary) ? primary : (ids[0] ?? null);
 }
 
-/** The active entity's world rotation in radians (drives local-axis frame). */
+/** The active entity's world rotation in radians (drives the local-axis frame —
+ *  the on-screen orientation is the parent-composed rotation, not the local one). */
 function primaryRotationRad(ids: readonly EntityId[]): number {
   const id = primaryOf(ids);
-  if (id == null) return 0;
-  const deg = (SceneQuery.getFieldValue(id, 'Transform', 'rotation') as number) ?? 0;
-  return (deg * Math.PI) / 180;
+  const rt = id != null ? SceneModel.runtimeFor(id) : null;
+  return rt != null ? ViewportController.getEntityWorldAngleRad(rt) : 0;
 }
 
 /**
@@ -122,7 +137,7 @@ export function selectionPivot(ids: readonly EntityId[]): Pt | null {
   if (useEditorStore.getState().pivotMode === 'pivot') {
     const id = primaryOf(ids);
     const rt = id != null ? SceneModel.runtimeFor(id) : null;
-    const pos = rt != null ? ViewportController.getEntityXY(rt) : null;
+    const pos = rt != null ? ViewportController.getEntityWorldXY(rt) : null;
     if (pos) return pos;
   }
   return pivotOf(ids);
@@ -143,7 +158,7 @@ export function gizmoScreenAngleRad(ids: readonly EntityId[]): number {
 function altDuplicateTargets(ids: readonly EntityId[]): { targets: Target[]; pivot: Pt | null } {
   const targets: Target[] = [];
   const pts: Pt[] = [];
-  for (const sid of ids) {
+  for (const sid of pruneDescendants(ids)) {
     const t = readTarget(sid);
     if (!t) continue;
     const copy = SceneCommands.duplicateEntity(sid);

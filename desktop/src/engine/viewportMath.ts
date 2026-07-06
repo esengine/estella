@@ -49,6 +49,31 @@ export function pointInOBB(px: number, py: number, b: OBB): boolean {
   return Math.abs(lx) <= b.hw && Math.abs(ly) <= b.hh;
 }
 
+/** A 2D world frame: translation, Z rotation (radians), per-axis scale. */
+export interface Frame2D {
+  x: number;
+  y: number;
+  rot: number;
+  sx: number;
+  sy: number;
+}
+
+/**
+ * A world-space point re-expressed in `frame`'s local coordinates — the inverse
+ * of the engine's TRS compose (world = T + R(rot)·(S·local)), so
+ * local = S⁻¹·R(−rot)·(world − T). A zero scale axis passes through undivided
+ * (a degenerate frame has no inverse; don't explode to Infinity).
+ */
+export function worldToLocal2D(wx: number, wy: number, frame: Frame2D): { x: number; y: number } {
+  const dx = wx - frame.x;
+  const dy = wy - frame.y;
+  const c = Math.cos(-frame.rot);
+  const s = Math.sin(-frame.rot);
+  const rx = dx * c - dy * s;
+  const ry = dx * s + dy * c;
+  return { x: frame.sx ? rx / frame.sx : rx, y: frame.sy ? ry / frame.sy : ry };
+}
+
 /** Whether two client rects overlap (touching edges count as overlap). */
 export function rectsIntersect(a: ClientRect, b: ClientRect): boolean {
   return a.x <= b.x + b.w && b.x <= a.x + a.w && a.y <= b.y + b.h && b.y <= a.y + a.h;

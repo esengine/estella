@@ -198,7 +198,7 @@ function nudgeSelection(ux: number, uy: number, big: boolean): void {
   SceneCommands.transact('Nudge', () => {
     for (const sid of ids) {
       const rt = SceneModel.runtimeFor(sid);
-      const pos = rt != null ? ViewportController.getEntityXY(rt) : null;
+      const pos = rt != null ? ViewportController.getEntityWorldXY(rt) : null;
       if (pos) SceneCommands.setEntityXY(sid, pos.x + ux * step, pos.y + uy * step);
     }
   });

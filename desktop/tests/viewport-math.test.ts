@@ -15,6 +15,7 @@ import {
   screenAABB,
   snapTo,
   clamp,
+  worldToLocal2D,
 } from '@/engine/viewportMath';
 
 const box = (cx: number, cy: number, hw: number, hh: number, rot = 0): OBB => ({ cx, cy, hw, hh, rot });
@@ -93,5 +94,33 @@ describe('snapTo / clamp', () => {
     expect(clamp(5, 0, 10)).toBe(5);
     expect(clamp(-1, 0, 10)).toBe(0);
     expect(clamp(99, 0, 10)).toBe(10);
+  });
+});
+
+describe('worldToLocal2D', () => {
+  it('identity frame passes the point through', () => {
+    expect(worldToLocal2D(3, 4, { x: 0, y: 0, rot: 0, sx: 1, sy: 1 })).toEqual({ x: 3, y: 4 });
+  });
+
+  it('inverts translation', () => {
+    expect(worldToLocal2D(13, 24, { x: 10, y: 20, rot: 0, sx: 1, sy: 1 })).toEqual({ x: 3, y: 4 });
+  });
+
+  it('round-trips the TRS compose (world = T + R·(S·local))', () => {
+    const f = { x: 10, y: -5, rot: Math.PI / 3, sx: 2, sy: 0.5 };
+    const local = { x: 3, y: -7 };
+    const c = Math.cos(f.rot);
+    const s = Math.sin(f.rot);
+    const wx = f.x + local.x * f.sx * c - local.y * f.sy * s;
+    const wy = f.y + local.x * f.sx * s + local.y * f.sy * c;
+    const back = worldToLocal2D(wx, wy, f);
+    expect(back.x).toBeCloseTo(local.x, 9);
+    expect(back.y).toBeCloseTo(local.y, 9);
+  });
+
+  it('a zero scale axis passes through undivided instead of exploding', () => {
+    const p = worldToLocal2D(5, 6, { x: 0, y: 0, rot: 0, sx: 0, sy: 2 });
+    expect(p.x).toBe(5);
+    expect(p.y).toBe(3);
   });
 });

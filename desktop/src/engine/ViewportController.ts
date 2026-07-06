@@ -16,6 +16,7 @@ import {
   rectsIntersect,
   screenAABB,
   clamp,
+  worldToLocal2D,
 } from './viewportMath';
 
 // World half-size of the pick/outline box for entities without renderable bounds
@@ -83,7 +84,8 @@ export const ViewportController = {
    * `size × scale` about their pivot; entities without renderable bounds (cameras,
    * lights, empties) get a fixed icon box so they're still selectable. The center is
    * the geometric center, which for an off-center pivot orbits the rotation pivot
-   * (= transform position).
+   * (= transform position). Reads the parent-composed world transform — the same
+   * fields the renderer draws from — so parented entities pick where they render.
    */
   entityBounds(id: EntityId): OBB | null {
     const world = EngineHost.world;
@@ -91,7 +93,7 @@ export const ViewportController = {
     // UI nodes are screen-space; they're picked via the UI hit-test, not a world OBB.
     if (world.has(id, UINode)) return null;
     const t = world.get(id, Transform);
-    const rot = quatAngleZ(t.rotation as { w: number; x: number; y: number; z: number });
+    const rot = quatAngleZ(t.worldRotation as { w: number; x: number; y: number; z: number });
 
     let w = ICON_WORLD_HALF * 2;
     let h = ICON_WORLD_HALF * 2;
@@ -99,8 +101,8 @@ export const ViewportController = {
     let py = 0.5;
     if (world.has(id, Sprite)) {
       const sp = world.get(id, Sprite);
-      w = sp.size.x * t.scale.x;
-      h = sp.size.y * t.scale.y;
+      w = sp.size.x * t.worldScale.x;
+      h = sp.size.y * t.worldScale.y;
       px = sp.pivot?.x ?? 0.5;
       py = sp.pivot?.y ?? 0.5;
     }
@@ -109,8 +111,8 @@ export const ViewportController = {
     const c = Math.cos(rot);
     const s = Math.sin(rot);
     return {
-      cx: t.position.x + ox * c - oy * s,
-      cy: t.position.y + ox * s + oy * c,
+      cx: t.worldPosition.x + ox * c - oy * s,
+      cy: t.worldPosition.y + ox * s + oy * c,
       hw: Math.abs(w) / 2,
       hh: Math.abs(h) / 2,
       rot,
@@ -185,11 +187,45 @@ export const ViewportController = {
     return out;
   },
 
-  getEntityXY(id: EntityId): { x: number; y: number } | null {
+  /**
+   * The entity's world-space position — parent-composed, the same value the
+   * renderer places it at. For UI nodes this is the laid-out box center (the
+   * Yoga pass writes local `position`; the transform pass composes it), so the
+   * gizmo lands on the element, not on its parent-relative offset.
+   */
+  getEntityWorldXY(id: EntityId): { x: number; y: number } | null {
     const world = EngineHost.world;
     if (!world || !world.valid(id) || !world.has(id, Transform)) return null;
     const t = world.get(id, Transform);
-    return { x: t.position.x, y: t.position.y };
+    return { x: t.worldPosition.x, y: t.worldPosition.y };
+  },
+
+  /** The entity's world rotation about Z (radians) — drives the local-space gizmo frame. */
+  getEntityWorldAngleRad(id: EntityId): number {
+    const world = EngineHost.world;
+    if (!world || !world.valid(id) || !world.has(id, Transform)) return 0;
+    const t = world.get(id, Transform);
+    return quatAngleZ(t.worldRotation as { w: number; x: number; y: number; z: number });
+  },
+
+  /**
+   * A world point re-expressed in `parentId`'s live world frame — the local
+   * `Transform.position` a child at that world spot must hold. No/invalid
+   * parent ⇒ the point is already root-local.
+   */
+  worldToParentLocalXY(parentId: EntityId | null | undefined, wx: number, wy: number): { x: number; y: number } {
+    const world = EngineHost.world;
+    if (parentId == null || !world || !world.valid(parentId) || !world.has(parentId, Transform)) {
+      return { x: wx, y: wy };
+    }
+    const t = world.get(parentId, Transform);
+    return worldToLocal2D(wx, wy, {
+      x: t.worldPosition.x,
+      y: t.worldPosition.y,
+      rot: quatAngleZ(t.worldRotation as { w: number; x: number; y: number; z: number }),
+      sx: t.worldScale.x,
+      sy: t.worldScale.y,
+    });
   },
 
   /** A UI-camera world point → CSS px relative to the canvas (UI is screen-space). */
@@ -325,8 +361,8 @@ export const ViewportController = {
     const halfH = c.orthoSize ?? 360;
     const aspect = canvas.height > 0 ? canvas.width / canvas.height : 1;
     const halfW = halfH * aspect;
-    const x = t.position.x;
-    const y = t.position.y;
+    const x = t.worldPosition.x;
+    const y = t.worldPosition.y;
     const center = this.worldToClient(x, y);
     if (!center) return null;
     const corners = [
@@ -369,13 +405,13 @@ export const ViewportController = {
       type: number; color: { r: number; g: number; b: number }; radius: number;
       direction: { x: number; y: number }; outerAngle: number;
     };
-    const center = this.worldToClient(t.position.x, t.position.y);
+    const center = this.worldToClient(t.worldPosition.x, t.worldPosition.y);
     if (!center) return null;
 
     // Point (0) / Spot (3) have a falloff radius; project a world-radius offset to CSS px.
     let radiusPx = 0;
     if (l.type === 0 || l.type === 3) {
-      const edge = this.worldToClient(t.position.x + l.radius, t.position.y);
+      const edge = this.worldToClient(t.worldPosition.x + l.radius, t.worldPosition.y);
       if (edge) radiusPx = Math.hypot(edge.x - center.x, edge.y - center.y);
     }
     // Directional (1) / Spot (3) point along `direction`; flip world-Y to screen space. A Spot

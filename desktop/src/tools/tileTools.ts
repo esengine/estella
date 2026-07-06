@@ -27,7 +27,7 @@ import type { EditorTool, PointerInput } from './EditorTool';
 export function cursorTile(clientX: number, clientY: number, sourceId: number): { x: number; y: number } | null {
   const rt = SceneModel.runtimeFor(sourceId);
   const wp = ViewportController.canvasToWorld(clientX, clientY);
-  const ep = rt != null ? ViewportController.getEntityXY(rt) : null;
+  const ep = rt != null ? ViewportController.getEntityWorldXY(rt) : null;
   if (rt == null || !wp || !ep) return null;
   const t = TilemapAPI.worldToTile(rt, wp.x, wp.y, ep.x, ep.y);
   return { x: Math.floor(t.x), y: Math.floor(t.y) };

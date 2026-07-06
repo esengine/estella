@@ -442,7 +442,7 @@ export function Viewport() {
           ? SceneModel.entityBySource(sid)?.components.find((c) => c.type === 'TilemapLayer')
           : undefined;
         const cs = layer?.data as { cellSize?: { x: number; y: number } } | undefined;
-        const origin = ready && rt != null ? ViewportController.getEntityXY(rt) : null;
+        const origin = ready && rt != null ? ViewportController.getEntityWorldXY(rt) : null;
         if (tsel && cs?.cellSize && origin) {
           const x0 = Math.min(tsel.x0, tsel.x1);
           const y0 = Math.min(tsel.y0, tsel.y1);

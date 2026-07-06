@@ -23,7 +23,8 @@ vi.mock('@/engine/ViewportController', () => ({
   ViewportController: {
     canvasToWorld: (x: number, y: number) => ({ x, y }), // identity: world == client px
     worldToClient: (x: number, y: number) => ({ x, y }),
-    getEntityXY: (rt: number) => h.pos.get(rt) ?? { x: 0, y: 0 },
+    getEntityWorldXY: (rt: number) => h.pos.get(rt) ?? { x: 0, y: 0 },
+    getEntityWorldAngleRad: () => 0,
     pickEntity: () => h.pick.entity,
     pickEntitiesAt: () => (h.pick.stack ?? (h.pick.entity != null ? [h.pick.entity] : [])),
     pickInRect: () => h.pick.rect,
@@ -43,7 +44,12 @@ vi.mock('@/engine/SceneQuery', () => ({
   },
 }));
 vi.mock('@/engine/SceneModel', () => ({
-  SceneModel: { runtimeFor: (s: number) => s, sourceFor: (r: number) => r, subscribe: () => {} },
+  SceneModel: {
+    runtimeFor: (s: number) => s,
+    sourceFor: (r: number) => r,
+    entityBySource: () => undefined, // no hierarchy in these tests
+    subscribe: () => {},
+  },
 }));
 
 import { TRANSFORM_TOOLS } from '@/tools/transformTools';
