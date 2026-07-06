@@ -103,9 +103,11 @@ filtered via the per-entity component mask. The SDK exposes this as
 
 ### Renderer (`renderer/`)
 
-WebGL2-based, compiled to WASM. There is **one rendering path** (RC5): the legacy
+WebGL2-based, compiled to WASM. There is **one rendering path**: the legacy
 `Renderer` / `BatchRenderer2D` classes were removed. Everything goes through
-`RenderFrame`, and **all** GPU access goes through `GfxDevice`.
+`RenderFrame`, and **all** GPU access goes through `GfxDevice` — a
+backend-agnostic RHI shaped so a WebGPU (or native-API) backend can slot in
+beside the WebGL2 one without touching the renderer above it.
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
@@ -117,18 +119,36 @@ WebGL2-based, compiled to WASM. There is **one rendering path** (RC5): the legac
 │      ▼                                                        │
 │  DrawList  (sort + coalesce; multi-texture batch; u32 index)  │
 │      ▼                                                        │
-│  GfxDevice  (the only GPU entry point)                        │
+│  GfxDevice  (the render backend boundary / RHI)               │
 │    └── GLDevice : public GfxDevice   (the one concrete impl)  │
-│  Shader · Texture · Buffer/VAO · Framebuffer · CustomGeometry │
+│  Shader · Texture · Buffer · Framebuffer · CustomGeometry     │
 │  all take GfxDevice&; no raw gl* outside GLDevice (CI-guarded)│
 └──────────────────────────────────────────────────────────────┘
 ```
 
 Key facts:
-- **`GfxDevice`** (`GfxDevice.hpp:48`) is an abstract device that owns its
-  pipeline state; `GLDevice` (`GLDevice.hpp:33`) is the single concrete backend.
-  A CI guard rejects raw `gl*` calls outside `GLDevice.cpp` so the abstraction
-  stays the only channel. A `MockGfxDevice` harness exercises it headlessly.
+- **`GfxDevice`** (`GfxDevice.hpp`) speaks in typed handles and descriptors,
+  not GL concepts: resources are created from `BufferDesc` / `TextureDesc` /
+  `FramebufferDesc` / `VertexLayoutDesc` and addressed as `BufferHandle` /
+  `TextureHandle` / `ShaderHandle` / `FramebufferHandle` /
+  `VertexLayoutHandle` (on GL a handle's value is the GL id — zero cost).
+  There is no bind-target buffer protocol (`updateBuffer` / `resizeBuffer`
+  act on the handle) and no VAO in the interface — the vertex layout is part
+  of `PipelineDesc`, buffers bind per draw via `setVertexBuffer(slot, buffer,
+  offset)` / `setIndexBuffer`, and `GLDevice` keeps one lazily re-pointed VAO
+  per layout as a backend cache.
+- **Immutable pipelines + render passes**: every draw path binds a cached
+  `PipelineHandle` (program + vertex layout + blend + depth + stencil mode +
+  culling; `PipelineState.hpp`); framebuffer targeting and clears are
+  `beginRenderPass(RenderPassDesc)` / `endRenderPass` with load-op clear
+  semantics. The only dynamic state outside the pipeline is the scissor
+  rectangle and the stencil reference — mirroring WebGPU's split. The loose
+  blend/depth/stencil/cull setters are private to `GLDevice`. Per-frame /
+  material / light constants live in UBOs at fixed binding slots
+  (`setUniformBuffer`, the future BindGroup seam); loose `setUniform*`
+  survives for the custom-mesh and post-process shader paths.
+  A CI guard (`tools/check-gl-boundary.mjs`) rejects raw `gl*` calls outside
+  `GLDevice.cpp`; a `MockGfxDevice` harness exercises the contract headlessly.
 - **`DrawList`** sorts and coalesces draw commands, merging up to 8 textures per
   call; indices are **u32** (no >65535 vertex wraparound).
 - **`RenderFrame`** owns transient buffers (`TransientBufferPool`), frustum

@@ -158,6 +158,15 @@
 - **统一 WasmBridge 基类**：SDK 仍只有 `BuiltinBridge`（`sdk/src/ecs/BuiltinBridge.ts:299`），病灶所述"五套桥接写法"尚未收敛到单一基类。
 - **全 per-App 状态**：Camera/Timeline/SpriteAnimator/postprocess 等进程级全局是否已迁 per-App 资源，待审计确认。
 
+### 渲染后端抽象（RHI 现代化）— ✅ 已落地（2026-07-06，`6d48beba`→`aec698d3` 四批）
+在 RC5"唯一入口"的基础上，把 `GfxDevice` 从 GL 味接口升级为后端中立 RHI，使未来 WebGPU/原生后端可平行接入而 Renderer 层零改动：
+- **类型化句柄 + 描述符创建**：`Buffer/Texture/Shader/Framebuffer/VertexLayoutHandle` + `*Desc`（GL 后端句柄值=GL id，零开销）；bind-target 上传协议、`texImage2D`/`pixelStorei` 等 GL 形状全部退出接口；`bindBufferBase`→`setUniformBuffer(slot, handle)`（未来 BindGroup 接缝）；GPU 计时查询下沉（顺带修复 profiler 泄漏到 `RenderFrame.cpp` 的裸 `gl*`，boundary guard 恢复绿色）。
+- **顶点布局进 Pipeline、VAO 内化**：`VertexLayoutDesc`→`PipelineDesc.vertexLayout`，per-draw `setVertexBuffer(slot, buffer, offset)`/`setIndexBuffer`；GLDevice 按布局持有惰性 re-point 的 VAO 缓存（粒子实例流 rebase 语义保持）；删除 `VertexArray` 包装类；`draw_mesh`/PostProcess/ImmediateDraw 全部改走真 pipeline。
+- **RenderPass**：`beginRenderPass(desc)`/`endRenderPass` 收拢 FBO 绑定 + clear（load-op 语义：强制写掩码，修复"上帧末尾 stencil-write pipeline 会静默吞掉 clear"的潜在 bug）；`bindFramebuffer` 退出公共接口。TS 驱动的主 pass clear 保留在边界（多相机 scissored clear 依赖），文档标注为 WebGPU 后端的 deferred-load-op 仿真点。
+- **散装状态 setter 全部转 GLDevice 私有**：公共动态状态只剩 scissor + stencil reference（与 WebGPU 划分一致）。
+- 验证：MockGfxDevice 四套 harness、web 构建、GL boundary guard、六个 headless 渲染场景（精灵/UI 模板遮罩/后处理链/实例化粒子/Lit 材质/tilemap）+ 编辑器截图（网格 draw_mesh 路径）全绿。
+- **遗留**：散装 `setUniform*`（自定义网格 + 后处理路径）仍是 GL 式 per-program uniform——WebGPU 后端需按 sokol 方式以每 draw 暂存 UBO 仿真，或后续把这两条路径迁 UBO。
+
 ### 地基收口（Foundation Consolidation）— 🟡 进行中，RC6 前置（设计文档）
 见 [`REARCH_FOUNDATION_CONSOLIDATION.md`](./REARCH_FOUNDATION_CONSOLIDATION.md)：
 - **F2 单一 `WasmBridge` 基类 + abort 守卫下沉（keystone）— ✅ 已落地**（`ac390f7d` + RM 闭环 `41bea17a`，五套桥接全部收敛，abort 守卫全子系统覆盖）。
