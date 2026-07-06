@@ -1,0 +1,13 @@
+{
+  "formatVersion": "1",
+  "name": "UI List",
+  "description": "A virtualized list and grid — createListView with live data.",
+  "tag": "UI",
+  "version": "0.1.0",
+  "defaultScene": "assets/scenes/main.esscene",
+  "designResolution": {
+    "width": 800,
+    "height": 600
+  },
+  "spineVersion": "none"
+}

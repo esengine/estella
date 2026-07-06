@@ -31,6 +31,7 @@ for your own game.
 | **ui-controls** | UI | Buttons, sliders, toggles and progress bars. |
 | **ui-interaction** | UI | Dragging, focus and pointer interaction. |
 | **ui-layout** | UI | Flexbox-style responsive UI layout. |
+| **ui-list** | UI | A virtualized list and grid — `createListView`, live data, `scrollToIndex`. |
 | **platformer** | Game | A tiny platformer — run, jump and collect coins. |
 | **space-shooter** | Game | A vertical shmup with prefabs, a HUD and a difficulty ramp. |
 
