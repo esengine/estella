@@ -700,12 +700,26 @@
   will-change: transform;
   transition: opacity 0.1s;
 }
-.viewport__light-icon {
+/* The bulb is the light's click target (select-to-identify); generously padded hit box. */
+.viewport__light-hit {
   position: absolute;
   left: 0;
   top: 0;
-  margin: -7px 0 0 -7px;
+  margin: -11px 0 0 -11px;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.viewport__light-icon {
+  display: block;
   filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.8));
+  transition: transform 0.1s;
+}
+.viewport__light-hit:hover .viewport__light-icon {
+  transform: scale(1.2);
 }
 .viewport__light-svg {
   position: absolute;

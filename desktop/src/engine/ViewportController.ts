@@ -394,16 +394,18 @@ export const ViewportController = {
    * Screen-space gizmo geometry for a Light2D: its icon position, reach radius (Point/Spot,
    * CSS px), and screen-space direction unit vector (Directional/Spot). `kind` mirrors
    * Light2DType (0 Point / 1 Directional / 2 Ambient / 3 Spot); `color` is the light tint.
+   * `on` is the light's EFFECTIVE state in the projected World (authored enable folded with
+   * the editor eye), so the viewport can show extinguished lights extinguished.
    */
   getLightGizmo(
     id: EntityId,
-  ): { cx: number; cy: number; kind: number; color: string; radiusPx: number; sdx: number; sdy: number; coneHalf: number } | null {
+  ): { cx: number; cy: number; kind: number; color: string; radiusPx: number; sdx: number; sdy: number; coneHalf: number; on: boolean } | null {
     const world = EngineHost.world;
     if (!world || !world.valid(id) || !world.has(id, Light2D) || !world.has(id, Transform)) return null;
     const t = world.get(id, Transform);
     const l = world.get(id, Light2D) as {
       type: number; color: { r: number; g: number; b: number }; radius: number;
-      direction: { x: number; y: number }; outerAngle: number;
+      direction: { x: number; y: number }; outerAngle: number; enabled: boolean; intensity: number;
     };
     const center = this.worldToClient(t.worldPosition.x, t.worldPosition.y);
     if (!center) return null;
@@ -430,7 +432,8 @@ export const ViewportController = {
     const coneHalf = l.type === 3 ? ((l.outerAngle ?? 45) * 0.5 * Math.PI) / 180 : 0;
     const hex = (v: number) => Math.max(0, Math.min(255, Math.round(v * 255))).toString(16).padStart(2, '0');
     const color = `#${hex(l.color.r)}${hex(l.color.g)}${hex(l.color.b)}`;
-    return { cx: center.x, cy: center.y, kind: l.type, color, radiusPx, sdx, sdy, coneHalf };
+    const on = l.enabled !== false && l.intensity > 0;
+    return { cx: center.x, cy: center.y, kind: l.type, color, radiusPx, sdx, sdy, coneHalf, on };
   },
 
   /** Ids of entities carrying a box/circle collider — the collider-gizmo set. */

@@ -533,17 +533,20 @@ export function Viewport() {
 
       // Light2D gizmos — icon at the light, dashed reach circle (Point/Spot), direction
       // line (Directional/Spot), all tinted by the light color. Edit mode + gizmos on.
+      // An extinguished light (enable off / eye hidden / zero intensity) dims its icon
+      // and drops the reach/direction overlays, so on/off is readable in the viewport.
       for (const [lid, wrap] of lightRefs.current) {
         if (!wrap) continue;
         const lg = camsOn ? ViewportController.getLightGizmo(lid) : null;
         if (lg) {
-          wrap.style.opacity = '1';
+          wrap.style.opacity = lg.on ? '1' : '0.35';
+          wrap.style.visibility = 'visible'; // re-enable the click target with the gizmo
           wrap.style.color = lg.color;
           wrap.style.transform = `translate(${lg.cx}px, ${lg.cy}px)`;
           const circle = wrap.querySelector('.lg-radius') as SVGCircleElement | null;
           if (circle) {
             circle.setAttribute('r', String(lg.radiusPx));
-            circle.style.opacity = lg.radiusPx > 0 ? '0.6' : '0';
+            circle.style.opacity = lg.on && lg.radiusPx > 0 ? '0.6' : '0';
           }
           const dir = wrap.querySelector('.lg-dir') as SVGLineElement | null;
           if (dir) {
@@ -551,14 +554,14 @@ export function Viewport() {
             const len = lg.kind === 3 ? Math.max(lg.radiusPx, 28) : 38;
             dir.setAttribute('x2', String(lg.sdx * len));
             dir.setAttribute('y2', String(lg.sdy * len));
-            dir.style.opacity = hasDir ? '0.9' : '0';
+            dir.style.opacity = lg.on && hasDir ? '0.9' : '0';
           }
           // Spot (kind 3): two cone-edge lines at ±half-angle around the aim, out to the reach.
           const cone1 = wrap.querySelector('.lg-cone1') as SVGLineElement | null;
           const cone2 = wrap.querySelector('.lg-cone2') as SVGLineElement | null;
           for (const [line, sign] of [[cone1, 1], [cone2, -1]] as const) {
             if (!line) continue;
-            if (lg.kind === 3 && (lg.sdx !== 0 || lg.sdy !== 0)) {
+            if (lg.on && lg.kind === 3 && (lg.sdx !== 0 || lg.sdy !== 0)) {
               const a = sign * lg.coneHalf;
               const ca = Math.cos(a);
               const sa = Math.sin(a);
@@ -573,6 +576,7 @@ export function Viewport() {
           }
         } else {
           wrap.style.opacity = '0';
+          wrap.style.visibility = 'hidden'; // an invisible bulb must not swallow clicks
         }
       }
       PerfMonitor.mark('gizmo.update', perfT0);
@@ -802,26 +806,42 @@ export function Viewport() {
         </div>
       ))}
 
-      {/* Scene-light gizmos (icon + reach circle + direction); positioned by the rAF. */}
-      {lightIds.map((id) => (
-        <div
-          key={id}
-          ref={(el) => {
-            if (el) lightRefs.current.set(id, el);
-            else lightRefs.current.delete(id);
-          }}
-          className="viewport__light-gizmo"
-          aria-hidden="true"
-        >
-          <Lightbulb className="viewport__light-icon" size={14} strokeWidth={1.9} />
-          <svg className="viewport__light-svg" width="0" height="0" overflow="visible" aria-hidden="true">
-            <circle className="lg-radius" cx="0" cy="0" r="0" />
-            <line className="lg-dir" x1="0" y1="0" x2="0" y2="0" />
-            <line className="lg-cone1" x1="0" y1="0" x2="0" y2="0" />
-            <line className="lg-cone2" x1="0" y1="0" x2="0" y2="0" />
-          </svg>
-        </div>
-      ))}
+      {/* Scene-light gizmos (icon + reach circle + direction); positioned by the rAF.
+          The icon is clickable — a glow in the viewport is attributable: click its bulb
+          to select the light that casts it (same selection door as a scene pick). */}
+      {lightIds.map((id) => {
+        const src = SceneModel.sourceFor(id);
+        const name = src != null ? SceneModel.entityBySource(src)?.name : undefined;
+        return (
+          <div
+            key={id}
+            ref={(el) => {
+              if (el) lightRefs.current.set(id, el);
+              else lightRefs.current.delete(id);
+            }}
+            className="viewport__light-gizmo"
+          >
+            <span
+              className="viewport__light-hit"
+              role="button"
+              title={name}
+              onPointerDown={(e) => {
+                if (e.button !== 0 || src == null) return;
+                e.stopPropagation();
+                useSelection.getState().select(src);
+              }}
+            >
+              <Lightbulb className="viewport__light-icon" size={14} strokeWidth={1.9} />
+            </span>
+            <svg className="viewport__light-svg" width="0" height="0" overflow="visible" aria-hidden="true">
+              <circle className="lg-radius" cx="0" cy="0" r="0" />
+              <line className="lg-dir" x1="0" y1="0" x2="0" y2="0" />
+              <line className="lg-cone1" x1="0" y1="0" x2="0" y2="0" />
+              <line className="lg-cone2" x1="0" y1="0" x2="0" y2="0" />
+            </svg>
+          </div>
+        );
+      })}
 
       {/* Collider gizmos: a full-viewport SVG per collider (box polygon / circle),
           positioned in absolute canvas-relative CSS px by the rAF. */}
