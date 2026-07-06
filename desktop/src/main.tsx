@@ -40,6 +40,7 @@ import { EditorControlSurface } from './engine/EditorSession';
 import { PerfMonitor } from './engine/PerfMonitor';
 import { LogStore } from './store/LogStore';
 import { initFsWatch } from './project/fsWatch';
+import { initBackgroundThrottle } from './engine/backgroundThrottle';
 // Register the built-in settings (side effect) and replay persisted ones.
 import './settings';
 import { applySettings } from './store/settingsStore';
@@ -51,6 +52,10 @@ applySettings();
 // Live-sync the asset registry + Content Browser with on-disk changes (incl.
 // edits made outside the editor) via the main-process project watcher.
 initFsWatch();
+
+// Focus-driven engine frame cap (the smart replacement for Chromium's
+// disabled background throttling).
+initBackgroundThrottle();
 
 // Automation hook (screenshots / visual-regression): with `?automation=1`, expose the
 // minimum to drive the launcher→editor flow from a headless driver. Gated so the normal

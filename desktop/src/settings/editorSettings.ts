@@ -14,14 +14,16 @@ import { settingsRegistry } from './registry';
 import { useEditorStore } from '@/store/editorStore';
 import { LogStore } from '@/store/LogStore';
 import { commands } from '@/commands';
+import { setUseLessCpuInBackground } from '@/engine/backgroundThrottle';
 
 const root = () => document.documentElement.style;
 
 // ── Sections (editor category) ──────────────────────────────────────────────
 settingsRegistry.registerSection({ id: 'appearance', label: 'Appearance', category: 'editor', order: 1 });
 settingsRegistry.registerSection({ id: 'viewport', label: 'Viewport', category: 'editor', order: 2 });
-settingsRegistry.registerSection({ id: 'shortcuts', label: 'Keyboard Shortcuts', category: 'editor', order: 3 });
-settingsRegistry.registerSection({ id: 'console', label: 'Console', category: 'editor', order: 4 });
+settingsRegistry.registerSection({ id: 'performance', label: 'Performance', category: 'editor', order: 3 });
+settingsRegistry.registerSection({ id: 'shortcuts', label: 'Keyboard Shortcuts', category: 'editor', order: 4 });
+settingsRegistry.registerSection({ id: 'console', label: 'Console', category: 'editor', order: 5 });
 
 // ── Appearance (store-owned, applied via CSS) ───────────────────────────────
 settingsRegistry.register({
@@ -108,6 +110,19 @@ settingsRegistry.register({
   label: 'Show gizmos',
   default: true,
   bind: { get: () => ed().showGizmos, set: (v) => useEditorStore.setState({ showGizmos: v }) },
+});
+
+// ── Performance ──────────────────────────────────────────────────────────────
+settingsRegistry.register({
+  id: 'performance.useLessCpuInBackground',
+  type: 'boolean',
+  scope: 'editor',
+  section: 'performance',
+  group: 'Background',
+  label: 'Use less CPU in background',
+  description: 'Caps the engine at 10 fps while the editor window is unfocused.',
+  default: true,
+  effect: (v) => setUseLessCpuInBackground(v),
 });
 
 // ── Console (store-owned, applied to the log ring buffer) ────────────────────

@@ -47,6 +47,7 @@ class EngineHostImpl {
   private canvas_: HTMLCanvasElement | null = null;
   private app_: App | null = null;
   private module_: ESEngineModule | null = null;
+  private targetFps_ = 0;
   private booted = false;
   private resizeObserver: ResizeObserver | null = null;
 
@@ -92,6 +93,11 @@ class EngineHostImpl {
   /** Read an app-scoped resource (e.g. Assets, CameraView). */
   getResource<T>(resource: ResourceDef<T>): T | undefined {
     return this.app_?.getResource(resource);
+  }
+  /** Cap the edit-realm engine loop (0 = uncapped). Survives reboot. */
+  setTargetFrameRate(fps: number): void {
+    this.targetFps_ = fps;
+    this.app_?.setTargetFrameRate(fps);
   }
   /** Animation names of a spine entity's loaded skeleton (for the inspector dropdown); empty if none. */
   spineAnimations(runtimeId: number): string[] {
@@ -444,6 +450,7 @@ class EngineHostImpl {
       wasmBaseUrl: '/wasm',
     });
     this.app_ = app;
+    if (this.targetFps_ > 0) app.setTargetFrameRate(this.targetFps_);
 
     app.enableStats();
     module.engine_setCpuProfiling?.(true);
