@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import {
   Camera, CameraView, EditorView, Light2D, Sprite, Transform, Canvas, BoxCollider, CircleCollider,
-  UINode, UICameraInfo, screenToUiWorld, uiWorldToScreen, uiHitTestWorld, type UICameraData,
+  UINode, UICameraInfo, screenToUiWorld, uiWorldToScreen, uiPickWorld, type UICameraData,
 } from 'esengine';
 import type { EntityId } from '@/types';
 import { EngineHost } from './EngineHost';
@@ -117,18 +117,19 @@ export const ViewportController = {
     };
   },
 
-  /** The UI entity under the pointer (engine UI hit-test), or null. */
+  /** The UI entity under the pointer (editor pick: any layout box, not just
+   *  raycast targets — so plain text and panels are selectable), or null. */
   pickUIEntity(clientX: number, clientY: number): EntityId | null {
     const world = EngineHost.world;
     const module = EngineHost.module;
     const cam = EngineHost.getResource(UICameraInfo) as UICameraData | undefined;
     if (!world || !module || !cam?.valid) return null;
-    type Registry = Parameters<typeof uiHitTestWorld>[1];
+    type Registry = Parameters<typeof uiPickWorld>[1];
     const reg = (world as unknown as { getCppRegistry(): Registry | null }).getCppRegistry();
     const s = clientToScreen(clientX, clientY);
     if (!reg || !s) return null;
     const wp = screenToUiWorld(cam, s.sx, s.sy);
-    const hit = uiHitTestWorld(module, reg, wp.x, wp.y);
+    const hit = uiPickWorld(module, reg, wp.x, wp.y);
     if (hit == null) return null;
     const src = SceneModel.sourceFor(hit);
     if (src != null && (SceneModel.isLocked(src) || SceneModel.isHidden(src))) return null;
@@ -199,30 +200,36 @@ export const ViewportController = {
     return { x: s.x / dpr, y: (canvas.height - s.y) / dpr };
   },
 
-  /**
-   * Screen rect of a UI node's resolved layout box — its world OBB (Yoga-resolved
-   * size × worldScale, pivot-centered on the world transform) projected through the
-   * UI camera. Drives the selection outline for UI, which lives in screen space.
-   */
-  uiEntityScreenRect(id: EntityId): ClientRect | null {
+  /** World OBB of a UI node's resolved layout box (Yoga size × worldScale,
+   *  pivot-centered on the world transform). */
+  uiEntityWorldOBB(id: EntityId): OBB | null {
     const world = EngineHost.world;
     const module = EngineHost.module;
-    const cam = EngineHost.getResource(UICameraInfo) as UICameraData | undefined;
-    if (!world || !module || !cam?.valid || !world.has(id, UINode) || !world.has(id, Transform)) return null;
-    type Registry = Parameters<typeof uiHitTestWorld>[1];
+    if (!world || !module || !world.has(id, UINode) || !world.has(id, Transform)) return null;
+    type Registry = Parameters<typeof uiPickWorld>[1];
     const reg = (world as unknown as { getCppRegistry(): Registry | null }).getCppRegistry();
     if (!reg) return null;
     const t = world.get(id, Transform);
     const w = module.uiNode_computedWidth(reg, id) * t.worldScale.x;
     const h = module.uiNode_computedHeight(reg, id) * t.worldScale.y;
     if (!(w > 0) || !(h > 0)) return null;
-    const obb: OBB = {
+    return {
       cx: t.worldPosition.x,
       cy: t.worldPosition.y,
       hw: Math.abs(w) / 2,
       hh: Math.abs(h) / 2,
       rot: quatAngleZ(t.worldRotation as { w: number; x: number; y: number; z: number }),
     };
+  },
+
+  /**
+   * Screen rect of a UI node's layout box — its world OBB projected through the
+   * UI camera. Drives the selection outline for UI, which lives in screen space.
+   */
+  uiEntityScreenRect(id: EntityId): ClientRect | null {
+    const cam = EngineHost.getResource(UICameraInfo) as UICameraData | undefined;
+    const obb = this.uiEntityWorldOBB(id);
+    if (!cam?.valid || !obb) return null;
     return screenAABB(obbCorners(obb).map(([wx, wy]) => this.uiWorldToClient(cam, wx, wy)));
   },
 
@@ -267,7 +274,8 @@ export const ViewportController = {
     let maxX = -Infinity;
     let maxY = -Infinity;
     for (const id of ids) {
-      const b = this.entityBounds(id);
+      // UI entities have no world OBB from entityBounds; frame their layout box.
+      const b = this.entityBounds(id) ?? this.uiEntityWorldOBB(id);
       if (!b) continue;
       for (const [wx, wy] of obbCorners(b)) {
         minX = Math.min(minX, wx);

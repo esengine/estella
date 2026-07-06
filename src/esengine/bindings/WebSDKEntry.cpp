@@ -592,6 +592,12 @@ u32 uiHitTest_getHitEntityPrev() {
     return ctx().require<ecs::UISystem>().getPrevHitEntity();
 }
 
+// Editor pick: ignores Interactable and mutates no interaction state, so the
+// editor can select plain text / panels without polluting runtime hover.
+u32 uiHitTest_pick(ecs::Registry& registry, f32 worldX, f32 worldY) {
+    return ctx().require<ecs::UISystem>().pick(registry, worldX, worldY);
+}
+
 // Resolved (Yoga-pass) pixel size of a UI node, for the editor's selection outline.
 // The node's world box is this size, pivot-centered on its Transform.
 f32 uiNode_computedWidth(ecs::Registry& r, u32 e) {
@@ -688,6 +694,7 @@ EMSCRIPTEN_BINDINGS(esengine_ui_systems) {
     emscripten::function("uiHitTest_update", &esengine::uiHitTest_update);
     emscripten::function("uiHitTest_getHitEntity", &esengine::uiHitTest_getHitEntity);
     emscripten::function("uiHitTest_getHitEntityPrev", &esengine::uiHitTest_getHitEntityPrev);
+    emscripten::function("uiHitTest_pick", &esengine::uiHitTest_pick);
     emscripten::function("uiNode_computedWidth", &esengine::uiNode_computedWidth);
     emscripten::function("uiNode_computedHeight", &esengine::uiNode_computedHeight);
     emscripten::function("uiRenderOrder_update", &esengine::uiRenderOrder_update);

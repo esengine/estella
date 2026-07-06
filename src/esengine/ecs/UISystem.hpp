@@ -72,6 +72,14 @@ public:
                        f32 mouseWorldX, f32 mouseWorldY,
                        bool mouseDown, bool mousePressed, bool mouseReleased);
 
+    /**
+     * @brief Editor pick: topmost UI entity whose layout box contains the point.
+     *
+     * Unlike hitTestUpdate this ignores Interactable — plain text and panels
+     * are selectable — and mutates no interaction state.
+     */
+    u32 pick(Registry& registry, f32 worldX, f32 worldY) const;
+
     /** @brief Entity hit by the most recent hitTestUpdate (or INVALID_ENTITY) */
     u32 getHitEntity() const { return hitResult.hit_entity.id(); }
 

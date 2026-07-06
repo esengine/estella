@@ -26,6 +26,7 @@ import type {
 import type { SceneData, SubsystemStatus } from 'esengine';
 import { Material, Sprite } from 'esengine';
 import { EngineHost } from './EngineHost';
+import { ViewportController } from './ViewportController';
 import { PerfMonitor, type PerfSnapshot, type FrameSample, type SessionCapture } from './PerfMonitor';
 import type { SceneCommandsImpl, EditorTransaction } from './SceneCommands';
 import type { SceneQueryImpl } from './SceneQuery';
@@ -257,6 +258,16 @@ export class EditorControlSurfaceImpl {
   /** Subscribe to selection changes. Returns an unsubscribe. */
   subscribeSelection(fn: () => void): () => void {
     return this.s.selection.subscribe(fn);
+  }
+
+  /** Viewport pick at a client position (what a click would select), or null. */
+  pick(clientX: number, clientY: number): EntityId | null {
+    return ViewportController.pickEntity(clientX, clientY);
+  }
+
+  /** Screen rect (CSS px rel. canvas) of an entity's selection bounds, or null. */
+  entityScreenRect(id: EntityId): { x: number; y: number; w: number; h: number } | null {
+    return ViewportController.getEntityScreenRect(id);
   }
 
   // =========================================================================

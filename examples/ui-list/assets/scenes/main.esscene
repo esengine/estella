@@ -66,7 +66,7 @@
           "data": {
             "direction": 1,
             "justifyContent": 0,
-            "alignItems": 0,
+            "alignItems": 3,
             "gap": { "x": 0, "y": 10 },
             "padding": { "left": 20, "top": 20, "right": 20, "bottom": 20 }
           }
@@ -149,7 +149,7 @@
           "data": {
             "direction": 1,
             "justifyContent": 0,
-            "alignItems": 0,
+            "alignItems": 3,
             "gap": { "x": 0, "y": 6 }
           }
         }
@@ -216,7 +216,7 @@
           "data": {
             "direction": 1,
             "justifyContent": 0,
-            "alignItems": 0,
+            "alignItems": 3,
             "gap": { "x": 0, "y": 6 }
           }
         }

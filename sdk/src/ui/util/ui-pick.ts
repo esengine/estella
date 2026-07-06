@@ -32,3 +32,19 @@ export function uiHitTestWorld(
   const hit = module.uiHitTest_getHitEntity();
   return hit === NO_HIT ? null : hit;
 }
+
+/**
+ * Editor pick: topmost UI entity whose layout box contains the point,
+ * regardless of Interactable, without touching interaction state. Use this
+ * for editor selection; `uiHitTestWorld` is the runtime raycast.
+ */
+export function uiPickWorld(
+  module: ESEngineModule,
+  registry: CppRegistry,
+  worldX: number,
+  worldY: number,
+): Entity | null {
+  if (!module.uiHitTest_pick) return null;
+  const hit = module.uiHitTest_pick(registry, worldX, worldY);
+  return hit === NO_HIT ? null : hit;
+}

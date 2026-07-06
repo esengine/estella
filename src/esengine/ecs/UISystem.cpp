@@ -14,6 +14,7 @@
 #include "components/Transform.hpp"
 #include "components/UIInteraction.hpp"
 #include "components/UINode.hpp"
+#include "components/UIVisual.hpp"
 
 namespace esengine::ecs {
 
@@ -67,6 +68,55 @@ void UISystem::hitTestUpdate(
             return;
         }
     }
+}
+
+u32 UISystem::pick(Registry& registry, f32 worldX, f32 worldY) const {
+    const auto& nodes = tree.nodes_;
+
+    // Rank hits by hierarchy depth (the most specific element under the
+    // cursor — clicking a label picks the label, not its panel), breaking
+    // ties by draw order.
+    Entity best = INVALID_ENTITY;
+    i32 bestDepth = -1;
+    i32 bestOrder = INT32_MIN;
+
+    for (i32 i = static_cast<i32>(nodes.size()) - 1; i >= 0; i--) {
+        Entity entity = nodes[i].entity;
+        if (!registry.has<Transform>(entity)) continue;
+
+        auto* node = registry.tryGet<UINode>(entity);
+        if (!node || node->computed_size_.x <= 0.0f || node->computed_size_.y <= 0.0f) continue;
+
+        auto& t = registry.get<Transform>(entity);
+        t.ensureDecomposed();
+
+        if (!pointInOBB(
+            worldX, worldY,
+            t.worldPosition.x, t.worldPosition.y,
+            node->computed_size_.x * t.worldScale.x,
+            node->computed_size_.y * t.worldScale.y,
+            0.5f, 0.5f,
+            t.worldRotation.z, t.worldRotation.w
+        )) continue;
+
+        if (isClippedByMask(registry, entity, worldX, worldY)) continue;
+
+        i32 depth = 0;
+        for (Entity a = entity; registry.has<Parent>(a);) {
+            Entity parent = registry.get<Parent>(a).entity;
+            if (!registry.valid(parent)) break;
+            depth++;
+            a = parent;
+        }
+        auto* vis = registry.tryGet<UIVisual>(entity);
+        const i32 order = vis ? vis->uiOrder : INT32_MIN;
+        if (depth > bestDepth || (depth == bestDepth && order > bestOrder)) {
+            bestDepth = depth;
+            bestOrder = order;
+            best = entity;
+        }
+    }
+    return best.id();
 }
 
 }  // namespace esengine::ecs
