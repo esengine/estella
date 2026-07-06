@@ -269,6 +269,9 @@ function createWindow() {
       // Keep the renderer sandboxed; all privileged work goes through preload IPC.
       contextIsolation: true,
       nodeIntegration: false,
+      // An engine editor keeps simulating while occluded — and the automation
+      // hooks' rAF-based waits must not freeze when another window covers us.
+      backgroundThrottling: false,
     },
   });
 

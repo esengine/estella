@@ -39,6 +39,7 @@ const HIDDEN_COMPONENTS = new Set(['Parent', 'Children', 'Name']);
 // turns that behaviour off without hiding the entity.
 const RENDER_COMPONENTS = new Set([
   'Sprite', 'ShapeRenderer', 'SpineAnimation', 'BitmapText', 'TilemapLayer', 'ParticleEmitter',
+  'UIVisual', 'Text',
 ]);
 /** Whether a component's enable flag participates in the entity's render visibility. */
 export function isRenderComponent(name: string): boolean {

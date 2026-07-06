@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import {
   Camera, CameraView, EditorView, Light2D, Sprite, Transform, Canvas, BoxCollider, CircleCollider,
-  UINode, UICameraInfo, screenToUiWorld, uiWorldToScreen, uiPickWorld, type UICameraData,
+  UINode, UICameraInfo, screenToUiWorld, uiWorldToScreen, uiPickAllWorld, type UICameraData,
 } from 'esengine';
 import type { EntityId } from '@/types';
 import { EngineHost } from './EngineHost';
@@ -117,32 +117,35 @@ export const ViewportController = {
     };
   },
 
-  /** The UI entity under the pointer (editor pick: any layout box, not just
-   *  raycast targets — so plain text and panels are selectable), or null. */
-  pickUIEntity(clientX: number, clientY: number): EntityId | null {
+  /** All UI entities under the pointer, most specific first (editor pick: any
+   *  layout box, not just raycast targets — so plain text and panels are
+   *  selectable). Locked / hidden entries are dropped. */
+  pickUIEntities(clientX: number, clientY: number): EntityId[] {
     const world = EngineHost.world;
     const module = EngineHost.module;
     const cam = EngineHost.getResource(UICameraInfo) as UICameraData | undefined;
-    if (!world || !module || !cam?.valid) return null;
-    type Registry = Parameters<typeof uiPickWorld>[1];
+    if (!world || !module || !cam?.valid) return [];
+    type Registry = Parameters<typeof uiPickAllWorld>[1];
     const reg = (world as unknown as { getCppRegistry(): Registry | null }).getCppRegistry();
     const s = clientToScreen(clientX, clientY);
-    if (!reg || !s) return null;
+    if (!reg || !s) return [];
     const wp = screenToUiWorld(cam, s.sx, s.sy);
-    const hit = uiPickWorld(module, reg, wp.x, wp.y);
-    if (hit == null) return null;
-    const src = SceneModel.sourceFor(hit);
-    if (src != null && (SceneModel.isLocked(src) || SceneModel.isHidden(src))) return null;
-    return hit;
+    return uiPickAllWorld(module, reg, wp.x, wp.y).filter((hit) => {
+      const src = SceneModel.sourceFor(hit);
+      return src == null || (!SceneModel.isLocked(src) && !SceneModel.isHidden(src));
+    });
+  },
+
+  /** The topmost UI entity under the pointer, or null. */
+  pickUIEntity(clientX: number, clientY: number): EntityId | null {
+    return this.pickUIEntities(clientX, clientY)[0] ?? null;
   },
 
   /** Selectable entities under the pointer, topmost-first (UI, then world by
    *  descending layer, later-drawn winning ties). `pickEntity` is its head;
    *  click-through cycling walks the rest. */
   pickEntitiesAt(clientX: number, clientY: number): EntityId[] {
-    const out: EntityId[] = [];
-    const ui = this.pickUIEntity(clientX, clientY);
-    if (ui != null) out.push(ui);
+    const out: EntityId[] = [...this.pickUIEntities(clientX, clientY)];
 
     const world = EngineHost.world;
     const wp = this.canvasToWorld(clientX, clientY);
@@ -206,7 +209,7 @@ export const ViewportController = {
     const world = EngineHost.world;
     const module = EngineHost.module;
     if (!world || !module || !world.has(id, UINode) || !world.has(id, Transform)) return null;
-    type Registry = Parameters<typeof uiPickWorld>[1];
+    type Registry = Parameters<typeof uiPickAllWorld>[1];
     const reg = (world as unknown as { getCppRegistry(): Registry | null }).getCppRegistry();
     if (!reg) return null;
     const t = world.get(id, Transform);

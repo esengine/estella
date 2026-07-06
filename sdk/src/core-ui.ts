@@ -53,6 +53,7 @@ export {
     uiWorldToScreen,
     uiHitTestWorld,
     uiPickWorld,
+    uiPickAllWorld,
     TextInput,
     FillMethod,
     FillOrigin,

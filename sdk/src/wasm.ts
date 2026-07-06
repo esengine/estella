@@ -356,6 +356,8 @@ export interface ESEngineModule {
     uiHitTest_getHitEntity(): number;
     uiHitTest_getHitEntityPrev(): number;
     uiHitTest_pick?(registry: CppRegistry, worldX: number, worldY: number): number;
+    uiHitTest_pickAll?(registry: CppRegistry, worldX: number, worldY: number): number;
+    uiHitTest_pickResult?(index: number): number;
     uiNode_computedWidth(registry: CppRegistry, entity: number): number;
     uiNode_computedHeight(registry: CppRegistry, entity: number): number;
     uiRenderOrder_update(registry: CppRegistry): void;

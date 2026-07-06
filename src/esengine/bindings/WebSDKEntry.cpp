@@ -598,6 +598,15 @@ u32 uiHitTest_pick(ecs::Registry& registry, f32 worldX, f32 worldY) {
     return ctx().require<ecs::UISystem>().pick(registry, worldX, worldY);
 }
 
+// Editor pick list (click-through cycling): count + indexed results.
+u32 uiHitTest_pickAll(ecs::Registry& registry, f32 worldX, f32 worldY) {
+    return ctx().require<ecs::UISystem>().pickAll(registry, worldX, worldY);
+}
+
+u32 uiHitTest_pickResult(u32 index) {
+    return ctx().require<ecs::UISystem>().pickResult(index);
+}
+
 // Resolved (Yoga-pass) pixel size of a UI node, for the editor's selection outline.
 // The node's world box is this size, pivot-centered on its Transform.
 f32 uiNode_computedWidth(ecs::Registry& r, u32 e) {
@@ -695,6 +704,8 @@ EMSCRIPTEN_BINDINGS(esengine_ui_systems) {
     emscripten::function("uiHitTest_getHitEntity", &esengine::uiHitTest_getHitEntity);
     emscripten::function("uiHitTest_getHitEntityPrev", &esengine::uiHitTest_getHitEntityPrev);
     emscripten::function("uiHitTest_pick", &esengine::uiHitTest_pick);
+    emscripten::function("uiHitTest_pickAll", &esengine::uiHitTest_pickAll);
+    emscripten::function("uiHitTest_pickResult", &esengine::uiHitTest_pickResult);
     emscripten::function("uiNode_computedWidth", &esengine::uiNode_computedWidth);
     emscripten::function("uiNode_computedHeight", &esengine::uiNode_computedHeight);
     emscripten::function("uiRenderOrder_update", &esengine::uiRenderOrder_update);

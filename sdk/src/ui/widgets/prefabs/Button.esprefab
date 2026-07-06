@@ -365,7 +365,8 @@
             "shadowOffsetX": 0,
             "shadowOffsetY": 0,
             "richText": false,
-            "renderMode": 0
+            "renderMode": 0,
+            "enabled": true
           }
         }
       ],

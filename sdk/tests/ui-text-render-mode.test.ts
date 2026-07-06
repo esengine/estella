@@ -16,9 +16,15 @@ describe('TextRenderMode', () => {
         expect(meta?.enum?.map(o => o.label)).toEqual(['Auto', 'Bitmap', 'Sdf']);
     });
 
+    it('Text defaults enabled (the render toggle the editor eye flips)', () => {
+        expect((Text._default as { enabled: boolean }).enabled).toBe(true);
+    });
+
     it('buildText defaults renderMode to Auto and passes overrides through', () => {
         expect(buildText().renderMode).toBe(TextRenderMode.Auto);
         expect(buildText({ renderMode: TextRenderMode.Sdf }).renderMode).toBe(TextRenderMode.Sdf);
+        expect(buildText().enabled).toBe(true);
+        expect(buildText({ enabled: false }).enabled).toBe(false);
     });
 });
 

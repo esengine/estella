@@ -232,7 +232,10 @@ commands.register({
   keybinding: 'f',
   isEnabled: () => sel().selectedId != null,
   run: () => {
-    const ids = [...sel().selectedIds];
+    // Selection holds source ids; the viewport works on runtime entities.
+    const ids = [...sel().selectedIds]
+      .map((sid) => SceneModel.runtimeFor(sid))
+      .filter((rt): rt is NonNullable<typeof rt> => rt != null);
     if (ids.length > 0) ViewportController.frameSelection(ids);
   },
 });

@@ -48,3 +48,21 @@ export function uiPickWorld(
   const hit = module.uiHitTest_pick(registry, worldX, worldY);
   return hit === NO_HIT ? null : hit;
 }
+
+/** All editor-pickable UI entities under the point, most specific first
+ *  (backs click-through cycling). */
+export function uiPickAllWorld(
+  module: ESEngineModule,
+  registry: CppRegistry,
+  worldX: number,
+  worldY: number,
+): Entity[] {
+  if (!module.uiHitTest_pickAll || !module.uiHitTest_pickResult) return [];
+  const count = module.uiHitTest_pickAll(registry, worldX, worldY);
+  const out: Entity[] = [];
+  for (let i = 0; i < count; i++) {
+    const e = module.uiHitTest_pickResult(i);
+    if (e !== NO_HIT) out.push(e);
+  }
+  return out;
+}

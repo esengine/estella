@@ -16,6 +16,9 @@
 #include "components/UINode.hpp"
 #include "components/UIVisual.hpp"
 
+#include <algorithm>
+#include <cstdint>
+
 namespace esengine::ecs {
 
 void UISystem::hitTestUpdate(
@@ -70,15 +73,19 @@ void UISystem::hitTestUpdate(
     }
 }
 
-u32 UISystem::pick(Registry& registry, f32 worldX, f32 worldY) const {
+u32 UISystem::pickAll(Registry& registry, f32 worldX, f32 worldY) {
+    pickResults_.clear();
     const auto& nodes = tree.nodes_;
 
     // Rank hits by hierarchy depth (the most specific element under the
     // cursor — clicking a label picks the label, not its panel), breaking
     // ties by draw order.
-    Entity best = INVALID_ENTITY;
-    i32 bestDepth = -1;
-    i32 bestOrder = INT32_MIN;
+    struct Hit {
+        Entity entity;
+        i32 depth;
+        i32 order;
+    };
+    std::vector<Hit> hits;
 
     for (i32 i = static_cast<i32>(nodes.size()) - 1; i >= 0; i--) {
         Entity entity = nodes[i].entity;
@@ -109,14 +116,20 @@ u32 UISystem::pick(Registry& registry, f32 worldX, f32 worldY) const {
             a = parent;
         }
         auto* vis = registry.tryGet<UIVisual>(entity);
-        const i32 order = vis ? vis->uiOrder : INT32_MIN;
-        if (depth > bestDepth || (depth == bestDepth && order > bestOrder)) {
-            bestDepth = depth;
-            bestOrder = order;
-            best = entity;
-        }
+        hits.push_back({entity, depth, vis ? vis->uiOrder : INT32_MIN});
     }
-    return best.id();
+
+    std::sort(hits.begin(), hits.end(), [](const Hit& a, const Hit& b) {
+        if (a.depth != b.depth) return a.depth > b.depth;
+        return a.order > b.order;
+    });
+    pickResults_.reserve(hits.size());
+    for (const Hit& h : hits) pickResults_.push_back(h.entity);
+    return static_cast<u32>(pickResults_.size());
+}
+
+u32 UISystem::pick(Registry& registry, f32 worldX, f32 worldY) {
+    return pickAll(registry, worldX, worldY) > 0 ? pickResults_[0].id() : INVALID_ENTITY.id();
 }
 
 }  // namespace esengine::ecs

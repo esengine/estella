@@ -280,7 +280,7 @@ export {
     type UICameraData,
 } from './core/ui-camera-info';
 
-export { screenToUiWorld, uiWorldToScreen, uiHitTestWorld, uiPickWorld } from './util/ui-pick';
+export { screenToUiWorld, uiWorldToScreen, uiHitTestWorld, uiPickWorld, uiPickAllWorld } from './util/ui-pick';
 
 export {
     UILayoutGeneration,

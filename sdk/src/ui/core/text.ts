@@ -55,6 +55,8 @@ export interface TextData {
     shadowOffsetY: number;
     richText: boolean;
     renderMode: TextRenderMode;
+    /** Render toggle — the editor's eye and runtime hiding both flip this. */
+    enabled: boolean;
 }
 
 export const Text = defineComponent<TextData>('Text', {
@@ -77,6 +79,7 @@ export const Text = defineComponent<TextData>('Text', {
     shadowOffsetY: 0,
     richText: false,
     renderMode: TextRenderMode.Auto,
+    enabled: true,
 }, {
     fields: {
         align: { enum: enumOptions(TextAlign) },

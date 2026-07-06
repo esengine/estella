@@ -17,6 +17,8 @@
 #include "Registry.hpp"
 #include "UITree.hpp"
 
+#include <vector>
+
 namespace esengine::ecs {
 
 /**
@@ -73,18 +75,34 @@ public:
                        bool mouseDown, bool mousePressed, bool mouseReleased);
 
     /**
-     * @brief Editor pick: topmost UI entity whose layout box contains the point.
+     * @brief Editor pick: the most specific UI entity whose layout box contains
+     *        the point (hierarchy depth desc, draw order breaking ties).
      *
      * Unlike hitTestUpdate this ignores Interactable — plain text and panels
      * are selectable — and mutates no interaction state.
      */
-    u32 pick(Registry& registry, f32 worldX, f32 worldY) const;
+    u32 pick(Registry& registry, f32 worldX, f32 worldY);
+
+    /**
+     * @brief Editor pick list: ALL UI entities under the point, most specific
+     *        first. Returns the count; read entries via pickResult (the list
+     *        backs click-through cycling).
+     */
+    u32 pickAll(Registry& registry, f32 worldX, f32 worldY);
+
+    /** @brief Entry `index` of the last pickAll (or INVALID_ENTITY). */
+    u32 pickResult(u32 index) const {
+        return index < pickResults_.size() ? pickResults_[index].id() : INVALID_ENTITY.id();
+    }
 
     /** @brief Entity hit by the most recent hitTestUpdate (or INVALID_ENTITY) */
     u32 getHitEntity() const { return hitResult.hit_entity.id(); }
 
     /** @brief Entity hit by the previous frame's hitTestUpdate */
     u32 getPrevHitEntity() const { return hitResult.prev_hit_entity.id(); }
+
+private:
+    std::vector<Entity> pickResults_;
 };
 
 }  // namespace esengine::ecs

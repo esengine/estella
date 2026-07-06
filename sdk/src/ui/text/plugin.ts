@@ -91,7 +91,8 @@ export class TextPlugin implements Plugin {
             for (const e of world.getEntitiesWithComponents([Text, Transform])) {
                 const entity = e as Entity;
                 const t = world.get(entity, Text) as TextData;
-                if (!t.content) continue;
+                // enabled === false: pre-upgrade data lacks the field → visible.
+                if (!t.content || t.enabled === false) continue;
 
                 const tr = world.get(entity, Transform) as TransformData;
                 const renderer = this.rendererFor(
