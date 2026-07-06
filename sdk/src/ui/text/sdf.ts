@@ -2,10 +2,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    ui/text/sdf.ts
- * @brief   TS wrapper over the engine's C++ 8SSEDT signed-distance-field
- *          generator. The dynamic glyph atlas rasterizes a
- *          glyph to alpha via Canvas2D, then calls this to get an SDF that
- *          stays crisp at any scale and supports cheap outline/shadow.
+ * @brief   TS wrapper over the engine's C++ signed-distance-field generator
+ *          (exact EDT with antialiased-coverage sub-texel seeding). The
+ *          dynamic glyph atlas rasterizes a glyph to alpha via Canvas2D, then
+ *          calls this to get an SDF that stays crisp at any scale and
+ *          supports cheap outline/shadow.
  */
 import type { ESEngineModule } from '../../wasm';
 import { withScratch } from '../../wasmScratch';

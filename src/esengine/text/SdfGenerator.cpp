@@ -2,13 +2,22 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    text/SdfGenerator.cpp
- * @brief   8SSEDT (8-point signed sequential euclidean distance transform).
+ * @brief   Exact signed distance field from an antialiased coverage bitmap.
  *
- * Two distance fields are propagated — one toward the nearest "inside" texel,
- * one toward the nearest "outside" texel — and subtracted to get a signed
- * distance that is positive inside the glyph, negative outside, ~0 at the edge.
- * The classic two-pass sequential sweep is approximate but fast and allocation-
- * light, which matters because glyphs are generated on-demand at runtime.
+ * Felzenszwalb–Huttenlocher separable squared-distance transform with
+ * coverage-derived fractional seeds (the tiny-sdf / Gustavson lineage): a
+ * partially covered texel seeds the transform with its sub-texel distance to
+ * the true edge, (0.5 − α)², so the reconstructed field carries the edge
+ * position at sub-texel accuracy instead of quantizing it to the source grid.
+ * The previous 8SSEDT binarized coverage at 0.5, which baked the rasterizer's
+ * pixel staircase into the field — invisible at 1:1, but magnified glyphs
+ * showed it as wobbling, aliased edges.
+ *
+ * Two fields are computed — squared distance to the glyph interior and to the
+ * exterior — and their square roots subtracted for a signed distance that is
+ * positive inside, negative outside, ~0 on the edge. The 1D transform is
+ * exact and O(n); scratch buffers are reused across rows/columns, keeping the
+ * on-demand per-glyph cost allocation-light.
  */
 #include "SdfGenerator.hpp"
 
@@ -19,71 +28,54 @@
 namespace esengine::text {
 namespace {
 
-// Offset from a texel to its nearest opposite-class texel, in texels.
-struct Point {
-    i32 dx;
-    i32 dy;
-};
+constexpr f32 kInf = 1e20f;
 
-constexpr Point kInside{0, 0};
-constexpr Point kEmpty{9999, 9999};  // distSq ~2e8, well within i32
-
-inline i32 distSq(const Point& p) { return p.dx * p.dx + p.dy * p.dy; }
-
-struct Grid {
-    std::vector<Point> cells;
-    i32 w;
-    i32 h;
-
-    usize index(i32 x, i32 y) const {
-        return static_cast<usize>(y) * static_cast<usize>(w) + static_cast<usize>(x);
+/**
+ * 1D squared-distance transform (Felzenszwalb & Huttenlocher): d[q] =
+ * min_p((q-p)² + f[p]). The additive seed cost f is what lets partially
+ * covered texels contribute fractional distances. v/z are the parabola
+ * lower-envelope scratch (v: site indices, z: envelope boundaries).
+ */
+void edt1d(f32* f, f32* d, i32* v, f32* z, i32 n) {
+    i32 k = 0;
+    v[0] = 0;
+    z[0] = -kInf;
+    z[1] = kInf;
+    for (i32 q = 1; q < n; ++q) {
+        f32 s;
+        while (true) {
+            const i32 p = v[k];
+            s = (f[q] + static_cast<f32>(q) * q - (f[p] + static_cast<f32>(p) * p))
+              / (2.0f * (q - p));
+            if (s > z[k]) break;
+            --k;
+        }
+        ++k;
+        v[k] = q;
+        z[k] = s;
+        z[k + 1] = kInf;
     }
-    Point get(i32 x, i32 y) const {
-        if (x < 0 || y < 0 || x >= w || y >= h) return kEmpty;
-        return cells[index(x, y)];
+    k = 0;
+    for (i32 q = 0; q < n; ++q) {
+        while (z[k + 1] < static_cast<f32>(q)) ++k;
+        const f32 dx = static_cast<f32>(q - v[k]);
+        d[q] = dx * dx + f[v[k]];
     }
-    void put(i32 x, i32 y, const Point& p) { cells[index(x, y)] = p; }
-};
-
-inline void compare(const Grid& g, Point& p, i32 x, i32 y, i32 ox, i32 oy) {
-    Point other = g.get(x + ox, y + oy);
-    other.dx += ox;
-    other.dy += oy;
-    if (distSq(other) < distSq(p)) p = other;
 }
 
-// Two-pass sequential sweep: each pass updates every texel from the four
-// already-visited neighbours, so two passes cover all eight directions.
-void propagate(Grid& g) {
-    for (i32 y = 0; y < g.h; ++y) {
-        for (i32 x = 0; x < g.w; ++x) {
-            Point p = g.get(x, y);
-            compare(g, p, x, y, -1, 0);
-            compare(g, p, x, y, 0, -1);
-            compare(g, p, x, y, -1, -1);
-            compare(g, p, x, y, 1, -1);
-            g.put(x, y, p);
-        }
-        for (i32 x = g.w - 1; x >= 0; --x) {
-            Point p = g.get(x, y);
-            compare(g, p, x, y, 1, 0);
-            g.put(x, y, p);
-        }
+/** 2D squared EDT in place: columns then rows, sharing the 1D scratch. */
+void edt2d(std::vector<f32>& grid, i32 w, i32 h,
+           std::vector<f32>& f, std::vector<f32>& d,
+           std::vector<i32>& v, std::vector<f32>& z) {
+    for (i32 x = 0; x < w; ++x) {
+        for (i32 y = 0; y < h; ++y) f[static_cast<usize>(y)] = grid[static_cast<usize>(y) * w + x];
+        edt1d(f.data(), d.data(), v.data(), z.data(), h);
+        for (i32 y = 0; y < h; ++y) grid[static_cast<usize>(y) * w + x] = d[static_cast<usize>(y)];
     }
-    for (i32 y = g.h - 1; y >= 0; --y) {
-        for (i32 x = g.w - 1; x >= 0; --x) {
-            Point p = g.get(x, y);
-            compare(g, p, x, y, 1, 0);
-            compare(g, p, x, y, 0, 1);
-            compare(g, p, x, y, -1, 1);
-            compare(g, p, x, y, 1, 1);
-            g.put(x, y, p);
-        }
-        for (i32 x = 0; x < g.w; ++x) {
-            Point p = g.get(x, y);
-            compare(g, p, x, y, -1, 0);
-            g.put(x, y, p);
-        }
+    for (i32 y = 0; y < h; ++y) {
+        f32* row = grid.data() + static_cast<usize>(y) * w;
+        edt1d(row, d.data(), v.data(), z.data(), w);
+        std::copy_n(d.data(), w, row);
     }
 }
 
@@ -94,32 +86,44 @@ void sdfFromAlpha(const u8* alpha, u8* out, u32 width, u32 height, f32 spread) {
 
     const i32 w = static_cast<i32>(width);
     const i32 h = static_cast<i32>(height);
-    const i32 n = w * h;
+    const usize n = static_cast<usize>(w) * static_cast<usize>(h);
+    const i32 m = std::max(w, h);
 
-    Grid inside{std::vector<Point>(static_cast<usize>(n)), w, h};   // toward nearest inside texel
-    Grid outside{std::vector<Point>(static_cast<usize>(n)), w, h};  // toward nearest outside texel
-
-    const usize count = static_cast<usize>(n);
-    for (usize i = 0; i < count; ++i) {
-        if (alpha[i] >= 128) {
-            inside.cells[i] = kInside;
-            outside.cells[i] = kEmpty;
+    // Squared distance to the glyph interior (outer) and exterior (inner).
+    // Coverage seeds: a fully covered texel is interior (outer seed 0); a
+    // fully empty one is exterior (inner seed 0); a partial texel sits within
+    // half a texel of the edge, on the side its coverage says.
+    std::vector<f32> outer(n);
+    std::vector<f32> inner(n);
+    for (usize i = 0; i < n; ++i) {
+        const f32 a = static_cast<f32>(alpha[i]) / 255.0f;
+        if (a >= 1.0f) {
+            outer[i] = 0.0f;
+            inner[i] = kInf;
+        } else if (a <= 0.0f) {
+            outer[i] = kInf;
+            inner[i] = 0.0f;
         } else {
-            inside.cells[i] = kEmpty;
-            outside.cells[i] = kInside;
+            const f32 dOut = std::max(0.0f, 0.5f - a);  // toward the interior side
+            const f32 dIn = std::max(0.0f, a - 0.5f);   // toward the exterior side
+            outer[i] = dOut * dOut;
+            inner[i] = dIn * dIn;
         }
     }
 
-    propagate(inside);
-    propagate(outside);
+    std::vector<f32> f(static_cast<usize>(m));
+    std::vector<f32> d(static_cast<usize>(m));
+    std::vector<i32> v(static_cast<usize>(m));
+    std::vector<f32> z(static_cast<usize>(m) + 1);
+    edt2d(outer, w, h, f, d, v, z);
+    edt2d(inner, w, h, f, d, v, z);
 
     const f32 scale = (spread > 0.0f) ? (127.0f / spread) : 127.0f;
-    for (usize i = 0; i < count; ++i) {
-        const f32 distToInside = std::sqrt(static_cast<f32>(distSq(inside.cells[i])));   // 0 inside, grows outward
-        const f32 distToOutside = std::sqrt(static_cast<f32>(distSq(outside.cells[i]))); // 0 outside, grows inward
-        const f32 signedDist = distToOutside - distToInside;  // + inside, - outside, ~0 at edge
-        const i32 v = static_cast<i32>(std::lround(128.0f + signedDist * scale));
-        out[i] = static_cast<u8>(std::clamp(v, 0, 255));
+    for (usize i = 0; i < n; ++i) {
+        // + inside, − outside, ~0 at the (sub-texel) edge.
+        const f32 signedDist = std::sqrt(inner[i]) - std::sqrt(outer[i]);
+        const i32 b = static_cast<i32>(std::lround(128.0f + signedDist * scale));
+        out[i] = static_cast<u8>(std::clamp(b, 0, 255));
     }
 }
 

@@ -10,7 +10,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import type { ESEngineModule } from '../src/wasm';
 import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
-import { extractAlpha, sdfToAtlasRgba } from '../src/ui/text/glyph-rasterizer';
+import { extractAlpha, sdfToAtlasRgba, downsampleBytes } from '../src/ui/text/glyph-rasterizer';
 import { sdfFromAlpha } from '../src/ui/text/sdf';
 
 describe('REARCH_GUI P1.3b: glyph rasterizer pure transforms', () => {
@@ -40,6 +40,33 @@ describe('REARCH_GUI P1.3b: glyph rasterizer pure transforms', () => {
             expect(tile[c * 4]).toBe(255);
             expect(tile[c * 4 + 3]).toBe(sdf[c]);
             expect(sdf[c]).toBeGreaterThan(128);
+        });
+    });
+
+    describe('downsampleBytes (SDF supersampling fold-down)', () => {
+        it('averages factor² blocks into one output texel', () => {
+            // 4×2 source, factor 2 → 2×1 output.
+            const src = new Uint8Array([
+                10, 20, 100, 200,
+                30, 40, 100, 200,
+            ]);
+            const out = downsampleBytes(src, 4, 2, 2);
+            expect(Array.from(out)).toEqual([25, 150]);
+        });
+
+        it('factor 1 is the identity', () => {
+            const src = new Uint8Array([1, 2, 3, 4]);
+            expect(downsampleBytes(src, 2, 2, 1)).toBe(src);
+        });
+
+        it('preserves a linear gradient (sub-texel edge positions survive)', () => {
+            // 8×4 source of a horizontal ramp (rows identical), factor 4 → 2×1.
+            const row = [0, 32, 64, 96, 128, 160, 192, 224];
+            const src = new Uint8Array([...row, ...row, ...row, ...row]);
+            const out = downsampleBytes(src, 8, 4, 4);
+            expect(out.length).toBe(2);
+            expect(out[0]).toBe(48);   // avg(0,32,64,96)
+            expect(out[1]).toBe(176);  // avg(128..224)
         });
     });
 });

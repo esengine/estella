@@ -39,6 +39,34 @@ export function sdfToAtlasRgba(sdf: Uint8Array, width: number, height: number): 
     return out;
 }
 
+/**
+ * Box-downsample a byte grid by an integer factor (averaging factor² texels
+ * per output texel). Used to fold a supersampled SDF back to the stored
+ * resolution: the field is computed at `factor²` the resolution — so edge
+ * positions carry sub-(stored-)texel accuracy — and averaging a linearly
+ * encoded field preserves that accuracy in the stored texels. Pure.
+ */
+export function downsampleBytes(src: Uint8Array, width: number, height: number, factor: number): Uint8Array {
+    if (factor <= 1) return src;
+    const w = Math.floor(width / factor);
+    const h = Math.floor(height / factor);
+    const out = new Uint8Array(w * h);
+    const area = factor * factor;
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            let sum = 0;
+            const sy0 = y * factor;
+            const sx0 = x * factor;
+            for (let sy = 0; sy < factor; sy++) {
+                const row = (sy0 + sy) * width + sx0;
+                for (let sx = 0; sx < factor; sx++) sum += src[row + sx];
+            }
+            out[y * w + x] = Math.round(sum / area);
+        }
+    }
+    return out;
+}
+
 export interface CanvasGlyphRasterizerOptions {
     /** Size glyphs are rasterized at (SDF is resolution-independent). Default 48. */
     renderSize?: number;
@@ -50,6 +78,13 @@ export interface CanvasGlyphRasterizerOptions {
 
 type Canvas2D = HTMLCanvasElement | OffscreenCanvas;
 type Ctx2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+
+// SDF supersampling: rasterize + distance-transform at SS× the stored
+// resolution, then box-downsample the field. Coverage seeding recovers the
+// edge only to ~⅓ texel; computing at 4× and averaging down stores distances
+// at ~1/12-texel accuracy, so magnified glyphs stop showing the source grid
+// as edge wobble. One-time per glyph; atlas memory is unchanged.
+const SDF_SUPERSAMPLE = 4;
 
 export class CanvasGlyphRasterizer implements GlyphRasterizer {
     readonly renderSize: number;
@@ -64,8 +99,10 @@ export class CanvasGlyphRasterizer implements GlyphRasterizer {
         this.renderSize = opts.renderSize ?? 48;
         this.pad = opts.padding ?? 6;
         this.sdf = opts.sdf ?? true;
-        // Scratch canvas sized for the largest glyph (em + ascenders + padding).
-        const dim = Math.ceil(this.renderSize * 2 + this.pad * 2);
+        // Scratch canvas sized for the largest glyph (em + ascenders + padding),
+        // at supersampled resolution on the SDF path.
+        const ss = this.sdf ? SDF_SUPERSAMPLE : 1;
+        const dim = Math.ceil((this.renderSize * 2 + this.pad * 2) * ss);
         this.canvas = platformCreateCanvas(dim, dim);
         this.ctx = this.canvas.getContext('2d', { willReadFrequently: true }) as Ctx2D | null;
     }
@@ -75,55 +112,63 @@ export class CanvasGlyphRasterizer implements GlyphRasterizer {
         if (!ctx) return null;
         const ch = String.fromCodePoint(codepoint);
 
+        // All drawing happens at ss× the requested size; metrics divide back
+        // down, gaining sub-px accuracy from the larger measurement.
+        const ss = this.sdf ? SDF_SUPERSAMPLE : 1;
         const weight = (style & FONT_STYLE_BOLD) ? 'bold ' : '';
         const italic = (style & FONT_STYLE_ITALIC) ? 'italic ' : '';
-        ctx.font = `${italic}${weight}${pixelSize}px ${fontFamily}`;
+        ctx.font = `${italic}${weight}${pixelSize * ss}px ${fontFamily}`;
         ctx.textBaseline = 'alphabetic';
         ctx.textAlign = 'left';
 
         const m = ctx.measureText(ch);
-        const advance = m.width;
-        const left = m.actualBoundingBoxLeft ?? 0;
-        const right = m.actualBoundingBoxRight ?? advance;
-        const ascent = m.actualBoundingBoxAscent ?? pixelSize * 0.8;
-        const descent = m.actualBoundingBoxDescent ?? pixelSize * 0.2;
+        const advanceSS = m.width;
+        const leftSS = m.actualBoundingBoxLeft ?? 0;
+        const rightSS = m.actualBoundingBoxRight ?? advanceSS;
+        const ascentSS = m.actualBoundingBoxAscent ?? pixelSize * ss * 0.8;
+        const descentSS = m.actualBoundingBoxDescent ?? pixelSize * ss * 0.2;
 
-        const inkW = Math.ceil(left + right);
-        const inkH = Math.ceil(ascent + descent);
+        // Ink box in *stored* texels (rounded up so the ss grid tiles exactly).
+        const inkW = Math.ceil((leftSS + rightSS) / ss);
+        const inkH = Math.ceil((ascentSS + descentSS) / ss);
         if (inkW <= 0 || inkH <= 0) {
             // Whitespace: advance only, no atlas cell.
-            return { pixels: new Uint8Array(0), width: 0, height: 0, advance, bearingX: 0, bearingY: 0 };
+            return { pixels: new Uint8Array(0), width: 0, height: 0, advance: advanceSS / ss, bearingX: 0, bearingY: 0 };
         }
 
         const pad = this.pad;
         const w = inkW + pad * 2;
         const h = inkH + pad * 2;
-        if (w > this.canvas.width || h > this.canvas.height) return null; // glyph too large for scratch
+        const wSS = w * ss;
+        const hSS = h * ss;
+        if (wSS > this.canvas.width || hSS > this.canvas.height) return null; // glyph too large for scratch
 
-        ctx.clearRect(0, 0, w, h);
+        ctx.clearRect(0, 0, wSS, hSS);
         ctx.fillStyle = '#ffffff';
-        ctx.fillText(ch, pad + left, pad + ascent);
+        ctx.fillText(ch, pad * ss + leftSS, pad * ss + ascentSS);
 
-        const img = ctx.getImageData(0, 0, w, h);
-        const alpha = extractAlpha(img.data, w, h);
-        // SDF: convert to a distance field (scalable). Bitmap: keep the native-AA
+        const img = ctx.getImageData(0, 0, wSS, hSS);
+        const alpha = extractAlpha(img.data, wSS, hSS);
+        // SDF: distance-transform at the supersampled resolution (spread scales
+        // with ss, so the downsampled encoding matches spread = pad in stored
+        // texels exactly), then fold back down. Bitmap: keep the native-AA
         // coverage as-is for a crisp 1:1 blit. Both pack as (RGB=255, A=coverage).
         let coverage = alpha;
         if (this.sdf) {
-            const sdf = sdfFromAlpha(this.module, alpha, w, h, pad);
+            const sdf = sdfFromAlpha(this.module, alpha, wSS, hSS, pad * ss);
             if (!sdf) return null;
-            coverage = sdf;
+            coverage = downsampleBytes(sdf, wSS, hSS, ss);
         }
 
         return {
             pixels: sdfToAtlasRgba(coverage, w, h),
             width: w,
             height: h,
-            advance,
-            // Drawn at pen x = pad + left (ink lands at tile x = pad), so the pen
-            // origin maps back to tile x = 0 at -(left + pad).
-            bearingX: -(left + pad),
-            bearingY: ascent + pad,
+            advance: advanceSS / ss,
+            // Drawn at pen x = (pad + left) (ink lands at tile x = pad), so the
+            // pen origin maps back to tile x = 0 at -(left + pad).
+            bearingX: -(leftSS / ss + pad),
+            bearingY: ascentSS / ss + pad,
         };
     }
 }

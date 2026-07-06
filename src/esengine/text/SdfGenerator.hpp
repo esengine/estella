@@ -16,10 +16,15 @@
 namespace esengine::text {
 
 /**
- * @brief 8SSEDT signed distance field from an alpha coverage bitmap.
+ * @brief Signed distance field from an antialiased alpha coverage bitmap.
  *
- * @param alpha   width*height coverage bytes; a texel is "inside" the glyph
- *                when its value is >= 128.
+ * Exact Felzenszwalb–Huttenlocher squared-distance transform with
+ * coverage-derived fractional seeds: partially covered texels place the edge
+ * at sub-texel accuracy, so magnified glyphs keep smooth edges instead of the
+ * source rasterization's pixel staircase.
+ *
+ * @param alpha   width*height coverage bytes (antialiased coverage is used,
+ *                not thresholded).
  * @param out     width*height output bytes. 128 encodes the edge; values above
  *                128 are inside, below are outside. The mapping is linear with
  *                `spread` pixels spanning half the [0,255] range, matching what
