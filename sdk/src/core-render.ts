@@ -83,6 +83,12 @@ export {
 } from './material';
 
 export {
+    BUILTIN_SHADER_TEMPLATES,
+    builtinShaderTemplate,
+    type BuiltinShaderTemplate,
+} from './builtinShaders';
+
+export {
     compileMaterialGraph,
     newMaterialGraph,
     addNode,

@@ -47,6 +47,7 @@ struct MaterialParamSlot {
     std::string name;
     u32 offset = 0;  ///< std140 byte offset within the block.
     u32 arity = 1;   ///< Float component count (1..4); textures are not slots.
+    f32 defaults[4] = {0, 0, 0, 0};  ///< Shader-declared default(...); the block's initial value.
 };
 
 /** @brief A texture param's sampler unit (>= MATERIAL_TEXTURE_UNIT_BASE, above the batch's 0..7). */
@@ -156,9 +157,7 @@ public:
         if (lit == layouts_.end()) return;
         const MaterialParamSlot* slot = lit->second.find(name);
         if (!slot) return;
-        if (rec.uboBytes.size() < lit->second.blockSize) {
-            rec.uboBytes.resize(lit->second.blockSize, 0);
-        }
+        ensureDefaults(rec, lit->second);
         const u32 n = std::min(arity, slot->arity);
         std::memcpy(rec.uboBytes.data() + slot->offset, values, n * sizeof(f32));
         rec.uboDirty = true;
@@ -197,6 +196,17 @@ public:
     void clear();
 
 private:
+    /// Fills an unpacked block with the shader's param defaults, so a material that never
+    /// sets a param still draws with the declared default(...) values (not zeros).
+    static void ensureDefaults(MaterialRecord& rec, const MaterialUniformLayout& layout) {
+        if (layout.blockSize == 0 || rec.uboBytes.size() >= layout.blockSize) return;
+        rec.uboBytes.resize(layout.blockSize, 0);
+        for (const auto& p : layout.params) {
+            std::memcpy(rec.uboBytes.data() + p.offset, p.defaults, p.arity * sizeof(f32));
+        }
+        rec.uboDirty = true;
+    }
+
     std::unordered_map<u32, MaterialRecord> materials_;
     std::unordered_map<u32, MaterialUniformLayout> layouts_;
     GfxDevice* device_ = nullptr;

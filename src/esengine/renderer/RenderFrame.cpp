@@ -165,7 +165,9 @@ void RenderFrame::init(u32 width, u32 height) {
         context_.getWhiteTextureId(),
         batch_shader_id_,
         RenderStage::Transparent,
-        glm::mat4(1.0f)
+        glm::mat4(1.0f),
+        nullptr,
+        this
     };
     for (auto& plugin : plugins_) {
         plugin->init(initCtx);
@@ -496,7 +498,8 @@ RenderFrameContext RenderFrame::makeContext() {
         batch_shader_id_,
         current_stage_,
         view_projection_,
-        &context_.materials()
+        &context_.materials(),
+        this
     };
 }
 
@@ -605,6 +608,11 @@ u32 RenderFrame::compileBatchVariant(const std::vector<std::string>& features) {
     // Parse it and assemble the two GLSL ES 3.00 stages (single source of truth),
     // injecting the requested feature #defines (e.g. SDF).
     auto parsed = resource::ShaderParser::parse(ShaderEmbeds::BATCH);
+    // LIT is a Lit2D-domain variant: the domain drives the lighting injection,
+    // same path as Lit2D material shaders.
+    if (std::find(features.begin(), features.end(), "LIT") != features.end()) {
+        parsed.domain = "Lit2D";
+    }
     resource::ShaderHandle handle = resource_manager_.createShaderWithBindings(
         resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Vertex, "", features),
         resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Fragment, "", features),

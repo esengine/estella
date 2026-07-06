@@ -92,6 +92,36 @@ bool expandIncludes(const std::string& source,
     return true;
 }
 
+// Canonical 2D vertex stage for fragment-only .esshaders: the batch path bakes the
+// world transform into the vertices, so all 2D shaders share this pass-through.
+std::string canonical2DVertexStage(bool lit) {
+    std::string src =
+        "layout(location = 0) in vec2 a_position;\n"
+        "layout(location = 1) in vec4 a_color;\n"
+        "layout(location = 2) in vec2 a_texCoord;\n"
+        "\n"
+        "layout(std140) uniform FrameConstants {\n"
+        "    mat4 u_projection;\n"
+        "};\n"
+        "\n"
+        "out vec4 v_color;\n"
+        "out vec2 v_texCoord;\n";
+    if (lit) {
+        src += "out highp vec2 v_worldPos;\n";
+    }
+    src +=
+        "\n"
+        "void main() {\n"
+        "    gl_Position = u_projection * vec4(a_position, 0.0, 1.0);\n"
+        "    v_color = a_color;\n"
+        "    v_texCoord = a_texCoord;\n";
+    if (lit) {
+        src += "    v_worldPos = a_position;\n";
+    }
+    src += "}\n";
+    return src;
+}
+
 }  // namespace
 
 // =============================================================================
@@ -310,8 +340,13 @@ ParsedShader ShaderParser::parse(const std::string& source, const ShaderIncludeR
     }
 
     if (result.stages.find(ShaderStage::Vertex) == result.stages.end()) {
-        result.errorMessage = "Missing vertex shader stage";
-        return result;
+        // 2D domains: `#pragma vertex` is optional — the canonical stage is injected.
+        if (result.domain == "Unlit2D" || result.domain == "Lit2D") {
+            result.stages[ShaderStage::Vertex] = canonical2DVertexStage(result.domain == "Lit2D");
+        } else {
+            result.errorMessage = "Missing vertex shader stage";
+            return result;
+        }
     }
 
     if (result.stages.find(ShaderStage::Fragment) == result.stages.end()) {

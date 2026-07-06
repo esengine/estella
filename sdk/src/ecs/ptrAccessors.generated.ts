@@ -897,6 +897,7 @@ export interface SpritePtrData {
     uvOffset: Vec2;
     uvScale: Vec2;
     layer: number;
+    lit: boolean;
     flipX: boolean;
     flipY: boolean;
     tileSize: Vec2;
@@ -917,8 +918,9 @@ export function fillSprite(
     const uvOffset_ = out.uvOffset; uvOffset_.x = f32[(ptr + 36) >> 2]; uvOffset_.y = f32[((ptr + 36) >> 2) + 1];
     const uvScale_ = out.uvScale; uvScale_.x = f32[(ptr + 44) >> 2]; uvScale_.y = f32[((ptr + 44) >> 2) + 1];
     out.layer = u32[(ptr + 52) >> 2] | 0;
-    out.flipX = u8[ptr + 56] !== 0;
-    out.flipY = u8[ptr + 57] !== 0;
+    out.lit = u8[ptr + 56] !== 0;
+    out.flipX = u8[ptr + 57] !== 0;
+    out.flipY = u8[ptr + 58] !== 0;
     const tileSize_ = out.tileSize; tileSize_.x = f32[(ptr + 60) >> 2]; tileSize_.y = f32[((ptr + 60) >> 2) + 1];
     const tileSpacing_ = out.tileSpacing; tileSpacing_.x = f32[(ptr + 68) >> 2]; tileSpacing_.y = f32[((ptr + 68) >> 2) + 1];
     const parallax_ = out.parallax; parallax_.x = f32[(ptr + 76) >> 2]; parallax_.y = f32[((ptr + 76) >> 2) + 1];
@@ -937,8 +939,9 @@ export function writeSprite(
     f32[(ptr + 36) >> 2] = data.uvOffset.x; f32[((ptr + 36) >> 2) + 1] = data.uvOffset.y;
     f32[(ptr + 44) >> 2] = data.uvScale.x; f32[((ptr + 44) >> 2) + 1] = data.uvScale.y;
     u32[(ptr + 52) >> 2] = data.layer | 0;
-    u8[ptr + 56] = data.flipX ? 1 : 0;
-    u8[ptr + 57] = data.flipY ? 1 : 0;
+    u8[ptr + 56] = data.lit ? 1 : 0;
+    u8[ptr + 57] = data.flipX ? 1 : 0;
+    u8[ptr + 58] = data.flipY ? 1 : 0;
     f32[(ptr + 60) >> 2] = data.tileSize.x; f32[((ptr + 60) >> 2) + 1] = data.tileSize.y;
     f32[(ptr + 68) >> 2] = data.tileSpacing.x; f32[((ptr + 68) >> 2) + 1] = data.tileSpacing.y;
     f32[(ptr + 76) >> 2] = data.parallax.x; f32[((ptr + 76) >> 2) + 1] = data.parallax.y;
@@ -955,6 +958,7 @@ export function createSpriteData(): SpritePtrData {
         uvOffset: { x: 0, y: 0 },
         uvScale: { x: 0, y: 0 },
         layer: 0,
+        lit: false,
         flipX: false,
         flipY: false,
         tileSize: { x: 0, y: 0 },

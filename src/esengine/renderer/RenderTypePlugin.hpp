@@ -19,6 +19,7 @@ namespace esengine {
 struct Frustum;
 class RenderContext;
 class MaterialStore;
+class RenderFrame;
 
 struct RenderFrameContext {
     RenderContext& render_context;
@@ -28,6 +29,8 @@ struct RenderFrameContext {
     RenderStage current_stage = RenderStage::Transparent;
     glm::mat4 view_projection{1.0f};
     const MaterialStore* materials = nullptr;
+    /// The owning frame, for lazily-compiled batch variants (RenderFrame::batchProgram).
+    RenderFrame* frame = nullptr;
 };
 
 struct RenderCollectContext {

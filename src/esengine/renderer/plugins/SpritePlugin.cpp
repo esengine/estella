@@ -31,6 +31,8 @@ void SpritePlugin::collect(RenderCollectContext& collect_ctx) {
     const f32 camCenterX = (camBL.x / camBL.w + camTR.x / camTR.w) * 0.5f;
     const f32 camCenterY = (camBL.y / camBL.w + camTR.y / camTR.w) * 0.5f;
 
+    u32 litProgram = 0;
+
     for (auto entity : spriteView) {
         const auto& sprite = spriteView.get<ecs::Sprite>(entity);
         if (!sprite.enabled) continue;
@@ -114,6 +116,10 @@ void SpritePlugin::collect(RenderCollectContext& collect_ctx) {
                 key.depthWrite = m->depthWrite;
                 key.cull = static_cast<u8>(m->cull);
             }
+        } else if (sprite.lit && ctx.frame) {
+            // A material owns shading fully, so it takes precedence over the toggle.
+            if (litProgram == 0) litProgram = ctx.frame->batchProgram({"LIT"});
+            if (litProgram != 0) key.shaderId = litProgram;
         }
 
         if (hasTiling) {

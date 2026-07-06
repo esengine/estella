@@ -56,8 +56,10 @@
 #include "../core/Log.hpp"
 
 #include <glm/glm.hpp>
+#include <cstdlib>
 #include <cstring>
 #include <cstddef>
+#include <sstream>
 
 static_assert(sizeof(void*) == 4, "EM_JS pointer passing assumes wasm32 (4-byte pointers)");
 
@@ -105,7 +107,14 @@ static MaterialUniformLayout buildMaterialLayout(const resource::ParsedShader& p
                                             rc.defaultTextureByName(p.defaultValue) });
             }
         } else if (p.std140Offset >= 0) {
-            layout.params.push_back({ p.name, static_cast<u32>(p.std140Offset), materialParamArity(p.type) });
+            MaterialParamSlot slot{ p.name, static_cast<u32>(p.std140Offset), materialParamArity(p.type) };
+            // default(a,b,c,d) csv → the slot's initial block value.
+            std::istringstream csv(p.defaultValue);
+            std::string tok;
+            for (u32 i = 0; i < slot.arity && std::getline(csv, tok, ','); ++i) {
+                slot.defaults[i] = std::strtof(tok.c_str(), nullptr);
+            }
+            layout.params.push_back(slot);
         }
     }
     return layout;

@@ -10,6 +10,10 @@ inline constexpr const char* BATCH = R"esshader(#pragma shader "Batch"
 // derives crisp, resolution-independent coverage instead of sampling RGBA.
 #pragma feature SDF
 
+// Compile-time variant: lit by the scene's 2D lights (Sprite.lit). Compiled as a
+// Lit2D-domain shader, so es_applyLighting2D + LightConstants are injected.
+#pragma feature LIT
+
 #pragma vertex
 layout(location = 0) in vec2 a_position;
 layout(location = 1) in vec4 a_color;
@@ -23,12 +27,18 @@ layout(std140) uniform FrameConstants {
 out vec4 v_color;
 out vec2 v_texCoord;
 flat out int v_texIndex;
+#ifdef LIT
+out highp vec2 v_worldPos;
+#endif
 
 void main() {
     gl_Position = u_projection * vec4(a_position, 0.0, 1.0);
     v_color = a_color;
     v_texCoord = a_texCoord;
     v_texIndex = int(a_texIndex);
+#ifdef LIT
+    v_worldPos = a_position;
+#endif
 }
 #pragma end
 
@@ -40,6 +50,9 @@ precision highp float;
 in vec4 v_color;
 in vec2 v_texCoord;
 flat in int v_texIndex;
+#ifdef LIT
+in highp vec2 v_worldPos;
+#endif
 
 // Up to 8 textures bound per multi-texture batch. GLSL ES 3.00 forbids indexing a
 // sampler array with a non-uniform expression, so the slot is selected by a constant
@@ -66,6 +79,10 @@ void main() {
     float screenPxDist = (dist - 0.5) / max(fwidth(dist), 1e-6);
     float coverage = clamp(screenPxDist + 0.5, 0.0, 1.0);
     fragColor = vec4(v_color.rgb, v_color.a * coverage);
+#elif defined(LIT)
+    // Flat normal; the tinted color is the albedo. Normal maps need a material.
+    vec4 base = texColor * v_color;
+    fragColor = vec4(es_applyLighting2D(base.rgb, vec3(0.0, 0.0, 1.0), v_worldPos), base.a);
 #else
     fragColor = texColor * v_color;
 #endif

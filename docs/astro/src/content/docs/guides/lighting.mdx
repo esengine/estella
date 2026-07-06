@@ -74,18 +74,27 @@ const addSun = defineSystem([Commands()], (cmds) => {
 
 ## Making a renderer receive light
 
-By default a `Sprite` draws with an **unlit** material and ignores every light. To make
-it respond, give it a material whose shader declares the **Lit-2D domain**. In an
-`.esshader`, that's one pragma plus a call to the injected lighting helper:
+By default a `Sprite` draws with an **unlit** material and ignores every light. The
+simplest way to light one is the `lit` flag — no material, no shader:
+
+```typescript
+app.world.spawn()
+  .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+  .insert(Sprite, { texture: hero, lit: true });
+```
+
+In the editor this is the **Lit** checkbox on the Sprite component. The sprite is lit
+with a flat normal — every 2D light type, falloff, and shadow works out of the box.
+
+When you need more than the flag (a tint parameter, a normal map, custom surface
+logic), use a material whose shader declares the **Lit-2D domain**. The engine injects
+the lighting uniforms and helpers, and the vertex stage is optional for 2D shaders —
+you write only the fragment:
 
 ```glsl
 #pragma shader "MyLit"
 #pragma version 300 es
 #pragma domain Lit2D
-
-#pragma vertex
-// … pass the world-space position out as v_worldPos …
-#pragma end
 
 #pragma fragment
 precision mediump float;
@@ -106,8 +115,9 @@ void main() {
 #pragma end
 ```
 
-Compile it and assign the material to the renderer exactly as in
-[Materials & Shaders](/docs/guides/material/):
+In the editor, **New Material (Lit)** in the Content Browser creates exactly this —
+a ready lit material with a tint and an optional normal map. From code, compile and
+assign it as in [Materials & Shaders](/docs/guides/material/):
 
 ```typescript
 import { Material, defineSystem, Query, Mut, Sprite } from 'esengine';

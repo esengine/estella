@@ -35,6 +35,9 @@ void MaterialStore::bindForDraw(u32 materialId) {
     if (it == materials_.end()) return;
     MaterialRecord& rec = it->second;
 
+    auto lit = layouts_.find(rec.shader);
+    if (lit != layouts_.end()) ensureDefaults(rec, lit->second);
+
     // Per-material constants UBO (binding 1) — present only when the shader declares params.
     if (!rec.uboBytes.empty()) {
         if (rec.ubo == 0) {
@@ -54,7 +57,6 @@ void MaterialStore::bindForDraw(u32 materialId) {
     // batch path's 0..7. Iterate the shader's layout (not just the material's explicit bindings)
     // so an unset param binds its declared default (white/black/flatnormal) instead of sampling
     // whatever stale texture is at the unit.
-    auto lit = layouts_.find(rec.shader);
     if (lit != layouts_.end()) {
         for (const auto& slot : lit->second.textures) {
             u32 glTexture = slot.defaultGlTexture;

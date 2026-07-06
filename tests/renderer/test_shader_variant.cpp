@@ -41,6 +41,67 @@ void main() {
 #pragma end
 )";
 
+// Fragment-only authoring: `#pragma vertex` is optional for 2D domains.
+static const char* FRAG_ONLY_UNLIT = R"(#pragma shader "FragOnly"
+#pragma version 300 es
+#pragma domain Unlit2D
+
+#pragma fragment
+precision mediump float;
+in vec4 v_color;
+in vec2 v_texCoord;
+out vec4 fragColor;
+void main() { fragColor = v_color; }
+#pragma end
+)";
+
+static const char* FRAG_ONLY_LIT = R"(#pragma shader "FragOnlyLit"
+#pragma version 300 es
+#pragma domain Lit2D
+
+#pragma fragment
+precision mediump float;
+in vec4 v_color;
+in highp vec2 v_worldPos;
+out vec4 fragColor;
+void main() { fragColor = vec4(es_applyLighting2D(v_color.rgb, vec3(0.0, 0.0, 1.0), v_worldPos), v_color.a); }
+#pragma end
+)";
+
+static const char* FRAG_ONLY_POSTPROCESS = R"(#pragma shader "NoCanonical"
+#pragma version 300 es
+#pragma domain PostProcess
+
+#pragma fragment
+precision mediump float;
+out vec4 fragColor;
+void main() { fragColor = vec4(1.0); }
+#pragma end
+)";
+
+static void testFragmentOnly() {
+    ParsedShader unlit = ShaderParser::parse(FRAG_ONLY_UNLIT);
+    CHECK(unlit.valid, "fragment-only Unlit2D shader parses");
+    const std::string uv = ShaderParser::assembleStage(unlit, ShaderStage::Vertex);
+    CHECK(uv.find("a_position") != std::string::npos, "canonical vertex stage injected");
+    CHECK(uv.find("FrameConstants") != std::string::npos, "canonical vertex reads the FrameConstants UBO");
+    CHECK(uv.find("v_worldPos") == std::string::npos, "Unlit2D canonical vertex has no world-pos varying");
+
+    ParsedShader lit = ShaderParser::parse(FRAG_ONLY_LIT);
+    CHECK(lit.valid, "fragment-only Lit2D shader parses");
+    const std::string lv = ShaderParser::assembleStage(lit, ShaderStage::Vertex);
+    CHECK(lv.find("v_worldPos = a_position") != std::string::npos, "Lit2D canonical vertex forwards world position");
+    const std::string lf = ShaderParser::assembleStage(lit, ShaderStage::Fragment);
+    CHECK(lf.find("es_applyLighting2D") != std::string::npos, "Lit2D fragment gets the lighting helper injected");
+
+    ParsedShader pp = ShaderParser::parse(FRAG_ONLY_POSTPROCESS);
+    CHECK(!pp.valid, "non-2D domain without a vertex stage still errors");
+
+    ParsedShader authored = ShaderParser::parse(SRC);
+    const std::string av = ShaderParser::assembleStage(authored, ShaderStage::Vertex);
+    CHECK(av.find("a_pos") != std::string::npos, "an authored vertex stage is untouched");
+}
+
 int main() {
     ParsedShader p = ShaderParser::parse(SRC);
     CHECK(p.valid, "shader parses");
@@ -58,6 +119,8 @@ int main() {
     CHECK(ShaderParser::variantKey({"A", "B"}) == ShaderParser::variantKey({"B", "A"}),
           "variantKey is order-independent");
     CHECK(ShaderParser::variantKey({}).empty(), "variantKey of no features is empty");
+
+    testFragmentOnly();
 
     if (g_failures == 0) {
         std::printf("\nALL SHADER-VARIANT TESTS PASSED\n");

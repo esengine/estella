@@ -72,17 +72,26 @@ const addSun = defineSystem([Commands()], (cmds) => {
 
 ## 让渲染器接受光照
 
-默认情况下,一个 `Sprite` 用**不受光**材质绘制,会忽略每一盏灯。要让它响应光照,给它一个着色器
-声明了 **Lit-2D 域**的材质。在 `.esshader` 里,就是一个 pragma 加一次对注入的光照 helper 的调用:
+默认情况下,一个 `Sprite` 用**不受光**材质绘制,会忽略每一盏灯。让它受光最简单的方式是
+`lit` 开关——不需要材质、不需要着色器:
+
+```typescript
+app.world.spawn()
+  .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+  .insert(Sprite, { texture: hero, lit: true });
+```
+
+在编辑器里就是 Sprite 组件上的 **Lit** 勾选框。精灵以平法线受光——每种 2D 光源、
+衰减和阴影都开箱即用。
+
+当你需要的不止这个开关(色调参数、法线贴图、自定义表面逻辑)时,给它一个着色器声明了
+**Lit-2D 域**的材质。引擎会注入光照 uniform 和 helper,而且 2D 着色器的顶点段是可选的——
+你只写片元:
 
 ```glsl
 #pragma shader "MyLit"
 #pragma version 300 es
 #pragma domain Lit2D
-
-#pragma vertex
-// …把世界空间位置作为 v_worldPos 输出…
-#pragma end
 
 #pragma fragment
 precision mediump float;
@@ -103,7 +112,9 @@ void main() {
 #pragma end
 ```
 
-编译它并把材质赋给渲染器,方式与[材质与着色器](/docs/zh-cn/guides/material/)里完全一致:
+在编辑器里,内容浏览器的 **New Material (Lit)** 创建的正是这样一个现成的受光材质,
+自带色调参数和可选法线贴图。代码侧的编译与赋材质方式与
+[材质与着色器](/docs/zh-cn/guides/material/)里完全一致:
 
 ```typescript
 import { Material, defineSystem, Query, Mut, Sprite } from 'esengine';

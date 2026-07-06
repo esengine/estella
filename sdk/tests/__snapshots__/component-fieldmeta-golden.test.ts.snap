@@ -473,6 +473,9 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
       "step": 1,
       "tooltip": "Sorting layer — controls draw order across sprites.",
     },
+    "lit": {
+      "tooltip": "Receive 2D lights: Light2D entities light this sprite (flat normal). A custom material overrides this.",
+    },
     "material": {
       "advanced": true,
     },

@@ -573,6 +573,7 @@ struct SpriteJS {
     glm::vec2 uvOffset;
     glm::vec2 uvScale;
     i32 layer;
+    bool lit;
     bool flipX;
     bool flipY;
     glm::vec2 tileSize;
@@ -591,6 +592,7 @@ esengine::ecs::Sprite spriteFromJS(const SpriteJS& js) {
     c.uvOffset = js.uvOffset;
     c.uvScale = js.uvScale;
     c.layer = js.layer;
+    c.lit = js.lit;
     c.flipX = js.flipX;
     c.flipY = js.flipY;
     c.tileSize = js.tileSize;
@@ -610,6 +612,7 @@ SpriteJS spriteToJS(const esengine::ecs::Sprite& c) {
     js.uvOffset = c.uvOffset;
     js.uvScale = c.uvScale;
     js.layer = c.layer;
+    js.lit = c.lit;
     js.flipX = c.flipX;
     js.flipY = c.flipY;
     js.tileSize = c.tileSize;
@@ -1027,6 +1030,7 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("uvOffset", &SpriteJS::uvOffset)
         .field("uvScale", &SpriteJS::uvScale)
         .field("layer", &SpriteJS::layer)
+        .field("lit", &SpriteJS::lit)
         .field("flipX", &SpriteJS::flipX)
         .field("flipY", &SpriteJS::flipY)
         .field("tileSize", &SpriteJS::tileSize)
@@ -1898,8 +1902,9 @@ static_assert(offsetof(esengine::ecs::Sprite, pivot) == 28, "ABI offset drift: e
 static_assert(offsetof(esengine::ecs::Sprite, uvOffset) == 36, "ABI offset drift: esengine::ecs::Sprite.uvOffset (EHT expected 36)");
 static_assert(offsetof(esengine::ecs::Sprite, uvScale) == 44, "ABI offset drift: esengine::ecs::Sprite.uvScale (EHT expected 44)");
 static_assert(offsetof(esengine::ecs::Sprite, layer) == 52, "ABI offset drift: esengine::ecs::Sprite.layer (EHT expected 52)");
-static_assert(offsetof(esengine::ecs::Sprite, flipX) == 56, "ABI offset drift: esengine::ecs::Sprite.flipX (EHT expected 56)");
-static_assert(offsetof(esengine::ecs::Sprite, flipY) == 57, "ABI offset drift: esengine::ecs::Sprite.flipY (EHT expected 57)");
+static_assert(offsetof(esengine::ecs::Sprite, lit) == 56, "ABI offset drift: esengine::ecs::Sprite.lit (EHT expected 56)");
+static_assert(offsetof(esengine::ecs::Sprite, flipX) == 57, "ABI offset drift: esengine::ecs::Sprite.flipX (EHT expected 57)");
+static_assert(offsetof(esengine::ecs::Sprite, flipY) == 58, "ABI offset drift: esengine::ecs::Sprite.flipY (EHT expected 58)");
 static_assert(offsetof(esengine::ecs::Sprite, tileSize) == 60, "ABI offset drift: esengine::ecs::Sprite.tileSize (EHT expected 60)");
 static_assert(offsetof(esengine::ecs::Sprite, tileSpacing) == 68, "ABI offset drift: esengine::ecs::Sprite.tileSpacing (EHT expected 68)");
 static_assert(offsetof(esengine::ecs::Sprite, parallax) == 76, "ABI offset drift: esengine::ecs::Sprite.parallax (EHT expected 76)");
@@ -1951,7 +1956,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "9f76797e876d6436";
+static const char* kEsAbiLayoutHash = "1bd58a735ff10d7f";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);
