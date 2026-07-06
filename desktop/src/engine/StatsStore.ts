@@ -43,8 +43,7 @@ const selEq = (a: SelTransform | null, b: SelTransform | null): boolean =>
 // a second (not per frame) to avoid churning the status bar.
 class StatsStoreImpl {
   private readonly store = createStore<StatsSnapshot>(() => ({ fps: 0, entities: 0, selection: null }));
-  // The cursor updates at pointer-move rate; its own store keeps that churn in
-  // a leaf readout instead of re-rendering every slow-stats subscriber.
+  // Pointer-rate churn stays out of the slow-stats subscribers.
   private readonly cursorStore = createStore<{ x: number; y: number } | null>(() => null);
 
   private running = false;

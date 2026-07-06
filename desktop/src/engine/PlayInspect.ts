@@ -48,8 +48,7 @@ class PlayInspectImpl {
 
   subscribe = (fn: () => void): (() => void) => this.store.subscribe(fn);
   getSnapshot = (): PlayInspectState => this.store.getState();
-  /** Narrow, identity-stable slices: a per-tick selected-entity refresh must
-   *  not re-render tree-only subscribers (the Outliner). */
+  /** Identity-stable slices so Details-only ticks don't re-render the Outliner. */
   getTree = (): SceneData | null => this.store.getState().snapshot;
   getSelection = (): EntityId | null => this.store.getState().selection;
 
@@ -101,8 +100,6 @@ class PlayInspectImpl {
     const sameSelected = cur.selectedEntity === res.selected
       || (cur.selectedEntity != null && res.selected != null
         && JSON.stringify(cur.selectedEntity) === JSON.stringify(res.selected));
-    // Nothing changed (idle play, no selection): don't notify — a store bump
-    // here re-committed every subscriber on each 16ms tick for no reason.
     if (sameTree && sameSelected) return;
     this.store.setState({
       snapshot: sameTree ? cur.snapshot : res.tree,

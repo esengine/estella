@@ -139,8 +139,7 @@ export interface SessionCapture {
   budgetMs: number;
   frameCount: number;
   frames: FrameSample[];
-  /** Recent main-thread long tasks (browser attribution) — correlate `start`
-   *  with frame t0/t1 to name what blocked an uninstrumented hitch. */
+  /** Recent main-thread long tasks — correlate `start` with frame t0/t1. */
   longTasks?: Array<{ start: number; ms: number; name: string }>;
 }
 

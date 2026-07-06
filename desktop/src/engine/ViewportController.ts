@@ -117,9 +117,7 @@ export const ViewportController = {
     };
   },
 
-  /** All UI entities under the pointer, most specific first (editor pick: any
-   *  layout box, not just raycast targets — so plain text and panels are
-   *  selectable). Locked / hidden entries are dropped. */
+  /** UI entities under the pointer, most specific first; locked/hidden dropped. */
   pickUIEntities(clientX: number, clientY: number): EntityId[] {
     const world = EngineHost.world;
     const module = EngineHost.module;
@@ -277,7 +275,6 @@ export const ViewportController = {
     let maxX = -Infinity;
     let maxY = -Infinity;
     for (const id of ids) {
-      // UI entities have no world OBB from entityBounds; frame their layout box.
       const b = this.entityBounds(id) ?? this.uiEntityWorldOBB(id);
       if (!b) continue;
       for (const [wx, wy] of obbCorners(b)) {

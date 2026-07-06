@@ -8,8 +8,7 @@ import { StatsStore } from '@/engine/StatsStore';
 import { SubsystemIndicator } from './SubsystemIndicator';
 import { Perf } from '@/components/Perf';
 
-// Leaf subscriber for the pointer-rate cursor readout: only this text node
-// re-renders on mouse move, never the footer.
+// Only this text node re-renders on mouse move, never the footer.
 function CursorReadout() {
   const cursor = useSyncExternalStore(StatsStore.subscribeCursor, StatsStore.getCursor);
   return <>{cursor ? `${cursor.x}, ${cursor.y}` : '—'}</>;

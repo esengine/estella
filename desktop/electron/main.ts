@@ -47,8 +47,7 @@ import type { WorkspaceState } from '../src/project/format';
 protocol.registerSchemesAsPrivileged([
   {
     scheme: 'estella',
-    // codeCache: V8 caches compiled bytecode for scripts served over this scheme
-    // (the play realm's SDK bundle + host), cutting repeat-Play parse time.
+    // codeCache: V8 persists compiled bytecode for the play realm's scripts.
     privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true, codeCache: true },
   },
   {
@@ -114,8 +113,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // public/       > static assets (wasm, sdk, examples) in dev
 process.env.APP_ROOT = path.join(__dirname, '..');
 
-// Automation runs get their own profile dir so a shot never fights the user's
-// live editor instance over the Chromium disk cache / userData locks.
+// Automation gets its own profile dir — never fight the live editor over cache locks.
 if (process.env.ESTELLA_SHOT) {
   app.setPath('userData', path.join(app.getPath('temp'), 'estella-shot-profile'));
 }
@@ -201,13 +199,10 @@ async function runScreenshot(w: BrowserWindow, out: string): Promise<void> {
       if (err) console.log('[play] error:', err);
       await settleFrames(30); // let the game loop run so animation/assets settle
     }
-    // Pointer-drag gesture inside the PLAY REALM ("x0,y0,x1,y1" in play-canvas
-    // px). The play iframe is estella:// — cross-origin to the editor, so
-    // neither SHOT_EVAL (renderer, same-origin only) nor sendInputEvent
-    // (doesn't route into OOPIFs) can reach it. The main process CAN: target
-    // the frame via mainFrame.frames and dispatch DOM pointer events from
-    // within its origin, spread over rAF ticks so the engine's per-frame input
-    // sampling sees a real gesture. Verifies drag-scroll / drag&drop e2e.
+    // Pointer drag inside the play realm ("x0,y0,x1,y1" in play-canvas px).
+    // The estella:// iframe is an OOPIF — unreachable by SHOT_EVAL and
+    // sendInputEvent — so the gesture is dispatched from within its frame,
+    // spread over rAF ticks so per-frame input sampling sees it.
     if (process.env.ESTELLA_SHOT_DRAG) {
       const [x0, y0, x1, y1] = process.env.ESTELLA_SHOT_DRAG.split(',').map(Number);
       const playFrame = w.webContents.mainFrame.frames.find((f) => f.url.startsWith('estella://'));
@@ -277,8 +272,7 @@ function createWindow() {
       // Keep the renderer sandboxed; all privileged work goes through preload IPC.
       contextIsolation: true,
       nodeIntegration: false,
-      // An engine editor keeps simulating while occluded — and the automation
-      // hooks' rAF-based waits must not freeze when another window covers us.
+      // rAF must keep firing while occluded (automation waits, engine loop).
       backgroundThrottling: false,
     },
   });
@@ -302,8 +296,7 @@ function createWindow() {
 
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL + automation);
-    // SHOT_DEVTOOLS: open DevTools during an automation run — for measuring the
-    // overhead DevTools itself adds (its protocol bridge stalls the renderer).
+    // SHOT_DEVTOOLS: measure the overhead DevTools itself adds to a run.
     if (!shotOut || process.env.ESTELLA_SHOT_DEVTOOLS) win.webContents.openDevTools({ mode: 'detach' });
   } else {
     // Load over app:// (not file://) so the engine glue + play realm resolve from

@@ -78,7 +78,6 @@ export function App() {
     return unsub;
   }, []);
 
-  // Schedule work for browser idle time (fallback for environments without rIC).
   const idle = (fn: () => void) =>
     typeof window.requestIdleCallback === 'function' ? window.requestIdleCallback(fn) : setTimeout(fn, 500);
 
@@ -107,8 +106,8 @@ export function App() {
       PlayInspect.stop();
       useEditorStore.getState().setInspectWorld('editor');
       dockApi.closeGame();
-      // Re-stage the realm in idle time so the next Play skips the build wait.
-      idle(() => PlayRealm.prewarm());
+      // Not on mount/launcher — there is no project to stage yet.
+      if (!useEditorStore.getState().showLauncher) idle(() => PlayRealm.prewarm());
     }
   }, [isPlaying]);
   useEffect(() => {
@@ -118,8 +117,7 @@ export function App() {
   // The editor opens on the launcher (project browser); the shell + engine mount
   // only once a project is opened. (Logic wiring lands with the recents IPC.)
   const showLauncher = useEditorStore((s) => s.showLauncher);
-  // Stage the play realm right after a project opens, so the first Play doesn't
-  // pay the esbuild + sdk/wasm sync wait.
+  // Prewarm the play realm as soon as a project opens.
   useEffect(() => {
     if (!showLauncher) idle(() => PlayRealm.prewarm());
     // eslint-disable-next-line react-hooks/exhaustive-deps

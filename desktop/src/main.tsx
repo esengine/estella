@@ -53,8 +53,6 @@ applySettings();
 // edits made outside the editor) via the main-process project watcher.
 initFsWatch();
 
-// Focus-driven engine frame cap (the smart replacement for Chromium's
-// disabled background throttling).
 initBackgroundThrottle();
 
 // Automation hook (screenshots / visual-regression): with `?automation=1`, expose the

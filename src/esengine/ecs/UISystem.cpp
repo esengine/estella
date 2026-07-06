@@ -77,9 +77,7 @@ u32 UISystem::pickAll(Registry& registry, f32 worldX, f32 worldY) {
     pickResults_.clear();
     const auto& nodes = tree.nodes_;
 
-    // Rank hits by hierarchy depth (the most specific element under the
-    // cursor — clicking a label picks the label, not its panel), breaking
-    // ties by draw order.
+    // Depth-first ranking (a label beats its panel), draw order breaking ties.
     struct Hit {
         Entity entity;
         i32 depth;

@@ -74,20 +74,12 @@ public:
                        f32 mouseWorldX, f32 mouseWorldY,
                        bool mouseDown, bool mousePressed, bool mouseReleased);
 
-    /**
-     * @brief Editor pick: the most specific UI entity whose layout box contains
-     *        the point (hierarchy depth desc, draw order breaking ties).
-     *
-     * Unlike hitTestUpdate this ignores Interactable — plain text and panels
-     * are selectable — and mutates no interaction state.
-     */
+    /** @brief Editor pick: the most specific UI entity under the point. Unlike
+     *         hitTestUpdate it ignores Interactable and mutates no state. */
     u32 pick(Registry& registry, f32 worldX, f32 worldY);
 
-    /**
-     * @brief Editor pick list: ALL UI entities under the point, most specific
-     *        first. Returns the count; read entries via pickResult (the list
-     *        backs click-through cycling).
-     */
+    /** @brief All UI entities under the point, most specific first. Returns the
+     *         count; read entries via pickResult. */
     u32 pickAll(Registry& registry, f32 worldX, f32 worldY);
 
     /** @brief Entry `index` of the last pickAll (or INVALID_ENTITY). */

@@ -113,8 +113,7 @@ export async function buildPlayRealm(opts: {
   await mkdir(out, { recursive: true });
 
   // 1. Host module — esengine EXTERNAL (resolved by the realm's import map).
-  //    Stamped on the entry's stat like the dir syncs below, so a repeat Play
-  //    (the hot path — prewarmed on project open) skips esbuild entirely.
+  //    Stamped on the entry's stat so a repeat Play skips esbuild.
   const hostStamp = path.join(out, '.host-stamp');
   const hostOut = path.join(out, 'host.js');
   const entryStat = await stat(opts.playHostEntry);
@@ -148,7 +147,7 @@ export async function buildPlayRealm(opts: {
   await syncDir(opts.sdkDistDir, path.join(out, 'sdk'), path.join(out, '.sdk-stamp'));
   await syncDir(opts.wasmDir, path.join(out, 'wasm'), path.join(out, '.wasm-stamp'));
 
-  // 3. Host page (only when its content actually changed — keeps mtimes stable).
+  // 3. Host page (rewrite only on change — keeps mtimes stable).
   const htmlPath = path.join(out, 'play.html');
   if (!existsSync(htmlPath) || (await readFile(htmlPath, 'utf8')) !== PLAY_HTML) {
     await writeFile(htmlPath, PLAY_HTML);

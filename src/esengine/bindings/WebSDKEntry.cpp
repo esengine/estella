@@ -592,13 +592,10 @@ u32 uiHitTest_getHitEntityPrev() {
     return ctx().require<ecs::UISystem>().getPrevHitEntity();
 }
 
-// Editor pick: ignores Interactable and mutates no interaction state, so the
-// editor can select plain text / panels without polluting runtime hover.
 u32 uiHitTest_pick(ecs::Registry& registry, f32 worldX, f32 worldY) {
     return ctx().require<ecs::UISystem>().pick(registry, worldX, worldY);
 }
 
-// Editor pick list (click-through cycling): count + indexed results.
 u32 uiHitTest_pickAll(ecs::Registry& registry, f32 worldX, f32 worldY) {
     return ctx().require<ecs::UISystem>().pickAll(registry, worldX, worldY);
 }

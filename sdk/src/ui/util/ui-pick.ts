@@ -33,11 +33,8 @@ export function uiHitTestWorld(
   return hit === NO_HIT ? null : hit;
 }
 
-/**
- * Editor pick: topmost UI entity whose layout box contains the point,
- * regardless of Interactable, without touching interaction state. Use this
- * for editor selection; `uiHitTestWorld` is the runtime raycast.
- */
+/** Editor pick: topmost UI entity under the point, regardless of Interactable;
+ *  `uiHitTestWorld` is the runtime raycast. */
 export function uiPickWorld(
   module: ESEngineModule,
   registry: CppRegistry,
@@ -49,8 +46,7 @@ export function uiPickWorld(
   return hit === NO_HIT ? null : hit;
 }
 
-/** All editor-pickable UI entities under the point, most specific first
- *  (backs click-through cycling). */
+/** All editor-pickable UI entities under the point, most specific first. */
 export function uiPickAllWorld(
   module: ESEngineModule,
   registry: CppRegistry,

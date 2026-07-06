@@ -38,8 +38,6 @@ const entityIds = (items: OutlinerItem[]): EntityId[] =>
 // One row of the live "Game" tree: a read-only, always-expanded
 // view of the running realm, sharing the editor's virtualization. No folders.
 function GameTree() {
-  // Narrow slices: identity-stable between ticks, so React bails out of the
-  // re-render while only the selected entity's live values are refreshing.
   const snapshot = useSyncExternalStore(PlayInspect.subscribe, PlayInspect.getTree);
   const selection = useSyncExternalStore(PlayInspect.subscribe, PlayInspect.getSelection);
   const items = useMemo(() => buildOutlinerItems(snapshot, { expanded: NO_EXPANSION, expandAll: true }), [snapshot]);

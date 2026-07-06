@@ -206,8 +206,7 @@ function DdRadio({ on, label, onClick }: { on: boolean; label: string; onClick: 
   );
 }
 
-// Pointer-rate cursor text as its own leaf: only this node re-renders per
-// mouse move; the HUD itself follows the slow (333ms) stats cadence.
+// Only this node re-renders per mouse move; the HUD follows the slow stats cadence.
 function HudCursor() {
   const cursor = useSyncExternalStore(StatsStore.subscribeCursor, StatsStore.getCursor);
   if (!cursor) return null;
