@@ -31,6 +31,7 @@ import {
 import { AssetIcon } from '@/components/icons';
 import { Toasts } from '@/store/Toasts';
 import { baseName, assetTypeOf, IMAGE_RE } from '@/project/assetMeta';
+import { revealAsset } from '@/project/assetReveal';
 import { useSelection } from '@/store/selectionStore';
 import { useEditorStore } from '@/store/editorStore';
 import { useOutliner } from '@/outliner/OutlinerController';
@@ -963,14 +964,23 @@ export function AssetControl({
       onDragLeave={() => setOver(false)}
       onDrop={onDrop}
     >
-      <span className="th">
-        {assetType === 'texture' && info ? (
-          <img src={`estella://project/${info.path}`} alt="" draggable={false} />
-        ) : (
-          <Box size={11} strokeWidth={1.7} />
-        )}
-      </span>
-      <span className="an">{info ? info.name : 'None'}</span>
+      <button
+        type="button"
+        className="loc"
+        title={info ? `Locate ${info.path} in the Content Browser` : undefined}
+        disabled={!info}
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={() => info && revealAsset(info.path)}
+      >
+        <span className="th">
+          {assetType === 'texture' && info ? (
+            <img src={`estella://project/${info.path}`} alt="" draggable={false} />
+          ) : (
+            <Box size={11} strokeWidth={1.7} />
+          )}
+        </span>
+        <span className="an">{info ? info.name : 'None'}</span>
+      </button>
       <button type="button" className="pk" title="Pick asset" onMouseDown={(e) => e.stopPropagation()} onClick={openPick}>
         <Search size={11} strokeWidth={2} />
       </button>

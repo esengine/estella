@@ -18,6 +18,7 @@ import { BUILTIN_SHADER_TEMPLATES } from 'esengine';
 import { createMaterial, createMaterialInstance } from '@/material/openMaterial';
 import { createMaterialGraph } from '@/material/openMaterialGraph';
 import { createStateMachine } from '@/fsm/openStateMachine';
+import { onAssetReveal } from '@/project/assetReveal';
 import { createBehaviorTree } from '@/bt/openBehaviorTree';
 import { createAnimationClip } from '@/timeline/openClip';
 import { fsRefresh } from '@/project/fsWatch';
@@ -276,6 +277,21 @@ export function ContentBrowser() {
   // Selection doesn't survive a folder change.
   useEffect(() => selectAsset(null), [cwd, selectAsset]);
 
+  // Cross-panel locate (revealAsset): navigate to the containing folder first;
+  // selection + scroll happen in a second phase once the folder's rows are in
+  // (and after the cwd-change effect above has done its clearing).
+  const [pendingReveal, setPendingReveal] = useState<string | null>(null);
+  useEffect(
+    () =>
+      onAssetReveal((path) => {
+        setQuery('');
+        setFilters(new Set());
+        setPendingReveal(path);
+        go(parentOf(path));
+      }),
+    [go],
+  );
+
   const entries = useDir(project ? cwd : null);
   const q = query.trim();
   // Search supports `type:`/`t:` tokens + free text; the type chips add to the
@@ -313,6 +329,15 @@ export function ContentBrowser() {
     () => filterAndSortAssets(rows, parsed, filters as ReadonlySet<string>, sort, assetType),
     [rows, parsed, filters, sort],
   );
+
+  useEffect(() => {
+    if (!pendingReveal || !items.some((it) => it.path === pendingReveal)) return;
+    selectAsset(pendingReveal);
+    setPendingReveal(null);
+    requestAnimationFrame(() => {
+      document.querySelector(`[data-path="${CSS.escape(pendingReveal)}"]`)?.scrollIntoView({ block: 'nearest' });
+    });
+  }, [pendingReveal, items, selectAsset]);
 
   // Double-click: enter folders; otherwise dispatch through the per-type open
   // table (scene/clip/tileset editors).
@@ -742,6 +767,7 @@ export function ContentBrowser() {
                   return (
                     <div
                       key={path}
+                      data-path={path}
                       className={`asset${it.isDir ? ' folder' : ''}${selected === path ? ' sel' : ''}`}
                       // Files drag onto inspector asset fields / the viewport (assign / instantiate);
                       // folders are drop targets that move the dragged asset into them.
@@ -791,6 +817,7 @@ export function ContentBrowser() {
                   return (
                     <div
                       key={path}
+                      data-path={path}
                       className={`lr${selected === path ? ' sel' : ''}`}
                       {...bindItem(path, it)}
                       {...(it.isDir ? folderDrop(path) : null)}
