@@ -15,7 +15,6 @@ export interface SelTransform {
 export interface StatsSnapshot {
   fps: number;
   entities: number;
-  cursor: { x: number; y: number } | null;
   /** The transform of the single selected entity, or null (0 or >1 selected). */
   selection: SelTransform | null;
 }
@@ -43,7 +42,10 @@ const selEq = (a: SelTransform | null, b: SelTransform | null): boolean =>
 // entity count, and the viewport cursor's world position. Updated a few times
 // a second (not per frame) to avoid churning the status bar.
 class StatsStoreImpl {
-  private readonly store = createStore<StatsSnapshot>(() => ({ fps: 0, entities: 0, cursor: null, selection: null }));
+  private readonly store = createStore<StatsSnapshot>(() => ({ fps: 0, entities: 0, selection: null }));
+  // The cursor updates at pointer-move rate; its own store keeps that churn in
+  // a leaf readout instead of re-rendering every slow-stats subscriber.
+  private readonly cursorStore = createStore<{ x: number; y: number } | null>(() => null);
 
   private running = false;
   private frames = 0;
@@ -78,17 +80,19 @@ class StatsStoreImpl {
   setCursor(x: number, y: number) {
     const cx = Math.round(x);
     const cy = Math.round(y);
-    const cur = this.store.getState().cursor;
+    const cur = this.cursorStore.getState();
     if (cur && cur.x === cx && cur.y === cy) return;
-    this.store.setState({ cursor: { x: cx, y: cy } });
+    this.cursorStore.setState({ x: cx, y: cy }, true);
   }
 
   clearCursor() {
-    if (this.store.getState().cursor) this.store.setState({ cursor: null });
+    if (this.cursorStore.getState()) this.cursorStore.setState(null, true);
   }
 
   subscribe = (fn: () => void): (() => void) => this.store.subscribe(fn);
   getSnapshot = (): StatsSnapshot => this.store.getState();
+  subscribeCursor = (fn: () => void): (() => void) => this.cursorStore.subscribe(fn);
+  getCursor = (): { x: number; y: number } | null => this.cursorStore.getState();
 }
 
 export const StatsStore = new StatsStoreImpl();

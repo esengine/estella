@@ -8,6 +8,13 @@ import { StatsStore } from '@/engine/StatsStore';
 import { SubsystemIndicator } from './SubsystemIndicator';
 import { Perf } from '@/components/Perf';
 
+// Leaf subscriber for the pointer-rate cursor readout: only this text node
+// re-renders on mouse move, never the footer.
+function CursorReadout() {
+  const cursor = useSyncExternalStore(StatsStore.subscribeCursor, StatsStore.getCursor);
+  return <>{cursor ? `${cursor.x}, ${cursor.y}` : '—'}</>;
+}
+
 // Bottom status strip — live engine telemetry (real FPS / entity count / cursor
 // world position) reads in the mono face. Anchors the Content Drawer.
 export function StatusBar() {
@@ -49,7 +56,7 @@ export function StatusBar() {
 
       <span className="sitem mono">
         <MousePointer2 size={11} strokeWidth={1.85} />
-        {stats.cursor ? `${stats.cursor.x}, ${stats.cursor.y}` : '—'}
+        <CursorReadout />
       </span>
       <span className="sitem mono">
         <Gauge size={11} strokeWidth={1.85} /> {stats.fps} fps

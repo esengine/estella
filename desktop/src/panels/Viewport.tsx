@@ -206,10 +206,24 @@ function DdRadio({ on, label, onClick }: { on: boolean; label: string; onClick: 
   );
 }
 
+// Pointer-rate cursor text as its own leaf: only this node re-renders per
+// mouse move; the HUD itself follows the slow (333ms) stats cadence.
+function HudCursor() {
+  const cursor = useSyncExternalStore(StatsStore.subscribeCursor, StatsStore.getCursor);
+  if (!cursor) return null;
+  return (
+    <>
+      <strong>
+        {cursor.x}, {cursor.y}
+      </strong>{' '}
+      ·{' '}
+    </>
+  );
+}
+
 // The corner HUD (perf + coordinates). Owns the StatsStore subscription so the
-// high-frequency cursor updates re-render ONLY this leaf — not the whole,
-// gizmo-heavy Viewport, which otherwise re-rendered on every mouse-move (visible
-// as pan/hover stutter).
+// slow stats updates re-render ONLY this leaf — not the whole, gizmo-heavy
+// Viewport.
 function ViewportHud({ ready, selCount, zoomPct, tool }: {
   ready: boolean;
   selCount: number;
@@ -238,14 +252,7 @@ function ViewportHud({ ready, selCount, zoomPct, tool }: {
       )}
       <div className="vp-coord">
         <div className="ro">
-          {stats.cursor && (
-            <>
-              <strong>
-                {stats.cursor.x}, {stats.cursor.y}
-              </strong>{' '}
-              ·{' '}
-            </>
-          )}
+          <HudCursor />
           Sel <strong>{selCount}</strong> · {zoomPct}%
         </div>
         <div className="hint">{TOOL_HINT[tool]}</div>

@@ -139,6 +139,9 @@ export interface SessionCapture {
   budgetMs: number;
   frameCount: number;
   frames: FrameSample[];
+  /** Recent main-thread long tasks (browser attribution) — correlate `start`
+   *  with frame t0/t1 to name what blocked an uninstrumented hitch. */
+  longTasks?: Array<{ start: number; ms: number; name: string }>;
 }
 
 const LONG_FRAME_MS = 24; // missed a 60Hz frame
@@ -274,6 +277,7 @@ class PerfMonitorImpl {
       budgetMs: 1000 / 60,
       frameCount: frames.length,
       frames,
+      longTasks: this.longTasks.slice(),
     };
   }
 

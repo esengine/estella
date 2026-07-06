@@ -300,7 +300,9 @@ function createWindow() {
 
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL + automation);
-    if (!shotOut) win.webContents.openDevTools({ mode: 'detach' });
+    // SHOT_DEVTOOLS: open DevTools during an automation run — for measuring the
+    // overhead DevTools itself adds (its protocol bridge stalls the renderer).
+    if (!shotOut || process.env.ESTELLA_SHOT_DEVTOOLS) win.webContents.openDevTools({ mode: 'detach' });
   } else {
     // Load over app:// (not file://) so the engine glue + play realm resolve from
     // a real origin. handleApp serves dist/.
