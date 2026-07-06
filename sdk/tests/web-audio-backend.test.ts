@@ -22,6 +22,16 @@ function createMockPannerNode(): any {
     };
 }
 
+function createMockAnalyserNode(): any {
+    return {
+        fftSize: 0,
+        smoothingTimeConstant: 0,
+        connect: vi.fn(),
+        disconnect: vi.fn(),
+        getByteFrequencyData: vi.fn(),
+    };
+}
+
 function createMockBufferSource(): any {
     const source: any = {
         buffer: null,
@@ -44,6 +54,7 @@ function setupMockAudioContext(): void {
         createGain: vi.fn(),
         createStereoPanner: vi.fn(),
         createBufferSource: vi.fn(),
+        createAnalyser: vi.fn(),
         decodeAudioData: vi.fn(),
         resume: vi.fn().mockResolvedValue(undefined),
         suspend: vi.fn(),
@@ -53,6 +64,7 @@ function setupMockAudioContext(): void {
     mockCtx.createGain.mockImplementation(() => createMockGainNode(mockCtx));
     mockCtx.createStereoPanner.mockImplementation(() => createMockPannerNode());
     mockCtx.createBufferSource.mockImplementation(() => createMockBufferSource());
+    mockCtx.createAnalyser.mockImplementation(() => createMockAnalyserNode());
 
     (globalThis as any).AudioContext = vi.fn().mockImplementation(() => mockCtx);
     (globalThis as any).__mockAudioContext = mockCtx;
@@ -139,6 +151,39 @@ describe('WebAudioBackend', () => {
 
             addSpy.mockRestore();
             removeSpy.mockRestore();
+        });
+
+        it('should tap the master bus with a configured analyser', async () => {
+            await backend.initialize();
+            const mockCtx = (globalThis as any).__mockAudioContext;
+            expect(mockCtx.createAnalyser).toHaveBeenCalledTimes(1);
+
+            const analyser = mockCtx.createAnalyser.mock.results[0].value;
+            expect(analyser.fftSize).toBe(128);
+            expect(analyser.smoothingTimeConstant).toBe(0.7);
+            // The master gain connects INTO the analyser (a side-branch sink).
+            const master = mockCtx.createGain.mock.results[0].value;
+            expect(master.connect).toHaveBeenCalledWith(analyser);
+        });
+    });
+
+    describe('getFrequencyData', () => {
+        it('returns false before initialize and after dispose', () => {
+            const out = new Uint8Array(64);
+            expect(backend.getFrequencyData(out)).toBe(false);
+        });
+
+        it('fills the buffer from the analyser once initialized', async () => {
+            await backend.initialize();
+            const mockCtx = (globalThis as any).__mockAudioContext;
+            const analyser = mockCtx.createAnalyser.mock.results[0].value;
+
+            const out = new Uint8Array(64);
+            expect(backend.getFrequencyData(out)).toBe(true);
+            expect(analyser.getByteFrequencyData).toHaveBeenCalledWith(out);
+
+            backend.dispose();
+            expect(backend.getFrequencyData(out)).toBe(false);
         });
     });
 
