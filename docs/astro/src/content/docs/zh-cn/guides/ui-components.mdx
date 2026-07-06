@@ -263,9 +263,10 @@ list.data.setItems(freshList);         // 全替换
 `ScrollContainer` / `ListView` 的逃生舱。
 
 <Aside type="note">
-  鼠标滚轮滚动开箱即用(视口是悬停目标)。拖拽/触摸滚动尚未接线——需要的话用
-  `list.scroll.scrollBy(...)` 从你自己的指针处理器驱动。异构行:用「item 类型 → 模板」的映射
-  代替单个 `item`,并给数据源一个 `getItemType(i)`。
+  滚动开箱即用:视口上的鼠标滚轮,以及指针**拖拽 + 惯性甩动**——平台层把主触点并入指针流,
+  触摸滚动走同一条路径。可用 `dragScroll: false` 关闭,或用 `decelerationRate` 调惯性
+  (甩动 1 秒后剩余的速度比例;默认 `0.135`,ScrollRect 标准值)。异构行:用「item 类型 → 模板」
+  的映射代替单个 `item`,并给数据源一个 `getItemType(i)`。
 </Aside>
 
 ## 编辑器预制体

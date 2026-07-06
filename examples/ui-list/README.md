@@ -22,6 +22,7 @@ source holds.
 | Input           | Action                                                  |
 | --------------- | ------------------------------------------------------- |
 | Mouse wheel     | Scroll whichever list is under the cursor               |
+| Drag (mouse/touch) | Grab the content and fling it — kinetic scrolling with inertia |
 | **+ Append row**  | `data.append(…)` — the list grows live, then jumps to it |
 | **− Remove first** | `data.remove(0)` — rows above re-bind in place          |
 | **Top / End**   | `scrollToIndex()` — programmatic jumps                  |

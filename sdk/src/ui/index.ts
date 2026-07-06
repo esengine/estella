@@ -177,6 +177,11 @@ export {
     type ScrollListener,
 } from './collection/scroll-container';
 
+export {
+    KineticScroll,
+    type KineticScrollOptions,
+} from './collection/kinetic-scroll';
+
 // ─── Widgets (Layer 3 factories) ────────────────────────────────────────────
 
 export {

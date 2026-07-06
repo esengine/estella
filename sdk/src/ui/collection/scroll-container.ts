@@ -11,6 +11,13 @@ export interface ScrollContainerOptions {
     direction?: 'both' | 'vertical' | 'horizontal';
     /** Multiplier applied to wheel deltas. Default 1. */
     wheelSpeed?: number;
+    /** Drag/touch scrolling (pointer grab + kinetic fling). Default true. */
+    dragScroll?: boolean;
+    /**
+     * Fraction of the fling velocity remaining after one second of coasting.
+     * Default 0.135 (Unity ScrollRect). Only meaningful with `dragScroll`.
+     */
+    decelerationRate?: number;
 }
 
 export type ScrollListener = (offset: Vec2) => void;
@@ -29,6 +36,8 @@ export class ScrollContainer {
     private offset_: Vec2 = { x: 0, y: 0 };
     private readonly direction_: 'both' | 'vertical' | 'horizontal';
     private readonly wheelSpeed_: number;
+    private readonly dragScroll_: boolean;
+    private readonly decelerationRate_: number;
     private readonly listeners_ = new Set<ScrollListener>();
 
     constructor(opts: ScrollContainerOptions) {
@@ -36,6 +45,8 @@ export class ScrollContainer {
         this.contentSize_ = { x: opts.contentSize.x, y: opts.contentSize.y };
         this.direction_ = opts.direction ?? 'vertical';
         this.wheelSpeed_ = opts.wheelSpeed ?? 1;
+        this.dragScroll_ = opts.dragScroll ?? true;
+        this.decelerationRate_ = opts.decelerationRate ?? 0.135;
         this.setOffset(opts.initialOffset ?? { x: 0, y: 0 });
     }
 
@@ -60,6 +71,14 @@ export class ScrollContainer {
 
     getWheelSpeed(): number {
         return this.wheelSpeed_;
+    }
+
+    getDragScroll(): boolean {
+        return this.dragScroll_;
+    }
+
+    getDecelerationRate(): number {
+        return this.decelerationRate_;
     }
 
     setOffset(offset: Vec2): void {

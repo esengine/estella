@@ -153,6 +153,7 @@ export {
     ListView,
     type ListViewOptions,
     ScrollContainer,
+    KineticScroll,
     ArrayDataSource,
     arrayDataSource,
     type DataSource,

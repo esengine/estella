@@ -13,7 +13,7 @@ export const statsSystem = defineSystem(
 
         const text =
             `list: ${list.mountedCount()} entities mounted for ${list.data.getCount()} rows · ` +
-            `grid: ${grid.mountedCount()} for ${grid.data.getCount()} tiles · scroll with the mouse wheel`;
+            `grid: ${grid.mountedCount()} for ${grid.data.getCount()} tiles · wheel-scroll or drag to fling`;
         if (text === state.lastStats) return;
         state.lastStats = text;
 

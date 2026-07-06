@@ -10,9 +10,12 @@
  *
  * Layout integration (REARCH_UI_LIST §3): items are positioned by UINode
  * Absolute inset (not Transform, which the UI layout owns); the content frame is
- * translated by the scroll offset; a Scissor UIMask on the viewport clips. Mouse
- * wheel is handled by the behavior plugin's ScrollWheelSystem once the viewport is
- * a hovered raycast target — drag/touch scrolling is not wired here (v1).
+ * translated by the scroll offset; a Scissor UIMask on the viewport clips. Input
+ * is handled by the behavior plugin once the viewport is a hovered raycast
+ * target: ScrollWheelSystem applies wheel deltas, and ScrollDragSystem grabs
+ * pointer drags (the primary touch is funneled into the pointer stream by the
+ * platform layer, so touch scrolling rides the same path) with a kinetic fling
+ * on release.
  */
 import { Transform } from '../../component';
 import type { Entity, Vec2 } from '../../types';
@@ -74,6 +77,10 @@ export interface CreateListViewOptions<T> {
     recycleBuffer?: number;
     /** Wheel delta multiplier. Default 1. */
     wheelSpeed?: number;
+    /** Drag/touch scrolling with a kinetic fling. Default true. */
+    dragScroll?: boolean;
+    /** Fling velocity fraction left after 1s of coasting. Default 0.135. */
+    decelerationRate?: number;
     /** Called after each item bind. */
     onItemBound?: (entity: Entity, data: T, index: number) => void;
 }
@@ -205,13 +212,15 @@ export function createListView<T>(opts: CreateListViewOptions<T>): ListViewHandl
     });
     uiPlugin.registerListView(view as ListView<unknown>);
 
-    // 6) Scroll model: wheel-driven by the plugin; onScroll translates the content
-    //    frame and pushes the offset into the driver.
+    // 6) Scroll model: wheel- and drag-driven by the plugin; onScroll translates
+    //    the content frame and pushes the offset into the driver.
     const scroll = new ScrollContainer({
         viewportSize,
         contentSize: layout.getContentSize(data.getCount()),
         direction: opts.direction ?? axis,
         wheelSpeed: opts.wheelSpeed,
+        dragScroll: opts.dragScroll,
+        decelerationRate: opts.decelerationRate,
     });
     const offScroll = scroll.onScroll((offset) => {
         const n = world.get(content, UINode) as UINodeData;

@@ -274,10 +274,12 @@ list.data.setItems(freshList);         // replace all
 `scroll` and `view` as escape hatches to the underlying `ScrollContainer` / `ListView`.
 
 <Aside type="note">
-  Mouse-wheel scrolling works out of the box (the viewport is a hover target). Drag /
-  touch scrolling isn't wired yet — drive it from your own pointer handler via
-  `list.scroll.scrollBy(...)`. For heterogeneous rows, pass a map of item type →
-  template instead of one `item`, and give the data source a `getItemType(i)`.
+  Scrolling works out of the box: mouse wheel over the viewport, and pointer **drag with
+  a kinetic fling** — the platform layer funnels the primary touch into the pointer
+  stream, so touch scrolling rides the same path. Tune it with `dragScroll: false` or
+  `decelerationRate` (fling velocity left after 1s; default `0.135`, the ScrollRect
+  standard). For heterogeneous rows, pass a map of item type → template instead of one
+  `item`, and give the data source a `getItemType(i)`.
 </Aside>
 
 ## Editor prefabs

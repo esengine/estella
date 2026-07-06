@@ -193,8 +193,44 @@ async function runScreenshot(w: BrowserWindow, out: string): Promise<void> {
       if (err) console.log('[play] error:', err);
       await settleFrames(30); // let the game loop run so animation/assets settle
     }
+    // Pointer-drag gesture inside the PLAY REALM ("x0,y0,x1,y1" in play-canvas
+    // px). The play iframe is estella:// — cross-origin to the editor, so
+    // neither SHOT_EVAL (renderer, same-origin only) nor sendInputEvent
+    // (doesn't route into OOPIFs) can reach it. The main process CAN: target
+    // the frame via mainFrame.frames and dispatch DOM pointer events from
+    // within its origin, spread over rAF ticks so the engine's per-frame input
+    // sampling sees a real gesture. Verifies drag-scroll / drag&drop e2e.
+    if (process.env.ESTELLA_SHOT_DRAG) {
+      const [x0, y0, x1, y1] = process.env.ESTELLA_SHOT_DRAG.split(',').map(Number);
+      const playFrame = w.webContents.mainFrame.frames.find((f) => f.url.startsWith('estella://'));
+      if (!playFrame) {
+        console.log('[drag] no estella:// play frame found');
+      } else {
+        const result = await playFrame.executeJavaScript(`(async () => {
+          const c = document.querySelector('canvas');
+          if (!c) return 'no canvas';
+          const raf = () => new Promise((r) => requestAnimationFrame(r));
+          const fire = (t, x, y, tgt) => (tgt ?? c).dispatchEvent(
+            new MouseEvent(t, { clientX: x, clientY: y, bubbles: true, cancelable: true, button: 0 }));
+          fire('mousemove', ${x0}, ${y0});
+          await raf(); await raf();
+          fire('mousedown', ${x0}, ${y0});
+          await raf(); await raf();
+          for (let i = 1; i <= 12; i++) {
+            fire('mousemove', ${x0} + (${x1} - ${x0}) * i / 12, ${y0} + (${y1} - ${y0}) * i / 12);
+            await raf(); await raf();
+          }
+          fire('mouseup', ${x1}, ${y1}, document);
+          await raf();
+          return 'ok';
+        })()`);
+        console.log('[drag]', `${x0},${y0} → ${x1},${y1}`, result);
+      }
+      await settleFrames(8); // let a kinetic fling play out before the capture
+    }
     if (process.env.ESTELLA_SHOT_EVAL) {
-      await exec(process.env.ESTELLA_SHOT_EVAL);
+      const result = await exec(process.env.ESTELLA_SHOT_EVAL);
+      console.log('[eval]', typeof result === 'string' ? result : JSON.stringify(result));
       await settleFrames(8);
     }
     await settleFrames(12); // was sleep(2500) — let the engine loop spin up + fully paint the WebGL viewport
