@@ -163,8 +163,14 @@ Key facts:
 - **ResourceManager / ResourcePool** — reference-counted GPU resources with a
   three-state lifecycle (Held → Evictable → Evicted). An intrusive LRU list plus
   a byte budget (`setTextureBudget`) evicts the oldest unreferenced entries when
-  resident bytes exceed the budget. (The budget/stats are not yet surfaced to the
-  SDK — see `REARCH_2D_PARITY.md` T1.)
+  resident bytes exceed the budget. Textures loaded through the SDK carry a
+  path identity (residency key), so a released texture is retained evictable and
+  the next load revives it via `acquireTextureByPath` instead of re-decoding;
+  hot reload severs the identity (`invalidateTexturePath`) so stale bytes are
+  never revived. The SDK owns the asset-level refcount (one pool reference per
+  cached texture); the pool owns residency. Surfaced to TS as
+  `setTextureBudget(bytes)` / `getResourceStats()`, with a default budget from
+  `RuntimeConfig.textureCacheBudget` applied at engine init.
 
 ### Other C++ subsystems
 

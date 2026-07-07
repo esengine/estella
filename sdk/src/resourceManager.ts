@@ -56,14 +56,46 @@ export function requireResourceManager(): CppResourceManager {
 /**
  * Set the resident GPU-texture byte budget. When resident bytes exceed this,
  * the C++ ResourcePool evicts least-recently-used unreferenced textures. `0`
- * (the default) disables caching — a texture frees the moment its refcount hits
- * zero. Negative / fractional inputs are clamped to a non-negative integer.
+ * disables caching — a texture frees the moment its refcount hits zero.
+ * Negative / fractional inputs are clamped to a non-negative integer.
+ *
+ * The engine applies `RuntimeConfig.textureCacheBudget` at startup, so scene
+ * switches keep recently-used textures warm by default; call this (or set
+ * `textureCacheBudget` in the build config) to size it for your game.
  *
  * This is the single game-facing surface over the C++ budget; there is no
  * parallel TS-side budget to drift from it.
  */
 export function setTextureBudget(bytes: number): void {
     requireResourceManager().setTextureBudget(Math.max(0, Math.floor(bytes)));
+}
+
+/** GPU resource counts + texture residency figures. See {@link getResourceStats}. */
+export interface ResourceStats {
+    shaderCount: number;
+    textureCount: number;
+    vertexBufferCount: number;
+    indexBufferCount: number;
+    cacheHits: number;
+    cacheMisses: number;
+    /** Resident texture bytes (RGBA8 estimate) — held + evictable entries. */
+    textureBytes: number;
+    /** The texture pool's resident-byte budget (0 = eviction off). */
+    textureBudget: number;
+    /** Cached refCount==0 textures awaiting revive or eviction. */
+    textureEvictableCount: number;
+}
+
+/**
+ * Snapshot of GPU resource usage from the C++ ResourceManager — the
+ * observability side of the texture budget: watch `textureBytes` against
+ * `textureBudget` and `textureEvictableCount` to size the warm cache.
+ * Returns null when the resource manager isn't initialized (or a test mock
+ * doesn't model stats).
+ */
+export function getResourceStats(): ResourceStats | null {
+    if (!rm_ || typeof rm_.getResourceStats !== 'function') return null;
+    return rm_.getResourceStats();
 }
 
 export function evictTextureDimensions(handle: number): void {

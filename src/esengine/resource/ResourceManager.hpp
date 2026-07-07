@@ -52,6 +52,8 @@ struct ResourceStats {
     usize cacheHits = 0;          ///< Number of cache hits since reset
     usize cacheMisses = 0;        ///< Number of cache misses since reset
     usize textureBytes = 0;       ///< Resident texture bytes (RGBA8 estimate) — VRAM usage
+    usize textureBudget = 0;      ///< Texture pool resident-byte budget (0 = eviction off)
+    usize textureEvictableCount = 0;  ///< Cached refCount==0 textures awaiting revive/evict
 };
 
 // =============================================================================
@@ -282,6 +284,15 @@ public:
      *        none is cached. Lets the runtime dedupe + reuse textures across loads.
      */
     TextureHandle acquireTextureByPath(const std::string& path);
+
+    /**
+     * @brief Severs a path's texture-cache identity (hot reload). The next
+     *        acquireTextureByPath for it misses, so stale bytes are never
+     *        revived; an evictable entry under that path is freed immediately.
+     * @param path The path to invalidate
+     * @return True if the path was registered
+     */
+    bool invalidateTexturePath(const std::string& path);
 
     // =========================================================================
     // Texture Metadata

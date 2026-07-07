@@ -407,6 +407,8 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
         .function("registerTextureWithPath", &esengine::rm_registerTextureWithPath)
         .function("setTextureBudget", &esengine::rm_setTextureBudget)
         .function("acquireTextureByPath", &esengine::rm_acquireTextureByPath)
+        .function("invalidateTexturePath", &esengine::rm_invalidateTexturePath)
+        .function("getResourceStats", &esengine::rm_getResourceStats)
 #ifdef ES_ENABLE_BITMAP_TEXT
         .function("loadBitmapFont", &esengine::rm_loadBitmapFont)
         .function("createLabelAtlasFont", &esengine::rm_createLabelAtlasFont)

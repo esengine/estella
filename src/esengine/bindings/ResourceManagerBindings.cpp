@@ -94,6 +94,25 @@ u32 rm_acquireTextureByPath(resource::ResourceManager& rm, const std::string& pa
     return rm.acquireTextureByPath(path).id();
 }
 
+bool rm_invalidateTexturePath(resource::ResourceManager& rm, const std::string& path) {
+    return rm.invalidateTexturePath(path);
+}
+
+emscripten::val rm_getResourceStats(resource::ResourceManager& rm) {
+    const auto st = rm.getStats();
+    auto result = emscripten::val::object();
+    result.set("shaderCount", static_cast<f64>(st.shaderCount));
+    result.set("textureCount", static_cast<f64>(st.textureCount));
+    result.set("vertexBufferCount", static_cast<f64>(st.vertexBufferCount));
+    result.set("indexBufferCount", static_cast<f64>(st.indexBufferCount));
+    result.set("cacheHits", static_cast<f64>(st.cacheHits));
+    result.set("cacheMisses", static_cast<f64>(st.cacheMisses));
+    result.set("textureBytes", static_cast<f64>(st.textureBytes));
+    result.set("textureBudget", static_cast<f64>(st.textureBudget));
+    result.set("textureEvictableCount", static_cast<f64>(st.textureEvictableCount));
+    return result;
+}
+
 void rm_releaseShader(resource::ResourceManager& rm, u32 handleId) {
     rm.releaseShader(resource::ShaderHandle(handleId));
 }

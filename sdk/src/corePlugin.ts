@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { Plugin } from './app';
-import { initResourceManager, shutdownResourceManager } from './resourceManager';
+import { initResourceManager, shutdownResourceManager, setTextureBudget } from './resourceManager';
+import { RuntimeConfig } from './defaults';
 import { initDrawAPI, shutdownDrawAPI } from './draw';
 import { clearDrawCallbacks } from './customDraw';
 import { initMaterialAPI, shutdownMaterialAPI } from './material';
@@ -17,6 +18,10 @@ export const corePlugin: Plugin = {
     build(app) {
         const module = app.wasmModule!;
         initResourceManager(module.getResourceManager(), module);
+        // Texture residency cache: released textures stay evictable in the C++
+        // pool up to this byte budget, so the next load revives them instead of
+        // re-decoding. Without this call the pool default (0) frees at once.
+        setTextureBudget(RuntimeConfig.textureCacheBudget);
         initDrawAPI(module);
         initGeometryAPI(module);
         initMaterialAPI(module);

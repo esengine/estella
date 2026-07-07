@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { CanvasScaleMode } from './wasm.generated';
+import { getResourceManager, setTextureBudget } from './resourceManager';
 
 export const DEFAULT_DESIGN_WIDTH = 1920;
 export const DEFAULT_DESIGN_HEIGHT = 1080;
@@ -27,6 +28,13 @@ export const RuntimeConfig = {
     textCanvasSize: 512,
     assetLoadTimeout: 30000,
     assetFailureCooldown: 5000,
+    /**
+     * Resident GPU-texture byte budget (see setTextureBudget). Released-but-
+     * budgeted textures stay resident as an evictable LRU cache, so re-entering
+     * a scene (or streaming an area back in) revives them instead of
+     * re-fetching + re-decoding. 0 turns the cache off (free at refcount 0).
+     */
+    textureCacheBudget: 64 * 1024 * 1024,
 };
 
 export function applyRuntimeConfig(components: {
@@ -57,6 +65,7 @@ export interface RuntimeBuildConfig {
     textCanvasSize?: number;
     assetLoadTimeout?: number;
     assetFailureCooldown?: number;
+    textureCacheBudget?: number;
 }
 
 /** Canvas scale-mode name → value. Canonical names are single-sourced from the
@@ -107,5 +116,11 @@ export function applyBuildRuntimeConfig(app: { setMaxDeltaTime(v: number): void;
     }
     if (config.assetFailureCooldown !== undefined) {
         RuntimeConfig.assetFailureCooldown = config.assetFailureCooldown;
+    }
+    if (config.textureCacheBudget !== undefined) {
+        RuntimeConfig.textureCacheBudget = config.textureCacheBudget;
+        // This runs after app creation, where corePlugin already applied the
+        // default budget — push the configured value through to the pool.
+        if (getResourceManager()) setTextureBudget(config.textureCacheBudget);
     }
 }

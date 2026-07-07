@@ -237,8 +237,11 @@ public:
         auto& entry = entries_[index];
         if (entry.refCount == 0 || entry.generation != gen) return;
         if (--entry.refCount == 0) {
-            if (budget_ == 0) {
-                freeEntry_(index);  // no budget → free immediately (the default)
+            if (budget_ == 0 || entry.path.empty()) {
+                // No budget → free immediately. Same for pathless entries even
+                // under a budget: findByPath is the only revive channel, so a
+                // cached entry nobody can find would just squat on the budget.
+                freeEntry_(index);
             } else {
                 // 3-state lifecycle: held → evictable (cached in the LRU, still
                 // findByPath-able for cache hits) → evicted. Drop the oldest
@@ -288,6 +291,32 @@ public:
 
     /** @brief The current resident-byte budget (0 = caching disabled). */
     usize budget() const { return budget_; }
+
+    /**
+     * @brief Severs a path's cache identity so the entry can't be revived
+     * @details For hot reload: the bytes behind `path` changed, so the cached
+     *          resource must never be handed out for that path again. Removes
+     *          the path mapping; an evictable entry is freed immediately, a
+     *          held entry stays alive for its current holders but loses its
+     *          path, so its final release frees it instead of caching it.
+     * @param path The path to invalidate
+     * @return True if a mapping for `path` existed
+     */
+    bool invalidatePath(const std::string& path) {
+        auto it = pathToId_.find(path);
+        if (it == pathToId_.end()) return false;
+        u32 index = Handle<T>::extractIndex(it->second);
+        u32 gen = Handle<T>::extractGeneration(it->second);
+        pathToId_.erase(it);
+        if (index >= entries_.size()) return true;
+        auto& entry = entries_[index];
+        if (entry.generation != gen) return true;
+        entry.path.clear();
+        if (entry.evictable) {
+            freeEntry_(index);
+        }
+        return true;
+    }
 
     /** @brief Bytes currently resident (held + evictable entries). */
     usize residentBytes() const { return residentBytes_; }

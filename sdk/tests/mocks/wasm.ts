@@ -117,9 +117,19 @@ export function createMockModule(): ESEngineModule {
         loadTexture: () => 1,
         releaseTexture: () => {},
         getTextureSize: () => ({ width: 100, height: 100 }),
+        getTextureDimensions: () => ({ width: 100, height: 100 }),
         loadBitmapFont: () => 1,
         releaseBitmapFont: () => {},
         setTextureMetadata: () => {},
+        setTextureBudget: () => {},
+        registerTextureWithPath: () => {},
+        acquireTextureByPath: () => 0,
+        invalidateTexturePath: () => false,
+        getResourceStats: () => ({
+            shaderCount: 0, textureCount: 0, vertexBufferCount: 0, indexBufferCount: 0,
+            cacheHits: 0, cacheMisses: 0,
+            textureBytes: 0, textureBudget: 0, textureEvictableCount: 0,
+        }),
     };
 
     return {

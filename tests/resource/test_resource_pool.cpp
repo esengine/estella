@@ -2,6 +2,7 @@
 #include <doctest.h>
 
 #include <esengine/ESEngine.hpp>
+#include <esengine/resource/ResourcePool.hpp>
 #include <string>
 #include <memory>
 
@@ -349,4 +350,67 @@ TEST_CASE("pool_set_budget_evicts_now") {
     CHECK_EQ(pool.residentBytes(), 100u);
     CHECK(!pool.findByPath("a").isValid());
     CHECK(pool.findByPath("b").isValid());
+}
+
+TEST_CASE("pool_budget_pathless_frees_immediately") {
+    // A pathless entry can never be revived (findByPath is the only revive
+    // channel), so even under a budget it frees at refCount 0 instead of
+    // squatting on the budget as an unreachable cache entry.
+    test::DummyPool pool;
+    pool.setBudget(1000);
+    auto h = pool.add(esengine::makeUnique<test::DummyResource>(1), "", 100);
+    pool.release(h.id());
+    CHECK_EQ(pool.residentBytes(), 0u);
+    CHECK_EQ(pool.evictableCount(), 0u);
+    CHECK(pool.get(h) == nullptr);
+}
+
+TEST_CASE("pool_invalidate_path_frees_evictable") {
+    test::DummyPool pool;
+    pool.setBudget(1000);
+    auto h = pool.add(esengine::makeUnique<test::DummyResource>(1), "a.png", 100);
+    pool.release(h.id());
+    CHECK(pool.isEvictable(h));
+
+    CHECK(pool.invalidatePath("a.png"));
+    CHECK_EQ(pool.residentBytes(), 0u);
+    CHECK_EQ(pool.evictableCount(), 0u);
+    CHECK(!pool.findByPath("a.png").isValid());
+    CHECK(!pool.invalidatePath("a.png"));  // already gone
+}
+
+TEST_CASE("pool_invalidate_path_on_held_entry") {
+    // A held entry stays alive for its current holders but loses its cache
+    // identity: no future cache hit, and its final release frees it outright.
+    test::DummyPool pool;
+    pool.setBudget(1000);
+    auto h = pool.add(esengine::makeUnique<test::DummyResource>(9), "a.png", 100);
+
+    CHECK(pool.invalidatePath("a.png"));
+    CHECK(pool.get(h) != nullptr);                 // still usable while held
+    CHECK(!pool.findByPath("a.png").isValid());    // but no longer findable
+
+    pool.release(h.id());                          // pathless now → freed, not cached
+    CHECK_EQ(pool.residentBytes(), 0u);
+    CHECK_EQ(pool.evictableCount(), 0u);
+    CHECK(pool.get(h) == nullptr);
+}
+
+TEST_CASE("pool_invalidate_path_then_reload_same_path") {
+    // Hot-reload sequence: invalidate, then a fresh add() under the same path
+    // becomes the new cache identity for it.
+    test::DummyPool pool;
+    pool.setBudget(1000);
+    auto stale = pool.add(esengine::makeUnique<test::DummyResource>(1), "a.png", 100);
+    pool.invalidatePath("a.png");
+
+    auto fresh = pool.add(esengine::makeUnique<test::DummyResource>(2), "a.png", 100);
+    auto found = pool.findByPath("a.png");
+    CHECK(found.isValid());
+    CHECK_EQ(found.id(), fresh.id());
+    CHECK(found != stale);
+
+    pool.release(stale.id());  // stale holder done → freed (pathless)
+    CHECK(pool.findByPath("a.png").isValid());  // fresh identity unaffected
+    CHECK_EQ(pool.get(fresh)->value, 2);
 }

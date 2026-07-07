@@ -12,9 +12,9 @@ import type {
 import { AsyncCache } from './AsyncCache';
 import type { ESEngineModule } from '../wasm';
 import type { CppResourceManager } from '../wasm';
-import { requireResourceManager, evictTextureDimensions } from '../resourceManager';
+import { requireResourceManager, getResourceManager, evictTextureDimensions } from '../resourceManager';
 import type { TextureImportSettings, TextureImportSettingsResolver } from './loaders/TextureLoader';
-import { TextureLoader } from './loaders/TextureLoader';
+import { TextureLoader, textureResidencyKey } from './loaders/TextureLoader';
 import { SpineAssetLoader } from './loaders/SpineAssetLoader';
 import { MaterialAssetLoader } from './loaders/MaterialAssetLoader';
 import { FontAssetLoader } from './loaders/FontAssetLoader';
@@ -206,27 +206,51 @@ export class Assets {
     // =========================================================================
 
     async loadTexture(ref: string): Promise<TextureResult> {
+        return this.loadTextureVariant_(ref, true);
+    }
+
+    async loadTextureRaw(ref: string): Promise<TextureResult> {
+        return this.loadTextureVariant_(ref, false);
+    }
+
+    private async loadTextureVariant_(ref: string, flip: boolean): Promise<TextureResult> {
         const path = this.resolveLoadPath_(ref);
-        const cacheKey = this.textureCacheKey_(path, true);
+        const cacheKey = this.textureCacheKey_(path, flip);
         const settings = this.textureImportResolver_?.(ref);
         const result = await this.textureCache_.getOrLoad(cacheKey, () => {
+            // Warm-cache hit: a texture whose last reference was released stays
+            // resident in the C++ pool (up to the texture budget) under this
+            // exact key — reviving it skips the whole fetch + decode + upload.
+            const revived = this.reviveResidentTexture_(cacheKey);
+            if (revived) return Promise.resolve(revived);
             this.textureLoader_.setPendingSettings(settings);
-            return this.textureLoader_.load(path, this.getLoadContext_());
+            return flip
+                ? this.textureLoader_.load(path, this.getLoadContext_())
+                : this.textureLoader_.loadRaw(path, this.getLoadContext_());
         });
         this.textureRefCounts_.set(cacheKey, (this.textureRefCounts_.get(cacheKey) ?? 0) + 1);
         return result;
     }
 
-    async loadTextureRaw(ref: string): Promise<TextureResult> {
-        const path = this.resolveLoadPath_(ref);
-        const cacheKey = this.textureCacheKey_(path, false);
-        const settings = this.textureImportResolver_?.(ref);
-        const result = await this.textureCache_.getOrLoad(cacheKey, () => {
-            this.textureLoader_.setPendingSettings(settings);
-            return this.textureLoader_.loadRaw(path, this.getLoadContext_());
-        });
-        this.textureRefCounts_.set(cacheKey, (this.textureRefCounts_.get(cacheKey) ?? 0) + 1);
-        return result;
+    /**
+     * Try to revive an evictable texture from the C++ pool's residency cache.
+     * Returns null on a miss — or when the resource-manager surface doesn't
+     * support residency (minimal test mocks). Gated on invalidateTexturePath
+     * too: reviving without the ability to sever a path on hot reload could
+     * hand out stale bytes, so both must be present or neither is used.
+     */
+    private reviveResidentTexture_(cacheKey: string): TextureResult | null {
+        const rm = requireResourceManager();
+        if (typeof rm.acquireTextureByPath !== 'function'
+            || typeof rm.invalidateTexturePath !== 'function') return null;
+        const handle = rm.acquireTextureByPath(cacheKey);
+        if (!handle) return null;
+        const dims = rm.getTextureDimensions(handle);
+        if (!dims) {
+            rm.releaseTexture(handle);
+            return null;
+        }
+        return { handle, width: dims.width, height: dims.height };
     }
 
     /**
@@ -673,6 +697,9 @@ export class Assets {
 
             const newCount = count - 1;
             if (newCount <= 0) {
+                // Last SDK reference: drop our one C++ ref. The pool decides
+                // what that means — free immediately (no budget), or retain as
+                // an evictable cache entry that the next load revives by key.
                 const rm = requireResourceManager();
                 rm.releaseTexture(info.handle);
                 evictTextureDimensions(info.handle);
@@ -742,11 +769,17 @@ export class Assets {
         const path = this.resolveRef(ref) ?? ref;
         let hit = false;
 
-        // Textures: cache_key has a flip flag suffix, so check both.
+        // Textures: cache_key has a flip flag suffix, so check both. The C++
+        // pool's residency identity is severed too — an evictable entry under
+        // this key is freed and can never be revived with stale bytes.
+        const rm = getResourceManager();
         for (const flip of [true, false]) {
             const key = this.textureCacheKey_(path, flip);
             if (this.textureCache_.invalidate(key)) hit = true;
             if (this.textureRefCounts_.delete(key)) hit = true;
+            if (typeof rm?.invalidateTexturePath === 'function') {
+                if (rm.invalidateTexturePath(key)) hit = true;
+            }
         }
 
         // Generic caches: material / font / anim-clip / tilemap / timeline / audio / prefab.
@@ -909,7 +942,7 @@ export class Assets {
     }
 
     private textureCacheKey_(path: string, flip: boolean): string {
-        return `${path}:${flip ? 'f' : 'n'}`;
+        return textureResidencyKey(path, flip);
     }
 
     private async loadTyped<T>(type: string, ref: string): Promise<T> {

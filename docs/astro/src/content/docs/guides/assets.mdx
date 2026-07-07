@@ -99,18 +99,31 @@ manifest. Along the way it can:
 ## Lifetime & reference counting
 
 Loaded GPU resources are **reference-counted**. When an entity that uses an asset
-is despawned, its references are released; a byte-budgeted LRU then evicts the
-oldest unreferenced textures when resident VRAM exceeds the budget. You generally
-don't manage this by hand — reference and despawn entities normally.
+is despawned, its references are released — but a released texture isn't
+destroyed immediately. It stays resident as an **evictable cache entry**, and if
+the same texture is loaded again (re-entering a scene, streaming an area back
+in) it is **revived in place** instead of re-fetched and re-decoded. A
+byte-budgeted LRU evicts the oldest unreferenced textures once resident VRAM
+exceeds the budget. You generally don't manage this by hand — reference and
+despawn entities normally.
 
-Cap resident texture memory with `setTextureBudget` — the LRU evicts oldest
-unreferenced textures once resident VRAM crosses it:
+The budget defaults to **64 MB** (`RuntimeConfig.textureCacheBudget`, also
+settable as `textureCacheBudget` in the build config). Size it for your game
+with `setTextureBudget`, and watch residency with `getResourceStats`:
 
 ```typescript
-import { setTextureBudget } from 'esengine';
+import { setTextureBudget, getResourceStats } from 'esengine';
 
 setTextureBudget(256 * 1024 * 1024);   // 256 MB texture budget
+
+const stats = getResourceStats();
+// stats.textureBytes          — resident texture bytes (held + evictable)
+// stats.textureBudget         — the current budget
+// stats.textureEvictableCount — warm-cache entries awaiting revive/evict
 ```
+
+Setting the budget to `0` disables the warm cache — every texture frees the
+moment its last reference is released.
 
 ## Best practices
 

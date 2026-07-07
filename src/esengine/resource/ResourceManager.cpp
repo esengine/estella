@@ -229,6 +229,10 @@ TextureHandle ResourceManager::acquireTextureByPath(const std::string& path) {
     return handle;
 }
 
+bool ResourceManager::invalidateTexturePath(const std::string& path) {
+    return textures_.invalidatePath(path);
+}
+
 TextureHandle ResourceManager::loadTextureByGUID(const std::string& guid, const std::string& path) {
     auto it = guidToTexture_.find(guid);
     if (it != guidToTexture_.end() && it->second.isValid()) {
@@ -422,6 +426,8 @@ ResourceStats ResourceManager::getStats() const {
     stats_.vertexBufferCount = vertexBuffers_.size();
     stats_.indexBufferCount = indexBuffers_.size();
     stats_.textureBytes = textures_.residentBytes();
+    stats_.textureBudget = textures_.budget();
+    stats_.textureEvictableCount = textures_.evictableCount();
     return stats_;
 }
 

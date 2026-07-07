@@ -36,6 +36,18 @@ export interface TextureImportSettings {
 
 export type TextureImportSettingsResolver = (ref: string) => TextureImportSettings | undefined;
 
+/**
+ * Canonical residency key for a texture: the resolved load path plus the
+ * flip-orientation flag (flipped and raw uploads are genuinely different GPU
+ * objects). One string serves as both the SDK's AsyncCache key and the C++
+ * ResourcePool path identity, so a texture whose last reference was released
+ * can be revived by `acquireTextureByPath` under the exact same key the next
+ * `loadTexture` looks up.
+ */
+export function textureResidencyKey(path: string, flip: boolean): string {
+    return `${path}:${flip ? 'f' : 'n'}`;
+}
+
 export class TextureLoader implements AssetLoader<TextureResult> {
     readonly type = 'texture';
     readonly extensions = ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp', '.ktx2'];
@@ -129,6 +141,19 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     }
 
     private async loadWithFlip(
+        path: string, ctx: LoadContext, flip: boolean, settings?: TextureImportSettings,
+    ): Promise<TextureResult> {
+        const result = await this.decodeAndUpload_(path, ctx, flip, settings);
+        // Path identity in the C++ pool: after the last release the texture can
+        // survive as an evictable cache entry (budget permitting) and the next
+        // load revives it by this key instead of re-fetching + re-decoding.
+        // Optional-chained: minimal test mocks may not model the pool surface.
+        requireResourceManager().registerTextureWithPath?.(
+            result.handle, textureResidencyKey(path, flip));
+        return result;
+    }
+
+    private async decodeAndUpload_(
         path: string, ctx: LoadContext, flip: boolean, settings?: TextureImportSettings,
     ): Promise<TextureResult> {
         if (path.toLowerCase().endsWith('.ktx2')) {
