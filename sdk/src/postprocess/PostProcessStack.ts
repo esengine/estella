@@ -9,6 +9,8 @@ export interface PassConfig {
     enabled: boolean;
     floatUniforms: Map<string, number>;
     vec4Uniforms: Map<string, Vec4>;
+    /** Effect-declared textures (LUTs, masks): sampler uniform -> SDK texture handle. */
+    textureUniforms: Map<string, number>;
 }
 
 /**
@@ -58,6 +60,7 @@ export class PostProcessStack {
             enabled: true,
             floatUniforms: new Map(),
             vec4Uniforms: new Map(),
+            textureUniforms: new Map(),
         });
         this.dirty_ = true;
         return this;
@@ -94,6 +97,18 @@ export class PostProcessStack {
         if (pass) {
             if (pass.floatUniforms.get(uniform) !== value) {
                 pass.floatUniforms.set(uniform, value);
+                this.dirty_ = true;
+            }
+        }
+        return this;
+    }
+
+    /** Binds a texture (SDK texture handle) to a pass's sampler uniform. */
+    setTexture(passName: string, uniform: string, textureHandle: number): this {
+        const pass = this.passes_.find(p => p.name === passName);
+        if (pass) {
+            if (pass.textureUniforms.get(uniform) !== textureHandle) {
+                pass.textureUniforms.set(uniform, textureHandle);
                 this.dirty_ = true;
             }
         }

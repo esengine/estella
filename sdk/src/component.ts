@@ -768,7 +768,13 @@ export const SceneOwner = defineComponent<SceneOwnerData>('SceneOwner', {
 });
 
 export interface PostProcessVolumeData {
-    effects: { type: string; enabled: boolean; uniforms: Record<string, number> }[];
+    effects: {
+        type: string;
+        enabled: boolean;
+        uniforms: Record<string, number>;
+        /** Texture params (LUTs, masks): sampler uniform -> serialized texture ref. */
+        textures?: Record<string, string>;
+    }[];
     isGlobal: boolean;
     shape: 'box' | 'sphere';
     size: { x: number; y: number };
@@ -785,6 +791,23 @@ export const PostProcessVolume = defineComponent<PostProcessVolumeData>('PostPro
     priority: 0,
     weight: 1,
     blendDistance: 0,
+}, {
+    // The COMPLETE asset manifest for discovery: effect texture params (LUTs,
+    // masks) preload with the scene so the volume system's cache lookups hit.
+    discoverAssets: (data) => {
+        const refs: AssetRef[] = [];
+        const effects = data.effects;
+        if (Array.isArray(effects)) {
+            for (const effect of effects) {
+                const textures = (effect as { textures?: Record<string, unknown> }).textures;
+                if (!textures) continue;
+                for (const ref of Object.values(textures)) {
+                    if (typeof ref === 'string' && ref) refs.push({ type: 'texture', path: ref });
+                }
+            }
+        }
+        return refs;
+    },
 });
 
 export type {

@@ -15,6 +15,9 @@ export interface ActiveVolume {
 export interface BlendedEffect {
     enabled: boolean;
     uniforms: Map<string, number>;
+    /** Texture params (sampler uniform -> serialized texture ref). Textures don't
+     *  interpolate: the last volume in priority order that sets one wins. */
+    textures: Map<string, string>;
 }
 
 export function signedDistanceBox(
@@ -89,8 +92,19 @@ export function blendVolumeEffects(
                 for (const [key, value] of Object.entries(effect.uniforms)) {
                     uniforms.set(key, value * factor);
                 }
-                result.set(effect.type, { enabled: true, uniforms });
+                const textures = new Map<string, string>();
+                if (effect.textures) {
+                    for (const [key, ref] of Object.entries(effect.textures)) {
+                        if (ref) textures.set(key, ref);
+                    }
+                }
+                result.set(effect.type, { enabled: true, uniforms, textures });
             } else {
+                if (effect.textures) {
+                    for (const [key, ref] of Object.entries(effect.textures)) {
+                        if (ref) existing.textures.set(key, ref);
+                    }
+                }
                 for (const [key, value] of Object.entries(effect.uniforms)) {
                     const prev = existing.uniforms.get(key) ?? 0;
                     existing.uniforms.set(key, prev + (value - prev) * factor);

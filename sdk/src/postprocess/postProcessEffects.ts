@@ -12,6 +12,41 @@ import { Material } from '../material';
 import { POSTPROCESS_VERTEX } from './shaders';
 
 export const postProcessEffects = {
+    createLutGrade(): ShaderHandle {
+        // True LUT color grading: a 2D-packed 32^3 LUT (1024x32 — 32 slices of
+        // 32x32 laid out along X; slice index = blue). Sampled twice around the
+        // blue coordinate and mixed, giving trilinear-quality grading from a
+        // plain PNG. The LUT texture binds via the pass's texture params
+        // (PostProcessVolume `textures: { u_lut: <ref> }`).
+        const fragmentSrc = `#version 300 es
+precision highp float;
+
+in vec2 v_texCoord;
+uniform sampler2D u_texture;
+uniform sampler2D u_lut;
+uniform float u_intensity;
+out vec4 fragColor;
+
+vec3 sampleLut(vec3 c) {
+    const float size = 32.0;
+    float b = clamp(c.b, 0.0, 1.0) * (size - 1.0);
+    float slice0 = floor(b);
+    float slice1 = min(slice0 + 1.0, size - 1.0);
+    float u = (clamp(c.r, 0.0, 1.0) * (size - 1.0) + 0.5) / (size * size);
+    float v = (clamp(c.g, 0.0, 1.0) * (size - 1.0) + 0.5) / size;
+    vec3 a = texture(u_lut, vec2(u + slice0 / size, v)).rgb;
+    vec3 d = texture(u_lut, vec2(u + slice1 / size, v)).rgb;
+    return mix(a, d, b - slice0);
+}
+
+void main() {
+    vec4 color = texture(u_texture, v_texCoord);
+    fragColor = vec4(mix(color.rgb, sampleLut(color.rgb), u_intensity), color.a);
+}
+`;
+        return Material.createShader(POSTPROCESS_VERTEX, fragmentSrc);
+    },
+
     createBlur(): ShaderHandle {
         const fragmentSrc = `#version 300 es
 precision highp float;

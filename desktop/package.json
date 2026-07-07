@@ -54,7 +54,8 @@
     "mcp": "electron electron/mcp/server.mjs",
     "mcp:smoke": "vite build && node electron/mcp/smoke.mjs",
     "verify:render:tilemap:hex": "vite build && ESTELLA_VERIFY_SCENE=/scenes/tilemap-hex.esscene ESTELLA_VERIFY_MANIFEST=/scenes/tilemap-hex.textures.json ESTELLA_VERIFY_W=256 ESTELLA_VERIFY_H=256 ESTELLA_VERIFY_STEPS=6 ESTELLA_VERIFY_EXPECT=\"[{\\\"x\\\":0.40,\\\"y\\\":0.40,\\\"rgb\\\":[255,0,0]},{\\\"x\\\":0.60,\\\"y\\\":0.40,\\\"rgb\\\":[0,255,0]},{\\\"x\\\":0.50,\\\"y\\\":0.55,\\\"rgb\\\":[0,0,255]},{\\\"x\\\":0.70,\\\"y\\\":0.55,\\\"rgb\\\":[255,255,0]}]\" electron scripts/headless-verify.mjs",
-    "verify:render:parallax:shape": "vite build && ESTELLA_VERIFY_SCENE=/scenes/parallax-shape.esscene ESTELLA_VERIFY_MANIFEST=/scenes/parallax-shape.textures.json ESTELLA_VERIFY_STEPS=4 ESTELLA_VERIFY_EXPECT=\"[{\\\"x\\\":0.5,\\\"y\\\":0.5,\\\"rgb\\\":[0,255,0],\\\"tol\\\":40},{\\\"x\\\":0.25,\\\"y\\\":0.5,\\\"rgb\\\":[255,0,0],\\\"tol\\\":40}]\" electron scripts/headless-verify.mjs"
+    "verify:render:parallax:shape": "vite build && ESTELLA_VERIFY_SCENE=/scenes/parallax-shape.esscene ESTELLA_VERIFY_MANIFEST=/scenes/parallax-shape.textures.json ESTELLA_VERIFY_STEPS=4 ESTELLA_VERIFY_EXPECT=\"[{\\\"x\\\":0.5,\\\"y\\\":0.5,\\\"rgb\\\":[0,255,0],\\\"tol\\\":40},{\\\"x\\\":0.25,\\\"y\\\":0.5,\\\"rgb\\\":[255,0,0],\\\"tol\\\":40}]\" electron scripts/headless-verify.mjs",
+    "verify:render:postprocess:lut": "vite build && ESTELLA_VERIFY_PLAY=1 ESTELLA_VERIFY_SCENE=/scenes/lut-grade.esscene ESTELLA_VERIFY_MANIFEST=/scenes/lut-grade.textures.json ESTELLA_VERIFY_W=256 ESTELLA_VERIFY_H=256 ESTELLA_VERIFY_STEPS=10 ESTELLA_VERIFY_EXPECT=\"[{\\\"x\\\":0.292,\\\"y\\\":0.5,\\\"rgb\\\":[0,0,255],\\\"tol\\\":40},{\\\"x\\\":0.708,\\\"y\\\":0.5,\\\"rgb\\\":[255,0,0],\\\"tol\\\":40}]\" electron scripts/headless-verify.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

@@ -72,6 +72,14 @@ export function syncStackToWasm(stack: PostProcessStack): void {
                 handleWasmError(e, `PostProcess._applyForCamera:setUniformVec4("${pass.name}", "${name}")`);
             }
         }
+
+        for (const [name, handle] of pass.textureUniforms) {
+            try {
+                m.postprocess_setPassTexture(pass.name, name, handle);
+            } catch (e) {
+                handleWasmError(e, `PostProcess._applyForCamera:setPassTexture("${pass.name}", "${name}")`);
+            }
+        }
     }
 
     stack.clearDirty();

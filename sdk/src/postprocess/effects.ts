@@ -12,6 +12,12 @@ export interface EffectUniformDef {
     defaultValue: number;
 }
 
+/** A texture parameter (LUT, mask): the sampler uniform it binds to. */
+export interface EffectTextureDef {
+    name: string;
+    label: string;
+}
+
 export interface EffectSubPass {
     name: string;
     factory: () => ShaderHandle;
@@ -22,6 +28,8 @@ export interface EffectDef {
     label: string;
     factory: () => ShaderHandle;
     uniforms: EffectUniformDef[];
+    /** Texture params, carried on the volume as serialized refs (`textures`). */
+    textures?: EffectTextureDef[];
     multiPass?: EffectSubPass[];
 }
 
@@ -147,5 +155,17 @@ registerEffect({
     factory: () => postProcessEffects.createPixelate(),
     uniforms: [
         { name: 'u_pixelSize', label: 'Pixel Size', min: 1, max: 64, step: 1, defaultValue: 4 },
+    ],
+});
+
+registerEffect({
+    type: 'lutGrade',
+    label: 'LUT Grade',
+    factory: () => postProcessEffects.createLutGrade(),
+    uniforms: [
+        { name: 'u_intensity', label: 'Intensity', min: 0, max: 1, step: 0.01, defaultValue: 1 },
+    ],
+    textures: [
+        { name: 'u_lut', label: 'LUT (1024x32, 32 slices)' },
     ],
 });

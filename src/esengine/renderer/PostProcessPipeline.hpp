@@ -41,6 +41,9 @@ struct PostProcessPass {
     bool enabled = true;
     std::unordered_map<std::string, f32> floatUniforms;
     std::unordered_map<std::string, glm::vec4> vec4Uniforms;
+    /// Effect-declared textures (LUTs, masks): sampler uniform name -> GL texture
+    /// id, bound in order above the two engine units (0 = input, 1 = scene).
+    std::vector<std::pair<std::string, u32>> textureUniforms;
 };
 
 /**
@@ -99,6 +102,12 @@ public:
      * @brief Sets a float uniform for a pass
      */
     void setPassUniformFloat(const std::string& passName, const std::string& uniform, f32 value);
+
+    /**
+     * @brief Binds a texture to a pass's sampler uniform (unit 2 upward, in
+     *        registration order). Replaces an existing binding of the same name.
+     */
+    void setPassTexture(const std::string& passName, const std::string& uniform, u32 glTextureId);
 
     /**
      * @brief Sets a vec4 uniform for a pass

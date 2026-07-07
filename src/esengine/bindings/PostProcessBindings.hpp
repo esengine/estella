@@ -17,6 +17,8 @@ void postprocess_setPassEnabled(const std::string& name, bool enabled);
 bool postprocess_isPassEnabled(const std::string& name);
 void postprocess_setUniformFloat(const std::string& passName,
                                   const std::string& uniform, f32 value);
+void postprocess_setPassTexture(const std::string& passName,
+                                const std::string& uniform, u32 textureHandle);
 void postprocess_setUniformVec4(const std::string& passName,
                                  const std::string& uniform,
                                  f32 x, f32 y, f32 z, f32 w);

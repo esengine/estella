@@ -472,6 +472,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("postprocess_isPassEnabled", &esengine::postprocess_isPassEnabled);
     emscripten::function("postprocess_setUniformFloat", &esengine::postprocess_setUniformFloat);
     emscripten::function("postprocess_setUniformVec4", &esengine::postprocess_setUniformVec4);
+    emscripten::function("postprocess_setPassTexture", &esengine::postprocess_setPassTexture);
     emscripten::function("postprocess_begin", &esengine::postprocess_begin);
     emscripten::function("postprocess_end", &esengine::postprocess_end);
     emscripten::function("postprocess_getPassCount", &esengine::postprocess_getPassCount);

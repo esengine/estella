@@ -82,6 +82,20 @@ void postprocess_setUniformFloat(const std::string& passName,
     }
 }
 
+void postprocess_setPassTexture(const std::string& passName,
+                                const std::string& uniform, u32 textureHandle) {
+    if (!g_postProcessPipeline) return;
+    u32 glId = 0;
+    if (textureHandle != 0) {
+        if (auto* rm = ctx().tryGet<resource::ResourceManager>()) {
+            if (auto* tex = rm->getTexture(resource::TextureHandle(textureHandle))) {
+                glId = tex->getId();
+            }
+        }
+    }
+    g_postProcessPipeline->setPassTexture(passName, uniform, glId);
+}
+
 void postprocess_setUniformVec4(const std::string& passName,
                                  const std::string& uniform,
                                  f32 x, f32 y, f32 z, f32 w) {

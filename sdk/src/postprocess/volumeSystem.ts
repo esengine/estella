@@ -20,6 +20,14 @@ export const PostProcessVolumeConfigResource = defineResource<PostProcessVolumeC
     'PostProcessVolumeConfig'
 );
 
+// Texture-param refs resolve through the App's Assets (set by PostProcessPlugin);
+// preloaded by PostProcessVolume's discoverAssets, so lookups are cache hits.
+let volumeTextureResolver: ((ref: string) => number) | null = null;
+
+export function setVolumeTextureResolver(resolver: ((ref: string) => number) | null): void {
+    volumeTextureResolver = resolver;
+}
+
 function getOrCreateShader(api: PostProcessApi, key: string, factory: () => ShaderHandle): ShaderHandle {
     const existing = api.volumeShaders.get(key);
     if (existing !== undefined) return existing;
@@ -29,10 +37,22 @@ function getOrCreateShader(api: PostProcessApi, key: string, factory: () => Shad
     return shader;
 }
 
+function applyTextures(
+    stack: ReturnType<PostProcessApi['createStack']>,
+    passName: string,
+    textures: Map<string, string>,
+): void {
+    if (textures.size === 0 || !volumeTextureResolver) return;
+    for (const [uniformName, ref] of textures) {
+        const handle = volumeTextureResolver(ref);
+        if (handle) stack.setTexture(passName, uniformName, handle);
+    }
+}
+
 function applyBlendedEffects(
     api: PostProcessApi,
     camera: Entity,
-    effects: Map<string, { enabled: boolean; uniforms: Map<string, number> }>,
+    effects: Map<string, { enabled: boolean; uniforms: Map<string, number>; textures: Map<string, string> }>,
 ): void {
     if (effects.size === 0) {
         const existing = api.volumeStacks.get(camera);
@@ -65,6 +85,7 @@ function applyBlendedEffects(
                 for (const [uniformName, uniformValue] of effectData.uniforms) {
                     stack.setUniform(subPass.name, uniformName, uniformValue);
                 }
+                applyTextures(stack, subPass.name, effectData.textures);
             }
         } else {
             const shader = getOrCreateShader(api, effectType, def.factory);
@@ -72,6 +93,7 @@ function applyBlendedEffects(
             for (const [uniformName, uniformValue] of effectData.uniforms) {
                 stack.setUniform(effectType, uniformName, uniformValue);
             }
+            applyTextures(stack, effectType, effectData.textures);
         }
     }
 
@@ -109,7 +131,7 @@ export const postProcessVolumeSystem = defineSystem(
 
             const blended = activeVolumes.length > 0
                 ? blendVolumeEffects(activeVolumes)
-                : new Map<string, { enabled: boolean; uniforms: Map<string, number> }>();
+                : new Map<string, { enabled: boolean; uniforms: Map<string, number>; textures: Map<string, string> }>();
 
             applyBlendedEffects(api, cameraEntity, blended);
         }

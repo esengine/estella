@@ -213,6 +213,16 @@ void PostProcessPipeline::setPassUniformFloat(const std::string& passName,
     }
 }
 
+void PostProcessPipeline::setPassTexture(const std::string& passName,
+                                          const std::string& uniform, u32 glTextureId) {
+    auto* pass = findPass(passName);
+    if (!pass) return;
+    for (auto& [name, id] : pass->textureUniforms) {
+        if (name == uniform) { id = glTextureId; return; }
+    }
+    pass->textureUniforms.emplace_back(uniform, glTextureId);
+}
+
 void PostProcessPipeline::setPassUniformVec4(const std::string& passName,
                                               const std::string& uniform,
                                               const glm::vec4& value) {
@@ -362,6 +372,16 @@ void PostProcessPipeline::renderPass(const PostProcessPass& pass, TextureHandle 
     if (shader->hasUniform("u_sceneTexture")) shader->setUniform("u_sceneTexture", 1);
     if (shader->hasUniform("u_resolution")) {
         shader->setUniform("u_resolution", glm::vec2(static_cast<f32>(width_), static_cast<f32>(height_)));
+    }
+
+    // Effect-declared textures (LUTs, masks) bind above the two engine units.
+    u32 extraUnit = 2;
+    for (const auto& [name, glId] : pass.textureUniforms) {
+        if (glId != 0 && shader->hasUniform(name)) {
+            device->bindTexture(extraUnit, TextureHandle{glId});
+            shader->setUniform(name, static_cast<i32>(extraUnit));
+        }
+        ++extraUnit;
     }
 
     // A multi-pass effect (e.g. bloom) applies its full uniform set to every one

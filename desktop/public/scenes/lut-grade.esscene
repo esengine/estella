@@ -1,0 +1,50 @@
+{
+  "version": "1.0",
+  "name": "LutGrade",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 10 } } },
+        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 240, "isActive": true, "priority": 0 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "RedShape",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": -100, "y": 0, "z": 0 } } },
+        { "type": "ShapeRenderer", "data": { "shapeType": 0, "size": { "x": 80, "y": 80 }, "color": { "r": 1, "g": 0, "b": 0, "a": 1 }, "enabled": true } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 2,
+      "name": "BlueShape",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 100, "y": 0, "z": 0 } } },
+        { "type": "ShapeRenderer", "data": { "shapeType": 0, "size": { "x": 80, "y": 80 }, "color": { "r": 0, "g": 0, "b": 1, "a": 1 }, "enabled": true } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 3,
+      "name": "Grade",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 0 } } },
+        { "type": "PostProcessVolume", "data": { "isGlobal": true, "priority": 0, "weight": 1, "blendDistance": 0, "shape": "box", "size": { "x": 5, "y": 5 }, "effects": [ { "type": "lutGrade", "enabled": true, "uniforms": { "u_intensity": 1 }, "textures": { "u_lut": "/scenes/lut-grade/lut.png" } } ] } }
+      ],
+      "visible": true
+    }
+  ]
+}

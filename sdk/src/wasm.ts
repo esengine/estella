@@ -237,6 +237,7 @@ export interface ESEngineModule {
     postprocess_setPassEnabled(name: string, enabled: boolean): void;
     postprocess_isPassEnabled(name: string): boolean;
     postprocess_setUniformFloat(passName: string, uniform: string, value: number): void;
+    postprocess_setPassTexture(passName: string, uniform: string, textureHandle: number): void;
     postprocess_setUniformVec4(passName: string, uniform: string, x: number, y: number, z: number, w: number): void;
     postprocess_begin(): void;
     postprocess_end(): void;
