@@ -233,6 +233,10 @@ bool ResourceManager::invalidateTexturePath(const std::string& path) {
     return textures_.invalidatePath(path);
 }
 
+usize ResourceManager::trimTextureCache() {
+    return textures_.trimEvictables();
+}
+
 TextureHandle ResourceManager::loadTextureByGUID(const std::string& guid, const std::string& path) {
     auto it = guidToTexture_.find(guid);
     if (it != guidToTexture_.end() && it->second.isValid()) {

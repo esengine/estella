@@ -293,6 +293,23 @@ public:
     usize budget() const { return budget_; }
 
     /**
+     * @brief Frees every evictable (refCount==0) cache entry immediately
+     * @details The memory-pressure response: held resources are untouched, but
+     *          the whole warm cache is dropped regardless of the budget. The
+     *          budget itself is unchanged — the cache refills as resources are
+     *          released afterwards.
+     * @return Number of entries freed
+     */
+    usize trimEvictables() {
+        usize freed = 0;
+        while (lruHead_ != 0) {
+            freeEntry_(lruHead_);  // freeEntry_ → lruRemove_ advances lruHead_
+            ++freed;
+        }
+        return freed;
+    }
+
+    /**
      * @brief Severs a path's cache identity so the entry can't be revived
      * @details For hot reload: the bytes behind `path` changed, so the cached
      *          resource must never be handed out for that path again. Removes

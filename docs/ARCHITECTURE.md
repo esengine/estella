@@ -170,7 +170,12 @@ Key facts:
   never revived. The SDK owns the asset-level refcount (one pool reference per
   cached texture); the pool owns residency. Surfaced to TS as
   `setTextureBudget(bytes)` / `getResourceStats()`, with a default budget from
-  `RuntimeConfig.textureCacheBudget` applied at engine init.
+  `RuntimeConfig.textureCacheBudget` applied at engine init. Decoded audio
+  buffers mirror the same lifecycle SDK-side (`AudioAPI` retain/release +
+  byte-budgeted warm cache, `RuntimeConfig.audioCacheBudget`). OS memory
+  warnings (`wx.onMemoryWarning` via the platform adapter) trim both warm
+  caches (`trimTextureCache` / `AudioAPI.trimBufferCache`) without touching
+  held resources.
 
 ### Other C++ subsystems
 

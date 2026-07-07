@@ -35,6 +35,14 @@ export const RuntimeConfig = {
      * re-fetching + re-decoding. 0 turns the cache off (free at refcount 0).
      */
     textureCacheBudget: 64 * 1024 * 1024,
+    /**
+     * Decoded audio-buffer byte budget — the audio mirror of
+     * textureCacheBudget. Released buffers stay as an evictable warm cache
+     * (instantly playable, revived without re-fetch + re-decode) and the
+     * oldest are dropped past this budget. Read live by AudioAPI, so changes
+     * apply without re-init. 0 turns the warm cache off.
+     */
+    audioCacheBudget: 32 * 1024 * 1024,
 };
 
 export function applyRuntimeConfig(components: {
@@ -66,6 +74,7 @@ export interface RuntimeBuildConfig {
     assetLoadTimeout?: number;
     assetFailureCooldown?: number;
     textureCacheBudget?: number;
+    audioCacheBudget?: number;
 }
 
 /** Canvas scale-mode name → value. Canonical names are single-sourced from the
@@ -122,5 +131,9 @@ export function applyBuildRuntimeConfig(app: { setMaxDeltaTime(v: number): void;
         // This runs after app creation, where corePlugin already applied the
         // default budget — push the configured value through to the pool.
         if (getResourceManager()) setTextureBudget(config.textureCacheBudget);
+    }
+    if (config.audioCacheBudget !== undefined) {
+        // AudioAPI reads this live at every budget check — no push needed.
+        RuntimeConfig.audioCacheBudget = config.audioCacheBudget;
     }
 }

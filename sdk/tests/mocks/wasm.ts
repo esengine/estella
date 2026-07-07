@@ -125,6 +125,7 @@ export function createMockModule(): ESEngineModule {
         registerTextureWithPath: () => {},
         acquireTextureByPath: () => 0,
         invalidateTexturePath: () => false,
+        trimTextureCache: () => 0,
         getResourceStats: () => ({
             shaderCount: 0, textureCount: 0, vertexBufferCount: 0, indexBufferCount: 0,
             cacheHits: 0, cacheMisses: 0,

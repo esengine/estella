@@ -165,6 +165,11 @@ export class Assets {
     });
     private textureRefCounts_ = new Map<string, number>();
     private genericCache_ = new Map<string, AsyncCache<unknown>>();
+    /** Per-asset reference counts for the generic caches, keyed `type:path`.
+     *  Same contract as textures: every load*() increments, every release*()
+     *  decrements, and the loader's unload runs only at zero — so an asset
+     *  shared by two scenes survives the first scene's unload. */
+    private genericRefCounts_ = new Map<string, number>();
     private loadContext_: LoadContext | null = null;
     private assetRefResolver_: AssetRefResolver | null = null;
     private assetRegistry_: AssetRegistry | null = null;
@@ -435,6 +440,39 @@ export class Assets {
 
         await Promise.allSettled(promises);
         return bundle;
+    }
+
+    /**
+     * Release every asset {@link loadGroup} acquired for a group — the
+     * symmetric other half of on-demand delivery. Each asset goes through its
+     * type's canonical release channel, so reference counting decides what
+     * actually happens: an asset another scene or group still holds survives;
+     * one nobody holds drops to the evictable warm cache (textures, audio)
+     * or unloads. Call it when the player leaves the area the group backs;
+     * bouncing back is then absorbed by the warm caches instead of the
+     * network. Requires a manifest, like loadGroup; no-op without one.
+     */
+    releaseGroup(groupName: string): void {
+        const model = this.manifestModel_;
+        if (!model) {
+            log.warn('asset', `releaseGroup('${groupName}') called but no manifest is set`);
+            return;
+        }
+        for (const asset of model.assetsInGroup(groupName)) {
+            const path = this.resolveLoadPath_(asset.path);
+            switch (asset.type) {
+                case 'texture': this.releaseTexture(path); break;
+                case 'material': this.releaseTyped('material', path); break;
+                case 'bitmap-font': this.releaseTyped('font', path); break;
+                case 'prefab': this.releaseTyped('prefab', path); break;
+                case 'audio': this.releaseTyped('audio', path); break;
+                // Spine skeletons bind to spawned entities and are owned by
+                // the SpineAssetLoader / SpineManager lifecycle, not the
+                // generic cache — releasing them here could yank a skeleton
+                // out from under a live entity.
+                default: break;
+            }
+        }
     }
 
     /**
@@ -825,11 +863,19 @@ export class Assets {
         const cache = this.genericCache_.get(type);
         if (!cache) return;
         const entry = cache.get(path);
-        if (entry) {
-            const loader = this.loaders_.get(type);
-            loader?.unload(entry);
-            cache.delete(path);
+        if (!entry) return;
+
+        const key = `${type}:${path}`;
+        const count = this.genericRefCounts_.get(key);
+        if (count === undefined) return;
+        if (count > 1) {
+            this.genericRefCounts_.set(key, count - 1);
+            return;
         }
+        const loader = this.loaders_.get(type);
+        loader?.unload(entry);
+        cache.delete(path);
+        this.genericRefCounts_.delete(key);
     }
 
     /**
@@ -868,8 +914,16 @@ export class Assets {
         }
 
         // Generic caches: material / font / anim-clip / tilemap / timeline / audio / prefab.
-        for (const cache of this.genericCache_.values()) {
+        for (const [type, cache] of this.genericCache_.entries()) {
             if (cache.invalidate(path)) hit = true;
+            if (this.genericRefCounts_.delete(`${type}:${path}`)) hit = true;
+        }
+
+        // Loader-owned residency (e.g. the AudioAPI warm cache) can outlive
+        // the Assets-level entry — sever it unconditionally so a warm-cache
+        // revive can never serve stale bytes after a hot reload.
+        for (const loader of this.loaders_.values()) {
+            if (loader.invalidate?.(path)) hit = true;
         }
 
         if (hit) {
@@ -917,6 +971,7 @@ export class Assets {
             cache.clearAll();
         }
         this.genericCache_.clear();
+        this.genericRefCounts_.clear();
     }
 
     // =========================================================================
@@ -1016,7 +1071,9 @@ export class Assets {
         this.materialLoader_ = new MaterialAssetLoader();
         this.register(this.materialLoader_);
         this.register(new FontAssetLoader());
-        this.register(new AudioAssetLoader());
+        // The audio loader needs the AudioAPI outside load() too (unload /
+        // invalidate have no LoadContext), so it shares Assets' lazy accessor.
+        this.register(new AudioAssetLoader(() => this.getAudio_()));
         this.register(new AnimClipAssetLoader());
         this.register(new TilemapAssetLoader());
         this.register(new TilesetAssetLoader());
@@ -1043,9 +1100,12 @@ export class Assets {
             this.genericCache_.set(type, cache);
         }
 
-        return cache.getOrLoad(path, () =>
+        const result = await (cache.getOrLoad(path, () =>
             loader.load(path, this.getLoadContext_()),
-        ) as Promise<T>;
+        ) as Promise<T>);
+        const key = `${type}:${path}`;
+        this.genericRefCounts_.set(key, (this.genericRefCounts_.get(key) ?? 0) + 1);
+        return result;
     }
 
     private getLoadContext_(): LoadContext {

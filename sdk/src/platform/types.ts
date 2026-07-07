@@ -124,6 +124,11 @@ export interface PlatformAdapter {
      *  concept (web) omit it and lazy groups load directly from their URLs. */
     loadSubpackage?(name: string): Promise<void>;
 
+    /** Subscribe to OS memory-pressure warnings; returns an unsubscribe.
+     *  WeChat → wx.onMemoryWarning; platforms without a pressure signal (web)
+     *  omit it. Residency caches subscribe to drop their evictable entries. */
+    onMemoryWarning?(callback: () => void): () => void;
+
     devicePixelRatio(): number;
 
     getStorageItem(key: string): string | null;

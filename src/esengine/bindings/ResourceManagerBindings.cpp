@@ -98,6 +98,10 @@ bool rm_invalidateTexturePath(resource::ResourceManager& rm, const std::string& 
     return rm.invalidateTexturePath(path);
 }
 
+u32 rm_trimTextureCache(resource::ResourceManager& rm) {
+    return static_cast<u32>(rm.trimTextureCache());
+}
+
 emscripten::val rm_getResourceStats(resource::ResourceManager& rm) {
     const auto st = rm.getStats();
     auto result = emscripten::val::object();

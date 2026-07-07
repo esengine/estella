@@ -21,6 +21,13 @@ export interface AudioHandle {
 export interface AudioBufferHandle {
     readonly id: number;
     readonly duration: number;
+    /**
+     * Decoded size in bytes, for the audio residency budget. Backends that
+     * hold real decoded PCM (WebAudio) report it; streaming backends (WeChat
+     * InnerAudioContext plays from file) omit it — 0/undefined means
+     * untracked, and untracked entries never count against the budget.
+     */
+    readonly bytes?: number;
 }
 
 export interface PlayConfig {

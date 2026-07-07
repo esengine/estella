@@ -88,4 +88,13 @@ export interface AssetLoader<T> {
     readonly extensions: string[];
     load(path: string, ctx: LoadContext): Promise<T>;
     unload(asset: T): void;
+    /**
+     * Sever any residency identity the loader's subsystem keeps for `path`
+     * (hot reload: the source bytes changed, so a warm-cache entry must never
+     * be revived). Called by `Assets.invalidate` for every registered loader,
+     * whether or not the Assets-level cache held the path — the subsystem
+     * cache can outlive it. Returns true if anything was dropped. Optional:
+     * loaders whose results carry no out-of-Assets residency omit it.
+     */
+    invalidate?(path: string): boolean;
 }

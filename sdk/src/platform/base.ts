@@ -120,6 +120,15 @@ export function platformLoadSubpackage(name: string): Promise<void> {
     return p.loadSubpackage ? p.loadSubpackage(name) : Promise.resolve();
 }
 
+/** Subscribe to OS memory-pressure warnings (wx.onMemoryWarning on WeChat).
+ *  Returns an unsubscribe. On platforms without a pressure signal the callback
+ *  simply never fires. Tolerates an uninitialized platform (tests). */
+export function platformOnMemoryWarning(callback: () => void): () => void {
+    if (!isPlatformInitialized()) return () => {};
+    const p = getPlatform();
+    return p.onMemoryWarning ? p.onMemoryWarning(callback) : () => {};
+}
+
 export function platformDevicePixelRatio(): number {
     if (currentPlatform) {
         return currentPlatform.devicePixelRatio();

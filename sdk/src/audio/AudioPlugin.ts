@@ -7,7 +7,7 @@ import { Res, Time, type TimeData } from '../resource';
 import { Audio, AudioAPI } from './Audio';
 import { AudioSource, AudioListener, type AudioSourceData, type AudioListenerData } from './AudioComponents';
 import { WorldTransform, type WorldTransformData } from '../component';
-import { getPlatform } from '../platform/base';
+import { getPlatform, platformOnMemoryWarning } from '../platform/base';
 import { calculateAttenuation, calculatePanning, type SpatialAudioConfig, AttenuationModel } from './SpatialAudio';
 import type { AudioHandle } from './PlatformAudioBackend';
 import { isEditor, isPlayMode } from '../env';
@@ -26,6 +26,7 @@ export class AudioPlugin implements Plugin {
     private activeSourceHandles_: Map<number, AudioHandle> | null = null;
     private playedEntities_: Set<number> | null = null;
     private audio_: AudioAPI | null = null;
+    private offMemoryWarning_: (() => void) | null = null;
 
     constructor(config: AudioPluginConfig = {}) {
         this.config_ = config;
@@ -43,6 +44,13 @@ export class AudioPlugin implements Plugin {
         const audio = new AudioAPI(backend, mixer);
         this.audio_ = audio;
         app.insertResource(Audio, audio);
+
+        // OS memory pressure → drop the decoded-buffer warm cache. Held
+        // buffers keep playing; re-fetch cost returns only for evicted ones.
+        this.offMemoryWarning_ = platformOnMemoryWarning(() => {
+            const freed = audio.trimBufferCache();
+            if (freed > 0) log.info('audio', `memory warning: trimmed ${freed} cached buffer(s)`);
+        });
 
         if (mixer) {
             if (config.masterVolume !== undefined) mixer.master.volume = config.masterVolume;
@@ -188,6 +196,8 @@ export class AudioPlugin implements Plugin {
     }
 
     cleanup(): void {
+        this.offMemoryWarning_?.();
+        this.offMemoryWarning_ = null;
         this.stopAllSources();
         this.audio_?.dispose();
         this.audio_ = null;

@@ -132,6 +132,11 @@ class WebAudioHandle implements AudioHandle {
     }
 }
 
+/** Decoded PCM size of a WebAudio buffer: frames × channels × 4 (Float32). */
+function decodedBytes(buf: AudioBuffer): number {
+    return buf.length * buf.numberOfChannels * 4;
+}
+
 export class WebAudioBackend implements PlatformAudioBackend {
     readonly name = 'WebAudio';
 
@@ -195,7 +200,7 @@ export class WebAudioBackend implements PlatformAudioBackend {
         const existingId = this.urlToId_.get(url);
         if (existingId !== undefined && this.buffers_.has(existingId)) {
             const buf = this.buffers_.get(existingId)!;
-            return { id: existingId, duration: buf.duration };
+            return { id: existingId, duration: buf.duration, bytes: decodedBytes(buf) };
         }
 
         const inFlight = this.loadingUrls_.get(url);
@@ -218,7 +223,7 @@ export class WebAudioBackend implements PlatformAudioBackend {
         const existingId = this.urlToId_.get(url);
         if (existingId !== undefined && this.buffers_.has(existingId)) {
             const buf = this.buffers_.get(existingId)!;
-            return { id: existingId, duration: buf.duration };
+            return { id: existingId, duration: buf.duration, bytes: decodedBytes(buf) };
         }
 
         let audioBuffer: AudioBuffer;
@@ -232,7 +237,7 @@ export class WebAudioBackend implements PlatformAudioBackend {
         this.buffers_.set(id, audioBuffer);
         this.urlToId_.set(url, id);
 
-        return { id, duration: audioBuffer.duration };
+        return { id, duration: audioBuffer.duration, bytes: decodedBytes(audioBuffer) };
     }
 
     private async doLoadBuffer_(url: string): Promise<AudioBufferHandle> {

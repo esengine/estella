@@ -80,6 +80,12 @@ class WeChatPlatformAdapter implements PlatformAdapter {
         });
     }
 
+    onMemoryWarning(callback: () => void): () => void {
+        const listener = () => callback();
+        wx.onMemoryWarning(listener);
+        return () => wx.offMemoryWarning(listener);
+    }
+
     createCanvas(width: number, height: number): HTMLCanvasElement | OffscreenCanvas {
         const canvas = wx.createCanvas() as unknown as HTMLCanvasElement;
         canvas.width = width;

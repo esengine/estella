@@ -72,7 +72,14 @@ assets.setManifest(manifest);   // 通常运行时会替你设好
 const bundle = await assets.loadGroup('level2', (loaded, total) => {
   console.log(`${loaded}/${total}`);
 });
+
+// ...玩家离开这个组对应的区域时:
+assets.releaseGroup('level2');
 ```
+
+`releaseGroup` 是对称的另一半:组里获取过的每个资源都经其类型的规范通道释放,由引用计数
+决定实际发生什么——别的场景或组还持有的资源会存活,没人持有的降级为可逐出热缓存。之后玩家
+折返该区域时由热缓存吸收,而不是重走网络。
 
 `loadByLabel(...)` 按 label 标签加载资源,而不是按文件夹分组。正是这种分组映射到
 [微信分包](/docs/zh-cn/guides/wechat/),实现按需下载。
@@ -102,14 +109,19 @@ const { failed } = await assets.preload(
 
 ## 生命周期与引用计数
 
-加载的 GPU 资源是**引用计数**的。当使用某资源的实体被销毁(despawn)时,它的引用被释放——
-但释放的纹理不会立即销毁:它以**可逐出缓存条目**的形式留驻,同一纹理再次被加载(重进场景、
-流式加载重新进入某区域)时会被**原地复活**,而不是重新下载和解码。一个按字节预算的 LRU
-在常驻显存超过预算时逐出最旧的未引用纹理。你一般不用手动管理——正常引用和销毁实体即可。
+加载的资源是**引用计数**的:每次 `load*()` 计一个引用,需要一次匹配的 `release*()`
+(场景加载会替你完成这两步)。被两个场景共享的资源在第一个场景卸载后仍然存活,只有最后一个
+持有者释放时才真正释放。
 
-预算默认 **64 MB**(`RuntimeConfig.textureCacheBudget`,也可在构建配置里用
-`textureCacheBudget` 设置)。用 `setTextureBudget` 按你的游戏调大小,用
-`getResourceStats` 观测驻留情况:
+释放的资源也不会立即销毁:纹理和解码后的音频缓冲区以**可逐出缓存条目**的形式留驻,同一资源
+再次被加载(重进场景、流式加载重新进入某区域)时会被**原地复活**,而不是重新下载和解码。
+一个按字节预算的 LRU 在驻留量超过预算时逐出最旧的未引用条目;收到系统内存警告时整个热缓存
+一次性清空(持有中的资源不受影响)。你一般不用手动管理——正常引用和销毁实体即可。
+
+纹理预算默认 **64 MB**(`RuntimeConfig.textureCacheBudget`,也可在构建配置里用
+`textureCacheBudget` 设置);解码音频有自己的 **32 MB** 镜像(`audioCacheBudget`,
+见[音频指南](/docs/zh-cn/guides/audio/))。用 `setTextureBudget` 按你的游戏调纹理预算大小,
+用 `getResourceStats` 观测驻留情况:
 
 ```typescript
 import { setTextureBudget, getResourceStats } from 'esengine';

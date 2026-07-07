@@ -408,6 +408,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
         .function("setTextureBudget", &esengine::rm_setTextureBudget)
         .function("acquireTextureByPath", &esengine::rm_acquireTextureByPath)
         .function("invalidateTexturePath", &esengine::rm_invalidateTexturePath)
+        .function("trimTextureCache", &esengine::rm_trimTextureCache)
         .function("getResourceStats", &esengine::rm_getResourceStats)
 #ifdef ES_ENABLE_BITMAP_TEXT
         .function("loadBitmapFont", &esengine::rm_loadBitmapFont)

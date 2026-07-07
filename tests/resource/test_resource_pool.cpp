@@ -396,6 +396,31 @@ TEST_CASE("pool_invalidate_path_on_held_entry") {
     CHECK(pool.get(h) == nullptr);
 }
 
+TEST_CASE("pool_trim_evictables_drops_warm_cache_only") {
+    // Memory pressure: the whole warm cache goes at once, held entries and
+    // the budget survive, and the cache can refill afterwards.
+    test::DummyPool pool;
+    pool.setBudget(1000);
+    auto held = pool.add(esengine::makeUnique<test::DummyResource>(1), "held", 100);
+    auto a = pool.add(esengine::makeUnique<test::DummyResource>(2), "a", 100);
+    auto b = pool.add(esengine::makeUnique<test::DummyResource>(3), "b", 100);
+    pool.release(a.id());
+    pool.release(b.id());
+    CHECK_EQ(pool.evictableCount(), 2u);
+
+    CHECK_EQ(pool.trimEvictables(), 2u);
+    CHECK_EQ(pool.evictableCount(), 0u);
+    CHECK_EQ(pool.residentBytes(), 100u);       // only the held entry remains
+    CHECK(pool.get(held) != nullptr);
+    CHECK(!pool.findByPath("a").isValid());
+    CHECK_EQ(pool.budget(), 1000u);             // budget untouched
+
+    pool.release(held.id());                    // cache refills after the trim
+    CHECK_EQ(pool.evictableCount(), 1u);
+    CHECK_EQ(pool.trimEvictables(), 1u);
+    CHECK_EQ(pool.residentBytes(), 0u);
+}
+
 TEST_CASE("pool_invalidate_path_then_reload_same_path") {
     // Hot-reload sequence: invalidate, then a fresh add() under the same path
     // becomes the new cache identity for it.

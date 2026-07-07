@@ -70,7 +70,7 @@ export {
 // Resource budget (VRAM)
 // =============================================================================
 
-export { setTextureBudget, getResourceStats, type ResourceStats } from './resourceManager';
+export { setTextureBudget, getResourceStats, trimTextureCache, type ResourceStats } from './resourceManager';
 
 // =============================================================================
 // Scene

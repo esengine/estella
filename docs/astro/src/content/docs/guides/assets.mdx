@@ -78,7 +78,16 @@ progress — and it downloads before its assets load (on WeChat this triggers
 const bundle = await assets.loadGroup('level2', (loaded, total) => {
   console.log(`${loaded}/${total}`);
 });
+
+// ...player leaves the area the group backs:
+assets.releaseGroup('level2');
 ```
+
+`releaseGroup` is the symmetric other half: every asset the group acquired is
+released through its type's canonical channel, so reference counting decides
+what happens — an asset another scene or group still holds survives, and one
+nobody holds drops to the evictable warm cache. Bouncing back into the area is
+then absorbed by the warm caches instead of the network.
 
 `loadByLabel(...)` loads assets tagged with a label instead of a folder group.
 This grouping is what maps onto [WeChat subpackages](/docs/guides/wechat/) for
@@ -114,18 +123,25 @@ manifest. Along the way it can:
 
 ## Lifetime & reference counting
 
-Loaded GPU resources are **reference-counted**. When an entity that uses an asset
-is despawned, its references are released — but a released texture isn't
-destroyed immediately. It stays resident as an **evictable cache entry**, and if
-the same texture is loaded again (re-entering a scene, streaming an area back
-in) it is **revived in place** instead of re-fetched and re-decoded. A
-byte-budgeted LRU evicts the oldest unreferenced textures once resident VRAM
-exceeds the budget. You generally don't manage this by hand — reference and
-despawn entities normally.
+Loaded assets are **reference-counted**: every `load*()` counts as one
+reference and needs a matching `release*()` (scene loading does both for you).
+An asset shared by two scenes survives the first scene's unload and is freed
+only when its last holder releases it.
 
-The budget defaults to **64 MB** (`RuntimeConfig.textureCacheBudget`, also
-settable as `textureCacheBudget` in the build config). Size it for your game
-with `setTextureBudget`, and watch residency with `getResourceStats`:
+A released asset isn't destroyed immediately, either. Textures and decoded
+audio buffers stay resident as **evictable cache entries**, and if the same
+asset is loaded again (re-entering a scene, streaming an area back in) it is
+**revived in place** instead of re-fetched and re-decoded. A byte-budgeted LRU
+evicts the oldest unreferenced entries once residency exceeds the budget, and
+an OS memory warning drops the whole warm cache at once (held assets are
+untouched). You generally don't manage this by hand — reference and despawn
+entities normally.
+
+The texture budget defaults to **64 MB** (`RuntimeConfig.textureCacheBudget`,
+also settable as `textureCacheBudget` in the build config); decoded audio has
+its own **32 MB** mirror (`audioCacheBudget` — see the
+[audio guide](/docs/guides/audio/)). Size the texture budget for your game with
+`setTextureBudget`, and watch residency with `getResourceStats`:
 
 ```typescript
 import { setTextureBudget, getResourceStats } from 'esengine';

@@ -28,6 +28,7 @@ void rm_registerTextureWithPath(resource::ResourceManager& rm, u32 handleId, con
 void rm_setTextureBudget(resource::ResourceManager& rm, u32 bytes);
 u32 rm_acquireTextureByPath(resource::ResourceManager& rm, const std::string& path);
 bool rm_invalidateTexturePath(resource::ResourceManager& rm, const std::string& path);
+u32 rm_trimTextureCache(resource::ResourceManager& rm);
 emscripten::val rm_getResourceStats(resource::ResourceManager& rm);
 void rm_releaseShader(resource::ResourceManager& rm, u32 handleId);
 u32 rm_getShaderRefCount(resource::ResourceManager& rm, u32 handleId);

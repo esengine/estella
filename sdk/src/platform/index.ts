@@ -34,6 +34,7 @@ export {
     platformNow,
     platformCreateAudioBackend,
     platformLoadSubpackage,
+    platformOnMemoryWarning,
     platformDevicePixelRatio,
 } from './base';
 

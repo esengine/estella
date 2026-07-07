@@ -18,6 +18,13 @@ group). Each play returns an `AudioHandle` you can keep to adjust or stop that o
 sound. For sounds tied to a place or an object, an `AudioSource` component plays
 declaratively and (when `spatial`) attenuates by distance from the `AudioListener`.
 
+Decoded buffers live in a **byte-budgeted warm cache** (default 32 MB,
+`RuntimeConfig.audioCacheBudget` / build-config `audioCacheBudget`), the audio
+mirror of the texture budget: a buffer released by asset lifetime stays instantly
+playable and is revived without a re-fetch + re-decode, while the oldest unused
+buffers are dropped past the budget. On OS memory warnings the engine trims the
+whole warm cache automatically — sounds that are playing keep playing.
+
 <Aside type="note">
   Audio is registered automatically — no plugin to add. Browsers require a user
   gesture before sound can start, so trigger the first playback from a tap or key.
@@ -54,6 +61,9 @@ it once ready.
 | `preload(url)` | Decode and cache a clip ahead of time (async). |
 | `preloadAll(urls)` | Preload an array of clips (async). |
 | `getBufferHandle(url)` | The cached buffer for `url`, or `undefined`. |
+| `setBufferBudget(bytes)` | Override the warm-cache byte budget (`null` returns to the RuntimeConfig value; `0` disables the cache). |
+| `getBufferStats()` | Residency counters: `bufferCount`, `bufferBytes`, `bufferBudget`, `evictableCount`. |
+| `trimBufferCache()` | Free every unused cached buffer now (the engine calls this on OS memory warnings). |
 
 ## Controlling a playing sound
 

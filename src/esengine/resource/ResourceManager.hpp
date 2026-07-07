@@ -294,6 +294,13 @@ public:
      */
     bool invalidateTexturePath(const std::string& path);
 
+    /**
+     * @brief Frees every evictable cached texture now (memory pressure).
+     *        Held textures and the budget are untouched.
+     * @return Number of textures freed
+     */
+    usize trimTextureCache();
+
     // =========================================================================
     // Texture Metadata
     // =========================================================================

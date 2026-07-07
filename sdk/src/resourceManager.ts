@@ -98,6 +98,18 @@ export function getResourceStats(): ResourceStats | null {
     return rm_.getResourceStats();
 }
 
+/**
+ * Free every evictable cached texture now (memory pressure). Held textures
+ * and the budget are untouched; the warm cache refills as textures are
+ * released afterwards. The engine calls this on OS memory warnings — call it
+ * yourself before a known memory spike (e.g. a huge one-off allocation).
+ * Returns the number of textures freed (0 when uninitialized / mocked).
+ */
+export function trimTextureCache(): number {
+    if (!rm_ || typeof rm_.trimTextureCache !== 'function') return 0;
+    return rm_.trimTextureCache();
+}
+
 export function evictTextureDimensions(handle: number): void {
     dimsCache_.delete(handle);
 }

@@ -54,6 +54,7 @@ export interface CppResourceManager {
     setTextureBudget(bytes: number): void;
     acquireTextureByPath(path: string): number;
     invalidateTexturePath(path: string): boolean;
+    trimTextureCache(): number;
     getResourceStats(): {
         shaderCount: number;
         textureCount: number;

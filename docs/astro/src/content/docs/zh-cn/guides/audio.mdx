@@ -15,6 +15,12 @@ Estella 的音频通过 `Audio` 资源播放一次性音效和循环音乐,用�
 或停止这一个声音。对于绑定到某个位置或物体的声音,`AudioSource` 组件声明式地播放,并在
 (`spatial`)开启时按与 `AudioListener` 的距离衰减。
 
+解码后的缓冲区放在一个**按字节预算的热缓存**里(默认 32 MB,
+`RuntimeConfig.audioCacheBudget`,构建配置里为 `audioCacheBudget`)——纹理预算的音频镜像:
+被资源生命周期释放的缓冲区仍可即时播放,再次加载时原地复活而不用重新下载和解码;超出预算时
+最旧的未使用缓冲区被丢弃。收到系统内存警告时引擎会自动清空整个热缓存——正在播放的声音不受
+影响。
+
 <Aside type="note">
   音频自动注册——无需加插件。浏览器要求先有用户手势才能开始播放,所以第一次播放要从点击或
   按键触发。
@@ -50,6 +56,9 @@ const play = defineSystem([Res(Audio)], (audio) => {
 | `preload(url)` | 提前解码并缓存一个片段(异步)。 |
 | `preloadAll(urls)` | 预加载一组片段(异步)。 |
 | `getBufferHandle(url)` | `url` 的已缓存缓冲区,或 `undefined`。 |
+| `setBufferBudget(bytes)` | 覆盖热缓存字节预算(`null` 回到 RuntimeConfig 的值;`0` 关闭缓存)。 |
+| `getBufferStats()` | 驻留计数:`bufferCount`、`bufferBytes`、`bufferBudget`、`evictableCount`。 |
+| `trimBufferCache()` | 立即释放所有未使用的缓存缓冲区(引擎在系统内存警告时会自动调用)。 |
 
 ## 控制正在播放的声音
 

@@ -3,7 +3,33 @@
 import type { PlatformAudioBackend, AudioBufferHandle, AudioHandle } from './PlatformAudioBackend';
 import type { AudioMixer } from './AudioMixer';
 import { defineResource } from '../resource';
+import { RuntimeConfig } from '../defaults';
 import { log } from '../logger';
+
+/**
+ * One decoded buffer's residency record. Mirrors the texture pool's
+ * three-state lifecycle: held (refCount > 0, pinned by Assets) →
+ * evictable (refCount 0, warm cache bounded by the byte budget) →
+ * evicted (backend buffer freed; a future load re-fetches).
+ */
+interface BufferEntry {
+    handle: AudioBufferHandle;
+    /** Decoded bytes; 0 = untracked (streaming backends), never budgeted. */
+    bytes: number;
+    /** Assets-held references. Direct play/preload entries stay at 0. */
+    refCount: number;
+}
+
+/** Buffer residency counters. See {@link AudioAPI.getBufferStats}. */
+export interface AudioBufferStats {
+    bufferCount: number;
+    /** Decoded bytes resident (held + evictable entries). */
+    bufferBytes: number;
+    /** The effective byte budget (0 = warm cache off). */
+    bufferBudget: number;
+    /** Warm-cache entries (refCount 0) awaiting revive or eviction. */
+    evictableCount: number;
+}
 
 /**
  * Per-app audio API. Each `App` owns an `AudioAPI` instance (created by
@@ -15,7 +41,11 @@ import { log } from '../logger';
 export class AudioAPI {
     private readonly backend_: PlatformAudioBackend;
     private readonly mixer_: AudioMixer | null;
-    private readonly bufferCache_ = new Map<string, AudioBufferHandle>();
+    private readonly bufferCache_ = new Map<string, BufferEntry>();
+    /** refCount==0 urls in eviction order (oldest first); access re-appends. */
+    private readonly evictOrder_ = new Set<string>();
+    private residentBytes_ = 0;
+    private bufferBudgetOverride_: number | null = null;
     private bgmHandle_: AudioHandle | null = null;
     private bgmVolume_ = 1.0;
     private readonly fadeAnimIds_ = new Set<number>();
@@ -26,6 +56,140 @@ export class AudioAPI {
     constructor(backend: PlatformAudioBackend, mixer: AudioMixer | null = null) {
         this.backend_ = backend;
         this.mixer_ = mixer;
+    }
+
+    // =========================================================================
+    // Buffer residency (held → evictable → evicted)
+    // =========================================================================
+
+    /** The effective warm-cache byte budget: an explicit override, else the
+     *  live `RuntimeConfig.audioCacheBudget` (so build-config changes apply
+     *  without plumbing). 0 disables the warm cache — a buffer is freed the
+     *  moment its refCount reaches 0. */
+    get bufferBudget(): number {
+        return this.bufferBudgetOverride_ ?? RuntimeConfig.audioCacheBudget;
+    }
+
+    /** Override the warm-cache byte budget; `null` returns to RuntimeConfig. */
+    setBufferBudget(bytes: number | null): void {
+        this.bufferBudgetOverride_ = bytes === null ? null : Math.max(0, Math.floor(bytes));
+        this.enforceBudget_();
+    }
+
+    /**
+     * Pin a cached buffer: refCount + 1 (reviving an evictable entry back to
+     * held). Returns false on a miss — the caller must load and re-acquire.
+     * Every retain needs a matching {@link releaseBuffer}.
+     */
+    retainBuffer(url: string): boolean {
+        const entry = this.bufferCache_.get(url);
+        if (!entry) return false;
+        entry.refCount++;
+        this.evictOrder_.delete(url);
+        return true;
+    }
+
+    /**
+     * Unpin a buffer. At refCount 0 it becomes an evictable warm-cache entry
+     * (bounded by {@link bufferBudget}) — still instantly playable and
+     * revivable by {@link retainBuffer} — or is freed outright when the
+     * budget is 0.
+     */
+    releaseBuffer(url: string): void {
+        const entry = this.bufferCache_.get(url);
+        if (!entry || entry.refCount === 0) return;
+        if (--entry.refCount === 0) {
+            if (this.bufferBudget === 0) {
+                this.freeBuffer_(url, entry);
+            } else {
+                this.evictOrder_.add(url);
+                this.enforceBudget_();
+            }
+        }
+    }
+
+    /**
+     * Drop a buffer whose source bytes changed (hot reload) so no future play
+     * or load serves stale audio. Safe while sounds are playing — live
+     * sources keep their own reference to the decoded data; only the cache
+     * entry goes, and the next play/load re-fetches fresh bytes. Returns
+     * true if the url was cached.
+     */
+    invalidateBuffer(url: string): boolean {
+        const entry = this.bufferCache_.get(url);
+        if (!entry) return false;
+        this.freeBuffer_(url, entry);
+        return true;
+    }
+
+    /**
+     * Free every evictable warm-cache buffer now (memory pressure). Held
+     * buffers and the budget are untouched; the cache refills as buffers are
+     * released afterwards. Returns the number of buffers freed.
+     */
+    trimBufferCache(): number {
+        let freed = 0;
+        for (const url of [...this.evictOrder_]) {
+            const entry = this.bufferCache_.get(url);
+            if (entry) {
+                this.freeBuffer_(url, entry);
+                freed++;
+            }
+        }
+        return freed;
+    }
+
+    /** Buffer residency counters — the observability side of the budget. */
+    getBufferStats(): AudioBufferStats {
+        return {
+            bufferCount: this.bufferCache_.size,
+            bufferBytes: this.residentBytes_,
+            bufferBudget: this.bufferBudget,
+            evictableCount: this.evictOrder_.size,
+        };
+    }
+
+    /** Register a decoded buffer as an evictable warm-cache entry. The budget
+     *  is enforced against the OLD warm entries before the new one joins the
+     *  eviction pool — mirroring the C++ pool's add(), where a just-created
+     *  resource can't be the one evicted to make room for itself (a caller
+     *  about to pin or play it would find it already gone). */
+    private insertEntry_(url: string, handle: AudioBufferHandle): void {
+        const entry: BufferEntry = { handle, bytes: handle.bytes ?? 0, refCount: 0 };
+        this.bufferCache_.set(url, entry);
+        this.residentBytes_ += entry.bytes;
+        this.enforceBudget_();
+        this.evictOrder_.add(url);
+    }
+
+    /** Cache lookup for playback: refreshes the LRU position of an evictable
+     *  entry so frequently-played warm sounds aren't the first to go. */
+    private lookupBuffer_(url: string): AudioBufferHandle | undefined {
+        const entry = this.bufferCache_.get(url);
+        if (!entry) return undefined;
+        if (entry.refCount === 0 && this.evictOrder_.delete(url)) {
+            this.evictOrder_.add(url);
+        }
+        return entry.handle;
+    }
+
+    private freeBuffer_(url: string, entry: BufferEntry): void {
+        this.backend_.unloadBuffer(entry.handle);
+        this.bufferCache_.delete(url);
+        this.evictOrder_.delete(url);
+        this.residentBytes_ -= entry.bytes;
+    }
+
+    /** Evict oldest warm-cache entries until resident bytes fit the budget.
+     *  Held (refCount > 0) entries are never evicted. */
+    private enforceBudget_(): void {
+        const budget = this.bufferBudget;
+        if (budget === 0) return;
+        for (const url of this.evictOrder_) {
+            if (this.residentBytes_ <= budget) break;
+            const entry = this.bufferCache_.get(url);
+            if (entry) this.freeBuffer_(url, entry);
+        }
     }
 
     setAssetResolver(resolver: (url: string) => ArrayBuffer | null): void {
@@ -48,7 +212,7 @@ export class AudioAPI {
             }
         }
         const buffer = await this.backend_.loadBuffer(this.resolveUrl_(url));
-        this.bufferCache_.set(url, buffer);
+        if (!this.bufferCache_.has(url)) this.insertEntry_(url, buffer);
     }
 
     async preloadAll(urls: string[]): Promise<void> {
@@ -58,7 +222,7 @@ export class AudioAPI {
     async preloadFromData(url: string, data: ArrayBuffer): Promise<void> {
         if (this.bufferCache_.has(url)) return;
         const buffer = await this.backend_.loadBufferFromData(url, data);
-        this.bufferCache_.set(url, buffer);
+        if (!this.bufferCache_.has(url)) this.insertEntry_(url, buffer);
     }
 
     playSFX(url: string, config?: {
@@ -74,12 +238,12 @@ export class AudioAPI {
             pan: config?.pan,
             priority: config?.priority ?? 0,
         };
-        const buffer = this.bufferCache_.get(url);
+        const buffer = this.lookupBuffer_(url);
         if (!buffer) {
             const pending = this.createDeferredHandle_();
             this.preload(url).then(() => {
                 if (this.disposed_) return;
-                const buf = this.bufferCache_.get(url);
+                const buf = this.lookupBuffer_(url);
                 if (buf) {
                     pending.resolve(this.backend_.play(buf, playConfig));
                 }
@@ -124,13 +288,13 @@ export class AudioAPI {
             }
         };
 
-        const buffer = this.bufferCache_.get(url);
+        const buffer = this.lookupBuffer_(url);
         if (buffer) {
             play(buffer);
         } else {
             this.preload(url).then(() => {
                 if (this.disposed_) return;
-                const buf = this.bufferCache_.get(url);
+                const buf = this.lookupBuffer_(url);
                 if (buf) {
                     play(buf);
                 }
@@ -199,7 +363,7 @@ export class AudioAPI {
     }
 
     getBufferHandle(url: string): AudioBufferHandle | undefined {
-        return this.bufferCache_.get(url);
+        return this.lookupBuffer_(url);
     }
 
     /** Fill `out` with the master output's frequency spectrum (0-255 per bin,
@@ -219,10 +383,12 @@ export class AudioAPI {
             this.bgmHandle_.stop();
             this.bgmHandle_ = null;
         }
-        for (const handle of this.bufferCache_.values()) {
-            this.backend_?.unloadBuffer(handle);
+        for (const entry of this.bufferCache_.values()) {
+            this.backend_?.unloadBuffer(entry.handle);
         }
         this.bufferCache_.clear();
+        this.evictOrder_.clear();
+        this.residentBytes_ = 0;
         this.backend_?.dispose();
     }
 
