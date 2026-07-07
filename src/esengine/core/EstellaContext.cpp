@@ -20,6 +20,7 @@
 #include "../renderer/plugins/UIElementPlugin.hpp"
 #include "../renderer/plugins/TextPlugin.hpp"
 #include "../renderer/plugins/ShapePlugin.hpp"
+#include "../renderer/plugins/MeshPlugin.hpp"
 #ifdef ES_ENABLE_PARTICLES
 #include "../renderer/plugins/ParticlePlugin.hpp"
 #include "../particle/ParticleSystem.hpp"
@@ -137,6 +138,7 @@ void EstellaContext::initSubsystems() {
     renderFrame->addPlugin(std::make_unique<UIElementPlugin>());
     renderFrame->addPlugin(std::make_unique<TextPlugin>());
     renderFrame->addPlugin(std::make_unique<ShapePlugin>());
+    renderFrame->addPlugin(std::make_unique<MeshPlugin>());
 
 #ifdef ES_ENABLE_TILEMAP
     {

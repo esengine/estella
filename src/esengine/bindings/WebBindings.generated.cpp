@@ -19,6 +19,7 @@
 #include "../ecs/components/Hierarchy.hpp"
 #include "../ecs/components/Interactable.hpp"
 #include "../ecs/components/Light2D.hpp"
+#include "../ecs/components/Mesh2D.hpp"
 #include "../ecs/components/ParticleEmitter.hpp"
 #include "../ecs/components/RigidBody.hpp"
 #include "../ecs/components/ShadowCaster2D.hpp"
@@ -385,6 +386,40 @@ FlexContainerJS flexcontainerToJS(const esengine::ecs::FlexContainer& c) {
     js.alignContent = static_cast<i32>(c.alignContent);
     js.gap = c.gap;
     js.padding = c.padding;
+    return js;
+}
+
+struct Mesh2DJS {
+    u32 texture;
+    glm::vec4 color;
+    i32 layer;
+    bool lit;
+    glm::vec2 parallax;
+    u32 material;
+    bool enabled;
+};
+
+esengine::ecs::Mesh2D mesh2dFromJS(const Mesh2DJS& js) {
+    esengine::ecs::Mesh2D c;
+    c.texture = resource::TextureHandle(js.texture);
+    c.color = js.color;
+    c.layer = js.layer;
+    c.lit = js.lit;
+    c.parallax = js.parallax;
+    c.material = js.material;
+    c.enabled = js.enabled;
+    return c;
+}
+
+Mesh2DJS mesh2dToJS(const esengine::ecs::Mesh2D& c) {
+    Mesh2DJS js;
+    js.texture = c.texture.id();
+    js.color = c.color;
+    js.layer = c.layer;
+    js.lit = c.lit;
+    js.parallax = c.parallax;
+    js.material = c.material;
+    js.enabled = c.enabled;
     return js;
 }
 
@@ -938,6 +973,15 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("shadowDistance", &esengine::ecs::Light2D::shadowDistance)
         .field("enabled", &esengine::ecs::Light2D::enabled);
 
+    value_object<Mesh2DJS>("Mesh2D")
+        .field("texture", &Mesh2DJS::texture)
+        .field("color", &Mesh2DJS::color)
+        .field("layer", &Mesh2DJS::layer)
+        .field("lit", &Mesh2DJS::lit)
+        .field("parallax", &Mesh2DJS::parallax)
+        .field("material", &Mesh2DJS::material)
+        .field("enabled", &Mesh2DJS::enabled);
+
     value_object<ParentJS>("Parent")
         .field("entity", &ParentJS::entity);
 
@@ -1354,6 +1398,26 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             r.remove<esengine::ecs::Light2D>(entity);
         }))
 
+        // Mesh2D
+        .function("hasMesh2D", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::Mesh2D>(static_cast<Entity>(e));
+        }))
+        .function("getMesh2D", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::Mesh2D>(entity)) return Mesh2DJS{};
+            return mesh2dToJS(r.get<esengine::ecs::Mesh2D>(entity));
+        }))
+        .function("addMesh2D", optional_override([](Registry& r, u32 e, const Mesh2DJS& js) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::Mesh2D>(entity, mesh2dFromJS(js));
+        }))
+        .function("removeMesh2D", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::Mesh2D>(entity)) return;
+            r.remove<esengine::ecs::Mesh2D>(entity);
+        }))
+
         // Parent
         .function("hasParent", optional_override([](Registry& r, u32 e) {
             return r.has<esengine::ecs::Parent>(static_cast<Entity>(e));
@@ -1730,6 +1794,7 @@ emscripten::val esengineGetBuiltinComponentNames() {
     arr.set(i++, val(std::string("FlexContainer")));
     arr.set(i++, val(std::string("Interactable")));
     arr.set(i++, val(std::string("Light2D")));
+    arr.set(i++, val(std::string("Mesh2D")));
     arr.set(i++, val(std::string("Parent")));
     arr.set(i++, val(std::string("ParticleEmitter")));
     arr.set(i++, val(std::string("RigidBody")));
@@ -1832,6 +1897,13 @@ static_assert(offsetof(esengine::ecs::Light2D, outerAngle) == 40, "ABI offset dr
 static_assert(offsetof(esengine::ecs::Light2D, shadowSoftness) == 44, "ABI offset drift: esengine::ecs::Light2D.shadowSoftness (EHT expected 44)");
 static_assert(offsetof(esengine::ecs::Light2D, shadowDistance) == 48, "ABI offset drift: esengine::ecs::Light2D.shadowDistance (EHT expected 48)");
 static_assert(offsetof(esengine::ecs::Light2D, enabled) == 52, "ABI offset drift: esengine::ecs::Light2D.enabled (EHT expected 52)");
+static_assert(offsetof(esengine::ecs::Mesh2D, texture) == 0, "ABI offset drift: esengine::ecs::Mesh2D.texture (EHT expected 0)");
+static_assert(offsetof(esengine::ecs::Mesh2D, color) == 4, "ABI offset drift: esengine::ecs::Mesh2D.color (EHT expected 4)");
+static_assert(offsetof(esengine::ecs::Mesh2D, layer) == 20, "ABI offset drift: esengine::ecs::Mesh2D.layer (EHT expected 20)");
+static_assert(offsetof(esengine::ecs::Mesh2D, lit) == 24, "ABI offset drift: esengine::ecs::Mesh2D.lit (EHT expected 24)");
+static_assert(offsetof(esengine::ecs::Mesh2D, parallax) == 28, "ABI offset drift: esengine::ecs::Mesh2D.parallax (EHT expected 28)");
+static_assert(offsetof(esengine::ecs::Mesh2D, material) == 36, "ABI offset drift: esengine::ecs::Mesh2D.material (EHT expected 36)");
+static_assert(offsetof(esengine::ecs::Mesh2D, enabled) == 40, "ABI offset drift: esengine::ecs::Mesh2D.enabled (EHT expected 40)");
 static_assert(offsetof(esengine::ecs::ParticleEmitter, rate) == 0, "ABI offset drift: esengine::ecs::ParticleEmitter.rate (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::ParticleEmitter, burstCount) == 4, "ABI offset drift: esengine::ecs::ParticleEmitter.burstCount (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::ParticleEmitter, burstInterval) == 8, "ABI offset drift: esengine::ecs::ParticleEmitter.burstInterval (EHT expected 8)");
@@ -1969,7 +2041,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "4a0ed8f94ca2aed4";
+static const char* kEsAbiLayoutHash = "89e3ae10e24e8bc9";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

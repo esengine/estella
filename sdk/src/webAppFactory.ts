@@ -7,6 +7,7 @@ import { uiPlugins } from './uiPlugins';
 import { animationPlugin } from './animation';
 import { audioPlugin } from './audio';
 import { particlePlugin } from './particle';
+import { mesh2dPlugin } from './mesh2d';
 import { tilemapPlugin } from './tilemap';
 import { postProcessPlugin } from './postprocess';
 import { timelinePlugin } from './timeline';
@@ -35,6 +36,7 @@ export { PhysicsPlugin, PhysicsEvents, Physics, loadPhysicsModule } from './phys
 export { AnimationPlugin, animationPlugin } from './animation';
 export { AudioPlugin, audioPlugin } from './audio';
 export { ParticlePlugin, particlePlugin } from './particle';
+export { Mesh2DPlugin, mesh2dPlugin } from './mesh2d';
 export { PostProcessPlugin, postProcessPlugin } from './postprocess';
 export { TimelinePlugin, timelinePlugin, registerTimelineAsset, parseTimelineAsset, Timeline, TimelineApi, TimelinePlayer, type TimelinePlayerData } from './timeline';
 // Authoring + pure-TS evaluation surface for the editor Sequencer.
@@ -58,7 +60,7 @@ export interface CreateWebAppOptions extends WebAppOptions {
     wasmBaseUrl?: string;
 }
 
-const basePlugins = [timerPlugin, lifecyclePlugin(), animationPlugin, audioPlugin, particlePlugin, tilemapPlugin, postProcessPlugin, timelinePlugin, perceptionPlugin, fsmPlugin, btPlugin, navPlugin];
+const basePlugins = [timerPlugin, lifecyclePlugin(), animationPlugin, audioPlugin, particlePlugin, mesh2dPlugin, tilemapPlugin, postProcessPlugin, timelinePlugin, perceptionPlugin, fsmPlugin, btPlugin, navPlugin];
 
 export function createWebApp(module: ESEngineModule, options?: CreateWebAppOptions): App {
     const sideModules: SideModuleHost | undefined = options?.sideModules

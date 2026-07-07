@@ -67,6 +67,7 @@ set(ESENGINE_SOURCES
     src/esengine/renderer/plugins/UIElementPlugin.cpp
     src/esengine/renderer/plugins/TextPlugin.cpp
     src/esengine/renderer/plugins/ShapePlugin.cpp
+    src/esengine/renderer/plugins/MeshPlugin.cpp
     src/esengine/platform/PathResolver.cpp
     src/esengine/animation/TweenSystem.cpp
     src/esengine/ecs/UILayoutSystem.cpp

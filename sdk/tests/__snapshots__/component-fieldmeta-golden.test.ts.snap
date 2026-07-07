@@ -182,6 +182,26 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
       "tooltip": "Point, Directional, Ambient, or Spot.",
     },
   },
+  "Mesh2D": {
+    "color": {
+      "tooltip": "Tint multiplied into the vertex colors (white = unchanged).",
+    },
+    "layer": {
+      "enumSource": "sortingLayers",
+      "step": 1,
+      "tooltip": "Sorting layer — controls draw order across renderables.",
+    },
+    "lit": {
+      "tooltip": "Receive 2D lights: Light2D entities light this mesh (flat normal). A custom material overrides this.",
+    },
+    "material": {
+      "advanced": true,
+    },
+    "parallax": {
+      "advanced": true,
+      "tooltip": "Parallax scroll factor (1 = with world, <1 = slower, 0 = locked to camera).",
+    },
+  },
   "ParticleEmitter": {
     "angleSpreadMax": {
       "category": "Velocity",

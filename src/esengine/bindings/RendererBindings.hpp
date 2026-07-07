@@ -78,6 +78,12 @@ void renderer_submitTextBatch(
     u32 textureId, uintptr_t transformPtr,
     u32 entity, i32 layer, f32 depth, i32 sdf
 );
+void mesh2d_setGeometry(
+    ecs::Registry& registry, u32 entity,
+    uintptr_t posUvPtr, u32 vertexCount,
+    uintptr_t colorsPtr,
+    uintptr_t indicesPtr, u32 indexCount
+);
 #ifdef ES_ENABLE_PARTICLES
 void renderer_submitParticles(ecs::Registry& registry);
 #endif

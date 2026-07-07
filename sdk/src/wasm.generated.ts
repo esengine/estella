@@ -273,6 +273,16 @@ export interface Light2D {
     enabled: boolean;
 }
 
+export interface Mesh2D {
+    texture: number;
+    color: Vec4;
+    layer: number;
+    lit: boolean;
+    parallax: Vec2;
+    material: number;
+    enabled: boolean;
+}
+
 export interface Parent {
     entity: number;
 }
@@ -528,6 +538,10 @@ export interface Registry {
     getLight2D(entity: Entity): Light2D;
     addLight2D(entity: Entity, component: Light2D): void;
     removeLight2D(entity: Entity): void;
+    hasMesh2D(entity: Entity): boolean;
+    getMesh2D(entity: Entity): Mesh2D;
+    addMesh2D(entity: Entity, component: Mesh2D): void;
+    removeMesh2D(entity: Entity): void;
     hasParent(entity: Entity): boolean;
     getParent(entity: Entity): Parent;
     addParent(entity: Entity, component: Parent): void;
@@ -620,6 +634,7 @@ export interface ESEngineModule {
     FlexContainer: new () => FlexContainer;
     Interactable: new () => Interactable;
     Light2D: new () => Light2D;
+    Mesh2D: new () => Mesh2D;
     Parent: new () => Parent;
     ParticleEmitter: new () => ParticleEmitter;
     RigidBody: new () => RigidBody;

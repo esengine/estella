@@ -16,6 +16,7 @@ import type {
     CanvasData, VelocityData, ParentData, ChildrenData, SpineAnimationData,
     TilemapLayerData, BitmapTextData,
     CameraData as CameraDataCpp, ParticleEmitterData as ParticleEmitterDataCpp,
+    Mesh2DData as Mesh2DDataCpp,
 } from './component.generated';
 // Builtin enums whose values come from C++ ES_ENUMs — imported from the generated
 // module (single source) and re-exported below, so a TS const cannot drift from the
@@ -679,6 +680,31 @@ export const BitmapText = defineBuiltin<BitmapTextData>('BitmapText',
 
 export const SpineAnimation = defineBuiltin<SpineAnimationData>('SpineAnimation',
     metaDefaults<SpineAnimationData>('SpineAnimation')
+);
+
+/**
+ * Local-space geometry of a Mesh2D renderable (triangle list, indexed).
+ * `positions` is x,y pairs; `uvs` is u,v pairs (default 0,0); `colors` is r,g,b,a
+ * floats (0-1) per vertex (default white). Uploaded via mesh2d_setGeometry, which
+ * validates indices engine-side.
+ */
+export interface Mesh2DGeometry {
+    positions: number[];
+    uvs?: number[];
+    colors?: number[];
+    indices: number[];
+}
+
+// Mesh2D = the generated C++ field shape + one out-of-band TS-only field: the
+// variable-size geometry payload has no fixed ABI offset, so it never crosses as a
+// component field — it is uploaded through mesh2d_setGeometry (see mesh2dPlugin's
+// scene codec).
+export interface Mesh2DData extends Mesh2DDataCpp {
+    geometry: Mesh2DGeometry;
+}
+
+export const Mesh2D = defineBuiltin<Mesh2DData>('Mesh2D',
+    metaDefaults<Mesh2DData>('Mesh2D', { geometry: { positions: [], indices: [] } })
 );
 
 export const TilemapLayer = defineBuiltin<TilemapLayerData>('TilemapLayer',

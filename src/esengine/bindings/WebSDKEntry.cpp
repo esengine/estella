@@ -429,6 +429,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_submitSpineBatchByEntity", &esengine::renderer_submitSpineBatchByEntity);
 #endif
     emscripten::function("renderer_submitTextBatch", &esengine::renderer_submitTextBatch);
+    emscripten::function("mesh2d_setGeometry", &esengine::mesh2d_setGeometry);
 
     emscripten::function("compileEsshader", &esengine::compileEsshader);
     emscripten::function("defineMaterial", &esengine::defineMaterial);

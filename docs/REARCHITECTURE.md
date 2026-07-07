@@ -174,6 +174,7 @@ RC5"渲染唯一路径"的收官：所有 Renderer 只**生成命令**，Sort/Me
 - **共享 collect 前奏**：`CameraWorldRect` 由 `RenderFrame::collectAll` 每次 collect 计算一次进 `RenderCollectContext`（此前 Sprite/Shape/Text/Tilemap 四个 plugin 各自求逆 VP 推相机中心/边界）；`parallaxedWorldPosition()` helper（RenderTypePlugin.hpp）收拢 ensureDecomposed + 视差偏移 + "cull 于绘制处"约定。
 - **刻意保留的两条即时模式边界**（非场景命令流，不进 DrawList 是语义选择而非欠账）：`ImmediateDraw`（编辑器/调试叠加，自带 flush 时序）与 `draw_mesh` 自定义网格（在 TS 自定义绘制回调期内即时执行，依赖 pre-scene/post-flush 顺序语义）。
 - 验证：新增 `tests/renderer/test_batch_builder.cpp`（8 用例 43 断言：各流 baseVertex 步长、纹理槽规则、实例化命令组装、多纹理合并 + texIndex 重写、跨流不合并、clip 盖章、execute 分发）；六套 MockGfxDevice harness、web 构建、11 个 headless 像素场景（sprite / parallax-shape / text-sdf / 粒子×2 / tilemap×2 / ui-mask / lit×2 / postprocess）全 PASS；双 boundary guard 绿。
+- **承诺实测 — Mesh2D 场景级 renderer（2026-07-07 第二批）**：`RenderType::Mesh` 从"仅统计枚举"变成真渲染类型。`Mesh2D` 组件（EHT 注解字段 + **未注解的变长几何 payload 置尾**——变长数据无固定 ABI 偏移，天然不进指针布局/断言）；几何经唯一入口 `mesh2d_setGeometry` 上传（索引越界整体拒绝 + AABB 计算）；`MeshPlugin` 全部内容 = 共享前奏 + SpritePlugin 同款材质/lit 解析 + CPU 仿射变换 + `appendIndexedBatch`——**零底层改动**，网格自动获得排序/裁剪/clip/多纹理合并/Lit2D。SDK：`Mesh2DAPI`（withScratch 批量上传）+ 场景 out-of-band codec（`geometry` 字段随 .esscene 声明式携带，particle 渐变同模式）。刻意不做：GPU 驻留网格（2D 网格顶点量小，CPU 流式与 sprite/tilemap 同模型；大网格属未来 3D 议题）。验证：mesh2d headless 场景（双三角逐顶点色，3 像素断言）一次过 + 回归 5 场景 + SDK/desktop 双侧 tsc + 全套测试 + 24 examples + 双 guard 全绿。
 
 ### 地基收口（Foundation Consolidation）— 🟡 进行中，RC6 前置（设计文档）
 见 [`REARCH_FOUNDATION_CONSOLIDATION.md`](./REARCH_FOUNDATION_CONSOLIDATION.md)：

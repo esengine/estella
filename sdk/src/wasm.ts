@@ -176,6 +176,17 @@ export interface ESEngineModule {
         textureId: number, transformPtr: number,
         entity: number, layer: number, depth: number, sdf: number
     ): void;
+    /**
+     * Upload a Mesh2D component's geometry: interleaved f32 [x,y,u,v] per vertex,
+     * optional RGBA8 colors (colorsPtr 0 = all white), u32 triangle-list indices.
+     * Validated engine-side: out-of-range indices reject the whole upload.
+     */
+    mesh2d_setGeometry?(
+        registry: CppRegistry, entity: number,
+        posUvPtr: number, vertexCount: number,
+        colorsPtr: number,
+        indicesPtr: number, indexCount: number
+    ): void;
 
     // Material store (engine-side resolved render state, keyed by material handle).
     // flags packs depthTest (bit 0), depthWrite (bit 1), CullMode (bits 2-3).

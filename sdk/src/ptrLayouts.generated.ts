@@ -134,6 +134,18 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'enabled', type: 'bool', offset: 52 },
         ],
     },
+    Mesh2D: {
+        ptrFn: 'getMesh2DPtr',
+        fields: [
+            { name: 'texture', type: 'u32', offset: 0 },
+            { name: 'color', type: 'color', offset: 4 },
+            { name: 'layer', type: 'i32', offset: 20 },
+            { name: 'lit', type: 'bool', offset: 24 },
+            { name: 'parallax', type: 'vec2', offset: 28 },
+            { name: 'material', type: 'u32', offset: 36 },
+            { name: 'enabled', type: 'bool', offset: 40 },
+        ],
+    },
     ParticleEmitter: {
         ptrFn: 'getParticleEmitterPtr',
         fields: [

@@ -473,6 +473,54 @@ export function createLight2DData(): Light2DPtrData {
     };
 }
 
+export interface Mesh2DPtrData {
+    texture: number;
+    color: Color;
+    layer: number;
+    lit: boolean;
+    parallax: Vec2;
+    material: number;
+    enabled: boolean;
+}
+
+export function fillMesh2D(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, out: Mesh2DPtrData,
+): void {
+    out.texture = u32[ptr >> 2];
+    const color_ = out.color; color_.r = f32[(ptr + 4) >> 2]; color_.g = f32[((ptr + 4) >> 2) + 1]; color_.b = f32[((ptr + 4) >> 2) + 2]; color_.a = f32[((ptr + 4) >> 2) + 3];
+    out.layer = u32[(ptr + 20) >> 2] | 0;
+    out.lit = u8[ptr + 24] !== 0;
+    const parallax_ = out.parallax; parallax_.x = f32[(ptr + 28) >> 2]; parallax_.y = f32[((ptr + 28) >> 2) + 1];
+    out.material = u32[(ptr + 36) >> 2];
+    out.enabled = u8[ptr + 40] !== 0;
+}
+
+export function writeMesh2D(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, data: Mesh2DPtrData,
+): void {
+    u32[ptr >> 2] = data.texture;
+    f32[(ptr + 4) >> 2] = data.color.r; f32[((ptr + 4) >> 2) + 1] = data.color.g; f32[((ptr + 4) >> 2) + 2] = data.color.b; f32[((ptr + 4) >> 2) + 3] = data.color.a;
+    u32[(ptr + 20) >> 2] = data.layer | 0;
+    u8[ptr + 24] = data.lit ? 1 : 0;
+    f32[(ptr + 28) >> 2] = data.parallax.x; f32[((ptr + 28) >> 2) + 1] = data.parallax.y;
+    u32[(ptr + 36) >> 2] = data.material;
+    u8[ptr + 40] = data.enabled ? 1 : 0;
+}
+
+export function createMesh2DData(): Mesh2DPtrData {
+    return {
+        texture: 0,
+        color: { r: 0, g: 0, b: 0, a: 0 },
+        layer: 0,
+        lit: false,
+        parallax: { x: 0, y: 0 },
+        material: 0,
+        enabled: false,
+    };
+}
+
 export interface ParticleEmitterPtrData {
     rate: number;
     burstCount: number;
@@ -1293,6 +1341,7 @@ export const PTR_ACCESSORS: Record<string, PtrAccessor<any>> = {
     FlexContainer: { fill: fillFlexContainer, write: writeFlexContainer, create: createFlexContainerData },
     Interactable: { fill: fillInteractable, write: writeInteractable, create: createInteractableData },
     Light2D: { fill: fillLight2D, write: writeLight2D, create: createLight2DData },
+    Mesh2D: { fill: fillMesh2D, write: writeMesh2D, create: createMesh2DData },
     ParticleEmitter: { fill: fillParticleEmitter, write: writeParticleEmitter, create: createParticleEmitterData },
     RigidBody: { fill: fillRigidBody, write: writeRigidBody, create: createRigidBodyData },
     SegmentCollider: { fill: fillSegmentCollider, write: writeSegmentCollider, create: createSegmentColliderData },

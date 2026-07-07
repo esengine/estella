@@ -18,6 +18,7 @@
 #include "../ecs/components/Canvas.hpp"
 #include "../ecs/components/Transform.hpp"
 #include "../ecs/components/Sprite.hpp"
+#include "../ecs/components/Mesh2D.hpp"
 #include "../ecs/components/Light2D.hpp"
 #include "../ecs/components/Hierarchy.hpp"
 #include "../core/Log.hpp"
@@ -125,6 +126,61 @@ void renderer_submitTextBatch(
     g_renderFrame->submitTextBatch(
         vertices, vertexCount, indices, indexCount,
         textureId, transform, Entity::fromRaw(entity), layer, depth, sdf != 0);
+}
+
+// Mesh2D geometry upload: interleaved f32 [x,y,u,v] per vertex, optional RGBA8
+// colors (null = all white), u32 triangle-list indices. Validated here — the single
+// upload entry — so the render path can trust the payload: out-of-range indices or a
+// non-triangle count reject the whole upload instead of feeding the GPU garbage.
+void mesh2d_setGeometry(ecs::Registry& registry, u32 entity,
+                        uintptr_t posUvPtr, u32 vertexCount,
+                        uintptr_t colorsPtr,
+                        uintptr_t indicesPtr, u32 indexCount) {
+    const Entity ent = Entity::fromRaw(entity);
+    auto* mesh = registry.tryGet<ecs::Mesh2D>(ent);
+    if (!mesh) {
+        ES_LOG_WARN("mesh2d_setGeometry: entity {} has no Mesh2D component", entity);
+        return;
+    }
+
+    // Empty upload = clear the geometry (a valid state: the mesh renders nothing).
+    if (posUvPtr == 0 || indicesPtr == 0 || vertexCount == 0 || indexCount == 0) {
+        mesh->vertices.clear();
+        mesh->indices.clear();
+        mesh->localMin = mesh->localMax = glm::vec2(0.0f);
+        return;
+    }
+    if (indexCount % 3 != 0) {
+        ES_LOG_WARN("mesh2d_setGeometry: indexCount {} is not a triangle list; rejected", indexCount);
+        return;
+    }
+
+    const f32* posUv = reinterpret_cast<const f32*>(posUvPtr);
+    const u32* colors = reinterpret_cast<const u32*>(colorsPtr);
+    const u32* indices = reinterpret_cast<const u32*>(indicesPtr);
+
+    for (u32 i = 0; i < indexCount; ++i) {
+        if (indices[i] >= vertexCount) {
+            ES_LOG_WARN("mesh2d_setGeometry: index {} out of range (vertexCount {}); rejected",
+                        indices[i], vertexCount);
+            return;
+        }
+    }
+
+    mesh->vertices.resize(vertexCount);
+    glm::vec2 mn(posUv[0], posUv[1]);
+    glm::vec2 mx = mn;
+    for (u32 v = 0; v < vertexCount; ++v) {
+        auto& out = mesh->vertices[v];
+        out.position = { posUv[v * 4 + 0], posUv[v * 4 + 1] };
+        out.uv = { posUv[v * 4 + 2], posUv[v * 4 + 3] };
+        out.color = colorsPtr ? colors[v] : 0xFFFFFFFFu;
+        mn = glm::min(mn, out.position);
+        mx = glm::max(mx, out.position);
+    }
+    mesh->indices.assign(indices, indices + indexCount);
+    mesh->localMin = mn;
+    mesh->localMax = mx;
 }
 
 void renderFrame(ecs::Registry& registry, i32 viewportWidth, i32 viewportHeight) {

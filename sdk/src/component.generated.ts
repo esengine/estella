@@ -15,7 +15,7 @@ import type { Dimension, Padding, VisualState } from './wasm.generated';
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '4a0ed8f94ca2aed4';
+export const ABI_LAYOUT_HASH = '89e3ae10e24e8bc9';
 
 export interface AssetFieldMeta {
     field: string;
@@ -242,6 +242,28 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             outerAngle: { min: 0, max: 180, unit: "°", advanced: true },
             shadowSoftness: { min: 0, tooltip: "Shadow softness (light-source size); 0 = hard edge." },
             shadowDistance: { min: 0, tooltip: "Directional shadow distance; 0 = no directional shadow.", advanced: true },
+        },
+    },
+    Mesh2D: {
+        defaults: {
+            texture: 0,
+            color: { r: 1, g: 1, b: 1, a: 1 },
+            layer: 0,
+            lit: false,
+            parallax: { x: 1, y: 1 },
+            material: 0,
+            enabled: true,
+        },
+        assetFields: [{ field: 'texture', type: 'texture' as AssetFieldType }, { field: 'material', type: 'material' as AssetFieldType }],
+        entityFields: [],
+        colorFields: ['color'],
+        animatableFields: ['color.r', 'color.g', 'color.b', 'color.a'],
+        fields: {
+            color: { tooltip: "Tint multiplied into the vertex colors (white = unchanged)." },
+            layer: { step: 1, tooltip: "Sorting layer — controls draw order across renderables.", enumSource: "sortingLayers" },
+            lit: { tooltip: "Receive 2D lights: Light2D entities light this mesh (flat normal). A custom material overrides this." },
+            parallax: { tooltip: "Parallax scroll factor (1 = with world, <1 = slower, 0 = locked to camera).", advanced: true },
+            material: { advanced: true },
         },
     },
     Parent: {
@@ -742,6 +764,16 @@ export interface Light2DData {
     outerAngle: number;
     shadowSoftness: number;
     shadowDistance: number;
+    enabled: boolean;
+}
+
+export interface Mesh2DData {
+    texture: number;
+    color: Color;
+    layer: number;
+    lit: boolean;
+    parallax: Vec2;
+    material: number;
     enabled: boolean;
 }
 
