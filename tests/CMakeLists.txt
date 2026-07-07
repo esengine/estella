@@ -130,6 +130,24 @@ if(EMSCRIPTEN)
     add_test(NAME test_webgpu_device COMMAND test_webgpu_device)
 endif()
 
+# WebGPU bring-up program (REARCH_WGSL Phase 2 slice 2): NOT a test harness — a
+# browser-run wasm that renders the shape-shader WGSL twin through the real
+# WebGPUDevice (surface pass + lazy pipeline + bind group + indexed draw). Driven
+# by desktop/scripts/webgpu-bringup.mjs under electron, which asserts the pixels.
+if(EMSCRIPTEN)
+    add_executable(webgpu_bringup
+        renderer/webgpu_bringup.cpp
+        ${CMAKE_SOURCE_DIR}/src/esengine/renderer/webgpu/WebGPUDevice.cpp
+        ${CMAKE_SOURCE_DIR}/src/esengine/core/Log.cpp
+    )
+    target_include_directories(webgpu_bringup PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/third_party/glm
+    )
+    target_compile_options(webgpu_bringup PRIVATE --use-port=emdawnwebgpu)
+    target_link_options(webgpu_bringup PRIVATE --use-port=emdawnwebgpu)
+endif()
+
 # Boundary-span validation (RC3): JS-supplied pointer+length pairs are null-,
 # overflow-, and heap-range-checked ALWAYS ON. Header-only + Log.cpp; under
 # emscripten the heap-range cases exercise the real linear-memory bound.

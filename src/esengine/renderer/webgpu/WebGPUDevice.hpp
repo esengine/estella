@@ -3,13 +3,16 @@
 /**
  * @file    WebGPUDevice.hpp
  * @brief   WebGPU (Dawn / emdawnwebgpu) backend skeleton for GfxDevice (REARCH_WGSL Phase 2).
- * @details Slice 1: resource creation (buffers / textures / shader modules /
- *          layout+pipeline descriptors) is implemented against the real Dawn C API;
- *          pass encoding and draws are structured stubs for slice 2 (they need the
- *          per-frame command-encoder model wired to a surface). The class is
- *          null-device safe: constructed without a WGPUDevice it degrades every
- *          entry point to a logged no-op, so handle bookkeeping and the language
- *          gate are testable without an adapter.
+ * @details Slice 1 implemented resource creation against the real Dawn C API;
+ *          slice 2 adds the live render path: a canvas surface (configureSurface),
+ *          per-pass command encoding (beginRenderPass acquires the surface texture
+ *          and applies the RenderPassDesc load-ops; endRenderPass submits), lazy
+ *          WGPURenderPipeline builds from the retained PipelineDesc + layout +
+ *          shader modules, a minimal group-0 bind group over the UBO slots
+ *          (setUniformBuffer), and indexed/instanced draw recording. The class
+ *          stays null-device safe: constructed without a WGPUDevice it degrades
+ *          every entry point to a logged no-op, so handle bookkeeping and the
+ *          language gate are testable without an adapter.
  *
  *          Compiled only under ES_ENABLE_WEBGPU; never part of the GL build.
  *
@@ -125,6 +128,13 @@ public:
     // -------------------------------------------------------------------------
 
     bool hasDevice() const { return device_ != nullptr; }
+
+    /**
+     * @brief Binds a canvas as the default render target (bring-up entry, not part
+     *        of the GfxDevice interface). @p selector is a CSS selector the
+     *        emscripten surface source resolves, e.g. "#canvas".
+     */
+    bool configureSurface(const char* selector, u32 width, u32 height);
     usize bufferCount() const { return buffers_.size(); }
     usize textureCount() const { return textures_.size(); }
     usize layoutCount() const { return layouts_.size(); }
@@ -147,19 +157,49 @@ private:
         WGPUShaderModule vertex = nullptr;
         WGPUShaderModule fragment = nullptr;
     };
+    struct PipelineRec {
+        PipelineDesc desc;
+        WGPURenderPipeline pipeline = nullptr;  ///< Lazily built on first setPipeline.
+    };
 
-    /** @brief Logs the slice-2 stub once per entry point (draws/passes). */
+    /** @brief Logs a not-yet-implemented path once per entry point. */
     void stubOnce(const char* what);
+
+    /** @brief Builds (once) and returns the WGPURenderPipeline for a handle. */
+    WGPURenderPipeline ensurePipeline(u32 id);
+    /** @brief (Re)creates the group-0 bind group from the recorded UBO slots. */
+    void flushBindGroup();
+    /** @brief True while inside beginRenderPass/endRenderPass. */
+    bool inPass() const { return pass_ != nullptr; }
 
     WGPUDevice device_ = nullptr;
     WGPUQueue queue_ = nullptr;
+    WGPUInstance instance_ = nullptr;
+
+    // Surface (the Default framebuffer target).
+    WGPUSurface surface_ = nullptr;
+    WGPUTextureFormat surface_format_ = WGPUTextureFormat_RGBA8Unorm;
+    u32 surface_width_ = 0;
+    u32 surface_height_ = 0;
+
+    // Per-pass state.
+    WGPUCommandEncoder encoder_ = nullptr;
+    WGPURenderPassEncoder pass_ = nullptr;
+    WGPUTexture frame_texture_ = nullptr;   ///< Acquired surface texture (released at end).
+    WGPUTextureView frame_view_ = nullptr;
+    u32 current_pipeline_ = 0;
+    u32 bound_index_buffer_ = 0;
+    static constexpr u32 kUniformSlots = 8;
+    u32 uniform_slots_[kUniformSlots] = {};  ///< BufferHandle id per UBO binding slot.
+    bool bind_group_dirty_ = true;
+    WGPUBindGroup bind_group_ = nullptr;
 
     u32 next_id_ = 1;
     std::unordered_map<u32, BufferRec> buffers_;
     std::unordered_map<u32, TextureRec> textures_;
     std::unordered_map<u32, ProgramRec> programs_;
     std::unordered_map<u32, VertexLayoutDesc> layouts_;
-    std::unordered_map<u32, PipelineDesc> pipelines_;
+    std::unordered_map<u32, PipelineRec> pipelines_;
     std::vector<std::string> stub_logged_;
 };
 
