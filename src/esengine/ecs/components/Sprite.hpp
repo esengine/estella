@@ -53,8 +53,8 @@ struct Sprite {
     ES_PROPERTY(animatable, tooltip="Tint multiplied into the texture (white = unchanged).")
     glm::vec4 color{1.0f, 1.0f, 1.0f, 1.0f};
 
-    /** @brief Sprite size in world units */
-    ES_PROPERTY(animatable)
+    /** @brief Sprite size in world units ({1,1} at runtime; authored at 100px) */
+    ES_PROPERTY(animatable, editor_default={100, 100})
     glm::vec2 size{1.0f, 1.0f};
 
     /** @brief Pivot point (0,0 = bottom-left, 0.5,0.5 = center, 1,1 = top-right) */

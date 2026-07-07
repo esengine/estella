@@ -29,6 +29,13 @@ export interface SpineFieldMeta {
 
 export interface ComponentMetaEntry {
     defaults: Record<string, unknown>;
+    /**
+     * Creation-time overrides authored at the C++ ES_PROPERTY site via
+     * `editor_default=` — where the authoring default deliberately differs
+     * from the C++ ctor value in `defaults`. Component registration merges
+     * these over `defaults`; `defaults` alone is the runtime ctor truth.
+     */
+    editorDefaults?: Record<string, unknown>;
     assetFields: AssetFieldMeta[];
     spine?: SpineFieldMeta;
     entityFields: string[];
@@ -89,6 +96,12 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             viewport: { x: 0, y: 0, z: 1, w: 1 },
             clearFlags: 3,
             pixelPerfect: false,
+        },
+        editorDefaults: {
+            projectionType: 1,
+            orthoSize: 540,
+            aspectRatio: 1.77,
+            isActive: true,
         },
         assetFields: [],
         entityFields: [],
@@ -441,6 +454,9 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             parallax: { x: 1, y: 1 },
             material: 0,
             enabled: true,
+        },
+        editorDefaults: {
+            size: { x: 100, y: 100 },
         },
         assetFields: [{ field: 'texture', type: 'texture' as AssetFieldType }, { field: 'material', type: 'material' as AssetFieldType }],
         entityFields: [],

@@ -6,7 +6,6 @@
  */
 
 import { Entity, Vec2, Vec3, Color, Quat } from './types';
-import { DEFAULT_SPRITE_SIZE } from './defaults';
 import { COMPONENT_META, type AssetFieldMeta, type SpineFieldMeta } from './component.generated';
 // C++-backed component data shapes, generated from the ES_COMPONENT structs (single
 // source — a TS field can no longer drift from C++). Re-exported below so the public
@@ -525,7 +524,7 @@ export function defineBuiltin<T>(name: string, defaults: T, metadata?: Component
 export function ensureBuiltinComponentsRegistered(): void {
     for (const name of Object.keys(COMPONENT_META)) {
         if (!builtinRegistry.has(name)) {
-            defineBuiltin(name, COMPONENT_META[name].defaults as Record<string, unknown>);
+            defineBuiltin(name, metaDefaults<Record<string, unknown>>(name));
         }
     }
 }
@@ -590,9 +589,17 @@ export interface SceneOwnerData {
 // Builtin Component Instances
 // =============================================================================
 
+// Creation defaults = C++ ctor values ⊕ `editor_default=` annotation overrides
+// (both EHT-generated) ⊕ TS-only-field overrides from the call site. This is the
+// single place authoring defaults are assembled — a builtin's _default carries
+// the merged result.
 function metaDefaults<T>(name: string, overrides?: Partial<T>): T {
-    const base = COMPONENT_META[name]?.defaults ?? {};
-    return (overrides ? { ...base, ...overrides } : { ...base }) as T;
+    const meta = COMPONENT_META[name];
+    return {
+        ...meta?.defaults,
+        ...meta?.editorDefaults,
+        ...overrides,
+    } as T;
 }
 
 // Field presentation metadata (min/max/tooltip/category/…) is authored at the C++
@@ -606,10 +613,10 @@ export const Transform = defineBuiltin<TransformData>('Transform',
 export const LocalTransform = Transform;
 export const WorldTransform = Transform;
 
+// size's authoring default (100×100 vs the {1,1} ctor value) is authored at the
+// C++ ES_PROPERTY site (editor_default=) and merged in by metaDefaults.
 export const Sprite = defineBuiltin<SpriteData>('Sprite',
-    metaDefaults<SpriteData>('Sprite', {
-        size: { x: DEFAULT_SPRITE_SIZE.x, y: DEFAULT_SPRITE_SIZE.y },
-    })
+    metaDefaults<SpriteData>('Sprite')
 );
 
 // shapeType's dropdown is generated from the C++ ShapeType enum (ES_PROPERTY enum=).
@@ -626,12 +633,12 @@ export const ShadowCaster2D = defineBuiltin<ShadowCaster2DData>('ShadowCaster2D'
     metaDefaults<ShadowCaster2DData>('ShadowCaster2D')
 );
 
+// The authoring defaults that differ from the C++ ctor (an active Orthographic
+// at orthoSize 540 vs a Perspective/inactive runtime default) are authored at
+// the C++ ES_PROPERTY sites (editor_default=) and merged in by metaDefaults.
+// Only the TS-only field's default stays here.
 export const Camera = defineBuiltin<CameraData>('Camera',
     metaDefaults<CameraData>('Camera', {
-        projectionType: ProjectionType.Orthographic,
-        orthoSize: 540,
-        aspectRatio: 1.77,
-        isActive: true,
         showFrustum: false,
     }),
     {

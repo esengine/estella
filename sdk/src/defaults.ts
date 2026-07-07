@@ -1,13 +1,23 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { CanvasScaleMode } from './wasm.generated';
+import { COMPONENT_META } from './component.generated';
 import { getResourceManager, setTextureBudget } from './resourceManager';
 
-export const DEFAULT_DESIGN_WIDTH = 1920;
-export const DEFAULT_DESIGN_HEIGHT = 1080;
-export const DEFAULT_PIXELS_PER_UNIT = 100;
+// Values with a C++ backing read the generated metadata (Canvas ctor defaults,
+// Sprite's editor_default annotation) so these constants cannot drift from the
+// ES_PROPERTY sites they restate.
+const canvasDefaults = COMPONENT_META.Canvas.defaults as {
+    designResolution: { x: number; y: number };
+    pixelsPerUnit: number;
+};
+export const DEFAULT_DESIGN_WIDTH = canvasDefaults.designResolution.x;
+export const DEFAULT_DESIGN_HEIGHT = canvasDefaults.designResolution.y;
+export const DEFAULT_PIXELS_PER_UNIT = canvasDefaults.pixelsPerUnit;
 export const DEFAULT_TEXT_CANVAS_SIZE = 512;
-export const DEFAULT_SPRITE_SIZE = { x: 100, y: 100 };
+export const DEFAULT_SPRITE_SIZE = {
+    ...(COMPONENT_META.Sprite.editorDefaults as { size: { x: number; y: number } }).size,
+};
 export const DEFAULT_FONT_FAMILY = 'Arial';
 export const DEFAULT_FONT_SIZE = 24;
 export const DEFAULT_LINE_HEIGHT = 1.2;

@@ -9,6 +9,14 @@ from ..field_utils import (
 )
 
 
+def _is_number(s: str) -> bool:
+    try:
+        float(s.rstrip('fF'))
+        return True
+    except (TypeError, ValueError):
+        return False
+
+
 class MetadataGenerator:
     """Generates component.generated.ts with defaults and metadata."""
 
@@ -94,6 +102,51 @@ class MetadataGenerator:
                 entries.append(('bitmask', '{ source: ' + json.dumps(a['bitmask_source'], ensure_ascii=False) + ' }'))
             if entries:
                 out.append((prop.name, entries))
+        return out
+
+    def _get_editor_defaults(self, comp: Component) -> List[Tuple[str, str]]:
+        """Collect `editor_default=` creation overrides as [(field, tsLiteral)].
+
+        The value goes through the SAME converter as the C++ ctor default, so an
+        annotation supports exactly the member-initializer grammar (number, bool,
+        Enum::Member, braced vector). A value the converter would silently turn
+        into 0 is a hard error — a wrong creation default baked into the generated
+        file is the drift this annotation exists to kill.
+        """
+        out: List[Tuple[str, str]] = []
+        for prop in comp.properties:
+            raw = prop.annotations.get('editor_default')
+            if raw is None:
+                continue
+            loc = f'{comp.name}.{prop.name}'
+            t = self.types.clean_type(prop.cpp_type)
+            if self.types.is_enum(t):
+                member = raw.split('::')[-1].strip()
+                enum_short = t.split('::')[-1]
+                vals = self.types.get_enum_values(t)
+                if member not in (vals or []):
+                    raise ValueError(
+                        f"{loc}: editor_default '{raw}' names no member of {enum_short}")
+                # convert_default_ts resolves enum members from a `X::Member`
+                # form; normalize so `editor_default=Orthographic` also works.
+                raw = f'{enum_short}::{member}'
+            elif t == 'bool':
+                if raw not in ('true', 'false'):
+                    raise ValueError(f"{loc}: editor_default '{raw}' must be true or false")
+            elif t in TypeSystem.PRIMITIVE_TYPES:
+                if not _is_number(raw):
+                    raise ValueError(f"{loc}: editor_default '{raw}' must be numeric")
+            elif t in TypeSystem.GLM_TYPES:
+                if not (raw.startswith('{') and raw.endswith('}')):
+                    raise ValueError(
+                        f"{loc}: editor_default '{raw}' must be a braced initializer for {t}")
+            else:
+                raise ValueError(
+                    f"{loc}: editor_default is not supported for type '{prop.cpp_type}'")
+            shadow = Property(name=prop.name, cpp_type=prop.cpp_type,
+                              default_value=raw.strip().strip('{}') if t in TypeSystem.GLM_TYPES else raw,
+                              annotations=prop.annotations)
+            out.append((prop.name, convert_default_ts(shadow, self.types, self._enum_values)))
         return out
 
     def _get_animatable_fields(self, comp: Component) -> List[str]:
@@ -232,6 +285,13 @@ class MetadataGenerator:
             '',
             'export interface ComponentMetaEntry {',
             '    defaults: Record<string, unknown>;',
+            '    /**',
+            '     * Creation-time overrides authored at the C++ ES_PROPERTY site via',
+            '     * `editor_default=` — where the authoring default deliberately differs',
+            '     * from the C++ ctor value in `defaults`. Component registration merges',
+            '     * these over `defaults`; `defaults` alone is the runtime ctor truth.',
+            '     */',
+            '    editorDefaults?: Record<string, unknown>;',
             '    assetFields: AssetFieldMeta[];',
             '    spine?: SpineFieldMeta;',
             '    entityFields: string[];',
@@ -261,6 +321,13 @@ class MetadataGenerator:
                 val = convert_default_ts(prop, self.types, self._enum_values)
                 lines.append(f'            {prop.name}: {val},')
             lines.append('        },')
+
+            editor_defaults = self._get_editor_defaults(comp)
+            if editor_defaults:
+                lines.append('        editorDefaults: {')
+                for fname, val in editor_defaults:
+                    lines.append(f'            {fname}: {val},')
+                lines.append('        },')
 
             if asset_fields:
                 parts = ', '.join(

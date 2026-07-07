@@ -104,6 +104,57 @@ quoted_ok('quotes are stripped from the value',
           'ES_PROPERTY(unit="deg")\n    float a = 0.0f;',
           'a', 'unit', 'deg')
 
+# ── editor_default: a braced initializer's commas must not split the token ──
+quoted_ok('editor_default braced vector stays one token',
+          'ES_PROPERTY(animatable, editor_default={100, 100})\n    glm::vec2 size{1.0f, 1.0f};',
+          'size', 'editor_default', '{100, 100}')
+quoted_ok('editor_default enum member',
+          'ES_PROPERTY(tooltip="p", editor_default=ProjectionType::Orthographic)\n    ProjectionType p{ProjectionType::Perspective};',
+          'p', 'editor_default', 'ProjectionType::Orthographic')
+quoted_ok('annotation after a braced editor_default still parses',
+          'ES_PROPERTY(editor_default={1, 2}, advanced)\n    glm::vec2 v{0.0f, 0.0f};',
+          'v', 'advanced', 'true')
+
+
+# ── editor_default value validation lives in MetadataGenerator (typed) ──
+def editor_default_generates(name: str, body: str, expect_snippet: str) -> None:
+    global _failures
+    p = _parse(body)
+    from eht.generators.metadata import MetadataGenerator
+    from eht.data import Enum
+    enums = [Enum(name='ProjectionType', namespace='esengine::ecs',
+                  values=['Perspective', 'Orthographic'])]
+    try:
+        out = MetadataGenerator(p.components, enums).generate()
+    except ValueError as e:
+        out = f'VALUEERROR: {e}'
+    if expect_snippet not in out:
+        _failures += 1
+        print(f"FAIL  {name}")
+        print(f"        {expect_snippet!r} not found in output")
+    else:
+        print(f"ok    {name}")
+
+
+editor_default_generates('editor_default vec2 emits merged literal',
+                         'ES_PROPERTY(editor_default={100, 100})\n    glm::vec2 size{1.0f, 1.0f};',
+                         'editorDefaults: {\n            size: { x: 100, y: 100 },')
+editor_default_generates('editor_default enum member resolves to its index',
+                         'ES_PROPERTY(editor_default=ProjectionType::Orthographic)\n    ProjectionType p{ProjectionType::Perspective};',
+                         'editorDefaults: {\n            p: 1,')
+editor_default_generates('editor_default bare enum member also resolves',
+                         'ES_PROPERTY(editor_default=Orthographic)\n    ProjectionType p{ProjectionType::Perspective};',
+                         'editorDefaults: {\n            p: 1,')
+editor_default_generates('editor_default unknown enum member is a hard error',
+                         'ES_PROPERTY(editor_default=ProjectionType::Sideways)\n    ProjectionType p{ProjectionType::Perspective};',
+                         'VALUEERROR')
+editor_default_generates('editor_default non-numeric on a float is a hard error',
+                         'ES_PROPERTY(editor_default=fast)\n    float s = 1.0f;',
+                         'VALUEERROR')
+editor_default_generates('editor_default bool accepts true',
+                         'ES_PROPERTY(editor_default=true)\n    bool active{false};',
+                         'editorDefaults: {\n            active: true,')
+
 # ── Unknown keys stay warnings, not errors (forward-compat) ──
 expect('unknown annotation is a warning, not an error',
        'ES_PROPERTY(bogus)\n    float x = 0.0f;',

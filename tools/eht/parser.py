@@ -52,6 +52,13 @@ class CppParser:
         # editor dropdown from that enum's values — for fields kept as i32 (not the
         # enum type) but still single-choice. Enum-TYPED fields need no annotation.
         'enum',
+        # `editor_default=<value>` authors the CREATION default the editor uses when
+        # adding the component — where it deliberately differs from the C++ ctor
+        # value (e.g. Camera is Perspective/inactive at runtime but authored as an
+        # active Orthographic; Sprite.size is {1,1} world units but authored 100px).
+        # Same value grammar as a C++ member initializer: number, true/false,
+        # Enum::Member, or a braced vector `{100, 100}`.
+        'editor_default',
     })
     NUMERIC_ANNOTATIONS = frozenset({'min', 'max', 'step'})
     VALID_ASSET_TYPES = frozenset({
@@ -192,16 +199,24 @@ class CppParser:
 
     @staticmethod
     def _split_top_level(raw: str) -> List[str]:
-        """Split on commas that are not inside a double-quoted string, so a quoted
-        value (`tooltip="a, b"`) stays one token."""
+        """Split on commas that are not inside a double-quoted string or a braced
+        initializer, so `tooltip="a, b"` and `editor_default={100, 100}` each stay
+        one token."""
         parts: List[str] = []
         buf: List[str] = []
         in_str = False
+        brace_depth = 0
         for ch in raw:
             if ch == '"':
                 in_str = not in_str
                 buf.append(ch)
-            elif ch == ',' and not in_str:
+            elif ch == '{' and not in_str:
+                brace_depth += 1
+                buf.append(ch)
+            elif ch == '}' and not in_str:
+                brace_depth -= 1
+                buf.append(ch)
+            elif ch == ',' and not in_str and brace_depth == 0:
                 parts.append(''.join(buf))
                 buf = []
             else:

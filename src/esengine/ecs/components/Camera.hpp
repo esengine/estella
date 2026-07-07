@@ -69,7 +69,7 @@ enum class ClearFlags : u8 {
 ES_COMPONENT()
 struct Camera {
     /** @brief Projection type */
-    ES_PROPERTY(tooltip="Orthographic (2D) or Perspective projection.")
+    ES_PROPERTY(tooltip="Orthographic (2D) or Perspective projection.", editor_default=ProjectionType::Orthographic)
     ProjectionType projectionType{ProjectionType::Perspective};
 
     /** @brief Field of view in degrees (perspective only) */
@@ -77,7 +77,7 @@ struct Camera {
     f32 fov{60.0f};
 
     /** @brief Orthographic size (half-height in world units) */
-    ES_PROPERTY(animatable, min=0, tooltip="Half the visible height in world units (Orthographic).")
+    ES_PROPERTY(animatable, min=0, tooltip="Half the visible height in world units (Orthographic).", editor_default=540)
     f32 orthoSize{5.0f};
 
     /** @brief Near clipping plane distance */
@@ -89,11 +89,11 @@ struct Camera {
     f32 farPlane{1000.0f};
 
     /** @brief Aspect ratio (width / height), 0 = auto from viewport */
-    ES_PROPERTY(advanced)
+    ES_PROPERTY(advanced, editor_default=1.77)
     f32 aspectRatio{0.0f};
 
     /** @brief Whether this is the active camera */
-    ES_PROPERTY()
+    ES_PROPERTY(editor_default=true)
     bool isActive{false};
 
     /** @brief Priority for determining active camera (higher = preferred) */
