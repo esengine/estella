@@ -1,8 +1,10 @@
 # Building the Estella Docs Site
 
 The published documentation site ([estellaengine.com/docs](https://estellaengine.com/docs))
-is built with **Astro Starlight** (guides) and **Doxygen** (C++ API reference),
-merged into a single static bundle.
+is built with **Astro Starlight** (guides), **TypeDoc** (TypeScript API reference,
+generated at build time from the SDK's public barrels via `starlight-typedoc` —
+the pages land in `docs/astro/src/content/docs/api-ts/`, which is gitignored) and
+**Doxygen** (C++ API reference), merged into a single static bundle.
 
 The Starlight site lives in `docs/astro/` and the landing page in `docs/landing/`.
 The Doxygen API version (`PROJECT_NUMBER`) is injected at build time from

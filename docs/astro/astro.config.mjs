@@ -1,6 +1,7 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import starlightTypeDoc, { typeDocSidebarGroup } from 'starlight-typedoc';
 
 // The site is deployed under estellaengine.com/docs (docs.yml merges this build
 // into docs/dist/docs/), so everything is served from the /docs base path.
@@ -18,6 +19,26 @@ export default defineConfig({
         root: { label: 'English', lang: 'en' },
         'zh-cn': { label: '简体中文', lang: 'zh-CN' },
       },
+      plugins: [
+        // TS API reference GENERATED from the SDK's public barrels — the same
+        // source the npm package ships, so the reference cannot drift from the
+        // code (the guides stay hand-written; this is the exhaustive surface).
+        starlightTypeDoc({
+          entryPoints: [
+            '../../sdk/src/index.ts',
+            '../../sdk/src/physics/index.ts',
+            '../../sdk/src/spine/index.ts',
+          ],
+          tsconfig: '../../sdk/tsconfig.json',
+          output: 'api-ts',
+          sidebar: { label: 'TypeScript API', collapsed: true },
+          typeDoc: {
+            excludePrivate: true,
+            excludeInternal: true,
+            excludeExternals: true,
+          },
+        }),
+      ],
       social: [
         { icon: 'github', label: 'GitHub', href: 'https://github.com/esengine/estella' },
         { icon: 'discord', label: 'Discord', href: 'https://discord.gg/sAX6PXZ9' },
@@ -100,6 +121,7 @@ export default defineConfig({
           label: 'Reference',
           translations: { 'zh-CN': '参考' },
           items: [
+            typeDocSidebarGroup,
             { label: 'C++ API (Doxygen)', link: '/docs/api/html/', attrs: { target: '_blank' } },
             { label: 'Architecture', link: 'https://github.com/esengine/estella/blob/master/docs/ARCHITECTURE.md' },
           ],
