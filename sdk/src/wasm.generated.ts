@@ -175,6 +175,7 @@ export interface BitmapText {
     fontSize: number;
     align: number;
     spacing: number;
+    parallax: Vec2;
     layer: number;
     font: number;
     enabled: boolean;
@@ -353,6 +354,7 @@ export interface ShapeRenderer {
     size: Vec2;
     cornerRadius: number;
     layer: number;
+    parallax: Vec2;
     enabled: boolean;
 }
 

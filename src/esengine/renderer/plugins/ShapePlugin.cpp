@@ -37,6 +37,15 @@ void ShapePlugin::collect(RenderCollectContext& collect_ctx) {
     auto& ctx = collect_ctx.frame_context;
     auto shapeView = registry.view<ecs::Transform, ecs::ShapeRenderer>();
 
+    // Camera center in world space (from the inverse view-projection), for parallax —
+    // the same derivation SpritePlugin/TilemapRenderPlugin use, so every renderable's
+    // parallax scrolls consistently. Computed once per collect.
+    glm::mat4 invVP = glm::inverse(ctx.view_projection);
+    glm::vec4 camBL = invVP * glm::vec4(-1.0f, -1.0f, 0.0f, 1.0f);
+    glm::vec4 camTR = invVP * glm::vec4( 1.0f,  1.0f, 0.0f, 1.0f);
+    const f32 camCenterX = (camBL.x / camBL.w + camTR.x / camTR.w) * 0.5f;
+    const f32 camCenterY = (camBL.y / camBL.w + camTR.y / camTR.w) * 0.5f;
+
     for (auto entity : shapeView) {
         const auto& shape = shapeView.get<ecs::ShapeRenderer>(entity);
         if (!shape.enabled) continue;
@@ -44,6 +53,10 @@ void ShapePlugin::collect(RenderCollectContext& collect_ctx) {
         auto& transform = shapeView.get<ecs::Transform>(entity);
         transform.ensureDecomposed();
         glm::vec3 position = transform.worldPosition;
+        // Parallax: shift toward the camera by (1 - factor); factor 1 = no shift.
+        // Applied before the frustum cull so a parallaxed shape is culled where drawn.
+        position.x += camCenterX * (1.0f - shape.parallax.x);
+        position.y += camCenterY * (1.0f - shape.parallax.y);
         const auto& rotation = transform.worldRotation;
         const auto& scale = transform.worldScale;
 

@@ -25,9 +25,10 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'fontSize', type: 'f32', offset: 28 },
             { name: 'align', type: 'u8', offset: 32 },
             { name: 'spacing', type: 'f32', offset: 36 },
-            { name: 'layer', type: 'i32', offset: 40 },
-            { name: 'font', type: 'u32', offset: 44 },
-            { name: 'enabled', type: 'bool', offset: 48 },
+            { name: 'parallax', type: 'vec2', offset: 40 },
+            { name: 'layer', type: 'i32', offset: 48 },
+            { name: 'font', type: 'u32', offset: 52 },
+            { name: 'enabled', type: 'bool', offset: 56 },
         ],
     },
     BoxCollider: {
@@ -220,7 +221,8 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'size', type: 'vec2', offset: 20 },
             { name: 'cornerRadius', type: 'f32', offset: 28 },
             { name: 'layer', type: 'i32', offset: 32 },
-            { name: 'enabled', type: 'bool', offset: 36 },
+            { name: 'parallax', type: 'vec2', offset: 36 },
+            { name: 'enabled', type: 'bool', offset: 44 },
         ],
     },
     SpineAnimation: {

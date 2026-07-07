@@ -25,6 +25,10 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
     "layer": {
       "step": 1,
     },
+    "parallax": {
+      "advanced": true,
+      "tooltip": "Parallax scroll factor (1 = with world, <1 = slower, 0 = locked to camera).",
+    },
   },
   "Camera": {
     "aspectRatio": {
@@ -434,6 +438,10 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
     "layer": {
       "enumSource": "sortingLayers",
       "step": 1,
+    },
+    "parallax": {
+      "advanced": true,
+      "tooltip": "Parallax scroll factor (1 = with world, <1 = slower, 0 = locked to camera).",
     },
     "shapeType": {
       "enum": [

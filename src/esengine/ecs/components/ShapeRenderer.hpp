@@ -32,6 +32,13 @@ struct ShapeRenderer {
     ES_PROPERTY(step=1, enum_source=sortingLayers)
     i32 layer{0};
 
+    /** @brief Parallax scroll factor per axis. 1 = moves with the world (default, no
+     *         parallax); <1 = scrolls slower than the camera (appears farther, e.g. a
+     *         background); 0 = locked to the camera (e.g. a sky). The renderer offsets
+     *         the shape by camera_center * (1 - factor). */
+    ES_PROPERTY(advanced, tooltip="Parallax scroll factor (1 = with world, <1 = slower, 0 = locked to camera).")
+    glm::vec2 parallax{1.0f, 1.0f};
+
     ES_PROPERTY()
     bool enabled{true};
 

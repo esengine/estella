@@ -14,6 +14,7 @@ export interface BitmapTextPtrData {
     fontSize: number;
     align: number;
     spacing: number;
+    parallax: Vec2;
     layer: number;
     font: number;
     enabled: boolean;
@@ -27,9 +28,10 @@ export function fillBitmapText(
     out.fontSize = f32[(ptr + 28) >> 2];
     out.align = u8[ptr + 32];
     out.spacing = f32[(ptr + 36) >> 2];
-    out.layer = u32[(ptr + 40) >> 2] | 0;
-    out.font = u32[(ptr + 44) >> 2];
-    out.enabled = u8[ptr + 48] !== 0;
+    const parallax_ = out.parallax; parallax_.x = f32[(ptr + 40) >> 2]; parallax_.y = f32[((ptr + 40) >> 2) + 1];
+    out.layer = u32[(ptr + 48) >> 2] | 0;
+    out.font = u32[(ptr + 52) >> 2];
+    out.enabled = u8[ptr + 56] !== 0;
 }
 
 export function writeBitmapText(
@@ -40,9 +42,10 @@ export function writeBitmapText(
     f32[(ptr + 28) >> 2] = data.fontSize;
     u8[ptr + 32] = data.align;
     f32[(ptr + 36) >> 2] = data.spacing;
-    u32[(ptr + 40) >> 2] = data.layer | 0;
-    u32[(ptr + 44) >> 2] = data.font;
-    u8[ptr + 48] = data.enabled ? 1 : 0;
+    f32[(ptr + 40) >> 2] = data.parallax.x; f32[((ptr + 40) >> 2) + 1] = data.parallax.y;
+    u32[(ptr + 48) >> 2] = data.layer | 0;
+    u32[(ptr + 52) >> 2] = data.font;
+    u8[ptr + 56] = data.enabled ? 1 : 0;
 }
 
 export function createBitmapTextData(): BitmapTextPtrData {
@@ -51,6 +54,7 @@ export function createBitmapTextData(): BitmapTextPtrData {
         fontSize: 0,
         align: 0,
         spacing: 0,
+        parallax: { x: 0, y: 0 },
         layer: 0,
         font: 0,
         enabled: false,
@@ -791,6 +795,7 @@ export interface ShapeRendererPtrData {
     size: Vec2;
     cornerRadius: number;
     layer: number;
+    parallax: Vec2;
     enabled: boolean;
 }
 
@@ -803,7 +808,8 @@ export function fillShapeRenderer(
     const size_ = out.size; size_.x = f32[(ptr + 20) >> 2]; size_.y = f32[((ptr + 20) >> 2) + 1];
     out.cornerRadius = f32[(ptr + 28) >> 2];
     out.layer = u32[(ptr + 32) >> 2] | 0;
-    out.enabled = u8[ptr + 36] !== 0;
+    const parallax_ = out.parallax; parallax_.x = f32[(ptr + 36) >> 2]; parallax_.y = f32[((ptr + 36) >> 2) + 1];
+    out.enabled = u8[ptr + 44] !== 0;
 }
 
 export function writeShapeRenderer(
@@ -815,7 +821,8 @@ export function writeShapeRenderer(
     f32[(ptr + 20) >> 2] = data.size.x; f32[((ptr + 20) >> 2) + 1] = data.size.y;
     f32[(ptr + 28) >> 2] = data.cornerRadius;
     u32[(ptr + 32) >> 2] = data.layer | 0;
-    u8[ptr + 36] = data.enabled ? 1 : 0;
+    f32[(ptr + 36) >> 2] = data.parallax.x; f32[((ptr + 36) >> 2) + 1] = data.parallax.y;
+    u8[ptr + 44] = data.enabled ? 1 : 0;
 }
 
 export function createShapeRendererData(): ShapeRendererPtrData {
@@ -825,6 +832,7 @@ export function createShapeRendererData(): ShapeRendererPtrData {
         size: { x: 0, y: 0 },
         cornerRadius: 0,
         layer: 0,
+        parallax: { x: 0, y: 0 },
         enabled: false,
     };
 }

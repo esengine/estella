@@ -15,7 +15,7 @@ import type { Dimension, Padding, VisualState } from './wasm.generated';
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '2139ae73f765c1ed';
+export const ABI_LAYOUT_HASH = '4a0ed8f94ca2aed4';
 
 export interface AssetFieldMeta {
     field: string;
@@ -52,6 +52,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             fontSize: 1,
             align: 0,
             spacing: 0,
+            parallax: { x: 1, y: 1 },
             layer: 0,
             font: 0,
             enabled: true,
@@ -63,6 +64,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         fields: {
             fontSize: { min: 1 },
             align: { enum: [{ label: 'Left', value: 0 }, { label: 'Center', value: 1 }, { label: 'Right', value: 2 }] },
+            parallax: { tooltip: "Parallax scroll factor (1 = with world, <1 = slower, 0 = locked to camera).", advanced: true },
             layer: { step: 1 },
         },
     },
@@ -397,6 +399,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             size: { x: 100, y: 100 },
             cornerRadius: 0,
             layer: 0,
+            parallax: { x: 1, y: 1 },
             enabled: true,
         },
         assetFields: [],
@@ -407,6 +410,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             shapeType: { enum: [{ label: 'Circle', value: 0 }, { label: 'Capsule', value: 1 }, { label: 'RoundedRect', value: 2 }] },
             cornerRadius: { min: 0 },
             layer: { step: 1, enumSource: "sortingLayers" },
+            parallax: { tooltip: "Parallax scroll factor (1 = with world, <1 = slower, 0 = locked to camera).", advanced: true },
         },
     },
     SpineAnimation: {
@@ -643,6 +647,7 @@ export interface BitmapTextData {
     fontSize: number;
     align: number;
     spacing: number;
+    parallax: Vec2;
     layer: number;
     font: number;
     enabled: boolean;
@@ -821,6 +826,7 @@ export interface ShapeRendererData {
     size: Vec2;
     cornerRadius: number;
     layer: number;
+    parallax: Vec2;
     enabled: boolean;
 }
 

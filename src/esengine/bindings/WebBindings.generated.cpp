@@ -228,6 +228,7 @@ struct BitmapTextJS {
     f32 fontSize;
     i32 align;
     f32 spacing;
+    glm::vec2 parallax;
     i32 layer;
     u32 font;
     bool enabled;
@@ -240,6 +241,7 @@ esengine::ecs::BitmapText bitmaptextFromJS(const BitmapTextJS& js) {
     c.fontSize = js.fontSize;
     c.align = static_cast<TextAlign>(js.align);
     c.spacing = js.spacing;
+    c.parallax = js.parallax;
     c.layer = js.layer;
     c.font = resource::BitmapFontHandle(js.font);
     c.enabled = js.enabled;
@@ -253,6 +255,7 @@ BitmapTextJS bitmaptextToJS(const esengine::ecs::BitmapText& c) {
     js.fontSize = c.fontSize;
     js.align = static_cast<i32>(c.align);
     js.spacing = c.spacing;
+    js.parallax = c.parallax;
     js.layer = c.layer;
     js.font = c.font.id();
     js.enabled = c.enabled;
@@ -847,6 +850,7 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("fontSize", &BitmapTextJS::fontSize)
         .field("align", &BitmapTextJS::align)
         .field("spacing", &BitmapTextJS::spacing)
+        .field("parallax", &BitmapTextJS::parallax)
         .field("layer", &BitmapTextJS::layer)
         .field("font", &BitmapTextJS::font)
         .field("enabled", &BitmapTextJS::enabled);
@@ -1010,6 +1014,7 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("size", &esengine::ecs::ShapeRenderer::size)
         .field("cornerRadius", &esengine::ecs::ShapeRenderer::cornerRadius)
         .field("layer", &esengine::ecs::ShapeRenderer::layer)
+        .field("parallax", &esengine::ecs::ShapeRenderer::parallax)
         .field("enabled", &esengine::ecs::ShapeRenderer::enabled);
 
     value_object<esengine::ecs::SpineAnimation>("SpineAnimation")
@@ -1760,9 +1765,10 @@ static_assert(offsetof(esengine::ecs::BitmapText, color) == 12, "ABI offset drif
 static_assert(offsetof(esengine::ecs::BitmapText, fontSize) == 28, "ABI offset drift: esengine::ecs::BitmapText.fontSize (EHT expected 28)");
 static_assert(offsetof(esengine::ecs::BitmapText, align) == 32, "ABI offset drift: esengine::ecs::BitmapText.align (EHT expected 32)");
 static_assert(offsetof(esengine::ecs::BitmapText, spacing) == 36, "ABI offset drift: esengine::ecs::BitmapText.spacing (EHT expected 36)");
-static_assert(offsetof(esengine::ecs::BitmapText, layer) == 40, "ABI offset drift: esengine::ecs::BitmapText.layer (EHT expected 40)");
-static_assert(offsetof(esengine::ecs::BitmapText, font) == 44, "ABI offset drift: esengine::ecs::BitmapText.font (EHT expected 44)");
-static_assert(offsetof(esengine::ecs::BitmapText, enabled) == 48, "ABI offset drift: esengine::ecs::BitmapText.enabled (EHT expected 48)");
+static_assert(offsetof(esengine::ecs::BitmapText, parallax) == 40, "ABI offset drift: esengine::ecs::BitmapText.parallax (EHT expected 40)");
+static_assert(offsetof(esengine::ecs::BitmapText, layer) == 48, "ABI offset drift: esengine::ecs::BitmapText.layer (EHT expected 48)");
+static_assert(offsetof(esengine::ecs::BitmapText, font) == 52, "ABI offset drift: esengine::ecs::BitmapText.font (EHT expected 52)");
+static_assert(offsetof(esengine::ecs::BitmapText, enabled) == 56, "ABI offset drift: esengine::ecs::BitmapText.enabled (EHT expected 56)");
 static_assert(offsetof(esengine::ecs::BoxCollider, halfExtents) == 0, "ABI offset drift: esengine::ecs::BoxCollider.halfExtents (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::BoxCollider, offset) == 8, "ABI offset drift: esengine::ecs::BoxCollider.offset (EHT expected 8)");
 static_assert(offsetof(esengine::ecs::BoxCollider, density) == 16, "ABI offset drift: esengine::ecs::BoxCollider.density (EHT expected 16)");
@@ -1890,7 +1896,8 @@ static_assert(offsetof(esengine::ecs::ShapeRenderer, color) == 4, "ABI offset dr
 static_assert(offsetof(esengine::ecs::ShapeRenderer, size) == 20, "ABI offset drift: esengine::ecs::ShapeRenderer.size (EHT expected 20)");
 static_assert(offsetof(esengine::ecs::ShapeRenderer, cornerRadius) == 28, "ABI offset drift: esengine::ecs::ShapeRenderer.cornerRadius (EHT expected 28)");
 static_assert(offsetof(esengine::ecs::ShapeRenderer, layer) == 32, "ABI offset drift: esengine::ecs::ShapeRenderer.layer (EHT expected 32)");
-static_assert(offsetof(esengine::ecs::ShapeRenderer, enabled) == 36, "ABI offset drift: esengine::ecs::ShapeRenderer.enabled (EHT expected 36)");
+static_assert(offsetof(esengine::ecs::ShapeRenderer, parallax) == 36, "ABI offset drift: esengine::ecs::ShapeRenderer.parallax (EHT expected 36)");
+static_assert(offsetof(esengine::ecs::ShapeRenderer, enabled) == 44, "ABI offset drift: esengine::ecs::ShapeRenderer.enabled (EHT expected 44)");
 static_assert(offsetof(esengine::ecs::SpineAnimation, timeScale) == 48, "ABI offset drift: esengine::ecs::SpineAnimation.timeScale (EHT expected 48)");
 static_assert(offsetof(esengine::ecs::SpineAnimation, loop) == 52, "ABI offset drift: esengine::ecs::SpineAnimation.loop (EHT expected 52)");
 static_assert(offsetof(esengine::ecs::SpineAnimation, playing) == 53, "ABI offset drift: esengine::ecs::SpineAnimation.playing (EHT expected 53)");
@@ -1962,7 +1969,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "2139ae73f765c1ed";
+static const char* kEsAbiLayoutHash = "4a0ed8f94ca2aed4";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);
