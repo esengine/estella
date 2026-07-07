@@ -15,46 +15,19 @@
 import { defineBuiltin } from '../../component';
 import type { Color, Vec2, Vec4 } from '../../types';
 
-/** Draw mode (mirrors the C++ UIVisualType enum). */
-export const UIVisualType = {
-    /** Invisible — present only for render-order/hit participation. */
-    None: 0,
-    /** Tinted white quad (no texture). */
-    SolidColor: 1,
-    /** Textured quad; uvOffset/uvScale select a sprite sub-region. */
-    Image: 2,
-    /** 9-slice via sliceBorder. */
-    NineSlice: 3,
-    /** Texture repeated every tileSize px of the box. */
-    Tiled: 4,
-    /** Texture cropped to fillAmount along fillMethod/fillOrigin. */
-    Filled: 5,
-} as const;
-export type UIVisualType = (typeof UIVisualType)[keyof typeof UIVisualType];
-
-/** Fill mode for Filled visuals (mirrors the C++ UIFillMethod enum). */
-export const FillMethod = {
-    /** Linear crop along X. */
-    Horizontal: 0,
-    /** Linear crop along Y. */
-    Vertical: 1,
-    /** Clockwise sweep of the full circle (cooldown / ring gauge). */
-    Radial360: 2,
-    /** Clockwise sweep of a 90° arc from the origin edge (corner meter). */
-    Radial90: 3,
-    /** Clockwise sweep of a 180° arc from the origin edge (speedometer). */
-    Radial180: 4,
-} as const;
-export type FillMethod = (typeof FillMethod)[keyof typeof FillMethod];
-
-/** Fill anchor edge for Filled visuals (mirrors the C++ UIFillOrigin enum). */
-export const FillOrigin = {
-    Left: 0,
-    Right: 1,
-    Bottom: 2,
-    Top: 3,
-} as const;
-export type FillOrigin = (typeof FillOrigin)[keyof typeof FillOrigin];
+// Draw mode (None = invisible but render-order/hit-participating; SolidColor;
+// Image with a uvOffset/uvScale sub-region; NineSlice via sliceBorder; Tiled
+// every tileSize px; Filled = cropped to fillAmount along fillMethod/fillOrigin),
+// the Filled fill mode (linear X/Y crops; clockwise Radial360/90/180 sweeps) and
+// its anchor edge. All single-sourced from the C++ ES_ENUMs via the generated
+// module; FillMethod/FillOrigin keep their public names as aliases of the C++
+// UIFillMethod/UIFillOrigin.
+import {
+    UIVisualType,
+    UIFillMethod as FillMethod,
+    UIFillOrigin as FillOrigin,
+} from '../../wasm.generated';
+export { UIVisualType, FillMethod, FillOrigin };
 
 export interface UIVisualData {
     visualType: UIVisualType;

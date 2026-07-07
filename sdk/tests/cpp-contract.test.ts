@@ -29,8 +29,8 @@ import { ENTITY_INDEX_BITS, ENTITY_GEN_BITS } from '../src/types';
 import { TILE_ID_MASK, TILE_FLIP_H, TILE_FLIP_V, TILE_FLIP_D } from '../src/tilemap/tileBits';
 import { CHUNK_SIZE } from '../src/tilemap/chunkCodec';
 
-// EHT-generated twins (the authoritative C++ ES_ENUM values) + the hand-copied
-// mirrors that still restate them in the UI/physics modules.
+// EHT-generated twins (the authoritative C++ ES_ENUM values) + the module-local
+// names the UI/physics modules publish them under.
 import * as gen from '../src/wasm.generated';
 import { BodyType } from '../src/physics/PhysicsComponents';
 import { UIPositionType, AlignSelf } from '../src/ui/core/ui-node';
@@ -183,14 +183,12 @@ describe('C++ contract: UI base layer (renderer/plugins/UIElementPlugin.hpp)', (
     });
 });
 
-describe('C++ contract: hand-copied enum mirrors == their EHT-generated twin', () => {
-    // These enums ARE generated from C++ ES_ENUM into wasm.generated.ts, but the
-    // UI/physics modules also hand-restate them as `as const` objects (predating
-    // the EHT enum generation). The generated copy is authoritative; the hand copy
-    // is the drift risk. Guard the member map (name -> value) so a C++/EHT change
-    // that updates the generated twin but not the hand copy goes RED here. (Full
-    // collapse to a re-export is an API-shape change tracked separately.)
-    const cases: Array<[string, Record<string, number>, Record<string, string | number>]> = [
+describe('C++ contract: module-published enums ARE their EHT-generated twin', () => {
+    // These used to be hand-restated `as const` copies in the UI/physics modules;
+    // they are now re-exports of the generated enums. Pin the object IDENTITY so a
+    // future edit can't silently reintroduce a copy — same-values-different-object
+    // is exactly the drift vector the re-export eliminated.
+    const cases: Array<[string, unknown, unknown]> = [
         ['BodyType', BodyType, gen.BodyType],
         ['UIPositionType', UIPositionType, gen.UIPositionType],
         ['AlignSelf', AlignSelf, gen.AlignSelf],
@@ -198,10 +196,9 @@ describe('C++ contract: hand-copied enum mirrors == their EHT-generated twin', (
         ['FillMethod', FillMethod, gen.UIFillMethod],
         ['FillOrigin', FillOrigin, gen.UIFillOrigin],
     ];
-    for (const [label, hand, generated] of cases) {
-        it(`${label} matches wasm.generated`, () => {
-            expect(sortedEntries(new Map(Object.entries(hand))))
-                .toEqual(sortedEntries(enumForward(generated)));
+    for (const [label, published, generated] of cases) {
+        it(`${label} is a re-export of the generated enum`, () => {
+            expect(published).toBe(generated);
         });
     }
 });

@@ -16,25 +16,11 @@
 import { defineBuiltin } from '../../component';
 import { auto, px, type Dimension } from './dimension';
 
-/** Positioning scheme (mirrors the C++ UIPositionType enum). */
-export const UIPositionType = {
-    /** In flex flow (default). */
-    Relative: 0,
-    /** Out of flow; placed by `inset` against the parent box — covers
-     *  anchor/stretch (the old RectTransform cases). */
-    Absolute: 1,
-} as const;
-export type UIPositionType = (typeof UIPositionType)[keyof typeof UIPositionType];
-
-/** Per-item cross-axis alignment override (mirrors the C++ AlignSelf enum). */
-export const AlignSelf = {
-    Auto: 0,
-    Start: 1,
-    Center: 2,
-    End: 3,
-    Stretch: 4,
-} as const;
-export type AlignSelf = (typeof AlignSelf)[keyof typeof AlignSelf];
+// Positioning scheme (Relative = in flex flow; Absolute = out of flow, placed by
+// `inset` against the parent box — covers the old RectTransform anchor/stretch
+// cases) and per-item cross-axis alignment override. Both single-sourced from
+// the C++ ES_ENUMs via the generated module.
+export { UIPositionType, AlignSelf } from '../../wasm.generated';
 
 export interface UINodeData {
     /** Relative (flex flow) or Absolute (placed by inset). */

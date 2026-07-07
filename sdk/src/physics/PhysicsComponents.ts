@@ -103,16 +103,12 @@ export interface ChainColliderData {
 }
 
 // =============================================================================
-// Body Type Enum (matches C++ BodyType)
+// Body Type Enum
 // =============================================================================
 
-export const BodyType = {
-    Static: 0,
-    Kinematic: 1,
-    Dynamic: 2
-} as const;
-
-export type BodyType = (typeof BodyType)[keyof typeof BodyType];
+// Single-sourced from the C++ BodyType ES_ENUM via the generated module — the
+// hand-restated `as const` copy this replaced could drift from C++.
+export { BodyType } from '../wasm.generated';
 
 // =============================================================================
 // Builtin Component Instances
