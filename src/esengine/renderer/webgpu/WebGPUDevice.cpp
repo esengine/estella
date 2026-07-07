@@ -45,6 +45,7 @@ void WebGPUDevice::shutdown() {
     }
     buffers_.clear();
     for (auto& [id, rec] : textures_) {
+        if (rec.view) wgpuTextureViewRelease(rec.view);
         if (rec.texture) wgpuTextureRelease(rec.texture);
     }
     textures_.clear();
@@ -59,6 +60,8 @@ void WebGPUDevice::shutdown() {
     }
     pipelines_.clear();
     if (bind_group_) { wgpuBindGroupRelease(bind_group_); bind_group_ = nullptr; }
+    if (texture_group_) { wgpuBindGroupRelease(texture_group_); texture_group_ = nullptr; }
+    if (sampler_) { wgpuSamplerRelease(sampler_); sampler_ = nullptr; }
     if (surface_) { wgpuSurfaceRelease(surface_); surface_ = nullptr; }
     if (instance_) { wgpuInstanceRelease(instance_); instance_ = nullptr; }
 }
@@ -287,7 +290,8 @@ TextureHandle WebGPUDevice::createTexture(const TextureDesc& desc, const void* p
     }
 
     const u32 id = next_id_++;
-    textures_[id] = TextureRec{texture, desc.width, desc.height};
+    textures_[id] = TextureRec{texture, wgpuTextureCreateView(texture, nullptr),
+                               desc.width, desc.height};
 
     if (pixels) {
         updateTexture(TextureHandle{id}, 0, 0, desc.width, desc.height, pixels, false);
@@ -311,6 +315,7 @@ TextureHandle WebGPUDevice::importExternalTexture(u32, const TextureDesc&) {
 void WebGPUDevice::deleteTexture(TextureHandle texture) {
     auto it = textures_.find(static_cast<u32>(texture));
     if (it == textures_.end()) return;
+    if (it->second.view) wgpuTextureViewRelease(it->second.view);
     if (it->second.texture) wgpuTextureRelease(it->second.texture);
     textures_.erase(it);
 }
@@ -346,7 +351,16 @@ void WebGPUDevice::setTextureParams(TextureHandle, TextureFilter, TextureFilter,
 }
 
 void WebGPUDevice::generateMipmaps(TextureHandle) { stubOnce("generateMipmaps"); }
-void WebGPUDevice::bindTexture(u32, TextureHandle) { stubOnce("bindTexture (bind groups)"); }
+
+void WebGPUDevice::bindTexture(u32 slot, TextureHandle texture) {
+    if (slot >= kTextureSlots) return;
+    const u32 id = static_cast<u32>(texture);
+    if (texture_slots_[slot] != id) {
+        texture_slots_[slot] = id;
+        bind_group_dirty_ = true;
+    }
+    if (id != 0) any_texture_bound_ = true;
+}
 
 bool WebGPUDevice::supportsCompressedFormat(GfxCompressedFormat format) {
     // Real capability negotiation (adapter features) arrives with the adapter
@@ -539,6 +553,25 @@ void WebGPUDevice::setStencilReference(i32 reference) {
 
 void WebGPUDevice::invalidatePipelineCache() {}
 
+WGPUSampler WebGPUDevice::defaultSampler() {
+    if (!sampler_ && device_) {
+        // Bring-up default: linear filtering, clamped — per-texture sampler state
+        // (setTextureParams) becomes a keyed sampler cache in a later slice.
+        WGPUSamplerDescriptor sd{};
+        sd.addressModeU = WGPUAddressMode_ClampToEdge;
+        sd.addressModeV = WGPUAddressMode_ClampToEdge;
+        sd.addressModeW = WGPUAddressMode_ClampToEdge;
+        sd.magFilter = WGPUFilterMode_Linear;
+        sd.minFilter = WGPUFilterMode_Linear;
+        sd.mipmapFilter = WGPUMipmapFilterMode_Nearest;
+        sd.lodMinClamp = 0.0f;
+        sd.lodMaxClamp = 32.0f;
+        sd.maxAnisotropy = 1;
+        sampler_ = wgpuDeviceCreateSampler(device_, &sd);
+    }
+    return sampler_;
+}
+
 void WebGPUDevice::flushBindGroup() {
     if (!bind_group_dirty_ || !pass_ || !device_) return;
 
@@ -573,6 +606,38 @@ void WebGPUDevice::flushBindGroup() {
     bind_group_ = wgpuDeviceCreateBindGroup(device_, &bgd);
     if (bgd.layout) wgpuBindGroupLayoutRelease(bgd.layout);
     if (bind_group_) wgpuRenderPassEncoderSetBindGroup(pass_, 0, bind_group_, 0, nullptr);
+
+    // Group 1: the texture units. The WGSL twin convention is 8 texture_2d at
+    // bindings 0..7 + one shared sampler at binding 8 (the batch shader's
+    // u_textures[8]). Unused slots repeat slot 0's view — the same trick
+    // DrawList::execute uses for WebGL2's complete-texture rule. Only set when
+    // the pass bound textures, so sampler-less shaders keep a group-0-only layout.
+    if (any_texture_bound_) {
+        WGPUTextureView slot0 = nullptr;
+        for (u32 slot = 0; slot < kTextureSlots && !slot0; ++slot) {
+            auto it = textures_.find(texture_slots_[slot]);
+            if (it != textures_.end()) slot0 = it->second.view;
+        }
+        if (slot0) {
+            WGPUBindGroupEntry texEntries[kTextureSlots + 1] = {};
+            for (u32 slot = 0; slot < kTextureSlots; ++slot) {
+                auto it = textures_.find(texture_slots_[slot]);
+                texEntries[slot].binding = slot;
+                texEntries[slot].textureView = (it != textures_.end()) ? it->second.view : slot0;
+            }
+            texEntries[kTextureSlots].binding = kTextureSlots;
+            texEntries[kTextureSlots].sampler = defaultSampler();
+
+            if (texture_group_) { wgpuBindGroupRelease(texture_group_); texture_group_ = nullptr; }
+            WGPUBindGroupDescriptor tgd{};
+            tgd.layout = wgpuRenderPipelineGetBindGroupLayout(p, 1);
+            tgd.entryCount = kTextureSlots + 1;
+            tgd.entries = texEntries;
+            texture_group_ = wgpuDeviceCreateBindGroup(device_, &tgd);
+            if (tgd.layout) wgpuBindGroupLayoutRelease(tgd.layout);
+            if (texture_group_) wgpuRenderPassEncoderSetBindGroup(pass_, 1, texture_group_, 0, nullptr);
+        }
+    }
     bind_group_dirty_ = false;
 }
 
@@ -659,6 +724,10 @@ void WebGPUDevice::beginRenderPass(const RenderPassDesc& desc) {
     rp.colorAttachments = &color;
     pass_ = wgpuCommandEncoderBeginRenderPass(encoder_, &rp);
     bind_group_dirty_ = true;
+    // Each pass starts textureless: group 1 only attaches to pipelines whose
+    // draws bind textures (the engine rebinds per draw), never to sampler-less
+    // pipelines from a previous pass's leftovers.
+    any_texture_bound_ = false;
 }
 
 void WebGPUDevice::endRenderPass() {

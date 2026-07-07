@@ -150,6 +150,7 @@ private:
     };
     struct TextureRec {
         WGPUTexture texture = nullptr;
+        WGPUTextureView view = nullptr;  ///< Default full view, created with the texture.
         u32 width = 0;
         u32 height = 0;
     };
@@ -167,8 +168,14 @@ private:
 
     /** @brief Builds (once) and returns the WGPURenderPipeline for a handle. */
     WGPURenderPipeline ensurePipeline(u32 id);
-    /** @brief (Re)creates the group-0 bind group from the recorded UBO slots. */
+    /** @brief (Re)creates the bind groups: group 0 = UBO slots, group 1 = the
+     *         texture units (8 texture_2d at bindings 0..7 + one shared sampler at
+     *         binding 8 — the WGSL twin convention for the batch sampler array).
+     *         Group 1 is set only when the pass bound any texture, so shaders
+     *         without samplers (shape) never see a mismatched group. */
     void flushBindGroup();
+    /** @brief The lazily created shared sampler (linear/clamp bring-up default). */
+    WGPUSampler defaultSampler();
     /** @brief True while inside beginRenderPass/endRenderPass. */
     bool inPass() const { return pass_ != nullptr; }
 
@@ -191,8 +198,13 @@ private:
     u32 bound_index_buffer_ = 0;
     static constexpr u32 kUniformSlots = 8;
     u32 uniform_slots_[kUniformSlots] = {};  ///< BufferHandle id per UBO binding slot.
+    static constexpr u32 kTextureSlots = 8;
+    u32 texture_slots_[kTextureSlots] = {};  ///< TextureHandle id per sampler unit.
+    bool any_texture_bound_ = false;
     bool bind_group_dirty_ = true;
     WGPUBindGroup bind_group_ = nullptr;
+    WGPUBindGroup texture_group_ = nullptr;
+    WGPUSampler sampler_ = nullptr;
 
     u32 next_id_ = 1;
     std::unordered_map<u32, BufferRec> buffers_;

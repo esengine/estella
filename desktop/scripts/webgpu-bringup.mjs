@@ -99,15 +99,19 @@ app.whenReady().then(async () => {
     const i = (y * image.getSize().width + x) * 4;
     return { b: png[i], g: png[i + 1], r: png[i + 2] };
   };
-  const center = px(128, 128);   // inside the circle → red
-  const corner = px(8, 8);       // outside → dark blue clear
   const near = (v, want, tol = 40) => Math.abs(v - want) <= tol;
+  const circle = px(128, 32);    // shape twin: magenta SDF circle, top-center
+  const left = px(64, 166);      // batch twin: quad sampling slot 0 → red
+  const right = px(192, 166);    // batch twin: quad sampling slot 1 → green
+  const corner = px(8, 128);     // between the quads' outside → dark blue clear
 
-  const centerOk = near(center.r, 255) && near(center.g, 0) && near(center.b, 0);
+  const circleOk = near(circle.r, 255) && near(circle.g, 0) && near(circle.b, 255);
+  const leftOk = near(left.r, 255) && near(left.g, 0) && near(left.b, 0);
+  const rightOk = near(right.r, 0) && near(right.g, 255) && near(right.b, 0);
   const cornerOk = near(corner.r, 13) && near(corner.g, 13) && near(corner.b, 77, 60);
-  const ok = framesOk && errors.length === 0 && centerOk && cornerOk;
+  const ok = framesOk && errors.length === 0 && circleOk && leftOk && rightOk && cornerOk;
 
-  console.log(`RESULT center=${JSON.stringify(center)} corner=${JSON.stringify(corner)} framesOk=${framesOk} errors=${errors.length}`);
+  console.log(`RESULT circle=${JSON.stringify(circle)} left=${JSON.stringify(left)} right=${JSON.stringify(right)} corner=${JSON.stringify(corner)} framesOk=${framesOk} errors=${errors.length}`);
   console.log(`\n[webgpu-bringup] ${ok ? 'PASS' : 'FAIL'}`);
   process.exitCode = ok ? 0 : 1;
   try { server.close(); } catch { /* ignore */ }
