@@ -2,9 +2,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    WebGPUDevice.cpp
- * @brief   WebGPU backend (REARCH_WGSL Phase 2): resources (slice 1) + live
- *          render path — surface, pass encoding, lazy pipelines, bind groups,
- *          draws (slice 2).
+ * @brief   WebGPU backend (REARCH_WGSL Phase 2): resources + the live render
+ *          path — surface, pass encoding with depth-stencil attachments, lazy
+ *          per-DS-shape pipelines, texture/sampler bind groups, draws, and the
+ *          internal clear-triangle emulations.
  */
 #include "WebGPUDevice.hpp"
 #include "WebGPUMappings.hpp"
@@ -23,6 +24,24 @@ WGPUStringView sv(const char* text) {
     view.data = text;
     view.length = text ? std::strlen(text) : 0;
     return view;
+}
+
+bool isDepthFormat(WGPUTextureFormat format) {
+    return format == WGPUTextureFormat_Depth24Plus ||
+           format == WGPUTextureFormat_Depth24PlusStencil8;
+}
+
+u32 dsVariantOf(WGPUTextureFormat format) {
+    if (format == WGPUTextureFormat_Undefined) return WebGPUDevice::kDsNone;
+    return hasStencilPlanes(format) ? WebGPUDevice::kDsDepthStencil : WebGPUDevice::kDsDepthOnly;
+}
+
+u8 packSamplerKey(TextureFilter minFilter, TextureFilter magFilter,
+                  TextureWrap wrapS, TextureWrap wrapT) {
+    return static_cast<u8>((minFilter == TextureFilter::Nearest ? 1u : 0u) |
+                           (magFilter == TextureFilter::Nearest ? 2u : 0u) |
+                           (static_cast<u32>(wrapS) << 2) |
+                           (static_cast<u32>(wrapT) << 4));
 }
 }  // namespace
 
@@ -56,15 +75,27 @@ void WebGPUDevice::shutdown() {
     programs_.clear();
     layouts_.clear();
     for (auto& [id, rec] : pipelines_) {
-        if (rec.pipeline) wgpuRenderPipelineRelease(rec.pipeline);
+        for (WGPURenderPipeline variant : rec.variants) {
+            if (variant) wgpuRenderPipelineRelease(variant);
+        }
     }
     pipelines_.clear();
     if (bind_group_) { wgpuBindGroupRelease(bind_group_); bind_group_ = nullptr; }
     if (texture_group_) { wgpuBindGroupRelease(texture_group_); texture_group_ = nullptr; }
     if (clear_bind_group_) { wgpuBindGroupRelease(clear_bind_group_); clear_bind_group_ = nullptr; }
-    if (clear_pipeline_) { wgpuRenderPipelineRelease(clear_pipeline_); clear_pipeline_ = nullptr; }
+    for (auto& [key, pipeline] : clear_pipelines_) {
+        if (pipeline) wgpuRenderPipelineRelease(pipeline);
+    }
+    clear_pipelines_.clear();
+    if (clear_layout_) { wgpuPipelineLayoutRelease(clear_layout_); clear_layout_ = nullptr; }
+    if (clear_bgl_) { wgpuBindGroupLayoutRelease(clear_bgl_); clear_bgl_ = nullptr; }
     framebuffers_.clear();
-    if (sampler_) { wgpuSamplerRelease(sampler_); sampler_ = nullptr; }
+    for (auto& [key, sampler] : samplers_) {
+        if (sampler) wgpuSamplerRelease(sampler);
+    }
+    samplers_.clear();
+    if (surface_depth_view_) { wgpuTextureViewRelease(surface_depth_view_); surface_depth_view_ = nullptr; }
+    if (surface_depth_texture_) { wgpuTextureRelease(surface_depth_texture_); surface_depth_texture_ = nullptr; }
     if (surface_) { wgpuSurfaceRelease(surface_); surface_ = nullptr; }
     if (instance_) { wgpuInstanceRelease(instance_); instance_ = nullptr; }
 }
@@ -105,7 +136,24 @@ bool WebGPUDevice::configureSurface(const char* selector, u32 width, u32 height)
     wgpuSurfaceConfigure(surface_, &cfg);
     surface_width_ = width;
     surface_height_ = height;
-    return true;
+
+    // The default target's companion depth-stencil planes — the WebGL canvas has
+    // them implicitly, and engine stencil masks / depth-tested draws target the
+    // backbuffer expecting both.
+    if (surface_depth_view_) { wgpuTextureViewRelease(surface_depth_view_); surface_depth_view_ = nullptr; }
+    if (surface_depth_texture_) { wgpuTextureRelease(surface_depth_texture_); surface_depth_texture_ = nullptr; }
+    WGPUTextureDescriptor dd{};
+    dd.dimension = WGPUTextureDimension_2D;
+    dd.format = WGPUTextureFormat_Depth24PlusStencil8;
+    dd.size = WGPUExtent3D{width, height, 1};
+    dd.mipLevelCount = 1;
+    dd.sampleCount = 1;
+    dd.usage = WGPUTextureUsage_RenderAttachment;
+    surface_depth_texture_ = wgpuDeviceCreateTexture(device_, &dd);
+    if (surface_depth_texture_) {
+        surface_depth_view_ = wgpuTextureCreateView(surface_depth_texture_, nullptr);
+    }
+    return surface_depth_view_ != nullptr;
 }
 
 void WebGPUDevice::stubOnce(const char* what) {
@@ -127,7 +175,20 @@ void WebGPUDevice::setViewport(i32 x, i32 y, u32 w, u32 h) {
     }
 }
 
-void WebGPUDevice::clearStencil(i32) { stubOnce("clearStencil (stencil-write quad)"); }
+void WebGPUDevice::clearStencil(i32 value) {
+    // Mid-pass stencil reset (mask rebuild) — the one clear that cannot restart
+    // the pass. Emulated with a stencil-write triangle under whatever scissor is
+    // currently active, matching GL's glClear-honors-scissor semantics.
+    if (!pass_) {
+        ES_LOG_WARN("WebGPUDevice::clearStencil: no active pass");
+        return;
+    }
+    if (!hasStencilPlanes(pass_ds_format_)) {
+        ES_LOG_WARN("WebGPUDevice::clearStencil: pass target has no stencil planes");
+        return;
+    }
+    drawInternalClear(false, false, true, nullptr, value, nullptr);
+}
 
 void WebGPUDevice::setScissorTest(bool enabled) {
     // WebGPU's scissor is always on; "disabled" = the full target rectangle.
@@ -283,8 +344,12 @@ TextureHandle WebGPUDevice::createTexture(const TextureDesc& desc, const void* p
     td.size = WGPUExtent3D{desc.width, desc.height, 1};
     td.mipLevelCount = 1;
     td.sampleCount = 1;
-    td.usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst |
-               WGPUTextureUsage_RenderAttachment;
+    // Depth-stencil textures are attachment-only: writeTexture cannot fill them
+    // and the engine never samples its depth attachments.
+    td.usage = isDepthFormat(td.format)
+                   ? WGPUTextureUsage_RenderAttachment
+                   : (WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst |
+                      WGPUTextureUsage_RenderAttachment);
 
     WGPUTexture texture = wgpuDeviceCreateTexture(device_, &td);
     if (!texture) {
@@ -294,9 +359,11 @@ TextureHandle WebGPUDevice::createTexture(const TextureDesc& desc, const void* p
 
     const u32 id = next_id_++;
     textures_[id] = TextureRec{texture, wgpuTextureCreateView(texture, nullptr),
-                               desc.width, desc.height};
+                               desc.width, desc.height, td.format,
+                               packSamplerKey(desc.minFilter, desc.magFilter,
+                                              desc.wrapS, desc.wrapT)};
 
-    if (pixels) {
+    if (pixels && !isDepthFormat(td.format)) {
         updateTexture(TextureHandle{id}, 0, 0, desc.width, desc.height, pixels, false);
     }
     return TextureHandle{id};
@@ -327,6 +394,10 @@ void WebGPUDevice::updateTexture(TextureHandle texture, i32 x, i32 y, u32 width,
                                  const void* pixels, bool flipY) {
     auto it = textures_.find(static_cast<u32>(texture));
     if (it == textures_.end() || !pixels || !queue_) return;
+    if (isDepthFormat(it->second.format)) {
+        ES_LOG_ERROR("WebGPUDevice::updateTexture: depth-stencil textures are attachment-only");
+        return;
+    }
     if (flipY) {
         // The GL backend flips via UNPACK_FLIP_Y_WEBGL; WebGPU has no upload flip.
         // Slice 2 decides the single flip point (CPU pre-flip at the loader).
@@ -346,11 +417,21 @@ void WebGPUDevice::updateTexture(TextureHandle texture, i32 x, i32 y, u32 width,
                           static_cast<usize>(width) * height * 4, &layout, &extent);
 }
 
-void WebGPUDevice::setTextureParams(TextureHandle, TextureFilter, TextureFilter,
-                                    TextureWrap, TextureWrap) {
-    // Sampler state is a bind-group object on WebGPU, not texture state; the
-    // sampler cache keyed by (filter, wrap) lands with bind groups in slice 2.
-    stubOnce("setTextureParams (sampler objects)");
+void WebGPUDevice::setTextureParams(TextureHandle texture, TextureFilter minFilter,
+                                    TextureFilter magFilter, TextureWrap wrapS, TextureWrap wrapT) {
+    // GL's texture-object sampler state, de-combined: the texture record carries
+    // its params key and the bind group pairs it with a cached sampler object.
+    auto it = textures_.find(static_cast<u32>(texture));
+    if (it == textures_.end()) return;
+    const u8 key = packSamplerKey(minFilter, magFilter, wrapS, wrapT);
+    if (it->second.samplerKey == key) return;
+    it->second.samplerKey = key;
+    for (u32 slot = 0; slot < kTextureSlots; ++slot) {
+        if (texture_slots_[slot] == it->first) {
+            bind_group_dirty_ = true;
+            break;
+        }
+    }
 }
 
 void WebGPUDevice::generateMipmaps(TextureHandle) { stubOnce("generateMipmaps"); }
@@ -402,6 +483,10 @@ ShaderHandle WebGPUDevice::createProgram(const GfxShaderSource& source,
     ProgramRec rec{};
     rec.vertex = makeModule(source.vertexSrc);
     rec.fragment = makeModule(source.fragmentSrc);
+    // Group 1 is the texture set by engine convention; a program that never
+    // spells it must never have the group bound (auto layouts omit it).
+    rec.usesTextureGroup = (source.fragmentSrc && std::strstr(source.fragmentSrc, "@group(1)")) ||
+                           (source.vertexSrc && std::strstr(source.vertexSrc, "@group(1)"));
     if (!rec.vertex || !rec.fragment) {
         if (rec.vertex) wgpuShaderModuleRelease(rec.vertex);
         if (rec.fragment) wgpuShaderModuleRelease(rec.fragment);
@@ -447,8 +532,8 @@ u32 WebGPUDevice::getUniformBlockIndex(ShaderHandle, const char*) {
 void WebGPUDevice::uniformBlockBinding(ShaderHandle, u32, u32) {}
 
 // =============================================================================
-// Pipelines (descriptors retained; WGPURenderPipeline builds in slice 2 where
-// bind-group layouts exist)
+// Pipelines (descriptors retained; WGPURenderPipeline built lazily per pass
+// depth-stencil shape — WebGPU validates that coupling, GL never had it)
 // =============================================================================
 
 PipelineHandle WebGPUDevice::createPipeline(const PipelineDesc& desc) {
@@ -457,14 +542,15 @@ PipelineHandle WebGPUDevice::createPipeline(const PipelineDesc& desc) {
         if (rec.desc == desc) return static_cast<PipelineHandle>(id);
     }
     const u32 id = next_id_++;
-    pipelines_[id] = PipelineRec{desc, nullptr};
+    pipelines_[id] = PipelineRec{desc, {}};
     return static_cast<PipelineHandle>(id);
 }
 
 WGPURenderPipeline WebGPUDevice::ensurePipeline(u32 id) {
     auto it = pipelines_.find(id);
     if (it == pipelines_.end() || !device_) return nullptr;
-    if (it->second.pipeline) return it->second.pipeline;
+    const u32 variant = dsVariantOf(pass_ds_format_);
+    if (it->second.variants[variant]) return it->second.variants[variant];
 
     const PipelineDesc& desc = it->second.desc;
     auto progIt = programs_.find(static_cast<u32>(desc.program));
@@ -527,17 +613,20 @@ WGPURenderPipeline WebGPUDevice::ensurePipeline(u32 id) {
     pd.multisample.count = 1;
     pd.multisample.mask = 0xFFFFFFFFu;
     pd.fragment = &fragment;
-    // Bring-up passes carry no depth/stencil attachment; the depth/stencil
-    // pipeline states join when the surface gains a depth buffer (slice 3).
-    if (desc.depthTest || desc.stencil != GfxStencilMode::Off) {
-        stubOnce("depth/stencil pipeline state");
+    WGPUDepthStencilState ds{};
+    if (variant != kDsNone) {
+        ds = toWGPUDepthStencil(desc, pass_ds_format_);
+        pd.depthStencil = &ds;
+    } else if (desc.depthTest || desc.stencil != GfxStencilMode::Off) {
+        ES_LOG_WARN("WebGPUDevice::ensurePipeline: depth/stencil requested but the "
+                    "pass target has no depth-stencil attachment");
     }
 
-    it->second.pipeline = wgpuDeviceCreateRenderPipeline(device_, &pd);
-    if (!it->second.pipeline) {
+    it->second.variants[variant] = wgpuDeviceCreateRenderPipeline(device_, &pd);
+    if (!it->second.variants[variant]) {
         ES_LOG_ERROR("WebGPUDevice::ensurePipeline: creation failed");
     }
-    return it->second.pipeline;
+    return it->second.variants[variant];
 }
 
 void WebGPUDevice::setPipeline(PipelineHandle pipeline) {
@@ -551,83 +640,87 @@ void WebGPUDevice::setPipeline(PipelineHandle pipeline) {
 }
 
 void WebGPUDevice::setStencilReference(i32 reference) {
+    stencil_ref_ = reference;
     if (pass_) wgpuRenderPassEncoderSetStencilReference(pass_, static_cast<u32>(reference));
 }
 
 void WebGPUDevice::invalidatePipelineCache() {}
 
-WGPUSampler WebGPUDevice::defaultSampler() {
-    if (!sampler_ && device_) {
-        // Bring-up default: linear filtering, clamped — per-texture sampler state
-        // (setTextureParams) becomes a keyed sampler cache in a later slice.
-        WGPUSamplerDescriptor sd{};
-        sd.addressModeU = WGPUAddressMode_ClampToEdge;
-        sd.addressModeV = WGPUAddressMode_ClampToEdge;
-        sd.addressModeW = WGPUAddressMode_ClampToEdge;
-        sd.magFilter = WGPUFilterMode_Linear;
-        sd.minFilter = WGPUFilterMode_Linear;
-        sd.mipmapFilter = WGPUMipmapFilterMode_Nearest;
-        sd.lodMinClamp = 0.0f;
-        sd.lodMaxClamp = 32.0f;
-        sd.maxAnisotropy = 1;
-        sampler_ = wgpuDeviceCreateSampler(device_, &sd);
-    }
-    return sampler_;
+WGPUSampler WebGPUDevice::samplerFor(u8 key) {
+    auto it = samplers_.find(key);
+    if (it != samplers_.end()) return it->second;
+    if (!device_) return nullptr;
+
+    WGPUSamplerDescriptor sd{};
+    sd.minFilter = (key & 1u) ? WGPUFilterMode_Nearest : WGPUFilterMode_Linear;
+    sd.magFilter = (key & 2u) ? WGPUFilterMode_Nearest : WGPUFilterMode_Linear;
+    sd.addressModeU = toWGPUAddressMode(static_cast<TextureWrap>((key >> 2) & 3u));
+    sd.addressModeV = toWGPUAddressMode(static_cast<TextureWrap>((key >> 4) & 3u));
+    sd.addressModeW = WGPUAddressMode_ClampToEdge;
+    // Every texture is single-mip today (generateMipmaps pending), so the mip
+    // filter never engages; Nearest mirrors GL's non-mipmapped min filters.
+    sd.mipmapFilter = WGPUMipmapFilterMode_Nearest;
+    sd.lodMinClamp = 0.0f;
+    sd.lodMaxClamp = 32.0f;
+    sd.maxAnisotropy = 1;
+    WGPUSampler sampler = wgpuDeviceCreateSampler(device_, &sd);
+    samplers_[key] = sampler;
+    return sampler;
 }
 
-void WebGPUDevice::clearQuad(const RenderPassDesc& desc) {
-    if (!pass_ || !device_) return;
+// =============================================================================
+// Internal clear family — the two clears WebGPU load-ops cannot spell: a
+// region-scoped pass clear and a mid-pass stencil reset. A fullscreen triangle
+// at z=1 (GL's clear depth) writes exactly the attachments requested: color via
+// the write mask, depth via depthWriteEnabled + Always, stencil via
+// Replace + the encoder's stencil reference.
+// =============================================================================
 
-    // Lazy internal pipeline: a vertex-index fullscreen triangle, color from a
-    // tiny internal UBO at group 0 binding 0. No vertex buffers, no user state.
-    if (!clear_pipeline_) {
-        static const char* kClearVS = R"(
+WGPURenderPipeline WebGPUDevice::ensureClearPipeline(bool color, bool depth, bool stencil) {
+    const u32 key = dsVariantOf(pass_ds_format_) << 3 |
+                    (color ? 1u : 0u) | (depth ? 2u : 0u) | (stencil ? 4u : 0u);
+    auto it = clear_pipelines_.find(key);
+    if (it != clear_pipelines_.end()) return it->second;
+
+    static const char* kClearVS = R"(
 @vertex fn vs_main(@builtin(vertex_index) i : u32) -> @builtin(position) vec4f {
     var p = array<vec2f, 3>(vec2f(-1.0, -3.0), vec2f(3.0, 1.0), vec2f(-1.0, 1.0));
-    return vec4f(p[i], 0.0, 1.0);
+    return vec4f(p[i], 1.0, 1.0);
 }
 )";
-        static const char* kClearFS = R"(
+    static const char* kClearFS = R"(
 struct ClearColor { value : vec4f };
 @group(0) @binding(0) var<uniform> clearColor : ClearColor;
 @fragment fn fs_main() -> @location(0) vec4f { return clearColor.value; }
 )";
-        auto makeModule = [&](const char* code) {
-            WGPUShaderSourceWGSL wgsl{};
-            wgsl.chain.sType = WGPUSType_ShaderSourceWGSL;
-            wgsl.code = sv(code);
-            WGPUShaderModuleDescriptor md{};
-            md.nextInChain = &wgsl.chain;
-            return wgpuDeviceCreateShaderModule(device_, &md);
-        };
-        WGPUShaderModule vs = makeModule(kClearVS);
-        WGPUShaderModule fs = makeModule(kClearFS);
+    auto makeModule = [&](const char* code) {
+        WGPUShaderSourceWGSL wgsl{};
+        wgsl.chain.sType = WGPUSType_ShaderSourceWGSL;
+        wgsl.code = sv(code);
+        WGPUShaderModuleDescriptor md{};
+        md.nextInChain = &wgsl.chain;
+        return wgpuDeviceCreateShaderModule(device_, &md);
+    };
 
-        WGPUColorTargetState target{};
-        target.format = surface_format_;
-        target.writeMask = WGPUColorWriteMask_All;
+    // One explicit layout for the whole family, so the single bind group is
+    // valid with every write-mask variant (auto layouts are per-pipeline).
+    if (!clear_bgl_) {
+        WGPUBindGroupLayoutEntry ble{};
+        ble.binding = 0;
+        ble.visibility = WGPUShaderStage_Fragment;
+        ble.buffer.type = WGPUBufferBindingType_Uniform;
+        ble.buffer.minBindingSize = 16;
+        WGPUBindGroupLayoutDescriptor bld{};
+        bld.entryCount = 1;
+        bld.entries = &ble;
+        clear_bgl_ = wgpuDeviceCreateBindGroupLayout(device_, &bld);
 
-        WGPUFragmentState fragment{};
-        fragment.module = fs;
-        fragment.entryPoint = sv("fs_main");
-        fragment.targetCount = 1;
-        fragment.targets = &target;
-
-        WGPURenderPipelineDescriptor pd{};
-        pd.vertex.module = vs;
-        pd.vertex.entryPoint = sv("vs_main");
-        pd.primitive.topology = WGPUPrimitiveTopology_TriangleList;
-        pd.primitive.frontFace = WGPUFrontFace_CCW;
-        pd.primitive.cullMode = WGPUCullMode_None;
-        pd.multisample.count = 1;
-        pd.multisample.mask = 0xFFFFFFFFu;
-        pd.fragment = &fragment;
-        clear_pipeline_ = wgpuDeviceCreateRenderPipeline(device_, &pd);
-        wgpuShaderModuleRelease(vs);
-        wgpuShaderModuleRelease(fs);
+        WGPUPipelineLayoutDescriptor pld{};
+        pld.bindGroupLayoutCount = 1;
+        pld.bindGroupLayouts = &clear_bgl_;
+        clear_layout_ = wgpuDeviceCreatePipelineLayout(device_, &pld);
 
         clear_color_ubo_ = createBuffer({GfxBufferUsage::Uniform, 16, true}, nullptr);
-
         auto uboIt = buffers_.find(static_cast<u32>(clear_color_ubo_));
         WGPUBindGroupEntry entry{};
         entry.binding = 0;
@@ -635,24 +728,92 @@ struct ClearColor { value : vec4f };
         entry.offset = 0;
         entry.size = 16;
         WGPUBindGroupDescriptor bgd{};
-        bgd.layout = wgpuRenderPipelineGetBindGroupLayout(clear_pipeline_, 0);
+        bgd.layout = clear_bgl_;
         bgd.entryCount = 1;
         bgd.entries = &entry;
         clear_bind_group_ = wgpuDeviceCreateBindGroup(device_, &bgd);
-        if (bgd.layout) wgpuBindGroupLayoutRelease(bgd.layout);
     }
-    if (!clear_pipeline_ || !clear_bind_group_) return;
 
-    updateBuffer(clear_color_ubo_, 0, desc.clearColorValue, 16);
+    WGPUShaderModule vs = makeModule(kClearVS);
+    WGPUShaderModule fs = makeModule(kClearFS);
 
-    wgpuRenderPassEncoderSetScissorRect(pass_, static_cast<u32>(desc.clearX),
-                                        static_cast<u32>(desc.clearY), desc.clearW, desc.clearH);
-    wgpuRenderPassEncoderSetPipeline(pass_, clear_pipeline_);
+    WGPUColorTargetState target{};
+    target.format = surface_format_;
+    target.writeMask = color ? WGPUColorWriteMask_All : WGPUColorWriteMask_None;
+
+    WGPUFragmentState fragment{};
+    fragment.module = fs;
+    fragment.entryPoint = sv("fs_main");
+    fragment.targetCount = 1;
+    fragment.targets = &target;
+
+    WGPURenderPipelineDescriptor pd{};
+    pd.layout = clear_layout_;
+    pd.vertex.module = vs;
+    pd.vertex.entryPoint = sv("vs_main");
+    pd.primitive.topology = WGPUPrimitiveTopology_TriangleList;
+    pd.primitive.frontFace = WGPUFrontFace_CCW;
+    pd.primitive.cullMode = WGPUCullMode_None;
+    pd.multisample.count = 1;
+    pd.multisample.mask = 0xFFFFFFFFu;
+    pd.fragment = &fragment;
+
+    WGPUDepthStencilState ds{};
+    if (pass_ds_format_ != WGPUTextureFormat_Undefined) {
+        ds.format = pass_ds_format_;
+        ds.depthCompare = WGPUCompareFunction_Always;
+        ds.depthWriteEnabled = depth ? WGPUOptionalBool_True : WGPUOptionalBool_False;
+        WGPUStencilFaceState face{};
+        face.compare = WGPUCompareFunction_Always;
+        face.failOp = stencil ? WGPUStencilOperation_Replace : WGPUStencilOperation_Keep;
+        face.depthFailOp = face.failOp;
+        face.passOp = face.failOp;
+        ds.stencilFront = face;
+        ds.stencilBack = face;
+        ds.stencilReadMask = 0xFFu;
+        ds.stencilWriteMask = stencil ? 0xFFu : 0x00u;
+        pd.depthStencil = &ds;
+    }
+
+    WGPURenderPipeline pipeline = wgpuDeviceCreateRenderPipeline(device_, &pd);
+    wgpuShaderModuleRelease(vs);
+    wgpuShaderModuleRelease(fs);
+    clear_pipelines_[key] = pipeline;
+    return pipeline;
+}
+
+void WebGPUDevice::drawInternalClear(bool color, bool depth, bool stencil,
+                                     const f32 rgba[4], i32 stencilValue,
+                                     const RenderPassDesc* region) {
+    if (!pass_ || !device_) return;
+    WGPURenderPipeline pipeline = ensureClearPipeline(color, depth, stencil);
+    if (!pipeline || !clear_bind_group_) return;
+
+    const f32 black[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    updateBuffer(clear_color_ubo_, 0, rgba ? rgba : black, 16);
+
+    // A region rides its own scissor and restores the full target; without one
+    // (mid-pass stencil reset) the currently active scissor applies — the same
+    // rectangle glClear would have honored.
+    if (region) {
+        wgpuRenderPassEncoderSetScissorRect(pass_, static_cast<u32>(region->clearX),
+                                            static_cast<u32>(region->clearY),
+                                            region->clearW, region->clearH);
+    }
+    wgpuRenderPassEncoderSetPipeline(pass_, pipeline);
     wgpuRenderPassEncoderSetBindGroup(pass_, 0, clear_bind_group_, 0, nullptr);
+    if (stencil) {
+        wgpuRenderPassEncoderSetStencilReference(pass_, static_cast<u32>(stencilValue));
+    }
     wgpuRenderPassEncoderDraw(pass_, 3, 1, 0, 0);
-    wgpuRenderPassEncoderSetScissorRect(pass_, 0, 0, pass_width_, pass_height_);
+    if (region) {
+        wgpuRenderPassEncoderSetScissorRect(pass_, 0, 0, pass_width_, pass_height_);
+    }
+    if (stencil) {
+        wgpuRenderPassEncoderSetStencilReference(pass_, static_cast<u32>(stencil_ref_));
+    }
 
-    // The clear-quad clobbered pipeline/bind-group pass state; force the next
+    // The triangle clobbered pipeline/bind-group pass state; force the next
     // user draw to re-establish everything.
     current_pipeline_ = 0;
     bind_group_dirty_ = true;
@@ -694,30 +855,39 @@ void WebGPUDevice::flushBindGroup() {
     if (bind_group_) wgpuRenderPassEncoderSetBindGroup(pass_, 0, bind_group_, 0, nullptr);
 
     // Group 1: the texture units. The WGSL twin convention is 8 texture_2d at
-    // bindings 0..7 + one shared sampler at binding 8 (the batch shader's
-    // u_textures[8]). Unused slots repeat slot 0's view — the same trick
-    // DrawList::execute uses for WebGL2's complete-texture rule. Only set when
-    // the pass bound textures, so sampler-less shaders keep a group-0-only layout.
-    if (any_texture_bound_) {
-        WGPUTextureView slot0 = nullptr;
+    // bindings 0..7 paired with 8 samplers at bindings 8..15 (the batch shader's
+    // u_textures[8], de-combined: sampler i carries texture i's filter/wrap
+    // params via the sampler cache). Unused slots repeat slot 0's view/sampler —
+    // the same trick DrawList::execute uses for WebGL2's complete-texture rule.
+    // Only set when the pass bound textures AND the current program declares the
+    // group — a sampler-less shader (shape) drawn after textured ones must keep
+    // its group-0-only layout.
+    bool wantsTextures = false;
+    if (auto pipeIt = pipelines_.find(current_pipeline_); pipeIt != pipelines_.end()) {
+        auto progIt = programs_.find(static_cast<u32>(pipeIt->second.desc.program));
+        wantsTextures = progIt != programs_.end() && progIt->second.usesTextureGroup;
+    }
+    if (any_texture_bound_ && wantsTextures) {
+        const TextureRec* slot0 = nullptr;
         for (u32 slot = 0; slot < kTextureSlots && !slot0; ++slot) {
             auto it = textures_.find(texture_slots_[slot]);
-            if (it != textures_.end()) slot0 = it->second.view;
+            if (it != textures_.end()) slot0 = &it->second;
         }
         if (slot0) {
-            WGPUBindGroupEntry texEntries[kTextureSlots + 1] = {};
+            WGPUBindGroupEntry texEntries[kTextureSlots * 2] = {};
             for (u32 slot = 0; slot < kTextureSlots; ++slot) {
                 auto it = textures_.find(texture_slots_[slot]);
+                const TextureRec& rec = (it != textures_.end()) ? it->second : *slot0;
                 texEntries[slot].binding = slot;
-                texEntries[slot].textureView = (it != textures_.end()) ? it->second.view : slot0;
+                texEntries[slot].textureView = rec.view;
+                texEntries[kTextureSlots + slot].binding = kTextureSlots + slot;
+                texEntries[kTextureSlots + slot].sampler = samplerFor(rec.samplerKey);
             }
-            texEntries[kTextureSlots].binding = kTextureSlots;
-            texEntries[kTextureSlots].sampler = defaultSampler();
 
             if (texture_group_) { wgpuBindGroupRelease(texture_group_); texture_group_ = nullptr; }
             WGPUBindGroupDescriptor tgd{};
             tgd.layout = wgpuRenderPipelineGetBindGroupLayout(p, 1);
-            tgd.entryCount = kTextureSlots + 1;
+            tgd.entryCount = kTextureSlots * 2;
             tgd.entries = texEntries;
             texture_group_ = wgpuDeviceCreateBindGroup(device_, &tgd);
             if (tgd.layout) wgpuBindGroupLayoutRelease(tgd.layout);
@@ -765,7 +935,10 @@ FramebufferHandle WebGPUDevice::createFramebuffer(const FramebufferDesc& desc) {
     FramebufferRec rec{};
     rec.color0 = static_cast<u32>(desc.color0);
     rec.depthStencil = static_cast<u32>(desc.depthStencil);
-    if (rec.depthStencil != 0) stubOnce("framebuffer depth/stencil attachment");
+    if (rec.depthStencil != 0 && !textures_.count(rec.depthStencil)) {
+        ES_LOG_ERROR("WebGPUDevice::createFramebuffer: unknown depth-stencil texture");
+        return FramebufferHandle::Default;
+    }
     // Framebuffer ids share the Default==0 namespace with the surface, so they
     // come from their own counter offset well clear of it.
     const u32 id = 0x40000000u + next_framebuffer_id_++;
@@ -782,6 +955,8 @@ void WebGPUDevice::beginRenderPass(const RenderPassDesc& desc) {
     if (pass_) endRenderPass();  // defensive: a dangling pass would deadlock the queue
 
     WGPUTextureView targetView = nullptr;
+    WGPUTextureView dsView = nullptr;
+    pass_ds_format_ = WGPUTextureFormat_Undefined;
     if (desc.target != FramebufferHandle::Default) {
         auto fbIt = framebuffers_.find(static_cast<u32>(desc.target));
         if (fbIt == framebuffers_.end()) {
@@ -796,6 +971,13 @@ void WebGPUDevice::beginRenderPass(const RenderPassDesc& desc) {
         targetView = texIt->second.view;
         pass_width_ = texIt->second.width;
         pass_height_ = texIt->second.height;
+        if (fbIt->second.depthStencil != 0) {
+            auto dsIt = textures_.find(fbIt->second.depthStencil);
+            if (dsIt != textures_.end()) {
+                dsView = dsIt->second.view;
+                pass_ds_format_ = dsIt->second.format;
+            }
+        }
     } else {
         if (!surface_) {
             ES_LOG_ERROR("WebGPUDevice::beginRenderPass: no surface configured");
@@ -814,6 +996,8 @@ void WebGPUDevice::beginRenderPass(const RenderPassDesc& desc) {
         targetView = frame_view_;
         pass_width_ = surface_width_;
         pass_height_ = surface_height_;
+        dsView = surface_depth_view_;
+        pass_ds_format_ = WGPUTextureFormat_Depth24PlusStencil8;
     }
 
     encoder_ = wgpuDeviceCreateCommandEncoder(device_, nullptr);
@@ -829,12 +1013,30 @@ void WebGPUDevice::beginRenderPass(const RenderPassDesc& desc) {
     WGPURenderPassDescriptor rp{};
     rp.colorAttachmentCount = 1;
     rp.colorAttachments = &color;
+
+    WGPURenderPassDepthStencilAttachment ds{};
+    if (dsView) {
+        ds.view = dsView;
+        ds.depthLoadOp = toWGPULoadOp(desc.clearDepth, scoped);
+        ds.depthStoreOp = WGPUStoreOp_Store;
+        ds.depthClearValue = 1.0f;  // GL's default clear depth; no RHI override exists
+        if (hasStencilPlanes(pass_ds_format_)) {
+            ds.stencilLoadOp = toWGPULoadOp(desc.clearStencil, scoped);
+            ds.stencilStoreOp = WGPUStoreOp_Store;
+            ds.stencilClearValue = static_cast<u32>(desc.clearStencilValue);
+        }
+        rp.depthStencilAttachment = &ds;
+    }
     pass_ = wgpuCommandEncoderBeginRenderPass(encoder_, &rp);
     bind_group_dirty_ = true;
+    stencil_ref_ = 0;  // a fresh pass encoder resets its stencil reference
 
-    // Region-scoped clear = load + scissored clear-quad, per the RHI contract.
-    if (desc.clearColor && scoped) {
-        clearQuad(desc);
+    // Region-scoped clear = load + scissored clear-triangle, per the RHI
+    // contract — for every attachment the desc asks to clear.
+    if (scoped && (desc.clearColor || desc.clearDepth || desc.clearStencil)) {
+        drawInternalClear(desc.clearColor, desc.clearDepth && dsView,
+                          desc.clearStencil && hasStencilPlanes(pass_ds_format_),
+                          desc.clearColorValue, desc.clearStencilValue, &desc);
     }
     // Each pass starts textureless: group 1 only attaches to pipelines whose
     // draws bind textures (the engine rebinds per draw), never to sampler-less

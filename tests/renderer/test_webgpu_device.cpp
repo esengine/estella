@@ -66,6 +66,40 @@ TEST_CASE("stencil modes translate to the same table GLDevice applies") {
     auto test = toWGPUStencilFace(GfxStencilMode::Test);
     CHECK(test.compare == WGPUCompareFunction_Equal);
     CHECK(test.passOp == WGPUStencilOperation_Keep);
+
+    // The applyStencilMode mask table: Write fills, Test reads only.
+    CHECK(toWGPUStencilWriteMask(GfxStencilMode::Write) == 0xFFu);
+    CHECK(toWGPUStencilWriteMask(GfxStencilMode::Test) == 0x00u);
+    CHECK(toWGPUStencilWriteMask(GfxStencilMode::Off) == 0x00u);
+}
+
+TEST_CASE("pipeline depth-stencil state carries GL semantics exactly") {
+    // GL: a disabled depth test neither compares nor writes — even when the
+    // pipeline asks for depth writes (glDepthMask is inert without the test).
+    PipelineDesc off{};
+    off.depthTest = false;
+    off.depthWrite = true;
+    auto dsOff = toWGPUDepthStencil(off, WGPUTextureFormat_Depth24PlusStencil8);
+    CHECK(dsOff.format == WGPUTextureFormat_Depth24PlusStencil8);
+    CHECK(dsOff.depthCompare == WGPUCompareFunction_Always);
+    CHECK(dsOff.depthWriteEnabled == WGPUOptionalBool_False);
+
+    // GL never calls glDepthFunc, so an enabled test compares with the default Less.
+    PipelineDesc on{};
+    on.depthTest = true;
+    on.depthWrite = true;
+    on.stencil = GfxStencilMode::Write;
+    auto dsOn = toWGPUDepthStencil(on, WGPUTextureFormat_Depth24Plus);
+    CHECK(dsOn.depthCompare == WGPUCompareFunction_Less);
+    CHECK(dsOn.depthWriteEnabled == WGPUOptionalBool_True);
+    CHECK(dsOn.stencilFront.passOp == WGPUStencilOperation_Replace);
+    CHECK(dsOn.stencilBack.passOp == WGPUStencilOperation_Replace);
+    CHECK(dsOn.stencilWriteMask == 0xFFu);
+
+    // Stencil-plane detection drives whether a pass may spell stencil load-ops.
+    CHECK(hasStencilPlanes(WGPUTextureFormat_Depth24PlusStencil8));
+    CHECK(!hasStencilPlanes(WGPUTextureFormat_Depth24Plus));
+    CHECK(!hasStencilPlanes(WGPUTextureFormat_Undefined));
 }
 
 TEST_CASE("pass load-ops: full-target clear is a real load-op, a scoped clear is not") {

@@ -1,169 +1,48 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  WebGPU bring-up (REARCH_WGSL Phase 2 slices 2+3) — NOT a doctest harness.
+ * @file  WebGPU bring-up (REARCH_WGSL Phase 2) — NOT a doctest harness.
  *
  * A browser-run program: the host page acquires a GPUDevice (navigator.gpu) and
  * hands it over via Module.preinitializedWebGPUDevice; this program then drives
  * the REAL WebGPUDevice through the same RHI calls the engine's render path
- * makes. Each frame is THREE passes:
- *   A. offscreen: a framebuffer over a small texture, load-op cleared green —
- *      the right quad then SAMPLES this rendered target (slice 4)
- *   B. main: both engine shader twins in one pass — pipeline switch +
- *      bind-group rebuild included (shape circle, slice 2; batch quads with
- *      per-vertex sampler-slot selection, slice 3)
- *   C. region-scoped clear: a second pass on the surface whose RenderPassDesc
- *      carries a clear REGION — the load-op contract's WebGPU emulation
- *      (load + scissored clear-quad) paints a yellow square (slice 4)
+ * makes, with the engine's WGSL twins (WGSLTwins.hpp). Each frame is THREE
+ * passes:
+ *   A. offscreen: a framebuffer with color + depth-stencil attachments, all
+ *      load-op cleared (color green) — the right batch quad then SAMPLES the
+ *      rendered color target
+ *   B. main (the surface + its companion depth-stencil):
+ *      act 1  shape twin — magenta SDF circle
+ *      act 2  batch twin — two quads in one draw with per-vertex sampler-slot
+ *             selection; slot 0 is a 2x2 checker sampled NEAREST (the sampler
+ *             cache assert: linear would blend the texels), slot 1 the
+ *             offscreen render
+ *      act 3  stencil mask — a Write-mode rect stamps ref 1, an oversized
+ *             Test-mode cyan rect lands only inside it; then a MID-PASS
+ *             clearStencil(0) (the stencil-write triangle emulation) and a
+ *             second Test-mode rect that must stay invisible
+ *   C. region-scoped clear: a surface pass whose RenderPassDesc carries a clear
+ *      REGION — the load-op contract's WebGPU emulation paints a yellow square
  * The electron runner (desktop/scripts/webgpu-bringup.mjs) asserts the pixels.
  */
 #include "esengine/renderer/webgpu/WebGPUDevice.hpp"
+#include "esengine/renderer/webgpu/WGSLTwins.hpp"
 
 #include <emscripten.h>
 #include <emscripten/html5.h>
 
+#include <array>
 #include <cstdio>
 
 using namespace esengine;
-
-// WGSL twin of src/esengine/data/shaders/shape.esshader — same attribute
-// locations (Shape layout 0..3), same FrameConstants block (UBO binding 0),
-// same SDF math line for line. `v` instead of `in` (a WGSL reserved word).
-static const char* kShapeWGSL_Vertex = R"(
-struct FrameConstants { projection : mat4x4f };
-@group(0) @binding(0) var<uniform> frame : FrameConstants;
-
-struct VSIn {
-    @location(0) position : vec2f,
-    @location(1) uv : vec2f,
-    @location(2) color : vec4f,
-    @location(3) shapeInfo : vec4f,
-};
-struct VSOut {
-    @builtin(position) pos : vec4f,
-    @location(0) uv : vec2f,
-    @location(1) color : vec4f,
-    @location(2) shapeInfo : vec4f,
-};
-
-@vertex fn vs_main(v : VSIn) -> VSOut {
-    var out : VSOut;
-    out.pos = frame.projection * vec4f(v.position, 0.0, 1.0);
-    out.uv = v.uv;
-    out.color = v.color;
-    out.shapeInfo = v.shapeInfo;
-    return out;
-}
-)";
-
-static const char* kShapeWGSL_Fragment = R"(
-struct VSOut {
-    @builtin(position) pos : vec4f,
-    @location(0) uv : vec2f,
-    @location(1) color : vec4f,
-    @location(2) shapeInfo : vec4f,
-};
-
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let halfSize = v.shapeInfo.yz;
-    let cornerRadius = v.shapeInfo.w;
-    let p = v.uv * halfSize;
-    let shapeType = v.shapeInfo.x;
-
-    var dist : f32;
-    if (shapeType < 0.5) {
-        let r = min(halfSize.x, halfSize.y);
-        dist = length(p) - r;
-    } else if (shapeType < 1.5) {
-        let r = min(halfSize.x, halfSize.y);
-        let elongation = halfSize - vec2f(r, r);
-        let q = abs(p) - elongation;
-        dist = length(max(q, vec2f(0.0, 0.0))) - r;
-    } else {
-        let r = min(cornerRadius, min(halfSize.x, halfSize.y));
-        let q = abs(p) - halfSize + vec2f(r, r);
-        dist = length(max(q, vec2f(0.0, 0.0))) + min(max(q.x, q.y), 0.0) - r;
-    }
-
-    let fw = fwidth(dist);
-    let alpha = 1.0 - smoothstep(-fw, fw, dist);
-    if (alpha < 0.001) { discard; }
-    return vec4f(v.color.rgb, v.color.a * alpha);
-}
-)";
-
-// WGSL twin of the batch shader's DEFAULT variant (batch.esshader): Batch layout
-// attributes 0..3 (pos, unorm8x4 color, uv, texIndex), FrameConstants at group 0,
-// and the multi-texture set as bind group 1 — 8 texture_2d at bindings 0..7 plus
-// one shared sampler at binding 8 (the WGSL spelling of u_textures[8]).
-// textureSampleLevel(…, 0) keeps sampling uniform-flow-legal inside the branch
-// chain; 2D sprites sample mip 0 (the mipped path is a phase-3 topic).
-static const char* kBatchWGSL_Vertex = R"(
-struct FrameConstants { projection : mat4x4f };
-@group(0) @binding(0) var<uniform> frame : FrameConstants;
-
-struct VSIn {
-    @location(0) position : vec2f,
-    @location(1) color : vec4f,
-    @location(2) uv : vec2f,
-    @location(3) texIndex : f32,
-};
-struct VSOut {
-    @builtin(position) pos : vec4f,
-    @location(0) color : vec4f,
-    @location(1) uv : vec2f,
-    @location(2) texIndex : f32,
-};
-
-@vertex fn vs_main(v : VSIn) -> VSOut {
-    var out : VSOut;
-    out.pos = frame.projection * vec4f(v.position, 0.0, 1.0);
-    out.color = v.color;
-    out.uv = v.uv;
-    out.texIndex = v.texIndex;
-    return out;
-}
-)";
-
-static const char* kBatchWGSL_Fragment = R"(
-@group(1) @binding(0) var t0 : texture_2d<f32>;
-@group(1) @binding(1) var t1 : texture_2d<f32>;
-@group(1) @binding(2) var t2 : texture_2d<f32>;
-@group(1) @binding(3) var t3 : texture_2d<f32>;
-@group(1) @binding(4) var t4 : texture_2d<f32>;
-@group(1) @binding(5) var t5 : texture_2d<f32>;
-@group(1) @binding(6) var t6 : texture_2d<f32>;
-@group(1) @binding(7) var t7 : texture_2d<f32>;
-@group(1) @binding(8) var samp : sampler;
-
-struct VSOut {
-    @builtin(position) pos : vec4f,
-    @location(0) color : vec4f,
-    @location(1) uv : vec2f,
-    @location(2) texIndex : f32,
-};
-
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let idx = i32(v.texIndex + 0.5);
-    var c : vec4f;
-    if (idx == 0) { c = textureSampleLevel(t0, samp, v.uv, 0.0); }
-    else if (idx == 1) { c = textureSampleLevel(t1, samp, v.uv, 0.0); }
-    else if (idx == 2) { c = textureSampleLevel(t2, samp, v.uv, 0.0); }
-    else if (idx == 3) { c = textureSampleLevel(t3, samp, v.uv, 0.0); }
-    else if (idx == 4) { c = textureSampleLevel(t4, samp, v.uv, 0.0); }
-    else if (idx == 5) { c = textureSampleLevel(t5, samp, v.uv, 0.0); }
-    else if (idx == 6) { c = textureSampleLevel(t6, samp, v.uv, 0.0); }
-    else { c = textureSampleLevel(t7, samp, v.uv, 0.0); }
-    return c * v.color;
-}
-)";
 
 namespace {
 
 WebGPUDevice* g_device = nullptr;
 PipelineHandle g_shapePipeline{}, g_batchPipeline{};
-BufferHandle g_shapeVbo{}, g_batchVbo{}, g_ibo6{}, g_ibo12{}, g_ubo{};
-TextureHandle g_texRed{}, g_texOffscreen{};
+PipelineHandle g_maskWritePipeline{}, g_maskTestPipeline{};
+BufferHandle g_shapeVbo{}, g_batchVbo{}, g_stencilVbo{}, g_ibo6{}, g_ibo12{}, g_ibo18{}, g_ubo{};
+TextureHandle g_texChecker{}, g_texOffscreen{}, g_texOffscreenDepth{};
 FramebufferHandle g_offscreenFb{};
 int g_frames = 0;
 
@@ -183,12 +62,14 @@ struct BatchVertex {
 };
 
 void renderFrame() {
-    // Pass A: offscreen — the load-op clear IS the render (solid green target).
+    // Pass A: offscreen — full-target load-op clears on color AND depth-stencil.
     RenderPassDesc off{};
     off.target = g_offscreenFb;
     off.clearColor = true;
     off.clearColorValue[1] = 1.0f;
     off.clearColorValue[3] = 1.0f;
+    off.clearDepth = true;
+    off.clearStencil = true;
     g_device->beginRenderPass(off);
     g_device->endRenderPass();
 
@@ -199,6 +80,8 @@ void renderFrame() {
     pass.clearColorValue[1] = 0.05f;
     pass.clearColorValue[2] = 0.30f;
     pass.clearColorValue[3] = 1.0f;
+    pass.clearDepth = true;
+    pass.clearStencil = true;
 
     g_device->beginRenderPass(pass);
 
@@ -212,16 +95,36 @@ void renderFrame() {
     // Act 2: batch twin — two quads in ONE draw, per-vertex sampler selection.
     g_device->setPipeline(g_batchPipeline);
     g_device->setUniformBuffer(0, g_ubo);
-    g_device->bindTexture(0, g_texRed);
+    g_device->bindTexture(0, g_texChecker);
     g_device->bindTexture(1, g_texOffscreen);  // render-to-texture output from pass A
     g_device->setVertexBuffer(0, g_batchVbo, 0);
     g_device->setIndexBuffer(g_ibo12);
     g_device->drawElements(12, GfxDataType::UnsignedShort, 0);
 
+    // Act 3: the stencil mask flow (Write → Test → mid-pass reset → Test).
+    // Textures stay bound from act 2 — the shape-family pipelines must keep
+    // their group-0-only layout regardless.
+    g_device->setPipeline(g_maskWritePipeline);
+    g_device->setUniformBuffer(0, g_ubo);
+    g_device->setVertexBuffer(0, g_stencilVbo, 0);
+    g_device->setIndexBuffer(g_ibo18);
+    g_device->setStencilReference(1);
+    g_device->drawElements(6, GfxDataType::UnsignedShort, 0);
+
+    g_device->setPipeline(g_maskTestPipeline);
+    g_device->setStencilReference(1);
+    g_device->drawElements(6, GfxDataType::UnsignedShort, 12);
+
+    g_device->clearStencil(0);
+
+    g_device->setPipeline(g_maskTestPipeline);
+    g_device->setStencilReference(1);
+    g_device->drawElements(6, GfxDataType::UnsignedShort, 24);
+
     g_device->endRenderPass();
 
     // Pass C: a region-scoped clear on the surface — loadOp must LOAD (keeping
-    // the scene) and the emulation clear-quad paints only the region yellow.
+    // the scene) and the emulation triangle paints only the region yellow.
     RenderPassDesc scoped{};
     scoped.clearColor = true;
     scoped.clearColorValue[0] = 1.0f;
@@ -240,18 +143,23 @@ void renderFrame() {
     }
 }
 
-TextureHandle makeSolidTexture(u8 r, u8 g, u8 b) {
-    u8 pixels[4 * 4 * 4];
-    for (int i = 0; i < 16; ++i) {
-        pixels[i * 4 + 0] = r;
-        pixels[i * 4 + 1] = g;
-        pixels[i * 4 + 2] = b;
-        pixels[i * 4 + 3] = 255;
+TextureHandle makeCheckerTexture() {
+    // 2x2 red/blue checker sampled NEAREST: texel centers sit at uv 0.25/0.75,
+    // so any off-center sample point separates nearest (pure texel) from
+    // linear (a visible blend) — the sampler-cache pixel assert.
+    const u8 red[4] = {255, 0, 0, 255};
+    const u8 blue[4] = {0, 0, 255, 255};
+    u8 pixels[2 * 2 * 4];
+    const u8* rows[4] = {red, blue, blue, red};
+    for (int i = 0; i < 4; ++i) {
+        for (int c = 0; c < 4; ++c) pixels[i * 4 + c] = rows[i][c];
     }
     TextureDesc td{};
-    td.width = 4;
-    td.height = 4;
+    td.width = 2;
+    td.height = 2;
     td.format = GfxPixelFormat::RGBA8;
+    td.minFilter = TextureFilter::Nearest;
+    td.magFilter = TextureFilter::Nearest;
     return g_device->createTexture(td, pixels);
 }
 
@@ -287,7 +195,7 @@ int main() {
     g_shapeVbo = device.createBuffer({GfxBufferUsage::Vertex, sizeof(shapeVerts), false}, shapeVerts);
     g_ibo6 = device.createBuffer({GfxBufferUsage::Index, sizeof(quadIdx), false}, quadIdx);
 
-    // --- Batch scene: left quad samples slot 0 (red), right quad slot 1 (green).
+    // --- Batch scene: left quad samples slot 0 (checker), right quad slot 1 (green).
     const u32 white = 0xFFFFFFFFu;
     const BatchVertex batchVerts[8] = {
         {-0.9f, -0.9f, white, 0, 0, 0}, {-0.1f, -0.9f, white, 1, 0, 0},
@@ -299,28 +207,63 @@ int main() {
     g_batchVbo = device.createBuffer({GfxBufferUsage::Vertex, sizeof(batchVerts), false}, batchVerts);
     g_ibo12 = device.createBuffer({GfxBufferUsage::Index, sizeof(batchIdx), false}, batchIdx);
 
-    g_texRed = makeSolidTexture(255, 0, 0);
+    // --- Stencil scene (SDF rects, shapeType 2 with radius 0): quad 0 = the
+    // mask (top-left), quad 1 = an oversized cyan rect testing INTO the mask,
+    // quad 2 = an orange rect drawn after the mid-pass stencil reset (top-right,
+    // must stay invisible).
+    auto rect = [](f32 x0, f32 y0, f32 x1, f32 y1, f32 r, f32 g, f32 b) {
+        return std::array<ShapeVertex, 4>{{
+            {x0, y0, -1, -1, r, g, b, 1, 2, 100, 100, 0},
+            {x1, y0,  1, -1, r, g, b, 1, 2, 100, 100, 0},
+            {x1, y1,  1,  1, r, g, b, 1, 2, 100, 100, 0},
+            {x0, y1, -1,  1, r, g, b, 1, 2, 100, 100, 0},
+        }};
+    };
+    ShapeVertex stencilVerts[12];
+    const auto mask = rect(-0.9f, 0.5f, -0.5f, 0.9f, 1, 1, 1);
+    const auto cyan = rect(-0.95f, 0.45f, -0.3f, 0.95f, 0, 1, 1);
+    const auto orange = rect(0.3f, 0.45f, 0.95f, 0.95f, 1, 0.5f, 0);
+    for (int i = 0; i < 4; ++i) {
+        stencilVerts[i] = mask[i];
+        stencilVerts[4 + i] = cyan[i];
+        stencilVerts[8 + i] = orange[i];
+    }
+    const u16 stencilIdx[18] = {0, 1, 2, 2, 3, 0, 4, 5, 6, 6, 7, 4, 8, 9, 10, 10, 11, 8};
+    g_stencilVbo = device.createBuffer({GfxBufferUsage::Vertex, sizeof(stencilVerts), false}, stencilVerts);
+    g_ibo18 = device.createBuffer({GfxBufferUsage::Index, sizeof(stencilIdx), false}, stencilIdx);
+
+    g_texChecker = makeCheckerTexture();
     // The right quad's texture is RENDERED, not uploaded: an offscreen target
-    // cleared green by pass A each frame.
+    // cleared green by pass A each frame — now with depth-stencil planes.
     TextureDesc offDesc{};
     offDesc.width = 4;
     offDesc.height = 4;
     offDesc.format = GfxPixelFormat::RGBA8;
     g_texOffscreen = device.createTexture(offDesc, nullptr);
-    if (g_texRed == TextureHandle::Invalid || g_texOffscreen == TextureHandle::Invalid) {
+    TextureDesc offDepthDesc{};
+    offDepthDesc.width = 4;
+    offDepthDesc.height = 4;
+    offDepthDesc.format = GfxPixelFormat::Depth24Stencil8;
+    g_texOffscreenDepth = device.createTexture(offDepthDesc, nullptr);
+    if (g_texChecker == TextureHandle::Invalid || g_texOffscreen == TextureHandle::Invalid ||
+        g_texOffscreenDepth == TextureHandle::Invalid) {
         std::printf("BRINGUP_FAIL textures\n");
         return 1;
     }
     FramebufferDesc fbDesc{};
     fbDesc.color0 = g_texOffscreen;
+    fbDesc.depthStencil = g_texOffscreenDepth;
     g_offscreenFb = device.createFramebuffer(fbDesc);
 
-    // --- Programs + layouts + pipelines (the engine's streams, byte for byte).
+    // --- Programs + layouts + pipelines (the engine's streams, byte for byte,
+    // with the engine's WGSL twins).
     ShaderHandle shapeProgram = device.createProgram(
-        GfxShaderSource{GfxShaderLanguage::WGSL, kShapeWGSL_Vertex, kShapeWGSL_Fragment},
+        GfxShaderSource{GfxShaderLanguage::WGSL,
+                        webgpu::kShapeWGSL_Vertex, webgpu::kShapeWGSL_Fragment},
         nullptr, 0, nullptr, nullptr);
     ShaderHandle batchProgram = device.createProgram(
-        GfxShaderSource{GfxShaderLanguage::WGSL, kBatchWGSL_Vertex, kBatchWGSL_Fragment},
+        GfxShaderSource{GfxShaderLanguage::WGSL,
+                        webgpu::kBatchWGSL_Vertex, webgpu::kBatchWGSL_Fragment},
         nullptr, 0, nullptr, nullptr);
     if (shapeProgram == ShaderHandle::Invalid || batchProgram == ShaderHandle::Invalid) {
         std::printf("BRINGUP_FAIL programs\n");
@@ -352,6 +295,17 @@ int main() {
     batchPd.program = batchProgram;
     batchPd.vertexLayout = device.createVertexLayout(batchLayout);
     g_batchPipeline = device.createPipeline(batchPd);
+
+    // The mask pipelines are the shape pipeline in the engine's two stencil
+    // modes (Write = no color, Replace; Test = Equal, keep) — the same
+    // PipelineDesc split DrawList uses for mask draws.
+    PipelineDesc maskWritePd = shapePd;
+    maskWritePd.stencil = GfxStencilMode::Write;
+    g_maskWritePipeline = device.createPipeline(maskWritePd);
+
+    PipelineDesc maskTestPd = shapePd;
+    maskTestPd.stencil = GfxStencilMode::Test;
+    g_maskTestPipeline = device.createPipeline(maskTestPd);
 
     std::printf("BRINGUP_INIT_OK\n");
     emscripten_set_main_loop(renderFrame, 0, /*simulate_infinite_loop=*/false);

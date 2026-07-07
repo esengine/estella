@@ -253,6 +253,40 @@ inline WGPUStencilFaceState toWGPUStencilFace(GfxStencilMode mode) {
     return face;
 }
 
+/** @brief Stencil write mask per mode — the applyStencilMode table: Write fills
+ *         all planes, Test reads without writing, Off never touches stencil. */
+inline u32 toWGPUStencilWriteMask(GfxStencilMode mode) {
+    return mode == GfxStencilMode::Write ? 0xFFu : 0x00u;
+}
+
+/**
+ * @brief A pipeline's full depth-stencil state against a pass attachment format.
+ * @details GL semantics carried over exactly: a disabled depth test neither
+ *          compares NOR writes (glDepthMask only applies while GL_DEPTH_TEST is
+ *          on); an enabled one compares with GL's default Less func. Stencil
+ *          faces/masks come from the same tables applyStencilMode uses.
+ */
+inline WGPUDepthStencilState toWGPUDepthStencil(const PipelineDesc& desc, WGPUTextureFormat format) {
+    WGPUDepthStencilState ds{};
+    ds.format = format;
+    ds.depthWriteEnabled = (desc.depthTest && desc.depthWrite) ? WGPUOptionalBool_True
+                                                               : WGPUOptionalBool_False;
+    ds.depthCompare = desc.depthTest ? WGPUCompareFunction_Less : WGPUCompareFunction_Always;
+    ds.stencilFront = toWGPUStencilFace(desc.stencil);
+    ds.stencilBack = toWGPUStencilFace(desc.stencil);
+    ds.stencilReadMask = 0xFFu;
+    ds.stencilWriteMask = toWGPUStencilWriteMask(desc.stencil);
+    return ds;
+}
+
+/** @brief True when a depth-stencil format carries stencil planes (drives whether
+ *         a pass may set stencil load/store ops — Depth24Plus alone must not). */
+inline bool hasStencilPlanes(WGPUTextureFormat format) {
+    return format == WGPUTextureFormat_Depth24PlusStencil8 ||
+           format == WGPUTextureFormat_Depth32FloatStencil8 ||
+           format == WGPUTextureFormat_Stencil8;
+}
+
 // =============================================================================
 // Render pass load-ops (RenderPassDesc carries the values since the load-op
 // unification; a scoped clear region has NO load-op equivalent — the device

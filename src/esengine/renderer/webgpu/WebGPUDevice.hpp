@@ -2,17 +2,20 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    WebGPUDevice.hpp
- * @brief   WebGPU (Dawn / emdawnwebgpu) backend skeleton for GfxDevice (REARCH_WGSL Phase 2).
- * @details Slice 1 implemented resource creation against the real Dawn C API;
- *          slice 2 adds the live render path: a canvas surface (configureSurface),
- *          per-pass command encoding (beginRenderPass acquires the surface texture
- *          and applies the RenderPassDesc load-ops; endRenderPass submits), lazy
- *          WGPURenderPipeline builds from the retained PipelineDesc + layout +
- *          shader modules, a minimal group-0 bind group over the UBO slots
- *          (setUniformBuffer), and indexed/instanced draw recording. The class
- *          stays null-device safe: constructed without a WGPUDevice it degrades
- *          every entry point to a logged no-op, so handle bookkeeping and the
- *          language gate are testable without an adapter.
+ * @brief   WebGPU (Dawn / emdawnwebgpu) backend for GfxDevice (REARCH_WGSL Phase 2).
+ * @details The live render path: a canvas surface (configureSurface) with a
+ *          companion depth-stencil texture, per-pass command encoding
+ *          (beginRenderPass applies the RenderPassDesc load-ops on color AND
+ *          depth-stencil; endRenderPass submits), lazy WGPURenderPipeline builds
+ *          from the retained PipelineDesc + layout + shader modules — one variant
+ *          per pass depth-stencil shape, since WebGPU validates that coupling —
+ *          bind groups (group 0 = UBO slots, group 1 = texture/sampler pairs with
+ *          a per-params sampler cache), indexed/instanced draw recording, and an
+ *          internal clear-triangle family that emulates region-scoped clears and
+ *          mid-pass stencil resets (the two clears WebGPU load-ops cannot spell).
+ *          The class stays null-device safe: constructed without a WGPUDevice it
+ *          degrades every entry point to a logged no-op, so handle bookkeeping
+ *          and the language gate are testable without an adapter.
  *
  *          Compiled only under ES_ENABLE_WEBGPU; never part of the GL build.
  *
@@ -36,6 +39,11 @@ namespace esengine {
 
 class WebGPUDevice final : public GfxDevice {
 public:
+    /** @brief Depth-stencil attachment shape of a pass — one WGPURenderPipeline
+     *         per shape, since WebGPU validates a pipeline's depthStencil state
+     *         against the pass it draws into (GL has no such coupling). */
+    enum DsVariant : u32 { kDsNone = 0, kDsDepthOnly = 1, kDsDepthStencil = 2, kDsVariantCount = 3 };
+
     /** @brief @p device may be null for bookkeeping-only use (tests, bring-up). */
     explicit WebGPUDevice(WGPUDevice device = nullptr);
     ~WebGPUDevice() override;
@@ -153,38 +161,51 @@ private:
         WGPUTextureView view = nullptr;  ///< Default full view, created with the texture.
         u32 width = 0;
         u32 height = 0;
+        WGPUTextureFormat format = WGPUTextureFormat_RGBA8Unorm;
+        u8 samplerKey = 0;  ///< Packed filter/wrap params (sampler cache key).
     };
     struct ProgramRec {
         WGPUShaderModule vertex = nullptr;
         WGPUShaderModule fragment = nullptr;
+        /** @brief Whether the WGSL declares the group-1 texture set. A pipeline
+         *         without it must never have group 1 set (its auto layout has no
+         *         such group), even when the pass bound textures for other draws. */
+        bool usesTextureGroup = false;
     };
     struct PipelineRec {
         PipelineDesc desc;
-        WGPURenderPipeline pipeline = nullptr;  ///< Lazily built on first setPipeline.
+        WGPURenderPipeline variants[kDsVariantCount] = {};  ///< Lazily built per pass DS shape.
     };
     struct FramebufferRec {
         u32 color0 = 0;        ///< TextureHandle id of the color attachment.
-        u32 depthStencil = 0;  ///< TextureHandle id (0 = none; slice 5 wires it).
+        u32 depthStencil = 0;  ///< TextureHandle id (0 = none).
     };
 
     /** @brief Logs a not-yet-implemented path once per entry point. */
     void stubOnce(const char* what);
 
-    /** @brief Builds (once) and returns the WGPURenderPipeline for a handle. */
+    /** @brief Builds (once) and returns the WGPURenderPipeline for a handle,
+     *         in the variant matching the current pass's depth-stencil shape. */
     WGPURenderPipeline ensurePipeline(u32 id);
     /** @brief (Re)creates the bind groups: group 0 = UBO slots, group 1 = the
-     *         texture units (8 texture_2d at bindings 0..7 + one shared sampler at
-     *         binding 8 — the WGSL twin convention for the batch sampler array).
-     *         Group 1 is set only when the pass bound any texture, so shaders
-     *         without samplers (shape) never see a mismatched group. */
+     *         texture units (8 texture_2d at bindings 0..7 + their 8 samplers at
+     *         bindings 8..15 — the WGSL twin convention for u_textures[8]; GL's
+     *         combined texture+sampler state arrives de-combined, sampler i
+     *         carrying texture i's filter/wrap params). Group 1 is set only when
+     *         the pass bound any texture, so shaders without samplers (shape)
+     *         never see a mismatched group. */
     void flushBindGroup();
-    /** @brief The lazily created shared sampler (linear/clamp bring-up default). */
-    WGPUSampler defaultSampler();
-    /** @brief Emulates a region-scoped load-op clear: an internal fullscreen
-     *         triangle drawn under the region's scissor (a real load-op covers the
-     *         whole attachment — exactly the emulation the RenderPassDesc contract
-     *         documents for WebGPU). Runs at pass start, before any user state. */
-    void clearQuad(const RenderPassDesc& desc);
+    /** @brief Returns the cached sampler for packed filter/wrap params. */
+    WGPUSampler samplerFor(u8 key);
+    /** @brief Builds (once) an internal clear pipeline: fullscreen triangle at
+     *         z=1, color from the internal UBO. Keyed on which attachments it
+     *         writes (color/depth/stencil masks) plus the pass DS shape. */
+    WGPURenderPipeline ensureClearPipeline(bool color, bool depth, bool stencil);
+    /** @brief Draws the internal clear triangle mid-pass. Restores scissor (when
+     *         @p region is given), the user's stencil reference, and forces
+     *         pipeline + bind groups to re-establish on the next user draw. */
+    void drawInternalClear(bool color, bool depth, bool stencil,
+                           const f32 rgba[4], i32 stencilValue, const RenderPassDesc* region);
     /** @brief True while inside beginRenderPass/endRenderPass. */
     bool inPass() const { return pass_ != nullptr; }
 
@@ -192,30 +213,39 @@ private:
     WGPUQueue queue_ = nullptr;
     WGPUInstance instance_ = nullptr;
 
-    // Surface (the Default framebuffer target).
+    // Surface (the Default framebuffer target). The companion depth-stencil
+    // texture mirrors the WebGL canvas's depth+stencil planes — engine stencil
+    // masks and depth-tested draws target the backbuffer and expect them.
     WGPUSurface surface_ = nullptr;
     WGPUTextureFormat surface_format_ = WGPUTextureFormat_RGBA8Unorm;
     u32 surface_width_ = 0;
     u32 surface_height_ = 0;
+    WGPUTexture surface_depth_texture_ = nullptr;
+    WGPUTextureView surface_depth_view_ = nullptr;
 
     // Offscreen targets.
     std::unordered_map<u32, FramebufferRec> framebuffers_;
     u32 next_framebuffer_id_ = 1;
 
-    // Internal clear-quad pipeline (region-scoped clear emulation).
-    WGPURenderPipeline clear_pipeline_ = nullptr;
+    // Internal clear family (region-scoped clears + mid-pass clearStencil).
+    // Explicit layout so ONE bind group serves every write-mask variant.
+    std::unordered_map<u32, WGPURenderPipeline> clear_pipelines_;
+    WGPUBindGroupLayout clear_bgl_ = nullptr;
+    WGPUPipelineLayout clear_layout_ = nullptr;
     WGPUBindGroup clear_bind_group_ = nullptr;
     BufferHandle clear_color_ubo_{};
 
     // Per-pass state.
     u32 pass_width_ = 0;   ///< Current pass target size (scissor-off rectangle).
     u32 pass_height_ = 0;
+    WGPUTextureFormat pass_ds_format_ = WGPUTextureFormat_Undefined;
     WGPUCommandEncoder encoder_ = nullptr;
     WGPURenderPassEncoder pass_ = nullptr;
     WGPUTexture frame_texture_ = nullptr;   ///< Acquired surface texture (released at end).
     WGPUTextureView frame_view_ = nullptr;
     u32 current_pipeline_ = 0;
     u32 bound_index_buffer_ = 0;
+    i32 stencil_ref_ = 0;  ///< Last user-set reference (re-applied after internal quads).
     static constexpr u32 kUniformSlots = 8;
     u32 uniform_slots_[kUniformSlots] = {};  ///< BufferHandle id per UBO binding slot.
     static constexpr u32 kTextureSlots = 8;
@@ -224,7 +254,7 @@ private:
     bool bind_group_dirty_ = true;
     WGPUBindGroup bind_group_ = nullptr;
     WGPUBindGroup texture_group_ = nullptr;
-    WGPUSampler sampler_ = nullptr;
+    std::unordered_map<u8, WGPUSampler> samplers_;  ///< Keyed by packed filter/wrap params.
 
     u32 next_id_ = 1;
     std::unordered_map<u32, BufferRec> buffers_;
