@@ -140,13 +140,11 @@ jobs:
       run: pnpm --filter @estella/editor exec vitest run
 
   # Headless pixel verification: real scenes rendered by the editor's electron
-  # host under xvfb (SwiftShader WebGL), asserted pixel-by-pixel. Observation
-  # period — flip continue-on-error off once proven stable on a few pushes.
+  # host under xvfb (SwiftShader WebGL), asserted pixel-by-pixel.
   verify-render:
     name: Render verify (headless)
     runs-on: ubuntu-latest
     needs: build-emscripten
-    continue-on-error: true
 
     steps:
     - uses: actions/checkout@v4

@@ -176,6 +176,9 @@ RC5"渲染唯一路径"的收官：所有 Renderer 只**生成命令**，Sort/Me
 - 验证：新增 `tests/renderer/test_batch_builder.cpp`（8 用例 43 断言：各流 baseVertex 步长、纹理槽规则、实例化命令组装、多纹理合并 + texIndex 重写、跨流不合并、clip 盖章、execute 分发）；六套 MockGfxDevice harness、web 构建、11 个 headless 像素场景（sprite / parallax-shape / text-sdf / 粒子×2 / tilemap×2 / ui-mask / lit×2 / postprocess）全 PASS；双 boundary guard 绿。
 - **承诺实测 — Mesh2D 场景级 renderer（2026-07-07 第二批）**：`RenderType::Mesh` 从"仅统计枚举"变成真渲染类型。`Mesh2D` 组件（EHT 注解字段 + **未注解的变长几何 payload 置尾**——变长数据无固定 ABI 偏移，天然不进指针布局/断言）；几何经唯一入口 `mesh2d_setGeometry` 上传（索引越界整体拒绝 + AABB 计算）；`MeshPlugin` 全部内容 = 共享前奏 + SpritePlugin 同款材质/lit 解析 + CPU 仿射变换 + `appendIndexedBatch`——**零底层改动**，网格自动获得排序/裁剪/clip/多纹理合并/Lit2D。SDK：`Mesh2DAPI`（withScratch 批量上传）+ 场景 out-of-band codec（`geometry` 字段随 .esscene 声明式携带，particle 渐变同模式）。刻意不做：GPU 驻留网格（2D 网格顶点量小，CPU 流式与 sprite/tilemap 同模型；大网格属未来 3D 议题）。验证：mesh2d headless 场景（双三角逐顶点色，3 像素断言）一次过 + 回归 5 场景 + SDK/desktop 双侧 tsc + 全套测试 + 24 examples + 双 guard 全绿。
 
+### CI 常绿门禁（push-gated invariants）— ✅ 已落地（2026-07-07）
+此前 `build.yml` 仅 `workflow_dispatch`——boundary guards、全组件 ABI `static_assert`、各测试套件全是"约定"而非"机制"。现在**每次 push master 自动跑**：① web/playable/wechat 构建（编译期即验证生成断言 + ABI 哈希）+ 全部 15 个 C++ doctest harness（node 下执行）；② 双 boundary guard + SDK tsc/构建/vitest + examples 检查 + desktop tsc/vitest（后两者此前完全不在 CI）；③ headless 像素验证（sprite/mesh2d/parallax-shape/tilemap-flip/ui-mask，electron + xvfb + SwiftShader，需 `ELECTRON_DISABLE_SANDBOX`）。落地即抓到并修复三处腐化：`test_registry.cpp` 用已删除的 `View::sizeHint`、`test_sparse_set.cpp` 的局部常量撞 emscripten `PAGE_SIZE` 宏、以及一个**真回归**——单组件 `View::each` 活迭代（中途 emplace 会重访、swap-pop 移除会跳漏），多组件版早有快照契约，现已对齐。
+
 ### 地基收口（Foundation Consolidation）— 🟡 进行中，RC6 前置（设计文档）
 见 [`REARCH_FOUNDATION_CONSOLIDATION.md`](./REARCH_FOUNDATION_CONSOLIDATION.md)：
 - **F2 单一 `WasmBridge` 基类 + abort 守卫下沉（keystone）— ✅ 已落地**（`ac390f7d` + RM 闭环 `41bea17a`，五套桥接全部收敛，abort 守卫全子系统覆盖）。
