@@ -109,6 +109,13 @@ export enum MaskMode {
     Stencil = 1,
 }
 
+export enum ParticleEasing {
+    Linear = 0,
+    EaseIn = 1,
+    EaseOut = 2,
+    EaseInOut = 3,
+}
+
 export enum ProjectionType {
     Perspective = 0,
     Orthographic = 1,

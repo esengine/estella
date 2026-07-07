@@ -4,15 +4,14 @@
 
 #include "../core/Types.hpp"
 #include "../animation/EasingFunctions.hpp"
+#include "../ecs/components/ParticleEmitter.hpp"
 
 namespace esengine::particle {
 
-enum class EasingType : i32 {
-    Linear = 0,
-    EaseIn = 1,
-    EaseOut = 2,
-    EaseInOut = 3,
-};
+// The enum's single source is the ES_ENUM ParticleEasing beside the component
+// fields that serialize it (EHT generates the TS const + editor dropdown from
+// there); the sim keeps its historical local name.
+using EasingType = ecs::ParticleEasing;
 
 // Delegates to the shared easing library so the math lives in ONE place
 // (easing consolidation). Particle keeps its own 4-value

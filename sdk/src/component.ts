@@ -19,11 +19,10 @@ import type {
 } from './component.generated';
 // Builtin enums whose values come from C++ ES_ENUMs — imported from the generated
 // module (single source) and re-exported below, so a TS const cannot drift from the
-// C++ enum and the editor dropdowns (enumOptions) derive from the same values. The
-// one remaining hand-written enum (ParticleEasing) has no matching C++ enum yet, so
-// it stays local; ScaleMode's canonical values come from CanvasScaleMode
-// (only its Cocos-compat aliases ShowAll/NoBorder are TS-side).
-import { ProjectionType, ClearFlags, EmitterShape, SimulationSpace, Light2DType, CanvasScaleMode, ShapeType } from './wasm.generated';
+// C++ enum and the editor dropdowns derive from the same values. ScaleMode's
+// canonical values come from CanvasScaleMode (only its Cocos-compat aliases
+// ShowAll/NoBorder are TS-side).
+import { ProjectionType, ClearFlags, EmitterShape, SimulationSpace, Light2DType, CanvasScaleMode, ShapeType, ParticleEasing } from './wasm.generated';
 import { BlendMode } from './blend';
 import { getDefaultContext } from './context';
 import type {
@@ -701,16 +700,10 @@ export const TilemapLayer = defineBuiltin<TilemapLayerData>('TilemapLayer',
 // ParticleEmitter Enums
 // =============================================================================
 
-// EmitterShape + SimulationSpace are re-exported from the generated module (see the
-// import at the top). ParticleEasing has no C++ ES_ENUM yet, so it stays local.
-export const ParticleEasing = {
-    Linear: 0,
-    EaseIn: 1,
-    EaseOut: 2,
-    EaseInOut: 3,
-} as const;
-
-export type ParticleEasing = (typeof ParticleEasing)[keyof typeof ParticleEasing];
+// EmitterShape, SimulationSpace and ParticleEasing are re-exported from the
+// generated module (see the import at the top) — single-sourced from their C++
+// ES_ENUMs beside the component fields that serialize them.
+export { ParticleEasing };
 
 // =============================================================================
 // ParticleEmitter Component
@@ -736,13 +729,11 @@ export const ParticleEmitter = defineBuiltin<ParticleEmitterData>('ParticleEmitt
     metaDefaults<ParticleEmitterData>('ParticleEmitter', { colorGradient: { stops: [] }, sizeCurve: { keys: [] } }),
     {
         // Most field metadata is authored at the C++ ES_PROPERTY site (categories,
-        // min/step, and the shape/simulationSpace enum dropdowns via `enum=`). Only
-        // what an annotation can't express stays here: enums built from a TS-only
-        // constant (ParticleEasing / BlendMode have no component ES_ENUM), and the two
+        // min/step, and the shape/simulationSpace/easing enum dropdowns via `enum=`).
+        // Only what an annotation can't express stays here: the blendMode dropdown
+        // (BlendMode is a renderer enum with no component ES_ENUM), and the two
         // TS-only editor fields (sizeCurve / colorGradient have no C++ member).
         fields: {
-            sizeEasing: { enum: enumOptions(ParticleEasing) },
-            colorEasing: { enum: enumOptions(ParticleEasing) },
             blendMode: { enum: enumOptions(BlendMode) },
             sizeCurve: { curve: true, category: 'Size' },
             colorGradient: { gradient: true, category: 'Color' },

@@ -15,7 +15,7 @@ import type { Dimension, Padding, VisualState } from './wasm.generated';
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '1bd58a735ff10d7f';
+export const ABI_LAYOUT_HASH = '2139ae73f765c1ed';
 
 export interface AssetFieldMeta {
     field: string;
@@ -321,10 +321,10 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             startSizeMax: { min: 0, category: "Size" },
             endSizeMin: { min: 0, category: "Size" },
             endSizeMax: { min: 0, category: "Size" },
-            sizeEasing: { category: "Size" },
+            sizeEasing: { enum: [{ label: 'Linear', value: 0 }, { label: 'EaseIn', value: 1 }, { label: 'EaseOut', value: 2 }, { label: 'EaseInOut', value: 3 }], category: "Size" },
             startColor: { category: "Color" },
             endColor: { category: "Color" },
-            colorEasing: { category: "Color" },
+            colorEasing: { enum: [{ label: 'Linear', value: 0 }, { label: 'EaseIn', value: 1 }, { label: 'EaseOut', value: 2 }, { label: 'EaseInOut', value: 3 }], category: "Color" },
             rotationMin: { unit: "°", category: "Rotation" },
             rotationMax: { unit: "°", category: "Rotation" },
             angularVelocityMin: { category: "Rotation" },

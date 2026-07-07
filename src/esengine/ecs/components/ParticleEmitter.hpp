@@ -6,7 +6,6 @@
 #include "../../core/Reflection.hpp"
 #include "../../math/Math.hpp"
 #include "../../resource/Handle.hpp"
-#include "../../particle/ParticleEasing.hpp"
 
 namespace esengine::ecs {
 
@@ -16,6 +15,17 @@ enum class EmitterShape : i32 {
     Circle = 1,
     Rectangle = 2,
     Cone = 3,
+};
+
+// Single source of the easing choice serialized by sizeEasing/colorEasing; the
+// particle sim consumes it as particle::EasingType (alias) and the editor
+// dropdown + TS const are EHT-generated from here.
+ES_ENUM()
+enum class ParticleEasing : i32 {
+    Linear = 0,
+    EaseIn = 1,
+    EaseOut = 2,
+    EaseInOut = 3,
 };
 
 ES_ENUM()
@@ -94,8 +104,9 @@ struct ParticleEmitter {
     ES_PROPERTY(min=0, category=Size)
     f32 endSizeMax{100.0f};
 
-    ES_PROPERTY(category=Size)
-    i32 sizeEasing{static_cast<i32>(particle::EasingType::Linear)};
+    // Easing — i32 storage, dropdown generated from the ParticleEasing enum.
+    ES_PROPERTY(enum=ParticleEasing, category=Size)
+    i32 sizeEasing{static_cast<i32>(ParticleEasing::Linear)};
 
     // Color
     ES_PROPERTY(category=Color)
@@ -104,8 +115,8 @@ struct ParticleEmitter {
     ES_PROPERTY(category=Color)
     glm::vec4 endColor{1.0f, 1.0f, 1.0f, 0.0f};
 
-    ES_PROPERTY(category=Color)
-    i32 colorEasing{static_cast<i32>(particle::EasingType::Linear)};
+    ES_PROPERTY(enum=ParticleEasing, category=Color)
+    i32 colorEasing{static_cast<i32>(ParticleEasing::Linear)};
 
     // Rotation
     ES_PROPERTY(unit="°", category=Rotation)

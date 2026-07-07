@@ -35,6 +35,7 @@ import * as gen from '../src/wasm.generated';
 import { BodyType } from '../src/physics/PhysicsComponents';
 import { UIPositionType, AlignSelf } from '../src/ui/core/ui-node';
 import { UIVisualType, FillMethod, FillOrigin } from '../src/ui/core/ui-visual';
+import { ParticleEasing } from '../src/component';
 
 // Repo root is two levels up from sdk/tests/ (mirrors the spine integration tests).
 const CPP = resolve(__dirname, '../../src/esengine');
@@ -195,6 +196,7 @@ describe('C++ contract: module-published enums ARE their EHT-generated twin', ()
         ['UIVisualType', UIVisualType, gen.UIVisualType],
         ['FillMethod', FillMethod, gen.UIFillMethod],
         ['FillOrigin', FillOrigin, gen.UIFillOrigin],
+        ['ParticleEasing', ParticleEasing, gen.ParticleEasing],
     ];
     for (const [label, published, generated] of cases) {
         it(`${label} is a re-export of the generated enum`, () => {

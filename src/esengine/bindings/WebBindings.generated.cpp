@@ -167,6 +167,12 @@ EMSCRIPTEN_BINDINGS(esengine_enums) {
         .value("Scissor", esengine::ecs::MaskMode::Scissor)
         .value("Stencil", esengine::ecs::MaskMode::Stencil);
 
+    enum_<esengine::ecs::ParticleEasing>("ParticleEasing")
+        .value("Linear", esengine::ecs::ParticleEasing::Linear)
+        .value("EaseIn", esengine::ecs::ParticleEasing::EaseIn)
+        .value("EaseOut", esengine::ecs::ParticleEasing::EaseOut)
+        .value("EaseInOut", esengine::ecs::ParticleEasing::EaseInOut);
+
     enum_<esengine::ecs::ProjectionType>("ProjectionType")
         .value("Perspective", esengine::ecs::ProjectionType::Perspective)
         .value("Orthographic", esengine::ecs::ProjectionType::Orthographic);
@@ -1956,7 +1962,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "1bd58a735ff10d7f";
+static const char* kEsAbiLayoutHash = "2139ae73f765c1ed";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);
