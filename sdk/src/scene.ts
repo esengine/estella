@@ -7,7 +7,7 @@
 
 import { World } from './world';
 import { Entity, INVALID_ENTITY } from './types';
-import { getComponent, Name, Camera } from './component';
+import { getComponent, Name, Camera, RuntimeOnly } from './component';
 import { discoverSceneAssets } from './asset/discoverAssets';
 import { requireResourceManager } from './resourceManager';
 import { validateComponentData, formatValidationErrors } from './validation';
@@ -540,7 +540,10 @@ const STRUCTURAL_COMPONENTS = new Set(['Name', 'Parent', 'Children', 'WorldTrans
  */
 export function serializeScene(world: World, sceneName = 'scene'): SceneData {
     const parentDef = getComponent('Parent');
-    const allEntities = world.getAllEntities();
+    // RuntimeOnly entities are world-only projections their systems re-derive
+    // (Tilemap source layers, tile colliders); excluding them up front also
+    // keeps them out of every parent/children list below.
+    const allEntities = world.getAllEntities().filter((e) => !world.has(e, RuntimeOnly));
 
     const parentOf = new Map<number, number>();
     if (parentDef) {

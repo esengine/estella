@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { App, Plugin } from '../app';
 import type { ESEngineModule } from '../wasm';
-import { Transform, TilemapLayer, Canvas, type TilemapLayerData } from '../component';
+import { Transform, TilemapLayer, Canvas, RuntimeOnly, type TilemapLayerData } from '../component';
 import { Schedule } from '../system';
 import type { SystemDef } from '../system';
 import { initTilemapAPI, shutdownTilemapAPI, TilemapAPI } from './tilemapAPI';
@@ -19,9 +19,6 @@ import { playModeOnly } from '../env';
 import { log } from '../logger';
 import type { Entity } from '../types';
 
-const SYNTHETIC_KEY_BASE = 0x40000000;
-const MAX_LAYERS_PER_ENTITY = 256;
-
 const GRID_TYPE_MAP: Record<string, number> = {
     orthogonal: 0,
     isometric: 1,
@@ -33,7 +30,8 @@ export class TilemapPlugin implements Plugin {
 
     private initializedLayers_ = new Set<number>();
     private animatedLayers_ = new Set<number>();
-    private sourceEntityKeys_ = new Map<number, number[]>();
+    /** Tilemap(source) entity → the RuntimeOnly child layer entities derived from its `.tmj`. */
+    private sourceLayerEntities_ = new Map<number, Entity[]>();
     /** tilemap entity → the static collider entities derived from its collidable tiles (play-mode only). */
     private collisionEntities_ = new Map<number, Entity[]>();
     /** TilemapLayer entity → its baked collidable tile ids (out-of-band scene data; drives native collision). */
@@ -97,7 +95,7 @@ export class TilemapPlugin implements Plugin {
         const world = app.world;
         const initializedLayers = this.initializedLayers_;
         const animatedLayers = this.animatedLayers_;
-        const sourceEntityKeys = this.sourceEntityKeys_;
+        const sourceLayerEntities = this.sourceLayerEntities_;
         const collisionEntities = this.collisionEntities_;
 
         const tilemapSyncSystem: SystemDef = {
@@ -130,7 +128,6 @@ export class TilemapPlugin implements Plugin {
 
                 const currentLayerSet = new Set(layerEntities);
                 for (const entity of initializedLayers) {
-                    if (entity >= SYNTHETIC_KEY_BASE) continue;
                     if (!currentLayerSet.has(entity)) {
                         TilemapAPI.destroyLayer(entity);
                         initializedLayers.delete(entity);
@@ -244,75 +241,84 @@ export class TilemapPlugin implements Plugin {
                     const cached = getTilemapSource(resolveAssetKey(assets, tilemap.source)) ?? getTilemapSource(tilemap.source);
                     if (!cached) continue;
 
-                    if (!sourceEntityKeys.has(entity)) {
-                        const keys: number[] = [];
+                    if (!sourceLayerEntities.has(entity)) {
+                        const children: Entity[] = [];
                         const gridType = GRID_TYPE_MAP[cached.orientation ?? 'orthogonal'] ?? 0;
 
                         for (let i = 0; i < cached.layers.length; i++) {
-                            const key = SYNTHETIC_KEY_BASE + entity * MAX_LAYERS_PER_ENTITY + i;
                             const layer = cached.layers[i];
+                            // Each Tiled layer is a REAL child entity carrying a
+                            // TilemapLayer component, so the renderer reads its
+                            // metadata exactly like a painted layer's — one metadata
+                            // model, no synthetic-key shadow layers. The children are
+                            // world-only projections of the .tmj, re-derived from the
+                            // source on every load and never serialized (RuntimeOnly).
+                            const child = world.spawn(layer.name || `TiledLayer_${i}`);
+                            world.insert(child, Transform, { position: { x: 0, y: 0, z: 0 } });
+                            world.insert(child, TilemapLayer, {
+                                cellSize: { x: cached.tileWidth, y: cached.tileHeight },
+                                renderLayer: i,
+                            });
+                            world.insert(child, RuntimeOnly, {});
+                            world.setParent(child, entity);
+
                             if (layer.infinite) {
                                 TilemapAPI.initInfiniteLayer(
-                                    key, cached.tileWidth, cached.tileHeight,
+                                    child, cached.tileWidth, cached.tileHeight,
                                 );
                                 for (const chunk of layer.chunks) {
                                     TilemapAPI.setChunkTiles(
-                                        key, chunk.x, chunk.y,
+                                        child, chunk.x, chunk.y,
                                         chunk.tiles, chunk.width, chunk.height,
                                     );
                                 }
                             } else {
                                 TilemapAPI.initLayer(
-                                    key, layer.width, layer.height,
+                                    child, layer.width, layer.height,
                                     cached.tileWidth, cached.tileHeight,
                                 );
                                 if (layer.tiles.length > 0) {
-                                    TilemapAPI.setTiles(key, layer.tiles);
+                                    TilemapAPI.setTiles(child, layer.tiles);
                                 }
                             }
-                            TilemapAPI.setOriginEntity(key, entity);
+                            TilemapAPI.setOriginEntity(child, child);
                             if (gridType !== 0) {
-                                TilemapAPI.setGridType(key, gridType);
+                                TilemapAPI.setGridType(child, gridType);
                             }
 
                             if (cached.tileAnimations) {
                                 for (const [tileId, frames] of cached.tileAnimations) {
-                                    TilemapAPI.setTileAnimation(key, tileId, frames);
+                                    TilemapAPI.setTileAnimation(child, tileId, frames);
                                 }
                                 if (cached.tileAnimations.size > 0) {
-                                    animatedLayers.add(key);
+                                    animatedLayers.add(child);
                                 }
                             }
 
                             if (cached.tileProperties) {
                                 for (const [tileId, props] of cached.tileProperties) {
                                     for (const [k, v] of props) {
-                                        TilemapAPI.setTileProperty(key, tileId, k, v);
+                                        TilemapAPI.setTileProperty(child, tileId, k, v);
                                     }
                                 }
                             }
 
                             // Multi-tileset: push the full tileset table (firstId +
                             // texture + columns). The renderer batches per texture and
-                            // derives UVs from texture size; setRenderProps still carries
-                            // the non-tileset metadata (render layer, parallax).
+                            // derives UVs from texture size; the remaining visual
+                            // metadata (tint/opacity/renderLayer/...) is read off the
+                            // child's TilemapLayer component like any painted layer.
                             const slots = cached.tilesets
                                 .filter(t => t.textureHandle)
                                 .map(t => ({ firstId: t.firstId, textureHandle: t.textureHandle, columns: t.columns }));
                             if (slots.length > 0) {
-                                TilemapAPI.setTilesets(key, slots);
-                                TilemapAPI.setRenderProps(
-                                    key, slots[0].textureHandle, slots[0].columns,
-                                    0, 0, i, 0, 1, 1,
-                                );
-                                TilemapAPI.setTint(key, 1, 1, 1, 1, 1);
-                                TilemapAPI.setVisible(key, true);
+                                TilemapAPI.setTilesets(child, slots);
                             }
 
-                            keys.push(key);
-                            initializedLayers.add(key);
+                            children.push(child);
+                            initializedLayers.add(child);
                         }
-                        sourceEntityKeys.set(entity, keys);
+                        sourceLayerEntities.set(entity, children);
                     }
 
                     if (
@@ -340,14 +346,19 @@ export class TilemapPlugin implements Plugin {
                 }
 
                 const currentTilemapSet = new Set(tilemapEntities);
-                for (const [entity, keys] of sourceEntityKeys) {
+                for (const [entity, children] of sourceLayerEntities) {
                     if (!currentTilemapSet.has(entity)) {
-                        for (const key of keys) {
-                            TilemapAPI.destroyLayer(key);
-                            initializedLayers.delete(key);
-                            animatedLayers.delete(key);
+                        for (const child of children) {
+                            if (initializedLayers.has(child)) {
+                                TilemapAPI.destroyLayer(child);
+                                initializedLayers.delete(child);
+                            }
+                            animatedLayers.delete(child);
+                            // An owner despawn cascades to its children; only a
+                            // component removal leaves them alive to clean up here.
+                            if (world.valid(child)) world.despawn(child);
                         }
-                        sourceEntityKeys.delete(entity);
+                        sourceLayerEntities.delete(entity);
 
                         const colliders = collisionEntities.get(entity);
                         if (colliders) {
@@ -375,7 +386,7 @@ export class TilemapPlugin implements Plugin {
         }
         this.initializedLayers_.clear();
         this.animatedLayers_.clear();
-        this.sourceEntityKeys_.clear();
+        this.sourceLayerEntities_.clear();
         // Collider entities die with the world on reset/teardown; just drop our bookkeeping.
         this.collisionEntities_.clear();
         this.nativeCollisionIds_.clear();

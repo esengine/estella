@@ -752,6 +752,14 @@ export const ParticleEmitter = defineBuiltin<ParticleEmitterData>('ParticleEmitt
 
 export const Disabled = defineTag('Disabled');
 
+/**
+ * Marks a world-only DERIVED entity — one a system (re)builds from source data
+ * (the child layer entities a `Tilemap.source` projects, runtime tile
+ * colliders, …). Scene serialization skips tagged entities entirely:
+ * persisting one would duplicate it against the next derivation.
+ */
+export const RuntimeOnly = defineTag('RuntimeOnly');
+
 export const Name = defineComponent<NameData>('Name', { value: '' });
 
 export const SceneOwner = defineComponent<SceneOwnerData>('SceneOwner', {

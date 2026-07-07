@@ -98,6 +98,7 @@ export {
     SpineAnimation,
     Name,
     Disabled,
+    RuntimeOnly,
     SceneOwner,
     ProjectionType,
     ClearFlags,
