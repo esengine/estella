@@ -175,15 +175,20 @@ const PHYSICS_COMPONENT_TYPES = new Set([
     'SegmentCollider', 'PolygonCollider', 'ChainCollider',
 ]);
 
-/** True if any entity carries a physics component, or a TilemapLayer that will spawn
- *  colliders at runtime (its baked collidable tiles are invisible to a component scan). */
-function sceneUsesPhysics(sceneData: SceneData): boolean {
+/** True if any entity carries a physics component, or a TilemapLayer that may spawn
+ *  colliders at runtime — either baked collidable tile ids (legacy scenes) or a
+ *  `.estileset` reference, whose collision shapes derive live at load and are
+ *  invisible to a component scan. A visual-only tileset costs one unused physics
+ *  module load; missing real tile colliders would break the scene. */
+export function sceneUsesPhysics(sceneData: SceneData): boolean {
     for (const entity of sceneData.entities ?? []) {
         for (const comp of entity.components ?? []) {
             if (PHYSICS_COMPONENT_TYPES.has(comp.type)) return true;
             if (comp.type === 'TilemapLayer') {
-                const ids = (comp.data as Record<string, unknown> | undefined)?.collidableTileIds;
+                const data = comp.data as Record<string, unknown> | undefined;
+                const ids = data?.collidableTileIds;
                 if (Array.isArray(ids) && ids.length > 0) return true;
+                if (typeof data?.tilesetAsset === 'string' && data.tilesetAsset !== '') return true;
             }
         }
     }

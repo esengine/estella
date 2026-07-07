@@ -7,10 +7,8 @@
  *          paintable entity, the tileset is the reusable asset it references.
  */
 
-import { parseTileset, collidableTileIds } from 'esengine';
+import { parseTileset } from 'esengine';
 import { SceneCommands } from '@/engine/SceneCommands';
-import { SceneModel } from '@/engine/SceneModel';
-import { EditorHistory } from '@/engine/EditorHistory';
 import { useSelection } from '@/store/selectionStore';
 import { useTilemapPaint } from '@/store/tilemapPaintStore';
 import { ProjectStore } from '@/project/ProjectStore';
@@ -32,34 +30,22 @@ export async function createTilemapFromTileset(tilesetPath: string): Promise<voi
     return;
   }
 
-  // Preload the atlas texture so the Reconciler resolves its handle and the
-  // TilemapSyncSystem (which needs a non-zero texture + dims) initializes the layer.
-  const texInfo = ProjectStore.assetInfo(asset.texture);
-  if (texInfo) await ProjectStore.assetRefForPath(texInfo.path, 'texture');
-
   const sourceId = SceneCommands.addEntity();
   if (sourceId == null) return;
   SceneCommands.addComponent(sourceId, 'TilemapLayer');
   SceneCommands.beginGesture('Configure Tilemap');
+  // cellSize is a per-layer authoring choice SEEDED from the tileset's tile size;
+  // everything else — render table (texture/columns), animations, collision —
+  // derives LIVE from the .estileset reference (tilemap sync resolves it and calls
+  // setTilesets), so editing the tileset updates every map that references it.
+  // The old flow copied texture/columns onto the component and baked
+  // collidableTileIds into the model: three snapshots that went stale the moment
+  // the tileset changed.
   SceneCommands.setField(sourceId, 'TilemapLayer', 'cellSize', 'vec2', [asset.tileWidth, asset.tileHeight]);
-  SceneCommands.setField(sourceId, 'TilemapLayer', 'tileset', 'string', asset.texture); // texture @uuid → handle
-  SceneCommands.setField(sourceId, 'TilemapLayer', 'tilesetColumns', 'number', asset.columns);
-  // The .estileset link (editor palette restore + T4 runtime collision). Not a C++
-  // field — carried losslessly in the model like the chunks blob.
+  // The .estileset link. Not a C++ field — carried losslessly in the model like
+  // the chunks blob, and preloaded via the component's discoverAssets.
   SceneCommands.setField(sourceId, 'TilemapLayer', 'tilesetAsset', 'string', tilesetRef);
   SceneCommands.endGesture();
-
-  // Bake the tileset's collidable tile ids onto the layer (out-of-band model data the
-  // runtime reads to spawn colliders — T4). Its own undo step so redo restores it.
-  const collIds = collidableTileIds(asset);
-  if (collIds.length > 0) {
-    SceneModel.setField(sourceId, 'TilemapLayer', 'collidableTileIds', collIds);
-    EditorHistory.record(
-      'Bake Tilemap Collision',
-      () => SceneModel.setField(sourceId, 'TilemapLayer', 'collidableTileIds', collIds),
-      () => SceneModel.setField(sourceId, 'TilemapLayer', 'collidableTileIds', []),
-    );
-  }
 
   useSelection.getState().select(sourceId);
   useTilemapPaint.getState().setTileset(tilesetPath);
