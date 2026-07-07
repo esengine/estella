@@ -33,7 +33,8 @@ jobs:
         run: pnpm install
 
       - name: Type-check SDK
-        run: npx tsc --noEmit -p sdk/tsconfig.json
+        working-directory: sdk
+        run: pnpm exec tsc --noEmit
 
       - name: Run SDK tests
         working-directory: sdk
