@@ -1,0 +1,10 @@
+{
+  "uuid": "b5f07fb2-95dd-4ed5-98b8-414900e96b9d",
+  "version": "2.0",
+  "type": "spine",
+  "importer": {
+    "defaultSkin": "default",
+    "premultiplyAlpha": false,
+    "scale": 1
+  }
+}

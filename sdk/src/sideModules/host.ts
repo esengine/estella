@@ -40,7 +40,15 @@ export function createSideModuleHost(instantiate: SideModuleInstantiator): SideM
             const descriptor = SIDE_MODULES[id];
             const pending: Promise<SideModule | null> = descriptor
                 ? instantiate(descriptor, id).catch((e) => {
-                      log.error('sidemodule', `failed to load "${id}" (${descriptor.file})`, e);
+                      // A 404 here is almost always a missing local build artifact,
+                      // not a code failure — say how to produce it.
+                      log.error(
+                          'sidemodule',
+                          `failed to load "${id}" (${descriptor.file}) — likely not built ` +
+                          `locally: run the matching wasm build (spine 4.2 = \`pnpm build -t spine\`, ` +
+                          `others match their file name, \`-t all\` builds everything), then rebuild the editor`,
+                          e,
+                      );
                       return null;
                   })
                 : Promise.resolve(null);
