@@ -10,6 +10,7 @@
  */
 
 import { defineComponent } from '../../component';
+import { isUuidRef } from '../../asset/AssetRegistry';
 import type { BtDefinition } from './types';
 
 export interface BehaviorTreeAgentData {
@@ -24,10 +25,12 @@ export const BehaviorTreeAgent = defineComponent<BehaviorTreeAgentData>('Behavio
     status: '',
 }, {
     assetFields: [{ field: 'bt', type: 'behaviortree' }],
-    // Preload a `.esbt` reference with the scene; a plain registerBt name is left alone.
+    // Preload a `.esbt` path or an editor-serialized uuid ref with the scene; a
+    // plain `registerBt` name (code path) is left alone — this callback is the
+    // discovery authority; the assetField above only drives the editor picker.
     discoverAssets: data => {
         const bt = data.bt;
-        return typeof bt === 'string' && bt.endsWith('.esbt')
+        return typeof bt === 'string' && (bt.endsWith('.esbt') || isUuidRef(bt))
             ? [{ type: 'behaviortree', path: bt }]
             : [];
     },

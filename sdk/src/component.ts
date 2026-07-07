@@ -94,6 +94,12 @@ export interface ComponentMetadata {
     fields?: Record<string, FieldMeta>;
     /** Keyframeable fields (Sequencer tracks); auto-derived from numeric fields if omitted. */
     animatableFields?: string[];
+    /**
+     * Custom asset discovery for scene preload. Authoritative when present:
+     * `assetFields` are NOT walked for discovery (they still drive editor
+     * pickers/ref rewrites), so the callback can exclude values that are not
+     * asset refs (e.g. code-registered FSM/BT names).
+     */
     discoverAssets?: (data: Record<string, unknown>) => AssetRef[];
     /**
      * Runtime-only state that must never persist: a transient component is

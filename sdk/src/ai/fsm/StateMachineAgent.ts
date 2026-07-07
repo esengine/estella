@@ -10,6 +10,7 @@
  */
 
 import { defineComponent } from '../../component';
+import { isUuidRef } from '../../asset/AssetRegistry';
 import type { FsmDefinition } from './types';
 import { compileFsm, type CompiledFsm } from './FsmRunner';
 
@@ -25,11 +26,13 @@ export const StateMachineAgent = defineComponent<StateMachineAgentData>('StateMa
     current: '',
 }, {
     assetFields: [{ field: 'fsm', type: 'statemachine' }],
-    // Preload a `.esfsm` reference with the scene so the FSM is registered before
-    // the agent first ticks. A plain `registerFsm` name (code path) is left alone.
+    // Preload a `.esfsm` path or an editor-serialized uuid ref with the scene so
+    // the FSM is registered before the agent first ticks. A plain `registerFsm`
+    // name (code path) is left alone — this callback is the discovery authority;
+    // the assetField above only drives the editor picker.
     discoverAssets: data => {
         const fsm = data.fsm;
-        return typeof fsm === 'string' && fsm.endsWith('.esfsm')
+        return typeof fsm === 'string' && (fsm.endsWith('.esfsm') || isUuidRef(fsm))
             ? [{ type: 'statemachine', path: fsm }]
             : [];
     },

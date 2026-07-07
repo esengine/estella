@@ -1042,6 +1042,17 @@ export class Assets {
     }
 
     /**
+     * The load path a ref resolves to — resolver plus addressable Catalog,
+     * the same two steps every typed load performs. This is the key a loader
+     * registers a data asset under, so runtime stores keyed by registration
+     * path (FSM/BT/timeline/tilemap via `resolveAssetKey`) must look up with
+     * THIS: `resolveRef` alone diverges once the Catalog carries mappings.
+     */
+    resolveLoadPath(ref: string): string {
+        return this.resolveLoadPath_(ref);
+    }
+
+    /**
      * Canonical path-resolution for all typed load methods.
      * Runs the AssetRefResolver first so `@uuid:...` refs map to their real
      * project path, then applies the addressable Catalog for any further

@@ -7,7 +7,11 @@
  * Each component may reference assets in three ways: a custom
  * `discoverAssets` callback, declared `assetFields`, or paired
  * `spineFields`. This module walks a SceneData and buckets every
- * such ref by asset type.
+ * such ref by asset type. A `discoverAssets` callback is authoritative:
+ * when present, `assetFields` are not walked for discovery (they still
+ * drive the editor's asset pickers and ref rewrites) — the callback may
+ * deliberately exclude values, e.g. FSM/BT agents skip plain
+ * code-registered names that only look like asset refs.
  *
  * Refs in serialized data may be either a concrete path
  * (`"assets/player.png"`, legacy) or a UUID reference
@@ -99,12 +103,12 @@ export function discoverSceneAssets(
                         addAsset(ref.type, ref.path);
                     }
                 }
-            }
-
-            for (const desc of comp.assetFields) {
-                const value = data[desc.field];
-                if (typeof value === 'string' && value) {
-                    addAsset(desc.type, value);
+            } else {
+                for (const desc of comp.assetFields) {
+                    const value = data[desc.field];
+                    if (typeof value === 'string' && value) {
+                        addAsset(desc.type, value);
+                    }
                 }
             }
 

@@ -4,6 +4,8 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { defineComponent, clearUserComponents } from '../src/component';
 import { discoverSceneAssets, getAssetPathsByType } from '../src/asset/discoverAssets';
 import { AssetRegistry, makeUuidRef } from '../src/asset/AssetRegistry';
+import { StateMachineAgent } from '../src/ai/fsm/StateMachineAgent';
+import { BehaviorTreeAgent } from '../src/ai/bt/BehaviorTreeAgent';
 import type { SceneData } from '../src/scene';
 
 const SPRITE_NAME = 'DiscoverTest_Sprite';
@@ -196,6 +198,68 @@ describe('discoverSceneAssets', () => {
 
         expect(refs.byType.size).toBe(0);
         expect(refs.spines).toHaveLength(0);
+    });
+});
+
+describe('discoverAssets callback authority over assetFields', () => {
+    const AGENT_NAME = 'DiscoverTest_Agent';
+
+    beforeEach(() => {
+        // Mirrors the FSM/BT agent shape: the assetField drives the editor
+        // picker, the callback filters out plain code-registered names.
+        defineComponent(AGENT_NAME, { fsm: '' }, {
+            assetFields: [{ field: 'fsm', type: 'statemachine' }],
+            discoverAssets: data => {
+                const fsm = data.fsm;
+                return typeof fsm === 'string' && fsm.endsWith('.esfsm')
+                    ? [{ type: 'statemachine', path: fsm }]
+                    : [];
+            },
+        });
+    });
+
+    it('does NOT bucket values the callback filtered out (code-registered names)', () => {
+        const scene = makeScene([{
+            id: 1, name: 'e1', parent: null, children: [],
+            components: [{ type: AGENT_NAME, data: { fsm: 'patrol' } }],
+        }]);
+
+        const refs = discoverSceneAssets(scene);
+
+        expect(getAssetPathsByType(refs, 'statemachine').size).toBe(0);
+        expect(refs.unresolved).toEqual([]);
+    });
+
+    it('buckets values the callback accepts', () => {
+        const scene = makeScene([{
+            id: 1, name: 'e1', parent: null, children: [],
+            components: [{ type: AGENT_NAME, data: { fsm: 'ai/enemy.esfsm' } }],
+        }]);
+
+        const refs = discoverSceneAssets(scene);
+
+        expect(getAssetPathsByType(refs, 'statemachine')).toEqual(new Set(['ai/enemy.esfsm']));
+    });
+});
+
+describe('FSM/BT agent asset discovery accepts every serialized ref form', () => {
+    const UUID = 'e43a0ed9-50e9-46d8-b1db-da1c549590a8';
+
+    it('StateMachineAgent: .esfsm path, @uuid: ref, bare uuid — but not a code name', () => {
+        const discover = StateMachineAgent.discoverAssets!;
+        expect(discover({ fsm: 'ai/enemy.esfsm' })).toEqual([{ type: 'statemachine', path: 'ai/enemy.esfsm' }]);
+        expect(discover({ fsm: `@uuid:${UUID}` })).toEqual([{ type: 'statemachine', path: `@uuid:${UUID}` }]);
+        expect(discover({ fsm: UUID })).toEqual([{ type: 'statemachine', path: UUID }]);
+        expect(discover({ fsm: 'patrol' })).toEqual([]);
+        expect(discover({ fsm: '' })).toEqual([]);
+    });
+
+    it('BehaviorTreeAgent: .esbt path, @uuid: ref, bare uuid — but not a code name', () => {
+        const discover = BehaviorTreeAgent.discoverAssets!;
+        expect(discover({ bt: 'ai/boss.esbt' })).toEqual([{ type: 'behaviortree', path: 'ai/boss.esbt' }]);
+        expect(discover({ bt: `@uuid:${UUID}` })).toEqual([{ type: 'behaviortree', path: `@uuid:${UUID}` }]);
+        expect(discover({ bt: UUID })).toEqual([{ type: 'behaviortree', path: UUID }]);
+        expect(discover({ bt: 'guard' })).toEqual([]);
     });
 });
 
