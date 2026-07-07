@@ -93,6 +93,9 @@ public:
      */
     u32 getVertexCount() const { return vertexCount_; }
 
+    /** @brief Byte stride of one vertex (0 before init) — boundary-validation source. */
+    u32 getVertexStride() const { return stride_; }
+
     /**
      * @brief Checks if geometry uses indices
      */

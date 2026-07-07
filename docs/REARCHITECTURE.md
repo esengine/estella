@@ -138,14 +138,13 @@
 - `SparseSet` 新增 `version()`：在组件缓冲**重分配**（emplace 扩容）、**relocate**（remove swap-pop、sort/rebuildSparse）时自增——作为 RC3 跨界指针失效守卫的**单一来源**，取代已删除的 `SchemaComponentPool::poolVersion`（后者还漏了 remove 时不自增的 bug）。
 - **验证**：native MSVC harness 编译+运行通过（version() 在 fill/remove/clear 后均自增；destroy 后回收的实体无残留组件）；SDK typecheck + 2012 测试全过。
 
-### RC3 错误/生命周期 — 🟡 进行中（错误通道已落地并测试）
+### RC3 错误/生命周期 — ✅ 已全部收口（2026-07-07 边界校验常开落地）
 错误模型已定：**保持 `-fno-exceptions` + 显式状态 + onAbort 死亡标志**（不增体积/不降速）。
 - ✅ **错误通道（已完成）**：新增 `moduleHealth.ts`——`WasmModuleAborted` + 按模块的死亡标志 + `installAbortGuard`（挂 emscripten `Module.onAbort`，保留既有 handler）。`handleWasmError` 对 `WasmModuleAborted` **重抛不吞**（abort 是终态，吞掉就是继续调用尸体）。`BuiltinBridge` 在 `connect` 装守卫，并在唯一收口 `resolveAndCache_` 把四个边界方法包成"调用前短路 + 调用中 abort 则致命重抛"。验证：typecheck + 8 个新测试 + 全套 2020 测试通过。
 - ✅ **RAII `_malloc`（已完成）**：新增 `wasmScratch.ts`——`withScratch(mod, alloc => …)` / `withMalloc`，作用域内分配的所有缓冲在回调返回**或抛异常**时按逆序释放。把 9 个文件的全部瞬时分配站点（runtimeLoader、TextureLoader、PhysicsSystem×3、TimelineUploader×6、ModuleBackend、SpineController×4、tilemapAPI×3、tiledLoader×4、TextRenderer）迁到该助手；持久缓冲（material/draw/renderer/geometry 的 alloc-once）与已有 try/finally 的站点不动。验证：5 个新 helper 测试 + typecheck + 全套 2025 测试；逐一人工复核 TimelineUploader/SpineController 等复杂多缓冲迁移，行为逐字节保持。
 - ✅ **指针失效（已查清，主路径本就安全）**：复核 `BuiltinBridge.resolvePtrGetter/Setter` 后确认——活的 `getXxxPtr` 路径**每次访问都重新 `getPtrFn(e)` 取指针、并重新读 `mod.HEAPF32`**（emscripten 在堆增长时会替换 `Module.HEAPF32`）。所以对重分配与视图失效**都已天然安全**，无需把 version 接进来。RC2 新增的 `SparseSet::version()` 保留为"单一来源"，供未来任何**缓存**指针的调用方复核。真正的残留风险只在个别**缓存** HEAP 视图的子系统读取，属下条范畴。
-- ⏳ **RC3 剩余**（较低优先级 / 需 emsdk）：
-  1. C++ 边界校验始终开启（不被 release 的 `ES_ASSERT` 剥离）——生成的 embind 包装已有 `valid(entity)` 守卫，需审计补齐其余入口（C++ harness 可验证）。
-  2. 各子系统桥接（physics/spine/tilemap/timeline）调用前接 `throwIfModuleAborted` + 缓存 HEAP 视图处改为每次重读（目前只有主模块经 BuiltinBridge 装了 abort 守卫）。
+- ✅ **边界校验常开（2026-07-07 收口）**：全边界审计确认——实体路径已全闭环（EHT 生成包装的 `valid/has` 门 + Registry/SparseSet 的 `ES_VERIFY` 常开守卫使"无守卫的实体解引用"入口为 **0**；顺带补齐 `getOrEmplace` 缺失的 `ES_VERIFY(valid)` 不对称）。真正的缺口是 **26 个裸指针+长度入口**（JS 传 `uintptr_t`+count 直接 `reinterpret_cast`，坏 count 在写路径可致沙箱内堆损坏）——新增 `bindings/BoundarySpan.hpp` 单一收口：`boundarySpan<T>(ptr, count, what)` 常开三重校验（空指针、`count*sizeof` 溢出、**wasm 线性内存范围** `emscripten_get_heap_size()`），失败记日志并拒绝整个调用。已应用到 Renderer（spine/text 提交、两处矩阵、物理批同步、mesh2d）、Geometry（init/indices/update/两处 transform + `draw_meshWithUniforms` 记录游走越界修复）、Tilemap（5 入 3 出）、sdfFromAlpha、ImmediateDraw、ResourceManager（3 处，含 `rm_createTextureEx` 无视 `pixelsLen` 的过读修复）、physics side module（多边形/链条 + 链条点数上限）。验证：新 `tests/bindings/test_boundary_span.cpp`（emscripten 下测真实堆界）+ registry_safety + 7 个 headless 场景（sprite/text/tilemap/mesh2d/粒子/后处理/spine 全部经过被改路径）全 PASS。
+- ✅ 各子系统桥接 abort 守卫：随 F2 统一 `WasmBridge` 基类落地（全子系统覆盖）。
 
 ### RC5 渲染唯一路径 — ✅ 渲染/GPU 部分已落地（SDK 部分待续）
 **已完成（PR #41–#47，已并入 master）**：

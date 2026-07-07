@@ -20,6 +20,7 @@
 #include "ActiveContext.hpp"
 #include "ResourceManagerBindings.hpp"
 #include "RendererBindings.hpp"
+#include "BoundarySpan.hpp"
 #include "ImmediateDrawBindings.hpp"
 #include "GeometryBindings.hpp"
 #ifdef ES_ENABLE_POSTPROCESS
@@ -293,8 +294,10 @@ resource::ResourceManager* getResourceManager() {
 // bitmap to a signed distance field. Both buffers are caller-allocated in WASM
 // linear memory (TS passes HEAPU8 pointers); `alpha` and `out` are width*height.
 void web_sdfFromAlpha(uintptr_t alphaPtr, uintptr_t outPtr, u32 width, u32 height, f32 spread) {
-    const u8* alpha = reinterpret_cast<const u8*>(alphaPtr);
-    u8* out = reinterpret_cast<u8*>(outPtr);
+    const u64 pixels = static_cast<u64>(width) * height;
+    const u8* alpha = boundarySpan<u8>(alphaPtr, pixels, "sdfFromAlpha.alpha");
+    u8* out = boundarySpanMut<u8>(outPtr, pixels, "sdfFromAlpha.out");
+    if (!alpha || !out) return;
     text::sdfFromAlpha(alpha, out, width, height, spread);
 }
 

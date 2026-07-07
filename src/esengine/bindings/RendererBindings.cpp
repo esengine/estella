@@ -3,6 +3,7 @@
 
 #include "RendererBindings.hpp"
 #include "ActiveContext.hpp"
+#include "BoundarySpan.hpp"
 #include "../renderer/GfxDevice.hpp"
 #include "../renderer/RenderFrame.hpp"
 #include "../renderer/RenderContext.hpp"
@@ -69,9 +70,12 @@ void renderer_submitSpineBatch(
     u32 entity, i32 layer, f32 depth
 ) {
     if (!g_initialized || !g_renderFrame) return;
-    auto* vertices = reinterpret_cast<const f32*>(verticesPtr);
-    auto* indices = reinterpret_cast<const u16*>(indicesPtr);
-    auto* transform = reinterpret_cast<const f32*>(transformPtr);
+    if (vertexCount < 0 || indexCount < 0) return;
+    // Spine vertex format is x,y,u,v,r,g,b,a (8 floats per vertex).
+    auto* vertices = boundarySpan<f32>(verticesPtr, static_cast<u64>(vertexCount) * 8, "renderer_submitSpineBatch.vertices");
+    auto* indices = boundarySpan<u16>(indicesPtr, static_cast<u64>(indexCount), "renderer_submitSpineBatch.indices");
+    auto* transform = boundarySpan<f32>(transformPtr, 16, "renderer_submitSpineBatch.transform");
+    if (!vertices || !indices || !transform) return;
     g_renderFrame->submitSpineBatch(
         vertices, vertexCount, indices, indexCount,
         textureId, blendMode, transform, Entity::fromRaw(entity), layer, depth);
@@ -102,8 +106,10 @@ void renderer_submitSpineBatchByEntity(
                      * glm::mat4_cast(t.worldRotation)
                      * glm::scale(glm::mat4(1.0f), s);
 
-    auto* vertices = reinterpret_cast<const f32*>(verticesPtr);
-    auto* indices = reinterpret_cast<const u16*>(indicesPtr);
+    if (vertexCount < 0 || indexCount < 0) return;
+    auto* vertices = boundarySpan<f32>(verticesPtr, static_cast<u64>(vertexCount) * 8, "renderer_submitSpineBatchByEntity.vertices");
+    auto* indices = boundarySpan<u16>(indicesPtr, static_cast<u64>(indexCount), "renderer_submitSpineBatchByEntity.indices");
+    if (!vertices || !indices) return;
     g_renderFrame->submitSpineBatch(
         vertices, vertexCount, indices, indexCount,
         textureId, blendMode, &model[0][0], ent, layer, depth);
@@ -120,9 +126,12 @@ void renderer_submitTextBatch(
     u32 entity, i32 layer, f32 depth, i32 sdf
 ) {
     if (!g_initialized || !g_renderFrame) return;
-    auto* vertices = reinterpret_cast<const f32*>(verticesPtr);
-    auto* indices = reinterpret_cast<const u16*>(indicesPtr);
-    auto* transform = reinterpret_cast<const f32*>(transformPtr);
+    if (vertexCount < 0 || indexCount < 0) return;
+    // Text vertex format is x,y,u,v,r,g,b,a (8 floats per vertex).
+    auto* vertices = boundarySpan<f32>(verticesPtr, static_cast<u64>(vertexCount) * 8, "renderer_submitTextBatch.vertices");
+    auto* indices = boundarySpan<u16>(indicesPtr, static_cast<u64>(indexCount), "renderer_submitTextBatch.indices");
+    auto* transform = boundarySpan<f32>(transformPtr, 16, "renderer_submitTextBatch.transform");
+    if (!vertices || !indices || !transform) return;
     g_renderFrame->submitTextBatch(
         vertices, vertexCount, indices, indexCount,
         textureId, transform, Entity::fromRaw(entity), layer, depth, sdf != 0);
@@ -155,9 +164,10 @@ void mesh2d_setGeometry(ecs::Registry& registry, u32 entity,
         return;
     }
 
-    const f32* posUv = reinterpret_cast<const f32*>(posUvPtr);
-    const u32* colors = reinterpret_cast<const u32*>(colorsPtr);
-    const u32* indices = reinterpret_cast<const u32*>(indicesPtr);
+    const f32* posUv = boundarySpan<f32>(posUvPtr, static_cast<u64>(vertexCount) * 4, "mesh2d_setGeometry.posUv");
+    const u32* colors = colorsPtr ? boundarySpan<u32>(colorsPtr, vertexCount, "mesh2d_setGeometry.colors") : nullptr;
+    const u32* indices = boundarySpan<u32>(indicesPtr, indexCount, "mesh2d_setGeometry.indices");
+    if (!posUv || !indices || (colorsPtr && !colors)) return;
 
     for (u32 i = 0; i < indexCount; ++i) {
         if (indices[i] >= vertexCount) {
@@ -174,7 +184,7 @@ void mesh2d_setGeometry(ecs::Registry& registry, u32 entity,
         auto& out = mesh->vertices[v];
         out.position = { posUv[v * 4 + 0], posUv[v * 4 + 1] };
         out.uv = { posUv[v * 4 + 2], posUv[v * 4 + 3] };
-        out.color = colorsPtr ? colors[v] : 0xFFFFFFFFu;
+        out.color = colors ? colors[v] : 0xFFFFFFFFu;
         mn = glm::min(mn, out.position);
         mx = glm::max(mx, out.position);
     }
@@ -265,7 +275,8 @@ void renderFrameWithMatrix(ecs::Registry& registry, i32 viewportWidth, i32 viewp
 
     g_device->setViewport(0, 0, static_cast<u32>(viewportWidth), static_cast<u32>(viewportHeight));
 
-    const f32* matrixData = reinterpret_cast<const f32*>(matrixPtr);
+    const f32* matrixData = boundarySpan<f32>(matrixPtr, 16, "renderFrameWithMatrix.matrix");
+    if (!matrixData) return;
     glm::mat4 viewProjection = glm::make_mat4(matrixData);
 
     const auto& cc = ctx().state().clear_color;
@@ -303,7 +314,8 @@ void renderer_begin(uintptr_t matrixPtr, u32 targetHandle, i32 clearFlags,
                     i32 clearX, i32 clearY, u32 clearW, u32 clearH) {
     if (!g_renderFrame) return;
 
-    const f32* matrixData = reinterpret_cast<const f32*>(matrixPtr);
+    const f32* matrixData = boundarySpan<f32>(matrixPtr, 16, "renderer_begin.matrix");
+    if (!matrixData) return;
     glm::mat4 viewProjection = glm::make_mat4(matrixData);
 
     g_renderFrame->begin(viewProjection, targetHandle,
@@ -641,7 +653,9 @@ u32 registry_getGeneration(ecs::Registry& registry, u32 entity) {
 }
 
 void registry_batchSyncPhysicsTransforms(ecs::Registry& registry, uintptr_t bufferPtr, int count, float ppu) {
-    const float* buffer = reinterpret_cast<const float*>(bufferPtr);
+    if (count < 0) return;
+    const float* buffer = boundarySpan<f32>(bufferPtr, static_cast<u64>(count) * 4, "registry_batchSyncPhysicsTransforms");
+    if (!buffer) return;
     for (int i = 0; i < count; i++) {
         const int offset = i * 4;
         uint32_t entityId;

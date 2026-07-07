@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 #include "PhysicsContext.hpp"
+#include "BoundarySpan.hpp"
 
 extern "C" {
 
@@ -135,7 +136,8 @@ void physics_addPolygonShape(uint32_t entityId, uintptr_t verticesPtr, int verte
     shapeDef.filter.categoryBits = static_cast<uint64_t>(categoryBits);
     shapeDef.filter.maskBits = static_cast<uint64_t>(maskBits);
 
-    auto* floats = reinterpret_cast<float*>(verticesPtr);
+    auto* floats = boundarySpan<float>(verticesPtr, static_cast<u64>(vertexCount) * 2, "physics_addPolygonShape");
+    if (!floats) return;
     b2Vec2 points[B2_MAX_POLYGON_VERTICES];
     for (int i = 0; i < vertexCount; i++) {
         points[i] = {floats[i * 2], floats[i * 2 + 1]};
@@ -157,9 +159,12 @@ void physics_addChainShape(uint32_t entityId, uintptr_t pointsPtr, int pointCoun
                            uint32_t categoryBits, uint32_t maskBits) {
     auto it = g_ctx.entityToBody.find(entityId);
     if (it == g_ctx.entityToBody.end()) return;
-    if (pointCount < 4) return;
+    // Chain points are unbounded by Box2D itself; cap at a sane ceiling so a wild
+    // count can't allocate gigabytes or walk the heap.
+    if (pointCount < 4 || pointCount > 65536) return;
 
-    auto* floats = reinterpret_cast<float*>(pointsPtr);
+    auto* floats = boundarySpan<float>(pointsPtr, static_cast<u64>(pointCount) * 2, "physics_addChainShape");
+    if (!floats) return;
     std::vector<b2Vec2> points(pointCount);
     for (int i = 0; i < pointCount; i++) {
         points[i] = {floats[i * 2], floats[i * 2 + 1]};

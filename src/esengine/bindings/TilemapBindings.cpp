@@ -3,6 +3,7 @@
 #ifdef ES_ENABLE_TILEMAP
 
 #include "ActiveContext.hpp"
+#include "BoundarySpan.hpp"
 #include "../tilemap/TilemapSystem.hpp"
 #include "../tilemap/TiledMapLoader.hpp"
 #include "../renderer/RenderContext.hpp"
@@ -81,7 +82,8 @@ void tilemap_fillRect(u32 entity, i32 x, i32 y,
 void tilemap_setTiles(u32 entity, uintptr_t tilesPtr, u32 count) {
     auto e = Entity::fromRaw(entity);
     if (e == INVALID_ENTITY || !getTilemapSystem().hasLayer(e)) return;
-    const auto* tiles = reinterpret_cast<const u16*>(tilesPtr);
+    const auto* tiles = boundarySpan<u16>(tilesPtr, count, "tilemap_setTiles");
+    if (!tiles) return;
     getTilemapSystem().setTiles(e, tiles, count);
 }
 
@@ -90,7 +92,8 @@ void tilemap_setTiles(u32 entity, uintptr_t tilesPtr, u32 count) {
 void tilemap_setTilesets(u32 entity, uintptr_t dataPtr, u32 count) {
     auto e = Entity::fromRaw(entity);
     if (e == INVALID_ENTITY || !getTilemapSystem().hasLayer(e)) return;
-    const auto* d = reinterpret_cast<const u32*>(dataPtr);
+    const auto* d = count ? boundarySpan<u32>(dataPtr, static_cast<u64>(count) * 3, "tilemap_setTilesets") : nullptr;
+    if (count && !d) return;
     std::vector<tilemap::TilesetSlot> slots;
     slots.reserve(count);
     for (u32 i = 0; i < count; ++i) {
@@ -292,7 +295,8 @@ bool tilemap_importChunks(u32 entity, const std::string& encoded) {
 // --- Tiled map loader bindings ---
 
 u32 tiled_loadMap(uintptr_t dataPtr, u32 dataSize) {
-    const auto* data = reinterpret_cast<const char*>(dataPtr);
+    const auto* data = boundarySpan<char>(dataPtr, dataSize, "tiled_loadMap");
+    if (!data) return 0;
     return getTiledLoader().loadFromMemory(data, dataSize);
 }
 
@@ -310,7 +314,8 @@ std::string tiled_getExternalTilesetSource(u32 handle, u32 index) {
 
 bool tiled_loadExternalTileset(u32 handle, u32 index,
                                 uintptr_t dataPtr, u32 dataSize) {
-    const auto* data = reinterpret_cast<const char*>(dataPtr);
+    const auto* data = boundarySpan<char>(dataPtr, dataSize, "tiled_loadExternalTileset");
+    if (!data) return false;
     return getTiledLoader().loadExternalTileset(handle, index, data, dataSize);
 }
 
@@ -374,7 +379,8 @@ u32 tiled_getLayerTiles(u32 handle, u32 index,
 
     const auto& tiles = map->layers[index].tiles;
     u32 count = std::min(static_cast<u32>(tiles.size()), maxCount);
-    auto* out = reinterpret_cast<u16*>(outPtr);
+    auto* out = boundarySpanMut<u16>(outPtr, count, "tiled_getLayerTiles");
+    if (!out) return 0;
     std::memcpy(out, tiles.data(), count * sizeof(u16));
     return count;
 }
@@ -515,7 +521,8 @@ u32 tiled_getObjectVertices(u32 handle, u32 groupIndex, u32 objIndex,
     if (objIndex >= grp.objects.size()) return 0;
     const auto& verts = grp.objects[objIndex].vertices;
     u32 count = std::min(static_cast<u32>(verts.size()), maxFloats);
-    auto* out = reinterpret_cast<f32*>(outPtr);
+    auto* out = boundarySpanMut<f32>(outPtr, count, "tiled_getObjectVertices");
+    if (!out) return 0;
     std::memcpy(out, verts.data(), count * sizeof(f32));
     return count;
 }
@@ -554,7 +561,8 @@ void tilemap_setChunkTiles(u32 entity, i32 chunkX, i32 chunkY,
                             uintptr_t tilesPtr, u32 width, u32 height) {
     auto e = Entity::fromRaw(entity);
     if (e == INVALID_ENTITY || !getTilemapSystem().hasLayer(e)) return;
-    const auto* tiles = reinterpret_cast<const u16*>(tilesPtr);
+    const auto* tiles = boundarySpan<u16>(tilesPtr, static_cast<u64>(width) * height, "tilemap_setChunkTiles");
+    if (!tiles) return;
     getTilemapSystem().setChunkTiles(e, chunkX, chunkY, tiles, width, height);
 }
 
@@ -615,7 +623,8 @@ u32 tiled_getLayerChunkTiles(u32 handle, u32 layerIndex, u32 chunkIndex,
     if (chunkIndex >= chunks.size()) return 0;
     const auto& tiles = chunks[chunkIndex].tiles;
     u32 count = std::min(static_cast<u32>(tiles.size()), maxCount);
-    auto* out = reinterpret_cast<u16*>(outPtr);
+    auto* out = boundarySpanMut<u16>(outPtr, count, "tiled_getLayerChunkTiles");
+    if (!out) return 0;
     std::memcpy(out, tiles.data(), count * sizeof(u16));
     return count;
 }
@@ -624,7 +633,8 @@ void tilemap_setTileAnimation(u32 entity, u32 tileId,
                                uintptr_t framesPtr, u32 frameCount) {
     auto e = Entity::fromRaw(entity);
     if (e == INVALID_ENTITY || !getTilemapSystem().hasLayer(e)) return;
-    const auto* data = reinterpret_cast<const u32*>(framesPtr);
+    const auto* data = boundarySpan<u32>(framesPtr, static_cast<u64>(frameCount) * 2, "tilemap_setTileAnimation");
+    if (!data) return;
     std::vector<tilemap::AnimFrame> frames(frameCount);
     for (u32 i = 0; i < frameCount; i++) {
         frames[i].tile_id = static_cast<u16>(data[i * 2]);

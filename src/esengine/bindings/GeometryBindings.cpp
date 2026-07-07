@@ -3,6 +3,7 @@
 
 #include "GeometryBindings.hpp"
 #include "ActiveContext.hpp"
+#include "BoundarySpan.hpp"
 #include "../renderer/OpenGLHeaders.hpp"
 #include "../renderer/GfxDevice.hpp"
 #include "../renderer/CustomGeometry.hpp"
@@ -71,8 +72,8 @@ void geometry_init(u32 handle, uintptr_t verticesPtr, u32 vertexCount,
         return;
     }
 
-    const f32* vertices = reinterpret_cast<const f32*>(verticesPtr);
-    const i32* layoutData = reinterpret_cast<const i32*>(layoutPtr);
+    const i32* layoutData = boundarySpan<i32>(layoutPtr, layoutCount, "geometry_init.layout");
+    if (!layoutData) return;
 
     static constexpr const char* ATTR_NAMES[] = {
         "a_attr0", "a_attr1", "a_attr2", "a_attr3",
@@ -85,7 +86,12 @@ void geometry_init(u32 handle, uintptr_t verticesPtr, u32 vertexCount,
         attrs.emplace_back(static_cast<ShaderDataType>(layoutData[i]), ATTR_NAMES[i]);
     }
 
-    geom->init(ctx().require<GfxDevice>(), vertices, vertexCount, VertexLayout(std::move(attrs)), dynamic);
+    VertexLayout layout(std::move(attrs));
+    const f32* vertices = boundarySpan<f32>(
+        verticesPtr, static_cast<u64>(vertexCount) * (layout.getStride() / sizeof(f32)),
+        "geometry_init.vertices");
+    if (!vertices) return;
+    geom->init(ctx().require<GfxDevice>(), vertices, vertexCount, std::move(layout), dynamic);
 }
 
 void geometry_setIndices16(u32 handle, uintptr_t indicesPtr, u32 indexCount) {
@@ -94,7 +100,8 @@ void geometry_setIndices16(u32 handle, uintptr_t indicesPtr, u32 indexCount) {
     auto* geom = g_geometryManager->get(handle);
     if (!geom) return;
 
-    const u16* indices = reinterpret_cast<const u16*>(indicesPtr);
+    const u16* indices = boundarySpan<u16>(indicesPtr, indexCount, "geometry_setIndices16");
+    if (!indices) return;
     geom->setIndices(indices, indexCount);
 }
 
@@ -104,7 +111,8 @@ void geometry_setIndices32(u32 handle, uintptr_t indicesPtr, u32 indexCount) {
     auto* geom = g_geometryManager->get(handle);
     if (!geom) return;
 
-    const u32* indices = reinterpret_cast<const u32*>(indicesPtr);
+    const u32* indices = boundarySpan<u32>(indicesPtr, indexCount, "geometry_setIndices32");
+    if (!indices) return;
     geom->setIndices(indices, indexCount);
 }
 
@@ -114,7 +122,10 @@ void geometry_updateVertices(u32 handle, uintptr_t verticesPtr, u32 vertexCount,
     auto* geom = g_geometryManager->get(handle);
     if (!geom) return;
 
-    const f32* vertices = reinterpret_cast<const f32*>(verticesPtr);
+    const f32* vertices = boundarySpan<f32>(
+        verticesPtr, static_cast<u64>(vertexCount) * (geom->getVertexStride() / sizeof(f32)),
+        "geometry_updateVertices");
+    if (!vertices) return;
     geom->updateVertices(vertices, vertexCount, offset);
 }
 
@@ -139,7 +150,8 @@ void draw_mesh(u32 geometryHandle, u32 shaderHandle, uintptr_t transformPtr) {
 
     flushImmediateDrawIfActive();
 
-    const f32* transformData = reinterpret_cast<const f32*>(transformPtr);
+    const f32* transformData = boundarySpan<f32>(transformPtr, 16, "draw_mesh.transform");
+    if (!transformData) return;
     glm::mat4 transform = glm::make_mat4(transformData);
 
     applyMeshPipeline(*g_device, *shader, *geom);
@@ -172,7 +184,8 @@ void draw_meshWithUniforms(u32 geometryHandle, u32 shaderHandle, uintptr_t trans
 
     flushImmediateDrawIfActive();
 
-    const f32* transformData = reinterpret_cast<const f32*>(transformPtr);
+    const f32* transformData = boundarySpan<f32>(transformPtr, 16, "draw_meshWithUniforms.transform");
+    if (!transformData) return;
     glm::mat4 transform = glm::make_mat4(transformData);
 
     applyMeshPipeline(*g_device, *shader, *geom);
@@ -187,12 +200,17 @@ void draw_meshWithUniforms(u32 geometryHandle, u32 shaderHandle, uintptr_t trans
     };
     static constexpr u32 UNIFORM_NAME_COUNT = sizeof(UNIFORM_NAMES) / sizeof(UNIFORM_NAMES[0]);
 
-    const f32* uniforms = reinterpret_cast<const f32*>(uniformsPtr);
+    const f32* uniforms = boundarySpan<f32>(uniformsPtr, uniformCount, "draw_meshWithUniforms.uniforms");
+    if (uniformCount != 0 && !uniforms) return;
     u32 idx = 0;
 
-    while (idx < uniformCount) {
+    // Each record is [type, nameId, payload...]; a truncated record must stop the
+    // walk instead of reading past uniformCount.
+    while (idx + 2 <= uniformCount) {
         auto type = static_cast<i32>(uniforms[idx++]);
         auto nameId = static_cast<i32>(uniforms[idx++]);
+        const u32 arity = (type == 10) ? 2u : (type >= 1 && type <= 4 ? static_cast<u32>(type) : 0u);
+        if (uniformCount - idx < arity) break;
 
         const char* name = (nameId >= 0 && static_cast<u32>(nameId) < UNIFORM_NAME_COUNT)
                          ? UNIFORM_NAMES[nameId] : "u_unknown";

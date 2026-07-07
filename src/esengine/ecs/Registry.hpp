@@ -382,6 +382,8 @@ public:
         if (pool.contains(entity)) {
             return pool.get(entity);
         }
+        // Release-safe: see emplace() — invalid entity -> OOB write on the mask.
+        ES_VERIFY(valid(entity), { static T fallback{}; fallback = T{}; return fallback; });
         auto& result = pool.emplace(entity, std::forward<Args>(args)...);
         component_masks_[entity.index()].set(componentTypeId<T>());
         return result;

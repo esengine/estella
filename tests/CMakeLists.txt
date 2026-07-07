@@ -111,6 +111,16 @@ add_executable(test_buffer_device
 target_include_directories(test_buffer_device PRIVATE ${CMAKE_SOURCE_DIR}/src)
 add_test(NAME test_buffer_device COMMAND test_buffer_device)
 
+# Boundary-span validation (RC3): JS-supplied pointer+length pairs are null-,
+# overflow-, and heap-range-checked ALWAYS ON. Header-only + Log.cpp; under
+# emscripten the heap-range cases exercise the real linear-memory bound.
+add_executable(test_boundary_span
+    bindings/test_boundary_span.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/core/Log.cpp
+)
+target_include_directories(test_boundary_span PRIVATE ${CMAKE_SOURCE_DIR}/src)
+add_test(NAME test_boundary_span COMMAND test_boundary_span)
+
 # Unified submission face (render-pipeline unification): BatchBuilder is the single
 # DrawCommand producer for every stream. Compiles BatchBuilder/DrawList/
 # TransientBufferPool against the MockGfxDevice and asserts per-stream baseVertex

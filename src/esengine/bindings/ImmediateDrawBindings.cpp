@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 
 #include "ImmediateDrawBindings.hpp"
+#include "BoundarySpan.hpp"
 #include "ActiveContext.hpp"
 #include "../renderer/OpenGLHeaders.hpp"
 #include "../renderer/GfxDevice.hpp"
@@ -39,7 +40,8 @@ void draw_begin(uintptr_t matrixPtr) {
 
     g_device->setViewport(0, 0, g_viewportWidth, g_viewportHeight);
 
-    const f32* matrixData = reinterpret_cast<const f32*>(matrixPtr);
+    const f32* matrixData = boundarySpan<f32>(matrixPtr, 16, "draw_begin.matrix");
+    if (!matrixData) return;
     ctx().state().current_view_projection = glm::make_mat4(matrixData);
     g_immediateDraw->begin(g_currentViewProjection);
     ctx().state().immediate_draw_active = true;

@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 
 #include "ResourceManagerBindings.hpp"
+#include "BoundarySpan.hpp"
 #include "../resource/TextureMetadata.hpp"
 #include "../text/BitmapFont.hpp"
 #include "../core/Types.hpp"
@@ -12,7 +13,8 @@ namespace esengine {
 
 u32 rm_createTexture(resource::ResourceManager& rm, u32 width, u32 height,
                       uintptr_t pixelsPtr, u32 pixelsLen, i32 format, bool flipY) {
-    const u8* pixels = reinterpret_cast<const u8*>(pixelsPtr);
+    const u8* pixels = boundarySpan<u8>(pixelsPtr, pixelsLen, "rm_createTexture");
+    if (!pixels) return 0;
     ConstSpan<u8> pixelSpan(pixels, pixelsLen);
 
     TextureFormat texFormat = TextureFormat::RGBA8;
@@ -26,7 +28,8 @@ u32 rm_createTexture(resource::ResourceManager& rm, u32 width, u32 height,
 u32 rm_createTextureEx(resource::ResourceManager& rm, u32 width, u32 height,
                         uintptr_t pixelsPtr, u32 pixelsLen, i32 format, bool flipY,
                         i32 filterMode, i32 wrapMode) {
-    const u8* pixels = reinterpret_cast<const u8*>(pixelsPtr);
+    const u8* pixels = pixelsPtr ? boundarySpan<u8>(pixelsPtr, pixelsLen, "rm_createTextureEx") : nullptr;
+    if (pixelsPtr && !pixels) return 0;
 
     TextureFormat texFormat = TextureFormat::RGBA8;
     if (format == 0) texFormat = TextureFormat::RGB8;
@@ -55,8 +58,13 @@ u32 rm_createTextureEx(resource::ResourceManager& rm, u32 width, u32 height,
 
     auto* texture = rm.getTexture(handle);
     if (texture && pixels) {
-        u32 dataSize = width * height * (texFormat == TextureFormat::RGBA8 ? 4 : 3);
-        texture->setDataRaw(pixels, dataSize, flipY);
+        const u64 required = static_cast<u64>(width) * height * (texFormat == TextureFormat::RGBA8 ? 4 : 3);
+        if (pixelsLen < required) {
+            ES_LOG_ERROR("rm_createTextureEx: pixel buffer {} < required {}; upload skipped",
+                         pixelsLen, required);
+        } else {
+            texture->setDataRaw(pixels, static_cast<u32>(required), flipY);
+        }
     }
 
     return handle.id();
@@ -197,7 +205,8 @@ void rm_updateTextureSubregion(resource::ResourceManager& rm, u32 handleId,
     if (!tex) return;
     // Sub-region pixels must already match the texture's format (RGBA8 atlas);
     // updateSubRegion bounds-checks the rect + buffer size internally.
-    const u8* pixels = reinterpret_cast<const u8*>(pixelsPtr);
+    const u8* pixels = boundarySpan<u8>(pixelsPtr, pixelsLen, "rm_updateTextureSubregion");
+    if (!pixels) return;
     tex->updateSubRegion(x, y, width, height, pixels, pixelsLen, /*flipY=*/false);
 }
 
