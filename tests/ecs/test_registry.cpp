@@ -469,7 +469,7 @@ TEST_CASE("view_each tolerates mid-iteration remove of the current entity") {
     });
 
     CHECK_EQ(visited, 5);
-    CHECK_EQ(registry.view<test::Position>().sizeHint(), 0u);
+    CHECK_EQ(registry.view<test::Position>().size(), 0u);
 }
 
 TEST_CASE("onDestroy callback can safely removeOnDestroy itself") {
@@ -477,10 +477,10 @@ TEST_CASE("onDestroy callback can safely removeOnDestroy itself") {
     esengine::Entity e = registry.create();
 
     bool other_fired = false;
-    u32 self_id = 0;
-    u32 self_fires = 0;
+    esengine::u32 self_id = 0;
+    esengine::u32 self_fires = 0;
 
-    u32 other_id = registry.onDestroy([&](esengine::Entity) { other_fired = true; });
+    esengine::u32 other_id = registry.onDestroy([&](esengine::Entity) { other_fired = true; });
     self_id = registry.onDestroy([&](esengine::Entity) {
         ++self_fires;
         registry.removeOnDestroy(self_id);

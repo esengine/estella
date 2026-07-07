@@ -112,18 +112,19 @@ TEST_CASE("sparse_set_remove_only_element") {
 TEST_CASE("sparse_set_page_boundary") {
     esengine::ecs::SparseSet<test::Position> set;
 
-    constexpr esengine::u32 PAGE_SIZE = esengine::ecs::SparseSet<test::Position>::SPARSE_PAGE_SIZE;
+    // Not named PAGE_SIZE: emscripten's <limits.h> defines that as a macro.
+    constexpr esengine::u32 kPageSize = esengine::ecs::SparseSet<test::Position>::SPARSE_PAGE_SIZE;
 
     set.emplace(esengine::Entity::make(0, 1), 1.0f, 1.0f);
-    set.emplace(esengine::Entity::make(PAGE_SIZE - 1, 1), 2.0f, 2.0f);
-    set.emplace(esengine::Entity::make(PAGE_SIZE, 1), 3.0f, 3.0f);
-    set.emplace(esengine::Entity::make(PAGE_SIZE + 1, 1), 4.0f, 4.0f);
+    set.emplace(esengine::Entity::make(kPageSize - 1, 1), 2.0f, 2.0f);
+    set.emplace(esengine::Entity::make(kPageSize, 1), 3.0f, 3.0f);
+    set.emplace(esengine::Entity::make(kPageSize + 1, 1), 4.0f, 4.0f);
 
     CHECK_EQ(set.size(), 4u);
     CHECK_EQ(set.get(esengine::Entity::make(0, 1)).x, 1.0f);
-    CHECK_EQ(set.get(esengine::Entity::make(PAGE_SIZE - 1, 1)).x, 2.0f);
-    CHECK_EQ(set.get(esengine::Entity::make(PAGE_SIZE, 1)).x, 3.0f);
-    CHECK_EQ(set.get(esengine::Entity::make(PAGE_SIZE + 1, 1)).x, 4.0f);
+    CHECK_EQ(set.get(esengine::Entity::make(kPageSize - 1, 1)).x, 2.0f);
+    CHECK_EQ(set.get(esengine::Entity::make(kPageSize, 1)).x, 3.0f);
+    CHECK_EQ(set.get(esengine::Entity::make(kPageSize + 1, 1)).x, 4.0f);
 }
 
 TEST_CASE("sparse_set_large_entity_id") {

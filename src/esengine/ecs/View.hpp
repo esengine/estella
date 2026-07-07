@@ -429,16 +429,19 @@ public:
     void each(Func&& func) {
         if (!pool_) return;
 
-        const auto& entities = pool_->entities();
-        auto& components = pool_->components();
+        // Snapshot tolerates emplace/remove on the pool during the callback — the
+        // same contract as the multi-component view's each. Live forward iteration
+        // would re-visit mid-iteration emplaces and skip swap-popped removals.
+        std::vector<Entity> entities = pool_->entities();
 
-        for (usize i = 0; i < entities.size(); ++i) {
+        for (Entity entity : entities) {
+            if (!pool_->contains(entity)) continue;
             if constexpr (std::is_invocable_v<Func, Entity, T&>) {
-                func(entities[i], components[i]);
+                func(entity, pool_->getUnchecked(entity));
             } else if constexpr (std::is_invocable_v<Func, T&>) {
-                func(components[i]);
+                func(pool_->getUnchecked(entity));
             } else {
-                func(entities[i]);
+                func(entity);
             }
         }
     }

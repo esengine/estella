@@ -1,11 +1,21 @@
 name: Build
 
+# Push-gated CI: every master push must keep the architecture invariants green —
+# boundary guards, full-component ABI static_asserts (compiled by the web build),
+# the C++ doctest harnesses, and both TS suites. workflow_dispatch stays for
+# re-runs and branch experiments.
 on:
+  push:
+    branches: [master]
   workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-emscripten:
-    name: Web (Emscripten)
+    name: Web (Emscripten) + C++ tests
     runs-on: ubuntu-latest
 
     steps:
@@ -54,11 +64,39 @@ jobs:
         test -f build/wasm/wechat/esengine.wxgame.js && echo "✓ WeChat JS"
         test -f build/wasm/wechat/esengine.wxgame.wasm && echo "✓ WeChat WASM"
 
+    - name: Build C++ test harnesses
+      run: |
+        emcmake cmake -S . -B build/wasm/web-tests -DCMAKE_BUILD_TYPE=Release -DES_BUILD_WEB=ON -DES_BUILD_TESTS=ON
+        cmake --build build/wasm/web-tests -j "$(nproc)" --target \
+          test_ecs test_events test_particle test_tilemap test_sparse_set \
+          test_resource_pool test_shader_variant test_log_format test_registry_safety \
+          test_shader_device test_draw_params test_texture_fb test_buffer_device \
+          test_compressed_format test_batch_builder
+
+    # The root package.json is ESM, so the emscripten-emitted .js must run as .cjs.
+    - name: Run C++ test harnesses
+      run: |
+        for t in test_ecs test_events test_particle test_tilemap test_sparse_set \
+                 test_resource_pool test_shader_variant test_log_format test_registry_safety \
+                 test_shader_device test_draw_params test_texture_fb test_buffer_device \
+                 test_compressed_format test_batch_builder; do
+          cp "build/wasm/web-tests/bin/$t.js" "build/wasm/web-tests/bin/$t.cjs"
+          echo "=== $t"
+          node "build/wasm/web-tests/bin/$t.cjs"
+        done
+
     - name: Build remaining targets (spine, physics)
       run: node build-tools/cli.js build -t all --no-sync --continue-on-error
 
+    - name: Upload web wasm artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: wasm-web
+        path: build/wasm/web/
+        retention-days: 3
+
   test:
-    name: Tests (SDK)
+    name: Tests (SDK + Desktop)
     runs-on: ubuntu-latest
 
     steps:
@@ -94,3 +132,82 @@ jobs:
 
     - name: Run SDK tests
       run: pnpm --filter ./sdk exec vitest run
+
+    - name: Type-check Desktop
+      run: pnpm --filter @estella/editor exec tsc --noEmit
+
+    - name: Run Desktop tests
+      run: pnpm --filter @estella/editor exec vitest run
+
+  # Headless pixel verification: real scenes rendered by the editor's electron
+  # host under xvfb (SwiftShader WebGL), asserted pixel-by-pixel. Observation
+  # period — flip continue-on-error off once proven stable on a few pushes.
+  verify-render:
+    name: Render verify (headless)
+    runs-on: ubuntu-latest
+    needs: build-emscripten
+    continue-on-error: true
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: pnpm/action-setup@v4
+      with:
+        version: 10
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '24'
+        cache: 'pnpm'
+
+    - name: Download web wasm artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: wasm-web
+        path: build/wasm/web/
+
+    - name: Install dependencies
+      run: pnpm install
+
+    - name: Build SDK
+      run: pnpm --filter ./sdk build
+
+    - name: Stage wasm for the editor host
+      run: |
+        mkdir -p desktop/public/wasm
+        cp build/wasm/web/* desktop/public/wasm/
+
+    - name: Build editor renderer bundle
+      working-directory: desktop
+      run: pnpm exec vite build
+
+    - name: Run headless verify scenes
+      working-directory: desktop
+      run: |
+        run_scene() {
+          echo "=== $1"
+          shift
+          env "$@" xvfb-run -a pnpm exec electron scripts/headless-verify.mjs
+        }
+        run_scene sprite-default
+        run_scene mesh2d \
+          ESTELLA_VERIFY_SCENE=/scenes/mesh2d.esscene \
+          ESTELLA_VERIFY_MANIFEST=/scenes/mesh2d.textures.json \
+          ESTELLA_VERIFY_W=256 ESTELLA_VERIFY_H=256 ESTELLA_VERIFY_STEPS=4 \
+          'ESTELLA_VERIFY_EXPECT=[{"x":0.30,"y":0.556,"rgb":[255,0,0],"tol":40},{"x":0.70,"y":0.556,"rgb":[0,255,0],"tol":40},{"x":0.30,"y":0.40,"rgb":[255,0,0],"tol":40}]'
+        run_scene parallax-shape \
+          ESTELLA_VERIFY_SCENE=/scenes/parallax-shape.esscene \
+          ESTELLA_VERIFY_MANIFEST=/scenes/parallax-shape.textures.json \
+          ESTELLA_VERIFY_STEPS=4 \
+          'ESTELLA_VERIFY_EXPECT=[{"x":0.5,"y":0.5,"rgb":[0,255,0],"tol":40},{"x":0.25,"y":0.5,"rgb":[255,0,0],"tol":40}]'
+        run_scene tilemap-flip \
+          ESTELLA_VERIFY_SCENE=/scenes/tilemap-flip.esscene \
+          ESTELLA_VERIFY_MANIFEST=/scenes/tilemap-flip.textures.json \
+          ESTELLA_VERIFY_W=256 ESTELLA_VERIFY_H=256 ESTELLA_VERIFY_STEPS=2 \
+          'ESTELLA_VERIFY_EXPECT=[{"x":0.40,"y":0.36,"rgb":[255,0,0]},{"x":0.60,"y":0.36,"rgb":[0,255,0]},{"x":0.40,"y":0.58,"rgb":[0,0,255]},{"x":0.60,"y":0.58,"rgb":[255,255,0]}]'
+        run_scene ui-mask \
+          ESTELLA_VERIFY_SCENE=/scenes/ui-list-mask.esscene \
+          ESTELLA_VERIFY_MANIFEST=/scenes/ui-list-mask.textures.json \
+          ESTELLA_VERIFY_W=800 ESTELLA_VERIFY_H=600 \
+          'ESTELLA_VERIFY_EXPECT=[{"x":0.5,"y":0.5,"rgb":[255,0,0],"tol":60},{"x":0.9,"y":0.5,"rgb":[0,0,255],"tol":60},{"x":0.5,"y":0.85,"rgb":[0,0,255],"tol":60},{"x":0.5,"y":0.15,"rgb":[0,0,255],"tol":60}]'
