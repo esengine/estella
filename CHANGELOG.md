@@ -15,6 +15,58 @@ each entry.
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-07-06
+
+A renderer and UI release building on 0.15.0. It lands a modern typed-handle RHI
+beneath the renderer, built-in 2D lit rendering with a shader effect library, and a
+sharper, more tactile UI runtime (kinetic scrolling, scale-perfect text, virtualized
+lists), alongside broad editor performance and workflow polish.
+
+### Added
+
+- **Built-in 2D lit rendering.** A `Sprite.lit` toggle lights any sprite through the
+  Lit-2D channel using fragment-only shaders and ready-made material templates — no
+  hand-authored lit material required.
+- **Shader effect shelf.** A browsable library of effect templates, material-graph
+  nodes, and an in-editor shader manual, with engine `time` and `screenUV` exposed to
+  shaders (the `es` builtin prefix dropped) and a runnable effects gallery.
+- **`createListView`.** An ergonomic virtualized list/grid widget with a UIMask-clipped
+  viewport and an editor prefab; new **ui-list** example.
+- **Kinetic UI scrolling.** Drag and touch scrolling with momentum and fling for scroll
+  containers.
+- **`Text.renderMode`.** Glyphs auto-route between a hinted bitmap path at their final
+  pixel size and 4×-supersampled SDF when magnified, staying crisp at every scale.
+- **Radial & unified fills.** Progress bars and sliders now share one `UIVisual.Filled`
+  primitive, with radial gauges (360° / 180° / 90°) for cooldown rings and arc meters.
+- **Editor quality-of-life.** Asset-reference fields locate their target in the Content
+  Browser; a project paints its own thumbnail from the viewport on save; light gizmos
+  show on/off state and are click-to-select; and a "Use less CPU in background" frame
+  cap throttles the engine when the window is unfocused.
+
+### Changed
+
+- **Renderer RHI modernized.** The renderer moves to typed GPU resource handles with
+  descriptor-based creation, a vertex layout folded into the pipeline object (VAOs
+  become a GL-backend detail), render passes expressed as a single target+clear
+  begin/end boundary, and the removal of loose render-state setters from the device
+  interface. A pure internal refactor — no change to the documented SDK surface.
+
+### Fixed
+
+- **Lighting** — occluders no longer shadow their own interior (a caster can be lit),
+  and Light2D collection is type-aware.
+- **Editor** — submenu flyouts measure and clamp to the viewport, gizmos anchor at the
+  entity's world position, text and panels are click-selectable with correct
+  click-through cycling, and plain-path asset references resolve on incremental
+  re-projection. Faster Play (stamped host build, idle prewarm, V8 code cache) and
+  lighter idle CPU.
+- **Assets** — sprite-animation clips play outside the editor by resolving on reference
+  identity rather than a fetch URL.
+
+### SDK
+
+- `esengine` SDK **0.5.0**.
+
 ## [0.15.0] - 2026-07-05
 
 The first feature release since the 0.14.0 licensing change — a large one. It adds a
@@ -117,7 +169,8 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.15.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.16.0...HEAD
+[0.16.0]: https://github.com/esengine/estella/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/esengine/estella/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/esengine/estella/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/esengine/estella/compare/v0.12.3...v0.13.0
