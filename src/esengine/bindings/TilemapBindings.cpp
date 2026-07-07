@@ -676,6 +676,12 @@ void tilemap_setGridType(u32 entity, u32 type) {
     getTilemapSystem().setGridType(e, static_cast<tilemap::GridType>(type));
 }
 
+void tilemap_setHexParams(u32 entity, f32 sideLength, u32 staggerAxisX, u32 staggerIndexEven) {
+    auto e = Entity::fromRaw(entity);
+    if (e == INVALID_ENTITY) return;
+    getTilemapSystem().setHexParams(e, sideLength, staggerAxisX != 0, staggerIndexEven != 0);
+}
+
 static f32 s_coordBuffer[2] = {};
 
 uintptr_t tilemap_tileToWorld(u32 entity, i32 tx, i32 ty,
@@ -774,6 +780,7 @@ EMSCRIPTEN_BINDINGS(esengine_tilemap) {
     emscripten::function("tilemap_flipTile", &esengine::tilemap_flipTile);
     emscripten::function("tilemap_rotateTile", &esengine::tilemap_rotateTile);
     emscripten::function("tilemap_setGridType", &esengine::tilemap_setGridType);
+    emscripten::function("tilemap_setHexParams", &esengine::tilemap_setHexParams);
     emscripten::function("tilemap_tileToWorld", &esengine::tilemap_tileToWorld);
     emscripten::function("tilemap_worldToTile", &esengine::tilemap_worldToTile);
 }

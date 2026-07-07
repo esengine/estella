@@ -36,6 +36,7 @@ interface TilemapModule {
                       flipH: boolean, flipV: boolean, flipD: boolean): void;
     tilemap_rotateTile(entity: number, x: number, y: number, degrees: number): void;
     tilemap_setGridType(entity: number, type: number): void;
+    tilemap_setHexParams(entity: number, sideLength: number, staggerAxisX: number, staggerIndexEven: number): void;
     tilemap_initInfiniteLayer(entity: number, tileWidth: number, tileHeight: number): void;
     tilemap_initInfinite?(entity: number, tileWidth: number, tileHeight: number): void;
     tilemap_exportChunks?(entity: number): string;
@@ -249,6 +250,12 @@ export const TilemapAPI = {
 
     setGridType(entity: number, type: number): void {
         module_?.tilemap_setGridType(entity, type);
+    },
+
+    /** Hexagonal-grid layout inputs (Tiled hexsidelength/staggeraxis/staggerindex);
+     *  only read when the layer's grid type is Hexagonal (3). */
+    setHexParams(entity: number, sideLength: number, staggerAxisX: boolean, staggerIndexEven: boolean): void {
+        module_?.tilemap_setHexParams(entity, sideLength, staggerAxisX ? 1 : 0, staggerIndexEven ? 1 : 0);
     },
 
     tileToWorld(entity: number, tx: number, ty: number,

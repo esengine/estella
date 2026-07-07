@@ -25,6 +25,7 @@ enum class GridType : u8 {
     Orthogonal = 0,
     Isometric = 1,
     StaggeredIsometric = 2,
+    Hexagonal = 3,
 };
 
 struct AnimFrame {
@@ -101,6 +102,10 @@ public:
 
     void setGridType(Entity entity, GridType type);
 
+    /// Hexagonal-grid parameters (Tiled's hexsidelength / staggeraxis /
+    /// staggerindex); only read when the layer's grid type is Hexagonal.
+    void setHexParams(Entity entity, f32 sideLength, bool staggerAxisX, bool staggerIndexEven);
+
     struct LayerData {
         u32 width = 0;   // finite-layer bounds (0 = infinite); tiles live in `chunks`.
         u32 height = 0;
@@ -126,6 +131,11 @@ public:
         bool visible = true;
         Entity origin_entity = INVALID_ENTITY;
         GridType grid_type = GridType::Orthogonal;
+        /// Hexagonal layout inputs (see setHexParams). A zero side length falls
+        /// back to tile_height/2 (a regular pointy-top hex).
+        f32 hex_side_length = 0.0f;
+        bool hex_stagger_axis_x = false;      ///< true: columns stagger (staggeraxis=x)
+        bool hex_stagger_index_even = false;  ///< true: even rows/cols carry the shift
 
         std::unordered_map<ChunkCoord, ChunkData, ChunkCoordHash> chunks;
         bool infinite = false;

@@ -272,3 +272,60 @@ TEST_CASE("tilemap_resolve_tileset_slot") {
         CHECK_EQ(resolveTilesetSlot(slots, 20), 2);
     }
 }
+
+TEST_CASE("tilemap_hex_tile_to_world") {
+    TilemapSystem sys;
+    sys.initLayer(E(0), 4, 4, 16.0f, 16.0f);
+    sys.setGridType(E(0), GridType::Hexagonal);
+    sys.setHexParams(E(0), 8.0f, /*staggerAxisX=*/false, /*staggerIndexEven=*/false);
+
+    f32 x = 0, y = 0;
+
+    SUBCASE("stagger axis y, index odd: rows advance by (th+side)/2, odd rows shift half a tile") {
+        sys.tileToWorld(E(0), 0, 0, 0, 0, x, y);
+        CHECK_EQ(x, doctest::Approx(0.0f));
+        CHECK_EQ(y, doctest::Approx(0.0f));
+        sys.tileToWorld(E(0), 1, 0, 0, 0, x, y);
+        CHECK_EQ(x, doctest::Approx(16.0f));
+        sys.tileToWorld(E(0), 0, 1, 0, 0, x, y);        // odd row: staggered
+        CHECK_EQ(x, doctest::Approx(8.0f));
+        CHECK_EQ(y, doctest::Approx(-12.0f));           // rowHeight = (16+8)/2
+        sys.tileToWorld(E(0), 0, 2, 0, 0, x, y);        // even row: no shift
+        CHECK_EQ(x, doctest::Approx(0.0f));
+        CHECK_EQ(y, doctest::Approx(-24.0f));
+    }
+
+    SUBCASE("stagger index even flips which rows shift") {
+        sys.setHexParams(E(0), 8.0f, false, /*staggerIndexEven=*/true);
+        sys.tileToWorld(E(0), 0, 0, 0, 0, x, y);        // even row: staggered now
+        CHECK_EQ(x, doctest::Approx(8.0f));
+        sys.tileToWorld(E(0), 0, 1, 0, 0, x, y);
+        CHECK_EQ(x, doctest::Approx(0.0f));
+    }
+
+    SUBCASE("stagger axis x: columns advance by (tw+side)/2, odd columns shift down") {
+        sys.setHexParams(E(0), 8.0f, /*staggerAxisX=*/true, false);
+        sys.tileToWorld(E(0), 1, 0, 0, 0, x, y);        // odd column: staggered
+        CHECK_EQ(x, doctest::Approx(12.0f));            // colWidth = (16+8)/2
+        CHECK_EQ(y, doctest::Approx(-8.0f));
+        sys.tileToWorld(E(0), 2, 0, 0, 0, x, y);
+        CHECK_EQ(x, doctest::Approx(24.0f));
+        CHECK_EQ(y, doctest::Approx(0.0f));
+    }
+
+    SUBCASE("zero side length falls back to a regular hex (side = th/2)") {
+        sys.setHexParams(E(0), 0.0f, false, false);
+        sys.tileToWorld(E(0), 0, 1, 0, 0, x, y);
+        CHECK_EQ(y, doctest::Approx(-12.0f));           // (16+8)/2 with side=8 fallback
+    }
+
+    SUBCASE("worldToTile inverts the cell for on-grid points") {
+        i32 tx = -1, ty = -1;
+        sys.worldToTile(E(0), 8.0f + 4.0f, -12.0f - 4.0f, 0, 0, tx, ty);  // inside (0,1)
+        CHECK_EQ(tx, 0);
+        CHECK_EQ(ty, 1);
+        sys.worldToTile(E(0), 4.0f, -4.0f, 0, 0, tx, ty);                 // inside (0,0)
+        CHECK_EQ(tx, 0);
+        CHECK_EQ(ty, 0);
+    }
+}

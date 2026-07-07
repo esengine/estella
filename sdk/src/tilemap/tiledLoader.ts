@@ -105,6 +105,10 @@ export interface TiledMapData {
     tileWidth: number;
     tileHeight: number;
     orientation: string;
+    /** Hexagonal maps: Tiled's hexsidelength / staggeraxis / staggerindex. */
+    hexSideLength: number;
+    staggerAxis: string;
+    staggerIndex: string;
     layers: TiledLayerData[];
     tilesets: TiledTilesetData[];
     objectGroups: TiledObjectGroupData[];
@@ -325,9 +329,13 @@ export function parseTmjJson(json: Record<string, unknown>): TiledMapData | null
     }
 
     const orientation = (json.orientation as string) ?? 'orthogonal';
+    const hexSideLength = (json.hexsidelength as number) ?? 0;
+    const staggerAxis = (json.staggeraxis as string) ?? 'y';
+    const staggerIndex = (json.staggerindex as string) ?? 'odd';
 
     return {
         width, height, tileWidth, tileHeight, orientation,
+        hexSideLength, staggerAxis, staggerIndex,
         layers, tilesets, objectGroups, collisionTileIds,
         tileAnimations, tileProperties,
     };
@@ -405,6 +413,9 @@ export async function parseTiledMap(
             tileWidth: api.tiled_getMapTileWidth(handle),
             tileHeight: api.tiled_getMapTileHeight(handle),
             orientation: 'orthogonal',
+            hexSideLength: 0,
+            staggerAxis: 'y',
+            staggerIndex: 'odd',
             layers: [],
             tilesets: [],
             objectGroups: [],

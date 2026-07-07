@@ -80,6 +80,26 @@ void TilemapRenderPlugin::rebuildChunk(
                 f32 offsetX = (ty & 1) ? hw : 0.0f;
                 worldX = originX + static_cast<f32>(tx) * layer.tile_width + offsetX + hw;
                 worldY = originY - static_cast<f32>(ty) * hh - hh;
+            } else if (layer.grid_type == tilemap::GridType::Hexagonal) {
+                // Tiled hexagonal layout: the stagger axis advances by
+                // (tile + hexSideLength)/2, staggered lines shift half a tile
+                // along the other axis — matches Tiled's pixel placement so
+                // imported maps line up 1:1.
+                f32 side = layer.hex_side_length > 0.0f ? layer.hex_side_length
+                                                        : layer.tile_height * 0.5f;
+                if (layer.hex_stagger_axis_x) {
+                    f32 colW = (layer.tile_width + side) * 0.5f;
+                    bool staggered = ((tx & 1) != 0) != layer.hex_stagger_index_even;
+                    worldX = originX + static_cast<f32>(tx) * colW + hw;
+                    worldY = originY - static_cast<f32>(ty) * layer.tile_height
+                             - (staggered ? hh : 0.0f) - hh;
+                } else {
+                    f32 rowH = (layer.tile_height + side) * 0.5f;
+                    bool staggered = ((ty & 1) != 0) != layer.hex_stagger_index_even;
+                    worldX = originX + static_cast<f32>(tx) * layer.tile_width
+                             + (staggered ? hw : 0.0f) + hw;
+                    worldY = originY - static_cast<f32>(ty) * rowH - hh;
+                }
             } else {
                 worldX = originX + static_cast<f32>(tx) * layer.tile_width + hw;
                 worldY = originY - static_cast<f32>(ty) * layer.tile_height - hh;

@@ -334,6 +334,14 @@ void TilemapSystem::setGridType(Entity entity, GridType type) {
     layer->grid_type = type;
 }
 
+void TilemapSystem::setHexParams(Entity entity, f32 sideLength, bool staggerAxisX, bool staggerIndexEven) {
+    auto* layer = getLayerDataMut(entity);
+    if (!layer) return;
+    layer->hex_side_length = sideLength;
+    layer->hex_stagger_axis_x = staggerAxisX;
+    layer->hex_stagger_index_even = staggerIndexEven;
+}
+
 void TilemapSystem::tileToWorld(Entity entity, i32 tx, i32 ty,
                                  f32 originX, f32 originY,
                                  f32& outX, f32& outY) const {
@@ -352,6 +360,24 @@ void TilemapSystem::tileToWorld(Entity entity, i32 tx, i32 ty,
             f32 offsetX = (ty & 1) ? tw * 0.5f : 0.0f;
             outX = originX + static_cast<f32>(tx) * tw + offsetX;
             outY = originY - static_cast<f32>(ty) * th * 0.5f;
+            break;
+        }
+        case GridType::Hexagonal: {
+            // Tiled hexagonal layout: the stagger axis advances by
+            // (tile + hexSideLength)/2 and staggered lines shift half a tile
+            // along the other axis (staggerindex picks odd or even lines).
+            f32 side = layer->hex_side_length > 0.0f ? layer->hex_side_length : th * 0.5f;
+            if (layer->hex_stagger_axis_x) {
+                f32 colW = (tw + side) * 0.5f;
+                bool staggered = ((tx & 1) != 0) != layer->hex_stagger_index_even;
+                outX = originX + static_cast<f32>(tx) * colW;
+                outY = originY - static_cast<f32>(ty) * th - (staggered ? th * 0.5f : 0.0f);
+            } else {
+                f32 rowH = (th + side) * 0.5f;
+                bool staggered = ((ty & 1) != 0) != layer->hex_stagger_index_even;
+                outX = originX + static_cast<f32>(tx) * tw + (staggered ? tw * 0.5f : 0.0f);
+                outY = originY - static_cast<f32>(ty) * rowH;
+            }
             break;
         }
         default:
@@ -385,6 +411,25 @@ void TilemapSystem::worldToTile(Entity entity, f32 wx, f32 wy,
             f32 offsetX = (roughY & 1) ? tw * 0.5f : 0.0f;
             outTx = static_cast<i32>(std::floor((lx - offsetX) / tw));
             outTy = roughY;
+            break;
+        }
+        case GridType::Hexagonal: {
+            // Box-approximate like the staggered-iso case: resolve the stagger
+            // line first, then the cell along it (no exact hex hit-test).
+            f32 side = layer->hex_side_length > 0.0f ? layer->hex_side_length : th * 0.5f;
+            if (layer->hex_stagger_axis_x) {
+                f32 colW = (tw + side) * 0.5f;
+                i32 roughX = static_cast<i32>(std::floor(lx / colW));
+                bool staggered = ((roughX & 1) != 0) != layer->hex_stagger_index_even;
+                outTx = roughX;
+                outTy = static_cast<i32>(std::floor((ly - (staggered ? th * 0.5f : 0.0f)) / th));
+            } else {
+                f32 rowH = (th + side) * 0.5f;
+                i32 roughY = static_cast<i32>(std::floor(ly / rowH));
+                bool staggered = ((roughY & 1) != 0) != layer->hex_stagger_index_even;
+                outTy = roughY;
+                outTx = static_cast<i32>(std::floor((lx - (staggered ? tw * 0.5f : 0.0f)) / tw));
+            }
             break;
         }
         default:

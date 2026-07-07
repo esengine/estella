@@ -29,6 +29,10 @@ export interface LoadedTilemapSource {
     tileWidth: number;
     tileHeight: number;
     orientation?: string;
+    /** Hexagonal maps: Tiled's hexsidelength / staggeraxis / staggerindex. */
+    hexSideLength?: number;
+    staggerAxis?: string;
+    staggerIndex?: string;
     layers: LoadedTilemapLayer[];
     tilesets: LoadedTilemapTileset[];
     tileAnimations?: Map<number, { tileId: number; duration: number }[]>;

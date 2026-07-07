@@ -23,7 +23,9 @@ const GRID_TYPE_MAP: Record<string, number> = {
     orthogonal: 0,
     isometric: 1,
     staggered: 2,
+    hexagonal: 3,
 };
+const GRID_HEXAGONAL = 3;
 
 export class TilemapPlugin implements Plugin {
     name = 'tilemap';
@@ -284,6 +286,12 @@ export class TilemapPlugin implements Plugin {
                             TilemapAPI.setOriginEntity(child, child);
                             if (gridType !== 0) {
                                 TilemapAPI.setGridType(child, gridType);
+                            }
+                            if (gridType === GRID_HEXAGONAL) {
+                                TilemapAPI.setHexParams(
+                                    child, cached.hexSideLength ?? 0,
+                                    cached.staggerAxis === 'x', cached.staggerIndex === 'even',
+                                );
                             }
 
                             if (cached.tileAnimations) {

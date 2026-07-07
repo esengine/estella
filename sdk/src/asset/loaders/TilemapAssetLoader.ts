@@ -38,6 +38,9 @@ export class TilemapAssetLoader implements AssetLoader<TilemapResult> {
             // asset-loaded maps rendered flat, tile animations never ran, and tilemaps had
             // no physics collision (the B2-1 gap).
             orientation: mapData.orientation,
+            hexSideLength: mapData.hexSideLength,
+            staggerAxis: mapData.staggerAxis,
+            staggerIndex: mapData.staggerIndex,
             layers: mapData.layers.map(l => ({
                 name: l.name,
                 width: l.width,
