@@ -16,7 +16,6 @@ import { applyBuildRuntimeConfig, type RuntimeBuildConfig } from './defaults';
 import { platformReadTextFile, platformInstantiateWasm, platformLoadImagePixels } from './platform';
 import { toBuildPath } from './assetTypes';
 import { ManifestModel, type AddressableManifest } from './asset/AddressableManifest';
-import { Assets } from './asset/AssetPlugin';
 import { createWeChatSideModuleHost, type WeChatSideModuleFactories } from './sideModules';
 import type { Vec2 } from './types';
 import type { SceneData } from './scene';
@@ -116,12 +115,6 @@ export async function initWeChatRuntime(config: WeChatRuntimeConfig): Promise<vo
         applyBuildRuntimeConfig(app, config.runtimeConfig);
     }
 
-    // Hand the manifest to the App's Assets so game code can `Assets.loadGroup(name)`
-    // on demand — a lazy (subpackage) group triggers wx.loadSubpackage first, the
-    // eager 'main' group loads directly. Eager scene assets still load through the
-    // runtime loader below; this enables the on-demand subpackage path.
-    if (app.hasResource(Assets)) app.getResource(Assets).setManifest(manifest);
-
     // Canonical asset source: WeChat filesystem backend, wx image decode, manifest
     // ref resolution (bare-uuid → build path).
     const source: RuntimeAssetSource = {
@@ -136,10 +129,17 @@ export async function initWeChatRuntime(config: WeChatRuntimeConfig): Promise<vo
         scenes.push({ name, data: JSON.parse(sceneText) });
     }
 
+    // The manifest rides into initRuntime, which sets it on the per-App runtime
+    // Assets — so game code can `Assets.loadGroup(name)` on demand (a lazy
+    // subpackage group triggers wx.loadSubpackage first, an eager 'main' group
+    // loads directly), and it survives scene switches. Setting it on the
+    // pre-initRuntime Assets resource was a bug: the runtime instance replaced
+    // that resource, so loadGroup lost the manifest after the first scene load.
     await initRuntime({
         app,
         module,
         source,
+        manifest: manifestModel,
         scenes,
         firstScene: config.firstScene,
         physicsConfig: config.physicsConfig,

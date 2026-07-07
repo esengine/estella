@@ -29,6 +29,7 @@ import { log } from './logger';
 import { type RuntimeAssetSource, type TextureParams } from './runtimeAssets';
 import { loadSpineAssets, applySpineEntities } from './spine/loadSpineScene';
 import { transcoderFromModule, type BasisWasmModule } from './asset/basisTranscoder';
+import type { AddressableManifest, ManifestModel } from './asset/AddressableManifest';
 
 // =============================================================================
 // Public Interface
@@ -39,24 +40,43 @@ import { transcoderFromModule, type BasisWasmModule } from './asset/basisTransco
 export type { RuntimeAssetSource } from './runtimeAssets';
 
 // =============================================================================
-// Scene-local Assets channel
+// Per-App runtime Assets channel
 // =============================================================================
 
+// Marks Assets instances built here and holds their merged per-scene texture
+// import settings, so later scene loads extend the map instead of replacing
+// the instance (and so `ensureRuntimeAssets` can tell its own instance apart
+// from the default AssetPlugin one it must replace).
+const runtimeImportSettings = new WeakMap<AssetsClass, Record<string, TextureImportSettings>>();
+
 /**
- * Build a scene-local `Assets` that loads this realm's scene through the single
- * canonical asset channel, driven by the realm's `RuntimeAssetSource`:
+ * The per-App runtime `Assets`, loading through the single canonical asset
+ * channel driven by the realm's `RuntimeAssetSource`:
  *   - fetch (text/binary, incl. KTX2 containers) → `source.backend`
  *   - texture pixels → `source.decodePixels` (handles `estella://` / WeChat
  *     package files / inlined data-URLs that a URL `<img>` can't)
  *   - KTX2 transcode → the same self-gating Basis side-module the editor wires
  * `source.resolveRef` is the single ref resolver, so refs resolve to their real
- * (extension-bearing) build paths before KTX2 detection and fetch. No ref
- * counter / catalog is attached (parity with the old runtime loader, which
- * tracked neither and applied no atlas-frame indirection).
+ * (extension-bearing) build paths before KTX2 detection and fetch.
+ *
+ * Created ONCE per App and installed as the app resource, replacing the default
+ * AssetPlugin instance (whose HttpBackend/URL `<img>` decode can't read this
+ * realm's sources). Every later scene load reuses it, so caches, refcounts and
+ * the addressable manifest survive scene switches — `Assets.loadGroup` keeps
+ * working after the first scene, and re-entering a scene revives resident
+ * textures instead of re-decoding. The first scene load's `source` wins; one
+ * App is expected to keep one asset source for its lifetime. No ref counter /
+ * catalog is attached (parity with the old runtime loader, which tracked
+ * neither and applied no atlas-frame indirection).
  */
-function createSceneAssets(
-    app: App, module: ESEngineModule, source: RuntimeAssetSource, sceneData: SceneData,
+function ensureRuntimeAssets(
+    app: App, module: ESEngineModule, source: RuntimeAssetSource,
 ): AssetsClass {
+    if (app.hasResource(AssetsResource)) {
+        const existing = app.getResource(AssetsResource);
+        if (runtimeImportSettings.has(existing)) return existing;
+    }
+
     initBuiltinAssetFields();
     const assets = AssetsClass.create({
         backend: source.backend,
@@ -77,25 +97,35 @@ function createSceneAssets(
         return mod ? transcoderFromModule(mod as unknown as BasisWasmModule) : null;
     });
 
-    // Per-texture import settings (filter/wrap) keyed by the scene's stored ref:
-    // normalize keys through resolveRef so they match the resolved path the
-    // TextureLoader sees, and map the stored {filterMode,wrapMode} shape to the
-    // loader's {filter,wrap}.
-    const resolveRef = source.resolveRef ?? ((r: string) => r);
+    const settings: Record<string, TextureImportSettings> = {};
+    assets.setTextureImportSettingsResolver((ref) => settings[ref]);
+    runtimeImportSettings.set(assets, settings);
+
+    app.insertResource(AssetsResource, assets);
+    return assets;
+}
+
+/**
+ * Merge a scene's stored per-texture import settings (filter/wrap) into the
+ * runtime Assets' resolver map. Keys normalize through resolveRef so they match
+ * the resolved path the TextureLoader sees; the stored {filterMode,wrapMode}
+ * shape maps to the loader's {filter,wrap}. Merging (not replacing) keeps
+ * settings from previously loaded scenes live — the same texture carries the
+ * same .meta-derived settings in every scene, so last-wins is safe.
+ */
+function mergeSceneTextureImportSettings(
+    assets: AssetsClass, sceneData: SceneData, resolveRef: (ref: string) => string,
+): void {
+    const settings = runtimeImportSettings.get(assets);
     const rawSettings = (sceneData as { textureImporterSettings?: Record<string, TextureParams> })
         .textureImporterSettings;
-    if (rawSettings) {
-        const resolved: Record<string, TextureImportSettings> = {};
-        for (const [ref, s] of Object.entries(rawSettings)) {
-            resolved[resolveRef(ref)] = {
-                filter: s.filterMode as TextureImportSettings['filter'],
-                wrap: s.wrapMode as TextureImportSettings['wrap'],
-            };
-        }
-        assets.setTextureImportSettingsResolver((ref) => resolved[ref]);
+    if (!settings || !rawSettings) return;
+    for (const [ref, s] of Object.entries(rawSettings)) {
+        settings[resolveRef(ref)] = {
+            filter: s.filterMode as TextureImportSettings['filter'],
+            wrap: s.wrapMode as TextureImportSettings['wrap'],
+        };
     }
-
-    return assets;
 }
 
 /** Apply 9-slice borders to loaded textures. `textureHandles` is keyed by the
@@ -176,14 +206,12 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
     // Eager scene assets (textures / fonts / materials / anim-clips / tilemaps /
     // audio) load through the single canonical Assets channel — one per-type
     // loader implementation, shared with the editor — driven by this realm's
-    // provider. Spine stays a two-phase load+apply below (skipSpine).
-    const sceneAssets = createSceneAssets(app, module, source, sceneData);
-    // Expose the realm's Assets (with its manifest ref-resolver) as the app resource
-    // so plugins that resolve `@uuid:` refs at runtime — the tilemap plugin looks up
-    // its `Tilemap.source` / `.estileset` refs each frame — find the SAME resolver the
-    // preload keyed the caches with. Without this the shipping runtime app has no
-    // Assets resource, so those refs resolve to nothing and tilemaps never render.
-    app.insertResource(AssetsResource, sceneAssets);
+    // source. The instance is per-App (installed as the app resource, so plugins
+    // that resolve `@uuid:` refs at runtime — e.g. the tilemap plugin — find the
+    // SAME resolver the preload keyed the caches with) and persists across scene
+    // loads. Spine stays a two-phase load+apply below (skipSpine).
+    const sceneAssets = ensureRuntimeAssets(app, module, source);
+    mergeSceneTextureImportSettings(sceneAssets, sceneData, source.resolveRef ?? ((r) => r));
     const assetResult = await sceneAssets.preloadSceneAssets(sceneData, undefined, { skipSpine: true });
     sceneAssets.resolveSceneAssetPaths(sceneData, assetResult);
     applyTextureMetadata(sceneData, assetResult.textureHandles, source.resolveRef ?? ((ref) => ref));
@@ -261,6 +289,13 @@ export interface RuntimeInitConfig {
     app: App;
     module: ESEngineModule;
     source: RuntimeAssetSource;
+    /**
+     * Addressable manifest for the app's Assets, enabling `Assets.loadGroup`
+     * (on-demand groups / subpackages) from game code. Set here — on the
+     * per-App runtime instance — rather than on whatever Assets resource
+     * existed before initRuntime, which the runtime instance replaces.
+     */
+    manifest?: AddressableManifest | ManifestModel | null;
     scenes: Array<{ name: string; data: SceneData }>;
     firstScene: string;
     spineModule?: SpineWasmModule | null;
@@ -278,6 +313,11 @@ export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
     const { app, firstScene, aspectRatio } = config;
 
     flushPendingSystems(app);
+
+    // Install the per-App runtime Assets up front (scene loads reuse it) and
+    // hand it the manifest so on-demand loadGroup works from the first frame.
+    const assets = ensureRuntimeAssets(app, config.module, config.source);
+    if (config.manifest) assets.setManifest(config.manifest);
 
     const sceneOpts: Omit<LoadRuntimeSceneOptions, 'sceneData' | 'sceneName'> = {
         app: config.app,
