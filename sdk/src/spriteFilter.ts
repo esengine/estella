@@ -11,41 +11,40 @@ import { Material, type MaterialHandle, type ShaderHandle } from './material';
 // Outline/Glow Shader (single-pass, samples 8 neighbors)
 // =============================================================================
 
-const OUTLINE_VERT = `
-attribute vec2 a_position;
-attribute vec2 a_texCoord;
-attribute vec4 a_color;
-uniform mat4 u_projection;
-varying vec2 v_texCoord;
-varying vec4 v_color;
-void main() {
-    gl_Position = u_projection * vec4(a_position, 0.0, 1.0);
-    v_texCoord = a_texCoord;
-    v_color = a_color;
-}
-`;
+// Authored as fragment-only .esshader (the canonical 2D vertex stage is injected,
+// so attribute locations, u_projection, and the batch samplers all follow the
+// engine conventions) with #pragma param reflection — the same modern seam as the
+// builtin templates. The old raw GLSL ES 1.00 pair had no u_projection source and
+// no attribute bindings, and its loose uniforms bypassed the material system.
+const OUTLINE_ESSHADER = `#pragma shader "SpriteOutlineFilter"
+#pragma version 300 es
+#pragma domain Unlit2D
+#pragma param u_outlineColor color default(1,1,1,1)
+#pragma param u_outlineWidth float default(1) range(0,8)
+#pragma param u_texelSize vec2 default(0.001953125,0.001953125)
 
-const OUTLINE_FRAG = `
+#pragma fragment
 precision mediump float;
-uniform sampler2D u_texture;
-uniform vec2 u_texelSize;
-uniform vec4 u_outlineColor;
-uniform float u_outlineWidth;
-varying vec2 v_texCoord;
-varying vec4 v_color;
+
+in vec4 v_color;
+in vec2 v_texCoord;
+
+uniform sampler2D u_textures[8];
+
+out vec4 fragColor;
+
 void main() {
-    vec4 texColor = texture2D(u_texture, v_texCoord) * v_color;
+    vec4 texColor = texture(u_textures[0], v_texCoord) * v_color;
     float maxAlpha = 0.0;
     for (float x = -1.0; x <= 1.0; x += 1.0) {
         for (float y = -1.0; y <= 1.0; y += 1.0) {
             if (x == 0.0 && y == 0.0) continue;
             vec2 offset = vec2(x, y) * u_texelSize * u_outlineWidth;
-            float a = texture2D(u_texture, v_texCoord + offset).a;
-            maxAlpha = max(maxAlpha, a);
+            maxAlpha = max(maxAlpha, texture(u_textures[0], v_texCoord + offset).a);
         }
     }
     vec4 outline = u_outlineColor * maxAlpha * (1.0 - texColor.a);
-    gl_FragColor = texColor + outline;
+    fragColor = texColor + outline;
 }
 `;
 
@@ -53,15 +52,24 @@ void main() {
 // Drop Shadow Shader (single-pass offset + blur)
 // =============================================================================
 
-const SHADOW_FRAG = `
+const SHADOW_ESSHADER = `#pragma shader "SpriteShadowFilter"
+#pragma version 300 es
+#pragma domain Unlit2D
+#pragma param u_shadowColor color default(0,0,0,0.6)
+#pragma param u_shadowOffset vec2 default(3,3)
+#pragma param u_shadowBlur float default(2)
+#pragma param u_texelSize vec2 default(0.001953125,0.001953125)
+
+#pragma fragment
 precision mediump float;
-uniform sampler2D u_texture;
-uniform vec2 u_texelSize;
-uniform vec2 u_shadowOffset;
-uniform vec4 u_shadowColor;
-uniform float u_shadowBlur;
-varying vec2 v_texCoord;
-varying vec4 v_color;
+
+in vec4 v_color;
+in vec2 v_texCoord;
+
+uniform sampler2D u_textures[8];
+
+out vec4 fragColor;
+
 void main() {
     vec2 shadowUV = v_texCoord - u_shadowOffset * u_texelSize;
     float shadowAlpha = 0.0;
@@ -70,14 +78,14 @@ void main() {
     for (float x = -2.0; x <= 2.0; x += 1.0) {
         for (float y = -2.0; y <= 2.0; y += 1.0) {
             vec2 offset = vec2(x, y) * u_texelSize * radius;
-            shadowAlpha += texture2D(u_texture, shadowUV + offset).a;
+            shadowAlpha += texture(u_textures[0], shadowUV + offset).a;
             total += 1.0;
         }
     }
     shadowAlpha /= total;
     vec4 shadow = u_shadowColor * shadowAlpha;
-    vec4 texColor = texture2D(u_texture, v_texCoord) * v_color;
-    gl_FragColor = texColor + shadow * (1.0 - texColor.a);
+    vec4 texColor = texture(u_textures[0], v_texCoord) * v_color;
+    fragColor = texColor + shadow * (1.0 - texColor.a);
 }
 `;
 
@@ -90,14 +98,14 @@ let shadowShader_: ShaderHandle = 0;
 
 function getOutlineShader(): ShaderHandle {
     if (outlineShader_ === 0) {
-        outlineShader_ = Material.createShader(OUTLINE_VERT, OUTLINE_FRAG);
+        outlineShader_ = Material.compileShader(OUTLINE_ESSHADER);
     }
     return outlineShader_;
 }
 
 function getShadowShader(): ShaderHandle {
     if (shadowShader_ === 0) {
-        shadowShader_ = Material.createShader(OUTLINE_VERT, SHADOW_FRAG);
+        shadowShader_ = Material.compileShader(SHADOW_ESSHADER);
     }
     return shadowShader_;
 }

@@ -2,31 +2,37 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { Material, type ShaderHandle } from './material';
 
-const COLOR_MATRIX_VERT = `
-attribute vec2 a_position;
-attribute vec2 a_texCoord;
-attribute vec4 a_color;
-uniform mat4 u_projection;
-varying vec2 v_texCoord;
-varying vec4 v_color;
-void main() {
-    gl_Position = u_projection * vec4(a_position, 0.0, 1.0);
-    v_texCoord = a_texCoord;
-    v_color = a_color;
-}
-`;
+// Fragment-only .esshader on the reflected #pragma param seam. The 5x4 color
+// matrix ships as four row vec4s + an offset vec4 (MaterialConstants params are
+// at most vec4 — a mat4 uniform could never cross setMaterialUniform, so the old
+// raw-GLSL form of this filter was unusable by construction).
+const COLOR_MATRIX_ESSHADER = `#pragma shader "ColorMatrixFilter"
+#pragma version 300 es
+#pragma domain Unlit2D
+#pragma param u_cmRow0 vec4 default(1,0,0,0)
+#pragma param u_cmRow1 vec4 default(0,1,0,0)
+#pragma param u_cmRow2 vec4 default(0,0,1,0)
+#pragma param u_cmRow3 vec4 default(0,0,0,1)
+#pragma param u_colorOffset vec4 default(0,0,0,0)
 
-const COLOR_MATRIX_FRAG = `
+#pragma fragment
 precision mediump float;
-uniform sampler2D u_texture;
-uniform mat4 u_colorMatrix;
-uniform vec4 u_colorOffset;
-varying vec2 v_texCoord;
-varying vec4 v_color;
+
+in vec4 v_color;
+in vec2 v_texCoord;
+
+uniform sampler2D u_textures[8];
+
+out vec4 fragColor;
+
 void main() {
-    vec4 texColor = texture2D(u_texture, v_texCoord) * v_color;
-    vec4 result = u_colorMatrix * texColor + u_colorOffset;
-    gl_FragColor = clamp(result, 0.0, 1.0);
+    vec4 texColor = texture(u_textures[0], v_texCoord) * v_color;
+    vec4 result = vec4(
+        dot(u_cmRow0, texColor),
+        dot(u_cmRow1, texColor),
+        dot(u_cmRow2, texColor),
+        dot(u_cmRow3, texColor)) + u_colorOffset;
+    fragColor = clamp(result, 0.0, 1.0);
 }
 `;
 
@@ -34,7 +40,7 @@ let colorMatrixShader_: ShaderHandle | null = null;
 
 function getColorMatrixShader(): ShaderHandle {
     if (colorMatrixShader_ === null || colorMatrixShader_ === 0) {
-        colorMatrixShader_ = Material.createShader(COLOR_MATRIX_VERT, COLOR_MATRIX_FRAG);
+        colorMatrixShader_ = Material.compileShader(COLOR_MATRIX_ESSHADER);
     }
     return colorMatrixShader_!;
 }
@@ -110,4 +116,19 @@ export const Filters = {
     },
 
     getColorMatrixShader,
+
+    /**
+     * Maps a 20-element (5x4 row-major) color matrix onto the shader's params:
+     * four row vec4s plus the offset column. Apply with Material.setUniform.
+     */
+    colorMatrixUniforms(matrix: number[]): Record<string, number[]> {
+        const row = (i: number) => [matrix[i * 5], matrix[i * 5 + 1], matrix[i * 5 + 2], matrix[i * 5 + 3]];
+        return {
+            u_cmRow0: row(0),
+            u_cmRow1: row(1),
+            u_cmRow2: row(2),
+            u_cmRow3: row(3),
+            u_colorOffset: [matrix[4], matrix[9], matrix[14], matrix[19]],
+        };
+    },
 };

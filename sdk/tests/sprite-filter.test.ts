@@ -19,7 +19,7 @@ let nextMaterialId = 1000;
 vi.mock('../src/material', () => {
     return {
         Material: {
-            createShader: vi.fn(() => {
+            compileShader: vi.fn(() => {
                 materialCalls.push({ kind: 'createShader' });
                 return nextShaderId++;
             }),

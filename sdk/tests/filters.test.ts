@@ -5,7 +5,7 @@ import { Filters } from '../src/filters';
 
 vi.mock('../src/material', () => ({
     Material: {
-        createShader: vi.fn(() => 42),
+        compileShader: vi.fn(() => 42),
     },
 }));
 
