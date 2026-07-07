@@ -63,8 +63,12 @@ program
 
             const noCache = !options.cache;
 
+            // EHT output feeds sdk/src (component.generated.ts, wasm.generated.ts)
+            // as well as the wasm bindings, so an sdk-only build needs it too —
+            // otherwise the SDK bundles stale generated sources after a header edit.
+            await runEht({ noCache });
+
             if (wasmTargets.length > 0) {
-                await runEht({ noCache });
                 await buildWasmParallel(wasmTargets, {
                     debug: isDebug,
                     clean: options.clean,
@@ -156,12 +160,17 @@ program
 program
     .command('sdk')
     .description('Build SDK only')
+    .option('--no-cache', 'Disable build cache')
     .option('-v, --verbose', 'Verbose output', false)
     .action(async (options) => {
         logger.setVerbose(options.verbose);
 
         try {
-            await buildSdk();
+            const noCache = !options.cache;
+            // Regenerate EHT outputs in sdk/src first, or the SDK bundles stale
+            // generated sources after a C++ header edit.
+            await runEht({ noCache });
+            await buildSdk({ noCache });
             await syncToDesktop({ wasm: false, sdk: true });
         } catch (err) {
             handleBuildError(err, { verbose: options.verbose });

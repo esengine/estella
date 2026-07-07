@@ -6,7 +6,7 @@ import { existsSync } from 'fs';
 import config from '../build.config.js';
 import * as logger from '../utils/logger.js';
 import { runCommand } from '../utils/emscripten.js';
-import { hashDirectory, HashCache } from '../utils/hash.js';
+import { hashDirectory, hashFiles, HashCache } from '../utils/hash.js';
 
 export async function buildSdk(options = {}) {
     const { manifest = null, noCache = false } = options;
@@ -43,7 +43,11 @@ export async function buildSdk(options = {}) {
             await cache.load();
 
             const sdkSrcDir = path.join(sdkDir, 'src');
-            currentHash = await hashDirectory(sdkSrcDir, /\.ts$/);
+            // The bundle is a function of the sources AND the build configuration,
+            // so rollup/tsconfig/package edits must bust the cache too.
+            const configFiles = ['rollup.config.js', 'tsconfig.json', 'package.json']
+                .map((f) => path.join(sdkDir, f));
+            currentHash = `${await hashDirectory(sdkSrcDir, /\.ts$/)}:${await hashFiles(configFiles)}`;
 
             // Skip only when the source is unchanged AND the artifacts are actually
             // present. Hashing the source alone wrongly reported "cached" after the
