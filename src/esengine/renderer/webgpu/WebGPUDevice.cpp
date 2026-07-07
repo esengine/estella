@@ -61,6 +61,9 @@ void WebGPUDevice::shutdown() {
     pipelines_.clear();
     if (bind_group_) { wgpuBindGroupRelease(bind_group_); bind_group_ = nullptr; }
     if (texture_group_) { wgpuBindGroupRelease(texture_group_); texture_group_ = nullptr; }
+    if (clear_bind_group_) { wgpuBindGroupRelease(clear_bind_group_); clear_bind_group_ = nullptr; }
+    if (clear_pipeline_) { wgpuRenderPipelineRelease(clear_pipeline_); clear_pipeline_ = nullptr; }
+    framebuffers_.clear();
     if (sampler_) { wgpuSamplerRelease(sampler_); sampler_ = nullptr; }
     if (surface_) { wgpuSurfaceRelease(surface_); surface_ = nullptr; }
     if (instance_) { wgpuInstanceRelease(instance_); instance_ = nullptr; }
@@ -129,7 +132,7 @@ void WebGPUDevice::clearStencil(i32) { stubOnce("clearStencil (stencil-write qua
 void WebGPUDevice::setScissorTest(bool enabled) {
     // WebGPU's scissor is always on; "disabled" = the full target rectangle.
     if (pass_ && !enabled) {
-        wgpuRenderPassEncoderSetScissorRect(pass_, 0, 0, surface_width_, surface_height_);
+        wgpuRenderPassEncoderSetScissorRect(pass_, 0, 0, pass_width_, pass_height_);
     }
 }
 
@@ -572,6 +575,89 @@ WGPUSampler WebGPUDevice::defaultSampler() {
     return sampler_;
 }
 
+void WebGPUDevice::clearQuad(const RenderPassDesc& desc) {
+    if (!pass_ || !device_) return;
+
+    // Lazy internal pipeline: a vertex-index fullscreen triangle, color from a
+    // tiny internal UBO at group 0 binding 0. No vertex buffers, no user state.
+    if (!clear_pipeline_) {
+        static const char* kClearVS = R"(
+@vertex fn vs_main(@builtin(vertex_index) i : u32) -> @builtin(position) vec4f {
+    var p = array<vec2f, 3>(vec2f(-1.0, -3.0), vec2f(3.0, 1.0), vec2f(-1.0, 1.0));
+    return vec4f(p[i], 0.0, 1.0);
+}
+)";
+        static const char* kClearFS = R"(
+struct ClearColor { value : vec4f };
+@group(0) @binding(0) var<uniform> clearColor : ClearColor;
+@fragment fn fs_main() -> @location(0) vec4f { return clearColor.value; }
+)";
+        auto makeModule = [&](const char* code) {
+            WGPUShaderSourceWGSL wgsl{};
+            wgsl.chain.sType = WGPUSType_ShaderSourceWGSL;
+            wgsl.code = sv(code);
+            WGPUShaderModuleDescriptor md{};
+            md.nextInChain = &wgsl.chain;
+            return wgpuDeviceCreateShaderModule(device_, &md);
+        };
+        WGPUShaderModule vs = makeModule(kClearVS);
+        WGPUShaderModule fs = makeModule(kClearFS);
+
+        WGPUColorTargetState target{};
+        target.format = surface_format_;
+        target.writeMask = WGPUColorWriteMask_All;
+
+        WGPUFragmentState fragment{};
+        fragment.module = fs;
+        fragment.entryPoint = sv("fs_main");
+        fragment.targetCount = 1;
+        fragment.targets = &target;
+
+        WGPURenderPipelineDescriptor pd{};
+        pd.vertex.module = vs;
+        pd.vertex.entryPoint = sv("vs_main");
+        pd.primitive.topology = WGPUPrimitiveTopology_TriangleList;
+        pd.primitive.frontFace = WGPUFrontFace_CCW;
+        pd.primitive.cullMode = WGPUCullMode_None;
+        pd.multisample.count = 1;
+        pd.multisample.mask = 0xFFFFFFFFu;
+        pd.fragment = &fragment;
+        clear_pipeline_ = wgpuDeviceCreateRenderPipeline(device_, &pd);
+        wgpuShaderModuleRelease(vs);
+        wgpuShaderModuleRelease(fs);
+
+        clear_color_ubo_ = createBuffer({GfxBufferUsage::Uniform, 16, true}, nullptr);
+
+        auto uboIt = buffers_.find(static_cast<u32>(clear_color_ubo_));
+        WGPUBindGroupEntry entry{};
+        entry.binding = 0;
+        entry.buffer = uboIt->second.buffer;
+        entry.offset = 0;
+        entry.size = 16;
+        WGPUBindGroupDescriptor bgd{};
+        bgd.layout = wgpuRenderPipelineGetBindGroupLayout(clear_pipeline_, 0);
+        bgd.entryCount = 1;
+        bgd.entries = &entry;
+        clear_bind_group_ = wgpuDeviceCreateBindGroup(device_, &bgd);
+        if (bgd.layout) wgpuBindGroupLayoutRelease(bgd.layout);
+    }
+    if (!clear_pipeline_ || !clear_bind_group_) return;
+
+    updateBuffer(clear_color_ubo_, 0, desc.clearColorValue, 16);
+
+    wgpuRenderPassEncoderSetScissorRect(pass_, static_cast<u32>(desc.clearX),
+                                        static_cast<u32>(desc.clearY), desc.clearW, desc.clearH);
+    wgpuRenderPassEncoderSetPipeline(pass_, clear_pipeline_);
+    wgpuRenderPassEncoderSetBindGroup(pass_, 0, clear_bind_group_, 0, nullptr);
+    wgpuRenderPassEncoderDraw(pass_, 3, 1, 0, 0);
+    wgpuRenderPassEncoderSetScissorRect(pass_, 0, 0, pass_width_, pass_height_);
+
+    // The clear-quad clobbered pipeline/bind-group pass state; force the next
+    // user draw to re-establish everything.
+    current_pipeline_ = 0;
+    bind_group_dirty_ = true;
+}
+
 void WebGPUDevice::flushBindGroup() {
     if (!bind_group_dirty_ || !pass_ || !device_) return;
 
@@ -675,55 +761,81 @@ void WebGPUDevice::drawElementsInstanced(u32 indexCount, GfxDataType indexType, 
                                      indexByteOffset / indexSize, 0, 0);
 }
 
-FramebufferHandle WebGPUDevice::createFramebuffer(const FramebufferDesc&) {
-    stubOnce("createFramebuffer (offscreen targets)");
-    return FramebufferHandle::Default;
+FramebufferHandle WebGPUDevice::createFramebuffer(const FramebufferDesc& desc) {
+    FramebufferRec rec{};
+    rec.color0 = static_cast<u32>(desc.color0);
+    rec.depthStencil = static_cast<u32>(desc.depthStencil);
+    if (rec.depthStencil != 0) stubOnce("framebuffer depth/stencil attachment");
+    // Framebuffer ids share the Default==0 namespace with the surface, so they
+    // come from their own counter offset well clear of it.
+    const u32 id = 0x40000000u + next_framebuffer_id_++;
+    framebuffers_[id] = rec;
+    return static_cast<FramebufferHandle>(id);
 }
-void WebGPUDevice::deleteFramebuffer(FramebufferHandle) {}
+
+void WebGPUDevice::deleteFramebuffer(FramebufferHandle framebuffer) {
+    framebuffers_.erase(static_cast<u32>(framebuffer));
+}
 
 void WebGPUDevice::beginRenderPass(const RenderPassDesc& desc) {
     if (!device_) return;
     if (pass_) endRenderPass();  // defensive: a dangling pass would deadlock the queue
 
+    WGPUTextureView targetView = nullptr;
     if (desc.target != FramebufferHandle::Default) {
-        stubOnce("beginRenderPass(offscreen target)");
-        return;
+        auto fbIt = framebuffers_.find(static_cast<u32>(desc.target));
+        if (fbIt == framebuffers_.end()) {
+            ES_LOG_ERROR("WebGPUDevice::beginRenderPass: unknown framebuffer");
+            return;
+        }
+        auto texIt = textures_.find(fbIt->second.color0);
+        if (texIt == textures_.end()) {
+            ES_LOG_ERROR("WebGPUDevice::beginRenderPass: framebuffer color texture missing");
+            return;
+        }
+        targetView = texIt->second.view;
+        pass_width_ = texIt->second.width;
+        pass_height_ = texIt->second.height;
+    } else {
+        if (!surface_) {
+            ES_LOG_ERROR("WebGPUDevice::beginRenderPass: no surface configured");
+            return;
+        }
+        WGPUSurfaceTexture st{};
+        wgpuSurfaceGetCurrentTexture(surface_, &st);
+        if (st.status != WGPUSurfaceGetCurrentTextureStatus_SuccessOptimal &&
+            st.status != WGPUSurfaceGetCurrentTextureStatus_SuccessSuboptimal) {
+            ES_LOG_ERROR("WebGPUDevice::beginRenderPass: surface texture unavailable ({})",
+                         static_cast<u32>(st.status));
+            return;
+        }
+        frame_texture_ = st.texture;
+        frame_view_ = wgpuTextureCreateView(frame_texture_, nullptr);
+        targetView = frame_view_;
+        pass_width_ = surface_width_;
+        pass_height_ = surface_height_;
     }
-    if (!surface_) {
-        ES_LOG_ERROR("WebGPUDevice::beginRenderPass: no surface configured");
-        return;
-    }
-
-    WGPUSurfaceTexture st{};
-    wgpuSurfaceGetCurrentTexture(surface_, &st);
-    if (st.status != WGPUSurfaceGetCurrentTextureStatus_SuccessOptimal &&
-        st.status != WGPUSurfaceGetCurrentTextureStatus_SuccessSuboptimal) {
-        ES_LOG_ERROR("WebGPUDevice::beginRenderPass: surface texture unavailable ({})",
-                     static_cast<u32>(st.status));
-        return;
-    }
-    frame_texture_ = st.texture;
-    frame_view_ = wgpuTextureCreateView(frame_texture_, nullptr);
 
     encoder_ = wgpuDeviceCreateCommandEncoder(device_, nullptr);
 
     const bool scoped = desc.clearW != 0;
     WGPURenderPassColorAttachment color{};
-    color.view = frame_view_;
+    color.view = targetView;
     color.depthSlice = WGPU_DEPTH_SLICE_UNDEFINED;
     color.loadOp = toWGPULoadOp(desc.clearColor, scoped);
     color.storeOp = WGPUStoreOp_Store;
     color.clearValue = toWGPUClearColor(desc);
-    if (desc.clearColor && scoped) {
-        // Region-scoped clear = load + scissored clear-quad, per the RHI contract.
-        stubOnce("region-scoped clear emulation");
-    }
 
     WGPURenderPassDescriptor rp{};
     rp.colorAttachmentCount = 1;
     rp.colorAttachments = &color;
     pass_ = wgpuCommandEncoderBeginRenderPass(encoder_, &rp);
     bind_group_dirty_ = true;
+
+    // Region-scoped clear = load + scissored clear-quad, per the RHI contract.
+    if (desc.clearColor && scoped) {
+        clearQuad(desc);
+    }
     // Each pass starts textureless: group 1 only attaches to pipelines whose
     // draws bind textures (the engine rebinds per draw), never to sampler-less
     // pipelines from a previous pass's leftovers.

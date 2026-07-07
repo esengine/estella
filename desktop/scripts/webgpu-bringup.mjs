@@ -105,13 +105,15 @@ app.whenReady().then(async () => {
   const right = px(192, 166);    // batch twin: quad sampling slot 1 → green
   const corner = px(8, 128);     // between the quads' outside → dark blue clear
 
+  const scopedClear = px(128, 128); // pass C: region-scoped clear emulation → yellow
   const circleOk = near(circle.r, 255) && near(circle.g, 0) && near(circle.b, 255);
+  const scopedOk = near(scopedClear.r, 255) && near(scopedClear.g, 255) && near(scopedClear.b, 0);
   const leftOk = near(left.r, 255) && near(left.g, 0) && near(left.b, 0);
   const rightOk = near(right.r, 0) && near(right.g, 255) && near(right.b, 0);
   const cornerOk = near(corner.r, 13) && near(corner.g, 13) && near(corner.b, 77, 60);
-  const ok = framesOk && errors.length === 0 && circleOk && leftOk && rightOk && cornerOk;
+  const ok = framesOk && errors.length === 0 && circleOk && leftOk && rightOk && cornerOk && scopedOk;
 
-  console.log(`RESULT circle=${JSON.stringify(circle)} left=${JSON.stringify(left)} right=${JSON.stringify(right)} corner=${JSON.stringify(corner)} framesOk=${framesOk} errors=${errors.length}`);
+  console.log(`RESULT circle=${JSON.stringify(circle)} left=${JSON.stringify(left)} right=${JSON.stringify(right)} scoped=${JSON.stringify(scopedClear)} corner=${JSON.stringify(corner)} framesOk=${framesOk} errors=${errors.length}`);
   console.log(`\n[webgpu-bringup] ${ok ? 'PASS' : 'FAIL'}`);
   process.exitCode = ok ? 0 : 1;
   try { server.close(); } catch { /* ignore */ }

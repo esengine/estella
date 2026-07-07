@@ -6,12 +6,15 @@
  * A browser-run program: the host page acquires a GPUDevice (navigator.gpu) and
  * hands it over via Module.preinitializedWebGPUDevice; this program then drives
  * the REAL WebGPUDevice through the same RHI calls the engine's render path
- * makes. Each frame renders BOTH engine shader twins in one pass — pipeline
- * switch + bind-group rebuild included:
- *   - shape twin: a magenta SDF circle, top-center (slice 2)
- *   - batch twin (default variant): two quads sharing one draw, selecting
- *     different sampler slots per-vertex via texIndex — red left, green right
- *     (slice 3: texture views + shared sampler as bind group 1)
+ * makes. Each frame is THREE passes:
+ *   A. offscreen: a framebuffer over a small texture, load-op cleared green —
+ *      the right quad then SAMPLES this rendered target (slice 4)
+ *   B. main: both engine shader twins in one pass — pipeline switch +
+ *      bind-group rebuild included (shape circle, slice 2; batch quads with
+ *      per-vertex sampler-slot selection, slice 3)
+ *   C. region-scoped clear: a second pass on the surface whose RenderPassDesc
+ *      carries a clear REGION — the load-op contract's WebGPU emulation
+ *      (load + scissored clear-quad) paints a yellow square (slice 4)
  * The electron runner (desktop/scripts/webgpu-bringup.mjs) asserts the pixels.
  */
 #include "esengine/renderer/webgpu/WebGPUDevice.hpp"
@@ -160,7 +163,8 @@ namespace {
 WebGPUDevice* g_device = nullptr;
 PipelineHandle g_shapePipeline{}, g_batchPipeline{};
 BufferHandle g_shapeVbo{}, g_batchVbo{}, g_ibo6{}, g_ibo12{}, g_ubo{};
-TextureHandle g_texRed{}, g_texGreen{};
+TextureHandle g_texRed{}, g_texOffscreen{};
+FramebufferHandle g_offscreenFb{};
 int g_frames = 0;
 
 // Mirrors the engine's Shape stream vertex (stride 48).
@@ -179,6 +183,16 @@ struct BatchVertex {
 };
 
 void renderFrame() {
+    // Pass A: offscreen — the load-op clear IS the render (solid green target).
+    RenderPassDesc off{};
+    off.target = g_offscreenFb;
+    off.clearColor = true;
+    off.clearColorValue[1] = 1.0f;
+    off.clearColorValue[3] = 1.0f;
+    g_device->beginRenderPass(off);
+    g_device->endRenderPass();
+
+    // Pass B: the main scene.
     RenderPassDesc pass{};
     pass.clearColor = true;
     pass.clearColorValue[0] = 0.05f;
@@ -199,11 +213,25 @@ void renderFrame() {
     g_device->setPipeline(g_batchPipeline);
     g_device->setUniformBuffer(0, g_ubo);
     g_device->bindTexture(0, g_texRed);
-    g_device->bindTexture(1, g_texGreen);
+    g_device->bindTexture(1, g_texOffscreen);  // render-to-texture output from pass A
     g_device->setVertexBuffer(0, g_batchVbo, 0);
     g_device->setIndexBuffer(g_ibo12);
     g_device->drawElements(12, GfxDataType::UnsignedShort, 0);
 
+    g_device->endRenderPass();
+
+    // Pass C: a region-scoped clear on the surface — loadOp must LOAD (keeping
+    // the scene) and the emulation clear-quad paints only the region yellow.
+    RenderPassDesc scoped{};
+    scoped.clearColor = true;
+    scoped.clearColorValue[0] = 1.0f;
+    scoped.clearColorValue[1] = 1.0f;
+    scoped.clearColorValue[3] = 1.0f;
+    scoped.clearX = 96;
+    scoped.clearY = 96;
+    scoped.clearW = 64;
+    scoped.clearH = 64;
+    g_device->beginRenderPass(scoped);
     g_device->endRenderPass();
 
     if (++g_frames == 3) {
@@ -272,11 +300,20 @@ int main() {
     g_ibo12 = device.createBuffer({GfxBufferUsage::Index, sizeof(batchIdx), false}, batchIdx);
 
     g_texRed = makeSolidTexture(255, 0, 0);
-    g_texGreen = makeSolidTexture(0, 255, 0);
-    if (g_texRed == TextureHandle::Invalid || g_texGreen == TextureHandle::Invalid) {
+    // The right quad's texture is RENDERED, not uploaded: an offscreen target
+    // cleared green by pass A each frame.
+    TextureDesc offDesc{};
+    offDesc.width = 4;
+    offDesc.height = 4;
+    offDesc.format = GfxPixelFormat::RGBA8;
+    g_texOffscreen = device.createTexture(offDesc, nullptr);
+    if (g_texRed == TextureHandle::Invalid || g_texOffscreen == TextureHandle::Invalid) {
         std::printf("BRINGUP_FAIL textures\n");
         return 1;
     }
+    FramebufferDesc fbDesc{};
+    fbDesc.color0 = g_texOffscreen;
+    g_offscreenFb = device.createFramebuffer(fbDesc);
 
     // --- Programs + layouts + pipelines (the engine's streams, byte for byte).
     ShaderHandle shapeProgram = device.createProgram(
