@@ -60,6 +60,17 @@ struct SourceLine {
 // Shader Stage Enum
 // =============================================================================
 
+/**
+ * @brief Target language for stage assembly (REARCH_WGSL Phase 1 seam).
+ * @details GLSL_ES300 is the only implemented emitter today; WGSL is reserved
+ *          for the dual-emission phase (injected headers + canonical vertex
+ *          stage emitted per language).
+ */
+enum class ShaderTargetLanguage : u8 {
+    GLSL_ES300 = 0,
+    WGSL       = 1,
+};
+
 enum class ShaderStage : u8 {
     Vertex,
     Fragment
@@ -219,7 +230,8 @@ public:
     static std::string assembleStage(const ParsedShader& parsed,
                                      ShaderStage stage,
                                      const std::string& platform = "",
-                                     const std::vector<std::string>& features = {});
+                                     const std::vector<std::string>& features = {},
+                                     ShaderTargetLanguage target = ShaderTargetLanguage::GLSL_ES300);
 
     /**
      * @brief Stable cache key for a feature set (order-independent), e.g. "GRAYSCALE|TINT".
@@ -243,7 +255,8 @@ public:
     static AssembledStage assembleStageEx(const ParsedShader& parsed,
                                           ShaderStage stage,
                                           const std::string& platform = "",
-                                          const std::vector<std::string>& features = {});
+                                          const std::vector<std::string>& features = {},
+                                          ShaderTargetLanguage target = ShaderTargetLanguage::GLSL_ES300);
 
     /**
      * @brief Rewrites GL compile-log line references back to original files

@@ -205,9 +205,12 @@ public:
      * @param outFailedStage Optional; receives the stage that rejected the source.
      * @return The linked program handle, or Invalid on failure.
      */
-    virtual ShaderHandle createProgram(const char* vertexSrc, const char* fragmentSrc,
+    virtual ShaderHandle createProgram(const GfxShaderSource& source,
                                        const GfxAttribBinding* bindings, u32 bindingCount,
                                        std::string* outLog, GfxShaderStage* outFailedStage) = 0;
+
+    /** @brief Whether this backend compiles @p language (GL: GLSL ES 300; WebGPU: WGSL). */
+    virtual bool supportsShaderLanguage(GfxShaderLanguage language) const = 0;
 
     /** @brief Deletes a shader program */
     virtual void deleteProgram(ShaderHandle program) = 0;

@@ -273,6 +273,25 @@ enum class GfxIntParam : u8 {
 // =============================================================================
 
 /**
+ * @brief Shader source language a backend consumes.
+ * @details GLDevice accepts GLSL ES 300; a WebGPU backend accepts WGSL. Queried
+ *          via GfxDevice::supportsShaderLanguage, so the RHI itself is
+ *          language-neutral and a caller fails fast instead of feeding a backend
+ *          text it cannot compile (REARCH_WGSL Phase 1 seam).
+ */
+enum class GfxShaderLanguage : u8 {
+    GLSL_ES300 = 0,
+    WGSL       = 1,
+};
+
+/** @brief A program's source pair, tagged with the language it is written in. */
+struct GfxShaderSource {
+    GfxShaderLanguage language = GfxShaderLanguage::GLSL_ES300;
+    const char* vertexSrc = nullptr;
+    const char* fragmentSrc = nullptr;
+};
+
+/**
  * @brief Vertex attribute location binding applied before a program is linked.
  * @note `name` is borrowed for the duration of the createProgram() call only.
  */

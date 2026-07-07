@@ -75,10 +75,11 @@ Shader& Shader::operator=(Shader&& other) noexcept {
     return *this;
 }
 
-Unique<Shader> Shader::create(GfxDevice& device, const std::string& vertexSrc, const std::string& fragmentSrc) {
+Unique<Shader> Shader::create(GfxDevice& device, const std::string& vertexSrc, const std::string& fragmentSrc,
+                              GfxShaderLanguage language) {
     auto shader = makeUnique<Shader>();
     shader->device_ = &device;
-    if (!shader->compile(vertexSrc, fragmentSrc)) {
+    if (!shader->compile(vertexSrc, fragmentSrc, {}, nullptr, nullptr, language)) {
         return nullptr;
     }
     return shader;
@@ -86,10 +87,11 @@ Unique<Shader> Shader::create(GfxDevice& device, const std::string& vertexSrc, c
 
 Unique<Shader> Shader::createWithBindings(GfxDevice& device,
                                           const std::string& vertexSrc, const std::string& fragmentSrc,
-                                          std::initializer_list<AttribBinding> bindings) {
+                                          std::initializer_list<AttribBinding> bindings,
+                                          GfxShaderLanguage language) {
     auto shader = makeUnique<Shader>();
     shader->device_ = &device;
-    if (!shader->compile(vertexSrc, fragmentSrc, bindings)) {
+    if (!shader->compile(vertexSrc, fragmentSrc, bindings, nullptr, nullptr, language)) {
         return nullptr;
     }
     return shader;
@@ -148,7 +150,19 @@ void Shader::unbind() const {
 bool Shader::compile(const std::string& vertexSrc, const std::string& fragmentSrc,
                      std::initializer_list<AttribBinding> bindings,
                      std::string* outLog,
-                     ShaderStageFailure* outFailedStage) {
+                     ShaderStageFailure* outFailedStage,
+                     GfxShaderLanguage language) {
+    language_ = language;
+
+    // Fail fast on a language the backend cannot compile, before any GPU call —
+    // the caller gets a diagnostic instead of a backend-specific compile error.
+    if (!device_->supportsShaderLanguage(language)) {
+        if (outLog) *outLog = "backend does not support the shader source language";
+        if (outFailedStage) *outFailedStage = ShaderStageFailure::Vertex;
+        ES_LOG_ERROR("Shader::compile: backend does not support the requested shader language");
+        return false;
+    }
+
     std::vector<GfxAttribBinding> binds;
     binds.reserve(bindings.size());
     for (const auto& b : bindings) {
@@ -156,7 +170,8 @@ bool Shader::compile(const std::string& vertexSrc, const std::string& fragmentSr
     }
 
     GfxShaderStage stage = GfxShaderStage::None;
-    program_ = device_->createProgram(vertexSrc.c_str(), fragmentSrc.c_str(),
+    GfxShaderSource source{language, vertexSrc.c_str(), fragmentSrc.c_str()};
+    program_ = device_->createProgram(source,
                                       binds.data(), static_cast<u32>(binds.size()),
                                       outLog, &stage);
 

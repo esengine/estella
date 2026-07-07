@@ -69,7 +69,10 @@ public:
     void bindTexture(u32 slot, TextureHandle texture) override;
     bool supportsCompressedFormat(GfxCompressedFormat format) override;
 
-    ShaderHandle createProgram(const char* vertexSrc, const char* fragmentSrc,
+    bool supportsShaderLanguage(GfxShaderLanguage language) const override {
+        return language == GfxShaderLanguage::GLSL_ES300;
+    }
+    ShaderHandle createProgram(const GfxShaderSource& source,
                                const GfxAttribBinding* bindings, u32 bindingCount,
                                std::string* outLog, GfxShaderStage* outFailedStage) override;
     void deleteProgram(ShaderHandle program) override;

@@ -65,15 +65,16 @@ void ResourceManager::update() {
 // =============================================================================
 
 ShaderHandle ResourceManager::createShader(const std::string& vertSrc, const std::string& fragSrc,
-                                           bool rewriteLoose) {
+                                           bool rewriteLoose, GfxShaderLanguage language) {
     if (!device_) return {};
 
     // Lift loose non-sampler uniforms into a std140 DrawParams block, so this
     // shader's parameters flow through the UBO seam (setUniform writes the CPU
     // shadow; commitParams uploads + binds). ShaderParser-assembled material
     // sources pass rewriteLoose=false: their params already live in
-    // MaterialConstants and only sampler uniforms remain loose.
-    if (rewriteLoose) {
+    // MaterialConstants and only sampler uniforms remain loose. The rewriter is
+    // a GLSL-source transform — other languages skip it.
+    if (rewriteLoose && language == GfxShaderLanguage::GLSL_ES300) {
         DrawParamsRewrite rw = rewriteLooseUniforms(vertSrc, fragSrc);
         if (!rw.layout.empty()) {
             auto shader = Shader::create(*device_, rw.vertexSrc, rw.fragmentSrc);
@@ -88,7 +89,7 @@ ShaderHandle ResourceManager::createShader(const std::string& vertSrc, const std
         }
     }
 
-    auto shader = Shader::create(*device_, vertSrc, fragSrc);
+    auto shader = Shader::create(*device_, vertSrc, fragSrc, language);
     if (!shader) {
         ES_LOG_ERROR("Failed to create shader from source");
         return ShaderHandle();
@@ -97,9 +98,10 @@ ShaderHandle ResourceManager::createShader(const std::string& vertSrc, const std
 }
 
 ShaderHandle ResourceManager::createShaderWithBindings(const std::string& vertSrc, const std::string& fragSrc,
-                                                        std::initializer_list<AttribBinding> bindings) {
+                                                        std::initializer_list<AttribBinding> bindings,
+                                                        GfxShaderLanguage language) {
     if (!device_) return {};
-    auto shader = Shader::createWithBindings(*device_, vertSrc, fragSrc, bindings);
+    auto shader = Shader::createWithBindings(*device_, vertSrc, fragSrc, bindings, language);
     if (!shader) {
         ES_LOG_ERROR("Failed to create shader with bindings from source");
         return ShaderHandle();

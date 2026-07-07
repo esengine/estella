@@ -53,6 +53,8 @@ struct MockGfxDevice final : GfxDevice {
 
     bool createTextureFails = false;  // toggle to exercise the OOM / lost-context path (-> Invalid)
     bool compressedSupported = true;  // toggle to exercise the RGBA8 fallback path
+    bool wgslSupported = false;       // toggle to exercise the language capability gate
+    GfxShaderLanguage lastShaderLanguage = GfxShaderLanguage::GLSL_ES300;
 
     // last args
     ShaderHandle lastProgram = ShaderHandle::Invalid;
@@ -140,9 +142,13 @@ struct MockGfxDevice final : GfxDevice {
     void bindTexture(u32, TextureHandle) override { ++bindTextureCalls; }
     bool supportsCompressedFormat(GfxCompressedFormat) override { return compressedSupported; }
 
-    ShaderHandle createProgram(const char*, const char*, const GfxAttribBinding*, u32,
+    bool supportsShaderLanguage(GfxShaderLanguage language) const override {
+        return language == GfxShaderLanguage::GLSL_ES300 || (wgslSupported && language == GfxShaderLanguage::WGSL);
+    }
+    ShaderHandle createProgram(const GfxShaderSource& source, const GfxAttribBinding*, u32,
                                std::string*, GfxShaderStage* stage) override {
         ++createProgramCalls;
+        lastShaderLanguage = source.language;
         if (stage) *stage = GfxShaderStage::None;
         return ShaderHandle{1};  // pretend link succeeds, program 1
     }

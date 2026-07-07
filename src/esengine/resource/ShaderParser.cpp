@@ -371,8 +371,9 @@ ParsedShader ShaderParser::parse(const std::string& source, const ShaderIncludeR
 std::string ShaderParser::assembleStage(const ParsedShader& parsed,
                                         ShaderStage stage,
                                         const std::string& platform,
-                                        const std::vector<std::string>& features) {
-    return assembleStageEx(parsed, stage, platform, features).source;
+                                        const std::vector<std::string>& features,
+                                        ShaderTargetLanguage target) {
+    return assembleStageEx(parsed, stage, platform, features, target).source;
 }
 
 std::string ShaderParser::variantKey(const std::vector<std::string>& features) {
@@ -413,7 +414,14 @@ const char* glslTypeName(ShaderPropertyType t) {
 ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& parsed,
                                                            ShaderStage stage,
                                                            const std::string& platform,
-                                                           const std::vector<std::string>& features) {
+                                                           const std::vector<std::string>& features,
+                                                           ShaderTargetLanguage target) {
+    if (target != ShaderTargetLanguage::GLSL_ES300) {
+        // Dual emission (injected headers + canonical vertex per language) is
+        // REARCH_WGSL Phase 3; the seam exists so callers thread the target now.
+        ES_LOG_ERROR("ShaderParser: WGSL emission not implemented yet");
+        return {};
+    }
     AssembledStage result;
 
     if (!parsed.valid) return result;

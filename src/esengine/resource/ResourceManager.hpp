@@ -138,9 +138,11 @@ public:
      * @return Handle to the shader, or invalid handle on failure
      */
     ShaderHandle createShader(const std::string& vertSrc, const std::string& fragSrc,
-                              bool rewriteLoose = true);
+                              bool rewriteLoose = true,
+                              GfxShaderLanguage language = GfxShaderLanguage::GLSL_ES300);
     ShaderHandle createShaderWithBindings(const std::string& vertSrc, const std::string& fragSrc,
-                                           std::initializer_list<AttribBinding> bindings);
+                                           std::initializer_list<AttribBinding> bindings,
+                                           GfxShaderLanguage language = GfxShaderLanguage::GLSL_ES300);
 
     /**
      * @brief Loads a shader from file paths (with caching)

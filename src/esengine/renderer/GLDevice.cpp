@@ -370,9 +370,17 @@ void GLDevice::setCullFace(bool front) {
 // Shader Program
 // =============================================================================
 
-ShaderHandle GLDevice::createProgram(const char* vertexSrc, const char* fragmentSrc,
+ShaderHandle GLDevice::createProgram(const GfxShaderSource& source,
                                      const GfxAttribBinding* bindings, u32 bindingCount,
                                      std::string* outLog, GfxShaderStage* outFailedStage) {
+    if (source.language != GfxShaderLanguage::GLSL_ES300) {
+        if (outLog) *outLog = "GLDevice compiles GLSL ES 300 only (got another language)";
+        if (outFailedStage) *outFailedStage = GfxShaderStage::Vertex;
+        ES_LOG_ERROR("GLDevice::createProgram: unsupported shader language");
+        return ShaderHandle::Invalid;
+    }
+    const char* vertexSrc = source.vertexSrc;
+    const char* fragmentSrc = source.fragmentSrc;
     auto setFailure = [&](GfxShaderStage stage, std::string&& log) {
         if (outLog) *outLog = std::move(log);
         if (outFailedStage) *outFailedStage = stage;

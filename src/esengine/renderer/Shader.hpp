@@ -105,7 +105,8 @@ public:
      * @param fragmentSrc Fragment shader GLSL source
      * @return Unique pointer to the shader, or nullptr on failure
      */
-    static Unique<Shader> create(GfxDevice& device, const std::string& vertexSrc, const std::string& fragmentSrc);
+    static Unique<Shader> create(GfxDevice& device, const std::string& vertexSrc, const std::string& fragmentSrc,
+                                 GfxShaderLanguage language = GfxShaderLanguage::GLSL_ES300);
 
     /**
      * @brief Creates a shader with explicit attribute bindings applied before linking
@@ -116,7 +117,11 @@ public:
      */
     static Unique<Shader> createWithBindings(GfxDevice& device,
                                               const std::string& vertexSrc, const std::string& fragmentSrc,
-                                              std::initializer_list<AttribBinding> bindings);
+                                              std::initializer_list<AttribBinding> bindings,
+                                              GfxShaderLanguage language = GfxShaderLanguage::GLSL_ES300);
+
+    /** @brief The source language this program was compiled from. */
+    GfxShaderLanguage language() const { return language_; }
 
     /**
      * @brief Creates a shader from file paths
@@ -250,7 +255,8 @@ private:
     bool compile(const std::string& vertexSrc, const std::string& fragmentSrc,
                  std::initializer_list<AttribBinding> bindings = {},
                  std::string* outLog = nullptr,
-                 ShaderStageFailure* outFailedStage = nullptr);
+                 ShaderStageFailure* outFailedStage = nullptr,
+                 GfxShaderLanguage language = GfxShaderLanguage::GLSL_ES300);
 
     void reflectActiveUniforms();
 
@@ -262,6 +268,7 @@ private:
     bool writeParam(const std::string& name, DrawParamType type, const void* src) const;
 
     GfxDevice* device_ = nullptr;  ///< Set by the create* factories; all GL goes through it.
+    GfxShaderLanguage language_ = GfxShaderLanguage::GLSL_ES300;
     ShaderHandle program_ = ShaderHandle::Invalid;
 
     /** @brief Cached uniform locations (mutable for const uniform setters) */

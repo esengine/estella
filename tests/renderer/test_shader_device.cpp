@@ -46,6 +46,23 @@ int main() {
     }
     CHECK(d.deleteProgramCalls == 1, "destructor routes through device.deleteProgram");
 
+    // Language capability gate (REARCH_WGSL Phase 1): a source language the
+    // backend cannot compile fails fast BEFORE any createProgram call, with a log.
+    {
+        MockGfxDevice gate;  // wgslSupported = false
+        const int callsBefore = gate.createProgramCalls;
+        auto rejected = Shader::create(gate, "vs", "fs", GfxShaderLanguage::WGSL);
+        CHECK(rejected == nullptr, "unsupported language fails Shader::create");
+        CHECK(gate.createProgramCalls == callsBefore, "gate fires before createProgram");
+
+        gate.wgslSupported = true;
+        auto accepted = Shader::create(gate, "vs", "fs", GfxShaderLanguage::WGSL);
+        CHECK(accepted != nullptr, "capable backend accepts the language");
+        CHECK(gate.lastShaderLanguage == GfxShaderLanguage::WGSL,
+              "language tag reaches createProgram in the source descriptor");
+        CHECK(accepted->language() == GfxShaderLanguage::WGSL, "shader records its source language");
+    }
+
     if (g_failures == 0) {
         std::printf("\nALL SHADER DEVICE TESTS PASSED\n");
         return 0;
