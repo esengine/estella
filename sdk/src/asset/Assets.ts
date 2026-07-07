@@ -479,6 +479,91 @@ export class Assets {
         }
     }
 
+    /**
+     * Preload an explicit list of refs (`@uuid:` or paths) through the typed
+     * loaders, warming every cache with bounded concurrency and progress.
+     * This is the streaming prefetch primitive: point it at the next area's
+     * assets while gameplay continues, and the eventual real loads hit warm
+     * caches (or revive resident textures) instead of the network.
+     *
+     * Asset types come from the catalog / manifest when known, falling back
+     * to file-extension matching against the registered loaders. Refs whose
+     * type can't be determined — and refs that fail to load — are reported
+     * in `failed`; preload itself never rejects.
+     */
+    async preload(
+        refs: ReadonlyArray<string>,
+        onProgress?: (loaded: number, total: number) => void,
+        options?: { readonly maxConcurrent?: number },
+    ): Promise<{ failed: MissingAsset[] }> {
+        const failed: MissingAsset[] = [];
+        const tasks: Array<() => Promise<void>> = [];
+
+        for (const ref of refs) {
+            const path = this.resolveLoadPath_(ref);
+            const type = this.inferAssetType_(path);
+            if (!type) {
+                log.warn('asset', `preload: cannot determine asset type for ${ref}`);
+                failed.push({ ref, reason: 'unresolved' });
+                continue;
+            }
+            const load = this.typedLoadFor_(path, type);
+            if (!load) {
+                log.warn('asset', `preload: no loader for type '${type}' (${ref})`);
+                failed.push({ ref, type, reason: 'unresolved' });
+                continue;
+            }
+            tasks.push(() =>
+                load().then(() => {}).catch(e => {
+                    log.warn('asset', `preload: failed to load ${ref}`, e);
+                    failed.push({
+                        ref, type, reason: 'load-failed',
+                        error: e instanceof Error ? e.message : String(e),
+                    });
+                }),
+            );
+        }
+
+        let loadedCount = 0;
+        const totalCount = tasks.length;
+        onProgress?.(0, totalCount);
+        const maxConcurrent = Math.max(1, options?.maxConcurrent ?? DEFAULT_PRELOAD_CONCURRENCY);
+        await runWithConcurrency(tasks, maxConcurrent, () => {
+            onProgress?.(++loadedCount, totalCount);
+        });
+        return { failed };
+    }
+
+    /** Asset type for a resolved path: catalog entry → manifest entry →
+     *  extension match against the registered loaders → null. */
+    private inferAssetType_(path: string): string | null {
+        const catalogType = this.catalog.getEntry(path)?.type;
+        if (catalogType) return catalogType;
+        const manifestType = this.manifestModel_?.assetByPath(path)?.type;
+        if (manifestType) return manifestType;
+        const dot = path.lastIndexOf('.');
+        if (dot < 0) return null;
+        const ext = path.slice(dot).toLowerCase();
+        for (const loader of this.loaders_.values()) {
+            if (loader.extensions.includes(ext)) return loader.type;
+        }
+        return null;
+    }
+
+    /** Thunk that loads `path` through its type's canonical channel, or null
+     *  when no loader handles the type. Textures/spine have dedicated entry
+     *  points (refcount / two-file pairing); everything else is loadTyped. */
+    private typedLoadFor_(path: string, type: string): (() => Promise<unknown>) | null {
+        switch (type) {
+            case 'texture': return () => this.loadTexture(path);
+            case 'spine':   return () => this.loadSpine(path);
+            case 'font':
+            case 'bitmap-font': return () => this.loadFont(path);
+            default:
+                return this.loaders_.has(type) ? () => this.loadTyped(type, path) : null;
+        }
+    }
+
     // =========================================================================
     // Raw Data (escape hatch)
     // =========================================================================
