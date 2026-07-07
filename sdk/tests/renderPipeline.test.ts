@@ -18,8 +18,6 @@ vi.mock('../src/renderer', () => ({
         setStage: vi.fn(),
         setClearColor: vi.fn(),
         setViewport: vi.fn(),
-        setScissor: vi.fn(),
-        clearBuffers: vi.fn(),
         updateTransforms: vi.fn(),
         beginFrame: vi.fn(),
     },
@@ -87,7 +85,6 @@ describe('RenderPipeline', () => {
             const callOrder: string[] = [];
             (Renderer.resize as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('resize'));
             (Renderer.setViewport as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('setViewport'));
-            (Renderer.clearBuffers as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('clearBuffers'));
             (Renderer.begin as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('begin'));
             (Renderer.submitAll as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('submitAll'));
             (Renderer.flush as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('flush'));
@@ -96,7 +93,7 @@ describe('RenderPipeline', () => {
             pipeline.render({ registry, viewProjection, width: 800, height: 600, elapsed: 16 });
 
             expect(callOrder).toEqual([
-                'resize', 'setViewport', 'clearBuffers', 'begin',
+                'resize', 'setViewport', 'begin',
                 'submitAll', 'flush', 'end',
             ]);
         });
@@ -106,8 +103,8 @@ describe('RenderPipeline', () => {
 
             expect(Renderer.resize).toHaveBeenCalledWith(800, 600);
             expect(Renderer.setViewport).toHaveBeenCalledWith(0, 0, 800, 600);
-            expect(Renderer.clearBuffers).toHaveBeenCalledWith(3);
-            expect(Renderer.begin).toHaveBeenCalledWith(viewProjection);
+            // The clear rides begin as a load-op: color+depth (3), default color.
+            expect(Renderer.begin).toHaveBeenCalledWith(viewProjection, 0, 3, undefined);
             expect(Renderer.submitAll).toHaveBeenCalledWith(registry, 0, 0, 0, 800, 600);
         });
     });
@@ -237,18 +234,10 @@ describe('RenderPipeline', () => {
             expect(Renderer.setViewport).toHaveBeenCalledWith(10, 20, 400, 300);
         });
 
-        it('sets scissor with viewportPixels then resets', () => {
-            const callOrder: [string, ...any[]][] = [];
-            (Renderer.setScissor as ReturnType<typeof vi.fn>).mockImplementation((...args: any[]) => {
-                callOrder.push(['setScissor', ...args]);
-            });
-
-            pipeline.renderCamera({ registry, viewProjection, viewportPixels, clearFlags: 3, elapsed: 0 });
-
-            expect(callOrder).toEqual([
-                ['setScissor', 10, 20, 400, 300, true],
-                ['setScissor', 0, 0, 0, 0, false],
-            ]);
+        it('scopes the load-op clear to the camera viewport via begin', () => {
+            const bg = { x: 0.1, y: 0.2, z: 0.3, w: 1 };
+            pipeline.renderCamera({ registry, viewProjection, viewportPixels, clearFlags: 3, elapsed: 0, clearColor: bg });
+            expect(Renderer.begin).toHaveBeenCalledWith(viewProjection, 0, 3, bg, viewportPixels);
         });
 
         it('passes viewport params to submitAll', () => {

@@ -72,11 +72,20 @@ export const Renderer = {
         }
     },
 
-    begin(viewProjection: Float32Array, target?: RenderTargetHandle): void {
+    /**
+     * Begins the pass. The clear rides begin as a load-op: `clearFlags` bit 0 =
+     * color, bit 1 = depth; `clearColor` is the color value; `clearRect` scopes the
+     * clear to a viewport region (omitted = the whole target). No flags = load.
+     */
+    begin(viewProjection: Float32Array, target?: RenderTargetHandle, clearFlags = 0,
+          clearColor?: { x: number; y: number; z: number; w: number },
+          clearRect?: { x: number; y: number; w: number; h: number }): void {
         if (!module || !viewProjectionPtr) return;
         try {
             module.HEAPF32.set(viewProjection, viewProjectionPtr / 4);
-            module.renderer_begin(viewProjectionPtr, target ?? 0);
+            module.renderer_begin(viewProjectionPtr, target ?? 0, clearFlags,
+                clearColor?.x ?? 0, clearColor?.y ?? 0, clearColor?.z ?? 0, clearColor?.w ?? 1,
+                clearRect?.x ?? 0, clearRect?.y ?? 0, clearRect?.w ?? 0, clearRect?.h ?? 0);
         } catch (e) {
             handleWasmError(e, 'Renderer.begin');
         }
@@ -133,14 +142,6 @@ export const Renderer = {
 
     setViewport(x: number, y: number, w: number, h: number): void {
         module?.renderer_setViewport(x, y, w, h);
-    },
-
-    setScissor(x: number, y: number, w: number, h: number, enable: boolean): void {
-        module?.renderer_setScissor(x, y, w, h, enable);
-    },
-
-    clearBuffers(flags: number): void {
-        module?.renderer_clearBuffers(flags);
     },
 
     setTextureParams(textureId: number, minFilter: number, magFilter: number, wrapS: number, wrapT: number): void {

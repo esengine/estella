@@ -31,6 +31,8 @@ export interface RenderParams {
     width: number;
     height: number;
     elapsed: number;
+    /** Background for the pass's load-op clear (default opaque black). */
+    clearColor?: { x: number; y: number; z: number; w: number };
 }
 
 export interface CameraRenderParams {
@@ -40,6 +42,8 @@ export interface CameraRenderParams {
     clearFlags: number;
     elapsed: number;
     cameraEntity?: Entity;
+    /** Background for the camera's load-op clear (default opaque black). */
+    clearColor?: { x: number; y: number; z: number; w: number };
 }
 
 export class RenderPipeline {
@@ -118,8 +122,7 @@ export class RenderPipeline {
 
         Renderer.beginFrame(elapsed);
         Renderer.setViewport(0, 0, width, height);
-        Renderer.clearBuffers(3);
-        Renderer.begin(viewProjection);
+        Renderer.begin(viewProjection, 0, /*clear color+depth*/ 3, params.clearColor);
         this.submitScene(registry, viewProjection, { x: 0, y: 0, w: width, h: height }, elapsed);
         Renderer.end();
     }
@@ -138,11 +141,9 @@ export class RenderPipeline {
         }
 
         Renderer.setViewport(vp.x, vp.y, vp.w, vp.h);
-        Renderer.setScissor(vp.x, vp.y, vp.w, vp.h, true);
-        Renderer.clearBuffers(clearFlags);
-        Renderer.setScissor(0, 0, 0, 0, false);
-
-        Renderer.begin(viewProjection);
+        // The camera's clear rides begin as a region-scoped load-op — no scissor
+        // dance, no sticky clear state at the boundary.
+        Renderer.begin(viewProjection, 0, clearFlags, params.clearColor, vp);
         this.submitScene(registry, viewProjection, vp, elapsed);
         Renderer.end();
 

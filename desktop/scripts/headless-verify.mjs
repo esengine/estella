@@ -20,9 +20,17 @@
  */
 import { app, BrowserWindow } from 'electron';
 import http from 'node:http';
+import os from 'node:os';
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+// SwiftShader rasterizes on the CPU; run the whole electron tree below normal
+// priority (child processes inherit the class) so a verify never starves the
+// machine. Must happen before the renderer process spawns.
+try {
+  os.setPriority(os.constants.priority.PRIORITY_BELOW_NORMAL);
+} catch { /* not fatal — some sandboxes forbid it */ }
 
 const DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist');
 

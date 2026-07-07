@@ -40,9 +40,7 @@ public:
     void shutdown() override;
 
     void setViewport(i32 x, i32 y, u32 w, u32 h) override;
-    void setClearColor(f32 r, f32 g, f32 b, f32 a) override;
-    void setClearStencil(i32 value) override;
-    void clear(bool color, bool depth, bool stencil) override;
+    void clearStencil(i32 value) override;
 
     void setScissorTest(bool enabled) override;
     void setScissor(i32 x, i32 y, i32 w, i32 h) override;
@@ -119,6 +117,12 @@ public:
     i32 getInt(GfxIntParam name) override;
 
 private:
+    // Clear machinery: backend-internal since RenderPassDesc became the only way
+    // to request clears (it carries the values; beginRenderPass applies them).
+    void setClearColor(f32 r, f32 g, f32 b, f32 a);
+    void setClearStencil(i32 value);
+    void clear(bool color, bool depth, bool stencil);
+
     // The loose state setters a pipeline bundles (blend/depth/stencil/cull/masks):
     // backend-internal since the pipeline became the only way to set them.
     void setBlendEnabled(bool enabled);

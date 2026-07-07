@@ -132,8 +132,10 @@ public:
     /**
      * @brief Begins rendering to the pipeline
      * @details Binds the input framebuffer. Render scene content after this.
+     *          @p clearColor (RGBA) colors the capture's load-op clear — the
+     *          camera background; null = opaque black.
      */
-    void begin();
+    void begin(const f32* clearColor = nullptr);
 
     /**
      * @brief Ends and processes all passes
@@ -226,6 +228,12 @@ public:
      * @brief Checks if screen capture is active
      */
     bool isScreenCaptureActive() const { return screenCaptureActive_; }
+
+    /** @brief The surface the scene is currently rendering into: the screen-capture
+     *         FBO when the screen stack is live, the per-camera capture when
+     *         in-frame, else the default target. The main-pass load-op clear must
+     *         land HERE — rebinding the default target mid-capture breaks the stack. */
+    FramebufferHandle currentSceneFBO() const;
 
 private:
     PostProcessPass* findPass(const std::string& name);

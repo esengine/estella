@@ -544,13 +544,10 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_setDeltaTime", &esengine::renderer_setDeltaTime);
     emscripten::function("renderer_setClearColor", &esengine::renderer_setClearColor);
     emscripten::function("renderer_setViewport", &esengine::renderer_setViewport);
-    emscripten::function("renderer_setScissor", &esengine::renderer_setScissor);
-    emscripten::function("renderer_clearBuffers", &esengine::renderer_clearBuffers);
     emscripten::function("renderer_setEntityClipRect", &esengine::renderer_setEntityClipRect);
     emscripten::function("renderer_clearEntityClipRect", &esengine::renderer_clearEntityClipRect);
     emscripten::function("renderer_clearAllClipRects", &esengine::renderer_clearAllClipRects);
 
-    emscripten::function("renderer_clearStencil", &esengine::renderer_clearStencil);
     emscripten::function("renderer_setEntityStencilMask", &esengine::renderer_setEntityStencilMask);
     emscripten::function("renderer_setEntityStencilTest", &esengine::renderer_setEntityStencilTest);
     emscripten::function("renderer_clearEntityStencilMask", &esengine::renderer_clearEntityStencilMask);

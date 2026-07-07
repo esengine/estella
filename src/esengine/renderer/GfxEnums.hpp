@@ -229,17 +229,24 @@ struct FramebufferDesc {
 };
 
 /**
- * @brief One render pass: a target plus which attachments to clear on entry.
- * @details Clears use the device's current clear color / clear stencil values
- *          and ignore write masks a prior pipeline left restrictive (load-op
- *          semantics) — but they do honor the current scissor rectangle, which
- *          the TS-driven multi-camera flow relies on for per-camera clears.
+ * @brief One render pass: a target, which attachments to clear on entry, and the
+ *        clear values — full load-op semantics, no sticky device clear state.
+ * @details Clears ignore write masks a prior pipeline left restrictive (the masks
+ *          are forced open). An optional clear region scopes the clear to a
+ *          viewport rectangle (clearW == 0 = full target): the multi-camera flow
+ *          clears each camera's region on the shared default target. A WebGPU
+ *          backend maps the full-target case to a real load-op and emulates the
+ *          scoped case (first-pass load-op or a scissored clear-quad).
  */
 struct RenderPassDesc {
     FramebufferHandle target = FramebufferHandle::Default;
     bool clearColor = false;
     bool clearDepth = false;
     bool clearStencil = false;
+    f32 clearColorValue[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+    i32 clearStencilValue = 0;
+    i32 clearX = 0, clearY = 0;   ///< Clear region origin (pixels).
+    u32 clearW = 0, clearH = 0;   ///< Clear region size; 0 = the whole target.
 };
 
 // =============================================================================

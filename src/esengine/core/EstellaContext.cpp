@@ -158,12 +158,27 @@ void EstellaContext::initSubsystems() {
     renderFrame->init(state_.viewport_width, state_.viewport_height);
     services_.registerOwned<RenderFrame>(std::move(renderFrame));
 
+#ifdef ES_ENABLE_POSTPROCESS
+    // ONE PostProcessPipeline per App: the postprocess_* bindings and RenderFrame
+    // must consult the SAME instance. Registering RenderFrame's pipeline as the
+    // service (borrowed — RenderFrame owns it) stops the bindings from lazily
+    // creating a second one, whose captures RenderFrame::begin could not see.
+    if (auto* pp = services_.getService<RenderFrame>()->postProcess()) {
+        services_.registerService<PostProcessPipeline>(pp);
+    }
+#endif
+
     state_.initialized = true;
 
-    gfxDevicePtr->setClearColor(
-        state_.clear_color.r, state_.clear_color.g,
-        state_.clear_color.b, state_.clear_color.a);
-    gfxDevicePtr->clear(true, true, false);
+    // First-frame clear as a proper pass load-op (values in the desc, no sticky state).
+    RenderPassDesc initPass{};
+    initPass.clearColor = true;
+    initPass.clearDepth = true;
+    initPass.clearColorValue[0] = state_.clear_color.r;
+    initPass.clearColorValue[1] = state_.clear_color.g;
+    initPass.clearColorValue[2] = state_.clear_color.b;
+    initPass.clearColorValue[3] = state_.clear_color.a;
+    gfxDevicePtr->beginRenderPass(initPass);
 
     ES_LOG_INFO("EstellaContext initialized");
 }

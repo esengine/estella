@@ -242,5 +242,9 @@ export function runCommand(command, args, options = {}) {
 }
 
 export function getCpuCount() {
-    return os.cpus().length;
+    // ESTELLA_BUILD_JOBS overrides; otherwise leave two cores free — a full-core
+    // emcc + LTO link saturates CPU and RAM and can freeze the machine outright.
+    const override = Number(process.env.ESTELLA_BUILD_JOBS);
+    if (Number.isFinite(override) && override >= 1) return Math.floor(override);
+    return Math.max(1, os.cpus().length - 2);
 }

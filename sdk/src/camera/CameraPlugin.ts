@@ -445,10 +445,10 @@ export function cameraPlugin(
                     const { width, height } = viewport();
                     if (width === 0 || height === 0) return;
                     const canvasEntity = module.registry_getCanvasEntity(cppRegistry);
+                    let clearColor: { x: number; y: number; z: number; w: number } | undefined;
                     if (canvasEntity >= 0) {
                         const canvas = cppRegistry.getCanvas(canvasEntity);
-                        const bg = canvas.backgroundColor;
-                        Renderer.setClearColor(bg.x, bg.y, bg.z, bg.w);
+                        clearColor = canvas.backgroundColor;
                     }
                     const elapsed = (platformNow() - startTime) / 1000;
 
@@ -474,6 +474,7 @@ export function cameraPlugin(
                             registry: { _cpp: cppRegistry },
                             viewProjection: IDENTITY,
                             width, height, elapsed,
+                            clearColor,
                         });
                     } else {
                         pipeline.beginFrame(elapsed);
@@ -491,6 +492,7 @@ export function cameraPlugin(
                                 clearFlags: cam.clearFlags,
                                 elapsed,
                                 cameraEntity: cam.entity,
+                                clearColor,
                             });
                         }
                         pipeline.endScreenCapture();

@@ -203,11 +203,7 @@ void renderFrame(ecs::Registry& registry, i32 viewportWidth, i32 viewportHeight)
     ctx().state().viewport_height = static_cast<u32>(viewportHeight);
     g_renderFrame->resize(g_viewportWidth, g_viewportHeight);
 
-    auto* dev = g_device;
-    dev->setViewport(0, 0, static_cast<u32>(viewportWidth), static_cast<u32>(viewportHeight));
-    const auto& cc = ctx().state().clear_color;
-    dev->setClearColor(cc.r, cc.g, cc.b, cc.a);
-    dev->clear(true, true, false);
+    g_device->setViewport(0, 0, static_cast<u32>(viewportWidth), static_cast<u32>(viewportHeight));
 
     glm::mat4 viewProjection = glm::mat4(1.0f);
 
@@ -240,7 +236,8 @@ void renderFrame(ecs::Registry& registry, i32 viewportWidth, i32 viewportHeight)
         break;
     }
 
-    g_renderFrame->begin(viewProjection);
+    const auto& cc = ctx().state().clear_color;
+    g_renderFrame->begin(viewProjection, 0, RenderFrame::PassClear{true, true, cc});
     g_renderFrame->collectAll(registry);
     g_renderFrame->end();
 }
@@ -266,16 +263,13 @@ void renderFrameWithMatrix(ecs::Registry& registry, i32 viewportWidth, i32 viewp
     ctx().state().viewport_height = static_cast<u32>(viewportHeight);
     g_renderFrame->resize(g_viewportWidth, g_viewportHeight);
 
-    auto* dev = g_device;
-    dev->setViewport(0, 0, static_cast<u32>(viewportWidth), static_cast<u32>(viewportHeight));
-    const auto& cc = ctx().state().clear_color;
-    dev->setClearColor(cc.r, cc.g, cc.b, cc.a);
-    dev->clear(true, true, false);
+    g_device->setViewport(0, 0, static_cast<u32>(viewportWidth), static_cast<u32>(viewportHeight));
 
     const f32* matrixData = reinterpret_cast<const f32*>(matrixPtr);
     glm::mat4 viewProjection = glm::make_mat4(matrixData);
 
-    g_renderFrame->begin(viewProjection);
+    const auto& cc = ctx().state().clear_color;
+    g_renderFrame->begin(viewProjection, 0, RenderFrame::PassClear{true, true, cc});
     g_renderFrame->collectAll(registry);
     g_renderFrame->end();
 }
@@ -301,13 +295,21 @@ void renderer_beginFrame(f32 elapsedSec) {
     }
 }
 
-void renderer_begin(uintptr_t matrixPtr, u32 targetHandle) {
+// The pass's load-op rides begin: clearFlags bit0 = color, bit1 = depth; the color
+// value and an optional region (w == 0 = full target) come with it, so no sticky
+// clear state exists anywhere between TS and the device.
+void renderer_begin(uintptr_t matrixPtr, u32 targetHandle, i32 clearFlags,
+                    f32 r, f32 g, f32 b, f32 a,
+                    i32 clearX, i32 clearY, u32 clearW, u32 clearH) {
     if (!g_renderFrame) return;
 
     const f32* matrixData = reinterpret_cast<const f32*>(matrixPtr);
     glm::mat4 viewProjection = glm::make_mat4(matrixData);
 
-    g_renderFrame->begin(viewProjection, targetHandle);
+    g_renderFrame->begin(viewProjection, targetHandle,
+                         RenderFrame::PassClear{(clearFlags & 1) != 0, (clearFlags & 2) != 0,
+                                                glm::vec4(r, g, b, a),
+                                                clearX, clearY, clearW, clearH});
 }
 
 void renderer_flush() {
@@ -521,24 +523,6 @@ void renderer_setViewport(i32 x, i32 y, i32 w, i32 h) {
     g_device->setViewport(x, y, static_cast<u32>(w), static_cast<u32>(h));
 }
 
-void renderer_setScissor(i32 x, i32 y, i32 w, i32 h, bool enable) {
-    auto* dev = g_device;
-    if (enable) {
-        dev->setScissorTest(true);
-        dev->setScissor(x, y, w, h);
-    } else {
-        dev->setScissorTest(false);
-    }
-}
-
-void renderer_clearBuffers(i32 flags) {
-    bool color = (flags & 1) != 0;
-    bool depth = (flags & 2) != 0;
-    if (color || depth) {
-        g_device->clear(color, depth, false);
-    }
-}
-
 void renderer_diagnose() {
     if (!g_initialized) {
         ES_LOG_ERROR("[Diagnose] Renderer not initialized");
@@ -573,11 +557,6 @@ void renderer_clearAllClipRects() {
     if (g_renderFrame) {
         g_renderFrame->clearAllClipRects();
     }
-}
-
-void renderer_clearStencil() {
-    g_device->setClearStencil(0);
-    g_device->clear(false, false, true);
 }
 
 void renderer_setEntityStencilMask(u32 entity, i32 refValue) {

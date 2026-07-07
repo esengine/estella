@@ -67,24 +67,22 @@ public:
     /** @brief Sets the rendering viewport */
     virtual void setViewport(i32 x, i32 y, u32 w, u32 h) = 0;
 
-    /** @brief Sets the clear color */
-    virtual void setClearColor(f32 r, f32 g, f32 b, f32 a) = 0;
-
-    /** @brief Sets the value written to the stencil buffer by clear() */
-    virtual void setClearStencil(i32 value) = 0;
-
-    /**
-     * @brief Clears attachments of the current pass target with load-op semantics.
-     * @details Write masks left by the previous pipeline are forced open (and the
-     *          cached pipeline dropped); the scissor rectangle is honored. Prefer
-     *          the clears in RenderPassDesc — this exists for the SDK-driven
-     *          multi-camera flow and mid-pass stencil clears.
-     */
-    virtual void clear(bool color, bool depth, bool stencil) = 0;
+    // Clears are pass-scoped: RenderPassDesc carries the load-ops AND their values
+    // (color / stencil / optional region). There is no public clear entry point and
+    // no sticky clear state a pass could inherit by accident.
 
     // =========================================================================
     // Dynamic Per-Draw State (deliberately outside the pipeline; see PipelineState.hpp)
     // =========================================================================
+
+    /**
+     * @brief Mid-pass stencil reset (the one clear that isn't a pass load-op).
+     * @details The mask pass wipes the stencil attachment of the CURRENT target
+     *          before rebuilding mask refs — it must not restart the pass (the
+     *          scene may be rendering into a post-process capture). GL clears the
+     *          attachment; a WebGPU backend emulates with a stencil-write quad.
+     */
+    virtual void clearStencil(i32 value) = 0;
 
     /** @brief Enables or disables scissor test */
     virtual void setScissorTest(bool enabled) = 0;

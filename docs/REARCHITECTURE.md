@@ -176,6 +176,15 @@ RC5"渲染唯一路径"的收官：所有 Renderer 只**生成命令**，Sort/Me
 - 验证：新增 `tests/renderer/test_batch_builder.cpp`（8 用例 43 断言：各流 baseVertex 步长、纹理槽规则、实例化命令组装、多纹理合并 + texIndex 重写、跨流不合并、clip 盖章、execute 分发）；六套 MockGfxDevice harness、web 构建、11 个 headless 像素场景（sprite / parallax-shape / text-sdf / 粒子×2 / tilemap×2 / ui-mask / lit×2 / postprocess）全 PASS；双 boundary guard 绿。
 - **承诺实测 — Mesh2D 场景级 renderer（2026-07-07 第二批）**：`RenderType::Mesh` 从"仅统计枚举"变成真渲染类型。`Mesh2D` 组件（EHT 注解字段 + **未注解的变长几何 payload 置尾**——变长数据无固定 ABI 偏移，天然不进指针布局/断言）；几何经唯一入口 `mesh2d_setGeometry` 上传（索引越界整体拒绝 + AABB 计算）；`MeshPlugin` 全部内容 = 共享前奏 + SpritePlugin 同款材质/lit 解析 + CPU 仿射变换 + `appendIndexedBatch`——**零底层改动**，网格自动获得排序/裁剪/clip/多纹理合并/Lit2D。SDK：`Mesh2DAPI`（withScratch 批量上传）+ 场景 out-of-band codec（`geometry` 字段随 .esscene 声明式携带，particle 渐变同模式）。刻意不做：GPU 驻留网格（2D 网格顶点量小，CPU 流式与 sprite/tilemap 同模型；大网格属未来 3D 议题）。验证：mesh2d headless 场景（双三角逐顶点色，3 像素断言）一次过 + 回归 5 场景 + SDK/desktop 双侧 tsc + 全套测试 + 24 examples + 双 guard 全绿。
 
+### 渲染 clear → deferred load-op（WebGPU 前两片之①）— ✅ 已落地（2026-07-07）
+TS 驱动的主 pass clear 退出边界，`clear` 家族退出公共 RHI：
+- **RenderPassDesc 携带全部 load-op 值**：clear 颜色、stencil 值、可选区域（`clearW==0` = 整目标；GL = scissored clear，WebGPU 后端整目标映射真 load-op、区域用首 pass load-op 或 clear-quad 仿真）。`beginRenderPass` 自含 scissor 状态（scoped 用自己的矩形，非 scoped 强制关——真 load-op 覆盖整个附件，不被上一帧残留 scissor 否决）。
+- **clear/setClearColor/setClearStencil 降为 GLDevice 私有**；唯一例外是新的窄接口 `GfxDevice::clearStencil(value)`——mask pass 的**中帧** stencil 重置（不能重启 pass：场景可能正渲进后处理捕获；WebGPU 仿真 = stencil-write quad）。
+- **`renderer_begin` 携带 clear**（flags/rgba/区域），`renderer_clearBuffers`/`renderer_setScissor`/`renderer_clearStencil`（零调用方）三绑定退役；TS `renderPipeline` 删除 setScissor+clearBuffers 舞蹈，Canvas 背景色经 `CameraRenderParams.clearColor` 直达 pass——顺带根治 **sticky 颜色 bug**（`renderer_setClearColor` 只写 ctx state，相机路径的背景色从未到过设备）。
+- **根治了第二个双实例病灶**：TS `postprocess_*` 绑定用 ctx 服务里懒创建的 `PostProcessPipeline`，而 `RenderFrame::init` 自建私有实例——两份状态各自漂移（正是 begin 改造后主 pass 目标判断失灵、后处理全黑的根因）。修复：EstellaContext 把 RenderFrame 的实例以借用方式注册为服务（`registerService`），单实例、单一状态归属。
+- **方法论教训（已入记忆）**：排查期间多次实验跑在陈旧 wasm 上导致结论互相矛盾；现在的协议是每轮 bisect 在源里嵌标记字符串、grep 部署产物 + 比对双份 md5 后才采信结果。
+- 验证（全部本地、BelowNormal）：13 个 headless 场景全 PASS（含 postprocess-effects/lut-grade 两个后处理场景、mesh2d、ui-mask、lit×2）；6 套 MockGfxDevice harness、SDK 241 测试文件（renderer/renderPipeline 测试更新为 load-op 契约）、desktop 63 文件、双侧 tsc、24 examples 全绿。**WebGPU 前仅剩一片**：GLSL-only `createProgram` → WGSL 通路。
+
 ### CI 常绿门禁（push-gated invariants）— ✅ 已落地（2026-07-07）
 此前 `build.yml` 仅 `workflow_dispatch`——boundary guards、全组件 ABI `static_assert`、各测试套件全是"约定"而非"机制"。现在**每次 push master 自动跑**：① web/playable/wechat 构建（编译期即验证生成断言 + ABI 哈希）+ 全部 15 个 C++ doctest harness（node 下执行）；② 双 boundary guard + SDK tsc/构建/vitest + examples 检查 + desktop tsc/vitest（后两者此前完全不在 CI）；③ headless 像素验证（sprite/mesh2d/parallax-shape/tilemap-flip/ui-mask，electron + xvfb + SwiftShader，需 `ELECTRON_DISABLE_SANDBOX`）。落地即抓到并修复三处腐化：`test_registry.cpp` 用已删除的 `View::sizeHint`、`test_sparse_set.cpp` 的局部常量撞 emscripten `PAGE_SIZE` 宏、以及一个**真回归**——单组件 `View::each` 活迭代（中途 emplace 会重访、swap-pop 移除会跳漏），多组件版早有快照契约，现已对齐。
 

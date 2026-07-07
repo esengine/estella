@@ -80,9 +80,7 @@ struct MockGfxDevice final : GfxDevice {
     void shutdown() override {}
 
     void setViewport(i32, i32, u32, u32) override {}
-    void setClearColor(f32, f32, f32, f32) override {}
-    void setClearStencil(i32) override {}
-    void clear(bool, bool, bool) override {}
+    void clearStencil(i32) override {}
 
     void setScissorTest(bool) override {}
     void setScissor(i32, i32, i32, i32) override {}

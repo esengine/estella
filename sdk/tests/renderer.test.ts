@@ -44,8 +44,6 @@ function createRendererMockModule() {
 
         renderer_setClearColor: vi.fn(),
         renderer_setViewport: vi.fn(),
-        renderer_setScissor: vi.fn(),
-        renderer_clearBuffers: vi.fn(),
         renderer_setStage: vi.fn(),
 
         renderer_getDrawCalls: vi.fn(() => 10),
@@ -194,17 +192,25 @@ describe('Renderer API', () => {
             for (let i = 0; i < 16; i++) {
                 expect(mock.HEAPF32[offset + i]).toBe(i + 1);
             }
-            expect(mock.renderer_begin).toHaveBeenCalledWith(ptr, 0);
+            // No clear requested: flags 0, defaults, empty rect (load-op contract).
+            expect(mock.renderer_begin).toHaveBeenCalledWith(ptr, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0);
         });
 
         it('should default target to 0 when not specified', () => {
             Renderer.begin(new Float32Array(16));
-            expect(mock.renderer_begin).toHaveBeenCalledWith(expect.any(Number), 0);
+            expect(mock.renderer_begin).toHaveBeenCalledWith(expect.any(Number), 0, 0, 0, 0, 0, 1, 0, 0, 0, 0);
         });
 
         it('should pass target when specified', () => {
             Renderer.begin(new Float32Array(16), 5);
-            expect(mock.renderer_begin).toHaveBeenCalledWith(expect.any(Number), 5);
+            expect(mock.renderer_begin).toHaveBeenCalledWith(expect.any(Number), 5, 0, 0, 0, 0, 1, 0, 0, 0, 0);
+        });
+
+        it('carries the clear as a load-op: flags, color, and region', () => {
+            Renderer.begin(new Float32Array(16), 0, 3,
+                { x: 0.2, y: 0.4, z: 0.6, w: 1 }, { x: 10, y: 20, w: 400, h: 300 });
+            expect(mock.renderer_begin).toHaveBeenCalledWith(
+                expect.any(Number), 0, 3, 0.2, 0.4, 0.6, 1, 10, 20, 400, 300);
         });
     });
 
@@ -333,16 +339,6 @@ describe('Renderer API', () => {
         it('should call renderer_setViewport', () => {
             Renderer.setViewport(0, 0, 800, 600);
             expect(mock.renderer_setViewport).toHaveBeenCalledWith(0, 0, 800, 600);
-        });
-
-        it('should call renderer_setScissor', () => {
-            Renderer.setScissor(10, 20, 100, 200, true);
-            expect(mock.renderer_setScissor).toHaveBeenCalledWith(10, 20, 100, 200, true);
-        });
-
-        it('should call renderer_clearBuffers', () => {
-            Renderer.clearBuffers(7);
-            expect(mock.renderer_clearBuffers).toHaveBeenCalledWith(7);
         });
 
         it('should call renderer_setStage', () => {

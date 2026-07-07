@@ -916,9 +916,37 @@ void GLDevice::deleteFramebuffer(FramebufferHandle framebuffer) {
     if (id != 0) glDeleteFramebuffers(1, &id);
 }
 
+void GLDevice::clearStencil(i32 value) {
+    setClearStencil(value);
+    clear(false, false, true);
+}
+
 void GLDevice::beginRenderPass(const RenderPassDesc& desc) {
     glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(desc.target));
+    if (!desc.clearColor && !desc.clearDepth && !desc.clearStencil) return;
+
+    // Load-op values ride the pass — no sticky device clear state to drift.
+    if (desc.clearColor) {
+        setClearColor(desc.clearColorValue[0], desc.clearColorValue[1],
+                      desc.clearColorValue[2], desc.clearColorValue[3]);
+    }
+    if (desc.clearStencil) setClearStencil(desc.clearStencilValue);
+
+    // Load-op clears are self-contained: a scoped clear rides its OWN scissor
+    // rect, an unscoped one forces the scissor OFF (a real load-op covers the
+    // whole attachment — it must not be vetoed by whatever scissor the previous
+    // frame's last draw left enabled). Scissor ends disabled either way; the
+    // next draw's command state re-applies its own.
+    const bool scoped = desc.clearW != 0;
+    if (scoped) {
+        setScissorTest(true);
+        setScissor(desc.clearX, desc.clearY,
+                   static_cast<i32>(desc.clearW), static_cast<i32>(desc.clearH));
+    } else {
+        setScissorTest(false);
+    }
     clear(desc.clearColor, desc.clearDepth, desc.clearStencil);
+    if (scoped) setScissorTest(false);
 }
 
 void GLDevice::endRenderPass() {

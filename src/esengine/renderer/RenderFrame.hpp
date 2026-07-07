@@ -86,7 +86,20 @@ public:
     void shutdown();
     void resize(u32 width, u32 height);
 
+    /** @brief The frame's main-pass load-op: which attachments to clear, the color,
+     *         and an optional region (w == 0 = full target — per-camera flows clear
+     *         only their viewport on the shared default target). */
+    struct PassClear {
+        bool color = false;
+        bool depth = false;
+        glm::vec4 colorValue{0.0f, 0.0f, 0.0f, 1.0f};
+        i32 x = 0, y = 0;
+        u32 w = 0, h = 0;
+    };
+
     void begin(const glm::mat4& view_projection, RenderTargetManager::Handle target = 0);
+    void begin(const glm::mat4& view_projection, RenderTargetManager::Handle target,
+               const PassClear& clear);
     void flush();
     void end();
 

@@ -292,13 +292,23 @@ void PostProcessPipeline::applyPassPipeline(const Shader& shader) {
     device_.setPipeline(device_.createPipeline(desc));
 }
 
-void PostProcessPipeline::begin() {
+FramebufferHandle PostProcessPipeline::currentSceneFBO() const {
+    if (screenCaptureActive_ && screenFBOCreated_) return screenFBO_->handle();
+    if (inFrame_ && fboOriginalCreated_) return fboOriginal_->handle();
+    return FramebufferHandle::Default;
+}
+
+void PostProcessPipeline::begin(const f32* clearColor) {
     if (!initialized_ || inFrame_ || bypass_) return;
 
     ensureFBOs();
     if (!fboOriginalCreated_) return;
 
-    device_.beginRenderPass({fboOriginal_->handle(), /*clearColor=*/true, /*clearDepth=*/true});
+    RenderPassDesc pass{fboOriginal_->handle(), /*clearColor=*/true, /*clearDepth=*/true};
+    if (clearColor) {
+        for (int i = 0; i < 4; ++i) pass.clearColorValue[i] = clearColor[i];
+    }
+    device_.beginRenderPass(pass);
     device_.setViewport(0, 0, width_, height_);
 
     inFrame_ = true;

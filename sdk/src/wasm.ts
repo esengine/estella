@@ -272,7 +272,9 @@ export interface ESEngineModule {
     renderer_resize(width: number, height: number): void;
     renderer_beginFrame(elapsedSec: number): void;
     renderer_updateTransforms(registry: CppRegistry): void;
-    renderer_begin(matrixPtr: number, targetHandle: number): void;
+    renderer_begin(matrixPtr: number, targetHandle: number, clearFlags: number,
+                   r: number, g: number, b: number, a: number,
+                   clearX: number, clearY: number, clearW: number, clearH: number): void;
     renderer_flush(): void;
     renderer_end(): void;
     renderer_submitSprites(registry: CppRegistry): void;
@@ -331,8 +333,6 @@ export interface ESEngineModule {
     renderer_getTextureBytes?(): number;
     renderer_setClearColor(r: number, g: number, b: number, a: number): void;
     renderer_setViewport(x: number, y: number, w: number, h: number): void;
-    renderer_setScissor(x: number, y: number, w: number, h: number, enable: boolean): void;
-    renderer_clearBuffers(flags: number): void;
     renderer_setTextureParams(textureId: number, minFilter: number, magFilter: number, wrapS: number, wrapT: number): void;
 
     // Clip Rect API
@@ -341,7 +341,6 @@ export interface ESEngineModule {
     renderer_clearAllClipRects(): void;
 
     // Stencil API
-    renderer_clearStencil(): void;
     renderer_setEntityStencilMask(entity: number, refValue: number): void;
     renderer_setEntityStencilTest(entity: number, refValue: number): void;
     renderer_clearEntityStencilMask(entity: number): void;

@@ -230,7 +230,7 @@ void RenderFrame::processMasks(ecs::Registry& registry, i32 vpX, i32 vpY, i32 vp
 
     if (!stencilMasks.empty()) {
 #ifdef ES_PLATFORM_WEB
-        device_.clear(false, false, true);
+        device_.clearStencil(0);
 #endif
 
         std::vector<Entity> rootStencils;

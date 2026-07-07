@@ -180,6 +180,11 @@ void RenderFrame::resize(u32 width, u32 height) {
 }
 
 void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::Handle target) {
+    begin(view_projection, target, PassClear{});
+}
+
+void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::Handle target,
+                        const PassClear& clear) {
     view_projection_ = view_projection;
     frustum_.extractFromMatrix(view_projection);
     current_target_ = target;
@@ -200,6 +205,21 @@ void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::H
     bool usePostProcess = false;
 #endif
 
+    // The pass's load-op clear, values carried in the desc (never sticky device
+    // state). Region-scoped when the caller renders one camera's viewport of a
+    // shared target.
+    RenderPassDesc pass{};
+    pass.clearColor = clear.color;
+    pass.clearDepth = clear.depth;
+    pass.clearColorValue[0] = clear.colorValue.r;
+    pass.clearColorValue[1] = clear.colorValue.g;
+    pass.clearColorValue[2] = clear.colorValue.b;
+    pass.clearColorValue[3] = clear.colorValue.a;
+    pass.clearX = clear.x;
+    pass.clearY = clear.y;
+    pass.clearW = clear.w;
+    pass.clearH = clear.h;
+
     if (usePostProcess) {
 #ifdef ES_ENABLE_POSTPROCESS
         if (target != RenderTargetManager::INVALID_HANDLE) {
@@ -208,13 +228,30 @@ void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::H
                 post_process_->setOutputTarget(rt->getFramebuffer());
             }
         }
-        post_process_->begin();
+        // Fresh begin: colors the capture's own load-op clear. When TS already
+        // began the capture (renderCamera drives pp.begin first) this no-ops...
+        post_process_->begin(pass.clearColorValue);
+        // ...so apply the camera's (possibly region-scoped) clear to the active
+        // capture surface explicitly.
+        if (pass.clearColor || pass.clearDepth) {
+            pass.target = post_process_->currentSceneFBO();
+            device_.beginRenderPass(pass);
+        }
 #endif
     } else if (target != RenderTargetManager::INVALID_HANDLE) {
         auto* rt = target_manager_.get(target);
         if (rt) {
-            rt->bind();
+            pass.target = rt->getFramebuffer();
+            device_.beginRenderPass(pass);
         }
+    } else {
+        // The scene may be rendering into the TS screen-capture FBO (screen post
+        // stack without a per-camera stack): the clear must land on that surface —
+        // blind-rebinding the default target here would break the capture.
+#ifdef ES_ENABLE_POSTPROCESS
+        if (post_process_) pass.target = post_process_->currentSceneFBO();
+#endif
+        device_.beginRenderPass(pass);
     }
 }
 
@@ -335,8 +372,9 @@ void RenderFrame::replayToDrawCall(i32 stopAtDrawCall) {
     auto* rt = target_manager_.get(replay_rt_);
     if (!rt) return;
 
-    device_.setClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-    device_.beginRenderPass({rt->getFramebuffer(), /*clearColor=*/true});
+    RenderPassDesc replayPass{rt->getFramebuffer(), /*clearColor=*/true};
+    replayPass.clearColorValue[3] = 0.0f;  // transparent black
+    device_.beginRenderPass(replayPass);
     device_.setViewport(0, 0, width_, height_);
 
     frame_capture_.setReplayMode(stopAtDrawCall + 1);
@@ -371,8 +409,9 @@ void RenderFrame::renderToTarget(ecs::Registry& registry, const glm::mat4& viewP
     auto* rt = target_manager_.get(preview_rt_);
     if (!rt) return;
 
-    device_.setClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-    device_.beginRenderPass({rt->getFramebuffer(), /*clearColor=*/true});
+    RenderPassDesc previewPass{rt->getFramebuffer(), /*clearColor=*/true};
+    previewPass.clearColorValue[3] = 0.0f;  // transparent black
+    device_.beginRenderPass(previewPass);
     device_.setViewport(0, 0, w, h);
 
     // A self-contained collect (begin()'s setup minus post-process) + execute (flush()'s body),
