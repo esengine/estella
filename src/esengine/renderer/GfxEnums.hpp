@@ -71,10 +71,9 @@ enum class LayoutId : u8 {
     Batch           = 0,
     ParticleInstance = 1,  ///< Instanced: a static unit quad + a per-particle instance stream.
     Shape           = 2,
-    MatSprite       = 3,
 };
 
-static constexpr u32 LAYOUT_COUNT = 4;
+static constexpr u32 LAYOUT_COUNT = 3;
 
 // =============================================================================
 // Data Type (vertex attributes, index type, pixel data type)

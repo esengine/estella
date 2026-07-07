@@ -17,7 +17,7 @@ void TransientBufferPool::init(u32 initialVertexBytes, u32 initialIndexCount) {
     initial_vertex_bytes_ = initialVertexBytes;
     initial_index_count_ = initialIndexCount;
 
-    for (auto layout : {LayoutId::Batch, LayoutId::ParticleInstance, LayoutId::Shape, LayoutId::MatSprite}) {
+    for (auto layout : {LayoutId::Batch, LayoutId::ParticleInstance, LayoutId::Shape}) {
         setupStream(layout);
     }
 
@@ -245,13 +245,6 @@ void TransientBufferPool::setupStream(LayoutId layout) {
             desc.attributes[1] = {1, 2, GfxDataType::Float, false, 8, 0};
             desc.attributes[2] = {2, 4, GfxDataType::Float, false, 16, 0};
             desc.attributes[3] = {3, 4, GfxDataType::Float, false, 32, 0};
-            break;
-        case LayoutId::MatSprite:
-            desc.attributeCount = 3;
-            desc.strides[0] = 32;
-            desc.attributes[0] = {0, 2, GfxDataType::Float, false, 0, 0};
-            desc.attributes[1] = {1, 2, GfxDataType::Float, false, 8, 0};
-            desc.attributes[2] = {2, 4, GfxDataType::Float, false, 16, 0};
             break;
         default:
             break;
