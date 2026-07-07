@@ -184,6 +184,10 @@ jobs:
 
     - name: Run headless verify scenes
       working-directory: desktop
+      env:
+        # CI runners can't use the SUID sandbox helper (not root-owned in
+        # node_modules); rendering verification doesn't need it.
+        ELECTRON_DISABLE_SANDBOX: '1'
       run: |
         run_scene() {
           echo "=== $1"
