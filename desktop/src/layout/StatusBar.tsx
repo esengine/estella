@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { useSyncExternalStore } from 'react';
-import { Gauge, MousePointer2, Boxes, FolderOpen } from 'lucide-react';
+import { Gauge, MousePointer2, Boxes, FolderOpen, MemoryStick } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { useSelection } from '@/store/selectionStore';
 import { StatsStore } from '@/engine/StatsStore';
 import { SubsystemIndicator } from './SubsystemIndicator';
 import { Perf } from '@/components/Perf';
+
+const formatMb = (bytes: number) => (bytes / (1024 * 1024)).toFixed(1);
 
 // Only this text node re-renders on mouse move, never the footer.
 function CursorReadout() {
@@ -63,6 +65,16 @@ export function StatusBar() {
       <span className="sitem mono">
         <Boxes size={11} strokeWidth={1.85} /> {stats.entities} entities
       </span>
+      {stats.vram && (
+        <span
+          className="sitem mono"
+          title={`Resident texture memory / budget · ${stats.vram.evictable} cached (evictable) texture(s)`}
+        >
+          <MemoryStick size={11} strokeWidth={1.85} />
+          {formatMb(stats.vram.bytes)}
+          <span className="smute">/{formatMb(stats.vram.budget)} MB</span>
+        </span>
+      )}
       <span className="sitem smute">esengine 0.10.0</span>
     </footer>
   );

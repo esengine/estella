@@ -44,6 +44,10 @@ export interface CppResourceManager {
     createTextureEx(width: number, height: number, pixels: number, pixelsLen: number, format: number, flipY: boolean, filterMode: number, wrapMode: number): number;
     createShader(vertSrc: string, fragSrc: string): number;
     registerExternalTexture(glTextureId: number, width: number, height: number): number;
+    /** Like registerExternalTexture, but with the actual GPU byte size for the
+     *  eviction budget (compressed textures are 4–8× smaller than the RGBA8
+     *  estimate the plain variant books). */
+    registerExternalTextureSized(glTextureId: number, width: number, height: number, bytes: number): number;
     getTextureGLId(handle: number): number;
     getTextureDimensions(handle: number): { width: number; height: number } | null;
     releaseTexture(handle: number): void;

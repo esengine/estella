@@ -396,6 +396,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
         .function("createTextureEx", &esengine::rm_createTextureEx)
         .function("createShader", &esengine::rm_createShader)
         .function("registerExternalTexture", &esengine::rm_registerExternalTexture)
+        .function("registerExternalTextureSized", &esengine::rm_registerExternalTextureSized)
         .function("releaseTexture", &esengine::rm_releaseTexture)
         .function("getTextureRefCount", &esengine::rm_getTextureRefCount)
         .function("releaseShader", &esengine::rm_releaseShader)

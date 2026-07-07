@@ -233,9 +233,13 @@ public:
      * @param glTextureId The OpenGL texture ID
      * @param width Texture width in pixels
      * @param height Texture height in pixels
+     * @param bytes Actual GPU size for the eviction budget; 0 = estimate as
+     *              RGBA8 (width × height × 4). Compressed uploads (KTX2 →
+     *              ASTC/ETC2/S3TC) pass their real block size, 4–8× smaller —
+     *              billing them as RGBA8 would waste most of the budget.
      * @return Handle to the registered texture
      */
-    TextureHandle registerExternalTexture(u32 glTextureId, u32 width, u32 height);
+    TextureHandle registerExternalTexture(u32 glTextureId, u32 width, u32 height, usize bytes = 0);
 
     /**
      * @brief Registers a texture with a path for cache lookup

@@ -150,11 +150,26 @@ function applyParams(gl: WebGL2RenderingContext, opts?: CompressedUploadOptions)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrap);
 }
 
-function registerGlTexture(module: ESEngineModule, texture: WebGLTexture, width: number, height: number): number {
+/**
+ * Register an uploaded GL texture with the C++ pool. `gpuBytes` is the actual
+ * VRAM size for the eviction budget — compressed formats are 4–8× smaller than
+ * the pool's RGBA8 estimate, so billing them at the estimate would squat on
+ * most of the budget. 0 keeps the estimate (RGBA8 uploads, where it's exact).
+ */
+function registerGlTexture(
+    module: ESEngineModule, texture: WebGLTexture,
+    width: number, height: number, gpuBytes = 0,
+): number {
     const glObj = module.GL;
     const id = glObj.getNewId(glObj.textures);
     glObj.textures[id] = texture;
-    return requireResourceManager().registerExternalTexture(id, width, height);
+    const rm = requireResourceManager();
+    // Older wasm builds / minimal mocks lack the sized variant — fall back to
+    // the estimate rather than fail the upload.
+    if (gpuBytes > 0 && typeof rm.registerExternalTextureSized === 'function') {
+        return rm.registerExternalTextureSized(id, width, height, gpuBytes);
+    }
+    return rm.registerExternalTexture(id, width, height);
 }
 
 /** Upload pre-transcoded compressed blocks via `gl.compressedTexImage2D`. */
@@ -176,7 +191,10 @@ export function uploadCompressedTexture(
         gl.deleteTexture(texture);
         throw err;
     }
-    return { handle: registerGlTexture(module, texture, t.width, t.height), width: t.width, height: t.height };
+    return {
+        handle: registerGlTexture(module, texture, t.width, t.height, t.data.byteLength),
+        width: t.width, height: t.height,
+    };
 }
 
 /** Fallback: upload decoded RGBA8 via `gl.texImage2D`. */

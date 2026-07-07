@@ -142,3 +142,28 @@ describe('uploadCompressedTexture', () => {
         ).toThrow(/internalformat/i);
     });
 });
+
+describe('GPU byte accounting', () => {
+    let registerExternalTextureSized: ReturnType<typeof vi.fn>;
+    beforeEach(() => {
+        registerExternalTextureSized = vi.fn(() => 42);
+        initResourceManager({ registerExternalTexture, registerExternalTextureSized } as never);
+    });
+
+    it('books compressed uploads at their real block size, not the RGBA8 estimate', () => {
+        const gl = makeGl({ astc: true });
+        // 4×4 ASTC block data is 8 bytes here vs a 64-byte RGBA8 estimate.
+        loadCompressedTexture(gl as never, makeModule() as never, makeTranscoder(), KTX2_HEADER);
+
+        expect(registerExternalTextureSized).toHaveBeenCalledWith(7, 4, 4, 8);
+        expect(registerExternalTexture).not.toHaveBeenCalled();
+    });
+
+    it('books the RGBA8 fallback at the estimate (which is exact for RGBA8)', () => {
+        const gl = makeGl();  // no compressed support → RGBA path
+        loadCompressedTexture(gl as never, makeModule() as never, makeTranscoder(), KTX2_HEADER);
+
+        expect(registerExternalTexture).toHaveBeenCalledWith(7, 4, 4);
+        expect(registerExternalTextureSized).not.toHaveBeenCalled();
+    });
+});

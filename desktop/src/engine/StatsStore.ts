@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { createStore } from 'zustand/vanilla';
+import { getResourceStats } from 'esengine';
 import { EngineHost } from './EngineHost';
 import { SceneModel } from './SceneModel';
 import { useSelection } from '@/store/selectionStore';
@@ -12,11 +13,20 @@ export interface SelTransform {
   rot: number;
 }
 
+/** Texture residency for the status bar (bytes; evictable = warm cache). */
+export interface VramReadout {
+  bytes: number;
+  budget: number;
+  evictable: number;
+}
+
 export interface StatsSnapshot {
   fps: number;
   entities: number;
   /** The transform of the single selected entity, or null (0 or >1 selected). */
   selection: SelTransform | null;
+  /** Resident texture memory vs budget, or null before the engine is up. */
+  vram: VramReadout | null;
 }
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
@@ -38,11 +48,25 @@ function sampleSelection(): SelTransform | null {
 const selEq = (a: SelTransform | null, b: SelTransform | null): boolean =>
   a === b || (!!a && !!b && a.x === b.x && a.y === b.y && a.rot === b.rot);
 
+/** Sample texture residency from the engine's resource stats, or null. */
+function sampleVram(): VramReadout | null {
+  const stats = getResourceStats();
+  if (!stats) return null;
+  return {
+    bytes: stats.textureBytes,
+    budget: stats.textureBudget,
+    evictable: stats.textureEvictableCount,
+  };
+}
+
+const vramEq = (a: VramReadout | null, b: VramReadout | null): boolean =>
+  a === b || (!!a && !!b && a.bytes === b.bytes && a.budget === b.budget && a.evictable === b.evictable);
+
 // Live editor telemetry for the status bar: real FPS (measured here), live
 // entity count, and the viewport cursor's world position. Updated a few times
 // a second (not per frame) to avoid churning the status bar.
 class StatsStoreImpl {
-  private readonly store = createStore<StatsSnapshot>(() => ({ fps: 0, entities: 0, selection: null }));
+  private readonly store = createStore<StatsSnapshot>(() => ({ fps: 0, entities: 0, selection: null, vram: null }));
   // Pointer-rate churn stays out of the slow-stats subscribers.
   private readonly cursorStore = createStore<{ x: number; y: number } | null>(() => null);
 
@@ -67,8 +91,10 @@ class StatsStoreImpl {
         this.windowStart = t;
         const cur = this.store.getState();
         const selection = sampleSelection();
-        if (fps !== cur.fps || entities !== cur.entities || !selEq(selection, cur.selection)) {
-          this.store.setState({ fps, entities, selection });
+        const vram = sampleVram();
+        if (fps !== cur.fps || entities !== cur.entities
+            || !selEq(selection, cur.selection) || !vramEq(vram, cur.vram)) {
+          this.store.setState({ fps, entities, selection, vram });
         }
       }
     };

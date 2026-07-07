@@ -198,14 +198,16 @@ u32 ResourceManager::getTextureRefCount(TextureHandle handle) const {
     return textures_.getRefCount(handle);
 }
 
-TextureHandle ResourceManager::registerExternalTexture(u32 glTextureId, u32 width, u32 height) {
+TextureHandle ResourceManager::registerExternalTexture(u32 glTextureId, u32 width, u32 height, usize bytes) {
     if (!device_) return {};
     auto texture = Texture::createFromExternalId(*device_, glTextureId, width, height, TextureFormat::RGBA8);
     if (!texture) {
         ES_LOG_ERROR("Failed to register external texture (GL ID: {})", glTextureId);
         return TextureHandle();
     }
-    const usize bytes = static_cast<usize>(width) * height * 4;
+    if (bytes == 0) {
+        bytes = static_cast<usize>(width) * height * 4;
+    }
     return textures_.add(std::move(texture), "", bytes);
 }
 

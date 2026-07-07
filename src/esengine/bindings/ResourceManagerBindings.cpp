@@ -74,6 +74,13 @@ u32 rm_registerExternalTexture(resource::ResourceManager& rm, u32 glTextureId,
     return handle.id();
 }
 
+u32 rm_registerExternalTextureSized(resource::ResourceManager& rm, u32 glTextureId,
+                                     u32 width, u32 height, u32 bytes) {
+    auto handle = rm.registerExternalTexture(glTextureId, width, height,
+                                             static_cast<usize>(bytes));
+    return handle.id();
+}
+
 void rm_releaseTexture(resource::ResourceManager& rm, u32 handleId) {
     rm.releaseTexture(resource::TextureHandle(handleId));
 }
