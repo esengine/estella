@@ -139,10 +139,11 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
     f32 camTop    = tr.y / tr.w;
 
     for (const auto& [entity, layer] : layers) {
-        // RC2a: the TilemapLayer component is the single source of a painted
-        // layer's visual metadata — the renderer reads it live each frame (so
-        // animated tint/opacity need no sync). Tiled-imported synthetic layers
-        // have no component and still carry their metadata in LayerData.
+        // The TilemapLayer component is the single source of a layer's visual
+        // metadata — the renderer reads it live each frame (so animated
+        // tint/opacity need no sync). Every scene-driven layer has one (Tiled
+        // imports project REAL child entities); only a code-driven TilemapAPI
+        // layer without a component entity still reads LayerData metadata.
         const ecs::TilemapLayer* comp = registry.tryGet<ecs::TilemapLayer>(entity);
 
         bool visible;

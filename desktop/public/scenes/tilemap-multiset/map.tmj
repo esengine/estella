@@ -1,0 +1,46 @@
+{
+  "type": "map",
+  "version": "1.10",
+  "orientation": "orthogonal",
+  "renderorder": "right-down",
+  "width": 2,
+  "height": 2,
+  "tilewidth": 16,
+  "tileheight": 16,
+  "infinite": false,
+  "layers": [
+    {
+      "type": "tilelayer",
+      "name": "main",
+      "width": 2,
+      "height": 2,
+      "visible": true,
+      "opacity": 1,
+      "data": [1, 2, 3, 4]
+    }
+  ],
+  "tilesets": [
+    {
+      "firstgid": 1,
+      "name": "a",
+      "image": "a.png",
+      "imagewidth": 32,
+      "imageheight": 16,
+      "tilewidth": 16,
+      "tileheight": 16,
+      "columns": 2,
+      "tilecount": 2
+    },
+    {
+      "firstgid": 3,
+      "name": "b",
+      "image": "b.png",
+      "imagewidth": 32,
+      "imageheight": 16,
+      "tilewidth": 16,
+      "tileheight": 16,
+      "columns": 2,
+      "tilecount": 2
+    }
+  ]
+}
