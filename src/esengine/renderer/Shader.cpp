@@ -21,15 +21,22 @@
 #include "LightConstants.hpp"
 #include "../core/Log.hpp"
 
+#include <cstring>
 #include <fstream>
 #include <vector>
 
 namespace esengine {
 
 Shader::~Shader() {
-    if (program_ != ShaderHandle::Invalid && device_) {
-        device_->deleteProgram(program_);
-        program_ = ShaderHandle::Invalid;
+    if (device_) {
+        if (program_ != ShaderHandle::Invalid) {
+            device_->deleteProgram(program_);
+            program_ = ShaderHandle::Invalid;
+        }
+        if (paramsUbo_ != BufferHandle::Invalid) {
+            device_->deleteBuffer(paramsUbo_);
+            paramsUbo_ = BufferHandle::Invalid;
+        }
     }
 }
 
@@ -38,21 +45,32 @@ Shader::Shader(Shader&& other) noexcept
     , program_(other.program_)
     , uniformCache_(std::move(other.uniformCache_))
     , attribCache_(std::move(other.attribCache_))
-    , activeUniforms_(std::move(other.activeUniforms_)) {
+    , activeUniforms_(std::move(other.activeUniforms_))
+    , drawParams_(std::move(other.drawParams_))
+    , paramsShadow_(std::move(other.paramsShadow_))
+    , paramsDirty_(other.paramsDirty_)
+    , paramsUbo_(other.paramsUbo_) {
     other.program_ = ShaderHandle::Invalid;
+    other.paramsUbo_ = BufferHandle::Invalid;
 }
 
 Shader& Shader::operator=(Shader&& other) noexcept {
     if (this != &other) {
-        if (program_ != ShaderHandle::Invalid && device_) {
-            device_->deleteProgram(program_);
+        if (device_) {
+            if (program_ != ShaderHandle::Invalid) device_->deleteProgram(program_);
+            if (paramsUbo_ != BufferHandle::Invalid) device_->deleteBuffer(paramsUbo_);
         }
         device_ = other.device_;
         program_ = other.program_;
         uniformCache_ = std::move(other.uniformCache_);
         attribCache_ = std::move(other.attribCache_);
         activeUniforms_ = std::move(other.activeUniforms_);
+        drawParams_ = std::move(other.drawParams_);
+        paramsShadow_ = std::move(other.paramsShadow_);
+        paramsDirty_ = other.paramsDirty_;
+        paramsUbo_ = other.paramsUbo_;
         other.program_ = ShaderHandle::Invalid;
+        other.paramsUbo_ = BufferHandle::Invalid;
     }
     return *this;
 }
@@ -185,6 +203,13 @@ bool Shader::compile(const std::string& vertexSrc, const std::string& fragmentSr
         device_->uniformBlockBinding(program_, timeBlock, TIME_CONSTANTS_BINDING);
     }
 
+    // Same for the per-draw params block (rewriteLooseUniforms generates it for
+    // shaders whose loose uniforms were lifted); commitParams binds the UBO.
+    u32 drawParamsBlock = device_->getUniformBlockIndex(program_, DRAW_PARAMS_BLOCK);
+    if (drawParamsBlock != GFX_INVALID_UNIFORM_BLOCK) {
+        device_->uniformBlockBinding(program_, drawParamsBlock, DRAW_PARAMS_BINDING);
+    }
+
     ES_LOG_DEBUG("Shader compiled successfully (program handle: {}, active uniforms: {})",
                  static_cast<u32>(program_), activeUniforms_.size());
     return true;
@@ -225,34 +250,94 @@ i32 Shader::getUniformLocation(const std::string& name) const {
 }
 
 bool Shader::hasUniform(const std::string& name) const {
+    // A lifted uniform is a block member: it has no location, but callers that
+    // guard with hasUniform (e.g. the post-process pass loop) must still see it.
+    if (drawParams_.find(name) != nullptr) return true;
     return cacheUniformLocation(name, /*warnOnMiss=*/false) >= 0;
 }
 
+void Shader::adoptDrawParams(DrawParamsLayout layout) {
+    drawParams_ = std::move(layout);
+    paramsShadow_.assign(drawParams_.blockSize, 0);
+    paramsDirty_ = false;  // commitParams creates the UBO from the zeroed shadow
+    if (drawParams_.blockSize > DRAW_PARAMS_FALLBACK_SIZE) {
+        ES_LOG_WARN("Shader {}: DrawParams block ({} bytes) exceeds the frame fallback ({}); "
+                    "draws that skip commitParams may be rejected",
+                    static_cast<u32>(program_), drawParams_.blockSize, DRAW_PARAMS_FALLBACK_SIZE);
+    }
+}
+
+void Shader::commitParams() {
+    if (drawParams_.empty() || !device_) return;
+    if (paramsUbo_ == BufferHandle::Invalid) {
+        paramsUbo_ = device_->createBuffer(
+            {GfxBufferUsage::Uniform, drawParams_.blockSize, /*dynamic=*/true}, paramsShadow_.data());
+        paramsDirty_ = false;
+    } else if (paramsDirty_) {
+        device_->updateBuffer(paramsUbo_, 0, paramsShadow_.data(), drawParams_.blockSize);
+        paramsDirty_ = false;
+    }
+    // Rebind even when clean: the slot is shared, another shader's commit (or
+    // the frame fallback) owns it otherwise.
+    device_->setUniformBuffer(DRAW_PARAMS_BINDING, paramsUbo_);
+}
+
+bool Shader::writeParam(const std::string& name, DrawParamType type, const void* src) const {
+    const DrawParamSlot* slot = drawParams_.find(name);
+    if (slot == nullptr) return false;
+    if (slot->type != type) {
+        ES_LOG_WARN("Shader {}: setUniform('{}') type mismatch with its DrawParams slot",
+                    static_cast<u32>(program_), name);
+        return true;  // consumed: the name has no loose location to fall back to
+    }
+    u8* dst = paramsShadow_.data() + slot->offset;
+    if (type == DrawParamType::Mat3) {
+        // std140 mat3 columns have vec4 stride; glm::mat3 is 3 packed vec3s.
+        const f32* m = static_cast<const f32*>(src);
+        for (u32 col = 0; col < 3; ++col) {
+            std::memcpy(dst + col * 16, m + col * 3, 3 * sizeof(f32));
+        }
+    } else {
+        u32 size = 0, align = 0;
+        drawParamSizeAlign(type, size, align);
+        std::memcpy(dst, src, size);
+    }
+    paramsDirty_ = true;
+    return true;
+}
+
 void Shader::setUniform(const std::string& name, i32 value) const {
+    if (writeParam(name, DrawParamType::Int, &value)) return;
     device_->setUniform1i(getUniformLocation(name), value);
 }
 
 void Shader::setUniform(const std::string& name, f32 value) const {
+    if (writeParam(name, DrawParamType::Float, &value)) return;
     device_->setUniform1f(getUniformLocation(name), value);
 }
 
 void Shader::setUniform(const std::string& name, const glm::vec2& value) const {
+    if (writeParam(name, DrawParamType::Vec2, glm::value_ptr(value))) return;
     device_->setUniform2f(getUniformLocation(name), value.x, value.y);
 }
 
 void Shader::setUniform(const std::string& name, const glm::vec3& value) const {
+    if (writeParam(name, DrawParamType::Vec3, glm::value_ptr(value))) return;
     device_->setUniform3f(getUniformLocation(name), value.x, value.y, value.z);
 }
 
 void Shader::setUniform(const std::string& name, const glm::vec4& value) const {
+    if (writeParam(name, DrawParamType::Vec4, glm::value_ptr(value))) return;
     device_->setUniform4f(getUniformLocation(name), value.x, value.y, value.z, value.w);
 }
 
 void Shader::setUniform(const std::string& name, const glm::mat3& value) const {
+    if (writeParam(name, DrawParamType::Mat3, glm::value_ptr(value))) return;
     device_->setUniformMat3(getUniformLocation(name), glm::value_ptr(value));
 }
 
 void Shader::setUniform(const std::string& name, const glm::mat4& value) const {
+    if (writeParam(name, DrawParamType::Mat4, glm::value_ptr(value))) return;
     device_->setUniformMat4(getUniformLocation(name), glm::value_ptr(value));
 }
 

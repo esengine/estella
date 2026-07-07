@@ -21,6 +21,7 @@
 // Project includes
 #include "../core/Types.hpp"
 #include "../math/Math.hpp"
+#include "DrawParams.hpp"
 #include "GfxEnums.hpp"
 
 // Standard library
@@ -199,6 +200,31 @@ public:
     const std::vector<GfxUniformInfo>& getActiveUniforms() const { return activeUniforms_; }
 
     // =========================================================================
+    // DrawParams (per-draw parameter block)
+    // =========================================================================
+
+    /**
+     * @brief Adopts the layout rewriteLooseUniforms produced for this program.
+     * @details Allocates the zeroed CPU shadow, so unset members read 0 — the
+     *          same value their loose-uniform ancestors read. From here on the
+     *          name-based setUniform overloads write into the shadow instead of
+     *          issuing loose uniform uploads; commitParams() flushes it.
+     */
+    void adoptDrawParams(DrawParamsLayout layout);
+
+    /** @brief True when this program carries a DrawParams block. */
+    bool hasDrawParams() const { return !drawParams_.empty(); }
+
+    /**
+     * @brief Uploads the shadow (when dirty) and binds this shader's params UBO
+     *        at DRAW_PARAMS_BINDING.
+     * @details Call before any draw with this shader — the binding slot is
+     *          shared, so the previous committer's buffer is bound otherwise.
+     *          No-op for shaders without a DrawParams block.
+     */
+    void commitParams();
+
+    // =========================================================================
     // State
     // =========================================================================
 
@@ -231,6 +257,10 @@ private:
     /** @brief Resolve + cache a uniform location; warns on miss only when asked. */
     i32 cacheUniformLocation(const std::string& name, bool warnOnMiss) const;
 
+    /** @brief Writes a param into the shadow if `name` is a DrawParams member.
+     *  @return True when consumed (caller must not fall through to a loose upload). */
+    bool writeParam(const std::string& name, DrawParamType type, const void* src) const;
+
     GfxDevice* device_ = nullptr;  ///< Set by the create* factories; all GL goes through it.
     ShaderHandle program_ = ShaderHandle::Invalid;
 
@@ -238,6 +268,13 @@ private:
     mutable std::unordered_map<std::string, i32> uniformCache_;
     mutable std::unordered_map<std::string, i32> attribCache_;
     std::vector<GfxUniformInfo> activeUniforms_;
+
+    DrawParamsLayout drawParams_;
+    /// CPU shadow of the DrawParams block (mutable: the const name-based
+    /// setUniform overloads write here, mirroring the mutable location cache).
+    mutable std::vector<u8> paramsShadow_;
+    mutable bool paramsDirty_ = false;
+    BufferHandle paramsUbo_ = BufferHandle::Invalid;
 };
 
 }  // namespace esengine

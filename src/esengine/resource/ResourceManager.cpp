@@ -64,8 +64,30 @@ void ResourceManager::update() {
 // Shader Resources
 // =============================================================================
 
-ShaderHandle ResourceManager::createShader(const std::string& vertSrc, const std::string& fragSrc) {
+ShaderHandle ResourceManager::createShader(const std::string& vertSrc, const std::string& fragSrc,
+                                           bool rewriteLoose) {
     if (!device_) return {};
+
+    // Lift loose non-sampler uniforms into a std140 DrawParams block, so this
+    // shader's parameters flow through the UBO seam (setUniform writes the CPU
+    // shadow; commitParams uploads + binds). ShaderParser-assembled material
+    // sources pass rewriteLoose=false: their params already live in
+    // MaterialConstants and only sampler uniforms remain loose.
+    if (rewriteLoose) {
+        DrawParamsRewrite rw = rewriteLooseUniforms(vertSrc, fragSrc);
+        if (!rw.layout.empty()) {
+            auto shader = Shader::create(*device_, rw.vertexSrc, rw.fragmentSrc);
+            if (shader) {
+                shader->adoptDrawParams(std::move(rw.layout));
+                return shaders_.add(std::move(shader));
+            }
+            // The unmodified source is the author's ground truth — if the lifted
+            // form fails to compile (a rewriter blind spot), fall back to it
+            // loudly rather than failing a shader that used to work.
+            ES_LOG_WARN("DrawParams rewrite failed to compile; retrying shader with loose uniforms");
+        }
+    }
+
     auto shader = Shader::create(*device_, vertSrc, fragSrc);
     if (!shader) {
         ES_LOG_ERROR("Failed to create shader from source");

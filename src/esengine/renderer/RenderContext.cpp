@@ -14,7 +14,10 @@
 #include "RenderContext.hpp"
 #include "GfxDevice.hpp"
 #include "FrameConstants.hpp"
+#include "DrawParams.hpp"
 #include "../core/Log.hpp"
+
+#include <vector>
 
 #include <glm/gtc/type_ptr.hpp>
 
@@ -114,12 +117,26 @@ void RenderContext::initFrameUbo() {
         {GfxBufferUsage::Uniform, static_cast<u32>(sizeof(TimeConstants)), /*dynamic=*/true}, &time);
     device_.setUniformBuffer(TIME_CONSTANTS_BINDING, timeUbo_);
 
+    // Zeroed fallback for the shared per-draw params slot: a shader whose loose
+    // uniforms were lifted into a DrawParams block but whose draw path never
+    // commits (e.g. a raw material shader drawn by the batch path) must still
+    // find a buffer covering its block there — members then read zero, exactly
+    // what their loose-uniform ancestors read.
+    const std::vector<u8> zeros(DRAW_PARAMS_FALLBACK_SIZE, 0);
+    drawParamsFallback_ = device_.createBuffer(
+        {GfxBufferUsage::Uniform, DRAW_PARAMS_FALLBACK_SIZE, /*dynamic=*/false}, zeros.data());
+    device_.setUniformBuffer(DRAW_PARAMS_BINDING, drawParamsFallback_);
+
     ES_LOG_DEBUG("FrameConstants UBO created (handle: {})", static_cast<u32>(frameUbo_));
 }
 
 void RenderContext::updateFrameConstants(const glm::mat4& viewProjection) {
     viewProjection_ = viewProjection;
     device_.updateBuffer(frameUbo_, 0, glm::value_ptr(viewProjection), sizeof(glm::mat4));
+    // Re-arm the params fallback for this pass: a post-process or custom-draw
+    // commit from the previous pass left its own (differently sized) buffer on
+    // the shared slot.
+    device_.setUniformBuffer(DRAW_PARAMS_BINDING, drawParamsFallback_);
 }
 
 void RenderContext::setFrameTime(f32 elapsedSec, u32 viewportW, u32 viewportH) {

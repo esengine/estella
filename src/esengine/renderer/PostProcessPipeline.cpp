@@ -375,6 +375,10 @@ void PostProcessPipeline::renderPass(const PostProcessPass& pass, TextureHandle 
         if (shader->hasUniform(name)) shader->setUniform(name, value);
     }
 
+    // Effect parameters live in the shader's DrawParams block (lifted at
+    // creation); flush + bind them for this draw.
+    shader->commitParams();
+
     drawScreenQuad();
 }
 
@@ -408,6 +412,7 @@ void PostProcessPipeline::blitToOutput(TextureHandle texture) {
 
     applyPassPipeline(*shader);
     shader->setUniform("u_texture", 0);
+    shader->commitParams();
 
     drawScreenQuad();
 }

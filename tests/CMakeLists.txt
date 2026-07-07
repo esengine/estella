@@ -51,6 +51,7 @@ add_test(NAME test_resource_pool COMMAND test_resource_pool)
 add_executable(test_shader_device
     renderer/test_shader_device.cpp
     ${CMAKE_SOURCE_DIR}/src/esengine/renderer/Shader.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/DrawParams.cpp
     ${CMAKE_SOURCE_DIR}/src/esengine/core/Log.cpp
 )
 target_include_directories(test_shader_device PRIVATE
@@ -58,6 +59,21 @@ target_include_directories(test_shader_device PRIVATE
     ${CMAKE_SOURCE_DIR}/third_party/glm
 )
 add_test(NAME test_shader_device COMMAND test_shader_device)
+
+# DrawParams: the loose-uniform → std140 block rewriter + the Shader facade that
+# routes setUniform writes into the params UBO seam (MockGfxDevice asserts no
+# loose uploads for lifted members).
+add_executable(test_draw_params
+    renderer/test_draw_params.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/Shader.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/DrawParams.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/core/Log.cpp
+)
+target_include_directories(test_draw_params PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/third_party/glm
+)
+add_test(NAME test_draw_params COMMAND test_draw_params)
 
 # Shader variant (feature-permutation) system (RC7-6). Compiles ShaderParser.cpp
 # directly — no GL/engine link — and checks #pragma feature parsing + #define injection.

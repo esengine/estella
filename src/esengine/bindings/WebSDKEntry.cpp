@@ -148,7 +148,9 @@ u32 compileEsshader(const std::string& source, const std::string& featuresCsv) {
     }
     const std::string vert = resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Vertex, "", features);
     const std::string frag = resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Fragment, "", features);
-    resource::ShaderHandle handle = rm->createShader(vert, frag);
+    // No DrawParams rewrite: assembled material sources already carry their
+    // params in MaterialConstants; only sampler uniforms remain loose.
+    resource::ShaderHandle handle = rm->createShader(vert, frag, /*rewriteLoose=*/false);
     if (!handle.isValid()) return 0;
     if (auto* rc = g_renderContext) {
         if (Shader* s = rm->getShader(handle)) {

@@ -191,6 +191,7 @@ private:
     TextureHandle flatNormalTexture_ = TextureHandle::Invalid;
     BufferHandle frameUbo_ = BufferHandle::Invalid;
     BufferHandle timeUbo_ = BufferHandle::Invalid;
+    BufferHandle drawParamsFallback_ = BufferHandle::Invalid;
     f32 lastElapsed_ = 0.0f;
     MaterialStore materials_;
     LightStore lights_;

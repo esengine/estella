@@ -29,11 +29,14 @@ import { registerPreSceneDrawCallback } from '../customDraw';
 import { EditorView } from './EditorView';
 import { EditorGrid, DEFAULT_EDITOR_GRID } from './EditorGrid';
 
-const GRID_VERT = `
-attribute vec2 a_position;
+// GLSL ES 3.0, so the engine lifts the loose uniforms into its std140
+// DrawParams block — this draw's parameters ride the UBO seam, not per-program
+// uniform uploads.
+const GRID_VERT = `#version 300 es
+in vec2 a_position;
 uniform mat4 u_projection;
 uniform mat4 u_model;
-varying vec2 v_world;
+out vec2 v_world;
 void main() {
   vec4 wp = u_model * vec4(a_position, 0.0, 1.0);
   v_world = wp.xy;
@@ -41,9 +44,9 @@ void main() {
 }
 `;
 
-const GRID_FRAG = `
+const GRID_FRAG = `#version 300 es
 precision highp float;
-varying vec2 v_world;
+in vec2 v_world;
 uniform float u_param0; // minor spacing (world units)
 uniform float u_param1; // major every Nth line
 uniform float u_param2; // worldPerPixel
@@ -51,6 +54,7 @@ uniform vec4 u_color;   // minor line color
 uniform vec4 u_vec0;    // major line color
 uniform vec4 u_vec1;    // X axis (world y=0) color
 uniform vec4 u_vec2;    // Y axis (world x=0) color
+out vec4 fragColor;
 
 float lineCov(float coord, float sp, float lw, float aa) {
   float d = abs(mod(coord + sp * 0.5, sp) - sp * 0.5);
@@ -83,7 +87,7 @@ void main() {
   c = over(vec4(u_vec1.rgb, u_vec1.a * axisXC), c);
   c = over(vec4(u_vec2.rgb, u_vec2.a * axisYC), c);
   if (c.a <= 0.0) discard;
-  gl_FragColor = c;
+  fragColor = c;
 }
 `;
 

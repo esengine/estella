@@ -20,6 +20,7 @@ struct MockGfxDevice final : GfxDevice {
     int createProgramCalls = 0;
     int deleteProgramCalls = 0;
     int setUniform1iCalls = 0;
+    int setUniform1fCalls = 0;
     int setUniform4fCalls = 0;
     int getActiveUniformsCalls = 0;
     int createTextureCalls = 0;
@@ -58,6 +59,9 @@ struct MockGfxDevice final : GfxDevice {
     BufferHandle lastIbo = BufferHandle::Invalid;
     RenderPassDesc lastPassDesc{};
     i32 lastUniform1iLoc = -999, lastUniform1iVal = 0;
+    u32 lastUniformBufferSlot = 0xFFFFFFFFu;
+    BufferHandle lastUniformBuffer = BufferHandle::Invalid;
+    std::vector<u8> lastUpdateData;
     BufferDesc lastBufferDesc{};
     bool lastCreateBufferHadData = false;
     TextureDesc lastTextureDesc{};
@@ -85,9 +89,16 @@ struct MockGfxDevice final : GfxDevice {
         return BufferHandle{nextBufferId++};
     }
     void deleteBuffer(BufferHandle) override { ++deleteBufferCalls; }
-    void updateBuffer(BufferHandle, u32, const void*, u32) override { ++updateBufferCalls; }
+    void updateBuffer(BufferHandle, u32, const void* data, u32 sizeBytes) override {
+        ++updateBufferCalls;
+        lastUpdateData.assign(static_cast<const u8*>(data), static_cast<const u8*>(data) + sizeBytes);
+    }
     void resizeBuffer(BufferHandle, u32, const void*) override { ++resizeBufferCalls; }
-    void setUniformBuffer(u32, BufferHandle) override { ++setUniformBufferCalls; }
+    void setUniformBuffer(u32 slot, BufferHandle buffer) override {
+        ++setUniformBufferCalls;
+        lastUniformBufferSlot = slot;
+        lastUniformBuffer = buffer;
+    }
 
     VertexLayoutHandle createVertexLayout(const VertexLayoutDesc& desc) override {
         ++createVertexLayoutCalls;
@@ -137,7 +148,7 @@ struct MockGfxDevice final : GfxDevice {
     i32 getUniformLocation(ShaderHandle, const char*) override { return 0; }
     i32 getAttribLocation(ShaderHandle, const char*) override { return 0; }
     void setUniform1i(i32 loc, i32 v) override { ++setUniform1iCalls; lastUniform1iLoc = loc; lastUniform1iVal = v; }
-    void setUniform1f(i32, f32) override {}
+    void setUniform1f(i32, f32) override { ++setUniform1fCalls; }
     void setUniform2f(i32, f32, f32) override {}
     void setUniform3f(i32, f32, f32, f32) override {}
     void setUniform4f(i32, f32, f32, f32, f32) override { ++setUniform4fCalls; }

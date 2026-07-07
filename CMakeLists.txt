@@ -45,6 +45,7 @@ set(ESENGINE_SOURCES
     src/esengine/resource/ShaderParser.cpp
     src/esengine/renderer/RenderContext.cpp
     src/esengine/renderer/Shader.cpp
+    src/esengine/renderer/DrawParams.cpp
     src/esengine/renderer/Buffer.cpp
     src/esengine/renderer/Texture.cpp
     src/esengine/renderer/Framebuffer.cpp

@@ -131,9 +131,14 @@ public:
      * @brief Creates a shader from source strings
      * @param vertSrc Vertex shader GLSL source
      * @param fragSrc Fragment shader GLSL source
+     * @param rewriteLoose Lift loose non-sampler uniforms into a std140
+     *        DrawParams block (see renderer/DrawParams.hpp). Pass false for
+     *        sources whose uniform blocks are already assembled (ShaderParser
+     *        material output).
      * @return Handle to the shader, or invalid handle on failure
      */
-    ShaderHandle createShader(const std::string& vertSrc, const std::string& fragSrc);
+    ShaderHandle createShader(const std::string& vertSrc, const std::string& fragSrc,
+                              bool rewriteLoose = true);
     ShaderHandle createShaderWithBindings(const std::string& vertSrc, const std::string& fragSrc,
                                            std::initializer_list<AttribBinding> bindings);
 

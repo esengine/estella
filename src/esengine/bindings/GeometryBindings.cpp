@@ -145,6 +145,7 @@ void draw_mesh(u32 geometryHandle, u32 shaderHandle, uintptr_t transformPtr) {
     applyMeshPipeline(*g_device, *shader, *geom);
     shader->setUniform("u_projection", g_currentViewProjection);
     shader->setUniform("u_model", transform);
+    shader->commitParams();
 
     geom->bind(ctx().require<GfxDevice>());
 
@@ -232,6 +233,10 @@ void draw_meshWithUniforms(u32 geometryHandle, u32 shaderHandle, uintptr_t trans
                 break;
         }
     }
+
+    // Lifted uniforms (everything above except the sampler slots) live in the
+    // shader's DrawParams block; flush + bind them for this draw.
+    shader->commitParams();
 
     geom->bind(ctx().require<GfxDevice>());
 
