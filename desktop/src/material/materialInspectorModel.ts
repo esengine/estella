@@ -13,7 +13,7 @@
  *          std140 layout; this is the editor view of the declarations.
  */
 import { BlendMode, CullMode, Material, type MaterialAssetData, type UniformValue } from 'esengine';
-import type { InspectorComponent, InspectorField, InspectorFieldType, EnumOption, GradientValue, CurveValue } from '@/types';
+import type { InspectorComponent, InspectorField, InspectorFieldType, EnumOption, GradientValue, CurveValue, DimensionValue } from '@/types';
 import { MaterialDocument } from './MaterialDocument';
 import { reflectEsshader, type ShaderParam, type ShaderReflection } from './shaderReflect';
 
@@ -213,7 +213,7 @@ function fieldValueToAsset(param: ShaderParam, value: number | boolean | string 
 export function makeMaterialWrite(ctx: MaterialContext) {
   // The value union matches FieldRow's edit callback; materials only ever emit
   // number / boolean / string / number[] (no gradient/curve), so the cast below is safe.
-  return (key: string, _type: InspectorFieldType, value: number | boolean | string | number[] | GradientValue | CurveValue): void => {
+  return (key: string, _type: InspectorFieldType, value: number | boolean | string | number[] | GradientValue | CurveValue | DimensionValue): void => {
     if (RENDER_STATE_KEYS.has(key)) {
       MaterialDocument.edit(`Set ${key}`, (d) => {
         (d as unknown as Record<string, unknown>)[key] = value;

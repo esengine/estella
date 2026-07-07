@@ -37,6 +37,8 @@ import { useSelection } from './store/selectionStore';
 import { PlayRealm } from './engine/PlayRealm';
 import { dockApi } from './layout/dockApi';
 import { EditorControlSurface } from './engine/EditorSession';
+import { SceneModel } from './engine/SceneModel';
+import { ViewportController } from './engine/ViewportController';
 import { PerfMonitor } from './engine/PerfMonitor';
 import { LogStore } from './store/LogStore';
 import { initFsWatch } from './project/fsWatch';
@@ -70,6 +72,13 @@ if (new URLSearchParams(location.search).has('automation')) {
     togglePerfOverlay: () => PerfMonitor.toggleOverlay(),
     captureThumbnail: () => ProjectStore.captureThumbnail(),
     surface: EditorControlSurface,
+    /** Live world position of a SOURCE entity (engine-composed, Yoga-fresh for
+     *  UI nodes) — lets a drag-automation shot assert a move stuck or was
+     *  layout-rejected. */
+    entityWorldXY: (id: number) => {
+      const rt = SceneModel.runtimeFor(id);
+      return rt == null ? null : ViewportController.getEntityWorldXY(rt);
+    },
   };
 }
 

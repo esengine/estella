@@ -32,6 +32,7 @@ import {
   scaleAround,
 } from './gizmo';
 import { Marquee } from './marquee';
+import { Toasts } from '@/store/Toasts';
 import type { EditorTool, PointerInput } from './EditorTool';
 
 type Kind = 'move' | 'rotate' | 'scale';
@@ -98,8 +99,31 @@ function pruneDescendants(ids: readonly EntityId[]): EntityId[] {
   });
 }
 
-function captureTargets(ids: readonly EntityId[]): Target[] {
-  return pruneDescendants(ids).map(readTarget).filter((t): t is Target => t !== null);
+/** Flow-layout (Relative) UINodes: the flex flow owns their position, so a move
+ *  gesture has nothing to write (Absolute nodes move via inset edits instead —
+ *  see SceneCommands.setEntityXY). Rotation/scale are NOT layout-owned, so this
+ *  only gates `move`. */
+function isFlowUINode(sourceId: EntityId): boolean {
+  const pos = SceneQuery.getFieldValue(sourceId, 'UINode', 'position');
+  return pos != null && Number(pos) === 0;
+}
+
+let flowHintAt = 0;
+
+function captureTargets(ids: readonly EntityId[], kind: Kind = 'move'): Target[] {
+  let kept = pruneDescendants(ids);
+  if (kind === 'move') {
+    const flow = kept.filter(isFlowUINode);
+    if (flow.length > 0) {
+      kept = kept.filter((id) => !isFlowUINode(id));
+      // One hint per burst of drags, not per pointer-down.
+      if (Date.now() - flowHintAt > 4000) {
+        flowHintAt = Date.now();
+        Toasts.push('流式布局（Relative）节点由布局定位，已跳过拖拽 — 将 position 改为 Absolute 可自由拖动', 'info');
+      }
+    }
+  }
+  return kept.map(readTarget).filter((t): t is Target => t !== null);
 }
 
 /** Selection centroid = mean of the live world positions of `ids`. */
@@ -301,7 +325,7 @@ function makeTransformTool(mode: ToolMode): EditorTool {
           const localAngle = ed.coordSpace === 'local' ? primaryRotationRad(ids) : 0;
           const handle = hitTestGizmo(mode as GizmoMode, pc, cur, -localAngle);
           if (handle) {
-            drag = beginDrag(kind, handle.axis, captureTargets(ids), pivotWorld, pc, p, cur, localAngle);
+            drag = beginDrag(kind, handle.axis, captureTargets(ids, kind), pivotWorld, pc, p, cur, localAngle);
             ed.setActiveGizmoAxis(handle.axis); // light up the grabbed handle
             ctx.capture(p.pointerId);
             return true;

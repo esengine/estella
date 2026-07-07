@@ -40,6 +40,7 @@ export type InspectorFieldType =
   | 'flags' // an int bitmask, shown as a multi-select of its bits
   | 'gradient' // a color-over-life gradient ({ stops: [...] })
   | 'curve' // a scalar over-life curve ({ keys: [...] })
+  | 'dimension' // a CSS-style length ({ value, unit }) — UINode box/inset fields
   | 'asset'; // a texture/material/font/... ref (@uuid: string, or 0 for none)
 
 /** A dropdown option for an `enum` field: the label shown, the int stored. */
@@ -68,6 +69,12 @@ export interface CurveValue {
   keys: CurveKey[];
 }
 
+/** A CSS-style length ({ value, unit }) — the UINode Dimension wire shape. */
+export interface DimensionValue {
+  value: number;
+  unit: number;
+}
+
 export type InspectorFieldValue =
   | number
   | boolean
@@ -75,7 +82,8 @@ export type InspectorFieldValue =
   | [number, number]
   | [number, number, number]
   | GradientValue
-  | CurveValue;
+  | CurveValue
+  | DimensionValue;
 
 export interface InspectorField {
   /** key in the component data object */

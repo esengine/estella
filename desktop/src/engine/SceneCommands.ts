@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { SceneData, PrefabData, ProcessedEntity } from 'esengine';
-import { TilemapAPI } from 'esengine';
+import { TilemapAPI, UIPositionType, DimensionUnit } from 'esengine';
 import type { EntityId, InspectorFieldType, InspectorFieldValue } from '@/types';
 import { EditorHistory, EditorHistoryImpl } from './EditorHistory';
 import { SceneModel, SceneModelImpl } from './SceneModel';
@@ -102,7 +102,8 @@ export function toModelValue(
       return { ...(cur[key] as object), ...hexToRgba(String(value)) };
     case 'gradient':
     case 'curve':
-      return value; // a structural { stops/keys: [...] } object — stored as-is
+    case 'dimension':
+      return value; // a structural object ({ stops/keys: [...] }, { value, unit }) — stored as-is
     default:
       return value;
   }
@@ -281,12 +282,84 @@ export class SceneCommandsImpl {
    * viewport tools speak world space; the model invariant stays local.
    */
   setEntityXY(sourceId: EntityId, x: number, y: number): void {
+    if (this.setUINodeXY_(sourceId, x, y)) return;
     const entity = this.model.entityBySource(sourceId);
     const pos = this.modelFieldValue(sourceId, 'Transform', 'position') as { z?: number } | undefined;
     if (pos === undefined && !entity) return;
     const parentRt = entity?.parent != null ? this.model.runtimeFor(entity.parent) : undefined;
     const local = ViewportController.worldToParentLocalXY(parentRt, x, y);
     this.setField(sourceId, 'Transform', 'position', 'vec3', [local.x, local.y, pos?.z ?? 0]);
+  }
+
+  /**
+   * A UINode's on-screen position is LAYOUT-owned: Yoga writes the resolved
+   * placement into `Transform.position` on every relayout, so a Transform write
+   * only holds until the next UI edit, then snaps back. Viewport moves edit the
+   * layout INPUTS instead:
+   * - Absolute nodes: the world delta lands in the inset dimensions — px insets
+   *   shift by the delta, percent insets by delta/parent-size, and a fully
+   *   `auto` axis gets pinned (near edge, px) at its current offset. Opposing
+   *   non-auto insets (a stretch axis) shift together, preserving the span.
+   * - Relative (flow) nodes: position is the flow's outcome — the move is
+   *   dropped here (the move tool excludes them up front and hints).
+   * Returns true when the entity is a UINode (handled), false to fall through
+   * to the Transform path.
+   */
+  private setUINodeXY_(sourceId: EntityId, x: number, y: number): boolean {
+    const posKind = this.modelFieldValue(sourceId, 'UINode', 'position');
+    if (posKind === undefined) return false;
+    if (Number(posKind) !== UIPositionType.Absolute) return true;
+
+    const rt = this.model.runtimeFor(sourceId);
+    const parentSrc = this.model.entityBySource(sourceId)?.parent;
+    const parentRt = parentSrc != null ? this.model.runtimeFor(parentSrc) : undefined;
+    const node = rt !== undefined ? ViewportController.uiEntityWorldOBB(rt) : null;
+    const parent = parentRt !== undefined ? ViewportController.uiEntityWorldOBB(parentRt) : null;
+    if (!node || !parent) return true; // no live layout boxes → nothing safe to edit
+
+    const dx = x - node.cx;
+    const dy = y - node.cy;
+    // Layout space is y-down: moving up (world +y) means a smaller top inset.
+    this.shiftInsetAxis_(sourceId, 'insetLeft', 'insetRight', dx, 2 * parent.hw,
+      (node.cx - node.hw) - (parent.cx - parent.hw));
+    this.shiftInsetAxis_(sourceId, 'insetTop', 'insetBottom', -dy, 2 * parent.hh,
+      (parent.cy + parent.hh) - (node.cy + node.hh));
+    return true;
+  }
+
+  /**
+   * Shifts one inset axis by `delta` px toward the `near` edge: every non-auto
+   * side moves in its own unit (px directly, percent scaled by the parent
+   * size); a fully-auto axis pins `near` at its current offset plus the delta.
+   * Offsets measure against the parent's border box — a padded parent's static
+   * offset is absorbed into the pin, not reproduced.
+   */
+  private shiftInsetAxis_(
+    sourceId: EntityId, nearKey: string, farKey: string,
+    delta: number, parentSize: number, currentNearPx: number,
+  ): void {
+    if (delta === 0) return;
+    const near = this.modelFieldValue(sourceId, 'UINode', nearKey) as { value: number; unit: number } | undefined;
+    const far = this.modelFieldValue(sourceId, 'UINode', farKey) as { value: number; unit: number } | undefined;
+    if (!near || !far) return;
+    const write = (key: string, dim: { value: number; unit: number }): void =>
+      this.setField(sourceId, 'UINode', key, 'dimension', dim);
+    let shifted = false;
+    if (near.unit === DimensionUnit.Px) {
+      write(nearKey, { ...near, value: near.value + delta });
+      shifted = true;
+    } else if (near.unit === DimensionUnit.Percent && parentSize > 0) {
+      write(nearKey, { ...near, value: near.value + (delta / parentSize) * 100 });
+      shifted = true;
+    }
+    if (far.unit === DimensionUnit.Px) {
+      write(farKey, { ...far, value: far.value - delta });
+      shifted = true;
+    } else if (far.unit === DimensionUnit.Percent && parentSize > 0) {
+      write(farKey, { ...far, value: far.value - (delta / parentSize) * 100 });
+      shifted = true;
+    }
+    if (!shifted) write(nearKey, { value: currentNearPx + delta, unit: DimensionUnit.Px });
   }
 
   // — Undoable entity lifecycle (model ops; the Reconciler re-spawns/-despawns) —

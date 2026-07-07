@@ -63,7 +63,7 @@ import {
 import { ContextMenu } from '@/components/Menu';
 import { Popover, usePopover } from '@/components/Popover';
 import { AddComponentMenu } from '@/components/AddComponentMenu';
-import type { InspectorComponent, InspectorField, InspectorFieldValue, EntityId, NodeKind, EnumOption, AssetType, GradientValue, GradientStop, CurveValue, CurveKey } from '@/types';
+import type { InspectorComponent, InspectorField, InspectorFieldValue, EntityId, NodeKind, EnumOption, AssetType, GradientValue, GradientStop, CurveValue, CurveKey, DimensionValue } from '@/types';
 
 const AXES = ['x', 'y', 'z'];
 const fmt = (n: number) => String(Math.round(n * 1000) / 1000);
@@ -1033,7 +1033,7 @@ export function AssetControl({
 
 // A field write override (the live "Game" inspector routes edits to the realm
 // instead of the undoable SceneCommands path). When set, gestures are no-ops.
-type FieldWrite = (key: string, type: InspectorField['type'], value: number | boolean | string | number[] | GradientValue | CurveValue) => void;
+type FieldWrite = (key: string, type: InspectorField['type'], value: number | boolean | string | number[] | GradientValue | CurveValue | DimensionValue) => void;
 
 function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp: string; field: InspectorField; write?: FieldWrite }) {
   const ranged = field.min != null || field.max != null;
@@ -1046,7 +1046,7 @@ function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp
   };
   // An edit fans out to every selected entity (the open gesture coalesces them
   // into one undo step); the live "Game" inspector routes to the realm instead.
-  const apply = (value: number | boolean | string | number[] | GradientValue | CurveValue) => {
+  const apply = (value: number | boolean | string | number[] | GradientValue | CurveValue | DimensionValue) => {
     const v = ranged && typeof value === 'number' ? clamp(value) : value;
     if (write) return write(field.key, field.type, v);
     for (const e of entities) SceneCommands.setField(e, comp, field.key, field.type, v as never);
