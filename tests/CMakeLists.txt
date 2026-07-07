@@ -111,6 +111,25 @@ add_executable(test_buffer_device
 target_include_directories(test_buffer_device PRIVATE ${CMAKE_SOURCE_DIR}/src)
 add_test(NAME test_buffer_device COMMAND test_buffer_device)
 
+# WebGPU backend slice 1 (REARCH_WGSL Phase 2): the enum→WGPU mapping layer +
+# the null-device-safe WebGPUDevice skeleton, compiled against the REAL Dawn C
+# headers via the emdawnwebgpu port (emscripten-only; the port supplies
+# <webgpu/webgpu.h> and its JS glue).
+if(EMSCRIPTEN)
+    add_executable(test_webgpu_device
+        renderer/test_webgpu_device.cpp
+        ${CMAKE_SOURCE_DIR}/src/esengine/renderer/webgpu/WebGPUDevice.cpp
+        ${CMAKE_SOURCE_DIR}/src/esengine/core/Log.cpp
+    )
+    target_include_directories(test_webgpu_device PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/third_party/glm
+    )
+    target_compile_options(test_webgpu_device PRIVATE --use-port=emdawnwebgpu)
+    target_link_options(test_webgpu_device PRIVATE --use-port=emdawnwebgpu)
+    add_test(NAME test_webgpu_device COMMAND test_webgpu_device)
+endif()
+
 # Boundary-span validation (RC3): JS-supplied pointer+length pairs are null-,
 # overflow-, and heap-range-checked ALWAYS ON. Header-only + Log.cpp; under
 # emscripten the heap-range cases exercise the real linear-memory bound.

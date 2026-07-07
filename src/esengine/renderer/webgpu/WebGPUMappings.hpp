@@ -1,0 +1,280 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+ * @file    WebGPUMappings.hpp
+ * @brief   Pure RHI-enum → WebGPU translations (REARCH_WGSL Phase 2).
+ * @details Every GfxEnums/PipelineState concept the GL backend consumes has its
+ *          WebGPU spelling here, as free functions with no device dependency — so
+ *          the mapping layer is unit-testable long before a live adapter exists,
+ *          and WebGPUDevice stays a thin orchestration shell over these.
+ *
+ *          Compiled only under ES_ENABLE_WEBGPU (emdawnwebgpu port supplies
+ *          <webgpu/webgpu.h>); never part of the GL build.
+ *
+ * @author  ESEngine Team
+ * @date    2026
+ *
+ * @copyright Copyright (c) 2026 ESEngine Team
+ *            Licensed under the Apache License, Version 2.0.
+ */
+#pragma once
+
+#include "../../core/Types.hpp"
+#include "../GfxEnums.hpp"
+#include "../BlendMode.hpp"
+#include "../PipelineState.hpp"
+
+#include <webgpu/webgpu.h>
+
+namespace esengine::webgpu {
+
+// =============================================================================
+// Blend
+// =============================================================================
+
+/** @brief One RHI blend mode as a full WebGPU blend state (color + alpha). */
+struct BlendStateWGPU {
+    WGPUBlendComponent color;
+    WGPUBlendComponent alpha;
+};
+
+/** @brief Maps BlendMode to its WebGPU blend components — mirrors GLDevice's
+ *         setBlendMode table (Overlay renders as Normal there too; the real
+ *         overlay math lives in shaders). */
+inline BlendStateWGPU toWGPUBlend(BlendMode mode) {
+    auto comp = [](WGPUBlendOperation op, WGPUBlendFactor src, WGPUBlendFactor dst) {
+        WGPUBlendComponent c{};
+        c.operation = op;
+        c.srcFactor = src;
+        c.dstFactor = dst;
+        return c;
+    };
+    const auto add = WGPUBlendOperation_Add;
+    switch (mode) {
+    case BlendMode::Additive:
+        return { comp(add, WGPUBlendFactor_SrcAlpha, WGPUBlendFactor_One),
+                 comp(add, WGPUBlendFactor_One, WGPUBlendFactor_One) };
+    case BlendMode::Multiply:
+        return { comp(add, WGPUBlendFactor_Dst, WGPUBlendFactor_OneMinusSrcAlpha),
+                 comp(add, WGPUBlendFactor_One, WGPUBlendFactor_OneMinusSrcAlpha) };
+    case BlendMode::Screen:
+        return { comp(add, WGPUBlendFactor_One, WGPUBlendFactor_OneMinusSrc),
+                 comp(add, WGPUBlendFactor_One, WGPUBlendFactor_OneMinusSrcAlpha) };
+    case BlendMode::PremultipliedAlpha:
+        return { comp(add, WGPUBlendFactor_One, WGPUBlendFactor_OneMinusSrcAlpha),
+                 comp(add, WGPUBlendFactor_One, WGPUBlendFactor_OneMinusSrcAlpha) };
+    case BlendMode::PmaAdditive:
+        return { comp(add, WGPUBlendFactor_One, WGPUBlendFactor_One),
+                 comp(add, WGPUBlendFactor_One, WGPUBlendFactor_One) };
+    case BlendMode::Lighten:
+        return { comp(WGPUBlendOperation_Max, WGPUBlendFactor_One, WGPUBlendFactor_One),
+                 comp(WGPUBlendOperation_Max, WGPUBlendFactor_One, WGPUBlendFactor_One) };
+    case BlendMode::Darken:
+        return { comp(WGPUBlendOperation_Min, WGPUBlendFactor_One, WGPUBlendFactor_One),
+                 comp(WGPUBlendOperation_Min, WGPUBlendFactor_One, WGPUBlendFactor_One) };
+    case BlendMode::Normal:
+    case BlendMode::Overlay:
+    default:
+        return { comp(add, WGPUBlendFactor_SrcAlpha, WGPUBlendFactor_OneMinusSrcAlpha),
+                 comp(add, WGPUBlendFactor_One, WGPUBlendFactor_OneMinusSrcAlpha) };
+    }
+}
+
+// =============================================================================
+// Vertex layout
+// =============================================================================
+
+/** @brief Sentinel for "no WGPU spelling": the header defines no Undefined vertex
+ *         format, so the enum's non-value stands in. Callers treat it as a hard error. */
+inline constexpr WGPUVertexFormat kInvalidVertexFormat = WGPUVertexFormat_Force32;
+
+/** @brief Maps one RHI attribute (components × type × normalized) to a
+ *         WGPUVertexFormat, or kInvalidVertexFormat for combinations the engine
+ *         never produces. */
+inline WGPUVertexFormat toWGPUVertexFormat(u8 components, GfxDataType type, bool normalized) {
+    switch (type) {
+    case GfxDataType::Float:
+        switch (components) {
+        case 1: return WGPUVertexFormat_Float32;
+        case 2: return WGPUVertexFormat_Float32x2;
+        case 3: return WGPUVertexFormat_Float32x3;
+        case 4: return WGPUVertexFormat_Float32x4;
+        default: return kInvalidVertexFormat;
+        }
+    case GfxDataType::UnsignedByte:
+        // The engine's u8 attributes are colors (normalized RGBA8) — 4 lanes only.
+        if (components == 4) return normalized ? WGPUVertexFormat_Unorm8x4 : WGPUVertexFormat_Uint8x4;
+        if (components == 2) return normalized ? WGPUVertexFormat_Unorm8x2 : WGPUVertexFormat_Uint8x2;
+        return kInvalidVertexFormat;
+    case GfxDataType::UnsignedShort:
+        if (components == 2) return normalized ? WGPUVertexFormat_Unorm16x2 : WGPUVertexFormat_Uint16x2;
+        if (components == 4) return normalized ? WGPUVertexFormat_Unorm16x4 : WGPUVertexFormat_Uint16x4;
+        return kInvalidVertexFormat;
+    case GfxDataType::Int:
+        switch (components) {
+        case 1: return WGPUVertexFormat_Sint32;
+        case 2: return WGPUVertexFormat_Sint32x2;
+        case 3: return WGPUVertexFormat_Sint32x3;
+        case 4: return WGPUVertexFormat_Sint32x4;
+        default: return kInvalidVertexFormat;
+        }
+    case GfxDataType::UnsignedInt:
+        switch (components) {
+        case 1: return WGPUVertexFormat_Uint32;
+        case 2: return WGPUVertexFormat_Uint32x2;
+        case 3: return WGPUVertexFormat_Uint32x3;
+        case 4: return WGPUVertexFormat_Uint32x4;
+        default: return kInvalidVertexFormat;
+        }
+    default:
+        return kInvalidVertexFormat;
+    }
+}
+
+/** @brief Index type for drawElements' GfxDataType. */
+inline WGPUIndexFormat toWGPUIndexFormat(GfxDataType type) {
+    switch (type) {
+    case GfxDataType::UnsignedShort: return WGPUIndexFormat_Uint16;
+    case GfxDataType::UnsignedInt:   return WGPUIndexFormat_Uint32;
+    default:                         return WGPUIndexFormat_Undefined;
+    }
+}
+
+// =============================================================================
+// Textures / samplers
+// =============================================================================
+
+inline WGPUTextureFormat toWGPUTextureFormat(GfxPixelFormat fmt) {
+    switch (fmt) {
+    // WebGPU has no 3-channel color format; RGB8 sources upload as RGBA8
+    // (the GL backend's swizzle-free equivalent — expansion happens at upload).
+    case GfxPixelFormat::RGB8:             return WGPUTextureFormat_RGBA8Unorm;
+    case GfxPixelFormat::RGBA8:            return WGPUTextureFormat_RGBA8Unorm;
+    case GfxPixelFormat::DepthComponent24: return WGPUTextureFormat_Depth24Plus;
+    case GfxPixelFormat::Depth24Stencil8:  return WGPUTextureFormat_Depth24PlusStencil8;
+    default:                               return WGPUTextureFormat_RGBA8Unorm;
+    }
+}
+
+inline WGPUTextureFormat toWGPUCompressedFormat(GfxCompressedFormat fmt) {
+    switch (fmt) {
+    case GfxCompressedFormat::ETC2_RGB8:  return WGPUTextureFormat_ETC2RGB8Unorm;
+    case GfxCompressedFormat::ETC2_RGBA8: return WGPUTextureFormat_ETC2RGBA8Unorm;
+    case GfxCompressedFormat::ASTC_4x4:   return WGPUTextureFormat_ASTC4x4Unorm;
+    case GfxCompressedFormat::ASTC_8x8:   return WGPUTextureFormat_ASTC8x8Unorm;
+    case GfxCompressedFormat::S3TC_DXT1:  return WGPUTextureFormat_BC1RGBAUnorm;
+    case GfxCompressedFormat::S3TC_DXT5:  return WGPUTextureFormat_BC3RGBAUnorm;
+    default:                              return WGPUTextureFormat_Undefined;
+    }
+}
+
+inline WGPUFilterMode toWGPUFilter(TextureFilter filter) {
+    return filter == TextureFilter::Nearest ? WGPUFilterMode_Nearest : WGPUFilterMode_Linear;
+}
+
+inline WGPUAddressMode toWGPUAddressMode(TextureWrap wrap) {
+    switch (wrap) {
+    case TextureWrap::ClampToEdge:    return WGPUAddressMode_ClampToEdge;
+    case TextureWrap::MirroredRepeat: return WGPUAddressMode_MirrorRepeat;
+    case TextureWrap::Repeat:
+    default:                          return WGPUAddressMode_Repeat;
+    }
+}
+
+// =============================================================================
+// Buffers
+// =============================================================================
+
+inline WGPUBufferUsage toWGPUBufferUsage(GfxBufferUsage usage) {
+    switch (usage) {
+    case GfxBufferUsage::Vertex:  return WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst;
+    case GfxBufferUsage::Index:   return WGPUBufferUsage_Index | WGPUBufferUsage_CopyDst;
+    case GfxBufferUsage::Uniform: return WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst;
+    default:                      return WGPUBufferUsage_CopyDst;
+    }
+}
+
+// =============================================================================
+// Depth / stencil (PipelineDesc → WGPUDepthStencilState pieces)
+// =============================================================================
+
+inline WGPUCompareFunction toWGPUCompare(GfxStencilFunc func) {
+    switch (func) {
+    case GfxStencilFunc::Never:    return WGPUCompareFunction_Never;
+    case GfxStencilFunc::Less:     return WGPUCompareFunction_Less;
+    case GfxStencilFunc::Equal:    return WGPUCompareFunction_Equal;
+    case GfxStencilFunc::LEqual:   return WGPUCompareFunction_LessEqual;
+    case GfxStencilFunc::Greater:  return WGPUCompareFunction_Greater;
+    case GfxStencilFunc::NotEqual: return WGPUCompareFunction_NotEqual;
+    case GfxStencilFunc::GEqual:   return WGPUCompareFunction_GreaterEqual;
+    case GfxStencilFunc::Always:
+    default:                       return WGPUCompareFunction_Always;
+    }
+}
+
+inline WGPUStencilOperation toWGPUStencilOp(GfxStencilOp op) {
+    switch (op) {
+    case GfxStencilOp::Zero:     return WGPUStencilOperation_Zero;
+    case GfxStencilOp::Replace:  return WGPUStencilOperation_Replace;
+    case GfxStencilOp::Incr:     return WGPUStencilOperation_IncrementClamp;
+    case GfxStencilOp::Decr:     return WGPUStencilOperation_DecrementClamp;
+    case GfxStencilOp::Invert:   return WGPUStencilOperation_Invert;
+    case GfxStencilOp::IncrWrap: return WGPUStencilOperation_IncrementWrap;
+    case GfxStencilOp::DecrWrap: return WGPUStencilOperation_DecrementWrap;
+    case GfxStencilOp::Keep:
+    default:                     return WGPUStencilOperation_Keep;
+    }
+}
+
+/** @brief The engine's two stencil modes as WebGPU face states (same table as
+ *         GLDevice::applyPipeline: Write = Always/Replace + no color write,
+ *         Test = Equal/Keep). */
+inline WGPUStencilFaceState toWGPUStencilFace(GfxStencilMode mode) {
+    WGPUStencilFaceState face{};
+    face.depthFailOp = WGPUStencilOperation_Keep;
+    switch (mode) {
+    case GfxStencilMode::Write:
+        face.compare = WGPUCompareFunction_Always;
+        face.failOp = WGPUStencilOperation_Replace;
+        face.passOp = WGPUStencilOperation_Replace;
+        break;
+    case GfxStencilMode::Test:
+        face.compare = WGPUCompareFunction_Equal;
+        face.failOp = WGPUStencilOperation_Keep;
+        face.passOp = WGPUStencilOperation_Keep;
+        break;
+    case GfxStencilMode::Off:
+    default:
+        face.compare = WGPUCompareFunction_Always;
+        face.failOp = WGPUStencilOperation_Keep;
+        face.passOp = WGPUStencilOperation_Keep;
+        break;
+    }
+    return face;
+}
+
+// =============================================================================
+// Render pass load-ops (RenderPassDesc carries the values since the load-op
+// unification; a scoped clear region has NO load-op equivalent — the device
+// emulates it with a scissored clear-quad, exactly as documented in GfxEnums).
+// =============================================================================
+
+inline WGPULoadOp toWGPULoadOp(bool clearRequested, bool scoped) {
+    // A region-scoped clear must LOAD the attachment and clear the region by
+    // other means; only a full-target clear maps to a real load-op.
+    return (clearRequested && !scoped) ? WGPULoadOp_Clear : WGPULoadOp_Load;
+}
+
+inline WGPUColor toWGPUClearColor(const RenderPassDesc& desc) {
+    return WGPUColor{ desc.clearColorValue[0], desc.clearColorValue[1],
+                      desc.clearColorValue[2], desc.clearColorValue[3] };
+}
+
+/** @brief Cull state (PipelineDesc.cullEnabled/cullFront). Front face is CCW,
+ *         matching the GL backend's default winding. */
+inline WGPUCullMode toWGPUCullMode(bool enabled, bool front) {
+    if (!enabled) return WGPUCullMode_None;
+    return front ? WGPUCullMode_Front : WGPUCullMode_Back;
+}
+
+}  // namespace esengine::webgpu
