@@ -167,10 +167,14 @@ private:
     struct ProgramRec {
         WGPUShaderModule vertex = nullptr;
         WGPUShaderModule fragment = nullptr;
-        /** @brief Whether the WGSL declares the group-1 texture set. A pipeline
-         *         without it must never have group 1 set (its auto layout has no
-         *         such group), even when the pass bound textures for other draws. */
-        bool usesTextureGroup = false;
+        /** @brief `@group(0/1) @binding(i)` masks scanned from the WGSL (both
+         *         stages). Bind groups must match a pipeline's auto layout
+         *         exactly, so the device filters its bound state through these:
+         *         group 0 = which UBO slots the program declares, group 1 =
+         *         which texture/sampler bindings. Zero group-1 mask means the
+         *         program must never have the texture group set at all. */
+        u32 group0Mask = 0;
+        u32 group1Mask = 0;
     };
     struct PipelineRec {
         PipelineDesc desc;

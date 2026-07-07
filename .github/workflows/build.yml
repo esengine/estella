@@ -71,7 +71,8 @@ jobs:
           test_ecs test_events test_particle test_tilemap test_sparse_set \
           test_resource_pool test_shader_variant test_log_format test_registry_safety \
           test_shader_device test_draw_params test_texture_fb test_buffer_device \
-          test_compressed_format test_batch_builder test_boundary_span test_webgpu_device
+          test_compressed_format test_batch_builder test_boundary_span test_webgpu_device \
+          webgpu_engine_bringup
 
     # The root package.json is ESM, so the emscripten-emitted .js must run as .cjs.
     - name: Run C++ test harnesses

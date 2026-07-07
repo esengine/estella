@@ -483,10 +483,13 @@ ShaderHandle WebGPUDevice::createProgram(const GfxShaderSource& source,
     ProgramRec rec{};
     rec.vertex = makeModule(source.vertexSrc);
     rec.fragment = makeModule(source.fragmentSrc);
-    // Group 1 is the texture set by engine convention; a program that never
-    // spells it must never have the group bound (auto layouts omit it).
-    rec.usesTextureGroup = (source.fragmentSrc && std::strstr(source.fragmentSrc, "@group(1)")) ||
-                           (source.vertexSrc && std::strstr(source.vertexSrc, "@group(1)"));
+    // Reflection-by-scan: bind groups must match the pipeline's auto layout
+    // exactly, so record which group-0 UBO slots and group-1 texture/sampler
+    // bindings the program declares (twin discipline: declare = use).
+    rec.group0Mask = scanWGSLBindingMask(source.vertexSrc, 0) |
+                     scanWGSLBindingMask(source.fragmentSrc, 0);
+    rec.group1Mask = scanWGSLBindingMask(source.vertexSrc, 1) |
+                     scanWGSLBindingMask(source.fragmentSrc, 1);
     if (!rec.vertex || !rec.fragment) {
         if (rec.vertex) wgpuShaderModuleRelease(rec.vertex);
         if (rec.fragment) wgpuShaderModuleRelease(rec.fragment);
@@ -825,14 +828,22 @@ void WebGPUDevice::flushBindGroup() {
     WGPURenderPipeline p = ensurePipeline(current_pipeline_);
     if (!p) return;
 
+    const ProgramRec* prog = nullptr;
+    if (auto pipeIt = pipelines_.find(current_pipeline_); pipeIt != pipelines_.end()) {
+        auto progIt = programs_.find(static_cast<u32>(pipeIt->second.desc.program));
+        if (progIt != programs_.end()) prog = &progIt->second;
+    }
+    if (!prog) return;
+
     // Group 0 = the engine's UBO bindings (0..4). Entries must match the
-    // pipeline's layout exactly, so only slots the shader declares may appear;
-    // bring-up shaders declare exactly the slots the scene sets. Full slot-mask
-    // reflection ships with the WGSL emitter metadata (Phase 3).
+    // pipeline's auto layout exactly — the layout contains only the bindings
+    // the shader declares — so the bound slots filter through the program's
+    // scanned mask. (The engine keeps Frame/Time/DrawParams armed on 0/3/4;
+    // a shader that only declares FrameConstants gets a one-entry group.)
     WGPUBindGroupEntry entries[kUniformSlots];
     u32 count = 0;
     for (u32 slot = 0; slot < kUniformSlots; ++slot) {
-        if (uniform_slots_[slot] == 0) continue;
+        if (uniform_slots_[slot] == 0 || (prog->group0Mask & (1u << slot)) == 0) continue;
         auto it = buffers_.find(uniform_slots_[slot]);
         if (it == buffers_.end()) continue;
         WGPUBindGroupEntry e{};
@@ -844,50 +855,55 @@ void WebGPUDevice::flushBindGroup() {
     }
 
     if (bind_group_) { wgpuBindGroupRelease(bind_group_); bind_group_ = nullptr; }
-    if (count == 0) { bind_group_dirty_ = false; return; }
-
-    WGPUBindGroupDescriptor bgd{};
-    bgd.layout = wgpuRenderPipelineGetBindGroupLayout(p, 0);
-    bgd.entryCount = count;
-    bgd.entries = entries;
-    bind_group_ = wgpuDeviceCreateBindGroup(device_, &bgd);
-    if (bgd.layout) wgpuBindGroupLayoutRelease(bgd.layout);
-    if (bind_group_) wgpuRenderPassEncoderSetBindGroup(pass_, 0, bind_group_, 0, nullptr);
-
-    // Group 1: the texture units. The WGSL twin convention is 8 texture_2d at
-    // bindings 0..7 paired with 8 samplers at bindings 8..15 (the batch shader's
-    // u_textures[8], de-combined: sampler i carries texture i's filter/wrap
-    // params via the sampler cache). Unused slots repeat slot 0's view/sampler —
-    // the same trick DrawList::execute uses for WebGL2's complete-texture rule.
-    // Only set when the pass bound textures AND the current program declares the
-    // group — a sampler-less shader (shape) drawn after textured ones must keep
-    // its group-0-only layout.
-    bool wantsTextures = false;
-    if (auto pipeIt = pipelines_.find(current_pipeline_); pipeIt != pipelines_.end()) {
-        auto progIt = programs_.find(static_cast<u32>(pipeIt->second.desc.program));
-        wantsTextures = progIt != programs_.end() && progIt->second.usesTextureGroup;
+    if (count > 0) {
+        WGPUBindGroupDescriptor bgd{};
+        bgd.layout = wgpuRenderPipelineGetBindGroupLayout(p, 0);
+        bgd.entryCount = count;
+        bgd.entries = entries;
+        bind_group_ = wgpuDeviceCreateBindGroup(device_, &bgd);
+        if (bgd.layout) wgpuBindGroupLayoutRelease(bgd.layout);
+        if (bind_group_) wgpuRenderPassEncoderSetBindGroup(pass_, 0, bind_group_, 0, nullptr);
     }
-    if (any_texture_bound_ && wantsTextures) {
+
+    // Group 1: the texture units. The WGSL twin convention is texture_2d at
+    // bindings 0..7 paired with samplers at bindings 8..15 (u_textures[8]
+    // de-combined: sampler i carries texture i's filter/wrap params via the
+    // sampler cache); a single-texture shader declares just t0/s0. Entries
+    // filter through the program's group-1 mask; missing units repeat slot 0's
+    // view/sampler — the same trick DrawList::execute uses for WebGL2's
+    // complete-texture rule. Only set when the pass bound textures AND the
+    // program declares the group — a sampler-less shader (shape) drawn after
+    // textured ones must keep its group-0-only layout.
+    if (any_texture_bound_ && prog->group1Mask != 0) {
         const TextureRec* slot0 = nullptr;
         for (u32 slot = 0; slot < kTextureSlots && !slot0; ++slot) {
             auto it = textures_.find(texture_slots_[slot]);
             if (it != textures_.end()) slot0 = &it->second;
         }
         if (slot0) {
-            WGPUBindGroupEntry texEntries[kTextureSlots * 2] = {};
+            WGPUBindGroupEntry texEntries[kTextureSlots * 2];
+            u32 texCount = 0;
             for (u32 slot = 0; slot < kTextureSlots; ++slot) {
                 auto it = textures_.find(texture_slots_[slot]);
                 const TextureRec& rec = (it != textures_.end()) ? it->second : *slot0;
-                texEntries[slot].binding = slot;
-                texEntries[slot].textureView = rec.view;
-                texEntries[kTextureSlots + slot].binding = kTextureSlots + slot;
-                texEntries[kTextureSlots + slot].sampler = samplerFor(rec.samplerKey);
+                if (prog->group1Mask & (1u << slot)) {
+                    WGPUBindGroupEntry e{};
+                    e.binding = slot;
+                    e.textureView = rec.view;
+                    texEntries[texCount++] = e;
+                }
+                if (prog->group1Mask & (1u << (kTextureSlots + slot))) {
+                    WGPUBindGroupEntry e{};
+                    e.binding = kTextureSlots + slot;
+                    e.sampler = samplerFor(rec.samplerKey);
+                    texEntries[texCount++] = e;
+                }
             }
 
             if (texture_group_) { wgpuBindGroupRelease(texture_group_); texture_group_ = nullptr; }
             WGPUBindGroupDescriptor tgd{};
             tgd.layout = wgpuRenderPipelineGetBindGroupLayout(p, 1);
-            tgd.entryCount = kTextureSlots * 2;
+            tgd.entryCount = texCount;
             tgd.entries = texEntries;
             texture_group_ = wgpuDeviceCreateBindGroup(device_, &tgd);
             if (tgd.layout) wgpuBindGroupLayoutRelease(tgd.layout);

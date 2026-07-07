@@ -19,6 +19,7 @@
 #include "RenderContext.hpp"
 #include "Shader.hpp"
 #include "ShaderEmbeds.generated.hpp"
+#include "webgpu/WGSLTwins.hpp"
 #include "BatchVertex.hpp"
 #include "../resource/ShaderParser.hpp"
 #include "../resource/ResourceManager.hpp"
@@ -63,12 +64,19 @@ void ImmediateDraw::init() {
     pool_.init();
     white_texture_id_ = context_.getWhiteTextureId();
 
-    auto parsed = resource::ShaderParser::parse(ShaderEmbeds::BATCH);
-    auto handle = resource_manager_.createShaderWithBindings(
-        resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Vertex),
-        resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Fragment),
-        {{0, "a_position"}, {1, "a_color"}, {2, "a_texCoord"}}
-    );
+    resource::ShaderHandle handle;
+    if (resource_manager_.preferredShaderLanguage() == GfxShaderLanguage::GLSL_ES300) {
+        auto parsed = resource::ShaderParser::parse(ShaderEmbeds::BATCH);
+        handle = resource_manager_.createShaderWithBindings(
+            resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Vertex),
+            resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Fragment),
+            {{0, "a_position"}, {1, "a_color"}, {2, "a_texCoord"}}
+        );
+    } else {
+        handle = resource_manager_.createShaderWithBindings(
+            webgpu::kBatchWGSL_Vertex, webgpu::kBatchWGSL_Fragment,
+            {}, GfxShaderLanguage::WGSL);
+    }
     Shader* shader = resource_manager_.getShader(handle);
     if (shader && shader->isValid()) {
         batch_shader_ = shader->handle();

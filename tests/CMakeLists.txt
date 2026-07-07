@@ -148,6 +148,27 @@ if(EMSCRIPTEN)
     target_link_options(webgpu_bringup PRIVATE --use-port=emdawnwebgpu)
 endif()
 
+# Engine-level backend parity harness (REARCH_WGSL Phase 2): the FULL engine —
+# EstellaContext with every subsystem — booted on an injected backend (WebGPU
+# via emdawnwebgpu, or the stock WebGL2 path, chosen by URL) rendering one ECS
+# scene. Driven by desktop/scripts/engine-parity.mjs, which asserts the SAME
+# pixels on both backends. WebGL2 link flags are required because the GL run
+# uses the production GLES3 path.
+if(EMSCRIPTEN)
+    add_executable(webgpu_engine_bringup
+        renderer/webgpu_engine_bringup.cpp
+        ${CMAKE_SOURCE_DIR}/src/esengine/renderer/webgpu/WebGPUDevice.cpp
+    )
+    target_link_libraries(webgpu_engine_bringup PRIVATE esengine)
+    target_compile_options(webgpu_engine_bringup PRIVATE --use-port=emdawnwebgpu)
+    target_link_options(webgpu_engine_bringup PRIVATE
+        --use-port=emdawnwebgpu
+        -sUSE_WEBGL2=1
+        -sFULL_ES3=1
+        -sALLOW_MEMORY_GROWTH=1
+    )
+endif()
+
 # Boundary-span validation (RC3): JS-supplied pointer+length pairs are null-,
 # overflow-, and heap-range-checked ALWAYS ON. Header-only + Log.cpp; under
 # emscripten the heap-range cases exercise the real linear-memory bound.

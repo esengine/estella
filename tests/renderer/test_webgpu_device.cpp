@@ -102,6 +102,30 @@ TEST_CASE("pipeline depth-stencil state carries GL semantics exactly") {
     CHECK(!hasStencilPlanes(WGPUTextureFormat_Undefined));
 }
 
+TEST_CASE("binding-mask scan mirrors what a WGSL auto layout will contain") {
+    // A batch-like fragment: the full group-1 texture/sampler set.
+    const char* batchish = R"(
+@group(1) @binding(0) var t0 : texture_2d<f32>;
+@group(1) @binding(7) var t7 : texture_2d<f32>;
+@group(1) @binding(8) var s0 : sampler;
+@group(1) @binding(15) var s7 : sampler;
+)";
+    CHECK(scanWGSLBindingMask(batchish, 1) == ((1u << 0) | (1u << 7) | (1u << 8) | (1u << 15)));
+    CHECK(scanWGSLBindingMask(batchish, 0) == 0u);
+
+    // A shader over several UBO slots — the engine's 0..4 binding map.
+    const char* ubos = R"(
+@group(0) @binding(0) var<uniform> frame : FrameConstants;
+@group(0) @binding(3) var<uniform> time : TimeConstants;
+@group(0) @binding(4) var<uniform> params : DrawParams;
+)";
+    CHECK(scanWGSLBindingMask(ubos, 0) == ((1u << 0) | (1u << 3) | (1u << 4)));
+    CHECK(scanWGSLBindingMask(ubos, 1) == 0u);
+
+    CHECK(scanWGSLBindingMask(nullptr, 0) == 0u);
+    CHECK(scanWGSLBindingMask("no bindings here", 0) == 0u);
+}
+
 TEST_CASE("pass load-ops: full-target clear is a real load-op, a scoped clear is not") {
     CHECK(toWGPULoadOp(/*clear*/ true, /*scoped*/ false) == WGPULoadOp_Clear);
     CHECK(toWGPULoadOp(true, true) == WGPULoadOp_Load);   // region clear → emulate, load first

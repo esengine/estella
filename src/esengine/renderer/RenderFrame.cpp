@@ -3,6 +3,7 @@
 #include "RenderFrame.hpp"
 #include "Shader.hpp"
 #include "ShaderEmbeds.generated.hpp"
+#include "webgpu/WGSLTwins.hpp"
 #include "LightStore.hpp"
 #include "../ecs/components/Transform.hpp"
 #include "../ecs/components/Light2D.hpp"
@@ -349,6 +350,12 @@ void RenderFrame::end() {
     const f32 ppMs = usePostProcess ? gpu_timer_pp_.lastMs() : 0.0f;
     stats_.gpu_time_ms = submitMs < 0.0f ? -1.0f : submitMs + (ppMs > 0.0f ? ppMs : 0.0f);
 
+    // The frame's pass closes HERE, not at the next begin: a WebGPU backend
+    // submits on endRenderPass, and a surface texture acquired this task must
+    // not ride into the next one (the swapchain recycles it at task end). On
+    // GL this is just the default-framebuffer rebind.
+    device_.endRenderPass();
+
     frame_capture_.endCapture();
     in_frame_ = false;
     flushed_ = false;
@@ -618,20 +625,34 @@ u32 RenderFrame::batchProgram(const std::vector<std::string>& features) {
 }
 
 u32 RenderFrame::compileBatchVariant(const std::vector<std::string>& features) {
-    // The batch shader is authored as a single .esshader, embedded for the web build.
-    // Parse it and assemble the two GLSL ES 3.00 stages (single source of truth),
-    // injecting the requested feature #defines (e.g. SDF).
-    auto parsed = resource::ShaderParser::parse(ShaderEmbeds::BATCH);
-    // LIT is a Lit2D-domain variant: the domain drives the lighting injection,
-    // same path as Lit2D material shaders.
-    if (std::find(features.begin(), features.end(), "LIT") != features.end()) {
-        parsed.domain = "Lit2D";
+    resource::ShaderHandle handle;
+    if (resource_manager_.preferredShaderLanguage() == GfxShaderLanguage::WGSL) {
+        // Only the default variant has a hand-written twin; the SDF/LIT feature
+        // variants arrive with the Phase 3 dual-language emitter.
+        if (!features.empty()) {
+            const std::string vk = resource::ShaderParser::variantKey(features);
+            ES_LOG_ERROR("Batch shader variant '{}' has no WGSL twin yet", vk.c_str());
+            return 0;
+        }
+        handle = resource_manager_.createShaderWithBindings(
+            webgpu::kBatchWGSL_Vertex, webgpu::kBatchWGSL_Fragment,
+            {}, GfxShaderLanguage::WGSL);
+    } else {
+        // The batch shader is authored as a single .esshader, embedded for the web build.
+        // Parse it and assemble the two GLSL ES 3.00 stages (single source of truth),
+        // injecting the requested feature #defines (e.g. SDF).
+        auto parsed = resource::ShaderParser::parse(ShaderEmbeds::BATCH);
+        // LIT is a Lit2D-domain variant: the domain drives the lighting injection,
+        // same path as Lit2D material shaders.
+        if (std::find(features.begin(), features.end(), "LIT") != features.end()) {
+            parsed.domain = "Lit2D";
+        }
+        handle = resource_manager_.createShaderWithBindings(
+            resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Vertex, "", features),
+            resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Fragment, "", features),
+            {{0, "a_position"}, {1, "a_color"}, {2, "a_texCoord"}}
+        );
     }
-    resource::ShaderHandle handle = resource_manager_.createShaderWithBindings(
-        resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Vertex, "", features),
-        resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Fragment, "", features),
-        {{0, "a_position"}, {1, "a_color"}, {2, "a_texCoord"}}
-    );
 
     Shader* shader = resource_manager_.getShader(handle);
     if (shader && shader->isValid()) {

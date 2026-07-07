@@ -64,6 +64,12 @@ void ResourceManager::update() {
 // Shader Resources
 // =============================================================================
 
+GfxShaderLanguage ResourceManager::preferredShaderLanguage() const {
+    return (device_ && !device_->supportsShaderLanguage(GfxShaderLanguage::GLSL_ES300))
+               ? GfxShaderLanguage::WGSL
+               : GfxShaderLanguage::GLSL_ES300;
+}
+
 ShaderHandle ResourceManager::createShader(const std::string& vertSrc, const std::string& fragSrc,
                                            bool rewriteLoose, GfxShaderLanguage language) {
     if (!device_) return {};

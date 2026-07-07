@@ -6,6 +6,7 @@
 #include "../RenderFrame.hpp"
 #include "../Shader.hpp"
 #include "../ShaderEmbeds.generated.hpp"
+#include "../webgpu/WGSLTwins.hpp"
 #include "../Texture.hpp"
 #include "../BatchVertex.hpp"   // packColor
 #include "../../resource/ShaderParser.hpp"
@@ -36,17 +37,28 @@ static_assert(sizeof(ParticleInstanceData) == 40, "instance stride must match th
 void ParticlePlugin::init(RenderFrameContext& ctx) {
     // Particle instancing shader, authored as particle.esshader (single source) and
     // embedded for the web build. Attribute locations are explicit, so no name bindings.
-    auto parsed = resource::ShaderParser::parse(ShaderEmbeds::PARTICLE);
-    auto handle = ctx.resources.createShaderWithBindings(
-        resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Vertex),
-        resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Fragment),
-        {});
+    resource::ShaderHandle handle;
+    if (ctx.resources.preferredShaderLanguage() == GfxShaderLanguage::GLSL_ES300) {
+        auto parsed = resource::ShaderParser::parse(ShaderEmbeds::PARTICLE);
+        handle = ctx.resources.createShaderWithBindings(
+            resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Vertex),
+            resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Fragment),
+            {});
+    } else {
+        handle = ctx.resources.createShaderWithBindings(
+            webgpu::kParticleWGSL_Vertex, webgpu::kParticleWGSL_Fragment,
+            {}, GfxShaderLanguage::WGSL);
+    }
     Shader* shader = ctx.resources.getShader(handle);
     if (shader && shader->isValid()) {
         particle_shader_id_ = shader->getProgramId();
-        shader->bind();
-        shader->setUniform("u_texture", 0);  // sampler unit 0
-        shader->unbind();
+        if (shader->language() == GfxShaderLanguage::GLSL_ES300) {
+            // Sampler seeding is a GLSL concept; on WGSL the texture rides the
+            // bind group.
+            shader->bind();
+            shader->setUniform("u_texture", 0);  // sampler unit 0
+            shader->unbind();
+        }
     }
 }
 

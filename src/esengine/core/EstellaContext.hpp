@@ -32,8 +32,20 @@ public:
      * @brief Initialize with an existing WebGL context handle
      * @param webglContextHandle Valid WebGL context (from emscripten_webgl_create_context)
      * @return True on success
+     * @details Convenience for the GL backend: makes the context current and
+     *          delegates to init(UniquePtr<GfxDevice>) with a GLDevice.
      */
     bool init(int webglContextHandle);
+
+    /**
+     * @brief Initialize with an injected render backend.
+     * @param device A ready-to-use GfxDevice (e.g. a WebGPUDevice whose surface
+     *        is already configured). The platform edge owns backend selection —
+     *        exactly as the WebGL overload receives an externally created
+     *        context handle — so this class needs no backend-specific code.
+     * @return True on success
+     */
+    bool init(Unique<GfxDevice> device);
 
     /**
      * @brief Shut down all subsystems and release resources
@@ -55,7 +67,7 @@ public:
     const EngineState& state() const { return state_; }
 
 private:
-    void initSubsystems();
+    void initSubsystems(Unique<GfxDevice> gfxDevice);
     /**
      * Register the GPU-independent ECS logic systems (Transform/UI/Tween).
      * Called from the constructor *and* initSubsystems so they exist even for

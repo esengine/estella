@@ -128,6 +128,15 @@ public:
     // =========================================================================
 
     /**
+     * @brief The language embedded pipelines must author their sources in.
+     * @details GLSL when the backend compiles it (the GL device); otherwise the
+     *          backend's own language (WGSL). Embedded shader creation sites
+     *          branch on this to pick the .esshader assembly or its WGSL twin —
+     *          the one seam that keeps plugins backend-agnostic.
+     */
+    GfxShaderLanguage preferredShaderLanguage() const;
+
+    /**
      * @brief Creates a shader from source strings
      * @param vertSrc Vertex shader GLSL source
      * @param fragSrc Fragment shader GLSL source

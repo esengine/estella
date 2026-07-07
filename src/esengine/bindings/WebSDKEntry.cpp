@@ -376,7 +376,9 @@ EMSCRIPTEN_BINDINGS(esengine_ptr_access) {
 EMSCRIPTEN_BINDINGS(esengine_context) {
     emscripten::class_<esengine::EstellaContext>("EstellaContext")
         .constructor<>()
-        .function("init", &esengine::EstellaContext::init)
+        // The WebGL overload — JS hands over a context handle. The
+        // device-injection overload is C++-side only (harnesses/backends).
+        .function("init", emscripten::select_overload<bool(int)>(&esengine::EstellaContext::init))
         .function("shutdown", &esengine::EstellaContext::shutdown)
         .function("isInitialized", &esengine::EstellaContext::isInitialized);
     // Pointer (not reference) so JS can pass null to clear the active context.

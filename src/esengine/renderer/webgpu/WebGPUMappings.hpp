@@ -26,6 +26,9 @@
 
 #include <webgpu/webgpu.h>
 
+#include <cstdlib>
+#include <cstring>
+
 namespace esengine::webgpu {
 
 // =============================================================================
@@ -309,6 +312,42 @@ inline WGPUColor toWGPUClearColor(const RenderPassDesc& desc) {
 inline WGPUCullMode toWGPUCullMode(bool enabled, bool front) {
     if (!enabled) return WGPUCullMode_None;
     return front ? WGPUCullMode_Front : WGPUCullMode_Back;
+}
+
+// =============================================================================
+// WGSL binding reflection (source scan)
+// =============================================================================
+
+/**
+ * @brief Bit mask of the `@group(N) @binding(i)` indices a WGSL source declares.
+ * @details Bind-group entries must match a pipeline's auto layout EXACTLY, and
+ *          auto layouts contain only the bindings the shader uses — so the
+ *          device filters its bound state (UBO slots, texture units) through
+ *          this mask per program. A source scan stands in for real reflection
+ *          until the Phase 3 emitter carries binding metadata; the twins'
+ *          discipline is declare-exactly-what-you-use, which makes the two
+ *          equivalent. Bindings ≥ 32 are ignored (the engine's conventions top
+ *          out at 16).
+ */
+inline u32 scanWGSLBindingMask(const char* source, u32 group) {
+    if (!source) return 0;
+    u32 mask = 0;
+    for (const char* p = source; (p = std::strstr(p, "@group(")) != nullptr;) {
+        p += 7;
+        char* end = nullptr;
+        const unsigned long g = std::strtoul(p, &end, 10);
+        if (end == p) continue;
+        p = end;
+        if (g != group) continue;
+        const char* b = std::strstr(p, "@binding(");
+        if (!b) break;
+        b += 9;
+        const unsigned long idx = std::strtoul(b, &end, 10);
+        if (end == b) continue;
+        p = end;
+        if (idx < 32) mask |= (1u << idx);
+    }
+    return mask;
 }
 
 }  // namespace esengine::webgpu

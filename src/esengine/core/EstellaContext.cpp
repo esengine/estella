@@ -88,14 +88,27 @@ bool EstellaContext::init(int webglContextHandle) {
     }
 #endif
 
-    initSubsystems();
+    initSubsystems(makeUnique<GLDevice>());
     return true;
 }
 
-void EstellaContext::initSubsystems() {
-    // GLDevice is created first: ResourceManager (the GPU-resource factory) and
-    // every other renderer subsystem borrow this single device.
-    auto gfxDevice = makeUnique<GLDevice>();
+bool EstellaContext::init(Unique<GfxDevice> device) {
+    if (state_.initialized) {
+        ES_LOG_WARN("EstellaContext already initialized");
+        return true;
+    }
+    if (!device) {
+        ES_LOG_ERROR("EstellaContext::init: no device");
+        return false;
+    }
+    initSubsystems(std::move(device));
+    return true;
+}
+
+void EstellaContext::initSubsystems(Unique<GfxDevice> gfxDevice) {
+    // The device arrives first: ResourceManager (the GPU-resource factory) and
+    // every other renderer subsystem borrow this single device. Which backend
+    // it is was decided at the platform edge (init overloads).
     auto* gfxDevicePtr = gfxDevice.get();
     services_.registerOwned<GfxDevice>(std::move(gfxDevice));
 
@@ -179,6 +192,7 @@ void EstellaContext::initSubsystems() {
     initPass.clearColorValue[2] = state_.clear_color.b;
     initPass.clearColorValue[3] = state_.clear_color.a;
     gfxDevicePtr->beginRenderPass(initPass);
+    gfxDevicePtr->endRenderPass();  // a pass never outlives its task (WebGPU submits here)
 
     ES_LOG_INFO("EstellaContext initialized");
 }

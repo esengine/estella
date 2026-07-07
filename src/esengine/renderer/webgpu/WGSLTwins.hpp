@@ -8,11 +8,15 @@
  *          the multi-texture set as bind group 1 — 8 texture_2d at bindings 0..7
  *          paired with 8 samplers at bindings 8..15 (GL's combined
  *          texture+sampler state arrives de-combined; sampler i carries texture
- *          i's filter/wrap params). Consumed by the WebGPU bring-up today and by
- *          the engine's WGSL program selection when the backend reports WGSL;
- *          Phase 3's dual-language emitter replaces the hand-written pairs.
+ *          i's filter/wrap params). Consumed by the embedded-pipeline creation
+ *          sites when ResourceManager::preferredShaderLanguage() reports WGSL,
+ *          and by the WebGPU bring-up harnesses; Phase 3's dual-language
+ *          emitter replaces the hand-written pairs.
  *
- *          Compiled only under ES_ENABLE_WEBGPU; never part of the GL build.
+ *          Twin discipline: declare exactly the bindings you use — the WebGPU
+ *          device reflects bind-group contents by scanning these declarations.
+ *
+ *          Plain string constants — safe in every build; no WebGPU headers.
  *
  * @author  ESEngine Team
  * @date    2026
@@ -165,6 +169,109 @@ struct VSOut {
     else if (idx == 6) { c = textureSampleLevel(t6, s6, v.uv, 0.0); }
     else { c = textureSampleLevel(t7, s7, v.uv, 0.0); }
     return c * v.color;
+}
+)";
+
+// =============================================================================
+// particle.esshader — the instanced particle quad: quad corner + uv per vertex
+// (locations 0..1), instance stream at locations 2..7, FrameConstants at
+// group 0. u_texture is single-texture, so the twin declares just the t0/s0
+// pair of the group-1 convention (declare-exactly-what-you-use — the binding
+// masks are scanned from the source).
+// =============================================================================
+
+inline constexpr const char* kParticleWGSL_Vertex = R"(
+struct FrameConstants { projection : mat4x4f };
+@group(0) @binding(0) var<uniform> frame : FrameConstants;
+
+struct VSIn {
+    @location(0) position : vec2f,
+    @location(1) uv : vec2f,
+    @location(2) instPosition : vec2f,
+    @location(3) instSize : vec2f,
+    @location(4) instRotation : f32,
+    @location(5) instColor : vec4f,
+    @location(6) instUvOffset : vec2f,
+    @location(7) instUvScale : vec2f,
+};
+struct VSOut {
+    @builtin(position) pos : vec4f,
+    @location(0) uv : vec2f,
+    @location(1) color : vec4f,
+};
+
+@vertex fn vs_main(v : VSIn) -> VSOut {
+    let scaled = v.position * v.instSize;
+
+    let cosR = cos(v.instRotation);
+    let sinR = sin(v.instRotation);
+    let rotated = vec2f(
+        scaled.x * cosR - scaled.y * sinR,
+        scaled.x * sinR + scaled.y * cosR
+    );
+
+    let worldPos = rotated + v.instPosition;
+
+    var out : VSOut;
+    out.pos = frame.projection * vec4f(worldPos, 0.0, 1.0);
+    out.uv = v.uv * v.instUvScale + v.instUvOffset;
+    out.color = v.instColor;
+    return out;
+}
+)";
+
+inline constexpr const char* kParticleWGSL_Fragment = R"(
+@group(1) @binding(0) var t0 : texture_2d<f32>;
+@group(1) @binding(8) var s0 : sampler;
+
+struct VSOut {
+    @builtin(position) pos : vec4f,
+    @location(0) uv : vec2f,
+    @location(1) color : vec4f,
+};
+
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    let texColor = textureSampleLevel(t0, s0, v.uv, 0.0);
+    return texColor * v.color;
+}
+)";
+
+// =============================================================================
+// The post-process blit (PostProcessPipeline's inline GLSL pair) — a clip-space
+// quad passing uv through, sampling the captured target as t0/s0. Effect
+// shaders are Phase 3; the blit keeps the pipeline initialized and its
+// passthrough path working.
+// =============================================================================
+
+inline constexpr const char* kBlitWGSL_Vertex = R"(
+struct VSIn {
+    @location(0) position : vec2f,
+    @location(1) uv : vec2f,
+};
+struct VSOut {
+    @builtin(position) pos : vec4f,
+    @location(0) uv : vec2f,
+};
+
+@vertex fn vs_main(v : VSIn) -> VSOut {
+    var out : VSOut;
+    out.pos = vec4f(v.position, 0.0, 1.0);
+    out.uv = v.uv;
+    return out;
+}
+)";
+
+inline constexpr const char* kBlitWGSL_Fragment = R"(
+@group(1) @binding(0) var t0 : texture_2d<f32>;
+@group(1) @binding(8) var s0 : sampler;
+
+struct VSOut {
+    @builtin(position) pos : vec4f,
+    @location(0) uv : vec2f,
+};
+
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    return textureSampleLevel(t0, s0, v.uv, 0.0);
 }
 )";
 

@@ -15,6 +15,7 @@
 #include "RenderContext.hpp"
 #include "GfxDevice.hpp"
 #include "Shader.hpp"
+#include "webgpu/WGSLTwins.hpp"
 #include "../resource/ResourceManager.hpp"
 #include "../core/Log.hpp"
 #include <algorithm>
@@ -69,7 +70,14 @@ void PostProcessPipeline::init(u32 width, u32 height) {
     width_ = width;
     height_ = height;
 
-    blitShader_ = resourceManager_.createShader(BLIT_VERTEX, BLIT_FRAGMENT);
+    if (resourceManager_.preferredShaderLanguage() == GfxShaderLanguage::GLSL_ES300) {
+        blitShader_ = resourceManager_.createShader(BLIT_VERTEX, BLIT_FRAGMENT);
+    } else {
+        blitShader_ = resourceManager_.createShader(webgpu::kBlitWGSL_Vertex,
+                                                    webgpu::kBlitWGSL_Fragment,
+                                                    /*rewriteLoose=*/false,
+                                                    GfxShaderLanguage::WGSL);
+    }
     if (!blitShader_.isValid()) {
         ES_LOG_ERROR("PostProcessPipeline: Failed to create blit shader");
         return;
