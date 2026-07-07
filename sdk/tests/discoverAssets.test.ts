@@ -6,6 +6,7 @@ import { discoverSceneAssets, getAssetPathsByType } from '../src/asset/discoverA
 import { AssetRegistry, makeUuidRef } from '../src/asset/AssetRegistry';
 import { StateMachineAgent } from '../src/ai/fsm/StateMachineAgent';
 import { BehaviorTreeAgent } from '../src/ai/bt/BehaviorTreeAgent';
+import { TilemapLayer } from '../src/component';
 import type { SceneData } from '../src/scene';
 
 const SPRITE_NAME = 'DiscoverTest_Sprite';
@@ -239,6 +240,26 @@ describe('discoverAssets callback authority over assetFields', () => {
         const refs = discoverSceneAssets(scene);
 
         expect(getAssetPathsByType(refs, 'statemachine')).toEqual(new Set(['ai/enemy.esfsm']));
+    });
+});
+
+describe('TilemapLayer discovery covers BOTH its refs (callback = complete manifest)', () => {
+    // Regression: when the discoverAssets callback became authoritative, a
+    // callback returning only tilesetAsset silently dropped the legacy copied
+    // texture ref from discovery — legacy tilemap scenes lost their texture
+    // preload and rendered nothing (0 draw calls).
+    it('legacy copied texture ref AND .estileset ref both bucket', () => {
+        const discover = TilemapLayer.discoverAssets!;
+        expect(discover({ tileset: 'assets/tiles.png', tilesetAsset: 'assets/level.estileset' }))
+            .toEqual([
+                { type: 'texture', path: 'assets/tiles.png' },
+                { type: 'tileset', path: 'assets/level.estileset' },
+            ]);
+        expect(discover({ tileset: 'assets/tiles.png' }))
+            .toEqual([{ type: 'texture', path: 'assets/tiles.png' }]);
+        expect(discover({ tilesetAsset: 'assets/level.estileset' }))
+            .toEqual([{ type: 'tileset', path: 'assets/level.estileset' }]);
+        expect(discover({})).toEqual([]);
     });
 });
 

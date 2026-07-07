@@ -684,14 +684,23 @@ export const SpineAnimation = defineBuiltin<SpineAnimationData>('SpineAnimation'
 export const TilemapLayer = defineBuiltin<TilemapLayerData>('TilemapLayer',
     metaDefaults<TilemapLayerData>('TilemapLayer'),
     {
-        // The `.estileset` reference is carried out-of-band (see tilemapPlugin's scene
-        // codec), but it's a real asset dependency: surface it here so the scene asset
-        // preloader loads it up front. Then the tilemap sync derives the render table,
-        // collision AND animation live from the tileset on the FIRST frame — no lazy-load
-        // gap, no baked `collidableTileIds` snapshot needed. This is the single-source model.
+        // A discoverAssets callback is the component's COMPLETE asset manifest
+        // (assetFields are not walked for discovery when one is present), so it
+        // must list both dependencies:
+        // - `tileset`, the legacy copied atlas-texture ref (matches the generated
+        //   assetField) — old scenes render from it directly;
+        // - `tilesetAsset`, the out-of-band `.estileset` reference (see
+        //   tilemapPlugin's scene codec). Preloading it up front lets the tilemap
+        //   sync derive the render table, collision AND animation live from the
+        //   tileset on the FIRST frame — no lazy-load gap, no baked
+        //   `collidableTileIds` snapshot needed. This is the single-source model.
         discoverAssets: (data) => {
+            const refs: AssetRef[] = [];
+            const texture = data.tileset;
+            if (typeof texture === 'string' && texture) refs.push({ type: 'texture', path: texture });
             const ref = data.tilesetAsset;
-            return typeof ref === 'string' && ref ? [{ type: 'tileset', path: ref }] : [];
+            if (typeof ref === 'string' && ref) refs.push({ type: 'tileset', path: ref });
+            return refs;
         },
     },
 );
