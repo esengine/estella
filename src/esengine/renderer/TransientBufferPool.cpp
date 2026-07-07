@@ -169,6 +169,10 @@ BufferHandle TransientBufferPool::indexBuffer(LayoutId layout) const {
     return stream(layout).ebo;
 }
 
+u32 TransientBufferPool::vertexStride(LayoutId layout) const {
+    return stream(layout).vertex_stride;
+}
+
 void TransientBufferPool::setupStream(LayoutId layout) {
     Stream& s = stream(layout);
 
@@ -209,6 +213,7 @@ void TransientBufferPool::setupStream(LayoutId layout) {
         desc.attributes[5] = {5, 4, GfxDataType::UnsignedByte, true, 20, 1};
         desc.attributes[6] = {6, 2, GfxDataType::Float, false, 24, 1};
         desc.attributes[7] = {7, 2, GfxDataType::Float, false, 32, 1};
+        s.vertex_stride = desc.strides[1];
         s.layout = device_.createVertexLayout(desc);
         return;
     }
@@ -251,6 +256,7 @@ void TransientBufferPool::setupStream(LayoutId layout) {
         default:
             break;
     }
+    s.vertex_stride = desc.strides[0];
     s.layout = device_.createVertexLayout(desc);
 }
 

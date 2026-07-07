@@ -59,6 +59,11 @@ public:
     /** The device vertex layout a pipeline drawing this stream must reference. */
     VertexLayoutHandle layoutHandle(LayoutId layout) const;
 
+    /** Byte stride of this stream's writable vertex slot (the per-instance slot for
+     *  ParticleInstance) — the single source for baseVertex math, so submission code
+     *  never hardcodes a sizeof that could drift from the device layout. */
+    u32 vertexStride(LayoutId layout) const;
+
     /** Direct write-through pointer into a layout's staging, for hot paths
      *  that want to format vertices in place after `allocVertices`. */
     u8* vertexData(LayoutId layout);
@@ -75,6 +80,7 @@ private:
         BufferHandle quad_vbo = BufferHandle::Invalid;  // ParticleInstance only: static unit-quad geometry (slot 0)
         std::vector<u8> vertex_staging;
         std::vector<u32> index_staging;  // 32-bit indices: a single Batch stream can exceed 65535 vertices
+        u32 vertex_stride = 0;
         u32 vertex_write_pos = 0;
         u32 index_write_pos = 0;
         u32 vbo_capacity = 0;

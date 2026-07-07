@@ -111,6 +111,25 @@ add_executable(test_buffer_device
 target_include_directories(test_buffer_device PRIVATE ${CMAKE_SOURCE_DIR}/src)
 add_test(NAME test_buffer_device COMMAND test_buffer_device)
 
+# Unified submission face (render-pipeline unification): BatchBuilder is the single
+# DrawCommand producer for every stream. Compiles BatchBuilder/DrawList/
+# TransientBufferPool against the MockGfxDevice and asserts per-stream baseVertex
+# math, texture-slot rules, instanced assembly, merge behavior, and execute() dispatch.
+add_executable(test_batch_builder
+    renderer/test_batch_builder.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/BatchBuilder.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/DrawList.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/TransientBufferPool.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/MaterialStore.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/FrameCapture.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/core/Log.cpp
+)
+target_include_directories(test_batch_builder PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/third_party/glm
+)
+add_test(NAME test_batch_builder COMMAND test_batch_builder)
+
 # GfxDevice compressed-texture entry (RC6-A). Header-only: drives MockGfxDevice to
 # assert the compressed upload + capability-gated RGBA8 fallback. No GL, no emsdk.
 add_executable(test_compressed_format

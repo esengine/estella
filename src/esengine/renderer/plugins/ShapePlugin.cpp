@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 #include "ShapePlugin.hpp"
+#include "../BatchBuilder.hpp"
 #include "../RenderContext.hpp"
 #include "../RenderFrame.hpp"
 #include "../Shader.hpp"
@@ -37,26 +38,12 @@ void ShapePlugin::collect(RenderCollectContext& collect_ctx) {
     auto& ctx = collect_ctx.frame_context;
     auto shapeView = registry.view<ecs::Transform, ecs::ShapeRenderer>();
 
-    // Camera center in world space (from the inverse view-projection), for parallax —
-    // the same derivation SpritePlugin/TilemapRenderPlugin use, so every renderable's
-    // parallax scrolls consistently. Computed once per collect.
-    glm::mat4 invVP = glm::inverse(ctx.view_projection);
-    glm::vec4 camBL = invVP * glm::vec4(-1.0f, -1.0f, 0.0f, 1.0f);
-    glm::vec4 camTR = invVP * glm::vec4( 1.0f,  1.0f, 0.0f, 1.0f);
-    const f32 camCenterX = (camBL.x / camBL.w + camTR.x / camTR.w) * 0.5f;
-    const f32 camCenterY = (camBL.y / camBL.w + camTR.y / camTR.w) * 0.5f;
-
     for (auto entity : shapeView) {
         const auto& shape = shapeView.get<ecs::ShapeRenderer>(entity);
         if (!shape.enabled) continue;
 
         auto& transform = shapeView.get<ecs::Transform>(entity);
-        transform.ensureDecomposed();
-        glm::vec3 position = transform.worldPosition;
-        // Parallax: shift toward the camera by (1 - factor); factor 1 = no shift.
-        // Applied before the frustum cull so a parallaxed shape is culled where drawn.
-        position.x += camCenterX * (1.0f - shape.parallax.x);
-        position.y += camCenterY * (1.0f - shape.parallax.y);
+        glm::vec3 position = parallaxedWorldPosition(transform, shape.parallax, collect_ctx.camera);
         const auto& rotation = transform.worldRotation;
         const auto& scale = transform.worldScale;
 
@@ -105,31 +92,17 @@ void ShapePlugin::collect(RenderCollectContext& collect_ctx) {
             verts[v].cornerRadius = shape.cornerRadius;
         }
 
-        u32 vOff = buffers.appendVertices(LayoutId::Shape, verts, sizeof(verts));
-        u32 baseVertex = vOff / sizeof(ShapeVertex);
-
-        u32 indices[6];
-        for (u32 i = 0; i < 6; ++i) {
-            indices[i] = static_cast<u32>(baseVertex + QUAD_INDICES[i]);
-        }
-        u32 iOff = buffers.appendIndices(LayoutId::Shape, indices, 6);
-
-        DrawCommand cmd{};
-        cmd.sort_key = DrawCommand::buildSortKey(ctx.current_stage, shape.layer, shape_shader_id_, BlendMode::Normal, 0, position.z);
-        cmd.index_offset = iOff;
-        cmd.index_count = 6;
-        cmd.vertex_byte_offset = vOff;
-        cmd.shader_id = shape_shader_id_;
-        cmd.blend_mode = BlendMode::Normal;
-        cmd.layout_id = LayoutId::Shape;
-        cmd.texture_count = 0;
-        cmd.entity = entity;
-        cmd.type = RenderType::Shape;
-        cmd.layer = shape.layer;
-
-        clips.applyTo(entity, cmd);
-
-        draw_list.push(cmd);
+        BatchDrawKey key{
+            .stage = ctx.current_stage,
+            .layer = shape.layer,
+            .shaderId = shape_shader_id_,
+            .blend = BlendMode::Normal,
+            .depth = position.z,
+            .entity = entity,
+            .type = RenderType::Shape,
+            .layoutId = LayoutId::Shape,
+        };
+        appendIndexedDraw(buffers, draw_list, clips, verts, 4, BATCH_QUAD_INDICES, 6, key);
     }
 }
 

@@ -150,13 +150,7 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
     const auto& layers = tilemap_system_->allLayers();
     if (layers.empty()) return;
 
-    glm::mat4 invVP = glm::inverse(ctx.view_projection);
-    glm::vec4 bl = invVP * glm::vec4(-1.0f, -1.0f, 0.0f, 1.0f);
-    glm::vec4 tr = invVP * glm::vec4( 1.0f,  1.0f, 0.0f, 1.0f);
-    f32 camLeft   = bl.x / bl.w;
-    f32 camBottom = bl.y / bl.w;
-    f32 camRight  = tr.x / tr.w;
-    f32 camTop    = tr.y / tr.w;
+    const CameraWorldRect& cam = collect_ctx.camera;
 
     for (const auto& [entity, layer] : layers) {
         // The TilemapLayer component is the single source of a layer's visual
@@ -235,10 +229,8 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
         glm::vec4 finalColor(tint.r, tint.g, tint.b, tint.a * opacity);
         u32 packedColor = packColor(finalColor);
 
-        f32 camCenterX = (camLeft + camRight) * 0.5f;
-        f32 camCenterY = (camBottom + camTop) * 0.5f;
-        f32 parallaxOffsetX = camCenterX * (1.0f - parallax.x);
-        f32 parallaxOffsetY = camCenterY * (1.0f - parallax.y);
+        f32 parallaxOffsetX = cam.center.x * (1.0f - parallax.x);
+        f32 parallaxOffsetY = cam.center.y * (1.0f - parallax.y);
         f32 adjOriginX = originX + parallaxOffsetX;
         f32 adjOriginY = originY + parallaxOffsetY;
 
@@ -246,10 +238,10 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
         f32 chunkWorldW = static_cast<f32>(chunkSize) * layer.tile_width;
         f32 chunkWorldH = static_cast<f32>(chunkSize) * layer.tile_height;
 
-        i32 minCX = static_cast<i32>(std::floor((camLeft - adjOriginX) / chunkWorldW));
-        i32 minCY = static_cast<i32>(std::floor((adjOriginY - camTop) / chunkWorldH));
-        i32 maxCX = static_cast<i32>(std::ceil((camRight - adjOriginX) / chunkWorldW));
-        i32 maxCY = static_cast<i32>(std::ceil((adjOriginY - camBottom) / chunkWorldH));
+        i32 minCX = static_cast<i32>(std::floor((cam.left - adjOriginX) / chunkWorldW));
+        i32 minCY = static_cast<i32>(std::floor((adjOriginY - cam.top) / chunkWorldH));
+        i32 maxCX = static_cast<i32>(std::ceil((cam.right - adjOriginX) / chunkWorldW));
+        i32 maxCY = static_cast<i32>(std::ceil((adjOriginY - cam.bottom) / chunkWorldH));
 
         if (!layer.infinite) {
             i32 chunksX = static_cast<i32>((layer.width + tilemap::CHUNK_SIZE - 1) / tilemap::CHUNK_SIZE);

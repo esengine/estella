@@ -2,13 +2,16 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    BatchBuilder.hpp
- * @brief   Backend-agnostic batch submission primitive shared by every batch render path.
- * @details Collapses the "append vertices -> offset indices by baseVertex -> assemble
- *          DrawCommand -> apply clip state -> push" sequence that each batch emitter
- *          (sprite/UI/text/particle/tilemap plugins + RenderFrame's spine/tile direct
- *          submits) used to copy verbatim. Giving the renderer one submission face here
- *          is the de-risking prerequisite for the GfxDevice keystone: the keystone rewrites
- *          DrawList::execute against a single producer, not six.
+ * @brief   The single submission face: the ONLY place a DrawCommand is assembled.
+ * @details Every render path — the batch-quad plugins (sprite/UI/text), the dedicated
+ *          streams (shape/particle/tilemap), and RenderFrame's spine/text/tile direct
+ *          submits — describes its draw as a BatchDrawKey plus geometry, and this face
+ *          does the rest: append vertices, offset indices by baseVertex, build the sort
+ *          key, assemble the DrawCommand, apply clip state, push into the DrawList.
+ *          Renderers only *generate* commands; sorting, merging, and GfxDevice submission
+ *          live unified in DrawList. The invariant is CI-enforced
+ *          (tools/check-draw-command-boundary.mjs): DrawCommand assembly outside this
+ *          translation unit fails the build.
  *
  * @author  ESEngine Team
  * @date    2026
@@ -86,14 +89,20 @@ struct BatchDrawKey {
     bool depthTest = false;
     bool depthWrite = true;
     u8 cull = 0;  ///< CullMode: 0 = none, 1 = back, 2 = front.
+    // The transient stream this draw's geometry lives in. Only the Batch stream carries
+    // a per-vertex texIndex, so only it participates in the multi-texture merge.
+    LayoutId layoutId = LayoutId::Batch;
+    // > 0 selects an instanced draw: indexCount indices drawn instanceCount times, with
+    // per-instance attributes based at the vertex byte offset (see DrawCommand).
+    u32 instanceCount = 0;
 };
 
 /**
  * @brief Atomic primitive: assemble + clip + push one DrawCommand for an index range ALREADY
- *        written into the Batch stream.
- * @details The single piece every batch path used to duplicate. Use directly when the caller
- *          streams both vertices and indices in place (the particle emitter writes its whole
- *          index range via writeIndices() before pushing one command).
+ *        written into (or, for instanced draws, static in) the key's stream.
+ * @details The single piece every render path used to duplicate. Use directly when the caller
+ *          streams both vertices and indices in place, or for instanced draws over a static
+ *          index range (the particle emitter's unit quad).
  */
 void pushBatchDraw(DrawList& drawList, const ClipState& clips,
                    u32 vertexByteOffset, u32 vertexCount, u32 indexOffset, u32 indexCount,
@@ -114,9 +123,21 @@ void pushBatchCommand(TransientBufferPool& pool, DrawList& drawList, const ClipS
                       const BatchDrawKey& key);
 
 /**
+ * @brief Copies raw vertices into the key's stream, then pushes one DrawCommand spanning them.
+ * @details The layout-generic bulk form: @p verts must be @p vertexCount records of the
+ *          stream's vertex stride (TransientBufferPool::vertexStride). This is the whole
+ *          face a renderer with its own vertex format needs (shape today; any future
+ *          trail/mesh2d stream).
+ */
+void appendIndexedDraw(TransientBufferPool& pool, DrawList& drawList, const ClipState& clips,
+                       const void* verts, u32 vertexCount,
+                       const u32* localIndices, u32 indexCount,
+                       const BatchDrawKey& key);
+
+/**
  * @brief Copies @p verts into the Batch stream, then pushes one DrawCommand spanning them.
- * @details The bulk form — a single command over @p vertexCount vertices / @p indexCount
- *          indices (particle emitter, tilemap chunk, single tile).
+ * @details Typed convenience over appendIndexedDraw for the shared BatchVertex format
+ *          (tilemap chunk, single tile); the key must target the Batch stream.
  */
 void appendIndexedBatch(TransientBufferPool& pool, DrawList& drawList, const ClipState& clips,
                         const BatchVertex* verts, u32 vertexCount,

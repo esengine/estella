@@ -42,6 +42,8 @@ struct MockGfxDevice final : GfxDevice {
     int setVertexBufferCalls = 0;
     int setIndexBufferCalls = 0;
     int setPipelineCalls = 0;
+    int drawElementsCalls = 0;
+    int drawElementsInstancedCalls = 0;
 
     u32 nextTextureId = 100;
     u32 nextBufferId = 200;
@@ -70,6 +72,9 @@ struct MockGfxDevice final : GfxDevice {
     GfxCompressedFormat lastCompressedFormat = GfxCompressedFormat::ETC2_RGBA8;
     u32 lastCompressedByteLength = 0;
     FramebufferDesc lastFramebufferDesc{};
+    u32 lastDrawIndexCount = 0;
+    u32 lastDrawIndexByteOffset = 0;
+    u32 lastDrawInstanceCount = 0;
 
     void init() override {}
     void shutdown() override {}
@@ -164,9 +169,17 @@ struct MockGfxDevice final : GfxDevice {
     void setStencilReference(i32) override {}
     void invalidatePipelineCache() override {}
 
-    void drawElements(u32, GfxDataType, u32) override {}
+    void drawElements(u32 indexCount, GfxDataType, u32 byteOffset) override {
+        ++drawElementsCalls;
+        lastDrawIndexCount = indexCount;
+        lastDrawIndexByteOffset = byteOffset;
+    }
     void drawArrays(u32, u32) override {}
-    void drawElementsInstanced(u32, GfxDataType, u32, u32) override {}
+    void drawElementsInstanced(u32 indexCount, GfxDataType, u32, u32 instanceCount) override {
+        ++drawElementsInstancedCalls;
+        lastDrawIndexCount = indexCount;
+        lastDrawInstanceCount = instanceCount;
+    }
 
     FramebufferHandle createFramebuffer(const FramebufferDesc& desc) override {
         ++createFramebufferCalls;

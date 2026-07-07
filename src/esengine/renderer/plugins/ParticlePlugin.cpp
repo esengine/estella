@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 #include "ParticlePlugin.hpp"
+#include "../BatchBuilder.hpp"
 #include "../RenderContext.hpp"
 #include "../RenderFrame.hpp"
 #include "../Shader.hpp"
@@ -140,26 +141,21 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
             d.uvScaleY = sheet ? uvScaleY : 1.0f;
         });
 
-        DrawCommand cmd{};
-        cmd.sort_key = DrawCommand::buildSortKey(
-            ctx.current_stage, emitter.layer, particle_shader_id_, blendMode, 0,
-            emitterWorldPos.z);
-        cmd.index_offset = 0;            // static unit-quad indices
-        cmd.index_count = 6;
-        cmd.vertex_byte_offset = instByteOffset;  // base of this emitter's instance slice
-        cmd.instance_count = particleCount;
-        cmd.shader_id = particle_shader_id_;
-        cmd.blend_mode = blendMode;
-        cmd.layout_id = LayoutId::ParticleInstance;
-        cmd.texture_count = 1;
-        cmd.texture_ids[0] = textureId;
-        cmd.entity = entity;
-        cmd.entity_count = 1;
-        cmd.type = RenderType::Particle;
-        cmd.layer = emitter.layer;
-
-        clips.applyTo(entity, cmd);
-        draw_list.push(cmd);
+        BatchDrawKey key{
+            .stage = ctx.current_stage,
+            .layer = emitter.layer,
+            .shaderId = particle_shader_id_,
+            .blend = blendMode,
+            .textureId = textureId,
+            .depth = emitterWorldPos.z,
+            .entity = entity,
+            .type = RenderType::Particle,
+            .layoutId = LayoutId::ParticleInstance,
+            .instanceCount = particleCount,
+        };
+        // The stream's static unit-quad indices (offset 0) drawn once per particle,
+        // with the instance slice based at instByteOffset.
+        pushBatchDraw(draw_list, clips, instByteOffset, 0, 0, 6, key);
     }
 }
 

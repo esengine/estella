@@ -50,15 +50,6 @@ void TextPlugin::collect(RenderCollectContext& collect_ctx) {
     auto& ctx = collect_ctx.frame_context;
     auto textView = registry.view<ecs::Transform, ecs::BitmapText>();
 
-    // Camera center in world space (from the inverse view-projection), for parallax —
-    // the same derivation SpritePlugin/TilemapRenderPlugin use, so every renderable's
-    // parallax scrolls consistently. Computed once per collect.
-    glm::mat4 invVP = glm::inverse(ctx.view_projection);
-    glm::vec4 camBL = invVP * glm::vec4(-1.0f, -1.0f, 0.0f, 1.0f);
-    glm::vec4 camTR = invVP * glm::vec4( 1.0f,  1.0f, 0.0f, 1.0f);
-    const f32 camCenterX = (camBL.x / camBL.w + camTR.x / camTR.w) * 0.5f;
-    const f32 camCenterY = (camBL.y / camBL.w + camTR.y / camTR.w) * 0.5f;
-
     for (auto entity : textView) {
         const auto& bt = textView.get<ecs::BitmapText>(entity);
         if (!bt.enabled) continue;
@@ -71,12 +62,7 @@ void TextPlugin::collect(RenderCollectContext& collect_ctx) {
         if (!tex) continue;
 
         auto& transform = textView.get<ecs::Transform>(entity);
-        transform.ensureDecomposed();
-        glm::vec3 position = transform.worldPosition;
-        // Parallax: shift toward the camera by (1 - factor); factor 1 = no shift.
-        // Applied before the frustum cull so parallaxed text is culled where drawn.
-        position.x += camCenterX * (1.0f - bt.parallax.x);
-        position.y += camCenterY * (1.0f - bt.parallax.y);
+        glm::vec3 position = parallaxedWorldPosition(transform, bt.parallax, collect_ctx.camera);
         const auto& scale = transform.worldScale;
 
         auto textMetrics = font->measureText(bt.text, bt.fontSize, bt.spacing);

@@ -77,6 +77,9 @@ jobs:
     - name: Check GL boundary (no gl* outside GLDevice)
       run: node tools/check-gl-boundary.mjs
 
+    - name: Check render-command boundary (DrawCommands built only by BatchBuilder)
+      run: node tools/check-draw-command-boundary.mjs
+
     - name: Install dependencies
       run: pnpm install
 
