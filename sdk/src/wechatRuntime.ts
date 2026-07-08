@@ -16,7 +16,7 @@ import { applyBuildRuntimeConfig, type RuntimeBuildConfig } from './defaults';
 import { platformReadTextFile, platformInstantiateWasm, platformLoadImagePixels } from './platform';
 import { toBuildPath } from './assetTypes';
 import { ManifestModel, type AddressableManifest } from './asset/AddressableManifest';
-import { Catalog, type CatalogEntry } from './asset/Catalog';
+import { Catalog, atlasCatalogFields, type CatalogEntry } from './asset/Catalog';
 import { createWeChatSideModuleHost, type WeChatSideModuleFactories } from './sideModules';
 import type { Vec2 } from './types';
 import type { SceneData } from './scene';
@@ -85,11 +85,25 @@ export async function initWeChatRuntime(config: WeChatRuntimeConfig): Promise<vo
     // (the logical source path) get a catalog buildPath, so the loaders' inner
     // text refs (a material's shader) map logical → staged at their fetch
     // boundary — the same two-map contract the cooked web host wires.
+    // Atlas-packed frames additionally register their frame/uv fields, keyed by
+    // every ref spelling a scene can use (`@uuid:`, logical, "/"-rooted).
     const catalogEntries: Record<string, CatalogEntry> = {};
-    for (const asset of manifestModel.allAssets()) {
-        if (!asset.address || asset.address === asset.path) continue;
-        catalogEntries[asset.address] = { type: asset.type, buildPath: asset.path };
-        catalogEntries[`/${asset.address}`] = { type: asset.type, buildPath: asset.path };
+    for (const group of Object.values(manifest.groups)) {
+        for (const [uuid, asset] of Object.entries(group.assets)) {
+            const md = asset.metadata;
+            const atlasFields = md?.atlasFrame && md.atlasPageWidth && md.atlasPageHeight
+                ? atlasCatalogFields(
+                    { page: md.atlasPage, frame: md.atlasFrame, pageWidth: md.atlasPageWidth, pageHeight: md.atlasPageHeight },
+                    asset.path,
+                )
+                : null;
+            if (atlasFields) {
+                catalogEntries[`@uuid:${uuid}`] = { type: asset.type, buildPath: asset.path, ...atlasFields };
+            }
+            if (!asset.address || asset.address === asset.path) continue;
+            catalogEntries[asset.address] = { type: asset.type, buildPath: asset.path, ...(atlasFields ?? {}) };
+            catalogEntries[`/${asset.address}`] = { type: asset.type, buildPath: asset.path, ...(atlasFields ?? {}) };
+        }
     }
     const catalog = Object.keys(catalogEntries).length > 0
         ? Catalog.fromJson({ version: 1, entries: catalogEntries })

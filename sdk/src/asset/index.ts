@@ -18,7 +18,7 @@ export { AssetRefCounter, type AssetRefInfo } from './AssetRefCounter';
 
 export { Assets as AssetsImpl, type AssetsOptions, type AssetBundle, type SceneAssetResult, type MissingAsset } from './Assets';
 export { type Backend, HttpBackend, EmbeddedBackend, type HttpBackendOptions } from './Backend';
-export { Catalog, type CatalogData, type CatalogEntry, type AtlasFrameInfo } from './Catalog';
+export { Catalog, atlasCatalogFields, type CatalogData, type CatalogEntry, type AtlasFrameInfo, type CookedAtlasInfo } from './Catalog';
 export {
     AssetRegistry,
     UUID_REF_PREFIX,

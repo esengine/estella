@@ -43,7 +43,11 @@ export interface ExportWeChatResult {
 }
 
 interface CookManifest {
-  entries: { uuid: string; path: string; sourcePath?: string; type: string; contentHash?: string; size?: number; group?: string }[];
+  entries: {
+    uuid: string; path: string; sourcePath?: string; type: string;
+    contentHash?: string; size?: number; group?: string;
+    atlas?: { page: number; frame: { x: number; y: number; width: number; height: number }; pageWidth: number; pageHeight: number };
+  }[];
 }
 
 // Editor asset type → AddressableAssetType (sdk/src/assetTypes.ts). The WeChat
@@ -155,7 +159,10 @@ async function scanWeChatSideModules(
  *  falls back to stat() for size only if a legacy cook omitted it. */
 async function buildAddressableManifest(absOut: string): Promise<string> {
   const cook = JSON.parse(await readFile(path.join(absOut, 'assets.manifest.json'), 'utf8')) as CookManifest;
-  type Entry = { path: string; address?: string; type: string; size: number; labels: string[]; contentHash?: string };
+  type Entry = {
+    path: string; address?: string; type: string; size: number; labels: string[]; contentHash?: string;
+    metadata?: { atlasPage?: number; atlasFrame?: { x: number; y: number; width: number; height: number }; atlasPageWidth?: number; atlasPageHeight?: number };
+  };
   type Group = { bundleMode: string; labels: string[]; assets: Record<string, Entry> };
   // One group per cook group: 'main' is local (eager); every other is a lazy
   // subpackage. bundleMode here is the typed wire value the SDK's normalizeBundleMode
@@ -175,6 +182,16 @@ async function buildAddressableManifest(absOut: string): Promise<string> {
     // its logical→staged catalog from them). Only meaningful when staging
     // renamed the file (content addressing / texture encoding).
     if (e.sourcePath && e.sourcePath !== e.path) entry.address = e.sourcePath;
+    // Atlas frame → manifest metadata; the runtime derives uv from it and
+    // registers the frame under its uuid/address catalog keys.
+    if (e.atlas) {
+      entry.metadata = {
+        atlasPage: e.atlas.page,
+        atlasFrame: e.atlas.frame,
+        atlasPageWidth: e.atlas.pageWidth,
+        atlasPageHeight: e.atlas.pageHeight,
+      };
+    }
     group.assets[e.uuid.toLowerCase()] = entry;
   }
   // Always emit a main group so the runtime's main package exists even if every
@@ -205,6 +222,8 @@ export async function exportWeChat(opts: {
   contentAddressed?: boolean;
   /** Encode raster textures to GPU-compressed KTX2 at cook time. */
   compressTextures?: boolean;
+  /** Pack `<name>.atlas/` folder PNGs into atlas pages at cook time. */
+  atlasTextures?: boolean;
   onProgress?: OnExportProgress;
 }): Promise<ExportWeChatResult> {
   const title = opts.title ?? 'Game';
@@ -216,7 +235,7 @@ export async function exportWeChat(opts: {
 
   // 1. Cook reachable assets (paths preserved) + the flat manifest.
   progress({ phase: 'Cooking assets' });
-  const cook = await cookAssets(opts.root, { entryScenes: [opts.entryScene], outDir: absOut, contentAddressed: opts.contentAddressed, compressTextures: opts.compressTextures });
+  const cook = await cookAssets(opts.root, { entryScenes: [opts.entryScene], outDir: absOut, contentAddressed: opts.contentAddressed, compressTextures: opts.compressTextures, atlasTextures: opts.atlasTextures });
   warnings.push(...cook.warnings);
 
   // 1b. Scan the scene for the optional modules it needs (physics/spine), so the

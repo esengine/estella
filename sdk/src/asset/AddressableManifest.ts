@@ -24,6 +24,9 @@ export interface AddressableManifestAsset {
         atlas?: string;
         atlasPage?: number;
         atlasFrame?: { x: number; y: number; width: number; height: number };
+        /** Page pixel size — with atlasFrame, what the runtime derives uv from. */
+        atlasPageWidth?: number;
+        atlasPageHeight?: number;
     };
 }
 

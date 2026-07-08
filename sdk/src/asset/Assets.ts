@@ -340,8 +340,12 @@ export class Assets {
     // =========================================================================
 
     getAtlasFrame(ref: string): AtlasFrameInfo | null {
-        const path = this.resolveLoadPath_(ref);
-        return this.catalog.getAtlasFrame(path);
+        // Raw ref first: atlas frames register under every ref SPELLING
+        // (`@uuid:…`, logical, "/"-rooted). The resolved path is the fallback —
+        // for packed frames it is the shared PAGE path, which cannot key
+        // per-frame data.
+        return this.catalog.getAtlasFrame(ref)
+            ?? this.catalog.getAtlasFrame(this.resolveLoadPath_(ref));
     }
 
     // =========================================================================
@@ -773,10 +777,24 @@ export class Assets {
                             const handle = textureHandles.get(path) ?? 0;
                             comp.data[field] = handle;
                             if (counter && handle) counter.addTextureRef(path, entity.id);
-                            const atlasInfo = this.catalog.getAtlasFrame(path);
+                            // Ref spelling first (per-frame keys); the resolved
+                            // path for packed frames is the shared page.
+                            const atlasInfo = this.catalog.getAtlasFrame(ref) ?? this.catalog.getAtlasFrame(path);
                             if (atlasInfo) {
-                                comp.data['uvOffset'] = { x: atlasInfo.uvOffset[0], y: atlasInfo.uvOffset[1] };
-                                comp.data['uvScale'] = { x: atlasInfo.uvScale[0], y: atlasInfo.uvScale[1] };
+                                // COMPOSE with any authored sub-region rather than
+                                // stomping it: the authored uv nests inside the frame.
+                                const aOff = comp.data['uvOffset'] as { x: number; y: number } | undefined;
+                                const aSc = comp.data['uvScale'] as { x: number; y: number } | undefined;
+                                const ox = aOff?.x ?? 0, oy = aOff?.y ?? 0;
+                                const sx = aSc?.x ?? 1, sy = aSc?.y ?? 1;
+                                comp.data['uvOffset'] = {
+                                    x: atlasInfo.uvOffset[0] + ox * atlasInfo.uvScale[0],
+                                    y: atlasInfo.uvOffset[1] + oy * atlasInfo.uvScale[1],
+                                };
+                                comp.data['uvScale'] = {
+                                    x: sx * atlasInfo.uvScale[0],
+                                    y: sy * atlasInfo.uvScale[1],
+                                };
                                 if (atlasInfo.trim) {
                                     comp.data['_trimOffsetX'] = atlasInfo.trim.offsetX;
                                     comp.data['_trimOffsetY'] = atlasInfo.trim.offsetY;

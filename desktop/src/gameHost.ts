@@ -11,14 +11,14 @@
  *        Builtin scenes run as-is; project custom-script bundles are a follow-up
  *        (shared with the play realm's import-map work).
  */
-import { createWebApp, setEditorMode, setPlayMode, initPlayRealmRuntime } from 'esengine';
-import type { CatalogData, ESEngineModule, SceneData } from 'esengine';
+import { createWebApp, setEditorMode, setPlayMode, initPlayRealmRuntime, atlasCatalogFields } from 'esengine';
+import type { CatalogData, CookedAtlasInfo, ESEngineModule, SceneData } from 'esengine';
 
 interface GameConfig {
   entryScene: string;
 }
 interface CookedManifest {
-  entries: { uuid: string; path: string; sourcePath?: string; type: string }[];
+  entries: { uuid: string; path: string; sourcePath?: string; type: string; atlas?: CookedAtlasInfo }[];
 }
 
 async function boot(): Promise<void> {
@@ -58,12 +58,20 @@ async function boot(): Promise<void> {
   for (const e of manifest.entries) {
     assetManifest[e.uuid.toLowerCase()] = `./${e.path}`;
     const logical = e.sourcePath ?? e.path;
+    // Atlas-packed frame: its `path` already points at the PAGE file (URL-level
+    // redirect); the catalog additionally carries frame/uv so the scene loader
+    // can aim each sprite's uvOffset/uvScale at its rect — keyed by every ref
+    // spelling a scene can use, `@uuid:` included.
+    const atlasFields = e.atlas ? atlasCatalogFields(e.atlas, `./${e.path}`) : null;
+    if (atlasFields) {
+      catalog.entries[`@uuid:${e.uuid.toLowerCase()}`] = { type: e.type, buildPath: `./${e.path}`, ...atlasFields };
+    }
     pathMap[logical] = `./${e.path}`;
-    catalog.entries[logical] = { type: e.type, buildPath: `./${e.path}` };
+    catalog.entries[logical] = { type: e.type, buildPath: `./${e.path}`, ...(atlasFields ?? {}) };
     // The cook writes project-absolute refs as "/<logical>" when the logical
     // path lacks a passthrough prefix — register that spelling too.
     pathMap[`/${logical}`] = `./${e.path}`;
-    catalog.entries[`/${logical}`] = { type: e.type, buildPath: `./${e.path}` };
+    catalog.entries[`/${logical}`] = { type: e.type, buildPath: `./${e.path}`, ...(atlasFields ?? {}) };
   }
 
   const wasmBase = new URL('./wasm/', import.meta.url).href; // relative → mount-path agnostic

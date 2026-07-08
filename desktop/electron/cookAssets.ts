@@ -20,6 +20,7 @@
 import { writeFile, mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { scanAssetDatabase, type AssetEntry } from './assetDb';
+import { packAtlas, decodePngImage, encodePagePng, type AtlasInputImage } from './atlasPacker';
 // Single-source content hash (sdk/src/asset/contentHash.ts). Imported as source —
 // no hand-mirrored copy — so the cook and the runtime agree by construction.
 import { contentHashHex } from '../../sdk/src/asset/contentHash';
@@ -56,6 +57,30 @@ export interface CookManifestEntry extends AssetEntry {
    * layout read it.
    */
   group: string;
+  /**
+   * Present when this texture was packed into an atlas page: `path` then points
+   * at the PAGE file (URL-level redirect for free) and this records where the
+   * original image sits inside it. Frame pixels are in image space (y from the
+   * page top); the runtime catalog derives uvOffset/uvScale from frame + page
+   * size. Produced by the `<name>.atlas/` folder convention.
+   */
+  atlas?: {
+    page: number;
+    frame: { x: number; y: number; width: number; height: number };
+    pageWidth: number;
+    pageHeight: number;
+  };
+}
+
+/**
+ * Folder-convention atlas detection: a PNG under a `<name>.atlas/` directory is
+ * packed into that directory's atlas. Returns the directory path (the atlas's
+ * identity — same-named dirs elsewhere are distinct atlases) or null.
+ */
+const ATLAS_DIR_RE = /^(.*?(?:^|\/)[^/]+\.atlas)\//;
+export function atlasDirOf(projectRelPath: string): string | null {
+  const m = ATLAS_DIR_RE.exec(projectRelPath.replace(/\\/g, '/'));
+  return m ? m[1] : null;
 }
 
 /**
@@ -133,10 +158,14 @@ export interface CookResult {
  */
 export async function cookAssets(
   root: string,
-  opts: { entryScenes: string[]; outDir: string; contentAddressed?: boolean; compressTextures?: boolean },
+  opts: {
+    entryScenes: string[]; outDir: string;
+    contentAddressed?: boolean; compressTextures?: boolean; atlasTextures?: boolean;
+  },
 ): Promise<CookResult> {
   const contentAddressed = opts.contentAddressed ?? false;
   const compressTextures = opts.compressTextures ?? false;
+  const atlasTextures = opts.atlasTextures ?? false;
   const { index } = await scanAssetDatabase(root, { write: false });
   const byUuid = new Map(index.entries.map((e) => [e.uuid, e]));
   const byPath = new Map(index.entries.map((e) => [e.path, e]));
@@ -190,9 +219,101 @@ export async function cookAssets(
 
   const manifestEntries: CookManifestEntry[] = [];
   const staged = new Set<string>();  // staged output paths, for content-addressed dedup
+
+  // ---- Auto-atlas (`<name>.atlas/` folder convention) -----------------------
+  // Pack the reachable PNGs of each atlas directory into pages BEFORE the
+  // per-asset staging loop; each packed frame's manifest entry then points its
+  // `path` at the page file (frame → page redirect happens at the URL level,
+  // through the same buildPath machinery as every other rename). Pages are
+  // plain textures to the rest of the cook: KTX2 compression and content-
+  // addressed naming apply to them exactly as they would to a lone PNG.
+  const atlasPlan = new Map<string, NonNullable<CookManifestEntry['atlas']> & {
+    pageOutRel: string; pageHash: string; pageSize: number; compressedFormats?: string[];
+  }>();
+  if (atlasTextures) {
+    const groups = new Map<string, AssetEntry[]>();
+    for (const uuid of reachable) {
+      const entry = byUuid.get(uuid);
+      if (!entry || entry.type === 'scene') continue;
+      if (path.extname(entry.path).toLowerCase() !== '.png') continue;
+      const dir = atlasDirOf(entry.path);
+      if (!dir) continue;
+      let list = groups.get(dir);
+      if (!list) groups.set(dir, (list = []));
+      list.push(entry);
+    }
+    for (const [dir, entries] of [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
+      const images: AtlasInputImage[] = [];
+      for (const entry of [...entries].sort((a, b) => a.path.localeCompare(b.path))) {
+        try {
+          images.push(decodePngImage(entry.path, await readFile(path.join(root, entry.path))));
+        } catch (err) {
+          warnings.push(`${entry.path}: atlas decode failed, staging standalone — ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+      if (images.length === 0) continue;
+      const pages = packAtlas(images);
+      for (let n = 0; n < pages.length; n++) {
+        let pageBytes: Uint8Array = encodePagePng(pages[n]);
+        let pageExt = '.png';
+        let compressedFormats: string[] | undefined;
+        if (encodePng) {
+          pageBytes = await encodePng(pageBytes);
+          pageExt = '.ktx2';
+          compressedFormats = COMPRESSED_TARGETS;
+        }
+        const pageHash = contentHashHex(pageBytes);
+        const group = subpackageOf(`${dir}/`) ?? 'main';
+        const caBase = group === 'main' ? 'assets' : `subpackages/${group}/assets`;
+        const pageOutRel = contentAddressed
+          ? `${caBase}/${pageHash}${pageExt}`
+          : `${dir}.page${n}${pageExt}`;
+        const dst = path.join(absOut, pageOutRel);
+        if (!staged.has(pageOutRel)) {
+          await mkdir(path.dirname(dst), { recursive: true });
+          await writeFile(dst, pageBytes);
+          staged.add(pageOutRel);
+        }
+        for (const placement of pages[n].placements) {
+          atlasPlan.set(placement.key, {
+            page: n,
+            frame: { x: placement.x, y: placement.y, width: placement.width, height: placement.height },
+            pageWidth: pages[n].width,
+            pageHeight: pages[n].height,
+            pageOutRel, pageHash, pageSize: pageBytes.byteLength, compressedFormats,
+          });
+        }
+      }
+    }
+  }
+
   for (const uuid of reachable) {
     const entry = byUuid.get(uuid);
     if (!entry) continue;
+    // Atlas-packed frame: the page is already staged; this entry just records
+    // where the frame lives (page path + rect). Its physical identity IS the
+    // page's (hash/size of the bytes actually served for this ref).
+    const framePlan = atlasPlan.get(entry.path);
+    if (framePlan) {
+      manifestEntries.push({
+        uuid: entry.uuid,
+        path: framePlan.pageOutRel,
+        sourcePath: entry.path,
+        type: entry.type,
+        importer: entry.importer,
+        contentHash: framePlan.pageHash,
+        size: framePlan.pageSize,
+        group: subpackageOf(entry.path) ?? 'main',
+        ...(framePlan.compressedFormats ? { compressedFormats: framePlan.compressedFormats } : {}),
+        atlas: {
+          page: framePlan.page,
+          frame: framePlan.frame,
+          pageWidth: framePlan.pageWidth,
+          pageHeight: framePlan.pageHeight,
+        },
+      });
+      continue;
+    }
     try {
       let data: Uint8Array = await readFile(path.join(root, entry.path));
       let ext = path.extname(entry.path);

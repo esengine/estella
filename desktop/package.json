@@ -64,6 +64,7 @@
     "esbuild": "^0.27.0",
     "esengine": "workspace:*",
     "lucide-react": "^1.21.0",
+    "pngjs": "^7.0.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "zustand": "^5.0.14"
@@ -72,6 +73,7 @@
     "@fontsource/inter": "^5.2.8",
     "@fontsource/jetbrains-mono": "^5.2.8",
     "@types/node": "^25.9.3",
+    "@types/pngjs": "^6.0.5",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^6.0.2",

@@ -303,3 +303,115 @@ describe('cookAssets (A4)', () => {
     }
   });
 });
+
+describe('cookAssets — auto-atlas (<name>.atlas folder convention)', () => {
+  const TEX_A = 'cccc1111-1111-4111-8111-111111111111';
+  const TEX_B = 'cccc2222-2222-4222-8222-222222222222';
+  const LOOSE = 'cccc3333-3333-4333-8333-333333333333';
+  const SCENE = 'cccc4444-4444-4444-8444-444444444444';
+
+  function solidPng(width: number, height: number, rgba: [number, number, number, number]): Buffer {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { PNG } = require('pngjs') as typeof import('pngjs');
+    const png = new PNG({ width, height });
+    for (let i = 0; i < width * height; i++) png.data.set(rgba, i * 4);
+    return PNG.sync.write(png);
+  }
+
+  function makeAtlasProject(): string {
+    const r = mkdtempSync(path.join(tmpdir(), 'estella-cook-atlas-'));
+    const wa = (rel: string, type: string, uuid: string, body: string | Buffer): void => {
+      const abs = path.join(r, rel);
+      mkdirSync(path.dirname(abs), { recursive: true });
+      writeFileSync(abs, body);
+      writeFileSync(`${abs}.meta`, JSON.stringify({ uuid, version: '2.0', type, importer: {} }));
+    };
+    wa('assets/sprites/heroes.atlas/a.png', 'texture', TEX_A, solidPng(4, 4, [255, 0, 0, 255]));
+    wa('assets/sprites/heroes.atlas/b.png', 'texture', TEX_B, solidPng(4, 4, [0, 255, 0, 255]));
+    wa('assets/textures/loose.png', 'texture', LOOSE, solidPng(2, 2, [0, 0, 255, 255]));
+    wa('assets/scenes/main.esscene', 'scene', SCENE, JSON.stringify({
+      version: '1.0', name: 's', entities: [
+        { id: 1, name: 'A', parent: null, children: [], components: [{ type: 'Sprite', data: { texture: `@uuid:${TEX_A}` } }] },
+        { id: 2, name: 'B', parent: null, children: [], components: [{ type: 'Sprite', data: { texture: `@uuid:${TEX_B}` } }] },
+        { id: 3, name: 'L', parent: null, children: [], components: [{ type: 'Sprite', data: { texture: `@uuid:${LOOSE}` } }] },
+      ],
+    }));
+    return r;
+  }
+
+  it('packs atlas-folder PNGs into one staged page with frame metadata', async () => {
+    const r = makeAtlasProject();
+    try {
+      const res = await cookAssets(r, { entryScenes: ['assets/scenes/main.esscene'], outDir: 'out', atlasTextures: true });
+      expect(res.ok).toBe(true);
+      const manifest = JSON.parse(readFileSync(res.manifestPath!, 'utf8')) as {
+        entries: Array<{ uuid: string; path: string; sourcePath: string;
+          atlas?: { page: number; frame: { x: number; y: number; width: number; height: number }; pageWidth: number; pageHeight: number } }>;
+      };
+      const a = manifest.entries.find((e) => e.uuid === TEX_A)!;
+      const b = manifest.entries.find((e) => e.uuid === TEX_B)!;
+      const loose = manifest.entries.find((e) => e.uuid === LOOSE)!;
+
+      // Both frames point at the SAME page file; the loose texture stages standalone.
+      expect(a.path).toBe('assets/sprites/heroes.atlas.page0.png');
+      expect(b.path).toBe(a.path);
+      expect(a.sourcePath).toBe('assets/sprites/heroes.atlas/a.png');
+      expect(loose.path).toBe('assets/textures/loose.png');
+      expect(loose.atlas).toBeUndefined();
+      expect(existsSync(path.join(res.outDir, a.path))).toBe(true);
+      // Frame sources are not staged as standalone files.
+      expect(existsSync(path.join(res.outDir, 'assets/sprites/heroes.atlas/a.png'))).toBe(false);
+
+      // Distinct frames inside a shared page whose size both entries agree on.
+      expect(a.atlas!.pageWidth).toBe(b.atlas!.pageWidth);
+      expect(a.atlas!.frame).not.toEqual(b.atlas!.frame);
+
+      // Decode the staged page: each frame's pixels are its source's color.
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { PNG } = require('pngjs') as typeof import('pngjs');
+      const page = PNG.sync.read(readFileSync(path.join(res.outDir, a.path)));
+      expect(page.width).toBe(a.atlas!.pageWidth);
+      const at = (f: { x: number; y: number }) => [...page.data.subarray((f.y * page.width + f.x) * 4, (f.y * page.width + f.x) * 4 + 4)];
+      expect(at(a.atlas!.frame)).toEqual([255, 0, 0, 255]);
+      expect(at(b.atlas!.frame)).toEqual([0, 255, 0, 255]);
+    } finally {
+      rmSync(r, { recursive: true, force: true });
+    }
+  });
+
+  it('stages atlas-folder textures standalone when atlasTextures is off', async () => {
+    const r = makeAtlasProject();
+    try {
+      const res = await cookAssets(r, { entryScenes: ['assets/scenes/main.esscene'], outDir: 'out' });
+      const manifest = JSON.parse(readFileSync(res.manifestPath!, 'utf8')) as {
+        entries: Array<{ uuid: string; path: string; atlas?: unknown }>;
+      };
+      const a = manifest.entries.find((e) => e.uuid === TEX_A)!;
+      expect(a.path).toBe('assets/sprites/heroes.atlas/a.png');
+      expect(a.atlas).toBeUndefined();
+    } finally {
+      rmSync(r, { recursive: true, force: true });
+    }
+  });
+
+  it('content-addressed staging names the page by its hash, shared by both frames', async () => {
+    const r = makeAtlasProject();
+    try {
+      const res = await cookAssets(r, {
+        entryScenes: ['assets/scenes/main.esscene'], outDir: 'out',
+        atlasTextures: true, contentAddressed: true,
+      });
+      const manifest = JSON.parse(readFileSync(res.manifestPath!, 'utf8')) as {
+        entries: Array<{ uuid: string; path: string; contentHash: string; sourcePath: string; atlas?: unknown }>;
+      };
+      const a = manifest.entries.find((e) => e.uuid === TEX_A)!;
+      const b = manifest.entries.find((e) => e.uuid === TEX_B)!;
+      expect(a.path).toBe(`assets/${a.contentHash}.png`);
+      expect(b.path).toBe(a.path);
+      expect(a.sourcePath).toBe('assets/sprites/heroes.atlas/a.png');
+      expect(existsSync(path.join(res.outDir, a.path))).toBe(true);
+    } finally {
+      rmSync(r, { recursive: true, force: true });
+    }
+  });
+});

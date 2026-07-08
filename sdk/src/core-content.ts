@@ -50,6 +50,8 @@ export {
     assetPlugin,
     AssetRefCounter,
     Catalog,
+    atlasCatalogFields,
+    type CookedAtlasInfo,
     type CatalogData,
     type CatalogEntry,
     decodeImageBitmap,

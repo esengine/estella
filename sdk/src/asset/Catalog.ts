@@ -25,6 +25,37 @@ export interface CatalogData {
     labels?: Record<string, string[]>;
 }
 
+/** The atlas record a cook/export manifest carries for a packed texture. */
+export interface CookedAtlasInfo {
+    page?: number;
+    frame: { x: number; y: number; width: number; height: number };
+    pageWidth: number;
+    pageHeight: number;
+}
+
+/**
+ * Derive a CatalogEntry's atlas fields from a cook-manifest atlas record.
+ * Frame pixels are image-space (y from the page TOP); uv is emitted for
+ * flipY-uploaded textures (v origin = image bottom), matching the
+ * Sprite/UIVisual `uvOffset`/`uvScale` convention. `pagePath` is the page's
+ * fetch identity — the same string every frame of the page shares, so texture
+ * loading can collapse them onto one GPU texture.
+ */
+export function atlasCatalogFields(
+    atlas: CookedAtlasInfo,
+    pagePath: string,
+): Pick<CatalogEntry, 'atlas' | 'frame' | 'uv'> {
+    const { frame, pageWidth, pageHeight } = atlas;
+    return {
+        atlas: pagePath,
+        frame: { x: frame.x, y: frame.y, w: frame.width, h: frame.height },
+        uv: {
+            offset: [frame.x / pageWidth, 1 - (frame.y + frame.height) / pageHeight],
+            scale: [frame.width / pageWidth, frame.height / pageHeight],
+        },
+    };
+}
+
 export class Catalog {
     private entries_: Map<string, CatalogEntry>;
     private addresses_: Map<string, string>;

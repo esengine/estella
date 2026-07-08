@@ -164,6 +164,11 @@ export async function exportPlayable(opts: {
   try {
     const manifest = JSON.parse(await readFile(path.join(cookDir, 'assets.manifest.json'), 'utf8')) as CookManifest;
     manifestEntries = manifest.entries;
+    // Playable has no runtime catalog channel yet, so atlas frame/uv metadata
+    // cannot reach the sprites — a packed texture would render its whole page.
+    if (manifest.entries.some((e) => (e as { atlas?: unknown }).atlas)) {
+      warnings.push('cook produced atlas-packed textures, which the playable runtime cannot consume yet — export without atlasTextures for playables.');
+    }
     for (const e of manifest.entries) {
       const buf = await readFile(path.join(cookDir, e.path));
       const key = `@uuid:${e.uuid}`;
