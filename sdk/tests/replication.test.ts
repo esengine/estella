@@ -61,6 +61,34 @@ describe('replication handshake', () => {
         expect(client.connectionId).toBeGreaterThan(0);
     });
 
+    it('commits the client role synchronously — authority never runs during the handshake', async () => {
+        const clientApp = makeApp();
+        const session = clientApp.getResource(Net);
+        // Manual flush keeps the handshake in flight indefinitely.
+        const [, tb] = MemoryTransport.pair({ manualFlush: true });
+        const pending = session.connect(tb, { interpolationDelayTicks: 0 });
+        // The moment connect() is called the session is a client — ticks that
+        // run while the server is still booting must gate authority systems.
+        expect(session.role).toBe('client');
+        await clientApp.tick(STEP);
+        await clientApp.tick(STEP);
+        expect(session.role).toBe('client');
+        session.stop();
+        await expect(pending).rejects.toThrow();
+    });
+
+    it('a refused handshake reverts the session to offline', async () => {
+        const clientApp = makeApp();
+        const session = clientApp.getResource(Net);
+        const [ta, tb] = MemoryTransport.pair();
+        // A hostile peer that refuses every hello.
+        const raw = new NetChannel(ta);
+        raw.handle(ReplMsg.hello, () => ({ ok: false, error: 'go away' }));
+        await expect(session.connect(tb)).rejects.toThrow(/go away/);
+        expect(session.role).toBe('offline');
+        expect(session.client).toBeNull();
+    });
+
     it('refuses a protocol version mismatch', async () => {
         const serverApp = makeApp();
         serverApp.getResource(Net).startServer().attachConnection(MemoryTransport.pair()[0]);

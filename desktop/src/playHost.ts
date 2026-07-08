@@ -180,6 +180,10 @@ async function buildAppAndRun(msg: InitMessage): Promise<void> {
   setEditorMode(false);
   setPlayMode(true);
 
+  // Role first, runtime second: initPlayRealmRuntime ends in app.run(), and by
+  // then the Net role must already be decided (see beginNet).
+  const netReady = beginNet(msg);
+
   await initPlayRealmRuntime({
     app,
     module,
@@ -198,26 +202,38 @@ async function buildAppAndRun(msg: InitMessage): Promise<void> {
   // host's __estellaHeadless): the editor can't reach into this OOPIF except by
   // main-process frame eval, and the eval needs SOMETHING to query.
   (window as unknown as { __estellaPlay?: unknown }).__estellaPlay = { app };
+
+  // Surface a failed handshake as a boot error rather than a silent
+  // half-session (the app keeps running; the role reverted to offline).
+  await netReady;
 }
 
 /**
- * Wire this realm's replication role. The ports arrived transferred with
- * `init`; a MessagePort queues until both ends attach, so the server and
- * client realms may boot in any order — the client's `connect` handshake
- * simply resolves once the server side comes up.
+ * Commit this realm's replication role. MUST run before the app loop starts:
+ * the role gates authority systems from the very first tick (a client realm
+ * that ticked as 'offline' while the handshake was in flight ran authority
+ * gameplay locally and left orphan state beside the replicated ghosts). The
+ * ports arrived transferred with `init`; a MessagePort queues until both ends
+ * attach, so the server and client realms may boot in any order. Returns the
+ * handshake completion for the caller to await before reporting ready.
  */
-async function wireNet(msg: InitMessage): Promise<void> {
-  if (!msg.net || !app) return;
+function beginNet(msg: InitMessage): Promise<void> {
+  if (!msg.net || !app) return Promise.resolve();
   const session = app.getResource(Net);
   const ports = msg.netPorts ?? [];
+  const player = msg.net.player;
   if (msg.net.role === 'server') {
     const server = session.startServer();
     for (const port of ports) server.attachConnection(new MessagePortTransport(port));
-    console.log(`[play] listen server up (player ${msg.net.player}, ${ports.length} client port(s))`);
-  } else if (ports[0]) {
-    await session.connect(new MessagePortTransport(ports[0]));
-    console.log(`[play] connected as player ${msg.net.player}`);
+    console.log(`[play] listen server up (player ${player}, ${ports.length} client port(s))`);
+    return Promise.resolve();
   }
+  if (!ports[0]) return Promise.resolve();
+  // connect() commits the 'client' role synchronously; the await is only the
+  // handshake completing once the server realm comes up.
+  return session.connect(new MessagePortTransport(ports[0])).then(() => {
+    console.log(`[play] connected as player ${player}`);
+  });
 }
 
 async function boot(msg: InitMessage): Promise<void> {
@@ -235,7 +251,6 @@ async function boot(msg: InitMessage): Promise<void> {
     }
     await ensureEngine();
     await buildAppAndRun(msg);
-    await wireNet(msg);
     post({ type: 'estella:play:ready' });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

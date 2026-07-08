@@ -46,13 +46,25 @@ export class NetSession {
         return this.server_;
     }
 
-    /** Become a replica: handshake over the given transport. */
+    /** Become a replica: handshake over the given transport. The role commits
+     *  SYNCHRONOUSLY — from this call on, the session never simulates as the
+     *  authority, even while the handshake is still in flight. (A role that
+     *  only flipped on completion let authority-gated systems run for the
+     *  first few ticks of a client realm and spawn local state that then
+     *  lingered beside the replicated ghosts.) A failed handshake reverts to
+     *  offline. */
     async connect(transport: NetTransport, options?: ReplicationClientOptions): Promise<ReplicationClient> {
         if (this.role_ !== 'offline') throw new Error(`[repl] session already ${this.role_}`);
         const client = new ReplicationClient(this.app_.world, options);
-        await client.connect(transport);
         this.role_ = 'client';
         this.client_ = client;
+        try {
+            await client.connect(transport);
+        } catch (err) {
+            this.client_ = null;
+            this.role_ = 'offline';
+            throw err;
+        }
         return client;
     }
 
