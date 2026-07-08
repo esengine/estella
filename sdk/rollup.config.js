@@ -4,7 +4,7 @@ import typescript from '@rollup/plugin-typescript';
 import terser from '@rollup/plugin-terser';
 import dts from 'rollup-plugin-dts';
 
-const ENTRY_FILES = ['/index.ts', '/index.wechat.ts'];
+const ENTRY_FILES = ['/index.ts', '/index.wechat.ts', '/index.node.ts'];
 const treeshake = {
     moduleSideEffects: (id) => ENTRY_FILES.some(e => id.endsWith(e)),
 };
@@ -47,12 +47,20 @@ const esmBuilds = [
         plugins: [typescript({ tsconfig: './tsconfig.json', declaration: false }), terser({ format: { comments: (_, comment) => comment.value.includes('@vite-ignore') } })],
         treeshake,
     },
+    {
+        input: 'src/index.node.ts',
+        output: { file: 'dist/index.node.js', format: 'esm', sourcemap: true },
+        external: (id) => id.startsWith('node:'),
+        plugins: [typescript({ tsconfig: './tsconfig.json', declaration: false }), terser({ format: { comments: (_, comment) => comment.value.includes('@vite-ignore') } })],
+        treeshake,
+    },
 ];
 
 const dtsBuilds = [
     {
         input: {
             'index': 'src/index.ts',
+            'index.node': 'src/index.node.ts',
             'physics/index': 'src/physics/index.ts',
             'spine/index': 'src/spine/index.ts',
             'wasm': 'src/wasm.ts',

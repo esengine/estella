@@ -111,9 +111,11 @@ export const lifecyclePlugin = (options?: LifecyclePluginOptions): Plugin => {
 
             if (platformType === 'wechat') {
                 setupWeChatLifecycle_(manager, app);
-            } else {
+            } else if (typeof document !== 'undefined' && typeof window !== 'undefined') {
                 cleanupFn_ = setupWebLifecycle_(manager, app);
             }
+            // Headless hosts (node server, workers) have no visibility/focus
+            // signal — the Lifecycle resource still exists, always visible.
         },
         cleanup() {
             cleanupFn_?.();
