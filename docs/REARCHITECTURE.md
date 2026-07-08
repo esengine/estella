@@ -222,3 +222,10 @@ TS 驱动的主 pass clear 退出边界，`clear` 家族退出公共 RHI：
 
 ### RC6 资产管线 — 📋 已立项（设计文档）
 见 [`REARCH_RC6_ASSETS.md`](./REARCH_RC6_ASSETS.md)：面向微信/移动端的资产管线根治——GPU 压缩纹理（keystone）、内容寻址身份、显存预算 + LRU 驱逐、运行时分包/流式 + 微信分包映射。属"能力/平台错配"根治，区别于 RC1–RC5 的"正确性根因"。
+
+### RC11 网络复制 — 🟡 N0–N2 keystone 已落地（2026-07-08）；剩 N3 插值 / N4 输入上行 / N5 宿主
+设计文档 `REARCH_REPLICATION.md`（本地 gitignore，同 RC6 约定）；四维度审计后拍板**服务器权威状态复制**（lockstep 需全 gameplay 确定性、回滚需物理可 rewind——Box2D v3 官方无 rollback；均与底座冲突）。
+- **N0 声明底座**：RC9-1 P4 尾巴收口——EHT 发射 `replicatedFields`/`skipSerializeFields`（`animatableFields` 同款范式，注解不进 ABI hash）；`defineComponent` 收 `replicatedFields` metadata（未知字段名 fail-loud）；`getReplicatedFields()` 统一 builtin/user 两权威源。Transform 局部姿态 + Velocity 首批注解。顺带根修 PrefabServer 在 build 期捕获 stale Assets 的 bug（play/cooked 下 uuid prefab 实例化走错解析通道）。
+- **N1 传输收编**：socket 创建收进 `PlatformAdapter.createSocket?`（web/wechat 已接，'node' 预留），`createSocket` 工厂不再嗅探 `globalThis.wx`；`NetChannel` 增二进制面（1 字节 channel id，与 JSON 控制面共享一条 transport）；`MemoryTransport` 进程内对（manualFlush 模拟时序/丢包）= 双 App 对拍测试基石。
+- **N2 复制核心（keystone）**：复制运行时 = 普通 plugin + 现有调度（FixedPre 收/应用、FixedPost 采样/广播，与物理同 cadence；无第二 tick 循环——FSM/BT 统一裁定的延续）；`Time.fixedTick` 新增为仿真时间轴。单一声明驱动全管线：wire 表按名排序自 `getReplicatedFields` 构建、字段 shape 自组件 defaults 派生；握手比对 协议版本+ABI hash+逐字段 schema，不一致拒连。状态走二进制 delta 帧（per-field dirty mask，服务端 shadow diff；WebSocket 可靠有序故无需 ack）；spawn/despawn 走 JSON 控制面，spawn 载荷复用场景序列化原语（新 `serializeEntityComponents`）→ 校验/out-of-band codec 免费、late joiner 拿到当前态。Entity 句柄不过网——NetId 双端映射（entity-ref 字段重写含内）。`Replicated`/`NetGhost` 纯 TS 组件；`NetSession` 角色资源门控，plugin 无条件安装、offline 零开销。验证：14 用例进程内双 App 对拍（握手负例/spawn/delta/静默/late-joiner/despawn/codec 往返）+ **真边界用例**（C++ Transform 注解在两个 wasm Registry 间 f32 精确复制）；全套 2938 + desktop tsc + 24 examples 绿。
+- **待续**：N3 ghost 快照插值（复用 prev/cur+fixedAlpha 物理模板）+ ghost 物理/AI 让位门控；N4 输入上行（InputMap per-tick 采样）+ ownership；N5 node 平台适配器 + `createHeadlessApp` 权威服务器宿主 + 真 ws e2e + 编辑器多 realm 联调。
