@@ -188,6 +188,16 @@ struct ParsedShader {
     std::unordered_map<ShaderStage, std::vector<SourceLine>> wgslStageLineMaps;
 
     /**
+     * @brief Stages whose WGSL twin is a SELF-CONTAINED program (`#pragma vertex
+     *        wgsl full` / `#pragma fragment wgsl full`): assembly skips every
+     *        injected header — the body carries its own declarations at the
+     *        engine's binding conventions (group 0 UBO slots, group-1
+     *        texture/sampler unit map). The shape a cook-time GLSL→WGSL
+     *        conversion emits, since a translator returns whole programs.
+     */
+    std::unordered_map<ShaderStage, bool> wgslStageFull;
+
+    /**
      * @brief True when the WGSL vertex stage is the injected canonical one.
      *        The WGSL fragment assembly then also injects the matching VSOut
      *        struct, so fragment-only twins write `fs_main(v : VSOut)` against

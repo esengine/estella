@@ -238,6 +238,15 @@ export interface ESEngineModule {
     /** Reflected-material mesh draw (MaterialConstants UBO); false = shader has no
      *  #pragma-param layout, caller falls back to the loose uniform stream. */
     draw_meshWithMaterial(geometryHandle: number, materialId: number): boolean;
+    /** Cook-time introspection (tools/gen-shader-twins.mjs): assembles both GLSL
+     *  stages exactly as the runtime + the texture-unit reflection a GLSL→WGSL
+     *  converter needs. Not called by the SDK itself. */
+    esshader_cookInfo(source: string, featuresCsv: string): {
+        valid: boolean; error?: string; name: string; domain: string;
+        hasWgslVertex: boolean; hasWgslFragment: boolean; hasSwitches: boolean;
+        vertGlsl: string; fragGlsl: string;
+        textures: Array<{ name: string; unit: number }>;
+    };
 
     // Geometry API
     geometry_create(): number;

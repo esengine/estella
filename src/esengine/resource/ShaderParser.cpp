@@ -264,6 +264,7 @@ ParsedShader ShaderParser::parse(const std::string& source, const ShaderIncludeR
     std::ostringstream currentSection;
     std::vector<SourceLine> currentSectionMap;
     bool currentSectionIsWGSL = false;
+    bool currentSectionIsFullWGSL = false;
     u32 lineNumber = 0;
 
     while (std::getline(stream, line)) {
@@ -349,15 +350,18 @@ ParsedShader ShaderParser::parse(const std::string& source, const ShaderIncludeR
                 return result;
             }
             // Optional language tag: `#pragma fragment wgsl` opens the stage's
-            // WGSL twin section; no tag is the GLSL stage.
-            if (!argument.empty() && argument != "wgsl") {
+            // WGSL twin section; `wgsl full` marks a SELF-CONTAINED twin whose
+            // assembly skips every injected header (the cook-generated shape);
+            // no tag is the GLSL stage.
+            if (!argument.empty() && argument != "wgsl" && argument != "wgsl full") {
                 result.errorMessage = "Unknown stage language '" + argument +
                                       "' at line " + std::to_string(lineNumber) +
-                                      " (expected no tag for GLSL, or 'wgsl')";
+                                      " (expected no tag for GLSL, 'wgsl', or 'wgsl full')";
                 return result;
             }
             state = (directive == "vertex") ? ParseState::Vertex : ParseState::Fragment;
-            currentSectionIsWGSL = (argument == "wgsl");
+            currentSectionIsWGSL = !argument.empty();
+            currentSectionIsFullWGSL = (argument == "wgsl full");
             currentSection.str("");
             currentSection.clear();
             currentSectionMap.clear();
@@ -389,8 +393,12 @@ ParsedShader ShaderParser::parse(const std::string& source, const ShaderIncludeR
                     auto& maps = currentSectionIsWGSL ? result.wgslStageLineMaps : result.stageLineMaps;
                     stages[s] = currentSection.str();
                     maps[s] = std::move(currentSectionMap);
+                    if (currentSectionIsWGSL && currentSectionIsFullWGSL) {
+                        result.wgslStageFull[s] = true;
+                    }
                     currentSectionMap.clear();
                     currentSectionIsWGSL = false;
+                    currentSectionIsFullWGSL = false;
                     break;
                 }
                 case ParseState::Variant:
@@ -771,6 +779,16 @@ ShaderParser::AssembledStage assembleWGSLStage(const ParsedShader& parsed,
     if (bodyIt == parsed.wgslStages.end()) {
         ES_LOG_ERROR("Shader '{}' has no WGSL twin for the {} stage (add '#pragma {} wgsl')",
                      parsed.name, stageName(stage), stageName(stage));
+        return result;
+    }
+
+    // A `wgsl full` twin is a self-contained program (the cook-generated shape):
+    // it carries its own declarations at the engine's binding conventions, so
+    // injecting the shared headers would double-declare them.
+    auto fullIt = parsed.wgslStageFull.find(stage);
+    if (fullIt != parsed.wgslStageFull.end() && fullIt->second) {
+        result.source = preprocessWGSL(bodyIt->second, features);
+        result.headerLineCount = 0;
         return result;
     }
 

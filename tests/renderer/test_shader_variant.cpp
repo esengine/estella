@@ -292,6 +292,44 @@ static void testWGSLEmission() {
     CHECK(!badTag.valid && badTag.errorMessage.find("Unknown stage language") != std::string::npos,
           "unknown stage language tag is a parse error");
 
+    // `wgsl full` twins are self-contained programs (the cook-generated shape):
+    // assembly skips every injected header — no tc/mc/canonical prelude — and
+    // returns the body as-is, features resolved.
+    ParsedShader full = ShaderParser::parse(
+        "#pragma shader \"Full\"\n#pragma domain Unlit2D\n"
+        "#pragma param u_a float default(0)\n"
+        "#pragma vertex\nvoid main() { gl_Position = vec4(0.0); }\n#pragma end\n"
+        "#pragma fragment\nvoid main() {}\n#pragma end\n"
+        "#pragma vertex wgsl full\n"
+        "@group(0) @binding(0) var<uniform> f : mat4x4<f32>;\n"
+        "@vertex fn vs_main() -> @builtin(position) vec4<f32> { return f[0]; }\n#pragma end\n"
+        "#pragma fragment wgsl full\n"
+        "struct MC { u_a: f32 }\n@group(0) @binding(1) var<uniform> m : MC;\n"
+        "@fragment fn fs_main() -> @location(0) vec4<f32> { return vec4<f32>(m.u_a); }\n#pragma end\n");
+    CHECK(full.valid && !full.wgslVertexIsCanonical, "wgsl full twin pair parses");
+    const std::string fullVs = wgsl(full, ShaderStage::Vertex);
+    const std::string fullFs = wgsl(full, ShaderStage::Fragment);
+    CHECK(fullVs.find("var<uniform> f :") != std::string::npos &&
+          fullVs.find("TimeConstants") == std::string::npos,
+          "full vertex twin skips the injected headers");
+    CHECK(fullFs.find("var<uniform> m :") != std::string::npos &&
+          fullFs.find("var<uniform> mc") == std::string::npos &&
+          fullFs.find("var t0") == std::string::npos,
+          "full fragment twin carries its own declarations, no tc/mc/texture injection");
+
+    // A full twin on one stage composes with a normal twin on the other.
+    ParsedShader mixed = ShaderParser::parse(
+        "#pragma shader \"Mixed\"\n#pragma domain Unlit2D\n"
+        "#pragma fragment\nvoid main() {}\n#pragma end\n"
+        "#pragma fragment wgsl full\n"
+        "@fragment fn fs_main() -> @location(0) vec4<f32> { return vec4<f32>(1.0); }\n#pragma end\n");
+    CHECK(mixed.valid && mixed.wgslVertexIsCanonical,
+          "fragment-only full twin still gets the canonical WGSL vertex");
+    const std::string mixedFs = wgsl(mixed, ShaderStage::Fragment);
+    CHECK(mixedFs.find("struct VSOut") == std::string::npos &&
+          mixedFs.find("fn fs_main") != std::string::npos,
+          "full fragment twin skips the canonical prelude even beside a canonical vertex");
+
     // std140 offsets == WGSL uniform layout for the param type set: the two
     // backends read one buffer. float, vec3 (align 16), float (packs at 28).
     ParsedShader layout = ShaderParser::parse(

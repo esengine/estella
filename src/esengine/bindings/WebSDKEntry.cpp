@@ -130,14 +130,8 @@ static MaterialUniformLayout buildMaterialLayout(const resource::ParsedShader& p
 // `#pragma switch` set (comma-separated), so a material's static switches select a permutation;
 // the SDK loader caches one compiled program per (shader, switch-set). Returns the shader
 // resource handle (0 on failure). Reflection-aware replacement for the loader's old regex.
-u32 compileEsshader(const std::string& source, const std::string& featuresCsv) {
-    auto* rm = g_resourceManager;
-    if (!rm) return 0;
-    resource::ParsedShader parsed = resource::ShaderParser::parse(source);
-    if (!parsed.valid) {
-        ES_LOG_ERROR("compileEsshader: parse failed: {}", parsed.errorMessage);
-        return 0;
-    }
+// Split a comma-separated feature list into trimmed, non-empty entries.
+static std::vector<std::string> splitFeaturesCsv(const std::string& featuresCsv) {
     std::vector<std::string> features;
     for (usize start = 0; start <= featuresCsv.size();) {
         const usize comma = featuresCsv.find(',', start);
@@ -150,6 +144,18 @@ u32 compileEsshader(const std::string& source, const std::string& featuresCsv) {
         if (comma == std::string::npos) break;
         start = comma + 1;
     }
+    return features;
+}
+
+u32 compileEsshader(const std::string& source, const std::string& featuresCsv) {
+    auto* rm = g_resourceManager;
+    if (!rm) return 0;
+    resource::ParsedShader parsed = resource::ShaderParser::parse(source);
+    if (!parsed.valid) {
+        ES_LOG_ERROR("compileEsshader: parse failed: {}", parsed.errorMessage);
+        return 0;
+    }
+    std::vector<std::string> features = splitFeaturesCsv(featuresCsv);
     // Assemble both stages for the backend's language — a material .esshader
     // carries its WGSL twin in-file, and a missing twin surfaces here as a
     // descriptive assembly error rather than a backend compile failure.
@@ -183,6 +189,48 @@ u32 compileEsshader(const std::string& source, const std::string& featuresCsv) {
         }
     }
     return handle.id();
+}
+
+// Cook-time introspection: assembles both GLSL stages exactly as the runtime would
+// (same parser + injected headers), plus the reflection a GLSL→WGSL converter needs
+// (texture params → sampler units). The export cook feeds the assembled stages through
+// glslang+naga and appends the result as `#pragma vertex|fragment wgsl full` twins,
+// so twin-less user .esshader assets run on WebGPU (REARCH_WGSL Phase 4). Runs under
+// plain Node (the web glue loads there), so the cook needs no browser context.
+emscripten::val esshader_cookInfo(const std::string& source, const std::string& featuresCsv) {
+    emscripten::val out = emscripten::val::object();
+    resource::ParsedShader parsed = resource::ShaderParser::parse(source);
+    out.set("valid", parsed.valid);
+    if (!parsed.valid) {
+        out.set("error", parsed.errorMessage);
+        return out;
+    }
+    const std::vector<std::string> features = splitFeaturesCsv(featuresCsv);
+    const std::string vert = resource::ShaderParser::assembleStage(
+        parsed, resource::ShaderStage::Vertex, "", features,
+        resource::ShaderTargetLanguage::GLSL_ES300);
+    const std::string frag = resource::ShaderParser::assembleStage(
+        parsed, resource::ShaderStage::Fragment, "", features,
+        resource::ShaderTargetLanguage::GLSL_ES300);
+    out.set("name", parsed.name);
+    out.set("domain", parsed.domain);
+    out.set("hasWgslVertex", parsed.wgslStages.count(resource::ShaderStage::Vertex) != 0);
+    out.set("hasWgslFragment", parsed.wgslStages.count(resource::ShaderStage::Fragment) != 0);
+    out.set("hasSwitches", !parsed.switches.empty());
+    out.set("vertGlsl", vert);
+    out.set("fragGlsl", frag);
+    emscripten::val textures = emscripten::val::array();
+    u32 count = 0;
+    for (const auto& p : parsed.properties) {
+        if (p.fromParam && p.type == resource::ShaderPropertyType::Texture && p.textureUnit >= 0) {
+            emscripten::val tex = emscripten::val::object();
+            tex.set("name", p.name);
+            tex.set("unit", p.textureUnit);
+            textures.set(count++, tex);
+        }
+    }
+    out.set("textures", textures);
+    return out;
 }
 
 // Materials are engine-side data: the SDK pushes a material's resolved render state here when
@@ -489,6 +537,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("mesh2d_setGeometry", &esengine::mesh2d_setGeometry);
 
     emscripten::function("compileEsshader", &esengine::compileEsshader);
+    emscripten::function("esshader_cookInfo", &esengine::esshader_cookInfo);
     emscripten::function("defineMaterial", &esengine::defineMaterial);
     emscripten::function("setMaterialUniform", &esengine::setMaterialUniform);
     emscripten::function("setMaterialTexture", &esengine::setMaterialTexture);
