@@ -147,24 +147,36 @@ u32 compileEsshader(const std::string& source, const std::string& featuresCsv) {
         if (comma == std::string::npos) break;
         start = comma + 1;
     }
-    const std::string vert = resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Vertex, "", features);
-    const std::string frag = resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Fragment, "", features);
+    // Assemble both stages for the backend's language — a material .esshader
+    // carries its WGSL twin in-file, and a missing twin surfaces here as a
+    // descriptive assembly error rather than a backend compile failure.
+    const auto target = rm->preferredShaderTarget();
+    const std::string vert = resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Vertex, "", features, target);
+    const std::string frag = resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Fragment, "", features, target);
+    if (vert.empty() || frag.empty()) {
+        ES_LOG_ERROR("compileEsshader: stage assembly failed for '{}'", parsed.name);
+        return 0;
+    }
     // No DrawParams rewrite: assembled material sources already carry their
     // params in MaterialConstants; only sampler uniforms remain loose.
-    resource::ShaderHandle handle = rm->createShader(vert, frag, /*rewriteLoose=*/false);
+    resource::ShaderHandle handle = rm->createShader(vert, frag, /*rewriteLoose=*/false,
+                                                     rm->preferredShaderLanguage());
     if (!handle.isValid()) return 0;
     if (auto* rc = g_renderContext) {
         if (Shader* s = rm->getShader(handle)) {
             rc->materials().registerLayout(s->getProgramId(), buildMaterialLayout(parsed, *rc));
             // Point each texture param's sampler at its unit, once per program (GLSL ES 300 has
             // no layout(binding=); mirrors the batch path's u_textures setup in RenderFrame).
-            s->bind();
-            for (const auto& p : parsed.properties) {
-                if (p.fromParam && p.type == resource::ShaderPropertyType::Texture && p.textureUnit >= 0) {
-                    s->setUniform(p.name, static_cast<i32>(p.textureUnit));
+            // Sampler seeding is a GLSL concept; on WGSL the unit rides the bind group.
+            if (s->language() == GfxShaderLanguage::GLSL_ES300) {
+                s->bind();
+                for (const auto& p : parsed.properties) {
+                    if (p.fromParam && p.type == resource::ShaderPropertyType::Texture && p.textureUnit >= 0) {
+                        s->setUniform(p.name, static_cast<i32>(p.textureUnit));
+                    }
                 }
+                s->unbind();
             }
-            s->unbind();
         }
     }
     return handle.id();

@@ -3,6 +3,12 @@
 /**
  * @file    builtinShaders.ts
  * @brief   Built-in .esshader templates — the engine's stock material starting points.
+ * @details Each template carries a `#pragma fragment wgsl` twin so it compiles
+ *          on the WebGPU backend. Twins run under the canonical fragment-only
+ *          contract: `fs_main(v : VSOut)` with v.v_color / v.v_texCoord
+ *          (+ v.v_worldPos on Lit2D), the batch textures as t0..t7 / s0..s7,
+ *          params as mc.<name>, texture params as <name> + <name>_s, and the
+ *          frame clock as tc.u_time / tc.u_viewport.
  */
 
 export interface BuiltinShaderTemplate {
@@ -34,6 +40,12 @@ void main() {
     fragColor = texture(u_textures[0], v_texCoord) * v_color * u_tint;
 }
 #pragma end
+
+#pragma fragment wgsl
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    return textureSampleLevel(t0, s0, v.v_texCoord, 0.0) * v.v_color * mc.u_tint;
+}
+#pragma end
 `;
 
 const SPRITE_LIT = `#pragma shader "Sprite Lit"
@@ -60,6 +72,14 @@ void main() {
     fragColor = vec4(applyLighting2D(base.rgb, N, v_worldPos), base.a);
 }
 #pragma end
+
+#pragma fragment wgsl
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    let base = textureSampleLevel(t0, s0, v.v_texCoord, 0.0) * v.v_color * mc.u_tint;
+    let N = sampleNormal(u_normalMap, u_normalMap_s, v.v_texCoord);
+    return vec4f(applyLighting2D(base.rgb, N, v.v_worldPos), base.a);
+}
+#pragma end
 `;
 
 const SPRITE_HIT_FLASH = `#pragma shader "Hit Flash"
@@ -82,6 +102,13 @@ out vec4 fragColor;
 void main() {
     vec4 base = texture(u_textures[0], v_texCoord) * v_color;
     fragColor = vec4(mix(base.rgb, u_flashColor.rgb, u_flash), base.a);
+}
+#pragma end
+
+#pragma fragment wgsl
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    let base = textureSampleLevel(t0, s0, v.v_texCoord, 0.0) * v.v_color;
+    return vec4f(mix(base.rgb, mc.u_flashColor.rgb, mc.u_flash), base.a);
 }
 #pragma end
 `;
@@ -115,6 +142,23 @@ void main() {
     edge = max(edge, texture(u_textures[0], v_texCoord + vec2(-texel.x,  texel.y)).a);
     edge = max(edge, texture(u_textures[0], v_texCoord + vec2(-texel.x, -texel.y)).a);
     fragColor = mix(vec4(u_outlineColor.rgb, edge * u_outlineColor.a), base, base.a);
+}
+#pragma end
+
+#pragma fragment wgsl
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    let base = textureSampleLevel(t0, s0, v.v_texCoord, 0.0) * v.v_color;
+    let texel = mc.u_outlineWidth / vec2f(textureDimensions(t0, 0));
+    var edge = 0.0;
+    edge = max(edge, textureSampleLevel(t0, s0, v.v_texCoord + vec2f( texel.x, 0.0), 0.0).a);
+    edge = max(edge, textureSampleLevel(t0, s0, v.v_texCoord + vec2f(-texel.x, 0.0), 0.0).a);
+    edge = max(edge, textureSampleLevel(t0, s0, v.v_texCoord + vec2f(0.0,  texel.y), 0.0).a);
+    edge = max(edge, textureSampleLevel(t0, s0, v.v_texCoord + vec2f(0.0, -texel.y), 0.0).a);
+    edge = max(edge, textureSampleLevel(t0, s0, v.v_texCoord + vec2f( texel.x,  texel.y), 0.0).a);
+    edge = max(edge, textureSampleLevel(t0, s0, v.v_texCoord + vec2f( texel.x, -texel.y), 0.0).a);
+    edge = max(edge, textureSampleLevel(t0, s0, v.v_texCoord + vec2f(-texel.x,  texel.y), 0.0).a);
+    edge = max(edge, textureSampleLevel(t0, s0, v.v_texCoord + vec2f(-texel.x, -texel.y), 0.0).a);
+    return mix(vec4f(mc.u_outlineColor.rgb, edge * mc.u_outlineColor.a), base, base.a);
 }
 #pragma end
 `;
@@ -156,6 +200,26 @@ void main() {
     fragColor = vec4(rgb, base.a);
 }
 #pragma end
+
+#pragma fragment wgsl
+fn hash2d(p : vec2f) -> f32 { return fract(sin(dot(p, vec2f(127.1, 311.7))) * 43758.5453123); }
+fn noise2d(p : vec2f) -> f32 {
+    let i = floor(p);
+    var f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(hash2d(i), hash2d(i + vec2f(1.0, 0.0)), f.x),
+               mix(hash2d(i + vec2f(0.0, 1.0)), hash2d(i + vec2f(1.0, 1.0)), f.x), f.y);
+}
+
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    let base = textureSampleLevel(t0, s0, v.v_texCoord, 0.0) * v.v_color;
+    let n = noise2d(v.v_texCoord * mc.u_noiseScale);
+    let cut = mc.u_progress * (1.0 + mc.u_edgeWidth);
+    if (n < cut - mc.u_edgeWidth) { discard; }
+    let rgb = select(base.rgb, mc.u_edgeColor.rgb, n < cut);
+    return vec4f(rgb, base.a);
+}
+#pragma end
 `;
 
 const SPRITE_PIXELATE = `#pragma shader "Pixelate"
@@ -176,6 +240,13 @@ out vec4 fragColor;
 void main() {
     vec2 uv = (floor(v_texCoord * u_pixels) + 0.5) / u_pixels;
     fragColor = texture(u_textures[0], uv) * v_color;
+}
+#pragma end
+
+#pragma fragment wgsl
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    let uv = (floor(v.v_texCoord * mc.u_pixels) + 0.5) / mc.u_pixels;
+    return textureSampleLevel(t0, s0, uv, 0.0) * v.v_color;
 }
 #pragma end
 `;
@@ -199,6 +270,13 @@ out vec4 fragColor;
 void main() {
     vec2 uv = fract(v_texCoord + u_time.x * u_scrollSpeed);
     fragColor = texture(u_textures[0], uv) * v_color;
+}
+#pragma end
+
+#pragma fragment wgsl
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    let uv = fract(v.v_texCoord + tc.u_time.x * mc.u_scrollSpeed);
+    return textureSampleLevel(t0, s0, uv, 0.0) * v.v_color;
 }
 #pragma end
 `;

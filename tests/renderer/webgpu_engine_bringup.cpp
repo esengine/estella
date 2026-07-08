@@ -82,7 +82,9 @@ void renderFrame() {
 // compiled in each backend's language. It exercises every WGSL injection the
 // emitter owns (canonical vertex, VSOut, batch texture contract, Time/
 // Material constants, material texture bindings, the Lit2D header, and the
-// assembly-time feature preprocessor) against the REAL compiler: a WGSL error
+// assembly-time feature preprocessor) plus the language constructs the SDK's
+// template/filter twins rely on (sampleNormal, textureDimensions, nested
+// loops with continue, select) against the REAL compiler: a WGSL error
 // surfaces as a device validation error (the runner counts those); a GLSL
 // error fails shader creation here.
 const char* kEmitterProbe = R"(#pragma shader "EmitterProbe"
@@ -102,12 +104,21 @@ uniform sampler2D u_textures[8];
 out vec4 fragColor;
 void main() {
     vec4 c = texture(u_textures[0], v_texCoord) * v_color * u_tint;
-    vec4 m = texture(u_mask, v_texCoord);
-    vec3 litRgb = applyLighting2D(c.rgb * m.rgb, vec3(0.0, 0.0, 1.0), v_worldPos);
+    vec3 N = sampleNormal(u_mask, v_texCoord);
+    highp vec2 texel = 1.0 / vec2(textureSize(u_textures[0], 0));
+    float acc = 0.0;
+    for (float x = -1.0; x <= 1.0; x += 1.0) {
+        for (float y = -1.0; y <= 1.0; y += 1.0) {
+            if (x == 0.0 && y == 0.0) continue;
+            acc = max(acc, texture(u_textures[0], v_texCoord + vec2(x, y) * texel).a);
+        }
+    }
+    vec3 litRgb = applyLighting2D(c.rgb, N, v_worldPos);
+    vec3 edged = (acc > 1.5) ? u_tint.rgb : litRgb;
 #ifdef GLOW
-    fragColor = vec4(litRgb * u_progress, c.a);
+    fragColor = vec4(edged * u_progress, c.a);
 #else
-    fragColor = vec4(litRgb, c.a);
+    fragColor = vec4(edged, c.a);
 #endif
 }
 #pragma end
@@ -115,12 +126,21 @@ void main() {
 #pragma fragment wgsl
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
     var c = textureSampleLevel(t0, s0, v.v_texCoord, 0.0) * v.v_color * mc.u_tint;
-    let m = textureSampleLevel(u_mask, u_mask_s, v.v_texCoord, 0.0);
-    let litRgb = applyLighting2D(c.rgb * m.rgb, vec3f(0.0, 0.0, 1.0), v.v_worldPos);
+    let N = sampleNormal(u_mask, u_mask_s, v.v_texCoord);
+    let texel = 1.0 / vec2f(textureDimensions(t0, 0));
+    var acc = 0.0;
+    for (var x = -1.0; x <= 1.0; x += 1.0) {
+        for (var y = -1.0; y <= 1.0; y += 1.0) {
+            if (x == 0.0 && y == 0.0) { continue; }
+            acc = max(acc, textureSampleLevel(t0, s0, v.v_texCoord + vec2f(x, y) * texel, 0.0).a);
+        }
+    }
+    let litRgb = applyLighting2D(c.rgb, N, v.v_worldPos);
+    let edged = select(litRgb, mc.u_tint.rgb, acc > 1.5);
 #ifdef GLOW
-    return vec4f(litRgb * mc.u_progress, c.a);
+    return vec4f(edged * mc.u_progress, c.a);
 #else
-    return vec4f(litRgb, c.a);
+    return vec4f(edged, c.a);
 #endif
 }
 #pragma end

@@ -46,6 +46,23 @@ void main() {
     vec4 outline = u_outlineColor * maxAlpha * (1.0 - texColor.a);
     fragColor = texColor + outline;
 }
+#pragma end
+
+#pragma fragment wgsl
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    let texColor = textureSampleLevel(t0, s0, v.v_texCoord, 0.0) * v.v_color;
+    var maxAlpha = 0.0;
+    for (var x = -1.0; x <= 1.0; x += 1.0) {
+        for (var y = -1.0; y <= 1.0; y += 1.0) {
+            if (x == 0.0 && y == 0.0) { continue; }
+            let offset = vec2f(x, y) * mc.u_texelSize * mc.u_outlineWidth;
+            maxAlpha = max(maxAlpha, textureSampleLevel(t0, s0, v.v_texCoord + offset, 0.0).a);
+        }
+    }
+    let outline = mc.u_outlineColor * maxAlpha * (1.0 - texColor.a);
+    return texColor + outline;
+}
+#pragma end
 `;
 
 // =============================================================================
@@ -87,6 +104,27 @@ void main() {
     vec4 texColor = texture(u_textures[0], v_texCoord) * v_color;
     fragColor = texColor + shadow * (1.0 - texColor.a);
 }
+#pragma end
+
+#pragma fragment wgsl
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    let shadowUV = v.v_texCoord - mc.u_shadowOffset * mc.u_texelSize;
+    var shadowAlpha = 0.0;
+    var total = 0.0;
+    let radius = max(1.0, mc.u_shadowBlur);
+    for (var x = -2.0; x <= 2.0; x += 1.0) {
+        for (var y = -2.0; y <= 2.0; y += 1.0) {
+            let offset = vec2f(x, y) * mc.u_texelSize * radius;
+            shadowAlpha += textureSampleLevel(t0, s0, shadowUV + offset, 0.0).a;
+            total += 1.0;
+        }
+    }
+    shadowAlpha /= total;
+    let shadow = mc.u_shadowColor * shadowAlpha;
+    let texColor = textureSampleLevel(t0, s0, v.v_texCoord, 0.0) * v.v_color;
+    return texColor + shadow * (1.0 - texColor.a);
+}
+#pragma end
 `;
 
 // =============================================================================

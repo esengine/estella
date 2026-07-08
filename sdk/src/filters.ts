@@ -34,6 +34,19 @@ void main() {
         dot(u_cmRow3, texColor)) + u_colorOffset;
     fragColor = clamp(result, 0.0, 1.0);
 }
+#pragma end
+
+#pragma fragment wgsl
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    let texColor = textureSampleLevel(t0, s0, v.v_texCoord, 0.0) * v.v_color;
+    let result = vec4f(
+        dot(mc.u_cmRow0, texColor),
+        dot(mc.u_cmRow1, texColor),
+        dot(mc.u_cmRow2, texColor),
+        dot(mc.u_cmRow3, texColor)) + mc.u_colorOffset;
+    return clamp(result, vec4f(0.0), vec4f(1.0));
+}
+#pragma end
 `;
 
 let colorMatrixShader_: ShaderHandle | null = null;
