@@ -86,8 +86,11 @@ jobs:
           node "build/wasm/web-tests/bin/$t.cjs"
         done
 
+    # No --continue-on-error: a side-module compile break must FAIL the gate.
+    # It used to be swallowed here, so a physics-module error lived on master
+    # for days and only surfaced when a release ran `build -t all` for real.
     - name: Build remaining targets (spine, physics)
-      run: node build-tools/cli.js build -t all --no-sync --continue-on-error
+      run: node build-tools/cli.js build -t all --no-sync
 
     - name: Upload web wasm artifact
       uses: actions/upload-artifact@v4
