@@ -113,6 +113,13 @@ export interface ESEngineModule {
     initRenderer(): void;
     initRendererWithCanvas(canvasSelector: string): boolean;
     initRendererWithContext(contextHandle: number): boolean;
+    /**
+     * Boot on the WebGPU backend. The host must acquire a GPUDevice and pass it
+     * as `preinitializedWebGPUDevice` in the module factory arg BEFORE
+     * instantiation; '#canvas' resolves to the module's canvas. Returns false
+     * when the build carries no WebGPU backend or no device was provided.
+     */
+    initRendererWebGPU(canvasSelector: string, width: number, height: number): boolean;
     shutdownRenderer(): void;
     /**
      * Select which EstellaContext the bindings route through. Pass null to clear.

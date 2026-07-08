@@ -373,7 +373,11 @@ class EngineHostImpl {
    * advanced manually via tick() so captures are deterministic. Resolves once
    * the engine is ready; the driver then does loadScene → step → captureViewport.
    */
-  async bootHeadless(size: { width: number; height: number }): Promise<void> {
+  async bootHeadless(size: {
+    width: number;
+    height: number;
+    backend?: 'webgl2' | 'webgpu';
+  }): Promise<void> {
     if (this.booted) return;
     this.booted = true;
     this.setStatus('booting');
@@ -381,7 +385,11 @@ class EngineHostImpl {
       const canvas = this.ensureCanvas();
       canvas.width = size.width;
       canvas.height = size.height;
-      await this.bootCore(canvas, { runLoop: false, loadInitialScene: false });
+      await this.bootCore(canvas, {
+        runLoop: false,
+        loadInitialScene: false,
+        backend: size.backend,
+      });
     } catch (err) {
       this.swallowUnwind(err);
     }
@@ -393,8 +401,9 @@ class EngineHostImpl {
   // does neither — it advances frames via tick() and loads scenes on demand.
   private async bootCore(
     canvas: HTMLCanvasElement,
-    opts: { runLoop: boolean; loadInitialScene: boolean },
+    opts: { runLoop: boolean; loadInitialScene: boolean; backend?: 'webgl2' | 'webgpu' },
   ) {
+    const backend = opts.backend ?? 'webgl2';
     // Early build-consistency check: compare the wasm's stamped manifest
     // (variant / ABI / provenance) against this SDK before the heavy
     // instantiate. Advisory only — the runtime bridge handshake is the
@@ -414,34 +423,68 @@ class EngineHostImpl {
       default: (options?: Record<string, unknown>) => Promise<ESEngineModule>;
     };
 
-    const module = await createModule({
+    const moduleArg: Record<string, unknown> = {
       canvas,
       // The glue resolves esengine.wasm relative to itself; pin it explicitly.
       locateFile: (path: string) => `/wasm/${path}`,
       print: (text: string) => console.log('[wasm]', text),
       printErr: (text: string) => console.warn('[wasm]', text),
-    });
+    };
+    if (backend === 'webgpu') {
+      // The device must exist BEFORE the module instantiates — the wasm side
+      // reads it synchronously (Module.preinitializedWebGPUDevice).
+      const gpu = (navigator as unknown as {
+        gpu?: {
+          requestAdapter(): Promise<{ requestDevice(): Promise<unknown> } | null>;
+        };
+      }).gpu;
+      if (!gpu) throw new Error('WebGPU is not available in this renderer.');
+      const adapter = await gpu.requestAdapter();
+      if (!adapter) throw new Error('No WebGPU adapter available.');
+      moduleArg.preinitializedWebGPUDevice = await adapter.requestDevice();
+      // The swapchain glue resolves the canvas by document.querySelector, so
+      // it must be connected (the headless host never attaches it to a view).
+      // Pin it at the page origin at its backing size: a hidden window never
+      // presents for drawImage readback, so the WebGPU verify captures the
+      // PAGE (capturePage forces a composite) and needs pixel-exact placement.
+      if (!canvas.isConnected) {
+        canvas.style.position = 'fixed';
+        canvas.style.left = '0';
+        canvas.style.top = '0';
+        canvas.style.width = `${canvas.width}px`;
+        canvas.style.height = `${canvas.height}px`;
+        document.body.appendChild(canvas);
+      }
+    }
+    const module = await createModule(moduleArg);
     this.module_ = module;
 
-    // Bind the renderer to a context WE create on this canvas (rather than the
-    // engine's default '#canvas' selector) so the viewport works embedded
-    // under any element id. Mirrors the wechat runtime path.
-    const gl = canvas.getContext('webgl2', {
-      alpha: false,
-      antialias: true,
-      depth: true,
-      stencil: true,
-      premultipliedAlpha: false,
-    }) as WebGL2RenderingContext | null;
-    if (!gl) throw new Error('WebGL2 is not available in this renderer.');
+    // WebGL2: bind the renderer to a context WE create on this canvas (rather
+    // than the engine's default '#canvas' selector) so the viewport works
+    // embedded under any element id. Mirrors the wechat runtime path. WebGPU
+    // instead hands the engine the whole canvas swapchain via the injected
+    // device ('#canvas' resolves to the moduleArg canvas).
+    let glHandle: number | undefined;
+    if (backend === 'webgl2') {
+      const gl = canvas.getContext('webgl2', {
+        alpha: false,
+        antialias: true,
+        depth: true,
+        stencil: true,
+        premultipliedAlpha: false,
+      }) as WebGL2RenderingContext | null;
+      if (!gl) throw new Error('WebGL2 is not available in this renderer.');
 
-    const glHandle = module.GL.registerContext(gl, {
-      majorVersion: 2,
-      minorVersion: 0,
-      enableExtensionsByDefault: true,
-    });
+      glHandle = module.GL.registerContext(gl, {
+        majorVersion: 2,
+        minorVersion: 0,
+        enableExtensionsByDefault: true,
+      });
+    }
 
     const app = createWebApp(module, {
+      backend,
+      canvasSelector: `#${canvas.id}`,
       glContextHandle: glHandle,
       getViewportSize: () => ({ width: canvas.width, height: canvas.height }),
       // The per-version spine side modules are served next to esengine.wasm

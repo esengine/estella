@@ -39,6 +39,9 @@ const MANIFEST = process.env.ESTELLA_VERIFY_MANIFEST ?? '/scenes/sprite-renderin
 const W = Number(process.env.ESTELLA_VERIFY_W) || 640;
 const H = Number(process.env.ESTELLA_VERIFY_H) || 480;
 const STEPS = Number(process.env.ESTELLA_VERIFY_STEPS) || 30;
+// ESTELLA_VERIFY_BACKEND=webgpu runs the same scene + assertions on the WebGPU
+// backend (needs a real adapter — local runs; CI runners have none).
+const BACKEND = process.env.ESTELLA_VERIFY_BACKEND === 'webgpu' ? 'webgpu' : 'webgl2';
 
 // Headless / GPU-less (CI) WebGL2 falls back to SwiftShader; harmless with a GPU.
 app.commandLine.appendSwitch('enable-unsafe-swiftshader');
@@ -72,7 +75,7 @@ function serveDist() {
 
 function finish(result, server) {
   const ok = result.ok && result.capture?.rendered && (result.expect?.ok ?? true) && (result.preview?.ok ?? true);
-  console.log(`\n[verify:render] ${ok ? 'PASS' : 'FAIL'} — ${SCENE}`);
+  console.log(`\n[verify:render] ${ok ? 'PASS' : 'FAIL'} — ${SCENE} (${BACKEND})`);
   console.log('DRIVE_RESULT ' + JSON.stringify(result));
   process.exitCode = ok ? 0 : 1;
   try {
@@ -87,9 +90,14 @@ app.whenReady().then(async () => {
   let server;
   try {
     server = await serveDist();
-    const url = `http://127.0.0.1:${server.address().port}/headless.html?w=${W}&h=${H}`;
+    const url = `http://127.0.0.1:${server.address().port}/headless.html?w=${W}&h=${H}&backend=${BACKEND}`;
 
-    const win = new BrowserWindow({ show: false, width: W, height: H, webPreferences: { offscreen: false } });
+    // useContentSize: the capture rectangle must be the page area, not the
+    // outer frame (the same trap the parity runner documents).
+    const win = new BrowserWindow({
+      show: false, width: W, height: H, useContentSize: true,
+      webPreferences: { offscreen: false },
+    });
     win.webContents.on('console-message', (...args) => {
       const msg = args.map((a) => (a && typeof a === 'object' ? a.message ?? '' : String(a))).join(' ');
       if (/error|fail|unwind|exception|webgl/i.test(msg)) console.log('[renderer]', msg.slice(0, 240));
@@ -107,7 +115,49 @@ app.whenReady().then(async () => {
       await exec('window.__estellaHeadless.api.setRunMode(true)');
     }
     await exec(`window.__estellaHeadless.api.step(${STEPS}, 1 / 60)`);
-    const capture = await exec(`(() => {
+
+    // WebGPU: the engine has no synchronous readback (buffer maps are async)
+    // and a hidden window never presents, so drawImage-style page readback is
+    // blank — capture the PAGE instead (capturePage forces a composite; the
+    // same technique the engine-parity runner uses). The canvas sits at the
+    // page origin at its backing size, so the page pixels ARE the frame.
+    // Converted to the RGBA bottom-up order of ViewportCapture so both
+    // backends share the assertion math below.
+    const grabWebGPU = async () => {
+      const image = await win.webContents.capturePage({ x: 0, y: 0, width: W, height: H });
+      const bmp = image.toBitmap(); // BGRA, top-down
+      const { width, height } = image.getSize();
+      const rgba = Buffer.alloc(width * height * 4);
+      for (let y = 0; y < height; y++) {
+        const srcRow = y * width * 4;
+        const dstRow = (height - 1 - y) * width * 4;
+        for (let x = 0; x < width; x++) {
+          const s = srcRow + x * 4;
+          const d = dstRow + x * 4;
+          rgba[d] = bmp[s + 2];
+          rgba[d + 1] = bmp[s + 1];
+          rgba[d + 2] = bmp[s];
+          rgba[d + 3] = bmp[s + 3];
+        }
+      }
+      return { rgba, width, height };
+    };
+    const webgpuFrame = BACKEND === 'webgpu' ? await grabWebGPU() : null;
+
+    const captureStats = (rgba, width, height) => {
+      const min = [255, 255, 255], max = [0, 0, 0];
+      let nonZero = 0;
+      for (let i = 0; i < rgba.length; i += 4) {
+        for (let k = 0; k < 3; k++) { const v = rgba[i + k]; if (v < min[k]) min[k] = v; if (v > max[k]) max[k] = v; }
+        if (rgba[i] | rgba[i + 1] | rgba[i + 2]) nonZero++;
+      }
+      const spread = (max[0] - min[0]) + (max[1] - min[1]) + (max[2] - min[2]);
+      return { w: width, h: height, totalPixels: rgba.length / 4, nonZeroPixels: nonZero, min, max, spread, rendered: spread > 16 };
+    };
+
+    const capture = webgpuFrame
+      ? captureStats(webgpuFrame.rgba, webgpuFrame.width, webgpuFrame.height)
+      : await exec(`(() => {
       const c = window.__estellaHeadless.api.captureViewport();
       const px = c.rgba; const min = [255, 255, 255], max = [0, 0, 0]; let nonZero = 0;
       for (let i = 0; i < px.length; i += 4) {
@@ -125,7 +175,21 @@ app.whenReady().then(async () => {
     let expect = null;
     if (process.env.ESTELLA_VERIFY_EXPECT) {
       const points = JSON.parse(process.env.ESTELLA_VERIFY_EXPECT);
-      expect = await exec(`(() => {
+      const evaluate = (rgba, w, h) => {
+        const out = points.map((p) => {
+          const px = Math.round(p.x * (w - 1));
+          const glRow = (h - 1) - Math.round(p.y * (h - 1)); // capture rows are bottom-up
+          const i = (glRow * w + px) * 4;
+          const got = [rgba[i], rgba[i + 1], rgba[i + 2]];
+          const tol = p.tol ?? 24;
+          const ok = got.every((g, k) => Math.abs(g - p.rgb[k]) <= tol);
+          return { x: p.x, y: p.y, want: p.rgb, got, ok };
+        });
+        return { points: out, ok: out.every((o) => o.ok) };
+      };
+      expect = webgpuFrame
+        ? evaluate(webgpuFrame.rgba, webgpuFrame.width, webgpuFrame.height)
+        : await exec(`(() => {
         const pts = ${JSON.stringify(points)};
         const c = window.__estellaHeadless.api.captureViewport();
         const { width: w, height: h, rgba } = c;
@@ -143,7 +207,10 @@ app.whenReady().then(async () => {
     }
     // Optional PNG dump (ESTELLA_VERIFY_OUT) of the engine framebuffer (not the
     // page) so the rendered frame can be eyeballed. GL readback is bottom-up → flip.
-    if (process.env.ESTELLA_VERIFY_OUT) {
+    if (process.env.ESTELLA_VERIFY_OUT && BACKEND === 'webgpu') {
+      const image = await win.webContents.capturePage({ x: 0, y: 0, width: W, height: H });
+      await writeFile(process.env.ESTELLA_VERIFY_OUT, image.toPNG());
+    } else if (process.env.ESTELLA_VERIFY_OUT) {
       const dataUrl = await exec(`(() => {
         const c = window.__estellaHeadless.api.captureViewport();
         const cv = document.createElement('canvas'); cv.width = c.width; cv.height = c.height;
@@ -158,8 +225,12 @@ app.whenReady().then(async () => {
     // Optional offscreen material-preview assertion (ESTELLA_VERIFY_PREVIEW =
     // {w,h,rgb:[r,g,b],tol?}): renders a scene material to an offscreen target and checks the
     // center pixel — proves the render-to-texture preview primitive, not just the viewport.
+    // The material preview reads back through GL — skipped on WebGPU (its
+    // buffer maps are async; a readback seam is future work).
     let preview = null;
-    if (process.env.ESTELLA_VERIFY_PREVIEW) {
+    if (process.env.ESTELLA_VERIFY_PREVIEW && BACKEND === 'webgpu') {
+      console.log('[verify:render] preview assertion skipped on webgpu');
+    } else if (process.env.ESTELLA_VERIFY_PREVIEW) {
       const cfg = JSON.parse(process.env.ESTELLA_VERIFY_PREVIEW);
       preview = await exec(`(() => {
         const cfg = ${JSON.stringify(cfg)};

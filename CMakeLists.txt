@@ -15,6 +15,12 @@ option(ES_ENABLE_TILEMAP "Enable Tilemap support" ON)
 option(ES_ENABLE_PARTICLES "Enable Particle system" ON)
 option(ES_ENABLE_POSTPROCESS "Enable Post-processing pipeline" ON)
 option(ES_ENABLE_BITMAP_TEXT "Enable Bitmap text rendering" ON)
+# WebGPU render backend: compiles WebGPUDevice into the engine and pulls the
+# emdawnwebgpu port (Dawn's webgpu.h + JS glue) into every SDK executable.
+# ON for the web build; stays OFF for WeChat/playable (no WebGPU there, and
+# the port's JS glue would only cost size). The web-tests build also leaves it
+# OFF — its harness targets compile WebGPUDevice.cpp into themselves.
+option(ES_ENABLE_WEBGPU "Enable the WebGPU render backend (emdawnwebgpu port)" OFF)
 option(ES_ENABLE_BASIS "Build the Basis Universal KTX2 transcoder module" OFF)
 option(ES_BUILD_MAIN_MODULE "Build as MAIN_MODULE for dynamic linking" OFF)
 option(ES_BUILD_SIDE_MODULE "Build side modules for dynamic linking" OFF)
@@ -77,6 +83,12 @@ set(ESENGINE_SOURCES
 if(ES_ENABLE_POSTPROCESS)
     list(APPEND ESENGINE_SOURCES
         src/esengine/renderer/PostProcessPipeline.cpp
+    )
+endif()
+
+if(ES_ENABLE_WEBGPU)
+    list(APPEND ESENGINE_SOURCES
+        src/esengine/renderer/webgpu/WebGPUDevice.cpp
     )
 endif()
 
@@ -268,6 +280,14 @@ endif()
 
 if(ES_ENABLE_POSTPROCESS)
     target_compile_definitions(esengine PUBLIC ES_ENABLE_POSTPROCESS)
+endif()
+
+if(ES_ENABLE_WEBGPU)
+    target_compile_definitions(esengine PUBLIC ES_ENABLE_WEBGPU)
+    # PUBLIC: the port supplies webgpu.h at compile time and its JS glue at
+    # link time — every SDK executable linking the engine needs both sides.
+    target_compile_options(esengine PUBLIC --use-port=emdawnwebgpu)
+    target_link_options(esengine PUBLIC --use-port=emdawnwebgpu)
 endif()
 
 if(ES_ENABLE_BITMAP_TEXT)

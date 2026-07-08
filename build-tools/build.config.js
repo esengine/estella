@@ -23,7 +23,10 @@ export default {
     wasm: {
         web: {
             buildDir: 'build-web',
-            cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF'],
+            // WebGPU backend ships in the web SDK only — WeChat/playable have no
+            // WebGPU and skip the emdawnwebgpu glue. Variants sharing build-web
+            // (spine*) must carry identical flags or configures would thrash.
+            cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_WEBGPU=ON'],
             targets: ['esengine_sdk'],
             outputs: {
                 'sdk/esengine.js': 'wasm/web/esengine.js',
@@ -71,7 +74,7 @@ export default {
         },
         spine: {
             buildDir: 'build-web',
-            cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF'],
+            cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_WEBGPU=ON'],
             targets: ['spine_module'],
             outputs: {
                 'sdk/spine42.js': 'wasm/web/spine42.js',
@@ -80,7 +83,7 @@ export default {
         },
         spine38: {
             buildDir: 'build-web',
-            cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF'],
+            cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_WEBGPU=ON'],
             targets: ['spine_module_38'],
             outputs: {
                 'sdk/spine38.js': 'wasm/web/spine38.js',
@@ -89,7 +92,7 @@ export default {
         },
         spine41: {
             buildDir: 'build-web',
-            cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF'],
+            cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_WEBGPU=ON'],
             targets: ['spine_module_41'],
             outputs: {
                 'sdk/spine41.js': 'wasm/web/spine41.js',

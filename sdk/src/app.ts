@@ -996,6 +996,20 @@ export class App {
 export interface WebAppOptions {
     getViewportSize?: () => { width: number; height: number };
     glContextHandle?: number;
+    /**
+     * Render backend. 'webgpu' boots the injected-device path: the host must
+     * have acquired a GPUDevice (navigator.gpu) and passed it as the module
+     * factory's `preinitializedWebGPUDevice` before instantiation — the engine
+     * then owns the canvas swapchain, so no glContextHandle applies.
+     * Default: WebGL2.
+     */
+    backend?: 'webgl2' | 'webgpu';
+    /**
+     * CSS selector of the canvas for the WebGPU swapchain. The WebGPU glue
+     * resolves it with document.querySelector, so the canvas must be IN the
+     * DOM and reachable by this selector. Default '#canvas'.
+     */
+    canvasSelector?: string;
     plugins?: Plugin[];
     /** The realm's optional-native-module acquirer; set before plugins build so
      *  SpinePlugin (and later physics) can pull from it. See {@link App.sideModules}. */
@@ -1013,7 +1027,14 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
 
     app.connectCpp(cppRegistry, module, { strict: true });
 
-    if (options?.glContextHandle) {
+    if (options?.backend === 'webgpu') {
+        const size = options.getViewportSize?.() ?? { width: 800, height: 600 };
+        if (!module.initRendererWebGPU(options.canvasSelector ?? '#canvas', size.width, size.height)) {
+            throw new Error(
+                'WebGPU renderer initialization failed — the module needs a ' +
+                'preinitializedWebGPUDevice and a WebGPU-enabled engine build.');
+        }
+    } else if (options?.glContextHandle) {
         module.initRendererWithContext(options.glContextHandle);
     } else {
         module.initRenderer();

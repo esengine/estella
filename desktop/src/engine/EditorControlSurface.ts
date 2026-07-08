@@ -288,12 +288,30 @@ export class EditorControlSurfaceImpl {
         'captureViewport requires a render host (no canvas) — run under the live viewport or the headless editor window',
       );
     }
-    const gl = canvas.getContext('webgl2') as WebGL2RenderingContext | null;
-    if (!gl) throw new Error('captureViewport: no WebGL2 context on the viewport canvas');
     const width = canvas.width;
     const height = canvas.height;
+    const gl = canvas.getContext('webgl2') as WebGL2RenderingContext | null;
+    if (gl) {
+      const rgba = new Uint8Array(width * height * 4);
+      gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, rgba);
+      return { rgba, width, height };
+    }
+    // Non-GL canvas (the WebGPU backend): read the presented frame back
+    // through a 2D-canvas copy — the compositor path works for any context
+    // type. getImageData rows are top-down; flip to the bottom-up order the
+    // GL readback established (the capture consumers all assume it).
+    const copy = document.createElement('canvas');
+    copy.width = width;
+    copy.height = height;
+    const ctx2d = copy.getContext('2d');
+    if (!ctx2d) throw new Error('captureViewport: no 2d context for the readback copy');
+    ctx2d.drawImage(canvas, 0, 0);
+    const img = ctx2d.getImageData(0, 0, width, height);
     const rgba = new Uint8Array(width * height * 4);
-    gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, rgba);
+    for (let y = 0; y < height; y++) {
+      const src = (height - 1 - y) * width * 4;
+      rgba.set(img.data.subarray(src, src + width * 4), y * width * 4);
+    }
     return { rgba, width, height };
   }
 

@@ -27,12 +27,15 @@ declare global {
 }
 
 // Viewport size is driver-controlled via the query string (?w=&h=) so captures
-// are a known resolution; default to a common 16:9 frame.
+// are a known resolution; default to a common 16:9 frame. ?backend=webgpu
+// boots the WebGPU backend instead of WebGL2 — the same scene assertions then
+// verify both backends.
 const params = new URLSearchParams(location.search);
 const width = Number(params.get('w')) || 1280;
 const height = Number(params.get('h')) || 720;
+const backend = params.get('backend') === 'webgpu' ? 'webgpu' : 'webgl2';
 
 window.__estellaHeadless = {
-  ready: EngineHost.bootHeadless({ width, height }),
+  ready: EngineHost.bootHeadless({ width, height, backend }),
   api: EditorControlSurface,
 };

@@ -34,6 +34,9 @@
 
 #include "../renderer/OpenGLHeaders.hpp"
 #include "../renderer/GfxDevice.hpp"
+#ifdef ES_ENABLE_WEBGPU
+#include "../renderer/webgpu/WebGPUDevice.hpp"
+#endif
 #include "../renderer/RenderContext.hpp"
 #include "../renderer/RenderFrame.hpp"
 #include "../renderer/ImmediateDraw.hpp"
@@ -237,6 +240,12 @@ void undefineMaterial(u32 materialId) {
     if (auto* rc = g_renderContext) rc->materials().undefine(materialId);
 }
 
+// Build provenance signature — kept self-contained (not via the umbrella
+// header) so the literal is guaranteed to land in this translation unit and
+// survive in the shipped binary. Emitted once at init as an origin marker.
+static constexpr const char* kEstellaBuildProvenance =
+    "estella-build:9abbd5b4-06f3-47df-b968-826763c6879a";
+
 bool initRendererInternal(const char* canvasSelector) {
     if (g_initialized) return true;
 
@@ -260,16 +269,44 @@ bool initRendererInternal(const char* canvasSelector) {
     }
 
     ES_LOG_INFO("WebGL2 context created for '{}'", canvasSelector);
-
-    // Build provenance signature — kept self-contained (not via the umbrella
-    // header) so the literal is guaranteed to land in this translation unit and
-    // survive in the shipped binary. Emitted once at init as an origin marker.
-    static constexpr const char* kEstellaBuildProvenance =
-        "estella-build:9abbd5b4-06f3-47df-b968-826763c6879a";
     ES_LOG_INFO("Estella runtime provenance {}", kEstellaBuildProvenance);
 
     g_activeContext = &legacyCtx().context();
     return g_activeContext->init(static_cast<int>(webglCtx));
+}
+
+// The WebGPU mirror of initRendererInternal — the same platform boundary,
+// injecting the backend instead of a GL context handle. The page acquires the
+// GPUDevice asynchronously (navigator.gpu) BEFORE instantiating the module and
+// hands it over via Module.preinitializedWebGPUDevice; the wasm side stays
+// fully synchronous. @p width/@p height size the canvas swapchain (the SDK
+// passes the canvas backing size it already manages).
+bool initRendererWebGPU(const std::string& canvasSelector, u32 width, u32 height) {
+#ifdef ES_ENABLE_WEBGPU
+    if (g_initialized) return true;
+
+    WGPUDevice raw = emscripten_webgpu_get_device();
+    if (!raw) {
+        ES_LOG_ERROR("initRendererWebGPU: no Module.preinitializedWebGPUDevice — the host "
+                     "must acquire a GPUDevice before instantiating the module");
+        return false;
+    }
+    auto device = makeUnique<WebGPUDevice>(raw);
+    if (!device->configureSurface(canvasSelector.c_str(), width, height)) {
+        ES_LOG_ERROR("initRendererWebGPU: surface configuration failed for '{}'", canvasSelector);
+        return false;
+    }
+
+    ES_LOG_INFO("WebGPU device injected for '{}' ({}x{})", canvasSelector, width, height);
+    ES_LOG_INFO("Estella runtime provenance {}", kEstellaBuildProvenance);
+
+    g_activeContext = &legacyCtx().context();
+    return g_activeContext->init(std::move(device));
+#else
+    (void)canvasSelector; (void)width; (void)height;
+    ES_LOG_ERROR("initRendererWebGPU: this build carries no WebGPU backend (ES_ENABLE_WEBGPU off)");
+    return false;
+#endif
 }
 
 void initRenderer() {
@@ -404,6 +441,9 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("initRenderer", &esengine::initRenderer);
     emscripten::function("initRendererWithCanvas", &esengine::initRendererWithCanvas);
     emscripten::function("initRendererWithContext", &esengine::initRendererWithContext);
+    // Registered in every build variant; without ES_ENABLE_WEBGPU it reports
+    // and returns false, so the JS surface never drifts across variants.
+    emscripten::function("initRendererWebGPU", &esengine::initRendererWebGPU);
     emscripten::function("shutdownRenderer", &esengine::shutdownRenderer);
     emscripten::function("renderFrame", &esengine::renderFrame);
     emscripten::function("renderFrameWithMatrix", &esengine::renderFrameWithMatrix);
