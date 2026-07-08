@@ -139,6 +139,8 @@ if(EMSCRIPTEN)
         renderer/webgpu_bringup.cpp
         ${CMAKE_SOURCE_DIR}/src/esengine/renderer/webgpu/WebGPUDevice.cpp
         ${CMAKE_SOURCE_DIR}/src/esengine/core/Log.cpp
+        # The twins assemble from the embedded .esshaders (WGSL target).
+        ${CMAKE_SOURCE_DIR}/src/esengine/resource/ShaderParser.cpp
     )
     target_include_directories(webgpu_bringup PRIVATE
         ${CMAKE_SOURCE_DIR}/src

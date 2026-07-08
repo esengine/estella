@@ -60,3 +60,66 @@ void main() {
     fragColor = vec4(v_color.rgb, v_color.a * alpha);
 }
 #pragma end
+
+#pragma vertex wgsl
+struct FrameConstants { projection : mat4x4f };
+@group(0) @binding(0) var<uniform> frame : FrameConstants;
+
+struct VSIn {
+    @location(0) a_position : vec2f,
+    @location(1) a_texCoord : vec2f,
+    @location(2) a_color : vec4f,
+    @location(3) a_shapeInfo : vec4f,
+};
+struct VSOut {
+    @builtin(position) pos : vec4f,
+    @location(0) v_uv : vec2f,
+    @location(1) v_color : vec4f,
+    @location(2) v_shapeInfo : vec4f,
+};
+
+@vertex fn vs_main(v : VSIn) -> VSOut {
+    var out : VSOut;
+    out.pos = frame.projection * vec4f(v.a_position, 0.0, 1.0);
+    out.v_uv = v.a_texCoord;
+    out.v_color = v.a_color;
+    out.v_shapeInfo = v.a_shapeInfo;
+    return out;
+}
+#pragma end
+
+#pragma fragment wgsl
+struct VSOut {
+    @builtin(position) pos : vec4f,
+    @location(0) v_uv : vec2f,
+    @location(1) v_color : vec4f,
+    @location(2) v_shapeInfo : vec4f,
+};
+
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    let halfSize = v.v_shapeInfo.yz;
+    let cornerRadius = v.v_shapeInfo.w;
+    let p = v.v_uv * halfSize;
+    let shapeType = v.v_shapeInfo.x;
+
+    var dist : f32;
+    if (shapeType < 0.5) {
+        let r = min(halfSize.x, halfSize.y);
+        dist = length(p) - r;
+    } else if (shapeType < 1.5) {
+        let r = min(halfSize.x, halfSize.y);
+        let elongation = halfSize - vec2f(r, r);
+        let q = abs(p) - elongation;
+        dist = length(max(q, vec2f(0.0, 0.0))) - r;
+    } else {
+        let r = min(cornerRadius, min(halfSize.x, halfSize.y));
+        let q = abs(p) - halfSize + vec2f(r, r);
+        dist = length(max(q, vec2f(0.0, 0.0))) + min(max(q.x, q.y), 0.0) - r;
+    }
+
+    let fw = fwidth(dist);
+    let alpha = 1.0 - smoothstep(-fw, fw, dist);
+    if (alpha < 0.001) { discard; }
+    return vec4f(v.v_color.rgb, v.v_color.a * alpha);
+}
+#pragma end

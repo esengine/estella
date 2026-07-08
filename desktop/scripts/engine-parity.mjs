@@ -132,11 +132,14 @@ app.whenReady().then(async () => {
   // - green sprite:   world center (192,176) size 48 → screen (192, 80)
   // - magenta circle: world center (128,80) r 32     → screen (128, 176)
   // - clear color corner (8, 8)
+  // - lit sprite: white sprite lit by a red point light centered on it plus a
+  //   0.2 white ambient → white * (0.2 + red) ≈ (255, 51, 51) at (64, 176)
   const POINTS = {
     checkerA: { x: 48, y: 96 },   // lower-left quarter center
     checkerB: { x: 48, y: 64 },   // upper-left quarter center (opposite texel)
     green: { x: 192, y: 80 },
     circle: { x: 128, y: 176 },
+    lit: { x: 64, y: 176 },
     corner: { x: 8, y: 8 },
   };
 
@@ -154,11 +157,12 @@ app.whenReady().then(async () => {
       (near(p.checkerA.r, 0) && near(p.checkerA.b, 255) && near(p.checkerB.r, 255) && near(p.checkerB.b, 0));
     const greenOk = near(p.green.r, 0) && near(p.green.g, 255) && near(p.green.b, 0);
     const circleOk = near(p.circle.r, 255) && near(p.circle.g, 0) && near(p.circle.b, 255);
+    const litOk = near(p.lit.r, 255) && near(p.lit.g, 51) && near(p.lit.b, 51);
     const cornerOk = near(p.corner.r, 13) && near(p.corner.g, 13) && near(p.corner.b, 77, 60);
     const runOk = run.data.framesOk && run.data.errors.length === 0 &&
-      checkerOk && greenOk && circleOk && cornerOk;
+      checkerOk && greenOk && circleOk && litOk && cornerOk;
     console.log(`[${run.name}] frames=${run.data.framesOk} errors=${run.data.errors.length} ` +
-      `checker=${checkerOk} green=${greenOk} circle=${circleOk} corner=${cornerOk}`);
+      `checker=${checkerOk} green=${greenOk} circle=${circleOk} lit=${litOk} corner=${cornerOk}`);
     ok = ok && runOk;
   }
 

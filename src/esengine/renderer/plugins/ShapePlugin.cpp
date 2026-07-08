@@ -6,7 +6,6 @@
 #include "../RenderFrame.hpp"
 #include "../Shader.hpp"
 #include "../ShaderEmbeds.generated.hpp"
-#include "../webgpu/WGSLTwins.hpp"
 #include "../../ecs/components/Transform.hpp"
 #include "../../ecs/components/ShapeRenderer.hpp"
 #include "../../resource/ShaderParser.hpp"
@@ -16,20 +15,16 @@
 namespace esengine {
 
 void ShapePlugin::init(RenderFrameContext& ctx) {
-    if (ctx.resources.preferredShaderLanguage() == GfxShaderLanguage::GLSL_ES300) {
-        auto shapeParsed = resource::ShaderParser::parse(ShaderEmbeds::SHAPE);
-        shape_shader_handle_ = ctx.resources.createShaderWithBindings(
-            resource::ShaderParser::assembleStage(shapeParsed, resource::ShaderStage::Vertex),
-            resource::ShaderParser::assembleStage(shapeParsed, resource::ShaderStage::Fragment),
-            {{0, "a_position"}, {1, "a_texCoord"}, {2, "a_color"}, {3, "a_shapeInfo"}}
-        );
-    } else {
-        // The WGSL twin fixes its attribute locations in-source; name bindings
-        // are a GL link-time concept.
-        shape_shader_handle_ = ctx.resources.createShaderWithBindings(
-            webgpu::kShapeWGSL_Vertex, webgpu::kShapeWGSL_Fragment,
-            {}, GfxShaderLanguage::WGSL);
-    }
+    // One path for both backends: the WGSL twin rides shape.esshader, so the
+    // stages assemble for the preferred target. Attribute name bindings are a
+    // GL link-time concept; the WGSL twin fixes its locations in-source.
+    const auto target = ctx.resources.preferredShaderTarget();
+    auto shapeParsed = resource::ShaderParser::parse(ShaderEmbeds::SHAPE);
+    shape_shader_handle_ = ctx.resources.createShaderWithBindings(
+        resource::ShaderParser::assembleStage(shapeParsed, resource::ShaderStage::Vertex, "", {}, target),
+        resource::ShaderParser::assembleStage(shapeParsed, resource::ShaderStage::Fragment, "", {}, target),
+        {{0, "a_position"}, {1, "a_texCoord"}, {2, "a_color"}, {3, "a_shapeInfo"}},
+        ctx.resources.preferredShaderLanguage());
 
     Shader* shader = ctx.resources.getShader(shape_shader_handle_);
     shape_shader_id_ = shader ? shader->getProgramId() : 0;

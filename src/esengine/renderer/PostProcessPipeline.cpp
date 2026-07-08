@@ -15,40 +15,15 @@
 #include "RenderContext.hpp"
 #include "GfxDevice.hpp"
 #include "Shader.hpp"
-#include "webgpu/WGSLTwins.hpp"
+#include "ShaderEmbeds.generated.hpp"
 #include "../resource/ResourceManager.hpp"
+#include "../resource/ShaderParser.hpp"
 #include "../core/Log.hpp"
 #include <algorithm>
 
 #include "GfxEnums.hpp"
 
 namespace esengine {
-
-static const char* BLIT_VERTEX = R"(#version 300 es
-precision highp float;
-
-layout(location = 0) in vec2 a_position;
-layout(location = 1) in vec2 a_texCoord;
-
-out vec2 v_texCoord;
-
-void main() {
-    v_texCoord = a_texCoord;
-    gl_Position = vec4(a_position, 0.0, 1.0);
-}
-)";
-
-static const char* BLIT_FRAGMENT = R"(#version 300 es
-precision highp float;
-
-in vec2 v_texCoord;
-uniform sampler2D u_texture;
-out vec4 fragColor;
-
-void main() {
-    fragColor = texture(u_texture, v_texCoord);
-}
-)";
 
 PostProcessPipeline::PostProcessPipeline(GfxDevice& device,
                                          RenderContext& context,
@@ -70,14 +45,16 @@ void PostProcessPipeline::init(u32 width, u32 height) {
     width_ = width;
     height_ = height;
 
-    if (resourceManager_.preferredShaderLanguage() == GfxShaderLanguage::GLSL_ES300) {
-        blitShader_ = resourceManager_.createShader(BLIT_VERTEX, BLIT_FRAGMENT);
-    } else {
-        blitShader_ = resourceManager_.createShader(webgpu::kBlitWGSL_Vertex,
-                                                    webgpu::kBlitWGSL_Fragment,
-                                                    /*rewriteLoose=*/false,
-                                                    GfxShaderLanguage::WGSL);
-    }
+    // The pass-through copy, authored as blit.esshader (WGSL twin included).
+    // No loose non-sampler uniforms, so the DrawParams rewrite has nothing to
+    // lift; u_texture seeds via setUniform (GLSL-only, guarded there).
+    const auto target = resourceManager_.preferredShaderTarget();
+    auto parsed = resource::ShaderParser::parse(ShaderEmbeds::BLIT);
+    blitShader_ = resourceManager_.createShader(
+        resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Vertex, "", {}, target),
+        resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Fragment, "", {}, target),
+        /*rewriteLoose=*/false,
+        resourceManager_.preferredShaderLanguage());
     if (!blitShader_.isValid()) {
         ES_LOG_ERROR("PostProcessPipeline: Failed to create blit shader");
         return;

@@ -24,6 +24,7 @@
 #include "esengine/ecs/components/Transform.hpp"
 #include "esengine/ecs/components/Sprite.hpp"
 #include "esengine/ecs/components/ShapeRenderer.hpp"
+#include "esengine/ecs/components/Light2D.hpp"
 #include "esengine/renderer/RenderContext.hpp"
 #include "esengine/renderer/RenderFrame.hpp"
 #include "esengine/renderer/webgpu/WebGPUDevice.hpp"
@@ -199,6 +200,42 @@ bool buildScene(EstellaContext& ctx, ecs::Registry& registry) {
         s.color = {1.0f, 0.0f, 1.0f, 1.0f};
         s.size = {64.0f, 64.0f};
     }
+
+    // Lit sprite: white, bottom-left (world center 64,80, size 48) — drives
+    // the batch LIT variant through the production path. Lighting is pinned by
+    // the two explicit lights below: white * (0.2 ambient + red point) ≈
+    // (255, 51, 51) at the sprite center on BOTH backends.
+    const u8 white[4] = {255, 255, 255, 255};
+    auto whiteTex = rm.createTexture(1, 1, ConstSpan<u8>(white, sizeof(white)),
+                                     TextureFormat::RGBA8);
+    if (!whiteTex.isValid()) return false;
+    {
+        auto e = registry.create();
+        auto& t = registry.emplace<ecs::Transform>(e);
+        t.position = {64.0f, 80.0f, 0.0f};
+        auto& s = registry.emplace<ecs::Sprite>(e);
+        s.texture = whiteTex;
+        s.size = {48.0f, 48.0f};
+        s.lit = true;
+    }
+    {
+        auto e = registry.create();
+        auto& t = registry.emplace<ecs::Transform>(e);
+        t.position = {64.0f, 80.0f, 0.0f};  // centered on the lit sprite: ndotl = 1, atten = 1
+        auto& l = registry.emplace<ecs::Light2D>(e);
+        l.type = static_cast<i32>(ecs::Light2DType::Point);
+        l.color = {1.0f, 0.0f, 0.0f, 1.0f};
+        l.intensity = 1.0f;
+        l.radius = 200.0f;
+    }
+    {
+        auto e = registry.create();
+        registry.emplace<ecs::Transform>(e);
+        auto& l = registry.emplace<ecs::Light2D>(e);
+        l.type = static_cast<i32>(ecs::Light2DType::Ambient);
+        l.color = {1.0f, 1.0f, 1.0f, 1.0f};
+        l.intensity = 0.2f;
+    }
     return true;
 }
 
@@ -257,6 +294,15 @@ int main() {
         return 1;
     }
     if (!compileEmitterProbe(context, useGL)) {
+        return 1;
+    }
+    // The batch feature variants compile in both languages now (SDF has no
+    // scene here — a text glyph atlas is out of scope — but a bad module
+    // surfaces as a validation error the runner counts; LIT also renders via
+    // the lit sprite above).
+    auto& rf = context.require<RenderFrame>();
+    if (rf.batchProgram({"SDF"}) == 0 || rf.batchProgram({"LIT"}) == 0) {
+        std::printf("PARITY_FAIL batch variants\n");
         return 1;
     }
 

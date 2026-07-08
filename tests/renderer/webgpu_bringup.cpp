@@ -6,8 +6,8 @@
  * A browser-run program: the host page acquires a GPUDevice (navigator.gpu) and
  * hands it over via Module.preinitializedWebGPUDevice; this program then drives
  * the REAL WebGPUDevice through the same RHI calls the engine's render path
- * makes, with the engine's WGSL twins (WGSLTwins.hpp). Each frame is THREE
- * passes:
+ * makes, with the WGSL twins assembled from the embedded .esshaders by
+ * ShaderParser (the production path's source). Each frame is THREE passes:
  *   A. offscreen: a framebuffer with color + depth-stencil attachments, all
  *      load-op cleared (color green) — the right batch quad then SAMPLES the
  *      rendered color target
@@ -26,7 +26,8 @@
  * The electron runner (desktop/scripts/webgpu-bringup.mjs) asserts the pixels.
  */
 #include "esengine/renderer/webgpu/WebGPUDevice.hpp"
-#include "esengine/renderer/webgpu/WGSLTwins.hpp"
+#include "esengine/renderer/ShaderEmbeds.generated.hpp"
+#include "esengine/resource/ShaderParser.hpp"
 
 #include <emscripten.h>
 #include <emscripten/html5.h>
@@ -256,16 +257,24 @@ int main() {
     g_offscreenFb = device.createFramebuffer(fbDesc);
 
     // --- Programs + layouts + pipelines (the engine's streams, byte for byte,
-    // with the engine's WGSL twins).
+    // with the WGSL twins assembled from the embedded .esshaders).
+    const auto assembleWGSL = [](const char* embed, resource::ShaderStage stage) {
+        auto parsed = resource::ShaderParser::parse(embed);
+        return resource::ShaderParser::assembleStage(parsed, stage, "", {},
+                                                     resource::ShaderTargetLanguage::WGSL);
+    };
+    const std::string shapeVs = assembleWGSL(ShaderEmbeds::SHAPE, resource::ShaderStage::Vertex);
+    const std::string shapeFs = assembleWGSL(ShaderEmbeds::SHAPE, resource::ShaderStage::Fragment);
+    const std::string batchVs = assembleWGSL(ShaderEmbeds::BATCH, resource::ShaderStage::Vertex);
+    const std::string batchFs = assembleWGSL(ShaderEmbeds::BATCH, resource::ShaderStage::Fragment);
     ShaderHandle shapeProgram = device.createProgram(
-        GfxShaderSource{GfxShaderLanguage::WGSL,
-                        webgpu::kShapeWGSL_Vertex, webgpu::kShapeWGSL_Fragment},
+        GfxShaderSource{GfxShaderLanguage::WGSL, shapeVs.c_str(), shapeFs.c_str()},
         nullptr, 0, nullptr, nullptr);
     ShaderHandle batchProgram = device.createProgram(
-        GfxShaderSource{GfxShaderLanguage::WGSL,
-                        webgpu::kBatchWGSL_Vertex, webgpu::kBatchWGSL_Fragment},
+        GfxShaderSource{GfxShaderLanguage::WGSL, batchVs.c_str(), batchFs.c_str()},
         nullptr, 0, nullptr, nullptr);
-    if (shapeProgram == ShaderHandle::Invalid || batchProgram == ShaderHandle::Invalid) {
+    if (shapeVs.empty() || shapeFs.empty() || batchVs.empty() || batchFs.empty() ||
+        shapeProgram == ShaderHandle::Invalid || batchProgram == ShaderHandle::Invalid) {
         std::printf("BRINGUP_FAIL programs\n");
         return 1;
     }

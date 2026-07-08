@@ -6,7 +6,6 @@
 #include "../RenderFrame.hpp"
 #include "../Shader.hpp"
 #include "../ShaderEmbeds.generated.hpp"
-#include "../webgpu/WGSLTwins.hpp"
 #include "../Texture.hpp"
 #include "../BatchVertex.hpp"   // packColor
 #include "../../resource/ShaderParser.hpp"
@@ -35,20 +34,15 @@ static_assert(sizeof(ParticleInstanceData) == 40, "instance stride must match th
 }  // namespace
 
 void ParticlePlugin::init(RenderFrameContext& ctx) {
-    // Particle instancing shader, authored as particle.esshader (single source) and
-    // embedded for the web build. Attribute locations are explicit, so no name bindings.
-    resource::ShaderHandle handle;
-    if (ctx.resources.preferredShaderLanguage() == GfxShaderLanguage::GLSL_ES300) {
-        auto parsed = resource::ShaderParser::parse(ShaderEmbeds::PARTICLE);
-        handle = ctx.resources.createShaderWithBindings(
-            resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Vertex),
-            resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Fragment),
-            {});
-    } else {
-        handle = ctx.resources.createShaderWithBindings(
-            webgpu::kParticleWGSL_Vertex, webgpu::kParticleWGSL_Fragment,
-            {}, GfxShaderLanguage::WGSL);
-    }
+    // Particle instancing shader, authored as particle.esshader (single source,
+    // WGSL twin included) and embedded for the web build. Attribute locations
+    // are explicit, so no name bindings.
+    const auto target = ctx.resources.preferredShaderTarget();
+    auto parsed = resource::ShaderParser::parse(ShaderEmbeds::PARTICLE);
+    resource::ShaderHandle handle = ctx.resources.createShaderWithBindings(
+        resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Vertex, "", {}, target),
+        resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Fragment, "", {}, target),
+        {}, ctx.resources.preferredShaderLanguage());
     Shader* shader = ctx.resources.getShader(handle);
     if (shader && shader->isValid()) {
         particle_shader_id_ = shader->getProgramId();

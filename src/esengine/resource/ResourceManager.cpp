@@ -12,6 +12,7 @@
  */
 
 #include "ResourceManager.hpp"
+#include "ShaderParser.hpp"
 #include "../text/BitmapFont.hpp"
 #include "../core/Log.hpp"
 #include "../renderer/GfxDevice.hpp"
@@ -68,6 +69,12 @@ GfxShaderLanguage ResourceManager::preferredShaderLanguage() const {
     return (device_ && !device_->supportsShaderLanguage(GfxShaderLanguage::GLSL_ES300))
                ? GfxShaderLanguage::WGSL
                : GfxShaderLanguage::GLSL_ES300;
+}
+
+ShaderTargetLanguage ResourceManager::preferredShaderTarget() const {
+    return preferredShaderLanguage() == GfxShaderLanguage::WGSL
+               ? ShaderTargetLanguage::WGSL
+               : ShaderTargetLanguage::GLSL_ES300;
 }
 
 ShaderHandle ResourceManager::createShader(const std::string& vertSrc, const std::string& fragSrc,

@@ -52,3 +52,59 @@ void main() {
     fragColor = texColor * v_color;
 }
 #pragma end
+
+#pragma vertex wgsl
+struct FrameConstants { projection : mat4x4f };
+@group(0) @binding(0) var<uniform> frame : FrameConstants;
+
+struct VSIn {
+    @location(0) a_position : vec2f,
+    @location(1) a_texCoord : vec2f,
+    @location(2) a_inst_position : vec2f,
+    @location(3) a_inst_size : vec2f,
+    @location(4) a_inst_rotation : f32,
+    @location(5) a_inst_color : vec4f,
+    @location(6) a_inst_uv_offset : vec2f,
+    @location(7) a_inst_uv_scale : vec2f,
+};
+struct VSOut {
+    @builtin(position) pos : vec4f,
+    @location(0) v_texCoord : vec2f,
+    @location(1) v_color : vec4f,
+};
+
+@vertex fn vs_main(v : VSIn) -> VSOut {
+    let scaled = v.a_position * v.a_inst_size;
+
+    let cosR = cos(v.a_inst_rotation);
+    let sinR = sin(v.a_inst_rotation);
+    let rotated = vec2f(
+        scaled.x * cosR - scaled.y * sinR,
+        scaled.x * sinR + scaled.y * cosR
+    );
+
+    let worldPos = rotated + v.a_inst_position;
+
+    var out : VSOut;
+    out.pos = frame.projection * vec4f(worldPos, 0.0, 1.0);
+    out.v_texCoord = v.a_texCoord * v.a_inst_uv_scale + v.a_inst_uv_offset;
+    out.v_color = v.a_inst_color;
+    return out;
+}
+#pragma end
+
+#pragma fragment wgsl
+@group(1) @binding(0) var t0 : texture_2d<f32>;
+@group(1) @binding(8) var s0 : sampler;
+
+struct VSOut {
+    @builtin(position) pos : vec4f,
+    @location(0) v_texCoord : vec2f,
+    @location(1) v_color : vec4f,
+};
+
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    let texColor = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
+    return texColor * v.v_color;
+}
+#pragma end

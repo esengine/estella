@@ -37,6 +37,8 @@ namespace esengine { class GfxDevice; }
 
 namespace esengine::resource {
 
+enum class ShaderTargetLanguage : u8;  // ShaderParser.hpp
+
 // =============================================================================
 // Resource Manager Statistics
 // =============================================================================
@@ -135,6 +137,14 @@ public:
      *          the one seam that keeps plugins backend-agnostic.
      */
     GfxShaderLanguage preferredShaderLanguage() const;
+
+    /**
+     * @brief preferredShaderLanguage() as a ShaderParser assembly target.
+     * @details The other half of the seam: creation sites parse one .esshader
+     *          (whose WGSL twin rides the same file) and assemble both stages
+     *          for this target — no per-backend branches.
+     */
+    ShaderTargetLanguage preferredShaderTarget() const;
 
     /**
      * @brief Creates a shader from source strings
