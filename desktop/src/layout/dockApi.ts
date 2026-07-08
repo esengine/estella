@@ -95,6 +95,31 @@ export const dockApi = {
   closeGame() {
     api?.getPanel('game')?.api.close();
   },
+  /** Open the multiplayer client views ("Game P2..N") beside the primary Game
+   *  view — used on multiplayer Play. Splits right so players sit side by side. */
+  openGameClients(realmIds: number[]) {
+    if (!api) return;
+    for (const realmId of realmIds) {
+      const id = `game-client-${realmId}`;
+      if (!api.getPanel(id)) {
+        const anchor = api.getPanel('game') ?? api.getPanel('viewport');
+        api.addPanel({
+          id,
+          component: 'gameClient',
+          title: `Game P${realmId + 1}`,
+          params: { realmId },
+          position: anchor ? { referencePanel: anchor.id, direction: 'right' } : undefined,
+        });
+      }
+    }
+  },
+  /** Close every multiplayer client view — used on Stop. */
+  closeGameClients() {
+    if (!api) return;
+    for (const p of api.panels.filter((p) => p.id.startsWith('game-client-'))) {
+      p.api.close();
+    }
+  },
   /** Collapse a panel's group to its header / expand it back (click-to-toggle). */
   toggleCollapse(id: string, axis: 'width' | 'height') {
     const panel = api?.getPanel(id);

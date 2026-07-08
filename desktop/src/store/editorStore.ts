@@ -21,6 +21,10 @@ interface EditorState {
   // Where Play runs: in the Viewport (UE5 PIE, default) or a separate Game tab.
   playTarget: 'viewport' | 'window';
   setPlayTarget: (t: 'viewport' | 'window') => void;
+  // Multiplayer preview: how many players the next Play session boots (1 = plain
+  // single realm; N>1 = a listen-server realm + N-1 client realms, replicated).
+  playPlayers: number;
+  setPlayPlayers: (n: number) => void;
   // Which world the Outliner/Details inspect: the edit scene or the live game
   // (UE5 world picker). Auto-flips to 'game' on Play, 'editor' on Stop.
   inspectWorld: 'editor' | 'game';
@@ -99,6 +103,12 @@ export const useEditorStore = create<EditorState>((set) => ({
   setPlayTarget: (playTarget) => {
     if (typeof localStorage !== 'undefined') localStorage.setItem('estella.playTarget', playTarget);
     set({ playTarget });
+  },
+  playPlayers:
+    (typeof localStorage !== 'undefined' ? Number(localStorage.getItem('estella.playPlayers')) : 0) || 1,
+  setPlayPlayers: (playPlayers) => {
+    if (typeof localStorage !== 'undefined') localStorage.setItem('estella.playPlayers', String(playPlayers));
+    set({ playPlayers });
   },
   inspectWorld: 'editor',
   setInspectWorld: (inspectWorld) => set({ inspectWorld }),

@@ -16,7 +16,7 @@ import { BuildDialog } from '@/components/BuildDialog';
 import { SettingsDialog } from '@/components/SettingsDialog';
 import { useEditorStore } from '@/store/editorStore';
 import { commands } from '@/commands';
-import { PlayRealm } from '@/engine/PlayRealm';
+import { PlayRealms } from '@/engine/PlayRealm';
 import { PlayInspect } from '@/engine/PlayInspect';
 import { TimelinePreview } from '@/engine/TimelinePreview';
 import { TimelineRecorder } from '@/timeline/TimelineRecorder';
@@ -96,22 +96,26 @@ export function App() {
         useEditorStore.getState().stop();
         return;
       }
-      void PlayRealm.start(payload);
+      const players = useEditorStore.getState().playPlayers;
+      void PlayRealms.startSession(payload, players);
       PlayInspect.start(); // poll the running game for live inspect/debug
       useEditorStore.getState().setInspectWorld('game'); // flip Outliner/Details to the live game
       // 'window' → a Game dock tab; 'viewport' → the Viewport mounts it (PIE).
       if (useEditorStore.getState().playTarget === 'window') dockApi.openGame();
+      // Client players each get their own Game tab beside player 1.
+      if (players > 1) dockApi.openGameClients(PlayRealms.clients.map((c) => c.id));
     } else {
-      PlayRealm.stop();
+      PlayRealms.stopSession();
       PlayInspect.stop();
       useEditorStore.getState().setInspectWorld('editor');
       dockApi.closeGame();
+      dockApi.closeGameClients();
       // Not on mount/launcher — there is no project to stage yet.
-      if (!useEditorStore.getState().showLauncher) idle(() => PlayRealm.prewarm());
+      if (!useEditorStore.getState().showLauncher) idle(() => PlayRealms.prewarm());
     }
   }, [isPlaying]);
   useEffect(() => {
-    if (isPlaying) PlayRealm.setPaused(isPaused);
+    if (isPlaying) PlayRealms.setPaused(isPaused);
   }, [isPaused, isPlaying]);
 
   // The editor opens on the launcher (project browser); the shell + engine mount
@@ -119,7 +123,7 @@ export function App() {
   const showLauncher = useEditorStore((s) => s.showLauncher);
   // Prewarm the play realm as soon as a project opens.
   useEffect(() => {
-    if (!showLauncher) idle(() => PlayRealm.prewarm());
+    if (!showLauncher) idle(() => PlayRealms.prewarm());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showLauncher]);
   const buildOpen = useEditorStore((s) => s.buildOpen);

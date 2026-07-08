@@ -18,7 +18,7 @@ import type { SceneData, PhysicsPluginConfig } from 'esengine';
  * compares it against its own and refuses a mismatch (P1) rather than failing
  * obscurely on a shape it doesn't understand. Bump on any incompatible message change.
  */
-export const PLAY_PROTOCOL_VERSION = 1;
+export const PLAY_PROTOCOL_VERSION = 2;
 
 /**
  * The handshake check: `null` if the realm's reported protocol version is compatible
@@ -36,6 +36,19 @@ export function playProtocolMismatch(realmVersion: number | undefined): string |
 /** Matches LogStore's LogLevel; redeclared here to keep the contract editor-dep-free. */
 export type PlayLogLevel = 'info' | 'warn' | 'error';
 
+/**
+ * The realm's role in a multiplayer preview session. The server realm is the
+ * listen host (authority + player 1); each client realm connects over a
+ * MessageChannel port the editor transfers alongside `init` (`netPorts` on the
+ * message — ports only cross realms via the postMessage transfer list, so they
+ * ride the message itself, not this payload).
+ */
+export interface PlayNetConfig {
+  role: 'server' | 'client';
+  /** 1-based player number, for window titles/diagnostics. */
+  player: number;
+}
+
 /** The scene + project config handed to a fresh realm on boot. */
 export interface PlayPayload {
   sceneData: SceneData;
@@ -44,6 +57,8 @@ export interface PlayPayload {
   physicsEnabled?: boolean;
   /** Project physics world config (gravity, solver, collision matrix) — forwarded. */
   physicsConfig?: PhysicsPluginConfig;
+  /** Multiplayer preview role; absent = a plain single-player session. */
+  net?: PlayNetConfig;
 }
 
 /** A live inspect snapshot: a shallow entity tree (Outliner) + the selected entity's
@@ -72,9 +87,10 @@ export interface PlayStatsReply {
   vramBytes: number;
 }
 
-/** editor → realm. Discriminated by `type`. */
+/** editor → realm. Discriminated by `type`. `init` may carry transferred
+ *  MessagePorts in `netPorts` (server: one per client; client: exactly one). */
 export type PlayOutbound =
-  | ({ type: 'estella:play:init' } & PlayPayload)
+  | ({ type: 'estella:play:init'; netPorts?: MessagePort[] } & PlayPayload)
   | { type: 'estella:play:setPaused'; paused: boolean }
   | { type: 'estella:play:reload' }
   | { type: 'estella:play:query'; kind: PlayQueryKind; reqId: number; selectedId?: number | null }

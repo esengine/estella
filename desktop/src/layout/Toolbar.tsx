@@ -73,6 +73,8 @@ export function Toolbar() {
   // command registry so menu, toolbar, and keyboard share one implementation.
   const playTarget = useEditorStore((s) => s.playTarget);
   const setPlayTarget = useEditorStore((s) => s.setPlayTarget);
+  const playPlayers = useEditorStore((s) => s.playPlayers);
+  const setPlayPlayers = useEditorStore((s) => s.setPlayPlayers);
   const [modeMenu, setModeMenu] = useState<{ x: number; y: number } | null>(null);
   const { tool, snapping, showGrid, showGizmos, isPlaying, isPaused, togglePause, stop } =
     useEditorStore();
@@ -171,6 +173,13 @@ export function Toolbar() {
           items={[
             { label: 'Play In Viewport', checked: playTarget === 'viewport', onClick: () => setPlayTarget('viewport') },
             { label: 'Play In New Window', checked: playTarget === 'window', onClick: () => setPlayTarget('window') },
+            { sep: true },
+            // Multiplayer preview: 1 = plain play; N>1 boots a listen-server realm
+            // (player 1) + N-1 client realms wired by in-editor replication.
+            { label: 'Single Player', checked: playPlayers <= 1, onClick: () => setPlayPlayers(1) },
+            { label: '2 Players (Listen Server)', checked: playPlayers === 2, onClick: () => setPlayPlayers(2) },
+            { label: '3 Players (Listen Server)', checked: playPlayers === 3, onClick: () => setPlayPlayers(3) },
+            { label: '4 Players (Listen Server)', checked: playPlayers === 4, onClick: () => setPlayPlayers(4) },
           ]}
         />
       )}

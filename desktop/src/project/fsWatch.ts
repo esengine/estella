@@ -9,7 +9,7 @@
  * refresh the asset registry + Content Browser, not just the editor's own ops.
  */
 import { ProjectStore } from './ProjectStore';
-import { PlayRealm } from '../engine/PlayRealm';
+import { PlayRealm, PlayRealms } from '../engine/PlayRealm';
 
 const listeners = new Set<() => void>();
 let version = 0;
@@ -51,7 +51,7 @@ async function rebuildScriptsAndReloadPlay(): Promise<void> {
       console.warn('[fsWatch] project script rebuild failed; keeping running realm', res.errors);
       return;
     }
-    PlayRealm.reload();
+    PlayRealms.reload();
   } catch (e) {
     console.warn('[fsWatch] project script rebuild threw', e);
   }

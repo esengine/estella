@@ -13,7 +13,7 @@ import { Viewport } from '@/panels/Viewport';
 import { Details } from '@/panels/Details';
 import { ContentBrowser } from '@/panels/ContentBrowser';
 import { OutputLog } from '@/panels/OutputLog';
-import { GamePanel } from '@/panels/GamePanel';
+import { GamePanel, GameClientPanel } from '@/panels/GamePanel';
 import { Sequencer } from '@/panels/Sequencer';
 import { TilesetEditor } from '@/panels/TilesetEditor';
 import { TilemapPainter } from '@/panels/TilemapPainter';
@@ -47,6 +47,11 @@ const components: Record<string, FC<IDockviewPanelProps>> = {
   profiler: () => <ErrorBoundary label="profiler"><ProfilerPanel /></ErrorBoundary>,
   // The "Game" view (isolated play realm) — added on Play, removed on Stop.
   game: () => panel('game', <GamePanel />),
+  // Multiplayer client realms ("Game P2..N") — session-scoped, keyed by realmId.
+  gameClient: (props) => {
+    const realmId = Number((props.params as { realmId?: number } | undefined)?.realmId ?? 0);
+    return panel(`game-client-${realmId}`, <GameClientPanel realmId={realmId} />);
+  },
 };
 
 // Bumped to v6 (document-area editors): Viewport center, right column Outliner-

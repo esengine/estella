@@ -14,7 +14,7 @@
  *        Everything is same-origin estella:// (host, sdk, bundle, wasm, assets),
  *        sidestepping the custom-scheme cross-fetch ban.
  */
-import { createWebApp, setEditorMode, setPlayMode, initPlayRealmRuntime, getComponent, clearUserComponents, getUserComponentFingerprint, probeRegistrations } from 'esengine';
+import { createWebApp, setEditorMode, setPlayMode, initPlayRealmRuntime, getComponent, clearUserComponents, getUserComponentFingerprint, probeRegistrations, Net, MessagePortTransport } from 'esengine';
 import type { App, ESEngineModule, SceneData } from 'esengine';
 import { PLAY_PROTOCOL_VERSION } from './engine/playProtocol';
 import type { PlayOutbound, PlayInbound } from './engine/playProtocol';
@@ -200,6 +200,26 @@ async function buildAppAndRun(msg: InitMessage): Promise<void> {
   (window as unknown as { __estellaPlay?: unknown }).__estellaPlay = { app };
 }
 
+/**
+ * Wire this realm's replication role. The ports arrived transferred with
+ * `init`; a MessagePort queues until both ends attach, so the server and
+ * client realms may boot in any order — the client's `connect` handshake
+ * simply resolves once the server side comes up.
+ */
+async function wireNet(msg: InitMessage): Promise<void> {
+  if (!msg.net || !app) return;
+  const session = app.getResource(Net);
+  const ports = msg.netPorts ?? [];
+  if (msg.net.role === 'server') {
+    const server = session.startServer();
+    for (const port of ports) server.attachConnection(new MessagePortTransport(port));
+    console.log(`[play] listen server up (player ${msg.net.player}, ${ports.length} client port(s))`);
+  } else if (ports[0]) {
+    await session.connect(new MessagePortTransport(ports[0]));
+    console.log(`[play] connected as player ${msg.net.player}`);
+  }
+}
+
 async function boot(msg: InitMessage): Promise<void> {
   if (booted) return;
   booted = true;
@@ -215,6 +235,7 @@ async function boot(msg: InitMessage): Promise<void> {
     }
     await ensureEngine();
     await buildAppAndRun(msg);
+    await wireNet(msg);
     post({ type: 'estella:play:ready' });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -260,6 +281,13 @@ async function tryHotSwapReload(): Promise<boolean> {
 
 async function reload(): Promise<void> {
   if (!booted || !engineModule || !lastInit) return;
+  // A multiplayer session can't hot-rebuild one realm: its MessageChannel ports
+  // were consumed by the live NetSession. The editor restarts the whole session
+  // instead; this guard is defense against a stray reload message.
+  if (lastInit.net) {
+    console.warn('[play] code reload in a multiplayer session needs a session restart');
+    return;
+  }
   try {
     // Fast path (RC10 P3): if only system logic changed (component schemas unchanged),
     // hot-swap the function bodies and keep the live World — runtime state survives. Any
