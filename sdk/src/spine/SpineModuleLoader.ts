@@ -34,6 +34,8 @@ export interface SpineWasmModule {
     _spine_getMeshBatchData(instanceId: number, batchIndex: number,
         outVerticesPtr: number, outIndicesPtr: number,
         outTextureIdPtr: number, outBlendModePtr: number): void;
+    /** Toggle clip-region processing (default on) — perf escape hatch for clip-free scenes. */
+    _spine_setClippingEnabled(enabled: number): void;
 
     _spine_setDefaultMix(skeletonHandle: number, duration: number): void;
     _spine_setMixDuration(skeletonHandle: number, fromAnim: number, toAnim: number, duration: number): void;

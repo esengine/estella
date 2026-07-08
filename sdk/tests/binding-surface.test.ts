@@ -18,6 +18,12 @@
  * plus the embind class surfaces (ResourceManager, EstellaContext). Same
  * pattern as cpp-contract.test.ts, extended from constants to functions.
  *
+ * Side modules are hand-mirrored too and guarded the same way: physics and
+ * spine export via `EMSCRIPTEN_KEEPALIVE` C functions (JS-visible as `_name`,
+ * spine additionally reached through the `cw('name', ...)` cwrap table),
+ * basis via the CMake `EXPORTED_FUNCTIONS` list (the link already verifies
+ * that list against the C++ definitions — the unverified edge is TS↔CMake).
+ *
  * Deliberately NOT asserted (possible future tightening): optionality
  * coherence — a `#ifdef`-gated C++ registration being declared required in
  * TS. All shipping variants currently compile every gated feature, and TS
@@ -75,6 +81,37 @@ function parseClassRegistration(cppSource: string, className: string): Set<strin
     return out;
 }
 
+/**
+ * All `EMSCRIPTEN_KEEPALIVE` C-export names in a file: the identifier right
+ * before the parameter list that follows each annotation.
+ */
+function parseKeepaliveExports(cppSource: string): Set<string> {
+    const src = stripComments(cppSource);
+    const out = new Set<string>();
+    const re = /EMSCRIPTEN_KEEPALIVE\b/g;
+    for (let m = re.exec(src); m; m = re.exec(src)) {
+        const paren = src.indexOf('(', m.index);
+        if (paren < 0) continue;
+        const tokens = src.slice(m.index + m[0].length, paren).match(/\w+/g);
+        if (!tokens?.length) throw new Error(`EMSCRIPTEN_KEEPALIVE with no function name at offset ${m.index}`);
+        out.add(tokens[tokens.length - 1]);
+    }
+    return out;
+}
+
+/**
+ * The `-sEXPORTED_FUNCTIONS=['_a','_b',...]` list of the link target whose
+ * line contains `marker` (how modules without KEEPALIVE annotations export).
+ */
+function parseExportedFunctions(cmakeSource: string, marker: string): Set<string> {
+    const line = cmakeSource.split('\n').find((l) => l.includes('EXPORTED_FUNCTIONS') && l.includes(marker));
+    if (!line) throw new Error(`no EXPORTED_FUNCTIONS line containing '${marker}' in cmake source`);
+    const out = new Set<string>();
+    const re = /'(\w+)'/g;
+    for (let m = re.exec(line); m; m = re.exec(line)) out.add(m[1]);
+    return out;
+}
+
 // =============================================================================
 // TS side: interface member parsing
 // =============================================================================
@@ -103,6 +140,15 @@ function parseInterfaceMethods(tsSource: string, interfaceName: string): Set<str
         }
     }
     throw new Error(`TS interface '${interfaceName}': unterminated body`);
+}
+
+/** `cw('name', ...)` / `cwrap('name', ...)` call-site literals in a TS file. */
+function parseCwrapNames(tsSource: string): Set<string> {
+    const src = stripComments(tsSource);
+    const out = new Set<string>();
+    const re = /\bcw(?:rap)?\(\s*['"](\w+)['"]/g;
+    for (let m = re.exec(src); m; m = re.exec(src)) out.add(m[1]);
+    return out;
 }
 
 const sorted = (s: Iterable<string>): string[] => [...s].sort();
@@ -165,6 +211,58 @@ describe('WASM binding surface: module functions (hand-written mirror handshake)
         const unmirrored = missingFrom(handRegistered, allDeclared);
         expect(unmirrored, `registered in WebSDKEntry/TilemapBindings but declared in no TS interface: ${unmirrored.join(', ')}`)
             .toEqual([]);
+    });
+});
+
+// =============================================================================
+// Side modules (C exports)
+// =============================================================================
+
+// Emscripten runtime members declared on the side-module interfaces.
+const SIDE_RUNTIME = new Set(['_malloc', '_free', 'cwrap', 'UTF8ToString', 'stringToNewUTF8']);
+
+function expectMirrored(label: string, tsDeclared: Set<string>, cppExports: Set<string>): void {
+    const exported = new Set([...cppExports].map((n) => `_${n}`));
+    const declared = new Set([...tsDeclared].filter((n) => !SIDE_RUNTIME.has(n)));
+    const phantom = missingFrom(declared, exported);
+    const unmirrored = missingFrom(exported, declared);
+    expect(phantom, `${label}: declared in TS but exported nowhere: ${phantom.join(', ')}`).toEqual([]);
+    expect(unmirrored, `${label}: exported but not reachable from TS: ${unmirrored.join(', ')}`).toEqual([]);
+}
+
+describe('WASM binding surface: side modules (C exports)', () => {
+    it('PhysicsWasmModule mirrors the physics module exports exactly', () => {
+        const cpp = new Set(
+            ['PhysicsModuleEntry.cpp', 'PhysicsShapes.cpp', 'PhysicsJoints.cpp', 'PhysicsQueries.cpp']
+                .flatMap((f) => [...parseKeepaliveExports(read(resolve(CPP, 'bindings', f)))]),
+        );
+        const ts = parseInterfaceMethods(read(resolve(SDK, 'physics/PhysicsModuleLoader.ts')), 'PhysicsWasmModule');
+        expectMirrored('physics', ts, cpp);
+    });
+
+    it('SpineWasmModule + its cwrap table mirror the spine module exports exactly', () => {
+        const cpp = parseKeepaliveExports(read(resolve(CPP, 'bindings/SpineModuleEntry.cpp')));
+        const loaderTs = read(resolve(SDK, 'spine/SpineModuleLoader.ts'));
+        const declared = new Set([
+            ...parseInterfaceMethods(loaderTs, 'SpineWasmModule'),
+            ...[...parseCwrapNames(loaderTs)].map((n) => `_${n}`),
+        ]);
+        expectMirrored('spine', declared, cpp);
+    });
+
+    it('BasisWasmModule mirrors the basis EXPORTED_FUNCTIONS list exactly', () => {
+        const cmake = read(resolve(CPP, '../../cmake/Emscripten.cmake'));
+        const exported = parseExportedFunctions(cmake, 'es_basis');
+        exported.delete('_malloc');
+        exported.delete('_free');
+        const ts = new Set(
+            [...parseInterfaceMethods(read(resolve(SDK, 'asset/basisTranscoder.ts')), 'BasisWasmModule')]
+                .filter((n) => !SIDE_RUNTIME.has(n)),
+        );
+        const phantom = missingFrom(ts, exported);
+        const unmirrored = missingFrom(exported, ts);
+        expect(phantom, `basis: declared in TS but not in EXPORTED_FUNCTIONS: ${phantom.join(', ')}`).toEqual([]);
+        expect(unmirrored, `basis: exported but not declared in TS: ${unmirrored.join(', ')}`).toEqual([]);
     });
 });
 
