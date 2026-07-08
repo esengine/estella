@@ -8,15 +8,27 @@ export {
     type NetChannelOptions,
     type MessageHandler,
     type RequestHandler,
+    type BinaryHandler,
 } from './NetChannel';
+export { MemoryTransport, createMemoryTransportPair } from './MemoryTransport';
+export type { PlatformSocket, PlatformSocketOptions, PlatformSocketReadyState } from '../platform/types';
 
 import { GameSocket, type GameSocketOptions } from './GameSocket';
-import { WeChatSocket } from './WeChatSocket';
+import { isPlatformInitialized, getPlatform } from '../platform/base';
+import type { PlatformSocket } from '../platform/types';
 
-export function createSocket(options: GameSocketOptions): GameSocket | WeChatSocket {
-    const g = globalThis as any;
-    if (typeof g.wx !== 'undefined' && typeof g.wx.connectSocket === 'function') {
-        return new WeChatSocket(options);
+/**
+ * Open a socket through the platform adapter (web → WebSocket, wechat →
+ * wx.connectSocket, node → ws). A platform without networking fails loud; a
+ * bare host with no adapter set (unit tests) falls back to the browser socket.
+ */
+export function createSocket(options: GameSocketOptions): PlatformSocket {
+    if (isPlatformInitialized()) {
+        const platform = getPlatform();
+        if (!platform.createSocket) {
+            throw new Error(`[net] platform "${platform.name}" has no socket support`);
+        }
+        return platform.createSocket(options);
     }
     return new GameSocket(options);
 }

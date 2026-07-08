@@ -17,6 +17,7 @@ export interface NetTransport {
 
 export type MessageHandler<T = unknown> = (payload: T) => void;
 export type RequestHandler<Req = unknown, Res = unknown> = (payload: Req) => Res | Promise<Res>;
+export type BinaryHandler = (payload: Uint8Array) => void;
 
 export interface NetChannelOptions {
     /** Default RPC timeout in ms (0 disables). Default 10000. */
@@ -38,12 +39,17 @@ interface Pending {
  * Typed messaging over a {@link NetTransport}. Claims the transport's
  * `onMessage` (it is the message router). Events are fire-and-forget; requests
  * await a matching response by id (or reject on timeout / remote error).
- * Binary frames are ignored — the envelope is JSON text.
+ *
+ * Two planes share the one transport: string frames carry the JSON control
+ * envelope; binary frames carry a 1-byte channel id + payload for high-rate
+ * data (replication snapshots claim channel 1). A binary frame with no
+ * registered channel handler is dropped.
  */
 export class NetChannel {
     private readonly transport: NetTransport;
     private readonly handlers = new Map<string, Set<MessageHandler>>();
     private readonly requestHandlers = new Map<string, RequestHandler>();
+    private readonly binaryHandlers = new Map<number, BinaryHandler>();
     private readonly pending = new Map<number, Pending>();
     private readonly defaultTimeout: number;
     private nextId = 1;
@@ -97,6 +103,25 @@ export class NetChannel {
         });
     }
 
+    /** Register the single handler for a binary channel id (0-255). Returns an
+     *  unregister function. */
+    onBinary(channel: number, handler: BinaryHandler): () => void {
+        this.binaryHandlers.set(channel, handler);
+        return () => {
+            if (this.binaryHandlers.get(channel) === handler) {
+                this.binaryHandlers.delete(channel);
+            }
+        };
+    }
+
+    /** Fire-and-forget a binary payload on a channel id (0-255). */
+    sendBinary(channel: number, payload: Uint8Array): void {
+        const frame = new Uint8Array(1 + payload.byteLength);
+        frame[0] = channel;
+        frame.set(payload, 1);
+        this.transport.send(frame.buffer);
+    }
+
     /** Reject all in-flight requests and drop handlers (call on disconnect). */
     dispose(reason = 'net channel closed'): void {
         for (const [, p] of this.pending) {
@@ -106,6 +131,7 @@ export class NetChannel {
         this.pending.clear();
         this.handlers.clear();
         this.requestHandlers.clear();
+        this.binaryHandlers.clear();
     }
 
     // -- internals ------------------------------------------------------------
@@ -115,7 +141,12 @@ export class NetChannel {
     }
 
     private handleIncoming_(data: string | ArrayBuffer): void {
-        if (typeof data !== 'string') return; // JSON-text envelope only
+        if (typeof data !== 'string') {
+            const view = new Uint8Array(data);
+            if (view.byteLength === 0) return;
+            this.binaryHandlers.get(view[0])?.(view.subarray(1));
+            return;
+        }
         let msg: Wire;
         try { msg = JSON.parse(data) as Wire; } catch { return; }
         if (!msg || typeof (msg as { k?: unknown }).k !== 'string') return;

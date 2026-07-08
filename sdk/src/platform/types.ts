@@ -83,11 +83,38 @@ export interface ImageLoadResult {
 }
 
 // =============================================================================
+// Sockets
+// =============================================================================
+
+export type PlatformSocketReadyState = 'connecting' | 'open' | 'closing' | 'closed';
+
+export interface PlatformSocketOptions {
+    url: string;
+    protocols?: string | string[];
+}
+
+/**
+ * The platform-neutral socket surface (GameSocket / WeChatSocket / a Node ws
+ * wrapper all fit): callback-based, queues sends until open, moves
+ * string|ArrayBuffer frames.
+ */
+export interface PlatformSocket {
+    readyState: PlatformSocketReadyState;
+    onOpen: (() => void) | null;
+    onMessage: ((data: string | ArrayBuffer) => void) | null;
+    onClose: ((code: number, reason: string) => void) | null;
+    onError: ((error: unknown) => void) | null;
+    connect(): void;
+    send(data: string | ArrayBuffer): void;
+    close(code?: number, reason?: string): void;
+}
+
+// =============================================================================
 // Platform Adapter Interface
 // =============================================================================
 
 export interface PlatformAdapter {
-    readonly name: 'web' | 'wechat';
+    readonly name: 'web' | 'wechat' | 'node';
 
     fetch(url: string, options?: PlatformRequestOptions): Promise<PlatformResponse>;
 
@@ -123,6 +150,11 @@ export interface PlatformAdapter {
      *  are available. WeChat → wx.loadSubpackage; platforms with no subpackage
      *  concept (web) omit it and lazy groups load directly from their URLs. */
     loadSubpackage?(name: string): Promise<void>;
+
+    /** Open a socket connection. Web → WebSocket, WeChat → wx.connectSocket,
+     *  Node → a ws wrapper. Optional — platforms without networking (playable
+     *  ads) omit it and `createSocket()` fails loud. */
+    createSocket?(options: PlatformSocketOptions): PlatformSocket;
 
     /** Subscribe to OS memory-pressure warnings; returns an unsubscribe.
      *  WeChat → wx.onMemoryWarning; platforms without a pressure signal (web)

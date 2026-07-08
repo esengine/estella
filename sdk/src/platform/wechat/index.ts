@@ -14,7 +14,10 @@ import type {
     WasmInstantiateResult,
     InputEventCallbacks,
     ImageLoadResult,
+    PlatformSocket,
+    PlatformSocketOptions,
 } from '../types';
+import { WeChatSocket } from '../../net/WeChatSocket';
 import { WeChatAudioBackend } from '../../audio/WeChatAudioBackend';
 import type { PlatformAudioBackend } from '../../audio/PlatformAudioBackend';
 import { wxFetch, polyfillFetch } from './fetch';
@@ -168,6 +171,10 @@ class WeChatPlatformAdapter implements PlatformAdapter {
 
     createAudioBackend(): PlatformAudioBackend {
         return new WeChatAudioBackend();
+    }
+
+    createSocket(options: PlatformSocketOptions): PlatformSocket {
+        return new WeChatSocket(options);
     }
 
     getStorageItem(key: string): string | null {

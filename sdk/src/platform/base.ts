@@ -44,7 +44,7 @@ export function isPlatformInitialized(): boolean {
 /**
  * Get platform type
  */
-export function getPlatformType(): 'web' | 'wechat' | null {
+export function getPlatformType(): PlatformAdapter['name'] | null {
     return currentPlatform?.name ?? null;
 }
 

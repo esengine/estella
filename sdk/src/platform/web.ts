@@ -13,9 +13,12 @@ import type {
     InputEventCallbacks,
     GamepadSnapshot,
     ImageLoadResult,
+    PlatformSocket,
+    PlatformSocketOptions,
 } from './types';
 import { WebAudioBackend } from '../audio/WebAudioBackend';
 import type { PlatformAudioBackend } from '../audio/PlatformAudioBackend';
+import { GameSocket } from '../net/GameSocket';
 
 const WHEEL_LINE_HEIGHT = 16;
 
@@ -271,6 +274,10 @@ class WebPlatformAdapter implements PlatformAdapter {
 
     createAudioBackend(): PlatformAudioBackend {
         return new WebAudioBackend();
+    }
+
+    createSocket(options: PlatformSocketOptions): PlatformSocket {
+        return new GameSocket(options);
     }
 
     getStorageItem(key: string): string | null {

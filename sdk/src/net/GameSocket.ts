@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-export type SocketReadyState = 'connecting' | 'open' | 'closing' | 'closed';
+import type { PlatformSocket, PlatformSocketOptions, PlatformSocketReadyState } from '../platform/types';
 
-export interface GameSocketOptions {
-    url: string;
-    protocols?: string | string[];
-}
+export type SocketReadyState = PlatformSocketReadyState;
 
-export class GameSocket {
+export type GameSocketOptions = PlatformSocketOptions;
+
+export class GameSocket implements PlatformSocket {
     private url_: string;
     private protocols_?: string | string[];
     private ws_: WebSocket | null = null;

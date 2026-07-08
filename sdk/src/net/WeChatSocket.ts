@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+import type { PlatformSocket } from '../platform/types';
 import type { GameSocketOptions, SocketReadyState } from './GameSocket';
 
-export class WeChatSocket {
+export class WeChatSocket implements PlatformSocket {
     private url_: string;
     private protocols_?: string | string[];
     private task_: any = null;
