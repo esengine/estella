@@ -31,7 +31,8 @@ export {
 export { Replicated, NetGhost, type ReplicatedData } from './components';
 export { NetIds } from './NetIds';
 export { ReplicationServer } from './server';
-export { ReplicationClient } from './client';
+export { ReplicationClient, type ReplicationClientOptions } from './client';
+export { lerpValue, InterpolationState, ComponentBuffer } from './interpolation';
 export {
     ReplicationPlugin,
     replicationPlugin,

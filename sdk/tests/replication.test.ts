@@ -37,7 +37,7 @@ async function makePair() {
     const server = serverApp.getResource(Net).startServer();
     const [ta, tb] = MemoryTransport.pair();
     server.attachConnection(ta);
-    const client = await clientApp.getResource(Net).connect(tb);
+    const client = await clientApp.getResource(Net).connect(tb, { interpolationDelayTicks: 0 });
     return { serverApp, clientApp, server, client };
 }
 
@@ -142,7 +142,7 @@ describe('spawn / state / despawn replication', () => {
         // Manual flush so the test can observe exactly what each tick emits.
         const [ta, tb] = MemoryTransport.pair();
         server.attachConnection(ta);
-        const connectP = clientApp.getResource(Net).connect(tb);
+        const connectP = clientApp.getResource(Net).connect(tb, { interpolationDelayTicks: 0 });
         await connectP;
 
         const e = serverApp.world.spawn('mover');
@@ -176,7 +176,7 @@ describe('spawn / state / despawn replication', () => {
         server.attachConnection(ta);
 
         const clientApp = makeApp();
-        const connectP = clientApp.getResource(Net).connect(tb);
+        const connectP = clientApp.getResource(Net).connect(tb, { interpolationDelayTicks: 0 });
         // Manual flush: pump the handshake both ways.
         for (let i = 0; i < 8; i++) { ta.flush(); tb.flush(); await Promise.resolve(); }
         await connectP;
@@ -216,7 +216,7 @@ describe('spawn / state / despawn replication', () => {
         const clientA = makeApp();
         const [a1, a2] = MemoryTransport.pair();
         server.attachConnection(a1);
-        await clientA.getResource(Net).connect(a2);
+        await clientA.getResource(Net).connect(a2, { interpolationDelayTicks: 0 });
 
         const e = serverApp.world.spawn('veteran');
         serverApp.world.insert(e, Replicated, {});
@@ -233,7 +233,7 @@ describe('spawn / state / despawn replication', () => {
         const clientB = makeApp();
         const [b1, b2] = MemoryTransport.pair();
         server.attachConnection(b1);
-        await clientB.getResource(Net).connect(b2);
+        await clientB.getResource(Net).connect(b2, { interpolationDelayTicks: 0 });
         await clientB.tick(STEP);
 
         const ghosts = clientB.world.getEntitiesWithComponents([Replicated]);

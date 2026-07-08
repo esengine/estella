@@ -39,7 +39,7 @@ describe.skipIf(!HAS_WASM)('replication over the wasm boundary (Transform)', () 
         const server = serverApp.getResource(Net).startServer();
         const [ta, tb] = MemoryTransport.pair();
         server.attachConnection(ta);
-        await clientApp.getResource(Net).connect(tb);
+        await clientApp.getResource(Net).connect(tb, { interpolationDelayTicks: 0 });
 
         const e = serverApp.world.spawn('hero');
         serverApp.world.insert(e, Transform, { position: { x: 10.5, y: -3.25, z: 0 } });

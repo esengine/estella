@@ -14,7 +14,7 @@ import { defineSystem, Schedule } from '../../system';
 import { defineResource, Res, Time, type TimeData } from '../../resource';
 import type { NetTransport } from '../NetChannel';
 import { ReplicationServer } from './server';
-import { ReplicationClient } from './client';
+import { ReplicationClient, type ReplicationClientOptions } from './client';
 import { ensureReplicationComponentsRegistered } from './components';
 
 export type NetRoleKind = 'offline' | 'server' | 'client';
@@ -47,9 +47,9 @@ export class NetSession {
     }
 
     /** Become a replica: handshake over the given transport. */
-    async connect(transport: NetTransport): Promise<ReplicationClient> {
+    async connect(transport: NetTransport, options?: ReplicationClientOptions): Promise<ReplicationClient> {
         if (this.role_ !== 'offline') throw new Error(`[repl] session already ${this.role_}`);
-        const client = new ReplicationClient(this.app_.world);
+        const client = new ReplicationClient(this.app_.world, options);
         await client.connect(transport);
         this.role_ = 'client';
         this.client_ = client;
@@ -96,6 +96,20 @@ export class ReplicationPlugin implements Plugin {
                 { name: 'ReplicationSampleSystem' },
             ),
             { runIf: () => session.role === 'server' },
+        );
+
+        app.addSystemToSchedule(
+            Schedule.PostUpdate,
+            defineSystem(
+                [Res(Time)],
+                (time: TimeData) => {
+                    session.client?.sampleInterpolation(
+                        time.fixedDelta > 0 ? time.delta / time.fixedDelta : 0,
+                    );
+                },
+                { name: 'ReplicationInterpolateSystem' },
+            ),
+            { runIf: () => session.role === 'client' },
         );
     }
 }

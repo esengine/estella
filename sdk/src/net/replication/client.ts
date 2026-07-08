@@ -26,6 +26,16 @@ import {
 } from './codec';
 import { NetGhost } from './components';
 import { NetIds } from './NetIds';
+import { InterpolationState } from './interpolation';
+
+export interface ReplicationClientOptions {
+    /**
+     * How many server ticks the presented state trails the newest received
+     * data. Two ticks absorbs one lost/late delivery without a visible hitch;
+     * 0 disables buffering (state applies the moment it drains).
+     */
+    interpolationDelayTicks?: number;
+}
 
 export class ReplicationClient {
     private readonly world_: World;
@@ -37,9 +47,12 @@ export class ReplicationClient {
     private readonly pendingFrames_: Uint8Array[] = [];
     private readonly pendingSpawns_: ReplSpawnBatch[] = [];
     private readonly pendingDespawns_: ReplDespawnBatch[] = [];
+    private readonly interp_: InterpolationState | null;
 
-    constructor(world: World) {
+    constructor(world: World, options: ReplicationClientOptions = {}) {
         this.world_ = world;
+        const delay = options.interpolationDelayTicks ?? 2;
+        this.interp_ = delay > 0 ? new InterpolationState(delay) : null;
         world.onDespawn((e) => this.netIds_.unregisterEntity(e));
     }
 
@@ -170,6 +183,7 @@ export class ReplicationClient {
         for (const netId of batch.netIds) {
             const e = this.netIds_.entityOf(netId);
             this.netIds_.unregister(netId);
+            this.interp_?.drop(netId);
             if (e !== undefined && this.world_.valid(e)) {
                 this.world_.despawn(e);
             }
@@ -179,22 +193,68 @@ export class ReplicationClient {
     private applyStateFrame_(frame: StateFrame): void {
         if (frame.tick > this.serverTick_) this.serverTick_ = frame.tick;
         for (const entry of frame.entries) {
-            const e = this.netIds_.entityOf(entry.netId);
-            if (e === undefined || !this.world_.valid(e)) continue;
-            const te = this.table.entries[entry.componentId];
-            if (!te) continue;
-            const existing = this.world_.tryGet(e, te.def) as Record<string, unknown> | null;
-            const target = existing ?? {};
-            let v = 0;
-            for (let i = 0; i < te.fields.length; i++) {
-                if (entry.fieldMask & (1 << i)) {
-                    target[te.fields[i]] = entry.values[v++];
+            if (this.interp_) {
+                let v = 0;
+                const te = this.table.entries[entry.componentId];
+                if (!te) continue;
+                for (let i = 0; i < te.fields.length; i++) {
+                    if (entry.fieldMask & (1 << i)) {
+                        this.interp_.push(entry.netId, entry.componentId, i, frame.tick, entry.values[v++]);
+                    }
                 }
-            }
-            if (existing) {
-                this.world_.set(e, te.def, target);
             } else {
-                this.world_.insert(e, te.def, target);
+                this.applyEntryNow_(entry.netId, entry.componentId, entry.fieldMask, entry.values);
+            }
+        }
+    }
+
+    private applyEntryNow_(netId: number, componentId: number, fieldMask: number, values: unknown[]): void {
+        const e = this.netIds_.entityOf(netId);
+        if (e === undefined || !this.world_.valid(e)) return;
+        const te = this.table.entries[componentId];
+        if (!te) return;
+        const existing = this.world_.tryGet(e, te.def) as Record<string, unknown> | null;
+        const target = existing ?? {};
+        let v = 0;
+        for (let i = 0; i < te.fields.length; i++) {
+            if (fieldMask & (1 << i)) {
+                target[te.fields[i]] = values[v++];
+            }
+        }
+        if (existing) {
+            this.world_.set(e, te.def, target);
+        } else {
+            this.world_.insert(e, te.def, target);
+        }
+    }
+
+    /** Present the buffered state at the trailing render clock. Runs each
+     *  render frame (PostUpdate); `deltaTicks` = render delta in tick units. */
+    sampleInterpolation(deltaTicks: number): void {
+        if (!this.interp_ || this.interp_.newestTick === 0) return;
+        const t = this.interp_.advance(deltaTicks);
+        for (const [netId, perComp] of this.interp_.buffers) {
+            const e = this.netIds_.entityOf(netId);
+            if (e === undefined || !this.world_.valid(e)) continue;
+            for (const [componentId, buf] of perComp) {
+                const te = this.table.entries[componentId];
+                if (!te) continue;
+                const existing = this.world_.tryGet(e, te.def) as Record<string, unknown> | null;
+                const target = existing ?? {};
+                let changed = false;
+                for (const [fieldIndex, series] of buf.byField) {
+                    const value = series.sample(te.shapes[fieldIndex], t);
+                    if (value !== undefined) {
+                        target[te.fields[fieldIndex]] = value;
+                        changed = true;
+                    }
+                }
+                if (!changed) continue;
+                if (existing) {
+                    this.world_.set(e, te.def, target);
+                } else {
+                    this.world_.insert(e, te.def, target);
+                }
             }
         }
     }
