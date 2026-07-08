@@ -87,6 +87,13 @@ export {
     type PlatformSocketReadyState,
 } from './net';
 
+export {
+    replicationPlugin, ReplicationPlugin, Net, NetSession,
+    Replicated, NetGhost, ReplicationServer, ReplicationClient,
+    REPLICATION_PROTOCOL_VERSION, REPLICATION_CHANNEL,
+    type NetRoleKind, type ReplicatedData,
+} from './net/replication';
+
 // =============================================================================
 // Platform (base functions only)
 // =============================================================================

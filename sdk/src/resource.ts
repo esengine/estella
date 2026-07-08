@@ -167,6 +167,12 @@ export interface TimeData {
      * fixed-step simulation (e.g. physics) onto the variable render rate.
      */
     fixedAlpha: number;
+    /**
+     * Monotonic count of completed FixedUpdate steps — the simulation's own
+     * time axis (frameCount counts render frames, which vary per machine).
+     * Netcode stamps snapshots and input commands with this.
+     */
+    fixedTick: number;
 }
 
 export const Time = defineResource<TimeData>({
@@ -175,5 +181,6 @@ export const Time = defineResource<TimeData>({
     frameCount: 0,
     fixedDelta: 1 / 60,
     fixedAlpha: 0,
+    fixedTick: 0,
 }, 'Time');
 

@@ -529,6 +529,36 @@ export function loadComponent(world: World, entity: Entity, compData: SceneCompo
 const STRUCTURAL_COMPONENTS = new Set(['Name', 'Parent', 'Children', 'WorldTransform']);
 
 /**
+ * One entity's serializable component payloads — the per-entity primitive
+ * serializeScene is built from, also the spawn-replication payload (RC11):
+ * skips structural + transient components, folds out-of-band codec state in.
+ * Round-trips through {@link loadComponent}.
+ */
+export function serializeEntityComponents(world: World, entity: Entity): SceneComponentData[] {
+    const entityNum = entity as unknown as number;
+    const components: SceneComponentData[] = [];
+    for (const typeName of world.getComponentTypes(entity)) {
+        if (STRUCTURAL_COMPONENTS.has(typeName)) continue;
+        const comp = getComponent(typeName);
+        if (!comp) continue;
+        // Runtime-only components (per-frame pointer/drag/hover state) never
+        // persist — their systems rebuild them each frame. See ComponentMetadata.transient.
+        if (comp.transient) continue;
+        const data = world.tryGet(entity, comp);
+        if (data === null) continue;
+        const payload = data as Record<string, unknown>;
+        // Components with out-of-band state (e.g. TilemapLayer chunks) fold
+        // it into the record via their registered codec.
+        sceneComponentCodecs.get(typeName)?.exportData?.(entityNum, payload);
+        components.push({
+            type: typeName,
+            data: payload,
+        });
+    }
+    return components;
+}
+
+/**
  * Walks the live world and produces a SceneData that round-trips through
  * loadSceneData. Editors call this on save; external tools (prefab extract,
  * diff, CLI export) can reuse the same primitive.
@@ -575,25 +605,7 @@ export function serializeScene(world: World, sceneName = 'scene'): SceneData {
         const nameComp = world.tryGet(entity, Name) as { value: string } | null;
         const name = nameComp?.value ?? `Entity_${entityNum}`;
 
-        const components: SceneComponentData[] = [];
-        for (const typeName of world.getComponentTypes(entity)) {
-            if (STRUCTURAL_COMPONENTS.has(typeName)) continue;
-            const comp = getComponent(typeName);
-            if (!comp) continue;
-            // Runtime-only components (per-frame pointer/drag/hover state) never
-            // persist — their systems rebuild them each frame. See ComponentMetadata.transient.
-            if (comp.transient) continue;
-            const data = world.tryGet(entity, comp);
-            if (data === null) continue;
-            const payload = data as Record<string, unknown>;
-            // Components with out-of-band state (e.g. TilemapLayer chunks) fold
-            // it into the record via their registered codec.
-            sceneComponentCodecs.get(typeName)?.exportData?.(entityNum, payload);
-            components.push({
-                type: typeName,
-                data: payload,
-            });
-        }
+        const components = serializeEntityComponents(world, entity);
 
         entities.push({
             id: entityNum,

@@ -585,7 +585,7 @@ export class App {
                 this.runner_.setTimingEnabled(true);
             }
             if (!this.resources_.has(Time)) {
-                this.resources_.insert(Time, { delta: 0, elapsed: 0, frameCount: 0, fixedDelta: this.fixedTimestep_, fixedAlpha: 0 });
+                this.resources_.insert(Time, { delta: 0, elapsed: 0, frameCount: 0, fixedDelta: this.fixedTimestep_, fixedAlpha: 0, fixedTick: 0 });
             }
             this.finishPlugins_();
         }
@@ -606,7 +606,7 @@ export class App {
                 this.runner_.setTimingEnabled(true);
             }
             if (!this.resources_.has(Time)) {
-                this.resources_.insert(Time, { delta: 0, elapsed: 0, frameCount: 0, fixedDelta: this.fixedTimestep_, fixedAlpha: 0 });
+                this.resources_.insert(Time, { delta: 0, elapsed: 0, frameCount: 0, fixedDelta: this.fixedTimestep_, fixedAlpha: 0, fixedTick: 0 });
             }
             this.finishPlugins_();
         }
@@ -712,6 +712,9 @@ export class App {
             const fixedStart = perf ? perf.now() : 0;
             while (this.fixedAccumulator_ >= this.fixedTimestep_ && fixedSteps < this.maxFixedSteps_) {
                 this.fixedAccumulator_ -= this.fixedTimestep_;
+                // Every system inside one fixed step sees the same tick number
+                // (1-based) — the simulation time axis netcode stamps packets with.
+                this.resources_.get(Time).fixedTick++;
                 input?.beginFixedStep();
                 await this.runSchedule(Schedule.FixedPreUpdate);
                 await this.runSchedule(Schedule.FixedUpdate);

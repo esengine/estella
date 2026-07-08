@@ -12,6 +12,7 @@ export {
 } from './NetChannel';
 export { MemoryTransport, createMemoryTransportPair } from './MemoryTransport';
 export type { PlatformSocket, PlatformSocketOptions, PlatformSocketReadyState } from '../platform/types';
+export * from './replication';
 
 import { GameSocket, type GameSocketOptions } from './GameSocket';
 import { isPlatformInitialized, getPlatform } from '../platform/base';
