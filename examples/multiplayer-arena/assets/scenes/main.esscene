@@ -1,0 +1,72 @@
+{
+  "version": "1.0",
+  "name": "Main",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 10 } } },
+        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 340, "isActive": true, "priority": 0 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "Wall Top",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 310, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 920, "y": 16 }, "color": { "r": 0.22, "g": 0.26, "b": 0.36, "a": 1 }, "layer": 1 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 2,
+      "name": "Wall Bottom",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": -310, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 920, "y": 16 }, "color": { "r": 0.22, "g": 0.26, "b": 0.36, "a": 1 }, "layer": 1 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 3,
+      "name": "Wall Left",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": -452, "y": 0, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 16, "y": 604 }, "color": { "r": 0.22, "g": 0.26, "b": 0.36, "a": 1 }, "layer": 1 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 4,
+      "name": "Wall Right",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 452, "y": 0, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 16, "y": 604 }, "color": { "r": 0.22, "g": 0.26, "b": 0.36, "a": 1 }, "layer": 1 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 5,
+      "name": "Center Obstacle",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 90, "y": 90 }, "color": { "r": 0.16, "g": 0.19, "b": 0.27, "a": 1 }, "layer": 1 } }
+      ],
+      "visible": true
+    }
+  ]
+}

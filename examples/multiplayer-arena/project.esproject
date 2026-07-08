@@ -1,0 +1,13 @@
+{
+  "formatVersion": "1",
+  "name": "Multiplayer Arena",
+  "description": "Server-authoritative multiplayer: each player steers a replicated pawn. Pick '2 Players' in the Play dropdown to run a listen server + client side by side.",
+  "tag": "Networking",
+  "version": "0.1.0",
+  "defaultScene": "assets/scenes/main.esscene",
+  "designResolution": {
+    "width": 960,
+    "height": 640
+  },
+  "spineVersion": "none"
+}

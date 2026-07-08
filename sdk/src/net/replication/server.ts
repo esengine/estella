@@ -91,6 +91,16 @@ export class ReplicationServer {
         return this.connections_.size;
     }
 
+    /** Ready (handshaken) connection ids. Gameplay polls this each fixed tick
+     *  to provision/retire per-player entities — no callback wiring needed. */
+    get clientIds(): number[] {
+        const out: number[] = [];
+        for (const c of this.connections_.values()) {
+            if (c.ready) out.push(c.id);
+        }
+        return out;
+    }
+
     private get refs_(): EntityRefMap {
         return {
             toWire: (entity) => this.netIds_.netIdOf(entity as Entity) ?? 0,
