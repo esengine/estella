@@ -15,6 +15,74 @@ each entry.
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-07-08
+
+The multiplayer and WebGPU release. Estella gains a complete server-authoritative
+networking stack — declare which fields replicate and entities sync across machines
+with interpolation, input routing, and an in-editor multiplayer preview — and the
+renderer boots on WebGPU with pixel parity against WebGL2, shaders emitted in both
+languages from one source.
+
+### Added
+
+- **Server-authoritative multiplayer.** Mark an entity `Replicated` and it spawns on
+  every client; fields declared `replicated` (C++ annotation or `defineComponent`
+  metadata) stream as binary deltas with per-field dirty masks and snapshot
+  interpolation on the remote side. A `Net` session resource gates roles
+  (server/client/offline), `Replicated.owner` routes each connection's per-tick input
+  commands to its entities, and the handshake refuses protocol/ABI/schema drift
+  fail-loud. **SDK:** `Net`, `Replicated`, `NetGhost`, `MemoryTransport`,
+  `MessagePortTransport`, binary frames on `NetChannel`, sockets behind
+  `PlatformAdapter.createSocket`.
+- **Editor multiplayer preview.** The Play-mode dropdown gains a player count (1–4):
+  the primary realm boots as the listen server and each extra player gets its own
+  `Game P#` tab — the exact shipping netcode running across editor realms with zero
+  network setup.
+- **Dedicated servers on Node.** The new `esengine/node` entry runs the same engine
+  wasm + gameplay code headless: `loadEsengineModule`, `createHeadlessApp`,
+  `runHeadless`, a Node platform adapter, and a silent audio backend. New
+  **multiplayer-arena** example; the networking guide covers the whole stack.
+- **WebGPU render backend.** The engine boots on WebGPU (`backend: 'webgpu'`) with
+  full-scene pixel parity against WebGL2. Every built-in shader, filter, post-process
+  effect and material-graph output emits in both GLSL and WGSL from one source, and
+  user `.esshader` files get auto-generated WGSL twins through a vendored
+  glslang + naga pipeline (no external toolchain). Dual-backend pixel verification
+  runs on every push via SwiftShader.
+- **Mesh2D.** A scene-level custom-mesh renderer on the unified batch face — sorting,
+  culling, clipping, multi-texture merging and 2D lighting for free.
+- **Tiled parity.** Object layers spawn real colliders and queryable object data,
+  hexagonal maps, multi-tileset rendering, chunked/infinite maps and external
+  tilesets — one `.tmj` parser for all of it.
+- **Asset pipeline.** Texture and audio residency with unified refcounts and
+  memory-pressure trim, `Assets.preload` for streaming, cook-time auto-atlas packing
+  (`<name>.atlas` folders), and content-addressed cooked builds that resolve path
+  references end-to-end across web, WeChat and playable exports.
+- **Post-processing.** True-LUT color grading and per-pass texture parameters.
+
+### Changed
+
+- **One draw-command producer.** All renderers assemble commands through
+  `BatchBuilder` (CI-guarded); clears became render-pass load-ops; loose uniforms ride
+  a std140 `DrawParams` UBO; every raw pointer+length WASM entry validates through
+  `boundarySpan`. Sync `readPixels` left the RHI for an async readback seam.
+- **Push-gated CI.** Every push to master now runs the C++ harnesses, both test
+  suites, example checks, boundary guards and headless pixel verification — on both
+  render backends.
+- **SDK 0.6.0** (from 0.5.0): the networking/replication surface above, plus
+  `Time.fixedTick` and the `esengine/node` entry.
+
+### Fixed
+
+- **Prefabs in shipped builds** — `PrefabServer` captured a stale `Assets` instance at
+  plugin build, breaking uuid-referenced prefab instantiation in play/cooked runtimes.
+- **Legacy tilemap scenes rendered nothing** — `TilemapLayer` asset discovery listed
+  only one of its two refs.
+- **Client authority window** — a connecting client committed its role only after the
+  handshake, letting authority-gated gameplay run locally for the first ticks and
+  leave orphan state beside the replicated ghosts.
+- **Editor** — moving a UINode edits its layout inputs instead of stomping Yoga;
+  actionable hint when a side module 404s.
+
 ## [0.16.0] - 2026-07-06
 
 A renderer and UI release building on 0.15.0. It lands a modern typed-handle RHI
@@ -169,7 +237,8 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.16.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.17.0...HEAD
+[0.17.0]: https://github.com/esengine/estella/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/esengine/estella/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/esengine/estella/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/esengine/estella/compare/v0.13.0...v0.14.0
