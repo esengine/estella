@@ -94,6 +94,12 @@ export interface ComponentMetadata {
     /** Keyframeable fields (Sequencer tracks); auto-derived from numeric fields if omitted. */
     animatableFields?: string[];
     /**
+     * Fields the network replication layer syncs (RC11). Whole-field granularity;
+     * omitted = the component never replicates. Builtins author this at the C++
+     * ES_PROPERTY site (`replicated`) instead — same single-source rule as fieldMeta.
+     */
+    replicatedFields?: string[];
+    /**
      * Custom asset discovery for scene preload. Authoritative when present:
      * `assetFields` are NOT walked for discovery (they still drive editor
      * pickers/ref rewrites), so the callback can exclude values that are not
@@ -146,6 +152,8 @@ export interface ComponentDef<T> {
     readonly entityFields: readonly string[];
     readonly colorKeys: readonly string[];
     readonly animatableFields: readonly string[];
+    /** Fields the replication layer syncs; empty = never replicates. See {@link ComponentMetadata.replicatedFields}. */
+    readonly replicatedFields: readonly string[];
     readonly fieldMeta: Readonly<Record<string, FieldMeta>>;
     readonly discoverAssets?: (data: Record<string, unknown>) => AssetRef[];
     /** Runtime-only: omitted from scene serialization. See {@link ComponentMetadata.transient}. */
@@ -213,6 +221,14 @@ function createComponentDef<T extends object>(
 ): ComponentDef<T> {
     const keyInfo = classifyKeys(defaults);
     const defaultsRec = defaults as Record<string, unknown>;
+    // A replicated name that matches no field would silently sync nothing — the
+    // drift class this metadata exists to kill, so it fails loud (same spirit as
+    // EHT rejecting a malformed known annotation).
+    for (const f of metadata?.replicatedFields ?? []) {
+        if (!(f in defaultsRec)) {
+            throw new Error(`Component "${name}": replicatedFields names unknown field "${f}"`);
+        }
+    }
     return {
         _id: componentId(name),
         _name: name,
@@ -223,6 +239,7 @@ function createComponentDef<T extends object>(
         entityFields: metadata?.entityFields ?? [],
         colorKeys: detectColorKeys(defaults),
         animatableFields: metadata?.animatableFields ?? numericAnimatableFields(defaults),
+        replicatedFields: metadata?.replicatedFields ?? [],
         fieldMeta: metadata?.fields ?? {},
         discoverAssets: metadata?.discoverAssets,
         transient: metadata?.transient ?? false,
@@ -353,6 +370,8 @@ export interface BuiltinComponentDef<T> {
     readonly entityFields: readonly string[];
     readonly colorKeys: readonly string[];
     readonly animatableFields: readonly string[];
+    /** Fields authored `replicated` at the C++ ES_PROPERTY site (via COMPONENT_META). */
+    readonly replicatedFields: readonly string[];
     readonly fieldMeta: Readonly<Record<string, FieldMeta>>;
     readonly discoverAssets?: (data: Record<string, unknown>) => AssetRef[];
     /** Runtime-only: omitted from scene serialization. See {@link ComponentMetadata.transient}. */
@@ -427,6 +446,15 @@ export function getComponentFieldMeta(name: string): Readonly<Record<string, Fie
 }
 
 /**
+ * The fields the replication layer syncs for a component — builtin (C++
+ * `replicated` annotation) and user (`replicatedFields` metadata) through one
+ * accessor. Empty = the component never replicates.
+ */
+export function getReplicatedFields(name: string): readonly string[] {
+    return getComponent(name)?.replicatedFields ?? [];
+}
+
+/**
  * Per-field merge of two FieldMeta maps: `override` wins key-by-key *within* a field
  * (not whole-field replacement), so a builtin can author min/tooltip at the C++
  * ES_PROPERTY site (→ `base`) and still add a runtime-only `enum`/`flags` override in
@@ -497,6 +525,7 @@ export function defineBuiltin<T>(name: string, defaults: T, metadata?: Component
         entityFields: metadata?.entityFields ?? meta?.entityFields ?? [],
         colorKeys: meta?.colorFields ?? detectColorKeys(defaults),
         animatableFields: meta?.animatableFields ?? [],
+        replicatedFields: meta?.replicatedFields ?? [],
         fieldMeta: mergeFieldMeta(meta?.fields ?? {}, metadata?.fields ?? {}),
         discoverAssets: metadata?.discoverAssets,
         // Builtins declare transience via the defineBuiltin metadata arg for now;

@@ -69,6 +69,7 @@ export {
     registerComponent,
     getComponent,
     getComponentFieldMeta,
+    getReplicatedFields,
     getComponentRegistry,
     getAllRegisteredComponents,
     getUserComponents,

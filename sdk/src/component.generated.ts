@@ -41,6 +41,14 @@ export interface ComponentMetaEntry {
     entityFields: string[];
     colorFields: string[];
     animatableFields: string[];
+    /**
+     * Fields authored `replicated` at the C++ ES_PROPERTY site — the
+     * single source of truth for what the network replication layer
+     * syncs (RC11). Whole-field granularity; absent = nothing replicates.
+     */
+    replicatedFields?: string[];
+    /** Fields authored `skip_serialize` — runtime-only state scene serialization omits. */
+    skipSerializeFields?: string[];
     fields?: Record<string, FieldMeta>;
 }
 
@@ -560,6 +568,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         entityFields: [],
         colorFields: [],
         animatableFields: ['position.x', 'position.y', 'position.z', 'rotation.z', 'scale.x', 'scale.y', 'scale.z'],
+        replicatedFields: ['position', 'rotation', 'scale'],
         fields: {
             position: { tooltip: "Local position in world units, relative to the parent." },
             rotation: { tooltip: "Rotation about the Z axis, in degrees." },
@@ -656,6 +665,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         entityFields: [],
         colorFields: [],
         animatableFields: [],
+        replicatedFields: ['linear', 'angular'],
     },
 };
 

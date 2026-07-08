@@ -149,6 +149,12 @@ class MetadataGenerator:
             out.append((prop.name, convert_default_ts(shadow, self.types, self._enum_values)))
         return out
 
+    def _get_replicated_fields(self, comp: Component) -> List[str]:
+        return [p.name for p in comp.properties if 'replicated' in p.annotations]
+
+    def _get_skip_serialize_fields(self, comp: Component) -> List[str]:
+        return [p.name for p in comp.properties if 'skip_serialize' in p.annotations]
+
     def _get_animatable_fields(self, comp: Component) -> List[str]:
         fields = []
         for prop in comp.properties:
@@ -297,6 +303,14 @@ class MetadataGenerator:
             '    entityFields: string[];',
             '    colorFields: string[];',
             '    animatableFields: string[];',
+            '    /**',
+            '     * Fields authored `replicated` at the C++ ES_PROPERTY site — the',
+            '     * single source of truth for what the network replication layer',
+            '     * syncs (RC11). Whole-field granularity; absent = nothing replicates.',
+            '     */',
+            '    replicatedFields?: string[];',
+            '    /** Fields authored `skip_serialize` — runtime-only state scene serialization omits. */',
+            '    skipSerializeFields?: string[];',
             '    fields?: Record<string, FieldMeta>;',
             '}',
             '',
@@ -361,6 +375,15 @@ class MetadataGenerator:
                 lines.append(f'        animatableFields: [{parts}],')
             else:
                 lines.append('        animatableFields: [],')
+
+            replicated = self._get_replicated_fields(comp)
+            if replicated:
+                parts = ', '.join(f"'{f}'" for f in replicated)
+                lines.append(f'        replicatedFields: [{parts}],')
+            skip_serialize = self._get_skip_serialize_fields(comp)
+            if skip_serialize:
+                parts = ', '.join(f"'{f}'" for f in skip_serialize)
+                lines.append(f'        skipSerializeFields: [{parts}],')
 
             field_meta = self._get_field_meta(comp)
             if field_meta:
