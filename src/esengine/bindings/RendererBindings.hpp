@@ -145,12 +145,14 @@ u32 renderer_getCapturedCameraCount();
 bool renderer_hasCapturedData();
 
 void renderer_replayToDrawCall(i32 drawCallIndex);
+i32 renderer_pollSnapshotReadback();
 uintptr_t renderer_getSnapshotPtr();
 u32 renderer_getSnapshotSize();
 u32 renderer_getSnapshotWidth();
 u32 renderer_getSnapshotHeight();
 
 void renderer_renderMaterialPreview(u32 materialId, i32 w, i32 h);
+i32 renderer_pollPreviewReadback();
 uintptr_t renderer_getPreviewPtr();
 u32 renderer_getPreviewSize();
 u32 renderer_getPreviewWidth();

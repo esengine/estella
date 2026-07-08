@@ -270,10 +270,11 @@ export function projectMaterialToHandle(asset: MaterialAssetData, ctx: MaterialC
 /**
  * Draw a live "material ball" thumbnail of the material at @p handle into @p canvas (a square),
  * via the engine's offscreen render-to-texture preview. No-op without a handle/canvas; call it
- * after pushing edits to the handle so the thumbnail reflects them.
+ * after pushing edits to the handle so the thumbnail reflects them. The preview readback is
+ * async (the engine's backend-neutral seam); the canvas repaints when it lands.
  */
-export function renderMaterialThumbnail(handle: number, canvas: HTMLCanvasElement | null): void {
+export async function renderMaterialThumbnail(handle: number, canvas: HTMLCanvasElement | null): Promise<void> {
   if (!handle || !canvas) return;
-  const img = Material.renderPreview(handle, canvas.width, canvas.height);
+  const img = await Material.renderPreview(handle, canvas.width, canvas.height);
   if (img) canvas.getContext('2d')?.putImageData(img, 0, 0);
 }

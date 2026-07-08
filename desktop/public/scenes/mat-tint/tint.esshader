@@ -39,3 +39,44 @@ void main() {
     fragColor = texColor * v_color * u_tint;
 }
 #pragma end
+
+#pragma vertex wgsl
+struct FrameConstants { projection : mat4x4f };
+@group(0) @binding(0) var<uniform> frame : FrameConstants;
+
+struct VSIn {
+    @location(0) a_position : vec2f,
+    @location(1) a_color : vec4f,
+    @location(2) a_texCoord : vec2f,
+    @location(3) a_texIndex : f32,
+};
+struct VSOut {
+    @builtin(position) pos : vec4f,
+    @location(0) v_color : vec4f,
+    @location(1) v_texCoord : vec2f,
+};
+
+@vertex fn vs_main(v : VSIn) -> VSOut {
+    var out : VSOut;
+    out.pos = frame.projection * vec4f(v.a_position, 0.0, 1.0);
+    out.v_color = v.a_color;
+    out.v_texCoord = v.a_texCoord;
+    return out;
+}
+#pragma end
+
+#pragma fragment wgsl
+struct VSOut {
+    @builtin(position) pos : vec4f,
+    @location(0) v_color : vec4f,
+    @location(1) v_texCoord : vec2f,
+};
+
+@group(1) @binding(0) var t0 : texture_2d<f32>;
+@group(1) @binding(8) var s0 : sampler;
+
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    let texColor = textureSample(t0, s0, v.v_texCoord);
+    return texColor * v.v_color * mc.u_tint;
+}
+#pragma end

@@ -32,8 +32,10 @@ function buildModule(opts: {
     height: number;
     drawCallCount?: number;
     entities?: number[];
+    /** Async-readback poll result (0 pending / 1 ready / 2 none-failed); default ready. */
+    pollStatus?: number;
 }): { module: ESEngineModule; heap: Uint8Array; dataPtr: number; entitiesPtr: number; snapshotPtr: number } {
-    const { width, height, drawCallCount = 0, entities = [] } = opts;
+    const { width, height, drawCallCount = 0, entities = [], pollStatus = 1 } = opts;
     const RECORD_SIZE = 76;
     const snapshotSize = width * height * 4;
     const entitiesSize = entities.length * 4;
@@ -69,6 +71,7 @@ function buildModule(opts: {
         renderer_getCapturedEntities: () => entitiesPtr,
         renderer_getCapturedEntityCount: () => entities.length,
         renderer_getCapturedCameraCount: () => 1,
+        renderer_pollSnapshotReadback: () => pollStatus,
         renderer_getSnapshotSize: () => snapshotSize,
         renderer_getSnapshotWidth: () => width,
         renderer_getSnapshotHeight: () => height,
@@ -79,9 +82,9 @@ function buildModule(opts: {
 }
 
 describe('getSnapshotImageData', () => {
-    it('returns a JS-owned buffer independent from the WASM heap', () => {
+    it('returns a JS-owned buffer independent from the WASM heap', async () => {
         const { module, heap, snapshotPtr } = buildModule({ width: 4, height: 2 });
-        const img = getSnapshotImageData(module);
+        const img = await getSnapshotImageData(module);
         expect(img).not.toBeNull();
 
         const snapshotBefore = Array.from(img!.data);
@@ -94,15 +97,32 @@ describe('getSnapshotImageData', () => {
         expect(snapshotAfter).toEqual(snapshotBefore);
     });
 
-    it('returns null when the renderer has no snapshot available', () => {
+    it('returns null when the renderer has no snapshot available', async () => {
         const zero = buildModule({ width: 0, height: 0 });
-        expect(getSnapshotImageData(zero.module)).toBeNull();
+        expect(await getSnapshotImageData(zero.module)).toBeNull();
     });
 
-    it('applies vertical flip so row 0 of output is the last source row', () => {
+    it('returns null when the readback reports none/failed', async () => {
+        const failed = buildModule({ width: 4, height: 2, pollStatus: 2 });
+        expect(await getSnapshotImageData(failed.module)).toBeNull();
+    });
+
+    it('resolves after pending polls once the readback lands', async () => {
+        const w = 2, h = 2;
+        const built = buildModule({ width: w, height: h });
+        // First two polls report pending; the loop must yield and re-poll.
+        let polls = 0;
+        (built.module as { renderer_pollSnapshotReadback: () => number }).renderer_pollSnapshotReadback =
+            () => (++polls < 3 ? 0 : 1);
+        const img = await getSnapshotImageData(built.module);
+        expect(img).not.toBeNull();
+        expect(polls).toBe(3);
+    });
+
+    it('applies vertical flip so row 0 of output is the last source row', async () => {
         const w = 2, h = 3;
         const { module } = buildModule({ width: w, height: h });
-        const img = getSnapshotImageData(module)!;
+        const img = (await getSnapshotImageData(module))!;
         expect(img.width).toBe(w);
         expect(img.height).toBe(h);
 

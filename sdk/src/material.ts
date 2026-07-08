@@ -9,6 +9,7 @@
 import type { ESEngineModule } from './wasm';
 import { CoreApiBridge } from './CoreApiBridge';
 import { requireResourceManager } from './resourceManager';
+import { awaitReadback, READBACK_READY } from './readback';
 import type { Vec2, Vec3, Vec4 } from './types';
 import { BlendMode } from './blend';
 
@@ -456,19 +457,26 @@ export const Material = {
     },
 
     /**
-     * Render a material to an offscreen @p w×@p h target and return its pixels (a "material ball"
-     * thumbnail). Reuses the real viewport render path — a unit quad lit by one directional light
-     * — so the preview matches how the material looks in-scene. Null if the engine isn't ready.
+     * Render a material to an offscreen @p w×@p h target and resolve with its pixels (a
+     * "material ball" thumbnail). Reuses the real viewport render path — a unit quad lit by one
+     * directional light — so the preview matches how the material looks in-scene. The readback
+     * rides the engine's async seam: immediate on GL, resolved when the staging-buffer map
+     * lands on WebGPU — one awaited call either way. Null if the engine isn't ready or the
+     * readback fails.
      */
-    renderPreview(material: MaterialHandle, w: number, h: number): ImageData | null {
-        if (!module) return null;
-        module.renderer_renderMaterialPreview(material, w, h);
-        const size = module.renderer_getPreviewSize();
-        const pw = module.renderer_getPreviewWidth();
-        const ph = module.renderer_getPreviewHeight();
+    async renderPreview(material: MaterialHandle, w: number, h: number): Promise<ImageData | null> {
+        const m = module;
+        if (!m) return null;
+        m.renderer_renderMaterialPreview(material, w, h);
+        if (await awaitReadback(() => m.renderer_pollPreviewReadback()) !== READBACK_READY) {
+            return null;
+        }
+        const size = m.renderer_getPreviewSize();
+        const pw = m.renderer_getPreviewWidth();
+        const ph = m.renderer_getPreviewHeight();
         if (size === 0 || pw === 0 || ph === 0) return null;
-        const pixels = new Uint8ClampedArray(module.HEAPU8.buffer, module.renderer_getPreviewPtr(), size);
-        // GL reads bottom-up; flip rows so the thumbnail is upright.
+        const pixels = new Uint8ClampedArray(m.HEAPU8.buffer, m.renderer_getPreviewPtr(), size);
+        // Readback rows are bottom-up; flip so the thumbnail is upright.
         const flipped = new Uint8ClampedArray(size);
         const rowBytes = pw * 4;
         for (let y = 0; y < ph; y++) {

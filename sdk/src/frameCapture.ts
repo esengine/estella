@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { ESEngineModule } from './wasm';
+import { awaitReadback, READBACK_READY } from './readback';
 
 /**
  * Memory-safety model for this module
@@ -149,7 +150,15 @@ export function replayToDrawCall(module: ESEngineModule, drawCallIndex: number):
     module.renderer_replayToDrawCall(drawCallIndex);
 }
 
-export function getSnapshotImageData(module: ESEngineModule): ImageData | null {
+/**
+ * Resolves with the replay snapshot's pixels once its readback lands (the async
+ * seam: immediate on GL, a later event-loop turn on WebGPU). Null when no
+ * snapshot is in flight or the readback failed.
+ */
+export async function getSnapshotImageData(module: ESEngineModule): Promise<ImageData | null> {
+    if (await awaitReadback(() => module.renderer_pollSnapshotReadback()) !== READBACK_READY) {
+        return null;
+    }
     const size = module.renderer_getSnapshotSize();
     if (size === 0) return null;
 

@@ -100,6 +100,9 @@ void WebGPUDevice::shutdown() {
     dummy_ubo_ = BufferHandle{};  // the WGPUBuffer/WGPUTexture went with the maps above
     dummy_texture_ = 0;
     framebuffers_.clear();
+    // Erase before release: aborting a pending map fires the callback, which must
+    // miss the lookup rather than see a half-dead record.
+    while (!readbacks_.empty()) releaseReadback(readbacks_.begin()->first);
     for (auto& [key, sampler] : samplers_) {
         if (sampler) wgpuSamplerRelease(sampler);
     }
@@ -369,11 +372,12 @@ TextureHandle WebGPUDevice::createTexture(const TextureDesc& desc, const void* p
     td.mipLevelCount = 1;
     td.sampleCount = 1;
     // Depth-stencil textures are attachment-only: writeTexture cannot fill them
-    // and the engine never samples its depth attachments.
+    // and the engine never samples its depth attachments. Color textures carry
+    // CopySrc so an offscreen target can serve the async readback seam.
     td.usage = isDepthFormat(td.format)
                    ? WGPUTextureUsage_RenderAttachment
                    : (WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst |
-                      WGPUTextureUsage_RenderAttachment);
+                      WGPUTextureUsage_CopySrc | WGPUTextureUsage_RenderAttachment);
 
     WGPUTexture texture = wgpuDeviceCreateTexture(device_, &td);
     if (!texture) {
@@ -1189,7 +1193,123 @@ void WebGPUDevice::endRenderPass() {
     if (frame_texture_) { wgpuTextureRelease(frame_texture_); frame_texture_ = nullptr; }
 }
 
-void WebGPUDevice::readPixels(i32, i32, u32, u32, GfxPixelFormat, void*) { stubOnce("readPixels"); }
+// =============================================================================
+// Readback (async seam: texture → staging copy, resolved when the map lands)
+// =============================================================================
+
+void WebGPUDevice::onReadbackMapped(WGPUMapAsyncStatus status, WGPUStringView /*message*/,
+                                    void* userdata1, void* userdata2) {
+    auto* self = static_cast<WebGPUDevice*>(userdata1);
+    const u32 id = static_cast<u32>(reinterpret_cast<uintptr_t>(userdata2));
+    auto it = self->readbacks_.find(id);
+    if (it == self->readbacks_.end()) return;  // taken or discarded while in flight
+    it->second.status = (status == WGPUMapAsyncStatus_Success) ? GfxReadbackStatus::Ready
+                                                               : GfxReadbackStatus::Failed;
+}
+
+void WebGPUDevice::releaseReadback(u32 id) {
+    auto it = readbacks_.find(id);
+    if (it == readbacks_.end()) return;
+    WGPUBuffer buffer = it->second.buffer;
+    // Erase first: releasing a buffer with a pending map fires the callback with
+    // an abort status, which must miss the lookup.
+    readbacks_.erase(it);
+    if (buffer) wgpuBufferRelease(buffer);
+}
+
+ReadbackHandle WebGPUDevice::requestReadback(FramebufferHandle target, u32 w, u32 h) {
+    if (!device_ || w == 0 || h == 0) return ReadbackHandle::Invalid;
+    if (inPass()) {
+        ES_LOG_ERROR("WebGPUDevice::requestReadback: must be called outside a render pass");
+        return ReadbackHandle::Invalid;
+    }
+    if (target == FramebufferHandle::Default) {
+        // The surface texture is released at endRenderPass and carries no CopySrc;
+        // page-level capture covers the presented frame instead.
+        stubOnce("requestReadback(default framebuffer)");
+        return ReadbackHandle::Invalid;
+    }
+    auto fit = framebuffers_.find(static_cast<u32>(target));
+    if (fit == framebuffers_.end()) return ReadbackHandle::Invalid;
+    auto tit = textures_.find(fit->second.color0);
+    if (tit == textures_.end() || !tit->second.texture) return ReadbackHandle::Invalid;
+
+    // copyTextureToBuffer requires a 256-byte row alignment; rows are compacted
+    // (and flipped to the bottom-up contract) in takeReadback.
+    const u32 padded = (w * 4u + 255u) & ~255u;
+    WGPUBufferDescriptor bd{};
+    bd.usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_MapRead;
+    bd.size = static_cast<u64>(padded) * h;
+    WGPUBuffer buffer = wgpuDeviceCreateBuffer(device_, &bd);
+    if (!buffer) return ReadbackHandle::Invalid;
+
+    WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(device_, nullptr);
+    WGPUTexelCopyTextureInfo src = WGPU_TEXEL_COPY_TEXTURE_INFO_INIT;
+    src.texture = tit->second.texture;
+    WGPUTexelCopyBufferInfo dst = WGPU_TEXEL_COPY_BUFFER_INFO_INIT;
+    dst.buffer = buffer;
+    dst.layout.offset = 0;
+    dst.layout.bytesPerRow = padded;
+    dst.layout.rowsPerImage = h;
+    WGPUExtent3D size{w, h, 1};
+    wgpuCommandEncoderCopyTextureToBuffer(encoder, &src, &dst, &size);
+    WGPUCommandBuffer commands = wgpuCommandEncoderFinish(encoder, nullptr);
+    wgpuCommandEncoderRelease(encoder);
+    wgpuQueueSubmit(queue_, 1, &commands);
+    wgpuCommandBufferRelease(commands);
+
+    const u32 id = next_readback_id_++;
+    readbacks_[id] = ReadbackRec{buffer, w, h, padded, GfxReadbackStatus::Pending};
+
+    WGPUBufferMapCallbackInfo cb = WGPU_BUFFER_MAP_CALLBACK_INFO_INIT;
+    cb.mode = WGPUCallbackMode_AllowSpontaneous;
+    cb.callback = &WebGPUDevice::onReadbackMapped;
+    cb.userdata1 = this;
+    cb.userdata2 = reinterpret_cast<void*>(static_cast<uintptr_t>(id));
+    wgpuBufferMapAsync(buffer, WGPUMapMode_Read, 0, bd.size, cb);
+    return static_cast<ReadbackHandle>(id);
+}
+
+GfxReadbackStatus WebGPUDevice::pollReadback(ReadbackHandle handle) {
+    // AllowSpontaneous callbacks fire from the browser's event loop on their own;
+    // the pump is defensive (and required if the callback mode ever tightens).
+    if (instance_) wgpuInstanceProcessEvents(instance_);
+    auto it = readbacks_.find(static_cast<u32>(handle));
+    if (it == readbacks_.end()) return GfxReadbackStatus::Failed;
+    if (it->second.status == GfxReadbackStatus::Failed) {
+        releaseReadback(static_cast<u32>(handle));
+        return GfxReadbackStatus::Failed;
+    }
+    return it->second.status;
+}
+
+bool WebGPUDevice::takeReadback(ReadbackHandle handle, void* dest, usize destSize) {
+    auto it = readbacks_.find(static_cast<u32>(handle));
+    if (it == readbacks_.end() || it->second.status != GfxReadbackStatus::Ready) return false;
+    ReadbackRec& rec = it->second;
+    const usize tight = static_cast<usize>(rec.width) * rec.height * 4;
+    if (destSize < tight) return false;
+    const auto* mapped = static_cast<const u8*>(
+        wgpuBufferGetConstMappedRange(rec.buffer, 0, static_cast<u64>(rec.paddedBytesPerRow) * rec.height));
+    if (!mapped) {
+        releaseReadback(static_cast<u32>(handle));
+        return false;
+    }
+    // The copy lands top-down; the contract (GL readPixels) is bottom-up rows.
+    auto* out = static_cast<u8*>(dest);
+    const u32 rowBytes = rec.width * 4u;
+    for (u32 row = 0; row < rec.height; ++row) {
+        std::memcpy(out + static_cast<usize>(rec.height - 1 - row) * rowBytes,
+                    mapped + static_cast<usize>(row) * rec.paddedBytesPerRow, rowBytes);
+    }
+    wgpuBufferUnmap(rec.buffer);
+    releaseReadback(static_cast<u32>(handle));
+    return true;
+}
+
+void WebGPUDevice::discardReadback(ReadbackHandle handle) {
+    releaseReadback(static_cast<u32>(handle));
+}
 
 // =============================================================================
 // Timing / queries / debug

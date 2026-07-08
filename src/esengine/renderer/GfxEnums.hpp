@@ -33,6 +33,16 @@ enum class TextureHandle : u32 { Invalid = 0 };
 enum class ShaderHandle : u32 { Invalid = 0 };
 /** @brief Handle 0 is the default framebuffer (backbuffer); it cannot be created or deleted. */
 enum class FramebufferHandle : u32 { Default = 0 };
+/** @brief An in-flight framebuffer readback (GfxDevice::requestReadback). */
+enum class ReadbackHandle : u32 { Invalid = 0 };
+
+/** @brief State of an in-flight readback. GL completes at request time (first poll
+ *         reports Ready); WebGPU resolves when its staging-buffer map lands. */
+enum class GfxReadbackStatus : u8 {
+    Pending = 0,
+    Ready = 1,
+    Failed = 2,
+};
 
 // =============================================================================
 // Texture Sampling

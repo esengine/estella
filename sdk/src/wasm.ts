@@ -378,11 +378,17 @@ export interface ESEngineModule {
     renderer_hasCapturedData(): boolean;
 
     renderer_replayToDrawCall(drawCallIndex: number): void;
+    /** Lands the snapshot's async readback: 0 = pending (yield, poll again),
+     *  1 = getSnapshot* serve the pixels, 2 = none/failed. GL reports 1 on the
+     *  first poll; WebGPU resolves on a later event-loop turn. */
+    renderer_pollSnapshotReadback(): number;
     renderer_getSnapshotPtr(): number;
     renderer_getSnapshotSize(): number;
     renderer_getSnapshotWidth(): number;
     renderer_getSnapshotHeight(): number;
     renderer_renderMaterialPreview(materialId: number, w: number, h: number): void;
+    /** Same 0/1/2 readback contract as renderer_pollSnapshotReadback. */
+    renderer_pollPreviewReadback(): number;
     renderer_getPreviewPtr(): number;
     renderer_getPreviewSize(): number;
     renderer_getPreviewWidth(): number;

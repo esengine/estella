@@ -7,6 +7,7 @@
 
 #include "esengine/renderer/GfxDevice.hpp"
 
+#include <cstring>
 #include <vector>
 
 namespace esengine {
@@ -44,12 +45,20 @@ struct MockGfxDevice final : GfxDevice {
     int setPipelineCalls = 0;
     int drawElementsCalls = 0;
     int drawElementsInstancedCalls = 0;
+    int requestReadbackCalls = 0;
+    int takeReadbackCalls = 0;
+    int discardReadbackCalls = 0;
 
     u32 nextTextureId = 100;
     u32 nextBufferId = 200;
     u32 nextFramebufferId = 500;
     u32 nextVertexLayoutId = 800;
     u32 nextPipelineId = 0;
+    u32 nextReadbackId = 900;
+
+    FramebufferHandle lastReadbackTarget = FramebufferHandle::Default;
+    u32 lastReadbackW = 0;
+    u32 lastReadbackH = 0;
 
     bool createTextureFails = false;  // toggle to exercise the OOM / lost-context path (-> Invalid)
     bool compressedSupported = true;  // toggle to exercise the RGBA8 fallback path
@@ -194,7 +203,22 @@ struct MockGfxDevice final : GfxDevice {
     void beginRenderPass(const RenderPassDesc& desc) override { ++beginRenderPassCalls; lastPassDesc = desc; }
     void endRenderPass() override { ++endRenderPassCalls; }
 
-    void readPixels(i32, i32, u32, u32, GfxPixelFormat, void*) override {}
+    // Async readback seam: every request is immediately Ready (the GL shape);
+    // takeReadback fills a fixed pattern so callers can assert data flow.
+    ReadbackHandle requestReadback(FramebufferHandle target, u32 w, u32 h) override {
+        ++requestReadbackCalls;
+        lastReadbackTarget = target;
+        lastReadbackW = w;
+        lastReadbackH = h;
+        return static_cast<ReadbackHandle>(nextReadbackId++);
+    }
+    GfxReadbackStatus pollReadback(ReadbackHandle) override { return GfxReadbackStatus::Ready; }
+    bool takeReadback(ReadbackHandle, void* dest, usize destSize) override {
+        ++takeReadbackCalls;
+        std::memset(dest, 0x42, destSize);
+        return true;
+    }
+    void discardReadback(ReadbackHandle) override { ++discardReadbackCalls; }
 
     u32 createTimerQuery() override { return 0; }  // report "no GPU timing" like a bare backend
     void beginTimerQuery(u32) override {}

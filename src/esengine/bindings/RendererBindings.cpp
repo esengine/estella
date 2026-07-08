@@ -723,6 +723,12 @@ void renderer_replayToDrawCall(i32 drawCallIndex) {
     g_renderFrame->replayToDrawCall(drawCallIndex);
 }
 
+// Lands the snapshot's async readback: 0 = pending (poll again after yielding
+// to the event loop), 1 = getSnapshot* serve the pixels, 2 = none/failed.
+i32 renderer_pollSnapshotReadback() {
+    return g_renderFrame ? g_renderFrame->pollSnapshotReadback() : 2;
+}
+
 uintptr_t renderer_getSnapshotPtr() {
     if (!g_renderFrame) return 0;
     return reinterpret_cast<uintptr_t>(g_renderFrame->getSnapshotPixels());
@@ -766,6 +772,11 @@ void renderer_renderMaterialPreview(u32 materialId, i32 w, i32 h) {
 
     const glm::mat4 vp = glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f, -1.0f, 1.0f);
     g_renderFrame->renderToTarget(reg, vp, static_cast<u32>(w), static_cast<u32>(h));
+}
+
+// Same 0/1/2 contract as renderer_pollSnapshotReadback, for the material preview.
+i32 renderer_pollPreviewReadback() {
+    return g_renderFrame ? g_renderFrame->pollPreviewReadback() : 2;
 }
 
 uintptr_t renderer_getPreviewPtr() {

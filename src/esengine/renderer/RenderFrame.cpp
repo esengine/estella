@@ -396,11 +396,15 @@ void RenderFrame::replayToDrawCall(i32 stopAtDrawCall) {
 
     frame_capture_.clearReplayMode();
 
-    u32 pixelCount = width_ * height_ * 4;
-    snapshot_pixels_.resize(pixelCount);
-    device_.readPixels(0, 0, width_, height_, GfxPixelFormat::RGBA8, snapshot_pixels_.data());
-
     rt->unbind();
+
+    // Async readback seam: the pass is closed first (WebGPU records the copy
+    // outside a pass); pollSnapshotReadback() lands the pixels.
+    if (snapshot_readback_ != ReadbackHandle::Invalid) device_.discardReadback(snapshot_readback_);
+    snapshot_w_ = width_;
+    snapshot_h_ = height_;
+    snapshot_pixels_.clear();
+    snapshot_readback_ = device_.requestReadback(rt->getFramebuffer(), width_, height_);
 }
 
 void RenderFrame::renderToTarget(ecs::Registry& registry, const glm::mat4& viewProjection, u32 w, u32 h) {
@@ -440,13 +444,46 @@ void RenderFrame::renderToTarget(ecs::Registry& registry, const glm::mat4& viewP
     draw_list_.execute(device_, pool_, context_.materials(), &frame_capture_);
     frame_capture_.endCapture();
 
-    preview_w_ = w;
-    preview_h_ = h;
-    preview_pixels_.resize(static_cast<usize>(w) * h * 4);
-    device_.readPixels(0, 0, w, h, GfxPixelFormat::RGBA8, preview_pixels_.data());
-
     rt->unbind();
     device_.invalidatePipelineCache();
+
+    // Async readback seam (same shape as the replay snapshot above).
+    if (preview_readback_ != ReadbackHandle::Invalid) device_.discardReadback(preview_readback_);
+    preview_w_ = w;
+    preview_h_ = h;
+    preview_pixels_.clear();
+    preview_readback_ = device_.requestReadback(rt->getFramebuffer(), w, h);
+}
+
+i32 RenderFrame::pollSnapshotReadback() {
+    return pollReadback(snapshot_readback_, snapshot_pixels_, snapshot_w_, snapshot_h_);
+}
+
+i32 RenderFrame::pollPreviewReadback() {
+    return pollReadback(preview_readback_, preview_pixels_, preview_w_, preview_h_);
+}
+
+i32 RenderFrame::pollReadback(ReadbackHandle& handle, std::vector<u8>& pixels, u32 w, u32 h) {
+    if (handle == ReadbackHandle::Invalid) {
+        // No readback in flight: the last landed pixels (if any) stay available.
+        return pixels.empty() ? 2 : 1;
+    }
+    switch (device_.pollReadback(handle)) {
+        case GfxReadbackStatus::Pending:
+            return 0;
+        case GfxReadbackStatus::Ready: {
+            pixels.resize(static_cast<usize>(w) * h * 4);
+            const bool ok = device_.takeReadback(handle, pixels.data(), pixels.size());
+            handle = ReadbackHandle::Invalid;
+            if (!ok) pixels.clear();
+            return ok ? 1 : 2;
+        }
+        case GfxReadbackStatus::Failed:
+        default:
+            handle = ReadbackHandle::Invalid;
+            pixels.clear();
+            return 2;
+    }
 }
 
 void RenderFrame::setEntityClipRect(u32 entity, i32 x, i32 y, i32 w, i32 h) {

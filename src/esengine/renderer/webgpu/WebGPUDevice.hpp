@@ -123,7 +123,10 @@ public:
     void endRenderPass() override;
     void resizeBackbuffer(u32 width, u32 height) override;
 
-    void readPixels(i32 x, i32 y, u32 w, u32 h, GfxPixelFormat format, void* data) override;
+    ReadbackHandle requestReadback(FramebufferHandle target, u32 w, u32 h) override;
+    GfxReadbackStatus pollReadback(ReadbackHandle handle) override;
+    bool takeReadback(ReadbackHandle handle, void* dest, usize destSize) override;
+    void discardReadback(ReadbackHandle handle) override;
 
     u32 createTimerQuery() override;
     void beginTimerQuery(u32 query) override;
@@ -188,6 +191,13 @@ private:
     struct FramebufferRec {
         u32 color0 = 0;        ///< TextureHandle id of the color attachment.
         u32 depthStencil = 0;  ///< TextureHandle id (0 = none).
+    };
+    struct ReadbackRec {
+        WGPUBuffer buffer = nullptr;  ///< CopyDst|MapRead staging buffer.
+        u32 width = 0;
+        u32 height = 0;
+        u32 paddedBytesPerRow = 0;  ///< Row stride in the buffer (256-aligned).
+        GfxReadbackStatus status = GfxReadbackStatus::Pending;
     };
 
     /** @brief Logs a not-yet-implemented path once per entry point. */
@@ -254,6 +264,17 @@ private:
     // Offscreen targets.
     std::unordered_map<u32, FramebufferRec> framebuffers_;
     u32 next_framebuffer_id_ = 1;
+
+    // In-flight readbacks: staging buffers whose mapAsync callback flips status.
+    std::unordered_map<u32, ReadbackRec> readbacks_;
+    u32 next_readback_id_ = 1;
+
+    /** @brief mapAsync completion: flips the readback's status by id (userdata2).
+     *         A discarded/taken readback simply misses the lookup and no-ops. */
+    static void onReadbackMapped(WGPUMapAsyncStatus status, WGPUStringView message,
+                                 void* userdata1, void* userdata2);
+    /** @brief Erases + releases a readback record (aborts a still-pending map). */
+    void releaseReadback(u32 id);
 
     // Internal clear family (region-scoped clears + mid-pass clearStencil).
     // Explicit layout so ONE bind group serves every write-mask variant.

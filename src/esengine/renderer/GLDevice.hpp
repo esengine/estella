@@ -106,7 +106,10 @@ public:
     void beginRenderPass(const RenderPassDesc& desc) override;
     void endRenderPass() override;
 
-    void readPixels(i32 x, i32 y, u32 w, u32 h, GfxPixelFormat format, void* data) override;
+    ReadbackHandle requestReadback(FramebufferHandle target, u32 w, u32 h) override;
+    GfxReadbackStatus pollReadback(ReadbackHandle handle) override;
+    bool takeReadback(ReadbackHandle handle, void* dest, usize destSize) override;
+    void discardReadback(ReadbackHandle handle) override;
 
     u32 createTimerQuery() override;
     void beginTimerQuery(u32 query) override;
@@ -182,6 +185,11 @@ private:
     };
     std::unordered_map<u32, BufferMeta> buffer_meta_;
     std::unordered_map<u32, GfxPixelFormat> texture_formats_;
+
+    // Completed readbacks parked until taken: GL reads synchronously at request
+    // time, so the async contract resolves on the caller's first poll.
+    std::unordered_map<u32, std::vector<u8>> readbacks_;
+    u32 next_readback_id_ = 1;
 
     // 0 = unprobed, 1 = timer queries available, 2 = unavailable.
     int timer_query_state_ = 0;

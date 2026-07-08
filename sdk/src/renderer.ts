@@ -186,8 +186,9 @@ export const Renderer = {
         replayToDrawCallImpl(module, drawCallIndex);
     },
 
-    getSnapshotImageData(): ImageData | null {
-        if (!module) return null;
+    /** Resolves with the replay snapshot once its async readback lands (see frameCapture). */
+    getSnapshotImageData(): Promise<ImageData | null> {
+        if (!module) return Promise.resolve(null);
         return getSnapshotImpl(module);
     },
 };

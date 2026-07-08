@@ -342,16 +342,18 @@ export class EditorControlSurfaceImpl {
   /**
    * Render a material to an offscreen @p w×@p h target (a "material ball" preview), found by the
    * handle a scene sprite carries — so a loaded scene's material can be previewed without
-   * re-loading it. Reuses the real render path. Null if no sprite material is in the scene.
+   * re-loading it. Reuses the real render path; the pixel readback rides the engine's async
+   * seam (immediate on GL, a later event-loop turn on WebGPU), so the result is awaited.
+   * Null if no sprite material is in the scene.
    */
-  renderSceneMaterialPreview(w: number, h: number): ViewportCapture | null {
+  async renderSceneMaterialPreview(w: number, h: number): Promise<ViewportCapture | null> {
     const world = EngineHost.world;
     if (!world) return null;
     for (const e of world.getAllEntities()) {
       if (!world.has(e, Sprite)) continue;
       const mat = (world.get(e, Sprite) as { material: number }).material;
       if (!mat) continue;
-      const img = Material.renderPreview(mat, w, h);
+      const img = await Material.renderPreview(mat, w, h);
       if (img) return { rgba: new Uint8Array(img.data), width: img.width, height: img.height };
     }
     return null;

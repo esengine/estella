@@ -1490,7 +1490,7 @@ function MaterialAssetInspector({ path }: { path: string }) {
   useEffect(() => {
     if (loaded && asset && ctx) {
       projectMaterialToHandle(asset, ctx, MaterialDocument.liveHandle);
-      renderMaterialThumbnail(MaterialDocument.liveHandle, thumbRef.current);
+      void renderMaterialThumbnail(MaterialDocument.liveHandle, thumbRef.current);
     }
   }, [revision, ctx, loaded]);
 

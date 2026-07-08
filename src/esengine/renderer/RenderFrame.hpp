@@ -159,8 +159,17 @@ public:
     void replayToDrawCall(i32 stopAtDrawCall);
     const u8* getSnapshotPixels() const { return snapshot_pixels_.data(); }
     u32 getSnapshotSize() const { return static_cast<u32>(snapshot_pixels_.size()); }
-    u32 getSnapshotWidth() const { return width_; }
-    u32 getSnapshotHeight() const { return height_; }
+    u32 getSnapshotWidth() const { return snapshot_w_; }
+    u32 getSnapshotHeight() const { return snapshot_h_; }
+
+    /**
+     * Lands the replay snapshot's async readback: 0 = still pending (poll again
+     * after yielding to the event loop), 1 = pixels are in the snapshot buffer
+     * (getSnapshot* serve them), 2 = no readback in flight / it failed.
+     * GL completes at request time, so the first poll reports 1 — callers use
+     * one polling loop for both backends.
+     */
+    i32 pollSnapshotReadback();
 
     /**
      * Render @p registry once to an offscreen @p w×@p h target with @p viewProjection and read
@@ -173,6 +182,9 @@ public:
     u32 getPreviewSize() const { return static_cast<u32>(preview_pixels_.size()); }
     u32 getPreviewWidth() const { return preview_w_; }
     u32 getPreviewHeight() const { return preview_h_; }
+
+    /** Lands the preview's async readback; same 0/1/2 contract as pollSnapshotReadback(). */
+    i32 pollPreviewReadback();
 
     void addPlugin(std::unique_ptr<RenderTypePlugin> plugin);
     void collectAll(ecs::Registry& registry, u32 skipFlags = 0);
@@ -202,14 +214,22 @@ private:
     RenderTargetManager::Handle current_target_ = 0;
     RenderStage current_stage_ = RenderStage::Transparent;
 
+    // Polls + lands one async readback: takes into @p pixels when Ready and
+    // resets @p handle. Returns the 0/1/2 contract of the public poll methods.
+    i32 pollReadback(ReadbackHandle& handle, std::vector<u8>& pixels, u32 w, u32 h);
+
     Stats stats_;
     GpuTimer gpu_timer_;
     GpuTimer gpu_timer_pp_;
     FrameCapture frame_capture_;
     std::vector<u8> snapshot_pixels_;
     RenderTargetManager::Handle replay_rt_ = 0;
+    ReadbackHandle snapshot_readback_ = ReadbackHandle::Invalid;
+    u32 snapshot_w_ = 0;
+    u32 snapshot_h_ = 0;
     std::vector<u8> preview_pixels_;
     RenderTargetManager::Handle preview_rt_ = 0;
+    ReadbackHandle preview_readback_ = ReadbackHandle::Invalid;
     u32 preview_w_ = 0;
     u32 preview_h_ = 0;
     bool in_frame_ = false;

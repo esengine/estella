@@ -212,3 +212,18 @@ TEST_CASE("null-device skeleton: language gate + graceful degradation + bookkeep
     CHECK(device.getUniformBlockIndex(ShaderHandle{1}, "FrameConstants") == GFX_INVALID_UNIFORM_BLOCK);
     CHECK(device.getString(GfxStringName::ShadingLanguageVersion) == "WGSL");
 }
+
+TEST_CASE("null-device readback: requests degrade to Invalid, polls report Failed") {
+    WebGPUDevice device;
+
+    // No device — a request cannot be issued.
+    CHECK(device.requestReadback(FramebufferHandle{7}, 4, 4) == ReadbackHandle::Invalid);
+    // Zero-sized requests are rejected regardless of device state.
+    CHECK(device.requestReadback(FramebufferHandle{7}, 0, 4) == ReadbackHandle::Invalid);
+
+    // Unknown handles poll as Failed and take as false; discard is a safe no-op.
+    CHECK(device.pollReadback(ReadbackHandle{42}) == GfxReadbackStatus::Failed);
+    u8 pixels[4] = {};
+    CHECK(!device.takeReadback(ReadbackHandle{42}, pixels, sizeof(pixels)));
+    device.discardReadback(ReadbackHandle{42});
+}

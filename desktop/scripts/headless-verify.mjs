@@ -250,16 +250,14 @@ app.whenReady().then(async () => {
     // Optional offscreen material-preview assertion (ESTELLA_VERIFY_PREVIEW =
     // {w,h,rgb:[r,g,b],tol?}): renders a scene material to an offscreen target and checks the
     // center pixel — proves the render-to-texture preview primitive, not just the viewport.
-    // The material preview reads back through GL — skipped on WebGPU (its
-    // buffer maps are async; a readback seam is future work).
+    // The readback rides the engine's async seam, so the same awaited call
+    // verifies BOTH backends (GL resolves immediately; WebGPU when the map lands).
     let preview = null;
-    if (process.env.ESTELLA_VERIFY_PREVIEW && BACKEND === 'webgpu') {
-      console.log('[verify:render] preview assertion skipped on webgpu');
-    } else if (process.env.ESTELLA_VERIFY_PREVIEW) {
+    if (process.env.ESTELLA_VERIFY_PREVIEW) {
       const cfg = JSON.parse(process.env.ESTELLA_VERIFY_PREVIEW);
-      preview = await exec(`(() => {
+      preview = await exec(`(async () => {
         const cfg = ${JSON.stringify(cfg)};
-        const cap = window.__estellaHeadless.api.renderSceneMaterialPreview(cfg.w, cfg.h);
+        const cap = await window.__estellaHeadless.api.renderSceneMaterialPreview(cfg.w, cfg.h);
         if (!cap) return { ok: false, reason: 'no scene material' };
         const { width: w, height: h, rgba } = cap;
         const i = (Math.floor(h / 2) * w + Math.floor(w / 2)) * 4;

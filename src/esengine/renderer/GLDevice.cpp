@@ -962,12 +962,38 @@ void GLDevice::endRenderPass() {
 }
 
 // =============================================================================
-// Readback
+// Readback (async seam; GL resolves at request time)
 // =============================================================================
 
-void GLDevice::readPixels(i32 x, i32 y, u32 w, u32 h, GfxPixelFormat format, void* data) {
-    auto gl = toGLPixelFormat(format);
-    glReadPixels(x, y, static_cast<GLsizei>(w), static_cast<GLsizei>(h), gl.format, gl.type, data);
+ReadbackHandle GLDevice::requestReadback(FramebufferHandle target, u32 w, u32 h) {
+    if (w == 0 || h == 0) return ReadbackHandle::Invalid;
+    std::vector<u8> pixels(static_cast<usize>(w) * h * 4);
+    // Called outside a pass (framebuffer 0 bound); bind the source, read, restore.
+    glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(target));
+    auto gl = toGLPixelFormat(GfxPixelFormat::RGBA8);
+    glReadPixels(0, 0, static_cast<GLsizei>(w), static_cast<GLsizei>(h), gl.format, gl.type,
+                 pixels.data());
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    const u32 id = next_readback_id_++;
+    readbacks_[id] = std::move(pixels);
+    return static_cast<ReadbackHandle>(id);
+}
+
+GfxReadbackStatus GLDevice::pollReadback(ReadbackHandle handle) {
+    return readbacks_.count(static_cast<u32>(handle)) ? GfxReadbackStatus::Ready
+                                                      : GfxReadbackStatus::Failed;
+}
+
+bool GLDevice::takeReadback(ReadbackHandle handle, void* dest, usize destSize) {
+    auto it = readbacks_.find(static_cast<u32>(handle));
+    if (it == readbacks_.end() || destSize < it->second.size()) return false;
+    std::memcpy(dest, it->second.data(), it->second.size());
+    readbacks_.erase(it);
+    return true;
+}
+
+void GLDevice::discardReadback(ReadbackHandle handle) {
+    readbacks_.erase(static_cast<u32>(handle));
 }
 
 // =============================================================================

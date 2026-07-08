@@ -334,11 +334,35 @@ public:
     }
 
     // =========================================================================
-    // Readback
+    // Readback (asynchronous seam — the one backend-neutral pixel-return path)
     // =========================================================================
 
-    /** @brief Reads pixels from the current framebuffer */
-    virtual void readPixels(i32 x, i32 y, u32 w, u32 h, GfxPixelFormat format, void* data) = 0;
+    /**
+     * @brief Requests an RGBA8 readback of a framebuffer's color attachment.
+     * @details Backend-neutral contract: GL reads synchronously (the first poll
+     *          reports Ready); WebGPU records a texture→staging copy and resolves
+     *          when the buffer map lands, so callers must poll across event-loop
+     *          turns. Must be called OUTSIDE a render pass. Rows land bottom-up
+     *          (the GL convention every capture consumer assumes). The WebGPU
+     *          backend reads offscreen targets only — the surface texture is not
+     *          copyable — so a Default-target request returns Invalid there.
+     * @return A handle to poll, or Invalid when the request cannot be issued.
+     */
+    virtual ReadbackHandle requestReadback(FramebufferHandle target, u32 w, u32 h) = 0;
+
+    /** @brief The state of an in-flight readback; pumps backend completion events.
+     *         A Failed readback is released by the poll that reported it. */
+    virtual GfxReadbackStatus pollReadback(ReadbackHandle handle) = 0;
+
+    /**
+     * @brief Copies a Ready readback's pixels (w*h*4 bytes) into @p dest and releases it.
+     * @return False when the handle is unknown, still Pending, or @p destSize is short —
+     *         a Pending readback stays alive.
+     */
+    virtual bool takeReadback(ReadbackHandle handle, void* dest, usize destSize) = 0;
+
+    /** @brief Abandons a readback (any state); its resources are released. */
+    virtual void discardReadback(ReadbackHandle handle) = 0;
 
     // =========================================================================
     // GPU Timing (optional; EXT_disjoint_timer_query on WebGL2)
