@@ -72,22 +72,60 @@ async function* walkMeta(root: string, rel = ''): AsyncGenerator<string> {
   }
 }
 
-/** Collect every `@uuid:<id>` (or bare uuid) referenced in a scene/prefab JSON. */
-function collectRefs(value: unknown, into: Set<string>): void {
+/**
+ * Asset types whose JSON documents can reference other assets — these are
+ * dependency-scanned so the cook's reachability closure includes what they
+ * pull in (a material's shader + textures, a tileset's atlas, …).
+ */
+const JSON_REF_TYPES = new Set([
+  'scene', 'prefab', 'material', 'tileset', 'animclip', 'statemachine', 'behaviortree',
+]);
+
+/**
+ * Collect every asset reference in a JSON document:
+ *   - `@uuid:<id>` refs (editor-serialized stable refs)
+ *   - BARE uuid strings, only when they name a real asset (anim-clip flipbook
+ *     frames serialize these — the runtime's extractUuid form; entity ids are
+ *     uuid-shaped too, so index membership is the filter)
+ *   - PATH refs, resolved through @p resolvePath (real content references
+ *     materials/textures by project path, not uuid — a dep graph that only
+ *     reads `@uuid:` sees an empty project and the cook culls everything)
+ */
+function collectRefs(
+  value: unknown,
+  into: Set<string>,
+  resolvePath?: (ref: string) => string | null,
+  knownUuid?: (id: string) => boolean,
+): void {
   if (typeof value === 'string') {
     if (value.startsWith(UUID_PREFIX)) {
       const id = value.slice(UUID_PREFIX.length).toLowerCase();
       if (UUID_V4.test(id)) into.add(id);
+      return;
     }
+    if (UUID_V4.test(value)) {
+      const id = value.toLowerCase();
+      if (knownUuid?.(id)) into.add(id);
+      return;
+    }
+    const uuid = resolvePath?.(value);
+    if (uuid) into.add(uuid);
     return;
   }
   if (Array.isArray(value)) {
-    for (const v of value) collectRefs(v, into);
+    for (const v of value) collectRefs(v, into, resolvePath, knownUuid);
     return;
   }
   if (value && typeof value === 'object') {
-    for (const v of Object.values(value as Record<string, unknown>)) collectRefs(v, into);
+    for (const v of Object.values(value as Record<string, unknown>)) {
+      collectRefs(v, into, resolvePath, knownUuid);
+    }
   }
+}
+
+/** Normalize a ref for path-index lookup (forward slashes, no ./ or leading /). */
+function normalizeRefPath(ref: string): string {
+  return ref.replace(/\\/g, '/').replace(/^\.\//, '').replace(/^\//, '');
 }
 
 /**
@@ -123,14 +161,29 @@ export async function scanAssetDatabase(
 
   entries.sort((a, b) => a.path.localeCompare(b.path));
 
-  // Dependency graph: scenes/prefabs reference assets by uuid.
+  // Dependency graph: any JSON asset can reference others — by uuid or by path
+  // (project-relative like a scene's "assets/materials/x.esmaterial", or
+  // relative to the referencing document's own directory like a material's
+  // "shader": "x.esshader"). Path refs resolve against the index, so only
+  // strings naming a real asset create edges — no false positives.
+  const byPath = new Map(entries.map((e) => [e.path, e]));
+  const uuids = new Set(entries.map((e) => e.uuid));
   const deps: Record<string, string[]> = {};
   for (const entry of entries) {
-    if (entry.type !== 'scene' && entry.type !== 'prefab') continue;
+    if (!JSON_REF_TYPES.has(entry.type)) continue;
     try {
       const json = JSON.parse(await readFile(path.join(root, entry.path), 'utf8'));
+      const dir = entry.path.includes('/') ? entry.path.slice(0, entry.path.lastIndexOf('/')) : '';
       const refs = new Set<string>();
-      collectRefs(json, refs);
+      collectRefs(json, refs, (ref) => {
+        if (ref.includes('://')) return null;
+        const norm = normalizeRefPath(ref);
+        const direct = byPath.get(norm);
+        if (direct) return direct.uuid;
+        const relative = dir ? byPath.get(normalizeRefPath(`${dir}/${norm}`)) : undefined;
+        return relative?.uuid ?? null;
+      }, (id) => uuids.has(id));
+      refs.delete(entry.uuid);
       if (refs.size > 0) deps[entry.uuid] = [...refs].sort();
     } catch (err) {
       warnings.push(`${entry.path}: ${err instanceof Error ? err.message : String(err)}`);

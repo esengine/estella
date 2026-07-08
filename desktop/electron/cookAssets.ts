@@ -38,6 +38,14 @@ export interface CookManifestEntry extends AssetEntry {
   contentHash: string;
   /** Staged byte length. */
   size: number;
+  /**
+   * The asset's LOGICAL project-relative path — its addressable identity, kept
+   * even when content-addressed staging renames the physical file (`path`) or
+   * texture encoding swaps its extension. This is what path-style references
+   * (a scene's "assets/x.esmaterial", a material's relative "x.esshader")
+   * name at runtime; a host maps it to `path` to serve them from a cooked build.
+   */
+  sourcePath: string;
   /** GPU formats the staged KTX2 can transcode to, when the asset was compressed. */
   compressedFormats?: string[];
   /**
@@ -162,6 +170,18 @@ export async function cookAssets(
         ext = '.ktx2';
         compressedFormats = COMPRESSED_TARGETS;
       }
+      // Shaders ship as-authored; a WGSL twin is what makes one run on the
+      // WebGPU backend, so a twin-less shader is worth a cook-time warning
+      // (generation is a dev-time step — tools/gen-shader-twins.mjs writes the
+      // twins into the source file, keeping the cook deterministic and free of
+      // converter-toolchain dependencies).
+      if (ext.toLowerCase() === '.esshader' &&
+          !Buffer.from(data).toString('utf8').includes('#pragma fragment wgsl')) {
+        warnings.push(
+          `${entry.path}: no WGSL twin — this shader will not render on the WebGPU backend ` +
+          '(run tools/gen-shader-twins.mjs to generate one)',
+        );
+      }
       const hash = contentHashHex(data);
       // Content-addressed naming: leaf assets ship as assets/<hash><ext>, so
       // byte-identical assets collapse to one file (dedup) and the URL is immutable
@@ -184,6 +204,7 @@ export async function cookAssets(
       manifestEntries.push({
         uuid: entry.uuid,
         path: outRel,
+        sourcePath: entry.path,
         type: entry.type,
         importer: entry.importer,
         contentHash: hash,

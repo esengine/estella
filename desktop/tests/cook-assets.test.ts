@@ -213,4 +213,82 @@ describe('cookAssets (A4)', () => {
       rmSync(r, { recursive: true, force: true });
     }
   }, 30_000);
+
+  it('follows PATH refs: scene → material (project path) → shader + texture (dir-relative)', async () => {
+    const r = mkdtempSync(path.join(tmpdir(), 'estella-cook-pathref-'));
+    try {
+      const SC = 'aaaa1111-1111-4111-8111-111111111111';
+      const MAT = 'aaaa2222-2222-4222-8222-222222222222';
+      const SHADER = 'aaaa3333-3333-4333-8333-333333333333';
+      const TEX = 'aaaa4444-4444-4444-8444-444444444444';
+      const ORPHAN = 'aaaa5555-5555-4555-8555-555555555555';
+      const wa = (rel: string, type: string, uuid: string, body: string): void => {
+        const abs = path.join(r, rel);
+        mkdirSync(path.dirname(abs), { recursive: true });
+        writeFileSync(abs, body);
+        writeFileSync(`${abs}.meta`, JSON.stringify({ uuid, version: '2.0', type, importer: {} }));
+      };
+      // The real-content shape: the scene names the material by PROJECT PATH (no
+      // @uuid:), and the material names its shader + texture RELATIVE to itself.
+      wa('assets/materials/m.esmaterial', 'material', MAT, JSON.stringify({
+        version: '1.0', type: 'material', shader: 'm.esshader', properties: { u_mask: 'green.png' },
+      }));
+      wa('assets/materials/m.esshader', 'shader', SHADER,
+        '#pragma shader "M"\n#pragma fragment\nvoid main() {}\n#pragma end\n');
+      wa('assets/materials/green.png', 'texture', TEX, 'G');
+      wa('assets/materials/orphan.png', 'texture', ORPHAN, 'O');
+      wa('s/main.esscene', 'scene', SC, JSON.stringify({
+        version: '1.0', name: 's', entities: [
+          { id: 1, name: 'E', parent: null, children: [], components: [{ type: 'Sprite', data: { material: 'assets/materials/m.esmaterial' } }] },
+        ],
+      }));
+
+      const res = await cookAssets(r, { entryScenes: ['s/main.esscene'], outDir: 'out' });
+      expect(res.included.sort()).toEqual([SC, MAT, SHADER, TEX].sort());
+      expect(res.unused).toEqual([ORPHAN]);
+      // A twin-less shader ships GL-only: the cook says so.
+      expect(res.warnings.some((w) => w.includes('no WGSL twin'))).toBe(true);
+
+      // Content addressing renames the physical file but keeps the LOGICAL
+      // identity in sourcePath — what path refs name at runtime.
+      const ca = await cookAssets(r, { entryScenes: ['s/main.esscene'], outDir: 'out-ca', contentAddressed: true });
+      const m = JSON.parse(readFileSync(ca.manifestPath!, 'utf8')) as AssetManifest & {
+        entries: Array<{ uuid: string; path: string; sourcePath: string }>;
+      };
+      const mat = m.entries.find((e) => e.uuid === MAT)!;
+      expect(mat.sourcePath).toBe('assets/materials/m.esmaterial');
+      expect(mat.path).toMatch(/^assets\/[0-9a-f]{16}\.esmaterial$/);
+    } finally {
+      rmSync(r, { recursive: true, force: true });
+    }
+  });
+
+  it('bare uuid refs (anim-frame form) create edges only when they name a real asset', async () => {
+    const r = mkdtempSync(path.join(tmpdir(), 'estella-cook-bareuuid-'));
+    try {
+      const SC = 'bbbb1111-1111-4111-8111-111111111111';
+      const CLIP = 'bbbb2222-2222-4222-8222-222222222222';
+      const FRAME = 'bbbb3333-3333-4333-8333-333333333333';
+      const NOT_AN_ASSET = 'bbbb9999-9999-4999-8999-999999999999'; // uuid-shaped entity id
+      const wa = (rel: string, type: string, uuid: string, body: string): void => {
+        const abs = path.join(r, rel);
+        mkdirSync(path.dirname(abs), { recursive: true });
+        writeFileSync(abs, body);
+        writeFileSync(`${abs}.meta`, JSON.stringify({ uuid, version: '2.0', type, importer: {} }));
+      };
+      wa('a/frame.png', 'texture', FRAME, 'F');
+      wa('a/idle.esanim', 'animclip', CLIP, JSON.stringify({
+        version: '1.0', frames: [FRAME], sourceId: NOT_AN_ASSET,
+      }));
+      wa('s/main.esscene', 'scene', SC, JSON.stringify({
+        version: '1.0', name: 's', entities: [
+          { id: 1, name: 'E', parent: null, children: [], components: [{ type: 'SpriteAnimator', data: { clip: 'a/idle.esanim' } }] },
+        ],
+      }));
+      const res = await cookAssets(r, { entryScenes: ['s/main.esscene'], outDir: 'out' });
+      expect(res.included.sort()).toEqual([SC, CLIP, FRAME].sort());
+    } finally {
+      rmSync(r, { recursive: true, force: true });
+    }
+  });
 });
