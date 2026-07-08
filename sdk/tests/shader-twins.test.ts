@@ -43,12 +43,15 @@ const CASES: Array<{ name: string; source: string }> = [
     ...BUILTIN_SHADER_TEMPLATES.map((t) => ({ name: `template:${t.id}`, source: t.source })),
     ...embeddedEsshaders('filters.ts').map((source, i) => ({ name: `filters.ts[${i}]`, source })),
     ...embeddedEsshaders('spriteFilter.ts').map((source, i) => ({ name: `spriteFilter.ts[${i}]`, source })),
+    ...embeddedEsshaders('postprocess/postProcessEffects.ts').map(
+        (source, i) => ({ name: `postProcessEffects.ts[${i}]`, source })),
 ];
 
 describe('embedded .esshader structure', () => {
-    it('found the filter sources', () => {
+    it('found the filter and effect sources', () => {
         expect(CASES.filter((c) => c.name.startsWith('filters.ts')).length).toBe(1);
         expect(CASES.filter((c) => c.name.startsWith('spriteFilter.ts')).length).toBe(2);
+        expect(CASES.filter((c) => c.name.startsWith('postProcessEffects.ts')).length).toBe(13);
     });
 
     for (const { name, source } of CASES) {

@@ -14,12 +14,14 @@
 #include "PostProcessPipeline.hpp"
 #include "RenderContext.hpp"
 #include "GfxDevice.hpp"
+#include "MaterialConstants.hpp"
 #include "Shader.hpp"
 #include "ShaderEmbeds.generated.hpp"
 #include "../resource/ResourceManager.hpp"
 #include "../resource/ShaderParser.hpp"
 #include "../core/Log.hpp"
 #include <algorithm>
+#include <cstring>
 
 #include "GfxEnums.hpp"
 
@@ -99,6 +101,8 @@ void PostProcessPipeline::ensureFBOs() {
 void PostProcessPipeline::shutdown() {
     if (!initialized_) return;
 
+    for (auto& pass : passes_) releasePassResources(pass);
+    for (auto& pass : screenPasses_) releasePassResources(pass);
     passes_.clear();
     screenPasses_.clear();
 
@@ -167,11 +171,19 @@ u32 PostProcessPipeline::addPass(const std::string& name, resource::ShaderHandle
     return static_cast<u32>(passes_.size() - 1);
 }
 
+void PostProcessPipeline::releasePassResources(PostProcessPass& pass) {
+    if (pass.paramUbo != BufferHandle::Invalid) {
+        device_.deleteBuffer(pass.paramUbo);
+        pass.paramUbo = BufferHandle::Invalid;
+    }
+}
+
 void PostProcessPipeline::removePass(const std::string& name) {
     auto it = std::find_if(passes_.begin(), passes_.end(),
         [&name](const PostProcessPass& p) { return p.name == name; });
 
     if (it != passes_.end()) {
+        releasePassResources(*it);
         passes_.erase(it);
     }
 }
@@ -195,6 +207,7 @@ void PostProcessPipeline::setPassUniformFloat(const std::string& passName,
                                                const std::string& uniform, f32 value) {
     if (auto* pass = findPass(passName)) {
         pass->floatUniforms[uniform] = value;
+        pass->paramDirty = true;
     }
 }
 
@@ -213,6 +226,7 @@ void PostProcessPipeline::setPassUniformVec4(const std::string& passName,
                                               const glm::vec4& value) {
     if (auto* pass = findPass(passName)) {
         pass->vec4Uniforms[uniform] = value;
+        pass->paramDirty = true;
     }
 }
 
@@ -327,7 +341,7 @@ void PostProcessPipeline::end() {
         device->bindTexture(1, sceneTexture_);
         device->bindTexture(0, TextureHandle::Invalid);
 
-        for (const auto& pass : passes_) {
+        for (auto& pass : passes_) {
             if (!pass.enabled) continue;
 
             Framebuffer* targetFBO = (currentFBO_ == 0) ? fboA_.get() : fboB_.get();
@@ -351,7 +365,7 @@ void PostProcessPipeline::end() {
     output_target_fbo_ = FramebufferHandle::Default;
 }
 
-void PostProcessPipeline::renderPass(const PostProcessPass& pass, TextureHandle inputTexture) {
+void PostProcessPipeline::renderPass(PostProcessPass& pass, TextureHandle inputTexture) {
     Shader* shader = resourceManager_.getShader(pass.shader);
     if (!shader) return;
 
@@ -359,45 +373,89 @@ void PostProcessPipeline::renderPass(const PostProcessPass& pass, TextureHandle 
     device->bindTexture(0, inputTexture);
 
     applyPassPipeline(*shader);
-    shader->setUniform("u_texture", 0);
-    // u_sceneTexture and u_resolution are engine-provided builtins that only some
-    // passes use (bloom's composite taps the untouched scene; kawase/pixelate/fxaa
-    // need the resolution). Supply them only where declared so passes that omit
-    // them don't log a spurious "uniform not found".
-    if (shader->hasUniform("u_sceneTexture")) shader->setUniform("u_sceneTexture", 1);
-    if (shader->hasUniform("u_resolution")) {
-        shader->setUniform("u_resolution", glm::vec2(static_cast<f32>(width_), static_cast<f32>(height_)));
+    const bool glsl = shader->language() == GfxShaderLanguage::GLSL_ES300;
+    if (glsl) {
+        // Engine sampler seeding is a GLSL concept; the WGSL twins read the
+        // input/scene as the t0/s0 and t1/s1 bind-group pairs.
+        shader->setUniform("u_texture", 0);
+        if (shader->hasUniform("u_sceneTexture")) shader->setUniform("u_sceneTexture", 1);
     }
 
-    // Effect-declared textures (LUTs, masks) bind above the two engine units.
-    u32 extraUnit = 2;
-    for (const auto& [name, glId] : pass.textureUniforms) {
-        if (glId != 0 && shader->hasUniform(name)) {
-            device->bindTexture(extraUnit, TextureHandle{glId});
-            shader->setUniform(name, static_cast<i32>(extraUnit));
+    // #pragma-param effects: params ride the reflected MaterialConstants block
+    // (binding 1) exactly like a material's — compileEsshader registered the
+    // layout when the effect compiled. Resolution-style inputs come from the
+    // injected u_viewport, so nothing per-pass remains loose.
+    const MaterialUniformLayout* layout = context_.materials().layoutFor(shader->getProgramId());
+    if (layout) {
+        if (layout->blockSize > 0) {
+            if (pass.paramDirty || pass.paramBytes.size() < layout->blockSize) {
+                // Defaults first, then the pass's set values by reflected offset.
+                // A multi-pass effect (bloom) carries its full uniform set; each
+                // sub-pass layout picks only the params it declares.
+                pass.paramBytes.assign(layout->blockSize, 0);
+                for (const auto& p : layout->params) {
+                    std::memcpy(pass.paramBytes.data() + p.offset, p.defaults,
+                                p.arity * sizeof(f32));
+                    if (auto fit = pass.floatUniforms.find(p.name); fit != pass.floatUniforms.end()) {
+                        std::memcpy(pass.paramBytes.data() + p.offset, &fit->second, sizeof(f32));
+                    }
+                    if (auto vit = pass.vec4Uniforms.find(p.name); vit != pass.vec4Uniforms.end()) {
+                        std::memcpy(pass.paramBytes.data() + p.offset, &vit->second.x,
+                                    std::min(p.arity, 4u) * sizeof(f32));
+                    }
+                }
+                pass.paramDirty = false;
+                if (pass.paramUbo == BufferHandle::Invalid) {
+                    pass.paramUbo = device->createBuffer(
+                        {GfxBufferUsage::Uniform, layout->blockSize, /*dynamic=*/true},
+                        pass.paramBytes.data());
+                } else {
+                    device->updateBuffer(pass.paramUbo, 0, pass.paramBytes.data(),
+                                         static_cast<u32>(pass.paramBytes.size()));
+                }
+            }
+            if (pass.paramUbo != BufferHandle::Invalid) {
+                device->setUniformBuffer(MATERIAL_CONSTANTS_BINDING, pass.paramUbo);
+            }
         }
-        ++extraUnit;
+        // Texture params (LUTs, masks) bind at their reflected material units;
+        // an unset param gets its declared default (white/black/flatnormal).
+        for (const auto& slot : layout->textures) {
+            u32 glTexture = slot.defaultGlTexture;
+            for (const auto& [name, glId] : pass.textureUniforms) {
+                if (name == slot.name && glId != 0) { glTexture = glId; break; }
+            }
+            if (glTexture != 0) device->bindTexture(slot.unit, TextureHandle{glTexture});
+        }
+    } else if (glsl) {
+        // Legacy loose-uniform path for raw-GLSL passes (addPass with a
+        // hand-created shader): resolution, in-order extra textures, and the
+        // DrawParams block lifted at creation.
+        if (shader->hasUniform("u_resolution")) {
+            shader->setUniform("u_resolution", glm::vec2(static_cast<f32>(width_), static_cast<f32>(height_)));
+        }
+        u32 extraUnit = 2;
+        for (const auto& [name, glId] : pass.textureUniforms) {
+            if (glId != 0 && shader->hasUniform(name)) {
+                device->bindTexture(extraUnit, TextureHandle{glId});
+                shader->setUniform(name, static_cast<i32>(extraUnit));
+            }
+            ++extraUnit;
+        }
+        for (const auto& [name, value] : pass.floatUniforms) {
+            if (shader->hasUniform(name)) shader->setUniform(name, value);
+        }
+        for (const auto& [name, value] : pass.vec4Uniforms) {
+            if (shader->hasUniform(name)) shader->setUniform(name, value);
+        }
+        shader->commitParams();
     }
-
-    // A multi-pass effect (e.g. bloom) applies its full uniform set to every one
-    // of its sub-pass shaders, each of which declares only a subset — upload each
-    // uniform only to the passes that actually use it.
-    for (const auto& [name, value] : pass.floatUniforms) {
-        if (shader->hasUniform(name)) shader->setUniform(name, value);
-    }
-
-    for (const auto& [name, value] : pass.vec4Uniforms) {
-        if (shader->hasUniform(name)) shader->setUniform(name, value);
-    }
-
-    // Effect parameters live in the shader's DrawParams block (lifted at
-    // creation); flush + bind them for this draw.
-    shader->commitParams();
 
     drawScreenQuad();
 }
 
 void PostProcessPipeline::clearPasses() {
+    for (auto& pass : passes_) releasePassResources(pass);
     passes_.clear();
 }
 
@@ -508,7 +566,7 @@ void PostProcessPipeline::executeScreenPasses() {
     device->bindTexture(1, sceneTexture_);
     device->bindTexture(0, TextureHandle::Invalid);
 
-    for (const auto& pass : screenPasses_) {
+    for (auto& pass : screenPasses_) {
         if (!pass.enabled) continue;
 
         Framebuffer* targetFBO = (pingPong == 0) ? fboA_.get() : fboB_.get();
@@ -542,6 +600,7 @@ u32 PostProcessPipeline::addScreenPass(const std::string& name, resource::Shader
 }
 
 void PostProcessPipeline::clearScreenPasses() {
+    for (auto& pass : screenPasses_) releasePassResources(pass);
     screenPasses_.clear();
 }
 
@@ -558,6 +617,7 @@ void PostProcessPipeline::setScreenPassUniformFloat(const std::string& passName,
                                                      const std::string& uniform, f32 value) {
     if (auto* pass = findScreenPass(passName)) {
         pass->floatUniforms[uniform] = value;
+        pass->paramDirty = true;
     }
 }
 
@@ -566,6 +626,7 @@ void PostProcessPipeline::setScreenPassUniformVec4(const std::string& passName,
                                                     const glm::vec4& value) {
     if (auto* pass = findScreenPass(passName)) {
         pass->vec4Uniforms[uniform] = value;
+        pass->paramDirty = true;
     }
 }
 

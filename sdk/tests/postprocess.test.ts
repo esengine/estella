@@ -3,6 +3,7 @@
 vi.mock('../src/material', () => ({
     Material: {
         createShader: vi.fn().mockReturnValue(42),
+        compileShader: vi.fn().mockReturnValue(42),
         releaseShader: vi.fn(),
     },
 }));
@@ -327,53 +328,45 @@ describe('PostProcess API', () => {
     // =========================================================================
 
     describe('built-in effects', () => {
-        it('should create blur shader using Material.createShader', () => {
+        // Effects are fragment-only PostProcess-domain .esshaders on the
+        // reflected #pragma param seam, compiled via Material.compileShader.
+        const lastSource = (): string => {
+            const calls = (Material.compileShader as ReturnType<typeof vi.fn>).mock.calls;
+            return calls[calls.length - 1][0] as string;
+        };
+
+        it('should create blur as a param-reflected PostProcess esshader', () => {
             const handle = postProcessEffects.createBlur();
-            expect(Material.createShader).toHaveBeenCalledWith(
-                expect.stringContaining('a_position'),
-                expect.stringContaining('u_intensity'),
-            );
+            const src = lastSource();
+            expect(src).toContain('#pragma domain PostProcess');
+            expect(src).toContain('#pragma param u_intensity float');
+            expect(src).not.toContain('#pragma vertex'); // canonical stage is engine-injected
             expect(handle).toBe(42);
         });
 
-        it('should create vignette shader using Material.createShader', () => {
-            const handle = postProcessEffects.createVignette();
-            expect(Material.createShader).toHaveBeenCalledWith(
-                expect.stringContaining('a_position'),
-                expect.stringContaining('u_softness'),
-            );
-            expect(handle).toBe(42);
+        it('should create vignette with its params reflected', () => {
+            postProcessEffects.createVignette();
+            expect(lastSource()).toContain('#pragma param u_softness float');
         });
 
-        it('should create grayscale shader using Material.createShader', () => {
-            const handle = postProcessEffects.createGrayscale();
-            expect(Material.createShader).toHaveBeenCalledWith(
-                expect.stringContaining('a_position'),
-                expect.stringContaining('0.299'),
-            );
-            expect(handle).toBe(42);
+        it('should create grayscale with Rec.601 luma weights', () => {
+            postProcessEffects.createGrayscale();
+            expect(lastSource()).toContain('0.299');
         });
 
-        it('should create chromatic aberration shader using Material.createShader', () => {
-            const handle = postProcessEffects.createChromaticAberration();
-            expect(Material.createShader).toHaveBeenCalledWith(
-                expect.stringContaining('a_position'),
-                expect.stringContaining('u_intensity'),
-            );
-            expect(handle).toBe(42);
+        it('should size chromatic aberration from the injected viewport', () => {
+            postProcessEffects.createChromaticAberration();
+            const src = lastSource();
+            expect(src).toContain('u_intensity * u_viewport.zw');
+            expect(src).not.toContain('u_resolution');
         });
 
-        it('should create color grade shader using Material.createShader', () => {
-            const handle = postProcessEffects.createColorGrade();
-            expect(Material.createShader).toHaveBeenCalledWith(
-                expect.stringContaining('a_position'),
-                expect.stringContaining('u_exposure'),
-            );
-            expect(Material.createShader).toHaveBeenCalledWith(
-                expect.anything(),
-                expect.stringContaining('u_saturation'),
-            );
-            expect(handle).toBe(42);
+        it('should create color grade with every grading param reflected', () => {
+            postProcessEffects.createColorGrade();
+            const src = lastSource();
+            for (const p of ['u_exposure', 'u_contrast', 'u_saturation', 'u_temperature', 'u_tint']) {
+                expect(src).toContain(`#pragma param ${p} float`);
+            }
         });
 
         it('registers colorGrade with identity defaults (no-op at defaults)', () => {
@@ -386,22 +379,43 @@ describe('PostProcess API', () => {
             });
         });
 
-        it('should use the shared POSTPROCESS_VERTEX shader for all effects', () => {
+        it('every effect ships a WGSL twin and stays fragment-only', () => {
+            postProcessEffects.createLutGrade();
             postProcessEffects.createBlur();
             postProcessEffects.createVignette();
             postProcessEffects.createGrayscale();
+            postProcessEffects.createBloomExtract();
+            postProcessEffects.createBloomKawase(0);
+            postProcessEffects.createBloomComposite();
+            postProcessEffects.createColorGrade();
             postProcessEffects.createChromaticAberration();
             postProcessEffects.createTonemap();
             postProcessEffects.createFxaa();
             postProcessEffects.createLensDistortion();
             postProcessEffects.createPixelate();
 
-            const calls = (Material.createShader as ReturnType<typeof vi.fn>).mock.calls;
-            const vertexShaders = calls.map((c: unknown[]) => c[0]);
-            const firstVertex = vertexShaders[0];
-            for (const vs of vertexShaders) {
-                expect(vs).toBe(firstVertex);
+            const calls = (Material.compileShader as ReturnType<typeof vi.fn>).mock.calls;
+            expect(calls.length).toBe(13);
+            for (const c of calls) {
+                const src = c[0] as string;
+                expect(src).toContain('#pragma domain PostProcess');
+                expect(src).toContain('#pragma fragment wgsl');
+                expect(src).toContain('fn fs_main(');
+                expect(src).not.toContain('#pragma vertex');
+                expect(src).not.toContain('u_resolution'); // u_viewport replaced it
             }
+        });
+
+        it('lutGrade declares the LUT as a texture param', () => {
+            postProcessEffects.createLutGrade();
+            expect(lastSource()).toContain('#pragma param u_lut texture default(white)');
+        });
+
+        it('bloom composite reads the untouched scene through the engine unit', () => {
+            postProcessEffects.createBloomComposite();
+            const src = lastSource();
+            expect(src).toContain('u_sceneTexture'); // GLSL: loose engine sampler (unit 1)
+            expect(src).toContain('t1, s1');         // WGSL twin: the unit-1 pair
         });
     });
 
@@ -410,52 +424,39 @@ describe('PostProcess API', () => {
     // =========================================================================
 
     describe('extended effects', () => {
+        const lastSource = (): string => {
+            const calls = (Material.compileShader as ReturnType<typeof vi.fn>).mock.calls;
+            return calls[calls.length - 1][0] as string;
+        };
+
         it('should create an ACES tonemap shader with exposure', () => {
             const handle = postProcessEffects.createTonemap();
-            expect(Material.createShader).toHaveBeenCalledWith(
-                expect.stringContaining('a_position'),
-                expect.stringContaining('u_exposure'),
-            );
+            const src = lastSource();
+            expect(src).toContain('#pragma param u_exposure float');
             // ACES Narkowicz curve constant — guards the operator identity.
-            expect(Material.createShader).toHaveBeenCalledWith(
-                expect.anything(),
-                expect.stringContaining('2.51'),
-            );
+            expect(src).toContain('2.51');
             expect(handle).toBe(42);
         });
 
-        it('should create an FXAA shader sampling by resolution', () => {
+        it('should create an FXAA shader sampling by the injected viewport', () => {
             const handle = postProcessEffects.createFxaa();
-            expect(Material.createShader).toHaveBeenCalledWith(
-                expect.anything(),
-                expect.stringContaining('u_resolution'),
-            );
-            expect(Material.createShader).toHaveBeenCalledWith(
-                expect.anything(),
-                expect.stringContaining('u_intensity'),
-            );
+            const src = lastSource();
+            expect(src).toContain('u_viewport.zw');
+            expect(src).toContain('#pragma param u_intensity float');
             expect(handle).toBe(42);
         });
 
         it('should create a lens distortion shader with strength and zoom', () => {
             const handle = postProcessEffects.createLensDistortion();
-            expect(Material.createShader).toHaveBeenCalledWith(
-                expect.anything(),
-                expect.stringContaining('u_strength'),
-            );
-            expect(Material.createShader).toHaveBeenCalledWith(
-                expect.anything(),
-                expect.stringContaining('u_zoom'),
-            );
+            const src = lastSource();
+            expect(src).toContain('#pragma param u_strength float');
+            expect(src).toContain('#pragma param u_zoom float');
             expect(handle).toBe(42);
         });
 
         it('should create a pixelate shader with pixel size', () => {
             const handle = postProcessEffects.createPixelate();
-            expect(Material.createShader).toHaveBeenCalledWith(
-                expect.anything(),
-                expect.stringContaining('u_pixelSize'),
-            );
+            expect(lastSource()).toContain('#pragma param u_pixelSize float');
             expect(handle).toBe(42);
         });
 

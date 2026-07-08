@@ -1,15 +1,20 @@
-// SPDX-License-Identifier: Apache-2.0
+﻿// SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    postProcessEffects.ts
  * @brief   Stateless post-process shader factories.
- * @details Pure Material.createShader builders, extracted verbatim from the
- *          former four-in-one PostProcess object. No state, no per-App, no
- *          module — just shader source. (B2b: slim the god-object.)
+ * @details Fragment-only `.esshader` sources on the reflected `#pragma param`
+ *          seam (domain PostProcess: the engine injects the canonical
+ *          fullscreen vertex stage), each with a `#pragma fragment wgsl` twin
+ *          so every effect compiles on the WebGPU backend. Conventions: the
+ *          pass input is the loose `u_texture` sampler (unit 0; t0/s0 in the
+ *          twin), the untouched scene `u_sceneTexture` (unit 1; t1/s1), LUT
+ *          textures are texture params at their reflected material units, and
+ *          resolution comes from the injected `u_viewport` (xy = pixels,
+ *          zw = 1/pixels) instead of a per-pass upload.
  */
 import type { ShaderHandle } from '../material';
 import { Material } from '../material';
-import { POSTPROCESS_VERTEX } from './shaders';
 
 export const postProcessEffects = {
     createLutGrade(): ShaderHandle {
@@ -18,13 +23,17 @@ export const postProcessEffects = {
         // blue coordinate and mixed, giving trilinear-quality grading from a
         // plain PNG. The LUT texture binds via the pass's texture params
         // (PostProcessVolume `textures: { u_lut: <ref> }`).
-        const fragmentSrc = `#version 300 es
+        const source = `#pragma shader "PP LUT Grade"
+#pragma version 300 es
+#pragma domain PostProcess
+#pragma param u_intensity float default(1) range(0,1)
+#pragma param u_lut texture default(white)
+
+#pragma fragment
 precision highp float;
 
 in vec2 v_texCoord;
 uniform sampler2D u_texture;
-uniform sampler2D u_lut;
-uniform float u_intensity;
 out vec4 fragColor;
 
 vec3 sampleLut(vec3 c) {
@@ -43,22 +52,45 @@ void main() {
     vec4 color = texture(u_texture, v_texCoord);
     fragColor = vec4(mix(color.rgb, sampleLut(color.rgb), u_intensity), color.a);
 }
+#pragma end
+
+#pragma fragment wgsl
+fn sampleLut(c : vec3f) -> vec3f {
+    let size = 32.0;
+    let b = clamp(c.b, 0.0, 1.0) * (size - 1.0);
+    let slice0 = floor(b);
+    let slice1 = min(slice0 + 1.0, size - 1.0);
+    let u = (clamp(c.r, 0.0, 1.0) * (size - 1.0) + 0.5) / (size * size);
+    let v = (clamp(c.g, 0.0, 1.0) * (size - 1.0) + 0.5) / size;
+    let a = textureSampleLevel(u_lut, u_lut_s, vec2f(u + slice0 / size, v), 0.0).rgb;
+    let d = textureSampleLevel(u_lut, u_lut_s, vec2f(u + slice1 / size, v), 0.0).rgb;
+    return mix(a, d, b - slice0);
+}
+
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    let color = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
+    return vec4f(mix(color.rgb, sampleLut(color.rgb), mc.u_intensity), color.a);
+}
+#pragma end
 `;
-        return Material.createShader(POSTPROCESS_VERTEX, fragmentSrc);
+        return Material.compileShader(source);
     },
 
     createBlur(): ShaderHandle {
-        const fragmentSrc = `#version 300 es
+        const source = `#pragma shader "PP Blur"
+#pragma version 300 es
+#pragma domain PostProcess
+#pragma param u_intensity float default(2) range(0,20)
+
+#pragma fragment
 precision highp float;
 
 in vec2 v_texCoord;
 uniform sampler2D u_texture;
-uniform vec2 u_resolution;
-uniform float u_intensity;
 out vec4 fragColor;
 
 void main() {
-    vec2 texelSize = 1.0 / u_resolution;
+    vec2 texelSize = u_viewport.zw;
     float offset = u_intensity;
 
     vec4 color = vec4(0.0);
@@ -74,18 +106,44 @@ void main() {
 
     fragColor = color;
 }
+#pragma end
+
+#pragma fragment wgsl
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    let texelSize = tc.u_viewport.zw;
+    let offset = mc.u_intensity;
+    let uv = v.v_texCoord;
+
+    var color = vec4f(0.0);
+    color += textureSampleLevel(t0, s0, uv + vec2f(-offset, -offset) * texelSize, 0.0) * 0.0625;
+    color += textureSampleLevel(t0, s0, uv + vec2f( 0.0,    -offset) * texelSize, 0.0) * 0.125;
+    color += textureSampleLevel(t0, s0, uv + vec2f( offset, -offset) * texelSize, 0.0) * 0.0625;
+    color += textureSampleLevel(t0, s0, uv + vec2f(-offset,  0.0)   * texelSize, 0.0) * 0.125;
+    color += textureSampleLevel(t0, s0, uv, 0.0)                                       * 0.25;
+    color += textureSampleLevel(t0, s0, uv + vec2f( offset,  0.0)   * texelSize, 0.0) * 0.125;
+    color += textureSampleLevel(t0, s0, uv + vec2f(-offset,  offset) * texelSize, 0.0) * 0.0625;
+    color += textureSampleLevel(t0, s0, uv + vec2f( 0.0,     offset) * texelSize, 0.0) * 0.125;
+    color += textureSampleLevel(t0, s0, uv + vec2f( offset,  offset) * texelSize, 0.0) * 0.0625;
+
+    return color;
+}
+#pragma end
 `;
-        return Material.createShader(POSTPROCESS_VERTEX, fragmentSrc);
+        return Material.compileShader(source);
     },
 
     createVignette(): ShaderHandle {
-        const fragmentSrc = `#version 300 es
+        const source = `#pragma shader "PP Vignette"
+#pragma version 300 es
+#pragma domain PostProcess
+#pragma param u_intensity float default(0.6) range(0,1)
+#pragma param u_softness float default(0.5) range(0,1)
+
+#pragma fragment
 precision highp float;
 
 in vec2 v_texCoord;
 uniform sampler2D u_texture;
-uniform float u_intensity;
-uniform float u_softness;
 out vec4 fragColor;
 
 void main() {
@@ -95,17 +153,32 @@ void main() {
     float vig = 1.0 - smoothstep(1.0 - u_softness, 1.0, dist);
     fragColor = vec4(color.rgb * mix(1.0, vig, u_intensity), color.a);
 }
+#pragma end
+
+#pragma fragment wgsl
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    let color = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
+    let uv = v.v_texCoord * 2.0 - 1.0;
+    let dist = length(uv);
+    let vig = 1.0 - smoothstep(1.0 - mc.u_softness, 1.0, dist);
+    return vec4f(color.rgb * mix(1.0, vig, mc.u_intensity), color.a);
+}
+#pragma end
 `;
-        return Material.createShader(POSTPROCESS_VERTEX, fragmentSrc);
+        return Material.compileShader(source);
     },
 
     createGrayscale(): ShaderHandle {
-        const fragmentSrc = `#version 300 es
+        const source = `#pragma shader "PP Grayscale"
+#pragma version 300 es
+#pragma domain PostProcess
+#pragma param u_intensity float default(1) range(0,1)
+
+#pragma fragment
 precision highp float;
 
 in vec2 v_texCoord;
 uniform sampler2D u_texture;
-uniform float u_intensity;
 out vec4 fragColor;
 
 void main() {
@@ -113,17 +186,30 @@ void main() {
     float gray = dot(color.rgb, vec3(0.299, 0.587, 0.114));
     fragColor = vec4(mix(color.rgb, vec3(gray), u_intensity), color.a);
 }
+#pragma end
+
+#pragma fragment wgsl
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    let color = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
+    let gray = dot(color.rgb, vec3f(0.299, 0.587, 0.114));
+    return vec4f(mix(color.rgb, vec3f(gray), mc.u_intensity), color.a);
+}
+#pragma end
 `;
-        return Material.createShader(POSTPROCESS_VERTEX, fragmentSrc);
+        return Material.compileShader(source);
     },
 
     createBloomExtract(): ShaderHandle {
-        const fragmentSrc = `#version 300 es
+        const source = `#pragma shader "PP Bloom Extract"
+#pragma version 300 es
+#pragma domain PostProcess
+#pragma param u_threshold float default(0.4) range(0,1)
+
+#pragma fragment
 precision highp float;
 
 in vec2 v_texCoord;
 uniform sampler2D u_texture;
-uniform float u_threshold;
 out vec4 fragColor;
 
 void main() {
@@ -137,23 +223,42 @@ void main() {
     contrib /= max(brightness, 0.00001);
     fragColor = vec4(color.rgb * contrib, 1.0);
 }
+#pragma end
+
+#pragma fragment wgsl
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    let color = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
+    let brightness = dot(color.rgb, vec3f(0.2126, 0.7152, 0.0722));
+    let knee = mc.u_threshold * 0.5;
+    var soft = brightness - mc.u_threshold + knee;
+    soft = clamp(soft, 0.0, 2.0 * knee);
+    soft = soft * soft / (4.0 * knee + 0.00001);
+    var contrib = max(soft, brightness - mc.u_threshold);
+    contrib /= max(brightness, 0.00001);
+    return vec4f(color.rgb * contrib, 1.0);
+}
+#pragma end
 `;
-        return Material.createShader(POSTPROCESS_VERTEX, fragmentSrc);
+        return Material.compileShader(source);
     },
 
     createBloomKawase(iteration: number): ShaderHandle {
-        const fragmentSrc = `#version 300 es
+        const d = `(${iteration.toFixed(1)} + 0.5)`;
+        const source = `#pragma shader "PP Bloom Kawase ${iteration.toFixed(0)}"
+#pragma version 300 es
+#pragma domain PostProcess
+#pragma param u_radius float default(1) range(0.5,5)
+
+#pragma fragment
 precision highp float;
 
 in vec2 v_texCoord;
 uniform sampler2D u_texture;
-uniform vec2 u_resolution;
-uniform float u_radius;
 out vec4 fragColor;
 
 void main() {
-    float d = (${iteration.toFixed(1)} + 0.5) * max(u_radius, 0.5);
-    vec2 ts = 1.0 / u_resolution;
+    float d = ${d} * max(u_radius, 0.5);
+    vec2 ts = u_viewport.zw;
     fragColor = (
         texture(u_texture, v_texCoord + vec2(-d, -d) * ts) +
         texture(u_texture, v_texCoord + vec2( d, -d) * ts) +
@@ -161,18 +266,37 @@ void main() {
         texture(u_texture, v_texCoord + vec2( d,  d) * ts)
     ) * 0.25;
 }
+#pragma end
+
+#pragma fragment wgsl
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    let d = ${d} * max(mc.u_radius, 0.5);
+    let ts = tc.u_viewport.zw;
+    let uv = v.v_texCoord;
+    return (
+        textureSampleLevel(t0, s0, uv + vec2f(-d, -d) * ts, 0.0) +
+        textureSampleLevel(t0, s0, uv + vec2f( d, -d) * ts, 0.0) +
+        textureSampleLevel(t0, s0, uv + vec2f(-d,  d) * ts, 0.0) +
+        textureSampleLevel(t0, s0, uv + vec2f( d,  d) * ts, 0.0)
+    ) * 0.25;
+}
+#pragma end
 `;
-        return Material.createShader(POSTPROCESS_VERTEX, fragmentSrc);
+        return Material.compileShader(source);
     },
 
     createBloomComposite(): ShaderHandle {
-        const fragmentSrc = `#version 300 es
+        const source = `#pragma shader "PP Bloom Composite"
+#pragma version 300 es
+#pragma domain PostProcess
+#pragma param u_intensity float default(1.5) range(0,5)
+
+#pragma fragment
 precision highp float;
 
 in vec2 v_texCoord;
 uniform sampler2D u_texture;
 uniform sampler2D u_sceneTexture;
-uniform float u_intensity;
 out vec4 fragColor;
 
 void main() {
@@ -180,21 +304,34 @@ void main() {
     vec4 scene = texture(u_sceneTexture, v_texCoord);
     fragColor = vec4(scene.rgb + blur.rgb * u_intensity, scene.a);
 }
+#pragma end
+
+#pragma fragment wgsl
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    let blur = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
+    let scene = textureSampleLevel(t1, s1, v.v_texCoord, 0.0);
+    return vec4f(scene.rgb + blur.rgb * mc.u_intensity, scene.a);
+}
+#pragma end
 `;
-        return Material.createShader(POSTPROCESS_VERTEX, fragmentSrc);
+        return Material.compileShader(source);
     },
 
     createColorGrade(): ShaderHandle {
-        const fragmentSrc = `#version 300 es
+        const source = `#pragma shader "PP Color Grade"
+#pragma version 300 es
+#pragma domain PostProcess
+#pragma param u_exposure float default(0) range(-3,3)
+#pragma param u_contrast float default(1) range(0,2)
+#pragma param u_saturation float default(1) range(0,2)
+#pragma param u_temperature float default(0) range(-1,1)
+#pragma param u_tint float default(0) range(-1,1)
+
+#pragma fragment
 precision highp float;
 
 in vec2 v_texCoord;
 uniform sampler2D u_texture;
-uniform float u_exposure;     // stops; 0 = unchanged
-uniform float u_contrast;     // 1 = unchanged
-uniform float u_saturation;   // 1 = unchanged
-uniform float u_temperature;  // -1 cool .. +1 warm
-uniform float u_tint;         // -1 green .. +1 magenta
 out vec4 fragColor;
 
 void main() {
@@ -218,30 +355,66 @@ void main() {
 
     fragColor = vec4(clamp(c, 0.0, 1.0), src.a);
 }
+#pragma end
+
+#pragma fragment wgsl
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    let src = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
+    var c = src.rgb;
+
+    c *= exp2(mc.u_exposure);
+
+    c.r *= 1.0 + mc.u_temperature * 0.2;
+    c.b *= 1.0 - mc.u_temperature * 0.2;
+    c.g *= 1.0 + mc.u_tint * 0.2;
+
+    c = (c - 0.5) * mc.u_contrast + 0.5;
+
+    let luma = dot(c, vec3f(0.2126, 0.7152, 0.0722));
+    c = mix(vec3f(luma), c, mc.u_saturation);
+
+    return vec4f(clamp(c, vec3f(0.0), vec3f(1.0)), src.a);
+}
+#pragma end
 `;
-        return Material.createShader(POSTPROCESS_VERTEX, fragmentSrc);
+        return Material.compileShader(source);
     },
 
     createChromaticAberration(): ShaderHandle {
-        const fragmentSrc = `#version 300 es
+        const source = `#pragma shader "PP Chromatic Aberration"
+#pragma version 300 es
+#pragma domain PostProcess
+#pragma param u_intensity float default(3) range(0,20)
+
+#pragma fragment
 precision highp float;
 
 in vec2 v_texCoord;
 uniform sampler2D u_texture;
-uniform vec2 u_resolution;
-uniform float u_intensity;
 out vec4 fragColor;
 
 void main() {
-    vec2 offset = u_intensity / u_resolution;
+    vec2 offset = u_intensity * u_viewport.zw;
     float r = texture(u_texture, v_texCoord + offset).r;
     float g = texture(u_texture, v_texCoord).g;
     float b = texture(u_texture, v_texCoord - offset).b;
     float a = texture(u_texture, v_texCoord).a;
     fragColor = vec4(r, g, b, a);
 }
+#pragma end
+
+#pragma fragment wgsl
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    let offset = mc.u_intensity * tc.u_viewport.zw;
+    let r = textureSampleLevel(t0, s0, v.v_texCoord + offset, 0.0).r;
+    let g = textureSampleLevel(t0, s0, v.v_texCoord, 0.0).g;
+    let b = textureSampleLevel(t0, s0, v.v_texCoord - offset, 0.0).b;
+    let a = textureSampleLevel(t0, s0, v.v_texCoord, 0.0).a;
+    return vec4f(r, g, b, a);
+}
+#pragma end
 `;
-        return Material.createShader(POSTPROCESS_VERTEX, fragmentSrc);
+        return Material.compileShader(source);
     },
 
     createTonemap(): ShaderHandle {
@@ -249,12 +422,16 @@ void main() {
         // radiance into a display range with a filmic shoulder/toe. Unlike the
         // grade/blur effects this always reshapes the curve (that is the point of
         // tonemapping); only the exposure pre-multiply is identity at its default.
-        const fragmentSrc = `#version 300 es
+        const source = `#pragma shader "PP Tonemap"
+#pragma version 300 es
+#pragma domain PostProcess
+#pragma param u_exposure float default(0) range(-3,3)
+
+#pragma fragment
 precision highp float;
 
 in vec2 v_texCoord;
 uniform sampler2D u_texture;
-uniform float u_exposure;   // stops; 0 = unchanged exposure
 out vec4 fragColor;
 
 vec3 aces(vec3 x) {
@@ -271,21 +448,42 @@ void main() {
     vec3 c = src.rgb * exp2(u_exposure);
     fragColor = vec4(aces(c), src.a);
 }
+#pragma end
+
+#pragma fragment wgsl
+fn aces(x : vec3f) -> vec3f {
+    let a = 2.51;
+    let b = 0.03;
+    let c = 2.43;
+    let d = 0.59;
+    let e = 0.14;
+    return clamp((x * (a * x + b)) / (x * (c * x + d) + e), vec3f(0.0), vec3f(1.0));
+}
+
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    let src = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
+    let c = src.rgb * exp2(mc.u_exposure);
+    return vec4f(aces(c), src.a);
+}
+#pragma end
 `;
-        return Material.createShader(POSTPROCESS_VERTEX, fragmentSrc);
+        return Material.compileShader(source);
     },
 
     createFxaa(): ShaderHandle {
         // Luma-based FXAA (Lottes' classic edge-directed blur). Reads only the
-        // built-in u_texture/u_resolution; u_intensity blends the AA result back
+        // built-in u_texture/u_viewport; u_intensity blends the AA result back
         // toward the original so 0 is an exact no-op.
-        const fragmentSrc = `#version 300 es
+        const source = `#pragma shader "PP FXAA"
+#pragma version 300 es
+#pragma domain PostProcess
+#pragma param u_intensity float default(1) range(0,1)
+
+#pragma fragment
 precision highp float;
 
 in vec2 v_texCoord;
 uniform sampler2D u_texture;
-uniform vec2 u_resolution;
-uniform float u_intensity;   // 0 = off (identity), 1 = full AA
 out vec4 fragColor;
 
 const float REDUCE_MIN = 1.0 / 128.0;
@@ -295,7 +493,7 @@ const float SPAN_MAX = 8.0;
 float luma(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }
 
 void main() {
-    vec2 inv = 1.0 / u_resolution;
+    vec2 inv = u_viewport.zw;
     vec4 srcM = texture(u_texture, v_texCoord);
     vec3 rgbNW = texture(u_texture, v_texCoord + vec2(-1.0, -1.0) * inv).rgb;
     vec3 rgbNE = texture(u_texture, v_texCoord + vec2( 1.0, -1.0) * inv).rgb;
@@ -325,8 +523,53 @@ void main() {
     vec3 aa = (lB < lMin || lB > lMax) ? rgbA : rgbB;
     fragColor = vec4(mix(srcM.rgb, aa, clamp(u_intensity, 0.0, 1.0)), srcM.a);
 }
+#pragma end
+
+#pragma fragment wgsl
+const REDUCE_MIN = 1.0 / 128.0;
+const REDUCE_MUL = 1.0 / 8.0;
+const SPAN_MAX = 8.0;
+
+fn luma(c : vec3f) -> f32 { return dot(c, vec3f(0.299, 0.587, 0.114)); }
+
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    let inv = tc.u_viewport.zw;
+    let uv = v.v_texCoord;
+    let srcM = textureSampleLevel(t0, s0, uv, 0.0);
+    let rgbNW = textureSampleLevel(t0, s0, uv + vec2f(-1.0, -1.0) * inv, 0.0).rgb;
+    let rgbNE = textureSampleLevel(t0, s0, uv + vec2f( 1.0, -1.0) * inv, 0.0).rgb;
+    let rgbSW = textureSampleLevel(t0, s0, uv + vec2f(-1.0,  1.0) * inv, 0.0).rgb;
+    let rgbSE = textureSampleLevel(t0, s0, uv + vec2f( 1.0,  1.0) * inv, 0.0).rgb;
+
+    let lM = luma(srcM.rgb);
+    let lNW = luma(rgbNW);
+    let lNE = luma(rgbNE);
+    let lSW = luma(rgbSW);
+    let lSE = luma(rgbSE);
+    let lMin = min(lM, min(min(lNW, lNE), min(lSW, lSE)));
+    let lMax = max(lM, max(max(lNW, lNE), max(lSW, lSE)));
+
+    var dir : vec2f;
+    dir.x = -((lNW + lNE) - (lSW + lSE));
+    dir.y =  ((lNW + lSW) - (lNE + lSE));
+    let reduce = max((lNW + lNE + lSW + lSE) * 0.25 * REDUCE_MUL, REDUCE_MIN);
+    let rcpMin = 1.0 / (min(abs(dir.x), abs(dir.y)) + reduce);
+    dir = clamp(dir * rcpMin, vec2f(-SPAN_MAX), vec2f(SPAN_MAX)) * inv;
+
+    let rgbA = 0.5 * (
+        textureSampleLevel(t0, s0, uv + dir * (1.0 / 3.0 - 0.5), 0.0).rgb +
+        textureSampleLevel(t0, s0, uv + dir * (2.0 / 3.0 - 0.5), 0.0).rgb);
+    let rgbB = rgbA * 0.5 + 0.25 * (
+        textureSampleLevel(t0, s0, uv + dir * -0.5, 0.0).rgb +
+        textureSampleLevel(t0, s0, uv + dir *  0.5, 0.0).rgb);
+
+    let lB = luma(rgbB);
+    let aa = select(rgbB, rgbA, lB < lMin || lB > lMax);
+    return vec4f(mix(srcM.rgb, aa, clamp(mc.u_intensity, 0.0, 1.0)), srcM.a);
+}
+#pragma end
 `;
-        return Material.createShader(POSTPROCESS_VERTEX, fragmentSrc);
+        return Material.compileShader(source);
     },
 
     createLensDistortion(): ShaderHandle {
@@ -334,13 +577,17 @@ void main() {
         // u_zoom rescales to keep edges in frame. Identity at strength 0 / zoom 1
         // (sample uv == source uv). Out-of-source taps resolve to transparent
         // black so a warped edge does not smear.
-        const fragmentSrc = `#version 300 es
+        const source = `#pragma shader "PP Lens Distortion"
+#pragma version 300 es
+#pragma domain PostProcess
+#pragma param u_strength float default(0) range(-1,1)
+#pragma param u_zoom float default(1) range(0.5,2)
+
+#pragma fragment
 precision highp float;
 
 in vec2 v_texCoord;
 uniform sampler2D u_texture;
-uniform float u_strength;   // 0 = none; + barrel, - pincushion
-uniform float u_zoom;       // 1 = none
 out vec4 fragColor;
 
 void main() {
@@ -354,29 +601,55 @@ void main() {
         fragColor = texture(u_texture, suv);
     }
 }
+#pragma end
+
+#pragma fragment wgsl
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    let uv = v.v_texCoord * 2.0 - 1.0;
+    let r2 = dot(uv, uv);
+    let warped = uv * (1.0 + mc.u_strength * r2) / max(mc.u_zoom, 0.0001);
+    let suv = warped * 0.5 + 0.5;
+    if (suv.x < 0.0 || suv.x > 1.0 || suv.y < 0.0 || suv.y > 1.0) {
+        return vec4f(0.0);
+    }
+    return textureSampleLevel(t0, s0, suv, 0.0);
+}
+#pragma end
 `;
-        return Material.createShader(POSTPROCESS_VERTEX, fragmentSrc);
+        return Material.compileShader(source);
     },
 
     createPixelate(): ShaderHandle {
         // Snaps sampling to a grid of u_pixelSize-device-pixel blocks — the
         // canonical retro/mosaic 2D look. u_pixelSize <= 1 samples per-texel
-        // (identity). Uses the built-in u_resolution for block sizing.
-        const fragmentSrc = `#version 300 es
+        // (identity). Uses the injected u_viewport for block sizing.
+        const source = `#pragma shader "PP Pixelate"
+#pragma version 300 es
+#pragma domain PostProcess
+#pragma param u_pixelSize float default(4) range(1,64)
+
+#pragma fragment
 precision highp float;
 
 in vec2 v_texCoord;
 uniform sampler2D u_texture;
-uniform vec2 u_resolution;
-uniform float u_pixelSize;   // device pixels per block; <= 1 = identity
 out vec4 fragColor;
 
 void main() {
-    vec2 blocks = u_resolution / max(u_pixelSize, 1.0);
+    vec2 blocks = u_viewport.xy / max(u_pixelSize, 1.0);
     vec2 uv = (floor(v_texCoord * blocks) + 0.5) / blocks;
     fragColor = texture(u_texture, uv);
 }
+#pragma end
+
+#pragma fragment wgsl
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    let blocks = tc.u_viewport.xy / max(mc.u_pixelSize, 1.0);
+    let uv = (floor(v.v_texCoord * blocks) + 0.5) / blocks;
+    return textureSampleLevel(t0, s0, uv, 0.0);
+}
+#pragma end
 `;
-        return Material.createShader(POSTPROCESS_VERTEX, fragmentSrc);
+        return Material.compileShader(source);
     },
 };

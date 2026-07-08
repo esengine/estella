@@ -150,31 +150,68 @@ void main() {
 #pragma end
 )";
 
+// A PostProcess-domain probe: the canonical fullscreen vertex, the loose
+// engine samplers (u_texture/u_sceneTexture on GLSL; the t0/s0 + t1/s1 pairs
+// in the twin), a reflected param, a LUT-style texture param, and the injected
+// u_viewport standing in for the old per-pass resolution.
+const char* kEmitterProbePP = R"(#pragma shader "EmitterProbePP"
+#pragma version 300 es
+#pragma domain PostProcess
+#pragma param u_intensity float default(1)
+#pragma param u_lut texture default(white)
+
+#pragma fragment
+precision highp float;
+in vec2 v_texCoord;
+uniform sampler2D u_texture;
+uniform sampler2D u_sceneTexture;
+out vec4 fragColor;
+void main() {
+    vec4 c = texture(u_texture, v_texCoord + u_viewport.zw);
+    vec4 scene = texture(u_sceneTexture, v_texCoord);
+    vec4 lut = texture(u_lut, v_texCoord);
+    fragColor = mix(scene, c * lut, u_intensity);
+}
+#pragma end
+
+#pragma fragment wgsl
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    let c = textureSampleLevel(t0, s0, v.v_texCoord + tc.u_viewport.zw, 0.0);
+    let scene = textureSampleLevel(t1, s1, v.v_texCoord, 0.0);
+    let lut = textureSampleLevel(u_lut, u_lut_s, v.v_texCoord, 0.0);
+    return mix(scene, c * lut, mc.u_intensity);
+}
+#pragma end
+)";
+
 bool compileEmitterProbe(EstellaContext& ctx, bool useGL) {
     using resource::ShaderParser;
     using resource::ShaderStage;
     using resource::ShaderTargetLanguage;
 
     auto& rm = ctx.require<resource::ResourceManager>();
-    resource::ParsedShader parsed = ShaderParser::parse(kEmitterProbe);
-    if (!parsed.valid) {
-        std::printf("PARITY_FAIL emitter probe parse: %s\n", parsed.errorMessage.c_str());
-        return false;
-    }
     const auto target = useGL ? ShaderTargetLanguage::GLSL_ES300 : ShaderTargetLanguage::WGSL;
     const auto language = useGL ? GfxShaderLanguage::GLSL_ES300 : GfxShaderLanguage::WGSL;
-    const std::string vs = ShaderParser::assembleStage(parsed, ShaderStage::Vertex, "", {"GLOW"}, target);
-    const std::string fs = ShaderParser::assembleStage(parsed, ShaderStage::Fragment, "", {"GLOW"}, target);
-    if (vs.empty() || fs.empty()) {
-        std::printf("PARITY_FAIL emitter probe assembly\n");
-        return false;
+
+    for (const char* source : {kEmitterProbe, kEmitterProbePP}) {
+        resource::ParsedShader parsed = ShaderParser::parse(source);
+        if (!parsed.valid) {
+            std::printf("PARITY_FAIL emitter probe parse: %s\n", parsed.errorMessage.c_str());
+            return false;
+        }
+        const std::string vs = ShaderParser::assembleStage(parsed, ShaderStage::Vertex, "", {"GLOW"}, target);
+        const std::string fs = ShaderParser::assembleStage(parsed, ShaderStage::Fragment, "", {"GLOW"}, target);
+        if (vs.empty() || fs.empty()) {
+            std::printf("PARITY_FAIL emitter probe assembly (%s)\n", parsed.name.c_str());
+            return false;
+        }
+        const auto handle = rm.createShader(vs, fs, /*rewriteLoose=*/false, language);
+        if (!handle.isValid()) {
+            std::printf("PARITY_FAIL emitter probe compile (%s)\n", parsed.name.c_str());
+            return false;
+        }
+        rm.releaseShader(handle);
     }
-    const auto handle = rm.createShader(vs, fs, /*rewriteLoose=*/false, language);
-    if (!handle.isValid()) {
-        std::printf("PARITY_FAIL emitter probe compile\n");
-        return false;
-    }
-    rm.releaseShader(handle);
     return true;
 }
 

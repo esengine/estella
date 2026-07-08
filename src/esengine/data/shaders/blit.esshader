@@ -2,18 +2,6 @@
 #pragma version 300 es
 #pragma domain PostProcess
 
-#pragma vertex
-layout(location = 0) in vec2 a_position;
-layout(location = 1) in vec2 a_texCoord;
-
-out vec2 v_texCoord;
-
-void main() {
-    v_texCoord = a_texCoord;
-    gl_Position = vec4(a_position, 0.0, 1.0);
-}
-#pragma end
-
 #pragma fragment
 precision highp float;
 
@@ -26,33 +14,7 @@ void main() {
 }
 #pragma end
 
-#pragma vertex wgsl
-struct VSIn {
-    @location(0) a_position : vec2f,
-    @location(1) a_texCoord : vec2f,
-};
-struct VSOut {
-    @builtin(position) pos : vec4f,
-    @location(0) v_texCoord : vec2f,
-};
-
-@vertex fn vs_main(v : VSIn) -> VSOut {
-    var out : VSOut;
-    out.pos = vec4f(v.a_position, 0.0, 1.0);
-    out.v_texCoord = v.a_texCoord;
-    return out;
-}
-#pragma end
-
 #pragma fragment wgsl
-@group(1) @binding(0) var t0 : texture_2d<f32>;
-@group(1) @binding(8) var s0 : sampler;
-
-struct VSOut {
-    @builtin(position) pos : vec4f,
-    @location(0) v_texCoord : vec2f,
-};
-
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
     return textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
 }

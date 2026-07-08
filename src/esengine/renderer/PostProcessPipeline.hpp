@@ -41,9 +41,18 @@ struct PostProcessPass {
     bool enabled = true;
     std::unordered_map<std::string, f32> floatUniforms;
     std::unordered_map<std::string, glm::vec4> vec4Uniforms;
-    /// Effect-declared textures (LUTs, masks): sampler uniform name -> GL texture
-    /// id, bound in order above the two engine units (0 = input, 1 = scene).
+    /// Effect-declared textures (LUTs, masks): sampler uniform name -> GL
+    /// texture id. #pragma-param shaders bind them at their reflected material
+    /// units; the legacy loose path binds in order above the two engine units
+    /// (0 = input, 1 = scene).
     std::vector<std::pair<std::string, u32>> textureUniforms;
+
+    /// #pragma-param shaders: the pass's packed MaterialConstants payload +
+    /// its UBO (binding 1) — the same reflected block a material would use.
+    /// Rebuilt from float/vec4Uniforms over the layout defaults when dirty.
+    std::vector<u8> paramBytes;
+    BufferHandle paramUbo = BufferHandle::Invalid;
+    bool paramDirty = true;
 };
 
 /**
@@ -241,8 +250,10 @@ private:
     void ensureScreenQuad();
     void drawScreenQuad();
     void applyPassPipeline(const Shader& shader);
-    void renderPass(const PostProcessPass& pass, TextureHandle inputTexture);
+    void renderPass(PostProcessPass& pass, TextureHandle inputTexture);
     void blitToOutput(TextureHandle texture);
+    /// Frees a pass's GPU-side param UBO (removePass/clearPasses/shutdown).
+    void releasePassResources(PostProcessPass& pass);
 
     GfxDevice& device_;
     RenderContext& context_;

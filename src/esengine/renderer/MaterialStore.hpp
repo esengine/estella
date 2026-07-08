@@ -188,6 +188,14 @@ public:
         return it != materials_.end() ? &it->second : nullptr;
     }
 
+    /// The registered #pragma-param layout for a shader program, or nullptr.
+    /// The post-process pipeline reads it to pack pass params through the same
+    /// reflected MaterialConstants block a material would use.
+    const MaterialUniformLayout* layoutFor(u32 shaderId) const {
+        auto it = layouts_.find(shaderId);
+        return it != layouts_.end() ? &it->second : nullptr;
+    }
+
     /// Uploads (when dirty) and binds the material's MaterialConstants UBO at binding 1.
     /// No-op for materials whose shader declares no params (uboBytes stays empty).
     void bindForDraw(u32 materialId);

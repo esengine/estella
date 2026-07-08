@@ -68,9 +68,29 @@ void main() { fragColor = vec4(applyLighting2D(v_color.rgb, vec3(0.0, 0.0, 1.0),
 #pragma end
 )";
 
-static const char* FRAG_ONLY_POSTPROCESS = R"(#pragma shader "NoCanonical"
+static const char* FRAG_ONLY_POSTPROCESS = R"(#pragma shader "PPCanonical"
 #pragma version 300 es
 #pragma domain PostProcess
+#pragma param u_intensity float default(1)
+
+#pragma fragment
+precision highp float;
+in vec2 v_texCoord;
+uniform sampler2D u_texture;
+out vec4 fragColor;
+void main() { fragColor = texture(u_texture, v_texCoord) * u_intensity * u_viewport.z; }
+#pragma end
+
+#pragma fragment wgsl
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    return textureSampleLevel(t0, s0, v.v_texCoord, 0.0) * mc.u_intensity * tc.u_viewport.z;
+}
+#pragma end
+)";
+
+static const char* FRAG_ONLY_UNKNOWN_DOMAIN = R"(#pragma shader "NoCanonical"
+#pragma version 300 es
+#pragma domain Compute3D
 
 #pragma fragment
 precision mediump float;
@@ -249,6 +269,23 @@ static void testWGSLEmission() {
     ParsedShader noTwin = ShaderParser::parse(FRAG_ONLY_UNLIT);
     CHECK(wgsl(noTwin, ShaderStage::Fragment).empty(), "missing twin yields an empty assembly");
 
+    // PostProcess twins get the fullscreen canonical vertex + the PP-shaped
+    // VSOut (uv only), with the same tc/mc/texture injections.
+    ParsedShader pp = ShaderParser::parse(FRAG_ONLY_POSTPROCESS);
+    CHECK(pp.valid && pp.wgslVertexIsCanonical, "fragment-only PP twin gets the canonical WGSL vertex");
+    const std::string ppVs = wgsl(pp, ShaderStage::Vertex);
+    CHECK(ppVs.find("out.pos = vec4f(v.a_position, 0.0, 1.0);") != std::string::npos &&
+          ppVs.find("frame.projection") == std::string::npos,
+          "PP canonical WGSL vertex is the clip-space pass-through");
+    const std::string ppFs = wgsl(pp, ShaderStage::Fragment);
+    CHECK(ppFs.find("@location(0) v_texCoord : vec2f,") != std::string::npos &&
+          ppFs.find("v_color") == std::string::npos,
+          "PP VSOut carries only the uv varying");
+    CHECK(ppFs.find("var<uniform> tc") != std::string::npos &&
+          ppFs.find("var<uniform> mc") != std::string::npos &&
+          ppFs.find("var t0 : texture_2d<f32>;") != std::string::npos,
+          "PP fragment twin gets the tc/mc blocks + engine texture contract");
+
     // Unknown stage language tags fail the parse with a pointed message.
     ParsedShader badTag = ShaderParser::parse(
         "#pragma shader \"Bad\"\n#pragma fragment glsl450\nvoid main() {}\n#pragma end\n");
@@ -288,7 +325,14 @@ static void testFragmentOnly() {
     CHECK(lf.find("applyLighting2D") != std::string::npos, "Lit2D fragment gets the lighting helper injected");
 
     ParsedShader pp = ShaderParser::parse(FRAG_ONLY_POSTPROCESS);
-    CHECK(!pp.valid, "non-2D domain without a vertex stage still errors");
+    CHECK(pp.valid, "fragment-only PostProcess shader parses");
+    const std::string ppv = ShaderParser::assembleStage(pp, ShaderStage::Vertex);
+    CHECK(ppv.find("gl_Position = vec4(a_position, 0.0, 1.0);") != std::string::npos &&
+          ppv.find("FrameConstants") == std::string::npos,
+          "PostProcess canonical vertex is the clip-space pass-through (no projection)");
+
+    ParsedShader unknownDomain = ShaderParser::parse(FRAG_ONLY_UNKNOWN_DOMAIN);
+    CHECK(!unknownDomain.valid, "a domain with no canonical vertex still errors");
 
     ParsedShader authored = ShaderParser::parse(SRC);
     const std::string av = ShaderParser::assembleStage(authored, ShaderStage::Vertex);

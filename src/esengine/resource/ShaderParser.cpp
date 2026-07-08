@@ -140,6 +140,51 @@ std::string canonical2DVertexStageWGSL(bool lit) {
     return src;
 }
 
+// The PostProcess domain's varying interface: a fullscreen pass carries only
+// the uv (plus the position builtin, which doubles as the pixel coordinate).
+std::string wgslPPVSOut() {
+    return
+        "struct VSOut {\n"
+        "    @builtin(position) pos : vec4f,\n"
+        "    @location(0) v_texCoord : vec2f,\n"
+        "};\n";
+}
+
+// WGSL twin of canonicalPPVertexStage.
+std::string canonicalPPVertexStageWGSL() {
+    std::string src = wgslPPVSOut();
+    src +=
+        "\n"
+        "struct VSIn {\n"
+        "    @location(0) a_position : vec2f,\n"
+        "    @location(1) a_texCoord : vec2f,\n"
+        "};\n"
+        "\n"
+        "@vertex fn vs_main(v : VSIn) -> VSOut {\n"
+        "    var out : VSOut;\n"
+        "    out.pos = vec4f(v.a_position, 0.0, 1.0);\n"
+        "    out.v_texCoord = v.a_texCoord;\n"
+        "    return out;\n"
+        "}\n";
+    return src;
+}
+
+// Canonical PostProcess vertex stage for fragment-only .esshaders: fullscreen
+// passes all share the clip-space pass-through (the engine draws one
+// fullscreen triangle; no projection, no color).
+std::string canonicalPPVertexStage() {
+    return
+        "layout(location = 0) in vec2 a_position;\n"
+        "layout(location = 1) in vec2 a_texCoord;\n"
+        "\n"
+        "out vec2 v_texCoord;\n"
+        "\n"
+        "void main() {\n"
+        "    v_texCoord = a_texCoord;\n"
+        "    gl_Position = vec4(a_position, 0.0, 1.0);\n"
+        "}\n";
+}
+
 // Canonical 2D vertex stage for fragment-only .esshaders: the batch path bakes the
 // world transform into the vertices, so all 2D shaders share this pass-through.
 std::string canonical2DVertexStage(bool lit) {
@@ -397,9 +442,12 @@ ParsedShader ShaderParser::parse(const std::string& source, const ShaderIncludeR
     }
 
     if (result.stages.find(ShaderStage::Vertex) == result.stages.end()) {
-        // 2D domains: `#pragma vertex` is optional — the canonical stage is injected.
+        // Fragment-only authoring: 2D domains get the canonical batch-space
+        // pass-through, PostProcess the canonical fullscreen pass-through.
         if (result.domain == "Unlit2D" || result.domain == "Lit2D") {
             result.stages[ShaderStage::Vertex] = canonical2DVertexStage(result.domain == "Lit2D");
+        } else if (result.domain == "PostProcess") {
+            result.stages[ShaderStage::Vertex] = canonicalPPVertexStage();
         } else {
             result.errorMessage = "Missing vertex shader stage";
             return result;
@@ -411,14 +459,18 @@ ParsedShader ShaderParser::parse(const std::string& source, const ShaderIncludeR
         return result;
     }
 
-    // Same for the WGSL twin: a fragment-only 2D twin gets the canonical WGSL
-    // vertex, and the flag makes the fragment assembly inject the matching
+    // Same for the WGSL twin: a fragment-only twin gets the domain's canonical
+    // WGSL vertex, and the flag makes the fragment assembly inject the matching
     // VSOut interface. A file with no wgsl sections simply has no twin.
     if (result.wgslStages.count(ShaderStage::Fragment) != 0 &&
-        result.wgslStages.count(ShaderStage::Vertex) == 0 &&
-        (result.domain == "Unlit2D" || result.domain == "Lit2D")) {
-        result.wgslStages[ShaderStage::Vertex] = canonical2DVertexStageWGSL(result.domain == "Lit2D");
-        result.wgslVertexIsCanonical = true;
+        result.wgslStages.count(ShaderStage::Vertex) == 0) {
+        if (result.domain == "Unlit2D" || result.domain == "Lit2D") {
+            result.wgslStages[ShaderStage::Vertex] = canonical2DVertexStageWGSL(result.domain == "Lit2D");
+            result.wgslVertexIsCanonical = true;
+        } else if (result.domain == "PostProcess") {
+            result.wgslStages[ShaderStage::Vertex] = canonicalPPVertexStageWGSL();
+            result.wgslVertexIsCanonical = true;
+        }
     }
 
     computeMaterialLayout(result);
@@ -731,9 +783,10 @@ ShaderParser::AssembledStage assembleWGSLStage(const ParsedShader& parsed,
 
     const bool lit = parsed.domain == "Lit2D";
     if (stage == ShaderStage::Fragment && parsed.wgslVertexIsCanonical) {
-        // The canonical vertex's varying interface + the batch texture
-        // contract — fragment-only twins run under the batch conventions.
-        inject(wgslCanonicalVSOut(lit));
+        // The canonical vertex's varying interface (domain-shaped) + the
+        // engine texture contract — fragment-only twins run under the batch
+        // conventions (PostProcess reads its input/scene as t0/s0 and t1/s1).
+        inject(parsed.domain == "PostProcess" ? wgslPPVSOut() : wgslCanonicalVSOut(lit));
         inject(wgslBatchTextureDecls());
     }
     inject(kTimeHeaderWGSL);
