@@ -15,7 +15,8 @@
  *                                       group-1 unit map, explicit varying
  *                                       locations
  *   glslangValidator -V               — GLSL ES 310 → SPIR-V (Vulkan semantics)
- *   naga                              — SPIR-V → WGSL
+ *   naga (vendored WASI wasm)         — SPIR-V → WGSL, in-process — no Rust
+ *                                       toolchain needed (build-tools/shader-twins)
  *   post (this file)                  — entry rename to vs_main/fs_main
  *
  * The emitted twins are FULL programs: ShaderParser skips its injected headers
@@ -29,9 +30,10 @@
  *   --check  report what would change, write nothing (exit 1 if any)
  *   --force  regenerate even when a twin exists (replaces generated sections)
  *
- * Requires: a built engine (pnpm build:web), glslangValidator and naga on PATH.
- * Shaders using `#pragma switch` are skipped (permutations need per-set twins;
- * hand-author those) — the tool says so per file.
+ * Requires: a built engine (pnpm build:web) and glslangValidator on PATH (ships
+ * with the Vulkan SDK / Khronos release binaries; a vendored wasm build is a
+ * tracked follow-up). Shaders using `#pragma switch` are skipped (permutations
+ * need per-set twins; hand-author those) — the tool says so per file.
  */
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -39,6 +41,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { spvFileToWgsl } from '../build-tools/shader-twins/naga.mjs';
 
 const execFileP = promisify(execFile);
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -251,7 +254,7 @@ function assignVaryingLocations(vert, frag) {
   return { vert: vertOut, frag: fragOut };
 }
 
-/** GLSL (adapted) → WGSL via glslangValidator -V + naga, renaming the entry point. */
+/** GLSL (adapted) → WGSL via glslangValidator -V + vendored naga, renaming the entry. */
 async function glslToWgsl(glsl, stage, entryName, workDir) {
   const src = path.join(workDir, `stage.${stage}`);
   const spv = path.join(workDir, `stage.${stage}.spv`);
@@ -260,13 +263,12 @@ async function glslToWgsl(glsl, stage, entryName, workDir) {
   try {
     await execFileP('glslangValidator', ['-V', '--auto-map-locations', '-o', spv, src]);
   } catch (e) {
-    throw new Error(`glslang failed for ${stage} stage:\n${e.stdout ?? ''}${e.stderr ?? ''}`);
+    const hint = e.code === 'ENOENT'
+      ? 'glslangValidator not found on PATH (it ships with the Vulkan SDK / Khronos release binaries)'
+      : `${e.stdout ?? ''}${e.stderr ?? ''}`;
+    throw new Error(`glslang failed for ${stage} stage:\n${hint}`);
   }
-  try {
-    await execFileP('naga', [spv, wgsl]);
-  } catch (e) {
-    throw new Error(`naga failed for ${stage} stage:\n${e.stdout ?? ''}${e.stderr ?? ''}`);
-  }
+  await spvFileToWgsl(spv, wgsl);
   const text = await readFile(wgsl, 'utf8');
   // naga emits `fn main(` as the entry (the inner body lands in main_1) - the
   // engine's twin contract names entries vs_main/fs_main.

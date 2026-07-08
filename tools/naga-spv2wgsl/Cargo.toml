@@ -1,0 +1,15 @@
+[package]
+name = "naga-spv2wgsl"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "SPIR-V -> WGSL converter (naga) as a WASI executable for the shader-twin cook tooling. stdin: SPIR-V bytes; stdout: WGSL text."
+
+[dependencies]
+naga = { version = "30", features = ["spv-in", "wgsl-out"] }
+
+[profile.release]
+opt-level = "z"
+lto = true
+strip = true
+codegen-units = 1
