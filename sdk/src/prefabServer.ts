@@ -15,11 +15,14 @@ import {
 
 export class PrefabServer {
     private readonly world_: World;
-    private readonly assets_: AssetsClass;
+    private readonly getAssets_: () => AssetsClass;
 
-    constructor(world: World, assets: AssetsClass) {
+    // Resolved per call, not captured: the play/cooked runtime replaces the
+    // Assets resource after plugin build (ensureRuntimeAssets), and a captured
+    // instance would silently bypass its resolveRef/manifest channel.
+    constructor(world: World, getAssets: () => AssetsClass) {
         this.world_ = world;
-        this.assets_ = assets;
+        this.getAssets_ = getAssets;
     }
 
     async instantiate(pathOrAddress: string, options?: {
@@ -27,10 +30,11 @@ export class PrefabServer {
         parent?: Entity;
         overrides?: PrefabOverride[];
     }): Promise<InstantiatePrefabResult> {
-        const prefabResult = await this.assets_.loadPrefab(pathOrAddress);
+        const assets = this.getAssets_();
+        const prefabResult = await assets.loadPrefab(pathOrAddress);
         const prefab = prefabResult.data as PrefabData;
         return instantiatePrefab(this.world_, prefab, {
-            assets: this.assets_,
+            assets,
             assetBaseUrl: options?.baseUrl,
             parent: options?.parent,
             overrides: options?.overrides,
@@ -45,8 +49,7 @@ export class PrefabsPlugin implements Plugin {
     dependencies = [Assets];
 
     build(app: App): void {
-        const assets = app.getResource(Assets);
-        app.insertResource(Prefabs, new PrefabServer(app.world, assets));
+        app.insertResource(Prefabs, new PrefabServer(app.world, () => app.getResource(Assets)));
     }
 }
 
