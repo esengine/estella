@@ -14,11 +14,12 @@ jobs:
       # drafts with the artifacts split between them. With one at a time, the first job
       # creates the draft and the rest find and upload to it.
       max-parallel: 1
+      # Windows + macOS only — the Linux AppImage is dropped from releases
+      # until there is real demand for it.
       matrix:
         platform:
           - macos-latest
           - windows-latest
-          - ubuntu-latest
 
     runs-on: ${{ matrix.platform }}
     permissions:
