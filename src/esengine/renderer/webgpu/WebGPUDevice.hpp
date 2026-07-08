@@ -121,6 +121,7 @@ public:
     void deleteFramebuffer(FramebufferHandle framebuffer) override;
     void beginRenderPass(const RenderPassDesc& desc) override;
     void endRenderPass() override;
+    void resizeBackbuffer(u32 width, u32 height) override;
 
     void readPixels(i32 x, i32 y, u32 w, u32 h, GfxPixelFormat format, void* data) override;
 
@@ -191,6 +192,11 @@ private:
 
     /** @brief Logs a not-yet-implemented path once per entry point. */
     void stubOnce(const char* what);
+
+    /** @brief (Re)configures the surface swapchain + companion depth-stencil
+     *         at @p width x @p height (configureSurface's second half; also the
+     *         resizeBackbuffer implementation). */
+    bool configureSwapchain(u32 width, u32 height);
 
     /** @brief Builds (once) and returns the WGPURenderPipeline for a handle,
      *         in the variant matching the current pass's depth-stencil shape. */

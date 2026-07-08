@@ -320,6 +320,19 @@ public:
     /** @brief Ends the current pass, restoring the default framebuffer */
     virtual void endRenderPass() = 0;
 
+    /**
+     * @brief Resizes the default backbuffer to the viewport size.
+     * @details GL tracks the canvas drawing buffer implicitly (default no-op);
+     *          WebGPU swapchains are fixed-size, so its backend reconfigures
+     *          the surface + companion depth-stencil when the size changes.
+     *          Called once per frame with the current viewport (cheap when
+     *          unchanged); must not be called inside a render pass.
+     */
+    virtual void resizeBackbuffer(u32 width, u32 height) {
+        (void)width;
+        (void)height;
+    }
+
     // =========================================================================
     // Readback
     // =========================================================================

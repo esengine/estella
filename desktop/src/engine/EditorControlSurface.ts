@@ -281,6 +281,20 @@ export class EditorControlSurfaceImpl {
    * Capture right after a step(): the drawing buffer is valid until the next
    * frame, and with no rAF loop the headless host's buffer persists.
    */
+  /**
+   * Resize the render canvas (headless drivers): the engine follows on the
+   * next stepped frame — GL tracks the canvas drawing buffer implicitly,
+   * WebGPU reconfigures its swapchain through the same per-frame size source.
+   */
+  resizeViewport(width: number, height: number): void {
+    const canvas = EngineHost.canvas;
+    if (!canvas) throw new Error('resizeViewport requires a render host (no canvas)');
+    canvas.width = width;
+    canvas.height = height;
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+  }
+
   captureViewport(): ViewportCapture {
     const canvas = EngineHost.canvas;
     if (!canvas) {

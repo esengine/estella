@@ -149,6 +149,12 @@ void RenderContext::setFrameTime(f32 elapsedSec, u32 viewportW, u32 viewportH) {
         glm::vec4(w, h, w > 0.0f ? 1.0f / w : 0.0f, h > 0.0f ? 1.0f / h : 0.0f),
     };
     device_.updateBuffer(timeUbo_, 0, &time, sizeof(TimeConstants));
+
+    // The backbuffer follows the viewport from the same size source the frame
+    // clock carries: GL tracks the canvas implicitly (no-op), WebGPU
+    // reconfigures its fixed-size swapchain when the size changes. Called at
+    // the top of the frame, before any pass opens.
+    device_.resizeBackbuffer(viewportW, viewportH);
 }
 
 }  // namespace esengine

@@ -74,7 +74,8 @@ function serveDist() {
 }
 
 function finish(result, server) {
-  const ok = result.ok && result.capture?.rendered && (result.expect?.ok ?? true) && (result.preview?.ok ?? true);
+  const ok = result.ok && result.capture?.rendered && (result.expect?.ok ?? true) &&
+    (result.resize?.ok ?? true) && (result.preview?.ok ?? true);
   console.log(`\n[verify:render] ${ok ? 'PASS' : 'FAIL'} — ${SCENE} (${BACKEND})`);
   console.log('DRIVE_RESULT ' + JSON.stringify(result));
   process.exitCode = ok ? 0 : 1;
@@ -222,6 +223,29 @@ app.whenReady().then(async () => {
       })()`);
       await writeFile(process.env.ESTELLA_VERIFY_OUT, Buffer.from(dataUrl.split(',')[1], 'base64'));
     }
+    // Optional resize assertion (ESTELLA_VERIFY_RESIZE = "WxH"): shrink the
+    // canvas mid-run, step, and re-capture — the backbuffer must follow the
+    // viewport (the WebGPU swapchain reconfigure; a no-op contract on GL).
+    let resize = null;
+    if (process.env.ESTELLA_VERIFY_RESIZE) {
+      const [rw, rh] = process.env.ESTELLA_VERIFY_RESIZE.split('x').map(Number);
+      await exec(`window.__estellaHeadless.api.resizeViewport(${rw}, ${rh})`);
+      await exec('window.__estellaHeadless.api.step(2, 1 / 60)');
+      if (BACKEND === 'webgpu') {
+        const image = await win.webContents.capturePage({ x: 0, y: 0, width: rw, height: rh });
+        const bmp = image.toBitmap();
+        let nonZero = 0;
+        for (let i = 0; i < bmp.length; i += 4) if (bmp[i] | bmp[i + 1] | bmp[i + 2]) nonZero++;
+        resize = { w: rw, h: rh, nonZeroPixels: nonZero, ok: nonZero > 0 };
+      } else {
+        resize = await exec(`(() => {
+          const c = window.__estellaHeadless.api.captureViewport();
+          let nonZero = 0;
+          for (let i = 0; i < c.rgba.length; i += 4) if (c.rgba[i] | c.rgba[i + 1] | c.rgba[i + 2]) nonZero++;
+          return { w: c.width, h: c.height, nonZeroPixels: nonZero, ok: c.width === ${rw} && c.height === ${rh} && nonZero > 0 };
+        })()`);
+      }
+    }
     // Optional offscreen material-preview assertion (ESTELLA_VERIFY_PREVIEW =
     // {w,h,rgb:[r,g,b],tol?}): renders a scene material to an offscreen target and checks the
     // center pixel — proves the render-to-texture preview primitive, not just the viewport.
@@ -243,7 +267,7 @@ app.whenReady().then(async () => {
         return { ok: got.every((g, k) => Math.abs(g - cfg.rgb[k]) <= tol), want: cfg.rgb, got, w, h };
       })()`);
     }
-    finish({ ok: true, entityCount, drawCalls, capture, expect, preview }, server);
+    finish({ ok: true, entityCount, drawCalls, capture, expect, resize, preview }, server);
   } catch (e) {
     finish({ ok: false, error: String((e && e.stack) || e) }, server);
   }

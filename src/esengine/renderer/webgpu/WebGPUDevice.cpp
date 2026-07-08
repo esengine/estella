@@ -132,6 +132,10 @@ bool WebGPUDevice::configureSurface(const char* selector, u32 width, u32 height)
         return false;
     }
 
+    return configureSwapchain(width, height);
+}
+
+bool WebGPUDevice::configureSwapchain(u32 width, u32 height) {
     // The canvas swapchain prefers BGRA on most platforms; RGBA8 is universally
     // valid for emscripten surfaces and keeps readback simple during bring-up.
     surface_format_ = WGPUTextureFormat_RGBA8Unorm;
@@ -164,6 +168,16 @@ bool WebGPUDevice::configureSurface(const char* selector, u32 width, u32 height)
         surface_depth_view_ = wgpuTextureCreateView(surface_depth_texture_, nullptr);
     }
     return surface_depth_view_ != nullptr;
+}
+
+void WebGPUDevice::resizeBackbuffer(u32 width, u32 height) {
+    if (!surface_ || !device_ || width == 0 || height == 0) return;
+    if (width == surface_width_ && height == surface_height_) return;
+    if (pass_) {
+        ES_LOG_WARN("WebGPUDevice::resizeBackbuffer: ignored inside a render pass");
+        return;
+    }
+    configureSwapchain(width, height);
 }
 
 void WebGPUDevice::stubOnce(const char* what) {
