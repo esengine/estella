@@ -6,7 +6,8 @@ export { TilemapPlugin, tilemapPlugin } from './tilemapPlugin';
 export {
     parseTiledMap, parseTmjJson, loadTiledMap, loadTiledCollisionObjects,
     generateTileCollision, generateLayerCollision, generateChunkCollision,
-    generateChunkPolygonCollision, polygonLocalVerts, resolveRelativePath,
+    generateChunkPolygonCollision, generateObjectCollision, isCollisionObjectGroup,
+    polygonLocalVerts, resolveRelativePath,
     type TiledMapData, type TiledLayerData, type TiledTilesetData,
     type TiledObjectData, type TiledObjectGroupData, type TiledObjectShape,
     type TiledAnimFrame, type TilemapLoadOptions,

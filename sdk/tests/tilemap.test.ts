@@ -13,7 +13,11 @@ import {
     getTilemapSource,
     clearTilemapSourceCache,
 } from '../src/tilemap/tilesetCache';
-import { loadTiledMap, parseTmjJson, resolveRelativePath, loadTiledCollisionObjects, generateLayerCollision } from '../src/tilemap/tiledLoader';
+import {
+    loadTiledMap, parseTmjJson, resolveRelativePath, loadTiledCollisionObjects,
+    generateLayerCollision, generateObjectCollision, isCollisionObjectGroup,
+    type TiledObjectData, type TiledObjectGroupData,
+} from '../src/tilemap/tiledLoader';
 import type { TiledMapData } from '../src/tilemap/tiledLoader';
 import { mergeCollisionTiles } from '../src/tilemap/collisionMerge';
 import { BodyType } from '../src/physics/PhysicsComponents';
@@ -685,6 +689,75 @@ describe('parseTmjJson — Phase B: objectgroup parsing', () => {
         expect(result!.layers).toHaveLength(1);
         expect(result!.objectGroups).toHaveLength(1);
     });
+
+    it('should parse object identity (id/name/type) and visibility', () => {
+        const json = {
+            width: 10, height: 10, tilewidth: 32, tileheight: 32,
+            tilesets: [],
+            layers: [{
+                type: 'objectgroup',
+                name: 'Spawns',
+                objects: [
+                    { id: 7, name: 'player-start', type: 'SpawnPoint', x: 10, y: 20, width: 0, height: 0, point: true, rotation: 0 },
+                    { id: 8, name: 'hidden', x: 0, y: 0, width: 8, height: 8, rotation: 0, visible: false },
+                ],
+            }],
+        };
+        const result = parseTmjJson(json);
+        const [a, b] = result!.objectGroups[0].objects;
+        expect(a.id).toBe(7);
+        expect(a.name).toBe('player-start');
+        expect(a.type).toBe('SpawnPoint');
+        expect(a.visible).toBe(true);
+        expect(b.visible).toBe(false);
+    });
+
+    it('should read the Tiled 1.9 class field as type', () => {
+        const json = {
+            width: 10, height: 10, tilewidth: 32, tileheight: 32,
+            tilesets: [],
+            layers: [{
+                type: 'objectgroup', name: 'G',
+                objects: [{ id: 1, class: 'Enemy', x: 0, y: 0, width: 8, height: 8, rotation: 0 }],
+            }],
+        };
+        const result = parseTmjJson(json);
+        expect(result!.objectGroups[0].objects[0].type).toBe('Enemy');
+    });
+
+    it('should distinguish polylines from polygons', () => {
+        const json = {
+            width: 10, height: 10, tilewidth: 32, tileheight: 32,
+            tilesets: [],
+            layers: [{
+                type: 'objectgroup', name: 'Terrain',
+                objects: [{
+                    id: 1, x: 0, y: 64, width: 0, height: 0, rotation: 0,
+                    polyline: [{ x: 0, y: 0 }, { x: 32, y: -16 }, { x: 64, y: 0 }, { x: 96, y: 8 }],
+                }],
+            }],
+        };
+        const result = parseTmjJson(json);
+        const obj = result!.objectGroups[0].objects[0];
+        expect(obj.shape).toBe('polyline');
+        expect(obj.vertices).toEqual([0, 0, 32, -16, 64, 0, 96, 8]);
+    });
+
+    it('should parse group-level properties and visibility', () => {
+        const json = {
+            width: 10, height: 10, tilewidth: 32, tileheight: 32,
+            tilesets: [],
+            layers: [{
+                type: 'objectgroup', name: 'Walls', visible: false,
+                properties: [{ name: 'collision', type: 'bool', value: true }],
+                objects: [{ id: 1, x: 0, y: 0, width: 32, height: 32, rotation: 0 }],
+            }],
+        };
+        const result = parseTmjJson(json);
+        const group = result!.objectGroups[0];
+        expect(group.visible).toBe(false);
+        expect(group.properties.get('collision')).toBe(true);
+    });
 });
 
 describe('parseTmjJson — Phase C: collision tile IDs', () => {
@@ -819,96 +892,173 @@ describe('loadTiledCollisionObjects', () => {
         } as unknown as World;
     }
 
-    it('should create entities for rect objects', () => {
+    const makeObject = (o: Partial<TiledObjectData>): TiledObjectData => ({
+        id: 1, name: '', type: '', visible: true, shape: 'rect', x: 0, y: 0,
+        width: 0, height: 0, rotation: 0, vertices: null, properties: new Map(),
+        ...o,
+    });
+    const makeGroup = (name: string, objects: TiledObjectData[], properties?: Map<string, unknown>): TiledObjectGroupData => ({
+        name, visible: true, properties: properties ?? new Map(), objects,
+    });
+    const makeMap = (groups: TiledObjectGroupData[]): TiledMapData => ({
+        width: 10, height: 10, tileWidth: 32, tileHeight: 32,
+        orientation: 'orthogonal', hexSideLength: 0, staggerAxis: 'y', staggerIndex: 'odd',
+        layers: [], tilesets: [], collisionTileIds: [],
+        tileAnimations: new Map(), tileProperties: new Map(),
+        objectGroups: groups,
+    });
+
+    it('should place rect colliders on the tile convention (top-left origin, y-down)', () => {
         const world = createMockWorld();
-        const mapData: TiledMapData = {
-            width: 10, height: 10, tileWidth: 32, tileHeight: 32,
-            layers: [], tilesets: [], collisionTileIds: [],
-            objectGroups: [{
-                name: 'Collision',
-                objects: [
-                    { shape: 'rect' as const, x: 64, y: 96, width: 32, height: 32, rotation: 0, vertices: null, properties: new Map() },
-                ],
-            }],
-        };
+        const mapData = makeMap([makeGroup('Collision', [
+            makeObject({ shape: 'rect', x: 64, y: 96, width: 32, height: 32 }),
+        ])]);
 
         const entities = loadTiledCollisionObjects(world, mapData, 0, 0);
         expect(entities).toHaveLength(1);
-        expect(world.spawn).toHaveBeenCalledTimes(1);
 
         const insertCalls = (world.insert as any).mock.calls;
         const rbInsert = insertCalls.find((c: any) => c[1]._name === 'RigidBody');
-        expect(rbInsert).toBeDefined();
         expect(rbInsert[2].bodyType).toBe(0);
 
+        // Centre (80, 112) in Tiled pixels -> world (80, -112), like a tile at that spot.
+        const tfInsert = insertCalls.find((c: any) => c[1]._name === 'Transform');
+        expect(tfInsert[2].position).toEqual({ x: 80, y: -112, z: 0 });
+
         const boxInsert = insertCalls.find((c: any) => c[1]._name === 'BoxCollider');
-        expect(boxInsert).toBeDefined();
-        expect(boxInsert[2].halfExtents.x).toBe(16);
-        expect(boxInsert[2].halfExtents.y).toBe(16);
+        expect(boxInsert[2].halfExtents).toEqual({ x: 16, y: 16 });
     });
 
-    it('should create CircleCollider for ellipse objects', () => {
+    it('should divide collider geometry by pixelsPerUnit (positions stay pixels)', () => {
         const world = createMockWorld();
-        const mapData: TiledMapData = {
-            width: 10, height: 10, tileWidth: 32, tileHeight: 32,
-            layers: [], tilesets: [], collisionTileIds: [],
-            objectGroups: [{
-                name: 'Collision',
-                objects: [
-                    { shape: 'ellipse' as const, x: 0, y: 0, width: 64, height: 32, rotation: 0, vertices: null, properties: new Map() },
-                ],
-            }],
-        };
+        const mapData = makeMap([makeGroup('Collision', [
+            makeObject({ shape: 'rect', x: 64, y: 96, width: 32, height: 32 }),
+        ])]);
+
+        loadTiledCollisionObjects(world, mapData, 0, 0, 100);
+
+        const insertCalls = (world.insert as any).mock.calls;
+        expect(insertCalls.find((c: any) => c[1]._name === 'Transform')[2].position)
+            .toEqual({ x: 80, y: -112, z: 0 });
+        expect(insertCalls.find((c: any) => c[1]._name === 'BoxCollider')[2].halfExtents)
+            .toEqual({ x: 0.16, y: 0.16 });
+    });
+
+    it('should create CircleCollider on the mean semi-axis for ellipse objects', () => {
+        const world = createMockWorld();
+        const mapData = makeMap([makeGroup('Collision', [
+            makeObject({ shape: 'ellipse', x: 0, y: 0, width: 64, height: 32 }),
+        ])]);
 
         loadTiledCollisionObjects(world, mapData, 0, 0);
 
         const insertCalls = (world.insert as any).mock.calls;
         const circleInsert = insertCalls.find((c: any) => c[1]._name === 'CircleCollider');
-        expect(circleInsert).toBeDefined();
-        expect(circleInsert[2].radius).toBe(32);
+        expect(circleInsert[2].radius).toBe(24);
+        expect(insertCalls.find((c: any) => c[1]._name === 'Transform')[2].position)
+            .toEqual({ x: 32, y: -16, z: 0 });
     });
 
     it('should skip point objects', () => {
         const world = createMockWorld();
-        const mapData: TiledMapData = {
-            width: 10, height: 10, tileWidth: 32, tileHeight: 32,
-            layers: [], tilesets: [], collisionTileIds: [],
-            objectGroups: [{
-                name: 'Points',
-                objects: [
-                    { shape: 'point' as const, x: 10, y: 20, width: 0, height: 0, rotation: 0, vertices: null, properties: new Map() },
-                ],
-            }],
-        };
+        const mapData = makeMap([makeGroup('Points', [
+            makeObject({ shape: 'point', x: 10, y: 20 }),
+        ])]);
 
         const entities = loadTiledCollisionObjects(world, mapData, 0, 0);
         expect(entities).toHaveLength(0);
         expect(world.spawn).not.toHaveBeenCalled();
     });
 
-    it('should create BoxCollider for polygon using bounding box', () => {
+    it('should create a real PolygonCollider (y-flipped local verts) for small polygons', () => {
         const world = createMockWorld();
-        const mapData: TiledMapData = {
-            width: 10, height: 10, tileWidth: 32, tileHeight: 32,
-            layers: [], tilesets: [], collisionTileIds: [],
-            objectGroups: [{
-                name: 'Polys',
-                objects: [{
-                    shape: 'polygon' as const,
-                    x: 0, y: 0, width: 0, height: 0, rotation: 0,
-                    vertices: [0, 0, 40, 0, 40, 20, 0, 20],
-                    properties: new Map(),
-                }],
-            }],
-        };
+        const mapData = makeMap([makeGroup('Polys', [
+            makeObject({ shape: 'polygon', x: 16, y: 48, vertices: [0, 0, 40, 0, 40, 20, 0, 20] }),
+        ])]);
 
         loadTiledCollisionObjects(world, mapData, 0, 0);
 
         const insertCalls = (world.insert as any).mock.calls;
+        const polyInsert = insertCalls.find((c: any) => c[1]._name === 'PolygonCollider');
+        expect(polyInsert[2].vertices).toEqual([
+            { x: 0, y: 0 }, { x: 40, y: 0 }, { x: 40, y: -20 }, { x: 0, y: -20 },
+        ]);
+        expect(insertCalls.find((c: any) => c[1]._name === 'Transform')[2].position)
+            .toEqual({ x: 16, y: -48, z: 0 });
+    });
+
+    it('should create an open ChainCollider for polylines', () => {
+        const world = createMockWorld();
+        const mapData = makeMap([makeGroup('Terrain', [
+            makeObject({ shape: 'polyline', x: 0, y: 64, vertices: [0, 0, 32, -16, 64, 0, 96, 8] }),
+        ])]);
+
+        loadTiledCollisionObjects(world, mapData, 0, 0, 2);
+
+        const insertCalls = (world.insert as any).mock.calls;
+        const chainInsert = insertCalls.find((c: any) => c[1]._name === 'ChainCollider');
+        expect(chainInsert[2].isLoop).toBe(false);
+        expect(chainInsert[2].points).toEqual([
+            { x: 0, y: 0 }, { x: 16, y: 8 }, { x: 32, y: 0 }, { x: 48, y: -4 },
+        ]);
+        expect(insertCalls.find((c: any) => c[1]._name === 'Transform')[2].position)
+            .toEqual({ x: 0, y: -64, z: 0 });
+    });
+
+    it('should fall back to the bounding box for polygons over the Box2D vertex cap', () => {
+        const world = createMockWorld();
+        const verts: number[] = [];
+        for (let i = 0; i < 10; i++) {
+            const a = (i / 10) * Math.PI * 2;
+            verts.push(Math.cos(a) * 50, Math.sin(a) * 50);
+        }
+        const mapData = makeMap([makeGroup('Blob', [
+            makeObject({ shape: 'polygon', x: 100, y: 100, vertices: verts }),
+        ])]);
+
+        loadTiledCollisionObjects(world, mapData, 0, 0);
+
+        const insertCalls = (world.insert as any).mock.calls;
+        expect(insertCalls.find((c: any) => c[1]._name === 'PolygonCollider')).toBeUndefined();
         const boxInsert = insertCalls.find((c: any) => c[1]._name === 'BoxCollider');
-        expect(boxInsert).toBeDefined();
-        expect(boxInsert[2].halfExtents.x).toBe(20);
-        expect(boxInsert[2].halfExtents.y).toBe(10);
+        expect(boxInsert[2].halfExtents.x).toBeCloseTo(50, 3);
+    });
+
+    it('should rotate about the object anchor like Tiled (clockwise degrees)', () => {
+        const world = createMockWorld();
+        const mapData = makeMap([makeGroup('Collision', [
+            makeObject({ shape: 'rect', x: 0, y: 0, width: 64, height: 16, rotation: 90 }),
+        ])]);
+
+        loadTiledCollisionObjects(world, mapData, 0, 0);
+
+        const insertCalls = (world.insert as any).mock.calls;
+        const tf = insertCalls.find((c: any) => c[1]._name === 'Transform')[2];
+        // Anchor-pivot rotation moves the centre to (-8, 32) in Tiled pixels -> world (-8, -32).
+        expect(tf.position.x).toBeCloseTo(-8, 5);
+        expect(tf.position.y).toBeCloseTo(-32, 5);
+        // World rotation is the negative angle (y-flip mirrors the direction).
+        expect(tf.rotation.z).toBeCloseTo(Math.sin(-Math.PI / 4), 5);
+        expect(tf.rotation.w).toBeCloseTo(Math.cos(-Math.PI / 4), 5);
+    });
+});
+
+describe('isCollisionObjectGroup', () => {
+    const group = (name: string, properties?: Map<string, unknown>): TiledObjectGroupData =>
+        ({ name, visible: true, properties: properties ?? new Map(), objects: [] });
+
+    it('matches a collision=true group property', () => {
+        expect(isCollisionObjectGroup(group('Walls', new Map([['collision', true]])))).toBe(true);
+    });
+
+    it('matches a group named collision (case-insensitive)', () => {
+        expect(isCollisionObjectGroup(group('Collision'))).toBe(true);
+        expect(isCollisionObjectGroup(group('collision'))).toBe(true);
+    });
+
+    it('rejects unmarked groups', () => {
+        expect(isCollisionObjectGroup(group('Spawns'))).toBe(false);
+        expect(isCollisionObjectGroup(group('Walls', new Map([['collision', false]])))).toBe(false);
     });
 });
 

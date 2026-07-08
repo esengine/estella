@@ -10,7 +10,10 @@ import { Tilemap } from './components';
 import { registerSceneComponentCodec } from '../scene';
 import { getTilemapSource, getResolvedTileset } from './tilesetCache';
 import { resolveTilesetModel } from './tilesetResolve';
-import { generateLayerCollision, generateChunkCollision, generateChunkPolygonCollision } from './tiledLoader';
+import {
+    generateLayerCollision, generateChunkCollision, generateChunkPolygonCollision,
+    generateObjectCollision, isCollisionObjectGroup,
+} from './tiledLoader';
 import { decodeTilemapChunks } from './chunkCodec';
 import { Assets } from '../asset/AssetPlugin';
 import { resolveAssetKey } from '../asset/resolveAssetKey';
@@ -221,7 +224,7 @@ export class TilemapPlugin implements Plugin {
                         if (hasPoly) {
                             spawned.push(...generateChunkPolygonCollision(
                                 world, chunks, polyShapes,
-                                layerData.cellSize.x, layerData.cellSize.y, ox, oy,
+                                layerData.cellSize.x, layerData.cellSize.y, ox, oy, pixelsPerUnit,
                             ));
                         }
                         collisionEntities.set(entity, spawned);
@@ -329,24 +332,38 @@ export class TilemapPlugin implements Plugin {
                         sourceLayerEntities.set(entity, children);
                     }
 
+                    const hasTileCollision = !!(cached.collisionTileIds && cached.collisionTileIds.length > 0);
+                    const collisionGroups = cached.objectGroups
+                        ? cached.objectGroups.filter(isCollisionObjectGroup)
+                        : [];
                     if (
                         playMode
                         && !collisionEntities.has(entity)
-                        && cached.collisionTileIds && cached.collisionTileIds.length > 0
+                        && (hasTileCollision || collisionGroups.length > 0)
                     ) {
-                        const ids = new Set(cached.collisionTileIds);
                         const tf = world.tryGet(entity, Transform) as
                             { position: { x: number; y: number } } | null;
                         const ox = tf?.position.x ?? 0;
                         const oy = tf?.position.y ?? 0;
                         const spawned: Entity[] = [];
-                        for (const layer of cached.layers) {
-                            // Collision covers finite layers (flat tile arrays);
-                            // infinite/chunk collision is deferred.
-                            if (layer.infinite || layer.tiles.length === 0) continue;
-                            spawned.push(...generateLayerCollision(
-                                world, layer.tiles, layer.width, layer.height,
-                                cached.tileWidth, cached.tileHeight, ids, ox, oy, pixelsPerUnit,
+                        if (hasTileCollision) {
+                            const ids = new Set(cached.collisionTileIds);
+                            for (const layer of cached.layers) {
+                                // Collision covers finite layers (flat tile arrays);
+                                // infinite/chunk collision is deferred.
+                                if (layer.infinite || layer.tiles.length === 0) continue;
+                                spawned.push(...generateLayerCollision(
+                                    world, layer.tiles, layer.width, layer.height,
+                                    cached.tileWidth, cached.tileHeight, ids, ox, oy, pixelsPerUnit,
+                                ));
+                            }
+                        }
+                        // Tiled OBJECT layers marked as collision spawn static colliders
+                        // alongside the tile-derived ones — same origin, same play-mode
+                        // lifecycle (dropped on stop, regenerated next Play).
+                        if (collisionGroups.length > 0) {
+                            spawned.push(...generateObjectCollision(
+                                world, collisionGroups, ox, oy, pixelsPerUnit,
                             ));
                         }
                         collisionEntities.set(entity, spawned);

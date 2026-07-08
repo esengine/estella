@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { ResolvedTileset } from './tilesetResolve';
+import type { TiledObjectGroupData } from './tiledLoader';
 
 export interface LoadedTilemapChunk {
     x: number;
@@ -39,6 +40,12 @@ export interface LoadedTilemapSource {
     tileProperties?: Map<number, Map<string, string>>;
     /** Tile ids flagged collidable (a `collision=true` tile property). Drives runtime collider generation. */
     collisionTileIds?: number[];
+    /**
+     * Tiled object layers — spawn/marker data queryable by gameplay via
+     * `getTilemapSource`; groups marked per `isCollisionObjectGroup` also spawn
+     * static colliders in play mode.
+     */
+    objectGroups?: TiledObjectGroupData[];
 }
 
 const tilemapCache_ = new Map<string, LoadedTilemapSource>();

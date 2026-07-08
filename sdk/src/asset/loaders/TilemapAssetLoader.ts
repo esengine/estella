@@ -53,6 +53,7 @@ export class TilemapAssetLoader implements AssetLoader<TilemapResult> {
             collisionTileIds: mapData.collisionTileIds,
             tileAnimations: mapData.tileAnimations,
             tileProperties: mapData.tileProperties,
+            objectGroups: mapData.objectGroups,
         });
 
         return { sourceId: path };

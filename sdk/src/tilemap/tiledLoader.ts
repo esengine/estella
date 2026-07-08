@@ -37,7 +37,7 @@ function uploadTiledLayerTiles(entity: Entity, layer: TiledLayerData): void {
         }
     }
 }
-import { RigidBody, BoxCollider, CircleCollider, PolygonCollider, BodyType } from '../physics/PhysicsComponents';
+import { RigidBody, BoxCollider, CircleCollider, PolygonCollider, ChainCollider, BodyType } from '../physics/PhysicsComponents';
 import { mergeCollisionTiles } from './collisionMerge';
 import { CHUNK_SIZE } from './chunkCodec';
 import { tileIdOf, tileFlagsOf } from './tileBits';
@@ -76,9 +76,15 @@ export interface TiledTilesetData {
     tileCount: number;
 }
 
-export type TiledObjectShape = 'rect' | 'ellipse' | 'polygon' | 'point';
+export type TiledObjectShape = 'rect' | 'ellipse' | 'polygon' | 'polyline' | 'point';
 
 export interface TiledObjectData {
+    /** Tiled's per-map unique object id. */
+    id: number;
+    name: string;
+    /** The object's class (the field Tiled called `type` before 1.9). */
+    type: string;
+    visible: boolean;
     shape: TiledObjectShape;
     x: number;
     y: number;
@@ -91,6 +97,8 @@ export interface TiledObjectData {
 
 export interface TiledObjectGroupData {
     name: string;
+    visible: boolean;
+    properties: Map<string, unknown>;
     objects: TiledObjectData[];
 }
 
@@ -261,7 +269,7 @@ export function parseTmjJson(json: Record<string, unknown>): TiledMapData | null
                         vertices.push(pt.x, pt.y);
                     }
                 } else if (obj.polyline) {
-                    shape = 'polygon';
+                    shape = 'polyline';
                     const linePts = obj.polyline as Array<{ x: number; y: number }>;
                     vertices = [];
                     for (const pt of linePts) {
@@ -269,6 +277,10 @@ export function parseTmjJson(json: Record<string, unknown>): TiledMapData | null
                     }
                 }
                 parsed.push({
+                    id: (obj.id as number) ?? 0,
+                    name: (obj.name as string) ?? '',
+                    type: (obj.type as string) ?? (obj.class as string) ?? '',
+                    visible: obj.visible !== false,
                     shape,
                     x: (obj.x as number) ?? 0,
                     y: (obj.y as number) ?? 0,
@@ -279,8 +291,17 @@ export function parseTmjJson(json: Record<string, unknown>): TiledMapData | null
                     properties: props,
                 });
             }
+            const groupProps = new Map<string, unknown>();
+            const rawGroupProps = layer.properties as Array<Record<string, unknown>> | undefined;
+            if (rawGroupProps) {
+                for (const p of rawGroupProps) {
+                    groupProps.set(p.name as string, p.value);
+                }
+            }
             objectGroups.push({
                 name: (layer.name as string) ?? '',
+                visible: layer.visible !== false,
+                properties: groupProps,
                 objects: parsed,
             });
         }
@@ -504,70 +525,143 @@ export interface TilemapLoadOptions {
 
 const DEG_TO_RAD = Math.PI / 180;
 
+/**
+ * True when a Tiled object group is authored as collision geometry: a
+ * `collision=true` group property (mirroring the tile-property convention) or
+ * the group being named `collision` (case-insensitive).
+ */
+export function isCollisionObjectGroup(group: TiledObjectGroupData): boolean {
+    return group.properties?.get('collision') === true
+        || group.name.toLowerCase() === 'collision';
+}
+
+/**
+ * @brief Spawn static colliders for Tiled OBJECT layers (rect / ellipse / polygon / polyline).
+ *
+ * Same world convention as the tile-collision generators: the map's top-left corner sits at
+ * (originX, originY) and Tiled's y-down pixel coordinates descend from it
+ * (`world = (originX + px, originY - py)`). Rotation is Tiled's clockwise degrees about the
+ * object anchor (top-left for rects/ellipses, the vertex origin for polygons) — realized as
+ * the equivalent negative z-rotation on the collider entity, positioned at the true shape
+ * centre. Collider GEOMETRY is physics units (metres): pixel sizes divide by pixelsPerUnit,
+ * matching `BoxCollider.halfExtents` semantics (positions stay pixels; physics scales those).
+ *
+ * Shapes: rect → BoxCollider; ellipse → CircleCollider on the mean semi-axis (exact for
+ * circles); polygon ≤ 8 vertices → PolygonCollider (Box2D's vertex cap); polygon > 8 →
+ * bounding-box BoxCollider with a warning (predictably solid, never silently truncated);
+ * polyline → open ChainCollider (the physics layer requires ≥ 4 points); point → skipped
+ * (spawn/marker data, queryable from the parsed map).
+ */
+export function generateObjectCollision(
+    world: World,
+    groups: TiledObjectGroupData[],
+    originX: number,
+    originY: number,
+    pixelsPerUnit: number = 1,
+): Entity[] {
+    const entities: Entity[] = [];
+    for (const group of groups) {
+        for (const obj of group.objects) {
+            if (obj.shape === 'point') continue;
+
+            const rad = obj.rotation * DEG_TO_RAD;
+            const cos = Math.cos(rad);
+            const sin = Math.sin(rad);
+            // Rotate an object-local (y-down) offset about the anchor, then place the
+            // anchor-relative point in the world (visually-clockwise rotation is the
+            // standard matrix in y-down coordinates).
+            const spawnAt = (lx: number, ly: number): Entity => {
+                const entity = world.spawn();
+                const position = {
+                    x: originX + obj.x + lx * cos - ly * sin,
+                    y: originY - (obj.y + lx * sin + ly * cos),
+                    z: 0,
+                };
+                if (rad !== 0) {
+                    const half = -rad * 0.5;
+                    world.insert(entity, Transform, {
+                        position,
+                        rotation: { w: Math.cos(half), x: 0, y: 0, z: Math.sin(half) },
+                    });
+                } else {
+                    world.insert(entity, Transform, { position });
+                }
+                world.insert(entity, RigidBody, { bodyType: BodyType.Static });
+                entities.push(entity);
+                return entity;
+            };
+
+            if (obj.shape === 'rect') {
+                const entity = spawnAt(obj.width * 0.5, obj.height * 0.5);
+                world.insert(entity, BoxCollider, {
+                    halfExtents: {
+                        x: obj.width * 0.5 / pixelsPerUnit,
+                        y: obj.height * 0.5 / pixelsPerUnit,
+                    },
+                });
+            } else if (obj.shape === 'ellipse') {
+                const entity = spawnAt(obj.width * 0.5, obj.height * 0.5);
+                world.insert(entity, CircleCollider, {
+                    radius: (obj.width + obj.height) * 0.25 / pixelsPerUnit,
+                });
+            } else if (obj.vertices && obj.vertices.length >= 4) {
+                // Local vertices flip Tiled's y-down into the body's y-up space; the
+                // entity's rotation carries the object angle.
+                const local: { x: number; y: number }[] = [];
+                for (let i = 0; i < obj.vertices.length; i += 2) {
+                    local.push({
+                        x: obj.vertices[i] / pixelsPerUnit,
+                        // binary subtraction: -v would yield -0 for zero components
+                        y: (0 - obj.vertices[i + 1]) / pixelsPerUnit,
+                    });
+                }
+                if (obj.shape === 'polyline') {
+                    const entity = spawnAt(0, 0);
+                    world.insert(entity, ChainCollider, { points: local, isLoop: false });
+                } else if (local.length <= 8) {
+                    const entity = spawnAt(0, 0);
+                    world.insert(entity, PolygonCollider, { vertices: local });
+                } else {
+                    log.warn('tilemap', `object polygon in group '${group.name}' has ${local.length} vertices (Box2D max 8); using its bounding box`);
+                    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                    for (let i = 0; i < obj.vertices.length; i += 2) {
+                        const vx = obj.vertices[i];
+                        const vy = obj.vertices[i + 1];
+                        if (vx < minX) minX = vx;
+                        if (vx > maxX) maxX = vx;
+                        if (vy < minY) minY = vy;
+                        if (vy > maxY) maxY = vy;
+                    }
+                    const entity = spawnAt((minX + maxX) * 0.5, (minY + maxY) * 0.5);
+                    world.insert(entity, BoxCollider, {
+                        halfExtents: {
+                            x: (maxX - minX) * 0.5 / pixelsPerUnit,
+                            y: (maxY - minY) * 0.5 / pixelsPerUnit,
+                        },
+                    });
+                }
+            }
+        }
+    }
+    return entities;
+}
+
+/**
+ * @brief Spawn static colliders for EVERY object group of a parsed map (the code-driven
+ *        `loadTiledMap` path; the scene path filters by {@link isCollisionObjectGroup}).
+ *
+ * NOTE: behaviour fixed to the shared convention — origin at the map's TOP-left with world-y
+ * descending (was bottom-left/y-up, a full map-height off the tiles, the same latent bug the
+ * tile path had fixed) and metre-unit collider geometry via `pixelsPerUnit` (was raw pixels).
+ */
 export function loadTiledCollisionObjects(
     world: World,
     mapData: TiledMapData,
     mapOriginX: number,
     mapOriginY: number,
+    pixelsPerUnit: number = 1,
 ): Entity[] {
-    const entities: Entity[] = [];
-    const mapPixelH = mapData.height * mapData.tileHeight;
-
-    for (const group of mapData.objectGroups) {
-        for (const obj of group.objects) {
-            if (obj.shape === 'point') continue;
-
-            const entity = world.spawn();
-            const tiledX = obj.x;
-            const tiledY = obj.y;
-            const worldX = mapOriginX + tiledX + obj.width * 0.5;
-            const worldY = mapOriginY + (mapPixelH - tiledY) - obj.height * 0.5;
-            const angle = -obj.rotation * DEG_TO_RAD;
-
-            world.insert(entity, Transform, {
-                position: { x: worldX, y: worldY, z: 0 },
-            });
-            world.insert(entity, RigidBody, { bodyType: BodyType.Static });
-
-            if (obj.shape === 'ellipse') {
-                const radius = Math.max(obj.width, obj.height) * 0.5;
-                world.insert(entity, CircleCollider, { radius });
-            } else if (obj.shape === 'polygon' && obj.vertices) {
-                let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-                for (let i = 0; i < obj.vertices.length; i += 2) {
-                    const vx = obj.vertices[i];
-                    const vy = obj.vertices[i + 1];
-                    if (vx < minX) minX = vx;
-                    if (vx > maxX) maxX = vx;
-                    if (vy < minY) minY = vy;
-                    if (vy > maxY) maxY = vy;
-                }
-                const polyW = maxX - minX;
-                const polyH = maxY - minY;
-                const polyCX = (minX + maxX) * 0.5;
-                const polyCY = (minY + maxY) * 0.5;
-                world.insert(entity, BoxCollider, {
-                    halfExtents: { x: polyW * 0.5, y: polyH * 0.5 },
-                    offset: { x: polyCX, y: -polyCY },
-                });
-            } else {
-                world.insert(entity, BoxCollider, {
-                    halfExtents: { x: obj.width * 0.5, y: obj.height * 0.5 },
-                });
-            }
-
-            if (angle !== 0) {
-                const half = angle * 0.5;
-                world.insert(entity, Transform, {
-                    position: { x: worldX, y: worldY, z: 0 },
-                    rotation: { w: Math.cos(half), x: 0, y: 0, z: Math.sin(half) },
-                });
-            }
-
-            entities.push(entity);
-        }
-    }
-    return entities;
+    return generateObjectCollision(world, mapData.objectGroups, mapOriginX, mapOriginY, pixelsPerUnit);
 }
 
 /**
@@ -720,6 +814,7 @@ export function generateChunkPolygonCollision(
     tileH: number,
     originX: number,
     originY: number,
+    pixelsPerUnit: number = 1,
 ): Entity[] {
     const entities: Entity[] = [];
     if (polygonShapes.size === 0) return entities;
@@ -739,8 +834,11 @@ export function generateChunkPolygonCollision(
                 position: { x: originX + (gx + 0.5) * tileW, y: originY - (gy + 0.5) * tileH, z: 0 },
             });
             world.insert(entity, RigidBody, { bodyType: BodyType.Static });
+            // PolygonCollider vertices are physics units (uploaded unscaled, like
+            // BoxCollider.halfExtents) — divide the pixel-space outline by ppu.
             world.insert(entity, PolygonCollider, {
-                vertices: polygonLocalVerts(shape, tileW, tileH, f.flipH, f.flipV, f.flipD),
+                vertices: polygonLocalVerts(shape, tileW, tileH, f.flipH, f.flipV, f.flipD)
+                    .map((v) => ({ x: v.x / pixelsPerUnit, y: v.y / pixelsPerUnit })),
             });
             entities.push(entity);
         }
