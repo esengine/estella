@@ -523,10 +523,6 @@ f64 renderer_getTextureBytes() {
     return 0.0;
 }
 
-void renderer_setDeltaTime(f32 dt) {
-    ctx().state().delta_time = dt;
-}
-
 void renderer_setClearColor(f32 r, f32 g, f32 b, f32 a) {
     ctx().state().clear_color = glm::vec4(r, g, b, a);
 }

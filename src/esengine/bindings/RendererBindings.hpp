@@ -16,28 +16,6 @@ namespace ecs {
     class Registry;
 }
 
-#ifdef ES_ENABLE_SPINE
-struct SpineBounds {
-    f32 x = 0;
-    f32 y = 0;
-    f32 width = 0;
-    f32 height = 0;
-    bool valid = false;
-};
-
-SpineBounds getSpineBounds(ecs::Registry& registry, Entity entity);
-
-void spine_update(ecs::Registry& registry, f32 dt);
-bool spine_play(Entity entity, const std::string& animation, bool loop, i32 track);
-bool spine_addAnimation(Entity entity, const std::string& animation, bool loop, f32 delay, i32 track);
-bool spine_setSkin(Entity entity, const std::string& skinName);
-emscripten::val spine_getBonePosition(Entity entity, const std::string& boneName);
-bool spine_hasInstance(Entity entity);
-void spine_reloadAssets(ecs::Registry& registry);
-emscripten::val spine_getAnimations(Entity entity);
-emscripten::val spine_getSkins(Entity entity);
-#endif
-
 void renderFrame(ecs::Registry& registry, i32 viewportWidth, i32 viewportHeight);
 void renderFrameWithMatrix(ecs::Registry& registry, i32 viewportWidth, i32 viewportHeight,
                             uintptr_t matrixPtr);
@@ -120,7 +98,6 @@ std::string engine_getCpuScopes();
 std::string engine_getCounters();
 std::string engine_getGpuScopes();
 f64 renderer_getTextureBytes();
-void renderer_setDeltaTime(f32 dt);
 void renderer_setClearColor(f32 r, f32 g, f32 b, f32 a);
 void renderer_setViewport(i32 x, i32 y, i32 w, i32 h);
 void renderer_diagnose();

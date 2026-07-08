@@ -344,7 +344,6 @@ export interface ESEngineModule {
     engine_getGpuScopes?(): string;
     /** Resident texture VRAM (RGBA8 estimate, bytes) for the profiler's memory pillar. */
     renderer_getTextureBytes?(): number;
-    renderer_setDeltaTime(dt: number): void;
     renderer_setClearColor(r: number, g: number, b: number, a: number): void;
     renderer_setViewport(x: number, y: number, w: number, h: number): void;
     renderer_setTextureParams(textureId: number, minFilter: number, magFilter: number, wrapS: number, wrapT: number): void;
