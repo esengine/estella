@@ -66,6 +66,54 @@ const stats = await channel.request<{ hp: number }>('getStats', { id: 'p1' }, 50
 | `request(type, payload, timeoutMs?)` | Send an RPC; resolves with the reply. |
 | `dispose(reason?)` | Tear down the channel and reject pending requests. |
 
+## State replication — multiplayer entities
+
+On top of the transport, Estella ships a **server-authoritative replication
+layer**: mark an entity `Replicated` on the server and it spawns on every
+client, its declared fields stream as binary deltas, and remote pawns render
+with snapshot interpolation. One declaration drives the wire format — no
+hand-written sync code.
+
+```typescript
+import { defineComponent, Net, Replicated, Transform } from 'esengine';
+
+// Which fields replicate is declared on the component (builtins like
+// Transform annotate `replicated` in C++; user components declare it here).
+const Health = defineComponent('Health', { hp: 100, regen: 1 }, {
+  replicatedFields: ['hp'],
+});
+
+// SERVER (the authority): spawn a replicated entity, owned by a connection.
+const net = app.getResource(Net);
+const server = net.startServer();
+// accept connections however your host likes:
+server.attachConnection(transport);          // any NetTransport works
+
+const e = app.world.spawn('player');
+app.world.insert(e, Transform, { position: { x: 0, y: 0, z: 0 } });
+app.world.insert(e, Health, {});
+app.world.insert(e, Replicated, { owner: connectionId });
+
+// CLIENT: connect and everything arrives — ghosts spawn, state streams.
+await app.getResource(Net).connect(transport);
+net.client?.sendInput({ move: { x: 1, y: 0 } });   // per-tick input uplink
+
+// SERVER gameplay reads each connection's latest input:
+const input = server.inputOf(connectionId);
+```
+
+- **Authority**: only the server simulates; clients see replicated, interpolated
+  state (`NetGhost` tags the proxies). The handshake refuses a protocol/ABI/schema
+  mismatch fail-loud, so drifted builds never desync silently.
+- **Ownership**: `Replicated.owner` routes a connection's `sendInput` commands to
+  its entities; `client.ownsEntity(e)` answers "is this ghost mine".
+- **Editor preview**: pick **2–4 Players** in the Play-mode dropdown — a listen
+  server plus client views run side by side, zero networking setup.
+- **Dedicated servers**: the same gameplay code runs headless under Node —
+  `import { loadEsengineModule, createHeadlessApp, runHeadless } from 'esengine/node'`.
+
+See the **Multiplayer Arena** example for the full pattern in ~100 lines.
+
 ## Best practices
 
 - **Use `NetChannel`** for anything beyond a trivial socket — routed types and RPC
@@ -73,11 +121,13 @@ const stats = await channel.request<{ hp: number }>('getStats', { id: 'p1' }, 50
 - **Set an RPC timeout** so a lost reply rejects instead of hanging forever.
 - **Push received state into components** via `Commands` so gameplay stays in ECS.
 - **Queue-before-open is automatic** — you can `send` right after `connect()`.
+- **Gate authority in systems** — check `Net.role` so the same code runs as
+  server, client, or offline single-player.
 
 <Aside type="note">
-  Networking is plain classes, not an ECS resource — create the socket/channel
-  wherever it fits your app, and drive gameplay from its callbacks. Entity sync /
-  rollback is a larger layer you build on top of `NetChannel`.
+  The transport is plain classes (create the socket/channel wherever it fits);
+  the replication layer is ECS-native — a `Net` resource plus systems on the
+  fixed timestep, installed by default and idle until you start a session.
 </Aside>
 
 ## See also

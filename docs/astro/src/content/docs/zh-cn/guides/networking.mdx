@@ -65,16 +65,63 @@ const stats = await channel.request<{ hp: number }>('getStats', { id: 'p1' }, 50
 | `request(type, payload, timeoutMs?)` | 发送一个 RPC;以回复 resolve。 |
 | `dispose(reason?)` | 拆除通道并 reject 挂起的请求。 |
 
+## 状态复制——多人实体同步
+
+在传输层之上,Estella 内置**服务器权威的复制层**:在服务器上给实体挂上
+`Replicated`,它就会在每个客户端生成,声明过的字段以二进制增量流式同步,
+远端角色带快照插值渲染。一处声明驱动整个线格式——无需手写同步代码。
+
+```typescript
+import { defineComponent, Net, Replicated, Transform } from 'esengine';
+
+// 哪些字段复制在组件上声明(内置组件如 Transform 在 C++ 侧
+// 用 `replicated` 注解;用户组件在这里声明)。
+const Health = defineComponent('Health', { hp: 100, regen: 1 }, {
+  replicatedFields: ['hp'],
+});
+
+// 服务器(权威端):生成一个复制实体,归某个连接所有。
+const net = app.getResource(Net);
+const server = net.startServer();
+server.attachConnection(transport);          // 任何 NetTransport 都行
+
+const e = app.world.spawn('player');
+app.world.insert(e, Transform, { position: { x: 0, y: 0, z: 0 } });
+app.world.insert(e, Health, {});
+app.world.insert(e, Replicated, { owner: connectionId });
+
+// 客户端:连上即得——ghost 自动生成,状态持续流入。
+await app.getResource(Net).connect(transport);
+net.client?.sendInput({ move: { x: 1, y: 0 } });   // 每 tick 输入上行
+
+// 服务器玩法读取各连接的最新输入:
+const input = server.inputOf(connectionId);
+```
+
+- **权威**:只有服务器做模拟;客户端看到的是复制且插值后的状态(`NetGhost`
+  标记代理实体)。握手会对协议/ABI/schema 不匹配直接拒连,漂移的构建永远
+  不会静默失步。
+- **归属**:`Replicated.owner` 把某连接的 `sendInput` 命令路由到它的实体;
+  `client.ownsEntity(e)` 回答"这个 ghost 是不是我的"。
+- **编辑器预览**:在 Play 模式下拉里选 **2–4 Players**——listen server 和
+  客户端视图并排运行,零联网配置。
+- **专用服务器**:同一份玩法代码可在 Node 下无头运行——
+  `import { loadEsengineModule, createHeadlessApp, runHeadless } from 'esengine/node'`。
+
+完整范式见 **Multiplayer Arena** 示例(约 100 行)。
+
 ## 最佳实践
 
 - 超出简单套接字的场景**用 `NetChannel`**——按类型路由和 RPC 胜过一个巨大的 `onMessage` switch。
 - **设置 RPC 超时**,让丢失的回复 reject 而不是永远挂起。
 - **把收到的状态推入组件**(用 `Commands`),让玩法留在 ECS。
 - **连接前排队是自动的**——`connect()` 之后就能立即 `send`。
+- **在系统里做权威门控**——检查 `Net.role`,同一份代码即可作为服务器、
+  客户端或离线单机运行。
 
 <Aside type="note">
-  联网是普通类,而非 ECS 资源——在适合你应用的地方创建套接字/通道,并从它的回调驱动玩法。
-  实体同步 / 回滚是你在 `NetChannel` 之上构建的更大一层。
+  传输层是普通类(在适合你应用的地方创建套接字/通道);复制层则是 ECS
+  原生的——一个 `Net` 资源加固定时间步上的系统,默认安装,不开会话时零开销。
 </Aside>
 
 ## 参见
