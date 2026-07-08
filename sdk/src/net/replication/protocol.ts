@@ -21,6 +21,7 @@ export const ReplMsg = {
     hello: 'repl:hello',
     spawn: 'repl:spawn',
     despawn: 'repl:despawn',
+    input: 'repl:input',
 } as const;
 
 /** One component's replication schema, as exchanged for handshake comparison. */
@@ -73,4 +74,16 @@ export interface ReplSpawnBatch {
 export interface ReplDespawnBatch {
     tick: number;
     netIds: number[];
+}
+
+/**
+ * Client → server input command. `actions` is game-defined (typically one
+ * InputMap's evaluated values per fixed tick: booleans, axes, {x,y} pairs);
+ * `seq` is a client-monotonic counter so stale deliveries never overwrite
+ * newer state. The server keeps the latest per connection and gameplay reads
+ * it via `ReplicationServer.inputOf(connectionId)`.
+ */
+export interface ReplInputMsg {
+    seq: number;
+    actions: Record<string, unknown>;
 }

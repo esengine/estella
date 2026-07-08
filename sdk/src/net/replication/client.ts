@@ -18,13 +18,14 @@ import { NetChannel, type NetTransport } from '../NetChannel';
 import { log } from '../../logger';
 import {
     REPLICATION_CHANNEL, REPLICATION_PROTOCOL_VERSION, ReplMsg,
-    type ReplDespawnBatch, type ReplHelloRequest, type ReplHelloResponse, type ReplSpawnBatch, type ReplSpawnEntity,
+    type ReplDespawnBatch, type ReplHelloRequest, type ReplHelloResponse,
+    type ReplInputMsg, type ReplSpawnBatch, type ReplSpawnEntity,
 } from './protocol';
 import {
     buildReplicationTable, decodeStateFrame, tableSchemas,
     type EntityRefMap, type ReplicationTable, type StateFrame,
 } from './codec';
-import { NetGhost } from './components';
+import { NetGhost, Replicated } from './components';
 import { NetIds } from './NetIds';
 import { InterpolationState } from './interpolation';
 
@@ -48,6 +49,7 @@ export class ReplicationClient {
     private readonly pendingSpawns_: ReplSpawnBatch[] = [];
     private readonly pendingDespawns_: ReplDespawnBatch[] = [];
     private readonly interp_: InterpolationState | null;
+    private inputSeq_ = 0;
 
     constructor(world: World, options: ReplicationClientOptions = {}) {
         this.world_ = world;
@@ -124,6 +126,19 @@ export class ReplicationClient {
         this.channel_?.dispose();
         this.channel_ = null;
         this.connectionId_ = 0;
+    }
+
+    /** Send an input command (typically the InputMap's evaluated action values,
+     *  once per fixed tick). The seq stamp makes stale deliveries harmless. */
+    sendInput(actions: Record<string, unknown>): void {
+        if (!this.channel_) return;
+        this.channel_.send<ReplInputMsg>(ReplMsg.input, { seq: ++this.inputSeq_, actions });
+    }
+
+    /** True when this client's connection owns the entity (Replicated.owner). */
+    ownsEntity(entity: Entity): boolean {
+        const repl = this.world_.tryGet(entity, Replicated) as { owner: number } | null;
+        return repl !== null && repl.owner === this.connectionId_ && this.connectionId_ !== 0;
     }
 
     /** Apply everything received since the last fixed step. Spawns before

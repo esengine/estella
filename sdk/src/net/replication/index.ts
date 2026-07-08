@@ -10,6 +10,7 @@ export {
     type ReplSpawnEntity,
     type ReplSpawnBatch,
     type ReplDespawnBatch,
+    type ReplInputMsg,
 } from './protocol';
 export {
     buildReplicationTable,

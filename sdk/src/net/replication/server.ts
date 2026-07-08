@@ -18,7 +18,8 @@ import { NetChannel, type NetTransport } from '../NetChannel';
 import { log } from '../../logger';
 import {
     REPLICATION_CHANNEL, REPLICATION_PROTOCOL_VERSION, ReplMsg,
-    type ReplDespawnBatch, type ReplHelloRequest, type ReplHelloResponse, type ReplSpawnBatch, type ReplSpawnEntity,
+    type ReplDespawnBatch, type ReplHelloRequest, type ReplHelloResponse,
+    type ReplInputMsg, type ReplSpawnBatch, type ReplSpawnEntity,
 } from './protocol';
 import {
     buildReplicationTable, diffSchemas, tableSchemas, FrameWriter,
@@ -32,6 +33,8 @@ interface Connection {
     channel: NetChannel;
     /** Handshake completed and the initial world spawn has been sent. */
     ready: boolean;
+    /** Latest input command from this connection (stale seq never overwrites). */
+    input: ReplInputMsg | null;
 }
 
 function deepClone<T>(v: T): T {
@@ -99,8 +102,12 @@ export class ReplicationServer {
     attachConnection(transport: NetTransport): number {
         const id = this.nextConnectionId_++;
         const channel = new NetChannel(transport);
-        const conn: Connection = { id, channel, ready: false };
+        const conn: Connection = { id, channel, ready: false, input: null };
         this.connections_.set(id, conn);
+
+        channel.on<ReplInputMsg>(ReplMsg.input, (msg) => {
+            if (!conn.input || msg.seq > conn.input.seq) conn.input = msg;
+        });
 
         channel.handle<ReplHelloRequest, ReplHelloResponse>(ReplMsg.hello, (req) => {
             if (req.protocolVersion !== REPLICATION_PROTOCOL_VERSION) {
@@ -127,6 +134,13 @@ export class ReplicationServer {
         if (!conn) return;
         conn.channel.dispose();
         this.connections_.delete(id);
+    }
+
+    /** The latest input command a connection sent (null before the first).
+     *  Gameplay reads this in FixedUpdate and applies it to the entities the
+     *  connection owns (Replicated.owner). */
+    inputOf(connectionId: number): ReplInputMsg | null {
+        return this.connections_.get(connectionId)?.input ?? null;
     }
 
     /** One replication tick: spawns/despawns on the control plane, dirty
