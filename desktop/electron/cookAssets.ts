@@ -79,6 +79,41 @@ function swapExt(p: string, ext: string): string {
   return (cur ? p.slice(0, p.length - cur.length) : p) + ext;
 }
 
+/**
+ * Rewrite a material's RELATIVE refs (shader / instanceOf / texture properties)
+ * to the referenced asset's logical project path. Materials resolve relative
+ * refs against their own directory at runtime — a structure content-addressed
+ * staging destroys — so the staged copy carries directory-free logical refs and
+ * the runtime's logical→staged maps take it from there. Logical paths outside
+ * the runtime's passthrough prefixes ship as "/<logical>" (project-absolute).
+ * `@uuid:`/URL refs and already-logical refs pass through unchanged.
+ */
+function rewriteMaterialRefs(
+  bytes: Uint8Array,
+  matPath: string,
+  byPath: Map<string, AssetEntry>,
+): Uint8Array {
+  const json = JSON.parse(Buffer.from(bytes).toString('utf8')) as Record<string, unknown>;
+  const dir = matPath.includes('/') ? matPath.slice(0, matPath.lastIndexOf('/')) : '';
+  const rewrite = (ref: unknown): unknown => {
+    if (typeof ref !== 'string' || ref.startsWith('@uuid:') || ref.includes('://')) return ref;
+    const norm = ref.replace(/^\.\//, '').replace(/^\//, '');
+    if (byPath.has(norm)) return ref;  // already a logical project path
+    const joined = dir ? `${dir}/${norm}` : norm;
+    if (!byPath.has(joined)) return ref;  // not an asset ref (or missing) — leave it
+    // Passthrough-safe spelling: bare when the runtime treats it as absolute,
+    // "/"-rooted otherwise (both registered by the cooked host's maps).
+    return joined.startsWith('assets/') ? joined : `/${joined}`;
+  };
+  if (typeof json.shader === 'string') json.shader = rewrite(json.shader);
+  if (typeof json.instanceOf === 'string') json.instanceOf = rewrite(json.instanceOf);
+  if (json.properties && typeof json.properties === 'object') {
+    const props = json.properties as Record<string, unknown>;
+    for (const key of Object.keys(props)) props[key] = rewrite(props[key]);
+  }
+  return new TextEncoder().encode(JSON.stringify(json, null, 2) + '\n');
+}
+
 export interface CookResult {
   ok: boolean;
   /** Absolute output dir the assets + manifest were staged into. */
@@ -169,6 +204,14 @@ export async function cookAssets(
         data = await encodePng(data);
         ext = '.ktx2';
         compressedFormats = COMPRESSED_TARGETS;
+      }
+      // Materials: relative refs → logical project paths (see rewriteMaterialRefs).
+      if (ext.toLowerCase() === '.esmaterial') {
+        try {
+          data = rewriteMaterialRefs(data, entry.path, byPath);
+        } catch (err) {
+          warnings.push(`${entry.path}: material ref rewrite failed — ${err instanceof Error ? err.message : String(err)}`);
+        }
       }
       // Shaders ship as-authored; a WGSL twin is what makes one run on the
       // WebGPU backend, so a twin-less shader is worth a cook-time warning

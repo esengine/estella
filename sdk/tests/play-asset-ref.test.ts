@@ -39,4 +39,37 @@ describe('resolvePlayAssetRef', () => {
         expect(resolvePlayAssetRef(uuid, manifest, BASE)).toBe('estella://project/assets/textures/idle_0.png');
         expect(resolvePlayAssetRef(uuid.toUpperCase(), manifest, BASE)).toBe('estella://project/assets/textures/idle_0.png');
     });
+
+    // Cooked builds: content-addressed staging renames physical files, so a
+    // logical path resolves through the pathMap — to the extension-bearing
+    // staged path (a .png staged as .ktx2 must sniff as KTX2), same contract
+    // as the uuid branch. Leading "/" and "./" spellings hit the same entry.
+    describe('cooked pathMap', () => {
+        const pathMap = {
+            'assets/hero.png': './assets/1234567890abcdef.ktx2',
+            'assets/red.esmaterial': './assets/fedcba0987654321.esmaterial',
+        };
+
+        it('maps a logical path to its staged file', () => {
+            expect(resolvePlayAssetRef('assets/hero.png', {}, undefined, pathMap))
+                .toBe('./assets/1234567890abcdef.ktx2');
+        });
+
+        it('normalizes leading "/" and "./" spellings', () => {
+            expect(resolvePlayAssetRef('/assets/red.esmaterial', {}, undefined, pathMap))
+                .toBe('./assets/fedcba0987654321.esmaterial');
+            expect(resolvePlayAssetRef('./assets/red.esmaterial', {}, undefined, pathMap))
+                .toBe('./assets/fedcba0987654321.esmaterial');
+        });
+
+        it('falls through to the path branch for unmapped refs', () => {
+            expect(resolvePlayAssetRef('assets/other.png', {}, undefined, pathMap))
+                .toBe('assets/other.png');
+        });
+
+        it('uuid refs take priority over the pathMap', () => {
+            expect(resolvePlayAssetRef('@uuid:AAAA', MANIFEST, undefined, pathMap))
+                .toBe('estella://project/assets/textures/hero.png');
+        });
+    });
 });

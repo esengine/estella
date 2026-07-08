@@ -231,7 +231,8 @@ describe('cookAssets (A4)', () => {
       // The real-content shape: the scene names the material by PROJECT PATH (no
       // @uuid:), and the material names its shader + texture RELATIVE to itself.
       wa('assets/materials/m.esmaterial', 'material', MAT, JSON.stringify({
-        version: '1.0', type: 'material', shader: 'm.esshader', properties: { u_mask: 'green.png' },
+        version: '1.0', type: 'material', shader: 'm.esshader',
+        properties: { u_mask: 'green.png', u_mode: 'additive' },
       }));
       wa('assets/materials/m.esshader', 'shader', SHADER,
         '#pragma shader "M"\n#pragma fragment\nvoid main() {}\n#pragma end\n');
@@ -258,6 +259,16 @@ describe('cookAssets (A4)', () => {
       const mat = m.entries.find((e) => e.uuid === MAT)!;
       expect(mat.sourcePath).toBe('assets/materials/m.esmaterial');
       expect(mat.path).toMatch(/^assets\/[0-9a-f]{16}\.esmaterial$/);
+
+      // The staged material's RELATIVE refs were rewritten to logical project
+      // paths (content addressing destroys the directory structure relative
+      // resolution relies on); non-asset strings pass through untouched.
+      const stagedMat = JSON.parse(readFileSync(path.join(ca.outDir, mat.path), 'utf8')) as {
+        shader: string; properties: Record<string, string>;
+      };
+      expect(stagedMat.shader).toBe('assets/materials/m.esshader');
+      expect(stagedMat.properties.u_mask).toBe('assets/materials/green.png');
+      expect(stagedMat.properties.u_mode).toBe('additive');
     } finally {
       rmSync(r, { recursive: true, force: true });
     }

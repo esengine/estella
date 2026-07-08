@@ -30,6 +30,7 @@ import { type RuntimeAssetSource, type TextureParams } from './runtimeAssets';
 import { loadSpineAssets, applySpineEntities } from './spine/loadSpineScene';
 import { transcoderFromModule, type BasisWasmModule } from './asset/basisTranscoder';
 import type { AddressableManifest, ManifestModel } from './asset/AddressableManifest';
+import type { Catalog } from './asset/Catalog';
 
 // =============================================================================
 // Public Interface
@@ -70,7 +71,7 @@ const runtimeImportSettings = new WeakMap<AssetsClass, Record<string, TextureImp
  * neither and applied no atlas-frame indirection).
  */
 function ensureRuntimeAssets(
-    app: App, module: ESEngineModule, source: RuntimeAssetSource,
+    app: App, module: ESEngineModule, source: RuntimeAssetSource, catalog?: Catalog,
 ): AssetsClass {
     if (app.hasResource(AssetsResource)) {
         const existing = app.getResource(AssetsResource);
@@ -81,6 +82,7 @@ function ensureRuntimeAssets(
     const assets = AssetsClass.create({
         backend: source.backend,
         module,
+        catalog,
         getAudio: () => (app.hasResource(Audio) ? app.getResource(Audio) : null),
         getSpriteAnimation: () => (app.hasResource(SpriteAnimation) ? app.getResource(SpriteAnimation) : null),
     });
@@ -301,6 +303,13 @@ export interface RuntimeInitConfig {
      * existed before initRuntime, which the runtime instance replaces.
      */
     manifest?: AddressableManifest | ManifestModel | null;
+    /**
+     * Logical-path → build-path catalog for cooked builds (content-addressed
+     * staging renames physical files): loaders route their inner text refs (a
+     * material's shader path) through Catalog.getBuildPath, which is identity
+     * without one. Applied when the per-App runtime Assets is first created.
+     */
+    catalog?: Catalog;
     scenes: Array<{ name: string; data: SceneData }>;
     firstScene: string;
     spineModule?: SpineWasmModule | null;
@@ -321,7 +330,9 @@ export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
 
     // Install the per-App runtime Assets up front (scene loads reuse it) and
     // hand it the manifest so on-demand loadGroup works from the first frame.
-    const assets = ensureRuntimeAssets(app, config.module, config.source);
+    // The catalog rides the same first-creation moment (later ensure calls
+    // return the existing instance).
+    const assets = ensureRuntimeAssets(app, config.module, config.source, config.catalog);
     if (config.manifest) assets.setManifest(config.manifest);
 
     const sceneOpts: Omit<LoadRuntimeSceneOptions, 'sceneData' | 'sceneName'> = {

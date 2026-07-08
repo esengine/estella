@@ -21,6 +21,7 @@ import { Audio } from './audio/Audio';
 import { initRuntime } from './runtimeLoader';
 import type { RuntimeAssetSource } from './runtimeAssets';
 import { HttpBackend } from './asset/Backend';
+import { Catalog, type CatalogData } from './asset/Catalog';
 import type { AddressableManifest } from './asset/AddressableManifest';
 import type { SceneData } from './scene';
 import type { PhysicsPluginConfig } from './physics/PhysicsPlugin';
@@ -35,6 +36,20 @@ export interface PlayRealmRuntimeConfig {
     sceneData: SceneData;
     /** Lowercased uuid → fetchable URL (e.g. `estella://project/<path>`). */
     assetManifest: Record<string, string>;
+    /**
+     * Logical (source) path → fetchable staged path, for cooked builds whose
+     * content-addressed staging renamed the physical files. Path-style refs
+     * (a scene's "assets/x.esmaterial") resolve through this BEFORE extension
+     * sniffing, exactly like uuid refs — so a .png staged as .ktx2 transcodes.
+     * Omit when files are served at their logical paths (the editor realm).
+     */
+    assetPathMap?: Record<string, string>;
+    /**
+     * Logical path → build-path catalog for the same cooked case: loaders fetch
+     * their INNER text refs (a material's shader) through Catalog.getBuildPath,
+     * which is identity without this. Omit alongside assetPathMap.
+     */
+    catalogData?: CatalogData | null;
     manifest?: AddressableManifest | null;
     /** Base URL the engine side-modules (physics.wasm, …) are served from — same
      *  dir as esengine.wasm. When set, the realm can load physics on demand. */
@@ -73,7 +88,12 @@ export interface PlayRealmRuntimeConfig {
  * resolves against the project root, not the `.esengine/play/` subdir the realm
  * runs from. Pure.
  */
-export function resolvePlayAssetRef(ref: string, manifest: Record<string, string>, assetBaseUrl?: string): string {
+export function resolvePlayAssetRef(
+    ref: string,
+    manifest: Record<string, string>,
+    assetBaseUrl?: string,
+    pathMap?: Record<string, string>,
+): string {
     const uuid = ref.startsWith(UUID_REF_PREFIX)
         ? ref.slice(UUID_REF_PREFIX.length).toLowerCase()
         : extractUuid(ref);
@@ -81,6 +101,13 @@ export function resolvePlayAssetRef(ref: string, manifest: Record<string, string
         const url = manifest[uuid];
         if (!url) throw new Error(`asset not in play manifest: ${ref}`);
         return url;
+    }
+    // Cooked builds: a logical path maps to its staged file (content-addressed
+    // rename + possible extension swap) — resolved here so the result is the
+    // extension-bearing physical path, same contract as the uuid branch.
+    if (pathMap) {
+        const staged = pathMap[ref] ?? pathMap[ref.replace(/^\.?\//, '')];
+        if (staged) return staged;
     }
     const base = (assetBaseUrl ?? '').replace(/\/$/, '');
     // Idempotent, like HttpBackend.resolveUrl: an already-resolved absolute URL or
@@ -91,12 +118,16 @@ export function resolvePlayAssetRef(ref: string, manifest: Record<string, string
     return base ? `${base}/${ref.replace(/^\//, '')}` : ref;
 }
 
-function createPlayRealmSource(manifest: Record<string, string>, assetBaseUrl?: string): RuntimeAssetSource {
+function createPlayRealmSource(
+    manifest: Record<string, string>,
+    assetBaseUrl?: string,
+    pathMap?: Record<string, string>,
+): RuntimeAssetSource {
     const backend = new HttpBackend({ baseUrl: '' });
     return {
         backend,
         decodePixels: (path) => fetchDecodePixels(backend.resolveUrl(path)),
-        resolveRef: (ref) => resolvePlayAssetRef(ref, manifest, assetBaseUrl),
+        resolveRef: (ref) => resolvePlayAssetRef(ref, manifest, assetBaseUrl, pathMap),
     };
 }
 
@@ -107,7 +138,7 @@ function createPlayRealmSource(manifest: Record<string, string>, assetBaseUrl?: 
  */
 export async function initPlayRealmRuntime(config: PlayRealmRuntimeConfig): Promise<void> {
     const { app, module, canvas, sceneData, assetManifest, assetBaseUrl } = config;
-    const source = createPlayRealmSource(assetManifest, assetBaseUrl);
+    const source = createPlayRealmSource(assetManifest, assetBaseUrl, config.assetPathMap);
     // Audio has its own loader (not the asset source), so point it at the project
     // root too: playSFX/playBGM take project-relative paths, not uuid refs.
     if (assetBaseUrl && app.hasResource(Audio)) {
@@ -117,6 +148,7 @@ export async function initPlayRealmRuntime(config: PlayRealmRuntimeConfig): Prom
         app,
         module,
         source,
+        catalog: config.catalogData ? Catalog.fromJson(config.catalogData) : undefined,
         scenes: [{ name: '__play', data: sceneData }],
         firstScene: '__play',
         aspectRatio: canvas.width / canvas.height,

@@ -67,15 +67,20 @@ app.whenReady().then(async () => {
       const c = window.__estellaCooked.capture();
       const { width: w, height: h, rgba } = c;
       const at = (x, y) => { const X = Math.round(x*(w-1)); const Y = (h-1)-Math.round(y*(h-1)); const i=(Y*w+X)*4; return [rgba[i], rgba[i+1], rgba[i+2]]; };
-      return { w, h, center: at(0.5, 0.5), corner: at(0.04, 0.04) };
+      return { w, h, left: at(0.3, 0.5), right: at(0.7, 0.5), corner: at(0.04, 0.04) };
     })()`);
 
-    const [cr, cg, cb] = cap.center;
-    const greenOk = Math.abs(cg - 180) <= 70 && cr <= 70 && cb <= 70;
+    // Left quad = the KTX2 texture (green); right quad = the PATH-referenced
+    // material chain (its shader paints u_tint red) — proving the cooked
+    // logical→staged resolution end to end, not just uuid refs.
+    const [lr, lg, lb] = cap.left;
+    const greenOk = Math.abs(lg - 180) <= 70 && lr <= 70 && lb <= 70;
+    const [rr, rg, rb] = cap.right;
+    const redOk = rr >= 180 && rg <= 70 && rb <= 70;
     const cornerBlack = cap.corner[0] <= 40 && cap.corner[1] <= 40 && cap.corner[2] <= 40;
-    const ok = greenOk && cornerBlack;
+    const ok = greenOk && redOk && cornerBlack;
     console.log(`\n[verify:render:cooked] ${ok ? 'PASS' : 'FAIL'}`);
-    console.log('DRIVE_RESULT ' + JSON.stringify({ ...cap, greenOk, cornerBlack, diag: diag.slice(0, 6) }));
+    console.log('DRIVE_RESULT ' + JSON.stringify({ ...cap, greenOk, redOk, cornerBlack, diag: diag.slice(0, 6) }));
     process.exitCode = ok ? 0 : 1;
   } catch (e) {
     console.log('\n[verify:render:cooked] FAIL — ' + (e?.message ?? e));

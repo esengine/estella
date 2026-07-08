@@ -12,13 +12,13 @@
  *        (shared with the play realm's import-map work).
  */
 import { createWebApp, setEditorMode, setPlayMode, initPlayRealmRuntime } from 'esengine';
-import type { ESEngineModule, SceneData } from 'esengine';
+import type { CatalogData, ESEngineModule, SceneData } from 'esengine';
 
 interface GameConfig {
   entryScene: string;
 }
 interface CookedManifest {
-  entries: { uuid: string; path: string; type: string }[];
+  entries: { uuid: string; path: string; sourcePath?: string; type: string }[];
 }
 
 async function boot(): Promise<void> {
@@ -48,7 +48,23 @@ async function boot(): Promise<void> {
   const manifest = (await (await fetch('./assets.manifest.json')).json()) as CookedManifest;
   const sceneData = (await (await fetch(`./${cfg.entryScene}`)).json()) as SceneData;
   const assetManifest: Record<string, string> = {};
-  for (const e of manifest.entries) assetManifest[e.uuid.toLowerCase()] = `./${e.path}`;
+  // Logical → staged resolution for PATH-style refs, twice over: `pathMap` for
+  // Assets-level refs (resolved before extension sniffing, so a .png staged as
+  // .ktx2 transcodes), `catalog` buildPaths for the loaders' inner text refs
+  // (a material's shader). Both derive from the manifest's sourcePath — the
+  // asset's logical identity that content-addressed staging preserves.
+  const pathMap: Record<string, string> = {};
+  const catalog: CatalogData = { version: 1, entries: {} };
+  for (const e of manifest.entries) {
+    assetManifest[e.uuid.toLowerCase()] = `./${e.path}`;
+    const logical = e.sourcePath ?? e.path;
+    pathMap[logical] = `./${e.path}`;
+    catalog.entries[logical] = { type: e.type, buildPath: `./${e.path}` };
+    // The cook writes project-absolute refs as "/<logical>" when the logical
+    // path lacks a passthrough prefix — register that spelling too.
+    pathMap[`/${logical}`] = `./${e.path}`;
+    catalog.entries[`/${logical}`] = { type: e.type, buildPath: `./${e.path}` };
+  }
 
   const wasmBase = new URL('./wasm/', import.meta.url).href; // relative → mount-path agnostic
   const { default: createModule } = (await import(/* @vite-ignore */ `${wasmBase}esengine.js`)) as {
@@ -98,6 +114,8 @@ async function boot(): Promise<void> {
     canvas,
     sceneData,
     assetManifest,
+    assetPathMap: pathMap,
+    catalogData: catalog,
     wasmBaseUrl: wasmBase.replace(/\/$/, ''),
   });
 }
