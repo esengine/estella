@@ -92,6 +92,54 @@ bool expandIncludes(const std::string& source,
     return true;
 }
 
+// The WGSL varying interface of the canonical 2D vertex stage. Injected into
+// BOTH canonical stages (vertex emits it, fragment consumes it), so
+// fragment-only twins write `fs_main(v : VSOut)` against an engine-owned
+// struct — WGSL has no module-scope varyings to match by name.
+std::string wgslCanonicalVSOut(bool lit) {
+    std::string src =
+        "struct VSOut {\n"
+        "    @builtin(position) pos : vec4f,\n"
+        "    @location(0) v_color : vec4f,\n"
+        "    @location(1) v_texCoord : vec2f,\n";
+    if (lit) {
+        src += "    @location(2) v_worldPos : vec2f,\n";
+    }
+    src += "};\n";
+    return src;
+}
+
+// WGSL twin of canonical2DVertexStage: same attribute locations, FrameConstants
+// at group 0 binding 0, GLSL names kept behind struct fields (a_position ->
+// v.a_position) so the two stages diff cleanly.
+std::string canonical2DVertexStageWGSL(bool lit) {
+    std::string src =
+        "struct FrameConstants { projection : mat4x4f };\n"
+        "@group(0) @binding(0) var<uniform> frame : FrameConstants;\n"
+        "\n";
+    src += wgslCanonicalVSOut(lit);
+    src +=
+        "\n"
+        "struct VSIn {\n"
+        "    @location(0) a_position : vec2f,\n"
+        "    @location(1) a_color : vec4f,\n"
+        "    @location(2) a_texCoord : vec2f,\n"
+        "};\n"
+        "\n"
+        "@vertex fn vs_main(v : VSIn) -> VSOut {\n"
+        "    var out : VSOut;\n"
+        "    out.pos = frame.projection * vec4f(v.a_position, 0.0, 1.0);\n"
+        "    out.v_color = v.a_color;\n"
+        "    out.v_texCoord = v.a_texCoord;\n";
+    if (lit) {
+        src += "    out.v_worldPos = v.a_position;\n";
+    }
+    src +=
+        "    return out;\n"
+        "}\n";
+    return src;
+}
+
 // Canonical 2D vertex stage for fragment-only .esshaders: the batch path bakes the
 // world transform into the vertices, so all 2D shaders share this pass-through.
 std::string canonical2DVertexStage(bool lit) {
@@ -170,6 +218,7 @@ ParsedShader ShaderParser::parse(const std::string& source, const ShaderIncludeR
     std::string currentVariantName;
     std::ostringstream currentSection;
     std::vector<SourceLine> currentSectionMap;
+    bool currentSectionIsWGSL = false;
     u32 lineNumber = 0;
 
     while (std::getline(stream, line)) {
@@ -248,24 +297,22 @@ ParsedShader ShaderParser::parse(const std::string& source, const ShaderIncludeR
             continue;
         }
 
-        if (directive == "vertex") {
+        if (directive == "vertex" || directive == "fragment") {
             if (state != ParseState::Global) {
-                result.errorMessage = "Unexpected #pragma vertex at line " + std::to_string(lineNumber);
+                result.errorMessage = "Unexpected #pragma " + directive +
+                                      " at line " + std::to_string(lineNumber);
                 return result;
             }
-            state = ParseState::Vertex;
-            currentSection.str("");
-            currentSection.clear();
-            currentSectionMap.clear();
-            continue;
-        }
-
-        if (directive == "fragment") {
-            if (state != ParseState::Global) {
-                result.errorMessage = "Unexpected #pragma fragment at line " + std::to_string(lineNumber);
+            // Optional language tag: `#pragma fragment wgsl` opens the stage's
+            // WGSL twin section; no tag is the GLSL stage.
+            if (!argument.empty() && argument != "wgsl") {
+                result.errorMessage = "Unknown stage language '" + argument +
+                                      "' at line " + std::to_string(lineNumber) +
+                                      " (expected no tag for GLSL, or 'wgsl')";
                 return result;
             }
-            state = ParseState::Fragment;
+            state = (directive == "vertex") ? ParseState::Vertex : ParseState::Fragment;
+            currentSectionIsWGSL = (argument == "wgsl");
             currentSection.str("");
             currentSection.clear();
             currentSectionMap.clear();
@@ -290,15 +337,17 @@ ParsedShader ShaderParser::parse(const std::string& source, const ShaderIncludeR
                 case ParseState::Properties:
                     break;
                 case ParseState::Vertex:
-                    result.stages[ShaderStage::Vertex] = currentSection.str();
-                    result.stageLineMaps[ShaderStage::Vertex] = std::move(currentSectionMap);
+                case ParseState::Fragment: {
+                    const ShaderStage s = (state == ParseState::Vertex) ? ShaderStage::Vertex
+                                                                        : ShaderStage::Fragment;
+                    auto& stages = currentSectionIsWGSL ? result.wgslStages : result.stages;
+                    auto& maps = currentSectionIsWGSL ? result.wgslStageLineMaps : result.stageLineMaps;
+                    stages[s] = currentSection.str();
+                    maps[s] = std::move(currentSectionMap);
                     currentSectionMap.clear();
+                    currentSectionIsWGSL = false;
                     break;
-                case ParseState::Fragment:
-                    result.stages[ShaderStage::Fragment] = currentSection.str();
-                    result.stageLineMaps[ShaderStage::Fragment] = std::move(currentSectionMap);
-                    currentSectionMap.clear();
-                    break;
+                }
                 case ParseState::Variant:
                     result.variants[currentVariantName] = currentSection.str();
                     currentVariantName.clear();
@@ -362,6 +411,16 @@ ParsedShader ShaderParser::parse(const std::string& source, const ShaderIncludeR
         return result;
     }
 
+    // Same for the WGSL twin: a fragment-only 2D twin gets the canonical WGSL
+    // vertex, and the flag makes the fragment assembly inject the matching
+    // VSOut interface. A file with no wgsl sections simply has no twin.
+    if (result.wgslStages.count(ShaderStage::Fragment) != 0 &&
+        result.wgslStages.count(ShaderStage::Vertex) == 0 &&
+        (result.domain == "Unlit2D" || result.domain == "Lit2D")) {
+        result.wgslStages[ShaderStage::Vertex] = canonical2DVertexStageWGSL(result.domain == "Lit2D");
+        result.wgslVertexIsCanonical = true;
+    }
+
     computeMaterialLayout(result);
 
     result.valid = true;
@@ -409,6 +468,297 @@ const char* glslTypeName(ShaderPropertyType t) {
     }
 }
 
+// =============================================================================
+// WGSL emission — the injected headers' twins. Uniform blocks keep their GLSL
+// member names behind short block vars, so a body ports mechanically:
+// u_time -> tc.u_time, u_progress -> mc.u_progress, u_lights -> lc.u_lights.
+// WGSL's uniform address-space layout equals std140 member-for-member for the
+// param type set (f32/i32 align 4, vec2 8, vec3/vec4 16), so MaterialConstants
+// offsets computed by computeMaterialLayout hold for both languages.
+// =============================================================================
+
+const char* wgslTypeName(ShaderPropertyType t) {
+    switch (t) {
+        case ShaderPropertyType::Float: return "f32";
+        case ShaderPropertyType::Vec2:  return "vec2f";
+        case ShaderPropertyType::Vec3:  return "vec3f";
+        case ShaderPropertyType::Vec4:
+        case ShaderPropertyType::Color: return "vec4f";
+        case ShaderPropertyType::Int:   return "i32";
+        default:                        return "f32";
+    }
+}
+
+// Engine-owned frame block (u_time / u_viewport), binding 3 — the GLSL
+// kTimeHeader's twin. Injected into every WGSL stage; the device's explicit
+// layouts make a declared-but-unused block legal, same as GL.
+const char* kTimeHeaderWGSL =
+    "struct TimeConstants { u_time : vec4f, u_viewport : vec4f };\n"
+    "@group(0) @binding(3) var<uniform> tc : TimeConstants;\n";
+
+// The batch texture contract for fragment-only 2D twins: u_textures[8]
+// de-combined into texture_2d t0..t7 (bindings 0..7) + samplers s0..s7
+// (bindings 8..15) — the group-1 convention (WebGPUMappings). Bodies sample
+// `textureSampleLevel(t0, s0, uv, 0.0)` where GLSL reads u_textures[0].
+std::string wgslBatchTextureDecls() {
+    std::string src;
+    for (u32 i = 0; i < 8; ++i) {
+        const std::string n = std::to_string(i);
+        src += "@group(1) @binding(" + n + ") var t" + n + " : texture_2d<f32>;\n";
+        src += "@group(1) @binding(" + std::to_string(8 + i) + ") var s" + n + " : sampler;\n";
+    }
+    return src;
+}
+
+// #pragma param texture uniforms: material units (>= 8) extend group 1 at
+// texture bindings unit+8 (16..23) with samplers at unit+16 (24..31) — the
+// WebGPUMappings unit→binding convention. The sampler rides the param's name
+// with an _s suffix: textureSampleLevel(u_mask, u_mask_s, uv, 0.0).
+std::string wgslMaterialTextureDecls(const ParsedShader& parsed) {
+    std::string src;
+    for (const auto& p : parsed.properties) {
+        if (!p.fromParam || p.type != ShaderPropertyType::Texture || p.textureUnit < 0) continue;
+        const u32 unit = static_cast<u32>(p.textureUnit);
+        src += "@group(1) @binding(" + std::to_string(unit + 8) + ") var " + p.name +
+               " : texture_2d<f32>;\n";
+        src += "@group(1) @binding(" + std::to_string(unit + 16) + ") var " + p.name +
+               "_s : sampler;\n";
+    }
+    return src;
+}
+
+// Lit2D injection twin: LightConstants (binding 2) + the lighting/shadow
+// helpers, ported line for line from the GLSL kLit2DHeader. Array strides
+// (Light2D = 64 bytes, vec4f = 16) satisfy WGSL's uniform layout rules, so the
+// block matches renderer/LightConstants.hpp on both backends. sampleNormal
+// takes the de-combined texture+sampler pair and samples mip 0 explicitly,
+// keeping calls legal in non-uniform control flow.
+const char* kLit2DHeaderWGSL = R"(struct Light2D { posDir : vec4f, color : vec4f, spot : vec4f, shadow : vec4f };
+struct LightConstants {
+    u_ambient : vec4f,
+    u_lights : array<Light2D, 16>,
+    u_occluderCount : vec4f,
+    u_occluders : array<vec4f, 8>,
+};
+@group(0) @binding(2) var<uniform> lc : LightConstants;
+fn sampleNormal(map : texture_2d<f32>, samp : sampler, uv : vec2f) -> vec3f {
+    return normalize(textureSampleLevel(map, samp, uv, 0.0).xyz * 2.0 - 1.0);
+}
+fn segHitsBox(p0 : vec2f, p1 : vec2f, box : vec4f) -> f32 {
+    if (p0.x >= box.x && p0.y >= box.y && p0.x <= box.z && p0.y <= box.w) { return 0.0; }
+    let d = p1 - p0;
+    var tmin = 0.0;
+    var tmax = 1.0;
+    for (var a = 0; a < 2; a++) {
+        let da = select(d.y, d.x, a == 0);
+        let p0a = select(p0.y, p0.x, a == 0);
+        let lo = select(box.y, box.x, a == 0) - p0a;
+        let hi = select(box.w, box.z, a == 0) - p0a;
+        if (abs(da) < 1e-5) {
+            if (lo > 0.0 || hi < 0.0) { return 0.0; }
+        } else {
+            let t1 = lo / da;
+            let t2 = hi / da;
+            tmin = max(tmin, min(t1, t2));
+            tmax = min(tmax, max(t1, t2));
+            if (tmin > tmax) { return 0.0; }
+        }
+    }
+    return 1.0;
+}
+fn shadowFactor2D(worldPos : vec2f, aim : vec2f, softness : f32) -> f32 {
+    let n = i32(lc.u_occluderCount.x);
+    if (n <= 0) { return 1.0; }
+    if (softness < 1e-4) {
+        for (var i = 0; i < 8; i++) {
+            if (i >= n) { break; }
+            if (segHitsBox(worldPos, aim, lc.u_occluders[i]) > 0.5) { return 0.0; }
+        }
+        return 1.0;
+    }
+    let dir = aim - worldPos;
+    let dl = length(dir);
+    var perp = vec2f(1.0, 0.0);
+    if (dl > 1e-4) { perp = vec2f(-dir.y, dir.x) / dl; }
+    var blocked = 0.0;
+    for (var s = 0; s < 5; s++) {
+        let t = f32(s) / 4.0 * 2.0 - 1.0;
+        let tp = aim + perp * (t * softness);
+        for (var i = 0; i < 8; i++) {
+            if (i >= n) { break; }
+            if (segHitsBox(worldPos, tp, lc.u_occluders[i]) > 0.5) { blocked += 1.0; break; }
+        }
+    }
+    return 1.0 - blocked / 5.0;
+}
+fn applyLighting2D(albedo : vec3f, N : vec3f, worldPos : vec2f) -> vec3f {
+    var lit = lc.u_ambient.rgb;
+    for (var i = 0; i < 16; i++) {
+        let pd = lc.u_lights[i].posDir;
+        let col = lc.u_lights[i].color;
+        let sh = lc.u_lights[i].shadow;
+        var L : vec3f;
+        var atten : f32;
+        var aim = pd.xy;
+        var castShadow = true;
+        if (pd.z < 0.5) {
+            let d = pd.xy - worldPos;
+            let dist = length(d);
+            atten = max(0.0, 1.0 - dist / max(pd.w, 0.0001));
+            L = normalize(vec3f(d, max(pd.w, 1.0)));
+        } else if (pd.z < 1.5) {
+            atten = 1.0;
+            L = normalize(vec3f(-pd.xy, 1.0));
+            var toLight = vec2f(0.0, 0.0);
+            if (dot(pd.xy, pd.xy) > 1e-8) { toLight = normalize(-pd.xy); }
+            castShadow = sh.y > 0.0 && dot(toLight, toLight) > 0.5;
+            aim = worldPos + toLight * sh.y;
+        } else {
+            let sp = lc.u_lights[i].spot;
+            let d = pd.xy - worldPos;
+            let dist = length(d);
+            atten = max(0.0, 1.0 - dist / max(pd.w, 0.0001));
+            L = normalize(vec3f(d, max(pd.w, 1.0)));
+            var toFrag = sp.xy;
+            if (dist > 0.0001) { toFrag = -d / dist; }
+            atten *= smoothstep(sp.w, sp.z, dot(sp.xy, toFrag));
+        }
+        if (castShadow && col.a > 0.0 && atten > 0.0) {
+            atten *= shadowFactor2D(worldPos, aim, sh.x);
+        }
+        let ndotl = max(dot(N, L), 0.0);
+        lit += col.rgb * (col.a * ndotl * atten);
+    }
+    return albedo * lit;
+}
+)";
+
+std::string trimWs(const std::string& s) {
+    const usize a = s.find_first_not_of(" \t\r\n");
+    if (a == std::string::npos) return {};
+    const usize b = s.find_last_not_of(" \t\r\n");
+    return s.substr(a, b - a + 1);
+}
+
+// WGSL has no preprocessor, so feature permutations resolve at assembly time:
+// #ifdef/#ifndef/#else/#elif defined(NAME)/#endif over the assembled text,
+// with the feature set as the defined names. GLSL keeps real #defines for the
+// driver, so both targets see identical variant logic in the authored bodies.
+std::string preprocessWGSL(const std::string& source, const std::vector<std::string>& features) {
+    const std::unordered_set<std::string> defined(features.begin(), features.end());
+    struct Frame {
+        bool parentActive;  ///< Whether the enclosing region emits lines.
+        bool taken;         ///< A branch of this #if chain has already emitted.
+        bool active;        ///< The current branch emits lines.
+    };
+    std::vector<Frame> stack;
+    auto activeNow = [&]() { return stack.empty() || stack.back().active; };
+
+    std::string out;
+    out.reserve(source.size());
+    std::istringstream in(source);
+    std::string line;
+    while (std::getline(in, line)) {
+        const std::string lead = ltrim(line);
+        if (lead.rfind("#ifdef", 0) == 0 || lead.rfind("#ifndef", 0) == 0) {
+            const bool neg = lead.rfind("#ifndef", 0) == 0;
+            const std::string name = trimWs(lead.substr(neg ? 7 : 6));
+            const bool parent = activeNow();
+            const bool cond = parent && ((defined.count(name) != 0) != neg);
+            stack.push_back(Frame{parent, cond, cond});
+            continue;
+        }
+        if (lead.rfind("#elif", 0) == 0 && !stack.empty()) {
+            bool cond = false;
+            const usize p = lead.find("defined(");
+            if (p != std::string::npos) {
+                const usize close = lead.find(')', p + 8);
+                if (close != std::string::npos) {
+                    cond = defined.count(trimWs(lead.substr(p + 8, close - p - 8))) != 0;
+                }
+            }
+            Frame& f = stack.back();
+            f.active = f.parentActive && !f.taken && cond;
+            f.taken = f.taken || f.active;
+            continue;
+        }
+        if (lead.rfind("#else", 0) == 0 && !stack.empty()) {
+            Frame& f = stack.back();
+            f.active = f.parentActive && !f.taken;
+            f.taken = true;
+            continue;
+        }
+        if (lead.rfind("#endif", 0) == 0) {
+            if (!stack.empty()) stack.pop_back();
+            continue;
+        }
+        if (activeNow()) {
+            out += line;
+            out += '\n';
+        }
+    }
+    return out;
+}
+
+const char* stageName(ShaderStage stage) {
+    return stage == ShaderStage::Vertex ? "vertex" : "fragment";
+}
+
+// The WGSL assembly: the stage's twin body behind the per-language injected
+// headers, then the assembly-time feature preprocessor. Platform variants and
+// sharedCode are GLSL-only mechanisms — twins carry their own helpers.
+// headerLineCount is exact when the body carries no #if lines (removed lines
+// shift the compile-log remap; acceptable for hand-authored twins).
+ShaderParser::AssembledStage assembleWGSLStage(const ParsedShader& parsed,
+                                               ShaderStage stage,
+                                               const std::vector<std::string>& features) {
+    ShaderParser::AssembledStage result;
+    if (!parsed.valid) return result;
+
+    auto bodyIt = parsed.wgslStages.find(stage);
+    if (bodyIt == parsed.wgslStages.end()) {
+        ES_LOG_ERROR("Shader '{}' has no WGSL twin for the {} stage (add '#pragma {} wgsl')",
+                     parsed.name, stageName(stage), stageName(stage));
+        return result;
+    }
+
+    std::ostringstream assembled;
+    u32 headerLines = 0;
+    auto inject = [&](const std::string& s) {
+        assembled << s;
+        headerLines += countNewlines(s);
+    };
+
+    const bool lit = parsed.domain == "Lit2D";
+    if (stage == ShaderStage::Fragment && parsed.wgslVertexIsCanonical) {
+        // The canonical vertex's varying interface + the batch texture
+        // contract — fragment-only twins run under the batch conventions.
+        inject(wgslCanonicalVSOut(lit));
+        inject(wgslBatchTextureDecls());
+    }
+    inject(kTimeHeaderWGSL);
+    if (parsed.materialBlockSize > 0) {
+        std::string block = "struct MaterialConstants {\n";
+        for (const auto& p : parsed.properties) {
+            if (!p.fromParam || p.std140Offset < 0) continue;
+            block += "    " + p.name + " : " + wgslTypeName(p.type) + ",\n";
+        }
+        block += "};\n"
+                 "@group(0) @binding(1) var<uniform> mc : MaterialConstants;\n";
+        inject(block);
+    }
+    if (stage == ShaderStage::Fragment) {
+        inject(wgslMaterialTextureDecls(parsed));
+        if (lit) inject(kLit2DHeaderWGSL);
+    }
+
+    assembled << bodyIt->second;
+
+    result.source = preprocessWGSL(assembled.str(), features);
+    result.headerLineCount = headerLines;
+    return result;
+}
+
 }  // namespace
 
 ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& parsed,
@@ -416,11 +766,8 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
                                                            const std::string& platform,
                                                            const std::vector<std::string>& features,
                                                            ShaderTargetLanguage target) {
-    if (target != ShaderTargetLanguage::GLSL_ES300) {
-        // Dual emission (injected headers + canonical vertex per language) is
-        // REARCH_WGSL Phase 3; the seam exists so callers thread the target now.
-        ES_LOG_ERROR("ShaderParser: WGSL emission not implemented yet");
-        return {};
+    if (target == ShaderTargetLanguage::WGSL) {
+        return assembleWGSLStage(parsed, stage, features);
     }
     AssembledStage result;
 

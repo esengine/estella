@@ -28,6 +28,7 @@
 #include "esengine/renderer/RenderFrame.hpp"
 #include "esengine/renderer/webgpu/WebGPUDevice.hpp"
 #include "esengine/resource/ResourceManager.hpp"
+#include "esengine/resource/ShaderParser.hpp"
 
 #include <emscripten.h>
 #include <emscripten/html5.h>
@@ -73,6 +74,83 @@ void renderFrame() {
         std::printf("PARITY_FRAMES_OK\n");
         emscripten_cancel_main_loop();
     }
+}
+
+// Dual-emission compile probe (REARCH_WGSL Phase 3): ONE ParsedShader —
+// Lit2D domain + block params + a texture param + a feature — assembled and
+// compiled in each backend's language. It exercises every WGSL injection the
+// emitter owns (canonical vertex, VSOut, batch texture contract, Time/
+// Material constants, material texture bindings, the Lit2D header, and the
+// assembly-time feature preprocessor) against the REAL compiler: a WGSL error
+// surfaces as a device validation error (the runner counts those); a GLSL
+// error fails shader creation here.
+const char* kEmitterProbe = R"(#pragma shader "EmitterProbe"
+#pragma version 300 es
+#pragma domain Lit2D
+#pragma feature GLOW
+#pragma param u_progress float default(0.5)
+#pragma param u_tint color default(1,1,1,1)
+#pragma param u_mask texture default(white)
+
+#pragma fragment
+precision mediump float;
+in vec4 v_color;
+in vec2 v_texCoord;
+in highp vec2 v_worldPos;
+uniform sampler2D u_textures[8];
+out vec4 fragColor;
+void main() {
+    vec4 c = texture(u_textures[0], v_texCoord) * v_color * u_tint;
+    vec4 m = texture(u_mask, v_texCoord);
+    vec3 litRgb = applyLighting2D(c.rgb * m.rgb, vec3(0.0, 0.0, 1.0), v_worldPos);
+#ifdef GLOW
+    fragColor = vec4(litRgb * u_progress, c.a);
+#else
+    fragColor = vec4(litRgb, c.a);
+#endif
+}
+#pragma end
+
+#pragma fragment wgsl
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    var c = textureSampleLevel(t0, s0, v.v_texCoord, 0.0) * v.v_color * mc.u_tint;
+    let m = textureSampleLevel(u_mask, u_mask_s, v.v_texCoord, 0.0);
+    let litRgb = applyLighting2D(c.rgb * m.rgb, vec3f(0.0, 0.0, 1.0), v.v_worldPos);
+#ifdef GLOW
+    return vec4f(litRgb * mc.u_progress, c.a);
+#else
+    return vec4f(litRgb, c.a);
+#endif
+}
+#pragma end
+)";
+
+bool compileEmitterProbe(EstellaContext& ctx, bool useGL) {
+    using resource::ShaderParser;
+    using resource::ShaderStage;
+    using resource::ShaderTargetLanguage;
+
+    auto& rm = ctx.require<resource::ResourceManager>();
+    resource::ParsedShader parsed = ShaderParser::parse(kEmitterProbe);
+    if (!parsed.valid) {
+        std::printf("PARITY_FAIL emitter probe parse: %s\n", parsed.errorMessage.c_str());
+        return false;
+    }
+    const auto target = useGL ? ShaderTargetLanguage::GLSL_ES300 : ShaderTargetLanguage::WGSL;
+    const auto language = useGL ? GfxShaderLanguage::GLSL_ES300 : GfxShaderLanguage::WGSL;
+    const std::string vs = ShaderParser::assembleStage(parsed, ShaderStage::Vertex, "", {"GLOW"}, target);
+    const std::string fs = ShaderParser::assembleStage(parsed, ShaderStage::Fragment, "", {"GLOW"}, target);
+    if (vs.empty() || fs.empty()) {
+        std::printf("PARITY_FAIL emitter probe assembly\n");
+        return false;
+    }
+    const auto handle = rm.createShader(vs, fs, /*rewriteLoose=*/false, language);
+    if (!handle.isValid()) {
+        std::printf("PARITY_FAIL emitter probe compile\n");
+        return false;
+    }
+    rm.releaseShader(handle);
+    return true;
 }
 
 bool buildScene(EstellaContext& ctx, ecs::Registry& registry) {
@@ -176,6 +254,9 @@ int main() {
     g_registry = &registry;
     if (!buildScene(context, registry)) {
         std::printf("PARITY_FAIL scene\n");
+        return 1;
+    }
+    if (!compileEmitterProbe(context, useGL)) {
         return 1;
     }
 

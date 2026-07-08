@@ -61,10 +61,12 @@ struct SourceLine {
 // =============================================================================
 
 /**
- * @brief Target language for stage assembly (REARCH_WGSL Phase 1 seam).
- * @details GLSL_ES300 is the only implemented emitter today; WGSL is reserved
- *          for the dual-emission phase (injected headers + canonical vertex
- *          stage emitted per language).
+ * @brief Target language for stage assembly (REARCH_WGSL dual emission).
+ * @details Both languages assemble from one ParsedShader: GLSL stages carry the
+ *          authored GLSL bodies; WGSL stages carry the file's `#pragma vertex
+ *          wgsl` / `#pragma fragment wgsl` twin sections. The injected headers
+ *          (TimeConstants/MaterialConstants/texture params/Lit2D) and the
+ *          canonical 2D vertex stage are emitted per language.
  */
 enum class ShaderTargetLanguage : u8 {
     GLSL_ES300 = 0,
@@ -170,6 +172,28 @@ struct ParsedShader {
      * not including the assembled `#version`/sharedCode prefix).
      */
     std::unordered_map<ShaderStage, std::vector<SourceLine>> stageLineMaps;
+
+    /**
+     * @brief WGSL twin stage bodies (`#pragma vertex wgsl` / `#pragma fragment
+     *        wgsl` sections), keyed like stages[].
+     *
+     * A 2D-domain shader with a WGSL fragment but no WGSL vertex gets the
+     * canonical 2D vertex injected here at parse (wgslVertexIsCanonical).
+     * An empty map means the shader has no WGSL twin: assembling for the WGSL
+     * target reports a descriptive error.
+     */
+    std::unordered_map<ShaderStage, std::string> wgslStages;
+
+    /** @brief Line maps for wgslStages, same convention as stageLineMaps. */
+    std::unordered_map<ShaderStage, std::vector<SourceLine>> wgslStageLineMaps;
+
+    /**
+     * @brief True when the WGSL vertex stage is the injected canonical one.
+     *        The WGSL fragment assembly then also injects the matching VSOut
+     *        struct, so fragment-only twins write `fs_main(v : VSOut)` against
+     *        an engine-owned interface. Authored twin pairs declare their own.
+     */
+    bool wgslVertexIsCanonical = false;
 };
 
 // =============================================================================
@@ -192,11 +216,16 @@ struct ParsedShader {
  * #pragma end
  *
  * #pragma vertex
- * // vertex shader code
+ * // vertex shader code (GLSL)
  * #pragma end
  *
  * #pragma fragment
- * // fragment shader code
+ * // fragment shader code (GLSL)
+ * #pragma end
+ *
+ * #pragma fragment wgsl
+ * // WGSL twin of the fragment stage (assembled for the WGSL target;
+ * // fragment-only 2D shaders get the canonical WGSL vertex + VSOut injected)
  * #pragma end
  * @endcode
  */
