@@ -51,7 +51,9 @@ export interface CppResourceManager {
     getTextureGLId(handle: number): number;
     getTextureDimensions(handle: number): { width: number; height: number } | null;
     releaseTexture(handle: number): void;
+    getTextureRefCount(handle: number): number;
     releaseShader(handle: number): void;
+    getShaderRefCount(handle: number): number;
     setTextureMetadata(handle: number, left: number, right: number, top: number, bottom: number): void;
     updateTextureSubregion(handle: number, x: number, y: number, width: number, height: number, pixels: number, pixelsLen: number): void;
     registerTextureWithPath(handle: number, path: string): void;
@@ -73,6 +75,7 @@ export interface CppResourceManager {
     loadBitmapFont(fntContent: string, textureHandle: number, texWidth: number, texHeight: number): number;
     createLabelAtlasFont(textureHandle: number, texWidth: number, texHeight: number, chars: string, charWidth: number, charHeight: number): number;
     releaseBitmapFont(handle: number): void;
+    getBitmapFontRefCount(handle: number): number;
     measureBitmapText(fontHandle: number, text: string, fontSize: number, spacing: number): { width: number; height: number };
 }
 
@@ -90,14 +93,6 @@ export interface EmscriptenFS {
     isFile(mode: number): boolean;
     isDir(mode: number): boolean;
     analyzePath(path: string): { exists: boolean; parentExists: boolean };
-}
-
-export interface SpineBounds {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    valid: boolean;
 }
 
 export interface ESEngineModule {
@@ -156,7 +151,6 @@ export interface ESEngineModule {
      * entity is not a UI render node.
      */
     ui_getRenderOrder?(registry: CppRegistry, entity: number): number;
-    getSpineBounds?(registry: CppRegistry, entity: number): SpineBounds;
 
     renderer_submitSpineBatch?(
         verticesPtr: number, vertexCount: number,
@@ -350,6 +344,7 @@ export interface ESEngineModule {
     engine_getGpuScopes?(): string;
     /** Resident texture VRAM (RGBA8 estimate, bytes) for the profiler's memory pillar. */
     renderer_getTextureBytes?(): number;
+    renderer_setDeltaTime(dt: number): void;
     renderer_setClearColor(r: number, g: number, b: number, a: number): void;
     renderer_setViewport(x: number, y: number, w: number, h: number): void;
     renderer_setTextureParams(textureId: number, minFilter: number, magFilter: number, wrapS: number, wrapT: number): void;

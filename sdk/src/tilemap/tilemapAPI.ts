@@ -77,6 +77,20 @@ interface TilemapModule {
     tiled_getTilesetTileCount(handle: number, index: number): number;
     tiled_getTilesetFirstGid?(handle: number, index: number): number;
 
+    tiled_getObjectGroupCount(handle: number): number;
+    tiled_getObjectGroupName(handle: number, index: number): string;
+    tiled_getObjectCount(handle: number, groupIndex: number): number;
+    tiled_getObjectX(handle: number, groupIndex: number, objIndex: number): number;
+    tiled_getObjectY(handle: number, groupIndex: number, objIndex: number): number;
+    tiled_getObjectWidth(handle: number, groupIndex: number, objIndex: number): number;
+    tiled_getObjectHeight(handle: number, groupIndex: number, objIndex: number): number;
+    tiled_getObjectRotation(handle: number, groupIndex: number, objIndex: number): number;
+    tiled_getObjectEllipse(handle: number, groupIndex: number, objIndex: number): boolean;
+    tiled_getObjectPoint(handle: number, groupIndex: number, objIndex: number): boolean;
+    tiled_getObjectVertexCount(handle: number, groupIndex: number, objIndex: number): number;
+    tiled_getObjectVertices(handle: number, groupIndex: number, objIndex: number,
+                             outPtr: number, maxFloats: number): number;
+
     tiled_getLayerOpacity(handle: number, index: number): number;
     tiled_getLayerTintColor(handle: number, index: number): number;
     tiled_getLayerParallaxX(handle: number, index: number): number;

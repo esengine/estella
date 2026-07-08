@@ -121,6 +121,7 @@
 - **EHT 路径健壮性**：修复了 `--ts-output sdk/src` 会静默跳过 `component.generated.ts` / ptrLayouts / ptrAccessors 的潜在 bug（之前它们只在非默认 `--ts-output sdk` 下才重新生成）。现在标准构建会让全部生成的 TS 保持同步。
 - **边界测试可在仓库内运行**：`sdk/tests/helpers/loadWasm.ts` 成为 WASM 路径单一来源（`$ESENGINE_WASM_DIR` → `build/wasm/web` → 旧 `desktop/public/wasm`），8 个集成测试文件不再各自硬编码不存在的 `desktop/public/wasm`。
 - 验证：SDK typecheck 通过；2012 个测试通过（含 3 个新握手测试，证明 mismatch 在非 strict 下也致命）；EHT 幂等。**待补**：C++ 侧 `static_assert` + `getAbiLayoutHash` 的实际编译验证需要 emsdk（随 CI web 构建门禁一起闭环）。
+- **函数绑定面握手（2026-07-08）**：病灶所述"`ESEngineModule` 接口是手工镜像、与 `bindings/*.cpp` 的真实导出无任何交叉校验"的收口第一步——新增 `sdk/tests/binding-surface.test.ts`（`cpp-contract.test.ts` 同款测试期握手，随 SDK vitest 进 push 门禁）：解析 `WebSDKEntry.cpp`/`TilemapBindings.cpp` 的全部 `emscripten::function` 注册与 `wasm.ts` `ESEngineModule` / `tilemapAPI.ts` `TilemapModule` 声明面，**双向存在性断言**（幽灵声明与未镜像绑定都 RED），另对 embind class 面（`ResourceManager`/`EstellaContext`）逐方法双向对齐。首跑即抓到 16 处存量漂移并已全部对齐：幽灵 `getSpineBounds`+`SpineBounds`（spine 迁侧模块后 C++ 函数仍在但从未注册，TS 声明悬空）、未镜像的 `renderer_setDeltaTime` 与 12 个 `tiled_getObject*`、`CppResourceManager` 缺 3 个 refcount getter。**后续（Phase 1）**：EHT 从注册点生成 TS 接口（删手工镜像本体）；顺带清点 C++ 侧已不再注册的死绑定函数（如 `renderer_setDeltaTime` 零消费者、`RendererBindings.hpp` 的旧 spine_* 家族）。
 
 ### RC4 身份 — ✅ 已落地并**编译+运行验证**
 - `core/Types.hpp`：单一全局 `getTypeId<T>()` 计数器拆为**按域独立**的计数器。新增域标签 `ComponentDomain/EventDomain/ServiceDomain/ResourceDomain` 与具名 helper `componentTypeId/eventTypeId/serviceTypeId/resourceTypeId`（各自 0 起、密集）。移除共享的 `getTypeId`/`nextTypeId`。
@@ -213,7 +214,7 @@ TS 驱动的主 pass clear 退出边界，`clear` 家族退出公共 RHI：
 - **F2 单一 `WasmBridge` 基类 + abort 守卫下沉（keystone）— ✅ 已落地**（`ac390f7d` + RM 闭环 `41bea17a`，五套桥接全部收敛，abort 守卫全子系统覆盖）。
 - **F3 全 per-App 资源 — ✅ 已落地**（分支 `rearch/f3-per-app`）：Camera（`CameraView`）、Timeline（`Timeline`）、PostProcess（拆 god-object + 管线注入 + 删 sync.ts）、SpriteAnimator（`SpriteAnimation`）全部 per-App;模块绑定单例在单模块运行时下无需改（B4 关闭）。
 - **F4 重写 `ARCHITECTURE.md` — ✅ 已落地**：`docs/ARCHITECTURE.md` 重写为当前现实（`RenderFrame`+`GfxDevice`/`GLDevice` 单一 GPU 边界、单一 `SparseSet`+`version()`、按域 TypeId、per-App 资源 + `WasmBridge` 基类、`ResourcePool` LRU/预算），删除对已删除的 `Renderer`/`BatchRenderer2D` 的描述。
-- F1 平台后端接缝（**保留 native 但隔离**，已拍板）— ⏳ 待做。
+- F1 平台后端接缝 — ✅ **以删除收口（2026-07-08 记账）**：引擎已是纯 Emscripten 目标（`CMakeLists.txt` 明示 "There is no native GPU/runtime build"，全仓已无 glfw/glad/native 窗口路径），native 面只剩可在任意 C++20 工具链编译的 header-only 单元测试——"隔离"由构建结构本身保证，无独立工作项残留。
 
 执行先于 RC6。
 
