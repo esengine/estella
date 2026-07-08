@@ -19,6 +19,7 @@ bool geometry_isValid(u32 handle);
 void draw_mesh(u32 geometryHandle, u32 shaderHandle, uintptr_t transformPtr);
 void draw_meshWithUniforms(u32 geometryHandle, u32 shaderHandle, uintptr_t transformPtr,
                            uintptr_t uniformsPtr, u32 uniformCount);
+bool draw_meshWithMaterial(u32 geometryHandle, u32 materialId);
 
 }  // namespace esengine
 

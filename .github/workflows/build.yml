@@ -194,6 +194,9 @@ jobs:
           env "$@" xvfb-run -a pnpm exec electron scripts/headless-verify.mjs
         }
         run_scene sprite-default
+        # Editor grid on/off pixel diff — guards the custom-draw reflected
+        # material path (drawMeshWithMaterial + MaterialConstants UBO).
+        run_scene editor-grid ESTELLA_VERIFY_GRID=64 ESTELLA_VERIFY_STEPS=3
         run_scene mesh2d \
           ESTELLA_VERIFY_SCENE=/scenes/mesh2d.esscene \
           ESTELLA_VERIFY_MANIFEST=/scenes/mesh2d.textures.json \

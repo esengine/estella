@@ -65,6 +65,9 @@ function createDrawMockModule() {
         draw_getPrimitiveCount: vi.fn(() => 128),
         draw_mesh: vi.fn(),
         draw_meshWithUniforms: vi.fn(),
+        // Reflected-material route: false = no #pragma-param layout, use the
+        // legacy uniform stream (most cases below exercise the legacy encoding).
+        draw_meshWithMaterial: vi.fn(() => false),
     };
 
     return mock;
@@ -449,6 +452,68 @@ describe('Draw API', () => {
 
             expect(mock.draw_mesh).not.toHaveBeenCalled();
             expect(mock.draw_meshWithUniforms).not.toHaveBeenCalled();
+        });
+
+        it('routes through the reflected material path when the engine reports a layout', () => {
+            const materials = (Material as any)._materials;
+            materials.set(21, {
+                shader: 10,
+                uniforms: new Map([['u_rect', { x: 1, y: 2, z: 3, w: 4 }]]),
+                blendMode: BlendMode.Additive,
+                depthTest: true,
+                dirty_: true,
+                cachedBuffer_: null,
+                cachedIdx_: 0,
+            });
+            mock.draw_meshWithMaterial.mockReturnValueOnce(true);
+
+            Draw.drawMeshWithMaterial(geometry, 21 as any);
+
+            expect(mock.draw_meshWithMaterial).toHaveBeenCalledWith(geometry, 21);
+            // The engine material store owns render state + params on this path —
+            // no legacy session-state writes, no uniform-stream encoding.
+            expect(mock.draw_setBlendMode).not.toHaveBeenCalled();
+            expect(mock.draw_setDepthTest).not.toHaveBeenCalled();
+            expect(mock.draw_mesh).not.toHaveBeenCalled();
+            expect(mock.draw_meshWithUniforms).not.toHaveBeenCalled();
+        });
+
+        it('falls back to the legacy stream when there is no reflected layout', () => {
+            const materials = (Material as any)._materials;
+            materials.set(22, {
+                shader: 10,
+                uniforms: new Map([['u_time', 1.5]]),
+                blendMode: BlendMode.Normal,
+                depthTest: false,
+                dirty_: true,
+                cachedBuffer_: null,
+                cachedIdx_: 0,
+            });
+
+            Draw.drawMeshWithMaterial(geometry, 22 as any, transform);
+
+            expect(mock.draw_meshWithMaterial).toHaveBeenCalledWith(geometry, 22);
+            expect(mock.draw_meshWithUniforms).toHaveBeenCalled();
+        });
+
+        it('legacy draw uses the identity transform when omitted', () => {
+            const materials = (Material as any)._materials;
+            materials.set(23, {
+                shader: 10,
+                uniforms: new Map(),
+                blendMode: BlendMode.Normal,
+                depthTest: false,
+                dirty_: true,
+                cachedBuffer_: null,
+                cachedIdx_: 0,
+            });
+
+            Draw.drawMeshWithMaterial(geometry, 23 as any);
+
+            expect(mock.draw_mesh).toHaveBeenCalled();
+            const transformP = mock.draw_mesh.mock.calls[0][2];
+            const t = mock.HEAPF32.subarray(transformP / 4, transformP / 4 + 16);
+            expect(Array.from(t)).toEqual([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
         });
 
         it('should call drawMesh when material has no uniforms', () => {

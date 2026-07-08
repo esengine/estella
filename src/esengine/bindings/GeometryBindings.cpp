@@ -8,6 +8,7 @@
 #include "../renderer/GfxDevice.hpp"
 #include "../renderer/CustomGeometry.hpp"
 #include "../renderer/Buffer.hpp"
+#include "../renderer/MaterialStore.hpp"
 #include "../renderer/RenderContext.hpp"
 #include "../renderer/RenderFrame.hpp"
 #include "../renderer/ImmediateDraw.hpp"
@@ -30,10 +31,25 @@ static EstellaContext& ctx() { return activeCtx(); }
 #define g_immediateDraw (ctx().tryGet<ImmediateDraw>())
 #define g_immediateDrawActive (ctx().state().immediate_draw_active)
 #define g_currentViewProjection (ctx().state().current_view_projection)
+#define g_renderContext (ctx().tryGet<RenderContext>())
 
 static void flushImmediateDrawIfActive() {
     if (g_immediateDrawActive && g_immediateDraw) {
         g_immediateDraw->flush();
+    }
+}
+
+// Bind + submit a custom geometry through the device (indexed or arrays).
+static void drawGeometry(GfxDevice& device, CustomGeometry& geom) {
+    geom.bind(device);
+    if (geom.hasIndices()) {
+        auto* ib = geom.indexBuffer();
+        if (ib) {
+            auto type = ib->is16Bit() ? GfxDataType::UnsignedShort : GfxDataType::UnsignedInt;
+            device.drawElements(geom.getIndexCount(), type, 0);
+        }
+    } else {
+        device.drawArrays(0, geom.getVertexCount());
     }
 }
 
@@ -159,17 +175,46 @@ void draw_mesh(u32 geometryHandle, u32 shaderHandle, uintptr_t transformPtr) {
     shader->setUniform("u_model", transform);
     shader->commitParams();
 
-    geom->bind(ctx().require<GfxDevice>());
+    drawGeometry(*g_device, *geom);
+}
 
-    if (geom->hasIndices()) {
-        auto* ib = geom->indexBuffer();
-        if (ib) {
-            auto type = ib->is16Bit() ? GfxDataType::UnsignedShort : GfxDataType::UnsignedInt;
-            g_device->drawElements(geom->getIndexCount(), type, 0);
-        }
-    } else {
-        g_device->drawArrays(0, geom->getVertexCount());
-    }
+bool draw_meshWithMaterial(u32 geometryHandle, u32 materialId) {
+    if (!g_initialized || !g_geometryManager) return false;
+    auto* rc = g_renderContext;
+    if (!rc) return false;
+
+    // Route through the reflected path only when the material's shader registered a
+    // #pragma-param layout (compileEsshader). A raw-GLSL createShader program has no
+    // layout — return false so the SDK falls back to the legacy uniform-stream path.
+    const MaterialRecord* rec = rc->materials().find(materialId);
+    if (!rec || !rc->materials().layoutFor(rec->shader)) return false;
+
+    auto* geom = g_geometryManager->get(geometryHandle);
+    if (!geom || !geom->isValid()) return true;  // routed modern; nothing to draw
+
+    flushImmediateDrawIfActive();
+
+    // The material record supplies the full pipeline state (same resolve as
+    // DrawList::execute); positioning comes from FrameConstants + params in the
+    // shader — no per-draw loose uniforms, so the draw is backend-neutral.
+    GfxDevice& device = *g_device;
+    PipelineDesc desc{};
+    desc.program = ShaderHandle{rec->shader};
+    desc.vertexLayout = geom->layoutHandle();
+    desc.blend = rec->blend;
+    desc.blendEnabled = true;
+    desc.depthTest = rec->depthTest;
+    desc.depthWrite = rec->depthWrite;
+    desc.cullEnabled = rec->cull != CullMode::None;
+    desc.cullFront = rec->cull == CullMode::Front;
+    device.invalidatePipelineCache();
+    device.setPipeline(device.createPipeline(desc));
+
+    // Per-material constants (binding 1): upload-if-dirty + bind, plus texture params.
+    rc->materials().bindForDraw(materialId);
+
+    drawGeometry(device, *geom);
+    return true;
 }
 
 void draw_meshWithUniforms(u32 geometryHandle, u32 shaderHandle, uintptr_t transformPtr,
@@ -256,17 +301,7 @@ void draw_meshWithUniforms(u32 geometryHandle, u32 shaderHandle, uintptr_t trans
     // shader's DrawParams block; flush + bind them for this draw.
     shader->commitParams();
 
-    geom->bind(ctx().require<GfxDevice>());
-
-    if (geom->hasIndices()) {
-        auto* ib = geom->indexBuffer();
-        if (ib) {
-            auto type = ib->is16Bit() ? GfxDataType::UnsignedShort : GfxDataType::UnsignedInt;
-            g_device->drawElements(geom->getIndexCount(), type, 0);
-        }
-    } else {
-        g_device->drawArrays(0, geom->getVertexCount());
-    }
+    drawGeometry(*g_device, *geom);
 }
 
 }  // namespace esengine

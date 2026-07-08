@@ -32,6 +32,9 @@ let uniformsPtr: number = 0;
 const UNIFORMS_BUFFER_SIZE = 256;
 const uniformBuffer = new Float32Array(UNIFORMS_BUFFER_SIZE);
 
+// Identity model matrix for legacy material draws that omit `transform`.
+const IDENTITY_TRANSFORM = new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
+
 // =============================================================================
 // Initialization
 // =============================================================================
@@ -190,11 +193,19 @@ export interface DrawAPI {
 
     /**
      * Draws a custom mesh with a material.
+     *
+     * A material whose shader was compiled from a `.esshader` (Material.compileShader)
+     * draws through the reflected MaterialConstants path: its `#pragma param` values and
+     * render state come straight from the engine material store, the shader positions
+     * itself via the injected FrameConstants (and params), and `transform` is unused —
+     * this path runs on every backend. A raw-GLSL material (Material.createShader) uses
+     * the legacy loose-uniform stream with `u_projection`/`u_model` and `transform`
+     * (identity when omitted).
      * @param geometry Geometry handle
      * @param material Material handle
-     * @param transform Transform matrix (4x4, column-major)
+     * @param transform Transform matrix (4x4, column-major) — legacy raw-GLSL path only
      */
-    drawMeshWithMaterial(geometry: GeometryHandle, material: MaterialHandle, transform: Float32Array): void;
+    drawMeshWithMaterial(geometry: GeometryHandle, material: MaterialHandle, transform?: Float32Array): void;
 }
 
 // =============================================================================
@@ -359,21 +370,27 @@ export const Draw: DrawAPI = {
         }
     },
 
-    drawMeshWithMaterial(geometry: GeometryHandle, material: MaterialHandle, transform: Float32Array): void {
+    drawMeshWithMaterial(geometry: GeometryHandle, material: MaterialHandle, transform?: Float32Array): void {
         try {
             const m = getModule();
             const matData = Material.get(material);
             if (!matData) return;
 
+            // Reflected path first: a compileEsshader material draws entirely from the
+            // engine material store (params + render state + pipeline), backend-neutral.
+            // False means the shader has no #pragma-param layout — legacy stream below.
+            if (m.draw_meshWithMaterial(geometry, material)) return;
+
             Draw.setBlendMode(matData.blendMode);
             Draw.setDepthTest(matData.depthTest);
 
+            if (transform) m.HEAPF32.set(transform, transformPtr / 4);
+            else m.HEAPF32.set(IDENTITY_TRANSFORM, transformPtr / 4);
+
             if (matData.uniforms.size === 0) {
-                Draw.drawMesh(geometry, matData.shader, transform);
+                m.draw_mesh(geometry, matData.shader, transformPtr);
                 return;
             }
-
-            m.HEAPF32.set(transform, transformPtr / 4);
 
             let idx: number;
             if (!matData.dirty_ && matData.cachedBuffer_) {

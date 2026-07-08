@@ -17,6 +17,7 @@
  *   ESTELLA_VERIFY_MANIFEST  texture manifest url
  *   ESTELLA_VERIFY_W / _H    capture size (default 640×480)
  *   ESTELLA_VERIFY_STEPS     fixed-dt frames to advance before capture (default 30)
+ *   ESTELLA_VERIFY_GRID      editor-grid on/off pixel-diff assertion (value = spacing)
  */
 import { app, BrowserWindow } from 'electron';
 import http from 'node:http';
@@ -75,7 +76,7 @@ function serveDist() {
 
 function finish(result, server) {
   const ok = result.ok && result.capture?.rendered && (result.expect?.ok ?? true) &&
-    (result.resize?.ok ?? true) && (result.preview?.ok ?? true);
+    (result.resize?.ok ?? true) && (result.preview?.ok ?? true) && (result.grid?.ok ?? true);
   console.log(`\n[verify:render] ${ok ? 'PASS' : 'FAIL'} — ${SCENE} (${BACKEND})`);
   console.log('DRIVE_RESULT ' + JSON.stringify(result));
   process.exitCode = ok ? 0 : 1;
@@ -267,7 +268,62 @@ app.whenReady().then(async () => {
         return { ok: got.every((g, k) => Math.abs(g - cfg.rgb[k]) <= tol), want: cfg.rgb, got, w, h };
       })()`);
     }
-    finish({ ok: true, entityCount, drawCalls, capture, expect, resize, preview }, server);
+    // Optional editor-grid assertion (ESTELLA_VERIFY_GRID = minor spacing, world
+    // units): flip the grid on (this activates the editor view it draws through),
+    // capture, flip it off, and assert the frames differ — proving the custom-draw
+    // drawMeshWithMaterial path rasterizes on this backend. Run standalone:
+    // activating the editor view reframes the camera for any later capture.
+    let grid = null;
+    if (process.env.ESTELLA_VERIFY_GRID) {
+      const spacing = Number(process.env.ESTELLA_VERIFY_GRID) || 64;
+      await exec(`window.__estellaHeadless.api.setGrid(true, ${spacing})`);
+      await exec('window.__estellaHeadless.api.step(2, 1 / 60)');
+      // Optional PNG of the grid-on frame (ESTELLA_VERIFY_GRID_OUT) for eyeballing.
+      // Same per-backend readback split as ESTELLA_VERIFY_OUT (GL page capture of a
+      // hidden window never composites — read the framebuffer in-page instead).
+      if (process.env.ESTELLA_VERIFY_GRID_OUT && BACKEND === 'webgpu') {
+        const image = await win.webContents.capturePage({ x: 0, y: 0, width: W, height: H });
+        await writeFile(process.env.ESTELLA_VERIFY_GRID_OUT, image.toPNG());
+      } else if (process.env.ESTELLA_VERIFY_GRID_OUT) {
+        const dataUrl = await exec(`(() => {
+          const c = window.__estellaHeadless.api.captureViewport();
+          const cv = document.createElement('canvas'); cv.width = c.width; cv.height = c.height;
+          const ctx = cv.getContext('2d'); const img = ctx.createImageData(c.width, c.height);
+          const w = c.width, h = c.height, src = c.rgba;
+          for (let y = 0; y < h; y++) { const sy = (h - 1 - y) * w * 4; img.data.set(src.subarray(sy, sy + w * 4), y * w * 4); }
+          ctx.putImageData(img, 0, 0);
+          return cv.toDataURL('image/png');
+        })()`);
+        await writeFile(process.env.ESTELLA_VERIFY_GRID_OUT, Buffer.from(dataUrl.split(',')[1], 'base64'));
+      }
+      if (BACKEND === 'webgpu') {
+        const on = (await grabWebGPU()).rgba;
+        await exec('window.__estellaHeadless.api.setGrid(false)');
+        await exec('window.__estellaHeadless.api.step(2, 1 / 60)');
+        const off = (await grabWebGPU()).rgba;
+        let differing = 0;
+        for (let i = 0; i < on.length; i += 4) {
+          const d = Math.abs(on[i] - off[i]) + Math.abs(on[i + 1] - off[i + 1]) + Math.abs(on[i + 2] - off[i + 2]);
+          if (d > 12) differing++;
+        }
+        grid = { differingPixels: differing, ok: differing > 300 };
+      } else {
+        await exec('window.__estellaGridOn = window.__estellaHeadless.api.captureViewport().rgba.slice()');
+        await exec('window.__estellaHeadless.api.setGrid(false)');
+        await exec('window.__estellaHeadless.api.step(2, 1 / 60)');
+        grid = await exec(`(() => {
+          const off = window.__estellaHeadless.api.captureViewport().rgba;
+          const on = window.__estellaGridOn;
+          let differing = 0;
+          for (let i = 0; i < on.length; i += 4) {
+            const d = Math.abs(on[i] - off[i]) + Math.abs(on[i + 1] - off[i + 1]) + Math.abs(on[i + 2] - off[i + 2]);
+            if (d > 12) differing++;
+          }
+          return { differingPixels: differing, ok: differing > 300 };
+        })()`);
+      }
+    }
+    finish({ ok: true, entityCount, drawCalls, capture, expect, resize, preview, grid }, server);
   } catch (e) {
     finish({ ok: false, error: String((e && e.stack) || e) }, server);
   }

@@ -45,13 +45,16 @@ const CASES: Array<{ name: string; source: string }> = [
     ...embeddedEsshaders('spriteFilter.ts').map((source, i) => ({ name: `spriteFilter.ts[${i}]`, source })),
     ...embeddedEsshaders('postprocess/postProcessEffects.ts').map(
         (source, i) => ({ name: `postProcessEffects.ts[${i}]`, source })),
+    ...embeddedEsshaders('camera/editorGridRenderer.ts').map(
+        (source, i) => ({ name: `editorGridRenderer.ts[${i}]`, source })),
 ];
 
 describe('embedded .esshader structure', () => {
-    it('found the filter and effect sources', () => {
+    it('found the filter, effect and grid sources', () => {
         expect(CASES.filter((c) => c.name.startsWith('filters.ts')).length).toBe(1);
         expect(CASES.filter((c) => c.name.startsWith('spriteFilter.ts')).length).toBe(2);
         expect(CASES.filter((c) => c.name.startsWith('postProcessEffects.ts')).length).toBe(13);
+        expect(CASES.filter((c) => c.name.startsWith('editorGridRenderer.ts')).length).toBe(1);
     });
 
     for (const { name, source } of CASES) {
@@ -64,5 +67,15 @@ describe('embedded .esshader structure', () => {
             const wgsl = source.slice(source.indexOf('#pragma fragment wgsl'));
             expect(wgsl).toContain('fn fs_main(');
         });
+
+        // A shader that authors its own vertex stage (no canonical injection)
+        // must also carry the WGSL vertex twin, or it cannot link on WebGPU.
+        if (/^#pragma vertex\s*$/m.test(source)) {
+            it(`${name}: authored vertex carries a WGSL twin with the vs_main entry point`, () => {
+                expect(source).toContain('#pragma vertex wgsl');
+                const wgsl = source.slice(source.indexOf('#pragma vertex wgsl'));
+                expect(wgsl).toContain('fn vs_main(');
+            });
+        }
     }
 });

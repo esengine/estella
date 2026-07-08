@@ -10,12 +10,17 @@
  * paints minor / major / axis lines in WORLD space. Because it runs in the
  * pre-scene pass, scene entities occlude the grid (UE5 / Unity behaviour).
  *
- * The quad is a unit quad scaled+translated by `u_model` to cover the camera's
- * visible world rect (centre = EditorView.x/y, half-extent = orthoSize * aspect
- * by orthoSize), so the fragment's interpolated world position is exact and no
+ * The quad is a unit quad placed by the `u_rect` param (centre = EditorView.x/y,
+ * half-extents = orthoSize * aspect by orthoSize) to cover the camera's visible
+ * world rect, so the fragment's interpolated world position is exact and no
  * inverse view-projection is needed. Line width and minor-line density fade are
  * driven by `worldPerPixel` (= 2·orthoSize / viewportHeight), so the grid stays
  * crisp and moiré-free at every zoom without relying on GLSL derivatives.
+ *
+ * The shader is a dual-language `.esshader` (GLSL + WGSL twins) on the reflected
+ * `#pragma param` seam: parameters ride the MaterialConstants UBO and the draw
+ * goes through `Draw.drawMeshWithMaterial`'s reflected path, so the grid renders
+ * on every backend.
  *
  * Frontends just install this once and flip the `EditorGrid` resource — the web
  * editor and the headless render host (pixel verification) get the grid for free.
@@ -29,91 +34,161 @@ import { registerPreSceneDrawCallback } from '../customDraw';
 import { EditorView } from './EditorView';
 import { EditorGrid, DEFAULT_EDITOR_GRID } from './EditorGrid';
 
-// GLSL ES 3.0, so the engine lifts the loose uniforms into its std140
-// DrawParams block — this draw's parameters ride the UBO seam, not per-program
-// uniform uploads.
-const GRID_VERT = `#version 300 es
-in vec2 a_position;
-uniform mat4 u_projection;
-uniform mat4 u_model;
-out vec2 v_world;
-void main() {
-  vec4 wp = u_model * vec4(a_position, 0.0, 1.0);
-  v_world = wp.xy;
-  gl_Position = u_projection * wp;
-}
-`;
+/** The grid's dual-language material shader (exported for the twins structure guard). */
+export const GRID_ESSHADER = `#pragma shader "EditorGrid"
+#pragma version 300 es
 
-const GRID_FRAG = `#version 300 es
+#pragma param u_rect vec4 default(0,0,1,1)
+#pragma param u_gridParams vec4 default(32,10,1,0)
+#pragma param u_minorColor color default(1,1,1,0.05)
+#pragma param u_majorColor color default(1,1,1,0.1)
+#pragma param u_axisXColor color default(0.812,0.357,0.325,0.55)
+#pragma param u_axisYColor color default(0.502,0.725,0.29,0.55)
+
+#pragma vertex
+layout(location = 0) in vec2 a_position;
+
+layout(std140) uniform FrameConstants {
+    mat4 u_projection;
+};
+
+out vec2 v_world;
+
+void main() {
+    // u_rect: xy = view centre, zw = half extents — the unit quad covers the
+    // camera's visible world rect, so v_world interpolates exact world coords.
+    vec2 world = u_rect.xy + a_position * u_rect.zw;
+    v_world = world;
+    gl_Position = u_projection * vec4(world, 0.0, 1.0);
+}
+#pragma end
+
+#pragma fragment
 precision highp float;
+
 in vec2 v_world;
-uniform float u_param0; // minor spacing (world units)
-uniform float u_param1; // major every Nth line
-uniform float u_param2; // worldPerPixel
-uniform vec4 u_color;   // minor line color
-uniform vec4 u_vec0;    // major line color
-uniform vec4 u_vec1;    // X axis (world y=0) color
-uniform vec4 u_vec2;    // Y axis (world x=0) color
 out vec4 fragColor;
 
 float lineCov(float coord, float sp, float lw, float aa) {
-  float d = abs(mod(coord + sp * 0.5, sp) - sp * 0.5);
-  return 1.0 - smoothstep(lw, lw + aa, d);
+    float d = abs(mod(coord + sp * 0.5, sp) - sp * 0.5);
+    return 1.0 - smoothstep(lw, lw + aa, d);
 }
 
 vec4 over(vec4 top, vec4 bot) {
-  float a = top.a + bot.a * (1.0 - top.a);
-  if (a <= 0.0) return vec4(0.0);
-  vec3 rgb = (top.rgb * top.a + bot.rgb * bot.a * (1.0 - top.a)) / a;
-  return vec4(rgb, a);
+    float a = top.a + bot.a * (1.0 - top.a);
+    if (a <= 0.0) return vec4(0.0);
+    vec3 rgb = (top.rgb * top.a + bot.rgb * bot.a * (1.0 - top.a)) / a;
+    return vec4(rgb, a);
 }
 
 void main() {
-  float sp = u_param0;
-  float major = sp * u_param1;
-  float aa = u_param2;       // ~1px in world units
-  float lw = aa * 0.5;       // ~1px line
+    float sp = u_gridParams.x;      // minor spacing (world units)
+    float major = sp * u_gridParams.y;
+    float aa = u_gridParams.z;      // worldPerPixel, ~1px in world units
+    float lw = aa * 0.5;            // ~1px line
 
-  // Fade minor lines out as they crowd below a few pixels apart (anti-moiré).
-  float minorFade = smoothstep(3.0, 9.0, sp / max(u_param2, 1e-6));
-  float minorC = max(lineCov(v_world.x, sp, lw, aa), lineCov(v_world.y, sp, lw, aa)) * minorFade;
-  float majorC = max(lineCov(v_world.x, major, lw, aa), lineCov(v_world.y, major, lw, aa));
-  float axisXC = 1.0 - smoothstep(lw, lw + aa, abs(v_world.y)); // world y=0
-  float axisYC = 1.0 - smoothstep(lw, lw + aa, abs(v_world.x)); // world x=0
+    // Fade minor lines out as they crowd below a few pixels apart (anti-moiré).
+    float minorFade = smoothstep(3.0, 9.0, sp / max(aa, 1e-6));
+    float minorC = max(lineCov(v_world.x, sp, lw, aa), lineCov(v_world.y, sp, lw, aa)) * minorFade;
+    float majorC = max(lineCov(v_world.x, major, lw, aa), lineCov(v_world.y, major, lw, aa));
+    float axisXC = 1.0 - smoothstep(lw, lw + aa, abs(v_world.y)); // world y=0
+    float axisYC = 1.0 - smoothstep(lw, lw + aa, abs(v_world.x)); // world x=0
 
-  vec4 c = vec4(0.0);
-  c = over(vec4(u_color.rgb, u_color.a * minorC), c);
-  c = over(vec4(u_vec0.rgb, u_vec0.a * majorC), c);
-  c = over(vec4(u_vec1.rgb, u_vec1.a * axisXC), c);
-  c = over(vec4(u_vec2.rgb, u_vec2.a * axisYC), c);
-  if (c.a <= 0.0) discard;
-  fragColor = c;
+    vec4 c = vec4(0.0);
+    c = over(vec4(u_minorColor.rgb, u_minorColor.a * minorC), c);
+    c = over(vec4(u_majorColor.rgb, u_majorColor.a * majorC), c);
+    c = over(vec4(u_axisXColor.rgb, u_axisXColor.a * axisXC), c);
+    c = over(vec4(u_axisYColor.rgb, u_axisYColor.a * axisYC), c);
+    if (c.a <= 0.0) discard;
+    fragColor = c;
 }
+#pragma end
+
+#pragma vertex wgsl
+struct FrameConstants { projection : mat4x4f };
+@group(0) @binding(0) var<uniform> frame : FrameConstants;
+
+struct VSIn { @location(0) a_position : vec2f };
+struct VSOut {
+    @builtin(position) pos : vec4f,
+    @location(0) v_world : vec2f,
+};
+
+@vertex fn vs_main(v : VSIn) -> VSOut {
+    var out : VSOut;
+    let world = mc.u_rect.xy + v.a_position * mc.u_rect.zw;
+    out.v_world = world;
+    out.pos = frame.projection * vec4f(world, 0.0, 1.0);
+    return out;
+}
+#pragma end
+
+#pragma fragment wgsl
+struct VSOut {
+    @builtin(position) pos : vec4f,
+    @location(0) v_world : vec2f,
+};
+
+// GLSL mod(): floor-based remainder (result follows the divisor's sign) — WGSL's
+// % is trunc-based, which would misplace grid lines on the negative world half.
+fn gmod(x : f32, y : f32) -> f32 { return x - y * floor(x / y); }
+
+fn lineCov(coord : f32, sp : f32, lw : f32, aa : f32) -> f32 {
+    let d = abs(gmod(coord + sp * 0.5, sp) - sp * 0.5);
+    return 1.0 - smoothstep(lw, lw + aa, d);
+}
+
+fn over(top : vec4f, bot : vec4f) -> vec4f {
+    let a = top.a + bot.a * (1.0 - top.a);
+    if (a <= 0.0) { return vec4f(0.0, 0.0, 0.0, 0.0); }
+    let rgb = (top.rgb * top.a + bot.rgb * bot.a * (1.0 - top.a)) / a;
+    return vec4f(rgb, a);
+}
+
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    let sp = mc.u_gridParams.x;
+    let major = sp * mc.u_gridParams.y;
+    let aa = mc.u_gridParams.z;
+    let lw = aa * 0.5;
+
+    let minorFade = smoothstep(3.0, 9.0, sp / max(aa, 1e-6));
+    let minorC = max(lineCov(v.v_world.x, sp, lw, aa), lineCov(v.v_world.y, sp, lw, aa)) * minorFade;
+    let majorC = max(lineCov(v.v_world.x, major, lw, aa), lineCov(v.v_world.y, major, lw, aa));
+    let axisXC = 1.0 - smoothstep(lw, lw + aa, abs(v.v_world.y));
+    let axisYC = 1.0 - smoothstep(lw, lw + aa, abs(v.v_world.x));
+
+    var c = vec4f(0.0, 0.0, 0.0, 0.0);
+    c = over(vec4f(mc.u_minorColor.rgb, mc.u_minorColor.a * minorC), c);
+    c = over(vec4f(mc.u_majorColor.rgb, mc.u_majorColor.a * majorC), c);
+    c = over(vec4f(mc.u_axisXColor.rgb, mc.u_axisXColor.a * axisXC), c);
+    c = over(vec4f(mc.u_axisYColor.rgb, mc.u_axisYColor.a * axisYC), c);
+    if (c.a <= 0.0) { discard; }
+    return c;
+}
+#pragma end
 `;
 
 let quad_: GeometryHandle = 0;
 let material_: MaterialHandle = 0;
-// Reused column-major translate·scale model matrix (no per-frame allocation).
-const model_ = new Float32Array(16);
+
+// Per-param last-set cache: Material.setUniform re-flushes the whole material on
+// every call, so skipping unchanged values keeps an idle frame at zero pushes.
+const lastSet_ = new Map<string, [number, number, number, number]>();
+
+function setParam(name: string, x: number, y: number, z: number, w: number): void {
+  const prev = lastSet_.get(name);
+  if (prev && prev[0] === x && prev[1] === y && prev[2] === z && prev[3] === w) return;
+  lastSet_.set(name, [x, y, z, w]);
+  Material.setUniform(material_, name, { x, y, z, w });
+}
 
 function ensureResources(): boolean {
   if (material_) return true;
-  const shader = Material.createShader(GRID_VERT, GRID_FRAG);
+  const shader = Material.compileShader(GRID_ESSHADER);
   if (!shader) return false;
   quad_ = Geometry.createQuad(2, 2); // [-1, 1] unit quad
   material_ = Material.create({ shader, blendMode: BlendMode.Normal, depthTest: false });
   return true;
-}
-
-// translate(tx,ty) · scale(sx,sy) as a column-major 4x4.
-function setModel(m: Float32Array, tx: number, ty: number, sx: number, sy: number): void {
-  m.fill(0);
-  m[0] = sx;
-  m[5] = sy;
-  m[10] = 1;
-  m[15] = 1;
-  m[12] = tx;
-  m[13] = ty;
 }
 
 /**
@@ -135,16 +210,14 @@ export function installEditorGrid(app: App): void {
     const halfH = view.orthoSize;
     const halfW = halfH * (width / height);
     const worldPerPixel = (2 * halfH) / height;
-    setModel(model_, view.x, view.y, halfW, halfH);
 
-    Material.setUniform(material_, 'u_param0', grid.spacing);
-    Material.setUniform(material_, 'u_param1', grid.majorEvery);
-    Material.setUniform(material_, 'u_param2', worldPerPixel);
-    Material.setUniform(material_, 'u_color', grid.color);
-    Material.setUniform(material_, 'u_vec0', grid.majorColor);
-    Material.setUniform(material_, 'u_vec1', grid.axisX);
-    Material.setUniform(material_, 'u_vec2', grid.axisY);
+    setParam('u_rect', view.x, view.y, halfW, halfH);
+    setParam('u_gridParams', grid.spacing, grid.majorEvery, worldPerPixel, 0);
+    setParam('u_minorColor', grid.color[0], grid.color[1], grid.color[2], grid.color[3]);
+    setParam('u_majorColor', grid.majorColor[0], grid.majorColor[1], grid.majorColor[2], grid.majorColor[3]);
+    setParam('u_axisXColor', grid.axisX[0], grid.axisX[1], grid.axisX[2], grid.axisX[3]);
+    setParam('u_axisYColor', grid.axisY[0], grid.axisY[1], grid.axisY[2], grid.axisY[3]);
 
-    Draw.drawMeshWithMaterial(quad_, material_, model_);
+    Draw.drawMeshWithMaterial(quad_, material_);
   });
 }

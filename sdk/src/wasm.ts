@@ -235,6 +235,9 @@ export interface ESEngineModule {
     draw_mesh(geometryHandle: number, shaderHandle: number, transformPtr: number): void;
     draw_meshWithUniforms(geometryHandle: number, shaderHandle: number, transformPtr: number,
                           uniformsPtr: number, uniformCount: number): void;
+    /** Reflected-material mesh draw (MaterialConstants UBO); false = shader has no
+     *  #pragma-param layout, caller falls back to the loose uniform stream. */
+    draw_meshWithMaterial(geometryHandle: number, materialId: number): boolean;
 
     // Geometry API
     geometry_create(): number;

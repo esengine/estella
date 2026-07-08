@@ -511,6 +511,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("draw_setDepthTest", &esengine::draw_setDepthTest);
     emscripten::function("draw_mesh", &esengine::draw_mesh);
     emscripten::function("draw_meshWithUniforms", &esengine::draw_meshWithUniforms);
+    emscripten::function("draw_meshWithMaterial", &esengine::draw_meshWithMaterial);
 
     emscripten::function("geometry_create", &esengine::geometry_create);
     emscripten::function("geometry_init", &esengine::geometry_init);

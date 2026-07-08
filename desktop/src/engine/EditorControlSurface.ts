@@ -295,6 +295,16 @@ export class EditorControlSurfaceImpl {
     canvas.style.height = `${height}px`;
   }
 
+  /**
+   * Enable/disable the editor reference grid (headless verification + MCP).
+   * Enabling also seeds + activates the editor view — the edit-mode camera the
+   * grid draws through — since the headless host boots with it inactive.
+   */
+  setGrid(enabled: boolean, spacing?: number): void {
+    if (enabled) EngineHost.syncEditorViewToScene();
+    EngineHost.setGrid(enabled, spacing);
+  }
+
   captureViewport(): ViewportCapture {
     const canvas = EngineHost.canvas;
     if (!canvas) {
