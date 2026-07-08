@@ -139,10 +139,14 @@ function createPlayRealmSource(
 export async function initPlayRealmRuntime(config: PlayRealmRuntimeConfig): Promise<void> {
     const { app, module, canvas, sceneData, assetManifest, assetBaseUrl } = config;
     const source = createPlayRealmSource(assetManifest, assetBaseUrl, config.assetPathMap);
-    // Audio has its own loader (not the asset source), so point it at the project
-    // root too: playSFX/playBGM take project-relative paths, not uuid refs.
-    if (assetBaseUrl && app.hasResource(Audio)) {
-        app.getResource(Audio).baseUrl = assetBaseUrl;
+    // Audio fetches its own buffers (playSFX/playBGM take plain paths, not uuid
+    // refs) — route them through the SAME resolver as every other asset: the
+    // editor realm prefixes the project root, cooked builds hit their
+    // logical→staged map. One resolution channel, no parallel baseUrl logic.
+    if (app.hasResource(Audio)) {
+        app.getResource(Audio).setRefResolver(
+            (ref) => resolvePlayAssetRef(ref, assetManifest, assetBaseUrl, config.assetPathMap),
+        );
     }
     await initRuntime({
         app,

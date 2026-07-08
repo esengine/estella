@@ -91,6 +91,22 @@ describe('AudioAPI', () => {
             await audio.preload('sfx.mp3');
             expect(backend.loadBuffer).toHaveBeenCalledTimes(1);
         });
+
+        it('prefixes relative urls with baseUrl (legacy prefix path)', async () => {
+            audio.baseUrl = 'estella://project';
+            await audio.preload('assets/sfx.mp3');
+            expect(backend.loadBuffer).toHaveBeenCalledWith('estella://project/assets/sfx.mp3');
+        });
+
+        // The realm's single asset resolver (uuid manifest / cooked
+        // logical→staged maps) takes precedence over the baseUrl prefix, so
+        // playSFX('assets/…') fetches the staged file in cooked builds.
+        it('routes refs through setRefResolver when wired (cooked builds)', async () => {
+            audio.baseUrl = 'estella://project';
+            audio.setRefResolver((ref) => `./assets/abcd1234.${ref.split('.').pop()}`);
+            await audio.preload('assets/sfx.mp3');
+            expect(backend.loadBuffer).toHaveBeenCalledWith('./assets/abcd1234.mp3');
+        });
     });
 
     describe('preloadAll', () => {

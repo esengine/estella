@@ -51,6 +51,7 @@ export class AudioAPI {
     private readonly fadeAnimIds_ = new Set<number>();
     private disposed_ = false;
     private assetResolver_: ((url: string) => ArrayBuffer | null) | null = null;
+    private refResolver_: ((ref: string) => string) | null = null;
     baseUrl = '';
 
     constructor(backend: PlatformAudioBackend, mixer: AudioMixer | null = null) {
@@ -196,7 +197,19 @@ export class AudioAPI {
         this.assetResolver_ = resolver;
     }
 
+    /**
+     * Route play refs through the realm's single asset resolver — the same
+     * channel every other asset type resolves through (uuid manifest, cooked
+     * logical→staged maps, project base). Takes precedence over the legacy
+     * `baseUrl` prefix, so `playSFX('assets/…')` works in cooked builds whose
+     * content-addressed staging renamed the physical files.
+     */
+    setRefResolver(resolver: ((ref: string) => string) | null): void {
+        this.refResolver_ = resolver;
+    }
+
     private resolveUrl_(url: string): string {
+        if (this.refResolver_) return this.refResolver_(url);
         if (!this.baseUrl || url.startsWith('/') || url.startsWith('http://') || url.startsWith('https://')) {
             return url;
         }
