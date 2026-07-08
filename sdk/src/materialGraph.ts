@@ -58,12 +58,15 @@ export interface MaterialGraph {
 
 const TYPE_RANK: Record<GraphType, number> = { float: 1, vec2: 2, vec3: 3, vec4: 4 };
 
-/** The wider of two types (vecN op float broadcasts in GLSL; mixing vec2 with vec4 is invalid). */
+/** The wider of two types (vecN op float broadcasts in both languages; mixing vec2 with vec4 is invalid). */
 function widen(a: GraphType, b: GraphType): GraphType {
   return TYPE_RANK[a] >= TYPE_RANK[b] ? a : b;
 }
 
-/** Promote an expression of @p type to a vec4 (for fragColor / mix endpoints). */
+/** GraphType → WGSL type name (the GLSL names are the GraphType strings themselves). */
+const WGSL_TYPE: Record<GraphType, string> = { float: 'f32', vec2: 'vec2f', vec3: 'vec3f', vec4: 'vec4f' };
+
+/** Promote a GLSL expression of @p type to a vec4 (for fragColor / mix endpoints). */
 function toVec4(expr: string, type: GraphType): string {
   switch (type) {
     case 'vec4': return expr;
@@ -73,18 +76,39 @@ function toVec4(expr: string, type: GraphType): string {
   }
 }
 
+/** WGSL twin of toVec4. */
+function toVec4W(expr: string, type: GraphType): string {
+  switch (type) {
+    case 'vec4': return expr;
+    case 'vec3': return `vec4f(${expr}, 1.0)`;
+    case 'vec2': return `vec4f(${expr}, 0.0, 1.0)`;
+    case 'float': return `vec4f(vec3f(${expr}), 1.0)`;
+  }
+}
+
+/** A node's compiled value: one expression per language, one shared type. */
+interface Emitted {
+  expr: string;   // GLSL
+  wexpr: string;  // WGSL
+  type: GraphType;
+}
+
 /**
  * Compile a material graph into a `.esshader` source string (assembled by the engine's
- * ShaderParser like any hand-written shader). Throws on a missing node/input, a cycle, an
- * unknown node type, or an output root that isn't an `output` node.
+ * ShaderParser like any hand-written shader). Emits BOTH stage languages — the GLSL fragment
+ * and its `#pragma fragment wgsl` twin — from one DAG walk, so a graph material runs on
+ * either backend. Throws on a missing node/input, a cycle, an unknown node type, or an
+ * output root that isn't an `output` node.
  */
 export function compileMaterialGraph(graph: MaterialGraph): string {
   const nodes = new Map(graph.nodes.map((n) => [n.id, n] as const));
-  const memo = new Map<string, { expr: string; type: GraphType }>();
+  const memo = new Map<string, Emitted>();
   const visiting = new Set<string>();
   const params: string[] = [];
   const helpers = new Set<string>();
+  const whelpers = new Set<string>();
   const body: string[] = [];
+  const wbody: string[] = [];
   let tmp = 0;
 
   const numParam = (n: MaterialGraphNode, key: string, fallback: number): string => {
@@ -96,7 +120,15 @@ export function compileMaterialGraph(graph: MaterialGraph): string {
   const paramName = (n: MaterialGraphNode) =>
     typeof n.params?.name === 'string' ? (n.params.name as string) : `u_${n.id}`;
 
-  function emit(id: string): { expr: string; type: GraphType } {
+  /** Append the same SSA temp to both bodies and return its Emitted value. */
+  const line = (type: GraphType, glsl: string, wgsl: string): Emitted => {
+    const t = `n${tmp++}`;
+    body.push(`${type} ${t} = ${glsl};`);
+    wbody.push(`let ${t} : ${WGSL_TYPE[type]} = ${wgsl};`);
+    return { expr: t, wexpr: t, type };
+  };
+
+  function emit(id: string): Emitted {
     const cached = memo.get(id);
     if (cached) return cached;
     if (visiting.has(id)) throw new Error(`material graph: cycle through node "${id}"`);
@@ -104,51 +136,53 @@ export function compileMaterialGraph(graph: MaterialGraph): string {
     if (!n) throw new Error(`material graph: missing node "${id}"`);
     visiting.add(id);
 
-    const input = (slot: string): { expr: string; type: GraphType } => {
+    const input = (slot: string): Emitted => {
       const src = n.inputs?.[slot];
       if (!src) throw new Error(`material graph: node "${id}" (${n.type}) missing input "${slot}"`);
       return emit(src);
     };
 
-    let out: { expr: string; type: GraphType };
+    let out: Emitted;
     switch (n.type) {
       case 'uv':
-        out = { expr: 'v_texCoord', type: 'vec2' };
+        out = { expr: 'v_texCoord', wexpr: 'v.v_texCoord', type: 'vec2' };
         break;
       case 'vertexColor':
-        out = { expr: 'v_color', type: 'vec4' };
+        out = { expr: 'v_color', wexpr: 'v.v_color', type: 'vec4' };
         break;
       case 'time':
-        out = { expr: 'u_time.x', type: 'float' };
+        out = { expr: 'u_time.x', wexpr: 'tc.u_time.x', type: 'float' };
         break;
       case 'screenUV': {
-        const t = `n${tmp++}`;
-        body.push(`vec2 ${t} = gl_FragCoord.xy * u_viewport.zw;`);
-        out = { expr: t, type: 'vec2' };
+        // 0..1, y-up on both backends: gl_FragCoord has a bottom-left origin,
+        // the WGSL position builtin a top-left one — flip y before normalizing.
+        out = line('vec2',
+          'gl_FragCoord.xy * u_viewport.zw',
+          'vec2f(v.pos.x, tc.u_viewport.y - v.pos.y) * tc.u_viewport.zw');
         break;
       }
       case 'constFloat': {
         const name = paramName(n);
         const v = typeof n.params?.value === 'number' ? n.params.value : 0;
         params.push(`#pragma param ${name} float default(${v})`);
-        out = { expr: name, type: 'float' };
+        out = { expr: name, wexpr: `mc.${name}`, type: 'float' };
         break;
       }
       case 'constColor': {
         const name = paramName(n);
         const c = Array.isArray(n.params?.value) ? (n.params!.value as number[]) : [1, 1, 1, 1];
         params.push(`#pragma param ${name} color default(${c.slice(0, 4).join(',')})`);
-        out = { expr: name, type: 'vec4' };
+        out = { expr: name, wexpr: `mc.${name}`, type: 'vec4' };
         break;
       }
       case 'textureSample': {
         const name = paramName(n);
         const def = typeof n.params?.default === 'string' ? n.params.default : 'white';
         params.push(`#pragma param ${name} texture default(${def})`);
-        const uv = n.inputs?.uv ? input('uv').expr : 'v_texCoord';
-        const t = `n${tmp++}`;
-        body.push(`vec4 ${t} = texture(${name}, ${uv});`);
-        out = { expr: t, type: 'vec4' };
+        const uv = n.inputs?.uv ? input('uv') : { expr: 'v_texCoord', wexpr: 'v.v_texCoord', type: 'vec2' as GraphType };
+        out = line('vec4',
+          `texture(${name}, ${uv.expr})`,
+          `textureSampleLevel(${name}, ${name}_s, ${uv.wexpr}, 0.0)`);
         break;
       }
       case 'multiply':
@@ -156,59 +190,70 @@ export function compileMaterialGraph(graph: MaterialGraph): string {
         const a = input('a');
         const b = input('b');
         const op = n.type === 'multiply' ? '*' : '+';
-        const ty = widen(a.type, b.type);
-        const t = `n${tmp++}`;
-        body.push(`${ty} ${t} = ${a.expr} ${op} ${b.expr};`);
-        out = { expr: t, type: ty };
+        // vecN op float broadcasts in both languages; vec2 op vec4 is invalid in both.
+        out = line(widen(a.type, b.type),
+          `${a.expr} ${op} ${b.expr}`,
+          `${a.wexpr} ${op} ${b.wexpr}`);
         break;
       }
       case 'lerp': {
         const a = input('a');
         const b = input('b');
         const f = input('t');
-        const t = `n${tmp++}`;
-        body.push(`vec4 ${t} = mix(${toVec4(a.expr, a.type)}, ${toVec4(b.expr, b.type)}, ${f.expr});`);
-        out = { expr: t, type: 'vec4' };
+        out = line('vec4',
+          `mix(${toVec4(a.expr, a.type)}, ${toVec4(b.expr, b.type)}, ${f.expr})`,
+          `mix(${toVec4W(a.wexpr, a.type)}, ${toVec4W(b.wexpr, b.type)}, ${f.wexpr})`);
         break;
       }
       case 'oneMinus':
       case 'saturate':
       case 'sin': {
-        // Single-input, type-preserving — GLSL broadcasts over any genType.
+        // Single-input, type-preserving — both languages broadcast scalar-vector
+        // arithmetic; WGSL's saturate() replaces GLSL's mixed-type clamp.
         const a = input('x');
-        const t = `n${tmp++}`;
-        const expr = n.type === 'oneMinus' ? `1.0 - ${a.expr}`
+        const glsl = n.type === 'oneMinus' ? `1.0 - ${a.expr}`
           : n.type === 'saturate' ? `clamp(${a.expr}, 0.0, 1.0)`
           : `sin(${a.expr})`;
-        body.push(`${a.type} ${t} = ${expr};`);
-        out = { expr: t, type: a.type };
+        const wgsl = n.type === 'oneMinus' ? `1.0 - ${a.wexpr}`
+          : n.type === 'saturate' ? `saturate(${a.wexpr})`
+          : `sin(${a.wexpr})`;
+        out = line(a.type, glsl, wgsl);
         break;
       }
       case 'smoothstep': {
+        // GLSL takes scalar edges for any genType x; WGSL wants all three the
+        // same type, so the edges splat to x's type.
         const a = input('x');
-        const t = `n${tmp++}`;
-        body.push(`${a.type} ${t} = smoothstep(${numParam(n, 'edge0', 0)}, ${numParam(n, 'edge1', 1)}, ${a.expr});`);
-        out = { expr: t, type: a.type };
+        const e0 = numParam(n, 'edge0', 0);
+        const e1 = numParam(n, 'edge1', 1);
+        const wSplat = (e: string) => (a.type === 'float' ? e : `${WGSL_TYPE[a.type]}(${e})`);
+        out = line(a.type,
+          `smoothstep(${e0}, ${e1}, ${a.expr})`,
+          `smoothstep(${wSplat(e0)}, ${wSplat(e1)}, ${a.wexpr})`);
         break;
       }
       case 'noise': {
         helpers.add(NOISE_HELPER);
-        const uv = n.inputs?.uv ? input('uv').expr : 'v_texCoord';
-        const t = `n${tmp++}`;
-        body.push(`float ${t} = noise2d(${uv} * ${numParam(n, 'scale', 12)});`);
-        out = { expr: t, type: 'float' };
+        whelpers.add(NOISE_HELPER_WGSL);
+        const uv = n.inputs?.uv ? input('uv') : { expr: 'v_texCoord', wexpr: 'v.v_texCoord', type: 'vec2' as GraphType };
+        const scale = numParam(n, 'scale', 12);
+        out = line('float',
+          `noise2d(${uv.expr} * ${scale})`,
+          `noise2d(${uv.wexpr} * ${scale})`);
         break;
       }
       case 'panner': {
-        const uv = n.inputs?.uv ? input('uv').expr : 'v_texCoord';
-        const t = `n${tmp++}`;
-        body.push(`vec2 ${t} = fract(${uv} + u_time.x * vec2(${numParam(n, 'speedX', 0.1)}, ${numParam(n, 'speedY', 0)}));`);
-        out = { expr: t, type: 'vec2' };
+        const uv = n.inputs?.uv ? input('uv') : { expr: 'v_texCoord', wexpr: 'v.v_texCoord', type: 'vec2' as GraphType };
+        const sx = numParam(n, 'speedX', 0.1);
+        const sy = numParam(n, 'speedY', 0);
+        out = line('vec2',
+          `fract(${uv.expr} + u_time.x * vec2(${sx}, ${sy}))`,
+          `fract(${uv.wexpr} + tc.u_time.x * vec2f(${sx}, ${sy}))`);
         break;
       }
       case 'output': {
         const c = input('color');
-        out = { expr: toVec4(c.expr, c.type), type: 'vec4' };
+        out = { expr: toVec4(c.expr, c.type), wexpr: toVec4W(c.wexpr, c.type), type: 'vec4' };
         break;
       }
       default:
@@ -230,9 +275,12 @@ export function compileMaterialGraph(graph: MaterialGraph): string {
   const domain = graph.domain ?? 'Unlit2D';
   const paramBlock = params.length ? params.join('\n') + '\n' : '';
   const helperBlock = helpers.size ? [...helpers].join('\n') + '\n\n' : '';
+  const whelperBlock = whelpers.size ? [...whelpers].join('\n') + '\n\n' : '';
   const bodyBlock = body.map((l) => '    ' + l).join('\n');
+  const wbodyBlock = wbody.map((l) => '    ' + l).join('\n');
 
-  // Fragment-only: the canonical 2D vertex stage is injected by the engine's ShaderParser.
+  // Fragment-only: the canonical 2D vertex stage (and, for the twin, the VSOut
+  // interface + batch textures + tc/mc blocks) is injected by the ShaderParser.
   return `#pragma shader "${name}"
 #pragma version 300 es
 #pragma domain ${domain}
@@ -250,6 +298,13 @@ ${bodyBlock}
     fragColor = ${result.expr};
 }
 #pragma end
+
+#pragma fragment wgsl
+${whelperBlock}@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+${wbodyBlock}
+    return ${result.wexpr};
+}
+#pragma end
 `;
 }
 
@@ -260,6 +315,15 @@ float noise2d(vec2 p) {
     f = f * f * (3.0 - 2.0 * f);
     return mix(mix(hash2d(i), hash2d(i + vec2(1.0, 0.0)), f.x),
                mix(hash2d(i + vec2(0.0, 1.0)), hash2d(i + vec2(1.0, 1.0)), f.x), f.y);
+}`;
+
+const NOISE_HELPER_WGSL = `fn hash2d(p : vec2f) -> f32 { return fract(sin(dot(p, vec2f(127.1, 311.7))) * 43758.5453123); }
+fn noise2d(p : vec2f) -> f32 {
+    let i = floor(p);
+    var f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(hash2d(i), hash2d(i + vec2f(1.0, 0.0)), f.x),
+               mix(hash2d(i + vec2f(0.0, 1.0)), hash2d(i + vec2f(1.0, 1.0)), f.x), f.y);
 }`;
 
 // =============================================================================

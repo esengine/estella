@@ -150,6 +150,86 @@ describe('compileMaterialGraph', () => {
   });
 });
 
+describe('compileMaterialGraph WGSL twin', () => {
+  it('every compile carries a fragment wgsl section mirroring the GLSL body', () => {
+    const src = compileMaterialGraph(tintGraph);
+    expect(src).toContain('#pragma fragment wgsl');
+    const wgsl = src.slice(src.indexOf('#pragma fragment wgsl'));
+    expect(wgsl).toContain('fn fs_main(v : VSOut)');
+    // Same SSA temp names, twin spellings: texture params sample the name/name_s
+    // pair, block params read through mc..
+    expect(wgsl).toContain('let n0 : vec4f = textureSampleLevel(u_albedo, u_albedo_s, v.v_texCoord, 0.0);');
+    expect(wgsl).toContain('let n1 : vec4f = n0 * mc.u_tint;');
+    expect(wgsl).toContain('return n1;');
+  });
+
+  it('time/panner/noise/smoothstep/saturate spell their WGSL forms', () => {
+    const g: MaterialGraph = {
+      output: 'out',
+      nodes: [
+        { id: 'uv', type: 'uv' },
+        { id: 'pan', type: 'panner', inputs: { uv: 'uv' }, params: { speedX: 0.25, speedY: 0 } },
+        { id: 'tex', type: 'textureSample', inputs: { uv: 'pan' }, params: { name: 'u_albedo', default: 'white' } },
+        { id: 'n', type: 'noise', inputs: { uv: 'uv' }, params: { scale: 8 } },
+        { id: 'ss', type: 'smoothstep', inputs: { x: 'n' }, params: { edge0: 0.2, edge1: 0.8 } },
+        { id: 'inv', type: 'oneMinus', inputs: { x: 'tex' } },
+        { id: 'sat', type: 'saturate', inputs: { x: 'inv' } },
+        { id: 'mul', type: 'multiply', inputs: { a: 'sat', b: 'ss' } },
+        { id: 'out', type: 'output', inputs: { color: 'mul' } },
+      ],
+    };
+    const src = compileMaterialGraph(g);
+    const wgsl = src.slice(src.indexOf('#pragma fragment wgsl'));
+    expect(wgsl).toContain('fract(v.v_texCoord + tc.u_time.x * vec2f(0.2500, 0.0000))');
+    expect(wgsl).toContain('noise2d(v.v_texCoord * 8.0000)');
+    expect(wgsl).toContain('smoothstep(0.2000, 0.8000,'); // float x keeps scalar edges
+    expect(wgsl).toContain('saturate('); // WGSL builtin replaces mixed-type clamp
+    expect(wgsl.match(/fn noise2d/g)?.length).toBe(1); // WGSL helper emitted once
+    // The GLSL half keeps its own helper — one per language.
+    expect(src.match(/float noise2d/g)?.length).toBe(1);
+  });
+
+  it('smoothstep splats its edges when x is a vector', () => {
+    const g: MaterialGraph = {
+      output: 'out',
+      nodes: [
+        { id: 'tex', type: 'textureSample', params: { name: 'u_a', default: 'white' } },
+        { id: 'ss', type: 'smoothstep', inputs: { x: 'tex' }, params: { edge0: 0.2, edge1: 0.8 } },
+        { id: 'out', type: 'output', inputs: { color: 'ss' } },
+      ],
+    };
+    const wgsl = compileMaterialGraph(g).slice(compileMaterialGraph(g).indexOf('#pragma fragment wgsl'));
+    expect(wgsl).toContain('smoothstep(vec4f(0.2000), vec4f(0.8000),');
+  });
+
+  it('screenUV flips y so both backends agree on a y-up 0..1 space', () => {
+    const g: MaterialGraph = {
+      output: 'out',
+      nodes: [
+        { id: 'suv', type: 'screenUV' },
+        { id: 'tex', type: 'textureSample', inputs: { uv: 'suv' }, params: { name: 'u_a', default: 'white' } },
+        { id: 'out', type: 'output', inputs: { color: 'tex' } },
+      ],
+    };
+    const src = compileMaterialGraph(g);
+    expect(src).toContain('gl_FragCoord.xy * u_viewport.zw');
+    expect(src).toContain('vec2f(v.pos.x, tc.u_viewport.y - v.pos.y) * tc.u_viewport.zw');
+  });
+
+  it('promotes a non-vec4 output to vec4 in both languages', () => {
+    const g: MaterialGraph = {
+      output: 'out',
+      nodes: [
+        { id: 'f', type: 'constFloat', params: { name: 'u_g', value: 0.5 } },
+        { id: 'out', type: 'output', inputs: { color: 'f' } },
+      ],
+    };
+    const src = compileMaterialGraph(g);
+    expect(src).toContain('fragColor = vec4(vec3(u_g), 1.0);');
+    expect(src).toContain('return vec4f(vec3f(mc.u_g), 1.0);');
+  });
+});
+
 describe('material graph editor ops', () => {
   it('the default graph compiles', () => {
     expect(() => compileMaterialGraph(newMaterialGraph())).not.toThrow();

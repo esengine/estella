@@ -115,10 +115,12 @@ void main() {
     }
     vec3 litRgb = applyLighting2D(c.rgb, N, v_worldPos);
     vec3 edged = (acc > 1.5) ? u_tint.rgb : litRgb;
+    vec2 sp = gl_FragCoord.xy * u_viewport.zw;
+    vec3 graded = clamp(edged + sp.x * 0.0, 0.0, 1.0);
 #ifdef GLOW
-    fragColor = vec4(edged * u_progress, c.a);
+    fragColor = vec4(graded * u_progress, c.a);
 #else
-    fragColor = vec4(edged, c.a);
+    fragColor = vec4(graded, c.a);
 #endif
 }
 #pragma end
@@ -137,10 +139,12 @@ void main() {
     }
     let litRgb = applyLighting2D(c.rgb, N, v.v_worldPos);
     let edged = select(litRgb, mc.u_tint.rgb, acc > 1.5);
+    let sp = vec2f(v.pos.x, tc.u_viewport.y - v.pos.y) * tc.u_viewport.zw;
+    let graded = saturate(edged + sp.x * 0.0);
 #ifdef GLOW
-    return vec4f(edged * mc.u_progress, c.a);
+    return vec4f(graded * mc.u_progress, c.a);
 #else
-    return vec4f(edged, c.a);
+    return vec4f(graded, c.a);
 #endif
 }
 #pragma end
