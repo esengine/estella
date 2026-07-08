@@ -20,13 +20,13 @@
 #pragma once
 
 #include "../core/Types.hpp"
-#include "../core/Log.hpp"
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten/heap.h>
 #endif
 
 #include <cstdint>
+#include <cstdio>
 
 namespace esengine {
 
@@ -45,22 +45,29 @@ inline usize boundaryHeapSize() {
  * @brief Validates a JS-supplied pointer to @p count elements of T and returns it typed.
  * @return The typed pointer, or nullptr (after an always-on error log) when the pointer
  *         is null, the byte size overflows, or the span leaves the wasm heap.
+ * @note Errors go straight to stderr (→ the module's printErr → console), not the
+ *       engine Log: this gate is shared by side modules (physics) that do not link
+ *       the Log implementation, so the header must stay dependency-free.
  */
 template <typename T>
 inline const T* boundarySpan(uintptr_t ptr, u64 count, const char* what) {
     if (ptr == 0) {
-        ES_LOG_ERROR("{}: null buffer pointer; rejected", what);
+        std::fprintf(stderr, "[boundary] %s: null buffer pointer; rejected\n", what);
         return nullptr;
     }
     const u64 bytes = count * static_cast<u64>(sizeof(T));
     if (count != 0 && bytes / count != sizeof(T)) {
-        ES_LOG_ERROR("{}: byte size overflows (count {}); rejected", what, count);
+        std::fprintf(stderr, "[boundary] %s: byte size overflows (count %llu); rejected\n",
+                     what, static_cast<unsigned long long>(count));
         return nullptr;
     }
     const u64 heap = static_cast<u64>(detail::boundaryHeapSize());
     if (static_cast<u64>(ptr) > heap || bytes > heap - static_cast<u64>(ptr)) {
-        ES_LOG_ERROR("{}: span [{} + {} bytes] exceeds the wasm heap ({}); rejected",
-                     what, ptr, bytes, heap);
+        std::fprintf(stderr,
+                     "[boundary] %s: span [%llu + %llu bytes] exceeds the wasm heap (%llu); rejected\n",
+                     what, static_cast<unsigned long long>(ptr),
+                     static_cast<unsigned long long>(bytes),
+                     static_cast<unsigned long long>(heap));
         return nullptr;
     }
     return reinterpret_cast<const T*>(ptr);

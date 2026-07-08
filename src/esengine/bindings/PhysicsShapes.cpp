@@ -136,7 +136,7 @@ void physics_addPolygonShape(uint32_t entityId, uintptr_t verticesPtr, int verte
     shapeDef.filter.categoryBits = static_cast<uint64_t>(categoryBits);
     shapeDef.filter.maskBits = static_cast<uint64_t>(maskBits);
 
-    auto* floats = boundarySpan<float>(verticesPtr, static_cast<u64>(vertexCount) * 2, "physics_addPolygonShape");
+    auto* floats = esengine::boundarySpan<float>(verticesPtr, static_cast<esengine::u64>(vertexCount) * 2, "physics_addPolygonShape");
     if (!floats) return;
     b2Vec2 points[B2_MAX_POLYGON_VERTICES];
     for (int i = 0; i < vertexCount; i++) {
@@ -163,7 +163,7 @@ void physics_addChainShape(uint32_t entityId, uintptr_t pointsPtr, int pointCoun
     // count can't allocate gigabytes or walk the heap.
     if (pointCount < 4 || pointCount > 65536) return;
 
-    auto* floats = boundarySpan<float>(pointsPtr, static_cast<u64>(pointCount) * 2, "physics_addChainShape");
+    auto* floats = esengine::boundarySpan<float>(pointsPtr, static_cast<esengine::u64>(pointCount) * 2, "physics_addChainShape");
     if (!floats) return;
     std::vector<b2Vec2> points(pointCount);
     for (int i = 0; i < pointCount; i++) {

@@ -6,6 +6,7 @@
 #include "../resource/TextureMetadata.hpp"
 #include "../text/BitmapFont.hpp"
 #include "../core/Types.hpp"
+#include "../core/Log.hpp"
 
 #include <emscripten/val.h>
 
