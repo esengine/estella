@@ -14,7 +14,7 @@ import {
     clearTilemapSourceCache,
 } from '../src/tilemap/tilesetCache';
 import {
-    loadTiledMap, parseTmjJson, resolveRelativePath, loadTiledCollisionObjects,
+    loadTiledMap, parseTmjJson, parseTmjWithExternals, resolveRelativePath, loadTiledCollisionObjects,
     generateLayerCollision, generateObjectCollision, isCollisionObjectGroup,
     type TiledObjectData, type TiledObjectGroupData,
 } from '../src/tilemap/tiledLoader';
@@ -757,6 +757,124 @@ describe('parseTmjJson — Phase B: objectgroup parsing', () => {
         const group = result!.objectGroups[0];
         expect(group.visible).toBe(false);
         expect(group.properties.get('collision')).toBe(true);
+    });
+});
+
+describe('parseTmjJson — group layers, infinite chunks, external tilesets', () => {
+    it('flattens Tiled group layers (tile + object layers inside groups surface)', () => {
+        const json = {
+            width: 4, height: 4, tilewidth: 16, tileheight: 16,
+            tilesets: [],
+            layers: [{
+                type: 'group', name: 'World',
+                layers: [
+                    { type: 'tilelayer', name: 'Ground', width: 4, height: 4, data: [1, 0, 0, 0] },
+                    {
+                        type: 'group', name: 'Inner',
+                        layers: [{ type: 'objectgroup', name: 'Collision', objects: [{ id: 1, x: 0, y: 0, width: 16, height: 16, rotation: 0 }] }],
+                    },
+                ],
+            }],
+        };
+        const result = parseTmjJson(json)!;
+        expect(result.layers.map((l) => l.name)).toEqual(['Ground']);
+        expect(result.objectGroups.map((g) => g.name)).toEqual(['Collision']);
+    });
+
+    it('re-chunks infinite layers into engine chunk indices (16x16, floor for negatives)', () => {
+        const chunkData = (fill: Array<[number, number]>): number[] => {
+            const d = new Array(256).fill(0);
+            for (const [i, gid] of fill) d[i] = gid;
+            return d;
+        };
+        const json = {
+            width: 4, height: 4, tilewidth: 16, tileheight: 16, infinite: true,
+            tilesets: [],
+            layers: [{
+                type: 'tilelayer', name: 'Ground',
+                chunks: [
+                    { x: 16, y: 0, width: 16, height: 16, data: chunkData([[0, 5]]) },
+                    { x: -16, y: -16, width: 16, height: 16, data: chunkData([[255, 7]]) },
+                ],
+            }],
+        };
+        const result = parseTmjJson(json)!;
+        const layer = result.layers[0];
+        expect(layer.infinite).toBe(true);
+        expect(layer.tiles.length).toBe(0);
+        const byKey = new Map(layer.chunks.map((c) => [`${c.x},${c.y}`, c]));
+        expect(byKey.get('1,0')!.tiles[0]).toBe(5);
+        expect(byKey.get('-1,-1')!.tiles[255]).toBe(7);
+    });
+
+    it('splits chunk data that straddles engine chunk boundaries', () => {
+        // A 16-wide Tiled chunk anchored at tile x=8 spans engine chunks 0 and 1.
+        const data = new Array(256).fill(0);
+        data[0] = 3;   // tile (8, 0)  -> engine chunk 0, local (8, 0)
+        data[8] = 4;   // tile (16, 0) -> engine chunk 1, local (0, 0)
+        const json = {
+            width: 4, height: 4, tilewidth: 16, tileheight: 16, infinite: true,
+            tilesets: [],
+            layers: [{ type: 'tilelayer', name: 'G', chunks: [{ x: 8, y: 0, width: 16, height: 16, data }] }],
+        };
+        const layer = parseTmjJson(json)!.layers[0];
+        const byKey = new Map(layer.chunks.map((c) => [`${c.x},${c.y}`, c]));
+        expect(byKey.get('0,0')!.tiles[8]).toBe(3);
+        expect(byKey.get('1,0')!.tiles[0]).toBe(4);
+    });
+
+    it('converts chunk GIDs (flip flags become engine flags)', () => {
+        const data = new Array(256).fill(0);
+        data[0] = (5 | 0x80000000) >>> 0; // gid 5, horizontally flipped
+        const json = {
+            width: 4, height: 4, tilewidth: 16, tileheight: 16, infinite: true,
+            tilesets: [],
+            layers: [{ type: 'tilelayer', name: 'G', chunks: [{ x: 0, y: 0, width: 16, height: 16, data }] }],
+        };
+        const layer = parseTmjJson(json)!.layers[0];
+        expect(layer.chunks[0].tiles[0]).toBe(5 | 0x2000);
+    });
+
+    it('parseTmjWithExternals merges external .tsj tilesets (map-relative image, animations, collision)', async () => {
+        const tsj = {
+            name: 'terrain', image: '../textures/terrain.png',
+            tilewidth: 16, tileheight: 16, columns: 8, tilecount: 64,
+            tiles: [
+                { id: 2, properties: [{ name: 'collision', value: true }] },
+                { id: 3, animation: [{ tileid: 3, duration: 100 }, { tileid: 4, duration: 150 }] },
+            ],
+        };
+        const resolver = vi.fn(async (source: string) => {
+            expect(source).toBe('tilesets/terrain.tsj');
+            return JSON.stringify(tsj);
+        });
+        const json = {
+            width: 4, height: 4, tilewidth: 16, tileheight: 16,
+            tilesets: [{ firstgid: 1, source: 'tilesets/terrain.tsj' }],
+            layers: [{ type: 'tilelayer', name: 'G', width: 4, height: 4, data: [3, 0, 0, 0] }],
+        };
+        const result = (await parseTmjWithExternals(json, resolver))!;
+        expect(resolver).toHaveBeenCalledTimes(1);
+        expect(result.tilesets[0]).toEqual({
+            name: 'terrain', image: 'textures/terrain.png', firstGid: 1,
+            tileWidth: 16, tileHeight: 16, columns: 8, tileCount: 64,
+        });
+        expect(result.collisionTileIds).toEqual([3]);
+        expect(result.tileAnimations.get(4)).toEqual([
+            { tileId: 4, duration: 100 }, { tileId: 5, duration: 150 },
+        ]);
+    });
+
+    it('parseTmjWithExternals never invokes the resolver for inline-only maps', async () => {
+        const resolver = vi.fn();
+        const json = {
+            width: 4, height: 4, tilewidth: 16, tileheight: 16,
+            tilesets: [{ firstgid: 1, name: 'ts', image: 'ts.png', tilewidth: 16, tileheight: 16, columns: 4, tilecount: 16 }],
+            layers: [],
+        };
+        const result = await parseTmjWithExternals(json, resolver as never);
+        expect(result).not.toBeNull();
+        expect(resolver).not.toHaveBeenCalled();
     });
 });
 

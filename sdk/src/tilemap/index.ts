@@ -4,7 +4,7 @@ export { Tilemap, TilemapLayer, type TilemapData, type TilemapLayerData } from '
 export { TilemapAPI, Tilemaps, initTilemapAPI, shutdownTilemapAPI } from './tilemapAPI';
 export { TilemapPlugin, tilemapPlugin } from './tilemapPlugin';
 export {
-    parseTiledMap, parseTmjJson, loadTiledMap, loadTiledCollisionObjects,
+    parseTmjJson, parseTmjWithExternals, loadTiledMap, loadTiledCollisionObjects,
     generateTileCollision, generateLayerCollision, generateChunkCollision,
     generateChunkPolygonCollision, generateObjectCollision, isCollisionObjectGroup,
     polygonLocalVerts, resolveRelativePath,

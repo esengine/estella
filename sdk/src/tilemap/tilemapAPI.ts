@@ -50,60 +50,6 @@ interface TilemapModule {
 
     HEAPF32: Float32Array;
 
-    tiled_loadMap(dataPtr: number, dataSize: number): number;
-    tiled_freeMap(handle: number): void;
-    tiled_getExternalTilesetCount(handle: number): number;
-    tiled_getExternalTilesetSource(handle: number, index: number): string;
-    tiled_loadExternalTileset(handle: number, index: number,
-                               dataPtr: number, dataSize: number): boolean;
-    tiled_finalize(handle: number): boolean;
-    tiled_getMapWidth(handle: number): number;
-    tiled_getMapHeight(handle: number): number;
-    tiled_getMapTileWidth(handle: number): number;
-    tiled_getMapTileHeight(handle: number): number;
-    tiled_getLayerCount(handle: number): number;
-    tiled_getLayerName(handle: number, index: number): string;
-    tiled_getLayerWidth(handle: number, index: number): number;
-    tiled_getLayerHeight(handle: number, index: number): number;
-    tiled_getLayerVisible(handle: number, index: number): boolean;
-    tiled_getLayerTiles(handle: number, index: number,
-                         outPtr: number, maxCount: number): number;
-    tiled_getTilesetCount(handle: number): number;
-    tiled_getTilesetName(handle: number, index: number): string;
-    tiled_getTilesetImage(handle: number, index: number): string;
-    tiled_getTilesetTileWidth(handle: number, index: number): number;
-    tiled_getTilesetTileHeight(handle: number, index: number): number;
-    tiled_getTilesetColumns(handle: number, index: number): number;
-    tiled_getTilesetTileCount(handle: number, index: number): number;
-    tiled_getTilesetFirstGid?(handle: number, index: number): number;
-
-    tiled_getObjectGroupCount(handle: number): number;
-    tiled_getObjectGroupName(handle: number, index: number): string;
-    tiled_getObjectCount(handle: number, groupIndex: number): number;
-    tiled_getObjectX(handle: number, groupIndex: number, objIndex: number): number;
-    tiled_getObjectY(handle: number, groupIndex: number, objIndex: number): number;
-    tiled_getObjectWidth(handle: number, groupIndex: number, objIndex: number): number;
-    tiled_getObjectHeight(handle: number, groupIndex: number, objIndex: number): number;
-    tiled_getObjectRotation(handle: number, groupIndex: number, objIndex: number): number;
-    tiled_getObjectEllipse(handle: number, groupIndex: number, objIndex: number): boolean;
-    tiled_getObjectPoint(handle: number, groupIndex: number, objIndex: number): boolean;
-    tiled_getObjectVertexCount(handle: number, groupIndex: number, objIndex: number): number;
-    tiled_getObjectVertices(handle: number, groupIndex: number, objIndex: number,
-                             outPtr: number, maxFloats: number): number;
-
-    tiled_getLayerOpacity(handle: number, index: number): number;
-    tiled_getLayerTintColor(handle: number, index: number): number;
-    tiled_getLayerParallaxX(handle: number, index: number): number;
-    tiled_getLayerParallaxY(handle: number, index: number): number;
-    tiled_isMapInfinite(handle: number): boolean;
-    tiled_isLayerInfinite(handle: number, index: number): boolean;
-    tiled_getLayerChunkCount(handle: number, index: number): number;
-    tiled_getLayerChunkX(handle: number, layerIndex: number, chunkIndex: number): number;
-    tiled_getLayerChunkY(handle: number, layerIndex: number, chunkIndex: number): number;
-    tiled_getLayerChunkWidth(handle: number, layerIndex: number, chunkIndex: number): number;
-    tiled_getLayerChunkHeight(handle: number, layerIndex: number, chunkIndex: number): number;
-    tiled_getLayerChunkTiles(handle: number, layerIndex: number, chunkIndex: number,
-                              outPtr: number, maxCount: number): number;
 
     HEAPU8: Uint8Array;
     _malloc(size: number): number;
@@ -121,10 +67,6 @@ export function initTilemapAPI(m: ESEngineModule): void {
 export function shutdownTilemapAPI(): void {
     bridge.disconnect();
     module_ = null;
-}
-
-export function getTiledAPI(): TilemapModule | null {
-    return module_;
 }
 
 export const TilemapAPI = {

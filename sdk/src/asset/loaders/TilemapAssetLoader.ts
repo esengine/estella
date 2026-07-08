@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { AssetLoader, LoadContext, TilemapResult } from '../AssetLoader';
-import { parseTmjJson, resolveRelativePath } from '../../tilemap/tiledLoader';
+import { parseTmjWithExternals, resolveRelativePath } from '../../tilemap/tiledLoader';
 import { registerTilemapSource } from '../../tilemap/tilesetCache';
 import { log } from '../../logger';
 
@@ -12,7 +12,10 @@ export class TilemapAssetLoader implements AssetLoader<TilemapResult> {
     async load(path: string, ctx: LoadContext): Promise<TilemapResult> {
         const buildPath = ctx.catalog.getBuildPath(path);
         const text = await ctx.loadText(buildPath);
-        const mapData = parseTmjJson(JSON.parse(text));
+        // External .tsj tilesets resolve relative to the map, through the same
+        // text channel as the map itself.
+        const mapData = await parseTmjWithExternals(JSON.parse(text), (source) =>
+            ctx.loadText(ctx.catalog.getBuildPath(resolveRelativePath(path, source))));
         if (!mapData) {
             throw new Error(`Failed to parse tilemap: ${path}`);
         }

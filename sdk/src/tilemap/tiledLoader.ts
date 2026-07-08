@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { getTiledAPI, TilemapAPI } from './tilemapAPI';
+import { TilemapAPI } from './tilemapAPI';
 import type { World } from '../world';
 import type { Entity } from '../types';
 import { TilemapLayer } from './components';
@@ -42,7 +42,6 @@ import { mergeCollisionTiles } from './collisionMerge';
 import { CHUNK_SIZE } from './chunkCodec';
 import { tileIdOf, tileFlagsOf } from './tileBits';
 import { log } from '../logger';
-import { withMalloc } from '../wasmScratch';
 
 export interface TiledChunkData {
     x: number;
@@ -174,6 +173,62 @@ function convertGid(gid: number): number {
     return globalId | flags;
 }
 
+/**
+ * Flatten Tiled `group` layers (which nest child layers) into one list, in
+ * document order — matching how tile/object layers are consumed.
+ */
+function flattenTmjLayers(rawLayers: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
+    const out: Array<Record<string, unknown>> = [];
+    for (const layer of rawLayers) {
+        if (layer.type === 'group') {
+            const children = layer.layers as Array<Record<string, unknown>> | undefined;
+            if (children) out.push(...flattenTmjLayers(children));
+        } else {
+            out.push(layer);
+        }
+    }
+    return out;
+}
+
+/**
+ * Re-chunk a Tiled infinite-layer chunk (tile-coordinate anchored, arbitrary
+ * size) into the engine's CHUNK_SIZE grid, keyed by CHUNK INDICES — the
+ * coordinate space `TilemapAPI.setChunkTiles` expects. Handles negative tile
+ * coordinates (infinite maps grow in all directions) via floor division.
+ */
+function rechunkTiledLayer(rawChunks: Array<Record<string, unknown>>): TiledChunkData[] {
+    const engine = new Map<string, TiledChunkData>();
+    for (const chunk of rawChunks) {
+        const baseX = (chunk.x as number) ?? 0;
+        const baseY = (chunk.y as number) ?? 0;
+        const w = (chunk.width as number) ?? 0;
+        const h = (chunk.height as number) ?? 0;
+        const data = chunk.data as number[] | undefined;
+        if (!data) continue;
+        for (let ty = 0; ty < h; ty++) {
+            for (let tx = 0; tx < w; tx++) {
+                const gid = data[ty * w + tx];
+                if (!gid) continue;
+                const gx = baseX + tx;
+                const gy = baseY + ty;
+                const cx = Math.floor(gx / CHUNK_SIZE);
+                const cy = Math.floor(gy / CHUNK_SIZE);
+                const key = `${cx},${cy}`;
+                let target = engine.get(key);
+                if (!target) {
+                    target = {
+                        x: cx, y: cy, width: CHUNK_SIZE, height: CHUNK_SIZE,
+                        tiles: new Uint16Array(CHUNK_SIZE * CHUNK_SIZE),
+                    };
+                    engine.set(key, target);
+                }
+                target.tiles[(gy - cy * CHUNK_SIZE) * CHUNK_SIZE + (gx - cx * CHUNK_SIZE)] = convertGid(gid);
+            }
+        }
+    }
+    return [...engine.values()];
+}
+
 export function parseTmjJson(json: Record<string, unknown>): TiledMapData | null {
     const width = json.width as number;
     const height = json.height as number;
@@ -198,7 +253,8 @@ export function parseTmjJson(json: Record<string, unknown>): TiledMapData | null
         }
     }
 
-    const rawLayers = json.layers as Array<Record<string, unknown>> | undefined;
+    const topLayers = json.layers as Array<Record<string, unknown>> | undefined;
+    const rawLayers = topLayers ? flattenTmjLayers(topLayers) : undefined;
     const layers: TiledLayerData[] = [];
 
     if (rawLayers) {
@@ -208,9 +264,12 @@ export function parseTmjJson(json: Record<string, unknown>): TiledMapData | null
             const lh = (layer.height as number) ?? height;
             const visible = layer.visible !== false;
             const rawData = layer.data as number[] | undefined;
+            const rawChunks = layer.chunks as Array<Record<string, unknown>> | undefined;
 
-            const tiles = new Uint16Array(lw * lh);
-            if (rawData) {
+            const infinite = !!rawChunks && rawChunks.length > 0;
+            const chunks = infinite ? rechunkTiledLayer(rawChunks!) : [];
+            const tiles = new Uint16Array(infinite ? 0 : lw * lh);
+            if (!infinite && rawData) {
                 for (let i = 0; i < rawData.length && i < tiles.length; i++) {
                     tiles[i] = convertGid(rawData[i]);
                 }
@@ -228,8 +287,8 @@ export function parseTmjJson(json: Record<string, unknown>): TiledMapData | null
                 height: lh,
                 visible,
                 tiles,
-                chunks: [],
-                infinite: false,
+                chunks,
+                infinite,
                 opacity,
                 tintColor,
                 parallaxX,
@@ -362,6 +421,32 @@ export function parseTmjJson(json: Record<string, unknown>): TiledMapData | null
     };
 }
 
+/**
+ * Parse a .tmj whose tilesets may be EXTERNAL references (`{firstgid, source}`
+ * pointing at a .tsj): fetch each source through `resolveExternal`, merge it
+ * inline (a .tsj carries the same tileset fields, minus firstgid) with its
+ * image path rewritten from tsj-relative to map-relative, then run the
+ * standard parse. Maps with only inline tilesets never invoke the resolver.
+ */
+export async function parseTmjWithExternals(
+    json: Record<string, unknown>,
+    resolveExternal: (source: string) => Promise<string>,
+): Promise<TiledMapData | null> {
+    const rawTilesets = json.tilesets as Array<Record<string, unknown>> | undefined;
+    if (rawTilesets?.some((ts) => typeof ts.source === 'string')) {
+        const merged = await Promise.all(rawTilesets.map(async (ts) => {
+            if (typeof ts.source !== 'string') return ts;
+            let external = JSON.parse(await resolveExternal(ts.source)) as Record<string, unknown>;
+            if (typeof external.image === 'string' && external.image) {
+                external = { ...external, image: resolveRelativePath(ts.source, external.image) };
+            }
+            return { ...external, firstgid: ts.firstgid };
+        }));
+        json = { ...json, tilesets: merged };
+    }
+    return parseTmjJson(json);
+}
+
 export function resolveRelativePath(basePath: string, relativePath: string): string {
     // Preserve a URL scheme+authority (e.g. "estella://project", "http://host")
     // before normalizing: the "//" after the scheme must survive, but the segment
@@ -385,137 +470,6 @@ export function resolveRelativePath(basePath: string, relativePath: string): str
         }
     }
     return prefix ? `${prefix}/${resolved.join('/')}` : resolved.join('/');
-}
-
-export async function parseTiledMap(
-    jsonString: string,
-    resolveExternal?: (source: string) => Promise<string>
-): Promise<TiledMapData | null> {
-    const api = getTiledAPI();
-    if (!api) return null;
-
-    const encoder = new TextEncoder();
-    const encoded = encoder.encode(jsonString);
-    const handle = withMalloc(api, encoded.byteLength, ptr => {
-        api.HEAPU8.set(encoded, ptr);
-        return api.tiled_loadMap(ptr, encoded.byteLength);
-    });
-
-    if (handle === 0) return null;
-
-    try {
-        const extCount = api.tiled_getExternalTilesetCount(handle);
-        for (let i = 0; i < extCount; i++) {
-            const source = api.tiled_getExternalTilesetSource(handle, i);
-            if (!resolveExternal) {
-                api.tiled_freeMap(handle);
-                return null;
-            }
-            const tsjContent = await resolveExternal(source);
-            const tsjEncoded = encoder.encode(tsjContent);
-            const ok = withMalloc(api, tsjEncoded.byteLength, tsjPtr => {
-                api.HEAPU8.set(tsjEncoded, tsjPtr);
-                return api.tiled_loadExternalTileset(handle, i, tsjPtr, tsjEncoded.byteLength);
-            });
-            if (!ok) {
-                api.tiled_freeMap(handle);
-                return null;
-            }
-        }
-
-        if (!api.tiled_finalize(handle)) {
-            api.tiled_freeMap(handle);
-            return null;
-        }
-
-        const result: TiledMapData = {
-            width: api.tiled_getMapWidth(handle),
-            height: api.tiled_getMapHeight(handle),
-            tileWidth: api.tiled_getMapTileWidth(handle),
-            tileHeight: api.tiled_getMapTileHeight(handle),
-            orientation: 'orthogonal',
-            hexSideLength: 0,
-            staggerAxis: 'y',
-            staggerIndex: 'odd',
-            layers: [],
-            tilesets: [],
-            objectGroups: [],
-            collisionTileIds: [],
-            tileAnimations: new Map(),
-            tileProperties: new Map(),
-        };
-
-        const layerCount = api.tiled_getLayerCount(handle);
-        for (let i = 0; i < layerCount; i++) {
-            const w = api.tiled_getLayerWidth(handle, i);
-            const h = api.tiled_getLayerHeight(handle, i);
-            const layerInfinite = api.tiled_isLayerInfinite(handle, i);
-
-            let tiles = new Uint16Array(0);
-            const chunks: TiledChunkData[] = [];
-
-            if (layerInfinite) {
-                const chunkCount = api.tiled_getLayerChunkCount(handle, i);
-                for (let c = 0; c < chunkCount; c++) {
-                    const cx = api.tiled_getLayerChunkX(handle, i, c);
-                    const cy = api.tiled_getLayerChunkY(handle, i, c);
-                    const cw = api.tiled_getLayerChunkWidth(handle, i, c);
-                    const ch = api.tiled_getLayerChunkHeight(handle, i, c);
-                    const count = cw * ch;
-                    const chunkTiles = withMalloc(api, count * 2, ptr => {
-                        api.tiled_getLayerChunkTiles(handle, i, c, ptr, count);
-                        const out = new Uint16Array(count);
-                        out.set(new Uint16Array(api.HEAPU8.buffer, ptr, count));
-                        return out;
-                    });
-                    chunks.push({ x: cx, y: cy, width: cw, height: ch, tiles: chunkTiles });
-                }
-            } else {
-                const tileCount = w * h;
-                tiles = new Uint16Array(tileCount);
-                withMalloc(api, tileCount * 2, tilePtr => {
-                    api.tiled_getLayerTiles(handle, i, tilePtr, tileCount);
-                    tiles.set(new Uint16Array(api.HEAPU8.buffer, tilePtr, tileCount));
-                });
-            }
-
-            result.layers.push({
-                name: api.tiled_getLayerName(handle, i),
-                width: w,
-                height: h,
-                visible: api.tiled_getLayerVisible(handle, i),
-                tiles,
-                chunks,
-                infinite: layerInfinite,
-                opacity: api.tiled_getLayerOpacity(handle, i),
-                tintColor: api.tiled_getLayerTintColor
-                    ? parseTintColorU32(api.tiled_getLayerTintColor(handle, i))
-                    : { r: 1, g: 1, b: 1, a: 1 },
-                parallaxX: api.tiled_getLayerParallaxX(handle, i),
-                parallaxY: api.tiled_getLayerParallaxY(handle, i),
-            });
-        }
-
-        const tilesetCount = api.tiled_getTilesetCount(handle);
-        for (let i = 0; i < tilesetCount; i++) {
-            result.tilesets.push({
-                name: api.tiled_getTilesetName(handle, i),
-                image: api.tiled_getTilesetImage(handle, i),
-                firstGid: api.tiled_getTilesetFirstGid ? api.tiled_getTilesetFirstGid(handle, i) : 1,
-                tileWidth: api.tiled_getTilesetTileWidth(handle, i),
-                tileHeight: api.tiled_getTilesetTileHeight(handle, i),
-                columns: api.tiled_getTilesetColumns(handle, i),
-                tileCount: api.tiled_getTilesetTileCount(handle, i),
-            });
-        }
-
-        api.tiled_freeMap(handle);
-        return result;
-    } catch (e) {
-        log.warn('tilemap', 'Failed to parse tilemap', e);
-        api.tiled_freeMap(handle);
-        return null;
-    }
 }
 
 export interface TilemapLoadOptions {

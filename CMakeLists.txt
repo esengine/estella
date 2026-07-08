@@ -96,7 +96,6 @@ if(ES_ENABLE_TILEMAP)
     list(APPEND ESENGINE_SOURCES
         src/esengine/renderer/plugins/TilemapRenderPlugin.cpp
         src/esengine/tilemap/TilemapSystem.cpp
-        src/esengine/tilemap/TiledMapLoader.cpp
     )
 endif()
 
@@ -190,7 +189,6 @@ if(ES_ENABLE_TILEMAP)
     list(APPEND ESENGINE_HEADERS
         src/esengine/renderer/plugins/TilemapRenderPlugin.hpp
         src/esengine/tilemap/TilemapSystem.hpp
-        src/esengine/tilemap/TiledMapLoader.hpp
     )
 endif()
 
@@ -269,7 +267,6 @@ target_include_directories(esengine
 target_link_libraries(esengine PUBLIC glm yogacore)
 
 if(ES_ENABLE_TILEMAP)
-    target_link_libraries(esengine PUBLIC cute_tiled)
     target_compile_definitions(esengine PUBLIC ES_ENABLE_TILEMAP)
 endif()
 

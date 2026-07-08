@@ -28,7 +28,6 @@
 #ifdef ES_ENABLE_TILEMAP
 #include "../renderer/plugins/TilemapRenderPlugin.hpp"
 #include "../tilemap/TilemapSystem.hpp"
-#include "../tilemap/TiledMapLoader.hpp"
 #endif
 #include "../resource/ResourceManager.hpp"
 #include "../ecs/TransformSystem.hpp"
@@ -143,7 +142,6 @@ void EstellaContext::initSubsystems(Unique<GfxDevice> gfxDevice) {
 
 #ifdef ES_ENABLE_TILEMAP
     services_.registerOwned<tilemap::TilemapSystem>(makeUnique<tilemap::TilemapSystem>());
-    services_.registerOwned<tilemap::TiledMapLoader>(makeUnique<tilemap::TiledMapLoader>());
 #endif
 
     auto renderFrame = makeUnique<RenderFrame>(*gfxDevicePtr, *rc, *rm);
