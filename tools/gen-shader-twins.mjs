@@ -14,10 +14,13 @@
  *                                       split into texture/sampler pairs at the
  *                                       group-1 unit map, explicit varying
  *                                       locations
- *   glslangValidator -V               — GLSL ES 310 → SPIR-V (Vulkan semantics)
- *   naga (vendored WASI wasm)         — SPIR-V → WGSL, in-process — no Rust
- *                                       toolchain needed (build-tools/shader-twins)
+ *   glslang (vendored wasm)           — GLSL ES 310 → SPIR-V (Vulkan semantics,
+ *                                       -V --auto-map-locations equivalent)
+ *   naga (vendored WASI wasm)         — SPIR-V → WGSL, in-process
  *   post (this file)                  — entry rename to vs_main/fs_main
+ *
+ * Both converters live in build-tools/shader-twins/ as committed wasm — the
+ * pipeline needs no Vulkan SDK, no Rust toolchain, no PATH binaries.
  *
  * The emitted twins are FULL programs: ShaderParser skips its injected headers
  * for `wgsl full` sections, so the translated header declarations don't clash.
@@ -30,20 +33,17 @@
  *   --check  report what would change, write nothing (exit 1 if any)
  *   --force  regenerate even when a twin exists (replaces generated sections)
  *
- * Requires: a built engine (pnpm build:web) and glslangValidator on PATH (ships
- * with the Vulkan SDK / Khronos release binaries; a vendored wasm build is a
- * tracked follow-up). Shaders using `#pragma switch` are skipped (permutations
- * need per-set twins; hand-author those) — the tool says so per file.
+ * Requires: a built engine (pnpm build:web). Shaders using `#pragma switch`
+ * are skipped (permutations need per-set twins; hand-author those) — the tool
+ * says so per file.
  */
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { glslToSpv } from '../build-tools/shader-twins/glslang.mjs';
 import { spvFileToWgsl } from '../build-tools/shader-twins/naga.mjs';
 
-const execFileP = promisify(execFile);
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const WASM_GLUE = path.join(ROOT, 'desktop', 'public', 'wasm', 'esengine.js');
 
@@ -254,20 +254,11 @@ function assignVaryingLocations(vert, frag) {
   return { vert: vertOut, frag: fragOut };
 }
 
-/** GLSL (adapted) → WGSL via glslangValidator -V + vendored naga, renaming the entry. */
+/** GLSL (adapted) → WGSL via the vendored glslang + naga wasm, renaming the entry. */
 async function glslToWgsl(glsl, stage, entryName, workDir) {
-  const src = path.join(workDir, `stage.${stage}`);
   const spv = path.join(workDir, `stage.${stage}.spv`);
   const wgsl = path.join(workDir, `stage.${stage}.wgsl`);
-  await writeFile(src, glsl, 'utf8');
-  try {
-    await execFileP('glslangValidator', ['-V', '--auto-map-locations', '-o', spv, src]);
-  } catch (e) {
-    const hint = e.code === 'ENOENT'
-      ? 'glslangValidator not found on PATH (it ships with the Vulkan SDK / Khronos release binaries)'
-      : `${e.stdout ?? ''}${e.stderr ?? ''}`;
-    throw new Error(`glslang failed for ${stage} stage:\n${hint}`);
-  }
+  await writeFile(spv, await glslToSpv(glsl, stage));
   await spvFileToWgsl(spv, wgsl);
   const text = await readFile(wgsl, 'utf8');
   // naga emits `fn main(` as the entry (the inner body lands in main_1) - the
@@ -342,7 +333,9 @@ async function main() {
       console.error(`[twin] FAIL: ${file}\n  ${e.message.replace(/\n/g, '\n  ')}`);
     }
   }
-  process.exit(failed > 0 ? 1 : pending > 0 ? 1 : 0);
+  // Graceful exit (exitCode, not process.exit): a hard exit races the live
+  // emscripten runtimes' teardown on Windows (STATUS_STACK_BUFFER_OVERRUN).
+  process.exitCode = failed > 0 || pending > 0 ? 1 : 0;
 }
 
 await main();

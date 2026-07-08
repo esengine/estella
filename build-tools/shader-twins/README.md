@@ -25,10 +25,20 @@ cp target/wasm32-wasip1/release/naga-spv2wgsl.wasm ../../build-tools/shader-twin
 Output is byte-identical to `naga-cli` 30 for the pipeline's inputs (verified
 against the fixture shaders when vendored).
 
-## GLSL → SPIR-V (still an external tool)
+## glslang-compile.{mjs,wasm} (committed)
 
-`glslangValidator` (Vulkan semantics, `-V --auto-map-locations`) must be on
-PATH — it ships with the Vulkan SDK, Khronos also publishes standalone release
-binaries. Vendoring it as a wasm build (Khronos glslang has an official
-emscripten/JS target) needs the glslang source tree in-repo; that dependency
-addition is a project decision, tracked in docs/REARCHITECTURE.md.
+GLSL → SPIR-V. An emscripten build of Khronos glslang (pinned
+`third_party/glslang` submodule, release 16.3.0) behind a thin C ABI
+(`tools/glslang-wasm/wrapper.cpp`) that mirrors `glslangValidator -V
+--auto-map-locations`: Vulkan 1.0 semantics, SPIR-V 1.0, auto-mapped
+locations, no optimizer. Run in-process by `glslang.mjs`. Rebuild:
+
+```
+git submodule update --init third_party/glslang
+node tools/glslang-wasm/build.mjs
+```
+
+With both converters committed, `tools/gen-shader-twins.mjs` runs with **no
+external tools at all** (only a built engine, `pnpm build:web`). Regenerating
+every fixture shader through the vendored pipeline reproduced the committed
+twins byte-for-byte (vs. native glslangValidator 16.0.0 + naga-cli 30).

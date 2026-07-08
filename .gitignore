@@ -63,10 +63,12 @@ desktop/.cooked-src/
 # Exception: the vendored build-time Basis KTX2 encoder (RC6 B4) is committed so
 # asset cooking needs no emsdk. See build-tools/basis/README.md for provenance.
 !build-tools/basis/basis_encoder.wasm
-# Exception: the vendored SPIR-V→WGSL converter (naga, WASI build) is committed so
-# shader-twin generation needs no Rust toolchain. Source: tools/naga-spv2wgsl;
+# Exception: the vendored shader-twin converters are committed so twin generation
+# needs no Rust toolchain / Vulkan SDK. Sources: tools/naga-spv2wgsl (naga WASI),
+# tools/glslang-wasm (glslang emscripten, third_party/glslang submodule);
 # provenance: build-tools/shader-twins/README.md.
 !build-tools/shader-twins/naga-spv2wgsl.wasm
+!build-tools/shader-twins/glslang-compile.wasm
 
 # emsdk discovery cache (per-machine path written by build-tools auto-discovery)
 .emsdk-path
