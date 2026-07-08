@@ -22,10 +22,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: 'pnpm'
+
+      # TypeDoc (starlight-typedoc) compiles sdk/src against sdk/tsconfig.json,
+      # which resolves ambient types (@types/node, minigame-api-typings) from
+      # the sdk workspace's node_modules — install the workspace first.
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Install Doxygen
         run: sudo apt-get update && sudo apt-get install -y doxygen graphviz
