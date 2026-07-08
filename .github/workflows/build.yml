@@ -234,3 +234,37 @@ jobs:
           ESTELLA_VERIFY_MANIFEST=/scenes/ui-list-mask.textures.json \
           ESTELLA_VERIFY_W=800 ESTELLA_VERIFY_H=600 \
           'ESTELLA_VERIFY_EXPECT=[{"x":0.5,"y":0.5,"rgb":[255,0,0],"tol":60},{"x":0.9,"y":0.5,"rgb":[0,0,255],"tol":60},{"x":0.5,"y":0.85,"rgb":[0,0,255],"tol":60},{"x":0.5,"y":0.15,"rgb":[0,0,255],"tol":60}]'
+
+    # The SAME pixel assertions on the WebGPU backend — Dawn renders through the
+    # bundled SwiftShader Vulkan (--use-webgpu-adapter=swiftshader), so a GPU-less
+    # runner verifies the second backend for real: WGSL twins, the reflected
+    # material path, the editor grid, and the async readback (material preview).
+    - name: Run headless verify scenes (WebGPU / SwiftShader)
+      working-directory: desktop
+      env:
+        ELECTRON_DISABLE_SANDBOX: '1'
+        ESTELLA_VERIFY_BACKEND: webgpu
+        ESTELLA_VERIFY_WEBGPU_ADAPTER: swiftshader
+      run: |
+        run_scene() {
+          echo "=== $1"
+          shift
+          env "$@" xvfb-run -a pnpm exec electron scripts/headless-verify.mjs
+        }
+        run_scene webgpu-sprite-grid ESTELLA_VERIFY_GRID=64 ESTELLA_VERIFY_STEPS=3
+        run_scene webgpu-parallax-shape \
+          ESTELLA_VERIFY_SCENE=/scenes/parallax-shape.esscene \
+          ESTELLA_VERIFY_MANIFEST=/scenes/parallax-shape.textures.json \
+          ESTELLA_VERIFY_STEPS=4 \
+          'ESTELLA_VERIFY_EXPECT=[{"x":0.5,"y":0.5,"rgb":[0,255,0],"tol":40},{"x":0.25,"y":0.5,"rgb":[255,0,0],"tol":40}]'
+        run_scene webgpu-mat-lit-point \
+          ESTELLA_VERIFY_SCENE=/scenes/mat-lit-point.esscene \
+          ESTELLA_VERIFY_MANIFEST=/scenes/mat-lit-point.textures.json \
+          ESTELLA_VERIFY_W=256 ESTELLA_VERIFY_H=256 ESTELLA_VERIFY_STEPS=2 \
+          'ESTELLA_VERIFY_EXPECT=[{"x":0.5,"y":0.5,"rgb":[0,255,0],"tol":50},{"x":0.75,"y":0.5,"rgb":[0,64,0],"tol":60}]'
+        run_scene webgpu-mat-tint-preview \
+          ESTELLA_VERIFY_SCENE=/scenes/mat-tint.esscene \
+          ESTELLA_VERIFY_MANIFEST=/scenes/mat-tint.textures.json \
+          ESTELLA_VERIFY_W=256 ESTELLA_VERIFY_H=256 ESTELLA_VERIFY_STEPS=2 \
+          'ESTELLA_VERIFY_EXPECT=[{"x":0.5,"y":0.5,"rgb":[255,0,0],"tol":40}]' \
+          'ESTELLA_VERIFY_PREVIEW={"w":64,"h":64,"rgb":[255,0,0],"tol":45}'

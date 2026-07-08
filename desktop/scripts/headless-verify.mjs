@@ -46,6 +46,16 @@ const BACKEND = process.env.ESTELLA_VERIFY_BACKEND === 'webgpu' ? 'webgpu' : 'we
 
 // Headless / GPU-less (CI) WebGL2 falls back to SwiftShader; harmless with a GPU.
 app.commandLine.appendSwitch('enable-unsafe-swiftshader');
+// WebGPU: the unsafe flag covers non-default platforms (Linux CI); the optional
+// software adapter (ESTELLA_VERIFY_WEBGPU_ADAPTER=swiftshader) gives GPU-less
+// runners a real Dawn adapter through the bundled SwiftShader Vulkan — the
+// WebGPU analog of the WebGL fallback above.
+if (BACKEND === 'webgpu') {
+  app.commandLine.appendSwitch('enable-unsafe-webgpu');
+  if (process.env.ESTELLA_VERIFY_WEBGPU_ADAPTER) {
+    app.commandLine.appendSwitch('use-webgpu-adapter', process.env.ESTELLA_VERIFY_WEBGPU_ADAPTER);
+  }
+}
 process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true';
 
 const MIME = {
