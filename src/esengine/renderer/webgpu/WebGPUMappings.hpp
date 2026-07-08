@@ -315,19 +315,41 @@ inline WGPUCullMode toWGPUCullMode(bool enabled, bool front) {
 }
 
 // =============================================================================
+// Group-1 binding convention (texture units → bindings)
+// =============================================================================
+
+/**
+ * @brief Texture units the group-1 convention spans: engine units 0..7 (the
+ *        batch's u_textures[8]) plus material-param units 8..15 (the GL
+ *        MATERIAL_TEXTURE_UNIT_BASE range).
+ */
+inline constexpr u32 kGroup1TextureUnits = 16;
+
+/**
+ * @brief Group-1 binding of a texture unit's texture_2d.
+ * @details Engine units 0..7 sit at bindings 0..7 with their samplers at 8..15
+ *          (GL's combined texture+sampler state de-combined); material units
+ *          8..15 extend the group at bindings 16..23 with samplers at 24..31.
+ *          The two maps are disjoint and together cover bits 0..31 exactly, so
+ *          one u32 mask describes a whole group.
+ */
+inline constexpr u32 textureBindingForUnit(u32 unit) { return unit < 8 ? unit : unit + 8; }
+
+/** @brief Group-1 binding of a texture unit's sampler (see textureBindingForUnit). */
+inline constexpr u32 samplerBindingForUnit(u32 unit) { return unit < 8 ? unit + 8 : unit + 16; }
+
+// =============================================================================
 // WGSL binding reflection (source scan)
 // =============================================================================
 
 /**
  * @brief Bit mask of the `@group(N) @binding(i)` indices a WGSL source declares.
- * @details Bind-group entries must match a pipeline's auto layout EXACTLY, and
- *          auto layouts contain only the bindings the shader uses — so the
- *          device filters its bound state (UBO slots, texture units) through
- *          this mask per program. A source scan stands in for real reflection
- *          until the Phase 3 emitter carries binding metadata; the twins'
- *          discipline is declare-exactly-what-you-use, which makes the two
- *          equivalent. Bindings ≥ 32 are ignored (the engine's conventions top
- *          out at 16).
+ * @details Declarations drive the device's EXPLICIT bind-group layouts: every
+ *          declared binding gets a layout entry and a bind-group entry (bound
+ *          resource or dummy backfill), so declared-but-unused bindings are as
+ *          legal as they are in GLSL. A source scan stands in for real
+ *          reflection until the Phase 3 emitter carries binding metadata.
+ *          Bindings ≥ 32 are ignored (the group-1 convention tops out at 31).
  */
 inline u32 scanWGSLBindingMask(const char* source, u32 group) {
     if (!source) return 0;

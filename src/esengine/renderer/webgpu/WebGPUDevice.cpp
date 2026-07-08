@@ -89,6 +89,16 @@ void WebGPUDevice::shutdown() {
     clear_pipelines_.clear();
     if (clear_layout_) { wgpuPipelineLayoutRelease(clear_layout_); clear_layout_ = nullptr; }
     if (clear_bgl_) { wgpuBindGroupLayoutRelease(clear_bgl_); clear_bgl_ = nullptr; }
+    for (auto& [key, layout] : pipeline_layouts_) {
+        if (layout) wgpuPipelineLayoutRelease(layout);
+    }
+    pipeline_layouts_.clear();
+    for (auto& [key, layout] : group_layouts_) {
+        if (layout) wgpuBindGroupLayoutRelease(layout);
+    }
+    group_layouts_.clear();
+    dummy_ubo_ = BufferHandle{};  // the WGPUBuffer/WGPUTexture went with the maps above
+    dummy_texture_ = 0;
     framebuffers_.clear();
     for (auto& [key, sampler] : samplers_) {
         if (sampler) wgpuSamplerRelease(sampler);
@@ -443,7 +453,6 @@ void WebGPUDevice::bindTexture(u32 slot, TextureHandle texture) {
         texture_slots_[slot] = id;
         bind_group_dirty_ = true;
     }
-    if (id != 0) any_texture_bound_ = true;
 }
 
 bool WebGPUDevice::supportsCompressedFormat(GfxCompressedFormat format) {
@@ -606,6 +615,11 @@ WGPURenderPipeline WebGPUDevice::ensurePipeline(u32 id) {
     fragment.targets = &target;
 
     WGPURenderPipelineDescriptor pd{};
+    // Explicit layout from the program's binding masks — the same cached
+    // objects flushBindGroup builds bind groups against, so declared-but-
+    // unbound bindings are legal (dummy backfill) and group compatibility
+    // holds by identity.
+    pd.layout = pipelineLayoutFor(progIt->second.group0Mask, progIt->second.group1Mask);
     pd.vertex.module = progIt->second.vertex;
     pd.vertex.entryPoint = sv("vs_main");
     pd.vertex.bufferCount = slotCount;
@@ -822,6 +836,94 @@ void WebGPUDevice::drawInternalClear(bool color, bool depth, bool stencil,
     bind_group_dirty_ = true;
 }
 
+WGPUBindGroupLayout WebGPUDevice::groupLayoutFor(u32 group, u32 mask) {
+    const u64 key = (static_cast<u64>(group) << 32) | mask;
+    auto cached = group_layouts_.find(key);
+    if (cached != group_layouts_.end()) return cached->second;
+    if (!device_) return nullptr;
+
+    WGPUBindGroupLayoutEntry entries[kTextureSlots * 2];
+    u32 count = 0;
+    if (group == 0) {
+        // Engine UBO slots. minBindingSize stays 0: the shader's own struct
+        // size is validated per draw, and dummy backfill covers unbound slots.
+        for (u32 slot = 0; slot < kUniformSlots; ++slot) {
+            if ((mask & (1u << slot)) == 0) continue;
+            WGPUBindGroupLayoutEntry e{};
+            e.binding = slot;
+            e.visibility = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment;
+            e.buffer.type = WGPUBufferBindingType_Uniform;
+            entries[count++] = e;
+        }
+    } else {
+        // Texture units through the unit→binding convention. Fragment-only
+        // visibility: the engine samples in fragment stages exclusively.
+        static_assert(kTextureSlots == kGroup1TextureUnits,
+                      "device texture slots mirror the group-1 convention");
+        for (u32 unit = 0; unit < kTextureSlots; ++unit) {
+            const u32 tb = textureBindingForUnit(unit);
+            const u32 sb = samplerBindingForUnit(unit);
+            if (mask & (1u << tb)) {
+                WGPUBindGroupLayoutEntry e{};
+                e.binding = tb;
+                e.visibility = WGPUShaderStage_Fragment;
+                e.texture.sampleType = WGPUTextureSampleType_Float;
+                e.texture.viewDimension = WGPUTextureViewDimension_2D;
+                entries[count++] = e;
+            }
+            if (mask & (1u << sb)) {
+                WGPUBindGroupLayoutEntry e{};
+                e.binding = sb;
+                e.visibility = WGPUShaderStage_Fragment;
+                e.sampler.type = WGPUSamplerBindingType_Filtering;
+                entries[count++] = e;
+            }
+        }
+    }
+
+    WGPUBindGroupLayoutDescriptor bld{};
+    bld.entryCount = count;
+    bld.entries = entries;
+    WGPUBindGroupLayout layout = wgpuDeviceCreateBindGroupLayout(device_, &bld);
+    group_layouts_[key] = layout;
+    return layout;
+}
+
+WGPUPipelineLayout WebGPUDevice::pipelineLayoutFor(u32 group0Mask, u32 group1Mask) {
+    const u64 key = (static_cast<u64>(group1Mask) << 32) | group0Mask;
+    auto cached = pipeline_layouts_.find(key);
+    if (cached != pipeline_layouts_.end()) return cached->second;
+    if (!device_) return nullptr;
+
+    // Group indices are positional: a program with group-1 bindings always
+    // carries a group-0 layout too (zero entries when the mask is empty).
+    WGPUBindGroupLayout bgls[2];
+    u32 count = 0;
+    if (group0Mask != 0 || group1Mask != 0) bgls[count++] = groupLayoutFor(0, group0Mask);
+    if (group1Mask != 0) bgls[count++] = groupLayoutFor(1, group1Mask);
+
+    WGPUPipelineLayoutDescriptor pld{};
+    pld.bindGroupLayoutCount = count;
+    pld.bindGroupLayouts = bgls;
+    WGPUPipelineLayout layout = wgpuDeviceCreatePipelineLayout(device_, &pld);
+    pipeline_layouts_[key] = layout;
+    return layout;
+}
+
+void WebGPUDevice::ensureDummies() {
+    if (dummy_ubo_ == BufferHandle::Invalid || buffers_.find(static_cast<u32>(dummy_ubo_)) == buffers_.end()) {
+        // Sized past the largest engine block (LightConstants, 1184 bytes) so a
+        // declared-but-unbound block always satisfies draw-time size validation.
+        const std::vector<u8> zeros(2048, 0);
+        dummy_ubo_ = createBuffer({GfxBufferUsage::Uniform, 2048, false}, zeros.data());
+    }
+    if (dummy_texture_ == 0 || textures_.find(dummy_texture_) == textures_.end()) {
+        const u8 white[4] = {255, 255, 255, 255};
+        TextureDesc td{};
+        dummy_texture_ = static_cast<u32>(createTexture(td, white));
+    }
+}
+
 void WebGPUDevice::flushBindGroup() {
     if (!bind_group_dirty_ || !pass_ || !device_) return;
 
@@ -834,81 +936,82 @@ void WebGPUDevice::flushBindGroup() {
         if (progIt != programs_.end()) prog = &progIt->second;
     }
     if (!prog) return;
-
-    // Group 0 = the engine's UBO bindings (0..4). Entries must match the
-    // pipeline's auto layout exactly — the layout contains only the bindings
-    // the shader declares — so the bound slots filter through the program's
-    // scanned mask. (The engine keeps Frame/Time/DrawParams armed on 0/3/4;
-    // a shader that only declares FrameConstants gets a one-entry group.)
-    WGPUBindGroupEntry entries[kUniformSlots];
-    u32 count = 0;
-    for (u32 slot = 0; slot < kUniformSlots; ++slot) {
-        if (uniform_slots_[slot] == 0 || (prog->group0Mask & (1u << slot)) == 0) continue;
-        auto it = buffers_.find(uniform_slots_[slot]);
-        if (it == buffers_.end()) continue;
-        WGPUBindGroupEntry e{};
-        e.binding = slot;
-        e.buffer = it->second.buffer;
-        e.offset = 0;
-        e.size = it->second.size;
-        entries[count++] = e;
+    if (prog->group0Mask == 0 && prog->group1Mask == 0) {
+        bind_group_dirty_ = false;
+        return;
     }
 
-    if (bind_group_) { wgpuBindGroupRelease(bind_group_); bind_group_ = nullptr; }
-    if (count > 0) {
+    ensureDummies();
+
+    // Group 0 = the engine's UBO bindings (0..4). Every mask bit gets an entry
+    // against the explicit layout: the armed slot's buffer (the engine keeps
+    // Frame/Time/DrawParams on 0/3/4, Material/Light arrive per draw/frame), or
+    // the zeroed dummy for a declared-but-unbound slot. A group-1-only program
+    // still sets a (zero-entry) group 0, keeping indices positional.
+    {
+        WGPUBindGroupEntry entries[kUniformSlots];
+        u32 count = 0;
+        for (u32 slot = 0; slot < kUniformSlots; ++slot) {
+            if ((prog->group0Mask & (1u << slot)) == 0) continue;
+            auto it = buffers_.find(uniform_slots_[slot]);
+            if (it == buffers_.end()) it = buffers_.find(static_cast<u32>(dummy_ubo_));
+            if (it == buffers_.end()) continue;
+            WGPUBindGroupEntry e{};
+            e.binding = slot;
+            e.buffer = it->second.buffer;
+            e.offset = 0;
+            e.size = it->second.size;
+            entries[count++] = e;
+        }
+
+        if (bind_group_) { wgpuBindGroupRelease(bind_group_); bind_group_ = nullptr; }
         WGPUBindGroupDescriptor bgd{};
-        bgd.layout = wgpuRenderPipelineGetBindGroupLayout(p, 0);
+        bgd.layout = groupLayoutFor(0, prog->group0Mask);
         bgd.entryCount = count;
         bgd.entries = entries;
         bind_group_ = wgpuDeviceCreateBindGroup(device_, &bgd);
-        if (bgd.layout) wgpuBindGroupLayoutRelease(bgd.layout);
         if (bind_group_) wgpuRenderPassEncoderSetBindGroup(pass_, 0, bind_group_, 0, nullptr);
     }
 
-    // Group 1: the texture units. The WGSL twin convention is texture_2d at
-    // bindings 0..7 paired with samplers at bindings 8..15 (u_textures[8]
-    // de-combined: sampler i carries texture i's filter/wrap params via the
-    // sampler cache); a single-texture shader declares just t0/s0. Entries
-    // filter through the program's group-1 mask; missing units repeat slot 0's
-    // view/sampler — the same trick DrawList::execute uses for WebGL2's
-    // complete-texture rule. Only set when the pass bound textures AND the
-    // program declares the group — a sampler-less shader (shape) drawn after
-    // textured ones must keep its group-0-only layout.
-    if (any_texture_bound_ && prog->group1Mask != 0) {
-        const TextureRec* slot0 = nullptr;
-        for (u32 slot = 0; slot < kTextureSlots && !slot0; ++slot) {
-            auto it = textures_.find(texture_slots_[slot]);
-            if (it != textures_.end()) slot0 = &it->second;
-        }
-        if (slot0) {
-            WGPUBindGroupEntry texEntries[kTextureSlots * 2];
-            u32 texCount = 0;
-            for (u32 slot = 0; slot < kTextureSlots; ++slot) {
-                auto it = textures_.find(texture_slots_[slot]);
-                const TextureRec& rec = (it != textures_.end()) ? it->second : *slot0;
-                if (prog->group1Mask & (1u << slot)) {
-                    WGPUBindGroupEntry e{};
-                    e.binding = slot;
-                    e.textureView = rec.view;
-                    texEntries[texCount++] = e;
-                }
-                if (prog->group1Mask & (1u << (kTextureSlots + slot))) {
-                    WGPUBindGroupEntry e{};
-                    e.binding = kTextureSlots + slot;
-                    e.sampler = samplerFor(rec.samplerKey);
-                    texEntries[texCount++] = e;
-                }
-            }
+    // Group 1: the texture units through the unit→binding convention (engine
+    // units 0..7 at texture bindings 0..7 / samplers 8..15, material units
+    // 8..15 at 16..23 / 24..31; sampler i carries texture i's filter/wrap
+    // params via the sampler cache). Every declared binding gets an entry —
+    // the bound unit's view/sampler or the 1x1 white dummy — so the group
+    // always matches the explicit layout, textures bound or not.
+    if (prog->group1Mask != 0) {
+        auto dummyIt = textures_.find(dummy_texture_);
+        const TextureRec* dummy = (dummyIt != textures_.end()) ? &dummyIt->second : nullptr;
 
-            if (texture_group_) { wgpuBindGroupRelease(texture_group_); texture_group_ = nullptr; }
-            WGPUBindGroupDescriptor tgd{};
-            tgd.layout = wgpuRenderPipelineGetBindGroupLayout(p, 1);
-            tgd.entryCount = texCount;
-            tgd.entries = texEntries;
-            texture_group_ = wgpuDeviceCreateBindGroup(device_, &tgd);
-            if (tgd.layout) wgpuBindGroupLayoutRelease(tgd.layout);
-            if (texture_group_) wgpuRenderPassEncoderSetBindGroup(pass_, 1, texture_group_, 0, nullptr);
+        WGPUBindGroupEntry texEntries[kTextureSlots * 2];
+        u32 texCount = 0;
+        for (u32 unit = 0; unit < kTextureSlots; ++unit) {
+            auto it = textures_.find(texture_slots_[unit]);
+            const TextureRec* rec = (it != textures_.end()) ? &it->second : dummy;
+            if (!rec) continue;
+            const u32 tb = textureBindingForUnit(unit);
+            const u32 sb = samplerBindingForUnit(unit);
+            if (prog->group1Mask & (1u << tb)) {
+                WGPUBindGroupEntry e{};
+                e.binding = tb;
+                e.textureView = rec->view;
+                texEntries[texCount++] = e;
+            }
+            if (prog->group1Mask & (1u << sb)) {
+                WGPUBindGroupEntry e{};
+                e.binding = sb;
+                e.sampler = samplerFor(rec->samplerKey);
+                texEntries[texCount++] = e;
+            }
         }
+
+        if (texture_group_) { wgpuBindGroupRelease(texture_group_); texture_group_ = nullptr; }
+        WGPUBindGroupDescriptor tgd{};
+        tgd.layout = groupLayoutFor(1, prog->group1Mask);
+        tgd.entryCount = texCount;
+        tgd.entries = texEntries;
+        texture_group_ = wgpuDeviceCreateBindGroup(device_, &tgd);
+        if (texture_group_) wgpuRenderPassEncoderSetBindGroup(pass_, 1, texture_group_, 0, nullptr);
     }
     bind_group_dirty_ = false;
 }
@@ -1054,10 +1157,6 @@ void WebGPUDevice::beginRenderPass(const RenderPassDesc& desc) {
                           desc.clearStencil && hasStencilPlanes(pass_ds_format_),
                           desc.clearColorValue, desc.clearStencilValue, &desc);
     }
-    // Each pass starts textureless: group 1 only attaches to pipelines whose
-    // draws bind textures (the engine rebinds per draw), never to sampler-less
-    // pipelines from a previous pass's leftovers.
-    any_texture_bound_ = false;
 }
 
 void WebGPUDevice::endRenderPass() {

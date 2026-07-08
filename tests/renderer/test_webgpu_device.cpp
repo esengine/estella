@@ -102,7 +102,29 @@ TEST_CASE("pipeline depth-stencil state carries GL semantics exactly") {
     CHECK(!hasStencilPlanes(WGPUTextureFormat_Undefined));
 }
 
-TEST_CASE("binding-mask scan mirrors what a WGSL auto layout will contain") {
+TEST_CASE("group-1 unit→binding convention: disjoint maps covering one u32 mask") {
+    // Engine units 0..7: textures at 0..7, samplers at 8..15.
+    CHECK(textureBindingForUnit(0) == 0u);
+    CHECK(textureBindingForUnit(7) == 7u);
+    CHECK(samplerBindingForUnit(0) == 8u);
+    CHECK(samplerBindingForUnit(7) == 15u);
+    // Material units 8..15 (MATERIAL_TEXTURE_UNIT_BASE range): textures at
+    // 16..23, samplers at 24..31.
+    CHECK(textureBindingForUnit(8) == 16u);
+    CHECK(textureBindingForUnit(15) == 23u);
+    CHECK(samplerBindingForUnit(8) == 24u);
+    CHECK(samplerBindingForUnit(15) == 31u);
+
+    // Bijection: the 16 units' texture+sampler bindings tile bits 0..31 exactly.
+    u32 mask = 0;
+    for (u32 unit = 0; unit < kGroup1TextureUnits; ++unit) {
+        mask |= (1u << textureBindingForUnit(unit));
+        mask |= (1u << samplerBindingForUnit(unit));
+    }
+    CHECK(mask == 0xFFFFFFFFu);
+}
+
+TEST_CASE("binding-mask scan mirrors the declarations an explicit layout carries") {
     // A batch-like fragment: the full group-1 texture/sampler set.
     const char* batchish = R"(
 @group(1) @binding(0) var t0 : texture_2d<f32>;
@@ -121,6 +143,14 @@ TEST_CASE("binding-mask scan mirrors what a WGSL auto layout will contain") {
 )";
     CHECK(scanWGSLBindingMask(ubos, 0) == ((1u << 0) | (1u << 3) | (1u << 4)));
     CHECK(scanWGSLBindingMask(ubos, 1) == 0u);
+
+    // Material texture params ride the extended group-1 range (units 8..15 →
+    // texture bindings 16..23, samplers 24..31).
+    const char* material = R"(
+@group(1) @binding(16) var u_mask : texture_2d<f32>;
+@group(1) @binding(24) var u_mask_s : sampler;
+)";
+    CHECK(scanWGSLBindingMask(material, 1) == ((1u << 16) | (1u << 24)));
 
     CHECK(scanWGSLBindingMask(nullptr, 0) == 0u);
     CHECK(scanWGSLBindingMask("no bindings here", 0) == 0u);

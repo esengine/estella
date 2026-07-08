@@ -13,8 +13,10 @@
  *          and by the WebGPU bring-up harnesses; Phase 3's dual-language
  *          emitter replaces the hand-written pairs.
  *
- *          Twin discipline: declare exactly the bindings you use — the WebGPU
- *          device reflects bind-group contents by scanning these declarations.
+ *          The device reflects bind-group contents by scanning these
+ *          declarations and builds explicit layouts from them, so a declared-
+ *          but-unused binding is legal (dummy-backfilled) — but twins still
+ *          declare only what they use, keeping the scan output minimal.
  *
  *          Plain string constants — safe in every build; no WebGPU headers.
  *

@@ -9,9 +9,13 @@
  *          depth-stencil; endRenderPass submits), lazy WGPURenderPipeline builds
  *          from the retained PipelineDesc + layout + shader modules — one variant
  *          per pass depth-stencil shape, since WebGPU validates that coupling —
- *          bind groups (group 0 = UBO slots, group 1 = texture/sampler pairs with
- *          a per-params sampler cache), indexed/instanced draw recording, and an
- *          internal clear-triangle family that emulates region-scoped clears and
+ *          EXPLICIT bind-group layouts built from each program's binding masks
+ *          (group 0 = UBO slots, group 1 = texture/sampler pairs per the
+ *          WebGPUMappings unit→binding convention, with dummy backfill for
+ *          declared-but-unbound bindings — GL's tolerance for unused
+ *          declarations, which the dual-language emitter's uniform injection
+ *          relies on), indexed/instanced draw recording, and an internal
+ *          clear-triangle family that emulates region-scoped clears and
  *          mid-pass stencil resets (the two clears WebGPU load-ops cannot spell).
  *          The class stays null-device safe: constructed without a WGPUDevice it
  *          degrades every entry point to a logged no-op, so handle bookkeeping
@@ -168,11 +172,11 @@ private:
         WGPUShaderModule vertex = nullptr;
         WGPUShaderModule fragment = nullptr;
         /** @brief `@group(0/1) @binding(i)` masks scanned from the WGSL (both
-         *         stages). Bind groups must match a pipeline's auto layout
-         *         exactly, so the device filters its bound state through these:
-         *         group 0 = which UBO slots the program declares, group 1 =
-         *         which texture/sampler bindings. Zero group-1 mask means the
-         *         program must never have the texture group set at all. */
+         *         stages). They drive the program's EXPLICIT bind-group and
+         *         pipeline layouts: group 0 = which UBO slots the program
+         *         declares, group 1 = which texture/sampler bindings. Declared
+         *         bindings with no bound resource are backfilled with dummies,
+         *         so an unused declaration is as legal as in GLSL. */
         u32 group0Mask = 0;
         u32 group1Mask = 0;
     };
@@ -191,13 +195,27 @@ private:
     /** @brief Builds (once) and returns the WGPURenderPipeline for a handle,
      *         in the variant matching the current pass's depth-stencil shape. */
     WGPURenderPipeline ensurePipeline(u32 id);
-    /** @brief (Re)creates the bind groups: group 0 = UBO slots, group 1 = the
-     *         texture units (8 texture_2d at bindings 0..7 + their 8 samplers at
-     *         bindings 8..15 — the WGSL twin convention for u_textures[8]; GL's
-     *         combined texture+sampler state arrives de-combined, sampler i
-     *         carrying texture i's filter/wrap params). Group 1 is set only when
-     *         the pass bound any texture, so shaders without samplers (shape)
-     *         never see a mismatched group. */
+    /** @brief Returns the cached explicit bind-group layout for a binding mask.
+     *         Group 0 entries are uniform buffers at their slot; group 1 entries
+     *         are texture_2d/sampler pairs per the WebGPUMappings unit→binding
+     *         convention (engine units 0..7 at 0..7/8..15, material units 8..15
+     *         at 16..23/24..31). */
+    WGPUBindGroupLayout groupLayoutFor(u32 group, u32 mask);
+    /** @brief Returns the cached explicit pipeline layout for a program's masks.
+     *         A program with group-1 bindings but an empty group 0 still gets a
+     *         (zero-entry) group-0 layout, so group indices stay positional. */
+    WGPUPipelineLayout pipelineLayoutFor(u32 group0Mask, u32 group1Mask);
+    /** @brief Lazily creates the dummy backfill resources: a zeroed uniform
+     *         buffer and a 1x1 white texture, standing in for declared-but-
+     *         unbound bindings (GL reads an unbound block/unit without
+     *         validation errors; here it reads zeros/white). */
+    void ensureDummies();
+    /** @brief (Re)creates the bind groups against the program's explicit
+     *         layouts: group 0 = UBO slots, group 1 = texture units mapped
+     *         through the unit→binding convention, sampler i carrying texture
+     *         i's filter/wrap params (GL's combined texture+sampler state
+     *         de-combined). Every declared binding gets an entry — bound
+     *         resource or dummy — so the groups always match the layouts. */
     void flushBindGroup();
     /** @brief Returns the cached sampler for packed filter/wrap params. */
     WGPUSampler samplerFor(u8 key);
@@ -252,13 +270,23 @@ private:
     i32 stencil_ref_ = 0;  ///< Last user-set reference (re-applied after internal quads).
     static constexpr u32 kUniformSlots = 8;
     u32 uniform_slots_[kUniformSlots] = {};  ///< BufferHandle id per UBO binding slot.
-    static constexpr u32 kTextureSlots = 8;
+    /// Engine units 0..7 (batch multi-texture) + material-param units 8..15
+    /// (== webgpu::kGroup1TextureUnits, static_asserted in the .cpp).
+    static constexpr u32 kTextureSlots = 16;
     u32 texture_slots_[kTextureSlots] = {};  ///< TextureHandle id per sampler unit.
-    bool any_texture_bound_ = false;
     bool bind_group_dirty_ = true;
     WGPUBindGroup bind_group_ = nullptr;
     WGPUBindGroup texture_group_ = nullptr;
     std::unordered_map<u8, WGPUSampler> samplers_;  ///< Keyed by packed filter/wrap params.
+
+    // Explicit layouts, cached by binding mask (key = group << 32 | mask for
+    // bind-group layouts, group1Mask << 32 | group0Mask for pipeline layouts).
+    // Pipelines and bind groups share the cached objects, so group
+    // compatibility holds by identity.
+    std::unordered_map<u64, WGPUBindGroupLayout> group_layouts_;
+    std::unordered_map<u64, WGPUPipelineLayout> pipeline_layouts_;
+    BufferHandle dummy_ubo_{};   ///< Zeroed backfill for declared-but-unbound UBO slots.
+    u32 dummy_texture_ = 0;      ///< 1x1 white backfill for declared-but-unbound units.
 
     u32 next_id_ = 1;
     std::unordered_map<u32, BufferRec> buffers_;
