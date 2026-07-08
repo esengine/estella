@@ -151,4 +151,26 @@ describe('ManifestModel resolution', () => {
         expect(model().resolvePath('nope', (s) => `${s}.x`)).toBe('nope.x');
         expect(model().resolvePath('nope')).toBe('nope');
     });
+
+    // The address is the asset's LOGICAL source path, kept when content-addressed
+    // staging renames the physical file — path-style refs resolve through it,
+    // in both the bare and the "/"-rooted spellings the cook may emit.
+    it('resolvePath: address hit (logical source path → staged path)', () => {
+        const m = ManifestModel.fromJson({
+            version: '2.0',
+            groups: {
+                main: {
+                    bundleMode: 'local', labels: [], assets: {
+                        'uuid-9': {
+                            path: 'assets/1234abcd.ktx2', address: 'assets/hero.png',
+                            type: 'texture', size: 1, labels: [],
+                        },
+                    },
+                },
+            },
+        });
+        expect(m.resolvePath('assets/hero.png')).toBe('assets/1234abcd.ktx2');
+        expect(m.resolvePath('/assets/hero.png')).toBe('assets/1234abcd.ktx2');
+        expect(m.resolvePath('uuid-9')).toBe('assets/1234abcd.ktx2');
+    });
 });

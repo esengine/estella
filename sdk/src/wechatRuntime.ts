@@ -16,6 +16,7 @@ import { applyBuildRuntimeConfig, type RuntimeBuildConfig } from './defaults';
 import { platformReadTextFile, platformInstantiateWasm, platformLoadImagePixels } from './platform';
 import { toBuildPath } from './assetTypes';
 import { ManifestModel, type AddressableManifest } from './asset/AddressableManifest';
+import { Catalog, type CatalogEntry } from './asset/Catalog';
 import { createWeChatSideModuleHost, type WeChatSideModuleFactories } from './sideModules';
 import type { Vec2 } from './types';
 import type { SceneData } from './scene';
@@ -80,6 +81,20 @@ export async function initWeChatRuntime(config: WeChatRuntimeConfig): Promise<vo
     const manifestModel = ManifestModel.fromJson(manifest);
     const resolvePath = (ref: string): string => manifestModel.resolvePath(ref, toBuildPath);
 
+    // Content-addressed packs: assets whose manifest entry carries an `address`
+    // (the logical source path) get a catalog buildPath, so the loaders' inner
+    // text refs (a material's shader) map logical → staged at their fetch
+    // boundary — the same two-map contract the cooked web host wires.
+    const catalogEntries: Record<string, CatalogEntry> = {};
+    for (const asset of manifestModel.allAssets()) {
+        if (!asset.address || asset.address === asset.path) continue;
+        catalogEntries[asset.address] = { type: asset.type, buildPath: asset.path };
+        catalogEntries[`/${asset.address}`] = { type: asset.type, buildPath: asset.path };
+    }
+    const catalog = Object.keys(catalogEntries).length > 0
+        ? Catalog.fromJson({ version: 1, entries: catalogEntries })
+        : undefined;
+
     const canvas = wx.createCanvas();
     const info = wx.getSystemInfoSync();
     canvas.width = info.windowWidth * info.pixelRatio;
@@ -140,6 +155,7 @@ export async function initWeChatRuntime(config: WeChatRuntimeConfig): Promise<vo
         module,
         source,
         manifest: manifestModel,
+        catalog,
         scenes,
         firstScene: config.firstScene,
         physicsConfig: config.physicsConfig,

@@ -43,7 +43,7 @@ export interface ExportWeChatResult {
 }
 
 interface CookManifest {
-  entries: { uuid: string; path: string; type: string; contentHash?: string; size?: number; group?: string }[];
+  entries: { uuid: string; path: string; sourcePath?: string; type: string; contentHash?: string; size?: number; group?: string }[];
 }
 
 // Editor asset type → AddressableAssetType (sdk/src/assetTypes.ts). The WeChat
@@ -155,7 +155,7 @@ async function scanWeChatSideModules(
  *  falls back to stat() for size only if a legacy cook omitted it. */
 async function buildAddressableManifest(absOut: string): Promise<string> {
   const cook = JSON.parse(await readFile(path.join(absOut, 'assets.manifest.json'), 'utf8')) as CookManifest;
-  type Entry = { path: string; type: string; size: number; labels: string[]; contentHash?: string };
+  type Entry = { path: string; address?: string; type: string; size: number; labels: string[]; contentHash?: string };
   type Group = { bundleMode: string; labels: string[]; assets: Record<string, Entry> };
   // One group per cook group: 'main' is local (eager); every other is a lazy
   // subpackage. bundleMode here is the typed wire value the SDK's normalizeBundleMode
@@ -170,6 +170,11 @@ async function buildAddressableManifest(absOut: string): Promise<string> {
     });
     const entry: Entry = { path: e.path, type: addrType(e.type), size, labels: [] };
     if (e.contentHash) entry.contentHash = e.contentHash;
+    // The logical source path rides as the asset's address: path-style refs
+    // resolve through it (ManifestModel indexes addresses; the runtime builds
+    // its logical→staged catalog from them). Only meaningful when staging
+    // renamed the file (content addressing / texture encoding).
+    if (e.sourcePath && e.sourcePath !== e.path) entry.address = e.sourcePath;
     group.assets[e.uuid.toLowerCase()] = entry;
   }
   // Always emit a main group so the runtime's main package exists even if every

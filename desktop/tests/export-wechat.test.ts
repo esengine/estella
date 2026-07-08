@@ -108,4 +108,30 @@ describe('exportGame (wechat)', () => {
     expect(gjson.subPackages).toContainEqual({ name: 'level2', root: 'subpackages/level2' });
     expect(existsSync(path.join(out, 'subpackages', 'level2', 'extra.png'))).toBe(true);
   }, 60_000);
+
+  it('content-addressed export carries the logical path as the asset address', async () => {
+    const outCa = path.join(root, 'dist-wechat-ca');
+    const res = await exportGame({
+      root,
+      entryScene: 'scenes/main.esscene',
+      gameHostEntry: 'unused-for-wechat',
+      scriptsEntry: 'src/main.ts',
+      sdkDistDir: path.join(root, '_sdk'),
+      wasmDir: path.join(root, '_wxwasm'),
+      outDir: outCa,
+      title: 'My Game',
+      platform: 'wechat',
+      contentAddressed: true,
+    });
+    expect(res.ok).toBe(true);
+
+    const manifest = JSON.parse(readFileSync(path.join(outCa, 'asset-manifest.json'), 'utf8'));
+    const tex = manifest.groups.main.assets[TEX];
+    // Physical file renamed; the logical identity rides as the address —
+    // the runtime's ManifestModel + catalog resolve path refs through it.
+    expect(tex.path).toMatch(/^assets\/[0-9a-f]{16}\.png$/);
+    expect(tex.address).toBe('assets/hero.png');
+    // Scenes keep their logical path and carry no address.
+    expect(manifest.groups.main.assets[SCN].address).toBeUndefined();
+  }, 60_000);
 });

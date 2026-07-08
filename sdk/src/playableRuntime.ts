@@ -25,6 +25,14 @@ export interface PlayableRuntimeConfig {
     module: ESEngineModule;
     canvas: HTMLCanvasElement;
     assets: Record<string, string>;
+    /**
+     * Logical (source) path → embedded-asset key (`@uuid:<id>`), so path-style
+     * refs (a scene's "assets/x.esmaterial", a material's rewritten logical
+     * refs) resolve to the inlined data. Applied as in-memory ALIASES onto the
+     * assets map — every channel (fetch, image decode, audio) reads that one
+     * map, and aliases share the data-URL strings (no payload duplication).
+     */
+    assetPathMap?: Record<string, string>;
     scenes: Array<{ name: string; data: SceneData }>;
     firstScene: string;
     physicsConfig?: { gravity?: Vec2; fixedTimestep?: number; subStepCount?: number };
@@ -58,7 +66,18 @@ function loadImagePixels(dataUrl: string): Promise<{ width: number; height: numb
 }
 
 export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promise<void> {
-    const { app, module, assets, scenes, firstScene } = config;
+    const { app, module, scenes, firstScene } = config;
+
+    // Alias logical paths onto the embedded map (both spellings the cook may
+    // emit) — the aliases point at the SAME data-URL strings, so path refs cost
+    // nothing and every consumer below resolves through one map.
+    const assets = { ...config.assets };
+    for (const [logical, key] of Object.entries(config.assetPathMap ?? {})) {
+        const data = assets[key];
+        if (!data) continue;
+        assets[logical] ??= data;
+        assets[`/${logical}`] ??= data;
+    }
 
     // Canonical asset source: the shared EmbeddedBackend (data-URLs) + a DOM image
     // decode over the same data-URL. Refs are the map keys (resolveRef = identity).

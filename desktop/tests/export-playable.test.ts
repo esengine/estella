@@ -84,6 +84,10 @@ describe('exportGame (playable)', () => {
     expect(html).toContain('SpawnMarker');                           // project script bundled
     expect(html).toContain(`@uuid:${TEX}`);                          // asset keyed by ref
     expect(html).toContain('data:image/png;base64,');               // asset inlined as data URL
+    // Logical path → embedded key map (path refs alias in memory at runtime;
+    // the data URL itself ships once, under the uuid key).
+    expect(html).toContain('__GAME_PATHMAP__');
+    expect(html).toMatch(new RegExp(`"assets/hero\\.png":"@uuid:${TEX}"`));
     expect(html).toContain('__GAME_FIRST__');
     expect(html).toContain('"main"');                                // first scene name
     expect(html).toContain('__GAME_SCENES__');

@@ -79,4 +79,23 @@ describe('initPlayableRuntime', () => {
 
         expect(config.app.run).toHaveBeenCalled();
     });
+
+    // Path-style refs resolve via in-memory aliases onto the embedded map: the
+    // alias keys share the data-URL strings (no duplication), and every channel
+    // (fetch backend, image decode, audio) reads the same map.
+    it('aliases assetPathMap logical paths onto the embedded assets', async () => {
+        const config = createMockConfig({
+            assets: { '@uuid:aaaa': 'data:text/plain;base64,QQ==' },
+            assetPathMap: { 'assets/m.esmaterial': '@uuid:aaaa', 'assets/missing.png': '@uuid:zzzz' },
+        });
+
+        await initPlayableRuntime(config);
+
+        const call = vi.mocked(initRuntime).mock.calls[0][0];
+        const backend = call.source.backend as { resolveUrl(p: string): string };
+        expect(backend.resolveUrl('assets/m.esmaterial')).toBe('data:text/plain;base64,QQ==');
+        expect(backend.resolveUrl('/assets/m.esmaterial')).toBe('data:text/plain;base64,QQ==');
+        // The original key still resolves; unknown targets alias nothing.
+        expect(backend.resolveUrl('@uuid:aaaa')).toBe('data:text/plain;base64,QQ==');
+    });
 });

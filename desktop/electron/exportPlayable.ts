@@ -38,7 +38,7 @@ export interface ExportPlayableResult {
 }
 
 interface CookManifest {
-  entries: { uuid: string; path: string; type: string }[];
+  entries: { uuid: string; path: string; sourcePath?: string; type: string }[];
 }
 
 const MIME: Record<string, string> = {
@@ -152,16 +152,23 @@ export async function exportPlayable(opts: {
   const cook = await cookAssets(opts.root, { entryScenes: [opts.entryScene], outDir: cookDir });
   warnings.push(...cook.warnings);
 
-  // 2. Assets → base64 data URLs, keyed by the scene's @uuid: refs.
+  // 2. Assets → base64 data URLs, keyed by the scene's @uuid: refs; plus a
+  //    compact logical-path → key map so PATH-style refs (a scene's material
+  //    path, a material's rewritten logical refs) resolve to the same inlined
+  //    data — the runtime aliases them in memory, so the payload carries each
+  //    data URL exactly once.
   progress({ phase: 'Encoding assets' });
   const assets: Record<string, string> = {};
+  const pathMap: Record<string, string> = {};
   let manifestEntries: CookManifest['entries'] = [];
   try {
     const manifest = JSON.parse(await readFile(path.join(cookDir, 'assets.manifest.json'), 'utf8')) as CookManifest;
     manifestEntries = manifest.entries;
     for (const e of manifest.entries) {
       const buf = await readFile(path.join(cookDir, e.path));
-      assets[`@uuid:${e.uuid}`] = `data:${mimeOf(e.path)};base64,${buf.toString('base64')}`;
+      const key = `@uuid:${e.uuid}`;
+      assets[key] = `data:${mimeOf(e.path)};base64,${buf.toString('base64')}`;
+      pathMap[e.sourcePath ?? e.path] = key;
     }
   } catch (err) {
     errors.push(`assets: ${err instanceof Error ? err.message : String(err)}`);
@@ -235,6 +242,7 @@ export async function exportPlayable(opts: {
     `window.__ENGINE_WASM__=${JSON.stringify(wasmB64)};` +
     `window.__SIDE_MODULES__=${JSON.stringify(sideModules)};` +
     `window.__GAME_ASSETS__=${JSON.stringify(assets)};` +
+    `window.__GAME_PATHMAP__=${JSON.stringify(pathMap)};` +
     `window.__GAME_SCENES__=${JSON.stringify(scenes)};` +
     `window.__GAME_FIRST__=${JSON.stringify(sceneName)};`;
   const outFile = path.join(absOut, 'index.html');

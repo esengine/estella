@@ -244,6 +244,8 @@ export async function exportGame(opts: {
       appid: opts.wechatAppid,
       orientation: opts.wechatOrientation,
       minify: opts.minify,
+      contentAddressed: opts.contentAddressed,
+      compressTextures: opts.compressTextures,
       onProgress: opts.onProgress,
     });
   }

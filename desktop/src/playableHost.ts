@@ -22,6 +22,7 @@ declare const __ENGINE_GLUE__: string;
 declare const __ENGINE_WASM__: string;
 declare const __SIDE_MODULES__: EmbeddedSideModuleRegistry;
 declare const __GAME_ASSETS__: Record<string, string>;
+declare const __GAME_PATHMAP__: Record<string, string>;
 declare const __GAME_SCENES__: Array<{ name: string; data: SceneData }>;
 declare const __GAME_FIRST__: string;
 
@@ -83,6 +84,8 @@ async function boot(): Promise<void> {
     module,
     canvas,
     assets: __GAME_ASSETS__,
+    // Older exports predate the path map; the runtime treats it as optional.
+    assetPathMap: typeof __GAME_PATHMAP__ !== 'undefined' ? __GAME_PATHMAP__ : undefined,
     scenes: __GAME_SCENES__,
     firstScene: __GAME_FIRST__,
   });

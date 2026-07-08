@@ -156,6 +156,15 @@ export class ManifestModel {
                     // (a uuid/path appearing in two groups keeps its first entry).
                     if (!byKey.has(key)) byKey.set(key, asset);
                     if (!byPath.has(asset.path)) byPath.set(asset.path, asset);
+                    // The address (the asset's LOGICAL source path, kept when
+                    // content-addressed staging renames the physical file) is a
+                    // resolvable key too — path-style refs name it. Both the
+                    // bare and the "/"-rooted spellings the cook may emit.
+                    if (asset.address) {
+                        if (!byKey.has(asset.address)) byKey.set(asset.address, asset);
+                        const rooted = `/${asset.address}`;
+                        if (!byKey.has(rooted)) byKey.set(rooted, asset);
+                    }
                 }
             }
             this.keyIndex_ = byKey;
