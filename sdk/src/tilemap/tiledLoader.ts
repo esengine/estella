@@ -92,6 +92,10 @@ export interface TiledObjectData {
     rotation: number;
     vertices: number[] | null;
     properties: Map<string, unknown>;
+    /** A tile (GID) object: the raw Tiled global tile id + flip flags. When set, the
+     *  object is a positioned tile rendered as a sprite (see decodeTiledGid); absent
+     *  for the shape objects (rect/ellipse/polygon/polyline/point). */
+    gid?: number;
 }
 
 export interface TiledObjectGroupData {
@@ -171,6 +175,18 @@ function convertGid(gid: number): number {
     if (gid & TILED_FLIP_D) flags |= ENGINE_FLIP_D;
     const globalId = (gid & TILED_GID_MASK) & 0x1FFF;
     return globalId | flags;
+}
+
+/** Split a Tiled tile-object GID into its global tile id + H/V/D flip flags. Unlike
+ *  convertGid (which truncates to the engine's 13-bit tile-layer id), this keeps the
+ *  full 29-bit global id so the object's tileset can be resolved by firstgid. */
+export function decodeTiledGid(gid: number): { globalId: number; flipH: boolean; flipV: boolean; flipD: boolean } {
+    return {
+        globalId: gid & TILED_GID_MASK,
+        flipH: (gid & TILED_FLIP_H) !== 0,
+        flipV: (gid & TILED_FLIP_V) !== 0,
+        flipD: (gid & TILED_FLIP_D) !== 0,
+    };
 }
 
 /**
@@ -348,6 +364,7 @@ export function parseTmjJson(json: Record<string, unknown>): TiledMapData | null
                     rotation: (obj.rotation as number) ?? 0,
                     vertices,
                     properties: props,
+                    gid: typeof obj.gid === 'number' ? obj.gid : undefined,
                 });
             }
             const groupProps = new Map<string, unknown>();

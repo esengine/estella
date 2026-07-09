@@ -15,7 +15,7 @@ import {
 } from '../src/tilemap/tilesetCache';
 import {
     loadTiledMap, parseTmjJson, parseTmjWithExternals, resolveRelativePath, loadTiledCollisionObjects,
-    generateLayerCollision, generateObjectCollision, isCollisionObjectGroup,
+    generateLayerCollision, generateObjectCollision, isCollisionObjectGroup, decodeTiledGid,
     type TiledObjectData, type TiledObjectGroupData,
 } from '../src/tilemap/tiledLoader';
 import type { TiledMapData } from '../src/tilemap/tiledLoader';
@@ -95,7 +95,7 @@ describe('TilemapSource cache', () => {
             tileWidth: 16,
             tileHeight: 16,
             layers: [{ name: 'Ground', width: 10, height: 10, tiles: new Uint16Array([1, 2, 3]) }],
-            tilesets: [{ textureHandle: 42, columns: 8, firstId: 1 }],
+            tilesets: [{ textureHandle: 42, columns: 8, rows: 8, firstId: 1 }],
         };
         registerTilemapSource('maps/level1.tmj', source);
         expect(getTilemapSource('maps/level1.tmj')).toBe(source);
@@ -587,6 +587,33 @@ describe('parseTmjJson — Phase B: objectgroup parsing', () => {
         expect(result!.objectGroups).toHaveLength(1);
         expect(result!.objectGroups[0].name).toBe('Collisions');
         expect(result!.objectGroups[0].objects).toHaveLength(2);
+    });
+
+    it('should carry the gid of a tile (GID) object', () => {
+        const json = {
+            width: 10, height: 10, tilewidth: 32, tileheight: 32,
+            tilesets: [],
+            layers: [{
+                type: 'objectgroup',
+                name: 'Decor',
+                objects: [
+                    { id: 1, x: 96, y: 128, width: 32, height: 32, gid: 5, rotation: 0 },
+                    { id: 2, x: 0, y: 0, width: 32, height: 32, rotation: 0 },  // shape object, no gid
+                ],
+            }],
+        };
+        const result = parseTmjJson(json)!;
+        expect(result.objectGroups[0].objects[0].gid).toBe(5);
+        expect(result.objectGroups[0].objects[1].gid).toBeUndefined();
+    });
+
+    it('decodeTiledGid splits the global id + H/V/D flip flags', () => {
+        expect(decodeTiledGid(5)).toEqual({ globalId: 5, flipH: false, flipV: false, flipD: false });
+        // Tiled packs flips in the high bits: H=0x80000000, V=0x40000000, D=0x20000000.
+        const flipped = 5 | 0x80000000 | 0x40000000;
+        expect(decodeTiledGid(flipped)).toEqual({ globalId: 5, flipH: true, flipV: true, flipD: false });
+        // A large global id (multi-tileset) survives — not truncated to 13 bits.
+        expect(decodeTiledGid(9000).globalId).toBe(9000);
     });
 
     it('should detect ellipse objects', () => {

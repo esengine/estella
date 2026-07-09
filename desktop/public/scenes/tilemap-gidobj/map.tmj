@@ -1,0 +1,34 @@
+{
+  "type": "map",
+  "version": "1.10",
+  "orientation": "orthogonal",
+  "renderorder": "right-down",
+  "width": 4,
+  "height": 4,
+  "tilewidth": 16,
+  "tileheight": 16,
+  "infinite": false,
+  "layers": [
+    {
+      "type": "objectgroup",
+      "name": "Decor",
+      "visible": true,
+      "objects": [
+        { "id": 1, "name": "greentile", "x": 0, "y": 16, "width": 16, "height": 16, "gid": 2, "rotation": 0 }
+      ]
+    }
+  ],
+  "tilesets": [
+    {
+      "firstgid": 1,
+      "name": "a",
+      "image": "a.png",
+      "imagewidth": 32,
+      "imageheight": 16,
+      "tilewidth": 16,
+      "tileheight": 16,
+      "columns": 2,
+      "tilecount": 2
+    }
+  ]
+}

@@ -235,6 +235,13 @@ jobs:
           ESTELLA_VERIFY_MANIFEST=/scenes/tilemap-flip.textures.json \
           ESTELLA_VERIFY_W=256 ESTELLA_VERIFY_H=256 ESTELLA_VERIFY_STEPS=2 \
           'ESTELLA_VERIFY_EXPECT=[{"x":0.40,"y":0.36,"rgb":[255,0,0]},{"x":0.60,"y":0.36,"rgb":[0,255,0]},{"x":0.40,"y":0.58,"rgb":[0,0,255]},{"x":0.60,"y":0.58,"rgb":[255,255,0]}]'
+        # Tiled tile (GID) object: an object-layer object with a gid renders as a
+        # positioned Sprite (bottom-left anchor, tileset UV) — the green tile centered.
+        run_scene tilemap-gidobj \
+          ESTELLA_VERIFY_SCENE=/scenes/tilemap-gidobj.esscene \
+          ESTELLA_VERIFY_MANIFEST=/scenes/tilemap-gidobj.textures.json \
+          ESTELLA_VERIFY_W=256 ESTELLA_VERIFY_H=256 ESTELLA_VERIFY_STEPS=10 \
+          'ESTELLA_VERIFY_EXPECT=[{"x":0.5,"y":0.5,"rgb":[0,255,0],"tol":40},{"x":0.5,"y":0.12,"rgb":[0,0,0],"tol":30}]'
         run_scene ui-mask \
           ESTELLA_VERIFY_SCENE=/scenes/ui-list-mask.esscene \
           ESTELLA_VERIFY_MANIFEST=/scenes/ui-list-mask.textures.json \

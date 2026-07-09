@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { App, Plugin } from '../app';
 import type { ESEngineModule } from '../wasm';
-import { Transform, TilemapLayer, Canvas, RuntimeOnly, type TilemapLayerData } from '../component';
+import { Transform, TilemapLayer, Sprite, Canvas, RuntimeOnly, type TilemapLayerData } from '../component';
 import { Schedule } from '../system';
 import type { SystemDef } from '../system';
 import { initTilemapAPI, shutdownTilemapAPI, TilemapAPI } from './tilemapAPI';
@@ -12,7 +12,7 @@ import { getTilemapSource, getResolvedTileset } from './tilesetCache';
 import { resolveTilesetModel } from './tilesetResolve';
 import {
     generateLayerCollision, generateChunkCollision, generateChunkPolygonCollision,
-    generateObjectCollision, isCollisionObjectGroup,
+    generateObjectCollision, isCollisionObjectGroup, decodeTiledGid,
 } from './tiledLoader';
 import { decodeTilemapChunks } from './chunkCodec';
 import { Assets } from '../asset/AssetPlugin';
@@ -328,6 +328,52 @@ export class TilemapPlugin implements Plugin {
 
                             children.push(child);
                             initializedLayers.add(child);
+                        }
+
+                        // Tile (GID) objects — a positioned tile rendered as a Sprite,
+                        // in edit + play mode like the tile layers. Parented to the
+                        // tilemap entity, so the sprite's local position is the object's
+                        // offset within the map (pixels). H/V flip → flipX/flipY;
+                        // diagonal flip + rotation are follow-ups.
+                        for (const group of cached.objectGroups ?? []) {
+                            if (group.visible === false) continue;
+                            for (const obj of group.objects) {
+                                if (obj.gid === undefined || obj.visible === false) continue;
+                                const dec = decodeTiledGid(obj.gid);
+                                // Resolve the tileset by global id (largest firstId <= id).
+                                let ts: (typeof cached.tilesets)[number] | undefined;
+                                for (const cand of cached.tilesets) {
+                                    if (cand.textureHandle && cand.firstId <= dec.globalId &&
+                                        (!ts || cand.firstId > ts.firstId)) ts = cand;
+                                }
+                                if (!ts) continue;
+                                const localId = dec.globalId - ts.firstId;
+                                const cols = ts.columns || 1;
+                                const rows = ts.rows || 1;
+                                const uvW = 1 / cols, uvH = 1 / rows;
+                                const col = localId % cols;
+                                const row = Math.floor(localId / cols);
+                                const w = obj.width || cached.tileWidth;
+                                const h = obj.height || cached.tileHeight;
+                                // Tiled tile-objects anchor BOTTOM-LEFT, y-down; the
+                                // sprite is centered, and world Y is up.
+                                const tileChild = world.spawn(obj.name || `TileObject_${obj.id}`);
+                                world.insert(tileChild, Transform, {
+                                    position: { x: obj.x + w / 2, y: -(obj.y - h / 2), z: 0 },
+                                });
+                                world.insert(tileChild, Sprite, {
+                                    texture: ts.textureHandle,
+                                    size: { x: w, y: h },
+                                    uvOffset: { x: col * uvW, y: 1 - (row + 1) * uvH },
+                                    uvScale: { x: uvW, y: uvH },
+                                    flipX: dec.flipH,
+                                    flipY: dec.flipV,
+                                    layer: cached.layers.length,
+                                });
+                                world.insert(tileChild, RuntimeOnly, {});
+                                world.setParent(tileChild, entity);
+                                children.push(tileChild);
+                            }
                         }
                         sourceLayerEntities.set(entity, children);
                     }

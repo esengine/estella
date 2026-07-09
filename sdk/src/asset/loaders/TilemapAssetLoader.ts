@@ -30,7 +30,8 @@ export class TilemapAssetLoader implements AssetLoader<TilemapResult> {
             } catch (e) {
                 log.warn('asset', `Failed to load tileset texture: ${imagePath}`, e);
             }
-            tilesets.push({ textureHandle, columns: ts.columns, firstId: ts.firstGid });
+            const rows = ts.columns > 0 ? Math.max(1, Math.ceil(ts.tileCount / ts.columns)) : 1;
+            tilesets.push({ textureHandle, columns: ts.columns, rows, firstId: ts.firstGid });
         }
 
         registerTilemapSource(path, {
