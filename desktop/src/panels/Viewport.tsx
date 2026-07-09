@@ -66,6 +66,68 @@ function startRadiusHandleDrag(
   window.addEventListener('pointerup', onUp);
 }
 
+// Drag a box corner handle → a vec2 size field. Same channel as the radius drag; the
+// cursor is un-rotated into the entity's local frame so the corner's |local| gives the
+// half-extents. `fullSize` writes the full size (emitter shapeSize = 2× half); else the
+// half-extents (collider halfExtents). `ppu` maps world px → the field's units.
+function startSizeHandleDrag(
+  rt: number, component: string, field: string, ppu: number, fullSize: boolean, e: ReactPointerEvent,
+): void {
+  if (e.button !== 0) return;
+  const src = SceneModel.sourceFor(rt);
+  const center = ViewportController.getEntityWorldXY(rt);
+  if (src == null || !center) return;
+  e.stopPropagation();
+  const rot = ViewportController.getEntityWorldAngleRad(rt);
+  const cos = Math.cos(rot), sin = Math.sin(rot);
+  SceneCommands.beginGesture(`${component} size`);
+  const onMove = (ev: PointerEvent) => {
+    const w = ViewportController.canvasToWorld(ev.clientX, ev.clientY);
+    if (!w) return;
+    const dx = w.x - center.x, dy = w.y - center.y;
+    const lx = dx * cos + dy * sin;      // un-rotate into the box's local frame
+    const ly = -dx * sin + dy * cos;
+    const k = (fullSize ? 2 : 1) / (ppu || 1);
+    SceneCommands.setField(src, component, field, 'vec2', [Math.abs(lx) * k, Math.abs(ly) * k]);
+  };
+  const onUp = () => {
+    SceneCommands.endGesture();
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+  };
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+}
+
+// Drag a cone's edge handle → its spread angle (ParticleEmitter.shapeAngle, degrees).
+// The cursor's angle off local +Y is the half-angle; shapeAngle is the full spread.
+function startAngleHandleDrag(rt: number, e: ReactPointerEvent): void {
+  if (e.button !== 0) return;
+  const src = SceneModel.sourceFor(rt);
+  const center = ViewportController.getEntityWorldXY(rt);
+  if (src == null || !center) return;
+  e.stopPropagation();
+  const rot = ViewportController.getEntityWorldAngleRad(rt);
+  const cos = Math.cos(rot), sin = Math.sin(rot);
+  SceneCommands.beginGesture('Cone angle');
+  const onMove = (ev: PointerEvent) => {
+    const w = ViewportController.canvasToWorld(ev.clientX, ev.clientY);
+    if (!w) return;
+    const dx = w.x - center.x, dy = w.y - center.y;
+    const lx = dx * cos + dy * sin;
+    const ly = -dx * sin + dy * cos;
+    const halfDeg = Math.abs(Math.atan2(lx, ly)) * (180 / Math.PI);
+    SceneCommands.setField(src, 'ParticleEmitter', 'shapeAngle', 'number', Math.min(180, halfDeg * 2));
+  };
+  const onUp = () => {
+    SceneCommands.endGesture();
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+  };
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+}
+
 // The interactive transform gizmo, drawn from the origin (= the selection pivot, the
 // wrapper is translated there each frame). Its geometry mirrors the hit zones in
 // gizmo.ts (GIZMO constants) so the handles a user aims at are the handles the tool
@@ -569,7 +631,7 @@ export function Viewport() {
           if (poly) poly.style.opacity = '0';
           if (circ) circ.style.opacity = '0';
         }
-        // Circle-collider radius handle (box halfExtents is a vec2 — a follow-up).
+        // Collider drag handles: circle radius (cl-handle) / box corner size (cl-size-handle).
         const chnd = svg.querySelector('.cl-handle') as SVGCircleElement | null;
         if (chnd) {
           if (cg && cg.kind === 'circle' && cg.handle) {
@@ -578,6 +640,16 @@ export function Viewport() {
             chnd.style.display = '';
           } else {
             chnd.style.display = 'none';
+          }
+        }
+        const csz = svg.querySelector('.cl-size-handle') as SVGCircleElement | null;
+        if (csz) {
+          if (cg && cg.kind === 'box' && cg.sizeHandle) {
+            csz.setAttribute('cx', String(cg.sizeHandle.x));
+            csz.setAttribute('cy', String(cg.sizeHandle.y));
+            csz.style.display = '';
+          } else {
+            csz.style.display = 'none';
           }
         }
       }
@@ -676,18 +748,23 @@ export function Viewport() {
           if (poly) poly.style.opacity = '0';
           if (circ) circ.style.opacity = '0';
         }
-        // Radius drag-handle (Circle/Cone): shown only when the emitter is on and
-        // exposes one; hidden (display:none) otherwise so it can't grab pointers.
-        const hnd = svg ? (svg.querySelector('.pe-handle') as SVGCircleElement | null) : null;
-        if (hnd) {
-          if (pg && pg.on && pg.handle) {
-            hnd.setAttribute('cx', String(pg.handle.x));
-            hnd.setAttribute('cy', String(pg.handle.y));
-            hnd.style.display = '';
+        // Drag handles (radius Circle/Cone, size Rect, angle Cone): each shown only
+        // when the emitter is on and exposes it, else display:none so it can't grab
+        // pointers. The shape SVG spans the viewport so handle px are absolute.
+        const placePe = (cls: string, pt: { x: number; y: number } | null | undefined) => {
+          const el = svg ? (svg.querySelector(cls) as SVGCircleElement | null) : null;
+          if (!el) return;
+          if (pg && pg.on && pt) {
+            el.setAttribute('cx', String(pt.x));
+            el.setAttribute('cy', String(pt.y));
+            el.style.display = '';
           } else {
-            hnd.style.display = 'none';
+            el.style.display = 'none';
           }
-        }
+        };
+        placePe('.pe-handle', pg?.handle);
+        placePe('.pe-size-handle', pg?.sizeHandle);
+        placePe('.pe-angle-handle', pg?.angleHandle);
       }
       PerfMonitor.mark('gizmo.update', perfT0);
     };
@@ -983,6 +1060,14 @@ export function Viewport() {
             style={{ display: 'none' }}
             onPointerDown={(e) => startRadiusHandleDrag(id, 'CircleCollider', 'radius', ViewportController.colliderPixelsPerUnit(), e)}
           />
+          <circle
+            className="cl-size-handle"
+            cx="0"
+            cy="0"
+            r="5"
+            style={{ display: 'none' }}
+            onPointerDown={(e) => startSizeHandleDrag(id, 'BoxCollider', 'halfExtents', ViewportController.colliderPixelsPerUnit(), false, e)}
+          />
         </svg>
       ))}
 
@@ -1034,6 +1119,22 @@ export function Viewport() {
             r="5"
             style={{ display: 'none' }}
             onPointerDown={(e) => startRadiusHandleDrag(id, 'ParticleEmitter', 'shapeRadius', 1, e)}
+          />
+          <circle
+            className="pe-size-handle"
+            cx="0"
+            cy="0"
+            r="5"
+            style={{ display: 'none' }}
+            onPointerDown={(e) => startSizeHandleDrag(id, 'ParticleEmitter', 'shapeSize', 1, true, e)}
+          />
+          <circle
+            className="pe-angle-handle"
+            cx="0"
+            cy="0"
+            r="5"
+            style={{ display: 'none' }}
+            onPointerDown={(e) => startAngleHandleDrag(id, e)}
           />
         </svg>
       ))}

@@ -781,13 +781,17 @@ body.thumb-capture .viewport__play-stop {
   stroke-width: 1.5;
   opacity: 0;
 }
-/* Draggable radius handle (circle collider) — write the radius (meters) on canvas. */
-.viewport__collider-gizmo .cl-handle {
+/* Draggable handles — circle radius / box corner size (meters), written on canvas. */
+.viewport__collider-gizmo .cl-handle,
+.viewport__collider-gizmo .cl-size-handle {
   fill: #00dc82;
   stroke: #1a1a1a;
   stroke-width: 1.5;
   pointer-events: auto;
   cursor: ew-resize;
+}
+.viewport__collider-gizmo .cl-size-handle {
+  cursor: nwse-resize;
 }
 
 /* Particle-emitter gizmo: a clickable icon at the emitter + its spawn-shape overlay.
@@ -839,15 +843,25 @@ body.thumb-capture .viewport__play-stop {
   stroke-width: 1.5;
   opacity: 0;
 }
-/* Draggable radius handle (Circle/Cone) — write shapeRadius on canvas. */
-.viewport__particle-shape .pe-handle {
+/* Draggable handles — radius (Circle/Cone), size corner (Rect), angle edge (Cone). */
+.viewport__particle-shape .pe-handle,
+.viewport__particle-shape .pe-size-handle,
+.viewport__particle-shape .pe-angle-handle {
   fill: #ffb454;
   stroke: #1a1a1a;
   stroke-width: 1.5;
   pointer-events: auto;
   cursor: ew-resize;
 }
-.viewport__particle-shape .pe-handle:hover {
+.viewport__particle-shape .pe-size-handle {
+  cursor: nwse-resize;
+}
+.viewport__particle-shape .pe-angle-handle {
+  cursor: crosshair;
+}
+.viewport__particle-shape .pe-handle:hover,
+.viewport__particle-shape .pe-size-handle:hover,
+.viewport__particle-shape .pe-angle-handle:hover {
   fill: #ffd08a;
 }
 

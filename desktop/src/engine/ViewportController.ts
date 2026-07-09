@@ -474,7 +474,7 @@ export const ViewportController = {
    */
   getColliderGizmo(
     id: EntityId,
-  ): { kind: 'box'; pts: Array<{ x: number; y: number }>; handle: { x: number; y: number } | null } | { kind: 'circle'; cx: number; cy: number; r: number; handle: { x: number; y: number } | null } | null {
+  ): { kind: 'box'; pts: Array<{ x: number; y: number }>; handle: { x: number; y: number } | null; sizeHandle: { x: number; y: number } | null } | { kind: 'circle'; cx: number; cy: number; r: number; handle: { x: number; y: number } | null; sizeHandle: { x: number; y: number } | null } | null {
     const world = EngineHost.world;
     if (!world || !world.valid(id) || !world.has(id, Transform)) return null;
     const t = world.get(id, Transform);
@@ -496,8 +496,9 @@ export const ViewportController = {
         this.worldToClient(wx, wy),
       );
       if (screen.some((p) => !p)) return null;
-      // Box halfExtents is a vec2 (corner handle) — a follow-up; no radius handle here.
-      return { kind: 'box', pts: screen.map((p) => ({ x: p!.x, y: p!.y })), handle: null };
+      const bs = screen.map((p) => ({ x: p!.x, y: p!.y }));
+      // Size handle at the +hw,+hh corner (obbCorners index 2) — drag = halfExtents.
+      return { kind: 'box', pts: bs, handle: null, sizeHandle: bs[2] };
     }
 
     const cc = world.get(id, CircleCollider) as { radius: number; offset: { x: number; y: number } };
@@ -507,7 +508,7 @@ export const ViewportController = {
     if (!center || !edge) return null;
     // Radius handle at the top of the circle (drag = radius, in physics meters).
     const handle = this.worldToClient(c.x, c.y + cc.radius * ppu);
-    return { kind: 'circle', cx: center.x, cy: center.y, r: Math.hypot(edge.x - center.x, edge.y - center.y), handle: handle ?? null };
+    return { kind: 'circle', cx: center.x, cy: center.y, r: Math.hypot(edge.x - center.x, edge.y - center.y), handle: handle ?? null, sizeHandle: null };
   },
 
   /** Ids of entities carrying a ParticleEmitter — the emitter-gizmo set. */
@@ -533,7 +534,7 @@ export const ViewportController = {
    */
   getParticleEmitterGizmo(
     id: EntityId,
-  ): { cx: number; cy: number; kind: 'point' | 'circle' | 'poly'; r: number; pts: Array<{ x: number; y: number }>; on: boolean; handle: { x: number; y: number } | null } | null {
+  ): { cx: number; cy: number; kind: 'point' | 'circle' | 'poly'; r: number; pts: Array<{ x: number; y: number }>; on: boolean; handle: { x: number; y: number } | null; sizeHandle: { x: number; y: number } | null; angleHandle: { x: number; y: number } | null } | null {
     const world = EngineHost.world;
     if (!world || !world.valid(id) || !world.has(id, ParticleEmitter) || !world.has(id, Transform)) return null;
     const t = world.get(id, Transform);
@@ -559,7 +560,7 @@ export const ViewportController = {
         const r = edge ? Math.hypot(edge.x - center.x, edge.y - center.y) : 0;
         // Radius handle at the top of the ring (drag to resize shapeRadius).
         const handle = this.worldToClient(t.worldPosition.x, t.worldPosition.y + p.shapeRadius);
-        return { cx: center.x, cy: center.y, kind: 'circle', r, pts: [], on, handle: handle ?? null };
+        return { cx: center.x, cy: center.y, kind: 'circle', r, pts: [], on, handle: handle ?? null, sizeHandle: null, angleHandle: null };
       }
       case 2: {  // Rectangle — oriented spawn box of shapeSize
         const corners = obbCorners({
@@ -567,7 +568,9 @@ export const ViewportController = {
           hw: Math.abs(p.shapeSize.x) * 0.5, hh: Math.abs(p.shapeSize.y) * 0.5, rot,
         }).map(([wx, wy]) => this.worldToClient(wx, wy));
         if (corners.some((s) => !s)) return null;
-        return { cx: center.x, cy: center.y, kind: 'poly', r: 0, pts: corners.map((s) => ({ x: s!.x, y: s!.y })), on, handle: null };
+        const cs = corners.map((s) => ({ x: s!.x, y: s!.y }));
+        // Size handle at the +halfW,+halfH corner (obbCorners index 2) — drag = shapeSize.
+        return { cx: center.x, cy: center.y, kind: 'poly', r: 0, pts: cs, on, handle: null, sizeHandle: cs[2], angleHandle: null };
       }
       case 3: {  // Cone — aim wedge: local up (0,1) swept ±shapeAngle/2, out to shapeRadius
         const half = Math.max(0, p.shapeAngle) * 0.5 * (Math.PI / 180);
@@ -581,13 +584,16 @@ export const ViewportController = {
           if (!s) return null;
           pts.push({ x: s.x, y: s.y });
         }
-        // Radius handle at the wedge's forward tip (drag to resize shapeRadius/reach).
+        // Radius handle at the wedge's forward tip (drag to resize shapeRadius/reach);
+        // angle handle at the +half-angle edge (drag to widen/narrow shapeAngle).
         const tip = toWorld(0, rad);
         const handleS = this.worldToClient(tip.x, tip.y);
-        return { cx: center.x, cy: center.y, kind: 'poly', r: 0, pts, on, handle: handleS ?? null };
+        const edge = toWorld(Math.sin(half) * rad, Math.cos(half) * rad);
+        const angleS = this.worldToClient(edge.x, edge.y);
+        return { cx: center.x, cy: center.y, kind: 'poly', r: 0, pts, on, handle: handleS ?? null, sizeHandle: null, angleHandle: angleS ?? null };
       }
       default:  // Point (0) — a marker at the emitter (the clickable icon)
-        return { cx: center.x, cy: center.y, kind: 'point', r: 0, pts: [], on, handle: null };
+        return { cx: center.x, cy: center.y, kind: 'point', r: 0, pts: [], on, handle: null, sizeHandle: null, angleHandle: null };
     }
   },
 };
