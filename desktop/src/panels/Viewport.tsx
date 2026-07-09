@@ -16,6 +16,7 @@ import { ViewportController } from '@/engine/ViewportController';
 import { ProjectStore } from '@/project/ProjectStore';
 import { IMAGE_RE } from '@/project/assetMeta';
 import { SceneModel } from '@/engine/SceneModel';
+import { SceneCommands } from '@/engine/SceneCommands';
 import { SceneStore } from '@/engine/SceneStore';
 import { StatsStore } from '@/engine/StatsStore';
 import { PerfMonitor } from '@/engine/PerfMonitor';
@@ -33,6 +34,33 @@ const toInput = (e: ReactPointerEvent): PointerInput => ({
   clientX: e.clientX, clientY: e.clientY, pointerId: e.pointerId,
   button: e.button, shift: e.shiftKey, alt: e.altKey,
 });
+
+// Drag an emitter gizmo's radius handle: convert the cursor to world space and write
+// shapeRadius through the SAME setField + begin/endGesture channel the Inspector uses
+// (one coalesced undo step, one source of truth). This is the reusable on-canvas-edit
+// shape — any gizmo handle can drive a component field the same way (light radius,
+// collider size are the natural next adopters).
+function startEmitterRadiusDrag(rt: number, e: ReactPointerEvent): void {
+  if (e.button !== 0) return;
+  const src = SceneModel.sourceFor(rt);
+  const center = ViewportController.getEntityWorldXY(rt);
+  if (src == null || !center) return;
+  e.stopPropagation();
+  SceneCommands.beginGesture('Emitter radius');
+  const onMove = (ev: PointerEvent) => {
+    const w = ViewportController.canvasToWorld(ev.clientX, ev.clientY);
+    if (!w) return;
+    const r = Math.max(0, Math.hypot(w.x - center.x, w.y - center.y));
+    SceneCommands.setField(src, 'ParticleEmitter', 'shapeRadius', 'number', r);
+  };
+  const onUp = () => {
+    SceneCommands.endGesture();
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+  };
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+}
 
 // The interactive transform gizmo, drawn from the origin (= the selection pivot, the
 // wrapper is translated there each frame). Its geometry mirrors the hit zones in
@@ -621,6 +649,18 @@ export function Viewport() {
           if (poly) poly.style.opacity = '0';
           if (circ) circ.style.opacity = '0';
         }
+        // Radius drag-handle (Circle/Cone): shown only when the emitter is on and
+        // exposes one; hidden (display:none) otherwise so it can't grab pointers.
+        const hnd = svg ? (svg.querySelector('.pe-handle') as SVGCircleElement | null) : null;
+        if (hnd) {
+          if (pg && pg.on && pg.handle) {
+            hnd.setAttribute('cx', String(pg.handle.x));
+            hnd.setAttribute('cy', String(pg.handle.y));
+            hnd.style.display = '';
+          } else {
+            hnd.style.display = 'none';
+          }
+        }
       }
       PerfMonitor.mark('gizmo.update', perfT0);
     };
@@ -944,6 +984,14 @@ export function Viewport() {
         >
           <polygon className="pe-poly" points="" />
           <circle className="pe-circle" cx="0" cy="0" r="0" />
+          <circle
+            className="pe-handle"
+            cx="0"
+            cy="0"
+            r="5"
+            style={{ display: 'none' }}
+            onPointerDown={(e) => startEmitterRadiusDrag(id, e)}
+          />
         </svg>
       ))}
 

@@ -823,6 +823,17 @@ body.thumb-capture .viewport__play-stop {
   stroke-width: 1.5;
   opacity: 0;
 }
+/* Draggable radius handle (Circle/Cone) — write shapeRadius on canvas. */
+.viewport__particle-shape .pe-handle {
+  fill: #ffb454;
+  stroke: #1a1a1a;
+  stroke-width: 1.5;
+  pointer-events: auto;
+  cursor: ew-resize;
+}
+.viewport__particle-shape .pe-handle:hover {
+  fill: #ffd08a;
+}
 
 .viewport__overlay {
   position: absolute;

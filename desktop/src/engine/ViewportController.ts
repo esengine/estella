@@ -526,7 +526,7 @@ export const ViewportController = {
    */
   getParticleEmitterGizmo(
     id: EntityId,
-  ): { cx: number; cy: number; kind: 'point' | 'circle' | 'poly'; r: number; pts: Array<{ x: number; y: number }>; on: boolean } | null {
+  ): { cx: number; cy: number; kind: 'point' | 'circle' | 'poly'; r: number; pts: Array<{ x: number; y: number }>; on: boolean; handle: { x: number; y: number } | null } | null {
     const world = EngineHost.world;
     if (!world || !world.valid(id) || !world.has(id, ParticleEmitter) || !world.has(id, Transform)) return null;
     const t = world.get(id, Transform);
@@ -550,7 +550,9 @@ export const ViewportController = {
       case 1: {  // Circle — spawn disk of shapeRadius
         const edge = this.worldToClient(t.worldPosition.x + p.shapeRadius, t.worldPosition.y);
         const r = edge ? Math.hypot(edge.x - center.x, edge.y - center.y) : 0;
-        return { cx: center.x, cy: center.y, kind: 'circle', r, pts: [], on };
+        // Radius handle at the top of the ring (drag to resize shapeRadius).
+        const handle = this.worldToClient(t.worldPosition.x, t.worldPosition.y + p.shapeRadius);
+        return { cx: center.x, cy: center.y, kind: 'circle', r, pts: [], on, handle: handle ?? null };
       }
       case 2: {  // Rectangle — oriented spawn box of shapeSize
         const corners = obbCorners({
@@ -558,7 +560,7 @@ export const ViewportController = {
           hw: Math.abs(p.shapeSize.x) * 0.5, hh: Math.abs(p.shapeSize.y) * 0.5, rot,
         }).map(([wx, wy]) => this.worldToClient(wx, wy));
         if (corners.some((s) => !s)) return null;
-        return { cx: center.x, cy: center.y, kind: 'poly', r: 0, pts: corners.map((s) => ({ x: s!.x, y: s!.y })), on };
+        return { cx: center.x, cy: center.y, kind: 'poly', r: 0, pts: corners.map((s) => ({ x: s!.x, y: s!.y })), on, handle: null };
       }
       case 3: {  // Cone — aim wedge: local up (0,1) swept ±shapeAngle/2, out to shapeRadius
         const half = Math.max(0, p.shapeAngle) * 0.5 * (Math.PI / 180);
@@ -572,10 +574,13 @@ export const ViewportController = {
           if (!s) return null;
           pts.push({ x: s.x, y: s.y });
         }
-        return { cx: center.x, cy: center.y, kind: 'poly', r: 0, pts, on };
+        // Radius handle at the wedge's forward tip (drag to resize shapeRadius/reach).
+        const tip = toWorld(0, rad);
+        const handleS = this.worldToClient(tip.x, tip.y);
+        return { cx: center.x, cy: center.y, kind: 'poly', r: 0, pts, on, handle: handleS ?? null };
       }
       default:  // Point (0) — a marker at the emitter (the clickable icon)
-        return { cx: center.x, cy: center.y, kind: 'point', r: 0, pts: [], on };
+        return { cx: center.x, cy: center.y, kind: 'point', r: 0, pts: [], on, handle: null };
     }
   },
 };
