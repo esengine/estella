@@ -16,6 +16,8 @@ import type { CatalogData, CookedAtlasInfo, ESEngineModule, SceneData } from 'es
 
 interface GameConfig {
   entryScene: string;
+  /** Bitmask of render layers (0..31) that y-sort within the layer. */
+  ySortLayers?: number;
 }
 interface CookedManifest {
   entries: { uuid: string; path: string; sourcePath?: string; type: string; atlas?: CookedAtlasInfo }[];
@@ -98,6 +100,7 @@ async function boot(): Promise<void> {
 
   const app = createWebApp(module, {
     glContextHandle: glHandle,
+    ySortLayers: cfg.ySortLayers,
     getViewportSize: () => ({ width: canvas.width, height: canvas.height }),
     wasmBaseUrl: wasmBase.replace(/\/$/, ''), // SDK appends "/<file>" — no trailing slash
   });

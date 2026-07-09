@@ -103,6 +103,15 @@ export interface MatrixSetting extends BaseSetting<number[]> {
   labels: () => string[];
 }
 
+/** A labeled row of per-slot toggles stored as the enabled slot indices — e.g.
+ *  which named sorting layers y-sort. Only slot 0 and named slots are shown. */
+export interface FlagListSetting extends BaseSetting<number[]> {
+  type: 'flagList';
+  count: number;
+  /** Slot labels (e.g. the named sorting layers), read at render time. */
+  labels: () => string[];
+}
+
 export type Setting =
   | BooleanSetting
   | NumberSetting
@@ -111,6 +120,7 @@ export type Setting =
   | ColorSetting
   | KeybindingSetting
   | StringListSetting
-  | MatrixSetting;
+  | MatrixSetting
+  | FlagListSetting;
 
 export type SettingValue = boolean | number | string | string[] | number[];

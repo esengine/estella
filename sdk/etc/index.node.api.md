@@ -1518,6 +1518,7 @@ glContextHandle: number | undefined
 plugins: Plugin[] | undefined
 sideModules: SideModuleHost | undefined
 wasmBaseUrl: string | undefined
+ySortLayers: number | undefined
 ```
 
 ## CullMode — enum
@@ -1993,6 +1994,7 @@ renderer_setEntityStencilTest: (entity: number, refValue: number) => void
 renderer_setStage: (stage: number) => void
 renderer_setTextureParams: (textureId: number, minFilter: number, magFilter: number, wrapS: number, wrapT: number) => void
 renderer_setViewport: (x: number, y: number, w: number, h: number) => void
+renderer_setYSortLayers: ((mask: number) => void) | undefined
 renderer_submitAll: (registry: CppRegistry, skipFlags: number, vpX: number, vpY: number, vpW: number, vpH: number) => void
 renderer_submitBitmapText: (registry: CppRegistry) => void
 renderer_submitParticles: ((registry: CppRegistry) => void) | undefined
@@ -4049,6 +4051,7 @@ manifest: AddressableManifest | null | undefined
 module: ESEngineModule
 physicsConfig: { gravity?: Vec2; fixedTimestep?: number; subStepCount?: number; } | undefined
 scenes: { name: string; data: SceneData; }[]
+ySortLayers: number | undefined
 ```
 
 ## Plugin — interface
@@ -4529,7 +4532,7 @@ UIElement = 7
 
 ## Renderer — const
 ```
-{ init(width: number, height: number): void; resize(width: number, height: number): void; beginFrame(elapsedSec?: number): void; updateTransforms(registry: { _cpp: CppRegistry; }): void; begin(viewProjection: Float32Array, target?: RenderTargetHandle, clearFlags?: number, clearColor?: { x: number; y: number; z: number; w: number; }, clearRect?: { x: number; y: number; w: number; h: number; }): void; flush(): void; end(): void; submitAll(registry: { _cpp: CppRegistry; }, skipFlags: number, vpX: number, vpY: number, vpW: number, vpH: number): void; setStage(stage: RenderStage): void; createRenderTarget(width: number, height: number, flags?: number): RenderTargetHandle; releaseRenderTarget(handle: RenderTargetHandle): void; getTargetTexture(handle: RenderTargetHandle): number; getTargetDepthTexture(handle: RenderTargetHandle): number; setClearColor(r: number, g: number, b: number, a: number): void; setViewport(x: number, y: number, w: number, h: number): void; setTextureParams(textureId: number, minFilter: number, magFilter: number, wrapS: number, wrapT: number): void; measureBitmapText(fontHandle: number, text: string, fontSize: number, spacing: number): { width: number; height: number; }; getStats(): RenderStats; captureNextFrame(): void; getCapturedData(): FrameCaptureData | null; hasCapturedData(): boolean; replayToDrawCall(drawCallIndex: number): void; getSnapshotImageData(): Promise<ImageData | null>; }
+{ init(width: number, height: number): void; resize(width: number, height: number): void; beginFrame(elapsedSec?: number): void; updateTransforms(registry: { _cpp: CppRegistry; }): void; begin(viewProjection: Float32Array, target?: RenderTargetHandle, clearFlags?: number, clearColor?: { x: number; y: number; z: number; w: number; }, clearRect?: { x: number; y: number; w: number; h: number; }): void; flush(): void; end(): void; submitAll(registry: { _cpp: CppRegistry; }, skipFlags: number, vpX: number, vpY: number, vpW: number, vpH: number): void; setStage(stage: RenderStage): void; createRenderTarget(width: number, height: number, flags?: number): RenderTargetHandle; releaseRenderTarget(handle: RenderTargetHandle): void; getTargetTexture(handle: RenderTargetHandle): number; getTargetDepthTexture(handle: RenderTargetHandle): number; setClearColor(r: number, g: number, b: number, a: number): void; setViewport(x: number, y: number, w: number, h: number): void; setYSortLayers(mask: number): void; setTextureParams(textureId: number, minFilter: number, magFilter: number, wrapS: number, wrapT: number): void; measureBitmapText(fontHandle: number, text: string, fontSize: number, spacing: number): { width: number; height: number; }; getStats(): RenderStats; captureNextFrame(): void; getCapturedData(): FrameCaptureData | null; hasCapturedData(): boolean; replayToDrawCall(drawCallIndex: number): void; getSnapshotImageData(): Promise<ImageData | null>; }
 ```
 
 ## Replicated — const @beta
@@ -6605,6 +6608,7 @@ getViewportSize: (() => { width: number; height: number; }) | undefined
 glContextHandle: number | undefined
 plugins: Plugin[] | undefined
 sideModules: SideModuleHost | undefined
+ySortLayers: number | undefined
 ```
 
 ## World — class

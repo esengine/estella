@@ -126,6 +126,11 @@ app.whenReady().then(async () => {
     if (process.env.ESTELLA_VERIFY_PLAY === '1') {
       await exec('window.__estellaHeadless.api.setRunMode(true)');
     }
+    // Project render config stand-in: ESTELLA_VERIFY_YSORT = layer bitmask
+    // (Project Settings → Rendering → Y-sorted layers in a real project).
+    if (process.env.ESTELLA_VERIFY_YSORT) {
+      await exec(`window.__estellaHeadless.api.setYSortLayers(${Number(process.env.ESTELLA_VERIFY_YSORT)})`);
+    }
     await exec(`window.__estellaHeadless.api.step(${STEPS}, 1 / 60)`);
 
     // WebGPU: the engine has no synchronous readback (buffer maps are async)

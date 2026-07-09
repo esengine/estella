@@ -100,6 +100,7 @@ std::string engine_getGpuScopes();
 f64 renderer_getTextureBytes();
 void renderer_setClearColor(f32 r, f32 g, f32 b, f32 a);
 void renderer_setViewport(i32 x, i32 y, i32 w, i32 h);
+void renderer_setYSortLayers(u32 mask);
 void renderer_diagnose();
 void renderer_setEntityClipRect(u32 entity, i32 x, i32 y, i32 w, i32 h);
 void renderer_clearEntityClipRect(u32 entity);

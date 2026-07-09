@@ -86,6 +86,7 @@ void SpritePlugin::collect(RenderCollectContext& collect_ctx) {
             .blend = BlendMode::Normal,
             .textureId = textureId,
             .depth = position.z,
+            .y = position.y,
             .entity = entity,
             .type = RenderType::Sprite,
         };

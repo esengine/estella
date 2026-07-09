@@ -36,6 +36,8 @@ export interface PlayableRuntimeConfig {
     scenes: Array<{ name: string; data: SceneData }>;
     firstScene: string;
     physicsConfig?: { gravity?: Vec2; fixedTimestep?: number; subStepCount?: number };
+    /** Bitmask of render layers (0..31) that y-sort within the layer (Project Settings → Rendering). */
+    ySortLayers?: number;
     manifest?: AddressableManifest | null;
 }
 
@@ -67,6 +69,10 @@ function loadImagePixels(dataUrl: string): Promise<{ width: number; height: numb
 
 export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promise<void> {
     const { app, module, scenes, firstScene } = config;
+
+    // The playable boot pre-creates the app, so the project's y-sort layers are
+    // applied here rather than through createWebApp options.
+    if (config.ySortLayers) module.renderer_setYSortLayers?.(config.ySortLayers >>> 0);
 
     // Alias logical paths onto the embedded map (both spellings the cook may
     // emit) — the aliases point at the SAME data-URL strings, so path refs cost

@@ -1017,6 +1017,12 @@ export interface WebAppOptions {
     /** The realm's optional-native-module acquirer; set before plugins build so
      *  SpinePlugin (and later physics) can pull from it. See {@link App.sideModules}. */
     sideModules?: SideModuleHost;
+    /**
+     * Bitmask of render layers (bits 0..31) that sort by world Y within the
+     * layer — top-down occlusion (lower on screen draws on top). Project-level
+     * setting (Project Settings → Rendering); change later via Renderer.setYSortLayers.
+     */
+    ySortLayers?: number;
 }
 
 export function createWebApp(module: ESEngineModule, options?: WebAppOptions): App {
@@ -1042,6 +1048,9 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
     } else {
         module.initRenderer();
     }
+    // Always applied (not only when set): the renderer outlives the App on realm
+    // reloads, so a fresh App must reset a prior session's y-sort state too.
+    module.renderer_setYSortLayers?.((options?.ySortLayers ?? 0) >>> 0);
 
     app.addPlugin(corePlugin);
     app.setPipeline(new RenderPipeline());

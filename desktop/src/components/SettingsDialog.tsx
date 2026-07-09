@@ -16,7 +16,7 @@ import { useEditorStore } from '@/store/editorStore';
 import { useSettings } from '@/store/settingsStore';
 import { settingsRegistry } from '@/settings/registry';
 import { eventToChord, formatKeybinding } from '@/commands/keybinding';
-import type { Setting, NumberSetting, KeybindingSetting, StringListSetting, MatrixSetting } from '@/settings/types';
+import type { Setting, NumberSetting, KeybindingSetting, StringListSetting, MatrixSetting, FlagListSetting } from '@/settings/types';
 
 // A bound list setting's getter returns a fresh array each call; useShallow below
 // keeps the read referentially stable (else useSyncExternalStore loops). A shared
@@ -189,6 +189,28 @@ function MatrixControl({ setting }: { setting: MatrixSetting }) {
   );
 }
 
+function FlagListControl({ setting }: { setting: FlagListSetting }) {
+  const setValue = useSettings((s) => s.setValue);
+  const value = useSettings(useShallow((s) => s.getValue<number[]>(setting.id) ?? (EMPTY_MASKS as number[])));
+  const labels = setting.labels();
+  const shown = Array.from({ length: setting.count }, (_, i) => i).filter((i) => i === 0 || (labels[i] ?? '') !== '');
+  const isOn = (i: number) => value.includes(i);
+  const toggle = (i: number) => {
+    const next = isOn(i) ? value.filter((v) => v !== i) : [...value, i].sort((a, b) => a - b);
+    setValue(setting.id, next);
+  };
+  return (
+    <div className="set-flaglist">
+      {shown.map((i) => (
+        <label key={i} className="set-flaglist-item">
+          <input type="checkbox" checked={isOn(i)} onChange={() => toggle(i)} />
+          <span>{labels[i] || `Layer ${i}`}</span>
+        </label>
+      ))}
+    </div>
+  );
+}
+
 function Control({ setting }: { setting: Setting }) {
   const setValue = useSettings((s) => s.setValue);
   // useShallow: a bound list setting returns a fresh array each read, which would
@@ -261,6 +283,8 @@ function Control({ setting }: { setting: Setting }) {
       return <StringListControl setting={setting} />;
     case 'matrix':
       return <MatrixControl setting={setting} />;
+    case 'flagList':
+      return <FlagListControl setting={setting} />;
   }
 }
 

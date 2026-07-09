@@ -57,6 +57,8 @@ export interface PlayPayload {
   physicsEnabled?: boolean;
   /** Project physics world config (gravity, solver, collision matrix) — forwarded. */
   physicsConfig?: PhysicsPluginConfig;
+  /** Bitmask of render layers (0..31) that y-sort within the layer — forwarded. */
+  ySortLayers?: number;
   /** Multiplayer preview role; absent = a plain single-player session. */
   net?: PlayNetConfig;
 }

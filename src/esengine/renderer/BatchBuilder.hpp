@@ -82,6 +82,9 @@ struct BatchDrawKey {
     BlendMode blend = BlendMode::Normal;
     u32 textureId = 0;
     f32 depth = 0.0f;
+    // World-space Y of the draw's anchor. Consumed only when the layer is y-sorted
+    // (DrawList::ySortMask); layers outside 0..31 cannot y-sort.
+    f32 y = 0.0f;
     Entity entity = INVALID_ENTITY;
     RenderType type = RenderType::Sprite;
     // Material handle + the render state resolved from it (defaults when materialId == 0).

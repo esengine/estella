@@ -537,9 +537,12 @@ ipcMain.handle(
     const wechatWasm = [path.join(VITE_PUBLIC, 'wasm-wechat'), path.join(process.env.APP_ROOT!, '..', 'build', 'wasm', 'wechat')]
       .find(existsSync) ?? path.join(VITE_PUBLIC, 'wasm-wechat');
     const plat = manifest.packaging?.platforms;
+    const ySortLayers =
+      (manifest.features?.rendering?.ySortLayers ?? []).reduce((m, i) => m | (1 << i), 0) >>> 0;
     return exportGame({
       root,
       entryScene,
+      ySortLayers,
       gameHostEntry: path.join(process.env.APP_ROOT!, 'src', 'gameHost.ts'),
       playableHostEntry: path.join(process.env.APP_ROOT!, 'src', 'playableHost.ts'),
       scriptsEntry: resolveScripts(manifest).main,

@@ -77,6 +77,17 @@ sprite.layer = 2;   // 例如 "Foreground" —— 画在上面
   排序层做粗粒度分组(背景 vs 玩法 vs 世界内 UI)。层**内**的精细排序,用实体 `Transform` 的 z 位置。
 </Aside>
 
+### Y 排序(俯视遮挡)
+
+俯视视角游戏在 **Project Settings → Rendering → Y-sorted layers** 勾选某个层后,该层上的
+精灵、图形与文本都按世界 Y 坐标排序绘制:屏幕上越靠下的实体画在越上层,角色走到树下方时
+自然显示在树前——无需手动调 `layer` 或 z。
+
+<Aside type="note">
+  在 Y 排序层内,绘制顺序优先于材质合批——交替材质的重叠绘制无法合并为一个 draw call。
+  只对需要它的玩法层开启 Y 排序。
+</Aside>
+
 ## 翻转、图集与滚动
 
 - 用 `flipX` / `flipY` **翻转**精灵——例如让角色朝左或朝右,而不用另一张纹理。

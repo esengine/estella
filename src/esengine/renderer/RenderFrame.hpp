@@ -156,6 +156,9 @@ public:
     const Stats& stats() const { return stats_; }
     FrameCapture& frameCapture() { return frame_capture_; }
 
+    /// Layers (bits 0..31) that sort by world Y within the layer — see DrawList::setYSortMask.
+    void setYSortLayers(u32 mask) { draw_list_.setYSortMask(mask); }
+
     void replayToDrawCall(i32 stopAtDrawCall);
     const u8* getSnapshotPixels() const { return snapshot_pixels_.data(); }
     u32 getSnapshotSize() const { return static_cast<u32>(snapshot_pixels_.size()); }

@@ -228,6 +228,8 @@ export async function exportGame(opts: {
   /** Shipping config: minify the bundles, no sourcemap. Default off (dev). */
   minify?: boolean;
   sourcemap?: boolean;
+  /** Bitmask of render layers (0..31) that y-sort (Project Settings → Rendering). */
+  ySortLayers?: number;
 }): Promise<ExportGameResult> {
   const platform = opts.platform ?? 'web';
   const title = opts.title ?? 'Game';
@@ -245,6 +247,7 @@ export async function exportGame(opts: {
       title,
       appid: opts.wechatAppid,
       orientation: opts.wechatOrientation,
+      ySortLayers: opts.ySortLayers,
       minify: opts.minify,
       contentAddressed: opts.contentAddressed,
       compressTextures: opts.compressTextures,
@@ -265,6 +268,7 @@ export async function exportGame(opts: {
       outDir: opts.outDir,
       title,
       minify: opts.minify,
+      ySortLayers: opts.ySortLayers,
       onProgress: opts.onProgress,
     });
   }
@@ -325,7 +329,10 @@ export async function exportGame(opts: {
   await writeFile(path.join(payloadDir, 'index.html'), indexHtml(title));
   await writeFile(
     path.join(payloadDir, 'game.config.json'),
-    JSON.stringify({ entryScene: opts.entryScene }, null, 2) + '\n',
+    JSON.stringify(
+      { entryScene: opts.entryScene, ...(opts.ySortLayers ? { ySortLayers: opts.ySortLayers } : {}) },
+      null, 2,
+    ) + '\n',
   );
 
   // 6. Desktop: wrap the payload in a runnable Electron app.

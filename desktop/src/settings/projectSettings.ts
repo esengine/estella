@@ -34,6 +34,25 @@ settingsRegistry.register({
 });
 
 settingsRegistry.register({
+  id: 'project.rendering.ySortLayers',
+  type: 'flagList',
+  scope: 'project',
+  section: 'rendering',
+  group: 'Y-Sort',
+  label: 'Y-sorted layers',
+  description:
+    'Entities on a checked layer draw in world-Y order (lower on screen on top) — top-down occlusion. ' +
+    'Within a y-sorted layer, paint order wins over material batching.',
+  count: 8,
+  labels: () => ProjectStore.renderingFeature().sortingLayers,
+  default: [],
+  bind: {
+    get: () => ProjectStore.renderingFeature().ySortLayers,
+    set: (v) => void ProjectStore.setRendering({ ySortLayers: v }),
+  },
+});
+
+settingsRegistry.register({
   id: 'project.physics.enabled',
   type: 'boolean',
   scope: 'project',

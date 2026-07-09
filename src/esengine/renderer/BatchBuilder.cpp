@@ -49,8 +49,13 @@ void pushBatchDraw(DrawList& drawList, const ClipState& clips,
     if (indexCount == 0) return;
 
     DrawCommand cmd{};
-    cmd.sort_key = DrawCommand::buildSortKey(key.stage, key.layer, key.shaderId,
-                                             key.blend, 0, key.depth, key.materialId);
+    const bool ysorted = key.layer >= 0 && key.layer < 32 &&
+                         ((drawList.ySortMask() >> key.layer) & 1u) != 0;
+    cmd.sort_key = ysorted
+        ? DrawCommand::buildSortKeyYSorted(key.stage, key.layer, key.y, key.shaderId,
+                                           key.blend, 0)
+        : DrawCommand::buildSortKey(key.stage, key.layer, key.shaderId,
+                                    key.blend, 0, key.depth, key.materialId);
     cmd.index_offset = indexOffset;
     cmd.index_count = indexCount;
     cmd.vertex_byte_offset = vertexByteOffset;

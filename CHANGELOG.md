@@ -15,6 +15,10 @@ published separately; it ships inside the editor.
 ## [Unreleased]
 
 ### Added
+- Y-sort: check a layer under Project Settings → Rendering → "Y-sorted layers"
+  and sprites/shapes/text on it draw in world-Y order (lower on screen on top) —
+  top-down occlusion with no manual layer/z juggling. Applies across the edit
+  viewport, play mode, and every export target; pixel-verified on both backends.
 - API surface governance: every public SDK export is snapshotted with its
   signature and stability tag in `sdk/etc/*.api.md`, enforced by CI. Networking,
   the material graph, and the headless/node entry are tagged `@beta`

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { createStore } from 'zustand/vanilla';
-import { getComponent, Assets, migratePrefabData, extractPrefab, diffAgainstSource, applyOverridesToSource, setTextureParams, TextureFilter, TextureWrap } from 'esengine';
+import { getComponent, Assets, migratePrefabData, extractPrefab, diffAgainstSource, applyOverridesToSource, setTextureParams, TextureFilter, TextureWrap, Renderer } from 'esengine';
 import { readTextureImportSettings } from './assetImporter';
 import type { SceneData, PrefabData, ExtractEntity, ProcessedEntity, PhysicsPluginConfig } from 'esengine';
 import { EngineHost } from '@/engine/EngineHost';
@@ -262,6 +262,9 @@ class ProjectStoreImpl {
   async loadCurrentScene(): Promise<void> {
     const st = this.state;
     if (!st) return;
+    // Project-level render config (WYSIWYG in the edit viewport). Applied here —
+    // the one path that runs both on project open and once the engine is ready.
+    Renderer.setYSortLayers(this.ySortMask());
     const rel =
       st.workspace.lastOpenedScene ?? st.defaultScene ?? `${st.layout.scenes}/main.esscene`;
     const text = await window.estella.fs.read(rel);
@@ -717,6 +720,7 @@ class ProjectStoreImpl {
     assetManifest: Record<string, string>;
     physicsEnabled?: boolean;
     physicsConfig?: PhysicsPluginConfig;
+    ySortLayers?: number;
   } | null {
     const sceneData = SceneModel.serialize();
     if (!sceneData) return null;
@@ -744,7 +748,11 @@ class ProjectStoreImpl {
     if (f.collisionLayerMasks.some((m) => (m & 0xffff) !== 0xffff)) {
       physicsConfig.collisionLayerMasks = f.collisionLayerMasks;
     }
-    return { sceneData, assetManifest, physicsEnabled: f.enabled, physicsConfig };
+    const ySortLayers = this.ySortMask();
+    return {
+      sceneData, assetManifest, physicsEnabled: f.enabled, physicsConfig,
+      ...(ySortLayers !== 0 ? { ySortLayers } : {}),
+    };
   }
 
   /** The project's declared physics feature, with defaults (for Project Settings). The
@@ -779,9 +787,19 @@ class ProjectStoreImpl {
   }
 
   /** Named render sorting layers (z-order = slot index). Default empty list. */
-  renderingFeature(): { sortingLayers: string[] } {
+  renderingFeature(): { sortingLayers: string[]; ySortLayers: number[] } {
     const r = this.state?.features?.rendering;
-    return { sortingLayers: Array.from({ length: 8 }, (_, i) => r?.sortingLayers?.[i] ?? '') };
+    return {
+      sortingLayers: Array.from({ length: 8 }, (_, i) => r?.sortingLayers?.[i] ?? ''),
+      ySortLayers: r?.ySortLayers ?? [],
+    };
+  }
+
+  /** Bitmask over layers 0..31 that y-sort within the layer (0 = feature off). */
+  ySortMask(): number {
+    let mask = 0;
+    for (const i of this.renderingFeature().ySortLayers) mask |= 1 << i;
+    return mask >>> 0;
   }
 
   /** Sorting-layer dropdown options for render `layer` fields — only the NAMED
@@ -792,13 +810,14 @@ class ProjectStoreImpl {
       .filter((o) => o.label !== '');
   }
 
-  /** Set rendering-feature config (sorting layers) and persist to the manifest. */
-  async setRendering(patch: { sortingLayers?: string[] }): Promise<void> {
+  /** Set rendering-feature config (sorting layers, y-sort) and persist to the manifest. */
+  async setRendering(patch: { sortingLayers?: string[]; ySortLayers?: number[] }): Promise<void> {
     const st = this.state;
     if (!st) return;
     const rendering: NonNullable<ProjectFeatures['rendering']> = { ...st.features?.rendering, ...patch };
     const features: ProjectFeatures = { ...st.features, rendering };
     this.store.setState({ project: { ...st, features } });
+    Renderer.setYSortLayers(this.ySortMask());
     try {
       const raw = JSON.parse(await window.estella.fs.read(PROJECT_MANIFEST_FILE)) as Record<string, unknown>;
       raw.features = { ...((raw.features as Record<string, unknown>) ?? {}), rendering };

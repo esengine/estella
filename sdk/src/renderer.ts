@@ -144,6 +144,11 @@ export const Renderer = {
         module?.renderer_setViewport(x, y, w, h);
     },
 
+    /** Layers (bits 0..31) that sort by world Y within the layer — top-down occlusion. */
+    setYSortLayers(mask: number): void {
+        module?.renderer_setYSortLayers?.(mask >>> 0);
+    },
+
     setTextureParams(textureId: number, minFilter: number, magFilter: number, wrapS: number, wrapT: number): void {
         module?.renderer_setTextureParams?.(textureId, minFilter, magFilter, wrapS, wrapT);
     },

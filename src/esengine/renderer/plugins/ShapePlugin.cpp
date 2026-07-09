@@ -102,6 +102,7 @@ void ShapePlugin::collect(RenderCollectContext& collect_ctx) {
             .shaderId = shape_shader_id_,
             .blend = BlendMode::Normal,
             .depth = position.z,
+            .y = position.y,
             .entity = entity,
             .type = RenderType::Shape,
             .layoutId = LayoutId::Shape,

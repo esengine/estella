@@ -25,6 +25,7 @@ declare const __GAME_ASSETS__: Record<string, string>;
 declare const __GAME_PATHMAP__: Record<string, string>;
 declare const __GAME_SCENES__: Array<{ name: string; data: SceneData }>;
 declare const __GAME_FIRST__: string;
+declare const __GAME_YSORT__: number;
 
 function decodeBase64(b64: string): Uint8Array {
   const raw = atob(b64);
@@ -88,6 +89,8 @@ async function boot(): Promise<void> {
     assetPathMap: typeof __GAME_PATHMAP__ !== 'undefined' ? __GAME_PATHMAP__ : undefined,
     scenes: __GAME_SCENES__,
     firstScene: __GAME_FIRST__,
+    // Older exports predate y-sort; treat the global as optional.
+    ySortLayers: typeof __GAME_YSORT__ !== 'undefined' ? __GAME_YSORT__ : undefined,
   });
 }
 

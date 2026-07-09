@@ -67,6 +67,8 @@ export interface WeChatRuntimeConfig {
     firstScene: string;
     runtimeConfig?: RuntimeBuildConfig;
     physicsConfig?: { gravity?: Vec2; fixedTimestep?: number; subStepCount?: number };
+    /** Bitmask of render layers (0..31) that y-sort within the layer (Project Settings → Rendering). */
+    ySortLayers?: number;
     /** id → emscripten factory (`require('./wasm/<file>.js')`); the generated
      *  game.js supplies exactly the modules the scene needs. Physics + spine
      *  self-gate off these via {@link createWeChatSideModuleHost}. */
@@ -130,6 +132,7 @@ export async function initWeChatRuntime(config: WeChatRuntimeConfig): Promise<vo
 
     const app = createWebApp(module, {
         glContextHandle: glHandle,
+        ySortLayers: config.ySortLayers,
         getViewportSize: () => ({
             width: canvas.width,
             height: canvas.height,

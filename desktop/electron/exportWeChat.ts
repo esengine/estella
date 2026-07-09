@@ -217,6 +217,8 @@ export async function exportWeChat(opts: {
   appid?: string;
   /** Screen orientation (Project Settings) → game.json. */
   orientation?: 'portrait' | 'landscape';
+  /** Bitmask of render layers (0..31) that y-sort (Project Settings → Rendering). */
+  ySortLayers?: number;
   minify?: boolean;
   /** Emit content-addressed asset filenames (<hash><ext>) for dedup + immutable caching. */
   contentAddressed?: boolean;
@@ -278,7 +280,7 @@ export async function exportWeChat(opts: {
     `import { initWeChatRuntime } from 'esengine';\n` +
     (scriptsAbs && existsSync(scriptsAbs) ? `import ${JSON.stringify(scriptsAbs)};\n` : '') +
     `export function boot(engineFactory, sideModuleFactories) {\n` +
-    `  return initWeChatRuntime({ engineFactory, sideModuleFactories, sceneNames: ${JSON.stringify([sceneName])}, firstScene: ${JSON.stringify(sceneName)} });\n` +
+    `  return initWeChatRuntime({ engineFactory, sideModuleFactories, sceneNames: ${JSON.stringify([sceneName])}, firstScene: ${JSON.stringify(sceneName)}${opts.ySortLayers ? `, ySortLayers: ${opts.ySortLayers >>> 0}` : ''} });\n` +
     `}\n`;
   progress({ phase: 'Bundling game' });
   try {

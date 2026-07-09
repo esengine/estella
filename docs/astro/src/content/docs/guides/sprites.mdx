@@ -86,6 +86,19 @@ sprite.layer = 2;   // e.g. "Foreground" — drawn on top
   fine ordering *within* a layer, use the entity's `Transform` z position.
 </Aside>
 
+### Y-sort (top-down occlusion)
+
+For top-down games, check a layer under **Project Settings → Rendering → Y-sorted
+layers** and every sprite, shape, and text on that layer draws in world-Y order:
+entities lower on screen draw on top, so a character walking below a tree appears in
+front of it — no manual `layer` or z juggling.
+
+<Aside type="note">
+  Within a y-sorted layer, paint order wins over material batching — overlapping
+  draws that alternate materials can't merge into one draw call. Keep y-sort to the
+  gameplay layer(s) that need it.
+</Aside>
+
 ## Flipping, atlases & scrolling
 
 - **Flip** a sprite with `flipX` / `flipY` — e.g. face a character left or right without

@@ -320,6 +320,7 @@ renderer_setEntityStencilTest: (entity: number, refValue: number) => void
 renderer_setStage: (stage: number) => void
 renderer_setTextureParams: (textureId: number, minFilter: number, magFilter: number, wrapS: number, wrapT: number) => void
 renderer_setViewport: (x: number, y: number, w: number, h: number) => void
+renderer_setYSortLayers: ((mask: number) => void) | undefined
 renderer_submitAll: (registry: CppRegistry, skipFlags: number, vpX: number, vpY: number, vpW: number, vpH: number) => void
 renderer_submitBitmapText: (registry: CppRegistry) => void
 renderer_submitParticles: ((registry: CppRegistry) => void) | undefined

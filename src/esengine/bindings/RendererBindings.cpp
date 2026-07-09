@@ -531,6 +531,10 @@ void renderer_setViewport(i32 x, i32 y, i32 w, i32 h) {
     g_device->setViewport(x, y, static_cast<u32>(w), static_cast<u32>(h));
 }
 
+void renderer_setYSortLayers(u32 mask) {
+    if (auto* frame = g_renderFrame) frame->setYSortLayers(mask);
+}
+
 void renderer_diagnose() {
     if (!g_initialized) {
         ES_LOG_ERROR("[Diagnose] Renderer not initialized");

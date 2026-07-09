@@ -24,7 +24,7 @@ import type {
   SceneNode,
 } from '@/types';
 import type { SceneData, SubsystemStatus } from 'esengine';
-import { Material, Sprite } from 'esengine';
+import { Material, Sprite, Renderer } from 'esengine';
 import { EngineHost } from './EngineHost';
 import { ViewportController } from './ViewportController';
 import { PerfMonitor, type PerfSnapshot, type FrameSample, type SessionCapture } from './PerfMonitor';
@@ -90,6 +90,13 @@ export class EditorControlSurfaceImpl {
    */
   async step(frames = 1, dt = 1 / 60): Promise<void> {
     for (let i = 0; i < frames; i++) await EngineHost.tick(dt);
+  }
+
+  /** Project render config: bitmask of layers (0..31) that y-sort within the
+   *  layer. Drivers (headless verify, future editor-MCP) set it in place of
+   *  Project Settings, which owns it in the interactive editor. */
+  setYSortLayers(mask: number): void {
+    Renderer.setYSortLayers(mask >>> 0);
   }
 
   undo(): void {

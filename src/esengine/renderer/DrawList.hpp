@@ -38,6 +38,12 @@ public:
     const DrawCommand* commands() const { return commands_.data(); }
     const DrawCommand& command(u32 index) const { return commands_[index]; }
 
+    // Bit i set ⇒ layer i (0..31) sorts by world Y within the layer (top-down
+    // occlusion) instead of material/depth. Lives here so pushBatchDraw — the one
+    // key-building site — consults it for every render path uniformly.
+    void setYSortMask(u32 mask) { ysort_mask_ = mask; }
+    u32 ySortMask() const { return ysort_mask_; }
+
 private:
     struct SortEntry {
         u64 key;
@@ -49,6 +55,7 @@ private:
     std::vector<DrawCommand> sorted_scratch_;  // reused across frames to avoid a
                                                // per-frame heap alloc in finalize()
     u32 merged_draw_calls_ = 0;
+    u32 ysort_mask_ = 0;
 };
 
 }  // namespace esengine

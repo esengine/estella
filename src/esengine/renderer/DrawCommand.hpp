@@ -9,6 +9,7 @@
 #include "TransientBufferPool.hpp"
 
 #include <algorithm>
+#include <bit>
 #include <cstring>
 
 namespace esengine {
@@ -89,6 +90,35 @@ struct DrawCommand {
         u64 depthKey = static_cast<u64>(depthBits & 0x3FFF);
 
         return stageKey | layerKey | shaderKey | blendKey | flagsKey | materialKey | depthKey;
+    }
+
+    // Order-preserving float → u32: flip the sign bit for positives, all bits for
+    // negatives, so unsigned compare matches float compare (finite values).
+    static u32 orderedFloatBits(f32 v) {
+        u32 bits = std::bit_cast<u32>(v);
+        return (bits & 0x80000000u) ? ~bits : (bits | 0x80000000u);
+    }
+
+    // Y-sorted variant (top-down occlusion): within a layer the painter's order by
+    // world Y dominates everything — higher Y (further "back" under Y-up) draws
+    // first, so lower-on-screen entities land on top. Material/depth leave the key
+    // (Y-order beats batching by design; adjacent same-state runs still merge in
+    // finalize), shader/blend/flags remain as tie-breaks so equal-Y draws group.
+    static u64 buildSortKeyYSorted(RenderStage stage, i32 layer, f32 worldY,
+                                   u32 shaderId, BlendMode blend, u16 stateFlags) {
+        u64 stageKey = static_cast<u64>(stage) << 60;
+
+        i32 normalizedLayer = std::clamp(layer + 32768, 0, 65535);
+        u64 layerKey = static_cast<u64>(normalizedLayer & 0xFFFF) << 44;
+
+        u32 yDescending = (~orderedFloatBits(worldY)) >> 8;  // 24 bits, larger Y → smaller key
+        u64 yKey = static_cast<u64>(yDescending & 0xFFFFFF) << 20;
+
+        u64 shaderKey = static_cast<u64>(shaderId & 0xFF) << 12;
+        u64 blendKey = static_cast<u64>(blend) << 9;
+        u64 flagsKey = static_cast<u64>(stateFlags & 0x03) << 7;
+
+        return stageKey | layerKey | yKey | shaderKey | blendKey | flagsKey;
     }
 
     /** @brief Finds @p texId in this command's texture set, adds it (returns its slot), or

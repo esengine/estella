@@ -84,6 +84,8 @@ export interface ProjectFeatures {
   rendering?: {
     /** Named render sorting layers (the inspector's `layer` dropdown); index = z-order. */
     sortingLayers?: string[];
+    /** Indices of sorting layers that y-sort within the layer (top-down occlusion). */
+    ySortLayers?: number[];
   };
 }
 
@@ -243,9 +245,15 @@ export function parseManifest(raw: unknown): ProjectManifest {
     }
     if (f.rendering && typeof f.rendering === 'object') {
       const r = f.rendering as Record<string, unknown>;
+      const rendering: NonNullable<ProjectFeatures['rendering']> = {};
       if (Array.isArray(r.sortingLayers)) {
-        features.rendering = { sortingLayers: r.sortingLayers.slice(0, 32).map((n) => (typeof n === 'string' ? n : '')) };
+        rendering.sortingLayers = r.sortingLayers.slice(0, 32).map((n) => (typeof n === 'string' ? n : ''));
       }
+      if (Array.isArray(r.ySortLayers)) {
+        rendering.ySortLayers = r.ySortLayers
+          .filter((n): n is number => typeof n === 'number' && Number.isInteger(n) && n >= 0 && n < 32);
+      }
+      if (Object.keys(rendering).length > 0) features.rendering = rendering;
     }
     if (Object.keys(features).length > 0) manifest.features = features;
   }
