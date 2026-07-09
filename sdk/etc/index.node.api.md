@@ -3357,7 +3357,7 @@ toVersion: string
 
 ## MissingAssetCallback — type
 ```
-(missing: import('./asset/Assets').MissingAsset[]) => void
+(missing: MissingAsset[]) => void
 ```
 
 ## MissingAssetsError — class
@@ -3366,7 +3366,7 @@ message: string
 missing: MissingAsset[]
 name: string
 stack: string | undefined
-static new (missing: import("./asset/Assets").MissingAsset[]): MissingAssetsError
+static new (missing: MissingAsset[]): MissingAssetsError
 static prototype: MissingAssetsError
 ```
 
@@ -3935,7 +3935,7 @@ _physics_updateBodyProperties: (entityId: number, bodyType: number, gravityScale
 ```
 bindInputEvents: (callbacks: InputEventCallbacks, target?: unknown) => void
 clearStorage: (prefix: string) => void
-createAudioBackend: () => import("../audio/PlatformAudioBackend").PlatformAudioBackend
+createAudioBackend: () => PlatformAudioBackend
 createCanvas: (width: number, height: number) => HTMLCanvasElement | OffscreenCanvas
 createImage: () => HTMLImageElement
 createSocket: ((options: PlatformSocketOptions) => PlatformSocket) | undefined
@@ -7887,7 +7887,7 @@ PerceptionPlugin
 
 ## platformFetch — function
 ```
-(url: string, options?: import("./types").PlatformRequestOptions): Promise<import("./types").PlatformResponse>
+(url: string, options?: PlatformRequestOptions): Promise<PlatformResponse>
 ```
 
 ## platformFileExists — function
@@ -7897,7 +7897,7 @@ PerceptionPlugin
 
 ## platformInstantiateWasm — function
 ```
-(pathOrBuffer: string | ArrayBuffer, imports: WebAssembly.Imports): Promise<import("./types").WasmInstantiateResult>
+(pathOrBuffer: string | ArrayBuffer, imports: WebAssembly.Imports): Promise<WasmInstantiateResult>
 ```
 
 ## platformReadFile — function

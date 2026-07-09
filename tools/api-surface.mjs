@@ -64,9 +64,15 @@ const errors = [];
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Absolute source paths leak into typeToString via import("...") — relativize. */
+/** Absolute source paths leak into typeToString via import("...") — strip them so the
+ *  snapshot is machine-independent (a Windows `F:/…` and a Linux `/home/…` for the same
+ *  symbol must not read as drift). First collapse our own SDK path to `~`, then drop the
+ *  `import("<any path>").` qualifier entirely — the trailing type name is what identifies
+ *  the symbol, and the path is environment noise. */
 function normalizeType(text) {
-    return text.split(SDK.replace(/\\/g, '/')).join('~').replace(/import\("~\/(.*?)"\)\./g, '');
+    return text
+        .split(SDK.replace(/\\/g, '/')).join('~')
+        .replace(/import\((['"]).*?\1\)\./g, '');
 }
 
 const fileTagCache = new Map();
@@ -235,6 +241,17 @@ for (const [entryName, entryPath] of Object.entries(ENTRIES)) {
         if (existing !== report) {
             drift++;
             console.error(`DRIFT: ${entryName} — public API changed but sdk/etc/${entryName}.api.md was not updated.`);
+            // Show WHICH lines drifted (set difference — order-independent, so it
+            // survives insertions) so the guard is self-explanatory in CI logs.
+            const was = new Set(existing.split('\n'));
+            const now = new Set(report.split('\n'));
+            const removed = [...was].filter((l) => !now.has(l) && l.trim());
+            const added = [...now].filter((l) => !was.has(l) && l.trim());
+            for (const l of removed.slice(0, 25)) console.error(`  - ${l}`);
+            for (const l of added.slice(0, 25)) console.error(`  + ${l}`);
+            if (removed.length > 25 || added.length > 25) {
+                console.error(`  … (${removed.length} removed, ${added.length} added lines total)`);
+            }
         }
     }
 }
