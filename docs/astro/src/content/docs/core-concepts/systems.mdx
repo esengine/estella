@@ -36,7 +36,11 @@ in order:
   iteration yields `[entity, ...components]`.
 - **`Mut(Component)`** — a component the system writes. Unwrapped components are
   read-only.
-- **`Res(Resource)`** — a shared resource, such as `Time` for frame timing.
+- **`Res(Resource)`** / **`ResMut(Resource)`** — a shared resource, read-only or
+  writable (such as `Time` for frame timing).
+- **`Commands()`** — deferred structural changes (spawn / despawn / add / remove),
+  applied at the next flush.
+- **`EventReader(E)`** / **`EventWriter(E)`** — read or send a typed event stream.
 
 <Aside type="caution">
   Only wrap a component in `Mut` when you actually write it — read-only queries
@@ -47,6 +51,101 @@ in order:
 
 ## Running order
 
-Systems are organized by a **schedule**. Register a system with `addSystem`, or
-add it through a plugin on your `App`. Scene systems only run while their scene
-is active, so multiple scenes can coexist in one world without interfering.
+Systems live in a **schedule** of ordered phases. Register into the default
+`Update` phase with `addSystem`, into `Startup` (runs once) with `addStartupSystem`,
+or into any phase with `addSystemToSchedule(Schedule.X, system)`:
+
+| Phase | When it runs |
+|---|---|
+| `Startup` | Once, before the first frame. |
+| `First` → `PreUpdate` → `Update` → `PostUpdate` → `Last` | Every frame, in this order. |
+| `FixedPreUpdate` → `FixedUpdate` → `FixedPostUpdate` | On the fixed timestep (physics / replication cadence) — 0..n times per frame. |
+
+Within a phase, systems run in registration order. To constrain that, register on
+the **`App`** with ordering options — these reference system **names**, so name the
+systems you want to order:
+
+```typescript
+import { Schedule } from 'esengine';
+
+const move = defineSystem([...], moveFn, { name: 'move' });
+const camera = defineSystem([...], cameraFn, { name: 'camera' });
+
+app.addSystemToSchedule(Schedule.Update, move);
+app.addSystemToSchedule(Schedule.Update, camera, {
+  runAfter: ['move'],          // camera follows movement
+  runIf: () => isPlaying,      // skip this system when the condition is false
+});
+```
+
+Scene systems only run while their scene is active, so multiple scenes can coexist
+in one world without interfering.
+
+<Aside type="note">
+  The top-level `addSystem` / `addSystemToSchedule` take **no** options, and
+  `defineSystem`'s options keep only `name` — so ordering (`runBefore` / `runAfter`
+  / `runIf`) is applied through `app.addSystemToSchedule(schedule, system, options)`.
+</Aside>
+
+## Filtering & change detection
+
+A query can narrow beyond "has these components" and react to changes:
+
+```typescript
+// Extra presence filters — components you require/exclude but don't read:
+Query(Transform, Mut(Velocity)).without(Frozen).with(Enemy)
+
+// Boolean combinations via filter():
+import { Query, With, Without, Or, Not } from 'esengine';
+Query(Transform).filter(Or(With(Player), With(Ally)))
+
+// Change detection — only entities whose component was added/changed since
+// this system last ran:
+import { Query, Added, Changed } from 'esengine';
+Query(Added(Health))       // newly-added this frame
+Query(Changed(Transform))  // written since the last run
+```
+
+`Removed(C)` is its own query that yields entities that **lost** `C`:
+
+```typescript
+import { defineSystem, Removed, Health } from 'esengine';
+defineSystem([Removed(Health)], (removed) => {
+  for (const entity of removed) { /* cleanup */ }
+});
+```
+
+A query result also has convenience methods beyond `for…of`:
+
+| Method | Returns |
+|---|---|
+| `query.single()` | The one match (or `null`) — for a lone player/camera. |
+| `query.count()` / `query.isEmpty()` | Match count / whether empty. |
+| `query.toArray()` | All results as an array. |
+| `query.forEach((e, ...c) => …)` | Callback per match. |
+
+## Events
+
+Events are a typed, decoupled message stream — one system `send`s, another reads
+next frame, with no direct reference between them. Define an event, register it on
+the app, then take an `EventWriter` / `EventReader` as a system parameter:
+
+```typescript
+import { defineEvent, defineSystem, EventWriter, EventReader, Commands } from 'esengine';
+
+const Damaged = defineEvent<{ entity: number; amount: number }>('Damaged');
+app.addEvent(Damaged);
+
+// Producer:
+addSystem(defineSystem([EventWriter(Damaged)], (damaged) => {
+  damaged.send({ entity: 12, amount: 5 });
+}));
+
+// Consumer (reads what was sent since it last ran):
+addSystem(defineSystem([EventReader(Damaged), Commands()], (damaged, cmds) => {
+  for (const evt of damaged) { /* evt.entity, evt.amount */ }
+}));
+```
+
+A reader is iterable and also offers `.isEmpty()` / `.toArray()`. See the
+**event-system** example for the full producer/consumer pattern.

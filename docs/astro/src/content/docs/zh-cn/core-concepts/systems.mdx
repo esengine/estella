@@ -33,7 +33,9 @@ addSystem(defineSystem(
 - **`Query(...)`** —— 遍历同时拥有列出的每个组件的实体。每次迭代产出
   `[entity, ...组件]`。
 - **`Mut(Component)`** —— 系统会写入的组件。未包裹的组件是只读的。
-- **`Res(Resource)`** —— 一个共享资源，例如提供帧计时的 `Time`。
+- **`Res(Resource)`** / **`ResMut(Resource)`** —— 一个共享资源,只读或可写(例如提供帧计时的 `Time`)。
+- **`Commands()`** —— 延迟的结构性改动(生成 / 销毁 / 增删组件),在下次 flush 时应用。
+- **`EventReader(E)`** / **`EventWriter(E)`** —— 读取或发送一条类型化事件流。
 
 <Aside type="caution">
   只有当你确实要写入某个组件时才把它包进 `Mut`——只读查询让引擎可以跳过多余的变更
@@ -42,6 +44,97 @@ addSystem(defineSystem(
 
 ## 运行顺序
 
-系统由**调度（schedule）**组织。用 `addSystem` 注册一个系统，或通过 `App` 上的插件
-加入它。场景系统只在其所属场景处于激活状态时运行，因此多个场景可以共存于同一个世界
-而互不干扰。
+系统活在由**有序阶段**组成的**调度(schedule)**里。用 `addSystem` 注册进默认的
+`Update` 阶段,用 `addStartupSystem` 注册进 `Startup`(只跑一次),或用
+`addSystemToSchedule(Schedule.X, system)` 注册进任意阶段:
+
+| 阶段 | 何时运行 |
+|---|---|
+| `Startup` | 首帧之前,一次。 |
+| `First` → `PreUpdate` → `Update` → `PostUpdate` → `Last` | 每帧,按此顺序。 |
+| `FixedPreUpdate` → `FixedUpdate` → `FixedPostUpdate` | 固定步长(物理 / 复制节拍)——每帧 0..n 次。 |
+
+同一阶段内,系统按注册顺序运行。要约束顺序,在 **`App`** 上带排序选项注册——它们按系统
+**名字**引用,所以给要排序的系统起名:
+
+```typescript
+import { Schedule } from 'esengine';
+
+const move = defineSystem([...], moveFn, { name: 'move' });
+const camera = defineSystem([...], cameraFn, { name: 'camera' });
+
+app.addSystemToSchedule(Schedule.Update, move);
+app.addSystemToSchedule(Schedule.Update, camera, {
+  runAfter: ['move'],          // 相机跟在移动之后
+  runIf: () => isPlaying,      // 条件为 false 时跳过该系统
+});
+```
+
+场景系统只在其所属场景处于激活状态时运行,因此多个场景可以共存于同一个世界而互不干扰。
+
+<Aside type="note">
+  顶层的 `addSystem` / `addSystemToSchedule` **不**收选项,`defineSystem` 的选项只保留
+  `name`——所以排序(`runBefore` / `runAfter` / `runIf`)要经
+  `app.addSystemToSchedule(schedule, system, options)` 施加。
+</Aside>
+
+## 过滤与变更检测
+
+查询可以在"拥有这些组件"之外进一步收窄,并对变更做出反应:
+
+```typescript
+// 额外的存在性过滤——要求/排除但不读取的组件:
+Query(Transform, Mut(Velocity)).without(Frozen).with(Enemy)
+
+// 用 filter() 做布尔组合:
+import { Query, With, Without, Or, Not } from 'esengine';
+Query(Transform).filter(Or(With(Player), With(Ally)))
+
+// 变更检测——只要该组件自本系统上次运行以来被添加/写过的实体:
+import { Query, Added, Changed } from 'esengine';
+Query(Added(Health))       // 本帧新增
+Query(Changed(Transform))  // 上次运行后被写过
+```
+
+`Removed(C)` 是它自己的查询,产出**丢失**了 `C` 的实体:
+
+```typescript
+import { defineSystem, Removed, Health } from 'esengine';
+defineSystem([Removed(Health)], (removed) => {
+  for (const entity of removed) { /* 清理 */ }
+});
+```
+
+查询结果在 `for…of` 之外还有便捷方法:
+
+| 方法 | 返回 |
+|---|---|
+| `query.single()` | 唯一的匹配(否则 `null`)——用于单独的玩家/相机。 |
+| `query.count()` / `query.isEmpty()` | 匹配数 / 是否为空。 |
+| `query.toArray()` | 所有结果组成数组。 |
+| `query.forEach((e, ...c) => …)` | 每个匹配调用一次回调。 |
+
+## 事件
+
+事件是一条类型化、解耦的消息流——一个系统 `send`,另一个下一帧读取,两者之间无直接引用。
+定义一个事件,在 app 上注册,然后把 `EventWriter` / `EventReader` 作为系统参数:
+
+```typescript
+import { defineEvent, defineSystem, EventWriter, EventReader, Commands } from 'esengine';
+
+const Damaged = defineEvent<{ entity: number; amount: number }>('Damaged');
+app.addEvent(Damaged);
+
+// 生产者:
+addSystem(defineSystem([EventWriter(Damaged)], (damaged) => {
+  damaged.send({ entity: 12, amount: 5 });
+}));
+
+// 消费者(读取自上次运行以来发送的):
+addSystem(defineSystem([EventReader(Damaged), Commands()], (damaged, cmds) => {
+  for (const evt of damaged) { /* evt.entity、evt.amount */ }
+}));
+```
+
+reader 可迭代,还提供 `.isEmpty()` / `.toArray()`。完整的生产者/消费者模式见
+**event-system** 示例。
