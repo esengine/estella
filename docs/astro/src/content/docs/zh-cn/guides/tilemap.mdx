@@ -13,7 +13,8 @@ Estella 在 C++/WebAssembly 内核里渲染瓦片图层,按图集纹理合批并
 
 有两个入口。**`Tilemap`** 组件把实体指向一个 Tiled JSON 文件,加载时为每个图层生成一个
 **`TilemapLayer`** 实体。**`Tilemaps`** 资源是用代码创建与编辑图层的命令式 API。两种方式最终
-都落到同一个运行时图层模型。瓦片 id 是**从 1 开始**的(`0` = 空)。
+都落到同一个运行时图层模型。瓦片 id 是**从 1 开始**的(`0` = 空)。**正交、等距、交错
+(staggered)、六边形**地图都能渲染——朝向从 Tiled 文件里读取,无需额外设置。
 
 ## 加载 Tiled 地图
 
@@ -117,6 +118,31 @@ tilemap.setChunkTiles(layer, chunkX, chunkY, tiles, 32, 32);
 <Aside type="note">
   瓦片**碰撞仅在播放模式**存在:静态碰撞体在场景运行时从可碰撞瓦片(在 `.estileset` 里标记)
   生成——它们从不在编辑世界里,也不被序列化。
+</Aside>
+
+## 对象层
+
+Tiled 的**对象层**(出生点、触发器、区域形状)随地图一起加载。用地图的源路径经
+`getTilemapSource` 查询——每个组携带它的对象,含位置、尺寸、`type`(Tiled 的 class)、
+`shape` 和自定义 `properties`:
+
+```typescript
+import { getTilemapSource } from 'esengine';
+
+const src = getTilemapSource('assets/maps/level.tmj');
+for (const group of src?.objectGroups ?? []) {
+  for (const obj of group.objects) {
+    if (obj.type === 'spawn') spawnPlayer(obj.x, obj.y);
+  }
+}
+```
+
+名字为 `collision`(大小写不敏感)或携带 `collision=true` 属性的对象组还会**在播放模式
+生成静态碰撞体**——矩形、椭圆、多边形、折线各自变成对应的 Box2D 形状,与瓦片碰撞走相同的
+origin / 每单位像素 / 播放模式生命周期。
+
+<Aside type="note">
+  对象碰撞和瓦片碰撞一样,**仅在播放模式**存在,从不被序列化进编辑世界。
 </Aside>
 
 ## `Tilemaps` API 参考

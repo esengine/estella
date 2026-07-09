@@ -42,6 +42,7 @@ Content Browser onto an entity, or set the Sprite's texture field in Details.
 | `layer` | `0` | Sorting layer — controls draw order (see below). |
 | `flipX` / `flipY` | `false` | Mirror horizontally / vertically. |
 | `material` | `0` | A custom [material](/docs/guides/material/) handle (`0` = the default sprite shader). |
+| `lit` | `false` | Receive 2D lights with a flat normal — the one-flag path to lit sprites (a custom `material` overrides it). |
 | `uvOffset` / `uvScale` | `{0,0}` / `{1,1}` | Sub-rectangle of the texture to show (for atlases / scrolling). |
 | `tileSize` / `tileSpacing` | `{0,0}` | Repeat the texture across the sprite (`0` = no tiling). |
 | `parallax` | `{1,1}` | Parallax scroll factor (see below). |
@@ -119,9 +120,12 @@ background.
 ## Custom materials & lighting
 
 Assign `sprite.material` to draw the sprite with your own shader — a tint, a
-dissolve, a distortion — see [Materials & Shaders](/docs/guides/material/). To make a
-sprite respond to `Light2D` lights, give it a **Lit-2D material**; see
-[2D Lighting & Shadows](/docs/guides/lighting/).
+dissolve, a distortion — see [Materials & Shaders](/docs/guides/material/).
+
+To make a sprite respond to `Light2D` lights, the simplest path is to set
+`sprite.lit = true` — no custom material needed (it's lit with a flat normal). For
+normal maps or a fully custom look, use a **Lit-2D material** instead. Either way,
+see [2D Lighting & Shadows](/docs/guides/lighting/).
 
 ## Shapes without a texture
 

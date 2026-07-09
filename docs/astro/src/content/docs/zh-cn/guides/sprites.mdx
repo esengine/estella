@@ -39,6 +39,7 @@ const spawnPlayer = defineSystem([Commands(), Res(Assets)], async (cmds, assets)
 | `layer` | `0` | 排序层——控制绘制顺序(见下)。 |
 | `flipX` / `flipY` | `false` | 水平 / 垂直镜像。 |
 | `material` | `0` | 自定义[材质](/docs/zh-cn/guides/material/)句柄(`0` = 默认精灵着色器)。 |
+| `lit` | `false` | 用平面法线接收 2D 光照——让精灵变"受光"的一键路径(自定义 `material` 会覆盖它)。 |
 | `uvOffset` / `uvScale` | `{0,0}` / `{1,1}` | 要显示的纹理子矩形(用于图集 / 滚动)。 |
 | `tileSize` / `tileSpacing` | `{0,0}` | 把纹理在精灵上平铺重复(`0` = 不平铺)。 |
 | `parallax` | `{1,1}` | 视差滚动系数(见下)。 |
@@ -103,8 +104,11 @@ sprite.layer = 2;   // 例如 "Foreground" —— 画在上面
 ## 自定义材质与光照
 
 给 `sprite.material` 赋值,用你自己的着色器绘制精灵——染色、溶解、扭曲——见
-[材质与着色器](/docs/zh-cn/guides/material/)。要让精灵响应 `Light2D` 光源,给它一个 **Lit-2D 材质**;
-见 [2D 光照与阴影](/docs/zh-cn/guides/lighting/)。
+[材质与着色器](/docs/zh-cn/guides/material/)。
+
+要让精灵响应 `Light2D` 光源,最简单的路径是设 `sprite.lit = true`——无需自定义材质
+(用平面法线受光)。需要法线贴图或完全自定义的观感时,改用 **Lit-2D 材质**。两种方式都见
+[2D 光照与阴影](/docs/zh-cn/guides/lighting/)。
 
 ## 不带纹理的图元
 

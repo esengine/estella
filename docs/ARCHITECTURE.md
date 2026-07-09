@@ -5,8 +5,10 @@ game engine. It is **descriptive of the current code**. For the
 *target* architecture, the root-cause rationale behind the current design, and
 the forward roadmap, see the architecture-of-record companions:
 
-- [`REARCHITECTURE.md`](./REARCHITECTURE.md) — root-cause re-architecture (RC1–RC6, F1–F4).
+- [`REARCHITECTURE.md`](./REARCHITECTURE.md) — root-cause re-architecture: RC1–RC5
+  (correctness), F1–F4 (foundation), RC6 (assets), RC11 (networking).
 - `REARCH_2D_PARITY.md` — 2D feature-parity / modernization roadmap (local, gitignored).
+- `REARCH_WGSL.md` — WGSL / WebGPU backend campaign (local, gitignored).
 
 ## Overview
 
@@ -103,11 +105,15 @@ filtered via the per-entity component mask. The SDK exposes this as
 
 ### Renderer (`renderer/`)
 
-WebGL2-based, compiled to WASM. There is **one rendering path**: the legacy
+Compiled to WASM. There is **one rendering path**: the legacy
 `Renderer` / `BatchRenderer2D` classes were removed. Everything goes through
 `RenderFrame`, and **all** GPU access goes through `GfxDevice` — a
-backend-agnostic RHI shaped so a WebGPU (or native-API) backend can slot in
-beside the WebGL2 one without touching the renderer above it.
+backend-agnostic RHI. Two concrete backends now sit behind it: `GLDevice`
+(WebGL2) and `WebGPUDevice` (Dawn/WebGPU), chosen at the platform edge with no
+`#ifdef` in the renderer above. Shaders carry a source language (`GfxShaderSource`);
+`.esshader` / material-graph / built-in programs emit **both** GLSL ES 300 and
+WGSL twins, and cook-time tooling auto-twins user GLSL to WGSL. The two backends
+are pixel-verified against each other in CI on every push.
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
@@ -120,7 +126,8 @@ beside the WebGL2 one without touching the renderer above it.
 │  DrawList  (sort + coalesce; multi-texture batch; u32 index)  │
 │      ▼                                                        │
 │  GfxDevice  (the render backend boundary / RHI)               │
-│    └── GLDevice : public GfxDevice   (the one concrete impl)  │
+│    ├── GLDevice     : public GfxDevice   (WebGL2)             │
+│    └── WebGPUDevice : public GfxDevice   (Dawn/WebGPU)        │
 │  Shader · Texture · Buffer · Framebuffer · CustomGeometry     │
 │  all take GfxDevice&; no raw gl* outside GLDevice (CI-guarded)│
 └──────────────────────────────────────────────────────────────┘
@@ -150,7 +157,11 @@ Key facts:
   A CI guard (`tools/check-gl-boundary.mjs`) rejects raw `gl*` calls outside
   `GLDevice.cpp`; a `MockGfxDevice` harness exercises the contract headlessly.
 - **`DrawList`** sorts and coalesces draw commands, merging up to 8 textures per
-  call; indices are **u32** (no >65535 vertex wraparound).
+  call; indices are **u32** (no >65535 vertex wraparound). A per-layer **y-sort**
+  mask (opt-in via project settings) packs a 24-bit order-preserving world-Y into
+  the sort key so lower-on-screen entities paint on top (top-down occlusion);
+  painter's order deliberately beats batching inside a y-sorted layer, every other
+  layer keeps its key bit-for-bit.
 - **`RenderFrame`** owns transient buffers (`TransientBufferPool`), frustum
   culling, render-to-texture (`RenderTarget`), masking (`RenderFrameMask`:
   scissor + stencil), optional post-processing (`PostProcessPipeline`,
@@ -230,6 +241,25 @@ when their scene is `running`. `sceneManagerPlugin` runs the transition update
 each frame. Prefabs expand to tagged entities on load and collapse on save, using
 the same expand/collapse core in the SDK as the editor.
 
+## Networking (SDK)
+
+Multiplayer is **server-authoritative state replication** (RC11), built as an
+ordinary plugin over the existing schedule — no second tick loop. Which fields
+replicate is a single source of truth: EHT emits `replicatedFields` from C++
+annotations and `defineComponent` accepts them for user components, so the wire
+schema is derived, not hand-mirrored. State travels as per-field binary delta
+frames; spawn/despawn reuse the scene-serialization primitives (so late joiners
+get current state for free). Entity handles never cross the wire — a `NetId` map
+does. `NetChannel` adds a typed message/RPC layer over the raw socket; sockets are
+created through `PlatformAdapter.createSocket`. Snapshot interpolation, client
+input upload, and ownership (`Replicated.owner`) round out the client side.
+
+The **same wasm and gameplay code** runs headless on Node via the `esengine/node`
+entry (`createHeadlessApp` + `runHeadless`): a Node platform adapter (filesystem
+assets, global `WebSocket`, `NullAudioBackend`, no DOM). The editor's Play mode
+drives 1–4 players in-process by wiring realms over a `MessagePortTransport` — the
+same `NetSession` stack shipping games use, exercised with zero network.
+
 ## Performance Considerations
 
 1. **Component iteration** — views touch only matching entities; dense arrays.
@@ -248,15 +278,29 @@ the same expand/collapse core in the SDK as the editor.
 
 ## Status / Future Improvements
 
-Landed root-cause work: RC1 (keystone — generated layout + ABI handshake),
-RC2 (single storage core), RC4 (domain TypeIds), RC5 (single render path +
-`GfxDevice` + u32 index), F2 (single `WasmBridge`), F3 (per-App resources).
+The correctness and foundation campaigns are **complete**. Landed:
+- **RC1–RC5** (correctness root causes): generated layout + ABI handshake (RC1),
+  single storage core (RC2), always-on C++ boundary validation via `boundarySpan`
+  (RC3), domain TypeIds (RC4), single render path + `GfxDevice` + u32 index (RC5).
+- **F1–F4** (foundation): native seam closed by deletion — the engine is a pure
+  Emscripten target (F1); single `WasmBridge` base class (F2); per-App resources
+  (F3); this document is the F4 rewrite.
+- **RHI modernization + WGSL/WebGPU**: `GfxDevice` is a backend-neutral RHI with
+  a real `WebGPUDevice` beside `GLDevice`; dual-backend pixel verification runs
+  in CI on every push.
+- **RC6 / T1** (asset delivery): WeChat subpackages (folder convention),
+  `Assets.loadGroup`/`loadByLabel`/`preload`, cook-time auto-atlas, import-time
+  KTX2 compression, texture + audio residency with SDK-exposed VRAM budget + LRU.
+- **RC11** (networking): server-authoritative replication + headless Node server.
+- **T2/T3/T4 parity, landed**: animation state machines + 1D blend + Spine driver;
+  2D shadows (hard/soft/directional) + normal maps + extended post-processing
+  (color grade, tonemap, FXAA, distortion, pixelate, LUT); pixel-perfect camera +
+  4-renderable parallax + per-layer y-sort; SDK math library; i18n; save
+  versioning; hex tilemaps; Tiled object layers; single `.tmj` parser.
 
-In progress / planned (see `REARCHITECTURE.md` and `REARCH_2D_PARITY.md`):
-- [ ] RC3 remainder — always-on C++ boundary validation; per-subsystem abort guards.
-- [ ] F1 — isolate (keep) the native platform backend; F4 — this rewrite.
-- [ ] RC6 / T1 — asset delivery: WeChat subpackages, on-demand loading, auto
-      atlas, import-time texture compression, SDK-exposed VRAM budget.
-- [ ] T2 — animation state machines / blend trees; native 2D skeletal rig.
-- [ ] T3 — 2D shadows + normal maps; richer post-processing; GPU particles.
-- [ ] T4 — SDK math library; one-way platforms; hex tilemaps; i18n; netcode.
+Remaining capability work (see `REARCH_2D_PARITY.md`, gitignored):
+- [ ] T2 — editor keyframe/curve editing UI; particle visual editor; native 2D
+      skeletal rig (own project).
+- [ ] T3 — GPU particles / trails (transform-feedback or compute).
+- [ ] T4 — one-way platforms + remaining Box2D joints; editor multi-atlas painting;
+      tile-gid objects in tilemaps.

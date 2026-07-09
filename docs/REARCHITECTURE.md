@@ -209,8 +209,8 @@ TS 驱动的主 pass clear 退出边界，`clear` 家族退出公共 RHI：
 ### CI 常绿门禁（push-gated invariants）— ✅ 已落地（2026-07-07）
 此前 `build.yml` 仅 `workflow_dispatch`——boundary guards、全组件 ABI `static_assert`、各测试套件全是"约定"而非"机制"。现在**每次 push master 自动跑**：① web/playable/wechat 构建（编译期即验证生成断言 + ABI 哈希）+ 全部 15 个 C++ doctest harness（node 下执行）；② 双 boundary guard + SDK tsc/构建/vitest + examples 检查 + desktop tsc/vitest（后两者此前完全不在 CI）；③ headless 像素验证（sprite/mesh2d/parallax-shape/tilemap-flip/ui-mask，electron + xvfb + SwiftShader，需 `ELECTRON_DISABLE_SANDBOX`）。落地即抓到并修复三处腐化：`test_registry.cpp` 用已删除的 `View::sizeHint`、`test_sparse_set.cpp` 的局部常量撞 emscripten `PAGE_SIZE` 宏、以及一个**真回归**——单组件 `View::each` 活迭代（中途 emplace 会重访、swap-pop 移除会跳漏），多组件版早有快照契约，现已对齐。
 
-### 地基收口（Foundation Consolidation）— 🟡 进行中，RC6 前置（设计文档）
-见 [`REARCH_FOUNDATION_CONSOLIDATION.md`](./REARCH_FOUNDATION_CONSOLIDATION.md)：
+### 地基收口（Foundation Consolidation）— ✅ 已收口（F1–F4 全部落地）
+设计文档 `REARCH_FOUNDATION_CONSOLIDATION.md`（本地 gitignore，同 RC6 约定）；要点：
 - **F2 单一 `WasmBridge` 基类 + abort 守卫下沉（keystone）— ✅ 已落地**（`ac390f7d` + RM 闭环 `41bea17a`，五套桥接全部收敛，abort 守卫全子系统覆盖）。
 - **F3 全 per-App 资源 — ✅ 已落地**（分支 `rearch/f3-per-app`）：Camera（`CameraView`）、Timeline（`Timeline`）、PostProcess（拆 god-object + 管线注入 + 删 sync.ts）、SpriteAnimator（`SpriteAnimation`）全部 per-App;模块绑定单例在单模块运行时下无需改（B4 关闭）。
 - **F4 重写 `ARCHITECTURE.md` — ✅ 已落地**：`docs/ARCHITECTURE.md` 重写为当前现实（`RenderFrame`+`GfxDevice`/`GLDevice` 单一 GPU 边界、单一 `SparseSet`+`version()`、按域 TypeId、per-App 资源 + `WasmBridge` 基类、`ResourcePool` LRU/预算），删除对已删除的 `Renderer`/`BatchRenderer2D` 的描述。

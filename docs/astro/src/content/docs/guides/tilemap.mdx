@@ -17,7 +17,8 @@ There are two entry points. The **`Tilemap`** component points an entity at a Ti
 JSON file and, at load, spawns one **`TilemapLayer`** entity per layer. The
 **`Tilemaps`** resource is the imperative API for creating and editing layers from
 code. Either way the data ends up in the same runtime layer model. Tile ids are
-**1-based** (`0` = empty).
+**1-based** (`0` = empty). **Orthogonal, isometric, staggered, and hexagonal** maps
+all render — the orientation is read from the Tiled file, no extra setup.
 
 ## Load a Tiled map
 
@@ -122,6 +123,33 @@ texture and carries per-tile collision, animation, and terrain/auto-tile data.
   Tile **collision is play-mode only**: static colliders are spawned from collidable
   tiles (marked in the `.estileset`) when the scene runs — they are never in the edit
   world or serialized.
+</Aside>
+
+## Object layers
+
+Tiled **object layers** (spawn points, triggers, region shapes) load with the map.
+Query them by the map's source path with `getTilemapSource` — each group carries its
+objects with position, size, `type` (Tiled's class), `shape`, and custom `properties`:
+
+```typescript
+import { getTilemapSource } from 'esengine';
+
+const src = getTilemapSource('assets/maps/level.tmj');
+for (const group of src?.objectGroups ?? []) {
+  for (const obj of group.objects) {
+    if (obj.type === 'spawn') spawnPlayer(obj.x, obj.y);
+  }
+}
+```
+
+An object group whose name is `collision` (case-insensitive) or that carries a
+`collision=true` property also **spawns static colliders in play mode** — rectangles,
+ellipses, polygons, and polylines become the matching Box2D shape, on the same
+origin / pixels-per-unit / play-mode lifecycle as tile collision.
+
+<Aside type="note">
+  Object collision, like tile collision, is **play-mode only** and never serialized
+  into the edit world.
 </Aside>
 
 ## `Tilemaps` API reference

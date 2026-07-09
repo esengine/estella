@@ -17,6 +17,7 @@ several can stack in one frame at no extra target cost beyond the passes.
 | `bloom` | Glow on bright areas | `threshold`, `intensity` |
 | `tonemap` | ACES filmic tonemapping | `exposure` |
 | `colorGrade` | Exposure / contrast / saturation / white balance | `exposure`, `contrast`, `saturation`, `temperature`, `tint` |
+| `lutGrade` | Color grading through a lookup-table texture | `u_lut` (texture), `intensity` |
 | `vignette` | Darkened screen edges | `intensity`, `radius` |
 | `chromaticAberration` | RGB fringing | `intensity` |
 | `blur` | Gaussian blur | `radius` |
@@ -70,6 +71,20 @@ const setup = defineSystem([Query(Camera), Res(PostProcess)], (q, pp) => {
 | `PostProcess.unbind(camera)` | Remove the camera's stack. |
 | `stack.setEnabled(name, on)` | Enable/disable an effect (chainable). |
 | `stack.setUniform(pass, uniform, value)` | Set an effect parameter (chainable). |
+| `stack.setTexture(pass, uniform, handle)` | Bind a texture parameter, e.g. a LUT (chainable). |
+
+### Texture parameters (LUTs & masks)
+
+Some effects take a texture, not just scalars. `lutGrade` samples a **color
+lookup table** — a 2D-packed `1024×32` PNG (32 slices of a 32³ cube) — so you can
+author a whole grade in an image editor and drop it in. Bind it with `setTexture`
+(or, on a `PostProcessVolume`, list it under the effect's `textures: { u_lut: <ref> }`):
+
+```typescript
+stack.setEnabled('lutGrade', true)
+     .setTexture('lutGrade', 'u_lut', lutHandle)
+     .setUniform('lutGrade', 'u_intensity', 1);
+```
 
 ## Best practices
 

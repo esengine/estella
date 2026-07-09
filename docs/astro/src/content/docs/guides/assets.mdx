@@ -120,6 +120,9 @@ manifest. Along the way it can:
   (ASTC → ETC2 → S3TC, falling back to RGBA8).
 - **Content-address** — name each shipped file by a hash of its bytes, so URLs
   are immutable and identical files dedupe to a single copy.
+- **Auto-atlas** — put loose PNGs in a `<name>.atlas/` folder and the cook packs
+  them into atlas pages (with the frame UVs written into the manifest), so many
+  small sprites ship as one texture and batch in one draw call. Opt-in per export.
 
 ## Lifetime & reference counting
 

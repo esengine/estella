@@ -16,6 +16,7 @@ Estella 通过 ping-pong 帧缓冲运行全屏后处理。加一个 `PostProcess
 | `bloom` | 亮部辉光 | `threshold`、`intensity` |
 | `tonemap` | ACES filmic 色调映射 | `exposure` |
 | `colorGrade` | 曝光 / 对比度 / 饱和度 / 白平衡 | `exposure`、`contrast`、`saturation`、`temperature`、`tint` |
+| `lutGrade` | 通过查找表纹理(LUT)调色 | `u_lut`(纹理)、`intensity` |
 | `vignette` | 屏幕边缘变暗 | `intensity`、`radius` |
 | `chromaticAberration` | RGB 色散 | `intensity` |
 | `blur` | 高斯模糊 | `radius` |
@@ -66,6 +67,20 @@ const setup = defineSystem([Query(Camera), Res(PostProcess)], (q, pp) => {
 | `PostProcess.unbind(camera)` | 移除相机的栈。 |
 | `stack.setEnabled(name, on)` | 启用/禁用一个效果(可链式)。 |
 | `stack.setUniform(pass, uniform, value)` | 设置一个效果参数(可链式)。 |
+| `stack.setTexture(pass, uniform, handle)` | 绑定一个纹理参数,比如 LUT(可链式)。 |
+
+### 纹理参数(LUT 与遮罩)
+
+有些效果吃的是纹理而不只是标量。`lutGrade` 采样一张**颜色查找表**——一张 2D 打包的
+`1024×32` PNG(32³ 色立方切成 32 片)——于是你可以在图像编辑器里做好整套调色再丢进来。
+用 `setTexture` 绑定它(或在 `PostProcessVolume` 上,把它列在该效果的
+`textures: { u_lut: <ref> }` 下):
+
+```typescript
+stack.setEnabled('lutGrade', true)
+     .setTexture('lutGrade', 'u_lut', lutHandle)
+     .setUniform('lutGrade', 'u_intensity', 1);
+```
 
 ## 最佳实践
 
