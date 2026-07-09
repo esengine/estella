@@ -294,6 +294,7 @@ void RenderFrame::flush() {
         case RenderType::Text:     stats_.text += cmd.entity_count; break;
         case RenderType::Mesh:
         case RenderType::ExternalMesh:
+        case RenderType::Trail:
             stats_.meshes += cmd.entity_count; break;
 #ifdef ES_ENABLE_PARTICLES
         case RenderType::Particle: stats_.particles += cmd.entity_count; break;

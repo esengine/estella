@@ -15,7 +15,7 @@ import type { Dimension, Padding, VisualState } from './wasm.generated';
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '89e3ae10e24e8bc9';
+export const ABI_LAYOUT_HASH = '89ad72a9b853289f';
 
 export interface AssetFieldMeta {
     field: string;
@@ -555,6 +555,39 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             opacity: { min: 0, max: 1, slider: true, tooltip: "Layer transparency (0 = invisible, 1 = opaque)." },
         },
     },
+    TrailRenderer: {
+        defaults: {
+            time: 0.5,
+            minVertexDistance: 5,
+            emitting: true,
+            startWidth: 20,
+            endWidth: 0,
+            startColor: { r: 1, g: 1, b: 1, a: 1 },
+            endColor: { r: 1, g: 1, b: 1, a: 0 },
+            texture: 0,
+            blendMode: 0,
+            layer: 0,
+            material: 0,
+            enabled: true,
+        },
+        assetFields: [{ field: 'texture', type: 'texture' as AssetFieldType }, { field: 'material', type: 'material' as AssetFieldType }],
+        entityFields: [],
+        colorFields: ['startColor', 'endColor'],
+        animatableFields: ['startColor.r', 'startColor.g', 'startColor.b', 'startColor.a', 'endColor.r', 'endColor.g', 'endColor.b', 'endColor.a'],
+        fields: {
+            time: { min: 0, tooltip: "Seconds each trail point lives before it fades out of the tail.", category: "Trail" },
+            minVertexDistance: { min: 0, tooltip: "Min world distance moved before a new trail point is recorded.", category: "Trail" },
+            emitting: { tooltip: "Record new points. False = freeze and let the streak fade in place.", category: "Trail" },
+            startWidth: { min: 0, tooltip: "Full ribbon width at the head (newest point).", category: "Width" },
+            endWidth: { min: 0, tooltip: "Full ribbon width at the tail (oldest point).", category: "Width" },
+            startColor: { tooltip: "Color at the head (newest point).", category: "Color" },
+            endColor: { tooltip: "Color at the tail (oldest point) — usually alpha 0 to fade out.", category: "Color" },
+            texture: { category: "Rendering" },
+            blendMode: { tooltip: "Blend mode: 0 Normal, 1 Additive (glow), 2 Multiply, …", category: "Rendering" },
+            layer: { step: 1, tooltip: "Sorting layer — controls draw order across renderables.", category: "Rendering", enumSource: "sortingLayers" },
+            material: { category: "Rendering", advanced: true },
+        },
+    },
     Transform: {
         defaults: {
             position: { x: 0, y: 0, z: 0 },
@@ -930,6 +963,21 @@ export interface TilemapLayerData {
     opacity: number;
     parallaxFactor: Vec2;
     visible: boolean;
+}
+
+export interface TrailRendererData {
+    time: number;
+    minVertexDistance: number;
+    emitting: boolean;
+    startWidth: number;
+    endWidth: number;
+    startColor: Color;
+    endColor: Color;
+    texture: number;
+    blendMode: number;
+    layer: number;
+    material: number;
+    enabled: boolean;
 }
 
 export interface TransformData {

@@ -29,6 +29,7 @@
 #include "../ecs/components/StateMachine.hpp"
 #include "../ecs/components/StateVisuals.hpp"
 #include "../ecs/components/TilemapLayer.hpp"
+#include "../ecs/components/TrailRenderer.hpp"
 #include "../ecs/components/Transform.hpp"
 #include "../ecs/components/UIInteraction.hpp"
 #include "../ecs/components/UIMask.hpp"
@@ -738,6 +739,55 @@ TilemapLayerJS tilemaplayerToJS(const esengine::ecs::TilemapLayer& c) {
     return js;
 }
 
+struct TrailRendererJS {
+    f32 time;
+    f32 minVertexDistance;
+    bool emitting;
+    f32 startWidth;
+    f32 endWidth;
+    glm::vec4 startColor;
+    glm::vec4 endColor;
+    u32 texture;
+    i32 blendMode;
+    i32 layer;
+    u32 material;
+    bool enabled;
+};
+
+esengine::ecs::TrailRenderer trailrendererFromJS(const TrailRendererJS& js) {
+    esengine::ecs::TrailRenderer c;
+    c.time = js.time;
+    c.minVertexDistance = js.minVertexDistance;
+    c.emitting = js.emitting;
+    c.startWidth = js.startWidth;
+    c.endWidth = js.endWidth;
+    c.startColor = js.startColor;
+    c.endColor = js.endColor;
+    c.texture = resource::TextureHandle(js.texture);
+    c.blendMode = js.blendMode;
+    c.layer = js.layer;
+    c.material = js.material;
+    c.enabled = js.enabled;
+    return c;
+}
+
+TrailRendererJS trailrendererToJS(const esengine::ecs::TrailRenderer& c) {
+    TrailRendererJS js;
+    js.time = c.time;
+    js.minVertexDistance = c.minVertexDistance;
+    js.emitting = c.emitting;
+    js.startWidth = c.startWidth;
+    js.endWidth = c.endWidth;
+    js.startColor = c.startColor;
+    js.endColor = c.endColor;
+    js.texture = c.texture.id();
+    js.blendMode = c.blendMode;
+    js.layer = c.layer;
+    js.material = c.material;
+    js.enabled = c.enabled;
+    return js;
+}
+
 struct UIMaskJS {
     bool enabled;
     i32 mode;
@@ -1115,6 +1165,20 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("opacity", &TilemapLayerJS::opacity)
         .field("parallaxFactor", &TilemapLayerJS::parallaxFactor)
         .field("visible", &TilemapLayerJS::visible);
+
+    value_object<TrailRendererJS>("TrailRenderer")
+        .field("time", &TrailRendererJS::time)
+        .field("minVertexDistance", &TrailRendererJS::minVertexDistance)
+        .field("emitting", &TrailRendererJS::emitting)
+        .field("startWidth", &TrailRendererJS::startWidth)
+        .field("endWidth", &TrailRendererJS::endWidth)
+        .field("startColor", &TrailRendererJS::startColor)
+        .field("endColor", &TrailRendererJS::endColor)
+        .field("texture", &TrailRendererJS::texture)
+        .field("blendMode", &TrailRendererJS::blendMode)
+        .field("layer", &TrailRendererJS::layer)
+        .field("material", &TrailRendererJS::material)
+        .field("enabled", &TrailRendererJS::enabled);
 
     value_object<esengine::ecs::Transform>("Transform")
         .field("position", &esengine::ecs::Transform::position)
@@ -1643,6 +1707,26 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             r.remove<esengine::ecs::TilemapLayer>(entity);
         }))
 
+        // TrailRenderer
+        .function("hasTrailRenderer", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::TrailRenderer>(static_cast<Entity>(e));
+        }))
+        .function("getTrailRenderer", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::TrailRenderer>(entity)) return TrailRendererJS{};
+            return trailrendererToJS(r.get<esengine::ecs::TrailRenderer>(entity));
+        }))
+        .function("addTrailRenderer", optional_override([](Registry& r, u32 e, const TrailRendererJS& js) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::TrailRenderer>(entity, trailrendererFromJS(js));
+        }))
+        .function("removeTrailRenderer", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::TrailRenderer>(entity)) return;
+            r.remove<esengine::ecs::TrailRenderer>(entity);
+        }))
+
         // Transform
         .function("hasTransform", optional_override([](Registry& r, u32 e) {
             return r.has<esengine::ecs::Transform>(static_cast<Entity>(e));
@@ -1806,6 +1890,7 @@ emscripten::val esengineGetBuiltinComponentNames() {
     arr.set(i++, val(std::string("StateMachine")));
     arr.set(i++, val(std::string("StateVisuals")));
     arr.set(i++, val(std::string("TilemapLayer")));
+    arr.set(i++, val(std::string("TrailRenderer")));
     arr.set(i++, val(std::string("Transform")));
     arr.set(i++, val(std::string("UIInteraction")));
     arr.set(i++, val(std::string("UIMask")));
@@ -2005,6 +2090,18 @@ static_assert(offsetof(esengine::ecs::TilemapLayer, tintColor) == 32, "ABI offse
 static_assert(offsetof(esengine::ecs::TilemapLayer, opacity) == 48, "ABI offset drift: esengine::ecs::TilemapLayer.opacity (EHT expected 48)");
 static_assert(offsetof(esengine::ecs::TilemapLayer, parallaxFactor) == 52, "ABI offset drift: esengine::ecs::TilemapLayer.parallaxFactor (EHT expected 52)");
 static_assert(offsetof(esengine::ecs::TilemapLayer, visible) == 60, "ABI offset drift: esengine::ecs::TilemapLayer.visible (EHT expected 60)");
+static_assert(offsetof(esengine::ecs::TrailRenderer, time) == 0, "ABI offset drift: esengine::ecs::TrailRenderer.time (EHT expected 0)");
+static_assert(offsetof(esengine::ecs::TrailRenderer, minVertexDistance) == 4, "ABI offset drift: esengine::ecs::TrailRenderer.minVertexDistance (EHT expected 4)");
+static_assert(offsetof(esengine::ecs::TrailRenderer, emitting) == 8, "ABI offset drift: esengine::ecs::TrailRenderer.emitting (EHT expected 8)");
+static_assert(offsetof(esengine::ecs::TrailRenderer, startWidth) == 12, "ABI offset drift: esengine::ecs::TrailRenderer.startWidth (EHT expected 12)");
+static_assert(offsetof(esengine::ecs::TrailRenderer, endWidth) == 16, "ABI offset drift: esengine::ecs::TrailRenderer.endWidth (EHT expected 16)");
+static_assert(offsetof(esengine::ecs::TrailRenderer, startColor) == 20, "ABI offset drift: esengine::ecs::TrailRenderer.startColor (EHT expected 20)");
+static_assert(offsetof(esengine::ecs::TrailRenderer, endColor) == 36, "ABI offset drift: esengine::ecs::TrailRenderer.endColor (EHT expected 36)");
+static_assert(offsetof(esengine::ecs::TrailRenderer, texture) == 52, "ABI offset drift: esengine::ecs::TrailRenderer.texture (EHT expected 52)");
+static_assert(offsetof(esengine::ecs::TrailRenderer, blendMode) == 56, "ABI offset drift: esengine::ecs::TrailRenderer.blendMode (EHT expected 56)");
+static_assert(offsetof(esengine::ecs::TrailRenderer, layer) == 60, "ABI offset drift: esengine::ecs::TrailRenderer.layer (EHT expected 60)");
+static_assert(offsetof(esengine::ecs::TrailRenderer, material) == 64, "ABI offset drift: esengine::ecs::TrailRenderer.material (EHT expected 64)");
+static_assert(offsetof(esengine::ecs::TrailRenderer, enabled) == 68, "ABI offset drift: esengine::ecs::TrailRenderer.enabled (EHT expected 68)");
 static_assert(offsetof(esengine::ecs::Transform, position) == 0, "ABI offset drift: esengine::ecs::Transform.position (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::Transform, rotation) == 12, "ABI offset drift: esengine::ecs::Transform.rotation (EHT expected 12)");
 static_assert(offsetof(esengine::ecs::Transform, scale) == 28, "ABI offset drift: esengine::ecs::Transform.scale (EHT expected 28)");
@@ -2041,7 +2138,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "89e3ae10e24e8bc9";
+static const char* kEsAbiLayoutHash = "89ad72a9b853289f";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

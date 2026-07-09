@@ -287,6 +287,23 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'visible', type: 'bool', offset: 60 },
         ],
     },
+    TrailRenderer: {
+        ptrFn: 'getTrailRendererPtr',
+        fields: [
+            { name: 'time', type: 'f32', offset: 0 },
+            { name: 'minVertexDistance', type: 'f32', offset: 4 },
+            { name: 'emitting', type: 'bool', offset: 8 },
+            { name: 'startWidth', type: 'f32', offset: 12 },
+            { name: 'endWidth', type: 'f32', offset: 16 },
+            { name: 'startColor', type: 'color', offset: 20 },
+            { name: 'endColor', type: 'color', offset: 36 },
+            { name: 'texture', type: 'u32', offset: 52 },
+            { name: 'blendMode', type: 'i32', offset: 56 },
+            { name: 'layer', type: 'i32', offset: 60 },
+            { name: 'material', type: 'u32', offset: 64 },
+            { name: 'enabled', type: 'bool', offset: 68 },
+        ],
+    },
     Transform: {
         ptrFn: 'getTransformPtr',
         fields: [

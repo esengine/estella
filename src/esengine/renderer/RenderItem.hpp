@@ -27,6 +27,7 @@ enum class RenderType : u8 {
 #endif
     Shape = 6,
     UIElement = 7,
+    Trail = 8,
 };
 
 }  // namespace esengine

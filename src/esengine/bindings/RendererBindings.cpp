@@ -26,6 +26,7 @@
 #ifdef ES_ENABLE_PARTICLES
 #include "../particle/ParticleSystem.hpp"
 #endif
+#include "../trail/TrailSystem.hpp"
 
 #include <emscripten/val.h>
 #include <glm/glm.hpp>
@@ -46,6 +47,7 @@ static EstellaContext& ctx() { return activeCtx(); }
 #ifdef ES_ENABLE_PARTICLES
 #define g_particleSystem (ctx().tryGet<particle::ParticleSystem>())
 #endif
+#define g_trailSystem (ctx().tryGet<trail::TrailSystem>())
 
 static u32 checkGLErrors(const char* context) {
     if (!g_glErrorCheckEnabled) return 0;
@@ -428,6 +430,19 @@ void particle_set_size_lut(u32 entity, uintptr_t ptr, i32 count) {
     g_particleSystem->setSizeLut(Entity::fromRaw(entity), reinterpret_cast<const f32*>(ptr), count);
 }
 #endif
+
+void trail_update(ecs::Registry& registry, f32 dt) {
+    if (!g_trailSystem) return;
+    g_trailSystem->update(registry, dt);
+}
+
+// The entity crosses the wasm boundary as a raw u32 (Embind has no Entity binding);
+// rebuild it C++-side, matching particle_play/stop above.
+void trail_clear(ecs::Registry& registry, u32 entity) {
+    if (!g_trailSystem) return;
+    (void)registry;
+    g_trailSystem->clear(Entity::fromRaw(entity));
+}
 
 void renderer_setStage(i32 stage) {
     if (!g_renderFrame) return;

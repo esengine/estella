@@ -1085,6 +1085,74 @@ export function createTilemapLayerData(): TilemapLayerPtrData {
     };
 }
 
+export interface TrailRendererPtrData {
+    time: number;
+    minVertexDistance: number;
+    emitting: boolean;
+    startWidth: number;
+    endWidth: number;
+    startColor: Color;
+    endColor: Color;
+    texture: number;
+    blendMode: number;
+    layer: number;
+    material: number;
+    enabled: boolean;
+}
+
+export function fillTrailRenderer(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, out: TrailRendererPtrData,
+): void {
+    out.time = f32[ptr >> 2];
+    out.minVertexDistance = f32[(ptr + 4) >> 2];
+    out.emitting = u8[ptr + 8] !== 0;
+    out.startWidth = f32[(ptr + 12) >> 2];
+    out.endWidth = f32[(ptr + 16) >> 2];
+    const startColor_ = out.startColor; startColor_.r = f32[(ptr + 20) >> 2]; startColor_.g = f32[((ptr + 20) >> 2) + 1]; startColor_.b = f32[((ptr + 20) >> 2) + 2]; startColor_.a = f32[((ptr + 20) >> 2) + 3];
+    const endColor_ = out.endColor; endColor_.r = f32[(ptr + 36) >> 2]; endColor_.g = f32[((ptr + 36) >> 2) + 1]; endColor_.b = f32[((ptr + 36) >> 2) + 2]; endColor_.a = f32[((ptr + 36) >> 2) + 3];
+    out.texture = u32[(ptr + 52) >> 2];
+    out.blendMode = u32[(ptr + 56) >> 2] | 0;
+    out.layer = u32[(ptr + 60) >> 2] | 0;
+    out.material = u32[(ptr + 64) >> 2];
+    out.enabled = u8[ptr + 68] !== 0;
+}
+
+export function writeTrailRenderer(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, data: TrailRendererPtrData,
+): void {
+    f32[ptr >> 2] = data.time;
+    f32[(ptr + 4) >> 2] = data.minVertexDistance;
+    u8[ptr + 8] = data.emitting ? 1 : 0;
+    f32[(ptr + 12) >> 2] = data.startWidth;
+    f32[(ptr + 16) >> 2] = data.endWidth;
+    f32[(ptr + 20) >> 2] = data.startColor.r; f32[((ptr + 20) >> 2) + 1] = data.startColor.g; f32[((ptr + 20) >> 2) + 2] = data.startColor.b; f32[((ptr + 20) >> 2) + 3] = data.startColor.a;
+    f32[(ptr + 36) >> 2] = data.endColor.r; f32[((ptr + 36) >> 2) + 1] = data.endColor.g; f32[((ptr + 36) >> 2) + 2] = data.endColor.b; f32[((ptr + 36) >> 2) + 3] = data.endColor.a;
+    u32[(ptr + 52) >> 2] = data.texture;
+    u32[(ptr + 56) >> 2] = data.blendMode | 0;
+    u32[(ptr + 60) >> 2] = data.layer | 0;
+    u32[(ptr + 64) >> 2] = data.material;
+    u8[ptr + 68] = data.enabled ? 1 : 0;
+}
+
+export function createTrailRendererData(): TrailRendererPtrData {
+    return {
+        time: 0,
+        minVertexDistance: 0,
+        emitting: false,
+        startWidth: 0,
+        endWidth: 0,
+        startColor: { r: 0, g: 0, b: 0, a: 0 },
+        endColor: { r: 0, g: 0, b: 0, a: 0 },
+        texture: 0,
+        blendMode: 0,
+        layer: 0,
+        material: 0,
+        enabled: false,
+    };
+}
+
 export interface TransformPtrData {
     position: Vec3;
     rotation: Vec4;
@@ -1350,6 +1418,7 @@ export const PTR_ACCESSORS: Record<string, PtrAccessor<any>> = {
     SpineAnimation: { fill: fillSpineAnimation, write: writeSpineAnimation, create: createSpineAnimationData },
     Sprite: { fill: fillSprite, write: writeSprite, create: createSpriteData },
     TilemapLayer: { fill: fillTilemapLayer, write: writeTilemapLayer, create: createTilemapLayerData },
+    TrailRenderer: { fill: fillTrailRenderer, write: writeTrailRenderer, create: createTrailRendererData },
     Transform: { fill: fillTransform, write: writeTransform, create: createTransformData },
     UIInteraction: { fill: fillUIInteraction, write: writeUIInteraction, create: createUIInteractionData },
     UIMask: { fill: fillUIMask, write: writeUIMask, create: createUIMaskData },

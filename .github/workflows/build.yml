@@ -254,6 +254,16 @@ jobs:
           ESTELLA_VERIFY_MANIFEST=/scenes/ysort.textures.json \
           ESTELLA_VERIFY_W=256 ESTELLA_VERIFY_H=256 ESTELLA_VERIFY_STEPS=2 \
           'ESTELLA_VERIFY_EXPECT=[{"x":0.5,"y":0.5,"rgb":[255,0,0],"tol":30}]'
+        # Motion trail: move a TrailRenderer entity across the frame in play mode,
+        # asserting the ribbon rasterizes as a green band (head/mid/tail) with black
+        # above it — the CPU-ribbon-through-the-batch-face path.
+        run_scene trail \
+          ESTELLA_VERIFY_PLAY=1 \
+          ESTELLA_VERIFY_SCENE=/scenes/trail.esscene \
+          ESTELLA_VERIFY_MANIFEST=/scenes/trail.textures.json \
+          ESTELLA_VERIFY_W=256 ESTELLA_VERIFY_H=256 \
+          'ESTELLA_VERIFY_TRAIL={"from":[-200,0],"to":[200,0],"steps":20}' \
+          'ESTELLA_VERIFY_EXPECT=[{"x":0.80,"y":0.5,"rgb":[0,255,0],"tol":50},{"x":0.5,"y":0.5,"rgb":[0,255,0],"tol":50},{"x":0.25,"y":0.5,"rgb":[0,255,0],"tol":60},{"x":0.5,"y":0.15,"rgb":[0,0,0],"tol":30}]'
 
     # The SAME pixel assertions on the WebGPU backend — Dawn renders through the
     # bundled SwiftShader Vulkan (--use-webgpu-adapter=swiftshader), so a GPU-less
@@ -294,3 +304,10 @@ jobs:
           ESTELLA_VERIFY_MANIFEST=/scenes/ysort.textures.json \
           ESTELLA_VERIFY_W=256 ESTELLA_VERIFY_H=256 ESTELLA_VERIFY_STEPS=2 \
           'ESTELLA_VERIFY_EXPECT=[{"x":0.5,"y":0.5,"rgb":[0,255,0],"tol":30},{"x":0.5,"y":0.25,"rgb":[255,0,0],"tol":30},{"x":0.5,"y":0.75,"rgb":[0,255,0],"tol":30}]'
+        run_scene webgpu-trail \
+          ESTELLA_VERIFY_PLAY=1 \
+          ESTELLA_VERIFY_SCENE=/scenes/trail.esscene \
+          ESTELLA_VERIFY_MANIFEST=/scenes/trail.textures.json \
+          ESTELLA_VERIFY_W=256 ESTELLA_VERIFY_H=256 \
+          'ESTELLA_VERIFY_TRAIL={"from":[-200,0],"to":[200,0],"steps":20}' \
+          'ESTELLA_VERIFY_EXPECT=[{"x":0.80,"y":0.5,"rgb":[0,255,0],"tol":50},{"x":0.5,"y":0.5,"rgb":[0,255,0],"tol":50},{"x":0.25,"y":0.5,"rgb":[0,255,0],"tol":60},{"x":0.5,"y":0.15,"rgb":[0,0,0],"tol":30}]'

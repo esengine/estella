@@ -25,6 +25,8 @@
 #include "../renderer/plugins/ParticlePlugin.hpp"
 #include "../particle/ParticleSystem.hpp"
 #endif
+#include "../renderer/plugins/TrailPlugin.hpp"
+#include "../trail/TrailSystem.hpp"
 #ifdef ES_ENABLE_TILEMAP
 #include "../renderer/plugins/TilemapRenderPlugin.hpp"
 #include "../tilemap/TilemapSystem.hpp"
@@ -131,6 +133,7 @@ void EstellaContext::initSubsystems(Unique<GfxDevice> gfxDevice) {
 #ifdef ES_ENABLE_PARTICLES
     services_.registerOwned<particle::ParticleSystem>(makeUnique<particle::ParticleSystem>());
 #endif
+    services_.registerOwned<trail::TrailSystem>(makeUnique<trail::TrailSystem>());
 
     auto* rm = services_.getService<resource::ResourceManager>();
     auto* rc = services_.getService<RenderContext>();
@@ -150,6 +153,11 @@ void EstellaContext::initSubsystems(Unique<GfxDevice> gfxDevice) {
     renderFrame->addPlugin(std::make_unique<TextPlugin>());
     renderFrame->addPlugin(std::make_unique<ShapePlugin>());
     renderFrame->addPlugin(std::make_unique<MeshPlugin>());
+    {
+        auto trailPlugin = std::make_unique<TrailPlugin>();
+        trailPlugin->setTrailSystem(services_.getService<trail::TrailSystem>());
+        renderFrame->addPlugin(std::move(trailPlugin));
+    }
 
 #ifdef ES_ENABLE_TILEMAP
     {

@@ -548,6 +548,57 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
       "step": 1,
     },
   },
+  "TrailRenderer": {
+    "blendMode": {
+      "category": "Rendering",
+      "tooltip": "Blend mode: 0 Normal, 1 Additive (glow), 2 Multiply, …",
+    },
+    "emitting": {
+      "category": "Trail",
+      "tooltip": "Record new points. False = freeze and let the streak fade in place.",
+    },
+    "endColor": {
+      "category": "Color",
+      "tooltip": "Color at the tail (oldest point) — usually alpha 0 to fade out.",
+    },
+    "endWidth": {
+      "category": "Width",
+      "min": 0,
+      "tooltip": "Full ribbon width at the tail (oldest point).",
+    },
+    "layer": {
+      "category": "Rendering",
+      "enumSource": "sortingLayers",
+      "step": 1,
+      "tooltip": "Sorting layer — controls draw order across renderables.",
+    },
+    "material": {
+      "advanced": true,
+      "category": "Rendering",
+    },
+    "minVertexDistance": {
+      "category": "Trail",
+      "min": 0,
+      "tooltip": "Min world distance moved before a new trail point is recorded.",
+    },
+    "startColor": {
+      "category": "Color",
+      "tooltip": "Color at the head (newest point).",
+    },
+    "startWidth": {
+      "category": "Width",
+      "min": 0,
+      "tooltip": "Full ribbon width at the head (newest point).",
+    },
+    "texture": {
+      "category": "Rendering",
+    },
+    "time": {
+      "category": "Trail",
+      "min": 0,
+      "tooltip": "Seconds each trail point lives before it fades out of the tail.",
+    },
+  },
   "Transform": {
     "position": {
       "tooltip": "Local position in world units, relative to the parent.",

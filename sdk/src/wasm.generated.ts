@@ -428,6 +428,21 @@ export interface TilemapLayer {
     visible: boolean;
 }
 
+export interface TrailRenderer {
+    time: number;
+    minVertexDistance: number;
+    emitting: boolean;
+    startWidth: number;
+    endWidth: number;
+    startColor: Vec4;
+    endColor: Vec4;
+    texture: number;
+    blendMode: number;
+    layer: number;
+    material: number;
+    enabled: boolean;
+}
+
 export interface Transform {
     position: Vec3;
     rotation: Quat;
@@ -586,6 +601,10 @@ export interface Registry {
     getTilemapLayer(entity: Entity): TilemapLayer;
     addTilemapLayer(entity: Entity, component: TilemapLayer): void;
     removeTilemapLayer(entity: Entity): void;
+    hasTrailRenderer(entity: Entity): boolean;
+    getTrailRenderer(entity: Entity): TrailRenderer;
+    addTrailRenderer(entity: Entity, component: TrailRenderer): void;
+    removeTrailRenderer(entity: Entity): void;
     hasTransform(entity: Entity): boolean;
     getTransform(entity: Entity): Transform;
     addTransform(entity: Entity, component: Transform): void;
@@ -646,6 +665,7 @@ export interface ESEngineModule {
     StateMachine: new () => StateMachine;
     StateVisuals: new () => StateVisuals;
     TilemapLayer: new () => TilemapLayer;
+    TrailRenderer: new () => TrailRenderer;
     Transform: new () => Transform;
     UIInteraction: new () => UIInteraction;
     UIMask: new () => UIMask;

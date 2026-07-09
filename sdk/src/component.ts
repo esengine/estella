@@ -14,7 +14,7 @@ import { COMPONENT_META, type AssetFieldMeta, type SpineFieldMeta } from './comp
 import type {
     TransformData, SpriteData, ShapeRendererData, Light2DData, ShadowCaster2DData,
     CanvasData, VelocityData, ParentData, ChildrenData, SpineAnimationData,
-    TilemapLayerData, BitmapTextData,
+    TilemapLayerData, BitmapTextData, TrailRendererData,
     CameraData as CameraDataCpp, ParticleEmitterData as ParticleEmitterDataCpp,
     Mesh2DData as Mesh2DDataCpp,
 } from './component.generated';
@@ -592,7 +592,7 @@ export type ScaleMode = (typeof ScaleMode)[keyof typeof ScaleMode];
 export type {
     TransformData, SpriteData, ShapeRendererData, Light2DData, ShadowCaster2DData,
     CanvasData, VelocityData, ParentData, ChildrenData, SpineAnimationData,
-    TilemapLayerData, BitmapTextData,
+    TilemapLayerData, BitmapTextData, TrailRendererData,
 };
 
 export type LocalTransformData = TransformData;
@@ -734,6 +734,12 @@ export interface Mesh2DData extends Mesh2DDataCpp {
 
 export const Mesh2D = defineBuiltin<Mesh2DData>('Mesh2D',
     metaDefaults<Mesh2DData>('Mesh2D', { geometry: { positions: [], indices: [] } })
+);
+
+// Motion trail. Pure config — the point history is owned by the C++ TrailSystem and
+// rendered as a ribbon by TrailPlugin; nothing crosses as a component field.
+export const TrailRenderer = defineBuiltin<TrailRendererData>('TrailRenderer',
+    metaDefaults<TrailRendererData>('TrailRenderer')
 );
 
 export const TilemapLayer = defineBuiltin<TilemapLayerData>('TilemapLayer',

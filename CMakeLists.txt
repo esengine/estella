@@ -74,6 +74,8 @@ set(ESENGINE_SOURCES
     src/esengine/renderer/plugins/TextPlugin.cpp
     src/esengine/renderer/plugins/ShapePlugin.cpp
     src/esengine/renderer/plugins/MeshPlugin.cpp
+    src/esengine/renderer/plugins/TrailPlugin.cpp
+    src/esengine/trail/TrailSystem.cpp
     src/esengine/platform/PathResolver.cpp
     src/esengine/animation/TweenSystem.cpp
     src/esengine/ecs/UILayoutSystem.cpp
@@ -147,6 +149,9 @@ set(ESENGINE_HEADERS
     src/esengine/renderer/Framebuffer.hpp
     src/esengine/renderer/RenderStage.hpp
     src/esengine/renderer/RenderItem.hpp
+    src/esengine/renderer/plugins/TrailPlugin.hpp
+    src/esengine/trail/TrailSystem.hpp
+    src/esengine/ecs/components/TrailRenderer.hpp
     src/esengine/renderer/RenderTarget.hpp
     src/esengine/renderer/RenderFrame.hpp
     src/esengine/renderer/ImmediateDraw.hpp

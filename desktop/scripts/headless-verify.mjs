@@ -131,7 +131,36 @@ app.whenReady().then(async () => {
     if (process.env.ESTELLA_VERIFY_YSORT) {
       await exec(`window.__estellaHeadless.api.setYSortLayers(${Number(process.env.ESTELLA_VERIFY_YSORT)})`);
     }
-    await exec(`window.__estellaHeadless.api.step(${STEPS}, 1 / 60)`);
+    // ESTELLA_VERIFY_TRAIL = {"from":[x,y],"to":[x,y],"steps":N}: move the entity
+    // carrying a TrailRenderer along a world-space path, one frame per sample, so
+    // the trail system records points — motion a static scene can't express.
+    // Requires play mode (ESTELLA_VERIFY_PLAY=1) for the trail update to run.
+    if (process.env.ESTELLA_VERIFY_TRAIL) {
+      const trail = JSON.parse(process.env.ESTELLA_VERIFY_TRAIL);
+      await exec(`(async () => {
+        const cfg = ${JSON.stringify(trail)};
+        const api = window.__estellaHeadless.api;
+        const flat = [];
+        const walk = (nodes) => { for (const n of nodes) { flat.push(n.id); if (n.children) walk(n.children); } };
+        walk(api.getSceneTree());
+        // getEntity().components returns humanized display names ("Trail Renderer"),
+        // so compare with whitespace stripped.
+        let target = null;
+        for (const id of flat) {
+          const e = api.getEntity(id);
+          if (e && e.components && e.components.some((c) => c.replace(/\\s+/g, '') === 'TrailRenderer')) { target = id; break; }
+        }
+        if (target == null) throw new Error('no TrailRenderer entity in scene');
+        const [fx, fy] = cfg.from, [tx, ty] = cfg.to, N = cfg.steps;
+        for (let i = 0; i <= N; i++) {
+          const t = N === 0 ? 1 : i / N;
+          api.setEntityXY(target, fx + (tx - fx) * t, fy + (ty - fy) * t);
+          await api.step(1, 1 / 60);
+        }
+      })()`);
+    } else {
+      await exec(`window.__estellaHeadless.api.step(${STEPS}, 1 / 60)`);
+    }
 
     // WebGPU: the engine has no synchronous readback (buffer maps are async)
     // and a hidden window never presents, so drawImage-style page readback is
