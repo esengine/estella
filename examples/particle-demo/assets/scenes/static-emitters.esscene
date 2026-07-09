@@ -1,0 +1,84 @@
+{
+  "version": "1.0",
+  "name": "Static Emitters",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 10 } } },
+        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 300, "isActive": true, "priority": 0, "backgroundColor": { "r": 0.06, "g": 0.07, "b": 0.10, "a": 1 } } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "ConeFountain",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": -210, "y": -150, "z": 0 } } },
+        {
+          "type": "ParticleEmitter",
+          "data": {
+            "texture": "@uuid:24cb4e0f-7c75-4df4-9a4d-58480ee405c0",
+            "shape": 3, "shapeAngle": 28, "shapeRadius": 110,
+            "rate": 60, "lifetimeMin": 1.4, "lifetimeMax": 2.0,
+            "speedMin": 220, "speedMax": 320, "gravity": { "x": 0, "y": -380 },
+            "startSizeMin": 22, "startSizeMax": 30, "endSizeMin": 4, "endSizeMax": 8,
+            "startColor": { "r": 1.0, "g": 0.72, "b": 0.24, "a": 1 },
+            "endColor": { "r": 1.0, "g": 0.22, "b": 0.12, "a": 0 }
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 2,
+      "name": "CircleBurst",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 20, "y": 10, "z": 0 } } },
+        {
+          "type": "ParticleEmitter",
+          "data": {
+            "texture": "@uuid:24cb4e0f-7c75-4df4-9a4d-58480ee405c0",
+            "shape": 1, "shapeRadius": 80,
+            "rate": 50, "lifetimeMin": 1.2, "lifetimeMax": 1.8,
+            "speedMin": 90, "speedMax": 150, "gravity": { "x": 0, "y": 0 },
+            "startSizeMin": 16, "startSizeMax": 24, "endSizeMin": 2, "endSizeMax": 6,
+            "startColor": { "r": 0.35, "g": 0.82, "b": 1.0, "a": 1 },
+            "endColor": { "r": 0.12, "g": 0.34, "b": 0.92, "a": 0 }
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 3,
+      "name": "RectRain",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 220, "y": 170, "z": 0 } } },
+        {
+          "type": "ParticleEmitter",
+          "data": {
+            "texture": "@uuid:24cb4e0f-7c75-4df4-9a4d-58480ee405c0",
+            "shape": 2, "shapeSize": { "x": 190, "y": 24 },
+            "rate": 55, "lifetimeMin": 1.6, "lifetimeMax": 2.4,
+            "speedMin": 40, "speedMax": 90, "angleSpreadMin": 250, "angleSpreadMax": 290,
+            "gravity": { "x": 0, "y": -140 },
+            "startSizeMin": 12, "startSizeMax": 18, "endSizeMin": 3, "endSizeMax": 6,
+            "startColor": { "r": 0.56, "g": 1.0, "b": 0.46, "a": 1 },
+            "endColor": { "r": 0.2, "g": 0.62, "b": 0.24, "a": 0 }
+          }
+        }
+      ],
+      "visible": true
+    }
+  ]
+}

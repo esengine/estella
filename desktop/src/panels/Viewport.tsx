@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'reac
 import type { PointerEvent as ReactPointerEvent, DragEvent as ReactDragEvent, ReactNode } from 'react';
 import {
   MousePointer2, Move, RotateCw, Scale3d, Grid3x3, Eye, Frame,
-  Camera, Check, ChevronDown, Loader2, TriangleAlert, Lightbulb, Globe, Crosshair, type LucideIcon,
+  Camera, Check, ChevronDown, Loader2, TriangleAlert, Lightbulb, Sparkles, Globe, Crosshair, type LucideIcon,
 } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { useSelection } from '@/store/selectionStore';
@@ -329,6 +329,14 @@ export function Viewport() {
     () => (engine.status === 'ready' && showColliders ? ViewportController.colliderIds() : []),
     [structRev, engine.status, showColliders],
   );
+  // Particle emitters don't simulate in edit mode — outline each emitter's spawn
+  // shape (point / circle / rect / cone) + a clickable icon, positioned by the rAF.
+  const particleRefs = useRef(new Map<number, HTMLDivElement | null>());
+  const particleShapeRefs = useRef(new Map<number, SVGSVGElement | null>());
+  const particleIds = useMemo(
+    () => (engine.status === 'ready' ? ViewportController.particleEmitterIds() : []),
+    [structRev, engine.status],
+  );
 
   // Mount the live engine canvas into the stage; it survives panel re-docking.
   useEffect(() => {
@@ -577,6 +585,41 @@ export function Viewport() {
         } else {
           wrap.style.opacity = '0';
           wrap.style.visibility = 'hidden'; // an invisible bulb must not swallow clicks
+        }
+      }
+
+      // Particle-emitter gizmos — a clickable icon at the emitter + its spawn-shape
+      // outline (cone wedge / circle / box / point), so an otherwise-invisible emitter
+      // is placeable and aimable in edit mode. Same edit-mode + gizmos-on gate.
+      for (const [pid, wrap] of particleRefs.current) {
+        if (!wrap) continue;
+        const pg = camsOn ? ViewportController.getParticleEmitterGizmo(pid) : null;
+        const svg = particleShapeRefs.current.get(pid);
+        const poly = svg ? (svg.querySelector('.pe-poly') as SVGPolygonElement | null) : null;
+        const circ = svg ? (svg.querySelector('.pe-circle') as SVGCircleElement | null) : null;
+        if (pg) {
+          wrap.style.opacity = pg.on ? '1' : '0.4';
+          wrap.style.visibility = 'visible';
+          wrap.style.transform = `translate(${pg.cx}px, ${pg.cy}px)`;
+          if (pg.kind === 'poly' && poly) {
+            poly.setAttribute('points', pg.pts.map((p) => `${p.x},${p.y}`).join(' '));
+            poly.style.opacity = pg.on ? '0.9' : '0.4';
+            if (circ) circ.style.opacity = '0';
+          } else if (pg.kind === 'circle' && circ) {
+            circ.setAttribute('cx', String(pg.cx));
+            circ.setAttribute('cy', String(pg.cy));
+            circ.setAttribute('r', String(pg.r));
+            circ.style.opacity = pg.on ? '0.9' : '0.4';
+            if (poly) poly.style.opacity = '0';
+          } else {
+            if (poly) poly.style.opacity = '0';
+            if (circ) circ.style.opacity = '0';
+          }
+        } else {
+          wrap.style.opacity = '0';
+          wrap.style.visibility = 'hidden';
+          if (poly) poly.style.opacity = '0';
+          if (circ) circ.style.opacity = '0';
         }
       }
       PerfMonitor.mark('gizmo.update', perfT0);
@@ -857,6 +900,50 @@ export function Viewport() {
         >
           <polygon className="cl-box" points="" />
           <circle className="cl-circle" cx="0" cy="0" r="0" />
+        </svg>
+      ))}
+
+      {/* Particle-emitter gizmos: a clickable icon (select-to-identify, like a light)
+          + a spawn-shape overlay SVG (cone wedge / circle / box), positioned by the rAF. */}
+      {particleIds.map((id) => {
+        const src = SceneModel.sourceFor(id);
+        const name = src != null ? SceneModel.entityBySource(src)?.name : undefined;
+        return (
+          <div
+            key={id}
+            ref={(el) => {
+              if (el) particleRefs.current.set(id, el);
+              else particleRefs.current.delete(id);
+            }}
+            className="viewport__particle-gizmo"
+          >
+            <span
+              className="viewport__particle-hit"
+              role="button"
+              title={name}
+              onPointerDown={(e) => {
+                if (e.button !== 0 || src == null) return;
+                e.stopPropagation();
+                useSelection.getState().select(src);
+              }}
+            >
+              <Sparkles className="viewport__particle-icon" size={14} strokeWidth={1.9} />
+            </span>
+          </div>
+        );
+      })}
+      {particleIds.map((id) => (
+        <svg
+          key={id}
+          ref={(el) => {
+            if (el) particleShapeRefs.current.set(id, el);
+            else particleShapeRefs.current.delete(id);
+          }}
+          className="viewport__particle-shape"
+          aria-hidden="true"
+        >
+          <polygon className="pe-poly" points="" />
+          <circle className="pe-circle" cx="0" cy="0" r="0" />
         </svg>
       ))}
 

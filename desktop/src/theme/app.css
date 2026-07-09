@@ -774,6 +774,56 @@ body.thumb-capture .viewport__play-stop {
   opacity: 0;
 }
 
+/* Particle-emitter gizmo: a clickable icon at the emitter + its spawn-shape overlay.
+   The icon wrapper is translate()'d to the emitter; the shape SVG spans the viewport
+   and the rAF writes absolute canvas-relative px into the polygon/circle. */
+.viewport__particle-gizmo {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 2;
+  pointer-events: none;
+  will-change: transform;
+  transition: opacity 0.1s;
+  color: #ffb454;
+}
+.viewport__particle-hit {
+  position: absolute;
+  left: 0;
+  top: 0;
+  margin: -11px 0 0 -11px;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.viewport__particle-icon {
+  display: block;
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.8));
+  transition: transform 0.1s;
+}
+.viewport__particle-hit:hover .viewport__particle-icon {
+  transform: scale(1.2);
+}
+.viewport__particle-shape {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+  pointer-events: none;
+  overflow: visible;
+}
+.viewport__particle-shape .pe-poly,
+.viewport__particle-shape .pe-circle {
+  fill: rgba(255, 180, 84, 0.05);
+  stroke: #ffb454;
+  stroke-width: 1.5;
+  opacity: 0;
+}
+
 .viewport__overlay {
   position: absolute;
   display: flex;

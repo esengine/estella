@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import {
   Camera, CameraView, EditorView, Light2D, Sprite, Transform, Canvas, BoxCollider, CircleCollider,
+  ParticleEmitter,
   UINode, UICameraInfo, screenToUiWorld, uiWorldToScreen, uiPickAllWorld, type UICameraData,
 } from 'esengine';
 import type { EntityId } from '@/types';
@@ -500,5 +501,81 @@ export const ViewportController = {
     const edge = this.worldToClient(c.x + cc.radius * ppu, c.y);
     if (!center || !edge) return null;
     return { kind: 'circle', cx: center.x, cy: center.y, r: Math.hypot(edge.x - center.x, edge.y - center.y) };
+  },
+
+  /** Ids of entities carrying a ParticleEmitter — the emitter-gizmo set. */
+  particleEmitterIds(): EntityId[] {
+    const world = EngineHost.world;
+    if (!world) return [];
+    const out: EntityId[] = [];
+    for (const e of world.getAllEntities()) {
+      if (world.has(e, ParticleEmitter) && world.has(e, Transform)) out.push(e);
+    }
+    return out;
+  },
+
+  /**
+   * Screen-space gizmo geometry for a ParticleEmitter's SPAWN shape. Particles don't
+   * simulate in edit mode, so the emitter is otherwise invisible on the canvas — this
+   * outlines WHERE particles are born (and, for a Cone, which way they aim): a marker
+   * (Point), a radius circle (Circle), an oriented box (Rectangle), or an aim wedge
+   * (Cone, local up ±shapeAngle/2 out to shapeRadius). Sizes are world pixels
+   * (shapeRadius/shapeSize match world position — NO pixelsPerUnit, unlike colliders),
+   * projected through the camera like the collider gizmo. `on` folds the enable so a
+   * disabled emitter dims.
+   */
+  getParticleEmitterGizmo(
+    id: EntityId,
+  ): { cx: number; cy: number; kind: 'point' | 'circle' | 'poly'; r: number; pts: Array<{ x: number; y: number }>; on: boolean } | null {
+    const world = EngineHost.world;
+    if (!world || !world.valid(id) || !world.has(id, ParticleEmitter) || !world.has(id, Transform)) return null;
+    const t = world.get(id, Transform);
+    const p = world.get(id, ParticleEmitter) as {
+      shape: number; shapeRadius: number; shapeSize: { x: number; y: number }; shapeAngle: number; enabled: boolean;
+    };
+    const center = this.worldToClient(t.worldPosition.x, t.worldPosition.y);
+    if (!center) return null;
+    const on = p.enabled !== false;
+    const rot = quatAngleZ(t.worldRotation as { w: number; x: number; y: number; z: number });
+    const cos = Math.cos(rot);
+    const sin = Math.sin(rot);
+    // Rotate an emitter-local offset (world px) into world space — mirrors the sim's
+    // world-space direction rotation (ParticleSystem::emitParticles).
+    const toWorld = (lx: number, ly: number) => ({
+      x: t.worldPosition.x + lx * cos - ly * sin,
+      y: t.worldPosition.y + lx * sin + ly * cos,
+    });
+
+    switch (p.shape) {
+      case 1: {  // Circle — spawn disk of shapeRadius
+        const edge = this.worldToClient(t.worldPosition.x + p.shapeRadius, t.worldPosition.y);
+        const r = edge ? Math.hypot(edge.x - center.x, edge.y - center.y) : 0;
+        return { cx: center.x, cy: center.y, kind: 'circle', r, pts: [], on };
+      }
+      case 2: {  // Rectangle — oriented spawn box of shapeSize
+        const corners = obbCorners({
+          cx: t.worldPosition.x, cy: t.worldPosition.y,
+          hw: Math.abs(p.shapeSize.x) * 0.5, hh: Math.abs(p.shapeSize.y) * 0.5, rot,
+        }).map(([wx, wy]) => this.worldToClient(wx, wy));
+        if (corners.some((s) => !s)) return null;
+        return { cx: center.x, cy: center.y, kind: 'poly', r: 0, pts: corners.map((s) => ({ x: s!.x, y: s!.y })), on };
+      }
+      case 3: {  // Cone — aim wedge: local up (0,1) swept ±shapeAngle/2, out to shapeRadius
+        const half = Math.max(0, p.shapeAngle) * 0.5 * (Math.PI / 180);
+        const rad = p.shapeRadius > 0 ? p.shapeRadius : 60;
+        const STEPS = 12;
+        const pts: Array<{ x: number; y: number }> = [{ x: center.x, y: center.y }];  // apex
+        for (let i = 0; i <= STEPS; i++) {
+          const a = -half + (2 * half) * (i / STEPS);
+          const w = toWorld(Math.sin(a) * rad, Math.cos(a) * rad);
+          const s = this.worldToClient(w.x, w.y);
+          if (!s) return null;
+          pts.push({ x: s.x, y: s.y });
+        }
+        return { cx: center.x, cy: center.y, kind: 'poly', r: 0, pts, on };
+      }
+      default:  // Point (0) — a marker at the emitter (the clickable icon)
+        return { cx: center.x, cy: center.y, kind: 'point', r: 0, pts: [], on };
+    }
   },
 };
