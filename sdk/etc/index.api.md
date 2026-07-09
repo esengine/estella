@@ -3367,10 +3367,7 @@ toVersion: string
 
 ## MissingAssetsError — class
 ```
-message: string
 missing: MissingAsset[]
-name: string
-stack: string | undefined
 static new (missing: MissingAsset[]): MissingAssetsError
 static prototype: MissingAssetsError
 ```

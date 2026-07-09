@@ -109,6 +109,18 @@ function releaseTag(symbol) {
     return 'stable';
 }
 
+/** A member inherited from an ambient built-in (the TS lib or @types/node) — e.g. an
+ *  `extends Error` class's `message`/`stack`, or `captureStackTrace` on ErrorConstructor.
+ *  Its declaration lives in node_modules, so it floats with the installed @types version
+ *  (this is what drifted CI: a newer @types/node augments ErrorConstructor). It is not the
+ *  SDK's authored surface, so drop it. An SDK-authored override keeps at least one
+ *  declaration outside node_modules and therefore survives. */
+function isAmbientMember(member) {
+    const decls = member.declarations;
+    if (!decls || decls.length === 0) return false;
+    return decls.every((d) => d.getSourceFile().fileName.replace(/\\/g, '/').includes('/node_modules/'));
+}
+
 function isPrivateMember(member) {
     if (member.escapedName?.toString().startsWith('__')) return true;
     for (const decl of member.declarations ?? []) {
@@ -131,6 +143,7 @@ function memberLines(type, location) {
     }
     for (const member of type.getProperties()) {
         if (isPrivateMember(member)) continue;
+        if (isAmbientMember(member)) continue;
         const memberType = checker.getTypeOfSymbolAtLocation(member, location);
         lines.push(`${member.name}: ${normalizeType(checker.typeToString(memberType, location, FMT))}`);
     }
