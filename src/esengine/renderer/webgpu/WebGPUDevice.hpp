@@ -326,6 +326,28 @@ private:
     WGPUBindGroup cachedBindGroup(u32 group, u32 mask, const u64* ids, u32 idCount,
                                   const WGPUBindGroupDescriptor& desc);
 
+    // GPU timing — the WebGPU analog of GLDevice's GL_TIME_ELAPSED timer, so the
+    // profiler's gpuMs/gpuScopes populate on both backends. Active only when the
+    // device has the timestamp-query feature; otherwise createTimerQuery returns 0
+    // and timing stays off (unchanged behavior). The surface (present) pass writes
+    // a begin/end timestamp; endRenderPass resolves them into a ring of readback
+    // buffers mapped asynchronously, and getTimerQueryNs drains the elapsed ns into
+    // the engine's GpuTimer (whose ring already tolerates a few frames of latency).
+    bool timestamp_supported_ = false;
+    bool timestamp_init_done_ = false;
+    WGPUQuerySet timestamp_qset_ = nullptr;   ///< 2 slots: begin/end of the timed pass.
+    WGPUBuffer timestamp_resolve_ = nullptr;  ///< QueryResolve target (16 bytes).
+    static constexpr u32 kGpuTimeRing = 4;
+    struct GpuTimeSlot { WGPUBuffer buf = nullptr; bool pending = false; };
+    GpuTimeSlot gpu_time_ring_[kGpuTimeRing] = {};
+    u32 gpu_time_next_ = 0;                ///< Round-robin cursor into the ring.
+    u32 gpu_time_slot_ = kGpuTimeRing;     ///< Slot reserved for the in-flight timed pass (== kGpuTimeRing: none).
+    bool pass_timed_ = false;              ///< Did the current pass attach timestampWrites?
+    std::vector<u64> gpu_time_results_;    ///< Resolved elapsed-ns, FIFO, drained by getTimerQueryNs.
+    void ensureTimestamps();               ///< Lazily create the query set + buffers (feature-gated).
+    static void onGpuTimeMapped(WGPUMapAsyncStatus status, WGPUStringView message,
+                                void* userdata1, void* userdata2);
+
     std::unordered_map<u8, WGPUSampler> samplers_;  ///< Keyed by packed filter/wrap params.
 
     // Explicit layouts, cached by binding mask (key = group << 32 | mask for

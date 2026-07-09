@@ -85,6 +85,14 @@ void WebGPUDevice::shutdown() {
     bind_group_cache_.clear();
     bind_group_ = nullptr;
     texture_group_ = nullptr;
+
+    // GPU timing resources.
+    if (timestamp_qset_) { wgpuQuerySetRelease(timestamp_qset_); timestamp_qset_ = nullptr; }
+    if (timestamp_resolve_) { wgpuBufferRelease(timestamp_resolve_); timestamp_resolve_ = nullptr; }
+    for (auto& s : gpu_time_ring_) { if (s.buf) wgpuBufferRelease(s.buf); s.buf = nullptr; s.pending = false; }
+    gpu_time_results_.clear();
+    timestamp_supported_ = false;
+    timestamp_init_done_ = false;
     if (clear_bind_group_) { wgpuBindGroupRelease(clear_bind_group_); clear_bind_group_ = nullptr; }
     for (auto& [key, pipeline] : clear_pipelines_) {
         if (pipeline) wgpuRenderPipelineRelease(pipeline);
@@ -1172,6 +1180,22 @@ void WebGPUDevice::beginRenderPass(const RenderPassDesc& desc) {
 
     encoder_ = wgpuDeviceCreateCommandEncoder(device_, nullptr);
 
+    // GPU timing: time the surface (present) pass — one timestamped pass per frame
+    // in the common case. Reserve a free ring slot; skip timing if none is free.
+    pass_timed_ = false;
+    gpu_time_slot_ = kGpuTimeRing;
+    if (timestamp_supported_ && desc.target == FramebufferHandle::Default) {
+        for (u32 i = 0; i < kGpuTimeRing; ++i) {
+            const u32 s = (gpu_time_next_ + i) % kGpuTimeRing;
+            if (!gpu_time_ring_[s].pending) {
+                gpu_time_slot_ = s;
+                gpu_time_next_ = (s + 1) % kGpuTimeRing;
+                break;
+            }
+        }
+        pass_timed_ = (gpu_time_slot_ < kGpuTimeRing);
+    }
+
     const bool scoped = desc.clearW != 0;
     WGPURenderPassColorAttachment color{};
     color.view = targetView;
@@ -1197,6 +1221,13 @@ void WebGPUDevice::beginRenderPass(const RenderPassDesc& desc) {
         }
         rp.depthStencilAttachment = &ds;
     }
+    WGPUPassTimestampWrites tw{};
+    if (pass_timed_) {
+        tw.querySet = timestamp_qset_;
+        tw.beginningOfPassWriteIndex = 0;
+        tw.endOfPassWriteIndex = 1;
+        rp.timestampWrites = &tw;  // outlives the call below (same scope)
+    }
     pass_ = wgpuCommandEncoderBeginRenderPass(encoder_, &rp);
     bind_group_dirty_ = true;
     stencil_ref_ = 0;  // a fresh pass encoder resets its stencil reference
@@ -1216,11 +1247,34 @@ void WebGPUDevice::endRenderPass() {
     wgpuRenderPassEncoderRelease(pass_);
     pass_ = nullptr;
 
+    // GPU timing: resolve this pass's begin/end timestamps into the reserved ring
+    // slot (recorded on the same encoder, so it runs after the pass on the GPU).
+    const bool timed = pass_timed_ && gpu_time_slot_ < kGpuTimeRing && encoder_;
+    if (timed) {
+        wgpuCommandEncoderResolveQuerySet(encoder_, timestamp_qset_, 0, 2, timestamp_resolve_, 0);
+        wgpuCommandEncoderCopyBufferToBuffer(encoder_, timestamp_resolve_, 0,
+                                             gpu_time_ring_[gpu_time_slot_].buf, 0, 16);
+    }
+
     WGPUCommandBuffer commands = wgpuCommandEncoderFinish(encoder_, nullptr);
     wgpuCommandEncoderRelease(encoder_);
     encoder_ = nullptr;
     wgpuQueueSubmit(queue_, 1, &commands);
     wgpuCommandBufferRelease(commands);
+
+    if (timed) {
+        // Map async — drained by getTimerQueryNs a few frames later (the GpuTimer
+        // ring tolerates the latency).
+        gpu_time_ring_[gpu_time_slot_].pending = true;
+        WGPUBufferMapCallbackInfo cb = WGPU_BUFFER_MAP_CALLBACK_INFO_INIT;
+        cb.mode = WGPUCallbackMode_AllowSpontaneous;
+        cb.callback = &WebGPUDevice::onGpuTimeMapped;
+        cb.userdata1 = this;
+        cb.userdata2 = reinterpret_cast<void*>(static_cast<uintptr_t>(gpu_time_slot_));
+        wgpuBufferMapAsync(gpu_time_ring_[gpu_time_slot_].buf, WGPUMapMode_Read, 0, 16, cb);
+    }
+    pass_timed_ = false;
+    gpu_time_slot_ = kGpuTimeRing;
 
     if (frame_view_) { wgpuTextureViewRelease(frame_view_); frame_view_ = nullptr; }
     if (frame_texture_) { wgpuTextureRelease(frame_texture_); frame_texture_ = nullptr; }
@@ -1348,11 +1402,61 @@ void WebGPUDevice::discardReadback(ReadbackHandle handle) {
 // Timing / queries / debug
 // =============================================================================
 
-u32 WebGPUDevice::createTimerQuery() { return 0; }  // "no GPU timing" — same contract as a bare GL backend
-void WebGPUDevice::beginTimerQuery(u32) {}
+void WebGPUDevice::ensureTimestamps() {
+    if (timestamp_init_done_) return;
+    timestamp_init_done_ = true;
+    if (!device_ || !wgpuDeviceHasFeature(device_, WGPUFeatureName_TimestampQuery)) return;
+
+    WGPUQuerySetDescriptor qd{};
+    qd.type = WGPUQueryType_Timestamp;
+    qd.count = 2;  // begin + end of the timed pass
+    timestamp_qset_ = wgpuDeviceCreateQuerySet(device_, &qd);
+    if (!timestamp_qset_) return;
+
+    WGPUBufferDescriptor rd{};
+    rd.usage = WGPUBufferUsage_QueryResolve | WGPUBufferUsage_CopySrc;
+    rd.size = 16;  // 2 × u64 nanosecond timestamps
+    timestamp_resolve_ = wgpuDeviceCreateBuffer(device_, &rd);
+    for (u32 i = 0; i < kGpuTimeRing; ++i) {
+        WGPUBufferDescriptor bd{};
+        bd.usage = WGPUBufferUsage_MapRead | WGPUBufferUsage_CopyDst;
+        bd.size = 16;
+        gpu_time_ring_[i].buf = wgpuDeviceCreateBuffer(device_, &bd);
+    }
+    timestamp_supported_ = timestamp_resolve_ && gpu_time_ring_[0].buf;
+}
+
+u32 WebGPUDevice::createTimerQuery() {
+    ensureTimestamps();
+    return timestamp_supported_ ? 1 : 0;  // non-zero → the engine's GpuTimer enables; 0 → no GPU timing (as before)
+}
+
+void WebGPUDevice::beginTimerQuery(u32) {}  // timing rides the pass: attached at beginRenderPass, resolved at endRenderPass
 void WebGPUDevice::endTimerQuery() {}
 bool WebGPUDevice::timerDisjoint() { return false; }
-bool WebGPUDevice::getTimerQueryNs(u32, u64*) { return false; }
+
+bool WebGPUDevice::getTimerQueryNs(u32, u64* outNs) {
+    if (gpu_time_results_.empty()) return false;
+    if (outNs) *outNs = gpu_time_results_.front();
+    gpu_time_results_.erase(gpu_time_results_.begin());
+    return true;
+}
+
+void WebGPUDevice::onGpuTimeMapped(WGPUMapAsyncStatus status, WGPUStringView /*message*/,
+                                   void* userdata1, void* userdata2) {
+    auto* self = static_cast<WebGPUDevice*>(userdata1);
+    const u32 slot = static_cast<u32>(reinterpret_cast<uintptr_t>(userdata2));
+    if (!self || slot >= kGpuTimeRing) return;
+    WGPUBuffer buf = self->gpu_time_ring_[slot].buf;
+    if (status == WGPUMapAsyncStatus_Success && buf) {
+        const auto* ts = static_cast<const u64*>(wgpuBufferGetConstMappedRange(buf, 0, 16));
+        // Cap the FIFO so a stalled consumer can't grow it without bound.
+        if (ts && ts[1] >= ts[0] && self->gpu_time_results_.size() < 16)
+            self->gpu_time_results_.push_back(ts[1] - ts[0]);
+        wgpuBufferUnmap(buf);
+    }
+    self->gpu_time_ring_[slot].pending = false;
+}
 
 void WebGPUDevice::setWireframe(bool) {}
 u32 WebGPUDevice::getError() { return 0; }

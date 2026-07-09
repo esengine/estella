@@ -464,13 +464,23 @@ class EngineHostImpl {
       // reads it synchronously (Module.preinitializedWebGPUDevice).
       const gpu = (navigator as unknown as {
         gpu?: {
-          requestAdapter(): Promise<{ requestDevice(): Promise<unknown> } | null>;
+          requestAdapter(): Promise<{
+            features?: { has(name: string): boolean };
+            requestDevice(descriptor?: { requiredFeatures?: string[] }): Promise<unknown>;
+          } | null>;
         };
       }).gpu;
       if (!gpu) throw new Error('WebGPU is not available in this renderer.');
       const adapter = await gpu.requestAdapter();
       if (!adapter) throw new Error('No WebGPU adapter available.');
-      moduleArg.preinitializedWebGPUDevice = await adapter.requestDevice();
+      // Opt into timestamp-query when the adapter supports it, so the engine's GPU
+      // timer can populate gpuMs/gpuScopes (matches the GL timer-query path). Absent
+      // it, the WebGPU backend reports no GPU timing — same as before.
+      const hasTimestamp = adapter.features?.has('timestamp-query') ?? false;
+      const requiredFeatures = hasTimestamp ? ['timestamp-query'] : [];
+      console.info(`[engine] webgpu timestamp-query: ${hasTimestamp ? 'enabled (GPU timing on)' : 'unavailable (no GPU timing)'}`);
+      moduleArg.preinitializedWebGPUDevice = await adapter.requestDevice(
+        requiredFeatures.length ? { requiredFeatures } : undefined);
       // The swapchain glue resolves the canvas by document.querySelector, so
       // it must be connected (the headless host never attaches it to a view).
       // Pin it at the page origin at its backing size: a hidden window never
