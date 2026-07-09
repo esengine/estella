@@ -10,10 +10,16 @@ import { createStore } from 'zustand/vanilla';
 
 export type ToastKind = 'info' | 'success' | 'warn' | 'error';
 
+export interface ToastAction {
+  label: string;
+  run: () => void;
+}
+
 export interface Toast {
   id: number;
   kind: ToastKind;
   message: string;
+  action?: ToastAction;
 }
 
 class ToastsImpl {
@@ -24,9 +30,9 @@ class ToastsImpl {
   getSnapshot = (): Toast[] => this.store.getState().list;
 
   /** Post a toast; it auto-dismisses after `ttl` ms (0 = sticky until clicked). */
-  push(message: string, kind: ToastKind = 'info', ttl = 3200): number {
+  push(message: string, kind: ToastKind = 'info', ttl = 3200, action?: ToastAction): number {
     const id = ++this.seq;
-    this.store.setState((s) => ({ list: [...s.list, { id, kind, message }] }));
+    this.store.setState((s) => ({ list: [...s.list, { id, kind, message, action }] }));
     if (ttl > 0) setTimeout(() => this.dismiss(id), ttl);
     return id;
   }

@@ -161,6 +161,24 @@ export function MenuBar() {
             .then((v) => window.alert(`Estella Editor${v ? ' · ' + v : ''}\nA modern editor for the Estella 2D engine.`))
             .catch(() => window.alert('Estella Editor')),
         },
+        {
+          label: 'Check for Updates…',
+          onClick: () => void window.estella?.app?.checkUpdates?.().then((release) => {
+            if (release) {
+              Toasts.push(`Estella ${release.version} is available`, 'info', 0, {
+                label: 'Download',
+                run: () => window.open(release.url),
+              });
+            } else {
+              Toasts.push('Estella is up to date', 'success');
+            }
+          }),
+        },
+        { sep: true },
+        {
+          label: 'Open Log Folder',
+          onClick: () => void window.estella?.app?.openLogs?.(),
+        },
       ],
     },
   ];

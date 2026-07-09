@@ -8,6 +8,7 @@ import type { ScanAssetsResult } from './assetDb';
 import type { CookResult } from './cookAssets';
 import type { ExportGameResult } from './exportGame';
 import type { PlayRealmResult } from './buildPlayRealm';
+import type { LatestRelease } from './updateCheck';
 
 // The privileged bridge the renderer is allowed to touch. Keep this surface small
 // and explicit — anything the editor needs from the OS or Node goes through here.
@@ -48,6 +49,16 @@ const api = {
         void Promise.resolve(cb()).finally(() => ipcRenderer.send('app:quitConfirmed'));
       });
     },
+    /** Manual update check (Help menu); null = up to date / offline. */
+    checkUpdates: (): Promise<LatestRelease | null> => ipcRenderer.invoke('app:checkUpdates'),
+    /** Startup update notification (main checks once after launch); returns an unsubscribe. */
+    onUpdateAvailable: (cb: (release: LatestRelease) => void): (() => void) => {
+      const h = (_e: unknown, release: LatestRelease) => cb(release);
+      ipcRenderer.on('app:updateAvailable', h);
+      return () => ipcRenderer.removeListener('app:updateAvailable', h);
+    },
+    /** Open the local diagnostics log folder (main-process errors, crash dumps). */
+    openLogs: (): Promise<void> => ipcRenderer.invoke('diagnostics:openLogs'),
   },
 
   // — Project / workspace (RC12 §E7) —

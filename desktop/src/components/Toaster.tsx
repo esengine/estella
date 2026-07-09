@@ -13,6 +13,18 @@ export function Toaster() {
       {toasts.map((t) => (
         <div key={t.id} className={`toast toast--${t.kind}`} role="status">
           <span className="toast__msg">{t.message}</span>
+          {t.action && (
+            <button
+              type="button"
+              className="toast__action"
+              onClick={() => {
+                t.action?.run();
+                Toasts.dismiss(t.id);
+              }}
+            >
+              {t.action.label}
+            </button>
+          )}
           <button
             type="button"
             className="toast__close"

@@ -78,6 +78,18 @@ export function App() {
     return unsub;
   }, []);
 
+  // Startup update notification (main checks GitHub Releases once after launch).
+  useEffect(() => {
+    const bridge = window.estella?.app;
+    if (!bridge?.onUpdateAvailable) return;
+    return bridge.onUpdateAvailable((release) => {
+      Toasts.push(`Estella ${release.version} is available`, 'info', 0, {
+        label: 'Download',
+        run: () => window.open(release.url),
+      });
+    });
+  }, []);
+
   const idle = (fn: () => void) =>
     typeof window.requestIdleCallback === 'function' ? window.requestIdleCallback(fn) : setTimeout(fn, 500);
 

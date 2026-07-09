@@ -30,6 +30,8 @@ import { importAssets, createAsset, IMPORT_EXTENSIONS } from './importAssets';
 import { exportGame } from './exportGame';
 import { buildPlayRealm } from './buildPlayRealm';
 import { syncSdkTypes } from './syncSdkTypes';
+import { installCrashCapture, logsDir } from './resilience';
+import { checkForUpdate } from './updateCheck';
 import { resolveScripts } from '../src/project/format';
 import type { WorkspaceState } from '../src/project/format';
 
@@ -359,6 +361,8 @@ ipcMain.on('app:dirty', (_e, dirty: boolean) => { sceneDirty = !!dirty; });
 // — Minimal IPC surface (expanded as the editor grows) —
 ipcMain.handle('app:version', () => app.getVersion());
 ipcMain.handle('app:platform', () => process.platform);
+ipcMain.handle('app:checkUpdates', () => checkForUpdate(app.getVersion()));
+ipcMain.handle('diagnostics:openLogs', () => shell.openPath(logsDir()));
 ipcMain.on('engine:status', (_e, status: string) => console.log('[engine]', status));
 
 // — Custom window controls (frameless Windows/Linux; macOS uses native traffic lights) —
@@ -670,10 +674,24 @@ async function handleApp(request: Request): Promise<Response> {
   }
 }
 
+installCrashCapture();
+
 app.whenReady().then(() => {
   protocol.handle('estella', handleEstella);
   protocol.handle('app', handleApp);
   createWindow();
+
+  // Startup update check: silent unless a newer release exists (offline = no-op).
+  // Skipped in automation/dev so screenshots and local runs stay deterministic.
+  if (!VITE_DEV_SERVER_URL && !process.env.ESTELLA_SHOT) {
+    setTimeout(() => {
+      void checkForUpdate(app.getVersion()).then((release) => {
+        if (release && win && !win.isDestroyed()) {
+          win.webContents.send('app:updateAvailable', release);
+        }
+      });
+    }, 5000);
+  }
 });
 
 app.on('activate', () => {

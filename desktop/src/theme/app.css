@@ -2204,6 +2204,18 @@ body.thumb-capture .viewport__play-stop {
 .toast__msg {
   flex: 1;
 }
+.toast__action {
+  flex-shrink: 0;
+  padding: 3px 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-xs);
+  color: var(--star);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+.toast__action:hover {
+  background: var(--hover);
+}
 .toast__close {
   flex-shrink: 0;
   display: grid;
