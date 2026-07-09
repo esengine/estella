@@ -374,12 +374,18 @@ export class TilemapPlugin implements Plugin {
                                 const row = Math.floor(localId / cols);
                                 const w = obj.width || cached.tileWidth;
                                 const h = obj.height || cached.tileHeight;
-                                // Tiled tile-objects anchor BOTTOM-LEFT, y-down; the
-                                // sprite is centered, and world Y is up.
+                                // Tiled tile-objects anchor BOTTOM-LEFT, y-down, and rotate
+                                // CW about that anchor. Rotate the centre offset (w/2,-h/2)
+                                // about the anchor and set the sprite's rotation to match
+                                // (mirrors generateObjectCollision); world Y is up.
+                                const rad = (obj.rotation || 0) * (Math.PI / 180);
+                                const rc = Math.cos(rad), rs = Math.sin(rad);
+                                const px = obj.x + (w / 2) * rc - (-h / 2) * rs;
+                                const py = -(obj.y + (w / 2) * rs + (-h / 2) * rc);
                                 const tileChild = world.spawn(obj.name || `TileObject_${obj.id}`);
-                                world.insert(tileChild, Transform, {
-                                    position: { x: obj.x + w / 2, y: -(obj.y - h / 2), z: 0 },
-                                });
+                                world.insert(tileChild, Transform, rad !== 0
+                                    ? { position: { x: px, y: py, z: 0 }, rotation: { w: Math.cos(-rad / 2), x: 0, y: 0, z: Math.sin(-rad / 2) } }
+                                    : { position: { x: px, y: py, z: 0 } });
                                 world.insert(tileChild, Sprite, {
                                     texture: ts.textureHandle,
                                     size: { x: w, y: h },
