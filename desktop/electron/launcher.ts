@@ -21,6 +21,14 @@ type StoredRecent = Pick<RecentEntry, 'name' | 'root' | 'openedAt'>;
 
 const recentsFile = (): string => path.join(app.getPath('userData'), 'estella-recents.json');
 
+// The recents file is project HISTORY, not the view. This cap only guards the file
+// against unbounded growth — it is NOT a display limit: the Launcher already presents
+// recents with a search box + grid/list, so how many to SHOW is the display's call,
+// not the store's. Kept generous so real history survives; stale entries (project
+// moved/deleted) are hidden at read time by listRecents, not pruned here, so a
+// temporarily-offline drive re-appears when it is back.
+const MAX_RECENTS = 50;
+
 async function readStored(): Promise<StoredRecent[]> {
   try {
     const raw = JSON.parse(await readFile(recentsFile(), 'utf8'));
@@ -63,11 +71,11 @@ export async function listRecents(): Promise<RecentEntry[]> {
   return out;
 }
 
-/** Record a freshly-opened project at the top of the recents list (cap 12). */
+/** Record a freshly-opened project at the top of the recents list (de-duped, newest first). */
 export async function addRecent(root: string, name: string): Promise<void> {
   const stored = (await readStored()).filter((r) => r.root !== root);
   stored.unshift({ root, name, openedAt: Date.now() });
-  await writeFile(recentsFile(), JSON.stringify(stored.slice(0, 12), null, 2));
+  await writeFile(recentsFile(), JSON.stringify(stored.slice(0, MAX_RECENTS), null, 2));
 }
 
 // New-project templates. In dev these are the in-repo examples (each is a real
