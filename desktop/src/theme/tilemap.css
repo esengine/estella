@@ -76,6 +76,29 @@
 }
 .tp-terrain.is-active { border-color: var(--star, #4c8fd6); color: var(--text, #d6d9de); }
 .tp-tswatch { width: 12px; height: 12px; border-radius: 2px; display: inline-block; }
+
+/* Multi-tileset tab bar — switch which of the layer's tilesets the palette paints from. */
+.tp-tilesets {
+  display: flex;
+  gap: 4px;
+  padding: 6px 8px;
+  overflow-x: auto;
+  background: var(--srf-0, #101216);
+  border-bottom: 1px solid var(--line, #2a2d33);
+}
+.tp-tsbtn {
+  flex: 0 0 auto;
+  background: var(--control, #24272d);
+  border: 1px solid var(--line, #2a2d33);
+  border-radius: 3px;
+  color: var(--text-dim, #9aa0aa);
+  padding: 3px 9px;
+  cursor: pointer;
+  font: inherit;
+  white-space: nowrap;
+}
+.tp-tsbtn:hover { color: var(--text, #d6d9de); border-color: var(--control-hover, #333740); }
+.tp-tsbtn.is-active { border-color: var(--star, #4c8fd6); color: var(--text, #d6d9de); }
 .tp-warn { color: var(--text-faint, #6b717c); padding: 12px; font-size: 11px; }
 
 .tp-cell {

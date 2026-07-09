@@ -22,6 +22,11 @@ import type { TilesetAsset } from './tilesetAsset';
 export interface ResolvedTileset {
     asset: TilesetAsset;
     textureHandle: number;
+    /** Atlas texture pixel size, when known — lets the tile count (and thus the
+     *  multi-tileset firstId span) be derived from the grid without an explicit
+     *  `tileCount` on the asset. */
+    textureWidth?: number;
+    textureHeight?: number;
 }
 
 /** One render-table slot: a tileset's global id base, atlas texture, and grid width. */
@@ -46,9 +51,21 @@ export interface TilesetModel {
     polygonShapes: Map<number, [number, number][]>;
 }
 
-/** Tiles in a tileset: explicit `tileCount`, else the highest authored tile id. */
-function tilesetCount(asset: TilesetAsset): number {
+/**
+ * Tiles in a tileset — the span its global ids occupy. Explicit `tileCount` wins;
+ * else derive `columns × rows` from the atlas texture height (the correct span for
+ * a full grid, so multiple tilesets get non-overlapping firstId ranges); else fall
+ * back to the highest authored tile id (single-tileset maps never hit the collision).
+ */
+function tilesetCount(asset: TilesetAsset, textureHeight?: number): number {
     if (typeof asset.tileCount === 'number' && asset.tileCount > 0) return asset.tileCount;
+    if (typeof textureHeight === 'number' && textureHeight > 0) {
+        const th = asset.tileHeight || 1;
+        const m = asset.margin || 0;
+        const sp = asset.spacing || 0;
+        const rows = Math.max(1, Math.floor((textureHeight - 2 * m + sp) / (th + sp)));
+        return Math.max(1, asset.columns * rows);
+    }
     let max = 0;
     for (const k of Object.keys(asset.tiles)) max = Math.max(max, Number(k));
     return max; // local ids are 1-based, so the max id == count of the spanned range
@@ -66,7 +83,7 @@ export function resolveTilesetModel(tilesets: ResolvedTileset[]): TilesetModel {
     const polygonShapes = new Map<number, [number, number][]>();
 
     let firstId = 1;
-    for (const { asset, textureHandle } of tilesets) {
+    for (const { asset, textureHandle, textureHeight } of tilesets) {
         slots.push({ firstId, textureHandle, columns: asset.columns });
         const tw = asset.tileWidth || 1;
         const th = asset.tileHeight || 1;
@@ -93,7 +110,7 @@ export function resolveTilesetModel(tilesets: ResolvedTileset[]): TilesetModel {
             }
         }
 
-        firstId += Math.max(1, tilesetCount(asset));
+        firstId += Math.max(1, tilesetCount(asset, textureHeight));
     }
 
     collidable.sort((a, b) => a - b);

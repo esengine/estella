@@ -759,8 +759,15 @@ export const TilemapLayer = defineBuiltin<TilemapLayerData>('TilemapLayer',
             const refs: AssetRef[] = [];
             const texture = data.tileset;
             if (typeof texture === 'string' && texture) refs.push({ type: 'texture', path: texture });
-            const ref = data.tilesetAsset;
-            if (typeof ref === 'string' && ref) refs.push({ type: 'tileset', path: ref });
+            // `tilesetAssets` (a list of `.estileset` refs) is the multi-tileset model;
+            // fall back to the singular `tilesetAsset` for older single-tileset layers.
+            const list = (data as { tilesetAssets?: unknown }).tilesetAssets;
+            if (Array.isArray(list) && list.length > 0) {
+                for (const r of list) if (typeof r === 'string' && r) refs.push({ type: 'tileset', path: r });
+            } else {
+                const ref = data.tilesetAsset;
+                if (typeof ref === 'string' && ref) refs.push({ type: 'tileset', path: ref });
+            }
             return refs;
         },
     },

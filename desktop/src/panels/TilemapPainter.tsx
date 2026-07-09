@@ -15,7 +15,7 @@ import {
   FlipHorizontal, FlipVertical, RotateCw, Mountain,
 } from 'lucide-react';
 import { parseTileset, encodeTile, type TilesetAsset } from 'esengine';
-import { useTilemapPaint, type PaintTool } from '@/store/tilemapPaintStore';
+import { useTilemapPaint, type PaintTool, type PaletteTileset } from '@/store/tilemapPaintStore';
 import { useSelection } from '@/store/selectionStore';
 import { SceneModel } from '@/engine/SceneModel';
 import { ProjectStore } from '@/project/ProjectStore';
@@ -43,14 +43,27 @@ const TOOLS: { id: PaintTool; icon: typeof Brush; label: string }[] = [
 
 const TERRAIN_COLORS = ['#4caf50', '#d6884c', '#4c8fd6', '#b14cd6', '#d6c64c', '#d64c6e'];
 
-/** Resolve the .estileset path a selected TilemapLayer references (its `tilesetAsset` @uuid). */
-function selectedTilemapTilesetPath(selectedId: number | null): string | null {
-  if (selectedId == null) return null;
+/** Resolve the .estileset ref(s) a selected TilemapLayer references — the `tilesetAssets`
+ *  list (multi-tileset) or the singular `tilesetAsset` — as @uuid refs (not yet paths). */
+function selectedTilemapTilesetRefs(selectedId: number | null): string[] {
+  if (selectedId == null) return [];
   const e = SceneModel.entityBySource(selectedId);
   const layer = e?.components.find((c) => c.type === 'TilemapLayer');
-  if (!layer) return null;
-  const ref = (layer.data as Record<string, unknown>).tilesetAsset;
-  return typeof ref === 'string' ? (ProjectStore.assetInfo(ref)?.path ?? null) : null;
+  if (!layer) return [];
+  const data = layer.data as Record<string, unknown>;
+  const list = data.tilesetAssets;
+  if (Array.isArray(list)) return list.filter((r): r is string => typeof r === 'string' && r !== '');
+  return typeof data.tilesetAsset === 'string' && data.tilesetAsset ? [data.tilesetAsset] : [];
+}
+
+/** Natural pixel size of an image URL (for deriving a tileset's rows → tile count). */
+function loadImageDims(url: string): Promise<{ w: number; h: number }> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
+    img.onerror = () => resolve({ w: 0, h: 0 });
+    img.src = url;
+  });
 }
 
 interface SelRect { c0: number; r0: number; c1: number; r1: number }
@@ -60,18 +73,41 @@ const normRect = (a: { c: number; r: number }, b: { c: number; r: number }): Sel
 
 export function TilemapPainter() {
   const {
-    tilesetPath, stamp, tool, terrainSet,
-    setTileset, setTilesetAsset, setStamp, setTool, setTerrainSet, flipH, flipV, rotateCW,
+    tilesetPath, tilesets, activeTileset, stamp, tool, terrainSet,
+    setTilesets, setActiveTileset, setTilesetAsset, setStamp, setTool, setTerrainSet, flipH, flipV, rotateCW,
   } = useTilemapPaint();
   const selectedId = useSelection((s) => s.selectedId);
   const hasTilemap = selectedId != null
     && !!SceneModel.entityBySource(selectedId)?.components.some((c) => c.type === 'TilemapLayer');
 
-  // Selecting a TilemapLayer loads its referenced .estileset as the active palette.
+  // Selecting a TilemapLayer loads ALL its referenced .estileset(s) into the palette,
+  // each assigned its firstId (matching resolveTilesetModel's running sum), so the tab
+  // bar can switch between them and painted cells encode to the right global gid.
   useEffect(() => {
-    const path = selectedTilemapTilesetPath(selectedId);
-    if (path && path !== tilesetPath) setTileset(path);
-  }, [selectedId, tilesetPath, setTileset]);
+    const paths = selectedTilemapTilesetRefs(selectedId)
+      .map((r) => ProjectStore.assetInfo(r)?.path).filter((p): p is string => !!p);
+    if (paths.length === 0) { setTilesets([]); return; }
+    let alive = true;
+    void (async () => {
+      const entries: PaletteTileset[] = [];
+      let firstId = 1;
+      for (const path of paths) {
+        try {
+          const a = parseTileset(JSON.parse(await window.estella.fs.read(path)));
+          entries.push({ path, asset: a, firstId });
+          let count = a.tileCount ?? 0;
+          if (count <= 0) {
+            const url = `estella://project/${ProjectStore.assetInfo(a.texture)?.path ?? ''}`;
+            const dims = await loadImageDims(url);
+            count = a.columns * rowsFor(dims.h, a.tileHeight, a.margin, a.spacing);
+          }
+          firstId += Math.max(1, count);
+        } catch { /* skip a bad tileset */ }
+      }
+      if (alive) setTilesets(entries);
+    })();
+    return () => { alive = false; };
+  }, [selectedId, setTilesets]);
 
   const [asset, setAsset] = useState<TilesetAsset | null>(null);
   useEffect(() => {
@@ -135,6 +171,9 @@ export function TilemapPainter() {
   const sp = asset?.spacing ?? 0;
   const cols = natural ? colsFor(natural.w, tw, mg, sp) : (asset?.columns ?? 1);
   const rows = natural ? rowsFor(natural.h, th, mg, sp) : 0;
+  // Global tile-id base of the active tileset — a cell's gid = firstId + (row*cols + col),
+  // so the renderer resolves it back to THIS tileset (single-tileset layers have firstId 1).
+  const activeFirstId = tilesets[activeTileset]?.firstId ?? 1;
 
   const commitSel = (r: SelRect) => {
     const w = r.c1 - r.c0 + 1;
@@ -142,7 +181,7 @@ export function TilemapPainter() {
     const cells: number[] = [];
     for (let dy = 0; dy < h; dy++) {
       for (let dx = 0; dx < w; dx++) {
-        cells.push(encodeTile((r.r0 + dy) * cols + (r.c0 + dx) + 1));
+        cells.push(encodeTile((r.r0 + dy) * cols + (r.c0 + dx) + activeFirstId));
       }
     }
     setStamp({ w, h, cells });
@@ -161,7 +200,7 @@ export function TilemapPainter() {
   if (texUrl && natural) {
     for (let row = 0; row < rows; row++) {
       for (let col = 0; col < cols; col++) {
-        const id = row * cols + col + 1;
+        const id = row * cols + col + activeFirstId;
         cells.push(
           <div
             key={id}
@@ -209,6 +248,21 @@ export function TilemapPainter() {
         <span className="tp-grow" />
         <span className="tp-brush">{tool === 'terrain' ? '地形画笔' : `刷子 ${stamp.w}×${stamp.h}`}</span>
       </div>
+      {tilesets.length > 1 && tool !== 'terrain' && (
+        <div className="tp-tilesets">
+          {tilesets.map((ts, i) => (
+            <button
+              key={ts.path}
+              type="button"
+              className={'tp-tsbtn' + (i === activeTileset ? ' is-active' : '')}
+              title={`${ts.path}  (gid ${ts.firstId}+)`}
+              onClick={() => setActiveTileset(i)}
+            >
+              {ts.path.split(/[\\/]/).pop()?.replace(/\.estileset$/, '') ?? `瓦片集 ${i + 1}`}
+            </button>
+          ))}
+        </div>
+      )}
       {tool === 'terrain' ? (
         <div className="tp-terrains">
           {(asset?.terrains ?? []).length === 0 ? (

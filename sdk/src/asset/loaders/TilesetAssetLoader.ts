@@ -22,16 +22,20 @@ export class TilesetAssetLoader implements AssetLoader<TilesetResult> {
 
         // The atlas is a `@uuid:` ref inside the .estileset; loadTexture resolves it.
         let textureHandle = 0;
+        let textureWidth: number | undefined;
+        let textureHeight: number | undefined;
         if (asset.texture) {
             try {
                 const tex = await ctx.loadTexture(asset.texture, true);
                 textureHandle = tex.handle;
+                textureWidth = tex.width;
+                textureHeight = tex.height;
             } catch (e) {
                 log.warn('asset', `Failed to load tileset atlas: ${asset.texture}`, e);
             }
         }
 
-        registerResolvedTileset(path, { asset, textureHandle });
+        registerResolvedTileset(path, { asset, textureHandle, textureWidth, textureHeight });
         return { tilesetId: path };
     }
 

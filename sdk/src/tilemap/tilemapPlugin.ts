@@ -43,8 +43,10 @@ export class TilemapPlugin implements Plugin {
     private nativeCollisionIds_ = new Map<number, number[]>();
     /** TilemapLayer entity → per-tile polygon collision outlines (global id → normalized points). */
     private nativePolygonShapes_ = new Map<number, Map<number, [number, number][]>>();
-    /** TilemapLayer entity → its `.estileset` ref (out-of-band; resolved live → table/collision/anim). */
-    private tilesetRefs_ = new Map<number, string>();
+    /** TilemapLayer entity → its `.estileset` refs, in firstId order (out-of-band; the
+     *  whole list resolves live → multi-slot table/collision/anim). One entry = the
+     *  common single-tileset layer. */
+    private tilesetRefs_ = new Map<number, string[]>();
     /** Entities whose `.estileset` has been resolved+applied (so we do it once per load). */
     private liveResolved_ = new Set<number>();
     /** Resolved `.estileset` paths a load has already been kicked off for (de-dupes the lazy load). */
@@ -70,10 +72,15 @@ export class TilemapPlugin implements Plugin {
                 // runtime can derive collision; it isn't a C++ component field.
                 const ids = nativeCollisionIds.get(entity);
                 if (ids && ids.length > 0) data.collidableTileIds = ids.slice();
-                const ref = tilesetRefs.get(entity);
-                if (ref) data.tilesetAsset = ref;
+                const refs = tilesetRefs.get(entity);
+                if (refs && refs.length > 0) {
+                    data.tilesetAssets = refs.slice();
+                    // Back-compat: keep the singular field (first tileset) so an older
+                    // runtime still renders the primary tileset.
+                    data.tilesetAsset = refs[0];
+                }
             },
-            outOfBandFields: ['chunks', 'collidableTileIds', 'tilesetAsset'],
+            outOfBandFields: ['chunks', 'collidableTileIds', 'tilesetAsset', 'tilesetAssets'],
             importData: (entity, outOfBand) => {
                 const blob = outOfBand.chunks;
                 if (typeof blob === 'string' && blob !== '') {
@@ -85,11 +92,19 @@ export class TilemapPlugin implements Plugin {
                 } else {
                     nativeCollisionIds.delete(entity);
                 }
-                // The `.estileset` reference: resolved live in the sync (table + collision
-                // + animations) instead of trusting the baked collidableTileIds snapshot.
-                const ref = outOfBand.tilesetAsset;
-                if (typeof ref === 'string' && ref !== '') {
-                    tilesetRefs.set(entity, ref);
+                // The `.estileset` reference(s): resolved live in the sync (multi-slot
+                // table + collision + animations). Accept the new `tilesetAssets` list;
+                // fall back to the singular `tilesetAsset` (old scenes).
+                const list = outOfBand.tilesetAssets;
+                const single = outOfBand.tilesetAsset;
+                let refs: string[] | undefined;
+                if (Array.isArray(list)) {
+                    refs = list.filter((r): r is string => typeof r === 'string' && r !== '');
+                } else if (typeof single === 'string' && single !== '') {
+                    refs = [single];
+                }
+                if (refs && refs.length > 0) {
+                    tilesetRefs.set(entity, refs);
                 } else {
                     tilesetRefs.delete(entity);
                 }
@@ -152,9 +167,9 @@ export class TilemapPlugin implements Plugin {
                     const layerData = world.tryGet(entity, TilemapLayer) as TilemapLayerData | null;
                     if (!layerData) continue;
 
-                    const tilesetRef = tilesetRefs.get(entity);
-                    // A layer needs either a copied texture (legacy) or a .estileset ref.
-                    if (!layerData.tileset && !tilesetRef) continue;
+                    const refs = tilesetRefs.get(entity);
+                    // A layer needs either a copied texture (legacy) or .estileset ref(s).
+                    if (!layerData.tileset && (!refs || refs.length === 0)) continue;
 
                     // RC2a: the TilemapLayer component is the single source of visual
                     // metadata; the C++ renderer reads tint/opacity/tileset/columns/
@@ -169,14 +184,28 @@ export class TilemapPlugin implements Plugin {
                         initializedLayers.add(entity);
                     }
 
-                    // Live tileset: when the layer references a `.estileset` that has loaded,
-                    // derive its render table + animations + collision LIVE (once per load) —
-                    // replacing the copied columns and the baked collidableTileIds snapshot.
-                    if (tilesetRef && !liveResolved.has(entity)) {
-                        const tilesetKey = resolveAssetKey(assets, tilesetRef);
-                        const resolved = getResolvedTileset(tilesetKey) ?? getResolvedTileset(tilesetRef);
-                        if (resolved) {
-                            const model = resolveTilesetModel([resolved]);
+                    // Live tileset(s): when ALL the layer's `.estileset` refs have loaded,
+                    // derive its multi-slot render table + animations + collision LIVE (once
+                    // per load) — replacing copied columns + the baked collidableTileIds. The
+                    // whole list must resolve together so firstId ranges are contiguous.
+                    if (refs && refs.length > 0 && !liveResolved.has(entity)) {
+                        const resolvedList = [];
+                        for (const ref of refs) {
+                            const key = resolveAssetKey(assets, ref);
+                            const r = getResolvedTileset(key) ?? getResolvedTileset(ref);
+                            if (r) {
+                                resolvedList.push(r);
+                            } else if (assets && !requestedTilesetLoads.has(key)) {
+                                // Out-of-band ref (invisible to scene asset discovery) — kick
+                                // the load; once it lands we resolve live next frame.
+                                requestedTilesetLoads.add(key);
+                                assets.load('tileset', ref).catch((e) => {
+                                    log.warn('tilemap', `failed to load tileset asset '${ref}'`, e);
+                                });
+                            }
+                        }
+                        if (resolvedList.length === refs.length) {
+                            const model = resolveTilesetModel(resolvedList);
                             TilemapAPI.setTilesets(entity, model.slots);
                             for (const [tileId, frames] of model.animations) {
                                 TilemapAPI.setTileAnimation(entity, tileId, frames);
@@ -189,16 +218,6 @@ export class TilemapPlugin implements Plugin {
                                 nativePolygonShapes.set(entity, model.polygonShapes);
                             }
                             liveResolved.add(entity);
-                        } else if (assets && !requestedTilesetLoads.has(tilesetKey)) {
-                            // The `.estileset` is referenced but not loaded. It's an
-                            // out-of-band ref (invisible to scene asset discovery), so
-                            // nothing preloads it — kick the load off here (the loader
-                            // resolves the ref itself). Once it lands getResolvedTileset()
-                            // hits next frame and we resolve live.
-                            requestedTilesetLoads.add(tilesetKey);
-                            assets.load('tileset', tilesetRef).catch((e) => {
-                                log.warn('tilemap', `failed to load tileset asset '${tilesetRef}'`, e);
-                            });
                         }
                     }
 

@@ -19,6 +19,8 @@ import {
     type TiledObjectData, type TiledObjectGroupData,
 } from '../src/tilemap/tiledLoader';
 import type { TiledMapData } from '../src/tilemap/tiledLoader';
+import { resolveTilesetModel } from '../src/tilemap/tilesetResolve';
+import type { TilesetAsset } from '../src/tilemap/tilesetAsset';
 import { mergeCollisionTiles } from '../src/tilemap/collisionMerge';
 import { BodyType } from '../src/physics/PhysicsComponents';
 import { clearUserComponents } from '../src/component';
@@ -605,6 +607,20 @@ describe('parseTmjJson — Phase B: objectgroup parsing', () => {
         const result = parseTmjJson(json)!;
         expect(result.objectGroups[0].objects[0].gid).toBe(5);
         expect(result.objectGroups[0].objects[1].gid).toBeUndefined();
+    });
+
+    it('resolveTilesetModel: multiple tilesets get non-overlapping firstId ranges from texture height', () => {
+        const mk = (columns: number, tileH: number): TilesetAsset => ({
+            version: '1', texture: '', tileWidth: tileH, tileHeight: tileH,
+            columns, margin: 0, spacing: 0, tiles: {},
+        });
+        // A: 4 cols, 64px tall / 16px tiles → 4 rows → 16 tiles → firstId 1, then +16.
+        // B: 2 cols, 32px tall / 16px tiles → 2 rows → 4 tiles → firstId 17.
+        const model = resolveTilesetModel([
+            { asset: mk(4, 16), textureHandle: 1, textureHeight: 64 },
+            { asset: mk(2, 16), textureHandle: 2, textureHeight: 32 },
+        ]);
+        expect(model.slots.map((s) => s.firstId)).toEqual([1, 17]); // pre-fix: [1, 2] (collision)
     });
 
     it('decodeTiledGid splits the global id + H/V/D flip flags', () => {

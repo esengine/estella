@@ -16,6 +16,15 @@ import {
 
 export type PaintTool = 'brush' | 'erase' | 'rect' | 'line' | 'bucket' | 'select' | 'eyedropper' | 'terrain';
 
+/** One tileset in the active layer's palette: its `.estileset` path, parsed asset, and
+ *  the GLOBAL tile-id base (firstId) it occupies — matching the runtime tileset model, so
+ *  a cell painted from this tileset encodes to the gid the renderer resolves back to it. */
+export interface PaletteTileset {
+    path: string;
+    asset: TilesetAsset;
+    firstId: number;
+}
+
 /** A rectangular tile-grid selection (inclusive corners, unordered). */
 export interface TileRect {
     x0: number;
@@ -25,7 +34,11 @@ export interface TileRect {
 }
 
 interface TilemapPaintState {
-    /** Active `.estileset` palette (project-relative path), or null. */
+    /** The active layer's tilesets, in firstId order (one entry = a single-tileset layer). */
+    tilesets: PaletteTileset[];
+    /** Index into `tilesets` of the palette the painter shows + paints from. */
+    activeTileset: number;
+    /** Active `.estileset` palette (project-relative path), or null. Mirrors tilesets[activeTileset]. */
     tilesetPath: string | null;
     /** The parsed active palette asset (kept here so the viewport terrain tool can resolve). */
     tilesetAsset: TilesetAsset | null;
@@ -39,6 +52,10 @@ interface TilemapPaintState {
     clipboard: TileStamp | null;
     /** The active tool; null = not painting (the Viewport selects normally). */
     tool: PaintTool | null;
+    /** Replace the active layer's palette list (from its tilesetAssets); resets active to 0. */
+    setTilesets(tilesets: PaletteTileset[]): void;
+    /** Switch which tileset in the list the palette shows/paints from. */
+    setActiveTileset(index: number): void;
     setTileset(path: string | null): void;
     setTilesetAsset(asset: TilesetAsset | null): void;
     setStamp(stamp: TileStamp): void;
@@ -54,6 +71,8 @@ interface TilemapPaintState {
 }
 
 export const useTilemapPaint = create<TilemapPaintState>((set) => ({
+    tilesets: [],
+    activeTileset: 0,
     tilesetPath: null,
     tilesetAsset: null,
     stamp: singleStamp(encodeTile(1)),
@@ -61,6 +80,16 @@ export const useTilemapPaint = create<TilemapPaintState>((set) => ({
     selection: null,
     clipboard: null,
     tool: null,
+    setTilesets: (tilesets) => set({
+        tilesets,
+        activeTileset: 0,
+        tilesetPath: tilesets[0]?.path ?? null,
+        tilesetAsset: tilesets[0]?.asset ?? null,
+    }),
+    setActiveTileset: (index) => set((s) => {
+        const ts = s.tilesets[index];
+        return ts ? { activeTileset: index, tilesetPath: ts.path, tilesetAsset: ts.asset } : {};
+    }),
     setTileset: (tilesetPath) => set({ tilesetPath }),
     setTilesetAsset: (tilesetAsset) => set({ tilesetAsset }),
     setStamp: (stamp) => set({ stamp }),
