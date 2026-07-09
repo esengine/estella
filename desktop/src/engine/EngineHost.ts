@@ -18,6 +18,7 @@ import {
 import type { App, ESEngineModule, ResourceDef, SubsystemStatus, SceneData } from 'esengine';
 import { SpinePlugin } from 'esengine/spine';
 import { SceneLoader } from './SceneLoader';
+import { useSettings } from '@/store/settingsStore';
 import { loadEditorSpine } from './spineLoad';
 import { checkEngineBuild } from './EngineGuard';
 import type { ReadonlyWorldT, WorldT } from './schema';
@@ -49,6 +50,8 @@ class EngineHostImpl {
   private module_: ESEngineModule | null = null;
   private targetFps_ = 0;
   private booted = false;
+  /** The GPU backend the viewport actually booted with (after availability fallback). */
+  activeBackend: 'webgl2' | 'webgpu' = 'webgl2';
   private resizeObserver: ResizeObserver | null = null;
 
   private readonly statusStore = createStore<EngineSnapshot>(() => ({ status: 'idle', error: null }));
@@ -360,10 +363,34 @@ class EngineHostImpl {
     this.setStatus('booting');
     try {
       const canvas = this.ensureCanvas();
-      await this.bootCore(canvas, { runLoop: true, loadInitialScene: true });
+      const backend = await this.resolveBackend();
+      await this.bootCore(canvas, { runLoop: true, loadInitialScene: true, backend });
     } catch (err) {
       this.swallowUnwind(err);
     }
+  }
+
+  /**
+   * The viewport's GPU backend: the persisted `renderer.backend` setting, with a
+   * safe fall back to WebGL2 when WebGPU is requested but unavailable (no
+   * `navigator.gpu`, or no adapter). Probed BEFORE the canvas is touched — a
+   * canvas cannot switch context types once one is acquired.
+   */
+  private async resolveBackend(): Promise<'webgl2' | 'webgpu'> {
+    const requested = useSettings.getState().getValue<string>('renderer.backend');
+    if (requested !== 'webgpu') return 'webgl2';
+    const gpu = (navigator as unknown as { gpu?: { requestAdapter(): Promise<unknown> } }).gpu;
+    if (!gpu) {
+      console.warn('[engine] WebGPU requested, but navigator.gpu is unavailable — using WebGL2.');
+      return 'webgl2';
+    }
+    try {
+      if (await gpu.requestAdapter()) return 'webgpu';
+      console.warn('[engine] WebGPU requested, but no adapter is available — using WebGL2.');
+    } catch (e) {
+      console.warn('[engine] WebGPU adapter probe failed — using WebGL2.', e);
+    }
+    return 'webgl2';
   }
 
   /**
@@ -404,6 +431,8 @@ class EngineHostImpl {
     opts: { runLoop: boolean; loadInitialScene: boolean; backend?: 'webgl2' | 'webgpu' },
   ) {
     const backend = opts.backend ?? 'webgl2';
+    this.activeBackend = backend;
+    console.info(`[engine] backend: ${backend}`);
     // Early build-consistency check: compare the wasm's stamped manifest
     // (variant / ABI / provenance) against this SDK before the heavy
     // instantiate. Advisory only — the runtime bridge handshake is the

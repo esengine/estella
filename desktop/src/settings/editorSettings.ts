@@ -24,6 +24,7 @@ settingsRegistry.registerSection({ id: 'viewport', label: 'Viewport', category: 
 settingsRegistry.registerSection({ id: 'performance', label: 'Performance', category: 'editor', order: 3 });
 settingsRegistry.registerSection({ id: 'shortcuts', label: 'Keyboard Shortcuts', category: 'editor', order: 4 });
 settingsRegistry.registerSection({ id: 'console', label: 'Console', category: 'editor', order: 5 });
+settingsRegistry.registerSection({ id: 'renderer', label: 'Renderer', category: 'editor', order: 6 });
 
 // ── Appearance (store-owned, applied via CSS) ───────────────────────────────
 settingsRegistry.register({
@@ -59,6 +60,25 @@ settingsRegistry.register({
   effect: (v) => {
     document.body.style.setProperty('zoom', String(v / 100));
   },
+});
+
+// ── Renderer (read at engine boot; the GfxDevice backend seam) ──────────────
+settingsRegistry.register({
+  id: 'renderer.backend',
+  type: 'enum',
+  scope: 'editor',
+  section: 'renderer',
+  group: 'Renderer',
+  label: 'Graphics backend',
+  description:
+    'Which GPU API the viewport renders through. Applies on engine reload (Ctrl+R). ' +
+    'WebGPU falls back to WebGL2 automatically if no adapter is available.',
+  default: 'webgl2',
+  segmented: true,
+  options: [
+    { value: 'webgl2', label: 'WebGL2' },
+    { value: 'webgpu', label: 'WebGPU' },
+  ],
 });
 
 // ── Viewport (bound to editorStore — one source with the viewport toolbar) ───
