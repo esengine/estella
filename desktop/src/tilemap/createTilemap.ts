@@ -42,10 +42,12 @@ export async function createTilemapFromTileset(tilesetPath: string): Promise<voi
   // collidableTileIds into the model: three snapshots that went stale the moment
   // the tileset changed.
   SceneCommands.setField(sourceId, 'TilemapLayer', 'cellSize', 'vec2', [asset.tileWidth, asset.tileHeight]);
-  // The .estileset link. Not a C++ field — carried losslessly in the model like
-  // the chunks blob, and preloaded via the component's discoverAssets.
-  SceneCommands.setField(sourceId, 'TilemapLayer', 'tilesetAsset', 'string', tilesetRef);
   SceneCommands.endGesture();
+  // The .estileset link. Not a C++ field — carried losslessly in the model like the
+  // chunks blob. setLayerTilesets also pushes it to the runtime plugin live (the
+  // reconciler can't project an out-of-band field), so the fresh layer resolves its
+  // render table and is paintable immediately, without a reload.
+  SceneCommands.setLayerTilesets(sourceId, [tilesetRef]);
 
   useSelection.getState().select(sourceId);
   useTilemapPaint.getState().setTileset(tilesetPath);

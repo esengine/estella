@@ -345,6 +345,7 @@ export {
     shutdownTilemapAPI,
     TilemapPlugin,
     tilemapPlugin,
+    TilemapLiveSync,
     parseTmjJson,
     parseTmjWithExternals,
     loadTiledMap,
@@ -408,6 +409,7 @@ export {
     type TilesetTileTerrain,
     type TerrainIndex,
     type TerrainIndices,
+    type ApplyTilesetRefs,
 } from './tilemap';
 
 // =============================================================================

@@ -80,25 +80,92 @@
 /* Multi-tileset tab bar — switch which of the layer's tilesets the palette paints from. */
 .tp-tilesets {
   display: flex;
+  align-items: center;
   gap: 4px;
   padding: 6px 8px;
   overflow-x: auto;
   background: var(--srf-0, #101216);
   border-bottom: 1px solid var(--line, #2a2d33);
 }
-.tp-tsbtn {
+/* A tileset tab = a name button + (when the layer has >1 tileset) a remove ×. */
+.tp-tschip {
   flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
   background: var(--control, #24272d);
   border: 1px solid var(--line, #2a2d33);
   border-radius: 3px;
+  overflow: hidden;
+}
+.tp-tschip.is-active { border-color: var(--star, #4c8fd6); }
+.tp-tsbtn {
+  background: none;
+  border: none;
   color: var(--text-dim, #9aa0aa);
   padding: 3px 9px;
   cursor: pointer;
   font: inherit;
   white-space: nowrap;
 }
-.tp-tsbtn:hover { color: var(--text, #d6d9de); border-color: var(--control-hover, #333740); }
-.tp-tsbtn.is-active { border-color: var(--star, #4c8fd6); color: var(--text, #d6d9de); }
+.tp-tsbtn:hover { color: var(--text, #d6d9de); }
+.tp-tschip.is-active .tp-tsbtn { color: var(--text, #d6d9de); }
+.tp-tsx {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  align-self: stretch;
+  background: none;
+  border: none;
+  border-left: 1px solid var(--line, #2a2d33);
+  color: var(--text-faint, #6b717c);
+  cursor: pointer;
+}
+.tp-tsx:hover { color: var(--danger, #e5484d); background: var(--control-hover, #333740); }
+/* Add-tileset opener + dropdown of the project's other .estileset assets. */
+.tp-tsadd-wrap { position: relative; flex: 0 0 auto; }
+.tp-tsadd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: var(--control, #24272d);
+  border: 1px dashed var(--line, #2a2d33);
+  border-radius: 3px;
+  color: var(--text-dim, #9aa0aa);
+  cursor: pointer;
+}
+.tp-tsadd:hover { color: var(--text, #d6d9de); border-color: var(--star, #4c8fd6); }
+.tp-tsmenu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 20;
+  min-width: 140px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 4px;
+  background: var(--srf-2, #1b1e23);
+  border: 1px solid var(--line, #2a2d33);
+  border-radius: 4px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+.tp-tsmenu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: 3px;
+  color: var(--text-dim, #9aa0aa);
+  padding: 5px 8px;
+  cursor: pointer;
+  font: inherit;
+  white-space: nowrap;
+}
+.tp-tsmenu-item:hover { background: var(--control-hover, #333740); color: var(--text, #d6d9de); }
+.tp-tsmenu-empty { color: var(--text-faint, #6b717c); padding: 6px 8px; font-size: 11px; }
 .tp-warn { color: var(--text-faint, #6b717c); padding: 12px; font-size: 11px; }
 
 .tp-cell {

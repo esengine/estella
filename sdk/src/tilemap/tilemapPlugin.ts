@@ -6,6 +6,7 @@ import { Transform, TilemapLayer, Sprite, Canvas, RuntimeOnly, type TilemapLayer
 import { Schedule } from '../system';
 import type { SystemDef } from '../system';
 import { initTilemapAPI, shutdownTilemapAPI, TilemapAPI } from './tilemapAPI';
+import { TilemapLiveSync } from './tilemapLiveSync';
 import { Tilemap } from './components';
 import { registerSceneComponentCodec } from '../scene';
 import { getTilemapSource, getResolvedTileset } from './tilesetCache';
@@ -64,6 +65,19 @@ export class TilemapPlugin implements Plugin {
         const tilesetRefs = this.tilesetRefs_;
         const liveResolved = this.liveResolved_;
         const requestedTilesetLoads = this.requestedTilesetLoads_;
+
+        // The single writer of a layer's `.estileset` ref list: point the render table
+        // at `refs` and mark it for re-resolve next sync. Shared by the scene codec
+        // (full load) AND the editor's live push (TilemapLiveSync) so both routes carry
+        // the SAME meaning — no second source of truth for what tilesets a layer uses.
+        const applyTilesetRefs = (entity: number, refs: readonly string[]): void => {
+            const clean = refs.filter((r): r is string => typeof r === 'string' && r !== '');
+            if (clean.length > 0) tilesetRefs.set(entity, clean.slice());
+            else tilesetRefs.delete(entity);
+            liveResolved.delete(entity);
+        };
+        TilemapLiveSync._bind(applyTilesetRefs);
+
         registerSceneComponentCodec('TilemapLayer', {
             exportData: (entity, data) => {
                 const blob = TilemapAPI.exportChunks(entity);
@@ -97,18 +111,10 @@ export class TilemapPlugin implements Plugin {
                 // fall back to the singular `tilesetAsset` (old scenes).
                 const list = outOfBand.tilesetAssets;
                 const single = outOfBand.tilesetAsset;
-                let refs: string[] | undefined;
-                if (Array.isArray(list)) {
-                    refs = list.filter((r): r is string => typeof r === 'string' && r !== '');
-                } else if (typeof single === 'string' && single !== '') {
-                    refs = [single];
-                }
-                if (refs && refs.length > 0) {
-                    tilesetRefs.set(entity, refs);
-                } else {
-                    tilesetRefs.delete(entity);
-                }
-                liveResolved.delete(entity);
+                const refs = Array.isArray(list)
+                    ? list.filter((r): r is string => typeof r === 'string' && r !== '')
+                    : (typeof single === 'string' && single !== '' ? [single] : []);
+                applyTilesetRefs(entity, refs);
             },
         });
 
@@ -494,6 +500,7 @@ export class TilemapPlugin implements Plugin {
 
     cleanup(): void {
         this.resetLayers();
+        TilemapLiveSync._bind(null);
         shutdownTilemapAPI();
     }
 }

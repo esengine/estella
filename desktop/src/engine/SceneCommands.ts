@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { SceneData, PrefabData, ProcessedEntity } from 'esengine';
-import { TilemapAPI, UIPositionType, DimensionUnit } from 'esengine';
+import { TilemapAPI, TilemapLiveSync, UIPositionType, DimensionUnit } from 'esengine';
 import type { EntityId, InspectorFieldType, InspectorFieldValue } from '@/types';
 import { EditorHistory, EditorHistoryImpl } from './EditorHistory';
 import { SceneModel, SceneModelImpl } from './SceneModel';
@@ -995,6 +995,37 @@ export class SceneCommandsImpl {
     if (!s) return;
     const rt = this.model.runtimeFor(s.sourceId);
     if (rt !== undefined) TilemapAPI.importChunks(rt, s.before);
+  }
+
+  /**
+   * Set the `.estileset` ref list a TilemapLayer paints/renders from (its multi-tileset
+   * `tilesetAssets`). Like the chunks blob, this is out-of-band data, so — mirroring the
+   * paint commit — we write BOTH the model (for save / undo / play-rebuild) AND push the
+   * list to the running tilemap plugin live via {@link TilemapLiveSync}. The reconciler
+   * can't carry an out-of-band field, so without the live push the viewport would keep
+   * rendering the old tilesets until a reload. One undo step; empty list clears the refs.
+   */
+  setLayerTilesets(sourceId: EntityId, refs: string[]): void {
+    const e = this.model.entityBySource(sourceId);
+    if (!e) return;
+    const data = (e.components.find((c) => c.type === 'TilemapLayer')?.data ?? {}) as Record<string, unknown>;
+    const cur = Array.isArray(data.tilesetAssets)
+      ? (data.tilesetAssets as unknown[]).filter((r): r is string => typeof r === 'string' && r !== '')
+      : (typeof data.tilesetAsset === 'string' && data.tilesetAsset ? [data.tilesetAsset] : []);
+    const next = refs.filter((r) => typeof r === 'string' && r !== '');
+    if (valueEqual(cur, next)) return;
+
+    const apply = (list: string[]) => {
+      // Model: out-of-band (carried like the chunks blob). Keep the singular `tilesetAsset`
+      // in sync as the back-compat first tileset; an empty list deletes both keys.
+      this.model.setField(sourceId, 'TilemapLayer', 'tilesetAssets', list.length > 0 ? list.slice() : undefined);
+      this.model.setField(sourceId, 'TilemapLayer', 'tilesetAsset', list[0]);
+      // Runtime: the reconciler drops out-of-band fields, so push straight to the plugin.
+      const rt = this.model.runtimeFor(sourceId);
+      if (rt !== undefined) TilemapLiveSync.setLayerTilesets(rt, list);
+    };
+    apply(next);
+    this.history.record('Set Tilesets', () => apply(next), () => apply(cur));
   }
 
   // Shared commit: snapshot the post-edit blob, write it to the model (the truth

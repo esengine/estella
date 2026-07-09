@@ -12,12 +12,13 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   Brush, Eraser, Square, Slash, PaintBucket, BoxSelect, Pipette,
-  FlipHorizontal, FlipVertical, RotateCw, Mountain,
+  FlipHorizontal, FlipVertical, RotateCw, Mountain, Plus, X,
 } from 'lucide-react';
 import { parseTileset, encodeTile, type TilesetAsset } from 'esengine';
 import { useTilemapPaint, type PaintTool, type PaletteTileset } from '@/store/tilemapPaintStore';
 import { useSelection } from '@/store/selectionStore';
 import { SceneModel } from '@/engine/SceneModel';
+import { SceneCommands } from '@/engine/SceneCommands';
 import { ProjectStore } from '@/project/ProjectStore';
 import { copySelection, cutSelection, deleteSelection, pasteClipboard } from '@/tools/tileClipboard';
 
@@ -79,6 +80,10 @@ export function TilemapPainter() {
   const selectedId = useSelection((s) => s.selectedId);
   const hasTilemap = selectedId != null
     && !!SceneModel.entityBySource(selectedId)?.components.some((c) => c.type === 'TilemapLayer');
+  // Bumped after add/remove tileset: the layer's `tilesetAssets` changed but selectedId
+  // did not, so the palette-load effect below wouldn't otherwise re-read the new list.
+  const [reloadKey, setReloadKey] = useState(0);
+  const [addOpen, setAddOpen] = useState(false);
 
   // Selecting a TilemapLayer loads ALL its referenced .estileset(s) into the palette,
   // each assigned its firstId (matching resolveTilesetModel's running sum), so the tab
@@ -107,7 +112,7 @@ export function TilemapPainter() {
       if (alive) setTilesets(entries);
     })();
     return () => { alive = false; };
-  }, [selectedId, setTilesets]);
+  }, [selectedId, setTilesets, reloadKey]);
 
   const [asset, setAsset] = useState<TilesetAsset | null>(null);
   useEffect(() => {
@@ -156,6 +161,15 @@ export function TilemapPainter() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  // Dismiss the add-tileset menu on any outside click (the menu + its opener stop
+  // their own pointerdown so those don't self-close it).
+  useEffect(() => {
+    if (!addOpen) return;
+    const close = () => setAddOpen(false);
+    window.addEventListener('pointerdown', close);
+    return () => window.removeEventListener('pointerdown', close);
+  }, [addOpen]);
+
   if (!hasTilemap) {
     return (
       <div className="tp-empty">
@@ -195,6 +209,24 @@ export function TilemapPainter() {
 
   const inSel = (col: number, row: number): boolean =>
     sel != null && col >= sel.c0 && col <= sel.c1 && row >= sel.r0 && row <= sel.r1;
+
+  // Add/remove a tileset on the selected layer (writes `tilesetAssets` + live-syncs the
+  // runtime), then reload the palette. Refs are @uuid, in firstId order == tab order.
+  const addTileset = (ref: string) => {
+    if (selectedId == null) return;
+    SceneCommands.setLayerTilesets(selectedId, [...selectedTilemapTilesetRefs(selectedId), ref]);
+    setAddOpen(false);
+    setReloadKey((k) => k + 1);
+  };
+  const removeTilesetAt = (i: number) => {
+    if (selectedId == null) return;
+    SceneCommands.setLayerTilesets(selectedId, selectedTilemapTilesetRefs(selectedId).filter((_, j) => j !== i));
+    setReloadKey((k) => k + 1);
+  };
+  // The project's .estileset assets not already on this layer (populated on open).
+  const addable = addOpen
+    ? ProjectStore.listAssets('tileset').filter((a) => !selectedTilemapTilesetRefs(selectedId).includes(a.ref))
+    : [];
 
   const cells = [];
   if (texUrl && natural) {
@@ -248,19 +280,42 @@ export function TilemapPainter() {
         <span className="tp-grow" />
         <span className="tp-brush">{tool === 'terrain' ? '地形画笔' : `刷子 ${stamp.w}×${stamp.h}`}</span>
       </div>
-      {tilesets.length > 1 && tool !== 'terrain' && (
+      {tool !== 'terrain' && (
         <div className="tp-tilesets">
           {tilesets.map((ts, i) => (
-            <button
+            <span
               key={ts.path}
-              type="button"
-              className={'tp-tsbtn' + (i === activeTileset ? ' is-active' : '')}
+              className={'tp-tschip' + (i === activeTileset ? ' is-active' : '')}
               title={`${ts.path}  (gid ${ts.firstId}+)`}
-              onClick={() => setActiveTileset(i)}
             >
-              {ts.path.split(/[\\/]/).pop()?.replace(/\.estileset$/, '') ?? `瓦片集 ${i + 1}`}
-            </button>
+              <button type="button" className="tp-tsbtn" onClick={() => setActiveTileset(i)}>
+                {ts.path.split(/[\\/]/).pop()?.replace(/\.estileset$/, '') ?? `瓦片集 ${i + 1}`}
+              </button>
+              {tilesets.length > 1 && (
+                <button type="button" className="tp-tsx" title="移除图集" onClick={() => removeTilesetAt(i)}>
+                  <X size={11} />
+                </button>
+              )}
+            </span>
           ))}
+          <div className="tp-tsadd-wrap" onPointerDown={(e) => e.stopPropagation()}>
+            <button type="button" className="tp-tsadd" title="添加图集" onClick={() => setAddOpen((o) => !o)}>
+              <Plus size={13} />
+            </button>
+            {addOpen && (
+              <div className="tp-tsmenu">
+                {addable.length === 0 ? (
+                  <div className="tp-tsmenu-empty">没有可添加的瓦片集</div>
+                ) : (
+                  addable.map((a) => (
+                    <button key={a.ref} type="button" className="tp-tsmenu-item" onClick={() => addTileset(a.ref)}>
+                      {a.name.replace(/\.estileset$/, '')}
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
       {tool === 'terrain' ? (
