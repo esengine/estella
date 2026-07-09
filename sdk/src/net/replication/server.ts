@@ -8,6 +8,8 @@
  *          and diffs replicated fields against a shadow copy to broadcast a
  *          binary delta frame. WebSocket transports are reliable+ordered, so
  *          delta-since-last-send needs no ack protocol.
+ *
+ * @beta   Pre-1.0 networking: client prediction and interest management will reshape this surface.
  */
 import type { World } from '../../world';
 import type { Entity } from '../../types';

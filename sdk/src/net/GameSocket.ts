@@ -1,5 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+ * @file    GameSocket.ts
+ * @brief   Raw browser-WebSocket wrapper behind the platform socket seam.
+ *
+ * @beta   Pre-1.0 networking: client prediction and interest management will reshape this surface.
+ */
 import type { PlatformSocket, PlatformSocketOptions, PlatformSocketReadyState } from '../platform/types';
 
 export type SocketReadyState = PlatformSocketReadyState;

@@ -8,6 +8,8 @@
  *          WebSocket (Node ≥ 22), silent audio, no DOM. Anything that
  *          fundamentally needs a render host (image decode, canvas) fails
  *          loud rather than pretending.
+ *
+ * @beta   Pre-1.0: the node/headless host is young; the adapter surface may change.
  */
 import { readFile as fsReadFile, access } from 'node:fs/promises';
 import type {

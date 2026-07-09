@@ -8,6 +8,8 @@
  *          FixedPostUpdate samples + broadcasts. Role gating is a resource,
  *          not an environment flag: everything no-ops while NetRole stays
  *          'offline', so the plugin is safe to install unconditionally.
+ *
+ * @beta   Pre-1.0 networking: client prediction and interest management will reshape this surface.
  */
 import type { App, Plugin } from '../../app';
 import { defineSystem, Schedule } from '../../system';

@@ -8,6 +8,8 @@
  *          channel {@link REPLICATION_CHANNEL} (see codec.ts for the frame
  *          layout). Version or schema drift refuses the connection at
  *          handshake — never a silently mismatched simulation.
+ *
+ * @beta   Pre-1.0 networking: client prediction and interest management will reshape this surface.
  */
 import type { SceneComponentData } from '../../scene';
 

@@ -33,6 +33,8 @@ export { nodeAdapter } from './platform/node';
  * Load the engine wasm module from a directory holding the web build
  * artifacts (esengine.js + esengine.wasm) — the emscripten glue runs natively
  * under Node. `dir` is filesystem-relative to the process cwd.
+ *
+ * @beta Pre-1.0: the node/headless entry is young; the loading shape may change.
  */
 export async function loadEsengineModule(dir: string): Promise<ESEngineModule> {
     const { readFile } = await import('node:fs/promises');

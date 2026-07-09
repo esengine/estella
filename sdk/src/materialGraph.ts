@@ -11,6 +11,8 @@
  *          alike. The vertex stage is fixed (2D bakes the transform into the batch vertices); the
  *          programmable surface is the fragment, which this compiler builds by topologically
  *          walking the node DAG from the output.
+ *
+ * @beta   Pre-1.0: the material-graph node set and serialized shape may still change.
  */
 
 /** A node's GLSL output type. Determines how it combines and how it promotes to fragColor. */

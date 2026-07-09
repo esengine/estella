@@ -61,6 +61,8 @@ export {
     type AddressableManifest,
     type AddressableManifestGroup,
     type AddressableManifestAsset,
+    contentHashHex,
+    contentHashOf,
     type BundleMode,
     BUNDLE_MODES,
     normalizeBundleMode,

@@ -1,5 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+ * @file    index.ts
+ * @brief   Networking barrel: sockets, transports, NetChannel, replication.
+ *
+ * @beta   Pre-1.0 networking: client prediction and interest management will reshape this surface.
+ */
 export { GameSocket, type GameSocketOptions, type SocketReadyState } from './GameSocket';
 export { WeChatSocket } from './WeChatSocket';
 export {

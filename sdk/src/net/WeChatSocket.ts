@@ -1,5 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+ * @file    WeChatSocket.ts
+ * @brief   Raw wx.connectSocket wrapper behind the platform socket seam.
+ *
+ * @beta   Pre-1.0 networking: client prediction and interest management will reshape this surface.
+ */
 import type { PlatformSocket } from '../platform/types';
 import type { GameSocketOptions, SocketReadyState } from './GameSocket';
 

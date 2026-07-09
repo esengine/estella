@@ -18,6 +18,8 @@
  *          string → u16 len + utf8, plain object → keys recursively in
  *          declaration order, entity-ref field → u32 netId (remapped at both
  *          ends), anything else → JSON string fallback.
+ *
+ * @beta   Pre-1.0 networking: client prediction and interest management will reshape this surface.
  */
 import { getComponentRegistry, type AnyComponentDef } from '../../component';
 import { REPLICATION_PROTOCOL_VERSION, type ReplComponentSchema } from './protocol';

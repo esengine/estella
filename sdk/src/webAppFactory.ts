@@ -96,6 +96,9 @@ const headlessBasePlugins = (): Plugin[] => [
  * shape (same wasm module, same gameplay code, same fixed-tick loop) — also
  * useful for workers and tests. Drive it with {@link runHeadless} or
  * `app.tick(dt)`.
+ *
+ * @beta Pre-1.0: the headless asset story (gameplay data without textures)
+ * is still settling and may change this factory's options.
  */
 export function createHeadlessApp(module: ESEngineModule, options?: HeadlessAppOptions): App {
     seedEngineComponents();
@@ -118,6 +121,8 @@ export function createHeadlessApp(module: ESEngineModule, options?: HeadlessAppO
  * Drive an app on a wall-clock interval (no requestAnimationFrame on a
  * server). Delta is measured, so the fixed-step accumulator keeps simulation
  * cadence exact across timer jitter. Returns a stop function.
+ *
+ * @beta Pre-1.0: paired with {@link createHeadlessApp}, evolves with it.
  */
 export function runHeadless(app: App, options?: { fps?: number }): () => void {
     const intervalMs = 1000 / (options?.fps ?? 60);

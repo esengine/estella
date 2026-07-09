@@ -7,6 +7,8 @@
  *          workers) with no socket. Structured clone carries both wire planes
  *          (JSON strings and ArrayBuffer frames) natively, and a port queues
  *          messages until the other end attaches, so wiring order is free.
+ *
+ * @beta   Pre-1.0 networking: client prediction and interest management will reshape this surface.
  */
 import type { NetTransport } from './NetChannel';
 
