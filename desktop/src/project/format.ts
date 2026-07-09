@@ -103,6 +103,10 @@ export interface ProjectPackaging {
   config?: 'development' | 'shipping';
   sourceMaps?: boolean;
   openFolder?: boolean;
+  /** Cook PNGs to GPU-ready KTX2 (Basis Universal). */
+  compressTextures?: boolean;
+  /** Pack `<name>.atlas/` folders into atlas pages at cook time. */
+  atlasTextures?: boolean;
   /** Per-platform output-dir overrides (else the per-platform default). */
   outDir?: Partial<Record<'web' | 'desktop' | 'wechat' | 'playable', string>>;
   /** Per-platform packaging config (appid, app id, orientation, …). */

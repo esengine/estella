@@ -115,14 +115,16 @@ At build time the **cook** walks the dependency graph from your entry scene(s),
 **culls anything unreachable**, stages the reachable files, and writes the
 manifest. Along the way it can:
 
-- **Compress textures** — PNGs are encoded to GPU-ready **KTX2** (Basis
-  Universal), which the runtime transcodes to the best format the device supports
-  (ASTC → ETC2 → S3TC, falling back to RGBA8).
+- **Compress textures** — encode PNGs to GPU-ready **KTX2** (Basis Universal),
+  which the runtime transcodes to the best format the device supports (ASTC → ETC2
+  → S3TC, falling back to RGBA8). Toggle **Compress textures** in the Package dialog.
 - **Content-address** — name each shipped file by a hash of its bytes, so URLs
-  are immutable and identical files dedupe to a single copy.
+  are immutable and identical files dedupe to a single copy. On by default for
+  Web/Desktop.
 - **Auto-atlas** — put loose PNGs in a `<name>.atlas/` folder and the cook packs
   them into atlas pages (with the frame UVs written into the manifest), so many
-  small sprites ship as one texture and batch in one draw call. Opt-in per export.
+  small sprites ship as one texture and batch in one draw call. Toggle **Pack .atlas
+  folders** in the Package dialog.
 
 ## Lifetime & reference counting
 

@@ -91,6 +91,8 @@ export function BuildDialog() {
   const [outDir, setOutDir] = useState(saved.outDir?.[initialPlatform] ?? initialDef.defaultOut);
   const [openFolder, setOpenFolder] = useState(saved.openFolder ?? true);
   const [sourceMaps, setSourceMaps] = useState(saved.sourceMaps ?? false);
+  const [compressTextures, setCompressTextures] = useState(saved.compressTextures ?? false);
+  const [atlasTextures, setAtlasTextures] = useState(saved.atlasTextures ?? false);
   const [phase, setPhase] = useState<Phase>('idle');
   const [result, setResult] = useState<Result | null>(null);
   const [log, setLog] = useState<string[]>([]);
@@ -117,7 +119,7 @@ export function BuildDialog() {
     setResult(null);
     setLog([]);
     // Persist the chosen settings to project.esproject (restored next time).
-    void ProjectStore.setPackaging({ platform, config, sourceMaps, openFolder, outDir: { [platform]: outDir } });
+    void ProjectStore.setPackaging({ platform, config, sourceMaps, openFolder, compressTextures, atlasTextures, outDir: { [platform]: outDir } });
     // Live build log (UE-style): each export phase streams over IPC.
     const unsub = window.estella.project?.onExportProgress?.((p) =>
       setLog((l) => [...l, p.detail ? `${p.phase} — ${p.detail}` : p.phase]),
@@ -128,6 +130,8 @@ export function BuildDialog() {
         outDir,
         minify: config === 'shipping',
         sourcemap: def.sourceMaps && sourceMaps,
+        compressTextures,
+        atlasTextures,
       })) as Result | null;
       if (!res) {
         setResult({ ok: false, outDir, included: 0, warnings: [], errors: ['no project open'] });
@@ -229,6 +233,14 @@ export function BuildDialog() {
             Include source maps
           </label>
         )}
+        <label className="build__opt">
+          <input type="checkbox" checked={compressTextures} onChange={(e) => setCompressTextures(e.target.checked)} />
+          Compress textures (PNG → KTX2)
+        </label>
+        <label className="build__opt">
+          <input type="checkbox" checked={atlasTextures} onChange={(e) => setAtlasTextures(e.target.checked)} />
+          Pack .atlas folders into atlases
+        </label>
 
         {def.prereq && (
           <div className="build__prereq">

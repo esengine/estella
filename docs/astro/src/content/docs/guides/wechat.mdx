@@ -63,8 +63,8 @@ levels download on demand rather than bloating the initial package:
 
 - **Stay under the main-package limit** (WeChat caps the initial package) by moving
   on-demand content into `subpackages/<name>/` — see [Assets](/docs/guides/assets/).
-- **Compress textures** (PNG→KTX2 at cook time) to shrink the package and speed
-  first load.
+- **Compress textures** — enable **Compress textures** in the Package dialog to cook
+  PNGs to KTX2, shrinking the package and speeding first load.
 - **Build only the side modules you use** — each unused `*-wechat` module you skip is
   weight you don't ship.
 - **Test in WeChat DevTools**, not just the browser — the file system, storage, and

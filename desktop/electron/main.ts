@@ -524,7 +524,7 @@ ipcMain.handle('project:cookAssets', async (_e, outDir?: string) => {
 // Export a runnable web build (play == ship): cook + game host + wasm + index.html.
 ipcMain.handle(
   'project:exportGame',
-  async (e, opts?: { outDir?: string; minify?: boolean; sourcemap?: boolean; platform?: 'web' | 'desktop' | 'wechat' | 'playable' }) => {
+  async (e, opts?: { outDir?: string; minify?: boolean; sourcemap?: boolean; platform?: 'web' | 'desktop' | 'wechat' | 'playable'; compressTextures?: boolean; atlasTextures?: boolean }) => {
     const root = requireRoot();
     const manifest = await readManifest(root);
     const entryScene = manifest.defaultScene;
@@ -557,6 +557,8 @@ ipcMain.handle(
       wechatOrientation: plat?.wechat?.orientation,
       minify: opts?.minify,
       sourcemap: opts?.sourcemap,
+      compressTextures: opts?.compressTextures,
+      atlasTextures: opts?.atlasTextures,
       onProgress: (p) => e.sender.send('project:exportProgress', p),
     });
   },

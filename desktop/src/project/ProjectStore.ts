@@ -1091,7 +1091,7 @@ class ProjectStoreImpl {
    * (default `dist-game/`). Returns the bridge result so the Build dialog can
    * render status/log; null if no project is open.
    */
-  async exportGame(opts?: { outDir?: string; minify?: boolean; sourcemap?: boolean; platform?: 'web' | 'desktop' | 'wechat' | 'playable' }) {
+  async exportGame(opts?: { outDir?: string; minify?: boolean; sourcemap?: boolean; platform?: 'web' | 'desktop' | 'wechat' | 'playable'; compressTextures?: boolean; atlasTextures?: boolean }) {
     if (!this.state) return null;
     return window.estella.project.exportGame(opts);
   }

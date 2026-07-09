@@ -59,6 +59,19 @@ The Package Project dialog reminds you when a target's runtime is missing.
 - **Source maps** map the running bundle back to your TypeScript. They're available for
   Web and Desktop; leave them off for a release build.
 
+## Asset cook options
+
+The Package dialog also drives what the **cook** does to your assets:
+
+- **Compress textures** — encode PNGs to GPU-ready **KTX2** (Basis Universal), which
+  the runtime transcodes to the best format each device supports (ASTC → ETC2 → S3TC,
+  falling back to RGBA8). Smaller downloads and less VRAM; leave off to ship raw PNGs.
+- **Pack `.atlas` folders** — pack the loose PNGs in each `<name>.atlas/` folder into
+  atlas pages at cook time, so many small sprites ship as one texture and batch in one
+  draw call.
+- **Content addressing** is on by default for Web/Desktop (each file named by a hash of
+  its bytes — immutable URLs, automatic dedupe).
+
 ## Packaging settings
 
 Per-target metadata lives in **Project Settings → Packaging** and is saved with the
