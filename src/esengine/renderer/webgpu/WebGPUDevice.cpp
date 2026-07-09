@@ -80,8 +80,11 @@ void WebGPUDevice::shutdown() {
         }
     }
     pipelines_.clear();
-    if (bind_group_) { wgpuBindGroupRelease(bind_group_); bind_group_ = nullptr; }
-    if (texture_group_) { wgpuBindGroupRelease(texture_group_); texture_group_ = nullptr; }
+    // bind_group_/texture_group_ point INTO the cache — release the cache, not them.
+    for (auto& e : bind_group_cache_) if (e.bg) wgpuBindGroupRelease(e.bg);
+    bind_group_cache_.clear();
+    bind_group_ = nullptr;
+    texture_group_ = nullptr;
     if (clear_bind_group_) { wgpuBindGroupRelease(clear_bind_group_); clear_bind_group_ = nullptr; }
     for (auto& [key, pipeline] : clear_pipelines_) {
         if (pipeline) wgpuRenderPipelineRelease(pipeline);
@@ -942,6 +945,28 @@ void WebGPUDevice::ensureDummies() {
     }
 }
 
+WGPUBindGroup WebGPUDevice::cachedBindGroup(u32 group, u32 mask, const u64* ids, u32 idCount,
+                                            const WGPUBindGroupDescriptor& desc) {
+    for (auto& e : bind_group_cache_) {
+        if (e.group != group || e.mask != mask || e.ids.size() != idCount) continue;
+        bool same = true;
+        for (u32 i = 0; i < idCount; ++i) {
+            if (e.ids[i] != ids[i]) { same = false; break; }
+        }
+        if (same) return e.bg;  // hit — reuse, no wgpuDeviceCreateBindGroup
+    }
+    // Miss. A stable scene never fills the cache; clearing when full is a simple,
+    // safe eviction — a group bound this frame stays alive via the pass encoder's
+    // own reference until submit, so releasing our handle now is fine.
+    if (bind_group_cache_.size() >= kBindGroupCacheCap) {
+        for (auto& e : bind_group_cache_) if (e.bg) wgpuBindGroupRelease(e.bg);
+        bind_group_cache_.clear();
+    }
+    WGPUBindGroup bg = wgpuDeviceCreateBindGroup(device_, &desc);
+    if (bg) bind_group_cache_.push_back({group, mask, std::vector<u64>(ids, ids + idCount), bg});
+    return bg;
+}
+
 void WebGPUDevice::flushBindGroup() {
     if (!bind_group_dirty_ || !pass_ || !device_) return;
 
@@ -982,12 +1007,14 @@ void WebGPUDevice::flushBindGroup() {
             entries[count++] = e;
         }
 
-        if (bind_group_) { wgpuBindGroupRelease(bind_group_); bind_group_ = nullptr; }
         WGPUBindGroupDescriptor bgd{};
         bgd.layout = groupLayoutFor(0, prog->group0Mask);
         bgd.entryCount = count;
         bgd.entries = entries;
-        bind_group_ = wgpuDeviceCreateBindGroup(device_, &bgd);
+        u64 ids[kUniformSlots];
+        for (u32 i = 0; i < count; ++i)
+            ids[i] = static_cast<u64>(reinterpret_cast<uintptr_t>(entries[i].buffer));
+        bind_group_ = cachedBindGroup(0, prog->group0Mask, ids, count, bgd);
         if (bind_group_) wgpuRenderPassEncoderSetBindGroup(pass_, 0, bind_group_, 0, nullptr);
     }
 
@@ -1023,12 +1050,18 @@ void WebGPUDevice::flushBindGroup() {
             }
         }
 
-        if (texture_group_) { wgpuBindGroupRelease(texture_group_); texture_group_ = nullptr; }
         WGPUBindGroupDescriptor tgd{};
         tgd.layout = groupLayoutFor(1, prog->group1Mask);
         tgd.entryCount = texCount;
         tgd.entries = texEntries;
-        texture_group_ = wgpuDeviceCreateBindGroup(device_, &tgd);
+        u64 tids[kTextureSlots * 2];
+        for (u32 i = 0; i < texCount; ++i) {
+            const uintptr_t p = texEntries[i].textureView
+                ? reinterpret_cast<uintptr_t>(texEntries[i].textureView)
+                : reinterpret_cast<uintptr_t>(texEntries[i].sampler);
+            tids[i] = static_cast<u64>(p);
+        }
+        texture_group_ = cachedBindGroup(1, prog->group1Mask, tids, texCount, tgd);
         if (texture_group_) wgpuRenderPassEncoderSetBindGroup(pass_, 1, texture_group_, 0, nullptr);
     }
     bind_group_dirty_ = false;
