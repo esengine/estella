@@ -14,17 +14,58 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-07-09
+
+Tilemap authoring, on-canvas gizmos, and a selectable WebGPU backend — plus a round
+of export fixes that make single-file playables self-contained again.
+
 ### Added
-- Y-sort: check a layer under Project Settings → Rendering → "Y-sorted layers"
-  and sprites/shapes/text on it draw in world-Y order (lower on screen on top) —
-  top-down occlusion with no manual layer/z juggling. Applies across the edit
-  viewport, play mode, and every export target; pixel-verified on both backends.
-- API surface governance: every public SDK export is snapshotted with its
-  signature and stability tag in `sdk/etc/*.api.md`, enforced by CI. Networking,
-  the material graph, and the headless/node entry are tagged `@beta`
-  (no compatibility promise yet); everything untagged is stable.
+
+- **Tilemap authoring in the editor.** Paint maps directly in the viewport: a
+  first-class New Tilemap command with a tileset chooser, multi-tileset layers (a
+  single layer paints from several tilesets), add/remove tilesets on a layer live,
+  a live rect/line paint preview, a block eraser, and stroke rollback. Tiled tile
+  (GID) objects render as positioned sprites and honour their Tiled object rotation.
+- **On-canvas gizmos.** Particle emitters show and aim on the canvas with a
+  draggable spawn radius; lights and colliders adopt that same radius drag handle;
+  gizmo handles now cover size (vec2) and cone angle — shape edited on the canvas,
+  not just in the inspector.
+- **Selectable WebGPU backend.** Switch the viewport between WebGL2 and WebGPU in
+  Settings → Renderer (with a prompt to apply), the status bar shows the active
+  backend, and the profiler reads real GPU time via timestamp queries — parity with
+  the GL path.
+- **Motion trails.** A `TrailRenderer` draws a ribbon through the unified batch face.
+- **Y-sort.** Check a layer under Project Settings → Rendering → "Y-sorted layers"
+  and its sprites/shapes/text draw in world-Y order (lower on screen on top) —
+  top-down occlusion with no manual layer/z juggling, across the edit viewport, play
+  mode, and every export target; pixel-verified on both backends.
+- **Editor resilience.** The editor survives its own crashes — local crash capture,
+  main-process failsafes, and a startup update notification.
+- **Packaging & launcher.** The Package dialog exposes texture compression and
+  auto-atlas; the launcher can remove a project from recents.
+- **API surface governance.** Every public SDK export is snapshotted with its
+  signature and stability tag in `sdk/etc/*.api.md`, enforced by CI. Networking, the
+  material graph, and the headless/node entry are tagged `@beta` (no compatibility
+  promise yet); everything untagged is stable.
+
+### Fixed
+
+- **Single-file playables are self-contained again.** Typed text/binary assets
+  (tilemaps, materials, tilesets) no longer 404 in a playable: the embedded asset
+  backend accepts an already-resolved `data:` URL instead of re-looking it up as a
+  key. A tilemap's tileset images are now discovered as dependencies and rewritten
+  to logical refs at cook time, so the single-file build actually ships and resolves
+  them.
+- **API-surface guard is machine-independent.** The snapshot excludes ambient
+  built-in members (which float with the installed `@types/node`) and pins its line
+  endings, so the CI guard no longer drifts between machines.
+
+### Changed
+
+- WebGPU caches bind groups instead of rebuilding one per draw.
 
 ### Removed
+
 - The `esengine` SDK is no longer published to npm (the editor is the single
   distribution channel). The npm publish workflow and the broken `./factory`
   package entry are gone.
