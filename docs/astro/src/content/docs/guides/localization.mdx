@@ -9,6 +9,21 @@ Register a translation catalog per locale, switch the active locale, and look up
 strings with `t()` — all through the `Localization` resource. It's deliberately
 `Intl`-free so behavior is identical on the web and WeChat.
 
+`Localization` is **opt-in** — install its plugin once before any system reads
+`Res(Localization)`:
+
+```typescript
+import { App, localizationPlugin, LocalizationPlugin } from 'esengine';
+
+app.addPlugin(localizationPlugin);
+// …or preload catalogs + set the initial/fallback locale up front:
+app.addPlugin(new LocalizationPlugin({
+  locale: 'en',
+  fallback: 'en',
+  catalogs: { en: { play: 'Play' }, 'zh-CN': { play: '开始' } },
+}));
+```
+
 ## Catalogs & translation
 
 ```typescript
@@ -30,9 +45,12 @@ const setupI18n = defineSystem([Res(Localization)], (i18n) => {
 
 ## Plurals
 
-A catalog entry can carry plural forms (`zero` / `one` / `other`); `t` selects the
-right one from a `count` param. Register a per-locale selector for languages whose
-rules differ from the default English-style one.
+A catalog entry can carry plural forms — the CLDR set `zero` / `one` / `two` / `few`
+/ `many` / `other`; `t` selects one from a `count` param (and a `zero` form always
+wins when `count === 0`). The default selector is English-style (`one`/`other`); for
+Slavic/Arabic/etc. rules register a per-locale selector with
+`setPluralSelector(locale, (count) => category)`, returning one of those six
+categories.
 
 ```typescript
 i18n.addCatalog('en', { apples: { one: '{count} apple', other: '{count} apples' } });

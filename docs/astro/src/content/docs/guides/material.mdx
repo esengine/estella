@@ -6,7 +6,7 @@ description: The complete guide to custom materials — authoring GLSL with refl
 import { Aside } from '@astrojs/starlight/components';
 
 A material is a **shader plus parameters**. Renderers that support materials —
-`Sprite`, `SpineAnimation`, `ParticleEmitter`, and tilemap layers — expose a
+`Sprite`, `SpineAnimation`, `ParticleEmitter`, `Mesh2D`, and `UIVisual` — expose a
 `material` handle field; set it to draw with your own shader instead of the default.
 
 ## How it works
@@ -158,8 +158,9 @@ const v = Material.getUniform(tintMat, 'u_intensity');
 
 <Aside type="note">
   For raw shaders without reflected params, use `Material.createShader(vertexSrc,
-  fragmentSrc)` instead of `compileShader`. `ShapeRenderer` has no `material` field —
-  only `Sprite`, `SpineAnimation`, `ParticleEmitter`, and tilemap layers do.
+  fragmentSrc)` instead of `compileShader`. `ShapeRenderer` and `TilemapLayer` have no
+  `material` field — only `Sprite`, `SpineAnimation`, `ParticleEmitter`, `Mesh2D`, and
+  `UIVisual` do.
 </Aside>
 
 ## See also

@@ -120,8 +120,9 @@ audio.setUIVolume(0.9);
 audio.muteBus('music', true);
 ```
 
-用 `AudioSource.bus` 字段把声音路由到某个总线,或让 `playSFX` 默认走 `sfx`。用 `master` 做
-全局音量滑条,在选项菜单里分开做 `music` / `sfx` / `ui` / `voice` 的滑条。
+用 `AudioSource.bus` 字段把声音路由到某个总线,或让 `playSFX` 默认走 `sfx`。音量设置器有
+`setMasterVolume`(全局滑条)和 `setMusicVolume` / `setSFXVolume` / `setUIVolume`。`voice`
+总线能路由声音但没有音量设置器——用 `muteBus('voice', …)` 开关它。
 
 ## 空间音频
 

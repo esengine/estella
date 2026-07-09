@@ -14,20 +14,24 @@ several can stack in one frame at no extra target cost beyond the passes.
 
 | Effect | What it does | Key uniforms |
 |---|---|---|
-| `bloom` | Glow on bright areas | `threshold`, `intensity` |
+| `bloom` | Glow on bright areas | `threshold`, `intensity`, `radius` |
 | `tonemap` | ACES filmic tonemapping | `exposure` |
 | `colorGrade` | Exposure / contrast / saturation / white balance | `exposure`, `contrast`, `saturation`, `temperature`, `tint` |
 | `lutGrade` | Color grading through a lookup-table texture | `u_lut` (texture), `intensity` |
-| `vignette` | Darkened screen edges | `intensity`, `radius` |
+| `vignette` | Darkened screen edges | `intensity`, `softness` |
 | `chromaticAberration` | RGB fringing | `intensity` |
-| `blur` | Gaussian blur | `radius` |
+| `blur` | Gaussian blur | `intensity` |
 | `fxaa` | Fast anti-aliasing | `intensity` |
 | `lensDistortion` | Barrel / pincushion warp | `strength`, `zoom` |
 | `pixelate` | Block quantization | `pixelSize` |
-| `grayscale` | Desaturate | — |
+| `grayscale` | Desaturate | `intensity` |
 
-Every effect is a no-op at its default values, so adding one to a stack doesn't
-change the image until you dial it in.
+The uniform names above are the friendly labels; **in code they are `u_`-prefixed**
+(`u_intensity`, `u_exposure`, …). Most effects are identity at their defaults
+(`colorGrade`, `blur`, `chromaticAberration`, `fxaa`, `lensDistortion`, `lutGrade`),
+so adding them changes nothing until you dial them in. A few are visible the moment
+you add them — `grayscale` (full desaturation), `vignette`, `bloom`, and `tonemap`
+(the ACES curve always applies) — so enable those only when you want them.
 
 ## Using a `PostProcessVolume`
 
@@ -47,49 +51,60 @@ volume) or fade them in over a transition.
 
 ## Programmatic control
 
-For a custom pipeline, read the `PostProcess` resource — create a stack, tune it,
-and bind it to a camera:
+For a fixed camera pipeline in code, use the `PostProcess` resource. A stack starts
+empty — add one **pass** per effect. Get the effect's shader from the registry with
+`getEffectDef(type).factory()`, then set its `u_`-prefixed uniforms and bind the
+stack to a camera:
 
 ```typescript
-import { defineSystem, Query, Res, Camera, PostProcess } from 'esengine';
+import { defineSystem, Query, Res, Camera, PostProcess, getEffectDef } from 'esengine';
 
 const setup = defineSystem([Query(Camera), Res(PostProcess)], (q, pp) => {
+  const grade = getEffectDef('colorGrade')!;
   for (const [camera] of q) {
     const stack = pp.createStack();
-    stack.setEnabled('bloom', true)
-         .setUniform('bloom', 'intensity', 1.2)
-         .setUniform('bloom', 'threshold', 0.8);
+    stack.addPass('colorGrade', grade.factory())
+         .setUniform('colorGrade', 'u_saturation', 1.3)
+         .setUniform('colorGrade', 'u_contrast', 1.1);
     pp.bind(camera, stack);   // pp.unbind(camera) to remove
   }
 });
 ```
 
+A **multi-pass** effect like `bloom` exposes `def.multiPass`; add each sub-pass
+(`for (const p of grade.multiPass!) stack.addPass(p.name, p.factory())`). For
+anything beyond a fixed pipeline, a `PostProcessVolume` is simpler — it resolves
+multi-pass and texture params for you.
+
 | Method | Description |
 |---|---|
-| `PostProcess.createStack()` | Create an effect stack. |
-| `PostProcess.bind(camera, stack)` | Attach a stack to a camera. |
-| `PostProcess.unbind(camera)` | Remove the camera's stack. |
-| `stack.setEnabled(name, on)` | Enable/disable an effect (chainable). |
-| `stack.setUniform(pass, uniform, value)` | Set an effect parameter (chainable). |
+| `PostProcess.createStack()` | Create an empty effect stack. |
+| `stack.addPass(name, shader)` | Add an effect pass; `shader` from `getEffectDef(type).factory()` (chainable). |
+| `stack.setUniform(pass, uniform, value)` | Set a `u_`-prefixed parameter (chainable). |
 | `stack.setTexture(pass, uniform, handle)` | Bind a texture parameter, e.g. a LUT (chainable). |
+| `stack.setEnabled(name, on)` | Toggle an already-added pass (chainable). |
+| `PostProcess.bind(camera, stack)` / `unbind(camera)` | Attach / remove a camera's stack. |
+| `getEffectDef(type)` / `getAllEffectDefs()` / `getEffectTypes()` | Look up effect definitions (shader factory + uniforms). |
 
 ### Texture parameters (LUTs & masks)
 
 Some effects take a texture, not just scalars. `lutGrade` samples a **color
 lookup table** — a 2D-packed `1024×32` PNG (32 slices of a 32³ cube) — so you can
-author a whole grade in an image editor and drop it in. Bind it with `setTexture`
-(or, on a `PostProcessVolume`, list it under the effect's `textures: { u_lut: <ref> }`):
+author a whole grade in an image editor and drop it in. Add the pass, then bind the
+texture with `setTexture` (or, on a `PostProcessVolume`, list it under the effect's
+`textures: { u_lut: <ref> }`):
 
 ```typescript
-stack.setEnabled('lutGrade', true)
+stack.addPass('lutGrade', getEffectDef('lutGrade')!.factory())
      .setTexture('lutGrade', 'u_lut', lutHandle)
      .setUniform('lutGrade', 'u_intensity', 1);
 ```
 
 ## Best practices
 
-- **Order matters** — effects run in registration order and share the buffers, so
-  a sensible chain is bloom → tonemap → color grade → vignette.
+- **Order matters** — passes run in the order you add them (or, on a volume, the
+  order of its `effects[]`) and share the buffers, so a sensible chain is
+  bloom → tonemap → color grade → vignette.
 - **Use volumes for locality** (an area's mood) and the `PostProcess` API for a
   fixed camera pipeline.
 - **Fade with `weight`** on a volume for smooth transitions instead of toggling.

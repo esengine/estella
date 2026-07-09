@@ -72,7 +72,7 @@ const stats = await channel.request<{ hp: number }>('getStats', { id: 'p1' }, 50
 远端角色带快照插值渲染。一处声明驱动整个线格式——无需手写同步代码。
 
 ```typescript
-import { defineComponent, Net, Replicated, Transform } from 'esengine';
+import { defineComponent, Net, Replicated, Transform, createMemoryTransportPair } from 'esengine';
 
 // 哪些字段复制在组件上声明(内置组件如 Transform 在 C++ 侧
 // 用 `replicated` 注解;用户组件在这里声明)。
@@ -80,22 +80,24 @@ const Health = defineComponent('Health', { hp: 100, regen: 1 }, {
   replicatedFields: ['hp'],
 });
 
-// 服务器(权威端):生成一个复制实体,归某个连接所有。
-const net = app.getResource(Net);
-const server = net.startServer();
-server.attachConnection(transport);          // 任何 NetTransport 都行
+// transport 在两端之间传帧。进程内(测试 / listen server)用 memory pair;
+// 真实网络在两端各放一个 GameSocket。
+const [serverEnd, clientEnd] = createMemoryTransportPair();
 
-const e = app.world.spawn('player');
-app.world.insert(e, Transform, { position: { x: 0, y: 0, z: 0 } });
-app.world.insert(e, Health, {});
-app.world.insert(e, Replicated, { owner: connectionId });
+// --- 服务器 app(权威端) ---
+const server = serverApp.getResource(Net).startServer();
+const connectionId = server.attachConnection(serverEnd);   // 返回连接 id
+const e = serverApp.world.spawn('player');
+serverApp.world.insert(e, Transform, { position: { x: 0, y: 0, z: 0 } });
+serverApp.world.insert(e, Health, {});
+serverApp.world.insert(e, Replicated, { owner: connectionId });   // 归该连接所有
+const input = server.inputOf(connectionId);        // 该客户端的最新输入
+// server.clientIds —— 每 tick 轮询,为每个已连接玩家生成/回收一个 pawn。
 
-// 客户端:连上即得——ghost 自动生成,状态持续流入。
-await app.getResource(Net).connect(transport);
-net.client?.sendInput({ move: { x: 1, y: 0 } });   // 每 tick 输入上行
-
-// 服务器玩法读取各连接的最新输入:
-const input = server.inputOf(connectionId);
+// --- 客户端 app ---
+const clientNet = clientApp.getResource(Net);
+await clientNet.connect(clientEnd, { interpolationDelayTicks: 2 });   // 2 = 平滑延迟
+clientNet.client?.sendInput({ move: { x: 1, y: 0 } });   // 每 tick 输入上行
 ```
 
 - **权威**:只有服务器做模拟;客户端看到的是复制且插值后的状态(`NetGhost`
@@ -116,8 +118,8 @@ const input = server.inputOf(connectionId);
 - **设置 RPC 超时**,让丢失的回复 reject 而不是永远挂起。
 - **把收到的状态推入组件**(用 `Commands`),让玩法留在 ECS。
 - **连接前排队是自动的**——`connect()` 之后就能立即 `send`。
-- **在系统里做权威门控**——检查 `Net.role`,同一份代码即可作为服务器、
-  客户端或离线单机运行。
+- **在系统里做权威门控**——检查 `app.getResource(Net).role`(`'server'` / `'client'` /
+  `'offline'`),同一份代码即可作为服务器、客户端或离线单机运行。
 
 <Aside type="note">
   传输层是普通类(在适合你应用的地方创建套接字/通道);复制层则是 ECS

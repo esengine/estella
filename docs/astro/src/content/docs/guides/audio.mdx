@@ -127,8 +127,9 @@ audio.muteBus('music', true);
 ```
 
 Route a sound to a bus with the `AudioSource.bus` field, or leave `playSFX`
-defaulting to `sfx`. Use `master` for a global volume slider, and separate `music`
-/ `sfx` / `ui` / `voice` sliders in your options menu.
+defaulting to `sfx`. Volume setters exist for `setMasterVolume` (a global slider)
+and `setMusicVolume` / `setSFXVolume` / `setUIVolume`. The `voice` bus routes sounds
+but has no volume setter — toggle it with `muteBus('voice', …)`.
 
 ## Spatial audio
 

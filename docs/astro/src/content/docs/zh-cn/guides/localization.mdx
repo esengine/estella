@@ -8,6 +8,20 @@ import { Aside } from '@astrojs/starlight/components';
 为每个 locale 注册一份翻译目录(catalog),切换当前 locale,并用 `t()` 查字符串——都通过
 `Localization` 资源完成。它刻意不依赖 `Intl`,所以在 Web 与微信上行为一致。
 
+`Localization` 是**可选(opt-in)**的——在任何系统读 `Res(Localization)` 之前先装一次它的插件:
+
+```typescript
+import { App, localizationPlugin, LocalizationPlugin } from 'esengine';
+
+app.addPlugin(localizationPlugin);
+// …或提前预载目录 + 设置初始/回退 locale:
+app.addPlugin(new LocalizationPlugin({
+  locale: 'en',
+  fallback: 'en',
+  catalogs: { en: { play: 'Play' }, 'zh-CN': { play: '开始' } },
+}));
+```
+
 ## 目录与翻译
 
 ```typescript
@@ -28,8 +42,10 @@ const setupI18n = defineSystem([Res(Localization)], (i18n) => {
 
 ## 复数
 
-目录条目可以携带复数形式(`zero` / `one` / `other`);`t` 会根据 `count` 参数选出正确的那个。
-为规则与默认英语式不同的语言注册按 locale 的选择器。
+目录条目可以携带复数形式——CLDR 全集 `zero` / `one` / `two` / `few` / `many` / `other`;
+`t` 会根据 `count` 参数选出一个(且 `count === 0` 时若有 `zero` 形式总是它胜出)。默认选择器
+是英语式(`one`/`other`);斯拉夫语 / 阿拉伯语等规则用
+`setPluralSelector(locale, (count) => category)` 注册,返回上述六个类别之一。
 
 ```typescript
 i18n.addCatalog('en', { apples: { one: '{count} apple', other: '{count} apples' } });

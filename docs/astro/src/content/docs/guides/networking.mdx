@@ -75,7 +75,7 @@ with snapshot interpolation. One declaration drives the wire format — no
 hand-written sync code.
 
 ```typescript
-import { defineComponent, Net, Replicated, Transform } from 'esengine';
+import { defineComponent, Net, Replicated, Transform, createMemoryTransportPair } from 'esengine';
 
 // Which fields replicate is declared on the component (builtins like
 // Transform annotate `replicated` in C++; user components declare it here).
@@ -83,23 +83,24 @@ const Health = defineComponent('Health', { hp: 100, regen: 1 }, {
   replicatedFields: ['hp'],
 });
 
-// SERVER (the authority): spawn a replicated entity, owned by a connection.
-const net = app.getResource(Net);
-const server = net.startServer();
-// accept connections however your host likes:
-server.attachConnection(transport);          // any NetTransport works
+// A transport carries frames between two ends. In-process (tests / a listen
+// server) use a memory pair; a real net puts a GameSocket on each side.
+const [serverEnd, clientEnd] = createMemoryTransportPair();
 
-const e = app.world.spawn('player');
-app.world.insert(e, Transform, { position: { x: 0, y: 0, z: 0 } });
-app.world.insert(e, Health, {});
-app.world.insert(e, Replicated, { owner: connectionId });
+// --- SERVER app (the authority) ---
+const server = serverApp.getResource(Net).startServer();
+const connectionId = server.attachConnection(serverEnd);   // returns the connection id
+const e = serverApp.world.spawn('player');
+serverApp.world.insert(e, Transform, { position: { x: 0, y: 0, z: 0 } });
+serverApp.world.insert(e, Health, {});
+serverApp.world.insert(e, Replicated, { owner: connectionId });   // owned by that client
+const input = server.inputOf(connectionId);        // that client's latest input
+// server.clientIds — poll each tick to spawn/retire a pawn per connected player.
 
-// CLIENT: connect and everything arrives — ghosts spawn, state streams.
-await app.getResource(Net).connect(transport);
-net.client?.sendInput({ move: { x: 1, y: 0 } });   // per-tick input uplink
-
-// SERVER gameplay reads each connection's latest input:
-const input = server.inputOf(connectionId);
+// --- CLIENT app ---
+const clientNet = clientApp.getResource(Net);
+await clientNet.connect(clientEnd, { interpolationDelayTicks: 2 });   // 2 = smoothing lag
+clientNet.client?.sendInput({ move: { x: 1, y: 0 } });   // per-tick input uplink
 ```
 
 - **Authority**: only the server simulates; clients see replicated, interpolated
@@ -121,8 +122,9 @@ See the **Multiplayer Arena** example for the full pattern in ~100 lines.
 - **Set an RPC timeout** so a lost reply rejects instead of hanging forever.
 - **Push received state into components** via `Commands` so gameplay stays in ECS.
 - **Queue-before-open is automatic** — you can `send` right after `connect()`.
-- **Gate authority in systems** — check `Net.role` so the same code runs as
-  server, client, or offline single-player.
+- **Gate authority in systems** — check `app.getResource(Net).role` (`'server'` /
+  `'client'` / `'offline'`) so the same code runs as server, client, or offline
+  single-player.
 
 <Aside type="note">
   The transport is plain classes (create the socket/channel wherever it fits);

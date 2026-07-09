@@ -39,16 +39,22 @@ const { root, entities } = await prefabs.instantiate('prefabs/turret.esprefab', 
 
 ## Per-instance overrides
 
-Pass `overrides` to change component values for **this instance only** without
-editing the prefab asset — spawn the same enemy with different health or tint:
+Pass `overrides` to change a value for **this instance only** without editing the
+prefab asset — spawn the same enemy with different health or tint. Each override
+targets a prefab entity by its **string** `prefabEntityId` (a UUID for
+editor-authored prefabs) and names the component + property:
 
 ```typescript
 const { root } = await prefabs.instantiate('prefabs/enemy.esprefab', {
   overrides: [
-    { entity: 0, component: 'Health', field: 'value', value: 250 },
+    { prefabEntityId: '0', type: 'property', componentType: 'Health', propertyName: 'value', value: 250 },
   ],
 });
 ```
+
+Besides `'property'`, `type` can be `'name'`, `'visibility'`, `'component_added'`,
+`'component_replaced'`, `'component_removed'`, `'metadata_set'`, or `'metadata_removed'`
+(the metadata forms use `metadataKey` in place of `componentType`/`propertyName`).
 
 ## `instantiate` reference
 

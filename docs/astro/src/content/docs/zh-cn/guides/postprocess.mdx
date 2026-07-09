@@ -13,19 +13,22 @@ Estella 通过 ping-pong 帧缓冲运行全屏后处理。加一个 `PostProcess
 
 | 效果 | 作用 | 关键 uniform |
 |---|---|---|
-| `bloom` | 亮部辉光 | `threshold`、`intensity` |
+| `bloom` | 亮部辉光 | `threshold`、`intensity`、`radius` |
 | `tonemap` | ACES filmic 色调映射 | `exposure` |
 | `colorGrade` | 曝光 / 对比度 / 饱和度 / 白平衡 | `exposure`、`contrast`、`saturation`、`temperature`、`tint` |
 | `lutGrade` | 通过查找表纹理(LUT)调色 | `u_lut`(纹理)、`intensity` |
-| `vignette` | 屏幕边缘变暗 | `intensity`、`radius` |
+| `vignette` | 屏幕边缘变暗 | `intensity`、`softness` |
 | `chromaticAberration` | RGB 色散 | `intensity` |
-| `blur` | 高斯模糊 | `radius` |
+| `blur` | 高斯模糊 | `intensity` |
 | `fxaa` | 快速抗锯齿 | `intensity` |
 | `lensDistortion` | 桶形 / 枕形畸变 | `strength`、`zoom` |
 | `pixelate` | 块状量化 | `pixelSize` |
-| `grayscale` | 去色 | — |
+| `grayscale` | 去色 | `intensity` |
 
-每个效果在默认值下都是恒等(no-op),所以把它加进栈里、在你调参之前不会改变画面。
+上面是友好标签;**在代码里它们带 `u_` 前缀**(`u_intensity`、`u_exposure`……)。多数效果
+在默认值下是恒等(`colorGrade`、`blur`、`chromaticAberration`、`fxaa`、`lensDistortion`、
+`lutGrade`),加进去不调参不改画面。少数一加就可见——`grayscale`(完全去色)、`vignette`、
+`bloom`、`tonemap`(ACES 曲线恒生效)——这些只在你需要时才启用。
 
 ## 使用 `PostProcessVolume`
 
@@ -44,47 +47,56 @@ Estella 通过 ping-pong 帧缓冲运行全屏后处理。加一个 `PostProcess
 
 ## 程序化控制
 
-自定义管线时,读 `PostProcess` 资源——创建一个栈、调参,并绑定到相机:
+固定的相机管线用 `PostProcess` 资源。栈初始为空——每个效果加一个 **pass**。用
+`getEffectDef(type).factory()` 从注册表拿到效果的着色器,再设它带 `u_` 前缀的 uniform,
+把栈绑到相机:
 
 ```typescript
-import { defineSystem, Query, Res, Camera, PostProcess } from 'esengine';
+import { defineSystem, Query, Res, Camera, PostProcess, getEffectDef } from 'esengine';
 
 const setup = defineSystem([Query(Camera), Res(PostProcess)], (q, pp) => {
+  const grade = getEffectDef('colorGrade')!;
   for (const [camera] of q) {
     const stack = pp.createStack();
-    stack.setEnabled('bloom', true)
-         .setUniform('bloom', 'intensity', 1.2)
-         .setUniform('bloom', 'threshold', 0.8);
+    stack.addPass('colorGrade', grade.factory())
+         .setUniform('colorGrade', 'u_saturation', 1.3)
+         .setUniform('colorGrade', 'u_contrast', 1.1);
     pp.bind(camera, stack);   // pp.unbind(camera) to remove
   }
 });
 ```
 
+**多 pass** 的效果(如 `bloom`)带 `def.multiPass`;逐个 sub-pass 加进去
+(`for (const p of grade.multiPass!) stack.addPass(p.name, p.factory())`)。固定管线之外,
+`PostProcessVolume` 更省事——它会替你解析多 pass 与纹理参数。
+
 | 方法 | 说明 |
 |---|---|
-| `PostProcess.createStack()` | 创建一个效果栈。 |
-| `PostProcess.bind(camera, stack)` | 把栈附加到相机。 |
-| `PostProcess.unbind(camera)` | 移除相机的栈。 |
-| `stack.setEnabled(name, on)` | 启用/禁用一个效果(可链式)。 |
-| `stack.setUniform(pass, uniform, value)` | 设置一个效果参数(可链式)。 |
+| `PostProcess.createStack()` | 创建一个空效果栈。 |
+| `stack.addPass(name, shader)` | 加一个效果 pass;`shader` 来自 `getEffectDef(type).factory()`(可链式)。 |
+| `stack.setUniform(pass, uniform, value)` | 设一个带 `u_` 前缀的参数(可链式)。 |
 | `stack.setTexture(pass, uniform, handle)` | 绑定一个纹理参数,比如 LUT(可链式)。 |
+| `stack.setEnabled(name, on)` | 开关一个已加入的 pass(可链式)。 |
+| `PostProcess.bind(camera, stack)` / `unbind(camera)` | 附加 / 移除相机的栈。 |
+| `getEffectDef(type)` / `getAllEffectDefs()` / `getEffectTypes()` | 查效果定义(着色器工厂 + uniform)。 |
 
 ### 纹理参数(LUT 与遮罩)
 
 有些效果吃的是纹理而不只是标量。`lutGrade` 采样一张**颜色查找表**——一张 2D 打包的
 `1024×32` PNG(32³ 色立方切成 32 片)——于是你可以在图像编辑器里做好整套调色再丢进来。
-用 `setTexture` 绑定它(或在 `PostProcessVolume` 上,把它列在该效果的
+先加 pass,再用 `setTexture` 绑定纹理(或在 `PostProcessVolume` 上,把它列在该效果的
 `textures: { u_lut: <ref> }` 下):
 
 ```typescript
-stack.setEnabled('lutGrade', true)
+stack.addPass('lutGrade', getEffectDef('lutGrade')!.factory())
      .setTexture('lutGrade', 'u_lut', lutHandle)
      .setUniform('lutGrade', 'u_intensity', 1);
 ```
 
 ## 最佳实践
 
-- **顺序有讲究**——效果按注册顺序运行并共享缓冲,合理的链是 bloom → tonemap → 调色 → vignette。
+- **顺序有讲究**——pass 按你加入的顺序运行(或在体积上按其 `effects[]` 的顺序)并共享缓冲,
+  合理的链是 bloom → tonemap → 调色 → vignette。
 - **用体积做局部**(某区域的氛围),用 `PostProcess` API 做固定的相机管线。
 - 过渡时**用 `weight` 淡化**体积,而不是硬开关。
 - 低端/移动端**让栈保持简短**——每一遍都是一次全屏绘制。

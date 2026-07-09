@@ -40,7 +40,6 @@ import { Spine } from 'esengine/spine';
 const control = defineSystem([Query(SpineAnimation), Res(Spine)], (q, spine) => {
   for (const [entity] of q) {
     spine.setAnimation(entity, 'run', true);            // play on track 0, looped
-    spine.addAnimation(entity, 'jump', false, 0.5);     // queue after 0.5s
     spine.setDefaultMix(entity, 0.15);                  // default crossfade
     spine.setMixDuration(entity, 'idle', 'run', 0.25);  // specific transition
     spine.setTrackAlpha(entity, 0, 1.0);                // blend a track in/out
@@ -51,25 +50,28 @@ const control = defineSystem([Query(SpineAnimation), Res(Spine)], (q, spine) => 
 | 方法 | 说明 |
 |---|---|
 | `setAnimation(entity, name, loop)` | 在轨道 0 播放一个动画。 |
-| `addAnimation(entity, name, loop, delay)` | 在当前动画之后排队一个动画。 |
 | `setDefaultMix(entity, seconds)` | 任意两个动画之间的默认交叉淡入。 |
 | `setMixDuration(entity, from, to, seconds)` | 特定转移的交叉淡入。 |
 | `setTrackAlpha(entity, track, alpha)` | 混合某轨道的贡献(0..1)。 |
-| `setEntityProps(entity, props)` | 一次性更新 缩放 / 翻转 / 颜色 / 时间缩放。 |
+| `setEntityProps(entity, props)` | 一次性设置 `{ skeletonScale?, flipX?, flipY?, layer? }`。 |
+| `setIKTarget(entity, constraint, x, y, mix)` | 让 IK 约束对准一个世界坐标点(`mix` 0..1)。 |
+
+变换 / 路径约束的混合也可调——`listConstraints(entity)`、`getTransformConstraintMix` /
+`setTransformConstraintMix`,以及 `path` 对应项。
 
 ## 皮肤与附件
 
 ```typescript
 spine.setSkin(entity, 'armored');
 spine.setAttachment(entity, 'weapon-slot', 'sword');   // swap a slot's attachment
-spine.setSlotColor(entity, 'body', { r: 1, g: 0.5, b: 0.5, a: 1 });
+spine.setSlotColor(entity, 'body', 1, 0.5, 0.5, 1);    // r, g, b, a (0..1)
 ```
 
 | 方法 | 说明 |
 |---|---|
 | `setSkin(entity, name)` | 切换活动皮肤。 |
 | `setAttachment(entity, slot, attachment)` | 替换某槽位的附件(换装/变体)。 |
-| `setSlotColor(entity, slot, color)` | 给单个槽位着色。 |
+| `setSlotColor(entity, slot, r, g, b, a)` | 给单个槽位着色(四个 0..1 通道)。 |
 
 ## 查询骨骼
 

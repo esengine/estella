@@ -39,9 +39,10 @@ in order:
 - **`Res(Resource)`** — a shared resource, such as `Time` for frame timing.
 
 <Aside type="caution">
-  Only wrap a component in `Mut` when you actually write it. Read-only queries
-  let the engine skip needless change-detection and let more systems run in
-  parallel.
+  Only wrap a component in `Mut` when you actually write it — read-only queries
+  let the engine skip needless change-detection. (Systems run sequentially in
+  schedule order; marking reads correctly is about change-tracking, not
+  parallelism.)
 </Aside>
 
 ## Running order

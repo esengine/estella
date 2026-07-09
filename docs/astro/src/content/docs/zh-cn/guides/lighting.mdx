@@ -130,8 +130,9 @@ const applyLit = defineSystem([Query(Mut(Sprite))], (q) => {
 [材质图](/docs/zh-cn/guides/material/)一节。
 
 <Aside type="tip">
-  每个接受 `material` 的渲染器——`Sprite`、`SpineAnimation`、`ParticleEmitter` 和瓦片图层——
-  都能用同样方式受光:给它一个 Lit-2D 材质。
+  每个接受 `material` 的渲染器——`Sprite`、`SpineAnimation`、`ParticleEmitter`、`Mesh2D`
+  和 `UIVisual`——都能用同样方式受光:给它一个 Lit-2D 材质。(`Sprite` 常见场景还可用一键
+  `lit` 开关。)
 </Aside>
 
 ### 法线贴图

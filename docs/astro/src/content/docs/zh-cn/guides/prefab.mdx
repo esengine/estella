@@ -36,15 +36,21 @@ const { root, entities } = await prefabs.instantiate('prefabs/turret.esprefab', 
 
 ## 逐实例覆盖
 
-传 `overrides` 来**仅为这个实例**改组件值,而不编辑预制体资源——用不同血量或着色生成同一个敌人:
+传 `overrides` 来**仅为这个实例**改值,而不编辑预制体资源——用不同血量或着色生成同一个敌人。
+每条覆盖用**字符串** `prefabEntityId`(编辑器创作的预制体里是 UUID)定位一个预制体实体,并指明
+组件 + 属性:
 
 ```typescript
 const { root } = await prefabs.instantiate('prefabs/enemy.esprefab', {
   overrides: [
-    { entity: 0, component: 'Health', field: 'value', value: 250 },
+    { prefabEntityId: '0', type: 'property', componentType: 'Health', propertyName: 'value', value: 250 },
   ],
 });
 ```
+
+除了 `'property'`,`type` 还可以是 `'name'`、`'visibility'`、`'component_added'`、
+`'component_replaced'`、`'component_removed'`、`'metadata_set'` 或 `'metadata_removed'`
+(metadata 两种用 `metadataKey` 代替 `componentType`/`propertyName`)。
 
 ## `instantiate` 参考
 
