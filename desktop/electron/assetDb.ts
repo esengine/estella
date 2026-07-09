@@ -19,6 +19,9 @@
 import { readFile, writeFile, mkdir, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { META_EXT, isContentDir } from './contentPolicy';
+// The runtime's tileset-path resolver (a dependency-free leaf) — shared so the dep scan
+// discovers a tilemap's tileset images the same way the loader will later request them.
+import { resolveRelativePath } from '../../sdk/src/tilemap/tiledPath';
 
 /** Local, gitignored cache inside the project (next to workspace.json). */
 const CACHE_DIR = '.esengine/cache';
@@ -75,10 +78,11 @@ async function* walkMeta(root: string, rel = ''): AsyncGenerator<string> {
 /**
  * Asset types whose JSON documents can reference other assets — these are
  * dependency-scanned so the cook's reachability closure includes what they
- * pull in (a material's shader + textures, a tileset's atlas, …).
+ * pull in (a material's shader + textures, a tileset's atlas, a tilemap's tileset
+ * images, …).
  */
 const JSON_REF_TYPES = new Set([
-  'scene', 'prefab', 'material', 'tileset', 'animclip', 'statemachine', 'behaviortree',
+  'scene', 'prefab', 'material', 'tileset', 'tilemap', 'animclip', 'statemachine', 'behaviortree',
 ]);
 
 /**
@@ -173,15 +177,19 @@ export async function scanAssetDatabase(
     if (!JSON_REF_TYPES.has(entry.type)) continue;
     try {
       const json = JSON.parse(await readFile(path.join(root, entry.path), 'utf8'));
-      const dir = entry.path.includes('/') ? entry.path.slice(0, entry.path.lastIndexOf('/')) : '';
       const refs = new Set<string>();
       collectRefs(json, refs, (ref) => {
         if (ref.includes('://')) return null;
-        const norm = normalizeRefPath(ref);
-        const direct = byPath.get(norm);
+        const direct = byPath.get(normalizeRefPath(ref));
         if (direct) return direct.uuid;
-        const relative = dir ? byPath.get(normalizeRefPath(`${dir}/${norm}`)) : undefined;
-        return relative?.uuid ?? null;
+        // Fall back to a path RELATIVE to the referencing document, resolved the way
+        // the runtime loads it (collapsing ./ and ../) — so a Tiled tileset image
+        // "../textures/tileset.png" or a material's sibling "x.esshader" resolves to
+        // the same asset the loader will request. (The old join left "../" uncollapsed,
+        // so tilemap tileset images never linked and the cook culled them → the
+        // single-file playable 404'd them.)
+        const rel = byPath.get(normalizeRefPath(resolveRelativePath(entry.path, ref)));
+        return rel?.uuid ?? null;
       }, (id) => uuids.has(id));
       refs.delete(entry.uuid);
       if (refs.size > 0) deps[entry.uuid] = [...refs].sort();

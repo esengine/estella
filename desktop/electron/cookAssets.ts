@@ -24,6 +24,7 @@ import { packAtlas, decodePngImage, encodePagePng, type AtlasInputImage } from '
 // Single-source content hash (sdk/src/asset/contentHash.ts). Imported as source —
 // no hand-mirrored copy — so the cook and the runtime agree by construction.
 import { contentHashHex } from '../../sdk/src/asset/contentHash';
+import { resolveRelativePath } from '../../sdk/src/tilemap/tiledPath';
 
 const MANIFEST = 'assets.manifest.json';
 
@@ -135,6 +136,35 @@ function rewriteMaterialRefs(
   if (json.properties && typeof json.properties === 'object') {
     const props = json.properties as Record<string, unknown>;
     for (const key of Object.keys(props)) props[key] = rewrite(props[key]);
+  }
+  return new TextEncoder().encode(JSON.stringify(json, null, 2) + '\n');
+}
+
+/**
+ * Rewrite a Tiled map's tileset `image` (inline) and `source` (external `.tsj`) refs
+ * from document-relative (`"../textures/tileset.png"`) to the referenced asset's logical
+ * project path — the same shape rewriteMaterialRefs produces. The playable loads a map by
+ * its `@uuid` (which carries no directory), so the runtime's `resolveRelativePath(@uuid,
+ * "../textures/x.png")` yields a WRONG root-relative path that matches no embedded asset;
+ * a directory-free logical ref (`assets/textures/x.png`) resolves to the same inlined
+ * asset in every realm. `@uuid:`/URL/already-logical refs pass through unchanged.
+ */
+function rewriteTilemapRefs(
+  bytes: Uint8Array,
+  tmjPath: string,
+  byPath: Map<string, AssetEntry>,
+): Uint8Array {
+  const json = JSON.parse(Buffer.from(bytes).toString('utf8')) as Record<string, unknown>;
+  const rewrite = (ref: unknown): unknown => {
+    if (typeof ref !== 'string' || ref.startsWith('@uuid:') || ref.includes('://')) return ref;
+    const proj = resolveRelativePath(tmjPath, ref);  // collapses ./ and ../
+    if (!byPath.has(proj)) return ref;  // not an asset ref (or missing) — leave it
+    return proj.startsWith('assets/') ? proj : `/${proj}`;
+  };
+  const tilesets = Array.isArray(json.tilesets) ? (json.tilesets as Record<string, unknown>[]) : [];
+  for (const ts of tilesets) {
+    if (typeof ts.image === 'string') ts.image = rewrite(ts.image);    // inline tileset image
+    if (typeof ts.source === 'string') ts.source = rewrite(ts.source); // external .tsj tileset
   }
   return new TextEncoder().encode(JSON.stringify(json, null, 2) + '\n');
 }
@@ -332,6 +362,15 @@ export async function cookAssets(
           data = rewriteMaterialRefs(data, entry.path, byPath);
         } catch (err) {
           warnings.push(`${entry.path}: material ref rewrite failed — ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+      // Tilemaps: relative tileset image/source refs → logical project paths, so the
+      // @uuid-loaded map resolves them to the embedded assets (see rewriteTilemapRefs).
+      if (ext.toLowerCase() === '.tmj' || ext.toLowerCase() === '.tmx') {
+        try {
+          data = rewriteTilemapRefs(data, entry.path, byPath);
+        } catch (err) {
+          warnings.push(`${entry.path}: tilemap ref rewrite failed — ${err instanceof Error ? err.message : String(err)}`);
         }
       }
       // Shaders ship as-authored; a WGSL twin is what makes one run on the

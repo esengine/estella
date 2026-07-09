@@ -42,6 +42,7 @@ import { mergeCollisionTiles } from './collisionMerge';
 import { CHUNK_SIZE } from './chunkCodec';
 import { tileIdOf, tileFlagsOf } from './tileBits';
 import { log } from '../logger';
+import { resolveRelativePath } from './tiledPath';
 
 export interface TiledChunkData {
     x: number;
@@ -464,30 +465,10 @@ export async function parseTmjWithExternals(
     return parseTmjJson(json);
 }
 
-export function resolveRelativePath(basePath: string, relativePath: string): string {
-    // Preserve a URL scheme+authority (e.g. "estella://project", "http://host")
-    // before normalizing: the "//" after the scheme must survive, but the segment
-    // walk below drops empty parts — which would collapse "estella://" to
-    // "estella:/" and break the fetch. The editor Play realm resolves assets to
-    // absolute estella:// URLs, so a Tiled map's relative tileset image ("../x.png")
-    // is joined against such a base.
-    const schemeMatch = /^([a-z][a-z0-9+.-]*:\/\/[^/]*)(\/.*|)$/i.exec(basePath);
-    const prefix = schemeMatch ? schemeMatch[1] : '';
-    const pathPart = schemeMatch ? schemeMatch[2] : basePath;
-
-    const lastSlash = pathPart.lastIndexOf('/');
-    const baseDir = lastSlash >= 0 ? pathPart.substring(0, lastSlash + 1) : '';
-    const parts = (baseDir + relativePath).split('/');
-    const resolved: string[] = [];
-    for (const part of parts) {
-        if (part === '..') {
-            resolved.pop();
-        } else if (part !== '.' && part !== '') {
-            resolved.push(part);
-        }
-    }
-    return prefix ? `${prefix}/${resolved.join('/')}` : resolved.join('/');
-}
+// resolveRelativePath now lives in ./tiledPath (a dependency-free leaf) so the editor's
+// asset-dependency scan / cook can share the exact resolution the runtime loads with,
+// without pulling the loader's engine deps. Re-exported here for existing importers.
+export { resolveRelativePath };
 
 export interface TilemapLoadOptions {
     generateObjectCollision?: boolean;
