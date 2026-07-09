@@ -64,7 +64,10 @@ to promise full MAJOR-line compatibility. From 1.0.0 onward, standard SemVer app
 
 - Releases are Git tags of the form `vMAJOR.MINOR.PATCH` (e.g. `v0.14.0`) and appear
   on [GitHub Releases](https://github.com/esengine/estella/releases).
-- The `esengine` SDK is published to npm with its **own** version number; consult the
-  SDK notes in each CHANGELOG entry to map an Estella release to an SDK version.
+- The `esengine` SDK is **not published to npm**. It ships inside the editor (every
+  project created by the editor builds against the bundled SDK), so the Estella
+  release version is the single product version. The SDK's public API surface is
+  snapshotted in `sdk/etc/*.api.md` and governed by release tags (`@beta`,
+  `@internal`) — see `tools/api-surface.mjs`.
 - Pre-releases use SemVer pre-release suffixes (e.g. `v0.15.0-rc.1`) and are not
   covered by the compatibility promises above.

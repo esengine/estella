@@ -9,11 +9,21 @@ like Estella (the SDK API, the editor project/asset formats, and the WASM ABI) a
 what we treat as a breaking change.
 
 Version numbers here track the **Estella release** — the engine + editor + SDK
-shipped together, matching the Git tags and GitHub Releases. The `esengine` SDK npm
-package carries its own version line; npm consumers should read the **SDK** notes in
-each entry.
+shipped together, matching the Git tags and GitHub Releases. The SDK is not
+published separately; it ships inside the editor.
 
 ## [Unreleased]
+
+### Added
+- API surface governance: every public SDK export is snapshotted with its
+  signature and stability tag in `sdk/etc/*.api.md`, enforced by CI. Networking,
+  the material graph, and the headless/node entry are tagged `@beta`
+  (no compatibility promise yet); everything untagged is stable.
+
+### Removed
+- The `esengine` SDK is no longer published to npm (the editor is the single
+  distribution channel). The npm publish workflow and the broken `./factory`
+  package entry are gone.
 
 ## [0.17.0] - 2026-07-08
 
