@@ -627,6 +627,24 @@
   box-shadow: inset 0 0 0 1px rgba(14, 15, 18, 0.5);
   will-change: transform, width, height, opacity;
 }
+/* Gesture-paint preview (rect fill / line cells) container — the ghost cells are
+   pooled child divs the rAF positions; the container itself is inert. */
+.viewport__tilepaint {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+.viewport__tilepaint-cell {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: none;
+  border: 1px solid rgba(90, 200, 250, 0.7);
+  background: rgba(90, 200, 250, 0.22);
+  will-change: transform, width, height;
+}
 .viewport__stage.has-grid {
   background-image:
     linear-gradient(var(--line-soft) 1px, transparent 1px),

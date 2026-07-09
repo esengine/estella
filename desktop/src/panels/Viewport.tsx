@@ -28,6 +28,7 @@ import { cursorTile } from '@/tools/tileTools';
 import { GIZMO, type GizmoAxis } from '@/tools/gizmo';
 import { selectionPivot, gizmoScreenAngleRad } from '@/tools/transformTools';
 import { Marquee } from '@/tools/marquee';
+import { TilePaintPreview } from '@/tools/tilePreview';
 
 // A React pointer event → the tool-facing PointerInput (no DOM coupling in tools).
 const toInput = (e: ReactPointerEvent): PointerInput => ({
@@ -383,6 +384,11 @@ export function Viewport() {
   const marqueeRef = useRef<HTMLDivElement>(null);
   const tileSelRef = useRef<HTMLDivElement>(null);
   const tilePreviewRef = useRef<HTMLDivElement>(null);
+  // Gesture-paint preview (rect fill / line cells): a container whose ghost-cell
+  // children are pooled + positioned imperatively in the rAF (rect/line defer their
+  // commit to release, so this shows the shape mid-drag).
+  const tilePaintRef = useRef<HTMLDivElement>(null);
+  const paintPoolRef = useRef<HTMLDivElement[]>([]);
   const hoverTileRef = useRef<{ x: number; y: number } | null>(null);
   // Camera pan (middle/right drag) is built-in navigation, separate from tools.
   const panRef = useRef<{ px: number; py: number } | null>(null);
@@ -564,16 +570,21 @@ export function Viewport() {
           ts.style.opacity = '0';
         }
 
-        // Brush footprint preview: a ghost rect at the hovered tile sized to the active
-        // stamp (1×1 for erase/bucket/terrain), so painting isn't blind.
+        // Brush footprint preview: a ghost rect at the hovered tile. brush/erase size it
+        // to the active stamp (they lay/erase its w×h); the other tools mark a single
+        // cell. Hidden for rect/line while their gesture preview is drawing the shape.
+        const dragging = TilePaintPreview.get() != null;
         const pv = tilePreviewRef.current;
         if (pv) {
-          const FOOT: Record<string, boolean> = { brush: true, erase: true, bucket: true, terrain: true };
+          const stampSized = paint.tool === 'brush' || paint.tool === 'erase';
+          const SINGLE: Record<string, boolean> = { bucket: true, terrain: true, rect: true, line: true };
           const hov = hoverTileRef.current;
-          const showFoot = paint.tool != null && FOOT[paint.tool] && hov && cs?.cellSize && origin;
+          const gesturing = dragging && (paint.tool === 'rect' || paint.tool === 'line');
+          const showFoot = paint.tool != null && (stampSized || SINGLE[paint.tool])
+            && !gesturing && hov && cs?.cellSize && origin;
           if (showFoot && hov && cs?.cellSize && origin) {
-            const fw = paint.tool === 'brush' ? paint.stamp.w : 1;
-            const fh = paint.tool === 'brush' ? paint.stamp.h : 1;
+            const fw = stampSized ? paint.stamp.w : 1;
+            const fh = stampSized ? paint.stamp.h : 1;
             const tl = ViewportController.worldToClient(origin.x + hov.x * cs.cellSize.x, origin.y - hov.y * cs.cellSize.y);
             const br = ViewportController.worldToClient(origin.x + (hov.x + fw) * cs.cellSize.x, origin.y - (hov.y + fh) * cs.cellSize.y);
             if (tl && br) {
@@ -587,6 +598,45 @@ export function Viewport() {
           } else {
             pv.style.opacity = '0';
           }
+        }
+
+        // Gesture-paint preview: rect fill covers the whole region (one ghost cell),
+        // line ghosts each tile it crosses. Pooled child divs — grow on demand, hide
+        // the unused tail — positioned like the footprint above.
+        const pp = tilePaintRef.current;
+        if (pp) {
+          const shape = TilePaintPreview.get();
+          const pool = paintPoolRef.current;
+          let used = 0;
+          if (shape && cs?.cellSize && origin) {
+            const cw = cs.cellSize.x;
+            const ch = cs.cellSize.y;
+            const place = (tx: number, ty: number, w: number, h: number): void => {
+              const tl = ViewportController.worldToClient(origin.x + tx * cw, origin.y - ty * ch);
+              const br = ViewportController.worldToClient(origin.x + (tx + w) * cw, origin.y - (ty + h) * ch);
+              if (!tl || !br) return;
+              let cell = pool[used];
+              if (!cell) {
+                cell = document.createElement('div');
+                cell.className = 'viewport__tilepaint-cell';
+                pp.appendChild(cell);
+                pool[used] = cell;
+              }
+              cell.style.transform = `translate(${tl.x}px, ${tl.y}px)`;
+              cell.style.width = `${br.x - tl.x}px`;
+              cell.style.height = `${br.y - tl.y}px`;
+              cell.style.display = 'block';
+              used++;
+            };
+            if (shape.kind === 'rect') {
+              const x0 = Math.min(shape.x0, shape.x1);
+              const y0 = Math.min(shape.y0, shape.y1);
+              place(x0, y0, Math.abs(shape.x1 - shape.x0) + 1, Math.abs(shape.y1 - shape.y0) + 1);
+            } else {
+              for (const c of shape.cells) place(c.x, c.y, 1, 1);
+            }
+          }
+          for (let i = used; i < pool.length; i++) pool[i].style.display = 'none';
         }
       }
 
@@ -847,6 +897,20 @@ export function Viewport() {
     t.onPointerUp(toInput(e), toolCtx);
   };
 
+  // pointercancel (OS/gesture interruption) aborts the stroke instead of committing —
+  // the tool rolls back its live edits, matching Esc.
+  const cancelDrag = (e: ReactPointerEvent) => {
+    if (panRef.current) {
+      stageRef.current?.releasePointerCapture(e.pointerId);
+      panRef.current = null;
+      return;
+    }
+    const t = activeToolRef.current;
+    if (!t) return;
+    activeToolRef.current = null;
+    t.cancel?.(toolCtx);
+  };
+
   // Drag an asset from the Content Browser into the scene → place it at the drop
   // point (one undoable step): a `.esprefab` instantiates the prefab; an image
   // spawns a Sprite entity sized to the texture.
@@ -970,7 +1034,7 @@ export function Viewport() {
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
-        onPointerCancel={endDrag}
+        onPointerCancel={cancelDrag}
         onPointerLeave={() => { StatsStore.clearCursor(); hoverTileRef.current = null; }}
         onContextMenu={(e) => e.preventDefault()}
         onDragOver={onDragOver}
@@ -1174,6 +1238,7 @@ export function Viewport() {
       <div ref={marqueeRef} className="viewport__marquee" aria-hidden="true" />
       <div ref={tileSelRef} className="viewport__tilesel" aria-hidden="true" />
       <div ref={tilePreviewRef} className="viewport__tilepreview" aria-hidden="true" />
+      <div ref={tilePaintRef} className="viewport__tilepaint" aria-hidden="true" />
 
       <div ref={gizmoRef} className="viewport__gizmo" aria-hidden="true">
         <GizmoOverlay tool={tool} active={activeGizmoAxis} />

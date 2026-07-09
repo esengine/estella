@@ -984,6 +984,19 @@ export class SceneCommandsImpl {
     if (s) this.commitTilePaint_(s.sourceId, s.before);
   }
 
+  /**
+   * Discard the open paint stroke (Esc / pointercancel). The live edits only touched
+   * the C++ tilemap ({@link paintTileLive} never writes the model), so re-import the
+   * pre-stroke blob to revert the viewport — no model write, no undo step.
+   */
+  cancelTilePaint(): void {
+    const s = this.tilePaint;
+    this.tilePaint = null;
+    if (!s) return;
+    const rt = this.model.runtimeFor(s.sourceId);
+    if (rt !== undefined) TilemapAPI.importChunks(rt, s.before);
+  }
+
   // Shared commit: snapshot the post-edit blob, write it to the model (the truth
   // for save + rebuild), and record one undo step whose closures re-resolve the
   // runtime entity (it changes across a play→stop rebuild) and re-import the blob.

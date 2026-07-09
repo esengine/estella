@@ -20,6 +20,7 @@ import { SceneModel } from '@/engine/SceneModel';
 import { Toasts } from '@/store/Toasts';
 import { useSelection } from '@/store/selectionStore';
 import { useTilemapPaint, type PaintTool } from '@/store/tilemapPaintStore';
+import { TilePaintPreview } from './tilePreview';
 import type { EditorTool, PointerInput } from './EditorTool';
 
 // Cursor (client px) → tile grid coords on a TilemapLayer entity: client→world via
@@ -53,6 +54,26 @@ function stampEdits(stamp: TileStamp, ox: number, oy: number): TilePaint[] {
 /** The stamp cell to lay at world tile (x, y) when tiling the pattern continuously. */
 function tiledCell(stamp: TileStamp, x: number, y: number): number {
   return stamp.cells[mod(y, stamp.h) * stamp.w + mod(x, stamp.w)];
+}
+
+/** The tile coords a Bresenham line from (x0,y0) to (x1,y1) passes through (inclusive). */
+export function lineCells(x0: number, y0: number, x1: number, y1: number): { x: number; y: number }[] {
+  const cells: { x: number; y: number }[] = [];
+  let x = x0;
+  let y = y0;
+  const dx = Math.abs(x1 - x0);
+  const dy = -Math.abs(y1 - y0);
+  const sx = x0 < x1 ? 1 : -1;
+  const sy = y0 < y1 ? 1 : -1;
+  let err = dx + dy;
+  for (;;) {
+    cells.push({ x, y });
+    if (x === x1 && y === y1) break;
+    const e2 = 2 * err;
+    if (e2 >= dy) { err += dy; x += sx; }
+    if (e2 <= dx) { err += dx; y += sy; }
+  }
+  return cells;
 }
 
 // ── Shared drag-stroke driver ────────────────────────────────────────────────
@@ -98,8 +119,10 @@ function makeStrokeTool<C>(spec: StrokeSpec<C>): EditorTool {
     },
     cancel() {
       if (!active) return;
-      // No mid-stroke tile rollback yet; commit what is painted (matches pointercancel).
-      spec.end(active.ctx);
+      // Discard the live drag: restore the pre-stroke chunk blob, no model write / no
+      // undo step. brush/erase/terrain all open the stroke via beginTilePaint, so one
+      // shared cancel covers them (their per-stroke ctx is dropped with `active`).
+      SceneCommands.cancelTilePaint();
       active = null;
     },
   };
@@ -117,7 +140,14 @@ const brushTool = makeStrokeTool<number>({
 const eraseTool = makeStrokeTool<number>({
   id: 'tilemap.erase',
   begin: (selId) => { SceneCommands.beginTilePaint(selId); return selId; },
-  onCell: (selId, x, y) => SceneCommands.paintTileLive(selId, x, y, 0),
+  // Erase the active brush's footprint (its w×h), so a multi-tile stamp erases a
+  // block — the eraser size matches the brush the palette shows.
+  onCell: (selId, x, y) => {
+    const s = activeStamp();
+    for (let dy = 0; dy < s.h; dy++) {
+      for (let dx = 0; dx < s.w; dx++) SceneCommands.paintTileLive(selId, x + dx, y + dy, 0);
+    }
+  },
   end: () => SceneCommands.endTilePaint(),
 });
 
@@ -183,15 +213,20 @@ function makeRectTool(): EditorTool {
       const tile = cursorTile(p.clientX, p.clientY, selId);
       if (!tile) return false;
       stroke = { sourceId: selId, startX: tile.x, startY: tile.y };
+      TilePaintPreview.set({ kind: 'rect', x0: tile.x, y0: tile.y, x1: tile.x, y1: tile.y });
       ctx.capture(p.pointerId);
       return true;
     },
-    onPointerMove() {
-      // Rect previews on release (no live fill).
+    onPointerMove(p) {
+      if (!stroke) return;
+      const tile = cursorTile(p.clientX, p.clientY, stroke.sourceId);
+      if (!tile) return;
+      TilePaintPreview.set({ kind: 'rect', x0: stroke.startX, y0: stroke.startY, x1: tile.x, y1: tile.y });
     },
     onPointerUp(p, ctx) {
       if (!stroke) return;
       ctx.release(p.pointerId);
+      TilePaintPreview.clear();
       const tile = cursorTile(p.clientX, p.clientY, stroke.sourceId);
       if (tile) {
         const x0 = Math.min(stroke.startX, tile.x);
@@ -211,7 +246,7 @@ function makeRectTool(): EditorTool {
       }
       stroke = null;
     },
-    cancel() { stroke = null; },
+    cancel() { stroke = null; TilePaintPreview.clear(); },
   };
 }
 
@@ -226,36 +261,32 @@ function makeLineTool(): EditorTool {
       const tile = cursorTile(p.clientX, p.clientY, selId);
       if (!tile) return false;
       stroke = { sourceId: selId, startX: tile.x, startY: tile.y };
+      TilePaintPreview.set({ kind: 'line', cells: [{ x: tile.x, y: tile.y }] });
       ctx.capture(p.pointerId);
       return true;
     },
-    onPointerMove() {},
+    onPointerMove(p) {
+      if (!stroke) return;
+      const tile = cursorTile(p.clientX, p.clientY, stroke.sourceId);
+      if (!tile) return;
+      TilePaintPreview.set({ kind: 'line', cells: lineCells(stroke.startX, stroke.startY, tile.x, tile.y) });
+    },
     onPointerUp(p, ctx) {
       if (!stroke) return;
       ctx.release(p.pointerId);
+      TilePaintPreview.clear();
       const tile = cursorTile(p.clientX, p.clientY, stroke.sourceId);
       if (tile) {
         const stamp = activeStamp();
         const edits: TilePaint[] = [];
-        let x = stroke.startX;
-        let y = stroke.startY;
-        const dx = Math.abs(tile.x - x);
-        const dy = -Math.abs(tile.y - y);
-        const sx = x < tile.x ? 1 : -1;
-        const sy = y < tile.y ? 1 : -1;
-        let err = dx + dy;
-        for (;;) {
-          for (const e of stampEdits(stamp, x, y)) edits.push(e);
-          if (x === tile.x && y === tile.y) break;
-          const e2 = 2 * err;
-          if (e2 >= dy) { err += dy; x += sx; }
-          if (e2 <= dx) { err += dx; y += sy; }
+        for (const c of lineCells(stroke.startX, stroke.startY, tile.x, tile.y)) {
+          for (const e of stampEdits(stamp, c.x, c.y)) edits.push(e);
         }
         if (edits.length > 0) SceneCommands.paintTiles(stroke.sourceId, edits);
       }
       stroke = null;
     },
-    cancel() { stroke = null; },
+    cancel() { stroke = null; TilePaintPreview.clear(); },
   };
 }
 
