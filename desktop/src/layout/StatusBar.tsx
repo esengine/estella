@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { useSyncExternalStore } from 'react';
-import { Gauge, MousePointer2, Boxes, FolderOpen, MemoryStick } from 'lucide-react';
+import { Gauge, MousePointer2, Boxes, FolderOpen, MemoryStick, Cpu } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { useSelection } from '@/store/selectionStore';
 import { StatsStore } from '@/engine/StatsStore';
+import { EngineHost } from '@/engine/EngineHost';
 import { SubsystemIndicator } from './SubsystemIndicator';
 import { Perf } from '@/components/Perf';
 
@@ -75,6 +76,13 @@ export function StatusBar() {
           <span className="smute">/{formatMb(stats.vram.budget)} MB</span>
         </span>
       )}
+      <span
+        className="sitem mono"
+        title="Active GPU backend — the device actually rendering (reflects any WebGL2 fallback). Change it in Settings → Renderer."
+      >
+        <Cpu size={11} strokeWidth={1.85} />
+        {EngineHost.activeBackend === 'webgpu' ? 'WebGPU' : 'WebGL2'}
+      </span>
       <span className="sitem smute">esengine 0.10.0</span>
     </footer>
   );
