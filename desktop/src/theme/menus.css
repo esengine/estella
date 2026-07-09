@@ -153,7 +153,7 @@
 .build__plat:not(:disabled):hover { color: var(--text); border-color: var(--text-mute); }
 .build__plat.on { color: #fff; background: var(--acc); border-color: var(--acc); }
 .build__plat:disabled { opacity: 0.5; }
-.build__plat .soon { position: absolute; bottom: 5px; font-size: 8px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--text-mute); }
+.build__plat .soon { position: absolute; bottom: 5px; font-size: var(--fs-3xs); text-transform: uppercase; letter-spacing: 0.4px; color: var(--text-mute); }
 .build__row { display: flex; align-items: center; gap: 12px; }
 .build__row .build__label { width: 92px; flex-shrink: 0; }
 .build__seg { display: flex; gap: 1px; background: var(--inset); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 1px; }

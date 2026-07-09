@@ -45,7 +45,7 @@
   position: absolute;
   bottom: -2px;
   right: -2px;
-  font-size: 8px;
+  font-size: var(--fs-3xs);
   color: var(--text-mute);
   background: var(--srf-3);
   border: 1px solid var(--border-line);
