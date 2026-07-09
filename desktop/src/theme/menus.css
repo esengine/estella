@@ -132,6 +132,19 @@
 .modal__body { padding: 14px; overflow-y: auto; }
 .modal__foot { display: flex; justify-content: flex-end; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--border); background: var(--srf-2); flex-shrink: 0; }
 
+/* ── New Tilemap tileset chooser ── */
+.tmpick { display: flex; flex-direction: column; gap: 10px; }
+.tmpick__hint { font-size: var(--fs-sm); color: var(--text-mute); }
+.tmpick__search { width: 100%; padding: 7px 10px; background: var(--srf-3); border: 1px solid var(--border-line); border-radius: var(--r-md); color: var(--text); font: inherit; }
+.tmpick__search:focus { outline: none; border-color: var(--acc); }
+.tmpick__list { display: flex; flex-direction: column; gap: 3px; max-height: 320px; overflow-y: auto; }
+.tmpick__item { display: flex; align-items: center; gap: 9px; padding: 8px 10px; background: var(--srf-3); border: 1px solid transparent; border-radius: var(--r-md); color: var(--text-dim); cursor: pointer; text-align: left; font: inherit; }
+.tmpick__item:hover { color: var(--text); border-color: var(--acc); background: var(--srf-2); }
+.tmpick__icon { flex: 0 0 auto; color: var(--text-mute); }
+.tmpick__name { flex: 0 0 auto; font-weight: 600; }
+.tmpick__path { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-2xs); color: var(--text-mute); text-align: right; }
+.tmpick__empty { padding: 18px; text-align: center; color: var(--text-mute); font-size: var(--fs-sm); }
+
 /* ── Package / Build dialog ── */
 .build { display: flex; flex-direction: column; gap: 12px; }
 .build__label { font-size: var(--fs-2xs); font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; color: var(--text-mute); }

@@ -110,6 +110,7 @@ export function MenuBar() {
       title: 'Entity',
       items: [
         cmdItem('entity.add'),
+        cmdItem('tilemap.new'),
         { sep: true },
         cmdItem('entity.duplicate'),
         cmdItem('entity.delete'),

@@ -14,6 +14,7 @@ import { Perf } from '@/components/Perf';
 import { PerfRealmBridge } from '@/components/PerfRealmBridge';
 import { BuildDialog } from '@/components/BuildDialog';
 import { SettingsDialog } from '@/components/SettingsDialog';
+import { TilemapPickerDialog } from '@/components/TilemapPickerDialog';
 import { useEditorStore } from '@/store/editorStore';
 import { commands } from '@/commands';
 import { PlayRealms } from '@/engine/PlayRealm';
@@ -140,6 +141,7 @@ export function App() {
   }, [showLauncher]);
   const buildOpen = useEditorStore((s) => s.buildOpen);
   const settingsOpen = useEditorStore((s) => s.settingsOpen);
+  const tilemapPickerOpen = useEditorStore((s) => s.tilemapPickerOpen);
   if (showLauncher) return <Launcher />;
 
   return (
@@ -155,6 +157,7 @@ export function App() {
       <PerfRealmBridge />
       {buildOpen && <BuildDialog />}
       {settingsOpen && <SettingsDialog />}
+      {tilemapPickerOpen && <TilemapPickerDialog />}
       <Toaster />
     </div>
   );

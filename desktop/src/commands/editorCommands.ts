@@ -16,6 +16,7 @@ import { SceneCommands } from '@/engine/SceneCommands';
 import { SceneModel } from '@/engine/SceneModel';
 import { hasEntityClipboard } from '@/engine/entityClipboard';
 import { ViewportController } from '@/engine/ViewportController';
+import { createTilemapFromTileset } from '@/tilemap/createTilemap';
 import { useEditorStore } from '@/store/editorStore';
 import { useSelection } from '@/store/selectionStore';
 import { Toasts } from '@/store/Toasts';
@@ -109,6 +110,28 @@ commands.register({
   run: () => {
     const e = SceneCommands.addEntity();
     if (e != null) sel().select(e);
+  },
+});
+commands.register({
+  id: 'tilemap.new',
+  label: 'New Tilemap',
+  category: 'Entity',
+  isEnabled: () => !!ProjectStore.getSnapshot(),
+  // A tilemap needs a tileset palette. Zero → guide the user to make one; exactly
+  // one → create straight away; many → let them pick (TilemapPickerDialog). The
+  // downstream createTilemapFromTileset does all the entity wiring either way.
+  run: () => {
+    const list = ProjectStore.listAssets('tileset');
+    if (list.length === 0) {
+      Toasts.push('项目里还没有瓦片集 — 在内容浏览器右键一张贴图 → Create Tileset', 'warn');
+      return;
+    }
+    if (list.length === 1) {
+      const path = ProjectStore.assetInfo(list[0].ref)?.path;
+      if (path) void createTilemapFromTileset(path);
+      return;
+    }
+    editor().setTilemapPickerOpen(true);
   },
 });
 commands.register({

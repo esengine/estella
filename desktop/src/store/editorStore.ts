@@ -83,6 +83,11 @@ interface EditorState {
   // Settings window (the registry-driven preferences dialog).
   settingsOpen: boolean;
   setSettingsOpen: (open: boolean) => void;
+
+  // "New Tilemap" tileset chooser (Entity → New Tilemap): picks the .estileset
+  // palette for a fresh map, then createTilemapFromTileset does the rest.
+  tilemapPickerOpen: boolean;
+  setTilemapPickerOpen: (open: boolean) => void;
 }
 
 export const useEditorStore = create<EditorState>((set) => ({
@@ -147,4 +152,7 @@ export const useEditorStore = create<EditorState>((set) => ({
 
   settingsOpen: false,
   setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
+
+  tilemapPickerOpen: false,
+  setTilemapPickerOpen: (tilemapPickerOpen) => set({ tilemapPickerOpen }),
 }));

@@ -76,4 +76,10 @@ describe('command registry', () => {
     expect(cmd?.label).toBe('New Scene');
     expect(cmd?.keybinding).toBe('mod+n');
   });
+
+  it('registers New Tilemap under the Entity category (the menu-bar item resolves)', () => {
+    const cmd = commands.get('tilemap.new');
+    expect(cmd?.label).toBe('New Tilemap');
+    expect(cmd?.category).toBe('Entity');
+  });
 });
