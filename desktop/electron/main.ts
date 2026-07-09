@@ -35,6 +35,12 @@ import { checkForUpdate } from './updateCheck';
 import { resolveScripts } from '../src/project/format';
 import type { WorkspaceState } from '../src/project/format';
 
+// Enable WebGPU in the renderer so the viewport's WebGPU backend (Settings →
+// Renderer) has an adapter to acquire. Without it navigator.gpu has no adapter and
+// the engine falls back to WebGL2. Must be set before app is ready; mirrors the
+// switch the headless verify harness sets.
+app.commandLine.appendSwitch('enable-unsafe-webgpu');
+
 // Two privileged custom schemes (must be declared before app ready):
 //  • estella:// serves files from the open project root (sandboxed) — lets the
 //    engine fetch project assets (textures via Assets.loadTexture → fetch).
@@ -141,6 +147,8 @@ async function runScreenshot(w: BrowserWindow, out: string): Promise<void> {
   // headless failures otherwise die silently inside the window.
   w.webContents.on('console-message', (_e, level, message) => {
     if (level >= 2) console.log(`[console:${level === 3 ? 'error' : 'warn'}]`, message);
+    // Surface engine diagnostics (e.g. the resolved GPU backend) in the dev terminal.
+    else if (message.startsWith('[engine]')) console.log(message);
   });
 
   // Deterministic waits — poll a real in-page condition instead of guessing at a

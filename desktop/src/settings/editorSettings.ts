@@ -15,6 +15,8 @@ import { useEditorStore } from '@/store/editorStore';
 import { LogStore } from '@/store/LogStore';
 import { commands } from '@/commands';
 import { setUseLessCpuInBackground } from '@/engine/backgroundThrottle';
+import { EngineHost } from '@/engine/EngineHost';
+import { Toasts } from '@/store/Toasts';
 
 const root = () => document.documentElement.style;
 
@@ -63,6 +65,8 @@ settingsRegistry.register({
 });
 
 // ── Renderer (read at engine boot; the GfxDevice backend seam) ──────────────
+// Skips the boot-time effect replay so the reload prompt only fires on a real change.
+let backendPrimed = false;
 settingsRegistry.register({
   id: 'renderer.backend',
   type: 'enum',
@@ -79,6 +83,20 @@ settingsRegistry.register({
     { value: 'webgl2', label: 'WebGL2' },
     { value: 'webgpu', label: 'WebGPU' },
   ],
+  // The backend is fixed at engine instantiation, so a change applies on reload.
+  // Prompt for it — but skip the boot-time replay (the first call), and only when
+  // the target differs from the live device. `backendPrimed` is module-local so it
+  // resets with a page reload (when applySettings replays effects again).
+  effect: (v) => {
+    if (!backendPrimed) { backendPrimed = true; return; }
+    if (v === EngineHost.activeBackend) return;
+    Toasts.push(
+      `Reload to render with ${v === 'webgpu' ? 'WebGPU' : 'WebGL2'}`,
+      'info',
+      8000,
+      { label: 'Reload now', run: () => location.reload() },
+    );
+  },
 });
 
 // ── Viewport (bound to editorStore — one source with the viewport toolbar) ───
