@@ -400,7 +400,7 @@ export const ViewportController = {
    */
   getLightGizmo(
     id: EntityId,
-  ): { cx: number; cy: number; kind: number; color: string; radiusPx: number; sdx: number; sdy: number; coneHalf: number; on: boolean } | null {
+  ): { cx: number; cy: number; kind: number; color: string; radiusPx: number; sdx: number; sdy: number; coneHalf: number; on: boolean; handle: { x: number; y: number } | null } | null {
     const world = EngineHost.world;
     if (!world || !world.valid(id) || !world.has(id, Light2D) || !world.has(id, Transform)) return null;
     const t = world.get(id, Transform);
@@ -434,7 +434,11 @@ export const ViewportController = {
     const hex = (v: number) => Math.max(0, Math.min(255, Math.round(v * 255))).toString(16).padStart(2, '0');
     const color = `#${hex(l.color.r)}${hex(l.color.g)}${hex(l.color.b)}`;
     const on = l.enabled !== false && l.intensity > 0;
-    return { cx: center.x, cy: center.y, kind: l.type, color, radiusPx, sdx, sdy, coneHalf, on };
+    // Radius handle at the top of the reach circle (Point/Spot only — drag = radius).
+    const handle = (l.type === 0 || l.type === 3)
+      ? this.worldToClient(t.worldPosition.x, t.worldPosition.y + l.radius)
+      : null;
+    return { cx: center.x, cy: center.y, kind: l.type, color, radiusPx, sdx, sdy, coneHalf, on, handle: handle ?? null };
   },
 
   /** Ids of entities carrying a box/circle collider — the collider-gizmo set. */
@@ -470,7 +474,7 @@ export const ViewportController = {
    */
   getColliderGizmo(
     id: EntityId,
-  ): { kind: 'box'; pts: Array<{ x: number; y: number }> } | { kind: 'circle'; cx: number; cy: number; r: number } | null {
+  ): { kind: 'box'; pts: Array<{ x: number; y: number }>; handle: { x: number; y: number } | null } | { kind: 'circle'; cx: number; cy: number; r: number; handle: { x: number; y: number } | null } | null {
     const world = EngineHost.world;
     if (!world || !world.valid(id) || !world.has(id, Transform)) return null;
     const t = world.get(id, Transform);
@@ -492,7 +496,8 @@ export const ViewportController = {
         this.worldToClient(wx, wy),
       );
       if (screen.some((p) => !p)) return null;
-      return { kind: 'box', pts: screen.map((p) => ({ x: p!.x, y: p!.y })) };
+      // Box halfExtents is a vec2 (corner handle) — a follow-up; no radius handle here.
+      return { kind: 'box', pts: screen.map((p) => ({ x: p!.x, y: p!.y })), handle: null };
     }
 
     const cc = world.get(id, CircleCollider) as { radius: number; offset: { x: number; y: number } };
@@ -500,7 +505,9 @@ export const ViewportController = {
     const center = this.worldToClient(c.x, c.y);
     const edge = this.worldToClient(c.x + cc.radius * ppu, c.y);
     if (!center || !edge) return null;
-    return { kind: 'circle', cx: center.x, cy: center.y, r: Math.hypot(edge.x - center.x, edge.y - center.y) };
+    // Radius handle at the top of the circle (drag = radius, in physics meters).
+    const handle = this.worldToClient(c.x, c.y + cc.radius * ppu);
+    return { kind: 'circle', cx: center.x, cy: center.y, r: Math.hypot(edge.x - center.x, edge.y - center.y), handle: handle ?? null };
   },
 
   /** Ids of entities carrying a ParticleEmitter — the emitter-gizmo set. */

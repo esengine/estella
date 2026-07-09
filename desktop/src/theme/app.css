@@ -754,6 +754,14 @@ body.thumb-capture .viewport__play-stop {
   stroke-dasharray: 4 3;
   stroke-linecap: round;
 }
+/* Draggable radius handle (Point/Spot) — write the light's radius on canvas. */
+.viewport__light-svg .lg-handle {
+  fill: currentColor;
+  stroke: #1a1a1a;
+  stroke-width: 1.5;
+  pointer-events: auto;
+  cursor: ew-resize;
+}
 
 /* Physics collider outline (box polygon / circle). The SVG spans the viewport;
    the rAF writes absolute canvas-relative px into the shape. */
@@ -772,6 +780,14 @@ body.thumb-capture .viewport__play-stop {
   stroke: #00dc82;
   stroke-width: 1.5;
   opacity: 0;
+}
+/* Draggable radius handle (circle collider) — write the radius (meters) on canvas. */
+.viewport__collider-gizmo .cl-handle {
+  fill: #00dc82;
+  stroke: #1a1a1a;
+  stroke-width: 1.5;
+  pointer-events: auto;
+  cursor: ew-resize;
 }
 
 /* Particle-emitter gizmo: a clickable icon at the emitter + its spawn-shape overlay.

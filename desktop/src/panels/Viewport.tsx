@@ -35,23 +35,27 @@ const toInput = (e: ReactPointerEvent): PointerInput => ({
   button: e.button, shift: e.shiftKey, alt: e.altKey,
 });
 
-// Drag an emitter gizmo's radius handle: convert the cursor to world space and write
-// shapeRadius through the SAME setField + begin/endGesture channel the Inspector uses
-// (one coalesced undo step, one source of truth). This is the reusable on-canvas-edit
-// shape — any gizmo handle can drive a component field the same way (light radius,
-// collider size are the natural next adopters).
-function startEmitterRadiusDrag(rt: number, e: ReactPointerEvent): void {
+// Drag a gizmo's radius handle: convert the cursor to world space and write a scalar
+// radius field through the SAME setField + begin/endGesture channel the Inspector uses
+// (one coalesced undo step, one source of truth). The reusable on-canvas-edit shape —
+// emitter shapeRadius, light radius, and circle-collider radius all drive their field
+// this way. `ppu` maps world distance to the field's units: 1 for world-space radii
+// (emitter/light), the collider's pixelsPerUnit for physics-meter radii. Measures from
+// the entity's world origin (exact when the shape has no local offset).
+function startRadiusHandleDrag(
+  rt: number, component: string, field: string, ppu: number, e: ReactPointerEvent,
+): void {
   if (e.button !== 0) return;
   const src = SceneModel.sourceFor(rt);
   const center = ViewportController.getEntityWorldXY(rt);
   if (src == null || !center) return;
   e.stopPropagation();
-  SceneCommands.beginGesture('Emitter radius');
+  SceneCommands.beginGesture(`${component} radius`);
   const onMove = (ev: PointerEvent) => {
     const w = ViewportController.canvasToWorld(ev.clientX, ev.clientY);
     if (!w) return;
-    const r = Math.max(0, Math.hypot(w.x - center.x, w.y - center.y));
-    SceneCommands.setField(src, 'ParticleEmitter', 'shapeRadius', 'number', r);
+    const r = Math.max(0, Math.hypot(w.x - center.x, w.y - center.y) / (ppu || 1));
+    SceneCommands.setField(src, component, field, 'number', r);
   };
   const onUp = () => {
     SceneCommands.endGesture();
@@ -565,6 +569,17 @@ export function Viewport() {
           if (poly) poly.style.opacity = '0';
           if (circ) circ.style.opacity = '0';
         }
+        // Circle-collider radius handle (box halfExtents is a vec2 — a follow-up).
+        const chnd = svg.querySelector('.cl-handle') as SVGCircleElement | null;
+        if (chnd) {
+          if (cg && cg.kind === 'circle' && cg.handle) {
+            chnd.setAttribute('cx', String(cg.handle.x));
+            chnd.setAttribute('cy', String(cg.handle.y));
+            chnd.style.display = '';
+          } else {
+            chnd.style.display = 'none';
+          }
+        }
       }
 
       // Light2D gizmos — icon at the light, dashed reach circle (Point/Spot), direction
@@ -608,6 +623,18 @@ export function Viewport() {
               line.style.opacity = '0.55';
             } else {
               line.style.opacity = '0';
+            }
+          }
+          // Radius drag-handle (Point/Spot). The wrapper is translated to the light,
+          // so place the handle at the reach edge in wrapper-local px.
+          const lhnd = wrap.querySelector('.lg-handle') as SVGCircleElement | null;
+          if (lhnd) {
+            if (lg.on && lg.handle) {
+              lhnd.setAttribute('cx', String(lg.handle.x - lg.cx));
+              lhnd.setAttribute('cy', String(lg.handle.y - lg.cy));
+              lhnd.style.display = '';
+            } else {
+              lhnd.style.display = 'none';
             }
           }
         } else {
@@ -921,6 +948,14 @@ export function Viewport() {
               <line className="lg-dir" x1="0" y1="0" x2="0" y2="0" />
               <line className="lg-cone1" x1="0" y1="0" x2="0" y2="0" />
               <line className="lg-cone2" x1="0" y1="0" x2="0" y2="0" />
+              <circle
+                className="lg-handle"
+                cx="0"
+                cy="0"
+                r="5"
+                style={{ display: 'none' }}
+                onPointerDown={(e) => startRadiusHandleDrag(id, 'Light2D', 'radius', 1, e)}
+              />
             </svg>
           </div>
         );
@@ -940,6 +975,14 @@ export function Viewport() {
         >
           <polygon className="cl-box" points="" />
           <circle className="cl-circle" cx="0" cy="0" r="0" />
+          <circle
+            className="cl-handle"
+            cx="0"
+            cy="0"
+            r="5"
+            style={{ display: 'none' }}
+            onPointerDown={(e) => startRadiusHandleDrag(id, 'CircleCollider', 'radius', ViewportController.colliderPixelsPerUnit(), e)}
+          />
         </svg>
       ))}
 
@@ -990,7 +1033,7 @@ export function Viewport() {
             cy="0"
             r="5"
             style={{ display: 'none' }}
-            onPointerDown={(e) => startEmitterRadiusDrag(id, e)}
+            onPointerDown={(e) => startRadiusHandleDrag(id, 'ParticleEmitter', 'shapeRadius', 1, e)}
           />
         </svg>
       ))}
