@@ -109,8 +109,8 @@ Query(Changed(Transform))  // written since the last run
 `Removed(C)` is its own query that yields entities that **lost** `C`:
 
 ```typescript
-import { defineSystem, Removed, Health } from 'esengine';
-defineSystem([Removed(Health)], (removed) => {
+import { defineSystem, Removed } from 'esengine';
+defineSystem([Removed(Health)], (removed) => {  // Health is your own component
   for (const entity of removed) { /* cleanup */ }
 });
 ```

@@ -99,8 +99,8 @@ Query(Changed(Transform))  // 上次运行后被写过
 `Removed(C)` 是它自己的查询,产出**丢失**了 `C` 的实体:
 
 ```typescript
-import { defineSystem, Removed, Health } from 'esengine';
-defineSystem([Removed(Health)], (removed) => {
+import { defineSystem, Removed } from 'esengine';
+defineSystem([Removed(Health)], (removed) => {  // Health 是你自己的组件
   for (const entity of removed) { /* 清理 */ }
 });
 ```
