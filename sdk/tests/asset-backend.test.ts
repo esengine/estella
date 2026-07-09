@@ -57,4 +57,14 @@ describe('EmbeddedBackend', () => {
     it('resolveUrl returns path as-is for missing assets', () => {
         expect(backend.resolveUrl('missing.txt')).toBe('missing.txt');
     });
+
+    // Regression: typed text/binary assets load via `fetchText(resolveUrl(ref))`
+    // (idempotent for HttpBackend). resolveUrl already returns the data URL here, so
+    // fetch must accept it instead of re-looking it up as a key — otherwise embedded
+    // tilemaps/materials fail in playable builds with "asset not found: data:...".
+    it('fetch is idempotent under resolveUrl (resolve-then-fetch)', async () => {
+        expect(await backend.fetchText(backend.resolveUrl('config.txt'))).toBe('hello world');
+        const bytes = new Uint8Array(await backend.fetchBinary(backend.resolveUrl('data.bin')));
+        expect(bytes).toEqual(new Uint8Array([1, 2, 3]));
+    });
 });

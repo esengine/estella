@@ -111,6 +111,14 @@ export class EmbeddedBackend implements Backend {
     }
 
     private getDataUrl(path: string): string {
+        // Accept an already-resolved data: URL, not only a map key. The asset loader
+        // fetches typed text/binary through `fetchText(resolveUrl(ref))` — idempotent
+        // for HttpBackend (resolveUrl of an absolute URL is a no-op). Here resolveUrl
+        // has already returned the data URL, so a second lookup keyed by that URL
+        // would miss and throw. Pass a data: URL straight through so resolve-then-fetch
+        // is idempotent for the embedded backend too (this is what broke embedded
+        // tilemap/material/tileset loading in playable builds).
+        if (path.startsWith('data:')) return path;
         const dataUrl = this.assets_.get(path);
         if (!dataUrl) {
             throw new Error(`EmbeddedBackend: asset not found: ${path}`);
