@@ -158,6 +158,7 @@ const api = {
   recents: {
     list: (): Promise<RecentEntry[]> => ipcRenderer.invoke('recents:list'),
     add: (root: string, name: string): Promise<void> => ipcRenderer.invoke('recents:add', root, name),
+    remove: (root: string): Promise<void> => ipcRenderer.invoke('recents:remove', root),
   },
 };
 

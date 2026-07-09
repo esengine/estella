@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, Clock, FolderOpen, LayoutGrid, Plus, Rows3, Search } from 'lucide-react';
+import { ArrowRight, Clock, FolderOpen, LayoutGrid, Plus, Rows3, Search, X } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { ProjectStore } from '@/project/ProjectStore';
 import { WindowControls } from '@/layout/WindowControls';
@@ -82,6 +82,12 @@ function RecentView({
     [recents, query],
   );
 
+  // Forget a project in the launcher only — the project on disk is untouched.
+  const onRemove = (root: string) => {
+    void window.estella?.recents?.remove?.(root).catch(() => {});
+    setRecents((rs) => rs.filter((r) => r.root !== root));
+  };
+
   return (
     <>
       <header className="lc-head">
@@ -131,7 +137,14 @@ function RecentView({
       ) : layout === 'grid' ? (
         <div className="proj-grid">
           {items.map((p) => (
-            <button key={p.root} type="button" className="proj-card" onClick={() => onOpen(p.root)}>
+            <div
+              key={p.root}
+              className="proj-card"
+              role="button"
+              tabIndex={0}
+              onClick={() => onOpen(p.root)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(p.root); } }}
+            >
               <Thumb label={p.name} src={p.thumbnail} />
               <div className="proj-card__body">
                 <span className="proj-card__name">{p.name}</span>
@@ -139,7 +152,16 @@ function RecentView({
                 <span className="proj-card__path mono">{p.root}</span>
               </div>
               {p.build && <span className="proj-card__build mono">{p.build}</span>}
-            </button>
+              <button
+                type="button"
+                className="proj-card__remove"
+                title="从最近列表移除"
+                aria-label="从最近列表移除"
+                onClick={(e) => { e.stopPropagation(); onRemove(p.root); }}
+              >
+                <X size={13} strokeWidth={2} />
+              </button>
+            </div>
           ))}
         </div>
       ) : (
@@ -150,14 +172,30 @@ function RecentView({
             <span>Build</span>
           </div>
           {items.map((p) => (
-            <button key={p.root} type="button" className="proj-row" onClick={() => onOpen(p.root)}>
+            <div
+              key={p.root}
+              className="proj-row"
+              role="button"
+              tabIndex={0}
+              onClick={() => onOpen(p.root)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(p.root); } }}
+            >
               <span className="proj-row__main">
                 <span className="proj-row__name">{p.name}</span>
                 <span className="proj-row__path mono">{p.root}</span>
               </span>
               <span className="proj-row__col mono">{relTime(p.openedAt)}</span>
               <span className="proj-row__col">{p.build && <span className="lc-badge mono">{p.build}</span>}</span>
-            </button>
+              <button
+                type="button"
+                className="proj-row__remove"
+                title="从最近列表移除"
+                aria-label="从最近列表移除"
+                onClick={(e) => { e.stopPropagation(); onRemove(p.root); }}
+              >
+                <X size={13} strokeWidth={2} />
+              </button>
+            </div>
           ))}
         </div>
       )}

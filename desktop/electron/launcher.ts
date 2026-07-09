@@ -78,6 +78,13 @@ export async function addRecent(root: string, name: string): Promise<void> {
   await writeFile(recentsFile(), JSON.stringify(stored.slice(0, MAX_RECENTS), null, 2));
 }
 
+/** Drop a project from the recents list. The project on disk is untouched — this
+ *  only forgets it in the launcher (the user's explicit "remove from recents"). */
+export async function removeRecent(root: string): Promise<void> {
+  const stored = (await readStored()).filter((r) => r.root !== root);
+  await writeFile(recentsFile(), JSON.stringify(stored, null, 2));
+}
+
 // New-project templates. In dev these are the in-repo examples (each is a real
 // project dir); a packaged build would point this at a bundled templates dir.
 const templatesDir = (): string => path.join(process.env.APP_ROOT ?? '', '..', 'examples');

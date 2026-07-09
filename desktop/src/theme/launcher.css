@@ -354,6 +354,30 @@
   color: var(--star-hi);
   border-color: var(--star-line);
 }
+/* Remove-from-recents — top-LEFT so it never collides with the build badge; shown
+   on hover/focus only, so the resting card stays clean. */
+.proj-card__remove {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 50%;
+  background: rgba(var(--glass-rgb), 0.72);
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s, color 0.12s, border-color 0.12s;
+  backdrop-filter: blur(2px);
+}
+.proj-card:hover .proj-card__remove,
+.proj-card:focus-within .proj-card__remove { opacity: 1; }
+.proj-card__remove:hover { color: var(--danger, #e5484d); border-color: var(--danger, #e5484d); }
 
 /* ----------------------------------------------------------- list view --- */
 .proj-list {
@@ -383,6 +407,7 @@
 .proj-row {
   /* A <button> won't stretch to its container even as a grid (Chromium quirk) —
      force full width so its columns line up with the (full-width) header. */
+  position: relative;
   width: 100%;
   padding: 10px 12px;
   border-bottom: 1px solid var(--line-soft);
@@ -395,6 +420,30 @@
   background: var(--hover);
   outline: none;
 }
+/* Remove-from-recents — absolutely placed so it doesn't add a 4th grid column
+   (the header has three); shown on hover/focus only. */
+.proj-row__remove {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: var(--r-xs);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s, color 0.12s, border-color 0.12s;
+}
+.proj-row:hover .proj-row__remove,
+.proj-row:focus-within .proj-row__remove { opacity: 1; }
+.proj-row__remove:hover { color: var(--danger, #e5484d); border-color: var(--danger, #e5484d); }
 /* Name over path, both left-aligned to the column edge — so every row's text
    starts at the same x and lines up under the "Project" header. */
 .proj-row__main {

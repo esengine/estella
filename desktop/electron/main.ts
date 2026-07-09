@@ -20,7 +20,7 @@ import {
   resolveInRoot,
   META_EXT,
 } from './projectFs';
-import { listRecents, addRecent, listTemplates, createFromTemplate } from './launcher';
+import { listRecents, addRecent, removeRecent, listTemplates, createFromTemplate } from './launcher';
 import { buildProjectScripts } from './buildScripts';
 import { extractProjectSchemas } from './extractSchemas';
 import { scanAssetDatabase } from './assetDb';
@@ -596,6 +596,7 @@ ipcMain.handle('project:preparePlayRealm', async () => {
 
 ipcMain.handle('recents:list', () => listRecents());
 ipcMain.handle('recents:add', (_e, root: string, name: string) => addRecent(root, name));
+ipcMain.handle('recents:remove', (_e, root: string) => removeRecent(root));
 
 // New-project templates + creation (launcher New tab).
 ipcMain.handle('templates:list', () => listTemplates());
