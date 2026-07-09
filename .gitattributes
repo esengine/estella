@@ -1,0 +1,4 @@
+# Generated API-surface snapshots are written with LF by tools/api-surface.mjs.
+# Pin the line ending so a CRLF checkout on Windows can't masquerade as API drift
+# and fail the CI api-surface guard on a Linux runner.
+sdk/etc/*.api.md text eol=lf
