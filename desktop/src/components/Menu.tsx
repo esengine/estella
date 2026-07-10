@@ -60,6 +60,42 @@ export function MenuItems({ items, onSelect }: { items: MenuItem[]; onSelect: ()
   );
 }
 
+/** Direct items of a menu container — nested submenu flyouts are their own
+ *  `[role="menu"]` containers with their own handler, so they're excluded. */
+function ownMenuItems(container: HTMLElement): HTMLButtonElement[] {
+  return [...container.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')].filter(
+    (el) => el.closest('[role="menu"]') === container,
+  );
+}
+
+/**
+ * Keyboard navigation for one menu container: ↑/↓ move (wrapping), Home/End
+ * jump, and a printable character jumps to the next item starting with it.
+ * Returns true when the key was handled (consumed + propagation stopped).
+ * Enter/Space activate natively — items are real buttons.
+ */
+export function handleMenuListKey(e: React.KeyboardEvent, container: HTMLElement | null): boolean {
+  if (!container) return false;
+  const items = ownMenuItems(container);
+  if (items.length === 0) return false;
+  const idx = items.indexOf(document.activeElement as HTMLButtonElement);
+  const focusAt = (i: number) => items[((i % items.length) + items.length) % items.length].focus();
+  if (e.key === 'ArrowDown') focusAt(idx + 1);
+  else if (e.key === 'ArrowUp') focusAt(idx < 0 ? -1 : idx - 1);
+  else if (e.key === 'Home') focusAt(0);
+  else if (e.key === 'End') focusAt(-1);
+  else if (e.key.length === 1 && e.key !== ' ' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    const q = e.key.toLowerCase();
+    const order = [...items.slice(idx + 1), ...items.slice(0, idx + 1)];
+    const hit = order.find((b) => (b.textContent ?? '').trim().toLowerCase().startsWith(q));
+    if (!hit) return false;
+    hit.focus();
+  } else return false;
+  e.preventDefault();
+  e.stopPropagation();
+  return true;
+}
+
 /** Margin kept between any floating menu and the window edge. */
 const VIEWPORT_PAD = 8;
 
@@ -101,6 +137,12 @@ export function ContextMenu({
     setPos(clampToViewport(x, y, r.width, r.height));
   }, [x, y]);
 
+  // Seed focus on the first item so arrow keys work immediately (a mouse-opened
+  // menu shows no ring — :focus-visible only matches keyboard focus).
+  useEffect(() => {
+    ref.current?.querySelector<HTMLButtonElement>('.ctx-item:not(:disabled)')?.focus();
+  }, []);
+
   useEffect(() => {
     const close = () => onClose();
     const onKey = (e: KeyboardEvent) => {
@@ -123,6 +165,7 @@ export function ContextMenu({
       role="menu"
       style={{ left: pos.left, top: pos.top }}
       onMouseDown={(e) => e.stopPropagation()}
+      onKeyDown={(e) => handleMenuListKey(e, ref.current)}
     >
       <CtxItems items={items} onClose={onClose} />
     </div>,
@@ -145,12 +188,36 @@ function CtxItems({ items, onClose }: { items: MenuItem[]; onClose: () => void }
             onMouseEnter={(e) => setOpen({ i, anchor: e.currentTarget })}
             onMouseLeave={() => setOpen((o) => (o?.i === i ? null : o))}
           >
-            <button type="button" role="menuitem" className="ctx-item" aria-haspopup="menu" disabled={it.disabled}>
+            <button
+              type="button"
+              role="menuitem"
+              className="ctx-item"
+              aria-haspopup="menu"
+              aria-expanded={open?.i === i}
+              disabled={it.disabled}
+              onKeyDown={(e) => {
+                if (e.key !== 'ArrowRight' && e.key !== 'Enter' && e.key !== ' ') return;
+                e.preventDefault();
+                e.stopPropagation();
+                setOpen({ i, anchor: e.currentTarget.parentElement as HTMLElement });
+              }}
+            >
               <span className="ci">{it.icon}</span>
               <span className="cl">{it.label}</span>
               <span className="ck"><ChevronRight size={12} /></span>
             </button>
-            {open?.i === i ? <CtxFlyout anchor={open.anchor} items={it.children} onClose={onClose} /> : null}
+            {open?.i === i ? (
+              <CtxFlyout
+                anchor={open.anchor}
+                items={it.children}
+                onClose={onClose}
+                onBack={() => {
+                  const item = open.anchor.querySelector<HTMLButtonElement>('.ctx-item');
+                  setOpen(null);
+                  item?.focus();
+                }}
+              />
+            ) : null}
           </div>
         ) : (
           <button
@@ -182,9 +249,25 @@ function CtxItems({ items, onClose }: { items: MenuItem[]; onClose: () => void }
  * clipped by the window. Stays a DOM child of `.ctx-sub` so the hover
  * open/close chain keeps working at any nesting depth.
  */
-function CtxFlyout({ anchor, items, onClose }: { anchor: HTMLElement; items: MenuItem[]; onClose: () => void }) {
+function CtxFlyout({
+  anchor,
+  items,
+  onClose,
+  onBack,
+}: {
+  anchor: HTMLElement;
+  items: MenuItem[];
+  onClose: () => void;
+  /** ← pressed inside the flyout: close it and refocus the parent item. */
+  onBack?: () => void;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ left: 0, top: 0 });
+
+  // A keyboard-opened flyout should be immediately navigable.
+  useEffect(() => {
+    ref.current?.querySelector<HTMLButtonElement>('.ctx-item:not(:disabled)')?.focus();
+  }, []);
 
   useLayoutEffect(() => {
     const el = ref.current;
@@ -200,7 +283,21 @@ function CtxFlyout({ anchor, items, onClose }: { anchor: HTMLElement; items: Men
   }, [anchor]);
 
   return (
-    <div ref={ref} className="ctx ctx-flyout" role="menu" style={{ left: pos.left, top: pos.top }}>
+    <div
+      ref={ref}
+      className="ctx ctx-flyout"
+      role="menu"
+      style={{ left: pos.left, top: pos.top }}
+      onKeyDown={(e) => {
+        if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          e.stopPropagation();
+          onBack?.();
+          return;
+        }
+        handleMenuListKey(e, ref.current);
+      }}
+    >
       <CtxItems items={items} onClose={onClose} />
     </div>
   );

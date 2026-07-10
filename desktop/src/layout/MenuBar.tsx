@@ -13,7 +13,7 @@ import { useEditorStore } from '@/store/editorStore';
 import { ProjectStore } from '@/project/ProjectStore';
 import { EditorHistory } from '@/engine/EditorHistory';
 import { Toasts } from '@/store/Toasts';
-import { MenuItems, type MenuItem } from '@/components/Menu';
+import { MenuItems, handleMenuListKey, type MenuItem } from '@/components/Menu';
 import { commands, formatKeybinding } from '@/commands';
 
 interface MenuDef {
@@ -37,6 +37,7 @@ function Mark() {
 export function MenuBar() {
   const [open, setOpen] = useState<string | null>(null);
   const barRef = useRef<HTMLDivElement>(null);
+  const btnRefs = useRef(new Map<string, HTMLButtonElement>());
 
   // Only the always-visible project label needs a live subscription. Menu items
   // are rebuilt from the command registry each time a menu opens (a re-render),
@@ -59,14 +60,18 @@ export function MenuBar() {
   };
   const openLauncher = () => useEditorStore.getState().openLauncher();
 
-  // Close the open menu on an outside click or Escape.
+  // Close the open menu on an outside click or Escape (Escape hands focus back
+  // to the menu's own button so keyboard flow continues at the menubar).
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
       if (barRef.current && !barRef.current.contains(e.target as Node)) setOpen(null);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(null);
+      if (e.key === 'Escape') {
+        setOpen(null);
+        btnRefs.current.get(open)?.focus();
+      }
     };
     window.addEventListener('mousedown', onDown);
     window.addEventListener('keydown', onKey);
@@ -195,10 +200,34 @@ export function MenuBar() {
       </div>
       <nav className="menus">
         {menus.map((m) => (
-          <div key={m.title} className="menubar__menu" style={{ position: 'relative', display: 'flex' }}>
+          <div
+            key={m.title}
+            className="menubar__menu"
+            style={{ position: 'relative', display: 'flex' }}
+            onKeyDown={(e) => {
+              if (open !== m.title) return;
+              // ←/→ walk the menubar while a menu is open; ↓/↑ and typeahead
+              // navigate the open dropdown (the shared menu-list handler).
+              if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+                e.preventDefault();
+                const i = menus.findIndex((mm) => mm.title === open);
+                const next = menus[(i + (e.key === 'ArrowRight' ? 1 : -1) + menus.length) % menus.length].title;
+                setOpen(next);
+                btnRefs.current.get(next)?.focus();
+                return;
+              }
+              handleMenuListKey(e, e.currentTarget.querySelector<HTMLElement>('.menu-dropdown'));
+            }}
+          >
             <button
+              ref={(el) => {
+                if (el) btnRefs.current.set(m.title, el);
+                else btnRefs.current.delete(m.title);
+              }}
               className={`menu${open === m.title ? ' is-open' : ''}`}
               type="button"
+              aria-haspopup="menu"
+              aria-expanded={open === m.title}
               onClick={() => setOpen((o) => (o === m.title ? null : m.title))}
               onMouseEnter={() => setOpen((o) => (o ? m.title : o))}
             >
