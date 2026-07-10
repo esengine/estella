@@ -63,6 +63,10 @@ function instantiateModule<T>(
 
 export interface WeChatRuntimeConfig {
     engineFactory: (opts: unknown) => Promise<ESEngineModule>;
+    /** Package-relative path of the engine wasm binary. The exporter stages the
+     *  runtime under wasm/ and knows which glue it shipped, so it passes the
+     *  glue's `.wasm` twin here; defaults to the canonical -t wechat layout. */
+    engineWasmPath?: string;
     sceneNames: string[];
     firstScene: string;
     runtimeConfig?: RuntimeBuildConfig;
@@ -116,7 +120,7 @@ export async function initWeChatRuntime(config: WeChatRuntimeConfig): Promise<vo
     canvas.width = info.windowWidth * info.pixelRatio;
     canvas.height = info.windowHeight * info.pixelRatio;
 
-    const module = await instantiateModule(config.engineFactory, 'esengine.wasm', { canvas });
+    const module = await instantiateModule(config.engineFactory, config.engineWasmPath ?? 'wasm/esengine.wxgame.wasm', { canvas });
 
     const gl = (canvas.getContext('webgl2') || canvas.getContext('webgl')) as WebGLRenderingContext | null;
     if (!gl) {

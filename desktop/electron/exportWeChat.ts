@@ -55,7 +55,7 @@ interface CookManifest {
 // so an unmapped type degrading to 'binary' is harmless.
 const ADDRESSABLE_TYPE: Record<string, string> = {
   texture: 'texture', material: 'material', audio: 'audio', 'bitmap-font': 'bitmap-font',
-  prefab: 'prefab', 'spine-atlas': 'spine', 'spine-skeleton': 'spine',
+  prefab: 'prefab', spine: 'spine',
   scene: 'json', 'anim-clip': 'json', tilemap: 'json', timeline: 'json', json: 'json', shader: 'text',
 };
 const addrType = (editorType: string): string => ADDRESSABLE_TYPE[editorType] ?? 'binary';
@@ -122,33 +122,40 @@ bundle.boot(engineFactory, sideModuleFactories);
 `;
 }
 
-/** Mirror the runtime's physics/spine gating: which optional modules the scene
- *  needs, and which are actually present in the wechat wasm dir (the rest warn). */
+/** The export-time mirror of the runtime's physics/spine self-gating: which
+ *  optional modules the scene needs. A needed module absent from the wechat
+ *  wasm dir is a HARD error — the package would otherwise ship silently broken
+ *  (same contract as the playable exporter's collectSideModules). */
 async function scanWeChatSideModules(
   sceneData: unknown,
   cookEntries: CookManifest['entries'],
   absOut: string,
   wasmDir: string,
-  warnings: string[],
+  errors: string[],
 ): Promise<Array<{ id: string; file: string }>> {
   const ids = new Set<string>();
   if (sceneData && sceneUsesPhysics(sceneData as Parameters<typeof sceneUsesPhysics>[0])) ids.add('physics');
+  // Spine: the skeleton carries the version. Skeleton + atlas share the authored
+  // meta type `spine`, so discriminate by extension — `.skel` is a binary
+  // skeleton, `.json` a JSON one; the `.atlas` sibling is not a skeleton.
   for (const e of cookEntries) {
+    if (e.type !== 'spine') continue;
+    const ext = path.extname(e.sourcePath ?? e.path).toLowerCase();
     try {
-      if (e.type === 'spine-skeleton') {
-        const v = detectSpineVersion(new Uint8Array(await readFile(path.join(absOut, e.path))));
-        if (v) ids.add(spineModuleId(v));
-      } else if (e.path.toLowerCase().endsWith('.json')) {
-        const v = detectSpineVersionJson(await readFile(path.join(absOut, e.path), 'utf8'));
-        if (v) ids.add(spineModuleId(v));
+      let v: ReturnType<typeof detectSpineVersionJson> = null;
+      if (ext === '.skel') {
+        v = detectSpineVersion(new Uint8Array(await readFile(path.join(absOut, e.path))));
+      } else if (ext === '.json') {
+        v = detectSpineVersionJson(await readFile(path.join(absOut, e.path), 'utf8'));
       }
-    } catch { /* unreadable cook entry — skip */ }
+      if (v) ids.add(spineModuleId(v));
+    } catch { /* unreadable cook entry — cookAssets already warned; skip */ }
   }
   const present: Array<{ id: string; file: string }> = [];
   for (const id of ids) {
     const file = SIDE_MODULE_FILE[id];
     if (file && existsSync(path.join(wasmDir, `${file}.js`))) present.push({ id, file });
-    else warnings.push(`scene needs "${id}" but ${file}.js is not in the wechat wasm dir — ${id} will be absent (provide a WeChat-targeted ${file} build).`);
+    else errors.push(`scene needs "${id}" but ${file}.js is not in the wechat wasm dir — build it with \`node build-tools/cli.js build -t ${id === 'physics' ? 'physics-wechat' : 'spine-wechat'}\` and re-export.`);
   }
   return present;
 }
@@ -251,9 +258,18 @@ export async function exportWeChat(opts: {
 
   await mkdir(absOut, { recursive: true });
 
+  // KTX2 decode needs the Basis transcoder side module, which has no WeChat
+  // (WXWebAssembly) build yet — cooked .ktx2 textures could never load. Degrade
+  // to uncompressed textures visibly instead of shipping an undecodable pack.
+  let compressTextures = opts.compressTextures;
+  if (compressTextures) {
+    compressTextures = false;
+    warnings.push('compressTextures: the Basis KTX2 transcoder has no WeChat build yet — textures export uncompressed.');
+  }
+
   // 1. Cook reachable assets (paths preserved) + the flat manifest.
   progress({ phase: 'Cooking assets' });
-  const cook = await cookAssets(opts.root, { entryScenes: [opts.entryScene], outDir: absOut, contentAddressed: opts.contentAddressed, compressTextures: opts.compressTextures, atlasTextures: opts.atlasTextures });
+  const cook = await cookAssets(opts.root, { entryScenes: [opts.entryScene], outDir: absOut, contentAddressed: opts.contentAddressed, compressTextures, atlasTextures: opts.atlasTextures });
   warnings.push(...cook.warnings);
 
   // 1b. Scan the scene for the optional modules it needs (physics/spine), so the
@@ -267,7 +283,7 @@ export async function exportWeChat(opts: {
   try {
     sceneRaw = JSON.parse(await readFile(path.join(absOut, opts.entryScene), 'utf8'));
   } catch { /* surfaces in step 3 */ }
-  const sideModules = await scanWeChatSideModules(sceneRaw, cookEntries, absOut, opts.wasmDir, warnings);
+  const sideModules = await scanWeChatSideModules(sceneRaw, cookEntries, absOut, opts.wasmDir, errors);
 
   // 2. Flat manifest → AddressableManifest (asset-manifest.json); drop the web one.
   progress({ phase: 'Building manifest' });
@@ -292,11 +308,15 @@ export async function exportWeChat(opts: {
   // 4. game-bundle.js — wechat SDK (esengine aliased) + project scripts + boot(),
   //    one esengine instance so the project's defineComponent/defineSystem run.
   const scriptsAbs = opts.scriptsEntry ? path.join(opts.root, opts.scriptsEntry) : null;
+  // The engine wasm path rides into the boot config: only the exporter knows
+  // which glue it staged (esengine.wxgame vs the web-aligned esengine), and the
+  // runtime must instantiate the staged glue's .wasm twin, not guess a name.
+  const engineWasmPath = `wasm/${engineGlueFile.replace(/\.js$/, '.wasm')}`;
   const entrySrc =
     `import { initWeChatRuntime } from 'esengine';\n` +
     (scriptsAbs && existsSync(scriptsAbs) ? `import ${JSON.stringify(scriptsAbs)};\n` : '') +
     `export function boot(engineFactory, sideModuleFactories) {\n` +
-    `  return initWeChatRuntime({ engineFactory, sideModuleFactories, sceneNames: ${JSON.stringify([sceneName])}, firstScene: ${JSON.stringify(sceneName)}${opts.ySortLayers ? `, ySortLayers: ${opts.ySortLayers >>> 0}` : ''} });\n` +
+    `  return initWeChatRuntime({ engineFactory, engineWasmPath: ${JSON.stringify(engineWasmPath)}, sideModuleFactories, sceneNames: ${JSON.stringify([sceneName])}, firstScene: ${JSON.stringify(sceneName)}${opts.ySortLayers ? `, ySortLayers: ${opts.ySortLayers >>> 0}` : ''} });\n` +
     `}\n`;
   progress({ phase: 'Bundling game' });
   try {

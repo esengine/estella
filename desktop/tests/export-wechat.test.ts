@@ -89,6 +89,9 @@ describe('exportGame (wechat)', () => {
     const entry = readFileSync(path.join(out, 'game.js'), 'utf8');
     expect(entry).toContain("require('./game-bundle.js')");
     expect(entry).toContain("require('./wasm/esengine.js')");
+    // The boot config names the staged glue's .wasm twin — WXWebAssembly
+    // instantiates by package-relative path, so the runtime must not guess.
+    expect(bundle).toContain('wasm/esengine.wasm');
 
     // Config + runtime copy.
     const pcfg = JSON.parse(readFileSync(path.join(out, 'project.config.json'), 'utf8'));
@@ -130,6 +133,7 @@ describe('exportGame (wechat)', () => {
     });
     expect(res.ok).toBe(true);
     expect(readFileSync(path.join(outWx, 'game.js'), 'utf8')).toContain("require('./wasm/esengine.wxgame.js')");
+    expect(readFileSync(path.join(outWx, 'game-bundle.js'), 'utf8')).toContain('wasm/esengine.wxgame.wasm');
     expect(existsSync(path.join(outWx, 'wasm', 'esengine.wxgame.wasm'))).toBe(true);
     expect(existsSync(path.join(outWx, 'wasm', 'physics.js'))).toBe(false);
     expect(existsSync(path.join(outWx, 'wasm', 'physics.wasm'))).toBe(false);
@@ -151,6 +155,78 @@ describe('exportGame (wechat)', () => {
     expect(res.errors[0]).toContain('build -t wechat');
     // Failed before cooking — no half-assembled package left behind.
     expect(existsSync(outMissing)).toBe(false);
+  }, 60_000);
+
+  it('detects a spine skeleton (authored meta type "spine") and ships exactly its module', async () => {
+    const SPINE = 'dddddddd-dddd-dddd-dddd-dddddddddddd';
+    const SPINESCN = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
+    writeFileSync(path.join(root, 'assets', 'boy.json'), JSON.stringify({ skeleton: { spine: '4.2.22' } }));
+    writeFileSync(path.join(root, 'assets', 'boy.json.meta'), meta(SPINE, 'spine'));
+    writeFileSync(
+      path.join(root, 'scenes', 'spine.esscene'),
+      JSON.stringify({ version: '1.0', name: 'Spine', entities: [{ id: 0, components: [{ type: 'SpineSkeleton', data: { skeleton: `@uuid:${SPINE}` } }] }] }),
+    );
+    writeFileSync(path.join(root, 'scenes', 'spine.esscene.meta'), meta(SPINESCN, 'scene'));
+    const wxDir = path.join(root, '_wxwasm-spine');
+    mkdirSync(wxDir, { recursive: true });
+    writeFileSync(path.join(wxDir, 'esengine.js'), 'module.exports = () => Promise.resolve({});');
+    writeFileSync(path.join(wxDir, 'esengine.wasm'), 'wasmbytes');
+    writeFileSync(path.join(wxDir, 'spine42.js'), 'module.exports = () => {};');
+    writeFileSync(path.join(wxDir, 'spine42.wasm'), 'wasmbytes');
+
+    const outSpine = path.join(root, 'dist-wechat-spine');
+    const res = await exportGame({
+      root,
+      entryScene: 'scenes/spine.esscene',
+      gameHostEntry: 'unused-for-wechat',
+      scriptsEntry: 'src/main.ts',
+      sdkDistDir: path.join(root, '_sdk'),
+      wasmDir: wxDir,
+      outDir: outSpine,
+      platform: 'wechat',
+    });
+    expect(res.ok).toBe(true);
+    const entry = readFileSync(path.join(outSpine, 'game.js'), 'utf8');
+    expect(entry).toContain("\"spine:4.2\": asFactory(require('./wasm/spine42.js'))");
+    expect(existsSync(path.join(outSpine, 'wasm', 'spine42.wasm'))).toBe(true);
+    // The manifest keeps the real addressable type, not a 'binary' downgrade.
+    const manifest = JSON.parse(readFileSync(path.join(outSpine, 'asset-manifest.json'), 'utf8'));
+    expect(manifest.groups.main.assets[SPINE].type).toBe('spine');
+  }, 60_000);
+
+  it('a needed spine module missing from the runtime dir fails the export', async () => {
+    const outBroken = path.join(root, 'dist-wechat-spine-missing');
+    const res = await exportGame({
+      root,
+      entryScene: 'scenes/spine.esscene',
+      gameHostEntry: 'unused-for-wechat',
+      scriptsEntry: 'src/main.ts',
+      sdkDistDir: path.join(root, '_sdk'),
+      wasmDir: path.join(root, '_wxwasm'), // engine only — no spine42
+      outDir: outBroken,
+      platform: 'wechat',
+    });
+    expect(res.ok).toBe(false);
+    expect(res.errors.some((e) => e.includes('spine-wechat'))).toBe(true);
+  }, 60_000);
+
+  it('degrades compressTextures to PNG with a warning (no WeChat Basis build)', async () => {
+    const outCt = path.join(root, 'dist-wechat-ct');
+    const res = await exportGame({
+      root,
+      entryScene: 'scenes/main.esscene',
+      gameHostEntry: 'unused-for-wechat',
+      scriptsEntry: 'src/main.ts',
+      sdkDistDir: path.join(root, '_sdk'),
+      wasmDir: path.join(root, '_wxwasm'),
+      outDir: outCt,
+      platform: 'wechat',
+      compressTextures: true,
+    });
+    expect(res.ok).toBe(true);
+    expect(res.warnings.some((w) => w.includes('Basis'))).toBe(true);
+    const manifest = JSON.parse(readFileSync(path.join(outCt, 'asset-manifest.json'), 'utf8'));
+    expect(manifest.groups.main.assets[TEX].path).toMatch(/\.png$/); // not .ktx2
   }, 60_000);
 
   it('content-addressed export carries the logical path as the asset address', async () => {

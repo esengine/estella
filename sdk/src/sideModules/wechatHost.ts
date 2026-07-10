@@ -19,7 +19,9 @@ export function createWeChatSideModuleHost(factories: WeChatSideModuleFactories)
     return createSideModuleHost(async (descriptor, id) => {
         const factory = factories[id];
         if (!factory) throw new Error(`side module "${id}" (${descriptor.file}) has no WeChat factory`);
-        return instantiateViaPlatform(factory, `${descriptor.file}.wasm`);
+        // The exporter stages every runtime artifact under wasm/ — same registry,
+        // same layout, so the binary sits beside the glue game.js require()'d.
+        return instantiateViaPlatform(factory, `wasm/${descriptor.file}.wasm`);
     });
 }
 
