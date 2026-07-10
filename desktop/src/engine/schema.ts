@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { getAllRegisteredComponents, getUserComponents, getComponent, getComponentAssetFieldDescriptors, getComponentFieldMeta, Light2DType } from 'esengine';
+import { getAllRegisteredComponents, getUserComponents, getComponent, getComponentAssetFieldDescriptors, getComponentSpineFieldDescriptor, getComponentFieldMeta, Light2DType } from 'esengine';
 import type { App, SceneData } from 'esengine';
 import type { NodeKind, InspectorField, EnumOption, GradientValue, CurveValue } from '@/types';
 
@@ -265,6 +265,23 @@ export function assetFieldType(compType: string, key: string): string | null {
   return null;
 }
 
+/**
+ * The spine slot a component field holds, or null. Spine skeleton/atlas are
+ * PATH-VALUED asset refs: the component def carries them as a compound spine
+ * descriptor (the pair loads together through the SpineManager), not as
+ * handle-valued assetFields — so the World keeps the string and the Reconciler
+ * must never handle-resolve them. The slot names match the SDK's
+ * EditorAssetType spellings, which is what the asset picker filters on.
+ */
+export type SpineSlotType = 'spine-skeleton' | 'spine-atlas';
+export function spineSlotType(compType: string, key: string): SpineSlotType | null {
+  const d = getComponentSpineFieldDescriptor(compType);
+  if (!d) return null;
+  if (key === d.skeletonField) return 'spine-skeleton';
+  if (key === d.atlasField) return 'spine-atlas';
+  return null;
+}
+
 /** Keyframeable field paths of a component — builtin via the engine registry, user
  *  components via their serialized schema (so both are first-class Sequencer tracks). */
 export function animatableFieldsFor(compType: string): readonly string[] {
@@ -371,7 +388,7 @@ function fieldFor(
   isColor: boolean,
 ): InspectorField | null {
   const meta = fieldMetaFor(compType, key);
-  const at = assetFieldType(compType, key);
+  const at = assetFieldType(compType, key) ?? spineSlotType(compType, key);
   let field: InspectorField | null;
   if (at) {
     field = { key, label: prettyLabel(key), type: 'asset', value: typeof value === 'string' ? value : 0, assetType: at };

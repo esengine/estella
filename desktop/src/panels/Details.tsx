@@ -675,6 +675,9 @@ export function AssetControl({
   const pop = usePopover();
   const [q, setQ] = useState('');
   const info = ProjectStore.assetInfo(value);
+  // Handle-valued slots clear to 0; path-valued slots (spine skeleton/atlas)
+  // are string component fields, so "no asset" is the empty string.
+  const empty = assetType === 'spine-skeleton' || assetType === 'spine-atlas' ? '' : 0;
 
   const setRefFromPath = (path: string) => {
     onBegin?.();
@@ -747,7 +750,7 @@ export function AssetControl({
           title="Clear"
           onClick={() => {
             onBegin?.();
-            onChange(0);
+            onChange(empty);
             onEnd?.();
           }}
         >
@@ -758,7 +761,7 @@ export function AssetControl({
         <Popover anchor={pop.anchor} width={Math.max(pop.anchor.width, 240)} onClose={close}>
           <SearchField flush className="dd-search" iconSize={12} autoFocus placeholder="Search assets" value={q} onChange={setQ} />
           <div className="asset-grid">
-            <button type="button" className={`asset-opt${value === 0 || !info ? ' on' : ''}`} onClick={() => pick(0)}>
+            <button type="button" className={`asset-opt${!info ? ' on' : ''}`} onClick={() => pick(empty)}>
               <span className="th">
                 <X size={13} strokeWidth={2} />
               </span>

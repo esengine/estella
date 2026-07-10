@@ -17,6 +17,7 @@ import {
 } from 'esengine';
 import type { App, ESEngineModule, ResourceDef, SubsystemStatus, SceneData } from 'esengine';
 import { SpinePlugin } from 'esengine/spine';
+import type { SpineManager } from 'esengine/spine';
 import { SceneLoader } from './SceneLoader';
 import { useSettings } from '@/store/settingsStore';
 import { loadEditorSpine } from './spineLoad';
@@ -101,6 +102,10 @@ class EngineHostImpl {
   setTargetFrameRate(fps: number): void {
     this.targetFps_ = fps;
     this.app_?.setTargetFrameRate(fps);
+  }
+  /** The viewport's SpineManager (per-entity spine bindings); null until booted. */
+  get spineManager(): SpineManager | null {
+    return this.app_?.getPlugin(SpinePlugin)?.spineManager ?? null;
   }
   /** Animation names of a spine entity's loaded skeleton (for the inspector dropdown); empty if none. */
   spineAnimations(runtimeId: number): string[] {
@@ -342,8 +347,9 @@ class EngineHostImpl {
     sceneData: SceneData,
     entityMap: Map<number, number>,
     toUrl: (ref: string) => string,
+    resolvePath?: (ref: string) => string,
   ): Promise<void> {
-    if (this.app_) await loadEditorSpine(this.app_, sceneData, entityMap, toUrl);
+    if (this.app_) await loadEditorSpine(this.app_, sceneData, entityMap, toUrl, resolvePath);
   }
 
   private resize() {

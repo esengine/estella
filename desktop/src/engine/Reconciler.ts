@@ -6,7 +6,7 @@ import type { EntityId } from '@/types';
 import { EngineHost } from './EngineHost';
 import { PerfMonitor } from './PerfMonitor';
 import { SceneModel, SceneModelImpl, type ModelEvent } from './SceneModel';
-import { assetFieldType, componentByName, componentDefaults, isRenderComponent, componentEnable, type AnyComp, type WorldT } from './schema';
+import { assetFieldType, spineSlotType, componentByName, componentDefaults, isRenderComponent, componentEnable, type AnyComp, type WorldT } from './schema';
 
 /**
  * Projects the model into the World.
@@ -70,9 +70,14 @@ function foldHidden(c: SceneComp): SceneComp {
 type AssetResolver = (ref: string) => number;
 const UNRESOLVED: AssetResolver = () => 0;
 
+/** Asset ref (`@uuid:<id>`) → project-relative path, null when unknown. */
+type RefPathResolver = (ref: string) => string | null;
+const UNRESOLVED_PATH: RefPathResolver = () => null;
+
 export class ReconcilerImpl {
   private unsubscribe: (() => void) | null = null;
   private resolveAsset: AssetResolver = UNRESOLVED;
+  private resolveRefPath: RefPathResolver = UNRESOLVED_PATH;
 
   constructor(private readonly model: SceneModelImpl) {}
 
@@ -99,6 +104,16 @@ export class ReconcilerImpl {
   }
 
   /**
+   * Install the `@uuid:` → project-path resolver for PATH-VALUED asset slots
+   * (spine skeleton/atlas). Those fields stay strings in the World — the spine
+   * loaders fetch the pair themselves — so their refs resolve to a path, never
+   * a handle. Installed alongside {@link setAssetResolver} by ProjectStore.
+   */
+  setRefPathResolver(fn: RefPathResolver | null): void {
+    this.resolveRefPath = fn ?? UNRESOLVED_PATH;
+  }
+
+  /**
    * Bulk path (boot / project load / play-stop): build the World from a resolved
    * scene and adopt the raw scene as the model. `resetWorldTo` returns source-id
    * → runtime; this.model.adopt records the map and announces a `reset`. This
@@ -107,7 +122,10 @@ export class ReconcilerImpl {
   adopt(rawData: SceneData, resolvedData: SceneData): void {
     const world = EngineHost.mutableWorld();
     if (!world) return;
-    const map = resetWorldTo(world, worldProjection(resolvedData) as never) as Map<number, EntityId>;
+    // The SDK scene resolver leaves the compound spine pair alone (it loads
+    // through the SpineManager, not a typed handle loader) — resolveSceneRefs
+    // turns those `@uuid:` refs into project paths for the World here.
+    const map = resetWorldTo(world, worldProjection(this.resolveSceneRefs(resolvedData)) as never) as Map<number, EntityId>;
     this.model.adopt(rawData, map);
   }
 
@@ -122,8 +140,7 @@ export class ReconcilerImpl {
     const data = this.model.current;
     if (!world || !data) return;
     PerfMonitor.measure('world.rebuild', () => {
-      const resolved = this.resolveRefs(data) as SceneData;
-      this.resolveAssetFields(resolved);
+      const resolved = this.resolveSceneRefs(data);
       const map = resetWorldTo(world, worldProjection(resolved) as never) as Map<number, EntityId>;
       this.model.adopt(data, map);
     });
@@ -266,23 +283,46 @@ export class ReconcilerImpl {
         out[key] = defaults[key];
         continue;
       }
-      const v = data[key];
-      out[key] = typeof v === 'string' && assetFieldType(type, key) ? this.resolveAsset(v) : this.resolveRefs(v);
+      out[key] = this.resolveFieldValue(type, key, data[key]);
     }
     return out;
   }
 
-  /** Resolve plain-path asset-field refs left after the `@uuid:` pass (rebuild path). */
-  private resolveAssetFields(data: SceneData): void {
-    for (const e of data.entities) {
-      for (const c of e.components ?? []) {
-        const d = c.data as Record<string, unknown> | undefined;
-        if (!d) continue;
-        for (const [k, v] of Object.entries(d)) {
-          if (typeof v === 'string' && assetFieldType(c.type, k)) d[k] = this.resolveAsset(v);
-        }
-      }
+  /**
+   * Resolve one component field for the World, by what the field IS: asset
+   * slots → live handles (`@uuid:` or a plain path), spine slots → project
+   * paths (they stay strings — the spine loaders fetch the pair themselves),
+   * anything else deep-resolves stray `@uuid:` strings to handles.
+   */
+  private resolveFieldValue(type: string, key: string, v: unknown): unknown {
+    if (typeof v === 'string') {
+      if (spineSlotType(type, key)) return this.resolveSpineRef(v);
+      if (assetFieldType(type, key)) return this.resolveAsset(v);
     }
+    return this.resolveRefs(v);
+  }
+
+  private resolveSpineRef(ref: string): string {
+    if (!ref.startsWith(UUID_PREFIX)) return ref;
+    return this.resolveRefPath(ref) ?? ref;
+  }
+
+  /** Clone the scene with every component field resolved via {@link resolveFieldValue}
+   *  (both bulk paths — adopt and rebuild — project through this). */
+  private resolveSceneRefs(data: SceneData): SceneData {
+    return {
+      ...data,
+      entities: (data.entities ?? []).map((e) => ({
+        ...e,
+        components: (e.components ?? []).map((c) => {
+          const d = c.data as Record<string, unknown> | undefined;
+          if (!d) return c;
+          const out: Record<string, unknown> = {};
+          for (const [k, v] of Object.entries(d)) out[k] = this.resolveFieldValue(c.type, k, v);
+          return { ...c, data: out };
+        }),
+      })),
+    } as SceneData;
   }
 
   /** Recursively replace `@uuid:<id>` strings with resolved asset handles. */

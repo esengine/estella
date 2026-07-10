@@ -44,6 +44,11 @@ export class SceneStoreImpl {
   subscribe = (fn: () => void): (() => void) => this.store.subscribe(fn);
   getRevision = (): number => this.store.getState().revision;
   getStructureRevision = (): number => this.store.getState().structureRevision;
+
+  /** Derived-from-runtime state changed without a model event (e.g. a spine
+   *  skeleton finished loading, so the inspector's animation/skin options
+   *  exist now) — bump the data revision so panels re-read. */
+  poke = (): void => this.bump(false);
 }
 
 /** A change affects the tree (shape / name / kind / add-menu), not just a field value. */

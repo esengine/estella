@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { createStore } from 'zustand/vanilla';
-import { getComponent, Assets, migratePrefabData, extractPrefab, diffAgainstSource, applyOverridesToSource, setTextureParams, TextureFilter, TextureWrap, Renderer } from 'esengine';
+import { getComponent, getEditorType, Assets, migratePrefabData, extractPrefab, diffAgainstSource, applyOverridesToSource, setTextureParams, TextureFilter, TextureWrap, Renderer } from 'esengine';
 import { readTextureImportSettings } from './assetImporter';
 import type { SceneData, PrefabData, ExtractEntity, ProcessedEntity, PhysicsPluginConfig } from 'esengine';
 import { EngineHost } from '@/engine/EngineHost';
@@ -13,6 +13,7 @@ import { expandScenePrefabs, collapseScenePrefabs } from '@/engine/PrefabInstanc
 import { SceneCommands } from '@/engine/SceneCommands';
 import { setPrefabBaseResolver } from '@/engine/SceneQuery';
 import { setUserSchemas, userSchema, setBitmaskSource, setEnumSource, type UserComponentSchema } from '@/engine/schema';
+import { installSpineSync, type SpineTransport } from '@/engine/spineSync';
 import { useSelection } from '@/store/selectionStore';
 import { Toasts } from '@/store/Toasts';
 import { confirmDiscard } from './discardGuard';
@@ -31,10 +32,14 @@ function normalizeLayerMasks(masks?: number[]): number[] {
 }
 
 /** Whether an asset of the editor `type` is a valid pick for a `fieldType` slot. */
-function assetMatchesSlot(type: AssetType, fieldType?: string): boolean {
+function assetMatchesSlot(type: AssetType, path: string, fieldType?: string): boolean {
   if (!fieldType) return true;
   // A 'texture' slot accepts any image (texture or sprite); others match by name.
   if (fieldType === 'texture') return type === 'texture' || type === 'sprite';
+  // Spine slots discriminate the shared 'spine' Content-Browser type by
+  // extension, through the SDK's own classification (.skel vs .atlas) — the
+  // same vocabulary the cook's dep scan uses.
+  if (fieldType === 'spine-skeleton' || fieldType === 'spine-atlas') return getEditorType(path) === fieldType;
   return type === fieldType;
 }
 
@@ -315,29 +320,17 @@ class ProjectStoreImpl {
     EditorHistory.clear();
     useSelection.getState().select(null);
     // Incremental recreate (duplicate / undo / play-stop) re-resolves @uuid:→handle
-    // from the same preload result — for all types, not just textures.
+    // from the same preload result — for all types, not just textures. Spine
+    // slots resolve to project paths instead (they stay strings in the World).
     Reconciler.setAssetResolver((ref) => this.handleForRef(ref));
+    Reconciler.setRefPathResolver((ref) => this.resolveRef(ref));
+    // Spine bindings (skeleton/atlas/pages → SpineManager) are a live projection
+    // of the model, driven by model events: adopt's `reset` performs the initial
+    // bind, and later ref/field edits keep the viewport true (see spineSync).
+    installSpineSync(this.spineTransport());
     Reconciler.adopt(expandedRaw, resolved);
     // Re-apply prefab-instance tags (adopt cleared them) so save can collapse.
     for (const { id, tag } of tags) SceneModel.setPrefabTag(id, tag);
-
-    // Bind spine entities' skeletons/atlas/textures into the SpineManager so spine
-    // renders in the viewport (the World holds the SpineAnimation components, but
-    // spine assets load separately from Assets via side modules). The
-    // entityMap is the Reconciler's source→runtime binding; refs resolve through
-    // the project's estella:// transport.
-    const spineMap = new Map<number, number>();
-    for (const e of expandedRaw.entities) {
-      const id = (e as { id?: number }).id;
-      if (id === undefined) continue;
-      const rt = SceneModel.runtimeFor(id);
-      if (rt !== undefined) spineMap.set(id, rt as number);
-    }
-    await EngineHost.loadSpine(expandedRaw, spineMap, (ref) =>
-      ref.startsWith('@uuid:')
-        ? `estella://project/${this.resolveRef(ref) ?? ''}`
-        : `estella://project/${ref.replace(/^\//, '')}`,
-    );
 
     EngineHost.syncEditorViewToScene();
     this.store.setState({ project: { ...st, currentScene: rel } });
@@ -380,6 +373,8 @@ class ProjectStoreImpl {
     EditorHistory.clear();
     useSelection.getState().select(null);
     Reconciler.setAssetResolver((ref) => this.handleForRef(ref));
+    Reconciler.setRefPathResolver((ref) => this.resolveRef(ref));
+    installSpineSync(this.spineTransport());
     Reconciler.adopt(blank, blank); // no @uuid: refs → resolved === raw
     EngineHost.syncEditorViewToScene();
     this.store.setState({ project: { ...st, currentScene: null } });
@@ -467,6 +462,18 @@ class ProjectStoreImpl {
     const uuid = refUuid(ref);
     if (uuid === null) return ref;
     return this.uuidToPath.get(uuid) ?? null;
+  }
+
+  /** The project transport spine assets load over: ref → `estella://` URL for
+   *  fetches, `@uuid:` ref → project path for atlas-dir derivation. */
+  private spineTransport(): SpineTransport {
+    return {
+      toUrl: (ref) =>
+        ref.startsWith(UUID_PREFIX)
+          ? `estella://project/${this.resolveRef(ref) ?? ''}`
+          : `estella://project/${ref.replace(/^\//, '')}`,
+      resolvePath: (ref) => this.resolveRef(ref) ?? ref,
+    };
   }
 
   /** The live GL handle for a uuid. Textures read the engine's live cache (so a
@@ -924,7 +931,7 @@ class ProjectStoreImpl {
     for (const [uuid, path] of this.uuidToPath) {
       const name = path.split('/').pop() ?? path;
       const type = assetTypeOf(name);
-      if (!assetMatchesSlot(type, fieldType)) continue;
+      if (!assetMatchesSlot(type, path, fieldType)) continue;
       out.push({ ref: UUID_PREFIX + uuid, path, name, type });
     }
     return out.sort((a, b) => a.name.localeCompare(b.name));
@@ -941,6 +948,9 @@ class ProjectStoreImpl {
     const uuid = this.pathToUuid.get(path);
     if (!uuid) return null;
     const ref = UUID_PREFIX + uuid;
+    // Spine slots are path-valued: nothing to preload here — the spine binding
+    // (skeleton + atlas + pages) loads as a pair when the component syncs.
+    if (assetType === 'spine-skeleton' || assetType === 'spine-atlas') return ref;
     const assets = EngineHost.getResource(Assets);
     if (assets) {
       try {

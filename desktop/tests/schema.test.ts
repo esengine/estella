@@ -6,7 +6,7 @@
  *        the JSON-first rewrite (REARCH_SERIALIZATION.md) will lean on.
  */
 import { describe, it, expect } from 'vitest';
-import { prettyLabel, hexToRgba, angleZToQuat, inferField } from '@/engine/schema';
+import { prettyLabel, hexToRgba, angleZToQuat, inferField, assetFieldType, spineSlotType } from '@/engine/schema';
 
 describe('prettyLabel', () => {
     it('splits camelCase and capitalizes', () => {
@@ -70,5 +70,21 @@ describe('inferField', () => {
     });
     it('returns null for an unknown shape', () => {
         expect(inferField('weird', { foo: 1 }, false)).toBeNull();
+    });
+});
+
+describe('spineSlotType', () => {
+    it('maps the component def\'s compound spine descriptor to skeleton/atlas slots', () => {
+        expect(spineSlotType('SpineAnimation', 'skeletonPath')).toBe('spine-skeleton');
+        expect(spineSlotType('SpineAnimation', 'atlasPath')).toBe('spine-atlas');
+    });
+    it('is null for non-spine fields and non-spine components', () => {
+        expect(spineSlotType('SpineAnimation', 'animation')).toBeNull();
+        expect(spineSlotType('Sprite', 'texture')).toBeNull();
+    });
+    it('stays disjoint from assetFieldType — spine slots are path-valued, never handle-resolved', () => {
+        expect(assetFieldType('SpineAnimation', 'skeletonPath')).toBeNull();
+        expect(assetFieldType('SpineAnimation', 'atlasPath')).toBeNull();
+        expect(assetFieldType('SpineAnimation', 'material')).toBe('material');
     });
 });
