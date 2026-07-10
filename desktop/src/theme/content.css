@@ -86,6 +86,10 @@
 /* Startup-scene marker — the scene the editor opens, Play boots, exports ship first. */
 .asset .th .badge.start { left: auto; right: 5px; display: grid; place-items: center; padding: 2px 3px; background: var(--star); }
 .lr .start-mark { flex: none; color: var(--star-hi); }
+/* Excluded-from-export marker (mutually exclusive with .start — the startup
+   scene always ships). */
+.asset .th .badge.excluded { left: auto; right: 5px; display: grid; place-items: center; padding: 2px 3px; background: rgba(0, 0, 0, 0.55); color: var(--text-mute); }
+.lr .excluded-mark { flex: none; color: var(--text-mute); }
 .asset .nm { display: flex; align-items: center; gap: 4px; padding: 6px 7px; font-size: var(--fs-xs); color: var(--text); background: var(--srf-3); border-radius: 0 0 var(--r-md) var(--r-md); border-top: 2px solid var(--tc, var(--text-mute)); }
 .asset .nm span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .folder .th { background: none; color: var(--cat-collision); }

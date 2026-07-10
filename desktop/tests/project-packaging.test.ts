@@ -26,6 +26,16 @@ describe('parseManifest — packaging', () => {
     expect(m.packaging).toEqual({ outDir: { web: 'ok' } });
   });
 
+  it('parses excludeScenes, dropping non-string / empty entries', () => {
+    const m = parseManifest({
+      name: 'X',
+      packaging: { excludeScenes: ['assets/scenes/dev.esscene', '', 7, 'assets/scenes/test.esscene'] },
+    });
+    expect(m.packaging?.excludeScenes).toEqual(['assets/scenes/dev.esscene', 'assets/scenes/test.esscene']);
+    // An empty list is no list.
+    expect(parseManifest({ name: 'X', packaging: { excludeScenes: [] } }).packaging).toBeUndefined();
+  });
+
   it('omits packaging when absent', () => {
     expect(parseManifest({ name: 'X' }).packaging).toBeUndefined();
   });

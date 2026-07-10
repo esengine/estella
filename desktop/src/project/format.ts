@@ -107,6 +107,10 @@ export interface ProjectPackaging {
   compressTextures?: boolean;
   /** Pack `<name>.atlas/` folders into atlas pages at cook time. */
   atlasTextures?: boolean;
+  /** Project-relative scene paths NOT shipped as switchable scenes (dev/test
+   *  scenes). Everything else under the scenes dir exports; the startup scene
+   *  always ships regardless. */
+  excludeScenes?: string[];
   /** Per-platform output-dir overrides (else the per-platform default). */
   outDir?: Partial<Record<'web' | 'desktop' | 'wechat' | 'playable', string>>;
   /** Per-platform packaging config (appid, app id, orientation, …). */
@@ -281,6 +285,10 @@ export function parseManifest(raw: unknown): ProjectManifest {
     if (p.config === 'development' || p.config === 'shipping') pkg.config = p.config;
     if (typeof p.sourceMaps === 'boolean') pkg.sourceMaps = p.sourceMaps;
     if (typeof p.openFolder === 'boolean') pkg.openFolder = p.openFolder;
+    if (Array.isArray(p.excludeScenes)) {
+      const ex = p.excludeScenes.filter((s): s is string => typeof s === 'string' && s !== '');
+      if (ex.length > 0) pkg.excludeScenes = ex;
+    }
     if (p.outDir && typeof p.outDir === 'object') {
       const od = p.outDir as Record<string, unknown>;
       const out: NonNullable<ProjectPackaging['outDir']> = {};

@@ -159,6 +159,26 @@ describe('exportGame', () => {
     expect(cfg.scenes[0]).toEqual({ name: 'main', path: 'scenes/main.esscene' }); // entry first
   }, 60_000);
 
+  it('excludeScenes drops a scene from the build; the entry is immune', async () => {
+    const outEx = path.join(root, 'dist-game-excluded');
+    const res = await exportGame({
+      root,
+      entryScene: 'scenes/main.esscene',
+      gameHostEntry: GAME_HOST,
+      scriptsEntry: 'src/main.ts',
+      sdkDistDir: path.join(root, '_sdk'),
+      wasmDir: path.join(root, '_wasm'),
+      outDir: outEx,
+      title: 'My Game',
+      // level2 excluded; excluding the entry must be ignored — it boots the game.
+      excludeScenes: ['scenes/level2.esscene', 'scenes/main.esscene'],
+    });
+    expect(res.ok).toBe(true);
+    const cfg = JSON.parse(readFileSync(path.join(outEx, 'game.config.json'), 'utf8'));
+    expect(cfg.scenes).toEqual([{ name: 'main', path: 'scenes/main.esscene' }]);
+    expect(existsSync(path.join(outEx, 'scenes/level2.esscene'))).toBe(false);
+  }, 60_000);
+
   it('fails when the wasm runtime is missing — the build cannot boot without it', async () => {
     const out3 = path.join(root, 'dist-game-nowasm');
     const res = await exportGame({

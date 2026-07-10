@@ -41,14 +41,18 @@ export interface ExportScene {
 
 /**
  * Every scene the shipped game can switch to: all `.esscene` under the
- * project's scenes dir plus the entry scene wherever it lives. Names are the
- * scenes-dir-relative path without extension ('main', 'levels/boss') — the
- * stable ids game code passes to `SceneManager.switchTo`; a scene outside the
- * scenes dir is named by its project-relative path. The entry always sorts
- * first. Cook reachability runs from ALL of these roots, so every scene's
- * assets ship (playable stays entry-only: a size-capped single file).
+ * project's scenes dir plus the entry scene wherever it lives, minus the
+ * project's export exclusions (`packaging.excludeScenes` — dev/test scenes).
+ * Names are the scenes-dir-relative path without extension ('main',
+ * 'levels/boss') — the stable ids game code passes to
+ * `SceneManager.switchTo`; a scene outside the scenes dir is named by its
+ * project-relative path. The entry always sorts first and always ships, an
+ * exclusion notwithstanding. Cook reachability runs from ALL of these roots,
+ * so every scene's assets ship (playable stays entry-only: a size-capped
+ * single file).
  */
-export async function discoverProjectScenes(root: string, entryScene: string, scenesDir?: string): Promise<ExportScene[]> {
+export async function discoverProjectScenes(root: string, entryScene: string, scenesDir?: string, excludeScenes?: string[]): Promise<ExportScene[]> {
+  const excluded = new Set((excludeScenes ?? []).map((p) => p.replace(/\\/g, '/')));
   const dir = (scenesDir ?? path.dirname(entryScene)).replace(/\\/g, '/');
   const sceneName = (projectPath: string): string => {
     const p = projectPath.replace(/\\/g, '/');
@@ -64,7 +68,9 @@ export async function discoverProjectScenes(root: string, entryScene: string, sc
         if (entry.isDirectory()) await walk(rel);
         else if (/\.esscene$/i.test(entry.name)) {
           const projectPath = `${dir}/${rel}`;
-          if (projectPath !== scenes[0].path) scenes.push({ name: sceneName(projectPath), path: projectPath });
+          if (projectPath !== scenes[0].path && !excluded.has(projectPath)) {
+            scenes.push({ name: sceneName(projectPath), path: projectPath });
+          }
         }
       }
     };
@@ -244,6 +250,9 @@ export async function exportGame(opts: {
   /** Project-relative scenes dir (manifest layout); default the entry's dir.
    *  Every `.esscene` under it ships as a switchable scene. */
   scenesDir?: string;
+  /** Scenes excluded from the build (`packaging.excludeScenes`); the entry
+   *  scene always ships. */
+  excludeScenes?: string[];
   gameHostEntry: string;
   /** Project-relative startup entry (e.g. src/main.ts) → bundled to scripts.mjs. */
   scriptsEntry?: string;
@@ -280,7 +289,7 @@ export async function exportGame(opts: {
   const platform = opts.platform ?? 'web';
   const title = opts.title ?? 'Game';
   const progress = opts.onProgress ?? (() => {});
-  const scenes = await discoverProjectScenes(opts.root, opts.entryScene, opts.scenesDir);
+  const scenes = await discoverProjectScenes(opts.root, opts.entryScene, opts.scenesDir, opts.excludeScenes);
 
   // WeChat has no import maps + a different module/asset model → its own pipeline.
   if (platform === 'wechat') {

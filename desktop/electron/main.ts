@@ -533,6 +533,7 @@ ipcMain.handle(
       root,
       entryScene,
       scenesDir: resolveLayout(manifest).scenes,
+      excludeScenes: manifest.packaging?.excludeScenes,
       ySortLayers,
       gameHostEntry: path.join(HOSTS_DIR, 'gameHost.js'),
       playableHostEntry: path.join(HOSTS_DIR, 'playableHost.js'),

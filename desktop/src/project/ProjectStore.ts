@@ -921,15 +921,67 @@ class ProjectStoreImpl {
   async setDefaultScene(path: string): Promise<void> {
     const st = this.state;
     if (!st || st.defaultScene === path) return;
-    this.store.setState({ project: { ...st, defaultScene: path } });
+    // The startup scene always ships — becoming it lifts any export exclusion.
+    const packaging = this.packagingWithoutExclusion_(st.packaging, path);
+    this.store.setState({ project: { ...st, defaultScene: path, packaging } });
     try {
       const raw = JSON.parse(await window.estella.fs.read(PROJECT_MANIFEST_FILE)) as Record<string, unknown>;
       raw.defaultScene = path;
+      if (packaging !== st.packaging) {
+        // Merge into the RAW packaging so fields the editor parser doesn't
+        // model survive the rewrite.
+        const rawPkg = { ...((raw.packaging as Record<string, unknown>) ?? {}) };
+        if (packaging?.excludeScenes) rawPkg.excludeScenes = packaging.excludeScenes;
+        else delete rawPkg.excludeScenes;
+        raw.packaging = rawPkg;
+      }
       await window.estella.fs.write(PROJECT_MANIFEST_FILE, JSON.stringify(raw, null, 2) + '\n');
       Toasts.push(`Startup scene: ${path.split('/').pop()}`, 'info');
     } catch (e) {
       Toasts.push('Failed to save startup scene', 'error');
       console.error('[project] setDefaultScene write failed', e);
+    }
+  }
+
+  /** `packaging` with `path` lifted from excludeScenes (identity when absent). */
+  private packagingWithoutExclusion_(packaging: ProjectPackaging | undefined, path: string): ProjectPackaging | undefined {
+    if (!packaging?.excludeScenes?.includes(path)) return packaging;
+    const excludeScenes = packaging.excludeScenes.filter((p) => p !== path);
+    const next: ProjectPackaging = { ...packaging };
+    if (excludeScenes.length > 0) next.excludeScenes = excludeScenes;
+    else delete next.excludeScenes;
+    return next;
+  }
+
+  /**
+   * Exclude a scene from (or re-include it in) every export — persisted as
+   * `packaging.excludeScenes`. Dev/test scenes stay editable and playable in
+   * the editor; they just don't ship as switchable scenes.
+   */
+  async setSceneExcluded(path: string, excluded: boolean): Promise<void> {
+    const st = this.state;
+    if (!st) return;
+    const cur = new Set(st.packaging?.excludeScenes ?? []);
+    if (excluded) cur.add(path);
+    else cur.delete(path);
+    const packaging: ProjectPackaging = { ...st.packaging };
+    if (cur.size > 0) packaging.excludeScenes = [...cur].sort();
+    else delete packaging.excludeScenes;
+    this.store.setState({ project: { ...st, packaging } });
+    try {
+      const raw = JSON.parse(await window.estella.fs.read(PROJECT_MANIFEST_FILE)) as Record<string, unknown>;
+      // Merge into the RAW packaging so fields the editor parser doesn't model
+      // survive the rewrite.
+      const rawPkg = { ...((raw.packaging as Record<string, unknown>) ?? {}) };
+      if (packaging.excludeScenes) rawPkg.excludeScenes = packaging.excludeScenes;
+      else delete rawPkg.excludeScenes;
+      raw.packaging = rawPkg;
+      await window.estella.fs.write(PROJECT_MANIFEST_FILE, JSON.stringify(raw, null, 2) + '\n');
+      const leaf = path.split('/').pop();
+      Toasts.push(excluded ? `Excluded from export: ${leaf}` : `Included in export: ${leaf}`, 'info');
+    } catch (e) {
+      Toasts.push('Failed to save export exclusion', 'error');
+      console.error('[project] setSceneExcluded write failed', e);
     }
   }
 
