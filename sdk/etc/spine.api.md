@@ -214,12 +214,12 @@ mixY: number
 
 ## loadSpineAssets — function
 ```
-(module: ESEngineModule, source: RuntimeAssetSource, spineManager: SpineManager | null | undefined, spinePairs: ReadonlyArray<{ skeleton: string; atlas: string; }>): Promise<Map<string, SpineAssetInfo>>
+(module: ESEngineModule, source: RuntimeAssetSource, spineManager: SpineManager | null | undefined, spinePairs: ReadonlyArray<{ skeleton: string; atlas: string; }>, transcoderProvider?: TranscoderProvider): Promise<Map<string, SpineAssetInfo>>
 ```
 
 ## loadSpineSceneEntities — function
 ```
-(opts: { module: ESEngineModule; source: RuntimeAssetSource; spineManager: SpineManager; sceneData: SceneData; entityMap: Map<number, Entity>; registry: CppRegistry; }): Promise<void>
+(opts: { module: ESEngineModule; source: RuntimeAssetSource; spineManager: SpineManager; sceneData: SceneData; entityMap: Map<number, Entity>; registry: CppRegistry; transcoderProvider?: TranscoderProvider; }): Promise<void>
 ```
 
 ## wrapSpineModule — function
