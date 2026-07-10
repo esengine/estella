@@ -26,6 +26,7 @@ import './theme/profiler.css';
 import './theme/tileset.css';
 import './theme/tilemap.css';
 import './theme/material.css';
+import './theme/nodegraph.css';
 import './theme/chrome.css';
 import './theme/menus.css';
 import './theme/settings.css';

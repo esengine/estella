@@ -13,7 +13,7 @@
  *          transition trigger·condition·guard. The canvas interaction is the
  *          generic component shared with the behavior-tree editor.
  */
-import { useRef, useState, useSyncExternalStore, type CSSProperties } from 'react';
+import { useRef, useState, useSyncExternalStore } from 'react';
 import { Plus, Trash2, Save } from 'lucide-react';
 import {
   fsmEdges, addState, removeState, moveState, renameState, setStateHook, setInitial,
@@ -57,7 +57,7 @@ export function StateMachineEditor() {
   const dragBefore = useRef<FsmDefinition | null>(null);
 
   if (!def || !filePath) {
-    return <div className="panel" style={S.empty}><p>Open a <code>.esfsm</code> from the Content Browser to edit it.</p></div>;
+    return <div className="panel ng-placeholder"><p>Open a <code>.esfsm</code> from the Content Browser to edit it.</p></div>;
   }
 
   const nodes: FsmCanvasNode[] = def.states.map(s => ({ ...s, id: s.name }));
@@ -80,17 +80,17 @@ export function StateMachineEditor() {
 
   const toolbar = (
     <>
-      <button type="button" style={S.btn} onClick={addStateAt} title="Add state"><Plus size={13} strokeWidth={2} /> State</button>
-      {(selState || selEdge) && <button type="button" style={S.btn} title="Delete selected" onClick={deleteSelected}><Trash2 size={13} strokeWidth={1.9} /></button>}
-      <span style={S.title}>{filePath.split('/').pop()}{dirty && <span style={S.dot} title="Unsaved">●</span>}</span>
+      <button type="button" className="ng-btn" onClick={addStateAt} title="Add state"><Plus size={13} strokeWidth={2} /> State</button>
+      {(selState || selEdge) && <button type="button" className="ng-btn" title="Delete selected" onClick={deleteSelected}><Trash2 size={13} strokeWidth={1.9} /></button>}
+      <span className="ng-doc-title">{filePath.split('/').pop()}{dirty && <span className="ng-dirty" title="Unsaved">●</span>}</span>
       <span style={{ flex: 1 }} />
-      <button type="button" style={{ ...S.btn, ...S.primary }} disabled={!dirty} onClick={save}><Save size={13} strokeWidth={1.9} /> Save</button>
+      <button type="button" className="ng-btn primary" disabled={!dirty} onClick={save}><Save size={13} strokeWidth={1.9} /> Save</button>
     </>
   );
 
   return (
-    <div style={S.root}>
-      <div style={S.body}>
+    <div className="ng-editor">
+      <div className="ng-editor-body">
         <div style={{ flex: 1, minWidth: 0 }}>
           <NodeGraphCanvas<FsmCanvasNode, FsmEdge>
             nodes={nodes}
@@ -115,8 +115,8 @@ export function StateMachineEditor() {
               ? [{ label: 'Add State', onClick: () => { const name = uniqueName(def, 'State'); FsmGraphDocument.edit('Add state', d => Object.assign(d, addState(d, name, target.x, target.y))); setSelState(name); setSelEdge(null); } }]
               : [
                   { label: 'Set as initial', disabled: def.initial === target.nodeId, onClick: () => FsmGraphDocument.edit('Set initial', d => Object.assign(d, setInitial(d, target.nodeId!))) },
-                  { label: '', sep: true, onClick: () => { /* separator */ } },
-                  { label: 'Delete state', onClick: () => { FsmGraphDocument.edit('Delete state', d => Object.assign(d, removeState(d, target.nodeId!))); setSelState(null); } },
+                  { sep: true },
+                  { label: 'Delete state', danger: true, onClick: () => { FsmGraphDocument.edit('Delete state', d => Object.assign(d, removeState(d, target.nodeId!))); setSelState(null); } },
                 ]}
             toolbar={toolbar}
             emptyHint="Add a state, then drag from its handle to another to add a transition."
@@ -125,12 +125,12 @@ export function StateMachineEditor() {
               const isInitial = def.initial === n.name;
               const setHooks = HOOKS.filter(h => n[h]).map(h => `${h[2].toUpperCase()}:${n[h]}`).join(' ');
               return (
-                <div style={{ ...S.nodeBox, borderColor: sel ? 'var(--accent, #6ea9ff)' : isInitial ? '#7faf9c' : '#3a4048' }}>
-                  <div style={S.nodeHead}>
-                    {isInitial && <span title="Initial state" style={S.initialBadge}>▶</span>}
-                    <span style={S.nodeName}>{n.name}</span>
+                <div className={`ng-node-box${sel ? ' sel' : ''}`} style={!sel && isInitial ? { borderColor: 'var(--run)' } : undefined}>
+                  <div className="ng-node-head">
+                    {isInitial && <span title="Initial state" className="ng-node-badge" style={{ color: 'var(--run)' }}>▶</span>}
+                    <span className="ng-node-name">{n.name}</span>
                   </div>
-                  <div style={S.nodeHooks}>{setHooks || <span style={{ opacity: 0.4 }}>no actions</span>}</div>
+                  <div className="ng-node-sub">{setHooks || <span style={{ opacity: 0.4 }}>no actions</span>}</div>
                 </div>
               );
             }}
@@ -138,7 +138,7 @@ export function StateMachineEditor() {
         </div>
 
         {(selState || selEdge) && (
-          <div style={S.inspector}>
+          <div className="ng-inspector">
             {selState && byName.get(selState) && <StateInspector def={def} state={byName.get(selState)!} onRename={setSelState} />}
             {selEdge && parseEdgeId(selEdge) && <TransitionInspector def={def} edgeId={selEdge} />}
           </div>
@@ -153,19 +153,19 @@ function StateInspector({ def, state, onRename }: { def: FsmDefinition; state: F
   const isInitial = def.initial === state.name;
   return (
     <div>
-      <div style={S.inspTitle}>State</div>
-      <label style={S.field}>Name
-        <input style={S.input} defaultValue={state.name} key={state.name}
+      <div className="ng-insp-title">State</div>
+      <label className="ng-field">Name
+        <input className="ng-input" defaultValue={state.name} key={state.name}
           onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== state.name) { FsmGraphDocument.edit('Rename state', (d) => Object.assign(d, renameState(d, state.name, v))); onRename(v); } }} />
       </label>
-      <label style={S.checkRow}>
+      <label className="ng-check-row">
         <input type="checkbox" checked={isInitial} disabled={isInitial}
           onChange={() => FsmGraphDocument.edit('Set initial', (d) => Object.assign(d, setInitial(d, state.name)))} />
         Initial state
       </label>
       {HOOKS.map((h) => (
-        <label style={S.field} key={h}>{h}
-          <input style={S.input} list="fsm-actions" defaultValue={state[h] ?? ''} key={`${state.name}-${h}-${state[h] ?? ''}`}
+        <label className="ng-field" key={h}>{h}
+          <input className="ng-input" list="fsm-actions" defaultValue={state[h] ?? ''} key={`${state.name}-${h}-${state[h] ?? ''}`}
             placeholder="action name"
             onBlur={(e) => { const v = e.target.value.trim(); if (v !== (state[h] ?? '')) FsmGraphDocument.edit(`Set ${h}`, (d) => Object.assign(d, setStateHook(d, state.name, h, v))); }} />
         </label>
@@ -190,32 +190,32 @@ function TransitionInspector({ def, edgeId }: { def: FsmDefinition; edgeId: stri
   };
   return (
     <div>
-      <div style={S.inspTitle}>Transition</div>
-      <label style={S.field}>Target
-        <select style={S.input} value={t.to} onChange={(e) => patch({ to: e.target.value })}>
+      <div className="ng-insp-title">Transition</div>
+      <label className="ng-field">Target
+        <select className="ng-input" value={t.to} onChange={(e) => patch({ to: e.target.value })}>
           {def.states.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
         </select>
       </label>
-      <label style={S.field}>Trigger (event)
-        <input style={S.input} defaultValue={t.trigger ?? ''} key={`trg-${edgeId}`} placeholder="event name"
+      <label className="ng-field">Trigger (event)
+        <input className="ng-input" defaultValue={t.trigger ?? ''} key={`trg-${edgeId}`} placeholder="event name"
           onBlur={(e) => patch({ trigger: e.target.value.trim() || undefined })} />
       </label>
-      <label style={S.field}>Condition
-        <input style={S.input} list="fsm-conditions" defaultValue={t.condition ?? ''} key={`cnd-${edgeId}`} placeholder="condition name"
+      <label className="ng-field">Condition
+        <input className="ng-input" list="fsm-conditions" defaultValue={t.condition ?? ''} key={`cnd-${edgeId}`} placeholder="condition name"
           onBlur={(e) => patch({ condition: e.target.value.trim() || undefined })} />
       </label>
       <datalist id="fsm-conditions">{conditions.map((c) => <option key={c} value={c} />)}</datalist>
-      <div style={S.inspSub}>Guard (blackboard)</div>
-      <div style={{ display: 'flex', gap: 4 }}>
-        <input style={{ ...S.input, flex: 1 }} defaultValue={g?.key ?? ''} key={`gk-${edgeId}`} placeholder="key"
+      <div className="ng-insp-sub">Guard (blackboard)</div>
+      <div className="ng-row">
+        <input className="ng-input" style={{ flex: 1 }} defaultValue={g?.key ?? ''} key={`gk-${edgeId}`} placeholder="key"
           onBlur={(e) => patchGuard({ key: e.target.value.trim() })} />
-        <select style={{ ...S.input, width: 62 }} value={g?.op ?? '=='} onChange={(e) => patchGuard({ op: e.target.value as CompareOp })}>
+        <select className="ng-input" style={{ width: 62 }} value={g?.op ?? '=='} onChange={(e) => patchGuard({ op: e.target.value as CompareOp })}>
           {OPS.map((op) => <option key={op} value={op}>{op}</option>)}
         </select>
       </div>
       {g && g.op !== 'truthy' && g.op !== 'falsy' && (
-        <label style={S.field}>Value
-          <input style={S.input} defaultValue={String(g?.value ?? '')} key={`gv-${edgeId}`} placeholder="value"
+        <label className="ng-field">Value
+          <input className="ng-input" defaultValue={String(g?.value ?? '')} key={`gv-${edgeId}`} placeholder="value"
             onBlur={(e) => patchGuard({ value: coerce(e.target.value) })} />
         </label>
       )}
@@ -245,24 +245,3 @@ function coerce(v: string): number | string | boolean {
   if (t !== '' && !Number.isNaN(Number(t))) return Number(t);
   return t;
 }
-
-const S: Record<string, CSSProperties> = {
-  root: { display: 'flex', flexDirection: 'column', height: '100%' },
-  empty: { display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', opacity: 0.6, fontSize: 13 },
-  body: { display: 'flex', flex: 1, minHeight: 0 },
-  btn: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px', fontSize: 12, borderRadius: 4, border: '1px solid var(--border, #333)', background: 'var(--panel, #222)', color: 'inherit', cursor: 'pointer' },
-  primary: { background: 'var(--accent, #3a6ea5)', borderColor: 'transparent' },
-  title: { fontSize: 12, opacity: 0.85, marginLeft: 4 },
-  dot: { color: '#e0a03a', marginLeft: 4 },
-  nodeBox: { boxSizing: 'border-box', width: '100%', height: '100%', borderRadius: 6, border: '1.5px solid #3a4048', background: 'var(--node, #232830)', boxShadow: '0 1px 3px rgba(0,0,0,0.4)', padding: 6 },
-  nodeHead: { display: 'flex', alignItems: 'center', gap: 5, fontSize: 12.5, fontWeight: 600 },
-  initialBadge: { color: '#7faf9c', fontSize: 10 },
-  nodeName: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  nodeHooks: { marginTop: 5, fontSize: 10.5, opacity: 0.75, lineHeight: 1.4, overflow: 'hidden' },
-  inspector: { width: 232, flexShrink: 0, borderLeft: '1px solid var(--border, #2a2f36)', padding: 10, overflow: 'auto', fontSize: 12 },
-  inspTitle: { fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, opacity: 0.6, marginBottom: 8 },
-  inspSub: { fontSize: 11, opacity: 0.6, margin: '10px 0 4px' },
-  field: { display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 8, fontSize: 11, opacity: 0.95 },
-  checkRow: { display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, fontSize: 12 },
-  input: { padding: '3px 6px', fontSize: 12, borderRadius: 4, border: '1px solid var(--border, #333)', background: 'var(--input, #1a1d22)', color: 'inherit' },
-};

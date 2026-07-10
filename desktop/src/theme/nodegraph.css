@@ -1,0 +1,190 @@
+/* =============================================================================
+   @file nodegraph.css
+   @brief Shared node-graph editor chrome — the generic canvas (NodeGraphCanvas)
+          plus the editor shell around it (toolbar buttons, doc title, side
+          inspector, fields). One visual vocabulary for every graph editor.
+   ========================================================================== */
+
+/* — editor shell — */
+.ng-editor { display: flex; flex-direction: column; height: 100%; }
+.ng-editor-body { display: flex; flex: 1; min-height: 0; }
+.ng-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-faint);
+  font-size: var(--fs-md);
+}
+
+/* — canvas — */
+.ng-root { display: flex; flex-direction: column; height: 100%; }
+.ng-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+}
+.ng-canvas {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+  background: var(--srf-1);
+  background-image: radial-gradient(var(--srf-3) 1px, transparent 1px);
+}
+.ng-svg { position: absolute; top: 0; left: 0; width: 4000px; height: 4000px; overflow: visible; }
+.ng-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-faint);
+  font-size: var(--fs-md);
+  pointer-events: none;
+}
+
+.ng-node { position: absolute; box-sizing: border-box; cursor: grab; user-select: none; }
+.ng-node.droppable { outline: 2px dashed var(--star-line); outline-offset: 3px; }
+
+/* Output handle (right): drag it to another node to connect. */
+.ng-handle {
+  position: absolute;
+  right: -7px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--star);
+  border: 2px solid var(--srf-1);
+  box-shadow: 0 0 0 1px var(--star-line);
+  cursor: crosshair;
+  z-index: 2;
+}
+.ng-handle:hover { background: var(--star-hi); }
+/* Input anchor (left): a visual cue that edges land on this node. */
+.ng-in-anchor {
+  position: absolute;
+  left: -5px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--srf-6);
+  border: 2px solid var(--srf-1);
+  pointer-events: none;
+}
+
+.ng-edge-label {
+  position: absolute;
+  width: 80px;
+  text-align: center;
+  font-size: var(--fs-2xs);
+  padding: 1px 3px;
+  border-radius: var(--r-sm);
+  background: var(--srf-1);
+  border: 1px solid transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ng-edge-label.sel { border-color: var(--star); color: var(--text); }
+
+/* — node body (FSM state / BT node) — */
+.ng-node-box {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  border-radius: var(--r-lg);
+  border: 1.5px solid var(--line-strong);
+  background: var(--srf-3);
+  box-shadow: var(--shadow-1);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.ng-node-box.sel { border-color: var(--star); }
+.ng-node-head { display: flex; align-items: center; gap: 4px; font-size: var(--fs-sm); font-weight: 600; }
+.ng-node-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ng-node-badge { font-size: var(--fs-2xs); }
+.ng-node-sub {
+  margin-top: 4px;
+  font-size: var(--fs-2xs);
+  color: var(--text-dim);
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* — toolbar buttons + document title — */
+.ng-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: var(--fs-sm);
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--srf-3);
+  color: var(--text);
+  cursor: pointer;
+  transition: background var(--t-fast) var(--e-out);
+}
+.ng-btn:not(:disabled):hover { background: var(--srf-4); }
+.ng-btn:not(:disabled):active { background: var(--srf-5); }
+.ng-btn:disabled { opacity: 0.45; cursor: default; }
+.ng-btn.primary { background: var(--star); border-color: transparent; color: var(--on-accent); }
+.ng-btn.primary:not(:disabled):hover { background: var(--star-hi); }
+.ng-btn.primary:not(:disabled):active { background: var(--star-deep); }
+
+.ng-doc-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+  margin-left: 4px;
+}
+/* Unsaved marker — same voice as the menubar's scene dirty dot. */
+.ng-dirty { color: var(--sel); font-size: 0.7em; line-height: 1; }
+
+/* — side inspector — */
+.ng-inspector {
+  width: 232px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--line);
+  padding: 10px;
+  overflow: auto;
+  font-size: var(--fs-sm);
+}
+.ng-insp-title {
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-faint);
+  margin-bottom: 8px;
+}
+.ng-insp-sub { font-size: var(--fs-xs); color: var(--text-faint); margin: 10px 0 4px; }
+.ng-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 8px;
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+}
+.ng-check-row { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: var(--fs-sm); }
+.ng-row { display: flex; gap: 4px; }
+.ng-input {
+  font: inherit;
+  font-size: var(--fs-sm);
+  padding: 3px 6px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: var(--input);
+  color: var(--text);
+}
+.ng-input:focus { outline: none; border-color: var(--star-line); }
