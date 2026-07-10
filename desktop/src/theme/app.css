@@ -125,6 +125,16 @@
   background: var(--star-hi);
   border-color: var(--star-hi);
 }
+.btn-soft.is-danger {
+  color: var(--on-accent);
+  background: var(--error);
+  border-color: var(--error);
+}
+.btn-soft.is-danger:hover:not(:disabled) {
+  color: var(--on-accent);
+  background: var(--error-hi);
+  border-color: var(--error-hi);
+}
 
 .empty {
   flex: 1;

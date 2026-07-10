@@ -74,17 +74,8 @@
   padding: 7px 0;
   border-bottom: 1px solid var(--border-line);
 }
-.prof-chip {
-  font: var(--fs-xs, 11px) var(--mono, ui-monospace, monospace);
-  color: var(--text-faint);
-  background: transparent;
-  border: 1px solid var(--border-line);
-  border-radius: 999px;
-  padding: 1px 9px;
-  cursor: pointer;
-}
-.prof-chip:hover { color: var(--text); }
-.prof-chip.on { color: var(--text-hi); border-color: var(--star-line, var(--star)); background: var(--star-dim, rgba(47, 136, 214, 0.18)); }
+/* shared .chip, compact + mono for the metric toolbar */
+.prof-chip { height: auto; padding: 1px 9px; font-family: var(--mono); }
 .prof-link {
   background: none; border: 0; padding: 0; cursor: pointer;
   color: var(--star-hi, var(--star)); font: inherit; text-decoration: underline;

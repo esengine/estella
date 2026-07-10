@@ -323,7 +323,7 @@ export function EnumControl({
                 {o.value === value && !mixed && <Check size={12} strokeWidth={2.4} />}
               </button>
             ))}
-            {filtered.length === 0 && <div className="dd-empty">No match</div>}
+            {filtered.length === 0 && <div className="empty-line empty-line--sm">No match</div>}
           </div>
         </Popover>
       )}
@@ -1027,7 +1027,7 @@ export function AssetControl({
                 <span className="an">{a.name}</span>
               </button>
             ))}
-            {assets.length === 0 && <div className="dd-empty">No matching assets</div>}
+            {assets.length === 0 && <div className="empty-line empty-line--sm">No matching assets</div>}
           </div>
         </Popover>
       )}
@@ -1658,7 +1658,7 @@ function InputMapAssetInspector({ path }: { path: string }) {
     };
   }, [path]);
 
-  if (!map) return <div className="insp"><div className="filter-empty">Loading…</div></div>;
+  if (!map) return <div className="insp"><div className="empty-line">Loading…</div></div>;
 
   const commit = (next: InputMapAsset) => {
     setMap(next);
@@ -1677,7 +1677,7 @@ function InputMapAssetInspector({ path }: { path: string }) {
         <span>Input Actions</span>
         <button type="button" className="im-add" onClick={() => commit(imap.addAction(map, uniqueName()))}>+ Action</button>
       </div>
-      {actions.length === 0 && <div className="filter-empty">No actions yet — add one to bind keys / buttons / axes.</div>}
+      {actions.length === 0 && <div className="empty-line">No actions yet — add one to bind keys / buttons / axes.</div>}
       {actions.map(([name, def]) => (
         <div className="im-action" key={name}>
           <div className="im-action-head">
@@ -2149,7 +2149,7 @@ function EditorDetails() {
           />
         ))}
         {query && visible.length === 0 && (
-          <div className="filter-empty">No components match “{query}”.</div>
+          <div className="empty-line">No components match “{query}”.</div>
         )}
       </div>
 

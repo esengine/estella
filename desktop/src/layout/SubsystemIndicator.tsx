@@ -84,7 +84,7 @@ export function SubsystemIndicator() {
         <div className="mods-pop" role="menu">
           <h4>Engine Modules{inPlay ? ' · Play' : ''}</h4>
           {subsystems.length === 0 ? (
-            <div className="mods-empty">Engine not booted</div>
+            <div className="empty-line empty-line--sm">Engine not booted</div>
           ) : (
             subsystems.map((s) => {
               const p = present(s);

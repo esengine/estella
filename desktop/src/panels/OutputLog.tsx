@@ -212,7 +212,7 @@ export function OutputLog() {
   const Chip = ({ id, label, count }: { id: Filter; label: string; count?: number }) => (
     <button
       type="button"
-      className={`log-chip${id !== 'all' ? ` ${id}` : ''}${filter === id ? ' on' : ''}`}
+      className={`chip log-chip${id !== 'all' ? ` ${id}` : ''}${filter === id ? ' on' : ''}`}
       onClick={() => setFilter(id)}
     >
       {id !== 'all' && <i className="d" />}
@@ -267,7 +267,7 @@ export function OutputLog() {
           </div>
         ))}
         {visible.length === 0 && (
-          <div className="log-empty">
+          <div className="empty-line">
             {entries.length === 0 ? 'No log output yet — engine and script logs appear here.' : 'No entries match the filter.'}
           </div>
         )}

@@ -138,7 +138,7 @@ export function AddComponentMenu({
 
         <div className="ac-body">
           {flat.length === 0 ? (
-            <div className="ac-empty">
+            <div className="empty-line">
               {entries.length === 0 ? 'All components added' : 'No matching components'}
             </div>
           ) : (

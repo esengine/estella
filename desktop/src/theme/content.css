@@ -65,10 +65,10 @@
 .cb-tip-row .v.mono { font-family: var(--mono); font-size: var(--fs-2xs); }
 
 .cb-chips { display: flex; align-items: center; gap: 5px; padding: 7px 10px; border-bottom: 1px solid var(--border); flex-shrink: 0; overflow-x: auto; }
-.cb-chips .chip { height: 24px; display: inline-flex; align-items: center; gap: 5px; padding: 0 10px; font-size: var(--fs-xs); color: var(--text-dim); background: var(--srf-3); border: 1px solid var(--border-line); border-radius: var(--r-pill); white-space: nowrap; flex-shrink: 0; transition: all var(--t-fast); }
-.cb-chips .chip:hover { color: var(--text); border-color: var(--text-mute); }
-.cb-chips .chip.on { color: var(--on-accent); background: var(--acc); border-color: var(--acc); }
-.cb-chips .chip .d { width: 7px; height: 7px; border-radius: 2px; flex-shrink: 0; }
+/* shared .chip; taller row + a raised idle face, square type-color swatch */
+.cb-chips .chip { height: 24px; background: var(--srf-3); }
+.cb-chips .chip.on { background: var(--star-dim); }
+.cb-chips .chip .d { border-radius: 2px; }
 
 .cb-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 12px; }
 /* grid view */
@@ -95,8 +95,8 @@
 .lr .ln { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .lr .ln .t { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lr .c { font-size: var(--fs-xs); color: var(--text-dim); font-family: var(--mono); }
-.cb-empty { padding: 50px; text-align: center; color: var(--text-mute); }
-.cb-empty .ei { width: 44px; height: 44px; margin: 0 auto 10px; display: grid; place-items: center; border: 1px dashed var(--border-line); border-radius: var(--r-lg); }
+/* shared .empty-line, with room to breathe in the large grid area */
+.cb-empty { padding: 50px 12px; }
 
 /* ── Drag & drop affordances ── the outliner's drop language (accent-soft fill +
    1px accent ring) on every folder drop target; a soft inset ring on the scroll

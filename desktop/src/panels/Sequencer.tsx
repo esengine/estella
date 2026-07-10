@@ -512,7 +512,7 @@ function SequencerBody() {
           <div className="seq-picker" style={{ left: pickerOpen.x, top: pickerOpen.y }}>
             <div className="seq-interp__title">Add track</div>
             {addTrackItems.length === 0 ? (
-              <div className="seq-picker__empty">No animatable properties to add</div>
+              <div className="empty-line empty-line--sm">No animatable properties to add</div>
             ) : (
               addTrackItems.map((it) => (
                 <button

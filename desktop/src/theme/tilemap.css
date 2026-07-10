@@ -273,7 +273,6 @@
   white-space: nowrap;
 }
 .tp-tsmenu-item:hover { background: var(--srf-4); color: var(--text); }
-.tp-tsmenu-empty { color: var(--text-faint); padding: 6px 8px; font-size: var(--fs-xs); }
 .tp-warn { color: var(--text-faint); padding: 12px; font-size: var(--fs-xs); }
 
 .tp-cell {

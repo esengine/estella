@@ -3,6 +3,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { ChevronRight, LayoutGrid, List, Import, FolderOpen, FolderPlus, ArrowLeft, ArrowRight, ArrowUp, ArrowDownUp } from 'lucide-react';
 import { AssetIcon, assetTint } from '@/components/icons';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { SearchField } from '@/components/SearchField';
 import { ContextMenu, type MenuItem } from '@/components/Menu';
 import { useTooltip } from '@/components/Tooltip';
@@ -412,8 +413,10 @@ export function ContentBrowser() {
     }
   };
 
+  // Delete = themed confirm (Enter confirms, Esc cancels) → trash. The dialog
+  // body warns when scenes/prefabs reference the asset (those refs would break).
+  const [confirmDel, setConfirmDel] = useState<{ path: string; name: string; warn: string } | null>(null);
   const remove = async (path: string, name: string) => {
-    // Warn if scenes/prefabs reference this asset — deleting breaks those refs.
     let warn = '';
     try {
       const scan = await window.estella.project.scanAssets();
@@ -423,13 +426,18 @@ export function ContentBrowser() {
         warn = `\n\nIt is referenced by ${refs.length} asset${refs.length > 1 ? 's' : ''} (${names}${refs.length > 3 ? ', …' : ''}); those references will break.`;
       }
     } catch {
-      // Best-effort: if the scan fails, fall through to the plain confirm.
+      // Best-effort: if the scan fails, confirm without the reference warning.
     }
-    if (!window.confirm(`Delete “${name}”? It will be moved to the trash.${warn}`)) return;
+    setConfirmDel({ path, name, warn });
+  };
+  const doRemove = async () => {
+    const target = confirmDel;
+    setConfirmDel(null);
+    if (!target) return;
     try {
-      await window.estella.fs.trash(path);
+      await window.estella.fs.trash(target.path);
       refreshFs();
-      if (selected === path) selectAsset(null);
+      if (selected === target.path) selectAsset(null);
     } catch (e) {
       Toasts.push(`Delete failed: ${errMsg(e)}`, 'error');
     }
@@ -978,7 +986,7 @@ export function ContentBrowser() {
                   );
                 })}
                 {!listLoading && items.length === 0 && (
-                  <div className="cb-empty" style={{ gridColumn: '1 / -1' }}>
+                  <div className="empty-line cb-empty" style={{ gridColumn: '1 / -1' }}>
                     {q ? 'No assets match.' : 'Empty folder — drag files here or use Import.'}
                   </div>
                 )}
@@ -1028,7 +1036,7 @@ export function ContentBrowser() {
                   );
                 })}
                 {!listLoading && items.length === 0 && (
-                  <div className="cb-empty">{q ? 'No assets match.' : 'Empty folder — drag files here or use Import.'}</div>
+                  <div className="empty-line cb-empty">{q ? 'No assets match.' : 'Empty folder — drag files here or use Import.'}</div>
                 )}
               </div>
             )}
@@ -1056,6 +1064,16 @@ export function ContentBrowser() {
 
       {!ctx && tip.card}
       {ctx && <ContextMenu x={ctx.x} y={ctx.y} items={ctxItems} onClose={() => setCtx(null)} />}
+      {confirmDel && (
+        <ConfirmDialog
+          title="Delete asset"
+          danger
+          confirmLabel="Delete"
+          body={`Delete “${confirmDel.name}”? It will be moved to the trash.${confirmDel.warn}`}
+          onConfirm={() => void doRemove()}
+          onCancel={() => setConfirmDel(null)}
+        />
+      )}
     </div>
   );
 }

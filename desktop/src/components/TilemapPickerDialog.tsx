@@ -35,7 +35,7 @@ export function TilemapPickerDialog() {
         <p className="tmpick__hint">Pick a tileset to use as the map's palette</p>
         <SearchField className="tmpick__search" autoFocus placeholder="Search tilesets…" value={q} onChange={setQ} />
         {shown.length === 0 ? (
-          <div className="tmpick__empty">No matching tilesets</div>
+          <div className="empty-line">No matching tilesets</div>
         ) : (
           <div className="tmpick__list">
             {shown.map((t) => (

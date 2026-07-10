@@ -414,7 +414,7 @@ export function SettingsDialog() {
 
           <div className="set-content">
             {content.length === 0 ? (
-              <div className="set-empty">No settings match “{query}”.</div>
+              <div className="empty-line">No settings match “{query}”.</div>
             ) : (
               content.map((g) => <Group key={g.label} label={g.label} settings={g.settings} />)
             )}

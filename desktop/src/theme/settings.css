@@ -112,7 +112,6 @@
   border-bottom: 1px solid var(--border);
 }
 .set-group:not(:first-child) { margin-top: 26px; }
-.set-empty { color: var(--text-mute); font-size: var(--fs-sm); padding: 20px 2px; }
 
 .set-row {
   display: grid;

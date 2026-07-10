@@ -106,7 +106,7 @@ export function CreatePopover({
 
         <div className="ac-body">
           {results.length === 0 ? (
-            <div className="ac-empty">No matching templates</div>
+            <div className="empty-line">No matching templates</div>
           ) : (
             groups.map((g) => (
               <div key={g.category}>

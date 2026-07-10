@@ -5,27 +5,10 @@
    ========================================================================== */
 
 .log-chips { display: flex; gap: 6px; align-items: center; }
-.log-chip {
-  height: 22px;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 0 9px;
-  border: 1px solid var(--border-line);
-  border-radius: var(--r-pill);
-  color: var(--text-mute);
-  font-size: var(--fs-xs);
-  font-weight: 500;
-  cursor: pointer;
-  transition: color var(--t-fast), background var(--t-fast);
-}
-.log-chip .d { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
-.log-chip:hover { color: var(--text-dim); }
-.log-chip:active { background: var(--srf-5); }
-.log-chip.on { background: var(--srf-4); color: var(--text-dim); }
-.log-chip.info.on { color: var(--acc-hi); }
-.log-chip.warn.on { color: var(--warn); }
-.log-chip.error.on { color: var(--error); }
+/* shared .chip; the selected state tints toward the severity's identity color */
+.log-chip { font-weight: 500; }
+.log-chip.warn.on { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 55%, transparent); background: color-mix(in srgb, var(--warn) 14%, transparent); }
+.log-chip.error.on { color: var(--error); border-color: color-mix(in srgb, var(--error) 55%, transparent); background: color-mix(in srgb, var(--error) 14%, transparent); }
 .log-chip .ct { font-variant-numeric: tabular-nums; opacity: 0.85; }
 
 /* shared SearchField, right-aligned in the header row */
@@ -56,7 +39,6 @@
 .log-row.warn .ls { color: var(--warn); }
 .log-row.error .ls { color: var(--error); }
 .log-row .lm { color: var(--text-dim); }
-.log-empty { padding: 16px 14px; color: var(--text-mute); font-size: var(--fs-xs); font-family: var(--sans); }
 
 /* Active state for the header toggles (categories / timestamps). */
 .pbtn.on { color: var(--acc-hi); background: var(--srf-4); }

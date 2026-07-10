@@ -264,7 +264,7 @@ export function ProfilerPanel() {
           <button
             key={g.id}
             type="button"
-            className={`prof-chip${hidden.has(g.id) ? '' : ' on'}`}
+            className={`chip prof-chip${hidden.has(g.id) ? '' : ' on'}`}
             onClick={() => toggleGroup(g.id)}
           >
             {g.label}

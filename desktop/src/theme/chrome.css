@@ -208,7 +208,6 @@
 .mods-row .ms.run { color: var(--run-hi); }
 .mods-row .ms.err { color: var(--error); }
 .mods-err { padding: 0 6px 4px 22px; color: var(--error); font-size: var(--fs-2xs); font-family: var(--mono); word-break: break-word; }
-.mods-empty { padding: 12px 8px; color: var(--text-mute); font-size: var(--fs-xs); text-align: center; }
 
 /* ── Activity bar (far-left icon rail) ── */
 .activity {

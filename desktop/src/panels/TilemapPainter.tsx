@@ -399,7 +399,7 @@ export function TilemapPainter() {
             {addOpen && (
               <div className="tp-tsmenu">
                 {addable.length === 0 ? (
-                  <div className="tp-tsmenu-empty">No tilesets to add</div>
+                  <div className="empty-line empty-line--sm">No tilesets to add</div>
                 ) : (
                   addable.map((a) => (
                     <button key={a.ref} type="button" className="tp-tsmenu-item" onClick={() => addTileset(a.ref)}>

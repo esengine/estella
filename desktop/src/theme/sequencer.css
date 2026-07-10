@@ -166,7 +166,6 @@
   background: var(--raised); border: 1px solid var(--border);
   border-radius: var(--r-lg); padding: 4px; box-shadow: 0 8px 24px rgba(0,0,0,0.4);
 }
-.seq-picker__empty { padding: 8px; color: var(--text-mute); font-size: var(--fs-xs); }
 .seq-picker .seq-interp__item { justify-content: space-between; }
 .seq-picker__comp { color: var(--text-mute); font-size: var(--fs-xs); }
 .seq-picker__prop { color: var(--text); font-family: var(--mono); font-size: var(--fs-xs); }
