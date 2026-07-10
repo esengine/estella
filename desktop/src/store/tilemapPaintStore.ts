@@ -66,6 +66,9 @@ interface TilemapPaintState {
     clipboard: TileStamp | null;
     /** The active tool; null = not painting (the Viewport selects normally). */
     tool: PaintTool | null;
+    /** Random mode: each painted cell samples one tile from the stamp instead of
+     *  laying the pattern — scatter variation from a multi-tile selection. */
+    randomBrush: boolean;
     /** The active tileset's atlas layout (for the viewport brush ghost), or null. */
     activeAtlas: AtlasInfo | null;
     /** Replace the active layer's palette list (from its tilesetAssets); resets active to 0. */
@@ -85,6 +88,7 @@ interface TilemapPaintState {
     flipV(): void;
     rotateCW(): void;
     setTool(tool: PaintTool | null): void;
+    toggleRandomBrush(): void;
 }
 
 export const useTilemapPaint = create<TilemapPaintState>((set) => ({
@@ -97,6 +101,7 @@ export const useTilemapPaint = create<TilemapPaintState>((set) => ({
     selection: null,
     clipboard: null,
     tool: null,
+    randomBrush: false,
     activeAtlas: null,
     setTilesets: (tilesets) => set({
         tilesets,
@@ -120,4 +125,5 @@ export const useTilemapPaint = create<TilemapPaintState>((set) => ({
     flipV: () => set((s) => ({ stamp: flipStampV(s.stamp) })),
     rotateCW: () => set((s) => ({ stamp: rotateStampCW(s.stamp) })),
     setTool: (tool) => set({ tool }),
+    toggleRandomBrush: () => set((s) => ({ randomBrush: !s.randomBrush })),
 }));

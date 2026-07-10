@@ -56,6 +56,31 @@ function tiledCell(stamp: TileStamp, x: number, y: number): number {
   return stamp.cells[mod(y, stamp.h) * stamp.w + mod(x, stamp.w)];
 }
 
+/** The stamp's non-empty cells — the random mode's sampling pool. */
+function stampPool(stamp: TileStamp): number[] {
+  return stamp.cells.filter((c) => tileIdOf(c) !== 0);
+}
+
+/** Point-tool edits at (x, y): the stamp footprint, or ONE sampled tile in random mode.
+ *  Exported for tests (like lineCells). */
+export function brushEdits(stamp: TileStamp, x: number, y: number): TilePaint[] {
+  if (useTilemapPaint.getState().randomBrush) {
+    const pool = stampPool(stamp);
+    return pool.length ? [{ x, y, tileId: pool[(Math.random() * pool.length) | 0] }] : [];
+  }
+  return stampEdits(stamp, x, y);
+}
+
+/** Area-tool cell chooser: pattern-tiled normally, per-cell random sample in random mode.
+ *  Exported for tests (like lineCells). */
+export function cellPicker(stamp: TileStamp): (x: number, y: number) => number {
+  if (useTilemapPaint.getState().randomBrush) {
+    const pool = stampPool(stamp);
+    return pool.length ? () => pool[(Math.random() * pool.length) | 0] : () => 0;
+  }
+  return (x, y) => tiledCell(stamp, x, y);
+}
+
 /** The tile coords a Bresenham line from (x0,y0) to (x1,y1) passes through (inclusive). */
 export function lineCells(x0: number, y0: number, x1: number, y1: number): { x: number; y: number }[] {
   const cells: { x: number; y: number }[] = [];
@@ -135,7 +160,7 @@ const brushTool = makeStrokeTool<number>({
   id: 'tilemap.brush',
   begin: (selId) => { SceneCommands.beginTilePaint(selId); return selId; },
   onCell: (selId, x, y) => {
-    for (const e of stampEdits(activeStamp(), x, y)) SceneCommands.paintTileLive(selId, e.x, e.y, e.tileId);
+    for (const e of brushEdits(activeStamp(), x, y)) SceneCommands.paintTileLive(selId, e.x, e.y, e.tileId);
   },
   end: () => SceneCommands.endTilePaint(),
 });
@@ -236,11 +261,11 @@ function makeRectTool(): EditorTool {
         const x1 = Math.max(stroke.startX, tile.x);
         const y0 = Math.min(stroke.startY, tile.y);
         const y1 = Math.max(stroke.startY, tile.y);
-        const stamp = activeStamp();
+        const pick = cellPicker(activeStamp());
         const edits: TilePaint[] = [];
         for (let y = y0; y <= y1; y++) {
           for (let x = x0; x <= x1; x++) {
-            const raw = tiledCell(stamp, x - x0, y - y0);
+            const raw = pick(x - x0, y - y0);
             if (tileIdOf(raw) === 0) continue;
             edits.push({ x, y, tileId: raw });
           }
@@ -283,7 +308,7 @@ function makeLineTool(): EditorTool {
         const stamp = activeStamp();
         const edits: TilePaint[] = [];
         for (const c of lineCells(stroke.startX, stroke.startY, tile.x, tile.y)) {
-          for (const e of stampEdits(stamp, c.x, c.y)) edits.push(e);
+          for (const e of brushEdits(stamp, c.x, c.y)) edits.push(e);
         }
         if (edits.length > 0) SceneCommands.paintTiles(stroke.sourceId, edits);
       }
@@ -314,10 +339,11 @@ const bucketTool: EditorTool = {
     const queue: [number, number][] = [[tile.x, tile.y]];
     const edits: TilePaint[] = [];
     let capped = false;
+    const pick = cellPicker(stamp);
     const NEI: [number, number][] = [[1, 0], [-1, 0], [0, 1], [0, -1]];
     while (queue.length > 0) {
       const [x, y] = queue.shift()!;
-      const raw = tiledCell(stamp, x, y);
+      const raw = pick(x, y);
       if (tileIdOf(raw) !== 0) edits.push({ x, y, tileId: raw });
       if (visited.size >= BUCKET_CAP) { capped = true; break; }
       for (const [dx, dy] of NEI) {

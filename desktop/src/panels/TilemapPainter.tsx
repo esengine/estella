@@ -12,7 +12,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   Brush, Eraser, Square, Slash, PaintBucket, BoxSelect, Pipette,
-  FlipHorizontal, FlipVertical, RotateCw, Mountain, Plus, X, MousePointer2,
+  FlipHorizontal, FlipVertical, RotateCw, Mountain, Plus, X, MousePointer2, Dices,
   ZoomIn, ZoomOut, Maximize2, Eye, EyeOff, Lock, Unlock,
 } from 'lucide-react';
 import { parseTileset, encodeTile, type TilesetAsset, type TileStamp } from 'esengine';
@@ -104,7 +104,7 @@ export function TilemapPainter() {
   const {
     tilesetPath, tilesets, activeTileset, stamp, tool, terrainSet,
     setTilesets, setActiveTileset, setTilesetAsset, setStamp, setTool, setTerrainSet,
-    setActiveAtlas, flipH, flipV, rotateCW,
+    setActiveAtlas, flipH, flipV, rotateCW, randomBrush, toggleRandomBrush,
   } = useTilemapPaint();
   const selectedId = useSelection((s) => s.selectedId);
   const hasTilemap = selectedId != null
@@ -397,6 +397,15 @@ export function TilemapPainter() {
         </button>
         <button type="button" className="tp-tool" title="Rotate 90° (R)" onClick={() => rotateCW()}>
           <RotateCw size={15} />
+        </button>
+        <button
+          type="button"
+          className={'tp-tool' + (randomBrush ? ' is-active' : '')}
+          title="Random: each painted cell samples one tile from the selection"
+          aria-pressed={randomBrush}
+          onClick={() => toggleRandomBrush()}
+        >
+          <Dices size={15} />
         </button>
         <span className="tp-grow" />
         <span className="tp-brush">
