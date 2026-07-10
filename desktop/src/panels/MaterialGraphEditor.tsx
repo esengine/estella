@@ -29,8 +29,9 @@ import {
 import { MaterialGraphDocument } from '@/material/MaterialGraphDocument';
 import { saveMaterialGraph } from '@/material/openMaterialGraph';
 import { EditorHistory } from '@/engine/EditorHistory';
-import { NumField, ColorControl } from '@/panels/Details';
+import { ColorControl } from '@/panels/Details';
 import { DirtyDot } from '@/components/DirtyDot';
+import { NumField } from '@/components/NumField';
 import {
   NodeGraphCanvas,
   type CanvasEdge,

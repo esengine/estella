@@ -27,6 +27,7 @@ import { useSelection } from '@/store/selectionStore';
 import { SceneModel } from '@/engine/SceneModel';
 import { ContextMenu, type MenuItem } from '@/components/Menu';
 import { DirtyDot } from '@/components/DirtyDot';
+import { NumField } from '@/components/NumField';
 import { SequencerCurve } from '@/panels/SequencerCurve';
 import {
   buildTimelineRows, visibleRows, frameCount, timeToPct, pctToTime, findChannel, muteKey,
@@ -341,7 +342,7 @@ function SequencerBody() {
       onKeyDown={onPanelKey}
     >
       {/* transport */}
-      <div className="seq-bar">
+      <div className="phead seq-bar">
         <span className="seq-meta">
           <Film size={13} className="seq-meta__icon" />
           <b>{TimelineDocument.meta.filePath?.split('/').pop() ?? 'Unnamed'}</b>
@@ -541,17 +542,11 @@ function SequencerBody() {
             <div className="seq-interp__title">Clip settings</div>
             <label className="seq-settings__row">
               <span>Duration (s)</span>
-              <input
-                type="number" min={0} step={0.1} defaultValue={duration}
-                onChange={(e) => TimelineCommands.setDuration(parseFloat(e.target.value) || 0)}
-              />
+              <NumField value={duration} onCommit={(n) => TimelineCommands.setDuration(Math.max(0, n))} />
             </label>
             <label className="seq-settings__row">
               <span>Frame rate (fps)</span>
-              <input
-                type="number" min={1} step={1} defaultValue={fps}
-                onChange={(e) => TimelineDocument.setFps(parseInt(e.target.value, 10) || 1)}
-              />
+              <NumField value={fps} onCommit={(n) => TimelineDocument.setFps(Math.max(1, Math.round(n)))} />
             </label>
             <div className="seq-settings__row">
               <span>Loop</span>

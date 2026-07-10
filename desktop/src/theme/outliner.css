@@ -5,31 +5,8 @@
    (.phead / .pbtn / .pbody) is shared with other docked panels and defined here.
    ========================================================================== */
 
-/* Panel header (search / actions row) — shared scaffolding */
-.phead {
-  height: 32px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 8px;
-  border-bottom: 1px solid var(--border);
-}
-.pbtn {
-  width: 24px;
-  height: 24px;
-  display: grid;
-  place-items: center;
-  color: var(--text-mute);
-  border-radius: var(--r-sm);
-  flex-shrink: 0;
-  transition: color var(--t-fast), background var(--t-fast);
-}
-.pbtn:hover { color: var(--text); background: var(--srf-4); }
-.pbtn:active { background: var(--srf-5); }
-.pbtn:disabled { opacity: 0.4; cursor: default; }
-.pbtn.on { color: var(--acc); }
-.pbody { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; }
+/* Panel header scaffolding (.phead/.pbtn/.pbody) is the shared primitive in
+   controls.css; this file keeps only outliner-specific rows/columns. */
 
 /* Column header strip */
 .outliner-cols {

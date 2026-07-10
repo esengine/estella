@@ -822,7 +822,7 @@ export function ContentBrowser() {
       <div className="cb-work">
         {/* ── Sources (left) ── */}
         <div className="cb-panel cb-src">
-          <div className="cb-head">
+          <div className="phead cb-head">
             <span className="pt">Sources</span>
           </div>
           <div className="cb-src-body">
@@ -833,7 +833,7 @@ export function ContentBrowser() {
 
         {/* ── Main (center) ── */}
         <div className="cb-panel cb-main">
-          <div className="cb-bar">
+          <div className="phead cb-bar">
             <div className="cb-nav">
               <button type="button" disabled={!canBack} onClick={back} title="Back">
                 <ArrowLeft size={15} strokeWidth={2} />

@@ -15,16 +15,11 @@
   --seq-tracks-w: 224px;
 }
 
-/* ── transport bar ── */
+/* ── transport bar — shared .phead, tight gap for the transport cluster ── */
 .seq-bar {
-  display: flex;
-  align-items: center;
-  gap: 3px;
   height: 34px;
-  flex: none;
-  padding: 0 8px;
+  gap: 3px;
   background: var(--elevated);
-  border-bottom: 1px solid var(--border);
 }
 .seq-meta { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .seq-meta__icon { color: var(--acc-hi); }
@@ -175,12 +170,8 @@
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
   padding: 5px 4px; font-size: 12px; color: var(--text-dim);
 }
-.seq-settings__row input {
-  width: 84px; background: var(--srf-2); border: 1px solid var(--border);
-  color: var(--text); border-radius: var(--r-sm); padding: 3px 6px;
-  font-family: var(--mono); font-size: var(--fs-xs);
-}
-.seq-settings__row input:focus { outline: none; border-color: var(--acc); }
+/* numeric cells are the shared NumField (.field well), capped to the popover column */
+.seq-settings__row .field { flex: 0 0 84px; }
 .seq-settings__wrap { display: inline-flex; background: var(--srf-2); border-radius: var(--r-md); padding: 2px; }
 .seq-settings__wrapbtn {
   border: 0; background: transparent; color: var(--text-mute); cursor: pointer;

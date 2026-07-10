@@ -55,6 +55,42 @@
 .sel-trigger > svg { color: var(--text-mute); flex-shrink: 0; }
 .sel-trigger .dd-val { flex: 1; }
 
+/* — Panel header scaffolding: the fixed-height search/actions row atop a
+     docked panel, its icon buttons, and the scrolling body under it. Panels
+     keep only height/background deltas (30–38px is deliberate per panel). — */
+.phead {
+  height: 32px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--border);
+}
+.pbtn {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  color: var(--text-mute);
+  border-radius: var(--r-sm);
+  flex-shrink: 0;
+  transition: color var(--t-fast), background var(--t-fast);
+}
+.pbtn:hover { color: var(--text); background: var(--srf-4); }
+.pbtn:active { background: var(--srf-5); }
+.pbtn:disabled { opacity: 0.4; cursor: default; }
+.pbtn.on { color: var(--acc); }
+.pbody { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; }
+
+/* — Input well (components/NumField.tsx + the inspector's dropdown trigger):
+     a bordered inset the actual control sits in, focus ring on the well. — */
+.field { height: 22px; flex: 1; min-width: 0; display: flex; align-items: center; background: var(--inset); border: 1px solid var(--border); border-radius: var(--r-sm); transition: border-color var(--t-fast), box-shadow var(--t-fast); }
+.field:focus-within { border-color: var(--acc); box-shadow: 0 0 0 2px var(--acc-soft); }
+.field input { width: 100%; min-width: 0; background: none; border: none; outline: none; padding: 0 7px; font-size: var(--fs-sm); color: var(--text); font-family: var(--mono); }
+.field select { width: 100%; background: none; border: none; outline: none; padding: 0 6px; font-size: var(--fs-sm); color: var(--text); appearance: none; cursor: pointer; }
+.field.dropdown { padding: 0; overflow: hidden; }
+
 /* — Search/filter field (components/SearchField.tsx). One recipe for every
      panel filter; usage sites keep only layout deltas (width/height/margin).
      The flush variant is the popover-internal border-bottom row. — */

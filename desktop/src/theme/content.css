@@ -8,7 +8,8 @@
 
 .cb-work { flex: 1; display: flex; min-height: 0; background: var(--srf-0); }
 .cb-panel { display: flex; flex-direction: column; min-height: 0; background: var(--srf-2); }
-.cb-head { display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 6px 0 10px; background: var(--srf-3); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+/* shared .phead + column-header face */
+.cb-head { height: 30px; padding: 0 6px 0 10px; background: var(--srf-3); }
 .cb-head .pt { font-size: var(--fs-sm); font-weight: 600; color: var(--text); }
 .cb-head .sp { flex: 1; }
 .cb-ico { width: 22px; height: 22px; display: grid; place-items: center; color: var(--text-mute); border-radius: var(--r-sm); transition: color var(--t-fast), background var(--t-fast); }
@@ -33,7 +34,8 @@
 
 /* ── Main (center) ── */
 .cb-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.cb-bar { display: flex; align-items: center; gap: 6px; height: 38px; padding: 0 10px; border-bottom: 1px solid var(--border); flex-shrink: 0; background: var(--srf-2); }
+/* shared .phead, toolbar-height */
+.cb-bar { height: 38px; padding: 0 10px; background: var(--srf-2); }
 .cb-nav { display: flex; gap: 1px; }
 .cb-nav button { width: 26px; height: 26px; display: grid; place-items: center; color: var(--text-dim); border-radius: var(--r-sm); transition: color var(--t-fast), background var(--t-fast); }
 .cb-nav button:hover:not(:disabled) { color: var(--text); background: var(--srf-4); }

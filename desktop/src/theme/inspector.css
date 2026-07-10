@@ -10,7 +10,8 @@
 
 /* ════════════════════════ INSPECTOR (Details) ════════════════════════ */
 .insp { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-.insp-head { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+/* shared .phead, one row taller for the 26px search well */
+.insp-head { height: 38px; }
 .insp-head .search { height: 26px; }
 /* Outlined, not filled — the accent fill is reserved for Play (one primary
    action per screen); +Add stays prominent through the accent stroke/text. */
@@ -89,10 +90,8 @@
 .prop:hover .prop-reset.show, .prop.modified .prop-reset.show { opacity: .85; }
 .prop-reset:hover { opacity: 1 !important; }
 
-.field { height: 22px; flex: 1; min-width: 0; display: flex; align-items: center; background: var(--inset); border: 1px solid var(--border); border-radius: var(--r-sm); transition: border-color var(--t-fast), box-shadow var(--t-fast); }
-.field:focus-within { border-color: var(--acc); box-shadow: 0 0 0 2px var(--acc-soft); }
-.field input { width: 100%; min-width: 0; background: none; border: none; outline: none; padding: 0 7px; font-size: var(--fs-sm); color: var(--text); font-family: var(--mono); }
-.field select { width: 100%; background: none; border: none; outline: none; padding: 0 6px; font-size: var(--fs-sm); color: var(--text); appearance: none; cursor: pointer; }
+/* `.field` (the input well NumField and the dropdown trigger sit in) is the
+   shared primitive in controls.css. */
 .vec { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; flex: 1; min-width: 0; }
 .vfield { height: 22px; display: flex; align-items: center; background: var(--inset); border: 1px solid var(--border); border-radius: var(--r-sm); overflow: hidden; min-width: 0; transition: border-color var(--t-fast), box-shadow var(--t-fast); }
 .vfield:focus-within { border-color: var(--acc); box-shadow: 0 0 0 2px var(--acc-soft); }
@@ -154,7 +153,6 @@
 .snum { width: 54px; flex-shrink: 0; display: flex; }
 
 /* ── themed dropdown / flags / asset picker (a Popover under the field) ── */
-.field.dropdown { padding: 0; overflow: hidden; }
 .dd-trigger { width: 100%; height: 100%; display: flex; align-items: center; gap: 4px; padding: 0 4px 0 7px; background: none; border: none; color: var(--text); font-size: var(--fs-sm); cursor: pointer; min-width: 0; }
 .dd-val { flex: 1; min-width: 0; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dd-val.mixed { color: var(--text-mute); }

@@ -61,6 +61,7 @@ import {
   type MaterialContext,
 } from '@/material/materialInspectorModel';
 import { ContextMenu } from '@/components/Menu';
+import { NumField, useScrub, fmt, type ControlGesture } from '@/components/NumField';
 import { Popover, usePopover } from '@/components/Popover';
 import { SearchField } from '@/components/SearchField';
 import { Select } from '@/components/Select';
@@ -68,7 +69,6 @@ import { AddComponentMenu } from '@/components/AddComponentMenu';
 import type { InspectorComponent, InspectorField, InspectorFieldValue, EntityId, NodeKind, EnumOption, AssetType, GradientValue, GradientStop, CurveValue, CurveKey, DimensionValue } from '@/types';
 
 const AXES = ['x', 'y', 'z'];
-const fmt = (n: number) => String(Math.round(n * 1000) / 1000);
 
 // Field-value equality for the "modified" (override) mark. Vectors compare
 // element-wise; numbers tolerate float drift so a no-op edit doesn't read as one.
@@ -110,95 +110,8 @@ const KIND_LABEL: Record<NodeKind, string> = {
   empty: 'Entity',
 };
 
-// Each control reports gesture boundaries (onBegin/onEnd) so one focus→blur, one
-// click, or one drag-scrub becomes a single undo step; onCommit applies live.
-export interface ControlGesture {
-  onBegin?: () => void;
-  onEnd?: () => void;
-}
-
-interface ScrubOpts extends ControlGesture {
-  /** Units per pixel of drag (default 0.1); Shift = ÷10, Alt = ×10. */
-  step?: number;
-  min?: number;
-  max?: number;
-}
-
-// Drag-to-scrub. The affordance lives on the property LABEL (scalars) or the
-// colored axis TAB (vectors) — NOT the input — so the field stays a plain
-// click-to-type box. Press + drag horizontally to nudge; a press under the 3px
-// threshold is ignored. The result clamps to [min,max] when the field is ranged.
-function useScrub(value: number, onCommit: (n: number) => void, opts: ScrubOpts = {}) {
-  const scrub = useRef<{ x: number; base: number; moved: boolean } | null>(null);
-  return {
-    onPointerDown: (e: React.PointerEvent) => {
-      if (e.button !== 0) return;
-      e.preventDefault();
-      scrub.current = { x: e.clientX, base: value, moved: false };
-      e.currentTarget.setPointerCapture(e.pointerId);
-    },
-    onPointerMove: (e: React.PointerEvent) => {
-      const s = scrub.current;
-      if (!s) return;
-      const dx = e.clientX - s.x;
-      if (!s.moved) {
-        if (Math.abs(dx) < 3) return;
-        s.moved = true;
-        opts.onBegin?.();
-      }
-      const base = opts.step ?? 0.1;
-      const step = e.shiftKey ? base / 10 : e.altKey ? base * 10 : base;
-      let next = Math.round((s.base + dx * step) * 1000) / 1000;
-      if (opts.min != null) next = Math.max(opts.min, next);
-      if (opts.max != null) next = Math.min(opts.max, next);
-      onCommit(next);
-    },
-    onPointerUp: (e: React.PointerEvent) => {
-      const s = scrub.current;
-      scrub.current = null;
-      if (!s) return;
-      e.currentTarget.releasePointerCapture?.(e.pointerId);
-      if (s.moved) opts.onEnd?.();
-    },
-  };
-}
-
-// Plain click-to-type numeric input. `suffix` (e.g. °) shows in the resting value;
-// `mixed` (multi-select disagreement) shows a "—" placeholder until typed over.
-export function NumField({
-  value,
-  suffix,
-  mixed,
-  onBegin,
-  onEnd,
-  onCommit,
-}: ControlGesture & { value: number; suffix?: string; mixed?: boolean; onCommit: (n: number) => void }) {
-  const [editing, setEditing] = useState(false);
-  const [text, setText] = useState('');
-  return (
-    <span className="field">
-      <input
-        value={editing ? text : mixed ? '' : fmt(value) + (suffix ?? '')}
-        placeholder={mixed ? '—' : undefined}
-        spellCheck={false}
-        onFocus={() => {
-          setText(fmt(value));
-          setEditing(true);
-          onBegin?.();
-        }}
-        onBlur={() => {
-          setEditing(false);
-          onEnd?.();
-        }}
-        onChange={(e) => {
-          setText(e.target.value);
-          const n = parseFloat(e.target.value);
-          if (!Number.isNaN(n)) onCommit(n);
-        }}
-      />
-    </span>
-  );
-}
+// The gesture contract, scrub hook, and NumField are the shared numeric-input
+// primitives (components/NumField.tsx); the inspector composes them below.
 
 // One vector component — the colored X/Y/Z tab IS the scrub handle.
 function VecField({
@@ -2049,7 +1962,7 @@ function EditorDetails() {
 
   return (
     <div className="insp">
-      <div className="insp-head">
+      <div className="phead insp-head">
         <SearchField placeholder="Search" value={query} onChange={setQuery} />
         <button
           type="button"
