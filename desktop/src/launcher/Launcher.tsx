@@ -6,6 +6,7 @@ import { useEditorStore } from '@/store/editorStore';
 import { ProjectStore } from '@/project/ProjectStore';
 import { WindowControls } from '@/layout/WindowControls';
 import type { RecentEntry, TemplateEntry } from '@/project/format';
+import { version } from '../../package.json';
 
 // Project browser shown before a project is open. A hub layout — persistent top
 // actions, a build-aware project list with grid/list views, and a template
@@ -155,8 +156,8 @@ function RecentView({
               <button
                 type="button"
                 className="proj-card__remove"
-                title="从最近列表移除"
-                aria-label="从最近列表移除"
+                title="Remove from recents"
+                aria-label="Remove from recents"
                 onClick={(e) => { e.stopPropagation(); onRemove(p.root); }}
               >
                 <X size={13} strokeWidth={2} />
@@ -189,8 +190,8 @@ function RecentView({
               <button
                 type="button"
                 className="proj-row__remove"
-                title="从最近列表移除"
-                aria-label="从最近列表移除"
+                title="Remove from recents"
+                aria-label="Remove from recents"
                 onClick={(e) => { e.stopPropagation(); onRemove(p.root); }}
               >
                 <X size={13} strokeWidth={2} />
@@ -391,7 +392,7 @@ export function Launcher() {
           </nav>
           <div className="lc-rail__foot">
             <Constellation />
-            <span className="mono">v0.4.0 · web</span>
+            <span className="mono">v{version}</span>
           </div>
         </aside>
 

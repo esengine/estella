@@ -60,12 +60,26 @@ async function manifestBuild(root: string): Promise<string | undefined> {
   }
 }
 
-/** Recent projects, newest first, with stale entries (no manifest) dropped. */
+/** Canonical identity of a project root: resolved to one absolute spelling and
+ *  case-folded on Windows (its paths are case-insensitive). Entries keep their
+ *  stored spelling for display — only comparisons go through this, so the same
+ *  folder opened as `F:\x` and `F:/x` is one recent, not two. */
+function canonRoot(root: string): string {
+  const r = path.resolve(root);
+  return process.platform === 'win32' ? r.toLowerCase() : r;
+}
+
+/** Recent projects, newest first, with stale entries (no manifest) dropped and
+ *  spelling-variant duplicates collapsed to their newest entry. */
 export async function listRecents(): Promise<RecentEntry[]> {
   const stored = await readStored();
+  const seen = new Set<string>();
   const out: RecentEntry[] = [];
   for (const r of stored) {
     if (!r?.root || !existsSync(path.join(r.root, PROJECT_MANIFEST_FILE))) continue;
+    const key = canonRoot(r.root);
+    if (seen.has(key)) continue;
+    seen.add(key);
     out.push({ ...r, build: await manifestBuild(r.root), thumbnail: await thumbnailUrl(r.root) });
   }
   return out;
@@ -73,15 +87,17 @@ export async function listRecents(): Promise<RecentEntry[]> {
 
 /** Record a freshly-opened project at the top of the recents list (de-duped, newest first). */
 export async function addRecent(root: string, name: string): Promise<void> {
-  const stored = (await readStored()).filter((r) => r.root !== root);
-  stored.unshift({ root, name, openedAt: Date.now() });
+  const key = canonRoot(root);
+  const stored = (await readStored()).filter((r) => !!r?.root && canonRoot(r.root) !== key);
+  stored.unshift({ root: path.resolve(root), name, openedAt: Date.now() });
   await writeFile(recentsFile(), JSON.stringify(stored.slice(0, MAX_RECENTS), null, 2));
 }
 
 /** Drop a project from the recents list. The project on disk is untouched — this
  *  only forgets it in the launcher (the user's explicit "remove from recents"). */
 export async function removeRecent(root: string): Promise<void> {
-  const stored = (await readStored()).filter((r) => r.root !== root);
+  const key = canonRoot(root);
+  const stored = (await readStored()).filter((r) => !!r?.root && canonRoot(r.root) !== key);
   await writeFile(recentsFile(), JSON.stringify(stored, null, 2));
 }
 

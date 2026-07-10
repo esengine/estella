@@ -11,6 +11,7 @@ import { SceneModel } from '@/engine/SceneModel';
 import { PlayInspect } from '@/engine/PlayInspect';
 import { ProjectStore } from '@/project/ProjectStore';
 import { ContextMenu, type MenuItem } from '@/components/Menu';
+import { formatKeybinding } from '@/commands/keybinding';
 import { VirtualTree } from '@/components/VirtualTree';
 import { buildOutlinerItems, collectExpandableKeys, entityKey, folderKey, parseQuery, type OutlinerItem } from '@/outliner/OutlinerModel';
 import { useOutliner } from '@/outliner/OutlinerController';
@@ -502,7 +503,7 @@ export function Outliner() {
       { label: 'Rename', shortcut: 'F2', onClick: () => setRenaming(entityKey(id)) },
       {
         label: 'Duplicate',
-        shortcut: '⌘D',
+        shortcut: formatKeybinding('mod+d'),
         onClick: () => {
           const d = SceneCommands.duplicateEntity(id);
           if (d != null) select(d);
@@ -511,7 +512,7 @@ export function Outliner() {
       { label: 'Create Prefab', onClick: () => void ProjectStore.createPrefabFromEntity(id) },
       {
         label: 'Delete',
-        shortcut: '⌫',
+        shortcut: formatKeybinding('delete'),
         onClick: () => {
           selectionOrTarget(id).forEach((i) => SceneCommands.deleteEntity(i));
           select(null);

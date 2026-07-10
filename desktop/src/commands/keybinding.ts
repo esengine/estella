@@ -70,6 +70,10 @@ export function chordMatches(e: KeyboardEvent, kb: Keybinding): boolean {
   return list.some((k) => normalizeChord(k) === chord);
 }
 
+/** Platform command-key prefix for composing compact hints (e.g. `${MOD_LABEL}C`):
+ *  '⌘' on macOS, 'Ctrl+' elsewhere. Prefer formatKeybinding for full chords. */
+export const MOD_LABEL = IS_MAC ? '⌘' : 'Ctrl+';
+
 function displayKey(key: string): string {
   const map: Record<string, string> = {
     delete: IS_MAC ? '⌫' : 'Del',

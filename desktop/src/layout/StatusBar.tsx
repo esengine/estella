@@ -8,6 +8,7 @@ import { StatsStore } from '@/engine/StatsStore';
 import { EngineHost } from '@/engine/EngineHost';
 import { SubsystemIndicator } from './SubsystemIndicator';
 import { Perf } from '@/components/Perf';
+import { version } from '../../package.json';
 
 const formatMb = (bytes: number) => (bytes / (1024 * 1024)).toFixed(1);
 
@@ -83,7 +84,7 @@ export function StatusBar() {
         <Cpu size={11} strokeWidth={1.85} />
         {EngineHost.activeBackend === 'webgpu' ? 'WebGPU' : 'WebGL2'}
       </span>
-      <span className="sitem smute">esengine 0.10.0</span>
+      <span className="sitem smute">esengine {version}</span>
     </footer>
   );
 }

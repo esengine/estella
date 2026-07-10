@@ -29,6 +29,20 @@ settingsRegistry.registerSection({ id: 'console', label: 'Console', category: 'e
 settingsRegistry.registerSection({ id: 'renderer', label: 'Renderer', category: 'editor', order: 6 });
 
 // ── Appearance (store-owned, applied via CSS) ───────────────────────────────
+// The accent is a family, not one color — hover/pressed shades and the
+// translucent selection/focus tints all derive from the chosen hue. On the
+// default azure the overrides are removed so the hand-tuned tokens.css values
+// stay pixel-exact; other accents derive their shades numerically.
+const ACCENT_DEFAULT = '#2f88d6';
+const ACCENT_VARS = ['--star', '--acc', '--star-hi', '--star-deep', '--star-dim', '--star-soft', '--star-line'];
+
+function hexToRgb(hex: string): [number, number, number] | null {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return null;
+  const n = parseInt(m[1], 16);
+  return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
+}
+
 settingsRegistry.register({
   id: 'appearance.accent',
   type: 'color',
@@ -37,11 +51,26 @@ settingsRegistry.register({
   group: 'Appearance',
   label: 'Accent color',
   description: 'Used for selection, active controls, and focus.',
-  default: '#2f88d6',
-  swatches: ['#2f88d6', '#46b08c', '#b272d6', '#e08c43', '#c75d6e'],
+  default: ACCENT_DEFAULT,
+  swatches: [ACCENT_DEFAULT, '#46b08c', '#b272d6', '#e08c43', '#c75d6e'],
   effect: (v) => {
+    const rgb = hexToRgb(v);
+    if (!rgb || v.toLowerCase() === ACCENT_DEFAULT) {
+      for (const p of ACCENT_VARS) root().removeProperty(p);
+      return;
+    }
+    const [r, g, b] = rgb;
+    const toward = (t: number) =>
+      t >= 0
+        ? `rgb(${rgb.map((c) => Math.round(c + (255 - c) * t)).join(' ')})`
+        : `rgb(${rgb.map((c) => Math.round(c * (1 + t))).join(' ')})`;
     root().setProperty('--star', v);
     root().setProperty('--acc', v);
+    root().setProperty('--star-hi', toward(0.16));
+    root().setProperty('--star-deep', toward(-0.25));
+    root().setProperty('--star-dim', `rgba(${r}, ${g}, ${b}, 0.18)`);
+    root().setProperty('--star-soft', `rgba(${r}, ${g}, ${b}, 0.3)`);
+    root().setProperty('--star-line', `rgba(${r}, ${g}, ${b}, 0.55)`);
   },
 });
 
