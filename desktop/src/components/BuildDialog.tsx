@@ -11,7 +11,7 @@
  *        / Playable) are live.
  */
 import { useState, useSyncExternalStore } from 'react';
-import { Loader2, FolderOpen, CheckCircle2, AlertCircle, Boxes, Info, Copy, ExternalLink } from 'lucide-react';
+import { Loader2, FolderOpen, CheckCircle2, AlertCircle, Boxes, Info, Copy, ExternalLink, Play } from 'lucide-react';
 import { Modal } from '@/components/Modal';
 import { Segmented } from '@/components/Segmented';
 import { ProjectStore } from '@/project/ProjectStore';
@@ -103,6 +103,16 @@ export function BuildDialog() {
 
   const def = PLATFORMS.find((p) => p.id === platform)!;
   const running = phase === 'running';
+
+  // The build's scene set, mirroring the exporter's discovery: every scene
+  // under the project's scenes dir (plus the entry wherever it lives), entry
+  // first. Reads the live asset index, so it tracks file changes.
+  const scenesDir = project?.layout?.scenes ?? 'assets/scenes';
+  const excludedScenes = new Set(project?.packaging?.excludeScenes ?? []);
+  const sceneList = ProjectStore.listAssets()
+    .filter((a) => a.type === 'scene' && (a.path.startsWith(`${scenesDir}/`) || a.path === project?.defaultScene))
+    .sort((a, b) =>
+      a.path === project?.defaultScene ? -1 : b.path === project?.defaultScene ? 1 : a.path.localeCompare(b.path));
 
   const pickPlatform = (p: PlatformDef) => {
     if (!p.ready) return;
@@ -264,8 +274,43 @@ export function BuildDialog() {
           </div>
         )}
 
-        <div className="build__summary">
-          Entry: <strong>{project?.defaultScene ?? '—'}</strong>
+        {/* Scenes in build — the same single source the exporters read
+            (defaultScene + packaging.excludeScenes), edited in place. The
+            startup scene is pinned: it boots the game, so it always ships. */}
+        <div className="build__scenes">
+          <div className="build__scenes-head">Scenes in build</div>
+          {sceneList.map((s) => {
+            const isEntry = s.path === project?.defaultScene;
+            const ships = isEntry || !excludedScenes.has(s.path);
+            return (
+              <div key={s.path} className={`build__scene${ships ? '' : ' is-excluded'}`}>
+                <button
+                  type="button"
+                  className={`build__scene-start${isEntry ? ' is-on' : ''}`}
+                  title={isEntry ? 'Startup scene' : 'Set as startup scene'}
+                  aria-label={isEntry ? 'Startup scene' : `Set ${s.name} as startup scene`}
+                  disabled={running || isEntry}
+                  onClick={() => void ProjectStore.setDefaultScene(s.path)}
+                >
+                  <Play size={11} strokeWidth={2.5} />
+                </button>
+                <label className="build__scene-row">
+                  <input
+                    type="checkbox"
+                    checked={ships}
+                    disabled={running || isEntry}
+                    onChange={(e) => void ProjectStore.setSceneExcluded(s.path, !e.target.checked)}
+                  />
+                  <span className="build__scene-name">{s.name.replace(/\.esscene$/i, '')}</span>
+                  <span className="build__scene-path mono">{s.path}</span>
+                </label>
+              </div>
+            );
+          })}
+          {sceneList.length === 0 && <div className="build__scenes-empty">No scenes found under the project's scenes folder.</div>}
+          {platform === 'playable' && sceneList.length > 1 && (
+            <div className="build__scenes-note">Playable ships the startup scene only — a size-capped single file.</div>
+          )}
         </div>
 
         {phase !== 'idle' && (
