@@ -124,9 +124,9 @@ export const TilesetCommands = {
     try {
       await window.estella.fs.write(path, JSON.stringify(serializeTileset(asset), null, 2) + '\n');
       TilesetDocument.markSaved();
-      Toasts.push('已保存瓦片集', 'info');
+      Toasts.push('Tileset saved', 'info');
     } catch (e) {
-      Toasts.push(`保存瓦片集失败：${String(e)}`, 'error');
+      Toasts.push(`Failed to save tileset: ${String(e)}`, 'error');
     }
   },
 };

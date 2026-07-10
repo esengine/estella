@@ -165,15 +165,15 @@ class TimelineCommandsImpl {
     const { filePath } = TimelineDocument.meta;
     if (!asset) return;
     if (!filePath) {
-      Toasts.push('动画未关联文件（示例片段无法保存）', 'error');
+      Toasts.push('Animation has no file (sample clips cannot be saved)', 'error');
       return;
     }
     try {
       await window.estella.fs.write(filePath, serializeTimelineToJson(asset) + '\n');
       TimelineDocument.markSaved();
-      Toasts.push('动画已保存', 'success', 1500);
+      Toasts.push('Animation saved', 'success', 1500);
     } catch (e) {
-      Toasts.push(`保存失败：${String(e)}`, 'error');
+      Toasts.push(`Failed to save: ${String(e)}`, 'error');
     }
   }
 }

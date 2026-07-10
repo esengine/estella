@@ -1515,7 +1515,7 @@ function MaterialAssetInspector({ path }: { path: string }) {
       MaterialDocument.markSaved();
       Toasts.push('Material saved', 'info', 1400);
     } catch (e) {
-      Toasts.push(`保存材质失败：${String(e)}`, 'error');
+      Toasts.push(`Failed to save material: ${String(e)}`, 'error');
     }
   };
 
@@ -1804,7 +1804,7 @@ function GenericAssetInspector({ path }: { path: string }) {
       if (type === 'texture' || type === 'sprite') ProjectStore.applyLiveTextureSettings(path);
       Toasts.push('Import settings saved', 'info', 1400);
     } catch (e) {
-      Toasts.push(`保存导入设置失败：${String(e)}`, 'error');
+      Toasts.push(`Failed to save import settings: ${String(e)}`, 'error');
     }
   };
 

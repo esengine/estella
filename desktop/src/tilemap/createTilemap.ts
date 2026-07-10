@@ -19,14 +19,14 @@ import { Toasts } from '@/store/Toasts';
 export async function createTilemapFromTileset(tilesetPath: string): Promise<void> {
   const tilesetRef = ProjectStore.assetRef(tilesetPath); // .estileset → @uuid
   if (!tilesetRef) {
-    Toasts.push('该瓦片集未被项目追踪', 'error');
+    Toasts.push('Tileset is not tracked by the project', 'error');
     return;
   }
   let asset;
   try {
     asset = parseTileset(JSON.parse(await window.estella.fs.read(tilesetPath)));
   } catch (e) {
-    Toasts.push(`读取瓦片集失败：${String(e)}`, 'error');
+    Toasts.push(`Failed to read tileset: ${String(e)}`, 'error');
     return;
   }
 
@@ -55,5 +55,5 @@ export async function createTilemapFromTileset(tilesetPath: string): Promise<voi
   // The painter is a palette companion to viewport painting — dock it to the side
   // so the Viewport stays visible (a center tab would hide what you paint on).
   dockApi.openSidePanel('tilemap', 'tilemap', 'Tilemap', 'left', 300);
-  Toasts.push('已创建瓦片地图 — 选择刷子在视口绘制', 'info');
+  Toasts.push('Created tilemap — pick a brush to paint in the viewport', 'info');
 }

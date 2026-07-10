@@ -331,7 +331,7 @@ const bucketTool: EditorTool = {
       }
     }
     if (edits.length > 0) SceneCommands.paintTiles(selId, edits);
-    if (capped) Toasts.push(`油漆桶到达 ${BUCKET_CAP} 格上限，已部分填充`, 'warn');
+    if (capped) Toasts.push(`Bucket fill hit the ${BUCKET_CAP}-cell cap — filled partially`, 'warn');
     return false; // one-shot, no drag
   },
   onPointerMove() {},

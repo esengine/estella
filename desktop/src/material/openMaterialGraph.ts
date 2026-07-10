@@ -24,7 +24,7 @@ export async function openMaterialGraph(path: string): Promise<void> {
     MaterialGraphDocument.openJson(JSON.parse(text), path);
     dockApi.openDocument('materialgraph', 'materialgraph', 'Material Graph');
   } catch (e) {
-    Toasts.push(`无法打开材质图：${String(e)}`, 'error');
+    Toasts.push(`Failed to open material graph: ${String(e)}`, 'error');
   }
 }
 
@@ -37,7 +37,7 @@ export async function saveMaterialGraph(path: string, graph: MaterialGraph): Pro
     MaterialGraphDocument.markSaved();
     Toasts.push('Material graph saved', 'info', 1400);
   } catch (e) {
-    Toasts.push(`保存材质图失败：${String(e)}`, 'error');
+    Toasts.push(`Failed to save material graph: ${String(e)}`, 'error');
   }
 }
 
@@ -58,10 +58,10 @@ export async function createMaterialGraph(dir: string): Promise<void> {
       JSON.stringify({ uuid: crypto.randomUUID(), version: '1.0', type: 'materialgraph', importer: { autoMigrate: true } }, null, 2) + '\n',
     );
   } catch (e) {
-    Toasts.push(`创建材质图失败：${String(e)}`, 'error');
+    Toasts.push(`Failed to create material graph: ${String(e)}`, 'error');
     return;
   }
   await ProjectStore.refreshAssets();
-  Toasts.push(`已创建材质图：${baseName(rel)}`, 'info');
+  Toasts.push(`Created material graph: ${baseName(rel)}`, 'info');
   await openMaterialGraph(rel);
 }

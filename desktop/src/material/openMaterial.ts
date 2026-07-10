@@ -42,7 +42,7 @@ async function writeMeta(rel: string): Promise<void> {
 export async function createMaterial(dir: string, templateId = 'sprite-unlit'): Promise<void> {
   const template = builtinShaderTemplate(templateId);
   if (!template) {
-    Toasts.push(`未知材质模板：${templateId}`, 'error');
+    Toasts.push(`Unknown material template: ${templateId}`, 'error');
     return;
   }
   const folder = dir ? (dir.endsWith('/') ? dir : `${dir}/`) : '';
@@ -66,11 +66,11 @@ export async function createMaterial(dir: string, templateId = 'sprite-unlit'): 
     await window.estella.fs.write(matRel, JSON.stringify(asset, null, 2) + '\n');
     await writeMeta(matRel);
   } catch (e) {
-    Toasts.push(`创建材质失败：${String(e)}`, 'error');
+    Toasts.push(`Failed to create material: ${String(e)}`, 'error');
     return;
   }
   await ProjectStore.refreshAssets();
-  Toasts.push(`已创建材质：${baseName(matRel)}`, 'info');
+  Toasts.push(`Created material: ${baseName(matRel)}`, 'info');
   openMaterial(matRel);
 }
 
@@ -92,10 +92,10 @@ export async function createMaterialInstance(parentPath: string): Promise<void> 
     await window.estella.fs.write(matRel, JSON.stringify(asset, null, 2) + '\n');
     await writeMeta(matRel);
   } catch (e) {
-    Toasts.push(`创建材质实例失败：${String(e)}`, 'error');
+    Toasts.push(`Failed to create material instance: ${String(e)}`, 'error');
     return;
   }
   await ProjectStore.refreshAssets();
-  Toasts.push(`已创建材质实例：${baseName(matRel)}`, 'info');
+  Toasts.push(`Created material instance: ${baseName(matRel)}`, 'info');
   openMaterial(matRel);
 }

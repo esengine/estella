@@ -123,7 +123,7 @@ commands.register({
   run: () => {
     const list = ProjectStore.listAssets('tileset');
     if (list.length === 0) {
-      Toasts.push('项目里还没有瓦片集 — 在内容浏览器右键一张贴图 → Create Tileset', 'warn');
+      Toasts.push('No tileset in the project yet — right-click a texture in the Content Browser → Create Tileset', 'warn');
       return;
     }
     if (list.length === 1) {

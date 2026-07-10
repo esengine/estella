@@ -29,7 +29,7 @@ export async function openAnimationClip(path: string): Promise<void> {
     useSequencerStore.getState().resetForClip();
     dockApi.revealAndExpand('sequencer');
   } catch (e) {
-    Toasts.push(`无法打开动画：${String(e)}`, 'error');
+    Toasts.push(`Failed to open animation: ${String(e)}`, 'error');
   }
 }
 
@@ -49,10 +49,10 @@ export async function createAnimationClip(dir: string): Promise<void> {
       JSON.stringify({ uuid: crypto.randomUUID(), version: '1.0', type: 'animation', importer: { autoMigrate: true } }, null, 2) + '\n',
     );
   } catch (e) {
-    Toasts.push(`创建动画失败：${String(e)}`, 'error');
+    Toasts.push(`Failed to create animation: ${String(e)}`, 'error');
     return;
   }
   await ProjectStore.refreshAssets();
-  Toasts.push(`已创建动画：${baseName(rel)}`, 'info');
+  Toasts.push(`Created animation: ${baseName(rel)}`, 'info');
   await openAnimationClip(rel);
 }

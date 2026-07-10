@@ -21,7 +21,7 @@ export async function openStateMachine(path: string): Promise<void> {
     FsmGraphDocument.openJson(JSON.parse(text), path);
     dockApi.openDocument('statemachine', 'statemachine', 'State Machine');
   } catch (e) {
-    Toasts.push(`无法打开状态机：${String(e)}`, 'error');
+    Toasts.push(`Failed to open state machine: ${String(e)}`, 'error');
   }
 }
 
@@ -39,10 +39,10 @@ export async function createStateMachine(dir: string): Promise<void> {
       JSON.stringify({ uuid: crypto.randomUUID(), version: '1.0', type: 'statemachine', importer: { autoMigrate: true } }, null, 2) + '\n',
     );
   } catch (e) {
-    Toasts.push(`创建状态机失败：${String(e)}`, 'error');
+    Toasts.push(`Failed to create state machine: ${String(e)}`, 'error');
     return;
   }
   await ProjectStore.refreshAssets();
-  Toasts.push(`已创建状态机：${baseName(rel)}`, 'info');
+  Toasts.push(`Created state machine: ${baseName(rel)}`, 'info');
   await openStateMachine(rel);
 }

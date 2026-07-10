@@ -13,6 +13,7 @@ import { exitTilePaint, isTilePaintMode, selectedTilemapCellSize } from '@/tools
 import { buildStampGhost } from '@/tools/tileStampGhost';
 import { TilemapAPI, tileIdOf } from 'esengine';
 import { commands } from '@/commands';
+import { MOD_LABEL } from '@/commands/keybinding';
 import { EngineHost } from '@/engine/EngineHost';
 import { PlayRealm } from '@/engine/PlayRealm';
 import { ViewportController } from '@/engine/ViewportController';
@@ -211,20 +212,20 @@ const TOOL_HINT: Record<ToolMode, string> = {
 // Hint shown while painting a tilemap — replaces TOOL_HINT so the viewport speaks the
 // paint vocabulary (and always points at Q/Esc as the way back to select/transform).
 const TILE_HINT: Record<PaintTool, string> = {
-  brush: '拖动绘制 · H/V 翻转 · R 旋转笔刷 · I 吸管 · Q/Esc 退出',
-  erase: '拖动擦除(按笔刷大小) · Q/Esc 退出',
-  rect: '拖出矩形填充 · Q/Esc 退出',
-  line: '拖出直线 · Q/Esc 退出',
-  bucket: '点击油漆桶填充连通区域 · Q/Esc 退出',
-  select: '框选 · ⌘C/X 复制/剪切 · Del 清除 · ⌘V 粘贴为笔刷 · Q/Esc 退出',
-  eyedropper: '点击拾取瓦片到笔刷 · Q/Esc 退出',
-  terrain: '拖动绘制地形(自动过渡) · Q/Esc 退出',
+  brush: 'Drag to paint · H/V flips · R rotates the brush · I eyedropper · Q/Esc exits',
+  erase: 'Drag to erase (brush-sized) · Q/Esc exits',
+  rect: 'Drag a rectangle to fill · Q/Esc exits',
+  line: 'Drag a straight line · Q/Esc exits',
+  bucket: 'Click to fill the connected region · Q/Esc exits',
+  select: `Box-select · ${MOD_LABEL}C/X copies/cuts · Del clears · ${MOD_LABEL}V pastes as brush · Q/Esc exits`,
+  eyedropper: 'Click to pick a tile into the brush · Q/Esc exits',
+  terrain: 'Drag to paint terrain (auto-transitions) · Q/Esc exits',
 };
 
 // Label for the mode badge — the paint tool's short name.
 const TILE_TOOL_LABEL: Record<PaintTool, string> = {
-  brush: '画笔', erase: '擦除', rect: '矩形', line: '直线',
-  bucket: '油漆桶', select: '选区', eyedropper: '吸管', terrain: '地形',
+  brush: 'Brush', erase: 'Erase', rect: 'Rect', line: 'Line',
+  bucket: 'Bucket', select: 'Select', eyedropper: 'Eyedropper', terrain: 'Terrain',
 };
 
 function OvTool({
@@ -1360,7 +1361,7 @@ export function Viewport() {
       {perfVisible && <Perf id="viewport.perfhud"><PerfOverlay /></Perf>}
 
       {inTilePaint && paintTool && (
-        <div className="viewport__tileflag">◧ 瓦片绘制 · {TILE_TOOL_LABEL[paintTool]}</div>
+        <div className="viewport__tileflag">◧ Tile paint · {TILE_TOOL_LABEL[paintTool]}</div>
       )}
       {isPlaying && <div className="viewport__playflag">● PLAY</div>}
     </div>

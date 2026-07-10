@@ -29,19 +29,19 @@ export function TilemapPickerDialog() {
   };
 
   return (
-    <Modal title="新建瓦片地图" onClose={close} width={440}>
+    <Modal title="New Tilemap" onClose={close} width={440}>
       <div className="tmpick">
-        <p className="tmpick__hint">选择一个瓦片集作为地图的调色板</p>
+        <p className="tmpick__hint">Pick a tileset to use as the map's palette</p>
         <input
           className="tmpick__search"
-          placeholder="搜索瓦片集…"
+          placeholder="Search tilesets…"
           value={q}
           autoFocus
           spellCheck={false}
           onChange={(e) => setQ(e.target.value)}
         />
         {shown.length === 0 ? (
-          <div className="tmpick__empty">没有匹配的瓦片集</div>
+          <div className="tmpick__empty">No matching tilesets</div>
         ) : (
           <div className="tmpick__list">
             {shown.map((t) => (

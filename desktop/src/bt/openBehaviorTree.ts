@@ -19,7 +19,7 @@ export async function openBehaviorTree(path: string): Promise<void> {
     BtDocument.openJson(ensureBtIds(JSON.parse(text) as BtDefinition), path);
     dockApi.openDocument('behaviortree', 'behaviortree', 'Behavior Tree');
   } catch (e) {
-    Toasts.push(`无法打开行为树：${String(e)}`, 'error');
+    Toasts.push(`Failed to open behavior tree: ${String(e)}`, 'error');
   }
 }
 
@@ -36,10 +36,10 @@ export async function createBehaviorTree(dir: string): Promise<void> {
       JSON.stringify({ uuid: crypto.randomUUID(), version: '1.0', type: 'behaviortree', importer: { autoMigrate: true } }, null, 2) + '\n',
     );
   } catch (e) {
-    Toasts.push(`创建行为树失败：${String(e)}`, 'error');
+    Toasts.push(`Failed to create behavior tree: ${String(e)}`, 'error');
     return;
   }
   await ProjectStore.refreshAssets();
-  Toasts.push(`已创建行为树：${baseName(rel)}`, 'info');
+  Toasts.push(`Created behavior tree: ${baseName(rel)}`, 'info');
   await openBehaviorTree(rel);
 }

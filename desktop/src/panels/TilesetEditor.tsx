@@ -104,10 +104,10 @@ function PolygonEditor(props: {
     <div className="ts-pe-backdrop" onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="ts-pe">
         <div className="ts-pe-head">
-          <span>碰撞多边形 · #{tileId}</span>
+          <span>Collision polygon · #{tileId}</span>
           <span className="ts-grow" />
-          <button type="button" onClick={() => commit([])}>清除</button>
-          <button type="button" onClick={onClose}>完成</button>
+          <button type="button" onClick={() => commit([])}>Clear</button>
+          <button type="button" onClick={onClose}>Done</button>
         </div>
         <div
           className="ts-pe-stage"
@@ -131,7 +131,7 @@ function PolygonEditor(props: {
             ))}
           </svg>
         </div>
-        <div className="ts-pe-hint">点击添加顶点 · 点顶点删除 · ≥3 点生效</div>
+        <div className="ts-pe-hint">Click to add a vertex · click a vertex to delete · takes effect at ≥3 points</div>
       </div>
     </div>
   );
@@ -162,8 +162,8 @@ export function TilesetEditor() {
   if (!asset) {
     return (
       <div className="ts-empty">
-        <p>没有打开的瓦片集</p>
-        <p className="ts-hint">在内容浏览器里双击 .estileset，或右键纹理 → 新建瓦片集</p>
+        <p>No tileset open</p>
+        <p className="ts-hint">Double-click an .estileset in the Content Browser, or right-click a texture → Create Tileset</p>
       </div>
     );
   }
@@ -220,7 +220,7 @@ export function TilesetEditor() {
               key={id}
               className={'ts-cell ts-pcell' + (hasPolygon(id) ? ' is-poly' : '')}
               style={{ left, top, width: w, height: h }}
-              title={`#${id} — 点击编辑碰撞多边形`}
+              title={`#${id} — click to edit collision polygon`}
               onPointerDown={(e) => { e.preventDefault(); setPolyTile(id); }}
             />,
           );
@@ -257,7 +257,7 @@ export function TilesetEditor() {
             >
               <button
                 type="button" className="ts-zone ts-zone-c"
-                title="该瓦片属于此地形"
+                title="Tile belongs to this terrain"
                 onClick={() => toggleMember(id)}
               />
               {showZones && terrain && ZONES.filter((z) => terrain.mode === 'corner' || !z.corner).map((z) => {
@@ -290,13 +290,13 @@ export function TilesetEditor() {
         <GridField label="Spacing" value={sp} onCommit={(n) => editGrid({ spacing: n })} />
         <span className="ts-sep" />
         <div className="ts-modes">
-          <button type="button" className={mode === 'collision' ? 'is-active' : ''} onClick={() => setMode('collision')}>碰撞</button>
-          <button type="button" className={mode === 'terrain' ? 'is-active' : ''} onClick={() => setMode('terrain')}>地形</button>
+          <button type="button" className={mode === 'collision' ? 'is-active' : ''} onClick={() => setMode('collision')}>Collision</button>
+          <button type="button" className={mode === 'terrain' ? 'is-active' : ''} onClick={() => setMode('terrain')}>Terrain</button>
         </div>
         {mode === 'collision' && (
           <div className="ts-modes">
-            <button type="button" className={shape === 'box' ? 'is-active' : ''} onClick={() => setShape('box')}>盒</button>
-            <button type="button" className={shape === 'polygon' ? 'is-active' : ''} onClick={() => setShape('polygon')}>多边形</button>
+            <button type="button" className={shape === 'box' ? 'is-active' : ''} onClick={() => setShape('box')}>Box</button>
+            <button type="button" className={shape === 'polygon' ? 'is-active' : ''} onClick={() => setShape('polygon')}>Polygon</button>
           </div>
         )}
         <span className="ts-sep" />
@@ -310,7 +310,7 @@ export function TilesetEditor() {
           {cols}×{rows}{mode === 'collision' ? ` · ${solidCount} solid` : ''}
         </span>
         <button type="button" className="ts-save" onClick={() => void TilesetCommands.save()} disabled={!meta.dirty}>
-          <Save size={13} /> 保存{meta.dirty ? ' •' : ''}
+          <Save size={13} /> Save{meta.dirty ? ' •' : ''}
         </button>
       </div>
 
@@ -325,10 +325,10 @@ export function TilesetEditor() {
             >
               <span className="ts-tswatch" style={{ background: TERRAIN_COLORS[i % TERRAIN_COLORS.length] }} />
               {t.name}
-              <span className="ts-tmode">{t.mode === 'corner' ? '角' : '边'}</span>
+              <span className="ts-tmode">{t.mode === 'corner' ? 'Corner' : 'Edge'}</span>
             </button>
           ))}
-          <button type="button" className="ts-terrain ts-add" title="新建地形"
+          <button type="button" className="ts-terrain ts-add" title="New terrain"
             onClick={() => { TilesetCommands.addTerrain('', 'edge'); setActiveSet(terrains.length); setMode('terrain'); }}>
             <Plus size={13} />
           </button>
@@ -342,10 +342,10 @@ export function TilesetEditor() {
                 value={terrain.mode}
                 onChange={(e) => TilesetCommands.updateTerrain(activeSet, { mode: e.target.value as TerrainMode })}
               >
-                <option value="edge">边 (4-bit)</option>
-                <option value="corner">角 (blob)</option>
+                <option value="edge">Edge (4-bit)</option>
+                <option value="corner">Corner (blob)</option>
               </select>
-              <button type="button" className="ts-trm" title="删除地形"
+              <button type="button" className="ts-trm" title="Delete terrain"
                 onClick={() => { TilesetCommands.removeTerrain(activeSet); setActiveSet(0); }}>
                 <Trash2 size={13} />
               </button>
@@ -357,7 +357,7 @@ export function TilesetEditor() {
       <div className="ts-canvas" onPointerUp={mode === 'collision' ? commitDrag : undefined}
         onPointerLeave={mode === 'collision' ? commitDrag : undefined}>
         {!texUrl ? (
-          <div className="ts-warn">纹理未找到（引用 {String(asset.texture) || '空'}）</div>
+          <div className="ts-warn">Texture not found (ref {String(asset.texture) || 'empty'})</div>
         ) : (
           <div className="ts-stage" style={{ width: (natural?.w ?? 0) * zoom, height: (natural?.h ?? 0) * zoom }}>
             <img

@@ -21,7 +21,7 @@ export async function openTileset(path: string): Promise<void> {
     TilesetDocument.openJson(JSON.parse(text), path);
     dockApi.openDocument('tileset', 'tileset', 'Tileset');
   } catch (e) {
-    Toasts.push(`无法打开瓦片集：${String(e)}`, 'error');
+    Toasts.push(`Failed to open tileset: ${String(e)}`, 'error');
   }
 }
 
@@ -29,7 +29,7 @@ export async function openTileset(path: string): Promise<void> {
 export async function createTilesetFromTexture(texturePath: string): Promise<void> {
   const ref = ProjectStore.assetRef(texturePath);
   if (!ref) {
-    Toasts.push('该纹理未被项目追踪，无法创建瓦片集', 'error');
+    Toasts.push('Texture is not tracked by the project — cannot create tileset', 'error');
     return;
   }
   const dir = texturePath.includes('/') ? texturePath.slice(0, texturePath.lastIndexOf('/') + 1) : '';
@@ -46,10 +46,10 @@ export async function createTilesetFromTexture(texturePath: string): Promise<voi
       JSON.stringify({ uuid, version: '1.0', type: 'tileset', importer: { autoMigrate: true } }, null, 2) + '\n',
     );
   } catch (e) {
-    Toasts.push(`创建瓦片集失败：${String(e)}`, 'error');
+    Toasts.push(`Failed to create tileset: ${String(e)}`, 'error');
     return;
   }
   await ProjectStore.refreshAssets(); // re-scan so the new tileset is tracked
-  Toasts.push(`已创建瓦片集：${rel.split('/').pop()}`, 'info');
+  Toasts.push(`Created tileset: ${rel.split('/').pop()}`, 'info');
   await openTileset(rel);
 }

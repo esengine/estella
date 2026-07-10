@@ -34,16 +34,16 @@ import {
 
 // Interpolation choices shown in the keyframe popover (subset of InterpType).
 const INTERP_OPTIONS: [InterpType, string][] = [
-  [InterpType.Hermite, '自动(平滑)'],
-  [InterpType.Linear, '线性'],
-  [InterpType.Step, '阶梯(常量)'],
-  [InterpType.EaseInOut, '缓入缓出'],
+  [InterpType.Hermite, 'Auto (smooth)'],
+  [InterpType.Linear, 'Linear'],
+  [InterpType.Step, 'Step (constant)'],
+  [InterpType.EaseInOut, 'Ease in-out'],
 ];
 
 const WRAP_OPTIONS: [WrapMode, string][] = [
-  [WrapMode.Once, '单次'],
-  [WrapMode.Loop, '循环'],
-  [WrapMode.PingPong, '往复'],
+  [WrapMode.Once, 'Once'],
+  [WrapMode.Loop, 'Loop'],
+  [WrapMode.PingPong, 'Ping-pong'],
 ];
 
 function getNested(obj: unknown, path: string): number {
@@ -85,15 +85,15 @@ function EmptyState() {
   return (
     <div className="seq-empty">
       <Film size={30} strokeWidth={1.3} />
-      <div className="seq-empty__title">没有打开的动画</div>
-      <div className="seq-empty__hint">新建一段动画,或在内容浏览器双击已有的 .esanim 打开。</div>
+      <div className="seq-empty__title">No animation open</div>
+      <div className="seq-empty__hint">Create a new animation, or double-click an existing .esanim in the Content Browser.</div>
       <button type="button" className="seq-btn seq-btn--text on" onClick={() => void createAnimationClip('')}>
-        <Plus size={14} /><span>新建动画</span>
+        <Plus size={14} /><span>New animation</span>
       </button>
       <ol className="seq-empty__steps">
-        <li>在场景里选中一个物体,点工具栏「绑定」把预览绑到它</li>
-        <li>开「录制」,然后移动/旋转它或改属性 — 关键帧自动记录</li>
-        <li>拖动播放头预览,点「保存」写回文件</li>
+        <li>Select an object in the scene, then click Bind in the toolbar to attach the preview to it</li>
+        <li>Turn on Record, then move/rotate it or edit properties — keyframes are recorded automatically</li>
+        <li>Drag the playhead to preview, then click Save to write back to the file</li>
       </ol>
     </div>
   );
@@ -275,58 +275,58 @@ function SequencerBody() {
       <div className="seq-bar">
         <span className="seq-meta">
           <Film size={13} className="seq-meta__icon" />
-          <b>{TimelineDocument.meta.filePath?.split('/').pop() ?? '未命名'}</b>
-          <span className="seq-meta__dim">· {totalFrames}帧 · {fps}fps · {loop ? '循环' : '单次'}</span>
+          <b>{TimelineDocument.meta.filePath?.split('/').pop() ?? 'Unnamed'}</b>
+          <span className="seq-meta__dim">· {totalFrames} frames · {fps}fps · {loop ? 'Loop' : 'Once'}</span>
         </span>
         <button
           type="button"
           className={`seq-btn seq-btn--text${rootName ? ' on' : ''}`}
-          title="把预览绑定到当前选中实体"
+          title="Bind preview to the selected entity"
           onClick={() => TimelineDocument.setRootEntity(useSelection.getState().selectedId)}
         >
-          <Link2 size={13} /><span>{rootName ?? '未绑定'}</span>
+          <Link2 size={13} /><span>{rootName ?? 'Unbound'}</span>
         </button>
         <span className="seq-div" />
         <button
           type="button"
           className={`seq-btn seq-btn--rec${recording ? ' on' : ''}`}
-          title="录制：编辑属性自动打帧"
+          title="Record: property edits auto-key"
           onClick={() => useSequencerStore.getState().toggleRecording()}
         >
           <Circle size={12} fill="currentColor" />
         </button>
         <span className="seq-div" />
-        <button type="button" className="seq-btn" title="跳到开头" onClick={() => setTime(0)}><ChevronFirst size={15} /></button>
-        <button type="button" className="seq-btn" title="上一关键帧" onClick={() => jumpKey(-1)}><ChevronLeft size={15} /></button>
+        <button type="button" className="seq-btn" title="Jump to start" onClick={() => setTime(0)}><ChevronFirst size={15} /></button>
+        <button type="button" className="seq-btn" title="Previous keyframe" onClick={() => jumpKey(-1)}><ChevronLeft size={15} /></button>
         <button
           type="button"
           className="seq-btn seq-btn--play"
-          title="播放 / 暂停（空格）"
+          title="Play / pause (Space)"
           onClick={() => useSequencerStore.getState().togglePlay()}
         >
           {playing ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
         </button>
-        <button type="button" className="seq-btn" title="下一关键帧" onClick={() => jumpKey(1)}><ChevronRight size={15} /></button>
-        <button type="button" className="seq-btn" title="跳到结尾" onClick={() => setTime(duration)}><ChevronLast size={15} /></button>
+        <button type="button" className="seq-btn" title="Next keyframe" onClick={() => jumpKey(1)}><ChevronRight size={15} /></button>
+        <button type="button" className="seq-btn" title="Jump to end" onClick={() => setTime(duration)}><ChevronLast size={15} /></button>
         <button
           type="button"
           className={`seq-btn${loop ? ' on' : ''}`}
-          title="循环"
+          title="Loop"
           onClick={() => useSequencerStore.getState().toggleLoop()}
         >
           <Repeat size={14} />
         </button>
         <span className="seq-div" />
-        <span className="seq-frame">帧 <strong>{frame}</strong> / {totalFrames}</span>
+        <span className="seq-frame">Frame <strong>{frame}</strong> / {totalFrames}</span>
         <span className="seq-spacer" />
         <div className="seq-tabs">
-          <button type="button" className={`seq-tab${view === 'sheet' ? ' active' : ''}`} onClick={() => useSequencerStore.getState().setView('sheet')}>摄影表</button>
-          <button type="button" className={`seq-tab${view === 'curve' ? ' active' : ''}`} onClick={() => useSequencerStore.getState().setView('curve')}>曲线</button>
+          <button type="button" className={`seq-tab${view === 'sheet' ? ' active' : ''}`} onClick={() => useSequencerStore.getState().setView('sheet')}>Sheet</button>
+          <button type="button" className={`seq-tab${view === 'curve' ? ' active' : ''}`} onClick={() => useSequencerStore.getState().setView('curve')}>Curves</button>
         </div>
         <button
           type="button"
           className={`seq-btn${snap ? ' on' : ''}`}
-          title="吸附到帧"
+          title="Snap to frame"
           onClick={() => useSequencerStore.getState().toggleSnap()}
         >
           <Magnet size={14} />
@@ -334,7 +334,7 @@ function SequencerBody() {
         <button
           type="button"
           className="seq-btn"
-          title="片段设置（时长 / 帧率 / 循环）"
+          title="Clip settings (duration / fps / loop)"
           onClick={(e) => setSettingsOpen(popoverAt(e))}
         >
           <Settings2 size={14} />
@@ -342,26 +342,26 @@ function SequencerBody() {
         <button
           type="button"
           className="seq-btn seq-btn--text"
-          title="添加轨道"
+          title="Add track"
           disabled={root == null}
           onClick={(e) => setPickerOpen(popoverAt(e))}
         >
-          <Plus size={14} /><span>轨道</span>
+          <Plus size={14} /><span>Track</span>
         </button>
         <button
           type="button"
           className={`seq-btn seq-btn--text${TimelineDocument.meta.dirty ? ' on' : ''}`}
-          title="保存动画"
+          title="Save animation"
           onClick={() => void TimelineCommands.save()}
         >
-          <Save size={14} /><span>{TimelineDocument.meta.dirty ? '保存*' : '保存'}</span>
+          <Save size={14} /><span>{TimelineDocument.meta.dirty ? 'Save*' : 'Save'}</span>
         </button>
       </div>
 
       {/* body: track list + timeline */}
       <div className="seq-body">
         <div className="seq-tracks">
-          <div className="seq-track-head">轨道</div>
+          <div className="seq-track-head">Tracks</div>
           <div className="seq-rows">
             {shown.map((row) => (
               <TrackRow
@@ -410,7 +410,7 @@ function SequencerBody() {
                           key={t}
                           className={`seq-key${sel ? ' sel' : ''}${isDrag ? ' drag' : ''}`}
                           style={{ left: `${timeToPct(at, duration)}%` }}
-                          title={`帧 ${Math.round(at * fps)}`}
+                          title={`Frame ${Math.round(at * fps)}`}
                           onPointerDown={row.ref ? (e) => onKeyPointerDown(e, row.ref!, row.id, t) : undefined}
                         />
                       );
@@ -441,9 +441,9 @@ function SequencerBody() {
         <>
           <div className="seq-pop-scrim" onPointerDown={() => setPickerOpen(null)} />
           <div className="seq-picker" style={{ left: pickerOpen.x, top: pickerOpen.y }}>
-            <div className="seq-interp__title">添加轨道</div>
+            <div className="seq-interp__title">Add track</div>
             {addTrackItems.length === 0 ? (
-              <div className="seq-picker__empty">无可添加的可动画属性</div>
+              <div className="seq-picker__empty">No animatable properties to add</div>
             ) : (
               addTrackItems.map((it) => (
                 <button
@@ -469,23 +469,23 @@ function SequencerBody() {
         <>
           <div className="seq-pop-scrim" onPointerDown={() => setSettingsOpen(null)} />
           <div className="seq-settings" style={{ left: settingsOpen.x, top: settingsOpen.y }}>
-            <div className="seq-interp__title">片段设置</div>
+            <div className="seq-interp__title">Clip settings</div>
             <label className="seq-settings__row">
-              <span>时长 (秒)</span>
+              <span>Duration (s)</span>
               <input
                 type="number" min={0} step={0.1} defaultValue={duration}
                 onChange={(e) => TimelineCommands.setDuration(parseFloat(e.target.value) || 0)}
               />
             </label>
             <label className="seq-settings__row">
-              <span>帧率 (fps)</span>
+              <span>Frame rate (fps)</span>
               <input
                 type="number" min={1} step={1} defaultValue={fps}
                 onChange={(e) => TimelineDocument.setFps(parseInt(e.target.value, 10) || 1)}
               />
             </label>
             <div className="seq-settings__row">
-              <span>循环</span>
+              <span>Loop</span>
               <div className="seq-settings__wrap">
                 {WRAP_OPTIONS.map(([mode, label]) => (
                   <button
@@ -511,7 +511,7 @@ function SequencerBody() {
           items={
             [
               {
-                label: '删除轨道',
+                label: 'Delete track',
                 onClick: () => {
                   TimelineCommands.removeChannel(rowCtx.ref);
                   useSequencerStore.getState().selectKey(null);
@@ -528,7 +528,7 @@ function SequencerBody() {
         <>
           <div className="seq-pop-scrim" onPointerDown={() => setInterpPopover(null)} />
           <div className="seq-interp" style={{ left: interp.x, top: interp.y }}>
-            <div className="seq-interp__title">插值</div>
+            <div className="seq-interp__title">Interpolation</div>
             {INTERP_OPTIONS.map(([mode, label]) => (
               <button
                 key={mode}
@@ -552,7 +552,7 @@ function SequencerBody() {
                 setInterpPopover(null);
               }}
             >
-              <Trash2 size={12} /> 删除关键帧
+              <Trash2 size={12} /> Delete keyframe
             </button>
           </div>
         </>
@@ -561,9 +561,9 @@ function SequencerBody() {
       {/* status strip */}
       <div className="seq-foot">
         <span className="seq-foot__dot" />
-        <span>{recording ? '● 录制中' : '动画编辑'}</span>
+        <span>{recording ? '● Recording' : 'Animation edit'}</span>
         <span className="seq-spacer" />
-        <span><strong>{keyCount}</strong> 关键帧 · {trackCount} 轨道</span>
+        <span><strong>{keyCount}</strong> keys · {trackCount} tracks</span>
       </div>
     </div>
   );
@@ -610,7 +610,7 @@ function TrackRow({
           <button
             type="button"
             className="seq-row__btn"
-            title="在播放头打关键帧"
+            title="Key at playhead"
             onClick={(e) => {
               e.stopPropagation();
               onAddKey(row.ref!);
@@ -621,7 +621,7 @@ function TrackRow({
           <button
             type="button"
             className={`seq-row__btn${muted ? ' on' : ''}`}
-            title={muted ? '取消静音' : '静音轨道'}
+            title={muted ? 'Unmute track' : 'Mute track'}
             onClick={(e) => {
               e.stopPropagation();
               useSequencerStore.getState().toggleMute(muteKey(row.ref!));

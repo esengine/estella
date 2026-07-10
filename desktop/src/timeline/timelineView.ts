@@ -140,7 +140,7 @@ export function buildTimelineRows(asset: TimelineAsset | null): SeqRow[] {
     rows.push({
       id: entityKey,
       kind: 'entity',
-      label: childPath || '根实体',
+      label: childPath || 'Root entity',
       depth: 0,
       groupKey: entityKey,
       parentGroups: [],

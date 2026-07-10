@@ -22,6 +22,7 @@ import { SceneModel } from '@/engine/SceneModel';
 import { SceneCommands } from '@/engine/SceneCommands';
 import { ProjectStore } from '@/project/ProjectStore';
 import { TILE_TOOL_KEY, exitTilePaint } from '@/tools/tileMode';
+import { MOD_LABEL } from '@/commands/keybinding';
 import { buildStampGhost } from '@/tools/tileStampGhost';
 
 function colsFor(width: number, tileW: number, margin: number, spacing: number): number {
@@ -34,14 +35,14 @@ function rowsFor(height: number, tileH: number, margin: number, spacing: number)
 }
 
 const TOOLS: { id: PaintTool; icon: typeof Brush; label: string }[] = [
-  { id: 'brush', icon: Brush, label: '画笔' },
-  { id: 'erase', icon: Eraser, label: '擦除' },
-  { id: 'rect', icon: Square, label: '矩形' },
-  { id: 'line', icon: Slash, label: '直线' },
-  { id: 'bucket', icon: PaintBucket, label: '油漆桶' },
-  { id: 'select', icon: BoxSelect, label: '选区 (复制/剪切/粘贴 ⌘C/X/V)' },
-  { id: 'eyedropper', icon: Pipette, label: '吸管' },
-  { id: 'terrain', icon: Mountain, label: '地形' },
+  { id: 'brush', icon: Brush, label: 'Brush' },
+  { id: 'erase', icon: Eraser, label: 'Eraser' },
+  { id: 'rect', icon: Square, label: 'Rect' },
+  { id: 'line', icon: Slash, label: 'Line' },
+  { id: 'bucket', icon: PaintBucket, label: 'Bucket' },
+  { id: 'select', icon: BoxSelect, label: `Select (${MOD_LABEL}C/X/V copy/cut/paste)` },
+  { id: 'eyedropper', icon: Pipette, label: 'Eyedropper' },
+  { id: 'terrain', icon: Mountain, label: 'Terrain' },
 ];
 
 const TERRAIN_COLORS = ['#4caf50', '#d6884c', '#4c8fd6', '#b14cd6', '#d6c64c', '#d64c6e'];
@@ -206,8 +207,8 @@ export function TilemapPainter() {
   if (!hasTilemap) {
     return (
       <div className="tp-empty">
-        <p>未选择瓦片地图</p>
-        <p className="tp-hint">在内容浏览器右键 .estileset → 新建瓦片地图，或在大纲里选中一个瓦片地图实体</p>
+        <p>No tilemap selected</p>
+        <p className="tp-hint">Right-click an .estileset in the Content Browser → Create Tilemap, or select a tilemap entity in the Outliner</p>
       </div>
     );
   }
@@ -303,19 +304,19 @@ export function TilemapPainter() {
           {layers.map((L) => (
             <span key={L.id} className={'tp-layer' + (L.id === selectedId ? ' is-active' : '')}>
               <button
-                type="button" className="tp-layer-vis" title={L.hidden ? '显示' : '隐藏'}
+                type="button" className="tp-layer-vis" title={L.hidden ? 'Show' : 'Hide'}
                 onClick={() => SceneCommands.setEntityVisible(L.id, L.hidden)}
               >
                 {L.hidden ? <EyeOff size={12} /> : <Eye size={12} />}
               </button>
               <button
-                type="button" className="tp-layer-name" title={`绘制到「${L.name}」`}
+                type="button" className="tp-layer-name" title={`Paint on "${L.name}"`}
                 onClick={() => useSelection.getState().select(L.id)}
               >
                 {L.name}
               </button>
               <button
-                type="button" className="tp-layer-lock" title={L.locked ? '解锁' : '锁定'}
+                type="button" className="tp-layer-lock" title={L.locked ? 'Unlock' : 'Lock'}
                 onClick={() => SceneCommands.setEntityLocked(L.id, !L.locked)}
               >
                 {L.locked ? <Lock size={11} /> : <Unlock size={11} />}
@@ -328,7 +329,7 @@ export function TilemapPainter() {
         <button
           type="button"
           className={'tp-tool' + (tool === null ? ' is-active' : '')}
-          title="选择 / 变换 (Q · Esc 退出绘制)"
+          title="Select / transform (Q · Esc to exit painting)"
           onClick={() => exitTilePaint('select')}
         >
           <MousePointer2 size={15} />
@@ -346,18 +347,18 @@ export function TilemapPainter() {
           </button>
         ))}
         <span className="tp-sep" />
-        <button type="button" className="tp-tool" title="水平翻转 (H)" onClick={() => flipH()}>
+        <button type="button" className="tp-tool" title="Flip horizontal (H)" onClick={() => flipH()}>
           <FlipHorizontal size={15} />
         </button>
-        <button type="button" className="tp-tool" title="垂直翻转 (V)" onClick={() => flipV()}>
+        <button type="button" className="tp-tool" title="Flip vertical (V)" onClick={() => flipV()}>
           <FlipVertical size={15} />
         </button>
-        <button type="button" className="tp-tool" title="旋转 90° (R)" onClick={() => rotateCW()}>
+        <button type="button" className="tp-tool" title="Rotate 90° (R)" onClick={() => rotateCW()}>
           <RotateCw size={15} />
         </button>
         <span className="tp-grow" />
         <span className="tp-brush">
-          {tool === 'terrain' ? '地形画笔' : (
+          {tool === 'terrain' ? 'Terrain brush' : (
             <>
               <BrushThumbnail stamp={stamp} atlas={localAtlas} />
               {stamp.w}×{stamp.h}
@@ -374,23 +375,23 @@ export function TilemapPainter() {
               title={`${ts.path}  (gid ${ts.firstId}+)`}
             >
               <button type="button" className="tp-tsbtn" onClick={() => setActiveTileset(i)}>
-                {ts.path.split(/[\\/]/).pop()?.replace(/\.estileset$/, '') ?? `瓦片集 ${i + 1}`}
+                {ts.path.split(/[\\/]/).pop()?.replace(/\.estileset$/, '') ?? `Tileset ${i + 1}`}
               </button>
               {tilesets.length > 1 && (
-                <button type="button" className="tp-tsx" title="移除图集" onClick={() => removeTilesetAt(i)}>
+                <button type="button" className="tp-tsx" title="Remove tileset" onClick={() => removeTilesetAt(i)}>
                   <X size={11} />
                 </button>
               )}
             </span>
           ))}
           <div className="tp-tsadd-wrap" onPointerDown={(e) => e.stopPropagation()}>
-            <button type="button" className="tp-tsadd" title="添加图集" onClick={() => setAddOpen((o) => !o)}>
+            <button type="button" className="tp-tsadd" title="Add tileset" onClick={() => setAddOpen((o) => !o)}>
               <Plus size={13} />
             </button>
             {addOpen && (
               <div className="tp-tsmenu">
                 {addable.length === 0 ? (
-                  <div className="tp-tsmenu-empty">没有可添加的瓦片集</div>
+                  <div className="tp-tsmenu-empty">No tilesets to add</div>
                 ) : (
                   addable.map((a) => (
                     <button key={a.ref} type="button" className="tp-tsmenu-item" onClick={() => addTileset(a.ref)}>
@@ -406,7 +407,7 @@ export function TilemapPainter() {
       {tool === 'terrain' ? (
         <div className="tp-terrains">
           {(asset?.terrains ?? []).length === 0 ? (
-            <div className="tp-warn">没有地形（在瓦片集编辑器的「地形」模式里新建并标记瓦片）</div>
+            <div className="tp-warn">No terrains (create and tag tiles in the Tileset Editor's Terrain mode)</div>
           ) : (
             (asset?.terrains ?? []).map((t, i) => (
               <button
@@ -425,21 +426,21 @@ export function TilemapPainter() {
         <>
           {texUrl && (
             <div className="tp-palbar">
-              <button type="button" className="tp-zbtn" title="缩小" onClick={() => setZoom((z) => clamp(z / 1.25, 0.25, 8))}>
+              <button type="button" className="tp-zbtn" title="Zoom out" onClick={() => setZoom((z) => clamp(z / 1.25, 0.25, 8))}>
                 <ZoomOut size={13} />
               </button>
               <span className="tp-zpct">{Math.round(zoom * 100)}%</span>
-              <button type="button" className="tp-zbtn" title="放大" onClick={() => setZoom((z) => clamp(z * 1.25, 0.25, 8))}>
+              <button type="button" className="tp-zbtn" title="Zoom in" onClick={() => setZoom((z) => clamp(z * 1.25, 0.25, 8))}>
                 <ZoomIn size={13} />
               </button>
-              <button type="button" className="tp-zbtn" title="适应宽度" onClick={fitZoom}>
+              <button type="button" className="tp-zbtn" title="Fit width" onClick={fitZoom}>
                 <Maximize2 size={13} />
               </button>
             </div>
           )}
           <div className="tp-palette" ref={paletteRef} onPointerUp={endDrag} onPointerLeave={endDrag}>
             {!texUrl ? (
-              <div className="tp-warn">没有调色板（瓦片地图未引用 .estileset）</div>
+              <div className="tp-warn">No palette (the tilemap references no .estileset)</div>
             ) : (
               <div className="tp-atlas-sizer" style={{ width: (natural?.w ?? 0) * zoom, height: (natural?.h ?? 0) * zoom }}>
                 <div

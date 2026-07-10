@@ -119,7 +119,7 @@ function captureTargets(ids: readonly EntityId[], kind: Kind = 'move'): Target[]
       // One hint per burst of drags, not per pointer-down.
       if (Date.now() - flowHintAt > 4000) {
         flowHintAt = Date.now();
-        Toasts.push('流式布局（Relative）节点由布局定位，已跳过拖拽 — 将 position 改为 Absolute 可自由拖动', 'info');
+        Toasts.push('Flow-layout (Relative) nodes are positioned by layout — drag skipped. Set position to Absolute to move freely.', 'info');
       }
     }
   }
