@@ -62,7 +62,8 @@
   z-index: 2;
 }
 .ng-handle:hover { background: var(--star-hi); }
-/* Input anchor (left): a visual cue that edges land on this node. */
+/* Input anchor (left): a visual cue that edges land on this node. Interactive
+   when the consumer handles port presses (material click-to-disconnect). */
 .ng-in-anchor {
   position: absolute;
   left: -5px;
@@ -72,7 +73,10 @@
   background: var(--srf-6);
   border: 2px solid var(--srf-1);
   pointer-events: none;
+  z-index: 2;
 }
+.ng-in-anchor.clickable { pointer-events: auto; cursor: pointer; }
+.ng-in-anchor.clickable:hover { box-shadow: 0 0 0 2px var(--star-line); }
 
 .ng-edge-label {
   position: absolute;

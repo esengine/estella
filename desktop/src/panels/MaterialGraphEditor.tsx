@@ -2,13 +2,18 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    MaterialGraphEditor.tsx
- * @brief   The `.esmatgraph` node editor (Material Graph, P5b) — a canvas of node boxes wired by
- *          bezier connections. All graph mutation goes through the pure, tested SDK ops
- *          (addNode/connect/disconnect/removeNode/moveNode) on the reactive MaterialGraphDocument;
- *          NODE_SPECS drives the palette, ports, and node-param fields so the editor and the
- *          compiler never drift. Save compiles the graph to its sibling `.esshader` (P5a).
+ * @brief   The `.esmatgraph` node editor — typed material nodes on the shared
+ *          <NodeGraphCanvas> (pan/zoom, wire-to-connect, selection, menus are
+ *          the canvas's). This file supplies only the material domain: NODE_SPECS
+ *          drives ports (typed, colored), node bodies, and the add menu; all
+ *          mutation goes through the pure SDK ops on MaterialGraphDocument.
+ *          Save compiles the graph to its sibling `.esshader`.
+ *
+ *          Wires land on typed input ports (nearest-port snap on drop); a wired
+ *          input disconnects on click, and wires are selectable — Delete removes
+ *          them like any edge.
  */
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useRef, useState, useSyncExternalStore } from 'react';
 import { Save, Plus, Trash2 } from 'lucide-react';
 import {
   NODE_SPECS,
@@ -26,17 +31,19 @@ import { saveMaterialGraph } from '@/material/openMaterialGraph';
 import { EditorHistory } from '@/engine/EditorHistory';
 import { NumField, ColorControl } from '@/panels/Details';
 import { DirtyDot } from '@/components/DirtyDot';
-import { ContextMenu, type MenuItem } from '@/components/Menu';
+import {
+  NodeGraphCanvas,
+  type CanvasEdge,
+  type CanvasNode,
+  type CanvasPort,
+  type NodeGraphCanvasApi,
+} from '@/panels/NodeGraphCanvas';
+
+type MatCanvasNode = MaterialGraph['nodes'][number] & CanvasNode;
 
 const NODE_W = 168;
 const HEADER_H = 28;
 const ROW_H = 24;
-
-// A node's input/output port positions in canvas coordinates (node.x/.y are canvas px).
-const nodeX = (n: { x?: number }) => n.x ?? 0;
-const nodeY = (n: { y?: number }) => n.y ?? 0;
-const outPort = (n: { x?: number; y?: number }) => ({ x: nodeX(n) + NODE_W, y: nodeY(n) + HEADER_H / 2 });
-const inPort = (n: { x?: number; y?: number }, i: number) => ({ x: nodeX(n), y: nodeY(n) + HEADER_H + ROW_H * i + ROW_H / 2 });
 
 // Port hue by GLSL type — the same legend the compiler's types imply.
 const TYPE_COLOR: Record<GraphType, string> = {
@@ -45,11 +52,6 @@ const TYPE_COLOR: Record<GraphType, string> = {
   vec3: '#c2a274',
   vec4: '#c0917a',
 };
-
-function bezier(x1: number, y1: number, x2: number, y2: number): string {
-  const dx = Math.max(40, Math.abs(x2 - x1) * 0.5);
-  return `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
-}
 
 const rgbaToHex = (c: number[]) => {
   const h = (v: number) => Math.max(0, Math.min(255, Math.round((v ?? 0) * 255))).toString(16).padStart(2, '0');
@@ -61,308 +63,160 @@ const hexToRgba = (hex: string): number[] => {
   return [n(0), n(2), n(4), s.length >= 8 ? n(6) : 1];
 };
 
+const nodeHeight = (n: MatCanvasNode): number => {
+  const spec = NODE_SPECS[n.type];
+  return HEADER_H + Math.max(spec.inputs.length, 1) * ROW_H + spec.params.length * ROW_H;
+};
+
+/** One edge per wired input slot; the id round-trips to (node, slot) for delete. */
+const wireId = (to: string, slot: string) => `${to}#${slot}`;
+const parseWireId = (id: string): { to: string; slot: string } | null => {
+  const i = id.lastIndexOf('#');
+  return i > 0 ? { to: id.slice(0, i), slot: id.slice(i + 1) } : null;
+};
+
 export function MaterialGraphEditor() {
   useSyncExternalStore(MaterialGraphDocument.subscribe, MaterialGraphDocument.getRevision);
   const graph = MaterialGraphDocument.asset;
   const filePath = MaterialGraphDocument.filePath;
   const dirty = MaterialGraphDocument.dirty;
 
-  const canvasRef = useRef<HTMLDivElement>(null);
   const [selected, setSelected] = useState<string | null>(null);
-  // Right-click / Add menu: screen position for the shared ContextMenu + the
-  // canvas position where an added node should land (and the node under it).
-  const [menu, setMenu] = useState<{ sx: number; sy: number; cx: number; cy: number; nodeId?: string } | null>(null);
-  // Infinite-canvas viewport — the same pan/zoom model as NodeGraphCanvas
-  // (middle-drag pans, wheel zooms about the cursor; content in world coords).
-  const [vp, setVp] = useState({ x: 0, y: 0, zoom: 1 });
-  const pan = useRef<{ sx: number; sy: number; vx: number; vy: number } | null>(null);
-  // Live cursor (canvas coords) while connecting, to draw the in-progress wire.
-  const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
-  const drag = useRef<{ id: string; offX: number; offY: number; before: MaterialGraph } | null>(null);
-  const wire = useRef<{ fromId: string } | null>(null);
-
-  // Screen point → world coord (inverse of the viewport transform).
-  const toCanvas = (clientX: number, clientY: number) => {
-    const el = canvasRef.current;
-    if (!el) return { x: clientX, y: clientY };
-    const r = el.getBoundingClientRect();
-    return { x: (clientX - r.left - vp.x) / vp.zoom, y: (clientY - r.top - vp.y) / vp.zoom };
-  };
-
-  // Window-level move/up so a drag or wire keeps tracking outside the node it started on.
-  useEffect(() => {
-    const onMove = (e: PointerEvent) => {
-      if (pan.current) {
-        const { sx, sy, vx, vy } = pan.current;
-        setVp((v) => ({ ...v, x: vx + (e.clientX - sx), y: vy + (e.clientY - sy) }));
-        return;
-      }
-      const p = toCanvas(e.clientX, e.clientY);
-      if (drag.current && graph) {
-        MaterialGraphDocument.replaceAsset(moveNode(graph, drag.current.id, p.x - drag.current.offX, p.y - drag.current.offY), { dirty: true });
-      } else if (wire.current) {
-        setCursor(p);
-      }
-    };
-    const onUp = (e: PointerEvent) => {
-      pan.current = null;
-      if (drag.current && graph) {
-        const after = graph;
-        const before = drag.current.before;
-        EditorHistory.record('Move node', () => MaterialGraphDocument.replaceAsset(after), () => MaterialGraphDocument.replaceAsset(before));
-        drag.current = null;
-      }
-      if (wire.current && graph) {
-        const p = toCanvas(e.clientX, e.clientY);
-        const hit = nearestInputPort(graph, p.x, p.y);
-        if (hit) MaterialGraphDocument.edit('Connect', (d) => Object.assign(d, connect(d, wire.current!.fromId, hit.nodeId, hit.slot)));
-        wire.current = null;
-        setCursor(null);
-      }
-    };
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
-    return () => {
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [graph, vp]);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selected && graph) {
-        MaterialGraphDocument.edit('Delete node', (d) => Object.assign(d, removeNode(d, selected)));
-        setSelected(null);
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [selected, graph]);
+  const [selectedEdge, setSelectedEdge] = useState<string | null>(null);
+  const dragBefore = useRef<MaterialGraph | null>(null);
+  const canvas = useRef<NodeGraphCanvasApi>(null);
 
   if (!graph || !filePath) {
-    return (
-      <div className="panel mg">
-        <div className="empty">
-          <p>Open a `.esmatgraph` from the Content Browser to edit it.</p>
-        </div>
-      </div>
-    );
+    return <div className="panel ng-placeholder"><p>Open a <code>.esmatgraph</code> from the Content Browser to edit it.</p></div>;
   }
 
-  const addAt = (type: GraphNodeType, x: number, y: number) => {
-    MaterialGraphDocument.edit(`Add ${type}`, (d) => Object.assign(d, addNode(d, type, x, y).graph));
-  };
-
-  // The Add button and the canvas right-click share one menu; only where the
-  // new node lands differs (view center vs. the click point).
-  const openAddMenu = (sx: number, sy: number, cx: number, cy: number) => setMenu({ sx, sy, cx, cy });
-  const menuItems = (): MenuItem[] => {
-    if (!menu) return [];
-    if (menu.nodeId) {
-      const id = menu.nodeId;
-      return [
-        {
-          label: 'Delete node',
-          danger: true,
-          onClick: () => {
-            MaterialGraphDocument.edit('Delete node', (d) => Object.assign(d, removeNode(d, id)));
-            setSelected(null);
-          },
-        },
-      ];
+  const nodes = graph.nodes as MatCanvasNode[];
+  const edges: CanvasEdge[] = [];
+  for (const n of nodes) {
+    for (const port of NODE_SPECS[n.type].inputs) {
+      const src = n.inputs?.[port.name];
+      if (src) edges.push({ id: wireId(n.id, port.name), from: src, to: n.id, toPort: port.name });
     }
-    return (Object.keys(NODE_SPECS) as GraphNodeType[])
-      .filter((t) => NODE_SPECS[t].addable)
-      .map((t) => ({ label: `Add ${NODE_SPECS[t].label}`, onClick: () => addAt(t, menu.cx, menu.cy) }));
-  };
+  }
 
+  const deleteNode = (id: string) => {
+    MaterialGraphDocument.edit('Delete node', (d) => Object.assign(d, removeNode(d, id)));
+    setSelected(null);
+  };
+  const disconnectSlot = (nodeId: string, slot: string) =>
+    MaterialGraphDocument.edit('Disconnect', (d) => Object.assign(d, disconnect(d, nodeId, slot)));
   const setNodeParam = (id: string, key: string, value: unknown) =>
     MaterialGraphDocument.edit(`Set ${key}`, (d) => {
       const n = d.nodes.find((m) => m.id === id);
       if (n) (n.params ??= {})[key] = value as never;
     });
 
-  // Connections: each node's wired input slots → a bezier from the source output port.
-  const wires: { key: string; d: string }[] = [];
-  for (const n of graph.nodes) {
-    const spec = NODE_SPECS[n.type];
-    spec.inputs.forEach((port, i) => {
-      const src = n.inputs?.[port.name];
-      if (!src) return;
-      const from = graph.nodes.find((m) => m.id === src);
-      if (!from) return;
-      const a = outPort(from);
-      const b = inPort(n, i);
-      wires.push({ key: `${n.id}.${port.name}`, d: bezier(a.x, a.y, b.x, b.y) });
-    });
-  }
-
-  return (
-    <div className="panel mg">
-      <div className="mg-bar">
-        <button
-          type="button"
-          className="mg-add"
-          title="Add node"
-          onClick={(e) => {
-            const r = e.currentTarget.getBoundingClientRect();
-            const el = canvasRef.current;
-            const cr = el?.getBoundingClientRect();
-            const c = cr ? toCanvas(cr.left + cr.width / 2 - 80, cr.top + cr.height / 3) : { x: 60, y: 60 };
-            openAddMenu(r.left, r.bottom + 2, c.x, c.y);
-          }}
-        >
-          <Plus size={13} strokeWidth={2} /> Add
-        </button>
-        {selected && (
-          <button type="button" className="mg-del" onClick={() => { MaterialGraphDocument.edit('Delete node', (d) => Object.assign(d, removeNode(d, selected))); setSelected(null); }} title="Delete selected">
-            <Trash2 size={13} strokeWidth={1.9} />
-          </button>
-        )}
-        <span className="mg-title">{filePath.split('/').pop()}{dirty && <DirtyDot />}</span>
-        <span style={{ flex: 1 }} />
-        <button type="button" className="primary" disabled={!dirty} onClick={() => void saveMaterialGraph(filePath, graph)}>
-          <Save size={13} strokeWidth={1.9} /> Save
-        </button>
-      </div>
-
-      <div
-        className="mg-canvas"
-        ref={canvasRef}
-        style={{ backgroundSize: `${20 * vp.zoom}px ${20 * vp.zoom}px`, backgroundPosition: `${vp.x}px ${vp.y}px` }}
-        onPointerDown={(e) => {
-          if (e.button === 1) {
-            e.preventDefault();
-            pan.current = { sx: e.clientX, sy: e.clientY, vx: vp.x, vy: vp.y };
-            return;
-          }
-          setSelected(null);
-        }}
-        onWheel={(e) => {
-          const el = canvasRef.current;
-          if (!el) return;
-          const r = el.getBoundingClientRect();
-          const mx = e.clientX - r.left;
-          const my = e.clientY - r.top;
-          setVp((v) => {
-            const zoom = Math.min(2.5, Math.max(0.25, v.zoom * (e.deltaY < 0 ? 1.1 : 1 / 1.1)));
-            const k = zoom / v.zoom;
-            return { x: mx - (mx - v.x) * k, y: my - (my - v.y) * k, zoom };
-          });
-        }}
-        onContextMenu={(e) => {
-          e.preventDefault();
-          const p = toCanvas(e.clientX, e.clientY);
-          openAddMenu(e.clientX, e.clientY, p.x, p.y);
+  const toolbar = (
+    <>
+      <button
+        type="button"
+        className="ng-btn"
+        title="Add node"
+        onClick={(e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          canvas.current?.openMenuAt(r.left, r.bottom + 2);
         }}
       >
-        <div style={{ position: 'absolute', top: 0, left: 0, transform: `translate(${vp.x}px, ${vp.y}px) scale(${vp.zoom})`, transformOrigin: '0 0' }}>
-        <svg className="mg-wires" aria-hidden="true">
-          {wires.map((w) => <path key={w.key} d={w.d} />)}
-          {wire.current && cursor && (() => {
-            const from = graph.nodes.find((m) => m.id === wire.current!.fromId);
-            if (!from) return null;
-            const a = outPort(from);
-            return <path className="mg-wire-live" d={bezier(a.x, a.y, cursor.x, cursor.y)} />;
-          })()}
-        </svg>
-
-        {graph.nodes.map((n) => {
-          const spec = NODE_SPECS[n.type];
-          const h = HEADER_H + Math.max(spec.inputs.length, 1) * ROW_H + spec.params.length * ROW_H;
-          return (
-            <div
-              key={n.id}
-              className={`mg-node${selected === n.id ? ' sel' : ''}`}
-              style={{ left: nodeX(n), top: nodeY(n), width: NODE_W, minHeight: h }}
-              onPointerDown={(e) => { e.stopPropagation(); setSelected(n.id); }}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setSelected(n.id);
-                const p = toCanvas(e.clientX, e.clientY);
-                setMenu({ sx: e.clientX, sy: e.clientY, cx: p.x, cy: p.y, nodeId: n.id });
-              }}
-            >
-              <div
-                className="mg-node-head"
-                onPointerDown={(e) => {
-                  e.stopPropagation();
-                  setSelected(n.id);
-                  const p = toCanvas(e.clientX, e.clientY);
-                  drag.current = { id: n.id, offX: p.x - nodeX(n), offY: p.y - nodeY(n), before: graph };
-                }}
-              >
-                {spec.label}
-              </div>
-
-              {/* Output port (right edge, at the header row). */}
-              {spec.output && (
-                <span
-                  className="mg-port out"
-                  style={{ top: HEADER_H / 2, background: TYPE_COLOR[spec.output] }}
-                  title={spec.output}
-                  onPointerDown={(e) => { e.stopPropagation(); wire.current = { fromId: n.id }; setCursor(toCanvas(e.clientX, e.clientY)); }}
-                />
-              )}
-
-              {/* Input ports + rows. Click a wired input to disconnect it. */}
-              {spec.inputs.map((port) => (
-                <div className="mg-row" key={port.name} style={{ height: ROW_H }}>
-                  <span
-                    className="mg-port in"
-                    style={{ top: '50%', background: TYPE_COLOR[port.type] }}
-                    title={port.type}
-                    onPointerDown={(e) => {
-                      e.stopPropagation();
-                      if (n.inputs?.[port.name]) MaterialGraphDocument.edit('Disconnect', (d) => Object.assign(d, disconnect(d, n.id, port.name)));
-                    }}
-                  />
-                  <span className="mg-row-label">{port.name}</span>
-                </div>
-              ))}
-
-              {/* Node literal params (constColor / constFloat / textureSample). */}
-              {spec.params.map((pf) => (
-                <div className="mg-param" key={pf.key} style={{ height: ROW_H }}>
-                  <span className="mg-row-label">{pf.label}</span>
-                  {pf.kind === 'color' && (
-                    <ColorControl value={rgbaToHex((n.params?.value as number[]) ?? [1, 1, 1, 1])} onChange={(hex) => setNodeParam(n.id, 'value', hexToRgba(hex))} />
-                  )}
-                  {pf.kind === 'float' && (
-                    <NumField value={typeof n.params?.value === 'number' ? n.params.value : 0} onCommit={(v) => setNodeParam(n.id, 'value', v)} />
-                  )}
-                  {pf.kind === 'texture' && (
-                    <span className="mg-texname">{String(n.params?.name ?? '')}</span>
-                  )}
-                </div>
-              ))}
-            </div>
-          );
-        })}
-        </div>
-      </div>
-
-      {menu && <ContextMenu x={menu.sx} y={menu.sy} items={menuItems()} onClose={() => setMenu(null)} />}
-    </div>
+        <Plus size={13} strokeWidth={2} /> Add
+      </button>
+      {selected && (
+        <button type="button" className="ng-btn" title="Delete selected" onClick={() => deleteNode(selected)}>
+          <Trash2 size={13} strokeWidth={1.9} />
+        </button>
+      )}
+      <span className="ng-doc-title">{filePath.split('/').pop()}{dirty && <DirtyDot />}</span>
+      <span style={{ flex: 1 }} />
+      <button type="button" className="ng-btn primary" disabled={!dirty} onClick={() => void saveMaterialGraph(filePath, graph)}>
+        <Save size={13} strokeWidth={1.9} /> Save
+      </button>
+    </>
   );
-}
 
-// The input port nearest (@p x,@p y) within a small radius — the connect-drop hit test.
-function nearestInputPort(graph: MaterialGraph, x: number, y: number): { nodeId: string; slot: string } | null {
-  let best: { nodeId: string; slot: string } | null = null;
-  let bestD2 = 18 * 18;
-  for (const n of graph.nodes) {
-    const inputs = NODE_SPECS[n.type].inputs;
-    for (let i = 0; i < inputs.length; i++) {
-      const p = inPort(n, i);
-      const d2 = (p.x - x) ** 2 + (p.y - y) ** 2;
-      if (d2 < bestD2) {
-        bestD2 = d2;
-        best = { nodeId: n.id, slot: inputs[i].name };
+  return (
+    <NodeGraphCanvas<MatCanvasNode, CanvasEdge>
+      apiRef={canvas}
+      nodes={nodes}
+      edges={edges}
+      selectedNode={selected}
+      selectedEdge={selectedEdge}
+      nodeSize={(n) => ({ width: NODE_W, height: nodeHeight(n) })}
+      outputs={(n) => {
+        const out = NODE_SPECS[n.type].output;
+        return out ? [{ id: '', y: HEADER_H / 2, color: TYPE_COLOR[out], title: out }] : [];
+      }}
+      inputs={(n) =>
+        NODE_SPECS[n.type].inputs.map((port, i): CanvasPort => ({
+          id: port.name,
+          y: HEADER_H + ROW_H * i + ROW_H / 2,
+          color: TYPE_COLOR[port.type],
+          title: `${port.name}: ${port.type}`,
+        }))
       }
-    }
-  }
-  return best;
+      onInputPortDown={(nodeId, slot) => {
+        const n = nodes.find((m) => m.id === nodeId);
+        if (n?.inputs?.[slot]) disconnectSlot(nodeId, slot);
+      }}
+      onSelectNode={setSelected}
+      onSelectEdge={setSelectedEdge}
+      onMoveNodeStart={() => { dragBefore.current = graph; }}
+      onMoveNode={(id, x, y) => MaterialGraphDocument.replaceAsset(moveNode(graph, id, x, y), { dirty: true })}
+      onMoveNodeEnd={() => {
+        const after = MaterialGraphDocument.asset;
+        const before = dragBefore.current;
+        if (after && before) EditorHistory.record('Move node', () => MaterialGraphDocument.replaceAsset(after), () => MaterialGraphDocument.replaceAsset(before));
+      }}
+      onConnect={(from, to, _fromPort, toPort) =>
+        MaterialGraphDocument.edit('Connect', (d) => Object.assign(d, connect(d, from, to, toPort)))}
+      onDeleteNode={deleteNode}
+      onDeleteEdge={(id) => {
+        const w = parseWireId(id);
+        if (w) disconnectSlot(w.to, w.slot);
+        setSelectedEdge(null);
+      }}
+      menuItems={(target) =>
+        target.kind === 'node'
+          ? [{ label: 'Delete node', danger: true, onClick: () => deleteNode(target.nodeId!) }]
+          : (Object.keys(NODE_SPECS) as GraphNodeType[])
+              .filter((t) => NODE_SPECS[t].addable)
+              .map((t) => ({
+                label: `Add ${NODE_SPECS[t].label}`,
+                onClick: () => MaterialGraphDocument.edit(`Add ${t}`, (d) => Object.assign(d, addNode(d, t, target.x, target.y).graph)),
+              }))}
+      toolbar={toolbar}
+      emptyHint="Right-click to add a node, then drag from an output port into a typed input."
+      renderNode={(n, sel) => {
+        const spec = NODE_SPECS[n.type];
+        return (
+          <div className={`mg-node${sel ? ' sel' : ''}`}>
+            <div className="mg-node-head">{spec.label}</div>
+            {spec.inputs.map((port) => (
+              <div className="mg-row" key={port.name} style={{ height: ROW_H }}>
+                <span className="mg-row-label">{port.name}</span>
+              </div>
+            ))}
+            {spec.inputs.length === 0 && <div className="mg-row" style={{ height: ROW_H }} />}
+            {spec.params.map((pf) => (
+              <div className="mg-param" key={pf.key} style={{ height: ROW_H }} onPointerDown={(e) => e.stopPropagation()}>
+                <span className="mg-row-label">{pf.label}</span>
+                {pf.kind === 'color' && (
+                  <ColorControl value={rgbaToHex((n.params?.value as number[]) ?? [1, 1, 1, 1])} onChange={(hex) => setNodeParam(n.id, 'value', hexToRgba(hex))} />
+                )}
+                {pf.kind === 'float' && (
+                  <NumField value={typeof n.params?.value === 'number' ? n.params.value : 0} onCommit={(v) => setNodeParam(n.id, 'value', v)} />
+                )}
+                {pf.kind === 'texture' && (
+                  <span className="mg-texname">{String(n.params?.name ?? '')}</span>
+                )}
+              </div>
+            ))}
+          </div>
+        );
+      }}
+    />
+  );
 }

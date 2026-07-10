@@ -25,29 +25,13 @@
 .mat-sync { padding: 4px 10px; font-size: var(--fs-2xs); color: var(--text-mute); border-bottom: 1px solid var(--border); flex-shrink: 0; }
 .mat-hint { padding: 8px 10px; font-size: var(--fs-xs); color: var(--text-mute); }
 
-/* ── Material Graph node editor (P5b) ─────────────────────────────────────── */
-.panel.mg { display: flex; flex-direction: column; min-height: 0; height: 100%; }
-.mg-bar { position: relative; display: flex; align-items: center; gap: 8px; height: 34px; flex-shrink: 0; padding: 0 10px; border-bottom: 1px solid var(--border); background: var(--srf-2); }
-.mg-bar .mg-add, .mg-bar .mg-del { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; background: var(--srf-3); border: 1px solid var(--border-line); border-radius: var(--r-sm); color: var(--text); cursor: pointer; }
-.mg-bar .mg-add:hover, .mg-bar .mg-del:hover { background: var(--srf-4); }
-.mg-title { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-sm); color: var(--text); }
-/* Pan/zoom canvas — same infinite-viewport model as the FSM/BT node canvas
-   (middle-drag pans, wheel zooms; dot grid scale/offset set inline). */
-.mg-canvas { position: relative; flex: 1; min-height: 0; overflow: hidden; background-color: var(--srf-1); background-image: radial-gradient(circle, var(--srf-3) 1px, transparent 1px); }
-.mg-wires { position: absolute; top: 0; left: 0; width: 3000px; height: 3000px; pointer-events: none; overflow: visible; }
-.mg-wires path { fill: none; stroke: var(--text-mute); stroke-width: 2; }
-.mg-wires path.mg-wire-live { stroke: var(--acc); stroke-dasharray: 5 4; opacity: 0.8; }
-
-.mg-node { position: absolute; background: var(--srf-2); border: 1px solid var(--border-line); border-radius: 6px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35); user-select: none; }
-.mg-node.sel { border-color: var(--acc); box-shadow: 0 0 0 1px var(--acc), 0 2px 8px rgba(0, 0, 0, 0.4); }
-.mg-node-head { height: 28px; display: flex; align-items: center; padding: 0 10px; font-size: var(--fs-xs); font-weight: 600; color: var(--text); border-bottom: 1px solid var(--border); border-radius: 6px 6px 0 0; cursor: grab; background: var(--srf-3); }
-.mg-node .mg-row, .mg-node .mg-param { position: relative; display: flex; align-items: center; gap: 6px; padding: 0 10px; }
+/* ── Material Graph node body — the canvas chrome (pan/zoom, ports, wires,
+     toolbar) is the shared NodeGraphCanvas / nodegraph.css; only the node's
+     inner face is material-specific. ──────────────────────────────────────── */
+.mg-node { width: 100%; height: 100%; background: var(--srf-2); border: 1px solid var(--border-line); border-radius: var(--r-lg); box-shadow: var(--shadow-1); user-select: none; overflow: hidden; }
+.mg-node.sel { border-color: var(--acc); box-shadow: 0 0 0 1px var(--acc), var(--shadow-1); }
+.mg-node-head { height: 28px; display: flex; align-items: center; padding: 0 10px; font-size: var(--fs-xs); font-weight: 600; color: var(--text); border-bottom: 1px solid var(--border); cursor: grab; background: var(--srf-3); }
+.mg-node .mg-row, .mg-node .mg-param { display: flex; align-items: center; gap: 6px; padding: 0 10px; }
 .mg-row-label { font-size: var(--fs-2xs); color: var(--text-dim); }
-.mg-param { gap: 6px; }
 .mg-param .mg-row-label { min-width: 38px; }
 .mg-texname { font-size: var(--fs-2xs); color: var(--text-mute); font-family: var(--font-mono, monospace); }
-
-.mg-port { position: absolute; width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--srf-1); cursor: crosshair; }
-.mg-port.out { right: -6px; transform: translateY(-50%); }
-.mg-port.in { left: -6px; transform: translateY(-50%); }
-.mg-port:hover { box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.15); }

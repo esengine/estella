@@ -5,14 +5,16 @@
  * @brief   Generic node-graph canvas — draggable nodes wired by selectable bezier
  *          edges, shared by the state-machine and behavior-tree editors.
  *
- * Owns only the interaction (pan-by-scroll, node drag, wire-to-connect, edge/node
+ * Owns only the interaction (pan/zoom, node drag, wire-to-connect, edge/node
  * selection, delete, bezier + self-loops). Everything domain-specific — node body,
- * edge label, sizes, connect policy — is injected via props, so FSM (arbitrary
- * guarded edges, cycles) and BT (parent/child tree edges) both drive it. Extracted
- * from the proven StateMachineEditor canvas. Styling lives in theme/nodegraph.css;
- * right-click menus are the shared <ContextMenu>.
+ * edge label, sizes, ports, connect policy — is injected via props, so FSM
+ * (arbitrary guarded edges, cycles), BT (parent/child tree edges), and the
+ * material graph (typed multi-input ports) all drive it. Nodes default to one
+ * input/output port at mid-height; `inputs`/`outputs` inject per-node port lists
+ * (position, color) and edges carry optional port ids. Styling lives in
+ * theme/nodegraph.css; right-click menus are the shared <ContextMenu>.
  */
-import { useEffect, useRef, useState, type ReactNode, type MouseEvent as ReactMouseEvent } from 'react';
+import { useEffect, useImperativeHandle, useRef, useState, type ReactNode, type Ref, type MouseEvent as ReactMouseEvent } from 'react';
 import { ContextMenu, type MenuItem } from '@/components/Menu';
 
 export type { MenuItem };
@@ -27,6 +29,25 @@ export interface CanvasEdge {
   id: string;
   from: string;
   to: string;
+  /** Source/target port ids on multi-port nodes (default port = ''). */
+  fromPort?: string;
+  toPort?: string;
+}
+
+export interface CanvasPort {
+  /** Port id within its node ('' = the default single port). */
+  id: string;
+  /** Vertical offset of the port center within the node (px, node coords). */
+  y: number;
+  /** Dot color (defaults to the shared handle/anchor styling). */
+  color?: string;
+  title?: string;
+}
+
+/** Imperative surface exposed via `apiRef` (e.g. a toolbar Add button opening
+ *  the canvas context menu without owning the viewport math). */
+export interface NodeGraphCanvasApi {
+  openMenuAt(screenX: number, screenY: number): void;
 }
 
 export interface ContextTarget {
@@ -49,14 +70,23 @@ export interface NodeGraphCanvasProps<N extends CanvasNode, E extends CanvasEdge
   renderEdgeLabel?: (e: E) => ReactNode;
   /** Allow an edge from a node to itself (FSM self-transition). */
   allowSelfLoop?: boolean;
-  /** Whether a node shows a left input anchor (can receive an edge). Default: all can. */
+  /** Whether a node shows a left input anchor (can receive an edge). Default: all can.
+   *  Ignored when `inputs` is given. */
   hasInput?: (n: N) => boolean;
+  /** Output ports on the node's right edge. Default: one at mid-height. */
+  outputs?: (n: N) => CanvasPort[];
+  /** Input ports on the node's left edge. Default: one at mid-height. */
+  inputs?: (n: N) => CanvasPort[];
+  /** Pressing an input port (e.g. the material graph's click-to-disconnect).
+   *  Providing this makes input anchors interactive. */
+  onInputPortDown?: (nodeId: string, portId: string) => void;
   onSelectNode: (id: string | null) => void;
   onSelectEdge: (id: string | null) => void;
   onMoveNode: (id: string, x: number, y: number) => void;
   onMoveNodeStart?: (id: string) => void;
   onMoveNodeEnd?: (id: string) => void;
-  onConnect: (from: string, to: string) => void;
+  /** A wire dropped on a target: port ids are '' for default single-port nodes. */
+  onConnect: (from: string, to: string, fromPort: string, toPort: string) => void;
   onDeleteNode: (id: string) => void;
   onDeleteEdge: (id: string) => void;
   /** Context-menu items for a right-click on empty canvas or on a node. */
@@ -65,6 +95,8 @@ export interface NodeGraphCanvasProps<N extends CanvasNode, E extends CanvasEdge
   toolbar?: ReactNode;
   /** Shown when there are no nodes. */
   emptyHint?: ReactNode;
+  /** Receives the imperative canvas API (menu opening). */
+  apiRef?: Ref<NodeGraphCanvasApi>;
 }
 
 const nx = (n: CanvasNode) => n.x ?? 0;
@@ -79,9 +111,18 @@ function bezier(x1: number, y1: number, x2: number, y2: number): string {
 export function NodeGraphCanvas<N extends CanvasNode, E extends CanvasEdge>(props: NodeGraphCanvasProps<N, E>) {
   const {
     nodes, edges, selectedNode, selectedEdge, nodeSize, renderNode, renderEdgeLabel,
-    allowSelfLoop, hasInput, menuItems, onSelectNode, onSelectEdge, onMoveNode, onMoveNodeStart, onMoveNodeEnd,
-    onConnect, onDeleteNode, onDeleteEdge, toolbar, emptyHint,
+    allowSelfLoop, hasInput, outputs, inputs, onInputPortDown,
+    menuItems, onSelectNode, onSelectEdge, onMoveNode, onMoveNodeStart, onMoveNodeEnd,
+    onConnect, onDeleteNode, onDeleteEdge, toolbar, emptyHint, apiRef,
   } = props;
+
+  // Port model: single mid-height ports unless the consumer injects lists.
+  const outPorts = (n: N): CanvasPort[] =>
+    outputs ? outputs(n) : [{ id: '', y: nodeSize(n).height / 2 }];
+  const inPorts = (n: N): CanvasPort[] =>
+    inputs ? inputs(n) : (hasInput?.(n) ?? true) ? [{ id: '', y: nodeSize(n).height / 2 }] : [];
+  const portY = (ports: CanvasPort[], id: string | undefined, fallback: number): number =>
+    (ports.find((p) => p.id === (id ?? '')) ?? ports[0])?.y ?? fallback;
 
   const [wiring, setWiring] = useState(false);
   const [menu, setMenu] = useState<{ screenX: number; screenY: number; target: ContextTarget } | null>(null);
@@ -99,10 +140,17 @@ export function NodeGraphCanvas<N extends CanvasNode, E extends CanvasEdge>(prop
   const canvasRef = useRef<HTMLDivElement>(null);
   const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
   const drag = useRef<{ id: string; offX: number; offY: number } | null>(null);
-  const wire = useRef<{ from: string } | null>(null);
+  const wire = useRef<{ from: string; port: CanvasPort } | null>(null);
 
   const byId = new Map(nodes.map(n => [n.id, n]));
-  const out = (n: N) => { const s = nodeSize(n); return { x: nx(n) + s.width, y: ny(n) + s.height / 2 }; };
+  const outPos = (n: N, port: CanvasPort) => ({ x: nx(n) + nodeSize(n).width, y: ny(n) + port.y });
+
+  useImperativeHandle(apiRef, () => ({
+    openMenuAt: (screenX: number, screenY: number) => {
+      const p = toCanvas(screenX, screenY);
+      setMenu({ screenX, screenY, target: { kind: 'canvas', x: p.x, y: p.y } });
+    },
+  }));
 
   // Screen point → world coord (inverse of the viewport transform).
   const toCanvas = (clientX: number, clientY: number) => {
@@ -139,9 +187,33 @@ export function NodeGraphCanvas<N extends CanvasNode, E extends CanvasEdge>(prop
       }
       if (wire.current) {
         const p = toCanvas(e.clientX, e.clientY);
-        const target = nodeAt(p.x, p.y);
         const from = wire.current.from;
-        if (target && (allowSelfLoop || target.id !== from)) onConnect(from, target.id);
+        const fromPort = wire.current.port.id;
+        const accepts = (n: N) => (allowSelfLoop || n.id !== from) && inPorts(n).length > 0;
+        // Dropping on a node snaps to its nearest input port; a near-miss outside
+        // any node still lands on the closest port within a small radius.
+        let dest: { node: N; port: CanvasPort } | null = null;
+        const target = nodeAt(p.x, p.y);
+        if (target && accepts(target)) {
+          const ports = inPorts(target);
+          const nearest = ports.reduce((a, b) =>
+            Math.abs(ny(target) + a.y - p.y) <= Math.abs(ny(target) + b.y - p.y) ? a : b,
+          );
+          dest = { node: target, port: nearest };
+        } else {
+          let bestD2 = 18 * 18;
+          for (const n of nodes) {
+            if (!accepts(n)) continue;
+            for (const port of inPorts(n)) {
+              const d2 = (nx(n) - p.x) ** 2 + (ny(n) + port.y - p.y) ** 2;
+              if (d2 < bestD2) {
+                bestD2 = d2;
+                dest = { node: n, port };
+              }
+            }
+          }
+        }
+        if (dest) onConnect(from, dest.node.id, fromPort, dest.port.id);
         wire.current = null;
         setCursor(null);
         setWiring(false);
@@ -174,17 +246,17 @@ export function NodeGraphCanvas<N extends CanvasNode, E extends CanvasEdge>(prop
     return `M ${cx - 16} ${y} C ${cx - 30} ${y - 40}, ${cx + 30} ${y - 40}, ${cx + 16} ${y}`;
   };
 
-  // Edge geometry: anchors chosen on the side facing the target, plus a bow
-  // offset for bidirectional pairs so they don't overlap.
+  // Edge geometry: anchors on the nodes' port positions, plus a bow offset for
+  // bidirectional pairs so they don't overlap.
   const edgeGeom = (from: N, to: N, e: E) => {
     if (e.from === e.to) {
       return { d: selfLoopPath(from), mx: nx(from) + nodeSize(from).width / 2, my: ny(from) - 22 };
     }
     const fs = nodeSize(from);
     const ts = nodeSize(to);
-    // Output (right edge) -> input (left edge), matching the node handles.
-    const a = { x: nx(from) + fs.width, y: ny(from) + fs.height / 2 };
-    const b = { x: nx(to), y: ny(to) + ts.height / 2 };
+    // Output (right edge) -> input (left edge), matching the node port dots.
+    const a = { x: nx(from) + fs.width, y: ny(from) + portY(outPorts(from), e.fromPort, fs.height / 2) };
+    const b = { x: nx(to), y: ny(to) + portY(inPorts(to), e.toPort, ts.height / 2) };
     // Target to the right: a direct S-curve. Otherwise it's a back-edge (the
     // source sits right of the target) - route it as a compact arc bowing below
     // the nodes, not a wide horizontal S that flings far past them.
@@ -252,7 +324,7 @@ export function NodeGraphCanvas<N extends CanvasNode, E extends CanvasEdge>(prop
           {wire.current && cursor && (() => {
             const from = byId.get(wire.current.from);
             if (!from) return null;
-            const a = out(from);
+            const a = outPos(from, wire.current.port);
             return <path d={bezier(a.x, a.y, cursor.x, cursor.y)} stroke="var(--star-hi)" strokeWidth={1.6} strokeDasharray="4 3" fill="none" />;
           })()}
         </svg>
@@ -273,8 +345,7 @@ export function NodeGraphCanvas<N extends CanvasNode, E extends CanvasEdge>(prop
         {nodes.map(n => {
           const s = nodeSize(n);
           // While dragging a wire, outline the nodes it can land on.
-          const droppable = wiring && wire.current !== null && (allowSelfLoop || wire.current.from !== n.id);
-          const showInput = hasInput?.(n) ?? true;
+          const droppable = wiring && wire.current !== null && (allowSelfLoop || wire.current.from !== n.id) && inPorts(n).length > 0;
           return (
             <div key={n.id} className={`ng-node${droppable ? ' droppable' : ''}`} style={{ left: nx(n), top: ny(n), width: s.width, height: s.height }}
               onPointerDown={e => {
@@ -285,10 +356,26 @@ export function NodeGraphCanvas<N extends CanvasNode, E extends CanvasEdge>(prop
                 onMoveNodeStart?.(n.id);
               }}
               onContextMenu={e => { e.stopPropagation(); onSelectNode(n.id); const p = toCanvas(e.clientX, e.clientY); openMenu(e, { kind: 'node', nodeId: n.id, x: p.x, y: p.y }); }}>
-              {showInput && <span className="ng-in-anchor" style={{ top: s.height / 2 - 5 }} aria-hidden title="Edges land here" />}
+              {inPorts(n).map(port => (
+                <span
+                  key={`in:${port.id}`}
+                  className={`ng-in-anchor${onInputPortDown ? ' clickable' : ''}`}
+                  style={{ top: port.y - 5, background: port.color }}
+                  aria-hidden={onInputPortDown ? undefined : true}
+                  title={port.title ?? 'Edges land here'}
+                  onPointerDown={onInputPortDown ? (e) => { e.stopPropagation(); onInputPortDown(n.id, port.id); } : undefined}
+                />
+              ))}
               {renderNode(n, selectedNode === n.id)}
-              <span className="ng-handle" style={{ top: s.height / 2 - 7 }} title="Drag to another node to connect"
-                onPointerDown={e => { e.stopPropagation(); wire.current = { from: n.id }; setWiring(true); setCursor(toCanvas(e.clientX, e.clientY)); }} />
+              {outPorts(n).map(port => (
+                <span
+                  key={`out:${port.id}`}
+                  className="ng-handle"
+                  style={{ top: port.y - 7, background: port.color }}
+                  title={port.title ?? 'Drag to another node to connect'}
+                  onPointerDown={e => { e.stopPropagation(); wire.current = { from: n.id, port }; setWiring(true); setCursor(toCanvas(e.clientX, e.clientY)); }}
+                />
+              ))}
             </div>
           );
         })}
