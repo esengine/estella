@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import type { SceneData, PrefabData, ProcessedEntity } from 'esengine';
+import type { SceneData, PrefabData } from 'esengine';
 import { TilemapAPI, TilemapLiveSync, UIPositionType, DimensionUnit } from 'esengine';
 import type { EntityId, InspectorFieldType, InspectorFieldValue } from '@/types';
 import { EditorHistory, EditorHistoryImpl } from './EditorHistory';
@@ -527,19 +527,19 @@ export class SceneCommandsImpl {
   }
 
   /**
-   * Instantiate a prefab into the scene under `parent`:
-   * expand the asset into the model as ordinary entities (the Reconciler spawns
-   * them), tagged with their prefab origin so save can collapse the subtree back
-   * to a delta. The caller (ProjectStore / UI) loads the PrefabData asset; this
-   * stays synchronous + undoable. Returns the instance root's source id.
+   * The single birth path for template/prefab-expanded entities. Without
+   * `linkPrefabRef` the entities are plain and user-owned (the "Create → …"
+   * catalog flow, à la Unity); with it, every entity is tagged with its prefab
+   * origin so save can collapse the subtree back to a delta (instance = a
+   * document delta, see REARCH_PREFABS). `position` overrides the root's authored
+   * placement (the drop point). Undoable; returns the root's source id.
    */
-  instantiatePrefab(
+  create(
     prefab: PrefabData,
-    ref: string,
-    parent: EntityId | null,
-    position?: { x: number; y: number },
+    opts: { parent: EntityId | null; position?: { x: number; y: number }; linkPrefabRef?: string },
   ): EntityId | null {
     if (!this.model.current) return null;
+    const ref = opts.linkPrefabRef ?? '';
     const { entities, rootId } = expandInstance(
       prefab,
       { prefab: ref, overrides: [], added: [], removed: [] },
@@ -547,78 +547,69 @@ export class SceneCommandsImpl {
     );
     const root = entities.find((e) => e.id === rootId);
     if (!root) return null;
-    root.parent = parent; // attach under the scene parent
+    root.parent = opts.parent;
 
     // Place the instance at the drop point — a Transform.position edit that
     // diffAgainstSource captures as a property override on save (so the prefab
     // asset stays at its authored origin; the instance carries the placement).
-    if (position) {
+    if (opts.position) {
       const tf = root.components.find((c) => c.type === 'Transform');
       if (tf) {
         const p = ((tf.data as Record<string, unknown>).position ??= { x: 0, y: 0, z: 0 }) as { x: number; y: number; z: number };
-        p.x = position.x;
-        p.y = position.y;
+        p.x = opts.position.x;
+        p.y = opts.position.y;
       }
     }
 
     // ProcessedEntity → SceneEntity (drop prefab fields); deep-clone components so
     // later edits to the instance don't leak into the redo record.
-    const toScene = (e: ProcessedEntity): SceneEntity =>
-      ({
-        id: e.id,
-        name: e.name,
-        parent: e.parent,
-        children: e.children,
-        components: structuredClone(e.components),
-        visible: e.visible,
-      }) as unknown as SceneEntity;
-
-    const apply = (): void => {
-      this.model.insertSubtree(entities.map(toScene));
-      for (const e of entities) {
-        this.model.setPrefabTag(e.id, {
-          instanceRoot: rootId,
-          prefabId: e.prefabEntityId,
-          prefab: e.id === rootId ? ref : undefined,
-        });
-      }
-    };
-    apply();
-    this.history.record(`Instantiate ${prefab.name || 'Prefab'}`, apply, () => {
-      for (const id of this.model.collectSubtree(rootId)) this.model.removeEntityBySource(id);
-    });
-    return rootId;
-  }
-
-  /**
-   * Create plain, user-owned entities from a template prefab — the widget's
-   * structure + styling expanded into ordinary entities with NO prefab-instance
-   * link (the "Create → UI → Button" flow, à la Unity). Undoable; returns the
-   * root's source id.
-   */
-  createFromTemplate(prefab: PrefabData, parent: EntityId | null): EntityId | null {
-    if (!this.model.current) return null;
-    const { entities, rootId } = expandInstance(
-      prefab,
-      { prefab: '', overrides: [], added: [], removed: [] },
-      () => this.model.allocateSourceId(),
-    );
-    const root = entities.find((e) => e.id === rootId);
-    if (!root) return null;
-    root.parent = parent;
-
     const scene = entities.map((e): SceneEntity =>
       ({
         id: e.id, name: e.name, parent: e.parent, children: e.children,
         components: structuredClone(e.components), visible: e.visible,
       }) as unknown as SceneEntity,
     );
-    const apply = (): void => { this.model.insertSubtree(scene); };
+
+    // A prefab link tags the subtree with its origin; a plain template does not.
+    const linked = opts.linkPrefabRef != null;
+    const apply = (): void => {
+      this.model.insertSubtree(scene);
+      if (linked) {
+        for (const e of entities) {
+          this.model.setPrefabTag(e.id, {
+            instanceRoot: rootId,
+            prefabId: e.prefabEntityId,
+            prefab: e.id === rootId ? ref : undefined,
+          });
+        }
+      }
+    };
     apply();
-    this.history.record(`Create ${prefab.name || 'Entity'}`, apply, () => {
-      for (const id of this.model.collectSubtree(rootId)) this.model.removeEntityBySource(id);
-    });
+    this.history.record(
+      linked ? `Instantiate ${prefab.name || 'Prefab'}` : `Create ${prefab.name || 'Entity'}`,
+      apply,
+      () => { for (const id of this.model.collectSubtree(rootId)) this.model.removeEntityBySource(id); },
+    );
     return rootId;
+  }
+
+  /**
+   * Instantiate a prefab asset into the scene under `parent` (thin adapter over
+   * {@link create} that links the subtree to its prefab origin). The caller loads
+   * the PrefabData; stays synchronous + undoable. Returns the instance root's id.
+   */
+  instantiatePrefab(
+    prefab: PrefabData,
+    ref: string,
+    parent: EntityId | null,
+    position?: { x: number; y: number },
+  ): EntityId | null {
+    return this.create(prefab, { parent, position, linkPrefabRef: ref });
+  }
+
+  /** Plain, user-owned entities from a template prefab — {@link create} with no prefab link. */
+  createFromTemplate(prefab: PrefabData, parent: EntityId | null): EntityId | null {
+    return this.create(prefab, { parent });
   }
 
   /** The scene's Canvas entity (UI layout root), or null — the default parent for new UI. */
