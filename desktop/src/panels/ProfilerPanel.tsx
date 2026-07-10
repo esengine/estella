@@ -10,9 +10,10 @@ import { PerfMonitor } from '@/engine/PerfMonitor';
 const BUDGET_MS = 1000 / 60; // 60 Hz frame budget (16.6ms)
 const BUDGET_30 = 1000 / 30; // 30 Hz (33.3ms) — the hitch threshold
 
-// GPU/VRAM metric identity — a teal deliberately outside the panel palette so
-// the third series never reads as accent or warning.
-const GPU_COLOR = '#3fb2b2';
+// GPU/VRAM metric identity — the --vram token (canvas draws read it at paint
+// time via cssVar; this is the same-value fallback).
+const GPU_FALLBACK = '#3fb2b2';
+const GPU_COLOR = `var(--vram, ${GPU_FALLBACK})`;
 
 function kfmt(n: number): string {
   return n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : String(n);
@@ -77,7 +78,7 @@ function MemGraph({ hist }: { hist: Array<{ wasm: number; js: number; vram: numb
     if (!n) return;
     let max = 1;
     for (const m of hist) max = Math.max(max, m.wasm, m.js, m.vram);
-    const colors = { wasm: cssVar(cv, '--warn', '#d3a23c'), js: cssVar(cv, '--star', '#2f88d6'), vram: GPU_COLOR };
+    const colors = { wasm: cssVar(cv, '--warn', '#d3a23c'), js: cssVar(cv, '--star', '#2f88d6'), vram: cssVar(cv, '--vram', GPU_FALLBACK) };
     const line = (key: 'wasm' | 'js' | 'vram') => {
       ctx.strokeStyle = colors[key];
       ctx.lineWidth = 1.25;
@@ -306,7 +307,7 @@ export function ProfilerPanel() {
         <h4>Unit <span className="prof-realm">· {s.realm}</span></h4>
         <Seg label="engine" ms={v.engineMs} frame={frame} color="var(--run, #46a04a)" />
         <Seg label="editor" ms={v.editorMs} frame={frame} color="var(--star, #2f88d6)" />
-        <Seg label={presentLabel} ms={other} frame={frame} color="var(--text-mute, #888)" />
+        <Seg label={presentLabel} ms={other} frame={frame} color="var(--text-mute, #696a71)" />
         {v.gpuMs >= 0 ? (
           <Seg label="gpu" ms={v.gpuMs} frame={frame} color={GPU_COLOR} />
         ) : (

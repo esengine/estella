@@ -175,7 +175,7 @@
 .ts-zone-c:hover { background: rgba(255, 255, 255, 0.1); }
 
 /* Polygon-collision cell marker + the focused polygon editor overlay */
-.ts-pcell.is-poly { background: rgba(90, 200, 250, 0.22); border-color: rgba(90, 200, 250, 0.85); }
+.ts-pcell.is-poly { background: color-mix(in srgb, var(--gizmo-tile) 22%, transparent); border-color: color-mix(in srgb, var(--gizmo-tile) 85%, transparent); }
 .ts-pcell:hover { border-color: var(--star); background: var(--star-dim); }
 
 .ts-pe-backdrop {
@@ -214,8 +214,8 @@
   cursor: crosshair;
 }
 .ts-pe-svg { position: absolute; left: 0; top: 0; pointer-events: none; }
-.ts-pe-poly { fill: rgba(90, 200, 250, 0.3); stroke: #5ac8fa; stroke-width: 0.5; }
-.ts-pe-pt { fill: #fff; stroke: #5ac8fa; stroke-width: 0.5; pointer-events: auto; cursor: pointer; }
+.ts-pe-poly { fill: color-mix(in srgb, var(--gizmo-tile) 30%, transparent); stroke: var(--gizmo-tile); stroke-width: 0.5; }
+.ts-pe-pt { fill: #fff; stroke: var(--gizmo-tile); stroke-width: 0.5; pointer-events: auto; cursor: pointer; }
 .ts-pe-pt:hover { fill: #f0645a; }
 .ts-pe-hint { color: var(--text-faint); font-size: var(--fs-xs); text-align: center; }
 

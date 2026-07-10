@@ -135,5 +135,6 @@ boot().catch((err) => {
   const message = err instanceof Error ? err.message : String(err);
   if (err === 'unwind' || message.includes('unwind')) return; // emscripten loop took over — success
   console.error('[game] boot failed', err);
-  document.body.innerHTML = `<pre style="color:#f87171;padding:20px;font:13px monospace">${message}</pre>`;
+  // The game realm has no editor stylesheet — this literal mirrors --error.
+  document.body.innerHTML = `<pre style="color:#d65a5a;padding:20px;font:13px monospace">${message}</pre>`;
 });

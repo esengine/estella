@@ -96,7 +96,7 @@
   font-size: var(--fs-md);
   color: var(--text-dim);
   text-align: left;
-  transition: background 0.12s, color 0.12s;
+  transition: background var(--t-fast), color var(--t-fast);
 }
 .lc-nav__item:hover {
   background: var(--hover);
@@ -227,7 +227,7 @@
   border-radius: var(--r-md);
   overflow: hidden;
   cursor: pointer;
-  transition: border-color 0.14s, box-shadow 0.14s, transform 0.14s;
+  transition: border-color var(--t), box-shadow var(--t), transform var(--t);
 }
 .proj-card:hover,
 .proj-card:focus-visible {
@@ -333,7 +333,7 @@
   color: var(--text-dim);
   cursor: pointer;
   opacity: 0;
-  transition: opacity 0.12s, color 0.12s, border-color 0.12s;
+  transition: opacity var(--t-fast), color var(--t-fast), border-color var(--t-fast);
   backdrop-filter: blur(2px);
 }
 .proj-card:hover .proj-card__remove,
@@ -394,7 +394,7 @@
   border-bottom: 1px solid var(--line-soft);
   text-align: left;
   cursor: pointer;
-  transition: background 0.12s;
+  transition: background var(--t-fast);
 }
 .proj-row:hover,
 .proj-row:focus-visible {
@@ -420,7 +420,7 @@
   color: var(--text-dim);
   cursor: pointer;
   opacity: 0;
-  transition: opacity 0.12s, color 0.12s, border-color 0.12s;
+  transition: opacity var(--t-fast), color var(--t-fast), border-color var(--t-fast);
 }
 .proj-row:hover .proj-row__remove,
 .proj-row:focus-within .proj-row__remove { opacity: 1; }
@@ -580,7 +580,7 @@
   font-size: var(--fs-sm);
   color: var(--text);
   cursor: pointer;
-  transition: border-color 0.12s, color 0.12s, background 0.12s, box-shadow 0.12s;
+  transition: border-color var(--t-fast), color var(--t-fast), background var(--t-fast), box-shadow var(--t-fast);
 }
 .lc-btn:hover {
   border-color: var(--star-line);
@@ -616,7 +616,7 @@
 @media (prefers-reduced-motion: no-preference) {
   .proj-grid,
   .proj-list {
-    animation: lc-rise 0.3s ease-out both;
+    animation: lc-rise var(--t-slow) ease-out both;
   }
   @keyframes lc-rise {
     from {

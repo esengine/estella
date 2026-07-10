@@ -172,7 +172,7 @@
   opacity: 0;
   pointer-events: none;
   will-change: transform, opacity;
-  transition: opacity 0.1s ease;
+  transition: opacity var(--t-fast) ease;
 }
 /* The gizmo SVG is a fixed square whose viewBox is centered on (0,0); place that
    center at the wrapper origin (= the pivot) by pulling it back half its size. */
@@ -224,8 +224,8 @@
   z-index: 1;
   opacity: 0;
   pointer-events: none;
-  border: 1px dashed #5ac8fa;
-  background: rgba(90, 200, 250, 0.12);
+  border: 1px dashed var(--gizmo-tile);
+  background: color-mix(in srgb, var(--gizmo-tile) 12%, transparent);
   will-change: transform, width, height, opacity;
 }
 .viewport__tilepreview {
@@ -271,8 +271,8 @@
   top: 0;
   left: 0;
   display: none;
-  border: 1px solid rgba(90, 200, 250, 0.7);
-  background: rgba(90, 200, 250, 0.22);
+  border: 1px solid color-mix(in srgb, var(--gizmo-tile) 70%, transparent);
+  background: color-mix(in srgb, var(--gizmo-tile) 22%, transparent);
   will-change: transform, width, height;
 }
 
@@ -318,7 +318,7 @@ body.thumb-capture .viewport__play-stop {
   z-index: 2;
   pointer-events: none;
   will-change: transform;
-  transition: opacity 0.1s;
+  transition: opacity var(--t-fast);
 }
 /* The bulb is the light's click target (select-to-identify); generously padded hit box. */
 .viewport__light-hit {
@@ -336,7 +336,7 @@ body.thumb-capture .viewport__play-stop {
 .viewport__light-icon {
   display: block;
   filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.8));
-  transition: transform 0.1s;
+  transition: transform var(--t-fast);
 }
 .viewport__light-hit:hover .viewport__light-icon {
   transform: scale(1.2);
@@ -433,7 +433,7 @@ body.thumb-capture .viewport__play-stop {
 .viewport__particle-icon {
   display: block;
   filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.8));
-  transition: transform 0.1s;
+  transition: transform var(--t-fast);
 }
 .viewport__particle-hit:hover .viewport__particle-icon {
   transform: scale(1.2);
@@ -590,7 +590,7 @@ body.thumb-capture .viewport__play-stop {
   color: var(--text-hi);
   font-size: var(--fs-sm);
   pointer-events: auto;
-  animation: toast-in 0.16s ease-out;
+  animation: toast-in var(--t) ease-out;
 }
 
 .toast__msg {

@@ -96,7 +96,7 @@
 .vec { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; flex: 1; min-width: 0; }
 .vfield { height: 22px; display: flex; align-items: center; background: var(--inset); border: 1px solid var(--border); border-radius: var(--r-sm); overflow: hidden; min-width: 0; transition: border-color var(--t-fast), box-shadow var(--t-fast); }
 .vfield:focus-within { border-color: var(--acc); box-shadow: 0 0 0 2px var(--acc-soft); }
-.ax { width: 16px; height: 100%; display: grid; place-items: center; font-size: var(--fs-3xs); font-weight: 700; font-family: var(--mono); color: #fff; cursor: ew-resize; flex-shrink: 0; font-style: normal; }
+.ax { width: 16px; height: 100%; display: grid; place-items: center; font-size: var(--fs-3xs); font-weight: 700; font-family: var(--mono); color: var(--on-accent); cursor: ew-resize; flex-shrink: 0; font-style: normal; }
 .ax.x { background: var(--ax-x); }
 .ax.y { background: var(--ax-y); }
 .ax.z { background: var(--ax-z); }

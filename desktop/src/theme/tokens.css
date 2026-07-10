@@ -77,6 +77,17 @@
   --ax-y: #80b94a;
   --ax-z: #4a8fd6;
 
+  /* — Curve-channel identity: the sequencer's curve view cycles axes first,
+       then these three (gold / lilac / sage) — hues that never collide with
+       the axis triple or the accent. — */
+  --curve-4: #c9a14e;
+  --curve-5: #9b8fc0;
+  --curve-6: #7faf9c;
+
+  /* — Profiler VRAM/GPU series: a teal deliberately outside the panel palette
+       so the third series never reads as accent or warning. — */
+  --vram: #3fb2b2;
+
   /* — Viewport gizmo identity: high-visibility strokes drawn over scene art
        (collider green, particle-shape amber, tile-paint cyan). Distinct from
        the muted panel palette on purpose — gizmos must survive any backdrop. — */
@@ -100,6 +111,7 @@
   --create-hi: #34b163;
   --warn: #d3a23c; /* amber / warnings */
   --error: #d65a5a;
+  --error-hi: #e36a6a; /* hover over an error fill (Stop while playing) */
 
   /* — Type — */
   --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;

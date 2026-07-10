@@ -50,7 +50,7 @@ export class PlayRealmInstance {
     if (!this.iframe) {
       const f = document.createElement('iframe');
       f.title = this.id === 0 ? 'Game' : `Game P${this.id + 1}`;
-      f.style.cssText = 'display:block;width:100%;height:100%;border:0;background:#0e121b';
+      f.style.cssText = 'display:block;width:100%;height:100%;border:0;background:var(--srf-1)';
       window.addEventListener('message', this.onMessage);
       this.iframe = f;
     }

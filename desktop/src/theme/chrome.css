@@ -58,7 +58,7 @@
   transition: color var(--t-fast), background var(--t-fast);
 }
 .winctl__btn:hover { color: var(--text); background: var(--srf-3); }
-.winctl__btn--close:hover { color: #fff; background: var(--error); }
+.winctl__btn--close:hover { color: var(--on-accent); background: var(--error); }
 
 /* ── Toolbar (modes left · play center · actions right) ── */
 .toolbar {
@@ -116,7 +116,7 @@
 .play-mode { width: auto; padding: 0 6px; display: inline-flex; align-items: center; gap: 2px; }
 .play-mode .play-mode-cv { opacity: 0.6; }
 .play-wrap.playing .play-main, .play-wrap.playing .play-side { background: var(--error); }
-.play-wrap.playing .play-main:hover { background: #e36a6a; }
+.play-wrap.playing .play-main:hover { background: var(--error-hi); }
 .play-wrap.paused .play-main, .play-wrap.paused .play-side { background: var(--warn); }
 
 /* ── Status bar ── */

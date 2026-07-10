@@ -24,7 +24,7 @@ import { findChannel, timeToPct, type SeqRow } from '@/timeline/timelineView';
 const PAD_T = 8;
 const PAD_B = 8;
 const SAMPLES = 100;
-const PALETTE = ['var(--ax-x)', 'var(--ax-y)', 'var(--acc-hi)', '#c9a14e', '#9b8fc0', '#7faf9c'];
+const PALETTE = ['var(--ax-x)', 'var(--ax-y)', 'var(--acc-hi)', 'var(--curve-4)', 'var(--curve-5)', 'var(--curve-6)'];
 
 interface CurveChannel {
   row: SeqRow;
