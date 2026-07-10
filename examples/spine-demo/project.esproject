@@ -1,7 +1,7 @@
 {
   "formatVersion": "1",
   "name": "Spine Animation",
-  "description": "A Spine skeleton that cycles idle/walk/run/jump/shoot — press 1-5 to switch.",
+  "description": "Two Spine showcases: Spineboy cycles idle/walk/run/jump/shoot (press 1-5), and aran.esscene renders a Spine 4.1 multi-page PMA skeleton.",
   "tag": "Animation",
   "version": "0.1.0",
   "defaultScene": "assets/scenes/main.esscene",

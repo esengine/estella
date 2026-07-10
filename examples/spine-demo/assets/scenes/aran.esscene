@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "name": "SpineDemo",
+  "name": "AranShowcase",
   "entities": [
     {
       "id": 0,
@@ -15,27 +15,26 @@
     },
     {
       "id": 1,
-      "name": "Spineboy",
+      "name": "Aran",
       "parent": null,
       "children": [],
       "components": [
-        { "type": "Transform", "data": { "position": { "x": 0, "y": -180, "z": 0 } } },
+        { "type": "Transform", "data": { "position": { "x": -300, "y": 140, "z": 0 } } },
         {
           "type": "SpineAnimation",
           "data": {
-            "skeletonPath": "@uuid:7386aaf3-55a9-4879-b4f3-95a5f6a1cde4",
-            "atlasPath": "@uuid:b5f07fb2-95dd-4ed5-98b8-414900e96b9d",
-            "animation": "idle",
+            "skeletonPath": "@uuid:702df979-4e5b-4abc-ac98-b0ceaccef22b",
+            "atlasPath": "@uuid:a9d2e573-7d2a-4c22-84b9-334db161eafe",
+            "animation": "animation",
             "skin": "default",
             "loop": true,
             "playing": true,
-            "skeletonScale": 0.6,
+            "skeletonScale": 0.45,
             "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
             "layer": 0,
             "enabled": true
           }
-        },
-        { "type": "AnimState", "data": { "timer": 0, "index": 0 } }
+        }
       ],
       "visible": true
     }
