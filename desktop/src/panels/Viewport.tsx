@@ -415,7 +415,13 @@ export function Viewport() {
   // footprint each frame (see the tile-preview block). Empty (null) → the plain box shows.
   const stamp = useTilemapPaint((s) => s.stamp);
   const activeAtlas = useTilemapPaint((s) => s.activeAtlas);
-  const ghostCells = useMemo(() => buildStampGhost(stamp, activeAtlas), [stamp, activeAtlas]);
+  // Random mode lays an unpredictable sample per cell — a WYSIWYG pattern ghost
+  // would promise the wrong tiles, so fall back to the plain outline box.
+  const randomBrush = useTilemapPaint((s) => s.randomBrush);
+  const ghostCells = useMemo(
+    () => (randomBrush ? null : buildStampGhost(stamp, activeAtlas)),
+    [stamp, activeAtlas, randomBrush],
+  );
   const ghostNat = ghostCells && activeAtlas
     ? { w: stamp.w * activeAtlas.tileW, h: stamp.h * activeAtlas.tileH }
     : null;
