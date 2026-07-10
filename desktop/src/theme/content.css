@@ -45,9 +45,9 @@
 .cb-search { width: 200px; height: 26px; flex-shrink: 0; }
 .cb-seg { display: flex; gap: 1px; background: var(--inset); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 1px; flex-shrink: 0; }
 .cb-seg button { width: 26px; height: 22px; display: grid; place-items: center; color: var(--text-mute); border-radius: var(--r-xs); }
-.cb-seg button.on { color: #fff; background: var(--acc); }
+.cb-seg button.on { color: var(--on-accent); background: var(--acc); }
 .cb-seg button:hover:not(.on) { color: var(--text); }
-.cb-add { height: 26px; display: inline-flex; align-items: center; gap: 5px; padding: 0 10px; background: var(--acc); color: #fff; font-weight: 600; font-size: var(--fs-xs); border-radius: var(--r-sm); transition: background var(--t-fast); flex-shrink: 0; }
+.cb-add { height: 26px; display: inline-flex; align-items: center; gap: 5px; padding: 0 10px; background: var(--acc); color: var(--on-accent); font-weight: 600; font-size: var(--fs-xs); border-radius: var(--r-sm); transition: background var(--t-fast); flex-shrink: 0; }
 .cb-add:hover { background: var(--acc-hi); }
 .cb-add:disabled { opacity: 0.45; }
 .cb-ghost { width: 26px; height: 26px; display: grid; place-items: center; color: var(--text-dim); background: var(--srf-3); border: 1px solid var(--border-line); border-radius: var(--r-sm); flex-shrink: 0; transition: color var(--t-fast), background var(--t-fast); }
@@ -67,7 +67,7 @@
 .cb-chips { display: flex; align-items: center; gap: 5px; padding: 7px 10px; border-bottom: 1px solid var(--border); flex-shrink: 0; overflow-x: auto; }
 .cb-chips .chip { height: 24px; display: inline-flex; align-items: center; gap: 5px; padding: 0 10px; font-size: var(--fs-xs); color: var(--text-dim); background: var(--srf-3); border: 1px solid var(--border-line); border-radius: var(--r-pill); white-space: nowrap; flex-shrink: 0; transition: all var(--t-fast); }
 .cb-chips .chip:hover { color: var(--text); border-color: var(--text-mute); }
-.cb-chips .chip.on { color: #fff; background: var(--acc); border-color: var(--acc); }
+.cb-chips .chip.on { color: var(--on-accent); background: var(--acc); border-color: var(--acc); }
 .cb-chips .chip .d { width: 7px; height: 7px; border-radius: 2px; flex-shrink: 0; }
 
 .cb-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 12px; }
@@ -112,7 +112,7 @@
 .cb-mr .v { color: var(--text-dim); font-family: var(--mono); font-size: var(--fs-xs); }
 .cb-act { padding: 11px 13px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 7px; }
 .cb-act button { height: 30px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-size: var(--fs-sm); border-radius: var(--r-sm); transition: background var(--t-fast); }
-.cb-act .primary { background: var(--acc); color: #fff; font-weight: 600; }
+.cb-act .primary { background: var(--acc); color: var(--on-accent); font-weight: 600; }
 .cb-act .primary:hover { background: var(--acc-hi); }
 .cb-act .ghost { background: var(--srf-3); color: var(--text-dim); border: 1px solid var(--border-line); }
 .cb-act .ghost:hover { color: var(--text); background: var(--srf-4); }

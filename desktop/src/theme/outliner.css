@@ -60,7 +60,7 @@
   transition: background var(--t-fast), color var(--t-fast);
 }
 .row:hover { background: var(--srf-3); color: var(--text); }
-.row.sel { background: var(--acc); color: #fff; }
+.row.sel { background: var(--acc); color: var(--on-accent); }
 .row.sel:hover { background: var(--acc); }
 .row.drop { background: var(--acc-soft); box-shadow: inset 0 0 0 1px var(--acc); }
 /* Between-rows reorder insertion line (top = before, bottom = after). */
@@ -83,7 +83,7 @@
 .row .ricon { width: 18px; display: grid; place-items: center; color: var(--text-mute); flex-shrink: 0; }
 .row.sel .ricon { color: rgba(255, 255, 255, 0.92); }
 .row.prefab .ricon { color: var(--info-warm); }
-.row.sel.prefab .ricon { color: #fff; }
+.row.sel.prefab .ricon { color: var(--on-accent); }
 .row .rname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row .rname mark { background: var(--acc-soft); color: inherit; border-radius: 2px; padding: 0 1px; }
 .row.sel .rname mark { background: rgba(255, 255, 255, 0.28); }
@@ -106,21 +106,21 @@
 .row:hover .rlock, .row.sel .rlock, .row.locked .rlock { opacity: 1; }
 .row.sel .rvis, .row.sel .rlock { color: rgba(255, 255, 255, 0.8); }
 .row .rvis:hover, .row .rlock:hover { color: var(--text); }
-.row.sel .rvis:hover, .row.sel .rlock:hover { color: #fff; }
+.row.sel .rvis:hover, .row.sel .rlock:hover { color: var(--on-accent); }
 .row.hidden .rname { color: var(--text-mute); }
 /* Locked rows: a dimmed name + a lit lock glyph (UE5 actor lock). */
 .row.locked .rname { color: var(--text-mute); }
 .row.locked .rlock { color: var(--info-warm); }
-.row.sel.locked .rlock { color: #fff; }
+.row.sel.locked .rlock { color: var(--on-accent); }
 
 /* Folder rows (organizational path-folders) — read a touch stronger than entities. */
 .row.folder .ricon { color: var(--info-warm); }
-.row.sel.folder .ricon { color: #fff; }
+.row.sel.folder .ricon { color: var(--on-accent); }
 .row.folder .rname { color: var(--text); }
-.row.sel.folder .rname { color: #fff; } /* selected folder reads white on the blue fill */
+.row.sel.folder .rname { color: var(--on-accent); } /* selected folder reads white on the blue fill */
 
 /* World picker (UE5): switch the Outliner/Details between edit + live game. */
 .world-pick { display: flex; gap: 2px; padding: 6px 8px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
 .world-pick button { flex: 1; height: 24px; font-size: var(--fs-xs); color: var(--text-mute); background: var(--srf-3); border-radius: var(--r-sm); transition: color var(--t-fast), background var(--t-fast); }
-.world-pick button.on { color: #fff; background: var(--acc); }
+.world-pick button.on { color: var(--on-accent); background: var(--acc); }
 .world-pick button:hover:not(.on) { color: var(--text); }

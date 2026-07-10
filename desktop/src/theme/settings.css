@@ -8,7 +8,7 @@
 .set-scrim {
   position: fixed;
   inset: 0;
-  z-index: 124;
+  z-index: var(--z-dialog);
   background: var(--overlay);
   display: grid;
   place-items: center;
@@ -228,7 +228,7 @@
 .set-swatch.on { box-shadow: 0 0 0 2px var(--srf-2), 0 0 0 4px var(--acc); }
 .set-seg { display: flex; background: var(--inset); border: 1px solid var(--border); border-radius: var(--r-sm); overflow: hidden; }
 .set-seg button { padding: 4px 11px; font-size: var(--fs-xs); color: var(--text-dim); transition: color var(--t-fast), background var(--t-fast); }
-.set-seg button.on { background: var(--acc); color: #fff; }
+.set-seg button.on { background: var(--acc); color: var(--on-accent); }
 
 /* Pill toggle (the design's `.toggle`; not yet in the shared theme). */
 .toggle {
@@ -253,4 +253,4 @@
   transition: left var(--t-fast) var(--e-out), background var(--t-fast);
 }
 .toggle.on { background: var(--acc); }
-.toggle.on::after { left: 15px; background: #fff; }
+.toggle.on::after { left: 15px; background: var(--on-accent); }

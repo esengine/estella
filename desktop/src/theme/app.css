@@ -33,7 +33,7 @@
   position: absolute;
   top: calc(100% + 2px);
   left: 0;
-  z-index: 1000;
+  z-index: var(--z-menu);
   min-width: 208px;
   padding: 4px;
   background: var(--raised);
@@ -561,7 +561,7 @@ body.thumb-capture .viewport__play-stop {
   position: fixed;
   right: 14px;
   bottom: 32px;
-  z-index: 2000;
+  z-index: var(--z-toast);
   display: flex;
   flex-direction: column;
   gap: 8px;

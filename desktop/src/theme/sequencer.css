@@ -136,9 +136,9 @@
 .seq-key.drag { background: var(--acc-hi); cursor: ew-resize; z-index: 3; }
 
 /* keyframe interpolation popover */
-.seq-pop-scrim { position: fixed; inset: 0; z-index: 40; }
+.seq-pop-scrim { position: fixed; inset: 0; z-index: calc(var(--z-popover) - 1); }
 .seq-interp {
-  position: fixed; z-index: 41; min-width: 150px;
+  position: fixed; z-index: var(--z-popover); min-width: 150px;
   background: var(--raised); border: 1px solid var(--border);
   border-radius: var(--r-lg); padding: 4px; box-shadow: 0 8px 24px rgba(0,0,0,0.4);
 }
@@ -156,7 +156,7 @@
 
 /* add-track picker + clip-settings popovers (share the interp popover shell) */
 .seq-picker, .seq-settings {
-  position: fixed; z-index: 41; min-width: 200px; max-height: 320px; overflow-y: auto;
+  position: fixed; z-index: var(--z-popover); min-width: 200px; max-height: 320px; overflow-y: auto;
   background: var(--raised); border: 1px solid var(--border);
   border-radius: var(--r-lg); padding: 4px; box-shadow: 0 8px 24px rgba(0,0,0,0.4);
 }

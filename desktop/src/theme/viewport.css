@@ -40,7 +40,7 @@
 .ovbtn .cv { opacity: 0.5; transition: transform var(--t-fast); }
 .ovbtn.open .cv { transform: rotate(180deg); }
 .ov-tool { width: 30px; height: 30px; padding: 0; justify-content: center; position: relative; }
-.ov-tool.active { color: #fff; background: var(--acc); }
+.ov-tool.active { color: var(--on-accent); background: var(--acc); }
 .ov-tool kbd {
   position: absolute;
   bottom: -2px;
@@ -112,7 +112,7 @@
   place-items: center;
   color: transparent;
 }
-.dd-item.on .chk { background: var(--acc); border-color: var(--acc); color: #fff; }
+.dd-item.on .chk { background: var(--acc); border-color: var(--acc); color: var(--on-accent); }
 .dd-item .l { flex: 1; }
 .dd-item .k {
   margin-left: auto;
@@ -204,7 +204,7 @@
   gap: 6px;
   font-size: var(--fs-xs);
   font-weight: 600;
-  color: #fff;
+  color: var(--on-accent);
   background: var(--run);
   border-radius: var(--r-pill);
   box-shadow: var(--shadow-2);

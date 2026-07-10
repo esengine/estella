@@ -72,7 +72,7 @@
   gap: 4px;
   padding: 0 8px;
   position: relative;
-  z-index: 40;
+  z-index: var(--z-toolbar);
 }
 .tgroup { display: flex; align-items: center; gap: 2px; }
 .tdiv { width: 1px; height: 22px; background: var(--border-line); margin: 0 6px; }
@@ -92,7 +92,7 @@
 }
 .tbtn:hover { color: var(--text); background: var(--srf-4); }
 .tbtn:active { background: var(--srf-5); transform: translateY(0.5px); }
-.tbtn.on { color: #fff; background: var(--acc); }
+.tbtn.on { color: var(--on-accent); background: var(--acc); }
 .tbtn:disabled { opacity: 0.4; pointer-events: none; }
 .tbtn .lbl { font-weight: 500; }
 
@@ -105,7 +105,7 @@
   height: 30px;
   padding: 0 14px 0 12px;
   background: var(--acc);
-  color: #fff;
+  color: var(--on-accent);
   font-weight: 600;
   font-size: var(--fs-sm);
   transition: background var(--t-fast);
@@ -151,7 +151,7 @@
 .sdot.live { background: var(--play); }
 .smute { color: var(--text-mute); }
 /* Keep the status strip (with the Content-Drawer toggle) above the drawer/scrim. */
-.status { position: relative; z-index: 103; }
+.status { position: relative; z-index: calc(var(--z-drawer) + 3); }
 /* Persistent Content Browser toggle — the single anchor, bottom-left. */
 .cb-btn {
   display: inline-flex;
@@ -166,7 +166,7 @@
   transition: color var(--t-fast), background var(--t-fast);
 }
 .cb-btn:hover { color: var(--text); background: var(--srf-3); }
-.cb-btn.active { color: #fff; background: var(--acc); }
+.cb-btn.active { color: var(--on-accent); background: var(--acc); }
 
 /* ── Engine modules indicator + popover ── */
 .mdot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-mute); flex-shrink: 0; }
@@ -185,7 +185,7 @@
   border-radius: var(--r-sm);
   box-shadow: var(--shadow-1);
   padding: 6px;
-  z-index: 200;
+  z-index: var(--z-popover);
 }
 .mods-pop h4 {
   margin: 2px 6px 6px;
@@ -260,7 +260,7 @@
   left: 0;
   right: 0;
   bottom: var(--h-status);
-  z-index: 100;
+  z-index: var(--z-drawer);
   background: var(--overlay);
   opacity: 0;
   pointer-events: none;
@@ -272,7 +272,7 @@
   left: 0;
   right: 0;
   bottom: var(--h-status);
-  z-index: 101;
+  z-index: calc(var(--z-drawer) + 1);
   height: 46vh;
   min-height: 320px;
   background: var(--srf-2);
