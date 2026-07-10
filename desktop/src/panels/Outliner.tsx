@@ -201,6 +201,20 @@ export function Outliner() {
     const next = cur < 0 ? (delta > 0 ? 0 : items.length - 1) : Math.max(0, Math.min(items.length - 1, cur + delta));
     focusIndex(next);
   };
+  // Type-to-jump: letters typed while the tree is focused seek the next visible
+  // row whose name starts with the accumulated buffer (600ms between keystrokes).
+  const typeAhead = useRef({ buf: '', at: 0 });
+  const seekByName = (ch: string) => {
+    const now = performance.now();
+    const t = typeAhead.current;
+    t.buf = (now - t.at < 600 ? t.buf : '') + ch.toLowerCase();
+    t.at = now;
+    const name = (it: OutlinerItem) => (it.kind === 'entity' ? it.node.name : it.name);
+    const cur = items.findIndex((i) => i.key === cursor);
+    const order = [...items.slice(cur + 1), ...items.slice(0, cur + 1)];
+    const hit = order.find((i) => (name(i) ?? '').toLowerCase().startsWith(t.buf));
+    if (hit) focusIndex(items.indexOf(hit));
+  };
   const onKeyDown = (e: React.KeyboardEvent) => {
     if ((e.target as HTMLElement).tagName === 'INPUT' || renaming != null) return; // typing
     // When the Outliner is focused it owns the arrow keys (tree nav) — stop them
@@ -244,6 +258,15 @@ export function Outliner() {
           sel.forEach((i) => SceneCommands.deleteEntity(i));
           select(null);
         }
+        break;
+      }
+      default: {
+        if (e.key.length !== 1 || e.key === ' ' || e.ctrlKey || e.metaKey || e.altKey) break;
+        // The focused tree owns printable keys (jump-to-name), like the arrows —
+        // they must not fall through to global single-key shortcuts.
+        e.preventDefault();
+        e.stopPropagation();
+        seekByName(e.key);
         break;
       }
     }
