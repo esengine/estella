@@ -24,7 +24,7 @@ export interface LogHandler {
     handle(entry: LogEntry): void;
 }
 
-class ConsoleLogHandler implements LogHandler {
+export class ConsoleLogHandler implements LogHandler {
     handle(entry: LogEntry): void {
         const time = new Date(entry.timestamp).toISOString().substring(11, 23);
         const levelStr = LogLevel[entry.level].toUpperCase().padEnd(5);
@@ -38,8 +38,15 @@ class ConsoleLogHandler implements LogHandler {
         let errorArg: Error | undefined;
 
         if (entry.data !== undefined) {
+            const errLike = entry.data as { message?: unknown; stack?: unknown } | null;
             if (entry.data instanceof Error) {
                 errorArg = entry.data;
+            } else if (errLike && (typeof errLike.stack === 'string' || typeof errLike.message === 'string')) {
+                // An error thrown in another JS context (WeChat sub-context,
+                // iframe realm) fails instanceof Error but still carries
+                // message/stack — JSON.stringify would render it as `{}`
+                // (Error props are non-enumerable).
+                line += ` ${String(errLike.stack ?? errLike.message)}`;
             } else {
                 try {
                     line += ` ${JSON.stringify(entry.data)}`;

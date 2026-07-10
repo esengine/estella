@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { Logger, LogLevel, type LogHandler, type LogEntry } from '../src/logger';
+import { Logger, LogLevel, ConsoleLogHandler, type LogHandler, type LogEntry } from '../src/logger';
 
 describe('Logger', () => {
     let logger: Logger;
@@ -120,6 +120,39 @@ describe('Logger', () => {
             logger.info('Test', 'Message', data);
 
             expect(capturedEntries[0].data).toEqual(data);
+        });
+    });
+
+    describe('console handler error rendering', () => {
+        it('renders a foreign-context error (fails instanceof, has stack) as text, not {}', () => {
+            const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+            try {
+                new ConsoleLogHandler().handle({
+                    timestamp: Date.now(), level: LogLevel.Warn, category: 'runtime',
+                    message: 'Failed to load texture: a.png',
+                    data: { message: 'boom', stack: 'FakeError: boom\n    at x' },
+                });
+                expect(spy).toHaveBeenCalledTimes(1);
+                const line = spy.mock.calls[0][0] as string;
+                expect(line).toContain('FakeError: boom');
+                expect(line).not.toContain('{}');
+            } finally {
+                spy.mockRestore();
+            }
+        });
+
+        it('renders a real Error natively as a second console arg', () => {
+            const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+            try {
+                const err = new Error('kaput');
+                new ConsoleLogHandler().handle({
+                    timestamp: Date.now(), level: LogLevel.Error, category: 'runtime',
+                    message: 'boom', data: err,
+                });
+                expect(spy.mock.calls[0][1]).toBe(err);
+            } finally {
+                spy.mockRestore();
+            }
         });
     });
 

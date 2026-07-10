@@ -368,7 +368,11 @@ function(es_apply_basis_module_settings TARGET_NAME)
     if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
         target_compile_options(${TARGET_NAME} PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS} -flto -fno-exceptions -fno-rtti)
 
-        string(REPLACE ";" " " LINK_FLAGS_STR "${ES_EMSCRIPTEN_BASIS_MODULE_FLAGS}")
+        set(_BASIS_LINK_FLAGS ${ES_EMSCRIPTEN_BASIS_MODULE_FLAGS})
+        if(ES_BUILD_WXGAME)
+            list(APPEND _BASIS_LINK_FLAGS ${ES_EMSCRIPTEN_WXGAME_MODULE_EXTRA})
+        endif()
+        string(REPLACE ";" " " LINK_FLAGS_STR "${_BASIS_LINK_FLAGS}")
         set_target_properties(${TARGET_NAME} PROPERTIES
             SUFFIX ".js"
             LINK_FLAGS "${LINK_FLAGS_STR}"
