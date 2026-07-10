@@ -44,6 +44,16 @@ button {
   cursor: pointer;
 }
 
+/* — Keyboard focus: one shared ring on every focusable control that isn't a
+     text field (fields show focus on their own border). :focus-visible only
+     matches keyboard/assistive focus, so mouse interaction stays quiet.
+     :where() keeps specificity at the bare pseudo-class, so any surface can
+     override with a single class selector. — */
+:where(button, [role='button'], [role='menuitem'], [role='tab'], [role='switch'], [role='option'], [tabindex]):focus-visible {
+  outline: 1px solid var(--star-line);
+  outline-offset: -1px;
+}
+
 ::selection {
   background: var(--star-dim);
 }

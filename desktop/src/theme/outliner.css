@@ -72,7 +72,9 @@
 .row.cursor:not(.sel) { background: var(--srf-4); box-shadow: inset 0 0 0 1px var(--acc); }
 .row.cursor:not(.sel) .ricon { color: var(--acc); }
 .row.folder.cursor:not(.sel) .ricon { color: var(--acc); }
-.pbody:focus, .pbody:focus-visible { outline: none; }
+/* Mouse focus stays quiet (the cursor row is the indicator); keyboard focus
+   gets the shared global :focus-visible ring. */
+.pbody:focus { outline: none; }
 .row .twist { width: 16px; height: 100%; display: grid; place-items: center; color: var(--text-mute); flex-shrink: 0; }
 .row.sel .twist { color: rgba(255, 255, 255, 0.8); }
 .row .twist svg { transition: transform var(--t-fast) var(--e-out); }
