@@ -24,6 +24,7 @@ import { getAssetTypeEntry } from '../assetTypes';
 import { requireResourceManager } from '../resourceManager';
 import { log } from '../logger';
 import { SpineManager, type SpineVersion } from './SpineManager';
+import { parseSpineAtlasPages } from './atlasPages';
 import { createTextureFromPixels, type RuntimeAssetSource } from '../runtimeAssets';
 
 /** The opaque C++ registry handle SpineManager.loadEntity expects (app.world.getCppRegistry()). */
@@ -34,17 +35,6 @@ interface SpineAssetInfo {
     skelData: Uint8Array | string;
     atlasText: string;
     textures: Map<string, { glId: number; w: number; h: number }>;
-}
-
-function parseAtlasTextures(content: string): string[] {
-    const textures: string[] = [];
-    for (const line of content.split('\n')) {
-        const trimmed = line.trim();
-        if (trimmed && !trimmed.includes(':') && (/\.png$/i.test(trimmed) || /\.jpg$/i.test(trimmed))) {
-            textures.push(trimmed);
-        }
-    }
-    return textures;
 }
 
 /**
@@ -84,7 +74,7 @@ export async function loadSpineAssets(
                     : SpineManager.detectVersion(skelData))
                 : null;
 
-            const texNames = parseAtlasTextures(atlasContent);
+            const texNames = parseSpineAtlasPages(atlasContent);
             const atlasDir = atlasPath.substring(0, atlasPath.lastIndexOf('/'));
             const rm = requireResourceManager();
             const textures = new Map<string, { glId: number; w: number; h: number }>();

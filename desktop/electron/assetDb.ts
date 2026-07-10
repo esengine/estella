@@ -22,6 +22,10 @@ import { META_EXT, isContentDir } from './contentPolicy';
 // The runtime's tileset-path resolver (a dependency-free leaf) — shared so the dep scan
 // discovers a tilemap's tileset images the same way the loader will later request them.
 import { resolveRelativePath } from '../../sdk/src/tilemap/tiledPath';
+// The spine-atlas page parser (a dependency-free leaf) — shared with the runtime loaders
+// so the dep scan discovers an atlas's texture pages the same way they will be requested.
+import { parseSpineAtlasPages } from '../../sdk/src/spine/atlasPages';
+import { getEditorType } from '../../sdk/src/assetTypes';
 
 /** Local, gitignored cache inside the project (next to workspace.json). */
 const CACHE_DIR = '.esengine/cache';
@@ -174,23 +178,36 @@ export async function scanAssetDatabase(
   const uuids = new Set(entries.map((e) => e.uuid));
   const deps: Record<string, string[]> = {};
   for (const entry of entries) {
-    if (!JSON_REF_TYPES.has(entry.type)) continue;
+    // A spine `.atlas` is a TEXT manifest (not JSON): its page image names are
+    // texture deps — the same edge the SpineAssetLoader walks at runtime. Scan it
+    // apart from the JSON path so the cook embeds those textures (else the atlas
+    // ships but its .png is culled and the playable 404s it).
+    const isSpineAtlas = getEditorType(entry.path) === 'spine-atlas';
+    if (!JSON_REF_TYPES.has(entry.type) && !isSpineAtlas) continue;
     try {
-      const json = JSON.parse(await readFile(path.join(root, entry.path), 'utf8'));
       const refs = new Set<string>();
-      collectRefs(json, refs, (ref) => {
-        if (ref.includes('://')) return null;
-        const direct = byPath.get(normalizeRefPath(ref));
-        if (direct) return direct.uuid;
-        // Fall back to a path RELATIVE to the referencing document, resolved the way
-        // the runtime loads it (collapsing ./ and ../) — so a Tiled tileset image
-        // "../textures/tileset.png" or a material's sibling "x.esshader" resolves to
-        // the same asset the loader will request. (The old join left "../" uncollapsed,
-        // so tilemap tileset images never linked and the cook culled them → the
-        // single-file playable 404'd them.)
-        const rel = byPath.get(normalizeRefPath(resolveRelativePath(entry.path, ref)));
-        return rel?.uuid ?? null;
-      }, (id) => uuids.has(id));
+      if (isSpineAtlas) {
+        const content = await readFile(path.join(root, entry.path), 'utf8');
+        for (const page of parseSpineAtlasPages(content)) {
+          const dep = byPath.get(normalizeRefPath(resolveRelativePath(entry.path, page)));
+          if (dep) refs.add(dep.uuid);
+        }
+      } else {
+        const json = JSON.parse(await readFile(path.join(root, entry.path), 'utf8'));
+        collectRefs(json, refs, (ref) => {
+          if (ref.includes('://')) return null;
+          const direct = byPath.get(normalizeRefPath(ref));
+          if (direct) return direct.uuid;
+          // Fall back to a path RELATIVE to the referencing document, resolved the way
+          // the runtime loads it (collapsing ./ and ../) — so a Tiled tileset image
+          // "../textures/tileset.png" or a material's sibling "x.esshader" resolves to
+          // the same asset the loader will request. (The old join left "../" uncollapsed,
+          // so tilemap tileset images never linked and the cook culled them → the
+          // single-file playable 404'd them.)
+          const rel = byPath.get(normalizeRefPath(resolveRelativePath(entry.path, ref)));
+          return rel?.uuid ?? null;
+        }, (id) => uuids.has(id));
+      }
       refs.delete(entry.uuid);
       if (refs.size > 0) deps[entry.uuid] = [...refs].sort();
     } catch (err) {

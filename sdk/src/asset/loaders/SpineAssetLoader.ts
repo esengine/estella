@@ -5,6 +5,7 @@ import { requireResourceManager } from '../../resourceManager';
 import { getAssetTypeEntry } from '../../assetTypes';
 import type { ESEngineModule } from '../../wasm';
 import type { SpineModuleController } from '../../spine/SpineController';
+import { parseSpineAtlasPages } from '../../spine/atlasPages';
 import { log } from '../../logger';
 
 export class SpineAssetLoader implements AssetLoader<SpineResult> {
@@ -49,7 +50,7 @@ export class SpineAssetLoader implements AssetLoader<SpineResult> {
         }
 
         const atlasContent = await ctx.loadText(ctx.catalog.getBuildPath(atlasPath));
-        const texNames = parseAtlasTextures(atlasContent);
+        const texNames = parseSpineAtlasPages(atlasContent);
         const atlasDir = atlasPath.substring(0, atlasPath.lastIndexOf('/'));
         const rm = requireResourceManager();
 
@@ -149,15 +150,4 @@ function ensureVirtualDir(fs: any, virtualPath: string): void {
         currentPath += '/' + part;
         try { fs.mkdir(currentPath); } catch { /* already exists */ }
     }
-}
-
-function parseAtlasTextures(content: string): string[] {
-    const textures: string[] = [];
-    for (const line of content.split('\n')) {
-        const trimmed = line.trim();
-        if (trimmed && !trimmed.includes(':') && (/\.png$/i.test(trimmed) || /\.jpg$/i.test(trimmed))) {
-            textures.push(trimmed);
-        }
-    }
-    return textures;
 }

@@ -23,7 +23,7 @@ import type { OnExportProgress } from './exportProgress';
 import { esengineAlias } from './esengineResolve';
 import {
   sceneUsesPhysics, detectSpineVersion, detectSpineVersionJson,
-  spineModuleId, SIDE_MODULE_FILE,
+  spineModuleId, SIDE_MODULE_FILE, type SpineVersion,
 } from './sideModuleScan';
 
 export interface ExportPlayableResult {
@@ -89,15 +89,21 @@ async function collectSideModules(
 ): Promise<Record<string, { glueBase64: string; wasmBase64: string }>> {
   const ids = new Set<string>();
   if (sceneData && sceneUsesPhysics(sceneData as Parameters<typeof sceneUsesPhysics>[0])) ids.add('physics');
+  // Spine: the skeleton carries the version. Skeleton + atlas share the authored
+  // meta type `spine`, so we discriminate by extension (as the runtime does via
+  // the asset-type registry's contentType) — `.skel` is a binary skeleton, `.json`
+  // a JSON one; the `.atlas` sibling is not a skeleton and is skipped.
   for (const e of manifestEntries) {
+    if (e.type !== 'spine') continue;
+    const ext = path.extname(e.sourcePath ?? e.path).toLowerCase();
     try {
-      if (e.type === 'spine-skeleton') {
-        const v = detectSpineVersion(new Uint8Array(await readFile(path.join(cookDir, e.path))));
-        if (v) ids.add(spineModuleId(v));
-      } else if (e.path.toLowerCase().endsWith('.json')) {
-        const v = detectSpineVersionJson(await readFile(path.join(cookDir, e.path), 'utf8'));
-        if (v) ids.add(spineModuleId(v));
+      let v: SpineVersion | null = null;
+      if (ext === '.skel') {
+        v = detectSpineVersion(new Uint8Array(await readFile(path.join(cookDir, e.path))));
+      } else if (ext === '.json') {
+        v = detectSpineVersionJson(await readFile(path.join(cookDir, e.path), 'utf8'));
       }
+      if (v) ids.add(spineModuleId(v));
     } catch { /* unreadable cook entry — cookAssets already warned; skip */ }
   }
 

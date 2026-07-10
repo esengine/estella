@@ -153,3 +153,79 @@ describe('exportGame (playable) — side-module embedding', () => {
     }
   }, 60_000);
 });
+
+/**
+ * Spine: the skeleton + atlas share the authored meta type `spine`, so the exporter
+ * must discriminate by extension (`.skel` binary skeleton carries the version) — and
+ * the atlas's page image is a dependency the cook has to embed. A playable that lost
+ * either shipped a broken spine (module "not embedded" / texture 404) — this is that fix.
+ */
+describe('exportGame (playable) — spine embedding', () => {
+  const SSCN = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+  const SKEL = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
+  const ATLAS = '99999999-9999-4999-8999-999999999999';
+  const PAGE = '88888888-8888-4888-8888-888888888888';
+
+  // A minimal spine 4.x binary skeleton header: 8 bytes, then a varint length (7)
+  // and the version string "4.2.00" — exactly what detectSpineVersion reads.
+  const skel = Buffer.concat([Buffer.alloc(8), Buffer.from([7]), Buffer.from('4.2.00')]);
+  const atlas = ['hero.png', '\tsize: 64, 64', 'region', '\tbounds: 0, 0, 32, 32', ''].join('\n');
+
+  function setupRoot(withSpineArtifact: boolean): { r: string; o: string } {
+    const r = mkdtempSync(path.join(tmpdir(), 'estella-playable-spine-'));
+    mkdirSync(path.join(r, 'assets', 'spine'), { recursive: true });
+    writeFileSync(path.join(r, 'assets', 'spine', 'hero.png'), 'PNGDATA');
+    writeFileSync(path.join(r, 'assets', 'spine', 'hero.png.meta'), meta(PAGE, 'texture'));
+    writeFileSync(path.join(r, 'assets', 'spine', 'hero.atlas'), atlas);
+    writeFileSync(path.join(r, 'assets', 'spine', 'hero.atlas.meta'), meta(ATLAS, 'spine'));
+    writeFileSync(path.join(r, 'assets', 'spine', 'hero.skel'), skel);
+    writeFileSync(path.join(r, 'assets', 'spine', 'hero.skel.meta'), meta(SKEL, 'spine'));
+    mkdirSync(path.join(r, 'scenes'), { recursive: true });
+    writeFileSync(path.join(r, 'scenes', 'main.esscene'),
+      JSON.stringify({ version: '1.0', name: 'Main', entities: [{ id: 0, components: [{ type: 'SpineAnimation', data: { skeletonPath: 'assets/spine/hero.skel', atlasPath: 'assets/spine/hero.atlas' } }] }] }));
+    writeFileSync(path.join(r, 'scenes', 'main.esscene.meta'), meta(SSCN, 'scene'));
+    mkdirSync(path.join(r, '_sdk'), { recursive: true });
+    writeFileSync(path.join(r, '_sdk', 'index.js'),
+      `export function createWebApp(){return{GL:{registerContext(){}}};}\nexport function setEditorMode(){}\nexport function setPlayMode(){}\nexport function initPlayableRuntime(){return Promise.resolve();}\nexport function createEmbeddedSideModuleHost(){return{acquire(){return Promise.resolve(null);}};}\n`);
+    mkdirSync(path.join(r, '_wasm'), { recursive: true });
+    writeFileSync(path.join(r, '_wasm', 'esengine.js'), `export default function(){}\n`);
+    writeFileSync(path.join(r, '_wasm', 'esengine.wasm'), 'WASMBYTES');
+    if (withSpineArtifact) {
+      writeFileSync(path.join(r, '_wasm', 'spine42.js'), `export default function(){}/*SPINE_GLUE*/\n`);
+      writeFileSync(path.join(r, '_wasm', 'spine42.wasm'), 'SPINE42WASM');
+    }
+    return { r, o: path.join(r, 'dist') };
+  }
+
+  const run = (r: string, o: string) => exportGame({
+    root: r, entryScene: 'scenes/main.esscene', gameHostEntry: 'x', playableHostEntry: PLAYABLE_HOST,
+    sdkDistDir: path.join(r, '_sdk'), wasmDir: path.join(r, '_wasm'), outDir: o, platform: 'playable',
+  });
+
+  it('inlines spine:4.2 (detected from the .skel) and embeds the atlas page texture', async () => {
+    const { r, o } = setupRoot(true);
+    try {
+      const res = await run(r, o);
+      expect(res.ok).toBe(true);
+      const html = readFileSync(path.join(o, 'index.html'), 'utf8');
+      expect(html).toContain('__SIDE_MODULES__');
+      expect(html).toContain('"spine:4.2"');
+      expect(html).toContain(Buffer.from('SPINE42WASM').toString('base64')); // spine42.wasm inlined
+      // The atlas page image is embedded + path-mapped (the dep the cook now follows).
+      expect(html).toMatch(/"assets\/spine\/hero\.png":"@uuid:/);
+    } finally {
+      rmSync(r, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('fails the export when the scene needs spine but spine42.wasm is absent', async () => {
+    const { r, o } = setupRoot(false);
+    try {
+      const res = await run(r, o);
+      expect(res.ok).toBe(false);
+      expect(res.errors.join('\n')).toMatch(/spine/i);
+    } finally {
+      rmSync(r, { recursive: true, force: true });
+    }
+  }, 60_000);
+});
