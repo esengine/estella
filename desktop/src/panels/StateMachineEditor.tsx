@@ -22,7 +22,7 @@ import {
 } from 'esengine';
 import { FsmGraphDocument } from '@/fsm/FsmGraphDocument';
 import { EditorHistory } from '@/engine/EditorHistory';
-import { NodeGraphCanvas, type CanvasNode } from '@/panels/NodeGraphCanvas';
+import { NodeGraphCanvas, type CanvasNode } from '@/components/NodeGraphCanvas';
 import { Select } from '@/components/Select';
 import { DirtyDot } from '@/components/DirtyDot';
 

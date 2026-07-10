@@ -29,7 +29,7 @@ import {
 import { MaterialGraphDocument } from '@/material/MaterialGraphDocument';
 import { saveMaterialGraph } from '@/material/openMaterialGraph';
 import { EditorHistory } from '@/engine/EditorHistory';
-import { ColorControl } from '@/panels/Details';
+import { ColorControl } from '@/components/ColorControl';
 import { DirtyDot } from '@/components/DirtyDot';
 import { NumField } from '@/components/NumField';
 import {
@@ -38,7 +38,7 @@ import {
   type CanvasNode,
   type CanvasPort,
   type NodeGraphCanvasApi,
-} from '@/panels/NodeGraphCanvas';
+} from '@/components/NodeGraphCanvas';
 
 type MatCanvasNode = MaterialGraph['nodes'][number] & CanvasNode;
 

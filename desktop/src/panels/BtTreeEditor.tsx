@@ -19,7 +19,7 @@ import {
 } from 'esengine';
 import { BtDocument } from '@/bt/BtDocument';
 import { EditorHistory } from '@/engine/EditorHistory';
-import { NodeGraphCanvas, type CanvasNode, type MenuItem } from '@/panels/NodeGraphCanvas';
+import { NodeGraphCanvas, type CanvasNode, type MenuItem } from '@/components/NodeGraphCanvas';
 import { Select } from '@/components/Select';
 import { DirtyDot } from '@/components/DirtyDot';
 
