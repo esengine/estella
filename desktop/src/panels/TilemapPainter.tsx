@@ -77,6 +77,10 @@ const normRect = (a: { c: number; r: number }, b: { c: number; r: number }): Sel
 
 const clamp = (n: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, n));
 
+const PALETTE_DIR: Record<string, [number, number]> = {
+  ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1],
+};
+
 /** A tiny live preview of the active brush (the real tiles + their flip/rotate), so the
  *  toolbar shows WHAT you'll paint, not just its dimensions. Reuses the viewport ghost
  *  geometry. */
@@ -257,6 +261,36 @@ export function TilemapPainter() {
   const endDrag = () => {
     if (dragAnchor.current && sel) commitSel(sel);
     dragAnchor.current = null;
+  };
+
+  // Palette keyboard: arrows walk the grid (a 1×1 brush at the new cell),
+  // Shift+arrows grow the selection into a multi-tile stamp. The focused
+  // palette owns these keys — they must not reach the global selection nudge.
+  const onPaletteKey = (e: React.KeyboardEvent) => {
+    const dir = PALETTE_DIR[e.key];
+    if (!dir || !cols || !rows) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const cur = sel ?? { c0: 0, r0: 0, c1: 0, r1: 0 };
+    const next = e.shiftKey
+      ? {
+          c0: cur.c0,
+          r0: cur.r0,
+          c1: clamp(Math.max(cur.c0, cur.c1 + dir[0]), 0, cols - 1),
+          r1: clamp(Math.max(cur.r0, cur.r1 + dir[1]), 0, rows - 1),
+        }
+      : (() => {
+          const c = sel ? clamp(cur.c0 + dir[0], 0, cols - 1) : 0;
+          const r = sel ? clamp(cur.r0 + dir[1], 0, rows - 1) : 0;
+          return { c0: c, r0: r, c1: c, r1: r };
+        })();
+    setSel(next);
+    commitSel(next);
+    requestAnimationFrame(() =>
+      paletteRef.current
+        ?.querySelector('.tp-cell.is-sel')
+        ?.scrollIntoView({ block: 'nearest', inline: 'nearest' }),
+    );
   };
 
   const inSel = (col: number, row: number): boolean =>
@@ -446,7 +480,15 @@ export function TilemapPainter() {
               </button>
             </div>
           )}
-          <div className="tp-palette" ref={paletteRef} onPointerUp={endDrag} onPointerLeave={endDrag}>
+          <div
+            className="tp-palette"
+            ref={paletteRef}
+            tabIndex={0}
+            aria-label="Tile palette"
+            onKeyDown={onPaletteKey}
+            onPointerUp={endDrag}
+            onPointerLeave={endDrag}
+          >
             {!texUrl ? (
               <div className="tp-warn">No palette (the tilemap references no .estileset)</div>
             ) : (
