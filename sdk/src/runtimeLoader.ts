@@ -18,6 +18,7 @@ import type { App } from './app';
 import { Assets as AssetsClass } from './asset/Assets';
 import { Assets as AssetsResource } from './asset/AssetPlugin';
 import { initBuiltinAssetFields } from './asset/AssetFieldRegistry';
+import { transcoderFromModule, type BasisWasmModule } from './asset/basisTranscoder';
 import type { TextureImportSettings } from './asset/loaders/TextureLoader';
 import { SceneManager, type SceneConfig } from './sceneManager';
 import { DEFAULT_GRAVITY, DEFAULT_FIXED_TIMESTEP } from './defaults';
@@ -223,7 +224,14 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
     sceneAssets.resolveSceneAssetPaths(sceneData, assetResult);
     applyTextureMetadata(sceneData, assetResult.textureHandles, source.resolveRef ?? ((ref) => ref));
 
-    const spineAssetInfo = await loadSpineAssets(module, source, spineManager, discovered.spines);
+    // KTX2 atlas pages transcode through the realm's basis module, acquired the
+    // same lazy way the TextureLoader's provider does (AssetPlugin).
+    const spineAssetInfo = await loadSpineAssets(module, source, spineManager, discovered.spines, async () => {
+        const host = app.sideModules;
+        if (!host) return null;
+        const mod = await host.acquire('basis');
+        return mod ? transcoderFromModule(mod as unknown as BasisWasmModule) : null;
+    });
 
     // Self-gating: install physics when the project declares it OR the scene uses
     // it, so no runtime entry can forget to wire it. The module comes from the

@@ -26,6 +26,12 @@ import { log } from '../logger';
 import { SpineManager, type SpineVersion } from './SpineManager';
 import { parseSpineAtlasPages } from './atlasPages';
 import { createTextureFromPixels, type RuntimeAssetSource } from '../runtimeAssets';
+import type { BasisTranscoder } from '../asset/compressed';
+
+/** Lazily yields the realm's Basis transcoder (KTX2 atlas pages), or null where
+ *  compressed textures can't occur (editor, uncooked dev). Same seam as the
+ *  TextureLoader's transcoder provider. */
+export type TranscoderProvider = () => Promise<BasisTranscoder | null>;
 
 /** The opaque C++ registry handle SpineManager.loadEntity expects (app.world.getCppRegistry()). */
 type CppRegistry = Parameters<SpineManager['loadEntity']>[4];
@@ -46,6 +52,7 @@ export async function loadSpineAssets(
     source: RuntimeAssetSource,
     spineManager: SpineManager | null | undefined,
     spinePairs: ReadonlyArray<{ skeleton: string; atlas: string }>,
+    transcoderProvider?: TranscoderProvider,
 ): Promise<Map<string, SpineAssetInfo>> {
     const assetInfoMap = new Map<string, SpineAssetInfo>();
     const resolveRef = source.resolveRef ?? ((r: string) => r);
@@ -82,7 +89,21 @@ export async function loadSpineAssets(
             for (const texName of texNames) {
                 const texPath = atlasDir + '/' + texName;
                 try {
-                    const result = await source.decodePixels(texPath, false);
+                    // The atlas names its pages by AUTHORED filename; a cook may
+                    // have re-encoded (.ktx2) or content-addressed the staged
+                    // file, so the derived logical path resolves through the
+                    // manifest/catalog like every other fetch.
+                    const staged = resolveRef(texPath);
+                    let result: { width: number; height: number; pixels: Uint8Array };
+                    if (staged.toLowerCase().endsWith('.ktx2')) {
+                        const transcoder = await transcoderProvider?.();
+                        if (!transcoder) throw new Error('KTX2 atlas page but no Basis transcoder in this realm');
+                        const rgba = transcoder.transcodeToRgba(new Uint8Array(await source.backend.fetchBinary(staged)));
+                        if (!rgba) throw new Error(`KTX2 transcode failed: ${staged}`);
+                        result = { width: rgba.width, height: rgba.height, pixels: rgba.data };
+                    } else {
+                        result = await source.decodePixels(staged, false);
+                    }
                     const handle = createTextureFromPixels(module, result, false);
                     rm.registerTextureWithPath(handle, texPath);
                     textures.set(texName, {
@@ -164,10 +185,11 @@ export async function loadSpineSceneEntities(opts: {
     sceneData: SceneData;
     entityMap: Map<number, Entity>;
     registry: CppRegistry;
+    transcoderProvider?: TranscoderProvider;
 }): Promise<void> {
     const discovered = discoverSceneAssets(opts.sceneData);
     if (discovered.spines.length === 0) return;
-    const assetInfo = await loadSpineAssets(opts.module, opts.source, opts.spineManager, discovered.spines);
+    const assetInfo = await loadSpineAssets(opts.module, opts.source, opts.spineManager, discovered.spines, opts.transcoderProvider);
     await applySpineEntities({
         spineManager: opts.spineManager,
         sceneData: opts.sceneData,
