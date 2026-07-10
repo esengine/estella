@@ -29,7 +29,6 @@ import { requireResourceManager } from './resourceManager';
 import { log } from './logger';
 import { type RuntimeAssetSource, type TextureParams } from './runtimeAssets';
 import { loadSpineAssets, applySpineEntities } from './spine/loadSpineScene';
-import { transcoderFromModule, type BasisWasmModule } from './asset/basisTranscoder';
 import type { AddressableManifest, ManifestModel } from './asset/AddressableManifest';
 import type { Catalog } from './asset/Catalog';
 
