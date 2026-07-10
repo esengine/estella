@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { ChevronRight, LayoutGrid, List, Import, FolderOpen, FolderPlus, ArrowLeft, ArrowRight, ArrowUp, ArrowDownUp } from 'lucide-react';
+import { ChevronRight, LayoutGrid, List, Import, FolderOpen, FolderPlus, ArrowLeft, ArrowRight, ArrowUp, ArrowDownUp, Play } from 'lucide-react';
 import { AssetIcon, assetTint } from '@/components/icons';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { SearchField } from '@/components/SearchField';
@@ -855,6 +855,11 @@ export function ContentBrowser() {
       ...(entry.isDir || isScene || isMaterial
         ? [{ label: 'Open', onClick: () => onOpen(path, entry.isDir, entry.name) }]
         : []),
+      // The startup scene: what the editor opens, Play boots, and exports ship
+      // first. One per project — the current one offers no redundant action.
+      ...(isScene && path !== project?.defaultScene
+        ? [{ label: 'Set as Startup Scene', onClick: () => void ProjectStore.setDefaultScene(path) }]
+        : []),
       ...(isTexture
         ? [{ label: 'Create Tileset', onClick: () => void createTilesetFromTexture(path) }]
         : []),
@@ -1036,6 +1041,11 @@ export function ContentBrowser() {
                           <AssetIcon type={type} size={30} />
                         )}
                         {!it.isDir && TYPE_CODE[type] && <span className="badge">{TYPE_CODE[type]}</span>}
+                        {path === project?.defaultScene && (
+                          <span className="badge start" title="Startup scene">
+                            <Play size={9} strokeWidth={2.5} />
+                          </span>
+                        )}
                       </div>
                       <div
                         className="nm"
@@ -1098,6 +1108,9 @@ export function ContentBrowser() {
                           />
                         ) : (
                           <span className="t">{it.name}</span>
+                        )}
+                        {path === project?.defaultScene && (
+                          <Play className="start-mark" size={11} strokeWidth={2.5} aria-label="Startup scene" />
                         )}
                       </span>
                       <span className="c">{it.isDir ? '' : TYPE_CODE[type] || type}</span>

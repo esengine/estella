@@ -912,6 +912,27 @@ class ProjectStoreImpl {
     }
   }
 
+  /**
+   * Set the project's startup scene (`defaultScene`) and persist to
+   * `project.esproject` — the scene the editor opens, Play boots, and every
+   * export ships as the first scene. Rewrites the RAW manifest JSON so fields
+   * the editor parser doesn't model survive; in-memory state updates first.
+   */
+  async setDefaultScene(path: string): Promise<void> {
+    const st = this.state;
+    if (!st || st.defaultScene === path) return;
+    this.store.setState({ project: { ...st, defaultScene: path } });
+    try {
+      const raw = JSON.parse(await window.estella.fs.read(PROJECT_MANIFEST_FILE)) as Record<string, unknown>;
+      raw.defaultScene = path;
+      await window.estella.fs.write(PROJECT_MANIFEST_FILE, JSON.stringify(raw, null, 2) + '\n');
+      Toasts.push(`Startup scene: ${path.split('/').pop()}`, 'info');
+    } catch (e) {
+      Toasts.push('Failed to save startup scene', 'error');
+      console.error('[project] setDefaultScene write failed', e);
+    }
+  }
+
   /** Display info for an asset ref (`@uuid:` or a project-relative path — the same
    *  forms the loaders accept), or null (none / unresolved). For the inspector's
    *  asset control: the project-relative path + a leaf name. */
