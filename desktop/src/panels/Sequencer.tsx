@@ -245,6 +245,70 @@ function SequencerBody() {
     }
   };
 
+  // The focused panel owns its editing keys (the root carries tabIndex, so any
+  // click inside lands focus here). Delete is consumed even with no key selected —
+  // it must never fall through to the global entity delete while the user is
+  // working in the sequencer.
+  const onPanelKey = (e: React.KeyboardEvent) => {
+    const t = e.target as HTMLElement;
+    if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable) return;
+    switch (e.key) {
+      case 'Delete':
+      case 'Backspace': {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!selectedKey) break;
+        const at = selectedKey.lastIndexOf('@');
+        const row = rows.find((r) => r.id === selectedKey.slice(0, at));
+        if (row?.ref) {
+          TimelineCommands.deleteKey(row.ref, parseFloat(selectedKey.slice(at + 1)));
+          useSequencerStore.getState().selectKey(null);
+          setInterpPopover(null);
+        }
+        break;
+      }
+      case ' ': {
+        if (t.tagName === 'BUTTON') break; // Space on a focused button activates it
+        e.preventDefault();
+        e.stopPropagation();
+        useSequencerStore.getState().togglePlay();
+        break;
+      }
+      case 'ArrowLeft':
+      case 'ArrowRight': {
+        e.preventDefault();
+        e.stopPropagation(); // frame-step, not the viewport's selection nudge
+        useSequencerStore.getState().setPlaying(false);
+        setTime(time + (e.key === 'ArrowRight' ? 1 : -1) / fps);
+        break;
+      }
+      case 'Home': {
+        e.preventDefault();
+        e.stopPropagation();
+        setTime(0);
+        break;
+      }
+      case 'End': {
+        e.preventDefault();
+        e.stopPropagation();
+        setTime(duration);
+        break;
+      }
+      case 'Escape': {
+        if (interp || pickerOpen || settingsOpen) {
+          e.stopPropagation();
+          setInterpPopover(null);
+          setPickerOpen(null);
+          setSettingsOpen(null);
+        } else if (selectedKey) {
+          e.stopPropagation();
+          useSequencerStore.getState().selectKey(null);
+        }
+        break;
+      }
+    }
+  };
+
   const onScrubDown = (e: React.PointerEvent) => {
     if ((e.target as HTMLElement).closest('.seq-key')) return;
     useSequencerStore.getState().setPlaying(false);
@@ -271,7 +335,11 @@ function SequencerBody() {
   const trackCount = rows.filter((r) => r.kind === 'channel' || r.kind === 'track').length;
 
   return (
-    <div className={`seq${recording ? ' is-rec' : ''}${view === 'curve' ? ' is-curve' : ''}`}>
+    <div
+      className={`seq${recording ? ' is-rec' : ''}${view === 'curve' ? ' is-curve' : ''}`}
+      tabIndex={0}
+      onKeyDown={onPanelKey}
+    >
       {/* transport */}
       <div className="seq-bar">
         <span className="seq-meta">

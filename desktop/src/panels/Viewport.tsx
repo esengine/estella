@@ -888,9 +888,11 @@ export function Viewport() {
     return () => cancelAnimationFrame(raf);
   }, []);
 
-  // Esc, capture phase (pre-empts the global Esc→deselect), in priority order:
-  // cancel an in-progress stroke → cancel a pan → leave paint mode → (fall through
-  // to deselect). So Esc reverts a live drag, then exits painting, then deselects.
+  // Esc, capture phase (pre-empts the global keymap's Esc→stop-play), in priority
+  // order: cancel an in-progress stroke → cancel a pan → leave paint mode. There is
+  // deliberately no global Esc→deselect: transient UI (menus, popovers, dialogs)
+  // closes on Esc without stopping propagation, so a global binding would drop the
+  // selection every time one of them is dismissed.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;

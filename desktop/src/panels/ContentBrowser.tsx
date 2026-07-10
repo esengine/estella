@@ -432,6 +432,101 @@ export function ContentBrowser() {
     }
   };
 
+  // Keyboard, scoped to the focused item area (it carries tabIndex, so clicking a
+  // tile lands focus there): arrow/Home/End navigation, Enter open, F2 rename,
+  // Delete, Ctrl+D duplicate — the same conventions as the Outliner. Delete is
+  // consumed even with nothing selected, so it can never fall through to the
+  // global entity delete while the user is working in the browser.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const gridColumns = () => {
+    const tiles = scrollRef.current?.querySelectorAll<HTMLElement>('[data-path]');
+    if (!tiles || tiles.length < 2) return 1;
+    const top0 = tiles[0].offsetTop;
+    let cols = 1;
+    while (cols < tiles.length && tiles[cols].offsetTop === top0) cols++;
+    return cols;
+  };
+  const onGridKey = (e: React.KeyboardEvent) => {
+    const t = e.target as HTMLElement;
+    if (t.tagName === 'INPUT' || renaming != null) return; // typing / inline rename
+    const idx = items.findIndex((it) => it.path === selected);
+    const focusIndex = (i: number) => {
+      const it = items[Math.max(0, Math.min(items.length - 1, i))];
+      if (!it) return;
+      selectAsset(it.path);
+      requestAnimationFrame(() => {
+        scrollRef.current
+          ?.querySelector(`[data-path="${CSS.escape(it.path)}"]`)
+          ?.scrollIntoView({ block: 'nearest' });
+      });
+    };
+    switch (e.key) {
+      case 'ArrowLeft':
+      case 'ArrowRight':
+      case 'ArrowUp':
+      case 'ArrowDown': {
+        e.preventDefault();
+        e.stopPropagation(); // grid navigation, not the viewport's selection nudge
+        const rowStep = view === 'grid' ? gridColumns() : 1;
+        const step =
+          e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowDown' ? rowStep : -rowStep;
+        focusIndex(idx < 0 ? 0 : idx + step);
+        break;
+      }
+      case 'Home': {
+        e.preventDefault();
+        e.stopPropagation();
+        focusIndex(0);
+        break;
+      }
+      case 'End': {
+        e.preventDefault();
+        e.stopPropagation();
+        focusIndex(items.length - 1);
+        break;
+      }
+      case 'Enter': {
+        const it = items[idx];
+        if (it) {
+          e.preventDefault();
+          onOpen(it.path, it.isDir, it.name);
+        }
+        break;
+      }
+      case 'F2': {
+        if (idx >= 0 && selected) {
+          e.preventDefault();
+          setRenaming(selected);
+        }
+        break;
+      }
+      case 'Delete':
+      case 'Backspace': {
+        e.preventDefault();
+        e.stopPropagation();
+        const it = items[idx];
+        if (it) void remove(it.path, it.name);
+        break;
+      }
+      case 'd':
+      case 'D': {
+        if ((e.ctrlKey || e.metaKey) && idx >= 0 && selected) {
+          e.preventDefault();
+          e.stopPropagation();
+          void duplicate(selected);
+        }
+        break;
+      }
+      case 'Escape': {
+        if (selected) {
+          e.stopPropagation();
+          selectAsset(null);
+        }
+        break;
+      }
+    }
+  };
+
   const newFolder = async () => {
     const taken = new Set(entries.map((e) => e.name));
     let name = 'New Folder';
@@ -815,6 +910,9 @@ export function ContentBrowser() {
 
           <div
             className={`cb-scroll${view === 'list' ? ' list' : ''}${fileDrop ? ' is-file-drop' : ''}`}
+            ref={scrollRef}
+            tabIndex={0}
+            onKeyDown={onGridKey}
             onClick={(e) => {
               if (e.target === e.currentTarget) selectAsset(null);
             }}

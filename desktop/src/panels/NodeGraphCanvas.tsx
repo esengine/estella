@@ -228,17 +228,71 @@ export function NodeGraphCanvas<N extends CanvasNode, E extends CanvasEdge>(prop
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodes, vp]);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Delete' && e.key !== 'Backspace') return;
-      const el = document.activeElement;
-      if (el && (el.tagName === 'INPUT' || el.tagName === 'SELECT' || el.tagName === 'TEXTAREA')) return;
+  // Keyboard, scoped to the focused canvas (the canvas div carries tabIndex, so
+  // clicking a node lands focus here) — a window listener would make two open
+  // graph editors both react to one Delete.
+  const KEY_DIR: Record<string, [number, number]> = {
+    ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1],
+  };
+  const center = (n: N) => {
+    const s = nodeSize(n);
+    return { x: nx(n) + s.width / 2, y: ny(n) + s.height / 2 };
+  };
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    const el = e.target as HTMLElement;
+    if (el.tagName === 'INPUT' || el.tagName === 'SELECT' || el.tagName === 'TEXTAREA') return;
+    if (e.key === 'Escape') {
+      if (wire.current) {
+        wire.current = null;
+        setCursor(null);
+        setWiring(false);
+        e.stopPropagation();
+      } else if (selectedNode || selectedEdge) {
+        onSelectNode(null);
+        onSelectEdge(null);
+        e.stopPropagation();
+      }
+      return;
+    }
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      e.preventDefault();
+      e.stopPropagation(); // the canvas owns Delete — never the scene's entity delete
       if (selectedNode) onDeleteNode(selectedNode);
       else if (selectedEdge) onDeleteEdge(selectedEdge);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [selectedNode, selectedEdge, onDeleteNode, onDeleteEdge]);
+      return;
+    }
+    const dir = KEY_DIR[e.key];
+    if (!dir) return;
+    e.preventDefault();
+    e.stopPropagation(); // graph navigation, not the viewport's selection nudge
+    const cur = selectedNode ? byId.get(selectedNode) : null;
+    if (!cur) {
+      if (nodes.length) { onSelectNode(nodes[0].id); onSelectEdge(null); }
+      return;
+    }
+    if (e.shiftKey) {
+      // Nudge one grid step as a single undo step (same seam as a pointer drag).
+      onMoveNodeStart?.(cur.id);
+      onMoveNode(cur.id, nx(cur) + dir[0] * 10, ny(cur) + dir[1] * 10);
+      onMoveNodeEnd?.(cur.id);
+      return;
+    }
+    // Move the selection to the nearest node in that direction, preferring the
+    // straight-ahead candidate over a closer but off-axis one.
+    const c = center(cur);
+    let best: N | null = null;
+    let bestScore = Infinity;
+    for (const n of nodes) {
+      if (n.id === cur.id) continue;
+      const p = center(n);
+      const along = (p.x - c.x) * dir[0] + (p.y - c.y) * dir[1];
+      if (along <= 0) continue;
+      const across = Math.abs((p.x - c.x) * dir[1]) + Math.abs((p.y - c.y) * dir[0]);
+      const score = along + across * 2;
+      if (score < bestScore) { bestScore = score; best = n; }
+    }
+    if (best) { onSelectNode(best.id); onSelectEdge(null); }
+  };
 
   const selfLoopPath = (n: N): string => {
     const cx = nx(n) + nodeSize(n).width / 2;
@@ -276,9 +330,9 @@ export function NodeGraphCanvas<N extends CanvasNode, E extends CanvasEdge>(prop
   };
 
   return (
-    <div className="panel ng-root">
+    <div className="panel ng-root" onKeyDown={onKeyDown}>
       {toolbar && <div className="ng-bar">{toolbar}</div>}
-      <div className="ng-canvas" style={{ backgroundSize: `${20 * vp.zoom}px ${20 * vp.zoom}px`, backgroundPosition: `${vp.x}px ${vp.y}px` }} ref={canvasRef}
+      <div className="ng-canvas" tabIndex={0} style={{ backgroundSize: `${20 * vp.zoom}px ${20 * vp.zoom}px`, backgroundPosition: `${vp.x}px ${vp.y}px` }} ref={canvasRef}
         onPointerDown={e => {
           if (e.button === 1) { e.preventDefault(); pan.current = { sx: e.clientX, sy: e.clientY, vx: vp.x, vy: vp.y }; return; }
           onSelectNode(null); onSelectEdge(null);
