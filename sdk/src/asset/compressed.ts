@@ -44,6 +44,15 @@ export function isKtx2(bytes: Uint8Array): boolean {
     return true;
 }
 
+/** True if `path` names a KTX2 container: its own extension, or the
+ *  `.ktx2.bin` spelling the WeChat export stages (WeChat's code-package
+ *  suffix whitelist has no `ktx2`; `bin` is whitelisted, and the compound
+ *  suffix keeps the container's identity in the name). */
+export function isKtx2Path(path: string): boolean {
+    const p = path.toLowerCase();
+    return p.endsWith('.ktx2') || p.endsWith('.ktx2.bin');
+}
+
 // =============================================================================
 // Transcoder seam
 // =============================================================================

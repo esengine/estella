@@ -26,7 +26,7 @@ import { log } from '../logger';
 import { SpineManager, type SpineVersion } from './SpineManager';
 import { parseSpineAtlasPages } from './atlasPages';
 import { createTextureFromPixels, type RuntimeAssetSource } from '../runtimeAssets';
-import type { BasisTranscoder } from '../asset/compressed';
+import { isKtx2Path, type BasisTranscoder } from '../asset/compressed';
 
 /** Lazily yields the realm's Basis transcoder (KTX2 atlas pages), or null where
  *  compressed textures can't occur (editor, uncooked dev). Same seam as the
@@ -95,7 +95,7 @@ export async function loadSpineAssets(
                     // manifest/catalog like every other fetch.
                     const staged = resolveRef(texPath);
                     let result: { width: number; height: number; pixels: Uint8Array };
-                    if (staged.toLowerCase().endsWith('.ktx2')) {
+                    if (isKtx2Path(staged)) {
                         const transcoder = await transcoderProvider?.();
                         if (!transcoder) throw new Error('KTX2 atlas page but no Basis transcoder in this realm');
                         const rgba = transcoder.transcodeToRgba(new Uint8Array(await source.backend.fetchBinary(staged)));

@@ -6,7 +6,7 @@ import { decodeImageBitmap } from '../imageDecode';
 import { requireResourceManager } from '../../resourceManager';
 import type { ESEngineModule } from '../../wasm';
 import { withMalloc } from '../../wasmScratch';
-import { isKtx2, loadCompressedTexture, type BasisTranscoder } from '../compressed';
+import { isKtx2, isKtx2Path, loadCompressedTexture, type BasisTranscoder } from '../compressed';
 import { glWrapMode } from '../glTexParams';
 import { createTextureFromPixels, type TextureParams } from '../../runtimeAssets';
 
@@ -156,7 +156,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     private async decodeAndUpload_(
         path: string, ctx: LoadContext, flip: boolean, settings?: TextureImportSettings,
     ): Promise<TextureResult> {
-        if (path.toLowerCase().endsWith('.ktx2')) {
+        if (isKtx2Path(path)) {
             return this.loadCompressed(path, ctx, settings);
         }
         // A platform pixel decoder (runtime scene loader) pre-decodes to RGBA and

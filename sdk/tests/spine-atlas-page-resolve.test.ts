@@ -68,6 +68,17 @@ describe('loadSpineAssets resolves atlas page paths through the manifest', () =>
         expect(tex).toEqual({ glId: 7, w: 2, h: 2 });
     });
 
+    it('recognizes the WeChat .ktx2.bin staging spelling as KTX2', async () => {
+        const source = makeSource({ 'assets/spine/spineboy.png': 'assets/spine/spineboy.ktx2.bin' });
+        const transcoder: BasisTranscoder = {
+            transcode: vi.fn(() => null),
+            transcodeToRgba: vi.fn(() => ({ width: 2, height: 2, data: new Uint8Array(16) })),
+        };
+        await loadSpineAssets({} as never, source, null, PAIR, async () => transcoder);
+        expect(source.decodePixels).not.toHaveBeenCalled();
+        expect(transcoder.transcodeToRgba).toHaveBeenCalledTimes(1);
+    });
+
     it('decodes a content-addressed page from its STAGED path', async () => {
         const source = makeSource({ 'assets/spine/spineboy.png': 'assets/1234abcd.png' });
         await loadSpineAssets({} as never, source, null, PAIR);

@@ -22,7 +22,7 @@
  *        Pure Node (esbuild + fs) — IPC wiring is in main.ts.
  */
 import { loadEsbuild } from './esbuildRuntime';
-import { writeFile, mkdir, cp, readFile, stat, rm } from 'node:fs/promises';
+import { writeFile, mkdir, cp, readFile, rename, stat, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { cookAssets } from './cookAssets';
@@ -158,9 +158,10 @@ async function scanWeChatSideModules(
   // meta type `spine`, so discriminate by extension — `.skel` is a binary
   // skeleton, `.json` a JSON one; the `.atlas` sibling is not a skeleton.
   for (const e of cookEntries) {
-    // Any staged KTX2 texture (compressTextures cook, or an authored .ktx2)
-    // needs the Basis transcoder at runtime.
-    if (e.path.toLowerCase().endsWith('.ktx2')) ids.add('basis');
+    // Any staged KTX2 texture (compressTextures cook, or an authored .ktx2 —
+    // staged as .ktx2.bin for the WeChat suffix whitelist) needs the Basis
+    // transcoder at runtime. Mirrors sdk isKtx2Path.
+    if (/\.ktx2(\.bin)?$/.test(e.path.toLowerCase())) ids.add('basis');
     if (e.type !== 'spine') continue;
     const ext = path.extname(e.sourcePath ?? e.path).toLowerCase();
     try {
@@ -286,6 +287,24 @@ export async function exportWeChat(opts: {
   progress({ phase: 'Cooking assets' });
   const cook = await cookAssets(opts.root, { entryScenes: [opts.entryScene], outDir: absOut, contentAddressed: opts.contentAddressed, compressTextures: opts.compressTextures, atlasTextures: opts.atlasTextures });
   warnings.push(...cook.warnings);
+
+  // 1a. WeChat's code-package suffix whitelist has no `ktx2` — the packer
+  //     drops such files and fs reads are denied regardless of packOptions.
+  //     Re-stage KTX2 containers under the whitelisted `.bin` with a
+  //     truth-keeping compound suffix; the runtime's KTX2 detection
+  //     (isKtx2Path) accepts both spellings.
+  const flatManifestPath = path.join(absOut, 'assets.manifest.json');
+  try {
+    const flat = JSON.parse(await readFile(flatManifestPath, 'utf8')) as CookManifest;
+    let renamed = 0;
+    for (const e of flat.entries) {
+      if (!e.path.toLowerCase().endsWith('.ktx2')) continue;
+      await rename(path.join(absOut, e.path), path.join(absOut, `${e.path}.bin`));
+      e.path = `${e.path}.bin`;
+      renamed++;
+    }
+    if (renamed > 0) await writeFile(flatManifestPath, JSON.stringify(flat, null, 2));
+  } catch { /* no cook manifest — surfaces in step 2 */ }
 
   // 1b. Scan the scene for the optional modules it needs (physics/spine), so the
   //     generated entry requires exactly those — the export-time half of the

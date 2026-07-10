@@ -245,10 +245,17 @@ describe('exportGame (wechat)', () => {
     expect(res.ok).toBe(true);
     expect(readFileSync(path.join(outKtx, 'game.js'), 'utf8')).toContain("\"basis\": asFactory(require('./wasm/basis.js'))");
     expect(existsSync(path.join(outKtx, 'wasm', 'basis.wasm'))).toBe(true);
-    // WeChat denies fs reads of unlisted custom extensions — the staged .ktx2
-    // must ride into packOptions.include.
+    // WeChat's code-package suffix whitelist has no `ktx2` — the container is
+    // re-staged as .ktx2.bin (whitelisted), and the manifest tracks the rename
+    // while the logical identity stays on the source path.
+    expect(existsSync(path.join(outKtx, 'assets', 'pre.ktx2.bin'))).toBe(true);
+    expect(existsSync(path.join(outKtx, 'assets', 'pre.ktx2'))).toBe(false);
+    const manifest = JSON.parse(readFileSync(path.join(outKtx, 'asset-manifest.json'), 'utf8'));
+    const ktxAsset = manifest.groups.main.assets['ffffffff-ffff-ffff-ffff-ffffffffffff'];
+    expect(ktxAsset.path).toBe('assets/pre.ktx2.bin');
     const pcfg = JSON.parse(readFileSync(path.join(outKtx, 'project.config.json'), 'utf8'));
-    expect(pcfg.packOptions.include).toContainEqual({ type: 'suffix', value: '.ktx2' });
+    expect(pcfg.packOptions.include).toContainEqual({ type: 'suffix', value: '.bin' });
+    expect(pcfg.packOptions.include).not.toContainEqual({ type: 'suffix', value: '.ktx2' });
   }, 60_000);
 
   it('a .ktx2 texture without a wechat basis build fails the export', async () => {
