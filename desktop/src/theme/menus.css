@@ -8,7 +8,7 @@
 /* ════════════════════════ Context menu ════════════════════════ */
 .ctx {
   position: fixed;
-  z-index: 140;
+  z-index: var(--z-menu);
   min-width: 184px;
   background: var(--srf-3);
   border: 1px solid var(--border-line);
@@ -49,7 +49,7 @@
    etc.). Non-interactive and below the context menu so a menu always wins. */
 .tooltip {
   position: fixed;
-  z-index: 135;
+  z-index: var(--z-tooltip);
   min-width: 180px;
   max-width: 340px;
   padding: 8px 10px;
@@ -65,7 +65,7 @@
 .ac-scrim {
   position: fixed;
   inset: 0;
-  z-index: 122;
+  z-index: var(--z-dialog);
   background: var(--overlay);
   display: flex;
   justify-content: center;
@@ -109,7 +109,7 @@
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 200;
+  z-index: var(--z-dialog);
   display: grid;
   place-items: center;
   background: rgba(0, 0, 0, 0.5);
@@ -151,14 +151,11 @@
 .build__platforms { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .build__plat { position: relative; height: 54px; display: grid; place-items: center; font-size: var(--fs-sm); color: var(--text-dim); background: var(--srf-3); border: 1px solid var(--border-line); border-radius: var(--r-md); transition: color var(--t-fast), background var(--t-fast), border-color var(--t-fast); }
 .build__plat:not(:disabled):hover { color: var(--text); border-color: var(--text-mute); }
-.build__plat.on { color: #fff; background: var(--acc); border-color: var(--acc); }
+.build__plat.on { color: var(--on-accent); background: var(--acc); border-color: var(--acc); }
 .build__plat:disabled { opacity: 0.5; }
 .build__plat .soon { position: absolute; bottom: 5px; font-size: var(--fs-3xs); text-transform: uppercase; letter-spacing: 0.4px; color: var(--text-mute); }
 .build__row { display: flex; align-items: center; gap: 12px; }
 .build__row .build__label { width: 92px; flex-shrink: 0; }
-.build__seg { display: flex; gap: 1px; background: var(--inset); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 1px; }
-.build__seg button { height: 24px; padding: 0 12px; font-size: var(--fs-xs); color: var(--text-mute); border-radius: var(--r-xs); transition: color var(--t-fast), background var(--t-fast); }
-.build__seg button.on { color: #fff; background: var(--acc); }
 .build__out { flex: 1; display: flex; gap: 6px; }
 .build__out input { flex: 1; min-width: 0; height: 26px; padding: 0 8px; font-size: var(--fs-xs); font-family: var(--mono); color: var(--text); background: var(--inset); border: 1px solid var(--border); border-radius: var(--r-sm); outline: none; }
 .build__out input:focus { border-color: var(--acc); }

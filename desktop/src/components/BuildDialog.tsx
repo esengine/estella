@@ -13,6 +13,7 @@
 import { useState, useSyncExternalStore } from 'react';
 import { Loader2, FolderOpen, CheckCircle2, AlertCircle, Boxes, Info, Copy, ExternalLink } from 'lucide-react';
 import { Modal } from '@/components/Modal';
+import { Segmented } from '@/components/Segmented';
 import { ProjectStore } from '@/project/ProjectStore';
 import { useEditorStore } from '@/store/editorStore';
 
@@ -213,14 +214,15 @@ export function BuildDialog() {
 
         <div className="build__row">
           <span className="build__label">Configuration</span>
-          <div className="build__seg">
-            <button type="button" className={config === 'development' ? 'on' : ''} onClick={() => setConfig('development')}>
-              Development
-            </button>
-            <button type="button" className={config === 'shipping' ? 'on' : ''} onClick={() => setConfig('shipping')}>
-              Shipping
-            </button>
-          </div>
+          <Segmented
+            ariaLabel="Configuration"
+            value={config}
+            options={[
+              { value: 'development', label: 'Development' },
+              { value: 'shipping', label: 'Shipping' },
+            ]}
+            onChange={setConfig}
+          />
         </div>
 
         <div className="build__row">
