@@ -172,17 +172,6 @@
 .set-row:hover .set-reset.show, .set-row.changed .set-reset.show { opacity: 0.85; }
 .set-reset.show { cursor: pointer; }
 
-.set-sel {
-  height: 27px;
-  min-width: 130px;
-  background: var(--inset);
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-  color: var(--text);
-  padding: 0 8px;
-  outline: none;
-  font-size: var(--fs-sm);
-}
 .set-num {
   width: 92px;
   height: 27px;
@@ -196,7 +185,7 @@
   font-size: var(--fs-xs);
   text-align: right;
 }
-.set-sel:focus, .set-num:focus { border-color: var(--acc); box-shadow: 0 0 0 2px var(--acc-soft); }
+.set-num:focus { border-color: var(--acc); box-shadow: 0 0 0 2px var(--acc-soft); }
 .set-slider { flex: 1; max-width: 130px; }
 
 .set-key {
@@ -226,9 +215,6 @@
   transition: box-shadow var(--t-fast);
 }
 .set-swatch.on { box-shadow: 0 0 0 2px var(--srf-2), 0 0 0 4px var(--acc); }
-.set-seg { display: flex; background: var(--inset); border: 1px solid var(--border); border-radius: var(--r-sm); overflow: hidden; }
-.set-seg button { padding: 4px 11px; font-size: var(--fs-xs); color: var(--text-dim); transition: color var(--t-fast), background var(--t-fast); }
-.set-seg button.on { background: var(--acc); color: var(--on-accent); }
 
 /* Pill toggle (the design's `.toggle`; not yet in the shared theme). */
 .toggle {

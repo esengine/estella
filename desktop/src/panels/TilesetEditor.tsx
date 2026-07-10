@@ -20,8 +20,11 @@ import {
 import { Save, Plus, Trash2 } from 'lucide-react';
 import {
   TB_N, TB_E, TB_S, TB_W, TB_NE, TB_SE, TB_SW, TB_NW,
-  type TilesetAsset, type TerrainMode,
+  type TilesetAsset,
 } from 'esengine';
+import { Segmented } from '@/components/Segmented';
+import { Select } from '@/components/Select';
+import { DirtyDot } from '@/components/DirtyDot';
 import { TilesetDocument } from '@/tileset/TilesetDocument';
 import { TilesetCommands } from '@/tileset/TilesetCommands';
 import { ProjectStore } from '@/project/ProjectStore';
@@ -289,15 +292,25 @@ export function TilesetEditor() {
         <GridField label="Margin" value={mg} onCommit={(n) => editGrid({ margin: n })} />
         <GridField label="Spacing" value={sp} onCommit={(n) => editGrid({ spacing: n })} />
         <span className="ts-sep" />
-        <div className="ts-modes">
-          <button type="button" className={mode === 'collision' ? 'is-active' : ''} onClick={() => setMode('collision')}>Collision</button>
-          <button type="button" className={mode === 'terrain' ? 'is-active' : ''} onClick={() => setMode('terrain')}>Terrain</button>
-        </div>
+        <Segmented
+          value={mode}
+          onChange={setMode}
+          ariaLabel="Edit mode"
+          options={[
+            { value: 'collision', label: 'Collision' },
+            { value: 'terrain', label: 'Terrain' },
+          ]}
+        />
         {mode === 'collision' && (
-          <div className="ts-modes">
-            <button type="button" className={shape === 'box' ? 'is-active' : ''} onClick={() => setShape('box')}>Box</button>
-            <button type="button" className={shape === 'polygon' ? 'is-active' : ''} onClick={() => setShape('polygon')}>Polygon</button>
-          </div>
+          <Segmented
+            value={shape}
+            onChange={setShape}
+            ariaLabel="Collision shape"
+            options={[
+              { value: 'box', label: 'Box' },
+              { value: 'polygon', label: 'Polygon' },
+            ]}
+          />
         )}
         <span className="ts-sep" />
         <label className="ts-field">
@@ -310,7 +323,7 @@ export function TilesetEditor() {
           {cols}×{rows}{mode === 'collision' ? ` · ${solidCount} solid` : ''}
         </span>
         <button type="button" className="ts-save" onClick={() => void TilesetCommands.save()} disabled={!meta.dirty}>
-          <Save size={13} /> Save{meta.dirty ? ' •' : ''}
+          <Save size={13} /> Save{meta.dirty && <DirtyDot />}
         </button>
       </div>
 
@@ -338,13 +351,15 @@ export function TilesetEditor() {
                 className="ts-tname" value={terrain.name}
                 onChange={(e) => TilesetCommands.updateTerrain(activeSet, { name: e.target.value })}
               />
-              <select
+              <Select
+                ariaLabel="Terrain mode"
                 value={terrain.mode}
-                onChange={(e) => TilesetCommands.updateTerrain(activeSet, { mode: e.target.value as TerrainMode })}
-              >
-                <option value="edge">Edge (4-bit)</option>
-                <option value="corner">Corner (blob)</option>
-              </select>
+                options={[
+                  { value: 'edge', label: 'Edge (4-bit)' },
+                  { value: 'corner', label: 'Corner (blob)' },
+                ]}
+                onChange={(v) => TilesetCommands.updateTerrain(activeSet, { mode: v })}
+              />
               <button type="button" className="ts-trm" title="Delete terrain"
                 onClick={() => { TilesetCommands.removeTerrain(activeSet); setActiveSet(0); }}>
                 <Trash2 size={13} />

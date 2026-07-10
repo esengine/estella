@@ -26,6 +26,7 @@ import { useSequencerStore } from '@/store/sequencerStore';
 import { useSelection } from '@/store/selectionStore';
 import { SceneModel } from '@/engine/SceneModel';
 import { ContextMenu, type MenuItem } from '@/components/Menu';
+import { DirtyDot } from '@/components/DirtyDot';
 import { SequencerCurve } from '@/panels/SequencerCurve';
 import {
   buildTimelineRows, visibleRows, frameCount, timeToPct, pctToTime, findChannel, muteKey,
@@ -354,7 +355,7 @@ function SequencerBody() {
           title="Save animation"
           onClick={() => void TimelineCommands.save()}
         >
-          <Save size={14} /><span>{TimelineDocument.meta.dirty ? 'Save*' : 'Save'}</span>
+          <Save size={14} /><span>Save{TimelineDocument.meta.dirty && <DirtyDot />}</span>
         </button>
       </div>
 

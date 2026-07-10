@@ -62,6 +62,7 @@ import {
 } from '@/material/materialInspectorModel';
 import { ContextMenu } from '@/components/Menu';
 import { Popover, usePopover } from '@/components/Popover';
+import { Select } from '@/components/Select';
 import { AddComponentMenu } from '@/components/AddComponentMenu';
 import type { InspectorComponent, InspectorField, InspectorFieldValue, EntityId, NodeKind, EnumOption, AssetType, GradientValue, GradientStop, CurveValue, CurveKey, DimensionValue } from '@/types';
 
@@ -471,16 +472,24 @@ export function BoolControl({
   onEnd,
   onChange,
 }: ControlGesture & { value: boolean; mixed?: boolean; onChange: (v: boolean) => void }) {
+  const commit = () => {
+    onBegin?.();
+    // From a mixed state, the first toggle commits everyone to enabled.
+    onChange(mixed ? true : !value);
+    onEnd?.();
+  };
   return (
     <span
       className={`toggle${value ? ' on' : ''}${mixed ? ' mixed' : ''}`}
       role="switch"
       aria-checked={mixed ? 'mixed' : value}
-      onClick={() => {
-        onBegin?.();
-        // From a mixed state, the first click commits everyone to enabled.
-        onChange(mixed ? true : !value);
-        onEnd?.();
+      tabIndex={0}
+      onClick={commit}
+      onKeyDown={(e) => {
+        if (e.key === ' ' || e.key === 'Enter') {
+          e.preventDefault();
+          commit();
+        }
       }}
     />
   );
@@ -1078,24 +1087,21 @@ function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp
   if (dynOpts) {
     const cur = String(field.value);
     control = (
-      <span className="field">
-        <select
-          className="dyn-enum"
+      <span className="field dropdown">
+        <Select
+          variant="field"
           value={cur}
-          onMouseDown={(e) => e.stopPropagation()}
-          onChange={(e) => {
+          ariaLabel={field.key}
+          options={[
+            ...(dynOpts.includes(cur) ? [] : [{ value: cur, label: cur || '(none)' }]),
+            ...dynOpts.map((o) => ({ value: o })),
+          ]}
+          onChange={(v) => {
             begin();
-            apply(e.target.value);
+            apply(v);
             end();
           }}
-        >
-          {!dynOpts.includes(cur) && <option value={cur}>{cur || '(none)'}</option>}
-          {dynOpts.map((o) => (
-            <option key={o} value={o}>
-              {o}
-            </option>
-          ))}
-        </select>
+        />
       </span>
     );
   } else
@@ -1607,18 +1613,28 @@ function BindingRow({ binding, onChange, onRemove }: { binding: Binding; onChang
     case 'gpAxis': fields = num('axis'); break;
     case 'stick':
       fields = (
-        <select className="im-in" value={String(b.stick)} onChange={(e) => set({ stick: e.target.value })}>
-          <option value="left">Left</option>
-          <option value="right">Right</option>
-        </select>
+        <Select
+          className="im-in"
+          ariaLabel="Stick"
+          value={b.stick === 'right' ? 'right' : 'left'}
+          options={[
+            { value: 'left', label: 'Left' },
+            { value: 'right', label: 'Right' },
+          ]}
+          onChange={(v) => set({ stick: v })}
+        />
       );
       break;
   }
   return (
     <div className="im-binding">
-      <select className="im-in kind" value={binding.kind} onChange={(e) => onChange(defaultBinding(e.target.value as Binding['kind']))}>
-        {BINDING_KINDS.map((k) => <option key={k.kind} value={k.kind}>{k.label}</option>)}
-      </select>
+      <Select
+        className="im-in kind"
+        ariaLabel="Binding kind"
+        value={binding.kind}
+        options={BINDING_KINDS.map((k) => ({ value: k.kind, label: k.label }))}
+        onChange={(v) => onChange(defaultBinding(v))}
+      />
       {fields}
       <button type="button" className="im-x" onClick={onRemove} title="Remove binding">×</button>
     </div>
@@ -1678,11 +1694,17 @@ function InputMapAssetInspector({ path }: { path: string }) {
                 if (e.target.value.trim() && e.target.value !== name) commit(imap.renameAction(map, name, e.target.value));
               }}
             />
-            <select className="im-in" value={def.type} onChange={(e) => commit(imap.setActionType(map, name, e.target.value as ActionType))}>
-              <option value="button">Button</option>
-              <option value="axis">Axis</option>
-              <option value="axis2d">Axis 2D</option>
-            </select>
+            <Select
+              className="im-in"
+              ariaLabel="Action type"
+              value={def.type}
+              options={[
+                { value: 'button', label: 'Button' },
+                { value: 'axis', label: 'Axis' },
+                { value: 'axis2d', label: 'Axis 2D' },
+              ]}
+              onChange={(v) => commit(imap.setActionType(map, name, v as ActionType))}
+            />
             <button type="button" className="im-x" onClick={() => commit(imap.removeAction(map, name))} title="Remove action">×</button>
           </div>
           {def.bindings.map((bnd, i) => (

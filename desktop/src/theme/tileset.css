@@ -93,18 +93,6 @@
 }
 .ts-cell.is-solid:hover { background: rgba(240, 100, 90, 0.5); }
 
-/* Mode switch (collision / terrain) */
-.ts-modes { display: inline-flex; border: 1px solid var(--line, #2a2d33); border-radius: 3px; overflow: hidden; }
-.ts-modes button {
-  background: var(--control, #24272d);
-  color: var(--text-dim, #9aa0aa);
-  border: none;
-  padding: 3px 10px;
-  cursor: pointer;
-  font: inherit;
-}
-.ts-modes button.is-active { background: var(--star, #4c8fd6); color: var(--on-accent, #fff); }
-
 /* Terrain set bar */
 .ts-terrains {
   display: flex;

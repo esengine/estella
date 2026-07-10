@@ -23,6 +23,8 @@ import {
 import { FsmGraphDocument } from '@/fsm/FsmGraphDocument';
 import { EditorHistory } from '@/engine/EditorHistory';
 import { NodeGraphCanvas, type CanvasNode } from '@/panels/NodeGraphCanvas';
+import { Select } from '@/components/Select';
+import { DirtyDot } from '@/components/DirtyDot';
 
 type FsmCanvasNode = FsmState & CanvasNode;
 
@@ -82,7 +84,7 @@ export function StateMachineEditor() {
     <>
       <button type="button" className="ng-btn" onClick={addStateAt} title="Add state"><Plus size={13} strokeWidth={2} /> State</button>
       {(selState || selEdge) && <button type="button" className="ng-btn" title="Delete selected" onClick={deleteSelected}><Trash2 size={13} strokeWidth={1.9} /></button>}
-      <span className="ng-doc-title">{filePath.split('/').pop()}{dirty && <span className="ng-dirty" title="Unsaved">●</span>}</span>
+      <span className="ng-doc-title">{filePath.split('/').pop()}{dirty && <DirtyDot />}</span>
       <span style={{ flex: 1 }} />
       <button type="button" className="ng-btn primary" disabled={!dirty} onClick={save}><Save size={13} strokeWidth={1.9} /> Save</button>
     </>
@@ -192,9 +194,12 @@ function TransitionInspector({ def, edgeId }: { def: FsmDefinition; edgeId: stri
     <div>
       <div className="ng-insp-title">Transition</div>
       <label className="ng-field">Target
-        <select className="ng-input" value={t.to} onChange={(e) => patch({ to: e.target.value })}>
-          {def.states.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
-        </select>
+        <Select
+          ariaLabel="Target state"
+          value={t.to}
+          options={def.states.map((s) => ({ value: s.name }))}
+          onChange={(v) => patch({ to: v })}
+        />
       </label>
       <label className="ng-field">Trigger (event)
         <input className="ng-input" defaultValue={t.trigger ?? ''} key={`trg-${edgeId}`} placeholder="event name"
@@ -209,9 +214,13 @@ function TransitionInspector({ def, edgeId }: { def: FsmDefinition; edgeId: stri
       <div className="ng-row">
         <input className="ng-input" style={{ flex: 1 }} defaultValue={g?.key ?? ''} key={`gk-${edgeId}`} placeholder="key"
           onBlur={(e) => patchGuard({ key: e.target.value.trim() })} />
-        <select className="ng-input" style={{ width: 62 }} value={g?.op ?? '=='} onChange={(e) => patchGuard({ op: e.target.value as CompareOp })}>
-          {OPS.map((op) => <option key={op} value={op}>{op}</option>)}
-        </select>
+        <Select
+          ariaLabel="Guard operator"
+          style={{ width: 62 }}
+          value={g?.op ?? '=='}
+          options={OPS.map((op) => ({ value: op }))}
+          onChange={(op) => patchGuard({ op })}
+        />
       </div>
       {g && g.op !== 'truthy' && g.op !== 'falsy' && (
         <label className="ng-field">Value

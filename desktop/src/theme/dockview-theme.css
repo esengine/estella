@@ -99,6 +99,40 @@
   z-index: 1;
 }
 
+/* Custom tab body (defaultTabComponent): title + dirty dot + hover-reveal close.
+   The outer .dv-tab keeps the strip geometry; this styles only the content. */
+.dockview-theme-estella .dv-estella-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  min-width: 0;
+}
+.dockview-theme-estella .dv-estella-tab .tab-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dockview-theme-estella .dv-estella-tab .tab-x {
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  margin-right: -6px;
+  border-radius: var(--r-xs);
+  color: var(--text-faint);
+  opacity: 0;
+  transition: opacity var(--t-fast), color var(--t-fast), background var(--t-fast);
+}
+.dockview-theme-estella .dv-tab:hover .tab-x,
+.dockview-theme-estella .dv-tab.dv-active-tab .tab-x {
+  opacity: 1;
+}
+.dockview-theme-estella .dv-estella-tab .tab-x:hover {
+  color: var(--text);
+  background: var(--srf-4);
+}
+
 /* Region legibility: a faint top edge-light gives each docked panel content a crisp
    upper hairline, so the four regions parse as distinct stacked surfaces at a glance —
    the design's "light hairlines for dividers" language applied per-panel, without

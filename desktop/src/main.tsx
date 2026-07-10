@@ -12,6 +12,7 @@ import '@fontsource/jetbrains-mono/500.css';
 
 import './theme/tokens.css';
 import './theme/global.css';
+import './theme/controls.css';
 // dockview base styles first, then our override layer on top of them.
 import 'dockview/dist/styles/dockview.css';
 import './theme/dockview-theme.css';

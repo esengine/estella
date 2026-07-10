@@ -25,6 +25,7 @@ import { MaterialGraphDocument } from '@/material/MaterialGraphDocument';
 import { saveMaterialGraph } from '@/material/openMaterialGraph';
 import { EditorHistory } from '@/engine/EditorHistory';
 import { NumField, ColorControl } from '@/panels/Details';
+import { DirtyDot } from '@/components/DirtyDot';
 
 const NODE_W = 168;
 const HEADER_H = 28;
@@ -174,7 +175,7 @@ export function MaterialGraphEditor() {
             <Trash2 size={13} strokeWidth={1.9} />
           </button>
         )}
-        <span className="mg-title">{filePath.split('/').pop()}{dirty && <span className="mg-dot" title="Unsaved">●</span>}</span>
+        <span className="mg-title">{filePath.split('/').pop()}{dirty && <DirtyDot />}</span>
         <span style={{ flex: 1 }} />
         <button type="button" className="primary" disabled={!dirty} onClick={() => void saveMaterialGraph(filePath, graph)}>
           <Save size={13} strokeWidth={1.9} /> Save

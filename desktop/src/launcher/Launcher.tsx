@@ -5,6 +5,7 @@ import { ArrowRight, Clock, FolderOpen, LayoutGrid, Plus, Rows3, Search, X } fro
 import { useEditorStore } from '@/store/editorStore';
 import { ProjectStore } from '@/project/ProjectStore';
 import { WindowControls } from '@/layout/WindowControls';
+import { Segmented } from '@/components/Segmented';
 import type { RecentEntry, TemplateEntry } from '@/project/format';
 import { version } from '../../package.json';
 
@@ -103,24 +104,15 @@ function RecentView({
               spellCheck={false}
             />
           </label>
-          <div className="lc-seg" role="group" aria-label="View">
-            <button
-              type="button"
-              className={`lc-seg__btn${layout === 'grid' ? ' is-active' : ''}`}
-              onClick={() => setLayout('grid')}
-              title="Grid"
-            >
-              <LayoutGrid size={14} strokeWidth={1.9} />
-            </button>
-            <button
-              type="button"
-              className={`lc-seg__btn${layout === 'list' ? ' is-active' : ''}`}
-              onClick={() => setLayout('list')}
-              title="List"
-            >
-              <Rows3 size={14} strokeWidth={1.9} />
-            </button>
-          </div>
+          <Segmented
+            value={layout}
+            onChange={setLayout}
+            ariaLabel="View"
+            options={[
+              { value: 'grid', icon: <LayoutGrid size={14} strokeWidth={1.9} />, title: 'Grid' },
+              { value: 'list', icon: <Rows3 size={14} strokeWidth={1.9} />, title: 'List' },
+            ]}
+          />
         </div>
       </header>
 

@@ -7,6 +7,7 @@
 // region; the menus, dropdowns, and window controls opt out of dragging.
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { WindowControls } from '@/layout/WindowControls';
+import { DirtyDot } from '@/components/DirtyDot';
 import { LAYOUT_KEY } from '@/layout/DockLayout';
 import { useEditorStore } from '@/store/editorStore';
 import { ProjectStore } from '@/project/ProjectStore';
@@ -226,7 +227,7 @@ export function MenuBar() {
               <span className="mono">untitled</span>
             </>
           )}
-          {dirty && <span className="dirty" title="Unsaved changes">●</span>}
+          {dirty && <DirtyDot />}
         </div>
       ) : null}
       <WindowControls />

@@ -5,9 +5,10 @@
  *        general dialog primitive: dismiss on backdrop press / Escape, with a
  *        titled header, scrollable body, and an optional footer (action row).
  */
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
+import { useDialogFocus } from './dialogFocus';
 
 export function Modal({
   title,
@@ -22,6 +23,9 @@ export function Modal({
   footer?: ReactNode;
   width?: number;
 }) {
+  const winRef = useRef<HTMLDivElement>(null);
+  useDialogFocus(winRef);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -33,10 +37,13 @@ export function Modal({
   return createPortal(
     <div className="modal-backdrop" onMouseDown={onClose}>
       <div
+        ref={winRef}
         className="modal"
         style={{ width }}
         role="dialog"
+        aria-modal="true"
         aria-label={title}
+        tabIndex={-1}
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="modal__head">

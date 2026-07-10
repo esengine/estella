@@ -16,6 +16,9 @@ import { useEditorStore } from '@/store/editorStore';
 import { useSettings } from '@/store/settingsStore';
 import { settingsRegistry } from '@/settings/registry';
 import { eventToChord, formatKeybinding } from '@/commands/keybinding';
+import { useDialogFocus } from '@/components/dialogFocus';
+import { Segmented } from '@/components/Segmented';
+import { Select } from '@/components/Select';
 import type { Setting, NumberSetting, KeybindingSetting, StringListSetting, MatrixSetting, FlagListSetting } from '@/settings/types';
 
 // A bound list setting's getter returns a fresh array each call; useShallow below
@@ -225,31 +228,32 @@ function Control({ setting }: { setting: Setting }) {
           aria-checked={Boolean(value)}
           tabIndex={0}
           onClick={() => setValue(setting.id, !value)}
+          onKeyDown={(e) => {
+            if (e.key === ' ' || e.key === 'Enter') {
+              e.preventDefault();
+              setValue(setting.id, !value);
+            }
+          }}
         />
       );
     case 'enum':
       if (setting.segmented) {
         return (
-          <div className="set-seg">
-            {setting.options.map((o) => (
-              <button
-                key={o.value}
-                type="button"
-                className={value === o.value ? 'on' : ''}
-                onClick={() => setValue(setting.id, o.value)}
-              >
-                {o.label}
-              </button>
-            ))}
-          </div>
+          <Segmented
+            value={String(value)}
+            onChange={(v) => setValue(setting.id, v)}
+            ariaLabel={setting.label}
+            options={setting.options.map((o) => ({ value: o.value, label: o.label }))}
+          />
         );
       }
       return (
-        <select className="set-sel" value={String(value)} onChange={(e) => setValue(setting.id, e.target.value)}>
-          {setting.options.map((o) => (
-            <option key={o.value} value={o.value}>{o.label}</option>
-          ))}
-        </select>
+        <Select
+          ariaLabel={setting.label}
+          value={String(value)}
+          options={setting.options.map((o) => ({ value: o.value, label: o.label }))}
+          onChange={(v) => setValue(setting.id, v)}
+        />
       );
     case 'number':
       return <NumberControl setting={setting} />;
@@ -325,6 +329,8 @@ function Group({ label, settings }: { label: string; settings: Setting[] }) {
 
 export function SettingsDialog() {
   const close = () => useEditorStore.getState().setSettingsOpen(false);
+  const winRef = useRef<HTMLDivElement>(null);
+  useDialogFocus(winRef);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const sections = settingsRegistry.allSections();
@@ -362,7 +368,15 @@ export function SettingsDialog() {
 
   return createPortal(
     <div className={`set-scrim${open ? ' open' : ''}`} onMouseDown={close}>
-      <div className="set-win" role="dialog" aria-label="Settings" onMouseDown={(e) => e.stopPropagation()}>
+      <div
+        ref={winRef}
+        className="set-win"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Settings"
+        tabIndex={-1}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         <div className="set-head">
           <span className="set-title">
             <span className="ic"><SettingsIcon size={16} strokeWidth={1.8} /></span>

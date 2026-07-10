@@ -43,10 +43,6 @@
 .crumbs .cr.cur { color: var(--text); font-weight: 600; }
 .crumbs .sep { color: var(--text-mute); }
 .cb-search { width: 200px; height: 26px; flex-shrink: 0; }
-.cb-seg { display: flex; gap: 1px; background: var(--inset); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 1px; flex-shrink: 0; }
-.cb-seg button { width: 26px; height: 22px; display: grid; place-items: center; color: var(--text-mute); border-radius: var(--r-xs); }
-.cb-seg button.on { color: var(--on-accent); background: var(--acc); }
-.cb-seg button:hover:not(.on) { color: var(--text); }
 .cb-add { height: 26px; display: inline-flex; align-items: center; gap: 5px; padding: 0 10px; background: var(--acc); color: var(--on-accent); font-weight: 600; font-size: var(--fs-xs); border-radius: var(--r-sm); transition: background var(--t-fast); flex-shrink: 0; }
 .cb-add:hover { background: var(--acc-hi); }
 .cb-add:disabled { opacity: 0.45; }

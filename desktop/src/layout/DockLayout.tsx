@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { useEffect, useState, type FC, type ReactNode } from 'react';
+import { useEffect, useState, useSyncExternalStore, type FC, type ReactNode } from 'react';
 import {
   DockviewReact,
   type DockviewReadyEvent,
   type IDockviewPanelProps,
+  type IDockviewPanelHeaderProps,
   type IDockviewHeaderActionsProps,
 } from 'dockview';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, X } from 'lucide-react';
+import { DirtyDot } from '@/components/DirtyDot';
+import { panelDirtySource } from '@/layout/panelDirty';
 import { Outliner } from '@/panels/Outliner';
 import { Viewport } from '@/panels/Viewport';
 import { Details } from '@/panels/Details';
@@ -121,6 +124,37 @@ function ensureBottomTabs(api: DockviewReadyEvent['api']) {
   }
 }
 
+// Custom tab content: title + the shared dirty dot (asset editors) + a close
+// button that only shows on hover / on the active tab, so the strip stays calm.
+function EstellaTab(props: IDockviewPanelHeaderProps) {
+  const source = panelDirtySource(props.api.id);
+  const dirty = useSyncExternalStore(source.subscribe, source.isDirty);
+  const [title, setTitle] = useState(props.api.title ?? props.api.id);
+  useEffect(() => {
+    const d = props.api.onDidTitleChange((e) => setTitle(e.title));
+    return () => d.dispose();
+  }, [props.api]);
+  return (
+    <div className="dv-estella-tab">
+      <span className="tab-title">{title}</span>
+      {dirty && <DirtyDot />}
+      <button
+        type="button"
+        className="tab-x"
+        title="Close"
+        aria-label={`Close ${title}`}
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          props.api.close();
+        }}
+      >
+        <X size={12} strokeWidth={2} />
+      </button>
+    </div>
+  );
+}
+
 // A collapse/expand chevron in every dock group's header (the design's `.pcol`).
 // Collapses the group to its tab bar by height; hidden on the Viewport/Game group
 // (the center stage isn't an accordion). State follows the live group height, so
@@ -179,6 +213,7 @@ export function DockLayout() {
     <DockviewReact
       className="dockview-theme-abyss dockview-theme-estella"
       components={components}
+      defaultTabComponent={EstellaTab}
       rightHeaderActionsComponent={CollapseHeaderAction}
       onReady={onReady}
     />

@@ -13,6 +13,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, Box, Image, Video, Lightbulb, Sparkles, LayoutDashboard, ToggleLeft, SlidersHorizontal } from 'lucide-react';
 import { flattenCatalog, matchCatalog, type CatalogEntry, type EntityTemplate } from '@/engine/entityTemplates';
+import { useDialogFocus } from '@/components/dialogFocus';
 
 const ICONS: Record<string, typeof Box> = {
   Empty: Box,
@@ -50,6 +51,8 @@ export function CreatePopover({
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const activeRef = useRef<HTMLButtonElement>(null);
+  const shellRef = useRef<HTMLDivElement>(null);
+  useDialogFocus(shellRef);
 
   const all = useMemo(() => flattenCatalog(), []);
   const results = useMemo(() => matchCatalog(all, query), [all, query]);
@@ -86,7 +89,7 @@ export function CreatePopover({
 
   return createPortal(
     <div className="ac-scrim open" onMouseDown={onClose}>
-      <div className="ac" role="dialog" onMouseDown={(e) => e.stopPropagation()}>
+      <div ref={shellRef} className="ac" role="dialog" aria-modal="true" aria-label="Create entity" tabIndex={-1} onMouseDown={(e) => e.stopPropagation()}>
         <div className="ac-search">
           <Search size={15} strokeWidth={1.9} />
           <input

@@ -75,7 +75,7 @@ function Tooltip({
   }, [anchor, onDismiss]);
 
   return createPortal(
-    <div ref={ref} className="tooltip" style={{ left: pos.left, top: pos.top }}>
+    <div ref={ref} className="tooltip" role="tooltip" style={{ left: pos.left, top: pos.top }}>
       {children}
     </div>,
     document.body,
@@ -111,6 +111,13 @@ export function useTooltip<T>(render: (payload: T) => ReactNode, delay = OPEN_DE
         timer.current = window.setTimeout(() => setTarget({ anchor, payload }), delay);
       },
       onMouseLeave: close,
+      // Keyboard focus is deliberate — show the card without the hover delay.
+      onFocus: (ev: React.FocusEvent) => {
+        const anchor = ev.currentTarget as HTMLElement;
+        if (timer.current != null) clearTimeout(timer.current);
+        setTarget({ anchor, payload });
+      },
+      onBlur: close,
     }),
     [close, delay],
   );

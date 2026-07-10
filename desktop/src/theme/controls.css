@@ -1,0 +1,57 @@
+/* =============================================================================
+   @file controls.css
+   @brief Shared control primitives — small, reusable widgets used across panels
+          (Segmented, DirtyDot). Panel-specific chrome stays in the panel's own
+          stylesheet; anything two panels share belongs here.
+   ========================================================================== */
+
+/* — Segmented control (components/Segmented.tsx) — */
+.seg {
+  display: inline-flex;
+  gap: 1px;
+  padding: 1px;
+  background: var(--inset);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  flex-shrink: 0;
+}
+.seg button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 9px;
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+  border-radius: var(--r-xs);
+  transition: color var(--t-fast), background var(--t-fast);
+}
+.seg button.ic { width: 26px; padding: 0; }
+.seg button:hover:not(.on) { color: var(--text); }
+.seg button.on { background: var(--acc); color: var(--on-accent); }
+
+/* — Select trigger, standalone input look (components/Select.tsx). The 'field'
+     variant reuses the inspector's .dd-trigger; the popover list is the shared
+     .dd-* vocabulary (inspector.css). — */
+.sel-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 22px;
+  padding: 2px 4px 2px 7px;
+  background: var(--input);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  min-width: 0;
+  transition: border-color var(--t-fast);
+}
+.sel-trigger:hover { border-color: var(--line-strong); }
+.sel-trigger > svg { color: var(--text-mute); flex-shrink: 0; }
+.sel-trigger .dd-val { flex: 1; }
+
+/* — Unsaved-changes dot (components/DirtyDot.tsx) — */
+.dirty-dot { color: var(--sel); font-size: 0.7em; line-height: 1; }

@@ -210,30 +210,6 @@
   color: var(--text-faint);
 }
 
-.lc-seg {
-  display: flex;
-  gap: 2px;
-  padding: 2px;
-  background: var(--input);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-}
-.lc-seg__btn {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 24px;
-  border-radius: var(--r-xs);
-  color: var(--text-dim);
-}
-.lc-seg__btn:hover {
-  color: var(--text-hi);
-}
-.lc-seg__btn.is-active {
-  background: var(--raised);
-  color: var(--star-hi);
-}
-
 /* ----------------------------------------------------------- grid cards --- */
 .proj-grid {
   display: grid;

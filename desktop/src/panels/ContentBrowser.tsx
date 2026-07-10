@@ -5,6 +5,7 @@ import { ChevronRight, Search, LayoutGrid, List, Import, FolderOpen, FolderPlus,
 import { AssetIcon, assetTint } from '@/components/icons';
 import { ContextMenu, type MenuItem } from '@/components/Menu';
 import { useTooltip } from '@/components/Tooltip';
+import { Segmented } from '@/components/Segmented';
 import { ProjectStore } from '@/project/ProjectStore';
 import { Toasts } from '@/store/Toasts';
 import { useSelection } from '@/store/selectionStore';
@@ -697,14 +698,15 @@ export function ContentBrowser() {
             >
               <ArrowDownUp size={14} strokeWidth={2} />
             </button>
-            <div className="cb-seg">
-              <button type="button" className={view === 'grid' ? 'on' : ''} title="Grid view" onClick={() => setView('grid')}>
-                <LayoutGrid size={13} strokeWidth={1.9} />
-              </button>
-              <button type="button" className={view === 'list' ? 'on' : ''} title="List view" onClick={() => setView('list')}>
-                <List size={13} strokeWidth={1.9} />
-              </button>
-            </div>
+            <Segmented
+              value={view}
+              onChange={setView}
+              ariaLabel="View"
+              options={[
+                { value: 'grid', icon: <LayoutGrid size={13} strokeWidth={1.9} />, title: 'Grid view' },
+                { value: 'list', icon: <List size={13} strokeWidth={1.9} />, title: 'List view' },
+              ]}
+            />
             <button type="button" className="cb-ghost" title="New Folder" onClick={() => void newFolder()}>
               <FolderPlus size={13} strokeWidth={1.9} />
             </button>

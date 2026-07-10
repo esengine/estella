@@ -20,6 +20,8 @@ import {
 import { BtDocument } from '@/bt/BtDocument';
 import { EditorHistory } from '@/engine/EditorHistory';
 import { NodeGraphCanvas, type CanvasNode, type MenuItem } from '@/panels/NodeGraphCanvas';
+import { Select } from '@/components/Select';
+import { DirtyDot } from '@/components/DirtyDot';
 
 type BtCanvasNode = BtNode & CanvasNode;
 
@@ -82,7 +84,7 @@ export function BtTreeEditor() {
 
   const toolbar = (
     <>
-      <span className="ng-doc-title">{filePath.split('/').pop()}{dirty && <span className="ng-dirty" title="Unsaved">●</span>}</span>
+      <span className="ng-doc-title">{filePath.split('/').pop()}{dirty && <DirtyDot />}</span>
       <span style={{ flex: 1 }} />
       {selected && def.root.id !== selected && (
         <button type="button" className="ng-btn" title="Delete node"
@@ -156,9 +158,12 @@ export function BtTreeEditor() {
           <div className="ng-inspector">
             <div className="ng-insp-title">Node</div>
             <label className="ng-field">Type
-              <select className="ng-input" value={selNode.type} onChange={e => patch(selNode.id, { type: e.target.value as BtNodeType })}>
-                {BT_TYPES.map(s => <option key={s.type} value={s.type}>{s.label}</option>)}
-              </select>
+              <Select
+                ariaLabel="Node type"
+                value={selNode.type}
+                options={BT_TYPES.map(s => ({ value: s.type, label: s.label }))}
+                onChange={v => patch(selNode.id, { type: v })}
+              />
             </label>
 
             {(selNode.type === 'action' || selNode.type === 'condition') && (
@@ -182,10 +187,15 @@ export function BtTreeEditor() {
             )}
             {selNode.type === 'parallel' && (
               <label className="ng-field">Success policy
-                <select className="ng-input" value={selNode.policy ?? 'all'} onChange={e => patch(selNode.id, { policy: e.target.value as 'all' | 'one' })}>
-                  <option value="all">all children</option>
-                  <option value="one">any child</option>
-                </select>
+                <Select
+                  ariaLabel="Success policy"
+                  value={selNode.policy ?? 'all'}
+                  options={[
+                    { value: 'all', label: 'all children' },
+                    { value: 'one', label: 'any child' },
+                  ]}
+                  onChange={v => patch(selNode.id, { policy: v })}
+                />
               </label>
             )}
 
@@ -193,9 +203,13 @@ export function BtTreeEditor() {
               <>
                 <div className="ng-insp-sub">Add child</div>
                 <div className="ng-row">
-                  <select className="ng-input" style={{ flex: 1 }} value={addType} onChange={e => setAddType(e.target.value as BtNodeType)}>
-                    {BT_TYPES.map(s => <option key={s.type} value={s.type}>{s.label}</option>)}
-                  </select>
+                  <Select
+                    ariaLabel="Child node type"
+                    style={{ flex: 1 }}
+                    value={addType}
+                    options={BT_TYPES.map(s => ({ value: s.type, label: s.label }))}
+                    onChange={setAddType}
+                  />
                   <button type="button" className="ng-btn" onClick={() => addChild(selNode.id, addType)}>+ Add</button>
                 </div>
               </>

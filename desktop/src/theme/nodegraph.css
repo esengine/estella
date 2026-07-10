@@ -148,9 +148,6 @@
   color: var(--text-dim);
   margin-left: 4px;
 }
-/* Unsaved marker — same voice as the menubar's scene dirty dot. */
-.ng-dirty { color: var(--sel); font-size: 0.7em; line-height: 1; }
-
 /* — side inspector — */
 .ng-inspector {
   width: 232px;
