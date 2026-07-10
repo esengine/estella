@@ -51,12 +51,20 @@ function formatReadError(path: string, errMsg: string): string {
 
 export function wxReadFileSync(path: string): ArrayBuffer {
     const fs = getFileSystemManager();
-    return fs.readFileSync(path) as ArrayBuffer;
+    try {
+        return fs.readFileSync(path) as ArrayBuffer;
+    } catch (e) {
+        throw new Error(formatReadError(path, e instanceof Error ? e.message : String(e)));
+    }
 }
 
 export function wxReadTextFileSync(path: string, encoding: 'utf8' | 'utf-8' = 'utf-8'): string {
     const fs = getFileSystemManager();
-    return fs.readFileSync(path, encoding) as string;
+    try {
+        return fs.readFileSync(path, encoding) as string;
+    } catch (e) {
+        throw new Error(formatReadError(path, e instanceof Error ? e.message : String(e)));
+    }
 }
 
 export function wxReadFile(path: string): Promise<ArrayBuffer> {

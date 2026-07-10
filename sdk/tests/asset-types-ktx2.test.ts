@@ -10,8 +10,9 @@ describe('.ktx2 asset type registration', () => {
         expect(entry?.contentType).toBe('binary');
         expect(entry?.editorType).toBe('texture');
         expect(entry?.addressableType).toBe('texture');
-        // large compressed textures stay out of the WeChat main package
-        expect(entry?.wechatPackInclude).toBe(false);
+        // fs-read on WeChat (basis transcode), so the packer must include the
+        // extension — an unlisted custom type is denied at readFileSync.
+        expect(entry?.wechatPackInclude).toBe(true);
     });
 
     it('resolves texture types and the KTX2 mime', () => {

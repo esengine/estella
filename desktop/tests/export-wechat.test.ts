@@ -189,6 +189,10 @@ describe('exportGame (wechat)', () => {
     const entry = readFileSync(path.join(outSpine, 'game.js'), 'utf8');
     expect(entry).toContain("\"spine:4.2\": asFactory(require('./wasm/spine42.js'))");
     expect(existsSync(path.join(outSpine, 'wasm', 'spine42.wasm'))).toBe(true);
+    const spcfg = JSON.parse(readFileSync(path.join(outSpine, 'project.config.json'), 'utf8'));
+    expect(spcfg.packOptions.include).toContainEqual({ type: 'suffix', value: '.esscene' });
+    // Native types stay out of the include list — it exists for the custom ones.
+    expect(spcfg.packOptions.include).not.toContainEqual({ type: 'suffix', value: '.json' });
     // The manifest keeps the real addressable type, not a 'binary' downgrade.
     const manifest = JSON.parse(readFileSync(path.join(outSpine, 'asset-manifest.json'), 'utf8'));
     expect(manifest.groups.main.assets[SPINE].type).toBe('spine');
@@ -241,6 +245,10 @@ describe('exportGame (wechat)', () => {
     expect(res.ok).toBe(true);
     expect(readFileSync(path.join(outKtx, 'game.js'), 'utf8')).toContain("\"basis\": asFactory(require('./wasm/basis.js'))");
     expect(existsSync(path.join(outKtx, 'wasm', 'basis.wasm'))).toBe(true);
+    // WeChat denies fs reads of unlisted custom extensions — the staged .ktx2
+    // must ride into packOptions.include.
+    const pcfg = JSON.parse(readFileSync(path.join(outKtx, 'project.config.json'), 'utf8'));
+    expect(pcfg.packOptions.include).toContainEqual({ type: 'suffix', value: '.ktx2' });
   }, 60_000);
 
   it('a .ktx2 texture without a wechat basis build fails the export', async () => {

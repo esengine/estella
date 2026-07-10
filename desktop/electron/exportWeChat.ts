@@ -93,13 +93,32 @@ function subPackagesOf(entries: CookManifest['entries']): Array<{ name: string; 
   return [...names].map((name) => ({ name, root: `subpackages/${name}` }));
 }
 
-function projectConfigJson(title: string, appid: string): string {
+// Extensions WeChat's packer/fs handles without a packOptions.include entry:
+// script + config it compiles itself. Every OTHER staged extension gets an
+// include rule — WeChat denies fs reads of unlisted custom types (the .skel/
+// .atlas/.ktx2 family), and a redundant rule for a native type is harmless.
+const WECHAT_NATIVE_SUFFIXES = new Set(['.js', '.json']);
+
+/** packOptions.include suffix rules for every custom extension the cook staged. */
+function packIncludeSuffixes(entries: CookManifest['entries']): string[] {
+  const suffixes = new Set<string>();
+  for (const e of entries) {
+    const ext = path.extname(e.path).toLowerCase();
+    if (ext && !WECHAT_NATIVE_SUFFIXES.has(ext)) suffixes.add(ext);
+  }
+  return [...suffixes].sort();
+}
+
+function projectConfigJson(title: string, appid: string, includeSuffixes: string[]): string {
   return JSON.stringify({
     miniprogramRoot: './',
     projectname: title,
     appid, // set in Project Settings → Packaging → WeChat (else fill in devtools)
     setting: { es6: false, minified: false },
     compileType: 'game',
+    ...(includeSuffixes.length > 0
+      ? { packOptions: { include: includeSuffixes.map((value) => ({ type: 'suffix', value })) } }
+      : {}),
   }, null, 2) + '\n';
 }
 
@@ -339,7 +358,7 @@ export async function exportWeChat(opts: {
   // 5. Entry + config.
   await writeFile(path.join(absOut, 'game.js'), gameEntryJs(sideModules, engineGlueFile));
   await writeFile(path.join(absOut, 'game.json'), gameJson(opts.orientation ?? 'portrait', subPackagesOf(cookEntries)));
-  await writeFile(path.join(absOut, 'project.config.json'), projectConfigJson(title, opts.appid ?? ''));
+  await writeFile(path.join(absOut, 'project.config.json'), projectConfigJson(title, opts.appid ?? '', packIncludeSuffixes(cookEntries)));
 
   // 6. The engine runtime + exactly the side modules the scene needs. WeChat's
   //    main package has a 4MB budget — unneeded side modules must not ride along.

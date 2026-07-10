@@ -29,7 +29,9 @@ const ASSET_TYPE_REGISTRY: readonly AssetTypeEntry[] = [
     // GPU-compressed texture container (Basis/KTX2). Decoded straight to a
     // compressed GPU format at runtime; large, so it stays out of the WeChat
     // main package (remote CDN, content-addressed).
-    { extensions: ['ktx2'], contentType: 'binary', editorType: 'texture', addressableType: 'texture', wechatPackInclude: false, hasTransitiveDeps: false },
+    // wechatPackInclude: WeChat's fs denies package reads of unlisted custom
+    // extensions — KTX2 textures are fs-read (transcoded), not image-decoded.
+    { extensions: ['ktx2'], contentType: 'binary', editorType: 'texture', addressableType: 'texture', wechatPackInclude: true, hasTransitiveDeps: false },
     { extensions: ['mp3', 'wav', 'ogg', 'aac', 'flac', 'webm'], contentType: 'audio', editorType: 'audio', addressableType: 'audio', wechatPackInclude: false, hasTransitiveDeps: false },
     { extensions: ['esmaterial'], contentType: 'json', editorType: 'material', addressableType: 'material', wechatPackInclude: true, hasTransitiveDeps: true },
     { extensions: ['esshader'], contentType: 'text', editorType: 'shader', addressableType: null, wechatPackInclude: false, hasTransitiveDeps: false },

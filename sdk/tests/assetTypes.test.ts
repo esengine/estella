@@ -147,6 +147,7 @@ describe('getCustomExtensions', () => {
         expect(exts).toContain('.esmaterial');
         expect(exts).toContain('.esprefab');
         expect(exts).toContain('.esanim');
+        expect(exts).toContain('.ktx2'); // fs-read on WeChat (basis transcode), not image-decoded
     });
 
     it('should not include non-packable extensions', () => {
