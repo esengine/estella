@@ -353,7 +353,7 @@
 }
 .proj-card:hover .proj-card__remove,
 .proj-card:focus-within .proj-card__remove { opacity: 1; }
-.proj-card__remove:hover { color: var(--danger, #e5484d); border-color: var(--danger, #e5484d); }
+.proj-card__remove:hover { color: var(--error); border-color: var(--error); }
 
 /* ----------------------------------------------------------- list view --- */
 .proj-list {
@@ -419,7 +419,7 @@
 }
 .proj-row:hover .proj-row__remove,
 .proj-row:focus-within .proj-row__remove { opacity: 1; }
-.proj-row__remove:hover { color: var(--danger, #e5484d); border-color: var(--danger, #e5484d); }
+.proj-row__remove:hover { color: var(--error); border-color: var(--error); }
 /* Name over path, both left-aligned to the column edge — so every row's text
    starts at the same x and lines up under the "Project" header. */
 .proj-row__main {
