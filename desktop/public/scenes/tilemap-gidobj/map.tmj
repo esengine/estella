@@ -14,7 +14,36 @@
       "name": "Decor",
       "visible": true,
       "objects": [
-        { "id": 1, "name": "greentile", "x": 0, "y": 16, "width": 16, "height": 16, "gid": 2, "rotation": 0 }
+        {
+          "id": 1,
+          "name": "greentile",
+          "x": 0,
+          "y": 16,
+          "width": 16,
+          "height": 16,
+          "gid": 2,
+          "rotation": 0
+        },
+        {
+          "id": 2,
+          "name": "split-plain",
+          "x": 16,
+          "y": 8,
+          "width": 8,
+          "height": 8,
+          "gid": 3,
+          "rotation": 0
+        },
+        {
+          "id": 3,
+          "name": "split-dflip",
+          "x": 16,
+          "y": 24,
+          "width": 8,
+          "height": 8,
+          "gid": 536870915,
+          "rotation": 0
+        }
       ]
     }
   ],
@@ -23,12 +52,12 @@
       "firstgid": 1,
       "name": "a",
       "image": "a.png",
-      "imagewidth": 32,
+      "imagewidth": 64,
       "imageheight": 16,
       "tilewidth": 16,
       "tileheight": 16,
-      "columns": 2,
-      "tilecount": 2
+      "columns": 4,
+      "tilecount": 4
     }
   ]
 }

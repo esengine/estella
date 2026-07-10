@@ -359,7 +359,12 @@ export class TilemapPlugin implements Plugin {
                         // in edit + play mode like the tile layers. Parented to the
                         // tilemap entity, so the sprite's local position is the object's
                         // offset within the map (pixels). H/V flip → flipX/flipY;
-                        // diagonal flip + rotation are follow-ups.
+                        // diagonal (D) flip = transpose, decomposed as an extra 90° CW
+                        // quad rotation with the flip axes exchanged (source H → display
+                        // Y with the rotation's inversion baked in, source V → display X)
+                        // and the sprite size swapped so the rotated quad fills the
+                        // object's authored width×height box (whose centre is
+                        // rotation-invariant). Pixel-verified against Tiled's rendering.
                         for (const group of cached.objectGroups ?? []) {
                             if (group.visible === false) continue;
                             for (const obj of group.objects) {
@@ -388,17 +393,20 @@ export class TilemapPlugin implements Plugin {
                                 const rc = Math.cos(rad), rs = Math.sin(rad);
                                 const px = obj.x + (w / 2) * rc - (-h / 2) * rs;
                                 const py = -(obj.y + (w / 2) * rs + (-h / 2) * rc);
+                                // The box centre above uses the authored rotation only;
+                                // D adds content rotation on top of it.
+                                const quadRad = dec.flipD ? rad + Math.PI / 2 : rad;
                                 const tileChild = world.spawn(obj.name || `TileObject_${obj.id}`);
-                                world.insert(tileChild, Transform, rad !== 0
-                                    ? { position: { x: px, y: py, z: 0 }, rotation: { w: Math.cos(-rad / 2), x: 0, y: 0, z: Math.sin(-rad / 2) } }
+                                world.insert(tileChild, Transform, quadRad !== 0
+                                    ? { position: { x: px, y: py, z: 0 }, rotation: { w: Math.cos(-quadRad / 2), x: 0, y: 0, z: Math.sin(-quadRad / 2) } }
                                     : { position: { x: px, y: py, z: 0 } });
                                 world.insert(tileChild, Sprite, {
                                     texture: ts.textureHandle,
-                                    size: { x: w, y: h },
+                                    size: dec.flipD ? { x: h, y: w } : { x: w, y: h },
                                     uvOffset: { x: col * uvW, y: 1 - (row + 1) * uvH },
                                     uvScale: { x: uvW, y: uvH },
-                                    flipX: dec.flipH,
-                                    flipY: dec.flipV,
+                                    flipX: dec.flipD ? dec.flipV : dec.flipH,
+                                    flipY: dec.flipD ? !dec.flipH : dec.flipV,
                                     layer: cached.layers.length,
                                 });
                                 world.insert(tileChild, RuntimeOnly, {});
