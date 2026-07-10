@@ -9,5 +9,16 @@
     "width": 1280,
     "height": 720
   },
-  "spineVersion": "none"
+  "spineVersion": "none",
+  "packaging": {
+    "platform": "playable",
+    "config": "shipping",
+    "sourceMaps": true,
+    "openFolder": true,
+    "outDir": {
+      "playable": "dist-playable"
+    },
+    "compressTextures": true,
+    "atlasTextures": true
+  }
 }

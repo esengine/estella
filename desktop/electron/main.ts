@@ -28,6 +28,8 @@ import { cookAssets } from './cookAssets';
 import { startProjectWatch, stopProjectWatch } from './projectWatcher';
 import { importAssets, createAsset, IMPORT_EXTENSIONS } from './importAssets';
 import { exportGame } from './exportGame';
+import { previewServer, closeAllPreviewServers } from './exportPreview';
+import { httpContentType } from './mimeTypes';
 import { buildPlayRealm } from './buildPlayRealm';
 import { syncSdkTypes } from './syncSdkTypes';
 import { installCrashCapture, logsDir } from './resilience';
@@ -66,44 +68,6 @@ protocol.registerSchemesAsPrivileged([
 
 // The app:// renderer origin (host is arbitrary; `local` keeps URLs readable).
 const APP_ORIGIN = 'app://local';
-
-const ASSET_MIME: Record<string, string> = {
-  png: 'image/png',
-  jpg: 'image/jpeg',
-  jpeg: 'image/jpeg',
-  webp: 'image/webp',
-  ktx2: 'image/ktx2',
-  json: 'application/json',
-  esscene: 'application/json',
-  fnt: 'text/plain',
-  // The play realm is served from estella:// too (host page + SDK + bundle + wasm),
-  // so estella must hand back script/document/wasm types, not just asset types.
-  html: 'text/html',
-  js: 'text/javascript',
-  mjs: 'text/javascript',
-  wasm: 'application/wasm',
-  css: 'text/css',
-};
-
-// MIME for serving the built renderer over app:// (wasm MUST be application/wasm
-// for streaming compile; js/mjs must be a script type).
-const APP_MIME: Record<string, string> = {
-  html: 'text/html',
-  js: 'text/javascript',
-  mjs: 'text/javascript',
-  css: 'text/css',
-  json: 'application/json',
-  wasm: 'application/wasm',
-  png: 'image/png',
-  jpg: 'image/jpeg',
-  jpeg: 'image/jpeg',
-  webp: 'image/webp',
-  svg: 'image/svg+xml',
-  woff: 'font/woff',
-  woff2: 'font/woff2',
-  ttf: 'font/ttf',
-  ktx2: 'image/ktx2',
-};
 
 // The engine's Emscripten/embind glue requires 'unsafe-eval' in the renderer
 // CSP (it JIT-compiles call bridges via new Function). That's a deliberate,
@@ -572,6 +536,16 @@ ipcMain.handle(
   },
 );
 
+// Preview an http-servable export (web / playable) over a loopback http server, then
+// open it in the default browser. That is the build's real deployment surface — an
+// http origin (static host / ad-network iframe) — so the file:// opaque-origin rules
+// (blocked subresource loads, no wasm streaming) never apply. Returns the URL.
+ipcMain.handle('export:preview', async (_e, absDir: string) => {
+  const url = await previewServer(absDir);
+  await shell.openExternal(url);
+  return url;
+});
+
 // Stage the isolated play realm under the project's .esengine/play/ (host + SDK +
 // wasm + import map) and build the project's script bundle, so the editor can run
 // it from estella://project/.esengine/play/play.html with custom components/systems.
@@ -637,10 +611,9 @@ async function handleEstella(request: Request): Promise<Response> {
     const rel = decodeURIComponent(new URL(request.url).pathname).replace(/^\/+/, '');
     const abs = resolveInRoot(projectRoot, rel); // throws if it escapes the root
     const bytes = await readFile(abs);
-    const ext = path.extname(abs).slice(1).toLowerCase();
     return new Response(new Uint8Array(bytes), {
       headers: {
-        'content-type': ASSET_MIME[ext] ?? 'application/octet-stream',
+        'content-type': httpContentType(abs),
         // The play realm (app:// origin) loads project assets cross-scheme via
         // <img crossorigin> + fetch; allow it. estella:// is only reachable inside
         // the Electron app, so there is no untrusted-web exposure.
@@ -669,9 +642,8 @@ async function handleApp(request: Request): Promise<Response> {
       if (!projectRoot) return new Response('no project open', { status: 503 });
       const abs = resolveInRoot(projectRoot, rel.slice(PROJECT_PREFIX.length));
       const bytes = await readFile(abs);
-      const ext = path.extname(abs).slice(1).toLowerCase();
       return new Response(new Uint8Array(bytes), {
-        headers: { 'content-type': ASSET_MIME[ext] ?? 'application/octet-stream', 'access-control-allow-origin': '*', 'cache-control': 'no-store' },
+        headers: { 'content-type': httpContentType(abs), 'access-control-allow-origin': '*', 'cache-control': 'no-store' },
       });
     }
     const abs = path.join(RENDERER_DIST, rel);
@@ -679,9 +651,8 @@ async function handleApp(request: Request): Promise<Response> {
       return new Response('forbidden', { status: 403 });
     }
     const bytes = await readFile(abs);
-    const ext = path.extname(abs).slice(1).toLowerCase();
     return new Response(new Uint8Array(bytes), {
-      headers: { 'content-type': APP_MIME[ext] ?? 'application/octet-stream', 'access-control-allow-origin': '*' },
+      headers: { 'content-type': httpContentType(abs), 'access-control-allow-origin': '*' },
     });
   } catch (err) {
     return new Response(String(err), { status: 404 });
@@ -717,3 +688,6 @@ app.on('window-all-closed', () => {
   stopProjectWatch();
   if (process.platform !== 'darwin') app.quit();
 });
+
+// Tear down any loopback export-preview servers on quit.
+app.on('before-quit', () => closeAllPreviewServers());

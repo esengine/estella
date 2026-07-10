@@ -11,7 +11,7 @@
  *        / Playable) are live.
  */
 import { useState, useSyncExternalStore } from 'react';
-import { Loader2, FolderOpen, CheckCircle2, AlertCircle, Boxes, Info, Copy } from 'lucide-react';
+import { Loader2, FolderOpen, CheckCircle2, AlertCircle, Boxes, Info, Copy, ExternalLink } from 'lucide-react';
 import { Modal } from '@/components/Modal';
 import { ProjectStore } from '@/project/ProjectStore';
 import { useEditorStore } from '@/store/editorStore';
@@ -42,6 +42,9 @@ interface PlatformDef {
   sourceMaps: boolean;
   /** A build prerequisite to surface BEFORE packaging (missing toolchain/runtime). */
   prereq?: string;
+  /** http-servable target → offer a loopback-http Preview (opening the build via
+   *  file:// hits the browser's opaque-origin rules; http is its real surface). */
+  httpPreview?: boolean;
   /** Post-build guidance (where the package is / how to run it). */
   next: (outDir: string) => string;
 }
@@ -50,8 +53,8 @@ const PLATFORMS: PlatformDef[] = [
   {
     id: 'web', label: 'Web', ready: true,
     blurb: 'Static, self-contained web build — host it anywhere.',
-    defaultOut: 'dist-web', sourceMaps: true,
-    next: (o) => `Open ${o}/index.html, or upload ${o}/ to any static host.`,
+    defaultOut: 'dist-web', sourceMaps: true, httpPreview: true,
+    next: (o) => `Preview over http below, or upload ${o}/ to any static host. (A web build needs an http origin — opening index.html directly won't stream the wasm.)`,
   },
   {
     id: 'desktop', label: 'Desktop', ready: true,
@@ -69,9 +72,9 @@ const PLATFORMS: PlatformDef[] = [
   {
     id: 'playable', label: 'Playable', ready: true,
     blurb: 'Single-file HTML playable ad — everything inlined, no requests.',
-    defaultOut: 'dist-playable', sourceMaps: false,
+    defaultOut: 'dist-playable', sourceMaps: false, httpPreview: true,
     prereq: 'Requires the single-file runtime — run: node build-tools/cli.js build -t playable',
-    next: (o) => `Open ${o}/index.html. Note: a full engine usually exceeds ad-network size limits.`,
+    next: () => `Preview over http below (its real surface is an ad-network iframe). Note: a full engine usually exceeds ad-network size limits.`,
   },
 ];
 
@@ -154,6 +157,17 @@ export function BuildDialog() {
     if (result?.errors?.length) lines.push(...result.errors.map((e) => `ERROR: ${e}`));
     if (result?.warnings?.length) lines.push(...result.warnings.map((w) => `warning: ${w}`));
     void navigator.clipboard?.writeText(lines.join('\n'));
+  };
+
+  // Serve the finished build over loopback http and open it in the default browser —
+  // its real deployment surface, so none of the file:// opaque-origin limits apply.
+  const preview = async () => {
+    if (!result?.ok) return;
+    try {
+      await window.estella.project?.previewExport?.(result.outDir);
+    } catch (err) {
+      setLog((l) => [...l, `preview failed: ${err instanceof Error ? err.message : String(err)}`]);
+    }
   };
 
   const footer = (
@@ -278,6 +292,18 @@ export function BuildDialog() {
                   <CheckCircle2 size={14} /> Packaged {result.included} assets{result.bytes ? ` · ${mb(result.bytes)}` : ''} → {result.outDir}
                 </span>
                 <div className="build__next selectable">{def.next(result.outDir)}</div>
+                {result.ok && (
+                  <div className="build__actions">
+                    {def.httpPreview && (
+                      <button type="button" className="btn-soft is-primary" onClick={() => void preview()}>
+                        <ExternalLink size={13} /> Preview over http
+                      </button>
+                    )}
+                    <button type="button" className="btn-soft" onClick={() => void window.estella.shell?.openPath?.(result.outDir)}>
+                      <FolderOpen size={13} /> Open folder
+                    </button>
+                  </div>
+                )}
               </>
             )}
             {phase === 'error' && result && (
