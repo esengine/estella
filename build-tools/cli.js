@@ -16,7 +16,6 @@ import { syncToDesktop } from './tasks/sync.js';
 import { startWatch } from './tasks/watch.js';
 import { BuildManifest } from './manifest.js';
 import { handleBuildError } from './utils/errorHelp.js';
-import { zipExamples } from './tasks/examples.js';
 import { checkExamples } from './tasks/check-examples.js';
 
 program
@@ -203,16 +202,6 @@ async function cleanAll() {
     await cleanWasm();
     await cleanSdk();
 }
-
-program
-    .command('zip-examples')
-    .description('Pack example projects into zip files for editor')
-    .action(async () => {
-        logger.header('Zip Examples');
-        const startTime = Date.now();
-        await zipExamples(config.paths.root);
-        logger.printTime(Date.now() - startTime);
-    });
 
 program
     .command('check-examples')

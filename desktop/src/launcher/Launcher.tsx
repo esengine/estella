@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { ArrowRight, Clock, FolderOpen, LayoutGrid, Plus, Rows3, X } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { ProjectStore } from '@/project/ProjectStore';
@@ -210,7 +210,7 @@ function RecentView({
 
 function NewView({ onCreated }: { onCreated: () => void }) {
   const [templates, setTemplates] = useState<TemplateEntry[]>([]);
-  const [selected, setSelected] = useState<number | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [location, setLocation] = useState('');
   const [busy, setBusy] = useState(false);
@@ -226,11 +226,19 @@ function NewView({ onCreated }: { onCreated: () => void }) {
     };
   }, []);
 
-  const tpl = selected != null ? templates[selected] : null;
+  const tpl = selected != null ? templates.find((t) => t.dir === selected) ?? null : null;
 
-  const pick = (i: number) => {
-    setSelected(i);
-    setName((n) => n || templates[i].name.toLowerCase().replace(/\s+/g, '-'));
+  // The gallery's group order (starters, then examples) is the list order —
+  // group labels only earn their space when both groups are present.
+  const starters = templates.filter((t) => t.kind === 'starter');
+  const examples = templates.filter((t) => t.kind !== 'starter');
+  const grouped = starters.length > 0 && examples.length > 0;
+
+  const pick = (t: TemplateEntry) => {
+    setSelected(t.dir);
+    // Suggest a folder name: a starter is a blank slate ("my-project"), a
+    // sample keeps its own name so the copy stays recognizable.
+    setName((n) => n || (t.kind === 'starter' ? 'my-project' : t.name.toLowerCase().replace(/\s+/g, '-')));
   };
 
   const browse = () => {
@@ -262,25 +270,36 @@ function NewView({ onCreated }: { onCreated: () => void }) {
         </header>
         {templates.length === 0 ? (
           <div className="lc-empty">
-            <p>No templates found.</p>
+            <p>The bundled templates are missing.</p>
+            <p className="lc-empty__hint">Reinstalling the editor should restore them.</p>
           </div>
         ) : (
           <div className="proj-grid">
-            {templates.map((t, i) => (
-              <button
-                key={t.dir}
-                type="button"
-                className={`proj-card proj-card--template${selected === i ? ' is-selected' : ''}`}
-                onClick={() => pick(i)}
-              >
-                <Thumb label={t.name} src={t.thumbnail} />
-                <div className="proj-card__body">
-                  <span className="proj-card__name">{t.name}</span>
-                  {t.description && <span className="proj-card__desc">{t.description}</span>}
-                </div>
-                {t.tag && <span className="proj-card__tag mono">{t.tag}</span>}
-              </button>
-            ))}
+            {[
+              { label: 'Starters', items: starters },
+              { label: 'Examples', items: examples },
+            ].map(({ label, items }) =>
+              items.length === 0 ? null : (
+                <Fragment key={label}>
+                  {grouped && <h2 className="lc-group">{label}</h2>}
+                  {items.map((t) => (
+                    <button
+                      key={t.dir}
+                      type="button"
+                      className={`proj-card proj-card--template${selected === t.dir ? ' is-selected' : ''}`}
+                      onClick={() => pick(t)}
+                    >
+                      <Thumb label={t.name} src={t.thumbnail} />
+                      <div className="proj-card__body">
+                        <span className="proj-card__name">{t.name}</span>
+                        {t.description && <span className="proj-card__desc">{t.description}</span>}
+                      </div>
+                      {t.tag && <span className="proj-card__tag mono">{t.tag}</span>}
+                    </button>
+                  ))}
+                </Fragment>
+              ),
+            )}
           </div>
         )}
       </div>

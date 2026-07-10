@@ -146,9 +146,22 @@ export interface ProjectManifest {
 export interface TemplateEntry {
   name: string;
   dir: string;
+  /** Which gallery group the template belongs to: a bundled blank-slate
+   *  starter, or one of the sample projects. */
+  kind: 'starter' | 'example';
   description?: string;
   tag?: string;
   thumbnail?: string;
+}
+
+// Per-machine / derived state that must never travel when a project directory
+// is copied as a template: the editor restages `.esengine` (typings, caches,
+// workspace) on open, and the rest is tooling output.
+const TEMPLATE_TRANSIENT = new Set([WORKSPACE_DIR, 'node_modules', 'dist', '.DS_Store', 'Thumbs.db']);
+
+/** True if a template-relative path is transient state (excluded from template copies). */
+export function isTransientProjectPath(rel: string): boolean {
+  return rel.split(/[\\/]/).some((seg) => TEMPLATE_TRANSIENT.has(seg));
 }
 
 /** Editor-local, transient state (`.esengine/workspace.json`; gitignored). */
@@ -320,9 +333,4 @@ export const DEFAULT_SCRIPTS: Required<ProjectScripts> = {
 /** Effective script entries = defaults overlaid with the manifest's overrides. */
 export function resolveScripts(manifest: Pick<ProjectManifest, 'scripts'>): Required<ProjectScripts> {
   return { ...DEFAULT_SCRIPTS, ...(manifest.scripts ?? {}) };
-}
-
-/** A fresh manifest for `new project`. */
-export function defaultManifest(name: string): ProjectManifest {
-  return { formatVersion: PROJECT_FORMAT_VERSION, name, defaultScene: 'assets/scenes/main.esscene' };
 }

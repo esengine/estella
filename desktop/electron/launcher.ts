@@ -12,6 +12,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import {
   PROJECT_MANIFEST_FILE,
+  isTransientProjectPath,
   parseManifest,
   type RecentEntry,
   type TemplateEntry,
@@ -101,37 +102,58 @@ export async function removeRecent(root: string): Promise<void> {
   await writeFile(recentsFile(), JSON.stringify(stored, null, 2));
 }
 
-// New-project templates. In dev these are the in-repo examples (each is a real
-// project dir); a packaged build would point this at a bundled templates dir.
-const templatesDir = (): string => path.join(process.env.APP_ROOT ?? '', '..', 'examples');
+// New-project template roots, in gallery order: bundled blank-slate starters
+// first, then the sample projects (each root holds real project dirs). Dev
+// reads the in-repo trees; a packaged app reads the copies electron-builder
+// stages under resources/ (extraResources — real files, outside the asar, so
+// createFromTemplate's directory copy works on them).
+const templateRoots = (): Array<{ root: string; kind: TemplateEntry['kind'] }> =>
+  app.isPackaged
+    ? [
+        { root: path.join(process.resourcesPath, 'templates'), kind: 'starter' },
+        { root: path.join(process.resourcesPath, 'examples'), kind: 'example' },
+      ]
+    : [
+        { root: path.join(process.env.APP_ROOT ?? '', 'templates'), kind: 'starter' },
+        { root: path.join(process.env.APP_ROOT ?? '', '..', 'examples'), kind: 'example' },
+      ];
 
 export async function listTemplates(): Promise<TemplateEntry[]> {
-  const root = templatesDir();
-  if (!existsSync(root)) return [];
   const out: TemplateEntry[] = [];
-  for (const entry of await readdir(root, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
-    const dir = path.join(root, entry.name);
-    if (!existsSync(path.join(dir, PROJECT_MANIFEST_FILE))) continue;
-    let description: string | undefined;
-    let tag: string | undefined;
-    try {
-      const m = parseManifest(JSON.parse(await readFile(path.join(dir, PROJECT_MANIFEST_FILE), 'utf8')));
-      description = m.description;
-      tag = m.tag;
-    } catch {
-      // keep name-only
+  const seen = new Set<string>();
+  for (const { root, kind } of templateRoots()) {
+    if (!existsSync(root)) continue;
+    for (const entry of await readdir(root, { withFileTypes: true })) {
+      if (!entry.isDirectory() || seen.has(entry.name)) continue;
+      const dir = path.join(root, entry.name);
+      if (!existsSync(path.join(dir, PROJECT_MANIFEST_FILE))) continue;
+      seen.add(entry.name);
+      let name = entry.name;
+      let description: string | undefined;
+      let tag: string | undefined;
+      try {
+        const m = parseManifest(JSON.parse(await readFile(path.join(dir, PROJECT_MANIFEST_FILE), 'utf8')));
+        name = m.name;
+        description = m.description;
+        tag = m.tag;
+      } catch {
+        // keep dir-name-only
+      }
+      out.push({ name, dir, kind, description, tag, thumbnail: await thumbnailUrl(dir) });
     }
-    out.push({ name: entry.name, dir, description, tag, thumbnail: await thumbnailUrl(dir) });
   }
   return out;
 }
 
-/** Copy a template into `<location>/<name>`, stamp the manifest name, return the new root. */
+/** Copy a template into `<location>/<name>`, stamp the manifest name, return the new root.
+ *  Transient state (`.esengine` staging, node_modules, …) stays behind. */
 export async function createFromTemplate(templateDir: string, location: string, name: string): Promise<string> {
   const dest = path.join(location, name);
   if (existsSync(dest)) throw new Error(`a folder already exists at ${dest}`);
-  await cp(templateDir, dest, { recursive: true });
+  await cp(templateDir, dest, {
+    recursive: true,
+    filter: (src) => !isTransientProjectPath(path.relative(templateDir, src)),
+  });
   const manifestPath = path.join(dest, PROJECT_MANIFEST_FILE);
   const m = parseManifest(JSON.parse(await readFile(manifestPath, 'utf8')));
   m.name = name;

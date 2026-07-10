@@ -1,0 +1,12 @@
+{
+  "formatVersion": "1",
+  "name": "Blank",
+  "description": "An empty scene with a camera — start from nothing.",
+  "version": "0.1.0",
+  "defaultScene": "assets/scenes/main.esscene",
+  "designResolution": {
+    "width": 800,
+    "height": 600
+  },
+  "spineVersion": "none"
+}

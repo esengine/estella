@@ -11,6 +11,9 @@ directories:
   output: release
 files:
   - dist/**
+  # Stale example zips from the retired zip-examples task (gitignored, may
+  # linger in contributors' public/ and ride into dist/) must not ship.
+  - "!dist/examples/**"
   - dist-electron/**
   - package.json
 # Trees the runtime consumes as REAL files, not through Electron's patched fs:
@@ -34,6 +37,24 @@ asarUnpack:
 extraResources:
   - from: ../build-tools/basis
     to: build-tools/basis
+  # New-project templates: the bundled blank-slate starter(s) plus the sample
+  # projects, staged as real directories (createFromTemplate copies a template
+  # with fs.cp, which cannot source from inside the asar). The launcher reads
+  # resources/templates then resources/examples — see electron/launcher.ts.
+  - from: templates
+    to: templates
+    filter:
+      - "**/*"
+      - "!**/.esengine/**"
+      - "!**/node_modules/**"
+      - "!**/dist/**"
+  - from: ../examples
+    to: examples
+    filter:
+      - "**/*"
+      - "!**/.esengine/**"
+      - "!**/node_modules/**"
+      - "!**/dist/**"
 win:
   target: nsis
 mac:

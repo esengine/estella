@@ -11,20 +11,25 @@ import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import * as logger from '../utils/logger.js';
 
-const EXAMPLES_DIR = 'examples';
+// Every project directory that ships to users: the examples plus the editor's
+// bundled new-project templates (desktop/templates).
+const PROJECT_ROOTS = ['examples', 'desktop/templates'];
 
 function discoverExamples(rootDir) {
-    const examplesPath = path.join(rootDir, EXAMPLES_DIR);
-    if (!existsSync(examplesPath)) return [];
-
-    return readdirSync(examplesPath)
-        .filter(entry => {
-            const fullPath = path.join(examplesPath, entry);
-            return statSync(fullPath).isDirectory() &&
+    const out = [];
+    for (const rel of PROJECT_ROOTS) {
+        const rootPath = path.join(rootDir, rel);
+        if (!existsSync(rootPath)) continue;
+        for (const entry of readdirSync(rootPath)) {
+            const fullPath = path.join(rootPath, entry);
+            if (statSync(fullPath).isDirectory() &&
                 existsSync(path.join(fullPath, 'tsconfig.json')) &&
-                existsSync(path.join(fullPath, 'src'));
-        })
-        .map(name => ({ name, dir: path.join(rootDir, EXAMPLES_DIR, name) }));
+                existsSync(path.join(fullPath, 'src'))) {
+                out.push({ name: entry, dir: fullPath });
+            }
+        }
+    }
+    return out;
 }
 
 function setupTypeLinks(exampleDir, rootDir) {

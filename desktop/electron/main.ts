@@ -82,7 +82,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 //   main.mjs    > Electron main
 //   preload.mjs > Preload scripts
 // dist/         > Vite renderer build
-// public/       > static assets (wasm, sdk, examples) in dev
+// public/       > static assets (wasm, sdk, verify scenes) in dev
 process.env.APP_ROOT = path.join(__dirname, '..');
 
 // Automation gets its own profile dir — never fight the live editor over cache locks.

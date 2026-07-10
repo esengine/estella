@@ -80,7 +80,6 @@ desktop/.cooked-src/
 .astro/
 
 # Examples
-desktop/public/examples/
 examples/tools/
 
 # OS files

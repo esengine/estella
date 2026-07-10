@@ -482,6 +482,19 @@
   align-items: flex-start;
   gap: 0;
 }
+/* Gallery group label — a full grid row, in the launcher's micro-label voice. */
+.lc-group {
+  grid-column: 1 / -1;
+  margin: 6px 0 -6px;
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+}
+.lc-group:first-child {
+  margin-top: 0;
+}
 
 .lc-create {
   width: 296px;
@@ -610,6 +623,11 @@
   margin: 64px auto;
   color: var(--text-dim);
   font-size: var(--fs-md);
+}
+.lc-empty__hint {
+  margin: -8px 0 0;
+  font-size: var(--fs-sm);
+  color: var(--text-faint);
 }
 
 /* One quiet page-load moment; off when reduced motion is requested. */
