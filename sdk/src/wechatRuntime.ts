@@ -159,10 +159,17 @@ export async function initWeChatRuntime(config: WeChatRuntimeConfig): Promise<vo
         resolveRef: resolvePath,
     };
 
-    const scenes: Array<{ name: string; data: SceneData }> = [];
+    // The first scene loads eagerly (the game boots into it); every other
+    // registers lazily by path — SceneManager fetches scenes/<name>.json
+    // through the runtime Assets (wx fs backend) on the first switchTo.
+    const scenes: Array<{ name: string; data?: SceneData; path?: string }> = [];
     for (const name of config.sceneNames) {
-        const sceneText = await platformReadTextFile(`scenes/${name}.json`);
-        scenes.push({ name, data: JSON.parse(sceneText) });
+        if (name === config.firstScene) {
+            const sceneText = await platformReadTextFile(`scenes/${name}.json`);
+            scenes.push({ name, data: JSON.parse(sceneText) as SceneData });
+        } else {
+            scenes.push({ name, path: `scenes/${name}.json` });
+        }
     }
 
     // The manifest rides into initRuntime, which sets it on the per-App runtime

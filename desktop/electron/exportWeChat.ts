@@ -26,6 +26,7 @@ import { writeFile, mkdir, cp, readFile, rename, stat, rm } from 'node:fs/promis
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { cookAssets } from './cookAssets';
+import type { ExportScene } from './exportGame';
 import type { OnExportProgress } from './exportProgress';
 import { esengineAlias } from './esengineResolve';
 import {
@@ -114,7 +115,9 @@ function projectConfigJson(title: string, appid: string, includeSuffixes: string
     miniprogramRoot: './',
     projectname: title,
     appid, // set in Project Settings → Packaging → WeChat (else fill in devtools)
-    setting: { es6: false, minified: false },
+    // bigPackageSizeSupport: devtools preview of a >4MB main package (upload
+    // still enforces the limit — move heavy content to subpackages/ to ship).
+    setting: { es6: false, minified: false, bigPackageSizeSupport: true },
     compileType: 'game',
     ...(includeSuffixes.length > 0
       ? { packOptions: { include: includeSuffixes.map((value) => ({ type: 'suffix', value })) } }
@@ -142,18 +145,19 @@ bundle.boot(engineFactory, sideModuleFactories);
 }
 
 /** The export-time mirror of the runtime's physics/spine self-gating: which
- *  optional modules the scene needs. A needed module absent from the wechat
- *  wasm dir is a HARD error — the package would otherwise ship silently broken
- *  (same contract as the playable exporter's collectSideModules). */
+ *  optional modules ANY shipped scene needs (a dynamically switched scene must
+ *  find its modules present). A needed module absent from the wechat wasm dir
+ *  is a HARD error — the package would otherwise ship silently broken (same
+ *  contract as the playable exporter's collectSideModules). */
 async function scanWeChatSideModules(
-  sceneData: unknown,
+  sceneDatas: unknown[],
   cookEntries: CookManifest['entries'],
   absOut: string,
   wasmDir: string,
   errors: string[],
 ): Promise<Array<{ id: string; file: string }>> {
   const ids = new Set<string>();
-  if (sceneData && sceneUsesPhysics(sceneData as Parameters<typeof sceneUsesPhysics>[0])) ids.add('physics');
+  if (sceneDatas.some((s) => s && sceneUsesPhysics(s as Parameters<typeof sceneUsesPhysics>[0]))) ids.add('physics');
   // Spine: the skeleton carries the version. Skeleton + atlas share the authored
   // meta type `spine`, so discriminate by extension — `.skel` is a binary
   // skeleton, `.json` a JSON one; the `.atlas` sibling is not a skeleton.
@@ -238,6 +242,9 @@ async function buildAddressableManifest(absOut: string): Promise<string> {
 export async function exportWeChat(opts: {
   root: string;
   entryScene: string;
+  /** Every switchable scene to ship (name + project-relative path, entry
+   *  included) — discovered by exportGame. Absent: the entry scene only. */
+  scenes?: ExportScene[];
   scriptsEntry?: string;
   sdkDir: string;
   wasmDir: string;
@@ -281,43 +288,65 @@ export async function exportWeChat(opts: {
 
   await mkdir(absOut, { recursive: true });
 
-  // 1. Cook reachable assets (paths preserved) + the flat manifest. KTX2
-  //    textures are fine here: the scan below sees the staged .ktx2 files and
-  //    ships the Basis transcoder side module with them.
+  // Every switchable scene ships; the exporter's caller (exportGame) discovers
+  // them from the project's scenes dir. Absent (tests / direct calls): entry only.
+  const scenes: ExportScene[] = opts.scenes ?? [
+    { name: path.basename(opts.entryScene).replace(/\.[^.]+$/, ''), path: opts.entryScene.replace(/\\/g, '/') },
+  ];
+  const sceneName = scenes.find((s) => s.path === opts.entryScene.replace(/\\/g, '/'))?.name ?? scenes[0].name;
+
+  // 1. Cook reachable assets from every scene root (paths preserved) + the flat
+  //    manifest. KTX2 textures are fine here: the scan below sees the staged
+  //    .ktx2 files and ships the Basis transcoder side module with them.
   progress({ phase: 'Cooking assets' });
-  const cook = await cookAssets(opts.root, { entryScenes: [opts.entryScene], outDir: absOut, contentAddressed: opts.contentAddressed, compressTextures: opts.compressTextures, atlasTextures: opts.atlasTextures });
+  const cook = await cookAssets(opts.root, { entryScenes: scenes.map((s) => s.path), outDir: absOut, contentAddressed: opts.contentAddressed, compressTextures: opts.compressTextures, atlasTextures: opts.atlasTextures });
   warnings.push(...cook.warnings);
 
-  // 1a. WeChat's code-package suffix whitelist has no `ktx2` — the packer
-  //     drops such files and fs reads are denied regardless of packOptions.
-  //     Re-stage KTX2 containers under the whitelisted `.bin` with a
-  //     truth-keeping compound suffix; the runtime's KTX2 detection
-  //     (isKtx2Path) accepts both spellings.
+  // 1a. Restage for WeChat's code-package suffix whitelist (it has no `ktx2`
+  //     or `esscene`; the packer drops such files and fs reads are denied
+  //     regardless of packOptions):
+  //       *.ktx2                → *.ktx2.bin (whitelisted; isKtx2Path accepts both)
+  //       assets/…/<x>.esscene  → scenes/<name>.json, @uuid: refs stripped to the
+  //                               bare uuids the WeChat resolver keys by; the
+  //                               manifest entry follows, so scene refs resolve
+  //                               to the readable file.
+  progress({ phase: 'Transforming scenes' });
   const flatManifestPath = path.join(absOut, 'assets.manifest.json');
+  let cookEntries: CookManifest['entries'] = [];
+  const sceneRawByName = new Map<string, unknown>();
   try {
     const flat = JSON.parse(await readFile(flatManifestPath, 'utf8')) as CookManifest;
-    let renamed = 0;
     for (const e of flat.entries) {
-      if (!e.path.toLowerCase().endsWith('.ktx2')) continue;
-      await rename(path.join(absOut, e.path), path.join(absOut, `${e.path}.bin`));
-      e.path = `${e.path}.bin`;
-      renamed++;
+      if (e.path.toLowerCase().endsWith('.ktx2')) {
+        await rename(path.join(absOut, e.path), path.join(absOut, `${e.path}.bin`));
+        e.path = `${e.path}.bin`;
+        continue;
+      }
+      const scene = scenes.find((s) => s.path === e.path);
+      if (scene) {
+        const staged = path.join(absOut, e.path);
+        const raw = JSON.parse(await readFile(staged, 'utf8'));
+        sceneRawByName.set(scene.name, raw);
+        const outPath = `scenes/${scene.name}.json`;
+        await mkdir(path.dirname(path.join(absOut, outPath)), { recursive: true });
+        await writeFile(path.join(absOut, outPath), JSON.stringify(stripUuidRefs(raw)) + '\n');
+        await rm(staged, { force: true });
+        e.path = outPath;
+      }
     }
-    if (renamed > 0) await writeFile(flatManifestPath, JSON.stringify(flat, null, 2));
-  } catch { /* no cook manifest — surfaces in step 2 */ }
+    await writeFile(flatManifestPath, JSON.stringify(flat, null, 2));
+    cookEntries = flat.entries;
+  } catch (err) {
+    errors.push(`scene transform: ${err instanceof Error ? err.message : String(err)}`);
+  }
 
-  // 1b. Scan the scene for the optional modules it needs (physics/spine), so the
-  //     generated entry requires exactly those — the export-time half of the
-  //     runtime's self-gating. Read the cook manifest + scene once and reuse below.
-  let cookEntries: CookManifest['entries'] = [];
-  let sceneRaw: unknown = null;
-  try {
-    cookEntries = (JSON.parse(await readFile(path.join(absOut, 'assets.manifest.json'), 'utf8')) as CookManifest).entries;
-  } catch { /* surfaces in step 2 */ }
-  try {
-    sceneRaw = JSON.parse(await readFile(path.join(absOut, opts.entryScene), 'utf8'));
-  } catch { /* surfaces in step 3 */ }
-  const sideModules = await scanWeChatSideModules(sceneRaw, cookEntries, absOut, opts.wasmDir, errors);
+  // 1b. Scan every scene for the optional modules it needs (physics/spine), so
+  //     the generated entry requires exactly those — the export-time half of
+  //     the runtime's self-gating. A dynamically switched scene must find its
+  //     modules present, so the union over ALL shipped scenes counts.
+  const sideModules = await scanWeChatSideModules([...sceneRawByName.values()], cookEntries, absOut, opts.wasmDir, errors);
+  const sceneRaw = sceneRawByName.get(sceneName) ?? null;
+  if (!sceneRaw) errors.push(`entry scene "${opts.entryScene}" was not staged by the cook`);
 
   // 2. Flat manifest → AddressableManifest (asset-manifest.json); drop the web one.
   progress({ phase: 'Building manifest' });
@@ -326,17 +355,6 @@ export async function exportWeChat(opts: {
     await rm(path.join(absOut, 'assets.manifest.json'), { force: true });
   } catch (err) {
     errors.push(`manifest: ${err instanceof Error ? err.message : String(err)}`);
-  }
-
-  // 3. Entry scene → scenes/<name>.json with @uuid: refs stripped to bare uuids.
-  progress({ phase: 'Transforming scene' });
-  const sceneName = path.basename(opts.entryScene).replace(/\.[^.]+$/, '');
-  try {
-    const raw = sceneRaw ?? JSON.parse(await readFile(path.join(absOut, opts.entryScene), 'utf8'));
-    await mkdir(path.join(absOut, 'scenes'), { recursive: true });
-    await writeFile(path.join(absOut, 'scenes', `${sceneName}.json`), JSON.stringify(stripUuidRefs(raw)) + '\n');
-  } catch (err) {
-    errors.push(`scene transform: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   // 4. game-bundle.js — wechat SDK (esengine aliased) + project scripts + boot(),
@@ -350,7 +368,7 @@ export async function exportWeChat(opts: {
     `import { initWeChatRuntime } from 'esengine';\n` +
     (scriptsAbs && existsSync(scriptsAbs) ? `import ${JSON.stringify(scriptsAbs)};\n` : '') +
     `export function boot(engineFactory, sideModuleFactories) {\n` +
-    `  return initWeChatRuntime({ engineFactory, engineWasmPath: ${JSON.stringify(engineWasmPath)}, sideModuleFactories, sceneNames: ${JSON.stringify([sceneName])}, firstScene: ${JSON.stringify(sceneName)}${opts.ySortLayers ? `, ySortLayers: ${opts.ySortLayers >>> 0}` : ''} });\n` +
+    `  return initWeChatRuntime({ engineFactory, engineWasmPath: ${JSON.stringify(engineWasmPath)}, sideModuleFactories, sceneNames: ${JSON.stringify(scenes.map((s) => s.name))}, firstScene: ${JSON.stringify(sceneName)}${opts.ySortLayers ? `, ySortLayers: ${opts.ySortLayers >>> 0}` : ''} });\n` +
     `}\n`;
   progress({ phase: 'Bundling game' });
   try {

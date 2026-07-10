@@ -34,7 +34,7 @@ import { buildPlayRealm } from './buildPlayRealm';
 import { syncSdkTypes } from './syncSdkTypes';
 import { installCrashCapture, logsDir } from './resilience';
 import { checkForUpdate } from './updateCheck';
-import { resolveScripts } from '../src/project/format';
+import { resolveLayout, resolveScripts } from '../src/project/format';
 import type { WorkspaceState } from '../src/project/format';
 
 // Enable WebGPU in the renderer so the viewport's WebGPU backend (Settings →
@@ -532,6 +532,7 @@ ipcMain.handle(
     return exportGame({
       root,
       entryScene,
+      scenesDir: resolveLayout(manifest).scenes,
       ySortLayers,
       gameHostEntry: path.join(HOSTS_DIR, 'gameHost.js'),
       playableHostEntry: path.join(HOSTS_DIR, 'playableHost.js'),

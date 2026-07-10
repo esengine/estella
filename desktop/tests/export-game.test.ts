@@ -131,6 +131,34 @@ describe('exportGame', () => {
     expect(existsSync(path.join(out2, 'game.js'))).toBe(true);
   }, 60_000);
 
+  it('ships every scene in the scenes dir, listed in game.config.json', async () => {
+    const LV2SCN = '77777777-7777-7777-7777-777777777777';
+    writeFileSync(
+      path.join(root, 'scenes', 'level2.esscene'),
+      JSON.stringify({ version: '1.0', name: 'Level2', entities: [] }),
+    );
+    writeFileSync(path.join(root, 'scenes', 'level2.esscene.meta'), meta(LV2SCN, 'scene'));
+    const outMulti = path.join(root, 'dist-game-multi');
+    const res = await exportGame({
+      root,
+      entryScene: 'scenes/main.esscene',
+      gameHostEntry: GAME_HOST,
+      scriptsEntry: 'src/main.ts',
+      sdkDistDir: path.join(root, '_sdk'),
+      wasmDir: path.join(root, '_wasm'),
+      outDir: outMulti,
+      title: 'My Game',
+    });
+    expect(res.ok).toBe(true);
+    // Both scenes staged (web serves .esscene as-is) and listed for the host's
+    // SceneManager registration — entry eager, the rest lazy by path.
+    expect(existsSync(path.join(outMulti, 'scenes/level2.esscene'))).toBe(true);
+    const cfg = JSON.parse(readFileSync(path.join(outMulti, 'game.config.json'), 'utf8'));
+    expect(cfg.scenes).toContainEqual({ name: 'main', path: 'scenes/main.esscene' });
+    expect(cfg.scenes).toContainEqual({ name: 'level2', path: 'scenes/level2.esscene' });
+    expect(cfg.scenes[0]).toEqual({ name: 'main', path: 'scenes/main.esscene' }); // entry first
+  }, 60_000);
+
   it('fails when the wasm runtime is missing — the build cannot boot without it', async () => {
     const out3 = path.join(root, 'dist-game-nowasm');
     const res = await exportGame({

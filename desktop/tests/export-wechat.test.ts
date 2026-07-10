@@ -162,11 +162,14 @@ describe('exportGame (wechat)', () => {
     const SPINESCN = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
     writeFileSync(path.join(root, 'assets', 'boy.json'), JSON.stringify({ skeleton: { spine: '4.2.22' } }));
     writeFileSync(path.join(root, 'assets', 'boy.json.meta'), meta(SPINE, 'spine'));
+    // Own scenes dir: scene discovery walks the entry's dir, and this test's
+    // scene must not leak into the other exports (nor theirs into this one).
+    mkdirSync(path.join(root, 'scenes-spine'), { recursive: true });
     writeFileSync(
-      path.join(root, 'scenes', 'spine.esscene'),
+      path.join(root, 'scenes-spine', 'spine.esscene'),
       JSON.stringify({ version: '1.0', name: 'Spine', entities: [{ id: 0, components: [{ type: 'SpineSkeleton', data: { skeleton: `@uuid:${SPINE}` } }] }] }),
     );
-    writeFileSync(path.join(root, 'scenes', 'spine.esscene.meta'), meta(SPINESCN, 'scene'));
+    writeFileSync(path.join(root, 'scenes-spine', 'spine.esscene.meta'), meta(SPINESCN, 'scene'));
     const wxDir = path.join(root, '_wxwasm-spine');
     mkdirSync(wxDir, { recursive: true });
     writeFileSync(path.join(wxDir, 'esengine.js'), 'module.exports = () => Promise.resolve({});');
@@ -177,7 +180,7 @@ describe('exportGame (wechat)', () => {
     const outSpine = path.join(root, 'dist-wechat-spine');
     const res = await exportGame({
       root,
-      entryScene: 'scenes/spine.esscene',
+      entryScene: 'scenes-spine/spine.esscene',
       gameHostEntry: 'unused-for-wechat',
       scriptsEntry: 'src/main.ts',
       sdkDistDir: path.join(root, '_sdk'),
@@ -189,10 +192,11 @@ describe('exportGame (wechat)', () => {
     const entry = readFileSync(path.join(outSpine, 'game.js'), 'utf8');
     expect(entry).toContain("\"spine:4.2\": asFactory(require('./wasm/spine42.js'))");
     expect(existsSync(path.join(outSpine, 'wasm', 'spine42.wasm'))).toBe(true);
+    // Scenes restage as scenes/<name>.json, so no .esscene ships — and native
+    // types stay out of the include list; it exists for the custom ones.
     const spcfg = JSON.parse(readFileSync(path.join(outSpine, 'project.config.json'), 'utf8'));
-    expect(spcfg.packOptions.include).toContainEqual({ type: 'suffix', value: '.esscene' });
-    // Native types stay out of the include list — it exists for the custom ones.
-    expect(spcfg.packOptions.include).not.toContainEqual({ type: 'suffix', value: '.json' });
+    expect(spcfg.packOptions?.include ?? []).not.toContainEqual({ type: 'suffix', value: '.esscene' });
+    expect(spcfg.packOptions?.include ?? []).not.toContainEqual({ type: 'suffix', value: '.json' });
     // The manifest keeps the real addressable type, not a 'binary' downgrade.
     const manifest = JSON.parse(readFileSync(path.join(outSpine, 'asset-manifest.json'), 'utf8'));
     expect(manifest.groups.main.assets[SPINE].type).toBe('spine');
@@ -202,7 +206,7 @@ describe('exportGame (wechat)', () => {
     const outBroken = path.join(root, 'dist-wechat-spine-missing');
     const res = await exportGame({
       root,
-      entryScene: 'scenes/spine.esscene',
+      entryScene: 'scenes-spine/spine.esscene',
       gameHostEntry: 'unused-for-wechat',
       scriptsEntry: 'src/main.ts',
       sdkDistDir: path.join(root, '_sdk'),
@@ -219,11 +223,12 @@ describe('exportGame (wechat)', () => {
     const KTXSCN = 'abababab-abab-abab-abab-abababababab';
     writeFileSync(path.join(root, 'assets', 'pre.ktx2'), 'KTX2BYTES');
     writeFileSync(path.join(root, 'assets', 'pre.ktx2.meta'), meta(KTX, 'texture'));
+    mkdirSync(path.join(root, 'scenes-ktx2'), { recursive: true });
     writeFileSync(
-      path.join(root, 'scenes', 'ktx2.esscene'),
+      path.join(root, 'scenes-ktx2', 'ktx2.esscene'),
       JSON.stringify({ version: '1.0', name: 'Ktx', entities: [{ id: 0, components: [{ type: 'Sprite', data: { texture: `@uuid:${KTX}` } }] }] }),
     );
-    writeFileSync(path.join(root, 'scenes', 'ktx2.esscene.meta'), meta(KTXSCN, 'scene'));
+    writeFileSync(path.join(root, 'scenes-ktx2', 'ktx2.esscene.meta'), meta(KTXSCN, 'scene'));
     const wxDir = path.join(root, '_wxwasm-basis');
     mkdirSync(wxDir, { recursive: true });
     writeFileSync(path.join(wxDir, 'esengine.js'), 'module.exports = () => Promise.resolve({});');
@@ -234,7 +239,7 @@ describe('exportGame (wechat)', () => {
     const outKtx = path.join(root, 'dist-wechat-ktx2');
     const res = await exportGame({
       root,
-      entryScene: 'scenes/ktx2.esscene',
+      entryScene: 'scenes-ktx2/ktx2.esscene',
       gameHostEntry: 'unused-for-wechat',
       scriptsEntry: 'src/main.ts',
       sdkDistDir: path.join(root, '_sdk'),
@@ -262,7 +267,7 @@ describe('exportGame (wechat)', () => {
     const outNoBasis = path.join(root, 'dist-wechat-ktx2-missing');
     const res = await exportGame({
       root,
-      entryScene: 'scenes/ktx2.esscene',
+      entryScene: 'scenes-ktx2/ktx2.esscene',
       gameHostEntry: 'unused-for-wechat',
       scriptsEntry: 'src/main.ts',
       sdkDistDir: path.join(root, '_sdk'),
@@ -296,7 +301,60 @@ describe('exportGame (wechat)', () => {
     // the runtime's ManifestModel + catalog resolve path refs through it.
     expect(tex.path).toMatch(/^assets\/[0-9a-f]{16}\.png$/);
     expect(tex.address).toBe('assets/hero.png');
-    // Scenes keep their logical path and carry no address.
-    expect(manifest.groups.main.assets[SCN].address).toBeUndefined();
+    // The scene restaged to scenes/<name>.json keeps its logical path as the
+    // address, so scene refs resolve to the WeChat-readable file.
+    expect(manifest.groups.main.assets[SCN].path).toBe('scenes/main.json');
+    expect(manifest.groups.main.assets[SCN].address).toBe('scenes/main.esscene');
+  }, 60_000);
+
+  it('ships every scene in the scenes dir as a switchable SceneManager target', async () => {
+    const LV2TEX = '99999999-9999-9999-9999-999999999999';
+    const LV2SCN = '88888888-8888-8888-8888-888888888888';
+    mkdirSync(path.join(root, 'scenes-multi'), { recursive: true });
+    writeFileSync(
+      path.join(root, 'scenes-multi', 'main.esscene'),
+      JSON.stringify({ version: '1.0', name: 'Main', entities: [{ id: 0, components: [{ type: 'Sprite', data: { texture: `@uuid:${TEX}` } }] }] }),
+    );
+    writeFileSync(path.join(root, 'scenes-multi', 'main.esscene.meta'), meta('12121212-1212-1212-1212-121212121212', 'scene'));
+    writeFileSync(path.join(root, 'assets', 'lv2.png'), 'PNG3DATA');
+    writeFileSync(path.join(root, 'assets', 'lv2.png.meta'), meta(LV2TEX, 'texture'));
+    writeFileSync(
+      path.join(root, 'scenes-multi', 'level2.esscene'),
+      JSON.stringify({ version: '1.0', name: 'Level2', entities: [{ id: 0, components: [{ type: 'Sprite', data: { texture: `@uuid:${LV2TEX}` } }] }] }),
+    );
+    writeFileSync(path.join(root, 'scenes-multi', 'level2.esscene.meta'), meta(LV2SCN, 'scene'));
+
+    const outMulti = path.join(root, 'dist-wechat-multi');
+    const res = await exportGame({
+      root,
+      entryScene: 'scenes-multi/main.esscene',
+      gameHostEntry: 'unused-for-wechat',
+      scriptsEntry: 'src/main.ts',
+      sdkDistDir: path.join(root, '_sdk'),
+      wasmDir: path.join(root, '_wxwasm'),
+      outDir: outMulti,
+      platform: 'wechat',
+    });
+    expect(res.ok).toBe(true);
+
+    // Both scenes transformed; the staged .esscene sources (not in WeChat's
+    // suffix whitelist) are gone, their manifest entries following the move.
+    expect(existsSync(path.join(outMulti, 'scenes', 'main.json'))).toBe(true);
+    expect(existsSync(path.join(outMulti, 'scenes', 'level2.json'))).toBe(true);
+    expect(existsSync(path.join(outMulti, 'scenes-multi', 'main.esscene'))).toBe(false);
+    expect(existsSync(path.join(outMulti, 'scenes-multi', 'level2.esscene'))).toBe(false);
+    const manifest = JSON.parse(readFileSync(path.join(outMulti, 'asset-manifest.json'), 'utf8'));
+    expect(manifest.groups.main.assets[LV2SCN].path).toBe('scenes/level2.json');
+    // The second scene is a cook root: its assets ship even though the entry
+    // scene never references them.
+    expect(manifest.groups.main.assets[LV2TEX].path).toBe('assets/lv2.png');
+    // Boot registers every scene, booting into the entry.
+    const bundle = readFileSync(path.join(outMulti, 'game-bundle.js'), 'utf8');
+    expect(bundle).toContain('"main"');
+    expect(bundle).toContain('"level2"');
+    expect(bundle).toContain('firstScene: "main"');
+    // No .esscene rides in packOptions — nothing ships under that suffix.
+    const pcfg = JSON.parse(readFileSync(path.join(outMulti, 'project.config.json'), 'utf8'));
+    expect(pcfg.packOptions?.include ?? []).not.toContainEqual({ type: 'suffix', value: '.esscene' });
   }, 60_000);
 });

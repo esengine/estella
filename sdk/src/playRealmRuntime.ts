@@ -34,6 +34,12 @@ export interface PlayRealmRuntimeConfig {
     canvas: HTMLCanvasElement;
     /** The current scene as RAW (`@uuid:`) SceneData — handles are realm-local. */
     sceneData: SceneData;
+    /** Additional switchable scenes beyond the entry (SceneManager targets).
+     *  `path` entries load lazily through the runtime Assets on first switch. */
+    extraScenes?: Array<{ name: string; data?: SceneData; path?: string }>;
+    /** SceneManager name of the entry `sceneData` (default '__play'). Shipped
+     *  builds pass the real scene name so game code can switch back to it. */
+    entrySceneName?: string;
     /** Lowercased uuid → fetchable URL (e.g. `estella://project/<path>`). */
     assetManifest: Record<string, string>;
     /**
@@ -148,13 +154,17 @@ export async function initPlayRealmRuntime(config: PlayRealmRuntimeConfig): Prom
             (ref) => resolvePlayAssetRef(ref, assetManifest, assetBaseUrl, config.assetPathMap),
         );
     }
+    const entryName = config.entrySceneName ?? '__play';
     await initRuntime({
         app,
         module,
         source,
         catalog: config.catalogData ? Catalog.fromJson(config.catalogData) : undefined,
-        scenes: [{ name: '__play', data: sceneData }],
-        firstScene: '__play',
+        scenes: [
+            { name: entryName, data: sceneData },
+            ...(config.extraScenes ?? []).filter((s) => s.name !== entryName),
+        ],
+        firstScene: entryName,
         aspectRatio: canvas.width / canvas.height,
         physicsEnabled: config.physicsEnabled,
         physicsConfig: config.physicsConfig,

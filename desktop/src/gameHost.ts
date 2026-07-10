@@ -16,6 +16,8 @@ import type { CatalogData, CookedAtlasInfo, ESEngineModule, SceneData } from 'es
 
 interface GameConfig {
   entryScene: string;
+  /** Every switchable scene (SceneManager name + cooked path); includes the entry. */
+  scenes?: Array<{ name: string; path: string }>;
   /** Bitmask of render layers (0..31) that y-sort within the layer. */
   ySortLayers?: number;
 }
@@ -119,11 +121,20 @@ async function boot(): Promise<void> {
   // physics.wasm sits next to esengine.wasm; the runtime loads it when the scene
   // uses physics. (Runtime-spawned bodies still need a build-time enable flag —
   // a follow-up that cooks features.physics into game.config.json.)
+  // The entry scene boots eagerly (already fetched); every other shipped scene
+  // registers lazily by path, so SceneManager.switchTo('name') fetches it on
+  // first use — the same registration shape the WeChat runtime uses.
+  const sceneList = cfg.scenes ?? [];
+  const entryName = sceneList.find((s) => s.path === cfg.entryScene)?.name;
   await initPlayRealmRuntime({
     app,
     module,
     canvas,
     sceneData,
+    entrySceneName: entryName,
+    extraScenes: sceneList
+      .filter((s) => s.path !== cfg.entryScene)
+      .map((s) => ({ name: s.name, path: `./${s.path}` })),
     assetManifest,
     assetPathMap: pathMap,
     catalogData: catalog,

@@ -21,7 +21,7 @@
  */
 import type { BuildOptions } from 'esbuild';
 import { loadEsbuild } from './esbuildRuntime';
-import { writeFile, mkdir, cp } from 'node:fs/promises';
+import { writeFile, mkdir, cp, readdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { cookAssets } from './cookAssets';
@@ -32,6 +32,46 @@ import type { OnExportProgress } from './exportProgress';
 import { ESENGINE_EXTERNAL } from './esengineResolve';
 
 export type ExportPlatform = 'web' | 'desktop' | 'wechat' | 'playable';
+
+/** A switchable scene the export ships: SceneManager name + project-relative path. */
+export interface ExportScene {
+  name: string;
+  path: string;
+}
+
+/**
+ * Every scene the shipped game can switch to: all `.esscene` under the
+ * project's scenes dir plus the entry scene wherever it lives. Names are the
+ * scenes-dir-relative path without extension ('main', 'levels/boss') — the
+ * stable ids game code passes to `SceneManager.switchTo`; a scene outside the
+ * scenes dir is named by its project-relative path. The entry always sorts
+ * first. Cook reachability runs from ALL of these roots, so every scene's
+ * assets ship (playable stays entry-only: a size-capped single file).
+ */
+export async function discoverProjectScenes(root: string, entryScene: string, scenesDir?: string): Promise<ExportScene[]> {
+  const dir = (scenesDir ?? path.dirname(entryScene)).replace(/\\/g, '/');
+  const sceneName = (projectPath: string): string => {
+    const p = projectPath.replace(/\\/g, '/');
+    const rel = p.startsWith(`${dir}/`) ? p.slice(dir.length + 1) : p;
+    return rel.replace(/\.esscene$/i, '');
+  };
+  const scenes: ExportScene[] = [{ name: sceneName(entryScene), path: entryScene.replace(/\\/g, '/') }];
+  const absDir = path.join(root, dir);
+  if (existsSync(absDir)) {
+    const walk = async (sub: string): Promise<void> => {
+      for (const entry of await readdir(path.join(absDir, sub), { withFileTypes: true })) {
+        const rel = sub ? `${sub}/${entry.name}` : entry.name;
+        if (entry.isDirectory()) await walk(rel);
+        else if (/\.esscene$/i.test(entry.name)) {
+          const projectPath = `${dir}/${rel}`;
+          if (projectPath !== scenes[0].path) scenes.push({ name: sceneName(projectPath), path: projectPath });
+        }
+      }
+    };
+    await walk('');
+  }
+  return scenes;
+}
 
 export interface ExportGameResult {
   ok: boolean;
@@ -201,6 +241,9 @@ async function stageDesktopApp(absOut: string, title: string, appId?: string, pr
 export async function exportGame(opts: {
   root: string;
   entryScene: string;
+  /** Project-relative scenes dir (manifest layout); default the entry's dir.
+   *  Every `.esscene` under it ships as a switchable scene. */
+  scenesDir?: string;
   gameHostEntry: string;
   /** Project-relative startup entry (e.g. src/main.ts) → bundled to scripts.mjs. */
   scriptsEntry?: string;
@@ -237,12 +280,14 @@ export async function exportGame(opts: {
   const platform = opts.platform ?? 'web';
   const title = opts.title ?? 'Game';
   const progress = opts.onProgress ?? (() => {});
+  const scenes = await discoverProjectScenes(opts.root, opts.entryScene, opts.scenesDir);
 
   // WeChat has no import maps + a different module/asset model → its own pipeline.
   if (platform === 'wechat') {
     return exportWeChat({
       root: opts.root,
       entryScene: opts.entryScene,
+      scenes,
       scriptsEntry: opts.scriptsEntry,
       sdkDir: opts.sdkDistDir,
       wasmDir: opts.wasmDir,
@@ -295,9 +340,10 @@ export async function exportGame(opts: {
     logLevel: 'silent',
   };
 
-  // 1. Cook reachable assets + manifest (the entry scene file is staged too).
+  // 1. Cook reachable assets + manifest, from EVERY shippable scene as a root
+  //    (the scene files themselves are staged too).
   progress({ phase: 'Cooking assets' });
-  const cook = await cookAssets(opts.root, { entryScenes: [opts.entryScene], outDir: payloadDir, contentAddressed: opts.contentAddressed ?? true, compressTextures: opts.compressTextures, atlasTextures: opts.atlasTextures });
+  const cook = await cookAssets(opts.root, { entryScenes: scenes.map((s) => s.path), outDir: payloadDir, contentAddressed: opts.contentAddressed ?? true, compressTextures: opts.compressTextures, atlasTextures: opts.atlasTextures });
   warnings.push(...cook.warnings);
   progress({ phase: 'Cooking assets', detail: `${cook.included.length} reachable` });
 
@@ -337,7 +383,7 @@ export async function exportGame(opts: {
   await writeFile(
     path.join(payloadDir, 'game.config.json'),
     JSON.stringify(
-      { entryScene: opts.entryScene, ...(opts.ySortLayers ? { ySortLayers: opts.ySortLayers } : {}) },
+      { entryScene: opts.entryScene, scenes, ...(opts.ySortLayers ? { ySortLayers: opts.ySortLayers } : {}) },
       null, 2,
     ) + '\n',
   );

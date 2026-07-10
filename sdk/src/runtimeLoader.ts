@@ -289,13 +289,23 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
 
 export function createRuntimeSceneConfig(
     name: string,
-    sceneData: SceneData,
+    sceneData: SceneData | undefined,
     options: Omit<LoadRuntimeSceneOptions, 'sceneData' | 'sceneName'>,
+    scenePath?: string,
 ): SceneConfig {
     return {
         name,
         async setup() {
-            await loadRuntimeScene({ ...options, sceneData, sceneName: name });
+            let data = sceneData;
+            if (!data) {
+                // Lazy scene: fetch by path through the per-App runtime Assets
+                // (installed by initRuntime before any scene loads), so the data
+                // arrives via the realm's backend/resolver — http on web, wx fs
+                // on WeChat — only when the game actually switches to it.
+                if (!scenePath) throw new Error(`scene "${name}" registered with neither data nor path`);
+                data = await options.app.getResource(AssetsResource).fetchJson<SceneData>(scenePath);
+            }
+            await loadRuntimeScene({ ...options, sceneData: data, sceneName: name });
         },
     };
 }
@@ -318,7 +328,10 @@ export interface RuntimeInitConfig {
      * without one. Applied when the per-App runtime Assets is first created.
      */
     catalog?: Catalog;
-    scenes: Array<{ name: string; data: SceneData }>;
+    /** Every scene the game can switch to. `data` loads eagerly at register
+     *  time; `path` registers a lazy scene fetched through the runtime Assets
+     *  on first {@link SceneManagerState.switchTo}/load. One of the two. */
+    scenes: Array<{ name: string; data?: SceneData; path?: string }>;
     firstScene: string;
     spineModule?: SpineWasmModule | null;
     spineManager?: SpineManager | null;
@@ -356,7 +369,7 @@ export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
 
     const mgr = app.getResource(SceneManager);
     for (const scene of config.scenes) {
-        mgr.register(createRuntimeSceneConfig(scene.name, scene.data, sceneOpts));
+        mgr.register(createRuntimeSceneConfig(scene.name, scene.data, sceneOpts, scene.path));
     }
 
     if (firstScene) {
