@@ -1,0 +1,12 @@
+#!/bin/sh
+# Pre-push guard: run the cheap CI static gates locally so a public-API surface
+# drift (a changed export without a refreshed sdk/etc/*.api.md snapshot) is caught
+# before it reddens master — not after, as a follow-up fix commit. Mirrors the
+# fast checks in the CI "Tests" job; keep it to seconds so pushing stays cheap.
+if ! pnpm run verify; then
+  echo ''
+  echo '✗ push blocked by pre-push verify.'
+  echo '  API surface drifted?  node tools/api-surface.mjs --update   (then commit the refreshed sdk/etc/*.api.md)'
+  echo '  To bypass in a real emergency:  git push --no-verify'
+  exit 1
+fi
