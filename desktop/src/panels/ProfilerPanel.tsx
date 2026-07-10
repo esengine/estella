@@ -10,6 +10,10 @@ import { PerfMonitor } from '@/engine/PerfMonitor';
 const BUDGET_MS = 1000 / 60; // 60 Hz frame budget (16.6ms)
 const BUDGET_30 = 1000 / 30; // 30 Hz (33.3ms) — the hitch threshold
 
+// GPU/VRAM metric identity — a teal deliberately outside the panel palette so
+// the third series never reads as accent or warning.
+const GPU_COLOR = '#3fb2b2';
+
 function kfmt(n: number): string {
   return n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : String(n);
 }
@@ -73,7 +77,7 @@ function MemGraph({ hist }: { hist: Array<{ wasm: number; js: number; vram: numb
     if (!n) return;
     let max = 1;
     for (const m of hist) max = Math.max(max, m.wasm, m.js, m.vram);
-    const colors = { wasm: cssVar(cv, '--warn', '#d3a23c'), js: cssVar(cv, '--star', '#2f88d6'), vram: '#3fb2b2' };
+    const colors = { wasm: cssVar(cv, '--warn', '#d3a23c'), js: cssVar(cv, '--star', '#2f88d6'), vram: GPU_COLOR };
     const line = (key: 'wasm' | 'js' | 'vram') => {
       ctx.strokeStyle = colors[key];
       ctx.lineWidth = 1.25;
@@ -113,7 +117,7 @@ function FrameGraph({ frames, pinnedId }: { frames: number[]; pinnedId: number |
 
     const accent = cssVar(cv, '--star', '#2f88d6');
     const warn = cssVar(cv, '--warn', '#d3a23c');
-    const err = cssVar(cv, '--error', '#d3564b');
+    const err = cssVar(cv, '--error', '#d65a5a');
     const grid = cssVar(cv, '--text-faint', '#696a71');
     const hi = cssVar(cv, '--text-hi', '#e8e9eb');
 
@@ -284,7 +288,7 @@ export function ProfilerPanel() {
               <div><span>fps</span><b>{s.fps}</b></div>
               <div><span>p50</span><b>{s.p50}<i>ms</i></b></div>
               <div><span>p95</span><b>{s.p95}<i>ms</i></b></div>
-              <div><span>p99</span><b style={{ color: p99Bad ? 'var(--warn, #e5a33b)' : undefined }}>{s.p99}<i>ms</i></b></div>
+              <div><span>p99</span><b style={{ color: p99Bad ? 'var(--warn)' : undefined }}>{s.p99}<i>ms</i></b></div>
             </div>
             <div className="prof-budget">
               budget {BUDGET_MS.toFixed(1)}ms · {s.longFrames} long frame{s.longFrames === 1 ? '' : 's'}
@@ -304,7 +308,7 @@ export function ProfilerPanel() {
         <Seg label="editor" ms={v.editorMs} frame={frame} color="var(--star, #2f88d6)" />
         <Seg label={presentLabel} ms={other} frame={frame} color="var(--text-mute, #888)" />
         {v.gpuMs >= 0 ? (
-          <Seg label="gpu" ms={v.gpuMs} frame={frame} color="#3fb2b2" />
+          <Seg label="gpu" ms={v.gpuMs} frame={frame} color={GPU_COLOR} />
         ) : (
           <div className="prof-row">
             <span className="prof-key">gpu</span>
@@ -343,9 +347,9 @@ export function ProfilerPanel() {
         <h4>Memory</h4>
         <MemGraph hist={s.memHist} />
         <div className="prof-stat-grid">
-          <div><span style={{ color: 'var(--warn, #d3a23c)' }}>wasm</span><b>{s.wasmMB}<i>MB</i></b></div>
-          <div><span style={{ color: 'var(--star, #2f88d6)' }}>js heap</span><b>{s.jsHeapMB || '—'}<i>{s.jsHeapMB ? 'MB' : ''}</i></b></div>
-          <div><span style={{ color: '#3fb2b2' }}>vram</span><b>{s.vramMB}<i>MB</i></b></div>
+          <div><span style={{ color: 'var(--warn)' }}>wasm</span><b>{s.wasmMB}<i>MB</i></b></div>
+          <div><span style={{ color: 'var(--star)' }}>js heap</span><b>{s.jsHeapMB || '—'}<i>{s.jsHeapMB ? 'MB' : ''}</i></b></div>
+          <div><span style={{ color: GPU_COLOR }}>vram</span><b>{s.vramMB}<i>MB</i></b></div>
         </div>
         {s.jsHeapLimitMB ? <div className="prof-budget">js heap limit {s.jsHeapLimitMB}MB</div> : null}
       </section>

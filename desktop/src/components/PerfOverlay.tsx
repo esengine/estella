@@ -7,11 +7,11 @@
 import { useSyncExternalStore } from 'react';
 import { PerfMonitor } from '@/engine/PerfMonitor';
 
-const mute = 'var(--text-mute, #888)';
+const mute = 'var(--text-mute)';
 
 export function PerfOverlay() {
   const s = useSyncExternalStore(PerfMonitor.subscribe, PerfMonitor.getSnapshot);
-  const warn = 'var(--warn, #e5a33b)';
+  const warn = 'var(--warn)';
   const p99Bad = s.p99 >= 24;
   return (
     <div
@@ -23,16 +23,16 @@ export function PerfOverlay() {
         right: 10,
         zIndex: 4,
         pointerEvents: 'none',
-        font: 'var(--fs-xs, 11px) var(--mono, ui-monospace, monospace)',
+        font: 'var(--fs-xs) var(--mono)',
         lineHeight: 1.55,
-        color: 'var(--text-dim, #cfcfcf)',
-        background: 'rgba(18, 18, 21, 0.72)',
+        color: 'var(--text-dim)',
+        background: 'rgba(var(--glass-rgb), 0.72)',
         backdropFilter: 'blur(14px)',
         WebkitBackdropFilter: 'blur(14px)',
-        border: '1px solid var(--border-line, #333)',
-        borderRadius: 'var(--r-lg, 10px)',
+        border: '1px solid var(--border-line)',
+        borderRadius: 'var(--r-lg)',
         padding: '7px 9px',
-        boxShadow: 'var(--shadow-2, 0 4px 14px rgba(0,0,0,0.35))',
+        boxShadow: 'var(--shadow-2)',
       }}
     >
       <div>

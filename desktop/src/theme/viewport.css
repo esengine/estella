@@ -11,7 +11,7 @@
   align-items: center;
   gap: 1px;
   padding: 3px;
-  background: rgba(18, 18, 21, 0.72);
+  background: rgba(var(--glass-rgb), 0.72);
   -webkit-backdrop-filter: blur(16px) saturate(1.1);
   backdrop-filter: blur(16px) saturate(1.1);
   border: 1px solid var(--border-line);
@@ -63,7 +63,7 @@
   position: absolute;
   top: calc(100% + 6px);
   min-width: 188px;
-  background: rgba(24, 24, 28, 0.96);
+  background: rgba(var(--glass-rgb), 0.96);
   -webkit-backdrop-filter: blur(20px);
   backdrop-filter: blur(20px);
   border: 1px solid var(--border-line);
@@ -132,7 +132,7 @@
   z-index: 4;
   min-width: 128px;
   padding: 7px 9px;
-  background: rgba(18, 18, 21, 0.72);
+  background: rgba(var(--glass-rgb), 0.72);
   -webkit-backdrop-filter: blur(14px);
   backdrop-filter: blur(14px);
   border: 1px solid var(--border-line);
@@ -163,7 +163,7 @@
   pointer-events: none;
 }
 .vp-coord .ro {
-  background: rgba(18, 18, 21, 0.72);
+  background: rgba(var(--glass-rgb), 0.72);
   -webkit-backdrop-filter: blur(14px);
   backdrop-filter: blur(14px);
   border: 1px solid var(--border-line);
@@ -172,11 +172,11 @@
   width: max-content;
 }
 .vp-coord .ro strong { color: var(--text); }
-.vp-coord .ro .hud-tile { color: #58b6e6; }
+.vp-coord .ro .hud-tile { color: var(--gizmo-tile); }
 .vp-coord .hint { color: var(--text-mute); font-family: var(--sans); padding-left: 2px; }
 
 /* Play In Viewport (UE5 PIE): the realm iframe overlays the stage while playing. */
-.viewport__play { position: absolute; inset: 0; z-index: 6; background: #0e121b; }
+.viewport__play { position: absolute; inset: 0; z-index: 6; background: var(--srf-1); }
 .viewport__play-host { position: absolute; inset: 0; }
 .viewport__play-host iframe { width: 100%; height: 100%; border: 0; display: block; }
 .viewport__play-status {
@@ -213,7 +213,7 @@
 .viewport__play-stop:hover { background: var(--run-hi); }
 
 /* Game view (isolated play realm iframe) — REARCH_EDITOR_REALM Phase R. */
-.game-panel { position: relative; width: 100%; height: 100%; background: #0e121b; overflow: hidden; }
+.game-panel { position: relative; width: 100%; height: 100%; background: var(--srf-1); overflow: hidden; }
 .game-panel__host { position: absolute; inset: 0; }
 .game-panel__overlay {
   position: absolute;

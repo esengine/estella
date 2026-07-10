@@ -21,6 +21,7 @@ import { joinFolder, folderParent, folderName, normalizeFolder, isFolderUnder } 
 import type { EntityId } from '@/types';
 import { type EntityTemplate } from '@/engine/entityTemplates';
 import { CreatePopover } from '@/components/CreatePopover';
+import { Segmented } from '@/components/Segmented';
 
 // Must match .row height in outliner.css — the fixed row size the virtual list windows by.
 const ROW_H = 24;
@@ -608,12 +609,16 @@ export function Outliner() {
     <div className="panel">
       {isPlaying && (
         <div className="world-pick">
-          <button type="button" className={gameMode ? '' : 'on'} onClick={() => setInspectWorld('editor')}>
-            Editor
-          </button>
-          <button type="button" className={gameMode ? 'on' : ''} onClick={() => setInspectWorld('game')}>
-            Game
-          </button>
+          <Segmented
+            grow
+            ariaLabel="Inspected world"
+            value={gameMode ? 'game' : 'editor'}
+            options={[
+              { value: 'editor', label: 'Editor' },
+              { value: 'game', label: 'Game' },
+            ]}
+            onChange={(v) => setInspectWorld(v)}
+          />
         </div>
       )}
       {gameMode ? (

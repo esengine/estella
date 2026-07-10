@@ -30,6 +30,8 @@
 .seg button.ic { width: 26px; padding: 0; }
 .seg button:hover:not(.on) { color: var(--text); }
 .seg button.on { background: var(--acc); color: var(--on-accent); }
+.seg.grow { display: flex; }
+.seg.grow button { flex: 1; }
 
 /* — Select trigger, standalone input look (components/Select.tsx). The 'field'
      variant reuses the inspector's .dd-trigger; the popover list is the shared

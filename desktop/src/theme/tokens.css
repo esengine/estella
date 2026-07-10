@@ -77,6 +77,13 @@
   --ax-y: #80b94a;
   --ax-z: #4a8fd6;
 
+  /* — Viewport gizmo identity: high-visibility strokes drawn over scene art
+       (collider green, particle-shape amber, tile-paint cyan). Distinct from
+       the muted panel palette on purpose — gizmos must survive any backdrop. — */
+  --gizmo-collider: #00dc82;
+  --gizmo-particle: #ffb454;
+  --gizmo-tile: #58b6e6;
+
   /* — Category identity: component header bars / icons read by domain. — */
   --cat-transform: #4a8fd6;
   --cat-render: #b272d6;

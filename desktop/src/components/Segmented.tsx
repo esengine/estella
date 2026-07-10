@@ -22,14 +22,17 @@ export function Segmented<T extends string>({
   options,
   onChange,
   ariaLabel,
+  grow,
 }: {
   value: T;
   options: SegmentedOption<T>[];
   onChange: (v: T) => void;
   ariaLabel?: string;
+  /** Fill the container width, segments sharing it equally (world picker). */
+  grow?: boolean;
 }) {
   return (
-    <div className="seg" role="radiogroup" aria-label={ariaLabel}>
+    <div className={`seg${grow ? ' grow' : ''}`} role="radiogroup" aria-label={ariaLabel}>
       {options.map((o) => (
         <button
           key={o.value}

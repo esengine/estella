@@ -361,7 +361,7 @@ body.thumb-capture .viewport__play-stop {
 /* Draggable radius handle (Point/Spot) — write the light's radius on canvas. */
 .viewport__light-svg .lg-handle {
   fill: currentColor;
-  stroke: #1a1a1a;
+  stroke: var(--srf-2);
   stroke-width: 1.5;
   pointer-events: auto;
   cursor: ew-resize;
@@ -380,16 +380,16 @@ body.thumb-capture .viewport__play-stop {
 }
 .viewport__collider-gizmo .cl-box,
 .viewport__collider-gizmo .cl-circle {
-  fill: rgba(0, 220, 130, 0.06);
-  stroke: #00dc82;
+  fill: color-mix(in srgb, var(--gizmo-collider) 6%, transparent);
+  stroke: var(--gizmo-collider);
   stroke-width: 1.5;
   opacity: 0;
 }
 /* Draggable handles — circle radius / box corner size (meters), written on canvas. */
 .viewport__collider-gizmo .cl-handle,
 .viewport__collider-gizmo .cl-size-handle {
-  fill: #00dc82;
-  stroke: #1a1a1a;
+  fill: var(--gizmo-collider);
+  stroke: var(--srf-2);
   stroke-width: 1.5;
   pointer-events: auto;
   cursor: ew-resize;
@@ -408,8 +408,8 @@ body.thumb-capture .viewport__play-stop {
   z-index: 2;
   pointer-events: none;
   will-change: transform;
-  transition: opacity 0.1s;
-  color: #ffb454;
+  transition: opacity var(--t-fast);
+  color: var(--gizmo-particle);
 }
 .viewport__particle-hit {
   position: absolute;
@@ -442,8 +442,8 @@ body.thumb-capture .viewport__play-stop {
 }
 .viewport__particle-shape .pe-poly,
 .viewport__particle-shape .pe-circle {
-  fill: rgba(255, 180, 84, 0.05);
-  stroke: #ffb454;
+  fill: color-mix(in srgb, var(--gizmo-particle) 5%, transparent);
+  stroke: var(--gizmo-particle);
   stroke-width: 1.5;
   opacity: 0;
 }
@@ -451,8 +451,8 @@ body.thumb-capture .viewport__play-stop {
 .viewport__particle-shape .pe-handle,
 .viewport__particle-shape .pe-size-handle,
 .viewport__particle-shape .pe-angle-handle {
-  fill: #ffb454;
-  stroke: #1a1a1a;
+  fill: var(--gizmo-particle);
+  stroke: var(--srf-2);
   stroke-width: 1.5;
   pointer-events: auto;
   cursor: ew-resize;
@@ -466,7 +466,7 @@ body.thumb-capture .viewport__play-stop {
 .viewport__particle-shape .pe-handle:hover,
 .viewport__particle-shape .pe-size-handle:hover,
 .viewport__particle-shape .pe-angle-handle:hover {
-  fill: #ffd08a;
+  fill: color-mix(in srgb, var(--gizmo-particle) 70%, white);
 }
 
 .viewport__playflag {
@@ -498,9 +498,9 @@ body.thumb-capture .viewport__play-stop {
   font-size: var(--fs-xs);
   font-weight: 600;
   letter-spacing: 0.06em;
-  color: #58b6e6;
+  color: var(--gizmo-tile);
   background: rgba(var(--glass-rgb), 0.8);
-  border: 1px solid rgba(88, 182, 230, 0.5);
+  border: 1px solid color-mix(in srgb, var(--gizmo-tile) 50%, transparent);
   padding: 4px 12px;
   border-radius: 999px;
   pointer-events: none;

@@ -105,8 +105,8 @@
 .prof-val { color: var(--text-hi); text-align: right; }
 .prof-na { color: var(--text-faint); }
 .prof-unit { color: var(--text-faint); margin-left: 1px; }
-.prof-bar { height: 6px; border-radius: 3px; background: var(--srf-1, rgba(255, 255, 255, 0.05)); overflow: hidden; }
-.prof-fill { display: block; height: 100%; border-radius: 3px; transition: width 0.25s var(--e-out, ease-out); }
+.prof-bar { height: 6px; border-radius: var(--r-sm); background: var(--srf-1); overflow: hidden; }
+.prof-fill { display: block; height: 100%; border-radius: var(--r-sm); transition: width var(--t-slow) var(--e-out); }
 
 /* Pinned-frame breakdown rows — name (ellipsis) + right-aligned value, so the two
    never collide however long the zone/system name is. */

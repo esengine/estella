@@ -64,8 +64,8 @@ export class ErrorBoundary extends Component<Props, State> {
 }
 
 const S: Record<string, CSSProperties> = {
-  root: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, height: '100%', padding: 16, textAlign: 'center', color: 'var(--text, #cbd2da)' },
-  title: { fontSize: 13, fontWeight: 600, color: 'var(--danger, #e06c75)' },
-  msg: { fontSize: 12, opacity: 0.75, maxWidth: 480, wordBreak: 'break-word', fontFamily: 'var(--mono, ui-monospace, monospace)' },
-  btn: { padding: '4px 12px', fontSize: 12, borderRadius: 4, border: '1px solid var(--border, #333)', background: 'var(--panel, #232830)', color: 'inherit', cursor: 'pointer' },
+  root: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, height: '100%', padding: 16, textAlign: 'center', color: 'var(--text)' },
+  title: { fontSize: 'var(--fs-md)', fontWeight: 600, color: 'var(--error)' },
+  msg: { fontSize: 'var(--fs-sm)', opacity: 0.75, maxWidth: 480, wordBreak: 'break-word', fontFamily: 'var(--mono)' },
+  btn: { padding: '4px 12px', fontSize: 'var(--fs-sm)', borderRadius: 'var(--r-md)', border: '1px solid var(--line)', background: 'var(--srf-3)', color: 'inherit', cursor: 'pointer' },
 };
