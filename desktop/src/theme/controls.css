@@ -55,3 +55,24 @@
 
 /* — Unsaved-changes dot (components/DirtyDot.tsx) — */
 .dirty-dot { color: var(--sel); font-size: 0.7em; line-height: 1; }
+
+/* — Skeleton shimmer (loading placeholders: Content Browser listing, launcher
+     recents). Size it at the usage site; the global reduced-motion kill-switch
+     (global.css) already stops the sweep. — */
+.skel {
+  background: var(--srf-3);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  position: relative;
+}
+.skel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.04), transparent);
+  animation: skel-sweep 1.2s ease infinite;
+}
+@keyframes skel-sweep {
+  to { transform: translateX(100%); }
+}

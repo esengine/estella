@@ -34,24 +34,31 @@ const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 // Lazily read a project-relative directory (or [] when null / no project / error),
 // re-reading whenever the path changes or an fs mutation bumps fsRefresh.
-function useDir(relPath: string | null): DirEntry[] {
-  const [entries, setEntries] = useState<DirEntry[]>([]);
+// `loading` flips in-render on a path change (so the empty state never paints
+// before the read lands); fs-version bumps refresh silently over stale rows.
+function useDir(relPath: string | null): { entries: DirEntry[]; loading: boolean } {
+  const [state, setState] = useState<{ path: string | null; entries: DirEntry[]; loading: boolean }>({
+    path: relPath,
+    entries: [],
+    loading: relPath != null,
+  });
   const version = useSyncExternalStore(fsRefresh.subscribe, fsRefresh.get);
+  if (state.path !== relPath) setState({ path: relPath, entries: [], loading: relPath != null });
   useEffect(() => {
     if (relPath == null || !window.estella?.fs) {
-      setEntries([]);
+      setState((s) => (s.entries.length || s.loading ? { path: relPath, entries: [], loading: false } : s));
       return;
     }
     let alive = true;
     window.estella.fs
       .readDir(relPath)
-      .then((e) => alive && setEntries(e))
-      .catch(() => alive && setEntries([]));
+      .then((e) => alive && setState({ path: relPath, entries: e, loading: false }))
+      .catch(() => alive && setState({ path: relPath, entries: [], loading: false }));
     return () => {
       alive = false;
     };
   }, [relPath, version]);
-  return entries;
+  return state;
 }
 
 // Inline name editor for a tile / list row (UE5 rename + new-folder flow): commits
@@ -206,22 +213,26 @@ function FolderNode({
   cwd,
   onSelect,
   folderDrop,
+  dropPath,
 }: {
   path: string;
   name: string;
   depth: number;
   cwd: string;
   onSelect: (p: string) => void;
-  folderDrop?: (folderPath: string) => Pick<React.HTMLAttributes<HTMLDivElement>, 'onDragOver' | 'onDrop'>;
+  folderDrop?: (
+    folderPath: string,
+  ) => Pick<React.HTMLAttributes<HTMLDivElement>, 'onDragEnter' | 'onDragOver' | 'onDragLeave' | 'onDrop'>;
+  dropPath?: string | null;
 }) {
   const [open, setOpen] = useState(depth === 0);
-  const children = useDir(open ? path : null);
+  const children = useDir(open ? path : null).entries;
   const subdirs = children.filter((e) => e.isDir);
 
   return (
     <>
       <div
-        className={`tr${cwd === path ? ' sel' : ''}${open ? ' open' : ''}`}
+        className={`tr${cwd === path ? ' sel' : ''}${open ? ' open' : ''}${dropPath === path ? ' is-drop' : ''}`}
         style={{ paddingLeft: depth * 12 + 6 }}
         title={name}
         onClick={() => onSelect(path)}
@@ -242,7 +253,7 @@ function FolderNode({
         <span className="tn">{name}</span>
       </div>
       {open && subdirs.map((d) => (
-        <FolderNode key={d.name} path={join(path, d.name)} name={d.name} depth={depth + 1} cwd={cwd} onSelect={onSelect} folderDrop={folderDrop} />
+        <FolderNode key={d.name} path={join(path, d.name)} name={d.name} depth={depth + 1} cwd={cwd} onSelect={onSelect} folderDrop={folderDrop} dropPath={dropPath} />
       ))}
     </>
   );
@@ -293,7 +304,7 @@ export function ContentBrowser() {
     [go],
   );
 
-  const entries = useDir(project ? cwd : null);
+  const { entries, loading: dirLoading } = useDir(project ? cwd : null);
   const q = query.trim();
   // Search supports `type:`/`t:` tokens + free text; the type chips add to the
   // token constraint; sort is folders-first, then by name or type.
@@ -303,33 +314,40 @@ export function ContentBrowser() {
   // main-side and refreshed on fs mutations (same signal useDir rides).
   const searching = q.length > 0;
   const fsVersion = useSyncExternalStore(fsRefresh.subscribe, fsRefresh.get);
-  const [allFiles, setAllFiles] = useState<string[]>([]);
+  // Keyed like useDir: entering search / changing folders flips `loading`
+  // in-render (skeletons, not a false "No assets match."); version bumps
+  // re-scan silently over the stale list.
+  const scanKey = project && searching ? cwd : null;
+  const [scan, setScan] = useState<{ key: string | null; files: string[]; loading: boolean }>({
+    key: scanKey,
+    files: [],
+    loading: scanKey != null,
+  });
+  if (scan.key !== scanKey) setScan({ key: scanKey, files: [], loading: scanKey != null });
   useEffect(() => {
-    if (!project || !searching) {
-      setAllFiles([]);
-      return;
-    }
+    if (scanKey == null) return;
     let alive = true;
     window.estella.fs
-      .listFiles(cwd)
-      .then((f) => alive && setAllFiles(f))
-      .catch(() => alive && setAllFiles([]));
+      .listFiles(scanKey)
+      .then((f) => alive && setScan({ key: scanKey, files: f, loading: false }))
+      .catch(() => alive && setScan({ key: scanKey, files: [], loading: false }));
     return () => {
       alive = false;
     };
-  }, [project, cwd, searching, fsVersion]);
+  }, [scanKey, fsVersion]);
 
   const rows = useMemo<Row[]>(
     () =>
       searching
-        ? allFiles.map((p) => ({ path: p, name: p.split('/').pop() ?? p, isDir: false }))
+        ? scan.files.map((p) => ({ path: p, name: p.split('/').pop() ?? p, isDir: false }))
         : entries.map((e) => ({ path: join(cwd, e.name), name: e.name, isDir: e.isDir })),
-    [searching, allFiles, entries, cwd],
+    [searching, scan.files, entries, cwd],
   );
   const items = useMemo(
     () => filterAndSortAssets(rows, parsed, filters as ReadonlySet<string>, sort, assetType),
     [rows, parsed, filters, sort],
   );
+  const listLoading = searching ? scan.loading : dirLoading;
 
   useEffect(() => {
     if (!pendingReveal || !items.some((it) => it.path === pendingReveal)) return;
@@ -488,13 +506,41 @@ export function ContentBrowser() {
     !e.dataTransfer.types.includes('application/x-estella-asset') &&
     Array.from(e.dataTransfer.types).includes('Files');
 
+  // Drop affordances. dragenter/dragleave also fire when crossing child elements,
+  // so both the body and each folder target keep an enter-depth counter — the
+  // highlight clears only when the count returns to zero (a real exit), never on
+  // a child-to-child transition.
+  const [fileDrop, setFileDrop] = useState(false);
+  const fileDragDepth = useRef(0);
+  const [dropFolder, setDropFolder] = useState<string | null>(null);
+  const folderDragDepth = useRef(new Map<string, number>());
+  const clearDropState = () => {
+    fileDragDepth.current = 0;
+    setFileDrop(false);
+    folderDragDepth.current.clear();
+    setDropFolder(null);
+  };
+
+  const onBodyDragEnter = (e: React.DragEvent) => {
+    if (!isOsFileDrag(e)) return;
+    fileDragDepth.current++;
+    setFileDrop(true);
+  };
+
   const onBodyDragOver = (e: React.DragEvent) => {
     if (!isOsFileDrag(e)) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'copy';
   };
 
+  const onBodyDragLeave = (e: React.DragEvent) => {
+    if (!isOsFileDrag(e)) return;
+    fileDragDepth.current = Math.max(0, fileDragDepth.current - 1);
+    if (fileDragDepth.current === 0) setFileDrop(false);
+  };
+
   const onBodyDrop = (e: React.DragEvent) => {
+    clearDropState();
     if (!isOsFileDrag(e)) return;
     e.preventDefault();
     const sources = Array.from(e.dataTransfer.files)
@@ -524,14 +570,32 @@ export function ContentBrowser() {
     }
   };
 
-  // Drop-target props for a folder (tile or tree node): accept internal asset drags.
+  // Drop-target props for a folder (tile, list row or tree node): accept internal
+  // asset drags + highlight the hovered target. The clear on leave is conditional
+  // because moving between targets fires the new target's dragenter first.
   const folderDrop = (folderPath: string) => ({
+    onDragEnter: (e: React.DragEvent) => {
+      if (!e.dataTransfer.types.includes('application/x-estella-asset')) return;
+      folderDragDepth.current.set(folderPath, (folderDragDepth.current.get(folderPath) ?? 0) + 1);
+      setDropFolder(folderPath);
+    },
     onDragOver: (e: React.DragEvent) => {
       if (!e.dataTransfer.types.includes('application/x-estella-asset')) return;
       e.preventDefault();
       e.dataTransfer.dropEffect = 'move';
     },
+    onDragLeave: (e: React.DragEvent) => {
+      if (!e.dataTransfer.types.includes('application/x-estella-asset')) return;
+      const depth = (folderDragDepth.current.get(folderPath) ?? 0) - 1;
+      if (depth <= 0) {
+        folderDragDepth.current.delete(folderPath);
+        setDropFolder((cur) => (cur === folderPath ? null : cur));
+      } else {
+        folderDragDepth.current.set(folderPath, depth);
+      }
+    },
     onDrop: (e: React.DragEvent) => {
+      clearDropState();
       const src = e.dataTransfer.getData('application/x-estella-asset');
       if (!src) return;
       e.preventDefault();
@@ -561,6 +625,9 @@ export function ContentBrowser() {
       ev.dataTransfer.setData('application/x-estella-asset', path);
       ev.dataTransfer.setData('text/plain', path);
     },
+    // A cancelled drag (Escape / dropped outside a target) fires no drop —
+    // make sure no folder keeps its highlight.
+    onDragEnd: clearDropState,
     onClick: () => selectAsset(path),
     onDoubleClick: () => onOpen(path, e.isDir, e.name),
     // Suppress the hover card while any inline rename is active.
@@ -650,7 +717,7 @@ export function ContentBrowser() {
           </div>
           <div className="cb-src-body">
             <div className="cb-sec">Folders</div>
-            <FolderNode path="" name={project.name} depth={0} cwd={cwd} onSelect={go} folderDrop={folderDrop} />
+            <FolderNode path="" name={project.name} depth={0} cwd={cwd} onSelect={go} folderDrop={folderDrop} dropPath={dropFolder} />
           </div>
         </div>
 
@@ -747,11 +814,13 @@ export function ContentBrowser() {
           </div>
 
           <div
-            className={`cb-scroll${view === 'list' ? ' list' : ''}`}
+            className={`cb-scroll${view === 'list' ? ' list' : ''}${fileDrop ? ' is-file-drop' : ''}`}
             onClick={(e) => {
               if (e.target === e.currentTarget) selectAsset(null);
             }}
+            onDragEnter={onBodyDragEnter}
             onDragOver={onBodyDragOver}
+            onDragLeave={onBodyDragLeave}
             onDrop={onBodyDrop}
             onContextMenu={(e) => {
               // Items stopPropagation, so reaching here = a right-click on empty space.
@@ -762,7 +831,16 @@ export function ContentBrowser() {
           >
             {view === 'grid' ? (
               <div className="cb-grid" style={{ ['--tile' as string]: `${tileSize}px` } as React.CSSProperties}>
-                {items.map((it) => {
+                {listLoading &&
+                  Array.from({ length: 8 }, (_, i) => (
+                    <div key={i} className="asset is-skel" aria-hidden="true">
+                      <div className="th skel" />
+                      <div className="nm">
+                        <span className="skel" />
+                      </div>
+                    </div>
+                  ))}
+                {!listLoading && items.map((it) => {
                   const path = it.path;
                   const type: AssetType = it.isDir ? 'folder' : assetType(it.name);
                   const isImg = !it.isDir && IMAGE_RE.test(it.name);
@@ -770,7 +848,7 @@ export function ContentBrowser() {
                     <div
                       key={path}
                       data-path={path}
-                      className={`asset${it.isDir ? ' folder' : ''}${selected === path ? ' sel' : ''}`}
+                      className={`asset${it.isDir ? ' folder' : ''}${selected === path ? ' sel' : ''}${it.isDir && dropFolder === path ? ' is-drop' : ''}`}
                       // Files drag onto inspector asset fields / the viewport (assign / instantiate);
                       // folders are drop targets that move the dragged asset into them.
                       {...bindItem(path, it)}
@@ -801,7 +879,7 @@ export function ContentBrowser() {
                     </div>
                   );
                 })}
-                {items.length === 0 && (
+                {!listLoading && items.length === 0 && (
                   <div className="cb-empty" style={{ gridColumn: '1 / -1' }}>
                     {q ? 'No assets match.' : 'Empty folder.'}
                   </div>
@@ -813,14 +891,25 @@ export function ContentBrowser() {
                   <span>Name</span>
                   <span>Type</span>
                 </div>
-                {items.map((it) => {
+                {listLoading &&
+                  Array.from({ length: 8 }, (_, i) => (
+                    <div key={i} className="lr is-skel" aria-hidden="true">
+                      <span className="ln">
+                        <span className="skel" />
+                      </span>
+                      <span className="c">
+                        <span className="skel" />
+                      </span>
+                    </div>
+                  ))}
+                {!listLoading && items.map((it) => {
                   const path = it.path;
                   const type: AssetType = it.isDir ? 'folder' : assetType(it.name);
                   return (
                     <div
                       key={path}
                       data-path={path}
-                      className={`lr${selected === path ? ' sel' : ''}`}
+                      className={`lr${selected === path ? ' sel' : ''}${it.isDir && dropFolder === path ? ' is-drop' : ''}`}
                       {...bindItem(path, it)}
                       {...(it.isDir ? folderDrop(path) : null)}
                     >
@@ -840,7 +929,9 @@ export function ContentBrowser() {
                     </div>
                   );
                 })}
-                {items.length === 0 && <div className="cb-empty">{q ? 'No assets match.' : 'Empty folder.'}</div>}
+                {!listLoading && items.length === 0 && (
+                  <div className="cb-empty">{q ? 'No assets match.' : 'Empty folder.'}</div>
+                )}
               </div>
             )}
           </div>

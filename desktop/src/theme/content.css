@@ -43,8 +43,9 @@
 .crumbs .cr.cur { color: var(--text); font-weight: 600; }
 .crumbs .sep { color: var(--text-mute); }
 .cb-search { width: 200px; height: 26px; flex-shrink: 0; }
-.cb-add { height: 26px; display: inline-flex; align-items: center; gap: 5px; padding: 0 10px; background: var(--acc); color: var(--on-accent); font-weight: 600; font-size: var(--fs-xs); border-radius: var(--r-sm); transition: background var(--t-fast); flex-shrink: 0; }
-.cb-add:hover { background: var(--acc-hi); }
+/* Demoted from a filled-accent button — Play keeps the primary-action weight. */
+.cb-add { height: 26px; display: inline-flex; align-items: center; gap: 5px; padding: 0 10px; background: var(--srf-3); color: var(--star-hi); border: 1px solid var(--star-line); font-weight: 600; font-size: var(--fs-xs); border-radius: var(--r-sm); transition: background var(--t-fast); flex-shrink: 0; }
+.cb-add:hover { background: var(--star-dim); }
 .cb-add:disabled { opacity: 0.45; }
 .cb-ghost { width: 26px; height: 26px; display: grid; place-items: center; color: var(--text-dim); background: var(--srf-3); border: 1px solid var(--border-line); border-radius: var(--r-sm); flex-shrink: 0; transition: color var(--t-fast), background var(--t-fast); }
 .cb-ghost:hover { color: var(--text); background: var(--srf-4); }
@@ -91,6 +92,27 @@
 .lr .c { font-size: var(--fs-xs); color: var(--text-dim); font-family: var(--mono); }
 .cb-empty { padding: 50px; text-align: center; color: var(--text-mute); }
 .cb-empty .ei { width: 44px; height: 44px; margin: 0 auto 10px; display: grid; place-items: center; border: 1px dashed var(--border-line); border-radius: var(--r-lg); }
+
+/* ── Drag & drop affordances ── the outliner's drop language (accent-soft fill +
+   1px accent ring) on every folder drop target; a soft inset ring on the scroll
+   body while an OS-file drag hovers the panel. */
+.tr.is-drop,
+.lr.is-drop { background: var(--acc-soft); box-shadow: inset 0 0 0 1px var(--acc); }
+.asset.is-drop { outline: 1px solid var(--acc); background: var(--acc-soft); }
+.cb-scroll.is-file-drop { box-shadow: inset 0 0 0 2px var(--acc-soft); }
+
+/* ── Loading skeletons ── placeholder tiles / rows while a folder read or search
+   scan is in flight (shimmer = shared .skel primitive, controls.css). */
+.asset.is-skel { pointer-events: none; }
+.asset.is-skel .th { background: var(--srf-3); }
+.asset.is-skel .nm { border-top-color: transparent; }
+.asset.is-skel .nm .skel { display: block; height: 9px; width: 70%; }
+.asset.is-skel:nth-child(2n) .nm .skel { width: 52%; }
+.lr.is-skel { pointer-events: none; }
+.lr.is-skel .skel { display: block; height: 9px; }
+.lr.is-skel .ln .skel { width: 56%; max-width: 220px; }
+.lr.is-skel:nth-child(2n) .ln .skel { width: 38%; }
+.lr.is-skel .c .skel { width: 36px; }
 
 /* ── Detail (right) ── */
 .cb-detail { width: 232px; flex-shrink: 0; border-left: 1px solid var(--border); }

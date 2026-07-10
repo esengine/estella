@@ -65,15 +65,21 @@ function RecentView({
   onOpenFolder: () => void;
 }) {
   const [recents, setRecents] = useState<RecentEntry[]>([]);
+  const [loading, setLoading] = useState(true);
   const [layout, setLayout] = useState<Layout>('grid');
   const [query, setQuery] = useState('');
 
   useEffect(() => {
     let live = true;
-    void window.estella?.recents
-      ?.list()
+    const req = window.estella?.recents?.list();
+    if (!req) {
+      setLoading(false);
+      return;
+    }
+    req
       .then((r) => { if (live) setRecents(r); })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => { if (live) setLoading(false); });
     return () => {
       live = false;
     };
@@ -116,7 +122,20 @@ function RecentView({
         </div>
       </header>
 
-      {recents.length === 0 ? (
+      {loading ? (
+        // Recents arrive async — skeleton cards instead of flashing the empty state.
+        <div className="proj-grid" aria-hidden="true">
+          {Array.from({ length: 4 }, (_, i) => (
+            <div key={i} className="proj-card is-skel">
+              <div className="proj-card__thumb skel" />
+              <div className="proj-card__body">
+                <span className="skel" />
+                <span className="skel" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : recents.length === 0 ? (
         <div className="lc-empty">
           <p>No recent projects yet.</p>
           <button type="button" className="lc-btn lc-btn--primary" onClick={onOpenFolder}>

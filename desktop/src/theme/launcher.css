@@ -355,6 +355,26 @@
 .proj-card:focus-within .proj-card__remove { opacity: 1; }
 .proj-card__remove:hover { color: var(--error); border-color: var(--error); }
 
+/* Loading skeleton cards — shown while recents load, so the empty state never
+   flashes (shimmer = shared .skel primitive, controls.css). */
+.proj-card.is-skel {
+  pointer-events: none;
+  cursor: default;
+}
+.proj-card.is-skel .proj-card__thumb {
+  background: var(--srf-3);
+  background-image: none;
+}
+.proj-card.is-skel .proj-card__body .skel {
+  display: block;
+  height: 10px;
+  width: 62%;
+}
+.proj-card.is-skel .proj-card__body .skel + .skel {
+  height: 8px;
+  width: 40%;
+}
+
 /* ----------------------------------------------------------- list view --- */
 .proj-list {
   overflow-y: auto;
