@@ -231,12 +231,50 @@ function FolderNode({
   const children = useDir(open ? path : null).entries;
   const subdirs = children.filter((e) => e.isDir);
 
+  // Tree keyboard: Enter/Space enters the folder, ←/→ collapse/expand, ↑/↓ walk
+  // the visible rows. Arrows are consumed so they never reach the global nudge.
+  const onRowKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    switch (e.key) {
+      case 'Enter':
+      case ' ':
+        e.preventDefault();
+        onSelect(path);
+        break;
+      case 'ArrowRight':
+        e.preventDefault();
+        e.stopPropagation();
+        if (subdirs.length && !open) setOpen(true);
+        break;
+      case 'ArrowLeft':
+        e.preventDefault();
+        e.stopPropagation();
+        if (open && depth > 0) setOpen(false);
+        break;
+      case 'ArrowDown':
+      case 'ArrowUp': {
+        e.preventDefault();
+        e.stopPropagation();
+        const rows = e.currentTarget.closest('.cb-src-body')?.querySelectorAll<HTMLElement>('.tr');
+        if (!rows) break;
+        const list = [...rows];
+        const next = list[list.indexOf(e.currentTarget) + (e.key === 'ArrowDown' ? 1 : -1)];
+        next?.focus();
+        break;
+      }
+    }
+  };
+
   return (
     <>
       <div
         className={`tr${cwd === path ? ' sel' : ''}${open ? ' open' : ''}${dropPath === path ? ' is-drop' : ''}`}
         style={{ paddingLeft: depth * 12 + 6 }}
         title={name}
+        role="treeitem"
+        aria-expanded={subdirs.length ? open : undefined}
+        aria-selected={cwd === path}
+        tabIndex={0}
+        onKeyDown={onRowKey}
         onClick={() => onSelect(path)}
         {...(folderDrop ? folderDrop(path) : null)}
       >
@@ -384,6 +422,20 @@ export function ContentBrowser() {
     Toasts.push(label, 'info', 1600);
   };
 
+  // Undo for file ops rides on toasts, NOT EditorHistory: fs changes aren't
+  // document edits, and pushing them into the scene stack would poison its
+  // dirty tracking and Ctrl+Z ordering. Reverting is a best-effort fs op — a
+  // path taken in the meantime surfaces as an error toast.
+  const undoMove = async (from: string, to: string) => {
+    try {
+      await window.estella.fs.rename(from, to);
+      refreshFs();
+      selectAsset(to);
+    } catch (e) {
+      Toasts.push(`Undo failed: ${errMsg(e)}`, 'error');
+    }
+  };
+
   const commitRename = async (path: string, raw: string) => {
     setRenaming(null);
     const name = raw.trim();
@@ -398,6 +450,7 @@ export function ContentBrowser() {
       await window.estella.fs.rename(path, dest);
       refreshFs();
       selectAsset(dest);
+      Toasts.push(`Renamed to “${name}”`, 'info', 6000, { label: 'Undo', run: () => void undoMove(dest, path) });
     } catch (e) {
       Toasts.push(`Rename failed: ${errMsg(e)}`, 'error');
     }
@@ -408,6 +461,18 @@ export function ContentBrowser() {
       const next = await window.estella.fs.duplicate(path);
       refreshFs();
       selectAsset(next);
+      Toasts.push(`Duplicated as “${next.split('/').pop()}”`, 'info', 6000, {
+        label: 'Undo',
+        run: async () => {
+          try {
+            await window.estella.fs.trash(next);
+            refreshFs();
+            if (useSelection.getState().selectedAsset === next) selectAsset(null);
+          } catch (e) {
+            Toasts.push(`Undo failed: ${errMsg(e)}`, 'error');
+          }
+        },
+      });
     } catch (e) {
       Toasts.push(`Duplicate failed: ${errMsg(e)}`, 'error');
     }
@@ -671,6 +736,10 @@ export function ContentBrowser() {
       await window.estella.fs.rename(srcPath, dest);
       refreshFs();
       if (selected === srcPath) selectAsset(dest);
+      Toasts.push(`Moved “${name}” to ${folderPath || 'the project root'}`, 'info', 6000, {
+        label: 'Undo',
+        run: () => void undoMove(dest, srcPath),
+      });
     } catch (e) {
       Toasts.push(`Move failed: ${errMsg(e)}`, 'error');
     }
@@ -825,7 +894,7 @@ export function ContentBrowser() {
           <div className="phead cb-head">
             <span className="pt">Sources</span>
           </div>
-          <div className="cb-src-body">
+          <div className="cb-src-body" role="tree" aria-label="Folders">
             <div className="cb-sec">Folders</div>
             <FolderNode path="" name={project.name} depth={0} cwd={cwd} onSelect={go} folderDrop={folderDrop} dropPath={dropFolder} />
           </div>
