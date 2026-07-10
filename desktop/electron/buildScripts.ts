@@ -12,9 +12,10 @@
  * Pure Node (esbuild + fs/path), no Electron imports, so it is unit-testable and
  * reusable; the IPC wiring lives in main.ts.
  */
-import { build, type BuildResult } from 'esbuild';
+import type { BuildResult } from 'esbuild';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
+import { loadEsbuild } from './esbuildRuntime';
 
 /** esengine and any subpath import are left for the realm's import map to resolve. */
 const EXTERNAL = ['esengine', 'esengine/*'];
@@ -47,6 +48,7 @@ export async function buildProjectScripts(
   }
   const outputPath = path.join(root, CACHE_DIR, OUTPUT);
   try {
+    const { build } = await loadEsbuild();
     const result: BuildResult = await build({
       entryPoints: [entryPath],
       bundle: true,

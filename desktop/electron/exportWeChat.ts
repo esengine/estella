@@ -21,7 +21,7 @@
  *        import maps and a different module/asset model, so this is its own path.
  *        Pure Node (esbuild + fs) — IPC wiring is in main.ts.
  */
-import { build } from 'esbuild';
+import { loadEsbuild } from './esbuildRuntime';
 import { writeFile, mkdir, cp, readFile, stat, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
@@ -284,6 +284,7 @@ export async function exportWeChat(opts: {
     `}\n`;
   progress({ phase: 'Bundling game' });
   try {
+    const { build } = await loadEsbuild();
     const res = await build({
       stdin: { contents: entrySrc, resolveDir: opts.root, loader: 'js', sourcefile: 'wechat-entry.js' },
       bundle: true,

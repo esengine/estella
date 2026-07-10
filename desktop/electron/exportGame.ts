@@ -19,7 +19,8 @@
  *
  *        Pure Node (esbuild + fs) — IPC wiring is in main.ts.
  */
-import { build, type BuildOptions } from 'esbuild';
+import type { BuildOptions } from 'esbuild';
+import { loadEsbuild } from './esbuildRuntime';
 import { writeFile, mkdir, cp } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
@@ -192,8 +193,10 @@ async function stageDesktopApp(absOut: string, title: string, appId?: string, pr
 
 /**
  * Export the open project. `entryScene` is the project-relative scene to boot;
- * `gameHostEntry` the gameHost.ts source; `wasmDir` the engine runtime to copy.
- * `platform` selects the target (default web).
+ * `gameHostEntry` the game-host esbuild entry — the prebuilt realm-host bundle
+ * (dist-electron/hosts/gameHost.js; a packaged app ships no src/ and esbuild
+ * cannot read app.asar) or any source esbuild can reach (tests). `wasmDir` is
+ * the engine runtime to copy. `platform` selects the target (default web).
  */
 export async function exportGame(opts: {
   root: string;
@@ -262,7 +265,8 @@ export async function exportGame(opts: {
       root: opts.root,
       entryScene: opts.entryScene,
       scriptsEntry: opts.scriptsEntry,
-      playableHostEntry: opts.playableHostEntry ?? path.join(path.dirname(opts.gameHostEntry), 'playableHost.ts'),
+      // Default beside the game host, same flavor (prebuilt .js or a source .ts).
+      playableHostEntry: opts.playableHostEntry ?? path.join(path.dirname(opts.gameHostEntry), `playableHost${path.extname(opts.gameHostEntry)}`),
       sdkDir: opts.sdkDistDir,
       wasmDir: opts.wasmDir,
       outDir: opts.outDir,
@@ -302,6 +306,7 @@ export async function exportGame(opts: {
     //    so the shipped game shares one SDK with the project bundle and runs
     //    custom systems (same shape as the play realm).
     progress({ phase: 'Bundling game host' });
+    const { build } = await loadEsbuild();
     const host = await build({ ...common, entryPoints: [opts.gameHostEntry], outfile: path.join(payloadDir, 'game.js') });
     errors.push(...host.errors.map((e) => e.text));
     // 3. Project bundle (defineComponent/defineSystem) → scripts.mjs, esengine external.

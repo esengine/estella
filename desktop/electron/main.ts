@@ -96,6 +96,25 @@ const VITE_PUBLIC = VITE_DEV_SERVER_URL
   ? path.join(process.env.APP_ROOT, 'public')
   : RENDERER_DIST;
 
+// —— Realm-host bundles + SDK dist ——————————————————————————————————————————
+// Both trees are read by esbuild (a NATIVE subprocess: exports re-bundle the
+// prebuilt hosts with the shipping minify config, inlined bundles alias
+// `esengine` at the SDK dist). Node's fs is patched to read app.asar; a child
+// process is not — so once packaged, these must live on the real filesystem.
+// electron-builder asarUnpack mirrors them under app.asar.unpacked; retarget.
+const unpacked = (p: string): string => p.replace(/app\.asar(?=[\\/])/, 'app.asar.unpacked');
+/** Prebuilt realm-host bundles (playHost/gameHost/playableHost) — built by the
+ *  realm-hosts step in vite.config.ts, never from src/ at runtime (a packaged
+ *  app ships no sources). */
+const HOSTS_DIR = unpacked(path.join(__dirname, 'hosts'));
+/** The esengine SDK dist: staged into realms/exports, aliased into inlined bundles. */
+const SDK_DIST = unpacked(path.join(process.env.APP_ROOT, 'node_modules', 'esengine', 'dist'));
+/** The web engine runtime (glue + wasm + side modules) staged into play realms and
+ *  exports by recursive directory copy — which cannot source from inside app.asar. */
+const WEB_WASM_DIR = unpacked(
+  existsSync(path.join(VITE_PUBLIC, 'wasm')) ? path.join(VITE_PUBLIC, 'wasm') : path.join(RENDERER_DIST, 'wasm'),
+);
+
 let win: BrowserWindow | null = null;
 
 /**
@@ -363,7 +382,7 @@ async function adoptRoot(root: string): Promise<void> {
   projectRoot = root;
   if (win) startProjectWatch(root, win.webContents);
   try {
-    await syncSdkTypes(root, path.join(process.env.APP_ROOT!, 'node_modules', 'esengine', 'dist'));
+    await syncSdkTypes(root, SDK_DIST);
   } catch (err) {
     console.warn('[sdk-types] mirror failed:', err);
   }
@@ -501,13 +520,12 @@ ipcMain.handle(
     const manifest = await readManifest(root);
     const entryScene = manifest.defaultScene;
     if (!entryScene) throw new Error('project has no defaultScene to export');
-    const sdkDistDir = path.join(process.env.APP_ROOT!, 'node_modules', 'esengine', 'dist');
-    const publicWasm = path.join(VITE_PUBLIC, 'wasm');
-    const webWasm = existsSync(publicWasm) ? publicWasm : path.join(RENDERER_DIST, 'wasm');
+    const sdkDistDir = SDK_DIST;
+    const webWasm = WEB_WASM_DIR;
     // WeChat needs the -t wechat runtime (WXWebAssembly glue); build it with
     // `node build-tools/cli.js build -t wechat`. Absent → exportWeChat warns.
-    const wechatWasm = [path.join(VITE_PUBLIC, 'wasm-wechat'), path.join(process.env.APP_ROOT!, '..', 'build', 'wasm', 'wechat')]
-      .find(existsSync) ?? path.join(VITE_PUBLIC, 'wasm-wechat');
+    const wechatWasm = [unpacked(path.join(VITE_PUBLIC, 'wasm-wechat')), path.join(process.env.APP_ROOT!, '..', 'build', 'wasm', 'wechat')]
+      .find(existsSync) ?? unpacked(path.join(VITE_PUBLIC, 'wasm-wechat'));
     const plat = manifest.packaging?.platforms;
     const ySortLayers =
       (manifest.features?.rendering?.ySortLayers ?? []).reduce((m, i) => m | (1 << i), 0) >>> 0;
@@ -515,8 +533,8 @@ ipcMain.handle(
       root,
       entryScene,
       ySortLayers,
-      gameHostEntry: path.join(process.env.APP_ROOT!, 'src', 'gameHost.ts'),
-      playableHostEntry: path.join(process.env.APP_ROOT!, 'src', 'playableHost.ts'),
+      gameHostEntry: path.join(HOSTS_DIR, 'gameHost.js'),
+      playableHostEntry: path.join(HOSTS_DIR, 'playableHost.js'),
       scriptsEntry: resolveScripts(manifest).main,
       sdkDistDir,
       wasmDir: opts?.platform === 'wechat' ? wechatWasm : webWasm,
@@ -559,12 +577,11 @@ ipcMain.handle('project:preparePlayRealm', async () => {
   } catch {
     /* no bundle — builtin components/systems only */
   }
-  const publicWasm = path.join(VITE_PUBLIC, 'wasm');
   return buildPlayRealm({
     root,
-    playHostEntry: path.join(process.env.APP_ROOT!, 'src', 'playHost.ts'),
-    sdkDistDir: path.join(process.env.APP_ROOT!, 'node_modules', 'esengine', 'dist'),
-    wasmDir: existsSync(publicWasm) ? publicWasm : path.join(RENDERER_DIST, 'wasm'),
+    playHostArtifact: path.join(HOSTS_DIR, 'playHost.js'),
+    sdkDistDir: SDK_DIST,
+    wasmDir: WEB_WASM_DIR,
   });
 });
 

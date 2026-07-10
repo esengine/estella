@@ -14,7 +14,7 @@
  *        contract (no playable simulator here — runtime is validated by the user in
  *        a browser / ad preview). Pure Node (esbuild + fs); IPC wiring in main.ts.
  */
-import { build } from 'esbuild';
+import { loadEsbuild } from './esbuildRuntime';
 import { writeFile, mkdir, readFile, stat, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
@@ -205,6 +205,7 @@ export async function exportPlayable(opts: {
     `import ${JSON.stringify(opts.playableHostEntry)};\n`;
   let bundle = '';
   try {
+    const { build } = await loadEsbuild();
     const res = await build({
       stdin: { contents: entrySrc, resolveDir: opts.root, loader: 'js', sourcefile: 'playable-entry.js' },
       bundle: true,

@@ -20,7 +20,8 @@
  * Pure Node (esbuild + fs/path/url), no Electron imports → unit-testable and
  * reusable; the IPC wiring lives in main.ts.
  */
-import { build, type Plugin } from 'esbuild';
+import type { Plugin } from 'esbuild';
+import { loadEsbuild } from './esbuildRuntime';
 import { existsSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -159,6 +160,7 @@ export async function extractProjectSchemas(
   const bundlePath = path.join(tmp, 'extract.mjs');
   const warnings: string[] = [];
   try {
+    const { build } = await loadEsbuild();
     const result = await build({
       stdin: { contents: entry, resolveDir: ANCHOR_DIR, loader: 'ts', sourcefile: 'extract-entry.ts' },
       bundle: true,

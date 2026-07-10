@@ -13,8 +13,19 @@ files:
   - dist/**
   - dist-electron/**
   - package.json
+# Trees the runtime consumes as REAL files, not through Electron's patched fs:
+#   - esbuild runs as a native subprocess (project scripts, exports) — its own
+#     binary, the prebuilt realm-host bundles it re-bundles for exports, and the
+#     SDK dist that inlined (playable/wechat) bundles alias `esengine` to must
+#     all be readable outside app.asar;
+#   - the engine wasm runtime is staged into play realms / exports by recursive
+#     directory copy, which cannot source from inside an asar.
 asarUnpack:
   - "**/node_modules/{esbuild,@esbuild}/**"
+  - dist-electron/hosts/**
+  - "**/node_modules/esengine/dist/**"
+  - dist/wasm/**
+  - dist/wasm-wechat/**
 # The Basis KTX2 encoder lives at the monorepo root (build-tools/basis).
 # cookAssets imports it via `../../build-tools/basis` relative to the bundled
 # main; once packaged, main sits at resources/app.asar/dist-electron/, so that

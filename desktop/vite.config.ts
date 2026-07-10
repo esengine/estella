@@ -1,9 +1,52 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import { fileURLToPath, URL } from 'node:url';
 import react from '@vitejs/plugin-react';
 import electron from 'vite-plugin-electron/simple';
+import { context as esbuildContext, type BuildContext } from 'esbuild';
+import { ESENGINE_EXTERNAL } from './electron/esengineResolve';
+
+/**
+ * Realm hosts (src/playHost.ts, src/gameHost.ts, src/playableHost.ts) are editor
+ * code that runs in a browser realm outside Vite — the play iframe and exported
+ * games load them over their own import maps. They're bundled HERE, at editor
+ * build time, into dist-electron/hosts/; the runtime stages the artifacts by
+ * copy (play realm) or re-bundles them with the per-export shipping config
+ * (exports). Never bundled from src/ at runtime: a packaged app ships no
+ * sources, and esbuild — a native subprocess — cannot read app.asar. Dev serve
+ * keeps an esbuild watch so host edits rebuild live.
+ */
+function realmHosts(): Plugin {
+  let ctx: BuildContext | null = null;
+  const create = () =>
+    esbuildContext({
+      entryPoints: ['src/playHost.ts', 'src/gameHost.ts', 'src/playableHost.ts'],
+      outdir: 'dist-electron/hosts',
+      bundle: true,
+      format: 'esm',
+      platform: 'browser',
+      target: 'es2020',
+      external: ESENGINE_EXTERNAL,
+      sourcemap: false,
+      logLevel: 'warning',
+    });
+  return {
+    name: 'realm-hosts',
+    async buildStart() {
+      if (ctx) return; // serve mode owns the watching context
+      const once = await create();
+      await once.rebuild();
+      await once.dispose();
+    },
+    async configureServer(server) {
+      ctx = await create();
+      await ctx.rebuild();
+      await ctx.watch();
+      server.httpServer?.once('close', () => void ctx?.dispose());
+    },
+  };
+}
 
 // Estella Editor — Electron + React + Vite.
 // `public/` (wasm runtime, bundled SDK, example projects) is served at the web root,
@@ -35,6 +78,7 @@ export default defineConfig({
   },
   plugins: [
     react(),
+    realmHosts(),
     electron({
       main: {
         entry: 'electron/main.ts',

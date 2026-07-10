@@ -5,18 +5,22 @@
  *        self-contained realm under the project's `.esengine/play/` so the editor
  *        can run it from `estella://project/.esengine/play/play.html` (everything
  *        same-origin estella://):
- *          - host.js   esbuild of src/playHost.ts, esengine EXTERNAL
+ *          - host.js   the PREBUILT play-host bundle (esengine EXTERNAL), copied
  *          - sdk/       a copy of the SDK dist (the import-map target)
  *          - wasm/      a copy of the engine runtime (glue + binary + side modules)
  *          - play.html  the host page: import map (esengine → ./sdk) + host.js
- *        The project bundle (`.esengine/cache/scripts.mjs`, esengine external —
- *        built separately by buildProjectScripts) resolves esengine through the
- *        SAME import map, so its defineComponent/defineSystem register into the
- *        instance the host's createWebApp uses (custom components+systems run).
+ *        The host is editor code: it's bundled at editor build time (the
+ *        realm-hosts step in vite.config.ts) and staged here by copy — never
+ *        bundled at runtime, since a packaged app ships no src/ and esbuild (a
+ *        native subprocess) cannot read app.asar. The project bundle
+ *        (`.esengine/cache/scripts.mjs`, esengine external — built separately by
+ *        buildProjectScripts, which DOES esbuild at runtime: project sources
+ *        live on the real filesystem) resolves esengine through the SAME import
+ *        map, so its defineComponent/defineSystem register into the instance the
+ *        host's createWebApp uses (custom components+systems run).
  *
- *        Pure Node (esbuild + fs); IPC wiring in main.ts.
+ *        Pure Node (fs); IPC wiring in main.ts.
  */
-import { build } from 'esbuild';
 import { cp, mkdir, rm, writeFile, readFile, stat, readdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -104,7 +108,8 @@ async function syncDir(src: string, dst: string, stampFile: string): Promise<voi
 
 export async function buildPlayRealm(opts: {
   root: string;
-  playHostEntry: string;
+  /** The prebuilt play-host bundle (dist-electron/hosts/playHost.js). */
+  playHostArtifact: string;
   sdkDistDir: string;
   wasmDir: string;
 }): Promise<PlayRealmResult> {
@@ -112,35 +117,25 @@ export async function buildPlayRealm(opts: {
   const errors: string[] = [];
   await mkdir(out, { recursive: true });
 
-  // 1. Host module — esengine EXTERNAL (resolved by the realm's import map).
-  //    Stamped on the entry's stat so a repeat Play skips esbuild.
+  // 1. Host module — the prebuilt bundle, staged by copy (readFile/writeFile so
+  //    an asar-packed artifact reads through Electron's patched fs). Stamped on
+  //    the artifact's stat so a repeat Play skips the copy.
+  if (!existsSync(opts.playHostArtifact)) {
+    return {
+      ok: false,
+      hostPath: '',
+      errors: [`play host bundle not found: ${opts.playHostArtifact} (built by vite build — see realm-hosts in vite.config.ts)`],
+    };
+  }
   const hostStamp = path.join(out, '.host-stamp');
   const hostOut = path.join(out, 'host.js');
-  const entryStat = await stat(opts.playHostEntry);
-  const hostSig = `${opts.playHostEntry}:${entryStat.size}:${Math.round(entryStat.mtimeMs)}`;
+  const entryStat = await stat(opts.playHostArtifact);
+  const hostSig = `${opts.playHostArtifact}:${entryStat.size}:${Math.round(entryStat.mtimeMs)}`;
   const hostFresh =
     existsSync(hostOut) && existsSync(hostStamp) && (await readFile(hostStamp, 'utf8')) === hostSig;
   if (!hostFresh) {
-    try {
-      const res = await build({
-        entryPoints: [opts.playHostEntry],
-        bundle: true,
-        format: 'esm',
-        platform: 'browser',
-        target: 'es2020',
-        external: ['esengine', 'esengine/*'],
-        outfile: hostOut,
-        sourcemap: false,
-        write: true,
-        logLevel: 'silent',
-      });
-      errors.push(...res.errors.map((e) => e.text));
-      if (errors.length === 0) await writeFile(hostStamp, hostSig);
-    } catch (err) {
-      const e = err as { errors?: { text: string }[]; message?: string };
-      errors.push(...(e.errors?.map((x) => x.text) ?? [String(e.message ?? err)]));
-      return { ok: false, hostPath: '', errors };
-    }
+    await writeFile(hostOut, await readFile(opts.playHostArtifact));
+    await writeFile(hostStamp, hostSig);
   }
 
   // 2. SDK + wasm copies (gated on a full dir signature, so an added file re-syncs).
