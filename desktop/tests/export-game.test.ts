@@ -130,4 +130,20 @@ describe('exportGame', () => {
     expect(existsSync(path.join(out2, 'scenes/main.esscene'))).toBe(true);
     expect(existsSync(path.join(out2, 'game.js'))).toBe(true);
   }, 60_000);
+
+  it('fails when the wasm runtime is missing — the build cannot boot without it', async () => {
+    const out3 = path.join(root, 'dist-game-nowasm');
+    const res = await exportGame({
+      root,
+      entryScene: 'scenes/main.esscene',
+      gameHostEntry: GAME_HOST,
+      scriptsEntry: 'src/main.ts',
+      sdkDistDir: path.join(root, '_sdk'),
+      wasmDir: path.join(root, '_no-such-wasm'),
+      outDir: out3,
+      title: 'My Game',
+    });
+    expect(res.ok).toBe(false);
+    expect(res.errors.some((e) => e.includes('wasm runtime dir not found'))).toBe(true);
+  }, 60_000);
 });

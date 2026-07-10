@@ -109,6 +109,50 @@ describe('exportGame (wechat)', () => {
     expect(existsSync(path.join(out, 'subpackages', 'level2', 'extra.png'))).toBe(true);
   }, 60_000);
 
+  it('requires the glue by its actual -t wechat name; unneeded side modules stay out (4MB budget)', async () => {
+    const wxDir = path.join(root, '_wxwasm-wxgame');
+    mkdirSync(wxDir, { recursive: true });
+    writeFileSync(path.join(wxDir, 'esengine.wxgame.js'), 'module.exports = () => Promise.resolve({});');
+    writeFileSync(path.join(wxDir, 'esengine.wxgame.wasm'), 'wasmbytes');
+    // Present in the runtime dir but not needed by the scene — must not ship.
+    writeFileSync(path.join(wxDir, 'physics.js'), 'module.exports = () => {};');
+    writeFileSync(path.join(wxDir, 'physics.wasm'), 'wasmbytes');
+    const outWx = path.join(root, 'dist-wechat-wxgame');
+    const res = await exportGame({
+      root,
+      entryScene: 'scenes/main.esscene',
+      gameHostEntry: 'unused-for-wechat',
+      scriptsEntry: 'src/main.ts',
+      sdkDistDir: path.join(root, '_sdk'),
+      wasmDir: wxDir,
+      outDir: outWx,
+      platform: 'wechat',
+    });
+    expect(res.ok).toBe(true);
+    expect(readFileSync(path.join(outWx, 'game.js'), 'utf8')).toContain("require('./wasm/esengine.wxgame.js')");
+    expect(existsSync(path.join(outWx, 'wasm', 'esengine.wxgame.wasm'))).toBe(true);
+    expect(existsSync(path.join(outWx, 'wasm', 'physics.js'))).toBe(false);
+    expect(existsSync(path.join(outWx, 'wasm', 'physics.wasm'))).toBe(false);
+  }, 60_000);
+
+  it('fails fast when the -t wechat engine runtime is missing', async () => {
+    const outMissing = path.join(root, 'dist-wechat-missing');
+    const res = await exportGame({
+      root,
+      entryScene: 'scenes/main.esscene',
+      gameHostEntry: 'unused-for-wechat',
+      scriptsEntry: 'src/main.ts',
+      sdkDistDir: path.join(root, '_sdk'),
+      wasmDir: path.join(root, '_no-such-wasm'),
+      outDir: outMissing,
+      platform: 'wechat',
+    });
+    expect(res.ok).toBe(false);
+    expect(res.errors[0]).toContain('build -t wechat');
+    // Failed before cooking — no half-assembled package left behind.
+    expect(existsSync(outMissing)).toBe(false);
+  }, 60_000);
+
   it('content-addressed export carries the logical path as the asset address', async () => {
     const outCa = path.join(root, 'dist-wechat-ca');
     const res = await exportGame({

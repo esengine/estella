@@ -233,6 +233,22 @@ export async function exportWeChat(opts: {
   const progress = opts.onProgress ?? (() => {});
   const warnings: string[] = [];
   const errors: string[] = [];
+
+  // 0. The generated entry unconditionally requires the engine glue, so a
+  //    missing wechat runtime cannot produce a runnable package — fail before
+  //    cooking. Require by its ACTUAL name in the wasm dir (the -t wechat
+  //    build emits esengine.wxgame.js; a web-aligned build, esengine.js).
+  const engineGlueFile = ['esengine.wxgame.js', 'esengine.js']
+    .find((f) => existsSync(path.join(opts.wasmDir, f)));
+  if (!engineGlueFile) {
+    errors.push(
+      `wechat engine runtime not found in ${opts.wasmDir} — ` +
+      'build it with `node build-tools/cli.js build -t wechat` ' +
+      '(add -t physics-wechat / -t spine-wechat if the project uses physics or Spine)',
+    );
+    return { ok: false, platform: 'wechat', outDir: absOut, included: 0, warnings, errors };
+  }
+
   await mkdir(absOut, { recursive: true });
 
   // 1. Cook reachable assets (paths preserved) + the flat manifest.
@@ -304,18 +320,26 @@ export async function exportWeChat(opts: {
     errors.push(...(e.errors?.map((x) => x.text) ?? [String(e.message ?? err)]));
   }
 
-  // 5. Entry + config. Require the engine glue by its ACTUAL name in the wasm dir
-  //    (the -t wechat build emits esengine.wxgame.js; a web-aligned build, esengine.js).
-  const engineGlueFile = ['esengine.js', 'esengine.wxgame.js']
-    .find((f) => existsSync(path.join(opts.wasmDir, f))) ?? 'esengine.js';
+  // 5. Entry + config.
   await writeFile(path.join(absOut, 'game.js'), gameEntryJs(sideModules, engineGlueFile));
   await writeFile(path.join(absOut, 'game.json'), gameJson(opts.orientation ?? 'portrait', subPackagesOf(cookEntries)));
   await writeFile(path.join(absOut, 'project.config.json'), projectConfigJson(title, opts.appid ?? ''));
 
-  // 6. The -t wechat engine runtime (WXWebAssembly glue + binary + side modules).
+  // 6. The engine runtime + exactly the side modules the scene needs. WeChat's
+  //    main package has a 4MB budget — unneeded side modules must not ride along.
   progress({ phase: 'Copying runtime' });
-  if (existsSync(opts.wasmDir)) await cp(opts.wasmDir, path.join(absOut, 'wasm'), { recursive: true });
-  else warnings.push(`wechat wasm runtime dir not found: ${opts.wasmDir}`);
+  const wasmOut = path.join(absOut, 'wasm');
+  await mkdir(wasmOut, { recursive: true });
+  const runtimeFiles = [
+    engineGlueFile,
+    engineGlueFile.replace(/\.js$/, '.wasm'),
+    ...sideModules.flatMap((m) => [`${m.file}.js`, `${m.file}.wasm`]),
+  ];
+  for (const f of runtimeFiles) {
+    const src = path.join(opts.wasmDir, f);
+    if (existsSync(src)) await cp(src, path.join(wasmOut, f));
+    else errors.push(`wechat runtime file missing: ${f} (in ${opts.wasmDir}) — rebuild with \`node build-tools/cli.js build -t wechat\``);
+  }
 
   return { ok: errors.length === 0, platform: 'wechat', outDir: absOut, included: cook.included.length, warnings, errors };
 }

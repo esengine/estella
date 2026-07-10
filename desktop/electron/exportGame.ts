@@ -322,12 +322,14 @@ export async function exportGame(opts: {
     return { ok: false, platform, outDir: absOut, included: cook.included.length, warnings, errors };
   }
 
-  // 4. SDK (import-map target) + wasm runtime.
+  // 4. SDK (import-map target) + wasm runtime. The import map and the game
+  //    host reference both unconditionally — a missing tree is not a degraded
+  //    export but a package that cannot boot, so it fails the export.
   progress({ phase: 'Copying SDK + runtime' });
   if (existsSync(opts.sdkDistDir)) await cp(opts.sdkDistDir, path.join(payloadDir, 'sdk'), { recursive: true });
-  else warnings.push(`sdk dist not found: ${opts.sdkDistDir}`);
+  else errors.push(`sdk dist not found: ${opts.sdkDistDir}`);
   if (existsSync(opts.wasmDir)) await cp(opts.wasmDir, path.join(payloadDir, 'wasm'), { recursive: true });
-  else warnings.push(`wasm runtime dir not found: ${opts.wasmDir}`);
+  else errors.push(`wasm runtime dir not found: ${opts.wasmDir}`);
 
   // 5. Host page + entry-scene config.
   progress({ phase: 'Writing host page' });

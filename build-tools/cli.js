@@ -83,7 +83,6 @@ program
 
             if (options.sync) {
                 await syncToDesktop();
-                await zipExamples(config.paths.root);
             }
 
             if (manifest) {
