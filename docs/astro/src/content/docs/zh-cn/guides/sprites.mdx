@@ -1,6 +1,6 @@
 ---
 title: 精灵与渲染
-description: 用 Sprite 组件绘制 2D 图像——纹理、着色与透明、尺寸与轴心、翻转、排序层与绘制顺序、视差,以及绘制基本图元的 ShapeRenderer。
+description: 用 Sprite 组件绘制 2D 图像——纹理、着色与透明、尺寸与轴心、翻转、排序层与绘制顺序、视差——外加 ShapeRenderer 图元、精灵滤镜、拖尾与世界空间位图文字。
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -110,6 +110,24 @@ sprite.layer = 2;   // 例如 "Foreground" —— 画在上面
 (用平面法线受光)。需要法线贴图或完全自定义的观感时,改用 **Lit-2D 材质**。两种方式都见
 [2D 光照与阴影](/docs/zh-cn/guides/lighting/)。
 
+### 精灵滤镜(描边、发光、投影)
+
+最常见的逐精灵效果不用写着色器——`SpriteFilter` 直接构建一个现成材质,赋给
+`sprite.material`:
+
+```typescript
+import { SpriteFilter } from 'esengine';
+
+sprite.material = SpriteFilter.createOutline({ color: { r: 1, g: 1, b: 1, a: 1 }, width: 2 });
+sprite.material = SpriteFilter.createGlow();                        // 暖色描边预设
+sprite.material = SpriteFilter.createDropShadow({ offsetX: 3, offsetY: 3, blur: 2 });
+```
+
+用 `setOutlineColor` / `setOutlineWidth` / `setShadowOffset` / `setShadowBlur`
+实时调一个已生效的滤镜(选中脉冲、受击闪白)。每次调用都创建一个材质——观感相同
+的精灵共享同一个句柄;纹理不是 512×512 时传
+`texelSize: { x: 1/texWidth, y: 1/texHeight }` 以获得精确的像素宽度。
+
 ## 不带纹理的图元
 
 要画实心圆、胶囊和圆角矩形——占位、进度条、调试覆盖——用 **`ShapeRenderer`** 而不是纹理
@@ -129,6 +147,50 @@ cmds.spawn()
 ```
 
 `ShapeRenderer` 与 `Sprite` 共享排序 `layer` 和 `color` 约定。
+
+## 拖尾
+
+**`TrailRenderer`** 沿实体最近的路径画一条世界空间条带——刀光、冲刺、弹道
+残影。加上组件、移动实体即可;位置历史由引擎记录,锥形收窄也替你渲染:
+
+```typescript
+cmds.spawn()
+  .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+  .insert(TrailRenderer, { time: 0.4, startWidth: 24, blendMode: 1 });  // 加法发光
+```
+
+| 字段 | 默认 | 说明 |
+|---|---|---|
+| `time` | `0.5` | 每个拖尾点存活的秒数,之后从尾部淡出。 |
+| `minVertexDistance` | `5` | 记录新点所需的最小移动距离(`0` = 每帧记录)。 |
+| `emitting` | `true` | `false` 冻结发射——条带脱离实体、原地淡出。 |
+| `startWidth` / `endWidth` | `20` / `0` | 头 / 尾的条带宽度(`0` 收窄成线)。 |
+| `startColor` / `endColor` | 白 / 白 α 0 | 头到尾插值;尾部 alpha 0 即淡出。 |
+| `texture` | `0` | 沿条带采样的纹理(U 从头到尾);`0` = 仅顶点色。 |
+| `blendMode` | `0` | `0` 正常、`1` 加法(发光)、`2` 乘法。 |
+| `layer` / `material` | `0` / `0` | 常规排序层 / 自定义材质。 |
+
+`Trail` 资源(`Res(Trail)`)提供 `clear(entity)`,立刻丢弃某实体的历史——比如
+传送时,免得拖尾划过整张地图。
+
+## 世界空间位图文字
+
+**`BitmapText`** 用预烘焙的位图字体渲染世界空间文字——伤害数字、名牌、复古
+UI。把 `font` 指向一个 **BMFont** 资产(`.fnt` 文本或 `.bmfont` JSON),设置
+`text` 即可:
+
+| 字段 | 默认 | 说明 |
+|---|---|---|
+| `text` | `''` | 要绘制的字符串。 |
+| `font` | `0` | 位图字体资产(`.fnt` / `.bmfont`)。 |
+| `fontSize` | `1` | 相对字体原生尺寸的缩放。 |
+| `align` | `Left` | `Left` / `Center` / `Right`。 |
+| `spacing` | `0` | 逐字符的额外间距。 |
+| `color` | `{1,1,1,1}` | 着色——可动画(闪一下伤害数字)。 |
+| `layer` / `parallax` | `0` / `{1,1}` | 与 `Sprite` 相同的排序层 / 视差语义。 |
+
+屏幕空间的 UI 文字(布局、换行、SDF 锐度)请用 UI 的 `Text` 控件——见
+[UI](/docs/zh-cn/guides/ui/)。
 
 ## 在编辑器里
 

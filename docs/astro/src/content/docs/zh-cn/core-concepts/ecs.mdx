@@ -14,8 +14,8 @@ Estella 构建在 **Entity-Component-System**（ECS，实体-组件-系统）架
 
 ## 为什么要数据导向
 
-组件存放在单一、缓存友好的存储层（稀疏集，sparse set）里，因此一个系统遍历
-「所有同时拥有 `Transform` 与 `Speed` 的实体」时走的是连续内存。存储位于
+组件存放在缓存友好的池里——每个组件类型一个紧密排布的稀疏集（sparse set）——
+因此一个系统遍历「所有同时拥有 `Transform` 与 `Speed` 的实体」时走的是连续内存。存储位于
 C++/WebAssembly 内核中，SDK 通过一份生成并经哈希校验的内存布局**零拷贝**读取它——
 于是同一个组件的 TypeScript 视图与 C++ 视图永远不会悄悄地对不上。
 
@@ -25,8 +25,11 @@ C++/WebAssembly 内核中，SDK 通过一份生成并经哈希校验的内存布
 
 - [`defineComponent`](/docs/zh-cn/core-concepts/components/) —— 声明一个组件类型。
 - [`defineSystem`](/docs/zh-cn/core-concepts/systems/) —— 声明一个系统及其查询。
-- `App` / 插件 —— 把系统、资源与各子系统（物理、Spine、瓦片地图、UI、音频、场景）
-  组装成一个运行中的游戏。
+- [`App` / 插件](/docs/zh-cn/core-concepts/plugins-resources/) —— 把系统、资源与
+  各子系统（[物理](/docs/zh-cn/guides/physics/)、[Spine](/docs/zh-cn/guides/spine/)、
+  [瓦片地图](/docs/zh-cn/guides/tilemap/)、[UI](/docs/zh-cn/guides/ui/)、
+  [音频](/docs/zh-cn/guides/audio/)、[场景](/docs/zh-cn/guides/scene/)）组装成一个
+  运行中的游戏。
 
 ```typescript
 import { App } from 'esengine';

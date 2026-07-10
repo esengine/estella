@@ -1,6 +1,6 @@
 ---
 title: 场景
-description: 场景的完整指南——切换、叠加加载、查询状态,以及系统如何按场景门控,通过 Res(SceneManager)。
+description: 场景的完整指南——切换、叠加加载、开放世界单元流送、查询状态,以及系统如何按场景门控,通过 Res(SceneManager)。
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -31,6 +31,27 @@ await scenes.loadAdditive('pause-menu', (loaded, total) => { /* progress */ });
 await scenes.unload('pause-menu');
 ```
 
+## 场景流送(开放世界)
+
+世界大到装不下时,用 `SceneStreaming` 资源围绕一个焦点加载与卸载**单元
+(cell)**——摆在世界空间里的叠加场景:
+
+```typescript
+import { defineSystem, Res, SceneStreaming } from 'esengine';
+
+const setupStreaming = defineSystem([Res(SceneStreaming)], (streaming) => {
+  streaming.configure({ loadRadius: 1200, unloadRadius: 1600 });
+  streaming.register({ scene: 'cells/forest',  x: 0,    y: 0, radius: 800 });
+  streaming.register({ scene: 'cells/village', x: 1500, y: 0, radius: 800 });
+  streaming.setFocusEntity(player);          // 或每帧 setFocus(x, y)
+});
+```
+
+每帧,距焦点小于 `loadRadius` 的单元叠加加载,超出 `unloadRadius` 的卸载——两个
+半径之间是滞回带,玩家站在边界不会来回抖动。`policy: 'sleep'` 用**休眠**代替
+卸载:实体留在内存里、被禁用并隐藏,重进即恢复,代价是内存。单元场景就是普通的
+项目场景,按名字引用(见下)。
+
 ## 构建里的场景
 
 项目场景目录下的每个场景都会随导出发布,并注册为 `switchTo` 的目标。场景的**名字**是它
@@ -50,8 +71,11 @@ await scenes.unload('pause-menu');
 | `unload(name, options?)` | 卸载一个场景(异步;可选过渡)。 |
 | `getActive()` | 活动场景名,或 `null`。 |
 | `getActiveScenes()` | 所有活动(叠加)场景名。 |
+| `pause(name)` / `resume(name)` | 挂起 / 恢复一个已加载场景的更新。 |
+| `sleep(name)` / `wake(name)` | 挂起**并隐藏**场景的实体(留在内存;唤醒即刻恢复)。 |
 | `isLoaded(name)` | 场景是否已加载。 |
 | `isActive(name)` | 场景是否活动。 |
+| `isPaused(name)` / `isSleeping(name)` | 上述两种挂起状态。 |
 | `isTransitioning()` | `switchTo` 过渡期间为 `true`。 |
 
 ## 最佳实践

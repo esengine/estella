@@ -93,6 +93,7 @@ export default defineConfig({
             { label: 'Post-processing', translations: { 'zh-CN': '后处理' }, slug: 'guides/postprocess' },
             { label: 'Materials & Shaders', translations: { 'zh-CN': '材质与着色器' }, slug: 'guides/material' },
             { label: '2D Lighting & Shadows', translations: { 'zh-CN': '2D 光照与阴影' }, slug: 'guides/lighting' },
+            { label: 'Custom Drawing', translations: { 'zh-CN': '自定义绘制' }, slug: 'guides/drawing' },
           ],
         },
         {

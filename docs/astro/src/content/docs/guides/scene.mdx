@@ -1,6 +1,6 @@
 ---
 title: Scenes
-description: The complete guide to scenes — switching, additive loading, querying state, and how systems are gated per scene, via Res(SceneManager).
+description: The complete guide to scenes — switching, additive loading, streaming open-world cells, querying state, and how systems are gated per scene, via Res(SceneManager).
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -34,6 +34,29 @@ await scenes.loadAdditive('pause-menu', (loaded, total) => { /* progress */ });
 await scenes.unload('pause-menu');
 ```
 
+## Scene streaming (open worlds)
+
+For worlds too big to load at once, the `SceneStreaming` resource loads and
+unloads **cells** — additive scenes placed in world space — around a focus point:
+
+```typescript
+import { defineSystem, Res, SceneStreaming } from 'esengine';
+
+const setupStreaming = defineSystem([Res(SceneStreaming)], (streaming) => {
+  streaming.configure({ loadRadius: 1200, unloadRadius: 1600 });
+  streaming.register({ scene: 'cells/forest',  x: 0,    y: 0, radius: 800 });
+  streaming.register({ scene: 'cells/village', x: 1500, y: 0, radius: 800 });
+  streaming.setFocusEntity(player);          // or setFocus(x, y) each frame
+});
+```
+
+Each frame, cells within `loadRadius` of the focus load additively and cells
+beyond `unloadRadius` unload — the gap between the radii is hysteresis, so a
+player standing at a border doesn't thrash loads. `policy: 'sleep'` **sleeps**
+cells instead of unloading: entities stay in memory, disabled and hidden, so
+re-entering is instant at the cost of memory. Cell scenes are ordinary project
+scenes referenced by name (see below).
+
 ## Scenes in a build
 
 Every scene in the project's scenes folder ships with an export and registers as a
@@ -56,8 +79,11 @@ ship the startup scene only. See
 | `unload(name, options?)` | Unload a scene (async; optional transition). |
 | `getActive()` | The active scene name, or `null`. |
 | `getActiveScenes()` | All active (additive) scene names. |
+| `pause(name)` / `resume(name)` | Suspend / resume a loaded scene's updates. |
+| `sleep(name)` / `wake(name)` | Suspend **and hide** a scene's entities (kept in memory; waking restores them instantly). |
 | `isLoaded(name)` | Whether a scene is loaded. |
 | `isActive(name)` | Whether a scene is active. |
+| `isPaused(name)` / `isSleeping(name)` | The suspension states above. |
 | `isTransitioning()` | `true` during a `switchTo` transition. |
 
 ## Best practices

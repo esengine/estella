@@ -162,6 +162,35 @@ export const Thruster = defineBehavior('Thruster', {
 Available phases include `Startup`, `PreUpdate`, `Update`, `PostUpdate`, and the fixed
 trio `FixedPreUpdate` / `FixedUpdate` / `FixedPostUpdate`.
 
+## Timers
+
+For "in 2 seconds…" / "every 0.5 s…" logic, the built-in **timer** resource beats
+hand-rolled elapsed-time bookkeeping. It ticks with the engine loop (so it pauses
+with the game, unlike `setTimeout`):
+
+```typescript
+import { defineSystem, Res, TimerRes } from 'esengine';
+
+const arm = defineSystem([Res(TimerRes)], (timers) => {
+  timers.delay(2, () => explode());                  // once, in 2 s
+  const h = timers.interval(0.5, (t) => spawnWave()); // repeating
+  timers.interval(1, (t) => tick(), 3);               // exactly 3 times
+  h.pause(); h.resume(); h.cancel(); h.reset();       // handle controls
+});
+```
+
+| Member | Description |
+|---|---|
+| `delay(seconds, cb)` | Run once after `seconds`; returns a `TimerHandle`. |
+| `interval(seconds, cb, maxRepeat?)` | Run every `seconds`; `maxRepeat` `0` = forever. |
+| handle `pause()` / `resume()` / `cancel()` / `reset()` | Control one timer (chainable). |
+| handle `isActive` / `elapsed` / `repeatCount` | Inspect it. |
+| `cancelAll()` · `activeCount` | Manage the whole set. |
+| `timeScale` | Slow / speed every timer at once (`0` freezes). |
+
+Timers advance in play mode only — in the editor's edit mode they hold, like the
+rest of game time.
+
 ## How it fits together
 
 A behavior is not a special case — it compiles to exactly one `defineComponent` plus

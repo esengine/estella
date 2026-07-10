@@ -1,6 +1,6 @@
 ---
 title: UI 控件
-description: 内置控件工厂——Button、Toggle、Slider、Progress、Dropdown、Dialog——它们的选项与命令式句柄,构建在 UI 组件模型之上。
+description: 内置控件工厂——Button、Toggle、Slider、Progress、Dropdown、Dialog、ListView——外加文本输入、拖放、键盘焦点、移动端安全区与主题。
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -268,6 +268,74 @@ list.data.setItems(freshList);         // 全替换
   (甩动 1 秒后剩余的速度比例;默认 `0.135`,ScrollRect 标准值)。异构行:用「item 类型 → 模板」
   的映射代替单个 `item`,并给数据源一个 `getItemType(i)`。
 </Aside>
+
+## 文本输入
+
+`TextInput` 是组件而不是工厂:放到一个 UI 实体上,它就成为可编辑的输入框——背景、
+光标、占位提示和 IME 管线都齐了:
+
+```typescript
+import { spawnUIEntity, TextInput, px } from 'esengine';
+
+const field = spawnUIEntity({ world, parent, node: { width: px(240), height: px(32) } });
+world.insert(field, TextInput, { placeholder: '你的名字', maxLength: 20 });
+
+events.on(field, 'change', () => { /* 内容被编辑 */ });
+events.on(field, 'submit', () => save(world.get(field, TextInput).value));  // 回车
+```
+
+| 字段 | 默认 | 说明 |
+|---|---|---|
+| `value` / `placeholder` | `''` | 内容 / 为空时显示的提示。 |
+| `maxLength` | `0` | 字符上限(`0` = 不限)。 |
+| `multiline` | `false` | 回车插入换行而不是提交。 |
+| `password` | `false` | 掩码显示。 |
+| `readOnly` | `false` | 可聚焦但不可编辑。 |
+| `fontSize` / `fontFamily` | `16` / `Arial` | 文字样式——`color`、`placeholderColor`、`backgroundColor` 和 `padding`(`6`)补全观感。 |
+
+点击(或 Tab 到)输入框即聚焦;**Escape** 失焦,单行输入框按**回车**触发
+`submit`。
+
+<Aside type="note">
+  文本输入只在**播放模式**运行,且需要浏览器 DOM(它驱动一个隐藏的原生
+  textarea 以支持 IME)——在编辑器编辑态下不生效。
+</Aside>
+
+## 拖放
+
+给任何可交互的 UI 实体加 `Draggable`,指针拖动就能移动它——有 `UINode` 时移动
+其绝对 inset,否则移动 `Transform`:
+
+```typescript
+world.insert(entity, Draggable, { dragThreshold: 5, lockY: true });
+events.on(entity, 'drag_start', () => { /* 还有 'drag_move' 与 'drag_end' */ });
+```
+
+`lockX` / `lockY` 锁轴,`constraintMin` / `constraintMax` 钳制范围;自动插入的
+`DragState` 组件暴露实时拖动数据(`isDragging`、`deltaWorld`、`totalDeltaWorld`
+等)。没有内置的放置目标(drop target)概念——在你的 `drag_end` 处理器里自行
+判定落点。
+
+## 键盘焦点
+
+带 `Focusable` 组件的实体参与键盘焦点:**点击**聚焦,**Tab / Shift+Tab** 轮换
+(按 `tabIndex` 升序,跳过禁用控件,到头回绕)。`FocusManager` 资源暴露
+`focusedEntity` 以及 `focus(entity)` / `blur()` 供编程控制,被聚焦的实体在 UI
+事件总线上收到 `focus` / `blur` 事件。`TextInput` 会自动加上自己的 `Focusable`。
+
+## 安全区(移动端刘海)
+
+给一个全屏、绝对定位的 `UINode` 容器加 `SafeArea`,它的 inset 就会跟随平台
+安全区——刘海、圆角、微信胶囊——里面布局的子节点永远不会被硬件遮住。
+`applyTop` / `applyBottom` / `applyLeft` / `applyRight`(默认全 `true`)选择
+生效的边。
+
+## 主题
+
+控件颜色来自一套共享令牌:`getTheme()` / `setTheme(tokens)`,角色包括
+`surface`、`control`、`controlHover`、`primary`、`onPrimary`、`track`、
+`backdrop`(`DARK_TOKENS` 是内置的暗色主题)。`setTheme` 只影响**之后构建**的
+控件——在启动时、搭 UI 之前设好主题;已经在屏幕上的控件保持既有颜色。
 
 ## 编辑器预制体
 

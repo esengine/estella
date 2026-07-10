@@ -1,6 +1,6 @@
 ---
 title: Sprites & Rendering
-description: Draw 2D images with the Sprite component — textures, tint and transparency, size and pivot, flipping, sorting layers and draw order, parallax, and the ShapeRenderer for primitives.
+description: Draw 2D images with the Sprite component — textures, tint and transparency, size and pivot, flipping, sorting layers and draw order, parallax — plus ShapeRenderer primitives, sprite filters, motion trails, and world-space bitmap text.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -127,6 +127,25 @@ To make a sprite respond to `Light2D` lights, the simplest path is to set
 normal maps or a fully custom look, use a **Lit-2D material** instead. Either way,
 see [2D Lighting & Shadows](/docs/guides/lighting/).
 
+### Sprite filters (outline, glow, drop shadow)
+
+For the most common per-sprite effects you don't need to write a shader —
+`SpriteFilter` builds a ready-made material you assign to `sprite.material`:
+
+```typescript
+import { SpriteFilter } from 'esengine';
+
+sprite.material = SpriteFilter.createOutline({ color: { r: 1, g: 1, b: 1, a: 1 }, width: 2 });
+sprite.material = SpriteFilter.createGlow();                        // warm outline preset
+sprite.material = SpriteFilter.createDropShadow({ offsetX: 3, offsetY: 3, blur: 2 });
+```
+
+Tweak a live filter with `setOutlineColor` / `setOutlineWidth` /
+`setShadowOffset` / `setShadowBlur` (selection pulses, hit flashes). Each call
+creates a material — share one handle across sprites that use the same look, and
+pass `texelSize: { x: 1/texWidth, y: 1/texHeight }` for exact pixel widths on
+textures that aren't 512×512.
+
 ## Shapes without a texture
 
 For solid circles, capsules, and rounded rectangles — placeholders, bars, debug
@@ -147,6 +166,52 @@ cmds.spawn()
 ```
 
 `ShapeRenderer` shares the sorting `layer` and `color` conventions with `Sprite`.
+
+## Motion trails
+
+**`TrailRenderer`** draws a world-space ribbon along an entity's recent path —
+sword swipes, dashes, projectile streaks. Add the component and move the entity;
+the engine records the position history and renders the taper for you:
+
+```typescript
+cmds.spawn()
+  .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+  .insert(TrailRenderer, { time: 0.4, startWidth: 24, blendMode: 1 });  // additive glow
+```
+
+| Field | Default | Description |
+|---|---|---|
+| `time` | `0.5` | Seconds each trail point lives before fading out of the tail. |
+| `minVertexDistance` | `5` | Min world distance moved before a new point is recorded (`0` = every frame). |
+| `emitting` | `true` | `false` freezes emission — the streak detaches and fades in place. |
+| `startWidth` / `endWidth` | `20` / `0` | Ribbon width at the head / tail (`0` tapers to a line). |
+| `startColor` / `endColor` | white / white α 0 | Color lerped head → tail; tail alpha 0 is the fade-out. |
+| `texture` | `0` | Texture along the ribbon (U runs head→tail); `0` = vertex colors only. |
+| `blendMode` | `0` | `0` Normal, `1` Additive (glow), `2` Multiply. |
+| `layer` / `material` | `0` / `0` | The usual sorting layer / custom material. |
+
+The `Trail` resource (`Res(Trail)`) adds `clear(entity)` to drop an entity's
+history instantly — e.g. when teleporting, so the trail doesn't streak across the
+map.
+
+## Bitmap text in the world
+
+**`BitmapText`** renders world-space text from a prebaked bitmap font — damage
+numbers, name tags, retro UI. Point `font` at a **BMFont** asset (`.fnt` text or
+`.bmfont` JSON) and set `text`:
+
+| Field | Default | Description |
+|---|---|---|
+| `text` | `''` | The string to draw. |
+| `font` | `0` | The bitmap-font asset (`.fnt` / `.bmfont`). |
+| `fontSize` | `1` | Scale over the font's authored size. |
+| `align` | `Left` | `Left` / `Center` / `Right`. |
+| `spacing` | `0` | Extra per-character spacing. |
+| `color` | `{1,1,1,1}` | Tint — animatable (flash a damage number). |
+| `layer` / `parallax` | `0` / `{1,1}` | Same sorting layer / parallax semantics as `Sprite`. |
+
+For screen-space UI text (layout, wrapping, SDF sharpness), use the UI `Text`
+widget instead — see [UI](/docs/guides/ui/).
 
 ## In the editor
 

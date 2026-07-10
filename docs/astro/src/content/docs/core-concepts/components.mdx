@@ -1,6 +1,6 @@
 ---
 title: Components
-description: Declaring and using components with defineComponent.
+description: Declaring and using components — defineComponent, field types, tags, editor metadata, and the built-in component set.
 ---
 
 A **component** is a small, plain data struct attached to an entity. Declare one
@@ -17,13 +17,71 @@ The defaults define both the shape (fields and types) and the initial values a
 new instance gets. Components are pure data — no methods, no behavior. Behavior
 lives in [systems](/docs/core-concepts/systems/).
 
+## Field types
+
+A field's type is inferred from its default. Numbers, booleans, and strings work
+as you'd expect, and structured shapes get matching editor controls:
+
+```typescript
+const Missile = defineComponent('Missile', {
+  speed: 400,                          // number
+  homing: true,                        // boolean
+  targetTag: '',                       // string
+  velocity: { x: 0, y: 0 },            // vector — edited as an X/Y pair
+  tint: { r: 1, g: 1, b: 1, a: 1 },    // {r,g,b,a} fields render a color picker
+});
+```
+
+## Tags — components with no data
+
+A **tag** is a zero-field marker used purely for filtering — `Player`, `Enemy`,
+`Frozen`. Declare it with `defineTag` and use it in queries with `.with()` /
+`.without()`:
+
+```typescript
+import { defineTag, defineSystem, Query, Mut, Transform } from 'esengine';
+
+const Player = defineTag('Player');
+const Frozen = defineTag('Frozen');
+
+defineSystem([Query(Mut(Transform)).with(Player).without(Frozen)], (q) => { /* … */ });
+```
+
+## Editor metadata
+
+A third argument controls how fields present in the editor's Details panel —
+ranges, sliders, units, enums, and asset pickers:
+
+```typescript
+const Turret = defineComponent('Turret', {
+  range: 300,
+  mode: 0,
+}, {
+  fields: {
+    range: { min: 0, max: 1000, slider: true, unit: 'px' },
+    mode: { enum: [{ label: 'Idle', value: 0 }, { label: 'Attack', value: 1 }] },
+  },
+});
+```
+
+Useful `fields` options: `min` / `max` / `step`, `slider`, `unit`, `enum`
+(dropdown storing the option's int), `flags` (bitmask multi-select), `tooltip`.
+Other component-level metadata: `assetFields` (marks a field as an asset
+reference, so Details renders a picker and the cook ships the dependency),
+`animatableFields` (which fields the [Sequencer](/docs/guides/timeline/) can
+key — defaults to all numeric fields), `transient` (never saved into the scene —
+for per-frame runtime state), and `replicatedFields` (synced by
+[networking](/docs/guides/networking/)'s state replication).
+
 ## Built-in components
 
-The SDK ships engine components you query alongside your own, for example:
-
-- `Transform` — position, rotation, and scale.
-- `Sprite` — a textured quad.
-- `Camera` — a view into the world.
+The SDK ships ~30 engine components you query alongside your own — `Transform`,
+`Sprite`, `ShapeRenderer`, `Camera`, `Light2D`, `ParticleEmitter`,
+`SpineAnimation`, `TilemapLayer`, the UI set, the physics colliders, and more.
+Each is documented in its subsystem guide:
+[Sprites & Rendering](/docs/guides/sprites/), [Camera](/docs/guides/camera/),
+[2D Lighting](/docs/guides/lighting/), [Physics](/docs/guides/physics/),
+[Tilemaps](/docs/guides/tilemap/), [UI](/docs/guides/ui/).
 
 ## Reading and writing
 
@@ -35,6 +93,11 @@ was touched:
 Query(Mut(Transform), Speed)
 // Transform is written; Speed is read-only
 ```
+
+Because writes are tracked, systems can also react to lifecycle:
+`Added(Comp)` / `Changed(Comp)` narrow a query to entities whose component just
+appeared / just changed — see [Systems](/docs/core-concepts/systems/) for the
+full query vocabulary.
 
 <br />
 

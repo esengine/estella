@@ -151,6 +151,33 @@ export const Thruster = defineBehavior('Thruster', {
 可用的相位包括 `Startup`、`PreUpdate`、`Update`、`PostUpdate`,以及固定三件套
 `FixedPreUpdate` / `FixedUpdate` / `FixedPostUpdate`。
 
+## 计时器
+
+"2 秒后…" / "每 0.5 秒…"这类逻辑,用内置的**计时器**资源比手搓累计时间干净。
+它随引擎循环走(所以和 `setTimeout` 不同,会跟游戏一起暂停):
+
+```typescript
+import { defineSystem, Res, TimerRes } from 'esengine';
+
+const arm = defineSystem([Res(TimerRes)], (timers) => {
+  timers.delay(2, () => explode());                   // 2 秒后执行一次
+  const h = timers.interval(0.5, (t) => spawnWave()); // 重复执行
+  timers.interval(1, (t) => tick(), 3);                // 恰好 3 次
+  h.pause(); h.resume(); h.cancel(); h.reset();        // 句柄控制
+});
+```
+
+| 成员 | 说明 |
+|---|---|
+| `delay(seconds, cb)` | `seconds` 后执行一次;返回 `TimerHandle`。 |
+| `interval(seconds, cb, maxRepeat?)` | 每 `seconds` 执行;`maxRepeat` 为 `0` = 无限。 |
+| 句柄 `pause()` / `resume()` / `cancel()` / `reset()` | 控制单个计时器(可链式)。 |
+| 句柄 `isActive` / `elapsed` / `repeatCount` | 查看状态。 |
+| `cancelAll()` · `activeCount` | 管理全体。 |
+| `timeScale` | 一次性放慢 / 加速所有计时器(`0` 冻结)。 |
+
+计时器只在播放模式推进——编辑器编辑态下与其余游戏时间一样保持不动。
+
 ## 它如何组合
 
 一个 behavior 并不是特例——它编译成恰好一个 `defineComponent` 加一个 `defineSystem`。当你的逻辑

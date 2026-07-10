@@ -22,23 +22,42 @@ defineSystem([Res(Audio)], (audio) => {
 
 Every subsystem's imperative API is reached the same way:
 
-| Subsystem | Resource | Import from |
+| Subsystem | Resource | Guide |
 |---|---|---|
-| Input | `Res(Input)` | `esengine` |
-| Audio | `Res(Audio)` | `esengine` |
-| Assets | `Res(Assets)` | `esengine` |
-| Tilemaps | `Res(Tilemaps)` | `esengine` |
-| Particles | `Res(Particle)` | `esengine` |
-| Post-processing | `Res(PostProcess)` | `esengine` |
-| Scenes | `Res(SceneManager)` | `esengine` |
-| Tweens | `Res(Tween)` | `esengine` |
-| Animator | `Res(AnimatorController)` | `esengine` |
-| Physics | `Res(PhysicsAPI)` | `esengine/physics` |
-| Spine | `Res(Spine)` | `esengine/spine` |
+| Input | `Res(Input)` | [Input](/docs/guides/input/) |
+| Audio | `Res(Audio)` | [Audio](/docs/guides/audio/) |
+| Assets | `Res(Assets)` | [Assets](/docs/guides/assets/) |
+| Tilemaps | `Res(Tilemaps)` | [Tilemaps](/docs/guides/tilemap/) |
+| Particles | `Res(Particle)` | [Particles](/docs/guides/particle/) |
+| Post-processing | `Res(PostProcess)` | [Post-processing](/docs/guides/postprocess/) |
+| Scenes | `Res(SceneManager)` | [Scenes](/docs/guides/scene/) |
+| Tweens | `Res(Tween)` | [Animation](/docs/guides/animation/) |
+| Frame animation | `Res(SpriteAnimation)` | [Animation](/docs/guides/animation/) |
+| Animator | `Res(AnimatorController)` | [Animation](/docs/guides/animation/) |
+| Timers | `Res(TimerRes)` | [Scripting](/docs/guides/scripting/) |
+| Timeline | `Res(Timeline)` | [Timeline](/docs/guides/timeline/) |
+| Prefabs | `Res(Prefabs)` | [Prefabs](/docs/guides/prefab/) |
+| Navigation / AI | `Res(Nav)` | [Gameplay AI](/docs/guides/ai/) |
+| Localization | `Res(Localization)` | [Localization](/docs/guides/localization/) |
+| Camera view | `Res(CameraView)` | [Camera](/docs/guides/camera/) |
+| UI events | `Res(UIEvents)` | [UI](/docs/guides/ui/) |
+| Physics | `Res(PhysicsAPI)` — from `esengine/physics` | [Physics](/docs/guides/physics/) |
+| Spine | `Res(Spine)` — from `esengine/spine` | [Spine](/docs/guides/spine/) |
 
 Physics and Spine are **optional side-modules** loaded on demand, so their APIs
 live on subpaths to keep the base bundle small; everything else is in the main
-`esengine` package.
+`esengine` package. All the base subsystems above ship in the standard app — no
+plugin wiring needed.
+
+Some subsystems also publish **event resources** on the same pattern — a
+resource whose contents are this frame's events, read the same frame:
+`Res(PhysicsEvents)` (contacts), `Res(SpineEvents)` (animation events),
+`Res(UIEvents)` (clicks and input from widgets).
+
+<br />
+
+`Res(X)` gives read access; use `ResMut(X)` when the system **replaces or
+mutates the resource's state** — same contract as `Mut` on components.
 
 ## Components vs. resources
 

@@ -1,6 +1,6 @@
 ---
 title: UI Components
-description: The built-in widget factories — Button, Toggle, Slider, Progress, Dropdown, and Dialog — their options and imperative handles, built on the UI component model.
+description: The built-in widget factories — Button, Toggle, Slider, Progress, Dropdown, Dialog, and ListView — plus text input, drag & drop, keyboard focus, mobile safe areas, and theming.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -281,6 +281,78 @@ list.data.setItems(freshList);         // replace all
   standard). For heterogeneous rows, pass a map of item type → template instead of one
   `item`, and give the data source a `getItemType(i)`.
 </Aside>
+
+## Text input
+
+`TextInput` is a component, not a factory: put it on a UI entity and it becomes an
+editable field — background, caret, placeholder, and IME plumbing included:
+
+```typescript
+import { spawnUIEntity, TextInput, px } from 'esengine';
+
+const field = spawnUIEntity({ world, parent, node: { width: px(240), height: px(32) } });
+world.insert(field, TextInput, { placeholder: 'Your name', maxLength: 20 });
+
+events.on(field, 'change', () => { /* value edited */ });
+events.on(field, 'submit', () => save(world.get(field, TextInput).value));  // Enter
+```
+
+| Field | Default | Description |
+|---|---|---|
+| `value` / `placeholder` | `''` | Content / hint shown while empty. |
+| `maxLength` | `0` | Character cap (`0` = unlimited). |
+| `multiline` | `false` | Enter inserts a newline instead of submitting. |
+| `password` | `false` | Mask the characters. |
+| `readOnly` | `false` | Focusable but not editable. |
+| `fontSize` / `fontFamily` | `16` / `Arial` | Text style — `color`, `placeholderColor`, `backgroundColor`, and `padding` (`6`) round out the look. |
+
+Click (or Tab to) the field to focus it; **Escape** blurs, **Enter** fires
+`submit` on single-line fields.
+
+<Aside type="note">
+  Text input runs in **play mode only** and needs a browser DOM (it drives a
+  hidden native textarea for IME support) — it's inert in the editor's edit view.
+</Aside>
+
+## Drag & drop
+
+Add `Draggable` to any interactable UI entity and pointer drags move it — its
+absolute `UINode` insets when it has one, otherwise its `Transform`:
+
+```typescript
+world.insert(entity, Draggable, { dragThreshold: 5, lockY: true });
+events.on(entity, 'drag_start', () => { /* also 'drag_move' and 'drag_end' */ });
+```
+
+`lockX` / `lockY` constrain the axis and `constraintMin` / `constraintMax` clamp
+the range; the auto-inserted `DragState` component exposes the live drag
+(`isDragging`, `deltaWorld`, `totalDeltaWorld`, …). There's no built-in
+drop-target concept — decide what the drop hit in your `drag_end` handler.
+
+## Keyboard focus
+
+Entities with a `Focusable` component participate in keyboard focus: **click**
+focuses, **Tab / Shift+Tab** cycles (ordered by `tabIndex` ascending, skipping
+disabled widgets, wrapping at the ends). The `FocusManager` resource exposes
+`focusedEntity` plus `focus(entity)` / `blur()` for programmatic control, and
+focused entities receive `focus` / `blur` events on the UI event bus.
+`TextInput` adds its own `Focusable` automatically.
+
+## Safe area (mobile notches)
+
+Add `SafeArea` to a full-screen, absolutely-positioned `UINode` container and its
+insets track the platform safe area — device notches, rounded corners, the WeChat
+capsule — so children laid out inside never hide under hardware. `applyTop` /
+`applyBottom` / `applyLeft` / `applyRight` (all default `true`) pick which edges
+apply.
+
+## Theming
+
+Widget colors come from a shared token set: `getTheme()` / `setTheme(tokens)`
+with roles like `surface`, `control`, `controlHover`, `primary`, `onPrimary`,
+`track`, and `backdrop` (`DARK_TOKENS` is the built-in dark theme). `setTheme`
+affects widgets **constructed afterwards** — set your theme once at startup,
+before building UI; widgets already on screen keep their baked colors.
 
 ## Editor prefabs
 

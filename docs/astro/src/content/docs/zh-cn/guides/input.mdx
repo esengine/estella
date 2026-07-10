@@ -1,6 +1,6 @@
 ---
 title: 输入
-description: 输入完整参考——通过 Input 资源读取键盘、鼠标、触摸与手柄,以及世界空间光标。
+description: 输入完整参考——通过 Input 资源读取键盘、鼠标、触摸与手柄,用 InputMap 做可改键的命名动作,触摸手势,以及世界空间光标。
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -73,6 +73,97 @@ const jump = defineSystem([Query(Mut(CharacterController)), Res(Input)], (player
 
 <Aside type="note">按住状态(`isKeyDown`)是电平触发,本就能在任意 schedule 正确读取。
 按步精确的边沿投递覆盖键盘与鼠标按键;手柄边沿是按帧粒度的。</Aside>
+
+## 输入动作(`InputMap`)
+
+写死的按键检查会把设备细节散落进玩法代码。**输入映射**给每个动作起一次名——
+键盘 / 鼠标 / 手柄绑定随便挂多少个——玩法按名字查询动作:
+
+```typescript
+import {
+  defineInputMap, Button, Axis2D,
+  Key, Keys2D, Stick, GpButton, GamepadButton,
+} from 'esengine';
+
+export const Controls = defineInputMap({
+  Move: Axis2D(Keys2D('KeyW', 'KeyS', 'KeyA', 'KeyD'), Stick('left')),
+  Jump: Button(Key('Space'), GpButton(GamepadButton.South)),
+});
+```
+
+`defineInputMap` 自己注册每帧求值(在输入轮询之后、`Update` 之前),映射立即可用
+——在任何系统里导入并查询:
+
+```typescript
+const dir = Controls.axis2d('Move');          // { x, y },长度 ≤ 1
+if (Controls.pressed('Jump')) { /* 本帧边沿 */ }
+```
+
+| 查询 | 返回 |
+|---|---|
+| `down(name)` | 按住——动作幅度 ≥ 0.5。 |
+| `pressed(name)` / `released(name)` | 本帧边沿。 |
+| `value(name)` | button `0..1` · axis `-1..1` · axis2d 的幅度 `0..1`。 |
+| `axis2d(name)` | `{ x, y }` 方向(超过 1 时归一化)。 |
+
+动作是 `Button(…)`、`Axis1D(…)` 或 `Axis2D(…)`;各接任意数量的绑定,多个绑定
+求和(再钳制),键盘与手柄自然共存:
+
+| 绑定 | 供给 | 含义 |
+|---|---|---|
+| `Key(code)` | button / axis | 一个键盘键。 |
+| `MouseButton(b)` | button / axis | 一个鼠标键。 |
+| `GpButton(btn, pad?)` | button / axis | 一个手柄键(扳机给模拟值)。 |
+| `GpAxis(axis, pad?, scale?)` | axis | 一根原始手柄轴。 |
+| `Keys1D(neg, pos)` | axis | 两个键 → 带符号的 1D 轴。 |
+| `Keys2D(up, down, left, right)` | axis2d | 四个键 → 2D 方向。 |
+| `Stick('left' \| 'right', pad?)` | axis2d | 一根手柄摇杆(上 = +y,与 `Keys2D` 一致)。 |
+
+### 改键与持久化
+
+绑定是普通的可序列化数据,所以按键设置界面写起来很小:
+
+```typescript
+// "按任意键…"——捕获下一个按键 / 手柄键(鼠标需显式开启)
+await Controls.rebind('Jump');            // 替换;{ append: true } 则追加
+Controls.save('controls');                // 持久化到平台 Storage
+// 启动时:
+Controls.load('controls');                // 重新应用已存的绑定(如有)
+```
+
+`getBindings` / `setBindings` 以编程方式查看和编辑绑定;`cancelListen()` 中止
+挂起的捕获(以 `null` 解析)。
+
+### 数据驱动的映射(`.inputmap`)
+
+整张映射也能序列化为资产:在编辑器内容浏览器里**新建 Input Map**,然后用
+`loadInputMapAsset(json)` 代替 `defineInputMap` 构建。`toAsset()` 从代码产出
+同样的格式。
+
+## 触摸手势
+
+`GestureDetector` 把原始触摸变成点按 / 长按 / 滑动 / 捏合回调。基于 `Input`
+资源构建一次,在系统里驱动:
+
+```typescript
+import { defineSystem, Res, Input, Time, GestureDetector } from 'esengine';
+
+let gestures: GestureDetector | null = null;
+
+const gestureSystem = defineSystem([Res(Input), Res(Time)], (input, time) => {
+  if (!gestures) {
+    gestures = new GestureDetector(input);
+    gestures.onTap       = (x, y) => { /* 屏幕 px */ };
+    gestures.onLongPress = (x, y) => { /* 原地按住约 0.5 s */ };
+    gestures.onSwipe     = (dir, speed) => { /* 'left' | 'right' | 'up' | 'down' */ };
+    gestures.onPinch     = (scale, cx, cy) => { /* 逐帧的双指缩放系数 */ };
+  }
+  gestures.update(time.delta);
+});
+```
+
+点按 = 0.3 s 内、移动小于 10 px;滑动需 ≥ 50 px 且 ≥ 200 px/s;捏合报告双指
+间距逐帧的缩放系数及中心点。
 
 ## 参考
 

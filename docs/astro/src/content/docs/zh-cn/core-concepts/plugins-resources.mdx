@@ -20,22 +20,39 @@ defineSystem([Res(Audio)], (audio) => {
 
 每个子系统的命令式 API 都用同一种方式取用:
 
-| 子系统 | 资源 | 导入自 |
+| 子系统 | 资源 | 指南 |
 |---|---|---|
-| 输入 | `Res(Input)` | `esengine` |
-| 音频 | `Res(Audio)` | `esengine` |
-| 资源 | `Res(Assets)` | `esengine` |
-| 瓦片地图 | `Res(Tilemaps)` | `esengine` |
-| 粒子 | `Res(Particle)` | `esengine` |
-| 后处理 | `Res(PostProcess)` | `esengine` |
-| 场景 | `Res(SceneManager)` | `esengine` |
-| 补间 | `Res(Tween)` | `esengine` |
-| 动画机 | `Res(AnimatorController)` | `esengine` |
-| 物理 | `Res(PhysicsAPI)` | `esengine/physics` |
-| Spine | `Res(Spine)` | `esengine/spine` |
+| 输入 | `Res(Input)` | [输入](/docs/zh-cn/guides/input/) |
+| 音频 | `Res(Audio)` | [音频](/docs/zh-cn/guides/audio/) |
+| 资源 | `Res(Assets)` | [资源](/docs/zh-cn/guides/assets/) |
+| 瓦片地图 | `Res(Tilemaps)` | [瓦片地图](/docs/zh-cn/guides/tilemap/) |
+| 粒子 | `Res(Particle)` | [粒子](/docs/zh-cn/guides/particle/) |
+| 后处理 | `Res(PostProcess)` | [后处理](/docs/zh-cn/guides/postprocess/) |
+| 场景 | `Res(SceneManager)` | [场景](/docs/zh-cn/guides/scene/) |
+| 补间 | `Res(Tween)` | [动画](/docs/zh-cn/guides/animation/) |
+| 帧动画 | `Res(SpriteAnimation)` | [动画](/docs/zh-cn/guides/animation/) |
+| 动画机 | `Res(AnimatorController)` | [动画](/docs/zh-cn/guides/animation/) |
+| 计时器 | `Res(TimerRes)` | [脚本](/docs/zh-cn/guides/scripting/) |
+| 时间轴 | `Res(Timeline)` | [时间轴](/docs/zh-cn/guides/timeline/) |
+| 预制体 | `Res(Prefabs)` | [预制体](/docs/zh-cn/guides/prefab/) |
+| 导航 / AI | `Res(Nav)` | [游戏 AI](/docs/zh-cn/guides/ai/) |
+| 本地化 | `Res(Localization)` | [本地化](/docs/zh-cn/guides/localization/) |
+| 相机视图 | `Res(CameraView)` | [相机](/docs/zh-cn/guides/camera/) |
+| UI 事件 | `Res(UIEvents)` | [UI](/docs/zh-cn/guides/ui/) |
+| 物理 | `Res(PhysicsAPI)` —— 来自 `esengine/physics` | [物理](/docs/zh-cn/guides/physics/) |
+| Spine | `Res(Spine)` —— 来自 `esengine/spine` | [Spine](/docs/zh-cn/guides/spine/) |
 
 物理和 Spine 是**可选 side-module**,按需加载,因此它们的 API 放在子路径上以保持基础
-包精简;其余都在主 `esengine` 包里。
+包精简;其余都在主 `esengine` 包里。上表的基础子系统都随标准 App 附带——无需接线。
+
+有些子系统还按同一范式发布**事件资源**——内容是本帧事件、当帧读取的资源:
+`Res(PhysicsEvents)`(碰撞接触)、`Res(SpineEvents)`(动画事件)、
+`Res(UIEvents)`(控件的点击与输入)。
+
+<br />
+
+`Res(X)` 是读取;当系统要**替换或改动资源的状态**时用 `ResMut(X)`——与组件上的
+`Mut` 是同一契约。
 
 ## 组件 vs 资源
 

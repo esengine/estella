@@ -1,0 +1,116 @@
+---
+title: Custom Drawing
+description: Draw beyond components — immediate-mode primitives with Draw, vector paths with Graphics, custom triangle meshes with Mesh2D, and offscreen render textures.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Most visuals are components — [sprites](/docs/guides/sprites/), tilemaps,
+particles. When you need something they can't express — debug overlays, procedural
+shapes, custom geometry — the engine exposes its drawing layer directly.
+
+## Draw callbacks
+
+Register a callback and it runs inside the render pass every frame, with the
+camera's view-projection already active — no setup, just draw:
+
+```typescript
+import { registerDrawCallback, Draw } from 'esengine';
+
+registerDrawCallback('debug-overlay', (elapsed) => {
+  Draw.line({ x: 0, y: 0 }, { x: 100, y: 50 }, { r: 1, g: 0, b: 0, a: 1 }, 2);
+  Draw.circleOutline({ x: 0, y: 0 }, aggroRadius, { r: 1, g: 1, b: 0, a: 0.5 });
+});
+```
+
+Callbacks draw **on top of** the scene; `registerPreSceneDrawCallback` draws
+**under** it (its callback receives `{ width, height, elapsed }`). Remove one
+with `unregisterDrawCallback(id)`. All coordinates are world-space.
+
+<Aside type="tip">
+  A callback registered while a scene is active can be scoped to it —
+  `sceneContext.registerDrawCallback(id, fn)` on the context returned by
+  `loadAdditive` — so it's cleaned up with the scene and only draws while the
+  scene is active.
+</Aside>
+
+## The `Draw` API
+
+`Draw` is an immediate-mode singleton — commands are batched automatically and
+cleared every frame, so call it each frame you want the shape visible:
+
+| Method | Draws |
+|---|---|
+| `line(from, to, color, thickness?)` | A line segment (thickness in px, default `1`). |
+| `rect(pos, size, color, filled?)` / `rectOutline(pos, size, color, thickness?)` | A rectangle — `pos` is the **center**. |
+| `circle(center, radius, color, filled?, segments?)` / `circleOutline(…)` | A circle (default `32` segments). |
+| `texture(pos, size, textureHandle, tint?)` | A textured quad. |
+| `textureRotated(pos, size, rotation, textureHandle, tint?)` | Same, rotated (radians). |
+| `setLayer(layer)` / `setDepth(depth)` | Sorting of subsequent commands. |
+| `setBlendMode(mode)` / `setDepthTest(on)` | Blend / depth state for subsequent commands. |
+| `getDrawCallCount()` / `getPrimitiveCount()` | Frame stats. |
+
+## Vector paths: `Graphics`
+
+For shapes built from paths — polylines, béziers, arcs, rounded rects —
+`Graphics` records a path and replays it through `Draw` when you `flush()`:
+
+```typescript
+import { Graphics, registerDrawCallback } from 'esengine';
+
+const g = new Graphics();
+g.lineStyle(2, { r: 1, g: 1, b: 1, a: 1 });
+g.beginFill({ r: 0, g: 0.5, b: 1, a: 1 });
+g.drawRoundRect(-50, -25, 100, 50, 8);
+g.endFill();
+g.moveTo(0, 0);
+g.curveTo(50, 80, 100, 0);           // quadratic bézier
+
+registerDrawCallback('hud-shape', () => g.flush());
+```
+
+Path methods: `moveTo` / `lineTo`, `curveTo` (quadratic) / `cubicCurveTo`,
+`arc`, `drawRect` / `drawRoundRect` / `drawCircle` / `drawEllipse`, `clear()`.
+`lineStyle(thickness, color)` sets the stroke; `beginFill(color)` / `endFill()`
+fill **rects and circles** (path outlines stay strokes). The path is retained —
+build it once, `flush()` it every frame.
+
+## Custom meshes: `Mesh2D`
+
+`Mesh2D` is a component that renders an arbitrary indexed triangle list — 
+procedural terrain slices, radial health arcs, water surfaces. Author the
+geometry on the component (positions as x,y pairs; optional per-vertex UVs and
+colors):
+
+```typescript
+cmds.spawn()
+  .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+  .insert(Mesh2D, {
+    geometry: {
+      positions: [0, 0,  100, 0,  50, 80],
+      colors: [1,0,0,1,  0,1,0,1,  0,0,1,1],
+      indices: [0, 1, 2],
+    },
+  });
+```
+
+The mesh shares the standard renderable surface: `texture`, `color`, `layer`,
+`lit`, `parallax`, and `material`. Geometry set in a scene (or at spawn) uploads
+automatically; to **mutate it at runtime**, go through the `Meshes2D` resource —
+`setGeometry(entity, geometry)` re-uploads (indices are validated engine-side),
+`getGeometry` / `clearGeometry` round it out. Direct writes to the `geometry`
+field alone are not change-detected.
+
+## Offscreen targets: `RenderTexture`
+
+For advanced setups — minimaps, portraits, mirrors — `RenderTexture.create({
+width, height })` allocates an offscreen target; wrap draw commands in
+`RenderTexture.begin(rt, viewProjection)` / `end()` to render into it, and
+`release(rt)` when done. This is a low-level surface (you supply the
+view-projection matrix yourself) — see the TypeScript API reference for details.
+
+## See also
+
+- [Sprites & Rendering](/docs/guides/sprites/) — the component path for images and shapes.
+- [Materials & Shaders](/docs/guides/material/) — custom shaders for any renderable.
+- [Camera](/docs/guides/camera/) — where the view-projection your callbacks draw under comes from.

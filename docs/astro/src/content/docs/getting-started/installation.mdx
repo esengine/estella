@@ -12,10 +12,12 @@ import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
     1. Download the latest editor from the
        [releases page](https://github.com/esengine/estella/releases).
 
-    2. Install and open it, then click **New Project**.
+    2. Install and open it, then click **New project**.
 
-    3. Enter a project name and location, and click **Create**. The editor opens
-       a default scene with a Camera entity.
+    3. Pick a template — the **Blank** starter, or one of the bundled
+       **Examples** — enter a project name and location, and click
+       **Create project**. With Blank, the editor opens a default scene with a
+       Camera entity.
 
     </Steps>
 
@@ -34,12 +36,13 @@ import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
 
     <Steps>
 
-    1. Clone and install:
+    1. Clone (with submodules) and install:
 
        ```bash
-       git clone https://github.com/esengine/estella.git
+       git clone --recursive https://github.com/esengine/estella.git
        cd estella
        pnpm install
+       pnpm emsdk:setup   # one-time: installs Emscripten 5.0.0 into tools/emsdk
        ```
 
     2. Build the engine, SDK, and sync to the editor:

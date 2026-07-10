@@ -1,6 +1,6 @@
 ---
 title: 组件
-description: 用 defineComponent 声明和使用组件。
+description: 声明和使用组件——defineComponent、字段类型、标签组件、编辑器元数据与内置组件集。
 ---
 
 **组件**是挂在实体上的一小块纯数据结构。用 `defineComponent` 声明一个组件，给它一个
@@ -16,13 +16,66 @@ const Health = defineComponent('Health', { current: 100, max: 100 });
 默认值同时定义了组件的形状（字段与类型）和新实例的初始值。组件是纯数据——没有方法、
 没有行为。行为存在于[系统](/docs/zh-cn/core-concepts/systems/)里。
 
+## 字段类型
+
+字段的类型由默认值推断。数字、布尔、字符串如你所想，结构化形状会得到对应的编辑器
+控件：
+
+```typescript
+const Missile = defineComponent('Missile', {
+  speed: 400,                          // number
+  homing: true,                        // boolean
+  targetTag: '',                       // string
+  velocity: { x: 0, y: 0 },            // 向量——以 X/Y 一对编辑
+  tint: { r: 1, g: 1, b: 1, a: 1 },    // {r,g,b,a} 字段渲染成拾色器
+});
+```
+
+## 标签——没有数据的组件
+
+**标签（tag）**是零字段的标记组件，纯粹用于过滤——`Player`、`Enemy`、`Frozen`。
+用 `defineTag` 声明，在查询里配合 `.with()` / `.without()` 使用：
+
+```typescript
+import { defineTag, defineSystem, Query, Mut, Transform } from 'esengine';
+
+const Player = defineTag('Player');
+const Frozen = defineTag('Frozen');
+
+defineSystem([Query(Mut(Transform)).with(Player).without(Frozen)], (q) => { /* … */ });
+```
+
+## 编辑器元数据
+
+第三个参数控制字段在编辑器 Details 面板里的呈现——范围、滑杆、单位、枚举：
+
+```typescript
+const Turret = defineComponent('Turret', {
+  range: 300,
+  mode: 0,
+}, {
+  fields: {
+    range: { min: 0, max: 1000, slider: true, unit: 'px' },
+    mode: { enum: [{ label: 'Idle', value: 0 }, { label: 'Attack', value: 1 }] },
+  },
+});
+```
+
+常用的 `fields` 选项：`min` / `max` / `step`、`slider`、`unit`、`enum`（下拉，
+存储选项的整数值）、`flags`（位掩码多选）、`tooltip`。其他组件级元数据：
+`assetFields`（把字段标记为资产引用，Details 渲染选择器、cook 会带上依赖）、
+`animatableFields`（[Sequencer](/docs/zh-cn/guides/timeline/) 可打关键帧的字段
+——默认为全部数字字段）、`transient`（永不存进场景——用于逐帧运行时状态），以及
+`replicatedFields`（由[联网](/docs/zh-cn/guides/networking/)的状态复制同步）。
+
 ## 内置组件
 
-SDK 自带一批引擎组件，你可以和自己的组件一起查询，例如：
-
-- `Transform` —— 位置、旋转与缩放。
-- `Sprite` —— 一个带贴图的四边形。
-- `Camera` —— 观察世界的视图。
+SDK 自带约 30 个引擎组件，与你自己的组件一起查询——`Transform`、`Sprite`、
+`ShapeRenderer`、`Camera`、`Light2D`、`ParticleEmitter`、`SpineAnimation`、
+`TilemapLayer`、UI 组件族、物理碰撞体等等。各自在对应的子系统指南里有完整文档：
+[精灵与渲染](/docs/zh-cn/guides/sprites/)、[相机](/docs/zh-cn/guides/camera/)、
+[2D 光照](/docs/zh-cn/guides/lighting/)、[物理](/docs/zh-cn/guides/physics/)、
+[瓦片地图](/docs/zh-cn/guides/tilemap/)、[UI](/docs/zh-cn/guides/ui/)。
 
 ## 读取与写入
 
@@ -33,6 +86,10 @@ SDK 自带一批引擎组件，你可以和自己的组件一起查询，例如�
 Query(Mut(Transform), Speed)
 // Transform 会被写入；Speed 只读
 ```
+
+因为写入被跟踪，系统也能响应生命周期：`Added(Comp)` / `Changed(Comp)` 把查询收窄到
+组件刚出现 / 刚变化的实体——完整的查询词汇见
+[系统](/docs/zh-cn/core-concepts/systems/)。
 
 <br />
 

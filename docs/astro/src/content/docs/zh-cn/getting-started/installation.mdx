@@ -11,10 +11,11 @@ import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
 
     1. 从[发布页](https://github.com/esengine/estella/releases)下载最新版编辑器。
 
-    2. 安装并打开，点击 **New Project**（新建项目）。
+    2. 安装并打开，点击 **New project**（新建项目）。
 
-    3. 填写项目名称与位置，点击 **Create**（创建）。编辑器会打开一个带有相机实体的
-       默认场景。
+    3. 选一个模板——**Blank** 起始模板，或随附的 **Examples** 示例项目——填写项目
+       名称与位置，点击 **Create project**（创建项目）。选 Blank 时，编辑器会打开
+       一个带有相机实体的默认场景。
 
     </Steps>
 
@@ -33,12 +34,13 @@ import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
 
     <Steps>
 
-    1. 克隆并安装依赖：
+    1. 克隆（带子模块）并安装依赖：
 
        ```bash
-       git clone https://github.com/esengine/estella.git
+       git clone --recursive https://github.com/esengine/estella.git
        cd estella
        pnpm install
+       pnpm emsdk:setup   # 一次性：把 Emscripten 5.0.0 装进 tools/emsdk
        ```
 
     2. 构建引擎、SDK 并同步到编辑器：

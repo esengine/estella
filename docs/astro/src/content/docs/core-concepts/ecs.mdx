@@ -16,9 +16,9 @@ lives in systems that run over that data.
 
 ## Why data-oriented
 
-Components are stored in a single cache-friendly layer (a sparse set) so that a
-system iterating "all entities with a `Transform` and a `Speed`" walks
-contiguous memory. Storage lives in the C++/WebAssembly core, and the SDK reads
+Components are stored in cache-friendly pools — one densely packed sparse set
+per component type — so a system iterating "all entities with a `Transform` and
+a `Speed`" walks contiguous memory. Storage lives in the C++/WebAssembly core, and the SDK reads
 it with zero copies through a generated, hash-checked memory layout — so the
 TypeScript and C++ views of a component can never silently drift apart.
 
@@ -29,8 +29,11 @@ You compose a game from three SDK primitives:
 - [`defineComponent`](/docs/core-concepts/components/) — declare a component type.
 - [`defineSystem`](/docs/core-concepts/systems/) — declare a system and what it
   queries.
-- `App` / plugins — assemble systems, resources, and subsystems (physics, spine,
-  tilemap, UI, audio, scene) into a running game.
+- [`App` / plugins](/docs/core-concepts/plugins-resources/) — assemble systems,
+  resources, and subsystems ([physics](/docs/guides/physics/),
+  [spine](/docs/guides/spine/), [tilemap](/docs/guides/tilemap/),
+  [UI](/docs/guides/ui/), [audio](/docs/guides/audio/),
+  [scene](/docs/guides/scene/)) into a running game.
 
 ```typescript
 import { App } from 'esengine';

@@ -1,0 +1,107 @@
+---
+title: 自定义绘制
+description: 超出组件的绘制——用 Draw 画即时模式图元、用 Graphics 画矢量路径、用 Mesh2D 画自定义三角网格,以及离屏渲染纹理。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+大多数视觉是组件——[精灵](/docs/zh-cn/guides/sprites/)、瓦片地图、粒子。当它们
+表达不了你要的东西——调试覆盖层、程序化形状、自定义几何——引擎把绘制层直接暴露
+给你。
+
+## 绘制回调
+
+注册一个回调,它每帧在渲染通道内执行,相机的 view-projection 已经就位——无需任何
+设置,直接画:
+
+```typescript
+import { registerDrawCallback, Draw } from 'esengine';
+
+registerDrawCallback('debug-overlay', (elapsed) => {
+  Draw.line({ x: 0, y: 0 }, { x: 100, y: 50 }, { r: 1, g: 0, b: 0, a: 1 }, 2);
+  Draw.circleOutline({ x: 0, y: 0 }, aggroRadius, { r: 1, g: 1, b: 0, a: 0.5 });
+});
+```
+
+回调画在场景**之上**;`registerPreSceneDrawCallback` 画在场景**之下**(其回调收到
+`{ width, height, elapsed }`)。用 `unregisterDrawCallback(id)` 移除。坐标都是
+世界空间。
+
+<Aside type="tip">
+  场景激活期间注册的回调可以限定到该场景——在 `loadAdditive` 返回的上下文上调
+  `sceneContext.registerDrawCallback(id, fn)`——随场景清理,只在场景激活时绘制。
+</Aside>
+
+## `Draw` API
+
+`Draw` 是一个即时模式单例——命令自动合批、每帧清空,所以想让形状可见就每帧画:
+
+| 方法 | 画什么 |
+|---|---|
+| `line(from, to, color, thickness?)` | 一条线段(粗细单位 px,默认 `1`)。 |
+| `rect(pos, size, color, filled?)` / `rectOutline(pos, size, color, thickness?)` | 一个矩形——`pos` 是**中心**。 |
+| `circle(center, radius, color, filled?, segments?)` / `circleOutline(…)` | 一个圆(默认 `32` 段)。 |
+| `texture(pos, size, textureHandle, tint?)` | 一个贴图四边形。 |
+| `textureRotated(pos, size, rotation, textureHandle, tint?)` | 同上,带旋转(弧度)。 |
+| `setLayer(layer)` / `setDepth(depth)` | 后续命令的排序。 |
+| `setBlendMode(mode)` / `setDepthTest(on)` | 后续命令的混合 / 深度状态。 |
+| `getDrawCallCount()` / `getPrimitiveCount()` | 本帧统计。 |
+
+## 矢量路径:`Graphics`
+
+由路径构成的形状——折线、贝塞尔、圆弧、圆角矩形——用 `Graphics` 记录路径,
+`flush()` 时经 `Draw` 回放:
+
+```typescript
+import { Graphics, registerDrawCallback } from 'esengine';
+
+const g = new Graphics();
+g.lineStyle(2, { r: 1, g: 1, b: 1, a: 1 });
+g.beginFill({ r: 0, g: 0.5, b: 1, a: 1 });
+g.drawRoundRect(-50, -25, 100, 50, 8);
+g.endFill();
+g.moveTo(0, 0);
+g.curveTo(50, 80, 100, 0);           // 二次贝塞尔
+
+registerDrawCallback('hud-shape', () => g.flush());
+```
+
+路径方法:`moveTo` / `lineTo`、`curveTo`(二次)/ `cubicCurveTo`、`arc`、
+`drawRect` / `drawRoundRect` / `drawCircle` / `drawEllipse`、`clear()`。
+`lineStyle(thickness, color)` 设描边;`beginFill(color)` / `endFill()` 的填充
+支持**矩形和圆**(路径轮廓保持描边)。路径是保留的——构建一次,每帧 `flush()`。
+
+## 自定义网格:`Mesh2D`
+
+`Mesh2D` 组件渲染任意的索引三角形列表——程序化地形切片、径向血条弧、水面。
+在组件上编写几何(positions 是 x,y 对;逐顶点 UV 与颜色可选):
+
+```typescript
+cmds.spawn()
+  .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+  .insert(Mesh2D, {
+    geometry: {
+      positions: [0, 0,  100, 0,  50, 80],
+      colors: [1,0,0,1,  0,1,0,1,  0,0,1,1],
+      indices: [0, 1, 2],
+    },
+  });
+```
+
+网格共享标准渲染面:`texture`、`color`、`layer`、`lit`、`parallax` 和
+`material`。场景里(或生成时)设置的几何自动上传;要在**运行时改几何**,走
+`Meshes2D` 资源——`setGeometry(entity, geometry)` 重新上传(索引在引擎侧校验),
+另有 `getGeometry` / `clearGeometry`。只改 `geometry` 字段本身不会被变更检测。
+
+## 离屏目标:`RenderTexture`
+
+进阶用法——小地图、头像、镜面——`RenderTexture.create({ width, height })` 分配
+一个离屏目标;把绘制命令包在 `RenderTexture.begin(rt, viewProjection)` / `end()`
+之间即渲染进去,用完 `release(rt)`。这是低层接口(view-projection 矩阵由你提供)
+——细节见 TypeScript API 参考。
+
+## 参见
+
+- [精灵与渲染](/docs/zh-cn/guides/sprites/) —— 图像与形状的组件路径。
+- [材质与着色器](/docs/zh-cn/guides/material/) —— 给任何渲染体上自定义着色器。
+- [相机](/docs/zh-cn/guides/camera/) —— 回调所用 view-projection 的来源。

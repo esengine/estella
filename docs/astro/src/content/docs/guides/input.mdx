@@ -1,6 +1,6 @@
 ---
 title: Input
-description: The complete input reference — keyboard, mouse, touch, and gamepad through the Input resource, plus world-space cursor.
+description: The complete input reference — keyboard, mouse, touch, and gamepad through the Input resource, named rebindable actions with InputMap, touch gestures, and the world-space cursor.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -78,6 +78,100 @@ const jump = defineSystem([Query(Mut(CharacterController)), Res(Input)], (player
 <Aside type="note">Held state (`isKeyDown`) is level-triggered and already reads
 correctly from any schedule. Step-accurate edge delivery covers keyboard and mouse
 buttons; gamepad edges are frame-granular.</Aside>
+
+## Input actions (`InputMap`)
+
+Hard-coded key checks scatter device knowledge through gameplay code. An **input
+map** names each action once — with as many keyboard / mouse / gamepad bindings as
+you like — and gameplay queries the action by name:
+
+```typescript
+import {
+  defineInputMap, Button, Axis2D,
+  Key, Keys2D, Stick, GpButton, GamepadButton,
+} from 'esengine';
+
+export const Controls = defineInputMap({
+  Move: Axis2D(Keys2D('KeyW', 'KeyS', 'KeyA', 'KeyD'), Stick('left')),
+  Jump: Button(Key('Space'), GpButton(GamepadButton.South)),
+});
+```
+
+`defineInputMap` registers its own per-frame evaluation (after input is polled,
+before `Update`), so the map is live immediately — import it into any system and
+query:
+
+```typescript
+const dir = Controls.axis2d('Move');          // { x, y }, length ≤ 1
+if (Controls.pressed('Jump')) { /* this-frame edge */ }
+```
+
+| Query | Returns |
+|---|---|
+| `down(name)` | Held — the action's magnitude is ≥ 0.5. |
+| `pressed(name)` / `released(name)` | This-frame edges. |
+| `value(name)` | Button `0..1` · axis `-1..1` · axis2d magnitude `0..1`. |
+| `axis2d(name)` | `{ x, y }` direction (normalized when longer than 1). |
+
+An action is `Button(…)`, `Axis1D(…)`, or `Axis2D(…)`; each takes any number of
+bindings, and multiple bindings sum (then clamp), so keyboard and gamepad coexist:
+
+| Binding | Feeds | Meaning |
+|---|---|---|
+| `Key(code)` | button / axis | One keyboard key. |
+| `MouseButton(b)` | button / axis | A mouse button. |
+| `GpButton(btn, pad?)` | button / axis | A gamepad button (analog value for triggers). |
+| `GpAxis(axis, pad?, scale?)` | axis | A raw gamepad axis. |
+| `Keys1D(neg, pos)` | axis | Two keys → a signed 1D axis. |
+| `Keys2D(up, down, left, right)` | axis2d | Four keys → a 2D direction. |
+| `Stick('left' \| 'right', pad?)` | axis2d | A gamepad stick (up = +y, matching `Keys2D`). |
+
+### Rebinding & persistence
+
+Bindings are plain serializable data, so a controls screen stays small:
+
+```typescript
+// "Press any input…" — captures the next key / gamepad button (mouse is opt-in)
+await Controls.rebind('Jump');            // replace; { append: true } adds instead
+Controls.save('controls');                // persist to platform Storage
+// on boot:
+Controls.load('controls');                // re-apply saved bindings (if any)
+```
+
+`getBindings` / `setBindings` inspect and edit bindings programmatically, and
+`cancelListen()` aborts a pending capture (it resolves with `null`).
+
+### Data-driven maps (`.inputmap`)
+
+A whole map also serializes as an asset: create a **New Input Map** in the
+editor's Content Browser, then build the live map with `loadInputMapAsset(json)`
+instead of `defineInputMap`. `toAsset()` produces the same format from code.
+
+## Touch gestures
+
+`GestureDetector` turns raw touches into tap / long-press / swipe / pinch
+callbacks. Construct it over the `Input` resource and drive it from a system:
+
+```typescript
+import { defineSystem, Res, Input, Time, GestureDetector } from 'esengine';
+
+let gestures: GestureDetector | null = null;
+
+const gestureSystem = defineSystem([Res(Input), Res(Time)], (input, time) => {
+  if (!gestures) {
+    gestures = new GestureDetector(input);
+    gestures.onTap       = (x, y) => { /* screen px */ };
+    gestures.onLongPress = (x, y) => { /* held ~0.5 s without moving */ };
+    gestures.onSwipe     = (dir, speed) => { /* 'left' | 'right' | 'up' | 'down' */ };
+    gestures.onPinch     = (scale, cx, cy) => { /* two-finger zoom factor per frame */ };
+  }
+  gestures.update(time.delta);
+});
+```
+
+A tap is a touch under 0.3 s with less than 10 px of travel; a swipe needs ≥ 50 px
+at ≥ 200 px/s; pinch reports the frame-to-frame scale of a two-finger spread with
+its center point.
 
 ## Reference
 
