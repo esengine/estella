@@ -10,6 +10,7 @@ import { ContentDrawer } from '@/layout/ContentDrawer';
 import '@/engine/EditorSession'; // side effect: constructs defaultSession → wires the editor engine
 import { Launcher } from '@/launcher/Launcher';
 import { Toaster } from '@/components/Toaster';
+import { ConfirmHost } from '@/components/ConfirmHost';
 import { Perf } from '@/components/Perf';
 import { PerfRealmBridge } from '@/components/PerfRealmBridge';
 import { BuildDialog } from '@/components/BuildDialog';
@@ -179,6 +180,7 @@ export function App() {
       {settingsOpen && <SettingsDialog />}
       {tilemapPickerOpen && <TilemapPickerDialog />}
       <Toaster />
+      <ConfirmHost />
     </div>
   );
 }

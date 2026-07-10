@@ -33,8 +33,8 @@ commands.register({
   category: 'File',
   keybinding: 'mod+n',
   isEnabled: () => !!ProjectStore.getSnapshot(),
-  run: () => {
-    if (!confirmDiscard('Creating a new scene will discard them')) return;
+  run: async () => {
+    if (!(await confirmDiscard('Creating a new scene will discard them'))) return;
     void ProjectStore.newScene().then(() => sel().select(null));
   },
 });
@@ -78,8 +78,8 @@ commands.register({
   label: 'Close Project',
   category: 'File',
   isEnabled: () => !!ProjectStore.getSnapshot(),
-  run: () => {
-    if (!confirmDiscard('Closing the project will discard them')) return;
+  run: async () => {
+    if (!(await confirmDiscard('Closing the project will discard them'))) return;
     editor().openLauncher();
   },
 });

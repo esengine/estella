@@ -9,13 +9,21 @@
  *        after a save and false-warned.
  */
 import { EditorHistory } from '@/engine/EditorHistory';
+import { confirm } from '@/components/confirm';
 
 /**
- * Returns true if it's safe to proceed with a destructive document action: when
- * there are no unsaved changes, or the user confirms discarding them. `what`
- * names the consequence, e.g. "Creating a new scene will discard them".
+ * Resolves true if it's safe to proceed with a destructive document action:
+ * when there are no unsaved changes, or the user confirms discarding them.
+ * `what` names the consequence, e.g. "Creating a new scene will discard them".
+ * Async (a themed dialog, not window.confirm) — callers gate with
+ * `if (!(await confirmDiscard(...))) return;`.
  */
-export function confirmDiscard(what = 'They will be lost'): boolean {
+export async function confirmDiscard(what = 'They will be lost'): Promise<boolean> {
   if (!EditorHistory.isDirty()) return true;
-  return window.confirm(`You have unsaved changes. ${what}. Continue?`);
+  return confirm({
+    title: 'Unsaved changes',
+    body: `You have unsaved changes. ${what}.`,
+    confirmLabel: 'Discard changes',
+    danger: true,
+  });
 }

@@ -20,8 +20,8 @@ import { openBehaviorTree } from '@/bt/openBehaviorTree';
 
 /** Open action per asset type; types absent here aren't double-click-openable. */
 export const ASSET_OPEN: Partial<Record<AssetType, (path: string, name: string) => void>> = {
-  scene: (path, name) => {
-    if (!confirmDiscard(`Opening ${name} will discard them`)) return;
+  scene: async (path, name) => {
+    if (!(await confirmDiscard(`Opening ${name} will discard them`))) return;
     void ProjectStore.openScene(path);
   },
   audio: (path) => toggleAudioPreview(path),

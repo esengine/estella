@@ -1808,8 +1808,8 @@ function GenericAssetInspector({ path }: { path: string }) {
           <button
             type="button"
             className="primary"
-            onClick={() => {
-              if (confirmDiscard(`Opening ${baseName(path)} will discard them`)) void ProjectStore.openScene(path);
+            onClick={async () => {
+              if (await confirmDiscard(`Opening ${baseName(path)} will discard them`)) void ProjectStore.openScene(path);
             }}
           >
             <FolderOpen size={13} strokeWidth={1.85} /> Open Scene

@@ -133,6 +133,8 @@ class ProjectStoreImpl {
   private lastAssetResult: PreloadResult | null = null;
   private knownSceneText: string | null = null;
   private knownScenePath: string | null = null;
+  /** A disk-change discard prompt is showing — don't stack another. */
+  private reloadPromptOpen = false;
   constructor() {
     // The inspector's override-aware reset reads prefab base data from the loaded
     // `.esprefab` cache this store owns. Non-variant prefabs resolve their base
@@ -1010,11 +1012,18 @@ class ProjectStoreImpl {
     catch { return; }
     if (text === this.knownSceneText && st.currentScene === this.knownScenePath) return;
     const name = st.currentScene.split('/').pop() ?? st.currentScene;
-    if (EditorHistory.isDirty() &&
-        !confirmDiscard(`"${name}" changed on disk. Reloading discards your unsaved edits`)) {
-      this.knownSceneText = text;
-      this.knownScenePath = st.currentScene;
-      return;
+    if (EditorHistory.isDirty()) {
+      // The confirm is async — further disk-change events while it's open must
+      // not stack more dialogs for the same question.
+      if (this.reloadPromptOpen) return;
+      this.reloadPromptOpen = true;
+      const ok = await confirmDiscard(`"${name}" changed on disk. Reloading discards your unsaved edits`);
+      this.reloadPromptOpen = false;
+      if (!ok) {
+        this.knownSceneText = text;
+        this.knownScenePath = st.currentScene;
+        return;
+      }
     }
     await this.loadCurrentScene();
     Toasts.push(`Reloaded ${name} from disk`, 'info', 1600);
