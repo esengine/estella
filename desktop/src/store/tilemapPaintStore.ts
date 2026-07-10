@@ -33,6 +33,20 @@ export interface TileRect {
     y1: number;
 }
 
+/** The active tileset's on-screen atlas layout — the SINGLE source of atlas geometry,
+ *  resolved once by the painter (which loads the image) and consumed by the viewport's
+ *  WYSIWYG brush ghost, so the viewport never re-loads or re-measures the atlas. */
+export interface AtlasInfo {
+    url: string;
+    cols: number;
+    tileW: number;
+    tileH: number;
+    margin: number;
+    spacing: number;
+    /** Global tile-id base of this tileset (a cell's gid = firstId + row*cols + col). */
+    firstId: number;
+}
+
 interface TilemapPaintState {
     /** The active layer's tilesets, in firstId order (one entry = a single-tileset layer). */
     tilesets: PaletteTileset[];
@@ -52,6 +66,8 @@ interface TilemapPaintState {
     clipboard: TileStamp | null;
     /** The active tool; null = not painting (the Viewport selects normally). */
     tool: PaintTool | null;
+    /** The active tileset's atlas layout (for the viewport brush ghost), or null. */
+    activeAtlas: AtlasInfo | null;
     /** Replace the active layer's palette list (from its tilesetAssets); resets active to 0. */
     setTilesets(tilesets: PaletteTileset[]): void;
     /** Switch which tileset in the list the palette shows/paints from. */
@@ -64,6 +80,7 @@ interface TilemapPaintState {
     /** Set a 1×1 brush of one tile id (palette single-click; loses any flip flags). */
     setBrushTile(tileId: number): void;
     setTerrainSet(set: number): void;
+    setActiveAtlas(atlas: AtlasInfo | null): void;
     flipH(): void;
     flipV(): void;
     rotateCW(): void;
@@ -80,6 +97,7 @@ export const useTilemapPaint = create<TilemapPaintState>((set) => ({
     selection: null,
     clipboard: null,
     tool: null,
+    activeAtlas: null,
     setTilesets: (tilesets) => set({
         tilesets,
         activeTileset: 0,
@@ -97,6 +115,7 @@ export const useTilemapPaint = create<TilemapPaintState>((set) => ({
     setClipboard: (clipboard) => set({ clipboard }),
     setBrushTile: (tileId) => set({ stamp: singleStamp(encodeTile(tileId)) }),
     setTerrainSet: (terrainSet) => set({ terrainSet }),
+    setActiveAtlas: (activeAtlas) => set({ activeAtlas }),
     flipH: () => set((s) => ({ stamp: flipStampH(s.stamp) })),
     flipV: () => set((s) => ({ stamp: flipStampV(s.stamp) })),
     rotateCW: () => set((s) => ({ stamp: rotateStampCW(s.stamp) })),

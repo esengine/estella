@@ -17,6 +17,8 @@ import { SettingsDialog } from '@/components/SettingsDialog';
 import { TilemapPickerDialog } from '@/components/TilemapPickerDialog';
 import { useEditorStore } from '@/store/editorStore';
 import { commands } from '@/commands';
+import { handleTilePaintKey, isTilemapSelected } from '@/tools/tileMode';
+import { useSelection } from '@/store/selectionStore';
 import { PlayRealms } from '@/engine/PlayRealm';
 import { PlayInspect } from '@/engine/PlayInspect';
 import { TimelinePreview } from '@/engine/TimelinePreview';
@@ -44,6 +46,12 @@ export function App() {
       if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) {
         return;
       }
+      // Tile-editing context claims its keys first (single dispatch → no double-fire
+      // with the transform-tool command bound to the same letter).
+      if (handleTilePaintKey(e)) {
+        e.preventDefault();
+        return;
+      }
       const cmd = commands.forEvent(e);
       if (cmd) {
         e.preventDefault();
@@ -52,6 +60,18 @@ export function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  // Surface the Tilemap painter when a tilemap entity becomes the selection (only on
+  // the transition INTO one, so switching between tilemaps doesn't keep yanking focus).
+  // "Select a tilemap → here's how you paint it" then needs no hunting for the panel.
+  useEffect(() => {
+    let wasTilemap = false;
+    return useSelection.subscribe(() => {
+      const isTm = isTilemapSelected();
+      if (isTm && !wasTilemap) dockApi.openSidePanel('tilemap', 'tilemap', 'Tilemap', 'left', 300);
+      wasTilemap = isTm;
+    });
   }, []);
 
   // Wire the Sequencer's edit-mode live preview (timeline document → World) and

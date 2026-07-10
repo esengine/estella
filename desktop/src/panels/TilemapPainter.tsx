@@ -12,15 +12,17 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   Brush, Eraser, Square, Slash, PaintBucket, BoxSelect, Pipette,
-  FlipHorizontal, FlipVertical, RotateCw, Mountain, Plus, X,
+  FlipHorizontal, FlipVertical, RotateCw, Mountain, Plus, X, MousePointer2,
+  ZoomIn, ZoomOut, Maximize2, Eye, EyeOff, Lock, Unlock,
 } from 'lucide-react';
-import { parseTileset, encodeTile, type TilesetAsset } from 'esengine';
-import { useTilemapPaint, type PaintTool, type PaletteTileset } from '@/store/tilemapPaintStore';
+import { parseTileset, encodeTile, type TilesetAsset, type TileStamp } from 'esengine';
+import { useTilemapPaint, type PaintTool, type PaletteTileset, type AtlasInfo } from '@/store/tilemapPaintStore';
 import { useSelection } from '@/store/selectionStore';
 import { SceneModel } from '@/engine/SceneModel';
 import { SceneCommands } from '@/engine/SceneCommands';
 import { ProjectStore } from '@/project/ProjectStore';
-import { copySelection, cutSelection, deleteSelection, pasteClipboard } from '@/tools/tileClipboard';
+import { TILE_TOOL_KEY, exitTilePaint } from '@/tools/tileMode';
+import { buildStampGhost } from '@/tools/tileStampGhost';
 
 function colsFor(width: number, tileW: number, margin: number, spacing: number): number {
   const stride = tileW + spacing;
@@ -72,10 +74,32 @@ const normRect = (a: { c: number; r: number }, b: { c: number; r: number }): Sel
   c0: Math.min(a.c, b.c), r0: Math.min(a.r, b.r), c1: Math.max(a.c, b.c), r1: Math.max(a.r, b.r),
 });
 
+const clamp = (n: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, n));
+
+/** A tiny live preview of the active brush (the real tiles + their flip/rotate), so the
+ *  toolbar shows WHAT you'll paint, not just its dimensions. Reuses the viewport ghost
+ *  geometry. */
+function BrushThumbnail({ stamp, atlas }: { stamp: TileStamp; atlas: AtlasInfo | null }) {
+  const cells = buildStampGhost(stamp, atlas);
+  if (!cells || !atlas) return null;
+  const natW = stamp.w * atlas.tileW;
+  const natH = stamp.h * atlas.tileH;
+  const MAX = 26;
+  const scale = Math.min(MAX / natW, MAX / natH);
+  return (
+    <span className="tp-brushthumb" style={{ width: natW * scale, height: natH * scale }}>
+      <span className="tp-brushthumb-in" style={{ width: natW, height: natH, transform: `scale(${scale})` }}>
+        {cells.map((c, i) => <span key={i} style={c.style} />)}
+      </span>
+    </span>
+  );
+}
+
 export function TilemapPainter() {
   const {
     tilesetPath, tilesets, activeTileset, stamp, tool, terrainSet,
-    setTilesets, setActiveTileset, setTilesetAsset, setStamp, setTool, setTerrainSet, flipH, flipV, rotateCW,
+    setTilesets, setActiveTileset, setTilesetAsset, setStamp, setTool, setTerrainSet,
+    setActiveAtlas, flipH, flipV, rotateCW,
   } = useTilemapPaint();
   const selectedId = useSelection((s) => s.selectedId);
   const hasTilemap = selectedId != null
@@ -131,35 +155,40 @@ export function TilemapPainter() {
   const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
   useEffect(() => setNatural(null), [texUrl]);
 
+  // Publish the active tileset's atlas layout for the viewport's WYSIWYG brush ghost.
+  // The painter is the one place that loads the atlas image, so it owns this geometry;
+  // the viewport reads it instead of re-loading. Cleared on unmount so a closed painter
+  // leaves no stale ghost.
+  useEffect(() => {
+    if (!asset || !natural || !texUrl) { setActiveAtlas(null); return; }
+    setActiveAtlas({
+      url: texUrl,
+      cols: colsFor(natural.w, asset.tileWidth, asset.margin, asset.spacing),
+      tileW: asset.tileWidth, tileH: asset.tileHeight,
+      margin: asset.margin, spacing: asset.spacing,
+      firstId: tilesets[activeTileset]?.firstId ?? 1,
+    });
+  }, [asset, natural, texUrl, tilesets, activeTileset, setActiveAtlas]);
+  useEffect(() => () => setActiveAtlas(null), [setActiveAtlas]);
+
   // Palette marquee: drag a rectangle of cells to pick a multi-tile stamp.
   const [sel, setSel] = useState<SelRect | null>(null);
   const dragAnchor = useRef<{ c: number; r: number } | null>(null);
 
-  // Paint-mode keys (only while a paint tool is active, so they don't shadow the
-  // transform-tool shortcuts): select-tool clipboard (⌘/Ctrl C/X/V, Delete) and the
-  // stamp transforms H/V/R.
+  // Palette zoom (small tilesets are unclickable at 1:1). A fresh tileset opens at a
+  // comfortable magnification derived from its tile size; − / + / fit adjust from there.
+  const paletteRef = useRef<HTMLDivElement>(null);
+  const [zoom, setZoom] = useState(2);
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const st = useTilemapPaint.getState();
-      if (!st.tool) return;
-      const t = e.target as HTMLElement | null;
-      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
-      const mod = e.metaKey || e.ctrlKey;
-      const k = e.key.toLowerCase();
-      if (st.tool === 'select') {
-        if (mod && k === 'c') { copySelection(); e.preventDefault(); return; }
-        if (mod && k === 'x') { cutSelection(); e.preventDefault(); return; }
-        if (e.key === 'Delete' || e.key === 'Backspace') { deleteSelection(); e.preventDefault(); return; }
-      }
-      if (mod && k === 'v') { pasteClipboard(); e.preventDefault(); return; }
-      if (mod || e.altKey) return;
-      if (k === 'h') { st.flipH(); e.preventDefault(); }
-      else if (k === 'v') { st.flipV(); e.preventDefault(); }
-      else if (k === 'r') { st.rotateCW(); e.preventDefault(); }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
+    if (asset) setZoom(clamp(Math.round(28 / (asset.tileWidth || 16)), 1, 4));
+  }, [tilesetPath, asset]);
+  // Clearing the marquee when the active tileset changes stops a stale highlight from
+  // lingering on a tab that no longer shows the picked cells.
+  useEffect(() => setSel(null), [activeTileset]);
+  const fitZoom = () => {
+    const pal = paletteRef.current;
+    if (pal && natural && natural.w > 0) setZoom(clamp((pal.clientWidth - 16) / natural.w, 0.25, 8));
+  };
 
   // Dismiss the add-tileset menu on any outside click (the menu + its opener stop
   // their own pointerdown so those don't self-close it).
@@ -169,6 +198,10 @@ export function TilemapPainter() {
     window.addEventListener('pointerdown', close);
     return () => window.removeEventListener('pointerdown', close);
   }, [addOpen]);
+
+  // Re-render the layer strip on any model change (add/remove/rename/hide/lock).
+  const [, bumpModel] = useState(0);
+  useEffect(() => SceneModel.subscribe(() => bumpModel((v) => v + 1)), []);
 
   if (!hasTilemap) {
     return (
@@ -188,6 +221,16 @@ export function TilemapPainter() {
   // Global tile-id base of the active tileset — a cell's gid = firstId + (row*cols + col),
   // so the renderer resolves it back to THIS tileset (single-tileset layers have firstId 1).
   const activeFirstId = tilesets[activeTileset]?.firstId ?? 1;
+  const localAtlas: AtlasInfo | null = texUrl && natural
+    ? { url: texUrl, cols, tileW: tw, tileH: th, margin: mg, spacing: sp, firstId: activeFirstId }
+    : null;
+
+  // The scene's tilemap layers (the paint targets) — click one to make it active, without
+  // hunting in the Outliner; toggle its viewport visibility / lock inline.
+  const layers = SceneModel.entityOrder()
+    .map((id) => ({ id, e: SceneModel.entityBySource(id) }))
+    .filter((L) => L.e?.components.some((c) => c.type === 'TilemapLayer'))
+    .map((L) => ({ id: L.id, name: L.e!.name, hidden: SceneModel.isHidden(L.id), locked: SceneModel.isLocked(L.id) }));
 
   const commitSel = (r: SelRect) => {
     const w = r.c1 - r.c0 + 1;
@@ -255,14 +298,49 @@ export function TilemapPainter() {
 
   return (
     <div className="tp-panel">
+      {layers.length > 1 && (
+        <div className="tp-layers">
+          {layers.map((L) => (
+            <span key={L.id} className={'tp-layer' + (L.id === selectedId ? ' is-active' : '')}>
+              <button
+                type="button" className="tp-layer-vis" title={L.hidden ? '显示' : '隐藏'}
+                onClick={() => SceneCommands.setEntityVisible(L.id, L.hidden)}
+              >
+                {L.hidden ? <EyeOff size={12} /> : <Eye size={12} />}
+              </button>
+              <button
+                type="button" className="tp-layer-name" title={`绘制到「${L.name}」`}
+                onClick={() => useSelection.getState().select(L.id)}
+              >
+                {L.name}
+              </button>
+              <button
+                type="button" className="tp-layer-lock" title={L.locked ? '解锁' : '锁定'}
+                onClick={() => SceneCommands.setEntityLocked(L.id, !L.locked)}
+              >
+                {L.locked ? <Lock size={11} /> : <Unlock size={11} />}
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
       <div className="tp-tools">
+        <button
+          type="button"
+          className={'tp-tool' + (tool === null ? ' is-active' : '')}
+          title="选择 / 变换 (Q · Esc 退出绘制)"
+          onClick={() => exitTilePaint('select')}
+        >
+          <MousePointer2 size={15} />
+        </button>
+        <span className="tp-sep" />
         {TOOLS.map((t) => (
           <button
             key={t.id}
             type="button"
             className={'tp-tool' + (tool === t.id ? ' is-active' : '')}
-            title={t.label}
-            onClick={() => setTool(tool === t.id ? null : t.id)}
+            title={`${t.label} (${TILE_TOOL_KEY[t.id]})`}
+            onClick={() => setTool(t.id)}
           >
             <t.icon size={15} />
           </button>
@@ -278,7 +356,14 @@ export function TilemapPainter() {
           <RotateCw size={15} />
         </button>
         <span className="tp-grow" />
-        <span className="tp-brush">{tool === 'terrain' ? '地形画笔' : `刷子 ${stamp.w}×${stamp.h}`}</span>
+        <span className="tp-brush">
+          {tool === 'terrain' ? '地形画笔' : (
+            <>
+              <BrushThumbnail stamp={stamp} atlas={localAtlas} />
+              {stamp.w}×{stamp.h}
+            </>
+          )}
+        </span>
       </div>
       {tool !== 'terrain' && (
         <div className="tp-tilesets">
@@ -337,19 +422,40 @@ export function TilemapPainter() {
           )}
         </div>
       ) : (
-        <div className="tp-palette" onPointerUp={endDrag} onPointerLeave={endDrag}>
-          {!texUrl ? (
-            <div className="tp-warn">没有调色板（瓦片地图未引用 .estileset）</div>
-          ) : (
-            <div className="tp-atlas" style={{ width: natural?.w ?? 0, height: natural?.h ?? 0 }}>
-              <img
-                className="tp-img" src={texUrl} alt="" draggable={false}
-                onLoad={(e) => setNatural({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })}
-              />
-              {cells}
+        <>
+          {texUrl && (
+            <div className="tp-palbar">
+              <button type="button" className="tp-zbtn" title="缩小" onClick={() => setZoom((z) => clamp(z / 1.25, 0.25, 8))}>
+                <ZoomOut size={13} />
+              </button>
+              <span className="tp-zpct">{Math.round(zoom * 100)}%</span>
+              <button type="button" className="tp-zbtn" title="放大" onClick={() => setZoom((z) => clamp(z * 1.25, 0.25, 8))}>
+                <ZoomIn size={13} />
+              </button>
+              <button type="button" className="tp-zbtn" title="适应宽度" onClick={fitZoom}>
+                <Maximize2 size={13} />
+              </button>
             </div>
           )}
-        </div>
+          <div className="tp-palette" ref={paletteRef} onPointerUp={endDrag} onPointerLeave={endDrag}>
+            {!texUrl ? (
+              <div className="tp-warn">没有调色板（瓦片地图未引用 .estileset）</div>
+            ) : (
+              <div className="tp-atlas-sizer" style={{ width: (natural?.w ?? 0) * zoom, height: (natural?.h ?? 0) * zoom }}>
+                <div
+                  className="tp-atlas"
+                  style={{ width: natural?.w ?? 0, height: natural?.h ?? 0, transform: `scale(${zoom})`, transformOrigin: '0 0' }}
+                >
+                  <img
+                    className="tp-img" src={texUrl} alt="" draggable={false}
+                    onLoad={(e) => setNatural({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })}
+                  />
+                  {cells}
+                </div>
+              </div>
+            )}
+          </div>
+        </>
       )}
     </div>
   );

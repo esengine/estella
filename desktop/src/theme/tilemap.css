@@ -20,9 +20,78 @@
   background: var(--srf-2, #1b1e23);
   flex: 0 0 auto;
 }
+
+/* Layer strip — the scene's tilemap layers (paint targets); the active one is the
+   selection. Each chip: visibility eye · name (click = make active) · lock. */
+.tp-layers {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 8px;
+  overflow-x: auto;
+  background: var(--srf-2, #1b1e23);
+  border-bottom: 1px solid var(--line, #2a2d33);
+  flex: 0 0 auto;
+}
+.tp-layer {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  background: var(--control, #24272d);
+  border: 1px solid var(--line, #2a2d33);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.tp-layer.is-active { border-color: var(--star, #4c8fd6); background: rgba(76, 143, 214, 0.16); }
+.tp-layer-vis,
+.tp-layer-lock {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  align-self: stretch;
+  background: none;
+  border: none;
+  color: var(--text-faint, #6b717c);
+  cursor: pointer;
+}
+.tp-layer-vis:hover,
+.tp-layer-lock:hover { color: var(--text, #d6d9de); background: var(--control-hover, #333740); }
+.tp-layer-name {
+  background: none;
+  border: none;
+  color: var(--text-dim, #9aa0aa);
+  padding: 4px 7px;
+  cursor: pointer;
+  font: inherit;
+  white-space: nowrap;
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tp-layer.is-active .tp-layer-name { color: var(--text, #d6d9de); }
+.tp-layer-name:hover { color: var(--text, #d6d9de); }
 .tp-grow { flex: 1 1 auto; }
 .tp-sep { width: 1px; align-self: stretch; margin: 2px 4px; background: var(--line, #2a2d33); }
-.tp-brush { color: var(--text-faint, #6b717c); font-variant-numeric: tabular-nums; }
+.tp-brush {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-faint, #6b717c);
+  font-variant-numeric: tabular-nums;
+}
+/* Live thumbnail of the active brush (real tiles + orientation) — the ghost geometry
+   laid at natural px inside a fixed box, scaled to fit. */
+.tp-brushthumb {
+  position: relative;
+  display: inline-block;
+  overflow: hidden;
+  border: 1px solid var(--line, #2a2d33);
+  border-radius: 2px;
+  background: var(--srf-0, #101216);
+  image-rendering: pixelated;
+}
+.tp-brushthumb-in { position: absolute; top: 0; left: 0; transform-origin: 0 0; }
 
 .tp-tool {
   display: inline-flex;
@@ -43,12 +112,45 @@
   color: var(--on-accent, #fff);
 }
 
+/* Palette zoom bar — small tilesets are unclickable at 1:1, so − / + / fit. */
+.tp-palbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: var(--srf-0, #101216);
+  border-bottom: 1px solid var(--line, #2a2d33);
+  flex: 0 0 auto;
+}
+.tp-zbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 20px;
+  background: var(--control, #24272d);
+  border: 1px solid var(--line, #2a2d33);
+  border-radius: 3px;
+  color: var(--text-dim, #9aa0aa);
+  cursor: pointer;
+}
+.tp-zbtn:hover { color: var(--text, #d6d9de); border-color: var(--control-hover, #333740); }
+.tp-zpct {
+  min-width: 42px;
+  text-align: center;
+  color: var(--text-faint, #6b717c);
+  font-variant-numeric: tabular-nums;
+}
+
 .tp-palette {
   flex: 1 1 auto;
   overflow: auto;
   padding: 12px;
   background: var(--srf-0, #101216);
 }
+/* Sizer carries the zoomed layout box (natural × zoom) so the palette scrolls; the atlas
+   inside is drawn at natural size and CSS-scaled to fill it (crisp hit-testing + pixels). */
+.tp-atlas-sizer { position: relative; }
 .tp-atlas { position: relative; }
 .tp-img { display: block; image-rendering: pixelated; user-select: none; }
 

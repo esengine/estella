@@ -233,6 +233,23 @@
   box-shadow: inset 0 0 0 1px rgba(14, 15, 18, 0.5);
   will-change: transform, width, height, opacity;
 }
+/* WYSIWYG brush ghost: the real stamp tiles, laid out at natural tile pixels; the rAF
+   translates + scales the whole container onto the hovered footprint (transform-origin
+   top-left). Slightly translucent + outlined so it reads as a preview, not painted. */
+.viewport__tileghost {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  opacity: 0;
+  pointer-events: none;
+  transform-origin: 0 0;
+  outline: 1px solid rgba(255, 255, 255, 0.85);
+  will-change: transform, opacity;
+}
+.viewport__tileghost-cell {
+  opacity: 0.72;
+}
 /* Gesture-paint preview (rect fill / line cells) container — the ghost cells are
    pooled child divs the rAF positions; the container itself is inert. */
 .viewport__tilepaint {
@@ -467,6 +484,26 @@ body.thumb-capture .viewport__play-stop {
   padding: 4px 12px;
   border-radius: 999px;
   box-shadow: var(--run-glow);
+}
+
+/* Tile-paint mode badge — mirrors the play flag but in the tile-editing accent, so
+   "you are painting tiles (Q/Esc to leave)" reads at a glance. Edit-mode only, so it
+   never collides with the play flag. */
+.viewport__tileflag {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: #58b6e6;
+  background: rgba(var(--glass-rgb), 0.8);
+  border: 1px solid rgba(88, 182, 230, 0.5);
+  padding: 4px 12px;
+  border-radius: 999px;
+  pointer-events: none;
 }
 
 /* Engine boot / error overlay, centered over the stage. */

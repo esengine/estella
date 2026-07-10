@@ -69,6 +69,8 @@ class StatsStoreImpl {
   private readonly store = createStore<StatsSnapshot>(() => ({ fps: 0, entities: 0, selection: null, vram: null }));
   // Pointer-rate churn stays out of the slow-stats subscribers.
   private readonly cursorStore = createStore<{ x: number; y: number } | null>(() => null);
+  // The hovered tile cell (coords + id) while painting a tilemap, or null.
+  private readonly tileStore = createStore<{ tx: number; ty: number; id: number } | null>(() => null);
 
   private running = false;
   private frames = 0;
@@ -114,10 +116,23 @@ class StatsStoreImpl {
     if (this.cursorStore.getState()) this.cursorStore.setState(null, true);
   }
 
+  /** Report the hovered tile cell (tilemap paint), ignoring no-op moves. */
+  setTile(tx: number, ty: number, id: number) {
+    const cur = this.tileStore.getState();
+    if (cur && cur.tx === tx && cur.ty === ty && cur.id === id) return;
+    this.tileStore.setState({ tx, ty, id }, true);
+  }
+
+  clearTile() {
+    if (this.tileStore.getState()) this.tileStore.setState(null, true);
+  }
+
   subscribe = (fn: () => void): (() => void) => this.store.subscribe(fn);
   getSnapshot = (): StatsSnapshot => this.store.getState();
   subscribeCursor = (fn: () => void): (() => void) => this.cursorStore.subscribe(fn);
   getCursor = (): { x: number; y: number } | null => this.cursorStore.getState();
+  subscribeTile = (fn: () => void): (() => void) => this.tileStore.subscribe(fn);
+  getTile = (): { tx: number; ty: number; id: number } | null => this.tileStore.getState();
 }
 
 export const StatsStore = new StatsStoreImpl();

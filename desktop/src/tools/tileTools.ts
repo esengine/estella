@@ -87,7 +87,7 @@ interface StrokeSpec<C> {
 }
 
 function makeStrokeTool<C>(spec: StrokeSpec<C>): EditorTool {
-  let active: { ctx: C; sourceId: number; last: string } | null = null;
+  let active: { ctx: C; sourceId: number; last: { x: number; y: number } } | null = null;
   return {
     id: spec.id,
     onPointerDown(p, ctx) {
@@ -98,7 +98,7 @@ function makeStrokeTool<C>(spec: StrokeSpec<C>): EditorTool {
       const c = spec.begin(selId);
       if (c == null) return false;
       spec.onCell(c, tile.x, tile.y);
-      active = { ctx: c, sourceId: selId, last: `${tile.x},${tile.y}` };
+      active = { ctx: c, sourceId: selId, last: { x: tile.x, y: tile.y } };
       ctx.capture(p.pointerId);
       return true;
     },
@@ -106,10 +106,13 @@ function makeStrokeTool<C>(spec: StrokeSpec<C>): EditorTool {
       if (!active) return;
       const tile = cursorTile(p.clientX, p.clientY, active.sourceId);
       if (!tile) return;
-      const key = `${tile.x},${tile.y}`;
-      if (key === active.last) return;
-      spec.onCell(active.ctx, tile.x, tile.y);
-      active.last = key;
+      if (tile.x === active.last.x && tile.y === active.last.y) return;
+      // Fill every cell from the last sample to this one so a fast drag can't skip cells
+      // (Bresenham). `last` is already painted, so drop the first point of the line.
+      for (const c of lineCells(active.last.x, active.last.y, tile.x, tile.y).slice(1)) {
+        spec.onCell(active.ctx, c.x, c.y);
+      }
+      active.last = { x: tile.x, y: tile.y };
     },
     onPointerUp(p, ctx) {
       if (!active) return;

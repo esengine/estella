@@ -8,7 +8,10 @@ import {
 } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { useSelection } from '@/store/selectionStore';
-import { useTilemapPaint } from '@/store/tilemapPaintStore';
+import { useTilemapPaint, type PaintTool } from '@/store/tilemapPaintStore';
+import { exitTilePaint, isTilePaintMode, selectedTilemapCellSize } from '@/tools/tileMode';
+import { buildStampGhost } from '@/tools/tileStampGhost';
+import { TilemapAPI, tileIdOf } from 'esengine';
 import { commands } from '@/commands';
 import { EngineHost } from '@/engine/EngineHost';
 import { PlayRealm } from '@/engine/PlayRealm';
@@ -205,6 +208,25 @@ const TOOL_HINT: Record<ToolMode, string> = {
   scale: 'Drag a handle for per-axis scale · center for uniform',
 };
 
+// Hint shown while painting a tilemap — replaces TOOL_HINT so the viewport speaks the
+// paint vocabulary (and always points at Q/Esc as the way back to select/transform).
+const TILE_HINT: Record<PaintTool, string> = {
+  brush: '拖动绘制 · H/V 翻转 · R 旋转笔刷 · I 吸管 · Q/Esc 退出',
+  erase: '拖动擦除(按笔刷大小) · Q/Esc 退出',
+  rect: '拖出矩形填充 · Q/Esc 退出',
+  line: '拖出直线 · Q/Esc 退出',
+  bucket: '点击油漆桶填充连通区域 · Q/Esc 退出',
+  select: '框选 · ⌘C/X 复制/剪切 · Del 清除 · ⌘V 粘贴为笔刷 · Q/Esc 退出',
+  eyedropper: '点击拾取瓦片到笔刷 · Q/Esc 退出',
+  terrain: '拖动绘制地形(自动过渡) · Q/Esc 退出',
+};
+
+// Label for the mode badge — the paint tool's short name.
+const TILE_TOOL_LABEL: Record<PaintTool, string> = {
+  brush: '画笔', erase: '擦除', rect: '矩形', line: '直线',
+  bucket: '油漆桶', select: '选区', eyedropper: '吸管', terrain: '地形',
+};
+
 function OvTool({
   icon: Icon,
   label,
@@ -304,12 +326,16 @@ function DdRadio({ on, label, onClick }: { on: boolean; label: string; onClick: 
 // Only this node re-renders per mouse move; the HUD follows the slow stats cadence.
 function HudCursor() {
   const cursor = useSyncExternalStore(StatsStore.subscribeCursor, StatsStore.getCursor);
-  if (!cursor) return null;
+  const tile = useSyncExternalStore(StatsStore.subscribeTile, StatsStore.getTile);
+  if (!cursor && !tile) return null;
   return (
     <>
-      <strong>
-        {cursor.x}, {cursor.y}
-      </strong>{' '}
+      {cursor && <strong>{cursor.x}, {cursor.y}</strong>}
+      {tile && (
+        <span className="hud-tile">
+          {' '}▦ {tile.tx}, {tile.ty}{tile.id ? ` #${tile.id}` : ''}
+        </span>
+      )}{' '}
       ·{' '}
     </>
   );
@@ -318,11 +344,13 @@ function HudCursor() {
 // The corner HUD (perf + coordinates). Owns the StatsStore subscription so the
 // slow stats updates re-render ONLY this leaf — not the whole, gizmo-heavy
 // Viewport.
-function ViewportHud({ ready, selCount, zoomPct, tool }: {
+function ViewportHud({ ready, selCount, zoomPct, tool, paintHint }: {
   ready: boolean;
   selCount: number;
   zoomPct: number;
   tool: ToolMode;
+  /** When painting a tilemap, the tile-vocabulary hint replaces the transform hint. */
+  paintHint: string | null;
 }) {
   const stats = useSyncExternalStore(StatsStore.subscribe, StatsStore.getSnapshot);
   return (
@@ -349,7 +377,7 @@ function ViewportHud({ ready, selCount, zoomPct, tool }: {
           <HudCursor />
           Sel <strong>{selCount}</strong> · {zoomPct}%
         </div>
-        <div className="hint">{TOOL_HINT[tool]}</div>
+        <div className="hint">{paintHint ?? TOOL_HINT[tool]}</div>
       </div>
     </>
   );
@@ -375,6 +403,21 @@ export function Viewport() {
   const selectedIds = useSelection((s) => s.selectedIds);
   const primaryId = useSelection((s) => s.selectedId);
   const selList = useMemo(() => [...selectedIds], [selectedIds]);
+  // Tile-editing context: a paint tool active over a selected TilemapLayer. Drives the
+  // viewport mode badge, the HUD hint, and the tile-sized reference grid.
+  const paintTool = useTilemapPaint((s) => s.tool);
+  const tilemapSelected = primaryId != null
+    && !!SceneModel.entityBySource(primaryId)?.components.some((c) => c.type === 'TilemapLayer');
+  const inTilePaint = paintTool != null && tilemapSelected;
+  // WYSIWYG brush ghost: the actual stamp tiles, built once per stamp/atlas change and
+  // laid out at natural tile pixels; the rAF scales the container to the hovered
+  // footprint each frame (see the tile-preview block). Empty (null) → the plain box shows.
+  const stamp = useTilemapPaint((s) => s.stamp);
+  const activeAtlas = useTilemapPaint((s) => s.activeAtlas);
+  const ghostCells = useMemo(() => buildStampGhost(stamp, activeAtlas), [stamp, activeAtlas]);
+  const ghostNat = ghostCells && activeAtlas
+    ? { w: stamp.w * activeAtlas.tileW, h: stamp.h * activeAtlas.tileH }
+    : null;
 
   const stageRef = useRef<HTMLDivElement>(null);
   const playHostRef = useRef<HTMLDivElement>(null);
@@ -384,6 +427,7 @@ export function Viewport() {
   const marqueeRef = useRef<HTMLDivElement>(null);
   const tileSelRef = useRef<HTMLDivElement>(null);
   const tilePreviewRef = useRef<HTMLDivElement>(null);
+  const tileGhostRef = useRef<HTMLDivElement>(null);
   // Gesture-paint preview (rect fill / line cells): a container whose ghost-cell
   // children are pooled + positioned imperatively in the rAF (rect/line defer their
   // commit to release, so this shows the shape mid-drag).
@@ -451,10 +495,15 @@ export function Viewport() {
   // Drive the engine's world-space editor grid from Show-Flags (Grid) + Snap
   // step. Re-applied when the engine becomes ready, since the grid resource
   // exists only after boot. Play/edit gating lives in the renderer (EditorView).
+  // While a tilemap is selected the grid matches its cell size (not the transform
+  // snap step) so the lines read as the tile grid you're painting on. (The grid is
+  // world-origin-anchored; a non-origin tilemap won't perfectly register until the
+  // origin-offset support lands.)
   useEffect(() => {
     if (engine.status !== 'ready') return;
-    EngineHost.setGrid(showGrid, snapStep);
-  }, [showGrid, snapStep, engine.status]);
+    const cell = selectedTilemapCellSize();
+    EngineHost.setGrid(showGrid, cell ? cell.x : snapStep);
+  }, [showGrid, snapStep, primaryId, engine.status]);
 
   // Play In Viewport (UE5 PIE): host the realm iframe over the stage while playing
   // here; App.start() already booted the realm — we just re-parent its iframe.
@@ -570,31 +619,47 @@ export function Viewport() {
           ts.style.opacity = '0';
         }
 
-        // Brush footprint preview: a ghost rect at the hovered tile. brush/erase size it
-        // to the active stamp (they lay/erase its w×h); the other tools mark a single
-        // cell. Hidden for rect/line while their gesture preview is drawing the shape.
+        // Hover preview at the cursor cell. The BRUSH shows a WYSIWYG ghost of the actual
+        // stamp tiles (viewport__tileghost — built in React, scaled to the footprint here);
+        // erase sizes the plain box to the stamp; the other tools mark a single cell.
+        // Hidden for rect/line while their gesture preview draws the shape.
         const dragging = TilePaintPreview.get() != null;
+        const hov = hoverTileRef.current;
+        const gesturing = dragging && (paint.tool === 'rect' || paint.tool === 'line');
+        const stampSized = paint.tool === 'brush' || paint.tool === 'erase';
+        const canFoot = !!(paint.tool && !gesturing && hov && cs?.cellSize && origin);
+        // Footprint corners in client px (fw×fh cells at the hovered cell).
+        let ftl: { x: number; y: number } | null = null;
+        let fbr: { x: number; y: number } | null = null;
+        if (canFoot && hov && cs?.cellSize && origin) {
+          const fw = stampSized ? paint.stamp.w : 1;
+          const fh = stampSized ? paint.stamp.h : 1;
+          ftl = ViewportController.worldToClient(origin.x + hov.x * cs.cellSize.x, origin.y - hov.y * cs.cellSize.y);
+          fbr = ViewportController.worldToClient(origin.x + (hov.x + fw) * cs.cellSize.x, origin.y - (hov.y + fh) * cs.cellSize.y);
+        }
+
+        const gh = tileGhostRef.current;
+        // Brush + a resolved ghost → the WYSIWYG tile preview owns the hover; else the box.
+        const useGhost = paint.tool === 'brush' && !!paint.activeAtlas
+          && !!gh && gh.childElementCount > 0;
+        if (gh) {
+          if (useGhost && ftl && fbr && paint.activeAtlas) {
+            const natW = paint.stamp.w * paint.activeAtlas.tileW;
+            const natH = paint.stamp.h * paint.activeAtlas.tileH;
+            gh.style.transform =
+              `translate(${ftl.x}px, ${ftl.y}px) scale(${(fbr.x - ftl.x) / natW}, ${(fbr.y - ftl.y) / natH})`;
+            gh.style.opacity = '1';
+          } else {
+            gh.style.opacity = '0';
+          }
+        }
         const pv = tilePreviewRef.current;
         if (pv) {
-          const stampSized = paint.tool === 'brush' || paint.tool === 'erase';
-          const SINGLE: Record<string, boolean> = { bucket: true, terrain: true, rect: true, line: true };
-          const hov = hoverTileRef.current;
-          const gesturing = dragging && (paint.tool === 'rect' || paint.tool === 'line');
-          const showFoot = paint.tool != null && (stampSized || SINGLE[paint.tool])
-            && !gesturing && hov && cs?.cellSize && origin;
-          if (showFoot && hov && cs?.cellSize && origin) {
-            const fw = stampSized ? paint.stamp.w : 1;
-            const fh = stampSized ? paint.stamp.h : 1;
-            const tl = ViewportController.worldToClient(origin.x + hov.x * cs.cellSize.x, origin.y - hov.y * cs.cellSize.y);
-            const br = ViewportController.worldToClient(origin.x + (hov.x + fw) * cs.cellSize.x, origin.y - (hov.y + fh) * cs.cellSize.y);
-            if (tl && br) {
-              pv.style.transform = `translate(${tl.x}px, ${tl.y}px)`;
-              pv.style.width = `${br.x - tl.x}px`;
-              pv.style.height = `${br.y - tl.y}px`;
-              pv.style.opacity = '1';
-            } else {
-              pv.style.opacity = '0';
-            }
+          if (!useGhost && canFoot && ftl && fbr) {
+            pv.style.transform = `translate(${ftl.x}px, ${ftl.y}px)`;
+            pv.style.width = `${fbr.x - ftl.x}px`;
+            pv.style.height = `${fbr.y - ftl.y}px`;
+            pv.style.opacity = '1';
           } else {
             pv.style.opacity = '0';
           }
@@ -822,9 +887,9 @@ export function Viewport() {
     return () => cancelAnimationFrame(raf);
   }, []);
 
-  // Esc cancels an in-progress stroke (revert the live drag via the tool's
-  // transaction) instead of deselecting. Capture phase so it pre-empts the global
-  // Esc→deselect command; a no-op when no stroke is active (deselect then runs).
+  // Esc, capture phase (pre-empts the global Esc→deselect), in priority order:
+  // cancel an in-progress stroke → cancel a pan → leave paint mode → (fall through
+  // to deselect). So Esc reverts a live drag, then exits painting, then deselects.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
@@ -834,6 +899,9 @@ export function Viewport() {
         e.stopImmediatePropagation();
       } else if (panRef.current) {
         panRef.current = null;
+        e.stopImmediatePropagation();
+      } else if (isTilePaintMode()) {
+        exitTilePaint();
         e.stopImmediatePropagation();
       }
     };
@@ -880,7 +948,16 @@ export function Viewport() {
     const sid = useTilemapPaint.getState().tool ? useSelection.getState().selectedId : null;
     const isTm = sid != null
       && !!SceneModel.entityBySource(sid)?.components.some((c) => c.type === 'TilemapLayer');
-    hoverTileRef.current = sid != null && isTm ? cursorTile(e.clientX, e.clientY, sid) : null;
+    const tile = sid != null && isTm ? cursorTile(e.clientX, e.clientY, sid) : null;
+    hoverTileRef.current = tile;
+    // HUD tile readout: the hovered cell + its current id (0 = empty), so you always know
+    // exactly which cell you're about to paint.
+    if (tile && sid != null) {
+      const rt = SceneModel.runtimeFor(sid);
+      StatsStore.setTile(tile.x, tile.y, rt != null ? tileIdOf(TilemapAPI.getTile(rt, tile.x, tile.y)) : 0);
+    } else {
+      StatsStore.clearTile();
+    }
 
     activeToolRef.current?.onPointerMove(toInput(e), toolCtx);
   };
@@ -1035,7 +1112,7 @@ export function Viewport() {
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
         onPointerCancel={cancelDrag}
-        onPointerLeave={() => { StatsStore.clearCursor(); hoverTileRef.current = null; }}
+        onPointerLeave={() => { StatsStore.clearCursor(); StatsStore.clearTile(); hoverTileRef.current = null; }}
         onContextMenu={(e) => e.preventDefault()}
         onDragOver={onDragOver}
         onDrop={onDrop}
@@ -1238,6 +1315,16 @@ export function Viewport() {
       <div ref={marqueeRef} className="viewport__marquee" aria-hidden="true" />
       <div ref={tileSelRef} className="viewport__tilesel" aria-hidden="true" />
       <div ref={tilePreviewRef} className="viewport__tilepreview" aria-hidden="true" />
+      <div
+        ref={tileGhostRef}
+        className="viewport__tileghost"
+        aria-hidden="true"
+        style={ghostNat ? { width: ghostNat.w, height: ghostNat.h } : undefined}
+      >
+        {ghostCells?.map((c, i) => (
+          <div key={i} className="viewport__tileghost-cell" style={c.style} />
+        ))}
+      </div>
       <div ref={tilePaintRef} className="viewport__tilepaint" aria-hidden="true" />
 
       <div ref={gizmoRef} className="viewport__gizmo" aria-hidden="true">
@@ -1263,9 +1350,18 @@ export function Viewport() {
         </div>
       )}
 
-      <ViewportHud ready={engine.status === 'ready'} selCount={selCount} zoomPct={zoomPct} tool={tool} />
+      <ViewportHud
+        ready={engine.status === 'ready'}
+        selCount={selCount}
+        zoomPct={zoomPct}
+        tool={tool}
+        paintHint={inTilePaint && paintTool ? TILE_HINT[paintTool] : null}
+      />
       {perfVisible && <Perf id="viewport.perfhud"><PerfOverlay /></Perf>}
 
+      {inTilePaint && paintTool && (
+        <div className="viewport__tileflag">◧ 瓦片绘制 · {TILE_TOOL_LABEL[paintTool]}</div>
+      )}
       {isPlaying && <div className="viewport__playflag">● PLAY</div>}
     </div>
   );

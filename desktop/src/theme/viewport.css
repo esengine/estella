@@ -172,6 +172,7 @@
   width: max-content;
 }
 .vp-coord .ro strong { color: var(--text); }
+.vp-coord .ro .hud-tile { color: #58b6e6; }
 .vp-coord .hint { color: var(--text-mute); font-family: var(--sans); padding-left: 2px; }
 
 /* Play In Viewport (UE5 PIE): the realm iframe overlays the stage while playing. */
