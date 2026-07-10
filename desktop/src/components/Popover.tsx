@@ -28,6 +28,19 @@ export function Popover({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number }>({ left: anchor.left, top: anchor.bottom + 2 });
+  // Who had focus when the popover opened (usually the trigger) — keyboard focus
+  // returns there on close, unless the dismissal itself focused another control.
+  const opener = useRef<HTMLElement | null>(document.activeElement as HTMLElement | null);
+
+  useEffect(
+    () => () => {
+      const cur = document.activeElement;
+      const stillOurs = cur == null || cur === document.body || (ref.current?.contains(cur) ?? false);
+      const el = opener.current;
+      if (stillOurs && el && document.contains(el)) el.focus();
+    },
+    [],
+  );
 
   // Measure then clamp before paint so the first frame is already on-screen.
   useLayoutEffect(() => {

@@ -127,6 +127,21 @@ export function ContextMenu({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ left: x, top: y });
+  // Who had focus when the menu opened (captured at first render, before the
+  // seed-focus effect steals it) — keyboard focus returns there on close.
+  const opener = useRef<HTMLElement | null>(document.activeElement as HTMLElement | null);
+
+  // Restore focus to the opener — unless the dismissal itself moved focus
+  // somewhere real (outside-press on another control must keep that focus).
+  useEffect(
+    () => () => {
+      const cur = document.activeElement;
+      const stillOurs = cur == null || cur === document.body || (ref.current?.contains(cur) ?? false);
+      const el = opener.current;
+      if (stillOurs && el && document.contains(el)) el.focus();
+    },
+    [],
+  );
 
   // Measure the rendered menu and pull it back inside the viewport (runs before
   // paint, so the clamped position is the first thing shown — no flash off-edge).

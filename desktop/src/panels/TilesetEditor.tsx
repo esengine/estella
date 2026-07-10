@@ -63,15 +63,15 @@ function GridField(props: { label: string; value: number; min?: number; onCommit
 }
 
 // Peering zones in the cell's 3×3 grid; center (membership) is handled separately.
-const ZONES: { gx: number; gy: number; bit: number; corner: boolean }[] = [
-  { gx: 1, gy: 0, bit: TB_N, corner: false },
-  { gx: 2, gy: 0, bit: TB_NE, corner: true },
-  { gx: 2, gy: 1, bit: TB_E, corner: false },
-  { gx: 2, gy: 2, bit: TB_SE, corner: true },
-  { gx: 1, gy: 2, bit: TB_S, corner: false },
-  { gx: 0, gy: 2, bit: TB_SW, corner: true },
-  { gx: 0, gy: 1, bit: TB_W, corner: false },
-  { gx: 0, gy: 0, bit: TB_NW, corner: true },
+const ZONES: { gx: number; gy: number; bit: number; corner: boolean; dir: string }[] = [
+  { gx: 1, gy: 0, bit: TB_N, corner: false, dir: 'north' },
+  { gx: 2, gy: 0, bit: TB_NE, corner: true, dir: 'north-east' },
+  { gx: 2, gy: 1, bit: TB_E, corner: false, dir: 'east' },
+  { gx: 2, gy: 2, bit: TB_SE, corner: true, dir: 'south-east' },
+  { gx: 1, gy: 2, bit: TB_S, corner: false, dir: 'south' },
+  { gx: 0, gy: 2, bit: TB_SW, corner: true, dir: 'south-west' },
+  { gx: 0, gy: 1, bit: TB_W, corner: false, dir: 'west' },
+  { gx: 0, gy: 0, bit: TB_NW, corner: true, dir: 'north-west' },
 ];
 
 /** A focused per-tile collision-polygon editor: a magnified tile + click-to-add /
@@ -102,6 +102,15 @@ function PolygonEditor(props: {
     const py = Math.round(((e.clientY - r.top) / r.height) * th);
     commit([...pts, [Math.max(0, Math.min(tw, px)), Math.max(0, Math.min(th, py))]]);
   };
+
+  // Escape closes, like every other transient surface.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
 
   return (
     <div className="ts-pe-backdrop" onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
@@ -271,6 +280,8 @@ export function TilesetEditor() {
                     type="button"
                     className={'ts-zone' + (on ? ' is-on' : '') + (z.corner ? ' is-corner' : '')}
                     style={{ left: `${z.gx * 33.34}%`, top: `${z.gy * 33.34}%` }}
+                    aria-label={`${z.dir} peering zone`}
+                    title={`Peer with the ${z.dir} neighbor`}
                     onClick={() => toggleBit(id, z.bit)}
                   />
                 );

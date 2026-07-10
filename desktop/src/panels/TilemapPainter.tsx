@@ -192,12 +192,20 @@ export function TilemapPainter() {
   };
 
   // Dismiss the add-tileset menu on any outside click (the menu + its opener stop
-  // their own pointerdown so those don't self-close it).
+  // their own pointerdown so those don't self-close it) — and on Escape, like
+  // every other transient surface.
   useEffect(() => {
     if (!addOpen) return;
     const close = () => setAddOpen(false);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setAddOpen(false);
+    };
     window.addEventListener('pointerdown', close);
-    return () => window.removeEventListener('pointerdown', close);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('pointerdown', close);
+      window.removeEventListener('keydown', onKey);
+    };
   }, [addOpen]);
 
   // Re-render the layer strip on any model change (add/remove/rename/hide/lock).

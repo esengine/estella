@@ -841,12 +841,13 @@ export function ContentBrowser() {
               {crumbs.map((c, i) => (
                 <Fragment key={c.path}>
                   {i > 0 && <span className="sep">›</span>}
-                  <span
+                  <button
+                    type="button"
                     className={`cr${i === crumbs.length - 1 ? ' cur' : ''}`}
                     onClick={() => go(c.path)}
                   >
                     {c.name}
-                  </span>
+                  </button>
                 </Fragment>
               ))}
             </div>
