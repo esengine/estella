@@ -15,22 +15,47 @@ import { Aside, Steps } from '@astrojs/starlight/components';
 
 1. 打开 **文件 → Build…** 调出 **打包项目(Package Project)** 对话框。
 2. 选一个**平台**(Web / 桌面 / 微信 / Playable)。
-3. 选一个**构建配置**——*Development* 或 *Shipping*(Shipping 会压缩)——一个**输出目录**,以及
-   是否输出 source map。
-4. 点 **导出**,看实时构建日志。完成后输出目录会自动打开。
+3. 选一个**构建配置**——*Development* 或 *Shipping*(Shipping 会压缩)——一个**输出目录**、
+   source map,以及[资产烘焙选项](#资产烘焙选项)。
+4. 检查**构建场景(Scenes in build)**列表——取消勾选不想发布的场景,需要的话换一个
+   启动场景(见下文)。
+5. 点 **Package**,看实时构建日志。完成后输出目录会自动打开(有复选框可关掉),
+   Web / Playable 构建还会提供 **Preview over http**。
 
 </Steps>
 
 你的选择会存进 `project.esproject`,所以对话框下次会记住它们。
 
+## 构建场景
+
+项目场景目录下的每个场景都随导出发布,并成为 `SceneManager.switchTo` 的目标——游戏脚本
+如何切换见[场景](/docs/zh-cn/guides/scene/)。对话框的**构建场景**列表控制这个集合:
+
+- **启动场景**置顶并带播放徽标。它总是发布——点其他场景的播放按钮可把启动权移过去,
+  或在内容浏览器里右键任意场景选**设为启动场景(Set as Startup Scene)**。
+- **取消勾选一个场景**把它排除出构建(存为 `project.esproject` 里的
+  `packaging.excludeScenes`)。被排除的场景在编辑器里仍可正常编辑和运行;只被排除场景
+  引用的资产不会烘焙进构建。
+- **Playable** 只带启动场景——它是一个有体积上限的单文件。
+
+## 预览导出
+
+**Web** 或 **Playable** 构建完成后,点 **Preview over http** ——编辑器把输出目录架在
+本机回环服务器上(`http://127.0.0.1:<端口>/`)并用浏览器打开。
+
+<Aside type="caution">
+  Web 构建需要 **http 源**——直接从磁盘打开 `index.html`(`file://`)无法流式加载
+  WebAssembly。用预览按钮,或把文件夹上传到任意静态托管。
+</Aside>
+
 ## 各个目标
 
 | 目标 | 产出什么 | 输出 | 下一步 |
 |---|---|---|---|
-| **Web** | 一个静态、自包含的 Web 构建。 | `dist-web/` | 打开 `index.html`,或把文件夹上传到任意静态托管。 |
+| **Web** | 一个静态、自包含的 Web 构建。 | `dist-web/` | **Preview over http**,或把文件夹上传到任意静态托管。 |
 | **桌面** | 一棵 Electron 应用源码树。 | `dist-desktop/` | `cd dist-desktop && npm install && npm start`——或 `npm run dist` 出原生 `.dmg` / `.exe` / AppImage 安装包。 |
 | **微信** | 一个微信小游戏包。 | `dist-wechat/` | 在微信开发者工具里打开该文件夹并设置你的 AppID。见 [微信小游戏](/docs/zh-cn/guides/wechat/)。 |
-| **Playable** | 一个自包含的 `index.html`,一切内联——无外部请求(广告网络的要求)。 | `dist-playable/` | 打开 `index.html`。注意完整引擎通常超出广告网络的体积限制。 |
+| **Playable** | 一个自包含的 `index.html`,一切内联——无外部请求(广告网络的要求)。 | `dist-playable/` | **Preview over http**(它的真实宿主是广告网络的 iframe)。注意完整引擎通常超出广告网络的体积限制。 |
 
 ## 运行时前置条件
 
@@ -45,7 +70,10 @@ node build-tools/cli.js build -t wechat
 node build-tools/cli.js build -t playable
 ```
 
-当某个目标的运行时缺失时,打包项目对话框会提醒你。
+当某个目标的运行时缺失时,打包项目对话框会提醒你,而微信导出会**直接失败**并给出确切的
+构建命令——而不是产出一个运行时才崩的包。微信还需要为游戏用到的每个引擎特性构建对应的
+侧模块(`physics-wechat`、`spine-wechat`,压缩纹理用 `basis-wechat`)——见
+[微信小游戏](/docs/zh-cn/guides/wechat/)。
 
 ## 构建配置与 source map
 

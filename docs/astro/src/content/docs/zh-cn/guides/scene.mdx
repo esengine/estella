@@ -31,6 +31,16 @@ await scenes.loadAdditive('pause-menu', (loaded, total) => { /* progress */ });
 await scenes.unload('pause-menu');
 ```
 
+## 构建里的场景
+
+项目场景目录下的每个场景都会随导出发布,并注册为 `switchTo` 的目标。场景的**名字**是它
+相对场景目录的路径去掉 `.esscene` 扩展名——`assets/scenes/levels/boss.esscene` 就是
+`switchTo('levels/boss')`。启动场景立即加载;其余场景在首次切换时才拉取,所以多余的场景
+不会拖慢首屏。
+
+在打包对话框的**构建场景**列表里取消勾选的场景不会进入导出(在编辑器里仍可正常编辑和
+运行),Playable 广告构建只带启动场景。见[构建与导出](/docs/zh-cn/guides/build-export/)。
+
 ## `SceneManager` 参考
 
 | 方法 | 说明 |

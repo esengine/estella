@@ -16,6 +16,9 @@ When no project is open, the editor shows the **Launcher**:
 
 - **Recent** — reopen a project you've worked on, with search and grid/list views.
 - **New project** — pick a template, give it a name and location, and create it.
+  Templates come in two groups: **Starters** (the **Blank** template — an empty
+  scene with a camera) and **Examples** (the bundled sample projects, ready to
+  explore and edit).
 
 A project is a folder on disk. The pieces the editor cares about:
 
@@ -112,6 +115,8 @@ There are several ways to add an entity:
 The Outliner is the scene's hierarchy. You can:
 
 - Reparent by dragging entities onto one another, and organize with **folders**.
+- **Type to jump** — with the tree focused, type the first letters of a name to
+  jump to the matching entity.
 - **Rename** with `F2`, **Duplicate** with Ctrl/⌘ + D, **Delete** with Delete.
 - **Hide/Show** and **Lock/Unlock** entities (independent of whether the component is
   enabled at runtime).
@@ -138,7 +143,10 @@ assets in place:
 
 **Import** by dragging files in from Finder / Explorer, or via Import…. Each asset gets
 a `.meta` sidecar the first time it's seen. Per-asset context actions include Rename,
-Duplicate, Copy Path, Copy Reference, Show in Explorer, and Delete.
+Duplicate, Copy Path, Copy Reference, Show in Explorer, and Delete. Rename, move,
+and duplicate each post a toast with an **Undo** action; Delete asks for
+confirmation and moves the files to the OS trash. The folder tree is fully
+keyboard-driven — arrows walk and collapse/expand, Enter opens a folder.
 
 ## Play-in-editor
 
@@ -161,9 +169,12 @@ Double-click an asset in the Content Browser to open its editor in a document ta
   [Timeline](/docs/guides/timeline/).
 - **Tilemap painter** — tools for **brush, erase, rectangle, line, bucket, select,
   eyedropper**, and **terrain (autotile)**, plus stamp **flip-H / flip-V / rotate-90°**
-  (`H` / `V` / `R` while a paint tool is active). See [Tilemaps](/docs/guides/tilemap/).
+  (`H` / `V` / `R` while a paint tool is active) and a **random-scatter mode**. The
+  palette selects with the arrow keys (`Shift` grows a multi-tile stamp). See
+  [Tilemaps](/docs/guides/tilemap/).
 - **Tileset editor** — mark per-tile **collision** (box or polygon) and **terrain**
-  membership for autotiling.
+  membership for autotiling, and author **animated tiles** (frame sequences with
+  per-frame durations and a live preview).
 - **State Machine** (`.esfsm`) and **Behavior Tree** (`.esbt`) editors — visual graphs
   for AI. See [Gameplay AI](/docs/guides/ai/).
 - **Material Graph** (`.esmatgraph`) — a node editor that compiles to a shader. See
@@ -209,6 +220,12 @@ Settings → Keyboard Shortcuts.
 | Play / toggle · Stop | `F5` · `Esc` |
 | Content Drawer | `Ctrl + Space` |
 | Project Settings | `mod + ,` |
+
+Beyond the command shortcuts, the editor is keyboard-navigable throughout: menus
+and context menus move with the arrow keys (plus type-ahead, Home/End, and `→` /
+`←` for submenus), the Outliner jumps to entities as you type, the Content
+Browser's folder tree and the tile palette both walk with arrows, and keyboard
+focus is always shown with a visible focus ring.
 
 <Aside type="tip">
   For headless automation and AI agents, the editor also exposes an

@@ -111,9 +111,10 @@ textures) instead of the network.
 
 ## Cooking, compression & content addressing
 
-At build time the **cook** walks the dependency graph from your entry scene(s),
-**culls anything unreachable**, stages the reachable files, and writes the
-manifest. Along the way it can:
+At build time the **cook** walks the dependency graph from every scene in the
+build (the Package dialog's **Scenes in build** list), **culls anything
+unreachable**, stages the reachable files, and writes the manifest. Along the
+way it can:
 
 - **Compress textures** — encode PNGs to GPU-ready **KTX2** (Basis Universal),
   which the runtime transcodes to the best format the device supports (ASTC → ETC2

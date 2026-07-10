@@ -17,23 +17,54 @@ the **same runtime you played in the editor**, so what you shipped is what you t
 1. Open **File → Build…** to bring up the **Package Project** dialog.
 2. Pick a **platform** (Web / Desktop / WeChat / Playable).
 3. Choose a **build config** — *Development* or *Shipping* (Shipping minifies) — an
-   **output folder**, and whether to emit source maps.
-4. Click **Export** and watch the live build log. When it finishes, the output folder
-   opens.
+   **output folder**, source maps, and the [asset cook options](#asset-cook-options).
+4. Check the **Scenes in build** list — untick scenes you don't want to ship, and
+   pin a different startup scene if needed (see below).
+5. Click **Package** and watch the live build log. When it finishes, the output
+   folder opens (there's a checkbox to turn that off), and Web / Playable builds
+   offer **Preview over http**.
 
 </Steps>
 
 Your choices are saved into `project.esproject`, so the dialog remembers them next
 time.
 
+## Scenes in build
+
+Every scene in the project's scenes folder ships with the export and becomes a
+`SceneManager.switchTo` target — see [Scenes](/docs/guides/scene/) for how a game
+script switches between them. The dialog's **Scenes in build** list controls the
+set:
+
+- The **startup scene** is pinned first with a play badge. It always ships — move
+  the pin to another scene by clicking its play button, or right-click any scene in
+  the Content Browser and choose **Set as Startup Scene**.
+- **Untick a scene** to leave it out of the build (saved as
+  `packaging.excludeScenes` in `project.esproject`). Excluded scenes stay fully
+  editable and playable in the editor; assets referenced only by excluded scenes
+  are not cooked into the build.
+- **Playable** ships the startup scene only — it's a size-capped single file.
+
+## Preview an export
+
+After a **Web** or **Playable** build, click **Preview over http** — the editor
+serves the output folder on a local loopback server (`http://127.0.0.1:<port>/`)
+and opens it in your browser.
+
+<Aside type="caution">
+  A web build needs an **http origin** — opening `index.html` directly from disk
+  (`file://`) won't stream the WebAssembly. Use the preview button, or upload the
+  folder to any static host.
+</Aside>
+
 ## The targets
 
 | Target | What it produces | Output | Next step |
 |---|---|---|---|
-| **Web** | A static, self-contained web build. | `dist-web/` | Open `index.html`, or upload the folder to any static host. |
+| **Web** | A static, self-contained web build. | `dist-web/` | **Preview over http**, or upload the folder to any static host. |
 | **Desktop** | An Electron app source tree. | `dist-desktop/` | `cd dist-desktop && npm install && npm start` — or `npm run dist` for a native `.dmg` / `.exe` / AppImage installer. |
 | **WeChat** | A WeChat MiniGame package. | `dist-wechat/` | Open the folder in WeChat DevTools and set your AppID. See [WeChat MiniGame](/docs/guides/wechat/). |
-| **Playable** | One self-contained `index.html` with everything inlined — no external requests, as ad networks require. | `dist-playable/` | Open `index.html`. Note a full engine usually exceeds ad-network size limits. |
+| **Playable** | One self-contained `index.html` with everything inlined — no external requests, as ad networks require. | `dist-playable/` | **Preview over http** (its real surface is an ad-network iframe). Note a full engine usually exceeds ad-network size limits. |
 
 ## Runtime prerequisites
 
@@ -49,7 +80,12 @@ node build-tools/cli.js build -t wechat
 node build-tools/cli.js build -t playable
 ```
 
-The Package Project dialog reminds you when a target's runtime is missing.
+The Package Project dialog reminds you when a target's runtime is missing, and a
+WeChat export **fails fast** — naming the exact build command — rather than
+producing a package that breaks at runtime. WeChat also needs a matching side
+module for each engine feature the game uses (`physics-wechat`, `spine-wechat`,
+`basis-wechat` for compressed textures) — see
+[WeChat MiniGame](/docs/guides/wechat/).
 
 ## Build config & source maps
 

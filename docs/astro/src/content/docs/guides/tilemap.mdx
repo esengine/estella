@@ -1,28 +1,60 @@
 ---
 title: Tilemaps
-description: The complete guide to tile layers — loading Tiled maps, the Tilemap/TilemapLayer components, building and editing layers in code, multi-tileset layers, animation, infinite chunked maps, and collision.
+description: The complete guide to tile layers — painting in the editor, loading Tiled maps, the Tilemap/TilemapLayer components, building and editing layers in code, multi-tileset layers, animation, infinite chunked maps, and collision.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
 Estella renders tile layers in the C++/WebAssembly core, batched per tileset
-texture and stored in chunks. Load a whole map from a [Tiled](https://www.mapeditor.org/)
-file with the `Tilemap` component, or build and edit layers yourself with the
-`Tilemaps` resource — including multi-tileset layers, per-tile animation, and
-infinite streaming maps.
+texture and stored in chunks. Paint levels directly in the editor, load a whole
+map from a [Tiled](https://www.mapeditor.org/) file with the `Tilemap` component,
+or build and edit layers yourself with the `Tilemaps` resource — including
+multi-tileset layers, per-tile animation, and infinite streaming maps.
 
 ## How it works
 
-There are two entry points. The **`Tilemap`** component points an entity at a Tiled
-JSON file and, at load, spawns one **`TilemapLayer`** entity per layer. The
-**`Tilemaps`** resource is the imperative API for creating and editing layers from
-code. Either way the data ends up in the same runtime layer model. Tile ids are
-**1-based** (`0` = empty). **Orthogonal, isometric, staggered, and hexagonal** maps
-all render — the orientation is read from the Tiled file, no extra setup.
+There are three entry points. The editor's **Tilemap painter** authors layers
+visually, backed by a `.estileset` tileset asset. The **`Tilemap`** component
+points an entity at a Tiled JSON file and, at load, spawns one **`TilemapLayer`**
+entity per layer. The **`Tilemaps`** resource is the imperative API for creating
+and editing layers from code. Every way the data ends up in the same runtime
+layer model. Tile ids are **1-based** (`0` = empty). **Orthogonal, isometric,
+staggered, and hexagonal** maps all render — the orientation is read from the
+Tiled file, no extra setup.
+
+## Paint in the editor
+
+Select an entity with a `TilemapLayer` component and the **Tilemap painter**
+panel opens with the tileset palette. Pick a tool and paint directly in the
+viewport — a stamp ghost previews every stroke:
+
+| Tool | Key | What it does |
+|---|---|---|
+| Brush | `B` | Paint the current stamp; drag for strokes. |
+| Erase | `E` | Clear tiles. |
+| Rectangle | `U` | Fill a dragged rectangle with the stamp pattern. |
+| Line | `L` | Lay the stamp along a straight line. |
+| Bucket | `G` | Flood-fill the connected region of matching tiles. |
+| Select | `M` | Marquee a region — `mod + C` / `X` copy / cut it, `Delete` clears it, `mod + V` pastes it as the brush. |
+| Eyedropper | `I` | Pick the stamp from tiles already on the layer. |
+| Terrain | `T` | Autotile brush — paints a terrain and fixes up the neighbors. |
+
+While a paint tool is active, `H` / `V` flip the stamp and `R` rotates it 90°.
+`Q`, `W`, or `Esc` leave paint mode and hand the keys back to the transform tools.
+
+- **Multi-tile stamps** — drag across the palette to grab a block of tiles as one
+  stamp. The palette is keyboard-friendly too: **arrow keys** move the selection,
+  **Shift + arrows** grow it into a stamp.
+- **Random mode** — toggle the dice button and each painted cell samples one tile
+  at random from the stamp instead of repeating the pattern — quick scatter for
+  grass, rubble, and other variation.
+- **Layer strip** — when the scene has several tilemap layers, a strip at the top
+  of the panel switches the active layer and toggles per-layer visibility and lock.
 
 ## Load a Tiled map
 
-The `Tilemap` component loads a `.tmj`/`.tmx` map via its one field:
+The `Tilemap` component loads a `.tmj` map (Tiled's JSON format — in Tiled, use
+*File → Export As → JSON*) via its one field:
 
 ```typescript
 import { defineSystem, Commands, Tilemap } from 'esengine';
@@ -95,7 +127,16 @@ tilemap.setTilesets(layer, [
 
 ## Tile animation
 
-Set an animation on a tile id once — the plugin advances it every frame:
+Author animated tiles in the **Tileset editor**: open the `.estileset`, switch the
+mode control to **Animation**, click the tile to animate, then click other atlas
+tiles to append frames. A strip below the toolbar shows a live looping preview,
+per-frame duration inputs (in milliseconds), and remove/clear actions; animated
+tiles carry a ▶ mark in the atlas. The frames are saved into the `.estileset`, and
+every layer that uses the tileset plays them automatically — in the editor viewport
+and at runtime, no code required.
+
+For procedural layers, `setTileAnimation` does the same from code — the plugin
+advances it every frame:
 
 ```typescript
 tilemap.setTileAnimation(layer, 10, [
@@ -142,6 +183,10 @@ for (const group of src?.objectGroups ?? []) {
 }
 ```
 
+Objects that carry a tile reference (a **gid** — tiles stamped onto an object layer
+in Tiled) render as sprite children of the map, honoring Tiled's horizontal,
+vertical, **and diagonal** flip flags.
+
 An object group whose name is `collision` (case-insensitive) or that carries a
 `collision=true` property also **spawns static colliders in play mode** — rectangles,
 ellipses, polygons, and polylines become the matching Box2D shape, on the same
@@ -172,8 +217,9 @@ origin / pixels-per-unit / play-mode lifecycle as tile collision.
 
 ## Best practices
 
-- **Prefer Tiled** (`Tilemap` + `.tmj`) for hand-authored levels; use the `Tilemaps`
-  API for procedural or runtime-generated maps.
+- **Paint hand-authored levels in the editor** (or import from Tiled with
+  `Tilemap` + `.tmj`); use the `Tilemaps` API for procedural or runtime-generated
+  maps.
 - **Batch by tileset**: fewer tileset textures per layer = fewer draw calls; atlas
   your tiles.
 - **Use `setTiles` / `setChunkTiles`** for bulk writes instead of per-tile `setTile`

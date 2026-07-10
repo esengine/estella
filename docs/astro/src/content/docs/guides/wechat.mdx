@@ -15,10 +15,19 @@ The WeChat target compiles the C++ core with WeChat's `WXWebAssembly` shims:
 
 ```bash
 node build-tools/cli.js build -t wechat
-# optional side modules, only if your game uses them:
-node build-tools/cli.js build -t spine-wechat
-node build-tools/cli.js build -t physics-wechat
+# side modules, only if your game uses them:
+node build-tools/cli.js build -t physics-wechat   # physics
+node build-tools/cli.js build -t spine-wechat     # Spine (builds 3.8 + 4.1 + 4.2)
+node build-tools/cli.js build -t basis-wechat     # KTX2 / compressed textures
 ```
+
+<Aside type="note">
+  **A missing runtime is a hard export error, not a warning.** If a scene uses
+  physics or Spine, or the build ships KTX2 textures, and the matching
+  `*-wechat` module isn't built, the export stops and names the exact build
+  command to run. The exporter stages only the side modules your scenes
+  actually need, so unused ones add no package weight.
+</Aside>
 
 ## Export from the editor
 
@@ -26,16 +35,43 @@ node build-tools/cli.js build -t physics-wechat
 
 1. In **Project Settings → Packaging → WeChat**, set your AppID and orientation.
 
-2. Click **Export Game**. Estella cooks assets, bundles the SDK + your scripts
-   (as CommonJS, via esbuild), transforms scenes, and writes a standalone
-   MiniGame package.
+2. Open **File → Build…**, pick the **WeChat** platform in the Package Project
+   dialog, review the **Scenes in build** list, and click **Package**. Estella
+   cooks assets, bundles the SDK + your scripts (as CommonJS, via esbuild),
+   transforms scenes, and writes a standalone MiniGame package.
+
+3. Open the output folder in **WeChat DevTools** to compile, test, and submit.
+   If you left the AppID empty, fill it in `project.config.json` from DevTools.
 
 </Steps>
 
-The output directory contains `game.js` (entry), `game-bundle.js` (SDK +
-scripts), `game.json` / `project.config.json` (WeChat config), the
-`asset-manifest.json`, your scenes, and the `wasm/` engine + side modules. Open
-that directory in WeChat DevTools to compile, test, and submit.
+The output directory contains `game.js` (the entry, which boots
+`game-bundle.js` — the SDK + your scripts), `game.json` /
+`project.config.json` (WeChat config), the `asset-manifest.json`, your scenes
+as `scenes/<name>.json`, and a `wasm/` folder holding the engine plus exactly
+the side modules your scenes need. Every scene in the build is a
+`SceneManager.switchTo` target — non-startup scenes load on their first switch
+(see [Scenes](/docs/guides/scene/)).
+
+<Aside type="caution">
+  Don't hand-edit `game.js` or move files under `wasm/` — the boot sequence
+  instantiates exactly those staged files, so renames break the game in
+  DevTools.
+</Aside>
+
+## Compressed textures
+
+Enable **Compress textures** in the Package dialog to cook PNGs to KTX2 —
+a smaller package and faster first load. Two WeChat-specific details, both
+handled automatically:
+
+- The Basis transcoder ships as the `basis-wechat` side module — build it once
+  (above), or the export fails with the exact command to run.
+- WeChat's code package only accepts whitelisted file suffixes, and `ktx2`
+  isn't one — so the exporter stages every `.ktx2` as `.ktx2.bin`, and the
+  runtime resolves both spellings. The exporter also emits
+  `packOptions.include` rules in `project.config.json` for every staged custom
+  extension (`.skel`, `.atlas`, `.bin`, …) so DevTools packs and serves them.
 
 ## Subpackages (分包)
 
@@ -52,27 +88,20 @@ levels download on demand rather than bloating the initial package:
 }
 ```
 
-<Aside type="caution">
-  **Build the side modules your game needs.** If a scene uses Spine or physics
-  but you didn't build `spine-wechat` / `physics-wechat`, the export warns and
-  the game fails at runtime. The exporter only wires in the side modules the
-  entry scene actually requires, so unused ones add no weight.
-</Aside>
-
 ## Best practices
 
-- **Stay under the main-package limit** (WeChat caps the initial package) by moving
-  on-demand content into `subpackages/<name>/` — see [Assets](/docs/guides/assets/).
-- **Compress textures** — enable **Compress textures** in the Package dialog to cook
-  PNGs to KTX2, shrinking the package and speeding first load.
-- **Build only the side modules you use** — each unused `*-wechat` module you skip is
-  weight you don't ship.
-- **Test in WeChat DevTools**, not just the browser — the file system, storage, and
-  socket backends differ from the web.
-- **Preload the next level's group** (`loadGroup`) during play so the subpackage
-  download doesn't stall the transition.
+- **Stay under the 4 MB main-package limit** by moving on-demand content into
+  `subpackages/<name>/` — see [Assets](/docs/guides/assets/). The export sets
+  `bigPackageSizeSupport`, so an oversized package still *previews* in
+  DevTools — but upload enforces the cap.
+- **Compress textures** — see above; the single biggest package-size win.
+- **Test in WeChat DevTools**, not just the browser — the file system, storage,
+  and socket backends differ from the web.
+- **Preload the next level's group** (`loadGroup`) during play so the
+  subpackage download doesn't stall the transition.
 
 ## See also
 
 - [Assets](/docs/guides/assets/) — addressable groups and cooking map onto subpackages.
+- [Building & Exporting](/docs/guides/build-export/) — the Package Project dialog.
 - [Networking](/docs/guides/networking/) — sockets use `wx.connectSocket` here.

@@ -34,6 +34,19 @@ await scenes.loadAdditive('pause-menu', (loaded, total) => { /* progress */ });
 await scenes.unload('pause-menu');
 ```
 
+## Scenes in a build
+
+Every scene in the project's scenes folder ships with an export and registers as a
+`switchTo` target. A scene's **name** is its path relative to the scenes folder,
+without the `.esscene` extension — `assets/scenes/levels/boss.esscene` is
+`switchTo('levels/boss')`. The startup scene loads eagerly; the others are fetched
+on their first switch, so extra scenes don't slow the initial load.
+
+Scenes you untick in the Package dialog's **Scenes in build** list are left out of
+the export (they stay editable and playable in the editor), and Playable-ad builds
+ship the startup scene only. See
+[Building & Exporting](/docs/guides/build-export/).
+
 ## `SceneManager` reference
 
 | Method | Description |

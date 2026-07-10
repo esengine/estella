@@ -31,6 +31,27 @@ main `esengine` package.
 | `material` | asset | none | Optional custom material. |
 | `enabled` | boolean | `true` | Disable to freeze and hide. |
 
+**Skeleton and atlas are asset slots** in the Details panel: pick from the popover,
+drag a file in from the Content Browser, or use the slot's locate / clear actions.
+The scene serializes them as portable `@uuid:` references, so moving or renaming
+the files never breaks the link. The editor previews the skeleton live in the
+viewport — including across Play/Stop — and once it loads, the `animation` and
+`skin` fields become dropdowns of that skeleton's actual animations and skins.
+
+<Aside type="note">
+  The skeleton pick popover lists **`.skel`** files. A **`.json`** skeleton loads
+  just as well — assign it by **dragging it from the Content Browser** onto the
+  slot.
+</Aside>
+
+## Atlases
+
+Spine `.atlas` files work as exported — including **multi-page** atlases (each
+page texture loads alongside the atlas) and **premultiplied alpha**: a `pma: true`
+atlas header is honored automatically, no import setting needed. When you export
+with **Compress textures** enabled, atlas pages cook to KTX2 and transcode on
+device like any other texture.
+
 ## Play & blend animations
 
 The `Spine` resource controls tracks, mixing (crossfade), and per-track blending:
