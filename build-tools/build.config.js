@@ -113,6 +113,15 @@ export default {
                 'sdk/physics.wasm': 'wasm/wechat/physics.wasm',
             },
         },
+        'basis-wechat': {
+            buildDir: 'build-basis-wechat',
+            cmakeFlags: ['-DES_BUILD_WXGAME=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_BASIS=ON'],
+            targets: ['basis_module'],
+            outputs: {
+                'sdk/basis.js': 'wasm/wechat/basis.js',
+                'sdk/basis.wasm': 'wasm/wechat/basis.wasm',
+            },
+        },
         'spine-wechat': {
             buildDir: 'build-spine-wechat',
             cmakeFlags: ['-DES_BUILD_WXGAME=ON', '-DES_BUILD_TESTS=OFF'],

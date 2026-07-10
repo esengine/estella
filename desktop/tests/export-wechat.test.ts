@@ -210,23 +210,53 @@ describe('exportGame (wechat)', () => {
     expect(res.errors.some((e) => e.includes('spine-wechat'))).toBe(true);
   }, 60_000);
 
-  it('degrades compressTextures to PNG with a warning (no WeChat Basis build)', async () => {
-    const outCt = path.join(root, 'dist-wechat-ct');
+  it('a staged .ktx2 texture ships the Basis transcoder module', async () => {
+    const KTX = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
+    const KTXSCN = 'abababab-abab-abab-abab-abababababab';
+    writeFileSync(path.join(root, 'assets', 'pre.ktx2'), 'KTX2BYTES');
+    writeFileSync(path.join(root, 'assets', 'pre.ktx2.meta'), meta(KTX, 'texture'));
+    writeFileSync(
+      path.join(root, 'scenes', 'ktx2.esscene'),
+      JSON.stringify({ version: '1.0', name: 'Ktx', entities: [{ id: 0, components: [{ type: 'Sprite', data: { texture: `@uuid:${KTX}` } }] }] }),
+    );
+    writeFileSync(path.join(root, 'scenes', 'ktx2.esscene.meta'), meta(KTXSCN, 'scene'));
+    const wxDir = path.join(root, '_wxwasm-basis');
+    mkdirSync(wxDir, { recursive: true });
+    writeFileSync(path.join(wxDir, 'esengine.js'), 'module.exports = () => Promise.resolve({});');
+    writeFileSync(path.join(wxDir, 'esengine.wasm'), 'wasmbytes');
+    writeFileSync(path.join(wxDir, 'basis.js'), 'module.exports = () => {};');
+    writeFileSync(path.join(wxDir, 'basis.wasm'), 'wasmbytes');
+
+    const outKtx = path.join(root, 'dist-wechat-ktx2');
     const res = await exportGame({
       root,
-      entryScene: 'scenes/main.esscene',
+      entryScene: 'scenes/ktx2.esscene',
       gameHostEntry: 'unused-for-wechat',
       scriptsEntry: 'src/main.ts',
       sdkDistDir: path.join(root, '_sdk'),
-      wasmDir: path.join(root, '_wxwasm'),
-      outDir: outCt,
+      wasmDir: wxDir,
+      outDir: outKtx,
       platform: 'wechat',
-      compressTextures: true,
     });
     expect(res.ok).toBe(true);
-    expect(res.warnings.some((w) => w.includes('Basis'))).toBe(true);
-    const manifest = JSON.parse(readFileSync(path.join(outCt, 'asset-manifest.json'), 'utf8'));
-    expect(manifest.groups.main.assets[TEX].path).toMatch(/\.png$/); // not .ktx2
+    expect(readFileSync(path.join(outKtx, 'game.js'), 'utf8')).toContain("\"basis\": asFactory(require('./wasm/basis.js'))");
+    expect(existsSync(path.join(outKtx, 'wasm', 'basis.wasm'))).toBe(true);
+  }, 60_000);
+
+  it('a .ktx2 texture without a wechat basis build fails the export', async () => {
+    const outNoBasis = path.join(root, 'dist-wechat-ktx2-missing');
+    const res = await exportGame({
+      root,
+      entryScene: 'scenes/ktx2.esscene',
+      gameHostEntry: 'unused-for-wechat',
+      scriptsEntry: 'src/main.ts',
+      sdkDistDir: path.join(root, '_sdk'),
+      wasmDir: path.join(root, '_wxwasm'), // engine only — no basis
+      outDir: outNoBasis,
+      platform: 'wechat',
+    });
+    expect(res.ok).toBe(false);
+    expect(res.errors.some((e) => e.includes('basis-wechat'))).toBe(true);
   }, 60_000);
 
   it('content-addressed export carries the logical path as the asset address', async () => {

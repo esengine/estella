@@ -30,7 +30,7 @@ import type { OnExportProgress } from './exportProgress';
 import { esengineAlias } from './esengineResolve';
 import {
   sceneUsesPhysics, detectSpineVersion, detectSpineVersionJson,
-  spineModuleId, SIDE_MODULE_FILE,
+  spineModuleId, SIDE_MODULE_FILE, WECHAT_MODULE_BUILD_TARGET,
 } from './sideModuleScan';
 
 export interface ExportWeChatResult {
@@ -139,6 +139,9 @@ async function scanWeChatSideModules(
   // meta type `spine`, so discriminate by extension — `.skel` is a binary
   // skeleton, `.json` a JSON one; the `.atlas` sibling is not a skeleton.
   for (const e of cookEntries) {
+    // Any staged KTX2 texture (compressTextures cook, or an authored .ktx2)
+    // needs the Basis transcoder at runtime.
+    if (e.path.toLowerCase().endsWith('.ktx2')) ids.add('basis');
     if (e.type !== 'spine') continue;
     const ext = path.extname(e.sourcePath ?? e.path).toLowerCase();
     try {
@@ -155,7 +158,7 @@ async function scanWeChatSideModules(
   for (const id of ids) {
     const file = SIDE_MODULE_FILE[id];
     if (file && existsSync(path.join(wasmDir, `${file}.js`))) present.push({ id, file });
-    else errors.push(`scene needs "${id}" but ${file}.js is not in the wechat wasm dir — build it with \`node build-tools/cli.js build -t ${id === 'physics' ? 'physics-wechat' : 'spine-wechat'}\` and re-export.`);
+    else errors.push(`scene needs "${id}" but ${file}.js is not in the wechat wasm dir — build it with \`node build-tools/cli.js build -t ${WECHAT_MODULE_BUILD_TARGET[id] ?? id}\` and re-export.`);
   }
   return present;
 }
@@ -258,18 +261,11 @@ export async function exportWeChat(opts: {
 
   await mkdir(absOut, { recursive: true });
 
-  // KTX2 decode needs the Basis transcoder side module, which has no WeChat
-  // (WXWebAssembly) build yet — cooked .ktx2 textures could never load. Degrade
-  // to uncompressed textures visibly instead of shipping an undecodable pack.
-  let compressTextures = opts.compressTextures;
-  if (compressTextures) {
-    compressTextures = false;
-    warnings.push('compressTextures: the Basis KTX2 transcoder has no WeChat build yet — textures export uncompressed.');
-  }
-
-  // 1. Cook reachable assets (paths preserved) + the flat manifest.
+  // 1. Cook reachable assets (paths preserved) + the flat manifest. KTX2
+  //    textures are fine here: the scan below sees the staged .ktx2 files and
+  //    ships the Basis transcoder side module with them.
   progress({ phase: 'Cooking assets' });
-  const cook = await cookAssets(opts.root, { entryScenes: [opts.entryScene], outDir: absOut, contentAddressed: opts.contentAddressed, compressTextures, atlasTextures: opts.atlasTextures });
+  const cook = await cookAssets(opts.root, { entryScenes: [opts.entryScene], outDir: absOut, contentAddressed: opts.contentAddressed, compressTextures: opts.compressTextures, atlasTextures: opts.atlasTextures });
   warnings.push(...cook.warnings);
 
   // 1b. Scan the scene for the optional modules it needs (physics/spine), so the

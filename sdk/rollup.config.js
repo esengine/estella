@@ -11,8 +11,14 @@ const treeshake = {
 
 const esmBuilds = [
     {
+        // ONE code-split graph for every ESM entry a bundler can combine:
+        // `esengine` (web or wechat) and the `esengine/*` subpaths must resolve
+        // into the SAME shared chunks, or a game bundle that imports both gets
+        // two copies of the core — and identity-keyed resources (Res(Spine))
+        // split-brain: the runtime inserts into one copy, systems read the other.
         input: {
             'index': 'src/index.ts',
+            'index.wechat': 'src/index.wechat.ts',
             'physics/index': 'src/physics/index.ts',
             'spine/index': 'src/spine/index.ts',
             'wasm': 'src/wasm.ts',
@@ -37,12 +43,6 @@ const esmBuilds = [
     },
     {
         input: 'src/index.wechat.ts',
-        output: { file: 'dist/index.wechat.js', format: 'esm', sourcemap: true },
-        plugins: [typescript({ tsconfig: './tsconfig.json', declaration: false }), terser({ format: { comments: (_, comment) => comment.value.includes('@vite-ignore') } })],
-        treeshake,
-    },
-    {
-        input: 'src/index.wechat.ts',
         output: { file: 'dist/index.wechat.cjs.js', format: 'cjs', sourcemap: true },
         plugins: [typescript({ tsconfig: './tsconfig.json', declaration: false }), terser({ format: { comments: (_, comment) => comment.value.includes('@vite-ignore') } })],
         treeshake,
@@ -61,6 +61,7 @@ const dtsBuilds = [
         input: {
             'index': 'src/index.ts',
             'index.node': 'src/index.node.ts',
+            'index.wechat': 'src/index.wechat.ts',
             'physics/index': 'src/physics/index.ts',
             'spine/index': 'src/spine/index.ts',
             'wasm': 'src/wasm.ts',
