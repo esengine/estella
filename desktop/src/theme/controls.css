@@ -55,6 +55,46 @@
 .sel-trigger > svg { color: var(--text-mute); flex-shrink: 0; }
 .sel-trigger .dd-val { flex: 1; }
 
+/* — Search/filter field (components/SearchField.tsx). One recipe for every
+     panel filter; usage sites keep only layout deltas (width/height/margin).
+     The flush variant is the popover-internal border-bottom row. — */
+.search {
+  flex: 1;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--inset);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 0 8px;
+  color: var(--text-mute);
+  transition: border-color var(--t-fast), box-shadow var(--t-fast);
+}
+.search:focus-within { border-color: var(--acc); box-shadow: 0 0 0 2px var(--acc-soft); }
+.search input { flex: 1; min-width: 0; background: none; border: none; outline: none; font-size: var(--fs-sm); color: var(--text); }
+.search input::placeholder { color: var(--text-mute); }
+.search > svg { flex-shrink: 0; }
+.search--flush {
+  flex: none;
+  height: auto;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  padding: 4px 7px;
+}
+.search--flush:focus-within { border-color: var(--border); box-shadow: none; }
+
+/* — Pill toggle switch (inspector booleans, settings; `.mixed` = a multi-select
+     value the selection disagrees on) — */
+.toggle { width: 30px; height: 17px; border-radius: var(--r-pill); background: var(--srf-5); position: relative; cursor: pointer; flex-shrink: 0; transition: background var(--t-fast); }
+.toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; border-radius: 50%; background: var(--text-dim); transition: left var(--t-fast) var(--e-out), background var(--t-fast); }
+.toggle.on { background: var(--acc); }
+.toggle.on::after { left: 15px; background: var(--on-accent); }
+.toggle.mixed { background: var(--srf-5); }
+.toggle.mixed::after { left: 50%; transform: translateX(-50%); background: var(--text-mute); }
+
 /* — Unsaved-changes dot (components/DirtyDot.tsx) — */
 .dirty-dot { color: var(--sel); font-size: 0.7em; line-height: 1; }
 

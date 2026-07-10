@@ -31,6 +31,7 @@
 .mg-node { width: 100%; height: 100%; background: var(--srf-2); border: 1px solid var(--border-line); border-radius: var(--r-lg); box-shadow: var(--shadow-1); user-select: none; overflow: hidden; }
 .mg-node.sel { border-color: var(--acc); box-shadow: 0 0 0 1px var(--acc), var(--shadow-1); }
 .mg-node-head { height: 28px; display: flex; align-items: center; padding: 0 10px; font-size: var(--fs-xs); font-weight: 600; color: var(--text); border-bottom: 1px solid var(--border); cursor: grab; background: var(--srf-3); }
+.mg-node-head:active { cursor: grabbing; }
 .mg-node .mg-row, .mg-node .mg-param { display: flex; align-items: center; gap: 6px; padding: 0 10px; }
 .mg-row-label { font-size: var(--fs-2xs); color: var(--text-dim); }
 .mg-param .mg-row-label { min-width: 38px; }

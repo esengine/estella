@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, Clock, FolderOpen, LayoutGrid, Plus, Rows3, Search, X } from 'lucide-react';
+import { ArrowRight, Clock, FolderOpen, LayoutGrid, Plus, Rows3, X } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { ProjectStore } from '@/project/ProjectStore';
 import { WindowControls } from '@/layout/WindowControls';
+import { SearchField } from '@/components/SearchField';
 import { Segmented } from '@/components/Segmented';
 import type { RecentEntry, TemplateEntry } from '@/project/format';
 import { version } from '../../package.json';
@@ -101,15 +102,7 @@ function RecentView({
       <header className="lc-head">
         <h1>Recent</h1>
         <div className="lc-head__tools">
-          <label className="lc-search">
-            <Search size={13} strokeWidth={1.85} />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search projects"
-              spellCheck={false}
-            />
-          </label>
+          <SearchField className="lc-search" placeholder="Search projects" value={query} onChange={setQuery} />
           <Segmented
             value={layout}
             onChange={setLayout}

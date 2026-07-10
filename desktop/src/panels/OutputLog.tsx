@@ -9,9 +9,10 @@ import {
   useSyncExternalStore,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { Trash2, ArrowDownToLine, Search, Clock, ListFilter, Check } from 'lucide-react';
+import { Trash2, ArrowDownToLine, Clock, ListFilter, Check } from 'lucide-react';
 import { LogStore, type LogLevel, type LogEntry } from '@/store/LogStore';
 import { ContextMenu, type MenuItem } from '@/components/Menu';
+import { SearchField } from '@/components/SearchField';
 import { Toasts } from '@/store/Toasts';
 
 type Filter = 'all' | LogLevel;
@@ -229,15 +230,7 @@ export function OutputLog() {
           <Chip id="warn" label="Warnings" count={counts.warn} />
           <Chip id="error" label="Errors" count={counts.error} />
         </div>
-        <div className="log-search">
-          <Search size={12} strokeWidth={1.9} />
-          <input
-            value={query}
-            spellCheck={false}
-            placeholder="Filter"
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        </div>
+        <SearchField className="log-search" iconSize={12} placeholder="Filter" value={query} onChange={setQuery} />
         <button
           type="button"
           className={`pbtn${hidden.size > 0 ? ' on' : ''}`}
@@ -275,7 +268,7 @@ export function OutputLog() {
         ))}
         {visible.length === 0 && (
           <div className="log-empty">
-            {entries.length === 0 ? 'No log output yet.' : 'No entries match the filter.'}
+            {entries.length === 0 ? 'No log output yet — engine and script logs appear here.' : 'No entries match the filter.'}
           </div>
         )}
       </div>

@@ -26,6 +26,8 @@
   transition: color var(--t-fast), background var(--t-fast);
 }
 .pbtn:hover { color: var(--text); background: var(--srf-4); }
+.pbtn:active { background: var(--srf-5); }
+.pbtn:disabled { opacity: 0.4; cursor: default; }
 .pbtn.on { color: var(--acc); }
 .pbody { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; }
 

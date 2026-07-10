@@ -11,12 +11,13 @@ import { useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useShallow } from 'zustand/react/shallow';
-import { Settings as SettingsIcon, Search, X, RotateCcw } from 'lucide-react';
+import { Settings as SettingsIcon, X, RotateCcw } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { useSettings } from '@/store/settingsStore';
 import { settingsRegistry } from '@/settings/registry';
 import { eventToChord, formatKeybinding } from '@/commands/keybinding';
 import { useDialogFocus } from '@/components/dialogFocus';
+import { SearchField } from '@/components/SearchField';
 import { Segmented } from '@/components/Segmented';
 import { Select } from '@/components/Select';
 import type { Setting, NumberSetting, KeybindingSetting, StringListSetting, MatrixSetting, FlagListSetting } from '@/settings/types';
@@ -383,15 +384,7 @@ export function SettingsDialog() {
             Settings
           </span>
           <span className="set-head-sp" />
-          <label className="set-search">
-            <Search size={12} strokeWidth={2} />
-            <input
-              placeholder="Search settings…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              autoFocus
-            />
-          </label>
+          <SearchField className="set-search" iconSize={12} autoFocus placeholder="Search settings…" value={query} onChange={setQuery} />
           <button type="button" className="set-x" title="Close (Esc)" onClick={close}>
             <X size={14} strokeWidth={2} />
           </button>

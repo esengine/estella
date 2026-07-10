@@ -142,6 +142,13 @@
   font-size: var(--fs-sm);
   max-width: 200px;
 }
+/* secondary "what to do next" line under the status */
+.empty small {
+  margin: -6px 0 0;
+  font-size: var(--fs-xs);
+  color: var(--text-mute);
+  max-width: 220px;
+}
 
 /* -------------------------------------------------------------- viewport --- */
 .viewport {

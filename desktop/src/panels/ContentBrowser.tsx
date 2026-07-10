@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { ChevronRight, Search, LayoutGrid, List, Import, FolderOpen, FolderPlus, ArrowLeft, ArrowRight, ArrowUp, ArrowDownUp } from 'lucide-react';
+import { ChevronRight, LayoutGrid, List, Import, FolderOpen, FolderPlus, ArrowLeft, ArrowRight, ArrowUp, ArrowDownUp } from 'lucide-react';
 import { AssetIcon, assetTint } from '@/components/icons';
+import { SearchField } from '@/components/SearchField';
 import { ContextMenu, type MenuItem } from '@/components/Menu';
 import { useTooltip } from '@/components/Tooltip';
 import { Segmented } from '@/components/Segmented';
@@ -266,6 +267,8 @@ export function ContentBrowser() {
   // A right-click menu: on an item (target set) or on empty space (target null).
   const [ctx, setCtx] = useState<{ x: number; y: number; target: { path: string; entry: DirEntry } | null } | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
+  // The tile being dragged dims so the source of the move reads at a glance.
+  const [dragPath, setDragPath] = useState<string | null>(null);
   const [filters, setFilters] = useState<Set<AssetType>>(new Set());
   const [sort, setSort] = useState<AssetSort>('name');
   const tip = useTooltip<{ path: string; entry: DirEntry }>((p) => <AssetTipCard path={p.path} entry={p.entry} />);
@@ -719,10 +722,14 @@ export function ContentBrowser() {
       ev.dataTransfer.effectAllowed = 'copy';
       ev.dataTransfer.setData('application/x-estella-asset', path);
       ev.dataTransfer.setData('text/plain', path);
+      setDragPath(path);
     },
     // A cancelled drag (Escape / dropped outside a target) fires no drop —
-    // make sure no folder keeps its highlight.
-    onDragEnd: clearDropState,
+    // make sure no folder keeps its highlight and the source undims.
+    onDragEnd: () => {
+      clearDropState();
+      setDragPath(null);
+    },
     onClick: () => selectAsset(path),
     onDoubleClick: () => onOpen(path, e.isDir, e.name),
     // Suppress the hover card while any inline rename is active.
@@ -843,15 +850,7 @@ export function ContentBrowser() {
                 </Fragment>
               ))}
             </div>
-            <div className="search cb-search">
-              <Search size={13} strokeWidth={1.9} />
-              <input
-                placeholder="Search  (type:texture …)"
-                spellCheck={false}
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
-            </div>
+            <SearchField className="cb-search" placeholder="Search  (type:texture …)" value={query} onChange={setQuery} />
             <button
               type="button"
               className="cb-ghost"
@@ -946,7 +945,7 @@ export function ContentBrowser() {
                     <div
                       key={path}
                       data-path={path}
-                      className={`asset${it.isDir ? ' folder' : ''}${selected === path ? ' sel' : ''}${it.isDir && dropFolder === path ? ' is-drop' : ''}`}
+                      className={`asset${it.isDir ? ' folder' : ''}${selected === path ? ' sel' : ''}${it.isDir && dropFolder === path ? ' is-drop' : ''}${dragPath === path ? ' is-dragging' : ''}`}
                       // Files drag onto inspector asset fields / the viewport (assign / instantiate);
                       // folders are drop targets that move the dragged asset into them.
                       {...bindItem(path, it)}
@@ -979,7 +978,7 @@ export function ContentBrowser() {
                 })}
                 {!listLoading && items.length === 0 && (
                   <div className="cb-empty" style={{ gridColumn: '1 / -1' }}>
-                    {q ? 'No assets match.' : 'Empty folder.'}
+                    {q ? 'No assets match.' : 'Empty folder — drag files here or use Import.'}
                   </div>
                 )}
               </div>
@@ -1007,7 +1006,7 @@ export function ContentBrowser() {
                     <div
                       key={path}
                       data-path={path}
-                      className={`lr${selected === path ? ' sel' : ''}${it.isDir && dropFolder === path ? ' is-drop' : ''}`}
+                      className={`lr${selected === path ? ' sel' : ''}${it.isDir && dropFolder === path ? ' is-drop' : ''}${dragPath === path ? ' is-dragging' : ''}`}
                       {...bindItem(path, it)}
                       {...(it.isDir ? folderDrop(path) : null)}
                     >
@@ -1028,7 +1027,7 @@ export function ContentBrowser() {
                   );
                 })}
                 {!listLoading && items.length === 0 && (
-                  <div className="cb-empty">{q ? 'No assets match.' : 'Empty folder.'}</div>
+                  <div className="cb-empty">{q ? 'No assets match.' : 'Empty folder — drag files here or use Import.'}</div>
                 )}
               </div>
             )}

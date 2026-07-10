@@ -105,7 +105,9 @@
   color: var(--text-dim);
   cursor: pointer;
 }
-.tp-tool:hover { color: var(--text); border-color: var(--srf-4); }
+.tp-tool:not(:disabled):hover { color: var(--text); background: var(--srf-4); }
+.tp-tool:not(:disabled):active { background: var(--srf-5); }
+.tp-tool:disabled { opacity: 0.4; cursor: default; }
 .tp-tool.is-active {
   background: var(--star);
   border-color: var(--star);
@@ -134,7 +136,9 @@
   color: var(--text-dim);
   cursor: pointer;
 }
-.tp-zbtn:hover { color: var(--text); border-color: var(--srf-4); }
+.tp-zbtn:not(:disabled):hover { color: var(--text); background: var(--srf-4); }
+.tp-zbtn:not(:disabled):active { background: var(--srf-5); }
+.tp-zbtn:disabled { opacity: 0.4; cursor: default; }
 .tp-zpct {
   min-width: 42px;
   text-align: center;
@@ -175,7 +179,9 @@
   cursor: pointer;
   font: inherit;
   text-align: left;
+  transition: color var(--t-fast), border-color var(--t-fast);
 }
+.tp-terrain:not(.is-active):hover { border-color: var(--line-strong); color: var(--text); }
 .tp-terrain.is-active { border-color: var(--star); color: var(--text); }
 .tp-tswatch { width: 12px; height: 12px; border-radius: var(--r-xs); display: inline-block; }
 

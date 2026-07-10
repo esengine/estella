@@ -13,6 +13,7 @@
 .cb-head .sp { flex: 1; }
 .cb-ico { width: 22px; height: 22px; display: grid; place-items: center; color: var(--text-mute); border-radius: var(--r-sm); transition: color var(--t-fast), background var(--t-fast); }
 .cb-ico:hover { color: var(--text); background: var(--srf-4); }
+.cb-ico:active { background: var(--srf-5); }
 
 /* ── Sources (left) ── */
 .cb-src { width: 168px; flex-shrink: 0; border-right: 1px solid var(--border); }
@@ -35,7 +36,8 @@
 .cb-bar { display: flex; align-items: center; gap: 6px; height: 38px; padding: 0 10px; border-bottom: 1px solid var(--border); flex-shrink: 0; background: var(--srf-2); }
 .cb-nav { display: flex; gap: 1px; }
 .cb-nav button { width: 26px; height: 26px; display: grid; place-items: center; color: var(--text-dim); border-radius: var(--r-sm); transition: color var(--t-fast), background var(--t-fast); }
-.cb-nav button:hover { color: var(--text); background: var(--srf-4); }
+.cb-nav button:hover:not(:disabled) { color: var(--text); background: var(--srf-4); }
+.cb-nav button:active:not(:disabled) { background: var(--srf-5); }
 .cb-nav button:disabled { color: var(--text-mute); opacity: 0.4; }
 .crumbs { display: flex; align-items: center; gap: 2px; font-size: var(--fs-sm); min-width: 0; flex: 1; overflow: hidden; }
 .crumbs .cr { padding: 3px 6px; border-radius: var(--r-sm); color: var(--text-dim); cursor: pointer; white-space: nowrap; transition: color var(--t-fast), background var(--t-fast); }
@@ -49,6 +51,7 @@
 .cb-add:disabled { opacity: 0.45; }
 .cb-ghost { width: 26px; height: 26px; display: grid; place-items: center; color: var(--text-dim); background: var(--srf-3); border: 1px solid var(--border-line); border-radius: var(--r-sm); flex-shrink: 0; transition: color var(--t-fast), background var(--t-fast); }
 .cb-ghost:hover { color: var(--text); background: var(--srf-4); }
+.cb-ghost:active { background: var(--srf-5); }
 
 /* Inline rename editor (tiles + list rows). */
 .cb-rename { width: 100%; min-width: 0; font: inherit; color: var(--text); background: var(--inset); border: 1px solid var(--acc); border-radius: var(--r-xs); padding: 1px 4px; outline: none; text-align: center; }
@@ -73,6 +76,8 @@
 .asset { position: relative; border-radius: var(--r-md); cursor: pointer; outline: 1px solid transparent; transition: outline-color var(--t-fast), transform var(--t-fast); }
 .asset:hover { outline-color: var(--border-line); transform: translateY(-1px); }
 .asset.sel { outline: 2px solid var(--acc); }
+/* drag source dims while its ghost travels */
+.asset.is-dragging, .lr.is-dragging { opacity: 0.45; }
 .asset .th { position: relative; width: 100%; aspect-ratio: 1; border-radius: var(--r-md) var(--r-md) 0 0; display: grid; place-items: center; color: rgba(255, 255, 255, 0.85); overflow: hidden; background: var(--srf-4); }
 .asset .th img { width: 100%; height: 100%; object-fit: cover; }
 .asset .th .badge { position: absolute; top: 5px; left: 5px; font-size: var(--fs-3xs); font-weight: 700; letter-spacing: 0.4px; padding: 1px 4px; border-radius: var(--r-xs); background: rgba(0, 0, 0, 0.5); color: #fff; font-family: var(--mono); }
@@ -130,8 +135,10 @@
 .cb-mr .v { color: var(--text-dim); font-family: var(--mono); font-size: var(--fs-xs); }
 .cb-act { padding: 11px 13px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 7px; }
 .cb-act button { height: 30px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-size: var(--fs-sm); border-radius: var(--r-sm); transition: background var(--t-fast); }
-.cb-act .primary { background: var(--acc); color: var(--on-accent); font-weight: 600; }
-.cb-act .primary:hover { background: var(--acc-hi); }
+/* Outlined like .cb-add — the accent fill stays reserved for Play. */
+.cb-act .primary { background: var(--srf-3); color: var(--star-hi); border: 1px solid var(--star-line); font-weight: 600; }
+.cb-act .primary:hover { background: var(--star-dim); }
+.cb-act .primary:active { background: var(--star-soft); }
 .cb-act .ghost { background: var(--srf-3); color: var(--text-dim); border: 1px solid var(--border-line); }
 .cb-act .ghost:hover { color: var(--text); background: var(--srf-4); }
 

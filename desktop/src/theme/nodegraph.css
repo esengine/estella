@@ -46,6 +46,7 @@
 }
 
 .ng-node { position: absolute; box-sizing: border-box; cursor: grab; user-select: none; }
+.ng-node:active { cursor: grabbing; }
 .ng-node.droppable { outline: 2px dashed var(--star-line); outline-offset: 3px; }
 
 /* Output handle (right): drag it to another node to connect. */
@@ -140,9 +141,10 @@
 .ng-btn:not(:disabled):hover { background: var(--srf-4); }
 .ng-btn:not(:disabled):active { background: var(--srf-5); }
 .ng-btn:disabled { opacity: 0.45; cursor: default; }
-.ng-btn.primary { background: var(--star); border-color: transparent; color: var(--on-accent); }
-.ng-btn.primary:not(:disabled):hover { background: var(--star-hi); }
-.ng-btn.primary:not(:disabled):active { background: var(--star-deep); }
+/* Outlined, not filled — the accent fill is reserved for Play. */
+.ng-btn.primary { background: transparent; border-color: var(--star-line); color: var(--star-hi); font-weight: 600; }
+.ng-btn.primary:not(:disabled):hover { background: var(--star-dim); }
+.ng-btn.primary:not(:disabled):active { background: var(--star-soft); }
 
 .ng-doc-title {
   display: inline-flex;

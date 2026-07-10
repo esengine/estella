@@ -42,6 +42,7 @@
   transition: background var(--t-fast) var(--e-out), color var(--t-fast) var(--e-out);
 }
 .seq-btn:hover:not(:disabled) { background: var(--raised); color: var(--text); }
+.seq-btn:active:not(:disabled) { background: var(--srf-5); }
 .seq-btn:disabled { opacity: 0.4; cursor: default; }
 .seq-btn.on { color: var(--acc-hi); }
 .seq-btn--text span { font-size: var(--fs-xs); }
@@ -57,7 +58,9 @@
 .seq-tab {
   border: 0; background: transparent; color: var(--text-mute); cursor: pointer;
   font-size: var(--fs-xs); padding: 3px 9px; border-radius: var(--r-sm);
+  transition: color var(--t-fast);
 }
+.seq-tab:not(.active):hover { color: var(--text); }
 .seq-tab.active { background: var(--raised); color: var(--text); }
 
 /* ── body: track list | timeline ── */
@@ -85,6 +88,9 @@
 }
 .seq-row--entity { background: var(--srf-3); cursor: pointer; }
 .seq-row--component { background: color-mix(in srgb, var(--srf-3) 50%, transparent); cursor: pointer; font-size: var(--fs-xs); }
+/* clickable group rows highlight like every other list row */
+.seq-row--entity:hover { background: var(--srf-4); }
+.seq-row--component:hover { background: color-mix(in srgb, var(--srf-4) 60%, transparent); }
 .seq-row--entity .seq-row__label { font-weight: 600; }
 .seq-row__label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .seq-row--channel .seq-row__label { color: var(--text-dim); font-family: var(--mono); font-size: var(--fs-xs); }

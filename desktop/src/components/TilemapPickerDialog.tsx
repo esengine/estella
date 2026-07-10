@@ -11,6 +11,7 @@
 import { useState } from 'react';
 import { LayoutGrid } from 'lucide-react';
 import { Modal } from '@/components/Modal';
+import { SearchField } from '@/components/SearchField';
 import { ProjectStore } from '@/project/ProjectStore';
 import { useEditorStore } from '@/store/editorStore';
 import { createTilemapFromTileset } from '@/tilemap/createTilemap';
@@ -32,14 +33,7 @@ export function TilemapPickerDialog() {
     <Modal title="New Tilemap" onClose={close} width={440}>
       <div className="tmpick">
         <p className="tmpick__hint">Pick a tileset to use as the map's palette</p>
-        <input
-          className="tmpick__search"
-          placeholder="Search tilesets…"
-          value={q}
-          autoFocus
-          spellCheck={false}
-          onChange={(e) => setQ(e.target.value)}
-        />
+        <SearchField className="tmpick__search" autoFocus placeholder="Search tilesets…" value={q} onChange={setQ} />
         {shown.length === 0 ? (
           <div className="tmpick__empty">No matching tilesets</div>
         ) : (

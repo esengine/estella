@@ -186,28 +186,13 @@
   gap: 10px;
 }
 
+/* shared SearchField, sized for the launcher header (keeps the launcher's
+   softer radius; the look and focus ring come from the shared recipe) */
 .lc-search {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 6px 11px;
+  flex: none;
   width: 210px;
-  background: var(--input);
-  border: 1px solid var(--line);
+  height: 30px;
   border-radius: var(--r-md);
-  color: var(--text-faint);
-}
-.lc-search input {
-  flex: 1;
-  min-width: 0;
-  background: none;
-  border: none;
-  outline: none;
-  color: var(--text);
-  font-size: var(--fs-sm);
-}
-.lc-search input::placeholder {
-  color: var(--text-faint);
 }
 
 /* ----------------------------------------------------------- grid cards --- */

@@ -21,29 +21,16 @@
 }
 .log-chip .d { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 .log-chip:hover { color: var(--text-dim); }
+.log-chip:active { background: var(--srf-5); }
 .log-chip.on { background: var(--srf-4); color: var(--text-dim); }
 .log-chip.info.on { color: var(--acc-hi); }
 .log-chip.warn.on { color: var(--warn); }
 .log-chip.error.on { color: var(--error); }
 .log-chip .ct { font-variant-numeric: tabular-nums; opacity: 0.85; }
 
-.log-search {
-  margin-left: auto;
-  flex: 0 1 150px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--inset);
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-  padding: 0 8px;
-  color: var(--text-mute);
-  transition: border-color var(--t-fast);
-}
-.log-search:focus-within { border-color: var(--acc); }
-.log-search input { flex: 1; min-width: 0; background: none; border: none; outline: none; font-size: var(--fs-xs); color: var(--text); }
-.log-search input::placeholder { color: var(--text-mute); }
+/* shared SearchField, right-aligned in the header row */
+.log-search { margin-left: auto; flex: 0 1 150px; }
+.log-search input { font-size: var(--fs-xs); }
 
 /* The log is a selectable text stream (UE5): drag to select across lines, then
    Ctrl+C / right-click Copy. The shell sets `user-select: none` globally, so the

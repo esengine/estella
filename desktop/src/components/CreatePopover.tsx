@@ -11,8 +11,9 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, Box, Image, Video, Lightbulb, Sparkles, LayoutDashboard, ToggleLeft, SlidersHorizontal } from 'lucide-react';
+import { Box, Image, Video, Lightbulb, Sparkles, LayoutDashboard, ToggleLeft, SlidersHorizontal } from 'lucide-react';
 import { flattenCatalog, matchCatalog, type CatalogEntry, type EntityTemplate } from '@/engine/entityTemplates';
+import { SearchField } from '@/components/SearchField';
 import { useDialogFocus } from '@/components/dialogFocus';
 
 const ICONS: Record<string, typeof Box> = {
@@ -90,18 +91,18 @@ export function CreatePopover({
   return createPortal(
     <div className="ac-scrim open" onMouseDown={onClose}>
       <div ref={shellRef} className="ac" role="dialog" aria-modal="true" aria-label="Create entity" tabIndex={-1} onMouseDown={(e) => e.stopPropagation()}>
-        <div className="ac-search">
-          <Search size={15} strokeWidth={1.9} />
-          <input
-            ref={inputRef}
-            placeholder="Create entity…"
-            value={query}
-            spellCheck={false}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={onKeyDown}
-          />
+        <SearchField
+          flush
+          className="ac-search"
+          iconSize={15}
+          inputRef={inputRef}
+          placeholder="Create entity…"
+          value={query}
+          onChange={setQuery}
+          onKeyDown={onKeyDown}
+        >
           <kbd className="esc">Esc</kbd>
-        </div>
+        </SearchField>
 
         <div className="ac-body">
           {results.length === 0 ? (

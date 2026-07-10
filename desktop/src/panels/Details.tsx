@@ -62,6 +62,7 @@ import {
 } from '@/material/materialInspectorModel';
 import { ContextMenu } from '@/components/Menu';
 import { Popover, usePopover } from '@/components/Popover';
+import { SearchField } from '@/components/SearchField';
 import { Select } from '@/components/Select';
 import { AddComponentMenu } from '@/components/AddComponentMenu';
 import type { InspectorComponent, InspectorField, InspectorFieldValue, EntityId, NodeKind, EnumOption, AssetType, GradientValue, GradientStop, CurveValue, CurveKey, DimensionValue } from '@/types';
@@ -305,10 +306,7 @@ export function EnumControl({
       {pop.anchor && (
         <Popover anchor={pop.anchor} width={Math.max(pop.anchor.width, 150)} onClose={close}>
           {searchable && (
-            <div className="dd-search">
-              <Search size={12} strokeWidth={2} />
-              <input autoFocus placeholder="Search" value={q} spellCheck={false} onChange={(e) => setQ(e.target.value)} />
-            </div>
+            <SearchField flush className="dd-search" iconSize={12} autoFocus placeholder="Search" value={q} onChange={setQ} />
           )}
           <div className="dd-list">
             {filtered.map((o) => (
@@ -1009,10 +1007,7 @@ export function AssetControl({
       )}
       {pop.anchor && (
         <Popover anchor={pop.anchor} width={Math.max(pop.anchor.width, 240)} onClose={close}>
-          <div className="dd-search">
-            <Search size={12} strokeWidth={2} />
-            <input autoFocus placeholder="Search assets" value={q} spellCheck={false} onChange={(e) => setQ(e.target.value)} />
-          </div>
+          <SearchField flush className="dd-search" iconSize={12} autoFocus placeholder="Search assets" value={q} onChange={setQ} />
           <div className="asset-grid">
             <button type="button" className={`asset-opt${value === 0 || !info ? ' on' : ''}`} onClick={() => pick(0)}>
               <span className="th">
@@ -2055,15 +2050,7 @@ function EditorDetails() {
   return (
     <div className="insp">
       <div className="insp-head">
-        <div className="search">
-          <Search size={13} strokeWidth={1.9} />
-          <input
-            placeholder="Search"
-            value={query}
-            spellCheck={false}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        </div>
+        <SearchField placeholder="Search" value={query} onChange={setQuery} />
         <button
           type="button"
           className={`filt-btn${filtOn ? ' on' : ''}`}

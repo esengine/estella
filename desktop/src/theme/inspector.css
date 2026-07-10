@@ -8,24 +8,6 @@
    bare `.pill` is the Output Log filter pill elsewhere).
    ========================================================================== */
 
-/* panel search field (shared header control the inspector head reuses) */
-.search {
-  flex: 1;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--inset);
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-  padding: 0 8px;
-  color: var(--text-mute);
-  transition: border-color var(--t-fast), box-shadow var(--t-fast);
-}
-.search:focus-within { border-color: var(--acc); box-shadow: 0 0 0 2px var(--acc-soft); }
-.search input { flex: 1; min-width: 0; background: none; border: none; outline: none; font-size: var(--fs-sm); color: var(--text); }
-.search input::placeholder { color: var(--text-mute); }
-
 /* ════════════════════════ INSPECTOR (Details) ════════════════════════ */
 .insp { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 .insp-head { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
@@ -39,6 +21,7 @@
 .insp-add:hover { background: var(--star-dim); }
 .filt-btn { width: 28px; height: 26px; display: grid; place-items: center; color: var(--text-mute); border: 1px solid var(--border-line); border-radius: var(--r-sm); flex-shrink: 0; transition: color var(--t-fast), background var(--t-fast), border-color var(--t-fast); }
 .filt-btn:hover { color: var(--text); background: var(--srf-4); }
+.filt-btn:active { background: var(--srf-5); }
 .filt-btn.on { color: var(--warn); border-color: rgba(211,162,60,0.4); background: rgba(211,162,60,0.12); }
 /* Add Component at the TOP of Details */
 .insp-addrow { padding: 8px; border-bottom: 1px solid var(--border); }
@@ -159,6 +142,7 @@
 .curve-svg { position: absolute; inset: 0; width: 100%; height: 100%; }
 .curve-line { fill: none; stroke: var(--acc); stroke-width: 1.5px; }
 .curve-pt { position: absolute; width: 9px; height: 9px; border-radius: 50%; background: var(--text); border: 2px solid var(--srf-2); transform: translate(-50%, -50%); cursor: grab; box-shadow: 0 0 0 1px rgba(0,0,0,.4); }
+.curve-pt:active { cursor: grabbing; }
 .curve-pt.on { background: var(--acc-hi); }
 .curve-edit { display: flex; align-items: center; gap: 10px; font-size: var(--fs-xs); color: var(--text-dim); }
 .curve-kv { font-family: var(--mono); }
@@ -178,9 +162,8 @@
 .dd-trigger:hover > svg { color: var(--text-dim); }
 
 .popover { position: fixed; z-index: var(--z-popover); background: var(--srf-3); border: 1px solid var(--border-line); border-radius: var(--r-md); box-shadow: var(--shadow-3); padding: 3px; max-height: 320px; display: flex; flex-direction: column; min-width: 0; }
-.dd-search { display: flex; align-items: center; gap: 6px; padding: 4px 7px; margin-bottom: 2px; border-bottom: 1px solid var(--border); color: var(--text-mute); flex-shrink: 0; }
-.dd-search input { flex: 1; min-width: 0; background: none; border: none; outline: none; color: var(--text); font-size: var(--fs-sm); }
-.dd-search input::placeholder { color: var(--text-mute); }
+/* popover-internal filter = the shared flush SearchField */
+.dd-search { margin-bottom: 2px; flex-shrink: 0; }
 .dd-list { overflow-y: auto; display: flex; flex-direction: column; min-height: 0; }
 .dd-opt { display: flex; align-items: center; gap: 7px; height: 25px; padding: 0 8px; background: none; border: none; color: var(--text-dim); font-size: var(--fs-sm); text-align: left; cursor: pointer; border-radius: var(--r-sm); }
 .dd-opt:hover { background: var(--acc-soft); color: var(--text); }
@@ -204,16 +187,11 @@
 .asset-opt .an { width: 100%; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .asset-grid .dd-empty { grid-column: 1 / -1; }
 
-/* multi-select: a value the selection disagrees on (shows a "—" placeholder) */
+/* multi-select: a value the selection disagrees on (shows a "—" placeholder).
+   The pill toggle itself (incl. .mixed) is the shared primitive in controls.css. */
 .prop.mixed .prop-label { color: var(--text-mute); }
-.toggle.mixed { background: var(--srf-5); }
-.toggle.mixed::after { left: 50%; transform: translateX(-50%); background: var(--text-mute); }
 .comp-chk.mixed { background: var(--srf-5); border-color: var(--border-line); color: var(--text-mute); }
 .ent-multi { display: flex; align-items: center; color: var(--text-dim); font-weight: 600; }
-.toggle { width: 30px; height: 17px; border-radius: var(--r-pill); background: var(--srf-5); position: relative; cursor: pointer; flex-shrink: 0; transition: background var(--t-fast); }
-.toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; border-radius: 50%; background: var(--text-dim); transition: left var(--t-fast) var(--e-out), background var(--t-fast); }
-.toggle.on { background: var(--acc); }
-.toggle.on::after { left: 15px; background: var(--on-accent); }
 .assetref { flex: 1; min-width: 0; height: 22px; display: flex; align-items: center; gap: 6px; padding: 0 6px 0 3px; background: var(--inset); border: 1px solid var(--border); border-radius: var(--r-sm); transition: border-color var(--t-fast); cursor: pointer; }
 .assetref:hover { border-color: var(--border-line); }
 .assetref.is-over { border-color: var(--acc); background: var(--acc-soft); }
@@ -255,6 +233,6 @@
 .im-in { background: var(--void); border: 1px solid var(--border); border-radius: var(--r-xs); padding: 2px 5px; color: var(--text); font-size: var(--fs-xs); min-width: 0; }
 .im-in.kind { flex-shrink: 0; }
 .im-in.num { width: 54px; font-family: var(--mono); }
-.im-x { color: var(--text-mute); width: 18px; height: 18px; border-radius: var(--r-xs); flex-shrink: 0; line-height: 1; }
-.im-x:hover { color: var(--error); }
+.im-x { color: var(--text-mute); width: 18px; height: 18px; border-radius: var(--r-xs); flex-shrink: 0; line-height: 1; transition: color var(--t-fast), background var(--t-fast); }
+.im-x:hover { color: var(--error); background: var(--srf-4); }
 .im-addb { align-self: flex-start; }

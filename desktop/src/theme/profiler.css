@@ -56,7 +56,9 @@
   padding: 2px 10px;
   cursor: pointer;
 }
-.prof-btn:hover { color: var(--text-hi); border-color: var(--star-line, var(--star)); }
+.prof-btn { transition: color var(--t-fast), background var(--t-fast); }
+.prof-btn:hover { color: var(--text-hi); background: var(--srf-4); }
+.prof-btn:active { background: var(--srf-5); }
 .prof-btn.on { color: var(--star-hi, var(--star)); border-color: var(--star); } /* frozen → "Live" is armed */
 .prof-btn.rec { color: var(--error, #d3564b); border-color: var(--error, #d3564b); }
 .prof-check { display: flex; align-items: center; gap: 4px; color: var(--text-mute); cursor: pointer; }

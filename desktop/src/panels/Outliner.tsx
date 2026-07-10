@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Search, Plus, FolderPlus, ArrowDownUp } from 'lucide-react';
+import { SearchField } from '@/components/SearchField';
 import { useEditorStore } from '@/store/editorStore';
 import { useSelection } from '@/store/selectionStore';
 import { EngineHost } from '@/engine/EngineHost';
@@ -626,15 +627,7 @@ export function Outliner() {
       ) : (
         <>
           <div className="phead">
-            <div className="search">
-              <Search size={13} strokeWidth={1.85} />
-              <input
-                placeholder="Search · type: comp:"
-                spellCheck={false}
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
-            </div>
+            <SearchField placeholder="Search · type: comp:" value={query} onChange={setQuery} />
             <button
               type="button"
               className={`pbtn${sortMode !== 'manual' ? ' on' : ''}`}
@@ -675,6 +668,7 @@ export function Outliner() {
               <div className="empty">
                 <Search size={22} strokeWidth={1.4} />
                 <p>{engine.status === 'ready' ? 'No entities in scene.' : 'Waiting for engine…'}</p>
+                {engine.status === 'ready' && <small>Right-click here or use the + button to add one.</small>}
               </div>
             </div>
           ) : items.length === 0 ? (

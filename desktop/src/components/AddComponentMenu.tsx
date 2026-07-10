@@ -9,8 +9,8 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Search } from 'lucide-react';
 import { ComponentIcon } from '@/components/icons';
+import { SearchField } from '@/components/SearchField';
 import { useDialogFocus } from '@/components/dialogFocus';
 import { CATEGORY_ORDER } from '@/engine/schema';
 
@@ -123,18 +123,18 @@ export function AddComponentMenu({
   return createPortal(
     <div className="ac-scrim open" onMouseDown={onClose}>
       <div ref={shellRef} className="ac" role="dialog" aria-modal="true" aria-label="Add component" tabIndex={-1} onMouseDown={(e) => e.stopPropagation()}>
-        <div className="ac-search">
-          <Search size={15} strokeWidth={1.9} />
-          <input
-            ref={inputRef}
-            placeholder="Search components…"
-            value={query}
-            spellCheck={false}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={onKeyDown}
-          />
+        <SearchField
+          flush
+          className="ac-search"
+          iconSize={15}
+          inputRef={inputRef}
+          placeholder="Search components…"
+          value={query}
+          onChange={setQuery}
+          onKeyDown={onKeyDown}
+        >
           <kbd className="esc">Esc</kbd>
-        </div>
+        </SearchField>
 
         <div className="ac-body">
           {flat.length === 0 ? (

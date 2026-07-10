@@ -48,22 +48,8 @@
 .set-title { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: var(--fs-lg); }
 .set-title .ic { color: var(--text-dim); display: inline-flex; }
 .set-head-sp { flex: 1; }
-.set-search {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  width: 220px;
-  height: 28px;
-  padding: 0 9px;
-  background: var(--inset);
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-  color: var(--text-mute);
-  transition: border-color var(--t-fast), box-shadow var(--t-fast);
-}
-.set-search:focus-within { border-color: var(--acc); box-shadow: 0 0 0 2px var(--acc-soft); }
-.set-search input { flex: 1; min-width: 0; background: none; border: none; outline: none; font-size: var(--fs-sm); color: var(--text); }
-.set-search input::placeholder { color: var(--text-mute); }
+/* shared SearchField, sized for the dialog header */
+.set-search { flex: none; width: 220px; height: 28px; }
 .set-x { width: 28px; height: 28px; display: grid; place-items: center; color: var(--text-mute); border-radius: var(--r-sm); }
 .set-x:hover { color: var(--text); background: var(--srf-4); }
 
@@ -216,27 +202,4 @@
 }
 .set-swatch.on { box-shadow: 0 0 0 2px var(--srf-2), 0 0 0 4px var(--acc); }
 
-/* Pill toggle (the design's `.toggle`; not yet in the shared theme). */
-.toggle {
-  width: 30px;
-  height: 17px;
-  border-radius: var(--r-pill);
-  background: var(--srf-5);
-  position: relative;
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: background var(--t-fast);
-}
-.toggle::after {
-  content: '';
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 13px;
-  height: 13px;
-  border-radius: 50%;
-  background: var(--text-dim);
-  transition: left var(--t-fast) var(--e-out), background var(--t-fast);
-}
-.toggle.on { background: var(--acc); }
-.toggle.on::after { left: 15px; background: var(--on-accent); }
+/* The pill toggle is the shared `.toggle` primitive (controls.css). */
