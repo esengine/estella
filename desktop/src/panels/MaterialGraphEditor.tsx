@@ -26,6 +26,7 @@ import { saveMaterialGraph } from '@/material/openMaterialGraph';
 import { EditorHistory } from '@/engine/EditorHistory';
 import { NumField, ColorControl } from '@/panels/Details';
 import { DirtyDot } from '@/components/DirtyDot';
+import { ContextMenu, type MenuItem } from '@/components/Menu';
 
 const NODE_W = 168;
 const HEADER_H = 28;
@@ -68,22 +69,34 @@ export function MaterialGraphEditor() {
 
   const canvasRef = useRef<HTMLDivElement>(null);
   const [selected, setSelected] = useState<string | null>(null);
-  const [palette, setPalette] = useState(false);
+  // Right-click / Add menu: screen position for the shared ContextMenu + the
+  // canvas position where an added node should land (and the node under it).
+  const [menu, setMenu] = useState<{ sx: number; sy: number; cx: number; cy: number; nodeId?: string } | null>(null);
+  // Infinite-canvas viewport — the same pan/zoom model as NodeGraphCanvas
+  // (middle-drag pans, wheel zooms about the cursor; content in world coords).
+  const [vp, setVp] = useState({ x: 0, y: 0, zoom: 1 });
+  const pan = useRef<{ sx: number; sy: number; vx: number; vy: number } | null>(null);
   // Live cursor (canvas coords) while connecting, to draw the in-progress wire.
   const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
   const drag = useRef<{ id: string; offX: number; offY: number; before: MaterialGraph } | null>(null);
   const wire = useRef<{ fromId: string } | null>(null);
 
+  // Screen point → world coord (inverse of the viewport transform).
   const toCanvas = (clientX: number, clientY: number) => {
     const el = canvasRef.current;
     if (!el) return { x: clientX, y: clientY };
     const r = el.getBoundingClientRect();
-    return { x: clientX - r.left + el.scrollLeft, y: clientY - r.top + el.scrollTop };
+    return { x: (clientX - r.left - vp.x) / vp.zoom, y: (clientY - r.top - vp.y) / vp.zoom };
   };
 
   // Window-level move/up so a drag or wire keeps tracking outside the node it started on.
   useEffect(() => {
     const onMove = (e: PointerEvent) => {
+      if (pan.current) {
+        const { sx, sy, vx, vy } = pan.current;
+        setVp((v) => ({ ...v, x: vx + (e.clientX - sx), y: vy + (e.clientY - sy) }));
+        return;
+      }
       const p = toCanvas(e.clientX, e.clientY);
       if (drag.current && graph) {
         MaterialGraphDocument.replaceAsset(moveNode(graph, drag.current.id, p.x - drag.current.offX, p.y - drag.current.offY), { dirty: true });
@@ -92,6 +105,7 @@ export function MaterialGraphEditor() {
       }
     };
     const onUp = (e: PointerEvent) => {
+      pan.current = null;
       if (drag.current && graph) {
         const after = graph;
         const before = drag.current.before;
@@ -112,7 +126,8 @@ export function MaterialGraphEditor() {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
     };
-  }, [graph]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [graph, vp]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -135,12 +150,31 @@ export function MaterialGraphEditor() {
     );
   }
 
-  const addAt = (type: GraphNodeType) => {
-    const el = canvasRef.current;
-    const x = (el?.scrollLeft ?? 0) + 60;
-    const y = (el?.scrollTop ?? 0) + 60;
+  const addAt = (type: GraphNodeType, x: number, y: number) => {
     MaterialGraphDocument.edit(`Add ${type}`, (d) => Object.assign(d, addNode(d, type, x, y).graph));
-    setPalette(false);
+  };
+
+  // The Add button and the canvas right-click share one menu; only where the
+  // new node lands differs (view center vs. the click point).
+  const openAddMenu = (sx: number, sy: number, cx: number, cy: number) => setMenu({ sx, sy, cx, cy });
+  const menuItems = (): MenuItem[] => {
+    if (!menu) return [];
+    if (menu.nodeId) {
+      const id = menu.nodeId;
+      return [
+        {
+          label: 'Delete node',
+          danger: true,
+          onClick: () => {
+            MaterialGraphDocument.edit('Delete node', (d) => Object.assign(d, removeNode(d, id)));
+            setSelected(null);
+          },
+        },
+      ];
+    }
+    return (Object.keys(NODE_SPECS) as GraphNodeType[])
+      .filter((t) => NODE_SPECS[t].addable)
+      .map((t) => ({ label: `Add ${NODE_SPECS[t].label}`, onClick: () => addAt(t, menu.cx, menu.cy) }));
   };
 
   const setNodeParam = (id: string, key: string, value: unknown) =>
@@ -167,7 +201,18 @@ export function MaterialGraphEditor() {
   return (
     <div className="panel mg">
       <div className="mg-bar">
-        <button type="button" className="mg-add" onClick={() => setPalette((v) => !v)} title="Add node">
+        <button
+          type="button"
+          className="mg-add"
+          title="Add node"
+          onClick={(e) => {
+            const r = e.currentTarget.getBoundingClientRect();
+            const el = canvasRef.current;
+            const cr = el?.getBoundingClientRect();
+            const c = cr ? toCanvas(cr.left + cr.width / 2 - 80, cr.top + cr.height / 3) : { x: 60, y: 60 };
+            openAddMenu(r.left, r.bottom + 2, c.x, c.y);
+          }}
+        >
           <Plus size={13} strokeWidth={2} /> Add
         </button>
         {selected && (
@@ -180,16 +225,39 @@ export function MaterialGraphEditor() {
         <button type="button" className="primary" disabled={!dirty} onClick={() => void saveMaterialGraph(filePath, graph)}>
           <Save size={13} strokeWidth={1.9} /> Save
         </button>
-        {palette && (
-          <div className="mg-palette" onPointerLeave={() => setPalette(false)}>
-            {(Object.keys(NODE_SPECS) as GraphNodeType[]).filter((t) => NODE_SPECS[t].addable).map((t) => (
-              <button key={t} type="button" onClick={() => addAt(t)}>{NODE_SPECS[t].label}</button>
-            ))}
-          </div>
-        )}
       </div>
 
-      <div className="mg-canvas" ref={canvasRef} onPointerDown={() => setSelected(null)}>
+      <div
+        className="mg-canvas"
+        ref={canvasRef}
+        style={{ backgroundSize: `${20 * vp.zoom}px ${20 * vp.zoom}px`, backgroundPosition: `${vp.x}px ${vp.y}px` }}
+        onPointerDown={(e) => {
+          if (e.button === 1) {
+            e.preventDefault();
+            pan.current = { sx: e.clientX, sy: e.clientY, vx: vp.x, vy: vp.y };
+            return;
+          }
+          setSelected(null);
+        }}
+        onWheel={(e) => {
+          const el = canvasRef.current;
+          if (!el) return;
+          const r = el.getBoundingClientRect();
+          const mx = e.clientX - r.left;
+          const my = e.clientY - r.top;
+          setVp((v) => {
+            const zoom = Math.min(2.5, Math.max(0.25, v.zoom * (e.deltaY < 0 ? 1.1 : 1 / 1.1)));
+            const k = zoom / v.zoom;
+            return { x: mx - (mx - v.x) * k, y: my - (my - v.y) * k, zoom };
+          });
+        }}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          const p = toCanvas(e.clientX, e.clientY);
+          openAddMenu(e.clientX, e.clientY, p.x, p.y);
+        }}
+      >
+        <div style={{ position: 'absolute', top: 0, left: 0, transform: `translate(${vp.x}px, ${vp.y}px) scale(${vp.zoom})`, transformOrigin: '0 0' }}>
         <svg className="mg-wires" aria-hidden="true">
           {wires.map((w) => <path key={w.key} d={w.d} />)}
           {wire.current && cursor && (() => {
@@ -209,6 +277,13 @@ export function MaterialGraphEditor() {
               className={`mg-node${selected === n.id ? ' sel' : ''}`}
               style={{ left: nodeX(n), top: nodeY(n), width: NODE_W, minHeight: h }}
               onPointerDown={(e) => { e.stopPropagation(); setSelected(n.id); }}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setSelected(n.id);
+                const p = toCanvas(e.clientX, e.clientY);
+                setMenu({ sx: e.clientX, sy: e.clientY, cx: p.x, cy: p.y, nodeId: n.id });
+              }}
             >
               <div
                 className="mg-node-head"
@@ -266,7 +341,10 @@ export function MaterialGraphEditor() {
             </div>
           );
         })}
+        </div>
       </div>
+
+      {menu && <ContextMenu x={menu.sx} y={menu.sy} items={menuItems()} onClose={() => setMenu(null)} />}
     </div>
   );
 }
