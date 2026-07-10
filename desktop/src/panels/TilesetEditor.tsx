@@ -17,10 +17,10 @@ import {
   useEffect, useRef, useState, useSyncExternalStore,
   type CSSProperties, type MouseEvent as ReactMouseEvent,
 } from 'react';
-import { Save, Plus, Trash2 } from 'lucide-react';
+import { Save, Plus, Trash2, X } from 'lucide-react';
 import {
   TB_N, TB_E, TB_S, TB_W, TB_NE, TB_SE, TB_SW, TB_NW,
-  type TilesetAsset,
+  type TilesetAsset, type TilesetAnimFrame,
 } from 'esengine';
 import { Segmented } from '@/components/Segmented';
 import { Select } from '@/components/Select';
@@ -39,6 +39,35 @@ function rowsFor(height: number, tileH: number, margin: number, spacing: number)
 }
 
 const TERRAIN_COLORS = ['#4caf50', '#d6884c', '#4c8fd6', '#b14cd6', '#d6c64c', '#d64c6e'];
+
+/** Loops the frame strip at each frame's own duration; falls back to the target tile. */
+function AnimPreview({ frames, fallback, thumb }: {
+  frames: TilesetAnimFrame[];
+  fallback: number;
+  thumb: (tile: number) => CSSProperties;
+}) {
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    setI(0);
+    if (frames.length < 2) return;
+    let idx = 0;
+    let live = true;
+    let t: ReturnType<typeof setTimeout>;
+    const tick = () => {
+      if (!live) return;
+      idx = (idx + 1) % frames.length;
+      setI(idx);
+      t = setTimeout(tick, frames[idx].durationMs || 120);
+    };
+    t = setTimeout(tick, frames[0].durationMs || 120);
+    return () => {
+      live = false;
+      clearTimeout(t);
+    };
+  }, [frames]);
+  const tile = frames.length ? frames[Math.min(i, frames.length - 1)].tile : fallback;
+  return <span className="ts-fthumb ts-apreview" style={thumb(tile)} title="Preview" />;
+}
 
 /** A grid-geometry number field that commits on blur/Enter (one undo step per edit). */
 function GridField(props: { label: string; value: number; min?: number; onCommit: (n: number) => void }) {
@@ -159,7 +188,8 @@ export function TilesetEditor() {
 
   const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
   const [zoom, setZoom] = useState(2);
-  const [mode, setMode] = useState<'collision' | 'terrain'>('collision');
+  const [mode, setMode] = useState<'collision' | 'terrain' | 'animation'>('collision');
+  const [animTile, setAnimTile] = useState<number | null>(null);
   const [shape, setShape] = useState<'box' | 'polygon'>('box');
   const [polyTile, setPolyTile] = useState<number | null>(null);
   const [activeSet, setActiveSet] = useState(0);
@@ -217,6 +247,25 @@ export function TilesetEditor() {
     else TilesetCommands.setTileTerrain(id, activeSet, 0);
   };
 
+  // ── animation authoring ──
+  const animFrames: TilesetAnimFrame[] = animTile != null ? asset.tiles[animTile]?.animation ?? [] : [];
+  const setFrames = (frames: TilesetAnimFrame[]) => {
+    if (animTile != null) TilesetCommands.setTileAnimation(animTile, frames);
+  };
+  /** Atlas crop for a tile id at thumbnail size (same math as the cell layout). */
+  const THUMB = 26;
+  const thumb = (tile: number): CSSProperties => {
+    if (!texUrl || !natural || tile < 1) return {};
+    const c = (tile - 1) % cols;
+    const r = Math.floor((tile - 1) / cols);
+    const s = THUMB / tw;
+    return {
+      backgroundImage: `url(${texUrl})`,
+      backgroundPosition: `${-(mg + c * (tw + sp)) * s}px ${-(mg + r * (th + sp)) * s}px`,
+      backgroundSize: `${natural.w * s}px ${natural.h * s}px`,
+    };
+  };
+
   const cells = [];
   if (texUrl && natural) {
     for (let row = 0; row < rows; row++) {
@@ -250,6 +299,21 @@ export function TilesetEditor() {
                   ids.add(id);
                   setDrag({ ids, on: dragRef.current.on });
                 }
+              }}
+            />,
+          );
+        } else if (mode === 'animation') {
+          const hasAnim = !!asset.tiles[id]?.animation?.length;
+          cells.push(
+            <div
+              key={id}
+              className={'ts-cell ts-acell' + (hasAnim ? ' has-anim' : '') + (animTile === id ? ' is-target' : '')}
+              style={{ left, top, width: w, height: h }}
+              title={animTile == null ? `#${id} — click to edit its animation` : `#${id} — click to append as a frame`}
+              onPointerDown={(e) => {
+                e.preventDefault();
+                if (animTile == null) setAnimTile(id);
+                else setFrames([...animFrames, { tile: id, durationMs: 120 }]);
               }}
             />,
           );
@@ -310,6 +374,7 @@ export function TilesetEditor() {
           options={[
             { value: 'collision', label: 'Collision' },
             { value: 'terrain', label: 'Terrain' },
+            { value: 'animation', label: 'Animation' },
           ]}
         />
         {mode === 'collision' && (
@@ -337,6 +402,56 @@ export function TilesetEditor() {
           <Save size={13} /> Save{meta.dirty && <DirtyDot />}
         </button>
       </div>
+
+      {mode === 'animation' && (
+        <div className="ts-anims">
+          {animTile == null ? (
+            <span className="ts-ahint">Click a tile in the atlas to edit its animation — animated tiles carry a ▶ mark</span>
+          ) : (
+            <>
+              <AnimPreview frames={animFrames} fallback={animTile} thumb={thumb} />
+              <span className="ts-astat">#{animTile}</span>
+              <span className="ts-sep" />
+              {animFrames.map((f, i) => (
+                <span key={`${i}-${f.tile}`} className="ts-frame">
+                  <span className="ts-fthumb" style={thumb(f.tile)} title={`#${f.tile}`} />
+                  <input
+                    key={`${animTile}-${i}-${f.durationMs}`}
+                    className="ts-fdur"
+                    defaultValue={f.durationMs}
+                    title="Frame duration (ms)"
+                    spellCheck={false}
+                    onBlur={(e) => {
+                      const n = parseInt(e.target.value, 10);
+                      if (Number.isFinite(n) && n > 0 && n !== f.durationMs)
+                        setFrames(animFrames.map((g, j) => (j === i ? { ...g, durationMs: n } : g)));
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                    }}
+                  />
+                  <button
+                    type="button" className="ts-fx" title="Remove frame"
+                    onClick={() => setFrames(animFrames.filter((_, j) => j !== i))}
+                  >
+                    <X size={11} strokeWidth={2.2} />
+                  </button>
+                </span>
+              ))}
+              <span className="ts-ahint">
+                {animFrames.length === 0 ? 'Click atlas tiles to add frames' : 'Click atlas tiles to append frames'}
+              </span>
+              <span className="ts-grow" />
+              {animFrames.length > 0 && (
+                <button type="button" className="ts-trm" title="Clear animation" onClick={() => setFrames([])}>
+                  <Trash2 size={13} />
+                </button>
+              )}
+              <button type="button" className="ts-terrain" onClick={() => setAnimTile(null)}>Done</button>
+            </>
+          )}
+        </div>
+      )}
 
       {mode === 'terrain' && (
         <div className="ts-terrains">

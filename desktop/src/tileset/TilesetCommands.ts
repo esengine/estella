@@ -8,7 +8,7 @@
  */
 
 import { serializeTileset } from 'esengine';
-import type { TilesetAsset, TilesetTerrain, TerrainMode } from 'esengine';
+import type { TilesetAsset, TilesetTerrain, TerrainMode, TilesetAnimFrame } from 'esengine';
 import { TilesetDocument } from './TilesetDocument';
 import { Toasts } from '@/store/Toasts';
 
@@ -113,6 +113,26 @@ export const TilesetCommands = {
         return;
       }
       a.tiles[id] = { ...(a.tiles[id] ?? {}), terrain: { set, mask: mask & 0xff } };
+    });
+  },
+
+  /**
+   * Replace a tile's animation frame list as ONE undo step. An empty (or
+   * all-invalid) list clears the animation; frames are sanitized to positive
+   * integer tile ids and durations.
+   */
+  setTileAnimation(id: number, frames: TilesetAnimFrame[]): void {
+    if (id <= 0) return;
+    TilesetDocument.edit('Edit Tile Animation', (a) => {
+      const clean = frames
+        .filter((f) => f.tile > 0 && f.durationMs > 0)
+        .map((f) => ({ tile: Math.floor(f.tile), durationMs: Math.round(f.durationMs) }));
+      if (clean.length > 0) {
+        a.tiles[id] = { ...(a.tiles[id] ?? {}), animation: clean };
+      } else if (a.tiles[id]?.animation) {
+        delete a.tiles[id].animation;
+        pruneEmpty(a, id);
+      }
     });
   },
 
