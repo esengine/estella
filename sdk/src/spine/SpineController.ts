@@ -312,9 +312,11 @@ export class SpineModuleController {
         return !!this.api_.setSlotColor(instanceId, slotName, r, g, b, a);
     }
 
-    /** Whole-skeleton tint, multiplied into every vertex — backs SpineAnimation.color. */
+    /** Whole-skeleton tint, multiplied into every vertex — backs SpineAnimation.color.
+     *  Optional-chained: a spine wasm without this export (a realm still on an older
+     *  module — the SDK can lead the wasm) degrades to a no-op instead of crashing. */
     setSkeletonColor(instanceId: number, r: number, g: number, b: number, a: number): boolean {
-        return !!this.api_.setSkeletonColor(instanceId, r, g, b, a);
+        return !!this.api_.setSkeletonColor?.(instanceId, r, g, b, a);
     }
 
     // =========================================================================
