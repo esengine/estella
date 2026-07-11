@@ -11,6 +11,7 @@ import { blankInputMap } from './inputMapDoc';
 import { EditorHistory } from '@/engine/EditorHistory';
 import { expandScenePrefabs, collapseScenePrefabs } from '@/engine/PrefabInstance';
 import { SceneCommands } from '@/engine/SceneCommands';
+import { spritePrefab } from '@/engine/entitySources';
 import { setPrefabBaseResolver } from '@/engine/SceneQuery';
 import { setUserSchemas, userSchema, setBitmaskSource, setEnumSource, type UserComponentSchema } from '@/engine/schema';
 import { installSpineSync, type SpineTransport } from '@/engine/spineSync';
@@ -644,7 +645,7 @@ class ProjectStoreImpl {
     if (!ref) return null;
     const size = await this.imageNaturalSize(path);
     const name = (path.split('/').pop() ?? 'Sprite').replace(/\.[^.]+$/, '') || 'Sprite';
-    const id = SceneCommands.addSpriteEntity(name, ref, size, position);
+    const id = SceneCommands.create(spritePrefab(name, ref, size), { parent: null, position });
     if (id != null) useSelection.getState().select(id);
     return id;
   }

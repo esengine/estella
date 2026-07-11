@@ -62,6 +62,15 @@ function preset(name: string, comps: CompSpec[]): PrefabData {
   };
 }
 
+/**
+ * A Transform + Sprite prefab referencing `textureRef`, sized to `size` (the model
+ * side of "drag an image into the viewport"). Size is a plain vec2, so the preset
+ * override replaces it cleanly. Instantiated through SceneCommands.create.
+ */
+export function spritePrefab(name: string, textureRef: string, size: { x: number; y: number }): PrefabData {
+  return preset(name, [['Transform', {}], ['Sprite', { texture: textureRef, size: { x: size.x, y: size.y } }]]);
+}
+
 /** A static preset source — its prefab is built once from the registered component defaults. */
 function presetSource(id: string, label: string, category: string, icon: LucideIcon, comps: CompSpec[]): EntitySource {
   const prefab = preset(label, comps);
