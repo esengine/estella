@@ -8,7 +8,7 @@
  *        (not hardcoded), and search matches label/category/keyword. Pure TS.
  */
 import { describe, it, expect } from 'vitest';
-import { ENTITY_SOURCES, matchSources, CREATE_CATEGORY_ORDER } from '@/engine/entitySources';
+import { ENTITY_SOURCES, matchSources, CREATE_CATEGORY_ORDER, tilemapPrefab } from '@/engine/entitySources';
 
 const ctx = { parent: null };
 
@@ -48,5 +48,15 @@ describe('entitySources registry (Create-entity E2)', () => {
     expect(matchSources(ENTITY_SOURCES, '2d').length).toBeGreaterThan(0);
     expect(matchSources(ENTITY_SOURCES, '')).toHaveLength(ENTITY_SOURCES.length);
     expect(matchSources(ENTITY_SOURCES, 'zzznope')).toHaveLength(0);
+  });
+
+  it('tilemapPrefab seeds cellSize as a vec2 {x,y} on a Transform+TilemapLayer entity', () => {
+    const p = tilemapPrefab('Tilemap', { x: 32, y: 16 });
+    const root = p.entities.find((e) => e.prefabEntityId === p.rootEntityId)!;
+    const types = root.components.map((c) => c.type);
+    expect(types).toContain('Transform');
+    expect(types).toContain('TilemapLayer');
+    const layer = root.components.find((c) => c.type === 'TilemapLayer')!.data as { cellSize: { x: number; y: number } };
+    expect(layer.cellSize).toMatchObject({ x: 32, y: 16 });
   });
 });

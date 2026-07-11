@@ -39,6 +39,8 @@ export interface EntitySource {
   placement?: PlacementRule;
   /** A prefab-linked source tags the subtree with this ref (instance = a delta). */
   linkPrefabRef?: (ctx: CreateContext) => string | undefined;
+  /** Post-create side effects: out-of-band live-push, editor selection / panels. */
+  afterCreate?(ctx: CreateContext, rootId: EntityId): void;
 }
 
 /** Category display order in the Create popover (mirrors the Add-Component taxonomy style). */
@@ -69,6 +71,15 @@ function preset(name: string, comps: CompSpec[]): PrefabData {
  */
 export function spritePrefab(name: string, textureRef: string, size: { x: number; y: number }): PrefabData {
   return preset(name, [['Transform', {}], ['Sprite', { texture: textureRef, size: { x: size.x, y: size.y } }]]);
+}
+
+/**
+ * A Transform + TilemapLayer prefab whose `cellSize` (a vec2 → `{x, y}` in the model)
+ * is seeded from the tileset's tile size. The `.estileset` link is out-of-band and
+ * live-pushed separately (see createTilemap's afterCreate), not baked here.
+ */
+export function tilemapPrefab(name: string, cellSize: { x: number; y: number }): PrefabData {
+  return preset(name, [['Transform', {}], ['TilemapLayer', { cellSize: { x: cellSize.x, y: cellSize.y } }]]);
 }
 
 /** A static preset source — its prefab is built once from the registered component defaults. */
@@ -127,9 +138,11 @@ function resolvePlacement(rule: PlacementRule | undefined, ctx: CreateContext): 
  */
 export async function createFromSource(source: EntitySource, ctx: CreateContext): Promise<EntityId | null> {
   const prefab = await source.build(ctx);
-  return SceneCommands.create(prefab, {
+  const id = SceneCommands.create(prefab, {
     parent: resolvePlacement(source.placement, ctx),
     position: ctx.position,
     linkPrefabRef: source.linkPrefabRef?.(ctx),
   });
+  if (id != null) source.afterCreate?.(ctx, id);
+  return id;
 }
