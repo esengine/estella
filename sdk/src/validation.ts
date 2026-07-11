@@ -15,7 +15,8 @@ export type ValidationError = {
 export function validateComponentData(
     componentName: string,
     defaults: Record<string, unknown>,
-    data: Record<string, unknown>
+    data: Record<string, unknown>,
+    assetFields?: ReadonlySet<string>
 ): ValidationError[] {
     const errors: ValidationError[] = [];
 
@@ -38,6 +39,17 @@ export function validateComponentData(
         if (expectedType === 'null' || expectedType === 'undefined') continue;
 
         if (expectedType !== actualType && value !== null && value !== undefined) {
+            // Asset-ref fields carry two legal shapes: a portable string ref
+            // ("@uuid:…", or "" for none) in serialized/model data, and a numeric
+            // runtime handle (0 for none). A string↔number mismatch on one denotes
+            // the same asset (or its absence), so it is not an error.
+            if (
+                assetFields?.has(field) &&
+                ((expectedType === 'string' && actualType === 'number') ||
+                    (expectedType === 'number' && actualType === 'string'))
+            ) {
+                continue;
+            }
             errors.push({
                 field,
                 expected: expectedType,
@@ -48,6 +60,13 @@ export function validateComponentData(
     }
 
     return errors;
+}
+
+/** A component's asset-ref field names — pass to {@link validateComponentData} so
+ *  those fields validate leniently: a portable string ref ("@uuid:…"/"") and a
+ *  numeric runtime handle (0) both denote the same asset (or its absence). */
+export function assetFieldNames(component: { assetFields?: readonly { field: string }[] }): ReadonlySet<string> {
+    return new Set((component.assetFields ?? []).map((a) => a.field));
 }
 
 function getType(value: unknown): string {

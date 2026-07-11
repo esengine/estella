@@ -8,7 +8,7 @@
 import { Entity } from '../types';
 import type { BuiltinComponentDef } from '../component';
 import type { CppRegistry, ESEngineModule } from '../wasm';
-import { validateComponentData, formatValidationErrors } from '../validation';
+import { validateComponentData, formatValidationErrors, assetFieldNames } from '../validation';
 import { handleWasmError } from '../wasmError';
 import { installAbortGuard, throwIfModuleAborted, isModuleAborted, WasmModuleAborted } from '../moduleHealth';
 import { COMPONENT_META, ABI_LAYOUT_HASH } from '../component.generated';
@@ -531,7 +531,8 @@ export class BuiltinBridge {
             const errors = validateComponentData(
                 component._name,
                 defaults,
-                filtered
+                filtered,
+                assetFieldNames(component)
             );
             if (errors.length > 0) {
                 throw new Error(formatValidationErrors(component._name, errors));

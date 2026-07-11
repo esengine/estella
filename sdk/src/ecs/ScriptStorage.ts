@@ -7,7 +7,7 @@
 
 import { Entity } from '../types';
 import { ComponentDef } from '../component';
-import { validateComponentData, formatValidationErrors } from '../validation';
+import { validateComponentData, formatValidationErrors, assetFieldNames } from '../validation';
 import { log } from '../logger';
 
 export interface InsertResult<T> {
@@ -31,7 +31,8 @@ export class ScriptStorage {
             const errors = validateComponentData(
                 component._name,
                 component._default as Record<string, unknown>,
-                clean
+                clean,
+                assetFieldNames(component)
             );
             if (errors.length > 0) {
                 throw new Error(formatValidationErrors(component._name, errors));
@@ -80,6 +81,7 @@ export class ScriptStorage {
                 component._name,
                 component._default as Record<string, unknown>,
                 data as Record<string, unknown>,
+                assetFieldNames(component)
             );
             if (errors.length > 0) {
                 log.warn('ecs', formatValidationErrors(component._name, errors));

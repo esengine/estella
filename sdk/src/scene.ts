@@ -10,7 +10,7 @@ import { Entity, INVALID_ENTITY } from './types';
 import { getComponent, Name, Camera, RuntimeOnly } from './component';
 import { discoverSceneAssets } from './asset/discoverAssets';
 import { requireResourceManager } from './resourceManager';
-import { validateComponentData, formatValidationErrors } from './validation';
+import { validateComponentData, formatValidationErrors, assetFieldNames } from './validation';
 import { log } from './logger';
 import { ESTELLA_SCENE_GENERATOR } from './provenance';
 import {
@@ -506,7 +506,9 @@ export function loadComponent(world: World, entity: Entity, compData: SceneCompo
         }
     }
 
-    const errors = validateComponentData(compData.type, comp._default as Record<string, unknown>, compData.data);
+    // Asset-ref fields validate leniently: their serialized string ref and runtime
+    // numeric handle are both legal (a Tiled-imported Tilemap's `source: 0` == "none").
+    const errors = validateComponentData(compData.type, comp._default as Record<string, unknown>, compData.data, assetFieldNames(comp));
     if (errors.length > 0) {
         const context = entityName ? ` (entity "${entityName}")` : '';
         log.warn('scene', formatValidationErrors(compData.type + context, errors));
