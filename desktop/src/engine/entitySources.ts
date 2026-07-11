@@ -155,7 +155,12 @@ function resolvePlacement(rule: PlacementRule | undefined, ctx: CreateContext): 
  * new root's source id; the caller handles selection.
  */
 export async function createFromSource(source: EntitySource, ctx: CreateContext): Promise<EntityId | null> {
-  const prefab = await source.build(ctx);
+  let prefab: PrefabData;
+  try {
+    prefab = await source.build(ctx);
+  } catch {
+    return null; // build aborted (e.g. a prefab asset failed to load; it surfaced its own error)
+  }
   const id = SceneCommands.create(prefab, {
     parent: resolvePlacement(source.placement, ctx),
     position: ctx.position,

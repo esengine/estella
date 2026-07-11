@@ -11,7 +11,8 @@ import { blankInputMap } from './inputMapDoc';
 import { EditorHistory } from '@/engine/EditorHistory';
 import { expandScenePrefabs, collapseScenePrefabs } from '@/engine/PrefabInstance';
 import { SceneCommands } from '@/engine/SceneCommands';
-import { spritePrefab } from '@/engine/entitySources';
+import { Boxes } from 'lucide-react';
+import { spritePrefab, type EntitySource } from '@/engine/entitySources';
 import { setPrefabBaseResolver } from '@/engine/SceneQuery';
 import { setUserSchemas, userSchema, setBitmaskSource, setEnumSource, type UserComponentSchema } from '@/engine/schema';
 import { installSpineSync, type SpineTransport } from '@/engine/spineSync';
@@ -538,6 +539,39 @@ class ProjectStoreImpl {
     const rootId = SceneCommands.instantiatePrefab(prefab, ref, parent, position);
     if (rootId != null) useSelection.getState().select(rootId);
     return rootId;
+  }
+
+  /**
+   * Create-entity sources for the project's `.esprefab` assets — each instantiates
+   * its prefab linked to the asset (so save collapses the instance to a delta). Feeds
+   * the Create popover's 'Prefabs' category (REARCH ENTITY_CREATION E4b). `build`
+   * loads the same PrefabData as the drag-into-scene path; on load failure it toasts +
+   * throws so createFromSource creates nothing.
+   */
+  prefabSources(): EntitySource[] {
+    const out: EntitySource[] = [];
+    for (const [path, uuid] of this.pathToUuid) {
+      if (!path.toLowerCase().endsWith('.esprefab')) continue;
+      const ref = UUID_PREFIX + uuid;
+      const name = (path.split('/').pop() ?? 'Prefab').replace(/\.esprefab$/i, '');
+      out.push({
+        id: `prefab:${path}`,
+        label: name,
+        category: 'Prefabs',
+        icon: Boxes,
+        keywords: [name],
+        build: async () => {
+          const p = await this.loadPrefabAsset(ref);
+          if (!p) {
+            Toasts.push(`Could not load prefab: ${name}`, 'error');
+            throw new Error('prefab load failed');
+          }
+          return p;
+        },
+        linkPrefabRef: () => ref,
+      });
+    }
+    return out;
   }
 
   /**
