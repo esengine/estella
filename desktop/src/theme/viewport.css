@@ -120,6 +120,8 @@
 .viewport__design-svg .df-design { fill: none; stroke: var(--acc); stroke-width: 1.5; }
 .viewport__design-svg .df-device { fill: none; stroke: var(--text-mute); stroke-width: 1; stroke-dasharray: 5 4; }
 .viewport__design-svg .df-safe { fill: none; stroke: var(--acc); stroke-width: 1; stroke-dasharray: 2 3; opacity: 0.6; }
+/* Design-resolution readout pinned to the frame's top-left corner (rAF-positioned). */
+.viewport__design-label { position: absolute; top: 0; left: 0; z-index: 6; pointer-events: none; padding: 1px 5px; font-size: var(--fs-2xs); font-variant-numeric: tabular-nums; color: var(--on-accent); background: var(--acc); border-radius: var(--r-sm); white-space: nowrap; }
 
 /* perf widget (bottom-right) */
 .vp-perf {

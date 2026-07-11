@@ -39,3 +39,24 @@ export const RESOLUTION_PRESETS: DevicePreset[] = [
 export const RESOLUTION_PRESET_BY_ID: Record<DevicePresetId, DevicePreset> = Object.fromEntries(
   RESOLUTION_PRESETS.map((p) => [p.id, p]),
 ) as Record<DevicePresetId, DevicePreset>;
+
+/**
+ * Common authored design resolutions for the viewport Design control. Unlike the
+ * device presets above (a transient preview simulation), picking one WRITES the
+ * Canvas' `designResolution` — the authoritative value the scene is designed against.
+ * Exact/custom numbers are edited on the Canvas component in the Inspector.
+ */
+export interface DesignResolutionPreset {
+  label: string;
+  x: number;
+  y: number;
+}
+
+export const DESIGN_RESOLUTION_PRESETS: DesignResolutionPreset[] = [
+  { label: '1920 × 1080', x: 1920, y: 1080 },
+  { label: '1280 × 720', x: 1280, y: 720 },
+  { label: '1080 × 1920', x: 1080, y: 1920 },
+  { label: '750 × 1334', x: 750, y: 1334 },
+  { label: '1170 × 2532', x: 1170, y: 2532 },
+  { label: '2048 × 1536', x: 2048, y: 1536 },
+];

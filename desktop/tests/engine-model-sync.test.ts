@@ -11,7 +11,7 @@
  * the scene into the (mocked) headless World; commands flow model→World through it.
  */
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
-import { App, Transform, Parent, Sprite } from 'esengine';
+import { App, Transform, Parent, Sprite, Canvas } from 'esengine';
 import type { ESEngineModule, SceneData } from 'esengine';
 import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
 
@@ -146,6 +146,19 @@ describe.skipIf(!HAS_WASM)('Model-authoritative projection + lossless save', () 
         const u = S.model.entityBySource(text)!;
         expect(u.components.some((c) => c.type === 'UINode')).toBe(false);
         expect(u.parent ?? null).toBeNull();
+    });
+
+    it('setField writes a Canvas designResolution to the model AND the World (the viewport Design control path)', () => {
+        const canvas = S.model.addEntity('Canvas', [{ type: 'Transform', data: {} }, { type: 'Canvas', data: {} }] as never);
+        S.commands.setField(canvas, 'Canvas', 'designResolution', 'vec2', [1080, 1920]);
+
+        const d = S.model.entityBySource(canvas)!.components.find((c) => c.type === 'Canvas')!.data as {
+            designResolution: { x: number; y: number };
+        };
+        expect(d.designResolution).toMatchObject({ x: 1080, y: 1920 });
+
+        const cw = host.world.get(S.model.runtimeFor(canvas)!, Canvas) as { designResolution: { x: number; y: number } };
+        expect(cw.designResolution).toMatchObject({ x: 1080, y: 1920 });
     });
 
     it('attachUINodeBox is a no-op when the Text already has a UINode', () => {

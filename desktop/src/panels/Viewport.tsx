@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'reac
 import type { PointerEvent as ReactPointerEvent, DragEvent as ReactDragEvent, ReactNode } from 'react';
 import {
   MousePointer2, Move, RotateCw, Scale3d, Grid3x3, Eye, Frame,
-  Camera, Check, ChevronDown, Loader2, TriangleAlert, Lightbulb, Sparkles, Globe, Crosshair, Smartphone, type LucideIcon,
+  Camera, Check, ChevronDown, Loader2, TriangleAlert, Lightbulb, Sparkles, Globe, Crosshair, Smartphone, Monitor, type LucideIcon,
 } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { useSelection } from '@/store/selectionStore';
@@ -12,7 +12,7 @@ import { useTilemapPaint, type PaintTool } from '@/store/tilemapPaintStore';
 import { exitTilePaint, isTilePaintMode, selectedTilemapCellSize } from '@/tools/tileMode';
 import { activeMode, activeModeOverlays } from '@/mode/activeMode';
 import { useEditorMode } from '@/store/editorModeStore';
-import { RESOLUTION_PRESETS, RESOLUTION_PRESET_BY_ID } from '@/mode/resolutionPresets';
+import { RESOLUTION_PRESETS, RESOLUTION_PRESET_BY_ID, DESIGN_RESOLUTION_PRESETS } from '@/mode/resolutionPresets';
 import { buildStampGhost } from '@/tools/tileStampGhost';
 import { TilemapAPI, tileIdOf, UINode, DimensionUnit, computeEffectiveOrthoSize } from 'esengine';
 import { commands } from '@/commands';
@@ -487,6 +487,18 @@ export function Viewport() {
   const device = useEditorMode((s) => s.device);
   const orientation = useEditorMode((s) => s.orientation);
   const showSafeArea = useEditorMode((s) => s.showSafeArea);
+  // The scene's Canvas + its authored design resolution — the value the Design control
+  // edits (the single source of truth). Re-read on any model change so the label tracks.
+  const dataRev = useSyncExternalStore(SceneStore.subscribe, SceneStore.getRevision);
+  const sceneCanvas = useMemo(() => {
+    void dataRev;
+    const id = SceneCommands.findCanvas();
+    if (id == null) return null;
+    const d = SceneModel.entityBySource(id)?.components.find((c) => c.type === 'Canvas')?.data as
+      | { designResolution?: { x: number; y: number } }
+      | undefined;
+    return { id, x: d?.designResolution?.x ?? 0, y: d?.designResolution?.y ?? 0 };
+  }, [dataRev]);
   // WYSIWYG brush ghost: the actual stamp tiles, built once per stamp/atlas change and
   // laid out at natural tile pixels; the rAF scales the container to the hovered
   // footprint each frame (see the tile-preview block). Empty (null) → the plain box shows.
@@ -508,6 +520,7 @@ export function Viewport() {
   const gizmoRef = useRef<HTMLDivElement>(null);
   const uiGizmoRef = useRef<HTMLDivElement>(null);
   const designSvgRef = useRef<SVGSVGElement>(null);
+  const designLabelRef = useRef<HTMLDivElement>(null);
   // One outline div per selected entity, keyed by source id and positioned by the rAF.
   const selRefs = useRef(new Map<number, HTMLDivElement | null>());
   const marqueeRef = useRef<HTMLDivElement>(null);
@@ -726,8 +739,17 @@ export function Viewport() {
               safe.style.opacity = '0';
             }
           }
+          // The authored resolution, pinned to the frame's top-left corner.
+          const dlabel = designLabelRef.current;
+          if (dlabel) {
+            dlabel.textContent = `${ci.designResolution.x} × ${ci.designResolution.y}`;
+            dlabel.style.transform = `translate(${des.x + 4}px, ${des.y + 4}px)`;
+            dlabel.style.opacity = '1';
+          }
         } else {
           dsvg.style.opacity = '0';
+          const dlabel = designLabelRef.current;
+          if (dlabel) dlabel.style.opacity = '0';
         }
       }
 
@@ -1230,10 +1252,28 @@ export function Viewport() {
           {mode.overlays?.designFrame && (
             <>
               <span className="ov-divider" />
+              {sceneCanvas && (
+                <OvDropdown
+                  icon={Monitor}
+                  label={<span className="val">{sceneCanvas.x}×{sceneCanvas.y}</span>}
+                  title="Design resolution — the canvas you author against. Picking a preset writes Canvas.designResolution (undoable)."
+                >
+                  <div className="ovmenu-lbl">Design Resolution</div>
+                  {DESIGN_RESOLUTION_PRESETS.map((p) => (
+                    <DdRadio
+                      key={p.label}
+                      on={sceneCanvas.x === p.x && sceneCanvas.y === p.y}
+                      label={p.label}
+                      onClick={() => SceneCommands.setField(sceneCanvas.id, 'Canvas', 'designResolution', 'vec2', [p.x, p.y])}
+                    />
+                  ))}
+                  <div className="ovmenu-lbl">Exact values: select the Canvas → Inspector</div>
+                </OvDropdown>
+              )}
               <OvDropdown
                 icon={Smartphone}
                 label={<span className="val">{RESOLUTION_PRESET_BY_ID[device].label}</span>}
-                title="Preview Device (design-resolution fit)"
+                title="Preview device — simulates a target screen (does NOT change the design resolution)"
               >
                 <div className="ovmenu-lbl">Device</div>
                 {RESOLUTION_PRESETS.map((p) => (
@@ -1539,6 +1579,7 @@ export function Viewport() {
         <rect className="df-safe" />
         <rect className="df-design" />
       </svg>
+      <div ref={designLabelRef} className="viewport__design-label" style={{ opacity: 0 }} aria-hidden="true" />
 
       <div ref={uiGizmoRef} className="viewport__ui-gizmo" style={{ opacity: 0 }}>
         <span
