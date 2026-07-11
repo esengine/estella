@@ -4,14 +4,17 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'reac
 import type { PointerEvent as ReactPointerEvent, DragEvent as ReactDragEvent, ReactNode } from 'react';
 import {
   MousePointer2, Move, RotateCw, Scale3d, Grid3x3, Eye, Frame,
-  Camera, Check, ChevronDown, Loader2, TriangleAlert, Lightbulb, Sparkles, Globe, Crosshair, type LucideIcon,
+  Camera, Check, ChevronDown, Loader2, TriangleAlert, Lightbulb, Sparkles, Globe, Crosshair, Smartphone, type LucideIcon,
 } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { useSelection } from '@/store/selectionStore';
 import { useTilemapPaint, type PaintTool } from '@/store/tilemapPaintStore';
 import { exitTilePaint, isTilePaintMode, selectedTilemapCellSize } from '@/tools/tileMode';
+import { activeMode, activeModeOverlays } from '@/mode/activeMode';
+import { useEditorMode } from '@/store/editorModeStore';
+import { RESOLUTION_PRESETS, RESOLUTION_PRESET_BY_ID } from '@/mode/resolutionPresets';
 import { buildStampGhost } from '@/tools/tileStampGhost';
-import { TilemapAPI, tileIdOf } from 'esengine';
+import { TilemapAPI, tileIdOf, UINode, DimensionUnit, computeEffectiveOrthoSize } from 'esengine';
 import { commands } from '@/commands';
 import { MOD_LABEL } from '@/commands/keybinding';
 import { EngineHost } from '@/engine/EngineHost';
@@ -96,6 +99,74 @@ function startSizeHandleDrag(
     const ly = -dx * sin + dy * cos;
     const k = (fullSize ? 2 : 1) / (ppu || 1);
     SceneCommands.setField(src, component, field, 'vec2', [Math.abs(lx) * k, Math.abs(ly) * k]);
+  };
+  const onUp = () => {
+    SceneCommands.endGesture();
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+  };
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+}
+
+// Project a world-space, axis-aligned rect (center + half extents) to a CSS-px
+// screen rect. The editor camera is 2D ortho (no rotation), so projecting two
+// opposite corners and taking their AABB is exact. Null if off-camera / no view.
+function worldRectToScreen(
+  cx: number,
+  cy: number,
+  halfW: number,
+  halfH: number,
+): { x: number; y: number; w: number; h: number } | null {
+  const a = ViewportController.worldToClient(cx - halfW, cy + halfH);
+  const b = ViewportController.worldToClient(cx + halfW, cy - halfH);
+  if (!a || !b) return null;
+  return { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(b.x - a.x), h: Math.abs(b.y - a.y) };
+}
+
+function setRectAttrs(el: Element | null, r: { x: number; y: number; w: number; h: number }): void {
+  if (!el) return;
+  el.setAttribute('x', String(r.x));
+  el.setAttribute('y', String(r.y));
+  el.setAttribute('width', String(Math.max(0, r.w)));
+  el.setAttribute('height', String(Math.max(0, r.h)));
+}
+
+// A UINode length field ({ value, unit }) from the model, or null.
+function uiDim(src: number, key: 'width' | 'height'): { value: number; unit: number } | null {
+  const d = SceneModel.entityBySource(src)?.components.find((c) => c.type === 'UINode')?.data as
+    | Record<string, unknown>
+    | undefined;
+  const v = d?.[key];
+  return v && typeof v === 'object' && 'value' in v && 'unit' in v ? (v as { value: number; unit: number }) : null;
+}
+
+// Drag a UI box edge/corner handle → its px width/height (UINode dimension). Screen
+// space: the box's on-screen size over its px value gives screen-px-per-UI-px, so the
+// drag tracks the cursor 1:1. Only px-unit sides resize (percent/auto have no fixed px);
+// writes go through the SAME setField + begin/endGesture channel the Inspector uses.
+function startUiResizeDrag(rt: number, edge: 'e' | 's' | 'se', e: ReactPointerEvent): void {
+  if (e.button !== 0) return;
+  const src = SceneModel.sourceFor(rt);
+  const rect0 = ViewportController.getEntityScreenRect(rt);
+  if (src == null || !rect0) return;
+  e.stopPropagation();
+  const w0 = uiDim(src, 'width');
+  const h0 = uiDim(src, 'height');
+  const sx = w0 && w0.unit === DimensionUnit.Px && w0.value > 0 ? rect0.w / w0.value : null;
+  const sy = h0 && h0.unit === DimensionUnit.Px && h0.value > 0 ? rect0.h / h0.value : null;
+  const startX = e.clientX;
+  const startY = e.clientY;
+  SceneCommands.beginGesture('Resize UI');
+  const onMove = (ev: PointerEvent) => {
+    if ((edge === 'e' || edge === 'se') && sx && w0) {
+      const nw = Math.max(0, Math.round(w0.value + (ev.clientX - startX) / sx));
+      SceneCommands.setField(src, 'UINode', 'width', 'dimension', { value: nw, unit: DimensionUnit.Px });
+    }
+    if ((edge === 's' || edge === 'se') && sy && h0) {
+      const nh = Math.max(0, Math.round(h0.value + (ev.clientY - startY) / sy));
+      SceneCommands.setField(src, 'UINode', 'height', 'dimension', { value: nh, unit: DimensionUnit.Px });
+    }
   };
   const onUp = () => {
     SceneCommands.endGesture();
@@ -407,6 +478,15 @@ export function Viewport() {
   const tilemapSelected = primaryId != null
     && !!SceneModel.entityBySource(primaryId)?.components.some((c) => c.type === 'TilemapLayer');
   const inTilePaint = paintTool != null && tilemapSelected;
+  // Active editing mode drives the viewport badge and the design-resolution overlay.
+  // Derived from the pin + selection, so subscribe to the pin here.
+  useEditorMode((s) => s.pinned);
+  const mode = activeMode();
+  // Device-preview controls for the UI-mode design-resolution overlay (the rAF reads
+  // these via getState(); the subscriptions keep the device dropdown label current).
+  const device = useEditorMode((s) => s.device);
+  const orientation = useEditorMode((s) => s.orientation);
+  const showSafeArea = useEditorMode((s) => s.showSafeArea);
   // WYSIWYG brush ghost: the actual stamp tiles, built once per stamp/atlas change and
   // laid out at natural tile pixels; the rAF scales the container to the hovered
   // footprint each frame (see the tile-preview block). Empty (null) → the plain box shows.
@@ -426,6 +506,8 @@ export function Viewport() {
   const stageRef = useRef<HTMLDivElement>(null);
   const playHostRef = useRef<HTMLDivElement>(null);
   const gizmoRef = useRef<HTMLDivElement>(null);
+  const uiGizmoRef = useRef<HTMLDivElement>(null);
+  const designSvgRef = useRef<SVGSVGElement>(null);
   // One outline div per selected entity, keyed by source id and positioned by the rAF.
   const selRefs = useRef(new Map<number, HTMLDivElement | null>());
   const marqueeRef = useRef<HTMLDivElement>(null);
@@ -560,6 +642,92 @@ export function Viewport() {
           el.style.opacity = '1';
         } else {
           el.style.opacity = '0';
+        }
+      }
+
+      // UI resize gizmo: a single selected UINode gets edge/corner handles on its
+      // screen rect (getEntityScreenRect — the same rect the selection outline uses).
+      const uig = uiGizmoRef.current;
+      if (uig) {
+        const pid = useSelection.getState().selectedId;
+        const prt = ready && pid != null && selIds.length === 1 ? SceneModel.runtimeFor(pid) : undefined;
+        const uir = prt != null && EngineHost.world?.has(prt, UINode) ? ViewportController.getEntityScreenRect(prt) : null;
+        if (uir && showG) {
+          uig.style.transform = `translate(${uir.x}px, ${uir.y}px)`;
+          uig.style.width = `${uir.w}px`;
+          uig.style.height = `${uir.h}px`;
+          uig.style.opacity = '1';
+        } else {
+          uig.style.opacity = '0';
+        }
+      }
+
+      // Design-resolution overlay (UI mode): the Canvas' authored design frame, the
+      // simulated device's visible frame, its letterbox bars, and the safe-area inset,
+      // all projected from world each frame so they lock to pan/zoom.
+      const dsvg = designSvgRef.current;
+      if (dsvg) {
+        const ci = ready && showG && activeModeOverlays().designFrame ? ViewportController.canvasInfo() : null;
+        const ppu = ci ? ci.pixelsPerUnit : 100;
+        const des = ci
+          ? worldRectToScreen(ci.cx, ci.cy, ci.designResolution.x / (2 * ppu), ci.designResolution.y / (2 * ppu))
+          : null;
+        if (ci && des) {
+          dsvg.style.opacity = '1';
+          const ms = useEditorMode.getState();
+          const preset = RESOLUTION_PRESET_BY_ID[ms.device];
+          // Device visible frame: the design resolution fit into the simulated device's
+          // aspect per the Canvas scaleMode. The 'design' sentinel (w/h 0) = no device.
+          let dev = des;
+          if (preset.w > 0 && preset.h > 0) {
+            const [dw, dh] = ms.orientation === 'landscape' ? [preset.h, preset.w] : [preset.w, preset.h];
+            const deviceAspect = dw / dh;
+            const designAspect = ci.designResolution.x / ci.designResolution.y;
+            const halfH = computeEffectiveOrthoSize(
+              ci.designResolution.y / 2 / ppu, designAspect, deviceAspect, ci.scaleMode, ci.matchWidthOrHeight,
+            );
+            dev = worldRectToScreen(ci.cx, ci.cy, halfH * deviceAspect, halfH) ?? des;
+          }
+          setRectAttrs(dsvg.querySelector('.df-design'), des);
+          setRectAttrs(dsvg.querySelector('.df-device'), dev);
+          // Letterbox bars = the device frame minus the design frame, drawn only when the
+          // device contains the design (Expand / fixed-axis reveal); a crop shows no bars.
+          const lb = dsvg.querySelector('.df-letterbox') as SVGPathElement | null;
+          if (lb) {
+            const contains =
+              dev.w >= des.w - 0.5 && dev.h >= des.h - 0.5 && (dev.w > des.w + 0.5 || dev.h > des.h + 0.5);
+            if (contains) {
+              lb.setAttribute(
+                'd',
+                `M${dev.x},${dev.y}h${dev.w}v${dev.h}h${-dev.w}Z M${des.x},${des.y}h${des.w}v${des.h}h${-des.w}Z`,
+              );
+              const bg = ci.backgroundColor;
+              lb.style.fill = `rgba(${Math.round(bg.r * 255)},${Math.round(bg.g * 255)},${Math.round(bg.b * 255)},0.55)`;
+              lb.style.opacity = '1';
+            } else {
+              lb.style.opacity = '0';
+            }
+          }
+          // Safe-area inset within the device frame (device px → screen px by the frame ratio).
+          const safe = dsvg.querySelector('.df-safe') as SVGRectElement | null;
+          if (safe) {
+            if (ms.showSafeArea && preset.safe && preset.w > 0) {
+              const [dwPx, dhPx] = ms.orientation === 'landscape' ? [preset.h, preset.w] : [preset.w, preset.h];
+              const sx = dev.w / dwPx;
+              const sy = dev.h / dhPx;
+              setRectAttrs(safe, {
+                x: dev.x + preset.safe.left * sx,
+                y: dev.y + preset.safe.top * sy,
+                w: dev.w - (preset.safe.left + preset.safe.right) * sx,
+                h: dev.h - (preset.safe.top + preset.safe.bottom) * sy,
+              });
+              safe.style.opacity = '1';
+            } else {
+              safe.style.opacity = '0';
+            }
+          }
+        } else {
+          dsvg.style.opacity = '0';
         }
       }
 
@@ -1059,6 +1227,34 @@ export function Viewport() {
             <Crosshair size={13} strokeWidth={1.9} />
             <span className="val">{pivotMode === 'pivot' ? 'Pivot' : 'Center'}</span>
           </button>
+          {mode.overlays?.designFrame && (
+            <>
+              <span className="ov-divider" />
+              <OvDropdown
+                icon={Smartphone}
+                label={<span className="val">{RESOLUTION_PRESET_BY_ID[device].label}</span>}
+                title="Preview Device (design-resolution fit)"
+              >
+                <div className="ovmenu-lbl">Device</div>
+                {RESOLUTION_PRESETS.map((p) => (
+                  <DdRadio key={p.id} on={device === p.id} label={p.label} onClick={() => useEditorMode.getState().setDevice(p.id)} />
+                ))}
+                <div className="ovmenu-lbl">Orientation</div>
+                <DdRadio
+                  on={orientation === 'landscape'}
+                  label="Landscape"
+                  onClick={() => orientation !== 'landscape' && useEditorMode.getState().toggleOrientation()}
+                />
+                <DdRadio
+                  on={orientation === 'portrait'}
+                  label="Portrait"
+                  onClick={() => orientation !== 'portrait' && useEditorMode.getState().toggleOrientation()}
+                />
+                <div className="ovmenu-lbl">Overlay</div>
+                <DdCheck on={showSafeArea} label="Safe area" onClick={() => useEditorMode.getState().toggleSafeArea()} />
+              </OvDropdown>
+            </>
+          )}
         </div>
       </div>
 
@@ -1337,6 +1533,39 @@ export function Viewport() {
       </div>
       <div ref={tilePaintRef} className="viewport__tilepaint" aria-hidden="true" />
 
+      <svg ref={designSvgRef} className="viewport__design-svg" style={{ opacity: 0 }} aria-hidden="true">
+        <path className="df-letterbox" fillRule="evenodd" />
+        <rect className="df-device" />
+        <rect className="df-safe" />
+        <rect className="df-design" />
+      </svg>
+
+      <div ref={uiGizmoRef} className="viewport__ui-gizmo" style={{ opacity: 0 }}>
+        <span
+          className="uig-h uig-e"
+          onPointerDown={(e) => {
+            const p = useSelection.getState().selectedId;
+            const rt = p != null ? SceneModel.runtimeFor(p) : undefined;
+            if (rt != null) startUiResizeDrag(rt, 'e', e);
+          }}
+        />
+        <span
+          className="uig-h uig-s"
+          onPointerDown={(e) => {
+            const p = useSelection.getState().selectedId;
+            const rt = p != null ? SceneModel.runtimeFor(p) : undefined;
+            if (rt != null) startUiResizeDrag(rt, 's', e);
+          }}
+        />
+        <span
+          className="uig-h uig-se"
+          onPointerDown={(e) => {
+            const p = useSelection.getState().selectedId;
+            const rt = p != null ? SceneModel.runtimeFor(p) : undefined;
+            if (rt != null) startUiResizeDrag(rt, 'se', e);
+          }}
+        />
+      </div>
       <div ref={gizmoRef} className="viewport__gizmo" aria-hidden="true">
         <GizmoOverlay tool={tool} active={activeGizmoAxis} />
       </div>
@@ -1369,8 +1598,11 @@ export function Viewport() {
       />
       {perfVisible && <Perf id="viewport.perfhud"><PerfOverlay /></Perf>}
 
-      {inTilePaint && paintTool && (
-        <div className="viewport__tileflag">◧ Tile paint · {TILE_TOOL_LABEL[paintTool]}</div>
+      {mode.id !== 'scene' && (
+        <div className="viewport__tileflag">
+          ◧ {mode.label}
+          {inTilePaint && paintTool ? ` · ${TILE_TOOL_LABEL[paintTool]}` : ''}
+        </div>
       )}
       {isPlaying && <div className="viewport__playflag">● PLAY</div>}
     </div>

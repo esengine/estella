@@ -10,6 +10,32 @@
 import { settingsRegistry } from './registry';
 import { ProjectStore } from '@/project/ProjectStore';
 
+// ── Display (design/reference resolution; seeds new Canvas entities) ──
+settingsRegistry.registerSection({ id: 'display', label: 'Display', category: 'project', order: 0 });
+
+settingsRegistry.register({
+  id: 'project.display.width',
+  type: 'number', scope: 'project', section: 'display', group: 'Design Resolution',
+  label: 'Width', suffix: 'px',
+  description: 'Reference resolution new Canvas entities are created at; each Canvas keeps its own value afterwards.',
+  default: 1920, min: 1, step: 1,
+  bind: {
+    get: () => ProjectStore.designResolution().width,
+    set: (v) => void ProjectStore.setDisplay({ width: Math.round(v) }),
+  },
+});
+
+settingsRegistry.register({
+  id: 'project.display.height',
+  type: 'number', scope: 'project', section: 'display', group: 'Design Resolution',
+  label: 'Height', suffix: 'px',
+  default: 1080, min: 1, step: 1,
+  bind: {
+    get: () => ProjectStore.designResolution().height,
+    set: (v) => void ProjectStore.setDisplay({ height: Math.round(v) }),
+  },
+});
+
 // ── Physics (the enable flag = UE Plugins-Browser analog; gravity = Project Settings) ──
 settingsRegistry.registerSection({ id: 'physics', label: 'Physics', category: 'project', order: 1 });
 

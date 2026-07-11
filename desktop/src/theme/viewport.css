@@ -105,6 +105,22 @@
 .ovmenu-item.on .chk { background: var(--acc); border-color: var(--acc); color: var(--on-accent); }
 .ovmenu-item .l { flex: 1; }
 
+/* UI resize gizmo: accent edge/corner handles laid over a selected UINode's screen
+   rect. Container is inert; only the handles take pointer events. */
+.viewport__ui-gizmo { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 6; }
+.viewport__ui-gizmo .uig-h { position: absolute; pointer-events: auto; background: var(--acc); border: 1px solid var(--on-accent); box-sizing: border-box; border-radius: 1px; }
+.uig-e { right: -4px; top: 50%; width: 8px; height: 14px; transform: translateY(-50%); cursor: ew-resize; }
+.uig-s { bottom: -4px; left: 50%; width: 14px; height: 8px; transform: translateX(-50%); cursor: ns-resize; }
+.uig-se { right: -4px; bottom: -4px; width: 10px; height: 10px; cursor: nwse-resize; }
+
+/* Design-resolution overlay (UI mode): the authored design frame (solid accent), the
+   simulated device's visible frame (dashed), the letterbox bars (Canvas background
+   fill), and the safe-area inset (dotted). Inert; laid over the world each frame. */
+.viewport__design-svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; overflow: visible; }
+.viewport__design-svg .df-design { fill: none; stroke: var(--acc); stroke-width: 1.5; }
+.viewport__design-svg .df-device { fill: none; stroke: var(--text-mute); stroke-width: 1; stroke-dasharray: 5 4; }
+.viewport__design-svg .df-safe { fill: none; stroke: var(--acc); stroke-width: 1; stroke-dasharray: 2 3; opacity: 0.6; }
+
 /* perf widget (bottom-right) */
 .vp-perf {
   position: absolute;

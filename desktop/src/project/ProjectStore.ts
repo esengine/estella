@@ -12,7 +12,7 @@ import { EditorHistory } from '@/engine/EditorHistory';
 import { expandScenePrefabs, collapseScenePrefabs } from '@/engine/PrefabInstance';
 import { SceneCommands } from '@/engine/SceneCommands';
 import { Boxes } from 'lucide-react';
-import { spritePrefab, type EntitySource } from '@/engine/entitySources';
+import { spritePrefab, setCanvasDesignSeed, type EntitySource } from '@/engine/entitySources';
 import { setPrefabBaseResolver } from '@/engine/SceneQuery';
 import { setUserSchemas, userSchema, setBitmaskSource, setEnumSource, type UserComponentSchema } from '@/engine/schema';
 import { installSpineSync, type SpineTransport } from '@/engine/spineSync';
@@ -21,7 +21,7 @@ import { Toasts } from '@/store/Toasts';
 import { confirmDiscard } from './discardGuard';
 import { assetTypeOf } from '@/project/assetMeta';
 import type { AssetType } from '@/types';
-import { resolveLayout, WORKSPACE_DIR, PROJECT_MANIFEST_FILE, type OpenedProject, type ProjectFeatures, type ProjectLayout, type ProjectPackaging, type WorkspaceState } from './format';
+import { resolveLayout, WORKSPACE_DIR, PROJECT_MANIFEST_FILE, type OpenedProject, type ProjectFeatures, type ProjectLayout, type ProjectPackaging, type WorkspaceState, type DesignResolution } from './format';
 
 /** Pad/truncate collision-layer names to the 16 Box2D filter bits (layer 0 = Default). */
 function normalizeLayers(layers?: string[]): string[] {
@@ -100,6 +100,8 @@ interface ProjectState {
   features?: ProjectFeatures;
   /** Persisted Package Project settings (last target/config/output). */
   packaging?: ProjectPackaging;
+  /** Reference resolution new Canvas entities seed from; per-scene Canvas stays authoritative. */
+  designResolution?: DesignResolution;
   /** The scene currently loaded into the world (project-relative path). */
   currentScene: string | null;
 }
@@ -155,6 +157,8 @@ class ProjectStoreImpl {
     setBitmaskSource('collisionLayers', () => this.collisionLayerOptions());
     // Render `layer` fields become a dropdown once the project names sorting layers.
     setEnumSource('sortingLayers', () => this.sortingLayerOptions());
+    // New Canvas entities seed their design resolution from the project setting.
+    setCanvasDesignSeed(() => this.designResolution());
   }
 
   /** Read accessor so existing `this.state` reads stay unchanged after the move. */
@@ -262,6 +266,7 @@ class ProjectStoreImpl {
         defaultScene: opened.manifest.defaultScene,
         features: opened.manifest.features,
         packaging: opened.manifest.packaging,
+        designResolution: opened.manifest.designResolution,
         currentScene: null,
       },
     });
@@ -869,6 +874,29 @@ class ProjectStoreImpl {
     } catch (e) {
       Toasts.push('Failed to save sorting layers', 'error');
       console.error('[project] setRendering write failed', e);
+    }
+  }
+
+  /** Project reference resolution — the seed for new Canvas entities. Falls back to
+   *  the engine's own Canvas default (1920×1080), not the old create-preset hardcode. */
+  designResolution(): DesignResolution {
+    return this.state?.designResolution ?? { width: 1920, height: 1080 };
+  }
+
+  /** Set the project reference resolution and persist to the manifest root. Mirrors
+   *  {@link setRendering}; the value only seeds newly created Canvases. */
+  async setDisplay(patch: Partial<DesignResolution>): Promise<void> {
+    const st = this.state;
+    if (!st) return;
+    const designResolution: DesignResolution = { ...this.designResolution(), ...patch };
+    this.store.setState({ project: { ...st, designResolution } });
+    try {
+      const raw = JSON.parse(await window.estella.fs.read(PROJECT_MANIFEST_FILE)) as Record<string, unknown>;
+      raw.designResolution = designResolution;
+      await window.estella.fs.write(PROJECT_MANIFEST_FILE, JSON.stringify(raw, null, 2) + '\n');
+    } catch (e) {
+      Toasts.push('Failed to save design resolution', 'error');
+      console.error('[project] setDisplay write failed', e);
     }
   }
 

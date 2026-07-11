@@ -17,6 +17,10 @@ import { SceneModel } from '@/engine/SceneModel';
 import { hasEntityClipboard } from '@/engine/entityClipboard';
 import { ViewportController } from '@/engine/ViewportController';
 import { createTilemapFromTileset } from '@/tilemap/createTilemap';
+import { dockApi } from '@/layout/dockApi';
+import { EDITOR_MODES } from '@/mode/editorModes';
+import { activeMode } from '@/mode/activeMode';
+import { useEditorMode } from '@/store/editorModeStore';
 import { useEditorStore } from '@/store/editorStore';
 import { useSelection } from '@/store/selectionStore';
 import { Toasts } from '@/store/Toasts';
@@ -210,6 +214,25 @@ commands.register({ id: 'tool.select', label: 'Select Tool', category: 'Tools', 
 commands.register({ id: 'tool.move', label: 'Move Tool', category: 'Tools', keybinding: 'w', run: tool('move') });
 commands.register({ id: 'tool.rotate', label: 'Rotate Tool', category: 'Tools', keybinding: 'e', run: tool('rotate') });
 commands.register({ id: 'tool.scale', label: 'Scale Tool', category: 'Tools', keybinding: 'r', run: tool('scale') });
+
+// — Editor modes — pin an explicit editing context (Scene/UI/Tilemap) and reveal its
+// companion panels. Without a pin the mode follows the selection; a pin holds until the
+// selection implies another mode. Opening the panels here folds in the old dedicated
+// Tilemap-painter launcher (clicking Tilemap mode reveals the painter).
+for (const m of EDITOR_MODES) {
+  commands.register({
+    id: `mode.${m.id}`,
+    label: `${m.label} Mode`,
+    category: 'Tools',
+    isChecked: () => activeMode().id === m.id,
+    run: () => {
+      useEditorMode.getState().setMode(m.id);
+      for (const p of m.panels ?? []) {
+        dockApi.openSidePanel(p.id, p.component, p.title, p.side ?? 'left', p.width ?? 300);
+      }
+    },
+  });
+}
 
 // — Keyboard nudge — arrow keys move the selection by one grid step (Shift = ×10),
 // world +Y is up so ArrowUp adds to Y. One undo step; the Outliner stops arrows from

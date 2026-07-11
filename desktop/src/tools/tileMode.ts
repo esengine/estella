@@ -20,6 +20,7 @@ import { SceneModel } from '@/engine/SceneModel';
 import { useSelection } from '@/store/selectionStore';
 import { useEditorStore } from '@/store/editorStore';
 import { useTilemapPaint, type PaintTool } from '@/store/tilemapPaintStore';
+import { activeMode } from '@/mode/activeMode';
 import { copySelection, cutSelection, deleteSelection, pasteClipboard } from './tileClipboard';
 import type { ToolMode } from '@/types';
 
@@ -30,9 +31,9 @@ export function isTilemapSelected(): boolean {
     && !!SceneModel.entityBySource(id)?.components.some((c) => c.type === 'TilemapLayer');
 }
 
-/** True when a paint tool is active over a selected tilemap — i.e. clicks paint, not select. */
+/** True when a paint tool is active in tilemap mode — i.e. clicks paint, not select. */
 export function isTilePaintMode(): boolean {
-  return useTilemapPaint.getState().tool != null && isTilemapSelected();
+  return activeMode().toolset === 'tilemap' && useTilemapPaint.getState().tool != null;
 }
 
 /** The selected tilemap layer's authoring cell size, or null if none is selected. */

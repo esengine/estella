@@ -100,6 +100,14 @@ function presetSource(id: string, label: string, category: string, icon: LucideI
   return { id, label, category, icon, build: () => prefab };
 }
 
+// Project reference resolution provider (ProjectStore wires this on open). A new
+// Canvas seeds its designResolution from it; injected rather than imported so
+// entitySources doesn't cycle with ProjectStore (as setPrefabBaseResolver does).
+let canvasDesignSeed: (() => { width: number; height: number }) | null = null;
+export function setCanvasDesignSeed(fn: () => { width: number; height: number }): void {
+  canvasDesignSeed = fn;
+}
+
 const UI_WIDGET_ICON: Record<string, LucideIcon> = {
   Button: SquareMousePointer,
   Toggle: ToggleLeft,
@@ -148,7 +156,16 @@ function anchorSources(): EntitySource[] {
 export const ENTITY_SOURCES: EntitySource[] = [
   presetSource('empty', 'Empty', 'Basic', CircleDot, ['Transform']),
   ...anchorSources(),
-  presetSource('canvas', 'Canvas', 'UI', LayoutPanelTop, ['Transform', ['Canvas', { designResolution: { x: 800, y: 600 }, scaleMode: 2 }], 'UINode']),
+  {
+    id: 'canvas',
+    label: 'Canvas',
+    category: 'UI',
+    icon: LayoutPanelTop,
+    build: () => {
+      const d = canvasDesignSeed?.() ?? { width: 1920, height: 1080 };
+      return preset('Canvas', ['Transform', ['Canvas', { designResolution: { x: d.width, y: d.height } }], 'UINode']);
+    },
+  },
   ...BUILTIN_UI_WIDGET_NAMES.map((name): EntitySource => ({
     id: `ui-${name.toLowerCase()}`,
     label: name,

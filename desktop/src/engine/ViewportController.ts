@@ -468,6 +468,44 @@ export const ViewportController = {
   },
 
   /**
+   * The scene's Canvas singleton — the design-resolution preview source — or null.
+   * Reads the first entity carrying a Canvas (the same singleton-per-scene assumption
+   * as the runtime's registry_getCanvasEntity), centered on its Transform.
+   */
+  canvasInfo(): {
+    cx: number; cy: number;
+    designResolution: { x: number; y: number };
+    pixelsPerUnit: number;
+    scaleMode: number;
+    matchWidthOrHeight: number;
+    backgroundColor: { r: number; g: number; b: number; a: number };
+  } | null {
+    const world = EngineHost.world;
+    if (!world) return null;
+    for (const e of world.getAllEntities()) {
+      if (!world.has(e, Canvas)) continue;
+      const c = world.get(e, Canvas) as {
+        designResolution: { x: number; y: number };
+        pixelsPerUnit: number;
+        scaleMode: number;
+        matchWidthOrHeight: number;
+        backgroundColor: { r: number; g: number; b: number; a: number };
+      };
+      const t = world.has(e, Transform) ? world.get(e, Transform) : null;
+      return {
+        cx: t?.worldPosition.x ?? 0,
+        cy: t?.worldPosition.y ?? 0,
+        designResolution: c.designResolution,
+        pixelsPerUnit: c.pixelsPerUnit || 100,
+        scaleMode: c.scaleMode,
+        matchWidthOrHeight: c.matchWidthOrHeight,
+        backgroundColor: c.backgroundColor,
+      };
+    }
+    return null;
+  },
+
+  /**
    * Screen-space collider outline for the gizmo: a 4-corner polygon (box) or a
    * center + radius (circle), in CSS px. The collider lives at the entity's world
    * transform + its (meter) offset, scaled to pixels by pixelsPerUnit.

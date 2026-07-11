@@ -249,6 +249,7 @@
   to { transform: translateY(-50%) scaleY(1); opacity: 1; }
 }
 .act-spacer { flex: 1; }
+.act-sep { width: 20px; height: 1px; background: var(--border); margin: 4px 0; flex-shrink: 0; }
 
 /* ── Content Drawer (slides up over the workspace) ── */
 .scrim {

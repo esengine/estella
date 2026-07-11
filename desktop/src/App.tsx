@@ -18,7 +18,10 @@ import { SettingsDialog } from '@/components/SettingsDialog';
 import { TilemapPickerDialog } from '@/components/TilemapPickerDialog';
 import { useEditorStore } from '@/store/editorStore';
 import { commands } from '@/commands';
-import { handleTilePaintKey, isTilemapSelected } from '@/tools/tileMode';
+import { handleTilePaintKey } from '@/tools/tileMode';
+import { suggestedMode } from '@/mode/activeMode';
+import { useEditorMode } from '@/store/editorModeStore';
+import type { EditorModeId } from '@/mode/editorModes';
 import { useSelection } from '@/store/selectionStore';
 import { PlayRealms } from '@/engine/PlayRealm';
 import { PlayInspect } from '@/engine/PlayInspect';
@@ -63,15 +66,22 @@ export function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  // Surface the Tilemap painter when a tilemap entity becomes the selection (only on
-  // the transition INTO one, so switching between tilemaps doesn't keep yanking focus).
-  // "Select a tilemap → here's how you paint it" then needs no hunting for the panel.
+  // Reveal a mode's companion panels when the selection enters that mode (only on the
+  // transition INTO one, so moving within a mode doesn't keep yanking focus). This
+  // generalizes the old tilemap-painter auto-open: "select a tilemap → here's how you
+  // paint it" is now one instance of "enter a mode → here are its panels". A selection
+  // that implies a new mode also drops a stale explicit pin.
   useEffect(() => {
-    let wasTilemap = false;
+    let prevMode: EditorModeId | null = null;
     return useSelection.subscribe(() => {
-      const isTm = isTilemapSelected();
-      if (isTm && !wasTilemap) dockApi.openSidePanel('tilemap', 'tilemap', 'Tilemap', 'left', 300);
-      wasTilemap = isTm;
+      const mode = suggestedMode();
+      if (mode.id !== prevMode) {
+        useEditorMode.getState().clearPin();
+        for (const p of mode.panels ?? []) {
+          dockApi.openSidePanel(p.id, p.component, p.title, p.side ?? 'left', p.width ?? 300);
+        }
+      }
+      prevMode = mode.id;
     });
   }, []);
 
