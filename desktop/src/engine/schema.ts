@@ -341,6 +341,18 @@ export function fieldMetaFor(compType: string, key: string): UserFieldMeta | nul
   return userSchema(compType)?.fields?.[key] ?? null;
 }
 
+/**
+ * Clamp a scalar field value to its declared min/max (if any). Applied at the single
+ * write door (SceneCommands.setField) so EVERY writer — the inspector, PlayInspect and
+ * material edits — is range-bounded, not just the Details UI's own clamp.
+ */
+export function clampFieldValue(compType: string, key: string, value: unknown): unknown {
+  if (typeof value !== 'number') return value;
+  const meta = fieldMetaFor(compType, key);
+  if (!meta || (meta.min === undefined && meta.max === undefined)) return value;
+  return Math.max(meta.min ?? -Infinity, Math.min(meta.max ?? Infinity, value));
+}
+
 /** The dropdown options for an enum field, or null if the field isn't an enum. */
 export function enumFieldOptions(compType: string, key: string): EnumOption[] | null {
   const e = fieldMetaFor(compType, key)?.enum;

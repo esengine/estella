@@ -680,6 +680,12 @@ export function AssetControl({
   const empty = assetType === 'spine-skeleton' || assetType === 'spine-atlas' ? '' : 0;
 
   const setRefFromPath = (path: string) => {
+    // Reject a wrong-typed drop (the picker popover already filters; this guards the
+    // drag-drop hole so a font can't land in a texture slot).
+    if (!ProjectStore.assetTypeAllowed(assetType, path)) {
+      Toasts.push(`This field only accepts ${assetType} assets`, 'error');
+      return;
+    }
     onBegin?.();
     void ProjectStore.assetRefForPath(path, assetType).then((ref) => {
       if (ref) onChange(ref);

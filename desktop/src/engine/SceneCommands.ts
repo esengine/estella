@@ -15,6 +15,7 @@ import {
   angleZToQuat,
   hexToRgba,
   prettyLabel,
+  clampFieldValue,
 } from './schema';
 import { normalizeFolder, folderParent, isFolderUnder, rebaseFolder } from '@/outliner/folders';
 
@@ -259,7 +260,7 @@ export class SceneCommandsImpl {
     const firstTouch = !this.gesture || !this.gesture.touched.has(k);
     const before = firstTouch ? structuredClone(cur[key]) : undefined;
 
-    const after = toModelValue(cur, type, key, value);
+    const after = clampFieldValue(compName, key, toModelValue(cur, type, key, value));
     this.model.setField(sourceId, compName, key, after);
 
     if (this.gesture) {

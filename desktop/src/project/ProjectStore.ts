@@ -1045,6 +1045,14 @@ class ProjectStoreImpl {
     return out.sort((a, b) => a.name.localeCompare(b.name));
   }
 
+  /** Whether the asset at `path` is a valid pick for a `fieldType` slot — the same rule
+   *  the picker popover filters by, exposed so drag-drop can reject a wrong-typed asset. */
+  assetTypeAllowed(fieldType: string | undefined, path: string): boolean {
+    if (!fieldType) return true;
+    const name = path.split('/').pop() ?? path;
+    return assetMatchesSlot(assetTypeOf(name), path, fieldType);
+  }
+
   /**
    * Turn a Content-Browser drag (a project-relative path) into a portable
    * `@uuid:` ref, preloading the asset so the Reconciler's synchronous projection
