@@ -71,6 +71,7 @@
 }
 .tp-layer.is-active .tp-layer-name { color: var(--text); }
 .tp-layer-name:hover { color: var(--text); }
+.tp-layer-op { width: 44px; margin: 0 4px; align-self: center; accent-color: var(--acc); cursor: pointer; }
 .tp-grow { flex: 1 1 auto; }
 .tp-sep { width: 1px; align-self: stretch; margin: 2px 4px; background: var(--line); }
 .tp-brush {
@@ -137,6 +138,14 @@
    inside is drawn at natural size and CSS-scaled to fill it (crisp hit-testing + pixels). */
 .tp-atlas-sizer { position: relative; }
 .tp-atlas { position: relative; }
+/* Palette cell overlays: an animated tile loops over its static frame; corner
+   badges flag collision (red ◣), terrain membership (set-colored dot), and
+   animation (accent ◢). Live in the zoomed atlas space, so they scale with it. */
+.tp-cell-anim { position: absolute; inset: 0; pointer-events: none; image-rendering: pixelated; }
+.tp-badge { position: absolute; pointer-events: none; z-index: 1; }
+.tp-badge-col { left: 0; top: 0; border-left: 5px solid var(--error); border-bottom: 5px solid transparent; }
+.tp-badge-ter { right: 1px; top: 1px; width: 4px; height: 4px; border-radius: 50%; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45); }
+.tp-badge-anim { right: 0; bottom: 0; border-right: 5px solid var(--star); border-top: 5px solid transparent; }
 .tp-img { display: block; image-rendering: pixelated; user-select: none; }
 
 .tp-terrains {

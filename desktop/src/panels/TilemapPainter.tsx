@@ -26,6 +26,8 @@ import { MOD_LABEL } from '@/commands/keybinding';
 import { buildStampGhost } from '@/tools/tileStampGhost';
 import { colsFor, rowsFor, TERRAIN_COLORS } from '@/tools/tileMath';
 import { loadTilesetAsset } from '@/tileset/loadTileset';
+import { createTilemapFromTileset } from '@/tilemap/createTilemap';
+import { AnimPreview, tileThumbStyle, type TileAtlas } from '@/tools/tileThumb';
 import { IconButton } from '@/components/IconButton';
 
 const TOOLS: { id: PaintTool; icon: typeof Brush; label: string }[] = [
@@ -235,7 +237,22 @@ export function TilemapPainter() {
   const layers = SceneModel.entityOrder()
     .map((id) => ({ id, e: SceneModel.entityBySource(id) }))
     .filter((L) => L.e?.components.some((c) => c.type === 'TilemapLayer'))
-    .map((L) => ({ id: L.id, name: L.e!.name, hidden: SceneModel.isHidden(L.id), locked: SceneModel.isLocked(L.id) }));
+    .map((L) => {
+      const data = L.e!.components.find((c) => c.type === 'TilemapLayer')!.data as { opacity?: number };
+      return {
+        id: L.id,
+        name: L.e!.name,
+        hidden: SceneModel.isHidden(L.id),
+        locked: SceneModel.isLocked(L.id),
+        opacity: typeof data.opacity === 'number' ? data.opacity : 1,
+      };
+    });
+
+  // New layer: another TilemapLayer entity on the active tileset (a sibling paint
+  // target). Opacity edits coalesce into one undo step per slider drag.
+  const addLayer = () => { if (tilesetPath) void createTilemapFromTileset(tilesetPath); };
+  const setLayerOpacity = (id: number, v: number) =>
+    SceneCommands.setField(id, 'TilemapLayer', 'opacity', 'number', v);
 
   const commitSel = (r: SelRect) => {
     const w = r.c1 - r.c0 + 1;
@@ -306,11 +323,18 @@ export function TilemapPainter() {
     ? ProjectStore.listAssets('tileset').filter((a) => !selectedTilemapTilesetRefs(selectedId).includes(a.ref))
     : [];
 
+  const atlas: TileAtlas | null = texUrl && natural
+    ? { url: texUrl, naturalW: natural.w, naturalH: natural.h, cols, tileW: tw, tileH: th, margin: mg, spacing: sp }
+    : null;
   const cells = [];
   if (texUrl && natural) {
     for (let row = 0; row < rows; row++) {
       for (let col = 0; col < cols; col++) {
         const id = row * cols + col + activeFirstId;
+        // asset.tiles is keyed by the tileset-local 1-based id (== TilesetEditor's).
+        const meta = asset?.tiles[row * cols + col + 1];
+        const anim = meta?.animation;
+        const ter = meta?.terrain;
         cells.push(
           <div
             key={id}
@@ -325,7 +349,25 @@ export function TilemapPainter() {
             onPointerEnter={() => {
               if (dragAnchor.current) setSel(normRect(dragAnchor.current, { c: col, r: row }));
             }}
-          />,
+          >
+            {anim && anim.length > 1 && atlas && (
+              <AnimPreview
+                frames={anim}
+                fallback={row * cols + col + 1}
+                className="tp-cell-anim"
+                thumb={(t) => tileThumbStyle(atlas, t, tw)}
+              />
+            )}
+            {meta?.collision && <span className="tp-badge tp-badge-col" title="Has collision" />}
+            {ter != null && (
+              <span
+                className="tp-badge tp-badge-ter"
+                style={{ background: TERRAIN_COLORS[ter.set % TERRAIN_COLORS.length] }}
+                title="Terrain member"
+              />
+            )}
+            {anim && anim.length > 0 && <span className="tp-badge tp-badge-anim" title="Animated" />}
+          </div>,
         );
       }
     }
@@ -333,8 +375,11 @@ export function TilemapPainter() {
 
   return (
     <div className="tp-panel">
-      {layers.length > 1 && (
+      {layers.length > 0 && (
         <div className="tp-layers">
+          <IconButton size="sm" title="New layer on this tileset" disabled={!tilesetPath} onClick={addLayer}>
+            <Plus size={14} />
+          </IconButton>
           {layers.map((L) => (
             <span key={L.id} className={'tp-layer' + (L.id === selectedId ? ' is-active' : '')}>
               <button
@@ -349,6 +394,13 @@ export function TilemapPainter() {
               >
                 {L.name}
               </button>
+              <input
+                className="tp-layer-op" type="range" min={0} max={1} step={0.05} value={L.opacity}
+                title={`Opacity ${Math.round(L.opacity * 100)}%`}
+                onPointerDown={() => SceneCommands.beginGesture('Layer opacity')}
+                onChange={(e) => setLayerOpacity(L.id, Number(e.target.value))}
+                onPointerUp={() => SceneCommands.endGesture()}
+              />
               <button
                 type="button" className="tp-layer-lock" title={L.locked ? 'Unlock' : 'Lock'}
                 onClick={() => SceneCommands.setEntityLocked(L.id, !L.locked)}

@@ -29,35 +29,7 @@ import { TilesetDocument } from '@/tileset/TilesetDocument';
 import { TilesetCommands } from '@/tileset/TilesetCommands';
 import { ProjectStore } from '@/project/ProjectStore';
 import { colsFor, rowsFor, TERRAIN_COLORS } from '@/tools/tileMath';
-
-/** Loops the frame strip at each frame's own duration; falls back to the target tile. */
-function AnimPreview({ frames, fallback, thumb }: {
-  frames: TilesetAnimFrame[];
-  fallback: number;
-  thumb: (tile: number) => CSSProperties;
-}) {
-  const [i, setI] = useState(0);
-  useEffect(() => {
-    setI(0);
-    if (frames.length < 2) return;
-    let idx = 0;
-    let live = true;
-    let t: ReturnType<typeof setTimeout>;
-    const tick = () => {
-      if (!live) return;
-      idx = (idx + 1) % frames.length;
-      setI(idx);
-      t = setTimeout(tick, frames[idx].durationMs || 120);
-    };
-    t = setTimeout(tick, frames[0].durationMs || 120);
-    return () => {
-      live = false;
-      clearTimeout(t);
-    };
-  }, [frames]);
-  const tile = frames.length ? frames[Math.min(i, frames.length - 1)].tile : fallback;
-  return <span className="ts-fthumb ts-apreview" style={thumb(tile)} title="Preview" />;
-}
+import { AnimPreview, tileThumbStyle, type TileAtlas } from '@/tools/tileThumb';
 
 /** A grid-geometry number field that commits on blur/Enter (one undo step per edit). */
 function GridField(props: { label: string; value: number; min?: number; onCommit: (n: number) => void }) {
@@ -242,19 +214,12 @@ export function TilesetEditor() {
   const setFrames = (frames: TilesetAnimFrame[]) => {
     if (animTile != null) TilesetCommands.setTileAnimation(animTile, frames);
   };
-  /** Atlas crop for a tile id at thumbnail size (same math as the cell layout). */
+  /** Atlas crop for a tile id at thumbnail size (shared with the painter palette). */
   const THUMB = 26;
-  const thumb = (tile: number): CSSProperties => {
-    if (!texUrl || !natural || tile < 1) return {};
-    const c = (tile - 1) % cols;
-    const r = Math.floor((tile - 1) / cols);
-    const s = THUMB / tw;
-    return {
-      backgroundImage: `url(${texUrl})`,
-      backgroundPosition: `${-(mg + c * (tw + sp)) * s}px ${-(mg + r * (th + sp)) * s}px`,
-      backgroundSize: `${natural.w * s}px ${natural.h * s}px`,
-    };
-  };
+  const atlas: TileAtlas | null = texUrl && natural
+    ? { url: texUrl, naturalW: natural.w, naturalH: natural.h, cols, tileW: tw, tileH: th, margin: mg, spacing: sp }
+    : null;
+  const thumb = (tile: number): CSSProperties => tileThumbStyle(atlas, tile, THUMB);
 
   const cells = [];
   if (texUrl && natural) {
@@ -399,7 +364,7 @@ export function TilesetEditor() {
             <span className="ts-ahint">Click a tile in the atlas to edit its animation — animated tiles carry a ▶ mark</span>
           ) : (
             <>
-              <AnimPreview frames={animFrames} fallback={animTile} thumb={thumb} />
+              <AnimPreview frames={animFrames} fallback={animTile} thumb={thumb} className="ts-fthumb ts-apreview" />
               <span className="ts-astat">#{animTile}</span>
               <span className="ts-sep" />
               {animFrames.map((f, i) => (
