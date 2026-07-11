@@ -24,6 +24,15 @@ import { assetFieldType, spineSlotType, componentByName, componentDefaults, isRe
  */
 
 const UUID_PREFIX = '@uuid:';
+
+// Asset slots whose RUNTIME value is a project path — a loader fetches the file
+// (tilemap `.tmj`, anim clips, timelines, FSM/BT graphs). Everything else
+// (texture/material/font/audio/tileset) is a GL/native handle. Keeping these as
+// paths is why a Tiled map's `source` must NOT be run through the handle resolver
+// (there is no GL handle for a .tmj → it would degrade to 0 = "no source").
+const PATH_VALUED_ASSET_TYPES: ReadonlySet<string> = new Set([
+  'tilemap', 'anim-clip', 'timeline', 'statemachine', 'behaviortree',
+]);
 /** Structural/identity components projected explicitly (name, parent), not as data. */
 const STRUCTURAL = new Set(['Name', 'Parent', 'Children']);
 
@@ -307,7 +316,12 @@ export class ReconcilerImpl {
   private resolveFieldValue(type: string, key: string, v: unknown): unknown {
     if (typeof v === 'string') {
       if (spineSlotType(type, key)) return this.resolveSpineRef(v);
-      if (assetFieldType(type, key)) return this.resolveAsset(v);
+      const at = assetFieldType(type, key);
+      if (at) {
+        // Path-valued slots keep a project path (the runtime loader fetches the
+        // file); handle-valued slots resolve to a live GL/native handle.
+        return PATH_VALUED_ASSET_TYPES.has(at) ? (this.resolveRefPath(v) ?? v) : this.resolveAsset(v);
+      }
     }
     return this.resolveRefs(v);
   }
