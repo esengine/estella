@@ -62,6 +62,7 @@ import {
   type MaterialContext,
 } from '@/material/materialInspectorModel';
 import { ColorControl, rgbaToHex8 } from '@/components/ColorControl';
+import { IconButton } from '@/components/IconButton';
 import { ContextMenu } from '@/components/Menu';
 import { NumField, useScrub, fmt, type ControlGesture } from '@/components/NumField';
 import { Popover, usePopover } from '@/components/Popover';
@@ -1858,14 +1859,15 @@ function EditorDetails() {
     <div className="insp">
       <div className="phead insp-head">
         <SearchField placeholder="Search" value={query} onChange={setQuery} />
-        <button
-          type="button"
-          className={`filt-btn${filtOn ? ' on' : ''}`}
+        <IconButton
+          size="lg"
+          variant="outline"
+          active={filtOn}
           title="Filter properties"
           onClick={() => setFiltOn((v) => !v)}
         >
           <Filter size={14} strokeWidth={1.9} />
-        </button>
+        </IconButton>
       </div>
 
       <div className="ent-head">

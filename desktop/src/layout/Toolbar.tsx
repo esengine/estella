@@ -22,6 +22,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
+import { IconButton } from '@/components/IconButton';
 import { ContextMenu } from '@/components/Menu';
 import { EditorHistory } from '@/engine/EditorHistory';
 import { commands, formatKeybinding } from '@/commands';
@@ -54,17 +55,9 @@ function TBtn({
   onClick?: () => void;
 }) {
   return (
-    <button
-      type="button"
-      className={`tbtn${active ? ' on' : ''}`}
-      title={label}
-      aria-label={label}
-      aria-pressed={active}
-      disabled={disabled}
-      onClick={onClick}
-    >
+    <IconButton size="lg" variant="ghost" active={active} disabled={disabled} title={label} onClick={onClick}>
       <Icon size={16} strokeWidth={1.85} />
-    </button>
+    </IconButton>
   );
 }
 

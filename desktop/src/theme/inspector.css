@@ -20,10 +20,6 @@
   font-weight: 600; font-size: var(--fs-xs); border-radius: var(--r-sm);
   transition: background var(--t-fast); white-space: nowrap; }
 .insp-add:hover { background: var(--star-dim); }
-.filt-btn { width: 28px; height: 26px; display: grid; place-items: center; color: var(--text-mute); border: 1px solid var(--border-line); border-radius: var(--r-sm); flex-shrink: 0; transition: color var(--t-fast), background var(--t-fast), border-color var(--t-fast); }
-.filt-btn:hover { color: var(--text); background: var(--srf-4); }
-.filt-btn:active { background: var(--srf-5); }
-.filt-btn.on { color: var(--warn); border-color: rgba(211,162,60,0.4); background: rgba(211,162,60,0.12); }
 /* Add Component at the TOP of Details */
 .insp-addrow { padding: 8px; border-bottom: 1px solid var(--border); }
 .insp-addrow .insp-add { width: 100%; height: 30px; justify-content: center; }

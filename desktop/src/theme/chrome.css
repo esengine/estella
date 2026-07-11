@@ -91,7 +91,6 @@
 }
 .tbtn:hover { color: var(--text); background: var(--srf-4); }
 .tbtn:active { background: var(--srf-5); transform: translateY(0.5px); }
-.tbtn.on { color: var(--on-accent); background: var(--acc); }
 .tbtn:disabled { opacity: 0.4; pointer-events: none; }
 .tbtn .lbl { font-weight: 500; }
 
