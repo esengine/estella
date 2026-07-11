@@ -64,7 +64,7 @@ const COMPONENT_ICON: Record<string, LucideIcon> = {
   RigidBody: Box,
 };
 
-function componentGlyph(name: string): LucideIcon {
+export function componentGlyph(name: string): LucideIcon {
   const hit = COMPONENT_ICON[name];
   if (hit) return hit;
   if (/Collider$/.test(name)) return Hexagon;

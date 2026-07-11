@@ -12,9 +12,10 @@
  */
 import type { LucideIcon } from 'lucide-react';
 import { CircleDot, Image, Camera, Sparkles, Lightbulb, LayoutPanelTop, ToggleLeft, SlidersHorizontal, List, ChevronDown, SquareMousePointer, RectangleHorizontal, Box } from 'lucide-react';
-import { BUILTIN_UI_PREFABS, BUILTIN_UI_WIDGET_NAMES, PREFAB_FORMAT_VERSION, type PrefabData } from 'esengine';
+import { BUILTIN_UI_PREFABS, BUILTIN_UI_WIDGET_NAMES, PREFAB_FORMAT_VERSION, getUserComponents, type PrefabData } from 'esengine';
 import type { EntityId } from '@/types';
-import { componentByName, componentDefaults } from './schema';
+import { componentByName, componentDefaults, prettyLabel } from './schema';
+import { componentGlyph } from '@/components/icons';
 import { SceneCommands } from './SceneCommands';
 
 /** Where a source is created: the target parent + (for asset/drop sources) its origin. */
@@ -113,6 +114,23 @@ export const ENTITY_SOURCES: EntitySource[] = [
     placement: 'under-canvas',
   })),
 ];
+
+/**
+ * Create-entity sources for the user's own components (defineComponent): a plain
+ * entity carrying Transform + that component, bucketed under 'Scripts'. A
+ * user-defined component thus appears in the Create popover with zero extra wiring
+ * — the dynamic half of "cover all cases" (REARCH ENTITY_CREATION E4).
+ */
+export function userComponentSources(): EntitySource[] {
+  return [...getUserComponents().keys()].map((name) => ({
+    id: `component:${name}`,
+    label: prettyLabel(name),
+    category: 'Scripts',
+    icon: componentGlyph(name),
+    keywords: [name],
+    build: () => preset(name, ['Transform', name]),
+  }));
+}
 
 /** Case-insensitive filter over label + category + keywords, for the Create popover. */
 export function matchSources(sources: EntitySource[], query: string): EntitySource[] {

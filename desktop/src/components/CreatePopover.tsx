@@ -12,7 +12,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ENTITY_SOURCES, matchSources, type EntitySource } from '@/engine/entitySources';
+import { ENTITY_SOURCES, userComponentSources, matchSources, type EntitySource } from '@/engine/entitySources';
 import { SearchField } from '@/components/SearchField';
 import { useDialogFocus } from '@/components/dialogFocus';
 
@@ -44,7 +44,9 @@ export function CreatePopover({
   const shellRef = useRef<HTMLDivElement>(null);
   useDialogFocus(shellRef);
 
-  const results = useMemo(() => matchSources(ENTITY_SOURCES, query), [query]);
+  // Static builtins + the user's own components; computed once when the popover opens.
+  const all = useMemo(() => [...ENTITY_SOURCES, ...userComponentSources()], []);
+  const results = useMemo(() => matchSources(all, query), [all, query]);
   const groups = useMemo(() => groupByCategory(results), [results]);
 
   useEffect(() => inputRef.current?.focus(), []);
