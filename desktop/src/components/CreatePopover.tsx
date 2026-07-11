@@ -12,23 +12,28 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ENTITY_SOURCES, userComponentSources, matchSources, type EntitySource } from '@/engine/entitySources';
+import { ENTITY_SOURCES, userComponentSources, matchSources, CREATE_CATEGORY_ORDER, type EntitySource } from '@/engine/entitySources';
 import { ProjectStore } from '@/project/ProjectStore';
 import { SearchField } from '@/components/SearchField';
 import { useDialogFocus } from '@/components/dialogFocus';
 
-/** Group consecutive sources by category (the registry is already category-ordered). */
+/** Group sources by category, ordered by CREATE_CATEGORY_ORDER — sources arrive in
+ *  mixed category order now that anchors are auto-generated and dynamic sources
+ *  (user components, prefabs) are appended. Unknown categories trail at the end. */
 function groupByCategory(items: EntitySource[]) {
-  const groups: { category: string; items: EntitySource[] }[] = [];
+  const byCat = new Map<string, EntitySource[]>();
   for (const it of items) {
-    let g = groups[groups.length - 1];
-    if (!g || g.category !== it.category) {
-      g = { category: it.category, items: [] };
-      groups.push(g);
-    }
-    g.items.push(it);
+    const arr = byCat.get(it.category);
+    if (arr) arr.push(it);
+    else byCat.set(it.category, [it]);
   }
-  return groups;
+  const rank = (c: string) => {
+    const i = CREATE_CATEGORY_ORDER.indexOf(c);
+    return i < 0 ? CREATE_CATEGORY_ORDER.length : i;
+  };
+  return [...byCat.entries()]
+    .sort((a, b) => rank(a[0]) - rank(b[0]))
+    .map(([category, items]) => ({ category, items }));
 }
 
 export function CreatePopover({

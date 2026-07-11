@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect } from 'vitest';
-import { ENTITY_SOURCES, matchSources } from '@/engine/entitySources';
+import { ENTITY_SOURCES, matchSources, CREATE_CATEGORY_ORDER } from '@/engine/entitySources';
 
 describe('Create catalog (searchable source registry)', () => {
-  it('spans Basic / 2D / UI, preserving order + carrying category', () => {
+  it('covers builtins + anchor components, every category in the declared order', () => {
     expect(ENTITY_SOURCES.map((s) => s.label)).toEqual(
-      expect.arrayContaining(['Empty', 'Sprite', 'Camera', 'Canvas', 'Button', 'Slider']),
+      expect.arrayContaining(['Empty', 'Sprite', 'Camera', 'Spine', 'Audio', 'Text', 'Canvas', 'Button']),
     );
-    expect(new Set(ENTITY_SOURCES.map((s) => s.category))).toEqual(new Set(['Basic', '2D', 'UI']));
+    for (const s of ENTITY_SOURCES) expect(CREATE_CATEGORY_ORDER).toContain(s.category);
   });
 
   it('builds one-entity presets from the registered component defaults', async () => {
@@ -25,8 +25,9 @@ describe('Create catalog (searchable source registry)', () => {
     expect(matchSources(ENTITY_SOURCES, 'CAM').map((s) => s.label)).toEqual(['Camera']);
   });
 
-  it('matches on category label', () => {
-    expect(matchSources(ENTITY_SOURCES, '2d').map((s) => s.label)).toEqual(['Sprite', 'Camera', 'Particles', 'Light']);
+  it('matches on category — create reuses the componentCategory taxonomy', () => {
+    const rendering = matchSources(ENTITY_SOURCES, 'rendering').map((s) => s.label);
+    expect(rendering).toEqual(expect.arrayContaining(['Sprite', 'Shape']));
   });
 
   it('empty query returns everything; no match returns nothing', () => {

@@ -20,6 +20,17 @@ describe('entitySources registry (Create-entity E2)', () => {
     }
   });
 
+  it('every anchor component has a create source whose build carries that component (coverage guard)', async () => {
+    // The previously-missing anchors — the point of E6. If the engine gains a new anchor
+    // component, add it to ANCHOR_SPECS; this guards that the wired ones stay covered.
+    for (const comp of ['SpineAnimation', 'AudioSource', 'Text', 'BitmapText', 'ShapeRenderer', 'Mesh2D', 'TrailRenderer']) {
+      const src = ENTITY_SOURCES.find((s) => s.id === `anchor:${comp}`);
+      expect(src, `no create source for anchor ${comp}`).toBeDefined();
+      const p = await src!.build({ parent: null });
+      expect(p.entities[0].components.map((c) => c.type)).toContain(comp);
+    }
+  });
+
   it('every source has a unique id, an icon, and a category in the declared order', () => {
     const ids = ENTITY_SOURCES.map((s) => s.id);
     expect(new Set(ids).size).toBe(ids.length);

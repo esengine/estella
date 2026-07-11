@@ -11,10 +11,10 @@
  * UI. (REARCH_ENTITY_CREATION E2.)
  */
 import type { LucideIcon } from 'lucide-react';
-import { CircleDot, Image, Camera, Sparkles, Lightbulb, LayoutPanelTop, ToggleLeft, SlidersHorizontal, List, ChevronDown, SquareMousePointer, RectangleHorizontal, Box } from 'lucide-react';
+import { CircleDot, LayoutPanelTop, ToggleLeft, SlidersHorizontal, List, ChevronDown, SquareMousePointer, RectangleHorizontal, Box } from 'lucide-react';
 import { BUILTIN_UI_PREFABS, BUILTIN_UI_WIDGET_NAMES, PREFAB_FORMAT_VERSION, getUserComponents, type PrefabData } from 'esengine';
 import type { EntityId } from '@/types';
-import { componentByName, componentDefaults, prettyLabel } from './schema';
+import { componentByName, componentDefaults, prettyLabel, componentCategory } from './schema';
 import { componentGlyph } from '@/components/icons';
 import { SceneCommands } from './SceneCommands';
 
@@ -44,8 +44,12 @@ export interface EntitySource {
   afterCreate?(ctx: CreateContext, rootId: EntityId): void;
 }
 
-/** Category display order in the Create popover (mirrors the Add-Component taxonomy style). */
-export const CREATE_CATEGORY_ORDER = ['Basic', '2D', 'UI', 'Prefabs', 'Scripts'];
+/**
+ * Category display order in the Create popover. Reuses the Add-Component taxonomy
+ * (componentCategory) so the two pickers read as one system, plus create-only buckets:
+ * Basic (Empty), Prefabs (project assets), Scripts (user components).
+ */
+export const CREATE_CATEGORY_ORDER = ['Basic', 'Common', 'Rendering', 'Physics', 'Animation', 'UI', 'Audio', 'Effects', 'Prefabs', 'Scripts', 'Other'];
 
 type CompSpec = string | [string, Record<string, unknown>];
 
@@ -105,12 +109,45 @@ const UI_WIDGET_ICON: Record<string, LucideIcon> = {
   ListView: List,
 };
 
+/**
+ * The entity-anchor components — each seeds a plain entity of that type. THE authority
+ * for "which components can start an entity": add an anchor here and it appears in the
+ * Create popover automatically, its category + icon drawn from the component-metadata
+ * authority (componentCategory / componentGlyph) so create and Add-Component read as one
+ * taxonomy. Attachment components (Collider/Joint/ShadowCaster2D/Velocity/UINode) are
+ * deliberately NOT anchors; TilemapLayer is asset-driven (createTilemap's tilesetSource)
+ * and Canvas needs a multi-component preset, so both are handled outside this table.
+ */
+const ANCHOR_SPECS: { comp: string; label: string; comps: CompSpec[] }[] = [
+  { comp: 'Sprite', label: 'Sprite', comps: ['Transform', 'Sprite'] },
+  { comp: 'Camera', label: 'Camera', comps: [['Transform', { position: { x: 0, y: 0, z: 10 } }], 'Camera'] },
+  { comp: 'ShapeRenderer', label: 'Shape', comps: ['Transform', 'ShapeRenderer'] },
+  { comp: 'Mesh2D', label: 'Mesh', comps: ['Transform', 'Mesh2D'] },
+  { comp: 'SpineAnimation', label: 'Spine', comps: ['Transform', 'SpineAnimation'] },
+  { comp: 'BitmapText', label: 'Bitmap Text', comps: ['Transform', 'BitmapText'] },
+  { comp: 'Text', label: 'Text', comps: ['Transform', 'Text'] },
+  { comp: 'ParticleEmitter', label: 'Particles', comps: ['Transform', 'ParticleEmitter'] },
+  { comp: 'TrailRenderer', label: 'Trail', comps: ['Transform', 'TrailRenderer'] },
+  { comp: 'Light2D', label: 'Light', comps: ['Transform', 'Light2D'] },
+  { comp: 'AudioSource', label: 'Audio', comps: ['Transform', 'AudioSource'] },
+];
+
+/** Auto-generate one source per anchor component; category + icon come from the
+ *  component-metadata authority so a new anchor needs only a row in ANCHOR_SPECS. */
+function anchorSources(): EntitySource[] {
+  return ANCHOR_SPECS.map(({ comp, label, comps }) => ({
+    id: `anchor:${comp}`,
+    label,
+    category: componentCategory(comp),
+    icon: componentGlyph(comp),
+    keywords: [comp],
+    build: () => preset(label, comps),
+  }));
+}
+
 export const ENTITY_SOURCES: EntitySource[] = [
   presetSource('empty', 'Empty', 'Basic', CircleDot, ['Transform']),
-  presetSource('sprite', 'Sprite', '2D', Image, ['Transform', 'Sprite']),
-  presetSource('camera', 'Camera', '2D', Camera, [['Transform', { position: { x: 0, y: 0, z: 10 } }], 'Camera']),
-  presetSource('particles', 'Particles', '2D', Sparkles, ['Transform', 'ParticleEmitter']),
-  presetSource('light', 'Light', '2D', Lightbulb, ['Transform', 'Light2D']),
+  ...anchorSources(),
   presetSource('canvas', 'Canvas', 'UI', LayoutPanelTop, ['Transform', ['Canvas', { designResolution: { x: 800, y: 600 }, scaleMode: 2 }], 'UINode']),
   ...BUILTIN_UI_WIDGET_NAMES.map((name): EntitySource => ({
     id: `ui-${name.toLowerCase()}`,
