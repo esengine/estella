@@ -20,7 +20,7 @@ import { OutlinerRow } from '@/outliner/OutlinerRow';
 import { OUTLINER_COLUMNS, TYPE_COLUMN, type OutlinerColumnContext } from '@/outliner/columns';
 import { joinFolder, folderParent, folderName, normalizeFolder, isFolderUnder } from '@/outliner/folders';
 import type { EntityId } from '@/types';
-import { type EntityTemplate } from '@/engine/entityTemplates';
+import { createFromSource, type EntitySource } from '@/engine/entitySources';
 import { CreatePopover } from '@/components/CreatePopover';
 import { Segmented } from '@/components/Segmented';
 
@@ -338,12 +338,10 @@ export function Outliner() {
     const id = SceneCommands.addEntity();
     if (id != null) select(id);
   };
-  // Create a ready-made entity from a catalog template (no add-component dance).
-  // UI controls land under `parent`, or the Canvas when created from empty space.
-  const createTemplate = (t: EntityTemplate, parent: EntityId | null) => {
-    const under = t.underCanvas ? (parent ?? SceneCommands.findCanvas()) : parent;
-    const id = SceneCommands.createFromTemplate(t.prefab, under);
-    if (id != null) select(id);
+  // Create a ready-made entity from a source (no add-component dance). Where it
+  // lands — e.g. UI controls under the Canvas — is the source's own concern now.
+  const createTemplate = (source: EntitySource, parent: EntityId | null) => {
+    void createFromSource(source, { parent }).then((id) => { if (id != null) select(id); });
   };
   const selectionOrTarget = (id: EntityId): EntityId[] => {
     const ids = useSelection.getState().selectedIds;

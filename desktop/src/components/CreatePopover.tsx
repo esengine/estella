@@ -4,39 +4,28 @@
  * @file  CreatePopover.tsx — the "Create entity" picker.
  *
  * A centered command-palette modal (search + category-grouped, keyboard-navigable
- * list) for creating entities from the template catalog. Shares the UE5-aligned
- * `.ac` picker shell + behaviour with AddComponentMenu, so the two read as one
- * design and the scrim/scroll dismissal is consistent: clicks inside stay open,
- * the wheel scrolls the list (never dismisses), only the scrim / Esc close it.
+ * list) for creating entities from the source registry. Each row's icon comes from
+ * the source itself — the picker holds no icon knowledge. Shares the `.ac` picker
+ * shell + behaviour with AddComponentMenu, so the two read as one design and the
+ * scrim/scroll dismissal is consistent: clicks inside stay open, the wheel scrolls
+ * the list (never dismisses), only the scrim / Esc close it.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Box, Image, Video, Lightbulb, Sparkles, LayoutDashboard, ToggleLeft, SlidersHorizontal } from 'lucide-react';
-import { flattenCatalog, matchCatalog, type CatalogEntry, type EntityTemplate } from '@/engine/entityTemplates';
+import { ENTITY_SOURCES, matchSources, type EntitySource } from '@/engine/entitySources';
 import { SearchField } from '@/components/SearchField';
 import { useDialogFocus } from '@/components/dialogFocus';
 
-const ICONS: Record<string, typeof Box> = {
-  Empty: Box,
-  Sprite: Image,
-  Camera: Video,
-  Light: Lightbulb,
-  Particles: Sparkles,
-  Canvas: LayoutDashboard,
-  Toggle: ToggleLeft,
-  Slider: SlidersHorizontal,
-};
-
-/** Group consecutive entries by category (the catalog is already category-ordered). */
-function groupByCategory(entries: CatalogEntry[]) {
-  const groups: { category: string; items: CatalogEntry[] }[] = [];
-  for (const e of entries) {
+/** Group consecutive sources by category (the registry is already category-ordered). */
+function groupByCategory(items: EntitySource[]) {
+  const groups: { category: string; items: EntitySource[] }[] = [];
+  for (const it of items) {
     let g = groups[groups.length - 1];
-    if (!g || g.category !== e.category) {
-      g = { category: e.category, items: [] };
+    if (!g || g.category !== it.category) {
+      g = { category: it.category, items: [] };
       groups.push(g);
     }
-    g.items.push(e);
+    g.items.push(it);
   }
   return groups;
 }
@@ -45,7 +34,7 @@ export function CreatePopover({
   onPick,
   onClose,
 }: {
-  onPick: (t: EntityTemplate) => void;
+  onPick: (s: EntitySource) => void;
   onClose: () => void;
 }) {
   const [query, setQuery] = useState('');
@@ -55,8 +44,7 @@ export function CreatePopover({
   const shellRef = useRef<HTMLDivElement>(null);
   useDialogFocus(shellRef);
 
-  const all = useMemo(() => flattenCatalog(), []);
-  const results = useMemo(() => matchCatalog(all, query), [all, query]);
+  const results = useMemo(() => matchSources(ENTITY_SOURCES, query), [query]);
   const groups = useMemo(() => groupByCategory(results), [results]);
 
   useEffect(() => inputRef.current?.focus(), []);
@@ -76,15 +64,15 @@ export function CreatePopover({
     };
   }, [onClose]);
 
-  const commit = (t: EntityTemplate) => {
+  const commit = (s: EntitySource) => {
     onClose();
-    onPick(t);
+    onPick(s);
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') { e.preventDefault(); setActive((a) => Math.min(results.length - 1, a + 1)); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setActive((a) => Math.max(0, a - 1)); }
-    else if (e.key === 'Enter') { e.preventDefault(); const it = results[active]; if (it) commit(it.template); }
+    else if (e.key === 'Enter') { e.preventDefault(); const it = results[active]; if (it) commit(it); }
     else if (e.key === 'Escape') { e.preventDefault(); onClose(); }
   };
 
@@ -114,19 +102,19 @@ export function CreatePopover({
                 {g.items.map((it) => {
                   const idx = results.indexOf(it);
                   const isActive = idx === active;
-                  const Icon = ICONS[it.template.label] ?? Box;
+                  const Icon = it.icon;
                   return (
                     <button
-                      key={`${it.category}/${it.template.label}`}
+                      key={it.id}
                       ref={isActive ? activeRef : undefined}
                       type="button"
                       className={`ac-item${isActive ? ' sel' : ''}`}
                       onMouseEnter={() => setActive(idx)}
-                      onClick={() => commit(it.template)}
+                      onClick={() => commit(it)}
                     >
                       <span className="ai"><Icon size={16} /></span>
                       <span className="at">
-                        <div className="an">{it.template.label}</div>
+                        <div className="an">{it.label}</div>
                       </span>
                       <span className="ak">↵</span>
                     </button>
