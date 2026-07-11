@@ -7,7 +7,7 @@
  *        UI; assetTypeAllowed is the drag-drop type guard. Pure TS.
  */
 import { describe, it, expect } from 'vitest';
-import { clampFieldValue, setUserSchemas } from '@/engine/schema';
+import { clampFieldValue, isRequiredField, setUserSchemas } from '@/engine/schema';
 import { ProjectStore } from '@/project/ProjectStore';
 
 describe('field constraints (C1: write-gate clamp + asset-type guard)', () => {
@@ -25,5 +25,15 @@ describe('field constraints (C1: write-gate clamp + asset-type guard)', () => {
     expect(ProjectStore.assetTypeAllowed('texture', 'assets/hero.png')).toBe(true);
     expect(ProjectStore.assetTypeAllowed('texture', 'assets/thing.esprefab')).toBe(false);
     expect(ProjectStore.assetTypeAllowed(undefined, 'assets/anything.xyz')).toBe(true); // unconstrained slot
+  });
+
+  it('isRequiredField flags builtin required asset fields + user-schema required (C2)', () => {
+    expect(isRequiredField('Sprite', 'texture')).toBe(true);
+    expect(isRequiredField('Sprite', 'material')).toBe(false); // optional override
+    expect(isRequiredField('SpineAnimation', 'skeletonPath')).toBe(true);
+    setUserSchemas([{ name: 'Foo', fields: { title: { required: true } } }] as never);
+    expect(isRequiredField('Foo', 'title')).toBe(true);
+    expect(isRequiredField('Foo', 'other')).toBe(false);
+    setUserSchemas([]);
   });
 });

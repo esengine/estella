@@ -953,9 +953,12 @@ function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp
     end();
   };
 
+  // A required field left empty (no asset / blank string) — flagged, not blocked (soft).
+  const invalid = !!field.required && (field.value === 0 || field.value === '' || field.value == null);
+
   return (
     <div
-      className={`prop${modified ? ' modified' : ''}${mixed ? ' mixed' : ''}`}
+      className={`prop${modified ? ' modified' : ''}${mixed ? ' mixed' : ''}${invalid ? ' invalid' : ''}`}
       onContextMenu={
         write
           ? undefined

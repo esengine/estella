@@ -85,6 +85,10 @@
 .prop-label.scrub:hover { color: var(--text); }
 .prop.modified .prop-label { color: var(--text); }
 .prop.modified .prop-label::before { content: ''; position: absolute; left: -6px; top: 50%; transform: translateY(-50%); width: 3px; height: 13px; border-radius: 2px; background: var(--warn); }
+/* Required field left empty — a soft flag: red label + asterisk + input outline. */
+.prop.invalid .prop-label { color: var(--danger, #e5484d); }
+.prop.invalid .prop-label::after { content: ' *'; color: var(--danger, #e5484d); font-weight: 700; }
+.prop.invalid .assetref, .prop.invalid .field { border-color: var(--danger, #e5484d); }
 .prop-value { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .prop-reset { width: 16px; height: 16px; display: grid; place-items: center; color: var(--warn); opacity: 0; transition: opacity var(--t-fast); justify-self: center; }
 .prop:hover .prop-reset.show, .prop.modified .prop-reset.show { opacity: .85; }

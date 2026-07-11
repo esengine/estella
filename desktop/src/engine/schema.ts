@@ -213,6 +213,8 @@ export interface UserFieldMeta {
   tooltip?: string;
   /** A display name overriding the key-derived label (UE DisplayName). */
   label?: string;
+  /** Must be non-empty (soft — the inspector flags it). Mirrors a future ES_PROPERTY(required). */
+  required?: boolean;
 }
 
 const userSchemas = new Map<string, UserComponentSchema>();
@@ -353,6 +355,22 @@ export function clampFieldValue(compType: string, key: string, value: unknown): 
   return Math.max(meta.min ?? -Infinity, Math.min(meta.max ?? Infinity, value));
 }
 
+// Editor-side non-empty (required) fields, until ES_PROPERTY(required) lowers this to
+// the SDK like min/max (§7). These are asset-ref fields whose entity is meaningless
+// without them — a Sprite with no texture, a SpineAnimation with no skeleton/atlas.
+const REQUIRED_FIELDS: Record<string, readonly string[]> = {
+  Sprite: ['texture'],
+  SpineAnimation: ['skeletonPath', 'atlasPath'],
+  AudioSource: ['clip'],
+};
+
+/** Whether a field must be non-empty (builtin table, then user schema). Soft — the
+ *  inspector flags an empty value; nothing blocks the edit. */
+export function isRequiredField(compType: string, key: string): boolean {
+  if (REQUIRED_FIELDS[compType]?.includes(key)) return true;
+  return userSchema(compType)?.fields?.[key]?.required === true;
+}
+
 /** The dropdown options for an enum field, or null if the field isn't an enum. */
 export function enumFieldOptions(compType: string, key: string): EnumOption[] | null {
   const e = fieldMetaFor(compType, key)?.enum;
@@ -434,6 +452,7 @@ function fieldFor(
   if (field && meta?.category) field.category = meta.category;
   if (field && meta?.tooltip) field.tooltip = meta.tooltip;
   if (field && meta?.label) field.label = meta.label;
+  if (field && isRequiredField(compType, key)) field.required = true;
   return field;
 }
 

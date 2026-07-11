@@ -119,6 +119,8 @@ export interface InspectorField {
   category?: string;
   /** Hover help for the property (UE's UPROPERTY ToolTip). */
   tooltip?: string;
+  /** Must be non-empty; the inspector flags an empty value (soft — doesn't block the edit). */
+  required?: boolean;
   /**
    * Multi-selection: the selected entities disagree on this field's value. `value`
    * holds the primary entity's value (shown muted); an edit fans out to all.
