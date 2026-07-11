@@ -83,4 +83,37 @@ describe('REARCH_GUI P1.3b: drawTextWith', () => {
         drawTextWith(atlas, sink, { text: '   ', fontFamily: 'Arial', fontSizePx: 24, color: [1, 1, 1, 1] });
         expect(sink).not.toHaveBeenCalled();
     });
+
+    // The first vertex x/y of the fill (last) pass — the block's anchor moves it.
+    const drawFirst = (extra: Record<string, unknown>): { x: number; y: number } => {
+        const sink = vi.fn();
+        drawTextWith(makeAtlas(1024), sink, { text: 'AB', fontFamily: 'Arial', fontSizePx: 24, color: [1, 1, 1, 1], ...extra });
+        const verts = sink.mock.calls.at(-1)![0] as Float32Array;
+        return { x: verts[0], y: verts[1] };
+    };
+
+    it('a boxless label anchors the block to the origin by horizontal align (no UINode box)', () => {
+        // No boxWidth ⇒ world-space label: align shifts the whole block, not silently a no-op.
+        const left = drawFirst({ align: 0 }).x;
+        const center = drawFirst({ align: 1 }).x;
+        const right = drawFirst({ align: 2 }).x;
+        expect(center).toBeLessThan(left); // centered → block moved left of the origin
+        expect(right).toBeLessThan(center); // right edge on the origin → moved further left
+    });
+
+    it('a boxless label anchors the block to the origin by vertical align', () => {
+        const top = drawFirst({ verticalAlign: 0 }).y;
+        const middle = drawFirst({ verticalAlign: 1 }).y;
+        const bottom = drawFirst({ verticalAlign: 2 }).y;
+        expect(middle).toBeGreaterThan(top); // y-up: middle raises the block toward the origin
+        expect(bottom).toBeGreaterThan(middle);
+    });
+
+    it('horizontal align works inside a fixed box even with word-wrap off (boxWidth, no maxWidth)', () => {
+        // boxWidth aligns within the box independently of maxWidth (wrap). The block was
+        // previously left-anchored whenever wrap was off — align silently did nothing.
+        const leftInBox = drawFirst({ align: 0, boxWidth: 400 }).x;
+        const rightInBox = drawFirst({ align: 2, boxWidth: 400 }).x;
+        expect(rightInBox).toBeGreaterThan(leftInBox + 100); // pushed toward the box's right edge
+    });
 });

@@ -826,6 +826,31 @@ export class SceneCommandsImpl {
     if (op) this.history.record(`Add ${prettyLabel(compName)}`, op.forward, op.reverse);
   }
 
+  /**
+   * Give an entity a UI layout box: add a px-sized UINode and reparent it under `parent`
+   * (a Canvas / UI root) so the UI layout resolves a box. This is the one-click path from
+   * a boxless Text — whose align/verticalAlign only anchor to the origin — to box-aligned
+   * UI text. One undo step; a no-op if the entity already has a UINode.
+   */
+  attachUINodeBox(sourceId: EntityId, parent: EntityId, width: number, height: number): void {
+    const entity = this.model.entityBySource(sourceId);
+    if (!entity || entity.components.some((c) => c.type === 'UINode')) return;
+    const before = entity.parent ?? null;
+    const data = { ...this.defaultDataFor('UINode'), width: { value: width, unit: 0 }, height: { value: height, unit: 0 } };
+    this.model.setComponent(sourceId, 'UINode', structuredClone(data));
+    this.model.setParent(sourceId, parent);
+    this.history.batch('Add Layout Box', [
+      {
+        forward: () => this.model.setComponent(sourceId, 'UINode', structuredClone(data)),
+        reverse: () => this.model.removeComponent(sourceId, 'UINode'),
+      },
+      {
+        forward: () => this.model.setParent(sourceId, parent),
+        reverse: () => this.model.setParent(sourceId, before),
+      },
+    ]);
+  }
+
   /** Remove a component from an entity (Transform / Name are protected). Undoable. */
   removeComponent(sourceId: EntityId, compName: string): void {
     const op = this.removeComponentOp(sourceId, compName);

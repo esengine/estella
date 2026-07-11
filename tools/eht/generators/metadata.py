@@ -155,6 +155,9 @@ class MetadataGenerator:
     def _get_skip_serialize_fields(self, comp: Component) -> List[str]:
         return [p.name for p in comp.properties if 'skip_serialize' in p.annotations]
 
+    def _get_readonly_fields(self, comp: Component) -> List[str]:
+        return [p.name for p in comp.properties if 'readonly' in p.annotations]
+
     def _get_animatable_fields(self, comp: Component) -> List[str]:
         fields = []
         for prop in comp.properties:
@@ -311,6 +314,13 @@ class MetadataGenerator:
             '    replicatedFields?: string[];',
             '    /** Fields authored `skip_serialize` — runtime-only state scene serialization omits. */',
             '    skipSerializeFields?: string[];',
+            '    /**',
+            '     * Fields authored `readonly` — engine-COMPUTED outputs (e.g. Transform\'s',
+            '     * world-space fields), never authoring inputs. The editor must not project',
+            '     * them back into the World: writing their (stale/zero) model value clobbers',
+            '     * the value the engine composes each frame.',
+            '     */',
+            '    readonlyFields?: string[];',
             '    fields?: Record<string, FieldMeta>;',
             '}',
             '',
@@ -384,6 +394,10 @@ class MetadataGenerator:
             if skip_serialize:
                 parts = ', '.join(f"'{f}'" for f in skip_serialize)
                 lines.append(f'        skipSerializeFields: [{parts}],')
+            readonly = self._get_readonly_fields(comp)
+            if readonly:
+                parts = ', '.join(f"'{f}'" for f in readonly)
+                lines.append(f'        readonlyFields: [{parts}],')
 
             field_meta = self._get_field_meta(comp)
             if field_meta:

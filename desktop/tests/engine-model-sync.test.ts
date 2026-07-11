@@ -27,7 +27,17 @@ vi.mock('@/engine/EngineHost', () => ({
 }));
 
 import { EditorSession } from '@/engine/EditorSession';
-import { inspectorFields } from '@/engine/schema';
+import { inspectorFields, readonlyFieldsFor } from '@/engine/schema';
+
+describe('readonly field metadata (C++ ES_PROPERTY(readonly) → COMPONENT_META)', () => {
+    it("exposes Transform's engine-computed world fields as readonly", () => {
+        expect([...readonlyFieldsFor('Transform')]).toEqual(['worldPosition', 'worldRotation', 'worldScale']);
+    });
+    it('reports no readonly fields for components that have none', () => {
+        expect(readonlyFieldsFor('Sprite')).toEqual([]);
+        expect(readonlyFieldsFor('NotAComponent')).toEqual([]);
+    });
+});
 
 function sceneWithUnknown(): SceneData {
     return {
@@ -93,6 +103,57 @@ describe.skipIf(!HAS_WASM)('Model-authoritative projection + lossless save', () 
         const wave = hero.components.find((c) => c.type === 'WaveMotion');
         expect(wave).toBeDefined();
         expect((wave!.data as { amplitude: number }).amplitude).toBe(5);
+    });
+
+    it('a Transform edit preserves the engine-computed world fields (never clobbers them to the origin)', () => {
+        // worldPosition/worldRotation/worldScale are ES_PROPERTY(readonly) — engine
+        // outputs composed each frame, not authoring inputs. Seed a sentinel world
+        // transform (standing in for that composition), then edit a LOCAL field: the
+        // reconciler must re-use the live readonly values, not reset them to the model's
+        // zero default. That reset was the bug — a moving entity's gizmo snapped to 0,0.
+        host.world.set(runtime1, Transform, {
+            position: { x: 1, y: 2, z: 0 },
+            rotation: { w: 1, x: 0, y: 0, z: 0 },
+            scale: { x: 1, y: 1, z: 1 },
+            worldPosition: { x: 7, y: 8, z: 9 },
+            worldRotation: { w: 1, x: 0, y: 0, z: 0 },
+            worldScale: { x: 3, y: 3, z: 3 },
+        } as never);
+
+        S.commands.setField(1, 'Transform', 'position', 'vec3', [9, 8, 7]); // by source id
+
+        const t = host.world.get(runtime1, Transform) as {
+            position: { x: number };
+            worldPosition: { x: number; y: number; z: number };
+            worldScale: { x: number };
+        };
+        expect(t.position.x).toBe(9); // the local edit applied
+        expect(t.worldPosition).toMatchObject({ x: 7, y: 8, z: 9 }); // preserved, NOT zeroed
+        expect(t.worldScale.x).toBe(3);
+    });
+
+    it('attachUINodeBox adds a sized UINode + reparents under the Canvas as one undo step', () => {
+        const canvas = S.model.addEntity('Canvas', [{ type: 'Transform', data: {} }, { type: 'Canvas', data: {} }] as never);
+        const text = S.model.addEntity('Label', [{ type: 'Transform', data: {} }, { type: 'Text', data: { content: 'Hi' } }] as never);
+
+        S.commands.attachUINodeBox(text, canvas, 240, 80);
+        const e = S.model.entityBySource(text)!;
+        expect(e.parent).toBe(canvas);
+        const ui = e.components.find((c) => c.type === 'UINode')!.data as { width: { value: number; unit: number } };
+        expect(ui.width).toMatchObject({ value: 240, unit: 0 });
+
+        S.history.undo(); // a single step reverts BOTH the UINode add and the reparent
+        const u = S.model.entityBySource(text)!;
+        expect(u.components.some((c) => c.type === 'UINode')).toBe(false);
+        expect(u.parent ?? null).toBeNull();
+    });
+
+    it('attachUINodeBox is a no-op when the Text already has a UINode', () => {
+        const canvas = S.model.addEntity('Canvas', [{ type: 'Transform', data: {} }, { type: 'Canvas', data: {} }] as never);
+        const text = S.model.addEntity('Label', [{ type: 'Transform', data: {} }, { type: 'UINode', data: {} }, { type: 'Text', data: {} }] as never);
+
+        S.commands.attachUINodeBox(text, canvas, 240, 80);
+        expect(S.model.entityBySource(text)!.parent ?? null).toBeNull(); // left where it was
     });
 
     it('undo of a field edit reverts the model too', () => {

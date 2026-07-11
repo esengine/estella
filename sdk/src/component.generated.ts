@@ -49,6 +49,13 @@ export interface ComponentMetaEntry {
     replicatedFields?: string[];
     /** Fields authored `skip_serialize` — runtime-only state scene serialization omits. */
     skipSerializeFields?: string[];
+    /**
+     * Fields authored `readonly` — engine-COMPUTED outputs (e.g. Transform's
+     * world-space fields), never authoring inputs. The editor must not project
+     * them back into the World: writing their (stale/zero) model value clobbers
+     * the value the engine composes each frame.
+     */
+    readonlyFields?: string[];
     fields?: Record<string, FieldMeta>;
 }
 
@@ -602,6 +609,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         colorFields: [],
         animatableFields: ['position.x', 'position.y', 'position.z', 'rotation.z', 'scale.x', 'scale.y', 'scale.z'],
         replicatedFields: ['position', 'rotation', 'scale'],
+        readonlyFields: ['worldPosition', 'worldRotation', 'worldScale'],
         fields: {
             position: { tooltip: "Local position in world units, relative to the parent." },
             rotation: { tooltip: "Rotation about the Z axis, in degrees." },

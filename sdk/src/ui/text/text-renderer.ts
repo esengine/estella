@@ -38,9 +38,11 @@ export interface DrawTextParams {
     letterSpacing?: number;
     /** Word-wrap width in px (plain text); 0/undefined = no wrap. */
     maxWidth?: number;
+    /** Box width (px) horizontal align positions the block within; 0/undefined = boxless (anchor to origin). */
+    boxWidth?: number;
     /** Vertical alignment within boxHeight: 0 top | 1 middle | 2 bottom. */
     verticalAlign?: number;
-    /** Box height (px) for vertical alignment; omit for top-anchored. */
+    /** Box height (px) for vertical alignment; 0/undefined = boxless (anchor to origin). */
     boxHeight?: number;
     /** Drop shadow: an offset, recolored copy of the glyphs drawn behind the fill. */
     shadow?: { color: RGBA; dx: number; dy: number };
@@ -69,14 +71,21 @@ export function drawTextWith(atlas: GlyphAtlas, sink: GlyphBatchSink, p: DrawTex
         rich: p.richText,
         color: p.color,
         maxWidth: p.maxWidth,
+        boxWidth: p.boxWidth,
     }, p.style ?? 0);
     if (layout.glyphs.length === 0) return;
 
-    // Vertical alignment within the box: shift the whole block down (y-up) by the
-    // slack between the box and the content. layout.lineHeight is total block height.
+    // Position the block within its box: [originX .. originX+boxWidth] × [originY .. -boxHeight].
+    // A boxless label (box 0×0) collapses the box to the entity origin, so align/verticalAlign
+    // ANCHOR the whole block to it rather than silently doing nothing — one rule, both cases.
+    const boxHeight = p.boxHeight ?? 0;
+    const boxWidth = p.boxWidth ?? 0;
+
+    // Vertical: shift the block down (y-up) by the slack between box and content. With a
+    // zero-height box the slack is -blockHeight, which anchors the block to the origin.
     let originY = p.originY ?? 0;
-    if (p.boxHeight && p.boxHeight > 0 && p.verticalAlign) {
-        const slack = p.boxHeight - layout.lineHeight;
+    if (p.verticalAlign) {
+        const slack = boxHeight - layout.lineHeight;
         originY -= p.verticalAlign === 1 ? slack / 2 : slack; // 1 middle, 2 bottom
     }
 
@@ -89,7 +98,13 @@ export function drawTextWith(atlas: GlyphAtlas, sink: GlyphBatchSink, p: DrawTex
         arr.push(g);
     }
 
-    const baseX = p.originX ?? 0;
+    // Horizontal: layoutText aligned each LINE within the box width (boxed) or the
+    // widest line (boxless). For a boxless label, anchor the whole block to the origin
+    // per align — left = left edge at origin, center = centered, right = right edge.
+    let baseX = p.originX ?? 0;
+    if (boxWidth <= 0 && p.align) {
+        baseX -= p.align === 1 ? layout.width / 2 : layout.width; // 1 center, 2 right
+    }
     // Emit the glyph set once per page, recolored + offset. All passes are SDF
     // glyphs in the same atlas/layer, so they batch and draw in submit order —
     // shadow + outline first (behind), fill last (on top).

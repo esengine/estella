@@ -294,6 +294,14 @@ export function animatableFieldsFor(compType: string): readonly string[] {
   return userSchema(compType)?.animatableFields ?? [];
 }
 
+/** Engine-COMPUTED output fields (authored `readonly` at the C++ ES_PROPERTY site —
+ *  e.g. Transform's worldPosition/worldRotation/worldScale). The reconciler must not
+ *  push the model's stale value for these: the engine composes them each frame, so a
+ *  write clobbers the live value. User components have none. */
+export function readonlyFieldsFor(compType: string): readonly string[] {
+  return getComponent(compType)?.readonlyFields ?? [];
+}
+
 // — Per-entity dynamic enums —
 // Some string fields are really a choice from a list that depends on the entity's
 // runtime state, not a static enum (e.g. a spine animation/skin name from the loaded
@@ -570,6 +578,19 @@ const POSITIONAL_LIGHT_TYPES = new Set([Light2DType.Point, Light2DType.Spot]);
  * explainable (e.g. the render path skips a positional light with no Transform).
  */
 export function componentNotice(compType: string, entity: SceneEntityLike): string | null {
+  // Text align/verticalAlign resolve against a layout box, which only a UINode (laid
+  // out under a Canvas) provides. Without one the text anchors to the entity origin —
+  // surfaced when the user has actually set an alignment, so the behavior is explained.
+  if (compType === 'Text') {
+    if (!entity.components.some((c) => c.type === 'UINode')) {
+      const d = entity.components.find((c) => c.type === 'Text')?.data as
+        | { align?: number; verticalAlign?: number }
+        | undefined;
+      if ((d?.align ?? 0) !== 0 || (d?.verticalAlign ?? 0) !== 0)
+        return 'No layout box — align anchors the text to the entity origin. To align within a fixed area, add a UINode and place this Text under a Canvas.';
+    }
+    return null;
+  }
   const hasTransform = entity.components.some((c) => c.type === 'Transform');
   if (hasTransform) return null;
   if (compType === 'Light2D') {

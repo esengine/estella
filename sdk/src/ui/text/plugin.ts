@@ -113,6 +113,7 @@ export class TextPlugin implements Plugin {
                 let originX: number | undefined;
                 let originY: number | undefined;
                 let maxWidth: number | undefined;
+                let boxWidth: number | undefined;
                 let boxHeight: number | undefined;
                 let layer = 0;
                 let w = 0, h = 0, hasBox = false;
@@ -125,8 +126,9 @@ export class TextPlugin implements Plugin {
                     const box = rectTextBox(0.5, 0.5, w, h, t.fontSize);
                     originX = box.originX;
                     originY = box.originY;
+                    boxWidth = box.maxWidth; // align within the box regardless of word-wrap
                     boxHeight = box.boxHeight;
-                    if (t.wordWrap) maxWidth = box.maxWidth;
+                    if (t.wordWrap) maxWidth = box.maxWidth; // wrap only when enabled
 
                     const order = module.ui_getRenderOrder
                         ? module.ui_getRenderOrder(registry, entity as number)
@@ -160,6 +162,7 @@ export class TextPlugin implements Plugin {
                         verticalAlign: t.verticalAlign,
                         lineHeight: lineHeightPx,
                         maxWidth,
+                        boxWidth,
                         boxHeight,
                         originX,
                         originY,

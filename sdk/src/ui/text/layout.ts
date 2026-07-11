@@ -154,6 +154,12 @@ export interface MultilineTextOptions extends TextLayoutOptions {
     color?: RGBA;
     /** Word-wrap width in display px (plain text only). 0/undefined = no wrap. */
     maxWidth?: number;
+    /**
+     * Width (display px) each line is horizontally aligned within — the layout box.
+     * Defaults to `maxWidth`, else the widest line. Separating it from `maxWidth` lets
+     * horizontal align work inside a fixed box even when word-wrap is off.
+     */
+    boxWidth?: number;
 }
 
 /** Sum of glyph advances for a string at the given size (display px). Pure. */
@@ -237,8 +243,11 @@ export function layoutText(
         : layoutLine(line, atlas, fontFamily, opts, style)));
 
     const contentWidth = lineLayouts.reduce((m, l) => Math.max(m, l.width), 0);
-    // Align within the wrap/rect box when one is given, else within the widest line.
-    const alignWidth = (opts.maxWidth && opts.maxWidth > 0) ? opts.maxWidth : contentWidth;
+    // Align within the layout box when one is given (independent of word-wrap), then
+    // the wrap width, else the widest line.
+    const alignWidth = (opts.boxWidth && opts.boxWidth > 0) ? opts.boxWidth
+        : (opts.maxWidth && opts.maxWidth > 0) ? opts.maxWidth
+        : contentWidth;
     const glyphs: LaidGlyph[] = [];
 
     for (let i = 0; i < lineLayouts.length; i++) {

@@ -82,8 +82,8 @@ export const Text = defineComponent<TextData>('Text', {
     enabled: true,
 }, {
     fields: {
-        align: { enum: enumOptions(TextAlign) },
-        verticalAlign: { enum: enumOptions(TextVerticalAlign) },
+        align: { enum: enumOptions(TextAlign), tooltip: 'Horizontal alignment: within the layout box when the entity has a UINode, else it anchors the text to the entity origin (left/center/right edge).' },
+        verticalAlign: { enum: enumOptions(TextVerticalAlign), tooltip: 'Vertical alignment: within the layout box when the entity has a UINode, else it anchors the text to the entity origin (top/middle/bottom).' },
         overflow: { enum: enumOptions(TextOverflow) },
         renderMode: { enum: enumOptions(TextRenderMode) },
     },

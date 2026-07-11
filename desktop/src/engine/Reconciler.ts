@@ -6,7 +6,7 @@ import type { EntityId } from '@/types';
 import { EngineHost } from './EngineHost';
 import { PerfMonitor } from './PerfMonitor';
 import { SceneModel, SceneModelImpl, type ModelEvent } from './SceneModel';
-import { assetFieldType, spineSlotType, componentByName, componentDefaults, isRenderComponent, componentEnable, type AnyComp, type WorldT } from './schema';
+import { assetFieldType, spineSlotType, componentByName, componentDefaults, isRenderComponent, componentEnable, readonlyFieldsFor, type AnyComp, type WorldT } from './schema';
 
 /**
  * Projects the model into the World.
@@ -236,8 +236,20 @@ export class ReconcilerImpl {
     // edit on a hidden entity doesn't quietly un-hide it in the viewport.
     const src = this.model.isHidden(sourceId) ? foldHidden(comp) : comp;
     const data = this.projectData(type, def, src.data as Record<string, unknown>);
-    if (world.has(rt, def)) world.set(rt, def, data as Parameters<WorldT['set']>[2]);
-    else world.insert(rt, def, data as never);
+    if (world.has(rt, def)) {
+      // Readonly fields (Transform's world-space transform) are ENGINE-computed each
+      // frame; the model carries a stale zero for them, and the value-object marshalling
+      // needs every field present — so re-use the World's live-composed value instead of
+      // clobbering it to the origin (which is what made a moving gizmo snap to 0,0).
+      const readonly = readonlyFieldsFor(type);
+      if (readonly.length) {
+        const live = world.get(rt, def) as Record<string, unknown>;
+        for (const k of readonly) if (k in live) data[k] = live[k];
+      }
+      world.set(rt, def, data as Parameters<WorldT['set']>[2]);
+    } else {
+      world.insert(rt, def, data as never);
+    }
   }
 
   /** Re-project an entity's render components when its editor visibility flips. */

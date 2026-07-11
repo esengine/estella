@@ -42,6 +42,7 @@ import { SceneQuery, buildEntityInfo, buildInspector } from '@/engine/SceneQuery
 import { SceneModel } from '@/engine/SceneModel';
 import { InspectorClipboard } from '@/engine/inspectorClipboard';
 import { SceneCommands, toModelValue } from '@/engine/SceneCommands';
+import { ENTITY_SOURCES, createFromSource } from '@/engine/entitySources';
 import { PlayInspect } from '@/engine/PlayInspect';
 import { DimensionUnit } from 'esengine';
 import type { SceneData, InputMapAsset, ActionType, Binding } from 'esengine';
@@ -1076,6 +1077,30 @@ function Fold({ label, open, onToggle, children }: { label: string; open: boolea
 
 const ADVANCED_FOLD = '__advanced__';
 
+/** Give a boxless Text a UI layout box: ensure a Canvas (create one if the scene has
+ *  none), then add a sized UINode + reparent under it so align/verticalAlign resolve
+ *  within a box instead of anchoring to the origin. */
+async function addTextLayoutBox(sourceId: EntityId): Promise<void> {
+  let canvas = SceneCommands.findCanvas();
+  if (canvas == null) {
+    const src = ENTITY_SOURCES.find((s) => s.id === 'canvas');
+    canvas = src ? await createFromSource(src, { parent: null }) : null;
+  }
+  if (canvas != null) SceneCommands.attachUINodeBox(sourceId, canvas, 240, 80);
+}
+
+/** The one-click "Add layout box" action for a boxless Text (no UINode), else undefined. */
+function textBoxAction(comp: InspectorComponent, sourceId: EntityId): { label: string; title: string; run: () => void } | undefined {
+  if (comp.name !== 'Text') return undefined;
+  const e = SceneModel.entityBySource(sourceId);
+  if (!e || e.components.some((c) => c.type === 'UINode')) return undefined;
+  return {
+    label: 'Add layout box',
+    title: 'Add a UINode and place this Text under a Canvas so align / vertical align resolve within a fixed box.',
+    run: () => void addTextLayoutBox(sourceId),
+  };
+}
+
 function ComponentSection({
   entities,
   comp,
@@ -1083,6 +1108,7 @@ function ComponentSection({
   onToggle,
   onMore,
   write,
+  action,
 }: {
   entities: EntityId[];
   comp: InspectorComponent;
@@ -1090,6 +1116,7 @@ function ComponentSection({
   onToggle: () => void;
   onMore?: (e: React.MouseEvent, name: string) => void;
   write?: FieldWrite;
+  action?: { label: string; title: string; run: () => void };
 }) {
   const Icon = componentIcon(comp.name);
   const overridden = comp.fields.some(isModified);
@@ -1162,6 +1189,11 @@ function ComponentSection({
       <div className="comp-body">
         <div className="cinner">
           {comp.notice && <div className="comp-notice">{comp.notice}</div>}
+          {action && (
+            <button type="button" className="comp-action" title={action.title} onClick={action.run}>
+              {action.label}
+            </button>
+          )}
           <div className="comp-fields">
             {ungrouped.map(row)}
             {[...groups].map(([cat, fields]) => (
@@ -1228,6 +1260,7 @@ function GameDetails() {
                 comp={comp}
                 collapsed={collapsed.has(comp.name)}
                 onToggle={() => toggle(comp.name)}
+                action={textBoxAction(comp, selection)}
                 write={(key, type, value) =>
                   PlayInspect.setField(selection, comp.name, key, toModelValue(compData(comp.name), type, key, value as never))
                 }

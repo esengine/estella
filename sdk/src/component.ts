@@ -100,6 +100,12 @@ export interface ComponentMetadata {
      */
     replicatedFields?: string[];
     /**
+     * Engine-COMPUTED output fields (Transform's world-space fields), authored
+     * `readonly` at the C++ ES_PROPERTY site. Never authoring inputs — the editor
+     * must not project them into the World (it clobbers the composed value).
+     */
+    readonlyFields?: string[];
+    /**
      * Custom asset discovery for scene preload. Authoritative when present:
      * `assetFields` are NOT walked for discovery (they still drive editor
      * pickers/ref rewrites), so the callback can exclude values that are not
@@ -154,6 +160,8 @@ export interface ComponentDef<T> {
     readonly animatableFields: readonly string[];
     /** Fields the replication layer syncs; empty = never replicates. See {@link ComponentMetadata.replicatedFields}. */
     readonly replicatedFields: readonly string[];
+    /** Engine-computed output fields the editor must never write back. See {@link ComponentMetadata.readonlyFields}. */
+    readonly readonlyFields: readonly string[];
     readonly fieldMeta: Readonly<Record<string, FieldMeta>>;
     readonly discoverAssets?: (data: Record<string, unknown>) => AssetRef[];
     /** Runtime-only: omitted from scene serialization. See {@link ComponentMetadata.transient}. */
@@ -240,6 +248,7 @@ function createComponentDef<T extends object>(
         colorKeys: detectColorKeys(defaults),
         animatableFields: metadata?.animatableFields ?? numericAnimatableFields(defaults),
         replicatedFields: metadata?.replicatedFields ?? [],
+        readonlyFields: metadata?.readonlyFields ?? [],
         fieldMeta: metadata?.fields ?? {},
         discoverAssets: metadata?.discoverAssets,
         transient: metadata?.transient ?? false,
@@ -372,6 +381,8 @@ export interface BuiltinComponentDef<T> {
     readonly animatableFields: readonly string[];
     /** Fields authored `replicated` at the C++ ES_PROPERTY site (via COMPONENT_META). */
     readonly replicatedFields: readonly string[];
+    /** Fields authored `readonly` (engine-computed outputs); the editor never writes them back. */
+    readonly readonlyFields: readonly string[];
     readonly fieldMeta: Readonly<Record<string, FieldMeta>>;
     readonly discoverAssets?: (data: Record<string, unknown>) => AssetRef[];
     /** Runtime-only: omitted from scene serialization. See {@link ComponentMetadata.transient}. */
@@ -526,6 +537,7 @@ export function defineBuiltin<T>(name: string, defaults: T, metadata?: Component
         colorKeys: meta?.colorFields ?? detectColorKeys(defaults),
         animatableFields: meta?.animatableFields ?? [],
         replicatedFields: meta?.replicatedFields ?? [],
+        readonlyFields: meta?.readonlyFields ?? [],
         fieldMeta: mergeFieldMeta(meta?.fields ?? {}, metadata?.fields ?? {}),
         discoverAssets: metadata?.discoverAssets,
         // Builtins declare transience via the defineBuiltin metadata arg for now;
