@@ -14,6 +14,73 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-07-10
+
+A create-anything entity workflow, an inspector that guards your data, a fully
+keyboard-driven editor, and multi-scene builds — plus a broad theme and Spine polish
+pass.
+
+### Added
+
+- **Create any entity from one place.** The **Create…** popover now spawns every
+  component-anchored entity — Sprite, Camera, Particles, Light, Tilemap, Spine, Audio,
+  Text, BitmapText, Shape, Mesh, Trail, and the UI widgets — alongside **your own
+  project components** and any **project prefab** (`.esprefab`). A single create pipeline
+  backs the menu, drag-and-drop, and the automation surface, so every path spawns the
+  same way and as one undo step.
+- **Inspector field constraints.** A field declared **required** is flagged when left
+  empty, a numeric field is clamped to its declared range on write (out-of-range values
+  can no longer slip in through play-mode or material edits), and dropping an asset onto
+  a slot is rejected unless its type matches.
+- **Multi-scene builds.** Every scene in the project ships as a switchable
+  `SceneManager` target. Pick the **startup scene** from the Content Browser, review the
+  **Scenes in build** list in the Package dialog, and **exclude** scenes you don't want
+  to ship.
+- **Spine skeleton & atlas as first-class asset slots.** Assign the skeleton and atlas
+  from asset-picker slots in Details — portable UUID references that survive moves and
+  renames — with a live skeleton preview and animation/skin dropdowns.
+- **Tilemap painting upgrades.** A **random-scatter brush** for stamp variation,
+  **animated tiles** in the tileset editor (frame sequences with per-frame durations and
+  a live preview), diagonal-flip support for GID tile objects, and a keyboard-navigable
+  tile palette.
+- **A keyboard-driven editor.** Menus and context menus navigate with the arrow keys
+  (type-ahead, Home/End, submenus), the Outliner jumps to entities as you type, the
+  Content Browser folder tree and the tile palette walk with arrows, file operations
+  post a **toast with Undo**, transient surfaces restore focus on close, **Esc** backs
+  out everywhere, and a visible focus ring always shows where you are.
+- **Preview exports locally.** Serve web and playable-ad exports over a loopback HTTP
+  server straight from the editor.
+- **Query filter DSL.** The SDK exports `With`, `Without`, `And`, `Or`, and `Not` for
+  composing query filters.
+
+### Changed
+
+- **The editor UI is unified in English** and migrated onto a single design-token
+  system, so accent color, spacing, and surfaces stay consistent across every panel,
+  menu, and graph editor. The material graph joins the shared node canvas (pan/zoom,
+  shared context menu).
+- **Closing a dirty document guards asynchronously** instead of blocking on a native
+  confirm dialog.
+
+### Fixed
+
+- **Spine properties apply live from the inspector.** Editing the tint color, time
+  scale, or the playing toggle now takes effect immediately; `setSkeletonColor` degrades
+  gracefully on an older WASM that lacks it.
+- **Spine atlases are single-sourced.** Atlas pages resolve through the manifest, the
+  cook embeds them, KTX2 pages transcode via Basis, and the exporter detects the runtime
+  version again.
+- **WeChat export hardening.** One SDK core per bundle (no `Res` identity split-brain),
+  KTX2 ships as `.ktx2.bin` to satisfy the suffix whitelist with the Basis module, the
+  runtime instantiates the staged WASM twins, and export fails fast without the
+  `-t wechat` runtime.
+- **The packaged editor is self-contained.** It ships the new-project templates and can
+  play and export without bundling editor sources at runtime.
+- **Tilemap creation is a single undo step** again — the reconciler projects the
+  tilemap's tileset assets out-of-band, so undo/redo and reload restore them.
+- Platform-specific shortcut mismatches, duplicate entries in Recents, and a TypeDoc
+  build break (a duplicated Basis transcoder import) are fixed.
+
 ## [0.18.0] - 2026-07-09
 
 Tilemap authoring, on-canvas gizmos, and a selectable WebGPU backend — plus a round
@@ -292,7 +359,9 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.17.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.19.0...HEAD
+[0.19.0]: https://github.com/esengine/estella/compare/v0.18.0...v0.19.0
+[0.18.0]: https://github.com/esengine/estella/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/esengine/estella/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/esengine/estella/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/esengine/estella/compare/v0.14.0...v0.15.0
