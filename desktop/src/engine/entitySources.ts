@@ -76,11 +76,18 @@ export function spritePrefab(name: string, textureRef: string, size: { x: number
 
 /**
  * A Transform + TilemapLayer prefab whose `cellSize` (a vec2 → `{x, y}` in the model)
- * is seeded from the tileset's tile size. The `.estileset` link is out-of-band and
- * live-pushed separately (see createTilemap's afterCreate), not baked here.
+ * is seeded from the tileset's tile size. `tilesetRef` bakes the out-of-band
+ * `.estileset` link into the prefab, so it rides the single create step into the
+ * model; the Reconciler live-pushes it to the plugin on spawn (create AND
+ * redo/reload restore it), which is why creation needs no setLayerTilesets step.
  */
-export function tilemapPrefab(name: string, cellSize: { x: number; y: number }): PrefabData {
-  return preset(name, [['Transform', {}], ['TilemapLayer', { cellSize: { x: cellSize.x, y: cellSize.y } }]]);
+export function tilemapPrefab(name: string, cellSize: { x: number; y: number }, tilesetRef?: string): PrefabData {
+  const layer: Record<string, unknown> = { cellSize: { x: cellSize.x, y: cellSize.y } };
+  if (tilesetRef) {
+    layer.tilesetAssets = [tilesetRef];
+    layer.tilesetAsset = tilesetRef; // back-compat singular first tileset
+  }
+  return preset(name, [['Transform', {}], ['TilemapLayer', layer]]);
 }
 
 /** A static preset source — its prefab is built once from the registered component defaults. */

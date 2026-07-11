@@ -56,8 +56,16 @@ describe('entitySources registry (Create-entity E2)', () => {
     const types = root.components.map((c) => c.type);
     expect(types).toContain('Transform');
     expect(types).toContain('TilemapLayer');
-    const layer = root.components.find((c) => c.type === 'TilemapLayer')!.data as { cellSize: { x: number; y: number } };
+    const layer = root.components.find((c) => c.type === 'TilemapLayer')!.data as Record<string, unknown>;
     expect(layer.cellSize).toMatchObject({ x: 32, y: 16 });
+    expect(layer.tilesetAssets).toBeUndefined(); // no ref → no out-of-band link baked
+
+    // With a tilesetRef the out-of-band link is baked into the prefab (the Reconciler
+    // live-pushes it on spawn, so no create-time setLayerTilesets step).
+    const withRef = tilemapPrefab('Tilemap', { x: 16, y: 16 }, '@uuid:ts-1').entities[0]
+      .components.find((c) => c.type === 'TilemapLayer')!.data as Record<string, unknown>;
+    expect(withRef.tilesetAssets).toEqual(['@uuid:ts-1']);
+    expect(withRef.tilesetAsset).toBe('@uuid:ts-1');
   });
 
   it('createFromSource returns null when build throws (aborted source, e.g. a failed prefab load)', async () => {

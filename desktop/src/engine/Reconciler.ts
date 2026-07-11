@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { Name, Parent, getComponent, resetWorldTo } from 'esengine';
+import { Name, Parent, getComponent, resetWorldTo, TilemapLiveSync } from 'esengine';
 import type { SceneData } from 'esengine';
 import type { EntityId } from '@/types';
 import { EngineHost } from './EngineHost';
@@ -193,6 +193,16 @@ export class ReconcilerImpl {
     for (const childId of entity.children) {
       const cr = this.model.runtimeFor(childId);
       if (cr != null) world.insert(cr, Parent, { entity: rt } as never);
+    }
+    // Out-of-band: a TilemapLayer's `tilesetAssets` isn't an engine component field,
+    // so insertComponent skips it. Live-push it to the tilemap plugin on spawn — this
+    // is what makes create AND redo/reload restore a map's tileset with no create-time
+    // special-casing (the map is a single, plain create step).
+    const layer = entity.components.find((c) => c.type === 'TilemapLayer');
+    if (layer) {
+      const refs = (layer.data as Record<string, unknown>).tilesetAssets;
+      const list = Array.isArray(refs) ? refs.filter((r): r is string => typeof r === 'string' && r !== '') : [];
+      if (list.length > 0) TilemapLiveSync.setLayerTilesets(rt, list);
     }
   }
 

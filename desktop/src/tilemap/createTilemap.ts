@@ -11,7 +11,6 @@
  */
 import { parseTileset } from 'esengine';
 import { Grid3x3 } from 'lucide-react';
-import { SceneCommands } from '@/engine/SceneCommands';
 import { createFromSource, tilemapPrefab, type EntitySource } from '@/engine/entitySources';
 import { useSelection } from '@/store/selectionStore';
 import { useTilemapPaint } from '@/store/tilemapPaintStore';
@@ -30,13 +29,10 @@ function tilesetSource(tilesetPath: string, tilesetRef: string, tileWidth: numbe
     label: 'Tilemap',
     category: '2D',
     icon: Grid3x3,
-    build: () => tilemapPrefab('Tilemap', { x: tileWidth, y: tileHeight }),
+    // tilesetRef bakes the link into the prefab; the Reconciler live-pushes it on
+    // spawn/redo, so the map is a single undoable create with no wiring step.
+    build: () => tilemapPrefab('Tilemap', { x: tileWidth, y: tileHeight }, tilesetRef),
     afterCreate: (_ctx, rootId) => {
-      // The .estileset link is out-of-band (carried in the model like the chunks blob).
-      // setLayerTilesets writes it AND live-pushes to the plugin so the fresh layer
-      // resolves its render table and is paintable immediately. It records its own
-      // 'Set Tilesets' undo step, so redo re-pushes (no reload needed).
-      SceneCommands.setLayerTilesets(rootId, [tilesetRef]);
       useSelection.getState().select(rootId);
       useTilemapPaint.getState().setTileset(tilesetPath);
       useTilemapPaint.getState().setTool('brush');
