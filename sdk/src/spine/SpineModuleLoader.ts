@@ -52,6 +52,7 @@ export interface SpineWasmModule {
     _spine_setAttachment(instanceId: number, slotName: number, attachmentName: number): number;
     _spine_setIKTarget(instanceId: number, constraintName: number, targetX: number, targetY: number, mix: number): number;
     _spine_setSlotColor(instanceId: number, slotName: number, r: number, g: number, b: number, a: number): number;
+    _spine_setSkeletonColor(instanceId: number, r: number, g: number, b: number, a: number): number;
     _spine_listConstraints(instanceId: number): number;
     _spine_getTransformConstraintMix(instanceId: number, name: number): number;
     _spine_setTransformConstraintMix(instanceId: number, name: number, rotate: number, x: number, y: number, scaleX: number, scaleY: number, shearY: number): number;
@@ -109,6 +110,7 @@ export interface SpineWrappedAPI {
     setAttachment(instanceId: number, slotName: string, attachmentName: string): boolean;
     setIKTarget(instanceId: number, constraintName: string, targetX: number, targetY: number, mix: number): boolean;
     setSlotColor(instanceId: number, slotName: string, r: number, g: number, b: number, a: number): boolean;
+    setSkeletonColor(instanceId: number, r: number, g: number, b: number, a: number): boolean;
     listConstraints(instanceId: number): string;
     getTransformConstraintMix(instanceId: number, name: string): string;
     setTransformConstraintMix(instanceId: number, name: string, rotate: number, x: number, y: number, scaleX: number, scaleY: number, shearY: number): boolean;
@@ -156,6 +158,7 @@ export function wrapSpineModule(raw: SpineWasmModule): SpineWrappedAPI {
         setAttachment: cw('spine_setAttachment', 'number', ['number', 'string', 'string']) as SpineWrappedAPI['setAttachment'],
         setIKTarget: cw('spine_setIKTarget', 'number', ['number', 'string', 'number', 'number', 'number']) as SpineWrappedAPI['setIKTarget'],
         setSlotColor: cw('spine_setSlotColor', 'number', ['number', 'string', 'number', 'number', 'number', 'number']) as SpineWrappedAPI['setSlotColor'],
+        setSkeletonColor: cw('spine_setSkeletonColor', 'number', ['number', 'number', 'number', 'number', 'number']) as SpineWrappedAPI['setSkeletonColor'],
         listConstraints: cw('spine_listConstraints', 'string', ['number']) as SpineWrappedAPI['listConstraints'],
         getTransformConstraintMix: cw('spine_getTransformConstraintMix', 'string', ['number', 'string']) as SpineWrappedAPI['getTransformConstraintMix'],
         setTransformConstraintMix: cw('spine_setTransformConstraintMix', 'number', ['number', 'string', 'number', 'number', 'number', 'number', 'number', 'number']) as SpineWrappedAPI['setTransformConstraintMix'],

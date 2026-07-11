@@ -21,6 +21,7 @@
  *        spine themselves, once).
  */
 import { getComponentSpineFieldDescriptor } from 'esengine';
+import { spineEntityProps } from 'esengine/spine';
 import type { SceneData } from 'esengine';
 import { SceneModel, type ModelEvent } from './SceneModel';
 import { SceneStore } from './SceneStore';
@@ -155,12 +156,7 @@ function syncEntity(sourceId: number): void {
   // Same binding — apply the editable spine state in place. Props are
   // idempotent; skin/animation only on change so scrubbing an unrelated
   // field never restarts the animation.
-  spine.setEntityProps(rt as never, {
-    skeletonScale: typeof sc.d.skeletonScale === 'number' ? sc.d.skeletonScale : 1,
-    flipX: sc.d.flipX === true,
-    flipY: sc.d.flipY === true,
-    layer: typeof sc.d.layer === 'number' ? sc.d.layer : 0,
-  });
+  spine.setEntityProps(rt as never, spineEntityProps(sc.d));
   if (prev.skin !== next.skin && next.skin) spine.setSkin(rt as never, next.skin);
   if (prev.animation !== next.animation || prev.loop !== next.loop) {
     if (next.animation) spine.setAnimation(rt as never, next.animation, next.loop);

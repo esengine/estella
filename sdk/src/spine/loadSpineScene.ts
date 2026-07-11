@@ -28,6 +28,29 @@ import { parseSpineAtlasPages } from './atlasPages';
 import { createTextureFromPixels, type RuntimeAssetSource } from '../runtimeAssets';
 import { isKtx2Path, type BasisTranscoder } from '../asset/compressed';
 
+/**
+ * The in-place editable spine props from a SpineAnimation component's data — the
+ * SINGLE extraction both the scene loader and the editor's live-sync feed to
+ * `setEntityProps`, so a new prop (color/timeScale/playing/...) is carried by both
+ * paths from one place instead of being hand-listed twice.
+ */
+export function spineEntityProps(d: Record<string, unknown>): {
+  skeletonScale: number; flipX: boolean; flipY: boolean; layer: number;
+  timeScale: number; playing: boolean; color?: { r: number; g: number; b: number; a: number };
+} {
+  const num = (v: unknown, dflt: number) => (typeof v === 'number' ? v : dflt);
+  const color = d.color;
+  return {
+    skeletonScale: num(d.skeletonScale, 1),
+    flipX: d.flipX === true,
+    flipY: d.flipY === true,
+    layer: num(d.layer, 0),
+    timeScale: num(d.timeScale, 1),
+    playing: d.playing !== false,
+    color: color && typeof color === 'object' ? (color as { r: number; g: number; b: number; a: number }) : undefined,
+  };
+}
+
 /** Lazily yields the realm's Basis transcoder (KTX2 atlas pages), or null where
  *  compressed textures can't occur (editor, uncooked dev). Same seam as the
  *  TextureLoader's transcoder provider. */
@@ -157,12 +180,7 @@ export async function applySpineEntities(opts: {
                 entity, info.skelData, info.atlasText, info.textures, registry,
                 `${skelRef}:${atlasRef}`);
 
-            spineManager.setEntityProps(entity, {
-                skeletonScale: (comp.data.skeletonScale as number) ?? 1,
-                flipX: (comp.data.flipX as boolean) ?? false,
-                flipY: (comp.data.flipY as boolean) ?? false,
-                layer: (comp.data.layer as number) ?? 0,
-            });
+            spineManager.setEntityProps(entity, spineEntityProps(comp.data as Record<string, unknown>));
             const skin = comp.data.skin as string;
             if (skin) spineManager.setSkin(entity, skin);
             const animation = comp.data.animation as string;

@@ -14,6 +14,8 @@ interface EntityInfo {
     flipX: boolean;
     flipY: boolean;
     layer: number;
+    timeScale: number;
+    playing: boolean;
     /** Dedup key (asset ref). Entities sharing a key share one loaded skeleton. */
     assetKey?: string;
 }
@@ -74,13 +76,14 @@ export class ModuleBackend {
         const instanceId = this.controller_.createInstance(skelHandle);
         this.entities_.set(entity, {
             skelHandle, instanceId, assetKey,
-            skeletonScale: 1, flipX: false, flipY: false, layer: 0,
+            skeletonScale: 1, flipX: false, flipY: false, layer: 0, timeScale: 1, playing: true,
         });
         return true;
     }
 
     setEntityProps(entity: Entity, props: {
         skeletonScale?: number; flipX?: boolean; flipY?: boolean; layer?: number;
+        timeScale?: number; playing?: boolean; color?: { r: number; g: number; b: number; a: number };
     }): void {
         const info = this.entities_.get(entity);
         if (!info) return;
@@ -88,6 +91,11 @@ export class ModuleBackend {
         if (props.flipX !== undefined) info.flipX = props.flipX;
         if (props.flipY !== undefined) info.flipY = props.flipY;
         if (props.layer !== undefined) info.layer = props.layer;
+        if (props.timeScale !== undefined) info.timeScale = props.timeScale;
+        if (props.playing !== undefined) info.playing = props.playing;
+        // Whole-skeleton tint applied straight to skeleton->color (persists there until
+        // changed; re-applied on every sync so a reload/rebuild restores it).
+        if (props.color) this.controller_.setSkeletonColor(info.instanceId, props.color.r, props.color.g, props.color.b, props.color.a);
     }
 
     setAnimation(entity: Entity, animation: string, loop: boolean): void {
@@ -207,7 +215,9 @@ export class ModuleBackend {
 
     updateAll(dt: number): void {
         for (const info of this.entities_.values()) {
-            this.controller_.update(info.instanceId, dt);
+            // playing=false freezes the pose (skip advance, still submitted);
+            // timeScale scales the advance (update() takes an arbitrary dt).
+            if (info.playing) this.controller_.update(info.instanceId, dt * info.timeScale);
         }
     }
 

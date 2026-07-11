@@ -1109,6 +1109,21 @@ int spine_setSlotColor(int instanceId, const char* slotName,
     return 1;
 }
 
+// Whole-skeleton tint: extraction already multiplies skeleton->color into every
+// vertex (skelColor * slotColor * attachColor), so this is all the wiring a
+// SpineAnimation.color needs — the skeleton-level analogue of setSlotColor.
+EMSCRIPTEN_KEEPALIVE
+int spine_setSkeletonColor(int instanceId, float r, float g, float b, float a) {
+    auto it = g_ctx.instances.find(instanceId);
+    if (it == g_ctx.instances.end()) return 0;
+
+    it->second.skeleton->color.r = r;
+    it->second.skeleton->color.g = g;
+    it->second.skeleton->color.b = b;
+    it->second.skeleton->color.a = a;
+    return 1;
+}
+
 } // extern "C"
 
 int main() {

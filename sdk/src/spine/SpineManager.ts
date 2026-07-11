@@ -142,6 +142,7 @@ export class SpineManager {
 
     setEntityProps(entity: Entity, props: {
         skeletonScale?: number; flipX?: boolean; flipY?: boolean; layer?: number;
+        timeScale?: number; playing?: boolean; color?: { r: number; g: number; b: number; a: number };
     }): void {
         const version = this.entityVersions_.get(entity);
         if (!version) return;

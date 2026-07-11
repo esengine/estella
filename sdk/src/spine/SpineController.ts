@@ -312,6 +312,11 @@ export class SpineModuleController {
         return !!this.api_.setSlotColor(instanceId, slotName, r, g, b, a);
     }
 
+    /** Whole-skeleton tint, multiplied into every vertex — backs SpineAnimation.color. */
+    setSkeletonColor(instanceId: number, r: number, g: number, b: number, a: number): boolean {
+        return !!this.api_.setSkeletonColor(instanceId, r, g, b, a);
+    }
+
     // =========================================================================
     // Events
     // =========================================================================
