@@ -50,8 +50,6 @@
 .set-head-sp { flex: 1; }
 /* shared SearchField, sized for the dialog header */
 .set-search { flex: none; width: 220px; height: 28px; }
-.set-x { width: 28px; height: 28px; display: grid; place-items: center; color: var(--text-mute); border-radius: var(--r-sm); }
-.set-x:hover { color: var(--text); background: var(--srf-4); }
 
 .set-body { flex: 1; min-height: 0; display: flex; }
 .set-nav {

@@ -27,6 +27,7 @@ import { useSelection } from '@/store/selectionStore';
 import { SceneModel } from '@/engine/SceneModel';
 import { ContextMenu, type MenuItem } from '@/components/Menu';
 import { DirtyDot } from '@/components/DirtyDot';
+import { IconButton } from '@/components/IconButton';
 import { NumField } from '@/components/NumField';
 import { SequencerCurve } from '@/panels/SequencerCurve';
 import {
@@ -366,8 +367,8 @@ function SequencerBody() {
           <Circle size={12} fill="currentColor" />
         </button>
         <span className="seq-div" />
-        <button type="button" className="seq-btn" title="Jump to start" onClick={() => setTime(0)}><ChevronFirst size={15} /></button>
-        <button type="button" className="seq-btn" title="Previous keyframe" onClick={() => jumpKey(-1)}><ChevronLeft size={15} /></button>
+        <IconButton size="md" title="Jump to start" onClick={() => setTime(0)}><ChevronFirst size={15} /></IconButton>
+        <IconButton size="md" title="Previous keyframe" onClick={() => jumpKey(-1)}><ChevronLeft size={15} /></IconButton>
         <button
           type="button"
           className="seq-btn seq-btn--play"
@@ -376,16 +377,16 @@ function SequencerBody() {
         >
           {playing ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
         </button>
-        <button type="button" className="seq-btn" title="Next keyframe" onClick={() => jumpKey(1)}><ChevronRight size={15} /></button>
-        <button type="button" className="seq-btn" title="Jump to end" onClick={() => setTime(duration)}><ChevronLast size={15} /></button>
-        <button
-          type="button"
-          className={`seq-btn${loop ? ' on' : ''}`}
+        <IconButton size="md" title="Next keyframe" onClick={() => jumpKey(1)}><ChevronRight size={15} /></IconButton>
+        <IconButton size="md" title="Jump to end" onClick={() => setTime(duration)}><ChevronLast size={15} /></IconButton>
+        <IconButton
+          size="md"
+          active={loop}
           title="Loop"
           onClick={() => useSequencerStore.getState().toggleLoop()}
         >
           <Repeat size={14} />
-        </button>
+        </IconButton>
         <span className="seq-div" />
         <span className="seq-frame">Frame <strong>{frame}</strong> / {totalFrames}</span>
         <span className="seq-spacer" />
@@ -393,22 +394,21 @@ function SequencerBody() {
           <button type="button" className={`seq-tab${view === 'sheet' ? ' active' : ''}`} onClick={() => useSequencerStore.getState().setView('sheet')}>Sheet</button>
           <button type="button" className={`seq-tab${view === 'curve' ? ' active' : ''}`} onClick={() => useSequencerStore.getState().setView('curve')}>Curves</button>
         </div>
-        <button
-          type="button"
-          className={`seq-btn${snap ? ' on' : ''}`}
+        <IconButton
+          size="md"
+          active={snap}
           title="Snap to frame"
           onClick={() => useSequencerStore.getState().toggleSnap()}
         >
           <Magnet size={14} />
-        </button>
-        <button
-          type="button"
-          className="seq-btn"
+        </IconButton>
+        <IconButton
+          size="md"
           title="Clip settings (duration / fps / loop)"
           onClick={(e) => setSettingsOpen(popoverAt(e))}
         >
           <Settings2 size={14} />
-        </button>
+        </IconButton>
         <button
           type="button"
           className="seq-btn seq-btn--text"

@@ -17,6 +17,7 @@ import { useSettings } from '@/store/settingsStore';
 import { settingsRegistry } from '@/settings/registry';
 import { eventToChord, formatKeybinding } from '@/commands/keybinding';
 import { useDialogFocus } from '@/components/dialogFocus';
+import { IconButton } from '@/components/IconButton';
 import { SearchField } from '@/components/SearchField';
 import { Segmented } from '@/components/Segmented';
 import { Select } from '@/components/Select';
@@ -385,9 +386,9 @@ export function SettingsDialog() {
           </span>
           <span className="set-head-sp" />
           <SearchField className="set-search" iconSize={12} autoFocus placeholder="Search settings…" value={query} onChange={setQuery} />
-          <button type="button" className="set-x" title="Close (Esc)" onClick={close}>
+          <IconButton size="lg" title="Close (Esc)" onClick={close}>
             <X size={14} strokeWidth={2} />
-          </button>
+          </IconButton>
         </div>
 
         <div className="set-body">

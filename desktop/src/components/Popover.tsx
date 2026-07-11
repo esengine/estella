@@ -18,13 +18,17 @@ export function Popover({
   width,
   onClose,
   children,
+  className,
 }: {
   /** The trigger's bounding rect, captured at open time. */
   anchor: DOMRect;
-  /** Panel width; defaults to the anchor's width (so a dropdown lines up). */
-  width?: number;
+  /** Panel width: a number pins it, `'auto'` sizes to content, omitted = the
+   *  anchor's width (so a field dropdown lines up under its trigger). */
+  width?: number | 'auto';
   onClose: () => void;
   children: ReactNode;
+  /** Extra class on the `.popover` shell — e.g. a glass variant for overlays. */
+  className?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number }>({ left: anchor.left, top: anchor.bottom + 2 });
@@ -76,8 +80,8 @@ export function Popover({
   return createPortal(
     <div
       ref={ref}
-      className="popover"
-      style={{ left: pos.left, top: pos.top, width: width ?? anchor.width }}
+      className={`popover${className ? ` ${className}` : ''}`}
+      style={{ left: pos.left, top: pos.top, width: width === 'auto' ? undefined : (width ?? anchor.width) }}
       onMouseDown={(e) => e.stopPropagation()}
     >
       {children}

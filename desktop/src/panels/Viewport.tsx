@@ -27,6 +27,7 @@ import { StatsStore } from '@/engine/StatsStore';
 import { PerfMonitor } from '@/engine/PerfMonitor';
 import { PerfOverlay } from '@/components/PerfOverlay';
 import { Perf } from '@/components/Perf';
+import { Popover, usePopover } from '@/components/Popover';
 import type { ToolMode } from '@/types';
 import { resolveActiveTool, type EditorTool, type ToolContext, type PointerInput } from '@/tools';
 import { cursorTile } from '@/tools/tileTools';
@@ -257,58 +258,53 @@ function OvTool({
   );
 }
 
-// A viewport overlay dropdown (UE5 "show flags" / "snap" menus): an .ovbtn
-// trigger with an icon, a label, and a chevron, plus a floating .dd-menu.
-// Closes on outside-click or after an item is chosen (the menu's onClick).
+// A viewport overlay dropdown (the "show flags" / "snap" menus): an .ovbtn
+// trigger with an icon, a label, and a chevron, over a glass <Popover> holding
+// the check/radio rows. Closes on item-click, outside press, scroll, or Escape.
 function OvDropdown({
   icon: Icon,
   label,
-  align,
   title,
   children,
 }: {
   icon: LucideIcon;
   label: ReactNode;
-  align?: 'r';
   title?: string;
   children: ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    window.addEventListener('mousedown', onDown);
-    return () => window.removeEventListener('mousedown', onDown);
-  }, [open]);
+  const pop = usePopover();
+  const btnRef = useRef<HTMLButtonElement>(null);
   return (
-    <div className={`dd${open ? ' open' : ''}`} ref={ref}>
+    <>
       <button
+        ref={btnRef}
         type="button"
-        className={`ovbtn${open ? ' open' : ''}`}
+        className={`ovbtn${pop.isOpen ? ' open' : ''}`}
         title={title}
         aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => setOpen((o) => !o)}
+        aria-expanded={pop.isOpen}
+        onClick={() => (pop.isOpen ? pop.close() : pop.open(btnRef.current))}
       >
         <Icon className="ic" size={13} strokeWidth={1.9} />
         {label}
         <ChevronDown className="cv" size={9} strokeWidth={2.5} />
       </button>
-      {/* Item clicks bubble here to dismiss; each item runs its own handler. */}
-      <div className={`dd-menu${align === 'r' ? ' r' : ''}`} role="menu" onClick={() => setOpen(false)}>
-        {children}
-      </div>
-    </div>
+      {/* Item clicks bubble to the menu to dismiss; each runs its own handler. */}
+      {pop.isOpen && pop.anchor && (
+        <Popover anchor={pop.anchor} width="auto" className="popover--glass" onClose={pop.close}>
+          <div role="menu" onClick={pop.close}>
+            {children}
+          </div>
+        </Popover>
+      )}
+    </>
   );
 }
 
 // Multi-toggle menu row (checkbox box) — for the Show Flags menu.
 function DdCheck({ on, label, onClick }: { on: boolean; label: string; onClick: () => void }) {
   return (
-    <div className={`dd-item${on ? ' on' : ''}`} role="menuitemcheckbox" aria-checked={on} onClick={onClick}>
+    <div className={`ovmenu-item${on ? ' on' : ''}`} role="menuitemcheckbox" aria-checked={on} onClick={onClick}>
       <span className="chk">{on && <Check size={8} strokeWidth={3.5} />}</span>
       <span className="l">{label}</span>
     </div>
@@ -318,7 +314,7 @@ function DdCheck({ on, label, onClick }: { on: boolean; label: string; onClick: 
 // Single-select menu row (tick mark, shown when active) — for the Snap menu.
 function DdRadio({ on, label, onClick }: { on: boolean; label: string; onClick: () => void }) {
   return (
-    <div className={`dd-item${on ? ' on' : ''}`} role="menuitemradio" aria-checked={on} onClick={onClick}>
+    <div className={`ovmenu-item${on ? ' on' : ''}`} role="menuitemradio" aria-checked={on} onClick={onClick}>
       <span className="tk"><Check size={11} strokeWidth={3} /></span>
       <span className="l">{label}</span>
     </div>
@@ -1036,7 +1032,7 @@ export function Viewport() {
       <div className="ov ov-tl">
         <div className="ov-cluster">
           <OvDropdown icon={Eye} label="Show" title="Show Flags">
-            <div className="dd-lbl">Show Flags</div>
+            <div className="ovmenu-lbl">Show Flags</div>
             <DdCheck on={showGrid} label="Grid" onClick={() => commands.run('view.toggleGrid')} />
             <DdCheck on={showGizmos} label="Gizmos" onClick={() => commands.run('view.toggleGizmos')} />
             <DdCheck on={showColliders} label="Colliders" onClick={() => commands.run('view.toggleColliders')} />
@@ -1083,11 +1079,10 @@ export function Viewport() {
           <OvDropdown
             icon={Grid3x3}
             label={<span className="val">{snapping ? snapStep : 'Off'}</span>}
-            align="r"
             title="Grid Snap"
           >
             <DdRadio on={!snapping} label="Off" onClick={() => useEditorStore.setState({ snapping: false })} />
-            <div className="dd-lbl">Move (units)</div>
+            <div className="ovmenu-lbl">Move (units)</div>
             {SNAP_STEPS.map((s) => (
               <DdRadio
                 key={s}
@@ -1096,7 +1091,7 @@ export function Viewport() {
                 onClick={() => useEditorStore.getState().setSnapStep(s)}
               />
             ))}
-            <div className="dd-lbl">Rotate (°)</div>
+            <div className="ovmenu-lbl">Rotate (°)</div>
             {SNAP_ANGLES.map((a) => (
               <DdRadio
                 key={a}
@@ -1105,7 +1100,7 @@ export function Viewport() {
                 onClick={() => useEditorStore.setState({ snapping: true, snapAngle: a })}
               />
             ))}
-            <div className="dd-lbl">Scale (×)</div>
+            <div className="ovmenu-lbl">Scale (×)</div>
             {SNAP_SCALES.map((s) => (
               <DdRadio
                 key={s}

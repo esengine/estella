@@ -154,7 +154,7 @@
   padding: 3px 5px;
   cursor: pointer;
 }
-.ts-trm:hover { color: #f0645a; border-color: #f0645a; }
+.ts-trm:hover { color: var(--error-hi); border-color: var(--error-hi); }
 
 /* Terrain peering cell: member highlight + clickable 3×3 zones */
 .ts-tcell.is-member { background: color-mix(in srgb, var(--tcolor) 26%, transparent); border-color: var(--tcolor); }
@@ -216,7 +216,7 @@
 .ts-pe-svg { position: absolute; left: 0; top: 0; pointer-events: none; }
 .ts-pe-poly { fill: color-mix(in srgb, var(--gizmo-tile) 30%, transparent); stroke: var(--gizmo-tile); stroke-width: 0.5; }
 .ts-pe-pt { fill: #fff; stroke: var(--gizmo-tile); stroke-width: 0.5; pointer-events: auto; cursor: pointer; }
-.ts-pe-pt:hover { fill: #f0645a; }
+.ts-pe-pt:hover { fill: var(--error-hi); }
 .ts-pe-hint { color: var(--text-faint); font-size: var(--fs-xs); text-align: center; }
 
 /* Animation mode: the frame strip under the toolbar + atlas cell markers. */

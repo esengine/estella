@@ -83,6 +83,32 @@
 .pbtn.on { color: var(--acc); }
 .pbody { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; }
 
+/* — Icon button (components/IconButton.tsx): the canonical square glyph button.
+     `.pbtn` above and the per-panel `.cb-ico`/`.filt-btn`/`.modal__x`/`.set-x`/
+     `.tbtn` classes are the same recipe at 22/24/28px — they fold into this as
+     call sites migrate to <IconButton>. — */
+.icon-btn {
+  display: grid;
+  place-items: center;
+  color: var(--text-mute);
+  border-radius: var(--r-sm);
+  flex-shrink: 0;
+  transition: color var(--t-fast), background var(--t-fast), border-color var(--t-fast);
+}
+.icon-btn--sm { width: 22px; height: 22px; }
+.icon-btn--md { width: 24px; height: 24px; }
+.icon-btn--lg { width: 28px; height: 28px; }
+.icon-btn:hover:not(:disabled) { color: var(--text); background: var(--srf-4); }
+.icon-btn:active:not(:disabled) { background: var(--srf-5); }
+.icon-btn:disabled { opacity: 0.4; cursor: default; }
+/* Active = accent fill — the same "current / selected" signal as Segmented's .on,
+   so a toggled toolbar button and a chosen segment read alike across the editor. */
+.icon-btn.on { background: var(--acc); color: var(--on-accent); }
+.icon-btn.on:hover:not(:disabled) { background: var(--acc); color: var(--on-accent); }
+.icon-btn--outline { border: 1px solid var(--border-line); background: var(--srf-3); color: var(--text-dim); }
+.icon-btn--outline:hover:not(:disabled) { color: var(--text); border-color: var(--text-mute); background: var(--srf-4); }
+.icon-btn--outline.on { border-color: var(--acc); }
+
 /* — Input well (components/NumField.tsx + the inspector's dropdown trigger):
      a bordered inset the actual control sits in, focus ring on the well. — */
 .field { height: 22px; flex: 1; min-width: 0; display: flex; align-items: center; background: var(--inset); border: 1px solid var(--border); border-radius: var(--r-sm); transition: border-color var(--t-fast), box-shadow var(--t-fast); }
@@ -90,6 +116,13 @@
 .field input { width: 100%; min-width: 0; background: none; border: none; outline: none; padding: 0 7px; font-size: var(--fs-sm); color: var(--text); font-family: var(--mono); }
 .field select { width: 100%; background: none; border: none; outline: none; padding: 0 6px; font-size: var(--fs-sm); color: var(--text); appearance: none; cursor: pointer; }
 .field.dropdown { padding: 0; overflow: hidden; }
+
+/* — Dimension (Details/DimControl): a number well + a compact px/%/auto unit
+     picker. `auto` collapses the well to a static label (Yoga ignores value). — */
+.dim { display: flex; gap: 4px; flex: 1; min-width: 0; }
+.dim .field { flex: 1; }
+.dim .sel-trigger { flex: 0 0 auto; }
+.dim-auto { justify-content: center; color: var(--text-mute); font-family: var(--mono); font-size: var(--fs-sm); }
 
 /* — Search/filter field (components/SearchField.tsx). One recipe for every
      panel filter; usage sites keep only layout deltas (width/height/margin).

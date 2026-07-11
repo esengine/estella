@@ -28,17 +28,7 @@ import { DirtyDot } from '@/components/DirtyDot';
 import { TilesetDocument } from '@/tileset/TilesetDocument';
 import { TilesetCommands } from '@/tileset/TilesetCommands';
 import { ProjectStore } from '@/project/ProjectStore';
-
-function colsFor(width: number, tileW: number, margin: number, spacing: number): number {
-  const stride = tileW + spacing;
-  return stride > 0 ? Math.max(1, Math.floor((width - margin + spacing) / stride)) : 1;
-}
-function rowsFor(height: number, tileH: number, margin: number, spacing: number): number {
-  const stride = tileH + spacing;
-  return stride > 0 ? Math.max(0, Math.floor((height - margin + spacing) / stride)) : 0;
-}
-
-const TERRAIN_COLORS = ['#4caf50', '#d6884c', '#4c8fd6', '#b14cd6', '#d6c64c', '#d64c6e'];
+import { colsFor, rowsFor, TERRAIN_COLORS } from '@/tools/tileMath';
 
 /** Loops the frame strip at each frame's own duration; falls back to the target tile. */
 function AnimPreview({ frames, fallback, thumb }: {

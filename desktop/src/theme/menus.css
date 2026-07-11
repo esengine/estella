@@ -127,8 +127,6 @@
 }
 .modal__head { display: flex; align-items: center; height: 38px; padding: 0 8px 0 14px; background: var(--srf-3); border-bottom: 1px solid var(--border); flex-shrink: 0; }
 .modal__title { flex: 1; font-size: var(--fs-md); font-weight: 600; color: var(--text); }
-.modal__x { width: 26px; height: 26px; display: grid; place-items: center; color: var(--text-mute); border-radius: var(--r-sm); }
-.modal__x:hover { color: var(--text); background: var(--srf-4); }
 .modal__body { padding: 14px; overflow-y: auto; }
 .modal__foot { display: flex; justify-content: flex-end; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--border); background: var(--srf-2); flex-shrink: 0; }
 /* ConfirmDialog body — pre-line keeps multi-paragraph warnings readable */

@@ -15,7 +15,7 @@ import {
   FlipHorizontal, FlipVertical, RotateCw, Mountain, Plus, X, MousePointer2, Dices,
   ZoomIn, ZoomOut, Maximize2, Eye, EyeOff, Lock, Unlock,
 } from 'lucide-react';
-import { parseTileset, encodeTile, type TilesetAsset, type TileStamp } from 'esengine';
+import { encodeTile, type TilesetAsset, type TileStamp } from 'esengine';
 import { useTilemapPaint, type PaintTool, type PaletteTileset, type AtlasInfo } from '@/store/tilemapPaintStore';
 import { useSelection } from '@/store/selectionStore';
 import { SceneModel } from '@/engine/SceneModel';
@@ -24,15 +24,9 @@ import { ProjectStore } from '@/project/ProjectStore';
 import { TILE_TOOL_KEY, exitTilePaint } from '@/tools/tileMode';
 import { MOD_LABEL } from '@/commands/keybinding';
 import { buildStampGhost } from '@/tools/tileStampGhost';
-
-function colsFor(width: number, tileW: number, margin: number, spacing: number): number {
-  const stride = tileW + spacing;
-  return stride > 0 ? Math.max(1, Math.floor((width - margin + spacing) / stride)) : 1;
-}
-function rowsFor(height: number, tileH: number, margin: number, spacing: number): number {
-  const stride = tileH + spacing;
-  return stride > 0 ? Math.max(0, Math.floor((height - margin + spacing) / stride)) : 0;
-}
+import { colsFor, rowsFor, TERRAIN_COLORS } from '@/tools/tileMath';
+import { loadTilesetAsset } from '@/tileset/loadTileset';
+import { IconButton } from '@/components/IconButton';
 
 const TOOLS: { id: PaintTool; icon: typeof Brush; label: string }[] = [
   { id: 'brush', icon: Brush, label: 'Brush' },
@@ -44,8 +38,6 @@ const TOOLS: { id: PaintTool; icon: typeof Brush; label: string }[] = [
   { id: 'eyedropper', icon: Pipette, label: 'Eyedropper' },
   { id: 'terrain', icon: Mountain, label: 'Terrain' },
 ];
-
-const TERRAIN_COLORS = ['#4caf50', '#d6884c', '#4c8fd6', '#b14cd6', '#d6c64c', '#d64c6e'];
 
 /** Resolve the .estileset ref(s) a selected TilemapLayer references — the `tilesetAssets`
  *  list (multi-tileset) or the singular `tilesetAsset` — as @uuid refs (not yet paths). */
@@ -127,7 +119,7 @@ export function TilemapPainter() {
       let firstId = 1;
       for (const path of paths) {
         try {
-          const a = parseTileset(JSON.parse(await window.estella.fs.read(path)));
+          const a = await loadTilesetAsset(path);
           entries.push({ path, asset: a, firstId });
           let count = a.tileCount ?? 0;
           if (count <= 0) {
@@ -149,7 +141,7 @@ export function TilemapPainter() {
     if (!tilesetPath) { setAsset(null); setTilesetAsset(null); return; }
     void (async () => {
       try {
-        const a = parseTileset(JSON.parse(await window.estella.fs.read(tilesetPath)));
+        const a = await loadTilesetAsset(tilesetPath);
         if (alive) { setAsset(a); setTilesetAsset(a); }
       } catch { if (alive) { setAsset(null); setTilesetAsset(null); } }
     })();
@@ -368,45 +360,47 @@ export function TilemapPainter() {
         </div>
       )}
       <div className="tp-tools">
-        <button
-          type="button"
-          className={'tp-tool' + (tool === null ? ' is-active' : '')}
+        <IconButton
+          variant="outline"
+          size="lg"
+          active={tool === null}
           title="Select / transform (Q · Esc to exit painting)"
           onClick={() => exitTilePaint('select')}
         >
           <MousePointer2 size={15} />
-        </button>
+        </IconButton>
         <span className="tp-sep" />
         {TOOLS.map((t) => (
-          <button
+          <IconButton
             key={t.id}
-            type="button"
-            className={'tp-tool' + (tool === t.id ? ' is-active' : '')}
+            variant="outline"
+            size="lg"
+            active={tool === t.id}
             title={`${t.label} (${TILE_TOOL_KEY[t.id]})`}
             onClick={() => setTool(t.id)}
           >
             <t.icon size={15} />
-          </button>
+          </IconButton>
         ))}
         <span className="tp-sep" />
-        <button type="button" className="tp-tool" title="Flip horizontal (H)" onClick={() => flipH()}>
+        <IconButton variant="outline" size="lg" title="Flip horizontal (H)" onClick={() => flipH()}>
           <FlipHorizontal size={15} />
-        </button>
-        <button type="button" className="tp-tool" title="Flip vertical (V)" onClick={() => flipV()}>
+        </IconButton>
+        <IconButton variant="outline" size="lg" title="Flip vertical (V)" onClick={() => flipV()}>
           <FlipVertical size={15} />
-        </button>
-        <button type="button" className="tp-tool" title="Rotate 90° (R)" onClick={() => rotateCW()}>
+        </IconButton>
+        <IconButton variant="outline" size="lg" title="Rotate 90° (R)" onClick={() => rotateCW()}>
           <RotateCw size={15} />
-        </button>
-        <button
-          type="button"
-          className={'tp-tool' + (randomBrush ? ' is-active' : '')}
+        </IconButton>
+        <IconButton
+          variant="outline"
+          size="lg"
+          active={randomBrush}
           title="Random: each painted cell samples one tile from the selection"
-          aria-pressed={randomBrush}
           onClick={() => toggleRandomBrush()}
         >
           <Dices size={15} />
-        </button>
+        </IconButton>
         <span className="tp-grow" />
         <span className="tp-brush">
           {tool === 'terrain' ? 'Terrain brush' : (

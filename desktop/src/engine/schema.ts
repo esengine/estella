@@ -167,6 +167,8 @@ export function inferField(key: string, v: unknown, isColor: boolean): Inspector
       return { key, label, type: 'angle', value: quatToAngleZ(o as { z: number; w: number }) };
     if ('z' in o && 'x' in o && 'y' in o) return { key, label, type: 'vec3', value: [o.x, o.y, o.z] };
     if ('x' in o && 'y' in o) return { key, label, type: 'vec2', value: [o.x, o.y] };
+    // CSS-length shape ({ value, unit }) — the UINode Dimension (width/height/inset/margin).
+    if ('value' in o && 'unit' in o) return { key, label, type: 'dimension', value: { value: o.value, unit: o.unit } };
   }
   return null; // unknown shape — not editable here
 }

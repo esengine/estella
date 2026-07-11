@@ -3,6 +3,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { ChevronRight, LayoutGrid, List, Import, FolderOpen, FolderPlus, ArrowLeft, ArrowRight, ArrowUp, ArrowDownUp, Play, EyeOff } from 'lucide-react';
 import { AssetIcon, assetTint } from '@/components/icons';
+import { IconButton } from '@/components/IconButton';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { SearchField } from '@/components/SearchField';
 import { ContextMenu, type MenuItem } from '@/components/Menu';
@@ -940,14 +941,14 @@ export function ContentBrowser() {
               ))}
             </div>
             <SearchField className="cb-search" placeholder="Search  (type:texture …)" value={query} onChange={setQuery} />
-            <button
-              type="button"
-              className="cb-ghost"
+            <IconButton
+              size="lg"
+              variant="outline"
               title={`Sort by ${sort === 'name' ? 'name' : 'type'} — click to sort by ${sort === 'name' ? 'type' : 'name'}`}
               onClick={() => setSort((s) => (s === 'name' ? 'type' : 'name'))}
             >
               <ArrowDownUp size={14} strokeWidth={2} />
-            </button>
+            </IconButton>
             <Segmented
               value={view}
               onChange={setView}
@@ -957,9 +958,9 @@ export function ContentBrowser() {
                 { value: 'list', icon: <List size={13} strokeWidth={1.9} />, title: 'List view' },
               ]}
             />
-            <button type="button" className="cb-ghost" title="New Folder" onClick={() => void newFolder()}>
+            <IconButton size="lg" variant="outline" title="New Folder" onClick={() => void newFolder()}>
               <FolderPlus size={13} strokeWidth={1.9} />
-            </button>
+            </IconButton>
             <button type="button" className="cb-add" title="Import assets" onClick={() => void importAssets()}>
               <Import size={13} strokeWidth={1.9} /> Import
             </button>

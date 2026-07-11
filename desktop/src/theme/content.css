@@ -12,9 +12,6 @@
 .cb-head { height: 30px; padding: 0 6px 0 10px; background: var(--srf-3); }
 .cb-head .pt { font-size: var(--fs-sm); font-weight: 600; color: var(--text); }
 .cb-head .sp { flex: 1; }
-.cb-ico { width: 22px; height: 22px; display: grid; place-items: center; color: var(--text-mute); border-radius: var(--r-sm); transition: color var(--t-fast), background var(--t-fast); }
-.cb-ico:hover { color: var(--text); background: var(--srf-4); }
-.cb-ico:active { background: var(--srf-5); }
 
 /* ── Sources (left) ── */
 .cb-src { width: 168px; flex-shrink: 0; border-right: 1px solid var(--border); }
@@ -51,9 +48,6 @@
 .cb-add { height: 26px; display: inline-flex; align-items: center; gap: 5px; padding: 0 10px; background: var(--srf-3); color: var(--star-hi); border: 1px solid var(--star-line); font-weight: 600; font-size: var(--fs-xs); border-radius: var(--r-sm); transition: background var(--t-fast); flex-shrink: 0; }
 .cb-add:hover { background: var(--star-dim); }
 .cb-add:disabled { opacity: 0.45; }
-.cb-ghost { width: 26px; height: 26px; display: grid; place-items: center; color: var(--text-dim); background: var(--srf-3); border: 1px solid var(--border-line); border-radius: var(--r-sm); flex-shrink: 0; transition: color var(--t-fast), background var(--t-fast); }
-.cb-ghost:hover { color: var(--text); background: var(--srf-4); }
-.cb-ghost:active { background: var(--srf-5); }
 
 /* Inline rename editor (tiles + list rows). */
 .cb-rename { width: 100%; min-width: 0; font: inherit; color: var(--text); background: var(--inset); border: 1px solid var(--acc); border-radius: var(--r-xs); padding: 1px 4px; outline: none; text-align: center; }

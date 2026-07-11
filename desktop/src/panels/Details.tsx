@@ -43,6 +43,7 @@ import { SceneModel } from '@/engine/SceneModel';
 import { InspectorClipboard } from '@/engine/inspectorClipboard';
 import { SceneCommands, toModelValue } from '@/engine/SceneCommands';
 import { PlayInspect } from '@/engine/PlayInspect';
+import { DimensionUnit } from 'esengine';
 import type { SceneData, InputMapAsset, ActionType, Binding } from 'esengine';
 import { modelAddableComponentEntries, subscribeSchemas, getSchemaRevision, prettyLabel, hexToRgba, dynamicEnumOptions } from '@/engine/schema';
 import * as imap from '@/project/inputMapDoc';
@@ -404,6 +405,48 @@ export function BoolControl({
         }
       }}
     />
+  );
+}
+
+// A CSS-length: a number well + a px/%/auto unit picker. `auto` drops the number
+// (Yoga ignores its value), so the well collapses to a static "auto" label.
+export function DimControl({
+  value,
+  mixed,
+  onBegin,
+  onEnd,
+  onChange,
+}: ControlGesture & { value: DimensionValue; mixed?: boolean; onChange: (v: DimensionValue) => void }) {
+  const setUnit = (unit: number) => {
+    onBegin?.();
+    onChange({ value: value.value, unit });
+    onEnd?.();
+  };
+  return (
+    <div className="dim">
+      {value.unit === DimensionUnit.Auto ? (
+        <span className="field dim-auto">auto</span>
+      ) : (
+        <NumField
+          value={value.value}
+          mixed={mixed}
+          onBegin={onBegin}
+          onEnd={onEnd}
+          onCommit={(n) => onChange({ value: n, unit: value.unit })}
+        />
+      )}
+      <Select
+        variant="field"
+        value={String(value.unit)}
+        ariaLabel="unit"
+        options={[
+          { value: String(DimensionUnit.Px), label: 'px' },
+          { value: String(DimensionUnit.Percent), label: '%' },
+          { value: String(DimensionUnit.Auto), label: 'auto' },
+        ]}
+        onChange={(v) => setUnit(Number(v))}
+      />
+    </div>
   );
 }
 
@@ -882,6 +925,9 @@ function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp
     case 'vec2':
     case 'vec3':
       control = <VecControl value={field.value as number[]} mixed={mixed} onBegin={begin} onEnd={end} onChange={apply} />;
+      break;
+    case 'dimension':
+      control = <DimControl value={field.value as DimensionValue} mixed={mixed} onBegin={begin} onEnd={end} onChange={apply} />;
       break;
     case 'bool':
       control = <BoolControl value={field.value as boolean} mixed={mixed} onBegin={begin} onEnd={end} onChange={apply} />;

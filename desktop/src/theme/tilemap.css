@@ -93,26 +93,7 @@
 }
 .tp-brushthumb-in { position: absolute; top: 0; left: 0; transform-origin: 0 0; }
 
-.tp-tool {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 26px;
-  background: var(--srf-3);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  color: var(--text-dim);
-  cursor: pointer;
-}
-.tp-tool:not(:disabled):hover { color: var(--text); background: var(--srf-4); }
-.tp-tool:not(:disabled):active { background: var(--srf-5); }
-.tp-tool:disabled { opacity: 0.4; cursor: default; }
-.tp-tool.is-active {
-  background: var(--star);
-  border-color: var(--star);
-  color: var(--on-accent);
-}
+/* Tool buttons are the shared <IconButton variant="outline"> (controls.css). */
 
 /* Palette zoom bar — small tilesets are unclickable at 1:1, so − / + / fit. */
 .tp-palbar {
