@@ -14,6 +14,7 @@ import { useState, useSyncExternalStore } from 'react';
 import { Loader2, FolderOpen, CheckCircle2, AlertCircle, Boxes, Info, Copy, ExternalLink, Play } from 'lucide-react';
 import { Modal } from '@/components/Modal';
 import { Segmented } from '@/components/Segmented';
+import { Button } from '@/components/Button';
 import { ProjectStore } from '@/project/ProjectStore';
 import { useEditorStore } from '@/store/editorStore';
 
@@ -183,10 +184,10 @@ export function BuildDialog() {
 
   const footer = (
     <>
-      <button type="button" className="btn-soft" onClick={close} disabled={running}>
+      <Button onClick={close} disabled={running}>
         {phase === 'done' ? 'Close' : 'Cancel'}
-      </button>
-      <button type="button" className="btn-soft is-primary" onClick={() => void build()} disabled={running || !project}>
+      </Button>
+      <Button variant="primary" onClick={() => void build()} disabled={running || !project}>
         {running ? (
           <>
             <Loader2 size={14} className="spin" /> Packaging…
@@ -196,7 +197,7 @@ export function BuildDialog() {
             <Boxes size={14} /> Package
           </>
         )}
-      </button>
+      </Button>
     </>
   );
 
@@ -243,9 +244,9 @@ export function BuildDialog() {
               spellCheck={false}
               onChange={(e) => setOutDir(e.target.value)}
             />
-            <button type="button" className="btn-soft" onClick={() => void browse()}>
+            <Button onClick={() => void browse()}>
               <FolderOpen size={13} /> Browse
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -342,13 +343,13 @@ export function BuildDialog() {
                 {result.ok && (
                   <div className="build__actions">
                     {def.httpPreview && (
-                      <button type="button" className="btn-soft is-primary" onClick={() => void preview()}>
+                      <Button variant="primary" onClick={() => void preview()}>
                         <ExternalLink size={13} /> Preview over http
-                      </button>
+                      </Button>
                     )}
-                    <button type="button" className="btn-soft" onClick={() => void window.estella.shell?.openPath?.(result.outDir)}>
+                    <Button onClick={() => void window.estella.shell?.openPath?.(result.outDir)}>
                       <FolderOpen size={13} /> Open folder
-                    </button>
+                    </Button>
                   </div>
                 )}
               </>

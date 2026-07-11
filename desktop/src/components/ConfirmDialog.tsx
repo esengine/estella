@@ -8,6 +8,7 @@
  */
 import { useEffect, useRef, type ReactNode } from 'react';
 import { Modal } from './Modal';
+import { Button } from './Button';
 
 export function ConfirmDialog({
   title,
@@ -36,17 +37,10 @@ export function ConfirmDialog({
       width={420}
       footer={
         <>
-          <button type="button" className="btn-soft" onClick={onCancel}>
-            Cancel
-          </button>
-          <button
-            ref={btn}
-            type="button"
-            className={`btn-soft ${danger ? 'is-danger' : 'is-primary'}`}
-            onClick={onConfirm}
-          >
+          <Button onClick={onCancel}>Cancel</Button>
+          <Button ref={btn} variant={danger ? 'danger' : 'primary'} onClick={onConfirm}>
             {confirmLabel}
-          </button>
+          </Button>
         </>
       }
     >
