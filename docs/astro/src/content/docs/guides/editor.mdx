@@ -103,8 +103,12 @@ view rect, light reach/cone, collider outline) so you can see and place them.
 There are several ways to add an entity:
 
 - **Entity → Add Entity** (or the toolbar) drops a blank Transform entity.
-- **Create…** opens a command-palette of entity templates: **Basic** (Empty), **2D**
-  (Sprite, Camera, Particles, Light), and **UI** (Canvas plus the built-in UI widgets).
+- **Create…** opens a command-palette that spawns entities: the built-ins — **Empty**,
+  **Sprite**, **Camera**, **Particles**, **Light**, **Tilemap**, **Spine**, **Audio**,
+  **Text**, **Shape**, **Mesh**, **Trail**, and the **UI** widgets (Canvas plus
+  controls) — **your own project components**, and any **`.esprefab` prefab** in the
+  project. Every create path (this menu, drag-and-drop, and the automation surface) runs
+  the same pipeline, so each spawn is a single undo step.
 - **Right-click in the Outliner** for the same actions in context, plus folders,
   parenting, and prefab creation.
 - **Drag from the Content Browser** — drop an image to spawn a Sprite, or a `.esprefab`
@@ -127,7 +131,10 @@ The Outliner is the scene's hierarchy. You can:
 Details is the inspector for the selection. It lists every component on the entity and
 its fields — driven by the engine's reflection metadata, so ranges, units, enums, and
 tooltips come straight from the component definition. Add components, edit values, and
-they're written back to the scene live. Details also serves as the **asset inspector**:
+they're written back to the scene live. Fields enforce their constraints as you edit: a
+**required** field is flagged when left empty, a numeric field is clamped to its
+declared range on write, and dropping an asset onto a slot is rejected unless its type
+matches. Details also serves as the **asset inspector**:
 select an asset in the Content Browser to edit its import settings or, for a material,
 its parameters.
 
