@@ -23,7 +23,7 @@ import type {
   NodeKind,
   SceneNode,
 } from '@/types';
-import type { SceneData, SubsystemStatus } from 'esengine';
+import type { SceneData, PrefabData, SubsystemStatus } from 'esengine';
 import { Material, Sprite, Renderer } from 'esengine';
 import { EngineHost } from './EngineHost';
 import { ViewportController } from './ViewportController';
@@ -118,6 +118,17 @@ export class EditorControlSurfaceImpl {
 
   addEntity(): EntityId | null {
     return this.s.commands.addEntity();
+  }
+  /**
+   * Create entities from a template/prefab through the one create pipeline (E5) —
+   * so headless/automation can spawn any ready-made entity, not just a blank one.
+   * With `linkPrefabRef` the subtree is tagged as a prefab instance.
+   */
+  create(
+    prefab: PrefabData,
+    opts: { parent: EntityId | null; position?: { x: number; y: number }; linkPrefabRef?: string },
+  ): EntityId | null {
+    return this.s.commands.create(prefab, opts);
   }
   deleteEntity(id: EntityId): void {
     this.s.commands.deleteEntity(id);

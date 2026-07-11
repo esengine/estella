@@ -19,6 +19,7 @@ import { PlayRealm } from '@/engine/PlayRealm';
 import { ViewportController } from '@/engine/ViewportController';
 import { ProjectStore } from '@/project/ProjectStore';
 import { IMAGE_RE } from '@/project/assetMeta';
+import { createTilemapFromTileset } from '@/tilemap/createTilemap';
 import { SceneModel } from '@/engine/SceneModel';
 import { SceneCommands } from '@/engine/SceneCommands';
 import { SceneStore } from '@/engine/SceneStore';
@@ -999,7 +1000,8 @@ export function Viewport() {
 
   // Drag an asset from the Content Browser into the scene → place it at the drop
   // point (one undoable step): a `.esprefab` instantiates the prefab; an image
-  // spawns a Sprite entity sized to the texture.
+  // spawns a Sprite entity sized to the texture; a `.estileset` spawns a paintable
+  // TilemapLayer.
   const isAssetDrag = (e: ReactDragEvent) =>
     e.dataTransfer.types.includes('application/x-estella-asset');
 
@@ -1021,6 +1023,10 @@ export function Viewport() {
     } else if (IMAGE_RE.test(path)) {
       e.preventDefault();
       void ProjectStore.instantiateSpriteFromPath(path, wp ?? { x: 0, y: 0 });
+    } else if (path.toLowerCase().endsWith('.estileset')) {
+      e.preventDefault();
+      // A tileset spawns a paintable TilemapLayer, which wires its own placement + painter.
+      void createTilemapFromTileset(path);
     }
   };
 

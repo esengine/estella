@@ -14,8 +14,8 @@
  * App so step() exercises the engine.
  */
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
-import { App, Transform } from 'esengine';
-import type { ESEngineModule } from 'esengine';
+import { App, Transform, Sprite, migratePrefabData } from 'esengine';
+import type { ESEngineModule, PrefabData } from 'esengine';
 import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
 
 // Per-test state, injected into the mocked EngineHost. `vi.hoisted` so the mock
@@ -80,6 +80,17 @@ describe.skipIf(!HAS_WASM)('EditorControlSurface (headless World)', () => {
     expect(id).not.toBeNull();
     expect(S.surface.getSceneTree().length).toBe(1);
     expect(S.surface.getStats().entities).toBe(1);
+  });
+
+  it('create() spawns a ready-made entity into model + World (headless, not just blank)', () => {
+    const prefab = migratePrefabData({
+      version: '1.0', name: 'Hero', rootEntityId: 'root',
+      entities: [{ prefabEntityId: 'root', name: 'Hero', parent: null, children: [], components: [{ type: 'Transform', data: {} }, { type: 'Sprite', data: {} }], visible: true }],
+    }).data as PrefabData;
+    const id = S.surface.create(prefab, { parent: null })!;
+    expect(id).not.toBeNull();
+    expect(S.surface.getSceneTree().length).toBe(1);
+    expect(host.world.has(S.model.runtimeFor(id)!, Sprite)).toBe(true);
   });
 
   it('setField writes a component field; surface undo reverts it', () => {
