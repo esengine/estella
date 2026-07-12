@@ -52,6 +52,12 @@ describe('editor-mode registry + derivation', () => {
     expect(EDITOR_MODES[EDITOR_MODES.length - 1].id).toBe('scene');
   });
 
+  it('UI mode reveals the widget palette panel on entry', () => {
+    expect(EDITOR_MODE_BY_ID.ui.panels).toEqual([
+      expect.objectContaining({ component: 'uiWidgets', side: 'left' }),
+    ]);
+  });
+
   it('suggests the mode implied by the selection', () => {
     withComponents('TilemapLayer');
     expect(suggestedMode().id).toBe('tilemap');

@@ -76,6 +76,16 @@
 .comp-action { margin: 6px 8px 0; padding: 4px 8px; width: calc(100% - 16px); font-size: var(--fs-2xs); color: var(--text); background: var(--srf-3); border: 1px solid var(--border); border-radius: var(--r-sm); cursor: pointer; transition: background var(--t-fast), border-color var(--t-fast); }
 .comp-action:hover { background: var(--srf-4); border-color: var(--acc); }
 
+/* Anchor preset picker (UINode): a 4×4 grid of parent boxes, each showing where
+   the anchored element would sit; the cell matching the live box is highlighted. */
+.anchor-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px; margin: 6px 8px 2px; width: max-content; }
+.anchor-cell { position: relative; width: 26px; height: 26px; padding: 0; background: var(--srf-3); border: 1px solid var(--border); border-radius: var(--r-xs); cursor: pointer; transition: background var(--t-fast), border-color var(--t-fast); }
+.anchor-cell:hover { border-color: var(--acc); background: var(--srf-4); }
+.anchor-cell.active { border-color: var(--acc); background: var(--acc-soft); }
+.anchor-mark { position: absolute; background: var(--text-dim); border-radius: 1px; pointer-events: none; }
+.anchor-cell:hover .anchor-mark { background: var(--text); }
+.anchor-cell.active .anchor-mark { background: var(--acc-hi); }
+
 /* property rows (label col + value col, reset on right) */
 .prop { display: grid; grid-template-columns: 38% 1fr 18px; align-items: center; gap: 4px; min-height: var(--h-prop); padding: 1px 0; position: relative; }
 .prop-label { font-size: var(--fs-sm); color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-left: 2px; }

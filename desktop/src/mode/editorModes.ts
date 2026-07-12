@@ -58,6 +58,7 @@ const uiMode: EditorModeDef = {
   label: 'UI',
   icon: LayoutPanelTop,
   toolset: 'transform',
+  panels: [{ id: 'ui-widgets', component: 'uiWidgets', title: 'UI Widgets', side: 'left', width: 240 }],
   overlays: { designFrame: true, safeArea: true, letterbox: true },
   suggestFor: (s) => s.hasComponent('Canvas') || s.hasComponent('UINode'),
 };

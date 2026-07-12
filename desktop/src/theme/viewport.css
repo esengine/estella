@@ -110,8 +110,13 @@
 .viewport__ui-gizmo { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 6; }
 .viewport__ui-gizmo .uig-h { position: absolute; pointer-events: auto; background: var(--acc); border: 1px solid var(--on-accent); box-sizing: border-box; border-radius: 1px; }
 .uig-e { right: -4px; top: 50%; width: 8px; height: 14px; transform: translateY(-50%); cursor: ew-resize; }
+.uig-w { left: -4px; top: 50%; width: 8px; height: 14px; transform: translateY(-50%); cursor: ew-resize; }
 .uig-s { bottom: -4px; left: 50%; width: 14px; height: 8px; transform: translateX(-50%); cursor: ns-resize; }
+.uig-n { top: -4px; left: 50%; width: 14px; height: 8px; transform: translateX(-50%); cursor: ns-resize; }
 .uig-se { right: -4px; bottom: -4px; width: 10px; height: 10px; cursor: nwse-resize; }
+.uig-nw { left: -4px; top: -4px; width: 10px; height: 10px; cursor: nwse-resize; }
+.uig-ne { right: -4px; top: -4px; width: 10px; height: 10px; cursor: nesw-resize; }
+.uig-sw { left: -4px; bottom: -4px; width: 10px; height: 10px; cursor: nesw-resize; }
 
 /* Design-resolution overlay (UI mode): the authored design frame (solid accent), the
    simulated device's visible frame (dashed), the letterbox bars (Canvas background

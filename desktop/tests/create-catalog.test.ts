@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect } from 'vitest';
-import { ENTITY_SOURCES, matchSources, CREATE_CATEGORY_ORDER } from '@/engine/entitySources';
+import { ENTITY_SOURCES, matchSources, CREATE_CATEGORY_ORDER, sourceById, SOURCE_DND_MIME } from '@/engine/entitySources';
 
 describe('Create catalog (searchable source registry)', () => {
   it('covers builtins + anchor components, every category in the declared order', () => {
@@ -33,5 +33,20 @@ describe('Create catalog (searchable source registry)', () => {
   it('empty query returns everything; no match returns nothing', () => {
     expect(matchSources(ENTITY_SOURCES, '   ')).toEqual(ENTITY_SOURCES);
     expect(matchSources(ENTITY_SOURCES, 'zzzzz')).toEqual([]);
+  });
+
+  // The UI-mode widget palette (UIWidgetsPanel) and the viewport drop handler both
+  // read this registry — the palette lists the UI category, the drop resolves the id.
+  it('UI category backs the widget palette (Canvas + the builtin widgets)', () => {
+    const ui = ENTITY_SOURCES.filter((s) => s.category === 'UI').map((s) => s.label);
+    expect(ui).toEqual(expect.arrayContaining(['Canvas', 'Button', 'Toggle', 'Slider']));
+  });
+
+  it('sourceById round-trips a dragged palette id back to its source', () => {
+    for (const s of ENTITY_SOURCES.filter((x) => x.category === 'UI')) {
+      expect(sourceById(s.id)).toBe(s);
+    }
+    expect(sourceById('nope::missing')).toBeNull();
+    expect(SOURCE_DND_MIME).toMatch(/^application\//);
   });
 });

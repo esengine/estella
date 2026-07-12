@@ -21,6 +21,8 @@ import { EngineHost } from '@/engine/EngineHost';
 import { PlayRealm } from '@/engine/PlayRealm';
 import { ViewportController } from '@/engine/ViewportController';
 import { ProjectStore } from '@/project/ProjectStore';
+import { createFromSource, sourceById, SOURCE_DND_MIME } from '@/engine/entitySources';
+import { resizeUINodeAxis, type ResizeSide, type AxisResizeWrites } from '@/engine/uiResize';
 import { IMAGE_RE } from '@/project/assetMeta';
 import { createTilemapFromTileset } from '@/tilemap/createTilemap';
 import { SceneModel } from '@/engine/SceneModel';
@@ -31,7 +33,7 @@ import { PerfMonitor } from '@/engine/PerfMonitor';
 import { PerfOverlay } from '@/components/PerfOverlay';
 import { Perf } from '@/components/Perf';
 import { Popover, usePopover } from '@/components/Popover';
-import type { ToolMode } from '@/types';
+import type { ToolMode, EntityId } from '@/types';
 import { resolveActiveTool, type EditorTool, type ToolContext, type PointerInput } from '@/tools';
 import { cursorTile } from '@/tools/tileTools';
 import { GIZMO, type GizmoAxis } from '@/tools/gizmo';
@@ -133,7 +135,10 @@ function setRectAttrs(el: Element | null, r: { x: number; y: number; w: number; 
 }
 
 // A UINode length field ({ value, unit }) from the model, or null.
-function uiDim(src: number, key: 'width' | 'height'): { value: number; unit: number } | null {
+function uiDim(
+  src: number,
+  key: 'width' | 'height' | 'insetLeft' | 'insetRight' | 'insetTop' | 'insetBottom',
+): { value: number; unit: number } | null {
   const d = SceneModel.entityBySource(src)?.components.find((c) => c.type === 'UINode')?.data as
     | Record<string, unknown>
     | undefined;
@@ -141,31 +146,71 @@ function uiDim(src: number, key: 'width' | 'height'): { value: number; unit: num
   return v && typeof v === 'object' && 'value' in v && 'unit' in v ? (v as { value: number; unit: number }) : null;
 }
 
-// Drag a UI box edge/corner handle → its px width/height (UINode dimension). Screen
-// space: the box's on-screen size over its px value gives screen-px-per-UI-px, so the
-// drag tracks the cursor 1:1. Only px-unit sides resize (percent/auto have no fixed px);
-// writes go through the SAME setField + begin/endGesture channel the Inspector uses.
-function startUiResizeDrag(rt: number, edge: 'e' | 's' | 'se', e: ReactPointerEvent): void {
+// The eight resize handles, each as which edge it moves per axis (low = left/bottom,
+// high = right/top in the y-up world).
+type UiEdge = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
+const UI_EDGE_SIDES: Record<UiEdge, { x?: ResizeSide; y?: ResizeSide }> = {
+  e: { x: 'high' }, w: { x: 'low' }, n: { y: 'high' }, s: { y: 'low' },
+  ne: { x: 'high', y: 'high' }, nw: { x: 'low', y: 'high' },
+  se: { x: 'high', y: 'low' }, sw: { x: 'low', y: 'low' },
+};
+
+// Round a Dimension for a clean inspector value (px → integer, percent → 2dp).
+function roundDim(d: { value: number; unit: number }): { value: number; unit: number } {
+  return d.unit === DimensionUnit.Px
+    ? { value: Math.round(d.value), unit: d.unit }
+    : { value: Math.round(d.value * 100) / 100, unit: d.unit };
+}
+function applyAxisResize(src: EntityId, axis: 'x' | 'y', w: AxisResizeWrites): void {
+  const keys = axis === 'x'
+    ? { size: 'width', near: 'insetLeft', far: 'insetRight' }
+    : { size: 'height', near: 'insetBottom', far: 'insetTop' };
+  if (w.size) SceneCommands.setField(src, 'UINode', keys.size, 'dimension', roundDim(w.size));
+  if (w.nearInset) SceneCommands.setField(src, 'UINode', keys.near, 'dimension', roundDim(w.nearInset));
+  if (w.farInset) SceneCommands.setField(src, 'UINode', keys.far, 'dimension', roundDim(w.farInset));
+}
+
+// Drag a UI box edge/corner handle → resize the UINode, unit-aware and anchor-aware
+// (see uiResize.ts). Works in world units (the UI-world is design-px-baked, so 1 unit
+// = 1 design px, matching setUINodeXY_); the parent box drives percent + stretch.
+// Writes go through the SAME setField + begin/endGesture channel the Inspector uses.
+function startUiResizeDrag(rt: number, edge: UiEdge, e: ReactPointerEvent): void {
   if (e.button !== 0) return;
   const src = SceneModel.sourceFor(rt);
-  const rect0 = ViewportController.getEntityScreenRect(rt);
-  if (src == null || !rect0) return;
+  const obb = ViewportController.uiEntityWorldOBB(rt);
+  if (src == null || !obb) return;
+  const parentSrc = SceneModel.entityBySource(src)?.parent;
+  const parentRt = parentSrc != null ? SceneModel.runtimeFor(parentSrc) : undefined;
+  const pobb = parentRt != null ? ViewportController.uiEntityWorldOBB(parentRt) : null;
+  if (!pobb) return; // no parent box → no anchor-correct / percent frame to resize in
   e.stopPropagation();
-  const w0 = uiDim(src, 'width');
-  const h0 = uiDim(src, 'height');
-  const sx = w0 && w0.unit === DimensionUnit.Px && w0.value > 0 ? rect0.w / w0.value : null;
-  const sy = h0 && h0.unit === DimensionUnit.Px && h0.value > 0 ? rect0.h / h0.value : null;
-  const startX = e.clientX;
-  const startY = e.clientY;
+
+  const sides = UI_EDGE_SIDES[edge];
+  const left = obb.cx - obb.hw, right = obb.cx + obb.hw;
+  const bottom = obb.cy - obb.hh, top = obb.cy + obb.hh;
+  // Start field values (resize recomputes from these + the total edge delta, so the
+  // repeated writes during a drag never accumulate rounding).
+  const fx = { size: uiDim(src, 'width'), nearInset: uiDim(src, 'insetLeft'), farInset: uiDim(src, 'insetRight') };
+  const fy = { size: uiDim(src, 'height'), nearInset: uiDim(src, 'insetBottom'), farInset: uiDim(src, 'insetTop') };
+  const parentW = 2 * pobb.hw, parentH = 2 * pobb.hh;
+
   SceneCommands.beginGesture('Resize UI');
   const onMove = (ev: PointerEvent) => {
-    if ((edge === 'e' || edge === 'se') && sx && w0) {
-      const nw = Math.max(0, Math.round(w0.value + (ev.clientX - startX) / sx));
-      SceneCommands.setField(src, 'UINode', 'width', 'dimension', { value: nw, unit: DimensionUnit.Px });
+    const wp = ViewportController.canvasToWorld(ev.clientX, ev.clientY);
+    if (!wp) return;
+    if (sides.x && fx.size && fx.nearInset && fx.farInset) {
+      const edgeDeltaWorld = wp.x - (sides.x === 'high' ? right : left);
+      applyAxisResize(src, 'x', resizeUINodeAxis({
+        size: fx.size, nearInset: fx.nearInset, farInset: fx.farInset,
+        side: sides.x, edgeDeltaWorld, ppu: 1, parentExtentWorld: parentW,
+      }));
     }
-    if ((edge === 's' || edge === 'se') && sy && h0) {
-      const nh = Math.max(0, Math.round(h0.value + (ev.clientY - startY) / sy));
-      SceneCommands.setField(src, 'UINode', 'height', 'dimension', { value: nh, unit: DimensionUnit.Px });
+    if (sides.y && fy.size && fy.nearInset && fy.farInset) {
+      const edgeDeltaWorld = wp.y - (sides.y === 'high' ? top : bottom);
+      applyAxisResize(src, 'y', resizeUINodeAxis({
+        size: fy.size, nearInset: fy.nearInset, farInset: fy.farInset,
+        side: sides.y, edgeDeltaWorld, ppu: 1, parentExtentWorld: parentH,
+      }));
     }
   };
   const onUp = () => {
@@ -1189,7 +1234,8 @@ export function Viewport() {
   // spawns a Sprite entity sized to the texture; a `.estileset` spawns a paintable
   // TilemapLayer.
   const isAssetDrag = (e: ReactDragEvent) =>
-    e.dataTransfer.types.includes('application/x-estella-asset');
+    e.dataTransfer.types.includes('application/x-estella-asset') ||
+    e.dataTransfer.types.includes(SOURCE_DND_MIME);
 
   const onDragOver = (e: ReactDragEvent) => {
     if (!isAssetDrag(e)) return;
@@ -1198,6 +1244,19 @@ export function Viewport() {
   };
 
   const onDrop = (e: ReactDragEvent) => {
+    // A widget dragged from the UI palette: create it (under the Canvas via its
+    // placement rule) at the drop point and select it.
+    const sourceId = e.dataTransfer.getData(SOURCE_DND_MIME);
+    if (sourceId) {
+      const source = sourceById(sourceId);
+      if (!source) return;
+      e.preventDefault();
+      const drop = ViewportController.canvasToWorld(e.clientX, e.clientY);
+      void createFromSource(source, { parent: null, position: drop ?? undefined }).then((id) => {
+        if (id != null) useSelection.getState().select(id);
+      });
+      return;
+    }
     const path = e.dataTransfer.getData('application/x-estella-asset');
     if (!path) return;
     const wp = ViewportController.canvasToWorld(e.clientX, e.clientY);
@@ -1582,30 +1641,17 @@ export function Viewport() {
       <div ref={designLabelRef} className="viewport__design-label" style={{ opacity: 0 }} aria-hidden="true" />
 
       <div ref={uiGizmoRef} className="viewport__ui-gizmo" style={{ opacity: 0 }}>
-        <span
-          className="uig-h uig-e"
-          onPointerDown={(e) => {
-            const p = useSelection.getState().selectedId;
-            const rt = p != null ? SceneModel.runtimeFor(p) : undefined;
-            if (rt != null) startUiResizeDrag(rt, 'e', e);
-          }}
-        />
-        <span
-          className="uig-h uig-s"
-          onPointerDown={(e) => {
-            const p = useSelection.getState().selectedId;
-            const rt = p != null ? SceneModel.runtimeFor(p) : undefined;
-            if (rt != null) startUiResizeDrag(rt, 's', e);
-          }}
-        />
-        <span
-          className="uig-h uig-se"
-          onPointerDown={(e) => {
-            const p = useSelection.getState().selectedId;
-            const rt = p != null ? SceneModel.runtimeFor(p) : undefined;
-            if (rt != null) startUiResizeDrag(rt, 'se', e);
-          }}
-        />
+        {(['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'] as const).map((edge) => (
+          <span
+            key={edge}
+            className={`uig-h uig-${edge}`}
+            onPointerDown={(e) => {
+              const p = useSelection.getState().selectedId;
+              const rt = p != null ? SceneModel.runtimeFor(p) : undefined;
+              if (rt != null) startUiResizeDrag(rt, edge, e);
+            }}
+          />
+        ))}
       </div>
       <div ref={gizmoRef} className="viewport__gizmo" aria-hidden="true">
         <GizmoOverlay tool={tool} active={activeGizmoAxis} />

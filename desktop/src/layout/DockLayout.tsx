@@ -20,6 +20,7 @@ import { GamePanel, GameClientPanel } from '@/panels/GamePanel';
 import { Sequencer } from '@/panels/Sequencer';
 import { TilesetEditor } from '@/panels/TilesetEditor';
 import { TilemapPainter } from '@/panels/TilemapPainter';
+import { UIWidgetsPanel } from '@/panels/UIWidgetsPanel';
 import { MaterialGraphEditor } from '@/panels/MaterialGraphEditor';
 import { StateMachineEditor } from '@/panels/StateMachineEditor';
 import { BtTreeEditor } from '@/panels/BtTreeEditor';
@@ -44,6 +45,7 @@ const components: Record<string, FC<IDockviewPanelProps>> = {
   sequencer: () => panel('sequencer', <Sequencer />),
   tileset: () => panel('tileset', <TilesetEditor />),
   tilemap: () => panel('tilemap', <TilemapPainter />),
+  uiWidgets: () => panel('uiWidgets', <UIWidgetsPanel />),
   materialgraph: () => panel('materialgraph', <MaterialGraphEditor />),
   statemachine: () => panel('statemachine', <StateMachineEditor />),
   behaviortree: () => panel('behaviortree', <BtTreeEditor />),

@@ -44,7 +44,7 @@ import { InspectorClipboard } from '@/engine/inspectorClipboard';
 import { SceneCommands, toModelValue } from '@/engine/SceneCommands';
 import { ENTITY_SOURCES, createFromSource } from '@/engine/entitySources';
 import { PlayInspect } from '@/engine/PlayInspect';
-import { DimensionUnit } from 'esengine';
+import { DimensionUnit, AnchorAxis, ANCHOR_AXES, detectAnchor } from 'esengine';
 import type { SceneData, InputMapAsset, ActionType, Binding } from 'esengine';
 import { modelAddableComponentEntries, subscribeSchemas, getSchemaRevision, prettyLabel, hexToRgba, dynamicEnumOptions } from '@/engine/schema';
 import * as imap from '@/project/inputMapDoc';
@@ -1101,6 +1101,66 @@ function textBoxAction(comp: InspectorComponent, sourceId: EntityId): { label: s
   };
 }
 
+// Where a preset's mark sits inside its cell (percent of the cell box), per axis
+// mode. Start/Center/End are a 30%-wide dot at the near/mid/far third; Stretch is
+// a bar filling the axis — a glanceable picture of the anchor.
+const ANCHOR_MARK: Record<number, { start: number; size: number }> = {
+  [AnchorAxis.Start]: { start: 14, size: 30 },
+  [AnchorAxis.Center]: { start: 35, size: 30 },
+  [AnchorAxis.End]: { start: 56, size: 30 },
+  [AnchorAxis.Stretch]: { start: 12, size: 76 },
+};
+const ANCHOR_H = { [AnchorAxis.Start]: 'Left', [AnchorAxis.Center]: 'Center', [AnchorAxis.End]: 'Right', [AnchorAxis.Stretch]: 'Stretch H' };
+const ANCHOR_V = { [AnchorAxis.Start]: 'Top', [AnchorAxis.Center]: 'Middle', [AnchorAxis.End]: 'Bottom', [AnchorAxis.Stretch]: 'Stretch V' };
+const anchorTitle = (h: AnchorAxis, v: AnchorAxis) =>
+  h === AnchorAxis.Stretch && v === AnchorAxis.Stretch ? 'Stretch' : `${ANCHOR_V[v]} · ${ANCHOR_H[h]}`;
+
+/** UMG/Unity-style anchor preset picker for a UINode: a 4×4 grid (Left/Center/
+ *  Right/Stretch × Top/Middle/Bottom/Stretch) that writes position + inset/margin
+ *  box fields, and highlights the cell the current box already matches. Making the
+ *  node Absolute is implicit in every preset — clicking one anchors the node. */
+function AnchorPresetGrid({ entities, comp }: { entities: EntityId[]; comp: InspectorComponent }) {
+  const dim = (key: string) => {
+    const v = comp.fields.find((f) => f.key === key)?.value as { value: number; unit: number } | undefined;
+    return v ?? { value: 0, unit: DimensionUnit.Auto };
+  };
+  const node = {
+    position: Number(comp.fields.find((f) => f.key === 'position')?.value ?? 0),
+    insetLeft: dim('insetLeft'), insetRight: dim('insetRight'),
+    insetTop: dim('insetTop'), insetBottom: dim('insetBottom'),
+    marginLeft: dim('marginLeft'), marginRight: dim('marginRight'),
+    marginTop: dim('marginTop'), marginBottom: dim('marginBottom'),
+    width: dim('width'), height: dim('height'),
+  } as Parameters<typeof detectAnchor>[0];
+  const active = detectAnchor(node);
+  return (
+    <div className="anchor-grid" role="group" aria-label="Anchor preset">
+      {ANCHOR_AXES.map((v) =>
+        ANCHOR_AXES.map((h) => {
+          const on = active != null && active.h === h && active.v === v;
+          const hm = ANCHOR_MARK[h];
+          const vm = ANCHOR_MARK[v];
+          return (
+            <button
+              key={`${v}-${h}`}
+              type="button"
+              className={`anchor-cell${on ? ' active' : ''}`}
+              title={anchorTitle(h, v)}
+              aria-pressed={on}
+              onClick={() => SceneCommands.setUINodeAnchor(entities, { h, v })}
+            >
+              <span
+                className="anchor-mark"
+                style={{ left: `${hm.start}%`, width: `${hm.size}%`, top: `${vm.start}%`, height: `${vm.size}%` }}
+              />
+            </button>
+          );
+        }),
+      )}
+    </div>
+  );
+}
+
 function ComponentSection({
   entities,
   comp,
@@ -1109,6 +1169,7 @@ function ComponentSection({
   onMore,
   write,
   action,
+  extra,
 }: {
   entities: EntityId[];
   comp: InspectorComponent;
@@ -1117,6 +1178,7 @@ function ComponentSection({
   onMore?: (e: React.MouseEvent, name: string) => void;
   write?: FieldWrite;
   action?: { label: string; title: string; run: () => void };
+  extra?: React.ReactNode;
 }) {
   const Icon = componentIcon(comp.name);
   const overridden = comp.fields.some(isModified);
@@ -1194,6 +1256,7 @@ function ComponentSection({
               {action.label}
             </button>
           )}
+          {extra}
           <div className="comp-fields">
             {ungrouped.map(row)}
             {[...groups].map(([cat, fields]) => (
@@ -1988,6 +2051,7 @@ function EditorDetails() {
             collapsed={collapsed.has(comp.name)}
             onToggle={() => toggle(comp.name)}
             onMore={(e, name) => setCompMenu({ x: e.clientX, y: e.clientY, comp: name })}
+            extra={comp.name === 'UINode' ? <AnchorPresetGrid entities={ids} comp={comp} /> : undefined}
           />
         ))}
         {query && visible.length === 0 && (

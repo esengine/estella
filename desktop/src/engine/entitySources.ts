@@ -193,6 +193,16 @@ export function userComponentSources(): EntitySource[] {
   }));
 }
 
+/** DnD payload type carrying an {@link EntitySource} id — a widget dragged from
+ *  the UI palette onto the viewport. Kept beside the registry so the palette and
+ *  the viewport drop handler agree on one string. */
+export const SOURCE_DND_MIME = 'application/x-estella-source';
+
+/** The source with this id, or null. */
+export function sourceById(id: string): EntitySource | null {
+  return ENTITY_SOURCES.find((s) => s.id === id) ?? null;
+}
+
 /** Case-insensitive filter over label + category + keywords, for the Create popover. */
 export function matchSources(sources: EntitySource[], query: string): EntitySource[] {
   const q = query.trim().toLowerCase();

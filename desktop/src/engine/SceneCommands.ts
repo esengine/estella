@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { SceneData, PrefabData } from 'esengine';
-import { TilemapAPI, TilemapLiveSync, UIPositionType, DimensionUnit } from 'esengine';
+import { TilemapAPI, TilemapLiveSync, UIPositionType, DimensionUnit, anchorPresetFields, type AnchorPreset } from 'esengine';
 import type { EntityId, InspectorFieldType, InspectorFieldValue } from '@/types';
 import { EditorHistory, EditorHistoryImpl } from './EditorHistory';
 import { SceneModel, SceneModelImpl } from './SceneModel';
@@ -361,6 +361,30 @@ export class SceneCommandsImpl {
       shifted = true;
     }
     if (!shifted) write(nearKey, { value: currentNearPx + delta, unit: DimensionUnit.Px });
+  }
+
+  /**
+   * Apply an anchor preset (Start / Center / End / Stretch per axis) to each
+   * UINode as one undo step. A preset is a VIEW over the box fields, not stored
+   * state, so this simply writes `position` Absolute + the insets/margins (+ size
+   * for a Stretch axis) that express it — {@link detectAnchor} reads them back.
+   */
+  setUINodeAnchor(sourceIds: EntityId[], preset: AnchorPreset): void {
+    const f = anchorPresetFields(preset);
+    const dims: Array<[string, { value: number; unit: number }]> = [
+      ['insetLeft', f.insetLeft], ['insetRight', f.insetRight],
+      ['insetTop', f.insetTop], ['insetBottom', f.insetBottom],
+      ['marginLeft', f.marginLeft], ['marginRight', f.marginRight],
+      ['marginTop', f.marginTop], ['marginBottom', f.marginBottom],
+    ];
+    if (f.width) dims.push(['width', f.width]);
+    if (f.height) dims.push(['height', f.height]);
+    this.beginGesture('Anchor');
+    for (const id of sourceIds) {
+      this.setField(id, 'UINode', 'position', 'enum', f.position);
+      for (const [key, dim] of dims) this.setField(id, 'UINode', key, 'dimension', dim);
+    }
+    this.endGesture();
   }
 
   // — Undoable entity lifecycle (model ops; the Reconciler re-spawns/-despawns) —
