@@ -30,8 +30,15 @@ export interface ThemeStyleData {
 }
 
 // Runtime-only: a widget's theme-role tags are re-derived from code on every
-// construct, never persisted — so it stays out of scenes and prefabs.
-export const ThemeStyle = defineComponent<ThemeStyleData>('ThemeStyle', {}, { transient: true });
+// construct, never persisted — so it stays out of scenes and prefabs. The default
+// DECLARES the fields (even though all are optional): `insert` validates data
+// against the schema's keys, so an empty default would reject every role a widget
+// tags (e.g. a dialog's `{ visual: 'backdrop' }`).
+export const ThemeStyle = defineComponent<ThemeStyleData>(
+    'ThemeStyle',
+    { visual: undefined, text: undefined, states: {} },
+    { transient: true },
+);
 
 /** Tag `entity` so the active theme's colors re-resolve onto it (see
  *  `applyThemeToWorld`). */
