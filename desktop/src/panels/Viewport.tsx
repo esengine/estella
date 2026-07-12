@@ -1276,7 +1276,7 @@ export function Viewport() {
   };
 
   return (
-    <div className="viewport">
+    <div className={`viewport${isPlaying ? ' viewport--play' : ''}`}>
       {/* Top-left: view menus (UE5 layout) — Show Flags dropdown + Frame. */}
       <div className="ov ov-tl">
         <div className="ov-cluster">

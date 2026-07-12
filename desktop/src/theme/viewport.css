@@ -216,6 +216,28 @@
 }
 .viewport__play-stop:hover { background: var(--run-hi); }
 
+/* Play mode: the running game owns the viewport, so every edit-only overlay is hidden.
+   `display: none` (not just opacity) also drops the interactive UI-gizmo handles from
+   hit-testing, so they can't steal clicks from the game — they sit ABOVE the play
+   iframe (same z-index, later in the DOM), which is why they leaked into play at all.
+   One declarative statement of "no edit chrome while playing" for every overlay type. */
+.viewport--play .viewport__selection,
+.viewport--play .viewport__gizmo,
+.viewport--play .viewport__ui-gizmo,
+.viewport--play .viewport__marquee,
+.viewport--play .viewport__tilesel,
+.viewport--play .viewport__tilepreview,
+.viewport--play .viewport__tileghost,
+.viewport--play .viewport__tilepaint,
+.viewport--play .viewport__design-svg,
+.viewport--play .viewport__design-label,
+.viewport--play .viewport__cam-gizmo,
+.viewport--play .viewport__light-gizmo,
+.viewport--play .viewport__collider-gizmo,
+.viewport--play .viewport__particle-gizmo {
+  display: none;
+}
+
 /* Game view (isolated play realm iframe) — REARCH_EDITOR_REALM Phase R. */
 .game-panel { position: relative; width: 100%; height: 100%; background: var(--srf-1); overflow: hidden; }
 .game-panel__host { position: absolute; inset: 0; }
