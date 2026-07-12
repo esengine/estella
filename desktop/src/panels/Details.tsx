@@ -410,8 +410,10 @@ export function BoolControl({
   );
 }
 
-// A CSS-length: a number well + a px/%/auto unit picker. `auto` drops the number
-// (Yoga ignores its value), so the well collapses to a static "auto" label.
+// A CSS-length: a number well + a px/%/auto unit picker. The well is ALWAYS shown
+// and editable — for `auto` it's blank with a ghost "auto" placeholder, and typing
+// a value flips the unit to px (Yoga ignores an `auto` unit's number, so there's no
+// value to type against otherwise).
 export function DimControl({
   value,
   mixed,
@@ -419,6 +421,7 @@ export function DimControl({
   onEnd,
   onChange,
 }: ControlGesture & { value: DimensionValue; mixed?: boolean; onChange: (v: DimensionValue) => void }) {
+  const isAuto = value.unit === DimensionUnit.Auto;
   const setUnit = (unit: number) => {
     onBegin?.();
     onChange({ value: value.value, unit });
@@ -426,19 +429,14 @@ export function DimControl({
   };
   return (
     <div className="dim">
-      {value.unit === DimensionUnit.Auto ? (
-        // The unit dropdown already reads "auto"; a dimmed dash marks "no value"
-        // instead of a redundant second "auto".
-        <span className="field dim-auto" aria-hidden="true">–</span>
-      ) : (
-        <NumField
-          value={value.value}
-          mixed={mixed}
-          onBegin={onBegin}
-          onEnd={onEnd}
-          onCommit={(n) => onChange({ value: n, unit: value.unit })}
-        />
-      )}
+      <NumField
+        value={value.value}
+        mixed={mixed}
+        empty={isAuto}
+        onBegin={onBegin}
+        onEnd={onEnd}
+        onCommit={(n) => onChange({ value: n, unit: isAuto ? DimensionUnit.Px : value.unit })}
+      />
       <Select
         variant="field"
         value={String(value.unit)}
@@ -1108,20 +1106,19 @@ const ANCHOR_V = { [AnchorAxis.Start]: 'Top', [AnchorAxis.Center]: 'Middle', [An
 const anchorTitle = (h: AnchorAxis, v: AnchorAxis) =>
   h === AnchorAxis.Stretch && v === AnchorAxis.Stretch ? 'Stretch' : `${ANCHOR_V[v]} · ${ANCHOR_H[h]}`;
 
-// The mark inside a preset cell: a dot for a pinned corner/edge/centre, a thin bar
-// along a stretched axis, a rounded square when both axes stretch — a glanceable
-// picture of where the element sits in its parent box.
-function anchorMarkStyle(h: AnchorAxis, v: AnchorAxis) {
-  const ext = (mode: AnchorAxis, crossStretch: boolean) => {
-    if (mode === AnchorAxis.Stretch) return { p: 16, s: 68 };
-    const s = crossStretch ? 12 : 30; // a thin bar's cross-section vs a dot's diameter
-    const c = mode === AnchorAxis.Start ? 27 : mode === AnchorAxis.End ? 73 : 50;
+// The widget rect (in a 24×24 cell viewBox) a preset draws: a small rounded box for
+// a pinned corner/edge/centre, stretched along a Stretch axis, filling the frame
+// when both axes stretch — the element shown inside its parent (the cell).
+function anchorWidgetRect(h: AnchorAxis, v: AnchorAxis) {
+  const axis = (mode: AnchorAxis, crossStretch: boolean) => {
+    if (mode === AnchorAxis.Stretch) return { p: 4, s: 16 };
+    const s = crossStretch ? 5 : 8; // a thin bar's cross-section vs a box's side
+    const c = mode === AnchorAxis.Start ? 7 : mode === AnchorAxis.End ? 17 : 12;
     return { p: c - s / 2, s };
   };
-  const hx = ext(h, v === AnchorAxis.Stretch);
-  const vy = ext(v, h === AnchorAxis.Stretch);
-  const isDot = h !== AnchorAxis.Stretch && v !== AnchorAxis.Stretch;
-  return { left: `${hx.p}%`, top: `${vy.p}%`, width: `${hx.s}%`, height: `${vy.s}%`, borderRadius: isDot ? '50%' : '2px' };
+  const hx = axis(h, v === AnchorAxis.Stretch);
+  const vy = axis(v, h === AnchorAxis.Stretch);
+  return { x: hx.p, y: vy.p, w: hx.s, h: vy.s };
 }
 
 /** UMG/Unity-style anchor preset picker for a UINode: a 4×4 grid (Left/Center/
@@ -1158,7 +1155,14 @@ function AnchorPresetGrid({ entities, comp }: { entities: EntityId[]; comp: Insp
                 aria-pressed={on}
                 onClick={() => SceneCommands.setUINodeAnchor(entities, { h, v })}
               >
-                <span className="anchor-mark" style={anchorMarkStyle(h, v)} />
+                {(() => {
+                  const r = anchorWidgetRect(h, v);
+                  return (
+                    <svg className="anchor-svg" viewBox="0 0 24 24" aria-hidden="true">
+                      <rect className="anchor-widget" x={r.x} y={r.y} width={r.w} height={r.h} rx="1.6" ry="1.6" />
+                    </svg>
+                  );
+                })()}
               </button>
             );
           }),

@@ -86,9 +86,10 @@
 .anchor-cell { position: relative; width: 26px; height: 26px; padding: 0; background: var(--srf-3); border: 1px solid var(--border); border-radius: var(--r-xs); cursor: pointer; transition: background var(--t-fast), border-color var(--t-fast); }
 .anchor-cell:hover { border-color: var(--acc); background: var(--srf-4); }
 .anchor-cell.active { border-color: var(--acc); background: var(--acc-soft); box-shadow: inset 0 0 0 1px var(--acc); }
-.anchor-mark { position: absolute; background: var(--text-mute); pointer-events: none; transition: background var(--t-fast); }
-.anchor-cell:hover .anchor-mark { background: var(--text); }
-.anchor-cell.active .anchor-mark { background: var(--acc-hi); }
+.anchor-svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; pointer-events: none; }
+.anchor-widget { fill: var(--text-mute); transition: fill var(--t-fast); }
+.anchor-cell:hover .anchor-widget { fill: var(--text); }
+.anchor-cell.active .anchor-widget { fill: var(--acc-hi); }
 
 /* property rows (label col + value col, reset on right) */
 .prop { display: grid; grid-template-columns: 38% 1fr 18px; align-items: center; gap: 4px; min-height: var(--h-prop); padding: 1px 0; position: relative; }

@@ -68,24 +68,28 @@ export function useScrub(value: number, onCommit: (n: number) => void, opts: Scr
 
 // Plain click-to-type numeric input. `suffix` (e.g. °) shows in the resting value;
 // `mixed` (multi-select disagreement) shows a "—" placeholder until typed over.
+// `empty` shows a blank field with `placeholder` ghost text (e.g. an `auto`
+// dimension) but stays editable — typing commits a value.
 export function NumField({
   value,
   suffix,
   mixed,
+  empty,
+  placeholder,
   onBegin,
   onEnd,
   onCommit,
-}: ControlGesture & { value: number; suffix?: string; mixed?: boolean; onCommit: (n: number) => void }) {
+}: ControlGesture & { value: number; suffix?: string; mixed?: boolean; empty?: boolean; placeholder?: string; onCommit: (n: number) => void }) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState('');
   return (
     <span className="field">
       <input
-        value={editing ? text : mixed ? '' : fmt(value) + (suffix ?? '')}
-        placeholder={mixed ? '—' : undefined}
+        value={editing ? text : mixed || empty ? '' : fmt(value) + (suffix ?? '')}
+        placeholder={mixed ? '—' : empty ? placeholder : undefined}
         spellCheck={false}
         onFocus={() => {
-          setText(fmt(value));
+          setText(empty ? '' : fmt(value));
           setEditing(true);
           onBegin?.();
         }}
