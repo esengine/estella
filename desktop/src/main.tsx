@@ -26,6 +26,7 @@ import './theme/sequencer.css';
 import './theme/profiler.css';
 import './theme/tileset.css';
 import './theme/tilemap.css';
+import './theme/ui-palette.css';
 import './theme/material.css';
 import './theme/nodegraph.css';
 import './theme/chrome.css';
@@ -40,6 +41,8 @@ import { PlayRealm } from './engine/PlayRealm';
 import { dockApi } from './layout/dockApi';
 import { EditorControlSurface } from './engine/EditorSession';
 import { SceneModel } from './engine/SceneModel';
+import { EngineHost } from './engine/EngineHost';
+import { UINode, UIVisual } from 'esengine';
 import { ViewportController } from './engine/ViewportController';
 import { PerfMonitor } from './engine/PerfMonitor';
 import { LogStore } from './store/LogStore';
@@ -80,6 +83,15 @@ if (new URLSearchParams(location.search).has('automation')) {
     entityWorldXY: (id: number) => {
       const rt = SceneModel.runtimeFor(id);
       return rt == null ? null : ViewportController.getEntityWorldXY(rt);
+    },
+    /** The LIVE World component data for a SOURCE entity — for verifying that a
+     *  model edit actually reached the engine (vs stayed model-only). */
+    runtimeFor: (id: number) => SceneModel.runtimeFor(id),
+    worldComp: (id: number, comp: 'UINode' | 'UIVisual') => {
+      const rt = SceneModel.runtimeFor(id);
+      const w = EngineHost.world;
+      const def = comp === 'UINode' ? UINode : UIVisual;
+      return rt != null && w?.has(rt, def) ? w.get(rt, def) : null;
     },
   };
 }

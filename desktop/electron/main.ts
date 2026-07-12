@@ -251,6 +251,44 @@ async function runScreenshot(w: BrowserWindow, out: string): Promise<void> {
       console.log('[eval]', typeof result === 'string' ? result : JSON.stringify(result));
       await settleFrames(8);
     }
+    // Drive an EDITOR-UI drag with TRUSTED input (sendInputEvent), not page-level
+    // dispatchEvent: Chromium synthesizes real pointer events from OS mouse input,
+    // so React's onPointerDown/gizmo pointer handlers fire (a manually-constructed
+    // PointerEvent does not). Spec JSON: { selector, dx, dy, steps?, read? } — drag
+    // from the element's centre by (dx,dy) over `steps` moves; `read` is a JS
+    // expression logged before + after so a shot can assert the gesture took effect.
+    if (process.env.ESTELLA_SHOT_EDITOR_DRAG) {
+      const spec = JSON.parse(process.env.ESTELLA_SHOT_EDITOR_DRAG) as
+        { selector: string; dx?: number; dy?: number; steps?: number; read?: string };
+      const before = spec.read ? await exec(spec.read) : undefined;
+      // sendInputEvent hits by coordinate, so the target must be on-screen — scroll
+      // it into view first (a no-op for elements not in a scroll container, e.g. a
+      // viewport-positioned gizmo handle).
+      const at = (await exec(`(() => {
+        const el = document.querySelector(${JSON.stringify(spec.selector)});
+        if (!el) return null;
+        el.scrollIntoView({ block: 'center', inline: 'center' });
+        const r = el.getBoundingClientRect();
+        return { x: r.left + r.width / 2, y: r.top + r.height / 2, inside: r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight };
+      })()`)) as { x: number; y: number; inside: boolean } | null;
+      if (!at) {
+        console.log('[editorDrag] selector not found:', spec.selector);
+      } else {
+        const x0 = Math.round(at.x), y0 = Math.round(at.y);
+        const x1 = x0 + Math.round(spec.dx ?? 0), y1 = y0 + Math.round(spec.dy ?? 0);
+        const steps = Math.max(1, spec.steps ?? 8);
+        w.webContents.sendInputEvent({ type: 'mouseDown', x: x0, y: y0, button: 'left', clickCount: 1 });
+        for (let i = 1; i <= steps; i++) {
+          const t = i / steps;
+          w.webContents.sendInputEvent({ type: 'mouseMove', x: Math.round(x0 + (x1 - x0) * t), y: Math.round(y0 + (y1 - y0) * t), button: 'left' });
+          await settleFrames(1);
+        }
+        w.webContents.sendInputEvent({ type: 'mouseUp', x: x1, y: y1, button: 'left', clickCount: 1 });
+        await settleFrames(4);
+        const after = spec.read ? await exec(spec.read) : undefined;
+        console.log('[editorDrag]', JSON.stringify({ from: [x0, y0], to: [x1, y1], inside: at.inside, before, after }));
+      }
+    }
     await settleFrames(12); // was sleep(2500) — let the engine loop spin up + fully paint the WebGL viewport
     const img = await w.webContents.capturePage();
     await writeFile(out, img.toPNG());
@@ -325,7 +363,10 @@ function createWindow() {
   // `sceneDirty` is pushed from the renderer (app:dirty); `quitting` lets the chosen
   // action close past this handler.
   win.on('close', (e) => {
-    if (quitting || !sceneDirty || !win) return;
+    // Screenshot / automation mode discards unsaved changes silently — a shot run
+    // dirties the scene (it creates/edits entities), and a blocking save prompt on
+    // app.quit() would hang the headless run waiting for a click.
+    if (process.env.ESTELLA_SHOT || quitting || !sceneDirty || !win) return;
     e.preventDefault();
     const choice = dialog.showMessageBoxSync(win, {
       type: 'warning',
