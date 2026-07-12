@@ -268,6 +268,11 @@ export class SceneCommandsImpl {
     const applySeed = (): void => {
       if (seed?.insetLeft !== undefined) this.writeField_(sourceId, 'UINode', 'insetLeft', 'dimension', { value: seed.insetLeft, unit: DimensionUnit.Px });
       if (seed?.insetTop !== undefined) this.writeField_(sourceId, 'UINode', 'insetTop', 'dimension', { value: seed.insetTop, unit: DimensionUnit.Px });
+      // Freeze the flex-resolved size too, so a stretched/auto-sized node keeps its
+      // dimensions when it leaves flow (an absolute node with only a top-left inset
+      // would otherwise collapse to its content size).
+      if (seed?.width !== undefined) this.writeField_(sourceId, 'UINode', 'width', 'dimension', { value: seed.width, unit: DimensionUnit.Px });
+      if (seed?.height !== undefined) this.writeField_(sourceId, 'UINode', 'height', 'dimension', { value: seed.height, unit: DimensionUnit.Px });
     };
     if (bakeAbsolute && !this.gesture) {
       // One undo step for the flip + the seeded insets.
@@ -314,24 +319,29 @@ export class SceneCommandsImpl {
   }
 
   /**
-   * The concrete px insets that pin a UINode's CURRENT resolved box to its parent's
-   * top-left — captured while the node is still in its old (pre-flip) layout so the
-   * box is live. Only an axis with no explicit offset yet (both sides auto) is
-   * seeded; an axis the user already positioned is left untouched (undefined).
-   * Empty without live boxes. Applied after the flip to keep the node put + draggable.
+   * The concrete px inset + size that reproduce a UINode's CURRENT resolved box —
+   * captured while the node is still in its old (pre-flip) layout so the box is live.
+   * Pins the top-left inset and freezes an auto (flex/content-driven) width/height, so
+   * flipping to Absolute keeps the node exactly where and how big it was. Only an axis
+   * / dimension still at its auto default is seeded; one the user already set is left
+   * untouched (undefined). Empty without live boxes.
    */
-  private absoluteInsetSeed_(sourceId: EntityId): { insetLeft?: number; insetTop?: number } {
+  private absoluteInsetSeed_(sourceId: EntityId): { insetLeft?: number; insetTop?: number; width?: number; height?: number } {
     const rt = this.model.runtimeFor(sourceId);
     const parentSrc = this.model.entityBySource(sourceId)?.parent;
     const parentRt = parentSrc != null ? this.model.runtimeFor(parentSrc) : undefined;
     const node = rt !== undefined ? ViewportController.uiEntityWorldOBB(rt) : null;
     const parent = parentRt !== undefined ? ViewportController.uiEntityWorldOBB(parentRt) : null;
     if (!node || !parent) return {};
-    const autoAxis = (nearKey: string, farKey: string): boolean => {
-      const near = this.modelFieldValue(sourceId, 'UINode', nearKey) as { unit: number } | undefined;
-      const far = this.modelFieldValue(sourceId, 'UINode', farKey) as { unit: number } | undefined;
-      return near?.unit === DimensionUnit.Auto && far?.unit === DimensionUnit.Auto;
-    };
+    // A field absent from the model sits at its DEFAULT, which for inset/width/height
+    // is `auto` — so a missing value must read as auto, not "not auto". (A fresh flow
+    // node stores almost nothing, so without this the bake seeded nothing and the node
+    // collapsed to the top-left corner.)
+    const unitOf = (key: string): number =>
+      (this.modelFieldValue(sourceId, 'UINode', key) as { unit: number } | undefined)?.unit ?? DimensionUnit.Auto;
+    const autoAxis = (nearKey: string, farKey: string): boolean =>
+      unitOf(nearKey) === DimensionUnit.Auto && unitOf(farKey) === DimensionUnit.Auto;
+    const isAutoDim = (key: string): boolean => unitOf(key) === DimensionUnit.Auto;
     // An absolute node's margin still offsets it on top of its inset, so the inset
     // that reproduces the current position is (edge gap − own margin). Only px
     // margins subtract cleanly; percent/auto margins are rare here and left as 0.
@@ -339,10 +349,14 @@ export class SceneCommandsImpl {
       const m = this.modelFieldValue(sourceId, 'UINode', key) as { value: number; unit: number } | undefined;
       return m?.unit === DimensionUnit.Px ? m.value : 0;
     };
-    const out: { insetLeft?: number; insetTop?: number } = {};
+    const out: { insetLeft?: number; insetTop?: number; width?: number; height?: number } = {};
     if (autoAxis('insetLeft', 'insetRight')) out.insetLeft = Math.round((node.cx - node.hw) - (parent.cx - parent.hw) - marginPx('marginLeft'));
     // Layout space is y-down: the top inset is the gap from the parent's top edge.
     if (autoAxis('insetTop', 'insetBottom')) out.insetTop = Math.round((parent.cy + parent.hh) - (node.cy + node.hh) - marginPx('marginTop'));
+    // The OBB half-extents are the flex-resolved size (world px == layout px at the UI
+    // camera's unit scale); freeze it only where the size was auto (flex/content-driven).
+    if (isAutoDim('width')) out.width = Math.round(node.hw * 2);
+    if (isAutoDim('height')) out.height = Math.round(node.hh * 2);
     return out;
   }
 

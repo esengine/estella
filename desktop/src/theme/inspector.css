@@ -81,6 +81,11 @@
    choice (Left/Center/Right/Stretch × Top/Middle/Bottom/Stretch) — self-documenting,
    unlike a 16-cell icon grid. The header names the active preset (or "Custom"). */
 .anchor-block { padding: 7px 8px 9px; }
+/* Position mode switch (In Layout ↔ Absolute) — sits above the mode's controls. */
+.ui-mode-row { display: flex; align-items: center; gap: 9px; margin-bottom: 9px; }
+.ui-mode-row .anchor-t { font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: .5px; color: var(--text-mute); flex-shrink: 0; }
+.ui-mode-row .seg { flex: 1; min-width: 0; }
+.anchor-hint { margin-top: 8px; font-size: var(--fs-2xs); color: var(--text-mute); line-height: 1.4; }
 .anchor-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
 .anchor-head .anchor-t { font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: .5px; color: var(--text-mute); }
 .anchor-head .anchor-cur { font-style: normal; font-size: var(--fs-sm); font-weight: 600; color: var(--acc-hi); }

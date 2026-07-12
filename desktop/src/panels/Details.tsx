@@ -44,7 +44,7 @@ import { InspectorClipboard } from '@/engine/inspectorClipboard';
 import { SceneCommands, toModelValue } from '@/engine/SceneCommands';
 import { ENTITY_SOURCES, createFromSource } from '@/engine/entitySources';
 import { PlayInspect } from '@/engine/PlayInspect';
-import { DimensionUnit, AnchorAxis, detectAnchor } from 'esengine';
+import { DimensionUnit, AnchorAxis, detectAnchor, UIPositionType } from 'esengine';
 import type { SceneData, InputMapAsset, ActionType, Binding } from 'esengine';
 import { modelAddableComponentEntries, subscribeSchemas, getSchemaRevision, prettyLabel, hexToRgba, dynamicEnumOptions, boxGroupsFor, type BoxGroupDef } from '@/engine/schema';
 import * as imap from '@/project/inputMapDoc';
@@ -1179,18 +1179,40 @@ const V_ANCHOR_OPTS = [
   { value: String(AnchorAxis.Stretch), label: 'Stretch' },
 ];
 
-/** Anchor control for a UINode: a live preview of where the element sits in its
- *  parent, plus two labelled Horizontal/Vertical pickers (Left/Center/Right/Stretch
- *  × Top/Middle/Bottom/Stretch). Each axis is an independent, named choice — far
- *  clearer than decoding a 16-cell icon grid — and writing either one applies the
- *  combined preset (making the node Absolute), read back via detectAnchor. */
-function AnchorControl({ entities, comp }: { entities: EntityId[]; comp: InspectorComponent }) {
+const POSITION_MODE_OPTS = [
+  { value: String(UIPositionType.Relative), label: 'In Layout' },
+  { value: String(UIPositionType.Absolute), label: 'Absolute' },
+];
+// alignSelf enum: 0 Auto · 1 Start · 2 Center · 3 End · 4 Stretch (matches the SDK).
+const ALIGN_SELF_OPTS = [
+  { value: '0', label: 'Auto' },
+  { value: '1', label: 'Start' },
+  { value: '2', label: 'Center' },
+  { value: '3', label: 'End' },
+  { value: '4', label: 'Stretch' },
+];
+
+/** The UINode fields the Layout block owns, so the generic field flow skips them —
+ *  which set depends on the positioning MODE (an anchor/inset belongs to Absolute,
+ *  the flex knobs to flow). Mirrors how box cards claim their edge fields. */
+function uiLayoutOwnedFields(absolute: boolean): ReadonlySet<string> {
+  const base = ['position', 'alignSelf'];
+  // Flow: offsets are meaningless (inset only applies to Absolute). Absolute: the
+  // flex-item knobs don't participate (the node is out of flow).
+  return new Set(absolute ? [...base, 'flexGrow', 'flexShrink', 'flexBasis'] : [...base, 'insetLeft', 'insetRight', 'insetTop', 'insetBottom']);
+}
+
+/** The anchor 9-preset picker for an ABSOLUTE UINode: a live preview + two labelled
+ *  Horizontal/Vertical pickers (Left/Center/Right/Stretch × Top/Middle/Bottom/Stretch).
+ *  Each axis is an independent named choice; writing either applies the combined
+ *  preset, read back via detectAnchor. */
+function AnchorPicker({ entities, comp }: { entities: EntityId[]; comp: InspectorComponent }) {
   const dim = (key: string) => {
     const v = comp.fields.find((f) => f.key === key)?.value as { value: number; unit: number } | undefined;
     return v ?? { value: 0, unit: DimensionUnit.Auto };
   };
   const node = {
-    position: Number(comp.fields.find((f) => f.key === 'position')?.value ?? 0),
+    position: UIPositionType.Absolute,
     insetLeft: dim('insetLeft'), insetRight: dim('insetRight'),
     insetTop: dim('insetTop'), insetBottom: dim('insetBottom'),
     marginLeft: dim('marginLeft'), marginRight: dim('marginRight'),
@@ -1204,7 +1226,7 @@ function AnchorControl({ entities, comp }: { entities: EntityId[]; comp: Inspect
   const curV = active?.v ?? AnchorAxis.Center;
   const r = anchorWidgetRect(curH, curV);
   return (
-    <div className="anchor-block">
+    <>
       <div className="anchor-head">
         <span className="anchor-t">Anchor</span>
         <em className="anchor-cur">{active ? anchorTitle(active.h, active.v) : 'Custom'}</em>
@@ -1239,6 +1261,64 @@ function AnchorControl({ entities, comp }: { entities: EntityId[]; comp: Inspect
           </label>
         </div>
       </div>
+    </>
+  );
+}
+
+/** The flow-layout controls for a RELATIVE (In-Layout) UINode: its parent's flex
+ *  layout decides the placement, so the only per-node control is the cross-axis
+ *  Align Self (the flow analog of a 1-axis anchor). Grow/shrink/basis live in the
+ *  field flow below. */
+function FlowLayoutControls({ entities, comp }: { entities: EntityId[]; comp: InspectorComponent }) {
+  const field = comp.fields.find((f) => f.key === 'alignSelf');
+  const value = field?.mixed ? '' : String(Number(field?.value ?? 0));
+  const set = (val: string) => {
+    SceneCommands.beginGesture('Align Self');
+    for (const id of entities) SceneCommands.setField(id, 'UINode', 'alignSelf', 'enum', Number(val));
+    SceneCommands.endGesture();
+  };
+  return (
+    <>
+      <div className="anchor-body">
+        <div className="anchor-axes">
+          <label className="anchor-axis">
+            <span>Align Self</span>
+            <Segmented grow ariaLabel="Align self" value={value} options={ALIGN_SELF_OPTS} onChange={set} />
+          </label>
+        </div>
+      </div>
+      <div className="anchor-hint">Placed by the parent’s layout · Align Self overrides the cross-axis.</div>
+    </>
+  );
+}
+
+/** The UINode positioning block: an explicit In-Layout ↔ Absolute mode switch, then
+ *  the controls that actually apply in that mode — the anchor presets for Absolute,
+ *  Align Self for flow. Anchors are an absolute-positioning concept, so a flow node
+ *  never shows a meaningless "Custom" anchor; it shows how it sits in its parent's
+ *  flex layout instead. The mode switch writes `position` (flipping to Absolute bakes
+ *  the current on-screen box into px insets — see SceneCommands.setField). */
+function UILayoutControl({ entities, comp }: { entities: EntityId[]; comp: InspectorComponent }) {
+  const posField = comp.fields.find((f) => f.key === 'position');
+  const absolute = Number(posField?.value ?? 0) === UIPositionType.Absolute;
+  const setMode = (val: string) => {
+    SceneCommands.beginGesture('UI Position Mode');
+    for (const id of entities) SceneCommands.setField(id, 'UINode', 'position', 'enum', Number(val));
+    SceneCommands.endGesture();
+  };
+  return (
+    <div className="anchor-block">
+      <div className="ui-mode-row">
+        <span className="anchor-t">Position</span>
+        <Segmented
+          grow
+          ariaLabel="Position mode"
+          value={posField?.mixed ? '' : String(absolute ? UIPositionType.Absolute : UIPositionType.Relative)}
+          options={POSITION_MODE_OPTS}
+          onChange={setMode}
+        />
+      </div>
+      {absolute ? <AnchorPicker entities={entities} comp={comp} /> : <FlowLayoutControls entities={entities} comp={comp} />}
     </div>
   );
 }
@@ -1348,6 +1428,7 @@ function ComponentSection({
   write,
   action,
   extra,
+  hideFields,
 }: {
   entities: EntityId[];
   comp: InspectorComponent;
@@ -1357,6 +1438,9 @@ function ComponentSection({
   write?: FieldWrite;
   action?: { label: string; title: string; run: () => void };
   extra?: React.ReactNode;
+  /** Field keys the `extra` block owns (e.g. UINode's Layout section), skipped by
+   *  the generic field flow so they aren't edited in two places. */
+  hideFields?: ReadonlySet<string>;
 }) {
   const Icon = componentIcon(comp.name);
   const overridden = comp.fields.some(isModified);
@@ -1368,8 +1452,11 @@ function ComponentSection({
   // Edge fields that fold into a spatial box (margin/offsets) are pulled out of the
   // normal flow and rendered as a compound card below the plain rows — but only
   // when all four sides are present in the reflection.
-  const boxGroups = boxGroupsFor(comp.name).filter((g) =>
-    [g.left, g.right, g.top, g.bottom].every((k) => comp.fields.some((f) => f.key === k)),
+  const boxGroups = boxGroupsFor(comp.name).filter(
+    (g) =>
+      [g.left, g.right, g.top, g.bottom].every((k) => comp.fields.some((f) => f.key === k)) &&
+      // A box card the extra block owns (all four sides hidden) drops out entirely.
+      ![g.left, g.right, g.top, g.bottom].every((k) => hideFields?.has(k)),
   );
   const boxKeys = new Set(boxGroups.flatMap((g) => [g.left, g.right, g.top, g.bottom]));
 
@@ -1379,6 +1466,7 @@ function ComponentSection({
   const advancedFields: InspectorField[] = [];
   const groups = new Map<string, InspectorField[]>();
   for (const f of comp.fields) {
+    if (hideFields?.has(f.key)) continue; // owned by the extra block (UINode Layout)
     if (boxKeys.has(f.key)) continue;
     if (f.category) (groups.get(f.category) ?? groups.set(f.category, []).get(f.category)!).push(f);
     else if (f.advanced) advancedFields.push(f);
@@ -2242,7 +2330,14 @@ function EditorDetails() {
             onToggle={() => toggle(comp.name)}
             onMore={(e, name) => setCompMenu({ x: e.clientX, y: e.clientY, comp: name })}
             action={uiNodeCanvasAction(ids, comp)}
-            extra={comp.name === 'UINode' ? <AnchorControl entities={ids} comp={comp} /> : undefined}
+            extra={comp.name === 'UINode' ? <UILayoutControl entities={ids} comp={comp} /> : undefined}
+            hideFields={
+              comp.name === 'UINode'
+                ? uiLayoutOwnedFields(
+                    Number(comp.fields.find((f) => f.key === 'position')?.value ?? 0) === UIPositionType.Absolute,
+                  )
+                : undefined
+            }
           />
         ))}
         {query && visible.length === 0 && (
