@@ -14,7 +14,7 @@
  * ids; the World is asserted via session.model.runtimeFor.
  */
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
-import { App, Transform, Parent, Sprite, Interactable, BUILTIN_UI_PREFABS } from 'esengine';
+import { App, Transform, Parent, Children, Sprite, Interactable, BUILTIN_UI_PREFABS } from 'esengine';
 import type { ESEngineModule } from 'esengine';
 import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
 
@@ -140,6 +140,20 @@ describe.skipIf(!HAS_WASM)('SceneCommands / SceneQuery (headless World)', () => 
 
         S.history.redo();
         expect(host.world.has(childRt, Parent)).toBe(true);
+    });
+
+    it('parenting maintains the parent Children list too (UI layout buildDFS walks it)', () => {
+        // Regression: the Reconciler used a raw Parent-component insert, which set the
+        // child's Parent but never added it to the parent's Children — so a UI child
+        // was invisible to the layout's buildDFS (never laid out, stuck at the origin).
+        const parent = S.commands.addEntity()!;
+        const child = S.commands.addEntity()!;
+        const parentRt = rt(parent);
+        const childRt = rt(child);
+        S.commands.setParent(child, parent);
+        expect(host.world.has(parentRt, Children)).toBe(true);
+        const kids = host.world.get(parentRt, Children) as { entities: ArrayLike<number> };
+        expect(Array.from(kids.entities)).toContain(childRt);
     });
 
     it('setParent rejects a cycle (parenting under a descendant)', () => {

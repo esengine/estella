@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { Name, Parent, getComponent, resetWorldTo, TilemapLiveSync } from 'esengine';
+import { Name, getComponent, resetWorldTo, TilemapLiveSync } from 'esengine';
 import type { SceneData } from 'esengine';
 import type { EntityId } from '@/types';
 import { EngineHost } from './EngineHost';
@@ -192,16 +192,19 @@ export class ReconcilerImpl {
       const c = hidden ? foldHidden(comp) : comp;
       this.insertComponent(world, rt, c.type, c.data as Record<string, unknown>);
     }
-    // Link to a parent that is already spawned…
+    // Link to a parent that is already spawned. setParent (not a raw Parent
+    // insert) so the parent's Children list is maintained too — the UI layout's
+    // buildDFS walks Children, so an insert-only link leaves the child out of
+    // layout entirely (never laid out → stuck at the origin).
     if (entity.parent != null) {
       const pr = this.model.runtimeFor(entity.parent);
-      if (pr != null) world.insert(rt, Parent, { entity: pr } as never);
+      if (pr != null) world.setParent(rt, pr);
     }
     // …and re-link any already-spawned children (undo-of-delete restores a
     // parent after its children, so the children await this re-parent).
     for (const childId of entity.children) {
       const cr = this.model.runtimeFor(childId);
-      if (cr != null) world.insert(cr, Parent, { entity: rt } as never);
+      if (cr != null) world.setParent(cr, rt);
     }
     // Out-of-band: a TilemapLayer's `tilesetAssets` isn't an engine component field,
     // so insertComponent skips it. Live-push it to the tilemap plugin on spawn — this
@@ -274,8 +277,11 @@ export class ReconcilerImpl {
     const entity = this.model.entityBySource(sourceId);
     if (!world || rt == null || !entity) return;
     const pr = entity.parent != null ? this.model.runtimeFor(entity.parent) : undefined;
-    if (pr != null) world.insert(rt, Parent, { entity: pr } as never);
-    else if (world.has(rt, Parent)) world.remove(rt, Parent);
+    // setParent/removeParent maintain both sides (child's Parent + parent's
+    // Children) — a raw Parent insert leaves the parent's Children stale, which
+    // drops the child out of the UI layout's buildDFS walk.
+    if (pr != null) world.setParent(rt, pr);
+    else world.removeParent(rt);
   }
 
   private projectName(sourceId: number): void {
