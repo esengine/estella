@@ -12,7 +12,7 @@ import { useTilemapPaint, type PaintTool } from '@/store/tilemapPaintStore';
 import { exitTilePaint, isTilePaintMode, selectedTilemapCellSize } from '@/tools/tileMode';
 import { activeMode, activeModeOverlays } from '@/mode/activeMode';
 import { useEditorMode } from '@/store/editorModeStore';
-import { RESOLUTION_PRESETS, RESOLUTION_PRESET_BY_ID, DESIGN_RESOLUTION_PRESETS } from '@/mode/resolutionPresets';
+import { RESOLUTION_PRESETS, RESOLUTION_PRESET_BY_ID, DESIGN_RESOLUTION_PRESETS, deviceDims } from '@/mode/resolutionPresets';
 import { buildStampGhost } from '@/tools/tileStampGhost';
 import { TilemapAPI, tileIdOf, UINode, DimensionUnit, computeEffectiveOrthoSize } from 'esengine';
 import { commands } from '@/commands';
@@ -737,11 +737,13 @@ export function Viewport() {
           const ms = useEditorMode.getState();
           const preset = RESOLUTION_PRESET_BY_ID[ms.device];
           // Device visible frame: the design resolution fit into the simulated device's
-          // aspect per the Canvas scaleMode. The 'design' sentinel (w/h 0) = no device.
+          // aspect per the Canvas scaleMode. `dd` is the oriented device size (null for the
+          // 'design' sentinel) — the SAME source App.tsx feeds to uiLayoutRect, so this
+          // frame and the actual UI layout share one aspect and can't drift.
+          const dd = deviceDims(ms.device, ms.orientation);
           let dev = des;
-          if (preset.w > 0 && preset.h > 0) {
-            const [dw, dh] = ms.orientation === 'landscape' ? [preset.h, preset.w] : [preset.w, preset.h];
-            const deviceAspect = dw / dh;
+          if (dd) {
+            const deviceAspect = dd.w / dd.h;
             const designAspect = ci.designResolution.x / ci.designResolution.y;
             const halfH = computeEffectiveOrthoSize(
               ci.designResolution.y / 2, designAspect, deviceAspect, ci.scaleMode, ci.matchWidthOrHeight,
@@ -762,7 +764,7 @@ export function Viewport() {
           if (lb) {
             const punch = (o: { x: number; y: number; w: number; h: number }): string =>
               `M${o.x},${o.y}h${o.w}v${o.h}h${-o.w}Z M${des.x},${des.y}h${des.w}v${des.h}h${-des.w}Z`;
-            const hasDevice = preset.w > 0 && preset.h > 0;
+            const hasDevice = dd != null;
             const deviceContains =
               dev.w >= des.w - 0.5 && dev.h >= des.h - 0.5 && (dev.w > des.w + 0.5 || dev.h > des.h + 0.5);
             if (hasDevice && deviceContains) {
@@ -781,10 +783,9 @@ export function Viewport() {
           // Safe-area inset within the device frame (device px → screen px by the frame ratio).
           const safe = dsvg.querySelector('.df-safe') as SVGRectElement | null;
           if (safe) {
-            if (ms.showSafeArea && preset.safe && preset.w > 0) {
-              const [dwPx, dhPx] = ms.orientation === 'landscape' ? [preset.h, preset.w] : [preset.w, preset.h];
-              const sx = dev.w / dwPx;
-              const sy = dev.h / dhPx;
+            if (ms.showSafeArea && preset.safe && dd) {
+              const sx = dev.w / dd.w;
+              const sy = dev.h / dd.h;
               setRectAttrs(safe, {
                 x: dev.x + preset.safe.left * sx,
                 y: dev.y + preset.safe.top * sy,

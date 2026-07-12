@@ -40,6 +40,30 @@ export const RESOLUTION_PRESET_BY_ID: Record<DevicePresetId, DevicePreset> = Obj
   RESOLUTION_PRESETS.map((p) => [p.id, p]),
 ) as Record<DevicePresetId, DevicePreset>;
 
+export type Orientation = 'portrait' | 'landscape';
+
+/**
+ * A device preset's pixel dimensions with the orientation applied (portrait dims are
+ * swapped for landscape). Null for the `design` sentinel (no simulated device). The one
+ * source of the device's oriented size — the design-frame overlay and the UI-layout-aspect
+ * sync both read it, so the previewed frame and the actual UI layout can't drift apart.
+ */
+export function deviceDims(device: DevicePresetId, orientation: Orientation): { w: number; h: number } | null {
+  const p = RESOLUTION_PRESET_BY_ID[device];
+  if (p.w <= 0 || p.h <= 0) return null;
+  return orientation === 'landscape' ? { w: p.h, h: p.w } : { w: p.w, h: p.h };
+}
+
+/**
+ * The aspect the editor lays UI out against for the current device selection: the device's
+ * aspect (previewing adaptation), or 0 for the `design` sentinel (WYSIWYG at the authored
+ * resolution). Fed to EditorView.uiPreviewAspect → uiLayoutRect.
+ */
+export function uiPreviewAspect(device: DevicePresetId, orientation: Orientation): number {
+  const d = deviceDims(device, orientation);
+  return d ? d.w / d.h : 0;
+}
+
 /**
  * Common authored design resolutions for the viewport Design control. Unlike the
  * device presets above (a transient preview simulation), picking one WRITES the

@@ -21,6 +21,8 @@ import { commands } from '@/commands';
 import { handleTilePaintKey } from '@/tools/tileMode';
 import { suggestedMode } from '@/mode/activeMode';
 import { useEditorMode } from '@/store/editorModeStore';
+import { uiPreviewAspect } from '@/mode/resolutionPresets';
+import { EngineHost } from '@/engine/EngineHost';
 import type { EditorModeId } from '@/mode/editorModes';
 import { useSelection } from '@/store/selectionStore';
 import { PlayRealms } from '@/engine/PlayRealm';
@@ -83,6 +85,21 @@ export function App() {
       }
       prevMode = mode.id;
     });
+  }, []);
+
+  // Feed the UI-mode device selection into the editor UI layout: a chosen device preset
+  // lays UI out at its aspect (previewing adaptation), 'design' keeps the design box. Re-sync
+  // on any device/orientation change and on each engine (re)boot, since a fresh EditorView
+  // resets uiPreviewAspect to the design default.
+  useEffect(() => {
+    const apply = () => {
+      const { device, orientation } = useEditorMode.getState();
+      EngineHost.setUiPreviewAspect(uiPreviewAspect(device, orientation));
+    };
+    apply();
+    const unsubMode = useEditorMode.subscribe(apply);
+    const unsubEngine = EngineHost.subscribe(apply);
+    return () => { unsubMode(); unsubEngine(); };
   }, []);
 
   // Wire the Sequencer's edit-mode live preview (timeline document → World) and

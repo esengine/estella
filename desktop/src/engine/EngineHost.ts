@@ -294,6 +294,16 @@ class EngineHostImpl {
     if (spacing != null && spacing > 0) grid.spacing = spacing;
   }
 
+  /**
+   * The aspect the editor lays UI out against — a selected device preset's aspect, or 0
+   * for the design resolution (WYSIWYG). Drives uiLayoutRect via EditorView so a simulated
+   * device previews how the UI adapts. No-op pre-boot (the resource installs at plugin build).
+   */
+  setUiPreviewAspect(aspect: number): void {
+    const view = this.getResource(EditorView);
+    if (view) view.uiPreviewAspect = aspect;
+  }
+
   /** The active (or first) scene camera's center + ortho half-height, for seeding. */
   private readSceneCamera(): { x: number; y: number; orthoSize: number } | null {
     const world = this.world;
