@@ -94,6 +94,15 @@ export {
     type FlexContainerData,
 } from './layout/flex';
 
+export {
+    AnchorAxis,
+    ANCHOR_AXES,
+    anchorPresetFields,
+    detectAnchor,
+    type AnchorPreset,
+    type AnchorFields,
+} from './layout/anchor';
+
 // ─── Layer 2: Behaviors ─────────────────────────────────────────────────────
 
 export {
@@ -203,6 +212,7 @@ export {
 export {
     createButton,
     setButtonState,
+    themeButtonStates,
     type ButtonOptions,
     type ButtonStateVisual,
 } from './widgets/button';
@@ -315,12 +325,29 @@ export { UIRenderOrderPlugin, uiRenderOrderPlugin } from './render/render-order'
 
 export {
     DARK_TOKENS,
+    LIGHT_TOKENS,
     getTheme,
     setTheme,
     themeColors,
+    themeType,
     type ThemeTokens,
     type ThemeColors,
+    type ThemeType,
 } from './theme/tokens';
+
+export {
+    ThemeStyle,
+    markThemed,
+    type ThemeStyleData,
+    type ColorRole,
+} from './theme/theme-style';
+
+export { applyThemeToWorld, switchTheme } from './behavior/theme-apply';
+
+// ─── Binding (reactive data → component fields) ─────────────────────────────
+
+export { signal, derived, type Signal, type ReadonlySignal } from './binding/signal';
+export { bind } from './binding/bind';
 
 // Property Path Utilities
 export {

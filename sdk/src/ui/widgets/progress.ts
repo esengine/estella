@@ -19,6 +19,7 @@ import {
     type LinearFillDirection,
 } from './helpers';
 import { themeColors } from '../theme/tokens';
+import { markThemed } from '../theme/theme-style';
 
 export interface ProgressOptions {
     world: World;
@@ -66,6 +67,7 @@ export function createProgress(opts: ProgressOptions): ProgressHandle {
         node: opts.node ?? { fill: true },
         visual: opts.background ?? { color: c.track },
     });
+    if (!opts.background) markThemed(world, track, { visual: 'track' });
 
     const fill = spawnUIEntity({
         world,
@@ -80,6 +82,7 @@ export function createProgress(opts: ProgressOptions): ProgressHandle {
             fillAmount: value,
         },
     });
+    if (opts.fill?.color === undefined) markThemed(world, fill, { visual: 'primary' });
 
     function setValue(v: number): void {
         const next = clamp01(v);

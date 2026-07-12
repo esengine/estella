@@ -8,6 +8,7 @@ import { Interactable, UIInteraction } from '../input/interactable';
 import { spawnUIEntity, setUIVisible, type UINodeInit, type UIVisualInit } from './helpers';
 import { px, percent } from '../core/dimension';
 import { themeColors } from '../theme/tokens';
+import { markThemed } from '../theme/theme-style';
 
 export interface DialogOptions {
     world: World;
@@ -49,6 +50,7 @@ export function createDialog(opts: DialogOptions): DialogHandle {
         node: opts.backdropNode ?? { fill: true },
         visual: opts.backdropVisual ?? { color: c.backdrop },
     });
+    if (!opts.backdropVisual) markThemed(world, backdrop, { visual: 'backdrop' });
 
     // Blocks hit-test on the scene behind the dialog.
     world.insert(backdrop, Interactable, {
@@ -75,6 +77,7 @@ export function createDialog(opts: DialogOptions): DialogHandle {
         },
         visual: opts.panelVisual ?? { color: c.surface },
     });
+    if (!opts.panelVisual) markThemed(world, panel, { visual: 'surface' });
 
     let open = !(opts.startHidden ?? true);
     applyOpen(open);

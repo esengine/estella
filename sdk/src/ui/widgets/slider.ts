@@ -9,6 +9,7 @@ import { UIVisual, UIVisualType, type UIVisualData } from '../core/ui-visual';
 
 import { spawnUIEntity, FILL_AXIS, type UINodeInit, type UIVisualInit } from './helpers';
 import { themeColors } from '../theme/tokens';
+import { markThemed } from '../theme/theme-style';
 
 export interface SliderOptions {
     world: World;
@@ -72,6 +73,7 @@ export function createSlider(opts: SliderOptions): SliderHandle {
         node: opts.node ?? { fill: true },
         visual: opts.trackVisual ?? { color: c.track },
     });
+    if (!opts.trackVisual) markThemed(opts.world, track, { visual: 'track' });
 
     const fill = spawnUIEntity({
         world: opts.world,
@@ -85,6 +87,7 @@ export function createSlider(opts: SliderOptions): SliderHandle {
             ...(opts.fillVisual ?? { color: c.primary }),
         },
     });
+    if (!opts.fillVisual) markThemed(opts.world, fill, { visual: 'primary' });
 
     const handle = spawnUIEntity({
         world: opts.world,
@@ -92,6 +95,7 @@ export function createSlider(opts: SliderOptions): SliderHandle {
         node: handleNodeAt(fraction(value, min, max), handleWidth),
         visual: opts.handleVisual ?? { color: c.onPrimary },
     });
+    if (!opts.handleVisual) markThemed(opts.world, handle, { visual: 'onPrimary' });
 
     // Value -> visuals: the fill's Filled amount is the value fraction (a
     // render-time crop, no relayout); the handle's left inset tracks it,

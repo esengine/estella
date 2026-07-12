@@ -84,11 +84,27 @@ export {
     type SafeAreaData,
     // Theme design tokens
     DARK_TOKENS,
+    LIGHT_TOKENS,
     getTheme,
     setTheme,
     themeColors,
+    themeType,
     type ThemeTokens,
     type ThemeColors,
+    type ThemeType,
+    // Live re-theming
+    ThemeStyle,
+    markThemed,
+    applyThemeToWorld,
+    switchTheme,
+    type ThemeStyleData,
+    type ColorRole,
+    // Reactive data binding
+    signal,
+    derived,
+    bind,
+    type Signal,
+    type ReadonlySignal,
 } from './ui';
 
 // ─── UI code-composition surface ─────────────────────────────────────────────
@@ -114,6 +130,13 @@ export {
     AlignItems,
     AlignContent,
     type FlexContainerData,
+    // Anchor presets (authoring shortcuts over the box fields)
+    AnchorAxis,
+    ANCHOR_AXES,
+    anchorPresetFields,
+    detectAnchor,
+    type AnchorPreset,
+    type AnchorFields,
     // Builders
     buildUINode,
     buildUIVisual,
@@ -129,6 +152,7 @@ export {
     // Widget factories
     createButton,
     setButtonState,
+    themeButtonStates,
     type ButtonOptions,
     type ButtonStateVisual,
     createToggle,

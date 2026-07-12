@@ -13,6 +13,8 @@ import {
     type StateVisualsData,
 } from '../behavior/state-visuals';
 import { UIEventType, type UIEventQueue } from '../core/events';
+import { themeColors, themeType } from '../theme/tokens';
+import { markThemed } from '../theme/theme-style';
 
 import {
     spawnUIEntity,
@@ -45,9 +47,10 @@ export interface ButtonOptions {
      * Map of state name (e.g. "normal", "hover", "pressed", "disabled")
      * to its visual override. The Interactable driver writes the four
      * canonical state names; callers may add more (e.g. "loading") and
-     * flip them manually via `setState`.
+     * flip them manually via `setState`. Omit to default to the active
+     * theme's control roles ({@link themeButtonStates}).
      */
-    states: Record<string, ButtonStateVisual>;
+    states?: Record<string, ButtonStateVisual>;
     /** Combination of TransitionFlag values. Default: ColorTint. */
     transitionFlags?: number;
     /** Lerp time for ColorTint/Scale transitions. Default 0 (snap). */
@@ -62,6 +65,19 @@ function buildStates(states: Record<string, ButtonStateVisual>): VisualState[] {
     return Object.entries(states).map(([name, v]) =>
         visualState(name, v.color ?? { r: 1, g: 1, b: 1, a: 1 },
             { sprite: v.sprite, scale: v.scale }));
+}
+
+/** The canonical button state colors from the active theme's control roles —
+ *  `createButton`'s default when the caller passes no `states`. `disabled` reuses
+ *  the resting control fill at reduced alpha. */
+export function themeButtonStates(): Record<string, ButtonStateVisual> {
+    const c = themeColors();
+    return {
+        normal: { color: c.control },
+        hover: { color: c.controlHover },
+        pressed: { color: c.controlActive },
+        disabled: { color: { ...c.control, a: c.control.a * 0.5 } },
+    };
 }
 
 /**
@@ -98,18 +114,28 @@ export function createButton(opts: ButtonOptions): Entity {
         targetGraphic: 0 as Entity,
         transitionFlags: opts.transitionFlags ?? TransitionFlag.ColorTint,
         fadeDuration: opts.fadeDuration ?? 0,
-        states: buildStates(opts.states),
+        states: buildStates(opts.states ?? themeButtonStates()),
     };
     world.insert(entity, StateVisuals, visuals);
+    // Only theme-managed default states re-resolve on a theme swap; caller-supplied
+    // colors are the caller's own.
+    if (opts.states === undefined) {
+        markThemed(world, entity, {
+            states: { normal: 'control', hover: 'controlHover', pressed: 'controlActive', disabled: 'control' },
+        });
+    }
 
     if (opts.text !== undefined) {
-        const textInit = typeof opts.text === 'string' ? { content: opts.text } : opts.text;
-        spawnUIEntity({
+        const userText = typeof opts.text === 'string' ? { content: opts.text } : opts.text;
+        // Theme-default the label's color + size; the caller's fields win.
+        const textInit = { color: themeColors().text, fontSize: themeType().label, ...userText };
+        const label = spawnUIEntity({
             world,
             parent: entity,
             node: { fill: true },
             text: textInit,
         });
+        if (userText.color === undefined) markThemed(world, label, { text: 'text' });
     }
 
     if (opts.onClick) {

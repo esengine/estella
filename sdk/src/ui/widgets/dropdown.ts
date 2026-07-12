@@ -12,6 +12,7 @@ import { Text, type TextData } from '../core/text';
 import { spawnUIEntity, type UINodeInit, type UIVisualInit } from './helpers';
 import { px, percent } from '../core/dimension';
 import { themeColors } from '../theme/tokens';
+import { markThemed } from '../theme/theme-style';
 
 export interface DropdownOptions<T> {
     world: World;
@@ -110,13 +111,17 @@ export function createDropdown<T>(opts: DropdownOptions<T>): DropdownHandle<T> {
     world.insert(button, UIInteraction, INTERACTION_DEFAULT);
     world.insert(button, StateMachine, { current: 'normal', previous: '' });
     world.insert(button, StateVisuals, makeStatesSV(btnColors));
+    if (opts.buttonStates === undefined) {
+        markThemed(world, button, { states: { normal: 'control', hover: 'controlHover', pressed: 'controlActive' } });
+    }
 
     const label = spawnUIEntity({
         world,
         parent: button,
         node: { fill: true },
-        text: { content: labelOf(opts.options[selectedIndex]!, selectedIndex) },
+        text: { content: labelOf(opts.options[selectedIndex]!, selectedIndex), color: themeColors().text },
     });
+    markThemed(world, label, { text: 'text' });
 
     let popupPanel: Entity | null = null;
     const optionUnsubs: Array<() => void> = [];

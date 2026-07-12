@@ -18,6 +18,7 @@ import {
     UIEventQueue,
     UIEventType,
     TransitionFlag,
+    themeColors,
 } from '../src/ui';
 import type { Entity } from '../src/types';
 import type { World } from '../src/world';
@@ -135,6 +136,18 @@ describe('createButton', () => {
         expect(sv.states.map(s => s.name)).toEqual(['normal', 'hover']);
         expect(sv.states[0]).toMatchObject({ r: 1, g: 0, b: 0, a: 1 });
         expect(sv.transitionFlags).toBe(TransitionFlag.ColorTint);
+    });
+
+    it('defaults its states to the active theme control roles (de-nude)', () => {
+        const btn = createButton({ world: world as unknown as World, events, text: 'OK' });
+        const sv = world.get(btn, StateVisuals) as {
+            states: Array<{ name: string; r: number; g: number; b: number; a: number }>;
+        };
+        const c = themeColors();
+        expect(sv.states.map(s => s.name)).toEqual(['normal', 'hover', 'pressed', 'disabled']);
+        expect(sv.states[0]).toMatchObject(c.control);
+        expect(sv.states[1]).toMatchObject(c.controlHover);
+        expect(sv.states[2]).toMatchObject(c.controlActive);
     });
 
     it('starts in "disabled" state when opts.disabled is true', () => {

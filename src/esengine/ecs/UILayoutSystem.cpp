@@ -237,6 +237,25 @@ void layoutUINodeSubtree(
         }
         f32 yl = YGNodeLayoutGetLeft(node);
         f32 yt = YGNodeLayoutGetTop(node);
+
+        // An absolute child centres an axis when both its insets AND both its
+        // margins on that axis are `auto`. A pivot-less CSS box can't otherwise
+        // centre an out-of-flow node: Yoga's abspos centring keys off the
+        // parent's justifyContent, so it can't differ per sibling under one
+        // Canvas. Overriding the Yoga offset makes centring a self-contained
+        // per-node anchor, independent of the parent and of which axis is main.
+        if (k != begin && un.position == UIPositionType::Absolute) {
+            auto axisCentred = [](const Dimension& a, const Dimension& b,
+                                  const Dimension& m0, const Dimension& m1) {
+                return a.unit == DIM_AUTO && b.unit == DIM_AUTO &&
+                       m0.unit == DIM_AUTO && m1.unit == DIM_AUTO;
+            };
+            if (axisCentred(un.insetLeft, un.insetRight, un.marginLeft, un.marginRight))
+                yl = 0.5f * (pw - fw);
+            if (axisCentred(un.insetTop, un.insetBottom, un.marginTop, un.marginBottom))
+                yt = 0.5f * (ph - fh);
+        }
+
         // Center-based, y-up local position (implicit pivot 0.5).
         f32 localX = -ppx * pw + yl + 0.5f * fw;
         f32 localY = (1.0f - ppy) * ph - yt - 0.5f * fh;

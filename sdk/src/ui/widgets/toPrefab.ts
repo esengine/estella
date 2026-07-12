@@ -34,9 +34,10 @@ class RecordingWorld {
         return id;
     }
 
-    insert(entity: number, comp: { _name: string }, data: unknown): void {
+    insert(entity: number, comp: { _name: string; transient?: boolean }, data: unknown): void {
         const ent = this.entities.get(entity);
         if (!ent) return;
+        if (comp.transient) return; // runtime-only state never persists into a prefab
         const clone = JSON.parse(JSON.stringify(data)) as unknown;
         const existing = ent.components.find((c) => c.type === comp._name);
         if (existing) existing.data = clone as ComponentData['data'];

@@ -1,0 +1,40 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+ * @file    ui/theme/theme-style.ts
+ * @brief   ThemeStyle — a runtime-only tag that records which semantic color
+ *          {@link ThemeColors} role each of an entity's themeable properties uses.
+ *
+ * It is the missing link for live re-theming: widgets bake a theme's colors into
+ * `UIVisual`/`Text`/`StateVisuals` at construction, so without recording the
+ * *role* there is no way to re-resolve them when the theme changes. A widget tags
+ * the entities it themes (via {@link markThemed}); `applyThemeToWorld` re-resolves
+ * the tags against the active theme. Not serialized — it lives only on
+ * code-constructed widgets.
+ */
+import { defineComponent } from '../../component';
+import type { World } from '../../world';
+import type { Entity } from '../../types';
+import type { ThemeColors } from './tokens';
+
+/** A semantic color role (a key of {@link ThemeColors}). */
+export type ColorRole = keyof ThemeColors;
+
+export interface ThemeStyleData {
+    /** Role that drives this entity's `UIVisual.color`. */
+    visual?: ColorRole;
+    /** Role that drives this entity's `Text.color`. */
+    text?: ColorRole;
+    /** State-name → role, for each `StateVisuals` state color. */
+    states?: Record<string, ColorRole>;
+}
+
+// Runtime-only: a widget's theme-role tags are re-derived from code on every
+// construct, never persisted — so it stays out of scenes and prefabs.
+export const ThemeStyle = defineComponent<ThemeStyleData>('ThemeStyle', {}, { transient: true });
+
+/** Tag `entity` so the active theme's colors re-resolve onto it (see
+ *  `applyThemeToWorld`). */
+export function markThemed(world: World, entity: Entity, style: ThemeStyleData): void {
+    world.insert(entity, ThemeStyle, style);
+}
