@@ -377,8 +377,11 @@ function syncUICameraInfo(
         uiCam.screenH = height;
         // The box UI lays out within. Scene cameras carry design-scaled extents;
         // the free-zoom editor view gets the fixed design box from the canvas so UI
-        // doesn't reflow with the zoom (see uiLayoutRect).
-        const rect = uiLayoutRect(cam, findCanvasData(module, cppRegistry), width, height);
+        // doesn't reflow with the zoom (see uiLayoutRect). In the editor a selected
+        // device preset overrides the box aspect (uiPreviewAspect) so UI previews how it
+        // adapts on that device; 0 (default / shipped games) keeps the design aspect.
+        const previewAspect = app.hasResource(EditorView) ? app.getResource(EditorView).uiPreviewAspect : 0;
+        const rect = uiLayoutRect(cam, findCanvasData(module, cppRegistry), width, height, previewAspect);
         uiCam.worldLeft = rect.left;
         uiCam.worldRight = rect.right;
         uiCam.worldBottom = rect.bottom;

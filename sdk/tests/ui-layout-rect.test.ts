@@ -47,6 +47,16 @@ describe('uiLayoutRect', () => {
         });
     });
 
+    it('a selected device previews UI at the device aspect (device simulator)', () => {
+        // A portrait device (aspect 0.5) on a 16:9 Expand canvas: Expand keeps the design
+        // width and reveals height, so the UI box grows tall (letterbox top/bottom) — the
+        // UI adapts exactly as the device/letterbox frame shows, not the design box.
+        const cam = { entity: EDITOR_VIEW_ENTITY, cameraX: 0, cameraY: 0, halfW: 160, halfH: 90 };
+        expect(uiLayoutRect(cam, canvas, 1000, 1000, 0.5)).toEqual({
+            left: -640, right: 640, bottom: -1280, top: 1280,
+        });
+    });
+
     it('the editor falls back to its own extents when the scene has no canvas', () => {
         const cam = { entity: EDITOR_VIEW_ENTITY, cameraX: 0, cameraY: 0, halfW: 160, halfH: 90 };
         expect(uiLayoutRect(cam, null, W, H)).toEqual({

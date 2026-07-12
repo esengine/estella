@@ -2176,6 +2176,7 @@ ResourceDef<EditorViewData>
 ```
 active: boolean
 orthoSize: number
+uiPreviewAspect: number
 x: number
 y: number
 ```
@@ -8656,7 +8657,7 @@ UILayoutPlugin
 
 ## uiLayoutRect — function
 ```
-(cam: CameraExtents, canvas: CanvasScale | null, width: number, height: number): WorldRect
+(cam: CameraExtents, canvas: CanvasScale | null, width: number, height: number, previewAspect?: number): WorldRect
 ```
 
 ## uiMaskPlugin — const

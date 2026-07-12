@@ -90,19 +90,25 @@ export function uiLayoutRect(
     canvas: CanvasScale | null,
     width: number,
     height: number,
+    previewAspect = 0,
 ): WorldRect {
     let halfW = cam.halfW;
     let halfH = cam.halfH;
 
     if (cam.entity === EDITOR_VIEW_ENTITY && canvas && width > 0 && height > 0) {
-        // Lay UI out in the authored design box (1 unit = 1 design px), independent of the
-        // editor panel's aspect — the editor is then WYSIWYG with the design-frame overlay:
-        // edge-anchored UI sits at the design-resolution corners, exactly as it ships at
-        // that resolution. The free editor camera renders this fixed box through its zoomed
-        // viewProjection, so UI scales with zoom without reflowing. Previewing adaptation to
-        // a *different* screen aspect is the device simulator's concern, not the base box.
-        halfW = canvas.designResolution.x / 2;
-        halfH = canvas.designResolution.y / 2;
+        // Lay UI out against the *preview screen*, independent of the editor panel's aspect —
+        // so the editor is WYSIWYG with the design-frame overlay. `previewAspect > 0` fits the
+        // design resolution into a simulated device's aspect (the device simulator: UI adapts
+        // per scaleMode, exactly as the letterbox/device frame shows); `0` uses the design
+        // aspect, where every scaleMode collapses to the exact authored box (edge-anchored UI
+        // at the design-resolution corners). The free editor camera renders this fixed box
+        // through its zoomed viewProjection, so UI scales with zoom without reflowing.
+        const designAspect = canvas.designResolution.x / canvas.designResolution.y;
+        const aspect = previewAspect > 0 ? previewAspect : designAspect;
+        halfH = computeEffectiveOrthoSize(
+            canvas.designResolution.y / 2, designAspect, aspect, canvas.scaleMode, canvas.matchWidthOrHeight,
+        );
+        halfW = halfH * aspect;
     }
 
     return {

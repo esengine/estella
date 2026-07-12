@@ -26,8 +26,15 @@ export interface EditorViewData {
   y: number;
   /** Half-height of the view in world units (zoom; smaller = more zoomed in). */
   orthoSize: number;
+  /**
+   * Aspect ratio the editor lays UI out against, so the editor previews how UI adapts
+   * on a simulated device: `> 0` fits the design resolution into this aspect (the device
+   * simulator), `0` uses the authored design aspect — WYSIWYG at the design resolution.
+   * Editor-only; scene cameras (shipped games) ignore it. See uiLayoutRect.
+   */
+  uiPreviewAspect: number;
 }
 
-export const DEFAULT_EDITOR_VIEW: EditorViewData = { active: false, x: 0, y: 0, orthoSize: 360 };
+export const DEFAULT_EDITOR_VIEW: EditorViewData = { active: false, x: 0, y: 0, orthoSize: 360, uiPreviewAspect: 0 };
 
 export const EditorView = defineResource<EditorViewData>({ ...DEFAULT_EDITOR_VIEW }, 'EditorView');
