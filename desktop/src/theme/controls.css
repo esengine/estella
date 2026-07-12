@@ -117,12 +117,13 @@
 .field select { width: 100%; background: none; border: none; outline: none; padding: 0 6px; font-size: var(--fs-sm); color: var(--text); appearance: none; cursor: pointer; }
 .field.dropdown { padding: 0; overflow: hidden; }
 
-/* — Dimension (Details/DimControl): a number well + a compact px/%/auto unit
-     picker. `auto` collapses the well to a static label (Yoga ignores value). — */
+/* — Dimension (Details/DimControl): a number well that flex-fills (the primary,
+     always-visible field) beside a compact px/%/auto unit picker. The picker is a
+     fixed-width `.field.dropdown` well like EnumControl's — without the width cap
+     its `.dd-trigger` (width:100%) would collapse the number to nothing. — */
 .dim { display: flex; gap: 4px; flex: 1; min-width: 0; }
-.dim .field { flex: 1; }
-.dim .sel-trigger { flex: 0 0 auto; }
-.dim-auto { justify-content: center; color: var(--text-mute); font-family: var(--mono); font-size: var(--fs-sm); }
+.dim .field { flex: 1; min-width: 0; }
+.dim .field.dim-unit { flex: 0 0 54px; }
 
 /* — Search/filter field (components/SearchField.tsx). One recipe for every
      panel filter; usage sites keep only layout deltas (width/height/margin).

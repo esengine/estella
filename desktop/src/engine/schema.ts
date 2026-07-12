@@ -393,6 +393,31 @@ export function isAdvancedField(compType: string, key: string): boolean {
   return ADVANCED_FIELDS[compType]?.includes(key) === true;
 }
 
+/** A four-sided box: the field keys for a spatial L/R/T/B editor (margin, offsets). */
+export interface BoxGroupDef {
+  label: string;
+  left: string;
+  right: string;
+  top: string;
+  bottom: string;
+}
+
+// Editor-side box-model grouping — four related edge fields that read best as one
+// spatial control (a 2×2 of sides) instead of four near-identical rows. The keys
+// still flow through the same per-field write path, so undo / mixed / reset are
+// unchanged; only the layout is compound.
+const BOX_GROUPS: Record<string, readonly BoxGroupDef[]> = {
+  UINode: [
+    { label: 'Margin', left: 'marginLeft', right: 'marginRight', top: 'marginTop', bottom: 'marginBottom' },
+    { label: 'Offset', left: 'insetLeft', right: 'insetRight', top: 'insetTop', bottom: 'insetBottom' },
+  ],
+};
+
+/** The spatial box-model groups a component's edge fields collapse into, if any. */
+export function boxGroupsFor(compType: string): readonly BoxGroupDef[] {
+  return BOX_GROUPS[compType] ?? [];
+}
+
 /** The dropdown options for an enum field, or null if the field isn't an enum. */
 export function enumFieldOptions(compType: string, key: string): EnumOption[] | null {
   const e = fieldMetaFor(compType, key)?.enum;

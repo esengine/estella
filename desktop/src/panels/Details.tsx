@@ -44,9 +44,9 @@ import { InspectorClipboard } from '@/engine/inspectorClipboard';
 import { SceneCommands, toModelValue } from '@/engine/SceneCommands';
 import { ENTITY_SOURCES, createFromSource } from '@/engine/entitySources';
 import { PlayInspect } from '@/engine/PlayInspect';
-import { DimensionUnit, AnchorAxis, ANCHOR_AXES, detectAnchor } from 'esengine';
+import { DimensionUnit, AnchorAxis, detectAnchor } from 'esengine';
 import type { SceneData, InputMapAsset, ActionType, Binding } from 'esengine';
-import { modelAddableComponentEntries, subscribeSchemas, getSchemaRevision, prettyLabel, hexToRgba, dynamicEnumOptions } from '@/engine/schema';
+import { modelAddableComponentEntries, subscribeSchemas, getSchemaRevision, prettyLabel, hexToRgba, dynamicEnumOptions, boxGroupsFor, type BoxGroupDef } from '@/engine/schema';
 import * as imap from '@/project/inputMapDoc';
 import { buildImporterComponent, applyImporterEdit } from '@/project/assetImporter';
 import { referencingPaths } from '@/project/assetRefs';
@@ -69,6 +69,7 @@ import { NumField, useScrub, fmt, type ControlGesture } from '@/components/NumFi
 import { Popover, usePopover } from '@/components/Popover';
 import { SearchField } from '@/components/SearchField';
 import { Select } from '@/components/Select';
+import { Segmented } from '@/components/Segmented';
 import { AddComponentMenu } from '@/components/AddComponentMenu';
 import type { InspectorComponent, InspectorField, InspectorFieldValue, EntityId, NodeKind, EnumOption, AssetType, GradientValue, GradientStop, CurveValue, CurveKey, DimensionValue } from '@/types';
 
@@ -410,10 +411,13 @@ export function BoolControl({
   );
 }
 
-// A CSS-length: a number well + a px/%/auto unit picker. The well is ALWAYS shown
-// and editable — for `auto` it's blank with a ghost "auto" placeholder, and typing
-// a value flips the unit to px (Yoga ignores an `auto` unit's number, so there's no
-// value to type against otherwise).
+// A CSS-length: a number well that flex-fills beside a compact px/%/auto unit
+// picker. The well is ALWAYS shown and editable — for `auto` it's blank with a
+// ghost "auto" placeholder, and typing a value flips the unit to px (Yoga ignores
+// an `auto` unit's number, so there's no value to type against otherwise). The
+// picker must sit in its own `.field.dropdown` wrapper (like EnumControl) so it
+// reads as a well and its width stays capped — a bare `variant="field"` Select is
+// width:100% and would swallow the whole row, hiding the number field.
 export function DimControl({
   value,
   mixed,
@@ -433,21 +437,24 @@ export function DimControl({
         value={value.value}
         mixed={mixed}
         empty={isAuto}
+        placeholder={isAuto ? 'auto' : undefined}
         onBegin={onBegin}
         onEnd={onEnd}
         onCommit={(n) => onChange({ value: n, unit: isAuto ? DimensionUnit.Px : value.unit })}
       />
-      <Select
-        variant="field"
-        value={String(value.unit)}
-        ariaLabel="unit"
-        options={[
-          { value: String(DimensionUnit.Px), label: 'px' },
-          { value: String(DimensionUnit.Percent), label: '%' },
-          { value: String(DimensionUnit.Auto), label: 'auto' },
-        ]}
-        onChange={(v) => setUnit(Number(v))}
-      />
+      <span className="field dropdown dim-unit">
+        <Select
+          variant="field"
+          value={String(value.unit)}
+          ariaLabel="unit"
+          options={[
+            { value: String(DimensionUnit.Px), label: 'px' },
+            { value: String(DimensionUnit.Percent), label: '%' },
+            { value: String(DimensionUnit.Auto), label: 'auto' },
+          ]}
+          onChange={(v) => setUnit(Number(v))}
+        />
+      </span>
     </div>
   );
 }
@@ -842,24 +849,30 @@ export function AssetControl({
 // instead of the undoable SceneCommands path). When set, gestures are no-ops.
 type FieldWrite = (key: string, type: InspectorField['type'], value: number | boolean | string | number[] | GradientValue | CurveValue | DimensionValue) => void;
 
-function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp: string; field: InspectorField; write?: FieldWrite }) {
+// The write primitives for one field, shared by FieldRow and the compound
+// BoxSidesControl so both commit through the identical door: an edit fans out to
+// every selected entity (the open gesture coalesces them into one undo step) and
+// clamps to the field's range; the live "Game" inspector routes to the realm
+// instead, where gestures are no-ops.
+function fieldWriter(entities: EntityId[], comp: string, field: InspectorField, write?: FieldWrite) {
   const ranged = field.min != null || field.max != null;
-  const mixed = field.mixed === true;
-  const clamp = (n: number) => {
-    let v = n;
-    if (field.min != null) v = Math.max(field.min, v);
-    if (field.max != null) v = Math.min(field.max, v);
-    return v;
-  };
-  // An edit fans out to every selected entity (the open gesture coalesces them
-  // into one undo step); the live "Game" inspector routes to the realm instead.
   const apply = (value: number | boolean | string | number[] | GradientValue | CurveValue | DimensionValue) => {
-    const v = ranged && typeof value === 'number' ? clamp(value) : value;
+    let v = value;
+    if (ranged && typeof v === 'number') {
+      if (field.min != null) v = Math.max(field.min, v);
+      if (field.max != null) v = Math.min(field.max, v);
+    }
     if (write) return write(field.key, field.type, v);
     for (const e of entities) SceneCommands.setField(e, comp, field.key, field.type, v as never);
   };
   const begin = () => (write ? undefined : SceneCommands.beginGesture(`Edit ${field.label}`));
   const end = () => (write ? undefined : SceneCommands.endGesture());
+  return { apply, begin, end };
+}
+
+function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp: string; field: InspectorField; write?: FieldWrite }) {
+  const mixed = field.mixed === true;
+  const { apply, begin, end } = fieldWriter(entities, comp, field, write);
 
   // Plain numbers + angles scrub from the label; vectors from their axis tabs; a
   // slider owns its own drag so its label stays inert.
@@ -1101,6 +1114,38 @@ function textBoxAction(comp: InspectorComponent, sourceId: EntityId): { label: s
   };
 }
 
+/** Whether a UI element sits under a Canvas (the UI layout root) — walks ancestors. */
+function hasCanvasAncestor(sourceId: EntityId): boolean {
+  for (let p = SceneModel.entityBySource(sourceId)?.parent; p != null; p = SceneModel.entityBySource(p)?.parent) {
+    if (SceneModel.entityBySource(p)?.components.some((c) => c.type === 'Canvas')) return true;
+  }
+  return false;
+}
+
+/** Ensure a Canvas exists (create one if the scene has none) and place `sourceIds` under it. */
+async function placeUnderCanvas(sourceIds: EntityId[]): Promise<void> {
+  let canvas = SceneCommands.findCanvas();
+  if (canvas == null) {
+    const src = ENTITY_SOURCES.find((s) => s.id === 'canvas');
+    canvas = src ? await createFromSource(src, { parent: null }) : null;
+  }
+  if (canvas == null) return;
+  for (const id of sourceIds) if (id !== canvas) SceneCommands.setParent(id, canvas);
+}
+
+/** The one-click "Place under a Canvas" action for a UINode with no Canvas ancestor —
+ *  a UI element with no Canvas can't lay out or be moved — else undefined. */
+function uiNodeCanvasAction(ids: EntityId[], comp: InspectorComponent): { label: string; title: string; run: () => void } | undefined {
+  if (comp.name !== 'UINode') return undefined;
+  const orphans = ids.filter((id) => !hasCanvasAncestor(id));
+  if (orphans.length === 0) return undefined;
+  return {
+    label: 'Place under a Canvas',
+    title: "This UI element isn't under a Canvas, so it can't lay out or be moved. Adds/attaches a Canvas and places it inside.",
+    run: () => void placeUnderCanvas(orphans),
+  };
+}
+
 const ANCHOR_H = { [AnchorAxis.Start]: 'Left', [AnchorAxis.Center]: 'Center', [AnchorAxis.End]: 'Right', [AnchorAxis.Stretch]: 'Stretch H' };
 const ANCHOR_V = { [AnchorAxis.Start]: 'Top', [AnchorAxis.Center]: 'Middle', [AnchorAxis.End]: 'Bottom', [AnchorAxis.Stretch]: 'Stretch V' };
 const anchorTitle = (h: AnchorAxis, v: AnchorAxis) =>
@@ -1111,8 +1156,8 @@ const anchorTitle = (h: AnchorAxis, v: AnchorAxis) =>
 // when both axes stretch — the element shown inside its parent (the cell).
 function anchorWidgetRect(h: AnchorAxis, v: AnchorAxis) {
   const axis = (mode: AnchorAxis, crossStretch: boolean) => {
-    if (mode === AnchorAxis.Stretch) return { p: 4, s: 16 };
-    const s = crossStretch ? 5 : 8; // a thin bar's cross-section vs a box's side
+    if (mode === AnchorAxis.Stretch) return { p: 3.5, s: 17 };
+    const s = crossStretch ? 6 : 9; // a thin bar's cross-section vs a box's side
     const c = mode === AnchorAxis.Start ? 7 : mode === AnchorAxis.End ? 17 : 12;
     return { p: c - s / 2, s };
   };
@@ -1121,11 +1166,25 @@ function anchorWidgetRect(h: AnchorAxis, v: AnchorAxis) {
   return { x: hx.p, y: vy.p, w: hx.s, h: vy.s };
 }
 
-/** UMG/Unity-style anchor preset picker for a UINode: a 4×4 grid (Left/Center/
- *  Right/Stretch × Top/Middle/Bottom/Stretch) that writes position + inset/margin
- *  box fields, and highlights the cell the current box already matches. Making the
- *  node Absolute is implicit in every preset — clicking one anchors the node. */
-function AnchorPresetGrid({ entities, comp }: { entities: EntityId[]; comp: InspectorComponent }) {
+const H_ANCHOR_OPTS = [
+  { value: String(AnchorAxis.Start), label: 'Left' },
+  { value: String(AnchorAxis.Center), label: 'Center' },
+  { value: String(AnchorAxis.End), label: 'Right' },
+  { value: String(AnchorAxis.Stretch), label: 'Stretch' },
+];
+const V_ANCHOR_OPTS = [
+  { value: String(AnchorAxis.Start), label: 'Top' },
+  { value: String(AnchorAxis.Center), label: 'Middle' },
+  { value: String(AnchorAxis.End), label: 'Bottom' },
+  { value: String(AnchorAxis.Stretch), label: 'Stretch' },
+];
+
+/** Anchor control for a UINode: a live preview of where the element sits in its
+ *  parent, plus two labelled Horizontal/Vertical pickers (Left/Center/Right/Stretch
+ *  × Top/Middle/Bottom/Stretch). Each axis is an independent, named choice — far
+ *  clearer than decoding a 16-cell icon grid — and writing either one applies the
+ *  combined preset (making the node Absolute), read back via detectAnchor. */
+function AnchorControl({ entities, comp }: { entities: EntityId[]; comp: InspectorComponent }) {
   const dim = (key: string) => {
     const v = comp.fields.find((f) => f.key === key)?.value as { value: number; unit: number } | undefined;
     return v ?? { value: 0, unit: DimensionUnit.Auto };
@@ -1139,34 +1198,142 @@ function AnchorPresetGrid({ entities, comp }: { entities: EntityId[]; comp: Insp
     width: dim('width'), height: dim('height'),
   } as Parameters<typeof detectAnchor>[0];
   const active = detectAnchor(node);
+  // Custom (non-preset) box → the pickers show nothing selected; changing one axis
+  // falls back to Center on the other so the result is still a clean preset.
+  const curH = active?.h ?? AnchorAxis.Center;
+  const curV = active?.v ?? AnchorAxis.Center;
+  const r = anchorWidgetRect(curH, curV);
   return (
     <div className="anchor-block">
-      <span className="anchor-caption">Anchor{active && <em>{anchorTitle(active.h, active.v)}</em>}</span>
-      <div className="anchor-grid" role="group" aria-label="Anchor preset">
-        {ANCHOR_AXES.map((v) =>
-          ANCHOR_AXES.map((h) => {
-            const on = active != null && active.h === h && active.v === v;
-            return (
-              <button
-                key={`${v}-${h}`}
-                type="button"
-                className={`anchor-cell${on ? ' active' : ''}`}
-                title={anchorTitle(h, v)}
-                aria-pressed={on}
-                onClick={() => SceneCommands.setUINodeAnchor(entities, { h, v })}
-              >
-                {(() => {
-                  const r = anchorWidgetRect(h, v);
-                  return (
-                    <svg className="anchor-svg" viewBox="0 0 24 24" aria-hidden="true">
-                      <rect className="anchor-widget" x={r.x} y={r.y} width={r.w} height={r.h} rx="1.6" ry="1.6" />
-                    </svg>
-                  );
-                })()}
-              </button>
-            );
-          }),
-        )}
+      <div className="anchor-head">
+        <span className="anchor-t">Anchor</span>
+        <em className="anchor-cur">{active ? anchorTitle(active.h, active.v) : 'Custom'}</em>
+      </div>
+      <div className="anchor-body">
+        <div className={`anchor-preview${active ? '' : ' custom'}`} aria-hidden="true">
+          <svg viewBox="0 0 24 24">
+            <rect className="anchor-frame" x="2.5" y="2.5" width="19" height="19" rx="3" ry="3" />
+            <rect className="anchor-widget" x={r.x} y={r.y} width={r.w} height={r.h} rx="2" ry="2" />
+          </svg>
+        </div>
+        <div className="anchor-axes">
+          <label className="anchor-axis">
+            <span>Horizontal</span>
+            <Segmented
+              grow
+              ariaLabel="Horizontal anchor"
+              value={active ? String(active.h) : ''}
+              options={H_ANCHOR_OPTS}
+              onChange={(val) => SceneCommands.setUINodeAnchor(entities, { h: Number(val), v: curV })}
+            />
+          </label>
+          <label className="anchor-axis">
+            <span>Vertical</span>
+            <Segmented
+              grow
+              ariaLabel="Vertical anchor"
+              value={active ? String(active.v) : ''}
+              options={V_ANCHOR_OPTS}
+              onChange={(val) => SceneCommands.setUINodeAnchor(entities, { h: curH, v: Number(val) })}
+            />
+          </label>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// One side of a box-model group: a lettered edge (L/R/T/B) + its Dimension well.
+// It commits through `fieldWriter` — the same door as FieldRow — so undo, mixed,
+// and reset behave identically; right-click keeps the per-field Copy/Paste/Reset.
+function BoxSide({
+  entities,
+  comp,
+  field,
+  write,
+  abbr,
+}: {
+  entities: EntityId[];
+  comp: string;
+  field: InspectorField;
+  write?: FieldWrite;
+  abbr: string;
+}) {
+  const mixed = field.mixed === true;
+  const modified = !mixed && isModified(field);
+  const { apply, begin, end } = fieldWriter(entities, comp, field, write);
+  const [ctx, setCtx] = useState<{ x: number; y: number } | null>(null);
+  const pasteValue = InspectorClipboard.fieldValue(field.type);
+  const reset = () => {
+    if (field.defaultValue === undefined) return;
+    begin();
+    apply(field.defaultValue);
+    end();
+  };
+  return (
+    <label
+      className={`box-side${modified ? ' modified' : ''}${mixed ? ' mixed' : ''}`}
+      title={field.tooltip ?? field.label}
+      onContextMenu={
+        write
+          ? undefined
+          : (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setCtx({ x: e.clientX, y: e.clientY });
+            }
+      }
+    >
+      <span className="box-side-k">{abbr}</span>
+      <DimControl value={field.value as DimensionValue} mixed={mixed} onBegin={begin} onEnd={end} onChange={apply} />
+      {ctx && (
+        <ContextMenu
+          x={ctx.x}
+          y={ctx.y}
+          onClose={() => setCtx(null)}
+          items={[
+            { label: 'Copy', icon: <Copy size={13} strokeWidth={1.9} />, disabled: mixed, onClick: () => InspectorClipboard.copyField(comp, field.key, field.type, field.value) },
+            { label: 'Paste', icon: <ClipboardPaste size={13} strokeWidth={1.9} />, disabled: pasteValue == null, onClick: () => { if (pasteValue == null) return; begin(); apply(pasteValue as never); end(); } },
+            { label: 'Reset', icon: <RotateCcw size={13} strokeWidth={1.9} />, disabled: !modified, onClick: reset },
+          ]}
+        />
+      )}
+    </label>
+  );
+}
+
+/** A four-edge box (margin / offsets) as one spatial card: L·R on the top row,
+ *  T·B below, each a full Dimension well — a compact, scannable stand-in for four
+ *  near-identical property rows. Every side still writes through the shared field
+ *  door, so it stays part of the reflected inspector, not a fork of it. */
+function BoxSidesControl({
+  entities,
+  comp,
+  write,
+  group,
+  fields,
+}: {
+  entities: EntityId[];
+  comp: string;
+  write?: FieldWrite;
+  group: BoxGroupDef;
+  fields: InspectorField[];
+}) {
+  const byKey = (key: string) => fields.find((f) => f.key === key);
+  const sides: [string, string][] = [
+    ['L', group.left],
+    ['R', group.right],
+    ['T', group.top],
+    ['B', group.bottom],
+  ];
+  return (
+    <div className="box-sides">
+      <span className="box-caption">{group.label}</span>
+      <div className="box-grid">
+        {sides.map(([abbr, key]) => {
+          const field = byKey(key);
+          return field ? <BoxSide key={key} entities={entities} comp={comp} field={field} write={write} abbr={abbr} /> : null;
+        })}
       </div>
     </div>
   );
@@ -1198,12 +1365,21 @@ function ComponentSection({
   const isOpen = (name: string) => openFolds[name] ?? name !== ADVANCED_FOLD;
   const toggleFold = (name: string) => setOpenFolds((s) => ({ ...s, [name]: !isOpen(name) }));
 
-  // Bucket fields: a category wins (grouped under its header); else advanced (the
-  // Advanced fold); else ungrouped at the top.
+  // Edge fields that fold into a spatial box (margin/offsets) are pulled out of the
+  // normal flow and rendered as a compound card below the plain rows — but only
+  // when all four sides are present in the reflection.
+  const boxGroups = boxGroupsFor(comp.name).filter((g) =>
+    [g.left, g.right, g.top, g.bottom].every((k) => comp.fields.some((f) => f.key === k)),
+  );
+  const boxKeys = new Set(boxGroups.flatMap((g) => [g.left, g.right, g.top, g.bottom]));
+
+  // Bucket fields: a box side is claimed by its card; else a category wins (grouped
+  // under its header); else advanced (the Advanced fold); else ungrouped at the top.
   const ungrouped: InspectorField[] = [];
   const advancedFields: InspectorField[] = [];
   const groups = new Map<string, InspectorField[]>();
   for (const f of comp.fields) {
+    if (boxKeys.has(f.key)) continue;
     if (f.category) (groups.get(f.category) ?? groups.set(f.category, []).get(f.category)!).push(f);
     else if (f.advanced) advancedFields.push(f);
     else ungrouped.push(f);
@@ -1270,6 +1446,9 @@ function ComponentSection({
           {extra}
           <div className="comp-fields">
             {ungrouped.map(row)}
+            {boxGroups.map((g) => (
+              <BoxSidesControl key={g.label} entities={entities} comp={comp.name} write={write} group={g} fields={comp.fields} />
+            ))}
             {[...groups].map(([cat, fields]) => (
               <Fold key={cat} label={cat} open={isOpen(cat)} onToggle={() => toggleFold(cat)}>
                 {fields.map(row)}
@@ -2062,7 +2241,8 @@ function EditorDetails() {
             collapsed={collapsed.has(comp.name)}
             onToggle={() => toggle(comp.name)}
             onMore={(e, name) => setCompMenu({ x: e.clientX, y: e.clientY, comp: name })}
-            extra={comp.name === 'UINode' ? <AnchorPresetGrid entities={ids} comp={comp} /> : undefined}
+            action={uiNodeCanvasAction(ids, comp)}
+            extra={comp.name === 'UINode' ? <AnchorControl entities={ids} comp={comp} /> : undefined}
           />
         ))}
         {query && visible.length === 0 && (
