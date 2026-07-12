@@ -108,18 +108,41 @@ function isFlowUINode(sourceId: EntityId): boolean {
   return pos != null && Number(pos) === 0;
 }
 
+/** A UINode with no Canvas ancestor (the UI layout root) — it has no layout box, so
+ *  it can't be positioned at all until it's placed under a Canvas. */
+function isOrphanUINode(sourceId: EntityId): boolean {
+  const e = SceneModel.entityBySource(sourceId);
+  if (!e || !e.components.some((c) => c.type === 'UINode')) return false;
+  for (let p = e.parent; p != null; p = SceneModel.entityBySource(p)?.parent ?? null) {
+    if (SceneModel.entityBySource(p)?.components.some((c) => c.type === 'Canvas')) return false;
+  }
+  return true;
+}
+
 let flowHintAt = 0;
+let canvasHintAt = 0;
 
 function captureTargets(ids: readonly EntityId[], kind: Kind = 'move'): Target[] {
   let kept = pruneDescendants(ids);
   if (kind === 'move') {
+    // A UI element with no Canvas has no layout box — it can't be positioned at all.
+    // Exclude it and point to the fix (the inspector's "Place under a Canvas").
+    if (kept.some(isOrphanUINode)) {
+      kept = kept.filter((id) => !isOrphanUINode(id));
+      if (Date.now() - canvasHintAt > 4000) {
+        canvasHintAt = Date.now();
+        Toasts.push('This UI element has no Canvas, so it can’t be positioned — add one via Details ▸ “Place under a Canvas”.', 'info');
+      }
+    }
+    // A flow (Relative) node's position is owned by the layout — moving it does
+    // nothing until the user explicitly switches it to Absolute (the inspector's
+    // Position field / an anchor preset). Exclude it and hint how, once per burst.
     const flow = kept.filter(isFlowUINode);
     if (flow.length > 0) {
       kept = kept.filter((id) => !isFlowUINode(id));
-      // One hint per burst of drags, not per pointer-down.
       if (Date.now() - flowHintAt > 4000) {
         flowHintAt = Date.now();
-        Toasts.push('Flow-layout (Relative) nodes are positioned by layout — drag skipped. Set position to Absolute to move freely.', 'info');
+        Toasts.push('This UI node is Relative (flow-positioned) — set Position to Absolute to move it freely.', 'info');
       }
     }
   }

@@ -252,6 +252,43 @@ export class SceneCommandsImpl {
   ): void {
     // The edit hook (Sequencer record) may observe — or, returning true, suppress.
     if (this.editHook && this.editHook(sourceId, compName, key, type, value)) return;
+
+    // Flipping a UINode to Absolute bakes its current layout box into concrete px
+    // insets (below) so it holds its on-screen spot and gains a real, draggable
+    // position — an all-auto absolute node otherwise collapses to the static
+    // top-left corner (frequently under the viewport chrome, so it can't be grabbed).
+    const bakeAbsolute =
+      compName === 'UINode' && key === 'position' &&
+      Number(value) === UIPositionType.Absolute &&
+      Number(this.modelFieldValue(sourceId, 'UINode', 'position')) !== UIPositionType.Absolute;
+    // Capture the seeded insets from the node's box BEFORE the flip — the flip marks
+    // the layout dirty, zeroing the computed size until the next pass, and the pre-flip
+    // box is exactly the on-screen position we want the node to keep.
+    const seed = bakeAbsolute ? this.absoluteInsetSeed_(sourceId) : null;
+    const applySeed = (): void => {
+      if (seed?.insetLeft !== undefined) this.writeField_(sourceId, 'UINode', 'insetLeft', 'dimension', { value: seed.insetLeft, unit: DimensionUnit.Px });
+      if (seed?.insetTop !== undefined) this.writeField_(sourceId, 'UINode', 'insetTop', 'dimension', { value: seed.insetTop, unit: DimensionUnit.Px });
+    };
+    if (bakeAbsolute && !this.gesture) {
+      // One undo step for the flip + the seeded insets.
+      this.beginGesture('Make UI Absolute');
+      this.writeField_(sourceId, compName, key, type, value);
+      applySeed();
+      this.endGesture();
+      return;
+    }
+    this.writeField_(sourceId, compName, key, type, value);
+    if (bakeAbsolute) applySeed(); // coalesced into the caller's gesture
+  }
+
+  /** The unconditional single-field write (model + undo/gesture bookkeeping). */
+  private writeField_(
+    sourceId: EntityId,
+    compName: string,
+    key: string,
+    type: InspectorFieldType,
+    value: InspectorFieldValue,
+  ): void {
     const e = this.model.entityBySource(sourceId);
     if (!e) return;
     const cur = (e.components.find((c) => c.type === compName)?.data as Record<string, unknown>) ?? {};
@@ -274,6 +311,39 @@ export class SceneCommandsImpl {
       () => this.model.setField(sourceId, compName, key, after),
       () => this.model.setField(sourceId, compName, key, before),
     );
+  }
+
+  /**
+   * The concrete px insets that pin a UINode's CURRENT resolved box to its parent's
+   * top-left — captured while the node is still in its old (pre-flip) layout so the
+   * box is live. Only an axis with no explicit offset yet (both sides auto) is
+   * seeded; an axis the user already positioned is left untouched (undefined).
+   * Empty without live boxes. Applied after the flip to keep the node put + draggable.
+   */
+  private absoluteInsetSeed_(sourceId: EntityId): { insetLeft?: number; insetTop?: number } {
+    const rt = this.model.runtimeFor(sourceId);
+    const parentSrc = this.model.entityBySource(sourceId)?.parent;
+    const parentRt = parentSrc != null ? this.model.runtimeFor(parentSrc) : undefined;
+    const node = rt !== undefined ? ViewportController.uiEntityWorldOBB(rt) : null;
+    const parent = parentRt !== undefined ? ViewportController.uiEntityWorldOBB(parentRt) : null;
+    if (!node || !parent) return {};
+    const autoAxis = (nearKey: string, farKey: string): boolean => {
+      const near = this.modelFieldValue(sourceId, 'UINode', nearKey) as { unit: number } | undefined;
+      const far = this.modelFieldValue(sourceId, 'UINode', farKey) as { unit: number } | undefined;
+      return near?.unit === DimensionUnit.Auto && far?.unit === DimensionUnit.Auto;
+    };
+    // An absolute node's margin still offsets it on top of its inset, so the inset
+    // that reproduces the current position is (edge gap − own margin). Only px
+    // margins subtract cleanly; percent/auto margins are rare here and left as 0.
+    const marginPx = (key: string): number => {
+      const m = this.modelFieldValue(sourceId, 'UINode', key) as { value: number; unit: number } | undefined;
+      return m?.unit === DimensionUnit.Px ? m.value : 0;
+    };
+    const out: { insetLeft?: number; insetTop?: number } = {};
+    if (autoAxis('insetLeft', 'insetRight')) out.insetLeft = Math.round((node.cx - node.hw) - (parent.cx - parent.hw) - marginPx('marginLeft'));
+    // Layout space is y-down: the top inset is the gap from the parent's top edge.
+    if (autoAxis('insetTop', 'insetBottom')) out.insetTop = Math.round((parent.cy + parent.hh) - (node.cy + node.hh) - marginPx('marginTop'));
+    return out;
   }
 
   /**
@@ -301,8 +371,8 @@ export class SceneCommandsImpl {
    *   shift by the delta, percent insets by delta/parent-size, and a fully
    *   `auto` axis gets pinned (near edge, px) at its current offset. Opposing
    *   non-auto insets (a stretch axis) shift together, preserving the span.
-   * - Relative (flow) nodes: position is the flow's outcome — the move is
-   *   dropped here (the move tool excludes them up front and hints).
+   * - Relative (flow) nodes: position is the flow's outcome — the move is dropped
+   *   here (the move tool excludes them up front and hints to switch to Absolute).
    * Returns true when the entity is a UINode (handled), false to fall through
    * to the Transform path.
    */
@@ -321,9 +391,9 @@ export class SceneCommandsImpl {
     const dx = x - node.cx;
     const dy = y - node.cy;
     // Layout space is y-down: moving up (world +y) means a smaller top inset.
-    this.shiftInsetAxis_(sourceId, 'insetLeft', 'insetRight', dx, 2 * parent.hw,
+    this.shiftInsetAxis_(sourceId, 'insetLeft', 'insetRight', 'marginLeft', 'marginRight', dx, 2 * parent.hw,
       (node.cx - node.hw) - (parent.cx - parent.hw));
-    this.shiftInsetAxis_(sourceId, 'insetTop', 'insetBottom', -dy, 2 * parent.hh,
+    this.shiftInsetAxis_(sourceId, 'insetTop', 'insetBottom', 'marginTop', 'marginBottom', -dy, 2 * parent.hh,
       (parent.cy + parent.hh) - (node.cy + node.hh));
     return true;
   }
@@ -337,14 +407,22 @@ export class SceneCommandsImpl {
    */
   private shiftInsetAxis_(
     sourceId: EntityId, nearKey: string, farKey: string,
+    marginNearKey: string, marginFarKey: string,
     delta: number, parentSize: number, currentNearPx: number,
   ): void {
     if (delta === 0) return;
+    const write = (key: string, dim: { value: number; unit: number }): void =>
+      this.setField(sourceId, 'UINode', key, 'dimension', dim);
+    // An `auto` margin re-centers the node on this axis (that's how a Center anchor
+    // holds it) and would fight the inset we pin below — the node wouldn't move. Nail
+    // any auto margin on this axis to 0 first so the inset alone drives the position.
+    for (const mk of [marginNearKey, marginFarKey]) {
+      const m = this.modelFieldValue(sourceId, 'UINode', mk) as { unit: number } | undefined;
+      if (m?.unit === DimensionUnit.Auto) write(mk, { value: 0, unit: DimensionUnit.Px });
+    }
     const near = this.modelFieldValue(sourceId, 'UINode', nearKey) as { value: number; unit: number } | undefined;
     const far = this.modelFieldValue(sourceId, 'UINode', farKey) as { value: number; unit: number } | undefined;
     if (!near || !far) return;
-    const write = (key: string, dim: { value: number; unit: number }): void =>
-      this.setField(sourceId, 'UINode', key, 'dimension', dim);
     let shifted = false;
     if (near.unit === DimensionUnit.Px) {
       write(nearKey, { ...near, value: near.value + delta });

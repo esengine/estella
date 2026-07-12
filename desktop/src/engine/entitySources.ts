@@ -232,8 +232,16 @@ export async function createFromSource(source: EntitySource, ctx: CreateContext)
   } catch {
     return null; // build aborted (e.g. a prefab asset failed to load; it surfaced its own error)
   }
+  let parent = resolvePlacement(source.placement, ctx);
+  // A UI widget must live under a Canvas (the UI layout root) — a UINode with no
+  // Canvas can't lay out or be positioned. If the scene has none, spin one up first
+  // so the widget is hosted, not orphaned. (Canvas itself has no such placement.)
+  if (source.placement === 'under-canvas' && parent == null) {
+    const canvasSrc = ENTITY_SOURCES.find((s) => s.id === 'canvas');
+    if (canvasSrc) parent = await createFromSource(canvasSrc, { parent: null });
+  }
   const id = SceneCommands.create(prefab, {
-    parent: resolvePlacement(source.placement, ctx),
+    parent,
     position: ctx.position,
     linkPrefabRef: source.linkPrefabRef?.(ctx),
   });
