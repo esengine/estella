@@ -381,6 +381,18 @@ export function isRequiredField(compType: string, key: string): boolean {
   return userSchema(compType)?.fields?.[key]?.required === true;
 }
 
+// Editor-side "Advanced" fold policy — rarely-tuned fields moved below the fold so a
+// component's common controls stay uncluttered. UINode's flex-item knobs (min/max,
+// grow/shrink/basis, cross-axis alignSelf) are set far less than its size/anchor.
+const ADVANCED_FIELDS: Record<string, readonly string[]> = {
+  UINode: ['minWidth', 'minHeight', 'maxWidth', 'maxHeight', 'flexGrow', 'flexShrink', 'flexBasis', 'alignSelf'],
+};
+
+/** Whether a field lives under the "Advanced" fold (builtin table OR its own metadata). */
+export function isAdvancedField(compType: string, key: string): boolean {
+  return ADVANCED_FIELDS[compType]?.includes(key) === true;
+}
+
 /** The dropdown options for an enum field, or null if the field isn't an enum. */
 export function enumFieldOptions(compType: string, key: string): EnumOption[] | null {
   const e = fieldMetaFor(compType, key)?.enum;
@@ -458,7 +470,7 @@ function fieldFor(
   }
   // Presentation policy that applies to any field type (folds, category, help text,
   // and a DisplayName override of the key-derived label).
-  if (field && meta?.advanced) field.advanced = true;
+  if (field && (meta?.advanced || isAdvancedField(compType, key))) field.advanced = true;
   if (field && meta?.category) field.category = meta.category;
   if (field && meta?.tooltip) field.tooltip = meta.tooltip;
   if (field && meta?.label) field.label = meta.label;

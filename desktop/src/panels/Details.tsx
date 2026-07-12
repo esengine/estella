@@ -427,7 +427,9 @@ export function DimControl({
   return (
     <div className="dim">
       {value.unit === DimensionUnit.Auto ? (
-        <span className="field dim-auto">auto</span>
+        // The unit dropdown already reads "auto"; a dimmed dash marks "no value"
+        // instead of a redundant second "auto".
+        <span className="field dim-auto" aria-hidden="true">–</span>
       ) : (
         <NumField
           value={value.value}
@@ -1101,19 +1103,26 @@ function textBoxAction(comp: InspectorComponent, sourceId: EntityId): { label: s
   };
 }
 
-// Where a preset's mark sits inside its cell (percent of the cell box), per axis
-// mode. Start/Center/End are a 30%-wide dot at the near/mid/far third; Stretch is
-// a bar filling the axis — a glanceable picture of the anchor.
-const ANCHOR_MARK: Record<number, { start: number; size: number }> = {
-  [AnchorAxis.Start]: { start: 14, size: 30 },
-  [AnchorAxis.Center]: { start: 35, size: 30 },
-  [AnchorAxis.End]: { start: 56, size: 30 },
-  [AnchorAxis.Stretch]: { start: 12, size: 76 },
-};
 const ANCHOR_H = { [AnchorAxis.Start]: 'Left', [AnchorAxis.Center]: 'Center', [AnchorAxis.End]: 'Right', [AnchorAxis.Stretch]: 'Stretch H' };
 const ANCHOR_V = { [AnchorAxis.Start]: 'Top', [AnchorAxis.Center]: 'Middle', [AnchorAxis.End]: 'Bottom', [AnchorAxis.Stretch]: 'Stretch V' };
 const anchorTitle = (h: AnchorAxis, v: AnchorAxis) =>
   h === AnchorAxis.Stretch && v === AnchorAxis.Stretch ? 'Stretch' : `${ANCHOR_V[v]} · ${ANCHOR_H[h]}`;
+
+// The mark inside a preset cell: a dot for a pinned corner/edge/centre, a thin bar
+// along a stretched axis, a rounded square when both axes stretch — a glanceable
+// picture of where the element sits in its parent box.
+function anchorMarkStyle(h: AnchorAxis, v: AnchorAxis) {
+  const ext = (mode: AnchorAxis, crossStretch: boolean) => {
+    if (mode === AnchorAxis.Stretch) return { p: 16, s: 68 };
+    const s = crossStretch ? 12 : 30; // a thin bar's cross-section vs a dot's diameter
+    const c = mode === AnchorAxis.Start ? 27 : mode === AnchorAxis.End ? 73 : 50;
+    return { p: c - s / 2, s };
+  };
+  const hx = ext(h, v === AnchorAxis.Stretch);
+  const vy = ext(v, h === AnchorAxis.Stretch);
+  const isDot = h !== AnchorAxis.Stretch && v !== AnchorAxis.Stretch;
+  return { left: `${hx.p}%`, top: `${vy.p}%`, width: `${hx.s}%`, height: `${vy.s}%`, borderRadius: isDot ? '50%' : '2px' };
+}
 
 /** UMG/Unity-style anchor preset picker for a UINode: a 4×4 grid (Left/Center/
  *  Right/Stretch × Top/Middle/Bottom/Stretch) that writes position + inset/margin
@@ -1134,29 +1143,27 @@ function AnchorPresetGrid({ entities, comp }: { entities: EntityId[]; comp: Insp
   } as Parameters<typeof detectAnchor>[0];
   const active = detectAnchor(node);
   return (
-    <div className="anchor-grid" role="group" aria-label="Anchor preset">
-      {ANCHOR_AXES.map((v) =>
-        ANCHOR_AXES.map((h) => {
-          const on = active != null && active.h === h && active.v === v;
-          const hm = ANCHOR_MARK[h];
-          const vm = ANCHOR_MARK[v];
-          return (
-            <button
-              key={`${v}-${h}`}
-              type="button"
-              className={`anchor-cell${on ? ' active' : ''}`}
-              title={anchorTitle(h, v)}
-              aria-pressed={on}
-              onClick={() => SceneCommands.setUINodeAnchor(entities, { h, v })}
-            >
-              <span
-                className="anchor-mark"
-                style={{ left: `${hm.start}%`, width: `${hm.size}%`, top: `${vm.start}%`, height: `${vm.size}%` }}
-              />
-            </button>
-          );
-        }),
-      )}
+    <div className="anchor-block">
+      <span className="anchor-caption">Anchor{active && <em>{anchorTitle(active.h, active.v)}</em>}</span>
+      <div className="anchor-grid" role="group" aria-label="Anchor preset">
+        {ANCHOR_AXES.map((v) =>
+          ANCHOR_AXES.map((h) => {
+            const on = active != null && active.h === h && active.v === v;
+            return (
+              <button
+                key={`${v}-${h}`}
+                type="button"
+                className={`anchor-cell${on ? ' active' : ''}`}
+                title={anchorTitle(h, v)}
+                aria-pressed={on}
+                onClick={() => SceneCommands.setUINodeAnchor(entities, { h, v })}
+              >
+                <span className="anchor-mark" style={anchorMarkStyle(h, v)} />
+              </button>
+            );
+          }),
+        )}
+      </div>
     </div>
   );
 }

@@ -76,13 +76,17 @@
 .comp-action { margin: 6px 8px 0; padding: 4px 8px; width: calc(100% - 16px); font-size: var(--fs-2xs); color: var(--text); background: var(--srf-3); border: 1px solid var(--border); border-radius: var(--r-sm); cursor: pointer; transition: background var(--t-fast), border-color var(--t-fast); }
 .comp-action:hover { background: var(--srf-4); border-color: var(--acc); }
 
-/* Anchor preset picker (UINode): a 4×4 grid of parent boxes, each showing where
-   the anchored element would sit; the cell matching the live box is highlighted. */
-.anchor-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px; margin: 6px 8px 2px; width: max-content; }
+/* Anchor preset picker (UINode): a 4×4 grid of parent boxes; each cell's mark shows
+   where the element sits (dot = pinned corner/edge/centre, bar = stretch). The cell
+   matching the live box is lit, and the caption names the active preset. */
+.anchor-block { padding: 5px 8px 7px; }
+.anchor-caption { display: flex; align-items: baseline; gap: 7px; font-size: var(--fs-2xs); color: var(--text-dim); margin-bottom: 6px; }
+.anchor-caption em { font-style: normal; color: var(--acc-hi); }
+.anchor-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; width: max-content; padding: 5px; background: var(--srf-2); border: 1px solid var(--border-soft); border-radius: var(--r-sm); }
 .anchor-cell { position: relative; width: 26px; height: 26px; padding: 0; background: var(--srf-3); border: 1px solid var(--border); border-radius: var(--r-xs); cursor: pointer; transition: background var(--t-fast), border-color var(--t-fast); }
 .anchor-cell:hover { border-color: var(--acc); background: var(--srf-4); }
-.anchor-cell.active { border-color: var(--acc); background: var(--acc-soft); }
-.anchor-mark { position: absolute; background: var(--text-dim); border-radius: 1px; pointer-events: none; }
+.anchor-cell.active { border-color: var(--acc); background: var(--acc-soft); box-shadow: inset 0 0 0 1px var(--acc); }
+.anchor-mark { position: absolute; background: var(--text-mute); pointer-events: none; transition: background var(--t-fast); }
 .anchor-cell:hover .anchor-mark { background: var(--text); }
 .anchor-cell.active .anchor-mark { background: var(--acc-hi); }
 
