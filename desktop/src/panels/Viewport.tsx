@@ -726,9 +726,11 @@ export function Viewport() {
       const dsvg = designSvgRef.current;
       if (dsvg) {
         const ci = ready && showG && activeModeOverlays().designFrame ? ViewportController.canvasInfo() : null;
-        const ppu = ci ? ci.pixelsPerUnit : 100;
+        // The design frame lives in the UI world scale: 1 unit = 1 design px (the invariant
+        // CameraPlugin's uiLayoutRect / buildCameraInfo use). pixelsPerUnit is physics-only
+        // and must NOT scale it, or the frame renders 100× off from where UI lays out.
         const des = ci
-          ? worldRectToScreen(ci.cx, ci.cy, ci.designResolution.x / (2 * ppu), ci.designResolution.y / (2 * ppu))
+          ? worldRectToScreen(ci.cx, ci.cy, ci.designResolution.x / 2, ci.designResolution.y / 2)
           : null;
         if (ci && des) {
           dsvg.style.opacity = '1';
@@ -742,25 +744,35 @@ export function Viewport() {
             const deviceAspect = dw / dh;
             const designAspect = ci.designResolution.x / ci.designResolution.y;
             const halfH = computeEffectiveOrthoSize(
-              ci.designResolution.y / 2 / ppu, designAspect, deviceAspect, ci.scaleMode, ci.matchWidthOrHeight,
+              ci.designResolution.y / 2, designAspect, deviceAspect, ci.scaleMode, ci.matchWidthOrHeight,
             );
             dev = worldRectToScreen(ci.cx, ci.cy, halfH * deviceAspect, halfH) ?? des;
           }
           setRectAttrs(dsvg.querySelector('.df-design'), des);
           setRectAttrs(dsvg.querySelector('.df-device'), dev);
-          // Letterbox bars = the device frame minus the design frame, drawn only when the
-          // device contains the design (Expand / fixed-axis reveal); a crop shows no bars.
+          // Everything-outside-the-screen shading, drawn as one even-odd path (an outer
+          // rect with the design rect punched out). Two cases share the geometry:
+          //  • a simulated device that CONTAINS the design → the device's letterbox bars,
+          //    tinted the canvas background (how the game bars would look on that screen);
+          //  • the 'design' device (no simulation) → the design frame IS the screen, so
+          //    dim the rest of the free scene view with a neutral scrim. Without this the
+          //    authored resolution is only a thin outline and reads as "still landscape".
+          // A device that CROPS the design (dev smaller) shows no bars.
           const lb = dsvg.querySelector('.df-letterbox') as SVGPathElement | null;
           if (lb) {
-            const contains =
+            const punch = (o: { x: number; y: number; w: number; h: number }): string =>
+              `M${o.x},${o.y}h${o.w}v${o.h}h${-o.w}Z M${des.x},${des.y}h${des.w}v${des.h}h${-des.w}Z`;
+            const hasDevice = preset.w > 0 && preset.h > 0;
+            const deviceContains =
               dev.w >= des.w - 0.5 && dev.h >= des.h - 0.5 && (dev.w > des.w + 0.5 || dev.h > des.h + 0.5);
-            if (contains) {
-              lb.setAttribute(
-                'd',
-                `M${dev.x},${dev.y}h${dev.w}v${dev.h}h${-dev.w}Z M${des.x},${des.y}h${des.w}v${des.h}h${-des.w}Z`,
-              );
+            if (hasDevice && deviceContains) {
+              lb.setAttribute('d', punch(dev));
               const bg = ci.backgroundColor;
               lb.style.fill = `rgba(${Math.round(bg.r * 255)},${Math.round(bg.g * 255)},${Math.round(bg.b * 255)},0.55)`;
+              lb.style.opacity = '1';
+            } else if (!hasDevice) {
+              lb.setAttribute('d', punch({ x: 0, y: 0, w: dsvg.clientWidth, h: dsvg.clientHeight }));
+              lb.style.fill = 'rgba(0,0,0,0.32)';
               lb.style.opacity = '1';
             } else {
               lb.style.opacity = '0';
@@ -1323,7 +1335,10 @@ export function Viewport() {
                       key={p.label}
                       on={sceneCanvas.x === p.x && sceneCanvas.y === p.y}
                       label={p.label}
-                      onClick={() => SceneCommands.setField(sceneCanvas.id, 'Canvas', 'designResolution', 'vec2', [p.x, p.y])}
+                      onClick={() => {
+                        SceneCommands.setField(sceneCanvas.id, 'Canvas', 'designResolution', 'vec2', [p.x, p.y]);
+                        ViewportController.frameCanvas();
+                      }}
                     />
                   ))}
                   <div className="ovmenu-lbl">Exact values: select the Canvas → Inspector</div>

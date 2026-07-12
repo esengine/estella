@@ -230,6 +230,12 @@ for (const m of EDITOR_MODES) {
       for (const p of m.panels ?? []) {
         dockApi.openSidePanel(p.id, p.component, p.title, p.side ?? 'left', p.width ?? 300);
       }
+      // A mode with a design frame (UI) is entered to work against the authored screen;
+      // the free editor camera never adopts the design aspect, so frame it on entry so
+      // the design resolution (e.g. a portrait 750×1334) reads at once instead of hiding
+      // as a thin outline. Only on this explicit entry — selection-suggested switches
+      // must not steal the user's pan/zoom.
+      if (m.overlays?.designFrame) ViewportController.frameCanvas();
     },
   });
 }

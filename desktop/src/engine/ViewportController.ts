@@ -333,6 +333,34 @@ export const ViewportController = {
     if (halfH > 1) view.orthoSize = clamp(halfH, 8, 40000);
   },
 
+  /**
+   * Frame the editor view on the Canvas' authored design frame — center it and zoom
+   * so the whole design rect fits (with padding). This is what makes a design-resolution
+   * change *read*: the free editor camera never adopts the design aspect (it fills the
+   * panel), so a portrait resolution is only visible as its framed rect. Fitting whichever
+   * design axis is the binding constraint against the panel aspect makes a portrait design
+   * dominate the viewport vertically instead of hiding as a thin outline. No-op with no Canvas.
+   *
+   * The design frame is in the UI world scale where 1 unit = 1 design px — the SAME
+   * invariant CameraPlugin's uiLayoutRect / buildCameraInfo lay UI + scene cameras out in.
+   * `pixelsPerUnit` is a physics (metres) concern and must NOT enter here: dividing by it
+   * would frame a box 100× smaller than the UI, zooming the real UI off-screen.
+   */
+  frameCanvas(): void {
+    const view = editorView();
+    const ci = this.canvasInfo();
+    const panel = EngineHost.canvas;
+    if (!view || !ci) return;
+    const desHalfW = ci.designResolution.x / 2;
+    const desHalfH = ci.designResolution.y / 2;
+    if (desHalfW <= 0 || desHalfH <= 0) return;
+    view.x = ci.cx;
+    view.y = ci.cy;
+    const aspect = panel && panel.height > 0 ? panel.width / panel.height : 1;
+    const halfH = Math.max(desHalfH, aspect > 0 ? desHalfW / aspect : desHalfW) * 1.1;
+    view.orthoSize = clamp(halfH, 8, 40000);
+  },
+
   /** Ids of the scene's camera entities — the camera-gizmo set (structural). */
   cameraIds(): EntityId[] {
     const world = EngineHost.world;
