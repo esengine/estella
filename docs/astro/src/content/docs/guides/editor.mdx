@@ -114,9 +114,10 @@ frame's corners, and a portrait resolution lays out as a portrait screen.
 - **Design** dropdown (viewport toolbar) — picks the Canvas design resolution and reframes
   to it (undoable; the authoritative value also lives on the Canvas in the Details panel).
   This is the size your UI lays out against.
-- **Device** dropdown — *simulates* a target screen (iPhone / iPad / 1080p …) with letterbox
-  bars and safe-area insets, to preview how the UI adapts. It's a preview only — it does
-  **not** change your design resolution.
+- **Device** dropdown — *simulates* a target screen (iPhone / iPad / 1080p …): the UI
+  **relayouts to that device's aspect** (per the Canvas scale mode) inside letterbox bars and
+  safe-area insets, so you preview how it actually adapts. A preview only — it does **not**
+  change your design resolution.
 
 ## Building a scene
 
