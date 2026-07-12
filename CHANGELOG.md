@@ -14,6 +14,56 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-07-12
+
+A real UI editor: anchor-based layout with an on-canvas resize gizmo, a widget palette
+you drag onto the Canvas, and a design-resolution viewport that frames your target
+screen and previews how the UI adapts on any device — backed by a modernized UI runtime
+(theme tokens, live theming, data binding) and new tilemap layer tooling.
+
+### Added
+
+- **Design-resolution viewport.** Author your UI against a fixed design resolution —
+  landscape `1920 × 1080` or a portrait `750 × 1334`, your call. UI mode frames the
+  design screen on entry and dims around it, and the editor is **WYSIWYG**: what you lay
+  out inside the frame is exactly what ships at that resolution. Pick the resolution from
+  the viewport's **Design** dropdown, and simulate a target screen (iPhone / iPad /
+  1080p …) from the **Device** dropdown — the UI **relayouts to that device's aspect**
+  (per the Canvas scale mode) with letterbox bars and safe-area insets.
+- **UI authoring on the canvas.** A nine-slice **anchor grid**, a **Widget palette** you
+  drag onto the Canvas, and an eight-handle, unit- and anchor-aware **resize gizmo** that
+  edits UINodes directly in the viewport. The UINode inspector is rebuilt around
+  dimension fields, box-model cards, and anchor pickers, with In-Layout vs Absolute
+  positioning modes.
+- **Editing modes.** The Activity Bar switches between **Scene**, **UI**, and **Tilemap**
+  modes (and follows your selection), each revealing its companion panels and viewport
+  aids.
+- **Modern UI runtime.** Anchor presets, a theme-token system with live theme swapping
+  across every built-in widget, and a push-model data-binding API (signals / derived /
+  bind) that cleans up automatically on despawn.
+- **Tilemap layer panel.** Add layers and set per-layer opacity, with collision /
+  terrain / animation badges surfaced in the palette.
+
+### Changed
+
+- Editor UI consolidated onto shared primitives (Button / IconButton), with inline
+  editable dimension fields and deduplicated tilemap controls.
+
+### Fixed
+
+- UINodes lay out and are positionable: the reconciler keeps parent `Children` in sync so
+  newly created UI children get laid out, absolute nodes bake correctly, and dragging a
+  centered node works.
+- Editor UI now matches the design frame at the correct scale — the design frame and
+  layout share the UI world scale (1 unit = 1 design px) instead of mixing in the physics
+  `pixelsPerUnit`, which had made UI vanish when the design resolution changed.
+- Edit-mode gizmos are hidden in Play.
+- `.estileset` tilemaps render on scene load and keep their tile size in sync.
+- Engine-computed transform fields are preserved, so moving an entity no longer snaps the
+  gizmo to the origin; text alignment is unified across framed and unframed text.
+- Asset-ref fields validate leniently (string ref vs numeric handle), loader-based asset
+  slots resolve to project paths, and `ThemeStyle` fields validate so themed widgets pass.
+
 ## [0.19.0] - 2026-07-10
 
 A create-anything entity workflow, an inspector that guards your data, a fully
