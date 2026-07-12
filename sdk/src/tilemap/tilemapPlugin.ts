@@ -35,6 +35,11 @@ export class TilemapPlugin implements Plugin {
     name = 'tilemap';
 
     private initializedLayers_ = new Set<number>();
+    /** TilemapLayer entity → the tile size last pushed to its C++ layer (`w*K+h`).
+     *  The renderer + worldToTile read the C++ `tile_width`; the component `cellSize`
+     *  is the authority, so an edit must re-push — otherwise the paint grid (cellSize)
+     *  and the drawn/hit grid (stale tile_width) diverge and tiles land off-cursor. */
+    private appliedCellSize_ = new Map<number, number>();
     private animatedLayers_ = new Set<number>();
     /** Tilemap(source) entity → the RuntimeOnly child layer entities derived from its `.tmj`. */
     private sourceLayerEntities_ = new Map<number, Entity[]>();
@@ -120,6 +125,7 @@ export class TilemapPlugin implements Plugin {
 
         const world = app.world;
         const initializedLayers = this.initializedLayers_;
+        const appliedCellSize = this.appliedCellSize_;
         const animatedLayers = this.animatedLayers_;
         const sourceLayerEntities = this.sourceLayerEntities_;
         const collisionEntities = this.collisionEntities_;
@@ -157,6 +163,7 @@ export class TilemapPlugin implements Plugin {
                     if (!currentLayerSet.has(entity)) {
                         TilemapAPI.destroyLayer(entity);
                         initializedLayers.delete(entity);
+                        appliedCellSize.delete(entity);
                         nativeCollisionIds.delete(entity);
                         nativePolygonShapes.delete(entity);
                         tilesetRefs.delete(entity);
@@ -182,12 +189,25 @@ export class TilemapPlugin implements Plugin {
                     // renderLayer/parallax/visible straight off the component each frame.
                     // No per-frame push into LayerData anymore — we only init the layer's
                     // chunk store (the heavy data) and let the renderer pull the rest.
+                    // Keep the C++ layer's tile size equal to the component `cellSize`
+                    // (the authority). The scene loader's importChunks pre-creates the
+                    // layer at a placeholder size, and a user can edit cellSize after
+                    // init; initInfiniteLayer is idempotent (keeps chunks), so re-push
+                    // whenever the applied size drifts. Stale dims misplace every tile
+                    // relative to the paint grid (renderer + worldToTile read tile_width).
+                    const csKey = layerData.cellSize.x * 65536 + layerData.cellSize.y;
                     if (!initializedLayers.has(entity)) {
                         TilemapAPI.initInfiniteLayer(
                             entity, layerData.cellSize.x, layerData.cellSize.y,
                         );
                         TilemapAPI.setOriginEntity(entity, entity);
                         initializedLayers.add(entity);
+                        appliedCellSize.set(entity, csKey);
+                    } else if (appliedCellSize.get(entity) !== csKey) {
+                        TilemapAPI.initInfiniteLayer(
+                            entity, layerData.cellSize.x, layerData.cellSize.y,
+                        );
+                        appliedCellSize.set(entity, csKey);
                     }
 
                     // Live tileset(s): when ALL the layer's `.estileset` refs have loaded,
@@ -495,6 +515,7 @@ export class TilemapPlugin implements Plugin {
             TilemapAPI.destroyLayer(entity);
         }
         this.initializedLayers_.clear();
+        this.appliedCellSize_.clear();
         this.animatedLayers_.clear();
         this.sourceLayerEntities_.clear();
         // Collider entities die with the world on reset/teardown; just drop our bookkeeping.

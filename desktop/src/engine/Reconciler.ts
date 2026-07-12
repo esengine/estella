@@ -349,8 +349,15 @@ export class ReconcilerImpl {
     return this.resolveRefPath(ref) ?? ref;
   }
 
-  /** Clone the scene with every component field resolved via {@link resolveFieldValue}
-   *  (both bulk paths — adopt and rebuild — project through this). */
+  /** Clone the scene with every engine-component field resolved via {@link
+   *  resolveFieldValue} (both bulk paths — adopt and rebuild — project through this).
+   *  Fields the engine component doesn't declare are left AS AUTHORED: they are the
+   *  scene codec's out-of-band data (a TilemapLayer's `tilesetAsset(s)` ref list, its
+   *  chunk blob), which `loadComponent` replays after the insert. Running those through
+   *  the asset resolver would blank a `@uuid:` tileset ref to a 0 handle (tilesets are
+   *  path/ref-valued, not texture handles), so the codec would then drop it — and the
+   *  layer would render nothing. Unknown components are stripped by worldProjection
+   *  next, so resolving their fields here is harmless; leave that path unchanged. */
   private resolveSceneRefs(data: SceneData): SceneData {
     return {
       ...data,
@@ -359,8 +366,12 @@ export class ReconcilerImpl {
         components: (e.components ?? []).map((c) => {
           const d = c.data as Record<string, unknown> | undefined;
           if (!d) return c;
+          const def = componentByName(c.type);
+          const fields = def ? componentDefaults(def) : null;
           const out: Record<string, unknown> = {};
-          for (const [k, v] of Object.entries(d)) out[k] = this.resolveFieldValue(c.type, k, v);
+          for (const [k, v] of Object.entries(d)) {
+            out[k] = fields && !(k in fields) ? v : this.resolveFieldValue(c.type, k, v);
+          }
           return { ...c, data: out };
         }),
       })),
