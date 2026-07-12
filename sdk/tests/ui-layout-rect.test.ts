@@ -38,11 +38,12 @@ describe('uiLayoutRect', () => {
         });
     });
 
-    it('the editor box adapts to the viewport aspect via the scale mode', () => {
-        // A square viewport: Expand keeps the design width, so height grows to 1280.
+    it('the editor box is the design box regardless of viewport aspect (WYSIWYG with the frame)', () => {
+        // A square viewport must NOT reshape the UI box — it stays the authored 1280×720, so
+        // edge-anchored UI sits at the design-resolution corners, matching the design frame.
         const cam = { entity: EDITOR_VIEW_ENTITY, cameraX: 0, cameraY: 0, halfW: 160, halfH: 90 };
         expect(uiLayoutRect(cam, canvas, 1000, 1000)).toEqual({
-            left: -640, right: 640, bottom: -640, top: 640,
+            left: -640, right: 640, bottom: -360, top: 360,
         });
     });
 
