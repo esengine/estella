@@ -259,7 +259,7 @@ async function runScreenshot(w: BrowserWindow, out: string): Promise<void> {
     // expression logged before + after so a shot can assert the gesture took effect.
     if (process.env.ESTELLA_SHOT_EDITOR_DRAG) {
       const spec = JSON.parse(process.env.ESTELLA_SHOT_EDITOR_DRAG) as
-        { selector: string; dx?: number; dy?: number; steps?: number; read?: string };
+        { selector: string; dx?: number; dy?: number; ox?: number; oy?: number; steps?: number; read?: string };
       const before = spec.read ? await exec(spec.read) : undefined;
       // sendInputEvent hits by coordinate, so the target must be on-screen — scroll
       // it into view first (a no-op for elements not in a scroll container, e.g. a
@@ -274,7 +274,7 @@ async function runScreenshot(w: BrowserWindow, out: string): Promise<void> {
       if (!at) {
         console.log('[editorDrag] selector not found:', spec.selector);
       } else {
-        const x0 = Math.round(at.x), y0 = Math.round(at.y);
+        const x0 = Math.round(at.x + (spec.ox ?? 0)), y0 = Math.round(at.y + (spec.oy ?? 0));
         const x1 = x0 + Math.round(spec.dx ?? 0), y1 = y0 + Math.round(spec.dy ?? 0);
         const steps = Math.max(1, spec.steps ?? 8);
         w.webContents.sendInputEvent({ type: 'mouseDown', x: x0, y: y0, button: 'left', clickCount: 1 });

@@ -93,6 +93,13 @@ if (new URLSearchParams(location.search).has('automation')) {
       const def = comp === 'UINode' ? UINode : UIVisual;
       return rt != null && w?.has(rt, def) ? w.get(rt, def) : null;
     },
+    pickAt: (cx: number, cy: number) =>
+      ViewportController.pickEntitiesAt(cx, cy).map((rt) => ({ rt, src: SceneModel.sourceFor(rt) })),
+    screenRectOf: (id: number) => {
+      const rt = SceneModel.runtimeFor(id);
+      return rt == null ? null : ViewportController.getEntityScreenRect(rt);
+    },
+    frame: (ids: number[]) => ViewportController.frameSelection(ids),
   };
 }
 
