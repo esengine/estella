@@ -932,7 +932,7 @@ width: number
 ## BuiltinBridge — class
 ```
 connect: (cppRegistry: CppRegistry, module?: ESEngineModule, options?: BridgeConnectOptions) => void
-deleteFromEntitySets: (entity: Entity) => void
+deleteFromEntitySets: (entity: Entity) => string[]
 disconnect: () => void
 get: <T>(entity: Entity, component: BuiltinComponentDef<T>) => T
 getBuiltinMethods: (cppName: string) => BuiltinMethods

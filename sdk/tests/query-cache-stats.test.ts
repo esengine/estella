@@ -34,12 +34,18 @@ describe('QueryCache.getStats', () => {
         expect(s.misses).toBe(1);
     });
 
-    it('attributes a structural-change miss to structuralInvalidations', () => {
-        cache.getOrCompute('q1', [], () => []);
+    it('does not invalidate a cached query on a bare structural change', () => {
+        // markStructuralChange only advances the world version for coarse external
+        // gates (physics); query invalidation is per-component. A query whose
+        // dependent components are untouched must survive structural churn.
+        let computed = 0;
+        cache.getOrCompute('q1', [], () => { computed++; return []; });
         cache.markStructuralChange();
-        cache.getOrCompute('q1', [], () => []);
+        cache.getOrCompute('q1', [], () => { computed++; return []; });
+        expect(computed).toBe(1);
         const s = cache.getStats();
-        expect(s.structuralInvalidations).toBe(1);
+        expect(s.hits).toBe(1);
+        expect(s.structuralInvalidations).toBe(0);
         expect(s.componentInvalidations).toBe(0);
     });
 

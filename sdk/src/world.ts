@@ -6,7 +6,7 @@
  */
 
 import { Entity, entityGeneration, entityIndex, makeEntity, INVALID_ENTITY } from './types';
-import { AnyComponentDef, ComponentDef, ComponentData, BuiltinComponentDef, isBuiltinComponent, getAllRegisteredComponents, getUserComponents, Name } from './component';
+import { AnyComponentDef, ComponentDef, ComponentData, BuiltinComponentDef, isBuiltinComponent, getAllRegisteredComponents, getUserComponents, getComponent, Name, Parent, Children } from './component';
 import type { CppRegistry, ESEngineModule } from './wasm';
 import { handleWasmError } from './wasmError';
 import { BuiltinBridge, convertFromWasm, convertForWasm, type BridgeConnectOptions, type BuiltinMethods } from './ecs/BuiltinBridge';
@@ -253,11 +253,20 @@ export class World {
         this.entities_.delete(entity);
         this.queries_.markStructuralChange();
 
-        this.builtin_.deleteFromEntitySets(entity);
+        // Dirty exactly the component versions this entity carried so its
+        // membership leaves the relevant cached queries — unrelated queries stay
+        // valid (the query cache no longer honors the global structural version).
+        for (const cppName of this.builtin_.deleteFromEntitySets(entity)) {
+            const def = getComponent(cppName);
+            if (def) this.queries_.markComponentDirty(def._id);
+        }
+        this.queries_.markComponentDirty(Parent._id);
+        this.queries_.markComponentDirty(Children._id);
 
         const removedIds = this.scripts_.removeEntity(entity);
         for (const id of removedIds) {
             this.changes_.recordRemovedById(id, entity);
+            this.queries_.markComponentDirty(id);
         }
     }
 
@@ -346,6 +355,8 @@ export class World {
             }
         }
         this.queries_.markStructuralChange();
+        this.queries_.markComponentDirty(Parent._id);
+        this.queries_.markComponentDirty(Children._id);
         notifyBridge('onParentChanged', child, parent);
     }
 
@@ -359,6 +370,8 @@ export class World {
             }
         }
         this.queries_.markStructuralChange();
+        this.queries_.markComponentDirty(Parent._id);
+        this.queries_.markComponentDirty(Children._id);
         notifyBridge('onParentChanged', entity, null);
     }
 

@@ -330,6 +330,27 @@ describe('World', () => {
             const entities2 = world.getEntitiesWithComponents([Position]);
             expect(entities2).toHaveLength(0);
         });
+
+        it('keeps an unrelated query cached across churn of other components', () => {
+            const a = world.spawn();
+            world.insert(a, Position);
+
+            // Prime the [Position] query, then watch it survive unrelated churn.
+            expect(world.getEntitiesWithComponents([Position])).toHaveLength(1);
+            world.resetQueryCacheStats();
+
+            for (let i = 0; i < 20; i++) {
+                const e = world.spawn();
+                world.insert(e, Velocity);
+                world.despawn(e);
+            }
+
+            const result = world.getEntitiesWithComponents([Position]);
+            expect(result).toHaveLength(1);
+            const stats = world.getQueryCacheStats();
+            expect(stats.hits).toBe(1);
+            expect(stats.misses).toBe(0);
+        });
     });
 
     describe('complex scenarios', () => {

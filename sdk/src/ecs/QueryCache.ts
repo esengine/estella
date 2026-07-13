@@ -8,7 +8,6 @@
 import { Entity } from '../types';
 
 interface CacheEntry {
-    structuralVersion: number;
     componentVersions: Map<symbol, number>;
     result: Entity[];
 }
@@ -41,6 +40,10 @@ export class QueryCache {
         return this.structuralVersion_;
     }
 
+    // A monotonic "something structural happened" counter exposed as the world
+    // version for coarse external gates (e.g. physics reconcile). It deliberately
+    // does NOT invalidate cached queries — invalidation is per-component below, so
+    // churn of unrelated entities never drops an unrelated query's result.
     markStructuralChange(): void {
         this.structuralVersion_++;
     }
@@ -61,14 +64,11 @@ export class QueryCache {
     ): Entity[] {
         const cached = this.cache_.get(cacheKey);
         if (cached) {
-            const validity = this.checkValidity_(cached, dependentComponentIds);
-            if (validity === 0) {
+            if (this.checkValidity_(cached, dependentComponentIds)) {
                 this.hits_++;
                 return cached.result;
             }
-            // 1 = structural, 2 = component — classify the miss for stats.
-            if (validity === 1) this.structuralInvalidations_++;
-            else this.componentInvalidations_++;
+            this.componentInvalidations_++;
         }
         this.misses_++;
 
@@ -79,7 +79,6 @@ export class QueryCache {
             compVersions.set(id, this.componentVersions_.get(id) ?? 0);
         }
         this.cache_.set(cacheKey, {
-            structuralVersion: this.structuralVersion_,
             componentVersions: compVersions,
             result,
         });
@@ -106,17 +105,13 @@ export class QueryCache {
         this.componentInvalidations_ = 0;
     }
 
-    /**
-     * Returns 0 when the entry is still valid, 1 when structural version moved,
-     * 2 when a dependent component changed.
-     */
-    private checkValidity_(entry: CacheEntry, dependentComponentIds: symbol[]): 0 | 1 | 2 {
-        if (entry.structuralVersion !== this.structuralVersion_) return 1;
+    /** True when every dependent component is unchanged since the entry was cached. */
+    private checkValidity_(entry: CacheEntry, dependentComponentIds: symbol[]): boolean {
         for (const id of dependentComponentIds) {
             const current = this.componentVersions_.get(id) ?? 0;
             const cached = entry.componentVersions.get(id) ?? 0;
-            if (current !== cached) return 2;
+            if (current !== cached) return false;
         }
-        return 0;
+        return true;
     }
 }

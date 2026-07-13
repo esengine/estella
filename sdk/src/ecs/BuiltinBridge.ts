@@ -512,10 +512,13 @@ export class BuiltinBridge {
         return set;
     }
 
-    deleteFromEntitySets(entity: Entity): void {
-        for (const [, set] of this.builtinEntitySets_) {
-            set.delete(entity);
+    /** Removes the entity from every builtin set; returns the cppNames it was in. */
+    deleteFromEntitySets(entity: Entity): string[] {
+        const removed: string[] = [];
+        for (const [cppName, set] of this.builtinEntitySets_) {
+            if (set.delete(entity)) removed.push(cppName);
         }
+        return removed;
     }
 
     insert<T>(entity: Entity, component: BuiltinComponentDef<T>, data?: Partial<T>): { merged: T; isNew: boolean } {
