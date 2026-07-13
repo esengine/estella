@@ -3,11 +3,20 @@
 import { describe, bench, beforeAll } from 'vitest';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { Transform, Sprite } from '../src/component';
+import { UINode } from '../src/ui/core/ui-node';
+import { convertForWasm } from '../src/ecs/BuiltinBridge';
 
 let module: any;
 let Registry: any;
 
 const WASM_DIR = path.resolve(__dirname, '../../desktop/public/wasm');
+
+// Build the embind value_object payloads from the authoritative component
+// defaults (the same source BuiltinBridge inserts from), so these stay valid as
+// the C++ structs gain fields instead of drifting into "missing field" errors.
+const wasmData = (def: { _default: unknown; colorKeys: readonly string[] }) =>
+    convertForWasm({ ...(def._default as Record<string, unknown>) }, def.colorKeys);
 
 beforeAll(async () => {
     const jsPath = path.join(WASM_DIR, 'esengine.js');
@@ -21,36 +30,9 @@ beforeAll(async () => {
     Registry = module.Registry;
 });
 
-const TRANSFORM_DATA = {
-    position: { x: 0, y: 0, z: 0 },
-    rotation: { x: 0, y: 0, z: 0, w: 1 },
-    scale: { x: 1, y: 1, z: 1 },
-    worldPosition: { x: 0, y: 0, z: 0 },
-    worldRotation: { x: 0, y: 0, z: 0, w: 1 },
-    worldScale: { x: 1, y: 1, z: 1 },
-};
-
-const SPRITE_DATA = {
-    texture: 0,
-    color: { x: 1, y: 1, z: 1, w: 1 },
-    size: { x: 100, y: 100 },
-    uvOffset: { x: 0, y: 0 },
-    uvScale: { x: 1, y: 1 },
-    layer: 0,
-    flipX: false,
-    flipY: false,
-    material: 0,
-    enabled: true,
-};
-
-const UIRECT_DATA = {
-    anchorMin: { x: 0, y: 0 },
-    anchorMax: { x: 1, y: 1 },
-    offsetMin: { x: 0, y: 0 },
-    offsetMax: { x: 0, y: 0 },
-    size: { x: 100, y: 100 },
-    pivot: { x: 0.5, y: 0.5 },
-};
+const TRANSFORM_DATA = wasmData(Transform);
+const SPRITE_DATA = wasmData(Sprite);
+const UINODE_DATA = wasmData(UINode);
 
 describe('WASM boundary - Entity lifecycle', () => {
     bench('create + destroy (single)', () => {
@@ -141,19 +123,19 @@ describe('WASM boundary - Sprite CRUD', () => {
     });
 });
 
-describe('WASM boundary - UIRect CRUD', () => {
-    bench('addUIRect', () => {
+describe('WASM boundary - UINode CRUD', () => {
+    bench('addUINode', () => {
         const reg = new Registry();
         const e = reg.create();
-        reg.addUIRect(e, UIRECT_DATA);
+        reg.addUINode(e, UINODE_DATA);
         reg.delete();
     });
 
-    bench('getUIRect x100', () => {
+    bench('getUINode x100', () => {
         const reg = new Registry();
         const e = reg.create();
-        reg.addUIRect(e, UIRECT_DATA);
-        for (let i = 0; i < 100; i++) reg.getUIRect(e);
+        reg.addUINode(e, UINODE_DATA);
+        for (let i = 0; i < 100; i++) reg.getUINode(e);
         reg.delete();
     });
 });
@@ -164,7 +146,7 @@ describe('WASM boundary - Multi-component entity', () => {
         const e = reg.create();
         reg.addTransform(e, TRANSFORM_DATA);
         reg.addSprite(e, SPRITE_DATA);
-        reg.addUIRect(e, UIRECT_DATA);
+        reg.addUINode(e, UINODE_DATA);
         reg.delete();
     });
 
@@ -173,11 +155,11 @@ describe('WASM boundary - Multi-component entity', () => {
         const e = reg.create();
         reg.addTransform(e, TRANSFORM_DATA);
         reg.addSprite(e, SPRITE_DATA);
-        reg.addUIRect(e, UIRECT_DATA);
+        reg.addUINode(e, UINODE_DATA);
         for (let i = 0; i < 100; i++) {
             reg.getTransform(e);
             reg.getSprite(e);
-            reg.getUIRect(e);
+            reg.getUINode(e);
         }
         reg.delete();
     });
@@ -187,11 +169,11 @@ describe('WASM boundary - Multi-component entity', () => {
         const e = reg.create();
         reg.addTransform(e, TRANSFORM_DATA);
         reg.addSprite(e, SPRITE_DATA);
-        reg.addUIRect(e, UIRECT_DATA);
+        reg.addUINode(e, UINODE_DATA);
         for (let i = 0; i < 100; i++) {
             reg.hasTransform(e);
             reg.hasSprite(e);
-            reg.hasUIRect(e);
+            reg.hasUINode(e);
         }
         reg.delete();
     });
@@ -247,13 +229,13 @@ describe('WASM boundary - Batch scenario (typical frame)', () => {
             const e = reg.create();
             reg.addTransform(e, TRANSFORM_DATA);
             if (i % 2 === 0) reg.addSprite(e, SPRITE_DATA);
-            if (i % 3 === 0) reg.addUIRect(e, UIRECT_DATA);
+            if (i % 3 === 0) reg.addUINode(e, UINODE_DATA);
             entities.push(e);
         }
         for (const e of entities) {
             reg.hasTransform(e);
             reg.hasSprite(e);
-            reg.hasUIRect(e);
+            reg.hasUINode(e);
         }
         reg.delete();
     });
