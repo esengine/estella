@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "locale": "zh-CN",
+  "entries": {
+    "ui.title": "UI 控件",
+    "ui.animate": "动画",
+    "ui.loading": "加载",
+    "ui.modal": "对话框",
+    "ui.accent": "强调色"
+  }
+}

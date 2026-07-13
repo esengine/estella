@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "locale": "en",
+  "entries": {
+    "ui.title": "UI Controls",
+    "ui.animate": "Animate",
+    "ui.loading": "Loading",
+    "ui.modal": "Modal",
+    "ui.accent": "Accent"
+  }
+}

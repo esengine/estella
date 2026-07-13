@@ -125,6 +125,7 @@
           "type": "Text",
           "data": {
             "content": "UI Controls",
+            "i18nKey": "ui.title",
             "fontSize": 20,
             "bold": true,
             "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
@@ -214,6 +215,7 @@
           "type": "Text",
           "data": {
             "content": "Animate",
+            "i18nKey": "ui.animate",
             "fontSize": 14,
             "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
             "align": 0,
@@ -302,6 +304,7 @@
           "type": "Text",
           "data": {
             "content": "Loading",
+            "i18nKey": "ui.loading",
             "fontSize": 14,
             "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
             "align": 0,
@@ -346,6 +349,7 @@
           "type": "Text",
           "data": {
             "content": "Modal",
+            "i18nKey": "ui.modal",
             "fontSize": 14,
             "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
             "align": 0,
@@ -390,6 +394,7 @@
           "type": "Text",
           "data": {
             "content": "Accent",
+            "i18nKey": "ui.accent",
             "fontSize": 14,
             "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
             "align": 0,
