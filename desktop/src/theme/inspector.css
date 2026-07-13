@@ -205,6 +205,10 @@
 .dd-opt:hover { background: var(--acc-soft); color: var(--text); }
 .dd-opt.on { color: var(--acc-hi); }
 .dd-opt-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Suggest-list extras: namespace group headers + a dimmed "what it does" line. */
+.dd-grp { padding: 5px 8px 2px; font-size: var(--fs-2xs); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-faint); }
+.dd-opt-desc { display: block; font-size: var(--fs-2xs); color: var(--text-faint); overflow: hidden; text-overflow: ellipsis; }
+.dd-opt:has(.dd-opt-desc) { height: auto; padding-top: 3px; padding-bottom: 3px; }
 .dd-opt > svg { color: var(--acc-hi); flex-shrink: 0; }
 .dd-opt .fchk { width: 13px; height: 13px; border: 1px solid var(--border-line); border-radius: var(--r-xs); display: grid; place-items: center; color: transparent; flex-shrink: 0; }
 .dd-opt .fchk.on { background: var(--acc); border-color: var(--acc); color: var(--on-accent); }

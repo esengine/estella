@@ -49,6 +49,8 @@ import { ViewportController } from './engine/ViewportController';
 import { PerfMonitor } from './engine/PerfMonitor';
 import { LogStore } from './store/LogStore';
 import { initFsWatch } from './project/fsWatch';
+import { ASSET_OPEN } from './project/assetOpen';
+import { assetTypeOf } from './project/assetTypes';
 import { initBackgroundThrottle } from './engine/backgroundThrottle';
 // Register the built-in settings (side effect) and replay persisted ones.
 import './settings';
@@ -97,6 +99,11 @@ if (new URLSearchParams(location.search).has('automation')) {
     },
     /** Dispatch any registered editor command by id (the UI's own channel). */
     runCommand: (id: string) => commands.run(id),
+    /** Double-click-open an asset by project path (FSM/BT/tileset/clip editors…). */
+    openAsset: (path: string) => {
+      const name = path.split('/').pop() ?? path;
+      ASSET_OPEN[assetTypeOf(name)]?.(path, name);
+    },
     reveal: (id: string) => dockApi.revealAndExpand(id),
     togglePerfOverlay: () => PerfMonitor.toggleOverlay(),
     captureThumbnail: () => ProjectStore.captureThumbnail(),

@@ -17,7 +17,7 @@ import { useRef, useState, useSyncExternalStore } from 'react';
 import { Plus, Trash2, Save } from 'lucide-react';
 import {
   fsmEdges, addState, removeState, moveState, renameState, setStateHook, setInitial,
-  addTransition, removeTransition, updateTransition, aiRegistry,
+  addTransition, removeTransition, updateTransition,
   type FsmDefinition, type FsmState, type FsmEdge, type CompareOp,
 } from 'esengine';
 import { FsmGraphDocument } from '@/fsm/FsmGraphDocument';
@@ -26,6 +26,8 @@ import { EditorHistory } from '@/engine/EditorHistory';
 import { NodeGraphCanvas, type CanvasNode } from '@/components/NodeGraphCanvas';
 import { Select } from '@/components/Select';
 import { DirtyDot } from '@/components/DirtyDot';
+import { SuggestInput } from '@/components/SuggestInput';
+import { aiActionItems, aiConditionItems } from '@/components/aiSuggest';
 
 type FsmCanvasNode = FsmState & CanvasNode;
 
@@ -152,7 +154,7 @@ export function StateMachineEditor() {
 }
 
 function StateInspector({ def, state, onRename }: { def: FsmDefinition; state: FsmState; onRename: (n: string) => void }) {
-  const actions = aiRegistry.actionNames();
+  const actions = aiActionItems();
   const isInitial = def.initial === state.name;
   return (
     <div>
@@ -168,12 +170,11 @@ function StateInspector({ def, state, onRename }: { def: FsmDefinition; state: F
       </label>
       {HOOKS.map((h) => (
         <label className="ng-field" key={h}>{h}
-          <input className="ng-input" list="fsm-actions" defaultValue={state[h] ?? ''} key={`${state.name}-${h}-${state[h] ?? ''}`}
+          <SuggestInput items={actions} defaultValue={state[h] ?? ''} key={`${state.name}-${h}-${state[h] ?? ''}`}
             placeholder={t('ng.phActionName')}
-            onBlur={(e) => { const v = e.target.value.trim(); if (v !== (state[h] ?? '')) FsmGraphDocument.edit(`Set ${h}`, (d) => Object.assign(d, setStateHook(d, state.name, h, v))); }} />
+            onCommit={(v) => { if (v !== (state[h] ?? '')) FsmGraphDocument.edit(`Set ${h}`, (d) => Object.assign(d, setStateHook(d, state.name, h, v))); }} />
         </label>
       ))}
-      <datalist id="fsm-actions">{actions.map((a) => <option key={a} value={a} />)}</datalist>
     </div>
   );
 }
@@ -184,7 +185,7 @@ function TransitionInspector({ def, edgeId }: { def: FsmDefinition; edgeId: stri
   const src = def.states.find((s) => s.name === parsed.from);
   const tr = src?.transitions?.[parsed.index];
   if (!tr) return null;
-  const conditions = aiRegistry.conditionNames();
+  const conditions = aiConditionItems();
   const g = (tr.guard && !Array.isArray(tr.guard) ? tr.guard : undefined) as { key: string; op: CompareOp; value?: number | string | boolean } | undefined;
   const patch = (p: Partial<typeof tr>) => FsmGraphDocument.edit('Edit transition', (d) => Object.assign(d, updateTransition(d, parsed.from, parsed.index, p)));
   const patchGuard = (gp: Partial<NonNullable<typeof g>>) => {
@@ -207,10 +208,9 @@ function TransitionInspector({ def, edgeId }: { def: FsmDefinition; edgeId: stri
           onBlur={(e) => patch({ trigger: e.target.value.trim() || undefined })} />
       </label>
       <label className="ng-field">{t('fsm.condition')}
-        <input className="ng-input" list="fsm-conditions" defaultValue={tr.condition ?? ''} key={`cnd-${edgeId}`} placeholder={t('ng.phConditionName')}
-          onBlur={(e) => patch({ condition: e.target.value.trim() || undefined })} />
+        <SuggestInput items={conditions} defaultValue={tr.condition ?? ''} key={`cnd-${edgeId}`} placeholder={t('ng.phConditionName')}
+          onCommit={(v) => patch({ condition: v || undefined })} />
       </label>
-      <datalist id="fsm-conditions">{conditions.map((c) => <option key={c} value={c} />)}</datalist>
       <div className="ng-insp-sub">{t('fsm.guardSub')}</div>
       <div className="ng-row">
         <input className="ng-input" style={{ flex: 1 }} defaultValue={g?.key ?? ''} key={`gk-${edgeId}`} placeholder={t('fsm.phKey')}

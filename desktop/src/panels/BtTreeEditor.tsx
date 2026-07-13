@@ -14,7 +14,7 @@ import { useRef, useState, useSyncExternalStore } from 'react';
 import { Trash2, Save } from 'lucide-react';
 import {
   btNodes, btEdges, addBtChild, addBtOrphan, removeBtNode, moveBtNode, setBtNodeField, reparentBtNode,
-  canHaveChildren, maxChildren, aiRegistry,
+  canHaveChildren, maxChildren,
   type BtNode, type BtNodeType, type BtDefinition, type BtEdge,
 } from 'esengine';
 import { BtDocument } from '@/bt/BtDocument';
@@ -23,6 +23,8 @@ import { EditorHistory } from '@/engine/EditorHistory';
 import { NodeGraphCanvas, type CanvasNode, type MenuItem } from '@/components/NodeGraphCanvas';
 import { Select } from '@/components/Select';
 import { DirtyDot } from '@/components/DirtyDot';
+import { SuggestInput } from '@/components/SuggestInput';
+import { aiActionItems, aiConditionItems } from '@/components/aiSuggest';
 
 type BtCanvasNode = BtNode & CanvasNode;
 
@@ -169,9 +171,11 @@ export function BtTreeEditor() {
 
             {(selNode.type === 'action' || selNode.type === 'condition') && (
               <label className="ng-field">{t('ng.name')}
-                <input className="ng-input" list="bt-names" defaultValue={selNode.name ?? ''} key={`${selNode.id}-name`}
+                <SuggestInput
+                  items={selNode.type === 'action' ? aiActionItems() : aiConditionItems()}
+                  defaultValue={selNode.name ?? ''} key={`${selNode.id}-name`}
                   placeholder={selNode.type === 'action' ? t('ng.phActionName') : t('ng.phConditionName')}
-                  onBlur={e => patch(selNode.id, { name: e.target.value.trim() || undefined })} />
+                  onCommit={v => patch(selNode.id, { name: v || undefined })} />
               </label>
             )}
             {selNode.type === 'repeater' && (
@@ -215,9 +219,6 @@ export function BtTreeEditor() {
                 </div>
               </>
             )}
-            <datalist id="bt-names">
-              {[...aiRegistry.actionNames(), ...aiRegistry.conditionNames()].map(n => <option key={n} value={n} />)}
-            </datalist>
           </div>
         )}
       </div>

@@ -34,6 +34,10 @@ export const nodegraphMessages = defineMessages({
     'fsm.noActions': { en: 'no actions', zh: '无动作' },
     'fsm.always': { en: '(always)', zh: '（总是）' },
     'fsm.guardCount': { en: '{count} guards', zh: '{count} 个守卫' },
+    // — Builtin action/condition descriptions (suggest dropdowns) —
+    'ai.desc.timelinePlay': { en: "Play the agent entity's TimelinePlayer", zh: '播放代理实体的 TimelinePlayer' },
+    'ai.desc.timelinePause': { en: "Pause the agent entity's TimelinePlayer", zh: '暂停代理实体的 TimelinePlayer' },
+    'ai.desc.timelineFinished': { en: 'True once the timeline has finished', zh: 'Timeline 播完后为真' },
     'fsm.inspStateTitle': { en: 'State', zh: '状态' },
     'fsm.inspTransitionTitle': { en: 'Transition', zh: '转移' },
     'fsm.target': { en: 'Target', zh: '目标' },
