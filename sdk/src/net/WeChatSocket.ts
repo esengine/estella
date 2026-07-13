@@ -4,7 +4,7 @@
  * @file    WeChatSocket.ts
  * @brief   Raw wx.connectSocket wrapper behind the platform socket seam.
  *
- * @beta   Pre-1.0 networking: client prediction and interest management will reshape this surface.
+ * @beta   Pre-1.0 networking: client prediction will reshape this surface.
  */
 import type { PlatformSocket } from '../platform/types';
 import type { GameSocketOptions, SocketReadyState } from './GameSocket';

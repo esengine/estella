@@ -9,7 +9,7 @@
  *          pumps them, which is how delivery order, latency and packet
  *          interleaving are simulated.
  *
- * @beta   Pre-1.0 networking: client prediction and interest management will reshape this surface.
+ * @beta   Pre-1.0 networking: client prediction will reshape this surface.
  */
 import type { NetTransport } from './NetChannel';
 

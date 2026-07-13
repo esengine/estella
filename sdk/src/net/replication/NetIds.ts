@@ -7,7 +7,7 @@
  *          them — a server-allocated NetId is the one cross-machine identity,
  *          and each endpoint keeps this bidirectional table.
  *
- * @beta   Pre-1.0 networking: client prediction and interest management will reshape this surface.
+ * @beta   Pre-1.0 networking: client prediction will reshape this surface.
  */
 import type { Entity } from '../../types';
 

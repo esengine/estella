@@ -115,6 +115,35 @@ clientNet.client?.sendInput({ move: { x: 1, y: 0 } });   // per-tick input uplin
 
 See the **Multiplayer Arena** example for the full pattern in ~100 lines.
 
+### Interest management — who sees what
+
+By default every client receives every replicated entity. For bigger worlds,
+install an **interest policy** on the server: each connection then only
+receives the entities relevant to it — entering entities arrive as full
+spawns, leaving ones despawn their client ghost, and delta frames carry only
+what's inside.
+
+```typescript
+import { radiusInterest } from 'esengine';
+
+// Each client sees entities within 800 units of any entity it owns.
+server.setInterestPolicy(radiusInterest(800));
+
+// Or any custom rule — return the relevant subset (or 'all'):
+server.setInterestPolicy(({ connectionId, world, candidates }) => {
+  const visible = new Set(candidates.filter((e) => isRelevantTo(world, e, connectionId)));
+  return visible;
+});
+```
+
+- **Owned entities are never culled** — a policy can't hide a client's own pawn.
+- **Re-entering is seamless**: the respawn carries the entity's *current* state.
+- `radiusInterest` reads `Transform.position` by default (override with
+  `{ position }`); placeless entities are always relevant, and it fails open
+  while a connection owns no positioned entity yet.
+- Installing, replacing, or removing the policy mid-session is safe — the next
+  tick reconciles every connection's ghost set.
+
 ## Best practices
 
 - **Use `NetChannel`** for anything beyond a trivial socket — routed types and RPC

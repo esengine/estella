@@ -30,6 +30,12 @@ export {
     type StateFrame,
 } from './codec';
 export { Replicated, NetGhost, type ReplicatedData } from './components';
+export {
+    radiusInterest,
+    type InterestPolicy,
+    type InterestView,
+    type RadiusInterestOptions,
+} from './interest';
 export { NetIds } from './NetIds';
 export { ReplicationServer } from './server';
 export { ReplicationClient, type ReplicationClientOptions } from './client';

@@ -112,6 +112,31 @@ clientNet.client?.sendInput({ move: { x: 1, y: 0 } });   // 每 tick 输入上�
 
 完整范式见 **Multiplayer Arena** 示例(约 100 行)。
 
+### 兴趣管理——谁看见什么
+
+默认每个客户端接收全部复制实体。世界大了以后,在服务器上装一个**兴趣策略**:
+每个连接只接收与它相关的实体——进入兴趣的实体以全量 spawn 到达,离开的实体
+在客户端 despawn 其 ghost,delta 帧只携带兴趣内的内容。
+
+```typescript
+import { radiusInterest } from 'esengine';
+
+// 每个客户端看到它拥有的实体周围 800 单位内的实体。
+server.setInterestPolicy(radiusInterest(800));
+
+// 或任意自定义规则——返回相关子集(或 'all'):
+server.setInterestPolicy(({ connectionId, world, candidates }) => {
+  const visible = new Set(candidates.filter((e) => isRelevantTo(world, e, connectionId)));
+  return visible;
+});
+```
+
+- **自有实体永不被剔除**——策略藏不掉客户端自己的 pawn。
+- **重进无缝**:重新 spawn 携带实体的*当前*状态。
+- `radiusInterest` 默认读 `Transform.position`(可用 `{ position }` 覆盖);
+  无位置的实体恒相关;连接尚无带位置的自有实体时 fail-open(看到全部)。
+- 会话中安装/替换/移除策略都是安全的——下一 tick 会调和每个连接的 ghost 集。
+
 ## 最佳实践
 
 - 超出简单套接字的场景**用 `NetChannel`**——按类型路由和 RPC 胜过一个巨大的 `onMessage` switch。

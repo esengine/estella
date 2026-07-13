@@ -8,7 +8,7 @@
  *          RPC (`handle`/`request`) with a small JSON envelope. Transport-
  *          agnostic — anything that can `send` and surface `onMessage` works.
  *
- * @beta   Pre-1.0 networking: client prediction and interest management will reshape this surface.
+ * @beta   Pre-1.0 networking: client prediction will reshape this surface.
  */
 
 /** The minimal socket surface NetChannel drives (GameSocket / WeChatSocket fit). */

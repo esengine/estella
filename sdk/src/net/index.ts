@@ -4,7 +4,7 @@
  * @file    index.ts
  * @brief   Networking barrel: sockets, transports, NetChannel, replication.
  *
- * @beta   Pre-1.0 networking: client prediction and interest management will reshape this surface.
+ * @beta   Pre-1.0 networking: client prediction will reshape this surface.
  */
 export { GameSocket, type GameSocketOptions, type SocketReadyState } from './GameSocket';
 export { WeChatSocket } from './WeChatSocket';

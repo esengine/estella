@@ -9,7 +9,7 @@
  *          proxies so local simulation (physics, AI) can yield to the incoming
  *          authoritative state via Without(NetGhost) queries.
  *
- * @beta   Pre-1.0 networking: client prediction and interest management will reshape this surface.
+ * @beta   Pre-1.0 networking: client prediction will reshape this surface.
  */
 import { defineComponent, defineTag } from '../../component';
 

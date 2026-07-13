@@ -9,7 +9,7 @@
  *          deterministic point in the frame, not mid-schedule on socket
  *          timing.
  *
- * @beta   Pre-1.0 networking: client prediction and interest management will reshape this surface.
+ * @beta   Pre-1.0 networking: client prediction will reshape this surface.
  */
 import type { World } from '../../world';
 import type { Entity } from '../../types';
