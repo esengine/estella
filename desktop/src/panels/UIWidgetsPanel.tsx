@@ -9,6 +9,7 @@
  * here for free with its registry label + icon.
  */
 import { ENTITY_SOURCES, createFromSource, SOURCE_DND_MIME, type EntitySource } from '@/engine/entitySources';
+import { t } from '@/i18n';
 import { useSelection } from '@/store/selectionStore';
 
 const UI_SOURCES = ENTITY_SOURCES.filter((s) => s.category === 'UI');
@@ -21,7 +22,7 @@ export function UIWidgetsPanel() {
   };
   return (
     <div className="ui-palette">
-      <div className="ui-palette-hint">Drag onto the canvas, or click to add under the Canvas.</div>
+      <div className="ui-palette-hint">{t('uiw.hint')}</div>
       <div className="ui-palette-grid">
         {UI_SOURCES.map((s) => {
           const Icon = s.icon;

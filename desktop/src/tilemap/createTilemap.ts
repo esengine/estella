@@ -17,6 +17,7 @@ import { useTilemapPaint } from '@/store/tilemapPaintStore';
 import { ProjectStore } from '@/project/ProjectStore';
 import { dockApi } from '@/layout/dockApi';
 import { Toasts } from '@/store/Toasts';
+import { t } from '@/i18n';
 
 /**
  * An EntitySource for a specific .estileset: cellSize is seeded from the tileset's tile
@@ -38,8 +39,8 @@ function tilesetSource(tilesetPath: string, tilesetRef: string, tileWidth: numbe
       useTilemapPaint.getState().setTool('brush');
       // Dock the painter to the side so the Viewport stays visible (a center tab would
       // hide what you paint on).
-      dockApi.openSidePanel('tilemap', 'tilemap', 'Tilemap', 'left', 300);
-      Toasts.push('Created tilemap — pick a brush to paint in the viewport', 'info');
+      dockApi.openSidePanel('tilemap', 'tilemap', t('panel.tilemap'), 'left', 300);
+      Toasts.push(t('tile.toast.created'), 'info');
     },
   };
 }
@@ -48,14 +49,14 @@ function tilesetSource(tilesetPath: string, tilesetRef: string, tileWidth: numbe
 export async function createTilemapFromTileset(tilesetPath: string): Promise<void> {
   const tilesetRef = ProjectStore.assetRef(tilesetPath); // .estileset → @uuid
   if (!tilesetRef) {
-    Toasts.push('Tileset is not tracked by the project', 'error');
+    Toasts.push(t('tile.toast.untracked'), 'error');
     return;
   }
   let asset;
   try {
     asset = parseTileset(JSON.parse(await window.estella.fs.read(tilesetPath)));
   } catch (e) {
-    Toasts.push(`Failed to read tileset: ${String(e)}`, 'error');
+    Toasts.push(t('tile.toast.readFailed', { error: String(e) }), 'error');
     return;
   }
   await createFromSource(tilesetSource(tilesetPath, tilesetRef, asset.tileWidth, asset.tileHeight), { parent: null });

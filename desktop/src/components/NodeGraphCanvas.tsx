@@ -16,6 +16,7 @@
  */
 import { useEffect, useImperativeHandle, useRef, useState, type ReactNode, type Ref, type MouseEvent as ReactMouseEvent } from 'react';
 import { ContextMenu, type MenuItem } from '@/components/Menu';
+import { t } from '@/i18n';
 
 export type { MenuItem };
 
@@ -416,7 +417,7 @@ export function NodeGraphCanvas<N extends CanvasNode, E extends CanvasEdge>(prop
                   className={`ng-in-anchor${onInputPortDown ? ' clickable' : ''}`}
                   style={{ top: port.y - 5, background: port.color }}
                   aria-hidden={onInputPortDown ? undefined : true}
-                  title={port.title ?? 'Edges land here'}
+                  title={port.title ?? t('ng.inPortTip')}
                   onPointerDown={onInputPortDown ? (e) => { e.stopPropagation(); onInputPortDown(n.id, port.id); } : undefined}
                 />
               ))}
@@ -426,7 +427,7 @@ export function NodeGraphCanvas<N extends CanvasNode, E extends CanvasEdge>(prop
                   key={`out:${port.id}`}
                   className="ng-handle"
                   style={{ top: port.y - 7, background: port.color }}
-                  title={port.title ?? 'Drag to another node to connect'}
+                  title={port.title ?? t('ng.outPortTip')}
                   onPointerDown={e => { e.stopPropagation(); wire.current = { from: n.id, port }; setWiring(true); setCursor(toCanvas(e.clientX, e.clientY)); }}
                 />
               ))}

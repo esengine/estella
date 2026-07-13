@@ -8,6 +8,7 @@
  */
 import { useEffect, useState, type CSSProperties } from 'react';
 import type { TilesetAnimFrame } from 'esengine';
+import { t } from '@/i18n';
 
 /** The atlas layout a tile is cropped from (a parsed `.estileset`'s grid). */
 export interface TileAtlas {
@@ -74,5 +75,5 @@ export function AnimPreview({
     };
   }, [frames]);
   const tile = frames.length ? frames[Math.min(i, frames.length - 1)].tile : fallback;
-  return <span className={className} style={thumb(tile)} title="Preview" />;
+  return <span className={className} style={thumb(tile)} title={t('tile.preview')} />;
 }

@@ -6,6 +6,7 @@ import {
   MousePointer2, Move, RotateCw, Scale3d, Grid3x3, Eye, Frame,
   Camera, Check, ChevronDown, Loader2, TriangleAlert, Lightbulb, Sparkles, Globe, Crosshair, Smartphone, Monitor, type LucideIcon,
 } from 'lucide-react';
+import { t } from '@/i18n';
 import { useEditorStore } from '@/store/editorStore';
 import { useSelection } from '@/store/selectionStore';
 import { useTilemapPaint, type PaintTool } from '@/store/tilemapPaintStore';
@@ -307,10 +308,10 @@ function GizmoOverlay({ tool, active }: { tool: ToolMode; active: GizmoAxis | nu
 }
 
 const TOOLS: { mode: ToolMode; icon: LucideIcon; label: string; key: string }[] = [
-  { mode: 'select', icon: MousePointer2, label: 'Select', key: 'Q' },
-  { mode: 'move', icon: Move, label: 'Move', key: 'W' },
-  { mode: 'rotate', icon: RotateCw, label: 'Rotate', key: 'E' },
-  { mode: 'scale', icon: Scale3d, label: 'Scale', key: 'R' },
+  { mode: 'select', icon: MousePointer2, label: t('vp.tool.select'), key: 'Q' },
+  { mode: 'move', icon: Move, label: t('vp.tool.move'), key: 'W' },
+  { mode: 'rotate', icon: RotateCw, label: t('vp.tool.rotate'), key: 'E' },
+  { mode: 'scale', icon: Scale3d, label: t('vp.tool.scale'), key: 'R' },
 ];
 
 // Increments offered by the viewport Snap dropdown: move (world units), rotate
@@ -321,29 +322,29 @@ const SNAP_SCALES = [0.1, 0.25, 0.5];
 
 // One-line hint shown under the coord readout, reflecting the active tool.
 const TOOL_HINT: Record<ToolMode, string> = {
-  select: 'Click to select · Shift adds · drag empty to box-select',
-  move: 'Drag a gizmo axis or the body · Alt-drag duplicates · arrows nudge',
-  rotate: 'Drag the ring to rotate the selection',
-  scale: 'Drag a handle for per-axis scale · center for uniform',
+  select: t('vp.hint.select'),
+  move: t('vp.hint.move'),
+  rotate: t('vp.hint.rotate'),
+  scale: t('vp.hint.scale'),
 };
 
 // Hint shown while painting a tilemap — replaces TOOL_HINT so the viewport speaks the
 // paint vocabulary (and always points at Q/Esc as the way back to select/transform).
 const TILE_HINT: Record<PaintTool, string> = {
-  brush: 'Drag to paint · H/V flips · R rotates the brush · I eyedropper · Q/Esc exits',
-  erase: 'Drag to erase (brush-sized) · Q/Esc exits',
-  rect: 'Drag a rectangle to fill · Q/Esc exits',
-  line: 'Drag a straight line · Q/Esc exits',
-  bucket: 'Click to fill the connected region · Q/Esc exits',
-  select: `Box-select · ${MOD_LABEL}C/X copies/cuts · Del clears · ${MOD_LABEL}V pastes as brush · Q/Esc exits`,
-  eyedropper: 'Click to pick a tile into the brush · Q/Esc exits',
-  terrain: 'Drag to paint terrain (auto-transitions) · Q/Esc exits',
+  brush: t('vp.tileHint.brush'),
+  erase: t('vp.tileHint.erase'),
+  rect: t('vp.tileHint.rect'),
+  line: t('vp.tileHint.line'),
+  bucket: t('vp.tileHint.bucket'),
+  select: t('vp.tileHint.select', { mod: MOD_LABEL }),
+  eyedropper: t('vp.tileHint.eyedropper'),
+  terrain: t('vp.tileHint.terrain'),
 };
 
 // Label for the mode badge — the paint tool's short name.
 const TILE_TOOL_LABEL: Record<PaintTool, string> = {
-  brush: 'Brush', erase: 'Erase', rect: 'Rect', line: 'Line',
-  bucket: 'Bucket', select: 'Select', eyedropper: 'Eyedropper', terrain: 'Terrain',
+  brush: t('vp.tileTool.brush'), erase: t('vp.tileTool.erase'), rect: t('vp.tileTool.rect'), line: t('vp.tileTool.line'),
+  bucket: t('vp.tileTool.bucket'), select: t('vp.tileTool.select'), eyedropper: t('vp.tileTool.eyedropper'), terrain: t('vp.tileTool.terrain'),
 };
 
 function OvTool({
@@ -477,11 +478,11 @@ function ViewportHud({ ready, selCount, zoomPct, tool, paintHint }: {
           </div>
           <div className="ps" />
           <div className="pr">
-            <span className="k">Frame</span>
+            <span className="k">{t('vp.hud.frame')}</span>
             <span className="v">{stats.fps > 0 ? (1000 / stats.fps).toFixed(1) : '—'} ms</span>
           </div>
           <div className="pr">
-            <span className="k">Entities</span>
+            <span className="k">{t('vp.hud.entities')}</span>
             <span className="v">{stats.entities}</span>
           </div>
         </div>
@@ -489,7 +490,7 @@ function ViewportHud({ ready, selCount, zoomPct, tool, paintHint }: {
       <div className="vp-coord">
         <div className="ro">
           <HudCursor />
-          Sel <strong>{selCount}</strong> · {zoomPct}%
+          {t('vp.hud.sel')} <strong>{selCount}</strong> · {zoomPct}%
         </div>
         <div className="hint">{paintHint ?? TOOL_HINT[tool]}</div>
       </div>
@@ -1296,34 +1297,34 @@ export function Viewport() {
       {/* Top-left: view menus (UE5 layout) — Show Flags dropdown + Frame. */}
       <div className="ov ov-tl">
         <div className="ov-cluster">
-          <OvDropdown icon={Eye} label="Show" title="Show Flags">
-            <div className="ovmenu-lbl">Show Flags</div>
-            <DdCheck on={showGrid} label="Grid" onClick={() => commands.run('view.toggleGrid')} />
-            <DdCheck on={showGizmos} label="Gizmos" onClick={() => commands.run('view.toggleGizmos')} />
-            <DdCheck on={showColliders} label="Colliders" onClick={() => commands.run('view.toggleColliders')} />
-            <DdCheck on={previewFx} label="Preview FX" onClick={() => commands.run('view.togglePreviewFx')} />
-            <DdCheck on={perfVisible} label="Perf" onClick={() => PerfMonitor.toggleOverlay()} />
+          <OvDropdown icon={Eye} label={t('vp.show')} title={t('vp.showFlags')}>
+            <div className="ovmenu-lbl">{t('vp.showFlags')}</div>
+            <DdCheck on={showGrid} label={t('vp.flag.grid')} onClick={() => commands.run('view.toggleGrid')} />
+            <DdCheck on={showGizmos} label={t('vp.flag.gizmos')} onClick={() => commands.run('view.toggleGizmos')} />
+            <DdCheck on={showColliders} label={t('vp.flag.colliders')} onClick={() => commands.run('view.toggleColliders')} />
+            <DdCheck on={previewFx} label={t('vp.flag.previewFx')} onClick={() => commands.run('view.togglePreviewFx')} />
+            <DdCheck on={perfVisible} label={t('vp.flag.perf')} onClick={() => PerfMonitor.toggleOverlay()} />
           </OvDropdown>
           <span className="ov-divider" />
-          <OvTool icon={Frame} label="Frame Selected  (F)" kbd="F" onClick={() => commands.run('view.frameSelected')} />
+          <OvTool icon={Frame} label={`${t('vp.frameSelected')}  (F)`} kbd="F" onClick={() => commands.run('view.frameSelected')} />
           <span className="ov-divider" />
           <button
             type="button"
             className={`ovbtn${coordSpace === 'local' ? ' active' : ''}`}
-            title="Gizmo axes: World / Local (the active object's own axes)"
+            title={t('vp.coordSpaceTitle')}
             onClick={() => commands.run('view.toggleCoordSpace')}
           >
             <Globe size={13} strokeWidth={1.9} />
-            <span className="val">{coordSpace === 'local' ? 'Local' : 'World'}</span>
+            <span className="val">{coordSpace === 'local' ? t('vp.coord.local') : t('vp.coord.world')}</span>
           </button>
           <button
             type="button"
             className={`ovbtn${pivotMode === 'pivot' ? ' active' : ''}`}
-            title="Gizmo pivot: Center of selection / the active object's Pivot"
+            title={t('vp.pivotTitle')}
             onClick={() => commands.run('view.togglePivotMode')}
           >
             <Crosshair size={13} strokeWidth={1.9} />
-            <span className="val">{pivotMode === 'pivot' ? 'Pivot' : 'Center'}</span>
+            <span className="val">{pivotMode === 'pivot' ? t('vp.pivot.pivot') : t('vp.pivot.center')}</span>
           </button>
           {mode.overlays?.designFrame && (
             <>
@@ -1332,9 +1333,9 @@ export function Viewport() {
                 <OvDropdown
                   icon={Monitor}
                   label={<span className="val">{sceneCanvas.x}×{sceneCanvas.y}</span>}
-                  title="Design resolution — the canvas you author against. Picking a preset writes Canvas.designResolution (undoable)."
+                  title={t('vp.designResTitle')}
                 >
-                  <div className="ovmenu-lbl">Design Resolution</div>
+                  <div className="ovmenu-lbl">{t('vp.designRes')}</div>
                   {DESIGN_RESOLUTION_PRESETS.map((p) => (
                     <DdRadio
                       key={p.label}
@@ -1346,31 +1347,31 @@ export function Viewport() {
                       }}
                     />
                   ))}
-                  <div className="ovmenu-lbl">Exact values: select the Canvas → Inspector</div>
+                  <div className="ovmenu-lbl">{t('vp.designResExact')}</div>
                 </OvDropdown>
               )}
               <OvDropdown
                 icon={Smartphone}
                 label={<span className="val">{RESOLUTION_PRESET_BY_ID[device].label}</span>}
-                title="Preview device — simulates a target screen (does NOT change the design resolution)"
+                title={t('vp.deviceTitle')}
               >
-                <div className="ovmenu-lbl">Device</div>
+                <div className="ovmenu-lbl">{t('vp.device')}</div>
                 {RESOLUTION_PRESETS.map((p) => (
                   <DdRadio key={p.id} on={device === p.id} label={p.label} onClick={() => useEditorMode.getState().setDevice(p.id)} />
                 ))}
-                <div className="ovmenu-lbl">Orientation</div>
+                <div className="ovmenu-lbl">{t('vp.orientation')}</div>
                 <DdRadio
                   on={orientation === 'landscape'}
-                  label="Landscape"
+                  label={t('vp.landscape')}
                   onClick={() => orientation !== 'landscape' && useEditorMode.getState().toggleOrientation()}
                 />
                 <DdRadio
                   on={orientation === 'portrait'}
-                  label="Portrait"
+                  label={t('vp.portrait')}
                   onClick={() => orientation !== 'portrait' && useEditorMode.getState().toggleOrientation()}
                 />
-                <div className="ovmenu-lbl">Overlay</div>
-                <DdCheck on={showSafeArea} label="Safe area" onClick={() => useEditorMode.getState().toggleSafeArea()} />
+                <div className="ovmenu-lbl">{t('vp.overlay')}</div>
+                <DdCheck on={showSafeArea} label={t('vp.safeArea')} onClick={() => useEditorMode.getState().toggleSafeArea()} />
               </OvDropdown>
             </>
           )}
@@ -1393,11 +1394,11 @@ export function Viewport() {
           <span className="ov-divider" />
           <OvDropdown
             icon={Grid3x3}
-            label={<span className="val">{snapping ? snapStep : 'Off'}</span>}
-            title="Grid Snap"
+            label={<span className="val">{snapping ? snapStep : t('vp.snapOff')}</span>}
+            title={t('vp.gridSnap')}
           >
-            <DdRadio on={!snapping} label="Off" onClick={() => useEditorStore.setState({ snapping: false })} />
-            <div className="ovmenu-lbl">Move (units)</div>
+            <DdRadio on={!snapping} label={t('vp.snapOff')} onClick={() => useEditorStore.setState({ snapping: false })} />
+            <div className="ovmenu-lbl">{t('vp.snapMove')}</div>
             {SNAP_STEPS.map((s) => (
               <DdRadio
                 key={s}
@@ -1406,7 +1407,7 @@ export function Viewport() {
                 onClick={() => useEditorStore.getState().setSnapStep(s)}
               />
             ))}
-            <div className="ovmenu-lbl">Rotate (°)</div>
+            <div className="ovmenu-lbl">{t('vp.snapRotate')}</div>
             {SNAP_ANGLES.map((a) => (
               <DdRadio
                 key={a}
@@ -1415,7 +1416,7 @@ export function Viewport() {
                 onClick={() => useEditorStore.setState({ snapping: true, snapAngle: a })}
               />
             ))}
-            <div className="ovmenu-lbl">Scale (×)</div>
+            <div className="ovmenu-lbl">{t('vp.snapScale')}</div>
             {SNAP_SCALES.map((s) => (
               <DdRadio
                 key={s}
@@ -1611,16 +1612,16 @@ export function Viewport() {
           <div className="viewport__play-host" ref={playHostRef} />
           {(!realm.ready || realm.error) && (
             <div className={`viewport__play-status${realm.error ? ' error' : ''}`}>
-              {realm.error ? `Play failed: ${realm.error}` : 'Starting game…'}
+              {realm.error ? t('vp.playFailed', { error: realm.error }) : t('vp.startingGame')}
             </div>
           )}
           <button
             type="button"
             className="viewport__play-stop"
-            title="Stop (Esc)"
+            title={t('vp.stopTitle')}
             onClick={() => useEditorStore.getState().stop()}
           >
-            ● Playing · Stop
+            {t('vp.playingStop')}
           </button>
         </div>
       )}
@@ -1683,14 +1684,14 @@ export function Viewport() {
             <div className="viewport__status-card viewport__status-card--error">
               <TriangleAlert size={22} strokeWidth={1.6} />
               <div>
-                <strong>Engine failed to start</strong>
+                <strong>{t('vp.engineFailed')}</strong>
                 <p className="mono">{engine.error}</p>
               </div>
             </div>
           ) : (
             <div className="viewport__status-card">
               <Loader2 size={20} strokeWidth={2} className="spin" />
-              <span>Booting esengine…</span>
+              <span>{t('vp.booting')}</span>
             </div>
           )}
         </div>
@@ -1711,7 +1712,7 @@ export function Viewport() {
           {inTilePaint && paintTool ? ` · ${TILE_TOOL_LABEL[paintTool]}` : ''}
         </div>
       )}
-      {isPlaying && <div className="viewport__playflag">● PLAY</div>}
+      {isPlaying && <div className="viewport__playflag">{t('vp.playFlag')}</div>}
     </div>
   );
 }

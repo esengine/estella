@@ -33,6 +33,7 @@ import {
 } from './gizmo';
 import { Marquee } from './marquee';
 import { Toasts } from '@/store/Toasts';
+import { t } from '@/i18n';
 import type { EditorTool, PointerInput } from './EditorTool';
 
 type Kind = 'move' | 'rotate' | 'scale';
@@ -131,7 +132,7 @@ function captureTargets(ids: readonly EntityId[], kind: Kind = 'move'): Target[]
       kept = kept.filter((id) => !isOrphanUINode(id));
       if (Date.now() - canvasHintAt > 4000) {
         canvasHintAt = Date.now();
-        Toasts.push('This UI element has no Canvas, so it can’t be positioned — add one via Details ▸ “Place under a Canvas”.', 'info');
+        Toasts.push(t('vp.orphanUiHint'), 'info');
       }
     }
     // A flow (Relative) node's position is owned by the layout — moving it does
@@ -142,7 +143,7 @@ function captureTargets(ids: readonly EntityId[], kind: Kind = 'move'): Target[]
       kept = kept.filter((id) => !isFlowUINode(id));
       if (Date.now() - flowHintAt > 4000) {
         flowHintAt = Date.now();
-        Toasts.push('This UI node is Relative (flow-positioned) — set Position to Absolute to move it freely.', 'info');
+        Toasts.push(t('vp.flowUiHint'), 'info');
       }
     }
   }

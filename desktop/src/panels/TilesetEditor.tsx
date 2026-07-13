@@ -30,6 +30,7 @@ import { TilesetCommands } from '@/tileset/TilesetCommands';
 import { ProjectStore } from '@/project/ProjectStore';
 import { colsFor, rowsFor, TERRAIN_COLORS } from '@/tools/tileMath';
 import { AnimPreview, tileThumbStyle, type TileAtlas } from '@/tools/tileThumb';
+import { t } from '@/i18n';
 
 /** A grid-geometry number field that commits on blur/Enter (one undo step per edit). */
 function GridField(props: { label: string; value: number; min?: number; onCommit: (n: number) => void }) {
@@ -55,14 +56,14 @@ function GridField(props: { label: string; value: number; min?: number; onCommit
 
 // Peering zones in the cell's 3×3 grid; center (membership) is handled separately.
 const ZONES: { gx: number; gy: number; bit: number; corner: boolean; dir: string }[] = [
-  { gx: 1, gy: 0, bit: TB_N, corner: false, dir: 'north' },
-  { gx: 2, gy: 0, bit: TB_NE, corner: true, dir: 'north-east' },
-  { gx: 2, gy: 1, bit: TB_E, corner: false, dir: 'east' },
-  { gx: 2, gy: 2, bit: TB_SE, corner: true, dir: 'south-east' },
-  { gx: 1, gy: 2, bit: TB_S, corner: false, dir: 'south' },
-  { gx: 0, gy: 2, bit: TB_SW, corner: true, dir: 'south-west' },
-  { gx: 0, gy: 1, bit: TB_W, corner: false, dir: 'west' },
-  { gx: 0, gy: 0, bit: TB_NW, corner: true, dir: 'north-west' },
+  { gx: 1, gy: 0, bit: TB_N, corner: false, dir: t('tile.dir.north') },
+  { gx: 2, gy: 0, bit: TB_NE, corner: true, dir: t('tile.dir.northEast') },
+  { gx: 2, gy: 1, bit: TB_E, corner: false, dir: t('tile.dir.east') },
+  { gx: 2, gy: 2, bit: TB_SE, corner: true, dir: t('tile.dir.southEast') },
+  { gx: 1, gy: 2, bit: TB_S, corner: false, dir: t('tile.dir.south') },
+  { gx: 0, gy: 2, bit: TB_SW, corner: true, dir: t('tile.dir.southWest') },
+  { gx: 0, gy: 1, bit: TB_W, corner: false, dir: t('tile.dir.west') },
+  { gx: 0, gy: 0, bit: TB_NW, corner: true, dir: t('tile.dir.northWest') },
 ];
 
 /** A focused per-tile collision-polygon editor: a magnified tile + click-to-add /
@@ -107,10 +108,10 @@ function PolygonEditor(props: {
     <div className="ts-pe-backdrop" onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="ts-pe">
         <div className="ts-pe-head">
-          <span>Collision polygon · #{tileId}</span>
+          <span>{t('tile.pe.title', { id: tileId })}</span>
           <span className="ts-grow" />
-          <button type="button" onClick={() => commit([])}>Clear</button>
-          <button type="button" onClick={onClose}>Done</button>
+          <button type="button" onClick={() => commit([])}>{t('tile.pe.clear')}</button>
+          <button type="button" onClick={onClose}>{t('tile.done')}</button>
         </div>
         <div
           className="ts-pe-stage"
@@ -134,7 +135,7 @@ function PolygonEditor(props: {
             ))}
           </svg>
         </div>
-        <div className="ts-pe-hint">Click to add a vertex · click a vertex to delete · takes effect at ≥3 points</div>
+        <div className="ts-pe-hint">{t('tile.pe.hint')}</div>
       </div>
     </div>
   );
@@ -166,8 +167,8 @@ export function TilesetEditor() {
   if (!asset) {
     return (
       <div className="ts-empty">
-        <p>No tileset open</p>
-        <p className="ts-hint">Double-click an .estileset in the Content Browser, or right-click a texture → Create Tileset</p>
+        <p>{t('tile.noOpen')}</p>
+        <p className="ts-hint">{t('tile.noOpenHint')}</p>
       </div>
     );
   }
@@ -236,7 +237,7 @@ export function TilesetEditor() {
               key={id}
               className={'ts-cell ts-pcell' + (hasPolygon(id) ? ' is-poly' : '')}
               style={{ left, top, width: w, height: h }}
-              title={`#${id} — click to edit collision polygon`}
+              title={t('tile.cell.polyTip', { id })}
               onPointerDown={(e) => { e.preventDefault(); setPolyTile(id); }}
             />,
           );
@@ -264,7 +265,7 @@ export function TilesetEditor() {
               key={id}
               className={'ts-cell ts-acell' + (hasAnim ? ' has-anim' : '') + (animTile === id ? ' is-target' : '')}
               style={{ left, top, width: w, height: h }}
-              title={animTile == null ? `#${id} — click to edit its animation` : `#${id} — click to append as a frame`}
+              title={animTile == null ? t('tile.cell.animEditTip', { id }) : t('tile.cell.animAppendTip', { id })}
               onPointerDown={(e) => {
                 e.preventDefault();
                 if (animTile == null) setAnimTile(id);
@@ -288,7 +289,7 @@ export function TilesetEditor() {
             >
               <button
                 type="button" className="ts-zone ts-zone-c"
-                title="Tile belongs to this terrain"
+                title={t('tile.zone.member')}
                 onClick={() => toggleMember(id)}
               />
               {showZones && terrain && ZONES.filter((z) => terrain.mode === 'corner' || !z.corner).map((z) => {
@@ -299,8 +300,8 @@ export function TilesetEditor() {
                     type="button"
                     className={'ts-zone' + (on ? ' is-on' : '') + (z.corner ? ' is-corner' : '')}
                     style={{ left: `${z.gx * 33.34}%`, top: `${z.gy * 33.34}%` }}
-                    aria-label={`${z.dir} peering zone`}
-                    title={`Peer with the ${z.dir} neighbor`}
+                    aria-label={t('tile.zone.aria', { dir: z.dir })}
+                    title={t('tile.zone.peerTip', { dir: z.dir })}
                     onClick={() => toggleBit(id, z.bit)}
                   />
                 );
@@ -317,51 +318,51 @@ export function TilesetEditor() {
   return (
     <div className="ts-editor">
       <div className="ts-toolbar">
-        <GridField label="Tile W" value={tw} min={1} onCommit={(n) => editGrid({ tileWidth: n })} />
-        <GridField label="Tile H" value={th} min={1} onCommit={(n) => editGrid({ tileHeight: n })} />
-        <GridField label="Margin" value={mg} onCommit={(n) => editGrid({ margin: n })} />
-        <GridField label="Spacing" value={sp} onCommit={(n) => editGrid({ spacing: n })} />
+        <GridField label={t('tile.field.tileW')} value={tw} min={1} onCommit={(n) => editGrid({ tileWidth: n })} />
+        <GridField label={t('tile.field.tileH')} value={th} min={1} onCommit={(n) => editGrid({ tileHeight: n })} />
+        <GridField label={t('tile.field.margin')} value={mg} onCommit={(n) => editGrid({ margin: n })} />
+        <GridField label={t('tile.field.spacing')} value={sp} onCommit={(n) => editGrid({ spacing: n })} />
         <span className="ts-sep" />
         <Segmented
           value={mode}
           onChange={setMode}
-          ariaLabel="Edit mode"
+          ariaLabel={t('tile.mode.aria')}
           options={[
-            { value: 'collision', label: 'Collision' },
-            { value: 'terrain', label: 'Terrain' },
-            { value: 'animation', label: 'Animation' },
+            { value: 'collision', label: t('tile.mode.collision') },
+            { value: 'terrain', label: t('tile.mode.terrain') },
+            { value: 'animation', label: t('tile.mode.animation') },
           ]}
         />
         {mode === 'collision' && (
           <Segmented
             value={shape}
             onChange={setShape}
-            ariaLabel="Collision shape"
+            ariaLabel={t('tile.shape.aria')}
             options={[
-              { value: 'box', label: 'Box' },
-              { value: 'polygon', label: 'Polygon' },
+              { value: 'box', label: t('tile.shape.box') },
+              { value: 'polygon', label: t('tile.shape.polygon') },
             ]}
           />
         )}
         <span className="ts-sep" />
         <label className="ts-field">
-          <span>Zoom</span>
+          <span>{t('tile.field.zoom')}</span>
           <input type="range" min={1} max={8} step={1} value={zoom}
             onChange={(e) => setZoom(Number(e.target.value))} />
         </label>
         <span className="ts-grow" />
         <span className="ts-stat">
-          {cols}×{rows}{mode === 'collision' ? ` · ${solidCount} solid` : ''}
+          {cols}×{rows}{mode === 'collision' ? ` · ${t('tile.solidCount', { count: solidCount })}` : ''}
         </span>
         <button type="button" className="ts-save" onClick={() => void TilesetCommands.save()} disabled={!meta.dirty}>
-          <Save size={13} /> Save{meta.dirty && <DirtyDot />}
+          <Save size={13} /> {t('tile.save')}{meta.dirty && <DirtyDot />}
         </button>
       </div>
 
       {mode === 'animation' && (
         <div className="ts-anims">
           {animTile == null ? (
-            <span className="ts-ahint">Click a tile in the atlas to edit its animation — animated tiles carry a ▶ mark</span>
+            <span className="ts-ahint">{t('tile.anim.pickHint')}</span>
           ) : (
             <>
               <AnimPreview frames={animFrames} fallback={animTile} thumb={thumb} className="ts-fthumb ts-apreview" />
@@ -374,7 +375,7 @@ export function TilesetEditor() {
                     key={`${animTile}-${i}-${f.durationMs}`}
                     className="ts-fdur"
                     defaultValue={f.durationMs}
-                    title="Frame duration (ms)"
+                    title={t('tile.anim.durTip')}
                     spellCheck={false}
                     onBlur={(e) => {
                       const n = parseInt(e.target.value, 10);
@@ -386,7 +387,7 @@ export function TilesetEditor() {
                     }}
                   />
                   <button
-                    type="button" className="ts-fx" title="Remove frame"
+                    type="button" className="ts-fx" title={t('tile.anim.removeFrame')}
                     onClick={() => setFrames(animFrames.filter((_, j) => j !== i))}
                   >
                     <X size={11} strokeWidth={2.2} />
@@ -394,15 +395,15 @@ export function TilesetEditor() {
                 </span>
               ))}
               <span className="ts-ahint">
-                {animFrames.length === 0 ? 'Click atlas tiles to add frames' : 'Click atlas tiles to append frames'}
+                {animFrames.length === 0 ? t('tile.anim.addFrames') : t('tile.anim.appendFrames')}
               </span>
               <span className="ts-grow" />
               {animFrames.length > 0 && (
-                <button type="button" className="ts-trm" title="Clear animation" onClick={() => setFrames([])}>
+                <button type="button" className="ts-trm" title={t('tile.anim.clear')} onClick={() => setFrames([])}>
                   <Trash2 size={13} />
                 </button>
               )}
-              <button type="button" className="ts-terrain" onClick={() => setAnimTile(null)}>Done</button>
+              <button type="button" className="ts-terrain" onClick={() => setAnimTile(null)}>{t('tile.done')}</button>
             </>
           )}
         </div>
@@ -410,7 +411,7 @@ export function TilesetEditor() {
 
       {mode === 'terrain' && (
         <div className="ts-terrains">
-          {terrains.map((t, i) => (
+          {terrains.map((ter, i) => (
             <button
               key={i}
               type="button"
@@ -418,11 +419,11 @@ export function TilesetEditor() {
               onClick={() => setActiveSet(i)}
             >
               <span className="ts-tswatch" style={{ background: TERRAIN_COLORS[i % TERRAIN_COLORS.length] }} />
-              {t.name}
-              <span className="ts-tmode">{t.mode === 'corner' ? 'Corner' : 'Edge'}</span>
+              {ter.name}
+              <span className="ts-tmode">{ter.mode === 'corner' ? t('tile.terrain.cornerShort') : t('tile.terrain.edgeShort')}</span>
             </button>
           ))}
-          <button type="button" className="ts-terrain ts-add" title="New terrain"
+          <button type="button" className="ts-terrain ts-add" title={t('tile.terrain.new')}
             onClick={() => { TilesetCommands.addTerrain('', 'edge'); setActiveSet(terrains.length); setMode('terrain'); }}>
             <Plus size={13} />
           </button>
@@ -433,15 +434,15 @@ export function TilesetEditor() {
                 onChange={(e) => TilesetCommands.updateTerrain(activeSet, { name: e.target.value })}
               />
               <Select
-                ariaLabel="Terrain mode"
+                ariaLabel={t('tile.terrain.modeAria')}
                 value={terrain.mode}
                 options={[
-                  { value: 'edge', label: 'Edge (4-bit)' },
-                  { value: 'corner', label: 'Corner (blob)' },
+                  { value: 'edge', label: t('tile.terrain.edge4') },
+                  { value: 'corner', label: t('tile.terrain.cornerBlob') },
                 ]}
                 onChange={(v) => TilesetCommands.updateTerrain(activeSet, { mode: v })}
               />
-              <button type="button" className="ts-trm" title="Delete terrain"
+              <button type="button" className="ts-trm" title={t('tile.terrain.delete')}
                 onClick={() => { TilesetCommands.removeTerrain(activeSet); setActiveSet(0); }}>
                 <Trash2 size={13} />
               </button>
@@ -453,7 +454,7 @@ export function TilesetEditor() {
       <div className="ts-canvas" onPointerUp={mode === 'collision' ? commitDrag : undefined}
         onPointerLeave={mode === 'collision' ? commitDrag : undefined}>
         {!texUrl ? (
-          <div className="ts-warn">Texture not found (ref {String(asset.texture) || 'empty'})</div>
+          <div className="ts-warn">{t('tile.texNotFound', { ref: String(asset.texture) || t('tile.refEmpty') })}</div>
         ) : (
           <div className="ts-stage" style={{ width: (natural?.w ?? 0) * zoom, height: (natural?.h ?? 0) * zoom }}>
             <img

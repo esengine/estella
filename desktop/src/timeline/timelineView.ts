@@ -20,6 +20,7 @@ import {
   type PropertyChannel,
   type InterpType,
 } from 'esengine';
+import { t } from '@/i18n';
 
 /** Addresses one animatable channel: entity (childPath) + component + property. */
 export interface ChannelRef {
@@ -140,7 +141,7 @@ export function buildTimelineRows(asset: TimelineAsset | null): SeqRow[] {
     rows.push({
       id: entityKey,
       kind: 'entity',
-      label: childPath || 'Root entity',
+      label: childPath || t('seq.rootEntity'),
       depth: 0,
       groupKey: entityKey,
       parentGroups: [],

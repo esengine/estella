@@ -6,6 +6,7 @@
 import { useSyncExternalStore, useRef, useEffect, useCallback, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import { PerfMonitor } from '@/engine/PerfMonitor';
+import { t } from '@/i18n';
 
 const BUDGET_MS = 1000 / 60; // 60 Hz frame budget (16.6ms)
 const BUDGET_30 = 1000 / 30; // 30 Hz (33.3ms) — the hitch threshold
@@ -34,12 +35,12 @@ function downloadSession(): void {
 }
 
 const GROUPS = [
-  { id: 'frame', label: 'Frame' },
-  { id: 'unit', label: 'CPU/GPU' },
-  { id: 'render', label: 'Render' },
-  { id: 'counters', label: 'Counters' },
-  { id: 'memory', label: 'Memory' },
-  { id: 'systems', label: 'Systems' },
+  { id: 'frame', label: t('prof.groupFrame') },
+  { id: 'unit', label: t('prof.groupUnit') },
+  { id: 'render', label: t('prof.groupRender') },
+  { id: 'counters', label: t('prof.groupCounters') },
+  { id: 'memory', label: t('prof.groupMemory') },
+  { id: 'systems', label: t('prof.groupSystems') },
 ] as const;
 const GROUPS_KEY = 'estella.profiler.hiddenGroups';
 
@@ -169,7 +170,7 @@ function FrameGraph({ frames, pinnedId }: { frames: number[]; pinnedId: number |
     PerfMonitor.pin(samples[i].id);
   }, []);
 
-  return <canvas ref={ref} className="prof-graph" title="Click a frame to inspect it" onClick={onClick} />;
+  return <canvas ref={ref} className="prof-graph" title={t('prof.clickToInspect')} onClick={onClick} />;
 }
 
 /** One "Frame = a + b + …" bar segment, width ∝ its share of the frame. */
@@ -209,7 +210,7 @@ export function ProfilerPanel() {
   // A near-budget frame's leftover is just the browser idle-waiting for vsync — not
   // a hot spot. Only on a spike is the leftover genuinely unattributed work.
   const isIdle = v.frameMs <= BUDGET_MS * 1.25;
-  const presentLabel = isIdle ? 'idle' : 'present';
+  const presentLabel = isIdle ? t('prof.idle') : t('prof.present');
 
   // The long tasks that hit the pinned frame + its measured phases, ranked.
   const longTasks = pinned ? PerfMonitor.getFrameLongTasks(pinned.id) : [];
@@ -234,30 +235,30 @@ export function ProfilerPanel() {
           type="button"
           className={`prof-btn${s.frozen ? ' on' : ''}`}
           onClick={() => PerfMonitor.toggleFrozen()}
-          title={s.frozen ? 'Resume live capture' : 'Freeze capture to inspect frames'}
+          title={s.frozen ? t('prof.resumeLiveTitle') : t('prof.freezeTitle')}
         >
-          {s.frozen ? 'Live' : 'Pause'}
+          {s.frozen ? t('prof.live') : t('prof.pause')}
         </button>
         <label className="prof-check">
           <input type="checkbox" checked={s.autoHitch} onChange={(e) => PerfMonitor.setAutoHitch(e.target.checked)} />
-          Pause on hitch
+          {t('prof.pauseOnHitch')}
         </label>
         <button
           type="button"
           className={`prof-btn${s.recording ? ' rec' : ''}`}
           onClick={() => PerfMonitor.toggleRecording()}
-          title={s.recording ? 'Stop recording' : 'Record a session for export'}
+          title={s.recording ? t('prof.stopRecTitle') : t('prof.recordTitle')}
         >
-          {s.recording ? `● ${s.recordedFrames}` : 'Rec'}
+          {s.recording ? `● ${s.recordedFrames}` : t('prof.rec')}
         </button>
-        <button type="button" className="prof-btn" onClick={downloadSession} title="Export the recorded session (or the live window) as JSON">
-          Export
+        <button type="button" className="prof-btn" onClick={downloadSession} title={t('prof.exportTitle')}>
+          {t('prof.export')}
         </button>
         <span className="prof-spacer" />
         {pinned ? (
-          <span className="prof-pinned">frame #{pinned.id} · {pinned.dt}ms</span>
+          <span className="prof-pinned">{t('prof.pinnedFrame', { id: pinned.id, ms: pinned.dt })}</span>
         ) : (
-          <span className="prof-live">live</span>
+          <span className="prof-live">{t('prof.liveBadge')}</span>
         )}
       </div>
 
@@ -277,13 +278,13 @@ export function ProfilerPanel() {
       {/* Frame timing — history graph + percentiles (live) or the pinned frame. */}
       {show('frame') && (
       <section className="prof-sec">
-        <h4>Frame</h4>
+        <h4>{t('prof.groupFrame')}</h4>
         <FrameGraph frames={s.frames} pinnedId={s.pinnedId} />
         {pinned ? (
           <div className="prof-budget">
-            inspecting frame #{pinned.id} · {pinned.dt}ms
-            {pinned.dt >= BUDGET_30 ? <span className="prof-warn"> · hitch</span> : null}
-            {' · '}<button type="button" className="prof-link" onClick={() => PerfMonitor.resumeLive()}>back to live</button>
+            {t('prof.inspectingFrame', { id: pinned.id, ms: pinned.dt })}
+            {pinned.dt >= BUDGET_30 ? <span className="prof-warn"> · {t('prof.hitch')}</span> : null}
+            {' · '}<button type="button" className="prof-link" onClick={() => PerfMonitor.resumeLive()}>{t('prof.backToLive')}</button>
           </div>
         ) : (
           <>
@@ -294,9 +295,9 @@ export function ProfilerPanel() {
               <div><span>p99</span><b style={{ color: p99Bad ? 'var(--warn)' : undefined }}>{s.p99}<i>ms</i></b></div>
             </div>
             <div className="prof-budget">
-              budget {BUDGET_MS.toFixed(1)}ms · {s.longFrames} long frame{s.longFrames === 1 ? '' : 's'}
-              {s.worstMs > 0 ? <> · worst {s.worstMs}ms <em>({s.worstPhase ?? 'other'})</em></> : null}
-              {s.longTaskMs > 0 ? <span className="prof-warn"> · long task {s.longTaskMs}ms (GC/JS)</span> : null}
+              {t('prof.budget', { ms: BUDGET_MS.toFixed(1) })} · {s.longFrames === 1 ? t('prof.longFrameOne', { count: s.longFrames }) : t('prof.longFrames', { count: s.longFrames })}
+              {s.worstMs > 0 ? <> · {t('prof.worst', { ms: s.worstMs })} <em>({s.worstPhase ?? t('prof.other')})</em></> : null}
+              {s.longTaskMs > 0 ? <span className="prof-warn"> · {t('prof.longTaskStat', { ms: s.longTaskMs })}</span> : null}
             </div>
           </>
         )}
@@ -306,16 +307,16 @@ export function ProfilerPanel() {
       {/* Frame = engine + editor + present; GPU is a parallel track. */}
       {show('unit') && (
       <section className="prof-sec">
-        <h4>Unit <span className="prof-realm">· {s.realm}</span></h4>
-        <Seg label="engine" ms={v.engineMs} frame={frame} color="var(--run, #46a04a)" />
-        <Seg label="editor" ms={v.editorMs} frame={frame} color="var(--star, #2f88d6)" />
+        <h4>{t('prof.unitHeader')} <span className="prof-realm">· {s.realm}</span></h4>
+        <Seg label={t('prof.engine')} ms={v.engineMs} frame={frame} color="var(--run, #46a04a)" />
+        <Seg label={t('prof.editor')} ms={v.editorMs} frame={frame} color="var(--star, #2f88d6)" />
         <Seg label={presentLabel} ms={other} frame={frame} color="var(--text-mute, #696a71)" />
         {v.gpuMs >= 0 ? (
           <Seg label="gpu" ms={v.gpuMs} frame={frame} color={GPU_COLOR} />
         ) : (
           <div className="prof-row">
             <span className="prof-key">gpu</span>
-            <span className="prof-val prof-na">n/a</span>
+            <span className="prof-val prof-na">{t('prof.na')}</span>
             <span className="prof-bar" />
           </div>
         )}
@@ -324,18 +325,18 @@ export function ProfilerPanel() {
 
       {show('render') && (
       <section className="prof-sec">
-        <h4>Render</h4>
+        <h4>{t('prof.groupRender')}</h4>
         <div className="prof-stat-grid">
-          <div><span>draw calls</span><b>{v.drawCalls}</b></div>
-          <div><span>triangles</span><b>{kfmt(v.triangles)}</b></div>
-          <div><span>entities</span><b>{v.entities}</b></div>
+          <div><span>{t('prof.drawCalls')}</span><b>{v.drawCalls}</b></div>
+          <div><span>{t('prof.triangles')}</span><b>{kfmt(v.triangles)}</b></div>
+          <div><span>{t('prof.entities')}</span><b>{v.entities}</b></div>
         </div>
       </section>
       )}
 
       {show('counters') && counterRows.length > 0 && (
       <section className="prof-sec">
-        <h4>Counters</h4>
+        <h4>{t('prof.groupCounters')}</h4>
         {counterRows.map(([name, val]) => (
           <div className="prof-brk" key={name}>
             <span className="prof-brk-name" title={name}>{name}</span>
@@ -347,14 +348,14 @@ export function ProfilerPanel() {
 
       {show('memory') && (
       <section className="prof-sec">
-        <h4>Memory</h4>
+        <h4>{t('prof.groupMemory')}</h4>
         <MemGraph hist={s.memHist} />
         <div className="prof-stat-grid">
           <div><span style={{ color: 'var(--warn)' }}>wasm</span><b>{s.wasmMB}<i>MB</i></b></div>
-          <div><span style={{ color: 'var(--star)' }}>js heap</span><b>{s.jsHeapMB || '—'}<i>{s.jsHeapMB ? 'MB' : ''}</i></b></div>
+          <div><span style={{ color: 'var(--star)' }}>{t('prof.jsHeap')}</span><b>{s.jsHeapMB || '—'}<i>{s.jsHeapMB ? 'MB' : ''}</i></b></div>
           <div><span style={{ color: GPU_COLOR }}>vram</span><b>{s.vramMB}<i>MB</i></b></div>
         </div>
-        {s.jsHeapLimitMB ? <div className="prof-budget">js heap limit {s.jsHeapLimitMB}MB</div> : null}
+        {s.jsHeapLimitMB ? <div className="prof-budget">{t('prof.jsHeapLimit', { mb: s.jsHeapLimitMB })}</div> : null}
       </section>
       )}
 
@@ -362,14 +363,14 @@ export function ProfilerPanel() {
           cause the phases can't name) + every measured phase, ranked. */}
       {pinned ? (
         <section className="prof-sec">
-          <h4>Breakdown · frame #{pinned.id}</h4>
+          <h4>{t('prof.breakdownHeader', { id: pinned.id })}</h4>
           {longTasks.map((lt, i) => {
             // The dominant same-frame zone that plausibly IS this long task.
             const cause = breakdown.find(([, ms]) => ms >= lt.ms * 0.5);
             return (
               <div className="prof-brk prof-lt" key={`lt${i}`}>
                 <span className="prof-brk-name" title={lt.name}>
-                  ⚠ long task {cause ? <>→ <b>{cause[0]}</b></> : '· GC / uninstrumented JS'}
+                  {t('prof.longTaskLabel')} {cause ? <>→ <b>{cause[0]}</b></> : t('prof.gcUninstrumented')}
                 </span>
                 <span className="prof-brk-val">{lt.ms}ms</span>
               </div>
@@ -382,9 +383,9 @@ export function ProfilerPanel() {
             </div>
           ))}
           <div className="prof-budget">
-            measured {measuredMs.toFixed(1)}ms of {pinned.dt}ms
+            {t('prof.measured', { measured: measuredMs.toFixed(1), total: pinned.dt })}
             {unattributedMs >= 1 ? (
-              <em> · {unattributedMs.toFixed(1)}ms unattributed{longTasks.length ? '' : ' · browser paint / GC'}</em>
+              <em> · {t('prof.unattributed', { ms: unattributedMs.toFixed(1) })}{longTasks.length ? '' : ` · ${t('prof.browserPaintGc')}`}</em>
             ) : null}
           </div>
         </section>
@@ -393,7 +394,7 @@ export function ProfilerPanel() {
       {/* Costliest engine systems — windowed max (live) or this frame's cost (pinned). */}
       {show('systems') && (
       <section className="prof-sec">
-        <h4>Systems{pinned ? ' · this frame' : ''}</h4>
+        <h4>{t('prof.groupSystems')}{pinned ? ` · ${t('prof.thisFrame')}` : ''}</h4>
         {v.systems.length ? (
           <table className="prof-sys">
             <tbody>
@@ -406,7 +407,7 @@ export function ProfilerPanel() {
             </tbody>
           </table>
         ) : (
-          <p className="prof-empty">No system timings yet.</p>
+          <p className="prof-empty">{t('prof.noSystemTimings')}</p>
         )}
       </section>
       )}

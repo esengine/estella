@@ -15,6 +15,7 @@ import { SearchField } from '@/components/SearchField';
 import { ProjectStore } from '@/project/ProjectStore';
 import { useEditorStore } from '@/store/editorStore';
 import { createTilemapFromTileset } from '@/tilemap/createTilemap';
+import { t } from '@/i18n';
 
 export function TilemapPickerDialog() {
   const close = () => useEditorStore.getState().setTilemapPickerOpen(false);
@@ -30,12 +31,12 @@ export function TilemapPickerDialog() {
   };
 
   return (
-    <Modal title="New Tilemap" onClose={close} width={440}>
+    <Modal title={t('cmd.tilemap.new')} onClose={close} width={440}>
       <div className="tmpick">
-        <p className="tmpick__hint">Pick a tileset to use as the map's palette</p>
-        <SearchField className="tmpick__search" autoFocus placeholder="Search tilesets…" value={q} onChange={setQ} />
+        <p className="tmpick__hint">{t('tile.pick.hint')}</p>
+        <SearchField className="tmpick__search" autoFocus placeholder={t('tile.pick.search')} value={q} onChange={setQ} />
         {shown.length === 0 ? (
-          <div className="empty-line">No matching tilesets</div>
+          <div className="empty-line">{t('tile.pick.noMatch')}</div>
         ) : (
           <div className="tmpick__list">
             {shown.map((t) => (

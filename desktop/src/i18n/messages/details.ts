@@ -1,0 +1,203 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+ * @file  details.ts — the Details (inspector) panel: entity header, component blocks,
+ *        field controls, asset meta page, add-component menu.
+ */
+import { defineMessages } from './types';
+
+export const detailsMessages = defineMessages({
+    // — Shared field controls (enum/flags dropdowns, asset refs, gradients/curves) —
+    'det.noMatch': { en: 'No match', zh: '无匹配项' },
+    'det.none': { en: 'None', zh: '无' },
+    'det.noneOption': { en: '(none)', zh: '（无）' },
+    'det.everything': { en: 'Everything', zh: '全部' },
+    'det.nothing': { en: 'Nothing', zh: '清空' },
+    'det.unitAria': { en: 'unit', zh: '单位' },
+    'det.removeStop': { en: 'Remove stop', zh: '移除色标' },
+    'det.removeKey': { en: 'Remove key', zh: '移除关键点' },
+    'det.wrongAssetType': { en: 'This field only accepts {type} assets', zh: '此字段只接受 {type} 资产' },
+    'det.locateInBrowser': { en: 'Locate {path} in the Content Browser', zh: '在内容浏览器中定位 {path}' },
+    'det.pickAsset': { en: 'Pick asset', zh: '选择资产' },
+    'det.clear': { en: 'Clear', zh: '清除' },
+    'det.searchAssets': { en: 'Search assets', zh: '搜索资产' },
+    'det.noMatchingAssets': { en: 'No matching assets', zh: '没有匹配的资产' },
+    'det.copy': { en: 'Copy', zh: '复制' },
+    'det.paste': { en: 'Paste', zh: '粘贴' },
+    'det.resetToDefault': { en: 'Reset to default', zh: '重置为默认值' },
+
+    // — One-click fix-up actions (Text layout box, UINode under Canvas) —
+    'det.addLayoutBox': { en: 'Add layout box', zh: '添加布局盒' },
+    'det.addLayoutBoxTip': {
+        en: 'Add a UINode and place this Text under a Canvas so align / vertical align resolve within a fixed box.',
+        zh: '添加一个 UINode 并将此 Text 置于 Canvas 之下，使对齐 / 垂直对齐在固定的盒子内生效。',
+    },
+    'det.placeUnderCanvas': { en: 'Place under a Canvas', zh: '放置到 Canvas 下' },
+    'det.placeUnderCanvasTip': {
+        en: "This UI element isn't under a Canvas, so it can't lay out or be moved. Adds/attaches a Canvas and places it inside.",
+        zh: '此 UI 元素不在 Canvas 之下，无法布局或移动。将添加/使用一个 Canvas 并把它放入其中。',
+    },
+
+    // — UINode layout block (position mode, anchors, align-self) —
+    'det.position': { en: 'Position', zh: '位置' },
+    'det.positionModeAria': { en: 'Position mode', zh: '定位模式' },
+    'det.inLayout': { en: 'In Layout', zh: '布局内' },
+    'det.absolute': { en: 'Absolute', zh: '绝对定位' },
+    'det.anchor': { en: 'Anchor', zh: '锚点' },
+    'det.anchorCustom': { en: 'Custom', zh: '自定义' },
+    'det.horizontal': { en: 'Horizontal', zh: '水平' },
+    'det.vertical': { en: 'Vertical', zh: '垂直' },
+    'det.horizontalAnchorAria': { en: 'Horizontal anchor', zh: '水平锚点' },
+    'det.verticalAnchorAria': { en: 'Vertical anchor', zh: '垂直锚点' },
+    'det.anchorLeft': { en: 'Left', zh: '左' },
+    'det.anchorCenter': { en: 'Center', zh: '中' },
+    'det.anchorRight': { en: 'Right', zh: '右' },
+    'det.anchorTop': { en: 'Top', zh: '上' },
+    'det.anchorMiddle': { en: 'Middle', zh: '中' },
+    'det.anchorBottom': { en: 'Bottom', zh: '下' },
+    'det.anchorStretch': { en: 'Stretch', zh: '拉伸' },
+    'det.anchorStretchH': { en: 'Stretch H', zh: '水平拉伸' },
+    'det.anchorStretchV': { en: 'Stretch V', zh: '垂直拉伸' },
+    'det.alignSelf': { en: 'Align Self', zh: '自身对齐' },
+    'det.alignSelfAria': { en: 'Align self', zh: '自身对齐' },
+    'det.alignAuto': { en: 'Auto', zh: '自动' },
+    'det.alignStart': { en: 'Start', zh: '起点' },
+    'det.alignCenter': { en: 'Center', zh: '居中' },
+    'det.alignEnd': { en: 'End', zh: '终点' },
+    'det.alignStretch': { en: 'Stretch', zh: '拉伸' },
+    'det.flowHint': {
+        en: 'Placed by the parent’s layout · Align Self overrides the cross-axis.',
+        zh: '由父级布局决定位置 · 自身对齐覆盖交叉轴。',
+    },
+
+    // — Component section chrome —
+    'det.enableComponent': { en: 'Enable component', zh: '启用组件' },
+    'det.disableComponent': { en: 'Disable component', zh: '禁用组件' },
+    'det.componentOptions': { en: 'Component options', zh: '组件选项' },
+    'det.advanced': { en: 'Advanced', zh: '高级' },
+
+    // — Entity kind pill (mirrors the Outliner's kind labels) —
+    'det.kindCamera': { en: 'Camera', zh: '相机' },
+    'det.kindSprite': { en: 'Sprite', zh: '精灵' },
+    'det.kindSpine': { en: 'Spine', zh: 'Spine' },
+    'det.kindPhysics': { en: 'Physics', zh: '物理' },
+    'det.kindUi': { en: 'UI', zh: 'UI' },
+    'det.kindAudio': { en: 'Audio', zh: '音频' },
+    'det.kindGroup': { en: 'Group', zh: '分组' },
+    'det.kindLight': { en: 'Light', zh: '灯光' },
+    'det.kindEntity': { en: 'Entity', zh: '实体' },
+
+    // — Live "Game" inspector (PIE) —
+    'det.playingLive': { en: '● Playing — live values (revert on Stop)', zh: '● 运行中 — 实时值（停止时还原）' },
+    'det.gameSelectHint': {
+        en: 'Select a running entity in the Outliner to inspect + tweak it live.',
+        zh: '在大纲中选择一个运行中的实体，即可实时检视和调整。',
+    },
+
+    // — Material asset inspector —
+    'det.loadingMaterial': { en: 'Loading material…', zh: '正在加载材质…' },
+    'det.save': { en: 'Save', zh: '保存' },
+    'det.saveMaterialTip': { en: 'Save material', zh: '保存材质' },
+    'det.materialSaved': { en: 'Material saved', zh: '材质已保存' },
+    'det.materialSaveFailed': { en: 'Failed to save material: {error}', zh: '保存材质失败：{error}' },
+    'det.material': { en: 'Material', zh: '材质' },
+    'det.instance': { en: 'Instance', zh: '实例' },
+    'det.unsaved': { en: 'Unsaved', zh: '未保存' },
+    'det.livePreview': { en: 'Edits preview live in the viewport.', zh: '编辑会在视口中实时预览。' },
+    'det.notInScene': { en: 'Not in the current scene — edits apply on Save.', zh: '不在当前场景中——编辑将在保存时生效。' },
+    'det.noShaderParams': { en: "This material's shader declares no parameters.", zh: '此材质的着色器未声明任何参数。' },
+
+    // — Input-map asset editor —
+    'det.loading': { en: 'Loading…', zh: '加载中…' },
+    'det.inputActions': { en: 'Input Actions', zh: '输入动作' },
+    'det.addAction': { en: '+ Action', zh: '+ 动作' },
+    'det.noActions': {
+        en: 'No actions yet — add one to bind keys / buttons / axes.',
+        zh: '还没有动作——添加一个来绑定按键 / 按钮 / 轴。',
+    },
+    'det.actionTypeAria': { en: 'Action type', zh: '动作类型' },
+    'det.actButton': { en: 'Button', zh: '按钮' },
+    'det.actAxis': { en: 'Axis', zh: '轴' },
+    'det.actAxis2d': { en: 'Axis 2D', zh: '2D 轴' },
+    'det.removeAction': { en: 'Remove action', zh: '移除动作' },
+    'det.addBinding': { en: '+ Binding', zh: '+ 绑定' },
+    'det.removeBinding': { en: 'Remove binding', zh: '移除绑定' },
+    'det.bindingKindAria': { en: 'Binding kind', zh: '绑定类型' },
+    'det.bindKey': { en: 'Key', zh: '按键' },
+    'det.bindKeys1d': { en: 'Keys · 1D axis', zh: '按键 · 1D 轴' },
+    'det.bindKeys2d': { en: 'Keys · 2D axis', zh: '按键 · 2D 轴' },
+    'det.bindMouse': { en: 'Mouse button', zh: '鼠标按键' },
+    'det.bindGpButton': { en: 'Gamepad button', zh: '手柄按键' },
+    'det.bindGpAxis': { en: 'Gamepad axis', zh: '手柄轴' },
+    'det.bindStick': { en: 'Gamepad stick', zh: '手柄摇杆' },
+    'det.bindCodePh': { en: 'Code (e.g. Space, KeyW)', zh: '键码（如 Space、KeyW）' },
+    'det.bindUp': { en: 'Up', zh: '上' },
+    'det.bindDown': { en: 'Down', zh: '下' },
+    'det.bindLeft': { en: 'Left', zh: '左' },
+    'det.bindRight': { en: 'Right', zh: '右' },
+    'det.stickAria': { en: 'Stick', zh: '摇杆' },
+
+    // — Generic asset inspector (import settings + metadata) —
+    'det.importSettings': { en: 'Import Settings', zh: '导入设置' },
+    'det.saveImportTip': { en: 'Save import settings', zh: '保存导入设置' },
+    'det.importSaved': { en: 'Import settings saved', zh: '导入设置已保存' },
+    'det.importSaveFailed': { en: 'Failed to save import settings: {error}', zh: '保存导入设置失败：{error}' },
+    'det.noImportSettings': { en: 'This asset type has no import settings.', zh: '此资产类型没有导入设置。' },
+    'det.type': { en: 'Type', zh: '类型' },
+    'det.metaPath': { en: 'Path', zh: '路径' },
+    'det.metaDimensions': { en: 'Dimensions', zh: '尺寸' },
+    'det.metaSize': { en: 'Size', zh: '大小' },
+    'det.metaModified': { en: 'Modified', zh: '修改时间' },
+    'det.metaUuid': { en: 'UUID', zh: 'UUID' },
+    'det.metaReferences': { en: 'References', zh: '引用' },
+    'det.openScene': { en: 'Open Scene', zh: '打开场景' },
+    'det.copyPath': { en: 'Copy Path', zh: '复制路径' },
+    'det.copiedPath': { en: 'Copied path', zh: '已复制路径' },
+
+    // — Folder inspector —
+    'det.folder': { en: 'Folder', zh: '文件夹' },
+    'det.items': { en: 'Items', zh: '条目' },
+    'det.folderOneEntity': { en: '1 entity in this folder', zh: '此文件夹中有 1 个实体' },
+    'det.folderEntities': { en: '{count} entities in this folder', zh: '此文件夹中有 {count} 个实体' },
+    'det.folderHint': {
+        en: "Folders organize the outliner; they aren't part of the scene.",
+        zh: '文件夹用于组织大纲；它们不属于场景。',
+    },
+
+    // — Entity inspector (header, prefab bar, add/remove component) —
+    'det.noSelection': { en: 'No selection', zh: '未选择任何内容' },
+    'det.noSelectionHint': {
+        en: 'Select an entity in the scene, or an asset in the Content Browser.',
+        zh: '在场景中选择一个实体，或在内容浏览器中选择一个资产。',
+    },
+    'det.filterProps': { en: 'Filter properties', zh: '过滤属性' },
+    'det.entitiesSelected': { en: '{count} entities selected', zh: '已选择 {count} 个实体' },
+    'det.editing': { en: 'Editing', zh: '编辑中' },
+    'det.editingShared': { en: '{count} entities · shared components', zh: '{count} 个实体 · 共同组件' },
+    'det.id': { en: 'ID', zh: 'ID' },
+    'det.prefabSelect': { en: 'Select', zh: '选择' },
+    'det.prefabSelectTip': { en: 'Select the prefab asset in the Content Browser', zh: '在内容浏览器中选中该预制体资产' },
+    'det.prefabApply': { en: 'Apply', zh: '应用' },
+    'det.prefabApplyTip': {
+        en: "Apply this instance's overrides to the prefab asset (updates the base for all instances)",
+        zh: '将此实例的覆盖应用到预制体资产（更新所有实例的基准）',
+    },
+    'det.prefabRevert': { en: 'Revert', zh: '还原' },
+    'det.prefabRevertTip': {
+        en: 'Revert all overrides — re-sync this instance to the prefab',
+        zh: '还原所有覆盖——将此实例重新同步到预制体',
+    },
+    'det.addComponent': { en: 'Add Component', zh: '添加组件' },
+    'det.noComponentsMatch': { en: 'No components match “{query}”.', zh: '没有与“{query}”匹配的组件。' },
+    'det.copyValues': { en: 'Copy Values', zh: '复制值' },
+    'det.pasteValues': { en: 'Paste Values', zh: '粘贴值' },
+    'det.resetDefaults': { en: 'Reset to Defaults', zh: '重置为默认值' },
+    'det.removeComponent': { en: 'Remove Component', zh: '移除组件' },
+    'det.removeComponentN': { en: 'Remove Component ({count})', zh: '移除组件（{count}）' },
+
+    // — Add Component picker (AddComponentMenu.tsx) —
+    'det.addComponentAria': { en: 'Add component', zh: '添加组件' },
+    'det.searchComponents': { en: 'Search components…', zh: '搜索组件…' },
+    'det.allComponentsAdded': { en: 'All components added', zh: '所有组件均已添加' },
+    'det.noMatchingComponents': { en: 'No matching components', zh: '没有匹配的组件' },
+});

@@ -11,15 +11,16 @@ import { ProjectStore } from '@/project/ProjectStore';
 import { dockApi } from '@/layout/dockApi';
 import { baseName } from '@/project/assetMeta';
 import { Toasts } from '@/store/Toasts';
+import { t } from '@/i18n';
 
 export async function openBehaviorTree(path: string): Promise<void> {
   try {
     const text = await window.estella.fs.read(path);
     // Hand-written trees may lack editor ids; assign before editing.
     BtDocument.openJson(ensureBtIds(JSON.parse(text) as BtDefinition), path);
-    dockApi.openDocument('behaviortree', 'behaviortree', 'Behavior Tree');
+    dockApi.openDocument('behaviortree', 'behaviortree', t('bt.tabTitle'));
   } catch (e) {
-    Toasts.push(`Failed to open behavior tree: ${String(e)}`, 'error');
+    Toasts.push(t('bt.toastOpenFailed', { error: String(e) }), 'error');
   }
 }
 
@@ -36,10 +37,10 @@ export async function createBehaviorTree(dir: string): Promise<void> {
       JSON.stringify({ uuid: crypto.randomUUID(), version: '1.0', type: 'behaviortree', importer: { autoMigrate: true } }, null, 2) + '\n',
     );
   } catch (e) {
-    Toasts.push(`Failed to create behavior tree: ${String(e)}`, 'error');
+    Toasts.push(t('bt.toastCreateFailed', { error: String(e) }), 'error');
     return;
   }
   await ProjectStore.refreshAssets();
-  Toasts.push(`Created behavior tree: ${baseName(rel)}`, 'info');
+  Toasts.push(t('bt.toastCreated', { name: baseName(rel) }), 'info');
   await openBehaviorTree(rel);
 }

@@ -9,6 +9,7 @@ import { EngineHost } from '@/engine/EngineHost';
 import { SubsystemIndicator } from './SubsystemIndicator';
 import { Perf } from '@/components/Perf';
 import { version } from '../../package.json';
+import { t } from '@/i18n';
 
 const formatMb = (bytes: number) => (bytes / (1024 * 1024)).toFixed(1);
 
@@ -33,22 +34,22 @@ export function StatusBar() {
         <button
           type="button"
           className={`cb-btn${contentDrawer ? ' active' : ''}`}
-          title="Content Drawer  (Ctrl+Space)"
+          title={t('layout.contentDrawerTooltip')}
           onClick={toggleContentDrawer}
         >
           <FolderOpen size={12} strokeWidth={1.9} />
-          Content Drawer
+          {t('layout.contentDrawer')}
         </button>
         <span className="sitem">
           <span className={`sdot${isPlaying ? ' live' : ''}`} />
-          {isPlaying ? 'Running' : 'Edit Mode'}
+          {isPlaying ? t('layout.status.running') : t('layout.status.editMode')}
         </span>
         <Perf id="statusbar.mods"><SubsystemIndicator /></Perf>
         <span className="sitem">
-          {selectedIds.size ? `${selectedIds.size} selected` : 'No selection'}
+          {selectedIds.size ? t('layout.status.selected', { count: selectedIds.size }) : t('layout.status.noSelection')}
         </span>
         {stats.selection && (
-          <span className="sitem mono" title="Selected transform (X, Y · rotation)">
+          <span className="sitem mono" title={t('layout.status.selectionTooltip')}>
             {stats.selection.x}, {stats.selection.y}
             <span className="smute"> · {stats.selection.rot}°</span>
           </span>
@@ -65,12 +66,12 @@ export function StatusBar() {
         <Gauge size={11} strokeWidth={1.85} /> {stats.fps} fps
       </span>
       <span className="sitem mono">
-        <Boxes size={11} strokeWidth={1.85} /> {stats.entities} entities
+        <Boxes size={11} strokeWidth={1.85} /> {t('layout.status.entities', { count: stats.entities })}
       </span>
       {stats.vram && (
         <span
           className="sitem mono"
-          title={`Resident texture memory / budget · ${stats.vram.evictable} cached (evictable) texture(s)`}
+          title={t('layout.status.vramTooltip', { count: stats.vram.evictable })}
         >
           <MemoryStick size={11} strokeWidth={1.85} />
           {formatMb(stats.vram.bytes)}
@@ -79,7 +80,7 @@ export function StatusBar() {
       )}
       <span
         className="sitem mono"
-        title="Active GPU backend — the device actually rendering (reflects any WebGL2 fallback). Change it in Settings → Renderer."
+        title={t('layout.status.backendTooltip')}
       >
         <Cpu size={11} strokeWidth={1.85} />
         {EngineHost.activeBackend === 'webgpu' ? 'WebGPU' : 'WebGL2'}

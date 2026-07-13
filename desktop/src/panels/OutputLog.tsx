@@ -14,9 +14,10 @@ import { LogStore, type LogLevel, type LogEntry } from '@/store/LogStore';
 import { ContextMenu, type MenuItem } from '@/components/Menu';
 import { SearchField } from '@/components/SearchField';
 import { Toasts } from '@/store/Toasts';
+import { t } from '@/i18n';
 
 type Filter = 'all' | LogLevel;
-const NO_CAT = '(no category)';
+const NO_CAT = t('log.noCategory');
 const TIME_KEY = 'estella.log.showTime';
 
 // Plain-text rendering of a row for copy / save — always carries the full record
@@ -35,7 +36,7 @@ function saveLog(rows: LogEntry[]): void {
   a.download = `OutputLog-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.txt`;
   a.click();
   URL.revokeObjectURL(url);
-  Toasts.push(`Saved ${rows.length} lines`, 'info', 1800);
+  Toasts.push(t('log.savedLines', { count: rows.length }), 'info', 1800);
 }
 
 // A stay-open category filter popover (UE5's "Categories" submenu): toggling one
@@ -97,14 +98,14 @@ function CategoryMenu({
     >
       <div className="lc-head">
         <button type="button" className="lc-act" onClick={onShowAll}>
-          Show All
+          {t('log.showAll')}
         </button>
         <button type="button" className="lc-act" onClick={onHideAll}>
-          Hide All
+          {t('log.hideAll')}
         </button>
       </div>
       <div className="ctx-sep" />
-      {categories.length === 0 && <div className="lc-none">No categories yet</div>}
+      {categories.length === 0 && <div className="lc-none">{t('log.noCategoriesYet')}</div>}
       {categories.map(([src, count]) => (
         <button key={src || NO_CAT} type="button" className="ctx-item" onClick={() => onToggle(src)}>
           <span className="ci">{!hidden.has(src) ? <Check size={13} strokeWidth={2.4} /> : null}</span>
@@ -193,19 +194,19 @@ export function OutputLog() {
   const ctxItems: MenuItem[] = ctx
     ? [
         {
-          label: 'Copy',
+          label: t('log.copy'),
           disabled: !ctx.selection,
           onClick: () => void navigator.clipboard?.writeText(ctx.selection),
         },
         {
-          label: 'Copy All',
+          label: t('log.copyAll'),
           disabled: visible.length === 0,
           onClick: () => void navigator.clipboard?.writeText(visible.map(formatEntry).join('\n')),
         },
         { sep: true },
-        { label: 'Save Log…', disabled: entries.length === 0, onClick: () => saveLog(entries) },
+        { label: t('log.saveLog'), disabled: entries.length === 0, onClick: () => saveLog(entries) },
         { sep: true },
-        { label: 'Clear', danger: true, onClick: () => LogStore.clear() },
+        { label: t('log.clear'), danger: true, onClick: () => LogStore.clear() },
       ]
     : [];
 
@@ -225,16 +226,16 @@ export function OutputLog() {
     <div className="panel">
       <div className="phead">
         <div className="log-chips">
-          <Chip id="all" label="All" />
-          <Chip id="info" label="Info" />
-          <Chip id="warn" label="Warnings" count={counts.warn} />
-          <Chip id="error" label="Errors" count={counts.error} />
+          <Chip id="all" label={t('log.all')} />
+          <Chip id="info" label={t('log.info')} />
+          <Chip id="warn" label={t('log.warnings')} count={counts.warn} />
+          <Chip id="error" label={t('log.errors')} count={counts.error} />
         </div>
-        <SearchField className="log-search" iconSize={12} placeholder="Filter" value={query} onChange={setQuery} />
+        <SearchField className="log-search" iconSize={12} placeholder={t('log.filterPlaceholder')} value={query} onChange={setQuery} />
         <button
           type="button"
           className={`pbtn${hidden.size > 0 ? ' on' : ''}`}
-          title="Categories"
+          title={t('log.categories')}
           onClick={(e) => {
             const r = e.currentTarget.getBoundingClientRect();
             setCatAnchor((a) => (a ? null : { left: r.left, top: r.bottom + 4 }));
@@ -245,15 +246,15 @@ export function OutputLog() {
         <button
           type="button"
           className={`pbtn${showTime ? ' on' : ''}`}
-          title="Show timestamps"
+          title={t('log.showTimestamps')}
           onClick={() => setShowTime((s) => !s)}
         >
           <Clock size={14} strokeWidth={1.85} />
         </button>
-        <button type="button" className="pbtn" title="Scroll to bottom" onClick={scrollToBottom}>
+        <button type="button" className="pbtn" title={t('log.scrollToBottom')} onClick={scrollToBottom}>
           <ArrowDownToLine size={14} strokeWidth={1.85} />
         </button>
-        <button type="button" className="pbtn" title="Clear log" onClick={() => LogStore.clear()}>
+        <button type="button" className="pbtn" title={t('log.clearLog')} onClick={() => LogStore.clear()}>
           <Trash2 size={14} strokeWidth={1.85} />
         </button>
       </div>
@@ -268,7 +269,7 @@ export function OutputLog() {
         ))}
         {visible.length === 0 && (
           <div className="empty-line">
-            {entries.length === 0 ? 'No log output yet — engine and script logs appear here.' : 'No entries match the filter.'}
+            {entries.length === 0 ? t('log.emptyNoOutput') : t('log.emptyNoMatch')}
           </div>
         )}
       </div>

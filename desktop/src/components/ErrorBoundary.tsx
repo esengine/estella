@@ -7,6 +7,7 @@
  *        offending code restores the panel without a full page reload.
  */
 import { Component, type ErrorInfo, type ReactNode, type CSSProperties } from 'react';
+import { t } from '@/i18n';
 
 interface Props {
   /** Human label for the crashed region, shown in the fallback. */
@@ -53,10 +54,12 @@ export class ErrorBoundary extends Component<Props, State> {
     if (!error) return this.props.children;
     return (
       <div style={S.root} role="alert">
-        <div style={S.title}>⚠ {this.props.label ?? 'This panel'} hit an error</div>
+        <div style={S.title}>
+          ⚠ {this.props.label != null ? t('ui.crashTitle', { label: this.props.label }) : t('ui.crashTitleGeneric')}
+        </div>
         <div style={S.msg}>{error.message}</div>
         <button type="button" style={S.btn} onClick={this.reset}>
-          Reload panel
+          {t('ui.reloadPanel')}
         </button>
       </div>
     );

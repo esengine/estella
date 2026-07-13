@@ -28,12 +28,13 @@ import { ContextMenu } from '@/components/Menu';
 import { EditorHistory } from '@/engine/EditorHistory';
 import { commands, formatKeybinding } from '@/commands';
 import type { ToolMode } from '@/types';
+import { t } from '@/i18n';
 
 const TOOLS: { mode: ToolMode; icon: LucideIcon; label: string }[] = [
-  { mode: 'select', icon: MousePointer2, label: 'Select' },
-  { mode: 'move', icon: Move, label: 'Move' },
-  { mode: 'rotate', icon: RotateCw, label: 'Rotate' },
-  { mode: 'scale', icon: Scale3d, label: 'Scale' },
+  { mode: 'select', icon: MousePointer2, label: t('layout.tool.select') },
+  { mode: 'move', icon: Move, label: t('layout.tool.move') },
+  { mode: 'rotate', icon: RotateCw, label: t('layout.tool.rotate') },
+  { mode: 'scale', icon: Scale3d, label: t('layout.tool.scale') },
 ];
 
 /** Shortcut-hint suffix for a command's tooltip, derived from its keybinding. */
@@ -83,7 +84,7 @@ export function Toolbar() {
       <div className="tgroup">
         <TBtn
           icon={Save}
-          label={`Save Scene${hint('project.save')}`}
+          label={`${t('cmd.project.save')}${hint('project.save')}`}
           onClick={() => commands.run('project.save')}
         />
       </div>
@@ -93,13 +94,13 @@ export function Toolbar() {
       <div className="tgroup">
         <TBtn
           icon={Undo2}
-          label={`${undoLabel ? `Undo ${undoLabel}` : 'Undo'}${hint('edit.undo')}`}
+          label={`${undoLabel ? t('layout.undoWithLabel', { label: undoLabel }) : t('cmd.edit.undo')}${hint('edit.undo')}`}
           disabled={!commands.isEnabled('edit.undo')}
           onClick={() => commands.run('edit.undo')}
         />
         <TBtn
           icon={Redo2}
-          label={`${redoLabel ? `Redo ${redoLabel}` : 'Redo'}${hint('edit.redo')}`}
+          label={`${redoLabel ? t('layout.redoWithLabel', { label: redoLabel }) : t('cmd.edit.redo')}${hint('edit.redo')}`}
           disabled={!commands.isEnabled('edit.redo')}
           onClick={() => commands.run('edit.redo')}
         />
@@ -107,14 +108,14 @@ export function Toolbar() {
 
       <span className="tdiv" />
 
-      <div className="tgroup" role="radiogroup" aria-label="Transform tool">
-        {TOOLS.map((t) => (
+      <div className="tgroup" role="radiogroup" aria-label={t('layout.transformTool')}>
+        {TOOLS.map((tb) => (
           <TBtn
-            key={t.mode}
-            icon={t.icon}
-            label={`${t.label}${hint(`tool.${t.mode}`)}`}
-            active={tool === t.mode}
-            onClick={() => commands.run(`tool.${t.mode}`)}
+            key={tb.mode}
+            icon={tb.icon}
+            label={`${tb.label}${hint(`tool.${tb.mode}`)}`}
+            active={tool === tb.mode}
+            onClick={() => commands.run(`tool.${tb.mode}`)}
           />
         ))}
       </div>
@@ -122,9 +123,9 @@ export function Toolbar() {
       <span className="tdiv" />
 
       <div className="tgroup">
-        <TBtn icon={Magnet} label="Snapping" active={snapping} onClick={() => commands.run('view.toggleSnapping')} />
-        <TBtn icon={Grid3x3} label="Show Grid" active={showGrid} onClick={() => commands.run('view.toggleGrid')} />
-        <TBtn icon={Sparkles} label="Preview FX" active={previewFx} onClick={() => commands.run('view.togglePreviewFx')} />
+        <TBtn icon={Magnet} label={t('cmd.view.toggleSnapping')} active={snapping} onClick={() => commands.run('view.toggleSnapping')} />
+        <TBtn icon={Grid3x3} label={t('cmd.view.toggleGrid')} active={showGrid} onClick={() => commands.run('view.toggleGrid')} />
+        <TBtn icon={Sparkles} label={t('cmd.view.togglePreviewFx')} active={previewFx} onClick={() => commands.run('view.togglePreviewFx')} />
       </div>
 
       <span className="tspacer" />
@@ -134,22 +135,22 @@ export function Toolbar() {
         <button
           type="button"
           className="play-main"
-          title={isPlaying ? 'Restart' : `Play${hint('play.toggle')}`}
+          title={isPlaying ? t('layout.restart') : `${t('cmd.play.toggle')}${hint('play.toggle')}`}
           onClick={() => commands.run('play.toggle')}
         >
           <Play size={15} strokeWidth={1.9} fill="currentColor" />
-          {isPlaying ? 'Restart' : 'Play'}
+          {isPlaying ? t('layout.restart') : t('cmd.play.toggle')}
         </button>
-        <button type="button" className="play-side" title="Pause" disabled={!isPlaying} onClick={togglePause}>
+        <button type="button" className="play-side" title={t('layout.pause')} disabled={!isPlaying} onClick={togglePause}>
           <Pause size={14} strokeWidth={1.9} fill="currentColor" />
         </button>
-        <button type="button" className="play-side" title="Stop" disabled={!isPlaying} onClick={stop}>
+        <button type="button" className="play-side" title={t('cmd.play.stop')} disabled={!isPlaying} onClick={stop}>
           <Stop size={12} strokeWidth={1.9} fill="currentColor" />
         </button>
         <button
           type="button"
           className="play-side play-mode"
-          title={`Play in ${playTarget === 'viewport' ? 'Viewport' : 'New Window'}`}
+          title={playTarget === 'viewport' ? t('layout.playInViewportTooltip') : t('layout.playInWindowTooltip')}
           disabled={isPlaying}
           onClick={(e) => {
             const r = e.currentTarget.getBoundingClientRect();
@@ -166,15 +167,15 @@ export function Toolbar() {
           y={modeMenu.y}
           onClose={() => setModeMenu(null)}
           items={[
-            { label: 'Play In Viewport', checked: playTarget === 'viewport', onClick: () => setPlayTarget('viewport') },
-            { label: 'Play In New Window', checked: playTarget === 'window', onClick: () => setPlayTarget('window') },
+            { label: t('layout.playInViewport'), checked: playTarget === 'viewport', onClick: () => setPlayTarget('viewport') },
+            { label: t('layout.playInWindow'), checked: playTarget === 'window', onClick: () => setPlayTarget('window') },
             { sep: true },
             // Multiplayer preview: 1 = plain play; N>1 boots a listen-server realm
             // (player 1) + N-1 client realms wired by in-editor replication.
-            { label: 'Single Player', checked: playPlayers <= 1, onClick: () => setPlayPlayers(1) },
-            { label: '2 Players (Listen Server)', checked: playPlayers === 2, onClick: () => setPlayPlayers(2) },
-            { label: '3 Players (Listen Server)', checked: playPlayers === 3, onClick: () => setPlayPlayers(3) },
-            { label: '4 Players (Listen Server)', checked: playPlayers === 4, onClick: () => setPlayPlayers(4) },
+            { label: t('layout.singlePlayer'), checked: playPlayers <= 1, onClick: () => setPlayPlayers(1) },
+            { label: t('layout.playersListenServer', { n: 2 }), checked: playPlayers === 2, onClick: () => setPlayPlayers(2) },
+            { label: t('layout.playersListenServer', { n: 3 }), checked: playPlayers === 3, onClick: () => setPlayPlayers(3) },
+            { label: t('layout.playersListenServer', { n: 4 }), checked: playPlayers === 4, onClick: () => setPlayPlayers(4) },
           ]}
         />
       )}
@@ -182,10 +183,10 @@ export function Toolbar() {
       <span className="tspacer" />
 
       <div className="tgroup">
-        <TBtn icon={Eye} label="Show Gizmos" active={showGizmos} onClick={() => commands.run('view.toggleGizmos')} />
-        <button type="button" className="tbtn" title="Build project scripts" onClick={() => commands.run('build.scripts')}>
+        <TBtn icon={Eye} label={t('cmd.view.toggleGizmos')} active={showGizmos} onClick={() => commands.run('view.toggleGizmos')} />
+        <button type="button" className="tbtn" title={t('layout.buildScriptsTooltip')} onClick={() => commands.run('build.scripts')}>
           <Hammer size={15} strokeWidth={1.85} />
-          <span className="lbl">Build</span>
+          <span className="lbl">{t('layout.build')}</span>
         </button>
       </div>
     </div>

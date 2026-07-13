@@ -22,6 +22,18 @@ import { commonMessages } from './common';
 import { commandMessages } from './commands';
 import { menuMessages } from './menu';
 import { settingsMessages } from './settings';
+import { launcherMessages } from './launcher';
+import { layoutMessages } from './layout';
+import { contentMessages } from './content';
+import { detailsMessages } from './details';
+import { outlinerMessages } from './outliner';
+import { viewportMessages } from './viewport';
+import { logsMessages } from './logs';
+import { sequencerMessages } from './sequencer';
+import { nodegraphMessages } from './nodegraph';
+import { tileMessages } from './tile';
+import { materialMessages } from './material';
+import { projectMessages } from './project';
 
 /** Every per-area module, for the uniqueness guard in i18n.test.ts. */
 export const messageModules = {
@@ -29,6 +41,18 @@ export const messageModules = {
     commands: commandMessages,
     menu: menuMessages,
     settings: settingsMessages,
+    launcher: launcherMessages,
+    layout: layoutMessages,
+    content: contentMessages,
+    details: detailsMessages,
+    outliner: outlinerMessages,
+    viewport: viewportMessages,
+    logs: logsMessages,
+    sequencer: sequencerMessages,
+    nodegraph: nodegraphMessages,
+    tile: tileMessages,
+    material: materialMessages,
+    project: projectMessages,
 } as const;
 
 export const editorMessages = {
@@ -36,4 +60,16 @@ export const editorMessages = {
     ...commandMessages,
     ...menuMessages,
     ...settingsMessages,
+    ...launcherMessages,
+    ...layoutMessages,
+    ...contentMessages,
+    ...detailsMessages,
+    ...outlinerMessages,
+    ...viewportMessages,
+    ...logsMessages,
+    ...sequencerMessages,
+    ...nodegraphMessages,
+    ...tileMessages,
+    ...materialMessages,
+    ...projectMessages,
 } as const;

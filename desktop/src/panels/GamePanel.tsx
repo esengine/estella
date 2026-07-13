@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { useEffect, useRef, useSyncExternalStore } from 'react';
+import { t } from '@/i18n';
 import { PlayRealm, PlayRealms } from '@/engine/PlayRealm';
 import { useEditorStore } from '@/store/editorStore';
 
@@ -11,11 +12,11 @@ import { useEditorStore } from '@/store/editorStore';
 
 function overlayFor(snap: { playing: boolean; ready: boolean; error: string | null }): string | null {
   return snap.error
-    ? `Play failed: ${snap.error}`
+    ? t('vp.playFailed', { error: snap.error })
     : !snap.playing
-      ? 'Press Play to run the game.'
+      ? t('vp.pressPlay')
       : !snap.ready
-        ? 'Starting…'
+        ? t('vp.starting')
         : null;
 }
 
@@ -67,7 +68,7 @@ export function GameClientPanel({ realmId }: { realmId: number }) {
     realm ? realm.getSnapshot : NO_SNAPSHOT,
   );
 
-  const overlay = snap ? overlayFor(snap) : 'No multiplayer session.';
+  const overlay = snap ? overlayFor(snap) : t('vp.noMpSession');
   return (
     <div className="game-panel">
       <div className="game-panel__host" ref={hostRef} />

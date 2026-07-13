@@ -8,6 +8,7 @@
  *        how the UI adapts on that device. Dimensions are portrait (w ≤ h); the
  *        orientation toggle swaps them at render time.
  */
+import { t } from '@/i18n';
 
 export type DevicePresetId = 'design' | 'iphone' | 'ipad' | '1080p' | '720p';
 
@@ -29,7 +30,7 @@ export interface DevicePreset {
 }
 
 export const RESOLUTION_PRESETS: DevicePreset[] = [
-  { id: 'design', label: 'Design', w: 0, h: 0 },
+  { id: 'design', label: t('vp.devDesign'), w: 0, h: 0 },
   { id: 'iphone', label: 'iPhone', w: 1170, h: 2532, safe: { top: 141, bottom: 102, left: 0, right: 0 } },
   { id: 'ipad', label: 'iPad', w: 1640, h: 2360, safe: { top: 48, bottom: 48, left: 0, right: 0 } },
   { id: '1080p', label: '1080p', w: 1080, h: 1920 },

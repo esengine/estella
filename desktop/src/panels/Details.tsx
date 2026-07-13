@@ -105,15 +105,15 @@ function componentIcon(name: string): LucideIcon {
 }
 
 const KIND_LABEL: Record<NodeKind, string> = {
-  camera: 'Camera',
-  sprite: 'Sprite',
-  spine: 'Spine',
-  physics: 'Physics',
-  ui: 'UI',
-  audio: 'Audio',
-  group: 'Group',
-  light: 'Light',
-  empty: 'Entity',
+  camera: t('det.kindCamera'),
+  sprite: t('det.kindSprite'),
+  spine: t('det.kindSpine'),
+  physics: t('det.kindPhysics'),
+  ui: t('det.kindUi'),
+  audio: t('det.kindAudio'),
+  group: t('det.kindGroup'),
+  light: t('det.kindLight'),
+  empty: t('det.kindEntity'),
 };
 
 // The gesture contract, scrub hook, and NumField are the shared numeric-input
@@ -225,7 +225,7 @@ export function EnumControl({
       {pop.anchor && (
         <Popover anchor={pop.anchor} width={Math.max(pop.anchor.width, 150)} onClose={close}>
           {searchable && (
-            <SearchField flush className="dd-search" iconSize={12} autoFocus placeholder="Search" value={q} onChange={setQ} />
+            <SearchField flush className="dd-search" iconSize={12} autoFocus placeholder={t('ui.search')} value={q} onChange={setQ} />
           )}
           <div className="dd-list">
             {filtered.map((o) => (
@@ -242,7 +242,7 @@ export function EnumControl({
                 {o.value === value && !mixed && <Check size={12} strokeWidth={2.4} />}
               </button>
             ))}
-            {filtered.length === 0 && <div className="empty-line empty-line--sm">No match</div>}
+            {filtered.length === 0 && <div className="empty-line empty-line--sm">{t('det.noMatch')}</div>}
           </div>
         </Popover>
       )}
@@ -269,9 +269,9 @@ function FlagsControl({
   const summary = mixed
     ? '—'
     : active.length === 0
-      ? 'None'
+      ? t('det.none')
       : active.length === bits.length && bits.length >= 4
-        ? 'Everything'
+        ? t('det.everything')
         : active.map((o) => prettyLabel(o.label)).join(' | ');
   const close = () => {
     pop.close();
@@ -293,10 +293,10 @@ function FlagsControl({
           {bits.length >= 6 && (
             <div className="dd-allnone">
               <button type="button" onClick={() => onChange(all)}>
-                Everything
+                {t('det.everything')}
               </button>
               <button type="button" onClick={() => onChange(0)}>
-                Nothing
+                {t('det.nothing')}
               </button>
             </div>
           )}
@@ -447,7 +447,7 @@ export function DimControl({
         <Select
           variant="field"
           value={String(value.unit)}
-          ariaLabel="unit"
+          ariaLabel={t('det.unitAria')}
           options={[
             { value: String(DimensionUnit.Px), label: 'px' },
             { value: String(DimensionUnit.Percent), label: '%' },
@@ -602,7 +602,7 @@ function GradientControl({
           <button
             type="button"
             className="grad-del"
-            title="Remove stop"
+            title={t('det.removeStop')}
             onClick={() => {
               onBegin?.();
               commit(stops.filter((_, j) => j !== sel));
@@ -691,7 +691,7 @@ function CurveControl({
           <button
             type="button"
             className="grad-del"
-            title="Remove key"
+            title={t('det.removeKey')}
             onClick={() => {
               onBegin?.();
               commit(keys.filter((_, j) => j !== sel));
@@ -736,7 +736,7 @@ export function AssetControl({
     // Reject a wrong-typed drop (the picker popover already filters; this guards the
     // drag-drop hole so a font can't land in a texture slot).
     if (!ProjectStore.assetTypeAllowed(assetType, path)) {
-      Toasts.push(`This field only accepts ${assetType} assets`, 'error');
+      Toasts.push(t('det.wrongAssetType', { type: assetType ?? '' }), 'error');
       return;
     }
     onBegin?.();
@@ -785,7 +785,7 @@ export function AssetControl({
       <button
         type="button"
         className="loc"
-        title={info ? `Locate ${info.path} in the Content Browser` : undefined}
+        title={info ? t('det.locateInBrowser', { path: info.path }) : undefined}
         disabled={!info}
         onMouseDown={(e) => e.stopPropagation()}
         onClick={() => info && revealAsset(info.path)}
@@ -797,16 +797,16 @@ export function AssetControl({
             <Box size={11} strokeWidth={1.7} />
           )}
         </span>
-        <span className="an">{info ? info.name : 'None'}</span>
+        <span className="an">{info ? info.name : t('det.none')}</span>
       </button>
-      <button type="button" className="pk" title="Pick asset" onMouseDown={(e) => e.stopPropagation()} onClick={openPick}>
+      <button type="button" className="pk" title={t('det.pickAsset')} onMouseDown={(e) => e.stopPropagation()} onClick={openPick}>
         <Search size={11} strokeWidth={2} />
       </button>
       {info && (
         <button
           type="button"
           className="pk"
-          title="Clear"
+          title={t('det.clear')}
           onClick={() => {
             onBegin?.();
             onChange(empty);
@@ -818,13 +818,13 @@ export function AssetControl({
       )}
       {pop.anchor && (
         <Popover anchor={pop.anchor} width={Math.max(pop.anchor.width, 240)} onClose={close}>
-          <SearchField flush className="dd-search" iconSize={12} autoFocus placeholder="Search assets" value={q} onChange={setQ} />
+          <SearchField flush className="dd-search" iconSize={12} autoFocus placeholder={t('det.searchAssets')} value={q} onChange={setQ} />
           <div className="asset-grid">
             <button type="button" className={`asset-opt${!info ? ' on' : ''}`} onClick={() => pick(empty)}>
               <span className="th">
                 <X size={13} strokeWidth={2} />
               </span>
-              <span className="an">None</span>
+              <span className="an">{t('det.none')}</span>
             </button>
             {assets.map((a) => (
               <button key={a.ref} type="button" className={`asset-opt${a.ref === value ? ' on' : ''}`} title={a.path} onClick={() => pick(a.ref)}>
@@ -838,7 +838,7 @@ export function AssetControl({
                 <span className="an">{a.name}</span>
               </button>
             ))}
-            {assets.length === 0 && <div className="empty-line empty-line--sm">No matching assets</div>}
+            {assets.length === 0 && <div className="empty-line empty-line--sm">{t('det.noMatchingAssets')}</div>}
           </div>
         </Popover>
       )}
@@ -905,7 +905,7 @@ function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp
           value={cur}
           ariaLabel={field.key}
           options={[
-            ...(dynOpts.includes(cur) ? [] : [{ value: cur, label: cur || '(none)' }]),
+            ...(dynOpts.includes(cur) ? [] : [{ value: cur, label: cur || t('det.noneOption') }]),
             ...dynOpts.map((o) => ({ value: o })),
           ]}
           onChange={(v) => {
@@ -1043,7 +1043,7 @@ function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp
         type="button"
         className={`prop-reset${modified ? ' show' : ''}`}
         tabIndex={-1}
-        title="Reset to default"
+        title={t('det.resetToDefault')}
         onClick={modified ? reset : undefined}
       >
         <RotateCcw size={11} strokeWidth={2} />
@@ -1055,13 +1055,13 @@ function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp
           onClose={() => setFctx(null)}
           items={[
             {
-              label: 'Copy',
+              label: t('det.copy'),
               icon: <Copy size={13} strokeWidth={1.9} />,
               disabled: mixed,
               onClick: () => InspectorClipboard.copyField(comp, field.key, field.type, field.value),
             },
             {
-              label: 'Paste',
+              label: t('det.paste'),
               icon: <ClipboardPaste size={13} strokeWidth={1.9} />,
               disabled: pasteValue == null,
               onClick: doPaste,
@@ -1109,8 +1109,8 @@ function textBoxAction(comp: InspectorComponent, sourceId: EntityId): { label: s
   const e = SceneModel.entityBySource(sourceId);
   if (!e || e.components.some((c) => c.type === 'UINode')) return undefined;
   return {
-    label: 'Add layout box',
-    title: 'Add a UINode and place this Text under a Canvas so align / vertical align resolve within a fixed box.',
+    label: t('det.addLayoutBox'),
+    title: t('det.addLayoutBoxTip'),
     run: () => void addTextLayoutBox(sourceId),
   };
 }
@@ -1141,16 +1141,16 @@ function uiNodeCanvasAction(ids: EntityId[], comp: InspectorComponent): { label:
   const orphans = ids.filter((id) => !hasCanvasAncestor(id));
   if (orphans.length === 0) return undefined;
   return {
-    label: 'Place under a Canvas',
-    title: "This UI element isn't under a Canvas, so it can't lay out or be moved. Adds/attaches a Canvas and places it inside.",
+    label: t('det.placeUnderCanvas'),
+    title: t('det.placeUnderCanvasTip'),
     run: () => void placeUnderCanvas(orphans),
   };
 }
 
-const ANCHOR_H = { [AnchorAxis.Start]: 'Left', [AnchorAxis.Center]: 'Center', [AnchorAxis.End]: 'Right', [AnchorAxis.Stretch]: 'Stretch H' };
-const ANCHOR_V = { [AnchorAxis.Start]: 'Top', [AnchorAxis.Center]: 'Middle', [AnchorAxis.End]: 'Bottom', [AnchorAxis.Stretch]: 'Stretch V' };
+const ANCHOR_H = { [AnchorAxis.Start]: t('det.anchorLeft'), [AnchorAxis.Center]: t('det.anchorCenter'), [AnchorAxis.End]: t('det.anchorRight'), [AnchorAxis.Stretch]: t('det.anchorStretchH') };
+const ANCHOR_V = { [AnchorAxis.Start]: t('det.anchorTop'), [AnchorAxis.Center]: t('det.anchorMiddle'), [AnchorAxis.End]: t('det.anchorBottom'), [AnchorAxis.Stretch]: t('det.anchorStretchV') };
 const anchorTitle = (h: AnchorAxis, v: AnchorAxis) =>
-  h === AnchorAxis.Stretch && v === AnchorAxis.Stretch ? 'Stretch' : `${ANCHOR_V[v]} · ${ANCHOR_H[h]}`;
+  h === AnchorAxis.Stretch && v === AnchorAxis.Stretch ? t('det.anchorStretch') : `${ANCHOR_V[v]} · ${ANCHOR_H[h]}`;
 
 // The widget rect (in a 24×24 cell viewBox) a preset draws: a small rounded box for
 // a pinned corner/edge/centre, stretched along a Stretch axis, filling the frame
@@ -1168,29 +1168,29 @@ function anchorWidgetRect(h: AnchorAxis, v: AnchorAxis) {
 }
 
 const H_ANCHOR_OPTS = [
-  { value: String(AnchorAxis.Start), label: 'Left' },
-  { value: String(AnchorAxis.Center), label: 'Center' },
-  { value: String(AnchorAxis.End), label: 'Right' },
-  { value: String(AnchorAxis.Stretch), label: 'Stretch' },
+  { value: String(AnchorAxis.Start), label: t('det.anchorLeft') },
+  { value: String(AnchorAxis.Center), label: t('det.anchorCenter') },
+  { value: String(AnchorAxis.End), label: t('det.anchorRight') },
+  { value: String(AnchorAxis.Stretch), label: t('det.anchorStretch') },
 ];
 const V_ANCHOR_OPTS = [
-  { value: String(AnchorAxis.Start), label: 'Top' },
-  { value: String(AnchorAxis.Center), label: 'Middle' },
-  { value: String(AnchorAxis.End), label: 'Bottom' },
-  { value: String(AnchorAxis.Stretch), label: 'Stretch' },
+  { value: String(AnchorAxis.Start), label: t('det.anchorTop') },
+  { value: String(AnchorAxis.Center), label: t('det.anchorMiddle') },
+  { value: String(AnchorAxis.End), label: t('det.anchorBottom') },
+  { value: String(AnchorAxis.Stretch), label: t('det.anchorStretch') },
 ];
 
 const POSITION_MODE_OPTS = [
-  { value: String(UIPositionType.Relative), label: 'In Layout' },
-  { value: String(UIPositionType.Absolute), label: 'Absolute' },
+  { value: String(UIPositionType.Relative), label: t('det.inLayout') },
+  { value: String(UIPositionType.Absolute), label: t('det.absolute') },
 ];
 // alignSelf enum: 0 Auto · 1 Start · 2 Center · 3 End · 4 Stretch (matches the SDK).
 const ALIGN_SELF_OPTS = [
-  { value: '0', label: 'Auto' },
-  { value: '1', label: 'Start' },
-  { value: '2', label: 'Center' },
-  { value: '3', label: 'End' },
-  { value: '4', label: 'Stretch' },
+  { value: '0', label: t('det.alignAuto') },
+  { value: '1', label: t('det.alignStart') },
+  { value: '2', label: t('det.alignCenter') },
+  { value: '3', label: t('det.alignEnd') },
+  { value: '4', label: t('det.alignStretch') },
 ];
 
 /** The UINode fields the Layout block owns, so the generic field flow skips them —
@@ -1229,8 +1229,8 @@ function AnchorPicker({ entities, comp }: { entities: EntityId[]; comp: Inspecto
   return (
     <>
       <div className="anchor-head">
-        <span className="anchor-t">Anchor</span>
-        <em className="anchor-cur">{active ? anchorTitle(active.h, active.v) : 'Custom'}</em>
+        <span className="anchor-t">{t('det.anchor')}</span>
+        <em className="anchor-cur">{active ? anchorTitle(active.h, active.v) : t('det.anchorCustom')}</em>
       </div>
       <div className="anchor-body">
         <div className={`anchor-preview${active ? '' : ' custom'}`} aria-hidden="true">
@@ -1241,20 +1241,20 @@ function AnchorPicker({ entities, comp }: { entities: EntityId[]; comp: Inspecto
         </div>
         <div className="anchor-axes">
           <label className="anchor-axis">
-            <span>Horizontal</span>
+            <span>{t('det.horizontal')}</span>
             <Segmented
               grow
-              ariaLabel="Horizontal anchor"
+              ariaLabel={t('det.horizontalAnchorAria')}
               value={active ? String(active.h) : ''}
               options={H_ANCHOR_OPTS}
               onChange={(val) => SceneCommands.setUINodeAnchor(entities, { h: Number(val), v: curV })}
             />
           </label>
           <label className="anchor-axis">
-            <span>Vertical</span>
+            <span>{t('det.vertical')}</span>
             <Segmented
               grow
-              ariaLabel="Vertical anchor"
+              ariaLabel={t('det.verticalAnchorAria')}
               value={active ? String(active.v) : ''}
               options={V_ANCHOR_OPTS}
               onChange={(val) => SceneCommands.setUINodeAnchor(entities, { h: curH, v: Number(val) })}
@@ -1283,12 +1283,12 @@ function FlowLayoutControls({ entities, comp }: { entities: EntityId[]; comp: In
       <div className="anchor-body">
         <div className="anchor-axes">
           <label className="anchor-axis">
-            <span>Align Self</span>
-            <Segmented grow ariaLabel="Align self" value={value} options={ALIGN_SELF_OPTS} onChange={set} />
+            <span>{t('det.alignSelf')}</span>
+            <Segmented grow ariaLabel={t('det.alignSelfAria')} value={value} options={ALIGN_SELF_OPTS} onChange={set} />
           </label>
         </div>
       </div>
-      <div className="anchor-hint">Placed by the parent’s layout · Align Self overrides the cross-axis.</div>
+      <div className="anchor-hint">{t('det.flowHint')}</div>
     </>
   );
 }
@@ -1310,10 +1310,10 @@ function UILayoutControl({ entities, comp }: { entities: EntityId[]; comp: Inspe
   return (
     <div className="anchor-block">
       <div className="ui-mode-row">
-        <span className="anchor-t">Position</span>
+        <span className="anchor-t">{t('det.position')}</span>
         <Segmented
           grow
-          ariaLabel="Position mode"
+          ariaLabel={t('det.positionModeAria')}
           value={posField?.mixed ? '' : String(absolute ? UIPositionType.Absolute : UIPositionType.Relative)}
           options={POSITION_MODE_OPTS}
           onChange={setMode}
@@ -1373,9 +1373,9 @@ function BoxSide({
           y={ctx.y}
           onClose={() => setCtx(null)}
           items={[
-            { label: 'Copy', icon: <Copy size={13} strokeWidth={1.9} />, disabled: mixed, onClick: () => InspectorClipboard.copyField(comp, field.key, field.type, field.value) },
-            { label: 'Paste', icon: <ClipboardPaste size={13} strokeWidth={1.9} />, disabled: pasteValue == null, onClick: () => { if (pasteValue == null) return; begin(); apply(pasteValue as never); end(); } },
-            { label: 'Reset', icon: <RotateCcw size={13} strokeWidth={1.9} />, disabled: !modified, onClick: reset },
+            { label: t('det.copy'), icon: <Copy size={13} strokeWidth={1.9} />, disabled: mixed, onClick: () => InspectorClipboard.copyField(comp, field.key, field.type, field.value) },
+            { label: t('det.paste'), icon: <ClipboardPaste size={13} strokeWidth={1.9} />, disabled: pasteValue == null, onClick: () => { if (pasteValue == null) return; begin(); apply(pasteValue as never); end(); } },
+            { label: t('ui.reset'), icon: <RotateCcw size={13} strokeWidth={1.9} />, disabled: !modified, onClick: reset },
           ]}
         />
       )}
@@ -1501,7 +1501,7 @@ function ComponentSection({
           className={`comp-chk${on ? ' on' : ''}${enable?.mixed ? ' mixed' : ''}`}
           role={enable ? 'checkbox' : undefined}
           aria-checked={enable ? (enable.mixed ? 'mixed' : enable.value) : undefined}
-          title={enable ? (enable.value ? 'Disable component' : 'Enable component') : undefined}
+          title={enable ? (enable.value ? t('det.disableComponent') : t('det.enableComponent')) : undefined}
           onClick={enable ? toggleEnable : (e) => e.stopPropagation()}
         >
           {on && <Check size={9} strokeWidth={3.2} />}
@@ -1514,7 +1514,7 @@ function ComponentSection({
           <button
             type="button"
             className="comp-menu"
-            title="Component options"
+            title={t('det.componentOptions')}
             onClick={(e) => {
               e.stopPropagation();
               onMore(e, comp.name);
@@ -1544,7 +1544,7 @@ function ComponentSection({
               </Fold>
             ))}
             {advancedFields.length > 0 && (
-              <Fold label="Advanced" open={isOpen(ADVANCED_FOLD)} onToggle={() => toggleFold(ADVANCED_FOLD)}>
+              <Fold label={t('det.advanced')} open={isOpen(ADVANCED_FOLD)} onToggle={() => toggleFold(ADVANCED_FOLD)}>
                 {advancedFields.map(row)}
               </Fold>
             )}
@@ -1580,10 +1580,10 @@ function GameDetails() {
 
   return (
     <div className="insp">
-      <div className="game-live">● Playing — live values (revert on Stop)</div>
+      <div className="game-live">{t('det.playingLive')}</div>
       {selection == null || !info ? (
         <div className="empty">
-          <p>Select a running entity in the Outliner to inspect + tweak it live.</p>
+          <p>{t('det.gameSelectHint')}</p>
         </div>
       ) : (
         <>
@@ -1682,7 +1682,7 @@ function MaterialAssetInspector({ path }: { path: string }) {
     return (
       <div className="insp">
         <div className="insp-empty" style={{ flex: 1 }}>
-          <div className="et">Loading material…</div>
+          <div className="et">{t('det.loadingMaterial')}</div>
         </div>
       </div>
     );
@@ -1697,9 +1697,9 @@ function MaterialAssetInspector({ path }: { path: string }) {
     try {
       await window.estella.fs.write(path, JSON.stringify(asset, null, 2) + '\n');
       MaterialDocument.markSaved();
-      Toasts.push('Material saved', 'info', 1400);
+      Toasts.push(t('det.materialSaved'), 'info', 1400);
     } catch (e) {
-      Toasts.push(`Failed to save material: ${String(e)}`, 'error');
+      Toasts.push(t('det.materialSaveFailed', { error: String(e) }), 'error');
     }
   };
 
@@ -1708,16 +1708,16 @@ function MaterialAssetInspector({ path }: { path: string }) {
       <div className="ent-head">
         <div className="ent-row1">
           <div className="ent-name">{baseName(path)}</div>
-          <button type="button" className="primary" disabled={!dirty} onClick={() => void save()} title="Save material">
-            <Save size={13} strokeWidth={1.9} /> Save
+          <button type="button" className="primary" disabled={!dirty} onClick={() => void save()} title={t('det.saveMaterialTip')}>
+            <Save size={13} strokeWidth={1.9} /> {t('det.save')}
           </button>
         </div>
         <div className="ent-meta">
           <span className="pill">
-            <span className="pk">Material</span>
-            {isInstance ? 'Instance' : ctx?.reflection.domain ?? 'Unlit2D'}
+            <span className="pk">{t('det.material')}</span>
+            {isInstance ? t('det.instance') : ctx?.reflection.domain ?? 'Unlit2D'}
           </span>
-          {dirty && <span className="pill">Unsaved</span>}
+          {dirty && <span className="pill">{t('det.unsaved')}</span>}
         </div>
       </div>
       {MaterialDocument.liveHandle > 0 && (
@@ -1727,8 +1727,8 @@ function MaterialAssetInspector({ path }: { path: string }) {
       )}
       <div className="mat-sync">
         {MaterialDocument.liveHandle
-          ? 'Edits preview live in the viewport.'
-          : 'Not in the current scene — edits apply on Save.'}
+          ? t('det.livePreview')
+          : t('det.notInScene')}
       </div>
       <div className="insp-body">
         {components.map((comp) => (
@@ -1742,7 +1742,7 @@ function MaterialAssetInspector({ path }: { path: string }) {
           />
         ))}
         {ctx && components.length === 1 && (
-          <div className="mat-hint">This material's shader declares no parameters.</div>
+          <div className="mat-hint">{t('det.noShaderParams')}</div>
         )}
       </div>
     </div>
@@ -1752,13 +1752,13 @@ function MaterialAssetInspector({ path }: { path: string }) {
 // Asset view of the unified inspector — shown when an asset (not an entity) is
 // selected (in the content browser). A material is edited inline (reflection-driven
 const BINDING_KINDS: Array<{ kind: Binding['kind']; label: string }> = [
-  { kind: 'key', label: 'Key' },
-  { kind: 'keys1d', label: 'Keys · 1D axis' },
-  { kind: 'keys2d', label: 'Keys · 2D axis' },
-  { kind: 'mouse', label: 'Mouse button' },
-  { kind: 'gpButton', label: 'Gamepad button' },
-  { kind: 'gpAxis', label: 'Gamepad axis' },
-  { kind: 'stick', label: 'Gamepad stick' },
+  { kind: 'key', label: t('det.bindKey') },
+  { kind: 'keys1d', label: t('det.bindKeys1d') },
+  { kind: 'keys2d', label: t('det.bindKeys2d') },
+  { kind: 'mouse', label: t('det.bindMouse') },
+  { kind: 'gpButton', label: t('det.bindGpButton') },
+  { kind: 'gpAxis', label: t('det.bindGpAxis') },
+  { kind: 'stick', label: t('det.bindStick') },
 ];
 
 function defaultBinding(kind: Binding['kind']): Binding {
@@ -1784,20 +1784,20 @@ function BindingRow({ binding, onChange, onRemove }: { binding: Binding; onChang
   );
   let fields: React.ReactNode = null;
   switch (binding.kind) {
-    case 'key': fields = txt('code', 'Code (e.g. Space, KeyW)'); break;
+    case 'key': fields = txt('code', t('det.bindCodePh')); break;
     case 'keys1d': fields = <>{txt('neg', '−')}{txt('pos', '+')}</>; break;
-    case 'keys2d': fields = <>{txt('up', 'Up')}{txt('down', 'Down')}{txt('left', 'Left')}{txt('right', 'Right')}</>; break;
+    case 'keys2d': fields = <>{txt('up', t('det.bindUp'))}{txt('down', t('det.bindDown'))}{txt('left', t('det.bindLeft'))}{txt('right', t('det.bindRight'))}</>; break;
     case 'mouse': case 'gpButton': fields = num('button'); break;
     case 'gpAxis': fields = num('axis'); break;
     case 'stick':
       fields = (
         <Select
           className="im-in"
-          ariaLabel="Stick"
+          ariaLabel={t('det.stickAria')}
           value={b.stick === 'right' ? 'right' : 'left'}
           options={[
-            { value: 'left', label: 'Left' },
-            { value: 'right', label: 'Right' },
+            { value: 'left', label: t('det.bindLeft') },
+            { value: 'right', label: t('det.bindRight') },
           ]}
           onChange={(v) => set({ stick: v })}
         />
@@ -1808,13 +1808,13 @@ function BindingRow({ binding, onChange, onRemove }: { binding: Binding; onChang
     <div className="im-binding">
       <Select
         className="im-in kind"
-        ariaLabel="Binding kind"
+        ariaLabel={t('det.bindingKindAria')}
         value={binding.kind}
         options={BINDING_KINDS.map((k) => ({ value: k.kind, label: k.label }))}
         onChange={(v) => onChange(defaultBinding(v))}
       />
       {fields}
-      <button type="button" className="im-x" onClick={onRemove} title="Remove binding">×</button>
+      <button type="button" className="im-x" onClick={onRemove} title={t('det.removeBinding')}>×</button>
     </div>
   );
 }
@@ -1841,7 +1841,7 @@ function InputMapAssetInspector({ path }: { path: string }) {
     };
   }, [path]);
 
-  if (!map) return <div className="insp"><div className="empty-line">Loading…</div></div>;
+  if (!map) return <div className="insp"><div className="empty-line">{t('det.loading')}</div></div>;
 
   const commit = (next: InputMapAsset) => {
     setMap(next);
@@ -1857,10 +1857,10 @@ function InputMapAssetInspector({ path }: { path: string }) {
   return (
     <div className="insp input-map">
       <div className="im-head">
-        <span>Input Actions</span>
-        <button type="button" className="im-add" onClick={() => commit(imap.addAction(map, uniqueName()))}>+ Action</button>
+        <span>{t('det.inputActions')}</span>
+        <button type="button" className="im-add" onClick={() => commit(imap.addAction(map, uniqueName()))}>{t('det.addAction')}</button>
       </div>
-      {actions.length === 0 && <div className="empty-line">No actions yet — add one to bind keys / buttons / axes.</div>}
+      {actions.length === 0 && <div className="empty-line">{t('det.noActions')}</div>}
       {actions.map(([name, def]) => (
         <div className="im-action" key={name}>
           <div className="im-action-head">
@@ -1874,16 +1874,16 @@ function InputMapAssetInspector({ path }: { path: string }) {
             />
             <Select
               className="im-in"
-              ariaLabel="Action type"
+              ariaLabel={t('det.actionTypeAria')}
               value={def.type}
               options={[
-                { value: 'button', label: 'Button' },
-                { value: 'axis', label: 'Axis' },
-                { value: 'axis2d', label: 'Axis 2D' },
+                { value: 'button', label: t('det.actButton') },
+                { value: 'axis', label: t('det.actAxis') },
+                { value: 'axis2d', label: t('det.actAxis2d') },
               ]}
               onChange={(v) => commit(imap.setActionType(map, name, v as ActionType))}
             />
-            <button type="button" className="im-x" onClick={() => commit(imap.removeAction(map, name))} title="Remove action">×</button>
+            <button type="button" className="im-x" onClick={() => commit(imap.removeAction(map, name))} title={t('det.removeAction')}>×</button>
           </div>
           {def.bindings.map((bnd, i) => (
             <BindingRow
@@ -1893,7 +1893,7 @@ function InputMapAssetInspector({ path }: { path: string }) {
               onRemove={() => commit(imap.removeBinding(map, name, i))}
             />
           ))}
-          <button type="button" className="im-addb" onClick={() => commit(imap.addBinding(map, name, defaultBinding('key')))}>+ Binding</button>
+          <button type="button" className="im-addb" onClick={() => commit(imap.addBinding(map, name, defaultBinding('key')))}>{t('det.addBinding')}</button>
         </div>
       ))}
     </div>
@@ -2002,9 +2002,9 @@ function GenericAssetInspector({ path }: { path: string }) {
       // Push filter/wrap to the live gl handle so the edit viewport updates now
       // (no scene reload); a no-op for types/assets without a live texture.
       if (type === 'texture' || type === 'sprite') ProjectStore.applyLiveTextureSettings(path);
-      Toasts.push('Import settings saved', 'info', 1400);
+      Toasts.push(t('det.importSaved'), 'info', 1400);
     } catch (e) {
-      Toasts.push(`Failed to save import settings: ${String(e)}`, 'error');
+      Toasts.push(t('det.importSaveFailed', { error: String(e) }), 'error');
     }
   };
 
@@ -2019,18 +2019,18 @@ function GenericAssetInspector({ path }: { path: string }) {
               className="primary"
               disabled={!dirty}
               onClick={() => void save()}
-              title="Save import settings"
+              title={t('det.saveImportTip')}
             >
-              <Save size={13} strokeWidth={1.9} /> Save
+              <Save size={13} strokeWidth={1.9} /> {t('det.save')}
             </button>
           )}
         </div>
         <div className="ent-meta">
           <span className="pill">
-            <span className="pk">Type</span>
+            <span className="pk">{t('det.type')}</span>
             {type}
           </span>
-          {dirty && <span className="pill">Unsaved</span>}
+          {dirty && <span className="pill">{t('det.unsaved')}</span>}
         </div>
       </div>
 
@@ -2052,24 +2052,24 @@ function GenericAssetInspector({ path }: { path: string }) {
         {comp ? (
           <ComponentSection
             entities={[]}
-            comp={comp}
+            comp={{ ...comp, label: t('det.importSettings') }}
             collapsed={collapsed}
             onToggle={() => setCollapsed((c) => !c)}
             write={write}
           />
         ) : (
           <div className="insp-empty" style={{ padding: '14px 12px' }}>
-            <div className="es">This asset type has no import settings.</div>
+            <div className="es">{t('det.noImportSettings')}</div>
           </div>
         )}
 
         <div className="cb-meta" style={{ padding: '8px 10px 0' }}>
-          <MetaRow k="Path" v={path} mono />
-          {dims && <MetaRow k="Dimensions" v={dims} />}
-          {stat && <MetaRow k="Size" v={formatBytes(stat.size)} />}
-          {stat && <MetaRow k="Modified" v={new Date(stat.mtimeMs).toLocaleString()} />}
-          {assetRef && <MetaRow k="UUID" v={assetRef} mono />}
-          {refCount != null && <MetaRow k="References" v={String(refCount)} />}
+          <MetaRow k={t('det.metaPath')} v={path} mono />
+          {dims && <MetaRow k={t('det.metaDimensions')} v={dims} />}
+          {stat && <MetaRow k={t('det.metaSize')} v={formatBytes(stat.size)} />}
+          {stat && <MetaRow k={t('det.metaModified')} v={new Date(stat.mtimeMs).toLocaleString()} />}
+          {assetRef && <MetaRow k={t('det.metaUuid')} v={assetRef} mono />}
+          {refCount != null && <MetaRow k={t('det.metaReferences')} v={String(refCount)} />}
         </div>
       </div>
 
@@ -2082,7 +2082,7 @@ function GenericAssetInspector({ path }: { path: string }) {
               if (await confirmDiscard(t('discard.openScene', { name: baseName(path) }))) void ProjectStore.openScene(path);
             }}
           >
-            <FolderOpen size={13} strokeWidth={1.85} /> Open Scene
+            <FolderOpen size={13} strokeWidth={1.85} /> {t('det.openScene')}
           </button>
         )}
         <button
@@ -2090,10 +2090,10 @@ function GenericAssetInspector({ path }: { path: string }) {
           className="ghost"
           onClick={() => {
             void navigator.clipboard?.writeText(path);
-            Toasts.push('Copied path', 'info', 1600);
+            Toasts.push(t('det.copiedPath'), 'info', 1600);
           }}
         >
-          <Copy size={13} strokeWidth={1.85} /> Copy Path
+          <Copy size={13} strokeWidth={1.85} /> {t('det.copyPath')}
         </button>
       </div>
     </div>
@@ -2114,11 +2114,11 @@ function FolderInspector({ path }: { path: string }) {
         </div>
         <div className="ent-meta">
           <span className="pill">
-            <span className="pk">Folder</span>
+            <span className="pk">{t('det.folder')}</span>
             {path}
           </span>
           <span className="pill">
-            <span className="pk">Items</span>
+            <span className="pk">{t('det.items')}</span>
             {count}
           </span>
         </div>
@@ -2127,8 +2127,8 @@ function FolderInspector({ path }: { path: string }) {
         <div className="ei">
           <FolderOpen size={22} strokeWidth={1.4} />
         </div>
-        <div className="et">{count === 1 ? '1 entity' : `${count} entities`} in this folder</div>
-        <div className="es">Folders organize the outliner; they aren't part of the scene.</div>
+        <div className="et">{count === 1 ? t('det.folderOneEntity') : t('det.folderEntities', { count })}</div>
+        <div className="es">{t('det.folderHint')}</div>
       </div>
     </div>
   );
@@ -2213,8 +2213,8 @@ function EditorDetails() {
           <div className="ei">
             <Box size={22} strokeWidth={1.4} />
           </div>
-          <div className="et">No selection</div>
-          <div className="es">Select an entity in the scene, or an asset in the Content Browser.</div>
+          <div className="et">{t('det.noSelection')}</div>
+          <div className="es">{t('det.noSelectionHint')}</div>
         </div>
       </div>
     );
@@ -2233,12 +2233,12 @@ function EditorDetails() {
   return (
     <div className="insp">
       <div className="phead insp-head">
-        <SearchField placeholder="Search" value={query} onChange={setQuery} />
+        <SearchField placeholder={t('ui.search')} value={query} onChange={setQuery} />
         <IconButton
           size="lg"
           variant="outline"
           active={filtOn}
-          title="Filter properties"
+          title={t('det.filterProps')}
           onClick={() => setFiltOn((v) => !v)}
         >
           <Filter size={14} strokeWidth={1.9} />
@@ -2248,7 +2248,7 @@ function EditorDetails() {
       <div className="ent-head">
         <div className="ent-row1">
           {multi ? (
-            <div className="ent-name ent-multi">{ids.length} entities selected</div>
+            <div className="ent-name ent-multi">{t('det.entitiesSelected', { count: ids.length })}</div>
           ) : (
             <input
               key={selectedId}
@@ -2262,17 +2262,17 @@ function EditorDetails() {
         <div className="ent-meta">
           {multi ? (
             <span className="pill">
-              <span className="pk">Editing</span>
-              {ids.length} entities · shared components
+              <span className="pk">{t('det.editing')}</span>
+              {t('det.editingShared', { count: ids.length })}
             </span>
           ) : (
             <>
               <span className="pill">
-                <span className="pk">Type</span>
+                <span className="pk">{t('det.type')}</span>
                 {KIND_LABEL[entity.kind]}
               </span>
               <span className="pill">
-                <span className="pk">ID</span>
+                <span className="pk">{t('det.id')}</span>
                 {selectedId}
               </span>
             </>
@@ -2287,27 +2287,27 @@ function EditorDetails() {
             <span className="pacts">
               <button
                 type="button"
-                title="Select the prefab asset in the Content Browser"
+                title={t('det.prefabSelectTip')}
                 onClick={() => {
                   const info = prefabRef ? ProjectStore.assetInfo(prefabRef) : null;
                   if (info) useSelection.getState().selectAsset(info.path);
                 }}
               >
-                <FolderOpen size={12} strokeWidth={1.9} /> Select
+                <FolderOpen size={12} strokeWidth={1.9} /> {t('det.prefabSelect')}
               </button>
               <button
                 type="button"
-                title="Apply this instance's overrides to the prefab asset (updates the base for all instances)"
+                title={t('det.prefabApplyTip')}
                 onClick={() => void ProjectStore.applyPrefabInstance(selectedId)}
               >
-                <Upload size={12} strokeWidth={1.9} /> Apply
+                <Upload size={12} strokeWidth={1.9} /> {t('det.prefabApply')}
               </button>
               <button
                 type="button"
-                title="Revert all overrides — re-sync this instance to the prefab"
+                title={t('det.prefabRevertTip')}
                 onClick={() => void ProjectStore.revertPrefabInstance(selectedId)}
               >
-                <RotateCcw size={12} strokeWidth={1.9} /> Revert
+                <RotateCcw size={12} strokeWidth={1.9} /> {t('det.prefabRevert')}
               </button>
             </span>
           </div>
@@ -2315,9 +2315,9 @@ function EditorDetails() {
       </div>
 
       <div className="insp-addrow">
-        <button type="button" className="insp-add" title="Add Component" onClick={() => setAddOpen(true)}>
+        <button type="button" className="insp-add" title={t('det.addComponent')} onClick={() => setAddOpen(true)}>
           <Plus size={13} strokeWidth={2.4} />
-          Add Component
+          {t('det.addComponent')}
         </button>
       </div>
 
@@ -2342,7 +2342,7 @@ function EditorDetails() {
           />
         ))}
         {query && visible.length === 0 && (
-          <div className="empty-line">No components match “{query}”.</div>
+          <div className="empty-line">{t('det.noComponentsMatch', { query })}</div>
         )}
       </div>
 
@@ -2358,7 +2358,7 @@ function EditorDetails() {
             const pasteData = InspectorClipboard.componentData(comp);
             return [
               {
-                label: 'Copy Values',
+                label: t('det.copyValues'),
                 icon: <Copy size={13} strokeWidth={1.9} />,
                 disabled: !data,
                 onClick: () => {
@@ -2366,7 +2366,7 @@ function EditorDetails() {
                 },
               },
               {
-                label: 'Paste Values',
+                label: t('det.pasteValues'),
                 icon: <ClipboardPaste size={13} strokeWidth={1.9} />,
                 disabled: !pasteData,
                 onClick: () => {
@@ -2374,13 +2374,13 @@ function EditorDetails() {
                 },
               },
               {
-                label: 'Reset to Defaults',
+                label: t('det.resetDefaults'),
                 icon: <RotateCcw size={13} strokeWidth={1.9} />,
                 onClick: () => SceneCommands.resetComponentMany(ids, comp),
               },
               { sep: true },
               {
-                label: ids.length > 1 ? `Remove Component (${ids.length})` : 'Remove Component',
+                label: ids.length > 1 ? t('det.removeComponentN', { count: ids.length }) : t('det.removeComponent'),
                 danger: true,
                 icon: <Trash2 size={13} strokeWidth={1.9} />,
                 onClick: () => SceneCommands.removeComponentMany(ids, comp),

@@ -26,6 +26,7 @@ import { onAssetReveal } from '@/project/assetReveal';
 import { createBehaviorTree } from '@/bt/openBehaviorTree';
 import { createAnimationClip } from '@/timeline/openClip';
 import { fsRefresh } from '@/project/fsWatch';
+import { t } from '@/i18n';
 import type { DirEntry } from '@/project/format';
 import type { AssetType } from '@/types';
 
@@ -161,12 +162,12 @@ function AssetTipCard({ path, entry }: { path: string; entry: DirEntry }) {
   return (
     <>
       <div className="cb-tip-name">{entry.name}</div>
-      <TipRow k="Type" v={entry.isDir ? 'Folder' : TYPE_CODE[type] || type} />
-      {dims && <TipRow k="Dimensions" v={dims} />}
-      {!entry.isDir && stat && <TipRow k="Size" v={formatBytes(stat.size)} />}
-      {stat && <TipRow k="Modified" v={new Date(stat.mtimeMs).toLocaleString()} />}
-      <TipRow k="Path" v={path} mono />
-      {assetReference && <TipRow k="Reference" v={assetReference} mono />}
+      <TipRow k={t('cb.type')} v={entry.isDir ? t('cb.tipFolder') : TYPE_CODE[type] || type} />
+      {dims && <TipRow k={t('cb.tipDimensions')} v={dims} />}
+      {!entry.isDir && stat && <TipRow k={t('cb.tipSize')} v={formatBytes(stat.size)} />}
+      {stat && <TipRow k={t('cb.tipModified')} v={new Date(stat.mtimeMs).toLocaleString()} />}
+      <TipRow k={t('cb.tipPath')} v={path} mono />
+      {assetReference && <TipRow k={t('cb.tipReference')} v={assetReference} mono />}
     </>
   );
 }
@@ -200,13 +201,13 @@ function useNav() {
 // Always-visible type filter chips (each toggles a group of asset types). A chip
 // is active when all its types are in the filter set; "All" clears the filter.
 const CHIP_GROUPS: { label: string; types: AssetType[]; color: string }[] = [
-  { label: 'Image', types: ['texture', 'sprite'], color: assetTint('texture') },
-  { label: 'Prefab', types: ['prefab'], color: assetTint('prefab') },
-  { label: 'Scene', types: ['scene'], color: assetTint('scene') },
-  { label: 'Animation', types: ['animation'], color: assetTint('animation') },
-  { label: 'Script', types: ['script'], color: assetTint('script') },
-  { label: 'Audio', types: ['audio'], color: assetTint('audio') },
-  { label: 'Material', types: ['material'], color: assetTint('material') },
+  { label: t('cb.chipImage'), types: ['texture', 'sprite'], color: assetTint('texture') },
+  { label: t('cb.chipPrefab'), types: ['prefab'], color: assetTint('prefab') },
+  { label: t('cb.chipScene'), types: ['scene'], color: assetTint('scene') },
+  { label: t('cb.chipAnimation'), types: ['animation'], color: assetTint('animation') },
+  { label: t('cb.chipScript'), types: ['script'], color: assetTint('script') },
+  { label: t('cb.chipAudio'), types: ['audio'], color: assetTint('audio') },
+  { label: t('cb.chipMaterial'), types: ['material'], color: assetTint('material') },
 ];
 
 function FolderNode({
@@ -433,7 +434,7 @@ export function ContentBrowser() {
       refreshFs();
       selectAsset(to);
     } catch (e) {
-      Toasts.push(`Undo failed: ${errMsg(e)}`, 'error');
+      Toasts.push(t('cb.undoFailed', { error: errMsg(e) }), 'error');
     }
   };
 
@@ -443,7 +444,7 @@ export function ContentBrowser() {
     const cur = path.slice(path.lastIndexOf('/') + 1);
     if (!name || name === cur) return;
     if (/[\\/]/.test(name)) {
-      Toasts.push('Name can’t contain slashes', 'error');
+      Toasts.push(t('cb.nameNoSlashes'), 'error');
       return;
     }
     const dest = join(parentOf(path), name);
@@ -451,9 +452,9 @@ export function ContentBrowser() {
       await window.estella.fs.rename(path, dest);
       refreshFs();
       selectAsset(dest);
-      Toasts.push(`Renamed to “${name}”`, 'info', 6000, { label: 'Undo', run: () => void undoMove(dest, path) });
+      Toasts.push(t('cb.renamedTo', { name }), 'info', 6000, { label: t('cb.undo'), run: () => void undoMove(dest, path) });
     } catch (e) {
-      Toasts.push(`Rename failed: ${errMsg(e)}`, 'error');
+      Toasts.push(t('cb.renameFailed', { error: errMsg(e) }), 'error');
     }
   };
 
@@ -462,20 +463,20 @@ export function ContentBrowser() {
       const next = await window.estella.fs.duplicate(path);
       refreshFs();
       selectAsset(next);
-      Toasts.push(`Duplicated as “${next.split('/').pop()}”`, 'info', 6000, {
-        label: 'Undo',
+      Toasts.push(t('cb.duplicatedAs', { name: next.split('/').pop() ?? next }), 'info', 6000, {
+        label: t('cb.undo'),
         run: async () => {
           try {
             await window.estella.fs.trash(next);
             refreshFs();
             if (useSelection.getState().selectedAsset === next) selectAsset(null);
           } catch (e) {
-            Toasts.push(`Undo failed: ${errMsg(e)}`, 'error');
+            Toasts.push(t('cb.undoFailed', { error: errMsg(e) }), 'error');
           }
         },
       });
     } catch (e) {
-      Toasts.push(`Duplicate failed: ${errMsg(e)}`, 'error');
+      Toasts.push(t('cb.duplicateFailed', { error: errMsg(e) }), 'error');
     }
   };
 
@@ -489,7 +490,10 @@ export function ContentBrowser() {
       const refs = referencingPaths(scan.index, path);
       if (refs.length) {
         const names = refs.slice(0, 3).map((p) => p.split('/').pop()).join(', ');
-        warn = `\n\nIt is referenced by ${refs.length} asset${refs.length > 1 ? 's' : ''} (${names}${refs.length > 3 ? ', …' : ''}); those references will break.`;
+        warn = `\n\n${t(refs.length > 1 ? 'cb.deleteRefWarnMany' : 'cb.deleteRefWarnOne', {
+          count: refs.length,
+          names: names + (refs.length > 3 ? ', …' : ''),
+        })}`;
       }
     } catch {
       // Best-effort: if the scan fails, confirm without the reference warning.
@@ -505,7 +509,7 @@ export function ContentBrowser() {
       refreshFs();
       if (selected === target.path) selectAsset(null);
     } catch (e) {
-      Toasts.push(`Delete failed: ${errMsg(e)}`, 'error');
+      Toasts.push(t('cb.deleteFailed', { error: errMsg(e) }), 'error');
     }
   };
 
@@ -524,8 +528,8 @@ export function ContentBrowser() {
     return cols;
   };
   const onGridKey = (e: React.KeyboardEvent) => {
-    const t = e.target as HTMLElement;
-    if (t.tagName === 'INPUT' || renaming != null) return; // typing / inline rename
+    const el = e.target as HTMLElement;
+    if (el.tagName === 'INPUT' || renaming != null) return; // typing / inline rename
     const idx = items.findIndex((it) => it.path === selected);
     const focusIndex = (i: number) => {
       const it = items[Math.max(0, Math.min(items.length - 1, i))];
@@ -615,7 +619,7 @@ export function ContentBrowser() {
       selectAsset(path);
       setRenaming(path); // drop straight into rename, like UE5
     } catch (e) {
-      Toasts.push(`New folder failed: ${errMsg(e)}`, 'error');
+      Toasts.push(t('cb.newFolderFailed', { error: errMsg(e) }), 'error');
     }
   };
 
@@ -626,7 +630,7 @@ export function ContentBrowser() {
       selectAsset(path);
       setRenaming(path); // drop into rename, like New Folder
     } catch (e) {
-      Toasts.push(`New scene failed: ${errMsg(e)}`, 'error');
+      Toasts.push(t('cb.newSceneFailed', { error: errMsg(e) }), 'error');
     }
   };
 
@@ -637,7 +641,7 @@ export function ContentBrowser() {
       selectAsset(path); // unified inspector opens the input-map editor
       setRenaming(path);
     } catch (e) {
-      Toasts.push(`New input map failed: ${errMsg(e)}`, 'error');
+      Toasts.push(t('cb.newInputMapFailed', { error: errMsg(e) }), 'error');
     }
   };
 
@@ -645,7 +649,7 @@ export function ContentBrowser() {
     try {
       await window.estella.shell.showItem(path);
     } catch (e) {
-      Toasts.push(`Couldn’t reveal: ${errMsg(e)}`, 'error');
+      Toasts.push(t('cb.revealFailed', { error: errMsg(e) }), 'error');
     }
   };
 
@@ -656,10 +660,12 @@ export function ContentBrowser() {
     refreshFs();
     if (res.imported.length) {
       selectAsset(res.imported[res.imported.length - 1]);
-      Toasts.push(`Imported ${res.imported.length} asset${res.imported.length > 1 ? 's' : ''}`, 'success');
+      const n = res.imported.length;
+      Toasts.push(t(n > 1 ? 'cb.importedMany' : 'cb.importedOne', { count: n }), 'success');
     }
     if (res.skipped.length) {
-      Toasts.push(`Skipped ${res.skipped.length} unsupported file${res.skipped.length > 1 ? 's' : ''}`, 'warn');
+      const n = res.skipped.length;
+      Toasts.push(t(n > 1 ? 'cb.skippedMany' : 'cb.skippedOne', { count: n }), 'warn');
     }
   };
 
@@ -667,7 +673,7 @@ export function ContentBrowser() {
     try {
       applyImportResult(await window.estella.project.importAssets(cwd));
     } catch (e) {
-      Toasts.push(`Import failed: ${errMsg(e)}`, 'error');
+      Toasts.push(t('cb.importFailed', { error: errMsg(e) }), 'error');
     }
   };
 
@@ -722,7 +728,7 @@ export function ContentBrowser() {
     void window.estella.project
       .importFiles(cwd, sources)
       .then(applyImportResult)
-      .catch((err) => Toasts.push(`Import failed: ${errMsg(err)}`, 'error'));
+      .catch((err) => Toasts.push(t('cb.importFailed', { error: errMsg(err) }), 'error'));
   };
 
   // Move an asset into a folder (drag onto a folder tile / tree node). Rename moves
@@ -737,12 +743,12 @@ export function ContentBrowser() {
       await window.estella.fs.rename(srcPath, dest);
       refreshFs();
       if (selected === srcPath) selectAsset(dest);
-      Toasts.push(`Moved “${name}” to ${folderPath || 'the project root'}`, 'info', 6000, {
-        label: 'Undo',
+      Toasts.push(t('cb.movedTo', { name, dest: folderPath || t('cb.projectRoot') }), 'info', 6000, {
+        label: t('cb.undo'),
         run: () => void undoMove(dest, srcPath),
       });
     } catch (e) {
-      Toasts.push(`Move failed: ${errMsg(e)}`, 'error');
+      Toasts.push(t('cb.moveFailed', { error: errMsg(e) }), 'error');
     }
   };
 
@@ -782,7 +788,7 @@ export function ContentBrowser() {
 
   // Breadcrumb segments: Project › folder › subfolder, each a jump target.
   const crumbs = useMemo(() => {
-    const out = [{ name: project?.name ?? 'Project', path: '' }];
+    const out = [{ name: project?.name ?? t('cb.project'), path: '' }];
     let acc = '';
     for (const part of cwd ? cwd.split('/') : []) {
       acc = acc ? `${acc}/${part}` : part;
@@ -826,24 +832,24 @@ export function ContentBrowser() {
     if (!ctx.target) {
       // Empty-space menu (acts on the current folder).
       return [
-        { label: 'Import…', icon: <Import size={14} />, onClick: () => void importAssets() },
-        { label: 'New Folder', icon: <FolderPlus size={14} />, onClick: () => void newFolder() },
+        { label: t('cb.menuImport'), icon: <Import size={14} />, onClick: () => void importAssets() },
+        { label: t('cb.menuNewFolder'), icon: <FolderPlus size={14} />, onClick: () => void newFolder() },
         { sep: true },
-        { label: 'New Scene', onClick: () => void newScene() },
-        { label: 'New Animation', onClick: () => void createAnimationClip(cwd) },
-        { label: 'New Input Map', onClick: () => void newInputMap() },
+        { label: t('cb.menuNewScene'), onClick: () => void newScene() },
+        { label: t('cb.menuNewAnimation'), onClick: () => void createAnimationClip(cwd) },
+        { label: t('cb.menuNewInputMap'), onClick: () => void newInputMap() },
         {
-          label: 'New Material',
-          children: BUILTIN_SHADER_TEMPLATES.map((t) => ({
-            label: t.label,
-            onClick: () => void createMaterial(cwd, t.id),
+          label: t('cb.menuNewMaterial'),
+          children: BUILTIN_SHADER_TEMPLATES.map((tpl) => ({
+            label: tpl.label,
+            onClick: () => void createMaterial(cwd, tpl.id),
           })),
         },
-        { label: 'New Material Graph', onClick: () => void createMaterialGraph(cwd) },
-        { label: 'New State Machine', onClick: () => void createStateMachine(cwd) },
-        { label: 'New Behavior Tree', onClick: () => void createBehaviorTree(cwd) },
+        { label: t('cb.menuNewMaterialGraph'), onClick: () => void createMaterialGraph(cwd) },
+        { label: t('cb.menuNewStateMachine'), onClick: () => void createStateMachine(cwd) },
+        { label: t('cb.menuNewBehaviorTree'), onClick: () => void createBehaviorTree(cwd) },
         { sep: true },
-        { label: 'Show in Explorer', onClick: () => void showInExplorer(cwd) },
+        { label: t('cb.menuShowInExplorer'), onClick: () => void showInExplorer(cwd) },
       ];
     }
     const { path, entry } = ctx.target;
@@ -854,36 +860,36 @@ export function ContentBrowser() {
     const ref = entry.isDir ? null : ProjectStore.assetRef(path);
     return [
       ...(entry.isDir || isScene || isMaterial
-        ? [{ label: 'Open', onClick: () => onOpen(path, entry.isDir, entry.name) }]
+        ? [{ label: t('cb.menuOpen'), onClick: () => onOpen(path, entry.isDir, entry.name) }]
         : []),
       // The startup scene: what the editor opens, Play boots, and exports ship
       // first. One per project — the current one offers no redundant action,
       // and it can't be excluded from export (it IS the export's boot scene).
       ...(isScene && path !== project?.defaultScene
         ? [
-            { label: 'Set as Startup Scene', onClick: () => void ProjectStore.setDefaultScene(path) },
+            { label: t('cb.menuSetStartupScene'), onClick: () => void ProjectStore.setDefaultScene(path) },
             project?.packaging?.excludeScenes?.includes(path)
-              ? { label: 'Include in Export', onClick: () => void ProjectStore.setSceneExcluded(path, false) }
-              : { label: 'Exclude from Export', onClick: () => void ProjectStore.setSceneExcluded(path, true) },
+              ? { label: t('cb.menuIncludeInExport'), onClick: () => void ProjectStore.setSceneExcluded(path, false) }
+              : { label: t('cb.menuExcludeFromExport'), onClick: () => void ProjectStore.setSceneExcluded(path, true) },
           ]
         : []),
       ...(isTexture
-        ? [{ label: 'Create Tileset', onClick: () => void createTilesetFromTexture(path) }]
+        ? [{ label: t('cb.menuCreateTileset'), onClick: () => void createTilesetFromTexture(path) }]
         : []),
       ...(isTileset
-        ? [{ label: 'Create Tilemap', onClick: () => void createTilemapFromTileset(path) }]
+        ? [{ label: t('cb.menuCreateTilemap'), onClick: () => void createTilemapFromTileset(path) }]
         : []),
       ...(isMaterial
-        ? [{ label: 'Create Material Instance', onClick: () => void createMaterialInstance(path) }]
+        ? [{ label: t('cb.menuCreateMaterialInstance'), onClick: () => void createMaterialInstance(path) }]
         : []),
-      { label: 'Rename', onClick: () => setRenaming(path) },
-      { label: 'Duplicate', onClick: () => void duplicate(path) },
+      { label: t('ui.rename'), onClick: () => setRenaming(path) },
+      { label: t('cb.menuDuplicate'), onClick: () => void duplicate(path) },
       { sep: true },
-      { label: 'Copy Path', onClick: () => copy(path, 'Copied path') },
-      ...(ref ? [{ label: 'Copy Reference', onClick: () => copy(ref, 'Copied reference') }] : []),
-      { label: 'Show in Explorer', onClick: () => void showInExplorer(path) },
+      { label: t('cb.menuCopyPath'), onClick: () => copy(path, t('cb.copiedPath')) },
+      ...(ref ? [{ label: t('cb.menuCopyReference'), onClick: () => copy(ref, t('cb.copiedReference')) }] : []),
+      { label: t('cb.menuShowInExplorer'), onClick: () => void showInExplorer(path) },
       { sep: true },
-      { label: 'Delete', danger: true, onClick: () => void remove(path, entry.name) },
+      { label: t('ui.delete'), danger: true, onClick: () => void remove(path, entry.name) },
     ];
   })();
 
@@ -892,7 +898,7 @@ export function ContentBrowser() {
       <div className="panel">
         <div className="empty">
           <FolderOpen size={24} strokeWidth={1.4} />
-          <p>Open a project to browse its assets.</p>
+          <p>{t('cb.openProjectPrompt')}</p>
         </div>
       </div>
     );
@@ -904,10 +910,10 @@ export function ContentBrowser() {
         {/* ── Sources (left) ── */}
         <div className="cb-panel cb-src">
           <div className="phead cb-head">
-            <span className="pt">Sources</span>
+            <span className="pt">{t('cb.sources')}</span>
           </div>
-          <div className="cb-src-body" role="tree" aria-label="Folders">
-            <div className="cb-sec">Folders</div>
+          <div className="cb-src-body" role="tree" aria-label={t('cb.folders')}>
+            <div className="cb-sec">{t('cb.folders')}</div>
             <FolderNode path="" name={project.name} depth={0} cwd={cwd} onSelect={go} folderDrop={folderDrop} dropPath={dropFolder} />
           </div>
         </div>
@@ -916,13 +922,13 @@ export function ContentBrowser() {
         <div className="cb-panel cb-main">
           <div className="phead cb-bar">
             <div className="cb-nav">
-              <button type="button" disabled={!canBack} onClick={back} title="Back">
+              <button type="button" disabled={!canBack} onClick={back} title={t('cb.back')}>
                 <ArrowLeft size={15} strokeWidth={2} />
               </button>
-              <button type="button" disabled={!canForward} onClick={forward} title="Forward">
+              <button type="button" disabled={!canForward} onClick={forward} title={t('cb.forward')}>
                 <ArrowRight size={15} strokeWidth={2} />
               </button>
-              <button type="button" disabled={!canUp} onClick={up} title="Up one level">
+              <button type="button" disabled={!canUp} onClick={up} title={t('cb.upOneLevel')}>
                 <ArrowUp size={15} strokeWidth={2} />
               </button>
             </div>
@@ -940,11 +946,14 @@ export function ContentBrowser() {
                 </Fragment>
               ))}
             </div>
-            <SearchField className="cb-search" placeholder="Search  (type:texture …)" value={query} onChange={setQuery} />
+            <SearchField className="cb-search" placeholder={t('cb.searchPlaceholder')} value={query} onChange={setQuery} />
             <IconButton
               size="lg"
               variant="outline"
-              title={`Sort by ${sort === 'name' ? 'name' : 'type'} — click to sort by ${sort === 'name' ? 'type' : 'name'}`}
+              title={t('cb.sortTitle', {
+                current: t(sort === 'name' ? 'cb.sortName' : 'cb.sortType'),
+                next: t(sort === 'name' ? 'cb.sortType' : 'cb.sortName'),
+              })}
               onClick={() => setSort((s) => (s === 'name' ? 'type' : 'name'))}
             >
               <ArrowDownUp size={14} strokeWidth={2} />
@@ -952,17 +961,17 @@ export function ContentBrowser() {
             <Segmented
               value={view}
               onChange={setView}
-              ariaLabel="View"
+              ariaLabel={t('cb.view')}
               options={[
-                { value: 'grid', icon: <LayoutGrid size={13} strokeWidth={1.9} />, title: 'Grid view' },
-                { value: 'list', icon: <List size={13} strokeWidth={1.9} />, title: 'List view' },
+                { value: 'grid', icon: <LayoutGrid size={13} strokeWidth={1.9} />, title: t('cb.gridView') },
+                { value: 'list', icon: <List size={13} strokeWidth={1.9} />, title: t('cb.listView') },
               ]}
             />
-            <IconButton size="lg" variant="outline" title="New Folder" onClick={() => void newFolder()}>
+            <IconButton size="lg" variant="outline" title={t('cb.menuNewFolder')} onClick={() => void newFolder()}>
               <FolderPlus size={13} strokeWidth={1.9} />
             </IconButton>
-            <button type="button" className="cb-add" title="Import assets" onClick={() => void importAssets()}>
-              <Import size={13} strokeWidth={1.9} /> Import
+            <button type="button" className="cb-add" title={t('cb.importAssets')} onClick={() => void importAssets()}>
+              <Import size={13} strokeWidth={1.9} /> {t('cb.import')}
             </button>
           </div>
 
@@ -972,7 +981,7 @@ export function ContentBrowser() {
               className={`chip${filters.size === 0 ? ' on' : ''}`}
               onClick={() => setFilters(new Set())}
             >
-              All
+              {t('cb.chipAll')}
             </button>
             {CHIP_GROUPS.map((g) => {
               const active = g.types.every((t) => filters.has(t));
@@ -1049,12 +1058,12 @@ export function ContentBrowser() {
                         )}
                         {!it.isDir && TYPE_CODE[type] && <span className="badge">{TYPE_CODE[type]}</span>}
                         {path === project?.defaultScene && (
-                          <span className="badge start" title="Startup scene">
+                          <span className="badge start" title={t('cb.startupScene')}>
                             <Play size={9} strokeWidth={2.5} />
                           </span>
                         )}
                         {project?.packaging?.excludeScenes?.includes(path) && (
-                          <span className="badge excluded" title="Excluded from export">
+                          <span className="badge excluded" title={t('cb.excludedFromExport')}>
                             <EyeOff size={9} strokeWidth={2.5} />
                           </span>
                         )}
@@ -1078,15 +1087,15 @@ export function ContentBrowser() {
                 })}
                 {!listLoading && items.length === 0 && (
                   <div className="empty-line cb-empty" style={{ gridColumn: '1 / -1' }}>
-                    {q ? 'No assets match.' : 'Empty folder — drag files here or use Import.'}
+                    {q ? t('cb.noMatch') : t('cb.emptyFolder')}
                   </div>
                 )}
               </div>
             ) : (
               <div className="cb-list">
                 <div className="lh">
-                  <span>Name</span>
-                  <span>Type</span>
+                  <span>{t('cb.name')}</span>
+                  <span>{t('cb.type')}</span>
                 </div>
                 {listLoading &&
                   Array.from({ length: 8 }, (_, i) => (
@@ -1122,10 +1131,10 @@ export function ContentBrowser() {
                           <span className="t">{it.name}</span>
                         )}
                         {path === project?.defaultScene && (
-                          <Play className="start-mark" size={11} strokeWidth={2.5} aria-label="Startup scene" />
+                          <Play className="start-mark" size={11} strokeWidth={2.5} aria-label={t('cb.startupScene')} />
                         )}
                         {project?.packaging?.excludeScenes?.includes(path) && (
-                          <EyeOff className="excluded-mark" size={11} strokeWidth={2.5} aria-label="Excluded from export" />
+                          <EyeOff className="excluded-mark" size={11} strokeWidth={2.5} aria-label={t('cb.excludedFromExport')} />
                         )}
                       </span>
                       <span className="c">{it.isDir ? '' : TYPE_CODE[type] || type}</span>
@@ -1133,7 +1142,7 @@ export function ContentBrowser() {
                   );
                 })}
                 {!listLoading && items.length === 0 && (
-                  <div className="empty-line cb-empty">{q ? 'No assets match.' : 'Empty folder — drag files here or use Import.'}</div>
+                  <div className="empty-line cb-empty">{q ? t('cb.noMatch') : t('cb.emptyFolder')}</div>
                 )}
               </div>
             )}
@@ -1141,13 +1150,13 @@ export function ContentBrowser() {
 
           <div className="cb-foot">
             <span>
-              {items.length} items{selected ? ' · 1 selected' : ''}
+              {t(selected ? 'cb.footItemsSelected' : 'cb.footItems', { count: items.length })}
             </span>
             <span className="sp" />
             {view === 'grid' && (
               <input
                 type="range"
-                title="Thumbnail size"
+                title={t('cb.thumbSize')}
                 min={TILE_MIN}
                 max={TILE_MAX}
                 step={4}
@@ -1163,10 +1172,10 @@ export function ContentBrowser() {
       {ctx && <ContextMenu x={ctx.x} y={ctx.y} items={ctxItems} onClose={() => setCtx(null)} />}
       {confirmDel && (
         <ConfirmDialog
-          title="Delete asset"
+          title={t('cb.deleteTitle')}
           danger
-          confirmLabel="Delete"
-          body={`Delete “${confirmDel.name}”? It will be moved to the trash.${confirmDel.warn}`}
+          confirmLabel={t('ui.delete')}
+          body={t('cb.deleteBody', { name: confirmDel.name }) + confirmDel.warn}
           onConfirm={() => void doRemove()}
           onCancel={() => setConfirmDel(null)}
         />

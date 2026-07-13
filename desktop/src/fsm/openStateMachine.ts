@@ -13,15 +13,16 @@ import { ProjectStore } from '@/project/ProjectStore';
 import { dockApi } from '@/layout/dockApi';
 import { baseName } from '@/project/assetMeta';
 import { Toasts } from '@/store/Toasts';
+import { t } from '@/i18n';
 
 /** Open an existing `.esfsm` into the state-machine editor and reveal the panel. */
 export async function openStateMachine(path: string): Promise<void> {
   try {
     const text = await window.estella.fs.read(path);
     FsmGraphDocument.openJson(JSON.parse(text), path);
-    dockApi.openDocument('statemachine', 'statemachine', 'State Machine');
+    dockApi.openDocument('statemachine', 'statemachine', t('fsm.tabTitle'));
   } catch (e) {
-    Toasts.push(`Failed to open state machine: ${String(e)}`, 'error');
+    Toasts.push(t('fsm.toastOpenFailed', { error: String(e) }), 'error');
   }
 }
 
@@ -39,10 +40,10 @@ export async function createStateMachine(dir: string): Promise<void> {
       JSON.stringify({ uuid: crypto.randomUUID(), version: '1.0', type: 'statemachine', importer: { autoMigrate: true } }, null, 2) + '\n',
     );
   } catch (e) {
-    Toasts.push(`Failed to create state machine: ${String(e)}`, 'error');
+    Toasts.push(t('fsm.toastCreateFailed', { error: String(e) }), 'error');
     return;
   }
   await ProjectStore.refreshAssets();
-  Toasts.push(`Created state machine: ${baseName(rel)}`, 'info');
+  Toasts.push(t('fsm.toastCreated', { name: baseName(rel) }), 'info');
   await openStateMachine(rel);
 }

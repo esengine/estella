@@ -11,6 +11,7 @@
  */
 import type { ReactNode } from 'react';
 import { Eye, EyeOff, Lock, LockOpen } from 'lucide-react';
+import { t } from '@/i18n';
 import type { EntityId, NodeKind } from '@/types';
 import type { OutlinerItem } from './OutlinerModel';
 
@@ -34,21 +35,21 @@ export interface OutlinerColumn {
 
 /** Entity kind → the label shown in the Type column. */
 const KIND_TYPE: Record<NodeKind, string> = {
-  camera: 'Camera',
-  sprite: 'Sprite',
-  spine: 'Spine',
-  physics: 'Physics',
-  ui: 'UI',
-  audio: 'Audio',
-  group: 'Group',
-  light: 'Light',
-  empty: 'Entity',
+  camera: t('out.kindCamera'),
+  sprite: t('out.kindSprite'),
+  spine: t('out.kindSpine'),
+  physics: t('out.kindPhysics'),
+  ui: t('out.kindUi'),
+  audio: t('out.kindAudio'),
+  group: t('out.kindGroup'),
+  light: t('out.kindLight'),
+  empty: t('out.kindEntity'),
 };
 
 /** Type / count column — prefab instances read "Prefab", others by kind + child count. */
 export const TYPE_COLUMN: OutlinerColumn = {
   id: 'type',
-  header: 'Type',
+  header: t('out.colType'),
   width: 78,
   applies: () => true,
   render: (item, ctx) => {
@@ -57,7 +58,7 @@ export const TYPE_COLUMN: OutlinerColumn = {
       label = item.count > 0 ? String(item.count) : '';
     } else {
       const childCount = item.node.children?.length ?? 0;
-      const base = ctx.isPrefab?.(item.id) ? 'Prefab' : (KIND_TYPE[item.node.kind] ?? 'Entity');
+      const base = ctx.isPrefab?.(item.id) ? t('out.prefab') : (KIND_TYPE[item.node.kind] ?? t('out.kindEntity'));
       label = childCount > 0 ? `${base} · ${childCount}` : base;
     }
     return <span className="rtype">{label}</span>;
@@ -76,7 +77,7 @@ export const LOCK_COLUMN: OutlinerColumn = {
     return (
       <span
         className="rlock"
-        title={locked ? 'Unlock' : 'Lock'}
+        title={locked ? t('out.unlock') : t('out.lock')}
         onClick={(e) => {
           e.stopPropagation();
           ctx.onToggleLock?.(item.id, !locked);
@@ -100,7 +101,7 @@ export const VIS_COLUMN: OutlinerColumn = {
     return (
       <span
         className="rvis"
-        title="Toggle visibility"
+        title={t('out.toggleVisibility')}
         onClick={(e) => {
           e.stopPropagation();
           ctx.onToggleVisible?.(item.id, !visible);

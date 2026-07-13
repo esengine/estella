@@ -14,7 +14,8 @@ import { ProjectStore } from '@/project/ProjectStore';
 import { ContextMenu, type MenuItem } from '@/components/Menu';
 import { formatKeybinding } from '@/commands/keybinding';
 import { VirtualTree } from '@/components/VirtualTree';
-import { buildOutlinerItems, collectExpandableKeys, entityKey, folderKey, parseQuery, type OutlinerItem } from '@/outliner/OutlinerModel';
+import { t } from '@/i18n';
+import { buildOutlinerItems, collectExpandableKeys, entityKey, folderKey, parseQuery, type OutlinerItem, type SortMode } from '@/outliner/OutlinerModel';
 import { useOutliner } from '@/outliner/OutlinerController';
 import { OutlinerRow } from '@/outliner/OutlinerRow';
 import { OUTLINER_COLUMNS, TYPE_COLUMN, type OutlinerColumnContext } from '@/outliner/columns';
@@ -35,6 +36,14 @@ const gameOnClick = (item: OutlinerItem) => {
   if (item.kind === 'entity') PlayInspect.select(item.id);
 };
 
+const SORT_MODE_LABEL: Record<SortMode, string> = {
+  manual: t('out.sortManual'),
+  name: t('out.sortName'),
+  type: t('out.sortType'),
+};
+// Menu labels for the icon-only columns (their `header` is empty).
+const COL_ID_LABEL: Record<string, string> = { lock: t('out.colLock'), vis: t('out.colVis') };
+
 const entityIds = (items: OutlinerItem[]): EntityId[] =>
   items.filter((i): i is Extract<OutlinerItem, { kind: 'entity' }> => i.kind === 'entity').map((i) => i.id);
 
@@ -50,7 +59,7 @@ function GameTree() {
       <div className="pbody">
         <div className="empty">
           <Search size={22} strokeWidth={1.4} />
-          <p>Waiting for the running game…</p>
+          <p>{t('out.waitingGame')}</p>
         </div>
       </div>
     );
@@ -495,24 +504,24 @@ export function Outliner() {
     if (!ctx.item) {
       // Empty-space (scene) menu.
       return [
-        { label: 'Add Entity', onClick: addEntity },
-        { label: 'Create…', onClick: () => setCreateFor({ parent: null }) },
-        { label: 'New Folder', onClick: () => newFolder('', null) },
+        { label: t('out.addEntity'), onClick: addEntity },
+        { label: t('out.createTemplate'), onClick: () => setCreateFor({ parent: null }) },
+        { label: t('out.newFolder'), onClick: () => newFolder('', null) },
         { sep: true },
-        { label: 'Expand All', onClick: expandAll },
-        { label: 'Collapse All', onClick: () => useOutliner.getState().setExpanded([]) },
+        { label: t('out.expandAll'), onClick: expandAll },
+        { label: t('out.collapseAll'), onClick: () => useOutliner.getState().setExpanded([]) },
       ];
     }
     if (ctx.item.kind === 'folder') {
       const path = ctx.item.path;
       const sel = [...useSelection.getState().selectedIds];
       return [
-        { label: 'Rename', shortcut: 'F2', onClick: () => setRenaming(folderKey(path)) },
-        { label: 'New Subfolder', onClick: () => newFolder(path, null) },
-        ...(sel.length ? [{ label: 'Move Selection Here', onClick: () => SceneCommands.moveToFolder(sel, path) } as MenuItem] : []),
+        { label: t('ui.rename'), shortcut: 'F2', onClick: () => setRenaming(folderKey(path)) },
+        { label: t('out.newSubfolder'), onClick: () => newFolder(path, null) },
+        ...(sel.length ? [{ label: t('out.moveSelectionHere'), onClick: () => SceneCommands.moveToFolder(sel, path) } as MenuItem] : []),
         { sep: true },
         {
-          label: 'Delete Folder',
+          label: t('out.deleteFolder'),
           onClick: () => {
             SceneCommands.deleteFolder(path);
             if (useOutliner.getState().selectedFolder === path) useOutliner.getState().selectFolder(null);
@@ -523,18 +532,18 @@ export function Outliner() {
     const id = ctx.item.id;
     const { visible, locked } = ctx.item.node;
     return [
-      { label: 'Rename', shortcut: 'F2', onClick: () => setRenaming(entityKey(id)) },
+      { label: t('ui.rename'), shortcut: 'F2', onClick: () => setRenaming(entityKey(id)) },
       {
-        label: 'Duplicate',
+        label: t('out.duplicate'),
         shortcut: formatKeybinding('mod+d'),
         onClick: () => {
           const d = SceneCommands.duplicateEntity(id);
           if (d != null) select(d);
         },
       },
-      { label: 'Create Prefab', onClick: () => void ProjectStore.createPrefabFromEntity(id) },
+      { label: t('out.createPrefab'), onClick: () => void ProjectStore.createPrefabFromEntity(id) },
       {
-        label: 'Delete',
+        label: t('ui.delete'),
         shortcut: formatKeybinding('delete'),
         onClick: () => {
           selectionOrTarget(id).forEach((i) => SceneCommands.deleteEntity(i));
@@ -542,15 +551,15 @@ export function Outliner() {
         },
       },
       { sep: true },
-      { label: visible ? 'Hide' : 'Show', onClick: () => selectionOrTarget(id).forEach((i) => SceneCommands.setEntityVisible(i, !visible)) },
-      { label: locked ? 'Unlock' : 'Lock', onClick: () => selectionOrTarget(id).forEach((i) => SceneCommands.setEntityLocked(i, !locked)) },
+      { label: visible ? t('out.hide') : t('out.show'), onClick: () => selectionOrTarget(id).forEach((i) => SceneCommands.setEntityVisible(i, !visible)) },
+      { label: locked ? t('out.unlock') : t('out.lock'), onClick: () => selectionOrTarget(id).forEach((i) => SceneCommands.setEntityLocked(i, !locked)) },
       { sep: true },
-      { label: 'New Folder from Selection', onClick: () => newFolder('', selectionOrTarget(id)) },
-      { label: 'Move to Root', onClick: () => SceneCommands.moveToFolder(selectionOrTarget(id), null) },
-      { label: 'Unparent', onClick: () => selectionOrTarget(id).forEach((i) => SceneCommands.setParent(i, null)) },
+      { label: t('out.newFolderFromSelection'), onClick: () => newFolder('', selectionOrTarget(id)) },
+      { label: t('out.moveToRoot'), onClick: () => SceneCommands.moveToFolder(selectionOrTarget(id), null) },
+      { label: t('out.unparent'), onClick: () => selectionOrTarget(id).forEach((i) => SceneCommands.setParent(i, null)) },
       { sep: true },
-      { label: 'Add Entity', onClick: addEntity },
-      { label: 'Create…', onClick: () => setCreateFor({ parent: id }) },
+      { label: t('out.addEntity'), onClick: addEntity },
+      { label: t('out.createTemplate'), onClick: () => setCreateFor({ parent: id }) },
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ctx]);
@@ -610,11 +619,11 @@ export function Outliner() {
         <div className="world-pick">
           <Segmented
             grow
-            ariaLabel="Inspected world"
+            ariaLabel={t('out.inspectedWorld')}
             value={gameMode ? 'game' : 'editor'}
             options={[
-              { value: 'editor', label: 'Editor' },
-              { value: 'game', label: 'Game' },
+              { value: 'editor', label: t('out.worldEditor') },
+              { value: 'game', label: t('out.worldGame') },
             ]}
             onChange={(v) => setInspectWorld(v)}
           />
@@ -625,11 +634,11 @@ export function Outliner() {
       ) : (
         <>
           <div className="phead">
-            <SearchField placeholder="Search · type: comp:" value={query} onChange={setQuery} />
+            <SearchField placeholder={t('out.searchPlaceholder')} value={query} onChange={setQuery} />
             <button
               type="button"
               className={`pbtn${sortMode !== 'manual' ? ' on' : ''}`}
-              title={`Sort: ${sortMode}`}
+              title={t('out.sortLabel', { mode: SORT_MODE_LABEL[sortMode] })}
               onClick={(e) => {
                 const r = e.currentTarget.getBoundingClientRect();
                 setSortMenu({ x: r.left, y: r.bottom + 2 });
@@ -637,23 +646,23 @@ export function Outliner() {
             >
               <ArrowDownUp size={14} strokeWidth={2} />
             </button>
-            <button type="button" className="pbtn" title="New folder" onClick={() => newFolder('', null)}>
+            <button type="button" className="pbtn" title={t('out.newFolderTip')} onClick={() => newFolder('', null)}>
               <FolderPlus size={15} strokeWidth={2} />
             </button>
-            <button type="button" className="pbtn" title="Add entity" onClick={addEntity}>
+            <button type="button" className="pbtn" title={t('out.addEntityTip')} onClick={addEntity}>
               <Plus size={15} strokeWidth={2} />
             </button>
           </div>
           {sceneCount > 0 && (
             <div
               className="outliner-cols"
-              title="Right-click to show/hide columns"
+              title={t('out.columnsTip')}
               onContextMenu={(e) => {
                 e.preventDefault();
                 setColsMenu({ x: e.clientX, y: e.clientY });
               }}
             >
-              <span className="c-name">Name</span>
+              <span className="c-name">{t('out.colName')}</span>
               {activeColumns.map((col) => (
                 <span key={col.id} className="c-col" style={{ width: col.width }}>
                   {col.header}
@@ -665,15 +674,15 @@ export function Outliner() {
             <div className="pbody" onDragOver={onBodyDragOver} onDrop={onBodyDrop} onContextMenu={onBodyContextMenu}>
               <div className="empty">
                 <Search size={22} strokeWidth={1.4} />
-                <p>{engine.status === 'ready' ? 'No entities in scene.' : 'Waiting for engine…'}</p>
-                {engine.status === 'ready' && <small>Right-click here or use the + button to add one.</small>}
+                <p>{engine.status === 'ready' ? t('out.emptyScene') : t('out.waitingEngine')}</p>
+                {engine.status === 'ready' && <small>{t('out.emptyHint')}</small>}
               </div>
             </div>
           ) : items.length === 0 ? (
             <div className="pbody" onDragOver={onBodyDragOver} onDrop={onBodyDrop} onContextMenu={onBodyContextMenu}>
               <div className="empty">
                 <Search size={22} strokeWidth={1.4} />
-                <p>No entities match “{query}”.</p>
+                <p>{t('out.noMatch', { query })}</p>
               </div>
             </div>
           ) : (
@@ -708,7 +717,7 @@ export function Outliner() {
           y={sortMenu.y}
           onClose={() => setSortMenu(null)}
           items={(['manual', 'name', 'type'] as const).map((m) => ({
-            label: `Sort: ${m[0].toUpperCase()}${m.slice(1)}`,
+            label: t('out.sortLabel', { mode: SORT_MODE_LABEL[m] }),
             onClick: () => useOutliner.getState().setSortMode(m),
           }))}
         />
@@ -719,7 +728,7 @@ export function Outliner() {
           y={colsMenu.y}
           onClose={() => setColsMenu(null)}
           items={OUTLINER_COLUMNS.map((col) => ({
-            label: `${hiddenColumns.has(col.id) ? '   ' : '✓ '}${col.header || col.id}`,
+            label: `${hiddenColumns.has(col.id) ? '   ' : '✓ '}${col.header || COL_ID_LABEL[col.id] || col.id}`,
             onClick: () => useOutliner.getState().toggleColumn(col.id),
           }))}
         />

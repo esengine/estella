@@ -7,13 +7,14 @@
  *        via Modal. `danger` puts the error fill on the confirm action.
  */
 import { useEffect, useRef, type ReactNode } from 'react';
+import { t } from '@/i18n';
 import { Modal } from './Modal';
 import { Button } from './Button';
 
 export function ConfirmDialog({
   title,
   body,
-  confirmLabel = 'OK',
+  confirmLabel = t('ui.ok'),
   danger,
   onConfirm,
   onCancel,
@@ -37,7 +38,7 @@ export function ConfirmDialog({
       width={420}
       footer={
         <>
-          <Button onClick={onCancel}>Cancel</Button>
+          <Button onClick={onCancel}>{t('ui.cancel')}</Button>
           <Button ref={btn} variant={danger ? 'danger' : 'primary'} onClick={onConfirm}>
             {confirmLabel}
           </Button>

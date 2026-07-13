@@ -14,6 +14,7 @@ import { ProjectStore } from '@/project/ProjectStore';
 import { dockApi } from '@/layout/dockApi';
 import { baseName } from '@/project/assetMeta';
 import { Toasts } from '@/store/Toasts';
+import { t } from '@/i18n';
 
 const shaderPathOf = (graphPath: string) => graphPath.replace(/\.esmatgraph$/, '.esshader');
 
@@ -22,9 +23,9 @@ export async function openMaterialGraph(path: string): Promise<void> {
   try {
     const text = await window.estella.fs.read(path);
     MaterialGraphDocument.openJson(JSON.parse(text), path);
-    dockApi.openDocument('materialgraph', 'materialgraph', 'Material Graph');
+    dockApi.openDocument('materialgraph', 'materialgraph', t('mat.panelTitle'));
   } catch (e) {
-    Toasts.push(`Failed to open material graph: ${String(e)}`, 'error');
+    Toasts.push(t('mat.openGraphFailed', { error: String(e) }), 'error');
   }
 }
 
@@ -35,9 +36,9 @@ export async function saveMaterialGraph(path: string, graph: MaterialGraph): Pro
     await window.estella.fs.write(path, JSON.stringify(graph, null, 2) + '\n');
     await window.estella.fs.write(shaderPathOf(path), shader);
     MaterialGraphDocument.markSaved();
-    Toasts.push('Material graph saved', 'info', 1400);
+    Toasts.push(t('mat.graphSaved'), 'info', 1400);
   } catch (e) {
-    Toasts.push(`Failed to save material graph: ${String(e)}`, 'error');
+    Toasts.push(t('mat.saveGraphFailed', { error: String(e) }), 'error');
   }
 }
 
@@ -58,10 +59,10 @@ export async function createMaterialGraph(dir: string): Promise<void> {
       JSON.stringify({ uuid: crypto.randomUUID(), version: '1.0', type: 'materialgraph', importer: { autoMigrate: true } }, null, 2) + '\n',
     );
   } catch (e) {
-    Toasts.push(`Failed to create material graph: ${String(e)}`, 'error');
+    Toasts.push(t('mat.createGraphFailed', { error: String(e) }), 'error');
     return;
   }
   await ProjectStore.refreshAssets();
-  Toasts.push(`Created material graph: ${baseName(rel)}`, 'info');
+  Toasts.push(t('mat.createdGraph', { name: baseName(rel) }), 'info');
   await openMaterialGraph(rel);
 }

@@ -26,6 +26,7 @@ import {
   type GraphNodeType,
   type GraphType,
 } from 'esengine';
+import { t } from '@/i18n';
 import { MaterialGraphDocument } from '@/material/MaterialGraphDocument';
 import { saveMaterialGraph } from '@/material/openMaterialGraph';
 import { EditorHistory } from '@/engine/EditorHistory';
@@ -88,7 +89,7 @@ export function MaterialGraphEditor() {
   const canvas = useRef<NodeGraphCanvasApi>(null);
 
   if (!graph || !filePath) {
-    return <div className="panel ng-placeholder"><p>Open a <code>.esmatgraph</code> from the Content Browser to edit it.</p></div>;
+    return <div className="panel ng-placeholder"><p>{t('mat.openHintPrefix')}<code>.esmatgraph</code>{t('mat.openHintSuffix')}</p></div>;
   }
 
   const nodes = graph.nodes as MatCanvasNode[];
@@ -117,23 +118,23 @@ export function MaterialGraphEditor() {
       <button
         type="button"
         className="ng-btn"
-        title="Add node"
+        title={t('mat.addNode')}
         onClick={(e) => {
           const r = e.currentTarget.getBoundingClientRect();
           canvas.current?.openMenuAt(r.left, r.bottom + 2);
         }}
       >
-        <Plus size={13} strokeWidth={2} /> Add
+        <Plus size={13} strokeWidth={2} /> {t('mat.add')}
       </button>
       {selected && (
-        <button type="button" className="ng-btn" title="Delete selected" onClick={() => deleteNode(selected)}>
+        <button type="button" className="ng-btn" title={t('mat.deleteSelected')} onClick={() => deleteNode(selected)}>
           <Trash2 size={13} strokeWidth={1.9} />
         </button>
       )}
       <span className="ng-doc-title">{filePath.split('/').pop()}{dirty && <DirtyDot />}</span>
       <span style={{ flex: 1 }} />
       <button type="button" className="ng-btn primary" disabled={!dirty} onClick={() => void saveMaterialGraph(filePath, graph)}>
-        <Save size={13} strokeWidth={1.9} /> Save
+        <Save size={13} strokeWidth={1.9} /> {t('mat.save')}
       </button>
     </>
   );
@@ -181,15 +182,15 @@ export function MaterialGraphEditor() {
       }}
       menuItems={(target) =>
         target.kind === 'node'
-          ? [{ label: 'Delete node', danger: true, onClick: () => deleteNode(target.nodeId!) }]
+          ? [{ label: t('mat.deleteNode'), danger: true, onClick: () => deleteNode(target.nodeId!) }]
           : (Object.keys(NODE_SPECS) as GraphNodeType[])
-              .filter((t) => NODE_SPECS[t].addable)
-              .map((t) => ({
-                label: `Add ${NODE_SPECS[t].label}`,
-                onClick: () => MaterialGraphDocument.edit(`Add ${t}`, (d) => Object.assign(d, addNode(d, t, target.x, target.y).graph)),
+              .filter((nt) => NODE_SPECS[nt].addable)
+              .map((nt) => ({
+                label: t('mat.addNodeType', { label: NODE_SPECS[nt].label }),
+                onClick: () => MaterialGraphDocument.edit(`Add ${nt}`, (d) => Object.assign(d, addNode(d, nt, target.x, target.y).graph)),
               }))}
       toolbar={toolbar}
-      emptyHint="Right-click to add a node, then drag from an output port into a typed input."
+      emptyHint={t('mat.emptyHint')}
       renderNode={(n, sel) => {
         const spec = NODE_SPECS[n.type];
         return (

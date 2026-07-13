@@ -18,6 +18,7 @@ import { ViewportController } from '@/engine/ViewportController';
 import { SceneCommands, type TilePaint } from '@/engine/SceneCommands';
 import { SceneModel } from '@/engine/SceneModel';
 import { Toasts } from '@/store/Toasts';
+import { t } from '@/i18n';
 import { useSelection } from '@/store/selectionStore';
 import { useTilemapPaint, type PaintTool } from '@/store/tilemapPaintStore';
 import { TilePaintPreview } from './tilePreview';
@@ -357,7 +358,7 @@ const bucketTool: EditorTool = {
       }
     }
     if (edits.length > 0) SceneCommands.paintTiles(selId, edits);
-    if (capped) Toasts.push(`Bucket fill hit the ${BUCKET_CAP}-cell cap — filled partially`, 'warn');
+    if (capped) Toasts.push(t('tile.toast.bucketCap', { cap: BUCKET_CAP }), 'warn');
     return false; // one-shot, no drag
   },
   onPointerMove() {},

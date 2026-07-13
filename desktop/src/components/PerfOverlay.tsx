@@ -5,6 +5,7 @@
  *        lives in the dockable Profiler panel. Leaf subscriber (no viewport re-render).
  */
 import { useSyncExternalStore } from 'react';
+import { t } from '@/i18n';
 import { PerfMonitor } from '@/engine/PerfMonitor';
 
 const mute = 'var(--text-mute)';
@@ -42,8 +43,8 @@ export function PerfOverlay() {
       </div>
       {s.longFrames > 0 || s.longTaskMs > 0 ? (
         <div>
-          <span style={{ color: mute }}>long frames</span> <b>{s.longFrames}</b>
-          {s.longTaskMs > 0 ? <span style={{ color: warn }}>{'  ·  task '}{s.longTaskMs}ms</span> : null}
+          <span style={{ color: mute }}>{t('vp.perfLongFrames')}</span> <b>{s.longFrames}</b>
+          {s.longTaskMs > 0 ? <span style={{ color: warn }}>{'  ·  '}{t('vp.perfTask')}{' '}{s.longTaskMs}ms</span> : null}
         </div>
       ) : null}
     </div>

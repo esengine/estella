@@ -18,6 +18,12 @@ export const commonMessages = defineMessages({
     'ui.untitled': { en: 'untitled', zh: '未命名' },
     'ui.download': { en: 'Download', zh: '下载' },
     'ui.reloadNow': { en: 'Reload now', zh: '立即重新加载' },
+    'ui.dismiss': { en: 'Dismiss', zh: '关闭' },
+
+    // — Panel crash fallback (components/ErrorBoundary.tsx) —
+    'ui.crashTitle': { en: '{label} hit an error', zh: '{label} 出错了' },
+    'ui.crashTitleGeneric': { en: 'This panel hit an error', zh: '此面板出错了' },
+    'ui.reloadPanel': { en: 'Reload panel', zh: '重新加载面板' },
 
     // — The unsaved-changes gate (project/discardGuard.ts) —
     // `discard.body` wraps a consequence sentence; the `discard.*` fragments

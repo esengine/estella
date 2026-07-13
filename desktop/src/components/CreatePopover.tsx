@@ -16,6 +16,7 @@ import { ENTITY_SOURCES, userComponentSources, matchSources, CREATE_CATEGORY_ORD
 import { ProjectStore } from '@/project/ProjectStore';
 import { SearchField } from '@/components/SearchField';
 import { useDialogFocus } from '@/components/dialogFocus';
+import { t } from '@/i18n';
 
 /** Group sources by category, ordered by CREATE_CATEGORY_ORDER — sources arrive in
  *  mixed category order now that anchors are auto-generated and dynamic sources
@@ -87,13 +88,13 @@ export function CreatePopover({
 
   return createPortal(
     <div className="ac-scrim open" onMouseDown={onClose}>
-      <div ref={shellRef} className="ac" role="dialog" aria-modal="true" aria-label="Create entity" tabIndex={-1} onMouseDown={(e) => e.stopPropagation()}>
+      <div ref={shellRef} className="ac" role="dialog" aria-modal="true" aria-label={t('cb.createEntity')} tabIndex={-1} onMouseDown={(e) => e.stopPropagation()}>
         <SearchField
           flush
           className="ac-search"
           iconSize={15}
           inputRef={inputRef}
-          placeholder="Create entity…"
+          placeholder={t('cb.createEntityPlaceholder')}
           value={query}
           onChange={setQuery}
           onKeyDown={onKeyDown}
@@ -103,7 +104,7 @@ export function CreatePopover({
 
         <div className="ac-body">
           {results.length === 0 ? (
-            <div className="empty-line">No matching templates</div>
+            <div className="empty-line">{t('cb.noMatchingTemplates')}</div>
           ) : (
             groups.map((g) => (
               <div key={g.category}>

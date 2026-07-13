@@ -7,6 +7,7 @@ import { ProjectStore } from '@/project/ProjectStore';
 import { WindowControls } from '@/layout/WindowControls';
 import { SearchField } from '@/components/SearchField';
 import { Segmented } from '@/components/Segmented';
+import { t } from '@/i18n';
 import type { RecentEntry, TemplateEntry } from '@/project/format';
 import { version } from '../../package.json';
 
@@ -21,14 +22,14 @@ type Layout = 'grid' | 'list';
 
 function relTime(ts: number): string {
   const s = Math.max(1, Math.floor((Date.now() - ts) / 1000));
-  if (s < 60) return 'just now';
+  if (s < 60) return t('launcher.justNow');
   const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
+  if (m < 60) return t('launcher.minutesAgo', { m });
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
+  if (h < 24) return t('launcher.hoursAgo', { h });
   const d = Math.floor(h / 24);
-  if (d < 7) return `${d}d ago`;
-  return `${Math.floor(d / 7)}w ago`;
+  if (d < 7) return t('launcher.daysAgo', { d });
+  return t('launcher.weeksAgo', { w: Math.floor(d / 7) });
 }
 
 /** A static SVG constellation — the launcher's quiet signature mark. */
@@ -100,16 +101,16 @@ function RecentView({
   return (
     <>
       <header className="lc-head">
-        <h1>Recent</h1>
+        <h1>{t('launcher.recent')}</h1>
         <div className="lc-head__tools">
-          <SearchField className="lc-search" placeholder="Search projects" value={query} onChange={setQuery} />
+          <SearchField className="lc-search" placeholder={t('launcher.searchProjects')} value={query} onChange={setQuery} />
           <Segmented
             value={layout}
             onChange={setLayout}
-            ariaLabel="View"
+            ariaLabel={t('launcher.viewLabel')}
             options={[
-              { value: 'grid', icon: <LayoutGrid size={14} strokeWidth={1.9} />, title: 'Grid' },
-              { value: 'list', icon: <Rows3 size={14} strokeWidth={1.9} />, title: 'List' },
+              { value: 'grid', icon: <LayoutGrid size={14} strokeWidth={1.9} />, title: t('launcher.viewGrid') },
+              { value: 'list', icon: <Rows3 size={14} strokeWidth={1.9} />, title: t('launcher.viewList') },
             ]}
           />
         </div>
@@ -130,14 +131,14 @@ function RecentView({
         </div>
       ) : recents.length === 0 ? (
         <div className="lc-empty">
-          <p>No recent projects yet.</p>
+          <p>{t('launcher.noRecent')}</p>
           <button type="button" className="lc-btn lc-btn--primary" onClick={onOpenFolder}>
-            <FolderOpen size={14} strokeWidth={2} /> Open a project folder
+            <FolderOpen size={14} strokeWidth={2} /> {t('launcher.openProjectFolder')}
           </button>
         </div>
       ) : items.length === 0 ? (
         <div className="lc-empty">
-          <p>No projects match “{query}”.</p>
+          <p>{t('launcher.noMatch', { query })}</p>
         </div>
       ) : layout === 'grid' ? (
         <div className="proj-grid">
@@ -160,8 +161,8 @@ function RecentView({
               <button
                 type="button"
                 className="proj-card__remove"
-                title="Remove from recents"
-                aria-label="Remove from recents"
+                title={t('launcher.removeFromRecents')}
+                aria-label={t('launcher.removeFromRecents')}
                 onClick={(e) => { e.stopPropagation(); onRemove(p.root); }}
               >
                 <X size={13} strokeWidth={2} />
@@ -172,9 +173,9 @@ function RecentView({
       ) : (
         <div className="proj-list">
           <div className="proj-list__head mono">
-            <span>Project</span>
-            <span>Last opened</span>
-            <span>Build</span>
+            <span>{t('launcher.colProject')}</span>
+            <span>{t('launcher.colLastOpened')}</span>
+            <span>{t('launcher.colBuild')}</span>
           </div>
           {items.map((p) => (
             <div
@@ -194,8 +195,8 @@ function RecentView({
               <button
                 type="button"
                 className="proj-row__remove"
-                title="Remove from recents"
-                aria-label="Remove from recents"
+                title={t('launcher.removeFromRecents')}
+                aria-label={t('launcher.removeFromRecents')}
                 onClick={(e) => { e.stopPropagation(); onRemove(p.root); }}
               >
                 <X size={13} strokeWidth={2} />
@@ -265,19 +266,19 @@ function NewView({ onCreated }: { onCreated: () => void }) {
     <div className="lc-new">
       <div className="lc-new__gallery">
         <header className="lc-head">
-          <h1>New project</h1>
-          <p className="lc-head__sub">Start from a template — you can change anything later.</p>
+          <h1>{t('launcher.newProject')}</h1>
+          <p className="lc-head__sub">{t('launcher.newProjectSub')}</p>
         </header>
         {templates.length === 0 ? (
           <div className="lc-empty">
-            <p>The bundled templates are missing.</p>
-            <p className="lc-empty__hint">Reinstalling the editor should restore them.</p>
+            <p>{t('launcher.templatesMissing')}</p>
+            <p className="lc-empty__hint">{t('launcher.templatesMissingHint')}</p>
           </div>
         ) : (
           <div className="proj-grid">
             {[
-              { label: 'Starters', items: starters },
-              { label: 'Examples', items: examples },
+              { label: t('launcher.groupStarters'), items: starters },
+              { label: t('launcher.groupExamples'), items: examples },
             ].map(({ label, items }) =>
               items.length === 0 ? null : (
                 <Fragment key={label}>
@@ -314,19 +315,19 @@ function NewView({ onCreated }: { onCreated: () => void }) {
             {tpl.description && <p className="lc-create__desc">{tpl.description}</p>}
 
             <label className="lc-field">
-              <span>Project name</span>
+              <span>{t('launcher.projectName')}</span>
               <input value={name} onChange={(e) => setName(e.target.value)} spellCheck={false} />
             </label>
             <label className="lc-field">
-              <span>Location</span>
+              <span>{t('launcher.location')}</span>
               <span className="lc-field__path">
                 <input
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
-                  placeholder="Choose a folder…"
+                  placeholder={t('launcher.chooseFolderPlaceholder')}
                   spellCheck={false}
                 />
-                <button type="button" className="lc-field__browse" title="Choose folder" onClick={browse}>
+                <button type="button" className="lc-field__browse" title={t('launcher.chooseFolder')} onClick={browse}>
                   <FolderOpen size={13} strokeWidth={1.9} />
                 </button>
               </span>
@@ -339,17 +340,17 @@ function NewView({ onCreated }: { onCreated: () => void }) {
               disabled={busy || !name}
             >
               {busy ? (
-                'Creating…'
+                t('launcher.creating')
               ) : (
                 <>
-                  Create project <ArrowRight size={15} strokeWidth={2} />
+                  {t('launcher.createProject')} <ArrowRight size={15} strokeWidth={2} />
                 </>
               )}
             </button>
           </>
         ) : (
           <div className="lc-create__hint">
-            <p>Pick a template to begin.</p>
+            <p>{t('launcher.pickTemplate')}</p>
           </div>
         )}
       </aside>
@@ -381,15 +382,15 @@ export function Launcher() {
           </svg>
           <div className="lc-brand__text">
             <strong>Estella</strong>
-            <span>editor</span>
+            <span>{t('launcher.brandEditor')}</span>
           </div>
         </div>
         <div className="launcher__bar-actions">
           <button type="button" className="lc-btn" onClick={() => setView('new')}>
-            <Plus size={14} strokeWidth={2} /> New project
+            <Plus size={14} strokeWidth={2} /> {t('launcher.newProject')}
           </button>
           <button type="button" className="lc-btn lc-btn--primary" onClick={openFolder}>
-            <FolderOpen size={14} strokeWidth={2} /> Open folder…
+            <FolderOpen size={14} strokeWidth={2} /> {t('launcher.openFolder')}
           </button>
         </div>
         <WindowControls />
@@ -403,14 +404,14 @@ export function Launcher() {
               className={`lc-nav__item${view === 'recent' ? ' is-active' : ''}`}
               onClick={() => setView('recent')}
             >
-              <Clock size={15} strokeWidth={1.85} /> Recent
+              <Clock size={15} strokeWidth={1.85} /> {t('launcher.recent')}
             </button>
             <button
               type="button"
               className={`lc-nav__item${view === 'new' ? ' is-active' : ''}`}
               onClick={() => setView('new')}
             >
-              <Plus size={15} strokeWidth={1.85} /> New project
+              <Plus size={15} strokeWidth={1.85} /> {t('launcher.newProject')}
             </button>
           </nav>
           <div className="lc-rail__foot">

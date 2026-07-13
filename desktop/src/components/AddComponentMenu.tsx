@@ -13,6 +13,7 @@ import { ComponentIcon } from '@/components/icons';
 import { SearchField } from '@/components/SearchField';
 import { useDialogFocus } from '@/components/dialogFocus';
 import { CATEGORY_ORDER } from '@/engine/schema';
+import { t } from '@/i18n';
 
 export interface AddComponentEntry {
   name: string;
@@ -122,13 +123,13 @@ export function AddComponentMenu({
 
   return createPortal(
     <div className="ac-scrim open" onMouseDown={onClose}>
-      <div ref={shellRef} className="ac" role="dialog" aria-modal="true" aria-label="Add component" tabIndex={-1} onMouseDown={(e) => e.stopPropagation()}>
+      <div ref={shellRef} className="ac" role="dialog" aria-modal="true" aria-label={t('det.addComponentAria')} tabIndex={-1} onMouseDown={(e) => e.stopPropagation()}>
         <SearchField
           flush
           className="ac-search"
           iconSize={15}
           inputRef={inputRef}
-          placeholder="Search components…"
+          placeholder={t('det.searchComponents')}
           value={query}
           onChange={setQuery}
           onKeyDown={onKeyDown}
@@ -139,7 +140,7 @@ export function AddComponentMenu({
         <div className="ac-body">
           {flat.length === 0 ? (
             <div className="empty-line">
-              {entries.length === 0 ? 'All components added' : 'No matching components'}
+              {entries.length === 0 ? t('det.allComponentsAdded') : t('det.noMatchingComponents')}
             </div>
           ) : (
             groups.map((g) => (

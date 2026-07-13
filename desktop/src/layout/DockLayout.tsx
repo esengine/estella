@@ -28,6 +28,7 @@ import { ProfilerPanel } from '@/panels/ProfilerPanel';
 import { Perf } from '@/components/Perf';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { dockApi } from '@/layout/dockApi';
+import { t } from '@/i18n';
 
 const panel = (id: string, node: ReactNode) => (
   <Perf id={id}>
@@ -68,12 +69,12 @@ export const LAYOUT_KEY = 'estella.editor.layout.v6';
 
 function buildDefaultLayout(api: DockviewReadyEvent['api']) {
   // Viewport is the anchor; the right column stacks Outliner over Details.
-  api.addPanel({ id: 'viewport', component: 'viewport', title: 'Viewport' });
+  api.addPanel({ id: 'viewport', component: 'viewport', title: t('layout.panel.viewport') });
 
   api.addPanel({
     id: 'outliner',
     component: 'outliner',
-    title: 'World Outliner',
+    title: t('layout.panel.worldOutliner'),
     position: { referencePanel: 'viewport', direction: 'right' },
     initialWidth: 366, // --w-rightdock
   });
@@ -81,14 +82,14 @@ function buildDefaultLayout(api: DockviewReadyEvent['api']) {
   api.addPanel({
     id: 'details',
     component: 'details',
-    title: 'Details',
+    title: t('layout.panel.details'),
     position: { referencePanel: 'outliner', direction: 'below' },
   });
 
   api.addPanel({
     id: 'content',
     component: 'content',
-    title: 'Content Browser',
+    title: t('layout.panel.contentBrowser'),
     position: { referencePanel: 'viewport', direction: 'below' },
     initialHeight: 300,
   });
@@ -97,7 +98,7 @@ function buildDefaultLayout(api: DockviewReadyEvent['api']) {
   api.addPanel({
     id: 'log',
     component: 'log',
-    title: 'Output Log',
+    title: t('layout.panel.outputLog'),
     position: { referencePanel: 'content', direction: 'within' },
   });
 }
@@ -109,8 +110,8 @@ function buildDefaultLayout(api: DockviewReadyEvent['api']) {
 // center document tabs on demand (dockApi.openDocument); only the timeline-shaped
 // Sequencer belongs in the bottom utility row (UE convention).
 const BOTTOM_TABS: { id: string; component: string; title: string; refs: string[] }[] = [
-  { id: 'sequencer', component: 'sequencer', title: 'Sequencer', refs: ['content', 'log'] },
-  { id: 'profiler', component: 'profiler', title: 'Profiler', refs: ['log', 'content'] },
+  { id: 'sequencer', component: 'sequencer', title: t('layout.panel.sequencer'), refs: ['content', 'log'] },
+  { id: 'profiler', component: 'profiler', title: t('layout.panel.profiler'), refs: ['log', 'content'] },
 ];
 
 function ensureBottomTabs(api: DockviewReadyEvent['api']) {
@@ -123,6 +124,35 @@ function ensureBottomTabs(api: DockviewReadyEvent['api']) {
       title: tab.title,
       position: ref ? { referencePanel: ref, direction: 'within' } : undefined,
     });
+  }
+}
+
+// dockview persists panel TITLES inside the saved layout JSON, in whatever
+// language wrote them — so a restored layout would pin the old language on
+// every tab. All our panel ids are stable, so re-title the known ones from
+// the live catalog after a restore. Ids not listed (game clients) are
+// session-scoped and never usefully restored.
+const PANEL_TITLES: Record<string, () => string> = {
+  viewport: () => t('layout.panel.viewport'),
+  outliner: () => t('layout.panel.worldOutliner'),
+  details: () => t('layout.panel.details'),
+  content: () => t('layout.panel.contentBrowser'),
+  log: () => t('layout.panel.outputLog'),
+  sequencer: () => t('layout.panel.sequencer'),
+  profiler: () => t('layout.panel.profiler'),
+  game: () => t('layout.panel.game'),
+  tileset: () => t('tile.panelTileset'),
+  tilemap: () => t('panel.tilemap'),
+  'ui-widgets': () => t('panel.uiWidgets'),
+  materialgraph: () => t('mat.panelTitle'),
+  statemachine: () => t('fsm.tabTitle'),
+  behaviortree: () => t('bt.tabTitle'),
+};
+
+function retitleRestoredPanels(api: DockviewReadyEvent['api']) {
+  for (const panel of api.panels) {
+    const title = PANEL_TITLES[panel.id];
+    if (title) panel.api.setTitle(title());
   }
 }
 
@@ -143,8 +173,8 @@ function EstellaTab(props: IDockviewPanelHeaderProps) {
       <button
         type="button"
         className="tab-x"
-        title="Close"
-        aria-label={`Close ${title}`}
+        title={t('ui.close')}
+        aria-label={t('layout.closeTab', { title })}
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => {
           e.stopPropagation();
@@ -173,8 +203,8 @@ function CollapseHeaderAction(props: IDockviewHeaderActionsProps) {
     <button
       type="button"
       className="dv-collapse"
-      title={collapsed ? 'Expand panel' : 'Collapse panel'}
-      aria-label={collapsed ? 'Expand panel' : 'Collapse panel'}
+      title={collapsed ? t('layout.expandPanel') : t('layout.collapsePanel')}
+      aria-label={collapsed ? t('layout.expandPanel') : t('layout.collapsePanel')}
       aria-expanded={!collapsed}
       onClick={() => dockApi.setGroupCollapsed(props.api, props.group.id, !collapsed)}
     >
@@ -192,6 +222,7 @@ export function DockLayout() {
     if (saved) {
       try {
         api.fromJSON(JSON.parse(saved));
+        retitleRestoredPanels(api);
       } catch {
         api.clear();
         buildDefaultLayout(api);

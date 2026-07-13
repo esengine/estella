@@ -8,6 +8,7 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
+import { t } from '@/i18n';
 import { IconButton } from './IconButton';
 import { useDialogFocus } from './dialogFocus';
 
@@ -49,7 +50,7 @@ export function Modal({
       >
         <div className="modal__head">
           <span className="modal__title">{title}</span>
-          <IconButton size="lg" title="Close" onClick={onClose}>
+          <IconButton size="lg" title={t('ui.close')} onClick={onClose}>
             <X size={15} strokeWidth={2} />
           </IconButton>
         </div>

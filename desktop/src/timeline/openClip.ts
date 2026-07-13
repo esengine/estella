@@ -11,6 +11,7 @@
  */
 
 import { parseAnimationClip } from 'esengine';
+import { t } from '@/i18n';
 import { TimelineDocument } from './TimelineDocument';
 import { useSequencerStore } from '@/store/sequencerStore';
 import { useSelection } from '@/store/selectionStore';
@@ -29,7 +30,7 @@ export async function openAnimationClip(path: string): Promise<void> {
     useSequencerStore.getState().resetForClip();
     dockApi.revealAndExpand('sequencer');
   } catch (e) {
-    Toasts.push(`Failed to open animation: ${String(e)}`, 'error');
+    Toasts.push(t('seq.toast.openFailed', { error: String(e) }), 'error');
   }
 }
 
@@ -49,10 +50,10 @@ export async function createAnimationClip(dir: string): Promise<void> {
       JSON.stringify({ uuid: crypto.randomUUID(), version: '1.0', type: 'animation', importer: { autoMigrate: true } }, null, 2) + '\n',
     );
   } catch (e) {
-    Toasts.push(`Failed to create animation: ${String(e)}`, 'error');
+    Toasts.push(t('seq.toast.createFailed', { error: String(e) }), 'error');
     return;
   }
   await ProjectStore.refreshAssets();
-  Toasts.push(`Created animation: ${baseName(rel)}`, 'info');
+  Toasts.push(t('seq.toast.created', { name: baseName(rel) }), 'info');
   await openAnimationClip(rel);
 }

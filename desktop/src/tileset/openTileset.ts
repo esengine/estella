@@ -13,15 +13,16 @@ import { ProjectStore } from '@/project/ProjectStore';
 import { dockApi } from '@/layout/dockApi';
 import { baseName } from '@/project/assetMeta';
 import { Toasts } from '@/store/Toasts';
+import { t } from '@/i18n';
 
 /** Open an existing .estileset into the Tileset editor and reveal the panel. */
 export async function openTileset(path: string): Promise<void> {
   try {
     const text = await window.estella.fs.read(path);
     TilesetDocument.openJson(JSON.parse(text), path);
-    dockApi.openDocument('tileset', 'tileset', 'Tileset');
+    dockApi.openDocument('tileset', 'tileset', t('tile.panelTileset'));
   } catch (e) {
-    Toasts.push(`Failed to open tileset: ${String(e)}`, 'error');
+    Toasts.push(t('tile.toast.openFailed', { error: String(e) }), 'error');
   }
 }
 
@@ -29,7 +30,7 @@ export async function openTileset(path: string): Promise<void> {
 export async function createTilesetFromTexture(texturePath: string): Promise<void> {
   const ref = ProjectStore.assetRef(texturePath);
   if (!ref) {
-    Toasts.push('Texture is not tracked by the project — cannot create tileset', 'error');
+    Toasts.push(t('tile.toast.texUntracked'), 'error');
     return;
   }
   const dir = texturePath.includes('/') ? texturePath.slice(0, texturePath.lastIndexOf('/') + 1) : '';
@@ -46,10 +47,10 @@ export async function createTilesetFromTexture(texturePath: string): Promise<voi
       JSON.stringify({ uuid, version: '1.0', type: 'tileset', importer: { autoMigrate: true } }, null, 2) + '\n',
     );
   } catch (e) {
-    Toasts.push(`Failed to create tileset: ${String(e)}`, 'error');
+    Toasts.push(t('tile.toast.createFailed', { error: String(e) }), 'error');
     return;
   }
   await ProjectStore.refreshAssets(); // re-scan so the new tileset is tracked
-  Toasts.push(`Created tileset: ${rel.split('/').pop()}`, 'info');
+  Toasts.push(t('tile.toast.createdTileset', { name: rel.split('/').pop() ?? rel }), 'info');
   await openTileset(rel);
 }

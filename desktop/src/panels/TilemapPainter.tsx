@@ -29,16 +29,17 @@ import { loadTilesetAsset } from '@/tileset/loadTileset';
 import { createTilemapFromTileset } from '@/tilemap/createTilemap';
 import { AnimPreview, tileThumbStyle, type TileAtlas } from '@/tools/tileThumb';
 import { IconButton } from '@/components/IconButton';
+import { t } from '@/i18n';
 
 const TOOLS: { id: PaintTool; icon: typeof Brush; label: string }[] = [
-  { id: 'brush', icon: Brush, label: 'Brush' },
-  { id: 'erase', icon: Eraser, label: 'Eraser' },
-  { id: 'rect', icon: Square, label: 'Rect' },
-  { id: 'line', icon: Slash, label: 'Line' },
-  { id: 'bucket', icon: PaintBucket, label: 'Bucket' },
-  { id: 'select', icon: BoxSelect, label: `Select (${MOD_LABEL}C/X/V copy/cut/paste)` },
-  { id: 'eyedropper', icon: Pipette, label: 'Eyedropper' },
-  { id: 'terrain', icon: Mountain, label: 'Terrain' },
+  { id: 'brush', icon: Brush, label: t('tile.tool.brush') },
+  { id: 'erase', icon: Eraser, label: t('tile.tool.eraser') },
+  { id: 'rect', icon: Square, label: t('tile.tool.rect') },
+  { id: 'line', icon: Slash, label: t('tile.tool.line') },
+  { id: 'bucket', icon: PaintBucket, label: t('tile.tool.bucket') },
+  { id: 'select', icon: BoxSelect, label: t('tile.tool.select', { mod: MOD_LABEL }) },
+  { id: 'eyedropper', icon: Pipette, label: t('tile.tool.eyedropper') },
+  { id: 'terrain', icon: Mountain, label: t('tile.tool.terrain') },
 ];
 
 /** Resolve the .estileset ref(s) a selected TilemapLayer references — the `tilesetAssets`
@@ -213,8 +214,8 @@ export function TilemapPainter() {
   if (!hasTilemap) {
     return (
       <div className="tp-empty">
-        <p>No tilemap selected</p>
-        <p className="tp-hint">Right-click an .estileset in the Content Browser → Create Tilemap, or select a tilemap entity in the Outliner</p>
+        <p>{t('tile.noTilemap')}</p>
+        <p className="tp-hint">{t('tile.noTilemapHint')}</p>
       </div>
     );
   }
@@ -358,15 +359,15 @@ export function TilemapPainter() {
                 thumb={(t) => tileThumbStyle(atlas, t, tw)}
               />
             )}
-            {meta?.collision && <span className="tp-badge tp-badge-col" title="Has collision" />}
+            {meta?.collision && <span className="tp-badge tp-badge-col" title={t('tile.badgeCollision')} />}
             {ter != null && (
               <span
                 className="tp-badge tp-badge-ter"
                 style={{ background: TERRAIN_COLORS[ter.set % TERRAIN_COLORS.length] }}
-                title="Terrain member"
+                title={t('tile.badgeTerrain')}
               />
             )}
-            {anim && anim.length > 0 && <span className="tp-badge tp-badge-anim" title="Animated" />}
+            {anim && anim.length > 0 && <span className="tp-badge tp-badge-anim" title={t('tile.badgeAnimated')} />}
           </div>,
         );
       }
@@ -377,32 +378,32 @@ export function TilemapPainter() {
     <div className="tp-panel">
       {layers.length > 0 && (
         <div className="tp-layers">
-          <IconButton size="sm" title="New layer on this tileset" disabled={!tilesetPath} onClick={addLayer}>
+          <IconButton size="sm" title={t('tile.newLayerTip')} disabled={!tilesetPath} onClick={addLayer}>
             <Plus size={14} />
           </IconButton>
           {layers.map((L) => (
             <span key={L.id} className={'tp-layer' + (L.id === selectedId ? ' is-active' : '')}>
               <button
-                type="button" className="tp-layer-vis" title={L.hidden ? 'Show' : 'Hide'}
+                type="button" className="tp-layer-vis" title={L.hidden ? t('tile.show') : t('tile.hide')}
                 onClick={() => SceneCommands.setEntityVisible(L.id, L.hidden)}
               >
                 {L.hidden ? <EyeOff size={12} /> : <Eye size={12} />}
               </button>
               <button
-                type="button" className="tp-layer-name" title={`Paint on "${L.name}"`}
+                type="button" className="tp-layer-name" title={t('tile.paintOn', { name: L.name })}
                 onClick={() => useSelection.getState().select(L.id)}
               >
                 {L.name}
               </button>
               <input
                 className="tp-layer-op" type="range" min={0} max={1} step={0.05} value={L.opacity}
-                title={`Opacity ${Math.round(L.opacity * 100)}%`}
+                title={t('tile.opacityPct', { pct: Math.round(L.opacity * 100) })}
                 onPointerDown={() => SceneCommands.beginGesture('Layer opacity')}
                 onChange={(e) => setLayerOpacity(L.id, Number(e.target.value))}
                 onPointerUp={() => SceneCommands.endGesture()}
               />
               <button
-                type="button" className="tp-layer-lock" title={L.locked ? 'Unlock' : 'Lock'}
+                type="button" className="tp-layer-lock" title={L.locked ? t('tile.unlock') : t('tile.lock')}
                 onClick={() => SceneCommands.setEntityLocked(L.id, !L.locked)}
               >
                 {L.locked ? <Lock size={11} /> : <Unlock size={11} />}
@@ -416,7 +417,7 @@ export function TilemapPainter() {
           variant="outline"
           size="lg"
           active={tool === null}
-          title="Select / transform (Q · Esc to exit painting)"
+          title={t('tile.tool.exit')}
           onClick={() => exitTilePaint('select')}
         >
           <MousePointer2 size={15} />
@@ -435,27 +436,27 @@ export function TilemapPainter() {
           </IconButton>
         ))}
         <span className="tp-sep" />
-        <IconButton variant="outline" size="lg" title="Flip horizontal (H)" onClick={() => flipH()}>
+        <IconButton variant="outline" size="lg" title={t('tile.flipH')} onClick={() => flipH()}>
           <FlipHorizontal size={15} />
         </IconButton>
-        <IconButton variant="outline" size="lg" title="Flip vertical (V)" onClick={() => flipV()}>
+        <IconButton variant="outline" size="lg" title={t('tile.flipV')} onClick={() => flipV()}>
           <FlipVertical size={15} />
         </IconButton>
-        <IconButton variant="outline" size="lg" title="Rotate 90° (R)" onClick={() => rotateCW()}>
+        <IconButton variant="outline" size="lg" title={t('tile.rotate')} onClick={() => rotateCW()}>
           <RotateCw size={15} />
         </IconButton>
         <IconButton
           variant="outline"
           size="lg"
           active={randomBrush}
-          title="Random: each painted cell samples one tile from the selection"
+          title={t('tile.randomTip')}
           onClick={() => toggleRandomBrush()}
         >
           <Dices size={15} />
         </IconButton>
         <span className="tp-grow" />
         <span className="tp-brush">
-          {tool === 'terrain' ? 'Terrain brush' : (
+          {tool === 'terrain' ? t('tile.terrainBrush') : (
             <>
               <BrushThumbnail stamp={stamp} atlas={localAtlas} />
               {stamp.w}×{stamp.h}
@@ -472,23 +473,23 @@ export function TilemapPainter() {
               title={`${ts.path}  (gid ${ts.firstId}+)`}
             >
               <button type="button" className="tp-tsbtn" onClick={() => setActiveTileset(i)}>
-                {ts.path.split(/[\\/]/).pop()?.replace(/\.estileset$/, '') ?? `Tileset ${i + 1}`}
+                {ts.path.split(/[\\/]/).pop()?.replace(/\.estileset$/, '') ?? t('tile.tilesetN', { n: i + 1 })}
               </button>
               {tilesets.length > 1 && (
-                <button type="button" className="tp-tsx" title="Remove tileset" onClick={() => removeTilesetAt(i)}>
+                <button type="button" className="tp-tsx" title={t('tile.removeTileset')} onClick={() => removeTilesetAt(i)}>
                   <X size={11} />
                 </button>
               )}
             </span>
           ))}
           <div className="tp-tsadd-wrap" onPointerDown={(e) => e.stopPropagation()}>
-            <button type="button" className="tp-tsadd" title="Add tileset" onClick={() => setAddOpen((o) => !o)}>
+            <button type="button" className="tp-tsadd" title={t('tile.addTileset')} onClick={() => setAddOpen((o) => !o)}>
               <Plus size={13} />
             </button>
             {addOpen && (
               <div className="tp-tsmenu">
                 {addable.length === 0 ? (
-                  <div className="empty-line empty-line--sm">No tilesets to add</div>
+                  <div className="empty-line empty-line--sm">{t('tile.noTilesetsToAdd')}</div>
                 ) : (
                   addable.map((a) => (
                     <button key={a.ref} type="button" className="tp-tsmenu-item" onClick={() => addTileset(a.ref)}>
@@ -504,7 +505,7 @@ export function TilemapPainter() {
       {tool === 'terrain' ? (
         <div className="tp-terrains">
           {(asset?.terrains ?? []).length === 0 ? (
-            <div className="tp-warn">No terrains (create and tag tiles in the Tileset Editor's Terrain mode)</div>
+            <div className="tp-warn">{t('tile.noTerrains')}</div>
           ) : (
             (asset?.terrains ?? []).map((t, i) => (
               <button
@@ -523,14 +524,14 @@ export function TilemapPainter() {
         <>
           {texUrl && (
             <div className="tp-palbar">
-              <button type="button" className="tp-zbtn" title="Zoom out" onClick={() => setZoom((z) => clamp(z / 1.25, 0.25, 8))}>
+              <button type="button" className="tp-zbtn" title={t('tile.zoomOut')} onClick={() => setZoom((z) => clamp(z / 1.25, 0.25, 8))}>
                 <ZoomOut size={13} />
               </button>
               <span className="tp-zpct">{Math.round(zoom * 100)}%</span>
-              <button type="button" className="tp-zbtn" title="Zoom in" onClick={() => setZoom((z) => clamp(z * 1.25, 0.25, 8))}>
+              <button type="button" className="tp-zbtn" title={t('tile.zoomIn')} onClick={() => setZoom((z) => clamp(z * 1.25, 0.25, 8))}>
                 <ZoomIn size={13} />
               </button>
-              <button type="button" className="tp-zbtn" title="Fit width" onClick={fitZoom}>
+              <button type="button" className="tp-zbtn" title={t('tile.fitWidth')} onClick={fitZoom}>
                 <Maximize2 size={13} />
               </button>
             </div>
@@ -539,13 +540,13 @@ export function TilemapPainter() {
             className="tp-palette"
             ref={paletteRef}
             tabIndex={0}
-            aria-label="Tile palette"
+            aria-label={t('tile.paletteAria')}
             onKeyDown={onPaletteKey}
             onPointerUp={endDrag}
             onPointerLeave={endDrag}
           >
             {!texUrl ? (
-              <div className="tp-warn">No palette (the tilemap references no .estileset)</div>
+              <div className="tp-warn">{t('tile.noPalette')}</div>
             ) : (
               <div className="tp-atlas-sizer" style={{ width: (natural?.w ?? 0) * zoom, height: (natural?.h ?? 0) * zoom }}>
                 <div

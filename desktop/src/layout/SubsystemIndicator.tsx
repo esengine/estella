@@ -4,6 +4,7 @@ import { useSyncExternalStore, useState, useRef, useEffect } from 'react';
 import type { SubsystemStatus } from 'esengine';
 import { EngineHost } from '@/engine/EngineHost';
 import { PlayRealm } from '@/engine/PlayRealm';
+import { t } from '@/i18n';
 
 // Status-bar indicator for engine subsystem (module) health. A single dot
 // summarizes the worst state; clicking opens a popover that lists each module
@@ -14,13 +15,13 @@ type DotKind = 'ok' | 'idle' | 'busy' | 'err';
 
 /** Map a subsystem's phase + derived activity to a dot kind and a short label. */
 function present(s: SubsystemStatus): { dot: DotKind; text: string; run?: boolean } {
-  if (s.phase === 'error') return { dot: 'err', text: 'error' };
-  if (s.phase === 'initializing') return { dot: 'busy', text: 'loading…' };
-  if (s.phase === 'registered') return { dot: 'busy', text: 'registered' };
+  if (s.phase === 'error') return { dot: 'err', text: t('layout.mods.error') };
+  if (s.phase === 'initializing') return { dot: 'busy', text: t('layout.mods.loading') };
+  if (s.phase === 'registered') return { dot: 'busy', text: t('layout.mods.registered') };
   // ready: distinguish actively stepping vs frozen vs never-probed
-  if (s.activity === 'stepping') return { dot: 'ok', text: 'running', run: true };
-  if (s.activity === 'idle') return { dot: 'idle', text: 'idle' };
-  return { dot: 'ok', text: 'ready' };
+  if (s.activity === 'stepping') return { dot: 'ok', text: t('layout.mods.running'), run: true };
+  if (s.activity === 'idle') return { dot: 'idle', text: t('layout.mods.idle') };
+  return { dot: 'ok', text: t('layout.mods.ready') };
 }
 
 /** Worst-of summary for the trigger dot: error ▸ busy ▸ ok. */
@@ -74,17 +75,17 @@ export function SubsystemIndicator() {
       <button
         type="button"
         className="sitem click"
-        title="Engine modules"
+        title={t('layout.mods.tooltip')}
         onClick={() => setOpen((v) => !v)}
       >
         <span className={`mdot ${dot}`} />
-        Modules
+        {t('layout.mods.label')}
       </button>
       {open && (
         <div className="mods-pop" role="menu">
-          <h4>Engine Modules{inPlay ? ' · Play' : ''}</h4>
+          <h4>{t('layout.mods.heading')}{inPlay ? t('layout.mods.playSuffix') : ''}</h4>
           {subsystems.length === 0 ? (
-            <div className="empty-line empty-line--sm">Engine not booted</div>
+            <div className="empty-line empty-line--sm">{t('layout.mods.notBooted')}</div>
           ) : (
             subsystems.map((s) => {
               const p = present(s);

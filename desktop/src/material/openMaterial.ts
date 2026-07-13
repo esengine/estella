@@ -13,6 +13,7 @@ import { dockApi } from '@/layout/dockApi';
 import { useSelection } from '@/store/selectionStore';
 import { baseName } from '@/project/assetMeta';
 import { Toasts } from '@/store/Toasts';
+import { t } from '@/i18n';
 
 /**
  * Open a `.esmaterial` for editing: select it so the unified Details inspector edits it inline
@@ -42,7 +43,7 @@ async function writeMeta(rel: string): Promise<void> {
 export async function createMaterial(dir: string, templateId = 'sprite-unlit'): Promise<void> {
   const template = builtinShaderTemplate(templateId);
   if (!template) {
-    Toasts.push(`Unknown material template: ${templateId}`, 'error');
+    Toasts.push(t('mat.unknownTemplate', { id: templateId }), 'error');
     return;
   }
   const folder = dir ? (dir.endsWith('/') ? dir : `${dir}/`) : '';
@@ -66,11 +67,11 @@ export async function createMaterial(dir: string, templateId = 'sprite-unlit'): 
     await window.estella.fs.write(matRel, JSON.stringify(asset, null, 2) + '\n');
     await writeMeta(matRel);
   } catch (e) {
-    Toasts.push(`Failed to create material: ${String(e)}`, 'error');
+    Toasts.push(t('mat.createFailed', { error: String(e) }), 'error');
     return;
   }
   await ProjectStore.refreshAssets();
-  Toasts.push(`Created material: ${baseName(matRel)}`, 'info');
+  Toasts.push(t('mat.created', { name: baseName(matRel) }), 'info');
   openMaterial(matRel);
 }
 
@@ -92,10 +93,10 @@ export async function createMaterialInstance(parentPath: string): Promise<void> 
     await window.estella.fs.write(matRel, JSON.stringify(asset, null, 2) + '\n');
     await writeMeta(matRel);
   } catch (e) {
-    Toasts.push(`Failed to create material instance: ${String(e)}`, 'error');
+    Toasts.push(t('mat.createInstanceFailed', { error: String(e) }), 'error');
     return;
   }
   await ProjectStore.refreshAssets();
-  Toasts.push(`Created material instance: ${baseName(matRel)}`, 'info');
+  Toasts.push(t('mat.createdInstance', { name: baseName(matRel) }), 'info');
   openMaterial(matRel);
 }

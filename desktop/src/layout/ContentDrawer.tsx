@@ -7,6 +7,7 @@ import { useEffect } from 'react';
 import { FolderOpen, X } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { ContentBrowser } from '@/panels/ContentBrowser';
+import { t } from '@/i18n';
 
 export function ContentDrawer() {
   const open = useEditorStore((s) => s.contentDrawer);
@@ -29,10 +30,10 @@ export function ContentDrawer() {
             <span className="ic">
               <FolderOpen size={16} strokeWidth={1.8} />
             </span>
-            Content Browser
+            {t('layout.panel.contentBrowser')}
           </span>
           <span className="drawer-sp" />
-          <button type="button" className="drawer-x" title="Close (Esc)" onClick={() => setOpen(false)}>
+          <button type="button" className="drawer-x" title={t('layout.closeEsc')} onClick={() => setOpen(false)}>
             <X size={15} strokeWidth={2} />
           </button>
         </div>

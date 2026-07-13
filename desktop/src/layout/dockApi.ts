@@ -7,6 +7,7 @@
  *        React. DockLayout sets it on ready; callers guard against null.
  */
 import type { DockviewApi, DockviewGroupPanelApi } from 'dockview';
+import { t } from '@/i18n';
 
 let api: DockviewApi | null = null;
 // Remembered pre-collapse sizes, per panel id (so a re-expand restores them).
@@ -85,7 +86,7 @@ export const dockApi = {
       api.addPanel({
         id: 'game',
         component: 'game',
-        title: 'Game',
+        title: t('layout.panel.game'),
         position: api.getPanel('viewport') ? { referencePanel: 'viewport', direction: 'within' } : undefined,
       });
     }
@@ -106,7 +107,7 @@ export const dockApi = {
         api.addPanel({
           id,
           component: 'gameClient',
-          title: `Game P${realmId + 1}`,
+          title: t('layout.panel.gamePlayer', { n: realmId + 1 }),
           params: { realmId },
           position: anchor ? { referencePanel: anchor.id, direction: 'right' } : undefined,
         });

@@ -6,6 +6,7 @@
  *        queued requests show one at a time in arrival order.
  */
 import { useSyncExternalStore } from 'react';
+import { t } from '@/i18n';
 import { ConfirmService } from './confirm';
 import { ConfirmDialog } from './ConfirmDialog';
 
@@ -18,7 +19,7 @@ export function ConfirmHost() {
       key={cur.id}
       title={cur.title}
       body={cur.body}
-      confirmLabel={cur.confirmLabel ?? 'OK'}
+      confirmLabel={cur.confirmLabel ?? t('ui.ok')}
       danger={cur.danger}
       onConfirm={() => ConfirmService.settle(cur.id, true)}
       onCancel={() => ConfirmService.settle(cur.id, false)}

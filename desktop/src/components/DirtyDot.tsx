@@ -6,7 +6,9 @@
  *          selection orange), everywhere a document can be dirty: the menubar
  *          scene title, asset-editor toolbars, and dock tabs.
  */
-export function DirtyDot({ title = 'Unsaved changes' }: { title?: string }) {
+import { t } from '@/i18n';
+
+export function DirtyDot({ title = t('discard.title') }: { title?: string }) {
   return (
     <span className="dirty-dot" title={title}>
       ●

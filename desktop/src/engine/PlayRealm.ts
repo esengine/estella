@@ -20,6 +20,7 @@
 import { createStore } from 'zustand/vanilla';
 import type { SubsystemStatus } from 'esengine';
 import { LogStore } from '@/store/LogStore';
+import { t } from '@/i18n';
 import { playProtocolMismatch } from './playProtocol';
 import type { PlayOutbound, PlayInbound, PlayPayload, PlaySnapshot, PlayStatsReply } from './playProtocol';
 
@@ -94,7 +95,7 @@ export class PlayRealmInstance {
     try {
       const realm = await window.estella.project.preparePlayRealm();
       if (!realm.ok) {
-        this.set({ error: realm.errors[0] ?? 'failed to prepare play realm' });
+        this.set({ error: realm.errors[0] ?? t('proj.playPrepareFailed') });
         return;
       }
       frame.src = `estella://project/${realm.hostPath}?n=${++this.epoch}`;
@@ -227,7 +228,7 @@ export class PlayRealmInstance {
         if (this.id === 0) this.focusGame();
         break;
       case 'estella:play:error':
-        this.set({ error: data.message ?? 'play realm error' });
+        this.set({ error: data.message ?? t('proj.playRealmError') });
         break;
       case 'estella:play:reply': {
         const resolve = data.reqId != null ? this.pending.get(data.reqId) : undefined;

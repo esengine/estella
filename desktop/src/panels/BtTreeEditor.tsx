@@ -18,6 +18,7 @@ import {
   type BtNode, type BtNodeType, type BtDefinition, type BtEdge,
 } from 'esengine';
 import { BtDocument } from '@/bt/BtDocument';
+import { t } from '@/i18n';
 import { EditorHistory } from '@/engine/EditorHistory';
 import { NodeGraphCanvas, type CanvasNode, type MenuItem } from '@/components/NodeGraphCanvas';
 import { Select } from '@/components/Select';
@@ -29,15 +30,15 @@ const NODE_W = 132;
 const NODE_H = 46;
 
 const BT_TYPES: Array<{ type: BtNodeType; label: string; cat: 'composite' | 'decorator' | 'leaf' }> = [
-  { type: 'sequence', label: 'Sequence', cat: 'composite' },
-  { type: 'selector', label: 'Selector', cat: 'composite' },
-  { type: 'parallel', label: 'Parallel', cat: 'composite' },
-  { type: 'inverter', label: 'Inverter', cat: 'decorator' },
-  { type: 'succeeder', label: 'Succeeder', cat: 'decorator' },
-  { type: 'repeater', label: 'Repeater', cat: 'decorator' },
-  { type: 'wait', label: 'Wait', cat: 'leaf' },
-  { type: 'action', label: 'Action', cat: 'leaf' },
-  { type: 'condition', label: 'Condition', cat: 'leaf' },
+  { type: 'sequence', label: t('bt.typeSequence'), cat: 'composite' },
+  { type: 'selector', label: t('bt.typeSelector'), cat: 'composite' },
+  { type: 'parallel', label: t('bt.typeParallel'), cat: 'composite' },
+  { type: 'inverter', label: t('bt.typeInverter'), cat: 'decorator' },
+  { type: 'succeeder', label: t('bt.typeSucceeder'), cat: 'decorator' },
+  { type: 'repeater', label: t('bt.typeRepeater'), cat: 'decorator' },
+  { type: 'wait', label: t('bt.typeWait'), cat: 'leaf' },
+  { type: 'action', label: t('bt.typeAction'), cat: 'leaf' },
+  { type: 'condition', label: t('bt.typeCondition'), cat: 'leaf' },
 ];
 const specOf = (t: BtNodeType) => BT_TYPES.find(s => s.type === t)!;
 const CAT_COLOR: Record<string, string> = { composite: '#7faf9c', decorator: '#8fa0c4', leaf: '#b0a080' };
@@ -45,7 +46,7 @@ const CAT_COLOR: Record<string, string> = { composite: '#7faf9c', decorator: '#8
 function leafSummary(n: BtNode): string {
   switch (n.type) {
     case 'action':
-    case 'condition': return n.name || '(unnamed)';
+    case 'condition': return n.name || t('bt.unnamed');
     case 'repeater': return `× ${(n.count ?? 0) || '∞'}`;
     case 'wait': return `${n.seconds ?? 0}s`;
     case 'parallel': return n.policy ?? 'all';
@@ -64,7 +65,7 @@ export function BtTreeEditor() {
   const dragBefore = useRef<BtDefinition | null>(null);
 
   if (!def || !filePath) {
-    return <div className="panel ng-placeholder"><p>Open a <code>.esbt</code> from the Content Browser to edit it.</p></div>;
+    return <div className="panel ng-placeholder"><p>{t('ng.openHintPre')}<code>.esbt</code>{t('ng.openHintPost')}</p></div>;
   }
 
   const nodes = btNodes(def).filter((n): n is BtCanvasNode => !!n.id);
@@ -87,13 +88,13 @@ export function BtTreeEditor() {
       <span className="ng-doc-title">{filePath.split('/').pop()}{dirty && <DirtyDot />}</span>
       <span style={{ flex: 1 }} />
       {selected && def.root.id !== selected && (
-        <button type="button" className="ng-btn" title="Delete node"
+        <button type="button" className="ng-btn" title={t('bt.deleteNode')}
           onClick={() => { BtDocument.edit('Delete node', d => Object.assign(d, removeBtNode(d, selected))); setSelected(null); }}>
           <Trash2 size={13} strokeWidth={1.9} />
         </button>
       )}
       <button type="button" className="ng-btn primary" disabled={!dirty} onClick={save}>
-        <Save size={13} strokeWidth={1.9} /> Save
+        <Save size={13} strokeWidth={1.9} /> {t('ng.save')}
       </button>
     </>
   );
@@ -125,23 +126,23 @@ export function BtTreeEditor() {
               // Canvas → create an unconnected node (wire it by dragging a
               // parent's handle onto it). Node → add a child under it directly.
               if (target.kind === 'canvas') {
-                return BT_TYPES.map(spec => ({ label: `Add ${spec.label}`, onClick: () => BtDocument.edit('Add node', d => Object.assign(d, addBtOrphan(d, spec.type, target.x, target.y))) }));
+                return BT_TYPES.map(spec => ({ label: t('bt.menuAdd', { type: spec.label }), onClick: () => BtDocument.edit('Add node', d => Object.assign(d, addBtOrphan(d, spec.type, target.x, target.y))) }));
               }
               const parentId = target.nodeId!;
               const parent = nodes.find(n => n.id === parentId);
               const full = !parent || (parent.children?.length ?? 0) >= maxChildren(parent.type);
               const items: MenuItem[] = [];
               if (parent && canHaveChildren(parent.type) && !full) {
-                for (const spec of BT_TYPES) items.push({ label: `Add child: ${spec.label}`, onClick: () => BtDocument.edit('Add node', d => Object.assign(d, addBtChild(d, parentId, spec.type, target.x, target.y))) });
+                for (const spec of BT_TYPES) items.push({ label: t('bt.menuAddChild', { type: spec.label }), onClick: () => BtDocument.edit('Add node', d => Object.assign(d, addBtChild(d, parentId, spec.type, target.x, target.y))) });
               }
               if (def.root.id !== parentId) {
                 if (items.length) items.push({ sep: true });
-                items.push({ label: 'Delete node', danger: true, onClick: () => { BtDocument.edit('Delete node', d => Object.assign(d, removeBtNode(d, parentId))); setSelected(null); } });
+                items.push({ label: t('bt.deleteNode'), danger: true, onClick: () => { BtDocument.edit('Delete node', d => Object.assign(d, removeBtNode(d, parentId))); setSelected(null); } });
               }
               return items;
             }}
             toolbar={toolbar}
-            emptyHint="Drag from a node's handle to another to set parent → child."
+            emptyHint={t('bt.emptyHint')}
             renderNode={(n, sel) => {
               const spec = specOf(n.type);
               return (
@@ -156,10 +157,10 @@ export function BtTreeEditor() {
 
         {selNode && (
           <div className="ng-inspector">
-            <div className="ng-insp-title">Node</div>
-            <label className="ng-field">Type
+            <div className="ng-insp-title">{t('bt.inspNodeTitle')}</div>
+            <label className="ng-field">{t('bt.type')}
               <Select
-                ariaLabel="Node type"
+                ariaLabel={t('bt.nodeType')}
                 value={selNode.type}
                 options={BT_TYPES.map(s => ({ value: s.type, label: s.label }))}
                 onChange={v => patch(selNode.id, { type: v })}
@@ -167,32 +168,32 @@ export function BtTreeEditor() {
             </label>
 
             {(selNode.type === 'action' || selNode.type === 'condition') && (
-              <label className="ng-field">Name
+              <label className="ng-field">{t('ng.name')}
                 <input className="ng-input" list="bt-names" defaultValue={selNode.name ?? ''} key={`${selNode.id}-name`}
-                  placeholder={selNode.type === 'action' ? 'action name' : 'condition name'}
+                  placeholder={selNode.type === 'action' ? t('ng.phActionName') : t('ng.phConditionName')}
                   onBlur={e => patch(selNode.id, { name: e.target.value.trim() || undefined })} />
               </label>
             )}
             {selNode.type === 'repeater' && (
-              <label className="ng-field">Count (0 = forever)
+              <label className="ng-field">{t('bt.count')}
                 <input className="ng-input" type="number" min={0} defaultValue={selNode.count ?? 0} key={`${selNode.id}-count`}
                   onBlur={e => patch(selNode.id, { count: Number(e.target.value) || 0 })} />
               </label>
             )}
             {selNode.type === 'wait' && (
-              <label className="ng-field">Seconds
+              <label className="ng-field">{t('bt.seconds')}
                 <input className="ng-input" type="number" min={0} step={0.1} defaultValue={selNode.seconds ?? 0} key={`${selNode.id}-sec`}
                   onBlur={e => patch(selNode.id, { seconds: Number(e.target.value) || 0 })} />
               </label>
             )}
             {selNode.type === 'parallel' && (
-              <label className="ng-field">Success policy
+              <label className="ng-field">{t('bt.successPolicy')}
                 <Select
-                  ariaLabel="Success policy"
+                  ariaLabel={t('bt.successPolicy')}
                   value={selNode.policy ?? 'all'}
                   options={[
-                    { value: 'all', label: 'all children' },
-                    { value: 'one', label: 'any child' },
+                    { value: 'all', label: t('bt.policyAll') },
+                    { value: 'one', label: t('bt.policyOne') },
                   ]}
                   onChange={v => patch(selNode.id, { policy: v })}
                 />
@@ -201,16 +202,16 @@ export function BtTreeEditor() {
 
             {canHaveChildren(selNode.type) && (
               <>
-                <div className="ng-insp-sub">Add child</div>
+                <div className="ng-insp-sub">{t('bt.addChildSub')}</div>
                 <div className="ng-row">
                   <Select
-                    ariaLabel="Child node type"
+                    ariaLabel={t('bt.childNodeType')}
                     style={{ flex: 1 }}
                     value={addType}
                     options={BT_TYPES.map(s => ({ value: s.type, label: s.label }))}
                     onChange={setAddType}
                   />
-                  <button type="button" className="ng-btn" onClick={() => addChild(selNode.id, addType)}>+ Add</button>
+                  <button type="button" className="ng-btn" onClick={() => addChild(selNode.id, addType)}>{t('bt.addBtn')}</button>
                 </div>
               </>
             )}

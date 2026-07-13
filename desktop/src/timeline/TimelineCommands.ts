@@ -22,6 +22,7 @@ import {
   type PropertyChannel,
   type PropertyTrack,
 } from 'esengine';
+import { t } from '@/i18n';
 import { TimelineDocument } from './TimelineDocument';
 import { findChannel, upsertKeyframe, type ChannelRef } from './timelineView';
 import { Toasts } from '@/store/Toasts';
@@ -165,15 +166,15 @@ class TimelineCommandsImpl {
     const { filePath } = TimelineDocument.meta;
     if (!asset) return;
     if (!filePath) {
-      Toasts.push('Animation has no file (sample clips cannot be saved)', 'error');
+      Toasts.push(t('seq.toast.noFile'), 'error');
       return;
     }
     try {
       await window.estella.fs.write(filePath, serializeTimelineToJson(asset) + '\n');
       TimelineDocument.markSaved();
-      Toasts.push('Animation saved', 'success', 1500);
+      Toasts.push(t('seq.toast.saved'), 'success', 1500);
     } catch (e) {
-      Toasts.push(`Failed to save: ${String(e)}`, 'error');
+      Toasts.push(t('seq.toast.saveFailed', { error: String(e) }), 'error');
     }
   }
 }

@@ -17,6 +17,7 @@ import { Segmented } from '@/components/Segmented';
 import { Button } from '@/components/Button';
 import { ProjectStore } from '@/project/ProjectStore';
 import { useEditorStore } from '@/store/editorStore';
+import { t } from '@/i18n';
 
 type Phase = 'idle' | 'running' | 'done' | 'error';
 type Config = 'development' | 'shipping';
@@ -53,30 +54,30 @@ interface PlatformDef {
 
 const PLATFORMS: PlatformDef[] = [
   {
-    id: 'web', label: 'Web', ready: true,
-    blurb: 'Static, self-contained web build — host it anywhere.',
+    id: 'web', label: t('build.plat.web'), ready: true,
+    blurb: t('build.blurb.web'),
     defaultOut: 'dist-web', sourceMaps: true, httpPreview: true,
-    next: (o) => `Preview over http below, or upload ${o}/ to any static host. (A web build needs an http origin — opening index.html directly won't stream the wasm.)`,
+    next: (o) => t('build.next.web', { out: o }),
   },
   {
-    id: 'desktop', label: 'Desktop', ready: true,
-    blurb: 'Electron app — package to .dmg / .exe / AppImage.',
+    id: 'desktop', label: t('build.plat.desktop'), ready: true,
+    blurb: t('build.blurb.desktop'),
     defaultOut: 'dist-desktop', sourceMaps: true,
-    next: (o) => `cd ${o} && npm install && npm start — or npm run dist for a native installer.`,
+    next: (o) => t('build.next.desktop', { out: o }),
   },
   {
-    id: 'wechat', label: 'WeChat', ready: true,
-    blurb: 'WeChat MiniGame package.',
+    id: 'wechat', label: t('build.plat.wechat'), ready: true,
+    blurb: t('build.blurb.wechat'),
     defaultOut: 'dist-wechat', sourceMaps: false,
-    prereq: 'Requires the WeChat runtime — run: node build-tools/cli.js build -t wechat',
-    next: (o) => `Open ${o}/ in WeChat DevTools, then set your appid in project.config.json.`,
+    prereq: t('build.prereq.wechat'),
+    next: (o) => t('build.next.wechat', { out: o }),
   },
   {
-    id: 'playable', label: 'Playable', ready: true,
-    blurb: 'Single-file HTML playable ad — everything inlined, no requests.',
+    id: 'playable', label: t('build.plat.playable'), ready: true,
+    blurb: t('build.blurb.playable'),
     defaultOut: 'dist-playable', sourceMaps: false, httpPreview: true,
-    prereq: 'Requires the single-file runtime — run: node build-tools/cli.js build -t playable',
-    next: () => `Preview over http below (its real surface is an ad-network iframe). Note: a full engine usually exceeds ad-network size limits.`,
+    prereq: t('build.prereq.playable'),
+    next: () => t('build.next.playable'),
   },
 ];
 
@@ -149,7 +150,7 @@ export function BuildDialog() {
         atlasTextures,
       })) as Result | null;
       if (!res) {
-        setResult({ ok: false, outDir, included: 0, warnings: [], errors: ['no project open'] });
+        setResult({ ok: false, outDir, included: 0, warnings: [], errors: [t('build.noProjectOpen')] });
         setPhase('error');
         return;
       }
@@ -185,16 +186,16 @@ export function BuildDialog() {
   const footer = (
     <>
       <Button onClick={close} disabled={running}>
-        {phase === 'done' ? 'Close' : 'Cancel'}
+        {phase === 'done' ? t('ui.close') : t('ui.cancel')}
       </Button>
       <Button variant="primary" onClick={() => void build()} disabled={running || !project}>
         {running ? (
           <>
-            <Loader2 size={14} className="spin" /> Packaging…
+            <Loader2 size={14} className="spin" /> {t('build.packaging')}
           </>
         ) : (
           <>
-            <Boxes size={14} /> Package
+            <Boxes size={14} /> {t('build.package')}
           </>
         )}
       </Button>
@@ -202,9 +203,9 @@ export function BuildDialog() {
   );
 
   return (
-    <Modal title="Package Project" onClose={running ? () => {} : close} footer={footer} width={500}>
+    <Modal title={t('build.title')} onClose={running ? () => {} : close} footer={footer} width={500}>
       <div className="build">
-        <div className="build__label">Platform</div>
+        <div className="build__label">{t('build.platform')}</div>
         <div className="build__platforms">
           {PLATFORMS.map((p) => (
             <button
@@ -213,31 +214,31 @@ export function BuildDialog() {
               className={`build__plat${platform === p.id ? ' on' : ''}`}
               disabled={!p.ready}
               aria-pressed={platform === p.id}
-              title={p.ready ? p.label : 'Coming soon'}
+              title={p.ready ? p.label : t('build.comingSoon')}
               onClick={() => pickPlatform(p)}
             >
               {p.label}
-              {!p.ready && <span className="soon">soon</span>}
+              {!p.ready && <span className="soon">{t('build.soon')}</span>}
             </button>
           ))}
         </div>
         <div className="build__blurb">{def.blurb}</div>
 
         <div className="build__row">
-          <span className="build__label">Configuration</span>
+          <span className="build__label">{t('build.configuration')}</span>
           <Segmented
-            ariaLabel="Configuration"
+            ariaLabel={t('build.configuration')}
             value={config}
             options={[
-              { value: 'development', label: 'Development' },
-              { value: 'shipping', label: 'Shipping' },
+              { value: 'development', label: t('build.development') },
+              { value: 'shipping', label: t('build.shipping') },
             ]}
             onChange={setConfig}
           />
         </div>
 
         <div className="build__row">
-          <span className="build__label">Output</span>
+          <span className="build__label">{t('build.output')}</span>
           <div className="build__out">
             <input
               value={outDir}
@@ -245,28 +246,28 @@ export function BuildDialog() {
               onChange={(e) => setOutDir(e.target.value)}
             />
             <Button onClick={() => void browse()}>
-              <FolderOpen size={13} /> Browse
+              <FolderOpen size={13} /> {t('build.browse')}
             </Button>
           </div>
         </div>
 
         <label className="build__opt">
           <input type="checkbox" checked={openFolder} onChange={(e) => setOpenFolder(e.target.checked)} />
-          Open output folder when done
+          {t('build.openFolderWhenDone')}
         </label>
         {def.sourceMaps && (
           <label className="build__opt">
             <input type="checkbox" checked={sourceMaps} onChange={(e) => setSourceMaps(e.target.checked)} />
-            Include source maps
+            {t('build.includeSourceMaps')}
           </label>
         )}
         <label className="build__opt">
           <input type="checkbox" checked={compressTextures} onChange={(e) => setCompressTextures(e.target.checked)} />
-          Compress textures (PNG → KTX2)
+          {t('build.compressTextures')}
         </label>
         <label className="build__opt">
           <input type="checkbox" checked={atlasTextures} onChange={(e) => setAtlasTextures(e.target.checked)} />
-          Pack .atlas folders into atlases
+          {t('build.atlasTextures')}
         </label>
 
         {def.prereq && (
@@ -279,7 +280,7 @@ export function BuildDialog() {
             (defaultScene + packaging.excludeScenes), edited in place. The
             startup scene is pinned: it boots the game, so it always ships. */}
         <div className="build__scenes">
-          <div className="build__scenes-head">Scenes in build</div>
+          <div className="build__scenes-head">{t('build.scenesHead')}</div>
           {sceneList.map((s) => {
             const isEntry = s.path === project?.defaultScene;
             const ships = isEntry || !excludedScenes.has(s.path);
@@ -288,8 +289,8 @@ export function BuildDialog() {
                 <button
                   type="button"
                   className={`build__scene-start${isEntry ? ' is-on' : ''}`}
-                  title={isEntry ? 'Startup scene' : 'Set as startup scene'}
-                  aria-label={isEntry ? 'Startup scene' : `Set ${s.name} as startup scene`}
+                  title={isEntry ? t('build.startupScene') : t('build.setStartupScene')}
+                  aria-label={isEntry ? t('build.startupScene') : t('build.setStartupSceneNamed', { name: s.name })}
                   disabled={running || isEntry}
                   onClick={() => void ProjectStore.setDefaultScene(s.path)}
                 >
@@ -308,9 +309,9 @@ export function BuildDialog() {
               </div>
             );
           })}
-          {sceneList.length === 0 && <div className="build__scenes-empty">No scenes found under the project's scenes folder.</div>}
+          {sceneList.length === 0 && <div className="build__scenes-empty">{t('build.noScenes')}</div>}
           {platform === 'playable' && sceneList.length > 1 && (
-            <div className="build__scenes-note">Playable ships the startup scene only — a size-capped single file.</div>
+            <div className="build__scenes-note">{t('build.playableSingleScene')}</div>
           )}
         </div>
 
@@ -318,14 +319,14 @@ export function BuildDialog() {
           <div className={`build__status ${phase}`}>
             {phase === 'running' && (
               <span className="build__status-line">
-                <Loader2 size={14} className="spin" /> Packaging the {def.label} build…
+                <Loader2 size={14} className="spin" /> {t('build.packagingPlatform', { platform: def.label })}
               </span>
             )}
             {log.length > 0 && (
               <div className="build__logwrap">
                 <div className="build__loghead">
-                  <span className="build__loglabel">Output Log</span>
-                  <button type="button" className="build__copy" title="Copy log" aria-label="Copy log" onClick={copyLog}>
+                  <span className="build__loglabel">{t('build.outputLog')}</span>
+                  <button type="button" className="build__copy" title={t('build.copyLog')} aria-label={t('build.copyLog')} onClick={copyLog}>
                     <Copy size={13} />
                   </button>
                 </div>
@@ -337,18 +338,18 @@ export function BuildDialog() {
             {phase === 'done' && result && (
               <>
                 <span className="build__status-line selectable">
-                  <CheckCircle2 size={14} /> Packaged {result.included} assets{result.bytes ? ` · ${mb(result.bytes)}` : ''} → {result.outDir}
+                  <CheckCircle2 size={14} /> {t('build.packagedSummary', { count: result.included, size: result.bytes ? ` · ${mb(result.bytes)}` : '', out: result.outDir })}
                 </span>
                 <div className="build__next selectable">{def.next(result.outDir)}</div>
                 {result.ok && (
                   <div className="build__actions">
                     {def.httpPreview && (
                       <Button variant="primary" onClick={() => void preview()}>
-                        <ExternalLink size={13} /> Preview over http
+                        <ExternalLink size={13} /> {t('build.previewHttp')}
                       </Button>
                     )}
                     <Button onClick={() => void window.estella.shell?.openPath?.(result.outDir)}>
-                      <FolderOpen size={13} /> Open folder
+                      <FolderOpen size={13} /> {t('build.openFolder')}
                     </Button>
                   </div>
                 )}
@@ -356,11 +357,11 @@ export function BuildDialog() {
             )}
             {phase === 'error' && result && (
               <span className="build__status-line selectable">
-                <AlertCircle size={14} /> {result.errors[0] ?? 'Package failed'}
+                <AlertCircle size={14} /> {result.errors[0] ?? t('build.packageFailed')}
               </span>
             )}
             {result && result.warnings.length > 0 && (
-              <div className="build__warn selectable">{result.warnings.length} warning(s): {result.warnings[0]}</div>
+              <div className="build__warn selectable">{t('build.warnings', { count: result.warnings.length, first: result.warnings[0] })}</div>
             )}
           </div>
         )}

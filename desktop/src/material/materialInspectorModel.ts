@@ -14,20 +14,21 @@
  */
 import { BlendMode, CullMode, Material, type MaterialAssetData, type UniformValue } from 'esengine';
 import type { InspectorComponent, InspectorField, InspectorFieldType, EnumOption, GradientValue, CurveValue, DimensionValue } from '@/types';
+import { t } from '@/i18n';
 import { MaterialDocument } from './MaterialDocument';
 import { reflectEsshader, type ShaderParam, type ShaderReflection } from './shaderReflect';
 
 const BLEND_OPTIONS: EnumOption[] = [
-  { label: 'Normal', value: BlendMode.Normal },
-  { label: 'Additive', value: BlendMode.Additive },
-  { label: 'Multiply', value: BlendMode.Multiply },
-  { label: 'Screen', value: BlendMode.Screen },
-  { label: 'Premultiplied', value: BlendMode.PremultipliedAlpha },
+  { label: t('mat.blendNormal'), value: BlendMode.Normal },
+  { label: t('mat.blendAdditive'), value: BlendMode.Additive },
+  { label: t('mat.blendMultiply'), value: BlendMode.Multiply },
+  { label: t('mat.blendScreen'), value: BlendMode.Screen },
+  { label: t('mat.blendPremultiplied'), value: BlendMode.PremultipliedAlpha },
 ];
 const CULL_OPTIONS: EnumOption[] = [
-  { label: 'None', value: CullMode.None },
-  { label: 'Back', value: CullMode.Back },
-  { label: 'Front', value: CullMode.Front },
+  { label: t('mat.cullNone'), value: CullMode.None },
+  { label: t('mat.cullBack'), value: CullMode.Back },
+  { label: t('mat.cullFront'), value: CullMode.Front },
 ];
 
 const ARITY: Record<string, number> = { float: 1, int: 1, vec2: 2, vec3: 3, vec4: 4, color: 4 };
@@ -180,16 +181,16 @@ export function buildMaterialComponents(asset: MaterialAssetData, ctx: MaterialC
   const out: InspectorComponent[] = [];
 
   const paramFields = ctx.reflection.params.map((p) => paramField(p, asset, ctx.inherited)).filter((f): f is InspectorField => f != null);
-  if (paramFields.length) out.push({ name: 'Parameters', label: 'Parameters', fields: paramFields });
+  if (paramFields.length) out.push({ name: 'Parameters', label: t('mat.parameters'), fields: paramFields });
 
   out.push({
     name: 'Render State',
-    label: 'Render State',
+    label: t('mat.renderState'),
     fields: [
-      { key: 'blendMode', label: 'Blend Mode', type: 'enum', options: BLEND_OPTIONS, value: asset.blendMode ?? BlendMode.Normal, defaultValue: BlendMode.Normal },
-      { key: 'depthTest', label: 'Depth Test', type: 'bool', value: asset.depthTest ?? false, defaultValue: false },
-      { key: 'depthWrite', label: 'Depth Write', type: 'bool', value: asset.depthWrite ?? true, defaultValue: true },
-      { key: 'cull', label: 'Cull', type: 'enum', options: CULL_OPTIONS, value: asset.cull ?? CullMode.None, defaultValue: CullMode.None },
+      { key: 'blendMode', label: t('mat.blendMode'), type: 'enum', options: BLEND_OPTIONS, value: asset.blendMode ?? BlendMode.Normal, defaultValue: BlendMode.Normal },
+      { key: 'depthTest', label: t('mat.depthTest'), type: 'bool', value: asset.depthTest ?? false, defaultValue: false },
+      { key: 'depthWrite', label: t('mat.depthWrite'), type: 'bool', value: asset.depthWrite ?? true, defaultValue: true },
+      { key: 'cull', label: t('mat.cull'), type: 'enum', options: CULL_OPTIONS, value: asset.cull ?? CullMode.None, defaultValue: CullMode.None },
     ],
   });
 

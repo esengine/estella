@@ -8,6 +8,7 @@
  */
 import { useEffect, useState } from 'react';
 import { Minus, Square, Copy, X } from 'lucide-react';
+import { t } from '@/i18n';
 
 export function WindowControls() {
   const win = window.estella?.win;
@@ -24,17 +25,17 @@ export function WindowControls() {
 
   return (
     <div className="winctl">
-      <button className="winctl__btn" title="Minimize" onClick={() => void win.minimize()}>
+      <button className="winctl__btn" title={t('layout.minimize')} onClick={() => void win.minimize()}>
         <Minus size={15} strokeWidth={1.8} />
       </button>
       <button
         className="winctl__btn"
-        title={maximized ? 'Restore' : 'Maximize'}
+        title={maximized ? t('layout.restore') : t('layout.maximize')}
         onClick={() => void win.toggleMaximize()}
       >
         {maximized ? <Copy size={12} strokeWidth={1.8} /> : <Square size={12} strokeWidth={1.8} />}
       </button>
-      <button className="winctl__btn winctl__btn--close" title="Close" onClick={() => void win.close()}>
+      <button className="winctl__btn winctl__btn--close" title={t('ui.close')} onClick={() => void win.close()}>
         <X size={16} strokeWidth={1.8} />
       </button>
     </div>

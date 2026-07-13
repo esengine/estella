@@ -10,6 +10,7 @@ import { EDITOR_MODES } from '@/mode/editorModes';
 import { activeMode } from '@/mode/activeMode';
 import { dockApi } from '@/layout/dockApi';
 import { commands } from '@/commands';
+import { t } from '@/i18n';
 
 export function ActivityBar() {
   const contentDrawer = useEditorStore((s) => s.contentDrawer);
@@ -29,7 +30,7 @@ export function ActivityBar() {
             key={m.id}
             type="button"
             className={`act${current === m.id ? ' active' : ''}`}
-            title={`${m.label} Mode`}
+            title={t(`cmd.mode.${m.id}` as const)}
             onClick={() => commands.run(`mode.${m.id}`)}
           >
             <Icon size={19} strokeWidth={1.7} />
@@ -40,7 +41,7 @@ export function ActivityBar() {
       <button
         type="button"
         className="act"
-        title="Toggle Outliner"
+        title={t('layout.toggleOutliner')}
         onClick={() => dockApi.togglePanelCollapse('outliner')}
       >
         <ListTree size={19} strokeWidth={1.7} />
@@ -48,7 +49,7 @@ export function ActivityBar() {
       <button
         type="button"
         className="act"
-        title="Toggle Details"
+        title={t('layout.toggleDetails')}
         onClick={() => dockApi.togglePanelCollapse('details')}
       >
         <SlidersHorizontal size={19} strokeWidth={1.7} />
@@ -56,7 +57,7 @@ export function ActivityBar() {
       <button
         type="button"
         className={`act${contentDrawer ? ' active' : ''}`}
-        title="Content Drawer  (Ctrl+Space)"
+        title={t('layout.contentDrawerTooltip')}
         onClick={toggleContentDrawer}
       >
         <FolderOpen size={19} strokeWidth={1.7} />
@@ -64,7 +65,7 @@ export function ActivityBar() {
       <button
         type="button"
         className="act"
-        title="Output Log"
+        title={t('layout.panel.outputLog')}
         onClick={() => dockApi.revealAndExpand('log')}
       >
         <Terminal size={19} strokeWidth={1.7} />
@@ -72,7 +73,7 @@ export function ActivityBar() {
       <button
         type="button"
         className="act"
-        title="Sequencer"
+        title={t('layout.panel.sequencer')}
         onClick={() => dockApi.revealAndExpand('sequencer')}
       >
         <Clapperboard size={19} strokeWidth={1.7} />
@@ -80,7 +81,7 @@ export function ActivityBar() {
       <button
         type="button"
         className="act"
-        title="Profiler"
+        title={t('layout.panel.profiler')}
         onClick={() => dockApi.revealAndExpand('profiler')}
       >
         <Gauge size={19} strokeWidth={1.7} />
@@ -91,7 +92,7 @@ export function ActivityBar() {
       <button
         type="button"
         className="act"
-        title="Settings  (Ctrl+,)"
+        title={t('layout.settingsTooltip')}
         onClick={() => commands.run('settings.open')}
       >
         <Settings size={19} strokeWidth={1.7} />

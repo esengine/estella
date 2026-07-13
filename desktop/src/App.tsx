@@ -33,6 +33,7 @@ import { ProjectStore } from '@/project/ProjectStore';
 import { EditorHistory } from '@/engine/EditorHistory';
 import { dockApi } from '@/layout/dockApi';
 import { Toasts } from '@/store/Toasts';
+import { t } from '@/i18n';
 
 // The editor shell: fixed menu + toolbar on top, dockable workspace in the
 // middle, status strip at the bottom.
@@ -132,8 +133,8 @@ export function App() {
     const bridge = window.estella?.app;
     if (!bridge?.onUpdateAvailable) return;
     return bridge.onUpdateAvailable((release) => {
-      Toasts.push(`Estella ${release.version} is available`, 'info', 0, {
-        label: 'Download',
+      Toasts.push(t('toast.updateAvailable', { version: release.version }), 'info', 0, {
+        label: t('ui.download'),
         run: () => window.open(release.url),
       });
     });
@@ -153,7 +154,7 @@ export function App() {
     if (isPlaying) {
       const payload = ProjectStore.playPayload();
       if (!payload) {
-        Toasts.push('Open a scene before playing', 'error');
+        Toasts.push(t('layout.toast.openSceneFirst'), 'error');
         useEditorStore.getState().stop();
         return;
       }

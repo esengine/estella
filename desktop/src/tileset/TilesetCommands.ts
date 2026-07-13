@@ -11,6 +11,7 @@ import { serializeTileset } from 'esengine';
 import type { TilesetAsset, TilesetTerrain, TerrainMode, TilesetAnimFrame } from 'esengine';
 import { TilesetDocument } from './TilesetDocument';
 import { Toasts } from '@/store/Toasts';
+import { t } from '@/i18n';
 
 type GridPatch = Partial<Pick<TilesetAsset, 'tileWidth' | 'tileHeight' | 'margin' | 'spacing' | 'columns'>>;
 
@@ -144,9 +145,9 @@ export const TilesetCommands = {
     try {
       await window.estella.fs.write(path, JSON.stringify(serializeTileset(asset), null, 2) + '\n');
       TilesetDocument.markSaved();
-      Toasts.push('Tileset saved', 'info');
+      Toasts.push(t('tile.toast.saved'), 'info');
     } catch (e) {
-      Toasts.push(`Failed to save tileset: ${String(e)}`, 'error');
+      Toasts.push(t('tile.toast.saveFailed', { error: String(e) }), 'error');
     }
   },
 };

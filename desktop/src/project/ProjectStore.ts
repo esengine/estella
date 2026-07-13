@@ -185,7 +185,7 @@ class ProjectStoreImpl {
       await this.adopted(opened);
       return true;
     } catch (e) {
-      Toasts.push(`Could not open project: ${e instanceof Error ? e.message : String(e)}`, 'error');
+      Toasts.push(t('proj.openFailed', { message: e instanceof Error ? e.message : String(e) }), 'error');
       return false;
     }
   }
@@ -198,7 +198,7 @@ class ProjectStoreImpl {
       await this.adopted(await bridge.project.open(root));
       return true;
     } catch (e) {
-      Toasts.push(`Could not open project: ${e instanceof Error ? e.message : String(e)}`, 'error');
+      Toasts.push(t('proj.openFailed', { message: e instanceof Error ? e.message : String(e) }), 'error');
       return false;
     }
   }
@@ -539,7 +539,7 @@ class ProjectStoreImpl {
     const ref = UUID_PREFIX + uuid;
     const prefab = await this.loadPrefabAsset(ref);
     if (!prefab) {
-      Toasts.push(`Could not load prefab: ${path.split('/').pop() ?? path}`, 'error');
+      Toasts.push(t('proj.prefabLoadFailed', { name: path.split('/').pop() ?? path }), 'error');
       return null;
     }
     const rootId = SceneCommands.instantiatePrefab(prefab, ref, parent, position);
@@ -569,7 +569,7 @@ class ProjectStoreImpl {
         build: async () => {
           const p = await this.loadPrefabAsset(ref);
           if (!p) {
-            Toasts.push(`Could not load prefab: ${name}`, 'error');
+            Toasts.push(t('proj.prefabLoadFailed', { name }), 'error');
             throw new Error('prefab load failed');
           }
           return p;
@@ -628,7 +628,7 @@ class ProjectStoreImpl {
     if (!info) return null;
     const oldPrefab = await this.loadPrefabAsset(ref);
     if (!oldPrefab) {
-      Toasts.push(`Could not load prefab: ${info.path.split('/').pop() ?? info.path}`, 'error');
+      Toasts.push(t('proj.prefabLoadFailed', { name: info.path.split('/').pop() ?? info.path }), 'error');
       return null;
     }
 
@@ -654,7 +654,7 @@ class ProjectStoreImpl {
     const overrides = diffAgainstSource(oldPrefab, processed).overrides
       .filter((o) => o.type !== 'metadata_set' && o.type !== 'metadata_removed');
     if (overrides.length === 0) {
-      Toasts.push('No overrides to apply', 'info');
+      Toasts.push(t('proj.noOverrides'), 'info');
       return instanceRoot;
     }
     const newPrefab = applyOverridesToSource(oldPrefab, overrides);
@@ -662,7 +662,7 @@ class ProjectStoreImpl {
     try {
       await window.estella.fs.write(info.path, JSON.stringify(newPrefab, null, 2) + '\n');
     } catch (err) {
-      Toasts.push(`Apply failed: could not write ${info.path.split('/').pop() ?? info.path}`, 'error');
+      Toasts.push(t('proj.applyWriteFailed', { name: info.path.split('/').pop() ?? info.path }), 'error');
       return null;
     }
     this.prefabCache.set(ref, newPrefab);
@@ -670,7 +670,13 @@ class ProjectStoreImpl {
     // Re-sync this instance to the updated base so its (now-applied) overrides
     // clear — reuses the proven delete + re-instantiate path.
     const newRoot = await this.revertPrefabInstance(instanceRoot);
-    Toasts.push(`Applied ${overrides.length} override${overrides.length === 1 ? '' : 's'} to ${info.path.split('/').pop() ?? info.path}`, 'success');
+    Toasts.push(
+      t(overrides.length === 1 ? 'proj.appliedOverride' : 'proj.appliedOverrides', {
+        count: overrides.length,
+        name: info.path.split('/').pop() ?? info.path,
+      }),
+      'success',
+    );
     return newRoot;
   }
 
@@ -733,12 +739,12 @@ class ProjectStoreImpl {
       );
     } catch (err) {
       console.warn('[project] prefab write failed', rel, err);
-      Toasts.push(`Failed to create prefab: ${base}`, 'error');
+      Toasts.push(t('proj.prefabCreateFailed', { name: base }), 'error');
       return null;
     }
 
     await this.buildAssetRegistry(); // re-scan so the new prefab is tracked + draggable
-    Toasts.push(`Created prefab: ${rel.split('/').pop()}`, 'info');
+    Toasts.push(t('proj.prefabCreated', { name: rel.split('/').pop() ?? rel }), 'info');
     return UUID_PREFIX + uuid;
   }
 
@@ -873,7 +879,7 @@ class ProjectStoreImpl {
       raw.features = { ...((raw.features as Record<string, unknown>) ?? {}), rendering };
       await window.estella.fs.write(PROJECT_MANIFEST_FILE, JSON.stringify(raw, null, 2) + '\n');
     } catch (e) {
-      Toasts.push('Failed to save sorting layers', 'error');
+      Toasts.push(t('proj.saveSortingLayersFailed'), 'error');
       console.error('[project] setRendering write failed', e);
     }
   }
@@ -896,7 +902,7 @@ class ProjectStoreImpl {
       raw.designResolution = designResolution;
       await window.estella.fs.write(PROJECT_MANIFEST_FILE, JSON.stringify(raw, null, 2) + '\n');
     } catch (e) {
-      Toasts.push('Failed to save design resolution', 'error');
+      Toasts.push(t('proj.saveDesignResolutionFailed'), 'error');
       console.error('[project] setDisplay write failed', e);
     }
   }
@@ -922,7 +928,7 @@ class ProjectStoreImpl {
       raw.packaging = packaging;
       await window.estella.fs.write(PROJECT_MANIFEST_FILE, JSON.stringify(raw, null, 2) + '\n');
     } catch (e) {
-      Toasts.push('Failed to save packaging settings', 'error');
+      Toasts.push(t('proj.savePackagingFailed'), 'error');
       console.error('[project] setPackaging write failed', e);
     }
   }
@@ -948,7 +954,7 @@ class ProjectStoreImpl {
       raw.packaging = packaging;
       await window.estella.fs.write(PROJECT_MANIFEST_FILE, JSON.stringify(raw, null, 2) + '\n');
     } catch (e) {
-      Toasts.push('Failed to save platform settings', 'error');
+      Toasts.push(t('proj.savePlatformFailed'), 'error');
       console.error('[project] setPlatformPackaging write failed', e);
     }
   }
@@ -971,7 +977,7 @@ class ProjectStoreImpl {
       raw.features = { ...(raw.features as Record<string, unknown> ?? {}), physics };
       await window.estella.fs.write(PROJECT_MANIFEST_FILE, JSON.stringify(raw, null, 2) + '\n');
     } catch (e) {
-      Toasts.push('Failed to save physics setting', 'error');
+      Toasts.push(t('proj.savePhysicsFailed'), 'error');
       console.error('[project] setPhysics write failed', e);
     }
   }
@@ -1000,9 +1006,9 @@ class ProjectStoreImpl {
         raw.packaging = rawPkg;
       }
       await window.estella.fs.write(PROJECT_MANIFEST_FILE, JSON.stringify(raw, null, 2) + '\n');
-      Toasts.push(`Startup scene: ${path.split('/').pop()}`, 'info');
+      Toasts.push(t('proj.startupScene', { name: path.split('/').pop() ?? path }), 'info');
     } catch (e) {
-      Toasts.push('Failed to save startup scene', 'error');
+      Toasts.push(t('proj.saveStartupSceneFailed'), 'error');
       console.error('[project] setDefaultScene write failed', e);
     }
   }
@@ -1041,10 +1047,10 @@ class ProjectStoreImpl {
       else delete rawPkg.excludeScenes;
       raw.packaging = rawPkg;
       await window.estella.fs.write(PROJECT_MANIFEST_FILE, JSON.stringify(raw, null, 2) + '\n');
-      const leaf = path.split('/').pop();
-      Toasts.push(excluded ? `Excluded from export: ${leaf}` : `Included in export: ${leaf}`, 'info');
+      const leaf = path.split('/').pop() ?? path;
+      Toasts.push(t(excluded ? 'proj.excludedFromExport' : 'proj.includedInExport', { name: leaf }), 'info');
     } catch (e) {
-      Toasts.push('Failed to save export exclusion', 'error');
+      Toasts.push(t('proj.saveExclusionFailed'), 'error');
       console.error('[project] setSceneExcluded write failed', e);
     }
   }
@@ -1143,7 +1149,7 @@ class ProjectStoreImpl {
     if (!this.state) return;
     await this.persistLastScene(relPath);
     await this.loadCurrentScene();
-    Toasts.push(`Opened ${relPath.split('/').pop() ?? relPath}`, 'info', 1600);
+    Toasts.push(t('proj.openedScene', { name: relPath.split('/').pop() ?? relPath }), 'info', 1600);
   }
 
   /** True if the changed paths include the open scene document. */
@@ -1203,7 +1209,7 @@ class ProjectStoreImpl {
     await this.writeScene(st.currentScene, await this.serializeCurrent());
     await this.persistLastScene(st.currentScene);
     EditorHistory.markSaved();
-    Toasts.push(`Saved ${st.currentScene.split('/').pop()}`, 'success');
+    Toasts.push(t('proj.savedScene', { name: st.currentScene.split('/').pop() ?? st.currentScene }), 'success');
     void this.captureThumbnail();
   }
 
@@ -1213,7 +1219,7 @@ class ProjectStoreImpl {
     await this.writeScene(relPath, await this.serializeCurrent());
     await this.persistLastScene(relPath);
     EditorHistory.markSaved();
-    Toasts.push(`Saved ${relPath.split('/').pop()}`, 'success');
+    Toasts.push(t('proj.savedScene', { name: relPath.split('/').pop() ?? relPath }), 'success');
     void this.captureThumbnail();
   }
 

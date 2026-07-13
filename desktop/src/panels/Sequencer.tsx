@@ -18,6 +18,7 @@ import {
   Play, Pause, Repeat, Magnet, Plus, ChevronDown, Eye, EyeOff, Diamond, Film, Link2, Save, Trash2, Settings2,
 } from 'lucide-react';
 import { evaluateChannel, InterpType, WrapMode } from 'esengine';
+import { t } from '@/i18n';
 import { animatableFieldsFor } from '@/engine/schema';
 import { TimelineDocument } from '@/timeline/TimelineDocument';
 import { createAnimationClip } from '@/timeline/openClip';
@@ -37,16 +38,16 @@ import {
 
 // Interpolation choices shown in the keyframe popover (subset of InterpType).
 const INTERP_OPTIONS: [InterpType, string][] = [
-  [InterpType.Hermite, 'Auto (smooth)'],
-  [InterpType.Linear, 'Linear'],
-  [InterpType.Step, 'Step (constant)'],
-  [InterpType.EaseInOut, 'Ease in-out'],
+  [InterpType.Hermite, t('seq.interp.auto')],
+  [InterpType.Linear, t('seq.interp.linear')],
+  [InterpType.Step, t('seq.interp.step')],
+  [InterpType.EaseInOut, t('seq.interp.easeInOut')],
 ];
 
 const WRAP_OPTIONS: [WrapMode, string][] = [
-  [WrapMode.Once, 'Once'],
-  [WrapMode.Loop, 'Loop'],
-  [WrapMode.PingPong, 'Ping-pong'],
+  [WrapMode.Once, t('seq.wrap.once')],
+  [WrapMode.Loop, t('seq.wrap.loop')],
+  [WrapMode.PingPong, t('seq.wrap.pingPong')],
 ];
 
 function getNested(obj: unknown, path: string): number {
@@ -88,15 +89,15 @@ function EmptyState() {
   return (
     <div className="seq-empty">
       <Film size={30} strokeWidth={1.3} />
-      <div className="seq-empty__title">No animation open</div>
-      <div className="seq-empty__hint">Create a new animation, or double-click an existing .esanim in the Content Browser.</div>
+      <div className="seq-empty__title">{t('seq.empty.title')}</div>
+      <div className="seq-empty__hint">{t('seq.empty.hint')}</div>
       <button type="button" className="seq-btn seq-btn--text on" onClick={() => void createAnimationClip('')}>
-        <Plus size={14} /><span>New animation</span>
+        <Plus size={14} /><span>{t('seq.empty.new')}</span>
       </button>
       <ol className="seq-empty__steps">
-        <li>Select an object in the scene, then click Bind in the toolbar to attach the preview to it</li>
-        <li>Turn on Record, then move/rotate it or edit properties — keyframes are recorded automatically</li>
-        <li>Drag the playhead to preview, then click Save to write back to the file</li>
+        <li>{t('seq.empty.step1')}</li>
+        <li>{t('seq.empty.step2')}</li>
+        <li>{t('seq.empty.step3')}</li>
       </ol>
     </div>
   );
@@ -346,65 +347,65 @@ function SequencerBody() {
       <div className="phead seq-bar">
         <span className="seq-meta">
           <Film size={13} className="seq-meta__icon" />
-          <b>{TimelineDocument.meta.filePath?.split('/').pop() ?? 'Unnamed'}</b>
-          <span className="seq-meta__dim">· {totalFrames} frames · {fps}fps · {loop ? 'Loop' : 'Once'}</span>
+          <b>{TimelineDocument.meta.filePath?.split('/').pop() ?? t('seq.unnamed')}</b>
+          <span className="seq-meta__dim">{t('seq.metaSummary', { frames: totalFrames, fps, wrap: t(loop ? 'seq.wrap.loop' : 'seq.wrap.once') })}</span>
         </span>
         <button
           type="button"
           className={`seq-btn seq-btn--text${rootName ? ' on' : ''}`}
-          title="Bind preview to the selected entity"
+          title={t('seq.bindTitle')}
           onClick={() => TimelineDocument.setRootEntity(useSelection.getState().selectedId)}
         >
-          <Link2 size={13} /><span>{rootName ?? 'Unbound'}</span>
+          <Link2 size={13} /><span>{rootName ?? t('seq.unbound')}</span>
         </button>
         <span className="seq-div" />
         <button
           type="button"
           className={`seq-btn seq-btn--rec${recording ? ' on' : ''}`}
-          title="Record: property edits auto-key"
+          title={t('seq.recordTitle')}
           onClick={() => useSequencerStore.getState().toggleRecording()}
         >
           <Circle size={12} fill="currentColor" />
         </button>
         <span className="seq-div" />
-        <IconButton size="md" title="Jump to start" onClick={() => setTime(0)}><ChevronFirst size={15} /></IconButton>
-        <IconButton size="md" title="Previous keyframe" onClick={() => jumpKey(-1)}><ChevronLeft size={15} /></IconButton>
+        <IconButton size="md" title={t('seq.jumpStart')} onClick={() => setTime(0)}><ChevronFirst size={15} /></IconButton>
+        <IconButton size="md" title={t('seq.prevKeyframe')} onClick={() => jumpKey(-1)}><ChevronLeft size={15} /></IconButton>
         <button
           type="button"
           className="seq-btn seq-btn--play"
-          title="Play / pause (Space)"
+          title={t('seq.playPause')}
           onClick={() => useSequencerStore.getState().togglePlay()}
         >
           {playing ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
         </button>
-        <IconButton size="md" title="Next keyframe" onClick={() => jumpKey(1)}><ChevronRight size={15} /></IconButton>
-        <IconButton size="md" title="Jump to end" onClick={() => setTime(duration)}><ChevronLast size={15} /></IconButton>
+        <IconButton size="md" title={t('seq.nextKeyframe')} onClick={() => jumpKey(1)}><ChevronRight size={15} /></IconButton>
+        <IconButton size="md" title={t('seq.jumpEnd')} onClick={() => setTime(duration)}><ChevronLast size={15} /></IconButton>
         <IconButton
           size="md"
           active={loop}
-          title="Loop"
+          title={t('seq.wrap.loop')}
           onClick={() => useSequencerStore.getState().toggleLoop()}
         >
           <Repeat size={14} />
         </IconButton>
         <span className="seq-div" />
-        <span className="seq-frame">Frame <strong>{frame}</strong> / {totalFrames}</span>
+        <span className="seq-frame">{t('seq.frameWord')} <strong>{frame}</strong> / {totalFrames}</span>
         <span className="seq-spacer" />
         <div className="seq-tabs">
-          <button type="button" className={`seq-tab${view === 'sheet' ? ' active' : ''}`} onClick={() => useSequencerStore.getState().setView('sheet')}>Sheet</button>
-          <button type="button" className={`seq-tab${view === 'curve' ? ' active' : ''}`} onClick={() => useSequencerStore.getState().setView('curve')}>Curves</button>
+          <button type="button" className={`seq-tab${view === 'sheet' ? ' active' : ''}`} onClick={() => useSequencerStore.getState().setView('sheet')}>{t('seq.tabSheet')}</button>
+          <button type="button" className={`seq-tab${view === 'curve' ? ' active' : ''}`} onClick={() => useSequencerStore.getState().setView('curve')}>{t('seq.tabCurves')}</button>
         </div>
         <IconButton
           size="md"
           active={snap}
-          title="Snap to frame"
+          title={t('seq.snapTitle')}
           onClick={() => useSequencerStore.getState().toggleSnap()}
         >
           <Magnet size={14} />
         </IconButton>
         <IconButton
           size="md"
-          title="Clip settings (duration / fps / loop)"
+          title={t('seq.settingsTitle')}
           onClick={(e) => setSettingsOpen(popoverAt(e))}
         >
           <Settings2 size={14} />
@@ -412,26 +413,26 @@ function SequencerBody() {
         <button
           type="button"
           className="seq-btn seq-btn--text"
-          title="Add track"
+          title={t('seq.addTrack')}
           disabled={root == null}
           onClick={(e) => setPickerOpen(popoverAt(e))}
         >
-          <Plus size={14} /><span>Track</span>
+          <Plus size={14} /><span>{t('seq.trackBtn')}</span>
         </button>
         <button
           type="button"
           className={`seq-btn seq-btn--text${TimelineDocument.meta.dirty ? ' on' : ''}`}
-          title="Save animation"
+          title={t('seq.saveTitle')}
           onClick={() => void TimelineCommands.save()}
         >
-          <Save size={14} /><span>Save{TimelineDocument.meta.dirty && <DirtyDot />}</span>
+          <Save size={14} /><span>{t('seq.save')}{TimelineDocument.meta.dirty && <DirtyDot />}</span>
         </button>
       </div>
 
       {/* body: track list + timeline */}
       <div className="seq-body">
         <div className="seq-tracks">
-          <div className="seq-track-head">Tracks</div>
+          <div className="seq-track-head">{t('seq.tracksHead')}</div>
           <div className="seq-rows">
             {shown.map((row) => (
               <TrackRow
@@ -471,17 +472,17 @@ function SequencerBody() {
                     key={row.id}
                     className={`seq-lane seq-lane--${row.kind}${row.ref && mutedTracks.has(muteKey(row.ref)) ? ' muted' : ''}`}
                   >
-                    {row.keyframes.map((t) => {
-                      const isDrag = dragKey?.rowId === row.id && Math.abs(dragKey.fromTime - t) < 1e-4;
-                      const at = isDrag ? dragKey!.time : t;
-                      const sel = selectedKey === `${row.id}@${t}`;
+                    {row.keyframes.map((kt) => {
+                      const isDrag = dragKey?.rowId === row.id && Math.abs(dragKey.fromTime - kt) < 1e-4;
+                      const at = isDrag ? dragKey!.time : kt;
+                      const sel = selectedKey === `${row.id}@${kt}`;
                       return (
                         <div
-                          key={t}
+                          key={kt}
                           className={`seq-key${sel ? ' sel' : ''}${isDrag ? ' drag' : ''}`}
                           style={{ left: `${timeToPct(at, duration)}%` }}
-                          title={`Frame ${Math.round(at * fps)}`}
-                          onPointerDown={row.ref ? (e) => onKeyPointerDown(e, row.ref!, row.id, t) : undefined}
+                          title={t('seq.frameTip', { frame: Math.round(at * fps) })}
+                          onPointerDown={row.ref ? (e) => onKeyPointerDown(e, row.ref!, row.id, kt) : undefined}
                         />
                       );
                     })}
@@ -511,9 +512,9 @@ function SequencerBody() {
         <>
           <div className="seq-pop-scrim" onPointerDown={() => setPickerOpen(null)} />
           <div className="seq-picker" style={{ left: pickerOpen.x, top: pickerOpen.y }}>
-            <div className="seq-interp__title">Add track</div>
+            <div className="seq-interp__title">{t('seq.addTrack')}</div>
             {addTrackItems.length === 0 ? (
-              <div className="empty-line empty-line--sm">No animatable properties to add</div>
+              <div className="empty-line empty-line--sm">{t('seq.noAnimatable')}</div>
             ) : (
               addTrackItems.map((it) => (
                 <button
@@ -539,17 +540,17 @@ function SequencerBody() {
         <>
           <div className="seq-pop-scrim" onPointerDown={() => setSettingsOpen(null)} />
           <div className="seq-settings" style={{ left: settingsOpen.x, top: settingsOpen.y }}>
-            <div className="seq-interp__title">Clip settings</div>
+            <div className="seq-interp__title">{t('seq.clipSettings')}</div>
             <label className="seq-settings__row">
-              <span>Duration (s)</span>
+              <span>{t('seq.durationS')}</span>
               <NumField value={duration} onCommit={(n) => TimelineCommands.setDuration(Math.max(0, n))} />
             </label>
             <label className="seq-settings__row">
-              <span>Frame rate (fps)</span>
+              <span>{t('seq.frameRateFps')}</span>
               <NumField value={fps} onCommit={(n) => TimelineDocument.setFps(Math.max(1, Math.round(n)))} />
             </label>
             <div className="seq-settings__row">
-              <span>Loop</span>
+              <span>{t('seq.wrap.loop')}</span>
               <div className="seq-settings__wrap">
                 {WRAP_OPTIONS.map(([mode, label]) => (
                   <button
@@ -575,7 +576,7 @@ function SequencerBody() {
           items={
             [
               {
-                label: 'Delete track',
+                label: t('seq.deleteTrack'),
                 onClick: () => {
                   TimelineCommands.removeChannel(rowCtx.ref);
                   useSequencerStore.getState().selectKey(null);
@@ -592,7 +593,7 @@ function SequencerBody() {
         <>
           <div className="seq-pop-scrim" onPointerDown={() => setInterpPopover(null)} />
           <div className="seq-interp" style={{ left: interp.x, top: interp.y }}>
-            <div className="seq-interp__title">Interpolation</div>
+            <div className="seq-interp__title">{t('seq.interpTitle')}</div>
             {INTERP_OPTIONS.map(([mode, label]) => (
               <button
                 key={mode}
@@ -616,7 +617,7 @@ function SequencerBody() {
                 setInterpPopover(null);
               }}
             >
-              <Trash2 size={12} /> Delete keyframe
+              <Trash2 size={12} /> {t('seq.deleteKeyframe')}
             </button>
           </div>
         </>
@@ -625,9 +626,9 @@ function SequencerBody() {
       {/* status strip */}
       <div className="seq-foot">
         <span className="seq-foot__dot" />
-        <span>{recording ? '● Recording' : 'Animation edit'}</span>
+        <span>{recording ? t('seq.footRecording') : t('seq.footIdle')}</span>
         <span className="seq-spacer" />
-        <span><strong>{keyCount}</strong> keys · {trackCount} tracks</span>
+        <span><strong>{keyCount}</strong> {t('seq.keysUnit')} · {trackCount} {t('seq.tracksUnit')}</span>
       </div>
     </div>
   );
@@ -674,7 +675,7 @@ function TrackRow({
           <button
             type="button"
             className="seq-row__btn"
-            title="Key at playhead"
+            title={t('seq.keyAtPlayhead')}
             onClick={(e) => {
               e.stopPropagation();
               onAddKey(row.ref!);
@@ -685,7 +686,7 @@ function TrackRow({
           <button
             type="button"
             className={`seq-row__btn${muted ? ' on' : ''}`}
-            title={muted ? 'Unmute track' : 'Mute track'}
+            title={muted ? t('seq.unmuteTrack') : t('seq.muteTrack')}
             onClick={(e) => {
               e.stopPropagation();
               useSequencerStore.getState().toggleMute(muteKey(row.ref!));
