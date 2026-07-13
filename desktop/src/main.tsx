@@ -43,7 +43,7 @@ import { dockApi } from './layout/dockApi';
 import { EditorControlSurface } from './engine/EditorSession';
 import { SceneModel } from './engine/SceneModel';
 import { EngineHost } from './engine/EngineHost';
-import { UINode, UIVisual, Particle } from 'esengine';
+import { Particle, getComponent } from 'esengine';
 import { applyFxPreview, initFxPreviewEditRestart } from './engine/fxPreview';
 import { commands } from './commands/registry';
 import { ViewportController } from './engine/ViewportController';
@@ -119,11 +119,11 @@ if (new URLSearchParams(location.search).has('automation')) {
     /** The LIVE World component data for a SOURCE entity — for verifying that a
      *  model edit actually reached the engine (vs stayed model-only). */
     runtimeFor: (id: number) => SceneModel.runtimeFor(id),
-    worldComp: (id: number, comp: 'UINode' | 'UIVisual') => {
+    worldComp: (id: number, comp: string) => {
       const rt = SceneModel.runtimeFor(id);
       const w = EngineHost.world;
-      const def = comp === 'UINode' ? UINode : UIVisual;
-      return rt != null && w?.has(rt, def) ? w.get(rt, def) : null;
+      const def = getComponent(comp);
+      return rt != null && def && w?.has(rt, def) ? w.get(rt, def) : null;
     },
     pickAt: (cx: number, cy: number) =>
       ViewportController.pickEntitiesAt(cx, cy).map((rt) => ({ rt, src: SceneModel.sourceFor(rt) })),
