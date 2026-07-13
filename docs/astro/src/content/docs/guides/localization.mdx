@@ -87,7 +87,10 @@ locale's catalog, so a game loads only the languages it needs.
 ```
 
 Create one in the editor (Content Browser → right-click → **New Locale Table**) or
-by hand. Load explicitly with `Assets.loadLocaleTable(path)` (requires the
+by hand. **Selecting a table turns the Details panel into its editor**: key/text
+rows (with plural forms), a dimmed reference translation from the project's other
+tables, and a missing-key list you backfill with one click — every edit saves
+immediately. Load explicitly with `Assets.loadLocaleTable(path)` (requires the
 localization plugin — it fails loud otherwise), preload via
 `new LocalizationPlugin({ tables: ['assets/i18n/zh-CN.eslocale'] })`, or let the
 [Text binding below](#bind-ui-text-to-keys) load everything automatically. The

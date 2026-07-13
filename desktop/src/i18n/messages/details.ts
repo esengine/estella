@@ -137,6 +137,27 @@ export const detailsMessages = defineMessages({
     'det.bindRight': { en: 'Right', zh: '右' },
     'det.stickAria': { en: 'Stick', zh: '摇杆' },
 
+    // — Locale-table asset editor (.eslocale, embedded in the inspector) —
+    'det.localeStrings': { en: 'Strings', zh: '字符串' },
+    'det.addKey': { en: '+ Key', zh: '+ 键' },
+    'det.localeTag': { en: 'Locale', zh: '语言' },
+    'det.noStrings': {
+        en: 'No strings yet — add a key, or backfill from the other tables below.',
+        zh: '还没有字符串——添加一个键，或从下方其他表补齐。',
+    },
+    'det.toPlural': { en: 'Convert to plural forms', zh: '转为复数形式' },
+    'det.toSingle': { en: 'Collapse to a single string (keeps “other”)', zh: '折叠为单条字符串（保留 other）' },
+    'det.removeEntry': { en: 'Remove key', zh: '移除键' },
+    'det.removeForm': { en: 'Remove form', zh: '移除形式' },
+    'det.addForm': { en: '+ form', zh: '+ 形式' },
+    'det.pluralFormAria': { en: 'Add plural form', zh: '添加复数形式' },
+    'det.missingKeys': { en: 'Missing here — in other tables', zh: '本表缺失——其他表已有' },
+    'det.addMissingKey': { en: 'Add this key', zh: '补齐此键' },
+    'det.localeParseError': {
+        en: 'This table has a syntax error — fix the file externally, then reselect it.',
+        zh: '此表存在语法错误——请在外部修复文件后重新选中。',
+    },
+
     // — Generic asset inspector (import settings + metadata) —
     'det.importSettings': { en: 'Import Settings', zh: '导入设置' },
     'det.saveImportTip': { en: 'Save import settings', zh: '保存导入设置' },

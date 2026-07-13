@@ -44,10 +44,11 @@ import { InspectorClipboard } from '@/engine/inspectorClipboard';
 import { SceneCommands, toModelValue } from '@/engine/SceneCommands';
 import { ENTITY_SOURCES, createFromSource } from '@/engine/entitySources';
 import { PlayInspect } from '@/engine/PlayInspect';
-import { DimensionUnit, AnchorAxis, detectAnchor, UIPositionType } from 'esengine';
-import type { SceneData, InputMapAsset, ActionType, Binding } from 'esengine';
+import { DimensionUnit, AnchorAxis, detectAnchor, UIPositionType, parseLocaleTable } from 'esengine';
+import type { SceneData, InputMapAsset, ActionType, Binding, LocaleTableAsset, PluralCategory } from 'esengine';
 import { modelAddableComponentEntries, subscribeSchemas, getSchemaRevision, prettyLabel, hexToRgba, dynamicEnumOptions, boxGroupsFor, type BoxGroupDef } from '@/engine/schema';
 import * as imap from '@/project/inputMapDoc';
+import * as ldoc from '@/project/localeTableDoc';
 import { buildImporterComponent, applyImporterEdit } from '@/project/assetImporter';
 import { referencingPaths } from '@/project/assetRefs';
 import { ProjectStore } from '@/project/ProjectStore';
@@ -1901,6 +1902,206 @@ function InputMapAssetInspector({ path }: { path: string }) {
   );
 }
 
+// The .eslocale editor, embedded in the unified inspector (the input-map
+// precedent): edits the SAME JSON the runtime's LocaleAssetLoader reads, saving
+// on every edit. The project's OTHER tables provide a dimmed reference
+// translation per key plus a missing-key backfill list — the translator's
+// actual workflow. A syntax error shows read-only guidance instead of an
+// editor whose first save would clobber the file.
+function LocaleTableAssetInspector({ path }: { path: string }) {
+  const [table, setTable] = useState<LocaleTableAsset | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  // key → (locale → text) across the project's other .eslocale tables.
+  const [siblings, setSiblings] = useState<Map<string, Map<string, string>> | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    setTable(null);
+    setLoadError(null);
+    void window.estella.fs
+      .read(path)
+      .then((text) => {
+        if (!alive) return;
+        try {
+          setTable(parseLocaleTable(text, path));
+        } catch (e) {
+          setLoadError(e instanceof Error ? e.message : String(e));
+        }
+      })
+      .catch((e) => alive && setLoadError(e instanceof Error ? e.message : String(e)));
+    return () => {
+      alive = false;
+    };
+  }, [path]);
+
+  useEffect(() => {
+    let alive = true;
+    setSiblings(null);
+    void (async () => {
+      const map = new Map<string, Map<string, string>>();
+      for (const asset of ProjectStore.listAssets('locale')) {
+        if (asset.path === path) continue;
+        try {
+          const sib = parseLocaleTable(await window.estella.fs.read(asset.path), asset.path);
+          for (const [key, entry] of Object.entries(sib.entries)) {
+            let byLocale = map.get(key);
+            if (!byLocale) {
+              byLocale = new Map();
+              map.set(key, byLocale);
+            }
+            byLocale.set(sib.locale, typeof entry === 'string' ? entry : entry.other);
+          }
+        } catch {
+          /* malformed sibling — selecting IT surfaces the error */
+        }
+      }
+      if (alive) setSiblings(map);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [path]);
+
+  if (loadError) {
+    return (
+      <div className="insp input-map">
+        <div className="empty-line">{t('det.localeParseError')}</div>
+        <div className="lt-ref" title={loadError}>{loadError}</div>
+      </div>
+    );
+  }
+  if (!table) return <div className="insp"><div className="empty-line">{t('det.loading')}</div></div>;
+
+  const commit = (next: LocaleTableAsset) => {
+    setTable(next);
+    void window.estella.fs.write(path, ldoc.serializeLocaleTable(next));
+  };
+  const uniqueKey = () => {
+    let n = 'new.key';
+    for (let i = 2; table.entries[n] !== undefined; i++) n = `new.key${i}`;
+    return n;
+  };
+  // Reference language for a key: 'en' when this table isn't en, else the
+  // first other locale that carries it.
+  const refFor = (key: string): { tag: string; text: string } | null => {
+    const byLocale = siblings?.get(key);
+    if (!byLocale || byLocale.size === 0) return null;
+    const tag = table.locale !== 'en' && byLocale.has('en')
+      ? 'en'
+      : ([...byLocale.keys()].find((l) => l !== table.locale) ?? [...byLocale.keys()][0]);
+    return { tag, text: byLocale.get(tag)! };
+  };
+  const missing = siblings ? [...siblings.keys()].filter((k) => table.entries[k] === undefined).sort() : [];
+  const entries = Object.entries(table.entries);
+
+  return (
+    <div className="insp input-map">
+      <div className="im-head">
+        <span>{t('det.localeStrings')}</span>
+        <button type="button" className="im-add" onClick={() => commit(ldoc.addEntry(table, uniqueKey()))}>{t('det.addKey')}</button>
+      </div>
+      <div className="im-action">
+        <div className="im-action-head">
+          <span className="lt-form">{t('det.localeTag')}</span>
+          <input
+            className="im-name"
+            key={table.locale}
+            defaultValue={table.locale}
+            spellCheck={false}
+            onBlur={(e) => {
+              if (e.target.value.trim() && e.target.value !== table.locale) commit(ldoc.setLocaleTag(table, e.target.value));
+            }}
+          />
+        </div>
+      </div>
+      {entries.length === 0 && <div className="empty-line">{t('det.noStrings')}</div>}
+      {entries.map(([key, entry]) => {
+        const ref = refFor(key);
+        const plural = typeof entry !== 'string';
+        return (
+          <div className="im-action" key={key}>
+            <div className="im-action-head">
+              <input
+                className="im-name"
+                key={key}
+                defaultValue={key}
+                spellCheck={false}
+                onBlur={(e) => {
+                  if (e.target.value.trim() && e.target.value !== key) commit(ldoc.renameEntry(table, key, e.target.value));
+                }}
+              />
+              <button
+                type="button"
+                className="im-x"
+                title={plural ? t('det.toSingle') : t('det.toPlural')}
+                onClick={() => commit(plural ? ldoc.toSingle(table, key) : ldoc.toPlural(table, key))}
+              >
+                {plural ? '1' : 'N'}
+              </button>
+              <button type="button" className="im-x" title={t('det.removeEntry')} onClick={() => commit(ldoc.removeEntry(table, key))}>×</button>
+            </div>
+            {!plural ? (
+              <input
+                className="im-in lt-text"
+                key={`${key}:s`}
+                defaultValue={entry}
+                spellCheck={false}
+                onBlur={(e) => commit(ldoc.setEntryText(table, key, e.target.value))}
+              />
+            ) : (
+              <>
+                {ldoc.PLURAL_CATEGORIES.filter((c) => entry[c] !== undefined).map((c) => (
+                  <div className="im-binding" key={c}>
+                    <span className="lt-form">{c}</span>
+                    <input
+                      className="im-in lt-text"
+                      key={`${key}:${c}`}
+                      defaultValue={entry[c]}
+                      spellCheck={false}
+                      onBlur={(e) => commit(ldoc.setPluralForm(table, key, c, e.target.value))}
+                    />
+                    {c !== 'other' && (
+                      <button type="button" className="im-x" title={t('det.removeForm')} onClick={() => commit(ldoc.removePluralForm(table, key, c))}>×</button>
+                    )}
+                  </div>
+                ))}
+                {ldoc.absentPluralForms(entry).length > 0 && (
+                  <Select
+                    className="im-in kind"
+                    ariaLabel={t('det.pluralFormAria')}
+                    value=""
+                    options={[
+                      { value: '', label: t('det.addForm') },
+                      ...ldoc.absentPluralForms(entry).map((c) => ({ value: c, label: c })),
+                    ]}
+                    onChange={(v) => v && commit(ldoc.setPluralForm(table, key, v as PluralCategory, ''))}
+                  />
+                )}
+              </>
+            )}
+            {ref && <div className="lt-ref" title={`${ref.tag} · ${ref.text}`}>{ref.tag} · {ref.text}</div>}
+          </div>
+        );
+      })}
+      {missing.length > 0 && (
+        <>
+          <div className="im-head"><span>{t('det.missingKeys')}</span></div>
+          {missing.map((k) => {
+            const ref = refFor(k);
+            return (
+              <div className="im-binding" key={k}>
+                <button type="button" className="im-addb" title={t('det.addMissingKey')} onClick={() => commit(ldoc.addEntry(table, k))}>+</button>
+                <span className="lt-miss" title={k}>{k}</span>
+                {ref && <span className="lt-ref" title={ref.text}>{ref.tag} · {ref.text}</span>}
+              </div>
+            );
+          })}
+        </>
+      )}
+    </div>
+  );
+}
+
 // rows); other assets show their fs metadata + the image/type glyph preview.
 function AssetInspector({ path }: { path: string }) {
   const type = assetTypeOf(baseName(path));
@@ -1909,6 +2110,9 @@ function AssetInspector({ path }: { path: string }) {
   }
   if (type === 'inputmap') {
     return <InputMapAssetInspector path={path} />;
+  }
+  if (type === 'locale') {
+    return <LocaleTableAssetInspector path={path} />;
   }
   return <GenericAssetInspector path={path} />;
 }

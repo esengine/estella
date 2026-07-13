@@ -270,3 +270,11 @@
 .im-x { color: var(--text-mute); width: 18px; height: 18px; border-radius: var(--r-xs); flex-shrink: 0; line-height: 1; transition: color var(--t-fast), background var(--t-fast); }
 .im-x:hover { color: var(--error); background: var(--srf-4); }
 .im-addb { align-self: flex-start; }
+
+/* Locale-table editor (.eslocale) — rides the .im-* frame; these add the
+   translator-specific bits: the plural-form tag, the dimmed sibling-locale
+   reference line, and the missing-key backfill rows. */
+.lt-form { flex-shrink: 0; width: 42px; font-family: var(--mono); font-size: var(--fs-2xs); color: var(--text-mute); text-align: right; }
+.lt-text { flex: 1; min-width: 0; }
+.lt-ref { font-size: var(--fs-2xs); color: var(--text-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-left: 2px; }
+.lt-miss { flex: 1; min-width: 0; font-family: var(--mono); font-size: var(--fs-xs); color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

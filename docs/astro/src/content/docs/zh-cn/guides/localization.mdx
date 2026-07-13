@@ -81,7 +81,9 @@ i18n.t('apples', { count: 3 });   // "3 apples"
 }
 ```
 
-在编辑器里创建(内容浏览器 → 右键 → **新建本地化表**)或手写皆可。显式加载用
+在编辑器里创建(内容浏览器 → 右键 → **新建本地化表**)或手写皆可。**选中一张表,细节面板
+就是它的编辑器**:键/译文行(支持复数形式)、其他表的参照译文淡显在每行下方、缺失的 key
+一键补齐——每次编辑立即保存。显式加载用
 `Assets.loadLocaleTable(path)`(需要本地化插件——否则大声报错),预载用
 `new LocalizationPlugin({ tables: ['assets/i18n/zh-CN.eslocale'] })`,或者让
 [下面的 Text 绑定](#把-ui-text-绑到-key)全自动加载。导出 cook 永远会把 `.eslocale`
