@@ -201,8 +201,9 @@ async function buildAppAndRun(msg: InitMessage): Promise<void> {
   });
   // Realm-local debug handle for automation/diagnostics (mirrors the headless
   // host's __estellaHeadless): the editor can't reach into this OOPIF except by
-  // main-process frame eval, and the eval needs SOMETHING to query.
-  (window as unknown as { __estellaPlay?: unknown }).__estellaPlay = { app };
+  // main-process frame eval, and the eval needs SOMETHING to query. getComponent
+  // lets a probe read component data by name (world.get needs the def).
+  (window as unknown as { __estellaPlay?: unknown }).__estellaPlay = { app, getComponent };
 
   // Surface a failed handshake as a boot error rather than a silent
   // half-session (the app keeps running; the role reverted to offline).

@@ -19,6 +19,7 @@ for your own game.
 | **sprite-animation** | Animation | Frame animation via `.esanim` clips with an idle/walk switcher. |
 | **spine-demo** | Animation | A Spine skeleton cycling idle/walk/run/jump/shoot (1-5 to switch). |
 | **tween-animation** | Animation | Ease positions, scales and colors over time. |
+| **cutscene** | Animation | A code-free cutscene: an FSM state plays a timeline via the built-in `timeline.play` / `timeline.finished` names, then hands over to gameplay (R to replay). |
 | **input-demo** | Input | Keyboard, mouse and pointer input with a motion trail. |
 | **audio-demo** | Audio | One-shot SFX and a beat visualizer driven by playback. |
 | **collision-layers** | Physics | Layer-based collision filtering between groups of bodies. |
@@ -33,6 +34,8 @@ for your own game.
 | **ui-interaction** | UI | Dragging, focus and pointer interaction. |
 | **ui-layout** | UI | Flexbox-style responsive UI layout. |
 | **ui-list** | UI | A virtualized list and grid — `createListView`, live data, `scrollToIndex`. |
+| **enemy-ai** | AI | A state machine drives enemies to patrol, sense the player, and chase via A* navigation. |
+| **multiplayer-arena** | Networking | Server-authoritative multiplayer: each player steers a replicated pawn ('2 Players' in the Play dropdown runs listen server + client). |
 | **platformer** | Game | A tiny platformer — run, jump and collect coins. |
 | **space-shooter** | Game | A vertical shmup with prefabs, a HUD and a difficulty ramp. |
 

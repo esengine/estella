@@ -1,0 +1,22 @@
+{
+  "initial": "Cutscene",
+  "states": [
+    {
+      "name": "Cutscene",
+      "x": 80,
+      "y": 110,
+      "onEnter": "timeline.play",
+      "transitions": [
+        { "to": "Gameplay", "condition": "timeline.finished" }
+      ]
+    },
+    {
+      "name": "Gameplay",
+      "x": 380,
+      "y": 110,
+      "transitions": [
+        { "to": "Cutscene", "trigger": "replay" }
+      ]
+    }
+  ]
+}

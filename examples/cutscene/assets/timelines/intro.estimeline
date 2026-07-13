@@ -1,0 +1,47 @@
+{
+  "version": "1.1",
+  "type": "timeline",
+  "duration": 3,
+  "wrapMode": "once",
+  "tracks": [
+    {
+      "type": "property",
+      "name": "Hero enters",
+      "childPath": "Hero",
+      "component": "Transform",
+      "channels": [
+        {
+          "property": "position.x",
+          "keyframes": [
+            { "time": 0, "value": -380, "inTangent": 0, "outTangent": 0, "interpolation": "easeInOut" },
+            { "time": 2.4, "value": 0, "inTangent": 0, "outTangent": 0, "interpolation": "linear" }
+          ]
+        },
+        {
+          "property": "position.y",
+          "keyframes": [
+            { "time": 0, "value": -108, "inTangent": 0, "outTangent": 0, "interpolation": "linear" },
+            { "time": 0.6, "value": -108, "inTangent": 0, "outTangent": 0, "interpolation": "easeOut" },
+            { "time": 0.9, "value": -40, "inTangent": 0, "outTangent": 0, "interpolation": "easeIn" },
+            { "time": 1.2, "value": -108, "inTangent": 0, "outTangent": 0, "interpolation": "linear" },
+            { "time": 1.7, "value": -108, "inTangent": 0, "outTangent": 0, "interpolation": "easeOut" },
+            { "time": 2.0, "value": -40, "inTangent": 0, "outTangent": 0, "interpolation": "easeIn" },
+            { "time": 2.3, "value": -108, "inTangent": 0, "outTangent": 0, "interpolation": "linear" }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "activation",
+      "name": "Letterbox top",
+      "childPath": "BarTop",
+      "ranges": [{ "start": 0, "end": 3 }]
+    },
+    {
+      "type": "activation",
+      "name": "Letterbox bottom",
+      "childPath": "BarBottom",
+      "ranges": [{ "start": 0, "end": 3 }]
+    }
+  ]
+}

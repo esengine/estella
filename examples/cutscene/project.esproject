@@ -1,0 +1,13 @@
+{
+  "formatVersion": "1",
+  "name": "Cutscene",
+  "description": "A code-free cutscene: an FSM state plays a timeline through the built-in timeline.play action and hands over to gameplay when timeline.finished fires.",
+  "tag": "Animation",
+  "version": "0.1.0",
+  "defaultScene": "assets/scenes/main.esscene",
+  "designResolution": {
+    "width": 960,
+    "height": 640
+  },
+  "spineVersion": "none"
+}

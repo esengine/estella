@@ -116,6 +116,10 @@ registerFsm('intro', {
 旗标。内建名字永远不会遮蔽你的注册:同名时你的注册获胜。游戏侧的名字请避开
 `timeline.` 前缀,保持命名空间分离。
 
+[`cutscene` 示例](https://github.com/esengine/estella/tree/master/examples/cutscene)
+就是这个模式的完整落地:场景开始即播开场时间轴,播完解锁操作,按 R 重播——
+全程零注册动作。
+
 ## 感知
 
 `Perceiver` 每帧扫描最近的、可见的 `PerceptionTarget`,把结果写进同一实体上的 `Perception`

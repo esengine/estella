@@ -1,0 +1,85 @@
+{
+  "version": "1.0",
+  "name": "Main",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 10 } } },
+        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 340, "isActive": true, "priority": 0 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "Director",
+      "parent": null,
+      "children": [2, 3, 4],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 0 } } },
+        { "type": "StateMachineAgent", "data": { "fsm": "assets/ai/director.esfsm" } },
+        { "type": "TimelinePlayer", "data": { "timeline": "assets/timelines/intro.estimeline", "wrapMode": "once" } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 2,
+      "name": "Hero",
+      "parent": 1,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": -380, "y": -108, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 48, "y": 48 }, "color": { "r": 0.35, "g": 0.85, "b": 1, "a": 1 }, "layer": 2 } },
+        { "type": "HeroControl", "data": { "speed": 260 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 3,
+      "name": "BarTop",
+      "parent": 1,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 270, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 1100, "y": 140 }, "color": { "r": 0.05, "g": 0.05, "b": 0.07, "a": 1 }, "layer": 10 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 4,
+      "name": "BarBottom",
+      "parent": 1,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": -270, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 1100, "y": 140 }, "color": { "r": 0.05, "g": 0.05, "b": 0.07, "a": 1 }, "layer": 10 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 5,
+      "name": "Spot",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": -108, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 64, "y": 64 }, "color": { "r": 0.2, "g": 0.5, "b": 0.45, "a": 0.5 }, "layer": 1 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 6,
+      "name": "Stage",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": -140, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 1100, "y": 16 }, "color": { "r": 0.25, "g": 0.27, "b": 0.3, "a": 1 }, "layer": 1 } }
+      ],
+      "visible": true
+    }
+  ]
+}
