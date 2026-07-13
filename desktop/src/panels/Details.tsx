@@ -887,11 +887,12 @@ function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp
   });
 
   // A string field whose choices depend on the entity's runtime state (e.g. a spine
-  // animation/skin name) renders as a dropdown of the live options, falling back to
-  // the text field when none are available (no skeleton loaded).
+  // animation/skin name) or on project content (an i18n key with its translated
+  // preview) renders as a dropdown of the live options, falling back to the text
+  // field when none are available (no skeleton loaded / no locale tables yet).
   const dynOpts =
     field.type === 'select'
-      ? field.selectOptions ?? []
+      ? (field.selectOptions ?? []).map((o) => ({ value: o }))
       : !mixed && !write && field.type === 'string'
         ? dynamicEnumOptions(comp, field.key, entities[0])
         : null;
@@ -905,8 +906,8 @@ function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp
           value={cur}
           ariaLabel={field.key}
           options={[
-            ...(dynOpts.includes(cur) ? [] : [{ value: cur, label: cur || t('det.noneOption') }]),
-            ...dynOpts.map((o) => ({ value: o })),
+            ...(dynOpts.some((o) => o.value === cur) ? [] : [{ value: cur, label: cur || t('det.noneOption') }]),
+            ...dynOpts,
           ]}
           onChange={(v) => {
             begin();

@@ -231,6 +231,13 @@ export async function cookAssets(
   for (const e of index.entries) {
     if (subpackageOf(e.path)) seed(e.uuid);
   }
+  // Force-include locale string tables: translations load by code / plugin
+  // option (a scene never references them — Text carries KEYS, not paths), so
+  // reachability would always cull them, and a build missing its languages is
+  // strictly wrong. Text is tiny; dead tables cost nothing.
+  for (const e of index.entries) {
+    if (e.path.toLowerCase().endsWith('.eslocale')) seed(e.uuid);
+  }
   // …then take the transitive closure over the dependency graph.
   while (queue.length > 0) {
     const uuid = queue.shift()!;

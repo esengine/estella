@@ -645,6 +645,17 @@ export function ContentBrowser() {
     }
   };
 
+  const newLocaleTable = async () => {
+    try {
+      const path = await ProjectStore.createLocaleTableFile(cwd);
+      refreshFs();
+      selectAsset(path);
+      setRenaming(path);
+    } catch (e) {
+      Toasts.push(t('cb.newLocaleTableFailed', { error: errMsg(e) }), 'error');
+    }
+  };
+
   const showInExplorer = async (path: string) => {
     try {
       await window.estella.shell.showItem(path);
@@ -838,6 +849,7 @@ export function ContentBrowser() {
         { label: t('cb.menuNewScene'), onClick: () => void newScene() },
         { label: t('cb.menuNewAnimation'), onClick: () => void createAnimationClip(cwd) },
         { label: t('cb.menuNewInputMap'), onClick: () => void newInputMap() },
+        { label: t('cb.menuNewLocaleTable'), onClick: () => void newLocaleTable() },
         {
           label: t('cb.menuNewMaterial'),
           children: BUILTIN_SHADER_TEMPLATES.map((tpl) => ({

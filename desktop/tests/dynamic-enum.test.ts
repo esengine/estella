@@ -9,9 +9,14 @@ import { describe, it, expect } from 'vitest';
 import { registerDynamicEnum, dynamicEnumOptions } from '@/engine/schema';
 
 describe('dynamic enum registry', () => {
-  it('returns a provider\'s options for the registered (component, field)', () => {
+  it('returns a provider\'s options for the registered (component, field), normalized', () => {
     registerDynamicEnum('Foo', 'anim', () => ['walk', 'run']);
-    expect(dynamicEnumOptions('Foo', 'anim', 1)).toEqual(['walk', 'run']);
+    expect(dynamicEnumOptions('Foo', 'anim', 1)).toEqual([{ value: 'walk' }, { value: 'run' }]);
+  });
+
+  it('keeps a provider\'s display labels (value ≠ label, e.g. i18n key + preview)', () => {
+    registerDynamicEnum('Foo', 'key', () => [{ value: 'menu.play', label: 'menu.play · 开始' }]);
+    expect(dynamicEnumOptions('Foo', 'key', 1)).toEqual([{ value: 'menu.play', label: 'menu.play · 开始' }]);
   });
 
   it('is null for an unregistered field, and for empty options (falls back to a text field)', () => {

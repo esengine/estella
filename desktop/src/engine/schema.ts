@@ -306,17 +306,24 @@ export function readonlyFieldsFor(compType: string): readonly string[] {
 // Some string fields are really a choice from a list that depends on the entity's
 // runtime state, not a static enum (e.g. a spine animation/skin name from the loaded
 // skeleton). A provider, keyed by `component|field`, yields the options for one
-// entity; the inspector renders a dropdown when it returns any.
-const dynamicEnums = new Map<string, (sourceId: number) => readonly string[]>();
+// entity; the inspector renders a dropdown when it returns any. An option may
+// carry a display label distinct from the stored value (e.g. an i18n key with
+// its translated preview); plain strings stay valid for label-less providers.
+export interface DynamicEnumOption { value: string; label?: string }
 
-export function registerDynamicEnum(component: string, field: string, provider: (sourceId: number) => readonly string[]): void {
+const dynamicEnums = new Map<string, (sourceId: number) => readonly (string | DynamicEnumOption)[]>();
+
+export function registerDynamicEnum(
+  component: string, field: string, provider: (sourceId: number) => readonly (string | DynamicEnumOption)[],
+): void {
   dynamicEnums.set(`${component}|${field}`, provider);
 }
 
 /** Dynamic enum options for a field on an entity, or null if the field has no provider / no options. */
-export function dynamicEnumOptions(component: string, field: string, sourceId: number): string[] | null {
+export function dynamicEnumOptions(component: string, field: string, sourceId: number): DynamicEnumOption[] | null {
   const opts = dynamicEnums.get(`${component}|${field}`)?.(sourceId);
-  return opts && opts.length ? [...opts] : null;
+  if (!opts || !opts.length) return null;
+  return opts.map((o) => (typeof o === 'string' ? { value: o } : o));
 }
 
 // — Field presentation metadata (the SDK's UPROPERTY analog) —

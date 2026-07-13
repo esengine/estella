@@ -404,6 +404,13 @@ class ProjectStoreImpl {
     return window.estella.project.createAsset(destDir, 'input.inputmap', content, 'inputmap');
   }
 
+  /** Create a blank `.eslocale` string table (ONE locale's key → text; ship one
+   *  file per language) under `destDir`. */
+  async createLocaleTableFile(destDir: string): Promise<string> {
+    const content = JSON.stringify({ version: 1, locale: 'en', entries: {} }, null, 2) + '\n';
+    return window.estella.project.createAsset(destDir, 'strings.eslocale', content, 'locale');
+  }
+
   /**
    * Load the project's asset index (the main-process AssetDatabase scan)
    * into a uuid→path registry, then point the engine

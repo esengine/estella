@@ -165,6 +165,7 @@ export type AssetType =
   | 'inputmap'
   | 'statemachine'
   | 'behaviortree'
+  | 'locale'
   | 'file';
 
 export interface AssetItem {
