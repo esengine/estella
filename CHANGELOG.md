@@ -14,6 +14,90 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-07-13
+
+Estella speaks your language: the editor UI ships in English and 简体中文, and game
+text localizes itself through `.eslocale` string tables bound straight to Text
+components — no code. Networking graduates from beta with client prediction,
+reconciliation, and interest management; physics gains one-way platforms and new
+joints; cutscenes run code-free off the FSM; and a broad performance pass trims
+per-frame work across the SDK, renderer, and editor.
+
+### Added
+
+- **The editor speaks 简体中文.** Every panel, dialog, menu, and toast ships in
+  English and Simplified Chinese — over a thousand strings across the whole editor.
+  Pick the language in **Settings → Appearance → Language** (it follows your system
+  language by default); the editor reloads to apply it everywhere at once.
+- **Localized game text as data.** New `.eslocale` string tables (one locale per
+  file, with CLDR plural forms) and a `Text.i18nKey` binding that resolves keys to
+  words every frame — switching locale or late-loading a table re-flows every bound
+  label with zero bookkeeping. Scenes that bind keys **localize themselves in every
+  runtime**: the loader auto-installs localization, discovers the shipped tables,
+  and follows the player's system language, so even pure scene-driven projects get
+  working localization with zero game code. Builds always include locale tables.
+- **A translator-shaped locale editor.** `.eslocale` is a first-class asset:
+  create tables from the Content Browser, edit them in a Details-panel editor with
+  a reference translation per key, a one-click missing-keys backfill, and plural
+  sub-editing — and bind keys from a `Text.i18nKey` dropdown that previews each
+  key's translation. The `ui-controls` example ships English + 中文.
+- **Networking graduates from beta.** The replication layer's `@beta` tags are
+  gone, closed out by three capstones:
+  - **Client prediction + reconciliation.** `prediction.apply` is the same
+    input-to-state function the server runs — inputs apply locally with zero
+    perceived latency, the server acknowledges consumed inputs, and every fixed
+    tick rebuilds owned state as authority ⊕ unacknowledged replay, so
+    mispredictions structurally cannot accumulate.
+  - **Correction smoothing.** `prediction.smoothing { halfLife, maxError }` eases
+    corrections out instead of snapping — purely presentational, so simulation
+    state cannot drift; oversized errors still teleport.
+  - **Interest management.** An `InterestPolicy` (built-in `radiusInterest`)
+    scopes each connection to the entities it can see — entering entities spawn
+    with current state, leaving ones despawn, and each client's delta carries only
+    its own view. Connections always see the entities they own.
+  - The `multiplayer-arena` example now runs on prediction end to end.
+- **One-way platforms and new joints.** `OneWayPlatform` lets bodies jump up
+  through a platform and land on it; `MotorJoint` drives a body toward a target
+  velocity or spring-held offset (conveyors, moving platforms); and a mouse-drag
+  API grabs dynamic bodies with an auto-sized grip. Showcased in the rebuilt
+  `physics-playground` example.
+- **Code-free cutscenes.** The FSM and behavior trees pre-register
+  `timeline.play` / `timeline.pause` actions and a `timeline.finished` condition,
+  and `TimelinePlayer` gains a formal replay contract (a latched `finished` flag;
+  raising `playing` on a finished clip replays from the top). The new `cutscene`
+  example plays an intro timeline, hands over to gameplay on finish, and replays
+  on demand — without registering a single action in code.
+- **Preview FX in edit mode.** A viewport toggle (on by default) runs particles
+  and trails live while you edit — no Play required. Toggling off clears the
+  residue, and editing an emitter's timing fields (duration, looping, bursts)
+  restarts it so the change is visible immediately.
+- **Outline post-process.** Full-screen Sobel edge detection inks scene edges
+  toward black — the classic 2D ink look, tunable via threshold, thickness, and
+  intensity.
+- **Tiled image-collection tilesets.** "Collection of images" tilesets (one loose
+  image per tile) now load everywhere: the loose images fold into a single grid
+  atlas at load time, so the renderer sees an ordinary tileset. Previously every
+  collection tile rendered as a white block.
+
+### Changed
+
+- **A performance pass across the frame loop.** The SDK query cache no longer
+  pays for unrelated structural changes; text tessellation is cached per entity;
+  state-visual writes stop at rest; transform iteration and world-matrix composes
+  skip work for static and childless entities; the GL backend caches texture and
+  scissor state to cut per-draw FFI; and the editor reads engine telemetry only
+  while the Profiler panel is open.
+
+### Fixed
+
+- **KTX2 textures on WeChat.** The WebGL2 capability check relied on a DOM global
+  that WeChat MiniGames don't have, so real devices refused every compressed
+  texture despite running WebGL2. The check is now capability-based and
+  environment-independent.
+- **`.tmx` maps fail loud.** The tilemap loader advertised `.tmx` but only parses
+  JSON, so XML maps died with an inscrutable syntax error. XML content is now
+  rejected with the fix: export as **JSON map files (`.tmj`)** from Tiled.
+
 ## [0.20.0] - 2026-07-12
 
 A real UI editor: anchor-based layout with an on-canvas resize gizmo, a widget palette
@@ -409,7 +493,9 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.19.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.21.0...HEAD
+[0.21.0]: https://github.com/esengine/estella/compare/v0.20.0...v0.21.0
+[0.20.0]: https://github.com/esengine/estella/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/esengine/estella/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/esengine/estella/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/esengine/estella/compare/v0.16.0...v0.17.0
