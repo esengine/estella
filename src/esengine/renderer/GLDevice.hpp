@@ -68,6 +68,7 @@ public:
     void generateMipmaps(TextureHandle texture) override;
     void bindTexture(u32 slot, TextureHandle texture) override;
     bool supportsCompressedFormat(GfxCompressedFormat format) override;
+    bool supportsFloatTargets() override;
 
     bool supportsShaderLanguage(GfxShaderLanguage language) const override {
         return language == GfxShaderLanguage::GLSL_ES300;

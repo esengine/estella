@@ -165,6 +165,12 @@ enum class GfxStencilOp : u8 {
 enum class GfxPixelFormat : u8 {
     RGB8,
     RGBA8,
+    /// sRGB-encoded storage: hardware EOTF on sample, OETF on write, and
+    /// blending in linear space — the 8-bit backbone of the linear pipeline.
+    SRGB8_ALPHA8,
+    /// Half-float HDR target; gate render-target use on
+    /// GfxDevice::supportsFloatTargets (EXT_color_buffer_float on WebGL2).
+    RGBA16F,
     DepthComponent24,
     Depth24Stencil8,
 };
@@ -188,12 +194,15 @@ enum class GfxPixelFormat : u8 {
  *          fall back to the uncompressed RGBA8 path.
  */
 enum class GfxCompressedFormat : u8 {
-    ETC2_RGB8,    ///< GL_COMPRESSED_RGB8_ETC2 (core)
-    ETC2_RGBA8,   ///< GL_COMPRESSED_RGBA8_ETC2_EAC (core)
-    ASTC_4x4,     ///< GL_COMPRESSED_RGBA_ASTC_4x4_KHR (extension)
-    ASTC_8x8,     ///< GL_COMPRESSED_RGBA_ASTC_8x8_KHR (extension)
-    S3TC_DXT1,    ///< GL_COMPRESSED_RGBA_S3TC_DXT1_EXT (extension)
-    S3TC_DXT5,    ///< GL_COMPRESSED_RGBA_S3TC_DXT5_EXT (extension)
+    ETC2_RGB8,         ///< GL_COMPRESSED_RGB8_ETC2 (core)
+    ETC2_RGBA8,        ///< GL_COMPRESSED_RGBA8_ETC2_EAC (core)
+    ASTC_4x4,          ///< GL_COMPRESSED_RGBA_ASTC_4x4_KHR (extension)
+    ASTC_8x8,          ///< GL_COMPRESSED_RGBA_ASTC_8x8_KHR (extension)
+    S3TC_DXT1,         ///< GL_COMPRESSED_RGBA_S3TC_DXT1_EXT (extension)
+    S3TC_DXT5,         ///< GL_COMPRESSED_RGBA_S3TC_DXT5_EXT (extension)
+    ETC2_RGBA8_SRGB,   ///< GL_COMPRESSED_SRGB8_ALPHA8_ETC2_EAC (core)
+    ASTC_4x4_SRGB,     ///< GL_COMPRESSED_SRGB8_ALPHA8_ASTC_4x4_KHR (extension)
+    S3TC_DXT5_SRGB,    ///< GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT (extension)
 };
 
 // =============================================================================

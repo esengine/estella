@@ -54,6 +54,8 @@ struct FramebufferSpec {
     bool depthStencil = true;
     /** @brief Texture filter mode: false=GL_NEAREST, true=GL_LINEAR */
     bool linearFilter = false;
+    /** @brief Color attachment format. RGBA16F needs GfxDevice::supportsFloatTargets. */
+    GfxPixelFormat colorFormat = GfxPixelFormat::RGBA8;
 };
 
 // =============================================================================

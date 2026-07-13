@@ -36,6 +36,14 @@ u32 dsVariantOf(WGPUTextureFormat format) {
     return hasStencilPlanes(format) ? WebGPUDevice::kDsDepthStencil : WebGPUDevice::kDsDepthOnly;
 }
 
+u32 colorVariantOf(WGPUTextureFormat format) {
+    switch (format) {
+    case WGPUTextureFormat_RGBA8UnormSrgb: return WebGPUDevice::kColorSrgb8;
+    case WGPUTextureFormat_RGBA16Float:    return WebGPUDevice::kColorRgba16f;
+    default:                               return WebGPUDevice::kColorRgba8;
+    }
+}
+
 u8 packSamplerKey(TextureFilter minFilter, TextureFilter magFilter,
                   TextureWrap wrapS, TextureWrap wrapT) {
     return static_cast<u8>((minFilter == TextureFilter::Nearest ? 1u : 0u) |
@@ -447,13 +455,14 @@ void WebGPUDevice::updateTexture(TextureHandle texture, i32 x, i32 y, u32 width,
     dst.texture = it->second.texture;
     dst.origin = WGPUOrigin3D{static_cast<u32>(x), static_cast<u32>(y), 0};
 
+    const u32 bpp = it->second.format == WGPUTextureFormat_RGBA16Float ? 8u : 4u;
     WGPUTexelCopyBufferLayout layout{};
-    layout.bytesPerRow = width * 4;  // RGBA8 — the engine's only uncompressed upload format
+    layout.bytesPerRow = width * bpp;
     layout.rowsPerImage = height;
 
     WGPUExtent3D extent{width, height, 1};
     wgpuQueueWriteTexture(queue_, &dst, pixels,
-                          static_cast<usize>(width) * height * 4, &layout, &extent);
+                          static_cast<usize>(width) * height * bpp, &layout, &extent);
 }
 
 void WebGPUDevice::setTextureParams(TextureHandle texture, TextureFilter minFilter,
@@ -590,7 +599,8 @@ PipelineHandle WebGPUDevice::createPipeline(const PipelineDesc& desc) {
 WGPURenderPipeline WebGPUDevice::ensurePipeline(u32 id) {
     auto it = pipelines_.find(id);
     if (it == pipelines_.end() || !device_) return nullptr;
-    const u32 variant = dsVariantOf(pass_ds_format_);
+    const u32 dsVariant = dsVariantOf(pass_ds_format_);
+    const u32 variant = dsVariant * kColorVariantCount + colorVariantOf(pass_color_format_);
     if (it->second.variants[variant]) return it->second.variants[variant];
 
     const PipelineDesc& desc = it->second.desc;
@@ -632,7 +642,7 @@ WGPURenderPipeline WebGPUDevice::ensurePipeline(u32 id) {
     blendState.alpha = blend.alpha;
 
     WGPUColorTargetState target{};
-    target.format = surface_format_;
+    target.format = pass_color_format_;
     target.blend = desc.blendEnabled ? &blendState : nullptr;
     target.writeMask = (desc.stencil == GfxStencilMode::Write) ? WGPUColorWriteMask_None
                                                                : WGPUColorWriteMask_All;
@@ -660,7 +670,7 @@ WGPURenderPipeline WebGPUDevice::ensurePipeline(u32 id) {
     pd.multisample.mask = 0xFFFFFFFFu;
     pd.fragment = &fragment;
     WGPUDepthStencilState ds{};
-    if (variant != kDsNone) {
+    if (dsVariant != kDsNone) {
         ds = toWGPUDepthStencil(desc, pass_ds_format_);
         pd.depthStencil = &ds;
     } else if (desc.depthTest || desc.stencil != GfxStencilMode::Off) {
@@ -723,7 +733,8 @@ WGPUSampler WebGPUDevice::samplerFor(u8 key) {
 // =============================================================================
 
 WGPURenderPipeline WebGPUDevice::ensureClearPipeline(bool color, bool depth, bool stencil) {
-    const u32 key = dsVariantOf(pass_ds_format_) << 3 |
+    const u32 key = colorVariantOf(pass_color_format_) << 5 |
+                    dsVariantOf(pass_ds_format_) << 3 |
                     (color ? 1u : 0u) | (depth ? 2u : 0u) | (stencil ? 4u : 0u);
     auto it = clear_pipelines_.find(key);
     if (it != clear_pipelines_.end()) return it->second;
@@ -784,7 +795,7 @@ struct ClearColor { value : vec4f };
     WGPUShaderModule fs = makeModule(kClearFS);
 
     WGPUColorTargetState target{};
-    target.format = surface_format_;
+    target.format = pass_color_format_;
     target.writeMask = color ? WGPUColorWriteMask_All : WGPUColorWriteMask_None;
 
     WGPUFragmentState fragment{};
@@ -1135,6 +1146,7 @@ void WebGPUDevice::beginRenderPass(const RenderPassDesc& desc) {
     WGPUTextureView targetView = nullptr;
     WGPUTextureView dsView = nullptr;
     pass_ds_format_ = WGPUTextureFormat_Undefined;
+    pass_color_format_ = surface_format_;
     if (desc.target != FramebufferHandle::Default) {
         auto fbIt = framebuffers_.find(static_cast<u32>(desc.target));
         if (fbIt == framebuffers_.end()) {
@@ -1147,6 +1159,7 @@ void WebGPUDevice::beginRenderPass(const RenderPassDesc& desc) {
             return;
         }
         targetView = texIt->second.view;
+        pass_color_format_ = texIt->second.format;
         pass_width_ = texIt->second.width;
         pass_height_ = texIt->second.height;
         if (fbIt->second.depthStencil != 0) {

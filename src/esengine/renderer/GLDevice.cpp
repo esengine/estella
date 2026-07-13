@@ -48,6 +48,24 @@
 #ifndef GL_COMPRESSED_RGBA_S3TC_DXT5_EXT
     #define GL_COMPRESSED_RGBA_S3TC_DXT5_EXT 0x83F3
 #endif
+#ifndef GL_COMPRESSED_SRGB8_ALPHA8_ETC2_EAC
+    #define GL_COMPRESSED_SRGB8_ALPHA8_ETC2_EAC 0x9279
+#endif
+#ifndef GL_COMPRESSED_SRGB8_ALPHA8_ASTC_4x4_KHR
+    #define GL_COMPRESSED_SRGB8_ALPHA8_ASTC_4x4_KHR 0x93D0
+#endif
+#ifndef GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT
+    #define GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT 0x8C4F
+#endif
+#ifndef GL_SRGB8_ALPHA8
+    #define GL_SRGB8_ALPHA8 0x8C43
+#endif
+#ifndef GL_RGBA16F
+    #define GL_RGBA16F 0x881A
+#endif
+#ifndef GL_HALF_FLOAT
+    #define GL_HALF_FLOAT 0x140B
+#endif
 #ifndef GL_UNSIGNED_INT_24_8
     #define GL_UNSIGNED_INT_24_8 0x84FA
 #endif
@@ -156,6 +174,8 @@ GLPixelFormatInfo toGLPixelFormat(GfxPixelFormat fmt) {
     switch (fmt) {
     case GfxPixelFormat::RGB8:             return { GL_RGB8,              GL_RGB,             GL_UNSIGNED_BYTE };
     case GfxPixelFormat::RGBA8:            return { GL_RGBA8,             GL_RGBA,            GL_UNSIGNED_BYTE };
+    case GfxPixelFormat::SRGB8_ALPHA8:     return { GL_SRGB8_ALPHA8,      GL_RGBA,            GL_UNSIGNED_BYTE };
+    case GfxPixelFormat::RGBA16F:          return { GL_RGBA16F,           GL_RGBA,            GL_HALF_FLOAT };
     case GfxPixelFormat::DepthComponent24: return { GL_DEPTH_COMPONENT24, GL_DEPTH_COMPONENT, GL_UNSIGNED_INT };
     case GfxPixelFormat::Depth24Stencil8:  return { GL_DEPTH24_STENCIL8,  GL_DEPTH_STENCIL,   GL_UNSIGNED_INT_24_8 };
     default:                               return { GL_RGBA8,             GL_RGBA,            GL_UNSIGNED_BYTE };
@@ -170,6 +190,9 @@ GLenum toGLCompressedFormat(GfxCompressedFormat fmt) {
     case GfxCompressedFormat::ASTC_8x8:   return GL_COMPRESSED_RGBA_ASTC_8x8_KHR;
     case GfxCompressedFormat::S3TC_DXT1:  return GL_COMPRESSED_RGBA_S3TC_DXT1_EXT;
     case GfxCompressedFormat::S3TC_DXT5:  return GL_COMPRESSED_RGBA_S3TC_DXT5_EXT;
+    case GfxCompressedFormat::ETC2_RGBA8_SRGB: return GL_COMPRESSED_SRGB8_ALPHA8_ETC2_EAC;
+    case GfxCompressedFormat::ASTC_4x4_SRGB:   return GL_COMPRESSED_SRGB8_ALPHA8_ASTC_4x4_KHR;
+    case GfxCompressedFormat::S3TC_DXT5_SRGB:  return GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT;
     default:                              return GL_COMPRESSED_RGBA8_ETC2_EAC;
     }
 }
@@ -1111,8 +1134,24 @@ bool GLDevice::supportsCompressedFormat(GfxCompressedFormat format) {
     case GfxCompressedFormat::S3TC_DXT5:
         return glExtensionPresent("GL_EXT_texture_compression_s3tc")
             || glExtensionPresent("WEBGL_compressed_texture_s3tc");
+    case GfxCompressedFormat::ETC2_RGBA8_SRGB:
+        return true;  // sRGB ETC2/EAC is core alongside the UNORM variant
+    case GfxCompressedFormat::ASTC_4x4_SRGB:
+        return glExtensionPresent("GL_KHR_texture_compression_astc_ldr")
+            || glExtensionPresent("WEBGL_compressed_texture_astc");
+    case GfxCompressedFormat::S3TC_DXT5_SRGB:
+        // Desktop GL ships sRGB DXT via EXT_texture_sRGB; WebGL splits it out.
+        return glExtensionPresent("GL_EXT_texture_sRGB")
+            || glExtensionPresent("WEBGL_compressed_texture_s3tc_srgb");
     }
     return false;
+}
+
+bool GLDevice::supportsFloatTargets() {
+    // Rendering INTO RGBA16F needs EXT_color_buffer_float on WebGL2 (sampling
+    // half-float textures is core; only attachment renderability is gated).
+    return glExtensionPresent("GL_EXT_color_buffer_float")
+        || glExtensionPresent("EXT_color_buffer_float");
 }
 
 }  // namespace esengine

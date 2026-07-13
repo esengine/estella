@@ -153,10 +153,17 @@ inline WGPUTextureFormat toWGPUTextureFormat(GfxPixelFormat fmt) {
     // (the GL backend's swizzle-free equivalent — expansion happens at upload).
     case GfxPixelFormat::RGB8:             return WGPUTextureFormat_RGBA8Unorm;
     case GfxPixelFormat::RGBA8:            return WGPUTextureFormat_RGBA8Unorm;
+    case GfxPixelFormat::SRGB8_ALPHA8:     return WGPUTextureFormat_RGBA8UnormSrgb;
+    case GfxPixelFormat::RGBA16F:          return WGPUTextureFormat_RGBA16Float;
     case GfxPixelFormat::DepthComponent24: return WGPUTextureFormat_Depth24Plus;
     case GfxPixelFormat::Depth24Stencil8:  return WGPUTextureFormat_Depth24PlusStencil8;
     default:                               return WGPUTextureFormat_RGBA8Unorm;
     }
+}
+
+/** Bytes per pixel of an uncompressed upload in @p fmt (RGB8 expands to RGBA8). */
+inline u32 wgpuBytesPerPixel(GfxPixelFormat fmt) {
+    return fmt == GfxPixelFormat::RGBA16F ? 8u : 4u;
 }
 
 inline WGPUTextureFormat toWGPUCompressedFormat(GfxCompressedFormat fmt) {
@@ -167,6 +174,9 @@ inline WGPUTextureFormat toWGPUCompressedFormat(GfxCompressedFormat fmt) {
     case GfxCompressedFormat::ASTC_8x8:   return WGPUTextureFormat_ASTC8x8Unorm;
     case GfxCompressedFormat::S3TC_DXT1:  return WGPUTextureFormat_BC1RGBAUnorm;
     case GfxCompressedFormat::S3TC_DXT5:  return WGPUTextureFormat_BC3RGBAUnorm;
+    case GfxCompressedFormat::ETC2_RGBA8_SRGB: return WGPUTextureFormat_ETC2RGBA8UnormSrgb;
+    case GfxCompressedFormat::ASTC_4x4_SRGB:   return WGPUTextureFormat_ASTC4x4UnormSrgb;
+    case GfxCompressedFormat::S3TC_DXT5_SRGB:  return WGPUTextureFormat_BC3RGBAUnormSrgb;
     default:                              return WGPUTextureFormat_Undefined;
     }
 }

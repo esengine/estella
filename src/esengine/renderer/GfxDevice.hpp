@@ -191,6 +191,15 @@ public:
      */
     virtual bool supportsCompressedFormat(GfxCompressedFormat format) = 0;
 
+    /**
+     * @brief Whether RGBA16F color attachments are renderable.
+     * @details WebGL2 gates float-target rendering behind EXT_color_buffer_float
+     *          (sampling half-float textures is core); WebGPU always supports it.
+     *          Probe this before creating an HDR framebuffer and fall back to
+     *          SRGB8_ALPHA8/RGBA8.
+     */
+    virtual bool supportsFloatTargets() = 0;
+
     // =========================================================================
     // Shader Programs
     // =========================================================================

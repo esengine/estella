@@ -107,7 +107,7 @@ bool Framebuffer::initialize() {
     TextureDesc colorDesc;
     colorDesc.width = spec_.width;
     colorDesc.height = spec_.height;
-    colorDesc.format = GfxPixelFormat::RGBA8;
+    colorDesc.format = spec_.colorFormat;
     colorDesc.minFilter = filter;
     colorDesc.magFilter = filter;
     colorAttachment_ = device_->createTexture(colorDesc, nullptr);

@@ -43,9 +43,11 @@ class GfxDevice;
  */
 enum class TextureFormat {
     None = 0,
-    RGB8,    ///< 3 channels, 8 bits each (24 bpp)
-    RGBA8,   ///< 4 channels, 8 bits each (32 bpp)
-    Depth24  ///< Depth buffer format (24 bits)
+    RGB8,     ///< 3 channels, 8 bits each (24 bpp)
+    RGBA8,    ///< 4 channels, 8 bits each (32 bpp)
+    SRGB8A8,  ///< sRGB-encoded RGBA8: hardware-linearized on sample (32 bpp)
+    RGBA16F,  ///< Half-float HDR (64 bpp); render use gated on supportsFloatTargets
+    Depth24   ///< Depth buffer format (24 bits)
 };
 
 // =============================================================================

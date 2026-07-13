@@ -48,6 +48,10 @@ public:
      *         against the pass it draws into (GL has no such coupling). */
     enum DsVariant : u32 { kDsNone = 0, kDsDepthOnly = 1, kDsDepthStencil = 2, kDsVariantCount = 3 };
 
+    /** @brief Color attachment format of a pass — like DsVariant, WebGPU
+     *         validates the pipeline's color target format against the pass. */
+    enum ColorVariant : u32 { kColorRgba8 = 0, kColorSrgb8 = 1, kColorRgba16f = 2, kColorVariantCount = 3 };
+
     /** @brief @p device may be null for bookkeeping-only use (tests, bring-up). */
     explicit WebGPUDevice(WGPUDevice device = nullptr);
     ~WebGPUDevice() override;
@@ -84,6 +88,8 @@ public:
     void generateMipmaps(TextureHandle texture) override;
     void bindTexture(u32 slot, TextureHandle texture) override;
     bool supportsCompressedFormat(GfxCompressedFormat format) override;
+    // Float-target rendering is a WebGPU core capability.
+    bool supportsFloatTargets() override { return true; }
 
     bool supportsShaderLanguage(GfxShaderLanguage language) const override {
         return language == GfxShaderLanguage::WGSL;
@@ -186,7 +192,8 @@ private:
     };
     struct PipelineRec {
         PipelineDesc desc;
-        WGPURenderPipeline variants[kDsVariantCount] = {};  ///< Lazily built per pass DS shape.
+        /// Lazily built per pass shape: [ds * kColorVariantCount + color].
+        WGPURenderPipeline variants[kDsVariantCount * kColorVariantCount] = {};
     };
     struct FramebufferRec {
         u32 color0 = 0;        ///< TextureHandle id of the color attachment.
@@ -288,6 +295,7 @@ private:
     u32 pass_width_ = 0;   ///< Current pass target size (scissor-off rectangle).
     u32 pass_height_ = 0;
     WGPUTextureFormat pass_ds_format_ = WGPUTextureFormat_Undefined;
+    WGPUTextureFormat pass_color_format_ = WGPUTextureFormat_RGBA8Unorm;
     WGPUCommandEncoder encoder_ = nullptr;
     WGPURenderPassEncoder pass_ = nullptr;
     WGPUTexture frame_texture_ = nullptr;   ///< Acquired surface texture (released at end).

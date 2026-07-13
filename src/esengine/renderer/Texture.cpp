@@ -28,13 +28,20 @@ GfxPixelFormat toGfxPixelFormat(TextureFormat format) {
     switch (format) {
     case TextureFormat::RGB8:    return GfxPixelFormat::RGB8;
     case TextureFormat::RGBA8:   return GfxPixelFormat::RGBA8;
+    case TextureFormat::SRGB8A8: return GfxPixelFormat::SRGB8_ALPHA8;
+    case TextureFormat::RGBA16F: return GfxPixelFormat::RGBA16F;
     case TextureFormat::Depth24: return GfxPixelFormat::DepthComponent24;
     default:                     return GfxPixelFormat::RGBA8;
     }
 }
 
 u32 bytesPerPixel(TextureFormat format) {
-    return format == TextureFormat::RGBA8 ? 4u : 3u;
+    switch (format) {
+    case TextureFormat::RGBA16F: return 8u;
+    case TextureFormat::RGBA8:
+    case TextureFormat::SRGB8A8: return 4u;
+    default:                     return 3u;
+    }
 }
 
 }  // namespace
