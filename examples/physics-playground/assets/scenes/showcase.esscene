@@ -115,6 +115,47 @@
         { "type": "SpawnTimer", "data": { "interval": 0.9, "timer": 0 } }
       ],
       "visible": true
+    },
+    {
+      "id": 8,
+      "name": "PistonAnchor",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 300, "y": 80, "z": 0 } } },
+        { "type": "RigidBody", "data": { "bodyType": 0 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 9,
+      "name": "Piston",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 300, "y": 40, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 100, "y": 16 }, "color": { "r": 0.65, "g": 0.5, "b": 0.95, "a": 1 } } },
+        { "type": "RigidBody", "data": { "bodyType": 2, "fixedRotation": true } },
+        { "type": "BoxCollider", "data": { "halfExtents": { "x": 0.5, "y": 0.08 } } },
+        { "type": "PrismaticJoint", "data": {
+          "connectedEntity": 8,
+          "anchorA": { "x": 0, "y": 0 },
+          "anchorB": { "x": 0, "y": 0 },
+          "axis": { "x": 0, "y": 1 },
+          "enableSpring": true,
+          "hertz": 1.5,
+          "dampingRatio": 0.3,
+          "enableLimit": true,
+          "lowerTranslation": -120,
+          "upperTranslation": 40,
+          "enableMotor": false,
+          "maxMotorForce": 0,
+          "motorSpeed": 0,
+          "collideConnected": false,
+          "enabled": true
+        } }
+      ],
+      "visible": true
     }
   ]
 }
