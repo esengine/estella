@@ -94,6 +94,7 @@
   --gizmo-collider: #00dc82;
   --gizmo-particle: #ffb454;
   --gizmo-tile: #58b6e6;
+  --gizmo-joint: #c58cff;
 
   /* — Category identity: component header bars / icons read by domain. — */
   --cat-transform: #4a8fd6;

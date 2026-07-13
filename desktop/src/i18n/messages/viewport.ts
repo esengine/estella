@@ -66,7 +66,7 @@ export const viewportMessages = defineMessages({
     'vp.showFlags': { en: 'Show Flags', zh: '显示标记' },
     'vp.flag.grid': { en: 'Grid', zh: '网格' },
     'vp.flag.gizmos': { en: 'Gizmos', zh: 'Gizmo' },
-    'vp.flag.colliders': { en: 'Colliders', zh: '碰撞体' },
+    'vp.flag.colliders': { en: 'Physics', zh: '物理' },
     'vp.flag.previewFx': { en: 'Preview FX', zh: '预览特效' },
     'vp.flag.perf': { en: 'Perf', zh: '性能' },
 

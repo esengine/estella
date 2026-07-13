@@ -143,7 +143,13 @@ export {
     SegmentCollider,
     PolygonCollider,
     ChainCollider,
+    OneWayPlatform,
     RevoluteJoint,
+    DistanceJoint,
+    PrismaticJoint,
+    WeldJoint,
+    WheelJoint,
+    MotorJoint,
     BodyType,
 } from './physics/PhysicsComponents';
 

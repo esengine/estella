@@ -2,7 +2,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import {
   Camera, CameraView, EditorView, Light2D, Sprite, Transform, Canvas, BoxCollider, CircleCollider,
-  ParticleEmitter,
+  ParticleEmitter, OneWayPlatform,
+  RevoluteJoint, DistanceJoint, PrismaticJoint, WeldJoint, WheelJoint, MotorJoint,
   UINode, UICameraInfo, screenToUiWorld, uiWorldToScreen, uiPickAllWorld, type UICameraData,
 } from 'esengine';
 import type { EntityId } from '@/types';
@@ -26,6 +27,25 @@ const ICON_WORLD_HALF = 24;
 // Pick priority for icon-only entities: above any real sprite layer, so a small
 // foreground gizmo (camera/light) wins a tie against a big sprite beneath it.
 const ICON_PICK_LAYER = 1e6;
+
+// The scene-authored joint components, each drawn as an anchor-to-anchor link gizmo.
+// (The mouse/drag joint is imperative runtime API only — no component, nothing to draw.)
+const JOINT_GIZMO_DEFS = {
+  RevoluteJoint, DistanceJoint, PrismaticJoint, WeldJoint, WheelJoint, MotorJoint,
+} as const;
+export type JointGizmoType = keyof typeof JOINT_GIZMO_DEFS;
+
+// The joint fields the gizmo reads. Anchors are world PIXELS in each body's local
+// frame (PhysicsSystem converts to meters with ×invPpu); MotorJoint has no anchors
+// (it drives the relative body transform), so both default to the body origin.
+interface JointGizmoData {
+  connectedEntity: number;
+  anchorA?: { x: number; y: number };
+  anchorB?: { x: number; y: number };
+  axis?: { x: number; y: number };
+  linearVelocity?: { x: number; y: number };
+  enabled?: boolean;
+}
 
 // Structural shape of the engine's CameraView resource (screen<->world).
 interface CameraViewLike {
@@ -534,14 +554,40 @@ export const ViewportController = {
   },
 
   /**
+   * Offset-aware world center of the entity's box/circle collider (world px) — the
+   * point radius/size drags measure from, matching where the gizmo shape is drawn.
+   * Falls back to the entity origin when there's no collider.
+   */
+  colliderWorldCenter(id: EntityId): { x: number; y: number } | null {
+    const world = EngineHost.world;
+    if (!world || !world.valid(id) || !world.has(id, Transform)) return null;
+    const t = world.get(id, Transform);
+    const off = world.has(id, BoxCollider)
+      ? (world.get(id, BoxCollider) as { offset: { x: number; y: number } }).offset
+      : world.has(id, CircleCollider)
+        ? (world.get(id, CircleCollider) as { offset: { x: number; y: number } }).offset
+        : null;
+    if (!off || (off.x === 0 && off.y === 0)) return { x: t.worldPosition.x, y: t.worldPosition.y };
+    const ppu = this.colliderPixelsPerUnit();
+    const rot = quatAngleZ(t.worldRotation as { w: number; x: number; y: number; z: number });
+    return {
+      x: t.worldPosition.x + (off.x * ppu) * Math.cos(rot) - (off.y * ppu) * Math.sin(rot),
+      y: t.worldPosition.y + (off.x * ppu) * Math.sin(rot) + (off.y * ppu) * Math.cos(rot),
+    };
+  },
+
+  /**
    * Screen-space collider outline for the gizmo: a 4-corner polygon (box) or a
    * center + radius (circle), in CSS px. The collider lives at the entity's world
-   * transform + its (meter) offset, scaled to pixels by pixelsPerUnit.
+   * transform + its (meter) offset, scaled to pixels by pixelsPerUnit. `cx/cy` is
+   * the shape's screen center for both kinds. `oneWay` is the OneWayPlatform solid-
+   * side normal as a screen unit vector (world-space — contact normals don't rotate
+   * with the entity), or null when the entity has none / it's disabled.
    */
   getColliderGizmo(
     id: EntityId,
     ppuHint?: number,
-  ): { kind: 'box'; pts: Array<{ x: number; y: number }>; handle: { x: number; y: number } | null; sizeHandle: { x: number; y: number } | null } | { kind: 'circle'; cx: number; cy: number; r: number; handle: { x: number; y: number } | null; sizeHandle: { x: number; y: number } | null } | null {
+  ): { kind: 'box'; cx: number; cy: number; r: number; pts: Array<{ x: number; y: number }>; handle: { x: number; y: number } | null; sizeHandle: { x: number; y: number } | null; oneWay: { dx: number; dy: number } | null } | { kind: 'circle'; cx: number; cy: number; r: number; pts: Array<{ x: number; y: number }>; handle: { x: number; y: number } | null; sizeHandle: { x: number; y: number } | null; oneWay: { dx: number; dy: number } | null } | null {
     const world = EngineHost.world;
     if (!world || !world.valid(id) || !world.has(id, Transform)) return null;
     const t = world.get(id, Transform);
@@ -555,19 +601,28 @@ export const ViewportController = {
       x: t.worldPosition.x + (off.x * ppu) * cos - (off.y * ppu) * sin,
       y: t.worldPosition.y + (off.x * ppu) * sin + (off.y * ppu) * cos,
     });
+    // One-way platforms cancel contacts approaching from behind `normal` — show the
+    // solid side. The normal is world-space (screen y flips), independent of rotation.
+    let oneWay: { dx: number; dy: number } | null = null;
+    if (world.has(id, OneWayPlatform)) {
+      const ow = world.get(id, OneWayPlatform) as { normal: { x: number; y: number }; enabled: boolean };
+      const len = Math.hypot(ow.normal.x, ow.normal.y);
+      if (ow.enabled !== false && len > 1e-4) oneWay = { dx: ow.normal.x / len, dy: -ow.normal.y / len };
+    }
 
     if (world.has(id, BoxCollider)) {
       const b = world.get(id, BoxCollider) as { halfExtents: { x: number; y: number }; offset: { x: number; y: number } };
       const c = placeOffset(b.offset);
       const hw = b.halfExtents.x * ppu;
       const hh = b.halfExtents.y * ppu;
+      const centerS = this.worldToClient(c.x, c.y);
       const screen = obbCorners({ cx: c.x, cy: c.y, hw: Math.abs(hw), hh: Math.abs(hh), rot }).map(([wx, wy]) =>
         this.worldToClient(wx, wy),
       );
-      if (screen.some((p) => !p)) return null;
+      if (!centerS || screen.some((p) => !p)) return null;
       const bs = screen.map((p) => ({ x: p!.x, y: p!.y }));
       // Size handle at the +hw,+hh corner (obbCorners index 2) — drag = halfExtents.
-      return { kind: 'box', pts: bs, handle: null, sizeHandle: bs[2] };
+      return { kind: 'box', cx: centerS.x, cy: centerS.y, r: 0, pts: bs, handle: null, sizeHandle: bs[2], oneWay };
     }
 
     const cc = world.get(id, CircleCollider) as { radius: number; offset: { x: number; y: number } };
@@ -577,7 +632,75 @@ export const ViewportController = {
     if (!center || !edge) return null;
     // Radius handle at the top of the circle (drag = radius, in physics meters).
     const handle = this.worldToClient(c.x, c.y + cc.radius * ppu);
-    return { kind: 'circle', cx: center.x, cy: center.y, r: Math.hypot(edge.x - center.x, edge.y - center.y), handle: handle ?? null, sizeHandle: null };
+    return { kind: 'circle', cx: center.x, cy: center.y, r: Math.hypot(edge.x - center.x, edge.y - center.y), pts: [], handle: handle ?? null, sizeHandle: null, oneWay };
+  },
+
+  /** (entity, joint-type) pairs for every scene-authored joint — the joint-gizmo set. */
+  jointGizmoKeys(): Array<{ id: EntityId; type: JointGizmoType }> {
+    const world = EngineHost.world;
+    if (!world) return [];
+    const out: Array<{ id: EntityId; type: JointGizmoType }> = [];
+    for (const e of world.getAllEntities()) {
+      if (!world.has(e, Transform)) continue;
+      for (const type of Object.keys(JOINT_GIZMO_DEFS) as JointGizmoType[]) {
+        if (world.has(e, JOINT_GIZMO_DEFS[type])) out.push({ id: e, type });
+      }
+    }
+    return out;
+  },
+
+  /**
+   * Screen-space link geometry for a scene-authored joint: the anchor on the joint's
+   * own body (`b`), the anchor on the connected body (`a`, null while connectedEntity
+   * is unset — the joint is inert until it links), plus the type-specific directions:
+   * `axis` = prismatic/wheel slide axis (local to the CONNECTED body, Box2D
+   * localFrameA — see PhysicsJoints.cpp), `vel` = motor target linear velocity.
+   * Anchors are world px in each body's local frame (PhysicsSystem ×invPpu → meters);
+   * MotorJoint has none, so both ends sit at the body origins.
+   */
+  getJointGizmo(
+    id: EntityId,
+    type: JointGizmoType,
+  ): { b: { x: number; y: number }; a: { x: number; y: number } | null; axis: { dx: number; dy: number } | null; vel: { dx: number; dy: number } | null; on: boolean } | null {
+    const world = EngineHost.world;
+    const def = JOINT_GIZMO_DEFS[type];
+    if (!world || !def || !world.valid(id) || !world.has(id, def) || !world.has(id, Transform)) return null;
+    const j = world.get(id, def) as JointGizmoData;
+    const anchorOn = (eid: EntityId, anchor: { x: number; y: number }) => {
+      const tt = world.get(eid, Transform);
+      const r = quatAngleZ(tt.worldRotation as { w: number; x: number; y: number; z: number });
+      const cos = Math.cos(r);
+      const sin = Math.sin(r);
+      return this.worldToClient(
+        tt.worldPosition.x + anchor.x * cos - anchor.y * sin,
+        tt.worldPosition.y + anchor.x * sin + anchor.y * cos,
+      );
+    };
+    const b = anchorOn(id, j.anchorB ?? { x: 0, y: 0 });
+    if (!b) return null;
+
+    const cid = j.connectedEntity as EntityId;
+    let a: { x: number; y: number } | null = null;
+    let axis: { dx: number; dy: number } | null = null;
+    if (typeof cid === 'number' && cid >= 0 && world.valid(cid) && world.has(cid, Transform)) {
+      a = anchorOn(cid, j.anchorA ?? { x: 0, y: 0 });
+      if (j.axis) {
+        const len = Math.hypot(j.axis.x, j.axis.y);
+        if (len > 1e-4) {
+          const tc = world.get(cid, Transform);
+          const r = quatAngleZ(tc.worldRotation as { w: number; x: number; y: number; z: number });
+          const wx = (j.axis.x * Math.cos(r) - j.axis.y * Math.sin(r)) / len;
+          const wy = (j.axis.x * Math.sin(r) + j.axis.y * Math.cos(r)) / len;
+          axis = { dx: wx, dy: -wy }; // world → screen y-flip
+        }
+      }
+    }
+    let vel: { dx: number; dy: number } | null = null;
+    if (j.linearVelocity) {
+      const len = Math.hypot(j.linearVelocity.x, j.linearVelocity.y);
+      if (len > 1e-4) vel = { dx: j.linearVelocity.x / len, dy: -j.linearVelocity.y / len };
+    }
+    return { b, a, axis, vel, on: j.enabled !== false };
   },
 
   /** Ids of entities carrying a ParticleEmitter — the emitter-gizmo set. */
@@ -603,12 +726,13 @@ export const ViewportController = {
    */
   getParticleEmitterGizmo(
     id: EntityId,
-  ): { cx: number; cy: number; kind: 'point' | 'circle' | 'poly'; r: number; pts: Array<{ x: number; y: number }>; on: boolean; handle: { x: number; y: number } | null; sizeHandle: { x: number; y: number } | null; angleHandle: { x: number; y: number } | null } | null {
+  ): { cx: number; cy: number; kind: 'point' | 'circle' | 'poly'; r: number; pts: Array<{ x: number; y: number }>; spread: Array<{ x: number; y: number }> | null; on: boolean; handle: { x: number; y: number } | null; sizeHandle: { x: number; y: number } | null; angleHandle: { x: number; y: number } | null } | null {
     const world = EngineHost.world;
     if (!world || !world.valid(id) || !world.has(id, ParticleEmitter) || !world.has(id, Transform)) return null;
     const t = world.get(id, Transform);
     const p = world.get(id, ParticleEmitter) as {
-      shape: number; shapeRadius: number; shapeSize: { x: number; y: number }; shapeAngle: number; enabled: boolean;
+      shape: number; shapeRadius: number; shapeSize: { x: number; y: number }; shapeAngle: number;
+      angleSpreadMin: number; angleSpreadMax: number; enabled: boolean;
     };
     const center = this.worldToClient(t.worldPosition.x, t.worldPosition.y);
     if (!center) return null;
@@ -623,13 +747,31 @@ export const ViewportController = {
       y: t.worldPosition.y + lx * sin + ly * cos,
     });
 
+    // Point/Rect aim by angleSpread (0° = local +X, CCW — randomDirection); Circle
+    // aims radially and Cone by shapeAngle, so only the former two get the wedge.
+    // The full-circle default (0..360) draws nothing — no aim to show.
+    const spreadWedge = (reach: number): Array<{ x: number; y: number }> | null => {
+      const span = p.angleSpreadMax - p.angleSpreadMin;
+      if (span <= 0 || span >= 360) return null;
+      const STEPS = Math.max(2, Math.ceil(span / 15));
+      const pts: Array<{ x: number; y: number }> = [{ x: center.x, y: center.y }];
+      for (let i = 0; i <= STEPS; i++) {
+        const a = (p.angleSpreadMin + span * (i / STEPS)) * (Math.PI / 180);
+        const w = toWorld(Math.cos(a) * reach, Math.sin(a) * reach);
+        const s = this.worldToClient(w.x, w.y);
+        if (!s) return null;
+        pts.push({ x: s.x, y: s.y });
+      }
+      return pts;
+    };
+
     switch (p.shape) {
       case 1: {  // Circle — spawn disk of shapeRadius
         const edge = this.worldToClient(t.worldPosition.x + p.shapeRadius, t.worldPosition.y);
         const r = edge ? Math.hypot(edge.x - center.x, edge.y - center.y) : 0;
         // Radius handle at the top of the ring (drag to resize shapeRadius).
         const handle = this.worldToClient(t.worldPosition.x, t.worldPosition.y + p.shapeRadius);
-        return { cx: center.x, cy: center.y, kind: 'circle', r, pts: [], on, handle: handle ?? null, sizeHandle: null, angleHandle: null };
+        return { cx: center.x, cy: center.y, kind: 'circle', r, pts: [], spread: null, on, handle: handle ?? null, sizeHandle: null, angleHandle: null };
       }
       case 2: {  // Rectangle — oriented spawn box of shapeSize
         const corners = obbCorners({
@@ -638,8 +780,9 @@ export const ViewportController = {
         }).map(([wx, wy]) => this.worldToClient(wx, wy));
         if (corners.some((s) => !s)) return null;
         const cs = corners.map((s) => ({ x: s!.x, y: s!.y }));
+        const reach = Math.max(48, Math.hypot(p.shapeSize.x, p.shapeSize.y) * 0.5 + 16);
         // Size handle at the +halfW,+halfH corner (obbCorners index 2) — drag = shapeSize.
-        return { cx: center.x, cy: center.y, kind: 'poly', r: 0, pts: cs, on, handle: null, sizeHandle: cs[2], angleHandle: null };
+        return { cx: center.x, cy: center.y, kind: 'poly', r: 0, pts: cs, spread: spreadWedge(reach), on, handle: null, sizeHandle: cs[2], angleHandle: null };
       }
       case 3: {  // Cone — aim wedge: local up (0,1) swept ±shapeAngle/2, out to shapeRadius
         const half = Math.max(0, p.shapeAngle) * 0.5 * (Math.PI / 180);
@@ -659,10 +802,10 @@ export const ViewportController = {
         const handleS = this.worldToClient(tip.x, tip.y);
         const edge = toWorld(Math.sin(half) * rad, Math.cos(half) * rad);
         const angleS = this.worldToClient(edge.x, edge.y);
-        return { cx: center.x, cy: center.y, kind: 'poly', r: 0, pts, on, handle: handleS ?? null, sizeHandle: null, angleHandle: angleS ?? null };
+        return { cx: center.x, cy: center.y, kind: 'poly', r: 0, pts, spread: null, on, handle: handleS ?? null, sizeHandle: null, angleHandle: angleS ?? null };
       }
-      default:  // Point (0) — a marker at the emitter (the clickable icon)
-        return { cx: center.x, cy: center.y, kind: 'point', r: 0, pts: [], on, handle: null, sizeHandle: null, angleHandle: null };
+      default:  // Point (0) — a marker at the emitter (the clickable icon) + its aim wedge
+        return { cx: center.x, cy: center.y, kind: 'point', r: 0, pts: [], spread: spreadWedge(48), on, handle: null, sizeHandle: null, angleHandle: null };
     }
   },
 };

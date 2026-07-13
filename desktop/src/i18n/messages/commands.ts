@@ -48,7 +48,7 @@ export const commandMessages = defineMessages({
     'cmd.view.toggleGrid': { en: 'Show Grid', zh: '显示网格' },
     'cmd.view.toggleGizmos': { en: 'Show Gizmos', zh: '显示 Gizmo' },
     'cmd.view.togglePreviewFx': { en: 'Preview FX', zh: '预览特效' },
-    'cmd.view.toggleColliders': { en: 'Show Colliders', zh: '显示碰撞体' },
+    'cmd.view.toggleColliders': { en: 'Show Physics Gizmos', zh: '显示物理 Gizmo' },
     'cmd.view.toggleCoordSpace': { en: 'Local Axes', zh: '局部坐标轴' },
     'cmd.view.togglePivotMode': { en: 'Pivot (vs Center)', zh: '轴心（而非中心）' },
     'cmd.view.toggleSnapping': { en: 'Snapping', zh: '吸附' },

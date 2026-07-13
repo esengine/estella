@@ -20,7 +20,7 @@ import { commands } from '@/commands';
 import { MOD_LABEL } from '@/commands/keybinding';
 import { EngineHost } from '@/engine/EngineHost';
 import { PlayRealm } from '@/engine/PlayRealm';
-import { ViewportController } from '@/engine/ViewportController';
+import { ViewportController, type JointGizmoType } from '@/engine/ViewportController';
 import { ProjectStore } from '@/project/ProjectStore';
 import { createFromSource, sourceById, SOURCE_DND_MIME } from '@/engine/entitySources';
 import { resizeUINodeAxis, type ResizeSide, type AxisResizeWrites } from '@/engine/uiResize';
@@ -54,13 +54,15 @@ const toInput = (e: ReactPointerEvent): PointerInput => ({
 // emitter shapeRadius, light radius, and circle-collider radius all drive their field
 // this way. `ppu` maps world distance to the field's units: 1 for world-space radii
 // (emitter/light), the collider's pixelsPerUnit for physics-meter radii. Measures from
-// the entity's world origin (exact when the shape has no local offset).
+// the entity's world origin unless the shape has its own center (collider offset) —
+// callers pass `centerOverride` so the drag measures from where the shape is drawn.
 function startRadiusHandleDrag(
   rt: number, component: string, field: string, ppu: number, e: ReactPointerEvent,
+  centerOverride?: { x: number; y: number } | null,
 ): void {
   if (e.button !== 0) return;
   const src = SceneModel.sourceFor(rt);
-  const center = ViewportController.getEntityWorldXY(rt);
+  const center = centerOverride ?? ViewportController.getEntityWorldXY(rt);
   if (src == null || !center) return;
   e.stopPropagation();
   SceneCommands.beginGesture(`${component} radius`);
@@ -83,12 +85,14 @@ function startRadiusHandleDrag(
 // cursor is un-rotated into the entity's local frame so the corner's |local| gives the
 // half-extents. `fullSize` writes the full size (emitter shapeSize = 2× half); else the
 // half-extents (collider halfExtents). `ppu` maps world px → the field's units.
+// `centerOverride` = the shape's own center when it's offset from the entity origin.
 function startSizeHandleDrag(
   rt: number, component: string, field: string, ppu: number, fullSize: boolean, e: ReactPointerEvent,
+  centerOverride?: { x: number; y: number } | null,
 ): void {
   if (e.button !== 0) return;
   const src = SceneModel.sourceFor(rt);
-  const center = ViewportController.getEntityWorldXY(rt);
+  const center = centerOverride ?? ViewportController.getEntityWorldXY(rt);
   if (src == null || !center) return;
   e.stopPropagation();
   const rot = ViewportController.getEntityWorldAngleRad(rt);
@@ -619,6 +623,13 @@ export function Viewport() {
     () => (engine.status === 'ready' && showColliders ? ViewportController.colliderIds() : []),
     [structRev, engine.status, showColliders],
   );
+  // Scene-authored joints are equally invisible — draw each as an anchor link (plus
+  // axis/velocity direction). Keyed by entity + joint type; same physics show flag.
+  const jointRefs = useRef(new Map<string, SVGSVGElement | null>());
+  const jointKeys = useMemo(
+    () => (engine.status === 'ready' && showColliders ? ViewportController.jointGizmoKeys() : []),
+    [structRev, engine.status, showColliders],
+  );
   // Particle emitters don't simulate in edit mode — outline each emitter's spawn
   // shape (point / circle / rect / cone) + a clickable icon, positioned by the rAF.
   const particleRefs = useRef(new Map<number, HTMLDivElement | null>());
@@ -1023,6 +1034,120 @@ export function Viewport() {
             csz.style.display = 'none';
           }
         }
+        // One-way platform: an arrow out of the collider center along the solid-side
+        // normal (screen-fixed length, like the light direction line, so it reads at
+        // any zoom) — the side a body can land on; it passes through from the other.
+        const owLine = svg.querySelector('.cl-oneway') as SVGLineElement | null;
+        const owHead = svg.querySelector('.cl-oneway-head') as SVGPolygonElement | null;
+        if (cg && cg.oneWay) {
+          const L = 30;
+          const { dx, dy } = cg.oneWay;
+          const bx = cg.cx + dx * L;
+          const by = cg.cy + dy * L;
+          if (owLine) {
+            owLine.setAttribute('x1', String(cg.cx));
+            owLine.setAttribute('y1', String(cg.cy));
+            owLine.setAttribute('x2', String(bx));
+            owLine.setAttribute('y2', String(by));
+            owLine.style.opacity = '1';
+          }
+          if (owHead) {
+            const px = -dy;
+            const py = dx;
+            owHead.setAttribute('points', [
+              `${bx + dx * 9},${by + dy * 9}`,
+              `${bx + px * 4.5},${by + py * 4.5}`,
+              `${bx - px * 4.5},${by - py * 4.5}`,
+            ].join(' '));
+            owHead.style.opacity = '1';
+          }
+        } else {
+          if (owLine) owLine.style.opacity = '0';
+          if (owHead) owHead.style.opacity = '0';
+        }
+      }
+
+      // Joint gizmos — the anchor-to-anchor link (own body ↔ connected body), the
+      // prismatic/wheel slide axis, and the motor joint's target-velocity arrow.
+      // Unlinked joints (no connectedEntity yet) show just their own anchor dot.
+      for (const [key, svg] of jointRefs.current) {
+        if (!svg) continue;
+        const sep = key.indexOf(':');
+        const jg = camsOn
+          ? ViewportController.getJointGizmo(Number(key.slice(0, sep)), key.slice(sep + 1) as JointGizmoType)
+          : null;
+        const line = svg.querySelector('.jt-line') as SVGLineElement | null;
+        const dotA = svg.querySelector('.jt-a') as SVGCircleElement | null;
+        const dotB = svg.querySelector('.jt-b') as SVGCircleElement | null;
+        const axis = svg.querySelector('.jt-axis') as SVGLineElement | null;
+        const vel = svg.querySelector('.jt-vel') as SVGLineElement | null;
+        const velHead = svg.querySelector('.jt-vel-head') as SVGPolygonElement | null;
+        if (!jg) {
+          svg.style.opacity = '0';
+          continue;
+        }
+        svg.style.opacity = jg.on ? '1' : '0.35';
+        if (dotB) {
+          dotB.setAttribute('cx', String(jg.b.x));
+          dotB.setAttribute('cy', String(jg.b.y));
+        }
+        if (line) {
+          if (jg.a) {
+            line.setAttribute('x1', String(jg.b.x));
+            line.setAttribute('y1', String(jg.b.y));
+            line.setAttribute('x2', String(jg.a.x));
+            line.setAttribute('y2', String(jg.a.y));
+            line.style.opacity = '1';
+          } else {
+            line.style.opacity = '0';
+          }
+        }
+        if (dotA) {
+          if (jg.a) {
+            dotA.setAttribute('cx', String(jg.a.x));
+            dotA.setAttribute('cy', String(jg.a.y));
+            dotA.style.opacity = '1';
+          } else {
+            dotA.style.opacity = '0';
+          }
+        }
+        if (axis) {
+          if (jg.a && jg.axis) {
+            axis.setAttribute('x1', String(jg.a.x - jg.axis.dx * 26));
+            axis.setAttribute('y1', String(jg.a.y - jg.axis.dy * 26));
+            axis.setAttribute('x2', String(jg.a.x + jg.axis.dx * 26));
+            axis.setAttribute('y2', String(jg.a.y + jg.axis.dy * 26));
+            axis.style.opacity = '1';
+          } else {
+            axis.style.opacity = '0';
+          }
+        }
+        // Motor target velocity: arrow out of the driven body's anchor.
+        if (jg.vel) {
+          const L = 30;
+          const tx = jg.b.x + jg.vel.dx * L;
+          const ty = jg.b.y + jg.vel.dy * L;
+          if (vel) {
+            vel.setAttribute('x1', String(jg.b.x));
+            vel.setAttribute('y1', String(jg.b.y));
+            vel.setAttribute('x2', String(tx));
+            vel.setAttribute('y2', String(ty));
+            vel.style.opacity = '1';
+          }
+          if (velHead) {
+            const px = -jg.vel.dy;
+            const py = jg.vel.dx;
+            velHead.setAttribute('points', [
+              `${tx + jg.vel.dx * 9},${ty + jg.vel.dy * 9}`,
+              `${tx + px * 4.5},${ty + py * 4.5}`,
+              `${tx - px * 4.5},${ty - py * 4.5}`,
+            ].join(' '));
+            velHead.style.opacity = '1';
+          }
+        } else {
+          if (vel) vel.style.opacity = '0';
+          if (velHead) velHead.style.opacity = '0';
+        }
       }
 
       // Light2D gizmos — icon at the light, dashed reach circle (Point/Spot), direction
@@ -1095,6 +1220,17 @@ export function Viewport() {
         const svg = particleShapeRefs.current.get(pid);
         const poly = svg ? (svg.querySelector('.pe-poly') as SVGPolygonElement | null) : null;
         const circ = svg ? (svg.querySelector('.pe-circle') as SVGCircleElement | null) : null;
+        // Aim wedge (Point/Rect): the angleSpread arc particles will fly into. The
+        // full-circle default draws nothing, so it only appears once aimed.
+        const spread = svg ? (svg.querySelector('.pe-spread') as SVGPolygonElement | null) : null;
+        if (spread) {
+          if (pg && pg.spread) {
+            spread.setAttribute('points', pg.spread.map((p) => `${p.x},${p.y}`).join(' '));
+            spread.style.opacity = pg.on ? '0.7' : '0.3';
+          } else {
+            spread.style.opacity = '0';
+          }
+        }
         if (pg) {
           wrap.style.opacity = pg.on ? '1' : '0.4';
           wrap.style.visibility = 'visible';
@@ -1515,17 +1651,20 @@ export function Viewport() {
             else colliderRefs.current.delete(id);
           }}
           className="viewport__collider-gizmo"
+          data-src={SceneModel.sourceFor(id)}
           aria-hidden="true"
         >
           <polygon className="cl-box" points="" />
           <circle className="cl-circle" cx="0" cy="0" r="0" />
+          <line className="cl-oneway" x1="0" y1="0" x2="0" y2="0" />
+          <polygon className="cl-oneway-head" points="" />
           <circle
             className="cl-handle"
             cx="0"
             cy="0"
             r="5"
             style={{ display: 'none' }}
-            onPointerDown={(e) => startRadiusHandleDrag(id, 'CircleCollider', 'radius', ViewportController.colliderPixelsPerUnit(), e)}
+            onPointerDown={(e) => startRadiusHandleDrag(id, 'CircleCollider', 'radius', ViewportController.colliderPixelsPerUnit(), e, ViewportController.colliderWorldCenter(id))}
           />
           <circle
             className="cl-size-handle"
@@ -1533,8 +1672,32 @@ export function Viewport() {
             cy="0"
             r="5"
             style={{ display: 'none' }}
-            onPointerDown={(e) => startSizeHandleDrag(id, 'BoxCollider', 'halfExtents', ViewportController.colliderPixelsPerUnit(), false, e)}
+            onPointerDown={(e) => startSizeHandleDrag(id, 'BoxCollider', 'halfExtents', ViewportController.colliderPixelsPerUnit(), false, e, ViewportController.colliderWorldCenter(id))}
           />
+        </svg>
+      ))}
+
+      {/* Joint gizmos: one link line per scene-authored joint (anchor on the joint's
+          body ↔ anchor on the connected body), plus the prismatic/wheel slide axis
+          and the motor joint's target-velocity arrow. rAF-positioned, physics flag. */}
+      {jointKeys.map(({ id, type }) => (
+        <svg
+          key={`${id}:${type}`}
+          ref={(el) => {
+            if (el) jointRefs.current.set(`${id}:${type}`, el);
+            else jointRefs.current.delete(`${id}:${type}`);
+          }}
+          className="viewport__joint-gizmo"
+          data-src={SceneModel.sourceFor(id)}
+          data-joint={type}
+          aria-hidden="true"
+        >
+          <line className="jt-line" x1="0" y1="0" x2="0" y2="0" />
+          <line className="jt-axis" x1="0" y1="0" x2="0" y2="0" />
+          <line className="jt-vel" x1="0" y1="0" x2="0" y2="0" />
+          <polygon className="jt-vel-head" points="" />
+          <circle className="jt-b" cx="0" cy="0" r="3" />
+          <circle className="jt-a" cx="0" cy="0" r="3" />
         </svg>
       ))}
 
@@ -1579,6 +1742,7 @@ export function Viewport() {
         >
           <polygon className="pe-poly" points="" />
           <circle className="pe-circle" cx="0" cy="0" r="0" />
+          <polygon className="pe-spread" points="" />
           <circle
             className="pe-handle"
             cx="0"
