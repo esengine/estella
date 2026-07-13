@@ -49,10 +49,10 @@ describe('AudioMixer', () => {
 
     it('should connect child buses to master', () => {
         const mixer = new AudioMixer(context);
-        expect(mixer.music.node.connect).toHaveBeenCalledWith(mixer.master.node);
-        expect(mixer.sfx.node.connect).toHaveBeenCalledWith(mixer.master.node);
-        expect(mixer.ui.node.connect).toHaveBeenCalledWith(mixer.master.node);
-        expect(mixer.voice.node.connect).toHaveBeenCalledWith(mixer.master.node);
+        expect(mixer.music.node.connect).toHaveBeenCalledWith(mixer.master.input);
+        expect(mixer.sfx.node.connect).toHaveBeenCalledWith(mixer.master.input);
+        expect(mixer.ui.node.connect).toHaveBeenCalledWith(mixer.master.input);
+        expect(mixer.voice.node.connect).toHaveBeenCalledWith(mixer.master.input);
     });
 
     it('should apply custom volumes', () => {
@@ -101,13 +101,13 @@ describe('AudioMixer', () => {
             const custom = mixer.createBus({ name: 'ambient', volume: 0.6 });
             expect(custom.name).toBe('ambient');
             expect(custom.volume).toBe(0.6);
-            expect(custom.node.connect).toHaveBeenCalledWith(mixer.master.node);
+            expect(custom.node.connect).toHaveBeenCalledWith(mixer.master.input);
         });
 
         it('should create a custom bus connected to specified parent', () => {
             const mixer = new AudioMixer(context);
             const custom = mixer.createBus({ name: 'ambient', parent: 'sfx' });
-            expect(custom.node.connect).toHaveBeenCalledWith(mixer.sfx.node);
+            expect(custom.node.connect).toHaveBeenCalledWith(mixer.sfx.input);
         });
 
         it('should be retrievable via getBus', () => {

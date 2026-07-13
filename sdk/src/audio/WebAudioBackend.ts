@@ -272,7 +272,7 @@ export class WebAudioBackend implements PlatformAudioBackend {
 
         const busName = config.bus ?? 'sfx';
         const bus = this.mixer_.getBus(busName) ?? this.mixer_.sfx;
-        poolNode.panner.connect(bus.node);
+        poolNode.panner.connect(bus.input);
 
         const startOffset = config.startOffset ?? 0;
         source.start(0, startOffset);

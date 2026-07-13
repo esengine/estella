@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { PlatformAudioBackend, AudioBufferHandle, AudioHandle } from './PlatformAudioBackend';
-import type { AudioMixer } from './AudioMixer';
+import type { AudioMixer, BusDuckRule } from './AudioMixer';
+import type { BusEffectDef } from './BusEffects';
 import { defineResource } from '../resource';
 import { RuntimeConfig } from '../defaults';
 import { log } from '../logger';
@@ -373,6 +374,41 @@ export class AudioAPI {
         if (bus) {
             bus.muted = muted;
         }
+    }
+
+    setBusVolume(busName: string, volume: number): void {
+        const bus = this.mixer_?.getBus(busName);
+        if (bus) {
+            bus.volume = volume;
+        }
+    }
+
+    /** Replace a bus's DSP insert chain. No-op (false) on backends without a
+     *  WebAudio graph (WeChat/Null) — same degradation as the volume APIs. */
+    setBusEffects(busName: string, effects: BusEffectDef[]): boolean {
+        const bus = this.mixer_?.getBus(busName);
+        if (!bus) return false;
+        bus.setEffects(effects);
+        return true;
+    }
+
+    getBusEffects(busName: string): BusEffectDef[] {
+        return this.mixer_?.getBus(busName)?.effects ?? [];
+    }
+
+    /** Install (or clear with null) sidechain ducking on `target` — e.g. duck
+     *  'music' to 30% while 'voice' carries signal. */
+    setBusDucking(target: string, rule: BusDuckRule | null): boolean {
+        return this.mixer_?.setDucking(target, rule) ?? false;
+    }
+
+    getBusDucking(target: string): BusDuckRule | null {
+        return this.mixer_?.getDucking(target) ?? null;
+    }
+
+    /** Advance duck envelopes (driven per-frame by AudioUpdateSystem). */
+    updateDucking(): void {
+        this.mixer_?.updateDucking();
     }
 
     getBufferHandle(url: string): AudioBufferHandle | undefined {

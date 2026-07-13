@@ -91,6 +91,8 @@ export class AudioPlugin implements Plugin {
                     }
                     wasPlayMode = true;
 
+                    audioAPI.updateDucking();
+
                     const world = app.world;
 
                     let listenerX = 0;

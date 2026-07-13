@@ -161,9 +161,11 @@ describe('WebAudioBackend', () => {
             const analyser = mockCtx.createAnalyser.mock.results[0].value;
             expect(analyser.fftSize).toBe(128);
             expect(analyser.smoothingTimeConstant).toBe(0.7);
-            // The master gain connects INTO the analyser (a side-branch sink).
-            const master = mockCtx.createGain.mock.results[0].value;
-            expect(master.connect).toHaveBeenCalledWith(analyser);
+            // The master OUTPUT gain connects INTO the analyser (a side-branch
+            // sink). A bus creates input/duck/gain in order, so master's output
+            // is the third gain the context vended.
+            const masterOut = mockCtx.createGain.mock.results[2].value;
+            expect(masterOut.connect).toHaveBeenCalledWith(analyser);
         });
     });
 

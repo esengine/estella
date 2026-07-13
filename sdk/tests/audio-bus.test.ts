@@ -101,7 +101,7 @@ describe('AudioBus', () => {
             const busA = new AudioBus(context, { name: 'a' });
             const busB = new AudioBus(context, { name: 'b' });
             busA.connect(busB);
-            expect(busA.node.connect).toHaveBeenCalledWith(busB.node);
+            expect(busA.node.connect).toHaveBeenCalledWith(busB.input);
         });
 
         it('should connect to a raw AudioNode', () => {
@@ -117,7 +117,7 @@ describe('AudioBus', () => {
             const parent = new AudioBus(context, { name: 'parent' });
             const child = new AudioBus(context, { name: 'child' });
             parent.addChild(child);
-            expect(child.node.connect).toHaveBeenCalledWith(parent.node);
+            expect(child.node.connect).toHaveBeenCalledWith(parent.input);
         });
     });
 });
