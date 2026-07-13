@@ -81,7 +81,6 @@ private:
         transform.worldPosition = transform.position;
         transform.worldRotation = transform.rotation;
         transform.worldScale = transform.scale;
-        transform.cachedMatrix_ = math::compose(transform.worldPosition, transform.worldRotation, transform.worldScale);
         transform.decomposed_ = true;
 
         if (registry.has<TransformDirty>(entity)) {
@@ -89,13 +88,19 @@ private:
         }
 
         auto* children = registry.tryGet<Children>(entity);
-        if (children) {
-            for (Entity child : children->entities) {
-                if (registry.valid(child)) {
-                    auto* childTransform = registry.tryGet<Transform>(child);
-                    if (childTransform) {
-                        updateEntityTransform(registry, child, *childTransform, transform.cachedMatrix_, true, 1);
-                    }
+        if (!children || children->entities.empty()) {
+            // A root's cachedMatrix_ is only read to transform its children, and
+            // with decomposed_ = true the renderer reads world TRS directly — so
+            // for a childless root (the common 2D case) the compose is dead work.
+            return;
+        }
+
+        transform.cachedMatrix_ = math::compose(transform.worldPosition, transform.worldRotation, transform.worldScale);
+        for (Entity child : children->entities) {
+            if (registry.valid(child)) {
+                auto* childTransform = registry.tryGet<Transform>(child);
+                if (childTransform) {
+                    updateEntityTransform(registry, child, *childTransform, transform.cachedMatrix_, true, 1);
                 }
             }
         }
