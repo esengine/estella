@@ -241,15 +241,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     }
 
     private getWebGL2Context(): WebGL2RenderingContext | null {
-        try {
-            const glObj = this.module_.GL;
-            if (glObj?.currentContext?.GLctx instanceof WebGL2RenderingContext) {
-                return glObj.currentContext.GLctx;
-            }
-        } catch {
-            // fallback
-        }
-        return null;
+        return findWebGL2Context(this.module_.GL);
     }
 
     private createTextureWebGL2(
@@ -345,4 +337,30 @@ function nextPowerOf2(n: number): number {
     let p = 1;
     while (p < n) p *= 2;
     return p;
+}
+
+/**
+ * The engine's WebGL2 context, looked up through emscripten's GL bookkeeping.
+ * Duck-typed on `texStorage2D` (a WebGL2-only method): WeChat MiniGames have no
+ * `WebGL2RenderingContext` global — an `instanceof` check THREW there and read
+ * as "no context", refusing every KTX2 texture — and instanceof lies across
+ * realms anyway. Falls back to any registered context when none is current yet
+ * (a host registers the context before the renderer's first frame makes it
+ * current). Exported for tests.
+ */
+export function findWebGL2Context(glObj: ESEngineModule['GL'] | undefined): WebGL2RenderingContext | null {
+    try {
+        const current = glObj?.currentContext?.GLctx;
+        if (isWebGL2(current)) return current;
+        for (const rec of glObj?.contexts ?? []) {
+            if (rec && isWebGL2(rec.GLctx)) return rec.GLctx;
+        }
+    } catch {
+        // fall through — treated as "no WebGL2 context"
+    }
+    return null;
+}
+
+function isWebGL2(ctx: unknown): ctx is WebGL2RenderingContext {
+    return !!ctx && typeof (ctx as WebGL2RenderingContext).texStorage2D === 'function';
 }

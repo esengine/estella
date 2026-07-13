@@ -131,6 +131,8 @@ export interface ESEngineModule {
         }): number;
         /** Emscripten-internal: active GL context record (populated after registerContext). */
         currentContext?: { GLctx: WebGLRenderingContext | WebGL2RenderingContext };
+        /** Emscripten-internal: every registered context record, indexed by handle (holes possible). */
+        contexts?: ({ GLctx: WebGLRenderingContext | WebGL2RenderingContext } | null)[];
         /** Emscripten-internal: allocate a new handle id into the given object pool. */
         getNewId(pool: Record<number, unknown>): number;
         /** Emscripten-internal: texture object pool keyed by handle id. */
