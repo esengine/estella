@@ -33,6 +33,7 @@ export {
 export {
     Timeline,
     TimelineApi,
+    type PlayerFlagChannel,
 } from './TimelineControl';
 
 export {
@@ -65,6 +66,9 @@ export {
     advanceTimelineTS,
     detectTimelineEvents,
     createTimelineState,
+    applyPlayerFlags,
+    latchPlayerFinish,
+    type TimelinePlayerFlags,
     type TimelineState,
     type FiredEvent,
     type AdvanceContext,

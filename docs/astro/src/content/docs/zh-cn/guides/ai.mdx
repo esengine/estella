@@ -84,6 +84,38 @@ export enum Status { Success = 'success', Failure = 'failure', Running = 'runnin
 
 写一个返回 `Status` 的动作,就能让*同一个*动作既当 BT 叶子又当 FSM 钩子。
 
+### 内建名字
+
+引擎预注册了少量名字,常见的胶水逻辑因此**完全不用写代码**——它们会和你自己注册的
+名字一起出现在编辑器调色板里。它们全部只操作代理实体自身的组件(与你的代码、
+编辑器共用同一条通道):
+
+| 名字 | 类别 | 效果 |
+|---|---|---|
+| `timeline.play` | 动作 | 拉起该实体 [`TimelinePlayer`](/docs/zh-cn/guides/timeline/) 的播放旗标。对已播完的片段,从头重播。 |
+| `timeline.pause` | 动作 | 放下播放旗标(用 `timeline.play` 恢复)。 |
+| `timeline.finished` | 条件 | 片段已完成(`once` 片段播到末尾)且未在播放时为真。 |
+
+三者组合出一个**零代码的过场状态**:进入状态即播放片段,片段播完即驱动转移:
+
+```typescript
+registerFsm('intro', {
+  initial: 'Cutscene',
+  states: [
+    {
+      name: 'Cutscene',
+      onEnter: 'timeline.play',
+      transitions: [{ to: 'Gameplay', condition: 'timeline.finished' }],
+    },
+    { name: 'Gameplay' },
+  ],
+});
+```
+
+代理实体自己携带 `TimelinePlayer`(播哪个片段、速度、循环模式)——FSM 只翻它的
+旗标。内建名字永远不会遮蔽你的注册:同名时你的注册获胜。游戏侧的名字请避开
+`timeline.` 前缀,保持命名空间分离。
+
 ## 感知
 
 `Perceiver` 每帧扫描最近的、可见的 `PerceptionTarget`,把结果写进同一实体上的 `Perception`

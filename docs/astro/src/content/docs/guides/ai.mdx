@@ -96,6 +96,40 @@ export enum Status { Success = 'success', Failure = 'failure', Running = 'runnin
 Writing an action that returns `Status` lets the *same* action serve as a BT leaf and
 an FSM hook.
 
+### Built-in names
+
+The engine pre-registers a few names, so common glue needs **no code at all** — they
+appear in the editor palettes next to your own. All of them operate on components of
+the agent entity (the same channel your code and the editor use):
+
+| Name | Kind | Effect |
+|---|---|---|
+| `timeline.play` | action | Raise the agent's [`TimelinePlayer`](/docs/guides/timeline/) play flag. On a finished clip this replays it from the top. |
+| `timeline.pause` | action | Lower the play flag (resume with `timeline.play`). |
+| `timeline.finished` | condition | True once the clip has completed (a `once` clip that ran to its end) and is not playing. |
+
+Together they make a **code-free cutscene state**: entering the state starts the
+clip, and its completion drives the transition out.
+
+```typescript
+registerFsm('intro', {
+  initial: 'Cutscene',
+  states: [
+    {
+      name: 'Cutscene',
+      onEnter: 'timeline.play',
+      transitions: [{ to: 'Gameplay', condition: 'timeline.finished' }],
+    },
+    { name: 'Gameplay' },
+  ],
+});
+```
+
+The agent entity carries the `TimelinePlayer` (which clip, speed, wrap mode) — the
+FSM only flips its flags. Built-in names never shadow yours: if you register an
+action or condition under the same name, your registration wins. Avoid the
+`timeline.` prefix for game names to keep the namespaces apart.
+
 ## Perception
 
 A `Perceiver` scans for the nearest visible `PerceptionTarget` each frame and writes

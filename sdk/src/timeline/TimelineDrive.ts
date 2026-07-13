@@ -115,6 +115,58 @@ export interface AdvanceContext {
     onPropertyApplied?: (entity: Entity, asset: TimelineAsset) => void;
 }
 
+// ---------------------------------------------------------------------------
+// TimelinePlayer flag contract
+// ---------------------------------------------------------------------------
+
+/**
+ * The control surface of the `TimelinePlayer` component (structural, so this
+ * module needs no import from the plugin). The component flags are the single
+ * playback channel — the editor, game code, and AI actions all speak through
+ * them; the per-frame system reconciles them with {@link TimelineState} via the
+ * two functions below.
+ */
+export interface TimelinePlayerFlags {
+    playing: boolean;
+    finished: boolean;
+}
+
+/**
+ * Pre-advance half of the flag contract: component → state. Raising `playing`
+ * while `finished` is latched replays the clip from the top (the only way a
+ * completed Once clip can run again — its clock is parked at the end). Returns
+ * true when the component was mutated (`finished` cleared) and needs a write-back.
+ */
+export function applyPlayerFlags(flags: TimelinePlayerFlags, state: TimelineState): boolean {
+    let changed = false;
+    if (flags.playing && flags.finished) {
+        state.time = 0;
+        state.prevTime = 0;
+        state.spineClipIndices = {};
+        flags.finished = false;
+        changed = true;
+    }
+    state.playing = flags.playing;
+    return changed;
+}
+
+/**
+ * Post-advance half: state → component. A clip that just hit its Once end
+ * clears `playing` and latches `finished` (read by the `timeline.finished` AI
+ * condition and observable in the inspector); a stop from any other source only
+ * clears `playing`. Returns true when the component needs a write-back.
+ */
+export function latchPlayerFinish(
+    flags: TimelinePlayerFlags, state: TimelineState, justFinished: boolean,
+): boolean {
+    if (!state.playing && flags.playing) {
+        flags.playing = false;
+        if (justFinished) flags.finished = true;
+        return true;
+    }
+    return false;
+}
+
 /**
  * Advance one entity's timeline by `dt`. Mirrors TimelineSystem::advance: clock +
  * wrap, sample property tracks, edge-detect + dispatch events. Returns true when

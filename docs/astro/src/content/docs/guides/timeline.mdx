@@ -32,9 +32,15 @@ const attach = defineSystem([Commands()], (cmds) => {
 | Property | Type | Default | Description |
 |---|---|---|---|
 | `timeline` | asset | `''` | The timeline asset (`.estimeline`). |
-| `playing` | boolean | `false` | Whether it starts playing on attach. |
+| `playing` | boolean | `false` | The play flag — raise to play, lower to pause. Raising it on a finished clip replays from the top. |
 | `speed` | number | `1` | Playback rate multiplier. |
 | `wrapMode` | string | `'once'` | `'once'`, `'loop'`, or `'pingPong'` (camelCase — other values silently play once). |
+| `finished` | boolean | `false` | Latched true when a `'once'` clip completes; cleared on the next play. Runtime, read-only. |
+
+The component flags **are** the playback control: the engine reconciles them into
+its internal clock every frame, so anything that flips `playing` — your code, the
+inspector, an [AI action](/docs/guides/ai/#built-in-names) — drives the
+clip through the same channel.
 
 ## Control playback
 
@@ -57,12 +63,22 @@ const control = defineSystem([Query(TimelinePlayer), Res(Timeline)], (q, timelin
 
 | Method | Description |
 |---|---|
-| `play(entity)` | Start or resume playback. |
+| `play(entity)` | Start or resume playback (a finished clip replays from the top). |
 | `pause(entity)` | Pause, keeping the current time. |
-| `stop(entity)` | Stop and reset to the start. |
+| `stop(entity)` | Stop, reset to the start, and clear the `finished` latch. |
 | `setTime(entity, seconds)` | Seek to a time (scrubs all tracks). |
 | `getCurrentTime(entity)` | Current playhead time in seconds. |
 | `isPlaying(entity)` | Whether it's currently playing. |
+
+These methods write through to the `TimelinePlayer` flags — `timeline.play(e)` and
+`player.playing = true` are the same operation on the same channel.
+
+<Aside type="tip">
+  For a **code-free cutscene**, pair the component with a state machine: the
+  built-in `timeline.play` action and `timeline.finished` condition make an FSM
+  state that plays a clip on enter and transitions out when it completes. See
+  [AI — built-in names](/docs/guides/ai/#built-in-names).
+</Aside>
 
 ## Track types
 

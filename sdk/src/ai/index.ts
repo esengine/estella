@@ -37,6 +37,9 @@ export {
 // Shared AI task status (FSM actions + BT nodes).
 export { Status } from './status';
 
+// Engine-built-in actions/conditions (timeline.…); plugins call this on build.
+export { ensureBuiltinAiRegistrations } from './builtins';
+
 // Behavior trees: pure core (types + interpreter)…
 export * from './bt';
 // …plus the engine binding (component, store, plugin).

@@ -26,6 +26,7 @@ import { Blackboard } from './Blackboard';
 import { createFsmRunState, stepFsm, type FsmRunState } from './FsmRunner';
 import { aiRegistry, type AiContext } from './AiContext';
 import { StateMachineAgent, getFsm } from './StateMachineAgent';
+import { ensureBuiltinAiRegistrations } from '../builtins';
 
 /** Per-entity FSM runtime: blackboard persists; run rebuilds when the FSM key changes. */
 interface AgentState {
@@ -134,6 +135,7 @@ export class FsmPlugin implements Plugin {
     name = 'fsm';
 
     build(app: App): void {
+        ensureBuiltinAiRegistrations();
         const states = new Map<Entity, AgentState>();
         app.world.onDespawn((entity: Entity) => states.delete(entity));
         app.insertResource(AiFsm, new StateMachines(states));

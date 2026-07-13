@@ -8,6 +8,7 @@
 import { setPlatform } from './platform';
 import { wechatAdapter, initWeChatPlatform } from './platform/wechat';
 import { ensureBuiltinComponentsRegistered, markEngineComponentBaseline } from './component';
+import { ensureBuiltinAiRegistrations } from './ai/builtins';
 
 initWeChatPlatform();
 setPlatform(wechatAdapter);
@@ -15,6 +16,7 @@ setPlatform(wechatAdapter);
 // Register every engine component (COMPONENT_META) so scenes never silently drop
 // a component that exists in the engine but lacks a typed const.
 ensureBuiltinComponentsRegistered();
+ensureBuiltinAiRegistrations();
 markEngineComponentBaseline();
 
 export * from './core';

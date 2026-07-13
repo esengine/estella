@@ -12,7 +12,7 @@ import { Audio, type AudioAPI } from '../audio/Audio';
 import { wrapModeFromName, TrackType, type TimelineAsset, type AnimFramesTrack } from './TimelineTypes';
 import { Timeline, TimelineApi } from './TimelineControl';
 import { resolveChildEntity } from './TimelineRuntime';
-import { advanceTimelineTS } from './TimelineDrive';
+import { advanceTimelineTS, applyPlayerFlags, latchPlayerFinish } from './TimelineDrive';
 import type { SampleDeps } from './TimelineEvaluator';
 import type { Entity } from '../types';
 
@@ -23,6 +23,11 @@ export interface TimelinePlayerData {
     playing: boolean;
     speed: number;
     wrapMode: string;
+    /**
+     * Latched true when a Once clip completes; cleared when `playing` is raised
+     * again (which replays from the top). Runtime-observable — don't author it.
+     */
+    finished: boolean;
 }
 
 export const TimelinePlayer = defineComponent<TimelinePlayerData>('TimelinePlayer', {
@@ -30,8 +35,12 @@ export const TimelinePlayer = defineComponent<TimelinePlayerData>('TimelinePlaye
     playing: false,
     speed: 1.0,
     wrapMode: 'once',
+    finished: false,
 }, {
     assetFields: [{ field: 'timeline', type: 'timeline' }],
+    fields: {
+        finished: { advanced: true, tooltip: 'Clip completed (runtime, read-only). Raise Playing to replay.' },
+    },
 });
 
 let activeTimelinePlugin: TimelinePlugin | null = null;
@@ -83,7 +92,22 @@ export class TimelinePlugin implements Plugin {
     build(app: App): void {
         activeTimelinePlugin = this;
         const world = app.world;
-        app.insertResource(Timeline, new TimelineApi());
+
+        // The api's play/pause/stop write through to the component flags (the
+        // authoritative channel this system reconciles from — see PlayerFlagChannel).
+        const setFlags = (entity: Entity, playing: boolean, clearFinished: boolean): void => {
+            if (!world.has(entity, TimelinePlayer)) return;
+            const player = world.get(entity, TimelinePlayer) as TimelinePlayerData;
+            if (player.playing === playing && !(clearFinished && player.finished)) return;
+            player.playing = playing;
+            if (clearFinished) player.finished = false;
+            world.insert(entity, TimelinePlayer, player);
+        };
+        app.insertResource(Timeline, new TimelineApi({
+            raise: entity => setFlags(entity, true, false),
+            lower: entity => setFlags(entity, false, false),
+            reset: entity => setFlags(entity, false, true),
+        }));
 
         world.onDespawn((entity: Entity) => {
             app.getResource(Timeline).removeState(entity);
@@ -119,16 +143,14 @@ export class TimelinePlugin implements Plugin {
                     const state = tl.ensureState(entity, wrapMode, player.speed);
                     state.speed = player.speed;
                     state.wrapMode = wrapMode;
-                    state.playing = player.playing;
+                    const rewound = applyPlayerFlags(player, state);
 
                     this.ensureAnimFrames(entity, asset);
 
-                    advanceTimelineTS(asset, entity, state, time.delta, { deps, audio });
+                    const justFinished = advanceTimelineTS(asset, entity, state, time.delta, { deps, audio });
                     this.processAnimFrames(world, entity, state.time, timelineKey);
 
-                    // A clip that hit its end (Once) clears the component's play flag.
-                    if (!state.playing && player.playing) {
-                        player.playing = false;
+                    if (latchPlayerFinish(player, state, justFinished) || rewound) {
                         world.insert(entity, TimelinePlayer, player);
                     }
                 }

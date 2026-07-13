@@ -5,9 +5,13 @@ import {
     detectTimelineEvents,
     advanceTimelineTS,
     createTimelineState,
+    applyPlayerFlags,
+    latchPlayerFinish,
+    type TimelinePlayerFlags,
     type TimelineState,
 } from '../src/timeline/TimelineDrive';
 import { TimelineEventType } from '../src/timeline/TimelineRuntime';
+import { TimelineApi } from '../src/timeline/TimelineControl';
 import { WrapMode, TrackType, InterpType, type TimelineAsset } from '../src/timeline/TimelineTypes';
 import type { SampleDeps } from '../src/timeline/TimelineEvaluator';
 
@@ -136,5 +140,97 @@ describe('advanceTimelineTS (clock + property apply + stop)', () => {
         s.playing = false;
         advanceTimelineTS(asset, ROOT, s, 1, { deps: mockDeps(store, defs) });
         expect(store.get('Transform').position.x).toBe(7); // untouched
+    });
+});
+
+describe('TimelinePlayer flag contract (applyPlayerFlags / latchPlayerFinish)', () => {
+    const bare = (duration = 1): TimelineAsset =>
+        ({ version: '1.1', type: 'timeline', duration, wrapMode: WrapMode.Once, tracks: [] });
+    const deps: SampleDeps = {
+        world: {} as SampleDeps['world'],
+        getComponent: () => undefined,
+        resolveChild: resolveRoot,
+    };
+
+    function tick(flags: TimelinePlayerFlags, s: TimelineState, asset: TimelineAsset, dt: number): boolean {
+        const rewound = applyPlayerFlags(flags, s);
+        const fin = advanceTimelineTS(asset, ROOT, s, dt, { deps });
+        return latchPlayerFinish(flags, s, fin) || rewound;
+    }
+
+    it('latches finished (and clears playing) when a Once clip completes', () => {
+        const flags: TimelinePlayerFlags = { playing: true, finished: false };
+        const s = createTimelineState(WrapMode.Once);
+
+        expect(tick(flags, s, bare(1), 0.4)).toBe(false);
+        expect(flags).toEqual({ playing: true, finished: false });
+
+        expect(tick(flags, s, bare(1), 0.7)).toBe(true); // crosses the end
+        expect(flags).toEqual({ playing: false, finished: true });
+        expect(s.time).toBeCloseTo(1, 5); // parked at the end
+    });
+
+    it('replays from the top when playing is raised on a finished clip', () => {
+        const flags: TimelinePlayerFlags = { playing: true, finished: false };
+        const s = createTimelineState(WrapMode.Once);
+        tick(flags, s, bare(1), 2); // run to completion
+        expect(flags.finished).toBe(true);
+
+        flags.playing = true; // the replay raise (FSM action / game code / editor)
+        expect(tick(flags, s, bare(1), 0.25)).toBe(true); // finished cleared → write-back
+        expect(flags).toEqual({ playing: true, finished: false });
+        expect(s.time).toBeCloseTo(0.25, 5); // advanced from 0, not from the end
+    });
+
+    it('an ultra-short clip replays and re-finishes within one tick', () => {
+        const flags: TimelinePlayerFlags = { playing: true, finished: false };
+        const s = createTimelineState(WrapMode.Once);
+        tick(flags, s, bare(0.05), 1);
+        flags.playing = true;
+        expect(tick(flags, s, bare(0.05), 1)).toBe(true);
+        expect(flags).toEqual({ playing: false, finished: true });
+    });
+
+    it('a stop that is not a Once completion clears playing without latching finished', () => {
+        const flags: TimelinePlayerFlags = { playing: true, finished: false };
+        const s = createTimelineState(WrapMode.Once);
+        s.playing = false; // stopped by some non-completion source
+        expect(latchPlayerFinish(flags, s, false)).toBe(true);
+        expect(flags).toEqual({ playing: false, finished: false });
+    });
+
+    it('applyPlayerFlags mid-clip is a plain sync (no rewind, no write-back)', () => {
+        const flags: TimelinePlayerFlags = { playing: true, finished: false };
+        const s = createTimelineState(WrapMode.Once);
+        s.time = 0.5;
+        s.prevTime = 0.4;
+        expect(applyPlayerFlags(flags, s)).toBe(false);
+        expect(s.time).toBeCloseTo(0.5, 5);
+        expect(s.playing).toBe(true);
+    });
+});
+
+describe('TimelineApi write-through (play/pause/stop reach the component flags)', () => {
+    it('routes to raise/lower/reset so the flag survives the per-tick reconcile', () => {
+        const calls: string[] = [];
+        const api = new TimelineApi({
+            raise: e => calls.push(`raise:${e}`),
+            lower: e => calls.push(`lower:${e}`),
+            reset: e => calls.push(`reset:${e}`),
+        });
+        api.play(ROOT);
+        api.pause(ROOT);
+        api.stop(ROOT);
+        expect(calls).toEqual([`raise:${ROOT}`, `lower:${ROOT}`, `reset:${ROOT}`]);
+    });
+
+    it('stop also rewinds the clock state', () => {
+        const api = new TimelineApi();
+        const s = api.ensureState(ROOT, WrapMode.Once, 1);
+        s.playing = true;
+        s.time = 1.5;
+        s.prevTime = 1.4;
+        api.stop(ROOT);
+        expect(s).toMatchObject({ playing: false, time: 0, prevTime: 0 });
     });
 });

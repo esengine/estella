@@ -16,6 +16,7 @@
 import { setPlatform } from './platform';
 import { nodeAdapter } from './platform/node';
 import { ensureBuiltinComponentsRegistered, markEngineComponentBaseline } from './component';
+import { ensureBuiltinAiRegistrations } from './ai/builtins';
 import type { ESEngineModule } from './wasm';
 
 setPlatform(nodeAdapter);
@@ -23,6 +24,7 @@ setPlatform(nodeAdapter);
 // Register every engine component (COMPONENT_META) so scenes never silently drop
 // a component that exists in the engine but lacks a typed const.
 ensureBuiltinComponentsRegistered();
+ensureBuiltinAiRegistrations();
 markEngineComponentBaseline();
 
 export * from './core';

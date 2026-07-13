@@ -26,6 +26,7 @@ import { Blackboard } from '../fsm/Blackboard';
 import { aiRegistry, type AiContext } from '../fsm/AiContext';
 import { tickBt, createBtRunState, type BtRunState } from './BtRunner';
 import { BehaviorTreeAgent, getBt } from './BehaviorTreeAgent';
+import { ensureBuiltinAiRegistrations } from '../builtins';
 
 interface BtAgentState {
     bb: Blackboard;
@@ -127,6 +128,7 @@ export class BtPlugin implements Plugin {
     name = 'bt';
 
     build(app: App): void {
+        ensureBuiltinAiRegistrations();
         const states = new Map<Entity, BtAgentState>();
         app.world.onDespawn((entity: Entity) => states.delete(entity));
         app.insertResource(AiBt, new BehaviorTrees(states));

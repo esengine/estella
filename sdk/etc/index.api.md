@@ -3815,8 +3815,10 @@ applyAngularImpulse: (entity: Entity, impulse: number) => void
 applyForce: (entity: Entity, force: Vec2) => void
 applyImpulse: (entity: Entity, impulse: Vec2) => void
 applyTorque: (entity: Entity, torque: number) => void
+createMouseJoint: (entity: Entity, target: Vec2, opts?: { hertz?: number; dampingRatio?: number; maxForce?: number; }, ppu?: number) => boolean
 createRevoluteJoint: (entityA: Entity, entityB: Entity, anchorA: Vec2, anchorB: Vec2, options?: { enableMotor?: boolean; motorSpeed?: number; maxMotorTorque?: number; enableLimit?: boolean; lowerAngle?: number; upperAngle?: number; collideConnected?: boolean; }) => boolean
 destroyJoint: (entity: Entity) => void
+destroyMouseJoint: () => void
 enableDistanceJointLimit: (entity: Entity, enable: boolean) => void
 enableDistanceJointMotor: (entity: Entity, enable: boolean) => void
 enableDistanceJointSpring: (entity: Entity, enable: boolean) => void
@@ -3845,6 +3847,7 @@ getPrismaticJointTranslation: (entity: Entity, ppu?: number) => number
 getRevoluteAngle: (entity: Entity) => number
 getRevoluteMotorTorque: (entity: Entity) => number
 getWheelJointMotorTorque: (entity: Entity) => number
+hasMouseJoint: () => boolean
 isAwake: (entity: Entity) => boolean
 moveCharacter: (pos: Vec2, c1: Vec2, c2: Vec2, radius: number, velocity: Vec2, dt: number, up: Vec2, floorCos: number, maskBits: number, self: Entity, ppu?: number) => MoverResult | null
 overlapAABB: (min: Vec2, max: Vec2, maskBits?: number, ppu?: number) => Entity[]
@@ -3858,6 +3861,11 @@ setDistanceJointMaxMotorForce: (entity: Entity, force: number) => void
 setDistanceJointMotorSpeed: (entity: Entity, speed: number) => void
 setGravity: (gravity: Vec2) => void
 setLinearVelocity: (entity: Entity, velocity: Vec2) => void
+setMotorJointAngularVelocity: (entity: Entity, omega: number) => void
+setMotorJointLinearVelocity: (entity: Entity, velocity: Vec2, ppu?: number) => void
+setMotorJointMaxVelocityForce: (entity: Entity, force: number) => void
+setMotorJointMaxVelocityTorque: (entity: Entity, torque: number) => void
+setMouseTarget: (target: Vec2, ppu?: number) => void
 setPixelsPerUnit: (ppu: number) => void
 setPrismaticJointLimits: (entity: Entity, lower: number, upper: number, ppu?: number) => void
 setPrismaticJointMaxMotorForce: (entity: Entity, force: number) => void
@@ -3942,12 +3950,15 @@ _physics_clearShapes: (entityId: number) => void
 _physics_collectEvents: () => void
 _physics_createBody: (entityId: number, bodyType: number, x: number, y: number, angle: number, gravityScale: number, linearDamping: number, angularDamping: number, fixedRotation: number, bullet: number) => void
 _physics_createDistanceJoint: (entityIdA: number, entityIdB: number, anchorAx: number, anchorAy: number, anchorBx: number, anchorBy: number, length: number, enableSpring: number, hertz: number, dampingRatio: number, enableLimit: number, minLength: number, maxLength: number, enableMotor: number, maxMotorForce: number, motorSpeed: number, collideConnected: number) => number
+_physics_createMotorJoint: (entityIdA: number, entityIdB: number, linearVelX: number, linearVelY: number, maxVelocityForce: number, angularVelocity: number, maxVelocityTorque: number, linearHertz: number, linearDampingRatio: number, maxSpringForce: number, angularHertz: number, angularDampingRatio: number, maxSpringTorque: number, collideConnected: number) => number
+_physics_createMouseJoint: (entityId: number, targetX: number, targetY: number, hertz: number, dampingRatio: number, maxForce: number) => number
 _physics_createPrismaticJoint: (entityIdA: number, entityIdB: number, anchorAx: number, anchorAy: number, anchorBx: number, anchorBy: number, axisX: number, axisY: number, enableSpring: number, hertz: number, dampingRatio: number, enableLimit: number, lowerTranslation: number, upperTranslation: number, enableMotor: number, maxMotorForce: number, motorSpeed: number, collideConnected: number) => number
 _physics_createRevoluteJoint: (entityIdA: number, entityIdB: number, anchorAx: number, anchorAy: number, anchorBx: number, anchorBy: number, enableMotor: number, motorSpeed: number, maxMotorTorque: number, enableLimit: number, lowerAngle: number, upperAngle: number, collideConnected: number) => number
 _physics_createWeldJoint: (entityIdA: number, entityIdB: number, anchorAx: number, anchorAy: number, anchorBx: number, anchorBy: number, linearHertz: number, angularHertz: number, linearDampingRatio: number, angularDampingRatio: number, collideConnected: number) => number
 _physics_createWheelJoint: (entityIdA: number, entityIdB: number, anchorAx: number, anchorAy: number, anchorBx: number, anchorBy: number, axisX: number, axisY: number, enableSpring: number, hertz: number, dampingRatio: number, enableLimit: number, lowerTranslation: number, upperTranslation: number, enableMotor: number, maxMotorTorque: number, motorSpeed: number, collideConnected: number) => number
 _physics_destroyBody: (entityId: number) => void
 _physics_destroyJoint: (entityId: number) => void
+_physics_destroyMouseJoint: () => void
 _physics_enableDistanceJointLimit: (entityId: number, enable: number) => void
 _physics_enableDistanceJointMotor: (entityId: number, enable: number) => void
 _physics_enableDistanceJointSpring: (entityId: number, enable: number) => void
@@ -3992,6 +4003,7 @@ _physics_getShapeCastBuffer: () => number
 _physics_getWheelJointMotorTorque: (entityId: number) => number
 _physics_hasBody: (entityId: number) => number
 _physics_hasJoint: (entityId: number) => number
+_physics_hasMouseJoint: () => number
 _physics_init: (gx: number, gy: number, timestep: number, substeps: number, contactHertz: number, contactDampingRatio: number, contactSpeed: number) => void
 _physics_isAwake: (entityId: number) => number
 _physics_moveCharacter: (px: number, py: number, c1x: number, c1y: number, c2x: number, c2y: number, radius: number, velX: number, velY: number, dt: number, upX: number, upY: number, floorCos: number, maskBits: number, selfEntity: number) => number
@@ -4008,6 +4020,12 @@ _physics_setDistanceJointMaxMotorForce: (entityId: number, force: number) => voi
 _physics_setDistanceJointMotorSpeed: (entityId: number, speed: number) => void
 _physics_setGravity: (gx: number, gy: number) => void
 _physics_setLinearVelocity: (entityId: number, vx: number, vy: number) => void
+_physics_setMotorJointAngularVelocity: (entityId: number, omega: number) => void
+_physics_setMotorJointLinearVelocity: (entityId: number, vx: number, vy: number) => void
+_physics_setMotorJointMaxVelocityForce: (entityId: number, force: number) => void
+_physics_setMotorJointMaxVelocityTorque: (entityId: number, torque: number) => void
+_physics_setMouseTarget: (targetX: number, targetY: number) => void
+_physics_setOneWayPlatform: (entityId: number, nx: number, ny: number, enable: number) => void
 _physics_setPrismaticJointLimits: (entityId: number, lower: number, upper: number) => void
 _physics_setPrismaticJointMaxMotorForce: (entityId: number, force: number) => void
 _physics_setPrismaticJointMotorSpeed: (entityId: number, speed: number) => void
@@ -6148,7 +6166,7 @@ play: (entity: Entity) => void
 removeState: (entity: Entity) => void
 setTime: (entity: Entity, time: number) => void
 stop: (entity: Entity) => void
-static new (): TimelineApi
+static new (flags_?: PlayerFlagChannel | null): TimelineApi
 static prototype: TimelineApi
 ```
 
@@ -6168,6 +6186,7 @@ ComponentDef<TimelinePlayerData>
 
 ## TimelinePlayerData — interface
 ```
+finished: boolean
 playing: boolean
 speed: number
 timeline: string

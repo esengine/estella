@@ -30,9 +30,14 @@ const attach = defineSystem([Commands()], (cmds) => {
 | 属性 | 类型 | 默认 | 说明 |
 |---|---|---|---|
 | `timeline` | asset | `''` | 时间轴资源(`.estimeline`)。 |
-| `playing` | boolean | `false` | 附加时是否开始播放。 |
+| `playing` | boolean | `false` | 播放旗标——拉起播放,放下暂停。对已播完的片段拉起 = 从头重播。 |
 | `speed` | number | `1` | 播放速率倍率。 |
 | `wrapMode` | string | `'once'` | `'once'`、`'loop'` 或 `'pingPong'`(驼峰写法——其它值会静默地只播一次)。 |
+| `finished` | boolean | `false` | `'once'` 片段播完时闩为 true;下次播放时清除。运行时只读。 |
+
+组件旗标**就是**播放控制本身:引擎每帧把它们调和进内部时钟,所以任何翻动
+`playing` 的一方——你的代码、检视器、[AI 动作](/docs/zh-cn/guides/ai/#内建名字)——
+都经同一条通道驱动片段。
 
 ## 控制播放
 
@@ -55,12 +60,21 @@ const control = defineSystem([Query(TimelinePlayer), Res(Timeline)], (q, timelin
 
 | 方法 | 说明 |
 |---|---|
-| `play(entity)` | 开始或恢复播放。 |
+| `play(entity)` | 开始或恢复播放(已播完的片段从头重播)。 |
 | `pause(entity)` | 暂停,保留当前时间。 |
-| `stop(entity)` | 停止并重置到开头。 |
+| `stop(entity)` | 停止、重置到开头并清除 `finished` 闩。 |
 | `setTime(entity, seconds)` | 定位到某时间(scrub 所有轨道)。 |
 | `getCurrentTime(entity)` | 当前播放头时间(秒)。 |
 | `isPlaying(entity)` | 是否正在播放。 |
+
+这些方法写穿到 `TimelinePlayer` 的旗标——`timeline.play(e)` 和 `player.playing = true`
+是同一条通道上的同一个操作。
+
+<Aside type="tip">
+  想做**零代码过场**,把组件和状态机配对:内建的 `timeline.play` 动作 +
+  `timeline.finished` 条件就是一个"进入即播放、播完即转出"的 FSM 状态。见
+  [AI——内建名字](/docs/zh-cn/guides/ai/#内建名字)。
+</Aside>
 
 ## 轨道类型
 
