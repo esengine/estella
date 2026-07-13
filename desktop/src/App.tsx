@@ -28,6 +28,7 @@ import { useSelection } from '@/store/selectionStore';
 import { PlayRealms } from '@/engine/PlayRealm';
 import { PlayInspect } from '@/engine/PlayInspect';
 import { TimelinePreview } from '@/engine/TimelinePreview';
+import { FlipbookViewportPreview } from '@/engine/FlipbookViewportPreview';
 import { TimelineRecorder } from '@/timeline/TimelineRecorder';
 import { ProjectStore } from '@/project/ProjectStore';
 import { EditorHistory } from '@/engine/EditorHistory';
@@ -103,10 +104,11 @@ export function App() {
     return () => { unsubMode(); unsubEngine(); };
   }, []);
 
-  // Wire the Sequencer's edit-mode live preview (timeline document → World) and
-  // record-mode auto-key once.
+  // Wire the edit-mode live previews (timeline document → World, selected
+  // flipbook → World) and record-mode auto-key once.
   useEffect(() => {
     TimelinePreview.attach();
+    FlipbookViewportPreview.attach();
     TimelineRecorder.attach();
   }, []);
 
