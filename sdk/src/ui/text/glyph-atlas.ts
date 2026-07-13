@@ -87,6 +87,7 @@ export class GlyphAtlas {
     private readonly sdf: boolean;
     private readonly dpr: number;
     private contentScale_ = 1;
+    private generation_ = 0;
     private readonly cache = new Map<string, GlyphEntry | null>();
     private readonly pages: number[] = [];
     private readonly packers: Packer[] = [];
@@ -105,6 +106,14 @@ export class GlyphAtlas {
     /** Number of atlas pages currently allocated. */
     get pageCount(): number { return this.pages.length; }
 
+    /**
+     * Bumped only when a change can alter the atlas coordinates of glyphs that
+     * are already placed — i.e. a bitmap content-scale change (glyphs re-rasterize
+     * at a new pixel size). Placement is append-only, so adding a *new* glyph never
+     * moves an existing one; callers cache laid-out geometry against this counter.
+     */
+    get generation(): number { return this.generation_; }
+
     /** The px size glyphs are rasterized at; layout scales by displaySize/renderSize. */
     get renderSize(): number { return this.rasterizer.renderSize; }
 
@@ -115,7 +124,11 @@ export class GlyphAtlas {
      * pixelSizeFor dedupes near-equal scales.
      */
     setContentScale(scale: number): void {
-        this.contentScale_ = Number.isFinite(scale) && scale > 0 ? scale : 1;
+        const next = Number.isFinite(scale) && scale > 0 ? scale : 1;
+        if (next !== this.contentScale_) {
+            this.contentScale_ = next;
+            this.generation_++;
+        }
     }
 
     /** Rasterization size for a display size: SDF uses one fixed source;

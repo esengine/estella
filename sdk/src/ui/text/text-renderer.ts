@@ -136,9 +136,24 @@ export interface TextRendererOptions extends CanvasGlyphRasterizerOptions {
     dpr?: number;
 }
 
+/** One laid-out, tessellated page batch in the entity's local (untransformed) space. */
+interface CachedTextBatch {
+    vertices: Float32Array;
+    indices: Uint16Array;
+    pageId: number;
+}
+
+interface TextCacheEntry {
+    sig: string;
+    /** Atlas generation the geometry was built against (bitmap content-scale). */
+    gen: number;
+    batches: CachedTextBatch[];
+}
+
 export class SdfTextRenderer {
     readonly atlas: GlyphAtlas;
     private readonly sdf: boolean;
+    private readonly cache_ = new Map<number, TextCacheEntry>();
 
     constructor(private readonly module: ESEngineModule, opts: TextRendererOptions = {}) {
         this.sdf = opts.sdf ?? true;
@@ -157,6 +172,11 @@ export class SdfTextRenderer {
     /**
      * Draw a line of text. `transform` is the entity's column-major world mat4;
      * glyph local positions (baseline y=0, y-up) are transformed at submit.
+     *
+     * The tessellated geometry is local-space (transform-independent), so it is
+     * cached per entity keyed by the layout signature + atlas generation: a static
+     * label re-submits its cached quads with the current transform each frame
+     * instead of re-laying-out and re-tessellating every glyph.
      */
     drawText(
         p: DrawTextParams,
@@ -165,8 +185,41 @@ export class SdfTextRenderer {
         layer: number,
         depth: number,
     ): void {
-        drawTextWith(this.atlas, (vertices, indices, pageId) => {
-            submitTextBatch(this.module, vertices, indices, pageId, transform, entity, layer, depth, this.sdf);
-        }, p);
+        const gen = this.atlas.generation;
+        const sig = signatureOf(p);
+        let entry = this.cache_.get(entity);
+        if (!entry || entry.gen !== gen || entry.sig !== sig) {
+            const batches: CachedTextBatch[] = [];
+            drawTextWith(this.atlas, (vertices, indices, pageId) => {
+                batches.push({ vertices, indices, pageId });
+            }, p);
+            entry = { sig, gen, batches };
+            this.cache_.set(entity, entry);
+        }
+        for (const b of entry.batches) {
+            submitTextBatch(this.module, b.vertices, b.indices, b.pageId, transform, entity, layer, depth, this.sdf);
+        }
     }
+
+    /** Drop cached geometry for entities not drawn this frame (despawned / hidden / no longer text). */
+    retainOnly(live: Set<number>): void {
+        if (this.cache_.size === 0) return;
+        for (const e of this.cache_.keys()) {
+            if (!live.has(e)) this.cache_.delete(e);
+        }
+    }
+}
+
+/** Serialize every DrawTextParams field that affects the laid-out, colored geometry. */
+export function signatureOf(p: DrawTextParams): string {
+    const shadow = p.shadow ? `${p.shadow.color.join(',')}:${p.shadow.dx}:${p.shadow.dy}` : '';
+    const outline = p.outline ? `${p.outline.color.join(',')}:${p.outline.width}` : '';
+    return [
+        p.text, p.fontFamily, p.fontSizePx, p.style ?? 0,
+        p.richText ? 1 : 0, p.align ?? 0, p.verticalAlign ?? 0,
+        p.lineHeight ?? 0, p.letterSpacing ?? 0,
+        p.maxWidth ?? 0, p.boxWidth ?? 0, p.boxHeight ?? 0,
+        p.originX ?? 0, p.originY ?? 0,
+        p.color.join(','), shadow, outline,
+    ].join('|');
 }

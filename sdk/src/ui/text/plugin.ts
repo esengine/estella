@@ -88,11 +88,13 @@ export class TextPlugin implements Plugin {
                 ? uiCamera.vpW / (span * dpr)
                 : 1;
 
+            const seen = new Set<number>();
             for (const e of world.getEntitiesWithComponents([Text, Transform])) {
                 const entity = e as Entity;
                 const t = world.get(entity, Text) as TextData;
                 // enabled === false: pre-upgrade data lacks the field → visible.
                 if (!t.content || t.enabled === false) continue;
+                seen.add(entity as number);
 
                 const tr = world.get(entity, Transform) as TransformData;
                 const renderer = this.rendererFor(
@@ -175,6 +177,10 @@ export class TextPlugin implements Plugin {
                     tr.worldPosition.z,
                 );
             }
+
+            // Release cached geometry for text that vanished / hid this frame.
+            this.bitmapRenderer_?.retainOnly(seen);
+            this.sdfRenderer_?.retainOnly(seen);
         });
     }
 

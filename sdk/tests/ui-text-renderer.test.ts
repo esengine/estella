@@ -9,7 +9,8 @@ import { describe, it, expect, vi } from 'vitest';
 import {
     GlyphAtlas, type GlyphRasterizer, type AtlasPageStore, type RasterGlyph,
 } from '../src/ui/text/glyph-atlas';
-import { drawTextWith } from '../src/ui/text/text-renderer';
+import { drawTextWith, signatureOf } from '../src/ui/text/text-renderer';
+import type { DrawTextParams } from '../src/ui/text/text-renderer';
 
 function makeAtlas(pageSize: number): GlyphAtlas {
     const rasterizer: GlyphRasterizer = {
@@ -115,5 +116,39 @@ describe('REARCH_GUI P1.3b: drawTextWith', () => {
         const leftInBox = drawFirst({ align: 0, boxWidth: 400 }).x;
         const rightInBox = drawFirst({ align: 2, boxWidth: 400 }).x;
         expect(rightInBox).toBeGreaterThan(leftInBox + 100); // pushed toward the box's right edge
+    });
+});
+
+describe('text cache signature completeness', () => {
+    const base: DrawTextParams = {
+        text: 'AB', fontFamily: 'Arial', fontSizePx: 24, color: [1, 1, 1, 1],
+    };
+
+    it('is stable for identical params (so a static label stays a cache hit)', () => {
+        expect(signatureOf({ ...base })).toBe(signatureOf({ ...base }));
+    });
+
+    // Every field that changes the laid-out, colored geometry MUST change the
+    // signature — otherwise a mutated label would reuse stale cached quads.
+    it.each<[string, Partial<DrawTextParams>]>([
+        ['text', { text: 'AC' }],
+        ['fontFamily', { fontFamily: 'Times' }],
+        ['fontSizePx', { fontSizePx: 25 }],
+        ['style', { style: 1 }],
+        ['richText', { richText: true }],
+        ['align', { align: 2 }],
+        ['verticalAlign', { verticalAlign: 1 }],
+        ['lineHeight', { lineHeight: 30 }],
+        ['letterSpacing', { letterSpacing: 2 }],
+        ['maxWidth', { maxWidth: 200 }],
+        ['boxWidth', { boxWidth: 400 }],
+        ['boxHeight', { boxHeight: 100 }],
+        ['originX', { originX: 5 }],
+        ['originY', { originY: 5 }],
+        ['color', { color: [1, 0, 0, 1] }],
+        ['shadow', { shadow: { color: [0, 0, 0, 1], dx: 2, dy: 2 } }],
+        ['outline', { outline: { color: [0, 0, 0, 1], width: 1 } }],
+    ])('changes when %s changes', (_field, override) => {
+        expect(signatureOf({ ...base, ...override })).not.toBe(signatureOf(base));
     });
 });
