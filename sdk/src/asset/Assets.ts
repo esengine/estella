@@ -30,6 +30,7 @@ import type { SpineModuleController } from '../spine/SpineController';
 import { getAssetFields } from './AssetFieldRegistry';
 import { getComponentDefaults } from '../component';
 import { discoverSceneAssets } from './discoverAssets';
+import { fetchDecodePixels } from './imageDecode';
 import type { SceneData } from '../scene';
 import { SceneHandle, type ReleaseCallback } from './SceneHandle';
 import type { AssetRegistry } from './AssetRegistry';
@@ -1155,6 +1156,16 @@ export class Assets {
             },
             async loadBinary(path: string): Promise<ArrayBuffer> {
                 return self.backend.fetchBinary(self.backend.resolveUrl(path));
+            },
+            async decodePixels(path: string) {
+                // The platform's one decode path: the runtime-injected pixel
+                // decoder when present (wechat / playable), else fetch→bitmap.
+                const decoder = self.textureLoader_.pixelDecoder;
+                if (decoder) return decoder(path, false);
+                return fetchDecodePixels(self.backend.resolveUrl(self.catalog.getBuildPath(path)));
+            },
+            async createTextureFromPixels(width, height, pixels, flipY) {
+                return self.textureLoader_.loadFromPixels(width, height, pixels, flipY);
             },
             getAudio() {
                 return self.getAudio_();

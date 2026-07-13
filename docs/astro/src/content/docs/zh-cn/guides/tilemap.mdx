@@ -61,6 +61,11 @@ const loadLevel = defineSystem([Commands()], (cmds) => {
 |---|---|---|---|
 | `source` | asset | `''` | Tiled 地图文件(`tilemap` 资源)。 |
 
+网格 tileset(单张图集图)、外部 `.tsj` tileset、以及 **image-collection tileset**
+(Tiled 的"图片集合"——每个瓦片一张松散图片)都能加载。collection 瓦片在加载时
+折叠进一张网格图集,渲染上与手工图集 tileset 完全一致;每张图片必须与地图瓦片
+尺寸一致(否则硬错误并给出修法)。
+
 ## `TilemapLayer` 组件
 
 每个图层(从 Tiled 加载,或你自己生成)携带它的视觉元数据。渲染器实时读取这些,所以动画化

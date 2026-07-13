@@ -74,6 +74,21 @@ export interface TiledTilesetData {
     tileHeight: number;
     columns: number;
     tileCount: number;
+    /** Image-collection tileset (Tiled "collection of images"): one image per
+     *  tile, no top-level `image`. The loader folds these into ONE grid atlas
+     *  at load time, so the renderer never sees the difference. Local ids may
+     *  be sparse (deleted tiles leave holes). */
+    collectionTiles?: TiledCollectionTile[];
+}
+
+export interface TiledCollectionTile {
+    /** Local tile id (gid = firstGid + id). */
+    id: number;
+    /** Image ref, document-relative like a grid tileset's `image`. */
+    image: string;
+    /** Declared size (0 when the document omits it — the decode is the truth). */
+    width: number;
+    height: number;
 }
 
 export type TiledObjectShape = 'rect' | 'ellipse' | 'polygon' | 'polyline' | 'point';
@@ -258,6 +273,18 @@ export function parseTmjJson(json: Record<string, unknown>): TiledMapData | null
 
     if (rawTilesets) {
         for (const ts of rawTilesets) {
+            // Image-collection tileset: no top-level image, per-tile images.
+            const rawTiles = ts.tiles as Array<Record<string, unknown>> | undefined;
+            const collectionTiles = !ts.image && rawTiles?.some((t) => typeof t.image === 'string')
+                ? rawTiles
+                    .filter((t) => typeof t.image === 'string' && t.image)
+                    .map((t) => ({
+                        id: (t.id as number) ?? 0,
+                        image: t.image as string,
+                        width: (t.imagewidth as number) ?? 0,
+                        height: (t.imageheight as number) ?? 0,
+                    }))
+                : undefined;
             tilesets.push({
                 name: (ts.name as string) ?? '',
                 image: (ts.image as string) ?? '',
@@ -266,6 +293,7 @@ export function parseTmjJson(json: Record<string, unknown>): TiledMapData | null
                 tileHeight: (ts.tileheight as number) ?? tileHeight,
                 columns: (ts.columns as number) ?? 1,
                 tileCount: (ts.tilecount as number) ?? 0,
+                ...(collectionTiles?.length ? { collectionTiles } : {}),
             });
         }
     }
@@ -458,6 +486,16 @@ export async function parseTmjWithExternals(
             if (typeof external.image === 'string' && external.image) {
                 external = { ...external, image: resolveRelativePath(ts.source, external.image) };
             }
+            // Collection tilesets carry per-tile images — rewrite those too.
+            if (Array.isArray(external.tiles)) {
+                external = {
+                    ...external,
+                    tiles: (external.tiles as Array<Record<string, unknown>>).map((t) =>
+                        typeof t?.image === 'string' && t.image
+                            ? { ...t, image: resolveRelativePath(ts.source as string, t.image) }
+                            : t),
+                };
+            }
             return { ...external, firstgid: ts.firstgid };
         }));
         json = { ...json, tilesets: merged };
@@ -469,6 +507,44 @@ export async function parseTmjWithExternals(
 // asset-dependency scan / cook can share the exact resolution the runtime loads with,
 // without pulling the loader's engine deps. Re-exported here for existing importers.
 export { resolveRelativePath };
+
+export interface CollectionGridTile {
+    /** Local tile id — also the grid slot, so gid → cell stays the identity
+     *  even when ids are sparse (deleted tiles leave transparent holes). */
+    id: number;
+    /** Top-first RGBA, exactly tileWidth × tileHeight. */
+    pixels: Uint8Array;
+}
+
+/**
+ * Fold an image-collection tileset's decoded tiles into ONE grid-atlas pixel
+ * buffer (near-square, one slot per local id, transparent holes for sparse
+ * ids). The result is indistinguishable from a hand-authored grid tileset, so
+ * the renderer's uv math needs no collection special case. Pure — unit-tested
+ * apart from the decode/upload plumbing.
+ */
+export function packCollectionGrid(
+    tiles: CollectionGridTile[], tileWidth: number, tileHeight: number,
+): { pixels: Uint8Array; columns: number; rows: number; width: number; height: number } {
+    const slots = tiles.reduce((m, t) => Math.max(m, t.id), 0) + 1;
+    const columns = Math.max(1, Math.ceil(Math.sqrt(slots)));
+    const rows = Math.max(1, Math.ceil(slots / columns));
+    const width = columns * tileWidth;
+    const height = rows * tileHeight;
+    const pixels = new Uint8Array(width * height * 4);
+    const rowBytes = tileWidth * 4;
+    for (const t of tiles) {
+        const cellX = (t.id % columns) * tileWidth;
+        const cellY = Math.floor(t.id / columns) * tileHeight;
+        for (let y = 0; y < tileHeight; y++) {
+            pixels.set(
+                t.pixels.subarray(y * rowBytes, (y + 1) * rowBytes),
+                ((cellY + y) * width + cellX) * 4,
+            );
+        }
+    }
+    return { pixels, columns, rows, width, height };
+}
 
 export interface TilemapLoadOptions {
     generateObjectCollision?: boolean;

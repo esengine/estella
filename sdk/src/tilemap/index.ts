@@ -8,8 +8,9 @@ export {
     parseTmjJson, parseTmjWithExternals, loadTiledMap, loadTiledCollisionObjects,
     generateTileCollision, generateLayerCollision, generateChunkCollision,
     generateChunkPolygonCollision, generateObjectCollision, isCollisionObjectGroup,
-    polygonLocalVerts, resolveRelativePath,
+    polygonLocalVerts, resolveRelativePath, packCollectionGrid,
     type TiledMapData, type TiledLayerData, type TiledTilesetData,
+    type TiledCollectionTile, type CollectionGridTile,
     type TiledObjectData, type TiledObjectGroupData, type TiledObjectShape,
     type TiledAnimFrame, type TilemapLoadOptions,
 } from './tiledLoader';

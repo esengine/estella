@@ -6055,6 +6055,7 @@ width: number
 
 ## TiledTilesetData — interface
 ```
+collectionTiles: TiledCollectionTile[] | undefined
 columns: number
 firstGid: number
 image: string

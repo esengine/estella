@@ -102,6 +102,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
      *  default URL `<img>` decode path (editor / app Assets, unchanged). */
     private pixelDecoder_: TexturePixelDecoder | null = null;
     setPixelDecoder(decoder: TexturePixelDecoder | null): void { this.pixelDecoder_ = decoder; }
+    get pixelDecoder(): TexturePixelDecoder | null { return this.pixelDecoder_; }
 
     private ensureCanvas_(): { canvas: HTMLCanvasElement | OffscreenCanvas; ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D } {
         if (this.canvas_ && this.ctx_) return { canvas: this.canvas_, ctx: this.ctx_ };

@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { AssetLoader, LoadContext, TilemapResult } from '../AssetLoader';
-import { parseTmjWithExternals, resolveRelativePath } from '../../tilemap/tiledLoader';
-import { registerTilemapSource } from '../../tilemap/tilesetCache';
+import {
+    packCollectionGrid, parseTmjWithExternals, resolveRelativePath,
+    type TiledMapData, type TiledTilesetData,
+} from '../../tilemap/tiledLoader';
+import { registerTilemapSource, type LoadedTilemapTileset } from '../../tilemap/tilesetCache';
 import { log } from '../../logger';
 
 export class TilemapAssetLoader implements AssetLoader<TilemapResult> {
@@ -30,6 +33,12 @@ export class TilemapAssetLoader implements AssetLoader<TilemapResult> {
 
         const tilesets = [];
         for (const ts of mapData.tilesets) {
+            // Image-collection tileset: fold the loose per-tile images into one
+            // grid atlas — from here on it IS a grid tileset to everyone.
+            if (ts.collectionTiles?.length) {
+                tilesets.push(await this.foldCollection_(path, ts, mapData, ctx));
+                continue;
+            }
             const imagePath = resolveRelativePath(path, ts.image);
             let textureHandle = 0;
             try {
@@ -69,6 +78,37 @@ export class TilemapAssetLoader implements AssetLoader<TilemapResult> {
         });
 
         return { sourceId: path };
+    }
+
+    /**
+     * Fold an image-collection tileset into one grid atlas: decode every tile
+     * image through the platform's single decode path, pack them into a
+     * near-square grid keyed by local id (packCollectionGrid), upload once.
+     * Uniform tiles matching the map grid only — anything else has no meaning
+     * on the fixed-grid renderer yet, so it fails loud with the fix.
+     */
+    private async foldCollection_(
+        mapPath: string, ts: TiledTilesetData, mapData: TiledMapData, ctx: LoadContext,
+    ): Promise<LoadedTilemapTileset> {
+        if (!ctx.decodePixels || !ctx.createTextureFromPixels) {
+            throw new Error(
+                `[tilemap] "${mapPath}": tileset "${ts.name}" is an image collection, but this `
+                + 'asset provider cannot decode/compose pixels — load it through the app Assets channel.');
+        }
+        const tiles = await Promise.all(ts.collectionTiles!.map(async (tile) => {
+            const decoded = await ctx.decodePixels!(resolveRelativePath(mapPath, tile.image));
+            if (decoded.width !== mapData.tileWidth || decoded.height !== mapData.tileHeight) {
+                throw new Error(
+                    `[tilemap] "${mapPath}": collection tile "${tile.image}" is `
+                    + `${decoded.width}x${decoded.height}, but the map grid is `
+                    + `${mapData.tileWidth}x${mapData.tileHeight} — collection tiles must match the `
+                    + 'grid (resize them, or author a grid tileset image instead).');
+            }
+            return { id: tile.id, pixels: decoded.pixels };
+        }));
+        const grid = packCollectionGrid(tiles, mapData.tileWidth, mapData.tileHeight);
+        const tex = await ctx.createTextureFromPixels(grid.width, grid.height, grid.pixels, true);
+        return { textureHandle: tex.handle, columns: grid.columns, rows: grid.rows, firstId: ts.firstGid };
     }
 
     unload(_asset: TilemapResult): void {

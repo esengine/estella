@@ -16,6 +16,7 @@ import {
 import {
     loadTiledMap, parseTmjJson, parseTmjWithExternals, resolveRelativePath, loadTiledCollisionObjects,
     generateLayerCollision, generateObjectCollision, isCollisionObjectGroup, decodeTiledGid,
+    packCollectionGrid,
     type TiledObjectData, type TiledObjectGroupData,
 } from '../src/tilemap/tiledLoader';
 import type { TiledMapData } from '../src/tilemap/tiledLoader';
@@ -86,6 +87,123 @@ describe('Tilemap Components', () => {
                 visible: true,
             });
         });
+    });
+});
+
+describe('image-collection tilesets fold into a grid atlas', () => {
+    const tilePixels = (r: number, w = 2, h = 2): Uint8Array => {
+        const px = new Uint8Array(w * h * 4);
+        for (let i = 0; i < w * h; i++) { px[i * 4] = r; px[i * 4 + 3] = 255; }
+        return px;
+    };
+
+    it('parseTmjJson carries collection tiles (sparse ids, no top-level image)', () => {
+        const map = parseTmjJson({
+            width: 1, height: 1, tilewidth: 2, tileheight: 2,
+            tilesets: [{
+                firstgid: 1, name: 'props', columns: 0, tilecount: 2,
+                tiles: [
+                    { id: 0, image: 'rock.png', imagewidth: 2, imageheight: 2 },
+                    { id: 3, image: 'bush.png', imagewidth: 2, imageheight: 2 }, // sparse
+                ],
+            }],
+            layers: [{ type: 'tilelayer', width: 1, height: 1, data: [1] }],
+        })!;
+        expect(map.tilesets[0].image).toBe('');
+        expect(map.tilesets[0].collectionTiles).toEqual([
+            { id: 0, image: 'rock.png', width: 2, height: 2 },
+            { id: 3, image: 'bush.png', width: 2, height: 2 },
+        ]);
+    });
+
+    it('external .tsj collection tiles get their images rewritten map-relative', async () => {
+        const map = await parseTmjWithExternals({
+            width: 1, height: 1, tilewidth: 2, tileheight: 2,
+            tilesets: [{ firstgid: 1, source: 'tilesets/props.tsj' }],
+            layers: [{ type: 'tilelayer', width: 1, height: 1, data: [1] }],
+        }, async () => JSON.stringify({
+            name: 'props', columns: 0, tilecount: 1,
+            tiles: [{ id: 0, image: '../textures/rock.png', imagewidth: 2, imageheight: 2 }],
+        }))!;
+        expect(map!.tilesets[0].collectionTiles![0].image).toBe('textures/rock.png');
+    });
+
+    it('packCollectionGrid packs by local id with transparent holes', () => {
+        const grid = packCollectionGrid([
+            { id: 0, pixels: tilePixels(10) },
+            { id: 3, pixels: tilePixels(30) }, // ids 1-2 deleted in Tiled
+        ], 2, 2);
+        expect({ columns: grid.columns, rows: grid.rows }).toEqual({ columns: 2, rows: 2 });
+        expect({ width: grid.width, height: grid.height }).toEqual({ width: 4, height: 4 });
+        expect(grid.pixels[0]).toBe(10);                          // id 0 → cell (0,0)
+        expect(grid.pixels[(2 * 4 + 2) * 4]).toBe(30);            // id 3 → cell (1,1)
+        expect(grid.pixels[(0 * 4 + 2) * 4 + 3]).toBe(0);         // id 1 hole: transparent
+    });
+
+    it('the loader folds a collection into one uploaded grid tileset', async () => {
+        const loader = new TilemapAssetLoader();
+        const uploads: Array<{ width: number; height: number }> = [];
+        const sources = new Map<string, string>([['maps/level.tmj', JSON.stringify({
+            width: 1, height: 1, tilewidth: 2, tileheight: 2,
+            tilesets: [{
+                firstgid: 5, name: 'props', columns: 0, tilecount: 2,
+                tiles: [
+                    { id: 0, image: '../tiles/rock.png', imagewidth: 2, imageheight: 2 },
+                    { id: 1, image: '../tiles/bush.png', imagewidth: 2, imageheight: 2 },
+                ],
+            }],
+            layers: [{ type: 'tilelayer', name: 'ground', width: 1, height: 1, data: [5] }],
+        })]]);
+        const ctx = {
+            catalog: { getBuildPath: (p: string) => p },
+            loadText: async (p: string) => sources.get(p)!,
+            decodePixels: async (p: string) => ({
+                width: 2, height: 2, pixels: tilePixels(p.includes('rock') ? 10 : 30),
+            }),
+            createTextureFromPixels: async (width: number, height: number) => {
+                uploads.push({ width, height });
+                return { handle: 77, width, height };
+            },
+        } as unknown as LoadContext;
+
+        await loader.load('maps/level.tmj', ctx);
+        expect(uploads).toEqual([{ width: 4, height: 2 }]); // ONE folded 2x1 page
+        const src = getTilemapSource('maps/level.tmj')!;
+        expect(src.tilesets[0]).toEqual({ textureHandle: 77, columns: 2, rows: 1, firstId: 5 });
+    });
+
+    it('a collection tile off the map grid fails loud with the fix', async () => {
+        const loader = new TilemapAssetLoader();
+        const ctx = {
+            catalog: { getBuildPath: (p: string) => p },
+            loadText: async () => JSON.stringify({
+                width: 1, height: 1, tilewidth: 2, tileheight: 2,
+                tilesets: [{
+                    firstgid: 1, name: 'props', columns: 0, tilecount: 1,
+                    tiles: [{ id: 0, image: 'big.png', imagewidth: 4, imageheight: 4 }],
+                }],
+                layers: [{ type: 'tilelayer', width: 1, height: 1, data: [1] }],
+            }),
+            decodePixels: async () => ({ width: 4, height: 4, pixels: new Uint8Array(64) }),
+            createTextureFromPixels: async () => ({ handle: 1, width: 4, height: 4 }),
+        } as unknown as LoadContext;
+        await expect(loader.load('maps/level.tmj', ctx)).rejects.toThrow(/match the\s+grid/);
+    });
+
+    it('a provider without pixel plumbing fails loud, not silently white', async () => {
+        const loader = new TilemapAssetLoader();
+        const ctx = {
+            catalog: { getBuildPath: (p: string) => p },
+            loadText: async () => JSON.stringify({
+                width: 1, height: 1, tilewidth: 2, tileheight: 2,
+                tilesets: [{
+                    firstgid: 1, name: 'props', columns: 0, tilecount: 1,
+                    tiles: [{ id: 0, image: 'rock.png', imagewidth: 2, imageheight: 2 }],
+                }],
+                layers: [{ type: 'tilelayer', width: 1, height: 1, data: [1] }],
+            }),
+        } as unknown as LoadContext;
+        await expect(loader.load('maps/level.tmj', ctx)).rejects.toThrow(/image collection/);
     });
 });
 

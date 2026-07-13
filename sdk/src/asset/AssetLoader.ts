@@ -70,6 +70,20 @@ export interface LoadContext {
     loadText(path: string): Promise<string>;
     loadBinary(path: string): Promise<ArrayBuffer>;
     /**
+     * Decode a texture ref to top-first RGBA pixels through the platform's ONE
+     * decode path (a runtime-injected pixel decoder when present, else the
+     * shared fetch→ImageBitmap route). For loaders that COMPOSE textures — the
+     * tilemap loader folding an image-collection tileset into a grid atlas —
+     * rather than uploading refs 1:1. Optional: minimal providers may lack it;
+     * consumers fail loud.
+     */
+    decodePixels?(path: string): Promise<{ width: number; height: number; pixels: Uint8Array }>;
+    /** Upload raw top-first RGBA as a texture (TextureLoader.loadFromPixels).
+     *  Optional, same caveat as {@link decodePixels}. */
+    createTextureFromPixels?(
+        width: number, height: number, pixels: Uint8Array, flipY: boolean,
+    ): Promise<TextureResult>;
+    /**
      * Audio API for the owning app, resolved lazily so that
      * AudioPlugin / AssetPlugin can be installed in either order.
      * Returns null when no AudioPlugin is installed — audio-typed

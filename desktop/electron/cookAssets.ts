@@ -165,6 +165,12 @@ function rewriteTilemapRefs(
   for (const ts of tilesets) {
     if (typeof ts.image === 'string') ts.image = rewrite(ts.image);    // inline tileset image
     if (typeof ts.source === 'string') ts.source = rewrite(ts.source); // external .tsj tileset
+    if (Array.isArray(ts.tiles)) {
+      // Image-collection tileset: one image per tile.
+      for (const t of ts.tiles as Record<string, unknown>[]) {
+        if (typeof t?.image === 'string') t.image = rewrite(t.image);
+      }
+    }
   }
   return new TextEncoder().encode(JSON.stringify(json, null, 2) + '\n');
 }

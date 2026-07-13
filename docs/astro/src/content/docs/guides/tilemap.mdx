@@ -68,6 +68,12 @@ const loadLevel = defineSystem([Commands()], (cmds) => {
 |---|---|---|---|
 | `source` | asset | `''` | The Tiled map file (`tilemap` asset). |
 
+Grid tilesets (one atlas image), external `.tsj` tilesets, and **image-collection
+tilesets** (Tiled's "collection of images" — one loose image per tile) all load.
+Collection tiles are folded into a single grid atlas at load time, so they render
+exactly like a hand-authored tileset; each image must match the map's tile size
+(anything else fails loud with the fix).
+
 ## The `TilemapLayer` component
 
 Each layer (loaded from Tiled, or spawned by you) carries its visual metadata. The
