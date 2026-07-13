@@ -450,6 +450,22 @@ body.thumb-capture .viewport__play-stop {
   stroke: var(--srf-2);
   stroke-width: 1.25;
 }
+/* Anchor dots as drag handles (anchorA/anchorB); axis tip drags the slide direction. */
+.viewport__joint-gizmo .jt-drag {
+  pointer-events: auto;
+  cursor: move;
+}
+.viewport__joint-gizmo .jt-drag:hover,
+.viewport__joint-gizmo .jt-axis-handle:hover {
+  fill: color-mix(in srgb, var(--gizmo-joint) 70%, white);
+}
+.viewport__joint-gizmo .jt-axis-handle {
+  fill: var(--gizmo-joint);
+  stroke: var(--srf-2);
+  stroke-width: 1.5;
+  pointer-events: auto;
+  cursor: crosshair;
+}
 .viewport__joint-gizmo .jt-axis {
   stroke: var(--gizmo-joint);
   stroke-width: 1.25;

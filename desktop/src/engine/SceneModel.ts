@@ -428,6 +428,11 @@ export class SceneModelImpl {
     return this.data?.entities.find((e) => e.id === sourceId);
   }
 
+  /** Every source entity record (live references, read-only by convention). */
+  allSourceEntities(): readonly SceneEntity[] {
+    return this.data?.entities ?? [];
+  }
+
   /**
    * A source id + all its descendants, **parent-before-child** — for recursive
    * delete (the World despawns a parent's children too, so the model must remove

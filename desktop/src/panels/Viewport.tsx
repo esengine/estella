@@ -256,6 +256,66 @@ function startAngleHandleDrag(rt: number, e: ReactPointerEvent): void {
   window.addEventListener('pointerup', onUp);
 }
 
+// Drag a joint anchor dot → its anchorA/anchorB vec2 (world px in the owning body's
+// local frame — the convention PhysicsSystem converts to meters with ×invPpu). 'b'
+// edits the joint entity's own anchor, 'a' the connected body's; MotorJoint has no
+// anchors so its dots aren't draggable. Same setField + gesture channel as all
+// on-canvas edits; px round to integers for clean inspector values.
+function startJointAnchorDrag(rt: number, type: JointGizmoType, end: 'a' | 'b', e: ReactPointerEvent): void {
+  if (e.button !== 0) return;
+  const src = SceneModel.sourceFor(rt);
+  const frame = ViewportController.jointAnchorFrame(rt, type, end);
+  if (src == null || !frame) return;
+  e.stopPropagation();
+  const cos = Math.cos(frame.rot), sin = Math.sin(frame.rot);
+  SceneCommands.beginGesture(`${type} anchor`);
+  const onMove = (ev: PointerEvent) => {
+    const w = ViewportController.canvasToWorld(ev.clientX, ev.clientY);
+    if (!w) return;
+    const dx = w.x - frame.x, dy = w.y - frame.y;
+    SceneCommands.setField(src, type, end === 'a' ? 'anchorA' : 'anchorB', 'vec2',
+      [Math.round(dx * cos + dy * sin), Math.round(-dx * sin + dy * cos)]);
+  };
+  const onUp = () => {
+    SceneCommands.endGesture();
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+  };
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+}
+
+// Drag the prismatic/wheel axis tip → the slide direction. The axis lives in the
+// CONNECTED body's local frame (Box2D localFrameA); written normalized so the
+// inspector shows a clean unit direction (C++ normalizes anyway).
+function startJointAxisDrag(rt: number, type: JointGizmoType, e: ReactPointerEvent): void {
+  if (e.button !== 0) return;
+  const src = SceneModel.sourceFor(rt);
+  const frame = ViewportController.jointAxisFrame(rt, type);
+  if (src == null || !frame) return;
+  e.stopPropagation();
+  const cos = Math.cos(frame.rot), sin = Math.sin(frame.rot);
+  SceneCommands.beginGesture(`${type} axis`);
+  const onMove = (ev: PointerEvent) => {
+    const w = ViewportController.canvasToWorld(ev.clientX, ev.clientY);
+    if (!w) return;
+    const dx = w.x - frame.x, dy = w.y - frame.y;
+    const lx = dx * cos + dy * sin;
+    const ly = -dx * sin + dy * cos;
+    const len = Math.hypot(lx, ly);
+    if (len < 1e-3) return; // a degenerate direction at the anchor itself — keep the last one
+    const r3 = (v: number) => Math.round((v / len) * 1000) / 1000;
+    SceneCommands.setField(src, type, 'axis', 'vec2', [r3(lx), r3(ly)]);
+  };
+  const onUp = () => {
+    SceneCommands.endGesture();
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+  };
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+}
+
 // The interactive transform gizmo, drawn from the origin (= the selection pivot, the
 // wrapper is translated there each frame). Its geometry mirrors the hit zones in
 // gizmo.ts (GIZMO constants) so the handles a user aims at are the handles the tool
@@ -1122,6 +1182,18 @@ export function Viewport() {
             axis.style.opacity = '0';
           }
         }
+        // Axis drag handle (prismatic/wheel only — the element exists just there)
+        // at the +axis tip of the visual line.
+        const axisHandle = svg.querySelector('.jt-axis-handle') as SVGCircleElement | null;
+        if (axisHandle) {
+          if (jg.a && jg.axis) {
+            axisHandle.setAttribute('cx', String(jg.a.x + jg.axis.dx * 26));
+            axisHandle.setAttribute('cy', String(jg.a.y + jg.axis.dy * 26));
+            axisHandle.style.display = '';
+          } else {
+            axisHandle.style.display = 'none';
+          }
+        }
         // Motor target velocity: arrow out of the driven body's anchor.
         if (jg.vel) {
           const L = 30;
@@ -1696,8 +1768,32 @@ export function Viewport() {
           <line className="jt-axis" x1="0" y1="0" x2="0" y2="0" />
           <line className="jt-vel" x1="0" y1="0" x2="0" y2="0" />
           <polygon className="jt-vel-head" points="" />
-          <circle className="jt-b" cx="0" cy="0" r="3" />
-          <circle className="jt-a" cx="0" cy="0" r="3" />
+          {/* Anchor dots double as drag handles (write anchorB/anchorA in the owning
+              body's local frame) — except for MotorJoint, which has no anchors. */}
+          <circle
+            className={type === 'MotorJoint' ? 'jt-b' : 'jt-b jt-drag'}
+            cx="0"
+            cy="0"
+            r={type === 'MotorJoint' ? 3 : 4}
+            onPointerDown={type === 'MotorJoint' ? undefined : (e) => startJointAnchorDrag(id, type, 'b', e)}
+          />
+          <circle
+            className={type === 'MotorJoint' ? 'jt-a' : 'jt-a jt-drag'}
+            cx="0"
+            cy="0"
+            r={type === 'MotorJoint' ? 3 : 4}
+            onPointerDown={type === 'MotorJoint' ? undefined : (e) => startJointAnchorDrag(id, type, 'a', e)}
+          />
+          {(type === 'PrismaticJoint' || type === 'WheelJoint') && (
+            <circle
+              className="jt-axis-handle"
+              cx="0"
+              cy="0"
+              r="5"
+              style={{ display: 'none' }}
+              onPointerDown={(e) => startJointAxisDrag(id, type, e)}
+            />
+          )}
         </svg>
       ))}
 

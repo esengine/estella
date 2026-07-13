@@ -64,6 +64,11 @@ export function componentDefaults(def: AnyComp): Record<string, unknown> {
   return (def as unknown as { _default: Record<string, unknown> })._default;
 }
 
+/** The component's entity-reference fields (source-id-valued in scene data), [] if none. */
+export function componentEntityFields(def: AnyComp | undefined): readonly string[] {
+  return (def as unknown as { entityFields?: readonly string[] } | undefined)?.entityFields ?? [];
+}
+
 // Add-Component picker categories, in display order (the picker is grouped by
 // category). Editor-side presentation policy — the engine has no category metadata
 // today, so builtins are mapped/heuristic'd here; user/script components are

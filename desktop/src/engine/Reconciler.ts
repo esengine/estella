@@ -6,7 +6,7 @@ import type { EntityId } from '@/types';
 import { EngineHost } from './EngineHost';
 import { PerfMonitor } from './PerfMonitor';
 import { SceneModel, SceneModelImpl, type ModelEvent } from './SceneModel';
-import { assetFieldType, spineSlotType, componentByName, componentDefaults, isRenderComponent, componentEnable, readonlyFieldsFor, type AnyComp, type WorldT } from './schema';
+import { assetFieldType, spineSlotType, componentByName, componentDefaults, componentEntityFields, isRenderComponent, componentEnable, readonlyFieldsFor, type AnyComp, type WorldT } from './schema';
 
 /**
  * Projects the model into the World.
@@ -216,6 +216,19 @@ export class ReconcilerImpl {
       const list = Array.isArray(refs) ? refs.filter((r): r is string => typeof r === 'string' && r !== '') : [];
       if (list.length > 0) TilemapLiveSync.setLayerTilesets(rt, list);
     }
+    // …and re-project any spawned component whose entity-reference fields point at
+    // THIS entity — undo-of-delete can restore a joint's connected body after the
+    // joint itself, the same ordering the child re-link above repairs for the
+    // hierarchy. Without this, that component's World copy keeps a dead runtime id.
+    for (const other of this.model.allSourceEntities()) {
+      if (other.id === sourceId || this.model.runtimeFor(other.id) == null) continue;
+      for (const comp of other.components) {
+        const refs = componentEntityFields(componentByName(comp.type));
+        if (refs.some((f) => (comp.data as Record<string, unknown>)[f] === sourceId)) {
+          this.projectComponent(other.id, comp.type);
+        }
+      }
+    }
   }
 
   private despawnEntity(sourceId: number): void {
@@ -321,6 +334,17 @@ export class ReconcilerImpl {
         continue;
       }
       out[key] = this.resolveFieldValue(type, key, data[key]);
+    }
+    // Entity-reference fields hold SOURCE ids in the model; the World speaks
+    // RUNTIME ids (the bulk load remaps via the scene loader's remapEntityFields).
+    // Re-projection must speak the same domain — a verbatim copy would flip an
+    // edited component's refs back into source ids, which the World reads as
+    // whatever runtime entity happens to wear that number. `v > 0` mirrors the
+    // loader: 0 is the SDK's INVALID_ENTITY sentinel, so a ref to source id 0
+    // stays inert on both paths (a known loader-convention quirk).
+    for (const f of componentEntityFields(def)) {
+      const v = out[f];
+      if (typeof v === 'number' && v > 0) out[f] = this.model.runtimeFor(v) ?? -1;
     }
     return out;
   }

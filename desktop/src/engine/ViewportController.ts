@@ -47,6 +47,14 @@ interface JointGizmoData {
   enabled?: boolean;
 }
 
+// Entity-reference fields in the projected World hold RUNTIME ids — the bulk load
+// remaps them (remapEntityFields) and the Reconciler's projectData mirrors that on
+// every re-projection. -1 (authored none) / 0 (loader INVALID sentinel) = unlinked.
+function jointConnectedRuntime(j: JointGizmoData): EntityId | null {
+  const cid = j.connectedEntity;
+  return typeof cid === 'number' && cid > 0 ? (cid as EntityId) : null;
+}
+
 // Structural shape of the engine's CameraView resource (screen<->world).
 interface CameraViewLike {
   screenToWorld(x: number, y: number): { x: number; y: number } | null;
@@ -679,10 +687,10 @@ export const ViewportController = {
     const b = anchorOn(id, j.anchorB ?? { x: 0, y: 0 });
     if (!b) return null;
 
-    const cid = j.connectedEntity as EntityId;
+    const cid = jointConnectedRuntime(j);
     let a: { x: number; y: number } | null = null;
     let axis: { dx: number; dy: number } | null = null;
-    if (typeof cid === 'number' && cid >= 0 && world.valid(cid) && world.has(cid, Transform)) {
+    if (cid != null && world.valid(cid) && world.has(cid, Transform)) {
       a = anchorOn(cid, j.anchorA ?? { x: 0, y: 0 });
       if (j.axis) {
         const len = Math.hypot(j.axis.x, j.axis.y);
@@ -701,6 +709,59 @@ export const ViewportController = {
       if (len > 1e-4) vel = { dx: j.linearVelocity.x / len, dy: -j.linearVelocity.y / len };
     }
     return { b, a, axis, vel, on: j.enabled !== false };
+  },
+
+  /**
+   * The local frame a joint-anchor drag converts the cursor into: the world pose of
+   * the body that OWNS the anchor — the joint's entity for `anchorB` ('b'), the
+   * connected entity for `anchorA` ('a'). Null while the connected end is unset (an
+   * inert joint's `a` anchor has no frame to edit in).
+   */
+  jointAnchorFrame(
+    id: EntityId,
+    type: JointGizmoType,
+    end: 'a' | 'b',
+  ): { x: number; y: number; rot: number } | null {
+    const world = EngineHost.world;
+    const def = JOINT_GIZMO_DEFS[type];
+    if (!world || !def || !world.valid(id) || !world.has(id, def) || !world.has(id, Transform)) return null;
+    let eid = id;
+    if (end === 'a') {
+      const cid = jointConnectedRuntime(world.get(id, def) as JointGizmoData);
+      if (cid == null || !world.valid(cid) || !world.has(cid, Transform)) return null;
+      eid = cid;
+    }
+    const t = world.get(eid, Transform);
+    return {
+      x: t.worldPosition.x,
+      y: t.worldPosition.y,
+      rot: quatAngleZ(t.worldRotation as { w: number; x: number; y: number; z: number }),
+    };
+  },
+
+  /**
+   * The frame an axis drag (prismatic/wheel slide direction) works in: the world
+   * point of anchorA plus the CONNECTED body's rotation (the axis lives in body A's
+   * local frame — Box2D localFrameA). Null while unlinked.
+   */
+  jointAxisFrame(
+    id: EntityId,
+    type: JointGizmoType,
+  ): { x: number; y: number; rot: number } | null {
+    const world = EngineHost.world;
+    const def = JOINT_GIZMO_DEFS[type];
+    if (!world || !def || !world.valid(id) || !world.has(id, def)) return null;
+    const j = world.get(id, def) as JointGizmoData;
+    const cid = jointConnectedRuntime(j);
+    if (cid == null || !world.valid(cid) || !world.has(cid, Transform)) return null;
+    const t = world.get(cid, Transform);
+    const rot = quatAngleZ(t.worldRotation as { w: number; x: number; y: number; z: number });
+    const a = j.anchorA ?? { x: 0, y: 0 };
+    return {
+      x: t.worldPosition.x + a.x * Math.cos(rot) - a.y * Math.sin(rot),
+      y: t.worldPosition.y + a.x * Math.sin(rot) + a.y * Math.cos(rot),
+      rot,
+    };
   },
 
   /** Ids of entities carrying a ParticleEmitter — the emitter-gizmo set. */
