@@ -95,6 +95,7 @@ export {
     radiusInterest,
     type NetRoleKind, type ReplicatedData,
     type InterestPolicy, type InterestView, type RadiusInterestOptions,
+    type PredictionOptions,
 } from './net/replication';
 
 // =============================================================================

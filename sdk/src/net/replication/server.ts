@@ -15,8 +15,6 @@
  *          entering entities arrive as full spawns and leaving ones as
  *          despawns. Without a policy every ready connection sees everything
  *          on a single broadcast frame (the fast path).
- *
- * @beta   Pre-1.0 networking: client prediction will reshape this surface.
  */
 import type { World } from '../../world';
 import type { Entity } from '../../types';
@@ -27,11 +25,11 @@ import { NetChannel, type NetTransport } from '../NetChannel';
 import { log } from '../../logger';
 import {
     REPLICATION_CHANNEL, REPLICATION_PROTOCOL_VERSION, ReplMsg,
-    type ReplDespawnBatch, type ReplHelloRequest, type ReplHelloResponse,
+    type ReplAckMsg, type ReplDespawnBatch, type ReplHelloRequest, type ReplHelloResponse,
     type ReplInputMsg, type ReplSpawnBatch, type ReplSpawnEntity,
 } from './protocol';
 import {
-    buildReplicationTable, diffSchemas, tableSchemas, FrameWriter,
+    buildReplicationTable, cloneValue, diffSchemas, tableSchemas, FrameWriter,
     type EntityRefMap, type ReplicationTable, type ReplicationTableEntry,
 } from './codec';
 import { Replicated, type ReplicatedData } from './components';
@@ -45,9 +43,19 @@ interface Connection {
     ready: boolean;
     /** Latest input command from this connection (stale seq never overwrites). */
     input: ReplInputMsg | null;
+    /** Queued input commands, consumed exactly one per fixed tick (beginTick). */
+    queue: ReplInputMsg[];
+    /** The command this tick's gameplay runs against (repeats on starvation). */
+    applied: ReplInputMsg | null;
+    /** Highest input seq acknowledged to the client (0 = none yet). */
+    ackedSeq: number;
     /** Entities this connection currently knows (has been sent a spawn for). */
     interest: Set<Entity>;
 }
+
+/** Queued-but-unconsumed input cap; beyond it the oldest commands drop (a
+ *  client flooding faster than the tick rate loses history, not the server). */
+const INPUT_QUEUE_CAP = 128;
 
 /** One dirty component on one entity this tick — diffed once, written into
  *  whichever frames (shared or per-connection) need it. `data` is the live
@@ -58,14 +66,6 @@ interface DirtyEntry {
     te: ReplicationTableEntry;
     mask: number;
     data: Record<string, unknown>;
-}
-
-function deepClone<T>(v: T): T {
-    if (v === null || typeof v !== 'object') return v;
-    if (Array.isArray(v)) return v.map(deepClone) as T;
-    const out: Record<string, unknown> = {};
-    for (const k in v) out[k] = deepClone((v as Record<string, unknown>)[k]);
-    return out as T;
 }
 
 function fieldEqual(a: unknown, b: unknown): boolean {
@@ -93,6 +93,7 @@ export class ReplicationServer {
     private readonly knownNetIds_ = new Map<Entity, number>();
     private policy_: InterestPolicy | null = null;
     private tick_ = 0;
+    private fixedDelta_ = 0;
 
     constructor(world: World) {
         this.world_ = world;
@@ -149,11 +150,19 @@ export class ReplicationServer {
     attachConnection(transport: NetTransport): number {
         const id = this.nextConnectionId_++;
         const channel = new NetChannel(transport);
-        const conn: Connection = { id, channel, ready: false, input: null, interest: new Set() };
+        const conn: Connection = {
+            id, channel, ready: false,
+            input: null, queue: [], applied: null, ackedSeq: 0,
+            interest: new Set(),
+        };
         this.connections_.set(id, conn);
 
         channel.on<ReplInputMsg>(ReplMsg.input, (msg) => {
             if (!conn.input || msg.seq > conn.input.seq) conn.input = msg;
+            // The per-tick queue keeps every command in order for exactly-once
+            // consumption (tickInputOf) — the contract prediction replays against.
+            conn.queue.push(msg);
+            if (conn.queue.length > INPUT_QUEUE_CAP) conn.queue.shift();
         });
 
         channel.handle<ReplHelloRequest, ReplHelloResponse>(ReplMsg.hello, (req) => {
@@ -170,7 +179,7 @@ export class ReplicationServer {
             // The initial world spawn goes out on the next microtask — after this
             // response is on the wire — and flips the connection hot.
             Promise.resolve().then(() => this.sendInitialState_(conn));
-            return { ok: true, connectionId: id, tick: this.tick_, fixedDelta: 0 };
+            return { ok: true, connectionId: id, tick: this.tick_, fixedDelta: this.fixedDelta_ };
         });
 
         return id;
@@ -185,9 +194,35 @@ export class ReplicationServer {
 
     /** The latest input command a connection sent (null before the first).
      *  Gameplay reads this in FixedUpdate and applies it to the entities the
-     *  connection owns (Replicated.owner). */
+     *  connection owns (Replicated.owner). Latest-persists: a held command
+     *  applies every tick until replaced. */
     inputOf(connectionId: number): ReplInputMsg | null {
         return this.connections_.get(connectionId)?.input ?? null;
+    }
+
+    /**
+     * The input command dequeued for THIS fixed tick — each command is
+     * consumed exactly once, in order, one per tick ({@link beginTick}); when
+     * the queue runs dry the last command repeats (network jitter must not
+     * stall a held input). This is the accessor prediction-grade gameplay
+     * applies in FixedUpdate: the server acknowledges the consumed seq, and
+     * the client replays exactly the unacknowledged commands, one tick each.
+     */
+    tickInputOf(connectionId: number): ReplInputMsg | null {
+        return this.connections_.get(connectionId)?.applied ?? null;
+    }
+
+    /**
+     * Start a fixed tick: dequeue each connection's next input command (the
+     * plugin calls this in FixedPreUpdate, before gameplay). `fixedDelta` is
+     * remembered for the handshake so clients replay with the server's dt.
+     */
+    beginTick(fixedDelta: number): void {
+        if (fixedDelta > 0) this.fixedDelta_ = fixedDelta;
+        for (const conn of this.connections_.values()) {
+            const next = conn.queue.shift();
+            if (next) conn.applied = next;
+        }
     }
 
     /** One replication tick: spawns/despawns on the control plane, dirty
@@ -231,6 +266,14 @@ export class ReplicationServer {
             this.sampleBroadcast_(tick, spawnedEntities, despawned, dirty);
         } else {
             this.sampleWithInterest_(tick, despawned, dirty);
+        }
+
+        // Acknowledge consumed inputs: this tick's state incorporates each
+        // connection's commands through the seq its gameplay ran against.
+        for (const conn of this.connections_.values()) {
+            if (!conn.ready || !conn.applied || conn.applied.seq <= conn.ackedSeq) continue;
+            conn.ackedSeq = conn.applied.seq;
+            this.sendTo_(conn, (c) => c.channel.send<ReplAckMsg>(ReplMsg.ack, { tick, seq: conn.ackedSeq }));
         }
     }
 
@@ -373,7 +416,7 @@ export class ReplicationServer {
             if (!this.world_.has(e, te.def)) continue;
             const data = this.world_.tryGet(e, te.def) as Record<string, unknown>;
             const snap: Record<string, unknown> = {};
-            for (const f of te.fields) snap[f] = deepClone(data[f]);
+            for (const f of te.fields) snap[f] = cloneValue(data[f]);
             perComp.set(te.id, snap);
         }
         this.shadow_.set(e, perComp);
@@ -429,7 +472,7 @@ export class ReplicationServer {
                     const f = te.fields[i];
                     if (!(f in snap) || !fieldEqual(data[f], snap[f])) {
                         mask |= 1 << i;
-                        snap[f] = deepClone(data[f]);
+                        snap[f] = cloneValue(data[f]);
                     }
                 }
                 if (mask !== 0) {

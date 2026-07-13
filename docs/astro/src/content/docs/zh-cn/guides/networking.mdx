@@ -137,6 +137,44 @@ server.setInterestPolicy(({ connectionId, world, candidates }) => {
   无位置的实体恒相关;连接尚无带位置的自有实体时 fail-open(看到全部)。
 - 会话中安装/替换/移除策略都是安全的——下一 tick 会调和每个连接的 ghost 集。
 
+### 客户端预测——零延迟输入
+
+不开预测时,你自己的 pawn 要等一整个来回才动。开启预测的方式是把**服务器玩法
+用的同一个"输入→状态"函数**交给客户端——一个函数、两端共用,移动规则没有第二份:
+
+```typescript
+// 唯一的移动规则,两端共用。
+function applyMove(world, entity, actions, dt) {
+  const move = actions.move;
+  if (!move) return;
+  const pos = world.tryGet(entity, NetPos);
+  pos.x += move.x * SPEED * dt;
+  pos.y += move.y * SPEED * dt;
+  world.set(entity, NetPos, pos);
+}
+
+// 服务器玩法(FixedUpdate):用 tickInputOf 取每 tick 的输入。
+const input = server.tickInputOf(repl.owner);
+if (input) applyMove(world, e, input.actions, time.fixedDelta);
+
+// 客户端:开启预测;每个固定 tick 调一次 sendInput。
+await clientNet.connect(clientEnd, {
+  prediction: { apply: applyMove },
+});
+clientNet.client.sendInput({ move: { x: 1, y: 0 } });  // pawn 立刻动
+```
+
+工作原理:`sendInput` 立即把指令应用到你拥有的实体并存入待确认缓冲;服务器
+**每个固定 tick 恰好消费一条**指令(`tickInputOf`——预测级玩法用它替代
+`inputOf`)并确认已消费的 seq;客户端每个固定 tick 把自有实体重建为
+*最新权威状态 ⊕ 未确认指令的重放*。因此服务器侧的修正(墙体、击退)永远获胜,
+误预测不可能累积——连服务器不再重发的字段也会被拉回。自有实体绕过快照插值。
+
+- **每个固定 tick 都要发一条输入**(空闲时发 `{ move: {x:0,y:0} }` 也算)——
+  队列干涸时服务器会重复上一条指令,沉默意味着"继续保持",不是"停"。
+- **`Replicated.owner` 在 spawn 时就要赋好**——归属随 spawn 载荷走。
+- `apply` 只能依赖世界状态 + actions + dt:和解时它会被重放。
+
 ## 最佳实践
 
 - 超出简单套接字的场景**用 `NetChannel`**——按类型路由和 RPC 胜过一个巨大的 `onMessage` switch。

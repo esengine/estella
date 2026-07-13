@@ -8,8 +8,6 @@
  *          FixedPostUpdate samples + broadcasts. Role gating is a resource,
  *          not an environment flag: everything no-ops while NetRole stays
  *          'offline', so the plugin is safe to install unconditionally.
- *
- * @beta   Pre-1.0 networking: client prediction will reshape this surface.
  */
 import type { App, Plugin } from '../../app';
 import { defineSystem, Schedule } from '../../system';
@@ -92,12 +90,27 @@ export class ReplicationPlugin implements Plugin {
             Schedule.FixedPreUpdate,
             defineSystem(
                 [Res(Time)],
-                (_time: TimeData) => {
+                (time: TimeData) => {
+                    session.client?.setFixedDelta(time.fixedDelta);
                     session.client?.applyPending();
                 },
                 { name: 'ReplicationApplySystem' },
             ),
             { runIf: () => session.role === 'client' },
+        );
+
+        // Before gameplay: dequeue each connection's input command for this
+        // tick (the exactly-once contract behind tickInputOf + prediction).
+        app.addSystemToSchedule(
+            Schedule.FixedPreUpdate,
+            defineSystem(
+                [Res(Time)],
+                (time: TimeData) => {
+                    session.server?.beginTick(time.fixedDelta);
+                },
+                { name: 'ReplicationBeginTickSystem' },
+            ),
+            { runIf: () => session.role === 'server' },
         );
 
         app.addSystemToSchedule(

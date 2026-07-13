@@ -18,8 +18,6 @@
  *          string → u16 len + utf8, plain object → keys recursively in
  *          declaration order, entity-ref field → u32 netId (remapped at both
  *          ends), anything else → JSON string fallback.
- *
- * @beta   Pre-1.0 networking: client prediction will reshape this surface.
  */
 import { getComponentRegistry, type AnyComponentDef } from '../../component';
 import { REPLICATION_PROTOCOL_VERSION, type ReplComponentSchema } from './protocol';
@@ -54,6 +52,19 @@ function buildShape(defaultValue: unknown): FieldShape {
         }
         default: return { kind: 'json' };
     }
+}
+
+/**
+ * Deep-clone a replicated field value (plain JSON-shaped data). Shared by the
+ * server's shadow snapshots and the client's prediction authority copies —
+ * both must never alias live component objects.
+ */
+export function cloneValue<T>(v: T): T {
+    if (v === null || typeof v !== 'object') return v;
+    if (Array.isArray(v)) return v.map(cloneValue) as T;
+    const out: Record<string, unknown> = {};
+    for (const k in v) out[k] = cloneValue((v as Record<string, unknown>)[k]);
+    return out as T;
 }
 
 // =============================================================================

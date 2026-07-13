@@ -11,8 +11,6 @@
  * only entities inside it. Two invariants live in the server, not here: a
  * connection always sees the entities it owns, and with no policy installed
  * every connection sees everything (the pre-interest broadcast behavior).
- *
- * @beta   Pre-1.0 networking: client prediction will reshape this surface.
  */
 import type { World } from '../../world';
 import type { Entity } from '../../types';

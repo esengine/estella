@@ -8,12 +8,10 @@
  *          channel {@link REPLICATION_CHANNEL} (see codec.ts for the frame
  *          layout). Version or schema drift refuses the connection at
  *          handshake — never a silently mismatched simulation.
- *
- * @beta   Pre-1.0 networking: client prediction will reshape this surface.
  */
 import type { SceneComponentData } from '../../scene';
 
-export const REPLICATION_PROTOCOL_VERSION = 1;
+export const REPLICATION_PROTOCOL_VERSION = 2;
 
 /** NetChannel binary channel id the snapshot frames ride on. */
 export const REPLICATION_CHANNEL = 1;
@@ -24,6 +22,7 @@ export const ReplMsg = {
     spawn: 'repl:spawn',
     despawn: 'repl:despawn',
     input: 'repl:input',
+    ack: 'repl:ack',
 } as const;
 
 /** One component's replication schema, as exchanged for handshake comparison. */
@@ -47,6 +46,8 @@ export interface ReplHelloOk {
     connectionId: number;
     /** The server's current fixed tick, so the client can offset its buffers. */
     tick: number;
+    /** The server's fixed timestep in seconds (0 if it hasn't ticked yet) —
+     *  the dt client prediction replays unacknowledged inputs with. */
     fixedDelta: number;
 }
 
@@ -82,10 +83,23 @@ export interface ReplDespawnBatch {
  * Client → server input command. `actions` is game-defined (typically one
  * InputMap's evaluated values per fixed tick: booleans, axes, {x,y} pairs);
  * `seq` is a client-monotonic counter so stale deliveries never overwrite
- * newer state. The server keeps the latest per connection and gameplay reads
- * it via `ReplicationServer.inputOf(connectionId)`.
+ * newer state. The server keeps the latest per connection for gameplay that
+ * reads `ReplicationServer.inputOf(connectionId)`, and additionally queues
+ * commands for exactly-once per-tick consumption via `tickInputOf` — the
+ * contract client prediction replays against.
  */
 export interface ReplInputMsg {
     seq: number;
     actions: Record<string, unknown>;
+}
+
+/**
+ * Server → client input acknowledgement: the authoritative state at `tick`
+ * incorporates this connection's inputs up to and including `seq`. Client
+ * prediction drops acknowledged inputs and replays the rest on top of the
+ * authoritative state. Sent only when the acknowledged seq advances.
+ */
+export interface ReplAckMsg {
+    tick: number;
+    seq: number;
 }

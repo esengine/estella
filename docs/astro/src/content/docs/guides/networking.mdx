@@ -144,6 +144,52 @@ server.setInterestPolicy(({ connectionId, world, candidates }) => {
 - Installing, replacing, or removing the policy mid-session is safe — the next
   tick reconciles every connection's ghost set.
 
+### Client prediction — zero-latency input
+
+Without prediction, your own pawn only moves after a full server round trip.
+Enable prediction by handing the client the **same input-to-state function the
+server's gameplay runs** — one function, both ends, no duplicated movement
+rules:
+
+```typescript
+// The ONE movement rule, shared by both ends.
+function applyMove(world, entity, actions, dt) {
+  const move = actions.move;
+  if (!move) return;
+  const pos = world.tryGet(entity, NetPos);
+  pos.x += move.x * SPEED * dt;
+  pos.y += move.y * SPEED * dt;
+  world.set(entity, NetPos, pos);
+}
+
+// SERVER gameplay (FixedUpdate): per-tick input via tickInputOf.
+const input = server.tickInputOf(repl.owner);
+if (input) applyMove(world, e, input.actions, time.fixedDelta);
+
+// CLIENT: enable prediction; sendInput once per fixed tick.
+await clientNet.connect(clientEnd, {
+  prediction: { apply: applyMove },
+});
+clientNet.client.sendInput({ move: { x: 1, y: 0 } });  // pawn moves NOW
+```
+
+How it works: `sendInput` applies the command to your owned entities
+immediately and keeps it in a pending buffer; the server consumes commands
+**exactly one per fixed tick** (`tickInputOf` — use it instead of `inputOf`
+for predicted gameplay) and acknowledges the consumed seq; every fixed tick
+the client rebuilds each owned entity as *last authoritative state ⊕ replay of
+unacknowledged commands*. Server-side corrections (walls, knockback) therefore
+always win, and mispredictions can never accumulate — even fields the server
+never re-sends snap back. Owned entities bypass snapshot interpolation.
+
+- **Send an input every fixed tick** (an idle `{ move: {x:0,y:0} }` counts) —
+  the server repeats the last command when the queue runs dry, so going silent
+  means "keep doing that", not "stop".
+- **Assign `Replicated.owner` at spawn** — ownership is part of the spawn
+  payload.
+- `apply` must depend only on world state + actions + dt: it re-runs during
+  reconciliation.
+
 ## Best practices
 
 - **Use `NetChannel`** for anything beyond a trivial socket — routed types and RPC

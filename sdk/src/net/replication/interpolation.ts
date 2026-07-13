@@ -10,8 +10,6 @@
  *          across frame-rate mismatch and delivery jitter. Continuous values
  *          lerp (f32 scalars, f32 leaves of vectors, quats via nlerp);
  *          discrete values hold until their sample time passes.
- *
- * @beta   Pre-1.0 networking: client prediction will reshape this surface.
  */
 import type { FieldShape } from './codec';
 
