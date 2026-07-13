@@ -23,12 +23,13 @@ Estella 通过 ping-pong 帧缓冲运行全屏后处理。加一个 `PostProcess
 | `fxaa` | 快速抗锯齿 | `intensity` |
 | `lensDistortion` | 桶形 / 枕形畸变 | `strength`、`zoom` |
 | `pixelate` | 块状量化 | `pixelSize` |
+| `outline` | 墨线描边(Sobel 边缘压暗) | `intensity`、`threshold`、`thickness` |
 | `grayscale` | 去色 | `intensity` |
 
 上面是友好标签;**在代码里它们带 `u_` 前缀**(`u_intensity`、`u_exposure`……)。多数效果
 在默认值下是恒等(`colorGrade`、`blur`、`chromaticAberration`、`fxaa`、`lensDistortion`、
 `lutGrade`),加进去不调参不改画面。少数一加就可见——`grayscale`(完全去色)、`vignette`、
-`bloom`、`tonemap`(ACES 曲线恒生效)——这些只在你需要时才启用。
+`bloom`、`outline`、`tonemap`(ACES 曲线恒生效)——这些只在你需要时才启用。
 
 ## 使用 `PostProcessVolume`
 

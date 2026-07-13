@@ -619,6 +619,74 @@ void main() {
         return Material.compileShader(source);
     },
 
+    createOutline(): ShaderHandle {
+        // Ink-edge outline: Sobel edge detection on scene luma, darkening edge
+        // pixels toward black — the classic full-screen 2D ink look.
+        // u_intensity 0 is an exact no-op; u_threshold gates the edge magnitude
+        // (higher = only hard silhouettes); u_thickness is the Sobel tap offset
+        // in device pixels (via the injected u_viewport).
+        const source = `#pragma shader "PP Outline"
+#pragma version 300 es
+#pragma domain PostProcess
+#pragma param u_intensity float default(1) range(0,1)
+#pragma param u_threshold float default(0.2) range(0,1)
+#pragma param u_thickness float default(1) range(0.5,4)
+
+#pragma fragment
+precision highp float;
+
+in vec2 v_texCoord;
+uniform sampler2D u_texture;
+out vec4 fragColor;
+
+float lum(vec2 offset) {
+    return dot(texture(u_texture, v_texCoord + offset).rgb, vec3(0.299, 0.587, 0.114));
+}
+
+void main() {
+    vec4 src = texture(u_texture, v_texCoord);
+    vec2 px = vec2(u_thickness) / u_viewport.xy;
+    float tl = lum(vec2(-px.x,  px.y));
+    float tt = lum(vec2( 0.0,   px.y));
+    float tr = lum(vec2( px.x,  px.y));
+    float ll = lum(vec2(-px.x,  0.0));
+    float rr = lum(vec2( px.x,  0.0));
+    float bl = lum(vec2(-px.x, -px.y));
+    float bb = lum(vec2( 0.0,  -px.y));
+    float br = lum(vec2( px.x, -px.y));
+    float gx = (tr + 2.0 * rr + br) - (tl + 2.0 * ll + bl);
+    float gy = (tl + 2.0 * tt + tr) - (bl + 2.0 * bb + br);
+    float edge = clamp((sqrt(gx * gx + gy * gy) - u_threshold) * 4.0, 0.0, 1.0);
+    fragColor = vec4(mix(src.rgb, vec3(0.0), edge * u_intensity), src.a);
+}
+#pragma end
+
+#pragma fragment wgsl
+fn lum(uv : vec2f) -> f32 {
+    return dot(textureSampleLevel(t0, s0, uv, 0.0).rgb, vec3f(0.299, 0.587, 0.114));
+}
+
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    let src = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
+    let px = vec2f(mc.u_thickness) / tc.u_viewport.xy;
+    let tl = lum(v.v_texCoord + vec2f(-px.x,  px.y));
+    let tt = lum(v.v_texCoord + vec2f( 0.0,   px.y));
+    let tr = lum(v.v_texCoord + vec2f( px.x,  px.y));
+    let ll = lum(v.v_texCoord + vec2f(-px.x,  0.0));
+    let rr = lum(v.v_texCoord + vec2f( px.x,  0.0));
+    let bl = lum(v.v_texCoord + vec2f(-px.x, -px.y));
+    let bb = lum(v.v_texCoord + vec2f( 0.0,  -px.y));
+    let br = lum(v.v_texCoord + vec2f( px.x, -px.y));
+    let gx = (tr + 2.0 * rr + br) - (tl + 2.0 * ll + bl);
+    let gy = (tl + 2.0 * tt + tr) - (bl + 2.0 * bb + br);
+    let edge = clamp((sqrt(gx * gx + gy * gy) - mc.u_threshold) * 4.0, 0.0, 1.0);
+    return vec4f(mix(src.rgb, vec3f(0.0), edge * mc.u_intensity), src.a);
+}
+#pragma end
+`;
+        return Material.compileShader(source);
+    },
+
     createPixelate(): ShaderHandle {
         // Snaps sampling to a grid of u_pixelSize-device-pixel blocks — the
         // canonical retro/mosaic 2D look. u_pixelSize <= 1 samples per-texel

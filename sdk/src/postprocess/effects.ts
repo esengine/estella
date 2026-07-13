@@ -159,6 +159,17 @@ registerEffect({
 });
 
 registerEffect({
+    type: 'outline',
+    label: 'Outline',
+    factory: () => postProcessEffects.createOutline(),
+    uniforms: [
+        { name: 'u_intensity', label: 'Intensity', min: 0, max: 1, step: 0.01, defaultValue: 1 },
+        { name: 'u_threshold', label: 'Threshold', min: 0, max: 1, step: 0.01, defaultValue: 0.2 },
+        { name: 'u_thickness', label: 'Thickness', min: 0.5, max: 4, step: 0.5, defaultValue: 1 },
+    ],
+});
+
+registerEffect({
     type: 'lutGrade',
     label: 'LUT Grade',
     factory: () => postProcessEffects.createLutGrade(),

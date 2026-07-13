@@ -393,9 +393,10 @@ describe('PostProcess API', () => {
             postProcessEffects.createFxaa();
             postProcessEffects.createLensDistortion();
             postProcessEffects.createPixelate();
+            postProcessEffects.createOutline();
 
             const calls = (Material.compileShader as ReturnType<typeof vi.fn>).mock.calls;
-            expect(calls.length).toBe(13);
+            expect(calls.length).toBe(14);
             for (const c of calls) {
                 const src = c[0] as string;
                 expect(src).toContain('#pragma domain PostProcess');
@@ -460,11 +461,23 @@ describe('PostProcess API', () => {
             expect(handle).toBe(42);
         });
 
-        it('registers all four effects with matching factories and labels', () => {
+        it('should create a Sobel outline shader with intensity/threshold/thickness', () => {
+            const handle = postProcessEffects.createOutline();
+            const src = lastSource();
+            expect(src).toContain('#pragma param u_intensity float');
+            expect(src).toContain('#pragma param u_threshold float');
+            expect(src).toContain('#pragma param u_thickness float');
+            // Rec.601 luma weights — guards the edge-detection identity.
+            expect(src).toContain('0.587');
+            expect(handle).toBe(42);
+        });
+
+        it('registers the extended effects with matching factories and labels', () => {
             expect(getEffectDef('tonemap')?.label).toBe('Tonemap (ACES)');
             expect(getEffectDef('fxaa')?.label).toBe('FXAA');
             expect(getEffectDef('lensDistortion')?.label).toBe('Lens Distortion');
             expect(getEffectDef('pixelate')?.label).toBe('Pixelate');
+            expect(getEffectDef('outline')?.label).toBe('Outline');
         });
 
         it('uses identity defaults where the effect is meant to be tuned up from off', () => {
@@ -477,6 +490,8 @@ describe('PostProcess API', () => {
             // FXAA full strength by default; pixelate visibly chunky so it reads as on.
             expect(def('fxaa')).toEqual({ u_intensity: 1 });
             expect(def('pixelate')).toEqual({ u_pixelSize: 4 });
+            // Outline visible when added (intensity 1); 0 is an exact no-op.
+            expect(def('outline')).toEqual({ u_intensity: 1, u_threshold: 0.2, u_thickness: 1 });
         });
     });
 

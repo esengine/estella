@@ -53,7 +53,7 @@ describe('embedded .esshader structure', () => {
     it('found the filter, effect and grid sources', () => {
         expect(CASES.filter((c) => c.name.startsWith('filters.ts')).length).toBe(1);
         expect(CASES.filter((c) => c.name.startsWith('spriteFilter.ts')).length).toBe(2);
-        expect(CASES.filter((c) => c.name.startsWith('postProcessEffects.ts')).length).toBe(13);
+        expect(CASES.filter((c) => c.name.startsWith('postProcessEffects.ts')).length).toBe(14);
         expect(CASES.filter((c) => c.name.startsWith('editorGridRenderer.ts')).length).toBe(1);
     });
 

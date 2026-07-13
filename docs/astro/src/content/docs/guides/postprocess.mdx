@@ -24,14 +24,15 @@ several can stack in one frame at no extra target cost beyond the passes.
 | `fxaa` | Fast anti-aliasing | `intensity` |
 | `lensDistortion` | Barrel / pincushion warp | `strength`, `zoom` |
 | `pixelate` | Block quantization | `pixelSize` |
+| `outline` | Ink-edge outlines (Sobel edge darkening) | `intensity`, `threshold`, `thickness` |
 | `grayscale` | Desaturate | `intensity` |
 
 The uniform names above are the friendly labels; **in code they are `u_`-prefixed**
 (`u_intensity`, `u_exposure`, …). Most effects are identity at their defaults
 (`colorGrade`, `blur`, `chromaticAberration`, `fxaa`, `lensDistortion`, `lutGrade`),
 so adding them changes nothing until you dial them in. A few are visible the moment
-you add them — `grayscale` (full desaturation), `vignette`, `bloom`, and `tonemap`
-(the ACES curve always applies) — so enable those only when you want them.
+you add them — `grayscale` (full desaturation), `vignette`, `bloom`, `outline`, and
+`tonemap` (the ACES curve always applies) — so enable those only when you want them.
 
 ## Using a `PostProcessVolume`
 
