@@ -494,6 +494,15 @@ public:
     }
 
     /**
+     * @brief each() without the per-call snapshot copy, for read-only passes.
+     * @warning The callback must not emplace/remove the iterated component(s).
+     */
+    template<typename... Components, typename Func>
+    void eachLive(Func&& func) {
+        view<Components...>().eachLive(std::forward<Func>(func));
+    }
+
+    /**
      * @brief Sorts components by a comparison function
      * @tparam T The component type to sort
      * @tparam Compare The comparison function type

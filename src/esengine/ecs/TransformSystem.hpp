@@ -46,7 +46,10 @@ private:
     void updateDirtyTransforms(Registry& registry) {
         dirty_to_clear_.clear();
 
-        registry.each<Transform>([&registry, this](Entity entity, Transform& transform) {
+        // eachLive (no per-frame snapshot copy of the entity list): the callback
+        // only reads/writes Transform fields and defers TransformDirty removal to
+        // dirty_to_clear_, so it never structurally mutates the Transform pool.
+        registry.eachLive<Transform>([&registry, this](Entity entity, Transform& transform) {
             if (!registry.has<Parent>(entity)) {
                 bool isStatic = registry.has<TransformStatic>(entity);
                 bool isDirty = registry.has<TransformDirty>(entity);

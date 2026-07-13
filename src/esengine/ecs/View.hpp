@@ -446,6 +446,29 @@ public:
         }
     }
 
+    /**
+     * @brief Like each(), but iterates the live dense array with no defensive copy.
+     * @warning The callback MUST NOT emplace/remove T during iteration — that would
+     *          invalidate the dense array. Use for read-only per-frame system passes
+     *          (the common hot path); use each() when the callback may mutate the pool.
+     */
+    template<typename Func>
+    void eachLive(Func&& func) {
+        if (!pool_) return;
+
+        const std::vector<Entity>& dense = pool_->entities();
+        for (usize i = 0; i < dense.size(); ++i) {
+            Entity entity = dense[i];
+            if constexpr (std::is_invocable_v<Func, Entity, T&>) {
+                func(entity, pool_->getUnchecked(entity));
+            } else if constexpr (std::is_invocable_v<Func, T&>) {
+                func(pool_->getUnchecked(entity));
+            } else {
+                func(entity);
+            }
+        }
+    }
+
 private:
     /** @brief Pointer to the component pool */
     SparseSet<T>* pool_;

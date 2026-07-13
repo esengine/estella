@@ -204,6 +204,30 @@ TEST_CASE("view_each") {
     CHECK_EQ(totalX, 44.0f);
 }
 
+TEST_CASE("eachLive visits every entity and allows in-place mutation") {
+    esengine::ecs::Registry registry;
+
+    esengine::Entity e1 = registry.create();
+    esengine::Entity e2 = registry.create();
+    esengine::Entity e3 = registry.create();
+    registry.emplace<test::Position>(e1, 1.0f, 0.0f);
+    registry.emplace<test::Position>(e2, 2.0f, 0.0f);
+    registry.emplace<test::Position>(e3, 3.0f, 0.0f);
+
+    int count = 0;
+    float sum = 0.0f;
+    registry.eachLive<test::Position>([&](esengine::Entity, test::Position& p) {
+        count++;
+        sum += p.x;
+        p.x += 10.0f;  // read + in-place write is fine (not a structural change)
+    });
+
+    CHECK_EQ(count, 3);
+    CHECK_EQ(sum, 6.0f);
+    CHECK_EQ(registry.get<test::Position>(e1).x, 11.0f);
+    CHECK_EQ(registry.get<test::Position>(e3).x, 13.0f);
+}
+
 TEST_CASE("has_all_any") {
     esengine::ecs::Registry registry;
     esengine::Entity entity = registry.create();
