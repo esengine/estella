@@ -219,14 +219,22 @@ the canvas to add a node at the cursor.
 
 Open settings with **Ctrl / ⌘ + ,** or the Activity Bar's gear. Settings are grouped:
 
-- **Editor** — Appearance (accent color, UI scale), Viewport (grid, snapping, gizmos),
-  **Keyboard Shortcuts** (every shortcut below is rebindable here), and Console.
+- **Editor** — Appearance (**language**, accent color, UI scale), Viewport (grid,
+  snapping, gizmos), **Keyboard Shortcuts** (every shortcut below is rebindable
+  here), and Console.
 - **Project** (saved into `project.esproject`):
   - **Physics** — enable, gravity, sixteen collision-layer names and a 16×16 collision
     matrix, plus solver tuning (fixed timestep, sub-steps, contact Hz/damping/push
     speed, sleeping, continuous collision). See [Physics](/docs/guides/physics/).
   - **Rendering** — named sorting layers that populate the inspector's layer dropdown.
   - **Packaging** — per-platform settings for WeChat, Desktop, and Playable exports.
+
+### Editor language
+
+The editor ships in **English** and **简体中文** and follows your system language on
+first launch. Switch it under **Settings → Appearance → Language** — the change
+applies after a reload (the editor prompts for one). The editor's UI strings run on
+the same [localization engine](/docs/guides/localization/) your game uses at runtime.
 
 ## Keyboard shortcuts
 
