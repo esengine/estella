@@ -33,6 +33,7 @@ viewport — a stamp ghost previews every stroke:
 | Brush | `B` | Paint the current stamp; drag for strokes. |
 | Erase | `E` | Clear tiles. |
 | Rectangle | `U` | Fill a dragged rectangle with the stamp pattern. |
+| Ellipse | `O` | Drag a bounding box, fill its inscribed ellipse. |
 | Line | `L` | Lay the stamp along a straight line. |
 | Bucket | `G` | Flood-fill the connected region of matching tiles. |
 | Select | `M` | Marquee a region — `mod + C` / `X` copy / cut it, `Delete` clears it, `mod + V` pastes it as the brush. |
@@ -45,6 +46,9 @@ While a paint tool is active, `H` / `V` flip the stamp and `R` rotates it 90°.
 - **Multi-tile stamps** — drag across the palette to grab a block of tiles as one
   stamp. The palette is keyboard-friendly too: **arrow keys** move the selection,
   **Shift + arrows** grow it into a stamp.
+- **Saved stamps** — the bookmark button below the tools saves the current brush
+  into a per-project stamp library; click a chip to bring a pattern back, `×`
+  deletes it. Identical patterns deduplicate.
 - **Random mode** — toggle the dice button and each painted cell samples one tile
   at random from the stamp instead of repeating the pattern — quick scatter for
   grass, rubble, and other variation.

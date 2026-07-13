@@ -231,6 +231,15 @@ world.spawn(MotorJoint, {
 physics.setMotorJointLinearVelocity(crate, { x: -200, y: 0 }); // reverse at runtime
 ```
 
+### In the editor
+
+Scene-authored joints draw a gizmo in the viewport: a dashed link between the two
+anchors, with the anchor dots **draggable** — dragging writes `anchorA` / `anchorB`
+in the owning body's local frame. Prismatic and wheel joints also show their slide
+axis; drag its tip to re-aim the axis. Motor joints show an arrow along their target
+linear velocity. The whole family (colliders, one-way arrows, joints) is toggled by
+the **Physics** entry in the viewport's Show Flags.
+
 ## One-way platforms
 
 Add `OneWayPlatform` to a static (or kinematic) collider to make it **one-sided** — a
@@ -251,6 +260,8 @@ world.spawn(
 
 `normal` is the solid-side direction in world space; `{ x: 0, y: 1 }` (the default)
 means "solid top". Set `enabled: false` to turn the platform back into a normal solid.
+In the editor, a one-way platform's collider gizmo grows an arrow along the solid-side
+normal, so which way it carries is visible at a glance.
 
 ## Mouse / drag joint
 

@@ -130,6 +130,11 @@ FSM only flips its flags. Built-in names never shadow yours: if you register an
 action or condition under the same name, your registration wins. Avoid the
 `timeline.` prefix for game names to keep the namespaces apart.
 
+In the FSM / behavior-tree editors, the action and condition fields suggest every
+registered name as you type — grouped by namespace, with built-ins carrying a short
+description of what they do. Free text stays legal for names your game registers at
+runtime.
+
 The [`cutscene` example](https://github.com/esengine/estella/tree/master/examples/cutscene)
 is this pattern end-to-end: an intro timeline plays on scene start, gameplay
 unlocks when it completes, and R replays it — with zero registered actions.

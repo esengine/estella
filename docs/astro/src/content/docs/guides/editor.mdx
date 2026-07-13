@@ -91,10 +91,12 @@ copies. Nudge the selection with the **arrow keys** (one grid step; hold **Shift
 **Snapping** — toggle snapping from the viewport's Snap dropdown and set the grid step,
 rotation angle, and scale increment.
 
-**Show Flags** — a viewport dropdown toggles the Grid, Gizmos, Colliders, and the perf
+**Show Flags** — a viewport dropdown toggles the Grid, Gizmos, Physics, and the perf
 overlay, plus World/Local axis orientation and Pivot-vs-Center. Entities that don't
-render — Cameras, `Light2D`, and colliders — are drawn as gizmos in edit mode (icon,
-view rect, light reach/cone, collider outline) so you can see and place them.
+render — Cameras, `Light2D`, colliders, joints, particle emitters — are drawn as
+gizmos in edit mode (icon, view rect, light reach/cone, collider outline, joint
+anchor links) so you can see and place them; many carry drag handles that write
+their fields directly (light radius, collider size, emitter shape, joint anchors).
 
 ## Editing modes
 
