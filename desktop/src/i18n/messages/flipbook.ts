@@ -51,6 +51,10 @@ export const flipbookMessages = defineMessages({
     'fb.toast.openFailed': { en: 'Failed to open sprite animation: {error}', zh: '打开精灵动画失败：{error}' },
     'fb.toast.createFailed': { en: 'Failed to create sprite animation: {error}', zh: '创建精灵动画失败：{error}' },
     'fb.toast.created': { en: 'Created {name}', zh: '已创建 {name}' },
+    'fb.toast.clipUntracked': {
+        en: 'This animation is not in the asset database yet (missing .meta)',
+        zh: '该动画尚未进入资产数据库（缺少 .meta）',
+    },
     'fb.toast.texUntracked': {
         en: 'This texture is not in the asset database yet (missing .meta)',
         zh: '该纹理尚未进入资产数据库（缺少 .meta）',

@@ -73,6 +73,7 @@ export const contentMessages = defineMessages({
     'cb.menuIncludeInExport': { en: 'Include in Export', zh: '包含在导出中' },
     'cb.menuExcludeFromExport': { en: 'Exclude from Export', zh: '从导出中排除' },
     'cb.menuCreateSpriteAnim': { en: 'Create Sprite Animation', zh: '创建精灵动画' },
+    'cb.menuCreateAnimatedSprite': { en: 'Create Animated Sprite', zh: '创建动画精灵' },
     'cb.menuCreateTileset': { en: 'Create Tileset', zh: '创建瓦片集' },
     'cb.menuCreateTilemap': { en: 'Create Tilemap', zh: '创建瓦片地图' },
     'cb.menuCreateMaterialInstance': { en: 'Create Material Instance', zh: '创建材质实例' },

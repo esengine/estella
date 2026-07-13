@@ -79,6 +79,36 @@ export function spritePrefab(name: string, textureRef: string, size: { x: number
 }
 
 /**
+ * A Transform + Sprite + SpriteAnimator prefab referencing a `.esanim` clip.
+ * The Sprite is seeded with the clip's static pose (sheet texture + frame-0 UV
+ * window + cell size) so the entity reads correctly in edit mode; Play hands the
+ * per-frame writes to the SpriteAnimator system.
+ */
+export function animatedSpritePrefab(
+  name: string,
+  clipRef: string,
+  seed: {
+    texture?: string;
+    size?: { x: number; y: number };
+    uv?: { uvOffset: { x: number; y: number }; uvScale: { x: number; y: number } };
+    loop?: boolean;
+  },
+): PrefabData {
+  const sprite: Record<string, unknown> = {};
+  if (seed.texture) sprite.texture = seed.texture;
+  if (seed.size) sprite.size = { x: seed.size.x, y: seed.size.y };
+  if (seed.uv) {
+    sprite.uvOffset = { ...seed.uv.uvOffset };
+    sprite.uvScale = { ...seed.uv.uvScale };
+  }
+  return preset(name, [
+    ['Transform', {}],
+    ['Sprite', sprite],
+    ['SpriteAnimator', { clip: clipRef, loop: seed.loop ?? true }],
+  ]);
+}
+
+/**
  * A Transform + TilemapLayer prefab whose `cellSize` (a vec2 → `{x, y}` in the model)
  * is seeded from the tileset's tile size. `tilesetRef` bakes the out-of-band
  * `.estileset` link into the prefab, so it rides the single create step into the

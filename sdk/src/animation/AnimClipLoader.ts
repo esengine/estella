@@ -89,6 +89,24 @@ export function animClipCellRect(
     };
 }
 
+/** UV window (flipY space) of a grid cell — what a Sprite shows for that frame. */
+export function animClipCellUv(
+    sheet: AnimClipSheetData,
+    cell: number,
+): { uvOffset: { x: number; y: number }; uvScale: { x: number; y: number } } {
+    const rect = animClipCellRect(sheet, cell);
+    return {
+        uvOffset: {
+            x: rect.x / sheet.pageWidth,
+            y: 1.0 - (rect.y + rect.height) / sheet.pageHeight,
+        },
+        uvScale: {
+            x: rect.width / sheet.pageWidth,
+            y: rect.height / sheet.pageHeight,
+        },
+    };
+}
+
 // =============================================================================
 // Parsing / serialization
 // =============================================================================
@@ -231,7 +249,7 @@ export function parseAnimClipData(
                 const frame: SpriteAnimFrame = {
                     texture: textureHandles.get(sheet.texture) ?? 0,
                     duration: f.duration,
-                    ...uvFromRect(animClipCellRect(sheet, f.cell), sheet.pageWidth, sheet.pageHeight),
+                    ...animClipCellUv(sheet, f.cell),
                 };
                 return frame;
             }

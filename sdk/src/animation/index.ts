@@ -91,6 +91,7 @@ export {
     animClipSheetCols,
     animClipSheetRows,
     animClipCellRect,
+    animClipCellUv,
     ANIM_CLIP_FORMAT_VERSION,
     type AnimClipAssetData,
     type AnimClipFrameData,

@@ -18,6 +18,7 @@ import { referencingPaths } from '@/project/assetRefs';
 import { parseAssetQuery, filterAndSortAssets, type AssetSort } from '@/project/assetFilter';
 import { createTilesetFromTexture } from '@/tileset/openTileset';
 import { createFlipbookFromTexture } from '@/flipbook/openFlipbook';
+import { createAnimatedSpriteFromClip } from '@/flipbook/createAnimatedSprite';
 import { createTilemapFromTileset } from '@/tilemap/createTilemap';
 import { BUILTIN_SHADER_TEMPLATES } from 'esengine';
 import { createMaterial, createMaterialInstance } from '@/material/openMaterial';
@@ -869,6 +870,7 @@ export function ContentBrowser() {
     const isScene = !entry.isDir && assetType(entry.name) === 'scene';
     const isTexture = !entry.isDir && (assetType(entry.name) === 'texture' || assetType(entry.name) === 'sprite');
     const isTileset = !entry.isDir && assetType(entry.name) === 'tileset';
+    const isAnimClip = !entry.isDir && assetType(entry.name) === 'animclip';
     const isMaterial = !entry.isDir && assetType(entry.name) === 'material';
     const ref = entry.isDir ? null : ProjectStore.assetRef(path);
     return [
@@ -894,6 +896,9 @@ export function ContentBrowser() {
         : []),
       ...(isTileset
         ? [{ label: t('cb.menuCreateTilemap'), onClick: () => void createTilemapFromTileset(path) }]
+        : []),
+      ...(isAnimClip
+        ? [{ label: t('cb.menuCreateAnimatedSprite'), onClick: () => void createAnimatedSpriteFromClip(path) }]
         : []),
       ...(isMaterial
         ? [{ label: t('cb.menuCreateMaterialInstance'), onClick: () => void createMaterialInstance(path) }]

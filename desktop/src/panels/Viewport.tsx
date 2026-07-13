@@ -26,6 +26,7 @@ import { createFromSource, sourceById, SOURCE_DND_MIME } from '@/engine/entitySo
 import { resizeUINodeAxis, type ResizeSide, type AxisResizeWrites } from '@/engine/uiResize';
 import { IMAGE_RE } from '@/project/assetMeta';
 import { createTilemapFromTileset } from '@/tilemap/createTilemap';
+import { createAnimatedSpriteFromClip } from '@/flipbook/createAnimatedSprite';
 import { SceneModel } from '@/engine/SceneModel';
 import { SceneCommands } from '@/engine/SceneCommands';
 import { SceneStore } from '@/engine/SceneStore';
@@ -1498,6 +1499,10 @@ export function Viewport() {
       e.preventDefault();
       // A tileset spawns a paintable TilemapLayer, which wires its own placement + painter.
       void createTilemapFromTileset(path);
+    } else if (path.toLowerCase().endsWith('.esanim')) {
+      e.preventDefault();
+      // A flipbook spawns a Sprite + SpriteAnimator posed at frame 0.
+      void createAnimatedSpriteFromClip(path, wp ?? undefined);
     }
   };
 
