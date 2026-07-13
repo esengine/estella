@@ -84,6 +84,15 @@ export {
 
 export {
     parseAnimClipData,
+    parseAnimClipAsset,
+    serializeAnimClip,
+    createAnimClip,
     extractAnimClipTexturePaths,
+    animClipSheetCols,
+    animClipSheetRows,
+    animClipCellRect,
+    ANIM_CLIP_FORMAT_VERSION,
     type AnimClipAssetData,
+    type AnimClipFrameData,
+    type AnimClipSheetData,
 } from './AnimClipLoader';

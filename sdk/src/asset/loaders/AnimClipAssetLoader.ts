@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { AssetLoader, LoadContext, AnimClipResult } from '../AssetLoader';
-import { extractAnimClipTexturePaths, parseAnimClipData, type AnimClipAssetData } from '../../animation/AnimClipLoader';
+import { extractAnimClipTexturePaths, parseAnimClipAsset, parseAnimClipData } from '../../animation/AnimClipLoader';
 import { log } from '../../logger';
 
 export class AnimClipAssetLoader implements AssetLoader<AnimClipResult> {
@@ -11,7 +11,7 @@ export class AnimClipAssetLoader implements AssetLoader<AnimClipResult> {
     async load(path: string, ctx: LoadContext): Promise<AnimClipResult> {
         const buildPath = ctx.catalog.getBuildPath(path);
         const text = await ctx.loadText(buildPath);
-        const data: AnimClipAssetData = JSON.parse(text);
+        const data = parseAnimClipAsset(JSON.parse(text));
         const texturePaths = extractAnimClipTexturePaths(data);
         const textureHandles = new Map<string, number>();
 

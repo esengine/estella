@@ -8,8 +8,15 @@ import {
 } from '../src/assetTypes';
 import {
     parseAnimClipData,
+    parseAnimClipAsset,
+    serializeAnimClip,
+    createAnimClip,
     extractAnimClipTexturePaths,
+    animClipSheetCols,
+    animClipSheetRows,
+    animClipCellRect,
     type AnimClipAssetData,
+    type AnimClipSheetData,
 } from '../src/animation/AnimClipLoader';
 import {
     getComponentAssetFields,
@@ -161,5 +168,120 @@ describe('parseAnimClipData', () => {
         expect(paths).toContain('assets/a.png');
         expect(paths).toContain('assets/b.png');
         expect(paths.length).toBe(2); // deduplicated
+    });
+});
+
+// =============================================================================
+// Sheet grid (format 1.2)
+// =============================================================================
+
+const SHEET: AnimClipSheetData = {
+    texture: '@uuid:sheet',
+    cellWidth: 32,
+    cellHeight: 48,
+    margin: 2,
+    spacing: 1,
+    pageWidth: 134,   // 2 + 4*(32+1) = 134 → exactly 4 columns
+    pageHeight: 100,  // 2 + 2*(48+1) = 100 → exactly 2 rows
+};
+
+describe('sheet grid math', () => {
+    it('derives columns and rows honoring margin and spacing', () => {
+        expect(animClipSheetCols(SHEET)).toBe(4);
+        expect(animClipSheetRows(SHEET)).toBe(2);
+    });
+
+    it('computes row-major cell rects', () => {
+        expect(animClipCellRect(SHEET, 0)).toEqual({ x: 2, y: 2, width: 32, height: 48 });
+        expect(animClipCellRect(SHEET, 3)).toEqual({ x: 2 + 3 * 33, y: 2, width: 32, height: 48 });
+        expect(animClipCellRect(SHEET, 4)).toEqual({ x: 2, y: 2 + 49, width: 32, height: 48 });
+    });
+
+    it('clamps out-of-range cells to the last valid cell', () => {
+        expect(animClipCellRect(SHEET, 99)).toEqual(animClipCellRect(SHEET, 7));
+        expect(animClipCellRect(SHEET, -5)).toEqual(animClipCellRect(SHEET, 0));
+    });
+});
+
+describe('parseAnimClipData with sheet cells', () => {
+    const data: AnimClipAssetData = {
+        version: '1.2',
+        type: 'animation-clip',
+        fps: 10,
+        loop: true,
+        sheet: SHEET,
+        frames: [{ cell: 0 }, { cell: 5, duration: 0.2 }],
+    };
+
+    it('resolves all cell frames to the shared sheet texture handle', () => {
+        const clip = parseAnimClipData('run.esanim', data, new Map([['@uuid:sheet', 7]]));
+        expect(clip.frames[0].texture).toBe(7);
+        expect(clip.frames[1].texture).toBe(7);
+        expect(clip.frames[1].duration).toBe(0.2);
+    });
+
+    it('derives flipY-space uv from the cell rect', () => {
+        const clip = parseAnimClipData('run.esanim', data, new Map([['@uuid:sheet', 7]]));
+        // cell 5 = row 1, col 1 → rect x=35, y=51
+        const f = clip.frames[1];
+        expect(f.uvOffset!.x).toBeCloseTo(35 / 134);
+        expect(f.uvOffset!.y).toBeCloseTo(1 - (51 + 48) / 100);
+        expect(f.uvScale!.x).toBeCloseTo(32 / 134);
+        expect(f.uvScale!.y).toBeCloseTo(48 / 100);
+    });
+
+    it('supports mixing cell frames with per-texture frames', () => {
+        const mixed: AnimClipAssetData = {
+            ...data,
+            frames: [{ cell: 1 }, { texture: 'assets/pow.png' }],
+        };
+        const clip = parseAnimClipData('mix.esanim', mixed, new Map([
+            ['@uuid:sheet', 7],
+            ['assets/pow.png', 9],
+        ]));
+        expect(clip.frames[0].texture).toBe(7);
+        expect(clip.frames[0].uvOffset).toBeDefined();
+        expect(clip.frames[1].texture).toBe(9);
+        expect(clip.frames[1].uvOffset).toBeUndefined();
+    });
+
+    it('includes the sheet texture in extracted paths', () => {
+        const paths = extractAnimClipTexturePaths(data);
+        expect(paths).toEqual(['@uuid:sheet']);
+    });
+});
+
+describe('parseAnimClipAsset (tolerant parse)', () => {
+    it('normalizes a well-formed sheet clip round-trip through serializeAnimClip', () => {
+        const clip = createAnimClip('@uuid:sheet', 32, 48, 134, 100);
+        clip.frames.push({ cell: 0 }, { cell: 1, duration: 0.25 });
+        const parsed = parseAnimClipAsset(JSON.parse(JSON.stringify(serializeAnimClip(clip))));
+        expect(parsed).toEqual(clip);
+    });
+
+    it('drops cell frames when there is no sheet section', () => {
+        const parsed = parseAnimClipAsset({ frames: [{ cell: 3 }, { texture: 'a.png' }] });
+        expect(parsed.frames).toEqual([{ texture: 'a.png' }]);
+    });
+
+    it('drops frames with neither texture nor cell', () => {
+        const parsed = parseAnimClipAsset({ frames: [{}, null, { duration: 0.5 }] });
+        expect(parsed.frames).toEqual([]);
+    });
+
+    it('keeps legacy atlasFrame frames intact', () => {
+        const af = { x: 1, y: 2, width: 3, height: 4, pageWidth: 10, pageHeight: 20 };
+        const parsed = parseAnimClipAsset({ frames: [{ texture: 'a.png', atlasFrame: af }] });
+        expect(parsed.frames[0].atlasFrame).toEqual(af);
+    });
+
+    it('defaults fps/loop and fills sheet defaults', () => {
+        const parsed = parseAnimClipAsset({ sheet: { texture: 't.png' }, frames: [] });
+        expect(parsed.fps).toBe(12);
+        expect(parsed.loop).toBe(true);
+        expect(parsed.sheet).toEqual({
+            texture: 't.png', cellWidth: 32, cellHeight: 32,
+            margin: 0, spacing: 0, pageWidth: 1, pageHeight: 1,
+        });
     });
 });
