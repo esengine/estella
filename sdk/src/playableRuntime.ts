@@ -91,6 +91,9 @@ export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promis
     const source: RuntimeAssetSource = {
         backend,
         decodePixels: (path) => loadImagePixels(backend.resolveUrl(path)),
+        // Map keys are the shippable paths (logical aliases included) — the
+        // .eslocale discovery filters on extension, so aliases resolve fine.
+        listAssetPaths: () => Object.keys(assets),
     };
 
     if (app.hasResource(Audio)) {

@@ -161,6 +161,11 @@ export interface PlatformAdapter {
      *  omit it. Residency caches subscribe to drop their evictable entries. */
     onMemoryWarning?(callback: () => void): () => void;
 
+    /** The host's UI language tag ('zh-CN', 'en-US', …). WeChat reports
+     *  'zh_CN'-style tags — `platformLanguage()` normalizes underscores.
+     *  Optional; web falls through to navigator.language. */
+    language?(): string;
+
     devicePixelRatio(): number;
 
     getStorageItem(key: string): string | null;

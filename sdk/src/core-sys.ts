@@ -31,6 +31,7 @@ export {
     selectPluralForm,
     defaultPluralSelector,
     parseLocaleTable,
+    matchLocale,
     type LocaleTableAsset,
     type LocalizationOptions,
     type PluralCategory,

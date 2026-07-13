@@ -30,6 +30,14 @@ export interface RuntimeAssetSource {
     backend: Backend;
     decodePixels(path: string, flip: boolean): Promise<{ width: number; height: number; pixels: Uint8Array }>;
     resolveRef?(ref: string): string;
+    /**
+     * Every asset path this realm ships (logical, extension-bearing). Powers
+     * content-driven discovery of assets NO scene references — locale string
+     * tables (`.eslocale`), which Text binds by KEY, not path. Optional: a
+     * realm without it simply can't auto-load such assets (the runtime loader
+     * warns when a scene needs them).
+     */
+    listAssetPaths?(): string[];
 }
 
 export interface TextureParams {

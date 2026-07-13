@@ -157,6 +157,10 @@ export async function initWeChatRuntime(config: WeChatRuntimeConfig): Promise<vo
         backend: new FileSystemBackend(),
         decodePixels: (path) => platformLoadImagePixels(path),
         resolveRef: resolvePath,
+        // Logical addresses where present (content-addressed packs rename the
+        // staged file), else the staged path — either keeps the extension the
+        // .eslocale discovery filters on.
+        listAssetPaths: () => manifestModel.allAssets().map((a) => a.address ?? a.path),
     };
 
     // The first scene loads eagerly (the game boots into it); every other

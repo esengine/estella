@@ -36,6 +36,7 @@ export {
     platformLoadSubpackage,
     platformOnMemoryWarning,
     platformDevicePixelRatio,
+    platformLanguage,
 } from './base';
 
 // Note: webAdapter is exported here for initialization

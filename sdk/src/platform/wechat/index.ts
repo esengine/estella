@@ -210,6 +210,15 @@ class WeChatPlatformAdapter implements PlatformAdapter {
         }
     }
 
+    language(): string {
+        try {
+            // WeChat reports 'zh_CN'-style tags; platformLanguage() normalizes.
+            return wx.getSystemInfoSync?.()?.language ?? 'en';
+        } catch {
+            return 'en';
+        }
+    }
+
     clearStorage(prefix: string): void {
         try {
             const { keys } = wx.getStorageInfoSync();

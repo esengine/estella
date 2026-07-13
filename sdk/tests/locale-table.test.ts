@@ -7,11 +7,13 @@
  * `i18nKey` into live `content` and re-flows it on locale switch.
  */
 import { describe, it, expect } from 'vitest';
-import { LocalizationApi, parseLocaleTable } from '../src/i18n/Localization';
+import { LocalizationApi, parseLocaleTable, matchLocale } from '../src/i18n/Localization';
 import { LocaleAssetLoader } from '../src/asset/loaders/LocaleAssetLoader';
 import type { LoadContext } from '../src/asset/AssetLoader';
 import { applyTextLocalization, type TextWorldView } from '../src/ui/text/localize';
 import { Text, type TextData } from '../src/ui/core/text';
+import { sceneUsesI18n } from '../src/runtimeLoader';
+import type { SceneData } from '../src/scene';
 import type { Entity } from '../src/types';
 
 // =============================================================================
@@ -55,6 +57,46 @@ describe('parseLocaleTable', () => {
 
     it('rejects an unsupported version', () => {
         expect(() => parseLocaleTable('{"version":9,"locale":"en","entries":{}}', 'x.eslocale')).toThrow(/version 9/);
+    });
+});
+
+// =============================================================================
+// matchLocale (platform tag → shipped locale)
+// =============================================================================
+
+describe('matchLocale', () => {
+    const shipped = ['en', 'zh-CN'];
+    it('exact match wins', () => {
+        expect(matchLocale('zh-CN', shipped)).toBe('zh-CN');
+    });
+    it('falls back to the primary language (zh-Hans-CN / zh_CN-normalized → zh-CN)', () => {
+        expect(matchLocale('zh-Hans-CN', shipped)).toBe('zh-CN');
+        expect(matchLocale('zh', shipped)).toBe('zh-CN');
+        expect(matchLocale('en-US', shipped)).toBe('en');
+    });
+    it('null when nothing ships the language (caller keeps its default)', () => {
+        expect(matchLocale('ja-JP', shipped)).toBeNull();
+        expect(matchLocale('fr', [])).toBeNull();
+    });
+});
+
+// =============================================================================
+// sceneUsesI18n (the runtime loader's self-gating scan)
+// =============================================================================
+
+describe('sceneUsesI18n', () => {
+    const scene = (components: Array<{ type: string; data?: unknown }>): SceneData => ({
+        version: '1.0',
+        name: 's',
+        entities: [{ id: 1, name: 'E', parent: null, children: [], components }],
+    } as unknown as SceneData);
+
+    it('true only for a Text with a non-empty i18nKey', () => {
+        expect(sceneUsesI18n(scene([{ type: 'Text', data: { i18nKey: 'menu.play' } }]))).toBe(true);
+        expect(sceneUsesI18n(scene([{ type: 'Text', data: { i18nKey: '' } }]))).toBe(false);
+        expect(sceneUsesI18n(scene([{ type: 'Text', data: {} }]))).toBe(false);
+        expect(sceneUsesI18n(scene([{ type: 'Sprite', data: { i18nKey: 'x' } }]))).toBe(false);
+        expect(sceneUsesI18n(scene([]))).toBe(false);
     });
 });
 

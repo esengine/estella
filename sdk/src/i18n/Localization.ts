@@ -138,6 +138,17 @@ export interface LocaleTableAsset {
 const LOCALE_TABLE_VERSION = 1;
 
 /**
+ * Pick the best available locale for a platform tag: exact match first, else
+ * the first locale sharing the primary language ('zh-Hans-CN' → 'zh-CN'),
+ * else null — the caller keeps its current locale. Pure.
+ */
+export function matchLocale(tag: string, available: readonly string[]): string | null {
+    if (available.includes(tag)) return tag;
+    const lang = tag.split('-')[0].toLowerCase();
+    return available.find((l) => l.split('-')[0].toLowerCase() === lang) ?? null;
+}
+
+/**
  * Parse + validate `.eslocale` text. Fail-loud: a malformed table names the
  * offending file and field instead of silently registering nothing. Pure.
  */

@@ -24,7 +24,9 @@ import { SceneManager, type SceneConfig } from './sceneManager';
 import { DEFAULT_GRAVITY, DEFAULT_FIXED_TIMESTEP } from './defaults';
 import { SpriteAnimation } from './animation/SpriteAnimator';
 import { Audio } from './audio/Audio';
-import { Localization } from './i18n/Localization';
+import { Localization, matchLocale } from './i18n/Localization';
+import { LocalizationPlugin } from './i18n/LocalizationPlugin';
+import { platformLanguage } from './platform';
 import { flushPendingSystems } from './app';
 import { requireResourceManager } from './resourceManager';
 import { log } from './logger';
@@ -179,6 +181,20 @@ const PHYSICS_COMPONENT_TYPES = new Set([
     'SegmentCollider', 'PolygonCollider', 'ChainCollider',
 ]);
 
+/** True if any Text binds its content to a localization key — the scene needs
+ *  the Localization resource + the project's `.eslocale` tables to render as
+ *  authored (an unbound key would show as the raw key string). */
+export function sceneUsesI18n(sceneData: SceneData): boolean {
+    for (const entity of sceneData.entities ?? []) {
+        for (const comp of entity.components ?? []) {
+            if (comp.type !== 'Text') continue;
+            const key = (comp.data as { i18nKey?: unknown } | undefined)?.i18nKey;
+            if (typeof key === 'string' && key.length > 0) return true;
+        }
+    }
+    return false;
+}
+
 /** True if any entity carries a physics component, or a TilemapLayer that may spawn
  *  colliders at runtime — either baked collidable tile ids (legacy scenes) or a
  *  `.estileset` reference, whose collision shapes derive live at load and are
@@ -267,6 +283,35 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
             const mod = physicsModule;
             app.addPlugin(new PhysicsPlugin('', config, () => Promise.resolve(mod)));
             log.info('physics', `installed (gravity ${gravity.x}, ${gravity.y})`);
+        }
+    }
+
+    // Self-gating i18n, mirroring physics: a scene that binds Text.i18nKey needs
+    // the Localization resource + the shipped `.eslocale` tables — installed and
+    // loaded here so no runtime entry can forget. Tables come from the realm's
+    // OWN asset list (they're loaded by key, never referenced by the scene).
+    // Idempotent across scene switches: the resource persists, table loads hit
+    // the Assets cache, addCatalog merges. Awaited so the first frame renders
+    // words, not raw keys.
+    if (sceneUsesI18n(sceneData)) {
+        const autoInstalled = !app.hasResource(Localization);
+        if (autoInstalled) app.addPlugin(new LocalizationPlugin());
+        const tables = (source.listAssetPaths?.() ?? []).filter((p) => p.toLowerCase().endsWith('.eslocale'));
+        if (tables.length === 0) {
+            log.warn('i18n', 'scene binds Text.i18nKey but this realm lists no .eslocale tables — keys will render raw');
+        } else {
+            await Promise.all(tables.map((p) => sceneAssets.loadLocaleTable(p).catch((e: unknown) => {
+                log.error('i18n', `locale table ${p} failed to load: ${e instanceof Error ? e.message : String(e)}`);
+            })));
+            log.info('i18n', `installed — ${tables.length} locale table(s)`);
+        }
+        if (autoInstalled) {
+            // Auto-installed ⇒ nobody configured a locale: follow the player's
+            // system language when a shipped table matches. A game that installs
+            // the plugin itself (or calls setLocale later) is never overridden.
+            const i18n = app.getResource(Localization);
+            const picked = matchLocale(platformLanguage(), i18n.availableLocales());
+            if (picked) i18n.setLocale(picked);
         }
     }
 

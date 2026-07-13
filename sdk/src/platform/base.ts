@@ -135,3 +135,13 @@ export function platformDevicePixelRatio(): number {
     }
     return typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1;
 }
+
+/** The host's UI language as a BCP-47-ish tag ('zh-CN', 'en-US', …): the
+ *  adapter's report (WeChat), else navigator.language (web), else 'en'.
+ *  Underscore tags ('zh_CN') normalize to hyphens. Tolerates an
+ *  uninitialized platform (tests). */
+export function platformLanguage(): string {
+    const raw = currentPlatform?.language?.()
+        ?? (typeof navigator !== 'undefined' ? navigator.language : undefined);
+    return (raw ?? 'en').replace(/_/g, '-');
+}

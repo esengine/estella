@@ -205,6 +205,7 @@ export {
     loadRuntimeScene,
     createRuntimeSceneConfig,
     initRuntime,
+    sceneUsesI18n,
     type RuntimeAssetSource,
     type LoadRuntimeSceneOptions,
     type RuntimeInitConfig,

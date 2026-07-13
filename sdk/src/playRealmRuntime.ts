@@ -134,6 +134,10 @@ function createPlayRealmSource(
         backend,
         decodePixels: (path) => fetchDecodePixels(backend.resolveUrl(path)),
         resolveRef: (ref) => resolvePlayAssetRef(ref, manifest, assetBaseUrl, pathMap),
+        // Cooked builds: logical paths (the pathMap keys). Editor play: the
+        // manifest's resolved URLs — both keep the real extension, which is all
+        // the .eslocale discovery filters on.
+        listAssetPaths: () => (pathMap ? Object.keys(pathMap) : Object.values(manifest)),
     };
 }
 
