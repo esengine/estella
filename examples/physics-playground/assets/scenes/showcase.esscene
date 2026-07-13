@@ -1,0 +1,120 @@
+{
+  "version": "1.0",
+  "name": "Showcase",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 10 } } },
+        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 300, "isActive": true, "priority": 0 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "Ground",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": -260, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 780, "y": 20 }, "color": { "r": 0.4, "g": 0.4, "b": 0.45, "a": 1 } } },
+        { "type": "RigidBody", "data": { "bodyType": 0 } },
+        { "type": "BoxCollider", "data": { "halfExtents": { "x": 3.9, "y": 0.1 } } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 2,
+      "name": "LeftWall",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": -390, "y": -20, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 20, "y": 520 }, "color": { "r": 0.4, "g": 0.4, "b": 0.45, "a": 1 } } },
+        { "type": "RigidBody", "data": { "bodyType": 0 } },
+        { "type": "BoxCollider", "data": { "halfExtents": { "x": 0.1, "y": 2.6 } } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 3,
+      "name": "RightWall",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 390, "y": -20, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 20, "y": 520 }, "color": { "r": 0.4, "g": 0.4, "b": 0.45, "a": 1 } } },
+        { "type": "RigidBody", "data": { "bodyType": 0 } },
+        { "type": "BoxCollider", "data": { "halfExtents": { "x": 0.1, "y": 2.6 } } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 4,
+      "name": "OneWayLedge",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": -170, "y": 30, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 300, "y": 16 }, "color": { "r": 0.3, "g": 0.8, "b": 0.9, "a": 0.55 } } },
+        { "type": "RigidBody", "data": { "bodyType": 0 } },
+        { "type": "BoxCollider", "data": { "halfExtents": { "x": 1.5, "y": 0.08 } } },
+        { "type": "OneWayPlatform", "data": { "normal": { "x": 0, "y": 1 }, "enabled": true } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 5,
+      "name": "ShuttleAnchor",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 150, "y": -90, "z": 0 } } },
+        { "type": "RigidBody", "data": { "bodyType": 0 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 6,
+      "name": "Shuttle",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 150, "y": -90, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 160, "y": 24 }, "color": { "r": 0.95, "g": 0.6, "b": 0.2, "a": 1 } } },
+        { "type": "RigidBody", "data": { "bodyType": 2, "fixedRotation": true } },
+        { "type": "BoxCollider", "data": { "halfExtents": { "x": 0.8, "y": 0.12 }, "friction": 0.8 } },
+        { "type": "MotorJoint", "data": {
+          "connectedEntity": 5,
+          "linearVelocity": { "x": 180, "y": 0 },
+          "maxVelocityForce": 3000,
+          "angularVelocity": 0,
+          "maxVelocityTorque": 0,
+          "linearHertz": 0,
+          "linearDampingRatio": 0,
+          "maxSpringForce": 0,
+          "angularHertz": 0,
+          "angularDampingRatio": 0,
+          "maxSpringTorque": 0,
+          "collideConnected": false,
+          "enabled": true
+        } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 7,
+      "name": "SpawnTimer",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "SpawnTimer", "data": { "interval": 0.9, "timer": 0 } }
+      ],
+      "visible": true
+    }
+  ]
+}

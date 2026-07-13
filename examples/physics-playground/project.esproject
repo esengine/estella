@@ -1,10 +1,10 @@
 {
   "formatVersion": "1",
   "name": "Physics Playground",
-  "description": "Drop balls and crates into a rigid-body sandbox.",
+  "description": "A rigid-body sandbox: drop balls and crates, drag them with the mouse, watch a motor-driven shuttle ferry them, and jump bodies up through a one-way platform.",
   "tag": "Physics",
   "version": "0.1.0",
-  "defaultScene": "assets/scenes/main.esscene",
+  "defaultScene": "assets/scenes/showcase.esscene",
   "designResolution": {
     "width": 800,
     "height": 600
