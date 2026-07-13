@@ -1,11 +1,11 @@
 import {
-    defineSystem, Query, Mut, Res, GetWorld,
+    defineSystem, Res, GetWorld,
     Time, Input, Net, Replicated, Transform, Sprite,
-    type World, type InputState,
+    type World, type Entity, type InputState,
 } from 'esengine';
 import { Pawn } from './components';
 
-// Arena bounds the authority clamps pawns to (matches the scene's walls).
+// Arena bounds the movement rule clamps pawns to (matches the scene's walls).
 const BOUND_X = 420;
 const BOUND_Y = 278;
 
@@ -27,6 +27,26 @@ function readMove(input: InputState): { x: number; y: number } {
     return len > 0 ? { x: x / len, y: y / len } : { x: 0, y: 0 };
 }
 
+/**
+ * THE movement rule — one function, both ends. The server applies it with each
+ * connection's per-tick input (`tickInputOf`); the client applies it as its
+ * prediction function, so your own pawn responds the moment a key goes down
+ * (the bounds clamp included — even the walls are predicted). Because both
+ * ends run the same rule, reconciliation corrections are invisible in normal
+ * play.
+ */
+function applyMove(world: World, entity: Entity, actions: Record<string, unknown>, dt: number): void {
+    const move = actions.move as { x: number; y: number } | undefined;
+    if (!move || (move.x === 0 && move.y === 0)) return;
+    const pawn = world.tryGet(entity, Pawn);
+    const transform = world.tryGet(entity, Transform);
+    if (!pawn || !transform) return;
+    const p = transform.position;
+    p.x = Math.min(BOUND_X, Math.max(-BOUND_X, p.x + move.x * pawn.speed * dt));
+    p.y = Math.min(BOUND_Y, Math.max(-BOUND_Y, p.y + move.y * pawn.speed * dt));
+    world.set(entity, Transform, transform);
+}
+
 function spawnPawn(world: World, player: number): void {
     const slot = PLAYER_COLORS[player % PLAYER_COLORS.length];
     const e = world.spawn(`Pawn P${player + 1}`);
@@ -36,6 +56,7 @@ function spawnPawn(world: World, player: number): void {
     // Marking it Replicated is ALL it takes: the entity spawns on every client
     // (full component payload — sprite color included), its annotated Transform
     // pose streams as deltas, and `owner` routes that connection's input to it.
+    // Owner is assigned AT spawn — ownership rides the spawn payload.
     world.insert(e, Replicated, { owner: player });
 }
 
@@ -63,34 +84,41 @@ export const provisionPawnsSystem = defineSystem(
 );
 
 /**
- * Authority-side movement: one rule for everyone. The host pawn reads the local
- * keyboard; remote pawns read their connection's uplinked input. Clients never
- * run this — their view of every pawn (their own included) is the replicated,
- * interpolated authoritative state.
+ * Authority-side movement: `applyMove` for everyone. The host pawn reads the
+ * local keyboard; remote pawns consume their connection's input queue via
+ * `tickInputOf` — exactly one command per tick, the contract the clients'
+ * prediction replays against.
  */
 export const movePawnsSystem = defineSystem(
-    [Query(Mut(Transform), Pawn, Replicated), Res(Net), Res(Input), Res(Time)],
-    (query, net, input, time) => {
+    [GetWorld(), Res(Net), Res(Input), Res(Time)],
+    (world, net, input, time) => {
         if (net.role === 'client') return;
-        for (const [, transform, pawn, repl] of query) {
-            const move = repl.owner === 0
-                ? readMove(input)
-                : ((net.server?.inputOf(repl.owner)?.actions.move as { x: number; y: number } | undefined) ?? { x: 0, y: 0 });
-            if (move.x === 0 && move.y === 0) continue;
-            const p = transform.position;
-            p.x = Math.min(BOUND_X, Math.max(-BOUND_X, p.x + move.x * pawn.speed * time.fixedDelta));
-            p.y = Math.min(BOUND_Y, Math.max(-BOUND_Y, p.y + move.y * pawn.speed * time.fixedDelta));
+        for (const e of world.getEntitiesWithComponents([Pawn, Replicated])) {
+            const repl = world.tryGet(e, Replicated)!;
+            const actions = repl.owner === 0
+                ? { move: readMove(input) }
+                : (net.server?.tickInputOf(repl.owner)?.actions ?? {});
+            applyMove(world as World, e as Entity, actions, time.fixedDelta);
         }
     },
     { name: 'MovePawnsSystem' },
 );
 
-/** Client-side input uplink: one command per fixed tick, keyboard → server. */
+/**
+ * Client-side input uplink + prediction: one command per fixed tick (an idle
+ * move counts — with prediction on, silence would mean "keep doing that").
+ * The editor's multiplayer preview connects the client realm itself, so
+ * prediction is enabled here, lazily, with the same `applyMove` the server
+ * runs — your own pawn stops waiting for the round trip.
+ */
 export const sendInputSystem = defineSystem(
     [Res(Net), Res(Input)],
     (net, input) => {
-        if (net.role !== 'client') return;
-        net.client?.sendInput({ move: readMove(input) });
+        if (net.role !== 'client' || !net.client) return;
+        if (!net.client.predictionEnabled) {
+            net.client.enablePrediction({ apply: applyMove });
+        }
+        net.client.sendInput({ move: readMove(input) });
     },
     { name: 'SendInputSystem' },
 );

@@ -35,7 +35,7 @@ for your own game.
 | **ui-layout** | UI | Flexbox-style responsive UI layout. |
 | **ui-list** | UI | A virtualized list and grid — `createListView`, live data, `scrollToIndex`. |
 | **enemy-ai** | AI | A state machine drives enemies to patrol, sense the player, and chase via A* navigation. |
-| **multiplayer-arena** | Networking | Server-authoritative multiplayer: each player steers a replicated pawn ('2 Players' in the Play dropdown runs listen server + client). |
+| **multiplayer-arena** | Networking | Server-authoritative multiplayer with client prediction: each player steers a replicated pawn, own-pawn input applies instantly ('2 Players' in the Play dropdown runs listen server + client). |
 | **platformer** | Game | A tiny platformer — run, jump and collect coins. |
 | **space-shooter** | Game | A vertical shmup with prefabs, a HUD and a difficulty ramp. |
 

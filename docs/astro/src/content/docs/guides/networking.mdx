@@ -113,7 +113,7 @@ clientNet.client?.sendInput({ move: { x: 1, y: 0 } });   // per-tick input uplin
 - **Dedicated servers**: the same gameplay code runs headless under Node —
   `import { loadEsengineModule, createHeadlessApp, runHeadless } from 'esengine/node'`.
 
-See the **Multiplayer Arena** example for the full pattern in ~100 lines.
+See the **Multiplayer Arena** example for the full pattern — replication, per-tick input, and client prediction — in ~130 lines.
 
 ### Interest management — who sees what
 

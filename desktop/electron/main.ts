@@ -192,6 +192,11 @@ async function runScreenshot(w: BrowserWindow, out: string): Promise<void> {
       }
     }
     if (process.env.ESTELLA_SHOT_PLAY) {
+      // Multiplayer preview: pick the player count before entering Play
+      // (2-4 = listen server + client realms, each its own estella:// frame).
+      if (process.env.ESTELLA_SHOT_PLAYERS) {
+        await exec(`window.__estellaEditor.setPlayPlayers(${Number(process.env.ESTELLA_SHOT_PLAYERS)})`);
+      }
       await exec('window.__estellaEditor.play()');
       await waitFor('window.__estellaEditor.playState().ready || !!window.__estellaEditor.playState().error', 'play realm ready', 20000);
       const err = await exec('window.__estellaEditor.playState().error');
@@ -235,9 +240,13 @@ async function runScreenshot(w: BrowserWindow, out: string): Promise<void> {
     // reach the iframe. Lets a shot drive gameplay input, e.g. dispatching
     // KeyboardEvents on the frame's document.
     if (process.env.ESTELLA_SHOT_PLAY_EVAL) {
-      const playFrame = w.webContents.mainFrame.frames.find((f) => f.url.startsWith('estella://'));
+      // ESTELLA_SHOT_PLAY_FRAME picks which play realm the eval targets when a
+      // multiplayer preview runs several (0 = the host, 1+ = client realms).
+      const frameIndex = Number(process.env.ESTELLA_SHOT_PLAY_FRAME ?? '0');
+      const playFrames = w.webContents.mainFrame.frames.filter((f) => f.url.startsWith('estella://'));
+      const playFrame = playFrames[frameIndex];
       if (!playFrame) {
-        console.log('[playEval] no estella:// play frame found');
+        console.log(`[playEval] no estella:// play frame at index ${frameIndex} (${playFrames.length} present)`);
       } else {
         const result = await playFrame
           .executeJavaScript(process.env.ESTELLA_SHOT_PLAY_EVAL)

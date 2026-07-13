@@ -79,7 +79,7 @@ export class ReplicationClient {
     private readonly pendingDespawns_: ReplDespawnBatch[] = [];
     private readonly interp_: InterpolationState | null;
     private inputSeq_ = 0;
-    private readonly prediction_: PredictionOptions | null;
+    private prediction_: PredictionOptions | null;
     /** Sent-but-unacknowledged input commands, oldest first (replay order). */
     private readonly pendingInputs_: ReplInputMsg[] = [];
     private ackedSeq_ = 0;
@@ -168,6 +168,27 @@ export class ReplicationClient {
     /** @internal Keep the replay dt in lockstep with the app (plugin-fed). */
     setFixedDelta(dt: number): void {
         if (dt > 0) this.fixedDelta_ = dt;
+    }
+
+    get predictionEnabled(): boolean {
+        return this.prediction_ !== null;
+    }
+
+    /**
+     * Enable (or reconfigure) prediction after construction — the path for
+     * game code whose connection a HOST made (the editor's multiplayer
+     * preview connects the client realm itself, options-free): call from a
+     * fixed-tick system once the session is a client. Owned entities that
+     * already spawned get their authority copies seeded from current state.
+     */
+    enablePrediction(options: PredictionOptions): void {
+        this.prediction_ = options;
+        for (const e of this.ownedEntities_()) {
+            const netId = this.netIds_.netIdOf(e);
+            if (netId !== undefined && !this.authority_.has(netId)) {
+                this.seedAuthority_(netId, e);
+            }
+        }
     }
 
     disconnect(): void {

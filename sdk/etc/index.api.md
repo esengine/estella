@@ -4706,8 +4706,10 @@ connect: (transport: NetTransport) => Promise<void>
 connected: boolean
 connectionId: number
 disconnect: () => void
+enablePrediction: (options: PredictionOptions) => void
 netIds: NetIds
 ownsEntity: (entity: Entity) => boolean
+predictionEnabled: boolean
 sampleInterpolation: (deltaTicks: number) => void
 sendInput: (actions: Record<string, unknown>) => void
 serverTick: number

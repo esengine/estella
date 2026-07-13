@@ -73,6 +73,8 @@ if (new URLSearchParams(location.search).has('automation')) {
     selectAsset: (path: string | null) => useSelection.getState().selectAsset(path),
     play: () => useEditorStore.getState().togglePlay(),
     playState: () => PlayRealm.getSnapshot(),
+    /** Player count for the next Play (1 = single, 2-4 = listen server + clients). */
+    setPlayPlayers: (n: number) => useEditorStore.getState().setPlayPlayers(n),
     reveal: (id: string) => dockApi.revealAndExpand(id),
     togglePerfOverlay: () => PerfMonitor.toggleOverlay(),
     captureThumbnail: () => ProjectStore.captureThumbnail(),

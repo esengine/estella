@@ -209,6 +209,44 @@ describe('client prediction', () => {
     });
 });
 
+describe('late enablePrediction (host-connected realms)', () => {
+    it('seeds authority for already-spawned owned entities and predicts from then on', async () => {
+        const serverApp = makeApp();
+        const clientApp = makeApp();
+        const server = serverApp.getResource(Net).startServer();
+        addServerInputSystem(serverApp, server);
+        const [ta, tb] = MemoryTransport.pair();
+        const connId = server.attachConnection(ta);
+        // Connected WITHOUT prediction — the editor-host shape.
+        const client = await clientApp.getResource(Net).connect(tb, { interpolationDelayTicks: 0 });
+
+        const pawn = serverApp.world.spawn('pawn');
+        serverApp.world.insert(pawn, Replicated, { owner: connId });
+        serverApp.world.insert(pawn, NetPos, { x: 5, y: 0 });
+        await serverApp.tick(STEP);
+        await clientApp.tick(STEP);
+        const ghost = clientApp.world.getEntitiesWithComponents([Replicated])[0];
+
+        expect(client.predictionEnabled).toBe(false);
+        client.enablePrediction({ apply: applyMove });
+        expect(client.predictionEnabled).toBe(true);
+
+        // Immediate local movement…
+        client.sendInput({ move: { x: 1, y: 0 } });
+        expect(posX(clientApp, ghost)).toBeCloseTo(15, 5);
+
+        // …and the late seed holds the authority baseline: a tampered value
+        // snaps back even though the server never re-sends it.
+        await serverApp.tick(STEP);
+        await clientApp.tick(STEP);
+        clientApp.world.set(ghost, NetPos, { x: 999, y: 0 });
+        client.sendInput({ move: { x: 0, y: 0 } });
+        await serverApp.tick(STEP);
+        await clientApp.tick(STEP);
+        expect(posX(clientApp, ghost)).toBeCloseTo(15, 5);
+    });
+});
+
 describe('per-tick input queue (tickInputOf)', () => {
     it('consumes exactly one command per tick, repeats on starvation, and inputOf stays latest', async () => {
         const serverApp = makeApp();
