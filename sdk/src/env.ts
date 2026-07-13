@@ -41,3 +41,26 @@ export function playModeOnly(): boolean {
     const ctx = getDefaultContext();
     return !ctx.editorMode || ctx.playMode;
 }
+
+// FX authoring preview: the ONE exception to the edit-mode freeze — effect
+// simulations (particles, motion trails) may advance in edit mode so they are
+// live while being tuned. Deliberately a module global rather than AppContext
+// state: only an editor's edit realm ever flips it (play realms and shipped
+// runtimes are separate module instances where it stays false and playModeOnly
+// rules alone), and it must survive a context reset (the editor re-syncs its
+// own toggle, not the context lifecycle).
+let fxEditPreview = false;
+
+/** Editor-only: advance FX simulations (particles, trails) in edit mode. */
+export function setFxEditPreview(enabled: boolean): void {
+    fxEditPreview = enabled;
+}
+
+export function isFxEditPreview(): boolean {
+    return fxEditPreview;
+}
+
+/** Run condition for FX systems: gameplay rules, plus the authoring preview. */
+export function fxPreviewOrPlayMode(): boolean {
+    return fxEditPreview || playModeOnly();
+}

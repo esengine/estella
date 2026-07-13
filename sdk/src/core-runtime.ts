@@ -370,6 +370,9 @@ export {
     setPlayMode,
     isPlayMode,
     playModeOnly,
+    setFxEditPreview,
+    isFxEditPreview,
+    fxPreviewOrPlayMode,
 } from './env';
 
 export type { RunCondition } from './app';

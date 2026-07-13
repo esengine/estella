@@ -308,8 +308,6 @@ export {
     ParticleAPI,
     ParticlePlugin,
     particlePlugin,
-    setParticleEditPreview,
-    isParticleEditPreview,
 } from './particle';
 
 // =============================================================================

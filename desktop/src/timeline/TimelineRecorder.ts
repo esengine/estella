@@ -57,7 +57,7 @@ class TimelineRecorderImpl {
   attach(): void {
     if (this.attached) return;
     this.attached = true;
-    SceneCommands.setEditHook((sourceId, compName, key, type, value) =>
+    SceneCommands.addEditHook((sourceId, compName, key, type, value) =>
       this.onEdit(sourceId, compName, key, type, value),
     );
     // Flush the pending burst the moment recording is switched off.

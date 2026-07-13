@@ -4,29 +4,12 @@ import type { App, Plugin } from '../app';
 import { defineSystem, Schedule } from '../system';
 import { Res } from '../resource';
 import { Time, type TimeData } from '../resource';
-import { playModeOnly } from '../env';
+import { fxPreviewOrPlayMode } from '../env';
 import type { ESEngineModule, CppRegistry } from '../wasm';
 import { registerSceneComponentCodec } from '../scene';
 import { Particle, ParticleAPI } from './ParticleAPI';
 import { bakeGradient, type Gradient } from './gradient';
 import { bakeCurve, type Curve } from './curve';
-
-// Editor authoring preview: lets the particle simulation advance in EDIT mode
-// too, so emitters are live while they are being tuned. Module-scoped rather
-// than per-App: only an editor's edit realm ever flips it — the play realm and
-// shipped runtimes are separate module instances where it stays false and
-// playModeOnly rules alone.
-let editPreview_ = false;
-
-/** Editor-only: advance the particle simulation in edit mode (live authoring
- *  preview). No effect outside an editor (playModeOnly already passes there). */
-export function setParticleEditPreview(enabled: boolean): void {
-    editPreview_ = enabled;
-}
-
-export function isParticleEditPreview(): boolean {
-    return editPreview_;
-}
 
 export class ParticlePlugin implements Plugin {
     name = 'particle';
@@ -69,14 +52,14 @@ export class ParticlePlugin implements Plugin {
 
         // Particle advance is gameplay — frozen in editor edit mode, runs in
         // play mode / standalone runtime (matches animation/physics/timeline).
-        // The edit-preview flag is the one authoring exception (see above).
+        // The FX edit-preview flag is the one authoring exception (env.ts).
         app.addSystemToSchedule(Schedule.Update, defineSystem(
             [Res(Time), Res(Particle)],
             (time: TimeData, particle: ParticleAPI) => {
                 particle.update(time.delta);
             },
             { name: 'ParticleSystem' }
-        ), { runIf: () => editPreview_ || playModeOnly() });
+        ), { runIf: fxPreviewOrPlayMode });
     }
 }
 

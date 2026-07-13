@@ -43,7 +43,7 @@ import { EditorControlSurface } from './engine/EditorSession';
 import { SceneModel } from './engine/SceneModel';
 import { EngineHost } from './engine/EngineHost';
 import { UINode, UIVisual, Particle } from 'esengine';
-import { applyFxPreview } from './engine/fxPreview';
+import { applyFxPreview, initFxPreviewEditRestart } from './engine/fxPreview';
 import { commands } from './commands/registry';
 import { ViewportController } from './engine/ViewportController';
 import { PerfMonitor } from './engine/PerfMonitor';
@@ -65,8 +65,10 @@ initFsWatch();
 initBackgroundThrottle();
 
 // Sync the FX-preview default into the engine flag before anything boots (the
-// flag is module-scoped; emitters auto-play lazily once a scene loads).
+// flag is module-scoped; emitters auto-play lazily once a scene loads), and
+// wire the Details-edit → emitter-restart glue.
 applyFxPreview(useEditorStore.getState().previewFx);
+initFxPreviewEditRestart();
 
 // Automation hook (screenshots / visual-regression): with `?automation=1`, expose the
 // minimum to drive the launcher→editor flow from a headless driver. Gated so the normal

@@ -169,7 +169,7 @@ updateTextureSubregion: (handle: number, x: number, y: number, width: number, he
 ```
 EstellaContext: new () => CppEngineContext
 FS: EmscriptenFS
-GL: { registerContext(ctx: WebGLRenderingContext | WebGL2RenderingContext, options: { majorVersion: number; minorVersion: number; enableExtensionsByDefault?: boolean; }): number; currentContext?: { GLctx: WebGLRenderingContext | WebGL2RenderingContext; }; getNewId(pool: Record<number, unknown>): number; textures: Record<number, WebGLTexture>; }
+GL: { registerContext(ctx: WebGLRenderingContext | WebGL2RenderingContext, options: { majorVersion: number; minorVersion: number; enableExtensionsByDefault?: boolean; }): number; currentContext?: { GLctx: WebGLRenderingContext | WebGL2RenderingContext; }; contexts?: ({ GLctx: WebGLRenderingContext | WebGL2RenderingContext; } | null)[]; getNewId(pool: Record<number, unknown>): number; textures: Record<number, WebGLTexture>; }
 HEAPF32: Float32Array<ArrayBufferLike>
 HEAPU32: Uint32Array<ArrayBufferLike>
 HEAPU8: Uint8Array<ArrayBufferLike>

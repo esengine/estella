@@ -135,12 +135,12 @@ export class SceneCommandsImpl {
   // value read at `endGesture`, and the pair recorded as one model-op step.
   private gesture: { label: string; touched: Map<string, FieldEdit> } | null = null;
 
-  // Optional observer/interceptor on the field-edit door — the Sequencer's record
-  // mode registers it to auto-key edits. Returning true
-  // SUPPRESSES the scene write (reserved for future non-destructive record);
-  // the recorder returns false (observe-only) so the edit still lands normally.
-  // Kept generic: SceneCommands knows nothing about timelines.
-  private editHook: EditHook | null = null;
+  // Observers/interceptors on the field-edit door — the Sequencer's record mode
+  // auto-keys edits, the FX preview restarts emitters on timing edits. Any hook
+  // returning true SUPPRESSES the scene write (reserved for future
+  // non-destructive record); observers return false so the edit lands normally.
+  // Kept generic: SceneCommands knows nothing about the consumers.
+  private readonly editHooks = new Set<EditHook>();
   // An in-progress tilemap paint stroke: the chunk blob snapshotted at stroke start
   // ({@link beginTilePaint}), committed as one undo step at {@link endTilePaint}.
   private tilePaint: { sourceId: number; before: string } | null = null;
@@ -150,9 +150,10 @@ export class SceneCommandsImpl {
     private readonly history: EditorHistoryImpl,
   ) {}
 
-  /** Register (or clear) the field-edit hook. One slot; last writer wins. */
-  setEditHook(fn: EditHook | null): void {
-    this.editHook = fn;
+  /** Register a field-edit hook; returns the unsubscribe. */
+  addEditHook(fn: EditHook): () => void {
+    this.editHooks.add(fn);
+    return () => this.editHooks.delete(fn);
   }
 
   /** The current model value of one field, or undefined. */
@@ -250,8 +251,13 @@ export class SceneCommandsImpl {
     type: InspectorFieldType,
     value: InspectorFieldValue,
   ): void {
-    // The edit hook (Sequencer record) may observe — or, returning true, suppress.
-    if (this.editHook && this.editHook(sourceId, compName, key, type, value)) return;
+    // Edit hooks may observe — or, any returning true, suppress. Evaluated
+    // eagerly (no short-circuit) so every observer sees every edit.
+    let suppressed = false;
+    for (const hook of this.editHooks) {
+        if (hook(sourceId, compName, key, type, value)) suppressed = true;
+    }
+    if (suppressed) return;
 
     // Flipping a UINode to Absolute bakes its current layout box into concrete px
     // insets (below) so it holds its on-screen spot and gains a real, draggable
