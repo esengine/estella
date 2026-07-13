@@ -200,3 +200,74 @@
 .set-swatch.on { box-shadow: 0 0 0 2px var(--srf-2), 0 0 0 4px var(--acc); }
 
 /* The pill toggle is the shared `.toggle` primitive (controls.css). */
+
+/* ── Audio Mixer panel ──────────────────────────────────────────────────── */
+.mix-panel {
+  height: 100%;
+  overflow: auto;
+  background: var(--srf-1);
+  color: var(--text);
+  font-size: var(--fs-sm);
+}
+.mix-empty {
+  display: flex; align-items: center; justify-content: center;
+  height: 100%; color: var(--text-dim);
+}
+.mix-strips {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px;
+}
+.mix-strip {
+  flex: 0 0 220px;
+  background: var(--srf-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mix-head { display: flex; align-items: center; gap: 6px; }
+.mix-name { font-weight: 600; }
+.mix-head .mix-rm { margin-left: auto; }
+.mix-vol { display: flex; align-items: center; gap: 6px; }
+.mix-fader { flex: 1 1 auto; accent-color: var(--star); }
+.mix-vol-num {
+  width: 26px; text-align: right;
+  color: var(--text-faint); font-variant-numeric: tabular-nums; font-size: var(--fs-2xs);
+}
+.mix-mute {
+  background: none; border: 1px solid var(--line); border-radius: var(--r-sm);
+  color: var(--text-dim); padding: 2px 5px; cursor: pointer; display: inline-flex;
+}
+.mix-mute.is-on { color: var(--error-hi); border-color: var(--error-hi); }
+.mix-fxs { display: flex; flex-direction: column; gap: 4px; }
+.mix-fx {
+  display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
+  background: var(--inset); border: 1px solid var(--line); border-radius: var(--r-sm);
+  padding: 3px 5px;
+}
+.mix-fx-kind { color: var(--text-dim); font-size: var(--fs-2xs); min-width: 44px; }
+.mix-num { display: inline-flex; align-items: center; gap: 3px; color: var(--text-faint); font-size: var(--fs-2xs); }
+.mix-num input {
+  width: 52px; background: var(--srf-2); border: 1px solid var(--line); border-radius: var(--r-sm);
+  color: var(--text); padding: 1px 4px; font: inherit; font-size: var(--fs-2xs);
+}
+.mix-rm {
+  background: none; border: none; color: var(--text-dim);
+  padding: 2px; cursor: pointer; display: inline-flex;
+}
+.mix-rm:hover { color: var(--error-hi); }
+.mix-duck { display: flex; align-items: center; gap: 6px; }
+.mix-lbl { color: var(--text-faint); font-size: var(--fs-2xs); }
+.mix-duck-amt { flex: 1 1 auto; accent-color: var(--star); }
+.mix-add {
+  flex: 0 0 auto;
+  display: inline-flex; align-items: center; gap: 5px;
+  background: transparent; color: var(--text-dim);
+  border: 1px dashed var(--line); border-radius: var(--r-sm);
+  padding: 8px 12px; cursor: pointer; font: inherit;
+}
+.mix-add:hover { color: var(--text); border-color: var(--line-strong); }

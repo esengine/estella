@@ -20,6 +20,7 @@ import { GamePanel, GameClientPanel } from '@/panels/GamePanel';
 import { Sequencer } from '@/panels/Sequencer';
 import { TilesetEditor } from '@/panels/TilesetEditor';
 import { FlipbookEditor } from '@/panels/FlipbookEditor';
+import { AudioMixerPanel } from '@/panels/AudioMixerPanel';
 import { TilemapPainter } from '@/panels/TilemapPainter';
 import { UIWidgetsPanel } from '@/panels/UIWidgetsPanel';
 import { MaterialGraphEditor } from '@/panels/MaterialGraphEditor';
@@ -47,6 +48,7 @@ const components: Record<string, FC<IDockviewPanelProps>> = {
   sequencer: () => panel('sequencer', <Sequencer />),
   tileset: () => panel('tileset', <TilesetEditor />),
   flipbook: () => panel('flipbook', <FlipbookEditor />),
+  audiomixer: () => panel('audiomixer', <AudioMixerPanel />),
   tilemap: () => panel('tilemap', <TilemapPainter />),
   uiWidgets: () => panel('uiWidgets', <UIWidgetsPanel />),
   materialgraph: () => panel('materialgraph', <MaterialGraphEditor />),
@@ -114,6 +116,7 @@ function buildDefaultLayout(api: DockviewReadyEvent['api']) {
 const BOTTOM_TABS: { id: string; component: string; title: string; refs: string[] }[] = [
   { id: 'sequencer', component: 'sequencer', title: t('layout.panel.sequencer'), refs: ['content', 'log'] },
   { id: 'profiler', component: 'profiler', title: t('layout.panel.profiler'), refs: ['log', 'content'] },
+  { id: 'audiomixer', component: 'audiomixer', title: t('mix.panelTitle'), refs: ['log', 'content'] },
 ];
 
 function ensureBottomTabs(api: DockviewReadyEvent['api']) {
@@ -145,6 +148,7 @@ const PANEL_TITLES: Record<string, () => string> = {
   game: () => t('layout.panel.game'),
   tileset: () => t('tile.panelTileset'),
   flipbook: () => t('fb.panelTitle'),
+  audiomixer: () => t('mix.panelTitle'),
   tilemap: () => t('panel.tilemap'),
   'ui-widgets': () => t('panel.uiWidgets'),
   materialgraph: () => t('mat.panelTitle'),

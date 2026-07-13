@@ -86,6 +86,14 @@ export function ActivityBar() {
       >
         <Gauge size={19} strokeWidth={1.7} />
       </button>
+      <button
+        type="button"
+        className="act"
+        title={t('mix.panelTitle')}
+        onClick={() => dockApi.revealAndExpand('audiomixer')}
+      >
+        <SlidersHorizontal size={19} strokeWidth={1.7} />
+      </button>
 
       <span className="act-spacer" />
 
