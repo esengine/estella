@@ -271,10 +271,27 @@
 .im-x:hover { color: var(--error); background: var(--srf-4); }
 .im-addb { align-self: flex-start; }
 
-/* Locale-table editor (.eslocale) — rides the .im-* frame; these add the
-   translator-specific bits: the plural-form tag, the dimmed sibling-locale
-   reference line, and the missing-key backfill rows. */
-.lt-form { flex-shrink: 0; width: 42px; font-family: var(--mono); font-size: var(--fs-2xs); color: var(--text-mute); text-align: right; }
-.lt-text { flex: 1; min-width: 0; }
-.lt-ref { font-size: var(--fs-2xs); color: var(--text-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-left: 2px; }
-.lt-miss { flex: 1; min-width: 0; font-family: var(--mono); font-size: var(--fs-xs); color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Locale-table editor (.eslocale) — speaks the component-inspector language:
+   .comp sections + the .prop 38%/1fr/18px grid. Keys are ghost inputs in the
+   label column (read as labels until hovered/focused), translations are .field
+   inputs in the value column, row actions reveal on hover, and each key carries
+   a dimmed sibling-locale reference line under its value. */
+.lt-headbtn { opacity: 1 !important; color: var(--acc-hi); }
+.lt-headbtn:hover { background: var(--star-dim); }
+.lt-key { min-width: 0; background: transparent; border: 1px solid transparent; border-radius: var(--r-xs); padding: 2px 4px; font-family: var(--mono); font-size: var(--fs-xs); color: var(--text-dim); text-overflow: ellipsis; outline: none; transition: border-color var(--t-fast), background var(--t-fast), color var(--t-fast); }
+.lt-key:hover { border-color: var(--border); color: var(--text); }
+.lt-key:focus { background: var(--inset); border-color: var(--acc); color: var(--text); }
+.lt-act { width: 16px; height: 16px; display: grid; place-items: center; color: var(--text-mute); border-radius: var(--r-xs); opacity: 0; flex-shrink: 0; font-size: var(--fs-2xs); font-family: var(--mono); font-weight: 600; transition: opacity var(--t-fast), color var(--t-fast), background var(--t-fast); }
+.prop:hover .lt-act { opacity: 1; }
+.lt-act:hover { color: var(--text); background: var(--srf-4); }
+.lt-x { width: 16px; height: 16px; display: grid; place-items: center; color: var(--text-mute); border-radius: var(--r-xs); opacity: 0; flex-shrink: 0; justify-self: center; transition: opacity var(--t-fast), color var(--t-fast), background var(--t-fast); }
+.prop:hover .lt-x { opacity: 1; }
+.lt-x:hover { color: var(--error); background: var(--srf-4); }
+.lt-addk { width: 16px; height: 16px; display: grid; place-items: center; color: var(--acc-hi); border-radius: var(--r-xs); opacity: .8; flex-shrink: 0; justify-self: center; transition: opacity var(--t-fast), background var(--t-fast); }
+.lt-addk:hover { opacity: 1; background: var(--star-dim); }
+.lt-refrow { display: grid; grid-template-columns: 38% 1fr 18px; gap: 4px; padding: 0 0 4px; }
+.lt-refrow .lt-ref { grid-column: 2; font-size: var(--fs-2xs); color: var(--text-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 2px 0 8px; }
+.lt-formlabel { font-family: var(--mono); font-size: var(--fs-2xs); color: var(--text-mute); text-align: right; padding-right: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lt-miss-key { font-family: var(--mono); font-size: var(--fs-xs); color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-left: 2px; }
+.lt-miss-ref { font-size: var(--fs-2xs); color: var(--text-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.lt-error { margin: 8px; padding: 6px 9px; font-size: var(--fs-2xs); line-height: 1.5; font-family: var(--mono); color: var(--text-dim); background: var(--inset); border: 1px solid var(--border); border-radius: var(--r-sm); word-break: break-all; }

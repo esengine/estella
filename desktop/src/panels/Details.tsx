@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react';
 import {
   Box,
   Camera,
@@ -1964,9 +1965,9 @@ function LocaleTableAssetInspector({ path }: { path: string }) {
 
   if (loadError) {
     return (
-      <div className="insp input-map">
-        <div className="empty-line">{t('det.localeParseError')}</div>
-        <div className="lt-ref" title={loadError}>{loadError}</div>
+      <div className="insp">
+        <div className="comp-notice" style={{ margin: 8 }}>{t('det.localeParseError')}</div>
+        <div className="lt-error" title={loadError}>{loadError}</div>
       </div>
     );
   }
@@ -1981,6 +1982,9 @@ function LocaleTableAssetInspector({ path }: { path: string }) {
     for (let i = 2; table.entries[n] !== undefined; i++) n = `new.key${i}`;
     return n;
   };
+  const blurOnEnter = (e: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+  };
   // Reference language for a key: 'en' when this table isn't en, else the
   // first other locale that carries it.
   const refFor = (key: string): { tag: string; text: string } | null => {
@@ -1994,110 +1998,180 @@ function LocaleTableAssetInspector({ path }: { path: string }) {
   const missing = siblings ? [...siblings.keys()].filter((k) => table.entries[k] === undefined).sort() : [];
   const entries = Object.entries(table.entries);
 
+  const textField = (fieldKey: string, value: string, write: (v: string) => void) => (
+    <span className="field">
+      <input
+        key={fieldKey}
+        defaultValue={value}
+        spellCheck={false}
+        onBlur={(e) => write(e.target.value)}
+        onKeyDown={blurOnEnter}
+      />
+    </span>
+  );
+
   return (
-    <div className="insp input-map">
-      <div className="im-head">
-        <span>{t('det.localeStrings')}</span>
-        <button type="button" className="im-add" onClick={() => commit(ldoc.addEntry(table, uniqueKey()))}>{t('det.addKey')}</button>
-      </div>
-      <div className="im-action">
-        <div className="im-action-head">
-          <span className="lt-form">{t('det.localeTag')}</span>
-          <input
-            className="im-name"
-            key={table.locale}
-            defaultValue={table.locale}
-            spellCheck={false}
-            onBlur={(e) => {
-              if (e.target.value.trim() && e.target.value !== table.locale) commit(ldoc.setLocaleTag(table, e.target.value));
-            }}
-          />
-        </div>
-      </div>
-      {entries.length === 0 && <div className="empty-line">{t('det.noStrings')}</div>}
-      {entries.map(([key, entry]) => {
-        const ref = refFor(key);
-        const plural = typeof entry !== 'string';
-        return (
-          <div className="im-action" key={key}>
-            <div className="im-action-head">
+    <div className="insp">
+      <div className="insp-body">
+        <LocaleSection
+          title={t('det.localeStrings')}
+          badge={String(entries.length)}
+          action={
+            <button
+              type="button"
+              className="comp-menu lt-headbtn"
+              title={t('det.addKey')}
+              onClick={(e) => {
+                e.stopPropagation();
+                commit(ldoc.addEntry(table, uniqueKey()));
+              }}
+            >
+              <Plus size={13} strokeWidth={2} />
+            </button>
+          }
+        >
+          <div className="prop">
+            <span className="prop-label">{t('det.localeTag')}</span>
+            <span className="prop-value">{textField(table.locale, table.locale, (v) => {
+              if (v.trim() && v !== table.locale) commit(ldoc.setLocaleTag(table, v));
+            })}</span>
+            <span />
+          </div>
+          {entries.length === 0 && <div className="empty-line">{t('det.noStrings')}</div>}
+          {entries.map(([key, entry]) => {
+            const ref = refFor(key);
+            const plural = typeof entry !== 'string';
+            const keyInput = (
               <input
-                className="im-name"
+                className="lt-key"
                 key={key}
                 defaultValue={key}
                 spellCheck={false}
+                title={key}
                 onBlur={(e) => {
                   if (e.target.value.trim() && e.target.value !== key) commit(ldoc.renameEntry(table, key, e.target.value));
                 }}
+                onKeyDown={blurOnEnter}
               />
+            );
+            const pluralToggle = (
               <button
                 type="button"
-                className="im-x"
+                className="lt-act"
                 title={plural ? t('det.toSingle') : t('det.toPlural')}
                 onClick={() => commit(plural ? ldoc.toSingle(table, key) : ldoc.toPlural(table, key))}
               >
                 {plural ? '1' : 'N'}
               </button>
-              <button type="button" className="im-x" title={t('det.removeEntry')} onClick={() => commit(ldoc.removeEntry(table, key))}>×</button>
-            </div>
-            {!plural ? (
-              <input
-                className="im-in lt-text"
-                key={`${key}:s`}
-                defaultValue={entry}
-                spellCheck={false}
-                onBlur={(e) => commit(ldoc.setEntryText(table, key, e.target.value))}
-              />
-            ) : (
-              <>
-                {ldoc.PLURAL_CATEGORIES.filter((c) => entry[c] !== undefined).map((c) => (
-                  <div className="im-binding" key={c}>
-                    <span className="lt-form">{c}</span>
-                    <input
-                      className="im-in lt-text"
-                      key={`${key}:${c}`}
-                      defaultValue={entry[c]}
-                      spellCheck={false}
-                      onBlur={(e) => commit(ldoc.setPluralForm(table, key, c, e.target.value))}
-                    />
-                    {c !== 'other' && (
-                      <button type="button" className="im-x" title={t('det.removeForm')} onClick={() => commit(ldoc.removePluralForm(table, key, c))}>×</button>
-                    )}
-                  </div>
-                ))}
-                {ldoc.absentPluralForms(entry).length > 0 && (
-                  <Select
-                    className="im-in kind"
-                    ariaLabel={t('det.pluralFormAria')}
-                    value=""
-                    options={[
-                      { value: '', label: t('det.addForm') },
-                      ...ldoc.absentPluralForms(entry).map((c) => ({ value: c, label: c })),
-                    ]}
-                    onChange={(v) => v && commit(ldoc.setPluralForm(table, key, v as PluralCategory, ''))}
-                  />
-                )}
-              </>
-            )}
-            {ref && <div className="lt-ref" title={`${ref.tag} · ${ref.text}`}>{ref.tag} · {ref.text}</div>}
-          </div>
-        );
-      })}
-      {missing.length > 0 && (
-        <>
-          <div className="im-head"><span>{t('det.missingKeys')}</span></div>
-          {missing.map((k) => {
-            const ref = refFor(k);
+            );
+            const remove = (
+              <button type="button" className="lt-x" title={t('det.removeEntry')} onClick={() => commit(ldoc.removeEntry(table, key))}>
+                <X size={12} strokeWidth={2} />
+              </button>
+            );
             return (
-              <div className="im-binding" key={k}>
-                <button type="button" className="im-addb" title={t('det.addMissingKey')} onClick={() => commit(ldoc.addEntry(table, k))}>+</button>
-                <span className="lt-miss" title={k}>{k}</span>
-                {ref && <span className="lt-ref" title={ref.text}>{ref.tag} · {ref.text}</span>}
+              <div key={key}>
+                {!plural ? (
+                  <div className="prop">
+                    {keyInput}
+                    <span className="prop-value">
+                      {textField(`${key}:s`, entry, (v) => commit(ldoc.setEntryText(table, key, v)))}
+                      {pluralToggle}
+                    </span>
+                    {remove}
+                  </div>
+                ) : (
+                  <>
+                    <div className="prop">
+                      {keyInput}
+                      <span className="prop-value">
+                        {ldoc.absentPluralForms(entry).length > 0 && (
+                          <span className="field dropdown">
+                            <Select
+                              variant="field"
+                              ariaLabel={t('det.pluralFormAria')}
+                              value=""
+                              options={[
+                                { value: '', label: t('det.addForm') },
+                                ...ldoc.absentPluralForms(entry).map((c) => ({ value: c, label: c })),
+                              ]}
+                              onChange={(v) => v && commit(ldoc.setPluralForm(table, key, v as PluralCategory, ''))}
+                            />
+                          </span>
+                        )}
+                        {pluralToggle}
+                      </span>
+                      {remove}
+                    </div>
+                    {ldoc.PLURAL_CATEGORIES.filter((c) => entry[c] !== undefined).map((c) => (
+                      <div className="prop" key={c}>
+                        <span className="prop-label lt-formlabel">{c}</span>
+                        <span className="prop-value">
+                          {textField(`${key}:${c}`, entry[c] ?? '', (v) => commit(ldoc.setPluralForm(table, key, c, v)))}
+                        </span>
+                        {c !== 'other' ? (
+                          <button type="button" className="lt-x" title={t('det.removeForm')} onClick={() => commit(ldoc.removePluralForm(table, key, c))}>
+                            <X size={12} strokeWidth={2} />
+                          </button>
+                        ) : (
+                          <span />
+                        )}
+                      </div>
+                    ))}
+                  </>
+                )}
+                {ref && (
+                  <div className="lt-refrow">
+                    <span className="lt-ref" title={`${ref.tag} · ${ref.text}`}>{ref.tag} · {ref.text}</span>
+                  </div>
+                )}
               </div>
             );
           })}
-        </>
-      )}
+        </LocaleSection>
+        {missing.length > 0 && (
+          <LocaleSection title={t('det.missingKeys')} badge={String(missing.length)}>
+            {missing.map((k) => {
+              const ref = refFor(k);
+              return (
+                <div className="prop" key={k}>
+                  <span className="lt-miss-key" title={k}>{k}</span>
+                  <span className="prop-value">
+                    {ref && <span className="lt-miss-ref" title={ref.text}>{ref.tag} · {ref.text}</span>}
+                  </span>
+                  <button type="button" className="lt-addk" title={t('det.addMissingKey')} onClick={() => commit(ldoc.addEntry(table, k))}>
+                    <Plus size={12} strokeWidth={2} />
+                  </button>
+                </div>
+              );
+            })}
+          </LocaleSection>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// A collapsible Details section speaking the component-header language — the
+// locale editor's structural chrome (title + count badge + an always-visible
+// header action), sharing .comp/.prop styling with the entity inspector.
+function LocaleSection({ title, badge, action, children }: {
+  title: string; badge: string; action?: ReactNode; children: ReactNode;
+}) {
+  const [open, setOpen] = useState(true);
+  return (
+    <div className={`comp${open ? ' open' : ''}`}>
+      <div className="comp-head" onClick={() => setOpen((o) => !o)}>
+        <span className="comp-arrow"><ChevronRight size={13} strokeWidth={2} /></span>
+        <span className="comp-name">{title}</span>
+        <span className="comp-badge">{badge}</span>
+        {action}
+      </div>
+      <div className="comp-body">
+        <div className="cinner">
+          <div className="comp-fields">{children}</div>
+        </div>
+      </div>
     </div>
   );
 }
