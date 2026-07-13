@@ -30,6 +30,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { AssetIcon } from '@/components/icons';
+import { AudioWavePreview } from '@/components/AudioWavePreview';
 import { Toasts } from '@/store/Toasts';
 import { baseName, assetTypeOf, IMAGE_RE } from '@/project/assetMeta';
 import { revealAsset } from '@/project/assetReveal';
@@ -2316,15 +2317,19 @@ function GenericAssetInspector({ path }: { path: string }) {
       <div className="insp-body">
         {/* A compact preview for a quick visual ID — kept short so the editable
             Import Settings sit above the fold (the reason to open an asset). */}
-        <div className="cb-prev" style={{ height: 108 }}>
-          <div className="pv">
-            {isImage ? (
-              <img src={`estella://project/${path}`} alt="" draggable={false} />
-            ) : (
-              <AssetIcon type={type} size={44} />
-            )}
+        {type === 'audio' ? (
+          <AudioWavePreview path={path} />
+        ) : (
+          <div className="cb-prev" style={{ height: 108 }}>
+            <div className="pv">
+              {isImage ? (
+                <img src={`estella://project/${path}`} alt="" draggable={false} />
+              ) : (
+                <AssetIcon type={type} size={44} />
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Editable import settings first (the reason to select an asset), then
             read-only metadata. */}

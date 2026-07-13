@@ -32,7 +32,7 @@ const ASSET_TYPE_REGISTRY: readonly AssetTypeEntry[] = [
     // wechatPackInclude: WeChat's fs denies package reads of unlisted custom
     // extensions — KTX2 textures are fs-read (transcoded), not image-decoded.
     { extensions: ['ktx2'], contentType: 'binary', editorType: 'texture', addressableType: 'texture', wechatPackInclude: true, hasTransitiveDeps: false },
-    { extensions: ['mp3', 'wav', 'ogg', 'aac', 'flac', 'webm'], contentType: 'audio', editorType: 'audio', addressableType: 'audio', wechatPackInclude: false, hasTransitiveDeps: false },
+    { extensions: ['mp3', 'wav', 'ogg', 'aac', 'flac', 'm4a', 'webm'], contentType: 'audio', editorType: 'audio', addressableType: 'audio', wechatPackInclude: false, hasTransitiveDeps: false },
     { extensions: ['esmaterial'], contentType: 'json', editorType: 'material', addressableType: 'material', wechatPackInclude: true, hasTransitiveDeps: true },
     { extensions: ['esshader'], contentType: 'text', editorType: 'shader', addressableType: null, wechatPackInclude: false, hasTransitiveDeps: false },
     { extensions: ['atlas'], contentType: 'text', editorType: 'spine-atlas', addressableType: 'binary', wechatPackInclude: true, hasTransitiveDeps: true },
@@ -68,6 +68,7 @@ const MIME_MAP: Record<string, string> = {
     wav: 'audio/wav',
     ogg: 'audio/ogg',
     aac: 'audio/aac',
+    m4a: 'audio/mp4',
     flac: 'audio/flac',
     webm: 'audio/webm',
     json: 'application/json',

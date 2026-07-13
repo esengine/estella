@@ -6,7 +6,7 @@ import { log } from '../../logger';
 
 export class AudioAssetLoader implements AssetLoader<AudioResult> {
     readonly type = 'audio';
-    readonly extensions = ['.mp3', '.wav', '.ogg', '.m4a', '.aac'];
+    readonly extensions = ['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac', '.webm'];
 
     /** Same lazy audio accessor Assets uses — needed by unload/invalidate,
      *  which have no LoadContext. Defaults to "no audio" for bare setups. */

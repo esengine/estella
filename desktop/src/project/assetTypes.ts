@@ -36,7 +36,7 @@ export const ASSET_TYPES: Record<AssetType, AssetTypeDef> = {
   texture: { extensions: ['png', 'webp'], badge: 'TEX', icon: FileImage, tint: '#7fa6c4' },
   sprite: { extensions: ['jpg', 'jpeg', 'gif'], badge: 'IMG', icon: Image, tint: '#7fa6c4' },
   spine: { extensions: ['atlas', 'skel'], badge: 'SPN', icon: PersonStanding, tint: '#9b8fc0' },
-  audio: { extensions: ['ogg', 'mp3', 'wav'], badge: 'AUD', icon: Music, tint: '#7faf9c' },
+  audio: { extensions: ['ogg', 'mp3', 'wav', 'aac', 'flac', 'm4a', 'webm'], badge: 'AUD', icon: Music, tint: '#7faf9c' },
   prefab: { extensions: ['esprefab'], badge: 'PFB', icon: Component, tint: '#c2a274' },
   // .esmaterial is the real extension (the SDK MaterialAssetLoader only loads it);
   // .esmat is tolerated as a legacy alias (cf. electron/importAssets.ts).

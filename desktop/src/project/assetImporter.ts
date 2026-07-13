@@ -49,6 +49,19 @@ const SPINE: ImporterFieldSpec[] = [
   { key: 'premultiplyAlpha', label: 'Premultiply Alpha', type: 'bool', default: false, category: 'Spine', advanced: true },
 ];
 
+const AUDIO: ImporterFieldSpec[] = [
+  {
+    key: 'compress', label: 'Compress', type: 'bool', default: true, category: 'Audio',
+    tooltip: 'Re-encode WAV to MP3 at cook (already-compressed formats pass through). '
+      + 'MP3 has a small encoder delay — disable for seamless-loop clips.',
+  },
+  {
+    key: 'bitrateKbps', label: 'Bitrate', type: 'enum', default: 128, category: 'Audio',
+    options: [96, 128, 192].map((n) => ({ label: `${n} kbps`, value: n })),
+    tooltip: 'MP3 bitrate for cooked WAV sources.',
+  },
+];
+
 const SCENELIKE: ImporterFieldSpec[] = [
   {
     key: 'autoMigrate', label: 'Auto Migrate', type: 'bool', default: true, category: 'Import',
@@ -62,9 +75,22 @@ export const IMPORTER_SCHEMAS: Record<string, ImporterFieldSpec[]> = {
   texture: TEXTURE,
   sprite: TEXTURE,
   spine: SPINE,
+  audio: AUDIO,
   scene: SCENELIKE,
   prefab: SCENELIKE,
 };
+
+/** Cook-facing audio import settings, tolerant of hand-edited `.meta` blocks. */
+export function readAudioImportSettings(importer: Record<string, unknown> | undefined): {
+  compress: boolean; bitrateKbps: number;
+} {
+  const compress = importer?.compress;
+  const bitrate = importer?.bitrateKbps;
+  return {
+    compress: typeof compress === 'boolean' ? compress : true,
+    bitrateKbps: bitrate === 96 || bitrate === 128 || bitrate === 192 ? bitrate : 128,
+  };
+}
 
 const getByPath = (obj: Record<string, unknown>, path: string): unknown =>
   path.split('.').reduce<unknown>((o, k) => (o && typeof o === 'object' ? (o as Record<string, unknown>)[k] : undefined), obj);

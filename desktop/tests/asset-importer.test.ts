@@ -30,7 +30,7 @@ describe('importerDefaults (import-time .meta)', () => {
     expect(importerDefaults('spine')).toEqual({ scale: 1, defaultSkin: 'default', premultiplyAlpha: false });
     expect(importerDefaults('scene')).toEqual({ autoMigrate: true });
     expect(importerDefaults('prefab')).toEqual({ autoMigrate: true });
-    expect(importerDefaults('audio')).toEqual({});
+    expect(importerDefaults('audio')).toEqual({ compress: true, bitrateKbps: 128 });
   });
 });
 
@@ -38,7 +38,7 @@ describe('hasImporterSettings', () => {
   it('is true only for types with editable settings', () => {
     expect(hasImporterSettings('texture')).toBe(true);
     expect(hasImporterSettings('spine')).toBe(true);
-    expect(hasImporterSettings('audio')).toBe(false);
+    expect(hasImporterSettings('audio')).toBe(true);
     expect(hasImporterSettings('font')).toBe(false);
   });
 });
@@ -57,7 +57,7 @@ describe('buildImporterComponent (inspector fields)', () => {
     expect(byKey['sliceBorder.top'].value).toBe(0); // nested default
   });
   it('returns null for types without settings', () => {
-    expect(buildImporterComponent('audio', {})).toBeNull();
+    expect(buildImporterComponent('audio', {})).not.toBeNull();
   });
 });
 

@@ -299,3 +299,41 @@
 .lt-miss-key { font-family: var(--mono); font-size: var(--fs-xs); color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-left: 2px; }
 .lt-miss-ref { font-size: var(--fs-2xs); color: var(--text-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .lt-error { margin: 8px; padding: 6px 9px; font-size: var(--fs-2xs); line-height: 1.5; font-family: var(--mono); color: var(--text-dim); background: var(--inset); border: 1px solid var(--border); border-radius: var(--r-sm); word-break: break-all; }
+
+/* Audio asset waveform preview (AudioWavePreview) */
+.awp {
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid var(--line);
+  background: var(--inset);
+}
+.awp-wave {
+  width: 100%;
+  height: 84px;
+  display: block;
+  cursor: pointer;
+}
+.awp-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-top: 1px solid var(--line);
+  background: var(--srf-2);
+}
+.awp-play {
+  display: inline-flex;
+  align-items: center;
+  background: transparent;
+  color: var(--star-hi);
+  border: 1px solid var(--star-line);
+  border-radius: var(--r-sm);
+  padding: 3px 6px;
+  cursor: pointer;
+}
+.awp-play:hover { background: var(--star-dim); }
+.awp-meta {
+  color: var(--text-faint);
+  font-size: var(--fs-2xs);
+  font-variant-numeric: tabular-nums;
+}
