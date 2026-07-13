@@ -10,6 +10,7 @@ export const tileMessages = defineMessages({
     'tile.tool.brush': { en: 'Brush', zh: '笔刷' },
     'tile.tool.eraser': { en: 'Eraser', zh: '橡皮擦' },
     'tile.tool.rect': { en: 'Rect', zh: '矩形' },
+    'tile.tool.ellipse': { en: 'Ellipse', zh: '椭圆' },
     'tile.tool.line': { en: 'Line', zh: '直线' },
     'tile.tool.bucket': { en: 'Bucket', zh: '填充' },
     'tile.tool.select': { en: 'Select ({mod}C/X/V copy/cut/paste)', zh: '选择（{mod}C/X/V 复制/剪切/粘贴）' },
@@ -24,6 +25,12 @@ export const tileMessages = defineMessages({
         zh: '随机：每个绘制的单元格从选区中随机取一块瓦片',
     },
     'tile.terrainBrush': { en: 'Terrain brush', zh: '地形笔刷' },
+
+    // — Saved-stamp library —
+    'tile.saveStamp': { en: 'Save the current brush as a stamp', zh: '将当前笔刷保存为图章' },
+    'tile.recallStamp': { en: '{name} ({w}×{h}) — click to use as brush', zh: '{name}（{w}×{h}）— 点击用作笔刷' },
+    'tile.deleteStamp': { en: 'Delete stamp', zh: '删除图章' },
+    'tile.stampsEmpty': { en: 'No saved stamps — pick a pattern, then save it here', zh: '暂无图章 — 选好图案后在此保存' },
 
     // — Painter layer strip —
     'tile.newLayerTip': { en: 'New layer on this tileset', zh: '在此瓦片集上新建层' },

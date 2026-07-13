@@ -34,6 +34,7 @@ export const viewportMessages = defineMessages({
     },
     'vp.tileHint.erase': { en: 'Drag to erase (brush-sized) · Q/Esc exits', zh: '拖动擦除（笔刷大小）· Q/Esc 退出' },
     'vp.tileHint.rect': { en: 'Drag a rectangle to fill · Q/Esc exits', zh: '拖出矩形以填充 · Q/Esc 退出' },
+    'vp.tileHint.ellipse': { en: 'Drag a box to fill its ellipse · Q/Esc exits', zh: '拖出包围盒以填充椭圆 · Q/Esc 退出' },
     'vp.tileHint.line': { en: 'Drag a straight line · Q/Esc exits', zh: '拖出直线 · Q/Esc 退出' },
     'vp.tileHint.bucket': { en: 'Click to fill the connected region · Q/Esc exits', zh: '点击填充连通区域 · Q/Esc 退出' },
     'vp.tileHint.select': {
@@ -50,6 +51,7 @@ export const viewportMessages = defineMessages({
     'vp.tileTool.brush': { en: 'Brush', zh: '笔刷' },
     'vp.tileTool.erase': { en: 'Erase', zh: '擦除' },
     'vp.tileTool.rect': { en: 'Rect', zh: '矩形' },
+    'vp.tileTool.ellipse': { en: 'Ellipse', zh: '椭圆' },
     'vp.tileTool.line': { en: 'Line', zh: '直线' },
     'vp.tileTool.bucket': { en: 'Bucket', zh: '油漆桶' },
     'vp.tileTool.select': { en: 'Select', zh: '选择' },

@@ -220,6 +220,19 @@
   cursor: pointer;
 }
 .tp-tsx:hover { color: var(--error); background: var(--srf-4); }
+/* Saved-stamp library strip: save button + recall chips (tileset-chip vocabulary,
+   each chip previews its pattern via the brush thumbnail). */
+.tp-stamps {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  overflow-x: auto;
+  background: var(--srf-0);
+  border-bottom: 1px solid var(--line);
+}
+.tp-stamps-empty { color: var(--text-faint); font-size: var(--fs-xs); white-space: nowrap; }
+.tp-stampchip .tp-tsbtn { display: inline-flex; align-items: center; gap: 5px; padding: 2px 7px; }
 /* Add-tileset opener + dropdown of the project's other .estileset assets. */
 .tp-tsadd-wrap { position: relative; flex: 0 0 auto; }
 .tp-tsadd {

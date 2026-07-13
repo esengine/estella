@@ -54,14 +54,14 @@ export function exitTilePaint(transform: ToolMode = 'select'): void {
 /** Single-key hint shown on each paint tool button — one key per tool, no collisions
  *  among themselves (Q/W/E/R stay the transform tools until you're actually painting). */
 export const TILE_TOOL_KEY: Record<PaintTool, string> = {
-  brush: 'B', erase: 'E', rect: 'U', line: 'L', bucket: 'G', select: 'M', eyedropper: 'I', terrain: 'T',
+  brush: 'B', erase: 'E', rect: 'U', ellipse: 'O', line: 'L', bucket: 'G', select: 'M', eyedropper: 'I', terrain: 'T',
 };
 
 // Keys that select a paint tool from the tile context whether or not one is active yet.
 // Deliberately excludes the transform letters except E (erasing is worth the override —
 // tilemaps are rarely keyboard-rotated; rotate/scale stay reachable via the toolbar).
 const ENTRY_KEY: Record<string, PaintTool> = {
-  b: 'brush', e: 'erase', u: 'rect', l: 'line', g: 'bucket', m: 'select', i: 'eyedropper', t: 'terrain',
+  b: 'brush', e: 'erase', u: 'rect', o: 'ellipse', l: 'line', g: 'bucket', m: 'select', i: 'eyedropper', t: 'terrain',
 };
 
 /**

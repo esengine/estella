@@ -82,6 +82,33 @@ export function cellPicker(stamp: TileStamp): (x: number, y: number) => number {
   return (x, y) => tiledCell(stamp, x, y);
 }
 
+/**
+ * The tile coords inside the ellipse inscribed in the (x0,y0)-(x1,y1) box (inclusive,
+ * unordered corners). Cell centers test against the ellipse equation with the radii
+ * pulled in a quarter-cell (w/2 − 0.25) — the classic pixel-circle tweak, so a 3×3
+ * reads as a plus (corners out) instead of a filled square while 2×2 stays full.
+ * Exported for tests (like lineCells).
+ */
+export function ellipseCells(x0: number, y0: number, x1: number, y1: number): { x: number; y: number }[] {
+  const minX = Math.min(x0, x1);
+  const maxX = Math.max(x0, x1);
+  const minY = Math.min(y0, y1);
+  const maxY = Math.max(y0, y1);
+  const cx = (minX + maxX) / 2;
+  const cy = (minY + maxY) / 2;
+  const rx = Math.max(0.25, (maxX - minX + 1) / 2 - 0.25);
+  const ry = Math.max(0.25, (maxY - minY + 1) / 2 - 0.25);
+  const cells: { x: number; y: number }[] = [];
+  for (let y = minY; y <= maxY; y++) {
+    for (let x = minX; x <= maxX; x++) {
+      const nx = (x - cx) / rx;
+      const ny = (y - cy) / ry;
+      if (nx * nx + ny * ny <= 1) cells.push({ x, y });
+    }
+  }
+  return cells;
+}
+
 /** The tile coords a Bresenham line from (x0,y0) to (x1,y1) passes through (inclusive). */
 export function lineCells(x0: number, y0: number, x1: number, y1: number): { x: number; y: number }[] {
   const cells: { x: number; y: number }[] = [];
@@ -319,6 +346,50 @@ function makeLineTool(): EditorTool {
   };
 }
 
+/** Ellipse fill: drag the bounding box, fill its inscribed ellipse on release (one step). */
+function makeEllipseTool(): EditorTool {
+  let stroke: { sourceId: number; startX: number; startY: number } | null = null;
+  return {
+    id: 'tilemap.ellipse',
+    onPointerDown(p, ctx) {
+      const selId = selectedTilemap();
+      if (selId == null) return false;
+      const tile = cursorTile(p.clientX, p.clientY, selId);
+      if (!tile) return false;
+      stroke = { sourceId: selId, startX: tile.x, startY: tile.y };
+      TilePaintPreview.set({ kind: 'line', cells: [{ x: tile.x, y: tile.y }] });
+      ctx.capture(p.pointerId);
+      return true;
+    },
+    onPointerMove(p) {
+      if (!stroke) return;
+      const tile = cursorTile(p.clientX, p.clientY, stroke.sourceId);
+      if (!tile) return;
+      TilePaintPreview.set({ kind: 'line', cells: ellipseCells(stroke.startX, stroke.startY, tile.x, tile.y) });
+    },
+    onPointerUp(p, ctx) {
+      if (!stroke) return;
+      ctx.release(p.pointerId);
+      TilePaintPreview.clear();
+      const tile = cursorTile(p.clientX, p.clientY, stroke.sourceId);
+      if (tile) {
+        const minX = Math.min(stroke.startX, tile.x);
+        const minY = Math.min(stroke.startY, tile.y);
+        const pick = cellPicker(activeStamp());
+        const edits: TilePaint[] = [];
+        for (const c of ellipseCells(stroke.startX, stroke.startY, tile.x, tile.y)) {
+          const raw = pick(c.x - minX, c.y - minY);
+          if (tileIdOf(raw) === 0) continue;
+          edits.push({ x: c.x, y: c.y, tileId: raw });
+        }
+        if (edits.length > 0) SceneCommands.paintTiles(stroke.sourceId, edits);
+      }
+      stroke = null;
+    },
+    cancel() { stroke = null; TilePaintPreview.clear(); },
+  };
+}
+
 // Bound the flood fill so an empty-target fill on an infinite layer can't run away.
 const BUCKET_CAP = 16384;
 
@@ -422,6 +493,7 @@ export const TILE_TOOLS: Record<PaintTool, EditorTool> = {
   brush: brushTool,
   erase: eraseTool,
   rect: makeRectTool(),
+  ellipse: makeEllipseTool(),
   line: makeLineTool(),
   bucket: bucketTool,
   select: makeSelectTool(),

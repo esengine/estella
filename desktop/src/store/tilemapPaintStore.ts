@@ -14,7 +14,7 @@ import {
     singleStamp, flipStampH, flipStampV, rotateStampCW, encodeTile,
 } from 'esengine';
 
-export type PaintTool = 'brush' | 'erase' | 'rect' | 'line' | 'bucket' | 'select' | 'eyedropper' | 'terrain';
+export type PaintTool = 'brush' | 'erase' | 'rect' | 'ellipse' | 'line' | 'bucket' | 'select' | 'eyedropper' | 'terrain';
 
 /** One tileset in the active layer's palette: its `.estileset` path, parsed asset, and
  *  the GLOBAL tile-id base (firstId) it occupies — matching the runtime tileset model, so

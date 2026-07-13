@@ -398,6 +398,7 @@ const TILE_HINT: Record<PaintTool, string> = {
   brush: t('vp.tileHint.brush'),
   erase: t('vp.tileHint.erase'),
   rect: t('vp.tileHint.rect'),
+  ellipse: t('vp.tileHint.ellipse'),
   line: t('vp.tileHint.line'),
   bucket: t('vp.tileHint.bucket'),
   select: t('vp.tileHint.select', { mod: MOD_LABEL }),
@@ -407,7 +408,7 @@ const TILE_HINT: Record<PaintTool, string> = {
 
 // Label for the mode badge — the paint tool's short name.
 const TILE_TOOL_LABEL: Record<PaintTool, string> = {
-  brush: t('vp.tileTool.brush'), erase: t('vp.tileTool.erase'), rect: t('vp.tileTool.rect'), line: t('vp.tileTool.line'),
+  brush: t('vp.tileTool.brush'), erase: t('vp.tileTool.erase'), rect: t('vp.tileTool.rect'), ellipse: t('vp.tileTool.ellipse'), line: t('vp.tileTool.line'),
   bucket: t('vp.tileTool.bucket'), select: t('vp.tileTool.select'), eyedropper: t('vp.tileTool.eyedropper'), terrain: t('vp.tileTool.terrain'),
 };
 

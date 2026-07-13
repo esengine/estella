@@ -11,9 +11,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import {
-  Brush, Eraser, Square, Slash, PaintBucket, BoxSelect, Pipette,
+  Brush, Eraser, Square, Circle, Slash, PaintBucket, BoxSelect, Pipette,
   FlipHorizontal, FlipVertical, RotateCw, Mountain, Plus, X, MousePointer2, Dices,
-  ZoomIn, ZoomOut, Maximize2, Eye, EyeOff, Lock, Unlock,
+  ZoomIn, ZoomOut, Maximize2, Eye, EyeOff, Lock, Unlock, Bookmark,
 } from 'lucide-react';
 import { encodeTile, type TilesetAsset, type TileStamp } from 'esengine';
 import { useTilemapPaint, type PaintTool, type PaletteTileset, type AtlasInfo } from '@/store/tilemapPaintStore';
@@ -28,6 +28,7 @@ import { colsFor, rowsFor, TERRAIN_COLORS } from '@/tools/tileMath';
 import { loadTilesetAsset } from '@/tileset/loadTileset';
 import { createTilemapFromTileset } from '@/tilemap/createTilemap';
 import { AnimPreview, tileThumbStyle, type TileAtlas } from '@/tools/tileThumb';
+import { parseStampLibrary, serializeStampLibrary, stampLibraryKey, addStamp, removeStampAt, type SavedStamp } from '@/tools/stampLibrary';
 import { IconButton } from '@/components/IconButton';
 import { t } from '@/i18n';
 
@@ -35,6 +36,7 @@ const TOOLS: { id: PaintTool; icon: typeof Brush; label: string }[] = [
   { id: 'brush', icon: Brush, label: t('tile.tool.brush') },
   { id: 'erase', icon: Eraser, label: t('tile.tool.eraser') },
   { id: 'rect', icon: Square, label: t('tile.tool.rect') },
+  { id: 'ellipse', icon: Circle, label: t('tile.tool.ellipse') },
   { id: 'line', icon: Slash, label: t('tile.tool.line') },
   { id: 'bucket', icon: PaintBucket, label: t('tile.tool.bucket') },
   { id: 'select', icon: BoxSelect, label: t('tile.tool.select', { mod: MOD_LABEL }) },
@@ -108,6 +110,16 @@ export function TilemapPainter() {
   // did not, so the palette-load effect below wouldn't otherwise re-read the new list.
   const [reloadKey, setReloadKey] = useState(0);
   const [addOpen, setAddOpen] = useState(false);
+
+  // Saved-stamp library — per project (stamps carry gids only this project's tilesets
+  // mint), persisted in localStorage, pure logic in tools/stampLibrary.
+  const projectRoot = ProjectStore.getSnapshot()?.root ?? '';
+  const [savedStamps, setSavedStamps] = useState<SavedStamp[]>(() =>
+    parseStampLibrary(typeof localStorage !== 'undefined' ? localStorage.getItem(stampLibraryKey(projectRoot)) : null));
+  const updateStamps = (next: SavedStamp[]) => {
+    setSavedStamps(next);
+    if (typeof localStorage !== 'undefined') localStorage.setItem(stampLibraryKey(projectRoot), serializeStampLibrary(next));
+  };
 
   // Selecting a TilemapLayer loads ALL its referenced .estileset(s) into the palette,
   // each assigned its firstId (matching resolveTilesetModel's running sum), so the tab
@@ -464,6 +476,33 @@ export function TilemapPainter() {
           )}
         </span>
       </div>
+      {tool !== 'terrain' && (
+        <div className="tp-stamps">
+          <IconButton size="sm" title={t('tile.saveStamp')} onClick={() => updateStamps(addStamp(savedStamps, stamp))}>
+            <Bookmark size={13} />
+          </IconButton>
+          {savedStamps.length === 0 ? (
+            <span className="tp-stamps-empty">{t('tile.stampsEmpty')}</span>
+          ) : (
+            savedStamps.map((s, i) => (
+              <span key={s.name} className="tp-tschip tp-stampchip">
+                <button
+                  type="button"
+                  className="tp-tsbtn"
+                  title={t('tile.recallStamp', { name: s.name, w: s.stamp.w, h: s.stamp.h })}
+                  onClick={() => setStamp(s.stamp)}
+                >
+                  <BrushThumbnail stamp={s.stamp} atlas={localAtlas} />
+                  {s.name}
+                </button>
+                <button type="button" className="tp-tsx" title={t('tile.deleteStamp')} onClick={() => updateStamps(removeStampAt(savedStamps, i))}>
+                  <X size={11} />
+                </button>
+              </span>
+            ))
+          )}
+        </div>
+      )}
       {tool !== 'terrain' && (
         <div className="tp-tilesets">
           {tilesets.map((ts, i) => (
