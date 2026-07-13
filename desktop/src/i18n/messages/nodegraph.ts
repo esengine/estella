@@ -15,6 +15,8 @@ export const nodegraphMessages = defineMessages({
     'ng.deleteSelected': { en: 'Delete selected', zh: '删除所选' },
     'ng.name': { en: 'Name', zh: '名称' },
     'ng.phActionName': { en: 'action name', zh: '动作名称' },
+    'ng.actionArg': { en: 'Argument', zh: '参数' },
+    'ng.phActionArg': { en: 'optional argument (e.g. a clip path)', zh: '可选参数（如剪辑路径）' },
     'ng.phConditionName': { en: 'condition name', zh: '条件名称' },
     'ng.inPortTip': { en: 'Edges land here', zh: '连线在此接入' },
     'ng.outPortTip': { en: 'Drag to another node to connect', zh: '拖到另一个节点以连接' },
@@ -38,6 +40,19 @@ export const nodegraphMessages = defineMessages({
     'ai.desc.timelinePlay': { en: "Play the agent entity's TimelinePlayer", zh: '播放代理实体的 TimelinePlayer' },
     'ai.desc.timelinePause': { en: "Pause the agent entity's TimelinePlayer", zh: '暂停代理实体的 TimelinePlayer' },
     'ai.desc.timelineFinished': { en: 'True once the timeline has finished', zh: 'Timeline 播完后为真' },
+    'ai.desc.spriteAnimPlay': {
+        en: "Play the agent's sprite flipbook; the argument switches to that clip",
+        zh: '播放代理实体的精灵翻页动画；参数可切换到指定剪辑',
+    },
+    'ai.desc.spriteAnimRestart': {
+        en: 'Rewind the sprite flipbook to frame 0 and play (argument switches clip)',
+        zh: '将精灵翻页动画回卷到第 0 帧并播放（参数可切换剪辑）',
+    },
+    'ai.desc.spriteAnimStop': { en: 'Pause the sprite flipbook', zh: '暂停精灵翻页动画' },
+    'ai.desc.spriteAnimFinished': {
+        en: 'True once a one-shot sprite clip has finished',
+        zh: '一次性精灵剪辑播完后为真',
+    },
     'fsm.inspStateTitle': { en: 'State', zh: '状态' },
     'fsm.inspTransitionTitle': { en: 'Transition', zh: '转移' },
     'fsm.target': { en: 'Target', zh: '目标' },

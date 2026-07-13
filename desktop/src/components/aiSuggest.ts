@@ -18,6 +18,10 @@ const BUILTIN_DESC: Record<string, () => string> = {
   'timeline.play': () => t('ai.desc.timelinePlay'),
   'timeline.pause': () => t('ai.desc.timelinePause'),
   'timeline.finished': () => t('ai.desc.timelineFinished'),
+  'spriteAnim.play': () => t('ai.desc.spriteAnimPlay'),
+  'spriteAnim.restart': () => t('ai.desc.spriteAnimRestart'),
+  'spriteAnim.stop': () => t('ai.desc.spriteAnimStop'),
+  'spriteAnim.finished': () => t('ai.desc.spriteAnimFinished'),
 };
 
 const decorate = (names: string[]): SuggestItem[] =>

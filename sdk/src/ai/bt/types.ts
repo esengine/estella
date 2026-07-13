@@ -23,6 +23,8 @@ export interface BtNode {
     id?: string;
     /** Registry name for a leaf (`action`/`condition`). */
     name?: string;
+    /** Optional string argument an `action` leaf passes to its registry fn. */
+    arg?: string;
     /** Children: many for a composite, one for a decorator. */
     children?: BtNode[];
     /** `repeater`: iterations before Success; 0 = forever. */

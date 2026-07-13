@@ -51,7 +51,7 @@ function tickNode<Ctx>(
         case 'action': {
             const fn = registry.getAction(node.name ?? '');
             if (!fn) return Status.Failure;
-            const r = fn(ctx, bb);
+            const r = fn(ctx, bb, node.arg);
             // A void-returning (one-shot FSM-style) action completes as Success.
             return r === undefined ? Status.Success : r;
         }

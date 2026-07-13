@@ -16,7 +16,9 @@ import type { Status } from '../status';
 
 // Returns Status (a BT leaf that may run across frames) or nothing (a one-shot
 // FSM action). FSM ignores the return; BT reads it, treating void as Success.
-export type AiAction<Ctx> = (ctx: Ctx, bb: Blackboard) => void | Status;
+// `arg` is the optional per-reference string the authored data carries
+// (FsmActionRef / BtNode.arg); argument-free actions simply ignore it.
+export type AiAction<Ctx> = (ctx: Ctx, bb: Blackboard, arg?: string) => void | Status;
 export type AiCondition<Ctx> = (ctx: Ctx, bb: Blackboard) => boolean;
 
 export class AiRegistry<Ctx = unknown> {

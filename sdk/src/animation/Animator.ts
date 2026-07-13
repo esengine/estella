@@ -516,6 +516,7 @@ export class AnimatorControllerApi {
         sp.currentFrame = 0;
         sp.frameTimer = 0;
         sp.playing = true;
+        sp.finished = false;
         sp.enabled = true;
         world.insert(entity, SpriteAnimator, sp);
     }

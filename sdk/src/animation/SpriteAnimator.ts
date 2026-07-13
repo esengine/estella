@@ -155,6 +155,14 @@ export class SpriteAnimationApi {
             const clip = this.clips.get(animator.clip);
             if (!clip || clip.frames.length === 0) continue;
 
+            // playing raised on a finished one-shot = replay from the top
+            // (TimelinePlayer's flag contract).
+            if (animator.finished) {
+                animator.finished = false;
+                animator.currentFrame = 0;
+                animator.frameTimer = 0;
+            }
+
             const currentFrame = clip.frames[animator.currentFrame];
             const frameDuration = currentFrame?.duration ?? 1.0 / (clip.fps * animator.speed);
 
@@ -174,6 +182,7 @@ export class SpriteAnimationApi {
                     } else {
                         animator.currentFrame = clip.frames.length - 1;
                         animator.playing = false;
+                        animator.finished = true;
                     }
                 }
 
@@ -210,6 +219,7 @@ export class SpriteAnimationApi {
         animator.currentFrame = Math.max(0, Math.min(frameIndex, clip.frames.length - 1));
         animator.frameTimer = 0;
         animator.playing = andPlay;
+        animator.finished = false;
     }
 
     gotoLabel(animator: SpriteAnimatorData, label: string, andPlay: boolean = true): void {
@@ -241,6 +251,10 @@ export interface SpriteAnimatorData {
     enabled: boolean;
     currentFrame: number;
     frameTimer: number;
+    /** Latched when a one-shot clip completes; runtime-only, do not author.
+     *  Raising `playing` on a finished animator replays from frame 0 — the
+     *  same flag contract as TimelinePlayer. */
+    finished: boolean;
 }
 
 export const SpriteAnimator: ComponentDef<SpriteAnimatorData> = defineComponent('SpriteAnimator', {
@@ -251,6 +265,7 @@ export const SpriteAnimator: ComponentDef<SpriteAnimatorData> = defineComponent(
     enabled: true,
     currentFrame: 0,
     frameTimer: 0,
+    finished: false,
 }, {
     assetFields: [{ field: 'clip', type: 'anim-clip' }],
 });

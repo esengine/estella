@@ -11,7 +11,9 @@ export type {
     FsmTransition,
     FsmState,
     FsmDefinition,
+    FsmActionRef,
 } from './types';
+export { actionRefName, actionRefArg } from './types';
 export { Blackboard, evalGuard, evalGuards } from './Blackboard';
 export { AiRegistry, type AiAction, type AiCondition } from './registry';
 export {

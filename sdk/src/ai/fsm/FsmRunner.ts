@@ -10,7 +10,7 @@
  * `onUpdate` on ticks where no transition fires.
  */
 
-import type { FsmDefinition, FsmState, FsmTransition } from './types';
+import { actionRefName, actionRefArg, type FsmActionRef, type FsmDefinition, type FsmState, type FsmTransition } from './types';
 import { Blackboard, evalGuards } from './Blackboard';
 import type { AiRegistry } from './registry';
 
@@ -89,10 +89,11 @@ function transitionEnabled<Ctx>(
 
 function runAction<Ctx>(
     registry: AiRegistry<Ctx>,
-    name: string | undefined,
+    ref: FsmActionRef | undefined,
     ctx: Ctx,
     bb: Blackboard,
 ): void {
+    const name = actionRefName(ref);
     if (!name) return;
-    registry.getAction(name)?.(ctx, bb);
+    registry.getAction(name)?.(ctx, bb, actionRefArg(ref));
 }

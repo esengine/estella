@@ -35,14 +35,30 @@ export interface FsmTransition {
     guard?: BlackboardGuard | BlackboardGuard[];
 }
 
+/**
+ * A hook/leaf action reference: a bare registry name, or a name plus a string
+ * argument the action receives (e.g. `spriteAnim.play` with a clip ref).
+ */
+export type FsmActionRef = string | { name: string; arg?: string };
+
+/** Registry name of an action ref ('' for none). */
+export function actionRefName(ref: FsmActionRef | undefined): string {
+    return typeof ref === 'string' ? ref : ref?.name ?? '';
+}
+
+/** Argument of an action ref, if any. */
+export function actionRefArg(ref: FsmActionRef | undefined): string | undefined {
+    return typeof ref === 'object' && ref !== null ? ref.arg : undefined;
+}
+
 export interface FsmState {
     name: string;
     /** Named action run once when the state becomes active. */
-    onEnter?: string;
+    onEnter?: FsmActionRef;
     /** Named action run every tick the state is active (and no transition fired). */
-    onUpdate?: string;
+    onUpdate?: FsmActionRef;
     /** Named action run once when the state is left. */
-    onExit?: string;
+    onExit?: FsmActionRef;
     /** Outgoing edges, evaluated in order; the first enabled one is taken. */
     transitions?: FsmTransition[];
     /** Editor-only canvas position; ignored by the interpreter. */

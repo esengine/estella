@@ -17,7 +17,7 @@ import { useRef, useState, useSyncExternalStore } from 'react';
 import { Plus, Trash2, Save } from 'lucide-react';
 import {
   fsmEdges, addState, removeState, moveState, renameState, setStateHook, setInitial,
-  addTransition, removeTransition, updateTransition,
+  addTransition, removeTransition, updateTransition, actionRefName, actionRefArg,
   type FsmDefinition, type FsmState, type FsmEdge, type CompareOp,
 } from 'esengine';
 import { FsmGraphDocument } from '@/fsm/FsmGraphDocument';
@@ -128,7 +128,12 @@ export function StateMachineEditor() {
             renderEdgeLabel={e => <>{edgeSummary(e.transition)}</>}
             renderNode={(n, sel) => {
               const isInitial = def.initial === n.name;
-              const setHooks = HOOKS.filter(h => n[h]).map(h => `${h[2].toUpperCase()}:${n[h]}`).join(' ');
+              const setHooks = HOOKS.filter(h => actionRefName(n[h]))
+                .map(h => {
+                  const arg = actionRefArg(n[h]);
+                  return `${h[2].toUpperCase()}:${actionRefName(n[h])}${arg ? `(${arg})` : ''}`;
+                })
+                .join(' ');
               return (
                 <div className={`ng-node-box${sel ? ' sel' : ''}`} style={!sel && isInitial ? { borderColor: 'var(--run)' } : undefined}>
                   <div className="ng-node-head">
@@ -168,13 +173,22 @@ function StateInspector({ def, state, onRename }: { def: FsmDefinition; state: F
           onChange={() => FsmGraphDocument.edit('Set initial', (d) => Object.assign(d, setInitial(d, state.name)))} />
         {t('fsm.initialState')}
       </label>
-      {HOOKS.map((h) => (
-        <label className="ng-field" key={h}>{h}
-          <SuggestInput items={actions} defaultValue={state[h] ?? ''} key={`${state.name}-${h}-${state[h] ?? ''}`}
-            placeholder={t('ng.phActionName')}
-            onCommit={(v) => { if (v !== (state[h] ?? '')) FsmGraphDocument.edit(`Set ${h}`, (d) => Object.assign(d, setStateHook(d, state.name, h, v))); }} />
-        </label>
-      ))}
+      {HOOKS.map((h) => {
+        const name = actionRefName(state[h]);
+        const arg = actionRefArg(state[h]) ?? '';
+        return (
+          <label className="ng-field" key={h}>{h}
+            <SuggestInput items={actions} defaultValue={name} key={`${state.name}-${h}-${name}`}
+              placeholder={t('ng.phActionName')}
+              onCommit={(v) => { if (v !== name) FsmGraphDocument.edit(`Set ${h}`, (d) => Object.assign(d, setStateHook(d, state.name, h, v, arg || undefined))); }} />
+            {name && (
+              <input className="ng-input" defaultValue={arg} key={`${state.name}-${h}-arg-${arg}`}
+                placeholder={t('ng.phActionArg')} spellCheck={false}
+                onBlur={(e) => { const v = e.target.value.trim(); if (v !== arg) FsmGraphDocument.edit(`Set ${h} argument`, (d) => Object.assign(d, setStateHook(d, state.name, h, name, v || undefined))); }} />
+            )}
+          </label>
+        );
+      })}
     </div>
   );
 }

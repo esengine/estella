@@ -178,6 +178,13 @@ export function BtTreeEditor() {
                   onCommit={v => patch(selNode.id, { name: v || undefined })} />
               </label>
             )}
+            {selNode.type === 'action' && (
+              <label className="ng-field">{t('ng.actionArg')}
+                <input className="ng-input" defaultValue={selNode.arg ?? ''} key={`${selNode.id}-arg`}
+                  placeholder={t('ng.phActionArg')} spellCheck={false}
+                  onBlur={e => { const v = e.target.value.trim(); if (v !== (selNode.arg ?? '')) patch(selNode.id, { arg: v || undefined }); }} />
+              </label>
+            )}
             {selNode.type === 'repeater' && (
               <label className="ng-field">{t('bt.count')}
                 <input className="ng-input" type="number" min={0} defaultValue={selNode.count ?? 0} key={`${selNode.id}-count`}

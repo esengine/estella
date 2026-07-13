@@ -84,10 +84,12 @@ export function setStateHook(
     name: string,
     hook: 'onEnter' | 'onUpdate' | 'onExit',
     action: string,
+    arg?: string,
 ): FsmDefinition {
+    const ref = action ? (arg ? { name: action, arg } : action) : undefined;
     return {
         ...def,
-        states: def.states.map(s => (s.name === name ? { ...s, [hook]: action || undefined } : s)),
+        states: def.states.map(s => (s.name === name ? { ...s, [hook]: ref } : s)),
     };
 }
 

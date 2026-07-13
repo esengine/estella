@@ -74,6 +74,7 @@ describe('SpriteAnimator', () => {
                 enabled: true,
                 currentFrame: 0,
                 frameTimer: 0,
+                finished: false,
             });
         });
 
