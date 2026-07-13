@@ -18,6 +18,8 @@
  * into workspace.json.
  */
 
+import { parseAudioProjectConfig, type AudioProjectConfig } from 'esengine';
+
 export const PROJECT_FORMAT_VERSION = '1';
 export const PROJECT_MANIFEST_FILE = 'project.esproject';
 export const WORKSPACE_DIR = '.esengine';
@@ -87,6 +89,8 @@ export interface ProjectFeatures {
     /** Indices of sorting layers that y-sort within the layer (top-down occlusion). */
     ySortLayers?: number[];
   };
+  /** Project mixer state (bus volumes / custom buses / effects / duck rules). */
+  audio?: AudioProjectConfig;
 }
 
 export type ScreenOrientation = 'portrait' | 'landscape';
@@ -275,6 +279,10 @@ export function parseManifest(raw: unknown): ProjectManifest {
           .filter((n): n is number => typeof n === 'number' && Number.isInteger(n) && n >= 0 && n < 32);
       }
       if (Object.keys(rendering).length > 0) features.rendering = rendering;
+    }
+    if (f.audio && typeof f.audio === 'object') {
+      const audio = parseAudioProjectConfig(f.audio);
+      if (audio.buses) features.audio = audio;
     }
     if (Object.keys(features).length > 0) manifest.features = features;
   }

@@ -11,7 +11,7 @@
  *          import of an editor module here would break the realm bundle. Type-only
  *          imports are erased before resolution and are safe.
  */
-import type { SceneData, PhysicsPluginConfig } from 'esengine';
+import type { SceneData, PhysicsPluginConfig, AudioProjectConfig } from 'esengine';
 
 /**
  * Editor↔realm message-contract version. The realm reports it in `hello`; the editor
@@ -57,6 +57,8 @@ export interface PlayPayload {
   physicsEnabled?: boolean;
   /** Project physics world config (gravity, solver, collision matrix) — forwarded. */
   physicsConfig?: PhysicsPluginConfig;
+  /** Project mixer state (bus volumes / effects / duck rules) — forwarded. */
+  audioConfig?: AudioProjectConfig;
   /** Bitmask of render layers (0..31) that y-sort within the layer — forwarded. */
   ySortLayers?: number;
   /** Multiplayer preview role; absent = a plain single-player session. */

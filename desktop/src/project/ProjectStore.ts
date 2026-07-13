@@ -3,7 +3,7 @@
 import { createStore } from 'zustand/vanilla';
 import { getComponent, getEditorType, Assets, migratePrefabData, extractPrefab, diffAgainstSource, applyOverridesToSource, setTextureParams, TextureFilter, TextureWrap, Renderer } from 'esengine';
 import { readTextureImportSettings } from './assetImporter';
-import type { SceneData, PrefabData, ExtractEntity, ProcessedEntity, PhysicsPluginConfig } from 'esengine';
+import type { SceneData, PrefabData, ExtractEntity, ProcessedEntity, PhysicsPluginConfig, AudioProjectConfig } from 'esengine';
 import { EngineHost } from '@/engine/EngineHost';
 import { SceneModel } from '@/engine/SceneModel';
 import { Reconciler } from '@/engine/Reconciler';
@@ -786,6 +786,7 @@ class ProjectStoreImpl {
     assetManifest: Record<string, string>;
     physicsEnabled?: boolean;
     physicsConfig?: PhysicsPluginConfig;
+    audioConfig?: AudioProjectConfig;
     ySortLayers?: number;
   } | null {
     const sceneData = SceneModel.serialize();
@@ -815,10 +816,37 @@ class ProjectStoreImpl {
       physicsConfig.collisionLayerMasks = f.collisionLayerMasks;
     }
     const ySortLayers = this.ySortMask();
+    const audioConfig = this.audioFeature();
     return {
       sceneData, assetManifest, physicsEnabled: f.enabled, physicsConfig,
+      ...(audioConfig.buses ? { audioConfig } : {}),
       ...(ySortLayers !== 0 ? { ySortLayers } : {}),
     };
+  }
+
+  /** The project's declared mixer state (Project Settings → Audio / the Mixer). */
+  audioFeature(): AudioProjectConfig {
+    return this.state?.features?.audio ?? {};
+  }
+
+  /**
+   * Replace the project mixer state and persist to `project.esproject`. Rewrites
+   * the RAW manifest JSON so unmodeled fields survive; in-memory state first so
+   * the Mixer reflects immediately.
+   */
+  async setAudio(config: AudioProjectConfig): Promise<void> {
+    const st = this.state;
+    if (!st) return;
+    const features: ProjectFeatures = { ...st.features, audio: config };
+    this.store.setState({ project: { ...st, features } });
+    try {
+      const raw = JSON.parse(await window.estella.fs.read(PROJECT_MANIFEST_FILE)) as Record<string, unknown>;
+      raw.features = { ...(raw.features as Record<string, unknown> ?? {}), audio: config };
+      await window.estella.fs.write(PROJECT_MANIFEST_FILE, JSON.stringify(raw, null, 2) + '\n');
+    } catch (e) {
+      Toasts.push(t('proj.saveAudioFailed'), 'error');
+      console.error('[project] setAudio write failed', e);
+    }
   }
 
   /** The project's declared physics feature, with defaults (for Project Settings). The

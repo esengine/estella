@@ -12,6 +12,7 @@
  */
 import type { App } from './app';
 import type { ESEngineModule } from './wasm';
+import type { AudioProjectConfig } from './audio/AudioProjectConfig';
 import { initRuntime } from './runtimeLoader';
 import type { RuntimeAssetSource } from './runtimeAssets';
 import { EmbeddedBackend } from './asset/Backend';
@@ -36,6 +37,8 @@ export interface PlayableRuntimeConfig {
     scenes: Array<{ name: string; data: SceneData }>;
     firstScene: string;
     physicsConfig?: { gravity?: Vec2; fixedTimestep?: number; subStepCount?: number };
+    /** Project-declared mixer state (bus volumes / effects / duck rules). */
+    audioConfig?: AudioProjectConfig;
     /** Bitmask of render layers (0..31) that y-sort within the layer (Project Settings → Rendering). */
     ySortLayers?: number;
     manifest?: AddressableManifest | null;
@@ -111,6 +114,7 @@ export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promis
         scenes,
         firstScene,
         physicsConfig: config.physicsConfig,
+        audioConfig: config.audioConfig,
         aspectRatio: config.canvas.width / config.canvas.height,
     });
 

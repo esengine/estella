@@ -8,6 +8,10 @@ export {
     type BusEffectDef, type FilterEffectDef, type ReverbEffectDef, type CompressorEffectDef,
     type EffectNodes,
 } from './BusEffects';
+export {
+    parseAudioProjectConfig, applyAudioProjectConfig,
+    type AudioProjectConfig, type AudioBusDecl,
+} from './AudioProjectConfig';
 export { AudioPool, type PooledAudioNode } from './AudioPool';
 export { AudioPlugin, audioPlugin, type AudioPluginConfig } from './AudioPlugin';
 export { AudioSource, AudioListener, type AudioSourceData, type AudioListenerData } from './AudioComponents';

@@ -9,6 +9,7 @@
 
 import { createWebApp } from './webAppFactory';
 import type { ESEngineModule } from './wasm';
+import type { AudioProjectConfig } from './audio/AudioProjectConfig';
 import { initRuntime } from './runtimeLoader';
 import type { RuntimeAssetSource } from './runtimeAssets';
 import { FileSystemBackend } from './asset/Backend';
@@ -71,6 +72,8 @@ export interface WeChatRuntimeConfig {
     firstScene: string;
     runtimeConfig?: RuntimeBuildConfig;
     physicsConfig?: { gravity?: Vec2; fixedTimestep?: number; subStepCount?: number };
+    /** Project-declared mixer state (routing labels only on WeChat — no DSP graph). */
+    audioConfig?: AudioProjectConfig;
     /** Bitmask of render layers (0..31) that y-sort within the layer (Project Settings → Rendering). */
     ySortLayers?: number;
     /** id → emscripten factory (`require('./wasm/<file>.js')`); the generated
@@ -191,6 +194,7 @@ export async function initWeChatRuntime(config: WeChatRuntimeConfig): Promise<vo
         scenes,
         firstScene: config.firstScene,
         physicsConfig: config.physicsConfig,
+        audioConfig: config.audioConfig,
         aspectRatio: canvas.width / canvas.height,
     });
 

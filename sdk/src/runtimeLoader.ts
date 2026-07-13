@@ -13,6 +13,7 @@ import type { SpineWasmModule } from './spine/SpineModuleLoader';
 import { SpineManager } from './spine/SpineManager';
 import type { PhysicsWasmModule } from './physics/PhysicsModuleLoader';
 import { PhysicsPlugin, type PhysicsPluginConfig } from './physics/PhysicsPlugin';
+import { applyAudioProjectConfig, type AudioProjectConfig } from './audio/AudioProjectConfig';
 import { SpinePlugin } from './spine/SpinePlugin';
 import type { App } from './app';
 import { Assets as AssetsClass } from './asset/Assets';
@@ -387,6 +388,9 @@ export interface RuntimeInitConfig {
     physicsConfig?: PhysicsPluginConfig;
     /** Project-declared physics enable; see {@link LoadRuntimeSceneOptions.physicsEnabled}. */
     physicsEnabled?: boolean;
+    /** Project-declared mixer state (bus volumes / custom buses / effects / duck
+     *  rules) — threaded from the editor's audio config, applied once at boot. */
+    audioConfig?: AudioProjectConfig;
     aspectRatio?: number;
 }
 
@@ -401,6 +405,10 @@ export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
     // return the existing instance).
     const assets = ensureRuntimeAssets(app, config.module, config.source, config.catalog);
     if (config.manifest) assets.setManifest(config.manifest);
+
+    if (config.audioConfig && app.hasResource(Audio)) {
+        applyAudioProjectConfig(app.getResource(Audio), config.audioConfig);
+    }
 
     const sceneOpts: Omit<LoadRuntimeSceneOptions, 'sceneData' | 'sceneName'> = {
         app: config.app,

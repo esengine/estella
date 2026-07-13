@@ -106,6 +106,7 @@ export const projectMessages = defineMessages({
     'proj.savePackagingFailed': { en: 'Failed to save packaging settings', zh: '保存打包设置失败' },
     'proj.savePlatformFailed': { en: 'Failed to save platform settings', zh: '保存平台设置失败' },
     'proj.savePhysicsFailed': { en: 'Failed to save physics setting', zh: '保存物理设置失败' },
+    'proj.saveAudioFailed': { en: 'Failed to save audio setting', zh: '保存音频设置失败' },
     'proj.startupScene': { en: 'Startup scene: {name}', zh: '启动场景：{name}' },
     'proj.saveStartupSceneFailed': { en: 'Failed to save startup scene', zh: '保存启动场景失败' },
     'proj.excludedFromExport': { en: 'Excluded from export: {name}', zh: '已从导出中排除：{name}' },

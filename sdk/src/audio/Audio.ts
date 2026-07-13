@@ -376,6 +376,16 @@ export class AudioAPI {
         }
     }
 
+    /** Ensure a named bus exists (creating it under `parent` ?? master).
+     *  False on backends without a mixer graph. */
+    ensureBus(name: string, parent?: string): boolean {
+        if (!this.mixer_) return false;
+        if (!this.mixer_.getBus(name)) {
+            this.mixer_.createBus({ name, ...(parent ? { parent } : {}) });
+        }
+        return true;
+    }
+
     setBusVolume(busName: string, volume: number): void {
         const bus = this.mixer_?.getBus(busName);
         if (bus) {

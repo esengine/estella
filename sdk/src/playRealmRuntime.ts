@@ -25,6 +25,7 @@ import { Catalog, type CatalogData } from './asset/Catalog';
 import type { AddressableManifest } from './asset/AddressableManifest';
 import type { SceneData } from './scene';
 import type { PhysicsPluginConfig } from './physics/PhysicsPlugin';
+import type { AudioProjectConfig } from './audio/AudioProjectConfig';
 import { fetchDecodePixels } from './asset/imageDecode';
 import { extractUuid, UUID_REF_PREFIX } from './asset/AssetRegistry';
 
@@ -71,6 +72,8 @@ export interface PlayRealmRuntimeConfig {
     /** Project-declared physics world config (gravity, solver tuning, collision-layer
      *  masks, sleep/continuous) from the editor's Project Settings. */
     physicsConfig?: PhysicsPluginConfig;
+    /** Project-declared mixer state (bus volumes / effects / duck rules). */
+    audioConfig?: AudioProjectConfig;
     /** Turn on per-phase / per-system frame timing (editor profiler; off in shipped games). */
     enableStats?: boolean;
 }
@@ -172,6 +175,7 @@ export async function initPlayRealmRuntime(config: PlayRealmRuntimeConfig): Prom
         aspectRatio: canvas.width / canvas.height,
         physicsEnabled: config.physicsEnabled,
         physicsConfig: config.physicsConfig,
+        audioConfig: config.audioConfig,
         // Physics (and spine) are acquired from app.sideModules — the fetch host
         // createWebApp built from this realm's wasmBaseUrl.
     });
