@@ -88,7 +88,7 @@ class StatsStoreImpl {
       const elapsed = t - this.windowStart;
       if (elapsed >= 333) {
         const fps = Math.round((this.frames * 1000) / elapsed);
-        const entities = EngineHost.world?.getAllEntities().length ?? 0;
+        const entities = EngineHost.world?.entityCount() ?? 0;
         this.frames = 0;
         this.windowStart = t;
         const cur = this.store.getState();

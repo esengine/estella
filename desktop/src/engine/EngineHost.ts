@@ -163,7 +163,7 @@ class EngineHostImpl {
       drawCalls: m?.renderer_getDrawCalls?.() ?? 0,
       triangles: m?.renderer_getTriangles?.() ?? 0,
       sprites: m?.renderer_getSprites?.() ?? 0,
-      entities: this.world?.getAllEntities().length ?? 0,
+      entities: this.world?.entityCount() ?? 0,
       gpuMs: m?.renderer_getGpuTimeMs?.() ?? -1,
       cppScopes,
       cppCounters,

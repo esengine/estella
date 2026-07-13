@@ -173,6 +173,7 @@ class PerfMonitorImpl {
   private worstPhase: string | null = null;
   private longTaskMs = 0;
   private engineSource: (() => EngineFrame | null) | null = null;
+  private engineConsumers_ = 0;
   private engineSum = 0;
   private editorSum = 0;
   private winFrames = 0;
@@ -221,6 +222,23 @@ class PerfMonitorImpl {
 
   setEnabled(on: boolean): void { this.enabled = on; this.patch({ enabled: on }); }
   toggleOverlay(): void { this.patch({ visible: !this.store.getState().visible }); }
+
+  /**
+   * Register interest in the engine frame — the only expensive per-frame read
+   * (cross-boundary counters + CPU/GPU scope JSON marshalling). The loop skips
+   * it entirely while nothing is mounted to display it (e.g. the Profiler panel
+   * is closed), so an ordinary editing session pays nothing for it. Returns a
+   * disposer for the caller's unmount.
+   */
+  addEngineConsumer(): () => void {
+    this.engineConsumers_++;
+    let disposed = false;
+    return () => {
+      if (disposed) return;
+      disposed = true;
+      this.engineConsumers_ = Math.max(0, this.engineConsumers_ - 1);
+    };
+  }
 
   /** Freeze the rolling capture and pin a frame for inspection. */
   pin(id: number): void {
@@ -376,7 +394,7 @@ class PerfMonitorImpl {
     if (this.enabled) {
       const editorFrameMs = sumMs(editorPhases);
       this.editorSum += editorFrameMs;
-      const ef = this.engineSource?.();
+      const ef = (this.engineConsumers_ > 0 || this.recording) ? this.engineSource?.() : null;
       let engineFrameMs = 0;
       let enginePhases: Record<string, number> = {};
       let cppScopes: Record<string, number> = {};

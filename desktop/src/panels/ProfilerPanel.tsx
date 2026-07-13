@@ -186,6 +186,8 @@ function Seg({ label, ms, frame, color }: { label: string; ms: number; frame: nu
 
 export function ProfilerPanel() {
   const s = useSyncExternalStore(PerfMonitor.subscribe, PerfMonitor.getSnapshot);
+  // Only while this panel is mounted does the loop pay for the engine-frame read.
+  useEffect(() => PerfMonitor.addEngineConsumer(), []);
   const pinned = s.pinnedId != null ? PerfMonitor.getSample(s.pinnedId) : null;
   const [hidden, toggleGroup] = useHiddenGroups();
   const show = (id: string) => !hidden.has(id);

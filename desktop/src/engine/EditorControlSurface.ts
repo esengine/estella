@@ -380,7 +380,7 @@ export class EditorControlSurfaceImpl {
   /** Live counts for quick assertions (entity count + last frame's merged draw calls). */
   getStats(): { entities: number; drawCalls: number } {
     return {
-      entities: EngineHost.world?.getAllEntities().length ?? 0,
+      entities: EngineHost.world?.entityCount() ?? 0,
       drawCalls: EngineHost.module?.renderer_getDrawCalls?.() ?? 0,
     };
   }

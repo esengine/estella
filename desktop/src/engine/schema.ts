@@ -26,7 +26,7 @@ export type WorldT = App['world'];
  */
 export type ReadonlyWorldT = Pick<
   WorldT,
-  'valid' | 'has' | 'get' | 'getAllEntities' | 'getWorldVersion'
+  'valid' | 'has' | 'get' | 'getAllEntities' | 'entityCount' | 'getWorldVersion'
 >;
 export type AnyComp = Parameters<WorldT['has']>[1];
 
