@@ -10,6 +10,7 @@
 import type { AssetType } from '@/types';
 import { ProjectStore } from './ProjectStore';
 import { confirmDiscard } from './discardGuard';
+import { t } from '@/i18n';
 import { toggleAudioPreview } from './audioPreview';
 import { openAnimationClip } from '@/timeline/openClip';
 import { openTileset } from '@/tileset/openTileset';
@@ -21,7 +22,7 @@ import { openBehaviorTree } from '@/bt/openBehaviorTree';
 /** Open action per asset type; types absent here aren't double-click-openable. */
 export const ASSET_OPEN: Partial<Record<AssetType, (path: string, name: string) => void>> = {
   scene: async (path, name) => {
-    if (!(await confirmDiscard(`Opening ${name} will discard them`))) return;
+    if (!(await confirmDiscard(t('discard.openScene', { name })))) return;
     void ProjectStore.openScene(path);
   },
   audio: (path) => toggleAudioPreview(path),

@@ -52,6 +52,7 @@ import { buildImporterComponent, applyImporterEdit } from '@/project/assetImport
 import { referencingPaths } from '@/project/assetRefs';
 import { ProjectStore } from '@/project/ProjectStore';
 import { confirmDiscard } from '@/project/discardGuard';
+import { t } from '@/i18n';
 import { MaterialDocument } from '@/material/MaterialDocument';
 import {
   isMaterialAsset,
@@ -2078,7 +2079,7 @@ function GenericAssetInspector({ path }: { path: string }) {
             type="button"
             className="primary"
             onClick={async () => {
-              if (await confirmDiscard(`Opening ${baseName(path)} will discard them`)) void ProjectStore.openScene(path);
+              if (await confirmDiscard(t('discard.openScene', { name: baseName(path) }))) void ProjectStore.openScene(path);
             }}
           >
             <FolderOpen size={13} strokeWidth={1.85} /> Open Scene

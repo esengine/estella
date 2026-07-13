@@ -15,6 +15,7 @@ import { EditorHistory } from '@/engine/EditorHistory';
 import { Toasts } from '@/store/Toasts';
 import { MenuItems, handleMenuListKey, type MenuItem } from '@/components/Menu';
 import { commands, formatKeybinding } from '@/commands';
+import { t } from '@/i18n';
 
 interface MenuDef {
   title: string;
@@ -83,7 +84,7 @@ export function MenuBar() {
 
   const menus: MenuDef[] = [
     {
-      title: 'File',
+      title: t('menu.file'),
       items: [
         cmdItem('scene.new'),
         { sep: true },
@@ -98,7 +99,7 @@ export function MenuBar() {
       ],
     },
     {
-      title: 'Edit',
+      title: t('menu.edit'),
       items: [
         cmdItem('edit.undo'),
         cmdItem('edit.redo'),
@@ -113,7 +114,7 @@ export function MenuBar() {
       ],
     },
     {
-      title: 'Entity',
+      title: t('menu.entity'),
       items: [
         cmdItem('entity.add'),
         cmdItem('tilemap.new'),
@@ -125,7 +126,7 @@ export function MenuBar() {
       ],
     },
     {
-      title: 'View',
+      title: t('menu.view'),
       items: [
         cmdItem('view.toggleGrid'),
         cmdItem('view.toggleGizmos'),
@@ -138,53 +139,53 @@ export function MenuBar() {
       ],
     },
     {
-      title: 'Build',
+      title: t('menu.build'),
       items: [
         cmdItem('build.scripts'),
         {
-          label: 'Extract Component Schemas',
+          label: t('menu.extractSchemas'),
           // refreshUserSchemas extracts AND reloads into the editor (so the
           // inspector updates), unlike a bare extract that only writes the file.
           onClick: () => void ProjectStore.refreshUserSchemas()
-            .then(() => Toasts.push('Extracted component schemas', 'success'))
-            .catch(() => Toasts.push('Extract failed', 'error')),
+            .then(() => Toasts.push(t('toast.extractedSchemas'), 'success'))
+            .catch(() => Toasts.push(t('toast.extractFailed'), 'error')),
           disabled: !project,
         },
       ],
     },
     {
-      title: 'Window',
+      title: t('menu.window'),
       items: [
-        { label: 'Reset Layout', onClick: () => { localStorage.removeItem(LAYOUT_KEY); location.reload(); } },
+        { label: t('menu.resetLayout'), onClick: () => { localStorage.removeItem(LAYOUT_KEY); location.reload(); } },
         { sep: true },
-        { label: 'Back to Launcher', onClick: openLauncher },
+        { label: t('menu.backToLauncher'), onClick: openLauncher },
       ],
     },
     {
-      title: 'Help',
+      title: t('menu.help'),
       items: [
         {
-          label: 'About Estella',
+          label: t('menu.about'),
           onClick: () => void window.estella?.getVersion?.()
-            .then((v) => window.alert(`Estella Editor${v ? ' · ' + v : ''}\nA modern editor for the Estella 2D engine.`))
+            .then((v) => window.alert(`Estella Editor${v ? ' · ' + v : ''}\n${t('menu.aboutTagline')}`))
             .catch(() => window.alert('Estella Editor')),
         },
         {
-          label: 'Check for Updates…',
+          label: t('menu.checkUpdates'),
           onClick: () => void window.estella?.app?.checkUpdates?.().then((release) => {
             if (release) {
-              Toasts.push(`Estella ${release.version} is available`, 'info', 0, {
-                label: 'Download',
+              Toasts.push(t('toast.updateAvailable', { version: release.version }), 'info', 0, {
+                label: t('ui.download'),
                 run: () => window.open(release.url),
               });
             } else {
-              Toasts.push('Estella is up to date', 'success');
+              Toasts.push(t('toast.upToDate'), 'success');
             }
           }),
         },
         { sep: true },
         {
-          label: 'Open Log Folder',
+          label: t('menu.openLogs'),
           onClick: () => void window.estella?.app?.openLogs?.(),
         },
       ],
@@ -254,7 +255,7 @@ export function MenuBar() {
           ) : (
             <>
               <span className="sep">/</span>
-              <span className="mono">untitled</span>
+              <span className="mono">{t('ui.untitled')}</span>
             </>
           )}
           {dirty && <DirtyDot />}

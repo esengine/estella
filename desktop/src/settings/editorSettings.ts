@@ -17,18 +17,38 @@ import { commands } from '@/commands';
 import { setUseLessCpuInBackground } from '@/engine/backgroundThrottle';
 import { EngineHost } from '@/engine/EngineHost';
 import { Toasts } from '@/store/Toasts';
+import { t, editorLocale, systemDefaultLocale, EDITOR_LOCALES, LANGUAGE_SETTING_ID } from '@/i18n';
 
 const root = () => document.documentElement.style;
 
 // ── Sections (editor category) ──────────────────────────────────────────────
-settingsRegistry.registerSection({ id: 'appearance', label: 'Appearance', category: 'editor', order: 1 });
-settingsRegistry.registerSection({ id: 'viewport', label: 'Viewport', category: 'editor', order: 2 });
-settingsRegistry.registerSection({ id: 'performance', label: 'Performance', category: 'editor', order: 3 });
-settingsRegistry.registerSection({ id: 'shortcuts', label: 'Keyboard Shortcuts', category: 'editor', order: 4 });
-settingsRegistry.registerSection({ id: 'console', label: 'Console', category: 'editor', order: 5 });
-settingsRegistry.registerSection({ id: 'renderer', label: 'Renderer', category: 'editor', order: 6 });
+settingsRegistry.registerSection({ id: 'appearance', label: t('set.section.appearance'), category: 'editor', order: 1 });
+settingsRegistry.registerSection({ id: 'viewport', label: t('set.section.viewport'), category: 'editor', order: 2 });
+settingsRegistry.registerSection({ id: 'performance', label: t('set.section.performance'), category: 'editor', order: 3 });
+settingsRegistry.registerSection({ id: 'shortcuts', label: t('set.section.shortcuts'), category: 'editor', order: 4 });
+settingsRegistry.registerSection({ id: 'console', label: t('set.section.console'), category: 'editor', order: 5 });
+settingsRegistry.registerSection({ id: 'renderer', label: t('set.section.renderer'), category: 'editor', order: 6 });
 
 // ── Appearance (store-owned, applied via CSS) ───────────────────────────────
+// The session renders in the locale resolved at boot from this same persisted
+// value (see i18n/index.ts), so a change only lands after a reload — prompt for
+// it. Setting it back before reloading needs no prompt (nothing would change).
+settingsRegistry.register({
+  id: LANGUAGE_SETTING_ID,
+  type: 'enum',
+  scope: 'editor',
+  section: 'appearance',
+  group: t('set.group.appearance'),
+  label: t('set.appearance.language'),
+  description: t('set.appearance.language.desc'),
+  default: systemDefaultLocale,
+  options: EDITOR_LOCALES,
+  effect: (v) => {
+    if (v === editorLocale) return;
+    Toasts.push(t('toast.langReload'), 'info', 8000, { label: t('ui.reloadNow'), run: () => location.reload() });
+  },
+});
+
 // The accent is a family, not one color — hover/pressed shades and the
 // translucent selection/focus tints all derive from the chosen hue. On the
 // default azure the overrides are removed so the hand-tuned tokens.css values
@@ -48,9 +68,9 @@ settingsRegistry.register({
   type: 'color',
   scope: 'editor',
   section: 'appearance',
-  group: 'Appearance',
-  label: 'Accent color',
-  description: 'Used for selection, active controls, and focus.',
+  group: t('set.group.appearance'),
+  label: t('set.appearance.accent'),
+  description: t('set.appearance.accent.desc'),
   default: ACCENT_DEFAULT,
   swatches: [ACCENT_DEFAULT, '#46b08c', '#b272d6', '#e08c43', '#c75d6e'],
   effect: (v) => {
@@ -60,10 +80,10 @@ settingsRegistry.register({
       return;
     }
     const [r, g, b] = rgb;
-    const toward = (t: number) =>
-      t >= 0
-        ? `rgb(${rgb.map((c) => Math.round(c + (255 - c) * t)).join(' ')})`
-        : `rgb(${rgb.map((c) => Math.round(c * (1 + t))).join(' ')})`;
+    const toward = (amt: number) =>
+      amt >= 0
+        ? `rgb(${rgb.map((c) => Math.round(c + (255 - c) * amt)).join(' ')})`
+        : `rgb(${rgb.map((c) => Math.round(c * (1 + amt))).join(' ')})`;
     root().setProperty('--star', v);
     root().setProperty('--acc', v);
     root().setProperty('--star-hi', toward(0.16));
@@ -79,9 +99,9 @@ settingsRegistry.register({
   type: 'number',
   scope: 'editor',
   section: 'appearance',
-  group: 'Appearance',
-  label: 'UI scale',
-  description: 'Scales every panel — fonts and controls.',
+  group: t('set.group.appearance'),
+  label: t('set.appearance.uiScale'),
+  description: t('set.appearance.uiScale.desc'),
   default: 100,
   min: 80,
   max: 150,
@@ -101,11 +121,9 @@ settingsRegistry.register({
   type: 'enum',
   scope: 'editor',
   section: 'renderer',
-  group: 'Renderer',
-  label: 'Graphics backend',
-  description:
-    'Which GPU API the viewport renders through. Applies on engine reload (Ctrl+R). ' +
-    'WebGPU falls back to WebGL2 automatically if no adapter is available.',
+  group: t('set.group.renderer'),
+  label: t('set.renderer.backend'),
+  description: t('set.renderer.backend.desc'),
   default: 'webgl2',
   segmented: true,
   options: [
@@ -120,10 +138,10 @@ settingsRegistry.register({
     if (!backendPrimed) { backendPrimed = true; return; }
     if (v === EngineHost.activeBackend) return;
     Toasts.push(
-      `Reload to render with ${v === 'webgpu' ? 'WebGPU' : 'WebGL2'}`,
+      t('toast.backendReload', { backend: v === 'webgpu' ? 'WebGPU' : 'WebGL2' }),
       'info',
       8000,
-      { label: 'Reload now', run: () => location.reload() },
+      { label: t('ui.reloadNow'), run: () => location.reload() },
     );
   },
 });
@@ -136,8 +154,8 @@ settingsRegistry.register({
   type: 'boolean',
   scope: 'editor',
   section: 'viewport',
-  group: 'Grid',
-  label: 'Show grid',
+  group: t('set.group.grid'),
+  label: t('set.viewport.showGrid'),
   default: true,
   bind: { get: () => ed().showGrid, set: (v) => useEditorStore.setState({ showGrid: v }) },
 });
@@ -147,9 +165,9 @@ settingsRegistry.register({
   type: 'number',
   scope: 'editor',
   section: 'viewport',
-  group: 'Grid',
-  label: 'Grid size',
-  description: 'World-unit spacing of the scene grid (and Move snap).',
+  group: t('set.group.grid'),
+  label: t('set.viewport.gridSize'),
+  description: t('set.viewport.gridSize.desc'),
   default: 32,
   min: 8,
   max: 128,
@@ -162,8 +180,8 @@ settingsRegistry.register({
   type: 'boolean',
   scope: 'editor',
   section: 'viewport',
-  group: 'Grid',
-  label: 'Snap to grid',
+  group: t('set.group.grid'),
+  label: t('set.viewport.snapping'),
   default: false,
   bind: { get: () => ed().snapping, set: (v) => useEditorStore.setState({ snapping: v }) },
 });
@@ -173,8 +191,8 @@ settingsRegistry.register({
   type: 'boolean',
   scope: 'editor',
   section: 'viewport',
-  group: 'Gizmos',
-  label: 'Show gizmos',
+  group: t('set.group.gizmos'),
+  label: t('set.viewport.showGizmos'),
   default: true,
   bind: { get: () => ed().showGizmos, set: (v) => useEditorStore.setState({ showGizmos: v }) },
 });
@@ -185,9 +203,9 @@ settingsRegistry.register({
   type: 'boolean',
   scope: 'editor',
   section: 'performance',
-  group: 'Background',
-  label: 'Use less CPU in background',
-  description: 'Caps the engine at 10 fps while the editor window is unfocused.',
+  group: t('set.group.background'),
+  label: t('set.performance.useLessCpuInBackground'),
+  description: t('set.performance.useLessCpuInBackground.desc'),
   default: true,
   effect: (v) => setUseLessCpuInBackground(v),
 });
@@ -198,9 +216,9 @@ settingsRegistry.register({
   type: 'number',
   scope: 'editor',
   section: 'console',
-  group: 'Console',
-  label: 'Max retained lines',
-  description: 'Output Log keeps at most this many entries.',
+  group: t('set.group.console'),
+  label: t('set.console.maxLines'),
+  description: t('set.console.maxLines.desc'),
   default: 2000,
   min: 100,
   max: 10000,
@@ -221,7 +239,7 @@ for (const cmd of commands.all()) {
     type: 'keybinding',
     scope: 'editor',
     section: 'shortcuts',
-    group: cmd.category ?? 'General',
+    group: cmd.category ?? t('cat.general'),
     label: cmd.label,
     commandId: cmd.id,
     default: primaryChord(cmd.keybinding),

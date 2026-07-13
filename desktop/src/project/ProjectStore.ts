@@ -19,6 +19,7 @@ import { installSpineSync, type SpineTransport } from '@/engine/spineSync';
 import { useSelection } from '@/store/selectionStore';
 import { Toasts } from '@/store/Toasts';
 import { confirmDiscard } from './discardGuard';
+import { t } from '@/i18n';
 import { assetTypeOf } from '@/project/assetMeta';
 import type { AssetType } from '@/types';
 import { resolveLayout, WORKSPACE_DIR, PROJECT_MANIFEST_FILE, type OpenedProject, type ProjectFeatures, type ProjectLayout, type ProjectPackaging, type WorkspaceState, type DesignResolution } from './format';
@@ -1171,7 +1172,7 @@ class ProjectStoreImpl {
       // not stack more dialogs for the same question.
       if (this.reloadPromptOpen) return;
       this.reloadPromptOpen = true;
-      const ok = await confirmDiscard(`"${name}" changed on disk. Reloading discards your unsaved edits`);
+      const ok = await confirmDiscard(t('discard.reloadChanged', { name }));
       this.reloadPromptOpen = false;
       if (!ok) {
         this.knownSceneText = text;
@@ -1180,7 +1181,7 @@ class ProjectStoreImpl {
       }
     }
     await this.loadCurrentScene();
-    Toasts.push(`Reloaded ${name} from disk`, 'info', 1600);
+    Toasts.push(t('toast.reloadedFromDisk', { name }), 'info', 1600);
   }
 
   private async persistLastScene(relPath: string): Promise<void> {

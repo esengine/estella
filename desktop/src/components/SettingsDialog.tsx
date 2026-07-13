@@ -22,6 +22,7 @@ import { SearchField } from '@/components/SearchField';
 import { Segmented } from '@/components/Segmented';
 import { Select } from '@/components/Select';
 import type { Setting, NumberSetting, KeybindingSetting, StringListSetting, MatrixSetting, FlagListSetting } from '@/settings/types';
+import { t } from '@/i18n';
 
 // A bound list setting's getter returns a fresh array each call; useShallow below
 // keeps the read referentially stable (else useSyncExternalStore loops). A shared
@@ -29,9 +30,9 @@ import type { Setting, NumberSetting, KeybindingSetting, StringListSetting, Matr
 const EMPTY_LIST: readonly string[] = [];
 
 const CATEGORY_LABEL: Record<string, string> = {
-  editor: 'Editor',
-  project: 'Project',
-  plugin: 'Plugins',
+  editor: t('set.cat.editor'),
+  project: t('set.cat.project'),
+  plugin: t('set.cat.plugin'),
 };
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
@@ -121,10 +122,10 @@ function KeybindCapture({ setting }: { setting: KeybindingSetting }) {
     <button
       type="button"
       className={`set-key${capturing ? ' capturing' : ''}`}
-      title="Click to rebind"
+      title={t('set.rebindHint')}
       onClick={() => setCapturing((c) => !c)}
     >
-      {capturing ? 'Press keys…' : formatKeybinding(chord) || 'Unbound'}
+      {capturing ? t('set.pressKeys') : formatKeybinding(chord) || t('set.unbound')}
     </button>
   );
 }
@@ -175,13 +176,13 @@ function MatrixControl({ setting }: { setting: MatrixSetting }) {
       <thead>
         <tr>
           <th />
-          {shown.map((j) => <th key={j} className="set-matrix-col"><span>{labels[j] || `Layer ${j}`}</span></th>)}
+          {shown.map((j) => <th key={j} className="set-matrix-col"><span>{labels[j] || t('set.layerN', { i: j })}</span></th>)}
         </tr>
       </thead>
       <tbody>
         {shown.map((i) => (
           <tr key={i}>
-            <th className="set-matrix-row">{labels[i] || `Layer ${i}`}</th>
+            <th className="set-matrix-row">{labels[i] || t('set.layerN', { i })}</th>
             {shown.map((j) => (
               <td key={j}>
                 <input type="checkbox" checked={collides(i, j)} onChange={() => toggle(i, j)} />
@@ -209,7 +210,7 @@ function FlagListControl({ setting }: { setting: FlagListSetting }) {
       {shown.map((i) => (
         <label key={i} className="set-flaglist-item">
           <input type="checkbox" checked={isOn(i)} onChange={() => toggle(i)} />
-          <span>{labels[i] || `Layer ${i}`}</span>
+          <span>{labels[i] || t('set.layerN', { i })}</span>
         </label>
       ))}
     </div>
@@ -308,7 +309,7 @@ function Row({ setting }: { setting: Setting }) {
       </div>
       <span
         className={`set-reset${isChanged ? ' show' : ''}`}
-        title="Reset to default"
+        title={t('set.resetDefault')}
         onClick={() => isChanged && reset(setting.id)}
       >
         {isChanged && <RotateCcw size={11} strokeWidth={2} />}
@@ -375,18 +376,18 @@ export function SettingsDialog() {
         className="set-win"
         role="dialog"
         aria-modal="true"
-        aria-label="Settings"
+        aria-label={t('set.title')}
         tabIndex={-1}
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="set-head">
           <span className="set-title">
             <span className="ic"><SettingsIcon size={16} strokeWidth={1.8} /></span>
-            Settings
+            {t('set.title')}
           </span>
           <span className="set-head-sp" />
-          <SearchField className="set-search" iconSize={12} autoFocus placeholder="Search settings…" value={query} onChange={setQuery} />
-          <IconButton size="lg" title="Close (Esc)" onClick={close}>
+          <SearchField className="set-search" iconSize={12} autoFocus placeholder={t('set.search')} value={query} onChange={setQuery} />
+          <IconButton size="lg" title={t('set.closeEsc')} onClick={close}>
             <X size={14} strokeWidth={2} />
           </IconButton>
         </div>
@@ -415,7 +416,7 @@ export function SettingsDialog() {
 
           <div className="set-content">
             {content.length === 0 ? (
-              <div className="empty-line">No settings match “{query}”.</div>
+              <div className="empty-line">{t('set.noMatch', { query })}</div>
             ) : (
               content.map((g) => <Group key={g.label} label={g.label} settings={g.settings} />)
             )}

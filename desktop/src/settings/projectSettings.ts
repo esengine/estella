@@ -9,15 +9,16 @@
  */
 import { settingsRegistry } from './registry';
 import { ProjectStore } from '@/project/ProjectStore';
+import { t } from '@/i18n';
 
 // ── Display (design/reference resolution; seeds new Canvas entities) ──
-settingsRegistry.registerSection({ id: 'display', label: 'Display', category: 'project', order: 0 });
+settingsRegistry.registerSection({ id: 'display', label: t('set.section.display'), category: 'project', order: 0 });
 
 settingsRegistry.register({
   id: 'project.display.width',
-  type: 'number', scope: 'project', section: 'display', group: 'Design Resolution',
-  label: 'Width', suffix: 'px',
-  description: 'Reference resolution new Canvas entities are created at; each Canvas keeps its own value afterwards.',
+  type: 'number', scope: 'project', section: 'display', group: t('set.group.designResolution'),
+  label: t('set.project.display.width'), suffix: 'px',
+  description: t('set.project.display.width.desc'),
   default: 1920, min: 1, step: 1,
   bind: {
     get: () => ProjectStore.designResolution().width,
@@ -27,8 +28,8 @@ settingsRegistry.register({
 
 settingsRegistry.register({
   id: 'project.display.height',
-  type: 'number', scope: 'project', section: 'display', group: 'Design Resolution',
-  label: 'Height', suffix: 'px',
+  type: 'number', scope: 'project', section: 'display', group: t('set.group.designResolution'),
+  label: t('set.project.display.height'), suffix: 'px',
   default: 1080, min: 1, step: 1,
   bind: {
     get: () => ProjectStore.designResolution().height,
@@ -37,21 +38,21 @@ settingsRegistry.register({
 });
 
 // ── Physics (the enable flag = UE Plugins-Browser analog; gravity = Project Settings) ──
-settingsRegistry.registerSection({ id: 'physics', label: 'Physics', category: 'project', order: 1 });
+settingsRegistry.registerSection({ id: 'physics', label: t('set.section.physics'), category: 'project', order: 1 });
 
 // ── Rendering (named sorting layers feed the inspector's render `layer` dropdown) ──
-settingsRegistry.registerSection({ id: 'rendering', label: 'Rendering', category: 'project', order: 2 });
+settingsRegistry.registerSection({ id: 'rendering', label: t('set.section.rendering'), category: 'project', order: 2 });
 
 settingsRegistry.register({
   id: 'project.rendering.sortingLayers',
   type: 'stringList',
   scope: 'project',
   section: 'rendering',
-  group: 'Sorting Layers',
-  label: 'Layer names',
-  description: 'Name render sorting layers (lowest first); a render `layer` field then picks from them instead of a raw number.',
+  group: t('set.group.sortingLayers'),
+  label: t('set.project.rendering.sortingLayers'),
+  description: t('set.project.rendering.sortingLayers.desc'),
   count: 8,
-  placeholder: (i) => `Layer ${i}`,
+  placeholder: (i) => t('set.layerN', { i }),
   default: Array.from({ length: 8 }, () => ''),
   bind: {
     get: () => ProjectStore.renderingFeature().sortingLayers,
@@ -64,11 +65,9 @@ settingsRegistry.register({
   type: 'flagList',
   scope: 'project',
   section: 'rendering',
-  group: 'Y-Sort',
-  label: 'Y-sorted layers',
-  description:
-    'Entities on a checked layer draw in world-Y order (lower on screen on top) — top-down occlusion. ' +
-    'Within a y-sorted layer, paint order wins over material batching.',
+  group: t('set.group.ySort'),
+  label: t('set.project.rendering.ySortLayers'),
+  description: t('set.project.rendering.ySortLayers.desc'),
   count: 8,
   labels: () => ProjectStore.renderingFeature().sortingLayers,
   default: [],
@@ -83,9 +82,9 @@ settingsRegistry.register({
   type: 'boolean',
   scope: 'project',
   section: 'physics',
-  group: 'Physics',
-  label: 'Enable physics',
-  description: 'Install the Box2D world when this project plays — required for bodies a script spawns at runtime.',
+  group: t('set.group.physics'),
+  label: t('set.project.physics.enabled'),
+  description: t('set.project.physics.enabled.desc'),
   default: false,
   bind: {
     get: () => ProjectStore.physicsFeature().enabled,
@@ -98,8 +97,8 @@ settingsRegistry.register({
   type: 'number',
   scope: 'project',
   section: 'physics',
-  group: 'Gravity',
-  label: 'Gravity X',
+  group: t('set.group.gravity'),
+  label: t('set.project.physics.gravityX'),
   default: 0,
   step: 0.1,
   bind: {
@@ -113,11 +112,11 @@ settingsRegistry.register({
   type: 'stringList',
   scope: 'project',
   section: 'physics',
-  group: 'Collision Layers',
-  label: 'Layer names',
-  description: 'Names for the 16 collision-filter layers — shown in collider Category/Mask pickers.',
+  group: t('set.group.collisionLayers'),
+  label: t('set.project.physics.collisionLayers'),
+  description: t('set.project.physics.collisionLayers.desc'),
   count: 16,
-  placeholder: (i) => `Layer ${i}`,
+  placeholder: (i) => t('set.layerN', { i }),
   default: Array.from({ length: 16 }, (_, i) => (i === 0 ? 'Default' : '')),
   bind: {
     get: () => ProjectStore.physicsFeature().collisionLayers,
@@ -130,9 +129,9 @@ settingsRegistry.register({
   type: 'matrix',
   scope: 'project',
   section: 'physics',
-  group: 'Collision Layers',
-  label: 'Collision matrix',
-  description: 'Which layers collide. A collider on a single named layer derives its mask from this row (so it overrides the collider’s own Mask). All-on = no restriction.',
+  group: t('set.group.collisionLayers'),
+  label: t('set.project.physics.collisionMatrix'),
+  description: t('set.project.physics.collisionMatrix.desc'),
   count: 16,
   labels: () => ProjectStore.physicsFeature().collisionLayers,
   default: Array.from({ length: 16 }, () => 0xffff),
@@ -143,15 +142,18 @@ settingsRegistry.register({
 });
 
 // ── Packaging (per-platform Project Settings; read by the export, persisted to project.esproject) ──
-settingsRegistry.registerSection({ id: 'packaging', label: 'Packaging', category: 'project', order: 3 });
+settingsRegistry.registerSection({ id: 'packaging', label: t('set.section.packaging'), category: 'project', order: 3 });
 
-const ORIENTATION = [{ value: 'portrait', label: 'Portrait' }, { value: 'landscape', label: 'Landscape' }];
+const ORIENTATION = [
+  { value: 'portrait', label: t('set.orientation.portrait') },
+  { value: 'landscape', label: t('set.orientation.landscape') },
+];
 
 settingsRegistry.register({
   id: 'project.packaging.wechat.appid',
-  type: 'string', scope: 'project', section: 'packaging', group: 'WeChat',
-  label: 'AppID',
-  description: 'Your WeChat MiniGame appid — written into project.config.json on export.',
+  type: 'string', scope: 'project', section: 'packaging', group: t('set.group.wechat'),
+  label: t('set.project.packaging.wechat.appid'),
+  description: t('set.project.packaging.wechat.appid.desc'),
   placeholder: 'wx0123456789abcdef', default: '',
   bind: {
     get: () => ProjectStore.platformPackaging().wechat?.appid ?? '',
@@ -161,8 +163,8 @@ settingsRegistry.register({
 
 settingsRegistry.register({
   id: 'project.packaging.wechat.orientation',
-  type: 'enum', scope: 'project', section: 'packaging', group: 'WeChat',
-  label: 'Orientation', options: ORIENTATION, segmented: true, default: 'portrait',
+  type: 'enum', scope: 'project', section: 'packaging', group: t('set.group.wechat'),
+  label: t('set.project.packaging.orientation'), options: ORIENTATION, segmented: true, default: 'portrait',
   bind: {
     get: () => ProjectStore.platformPackaging().wechat?.orientation ?? 'portrait',
     set: (v) => void ProjectStore.setPlatformPackaging('wechat', { orientation: v as 'portrait' | 'landscape' }),
@@ -171,9 +173,9 @@ settingsRegistry.register({
 
 settingsRegistry.register({
   id: 'project.packaging.desktop.appId',
-  type: 'string', scope: 'project', section: 'packaging', group: 'Desktop',
-  label: 'App ID',
-  description: 'Reverse-DNS id for the installer (electron-builder appId), e.g. com.studio.game.',
+  type: 'string', scope: 'project', section: 'packaging', group: t('set.group.desktop'),
+  label: t('set.project.packaging.desktop.appId'),
+  description: t('set.project.packaging.desktop.appId.desc'),
   placeholder: 'com.studio.game', default: '',
   bind: {
     get: () => ProjectStore.platformPackaging().desktop?.appId ?? '',
@@ -183,9 +185,9 @@ settingsRegistry.register({
 
 settingsRegistry.register({
   id: 'project.packaging.desktop.productName',
-  type: 'string', scope: 'project', section: 'packaging', group: 'Desktop',
-  label: 'Product name',
-  description: 'Display name for the desktop app + installer (defaults to the project name).',
+  type: 'string', scope: 'project', section: 'packaging', group: t('set.group.desktop'),
+  label: t('set.project.packaging.desktop.productName'),
+  description: t('set.project.packaging.desktop.productName.desc'),
   placeholder: '(project name)', default: '',
   bind: {
     get: () => ProjectStore.platformPackaging().desktop?.productName ?? '',
@@ -195,8 +197,8 @@ settingsRegistry.register({
 
 settingsRegistry.register({
   id: 'project.packaging.playable.orientation',
-  type: 'enum', scope: 'project', section: 'packaging', group: 'Playable',
-  label: 'Orientation', options: ORIENTATION, segmented: true, default: 'portrait',
+  type: 'enum', scope: 'project', section: 'packaging', group: t('set.group.playable'),
+  label: t('set.project.packaging.orientation'), options: ORIENTATION, segmented: true, default: 'portrait',
   bind: {
     get: () => ProjectStore.platformPackaging().playable?.orientation ?? 'portrait',
     set: (v) => void ProjectStore.setPlatformPackaging('playable', { orientation: v as 'portrait' | 'landscape' }),
@@ -208,9 +210,9 @@ settingsRegistry.register({
   type: 'number',
   scope: 'project',
   section: 'physics',
-  group: 'Gravity',
-  label: 'Gravity Y',
-  description: 'Negative pulls down (Box2D default −9.81).',
+  group: t('set.group.gravity'),
+  label: t('set.project.physics.gravityY'),
+  description: t('set.project.physics.gravityY.desc'),
   default: -9.81,
   step: 0.1,
   bind: {
@@ -222,9 +224,9 @@ settingsRegistry.register({
 // ── Solver (world simulation tuning; absent ⇒ engine defaults) ──
 settingsRegistry.register({
   id: 'project.physics.fixedTimestep',
-  type: 'number', scope: 'project', section: 'physics', group: 'Solver',
-  label: 'Fixed timestep', suffix: 's',
-  description: 'Simulation step size; smaller is more accurate but costlier. Default 1/60.',
+  type: 'number', scope: 'project', section: 'physics', group: t('set.group.solver'),
+  label: t('set.project.physics.fixedTimestep'), suffix: 's',
+  description: t('set.project.physics.fixedTimestep.desc'),
   default: 1 / 60, min: 0.001, step: 0.001,
   bind: {
     get: () => ProjectStore.physicsFeature().fixedTimestep,
@@ -233,9 +235,9 @@ settingsRegistry.register({
 });
 settingsRegistry.register({
   id: 'project.physics.subStepCount',
-  type: 'number', scope: 'project', section: 'physics', group: 'Solver',
-  label: 'Sub-steps',
-  description: 'Solver sub-steps per step — higher firms up stacks/joints at more cost. Default 4.',
+  type: 'number', scope: 'project', section: 'physics', group: t('set.group.solver'),
+  label: t('set.project.physics.subStepCount'),
+  description: t('set.project.physics.subStepCount.desc'),
   default: 4, min: 1, max: 8, step: 1,
   bind: {
     get: () => ProjectStore.physicsFeature().subStepCount,
@@ -244,9 +246,9 @@ settingsRegistry.register({
 });
 settingsRegistry.register({
   id: 'project.physics.contactHertz',
-  type: 'number', scope: 'project', section: 'physics', group: 'Solver',
-  label: 'Contact Hz',
-  description: 'Contact stiffness frequency. Default 120.',
+  type: 'number', scope: 'project', section: 'physics', group: t('set.group.solver'),
+  label: t('set.project.physics.contactHertz'),
+  description: t('set.project.physics.contactHertz.desc'),
   default: 120, min: 1, step: 1,
   bind: {
     get: () => ProjectStore.physicsFeature().contactHertz,
@@ -255,9 +257,9 @@ settingsRegistry.register({
 });
 settingsRegistry.register({
   id: 'project.physics.contactDampingRatio',
-  type: 'number', scope: 'project', section: 'physics', group: 'Solver',
-  label: 'Contact damping',
-  description: 'Contact damping ratio. Default 10.',
+  type: 'number', scope: 'project', section: 'physics', group: t('set.group.solver'),
+  label: t('set.project.physics.contactDampingRatio'),
+  description: t('set.project.physics.contactDampingRatio.desc'),
   default: 10, min: 0, step: 0.5,
   bind: {
     get: () => ProjectStore.physicsFeature().contactDampingRatio,
@@ -266,9 +268,9 @@ settingsRegistry.register({
 });
 settingsRegistry.register({
   id: 'project.physics.contactSpeed',
-  type: 'number', scope: 'project', section: 'physics', group: 'Solver',
-  label: 'Contact push speed', suffix: 'm/s',
-  description: 'Max speed used to resolve overlap. Default 10.',
+  type: 'number', scope: 'project', section: 'physics', group: t('set.group.solver'),
+  label: t('set.project.physics.contactSpeed'), suffix: 'm/s',
+  description: t('set.project.physics.contactSpeed.desc'),
   default: 10, min: 0, step: 0.5,
   bind: {
     get: () => ProjectStore.physicsFeature().contactSpeed,
@@ -277,9 +279,9 @@ settingsRegistry.register({
 });
 settingsRegistry.register({
   id: 'project.physics.enableSleep',
-  type: 'boolean', scope: 'project', section: 'physics', group: 'Solver',
-  label: 'Allow sleeping',
-  description: 'Let resting bodies sleep to save CPU (Box2D default on).',
+  type: 'boolean', scope: 'project', section: 'physics', group: t('set.group.solver'),
+  label: t('set.project.physics.enableSleep'),
+  description: t('set.project.physics.enableSleep.desc'),
   default: true,
   bind: {
     get: () => ProjectStore.physicsFeature().enableSleep,
@@ -288,9 +290,9 @@ settingsRegistry.register({
 });
 settingsRegistry.register({
   id: 'project.physics.enableContinuous',
-  type: 'boolean', scope: 'project', section: 'physics', group: 'Solver',
-  label: 'Continuous collision',
-  description: 'Anti-tunneling for fast bodies (Box2D default on).',
+  type: 'boolean', scope: 'project', section: 'physics', group: t('set.group.solver'),
+  label: t('set.project.physics.enableContinuous'),
+  description: t('set.project.physics.enableContinuous.desc'),
   default: true,
   bind: {
     get: () => ProjectStore.physicsFeature().enableContinuous,

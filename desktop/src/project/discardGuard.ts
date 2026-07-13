@@ -10,20 +10,22 @@
  */
 import { EditorHistory } from '@/engine/EditorHistory';
 import { confirm } from '@/components/confirm';
+import { t } from '@/i18n';
 
 /**
  * Resolves true if it's safe to proceed with a destructive document action:
  * when there are no unsaved changes, or the user confirms discarding them.
- * `what` names the consequence, e.g. "Creating a new scene will discard them".
+ * `what` names the consequence, PRE-TRANSLATED and without a trailing period —
+ * e.g. t('discard.newScene'); the body template owns the punctuation.
  * Async (a themed dialog, not window.confirm) — callers gate with
  * `if (!(await confirmDiscard(...))) return;`.
  */
-export async function confirmDiscard(what = 'They will be lost'): Promise<boolean> {
+export async function confirmDiscard(what = t('discard.default')): Promise<boolean> {
   if (!EditorHistory.isDirty()) return true;
   return confirm({
-    title: 'Unsaved changes',
-    body: `You have unsaved changes. ${what}.`,
-    confirmLabel: 'Discard changes',
+    title: t('discard.title'),
+    body: t('discard.body', { what }),
+    confirmLabel: t('discard.confirm'),
     danger: true,
   });
 }

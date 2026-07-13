@@ -25,6 +25,7 @@ import { useEditorMode } from '@/store/editorModeStore';
 import { useEditorStore } from '@/store/editorStore';
 import { useSelection } from '@/store/selectionStore';
 import { Toasts } from '@/store/Toasts';
+import { t } from '@/i18n';
 import type { ToolMode } from '@/types';
 
 const editor = () => useEditorStore.getState();
@@ -34,26 +35,26 @@ const tool = (mode: ToolMode) => () => editor().setTool(mode);
 // — File / project —
 commands.register({
   id: 'scene.new',
-  label: 'New Scene',
-  category: 'File',
+  label: t('cmd.scene.new'),
+  category: t('cat.file'),
   keybinding: 'mod+n',
   isEnabled: () => !!ProjectStore.getSnapshot(),
   run: async () => {
-    if (!(await confirmDiscard('Creating a new scene will discard them'))) return;
+    if (!(await confirmDiscard(t('discard.newScene')))) return;
     void ProjectStore.newScene().then(() => sel().select(null));
   },
 });
 commands.register({
   id: 'project.open',
-  label: 'Open Project…',
-  category: 'File',
+  label: t('cmd.project.open'),
+  category: t('cat.file'),
   keybinding: 'mod+o',
   run: () => void ProjectStore.openViaDialog().then((ok) => ok && sel().select(null)),
 });
 commands.register({
   id: 'project.save',
-  label: 'Save Scene',
-  category: 'File',
+  label: t('cmd.project.save'),
+  category: t('cat.file'),
   keybinding: 'mod+s',
   // Enabled while there are unsaved edits, or the scene is untitled (Save → Save As
   // to give it a path on disk for the first time).
@@ -65,26 +66,26 @@ commands.register({
 });
 commands.register({
   id: 'project.saveAs',
-  label: 'Save Scene As…',
-  category: 'File',
+  label: t('cmd.project.saveAs'),
+  category: t('cat.file'),
   keybinding: 'mod+shift+s',
   isEnabled: () => !!ProjectStore.getSnapshot(),
   run: () => void ProjectStore.saveAsViaDialog(),
 });
 commands.register({
   id: 'project.export',
-  label: 'Build…',
-  category: 'File',
+  label: t('cmd.project.export'),
+  category: t('cat.file'),
   isEnabled: () => !!ProjectStore.getSnapshot(),
   run: () => editor().setBuildOpen(true),
 });
 commands.register({
   id: 'project.close',
-  label: 'Close Project',
-  category: 'File',
+  label: t('cmd.project.close'),
+  category: t('cat.file'),
   isEnabled: () => !!ProjectStore.getSnapshot(),
   run: async () => {
-    if (!(await confirmDiscard('Closing the project will discard them'))) return;
+    if (!(await confirmDiscard(t('discard.closeProject')))) return;
     editor().openLauncher();
   },
 });
@@ -92,16 +93,16 @@ commands.register({
 // — Edit / history —
 commands.register({
   id: 'edit.undo',
-  label: 'Undo',
-  category: 'Edit',
+  label: t('cmd.edit.undo'),
+  category: t('cat.edit'),
   keybinding: 'mod+z',
   isEnabled: () => EditorHistory.canUndo(),
   run: () => EditorHistory.undo(),
 });
 commands.register({
   id: 'edit.redo',
-  label: 'Redo',
-  category: 'Edit',
+  label: t('cmd.edit.redo'),
+  category: t('cat.edit'),
   keybinding: ['mod+shift+z', 'mod+y'],
   isEnabled: () => EditorHistory.canRedo(),
   run: () => EditorHistory.redo(),
@@ -110,8 +111,8 @@ commands.register({
 // — Entity —
 commands.register({
   id: 'entity.add',
-  label: 'Add Entity',
-  category: 'Entity',
+  label: t('cmd.entity.add'),
+  category: t('cat.entity'),
   run: () => {
     const e = SceneCommands.addEntity();
     if (e != null) sel().select(e);
@@ -119,8 +120,8 @@ commands.register({
 });
 commands.register({
   id: 'tilemap.new',
-  label: 'New Tilemap',
-  category: 'Entity',
+  label: t('cmd.tilemap.new'),
+  category: t('cat.entity'),
   isEnabled: () => !!ProjectStore.getSnapshot(),
   // A tilemap needs a tileset palette. Zero → guide the user to make one; exactly
   // one → create straight away; many → let them pick (TilemapPickerDialog). The
@@ -128,7 +129,7 @@ commands.register({
   run: () => {
     const list = ProjectStore.listAssets('tileset');
     if (list.length === 0) {
-      Toasts.push('No tileset in the project yet — right-click a texture in the Content Browser → Create Tileset', 'warn');
+      Toasts.push(t('toast.noTileset'), 'warn');
       return;
     }
     if (list.length === 1) {
@@ -141,8 +142,8 @@ commands.register({
 });
 commands.register({
   id: 'entity.duplicate',
-  label: 'Duplicate',
-  category: 'Entity',
+  label: t('cmd.entity.duplicate'),
+  category: t('cat.entity'),
   keybinding: 'mod+d',
   isEnabled: () => sel().selectedId != null,
   run: () => {
@@ -154,8 +155,8 @@ commands.register({
 });
 commands.register({
   id: 'entity.delete',
-  label: 'Delete',
-  category: 'Entity',
+  label: t('cmd.entity.delete'),
+  category: t('cat.entity'),
   keybinding: ['delete', 'backspace'],
   isEnabled: () => sel().selectedIds.size > 0,
   // Despawn self-heals the selection (SelectionStore) — no manual deselect.
@@ -163,24 +164,24 @@ commands.register({
 });
 commands.register({
   id: 'entity.copy',
-  label: 'Copy',
-  category: 'Entity',
+  label: t('cmd.entity.copy'),
+  category: t('cat.entity'),
   keybinding: 'mod+c',
   isEnabled: () => sel().selectedIds.size > 0,
   run: () => { SceneCommands.copyEntities([...sel().selectedIds]); },
 });
 commands.register({
   id: 'entity.cut',
-  label: 'Cut',
-  category: 'Entity',
+  label: t('cmd.entity.cut'),
+  category: t('cat.entity'),
   keybinding: 'mod+x',
   isEnabled: () => sel().selectedIds.size > 0,
   run: () => { SceneCommands.cutEntities([...sel().selectedIds]); },
 });
 commands.register({
   id: 'entity.paste',
-  label: 'Paste',
-  category: 'Entity',
+  label: t('cmd.entity.paste'),
+  category: t('cat.entity'),
   keybinding: 'mod+v',
   isEnabled: () => hasEntityClipboard(),
   // Paste under the lone selection's parent (as a sibling), else at the scene root.
@@ -193,8 +194,8 @@ commands.register({
 });
 commands.register({
   id: 'edit.selectAll',
-  label: 'Select All',
-  category: 'Edit',
+  label: t('cmd.edit.selectAll'),
+  category: t('cat.edit'),
   keybinding: 'mod+a',
   isEnabled: () => SceneModel.entityOrder().length > 0,
   run: () => {
@@ -204,17 +205,17 @@ commands.register({
 });
 commands.register({
   id: 'entity.deselect',
-  label: 'Deselect',
-  category: 'Entity',
+  label: t('cmd.entity.deselect'),
+  category: t('cat.entity'),
   isEnabled: () => sel().selectedId != null,
   run: () => sel().select(null),
 });
 
 // — Transform tools —
-commands.register({ id: 'tool.select', label: 'Select Tool', category: 'Tools', keybinding: 'q', run: tool('select') });
-commands.register({ id: 'tool.move', label: 'Move Tool', category: 'Tools', keybinding: 'w', run: tool('move') });
-commands.register({ id: 'tool.rotate', label: 'Rotate Tool', category: 'Tools', keybinding: 'e', run: tool('rotate') });
-commands.register({ id: 'tool.scale', label: 'Scale Tool', category: 'Tools', keybinding: 'r', run: tool('scale') });
+commands.register({ id: 'tool.select', label: t('cmd.tool.select'), category: t('cat.tools'), keybinding: 'q', run: tool('select') });
+commands.register({ id: 'tool.move', label: t('cmd.tool.move'), category: t('cat.tools'), keybinding: 'w', run: tool('move') });
+commands.register({ id: 'tool.rotate', label: t('cmd.tool.rotate'), category: t('cat.tools'), keybinding: 'e', run: tool('rotate') });
+commands.register({ id: 'tool.scale', label: t('cmd.tool.scale'), category: t('cat.tools'), keybinding: 'r', run: tool('scale') });
 
 // — Editor modes — pin an explicit editing context (Scene/UI/Tilemap) and reveal its
 // companion panels. Without a pin the mode follows the selection; a pin holds until the
@@ -223,8 +224,8 @@ commands.register({ id: 'tool.scale', label: 'Scale Tool', category: 'Tools', ke
 for (const m of EDITOR_MODES) {
   commands.register({
     id: `mode.${m.id}`,
-    label: `${m.label} Mode`,
-    category: 'Tools',
+    label: t(`cmd.mode.${m.id}`),
+    category: t('cat.tools'),
     isChecked: () => activeMode().id === m.id,
     run: () => {
       useEditorMode.getState().setMode(m.id);
@@ -269,8 +270,8 @@ const NUDGES: Array<{ id: string; key: string; ux: number; uy: number; big: bool
 for (const n of NUDGES) {
   commands.register({
     id: n.id,
-    label: 'Nudge Selection',
-    category: 'Entity',
+    label: t('cmd.entity.nudge'),
+    category: t('cat.entity'),
     keybinding: n.key,
     isEnabled: () => sel().selectedIds.size > 0,
     run: () => nudgeSelection(n.ux, n.uy, n.big),
@@ -280,8 +281,8 @@ for (const n of NUDGES) {
 // — Viewport / view —
 commands.register({
   id: 'view.frameSelected',
-  label: 'Frame Selected',
-  category: 'View',
+  label: t('cmd.view.frameSelected'),
+  category: t('cat.view'),
   keybinding: 'f',
   isEnabled: () => sel().selectedId != null,
   run: () => {
@@ -294,22 +295,22 @@ commands.register({
 });
 commands.register({
   id: 'view.toggleGrid',
-  label: 'Show Grid',
-  category: 'View',
+  label: t('cmd.view.toggleGrid'),
+  category: t('cat.view'),
   isChecked: () => editor().showGrid,
   run: () => editor().toggleGrid(),
 });
 commands.register({
   id: 'view.toggleGizmos',
-  label: 'Show Gizmos',
-  category: 'View',
+  label: t('cmd.view.toggleGizmos'),
+  category: t('cat.view'),
   isChecked: () => editor().showGizmos,
   run: () => editor().toggleGizmos(),
 });
 commands.register({
   id: 'view.togglePreviewFx',
-  label: 'Preview FX',
-  category: 'View',
+  label: t('cmd.view.togglePreviewFx'),
+  category: t('cat.view'),
   isChecked: () => editor().previewFx,
   run: () => {
     editor().togglePreviewFx();
@@ -318,29 +319,29 @@ commands.register({
 });
 commands.register({
   id: 'view.toggleColliders',
-  label: 'Show Colliders',
-  category: 'View',
+  label: t('cmd.view.toggleColliders'),
+  category: t('cat.view'),
   isChecked: () => editor().showColliders,
   run: () => editor().toggleColliders(),
 });
 commands.register({
   id: 'view.toggleCoordSpace',
-  label: 'Local Axes',
-  category: 'View',
+  label: t('cmd.view.toggleCoordSpace'),
+  category: t('cat.view'),
   isChecked: () => editor().coordSpace === 'local',
   run: () => editor().toggleCoordSpace(),
 });
 commands.register({
   id: 'view.togglePivotMode',
-  label: 'Pivot (vs Center)',
-  category: 'View',
+  label: t('cmd.view.togglePivotMode'),
+  category: t('cat.view'),
   isChecked: () => editor().pivotMode === 'pivot',
   run: () => editor().togglePivotMode(),
 });
 commands.register({
   id: 'view.toggleSnapping',
-  label: 'Snapping',
-  category: 'View',
+  label: t('cmd.view.toggleSnapping'),
+  category: t('cat.view'),
   isChecked: () => editor().snapping,
   run: () => editor().toggleSnapping(),
 });
@@ -348,8 +349,8 @@ commands.register({
 // — Editor —
 commands.register({
   id: 'settings.open',
-  label: 'Settings…',
-  category: 'Editor',
+  label: t('cmd.settings.open'),
+  category: t('cat.editor'),
   keybinding: 'mod+,',
   run: () => editor().setSettingsOpen(true),
 });
@@ -357,15 +358,15 @@ commands.register({
 // — Play —
 commands.register({
   id: 'play.toggle',
-  label: 'Play',
-  category: 'Play',
+  label: t('cmd.play.toggle'),
+  category: t('cat.play'),
   keybinding: 'f5',
   run: () => editor().togglePlay(),
 });
 commands.register({
   id: 'play.stop',
-  label: 'Stop',
-  category: 'Play',
+  label: t('cmd.play.stop'),
+  category: t('cat.play'),
   keybinding: 'escape',
   isEnabled: () => editor().isPlaying,
   run: () => editor().stop(),
@@ -374,12 +375,12 @@ commands.register({
 // — Build —
 commands.register({
   id: 'build.scripts',
-  label: 'Build Project Scripts',
-  category: 'Build',
+  label: t('cmd.build.scripts'),
+  category: t('cat.build'),
   isEnabled: () => !!ProjectStore.getSnapshot(),
   run: () =>
     void window.estella?.project
       ?.buildScripts?.()
-      .then(() => Toasts.push('Built project scripts', 'success'))
-      .catch(() => Toasts.push('Build failed', 'error')),
+      .then(() => Toasts.push(t('toast.builtScripts'), 'success'))
+      .catch(() => Toasts.push(t('toast.buildFailed'), 'error')),
 });

@@ -13,6 +13,7 @@
  */
 import type { LucideIcon } from 'lucide-react';
 import { MousePointer2, LayoutPanelTop, Grid3x3 } from 'lucide-react';
+import { t } from '@/i18n';
 
 export type EditorModeId = 'scene' | 'ui' | 'tilemap';
 
@@ -46,26 +47,26 @@ export interface EditorModeDef {
 
 const tilemapMode: EditorModeDef = {
   id: 'tilemap',
-  label: 'Tilemap',
+  label: t('mode.tilemap'),
   icon: Grid3x3,
   toolset: 'tilemap',
-  panels: [{ id: 'tilemap', component: 'tilemap', title: 'Tilemap', side: 'left', width: 300 }],
+  panels: [{ id: 'tilemap', component: 'tilemap', title: t('panel.tilemap'), side: 'left', width: 300 }],
   suggestFor: (s) => s.hasComponent('TilemapLayer'),
 };
 
 const uiMode: EditorModeDef = {
   id: 'ui',
-  label: 'UI',
+  label: t('mode.ui'),
   icon: LayoutPanelTop,
   toolset: 'transform',
-  panels: [{ id: 'ui-widgets', component: 'uiWidgets', title: 'UI Widgets', side: 'left', width: 240 }],
+  panels: [{ id: 'ui-widgets', component: 'uiWidgets', title: t('panel.uiWidgets'), side: 'left', width: 240 }],
   overlays: { designFrame: true, safeArea: true, letterbox: true },
   suggestFor: (s) => s.hasComponent('Canvas') || s.hasComponent('UINode'),
 };
 
 const sceneMode: EditorModeDef = {
   id: 'scene',
-  label: 'Scene',
+  label: t('mode.scene'),
   icon: MousePointer2,
   toolset: 'transform',
 };
