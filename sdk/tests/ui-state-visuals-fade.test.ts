@@ -114,6 +114,24 @@ describe('StateVisualsApplySystem — color fade', () => {
         expect(r.color).toEqual({ r: 0, g: 0, b: 1, a: 1 });
     });
 
+    it('stops writing once settled at a slot (no per-frame write amplification)', () => {
+        world.insert(entity, StateMachine, { current: 'pressed', previous: '' } as StateMachineData);
+        world.insert(entity, StateVisuals, makeVisuals({
+            transitionFlags: TransitionFlag.ColorTint,
+            fadeDuration: 0,
+            states: [visualState('pressed', { r: 0, g: 0, b: 1, a: 1 })],
+        }));
+
+        const sys = createStateVisualsApplySystem(world as never);
+        runSystem(sys, 1 / 60);                 // slot change → apply + settle
+        const insertSpy = vi.spyOn(world, 'insert');
+        runSystem(sys, 1 / 60);                 // idle
+        runSystem(sys, 1 / 60);                 // idle
+
+        const visualWrites = insertSpy.mock.calls.filter((c) => c[1] === UIVisual);
+        expect(visualWrites).toHaveLength(0);
+    });
+
     it('interpolates color halfway at t = duration/2', () => {
         world.insert(entity, StateMachine, { current: 'pressed', previous: '' } as StateMachineData);
         world.insert(entity, StateVisuals, makeVisuals({
@@ -223,6 +241,3 @@ describe('StateVisualsApplySystem — sprite swap', () => {
         expect(r.texture).toBe(42);
     });
 });
-
-// Silence any unused-import warnings
-void vi;

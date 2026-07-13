@@ -112,6 +112,8 @@ interface VisualTransitionState {
     readonly startColor: Color;
     /** Snapshot of the target's uniform scale at the moment the transition started. */
     readonly startScale: number;
+    /** Settled at `toSlot`: visuals are written, so skip all work until the slot changes. */
+    done: boolean;
 }
 
 function lerp(a: number, b: number, t: number): number {
@@ -174,8 +176,13 @@ export function createStateVisualsApplySystem(world: World): SystemDef {
                 const startScale = (flags & TransitionFlag.Scale) && world.has(target, Transform)
                     ? (world.get(target, Transform) as TransformData).scale.x
                     : targetScale;
-                tx = { toSlot: slot, elapsed: 0, startColor, startScale };
+                tx = { toSlot: slot, elapsed: 0, startColor, startScale, done: false };
                 transitions.set(e, tx);
+            } else if (tx.done) {
+                // Already settled at this slot: the visuals hold their target
+                // values, so skip the per-frame get/insert wasm round-trips until
+                // the state (and thus the slot) actually changes.
+                continue;
             } else {
                 tx.elapsed += dt;
             }
@@ -203,7 +210,7 @@ export function createStateVisualsApplySystem(world: World): SystemDef {
             }
 
             if (t >= 1) {
-                transitions.delete(e);
+                tx.done = true;
             }
         }
 
