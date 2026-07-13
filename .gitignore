@@ -8,6 +8,7 @@ dist/
 # Editor export outputs (regenerated per export; the outDir names the Package dialog defaults to)
 dist-web/
 dist-playable/
+dist-wechat/
 
 # MCP config (user-specific)
 .mcp.json
