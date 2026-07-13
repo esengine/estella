@@ -25,6 +25,7 @@ import './theme/content.css';
 import './theme/sequencer.css';
 import './theme/profiler.css';
 import './theme/tileset.css';
+import './theme/flipbook.css';
 import './theme/tilemap.css';
 import './theme/ui-palette.css';
 import './theme/material.css';

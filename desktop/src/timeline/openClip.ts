@@ -2,12 +2,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    openClip.ts
- * @brief   Open an animation clip (.esanim / legacy .estimeline) from disk into
- *          the Sequencer.
+ * @brief   Open a multi-track timeline (.estimeline) from disk into the Sequencer.
  *
- * Reads the project file, parses it through the unified clip loader (rich
- * multi-track or legacy flipbook), opens it as the editor TimelineDocument bound
+ * Reads the project file, parses it through the unified clip loader (tolerating
+ * legacy flipbook-shaped files), opens it as the editor TimelineDocument bound
  * to the current selection as its preview root, and reveals the Sequencer.
+ * Sprite flipbooks (.esanim) open in the Flipbook editor instead.
  */
 
 import { parseAnimationClip } from 'esengine';
@@ -38,11 +38,11 @@ export async function openAnimationClip(path: string): Promise<void> {
 // reads (the Sequencer fills it by recording keys on a selected entity).
 const BLANK_CLIP = { version: '1.1', type: 'timeline', duration: 5, wrapMode: 'loop', tracks: [] };
 
-/** Create an empty `.esanim` timeline in @p dir and open it in the Sequencer. */
+/** Create an empty `.estimeline` timeline in @p dir and open it in the Sequencer. */
 export async function createAnimationClip(dir: string): Promise<void> {
   const folder = dir ? (dir.endsWith('/') ? dir : `${dir}/`) : '';
-  let rel = `${folder}NewAnimation.esanim`;
-  for (let n = 1; ProjectStore.assetRef(rel); n++) rel = `${folder}NewAnimation-${n}.esanim`;
+  let rel = `${folder}NewAnimation.estimeline`;
+  for (let n = 1; ProjectStore.assetRef(rel); n++) rel = `${folder}NewAnimation-${n}.estimeline`;
   try {
     await window.estella.fs.write(rel, JSON.stringify(BLANK_CLIP, null, 2) + '\n');
     await window.estella.fs.write(

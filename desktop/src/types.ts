@@ -160,6 +160,7 @@ export type AssetType =
   | 'materialgraph'
   | 'script'
   | 'animation'
+  | 'animclip'
   | 'tileset'
   | 'tilemap'
   | 'inputmap'

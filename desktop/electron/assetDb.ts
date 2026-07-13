@@ -85,8 +85,10 @@ async function* walkMeta(root: string, rel = ''): AsyncGenerator<string> {
  * pull in (a material's shader + textures, a tileset's atlas, a tilemap's tileset
  * images, …).
  */
+// 'animation' covers .estimeline (AnimFrames tracks reference textures) and
+// legacy .esanim metas written before the type split to 'animclip'.
 const JSON_REF_TYPES = new Set([
-  'scene', 'prefab', 'material', 'tileset', 'tilemap', 'animclip', 'statemachine', 'behaviortree',
+  'scene', 'prefab', 'material', 'tileset', 'tilemap', 'animclip', 'animation', 'statemachine', 'behaviortree',
 ]);
 
 /**

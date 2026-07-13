@@ -19,7 +19,7 @@ describe('asset type registry', () => {
     expect(assetTypeOf('a.esmaterial')).toBe('material'); // real ext (SDK loader)
     expect(assetTypeOf('a.esmat')).toBe('material'); // legacy alias
     expect(assetTypeOf('a.esmat')).toBe('material');
-    expect(assetTypeOf('a.esanim')).toBe('animation');
+    expect(assetTypeOf('a.esanim')).toBe('animclip');
     expect(assetTypeOf('a.estimeline')).toBe('animation');
     expect(assetTypeOf('a.estileset')).toBe('tileset');
     expect(assetTypeOf('a.estilemap')).toBe('tilemap');

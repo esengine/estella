@@ -19,6 +19,7 @@ import { OutputLog } from '@/panels/OutputLog';
 import { GamePanel, GameClientPanel } from '@/panels/GamePanel';
 import { Sequencer } from '@/panels/Sequencer';
 import { TilesetEditor } from '@/panels/TilesetEditor';
+import { FlipbookEditor } from '@/panels/FlipbookEditor';
 import { TilemapPainter } from '@/panels/TilemapPainter';
 import { UIWidgetsPanel } from '@/panels/UIWidgetsPanel';
 import { MaterialGraphEditor } from '@/panels/MaterialGraphEditor';
@@ -45,6 +46,7 @@ const components: Record<string, FC<IDockviewPanelProps>> = {
   log: () => panel('log', <OutputLog />),
   sequencer: () => panel('sequencer', <Sequencer />),
   tileset: () => panel('tileset', <TilesetEditor />),
+  flipbook: () => panel('flipbook', <FlipbookEditor />),
   tilemap: () => panel('tilemap', <TilemapPainter />),
   uiWidgets: () => panel('uiWidgets', <UIWidgetsPanel />),
   materialgraph: () => panel('materialgraph', <MaterialGraphEditor />),
@@ -142,6 +144,7 @@ const PANEL_TITLES: Record<string, () => string> = {
   profiler: () => t('layout.panel.profiler'),
   game: () => t('layout.panel.game'),
   tileset: () => t('tile.panelTileset'),
+  flipbook: () => t('fb.panelTitle'),
   tilemap: () => t('panel.tilemap'),
   'ui-widgets': () => t('panel.uiWidgets'),
   materialgraph: () => t('mat.panelTitle'),

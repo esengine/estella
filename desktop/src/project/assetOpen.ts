@@ -13,6 +13,7 @@ import { confirmDiscard } from './discardGuard';
 import { t } from '@/i18n';
 import { toggleAudioPreview } from './audioPreview';
 import { openAnimationClip } from '@/timeline/openClip';
+import { openFlipbook } from '@/flipbook/openFlipbook';
 import { openTileset } from '@/tileset/openTileset';
 import { openMaterial } from '@/material/openMaterial';
 import { openMaterialGraph } from '@/material/openMaterialGraph';
@@ -27,6 +28,7 @@ export const ASSET_OPEN: Partial<Record<AssetType, (path: string, name: string) 
   },
   audio: (path) => toggleAudioPreview(path),
   animation: (path) => void openAnimationClip(path),
+  animclip: (path) => void openFlipbook(path),
   tileset: (path) => void openTileset(path),
   material: (path) => void openMaterial(path),
   materialgraph: (path) => void openMaterialGraph(path),

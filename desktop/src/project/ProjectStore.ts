@@ -43,7 +43,10 @@ function assetMatchesSlot(type: AssetType, path: string, fieldType?: string): bo
   // extension, through the SDK's own classification (.skel vs .atlas) — the
   // same vocabulary the cook's dep scan uses.
   if (fieldType === 'spine-skeleton' || fieldType === 'spine-atlas') return getEditorType(path) === fieldType;
-  return type === fieldType;
+  if (type === fieldType) return true;
+  // Slots named in the SDK's editorType vocabulary rather than the
+  // Content-Browser type name (anim-clip for .esanim, timeline for .estimeline).
+  return getEditorType(path) === fieldType;
 }
 
 /** A pickable asset for the inspector's asset picker. */

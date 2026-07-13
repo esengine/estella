@@ -32,6 +32,7 @@ import { logsMessages } from './logs';
 import { sequencerMessages } from './sequencer';
 import { nodegraphMessages } from './nodegraph';
 import { tileMessages } from './tile';
+import { flipbookMessages } from './flipbook';
 import { materialMessages } from './material';
 import { projectMessages } from './project';
 
@@ -51,6 +52,7 @@ export const messageModules = {
     sequencer: sequencerMessages,
     nodegraph: nodegraphMessages,
     tile: tileMessages,
+    flipbook: flipbookMessages,
     material: materialMessages,
     project: projectMessages,
 } as const;
@@ -70,6 +72,7 @@ export const editorMessages = {
     ...sequencerMessages,
     ...nodegraphMessages,
     ...tileMessages,
+    ...flipbookMessages,
     ...materialMessages,
     ...projectMessages,
 } as const;

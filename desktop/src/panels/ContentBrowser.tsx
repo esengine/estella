@@ -17,6 +17,7 @@ import { ASSET_OPEN } from '@/project/assetOpen';
 import { referencingPaths } from '@/project/assetRefs';
 import { parseAssetQuery, filterAndSortAssets, type AssetSort } from '@/project/assetFilter';
 import { createTilesetFromTexture } from '@/tileset/openTileset';
+import { createFlipbookFromTexture } from '@/flipbook/openFlipbook';
 import { createTilemapFromTileset } from '@/tilemap/createTilemap';
 import { BUILTIN_SHADER_TEMPLATES } from 'esengine';
 import { createMaterial, createMaterialInstance } from '@/material/openMaterial';
@@ -886,7 +887,10 @@ export function ContentBrowser() {
           ]
         : []),
       ...(isTexture
-        ? [{ label: t('cb.menuCreateTileset'), onClick: () => void createTilesetFromTexture(path) }]
+        ? [
+            { label: t('cb.menuCreateSpriteAnim'), onClick: () => void createFlipbookFromTexture(path) },
+            { label: t('cb.menuCreateTileset'), onClick: () => void createTilesetFromTexture(path) },
+          ]
         : []),
       ...(isTileset
         ? [{ label: t('cb.menuCreateTilemap'), onClick: () => void createTilemapFromTileset(path) }]

@@ -23,7 +23,7 @@ const EXT_TO_TYPE: Record<string, string> = {
   '.png': 'texture', '.jpg': 'texture', '.jpeg': 'texture', '.webp': 'texture', '.bmp': 'texture',
   '.wav': 'audio', '.mp3': 'audio', '.ogg': 'audio', '.aac': 'audio', '.flac': 'audio', '.m4a': 'audio', '.webm': 'audio',
   '.esprefab': 'prefab', '.esscene': 'scene', '.esshader': 'shader', '.esmaterial': 'material', '.esmat': 'material',
-  '.esanim': 'animation', '.esanimclip': 'animation', '.estimeline': 'animation',
+  '.esanim': 'animclip', '.esanimclip': 'animclip', '.estimeline': 'animation',
   '.fnt': 'bitmapFont', '.bmfont': 'bitmapFont', '.ttf': 'font', '.otf': 'font', '.woff': 'font', '.woff2': 'font',
   '.tmx': 'tilemap', '.tmj': 'tilemap',
   '.skel': 'spine', '.atlas': 'spine',

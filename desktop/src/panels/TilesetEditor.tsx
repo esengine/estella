@@ -25,34 +25,13 @@ import {
 import { Segmented } from '@/components/Segmented';
 import { Select } from '@/components/Select';
 import { DirtyDot } from '@/components/DirtyDot';
+import { GridField } from '@/components/GridField';
 import { TilesetDocument } from '@/tileset/TilesetDocument';
 import { TilesetCommands } from '@/tileset/TilesetCommands';
 import { ProjectStore } from '@/project/ProjectStore';
 import { colsFor, rowsFor, TERRAIN_COLORS } from '@/tools/tileMath';
 import { AnimPreview, tileThumbStyle, type TileAtlas } from '@/tools/tileThumb';
 import { t } from '@/i18n';
-
-/** A grid-geometry number field that commits on blur/Enter (one undo step per edit). */
-function GridField(props: { label: string; value: number; min?: number; onCommit: (n: number) => void }) {
-  const [text, setText] = useState(String(props.value));
-  useEffect(() => setText(String(props.value)), [props.value]);
-  const commit = () => {
-    const n = Number(text);
-    if (Number.isFinite(n) && n !== props.value) props.onCommit(Math.max(props.min ?? 0, Math.floor(n)));
-    else setText(String(props.value));
-  };
-  return (
-    <label className="ts-field">
-      <span>{props.label}</span>
-      <input
-        type="number" value={text} min={props.min ?? 0}
-        onChange={(e) => setText(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-      />
-    </label>
-  );
-}
 
 // Peering zones in the cell's 3×3 grid; center (membership) is handled separately.
 const ZONES: { gx: number; gy: number; bit: number; corner: boolean; dir: string }[] = [
