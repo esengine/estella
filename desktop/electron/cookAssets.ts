@@ -197,11 +197,13 @@ export async function cookAssets(
   opts: {
     entryScenes: string[]; outDir: string;
     contentAddressed?: boolean; compressTextures?: boolean; atlasTextures?: boolean;
+    compressAudio?: boolean;
   },
 ): Promise<CookResult> {
   const contentAddressed = opts.contentAddressed ?? false;
   const compressTextures = opts.compressTextures ?? false;
   const atlasTextures = opts.atlasTextures ?? false;
+  const compressAudio = opts.compressAudio ?? false;
   const { index } = await scanAssetDatabase(root, { write: false });
   const byUuid = new Map(index.entries.map((e) => [e.uuid, e]));
   const byPath = new Map(index.entries.map((e) => [e.path, e]));
@@ -258,6 +260,12 @@ export async function cookAssets(
   if (compressTextures) {
     const enc = await import('../../build-tools/basis/encoder.mjs');
     encodePng = (png) => enc.encodePngToKtx2(png, { mode: 'uastc' });
+  }
+  // WAV → MP3 (LAME wasm) rides the same lazy pattern; per-asset importer
+  // settings can opt a clip out (seamless loops) or pick a bitrate.
+  let audioEnc: typeof import('./audioCook') | null = null;
+  if (compressAudio) {
+    audioEnc = await import('./audioCook');
   }
 
   const manifestEntries: CookManifestEntry[] = [];
@@ -368,6 +376,20 @@ export async function cookAssets(
         data = await encodePng(data);
         ext = '.ktx2';
         compressedFormats = COMPRESSED_TARGETS;
+      }
+      // WAV sources re-encode to MP3 (universal decode); other audio formats are
+      // already compressed and pass through. Hash + name reflect the ENCODED bytes.
+      if (audioEnc && ext.toLowerCase() === '.wav') {
+        const settings = audioEnc.audioImportSettings(entry.importer);
+        if (settings.compress) {
+          const mp3 = await audioEnc.encodeWavToMp3(data, settings.bitrateKbps);
+          if (mp3 && mp3.byteLength < data.byteLength) {
+            data = mp3;
+            ext = '.mp3';
+          } else if (!mp3) {
+            warnings.push(`${entry.path}: WAV parse failed — shipped raw`);
+          }
+        }
       }
       // Materials: relative refs → logical project paths (see rewriteMaterialRefs).
       if (ext.toLowerCase() === '.esmaterial') {

@@ -109,6 +109,8 @@ export interface ProjectPackaging {
   openFolder?: boolean;
   /** Cook PNGs to GPU-ready KTX2 (Basis Universal). */
   compressTextures?: boolean;
+  /** Cook WAV sources to MP3 (per-asset Import Settings can override). */
+  compressAudio?: boolean;
   /** Pack `<name>.atlas/` folders into atlas pages at cook time. */
   atlasTextures?: boolean;
   /** Project-relative scene paths NOT shipped as switchable scenes (dev/test

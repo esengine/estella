@@ -62,6 +62,11 @@ export const projectMessages = defineMessages({
     'build.openFolderWhenDone': { en: 'Open output folder when done', zh: '完成后打开输出文件夹' },
     'build.includeSourceMaps': { en: 'Include source maps', zh: '包含源码映射' },
     'build.compressTextures': { en: 'Compress textures (PNG → KTX2)', zh: '压缩纹理（PNG → KTX2）' },
+    'build.compressAudio': { en: 'Compress audio (WAV → MP3)', zh: '压缩音频（WAV → MP3）' },
+    'build.compressAudioTip': {
+        en: 'Re-encode WAV sources to MP3 at cook. Per-asset Import Settings can opt a clip out (seamless loops) or pick a bitrate.',
+        zh: '打包时将 WAV 源重编码为 MP3。可在资产的导入设置中单独关闭（无缝循环素材）或选择码率。',
+    },
     'build.atlasTextures': { en: 'Pack .atlas folders into atlases', zh: '将 .atlas 文件夹打包为图集' },
 
     // — Scenes in build —

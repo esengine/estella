@@ -99,6 +99,7 @@ export function BuildDialog() {
   const [sourceMaps, setSourceMaps] = useState(saved.sourceMaps ?? false);
   const [compressTextures, setCompressTextures] = useState(saved.compressTextures ?? false);
   const [atlasTextures, setAtlasTextures] = useState(saved.atlasTextures ?? false);
+  const [compressAudio, setCompressAudio] = useState(saved.compressAudio ?? false);
   const [phase, setPhase] = useState<Phase>('idle');
   const [result, setResult] = useState<Result | null>(null);
   const [log, setLog] = useState<string[]>([]);
@@ -135,7 +136,7 @@ export function BuildDialog() {
     setResult(null);
     setLog([]);
     // Persist the chosen settings to project.esproject (restored next time).
-    void ProjectStore.setPackaging({ platform, config, sourceMaps, openFolder, compressTextures, atlasTextures, outDir: { [platform]: outDir } });
+    void ProjectStore.setPackaging({ platform, config, sourceMaps, openFolder, compressTextures, atlasTextures, compressAudio, outDir: { [platform]: outDir } });
     // Live build log (UE-style): each export phase streams over IPC.
     const unsub = window.estella.project?.onExportProgress?.((p) =>
       setLog((l) => [...l, p.detail ? `${p.phase} — ${p.detail}` : p.phase]),
@@ -148,6 +149,7 @@ export function BuildDialog() {
         sourcemap: def.sourceMaps && sourceMaps,
         compressTextures,
         atlasTextures,
+        compressAudio,
       })) as Result | null;
       if (!res) {
         setResult({ ok: false, outDir, included: 0, warnings: [], errors: [t('build.noProjectOpen')] });
@@ -268,6 +270,10 @@ export function BuildDialog() {
         <label className="build__opt">
           <input type="checkbox" checked={atlasTextures} onChange={(e) => setAtlasTextures(e.target.checked)} />
           {t('build.atlasTextures')}
+        </label>
+        <label className="bd-check" title={t('build.compressAudioTip')}>
+          <input type="checkbox" checked={compressAudio} onChange={(e) => setCompressAudio(e.target.checked)} />
+          {t('build.compressAudio')}
         </label>
 
         {def.prereq && (

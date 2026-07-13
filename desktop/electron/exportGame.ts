@@ -265,6 +265,7 @@ export async function exportGame(opts: {
   /** Encode raster textures to GPU-compressed KTX2 at cook time. Default off
    *  (lossy + encode-time cost — opt in per project). */
   compressTextures?: boolean;
+  compressAudio?: boolean;
   /** Pack `<name>.atlas/` folder PNGs into atlas pages at cook time. Default off. */
   atlasTextures?: boolean;
   title?: string;
@@ -308,6 +309,7 @@ export async function exportGame(opts: {
       minify: opts.minify,
       contentAddressed: opts.contentAddressed,
       compressTextures: opts.compressTextures,
+      compressAudio: opts.compressAudio,
       atlasTextures: opts.atlasTextures,
       onProgress: opts.onProgress,
     });
@@ -352,7 +354,7 @@ export async function exportGame(opts: {
   // 1. Cook reachable assets + manifest, from EVERY shippable scene as a root
   //    (the scene files themselves are staged too).
   progress({ phase: 'Cooking assets' });
-  const cook = await cookAssets(opts.root, { entryScenes: scenes.map((s) => s.path), outDir: payloadDir, contentAddressed: opts.contentAddressed ?? true, compressTextures: opts.compressTextures, atlasTextures: opts.atlasTextures });
+  const cook = await cookAssets(opts.root, { entryScenes: scenes.map((s) => s.path), outDir: payloadDir, contentAddressed: opts.contentAddressed ?? true, compressTextures: opts.compressTextures, compressAudio: opts.compressAudio, atlasTextures: opts.atlasTextures });
   warnings.push(...cook.warnings);
   progress({ phase: 'Cooking assets', detail: `${cook.included.length} reachable` });
 
