@@ -156,9 +156,22 @@ private:
     // vertex-input object, so the VAO is purely a backend cache here.
     void prepareVertexState();
 
+    // Binds a texture on the active unit for a create/update/mipmap edit while
+    // keeping the sampler-binding cache coherent, so bindTexture() can skip
+    // redundant per-draw binds (every gl* call is a WASM→JS FFI crossing).
+    void bindTextureForEdit(u32 id);
+
     std::vector<PipelineDesc> pipelines_;
     PipelineHandle current_pipeline_ = PipelineHandle::Invalid;
     GfxStencilMode current_stencil_mode_ = GfxStencilMode::Off;
+
+    // Redundant-state caches for the two per-draw hot paths. glActiveTexture is
+    // the only site that moves the active unit, so active_texture_unit_ is
+    // authoritative; bound_texture_[unit] mirrors the sampler bindings.
+    static constexpr u32 kTextureSlots = 16;
+    u32 active_texture_unit_ = 0;
+    u32 bound_texture_[kTextureSlots] = {};
+    int scissor_test_ = -1;  // tri-state: -1 unknown, 0 disabled, 1 enabled
 
     struct LayoutRecord {
         VertexLayoutDesc desc;

@@ -347,6 +347,9 @@ void GLDevice::setColorMask(bool r, bool g, bool b, bool a) {
 // =============================================================================
 
 void GLDevice::setScissorTest(bool enabled) {
+    const int want = enabled ? 1 : 0;
+    if (scissor_test_ == want) return;  // DrawList toggles this every draw; most are no-ops
+    scissor_test_ = want;
     setCapability(GL_SCISSOR_TEST, enabled);
 }
 
@@ -804,8 +807,24 @@ void GLDevice::drawElementsInstanced(u32 indexCount, GfxDataType indexType, u32 
 // =============================================================================
 
 void GLDevice::bindTexture(u32 slot, TextureHandle texture) {
-    glActiveTexture(GL_TEXTURE0 + slot);
+    if (slot >= kTextureSlots) {  // beyond the cache — bind directly
+        glActiveTexture(GL_TEXTURE0 + slot);
+        glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(texture));
+        return;
+    }
+    const u32 id = static_cast<u32>(texture);
+    if (bound_texture_[slot] == id) return;  // already bound to this sampler unit
+    if (active_texture_unit_ != slot) {
+        glActiveTexture(GL_TEXTURE0 + slot);
+        active_texture_unit_ = slot;
+    }
     glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(texture));
+    bound_texture_[slot] = id;
+}
+
+void GLDevice::bindTextureForEdit(u32 id) {
+    glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(id));
+    if (active_texture_unit_ < kTextureSlots) bound_texture_[active_texture_unit_] = id;
 }
 
 TextureHandle GLDevice::createTexture(const TextureDesc& desc, const void* pixels) {
@@ -814,7 +833,7 @@ TextureHandle GLDevice::createTexture(const TextureDesc& desc, const void* pixel
     texture_formats_[id] = desc.format;
 
     auto gl = toGLPixelFormat(desc.format);
-    glBindTexture(GL_TEXTURE_2D, id);
+    bindTextureForEdit(id);
     if (pixels && desc.flipY) glPixelStorei(GL_UNPACK_FLIP_Y_WEBGL, GL_TRUE);
     glTexImage2D(GL_TEXTURE_2D, 0, static_cast<GLint>(gl.internalFormat),
                  static_cast<GLsizei>(desc.width), static_cast<GLsizei>(desc.height),
@@ -838,7 +857,7 @@ TextureHandle GLDevice::createCompressedTexture(const TextureDesc& desc, GfxComp
     glGenTextures(1, &id);
     texture_formats_[id] = desc.format;
 
-    glBindTexture(GL_TEXTURE_2D, id);
+    bindTextureForEdit(id);
     glCompressedTexImage2D(GL_TEXTURE_2D, 0, toGLCompressedFormat(format),
                            static_cast<GLsizei>(desc.width), static_cast<GLsizei>(desc.height),
                            0, static_cast<GLsizei>(byteLength), data);
@@ -865,7 +884,7 @@ void GLDevice::updateTexture(TextureHandle texture, i32 x, i32 y, u32 width, u32
                              const void* pixels, bool flipY) {
     auto it = texture_formats_.find(static_cast<u32>(texture));
     auto gl = toGLPixelFormat(it != texture_formats_.end() ? it->second : GfxPixelFormat::RGBA8);
-    glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(texture));
+    bindTextureForEdit(static_cast<u32>(texture));
     if (flipY) glPixelStorei(GL_UNPACK_FLIP_Y_WEBGL, GL_TRUE);
     glTexSubImage2D(GL_TEXTURE_2D, 0, x, y,
                     static_cast<GLsizei>(width), static_cast<GLsizei>(height),
@@ -875,7 +894,7 @@ void GLDevice::updateTexture(TextureHandle texture, i32 x, i32 y, u32 width, u32
 
 void GLDevice::setTextureParams(TextureHandle texture, TextureFilter min, TextureFilter mag,
                                 TextureWrap wrapS, TextureWrap wrapT) {
-    glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(texture));
+    bindTextureForEdit(static_cast<u32>(texture));
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, toGLFilter(min));
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, toGLFilter(mag));
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, toGLWrap(wrapS));
@@ -883,7 +902,7 @@ void GLDevice::setTextureParams(TextureHandle texture, TextureFilter min, Textur
 }
 
 void GLDevice::generateMipmaps(TextureHandle texture) {
-    glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(texture));
+    bindTextureForEdit(static_cast<u32>(texture));
     glGenerateMipmap(GL_TEXTURE_2D);
 }
 
