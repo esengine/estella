@@ -64,20 +64,54 @@ i18n.t('apples', { count: 3 });   // "3 apples"
 | `availableLocales()` | 列出已注册的 locale。 |
 | `has(key)` | key 是否存在于当前/回退 locale。 |
 
+## 字符串表(`.eslocale`)
+
+翻译可以作为**数据**发布,而不是写死在代码里:一个 `.eslocale` 资产装着一种语言的目录,
+游戏只加载它需要的语言。
+
+```json
+// assets/i18n/zh-CN.eslocale
+{
+  "version": 1,
+  "locale": "zh-CN",
+  "entries": {
+    "ui.title": "UI 控件",
+    "apples": { "other": "{count} 个苹果" }
+  }
+}
+```
+
+在编辑器里创建(内容浏览器 → 右键 → **新建本地化表**)或手写皆可。显式加载用
+`Assets.loadLocaleTable(path)`(需要本地化插件——否则大声报错),预载用
+`new LocalizationPlugin({ tables: ['assets/i18n/zh-CN.eslocale'] })`,或者让
+[下面的 Text 绑定](#把-ui-text-绑到-key)全自动加载。导出 cook 永远会把 `.eslocale`
+打进包里——它们按 key 加载,可达性分析看不见它们,所以强制收入。
+
+## 把 UI Text 绑到 key
+
+设置 `Text.i18nKey`(编辑器细节面板里的 **I18n Key** 下拉,列出项目全部表里的 key 及其
+译文预览),`content` 就变成派生值:**每帧**重新解析,所以 `setLocale`——或者一张晚到的
+表——都会让所有绑定的标签自动重排,零代码。场景驱动的项目免费得到整条链路:只要场景里
+有任何绑定的 key,加载时会自动安装插件、加载全部已发布的表,并在有匹配的表时以
+**玩家的系统语言**启动(自己安装插件、或调用过 `setLocale` 的游戏永远不会被覆盖)。
+
+**动态**标签(`Score: 42`)请保持代码驱动——绑定的 content 是派生的,代码会改写的标签
+不能同时携带 key;在拥有它的系统里调 `t('score', { n })` 即可。
+
 ## 最佳实践
 
-- **一切都经 `t()`**——绝不硬编码面向用户的字符串,连占位符也不。
+- **一切都经 `t()` 或 `i18nKey`**——绝不硬编码面向用户的字符串,连占位符也不。
 - **插值,别拼接**(`'Score: {n}'`),这样语序能因语言而异。
 - **设一个回退 locale**,让缺失的翻译退化到另一种语言,而不是裸 key。
-- **locale 变化时重跑构建文本的系统**,或在文本会变的地方每帧读 `t()`——切换 locale 会更新
-  之后每一次查询。
+- **一种语言一个 `.eslocale`**,放在同一目录(`assets/i18n/`),key 完全一致——缺失的
+  key 会以 key 字符串可见地兜底。
 
 <Aside type="tip">
-  本地化是逐 App 的服务,所以切换 locale 会更新之后每一次 `t()` 调用。把 UI 的 `Text.content`
-  绑到 key,切换语言就会重排 UI。
+  看 `examples/ui-controls` 的零代码闭环:五个标签绑 `i18nKey`,`en` + `zh-CN` 两张表,
+  没有一行本地化代码。
 </Aside>
 
 ## 参见
 
-- [UI](/docs/zh-cn/guides/ui/) —— 把 `Text` 绑到翻译 key。
-- [资源](/docs/zh-cn/guides/assets/) —— 把字符串表作为资源发布。
+- [UI](/docs/zh-cn/guides/ui/) —— 绑定所依托的 `Text` 组件。
+- [资源](/docs/zh-cn/guides/assets/) —— 资产如何发布与加载。

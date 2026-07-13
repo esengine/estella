@@ -69,23 +69,63 @@ i18n.t('apples', { count: 3 });   // "3 apples"
 | `availableLocales()` | List registered locales. |
 | `has(key)` | Whether a key exists in the active/fallback locale. |
 
+## String tables (`.eslocale`)
+
+Translations can ship as **data** instead of code: a `.eslocale` asset carries ONE
+locale's catalog, so a game loads only the languages it needs.
+
+```json
+// assets/i18n/zh-CN.eslocale
+{
+  "version": 1,
+  "locale": "zh-CN",
+  "entries": {
+    "ui.title": "UI 控件",
+    "apples": { "other": "{count} 个苹果" }
+  }
+}
+```
+
+Create one in the editor (Content Browser → right-click → **New Locale Table**) or
+by hand. Load explicitly with `Assets.loadLocaleTable(path)` (requires the
+localization plugin — it fails loud otherwise), preload via
+`new LocalizationPlugin({ tables: ['assets/i18n/zh-CN.eslocale'] })`, or let the
+[Text binding below](#bind-ui-text-to-keys) load everything automatically. The
+export cook always ships `.eslocale` files — they load by key, so reachability
+can't see them and force-includes them instead.
+
+## Bind UI Text to keys
+
+Set `Text.i18nKey` (the **I18n Key** dropdown in the editor's Details panel, listing
+every key across the project's tables with a translated preview) and `content`
+becomes derived: it re-resolves **every frame**, so `setLocale` — or a table landing
+late — re-flows every bound label with no code. Scene-driven projects get the whole
+loop for free: a scene that binds any key auto-installs the plugin at load, loads
+every shipped table, and starts in the **player's system language** when a matching
+table ships (a game that installs the plugin itself, or calls `setLocale`, is never
+overridden).
+
+Keep **dynamic** labels (`Score: 42`) code-driven — bound content is derived, so a
+label your code rewrites must not also carry a key; call `t('score', { n })` in the
+system that owns it instead.
+
 ## Best practices
 
-- **Key everything through `t()`** — never hard-code user-facing strings, even
-  placeholders.
+- **Key everything through `t()` or `i18nKey`** — never hard-code user-facing
+  strings, even placeholders.
 - **Interpolate, don't concatenate** (`'Score: {n}'`), so word order can differ per
   language.
 - **Set a fallback locale** so a missing translation degrades to another language
   rather than a raw key.
-- **Re-run text-building systems on locale change**, or read `t()` each frame where
-  text can change — switching the locale updates every subsequent lookup.
+- **One `.eslocale` per language**, all in one folder (`assets/i18n/`), keyed
+  identically — a missing key falls back visibly to the key string.
 
 <Aside type="tip">
-  Localization is a per-App service, so switching the locale updates every later
-  `t()` call. Bind UI `Text.content` to keys so a language switch re-flows the UI.
+  See `examples/ui-controls` for the zero-code loop: five labels bound by
+  `i18nKey`, `en` + `zh-CN` tables, and no localization code at all.
 </Aside>
 
 ## See also
 
-- [UI](/docs/guides/ui/) — bind `Text` to translated keys.
-- [Assets](/docs/guides/assets/) — ship string tables as assets.
+- [UI](/docs/guides/ui/) — the `Text` component the binding rides on.
+- [Assets](/docs/guides/assets/) — how assets ship and load.
