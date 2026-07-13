@@ -979,9 +979,11 @@ export function Viewport() {
       }
 
       // Collider gizmos — box polygon / circle outline at the collider's shape.
+      // Resolve the scene-wide pixelsPerUnit once, not once per collider.
+      const colliderPpu = camsOn ? ViewportController.colliderPixelsPerUnit() : 0;
       for (const [cid, svg] of colliderRefs.current) {
         if (!svg) continue;
-        const cg = camsOn ? ViewportController.getColliderGizmo(cid) : null;
+        const cg = camsOn ? ViewportController.getColliderGizmo(cid, colliderPpu) : null;
         const poly = svg.querySelector('.cl-box') as SVGPolygonElement | null;
         const circ = svg.querySelector('.cl-circle') as SVGCircleElement | null;
         if (cg && cg.kind === 'box' && poly) {

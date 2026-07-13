@@ -540,11 +540,14 @@ export const ViewportController = {
    */
   getColliderGizmo(
     id: EntityId,
+    ppuHint?: number,
   ): { kind: 'box'; pts: Array<{ x: number; y: number }>; handle: { x: number; y: number } | null; sizeHandle: { x: number; y: number } | null } | { kind: 'circle'; cx: number; cy: number; r: number; handle: { x: number; y: number } | null; sizeHandle: { x: number; y: number } | null } | null {
     const world = EngineHost.world;
     if (!world || !world.valid(id) || !world.has(id, Transform)) return null;
     const t = world.get(id, Transform);
-    const ppu = this.colliderPixelsPerUnit();
+    // pixelsPerUnit is a scene-wide constant; callers looping many colliders pass
+    // it in to avoid re-scanning all entities for the Canvas once per collider.
+    const ppu = ppuHint ?? this.colliderPixelsPerUnit();
     const rot = quatAngleZ(t.worldRotation as { w: number; x: number; y: number; z: number });
     const cos = Math.cos(rot);
     const sin = Math.sin(rot);
