@@ -118,3 +118,53 @@ export class LocalizationApi {
  * `app.getResource(Localization)`.
  */
 export const Localization = defineResource<LocalizationApi>(null!, 'Localization');
+
+// =============================================================================
+// String-table asset (`.eslocale`)
+// =============================================================================
+
+/**
+ * The serialized shape of a `.eslocale` asset — ONE locale's catalog, shipped
+ * as data (via `Assets.loadLocaleTable`) instead of baked into code. Ship one
+ * file per locale so a game loads only the languages it needs.
+ */
+export interface LocaleTableAsset {
+    version: number;
+    /** BCP-47-ish tag the entries register under (e.g. 'en', 'zh-CN'). */
+    locale: string;
+    entries: LocaleCatalog;
+}
+
+const LOCALE_TABLE_VERSION = 1;
+
+/**
+ * Parse + validate `.eslocale` text. Fail-loud: a malformed table names the
+ * offending file and field instead of silently registering nothing. Pure.
+ */
+export function parseLocaleTable(text: string, path: string): LocaleTableAsset {
+    let raw: unknown;
+    try {
+        raw = JSON.parse(text);
+    } catch (e) {
+        throw new Error(`${path}: not valid JSON — ${e instanceof Error ? e.message : String(e)}`);
+    }
+    const table = raw as Partial<LocaleTableAsset>;
+    if (typeof table !== 'object' || table === null) {
+        throw new Error(`${path}: expected an object { version, locale, entries }`);
+    }
+    if (table.version !== undefined && table.version !== LOCALE_TABLE_VERSION) {
+        throw new Error(`${path}: unsupported locale-table version ${String(table.version)} (expected ${LOCALE_TABLE_VERSION})`);
+    }
+    if (typeof table.locale !== 'string' || table.locale.length === 0) {
+        throw new Error(`${path}: 'locale' must be a non-empty string (e.g. "en", "zh-CN")`);
+    }
+    if (typeof table.entries !== 'object' || table.entries === null || Array.isArray(table.entries)) {
+        throw new Error(`${path}: 'entries' must be an object of key → string | plural forms`);
+    }
+    for (const [key, entry] of Object.entries(table.entries)) {
+        if (typeof entry === 'string') continue;
+        if (typeof entry === 'object' && entry !== null && typeof (entry as PluralForms).other === 'string') continue;
+        throw new Error(`${path}: entry '${key}' must be a string or plural forms with an 'other' catch-all`);
+    }
+    return { version: LOCALE_TABLE_VERSION, locale: table.locale, entries: table.entries };
+}

@@ -5,8 +5,10 @@
  * @brief   Registers the per-App Localization resource. Opt-in: add it via
  *          `app.addPlugin(localizationPlugin)` or with options.
  */
-
 import type { App, Plugin } from '../app';
+import { Schedule, defineSystem } from '../system';
+import { Assets } from '../asset/AssetPlugin';
+import { log } from '../logger';
 import { Localization, LocalizationApi, type LocaleCatalog } from './Localization';
 
 export interface LocalizationOptions {
@@ -16,6 +18,12 @@ export interface LocalizationOptions {
     fallback?: string;
     /** Catalogs to preload, keyed by locale. */
     catalogs?: Record<string, LocaleCatalog>;
+    /**
+     * `.eslocale` string-table assets to load at startup (paths or `@uuid:`
+     * refs). Loaded through the app's Assets resource — bound Text re-flows
+     * the frame each table lands. Requires the AssetPlugin.
+     */
+    tables?: string[];
 }
 
 export class LocalizationPlugin implements Plugin {
@@ -31,6 +39,26 @@ export class LocalizationPlugin implements Plugin {
             }
         }
         app.insertResource(Localization, loc);
+
+        const tables = this.opts.tables;
+        if (tables && tables.length > 0) {
+            // Startup runs after every plugin build, so the Assets resource is
+            // there regardless of install order. Loads are fire-and-forget —
+            // the resolve system re-flows bound text the frame a table lands —
+            // but a failed table is a shipped-content error: log it loud.
+            app.addSystemToSchedule(Schedule.Startup, defineSystem([], () => {
+                if (!app.hasResource(Assets)) {
+                    log.error('i18n', `LocalizationPlugin: 'tables' needs the AssetPlugin — ${tables.length} table(s) not loaded`);
+                    return;
+                }
+                const assets = app.getResource(Assets);
+                for (const ref of tables) {
+                    assets.loadLocaleTable(ref).catch((e: unknown) => {
+                        log.error('i18n', `failed to load locale table ${ref}: ${e instanceof Error ? e.message : String(e)}`);
+                    });
+                }
+            }, { name: 'LocaleTableStartupSystem' }));
+        }
     }
 }
 

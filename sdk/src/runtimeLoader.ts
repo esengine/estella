@@ -24,6 +24,7 @@ import { SceneManager, type SceneConfig } from './sceneManager';
 import { DEFAULT_GRAVITY, DEFAULT_FIXED_TIMESTEP } from './defaults';
 import { SpriteAnimation } from './animation/SpriteAnimator';
 import { Audio } from './audio/Audio';
+import { Localization } from './i18n/Localization';
 import { flushPendingSystems } from './app';
 import { requireResourceManager } from './resourceManager';
 import { log } from './logger';
@@ -85,6 +86,7 @@ function ensureRuntimeAssets(
         catalog,
         getAudio: () => (app.hasResource(Audio) ? app.getResource(Audio) : null),
         getSpriteAnimation: () => (app.hasResource(SpriteAnimation) ? app.getResource(SpriteAnimation) : null),
+        getLocalization: () => (app.hasResource(Localization) ? app.getResource(Localization) : null),
     });
     if (source.resolveRef) assets.setAssetRefResolver(source.resolveRef);
 

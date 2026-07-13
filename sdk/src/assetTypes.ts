@@ -47,6 +47,8 @@ const ASSET_TYPE_REGISTRY: readonly AssetTypeEntry[] = [
     { extensions: ['esanim'], contentType: 'json', editorType: 'anim-clip', addressableType: null, wechatPackInclude: true, hasTransitiveDeps: true },
     { extensions: ['tmj'], contentType: 'json', editorType: 'tilemap', addressableType: 'json', wechatPackInclude: true, hasTransitiveDeps: true },
     { extensions: ['estimeline'], contentType: 'json', editorType: 'timeline', addressableType: 'json', wechatPackInclude: true, hasTransitiveDeps: true },
+    // Locale string table (LocaleAssetLoader → Localization.addCatalog) — one locale per file.
+    { extensions: ['eslocale'], contentType: 'json', editorType: 'json', addressableType: 'json', wechatPackInclude: true, hasTransitiveDeps: false },
     // State machine (registerFsm / FsmAssetLoader) — data-driven FSM definition.
     { extensions: ['esfsm'], contentType: 'json', editorType: 'json', addressableType: 'json', wechatPackInclude: true, hasTransitiveDeps: false },
     // Behavior tree (registerBt / BtAssetLoader) — data-driven BT definition.
@@ -76,6 +78,7 @@ const MIME_MAP: Record<string, string> = {
     esprefab: 'application/json',
     esanim: 'application/json',
     estimeline: 'application/json',
+    eslocale: 'application/json',
     esfsm: 'application/json',
     esbt: 'application/json',
     bmfont: 'application/json',

@@ -37,6 +37,14 @@ export type TextRenderMode = (typeof TextRenderMode)[keyof typeof TextRenderMode
 
 export interface TextData {
     content: string;
+    /**
+     * Localization key. Non-empty ⇒ `content` is DERIVED: every frame the
+     * text-localization system resolves the key through the app's Localization
+     * resource (opt-in plugin) and writes the result into `content`, so a
+     * `setLocale` re-flows every bound label. Empty (default) or no
+     * Localization resource ⇒ `content` stands as authored.
+     */
+    i18nKey: string;
     fontFamily: string;
     fontSize: number;
     color: Color;
@@ -61,6 +69,7 @@ export interface TextData {
 
 export const Text = defineComponent<TextData>('Text', {
     content: '',
+    i18nKey: '',
     fontFamily: 'Arial',
     fontSize: 24,
     color: { r: 1, g: 1, b: 1, a: 1 },
@@ -82,6 +91,7 @@ export const Text = defineComponent<TextData>('Text', {
     enabled: true,
 }, {
     fields: {
+        i18nKey: { tooltip: 'Localization key — when set, content is resolved from the Localization catalogs (and re-resolved on locale switch). Leave empty for plain text.' },
         align: { enum: enumOptions(TextAlign), tooltip: 'Horizontal alignment: within the layout box when the entity has a UINode, else it anchors the text to the entity origin (left/center/right edge).' },
         verticalAlign: { enum: enumOptions(TextVerticalAlign), tooltip: 'Vertical alignment: within the layout box when the entity has a UINode, else it anchors the text to the entity origin (top/middle/bottom).' },
         overflow: { enum: enumOptions(TextOverflow) },

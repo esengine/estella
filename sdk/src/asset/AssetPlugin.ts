@@ -9,6 +9,7 @@ import { initBuiltinAssetFields } from './AssetFieldRegistry';
 import { AssetRefCounter } from './AssetRefCounter';
 import { Audio, type AudioAPI } from '../audio/Audio';
 import { SpriteAnimation, type SpriteAnimationApi } from '../animation/SpriteAnimator';
+import { Localization, type LocalizationApi } from '../i18n/Localization';
 import { log } from '../logger';
 
 export type AssetsData = AssetsClass;
@@ -37,6 +38,8 @@ export class AssetPlugin implements Plugin {
                 app.hasResource(Audio) ? app.getResource(Audio) : null,
             getSpriteAnimation: (): SpriteAnimationApi | null =>
                 app.hasResource(SpriteAnimation) ? app.getResource(SpriteAnimation) : null,
+            getLocalization: (): LocalizationApi | null =>
+                app.hasResource(Localization) ? app.getResource(Localization) : null,
         });
 
         // Lazily acquire the Basis transcoder for KTX2 textures the same way

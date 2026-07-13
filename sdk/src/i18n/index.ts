@@ -11,6 +11,8 @@ export {
     interpolate,
     selectPluralForm,
     defaultPluralSelector,
+    parseLocaleTable,
+    type LocaleTableAsset,
     type PluralCategory,
     type PluralForms,
     type LocaleEntry,

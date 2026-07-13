@@ -8,6 +8,7 @@ import type {
     AssetLoader, LoadContext, TextureResult, SpineResult,
     MaterialResult, FontResult, AudioResult, AnimClipResult,
     TilemapResult, TilesetResult, TimelineResult, PrefabResult,
+    LocaleResult,
 } from './AssetLoader';
 import { AsyncCache } from './AsyncCache';
 import type { ESEngineModule } from '../wasm';
@@ -26,6 +27,7 @@ import { TimelineAssetLoader } from './loaders/TimelineAssetLoader';
 import { PrefabAssetLoader } from './loaders/PrefabAssetLoader';
 import { FsmAssetLoader } from './loaders/FsmAssetLoader';
 import { BtAssetLoader } from './loaders/BtAssetLoader';
+import { LocaleAssetLoader } from './loaders/LocaleAssetLoader';
 import type { SpineModuleController } from '../spine/SpineController';
 import { getAssetFields } from './AssetFieldRegistry';
 import { getComponentDefaults } from '../component';
@@ -96,6 +98,9 @@ export interface AssetsOptions {
      */
     getAudio?: () => import('../audio/Audio').AudioAPI | null;
     getSpriteAnimation?: () => import('../animation/SpriteAnimator').SpriteAnimationApi | null;
+    /** Lazy accessor for the owning app's Localization service, same contract
+     *  as {@link getAudio} — `.eslocale` tables register through it. */
+    getLocalization?: () => import('../i18n/Localization').LocalizationApi | null;
 }
 
 export interface AssetBundle {
@@ -154,6 +159,7 @@ export class Assets {
     private manifestModel_: ManifestModel | null = null;
     private getAudio_: () => import('../audio/Audio').AudioAPI | null;
     private getSpriteAnimation_: () => import('../animation/SpriteAnimator').SpriteAnimationApi | null;
+    private getLocalization_: () => import('../i18n/Localization').LocalizationApi | null;
     private loaders_ = new Map<string, AssetLoader<unknown>>();
     private textureLoader_: TextureLoader;
     private textureImportResolver_: TextureImportSettingsResolver | null = null;
@@ -183,6 +189,7 @@ export class Assets {
         this.module_ = options.module;
         this.getAudio_ = options.getAudio ?? (() => null);
         this.getSpriteAnimation_ = options.getSpriteAnimation ?? (() => null);
+        this.getLocalization_ = options.getLocalization ?? (() => null);
         this.setManifest(options.manifest ?? null);
 
         this.textureLoader_ = new TextureLoader(options.module);
@@ -322,6 +329,12 @@ export class Assets {
 
     async loadTimeline(ref: string): Promise<TimelineResult> {
         return this.loadTyped('timeline', ref);
+    }
+
+    /** Load a `.eslocale` string table and merge it into the app's Localization
+     *  catalogs. Requires the LocalizationPlugin (fails loud otherwise). */
+    async loadLocaleTable(ref: string): Promise<LocaleResult> {
+        return this.loadTyped('locale', ref);
     }
 
     async loadPrefab(ref: string): Promise<PrefabResult> {
@@ -1111,6 +1124,7 @@ export class Assets {
         this.register(new PrefabAssetLoader());
         this.register(new FsmAssetLoader());
         this.register(new BtAssetLoader());
+        this.register(new LocaleAssetLoader());
     }
 
     private textureCacheKey_(path: string, flip: boolean): string {
@@ -1172,6 +1186,9 @@ export class Assets {
             },
             getSpriteAnimation() {
                 return self.getSpriteAnimation_();
+            },
+            getLocalization() {
+                return self.getLocalization_();
             },
         };
         return this.loadContext_;

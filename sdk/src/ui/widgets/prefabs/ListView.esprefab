@@ -298,6 +298,7 @@
           "type": "Text",
           "data": {
             "content": "List View",
+            "i18nKey": "",
             "fontFamily": "Arial",
             "fontSize": 14,
             "color": {

@@ -70,6 +70,7 @@ export {
     type AssetsData,
     type TextureInfo,
     type SpineLoadResult,
+    type LocaleResult,
     type AssetRefInfo,
 } from './asset';
 

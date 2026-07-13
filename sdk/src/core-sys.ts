@@ -30,6 +30,8 @@ export {
     interpolate,
     selectPluralForm,
     defaultPluralSelector,
+    parseLocaleTable,
+    type LocaleTableAsset,
     type LocalizationOptions,
     type PluralCategory,
     type PluralForms,

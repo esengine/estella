@@ -19,6 +19,8 @@ import type { RGBA } from './layout';
 import { composeTRS, rectTextBox, UI_TEXT_BOLD, UI_TEXT_ITALIC } from './text-transform';
 import { Text, TextRenderMode, type TextData } from '../core/text';
 import { UINode } from '../core/ui-node';
+import { Localization } from '../../i18n/Localization';
+import { applyTextLocalization, type TextWorldView } from './localize';
 import { UICameraInfo, type UICameraData } from '../core/ui-camera-info';
 import { getUINodeWidth, getUINodeHeight, ensureUIVisual } from '../util/helpers';
 import { platformDevicePixelRatio } from '../../platform';
@@ -70,6 +72,15 @@ export class TextPlugin implements Plugin {
                 ensureUIVisual(world, e as Entity);
             }
         }, { name: 'TextRenderNodeSystem' }));
+
+        // Localized text: an `i18nKey` binds content to the Localization
+        // resource. Gated per frame on the resource so localizationPlugin
+        // stays opt-in and install order doesn't matter; without it, authored
+        // content stands (see ui/text/localize.ts for the resolve contract).
+        app.addSystemToSchedule(Schedule.PreUpdate, defineSystem([], () => {
+            if (!app.hasResource(Localization)) return;
+            applyTextLocalization(world as unknown as TextWorldView, app.getResource(Localization));
+        }, { name: 'TextLocalizeSystem' }));
 
         const pipeline = app.pipeline;
         if (!pipeline) return; // logic-only host → nothing to draw

@@ -54,6 +54,13 @@ export interface FsmResult {
     fsmId: string;
 }
 
+export interface LocaleResult {
+    /** The locale the table's entries were merged into. */
+    locale: string;
+    /** How many keys the table carried. */
+    keyCount: number;
+}
+
 export interface BtResult {
     btId: string;
 }
@@ -95,6 +102,13 @@ export interface LoadContext {
      * like {@link getAudio}. Returns null when no AnimationPlugin is installed.
      */
     getSpriteAnimation(): import('../animation/SpriteAnimator').SpriteAnimationApi | null;
+    /**
+     * Localization service for the owning app, resolved lazily like
+     * {@link getAudio}. Returns null when no LocalizationPlugin is installed —
+     * loading a `.eslocale` then fails loud (a table with nowhere to register
+     * is a setup error, not a soft skip).
+     */
+    getLocalization(): import('../i18n/Localization').LocalizationApi | null;
 }
 
 export interface AssetLoader<T> {

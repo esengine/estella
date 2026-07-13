@@ -333,6 +333,7 @@
           "type": "Text",
           "data": {
             "content": "One",
+            "i18nKey": "",
             "fontFamily": "Arial",
             "fontSize": 14,
             "color": {

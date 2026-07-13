@@ -337,6 +337,7 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
             "type": "Text",
             "data": {
               "content": "Button",
+              "i18nKey": "",
               "fontFamily": "Arial",
               "fontSize": 14,
               "color": {
@@ -1859,6 +1860,7 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
             "type": "Text",
             "data": {
               "content": "One",
+              "i18nKey": "",
               "fontFamily": "Arial",
               "fontSize": 14,
               "color": {
@@ -2200,6 +2202,7 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
             "type": "Text",
             "data": {
               "content": "List View",
+              "i18nKey": "",
               "fontFamily": "Arial",
               "fontSize": 14,
               "color": {
