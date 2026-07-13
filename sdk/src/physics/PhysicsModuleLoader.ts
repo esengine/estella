@@ -82,6 +82,8 @@ export interface PhysicsWasmModule {
         gravityScale: number, linearDamping: number, angularDamping: number,
         fixedRotation: number, bullet: number): void;
 
+    _physics_setOneWayPlatform(entityId: number, nx: number, ny: number, enable: number): void;
+
     _physics_createRevoluteJoint(entityIdA: number, entityIdB: number,
         anchorAx: number, anchorAy: number, anchorBx: number, anchorBy: number,
         enableMotor: number, motorSpeed: number, maxMotorTorque: number,
@@ -122,6 +124,23 @@ export interface PhysicsWasmModule {
         enableLimit: number, lowerTranslation: number, upperTranslation: number,
         enableMotor: number, maxMotorTorque: number, motorSpeed: number,
         collideConnected: number): number;
+
+    _physics_createMotorJoint(entityIdA: number, entityIdB: number,
+        linearVelX: number, linearVelY: number, maxVelocityForce: number,
+        angularVelocity: number, maxVelocityTorque: number,
+        linearHertz: number, linearDampingRatio: number, maxSpringForce: number,
+        angularHertz: number, angularDampingRatio: number, maxSpringTorque: number,
+        collideConnected: number): number;
+    _physics_setMotorJointLinearVelocity(entityId: number, vx: number, vy: number): void;
+    _physics_setMotorJointAngularVelocity(entityId: number, omega: number): void;
+    _physics_setMotorJointMaxVelocityForce(entityId: number, force: number): void;
+    _physics_setMotorJointMaxVelocityTorque(entityId: number, torque: number): void;
+
+    _physics_createMouseJoint(entityId: number, targetX: number, targetY: number,
+        hertz: number, dampingRatio: number, maxForce: number): number;
+    _physics_setMouseTarget(targetX: number, targetY: number): void;
+    _physics_destroyMouseJoint(): void;
+    _physics_hasMouseJoint(): number;
 
     _physics_raycast(originX: number, originY: number, dirX: number, dirY: number,
         maxDistance: number, maskBits: number): number;

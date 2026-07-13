@@ -412,6 +412,57 @@ export class Physics {
         return this.module_._physics_getWheelJointMotorTorque(entity);
     }
 
+    // ── Motor joint (runtime control) ───────────────────────────────────────
+    // `velocity` is world pixels/s (scaled to meters); force/torque are physics-space
+    // (newtons, N·m). Targets a joint keyed by its owning entity (see MotorJoint).
+
+    setMotorJointLinearVelocity(entity: Entity, velocity: Vec2, ppu = this.ppu_): void {
+        this.module_._physics_setMotorJointLinearVelocity(entity, velocity.x / ppu, velocity.y / ppu);
+    }
+
+    setMotorJointAngularVelocity(entity: Entity, omega: number): void {
+        this.module_._physics_setMotorJointAngularVelocity(entity, omega);
+    }
+
+    setMotorJointMaxVelocityForce(entity: Entity, force: number): void {
+        this.module_._physics_setMotorJointMaxVelocityForce(entity, force);
+    }
+
+    setMotorJointMaxVelocityTorque(entity: Entity, torque: number): void {
+        this.module_._physics_setMotorJointMaxVelocityTorque(entity, torque);
+    }
+
+    // ── Mouse / drag joint ──────────────────────────────────────────────────
+    // Box2D v3 has no dedicated mouse joint; this is the canonical replacement — a
+    // kinematic body plus a spring motor joint that pulls `entity` toward a
+    // world-pixel target. Create on pointer-down, setMouseTarget on move, destroy on
+    // up. Only one drag is live at a time (a new create replaces the previous).
+    // `maxForce` defaults to an auto-sized value from the body's weight.
+
+    createMouseJoint(
+        entity: Entity,
+        target: Vec2,
+        opts: { hertz?: number; dampingRatio?: number; maxForce?: number } = {},
+        ppu = this.ppu_,
+    ): boolean {
+        return this.module_._physics_createMouseJoint(
+            entity, target.x / ppu, target.y / ppu,
+            opts.hertz ?? 7.5, opts.dampingRatio ?? 1.0, opts.maxForce ?? 0,
+        ) !== 0;
+    }
+
+    setMouseTarget(target: Vec2, ppu = this.ppu_): void {
+        this.module_._physics_setMouseTarget(target.x / ppu, target.y / ppu);
+    }
+
+    destroyMouseJoint(): void {
+        this.module_._physics_destroyMouseJoint();
+    }
+
+    hasMouseJoint(): boolean {
+        return this.module_._physics_hasMouseJoint() !== 0;
+    }
+
     private readUniqueEntityBuffer_(count: number): Entity[] {
         if (count === 0) return [];
         const ptr = this.module_._physics_getOverlapBuffer() >> 2;

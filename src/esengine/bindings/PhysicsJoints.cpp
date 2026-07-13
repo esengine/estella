@@ -430,4 +430,142 @@ float physics_getWheelJointMotorTorque(uint32_t entityId) {
     return b2WheelJoint_GetMotorTorque(jid);
 }
 
+// -----------------------------------------------------------------------------
+// Motor joint — drives bodyB toward a relative linear/angular velocity (or a
+// spring-held offset) against bodyA. Good for conveyors, driven platforms, and
+// the "move toward a target" behaviour the mouse-drag helper below reuses.
+// -----------------------------------------------------------------------------
+
+EMSCRIPTEN_KEEPALIVE
+int physics_createMotorJoint(uint32_t entityIdA, uint32_t entityIdB,
+                             float linearVelX, float linearVelY, float maxVelocityForce,
+                             float angularVelocity, float maxVelocityTorque,
+                             float linearHertz, float linearDampingRatio, float maxSpringForce,
+                             float angularHertz, float angularDampingRatio, float maxSpringTorque,
+                             int collideConnected) {
+    if (!b2World_IsValid(g_ctx.worldId)) return 0;
+
+    auto itA = g_ctx.entityToBody.find(entityIdA);
+    auto itB = g_ctx.entityToBody.find(entityIdB);
+    if (itA == g_ctx.entityToBody.end() || itB == g_ctx.entityToBody.end()) return 0;
+    if (!b2Body_IsValid(itA->second) || !b2Body_IsValid(itB->second)) return 0;
+
+    b2MotorJointDef jointDef = b2DefaultMotorJointDef();
+    jointDef.base.bodyIdA = itA->second;
+    jointDef.base.bodyIdB = itB->second;
+    jointDef.linearVelocity = {linearVelX, linearVelY};
+    jointDef.maxVelocityForce = maxVelocityForce;
+    jointDef.angularVelocity = angularVelocity;
+    jointDef.maxVelocityTorque = maxVelocityTorque;
+    jointDef.linearHertz = linearHertz;
+    jointDef.linearDampingRatio = linearDampingRatio;
+    jointDef.maxSpringForce = maxSpringForce;
+    jointDef.angularHertz = angularHertz;
+    jointDef.angularDampingRatio = angularDampingRatio;
+    jointDef.maxSpringTorque = maxSpringTorque;
+    jointDef.base.collideConnected = collideConnected != 0;
+
+    b2JointId jointId = b2CreateMotorJoint(g_ctx.worldId, &jointDef);
+    g_ctx.entityToJoint[entityIdB] = jointId;
+    return 1;
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics_setMotorJointLinearVelocity(uint32_t entityId, float vx, float vy) {
+    auto jid = findValidJoint(entityId);
+    if (!B2_IS_NULL(jid)) b2MotorJoint_SetLinearVelocity(jid, {vx, vy});
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics_setMotorJointAngularVelocity(uint32_t entityId, float omega) {
+    auto jid = findValidJoint(entityId);
+    if (!B2_IS_NULL(jid)) b2MotorJoint_SetAngularVelocity(jid, omega);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics_setMotorJointMaxVelocityForce(uint32_t entityId, float force) {
+    auto jid = findValidJoint(entityId);
+    if (!B2_IS_NULL(jid)) b2MotorJoint_SetMaxVelocityForce(jid, force);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics_setMotorJointMaxVelocityTorque(uint32_t entityId, float torque) {
+    auto jid = findValidJoint(entityId);
+    if (!B2_IS_NULL(jid)) b2MotorJoint_SetMaxVelocityTorque(jid, torque);
+}
+
+// -----------------------------------------------------------------------------
+// Mouse (drag) joint — Box2D v3 has no dedicated mouse joint, so this is the
+// canonical replacement from Box2D's own sample: a kinematic "mouse body" plus a
+// spring motor joint pulling the target toward the cursor. Only one is live at a
+// time (stored on the context); creating a new one tears down the previous.
+// -----------------------------------------------------------------------------
+
+EMSCRIPTEN_KEEPALIVE
+int physics_createMouseJoint(uint32_t entityId, float targetX, float targetY,
+                             float hertz, float dampingRatio, float maxForce) {
+    if (!b2World_IsValid(g_ctx.worldId)) return 0;
+
+    auto it = g_ctx.entityToBody.find(entityId);
+    if (it == g_ctx.entityToBody.end() || !b2Body_IsValid(it->second)) return 0;
+
+    if (b2Joint_IsValid(g_ctx.mouseJointId)) b2DestroyJoint(g_ctx.mouseJointId, false);
+    if (b2Body_IsValid(g_ctx.mouseBodyId)) b2DestroyBody(g_ctx.mouseBodyId);
+
+    b2BodyDef bodyDef = b2DefaultBodyDef();
+    bodyDef.type = b2_kinematicBody;
+    bodyDef.position = {targetX, targetY};
+    bodyDef.enableSleep = false;
+    g_ctx.mouseBodyId = b2CreateBody(g_ctx.worldId, &bodyDef);
+
+    b2MotorJointDef jointDef = b2DefaultMotorJointDef();
+    jointDef.base.bodyIdA = g_ctx.mouseBodyId;
+    jointDef.base.bodyIdB = it->second;
+    jointDef.base.localFrameB.p = b2Body_GetLocalPoint(it->second, {targetX, targetY});
+    jointDef.linearHertz = hertz;
+    jointDef.linearDampingRatio = dampingRatio;
+
+    // Auto-size the spring force from the body's weight (Box2D's sample formula) when
+    // the caller passes maxForce <= 0. Top-down worlds have no gravity, so fall back
+    // to a nominal g so the drag still has bite. Also cap angular drift like the sample.
+    b2MassData massData = b2Body_GetMassData(it->second);
+    if (maxForce <= 0.0f) {
+        float g = b2Length(b2World_GetGravity(g_ctx.worldId));
+        maxForce = 100.0f * massData.mass * (g > 0.0f ? g : 10.0f);
+    }
+    jointDef.maxSpringForce = maxForce;
+    if (massData.mass > 0.0f) {
+        float lever = sqrtf(massData.rotationalInertia / massData.mass);
+        jointDef.maxVelocityTorque = 0.25f * lever * (maxForce / 100.0f);
+    }
+
+    g_ctx.mouseJointId = b2CreateMotorJoint(g_ctx.worldId, &jointDef);
+
+    b2Body_SetAwake(it->second, true);
+    return 1;
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics_setMouseTarget(float targetX, float targetY) {
+    if (!b2Body_IsValid(g_ctx.mouseBodyId)) return;
+    b2Body_SetTransform(g_ctx.mouseBodyId, {targetX, targetY}, b2Rot_identity);
+    if (b2Joint_IsValid(g_ctx.mouseJointId)) {
+        b2BodyId bodyB = b2Joint_GetBodyB(g_ctx.mouseJointId);
+        if (b2Body_IsValid(bodyB)) b2Body_SetAwake(bodyB, true);
+    }
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics_destroyMouseJoint() {
+    if (b2Joint_IsValid(g_ctx.mouseJointId)) b2DestroyJoint(g_ctx.mouseJointId, false);
+    if (b2Body_IsValid(g_ctx.mouseBodyId)) b2DestroyBody(g_ctx.mouseBodyId);
+    g_ctx.mouseJointId = b2_nullJointId;
+    g_ctx.mouseBodyId = b2_nullBodyId;
+}
+
+EMSCRIPTEN_KEEPALIVE
+int physics_hasMouseJoint() {
+    return b2Joint_IsValid(g_ctx.mouseJointId) ? 1 : 0;
+}
+
 } // extern "C"

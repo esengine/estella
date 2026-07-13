@@ -189,8 +189,8 @@ const onHit = defineSystem([Res(PhysicsEvents)], (events) => {
 ## Joints
 
 Connect two bodies. Add a joint **component** (`RevoluteJoint`, `DistanceJoint`,
-`PrismaticJoint`, `WeldJoint`, `WheelJoint`), or create one imperatively and drive
-its motor / limits:
+`PrismaticJoint`, `WeldJoint`, `WheelJoint`, `MotorJoint`), or create one imperatively
+and drive its motor / limits:
 
 ```typescript
 // A hinge with a motor (a powered wheel or swinging door).
@@ -213,8 +213,63 @@ Each joint type has a parallel set of control methods:
 | Distance (spring) | `setDistanceJointLength`, `getDistanceJoint*Length`, `enableDistanceJointSpring`/`Limit`/`Motor`, `setDistanceJointLimits`, `setDistanceJointMotorSpeed`, … |
 | Prismatic (slider) | `getPrismaticJointTranslation`/`Speed`, `enablePrismaticJointSpring`/`Limit`/`Motor`, `setPrismaticJointLimits`/`MotorSpeed`/`MaxMotorForce`, … |
 | Wheel | `enableWheelJointSpring`/`Limit`/`Motor`, `setWheelJointLimits`/`MotorSpeed`/`MaxMotorTorque`, `getWheelJointMotorTorque`. |
+| Motor | `setMotorJointLinearVelocity`, `setMotorJointAngularVelocity`, `setMotorJointMaxVelocityForce`, `setMotorJointMaxVelocityTorque`. |
 
 Destroy any joint with `destroyJoint(bodyA)`.
+
+The **motor joint** drives body B toward a target velocity (or spring-held offset)
+relative to body A — a conveyor, a driven platform, or anything that should move under
+its own power:
+
+```typescript
+// A conveyor: drive the crate toward +x at a fixed speed.
+world.spawn(MotorJoint, {
+  connectedEntity: anchor,
+  linearVelocity: { x: 200, y: 0 }, // world px/s
+  maxVelocityForce: 500,            // newtons available to reach it
+});
+physics.setMotorJointLinearVelocity(crate, { x: -200, y: 0 }); // reverse at runtime
+```
+
+## One-way platforms
+
+Add `OneWayPlatform` to a static (or kinematic) collider to make it **one-sided** — a
+body lands on it from one direction and passes through from the others. This is the
+classic jump-up-through-a-ledge behaviour, built on Box2D's pre-solve callback (zero
+cost when no one-way platforms exist):
+
+```typescript
+import { OneWayPlatform } from 'esengine/physics';
+
+world.spawn(
+  Transform, { position: { x: 0, y: 0 } },
+  RigidBody, { bodyType: BodyType.Static },
+  BoxCollider, { halfExtents: { x: 2, y: 0.2 } },
+  OneWayPlatform, { normal: { x: 0, y: 1 } }, // solid top: land from above, pass from below
+);
+```
+
+`normal` is the solid-side direction in world space; `{ x: 0, y: 1 }` (the default)
+means "solid top". Set `enabled: false` to turn the platform back into a normal solid.
+
+## Mouse / drag joint
+
+To let the player drag a body with the pointer, use the drag-joint API. Box2D v3 has no
+dedicated mouse joint, so this is its canonical replacement — a spring that pulls the
+body toward a moving target. Create it on pointer-down (grabbing the body at the cursor),
+move the target on pointer-move, and destroy it on pointer-up:
+
+```typescript
+// pointer down — grab the body at the world-space cursor:
+physics.createMouseJoint(entity, cursorWorld);         // maxForce auto-sizes to the body
+// pointer move:
+physics.setMouseTarget(cursorWorld);
+// pointer up:
+physics.destroyMouseJoint();
+```
+
+Only one drag is live at a time. Pass `{ hertz, dampingRatio, maxForce }` to tune the
+spring's stiffness and grip.
 
 ## Character controller
 

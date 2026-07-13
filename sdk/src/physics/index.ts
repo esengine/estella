@@ -40,11 +40,13 @@ export {
     SegmentCollider,
     PolygonCollider,
     ChainCollider,
+    OneWayPlatform,
     RevoluteJoint,
     DistanceJoint,
     PrismaticJoint,
     WeldJoint,
     WheelJoint,
+    MotorJoint,
     BodyType,
     type RigidBodyData,
     type BoxColliderData,
@@ -53,11 +55,13 @@ export {
     type SegmentColliderData,
     type PolygonColliderData,
     type ChainColliderData,
+    type OneWayPlatformData,
     type RevoluteJointData,
     type DistanceJointData,
     type PrismaticJointData,
     type WeldJointData,
     type WheelJointData,
+    type MotorJointData,
 } from './PhysicsComponents';
 
 export {

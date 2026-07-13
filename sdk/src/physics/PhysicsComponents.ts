@@ -215,6 +215,26 @@ export const ChainCollider = defineComponent<ChainColliderData>('ChainCollider',
 }, { fields: { ...COLLISION_FILTER_META } });
 
 // =============================================================================
+// One-Way (One-Sided) Platform
+// =============================================================================
+
+export interface OneWayPlatformData {
+    // Solid-side normal in world/physics space. Contacts are cancelled unless the
+    // other body approaches from this side. Default {0,1} = solid top (land on top,
+    // jump up through it).
+    normal: Vec2;
+    enabled: boolean;
+}
+
+// A collider modifier: put it on an entity that also has a RigidBody + a collider.
+// Consumed by PhysicsSystem, which enables Box2D pre-solve events on the entity's
+// shapes and feeds the normal to the one-way pre-solve callback.
+export const OneWayPlatform = defineComponent<OneWayPlatformData>('OneWayPlatform', {
+    normal: { x: 0, y: 1 },
+    enabled: true,
+});
+
+// =============================================================================
 // Joint Components
 // =============================================================================
 
@@ -374,6 +394,41 @@ export const WheelJoint = defineComponent<WheelJointData>('WheelJoint', {
     enableMotor: false,
     maxMotorTorque: 0,
     motorSpeed: 0,
+    collideConnected: false,
+    enabled: true,
+}, { entityFields: ['connectedEntity'] });
+
+export interface MotorJointData {
+    connectedEntity: number;
+    // Target relative linear velocity (world units/s) and the max force to reach it.
+    linearVelocity: Vec2;
+    maxVelocityForce: number;
+    // Target relative angular velocity (rad/s) and the max torque to reach it.
+    angularVelocity: number;
+    maxVelocityTorque: number;
+    // Optional spring position control (0 hertz = velocity-only motor).
+    linearHertz: number;
+    linearDampingRatio: number;
+    maxSpringForce: number;
+    angularHertz: number;
+    angularDampingRatio: number;
+    maxSpringTorque: number;
+    collideConnected: boolean;
+    enabled: boolean;
+}
+
+export const MotorJoint = defineComponent<MotorJointData>('MotorJoint', {
+    connectedEntity: -1,
+    linearVelocity: { x: 0, y: 0 },
+    maxVelocityForce: 0,
+    angularVelocity: 0,
+    maxVelocityTorque: 0,
+    linearHertz: 0,
+    linearDampingRatio: 0,
+    maxSpringForce: 0,
+    angularHertz: 0,
+    angularDampingRatio: 0,
+    maxSpringTorque: 0,
     collideConnected: false,
     enabled: true,
 }, { entityFields: ['connectedEntity'] });

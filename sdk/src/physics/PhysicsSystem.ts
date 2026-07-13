@@ -21,13 +21,14 @@ import type { PhysicsWasmModule } from './PhysicsModuleLoader';
 import { PhysicsAPI } from './Physics';
 import {
     RigidBody, BoxCollider, CircleCollider, CapsuleCollider,
-    SegmentCollider, PolygonCollider, ChainCollider,
-    RevoluteJoint, DistanceJoint, PrismaticJoint, WeldJoint, WheelJoint,
+    SegmentCollider, PolygonCollider, ChainCollider, OneWayPlatform,
+    RevoluteJoint, DistanceJoint, PrismaticJoint, WeldJoint, WheelJoint, MotorJoint,
     BodyType,
     type RigidBodyData, type BoxColliderData, type CircleColliderData,
     type CapsuleColliderData, type SegmentColliderData, type PolygonColliderData,
-    type ChainColliderData, type RevoluteJointData,
+    type ChainColliderData, type OneWayPlatformData, type RevoluteJointData,
     type DistanceJointData, type PrismaticJointData, type WeldJointData, type WheelJointData,
+    type MotorJointData,
 } from './PhysicsComponents';
 import {
     PhysicsEvents,
@@ -271,6 +272,54 @@ function createPendingJoints(
             j.collideConnected ? 1 : 0,
         );
         trackedJoints.add(entity);
+    }
+
+    for (const entity of world.getEntitiesWithComponents([MotorJoint, RigidBody])) {
+        if (trackedJoints.has(entity)) continue;
+        if (!trackedEntities.has(entity)) continue;
+        const j = world.get(entity, MotorJoint) as MotorJointData;
+        if (!j.enabled) continue;
+        const connected = j.connectedEntity as Entity;
+        if (!trackedEntities.has(connected)) continue;
+        module._physics_createMotorJoint(
+            connected, entity,
+            j.linearVelocity.x * invPpu, j.linearVelocity.y * invPpu, j.maxVelocityForce,
+            j.angularVelocity, j.maxVelocityTorque,
+            j.linearHertz, j.linearDampingRatio, j.maxSpringForce,
+            j.angularHertz, j.angularDampingRatio, j.maxSpringTorque,
+            j.collideConnected ? 1 : 0,
+        );
+        trackedJoints.add(entity);
+    }
+}
+
+// =============================================================================
+// One-way platform sync
+// =============================================================================
+
+// Re-applied every reconcile (idempotent): pushes each one-way platform's normal +
+// enabled flag to the native pre-solve state and re-arms pre-solve events on shapes
+// the collider reconcile may have just rebuilt. Entities that lost the component are
+// cleared. `trackedOneWay` mirrors the native state so despawn can tear it down.
+function syncOneWayPlatforms(
+    world: App['world'],
+    module: PhysicsWasmModule,
+    trackedEntities: Set<Entity>,
+    trackedOneWay: Set<Entity>,
+): void {
+    const seen = new Set<Entity>();
+    for (const entity of world.getEntitiesWithComponents([OneWayPlatform, RigidBody])) {
+        if (!trackedEntities.has(entity)) continue;
+        const ow = world.get(entity, OneWayPlatform) as OneWayPlatformData;
+        module._physics_setOneWayPlatform(entity, ow.normal.x, ow.normal.y, ow.enabled ? 1 : 0);
+        trackedOneWay.add(entity);
+        seen.add(entity);
+    }
+    for (const entity of [...trackedOneWay]) {
+        if (!seen.has(entity)) {
+            module._physics_setOneWayPlatform(entity, 0, 0, 0);
+            trackedOneWay.delete(entity);
+        }
     }
 }
 
@@ -566,7 +615,7 @@ const COLLIDER_TYPES = [
     BoxCollider, CircleCollider, CapsuleCollider, SegmentCollider, PolygonCollider, ChainCollider,
 ] as const;
 
-const JOINT_TYPES = [RevoluteJoint, DistanceJoint, PrismaticJoint, WeldJoint, WheelJoint] as const;
+const JOINT_TYPES = [RevoluteJoint, DistanceJoint, PrismaticJoint, WeldJoint, WheelJoint, MotorJoint] as const;
 
 /** Bitmask of which collider components an entity currently has. @internal */
 export function colliderSignature(world: App['world'], entity: Entity): number {
@@ -610,6 +659,7 @@ export function registerPhysicsSystem(
 ): void {
     const trackedEntities = new Set<Entity>();
     const trackedJoints = new Set<Entity>();
+    const trackedOneWay = new Set<Entity>();
     const parentedBodies = new Set<Entity>();
     const cachedProps = new Map<Entity, CachedBodyProps>();
     let lastEntitySyncTick = -1;
@@ -627,7 +677,7 @@ export function registerPhysicsSystem(
     // state (no structural change + no physics-component edit). Kinematic bodies
     // are driven by their Transform, so they're tracked separately and pushed every
     // step regardless of whether the reconcile ran.
-    const physicsComponents = [RigidBody, ...COLLIDER_TYPES, ...JOINT_TYPES];
+    const physicsComponents = [RigidBody, ...COLLIDER_TYPES, ...JOINT_TYPES, OneWayPlatform];
     for (const c of physicsComponents) app.world.enableChangeTracking(c);
     const kinematicEntities = new Set<Entity>();
     let lastStructuralVersion = -1;
@@ -638,6 +688,10 @@ export function registerPhysicsSystem(
         if (trackedJoints.has(entity)) {
             module._physics_destroyJoint(entity);
             trackedJoints.delete(entity);
+        }
+        if (trackedOneWay.has(entity)) {
+            module._physics_setOneWayPlatform(entity, 0, 0, 0);
+            trackedOneWay.delete(entity);
         }
         if (trackedEntities.has(entity)) {
             module._physics_destroyBody(entity);
@@ -794,6 +848,7 @@ export function registerPhysicsSystem(
                     }
                 }
                 createPendingJoints(world, module, trackedEntities, trackedJoints, invPpu);
+                syncOneWayPlatforms(world, module, trackedEntities, trackedOneWay);
 
                 lastEntitySyncTick = world.getWorldTick();
                 lastStructuralVersion = structuralVersion;

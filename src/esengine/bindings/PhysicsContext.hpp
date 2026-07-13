@@ -28,6 +28,16 @@ struct PhysicsContext {
     std::unordered_map<uint32_t, b2JointId> entityToJoint;
     std::vector<uint32_t> dynamicBodyEntities;
 
+    // One-way (one-sided) platforms: entity -> solid-side normal in physics space
+    // (normalized). Read by the pre-solve callback to cancel contacts that approach
+    // from the pass-through side. Empty map = zero pre-solve overhead.
+    std::unordered_map<uint32_t, b2Vec2> oneWayNormals;
+
+    // Interactive drag: a single kinematic "mouse body" + motor joint pulling one
+    // target body toward the cursor (Box2D v3 has no dedicated mouse joint).
+    b2BodyId mouseBodyId = b2_nullBodyId;
+    b2JointId mouseJointId = b2_nullJointId;
+
     std::vector<float> dynamicTransformBuffer;
 
     std::vector<float> collisionEnterBuffer;
@@ -43,6 +53,9 @@ struct PhysicsContext {
         entityToBody.clear();
         entityToShapes.clear();
         entityToJoint.clear();
+        oneWayNormals.clear();
+        mouseBodyId = b2_nullBodyId;
+        mouseJointId = b2_nullJointId;
         dynamicBodyEntities.clear();
         dynamicTransformBuffer.clear();
         collisionEnterBuffer.clear();

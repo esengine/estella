@@ -181,7 +181,7 @@ const onHit = defineSystem([Res(PhysicsEvents)], (events) => {
 ## 关节
 
 连接两个刚体。加一个关节**组件**(`RevoluteJoint`、`DistanceJoint`、`PrismaticJoint`、
-`WeldJoint`、`WheelJoint`),或命令式创建一个并驱动它的马达 / 限位:
+`WeldJoint`、`WheelJoint`、`MotorJoint`),或命令式创建一个并驱动它的马达 / 限位:
 
 ```typescript
 // A hinge with a motor (a powered wheel or swinging door).
@@ -204,8 +204,58 @@ physics.destroyJoint(bodyA);
 | Distance(弹簧) | `setDistanceJointLength`、`getDistanceJoint*Length`、`enableDistanceJointSpring`/`Limit`/`Motor`、`setDistanceJointLimits`、`setDistanceJointMotorSpeed`…… |
 | Prismatic(滑轨) | `getPrismaticJointTranslation`/`Speed`、`enablePrismaticJointSpring`/`Limit`/`Motor`、`setPrismaticJointLimits`/`MotorSpeed`/`MaxMotorForce`…… |
 | Wheel(车轮) | `enableWheelJointSpring`/`Limit`/`Motor`、`setWheelJointLimits`/`MotorSpeed`/`MaxMotorTorque`、`getWheelJointMotorTorque`。 |
+| Motor(马达) | `setMotorJointLinearVelocity`、`setMotorJointAngularVelocity`、`setMotorJointMaxVelocityForce`、`setMotorJointMaxVelocityTorque`。 |
 
 用 `destroyJoint(bodyA)` 销毁任何关节。
+
+**马达关节**驱动刚体 B 相对刚体 A 达到目标速度(或弹簧保持的偏移)——传送带、动力平台,
+或任何要靠自身动力移动的东西:
+
+```typescript
+// 传送带:把箱子沿 +x 匀速驱动。
+world.spawn(MotorJoint, {
+  connectedEntity: anchor,
+  linearVelocity: { x: 200, y: 0 }, // 世界像素/秒
+  maxVelocityForce: 500,            // 可用于达到该速度的力(牛顿)
+});
+physics.setMotorJointLinearVelocity(crate, { x: -200, y: 0 }); // 运行时反向
+```
+
+## 单向平台
+
+给静态(或运动学)碰撞体加 `OneWayPlatform`,使其**单面**——刚体从一个方向落上去、从其它
+方向穿过。这就是经典的"从下往上跳穿平台"行为,建在 Box2D 的 pre-solve 回调上(没有单向平台时
+零开销):
+
+```typescript
+import { OneWayPlatform } from 'esengine/physics';
+
+world.spawn(
+  Transform, { position: { x: 0, y: 0 } },
+  RigidBody, { bodyType: BodyType.Static },
+  BoxCollider, { halfExtents: { x: 2, y: 0.2 } },
+  OneWayPlatform, { normal: { x: 0, y: 1 } }, // 实心顶面:从上落下、从下穿过
+);
+```
+
+`normal` 是世界空间里的实心侧方向;`{ x: 0, y: 1 }`(默认)= "实心顶面"。设 `enabled: false`
+让平台恢复为普通实心体。
+
+## 鼠标 / 拖拽关节
+
+想让玩家用指针拖动刚体,用拖拽关节 API。Box2D v3 没有专门的鼠标关节,这是它的官方替代——一根
+把刚体拉向移动目标的弹簧。指针按下时创建(在光标处抓住刚体)、移动时更新目标、抬起时销毁:
+
+```typescript
+// 指针按下——在世界光标处抓住刚体:
+physics.createMouseJoint(entity, cursorWorld);         // maxForce 按刚体自动取值
+// 指针移动:
+physics.setMouseTarget(cursorWorld);
+// 指针抬起:
+physics.destroyMouseJoint();
+```
+
+同一时刻只有一个拖拽在生效。传 `{ hertz, dampingRatio, maxForce }` 调弹簧的刚度与抓力。
 
 ## 角色控制器
 

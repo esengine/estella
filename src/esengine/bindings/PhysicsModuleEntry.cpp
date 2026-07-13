@@ -3,6 +3,37 @@
 #include "PhysicsContext.hpp"
 
 #include <algorithm>
+#include <cmath>
+
+// How closely the contact normal must align with a platform's solid normal for the
+// contact to survive (matches Box2D's own one-sided-platform sample).
+static constexpr float ONE_WAY_ALIGN_THRESHOLD = 0.95f;
+
+// Pre-solve callback: cancels contacts that approach a one-way platform from its
+// pass-through side. Box2D only invokes this for contacts whose shapes opted in via
+// b2Shape_EnablePreSolveEvents, so it costs nothing when no one-way platforms exist.
+// Must be thread-safe and side-effect free: it only reads oneWayNormals (never
+// mutated during a step) plus the passed-in contact geometry.
+static bool preSolveOneWayPlatform(b2ShapeId shapeIdA, b2ShapeId shapeIdB,
+                                   b2Vec2 point, b2Vec2 normal, void* context) {
+    (void)point;
+    (void)context;
+    // The manifold normal points from shape A to shape B. A one-way platform keeps a
+    // contact only while the *other* shape sits on the platform's solid side.
+    auto itA = g_ctx.oneWayNormals.find(entityFromShape(shapeIdA));
+    if (itA != g_ctx.oneWayNormals.end()) {
+        // Platform = A; direction toward the other shape (B) is +normal.
+        float d = normal.x * itA->second.x + normal.y * itA->second.y;
+        if (d <= ONE_WAY_ALIGN_THRESHOLD) return false;
+    }
+    auto itB = g_ctx.oneWayNormals.find(entityFromShape(shapeIdB));
+    if (itB != g_ctx.oneWayNormals.end()) {
+        // Platform = B; direction toward the other shape (A) is -normal.
+        float d = normal.x * itB->second.x + normal.y * itB->second.y;
+        if (d >= -ONE_WAY_ALIGN_THRESHOLD) return false;
+    }
+    return true;
+}
 
 extern "C" {
 
@@ -19,6 +50,7 @@ void physics_init(float gx, float gy, float timestep, int substeps,
     worldDef.contactDampingRatio = contactDampingRatio;
     worldDef.contactSpeed = contactSpeed;
     g_ctx.worldId = b2CreateWorld(&worldDef);
+    b2World_SetPreSolveCallback(g_ctx.worldId, preSolveOneWayPlatform, nullptr);
 
     g_ctx.fixedTimestep = timestep;
     g_ctx.subStepCount = substeps;
@@ -45,6 +77,30 @@ void physics_setWorldConfig(int enableSleep, int enableContinuous,
 EMSCRIPTEN_KEEPALIVE
 void physics_shutdown() {
     g_ctx.reset();
+}
+
+// One-way (one-sided) platform: with enable != 0, contacts against this entity's
+// shapes are cancelled unless the other body approaches from the (nx, ny) solid
+// side (physics space; normalized here, falling back to +Y). enable == 0 clears it.
+EMSCRIPTEN_KEEPALIVE
+void physics_setOneWayPlatform(uint32_t entityId, float nx, float ny, int enable) {
+    if (enable != 0) {
+        float len = sqrtf(nx * nx + ny * ny);
+        g_ctx.oneWayNormals[entityId] = (len > 0.0f)
+            ? b2Vec2{nx / len, ny / len}
+            : b2Vec2{0.0f, 1.0f};
+    } else {
+        g_ctx.oneWayNormals.erase(entityId);
+    }
+
+    auto it = g_ctx.entityToShapes.find(entityId);
+    if (it != g_ctx.entityToShapes.end()) {
+        for (b2ShapeId shapeId : it->second) {
+            if (b2Shape_IsValid(shapeId)) {
+                b2Shape_EnablePreSolveEvents(shapeId, enable != 0);
+            }
+        }
+    }
 }
 
 // Body Management
