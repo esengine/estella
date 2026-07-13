@@ -71,7 +71,10 @@ void DrawList::finalize(TransientBufferPool& pool) {
                     // (or bail to a new draw if all 8 slots are taken), then stamp its verts.
                     i32 slot = head.addTextureSlot(commands_[i].texture_ids[0]);
                     if (slot >= 0) {
-                        rewriteTexIndex(pool, commands_[i], slot);
+                        // Staging verts default to texIndex 0, so only a non-zero slot
+                        // needs the per-vertex rewrite; a same-texture merge reuses
+                        // slot 0 and is already correct.
+                        if (slot != 0) rewriteTexIndex(pool, commands_[i], slot);
                         head.index_count += commands_[i].index_count;
                         head.entity_count += commands_[i].entity_count;
                         didMerge = true;
@@ -87,10 +90,8 @@ void DrawList::finalize(TransientBufferPool& pool) {
             if (writeIdx != i) {
                 commands_[writeIdx] = commands_[i];
             }
-            // First command of a run owns slot 0 of its (so far single-texture) set.
-            if (commands_[writeIdx].layout_id == LayoutId::Batch) {
-                rewriteTexIndex(pool, commands_[writeIdx], 0);
-            }
+            // The run head owns slot 0; staging verts already default to texIndex 0,
+            // so it needs no rewrite (this is the common single-texture case).
             ++writeIdx;
         }
     }
