@@ -11,6 +11,7 @@ import {
   Scale3d,
   Magnet,
   Grid3x3,
+  Sparkles,
   Play,
   Pause,
   Square as Stop,
@@ -69,7 +70,7 @@ export function Toolbar() {
   const playPlayers = useEditorStore((s) => s.playPlayers);
   const setPlayPlayers = useEditorStore((s) => s.setPlayPlayers);
   const [modeMenu, setModeMenu] = useState<{ x: number; y: number } | null>(null);
-  const { tool, snapping, showGrid, showGizmos, isPlaying, isPaused, togglePause, stop } =
+  const { tool, snapping, showGrid, showGizmos, previewFx, isPlaying, isPaused, togglePause, stop } =
     useEditorStore();
 
   // Re-render on history changes to refresh undo/redo enabled state + labels.
@@ -123,6 +124,7 @@ export function Toolbar() {
       <div className="tgroup">
         <TBtn icon={Magnet} label="Snapping" active={snapping} onClick={() => commands.run('view.toggleSnapping')} />
         <TBtn icon={Grid3x3} label="Show Grid" active={showGrid} onClick={() => commands.run('view.toggleGrid')} />
+        <TBtn icon={Sparkles} label="Preview FX" active={previewFx} onClick={() => commands.run('view.togglePreviewFx')} />
       </div>
 
       <span className="tspacer" />

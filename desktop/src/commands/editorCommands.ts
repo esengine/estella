@@ -16,6 +16,7 @@ import { SceneCommands } from '@/engine/SceneCommands';
 import { SceneModel } from '@/engine/SceneModel';
 import { hasEntityClipboard } from '@/engine/entityClipboard';
 import { ViewportController } from '@/engine/ViewportController';
+import { applyFxPreview } from '@/engine/fxPreview';
 import { createTilemapFromTileset } from '@/tilemap/createTilemap';
 import { dockApi } from '@/layout/dockApi';
 import { EDITOR_MODES } from '@/mode/editorModes';
@@ -304,6 +305,16 @@ commands.register({
   category: 'View',
   isChecked: () => editor().showGizmos,
   run: () => editor().toggleGizmos(),
+});
+commands.register({
+  id: 'view.togglePreviewFx',
+  label: 'Preview FX',
+  category: 'View',
+  isChecked: () => editor().previewFx,
+  run: () => {
+    editor().togglePreviewFx();
+    applyFxPreview(editor().previewFx);
+  },
 });
 commands.register({
   id: 'view.toggleColliders',

@@ -41,6 +41,8 @@ interface EditorState {
   showGizmos: boolean;
   /** Draw collider outlines in the viewport (off declutters a physics-heavy scene). */
   showColliders: boolean;
+  /** Simulate particle emitters live in edit mode (authoring preview). */
+  previewFx: boolean;
   snapping: boolean;
   // Grid-snap increment (world units) applied to Move while `snapping` is on. The
   // viewport snap dropdown picks from a fixed set (16 / 32 / 64); "off" flips
@@ -64,6 +66,7 @@ interface EditorState {
   toggleGrid: () => void;
   toggleGizmos: () => void;
   toggleColliders: () => void;
+  togglePreviewFx: () => void;
   toggleSnapping: () => void;
   setSnapStep: (step: number) => void;
   setSnapAngle: (deg: number) => void;
@@ -125,6 +128,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   showGrid: true,
   showGizmos: true,
   showColliders: true,
+  previewFx: true,
   snapping: false,
   snapStep: 32,
   snapAngle: 15,
@@ -138,6 +142,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   toggleGrid: () => set((s) => ({ showGrid: !s.showGrid })),
   toggleGizmos: () => set((s) => ({ showGizmos: !s.showGizmos })),
   toggleColliders: () => set((s) => ({ showColliders: !s.showColliders })),
+  togglePreviewFx: () => set((s) => ({ previewFx: !s.previewFx })),
   toggleSnapping: () => set((s) => ({ snapping: !s.snapping })),
   setSnapStep: (snapStep) => set({ snapStep, snapping: true }),
   setSnapAngle: (snapAngle) => set({ snapAngle }),

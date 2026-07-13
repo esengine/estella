@@ -504,6 +504,7 @@ export function Viewport() {
   const showGrid = useEditorStore((s) => s.showGrid);
   const showGizmos = useEditorStore((s) => s.showGizmos);
   const showColliders = useEditorStore((s) => s.showColliders);
+  const previewFx = useEditorStore((s) => s.previewFx);
   const activeGizmoAxis = useEditorStore((s) => s.activeGizmoAxis);
   const coordSpace = useEditorStore((s) => s.coordSpace);
   const pivotMode = useEditorStore((s) => s.pivotMode);
@@ -1300,6 +1301,7 @@ export function Viewport() {
             <DdCheck on={showGrid} label="Grid" onClick={() => commands.run('view.toggleGrid')} />
             <DdCheck on={showGizmos} label="Gizmos" onClick={() => commands.run('view.toggleGizmos')} />
             <DdCheck on={showColliders} label="Colliders" onClick={() => commands.run('view.toggleColliders')} />
+            <DdCheck on={previewFx} label="Preview FX" onClick={() => commands.run('view.togglePreviewFx')} />
             <DdCheck on={perfVisible} label="Perf" onClick={() => PerfMonitor.toggleOverlay()} />
           </OvDropdown>
           <span className="ov-divider" />

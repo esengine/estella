@@ -130,6 +130,7 @@ export function MenuBar() {
         cmdItem('view.toggleGrid'),
         cmdItem('view.toggleGizmos'),
         cmdItem('view.toggleColliders'),
+        cmdItem('view.togglePreviewFx'),
         { sep: true },
         cmdItem('view.toggleCoordSpace'),
         cmdItem('view.togglePivotMode'),

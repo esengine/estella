@@ -32,7 +32,9 @@ curve by default, or a full **gradient/curve** for precise control (see below).
 <Aside type="note">
   Particle simulation is **gameplay**: it advances in play mode and in the
   standalone runtime, and is frozen in the editor's edit mode (like physics,
-  animation, and timelines). Enter Play to preview an effect.
+  animation, and timelines) — with one authoring exception: the editor's
+  **Preview FX** toggle (toolbar ✨, on by default) simulates emitters live
+  while you tune them, no Play needed. Re-toggling it replays from t=0.
 </Aside>
 
 ## Setup
@@ -295,7 +297,8 @@ const control = defineSystem([Res(Particle)], (particles) => {
 - **Atlas particle textures** and share one `material` so emitters batch.
 - **Spread min/max** for natural variety; equal min/max reads as mechanical.
 - **Reuse emitters** via `reset` + `play` instead of spawning/despawning.
-- Remember particles only advance in **play mode** — preview in Play.
+- In game code particles advance in **play mode**; in the editor the **Preview
+  FX** toggle keeps them live while you author.
 
 ## See also
 

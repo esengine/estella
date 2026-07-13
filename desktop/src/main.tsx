@@ -42,7 +42,9 @@ import { dockApi } from './layout/dockApi';
 import { EditorControlSurface } from './engine/EditorSession';
 import { SceneModel } from './engine/SceneModel';
 import { EngineHost } from './engine/EngineHost';
-import { UINode, UIVisual } from 'esengine';
+import { UINode, UIVisual, Particle } from 'esengine';
+import { applyFxPreview } from './engine/fxPreview';
+import { commands } from './commands/registry';
 import { ViewportController } from './engine/ViewportController';
 import { PerfMonitor } from './engine/PerfMonitor';
 import { LogStore } from './store/LogStore';
@@ -62,6 +64,10 @@ initFsWatch();
 
 initBackgroundThrottle();
 
+// Sync the FX-preview default into the engine flag before anything boots (the
+// flag is module-scoped; emitters auto-play lazily once a scene loads).
+applyFxPreview(useEditorStore.getState().previewFx);
+
 // Automation hook (screenshots / visual-regression): with `?automation=1`, expose the
 // minimum to drive the launcher→editor flow from a headless driver. Gated so the normal
 // editor never carries it; mirrors the headless render host's `window.__estellaHeadless`.
@@ -75,6 +81,18 @@ if (new URLSearchParams(location.search).has('automation')) {
     playState: () => PlayRealm.getSnapshot(),
     /** Player count for the next Play (1 = single, 2-4 = listen server + clients). */
     setPlayPlayers: (n: number) => useEditorStore.getState().setPlayPlayers(n),
+    /** Advance the EDIT-realm engine n frames (headless drivers: rAF may stall). */
+    tickEngine: async (n: number, dt = 1 / 60) => {
+      for (let i = 0; i < n; i++) await EngineHost.tick(dt);
+    },
+    /** Live particle count of a SOURCE entity's emitter (edit-preview probes). */
+    particleAlive: (id: number) => {
+      const rt = SceneModel.runtimeFor(id);
+      const particle = EngineHost.getResource(Particle);
+      return rt != null && particle ? particle.getAliveCount(rt) : -1;
+    },
+    /** Dispatch any registered editor command by id (the UI's own channel). */
+    runCommand: (id: string) => commands.run(id),
     reveal: (id: string) => dockApi.revealAndExpand(id),
     togglePerfOverlay: () => PerfMonitor.toggleOverlay(),
     captureThumbnail: () => ProjectStore.captureThumbnail(),

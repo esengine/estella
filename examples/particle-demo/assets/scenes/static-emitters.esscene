@@ -9,7 +9,7 @@
       "children": [],
       "components": [
         { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 10 } } },
-        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 300, "isActive": true, "priority": 0, "backgroundColor": { "r": 0.06, "g": 0.07, "b": 0.10, "a": 1 } } }
+        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 300, "isActive": true, "priority": 0 } }
       ],
       "visible": true
     },
