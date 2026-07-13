@@ -116,7 +116,9 @@ export const sendInputSystem = defineSystem(
     (net, input) => {
         if (net.role !== 'client' || !net.client) return;
         if (!net.client.predictionEnabled) {
-            net.client.enablePrediction({ apply: applyMove });
+            // smoothing eases rare corrections out over ~80ms instead of
+            // snapping (both ends run the same rule, so they stay rare).
+            net.client.enablePrediction({ apply: applyMove, smoothing: { halfLife: 0.08 } });
         }
         net.client.sendInput({ move: readMove(input) });
     },

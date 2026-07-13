@@ -174,6 +174,9 @@ clientNet.client.sendInput({ move: { x: 1, y: 0 } });  // pawn 立刻动
   队列干涸时服务器会重复上一条指令,沉默意味着"继续保持",不是"停"。
 - **`Replicated.owner` 在 spawn 时就要赋好**——归属随 spawn 载荷走。
 - `apply` 只能依赖世界状态 + actions + dt:和解时它会被重放。
+- **平滑**:`prediction: { apply, smoothing: { halfLife: 0.08 } }` 让修正
+  渐出(视觉误差每 `halfLife` 秒减半)而不是硬 snap;加 `maxError` 让真正的
+  传送仍然瞬移。纯表现层——模拟状态不可能因此漂移。
 
 ## 最佳实践
 

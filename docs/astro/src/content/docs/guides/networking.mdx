@@ -189,6 +189,10 @@ never re-sends snap back. Owned entities bypass snapshot interpolation.
   payload.
 - `apply` must depend only on world state + actions + dt: it re-runs during
   reconciliation.
+- **Smoothing**: `prediction: { apply, smoothing: { halfLife: 0.08 } }` eases
+  corrections out (the visual error halves every `halfLife` seconds) instead
+  of hard-snapping; add `maxError` so a genuine teleport still snaps. Purely
+  presentational — the simulation state can't drift.
 
 ## Best practices
 

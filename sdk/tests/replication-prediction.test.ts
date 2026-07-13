@@ -209,6 +209,83 @@ describe('client prediction', () => {
     });
 });
 
+describe('correction smoothing', () => {
+    async function makeSmoothedPair(smoothing: { halfLife: number; maxError?: number }) {
+        const serverApp = makeApp();
+        const clientApp = makeApp();
+        const server = serverApp.getResource(Net).startServer();
+        addServerInputSystem(serverApp, server);
+        const [ta, tb] = MemoryTransport.pair();
+        const connId = server.attachConnection(ta);
+        const client = await clientApp.getResource(Net).connect(tb, {
+            interpolationDelayTicks: 0,
+            prediction: { apply: applyMove, smoothing },
+        });
+        const pawn = serverApp.world.spawn('pawn');
+        serverApp.world.insert(pawn, Replicated, { owner: connId });
+        serverApp.world.insert(pawn, NetPos, {});
+        await serverApp.tick(STEP);
+        await clientApp.tick(STEP);
+        const ghost = clientApp.world.getEntitiesWithComponents([Replicated])[0];
+        return { serverApp, clientApp, server, client, pawn, ghost };
+    }
+
+    it('eases a correction out instead of snapping, and converges on the authority', async () => {
+        // Error halves every 4 ticks — slow enough to observe.
+        const { serverApp, clientApp, pawn, ghost, client } = await makeSmoothedPair({ halfLife: 4 * STEP });
+
+        // Server-only wall at x=25; the client optimistically predicts to 30.
+        serverApp.addSystemToSchedule(Schedule.FixedUpdate, defineSystem(
+            [GetWorld()],
+            (world) => {
+                const pos = world.tryGet(pawn, NetPos) as { x: number; y: number } | null;
+                if (pos && pos.x > 25) { pos.x = 25; world.set(pawn, NetPos, pos); }
+            },
+            { name: 'WallClamp' },
+        ));
+        for (let i = 0; i < 3; i++) client.sendInput({ move: { x: 1, y: 0 } });
+        expect(posX(clientApp, ghost)).toBeCloseTo(30, 5);
+
+        // While the replay still accounts for the prediction there is NO error
+        // (deterministic replay); the correction materialises the tick the
+        // server clamps — and lands BETWEEN authority (25) and prediction (30).
+        for (let i = 0; i < 3; i++) {
+            await serverApp.tick(STEP);
+            await clientApp.tick(STEP);
+        }
+        const eased = posX(clientApp, ghost);
+        expect(eased).toBeGreaterThan(25.5);
+        expect(eased).toBeLessThan(30);
+
+        // The error decays monotonically to the authoritative value.
+        let prev = eased;
+        for (let i = 0; i < 40; i++) {
+            await serverApp.tick(STEP);
+            await clientApp.tick(STEP);
+            const x = posX(clientApp, ghost);
+            expect(x).toBeLessThanOrEqual(prev + 1e-6);
+            prev = x;
+        }
+        expect(prev).toBeCloseTo(25, 1);
+    });
+
+    it('a correction beyond maxError snaps — a teleport must look like one', async () => {
+        const { serverApp, clientApp, pawn, ghost, client } = await makeSmoothedPair({ halfLife: 4 * STEP, maxError: 50 });
+
+        client.sendInput({ move: { x: 1, y: 0 } });
+        await serverApp.tick(STEP);
+        await clientApp.tick(STEP);
+        expect(posX(clientApp, ghost)).toBeCloseTo(10, 5);
+
+        // The server teleports the pawn far beyond maxError.
+        serverApp.world.set(pawn, NetPos, { x: 500, y: 0 });
+        client.sendInput({ move: { x: 0, y: 0 } });
+        await serverApp.tick(STEP);
+        await clientApp.tick(STEP);
+        expect(posX(clientApp, ghost)).toBeCloseTo(500, 5); // no easing
+    });
+});
+
 describe('late enablePrediction (host-connected realms)', () => {
     it('seeds authority for already-spawned owned entities and predicts from then on', async () => {
         const serverApp = makeApp();

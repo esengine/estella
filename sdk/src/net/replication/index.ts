@@ -40,7 +40,12 @@ export {
 } from './interest';
 export { NetIds } from './NetIds';
 export { ReplicationServer } from './server';
-export { ReplicationClient, type ReplicationClientOptions, type PredictionOptions } from './client';
+export {
+    ReplicationClient,
+    type ReplicationClientOptions,
+    type PredictionOptions,
+    type PredictionSmoothing,
+} from './client';
 export { lerpValue, InterpolationState, ComponentBuffer } from './interpolation';
 export {
     ReplicationPlugin,

@@ -35,7 +35,7 @@ import {
 } from './protocol';
 import {
     buildReplicationTable, cloneValue, decodeStateFrame, tableSchemas,
-    type EntityRefMap, type ReplicationTable, type StateFrame,
+    type EntityRefMap, type FieldShape, type ReplicationTable, type StateFrame,
 } from './codec';
 import { NetGhost, Replicated, type ReplicatedData } from './components';
 import { NetIds } from './NetIds';
@@ -54,6 +54,50 @@ export interface PredictionOptions {
     apply: (world: World, entity: Entity, actions: Record<string, unknown>, dt: number) => void;
     /** Cap on unacknowledged commands kept for replay (default 120). */
     maxPendingInputs?: number;
+    /**
+     * Ease reconciliation corrections out instead of hard-snapping: the
+     * numeric fields of owned entities keep a decaying visual error toward
+     * their pre-correction value. Purely presentational — the simulation
+     * rebuilds from the authority copy every tick regardless, so the error can
+     * never accumulate. Off by default (corrections snap).
+     */
+    smoothing?: PredictionSmoothing;
+}
+
+export interface PredictionSmoothing {
+    /** Seconds for the visual error to halve (typical: 0.05–0.15). */
+    halfLife: number;
+    /**
+     * Corrections larger than this (per numeric component) snap immediately —
+     * a teleport must look like a teleport. Default: no limit.
+     */
+    maxError?: number;
+}
+
+/** next + decayed (prev − next) over the numeric parts of a replicated field —
+ *  shape-driven (the codec's FieldShape is the single source of what's numeric). */
+function smoothValue(shape: FieldShape, prev: unknown, next: unknown, keep: number, maxError: number): unknown {
+    if (shape.kind === 'f32') {
+        if (typeof prev !== 'number' || typeof next !== 'number') return next;
+        const err = prev - next;
+        if (Math.abs(err) > maxError) return next;
+        return next + err * keep;
+    }
+    if (shape.kind === 'object') {
+        if (prev === null || next === null || typeof prev !== 'object' || typeof next !== 'object') return next;
+        const out: Record<string, unknown> = { ...(next as Record<string, unknown>) };
+        for (let i = 0; i < shape.keys.length; i++) {
+            const k = shape.keys[i];
+            out[k] = smoothValue(
+                shape.shapes[i],
+                (prev as Record<string, unknown>)[k],
+                (next as Record<string, unknown>)[k],
+                keep, maxError,
+            );
+        }
+        return out;
+    }
+    return next;
 }
 
 export interface ReplicationClientOptions {
@@ -243,12 +287,31 @@ export class ReplicationClient {
         }
     }
 
-    /** Rebuild every owned entity's live state as authority ⊕ pending replay.
-     *  Idempotent — running it on a tick with no new data reproduces the same
-     *  values, so it runs unconditionally each fixed step. */
+    /** Rebuild every owned entity's live state as authority ⊕ pending replay
+     *  (⊕ a decaying visual error when smoothing is on). Idempotent modulo the
+     *  error decay — it runs unconditionally each fixed step. */
     private reconcilePredicted_(): void {
         const owned = this.ownedEntities_();
         if (owned.length === 0) return;
+
+        // Smoothing: what the player SAW before this rebuild. The snap below
+        // replaces field references (never mutates them), so these stay valid.
+        const smoothing = this.prediction_!.smoothing;
+        const seen = smoothing ? new Map<Entity, Map<number, Record<string, unknown>>>() : null;
+        if (seen) {
+            for (const e of owned) {
+                const perComp = new Map<number, Record<string, unknown>>();
+                for (const te of this.table.entries) {
+                    if (!this.world_.has(e, te.def)) continue;
+                    const data = this.world_.tryGet(e, te.def) as Record<string, unknown>;
+                    const prev: Record<string, unknown> = {};
+                    for (const f of te.fields) prev[f] = data[f];
+                    perComp.set(te.id, prev);
+                }
+                seen.set(e, perComp);
+            }
+        }
+
         for (const e of owned) {
             const netId = this.netIds_.netIdOf(e);
             if (netId === undefined) continue;
@@ -276,6 +339,34 @@ export class ReplicationClient {
         for (const input of this.pendingInputs_) {
             for (const e of owned) {
                 this.prediction_!.apply(this.world_, e, input.actions, this.fixedDelta_);
+            }
+        }
+
+        // Smoothing: blend the rebuilt state toward what was on screen, with
+        // the error halving every halfLife seconds. Next tick's rebuild wipes
+        // it, so the error decays instead of compounding.
+        if (smoothing && seen) {
+            const keep = Math.pow(0.5, this.fixedDelta_ / smoothing.halfLife);
+            const maxError = smoothing.maxError ?? Infinity;
+            for (const e of owned) {
+                const perComp = seen.get(e);
+                if (!perComp) continue;
+                for (const [componentId, prev] of perComp) {
+                    const te = this.table.entries[componentId];
+                    if (!te || !this.world_.has(e, te.def)) continue;
+                    const data = this.world_.tryGet(e, te.def) as Record<string, unknown>;
+                    let changed = false;
+                    for (let i = 0; i < te.fields.length; i++) {
+                        const f = te.fields[i];
+                        if (!(f in prev)) continue;
+                        const blended = smoothValue(te.shapes[i], prev[f], data[f], keep, maxError);
+                        if (blended !== data[f]) {
+                            data[f] = blended;
+                            changed = true;
+                        }
+                    }
+                    if (changed) this.world_.set(e, te.def, data);
+                }
             }
         }
     }

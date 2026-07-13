@@ -12,6 +12,14 @@ export class TilemapAssetLoader implements AssetLoader<TilemapResult> {
     async load(path: string, ctx: LoadContext): Promise<TilemapResult> {
         const buildPath = ctx.catalog.getBuildPath(path);
         const text = await ctx.loadText(buildPath);
+        // The engine has ONE Tiled parser and it speaks the JSON format. A
+        // .tmx (XML) map fails loud with the fix, not with a JSON syntax error
+        // — Tiled exports .tmj natively (File → Export As → JSON map files).
+        if (text.trimStart().startsWith('<')) {
+            throw new Error(
+                `[tilemap] "${path}" is a Tiled XML map — the engine parses the JSON format only. ` +
+                'In Tiled: File → Export As → "JSON map files (*.tmj)", then reference the .tmj.');
+        }
         // External .tsj tilesets resolve relative to the map, through the same
         // text channel as the map itself.
         const mapData = await parseTmjWithExternals(JSON.parse(text), (source) =>

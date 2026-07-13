@@ -22,6 +22,8 @@ import type { TiledMapData } from '../src/tilemap/tiledLoader';
 import { resolveTilesetModel } from '../src/tilemap/tilesetResolve';
 import type { TilesetAsset } from '../src/tilemap/tilesetAsset';
 import { mergeCollisionTiles } from '../src/tilemap/collisionMerge';
+import { TilemapAssetLoader } from '../src/asset/loaders/TilemapAssetLoader';
+import type { LoadContext } from '../src/asset/AssetLoader';
 import { BodyType } from '../src/physics/PhysicsComponents';
 import { clearUserComponents } from '../src/component';
 import type { World } from '../src/world';
@@ -84,6 +86,17 @@ describe('Tilemap Components', () => {
                 visible: true,
             });
         });
+    });
+});
+
+describe('TilemapAssetLoader — .tmx fails loud with the fix', () => {
+    it('a Tiled XML map errors with the JSON-export guidance, not a JSON syntax error', async () => {
+        const loader = new TilemapAssetLoader();
+        const ctx = {
+            catalog: { getBuildPath: (p: string) => p },
+            loadText: async () => '<?xml version="1.0" encoding="UTF-8"?>\n<map version="1.10"></map>',
+        } as unknown as LoadContext;
+        await expect(loader.load('maps/level.tmx', ctx)).rejects.toThrow(/JSON map files \(\*\.tmj\)/);
     });
 });
 
