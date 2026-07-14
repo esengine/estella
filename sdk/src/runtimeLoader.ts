@@ -131,6 +131,7 @@ function mergeSceneTextureImportSettings(
         settings[resolveRef(ref)] = {
             filter: s.filterMode as TextureImportSettings['filter'],
             wrap: s.wrapMode as TextureImportSettings['wrap'],
+            srgb: s.srgb,
         };
     }
 }

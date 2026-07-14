@@ -23,6 +23,7 @@ describe('importerDefaults (import-time .meta)', () => {
       filterMode: 'linear',
       wrapMode: 'repeat',
       premultiplyAlpha: false,
+      sRGB: true,
       sliceBorder: { left: 0, right: 0, top: 0, bottom: 0 },
     });
   });

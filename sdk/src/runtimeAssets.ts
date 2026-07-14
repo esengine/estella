@@ -7,8 +7,10 @@
  *          builder runtime loader and the spine scene loader (and any editor that
  *          drives the same load path). Kept in its own module so neither the
  *          runtime loader nor the spine loader has to import the other.
+import { linearColorSpace } from './env';
  */
 import type { ESEngineModule } from './wasm';
+import { linearColorSpace } from './env';
 import type { Backend } from './asset/Backend';
 import { requireResourceManager } from './resourceManager';
 import { withMalloc } from './wasmScratch';
@@ -43,6 +45,8 @@ export interface RuntimeAssetSource {
 export interface TextureParams {
     filterMode?: string;
     wrapMode?: string;
+    /** sRGB-encoded color image (default true); see TextureImportSettings.srgb. */
+    srgb?: boolean;
 }
 
 const FILTER_MODE_MAP: Record<string, number> = { 'nearest': 0, 'linear': 1 };
@@ -56,15 +60,17 @@ export function createTextureFromPixels(
     params?: TextureParams,
 ): number {
     const rm = requireResourceManager();
+    // Format code 2 = sRGB-encoded color (linear pipeline); 1 = plain RGBA8.
+    const format = linearColorSpace() && (params?.srgb ?? true) ? 2 : 1;
     return withMalloc(module, result.pixels.length, ptr => {
         module.HEAPU8.set(result.pixels, ptr);
 
         if (params && (params.filterMode || params.wrapMode) && rm.createTextureEx) {
             const filter = FILTER_MODE_MAP[params.filterMode ?? 'linear'] ?? 1;
             const wrap = WRAP_MODE_MAP[params.wrapMode ?? 'clamp'] ?? 1;
-            return rm.createTextureEx(result.width, result.height, ptr, result.pixels.length, 1, flipY, filter, wrap);
+            return rm.createTextureEx(result.width, result.height, ptr, result.pixels.length, format, flipY, filter, wrap);
         }
-        return rm.createTexture(result.width, result.height, ptr, result.pixels.length, 1, flipY);
+        return rm.createTexture(result.width, result.height, ptr, result.pixels.length, format, flipY);
     });
 }
 

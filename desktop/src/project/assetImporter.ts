@@ -37,6 +37,11 @@ const TEXTURE: ImporterFieldSpec[] = [
     key: 'premultiplyAlpha', label: 'Premultiply Alpha', type: 'bool', default: false,
     category: 'Texture', advanced: true,
   },
+  {
+    key: 'sRGB', label: 'sRGB Color', type: 'bool', default: true, category: 'Texture', advanced: true,
+    tooltip: 'The image stores sRGB-encoded color (albedo/UI). Disable for authored-linear '
+      + 'data like normal maps and masks — only meaningful when the project renders in linear color.',
+  },
   { key: 'sliceBorder.left', label: 'Border Left', type: 'number', default: 0, min: 0, category: '9-Slice', advanced: true },
   { key: 'sliceBorder.right', label: 'Border Right', type: 'number', default: 0, min: 0, category: '9-Slice', advanced: true },
   { key: 'sliceBorder.top', label: 'Border Top', type: 'number', default: 0, min: 0, category: '9-Slice', advanced: true },
@@ -138,11 +143,12 @@ export function buildImporterComponent(type: string, importer: Record<string, un
  *  Undefined when the `.meta` carries neither ⇒ loader defaults. */
 export function readTextureImportSettings(
   importer: Record<string, unknown> | undefined,
-): { filter?: 'linear' | 'nearest'; wrap?: 'repeat' | 'clamp' | 'mirror' } | undefined {
+): { filter?: 'linear' | 'nearest'; wrap?: 'repeat' | 'clamp' | 'mirror'; srgb?: boolean } | undefined {
   if (!importer) return undefined;
   const filter = importer.filterMode as 'linear' | 'nearest' | undefined;
   const wrap = importer.wrapMode as 'repeat' | 'clamp' | 'mirror' | undefined;
-  return filter || wrap ? { filter, wrap } : undefined;
+  const srgb = typeof importer.sRGB === 'boolean' ? importer.sRGB : undefined;
+  return filter || wrap || srgb !== undefined ? { filter, wrap, srgb } : undefined;
 }
 
 /** Apply one inspector edit to a copy of the `importer` block (dotted keys →

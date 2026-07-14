@@ -33,6 +33,10 @@ export interface TextureImportSettings {
     readonly filter?: 'linear' | 'nearest';
     readonly wrap?: 'repeat' | 'clamp' | 'mirror';
     readonly mipmaps?: boolean;
+    /** Whether the image stores sRGB-encoded color (default). Authored-linear
+     *  data (normal maps, masks) sets false so the linear pipeline skips the
+     *  hardware EOTF. Ignored in gamma mode. */
+    readonly srgb?: boolean;
 }
 
 export type TextureImportSettingsResolver = (ref: string) => TextureImportSettings | undefined;
@@ -166,7 +170,9 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         // runtimeLoader.loadTextures used — instead of a URL-based <img>.
         if (this.pixelDecoder_) {
             const result = await this.pixelDecoder_(path, flip);
-            const params: TextureParams = { filterMode: settings?.filter, wrapMode: settings?.wrap };
+            const params: TextureParams = {
+                filterMode: settings?.filter, wrapMode: settings?.wrap, srgb: settings?.srgb,
+            };
             const handle = createTextureFromPixels(this.module_, result, flip, params);
             return { handle, width: result.width, height: result.height };
         }
@@ -242,7 +248,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         if (gl) {
             return this.createTextureWebGL2(gl, img, width, height, uploadFlip, settings);
         }
-        return this.createTextureFallback(img, width, height, uploadFlip);
+        return this.createTextureFallback(img, width, height, uploadFlip, settings);
     }
 
     private getWebGL2Context(): WebGL2RenderingContext | null {
@@ -275,9 +281,10 @@ export class TextureLoader implements AssetLoader<TextureResult> {
             gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, flip ? 1 : 0);
             gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0);
             // Linear pipeline: color textures store sRGB-encoded — the sampler
-            // linearizes in hardware. (Data textures opt out via the importer's
-            // sRGB flag once wired; until then all image textures are color.)
-            const internalFormat = linearColorSpace() ? gl.SRGB8_ALPHA8 : gl.RGBA;
+            // linearizes in hardware. Data textures (normal maps) opt out via
+            // the importer's sRGB flag.
+            const internalFormat = linearColorSpace() && (settings?.srgb ?? true)
+                ? gl.SRGB8_ALPHA8 : gl.RGBA;
             gl.texImage2D(gl.TEXTURE_2D, 0, internalFormat, gl.RGBA, gl.UNSIGNED_BYTE, img as any);
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, glMinFilter);
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, glMagFilter);
@@ -306,6 +313,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     private createTextureFallback(
         img: HTMLImageElement | ImageBitmap,
         width: number, height: number, flip: boolean,
+        settings?: TextureImportSettings,
     ): TextureResult {
         const { canvas, ctx } = this.ensureCanvas_();
         if (canvas.width < width || canvas.height < height) {
@@ -321,9 +329,11 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         unpremultiplyAlpha(pixels);
 
         const rm = requireResourceManager();
+        // Format 2 = sRGB color under the linear pipeline (see rm_createTexture).
+        const format = linearColorSpace() && (settings?.srgb ?? true) ? 2 : 1;
         const handle = withMalloc(this.module_, pixels.length, ptr => {
             this.module_.HEAPU8.set(pixels, ptr);
-            return rm.createTexture(width, height, ptr, pixels.length, 1, flip);
+            return rm.createTexture(width, height, ptr, pixels.length, format, flip);
         });
 
         return { handle, width, height };
