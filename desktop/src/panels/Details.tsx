@@ -48,7 +48,7 @@ import { ENTITY_SOURCES, createFromSource } from '@/engine/entitySources';
 import { PlayInspect } from '@/engine/PlayInspect';
 import { DimensionUnit, AnchorAxis, detectAnchor, UIPositionType, parseLocaleTable } from 'esengine';
 import type { SceneData, InputMapAsset, ActionType, Binding, LocaleTableAsset, PluralCategory } from 'esengine';
-import { modelAddableComponentEntries, subscribeSchemas, getSchemaRevision, prettyLabel, hexToRgba, dynamicEnumOptions, boxGroupsFor, type BoxGroupDef } from '@/engine/schema';
+import { modelAddableComponentEntries, subscribeSchemas, getSchemaRevision, prettyLabel, hexToRgba, dynamicEnumOptions, boxGroupsFor, isRequiredEmpty, type BoxGroupDef } from '@/engine/schema';
 import * as imap from '@/project/inputMapDoc';
 import * as ldoc from '@/project/localeTableDoc';
 import { buildImporterComponent, applyImporterEdit } from '@/project/assetImporter';
@@ -1019,8 +1019,10 @@ function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp
     end();
   };
 
-  // A required field left empty (no asset / blank string) — flagged, not blocked (soft).
-  const invalid = !!field.required && (field.value === 0 || field.value === '' || field.value == null);
+  // A required field left empty (no asset / blank string) — flagged, not blocked
+  // (soft). ONE predicate with the surface's getDiagnostics sweep, so automation
+  // gates on exactly what this red flag shows.
+  const invalid = !!field.required && isRequiredEmpty(field.value);
 
   return (
     <div

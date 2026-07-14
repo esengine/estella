@@ -107,6 +107,19 @@ describe.skipIf(!HAS_WASM)('EditorControlSurface (headless World)', () => {
     expect(host.ticks).toBe(3);
   });
 
+  it('getDiagnostics flags a required-empty field (Details parity) and clears when set', () => {
+    const id = S.surface.addEntity()!;
+    S.surface.addComponent(id, 'Sprite'); // Sprite.texture is required, defaults empty
+    const found = S.surface.getDiagnostics();
+    expect(found).toContainEqual(
+      expect.objectContaining({ entity: id, component: 'Sprite', field: 'texture', problem: 'required-empty' }),
+    );
+    S.surface.setField(id, 'Sprite', 'texture', 'asset', 'assets/player.png');
+    expect(
+      S.surface.getDiagnostics().filter((d) => d.entity === id && d.problem === 'required-empty'),
+    ).toHaveLength(0);
+  });
+
   it('setRunMode delegates play/pause state to the host', () => {
     S.surface.setRunMode(true, true);
     expect(host.runMode).toEqual([true, true]);

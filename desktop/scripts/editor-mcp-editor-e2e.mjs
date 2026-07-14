@@ -108,6 +108,13 @@ try {
   if (!Number.isFinite(created) || after <= before) await fail(`create_entity did not spawn (${before} -> ${after})`);
   console.log(`create_entity OK — id ${created} (${before} -> ${after} entities)`);
 
+  // The fresh Sprite has no texture — the diagnostics sweep must flag it (the
+  // same truth as the Details red asterisk, queryable instead of pixel-only).
+  const diags = JSON.parse((await call('get_diagnostics')).text);
+  if (!diags.some((d) => d.entity === created && d.problem === 'required-empty' && d.field === 'texture'))
+    await fail(`get_diagnostics missed the fresh Sprite's empty texture (${JSON.stringify(diags).slice(0, 200)})`);
+  console.log(`get_diagnostics OK — flagged Sprite.texture on the new entity`);
+
   await call('set_field', { entity: created, component: 'Transform', key: 'position', type: 'vec3', value: [64, 96, 0] });
   const live = JSON.parse((await call('world_component', { id: created, component: 'Transform' })).text);
   if (!live) await fail('world_component returned null — edit did not reach the World');

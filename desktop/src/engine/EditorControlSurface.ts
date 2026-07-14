@@ -26,6 +26,7 @@ import type {
 import type { SceneData, PrefabData, SubsystemStatus } from 'esengine';
 import { Material, Sprite, Renderer } from 'esengine';
 import { EngineHost } from './EngineHost';
+import { isRequiredEmpty } from './schema';
 import { ViewportController } from './ViewportController';
 import { PerfMonitor, type PerfSnapshot, type FrameSample, type SessionCapture } from './PerfMonitor';
 import type { SceneCommandsImpl, EditorTransaction } from './SceneCommands';
@@ -40,6 +41,16 @@ export interface ViewportCapture {
   rgba: Uint8Array;
   width: number;
   height: number;
+}
+
+/** One scene-validation finding (see {@link EditorControlSurfaceImpl.getDiagnostics}). */
+export interface SceneDiagnostic {
+  entity: EntityId;
+  entityName: string;
+  component: string;
+  field?: string;
+  problem: 'required-empty' | 'notice';
+  detail: string;
 }
 
 /** The session parts the surface needs (the EditorSession satisfies this). */
@@ -253,6 +264,40 @@ export class EditorControlSurfaceImpl {
   }
   getFieldValue(entity: EntityId, component: string, key: string): InspectorFieldValue | null {
     return this.s.query.getFieldValue(entity, component, key);
+  }
+  /**
+   * Scene-wide validation sweep — the SAME truths the Details panel renders
+   * (required fields left empty, component inert-state notices), aggregated so
+   * automation can gate on them instead of reading red asterisks off pixels.
+   * `problem: 'required-empty'` is error-grade (a Sprite with no texture draws
+   * a white box); `problem: 'notice'` is informational.
+   */
+  getDiagnostics(): SceneDiagnostic[] {
+    const issues: SceneDiagnostic[] = [];
+    const visit = (nodes: SceneNode[]): void => {
+      for (const node of nodes) {
+        for (const comp of this.s.query.readInspector(node.id)) {
+          for (const f of comp.fields) {
+            if (f.required && isRequiredEmpty(f.value)) {
+              issues.push({
+                entity: node.id, entityName: node.name, component: comp.name, field: f.key,
+                problem: 'required-empty',
+                detail: `${comp.name}.${f.key} is required but empty`,
+              });
+            }
+          }
+          if (comp.notice) {
+            issues.push({
+              entity: node.id, entityName: node.name, component: comp.name,
+              problem: 'notice', detail: comp.notice,
+            });
+          }
+        }
+        if (node.children?.length) visit(node.children);
+      }
+    };
+    visit(this.s.query.readSceneTree());
+    return issues;
   }
   /** The lossless JSON-first scene truth (deep clone), or null if none loaded. */
   serializeScene(): SceneData | null {

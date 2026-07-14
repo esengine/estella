@@ -393,6 +393,14 @@ export function isRequiredField(compType: string, key: string): boolean {
   return userSchema(compType)?.fields?.[key]?.required === true;
 }
 
+/** The ONE emptiness predicate for required fields — an unset asset ref is the
+ *  numeric 0 handle sentinel, an unset string is ''. Consumed by the Details
+ *  panel's red flag AND the surface's getDiagnostics sweep, so what automation
+ *  gates on is exactly what the UI shows. */
+export function isRequiredEmpty(value: unknown): boolean {
+  return value === 0 || value === '' || value == null;
+}
+
 // Editor-side "Advanced" fold policy — rarely-tuned fields moved below the fold so a
 // component's common controls stay uncluttered. UINode's flex-item knobs (min/max,
 // grow/shrink/basis, cross-axis alignSelf) are set far less than its size/anchor.
