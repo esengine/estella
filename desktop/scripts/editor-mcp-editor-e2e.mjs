@@ -90,14 +90,11 @@ try {
   await call('open_project', { root: project }, 120_000);
   console.log('open_project OK');
 
+  // No polling: open_scene's contract is "resolved = adopted", so the very next
+  // tree read must already be populated (this line is the contract's regression
+  // guard — do not add a retry loop here).
   await call('open_scene', { path: 'assets/scenes/main.esscene' }, 60_000);
-  // The openScene promise resolves ahead of the model spawn — poll the tree the
-  // way the shot-automation flow does.
-  let tree = [];
-  for (let i = 0; i < 30 && tree.length === 0; i++) {
-    tree = JSON.parse((await call('get_scene_tree')).text) ?? [];
-    if (tree.length === 0) await new Promise((r) => setTimeout(r, 1000));
-  }
+  const tree = JSON.parse((await call('get_scene_tree')).text);
   if (!Array.isArray(tree) || tree.length === 0) await fail('scene tree empty after open_scene');
   console.log(`open_scene OK — ${tree.length} roots`);
 

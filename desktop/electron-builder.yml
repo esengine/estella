@@ -60,6 +60,14 @@ extraResources:
       - "!**/dist/**"
 win:
   target: nsis
+# Assisted (non-oneClick) installer: electron-builder derives the oneClick
+# install dir from the SANITIZED PACKAGE NAME (@estella/editor -> a literal
+# `@estellaeditor` folder under LocalAppData\Programs — issue #3100); the
+# assisted flow uses productName ("Estella Editor") and lets the user pick.
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
 mac:
   # arm64 only: a universal build would merge an x64 slice, but pnpm 10 installs just
   # the host-arch esbuild native binary, so the x64 slice would ship a broken esbuild

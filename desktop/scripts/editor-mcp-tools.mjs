@@ -134,7 +134,7 @@ export const TOOLS = [
   //   editor app. On the headless fixtures host these fail with a pointer to
   //   `editor-mcp.mjs --editor`. —
   { name: 'list_project_templates',
-    description: 'New-project templates the editor ships (blank starter + sample projects). Use a returned dir with create_project.',
+    description: "New-project templates the editor ships. Each entry: { name, dir, kind: 'starter' | 'example', description?, tag? } — the blank starter has kind 'starter'. Use an entry's dir with create_project.",
     schema: obj({}), js: () => `window.estella.templates.list()` },
   { name: 'create_project', write: true,
     description: 'Create a new project from a template directory (see list_project_templates) at <location>/<name>; returns the new project root. Follow with open_project.',
@@ -142,11 +142,12 @@ export const TOOLS = [
       ['templateDir', 'location', 'name']),
     js: (i) => `window.estella.project.createFromTemplate(${JSON.stringify(i.templateDir)}, ${JSON.stringify(i.location)}, ${JSON.stringify(i.name)})` },
   { name: 'open_project',
-    description: 'Open a project by absolute root path and enter the editor. Call before any scene/asset work on the editor host.',
+    description: 'Open a project by absolute root path and enter the editor. Resolves once the initial scene is loaded and readable — call before any scene/asset work on the editor host.',
     schema: obj({ root: { type: 'string' } }, ['root']),
-    js: (i) => `window.__estellaEditor.open(${JSON.stringify(i.root)}).then((ok) => { window.__estellaEditor.enterEditor(); return ok; })` },
+    js: (i) => `window.__estellaEditor.open(${JSON.stringify(i.root)})
+      .then((ok) => { window.__estellaEditor.enterEditor(); return window.__estellaEditor.sceneReady().then(() => ok); })` },
   { name: 'open_scene',
-    description: 'Open a scene by project-relative path (e.g. assets/scenes/main.esscene) in the editor.',
+    description: 'Open a scene by project-relative path (e.g. assets/scenes/main.esscene) in the editor. Resolves once the scene is adopted — get_scene_tree is immediately valid.',
     schema: obj({ path: { type: 'string' } }, ['path']),
     method: 'openScene', args: (i) => [i.path], root: 'editor' },
   { name: 'save_scene', write: true,

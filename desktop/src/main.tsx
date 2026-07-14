@@ -83,7 +83,26 @@ if (new URLSearchParams(location.search).has('automation')) {
   (window as unknown as { __estellaEditor?: unknown }).__estellaEditor = {
     open: (root: string) => ProjectStore.open(root),
     enterEditor: () => useEditorStore.getState().enterEditor(),
-    openScene: (rel: string) => ProjectStore.openScene(rel),
+    /** Resolves once the scene is ADOPTED and readable (drivers must not need
+     *  their own get_scene_tree polling): waits out the model-version bump the
+     *  adopt performs, racing the engine boot on a freshly opened project. */
+    openScene: async (rel: string) => {
+      const v0 = EditorControlSurface.worldVersion();
+      await ProjectStore.openScene(rel);
+      const t0 = Date.now();
+      while (EditorControlSurface.worldVersion() === v0 && Date.now() - t0 < 30_000) {
+        await new Promise((r) => setTimeout(r, 100));
+      }
+    },
+    /** Resolves once the project's initial scene is in the tree (call after
+     *  open + enterEditor; the boot pipeline loads the last-opened scene). */
+    sceneReady: async (timeoutMs = 30_000) => {
+      const t0 = Date.now();
+      while (EditorControlSurface.getSceneTree().length === 0 && Date.now() - t0 < timeoutMs) {
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      return EditorControlSurface.getSceneTree().length > 0;
+    },
     selectAsset: (path: string | null) => useSelection.getState().selectAsset(path),
     play: () => useEditorStore.getState().togglePlay(),
     playState: () => PlayRealm.getSnapshot(),

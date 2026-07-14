@@ -4,4 +4,7 @@ dist/
 .idea/
 .DS_Store
 Thumbs.db
-.esengine/cache/
+
+# Editor-managed staging: the sdk types mirror and play-realm build are
+# regenerated every time the editor opens the project.
+.esengine/
