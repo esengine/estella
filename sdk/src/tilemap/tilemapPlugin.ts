@@ -369,6 +369,15 @@ export class TilemapPlugin implements Plugin {
                                 .map(t => ({ firstId: t.firstId, textureHandle: t.textureHandle, columns: t.columns }));
                             if (slots.length > 0) {
                                 TilemapAPI.setTilesets(child, slots);
+                            } else if (cached.tilesets.length > 0) {
+                                // Every tileset texture is dead (handle 0): the map parsed
+                                // and its collision generates, but nothing will draw. Say
+                                // so ONCE, loudly — silently-invisible-but-solid levels
+                                // cost a real debugging session to diagnose from pixels.
+                                log.error('tilemap',
+                                    `Tiled map on entity ${entity}: none of its ${cached.tilesets.length} `
+                                    + 'tileset texture(s) loaded — tiles will NOT render (collision still '
+                                    + 'works). See earlier [tilemap] load errors for the failing image path(s).');
                             }
 
                             children.push(child);

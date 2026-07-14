@@ -45,7 +45,15 @@ export class TilemapAssetLoader implements AssetLoader<TilemapResult> {
                 const result = await ctx.loadTexture(imagePath, true);
                 textureHandle = result.handle;
             } catch (e) {
-                log.warn('asset', `Failed to load tileset texture: ${imagePath}`, e);
+                // Loud, with the fix: a dead tileset texture makes every tile that
+                // uses it invisible (the renderer drops handle-0 slots), while the
+                // map's collision still generates — an invisible-but-solid level is
+                // the single most confusing failure this loader can produce.
+                log.error('tilemap',
+                    `"${path}": tileset "${ts.name}" image failed to load `
+                    + `("${ts.image}" → "${imagePath}") — its tiles will NOT render `
+                    + '(collision still generates). Check that the image exists at that '
+                    + 'path and is imported into the project.', e);
             }
             const rows = ts.columns > 0 ? Math.max(1, Math.ceil(ts.tileCount / ts.columns)) : 1;
             tilesets.push({ textureHandle, columns: ts.columns, rows, firstId: ts.firstGid });
