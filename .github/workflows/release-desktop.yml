@@ -23,14 +23,21 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Create the draft release up front
+      - uses: actions/checkout@v4
+
+      # The release body is the tag's own section of CHANGELOG.md (the release
+      # commit lands the section before the tag, so it is always present here).
+      - name: Create the draft release with this version's changelog section
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          v="${GITHUB_REF_NAME#v}"
+          awk -v ver="$v" 'index($0, "## [" ver "]") == 1 {f=1; next} /^## \[/ {if (f) exit} f' CHANGELOG.md > /tmp/notes.md
+          grep -q '[^[:space:]]' /tmp/notes.md || echo "See CHANGELOG.md for this release's notes." > /tmp/notes.md
           gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
             gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
               --draft --title "$GITHUB_REF_NAME" \
-              --notes "See CHANGELOG.md for this release's notes."
+              --notes-file /tmp/notes.md
 
   # The engine wasm is platform-independent, so it is compiled ONCE here and
   # shared with the platform packagers as an artifact. This is what the
