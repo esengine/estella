@@ -14,6 +14,94 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-07-14
+
+The editor opens its doors to AI agents, and the asset registry comes alive.
+This release ships a built-in MCP server — any MCP-capable AI tool can connect
+to the running editor and build a game through the same doors the UI uses:
+create projects, edit scenes and components, import assets, read validation,
+drive Play, and export. And the asset pipeline stops being a snapshot: files
+dropped into a project register on sight, a texture assigned anywhere lights
+up without reopening the project, and every failure that used to be a silent
+white box is now a hard error or a queryable diagnostic.
+
+### Added
+
+- **MCP server, built in.** The editor ships an MCP (Model Context Protocol)
+  server: launch with `--mcp` (or spawn the bundled `editor-mcp` entry from an
+  installed app) and any MCP-capable AI tool gets 47 tools that operate the
+  live editor — project create/open, scene and entity editing, component
+  add/remove and field writes (undoable, through the same command path as the
+  UI), asset import/create, viewport capture and window screenshots, Play
+  control, log reading, and game export. The Windows quirk is solved for
+  good: the protocol lives in a plain-node front (Electron main never
+  receives piped stdin on Windows), talking to the editor over an
+  authenticated loopback channel.
+- **Eyes and hands inside the running game.** `play_probe` evaluates code in
+  the isolated Play realm — read gameplay state via `window.__estellaPlay`,
+  or inject input events to drive the game — so automation can verify actual
+  gameplay, not just the edit-mode scene.
+- **Queryable scene validation.** `getDiagnostics()` on the editor surface
+  (and the `get_diagnostics` MCP tool) returns exactly what the Details panel
+  flags — required fields left empty, inert-component notices, and now
+  **unresolvable asset references** (a ref that names no registered asset, or
+  whose load failed). An empty list is a machine-checkable "scene is clean".
+- **Public FSM/BT loaders.** `Assets.loadStateMachine` / `loadBehaviorTree`
+  load `.esfsm` / `.esbt` definitions into the AI store on demand, and
+  `Assets.pathForHandle` resolves a live handle back to the asset it came
+  from (the reverse of ref resolution).
+
+### Changed
+
+- **Assets register on sight.** The project scan now adopts orphans: any
+  known-type content file without a `.meta` sidecar gets one minted and
+  enters the registry — "drop an asset folder into the project and open it"
+  just works, at open and on every filesystem refresh while the project is
+  open. Importing a file that already lives inside the project registers it
+  in place instead of spawning a renamed copy. The write doors (import and
+  create, UI and MCP alike) guarantee the registry sees their output before
+  they return.
+- **Windows installer is a real wizard.** The one-click installer (which put
+  the app under a package-derived folder name) is replaced by an assisted
+  installer: pick the install directory, default `Programs\Estella Editor`.
+- **SDK types staging is stamped and loud.** The `.esengine/sdk` types mirror
+  (what makes `import from 'esengine'` resolve in your IDE) re-stages only
+  when the editor or SDK actually changed, falls back to the in-archive SDK
+  dist when the unpacked copy is missing, and reports failure in the Output
+  Log and a toast instead of silently skipping.
+
+### Fixed
+
+- **The white-box family: cold asset references now converge.** Assigning a
+  texture (or any handle-valued asset) that the scene-open preload never saw
+  — via the Details picker popover, an MCP `set_field`, or a hot-created
+  asset — left a dead handle rendering a white box until the project was
+  reopened, with zero logs. The editor now loads cold references through the
+  engine's own loaders and re-projects exactly the referencing components
+  when the load lands; failures log loudly and surface in diagnostics.
+- **Tilemaps follow their source, live.** Editing `Tilemap.source` re-derives
+  the map immediately (no more reopen); a `.tmj` rewritten on disk
+  invalidates stale caches and re-renders; and the "renders as fragments of
+  the wrong texture after import" failure — along with the constant
+  ~1s/frame grind that came with it — is gone with the registry staleness
+  that caused it.
+- **Invisible-but-solid maps fail loud.** A tilemap whose tileset textures
+  all failed to load says so once, as an error naming the failing paths —
+  collision-only ghost levels no longer cost a debugging session.
+- **The Game inspector names live assets.** During Play, asset slots showed a
+  red "required but empty" flag for perfectly loaded assets — the running
+  world stores realm-local handles, which the inspector coerced to empty.
+  Live handles now translate back to the assets they came from (name +
+  thumbnail), and asset slots are read-only while playing.
+- **sRGB uploads cover every texture path** under linear color — the last
+  paths that uploaded color textures without the sRGB flag are aligned, so
+  linear-light projects decode consistently no matter how a texture arrives.
+- **`.esengine/sdk` missing in v0.22.0 installs** (#49). The packaged app
+  shipped its SDK dist archive-only; the types mirror silently skipped and
+  projects opened with no `esengine` types for the IDE. Now staged with a
+  fallback source and loud failure (see *Changed*); reopening a project in
+  the editor regenerates the folder.
+
 ## [0.22.0] - 2026-07-13
 
 Light gets physical: an opt-in linear-light pipeline decodes sRGB in hardware,
@@ -607,7 +695,8 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.22.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.23.0...HEAD
+[0.23.0]: https://github.com/esengine/estella/compare/v0.22.0...v0.23.0
 [0.22.0]: https://github.com/esengine/estella/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/esengine/estella/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/esengine/estella/compare/v0.19.0...v0.20.0
