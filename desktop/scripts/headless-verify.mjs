@@ -49,6 +49,12 @@ const COLORSPACE = process.env.ESTELLA_VERIFY_COLORSPACE === 'linear' ? 'linear'
 
 // Headless / GPU-less (CI) WebGL2 falls back to SwiftShader; harmless with a GPU.
 app.commandLine.appendSwitch('enable-unsafe-swiftshader');
+// capturePage returns DISPLAY-referred pixels: Chromium converts the sRGB canvas
+// through the OS display profile before compositing, so on a wide-gamut machine
+// every WebGPU point assertion reads P3-ish values (pure green → ~[116,249,75])
+// while the GL path's raw readPixels stays clean — the "R/B channel bleed" was
+// this, not a render bug. Pin the profile so captures are device-independent.
+app.commandLine.appendSwitch('force-color-profile', 'srgb');
 // WebGPU: the unsafe flag covers non-default platforms (Linux CI); the optional
 // software adapter (ESTELLA_VERIFY_WEBGPU_ADAPTER=swiftshader) gives GPU-less
 // runners a real Dawn adapter through the bundled SwiftShader Vulkan — the

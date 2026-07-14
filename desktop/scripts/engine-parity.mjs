@@ -27,6 +27,10 @@ try {
 const BIN = path.resolve(path.dirname(fileURLToPath(import.meta.url)),
   '..', '..', 'build', 'wasm', 'web-tests', 'bin');
 
+// capturePage pixels are display-referred (converted through the OS display
+// profile) — pin to sRGB so assertions read the same on wide-gamut machines.
+app.commandLine.appendSwitch('force-color-profile', 'srgb');
+
 const PAGE = `<!doctype html>
 <html><body style="margin:0">
 <canvas id="canvas" width="256" height="256"></canvas>

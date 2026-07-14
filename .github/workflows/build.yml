@@ -271,6 +271,22 @@ jobs:
           ESTELLA_VERIFY_W=256 ESTELLA_VERIFY_H=256 \
           'ESTELLA_VERIFY_TRAIL={"from":[-200,0],"to":[200,0],"steps":20}' \
           'ESTELLA_VERIFY_EXPECT=[{"x":0.80,"y":0.5,"rgb":[0,255,0],"tol":50},{"x":0.5,"y":0.5,"rgb":[0,255,0],"tol":50},{"x":0.25,"y":0.5,"rgb":[0,255,0],"tol":60},{"x":0.5,"y":0.15,"rgb":[0,0,0],"tol":30}]'
+        # Linear-light pipeline (colorSpace: 'linear'). The lit falloff moves 52
+        # to 125 (perceptually-uniform light); the mid-gray texture must ROUND-TRIP
+        # exactly (sRGB store → hw decode → blit encode = identity) — a missing
+        # sRGB upload variant would read ~187, so tol 6 is a hard discriminator.
+        run_scene linear-lit \
+          ESTELLA_VERIFY_COLORSPACE=linear \
+          ESTELLA_VERIFY_SCENE=/scenes/mat-lit-point.esscene \
+          ESTELLA_VERIFY_MANIFEST=/scenes/mat-lit-point.textures.json \
+          ESTELLA_VERIFY_W=256 ESTELLA_VERIFY_H=256 ESTELLA_VERIFY_STEPS=2 \
+          'ESTELLA_VERIFY_EXPECT=[{"x":0.5,"y":0.5,"rgb":[0,254,0],"tol":25},{"x":0.75,"y":0.5,"rgb":[0,125,0],"tol":25}]'
+        run_scene linear-midtone \
+          ESTELLA_VERIFY_COLORSPACE=linear \
+          ESTELLA_VERIFY_SCENE=/scenes/srgb-midtone.esscene \
+          ESTELLA_VERIFY_MANIFEST=/scenes/srgb-midtone.textures.json \
+          ESTELLA_VERIFY_W=256 ESTELLA_VERIFY_H=256 ESTELLA_VERIFY_STEPS=2 \
+          'ESTELLA_VERIFY_EXPECT=[{"x":0.5,"y":0.5,"rgb":[128,128,128],"tol":6}]'
 
     # The SAME pixel assertions on the WebGPU backend — Dawn renders through the
     # bundled SwiftShader Vulkan (--use-webgpu-adapter=swiftshader), so a GPU-less
@@ -294,11 +310,14 @@ jobs:
           ESTELLA_VERIFY_MANIFEST=/scenes/parallax-shape.textures.json \
           ESTELLA_VERIFY_STEPS=4 \
           'ESTELLA_VERIFY_EXPECT=[{"x":0.5,"y":0.5,"rgb":[0,255,0],"tol":40},{"x":0.25,"y":0.5,"rgb":[255,0,0],"tol":40}]'
+        # Tolerances tightened after the readback fix (force-color-profile=srgb):
+        # capturePage was display-referred, so wide-gamut machines read a fake
+        # "R/B bleed" here. Deterministic now — GL and WebGPU read identical.
         run_scene webgpu-mat-lit-point \
           ESTELLA_VERIFY_SCENE=/scenes/mat-lit-point.esscene \
           ESTELLA_VERIFY_MANIFEST=/scenes/mat-lit-point.textures.json \
           ESTELLA_VERIFY_W=256 ESTELLA_VERIFY_H=256 ESTELLA_VERIFY_STEPS=2 \
-          'ESTELLA_VERIFY_EXPECT=[{"x":0.5,"y":0.5,"rgb":[0,255,0],"tol":50},{"x":0.75,"y":0.5,"rgb":[0,64,0],"tol":60}]'
+          'ESTELLA_VERIFY_EXPECT=[{"x":0.5,"y":0.5,"rgb":[0,253,0],"tol":25},{"x":0.75,"y":0.5,"rgb":[0,52,0],"tol":25}]'
         run_scene webgpu-mat-tint-preview \
           ESTELLA_VERIFY_SCENE=/scenes/mat-tint.esscene \
           ESTELLA_VERIFY_MANIFEST=/scenes/mat-tint.textures.json \
@@ -318,3 +337,20 @@ jobs:
           ESTELLA_VERIFY_W=256 ESTELLA_VERIFY_H=256 \
           'ESTELLA_VERIFY_TRAIL={"from":[-200,0],"to":[200,0],"steps":20}' \
           'ESTELLA_VERIFY_EXPECT=[{"x":0.80,"y":0.5,"rgb":[0,255,0],"tol":50},{"x":0.5,"y":0.5,"rgb":[0,255,0],"tol":50},{"x":0.25,"y":0.5,"rgb":[0,255,0],"tol":60},{"x":0.5,"y":0.15,"rgb":[0,0,0],"tol":30}]'
+        # Linear pipeline on the second backend — same expectations as the GL
+        # linear scenes (backends are each other's gold). The mid-gray round-trip
+        # additionally proves the ENGINE-SIDE sRGB upload promotion: on WebGPU
+        # every texture uploads through rm_createTexture, so a missing SRGB8A8
+        # promotion would read ~187 here while GL (raw-GL upload path) stayed 128.
+        run_scene webgpu-linear-lit \
+          ESTELLA_VERIFY_COLORSPACE=linear \
+          ESTELLA_VERIFY_SCENE=/scenes/mat-lit-point.esscene \
+          ESTELLA_VERIFY_MANIFEST=/scenes/mat-lit-point.textures.json \
+          ESTELLA_VERIFY_W=256 ESTELLA_VERIFY_H=256 ESTELLA_VERIFY_STEPS=2 \
+          'ESTELLA_VERIFY_EXPECT=[{"x":0.5,"y":0.5,"rgb":[0,254,0],"tol":25},{"x":0.75,"y":0.5,"rgb":[0,125,0],"tol":25}]'
+        run_scene webgpu-linear-midtone \
+          ESTELLA_VERIFY_COLORSPACE=linear \
+          ESTELLA_VERIFY_SCENE=/scenes/srgb-midtone.esscene \
+          ESTELLA_VERIFY_MANIFEST=/scenes/srgb-midtone.textures.json \
+          ESTELLA_VERIFY_W=256 ESTELLA_VERIFY_H=256 ESTELLA_VERIFY_STEPS=2 \
+          'ESTELLA_VERIFY_EXPECT=[{"x":0.5,"y":0.5,"rgb":[128,128,128],"tol":6}]'
