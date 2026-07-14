@@ -134,8 +134,11 @@ try {
   if (!play?.ready) await fail(`play realm never became ready (${JSON.stringify(play)})`);
   const playShot = await call('screenshot');
   if (playShot.type !== 'image') await fail('screenshot during play failed');
+  // The gameplay-state probe reaches the estella:// OOPIF and sees __estellaPlay.
+  const probe = JSON.parse((await call('play_probe', { code: 'typeof window.__estellaPlay' })).text);
+  if (probe !== 'object') await fail(`play_probe: __estellaPlay not present (${probe})`);
   await call('toggle_play', {}, 60_000);
-  console.log('play OK — realm ready, screenshot captured, stopped');
+  console.log('play OK — realm ready, screenshot + probe captured, stopped');
 
   if (process.env.ESTELLA_E2E_EXPORT === '1') {
     const outDir = path.join(tmpRoot, 'export-web');

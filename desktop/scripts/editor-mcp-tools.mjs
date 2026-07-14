@@ -201,6 +201,10 @@ export const TOOLS = [
   { name: 'screenshot',
     description: 'Capture the composited editor window as a PNG (includes the play realm iframe — use this to SEE gameplay; capture_viewport only sees the edit viewport).',
     schema: obj({}), op: 'screenshot', image: true },
+  { name: 'play_probe', write: true,
+    description: "Evaluate JS inside the RUNNING play realm and return the result — the gameplay probe. window.__estellaPlay = { app, getComponent } for state reads; to drive gameplay input, dispatch KeyboardEvents on DOCUMENT (the engine listens there, not on window): document.dispatchEvent(new KeyboardEvent('keydown', {code:'ArrowRight'})). frame picks the realm in multiplayer previews (0 = host).",
+    schema: obj({ code: { type: 'string' }, frame: { type: 'number' } }, ['code']),
+    op: 'play_probe' },
   { name: 'world_component',
     description: "A LIVE World component's data for a source entity, resolved by component name — verifies an edit actually reached the engine.",
     schema: obj({ id: { type: 'number' }, component: { type: 'string' } }, ['id', 'component']),
@@ -282,9 +286,8 @@ export async function runTool(tool, driver, rawInput, allowWrites = true) {
     const input = validate(tool.schema, rawInput);
     if (tool.op) {
       const data = await driver.op(tool.op, input);
-      return tool.image
-        ? { content: [{ type: 'image', data, mimeType: 'image/png' }] }
-        : { content: [{ type: 'text', text: String(data) }] };
+      if (tool.image) return { content: [{ type: 'image', data, mimeType: 'image/png' }] };
+      return { content: [{ type: 'text', text: data === undefined ? 'ok' : JSON.stringify(data) }] };
     }
     if (tool.js) {
       const data = await driver.js(tool.js(input));

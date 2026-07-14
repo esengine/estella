@@ -53,14 +53,25 @@ export async function startMcpEndpoint(getWin: () => BrowserWindow | null): Prom
 
   const server = await createExecEndpoint({
     token,
-    run: async ({ method, args, root, js, op }: {
+    run: async ({ method, args, root, js, op, code, frame }: {
       method?: string; args?: unknown[]; root?: string; js?: string; op?: string;
+      code?: string; frame?: number;
     }) => {
       if (op === 'screenshot') {
         const win = getWin();
         if (!win) throw new Error('no editor window');
         const image = await win.webContents.capturePage();
         return image.toPNG().toString('base64');
+      }
+      if (op === 'play_probe') {
+        // The play realm is an estella:// OOPIF — only a main-process frame eval
+        // reaches it (the SHOT_PLAY_EVAL idiom; window.__estellaPlay is the probe).
+        const win = getWin();
+        if (!win) throw new Error('no editor window');
+        const playFrames = win.webContents.mainFrame.frames.filter((f) => f.url.startsWith('estella://'));
+        const playFrame = playFrames[frame ?? 0];
+        if (!playFrame) throw new Error(`no play realm at index ${frame ?? 0} (${playFrames.length} running — enter play first)`);
+        return playFrame.executeJavaScript(code ?? 'true');
       }
       if (js) return exec(js);
       const target = root === 'editor' ? 'window.__estellaEditor' : 'window.__estellaEditor.surface';
