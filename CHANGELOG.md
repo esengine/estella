@@ -14,6 +14,120 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-07-13
+
+Light gets physical: an opt-in linear-light pipeline decodes sRGB in hardware,
+runs the post-process chain on HDR float targets, and makes bright lights
+actually bloom. Sprite animation becomes first-class authoring — slice a sheet
+into a flipbook in the new Flipbook editor, drop it into the scene as a posed
+animated sprite, and drive it from the FSM without a line of code. Audio grows
+a real mixer (per-bus effect chains, sidechain ducking, a Mixer panel, MP3
+cooks), and the physics editor catches up with its runtime: every joint draws
+in the viewport, and anchors and slide axes edit by direct drag.
+
+### Added
+
+- **Linear-light rendering.** Set **Project Settings → Rendering → Color Space**
+  to *Linear* and the whole frame computes in linear light: color textures
+  upload as sRGB and decode in hardware (KTX2 compressed textures transcode to
+  sRGB variants), tints and light colors linearize, post-process intermediates
+  blend without shadow banding, and the final blit performs the one
+  linear-to-sRGB encode. The setting persists in the project and boots every
+  runtime the same way — the editor viewport, Play, web/desktop exports,
+  playables, and WeChat. The default stays *Gamma*: existing projects render
+  byte-identical until they opt in.
+- **HDR post-processing.** Under linear color, the post-process chain upgrades
+  its intermediate targets to 16-bit float wherever the device supports it
+  (always on WebGPU; via `EXT_color_buffer_float` on WebGL2, with a graceful
+  LDR fallback). Light accumulation past 1.0 survives into the effect chain:
+  bloom's bright-pass sees real over-range energy, tonemap receives true HDR,
+  and the bloom threshold now reaches 2 — set it above 1 and only over-range
+  light blooms, the classic emissive-glow setup.
+- **Flipbook editor.** Sprite-sheet animation gets its own asset type and a
+  dedicated panel: a sheet canvas with a slicing grid (click or drag cells to
+  append frames), a frame strip with per-frame durations and drag reordering,
+  fps/loop controls, and a live looping preview. **Create Sprite Animation** on
+  any texture guesses the grid from the image and produces a ready `.esanim`
+  clip; sheet-cell frames re-slice consistently when the grid changes, and
+  legacy per-texture clips stay valid.
+- **Animated sprites in one step.** **Create Animated Sprite** on a `.esanim`
+  (or dropping one into the viewport) spawns a complete entity — Transform,
+  Sprite, SpriteAnimator — posed at frame 0, in one undoable step. Selected
+  flipbooks loop live in the viewport without entering Play, and when the same
+  clip is open in the Flipbook editor the preview follows your edits as you
+  make them.
+- **Code-free animation states.** FSM and behavior-tree actions now take an
+  optional argument, and four `spriteAnim.*` built-ins mirror the `timeline.*`
+  family: `spriteAnim.play` (the argument picks the clip), `.restart`, `.stop`,
+  and a `spriteAnim.finished` condition with a formal replay contract.
+  Idle/run/attack switching is now pure `.esfsm` data on the FSM canvas.
+- **An audio mixer, end to end.** Buses gain a real DSP topology — declarative
+  per-bus effect inserts (biquad filters, convolution reverb, compressor) and
+  sidechain ducking (`duck music by voice`) that never fights the user's volume
+  setting. The project mix persists in the manifest and boots identically in
+  the editor, Play, and every export; the new **Audio Mixer** bottom-dock panel
+  edits it live — one strip per bus with fader, mute, insert chain, duck rule,
+  and custom bus management.
+- **Audio import pipeline.** Selecting an audio asset shows a decoded waveform
+  with play/pause and click-to-seek plus format details. A **Compress Audio**
+  package option re-encodes `.wav` sources to MP3 at cook time (per-asset
+  Import Settings override the global switch — seamless-loop clips can opt out
+  of MP3's encoder-delay seam); already-compressed formats pass through.
+- **Physics editing in the viewport.** The physics gizmo family fills out:
+  one-way platforms draw their solid-side arrow, all six joint components draw
+  anchor-to-anchor links with draggable anchor dots, motor joints show their
+  target-velocity arrow, prismatic/wheel joints show the slide axis with a
+  re-aim handle, and particle emitters preview their `angleSpread` aim wedge.
+  Anchors and axes edit by direct drag in the owning body's frame; collider
+  handles now measure from the offset shape center. The show flag is labeled
+  **Physics**, and the physics showcase gains a spring piston (prismatic joint
+  in action).
+- **Smarter FSM/BT pickers.** Action and condition fields upgrade from bare
+  text inputs to grouped suggestions: project names lead, built-ins group under
+  their namespace with localized descriptions, and the keyboard drives the
+  whole popover. Action nodes no longer suggest conditions (and vice versa).
+- **Tilemap ellipse tool + saved stamps.** Ellipse (**O**) fills the inscribed
+  ellipse of a dragged box in one undo step, with the classic pixel-circle
+  shape correction. A saved-stamp strip bookmarks the current brush per
+  project — auto-named chips with pattern previews, click to recall, identical
+  patterns dedupe.
+
+### Changed
+
+- **`.esanim` and `.estimeline` part ways.** `.esanim` is now exclusively the
+  flipbook format with its own editor; the Sequencer keeps `.estimeline`, and
+  **New Animation** creates a `.estimeline` instead of disguising a multi-track
+  timeline as a flipbook. Existing files of both types stay valid.
+- The three audio extension lists (SDK registry, runtime loader, editor tiles)
+  unify on one set: `mp3 / wav / ogg / aac / flac / m4a / webm`.
+
+### Fixed
+
+- **WebGPU bind groups could go stale.** The bind-group cache keyed entries by
+  resource handles that emscripten reuses immediately after release, so
+  create/destroy churn could make a draw read a *deleted* resource's bindings —
+  post-process passes read other passes' parameters, which silently blanked the
+  whole WGSL bloom chain. Deleting a buffer or texture now evicts every cached
+  group that references it, and the four bloom scenes joined CI on both
+  backends to keep it that way.
+- **Editing a joint no longer corrupts its connected body.** The editor's
+  reconciler copied entity-reference fields verbatim across two id domains, so
+  the first edit of any joint silently re-pointed `connectedEntity` at an
+  arbitrary entity. References now remap on both edit and respawn (undo of a
+  delete restores joint wiring correctly).
+- **Kawase blur is backend-identical.** Post-process chain targets switch to
+  bilinear sampling: the blur's half-texel taps landed exactly on texel
+  boundaries under nearest filtering, whose rounding is backend-dependent — GL
+  and WebGPU visibly diverged. Bloom falloff now measures byte-identical across
+  backends in both color spaces.
+- **`.esanim` texture dependencies now enter the cook.** Clips' sheet textures
+  were invisible to the build's dependency scan, and anim-clip/timeline
+  component slots matched no editor asset type so their pickers offered
+  nothing. Both fixed by the flipbook split.
+- **Audio preview is audible again.** The editor's CSP never allowed
+  `estella://` media, so every `<audio>` element — including the double-click
+  preview — was silently blocked.
+
 ## [0.21.0] - 2026-07-13
 
 Estella speaks your language: the editor UI ships in English and 简体中文, and game
@@ -493,7 +607,8 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.21.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.22.0...HEAD
+[0.22.0]: https://github.com/esengine/estella/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/esengine/estella/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/esengine/estella/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/esengine/estella/compare/v0.18.0...v0.19.0
