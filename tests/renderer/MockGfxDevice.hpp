@@ -150,6 +150,7 @@ struct MockGfxDevice final : GfxDevice {
     void generateMipmaps(TextureHandle) override { ++generateMipmapsCalls; }
     void bindTexture(u32, TextureHandle) override { ++bindTextureCalls; }
     bool supportsCompressedFormat(GfxCompressedFormat) override { return compressedSupported; }
+    bool supportsFloatTargets() override { return true; }
 
     bool supportsShaderLanguage(GfxShaderLanguage language) const override {
         return language == GfxShaderLanguage::GLSL_ES300 || (wgslSupported && language == GfxShaderLanguage::WGSL);
