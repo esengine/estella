@@ -488,7 +488,11 @@ function fieldFor(
   const at = assetFieldType(compType, key) ?? spineSlotType(compType, key);
   let field: InspectorField | null;
   if (at) {
-    field = { key, label: prettyLabel(key), type: 'asset', value: typeof value === 'string' ? value : 0, assetType: at };
+    // Refs pass through; NUMBERS pass through too — a live realm snapshot holds
+    // handles, and coercing a non-zero handle to 0 made the required-empty rule
+    // flag a perfectly-loaded asset red. 0/other stays the empty sentinel.
+    const v = typeof value === 'string' ? value : typeof value === 'number' ? value : 0;
+    field = { key, label: prettyLabel(key), type: 'asset', value: v, assetType: at };
   } else if (meta?.gradient) {
     const g = value && typeof value === 'object' && Array.isArray((value as GradientValue).stops) ? (value as GradientValue) : { stops: [] };
     field = { key, label: prettyLabel(key), type: 'gradient', value: g };

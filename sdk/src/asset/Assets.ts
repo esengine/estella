@@ -182,6 +182,10 @@ export class Assets {
     private assetRegistry_: AssetRegistry | null = null;
     private refCounter_: AssetRefCounter | null = null;
     private invalidateListeners_ = new Set<InvalidateListener>();
+    /** `"<kind>:<handle>"` → resolved load path, recorded on every handle-yielding
+     *  load. The REVERSE of resolution — inspectors and tooling that only hold a
+     *  live World handle use it to name the asset (see {@link pathForHandle}). */
+    private handleToPath_ = new Map<string, string>();
 
     private constructor(options: AssetsOptions) {
         this.backend = options.backend;
@@ -242,6 +246,7 @@ export class Assets {
                 : this.textureLoader_.loadRaw(path, this.getLoadContext_());
         });
         this.textureRefCounts_.set(cacheKey, (this.textureRefCounts_.get(cacheKey) ?? 0) + 1);
+        this.recordHandlePath_('texture', result.handle, path);
         return result;
     }
 
@@ -278,6 +283,22 @@ export class Assets {
     getTexture(ref: string): TextureResult | undefined {
         const path = this.resolveLoadPath_(ref);
         return this.textureCache_.get(this.textureCacheKey_(path, true));
+    }
+
+    /**
+     * The load path behind a LIVE handle (`kind` = the asset slot type:
+     * 'texture' | 'material' | 'font' | …), or null when this realm never
+     * loaded such a handle. The reverse of ref resolution — the live "Game"
+     * inspector uses it to show WHICH asset a World component's handle-valued
+     * slot is wearing (a raw handle number names nothing to a human).
+     */
+    pathForHandle(kind: string, handle: number): string | null {
+        return this.handleToPath_.get(`${kind}:${handle}`) ?? null;
+    }
+
+    /** Record a handle→path pair for {@link pathForHandle} (dropped on invalidate/releaseAll). */
+    private recordHandlePath_(kind: string, handle: number, path: string): void {
+        if (handle !== 0) this.handleToPath_.set(`${kind}:${handle}`, path);
     }
 
     async loadSpine(skeletonRef: string, atlasRef?: string): Promise<SpineResult> {
@@ -970,6 +991,12 @@ export class Assets {
             if (loader.invalidate?.(path)) hit = true;
         }
 
+        // The reverse handle→path records for this path are stale now too — a
+        // reload mints new handles; the old ones must stop naming the asset.
+        for (const [key, p] of this.handleToPath_) {
+            if (p === path) this.handleToPath_.delete(key);
+        }
+
         if (hit) {
             for (const listener of this.invalidateListeners_) {
                 try {
@@ -1016,6 +1043,7 @@ export class Assets {
         }
         this.genericCache_.clear();
         this.genericRefCounts_.clear();
+        this.handleToPath_.clear();
     }
 
     // =========================================================================
@@ -1161,6 +1189,8 @@ export class Assets {
         ) as Promise<T>);
         const key = `${type}:${path}`;
         this.genericRefCounts_.set(key, (this.genericRefCounts_.get(key) ?? 0) + 1);
+        const handle = (result as { handle?: unknown } | null)?.handle;
+        if (typeof handle === 'number' && handle !== 0) this.recordHandlePath_(type, handle, path);
         return result;
     }
 

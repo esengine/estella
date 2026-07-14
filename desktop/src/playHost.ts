@@ -14,10 +14,11 @@
  *        Everything is same-origin estella:// (host, sdk, bundle, wasm, assets),
  *        sidestepping the custom-scheme cross-fetch ban.
  */
-import { createWebApp, setEditorMode, setPlayMode, initPlayRealmRuntime, getComponent, clearUserComponents, getUserComponentFingerprint, probeRegistrations, Net, MessagePortTransport } from 'esengine';
+import { createWebApp, setEditorMode, setPlayMode, initPlayRealmRuntime, getComponent, clearUserComponents, getUserComponentFingerprint, probeRegistrations, Net, MessagePortTransport, Assets } from 'esengine';
 import type { App, ESEngineModule, SceneData } from 'esengine';
 import { PLAY_PROTOCOL_VERSION } from './engine/playProtocol';
 import type { PlayOutbound, PlayInbound } from './engine/playProtocol';
+import { translateAssetHandles } from './engine/liveAssetRefs';
 
 type LiveEntity = SceneData['entities'][number];
 
@@ -65,13 +66,18 @@ function liveSnapshot(world: App['world'], selectedId: number | null): { tree: S
 
   let selected: LiveEntity | null = null;
   if (selectedId != null) {
-    const components = inspectableTypes(world, selectedId)
+    const raw = inspectableTypes(world, selectedId)
       .map((type) => {
         const def = getComponent(type);
         const data = def ? world.tryGet(selectedId as never, def) : null;
         return data ? { type, data: data as Record<string, unknown> } : null;
       })
       .filter((c): c is { type: string; data: Record<string, unknown> } => !!c);
+    // The World stores HANDLES in asset slots; the inspector speaks REFS —
+    // translate at this boundary via the realm's own Assets, so the Details
+    // panel names the asset instead of flagging a live handle as "empty".
+    const assets = app?.getResource(Assets) ?? null;
+    const components = translateAssetHandles(raw, (kind, handle) => assets?.pathForHandle(kind, handle) ?? null);
     selected = { id: selectedId, name: nameOf(selectedId), parent: parentOf.get(selectedId) ?? null, children: childrenOf.get(selectedId) ?? [], components } as unknown as LiveEntity;
   }
   return { tree, selected };

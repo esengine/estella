@@ -718,12 +718,16 @@ const isImageAsset = (t: AssetType): boolean => t === 'texture' || t === 'sprite
 export function AssetControl({
   value,
   assetType,
+  readOnly,
   onBegin,
   onEnd,
   onChange,
 }: ControlGesture & {
   value: string | number;
   assetType?: string;
+  /** Display-only (the live "Game" inspector): asset identity is not live-tunable
+   *  — a picked ref would land in a World slot that holds a realm-local handle. */
+  readOnly?: boolean;
   onChange: (v: string | number) => void;
 }) {
   const [over, setOver] = useState(false);
@@ -751,6 +755,7 @@ export function AssetControl({
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setOver(false);
+    if (readOnly) return;
     const path = e.dataTransfer.getData('application/x-estella-asset') || e.dataTransfer.getData('text/plain');
     if (path) setRefFromPath(path);
   };
@@ -802,10 +807,12 @@ export function AssetControl({
         </span>
         <span className="an">{info ? info.name : t('det.none')}</span>
       </button>
-      <button type="button" className="pk" title={t('det.pickAsset')} onMouseDown={(e) => e.stopPropagation()} onClick={openPick}>
-        <Search size={11} strokeWidth={2} />
-      </button>
-      {info && (
+      {!readOnly && (
+        <button type="button" className="pk" title={t('det.pickAsset')} onMouseDown={(e) => e.stopPropagation()} onClick={openPick}>
+          <Search size={11} strokeWidth={2} />
+        </button>
+      )}
+      {!readOnly && info && (
         <button
           type="button"
           className="pk"
@@ -990,6 +997,7 @@ function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp
         <AssetControl
           value={field.value as string | number}
           assetType={field.assetType}
+          readOnly={!!write}
           onBegin={begin}
           onEnd={end}
           onChange={apply}
