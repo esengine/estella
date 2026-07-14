@@ -26,6 +26,9 @@ files:
 asarUnpack:
   - "**/node_modules/{esbuild,@esbuild}/**"
   - dist-electron/hosts/**
+  # The MCP front: an MCP client runs this with plain node (node cannot read
+  # inside an asar), which spawns/attaches the editor as the MCP host.
+  - dist-electron/mcp/**
   - "**/node_modules/esengine/dist/**"
   - dist/wasm/**
   - dist/wasm-wechat/**

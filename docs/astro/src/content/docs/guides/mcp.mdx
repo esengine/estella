@@ -1,0 +1,107 @@
+---
+title: AI Agents (MCP)
+description: The Estella editor is an MCP server — connect Claude Code, Cursor, or any MCP-capable AI tool and let it open projects, build scenes, edit components, run play mode, take screenshots, and export builds.
+---
+
+import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+The Estella editor speaks the **Model Context Protocol (MCP)**. Any MCP-capable AI
+tool — Claude Code, Cursor, or your own agent — can drive the real editor: open or
+create projects, open scenes, spawn entities from the same Create-menu catalog you
+use, edit component fields, verify the result in the live engine World, enter play
+mode, take screenshots to *see* what it built, and export the finished game — the
+exact pipelines the UI uses, forty tools in all.
+
+<Aside type="tip">
+Everything an agent does goes through the editor's own command surface — creates
+are undoable, play mode never dirties the edit scene, and saves are the toolbar
+Save. You can watch it work in the editor window, and take over at any time.
+</Aside>
+
+## Connecting an AI tool
+
+The MCP server is a small node script that ships inside the editor. It talks MCP
+over stdio to your AI tool and drives an editor instance for you (spawning one, or
+attaching to one that's already open).
+
+Its path inside an installed editor:
+
+- **Windows** — `%LOCALAPPDATA%\Programs\@estellaeditor\resources\app.asar.unpacked\dist-electron\mcp\editor-mcp.mjs`
+- **macOS** — `/Applications/Estella Editor.app/Contents/Resources/app.asar.unpacked/dist-electron/mcp/editor-mcp.mjs`
+
+<Tabs>
+<TabItem label="Claude Code">
+
+```sh
+claude mcp add estella --env ESTELLA_MCP_ALLOW_WRITES=1 -- \
+  node "<path-to>/editor-mcp.mjs" --editor
+```
+
+</TabItem>
+<TabItem label="Any MCP client">
+
+```json
+{
+  "mcpServers": {
+    "estella": {
+      "command": "node",
+      "args": ["<path-to>/editor-mcp.mjs", "--editor"],
+      "env": { "ESTELLA_MCP_ALLOW_WRITES": "1" }
+    }
+  }
+}
+```
+
+</TabItem>
+</Tabs>
+
+`--editor` launches the installed editor with the MCP endpoint enabled. Node.js 20+
+must be on your PATH.
+
+<Aside type="caution">
+Without `ESTELLA_MCP_ALLOW_WRITES=1` the agent can only **observe** — every
+mutating tool (creating entities, editing fields, saving, exporting) is hidden and
+refused. Grant writes deliberately.
+</Aside>
+
+## Driving the editor you're looking at
+
+To let an agent work inside an editor session you already have open, start the
+editor with the endpoint enabled and point the server at its discovery file:
+
+<Steps>
+
+1. Launch the editor with `--mcp` (from a terminal: `estella-editor --mcp`). It
+   writes a discovery file `mcp-endpoint.json` into the editor's user-data folder
+   (Windows: `%APPDATA%\Estella Editor\`; the exact path is printed on startup).
+
+2. Configure your AI tool with `--attach` instead of `--editor`:
+
+   ```json
+   "args": ["<path-to>/editor-mcp.mjs", "--attach", "<path-to>/mcp-endpoint.json"]
+   ```
+
+3. The agent now drives the same window you see — selections, edits, play mode and
+   all — while you watch and intervene.
+
+</Steps>
+
+## What the agent can do
+
+| Area | Tools (excerpt) |
+| --- | --- |
+| Observe | `get_scene_tree`, `get_inspector`, `get_stats`, `capture_viewport` (PNG), `screenshot` (whole window, includes play), `world_component` (live-World probe) |
+| Edit scenes | `create_entity` (the Create-menu catalog via `list_entity_templates`), `set_field`, `set_entity_xy`, `set_parent`, `duplicate_entity`, `undo` / `redo` |
+| Projects & assets | `create_project` / `open_project`, `open_scene`, `save_scene`, `create_scene_file`, `create_asset`, `import_assets` |
+| Run & ship | `toggle_play` + `get_play_state`, `export_game` (web / desktop / wechat / playable) |
+
+A typical agent loop: `open_project` → `open_scene` → `list_entity_templates` →
+`create_entity` → `set_field` → `screenshot` to check its work → `save_scene` →
+`toggle_play` → `screenshot` again → `export_game`.
+
+## From the repository (contributors)
+
+In a source checkout, `pnpm --filter @estella/editor editor:mcp` serves the same
+registry against a headless fixtures host (scene tools only), `editor:mcp -- --editor`
+boots the dev editor, and two e2e suites (`editor:mcp:e2e`,
+`editor:mcp:editor-e2e`) prove the full loop.

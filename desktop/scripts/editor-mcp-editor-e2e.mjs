@@ -28,7 +28,10 @@ await cp(EXAMPLE, project, {
   filter: (src) => !/[/\\](\.esengine|node_modules|dist)([/\\]|$)/.test(src),
 });
 
-const child = spawn(process.execPath, ['scripts/editor-mcp.mjs', '--editor'], {
+// ESTELLA_E2E_FRONT points at an alternate front (e.g. the shipped bundle,
+// dist-electron/mcp/editor-mcp.mjs) to prove distribution artifacts end to end.
+const front = process.env.ESTELLA_E2E_FRONT ?? 'scripts/editor-mcp.mjs';
+const child = spawn(process.execPath, [front, '--editor'], {
   cwd: DESKTOP,
   stdio: ['pipe', 'pipe', 'pipe'],
   env: { ...process.env, ESTELLA_MCP_ALLOW_WRITES: '1' },

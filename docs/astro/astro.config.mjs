@@ -109,6 +109,7 @@ export default defineConfig({
             { label: 'Building & Exporting', translations: { 'zh-CN': '构建与导出' }, slug: 'guides/build-export' },
             { label: 'WeChat MiniGame', translations: { 'zh-CN': '微信小游戏' }, slug: 'guides/wechat' },
             { label: 'Networking', translations: { 'zh-CN': '联网' }, slug: 'guides/networking' },
+            { label: 'AI Agents (MCP)', translations: { 'zh-CN': 'AI 代理 (MCP)' }, slug: 'guides/mcp' },
           ],
         },
         {

@@ -7,9 +7,13 @@
  * host and serves the MCP tool registry (editor-mcp-tools.mjs) over stdio,
  * forwarding each call to the host's loopback /exec endpoint. Three host modes:
  *
- *   (default)          spawn the headless render host (fixtures; scene tools only)
+ *   (default)          spawn the headless render host (fixtures; scene tools only;
+ *                      dev repo only)
  *   --editor           spawn the REAL editor app with --mcp — the full game-making
- *                      surface: projects, assets, entity templates, play, export
+ *                      surface: projects, assets, entity templates, play, export.
+ *                      In the dev repo this is `electron .`; from the installed
+ *                      editor (this file ships bundled under app.asar.unpacked)
+ *                      the exe is auto-detected, or pass --editor-exe <path>.
  *   --attach <file>    connect to an already-running editor's endpoint via its
  *                      discovery file (<userData>/mcp-endpoint.json) — drive the
  *                      editor the user is looking at
@@ -24,7 +28,7 @@
  */
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
@@ -39,22 +43,63 @@ import {
 import { TOOLS, RESOURCES, listTools, runTool } from './editor-mcp-tools.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const DESKTOP = path.resolve(HERE, '..');
+// The desktop package root, for dev spawns (`electron .`). This file runs from
+// scripts/ in the repo but from dist-electron/mcp/ as the shipped bundle, so
+// walk up to the nearest package.json instead of assuming one level.
+const DESKTOP = (() => {
+  let dir = HERE;
+  for (let i = 0; i < 4; i++) {
+    dir = path.dirname(dir);
+    if (existsSync(path.join(dir, 'package.json'))) return dir;
+  }
+  return path.resolve(HERE, '..');
+})();
 const ALLOW_WRITES = process.env.ESTELLA_MCP_ALLOW_WRITES === '1';
 const log = (...a) => process.stderr.write(`[editor-mcp] ${a.join(' ')}\n`);
 
 const argv = process.argv.slice(2);
-const MODE = argv.includes('--editor') ? 'editor' : argv.includes('--attach') ? 'attach' : 'headless';
+const MODE = argv.includes('--editor') || argv.includes('--editor-exe')
+  ? 'editor'
+  : argv.includes('--attach') ? 'attach' : 'headless';
+// When this file ships inside the installed editor it lives under
+// resources/app.asar.unpacked/dist-electron/mcp/ — four levels below the install
+// root (three on macOS, where the exe sits in Contents/MacOS instead).
+const PACKAGED = /app\.asar\.unpacked/.test(HERE);
 
-/** Spawn an Electron host (headless fixtures or the real editor app with --mcp)
+const argValue = (flag) => {
+  const i = argv.indexOf(flag);
+  const v = i >= 0 ? argv[i + 1] : undefined;
+  return v && !v.startsWith('--') ? v : undefined;
+};
+
+/** The installed editor executable, derived from this bundle's unpacked path. */
+function installedEditorExe() {
+  const resources = path.resolve(HERE, '..', '..', '..'); // …/resources
+  if (process.platform === 'darwin') return path.resolve(resources, '..', 'MacOS', 'Estella Editor');
+  return path.resolve(resources, '..', process.platform === 'win32' ? 'estella-editor.exe' : 'estella-editor');
+}
+
+/** Spawn an Estella host (headless fixtures, dev editor, or installed editor)
  *  and resolve its /exec endpoint from the MCP_HOST_READY stdout line. */
 function spawnHost(mode, token) {
-  // Under plain node the electron package's export IS the binary path — works on
-  // every platform (the .bin/ shim is a sh script Windows cannot spawn).
-  const electron = createRequire(import.meta.url)('electron');
-  const args = mode === 'editor' ? ['.', '--mcp'] : [path.join(HERE, 'editor-mcp-host.mjs')];
-  const host = spawn(electron, args, {
-    cwd: DESKTOP,
+  const editorExe = argValue('--editor-exe') ?? (PACKAGED && mode === 'editor' ? installedEditorExe() : undefined);
+  let command;
+  let args;
+  if (editorExe) {
+    command = editorExe;
+    args = ['--mcp'];
+  } else if (PACKAGED) {
+    log('FATAL: the headless host is dev-repo only — use --editor (or --attach) with the installed editor');
+    process.exit(1);
+  } else {
+    // Under plain node the electron package's export IS the binary path — works on
+    // every platform (the .bin/ shim is a sh script Windows cannot spawn).
+    command = createRequire(import.meta.url)('electron');
+    args = mode === 'editor' ? ['.', '--mcp'] : [path.join(HERE, 'editor-mcp-host.mjs')];
+  }
+  const host = spawn(command, args, {
+    // An installed exe needs no cwd (and the repo layout may not exist there).
+    cwd: editorExe ? undefined : DESKTOP,
     stdio: ['ignore', 'pipe', 'pipe'],
     env: {
       ...process.env,

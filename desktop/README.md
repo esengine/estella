@@ -68,8 +68,10 @@ public/          wasm runtime, bundled SDK, example projects (served at web root
 
 - **Runtime** — the SDK + `esengine.wasm` boot into a `<canvas>` in `Viewport`; the
   editor drives the world through `EditorControlSurface` (also exposed to headless
-  automation and AI agents over an MCP server: `pnpm editor:mcp`, see
-  `scripts/editor-mcp.mjs`; mutating tools need `ESTELLA_MCP_ALLOW_WRITES=1`).
+  automation and AI agents over an MCP server: `pnpm editor:mcp` for the fixtures
+  host, `pnpm editor:mcp -- --editor` to drive the real app — projects, entity
+  creation, play, export. Mutating tools need `ESTELLA_MCP_ALLOW_WRITES=1`; the
+  installed editor ships the server bundled — see the "AI Agents (MCP)" guide).
 - **Scenes & assets** — `ProjectStore` opens a project from disk and the Electron main
   process watches it (`fs` + `chokidar`); the `ContentBrowser` browses and creates assets.
 - **Inspector** — `Details` is generated from the engine's reflection metadata:

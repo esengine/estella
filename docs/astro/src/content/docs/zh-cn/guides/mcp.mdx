@@ -1,0 +1,101 @@
+---
+title: AI 代理 (MCP)
+description: Estella 编辑器本身就是一个 MCP 服务器——接入 Claude Code、Cursor 或任何支持 MCP 的 AI 工具，让它打开项目、搭建场景、编辑组件、运行 Play 模式、截图验证并导出成品。
+---
+
+import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+Estella 编辑器支持 **Model Context Protocol (MCP)**。任何支持 MCP 的 AI 工具——
+Claude Code、Cursor，或你自己写的代理——都能驱动真实的编辑器：打开或创建项目、
+打开场景、用与你相同的"创建"菜单目录生成实体、编辑组件字段、在活的引擎 World
+里验证结果、进入 Play 模式、截图*亲眼看到*它搭出来的东西，并把成品游戏导出
+——走的都是 UI 自己的管线，共 40 个工具。
+
+<Aside type="tip">
+代理做的每件事都经过编辑器自己的命令面——创建可撤销、Play 模式不会弄脏编辑
+场景、保存就是工具栏的保存。你可以在编辑器窗口里看着它干活，随时接手。
+</Aside>
+
+## 接入 AI 工具
+
+MCP 服务器是随编辑器一起分发的一个小 node 脚本。它对你的 AI 工具讲 stdio MCP，
+并为你驱动一个编辑器实例（拉起新的，或挂到已打开的那个上）。
+
+它在安装版编辑器里的路径：
+
+- **Windows** — `%LOCALAPPDATA%\Programs\@estellaeditor\resources\app.asar.unpacked\dist-electron\mcp\editor-mcp.mjs`
+- **macOS** — `/Applications/Estella Editor.app/Contents/Resources/app.asar.unpacked/dist-electron/mcp/editor-mcp.mjs`
+
+<Tabs>
+<TabItem label="Claude Code">
+
+```sh
+claude mcp add estella --env ESTELLA_MCP_ALLOW_WRITES=1 -- \
+  node "<path-to>/editor-mcp.mjs" --editor
+```
+
+</TabItem>
+<TabItem label="任意 MCP 客户端">
+
+```json
+{
+  "mcpServers": {
+    "estella": {
+      "command": "node",
+      "args": ["<path-to>/editor-mcp.mjs", "--editor"],
+      "env": { "ESTELLA_MCP_ALLOW_WRITES": "1" }
+    }
+  }
+}
+```
+
+</TabItem>
+</Tabs>
+
+`--editor` 会以启用 MCP 端点的方式启动安装版编辑器。PATH 里需要 Node.js 20+。
+
+<Aside type="caution">
+不设 `ESTELLA_MCP_ALLOW_WRITES=1` 时代理只能**观察**——所有会产生修改的工具
+（创建实体、改字段、保存、导出）都被隐藏并拒绝。写权限请有意识地授予。
+</Aside>
+
+## 驱动你正看着的编辑器
+
+想让代理在你已经打开的编辑器会话里干活：以启用端点的方式启动编辑器，把服务器
+指向它的发现文件即可：
+
+<Steps>
+
+1. 用 `--mcp` 启动编辑器（终端里：`estella-editor --mcp`）。它会在编辑器的
+   user-data 目录写一个发现文件 `mcp-endpoint.json`（Windows:
+   `%APPDATA%\Estella Editor\`；确切路径启动时会打印出来）。
+
+2. AI 工具的配置里用 `--attach` 代替 `--editor`：
+
+   ```json
+   "args": ["<path-to>/editor-mcp.mjs", "--attach", "<path-to>/mcp-endpoint.json"]
+   ```
+
+3. 代理现在驱动的就是你眼前的这个窗口——选择、编辑、Play 全部同步——你可以
+   一边看一边随时介入。
+
+</Steps>
+
+## 代理能做什么
+
+| 领域 | 工具（节选） |
+| --- | --- |
+| 观察 | `get_scene_tree`、`get_inspector`、`get_stats`、`capture_viewport`（PNG）、`screenshot`（整窗截图，含 Play 画面）、`world_component`（活 World 探针） |
+| 编辑场景 | `create_entity`（配合 `list_entity_templates` 的创建目录）、`set_field`、`set_entity_xy`、`set_parent`、`duplicate_entity`、`undo` / `redo` |
+| 项目与资产 | `create_project` / `open_project`、`open_scene`、`save_scene`、`create_scene_file`、`create_asset`、`import_assets` |
+| 运行与发布 | `toggle_play` + `get_play_state`、`export_game`（web / desktop / wechat / playable） |
+
+典型的代理循环：`open_project` → `open_scene` → `list_entity_templates` →
+`create_entity` → `set_field` → `screenshot` 检查成果 → `save_scene` →
+`toggle_play` → 再次 `screenshot` → `export_game`。
+
+## 从源码仓库使用（贡献者）
+
+源码仓库里，`pnpm --filter @estella/editor editor:mcp` 用无头夹具宿主提供同一套
+注册表（仅场景工具），`editor:mcp -- --editor` 拉起开发版编辑器；两套 e2e
+（`editor:mcp:e2e`、`editor:mcp:editor-e2e`）验证完整闭环。

@@ -9,7 +9,7 @@
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && vite build && node scripts/bundle-mcp.mjs",
     "dist": "vite build && electron-builder",
     "dist:dir": "vite build && electron-builder --dir",
     "preview": "vite preview",
