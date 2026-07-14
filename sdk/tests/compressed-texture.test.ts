@@ -13,17 +13,26 @@ import {
     type BasisTranscoder,
 } from '../src/asset/compressed';
 
-const ASTC = 0x93b0;  // COMPRESSED_RGBA_ASTC_4x4_KHR
-const ETC2 = 0x9278;  // COMPRESSED_RGBA8_ETC2_EAC
-const DXT5 = 0x83f3;  // COMPRESSED_RGBA_S3TC_DXT5_EXT
+const ASTC = 0x93b0;       // COMPRESSED_RGBA_ASTC_4x4_KHR
+const ETC2 = 0x9278;       // COMPRESSED_RGBA8_ETC2_EAC
+const DXT5 = 0x83f3;       // COMPRESSED_RGBA_S3TC_DXT5_EXT
+const ASTC_SRGB = 0x93d0;  // COMPRESSED_SRGB8_ALPHA8_ASTC_4x4_KHR
+const ETC2_SRGB = 0x9279;  // COMPRESSED_SRGB8_ALPHA8_ETC2_EAC
+const DXT5_SRGB = 0x8c4f;  // COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT
+const SRGB8_ALPHA8 = 0x8c43;
 
-function makeGl(support: { astc?: boolean; etc?: boolean; s3tc?: boolean } = {}) {
+function makeGl(support: { astc?: boolean; etc?: boolean; s3tc?: boolean; s3tcSrgb?: boolean } = {}) {
     const exts: Record<string, unknown> = {};
-    if (support.astc) exts['WEBGL_compressed_texture_astc'] = { COMPRESSED_RGBA_ASTC_4x4_KHR: ASTC };
-    if (support.etc) exts['WEBGL_compressed_texture_etc'] = { COMPRESSED_RGBA8_ETC2_EAC: ETC2 };
+    if (support.astc) exts['WEBGL_compressed_texture_astc'] = {
+        COMPRESSED_RGBA_ASTC_4x4_KHR: ASTC, COMPRESSED_SRGB8_ALPHA8_ASTC_4x4_KHR: ASTC_SRGB,
+    };
+    if (support.etc) exts['WEBGL_compressed_texture_etc'] = {
+        COMPRESSED_RGBA8_ETC2_EAC: ETC2, COMPRESSED_SRGB8_ALPHA8_ETC2_EAC: ETC2_SRGB,
+    };
     if (support.s3tc) exts['WEBGL_compressed_texture_s3tc'] = { COMPRESSED_RGBA_S3TC_DXT5_EXT: DXT5 };
+    if (support.s3tcSrgb) exts['WEBGL_compressed_texture_s3tc_srgb'] = { COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT: DXT5_SRGB };
     return {
-        TEXTURE_2D: 0x0de1, RGBA: 0x1908, UNSIGNED_BYTE: 0x1401,
+        TEXTURE_2D: 0x0de1, RGBA: 0x1908, UNSIGNED_BYTE: 0x1401, SRGB8_ALPHA8,
         NEAREST: 0x2600, LINEAR: 0x2601, CLAMP_TO_EDGE: 0x812f, MIRRORED_REPEAT: 0x8370, REPEAT: 0x2901,
         TEXTURE_MIN_FILTER: 0x2801, TEXTURE_MAG_FILTER: 0x2800, TEXTURE_WRAP_S: 0x2802, TEXTURE_WRAP_T: 0x2803,
         getExtension: vi.fn((n: string) => exts[n] ?? null),
@@ -84,6 +93,21 @@ describe('format capability selection', () => {
         expect(glInternalFormat(s, CompressedTextureFormat.ETC2_RGBA8)).toBe(ETC2);
         expect(glInternalFormat(s, CompressedTextureFormat.S3TC_DXT5)).toBe(DXT5);
     });
+    it('srgb maps to the sRGB variant constants (linear pipeline)', () => {
+        const s = detectCompressedTextureSupport(
+            makeGl({ astc: true, etc: true, s3tc: true, s3tcSrgb: true }) as never);
+        expect(glInternalFormat(s, CompressedTextureFormat.ASTC_4x4, true)).toBe(ASTC_SRGB);
+        expect(glInternalFormat(s, CompressedTextureFormat.ETC2_RGBA8, true)).toBe(ETC2_SRGB);
+        expect(glInternalFormat(s, CompressedTextureFormat.S3TC_DXT5, true)).toBe(DXT5_SRGB);
+    });
+    it('srgb S3TC requires the separate s3tc_srgb extension', () => {
+        // Base s3tc alone cannot upload sRGB DXT blocks: no target, no internalformat.
+        const s = detectCompressedTextureSupport(makeGl({ s3tc: true }) as never);
+        expect(chooseTargetFormat(s, true)).toBeNull();
+        expect(glInternalFormat(s, CompressedTextureFormat.S3TC_DXT5, true)).toBeNull();
+        const withSrgb = detectCompressedTextureSupport(makeGl({ s3tc: true, s3tcSrgb: true }) as never);
+        expect(chooseTargetFormat(withSrgb, true)).toBe(CompressedTextureFormat.S3TC_DXT5);
+    });
 });
 
 describe('loadCompressedTexture', () => {
@@ -129,6 +153,19 @@ describe('loadCompressedTexture', () => {
         const gl = makeGl({ astc: true });
         const transcoder = makeTranscoder({ transcode: vi.fn(() => null), transcodeToRgba: vi.fn(() => null) });
         expect(() => loadCompressedTexture(gl as never, makeModule() as never, transcoder, KTX2_HEADER)).toThrow(/failed to decode/i);
+    });
+
+    it('srgb uploads the sRGB internalformat of the chosen format', () => {
+        const gl = makeGl({ astc: true });
+        loadCompressedTexture(gl as never, makeModule() as never, makeTranscoder(), KTX2_HEADER, { srgb: true });
+        expect(gl.compressedTexImage2D.mock.calls[0][2]).toBe(ASTC_SRGB);
+    });
+
+    it('srgb RGBA fallback stores SRGB8_ALPHA8', () => {
+        const gl = makeGl();  // no compressed support → RGBA path
+        loadCompressedTexture(gl as never, makeModule() as never, makeTranscoder(), KTX2_HEADER, { srgb: true });
+        expect(gl.texImage2D).toHaveBeenCalledTimes(1);
+        expect(gl.texImage2D.mock.calls[0][2]).toBe(SRGB8_ALPHA8);
     });
 });
 

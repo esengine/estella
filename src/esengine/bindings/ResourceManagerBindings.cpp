@@ -3,6 +3,7 @@
 
 #include "ResourceManagerBindings.hpp"
 #include "BoundarySpan.hpp"
+#include "../resource/ShaderParser.hpp"
 #include "../resource/TextureMetadata.hpp"
 #include "../text/BitmapFont.hpp"
 #include "../core/Types.hpp"
@@ -12,17 +13,29 @@
 
 namespace esengine {
 
+namespace {
+
+/**
+ * Pixel uploads crossing the JS boundary are color images (decoded PNGs, spine
+ * atlases, glyph atlases, tileset collages) — the same "all image textures are
+ * color" contract the SDK's raw-GL upload path applies. Linear mode stores them
+ * sRGB-encoded so the sampler linearizes in hardware, on both backends.
+ */
+TextureFormat boundaryTextureFormat(i32 format) {
+    if (format == 0) return TextureFormat::RGB8;
+    if (resource::ShaderParser::linearColorSpace()) return TextureFormat::SRGB8A8;
+    return TextureFormat::RGBA8;
+}
+
+}  // namespace
+
 u32 rm_createTexture(resource::ResourceManager& rm, u32 width, u32 height,
                       uintptr_t pixelsPtr, u32 pixelsLen, i32 format, bool flipY) {
     const u8* pixels = boundarySpan<u8>(pixelsPtr, pixelsLen, "rm_createTexture");
     if (!pixels) return 0;
     ConstSpan<u8> pixelSpan(pixels, pixelsLen);
 
-    TextureFormat texFormat = TextureFormat::RGBA8;
-    if (format == 0) texFormat = TextureFormat::RGB8;
-    else if (format == 1) texFormat = TextureFormat::RGBA8;
-
-    auto handle = rm.createTexture(width, height, pixelSpan, texFormat, flipY);
+    auto handle = rm.createTexture(width, height, pixelSpan, boundaryTextureFormat(format), flipY);
     return handle.id();
 }
 
@@ -32,9 +45,7 @@ u32 rm_createTextureEx(resource::ResourceManager& rm, u32 width, u32 height,
     const u8* pixels = pixelsPtr ? boundarySpan<u8>(pixelsPtr, pixelsLen, "rm_createTextureEx") : nullptr;
     if (pixelsPtr && !pixels) return 0;
 
-    TextureFormat texFormat = TextureFormat::RGBA8;
-    if (format == 0) texFormat = TextureFormat::RGB8;
-    else if (format == 1) texFormat = TextureFormat::RGBA8;
+    const TextureFormat texFormat = boundaryTextureFormat(format);
 
     TextureSpecification spec;
     spec.width = width;
@@ -59,7 +70,7 @@ u32 rm_createTextureEx(resource::ResourceManager& rm, u32 width, u32 height,
 
     auto* texture = rm.getTexture(handle);
     if (texture && pixels) {
-        const u64 required = static_cast<u64>(width) * height * (texFormat == TextureFormat::RGBA8 ? 4 : 3);
+        const u64 required = static_cast<u64>(width) * height * (texFormat == TextureFormat::RGB8 ? 3 : 4);
         if (pixelsLen < required) {
             ES_LOG_ERROR("rm_createTextureEx: pixel buffer {} < required {}; upload skipped",
                          pixelsLen, required);

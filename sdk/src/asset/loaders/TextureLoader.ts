@@ -192,7 +192,10 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         if (!transcoder) {
             throw new Error('TextureLoader: no Basis transcoder available (basis side module missing — KTX2 assets need it)');
         }
-        const r = loadCompressedTexture(gl, this.module_, transcoder, bytes, settings);
+        // KTX2 payloads are color, like the PNG path: linear mode wants the
+        // sRGB variant of whatever compressed format the device supports.
+        const r = loadCompressedTexture(gl, this.module_, transcoder, bytes,
+            { ...settings, srgb: linearColorSpace() });
         return { handle: r.handle, width: r.width, height: r.height };
     }
 

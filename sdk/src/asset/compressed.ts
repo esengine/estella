@@ -88,15 +88,25 @@ export interface BasisTranscoder {
 // =============================================================================
 
 // Minimal shapes for the extension constants we read — robust to lib.dom not
-// typing every getExtension overload (some omit the ETC one).
-interface AstcExt { readonly COMPRESSED_RGBA_ASTC_4x4_KHR: number }
-interface EtcExt { readonly COMPRESSED_RGBA8_ETC2_EAC: number }
+// typing every getExtension overload (some omit the ETC one). The ASTC/ETC
+// extensions expose their sRGB variants on the same object; S3TC splits sRGB
+// into a separate extension (WEBGL_compressed_texture_s3tc_srgb).
+interface AstcExt {
+    readonly COMPRESSED_RGBA_ASTC_4x4_KHR: number;
+    readonly COMPRESSED_SRGB8_ALPHA8_ASTC_4x4_KHR: number;
+}
+interface EtcExt {
+    readonly COMPRESSED_RGBA8_ETC2_EAC: number;
+    readonly COMPRESSED_SRGB8_ALPHA8_ETC2_EAC: number;
+}
 interface S3tcExt { readonly COMPRESSED_RGBA_S3TC_DXT5_EXT: number }
+interface S3tcSrgbExt { readonly COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT: number }
 
 export interface CompressedTextureSupport {
     readonly astc: AstcExt | null;
     readonly etc: EtcExt | null;
     readonly s3tc: S3tcExt | null;
+    readonly s3tcSrgb: S3tcSrgbExt | null;
 }
 
 /**
@@ -109,25 +119,41 @@ export function detectCompressedTextureSupport(gl: WebGL2RenderingContext): Comp
         astc: gl.getExtension('WEBGL_compressed_texture_astc') as AstcExt | null,
         etc: gl.getExtension('WEBGL_compressed_texture_etc') as EtcExt | null,
         s3tc: gl.getExtension('WEBGL_compressed_texture_s3tc') as S3tcExt | null,
+        s3tcSrgb: gl.getExtension('WEBGL_compressed_texture_s3tc_srgb') as S3tcSrgbExt | null,
     };
 }
 
-/** Best available target in quality/size order: ASTC > ETC2 > S3TC. null = none. */
-export function chooseTargetFormat(support: CompressedTextureSupport): CompressedTextureFormat | null {
+/**
+ * Best available target in quality/size order: ASTC > ETC2 > S3TC. null = none.
+ * With `srgb` (linear pipeline) a format only qualifies when its sRGB variant is
+ * uploadable — S3TC needs the separate s3tc_srgb extension; ASTC/ETC2 sRGB ride
+ * the same extension as their UNORM twins. The transcoded block data is
+ * identical either way; only the sampling interpretation differs.
+ */
+export function chooseTargetFormat(
+    support: CompressedTextureSupport, srgb = false,
+): CompressedTextureFormat | null {
     if (support.astc) return CompressedTextureFormat.ASTC_4x4;
     if (support.etc) return CompressedTextureFormat.ETC2_RGBA8;
-    if (support.s3tc) return CompressedTextureFormat.S3TC_DXT5;
+    if (srgb ? support.s3tcSrgb : support.s3tc) return CompressedTextureFormat.S3TC_DXT5;
     return null;
 }
 
 /** WebGL `internalformat` enum for a chosen format, from its enabling extension. */
-export function glInternalFormat(support: CompressedTextureSupport, fmt: CompressedTextureFormat): number | null {
+export function glInternalFormat(
+    support: CompressedTextureSupport, fmt: CompressedTextureFormat, srgb = false,
+): number | null {
     switch (fmt) {
         case CompressedTextureFormat.ASTC_4x4:
-            return support.astc ? support.astc.COMPRESSED_RGBA_ASTC_4x4_KHR : null;
+            if (!support.astc) return null;
+            return srgb ? support.astc.COMPRESSED_SRGB8_ALPHA8_ASTC_4x4_KHR
+                        : support.astc.COMPRESSED_RGBA_ASTC_4x4_KHR;
         case CompressedTextureFormat.ETC2_RGBA8:
-            return support.etc ? support.etc.COMPRESSED_RGBA8_ETC2_EAC : null;
+            if (!support.etc) return null;
+            return srgb ? support.etc.COMPRESSED_SRGB8_ALPHA8_ETC2_EAC
+                        : support.etc.COMPRESSED_RGBA8_ETC2_EAC;
         case CompressedTextureFormat.S3TC_DXT5:
+            if (srgb) return support.s3tcSrgb ? support.s3tcSrgb.COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT : null;
             return support.s3tc ? support.s3tc.COMPRESSED_RGBA_S3TC_DXT5_EXT : null;
     }
     return null;
@@ -140,6 +166,8 @@ export function glInternalFormat(support: CompressedTextureSupport, fmt: Compres
 export interface CompressedUploadOptions {
     readonly filter?: 'linear' | 'nearest';
     readonly wrap?: 'repeat' | 'clamp' | 'mirror';
+    /** Linear pipeline: store sRGB-encoded so the sampler linearizes in hardware. */
+    readonly srgb?: boolean;
 }
 
 export interface UploadedTexture {
@@ -187,7 +215,7 @@ export function uploadCompressedTexture(
     support: CompressedTextureSupport, fmt: CompressedTextureFormat,
     t: TranscodeResult, opts?: CompressedUploadOptions,
 ): UploadedTexture {
-    const internalFormat = glInternalFormat(support, fmt);
+    const internalFormat = glInternalFormat(support, fmt, opts?.srgb ?? false);
     if (internalFormat == null) throw new Error(`compressed upload: no GL internalformat for ${fmt}`);
     const texture = gl.createTexture();
     if (!texture) throw new Error('compressed upload: gl.createTexture failed');
@@ -214,7 +242,10 @@ export function uploadRgbaTexture(
     if (!texture) throw new Error('rgba upload: gl.createTexture failed');
     try {
         gl.bindTexture(gl.TEXTURE_2D, texture);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, r.width, r.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, r.data);
+        // Linear pipeline: the decoded pixels are sRGB-encoded color, same as
+        // the PNG path — store them in an sRGB format so sampling linearizes.
+        const internalFormat = opts?.srgb ? gl.SRGB8_ALPHA8 : gl.RGBA;
+        gl.texImage2D(gl.TEXTURE_2D, 0, internalFormat, r.width, r.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, r.data);
         applyParams(gl, opts);
     } catch (err) {
         // Release the GL texture if the upload throws — don't leak it.
@@ -238,7 +269,7 @@ export function loadCompressedTexture(
     transcoder: BasisTranscoder, bytes: Uint8Array, opts?: CompressedUploadOptions,
 ): UploadedTexture {
     const support = detectCompressedTextureSupport(gl);
-    const target = chooseTargetFormat(support);
+    const target = chooseTargetFormat(support, opts?.srgb ?? false);
     if (target !== null) {
         const t = transcoder.transcode(bytes, target);
         if (t) return uploadCompressedTexture(gl, module, support, target, t, opts);
