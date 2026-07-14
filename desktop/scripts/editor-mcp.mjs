@@ -1,94 +1,115 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  editor-mcp.mjs — the editor MCP server (headless host).
+ * @file  editor-mcp.mjs — the editor MCP server (stdio front, plain node).
  *
- * An Electron entry that boots the SAME headless render host the render-verify runner
- * uses (serves dist/, opens headless.html, which publishes EditorControlSurface on
- * `window.__estellaHeadless`), then runs an MCP server over stdio whose tools are the
- * surface methods (see editor-mcp-tools.mjs). So an MCP client (an AI agent) can drive
- * the real editor surface headlessly — load/inspect/edit scenes, step, read stats —
- * with no live Electron UI. The surface stays the single source of truth; this is a
- * transport over it (EditorControlSurface.ts:7-9). Requires a built dist/ (vite build).
+ * An MCP client (an AI agent) spawns this with node; it spawns the Electron half
+ * (editor-mcp-host.mjs — the proven headless render host publishing
+ * EditorControlSurface) and serves the MCP tool registry (editor-mcp-tools.mjs)
+ * over stdio, forwarding each call to the host's loopback /exec endpoint.
+ *
+ * Split on purpose: an Electron main process never receives piped stdin on
+ * Windows, so the MCP protocol must live in a plain-node process. The surface
+ * stays the single source of truth; registry + this transport add no editor
+ * truth of their own (EditorControlSurface.ts:7-9).
  *
  * stdout is the MCP JSON-RPC channel — ALL logging goes to stderr.
+ * Mutating tools require ESTELLA_MCP_ALLOW_WRITES=1 (hidden + refused otherwise).
  */
-import { app, BrowserWindow } from 'electron';
-import http from 'node:http';
-import { readFile } from 'node:fs/promises';
+import { spawn } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import { TOOLS, listTools, runTool } from './editor-mcp-tools.mjs';
+import {
+  ListToolsRequestSchema,
+  CallToolRequestSchema,
+  ListResourcesRequestSchema,
+  ReadResourceRequestSchema,
+} from '@modelcontextprotocol/sdk/types.js';
+import { TOOLS, RESOURCES, listTools, runTool } from './editor-mcp-tools.mjs';
 
-const DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist');
-const W = Number(process.env.ESTELLA_MCP_W) || 1280;
-const H = Number(process.env.ESTELLA_MCP_H) || 720;
-
-app.commandLine.appendSwitch('enable-unsafe-swiftshader'); // GPU-less WebGL2 fallback
-process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true';
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const ALLOW_WRITES = process.env.ESTELLA_MCP_ALLOW_WRITES === '1';
 const log = (...a) => process.stderr.write(`[editor-mcp] ${a.join(' ')}\n`);
 
-const MIME = {
-  '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript',
-  '.css': 'text/css', '.json': 'application/json', '.esscene': 'application/json',
-  '.wasm': 'application/wasm', '.png': 'image/png', '.jpg': 'image/jpeg',
-  '.webp': 'image/webp', '.woff': 'font/woff', '.woff2': 'font/woff2', '.svg': 'image/svg+xml',
-};
+// Under plain node the electron package's export IS the binary path — works on
+// every platform (the .bin/ shim is a sh script Windows cannot spawn).
+const electron = createRequire(import.meta.url)('electron');
+const token = randomBytes(24).toString('hex');
 
-function serveDist() {
-  const server = http.createServer(async (req, res) => {
-    try {
-      const rel = decodeURIComponent(new URL(req.url, 'http://x').pathname).replace(/^\/+/, '') || 'index.html';
-      const abs = path.join(DIST, rel);
-      if (!abs.startsWith(DIST)) { res.writeHead(403).end(); return; }
-      const bytes = await readFile(abs);
-      res.writeHead(200, { 'content-type': MIME[path.extname(abs).toLowerCase()] ?? 'application/octet-stream' });
-      res.end(bytes);
-    } catch { res.writeHead(404).end('not found'); }
+const host = spawn(electron, [path.join(HERE, 'editor-mcp-host.mjs')], {
+  stdio: ['ignore', 'pipe', 'pipe'],
+  env: {
+    ...process.env,
+    ESTELLA_MCP_TOKEN: token,
+    ESTELLA_MCP_PARENT_PID: String(process.pid),
+  },
+});
+host.stderr.on('data', (d) => process.stderr.write(d));
+host.on('exit', (code) => {
+  log(`host exited (${code}) — shutting down`);
+  process.exit(code === 0 ? 0 : 1);
+});
+const killHost = () => { try { host.kill(); } catch { /* already gone */ } };
+process.on('exit', killHost);
+process.stdin.on('close', () => { killHost(); process.exit(0); });
+
+// Wait for the host's readiness line to learn the /exec port.
+const port = await new Promise((resolve, reject) => {
+  let buf = '';
+  const timer = setTimeout(() => reject(new Error('host did not become ready in 120s')), 120_000);
+  host.stdout.on('data', (d) => {
+    buf += d.toString();
+    const m = /^MCP_HOST_READY (\{.*\})$/m.exec(buf);
+    if (m) {
+      clearTimeout(timer);
+      resolve(JSON.parse(m[1]).port);
+    }
   });
-  return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server)));
+}).catch((e) => {
+  log('FATAL', e.message);
+  killHost();
+  process.exit(1);
+});
+log(`host ready on 127.0.0.1:${port} (writes ${ALLOW_WRITES ? 'ENABLED' : 'disabled'})`);
+
+async function post(body) {
+  const res = await fetch(`http://127.0.0.1:${port}/exec`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-estella-mcp-token': token },
+    body: JSON.stringify(body),
+  });
+  const out = await res.json();
+  if (!out.ok) throw new Error(out.error);
+  return out.hasResult ? out.result : undefined;
 }
 
-// Keep the process alive on the hidden window (this is a long-running server).
-app.on('window-all-closed', () => {});
+// The registry's driver: surface method calls + renderer-code snippets.
+const driver = (method, args) => post({ method, args });
+driver.js = (js) => post({ js });
 
-app.whenReady().then(async () => {
-  try {
-    const server = await serveDist();
-    const url = `http://127.0.0.1:${server.address().port}/headless.html?w=${W}&h=${H}`;
-    const win = new BrowserWindow({ show: false, width: W, height: H, webPreferences: { offscreen: false } });
-    win.webContents.on('console-message', (...args) => {
-      const msg = args.map((a) => (a && typeof a === 'object' ? a.message ?? '' : String(a))).join(' ');
-      if (/error|fail|unwind|exception|webgl/i.test(msg)) log('[renderer]', msg.slice(0, 240));
-    });
-    await win.loadURL(url);
-    await win.webContents.executeJavaScript('window.__estellaHeadless.ready', true);
-    log('headless engine ready');
-
-    // Marshal a surface call into the headless renderer. `undefined` args become the JS
-    // `undefined` literal so the surface's default parameters apply.
-    const driver = (method, args) =>
-      win.webContents.executeJavaScript(
-        `window.__estellaHeadless.api.${method}(${(args ?? [])
-          .map((a) => (a === undefined ? 'undefined' : JSON.stringify(a)))
-          .join(',')})`,
-        true,
-      );
-
-    const mcp = new Server({ name: 'estella-editor', version: '0.1.0' }, { capabilities: { tools: {} } });
-    mcp.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: listTools() }));
-    mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
-      const tool = TOOLS.find((t) => t.name === req.params.name);
-      if (!tool) return { content: [{ type: 'text', text: `unknown tool: ${req.params.name}` }], isError: true };
-      return runTool(tool, driver, req.params.arguments);
-    });
-    await mcp.connect(new StdioServerTransport());
-    log('MCP server connected over stdio');
-  } catch (e) {
-    log('FATAL', String((e && e.stack) || e));
-    app.exit(1);
-  }
+const mcp = new Server(
+  { name: 'estella-editor', version: '0.2.0' },
+  { capabilities: { tools: {}, resources: {} } },
+);
+mcp.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: listTools(ALLOW_WRITES) }));
+mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
+  const tool = TOOLS.find((t) => t.name === req.params.name);
+  if (!tool) return { content: [{ type: 'text', text: `unknown tool: ${req.params.name}` }], isError: true };
+  return runTool(tool, driver, req.params.arguments, ALLOW_WRITES);
 });
+mcp.setRequestHandler(ListResourcesRequestSchema, async () => ({
+  resources: RESOURCES.map(({ uri, name, mimeType }) => ({ uri, name, mimeType })),
+}));
+mcp.setRequestHandler(ReadResourceRequestSchema, async (req) => {
+  const r = RESOURCES.find((x) => x.uri === req.params.uri);
+  if (!r) throw new Error(`unknown resource: ${req.params.uri}`);
+  const value = await driver(r.method, []);
+  return { contents: [{ uri: r.uri, mimeType: r.mimeType, text: JSON.stringify(value) }] };
+});
+
+await mcp.connect(new StdioServerTransport());
+log('MCP server connected over stdio');
