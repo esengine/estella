@@ -4,6 +4,11 @@ on:
   push:
     tags:
       - 'v*'
+  # Dry run: exercises the full pipeline (engine build + both platform
+  # packagers) but never touches a GitHub release — installers upload as
+  # workflow artifacts instead. Use to validate workflow changes without
+  # burning a tag.
+  workflow_dispatch:
 
 jobs:
   # The single writer that creates the draft release. electron-builder's GitHub
@@ -13,6 +18,7 @@ jobs:
   # pre-created here, every platform finds it and uploads into it — safe to
   # run in parallel.
   draft:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -26,8 +32,63 @@ jobs:
               --draft --title "$GITHUB_REF_NAME" \
               --notes "See CHANGELOG.md for this release's notes."
 
+  # The engine wasm is platform-independent, so it is compiled ONCE here and
+  # shared with the platform packagers as an artifact. This is what the
+  # installers ship — both platforms package byte-identical engine binaries.
+  # Linux gets ccache (same key as build.yml, so every master push keeps this
+  # cache warm); the old per-platform scheme compiled the engine cold on
+  # Windows every release (~10 min of the ~19 min job).
+  engine:
+    name: Build engine (wasm)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 5.0.0
+
+      - name: Setup ccache
+        uses: hendrikmuhs/ccache-action@v1.2.20
+        with:
+          key: ${{ runner.os }}-emscripten
+          max-size: 500M
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build engine and sync to desktop
+        run: node build-tools/cli.js build -t all
+
+      - name: Upload engine artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: engine-wasm
+          path: |
+            desktop/public/wasm
+            desktop/public/wasm-wechat
+          retention-days: 3
+
   release:
-    needs: draft
+    # Platform jobs only package: SDK + renderer builds are quick TS/JS work,
+    # and electron-builder needs the native OS. No emsdk, no C++ here.
+    needs: [draft, engine]
+    # Run on dry runs too, where draft is skipped by design.
+    if: >-
+      always() && needs.engine.result == 'success' &&
+      (github.event_name != 'push' || needs.draft.result == 'success')
     strategy:
       fail-fast: false
       # Windows + macOS only — the Linux AppImage is dropped from releases
@@ -43,8 +104,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
       - uses: actions/setup-node@v4
         with:
@@ -54,26 +113,14 @@ jobs:
         with:
           version: 10
 
-      - name: Setup Emscripten
-        uses: mymindstorm/setup-emsdk@v14
-        with:
-          version: 5.0.0
-
-      - name: Setup ccache
-        if: matrix.platform != 'windows-latest'
-        uses: hendrikmuhs/ccache-action@v1.2.20
-        with:
-          key: ${{ matrix.platform }}-release
-          max-size: 1G
-
       - name: Install dependencies
         run: pnpm install
 
-      - name: Build engine and sync to desktop
-        run: node build-tools/cli.js build -t all
-
-      - name: Package engine source for toolchain
-        run: node build-tools/cli.js toolchain
+      - name: Download engine artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: engine-wasm
+          path: desktop/public
 
       - name: Build SDK
         run: pnpm --filter ./sdk build
@@ -82,6 +129,21 @@ jobs:
         run: pnpm --filter ./desktop build
 
       - name: Package and publish desktop app
+        if: github.event_name == 'push'
         run: pnpm --filter ./desktop exec electron-builder --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Package desktop app (dry run, no publish)
+        if: github.event_name != 'push'
+        run: pnpm --filter ./desktop exec electron-builder --publish never
+
+      - name: Upload installer artifact (dry run)
+        if: github.event_name != 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer-${{ matrix.platform }}
+          path: |
+            desktop/release/*.exe
+            desktop/release/*.dmg
+          retention-days: 3
