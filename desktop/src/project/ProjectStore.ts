@@ -254,6 +254,13 @@ class ProjectStoreImpl {
    * running (re-opening from the editor), load immediately.
    */
   private async adopted(opened: OpenedProject): Promise<void> {
+    // Staging problems (the .esengine/sdk types mirror) don't block the open,
+    // but they must be LOUD — a silent skip is how projects lost their
+    // `esengine` IDE types in v0.22.0 with nothing in any log (issue #49).
+    if (opened.stagingError) {
+      console.error('[project] SDK types staging failed:', opened.stagingError);
+      Toasts.push(t('proj.sdkTypesFailed', { message: opened.stagingError }), 'error');
+    }
     this.adopt(opened);
     await window.estella.recents.add(opened.root, opened.manifest.name);
     await this.refreshUserSchemas();

@@ -31,7 +31,7 @@ import { exportGame } from './exportGame';
 import { previewServer, closeAllPreviewServers } from './exportPreview';
 import { httpContentType } from './mimeTypes';
 import { buildPlayRealm } from './buildPlayRealm';
-import { syncSdkTypes } from './syncSdkTypes';
+import { ensureSdkTypes } from './syncSdkTypes';
 import { installCrashCapture, logsDir } from './resilience';
 import { mcpMode, startMcpEndpoint } from './mcpEndpoint';
 import { checkForUpdate } from './updateCheck';
@@ -110,6 +110,13 @@ const unpacked = (p: string): string => p.replace(/app\.asar(?=[\\/])/, 'app.asa
 const HOSTS_DIR = unpacked(path.join(__dirname, 'hosts'));
 /** The esengine SDK dist: staged into realms/exports, aliased into inlined bundles. */
 const SDK_DIST = unpacked(path.join(process.env.APP_ROOT, 'node_modules', 'esengine', 'dist'));
+/** Where the types mirror may READ the SDK dist from, in preference order. The
+ *  mirror is plain Node fs, which reads app.asar fine — so the in-archive path
+ *  is a valid fallback when the unpacked copy is missing (v0.22.0 shipped
+ *  without asarUnpack for the sdk; the mirror silently skipped and projects
+ *  lost their `esengine` types — issue #49). Native consumers (esbuild) must
+ *  keep using SDK_DIST only. */
+const SDK_TYPES_CANDIDATES = [SDK_DIST, path.join(process.env.APP_ROOT, 'node_modules', 'esengine', 'dist')];
 /** The web engine runtime (glue + wasm + side modules) staged into play realms and
  *  exports by recursive directory copy — which cannot source from inside app.asar. */
 const WEB_WASM_DIR = unpacked(
@@ -430,15 +437,20 @@ const requireRoot = (): string => {
 };
 
 // Adopt a freshly opened project as the active root + (re)start the fs watcher
-// so on-disk changes push to the renderer, and mirror the SDK types into
+// so on-disk changes push to the renderer, and stage the SDK types into
 // .esengine/sdk so the project's tsconfig resolves `esengine` in the IDE.
-async function adoptRoot(root: string): Promise<void> {
+// Staging failure does NOT block the open — but it is returned so the renderer
+// can say it loudly (Output Log + toast), never swallowed into a console.warn.
+async function adoptRoot(root: string): Promise<string | undefined> {
   projectRoot = root;
   if (win) startProjectWatch(root, win.webContents);
   try {
-    await syncSdkTypes(root, SDK_DIST);
+    await ensureSdkTypes(root, SDK_TYPES_CANDIDATES, app.getVersion());
+    return undefined;
   } catch (err) {
-    console.warn('[sdk-types] mirror failed:', err);
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[sdk-types]', msg);
+    return msg;
   }
 }
 
@@ -450,14 +462,12 @@ ipcMain.handle('project:openDialog', async () => {
   });
   if (res.canceled || res.filePaths.length === 0) return null;
   const opened = await openProject(res.filePaths[0]);
-  await adoptRoot(opened.root);
-  return opened;
+  return { ...opened, stagingError: await adoptRoot(opened.root) };
 });
 
 ipcMain.handle('project:open', async (_e, root: string) => {
   const opened = await openProject(root);
-  await adoptRoot(opened.root);
-  return opened;
+  return { ...opened, stagingError: await adoptRoot(opened.root) };
 });
 
 // Import: OS file picker → copy the chosen files into `destDir` + write `.meta`.

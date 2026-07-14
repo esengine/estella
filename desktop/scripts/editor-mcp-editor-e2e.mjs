@@ -101,6 +101,13 @@ try {
   await call('open_project', { root: project }, 120_000);
   console.log('open_project OK');
 
+  // Opening a project stages the SDK types mirror — the project tsconfig's
+  // `esengine` path must resolve for the IDE from the very first open (a
+  // silently skipped mirror shipped "cannot find module 'esengine'" in 0.22).
+  const sdkTypes = await stat(path.join(project, '.esengine', 'sdk', 'index.d.ts')).catch(() => null);
+  if (!sdkTypes) await fail('.esengine/sdk/index.d.ts missing after open_project — SDK types staging broken');
+  console.log('sdk types staged OK — .esengine/sdk/index.d.ts present');
+
   // No polling: open_scene's contract is "resolved = adopted", so the very next
   // tree read must already be populated (this line is the contract's regression
   // guard — do not add a retry loop here).

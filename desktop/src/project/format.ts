@@ -189,6 +189,11 @@ export interface OpenedProject {
   root: string;
   manifest: ProjectManifest;
   workspace: WorkspaceState;
+  /** Staging that failed while adopting the project (e.g. the `.esengine/sdk`
+   *  types mirror couldn't find the SDK dist). The project still opens — but
+   *  the renderer must say so LOUDLY: a silently skipped mirror is exactly how
+   *  "cannot find module 'esengine'" shipped without a trace (issue #49). */
+  stagingError?: string;
 }
 
 /** A directory entry from a sandboxed readdir. */

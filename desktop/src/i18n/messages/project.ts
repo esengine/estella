@@ -99,6 +99,7 @@ export const projectMessages = defineMessages({
 
     // — Project-level feedback toasts (ProjectStore) —
     'proj.openFailed': { en: 'Could not open project: {message}', zh: '无法打开项目：{message}' },
+    'proj.sdkTypesFailed': { en: 'SDK types staging failed — the IDE cannot resolve "esengine": {message}', zh: 'SDK 类型入驻失败——IDE 将无法解析 "esengine"：{message}' },
     'proj.prefabLoadFailed': { en: 'Could not load prefab: {name}', zh: '无法加载预制体：{name}' },
     'proj.noOverrides': { en: 'No overrides to apply', zh: '没有可应用的覆盖' },
     'proj.applyWriteFailed': { en: 'Apply failed: could not write {name}', zh: '应用失败：无法写入 {name}' },
