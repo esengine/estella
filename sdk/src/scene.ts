@@ -508,12 +508,34 @@ export function loadComponent(world: World, entity: Entity, compData: SceneCompo
 
     // Asset-ref fields validate leniently: their serialized string ref and runtime
     // numeric handle are both legal (a Tiled-imported Tilemap's `source: 0` == "none").
+    const context = entityName ? ` (entity "${entityName}")` : '';
     const errors = validateComponentData(compData.type, comp._default as Record<string, unknown>, compData.data, assetFieldNames(comp));
     if (errors.length > 0) {
-        const context = entityName ? ` (entity "${entityName}")` : '';
-        log.warn('scene', formatValidationErrors(compData.type + context, errors));
+        // Salvage, not sacrifice: deserialized data is the one input the strict
+        // storage validators must not veto wholesale — drop the invalid fields so
+        // their defaults apply and the REST of the component still loads. Without
+        // this the insert below throws and one stale string in a saved scene
+        // bricks the whole scene load.
+        for (const err of errors) {
+            const root = err.field in compData.data ? err.field : err.field.split('.')[0];
+            delete compData.data[root];
+        }
+        log.warn(
+            'scene',
+            `${formatValidationErrors(compData.type + context, errors)}\n  → invalid fields dropped, their defaults apply (fix the scene file to silence this)`
+        );
     }
-    world.insert(entity, comp, compData.data);
+    try {
+        world.insert(entity, comp, compData.data);
+    } catch (err) {
+        // Defense in depth: a deeper boundary rejection costs THIS component, not
+        // the scene.
+        log.error(
+            'scene',
+            `component "${compData.type}"${context} failed to insert — skipped: ${err instanceof Error ? err.message : String(err)}`
+        );
+        return;
+    }
 
     if (codec?.importData && outOfBand) {
         codec.importData(entity as unknown as number, outOfBand);

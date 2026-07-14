@@ -258,6 +258,28 @@ describe('Scene', () => {
             );
             warnSpy.mockRestore();
         });
+
+        it('salvages invalid fields — dropped to defaults with a warning, the rest loads', () => {
+            // One stale string in a saved scene must cost that FIELD, not the
+            // component (the storage validator throws) and never the scene.
+            const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+            const entity = world.spawn();
+            expect(() =>
+                loadComponent(world, entity, {
+                    type: 'Sprite',
+                    // size.x garbage (nested type mismatch) + a stray top-level key —
+                    // the exact corruption shape a broken automation client once wrote.
+                    data: { texture: 0, size: { x: 'garbage', y: 16 }, 'size.x': '16' },
+                }, 'ninja'),
+            ).not.toThrow();
+
+            expect(world.has(entity, Sprite)).toBe(true);
+            const sprite = world.get(entity, Sprite);
+            expect(sprite.size).toMatchObject({ x: 100, y: 100 }); // dropped → default
+            expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('invalid fields dropped'));
+            expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('entity "ninja"'));
+            warnSpy.mockRestore();
+        });
     });
 
     // =========================================================================

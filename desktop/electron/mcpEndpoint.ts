@@ -40,6 +40,18 @@ export function mcpMode(): boolean {
 export async function startMcpEndpoint(getWin: () => BrowserWindow | null): Promise<void> {
   const token = process.env.ESTELLA_MCP_TOKEN || randomBytes(24).toString('hex');
 
+  // executeJavaScript rejects a thrown error with an opaque "Script failed to
+  // execute" — wrap the expression so the real message crosses the boundary
+  // (surface errors like `component "X" is not on entity 5` are the automation
+  // client's actual feedback, not a debugging detail).
+  const carryError = (expr: string) =>
+    `(async () => { try { return { v: await (${expr}) }; } catch (e) { return { __estellaExecError: (e && e.message) || String(e) }; } })()`;
+  const unwrap = (res: unknown) => {
+    const r = res as { v?: unknown; __estellaExecError?: string } | null;
+    if (r && typeof r === 'object' && r.__estellaExecError !== undefined) throw new Error(r.__estellaExecError);
+    return r?.v;
+  };
+
   const exec = async (code: string) => {
     const win = getWin();
     if (!win) throw new Error('no editor window');
@@ -48,7 +60,7 @@ export async function startMcpEndpoint(getWin: () => BrowserWindow | null): Prom
     if (win.webContents.isLoading()) {
       await new Promise<void>((resolve) => win.webContents.once('did-finish-load', () => resolve()));
     }
-    return win.webContents.executeJavaScript(code, true);
+    return unwrap(await win.webContents.executeJavaScript(carryError(code), true));
   };
 
   const server = await createExecEndpoint({
@@ -71,7 +83,7 @@ export async function startMcpEndpoint(getWin: () => BrowserWindow | null): Prom
         const playFrames = win.webContents.mainFrame.frames.filter((f) => f.url.startsWith('estella://'));
         const playFrame = playFrames[frame ?? 0];
         if (!playFrame) throw new Error(`no play realm at index ${frame ?? 0} (${playFrames.length} running — enter play first)`);
-        return playFrame.executeJavaScript(code ?? 'true');
+        return unwrap(await playFrame.executeJavaScript(carryError(code ?? 'true')));
       }
       if (js) return exec(js);
       const target = root === 'editor' ? 'window.__estellaEditor' : 'window.__estellaEditor.surface';

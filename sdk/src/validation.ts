@@ -19,16 +19,33 @@ export function validateComponentData(
     assetFields?: ReadonlySet<string>
 ): ValidationError[] {
     const errors: ValidationError[] = [];
+    validateInto(errors, defaults, data, assetFields, '');
+    return errors;
+}
 
+function validateInto(
+    errors: ValidationError[],
+    defaults: Record<string, unknown>,
+    data: Record<string, unknown>,
+    assetFields: ReadonlySet<string> | undefined,
+    prefix: string
+): void {
     for (const [field, value] of Object.entries(data)) {
         if (field.startsWith('_')) continue;
+        const path = prefix ? `${prefix}.${field}` : field;
         if (!(field in defaults)) {
-            errors.push({
-                field,
-                expected: 'field to exist in component definition',
-                actual: 'unknown field',
-                value,
-            });
+            // Unknown members are an error only at the TOP level (a stray key names
+            // a field that will silently never apply). Nested objects legally carry
+            // extra keys — e.g. colors read back from wasm keep ghost x/y/z/w
+            // members beside r/g/b/a — so those pass.
+            if (!prefix) {
+                errors.push({
+                    field: path,
+                    expected: 'field to exist in component definition',
+                    actual: 'unknown field',
+                    value,
+                });
+            }
             continue;
         }
 
@@ -37,13 +54,16 @@ export function validateComponentData(
         const actualType = getType(value);
 
         if (expectedType === 'null' || expectedType === 'undefined') continue;
+        if (value === null || value === undefined) continue;
 
-        if (expectedType !== actualType && value !== null && value !== undefined) {
+        if (expectedType !== actualType) {
             // Asset-ref fields carry two legal shapes: a portable string ref
             // ("@uuid:…", or "" for none) in serialized/model data, and a numeric
             // runtime handle (0 for none). A string↔number mismatch on one denotes
-            // the same asset (or its absence), so it is not an error.
+            // the same asset (or its absence), so it is not an error. (Asset refs
+            // are top-level fields; the rule never applies at depth.)
             if (
+                !prefix &&
                 assetFields?.has(field) &&
                 ((expectedType === 'string' && actualType === 'number') ||
                     (expectedType === 'number' && actualType === 'string'))
@@ -51,15 +71,27 @@ export function validateComponentData(
                 continue;
             }
             errors.push({
-                field,
+                field: path,
                 expected: expectedType,
                 actual: actualType,
                 value,
             });
+            continue;
+        }
+
+        // Same-shape plain objects: check member TYPES at depth ("size.x" holding
+        // a string would otherwise sail through and reach the ABI as garbage).
+        // Arrays are type-matched only — element schemas belong to their consumers.
+        if (expectedType === 'object') {
+            validateInto(
+                errors,
+                defaultValue as Record<string, unknown>,
+                value as Record<string, unknown>,
+                undefined,
+                path
+            );
         }
     }
-
-    return errors;
 }
 
 /** A component's asset-ref field names — pass to {@link validateComponentData} so

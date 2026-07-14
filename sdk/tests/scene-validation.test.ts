@@ -48,6 +48,39 @@ describe('validateComponentData', () => {
         expect(errors[0].expected).toBe('object');
         expect(errors[0].actual).toBe('string');
     });
+
+    it('detects nested member type mismatches with dotted field paths', () => {
+        const defaults = { size: { x: 0, y: 0 } };
+        const data = { size: { x: 'garbage', y: 16 } };
+        const errors = validateComponentData('Test', defaults, data);
+        expect(errors).toHaveLength(1);
+        expect(errors[0].field).toBe('size.x');
+        expect(errors[0].expected).toBe('number');
+        expect(errors[0].actual).toBe('string');
+    });
+
+    it('recurses through deeper object nesting', () => {
+        const defaults = { a: { b: { c: 0 } } };
+        const data = { a: { b: { c: 'nope' } } };
+        const errors = validateComponentData('Test', defaults, data);
+        expect(errors).toHaveLength(1);
+        expect(errors[0].field).toBe('a.b.c');
+    });
+
+    it('tolerates unknown NESTED members (wasm colors keep ghost x/y/z/w beside r/g/b/a)', () => {
+        const defaults = { color: { r: 1, g: 1, b: 1, a: 1 } };
+        const data = { color: { r: 1, g: 0, b: 0, a: 1, x: 1, y: 0, z: 0, w: 1 } };
+        expect(validateComponentData('Test', defaults, data)).toEqual([]);
+    });
+
+    it('still flags unknown TOP-LEVEL fields while tolerating nested ones', () => {
+        const defaults = { size: { x: 0, y: 0 } };
+        const data = { 'size.x': '16' };
+        const errors = validateComponentData('Test', defaults, data);
+        expect(errors).toHaveLength(1);
+        expect(errors[0].field).toBe('size.x');
+        expect(errors[0].actual).toBe('unknown field');
+    });
 });
 
 describe('formatValidationErrors', () => {
