@@ -129,6 +129,15 @@ describe('scanAssetDatabase — orphan adoption', () => {
     rmSync(abs);
   });
 
+  it('the project-root thumbnail.png (editor-managed launcher cover) is never adopted', async () => {
+    const abs = path.join(root, 'thumbnail.png');
+    writeFileSync(abs, 'PNGDATA');
+    const res = await scanAssetDatabase(root, { write: false });
+    expect(res.adopted).toEqual([]);
+    expect(existsSync(`${abs}.meta`)).toBe(false);
+    rmSync(abs);
+  });
+
   it('adopt: false is a pure read (cook path) — orphans stay untouched', async () => {
     const abs = path.join(root, 'assets/pure.png');
     writeFileSync(abs, 'PNGDATA');

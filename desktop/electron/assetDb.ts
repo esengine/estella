@@ -104,6 +104,10 @@ async function adoptOrphans(root: string, rel = '', adopted: string[] = []): Pro
       if (!isContentDir(e.name)) continue;
       await adoptOrphans(root, relPath, adopted);
     } else if (isContentFile(e.name)) {
+      // The project-root thumbnail.png is the editor-managed launcher cover
+      // (rewritten on every scene save), not an asset — adopting it would put
+      // a churning file in the registry.
+      if (relPath === 'thumbnail.png') continue;
       if ((await adoptOrphan(path.join(abs, e.name))) === 'adopted') adopted.push(relPath);
     }
   }
