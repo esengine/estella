@@ -148,6 +148,14 @@ export class EditorControlSurfaceImpl {
   ): void {
     this.s.commands.setField(entity, component, key, type, value);
   }
+  /** Add a component (by schema name) to an entity — the Details "Add Component" door. */
+  addComponent(entity: EntityId, component: string): void {
+    this.s.commands.addComponent(entity, component);
+  }
+  /** Remove a component from an entity. */
+  removeComponent(entity: EntityId, component: string): void {
+    this.s.commands.removeComponent(entity, component);
+  }
   setEntityXY(id: EntityId, x: number, y: number): void {
     this.s.commands.setEntityXY(id, x, y);
   }

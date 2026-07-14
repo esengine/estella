@@ -122,6 +122,8 @@ if (new URLSearchParams(location.search).has('automation')) {
     runCommand: (id: string) => commands.run(id),
     /** Save the open scene to disk (the toolbar Save, awaitable). */
     save: () => ProjectStore.save(),
+    /** Patch the project's physics feature (Project Settings → Physics). */
+    setPhysics: (patch: Record<string, unknown>) => ProjectStore.setPhysics(patch),
     /** Create a blank scene FILE under `destDir` (Content Browser "New Scene"). */
     createSceneFile: (destDir: string) => ProjectStore.createSceneFile(destDir),
     /** The Create-popover catalog: every ready-made entity the editor can spawn. */
@@ -141,6 +143,9 @@ if (new URLSearchParams(location.search).has('automation')) {
       ASSET_OPEN[assetTypeOf(name)]?.(path, name);
     },
     reveal: (id: string) => dockApi.revealAndExpand(id),
+    /** The Output Log's captured entries (editor + SDK + wasm + play realm),
+     *  newest last — an agent's only eyes on runtime errors. */
+    logs: (tail = 50) => LogStore.getSnapshot().slice(-tail),
     togglePerfOverlay: () => PerfMonitor.toggleOverlay(),
     captureThumbnail: () => ProjectStore.captureThumbnail(),
     surface: EditorControlSurface,
