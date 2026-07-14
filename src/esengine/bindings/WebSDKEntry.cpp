@@ -653,6 +653,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_setClearColor", &esengine::renderer_setClearColor);
     emscripten::function("renderer_setViewport", &esengine::renderer_setViewport);
     emscripten::function("renderer_setYSortLayers", &esengine::renderer_setYSortLayers);
+    emscripten::function("renderer_setColorSpace", &esengine::renderer_setColorSpace);
     emscripten::function("renderer_setEntityClipRect", &esengine::renderer_setEntityClipRect);
     emscripten::function("renderer_clearEntityClipRect", &esengine::renderer_clearEntityClipRect);
     emscripten::function("renderer_clearAllClipRects", &esengine::renderer_clearAllClipRects);

@@ -159,6 +159,16 @@ public:
     /// Layers (bits 0..31) that sort by world Y within the layer — see DrawList::setYSortMask.
     void setYSortLayers(u32 mask) { draw_list_.setYSortMask(mask); }
 
+    /**
+     * @brief Switch the frame to linear-light rendering (project colorSpace).
+     * @details Sets the global ES_LINEAR shader input, linearizes CPU-side
+     *          authored colors (lights, clears), and forces the post-process
+     *          capture+blit so the final OETF encode always runs. Call before
+     *          shaders compile; a later flip requires a reload.
+     */
+    void setColorSpace(bool linear);
+    bool linearColor() const { return linear_color_; }
+
     void replayToDrawCall(i32 stopAtDrawCall);
     const u8* getSnapshotPixels() const { return snapshot_pixels_.data(); }
     u32 getSnapshotSize() const { return static_cast<u32>(snapshot_pixels_.size()); }
@@ -254,6 +264,7 @@ private:
     std::unordered_map<std::string, u32> batch_variants_;
     TransientBufferPool pool_;
     DrawList draw_list_;
+    bool linear_color_ = false;
     ClipState clip_state_;
     std::vector<std::unique_ptr<RenderTypePlugin>> plugins_;
 

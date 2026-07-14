@@ -593,6 +593,14 @@ std::string wgslMaterialTextureDecls(const ParsedShader& parsed) {
 // block matches renderer/LightConstants.hpp on both backends. sampleNormal
 // takes the de-combined texture+sampler pair and samples mip 0 explicitly,
 // keeping calls legal in non-uniform control flow.
+const char* kColorHelpersWGSL = R"(fn srgbToLinear(c : vec3f) -> vec3f {
+    return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3f(2.4)), step(vec3f(0.04045), c));
+}
+fn linearToSrgb(c : vec3f) -> vec3f {
+    return mix(c * 12.92, 1.055 * pow(c, vec3f(1.0 / 2.4)) - 0.055, step(vec3f(0.0031308), c));
+}
+)";
+
 const char* kLit2DHeaderWGSL = R"(struct Light2D { posDir : vec4f, color : vec4f, spot : vec4f, shadow : vec4f };
 struct LightConstants {
     u_ambient : vec4f,
@@ -821,6 +829,7 @@ ShaderParser::AssembledStage assembleWGSLStage(const ParsedShader& parsed,
     if (stage == ShaderStage::Fragment) {
         inject(wgslMaterialTextureDecls(parsed));
         if (lit) inject(kLit2DHeaderWGSL);
+        inject(kColorHelpersWGSL);
     }
 
     assembled << bodyIt->second;
@@ -832,11 +841,25 @@ ShaderParser::AssembledStage assembleWGSLStage(const ParsedShader& parsed,
 
 }  // namespace
 
+bool ShaderParser::s_linearColor = false;
+
+void ShaderParser::setLinearColorSpace(bool linear) { s_linearColor = linear; }
+bool ShaderParser::linearColorSpace() { return s_linearColor; }
+
 ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& parsed,
                                                            ShaderStage stage,
                                                            const std::string& platform,
-                                                           const std::vector<std::string>& features,
+                                                           const std::vector<std::string>& featuresIn,
                                                            ShaderTargetLanguage target) {
+    // The color space is a process-global compile input: every shader — batch
+    // variants, plugin shaders, blit, materials, post effects — sees the same
+    // ES_LINEAR world with no per-call-site wiring. It must be set before the
+    // renderer compiles shaders; flipping it later requires a reload.
+    std::vector<std::string> features = featuresIn;
+    if (s_linearColor
+        && std::find(features.begin(), features.end(), "ES_LINEAR") == features.end()) {
+        features.push_back("ES_LINEAR");
+    }
     if (target == ShaderTargetLanguage::WGSL) {
         return assembleWGSLStage(parsed, stage, features);
     }
@@ -861,6 +884,21 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
     for (const auto& f : features) {
         assembled << "#define " << f << " 1\n";
         ++headerLines;
+    }
+
+    // sRGB transfer helpers, available to every fragment stage in both modes —
+    // authored bodies branch on ES_LINEAR. Exact piecewise IEC 61966-2-1, so the
+    // CPU-side conversions (light/clear colors) match bit-for-bit within fp32.
+    if (stage == ShaderStage::Fragment) {
+        static const char* kColorHelpers =
+            "highp vec3 srgbToLinear(highp vec3 c) {\n"
+            "    return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c));\n"
+            "}\n"
+            "highp vec3 linearToSrgb(highp vec3 c) {\n"
+            "    return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c));\n"
+            "}\n";
+        assembled << kColorHelpers;
+        headerLines += countNewlines(kColorHelpers);
     }
 
     // Engine-owned frame block, injected into every stage (identical in both, so the

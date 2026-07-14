@@ -43,6 +43,9 @@ const STEPS = Number(process.env.ESTELLA_VERIFY_STEPS) || 30;
 // ESTELLA_VERIFY_BACKEND=webgpu runs the same scene + assertions on the WebGPU
 // backend (needs a real adapter — local runs; CI runners have none).
 const BACKEND = process.env.ESTELLA_VERIFY_BACKEND === 'webgpu' ? 'webgpu' : 'webgl2';
+// ESTELLA_VERIFY_COLORSPACE=linear boots the linear-light pipeline (sRGB decode
+// + linear blending + final OETF) — point expectations must be linear-derived.
+const COLORSPACE = process.env.ESTELLA_VERIFY_COLORSPACE === 'linear' ? 'linear' : '';
 
 // Headless / GPU-less (CI) WebGL2 falls back to SwiftShader; harmless with a GPU.
 app.commandLine.appendSwitch('enable-unsafe-swiftshader');
@@ -102,7 +105,7 @@ app.whenReady().then(async () => {
   let server;
   try {
     server = await serveDist();
-    const url = `http://127.0.0.1:${server.address().port}/headless.html?w=${W}&h=${H}&backend=${BACKEND}`;
+    const url = `http://127.0.0.1:${server.address().port}/headless.html?w=${W}&h=${H}&backend=${BACKEND}${COLORSPACE ? `&colorSpace=${COLORSPACE}` : ''}`;
 
     // useContentSize: the capture rectangle must be the page area, not the
     // outer frame (the same trap the parity runner documents).

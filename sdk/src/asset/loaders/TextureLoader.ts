@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { AssetLoader, LoadContext, TextureResult } from '../AssetLoader';
+import { linearColorSpace } from '../../env';
 import { platformCreateCanvas, platformCreateImage } from '../../platform';
 import { decodeImageBitmap } from '../imageDecode';
 import { requireResourceManager } from '../../resourceManager';
@@ -270,7 +271,11 @@ export class TextureLoader implements AssetLoader<TextureResult> {
             gl.bindTexture(gl.TEXTURE_2D, texture);
             gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, flip ? 1 : 0);
             gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0);
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img as any);
+            // Linear pipeline: color textures store sRGB-encoded — the sampler
+            // linearizes in hardware. (Data textures opt out via the importer's
+            // sRGB flag once wired; until then all image textures are color.)
+            const internalFormat = linearColorSpace() ? gl.SRGB8_ALPHA8 : gl.RGBA;
+            gl.texImage2D(gl.TEXTURE_2D, 0, internalFormat, gl.RGBA, gl.UNSIGNED_BYTE, img as any);
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, glMinFilter);
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, glMagFilter);
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, glWrap);

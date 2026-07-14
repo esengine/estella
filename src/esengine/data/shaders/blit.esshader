@@ -10,12 +10,24 @@ uniform sampler2D u_texture;
 out vec4 fragColor;
 
 void main() {
-    fragColor = texture(u_texture, v_texCoord);
+    vec4 c = texture(u_texture, v_texCoord);
+#ifdef ES_LINEAR
+    // The one mandatory OETF: the chain upstream is linear (sRGB attachments
+    // decode on sample), the canvas backbuffer is plain UNORM.
+    fragColor = vec4(linearToSrgb(c.rgb), c.a);
+#else
+    fragColor = c;
+#endif
 }
 #pragma end
 
 #pragma fragment wgsl
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    return textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
+    let c = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
+#ifdef ES_LINEAR
+    return vec4f(linearToSrgb(c.rgb), c.a);
+#else
+    return c;
+#endif
 }
 #pragma end

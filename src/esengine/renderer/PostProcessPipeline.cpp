@@ -66,11 +66,17 @@ void PostProcessPipeline::init(u32 width, u32 height) {
 }
 
 void PostProcessPipeline::ensureFBOs() {
+    // Linear mode stores intermediates sRGB-encoded: 8-bit precision stays
+    // perceptually uniform while blending happens in linear light (hardware
+    // EOTF/OETF at the attachment boundary).
+    const GfxPixelFormat interFmt =
+        linear_output_ ? GfxPixelFormat::SRGB8_ALPHA8 : GfxPixelFormat::RGBA8;
     if (!fboOriginalCreated_) {
         FramebufferSpec origSpec;
         origSpec.width = width_;
         origSpec.height = height_;
         origSpec.depthStencil = false;
+        origSpec.colorFormat = interFmt;
 
         fboOriginal_ = Framebuffer::create(device_, origSpec);
         if (!fboOriginal_) {
@@ -86,6 +92,7 @@ void PostProcessPipeline::ensureFBOs() {
     spec.width = width_;
     spec.height = height_;
     spec.depthStencil = false;
+    spec.colorFormat = interFmt;
 
     fboA_ = Framebuffer::create(device_, spec);
     fboB_ = Framebuffer::create(device_, spec);
@@ -298,7 +305,7 @@ FramebufferHandle PostProcessPipeline::currentSceneFBO() const {
 }
 
 void PostProcessPipeline::begin(const f32* clearColor) {
-    if (!initialized_ || inFrame_ || bypass_) return;
+    if (!initialized_ || inFrame_ || (bypass_ && !linear_output_)) return;
 
     ensureFBOs();
     if (!fboOriginalCreated_) return;
@@ -306,6 +313,14 @@ void PostProcessPipeline::begin(const f32* clearColor) {
     RenderPassDesc pass{fboOriginal_->handle(), /*clearColor=*/true, /*clearDepth=*/true};
     if (clearColor) {
         for (int i = 0; i < 4; ++i) pass.clearColorValue[i] = clearColor[i];
+        if (linear_output_) {
+            // Authored sRGB -> linear; the sRGB attachment re-encodes on store.
+            for (int i = 0; i < 3; ++i) {
+                const f32 v = pass.clearColorValue[i];
+                pass.clearColorValue[i] =
+                    v <= 0.04045f ? v / 12.92f : std::pow((v + 0.055f) / 1.055f, 2.4f);
+            }
+        }
     }
     device_.beginRenderPass(pass);
     device_.setViewport(0, 0, width_, height_);
@@ -315,7 +330,7 @@ void PostProcessPipeline::begin(const f32* clearColor) {
 }
 
 void PostProcessPipeline::end() {
-    if (!initialized_ || !inFrame_ || bypass_) return;
+    if (!initialized_ || !inFrame_ || (bypass_ && !linear_output_)) return;
 
     auto* device = &device_;
 
@@ -504,6 +519,7 @@ void PostProcessPipeline::ensureScreenFBO() {
     if (screenFBOCreated_) return;
 
     FramebufferSpec spec;
+    spec.colorFormat = linear_output_ ? GfxPixelFormat::SRGB8_ALPHA8 : GfxPixelFormat::RGBA8;
     spec.width = width_;
     spec.height = height_;
     spec.depthStencil = false;

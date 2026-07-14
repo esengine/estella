@@ -1665,6 +1665,7 @@ world: World
 ```
 backend: "webgl2" | "webgpu" | undefined
 canvasSelector: string | undefined
+colorSpace: "gamma" | "linear" | undefined
 getViewportSize: (() => { width: number; height: number; }) | undefined
 glContextHandle: number | undefined
 plugins: Plugin[] | undefined
@@ -2150,6 +2151,7 @@ renderer_renderMaterialPreview: (materialId: number, w: number, h: number) => vo
 renderer_replayToDrawCall: (drawCallIndex: number) => void
 renderer_resize: (width: number, height: number) => void
 renderer_setClearColor: (r: number, g: number, b: number, a: number) => void
+renderer_setColorSpace: ((linear: number) => void) | undefined
 renderer_setEntityClipRect: (entity: number, x: number, y: number, w: number, h: number) => void
 renderer_setEntityStencilMask: (entity: number, refValue: number) => void
 renderer_setEntityStencilTest: (entity: number, refValue: number) => void
@@ -6987,6 +6989,7 @@ static prototype: WeChatSocket
 ```
 backend: "webgl2" | "webgpu" | undefined
 canvasSelector: string | undefined
+colorSpace: "gamma" | "linear" | undefined
 getViewportSize: (() => { width: number; height: number; }) | undefined
 glContextHandle: number | undefined
 plugins: Plugin[] | undefined

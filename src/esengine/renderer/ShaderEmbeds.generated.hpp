@@ -71,6 +71,13 @@ void main() {
     else if (v_texIndex == 5) texColor = texture(u_textures[5], v_texCoord);
     else if (v_texIndex == 6) texColor = texture(u_textures[6], v_texCoord);
     else texColor = texture(u_textures[7], v_texCoord);
+#ifdef ES_LINEAR
+    // Vertex colors are authored sRGB; the sampled texel is already linear
+    // (sRGB texture formats decode in hardware). Alpha is coverage — never encoded.
+    vec4 tint = vec4(srgbToLinear(v_color.rgb), v_color.a);
+#else
+    vec4 tint = v_color;
+#endif
 #ifdef SDF
     // The glyph atlas stores a signed distance in the alpha channel (RGB = 1).
     // Distance ÷ fwidth = screen px from the edge; the ±0.5px clamp is exactly
@@ -78,13 +85,13 @@ void main() {
     float dist = texColor.a;
     float screenPxDist = (dist - 0.5) / max(fwidth(dist), 1e-6);
     float coverage = clamp(screenPxDist + 0.5, 0.0, 1.0);
-    fragColor = vec4(v_color.rgb, v_color.a * coverage);
+    fragColor = vec4(tint.rgb, tint.a * coverage);
 #elif defined(LIT)
     // Flat normal; the tinted color is the albedo. Normal maps need a material.
-    vec4 base = texColor * v_color;
+    vec4 base = texColor * tint;
     fragColor = vec4(applyLighting2D(base.rgb, vec3(0.0, 0.0, 1.0), v_worldPos), base.a);
 #else
-    fragColor = texColor * v_color;
+    fragColor = texColor * tint;
 #endif
 }
 #pragma end
@@ -163,18 +170,23 @@ struct VSOut {
     else if (idx == 5) { texColor = textureSampleLevel(t5, s5, v.v_texCoord, 0.0); }
     else if (idx == 6) { texColor = textureSampleLevel(t6, s6, v.v_texCoord, 0.0); }
     else { texColor = textureSampleLevel(t7, s7, v.v_texCoord, 0.0); }
+#ifdef ES_LINEAR
+    let tint = vec4f(srgbToLinear(v.v_color.rgb), v.v_color.a);
+#else
+    let tint = v.v_color;
+#endif
 #ifdef SDF
     // Same coverage math as the GLSL stage; fwidth here is in uniform control
     // flow (main scope), which WGSL requires of derivative builtins.
     let dist = texColor.a;
     let screenPxDist = (dist - 0.5) / max(fwidth(dist), 1e-6);
     let coverage = clamp(screenPxDist + 0.5, 0.0, 1.0);
-    return vec4f(v.v_color.rgb, v.v_color.a * coverage);
+    return vec4f(tint.rgb, tint.a * coverage);
 #elif defined(LIT)
-    let base = texColor * v.v_color;
+    let base = texColor * tint;
     return vec4f(applyLighting2D(base.rgb, vec3f(0.0, 0.0, 1.0), v.v_worldPos), base.a);
 #else
-    return texColor * v.v_color;
+    return texColor * tint;
 #endif
 }
 #pragma end
@@ -192,13 +204,25 @@ uniform sampler2D u_texture;
 out vec4 fragColor;
 
 void main() {
-    fragColor = texture(u_texture, v_texCoord);
+    vec4 c = texture(u_texture, v_texCoord);
+#ifdef ES_LINEAR
+    // The one mandatory OETF: the chain upstream is linear (sRGB attachments
+    // decode on sample), the canvas backbuffer is plain UNORM.
+    fragColor = vec4(linearToSrgb(c.rgb), c.a);
+#else
+    fragColor = c;
+#endif
 }
 #pragma end
 
 #pragma fragment wgsl
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    return textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
+    let c = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
+#ifdef ES_LINEAR
+    return vec4f(linearToSrgb(c.rgb), c.a);
+#else
+    return c;
+#endif
 }
 #pragma end
 )esshader";

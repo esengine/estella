@@ -23,6 +23,7 @@ import type { SceneConfig } from './sceneManager';
 import { SceneManager } from './sceneManager';
 import { sceneManagerPlugin } from './scenePlugin';
 import { getDefaultContext } from './context';
+import { setLinearColorSpace } from './env';
 import { seedEngineComponents } from './component';
 import { cameraPlugin } from './camera/CameraPlugin';
 import { PhysicsRuntime } from './physics/PhysicsRuntime';
@@ -1023,6 +1024,13 @@ export interface WebAppOptions {
      * setting (Project Settings → Rendering); change later via Renderer.setYSortLayers.
      */
     ySortLayers?: number;
+    /**
+     * Project color space (Project Settings → Rendering). 'linear' renders in
+     * linear light: sRGB decode on sample, linear blending in sRGB-format
+     * intermediates, and an explicit linear→sRGB encode in the final blit.
+     * Must be declared at app creation — shaders compile against it.
+     */
+    colorSpace?: 'gamma' | 'linear';
 }
 
 export function createWebApp(module: ESEngineModule, options?: WebAppOptions): App {
@@ -1035,6 +1043,11 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
     const cppRegistry = new module.Registry() as unknown as CppRegistry;
 
     app.connectCpp(cppRegistry, module, { strict: true });
+
+    // BEFORE renderer init: shader compilation reads the color-space global.
+    // Always applied (realm reloads must reset a prior session's mode too).
+    setLinearColorSpace(options?.colorSpace === 'linear');
+    module.renderer_setColorSpace?.(options?.colorSpace === 'linear' ? 1 : 0);
 
     if (options?.backend === 'webgpu') {
         const size = options.getViewportSize?.() ?? { width: 800, height: 600 };

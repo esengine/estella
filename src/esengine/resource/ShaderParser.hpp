@@ -279,6 +279,16 @@ public:
     static std::string variantKey(const std::vector<std::string>& features);
 
     /**
+     * @brief Process-global color-space mode. When linear, every assembled
+     *        stage compiles with ES_LINEAR defined (GLSL #define / WGSL
+     *        assembly-time preprocessor). Set BEFORE the renderer compiles
+     *        shaders; flipping later requires a reload. Variant caches must
+     *        fold linearColorSpace() into their keys if they can outlive a flip.
+     */
+    static void setLinearColorSpace(bool linear);
+    static bool linearColorSpace();
+
+    /**
      * @brief Like assembleStage, but also reports the line count of the
      *        assembled prefix (version + variant + sharedCode).
      *
@@ -333,6 +343,10 @@ private:
     static ShaderPropertyType stringToPropertyType(const std::string& typeStr);
 
     static std::string trim(const std::string& str);
+
+private:
+    static bool s_linearColor;
+
 };
 
 }  // namespace esengine::resource

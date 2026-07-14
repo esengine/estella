@@ -34,8 +34,9 @@ const params = new URLSearchParams(location.search);
 const width = Number(params.get('w')) || 1280;
 const height = Number(params.get('h')) || 720;
 const backend = params.get('backend') === 'webgpu' ? 'webgpu' : 'webgl2';
+const colorSpace = params.get('colorSpace') === 'linear' ? 'linear' : undefined;
 
 window.__estellaHeadless = {
-  ready: EngineHost.bootHeadless({ width, height, backend }),
+  ready: EngineHost.bootHeadless({ width, height, backend, colorSpace }),
   api: EditorControlSurface,
 };

@@ -19,6 +19,8 @@
 
 namespace esengine {
 
+glm::vec3 srgbToLinearCpu(const glm::vec3& c);
+
 void GpuTimer::begin(GfxDevice& device) {
     if (state_ == 0) {
         // Lazy probe: the device reports timer support by whether it can create a query.
@@ -128,8 +130,13 @@ void RenderFrame::init(u32 width, u32 height) {
     // state_tracker_ is inited once by EstellaContext (its owner); flush()/replay
     // reset() it each frame, so no per-RenderFrame init is needed here.
 
+    // Adopt the boot-declared color space before any shader compiles below —
+    // renderer_setColorSpace may run before this frame exists (pre-init).
+    linear_color_ = resource::ShaderParser::linearColorSpace();
+
 #ifdef ES_ENABLE_POSTPROCESS
     post_process_ = makeUnique<PostProcessPipeline>(device_, context_, resource_manager_);
+    post_process_->setLinearOutput(linear_color_);
     post_process_->init(width, height);
 #endif
 
@@ -199,8 +206,12 @@ void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::H
     clip_state_.clear();
 
 #ifdef ES_ENABLE_POSTPROCESS
+    // Linear mode keeps the capture+blit engaged even with zero passes: the
+    // final blit is where the mandatory linear->sRGB encode lives (the WebGL2
+    // canvas framebuffer cannot be made sRGB).
     bool usePostProcess = post_process_ && post_process_->isInitialized() &&
-                          !post_process_->isBypassed() && post_process_->getPassCount() > 0;
+                          ((!post_process_->isBypassed() && post_process_->getPassCount() > 0)
+                           || linear_color_);
 #else
     bool usePostProcess = false;
 #endif
@@ -211,9 +222,13 @@ void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::H
     RenderPassDesc pass{};
     pass.clearColor = clear.color;
     pass.clearDepth = clear.depth;
-    pass.clearColorValue[0] = clear.colorValue.r;
-    pass.clearColorValue[1] = clear.colorValue.g;
-    pass.clearColorValue[2] = clear.colorValue.b;
+    // Authored clear colors are sRGB; the linear frame clears in linear light.
+    const glm::vec3 clearRgb = linear_color_
+        ? srgbToLinearCpu({clear.colorValue.r, clear.colorValue.g, clear.colorValue.b})
+        : glm::vec3{clear.colorValue.r, clear.colorValue.g, clear.colorValue.b};
+    pass.clearColorValue[0] = clearRgb.r;
+    pass.clearColorValue[1] = clearRgb.g;
+    pass.clearColorValue[2] = clearRgb.b;
     pass.clearColorValue[3] = clear.colorValue.a;
     pass.clearX = clear.x;
     pass.clearY = clear.y;
@@ -324,8 +339,12 @@ void RenderFrame::end() {
     }
 
 #ifdef ES_ENABLE_POSTPROCESS
+    // Linear mode keeps the capture+blit engaged even with zero passes: the
+    // final blit is where the mandatory linear->sRGB encode lives (the WebGL2
+    // canvas framebuffer cannot be made sRGB).
     bool usePostProcess = post_process_ && post_process_->isInitialized() &&
-                          !post_process_->isBypassed() && post_process_->getPassCount() > 0;
+                          ((!post_process_->isBypassed() && post_process_->getPassCount() > 0)
+                           || linear_color_);
 #else
     bool usePostProcess = false;
 #endif
@@ -574,7 +593,10 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
         if (!light.enabled || light.intensity <= 0.0f) continue;
 
         const auto type = static_cast<ecs::Light2DType>(light.type);
-        const glm::vec3 rgb{light.color};  // color.a is unused; intensity carries the strength
+        // color.a is unused; intensity carries the strength. Authored sRGB ->
+        // linear when the frame lights in linear space.
+        const glm::vec3 rgb = linear_color_ ? srgbToLinearCpu(glm::vec3{light.color})
+                                            : glm::vec3{light.color};
         if (type == ecs::Light2DType::Ambient) {
             lights.addAmbient(rgb * light.intensity);
             continue;
@@ -645,6 +667,21 @@ void RenderFrame::collectAll(ecs::Registry& registry, u32 skipFlags) {
         if (skipFlags != 0 && (skipFlags & plugin->skipFlag()) != 0) continue;
         plugin->collect(collectCtx);
     }
+}
+
+glm::vec3 srgbToLinearCpu(const glm::vec3& c) {
+    auto conv = [](f32 v) {
+        return v <= 0.04045f ? v / 12.92f : std::pow((v + 0.055f) / 1.055f, 2.4f);
+    };
+    return {conv(c.r), conv(c.g), conv(c.b)};
+}
+
+void RenderFrame::setColorSpace(bool linear) {
+    linear_color_ = linear;
+    resource::ShaderParser::setLinearColorSpace(linear);
+#ifdef ES_ENABLE_POSTPROCESS
+    if (post_process_) post_process_->setLinearOutput(linear);
+#endif
 }
 
 u32 RenderFrame::initBatchShader() {

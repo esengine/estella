@@ -64,3 +64,19 @@ export function isFxEditPreview(): boolean {
 export function fxPreviewOrPlayMode(): boolean {
     return fxEditPreview || playModeOnly();
 }
+
+// =============================================================================
+// Color space (project rendering.colorSpace)
+// =============================================================================
+
+let linearColor = false;
+
+/** Declared at app creation, before textures upload / shaders compile. */
+export function setLinearColorSpace(linear: boolean): void {
+    linearColor = linear;
+}
+
+/** Whether the renderer runs the linear-light pipeline this session. */
+export function linearColorSpace(): boolean {
+    return linearColor;
+}

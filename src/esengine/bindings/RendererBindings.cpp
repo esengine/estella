@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 
 #include "RendererBindings.hpp"
+#include "../resource/ShaderParser.hpp"
 #include "ActiveContext.hpp"
 #include "BoundarySpan.hpp"
 #include "../renderer/GfxDevice.hpp"
@@ -548,6 +549,14 @@ void renderer_setViewport(i32 x, i32 y, i32 w, i32 h) {
 
 void renderer_setYSortLayers(u32 mask) {
     if (auto* frame = g_renderFrame) frame->setYSortLayers(mask);
+}
+
+void renderer_setColorSpace(u32 linear) {
+    // Valid pre-init: the global reaches every later shader compile, and
+    // RenderFrame::init adopts it. A live frame applies immediately (editor
+    // realms reset it per session, mirroring renderer_setYSortLayers).
+    resource::ShaderParser::setLinearColorSpace(linear != 0);
+    if (auto* frame = g_renderFrame) frame->setColorSpace(linear != 0);
 }
 
 void renderer_diagnose() {

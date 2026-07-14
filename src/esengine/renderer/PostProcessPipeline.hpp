@@ -174,6 +174,14 @@ public:
     void setBypass(bool bypass) { bypass_ = bypass; }
 
     /**
+     * @brief Linear-light mode: sRGB-format intermediates (hardware linear
+     *        blending) and an always-engaged capture+blit whose final pass
+     *        carries the linear->sRGB encode. Overrides bypass.
+     */
+    void setLinearOutput(bool linear) { linear_output_ = linear; }
+    bool linearOutput() const { return linear_output_; }
+
+    /**
      * @brief Checks if bypass mode is enabled
      */
     bool isBypassed() const { return bypass_; }
@@ -274,6 +282,7 @@ private:
     bool fboOriginalCreated_ = false;
     bool inFrame_ = false;
     bool bypass_ = false;
+    bool linear_output_ = false;
     u32 currentFBO_ = 0;
     TextureHandle sceneTexture_ = TextureHandle::Invalid;
 

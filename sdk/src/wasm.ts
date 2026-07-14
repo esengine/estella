@@ -352,6 +352,7 @@ export interface ESEngineModule {
     renderer_setViewport(x: number, y: number, w: number, h: number): void;
     /** Bitmask of layers 0..31 that y-sort within the layer (top-down occlusion). */
     renderer_setYSortLayers?(mask: number): void;
+    renderer_setColorSpace?(linear: number): void;
     renderer_setTextureParams(textureId: number, minFilter: number, magFilter: number, wrapS: number, wrapT: number): void;
 
     // Clip Rect API

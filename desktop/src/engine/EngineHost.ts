@@ -420,6 +420,7 @@ class EngineHostImpl {
     width: number;
     height: number;
     backend?: 'webgl2' | 'webgpu';
+    colorSpace?: 'gamma' | 'linear';
   }): Promise<void> {
     if (this.booted) return;
     this.booted = true;
@@ -432,6 +433,7 @@ class EngineHostImpl {
         runLoop: false,
         loadInitialScene: false,
         backend: size.backend,
+        colorSpace: size.colorSpace,
       });
     } catch (err) {
       this.swallowUnwind(err);
@@ -444,7 +446,10 @@ class EngineHostImpl {
   // does neither — it advances frames via tick() and loads scenes on demand.
   private async bootCore(
     canvas: HTMLCanvasElement,
-    opts: { runLoop: boolean; loadInitialScene: boolean; backend?: 'webgl2' | 'webgpu' },
+    opts: {
+      runLoop: boolean; loadInitialScene: boolean;
+      backend?: 'webgl2' | 'webgpu'; colorSpace?: 'gamma' | 'linear';
+    },
   ) {
     const backend = opts.backend ?? 'webgl2';
     this.activeBackend = backend;
@@ -539,6 +544,7 @@ class EngineHostImpl {
 
     const app = createWebApp(module, {
       backend,
+      colorSpace: opts.colorSpace,
       canvasSelector: `#${canvas.id}`,
       glContextHandle: glHandle,
       getViewportSize: () => ({ width: canvas.width, height: canvas.height }),
