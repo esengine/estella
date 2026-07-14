@@ -319,9 +319,11 @@ private:
     // WGPU resource pointers, in binding order): a hit means the identical
     // bindings were used before (bind_group_dirty_ is set on every binding
     // change, so the key always reflects the live state). Entries own live WGPU
-    // objects, which internally ref their resources — a deleted resource lingers
-    // harmlessly until its entry is evicted; a resized buffer gets a new pointer,
-    // so its key changes and a fresh group is built.
+    // objects, which internally ref their resources — but a DELETED resource's
+    // entries must be evicted immediately (deleteBuffer/deleteTexture call
+    // evictBindGroups): emscripten WGPU "pointers" are JS-table handle indices
+    // that are reused right after release, so a new resource can inherit a dead
+    // one's id and silently hit the dead one's cached group.
     struct BindGroupCacheEntry {
         u32 group;
         u32 mask;
@@ -333,6 +335,8 @@ private:
     /// Reuse a cached group with these exact contents, else create + insert one.
     WGPUBindGroup cachedBindGroup(u32 group, u32 mask, const u64* ids, u32 idCount,
                                   const WGPUBindGroupDescriptor& desc);
+    /// Drop every cached group referencing a dying resource id (see cache note).
+    void evictBindGroups(u64 id);
 
     // GPU timing — the WebGPU analog of GLDevice's GL_TIME_ELAPSED timer, so the
     // profiler's gpuMs/gpuScopes populate on both backends. Active only when the

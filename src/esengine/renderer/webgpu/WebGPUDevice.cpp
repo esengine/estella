@@ -284,8 +284,27 @@ BufferHandle WebGPUDevice::createBuffer(const BufferDesc& desc, const void* init
 void WebGPUDevice::deleteBuffer(BufferHandle buffer) {
     auto it = buffers_.find(static_cast<u32>(buffer));
     if (it == buffers_.end()) return;
-    if (it->second.buffer) wgpuBufferRelease(it->second.buffer);
+    if (it->second.buffer) {
+        evictBindGroups(static_cast<u64>(reinterpret_cast<uintptr_t>(it->second.buffer)));
+        wgpuBufferRelease(it->second.buffer);
+    }
     buffers_.erase(it);
+}
+
+void WebGPUDevice::evictBindGroups(u64 id) {
+    for (usize i = bind_group_cache_.size(); i-- > 0;) {
+        auto& e = bind_group_cache_[i];
+        bool hit = false;
+        for (u64 v : e.ids) {
+            if (v == id) { hit = true; break; }
+        }
+        if (!hit) continue;
+        if (e.bg == bind_group_) bind_group_ = nullptr;
+        if (e.bg == texture_group_) texture_group_ = nullptr;
+        if (e.bg) wgpuBindGroupRelease(e.bg);
+        bind_group_cache_.erase(bind_group_cache_.begin() + static_cast<std::ptrdiff_t>(i));
+        bind_group_dirty_ = true;
+    }
 }
 
 void WebGPUDevice::updateBuffer(BufferHandle buffer, u32 offsetBytes, const void* data, u32 sizeBytes) {
@@ -432,7 +451,10 @@ TextureHandle WebGPUDevice::importExternalTexture(u32, const TextureDesc&) {
 void WebGPUDevice::deleteTexture(TextureHandle texture) {
     auto it = textures_.find(static_cast<u32>(texture));
     if (it == textures_.end()) return;
-    if (it->second.view) wgpuTextureViewRelease(it->second.view);
+    if (it->second.view) {
+        evictBindGroups(static_cast<u64>(reinterpret_cast<uintptr_t>(it->second.view)));
+        wgpuTextureViewRelease(it->second.view);
+    }
     if (it->second.texture) wgpuTextureRelease(it->second.texture);
     textures_.erase(it);
 }

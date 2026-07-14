@@ -524,6 +524,15 @@ class EngineHostImpl {
       console.info(`[engine] webgpu timestamp-query: ${hasTimestamp ? 'enabled (GPU timing on)' : 'unavailable (no GPU timing)'}`);
       moduleArg.preinitializedWebGPUDevice = await adapter.requestDevice(
         requiredFeatures.length ? { requiredFeatures } : undefined);
+      // Surface Dawn validation failures: without a listener an invalid draw is
+      // silently dropped — a black pass with no trace (exactly how the WGSL
+      // bloom-chain regression hid). console.error passes the shot/verify
+      // console filters, so headless runs carry the evidence.
+      (moduleArg.preinitializedWebGPUDevice as {
+        addEventListener?: (t: string, cb: (e: { error?: { message?: string } }) => void) => void;
+      }).addEventListener?.('uncapturederror', (e) => {
+        console.error('[webgpu] uncaptured error:', e.error?.message ?? e);
+      });
       // The swapchain glue resolves the canvas by document.querySelector, so
       // it must be connected (the headless host never attaches it to a view).
       // Pin it at the page origin at its backing size: a hidden window never
