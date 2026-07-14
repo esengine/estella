@@ -124,6 +124,42 @@ audio.muteBus('music', true);
 `setMasterVolume`(全局滑条)和 `setMusicVolume` / `setSFXVolume` / `setUIVolume`。`voice`
 总线能路由声音但没有音量设置器——用 `muteBus('voice', …)` 开关它。
 
+### 总线效果与自动闪避(ducking)
+
+每条总线携带一条 DSP 插入链,以数据声明:
+
+```typescript
+audio.setBusEffects('music', [
+  { type: 'filter', filter: 'lowpass', frequency: 800, q: 1 },   // 闷化(暂停菜单)
+  { type: 'reverb', seconds: 1.5, wet: 0.3 },                     // 程序化房间混响
+  { type: 'compressor', thresholdDb: -24, ratio: 4 },
+]);
+audio.setBusEffects('music', []);   // 清空
+```
+
+旁链闪避是一条规则,不是代码——语音播放时自动压低音乐:
+
+```typescript
+audio.setBusDucking('music', { trigger: 'voice', amount: 0.3, attack: 0.05, release: 0.4 });
+audio.setBusDucking('music', null);  // 移除
+```
+
+`trigger` 总线有信号时,目标总线的闪避级压到 `amount`;静默后按 `release` 恢复到 1。
+闪避是独立的增益级,不会与用户音量设置打架。无 WebAudio 图的后端(微信)上,
+两个 API 与音量调用一样优雅降级为空操作。
+
+### 音频混音器面板与项目配置
+
+底部停靠的**音频混音器**面板可视化编辑以上一切——每总线一条 strip:音量推子、
+静音、效果链、闪避规则、自定义总线。编辑持久化到 `project.esproject`
+(`features.audio`)并在编辑器中即时生效;Play 与所有导出以同一套混音启动。
+
+### 导入设置与打包音频
+
+选中音频资产会显示解码波形(可播放/点击跳转)和**导入设置**:`Compress` 与
+`Bitrate` 控制打包时的 WAV → MP3 转码(在打包对话框勾选**压缩音频**)。
+已压缩格式原样通过。MP3 有少量编码器延迟——需要无缝循环的素材请关闭 `Compress`。
+
 ## 空间音频
 
 设 `AudioSource.spatial = true`,并给监听实体(通常是相机或玩家)加一个启用的 `AudioListener`。

@@ -85,6 +85,8 @@ node build-tools/cli.js build -t playable
 
 打包对话框还控制**烘焙**如何处理你的资产:
 
+- **压缩音频** —— 打包时把 WAV 源重编码为 MP3(可在资产的导入设置中单独关闭或选码率;
+  其他音频格式原样通过)。
 - **压缩纹理** —— 把 PNG 编码为 GPU 就绪的 **KTX2**(Basis Universal),运行时再转码为
   设备支持的最佳格式(ASTC → ETC2 → S3TC,最后回退 RGBA8)。下载更小、显存更省;关掉则
   发布原始 PNG。

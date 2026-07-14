@@ -37,6 +37,7 @@ const setClip = defineSystem([Query(Mut(SpriteAnimator))], (q) => {
 | `playing` | boolean | `true` | 播放是否在推进。 |
 | `loop` | boolean | `true` | 循环片段 vs 停在最后一帧。 |
 | `enabled` | boolean | `true` | 关掉即冻结动画器。 |
+| `finished` | boolean | `false` | 只读:一次性片段播完时锁存。在 finished 状态抬起 `playing` 会从第 0 帧重播。 |
 | `currentFrame` | number | `0` | 只读:正在显示的帧索引。 |
 | `frameTimer` | number | `0` | 只读:当前帧已累积的时间。 |
 
@@ -61,6 +62,36 @@ const jump = defineSystem([Query(Mut(SpriteAnimator)), Res(SpriteAnimation)], (q
 | `getClip(name)` | 查找一个已注册的片段。 |
 
 片段可以携带**帧事件**(`SpriteAnimEvent`),播放到某帧时触发——用于脚步声或命中帧。
+
+### 在编辑器中创作剪辑
+
+剪辑是 `.esanim` 资产,全程可视化创作——不用手写 JSON:
+
+1. 在内容浏览器中**右键纹理**,选择**创建精灵动画**。Flipbook 编辑器打开,
+   精灵表上覆盖切片网格(格子尺寸按图片猜测;在工具栏调整格宽/格高/边距/间距)。
+2. **点击或拖选格子**追加帧。下方帧条显示每帧缩略图与可编辑时长
+   (毫秒;留空 = `1000 / 帧率`),可拖拽重排,并带实时循环预览。
+3. **保存**,然后**右键 `.esanim` → 创建动画精灵**(或直接拖进视口)。
+   得到一个定格在第 0 帧的 `Sprite` + `SpriteAnimator` 实体——进 Play 零代码播放。
+
+选中动画精灵时,翻页动画**在编辑态视口中循环播放**(用 Preview FX 显示开关控制)。
+若该剪辑同时在 Flipbook 编辑器中打开,改帧即时反映在视口里。
+
+重新切片时所有帧一致跟随——帧引用的是网格格子,不是像素矩形。
+超出当前网格的帧会在帧条中标红。
+
+### 用状态机驱动剪辑——零代码
+
+[FSM/BT 内置](/docs/zh-cn/guides/ai/)以数据驱动翻页动画。动作的可选**参数**
+携带剪辑,所以 idle/run/attack 切换是纯 `.esfsm` 数据,画在现有状态机画布上:
+
+| 名称 | 类型 | 说明 |
+|---|---|---|
+| `spriteAnim.play` | 动作 | 播放。带剪辑参数时切换到该剪辑(回卷到第 0 帧)。可安全放在 `onUpdate`——同剪辑播放中为空操作。 |
+| `spriteAnim.restart` | 动作 | 无条件回卷 + 播放(中途重触发一次性动画)。 |
+| `spriteAnim.stop` | 动作 | 暂停播放。 |
+| `spriteAnim.finished` | 条件 | 一次性剪辑播完后为真——`onEnter: spriteAnim.play` + `spriteAnim.finished` 过渡即是自包含的攻击状态。 |
+
 
 ## 补间(Tween)
 

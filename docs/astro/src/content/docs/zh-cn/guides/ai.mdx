@@ -95,6 +95,14 @@ export enum Status { Success = 'success', Failure = 'failure', Running = 'runnin
 | `timeline.play` | 动作 | 拉起该实体 [`TimelinePlayer`](/docs/zh-cn/guides/timeline/) 的播放旗标。对已播完的片段,从头重播。 |
 | `timeline.pause` | 动作 | 放下播放旗标(用 `timeline.play` 恢复)。 |
 | `timeline.finished` | 条件 | 片段已完成(`once` 片段播到末尾)且未在播放时为真。 |
+| `spriteAnim.play` | 动作 | 播放代理实体的精灵翻页动画;**参数**可切换到指定剪辑。 |
+| `spriteAnim.restart` | 动作 | 回卷到第 0 帧并播放(参数可切换剪辑)。 |
+| `spriteAnim.stop` | 动作 | 暂停翻页动画。 |
+| `spriteAnim.finished` | 条件 | 一次性精灵剪辑播完后为真。 |
+
+动作可携带一个可选**字符串参数**——在 FSM 状态检查器的动作名旁(或 BT 动作节点上)填写。
+内置动作用它承载组件无法按状态携带的数据,比如 `spriteAnim.play` 要切换到哪个剪辑;
+你自己注册的动作在第三个参数收到它:`(ctx, blackboard, arg) => …`。
 
 三者组合出一个**零代码的过场状态**:进入状态即播放片段,片段播完即驱动转移:
 

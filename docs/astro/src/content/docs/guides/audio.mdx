@@ -131,6 +131,46 @@ defaulting to `sfx`. Volume setters exist for `setMasterVolume` (a global slider
 and `setMusicVolume` / `setSFXVolume` / `setUIVolume`. The `voice` bus routes sounds
 but has no volume setter — toggle it with `muteBus('voice', …)`.
 
+### Bus effects & ducking
+
+Each bus carries a DSP insert chain, declared as data:
+
+```typescript
+audio.setBusEffects('music', [
+  { type: 'filter', filter: 'lowpass', frequency: 800, q: 1 },   // muffle (pause menu)
+  { type: 'reverb', seconds: 1.5, wet: 0.3 },                     // procedural room tail
+  { type: 'compressor', thresholdDb: -24, ratio: 4 },
+]);
+audio.setBusEffects('music', []);   // clear
+```
+
+Sidechain ducking is a rule, not code — duck music while voice lines play:
+
+```typescript
+audio.setBusDucking('music', { trigger: 'voice', amount: 0.3, attack: 0.05, release: 0.4 });
+audio.setBusDucking('music', null);  // remove
+```
+
+While the `trigger` bus carries signal, the target's duck stage ramps to
+`amount`; on silence it releases back to 1. Ducking is a separate gain stage,
+so it never fights the user's volume setting. On backends without a WebAudio
+graph (WeChat) both APIs degrade to no-ops, like the volume calls.
+
+### The Audio Mixer panel & project config
+
+The **Audio Mixer** bottom-dock panel edits all of this visually — one strip
+per bus with a volume fader, mute, the effect chain, a duck-by rule, and
+custom buses. Edits persist to `project.esproject` (`features.audio`) and
+apply live in the editor; Play and every export boot the identical mix.
+
+### Import settings & cooked audio
+
+Selecting an audio asset shows a decoded waveform with play/seek plus **Import
+Settings**: `Compress` and `Bitrate` control the cook's WAV → MP3 transcode
+(enable **Compress audio** in the Package dialog). Already-compressed formats
+pass through untouched. MP3 has a small encoder delay — turn `Compress` off on
+clips that must loop seamlessly.
+
 ## Spatial audio
 
 Set `AudioSource.spatial = true` and give your listener entity (usually the camera

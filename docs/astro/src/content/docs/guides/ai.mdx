@@ -107,6 +107,16 @@ the agent entity (the same channel your code and the editor use):
 | `timeline.play` | action | Raise the agent's [`TimelinePlayer`](/docs/guides/timeline/) play flag. On a finished clip this replays it from the top. |
 | `timeline.pause` | action | Lower the play flag (resume with `timeline.play`). |
 | `timeline.finished` | condition | True once the clip has completed (a `once` clip that ran to its end) and is not playing. |
+| `spriteAnim.play` | action | Play the agent's sprite flipbook; the **argument** switches to that clip. |
+| `spriteAnim.restart` | action | Rewind the flipbook to frame 0 and play (argument switches clip). |
+| `spriteAnim.stop` | action | Pause the flipbook. |
+| `spriteAnim.finished` | condition | True once a one-shot sprite clip has finished. |
+
+Actions can carry an optional **string argument** — set it next to the action
+name in the FSM state inspector (or on a BT action node). Built-ins use it for
+data the component can't carry per-state, like which clip `spriteAnim.play`
+should switch to; your own registered actions receive it as their third
+parameter: `(ctx, blackboard, arg) => …`.
 
 Together they make a **code-free cutscene state**: entering the state starts the
 clip, and its completion drives the transition out.

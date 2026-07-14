@@ -99,6 +99,9 @@ module for each engine feature the game uses (`physics-wechat`, `spine-wechat`,
 
 The Package dialog also drives what the **cook** does to your assets:
 
+- **Compress audio** — re-encode WAV sources to MP3 at cook (per-asset Import
+  Settings can opt a clip out or pick a bitrate; other audio formats pass
+  through unchanged).
 - **Compress textures** — encode PNGs to GPU-ready **KTX2** (Basis Universal), which
   the runtime transcodes to the best format each device supports (ASTC → ETC2 → S3TC,
   falling back to RGBA8). Smaller downloads and less VRAM; leave off to ship raw PNGs.

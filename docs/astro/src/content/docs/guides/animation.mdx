@@ -38,6 +38,7 @@ const setClip = defineSystem([Query(Mut(SpriteAnimator))], (q) => {
 | `playing` | boolean | `true` | Whether playback is advancing. |
 | `loop` | boolean | `true` | Loop the clip vs. hold the last frame. |
 | `enabled` | boolean | `true` | Disable to freeze the animator. |
+| `finished` | boolean | `false` | Read-only: latched when a one-shot clip completes. Raising `playing` on a finished animator replays from frame 0. |
 | `currentFrame` | number | `0` | Read-only: the frame index being shown. |
 | `frameTimer` | number | `0` | Read-only: time accumulated on the current frame. |
 
@@ -64,6 +65,43 @@ const jump = defineSystem([Query(Mut(SpriteAnimator)), Res(SpriteAnimation)], (q
 
 Clips can carry **frame events** (`SpriteAnimEvent`) that fire when playback
 reaches a frame — use them for footstep sounds or hit frames.
+
+### Authoring clips in the editor
+
+Clips are `.esanim` assets you author visually — no JSON by hand:
+
+1. **Right-click a texture** in the Content Browser and choose **Create Sprite
+   Animation**. The Flipbook editor opens with the sheet under a slicing grid
+   (the cell size is guessed from the image; adjust cell width/height, margin,
+   and spacing in the toolbar).
+2. **Click or drag across cells** to append frames. The frame strip below shows
+   each frame's thumbnail with an editable duration (ms; empty = `1000 / FPS`),
+   drag to reorder, and a live looping preview.
+3. **Save**, then **right-click the `.esanim` → Create Animated Sprite** (or
+   drag it into the viewport). You get a `Sprite` + `SpriteAnimator` entity
+   posed at frame 0 — it plays in Play mode with zero code.
+
+Selecting an animated sprite loops its flipbook **in the viewport while
+editing** (toggle with the Preview FX show flag). If the clip is open in the
+Flipbook editor at the same time, frame edits animate live as you make them.
+
+Re-slicing the grid moves every frame consistently — frames reference grid
+cells, not pixel rectangles. Frames that fall outside the current grid are
+flagged red in the strip.
+
+### Driving clips from a state machine — no code
+
+The [FSM/BT built-ins](/docs/guides/ai/) drive flipbooks as data. An action's
+optional **argument** carries the clip, so idle/run/attack switching is pure
+`.esfsm` on the existing state-machine canvas:
+
+| Name | Kind | Description |
+|---|---|---|
+| `spriteAnim.play` | action | Play. With a clip argument, switch to that clip (rewinds to frame 0). Safe on `onUpdate` — same-clip play while playing is a no-op. |
+| `spriteAnim.restart` | action | Unconditional rewind + play (re-trigger a one-shot mid-flight). |
+| `spriteAnim.stop` | action | Pause playback. |
+| `spriteAnim.finished` | condition | True once a one-shot clip completed — `onEnter: spriteAnim.play` + a `spriteAnim.finished` transition is a self-contained attack state. |
+
 
 ## Tweens
 
