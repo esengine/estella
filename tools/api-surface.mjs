@@ -238,7 +238,10 @@ function buildReport(entryName, entryPath) {
         out.push('');
     }
     out.splice(3, 0, `Symbols: ${counts.stable} stable · ${counts.beta} beta · ${counts.deprecated} deprecated`);
-    return out.join('\n') + '\n';
+    // Multi-line declaration bodies are extracted verbatim from source text, so
+    // on a CRLF checkout they carry \r — normalize so the snapshot (and the
+    // drift compare below) is byte-identical across platforms.
+    return (out.join('\n') + '\n').replace(/\r\n?/g, '\n');
 }
 
 let drift = 0;
@@ -250,7 +253,9 @@ for (const [entryName, entryPath] of Object.entries(ENTRIES)) {
         writeFileSync(file, report);
         console.log(`wrote ${file}`);
     } else {
-        const existing = existsSync(file) ? readFileSync(file, 'utf8') : '';
+        const existing = existsSync(file)
+            ? readFileSync(file, 'utf8').replace(/\r\n?/g, '\n')
+            : '';
         if (existing !== report) {
             drift++;
             console.error(`DRIFT: ${entryName} — public API changed but sdk/etc/${entryName}.api.md was not updated.`);
