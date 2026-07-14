@@ -82,10 +82,15 @@ export const TOOLS = [
     schema: obj({ id: { type: 'number' }, name: { type: 'string' } }, ['id', 'name']),
     method: 'renameEntity', args: (i) => [i.id, i.name] },
   { name: 'set_field', write: true,
-    description: 'Set a component field (undoable). `type` is the inspector field type (e.g. float, int, bool, string, vec2, vec3, color, enum).',
+    description: 'Set a component field (undoable). The field\'s DECLARED inspector type wins (see get_inspector: number, bool, string, vec2, vec3, angle, color, enum, select, flags, gradient, curve, dimension, asset) — `type` is advisory. Vecs take [x, y(, z)] number arrays, colors "#rrggbbaa" hex or {r,g,b,a} 0..1, assets a project-relative path or @uuid ref. Unknown components/fields and malformed values are errors, never silent writes.',
     schema: obj({
       entity: { type: 'number' }, component: { type: 'string' }, key: { type: 'string' },
-      type: { type: 'string' }, value: {},
+      type: { type: 'string' },
+      // A real type union — with a bare {} here, MCP clients treat the param as
+      // schema-less and serialize the value to raw JSON TEXT ("[16, 16]"), which
+      // then has to be parsed back editor-side (coerceFieldValue does, but a
+      // typed schema lets well-behaved clients send real JSON in the first place).
+      value: { type: ['number', 'string', 'boolean', 'array', 'object', 'null'] },
     }, ['entity', 'component', 'key', 'type', 'value']),
     method: 'setField', args: (i) => [i.entity, i.component, i.key, i.type, i.value] },
   { name: 'add_component', write: true,
@@ -170,7 +175,7 @@ export const TOOLS = [
     js: (i) => `window.__estellaEditor.createSceneFile(${JSON.stringify(i.destDir)})
       .then((p) => window.__estellaEditor.refreshAssets().then(() => p))` },
   { name: 'create_asset', write: true,
-    description: 'Create a text asset file under a project-relative directory with the given content (types the editor knows: scene, inputmap, locale, fsm, bt, timeline, animclip, tileset, material, shader, prefab...). Returns its project-relative path, immediately referenceable (the registry refresh happens before this resolves).',
+    description: 'Create a text asset file under a project-relative directory with the given content. `type` is the meta vocabulary: scene, prefab, shader, material, animclip (.esanim), animation (.estimeline), tileset, statemachine (.esfsm), behaviortree (.esbt), locale, inputmap, tilemap (.tmj). A bare baseName gets the type\'s canonical extension appended. Returns the project-relative path, immediately referenceable (the registry refresh happens before this resolves).',
     schema: obj({
       destDir: { type: 'string' }, baseName: { type: 'string' },
       content: { type: 'string' }, type: { type: 'string' },
@@ -259,6 +264,7 @@ function typeMatches(spec, val) {
       : t === 'number' ? typeof val === 'number'
       : t === 'string' ? typeof val === 'string'
       : t === 'boolean' ? typeof val === 'boolean'
+      : t === 'array' ? Array.isArray(val)
       : t === 'object' ? (val !== null && typeof val === 'object')
       : true);
 }

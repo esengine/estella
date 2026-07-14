@@ -107,6 +107,30 @@ describe.skipIf(!HAS_WASM)('EditorControlSurface (headless World)', () => {
     expect(host.ticks).toBe(3);
   });
 
+  it('setField coerces JSON-text and object spellings against the DECLARED field type', () => {
+    const id = S.surface.addEntity()!;
+    const e = S.model.runtimeFor(id)!;
+    S.surface.addComponent(id, 'Sprite');
+    // Schema-loose MCP clients serialize a vec2 to its JSON text — it must land
+    // as numbers, never be indexed per-character.
+    S.surface.setField(id, 'Sprite', 'size', 'vec2', '[16, 16]');
+    expect(host.world.get(e, Sprite).size).toMatchObject({ x: 16, y: 16 });
+    S.surface.setField(id, 'Sprite', 'size', 'vec2', { x: 24, y: 32 } as never);
+    expect(host.world.get(e, Sprite).size).toMatchObject({ x: 24, y: 32 });
+    // Numeric fields coerce string digits; the caller's `type` hint is advisory
+    // (an honest 'int' must not bypass the declared 'number' conversion).
+    S.surface.setField(id, 'Sprite', 'layer', 'number', '5');
+    expect(host.world.get(e, Sprite).layer).toBe(5);
+  });
+
+  it('setField rejects unknown components, unknown keys, and malformed values loudly', () => {
+    const id = S.surface.addEntity()!;
+    S.surface.addComponent(id, 'Sprite');
+    expect(() => S.surface.setField(id, 'Rigidbody2D', 'mass', 'number', 1)).toThrow(/not on entity/);
+    expect(() => S.surface.setField(id, 'Sprite', 'size.x', 'number', 16)).toThrow(/no field/);
+    expect(() => S.surface.setField(id, 'Sprite', 'size', 'vec2', 'garbage')).toThrow(/expects/);
+  });
+
   it('getDiagnostics flags a required-empty field (Details parity) and clears when set', () => {
     const id = S.surface.addEntity()!;
     S.surface.addComponent(id, 'Sprite'); // Sprite.texture is required, defaults empty

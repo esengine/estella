@@ -93,4 +93,19 @@ describe('createAsset', () => {
     expect(rel).toBe('assets/ai/patrol.esfsm');
     expect(meta(path.join(root, rel)).type).toBe('statemachine');
   });
+
+  it('a bare stem gets the type\'s canonical extension (the MCP door passes no extension)', async () => {
+    const rel = await createAsset(root, 'assets/animations', 'walk', '{"frames":[]}', 'animclip');
+    expect(rel).toBe('assets/animations/walk.esanim');
+    expect(meta(path.join(root, rel)).type).toBe('animclip');
+  });
+
+  it('a bare stem with an unknown type is a loud error, not an extensionless file', async () => {
+    await expect(createAsset(root, 'assets', 'thing', '{}', 'nonsense')).rejects.toThrow(/unknown asset type/);
+    expect(existsSync(path.join(root, 'assets/thing'))).toBe(false);
+  });
+
+  it('a type/extension mismatch is a loud error (incoherent on disk)', async () => {
+    await expect(createAsset(root, 'assets', 'walk.esanim', '{}', 'scene')).rejects.toThrow(/does not match/);
+  });
 });

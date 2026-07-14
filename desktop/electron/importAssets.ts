@@ -33,10 +33,22 @@ function relInRoot(root: string, abs: string): string | null {
   return rel.replace(/\\/g, '/');
 }
 
+/** Canonical creation extension per meta type — the inverse of {@link EXT_TO_TYPE},
+ *  with the JSON spelling preferred where several extensions share a type. */
+const TYPE_TO_EXT: Record<string, string> = (() => {
+  const inv: Record<string, string> = {};
+  for (const [ext, type] of Object.entries(EXT_TO_TYPE)) if (!(type in inv)) inv[type] = ext;
+  return { ...inv, tilemap: '.tmj', bitmapFont: '.bmfont' };
+})();
+
 /**
  * Create a new asset file in `destDir` with `content` + a fresh `.meta` (uuid + the
  * given type), deduping the name so it never clobbers. Returns the new project-
- * relative path. Powers the Content Browser "New …" menu (e.g. New Scene).
+ * relative path. Powers the Content Browser "New …" menu (e.g. New Scene) and the
+ * MCP create_asset door. A bare stem gets the type's canonical extension — an
+ * extensionless file would still register (the meta carries the type) but breaks
+ * every consumer that types by extension; a type/extension mismatch is incoherent
+ * on disk, so both are loud errors rather than silent writes.
  */
 export async function createAsset(
   root: string,
@@ -47,7 +59,22 @@ export async function createAsset(
 ): Promise<string> {
   const absDir = resolveInRoot(root, destDir);
   await mkdir(absDir, { recursive: true });
-  const name = uniqueName(absDir, baseName);
+  let named = baseName;
+  if (!path.extname(named)) {
+    const ext = TYPE_TO_EXT[type];
+    if (!ext) {
+      throw new Error(
+        `unknown asset type "${type}" — pass a baseName with an extension, or one of: ${Object.keys(TYPE_TO_EXT).join(', ')}`,
+      );
+    }
+    named += ext;
+  } else {
+    const extType = metaTypeFor(named);
+    if (extType && extType !== type) {
+      throw new Error(`type "${type}" does not match extension "${path.extname(named)}" (which is "${extType}")`);
+    }
+  }
+  const name = uniqueName(absDir, named);
   const abs = path.join(absDir, name);
   await writeFile(abs, content, 'utf8');
   await writeFile(abs + META_EXT, JSON.stringify(mintMeta(type), null, 2) + '\n', 'utf8');

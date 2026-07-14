@@ -63,6 +63,86 @@ export function setAssetRefProblemResolver(fn: AssetRefProblemResolver | null): 
   assetRefProblem = fn;
 }
 
+/**
+ * Coerce an automation-supplied field value into the shape the declared
+ * inspector type stores. Accepts the value both as real JSON (an array for a
+ * vec) and as JSON TEXT (what MCP clients send for schema-loose params), plus
+ * the `{x, y}` object spelling get_inspector-style reads suggest. Anything that
+ * doesn't coerce cleanly throws — the automation door must never write garbage.
+ */
+export function coerceFieldValue(
+  declared: InspectorFieldType,
+  key: string,
+  value: InspectorFieldValue,
+): InspectorFieldValue {
+  const fail = (expected: string): never => {
+    throw new Error(`field "${key}" (${declared}) expects ${expected}, got ${JSON.stringify(value)}`);
+  };
+  const parseJsonText = (s: string): unknown => {
+    try {
+      return JSON.parse(s);
+    } catch {
+      return fail('valid JSON');
+    }
+  };
+  switch (declared) {
+    case 'number':
+    case 'enum':
+    case 'flags': {
+      const n = Number(value);
+      return Number.isFinite(n) ? n : fail('a number');
+    }
+    case 'angle': {
+      const n = Number(value);
+      return Number.isFinite(n) ? n : fail('degrees as a number');
+    }
+    case 'bool':
+      // String forms arrive from text transports; "false"/"0" must not read truthy.
+      return typeof value === 'string' ? !['false', '0', ''].includes(value.trim().toLowerCase()) : Boolean(value);
+    case 'string':
+    case 'select':
+    case 'asset':
+      return typeof value === 'string' ? value : String(value);
+    case 'vec2':
+    case 'vec3': {
+      const n = declared === 'vec2' ? 2 : 3;
+      let v: unknown = value;
+      if (typeof v === 'string') v = parseJsonText(v);
+      if (v !== null && typeof v === 'object' && !Array.isArray(v)) {
+        const o = v as Record<string, unknown>;
+        v = n === 2 ? [o.x, o.y] : [o.x, o.y, o.z];
+      }
+      if (!Array.isArray(v) || v.length < n || v.slice(0, n).some((c) => typeof c !== 'number' || !Number.isFinite(c))) {
+        return fail(`${n} numbers (e.g. ${n === 2 ? '[16, 16]' : '[0, 0, 0]'})`);
+      }
+      return (n === 2 ? [v[0], v[1]] : [v[0], v[1], v[2]]) as InspectorFieldValue;
+    }
+    case 'color': {
+      let v: unknown = value;
+      if (typeof v === 'string' && /^\s*[[{]/.test(v)) v = parseJsonText(v);
+      if (typeof v === 'string') return v; // #rrggbb / #rrggbbaa hex — the control's native form
+      if (v !== null && typeof v === 'object') {
+        const o = v as Record<string, unknown>;
+        if ([o.r, o.g, o.b].every((c) => typeof c === 'number')) {
+          const hex = (c: unknown): string =>
+            Math.round(Math.min(1, Math.max(0, c as number)) * 255).toString(16).padStart(2, '0');
+          return `#${hex(o.r)}${hex(o.g)}${hex(o.b)}${hex(typeof o.a === 'number' ? o.a : 1)}`;
+        }
+      }
+      return fail('a "#rrggbbaa" hex string or { r, g, b, a } with 0..1 channels');
+    }
+    case 'gradient':
+    case 'curve':
+    case 'dimension': {
+      const v = typeof value === 'string' ? parseJsonText(value) : value;
+      if (v === null || typeof v !== 'object') return fail('a structural object');
+      return v as InspectorFieldValue;
+    }
+    default:
+      return value;
+  }
+}
+
 /** The session parts the surface needs (the EditorSession satisfies this). */
 export interface SurfaceSession {
   model: SceneModelImpl;
@@ -160,14 +240,38 @@ export class EditorControlSurfaceImpl {
   renameEntity(id: EntityId, name: string): void {
     this.s.commands.renameEntity(id, name);
   }
+  /**
+   * The automation field write (MCP / headless). Unlike the UI path — which
+   * builds its values from the inspector controls it rendered — a remote caller
+   * can name a component or key that doesn't exist and encode the value as raw
+   * JSON text (MCP clients serialize schema-loose params as strings, so a
+   * `[16, 16]` vec2 arrives as the STRING "[16, 16]"). Resolve the field's
+   * DECLARED inspector type and coerce the value against it, and reject unknown
+   * components/keys loudly — a string destructured as a vec writes silent
+   * garbage into the model.
+   */
   setField(
     entity: EntityId,
     component: string,
     key: string,
-    type: InspectorFieldType,
+    _type: InspectorFieldType, // advisory — the declared inspector type wins
     value: InspectorFieldValue,
   ): void {
-    this.s.commands.setField(entity, component, key, type, value);
+    const comps = this.s.query.readInspector(entity);
+    const comp = comps.find((c) => c.name === component);
+    if (!comp) {
+      const has = comps.map((c) => c.name).join(', ');
+      throw new Error(`component "${component}" is not on entity ${entity}${has ? ` (has: ${has})` : ''}`);
+    }
+    // The enable toggle is surfaced in the component header, not in `fields` —
+    // but it is still a writable bool field to automation.
+    const declared: InspectorFieldType | undefined =
+      comp.fields.find((f) => f.key === key)?.type ?? (comp.enable?.key === key ? 'bool' : undefined);
+    if (!declared) {
+      const keys = [...comp.fields.map((f) => f.key), ...(comp.enable ? [comp.enable.key] : [])];
+      throw new Error(`"${component}" has no field "${key}" (fields: ${keys.join(', ')})`);
+    }
+    this.s.commands.setField(entity, component, key, declared, coerceFieldValue(declared, key, value));
   }
   /** Add a component (by schema name) to an entity — the Details "Add Component" door. */
   addComponent(entity: EntityId, component: string): void {
