@@ -8,7 +8,7 @@
  *        `type` each `.meta` already declares (no extension table).
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { scanAssetDatabase, type AssetIndex } from '../electron/assetDb';
@@ -91,5 +91,50 @@ describe('scanAssetDatabase (A2)', () => {
     const { index } = await scanAssetDatabase(root, { write: false });
     expect(index.entries.some((e) => e.path.includes('node_modules'))).toBe(false);
     expect(index.entries.length).toBe(3); // texture + font + scene, nothing from node_modules
+  });
+
+  it('write-if-changed: an unchanged index does not rewrite assets.json', async () => {
+    const first = await scanAssetDatabase(root);
+    const mtime = statSync(first.outputPath!).mtimeMs;
+    const second = await scanAssetDatabase(root);
+    expect(statSync(second.outputPath!).mtimeMs).toBe(mtime); // untouched → no watcher echo
+  });
+});
+
+describe('scanAssetDatabase — orphan adoption', () => {
+  it('adopts a content file with no .meta: mints one and indexes it this scan', async () => {
+    const abs = path.join(root, 'assets/textures/orphan.png');
+    writeFileSync(abs, 'PNGDATA');
+    const res = await scanAssetDatabase(root, { write: false });
+    expect(res.adopted).toEqual(['assets/textures/orphan.png']);
+    expect(existsSync(`${abs}.meta`)).toBe(true);
+    const meta = JSON.parse(readFileSync(`${abs}.meta`, 'utf8'));
+    expect(meta.type).toBe('texture');
+    const entry = res.index.entries.find((e) => e.path === 'assets/textures/orphan.png');
+    expect(entry?.uuid).toBe(meta.uuid.toLowerCase());
+    // Second scan: nothing left to adopt, identity stable.
+    const again = await scanAssetDatabase(root, { write: false });
+    expect(again.adopted).toEqual([]);
+    expect(again.index.entries.find((e) => e.path === 'assets/textures/orphan.png')?.uuid)
+      .toBe(entry?.uuid);
+    rmSync(abs); rmSync(`${abs}.meta`);
+  });
+
+  it('leaves unknown extensions alone (docs and source files are not assets)', async () => {
+    const abs = path.join(root, 'assets/README.txt');
+    writeFileSync(abs, 'hello');
+    const res = await scanAssetDatabase(root, { write: false });
+    expect(res.adopted).toEqual([]);
+    expect(existsSync(`${abs}.meta`)).toBe(false);
+    rmSync(abs);
+  });
+
+  it('adopt: false is a pure read (cook path) — orphans stay untouched', async () => {
+    const abs = path.join(root, 'assets/pure.png');
+    writeFileSync(abs, 'PNGDATA');
+    const res = await scanAssetDatabase(root, { write: false, adopt: false });
+    expect(res.adopted).toEqual([]);
+    expect(existsSync(`${abs}.meta`)).toBe(false);
+    rmSync(abs);
   });
 });

@@ -65,7 +65,13 @@ export function initFsWatch(): void {
     // Coalesce back-to-back bursts; one scan + one bump per quiet window.
     if (debounce) clearTimeout(debounce);
     debounce = setTimeout(() => {
-      void ProjectStore.refreshAssets();
+      void ProjectStore.refreshAssets().then(() => {
+        // With the registry fresh, drop stale caches for the changed files and
+        // reload + re-project whatever the open scene still references — an
+        // externally rewritten texture/tilemap must not keep rendering old bytes
+        // (or fragments of whichever texture inherited its evicted handle).
+        ProjectStore.hotSyncChangedPaths(paths);
+      });
       fsRefresh.bump();
     }, 60);
 

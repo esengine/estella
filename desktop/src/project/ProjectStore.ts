@@ -3,7 +3,7 @@
 import { createStore } from 'zustand/vanilla';
 import { getComponent, getEditorType, Assets, migratePrefabData, extractPrefab, diffAgainstSource, applyOverridesToSource, setTextureParams, TextureFilter, TextureWrap, Renderer } from 'esengine';
 import { readTextureImportSettings } from './assetImporter';
-import type { SceneData, PrefabData, ExtractEntity, ProcessedEntity, PhysicsPluginConfig, AudioProjectConfig } from 'esengine';
+import type { SceneData, PrefabData, ExtractEntity, ProcessedEntity, PhysicsPluginConfig, AudioProjectConfig, AssetsData } from 'esengine';
 import { EngineHost } from '@/engine/EngineHost';
 import { SceneModel } from '@/engine/SceneModel';
 import { Reconciler } from '@/engine/Reconciler';
@@ -15,7 +15,9 @@ import { Boxes } from 'lucide-react';
 import { spritePrefab, setCanvasDesignSeed, type EntitySource } from '@/engine/entitySources';
 import { setPrefabBaseResolver } from '@/engine/SceneQuery';
 import { setUserSchemas, userSchema, setBitmaskSource, setEnumSource, type UserComponentSchema } from '@/engine/schema';
+import { setAssetRefProblemResolver } from '@/engine/EditorControlSurface';
 import { installSpineSync, type SpineTransport } from '@/engine/spineSync';
+import { SceneStore } from '@/engine/SceneStore';
 import { useSelection } from '@/store/selectionStore';
 import { Toasts } from '@/store/Toasts';
 import { confirmDiscard } from './discardGuard';
@@ -93,6 +95,25 @@ interface PreloadResult {
   fontHandles: Map<string, number>;
 }
 
+/** `.meta` type vocabulary → component asset-slot type (what the hot loader
+ *  dispatches on). Null for types no component slot references (scene, shader,
+ *  spine — spine has its own live sync; prefabs expand at load). */
+function metaTypeToSlot(metaType: string | undefined): string | null {
+  switch (metaType) {
+    case 'texture': return 'texture';
+    case 'material': return 'material';
+    case 'font': case 'bitmapFont': return 'font';
+    case 'audio': return 'audio';
+    case 'animclip': return 'anim-clip';
+    case 'animation': return 'timeline';
+    case 'tilemap': return 'tilemap';
+    case 'tileset': return 'tileset';
+    case 'statemachine': return 'statemachine';
+    case 'behaviortree': return 'behaviortree';
+    default: return null;
+  }
+}
+
 interface ProjectState {
   root: string;
   name: string;
@@ -139,8 +160,17 @@ class ProjectStoreImpl {
    *  same texture filter/wrap the runtime does (edit == play), and the asset
    *  inspector's Save can push a live sampler update. */
   private readonly uuidToImporter = new Map<string, Record<string, unknown>>();
+  /** uuid → the asset's `.meta` type — the hot-sync path picks a loader by it. */
+  private readonly uuidToType = new Map<string, string>();
   /** ref → loaded `.esprefab` (PrefabData), for scene load-expand / save-collapse. */
   private readonly prefabCache = new Map<string, PrefabData>();
+  /** Cold refs already handed to a live load this registry generation — the touch
+   *  listener fires on every projection of a still-cold ref, so without this a
+   *  failing asset would re-fetch forever (and a slow one would double-load). */
+  private readonly hotLoadStarted = new Set<string>();
+  /** Resolved path → error message for live loads that FAILED — diagnostics
+   *  surfaces these (the model looks fine; only the load knows it's broken). */
+  private readonly assetLoadFailures = new Map<string, string>();
   /** The latest scene preload result; the Reconciler resolver reads handles from
    *  it for entities recreated incrementally (duplicate / undo / play-stop). */
   private lastAssetResult: PreloadResult | null = null;
@@ -163,6 +193,9 @@ class ProjectStoreImpl {
     setEnumSource('sortingLayers', () => this.sortingLayerOptions());
     // New Canvas entities seed their design resolution from the project setting.
     setCanvasDesignSeed(() => this.designResolution());
+    // Diagnostics ask the registry whether a model-healthy asset ref actually
+    // names a real, loadable asset (dead refs draw white boxes in silence).
+    setAssetRefProblemResolver((ref) => this.assetRefProblem(ref));
   }
 
   /** Read accessor so existing `this.state` reads stay unchanged after the move. */
@@ -335,6 +368,9 @@ class ProjectStoreImpl {
     // slots resolve to project paths instead (they stay strings in the World).
     Reconciler.setAssetResolver((ref) => this.handleForRef(ref));
     Reconciler.setRefPathResolver((ref) => this.resolveRef(ref));
+    // A projection that resolves COLD (assigned after the scene-open preload)
+    // hands its ref here: async load through the engine loaders, re-project.
+    Reconciler.setAssetTouchListener((ref, slot) => this.hotLoadAsset(ref, slot));
     // Spine bindings (skeleton/atlas/pages → SpineManager) are a live projection
     // of the model, driven by model events: adopt's `reset` performs the initial
     // bind, and later ref/field edits keep the viewport true (see spineSync).
@@ -385,6 +421,7 @@ class ProjectStoreImpl {
     useSelection.getState().select(null);
     Reconciler.setAssetResolver((ref) => this.handleForRef(ref));
     Reconciler.setRefPathResolver((ref) => this.resolveRef(ref));
+    Reconciler.setAssetTouchListener((ref, slot) => this.hotLoadAsset(ref, slot));
     installSpineSync(this.spineTransport());
     Reconciler.adopt(blank, blank); // no @uuid: refs → resolved === raw
     EngineHost.syncEditorViewToScene();
@@ -423,22 +460,35 @@ class ProjectStoreImpl {
    */
   private async buildAssetRegistry(): Promise<void> {
     if (!this.state) return;
-    let entries: { uuid: string; path: string; importer?: Record<string, unknown> }[];
+    let entries: { uuid: string; path: string; type?: string; importer?: Record<string, unknown> }[];
+    let adopted: string[] = [];
     try {
-      ({ entries } = (await window.estella.project.scanAssets()).index);
+      const scan = await window.estella.project.scanAssets();
+      ({ entries } = scan.index);
+      adopted = scan.adopted ?? [];
     } catch (err) {
       console.warn('[project] asset scan failed', err);
       return;
     }
+    if (adopted.length > 0) {
+      console.info(
+        `[assets] adopted ${adopted.length} file(s) that had no .meta — they are now registered assets`,
+        adopted,
+      );
+    }
     this.uuidToPath.clear();
     this.pathToUuid.clear();
     this.uuidToImporter.clear();
+    this.uuidToType.clear();
     this.prefabCache.clear();
+    this.hotLoadStarted.clear();
+    this.assetLoadFailures.clear();
     for (const e of entries) {
       const uuid = e.uuid.toLowerCase();
       this.uuidToPath.set(uuid, e.path);
       this.pathToUuid.set(e.path, uuid);
       if (e.importer) this.uuidToImporter.set(uuid, e.importer);
+      if (e.type) this.uuidToType.set(uuid, e.type);
     }
 
     const assets = EngineHost.getResource(Assets);
@@ -504,6 +554,120 @@ class ProjectStoreImpl {
     const r = this.lastAssetResult;
     if (!path || !r) return 0;
     return r.materialHandles.get(path) ?? r.fontHandles.get(path) ?? 0;
+  }
+
+  /**
+   * The async half of live asset resolution (the Reconciler's touch listener).
+   * A projection just resolved `ref` COLD — the scene-open preload never saw it
+   * (assigned after load: surface setField, the picker popover, a hot-created
+   * asset). Load it through the engine's own loader for its slot type, then
+   * re-project the components that reference it; failures are LOUD and recorded
+   * for diagnostics. Deduped per registry generation so a broken ref can't
+   * re-fetch forever.
+   */
+  private hotLoadAsset(ref: string, fieldType: string): void {
+    const path = this.resolveRef(ref);
+    if (path === null) return; // unknown uuid — diagnostics reports it; nothing to load
+    const key = `${fieldType}:${path}`;
+    if (this.hotLoadStarted.has(key)) return;
+    this.hotLoadStarted.add(key);
+    const assets = EngineHost.getResource(Assets);
+    if (!assets) return;
+    void this.loadForSlot(assets, fieldType, ref, path)
+      .then(() => {
+        this.assetLoadFailures.delete(path);
+        Reconciler.reprojectRefs((r) => this.resolveRef(r) === path);
+        SceneStore.poke();
+      })
+      .catch((err) => {
+        const msg = err instanceof Error ? err.message : String(err);
+        this.assetLoadFailures.set(path, msg);
+        console.error(`[assets] live load of ${fieldType} "${path}" failed: ${msg}`);
+      });
+  }
+
+  /** Load `ref` with the loader its slot type names — the same loaders the
+   *  scene-open preload dispatches to (one loading truth, two trigger times). */
+  private loadForSlot(assets: AssetsData, fieldType: string, ref: string, path: string): Promise<unknown> {
+    switch (fieldType) {
+      case 'texture':
+        return assets.loadTexture(ref); // ref, not path: importer settings key off the original ref
+      case 'material':
+        return assets.loadMaterial(ref).then((r) => this.recordHandle('material', path, r.handle));
+      case 'font':
+        return assets.loadFont(ref).then((r) => this.recordHandle('font', path, r.handle));
+      case 'audio':
+        return assets.loadAudio(ref);
+      case 'anim-clip':
+        return assets.loadAnimClip(ref); // raw ref: the loader aliases it for component lookups
+      case 'tilemap':
+        return assets.loadTilemap(path);
+      case 'tileset':
+        return assets.loadTileset(path);
+      case 'timeline':
+        return assets.loadTimeline(path);
+      case 'statemachine':
+        return assets.loadStateMachine(path);
+      case 'behaviortree':
+        return assets.loadBehaviorTree(path);
+      default:
+        return Promise.reject(new Error(`no live loader for asset slot type "${fieldType}"`));
+    }
+  }
+
+  /** Record a hot-loaded material/font handle where the incremental resolver
+   *  looks them up (they have no live engine-side cache getter like textures). */
+  private recordHandle(kind: 'material' | 'font', path: string, handle: number): void {
+    if (!this.lastAssetResult) {
+      this.lastAssetResult = { textureHandles: new Map(), materialHandles: new Map(), fontHandles: new Map() };
+    }
+    const maps = this.lastAssetResult;
+    (kind === 'material' ? maps.materialHandles : maps.fontHandles).set(path, handle);
+  }
+
+  /**
+   * Content changed ON DISK (fs watcher) — keep the live realm coherent: drop
+   * every stale cache entry for the changed assets and, when something in the
+   * open scene still references them, reload + re-project. This is the missing
+   * half of hot reload that made a re-imported/re-written asset render stale
+   * (or as fragments of whatever texture inherited its handle).
+   */
+  hotSyncChangedPaths(paths: readonly string[]): void {
+    const assets = EngineHost.getResource(Assets);
+    if (!assets) return;
+    const seen = new Set<string>();
+    for (const raw of paths) {
+      const rel = raw.replace(/\\/g, '/').replace(/\.meta$/, '');
+      if (rel === '' || seen.has(rel)) continue;
+      seen.add(rel);
+      const uuid = this.pathToUuid.get(rel);
+      if (!uuid) continue; // not a registered asset (or deleted — registry refresh handles it)
+      if (!assets.invalidate(rel)) continue; // nothing was cached → nothing is stale
+      // The asset WAS live: clear the dedup so the reload can start, then reload
+      // through the same slot-typed path a cold projection uses.
+      for (const key of [...this.hotLoadStarted]) {
+        if (key.endsWith(`:${rel}`)) this.hotLoadStarted.delete(key);
+      }
+      const slot = metaTypeToSlot(this.uuidToType.get(uuid));
+      if (slot) this.hotLoadAsset(UUID_PREFIX + uuid, slot);
+    }
+  }
+
+  /**
+   * Why an asset REFERENCE would not produce a live asset, or null when it's
+   * fine: `unresolved` (the registry knows no such uuid/path) or a recorded
+   * live-load failure. Diagnostics adds these on top of required-empty — the
+   * model value looks perfectly healthy in both cases.
+   */
+  assetRefProblem(ref: string): string | null {
+    const uuid = refUuid(ref);
+    const path = uuid !== null ? (this.uuidToPath.get(uuid) ?? null) : ref;
+    if (path === null) return 'unresolved: no asset with this uuid in the registry';
+    if (uuid === null && !this.pathToUuid.has(path)) {
+      return `unresolved: "${path}" is not a registered asset`;
+    }
+    const failure = this.assetLoadFailures.get(path);
+    return failure ? `load failed: ${failure}` : null;
   }
 
   /** The live material handle a scene's sprites use for @p path (from the last scene

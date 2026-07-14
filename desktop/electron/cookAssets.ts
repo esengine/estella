@@ -204,7 +204,7 @@ export async function cookAssets(
   const compressTextures = opts.compressTextures ?? false;
   const atlasTextures = opts.atlasTextures ?? false;
   const compressAudio = opts.compressAudio ?? false;
-  const { index } = await scanAssetDatabase(root, { write: false });
+  const { index } = await scanAssetDatabase(root, { write: false, adopt: false });
   const byUuid = new Map(index.entries.map((e) => [e.uuid, e]));
   const byPath = new Map(index.entries.map((e) => [e.path, e]));
   const warnings: string[] = [];

@@ -18,7 +18,8 @@
  */
 import { readFile, writeFile, mkdir, readdir } from 'node:fs/promises';
 import path from 'node:path';
-import { META_EXT, isContentDir } from './contentPolicy';
+import { META_EXT, isContentDir, isContentFile } from './contentPolicy';
+import { adoptOrphan } from './assetMeta';
 // The runtime's tileset-path resolver (a dependency-free leaf) — shared so the dep scan
 // discovers a tilemap's tileset images the same way the loader will later request them.
 import { resolveRelativePath } from '../../sdk/src/tilemap/tiledPath';
@@ -58,6 +59,8 @@ export interface ScanAssetsResult {
   outputPath: string | null;
   index: AssetIndex;
   warnings: string[];
+  /** Orphan content files the scan adopted (minted a `.meta` for) this pass. */
+  adopted: string[];
 }
 
 /** Recursively yield every `<file>.meta` path (project-relative, forward-slashed). */
@@ -77,6 +80,34 @@ async function* walkMeta(root: string, rel = ''): AsyncGenerator<string> {
       yield rel ? `${rel}/${e.name}` : e.name;
     }
   }
+}
+
+/**
+ * Adopt orphan content files: any content file of a known asset type with no
+ * `.meta` sidecar gets one minted, so it enters the index THIS scan. "I dropped
+ * my asset folder into the project and opened it" is the first thing every new
+ * user does — files arriving outside the import door (git, Finder, an agent's
+ * bulk copy) must not stay invisible to the registry. Unknown extensions
+ * (docs, source files) are left alone.
+ */
+async function adoptOrphans(root: string, rel = '', adopted: string[] = []): Promise<string[]> {
+  const abs = rel ? path.join(root, rel) : root;
+  let entries;
+  try {
+    entries = await readdir(abs, { withFileTypes: true });
+  } catch {
+    return adopted; // unreadable dir
+  }
+  for (const e of entries) {
+    const relPath = rel ? `${rel}/${e.name}` : e.name;
+    if (e.isDirectory()) {
+      if (!isContentDir(e.name)) continue;
+      await adoptOrphans(root, relPath, adopted);
+    } else if (isContentFile(e.name)) {
+      if ((await adoptOrphan(path.join(abs, e.name))) === 'adopted') adopted.push(relPath);
+    }
+  }
+  return adopted;
 }
 
 /**
@@ -144,10 +175,14 @@ function normalizeRefPath(ref: string): string {
  */
 export async function scanAssetDatabase(
   root: string,
-  opts?: { write?: boolean },
+  opts?: { write?: boolean; adopt?: boolean },
 ): Promise<ScanAssetsResult> {
   const entries: AssetEntry[] = [];
   const warnings: string[] = [];
+
+  // Adopt-before-index: orphans minted here are picked up by the meta walk below,
+  // so a single scan both registers and indexes them (no second pass needed).
+  const adopted = opts?.adopt === false ? [] : await adoptOrphans(root);
 
   for await (const metaRel of walkMeta(root)) {
     let meta: { uuid?: unknown; type?: unknown; importer?: unknown };
@@ -222,9 +257,21 @@ export async function scanAssetDatabase(
   let outputPath: string | null = null;
   if (opts?.write !== false) {
     outputPath = path.join(root, CACHE_DIR, OUTPUT);
-    await mkdir(path.dirname(outputPath), { recursive: true });
-    await writeFile(outputPath, JSON.stringify(index, null, 2) + '\n');
+    const text = JSON.stringify(index, null, 2) + '\n';
+    // Write-if-changed: the watcher can't tell our cache write from a real
+    // change, so an unconditional write would make every refresh re-trigger
+    // itself (scan → write → fsChanged → scan …). Unchanged index ⇒ no write.
+    let previous: string | null = null;
+    try {
+      previous = await readFile(outputPath, 'utf8');
+    } catch {
+      previous = null;
+    }
+    if (previous !== text) {
+      await mkdir(path.dirname(outputPath), { recursive: true });
+      await writeFile(outputPath, text);
+    }
   }
 
-  return { ok: true, outputPath, index, warnings };
+  return { ok: true, outputPath, index, warnings, adopted };
 }

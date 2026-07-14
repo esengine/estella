@@ -11,7 +11,7 @@
  * (ESTELLA_E2E_EXPORT=1 additionally runs a web export to the temp dir.)
  */
 import { spawn } from 'node:child_process';
-import { cp, mkdtemp, rm, stat } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -27,6 +27,17 @@ await cp(EXAMPLE, project, {
   recursive: true,
   filter: (src) => !/[/\\](\.esengine|node_modules|dist)([/\\]|$)/.test(src),
 });
+
+// An ORPHAN texture (no `.meta`) staged before open — "I dropped my art into
+// the project folder and opened it" — the open scan must adopt it into the
+// registry, and a cold assignment to it must light up live (guards below).
+const ORPHAN_REL = 'assets/textures/orphan-e2e.png';
+const ORPHAN_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  'base64',
+);
+await mkdir(path.join(project, 'assets', 'textures'), { recursive: true });
+await writeFile(path.join(project, ORPHAN_REL), ORPHAN_PNG);
 
 // ESTELLA_E2E_FRONT points at an alternate front (e.g. the shipped bundle,
 // dist-electron/mcp/editor-mcp.mjs) to prove distribution artifacts end to end.
@@ -114,6 +125,30 @@ try {
   if (!diags.some((d) => d.entity === created && d.problem === 'required-empty' && d.field === 'texture'))
     await fail(`get_diagnostics missed the fresh Sprite's empty texture (${JSON.stringify(diags).slice(0, 200)})`);
   console.log(`get_diagnostics OK — flagged Sprite.texture on the new entity`);
+
+  // — Hot-asset chain guards (the white-box family) —
+  // The orphan staged before open had no `.meta`: the open scan must have
+  // adopted it, and a COLD texture assignment must light up the live World with
+  // NO project reopen (set_field → touch → async load → re-project). Polling is
+  // the contract here: the load is async, but it must CONVERGE.
+  await call('set_field', { entity: created, component: 'Sprite', key: 'texture', type: 'asset', value: ORPHAN_REL });
+  let handle = 0;
+  for (let i = 0; i < 50 && handle === 0; i++) {
+    const sprite = JSON.parse((await call('world_component', { id: created, component: 'Sprite' })).text);
+    handle = sprite?.texture ?? 0;
+    if (handle === 0) await new Promise((r) => setTimeout(r, 100));
+  }
+  if (handle === 0) await fail('cold Sprite.texture never resolved to a live handle — hot-load chain broken');
+  console.log(`hot texture OK — orphan adopted at open + cold set_field lit up (handle ${handle})`);
+
+  // A ref to a file that does NOT exist must surface as a queryable diagnostic:
+  // the model value looks healthy — only the registry knows the ref is dead.
+  await call('set_field', { entity: created, component: 'Sprite', key: 'texture', type: 'asset', value: 'assets/textures/does-not-exist.png' });
+  const deadDiags = JSON.parse((await call('get_diagnostics')).text);
+  if (!deadDiags.some((d) => d.entity === created && d.problem === 'asset-unresolved'))
+    await fail(`get_diagnostics missed the dead texture ref (${JSON.stringify(deadDiags).slice(0, 200)})`);
+  await call('set_field', { entity: created, component: 'Sprite', key: 'texture', type: 'asset', value: ORPHAN_REL });
+  console.log('asset-unresolved diagnostic OK — a dead ref is queryable, not just a white box');
 
   await call('set_field', { entity: created, component: 'Transform', key: 'position', type: 'vec3', value: [64, 96, 0] });
   const live = JSON.parse((await call('world_component', { id: created, component: 'Transform' })).text);

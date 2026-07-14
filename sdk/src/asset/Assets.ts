@@ -8,7 +8,7 @@ import type {
     AssetLoader, LoadContext, TextureResult, SpineResult,
     MaterialResult, FontResult, AudioResult, AnimClipResult,
     TilemapResult, TilesetResult, TimelineResult, PrefabResult,
-    LocaleResult,
+    LocaleResult, FsmResult, BtResult,
 } from './AssetLoader';
 import { AsyncCache } from './AsyncCache';
 import type { ESEngineModule } from '../wasm';
@@ -335,6 +335,18 @@ export class Assets {
      *  catalogs. Requires the LocalizationPlugin (fails loud otherwise). */
     async loadLocaleTable(ref: string): Promise<LocaleResult> {
         return this.loadTyped('locale', ref);
+    }
+
+    /** Load a `.esfsm` state machine into the shared AI store, keyed by its
+     *  asset path — the ref a StateMachineAgent's `fsm` field resolves. */
+    async loadStateMachine(ref: string): Promise<FsmResult> {
+        return this.loadTyped('statemachine', ref);
+    }
+
+    /** Load a `.esbt` behavior tree into the shared AI store, keyed by its
+     *  asset path — the ref a BehaviorTreeAgent's `bt` field resolves. */
+    async loadBehaviorTree(ref: string): Promise<BtResult> {
+        return this.loadTyped('behaviortree', ref);
     }
 
     async loadPrefab(ref: string): Promise<PrefabResult> {

@@ -104,6 +104,10 @@ if (new URLSearchParams(location.search).has('automation')) {
       return EditorControlSurface.getSceneTree().length > 0;
     },
     selectAsset: (path: string | null) => useSelection.getState().selectAsset(path),
+    /** Re-scan the asset registry NOW (awaitable). The write doors' contract is
+     *  "returned ⇒ resolvable": programmatic create/import chain this so a
+     *  follow-up `@uuid:`/path ref never races the debounced watcher refresh. */
+    refreshAssets: () => ProjectStore.refreshAssets(),
     play: () => useEditorStore.getState().togglePlay(),
     playState: () => PlayRealm.getSnapshot(),
     /** Player count for the next Play (1 = single, 2-4 = listen server + clients). */

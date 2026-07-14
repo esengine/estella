@@ -9,7 +9,7 @@ import { initTilemapAPI, shutdownTilemapAPI, TilemapAPI } from './tilemapAPI';
 import { TilemapLiveSync } from './tilemapLiveSync';
 import { Tilemap } from './components';
 import { registerSceneComponentCodec } from '../scene';
-import { getTilemapSource, getResolvedTileset } from './tilesetCache';
+import { getTilemapSource, getResolvedTileset, type LoadedTilemapSource } from './tilesetCache';
 import { resolveTilesetModel } from './tilesetResolve';
 import {
     generateLayerCollision, generateChunkCollision, generateChunkPolygonCollision,
@@ -43,6 +43,12 @@ export class TilemapPlugin implements Plugin {
     private animatedLayers_ = new Set<number>();
     /** Tilemap(source) entity → the RuntimeOnly child layer entities derived from its `.tmj`. */
     private sourceLayerEntities_ = new Map<number, Entity[]>();
+    /** Tilemap(source) entity → the cached source OBJECT its children were derived
+     *  from. Identity is the change detector: a `source` field edit resolves to a
+     *  different object, a hot reload re-registers a fresh one, an invalidation
+     *  leaves none — all must tear down + re-derive (the old sync derived once
+     *  and rendered the stale parse forever). */
+    private sourceDerivedFrom_ = new Map<number, LoadedTilemapSource>();
     /** tilemap entity → the static collider entities derived from its collidable tiles (play-mode only). */
     private collisionEntities_ = new Map<number, Entity[]>();
     /** TilemapLayer entity → its baked collidable tile ids (out-of-band scene data; drives native collision). */
@@ -283,12 +289,21 @@ export class TilemapPlugin implements Plugin {
                     if (world.tryGet(entity, TilemapLayer)) continue;
 
                     const tilemap = world.tryGet(entity, Tilemap) as { source: string } | null;
-                    if (!tilemap?.source) continue;
 
                     // The loader keys the source cache by the RESOLVED path and
                     // `resolveSceneAssetPaths` leaves `source` as the authored ref, so
                     // resolve at lookup (see resolveAssetKey), falling back to the raw ref.
-                    const cached = getTilemapSource(resolveAssetKey(assets, tilemap.source)) ?? getTilemapSource(tilemap.source);
+                    const cached = tilemap?.source
+                        ? getTilemapSource(resolveAssetKey(assets, tilemap.source)) ?? getTilemapSource(tilemap.source)
+                        : undefined;
+
+                    // Derived children must mirror the CURRENT source. A cleared field,
+                    // an invalidated cache entry (hot reload), or different source data
+                    // (live `source` edit / fresh registration) all tear down here; the
+                    // derive below rebuilds from whatever is cached now.
+                    if (sourceLayerEntities.has(entity) && this.sourceDerivedFrom_.get(entity) !== cached) {
+                        this.teardownDerived_(world, entity);
+                    }
                     if (!cached) continue;
 
                     if (!sourceLayerEntities.has(entity)) {
@@ -444,6 +459,7 @@ export class TilemapPlugin implements Plugin {
                             }
                         }
                         sourceLayerEntities.set(entity, children);
+                        this.sourceDerivedFrom_.set(entity, cached);
                     }
 
                     const hasTileCollision = !!(cached.collisionTileIds && cached.collisionTileIds.length > 0);
@@ -485,26 +501,8 @@ export class TilemapPlugin implements Plugin {
                 }
 
                 const currentTilemapSet = new Set(tilemapEntities);
-                for (const [entity, children] of sourceLayerEntities) {
-                    if (!currentTilemapSet.has(entity)) {
-                        for (const child of children) {
-                            if (initializedLayers.has(child)) {
-                                TilemapAPI.destroyLayer(child);
-                                initializedLayers.delete(child);
-                            }
-                            animatedLayers.delete(child);
-                            // An owner despawn cascades to its children; only a
-                            // component removal leaves them alive to clean up here.
-                            if (world.valid(child)) world.despawn(child);
-                        }
-                        sourceLayerEntities.delete(entity);
-
-                        const colliders = collisionEntities.get(entity);
-                        if (colliders) {
-                            for (const e of colliders) world.despawn(e);
-                            collisionEntities.delete(entity);
-                        }
-                    }
+                for (const entity of [...sourceLayerEntities.keys()]) {
+                    if (!currentTilemapSet.has(entity)) this.teardownDerived_(world, entity);
                 }
 
                 if (animatedLayers.size > 0) {
@@ -519,6 +517,34 @@ export class TilemapPlugin implements Plugin {
         app.addSystemToSchedule(Schedule.PreUpdate, tilemapSyncSystem);
     }
 
+    /** Drop ONE tilemap entity's derived artifacts (child layer entities +
+     *  play-mode colliders + bookkeeping) so the sync can re-derive — or not,
+     *  if its source is gone. Fires when the Tilemap component disappears AND
+     *  when the source it derived from stops being current. */
+    private teardownDerived_(
+        world: { valid(e: Entity): boolean; despawn(e: Entity): void },
+        entity: number,
+    ): void {
+        for (const child of this.sourceLayerEntities_.get(entity) ?? []) {
+            if (this.initializedLayers_.has(child)) {
+                TilemapAPI.destroyLayer(child);
+                this.initializedLayers_.delete(child);
+            }
+            this.animatedLayers_.delete(child);
+            // An owner despawn cascades to its children; only a component
+            // removal leaves them alive to clean up here.
+            if (world.valid(child)) world.despawn(child);
+        }
+        this.sourceLayerEntities_.delete(entity);
+        this.sourceDerivedFrom_.delete(entity);
+
+        const colliders = this.collisionEntities_.get(entity);
+        if (colliders) {
+            for (const e of colliders) if (world.valid(e)) world.despawn(e);
+            this.collisionEntities_.delete(entity);
+        }
+    }
+
     resetLayers(): void {
         for (const entity of this.initializedLayers_) {
             TilemapAPI.destroyLayer(entity);
@@ -527,6 +553,7 @@ export class TilemapPlugin implements Plugin {
         this.appliedCellSize_.clear();
         this.animatedLayers_.clear();
         this.sourceLayerEntities_.clear();
+        this.sourceDerivedFrom_.clear();
         // Collider entities die with the world on reset/teardown; just drop our bookkeeping.
         this.collisionEntities_.clear();
         this.nativeCollisionIds_.clear();

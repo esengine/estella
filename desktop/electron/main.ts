@@ -472,18 +472,32 @@ ipcMain.handle('project:importAssets', async (_e, destDir: string) => {
     ],
   });
   if (res.canceled || res.filePaths.length === 0) return null;
-  return importAssets(requireRoot(), destDir, res.filePaths);
+  const picked = await importAssets(requireRoot(), destDir, res.filePaths);
+  notifyFsChanged(picked.imported);
+  return picked;
 });
 
+// The write doors PUSH their own change notification once the disk write lands:
+// the fs watcher is best-effort (debounced, events can arrive with no filename),
+// but "the door returned" must mean "the registry can see it" — the renderer's
+// refresh must never depend on the watcher racing our own writes.
+function notifyFsChanged(paths: string[]): void {
+  if (win && !win.isDestroyed()) win.webContents.send('project:fsChanged', { paths });
+}
+
 // Import already-resolved absolute paths (OS drag-drop onto the Content Browser).
-ipcMain.handle('project:importFiles', (_e, destDir: string, sources: string[]) =>
-  importAssets(requireRoot(), destDir, sources),
-);
+ipcMain.handle('project:importFiles', async (_e, destDir: string, sources: string[]) => {
+  const result = await importAssets(requireRoot(), destDir, sources);
+  notifyFsChanged(result.imported);
+  return result;
+});
 
 // Create a new asset file (+ .meta) from renderer-supplied content (e.g. New Scene).
-ipcMain.handle('project:createAsset', (_e, destDir: string, baseName: string, content: string, type: string) =>
-  createAsset(requireRoot(), destDir, baseName, content, type),
-);
+ipcMain.handle('project:createAsset', async (_e, destDir: string, baseName: string, content: string, type: string) => {
+  const rel = await createAsset(requireRoot(), destDir, baseName, content, type);
+  notifyFsChanged([rel]);
+  return rel;
+});
 
 // The project's launcher cover: capture the composited page region the renderer
 // passes (its viewport canvas, center-cropped to 16:9) and write it to the project

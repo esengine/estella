@@ -61,6 +61,13 @@ export function getTilemapSource(path: string): LoadedTilemapSource | undefined 
     return tilemapCache_.get(path);
 }
 
+/** Drop one source (hot reload: the `.tmj` changed on disk). The tilemap sync
+ *  notices the entry vanish and tears the derived layers down; the reload
+ *  registers fresh data and they re-derive. Returns true if the path was held. */
+export function unregisterTilemapSource(path: string): boolean {
+    return tilemapCache_.delete(path);
+}
+
 export function clearTilemapSourceCache(): void {
     tilemapCache_.clear();
 }

@@ -49,8 +49,18 @@ export interface SceneDiagnostic {
   entityName: string;
   component: string;
   field?: string;
-  problem: 'required-empty' | 'notice';
+  problem: 'required-empty' | 'asset-unresolved' | 'notice';
   detail: string;
+}
+
+/** Why a MODEL-healthy asset ref still yields no live asset (unknown to the
+ *  registry / its load failed), or null when it's fine. Installed by
+ *  ProjectStore — the surface itself is project-agnostic (headless hosts run
+ *  without a registry, where every ref is presumed fine). */
+type AssetRefProblemResolver = (ref: string) => string | null;
+let assetRefProblem: AssetRefProblemResolver | null = null;
+export function setAssetRefProblemResolver(fn: AssetRefProblemResolver | null): void {
+  assetRefProblem = fn;
 }
 
 /** The session parts the surface needs (the EditorSession satisfies this). */
@@ -284,6 +294,18 @@ export class EditorControlSurfaceImpl {
                 problem: 'required-empty',
                 detail: `${comp.name}.${f.key} is required but empty`,
               });
+            } else if (f.type === 'asset' && typeof f.value === 'string' && f.value !== '') {
+              // The model value LOOKS healthy — only the registry/loader knows
+              // whether it names a real, loadable asset (a dead ref draws the
+              // same white box an empty one does, in silence).
+              const why = assetRefProblem?.(f.value);
+              if (why) {
+                issues.push({
+                  entity: node.id, entityName: node.name, component: comp.name, field: f.key,
+                  problem: 'asset-unresolved',
+                  detail: `${comp.name}.${f.key}: ${why}`,
+                });
+              }
             }
           }
           if (comp.notice) {

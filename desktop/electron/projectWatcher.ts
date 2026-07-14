@@ -52,10 +52,15 @@ export function startProjectWatch(root: string, wc: WebContents): void {
   stopProjectWatch();
   try {
     watcher = watch(root, { recursive: true }, (_event, filename) => {
-      if (!filename) return; // no path → can't filter safely (would risk the cache loop)
-      const rel = filename.toString().replace(/\\/g, '/');
-      if (isIgnoredPath(rel)) return;
-      pending.add(rel);
+      // A null filename (rapid writes / platform quirks) means "something under
+      // root changed, path unknown". Dropping it left the registry stale until
+      // reopen; push it as an anonymous change instead — the refresh path is
+      // loop-safe now (assets.json is write-if-changed, `.esengine` is dot-ruled).
+      if (filename) {
+        const rel = filename.toString().replace(/\\/g, '/');
+        if (isIgnoredPath(rel)) return;
+        pending.add(rel);
+      }
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
         const paths = [...pending];

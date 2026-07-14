@@ -83,10 +83,15 @@ const UNRESOLVED: AssetResolver = () => 0;
 type RefPathResolver = (ref: string) => string | null;
 const UNRESOLVED_PATH: RefPathResolver = () => null;
 
+/** A projected asset ref that is NOT live yet (cold handle / data cache miss).
+ *  The installed listener owns making it live (async load, then re-project). */
+type AssetTouchListener = (ref: string, fieldType: string) => void;
+
 export class ReconcilerImpl {
   private unsubscribe: (() => void) | null = null;
   private resolveAsset: AssetResolver = UNRESOLVED;
   private resolveRefPath: RefPathResolver = UNRESOLVED_PATH;
+  private touchAsset: AssetTouchListener | null = null;
 
   constructor(private readonly model: SceneModelImpl) {}
 
@@ -120,6 +125,36 @@ export class ReconcilerImpl {
    */
   setRefPathResolver(fn: RefPathResolver | null): void {
     this.resolveRefPath = fn ?? UNRESOLVED_PATH;
+  }
+
+  /**
+   * Install the cold-asset listener. The resolver contract above is synchronous
+   * (a projection can't await a fetch), so an edited ref whose asset was never
+   * loaded resolves to a dead value — historically it stayed dead forever, in
+   * silence (the white-box family: set a texture via the surface or the picker
+   * popover and the handle is 0 until the project is reopened). The listener is
+   * the async half: ProjectStore loads the asset through the engine's own
+   * loaders and re-projects the referencing components when it lands.
+   */
+  setAssetTouchListener(fn: AssetTouchListener | null): void {
+    this.touchAsset = fn;
+  }
+
+  /**
+   * Re-project every spawned component holding a string field that `matches`
+   * (asset refs live in the model as strings — `@uuid:` or project paths).
+   * The async half of the touch listener calls this when a load lands, so the
+   * exact components that referenced the cold asset re-resolve to live values.
+   */
+  reprojectRefs(matches: (ref: string) => boolean): void {
+    for (const entity of this.model.allSourceEntities()) {
+      if (this.model.runtimeFor(entity.id) == null) continue;
+      for (const comp of entity.components) {
+        const data = comp.data as Record<string, unknown>;
+        const hit = Object.values(data).some((v) => typeof v === 'string' && v !== '' && matches(v));
+        if (hit) this.projectComponent(entity.id, comp.type);
+      }
+    }
   }
 
   /**
@@ -361,8 +396,16 @@ export class ReconcilerImpl {
       const at = assetFieldType(type, key);
       if (at) {
         // Path-valued slots keep a project path (the runtime loader fetches the
-        // file); handle-valued slots resolve to a live GL/native handle.
-        return PATH_VALUED_ASSET_TYPES.has(at) ? (this.resolveRefPath(v) ?? v) : this.resolveAsset(v);
+        // file); handle-valued slots resolve to a live GL/native handle. Either
+        // way a projected ref may be COLD (never loaded in this realm) — hand it
+        // to the touch listener, whose async load + re-project makes it live.
+        if (PATH_VALUED_ASSET_TYPES.has(at)) {
+          if (v !== '') this.touchAsset?.(v, at);
+          return this.resolveRefPath(v) ?? v;
+        }
+        const handle = this.resolveAsset(v);
+        if (handle === 0 && v !== '') this.touchAsset?.(v, at);
+        return handle;
       }
     }
     return this.resolveRefs(v);

@@ -5,7 +5,7 @@ import {
     packCollectionGrid, parseTmjWithExternals, resolveRelativePath,
     type TiledMapData, type TiledTilesetData,
 } from '../../tilemap/tiledLoader';
-import { registerTilemapSource, type LoadedTilemapTileset } from '../../tilemap/tilesetCache';
+import { registerTilemapSource, unregisterTilemapSource, type LoadedTilemapTileset } from '../../tilemap/tilesetCache';
 import { log } from '../../logger';
 
 export class TilemapAssetLoader implements AssetLoader<TilemapResult> {
@@ -121,5 +121,11 @@ export class TilemapAssetLoader implements AssetLoader<TilemapResult> {
 
     unload(_asset: TilemapResult): void {
         // Tilemap sources registered globally
+    }
+
+    /** Hot reload: sever the global source registration too — the Assets-level
+     *  cache drop alone would leave the tilemap sync rendering the stale parse. */
+    invalidate(path: string): boolean {
+        return unregisterTilemapSource(path);
     }
 }

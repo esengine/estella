@@ -1,34 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  Asset import (Content Browser C4). Copies external files into the open
- *        project and writes a `.meta` sidecar (fresh uuid + type + importer
- *        defaults) so the AssetDatabase scan indexes them immediately — the scan
- *        only sees files that HAVE a `.meta`.
- *
- *        The ext→type table + importer defaults mirror the canonical CLI
- *        `tools/asset-meta.js`; kept in sync by hand (a stable lookup table, and
- *        keeping this desktop-contained avoids reaching into the root tools/).
+ * @file  Asset import (Content Browser C4). Brings files into the project's
+ *        asset registry: external files are copied into the project + given a
+ *        `.meta` sidecar; files ALREADY inside the project are registered in
+ *        place (meta minted iff missing) — never duplicated. The scan only
+ *        sees files that HAVE a `.meta`, so this is the registration door.
  */
 import { copyFile, mkdir, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { resolveInRoot, META_EXT } from './projectFs';
-import { importerDefaults } from '../src/project/assetImporter';
-
-const META_VERSION = '2.0';
-
-const EXT_TO_TYPE: Record<string, string> = {
-  '.png': 'texture', '.jpg': 'texture', '.jpeg': 'texture', '.webp': 'texture', '.bmp': 'texture',
-  '.wav': 'audio', '.mp3': 'audio', '.ogg': 'audio', '.aac': 'audio', '.flac': 'audio', '.m4a': 'audio', '.webm': 'audio',
-  '.esprefab': 'prefab', '.esscene': 'scene', '.esshader': 'shader', '.esmaterial': 'material', '.esmat': 'material',
-  '.esanim': 'animclip', '.esanimclip': 'animclip', '.estimeline': 'animation',
-  '.fnt': 'bitmapFont', '.bmfont': 'bitmapFont', '.ttf': 'font', '.otf': 'font', '.woff': 'font', '.woff2': 'font',
-  '.tmx': 'tilemap', '.tmj': 'tilemap',
-  '.skel': 'spine', '.atlas': 'spine',
-  '.inputmap': 'inputmap',
-};
+import { EXT_TO_TYPE, metaTypeFor, mintMeta, writeMeta, adoptOrphan } from './assetMeta';
 
 /** The supported import extensions (no leading dot) — used by the file dialog filter. */
 export const IMPORT_EXTENSIONS = Object.keys(EXT_TO_TYPE).map((e) => e.slice(1));
@@ -40,6 +23,14 @@ function uniqueName(absDir: string, name: string): string {
   let candidate = name;
   for (let i = 2; existsSync(path.join(absDir, candidate)); i++) candidate = `${stem} ${i}${ext}`;
   return candidate;
+}
+
+/** The project-relative (forward-slashed) path of `abs` under `root`, or null
+ *  when `abs` lives outside the project. */
+function relInRoot(root: string, abs: string): string | null {
+  const rel = path.relative(path.resolve(root), path.resolve(abs));
+  if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) return null;
+  return rel.replace(/\\/g, '/');
 }
 
 /**
@@ -59,22 +50,25 @@ export async function createAsset(
   const name = uniqueName(absDir, baseName);
   const abs = path.join(absDir, name);
   await writeFile(abs, content, 'utf8');
-  const meta = { uuid: randomUUID(), version: META_VERSION, type, importer: importerDefaults(type) };
-  await writeFile(abs + META_EXT, JSON.stringify(meta, null, 2) + '\n', 'utf8');
+  await writeFile(abs + META_EXT, JSON.stringify(mintMeta(type), null, 2) + '\n', 'utf8');
   return destDir ? `${destDir}/${name}` : name;
 }
 
 export interface ImportResult {
-  /** New project-relative paths of the imported files. */
+  /** Project-relative paths of the imported (or adopted-in-place) files. */
   imported: string[];
   /** Base names skipped (unknown / unsupported extension). */
   skipped: string[];
 }
 
 /**
- * Copy `sources` (absolute, user-picked) into project-relative `destDir`, writing
- * a `.meta` (fresh uuid + extension-derived type) for each. Existing names are
- * deduped, never clobbered; unknown extensions are skipped.
+ * Bring `sources` (absolute paths) into the registry:
+ *   - external files are copied into project-relative `destDir` + given a `.meta`
+ *     (existing names deduped, never clobbered);
+ *   - files already inside the project are REGISTERED IN PLACE (meta minted iff
+ *     missing, existing uuid preserved) — importing a project file must never
+ *     spawn a "name 2" copy with a different identity.
+ * Unknown extensions are skipped.
  */
 export async function importAssets(root: string, destDir: string, sources: string[]): Promise<ImportResult> {
   const absDir = resolveInRoot(root, destDir);
@@ -82,16 +76,21 @@ export async function importAssets(root: string, destDir: string, sources: strin
   const imported: string[] = [];
   const skipped: string[] = [];
   for (const src of sources) {
-    const type = EXT_TO_TYPE[path.extname(src).toLowerCase()];
+    const type = metaTypeFor(src);
     if (!type) {
       skipped.push(path.basename(src));
+      continue;
+    }
+    const inside = relInRoot(root, src);
+    if (inside) {
+      await adoptOrphan(path.resolve(root, inside)); // 'has-meta' = already registered, keep its uuid
+      imported.push(inside);
       continue;
     }
     const name = uniqueName(absDir, path.basename(src));
     const absDest = path.join(absDir, name);
     await copyFile(src, absDest);
-    const meta = { uuid: randomUUID(), version: META_VERSION, type, importer: importerDefaults(type) };
-    await writeFile(absDest + META_EXT, JSON.stringify(meta, null, 2) + '\n', 'utf8');
+    await writeMeta(absDest, type);
     imported.push(destDir ? `${destDir}/${name}` : name);
   }
   return { imported, skipped };
