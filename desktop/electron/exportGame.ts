@@ -286,6 +286,8 @@ export async function exportGame(opts: {
   sourcemap?: boolean;
   /** Bitmask of render layers (0..31) that y-sort (Project Settings → Rendering). */
   ySortLayers?: number;
+  /** Project color space — 'linear' boots the shipped game on the linear-light pipeline. */
+  colorSpace?: 'gamma' | 'linear';
 }): Promise<ExportGameResult> {
   const platform = opts.platform ?? 'web';
   const title = opts.title ?? 'Game';
@@ -306,6 +308,7 @@ export async function exportGame(opts: {
       appid: opts.wechatAppid,
       orientation: opts.wechatOrientation,
       ySortLayers: opts.ySortLayers,
+      colorSpace: opts.colorSpace,
       minify: opts.minify,
       contentAddressed: opts.contentAddressed,
       compressTextures: opts.compressTextures,
@@ -329,6 +332,7 @@ export async function exportGame(opts: {
       title,
       minify: opts.minify,
       ySortLayers: opts.ySortLayers,
+      colorSpace: opts.colorSpace,
       onProgress: opts.onProgress,
     });
   }
@@ -394,7 +398,11 @@ export async function exportGame(opts: {
   await writeFile(
     path.join(payloadDir, 'game.config.json'),
     JSON.stringify(
-      { entryScene: opts.entryScene, scenes, ...(opts.ySortLayers ? { ySortLayers: opts.ySortLayers } : {}) },
+      {
+        entryScene: opts.entryScene, scenes,
+        ...(opts.ySortLayers ? { ySortLayers: opts.ySortLayers } : {}),
+        ...(opts.colorSpace === 'linear' ? { colorSpace: opts.colorSpace } : {}),
+      },
       null, 2,
     ) + '\n',
   );

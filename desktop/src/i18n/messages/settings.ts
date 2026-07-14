@@ -48,6 +48,7 @@ export const settingsMessages = defineMessages({
     'set.group.designResolution': { en: 'Design Resolution', zh: '设计分辨率' },
     'set.group.sortingLayers': { en: 'Sorting Layers', zh: '排序层' },
     'set.group.ySort': { en: 'Y-Sort', zh: 'Y 轴排序' },
+    'set.group.colorSpace': { en: 'Color Space', zh: '色彩空间' },
     'set.group.physics': { en: 'Physics', zh: '物理' },
     'set.group.gravity': { en: 'Gravity', zh: '重力' },
     'set.group.collisionLayers': { en: 'Collision Layers', zh: '碰撞层' },
@@ -108,6 +109,13 @@ export const settingsMessages = defineMessages({
         en: 'Name render sorting layers (lowest first); a render `layer` field then picks from them instead of a raw number.',
         zh: '为渲染排序层命名（最低层在前）；渲染组件的 layer 字段将从中选择，而非填原始数字。',
     },
+    'set.project.rendering.colorSpace': { en: 'Color space', zh: '色彩空间' },
+    'set.project.rendering.colorSpace.desc': {
+        en: 'Linear renders in physically-correct linear light: textures decode from sRGB on sample, lights and tints blend linearly, and the final frame encodes back to sRGB. Gamma is the classic pipeline. Applies to the editor, Play, and every export after a reload.',
+        zh: '线性模式以物理正确的线性光渲染：纹理采样时从 sRGB 解码、光照与染色在线性空间混合、最终画面编码回 sRGB。伽马为经典管线。重新加载后对编辑器、运行预览和所有导出生效。',
+    },
+    'set.project.rendering.colorSpace.gamma': { en: 'Gamma', zh: '伽马' },
+    'set.project.rendering.colorSpace.linear': { en: 'Linear', zh: '线性' },
     'set.project.rendering.ySortLayers': { en: 'Y-sorted layers', zh: 'Y 轴排序层' },
     'set.project.rendering.ySortLayers.desc': {
         en: 'Entities on a checked layer draw in world-Y order (lower on screen on top) — top-down occlusion. Within a y-sorted layer, paint order wins over material batching.',
@@ -196,5 +204,9 @@ export const settingsMessages = defineMessages({
     'toast.backendReload': {
         en: 'Reload to render with {backend}',
         zh: '重新加载后使用 {backend} 渲染',
+    },
+    'toast.colorSpaceReload': {
+        en: 'Reload to apply the new color space',
+        zh: '重新加载后应用新的色彩空间',
     },
 });

@@ -175,6 +175,7 @@ async function buildAppAndRun(msg: InitMessage): Promise<void> {
   app = createWebApp(module, {
     glContextHandle: glHandle,
     ySortLayers: msg.ySortLayers,
+    colorSpace: msg.colorSpace,
     getViewportSize: () => ({ width: canvas.width, height: canvas.height }),
     wasmBaseUrl: wasmBase.replace(/\/$/, ''), // SDK appends "/<file>" — no trailing slash
   });

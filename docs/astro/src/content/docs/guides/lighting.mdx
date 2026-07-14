@@ -171,6 +171,27 @@ Shadow **quality** is controlled on the light, not the caster:
 - **`shadowDistance`** — for a **Directional** light, how far its shadows extend; `0`
   leaves a directional light shadow-free.
 
+## Linear color space
+
+By default the engine renders **gamma-space** — colors blend as-authored, the way 2D
+pipelines classically have. A project can switch to the **linear-light pipeline**:
+textures decode from sRGB to linear on sample (in hardware), lights and tints blend in
+linear light, and the finished frame encodes back to sRGB in the final blit.
+
+Physically-correct blending changes how light *accumulates*: falloffs stop crushing to
+black, and overlapping lights add like light instead of paint. Unlit art round-trips
+unchanged — decode followed by encode is an identity — so switching does not repaint
+your sprites; the difference shows wherever colors mix.
+
+Enable it in **Project Settings → Rendering → Color space → Linear**. Shaders compile
+against the mode, so it is fixed at engine boot — the editor prompts for a reload. The
+setting rides the project manifest: the viewport, Play, and every export — web, desktop,
+WeChat, playable — boot the same pipeline. Code-first projects pass it at app creation:
+
+```typescript
+const app = createWebApp(module, { colorSpace: 'linear' });
+```
+
 ## In the editor
 
 - **Add a light** via **Create… → Light**, or add a `Light2D` component to an existing

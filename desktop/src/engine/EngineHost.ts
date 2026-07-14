@@ -22,6 +22,7 @@ import { SceneLoader } from './SceneLoader';
 import { useSettings } from '@/store/settingsStore';
 import { loadEditorSpine } from './spineLoad';
 import { checkEngineBuild } from './EngineGuard';
+import { PROJECT_MANIFEST_FILE } from '@/project/format';
 import type { ReadonlyWorldT, WorldT } from './schema';
 
 // Scene the editor opens on boot (placeholder until a project/open-scene flow exists).
@@ -53,6 +54,8 @@ class EngineHostImpl {
   private booted = false;
   /** The GPU backend the viewport actually booted with (after availability fallback). */
   activeBackend: 'webgl2' | 'webgpu' = 'webgl2';
+  /** The color space the engine booted with (Project Settings → Rendering; boot-fixed). */
+  activeColorSpace: 'gamma' | 'linear' = 'gamma';
   private resizeObserver: ResizeObserver | null = null;
 
   private readonly statusStore = createStore<EngineSnapshot>(() => ({ status: 'idle', error: null }));
@@ -380,9 +383,27 @@ class EngineHostImpl {
     try {
       const canvas = this.ensureCanvas();
       const backend = await this.resolveBackend();
-      await this.bootCore(canvas, { runLoop: true, loadInitialScene: true, backend });
+      const colorSpace = await this.resolveColorSpace();
+      await this.bootCore(canvas, { runLoop: true, loadInitialScene: true, backend, colorSpace });
     } catch (err) {
       this.swallowUnwind(err);
+    }
+  }
+
+  /**
+   * The project's declared color space (Project Settings → Rendering), read
+   * straight from the manifest: shaders compile against it, so it must be known
+   * before bootCore — and EngineHost cannot import ProjectStore (which imports
+   * EngineHost). No project / unreadable manifest ⇒ the default gamma pipeline.
+   */
+  private async resolveColorSpace(): Promise<'gamma' | 'linear'> {
+    try {
+      const raw = JSON.parse(await window.estella.fs.read(PROJECT_MANIFEST_FILE)) as {
+        features?: { rendering?: { colorSpace?: unknown } };
+      };
+      return raw.features?.rendering?.colorSpace === 'linear' ? 'linear' : 'gamma';
+    } catch {
+      return 'gamma';
     }
   }
 
@@ -453,7 +474,8 @@ class EngineHostImpl {
   ) {
     const backend = opts.backend ?? 'webgl2';
     this.activeBackend = backend;
-    console.info(`[engine] backend: ${backend}`);
+    this.activeColorSpace = opts.colorSpace ?? 'gamma';
+    console.info(`[engine] backend: ${backend}, colorSpace: ${this.activeColorSpace}`);
     // Early build-consistency check: compare the wasm's stamped manifest
     // (variant / ABI / provenance) against this SDK before the heavy
     // instantiate. Advisory only — the runtime bridge handshake is the

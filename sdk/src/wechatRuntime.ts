@@ -76,6 +76,8 @@ export interface WeChatRuntimeConfig {
     audioConfig?: AudioProjectConfig;
     /** Bitmask of render layers (0..31) that y-sort within the layer (Project Settings → Rendering). */
     ySortLayers?: number;
+    /** Project color space — 'linear' boots the linear-light pipeline (Project Settings → Rendering). */
+    colorSpace?: 'gamma' | 'linear';
     /** id → emscripten factory (`require('./wasm/<file>.js')`); the generated
      *  game.js supplies exactly the modules the scene needs. Physics + spine
      *  self-gate off these via {@link createWeChatSideModuleHost}. */
@@ -140,6 +142,7 @@ export async function initWeChatRuntime(config: WeChatRuntimeConfig): Promise<vo
     const app = createWebApp(module, {
         glContextHandle: glHandle,
         ySortLayers: config.ySortLayers,
+        colorSpace: config.colorSpace,
         getViewportSize: () => ({
             width: canvas.width,
             height: canvas.height,

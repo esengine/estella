@@ -9,6 +9,8 @@
  */
 import { settingsRegistry } from './registry';
 import { ProjectStore } from '@/project/ProjectStore';
+import { EngineHost } from '@/engine/EngineHost';
+import { Toasts } from '@/store/Toasts';
 import { t } from '@/i18n';
 
 // ── Display (design/reference resolution; seeds new Canvas entities) ──
@@ -57,6 +59,35 @@ settingsRegistry.register({
   bind: {
     get: () => ProjectStore.renderingFeature().sortingLayers,
     set: (v) => void ProjectStore.setRendering({ sortingLayers: v }),
+  },
+});
+
+settingsRegistry.register({
+  id: 'project.rendering.colorSpace',
+  type: 'enum',
+  scope: 'project',
+  section: 'rendering',
+  group: t('set.group.colorSpace'),
+  label: t('set.project.rendering.colorSpace'),
+  description: t('set.project.rendering.colorSpace.desc'),
+  default: 'gamma',
+  segmented: true,
+  options: [
+    { value: 'gamma', label: t('set.project.rendering.colorSpace.gamma') },
+    { value: 'linear', label: t('set.project.rendering.colorSpace.linear') },
+  ],
+  bind: {
+    get: () => ProjectStore.renderingFeature().colorSpace,
+    // Shaders compile against the color space, so it is fixed at engine boot —
+    // persist, then prompt for a reload when it differs from the live frame
+    // (the renderer.backend precedent).
+    set: (v) => {
+      void ProjectStore.setRendering({ colorSpace: v as 'gamma' | 'linear' });
+      if (v !== EngineHost.activeColorSpace) {
+        Toasts.push(t('toast.colorSpaceReload'), 'info', 8000,
+          { label: t('ui.reloadNow'), run: () => location.reload() });
+      }
+    },
   },
 });
 

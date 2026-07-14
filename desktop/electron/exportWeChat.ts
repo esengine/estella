@@ -256,6 +256,8 @@ export async function exportWeChat(opts: {
   orientation?: 'portrait' | 'landscape';
   /** Bitmask of render layers (0..31) that y-sort (Project Settings → Rendering). */
   ySortLayers?: number;
+  /** Project color space — 'linear' boots the mini-game on the linear-light pipeline. */
+  colorSpace?: 'gamma' | 'linear';
   minify?: boolean;
   /** Emit content-addressed asset filenames (<hash><ext>) for dedup + immutable caching. */
   contentAddressed?: boolean;
@@ -369,7 +371,7 @@ export async function exportWeChat(opts: {
     `import { initWeChatRuntime } from 'esengine';\n` +
     (scriptsAbs && existsSync(scriptsAbs) ? `import ${JSON.stringify(scriptsAbs)};\n` : '') +
     `export function boot(engineFactory, sideModuleFactories) {\n` +
-    `  return initWeChatRuntime({ engineFactory, engineWasmPath: ${JSON.stringify(engineWasmPath)}, sideModuleFactories, sceneNames: ${JSON.stringify(scenes.map((s) => s.name))}, firstScene: ${JSON.stringify(sceneName)}${opts.ySortLayers ? `, ySortLayers: ${opts.ySortLayers >>> 0}` : ''} });\n` +
+    `  return initWeChatRuntime({ engineFactory, engineWasmPath: ${JSON.stringify(engineWasmPath)}, sideModuleFactories, sceneNames: ${JSON.stringify(scenes.map((s) => s.name))}, firstScene: ${JSON.stringify(sceneName)}${opts.ySortLayers ? `, ySortLayers: ${opts.ySortLayers >>> 0}` : ''}${opts.colorSpace === 'linear' ? `, colorSpace: 'linear'` : ''} });\n` +
     `}\n`;
   progress({ phase: 'Bundling game' });
   try {

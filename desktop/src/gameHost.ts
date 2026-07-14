@@ -20,6 +20,8 @@ interface GameConfig {
   scenes?: Array<{ name: string; path: string }>;
   /** Bitmask of render layers (0..31) that y-sort within the layer. */
   ySortLayers?: number;
+  /** Project color space — 'linear' boots the linear-light pipeline. */
+  colorSpace?: 'gamma' | 'linear';
 }
 interface CookedManifest {
   entries: { uuid: string; path: string; sourcePath?: string; type: string; atlas?: CookedAtlasInfo }[];
@@ -103,6 +105,7 @@ async function boot(): Promise<void> {
   const app = createWebApp(module, {
     glContextHandle: glHandle,
     ySortLayers: cfg.ySortLayers,
+    colorSpace: cfg.colorSpace,
     getViewportSize: () => ({ width: canvas.width, height: canvas.height }),
     wasmBaseUrl: wasmBase.replace(/\/$/, ''), // SDK appends "/<file>" — no trailing slash
   });

@@ -145,6 +145,8 @@ export async function exportPlayable(opts: {
   minify?: boolean;
   /** Bitmask of render layers (0..31) that y-sort (Project Settings → Rendering). */
   ySortLayers?: number;
+  /** Project color space — 'linear' boots the playable on the linear-light pipeline. */
+  colorSpace?: 'gamma' | 'linear';
   onProgress?: OnExportProgress;
 }): Promise<ExportPlayableResult> {
   const title = opts.title ?? 'Game';
@@ -259,7 +261,8 @@ export async function exportPlayable(opts: {
     `window.__GAME_PATHMAP__=${JSON.stringify(pathMap)};` +
     `window.__GAME_SCENES__=${JSON.stringify(scenes)};` +
     `window.__GAME_FIRST__=${JSON.stringify(sceneName)};` +
-    `window.__GAME_YSORT__=${(opts.ySortLayers ?? 0) >>> 0};`;
+    `window.__GAME_YSORT__=${(opts.ySortLayers ?? 0) >>> 0};` +
+    `window.__GAME_COLORSPACE__=${JSON.stringify(opts.colorSpace === 'linear' ? 'linear' : 'gamma')};`;
   const outFile = path.join(absOut, 'index.html');
   await writeFile(outFile, indexHtml(title, globals, bundle));
   await rm(cookDir, { recursive: true, force: true });

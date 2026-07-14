@@ -88,6 +88,10 @@ export interface ProjectFeatures {
     sortingLayers?: string[];
     /** Indices of sorting layers that y-sort within the layer (top-down occlusion). */
     ySortLayers?: number[];
+    /** Render color space. 'linear' = linear-light pipeline (sRGB decode on
+     *  sample, linear blending, OETF at the final blit). Fixed at engine boot —
+     *  shaders compile against it. Absent ⇒ 'gamma'. */
+    colorSpace?: 'linear';
   };
   /** Project mixer state (bus volumes / custom buses / effects / duck rules). */
   audio?: AudioProjectConfig;
@@ -280,6 +284,8 @@ export function parseManifest(raw: unknown): ProjectManifest {
         rendering.ySortLayers = r.ySortLayers
           .filter((n): n is number => typeof n === 'number' && Number.isInteger(n) && n >= 0 && n < 32);
       }
+      // Only 'linear' persists; 'gamma' (the default) is expressed by absence.
+      if (r.colorSpace === 'linear') rendering.colorSpace = 'linear';
       if (Object.keys(rendering).length > 0) features.rendering = rendering;
     }
     if (f.audio && typeof f.audio === 'object') {

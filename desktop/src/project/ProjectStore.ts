@@ -788,6 +788,7 @@ class ProjectStoreImpl {
     physicsConfig?: PhysicsPluginConfig;
     audioConfig?: AudioProjectConfig;
     ySortLayers?: number;
+    colorSpace?: 'gamma' | 'linear';
   } | null {
     const sceneData = SceneModel.serialize();
     if (!sceneData) return null;
@@ -817,10 +818,12 @@ class ProjectStoreImpl {
     }
     const ySortLayers = this.ySortMask();
     const audioConfig = this.audioFeature();
+    const colorSpace = this.renderingFeature().colorSpace;
     return {
       sceneData, assetManifest, physicsEnabled: f.enabled, physicsConfig,
       ...(audioConfig.buses ? { audioConfig } : {}),
       ...(ySortLayers !== 0 ? { ySortLayers } : {}),
+      ...(colorSpace === 'linear' ? { colorSpace } : {}),
     };
   }
 
@@ -881,11 +884,12 @@ class ProjectStoreImpl {
   }
 
   /** Named render sorting layers (z-order = slot index). Default empty list. */
-  renderingFeature(): { sortingLayers: string[]; ySortLayers: number[] } {
+  renderingFeature(): { sortingLayers: string[]; ySortLayers: number[]; colorSpace: 'gamma' | 'linear' } {
     const r = this.state?.features?.rendering;
     return {
       sortingLayers: Array.from({ length: 8 }, (_, i) => r?.sortingLayers?.[i] ?? ''),
       ySortLayers: r?.ySortLayers ?? [],
+      colorSpace: r?.colorSpace === 'linear' ? 'linear' : 'gamma',
     };
   }
 
@@ -904,11 +908,18 @@ class ProjectStoreImpl {
       .filter((o) => o.label !== '');
   }
 
-  /** Set rendering-feature config (sorting layers, y-sort) and persist to the manifest. */
-  async setRendering(patch: { sortingLayers?: string[]; ySortLayers?: number[] }): Promise<void> {
+  /** Set rendering-feature config (sorting layers, y-sort, color space) and persist
+   *  to the manifest. Sorting/y-sort live-apply; colorSpace is boot-fixed (shaders
+   *  compile against it) — the settings page prompts for a reload, like the backend. */
+  async setRendering(patch: { sortingLayers?: string[]; ySortLayers?: number[]; colorSpace?: 'gamma' | 'linear' }): Promise<void> {
     const st = this.state;
     if (!st) return;
-    const rendering: NonNullable<ProjectFeatures['rendering']> = { ...st.features?.rendering, ...patch };
+    const rendering: NonNullable<ProjectFeatures['rendering']> = { ...st.features?.rendering };
+    if (patch.sortingLayers) rendering.sortingLayers = patch.sortingLayers;
+    if (patch.ySortLayers) rendering.ySortLayers = patch.ySortLayers;
+    // 'gamma' is the default — expressed by ABSENCE so untouched manifests stay untouched.
+    if (patch.colorSpace === 'linear') rendering.colorSpace = 'linear';
+    else if (patch.colorSpace === 'gamma') delete rendering.colorSpace;
     const features: ProjectFeatures = { ...st.features, rendering };
     this.store.setState({ project: { ...st, features } });
     Renderer.setYSortLayers(this.ySortMask());

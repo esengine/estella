@@ -61,6 +61,8 @@ export interface PlayPayload {
   audioConfig?: AudioProjectConfig;
   /** Bitmask of render layers (0..31) that y-sort within the layer — forwarded. */
   ySortLayers?: number;
+  /** Project color space — 'linear' boots the realm on the linear-light pipeline. */
+  colorSpace?: 'gamma' | 'linear';
   /** Multiplayer preview role; absent = a plain single-player session. */
   net?: PlayNetConfig;
 }

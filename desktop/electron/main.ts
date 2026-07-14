@@ -579,12 +579,14 @@ ipcMain.handle(
     const plat = manifest.packaging?.platforms;
     const ySortLayers =
       (manifest.features?.rendering?.ySortLayers ?? []).reduce((m, i) => m | (1 << i), 0) >>> 0;
+    const colorSpace = manifest.features?.rendering?.colorSpace === 'linear' ? 'linear' as const : undefined;
     return exportGame({
       root,
       entryScene,
       scenesDir: resolveLayout(manifest).scenes,
       excludeScenes: manifest.packaging?.excludeScenes,
       ySortLayers,
+      colorSpace,
       gameHostEntry: path.join(HOSTS_DIR, 'gameHost.js'),
       playableHostEntry: path.join(HOSTS_DIR, 'playableHost.js'),
       scriptsEntry: resolveScripts(manifest).main,
