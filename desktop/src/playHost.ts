@@ -18,7 +18,7 @@ import { createWebApp, setEditorMode, setPlayMode, initPlayRealmRuntime, getComp
 import type { App, ESEngineModule, SceneData } from 'esengine';
 import { PLAY_PROTOCOL_VERSION } from './engine/playProtocol';
 import type { PlayOutbound, PlayInbound } from './engine/playProtocol';
-import { translateAssetHandles } from './engine/liveAssetRefs';
+import { translateAssetHandles, projectRelative } from './engine/liveAssetRefs';
 
 type LiveEntity = SceneData['entities'][number];
 
@@ -76,8 +76,13 @@ function liveSnapshot(world: App['world'], selectedId: number | null): { tree: S
     // The World stores HANDLES in asset slots; the inspector speaks REFS —
     // translate at this boundary via the realm's own Assets, so the Details
     // panel names the asset instead of flagging a live handle as "empty".
+    // This realm's loads resolve to fetchable estella:// URLs; strip the
+    // project origin so the editor registry can name the result.
     const assets = app?.getResource(Assets) ?? null;
-    const components = translateAssetHandles(raw, (kind, handle) => assets?.pathForHandle(kind, handle) ?? null);
+    const components = translateAssetHandles(raw, (kind, handle) => {
+      const p = assets?.pathForHandle(kind, handle) ?? null;
+      return p === null ? null : projectRelative(p, projectBase);
+    });
     selected = { id: selectedId, name: nameOf(selectedId), parent: parentOf.get(selectedId) ?? null, children: childrenOf.get(selectedId) ?? [], components } as unknown as LiveEntity;
   }
   return { tree, selected };

@@ -17,6 +17,17 @@ export interface LiveComponent {
 }
 
 /**
+ * A realm's Assets records the FETCHABLE form of every load path (its ref
+ * resolver returns URLs — `estella://project/assets/x.png`); the inspector
+ * speaks PROJECT-RELATIVE refs. Strip the origin so the translated value is
+ * something the editor registry can name (thumbnail, locate). Pure.
+ */
+export function projectRelative(path: string, originBase: string): string {
+  const prefix = `${originBase.replace(/\/$/, '')}/`;
+  return path.startsWith(prefix) ? path.slice(prefix.length) : path;
+}
+
+/**
  * Rewrite handle-valued asset fields to the load paths behind them, via
  * `pathForHandle` (the realm Assets' reverse map — see Assets.pathForHandle).
  * Handles nobody can name (0, or minted outside the Assets channel) pass

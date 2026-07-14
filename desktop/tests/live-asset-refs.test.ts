@@ -8,7 +8,7 @@
  *        Assets recorded — and leaves everything it can't name untouched.
  */
 import { describe, it, expect } from 'vitest';
-import { translateAssetHandles } from '../src/engine/liveAssetRefs';
+import { translateAssetHandles, projectRelative } from '../src/engine/liveAssetRefs';
 
 const resolver = (kind: string, handle: number): string | null =>
   kind === 'texture' && handle === 7 ? 'assets/art/hero.png' : null;
@@ -44,5 +44,19 @@ describe('translateAssetHandles', () => {
       () => 'should-not-be-asked',
     );
     expect(out[0].data.source).toBe('assets/maps/level1.tmj');
+  });
+});
+
+describe('projectRelative', () => {
+  it('strips the realm origin so the editor registry can name the asset', () => {
+    expect(projectRelative('estella://project/assets/art/hero.png', 'estella://project'))
+      .toBe('assets/art/hero.png');
+    expect(projectRelative('estella://project/assets/x.png', 'estella://project/'))
+      .toBe('assets/x.png'); // trailing-slash base normalizes
+  });
+
+  it('passes through paths from other origins / already-relative paths', () => {
+    expect(projectRelative('assets/art/hero.png', 'estella://project')).toBe('assets/art/hero.png');
+    expect(projectRelative('https://cdn/x.png', 'estella://project')).toBe('https://cdn/x.png');
   });
 });
