@@ -33,6 +33,7 @@ import { httpContentType } from './mimeTypes';
 import { buildPlayRealm } from './buildPlayRealm';
 import { syncSdkTypes } from './syncSdkTypes';
 import { installCrashCapture, logsDir } from './resilience';
+import { mcpMode, startMcpEndpoint } from './mcpEndpoint';
 import { checkForUpdate } from './updateCheck';
 import { resolveLayout, resolveScripts } from '../src/project/format';
 import type { WorkspaceState } from '../src/project/format';
@@ -353,8 +354,10 @@ function createWindow() {
 
   // Screenshot/visual-regression mode (ESTELLA_SHOT=out.png): open ?automation=1 so
   // the renderer hook is live, then drive the launcher→editor flow and capturePage.
+  // MCP mode (--mcp) rides the same renderer hook — the exec endpoint drives
+  // window.__estellaEditor instead of the screenshot flow.
   const shotOut = process.env.ESTELLA_SHOT;
-  const automation = shotOut ? '?automation=1' : '';
+  const automation = shotOut || mcpMode() ? '?automation=1' : '';
 
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL + automation);
@@ -367,6 +370,7 @@ function createWindow() {
   }
 
   if (shotOut) void runScreenshot(win, shotOut);
+  if (mcpMode()) void startMcpEndpoint(() => win);
 
   // Unsaved-changes quit guard: prompt before closing a window with a dirty scene.
   // `sceneDirty` is pushed from the renderer (app:dirty); `quitting` lets the chosen

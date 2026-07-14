@@ -11,22 +11,28 @@
  *        entry (editor-mcp.mjs) supplies the executeJavaScript driver and the
  *        MCP SDK wiring. See docs/REARCH_EDITOR_ARCH.md §11.
  *
- * Two tool shapes:
- *   - method tools: `{ method, args(input) }` → driver(method, args) — a surface call.
+ * Tool shapes:
+ *   - method tools: `{ method, args(input) }` → driver(method, args, root) — a
+ *     surface call; `root: 'editor'` targets `window.__estellaEditor` (project /
+ *     asset / play doors of the LIVE editor host) instead of the scene surface.
  *   - renderer-code tools: `{ js(input) }` → driver.js(code) — for routines that
- *     need the renderer's DOM (canvas PNG encode); still surface-only underneath.
+ *     need the renderer's DOM (canvas PNG encode, window.estella bridge calls).
+ *   - main-process ops: `{ op }` → driver.op(op) — host-side routines like the
+ *     composited-window screenshot (the only way to see the play realm's OOPIF).
  *
- * Mutating tools carry `write: true` and are hidden + refused unless the host
- * enables writes (ESTELLA_MCP_ALLOW_WRITES=1) — an agent can observe by default
- * but cannot silently rewrite a scene.
+ * Editor-host tools fail with a pointer when called on the headless fixtures
+ * host. Mutating tools carry `write: true` and are hidden + refused unless the
+ * host enables writes (ESTELLA_MCP_ALLOW_WRITES=1) — an agent can observe by
+ * default but cannot silently rewrite a scene or a project.
  */
 
 const obj = (properties, required = []) => ({ type: 'object', properties, required });
 
 // Render the viewport to a base64 PNG. Runs in the renderer (needs document):
 // captureViewport returns bottom-up GL rows, so flip Y into a 2D canvas first.
+// Resolves the surface on either host (headless fixtures / live editor).
 const CAPTURE_PNG_JS = `(() => {
-  const c = window.__estellaHeadless.api.captureViewport();
+  const c = (window.__estellaHeadless?.api ?? window.__estellaEditor.surface).captureViewport();
   const { rgba, width, height } = c;
   const cv = document.createElement('canvas'); cv.width = width; cv.height = height;
   const ctx = cv.getContext('2d');
@@ -123,6 +129,84 @@ export const TOOLS = [
     schema: obj({}), method: 'getSubsystems', args: () => [] },
   { name: 'undo', write: true, description: 'Undo the last edit.', schema: obj({}), method: 'undo', args: () => [] },
   { name: 'redo', write: true, description: 'Redo the last undone edit.', schema: obj({}), method: 'redo', args: () => [] },
+
+  // — Editor-host tools (root: 'editor'): the project/asset/play doors of the LIVE
+  //   editor app. On the headless fixtures host these fail with a pointer to
+  //   `editor-mcp.mjs --editor`. —
+  { name: 'list_project_templates',
+    description: 'New-project templates the editor ships (blank starter + sample projects). Use a returned dir with create_project.',
+    schema: obj({}), js: () => `window.estella.templates.list()` },
+  { name: 'create_project', write: true,
+    description: 'Create a new project from a template directory (see list_project_templates) at <location>/<name>; returns the new project root. Follow with open_project.',
+    schema: obj({ templateDir: { type: 'string' }, location: { type: 'string' }, name: { type: 'string' } },
+      ['templateDir', 'location', 'name']),
+    js: (i) => `window.estella.project.createFromTemplate(${JSON.stringify(i.templateDir)}, ${JSON.stringify(i.location)}, ${JSON.stringify(i.name)})` },
+  { name: 'open_project',
+    description: 'Open a project by absolute root path and enter the editor. Call before any scene/asset work on the editor host.',
+    schema: obj({ root: { type: 'string' } }, ['root']),
+    js: (i) => `window.__estellaEditor.open(${JSON.stringify(i.root)}).then((ok) => { window.__estellaEditor.enterEditor(); return ok; })` },
+  { name: 'open_scene',
+    description: 'Open a scene by project-relative path (e.g. assets/scenes/main.esscene) in the editor.',
+    schema: obj({ path: { type: 'string' } }, ['path']),
+    method: 'openScene', args: (i) => [i.path], root: 'editor' },
+  { name: 'save_scene', write: true,
+    description: 'Save the open scene to disk (the toolbar Save).',
+    schema: obj({}), method: 'save', args: () => [], root: 'editor' },
+  { name: 'create_scene_file', write: true,
+    description: 'Create a blank scene FILE under a project-relative directory (does not switch to it); returns its path.',
+    schema: obj({ destDir: { type: 'string' } }, ['destDir']),
+    method: 'createSceneFile', args: (i) => [i.destDir], root: 'editor' },
+  { name: 'create_asset', write: true,
+    description: 'Create a text asset file under a project-relative directory with the given content (types the editor knows: scene, inputmap, locale, fsm, bt, timeline, animclip, tileset, material, shader, prefab...). Returns its project-relative path.',
+    schema: obj({
+      destDir: { type: 'string' }, baseName: { type: 'string' },
+      content: { type: 'string' }, type: { type: 'string' },
+    }, ['destDir', 'baseName', 'content', 'type']),
+    js: (i) => `window.estella.project.createAsset(${JSON.stringify(i.destDir)}, ${JSON.stringify(i.baseName)}, ${JSON.stringify(i.content)}, ${JSON.stringify(i.type)})` },
+  { name: 'import_assets', write: true,
+    description: 'Import external files (absolute paths: textures, audio, fonts, spine, tilemaps...) into a project-relative directory. Returns { imported, skipped }.',
+    schema: obj({ destDir: { type: 'string' }, sources: { type: 'object', description: 'array of absolute file paths' } },
+      ['destDir', 'sources']),
+    js: (i) => `window.estella.project.importFiles(${JSON.stringify(i.destDir)}, ${JSON.stringify(i.sources)})` },
+  { name: 'list_entity_templates',
+    description: "The Create-popover catalog: every ready-made entity the editor can spawn (id, label, category). Use an id with create_entity.",
+    schema: obj({}), method: 'listEntityTemplates', args: () => [], root: 'editor' },
+  { name: 'create_entity', write: true,
+    description: 'Spawn a ready-made entity from a template id (see list_entity_templates) through the same pipeline as the Create menu; returns the new entity id. Optional world position and parent.',
+    schema: obj({
+      template: { type: 'string' }, parent: { type: ['number', 'null'] },
+      x: { type: 'number' }, y: { type: 'number' },
+    }, ['template']),
+    method: 'createEntity',
+    args: (i) => [i.template, { parent: i.parent ?? null, x: i.x, y: i.y }], root: 'editor' },
+  { name: 'toggle_play',
+    description: 'Toggle play mode in the editor (check get_play_state first; play runs the game in an isolated realm and never dirties the edit scene).',
+    schema: obj({}), method: 'play', args: () => [], root: 'editor' },
+  { name: 'get_play_state',
+    description: 'The play realm state: { playing, ready, error }.',
+    schema: obj({}), method: 'playState', args: () => [], root: 'editor' },
+  { name: 'screenshot',
+    description: 'Capture the composited editor window as a PNG (includes the play realm iframe — use this to SEE gameplay; capture_viewport only sees the edit viewport).',
+    schema: obj({}), op: 'screenshot', image: true },
+  { name: 'world_component',
+    description: "A LIVE World component's data for a source entity, resolved by component name — verifies an edit actually reached the engine.",
+    schema: obj({ id: { type: 'number' }, component: { type: 'string' } }, ['id', 'component']),
+    method: 'worldComp', args: (i) => [i.id, i.component], root: 'editor' },
+  { name: 'run_editor_command', write: true,
+    description: 'Dispatch any registered editor command by id (the UI\'s own channel) — the escape hatch for operations without a dedicated tool.',
+    schema: obj({ id: { type: 'string' } }, ['id']),
+    method: 'runCommand', args: (i) => [i.id], root: 'editor' },
+  { name: 'export_game', write: true,
+    description: 'Build + export the open project. platform: web | desktop | wechat | playable. Returns the export result (outDir, files...).',
+    schema: obj({
+      platform: { type: 'string' }, outDir: { type: 'string' },
+      minify: { type: 'boolean' }, compressTextures: { type: 'boolean' },
+      compressAudio: { type: 'boolean' }, atlasTextures: { type: 'boolean' },
+    }, ['platform']),
+    js: (i) => `window.estella.project.exportGame(${JSON.stringify({
+      platform: i.platform, outDir: i.outDir, minify: i.minify,
+      compressTextures: i.compressTextures, compressAudio: i.compressAudio, atlasTextures: i.atlasTextures,
+    })})` },
 ];
 
 /** MCP resources — read-only surface views an MCP client can subscribe to. */
@@ -164,9 +248,10 @@ function validate(schema, raw) {
 
 /**
  * Validate `rawInput`, invoke the surface via the driver, and wrap the result as
- * an MCP CallToolResult. Method tools call `driver(method, args)`; renderer-code
- * tools call `driver.js(code)`. A gated write without permission, a validation
- * failure, or a driver throw becomes an `isError` result rather than a crash.
+ * an MCP CallToolResult. Method tools call `driver(method, args, root)`;
+ * renderer-code tools call `driver.js(code)`; main-process ops call
+ * `driver.op(op)`. A gated write without permission, a validation failure, or a
+ * driver throw becomes an `isError` result rather than a crash.
  */
 export async function runTool(tool, driver, rawInput, allowWrites = true) {
   try {
@@ -174,13 +259,18 @@ export async function runTool(tool, driver, rawInput, allowWrites = true) {
       throw new Error(`tool ${tool.name} mutates the scene — start the server with ESTELLA_MCP_ALLOW_WRITES=1`);
     }
     const input = validate(tool.schema, rawInput);
-    if (tool.js) {
-      const data = await driver.js(tool.js(input));
+    if (tool.op) {
+      const data = await driver.op(tool.op, input);
       return tool.image
         ? { content: [{ type: 'image', data, mimeType: 'image/png' }] }
         : { content: [{ type: 'text', text: String(data) }] };
     }
-    const result = await driver(tool.method, tool.args(input));
+    if (tool.js) {
+      const data = await driver.js(tool.js(input));
+      if (tool.image) return { content: [{ type: 'image', data, mimeType: 'image/png' }] };
+      return { content: [{ type: 'text', text: data === undefined ? 'ok' : JSON.stringify(data) }] };
+    }
+    const result = await driver(tool.method, tool.args(input), tool.root);
     return { content: [{ type: 'text', text: result === undefined ? 'ok' : JSON.stringify(result) }] };
   } catch (err) {
     return { content: [{ type: 'text', text: `error: ${err?.message ?? String(err)}` }], isError: true };

@@ -22,6 +22,7 @@ import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createExecEndpoint } from './mcp-exec-endpoint.mjs';
 
 const DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist');
 const TOKEN = process.env.ESTELLA_MCP_TOKEN;
@@ -59,13 +60,6 @@ function serveDist() {
   return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server)));
 }
 
-const readBody = (req) => new Promise((resolve, reject) => {
-  const chunks = [];
-  req.on('data', (c) => chunks.push(c));
-  req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
-  req.on('error', reject);
-});
-
 // Keep the process alive on the hidden window (this is a long-running host).
 app.on('window-all-closed', () => {});
 
@@ -84,26 +78,25 @@ app.whenReady().then(async () => {
 
     // The exec endpoint: marshal a surface call ({method, args}) or a renderer-code
     // snippet ({js}) into the headless renderer. `undefined` args become the JS
-    // `undefined` literal so the surface's default parameters apply.
-    const exec = http.createServer(async (req, res) => {
-      const reply = (code, body) => {
-        res.writeHead(code, { 'content-type': 'application/json' });
-        res.end(JSON.stringify(body));
-      };
-      if (req.method !== 'POST' || req.url !== '/exec') return reply(404, { ok: false, error: 'not found' });
-      if (req.headers['x-estella-mcp-token'] !== TOKEN) return reply(403, { ok: false, error: 'bad token' });
-      try {
-        const { method, args, js } = JSON.parse(await readBody(req));
+    // `undefined` literal so the surface's default parameters apply. Editor-only
+    // tools (root: 'editor' — project/asset/play operations) have no meaning in a
+    // fixtures host; fail them with the pointer to the right host.
+    const exec = await createExecEndpoint({
+      token: TOKEN,
+      run: async ({ method, args, root, js, op }) => {
+        if (op === 'screenshot') {
+          const image = await win.webContents.capturePage();
+          return image.toPNG().toString('base64');
+        }
+        if (root === 'editor') {
+          throw new Error(`${method} needs the live editor host — connect through editor-mcp.mjs --editor (or --attach)`);
+        }
         const code = js ?? `window.__estellaHeadless.api.${method}(${(args ?? [])
           .map((a) => (a === undefined ? 'undefined' : JSON.stringify(a)))
           .join(',')})`;
-        const result = await win.webContents.executeJavaScript(code, true);
-        reply(200, { ok: true, hasResult: result !== undefined, result: result === undefined ? null : result });
-      } catch (e) {
-        reply(200, { ok: false, error: String((e && e.message) || e) });
-      }
+        return win.webContents.executeJavaScript(code, true);
+      },
     });
-    await new Promise((resolve) => exec.listen(0, '127.0.0.1', resolve));
 
     // The front reads this line to learn the port; everything else goes to stderr.
     process.stdout.write(`MCP_HOST_READY ${JSON.stringify({ port: exec.address().port })}\n`);

@@ -8,10 +8,11 @@ import { TOOLS, RESOURCES, runTool, listTools } from '../scripts/editor-mcp-tool
 // surface method. These cover the pure dispatch layer (no Electron) — the Electron entry
 // only supplies the executeJavaScript driver.
 describe('editor MCP tool registry', () => {
-  it('every tool has a unique name and either a surface method or renderer code', () => {
+  it('every tool has a unique name and a surface method, renderer code, or host op', () => {
     const names = new Set<string>();
-    for (const t of TOOLS as Array<{ name: string; method?: string; args?: unknown; js?: unknown }>) {
+    for (const t of TOOLS as Array<{ name: string; method?: string; args?: unknown; js?: unknown; op?: unknown }>) {
       if (t.js) expect(typeof t.js).toBe('function');
+      else if (t.op) expect(typeof t.op).toBe('string');
       else {
         expect(typeof t.method).toBe('string');
         expect(typeof t.args).toBe('function');
@@ -22,13 +23,34 @@ describe('editor MCP tool registry', () => {
     expect(TOOLS.length).toBeGreaterThan(10);
   });
 
+  it('editor-root tools pass their root through to the driver', async () => {
+    const driver = vi.fn(async () => 3);
+    const createEntity = TOOLS.find((t: { name: string }) => t.name === 'create_entity');
+    const res = await runTool(createEntity, driver, { template: 'anchor:Sprite', x: 10, y: 20 });
+    expect(driver).toHaveBeenCalledWith(
+      'createEntity',
+      ['anchor:Sprite', { parent: null, x: 10, y: 20 }],
+      'editor',
+    );
+    expect(res.content[0].text).toBe('3');
+  });
+
+  it('an op tool routes through driver.op and wraps as an image', async () => {
+    const driver = vi.fn() as unknown as { op: ReturnType<typeof vi.fn> } & ((...a: unknown[]) => unknown);
+    driver.op = vi.fn(async () => 'cGpn');
+    const shot = TOOLS.find((t: { name: string }) => t.name === 'screenshot');
+    const res = await runTool(shot, driver, {});
+    expect(driver.op).toHaveBeenCalledWith('screenshot', {});
+    expect(res.content[0]).toEqual({ type: 'image', data: 'cGpn', mimeType: 'image/png' });
+  });
+
   it('runTool validates input and calls the driver with (method, args)', async () => {
     const driver = vi.fn(async () => 42);
     const setField = TOOLS.find((t: { name: string }) => t.name === 'set_field');
     const res = await runTool(setField, driver, {
       entity: 1, component: 'Transform', key: 'position.x', type: 'float', value: 5,
     });
-    expect(driver).toHaveBeenCalledWith('setField', [1, 'Transform', 'position.x', 'float', 5]);
+    expect(driver).toHaveBeenCalledWith('setField', [1, 'Transform', 'position.x', 'float', 5], undefined);
     expect(res.content[0].text).toBe('42');
     expect(res.isError).toBeFalsy();
   });
