@@ -183,6 +183,11 @@ black, and overlapping lights add like light instead of paint. Unlit art round-t
 unchanged — decode followed by encode is an identity — so switching does not repaint
 your sprites; the difference shows wherever colors mix.
 
+Linear mode is also the door to **HDR**: where float render targets are available
+(WebGPU always; WebGL2 with `EXT_color_buffer_float`), the post-process chain runs in
+half-float, so a light with `intensity` above 1 pushes real over-range energy into
+[bloom and tonemap](/docs/guides/postprocess/) — bright lights glow.
+
 Enable it in **Project Settings → Rendering → Color space → Linear**. Shaders compile
 against the mode, so it is fixed at engine boot — the editor prompts for a reload. The
 setting rides the project manifest: the viewport, Play, and every export — web, desktop,

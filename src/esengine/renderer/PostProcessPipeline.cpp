@@ -65,18 +65,32 @@ void PostProcessPipeline::init(u32 width, u32 height) {
     initialized_ = true;
 }
 
+GfxPixelFormat PostProcessPipeline::interFormat() const {
+    if (!linear_output_) return GfxPixelFormat::RGBA8;
+    // Linear mode is HDR when float targets are renderable: half-float
+    // intermediates let light accumulation exceed 1.0, so bloom's bright-pass
+    // and tonemap see real over-range energy instead of values crushed at the
+    // 8-bit store. Without the capability (WebGL2 sans EXT_color_buffer_float),
+    // sRGB-encoded 8-bit keeps the linear pipeline correct at LDR precision.
+    return device_.supportsFloatTargets() ? GfxPixelFormat::RGBA16F
+                                          : GfxPixelFormat::SRGB8_ALPHA8;
+}
+
 void PostProcessPipeline::ensureFBOs() {
-    // Linear mode stores intermediates sRGB-encoded: 8-bit precision stays
-    // perceptually uniform while blending happens in linear light (hardware
-    // EOTF/OETF at the attachment boundary).
-    const GfxPixelFormat interFmt =
-        linear_output_ ? GfxPixelFormat::SRGB8_ALPHA8 : GfxPixelFormat::RGBA8;
+    const GfxPixelFormat interFmt = interFormat();
     if (!fboOriginalCreated_) {
         FramebufferSpec origSpec;
         origSpec.width = width_;
         origSpec.height = height_;
         origSpec.depthStencil = false;
         origSpec.colorFormat = interFmt;
+        // Bilinear intermediates: fullscreen passes sample at texel centers
+        // (where LINEAR == NEAREST), but Kawase blur deliberately samples at
+        // half-texel offsets — with NEAREST those land ON texel boundaries,
+        // whose rounding is backend-dependent (GL vs Dawn diverged visibly).
+        // LINEAR makes the tap a well-defined 2x2 average — the actual Kawase
+        // algorithm — identical on every backend.
+        origSpec.linearFilter = true;
 
         fboOriginal_ = Framebuffer::create(device_, origSpec);
         if (!fboOriginal_) {
@@ -84,6 +98,11 @@ void PostProcessPipeline::ensureFBOs() {
             return;
         }
         fboOriginalCreated_ = true;
+        if (linear_output_) {
+            ES_LOG_INFO("PostProcess intermediates: {}",
+                        interFmt == GfxPixelFormat::RGBA16F ? "RGBA16F (HDR)"
+                                                            : "SRGB8_ALPHA8 (LDR linear)");
+        }
     }
 
     if (fbosCreated_) return;
@@ -93,6 +112,7 @@ void PostProcessPipeline::ensureFBOs() {
     spec.height = height_;
     spec.depthStencil = false;
     spec.colorFormat = interFmt;
+    spec.linearFilter = true;  // see origSpec above — the blur chain needs bilinear taps
 
     fboA_ = Framebuffer::create(device_, spec);
     fboB_ = Framebuffer::create(device_, spec);
@@ -519,10 +539,14 @@ void PostProcessPipeline::ensureScreenFBO() {
     if (screenFBOCreated_) return;
 
     FramebufferSpec spec;
-    spec.colorFormat = linear_output_ ? GfxPixelFormat::SRGB8_ALPHA8 : GfxPixelFormat::RGBA8;
+    // The multi-camera composition surface carries scene values too — same
+    // format + filter story as the capture/ping-pong chain (HDR in
+    // linear+float mode; bilinear for the blur taps).
+    spec.colorFormat = interFormat();
     spec.width = width_;
     spec.height = height_;
     spec.depthStencil = false;
+    spec.linearFilter = true;
 
     screenFBO_ = Framebuffer::create(device_, spec);
     if (!screenFBO_) {

@@ -65,7 +65,9 @@ registerEffect({
     label: 'Bloom',
     factory: () => postProcessEffects.createBloomExtract(),
     uniforms: [
-        { name: 'u_threshold', label: 'Threshold', min: 0, max: 1, step: 0.01, defaultValue: 0.4 },
+        // Threshold reaches past 1: under the linear pipeline's HDR intermediates
+        // only over-range energy (bright lights) blooms, leaving LDR art crisp.
+        { name: 'u_threshold', label: 'Threshold', min: 0, max: 2, step: 0.01, defaultValue: 0.4 },
         { name: 'u_intensity', label: 'Intensity', min: 0, max: 5, step: 0.1, defaultValue: 1.5 },
         { name: 'u_radius', label: 'Radius', min: 0.5, max: 5, step: 0.1, defaultValue: 1 },
     ],

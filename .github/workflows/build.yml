@@ -287,6 +287,24 @@ jobs:
           ESTELLA_VERIFY_MANIFEST=/scenes/srgb-midtone.textures.json \
           ESTELLA_VERIFY_W=256 ESTELLA_VERIFY_H=256 ESTELLA_VERIFY_STEPS=2 \
           'ESTELLA_VERIFY_EXPECT=[{"x":0.5,"y":0.5,"rgb":[128,128,128],"tol":6}]'
+        # Post-process chain guards — bloom's first CI pixel coverage. The gamma
+        # scene pins the LDR multi-pass chain; the linear scene is the HDR
+        # discriminator: threshold 1.5 sits above anything an 8-bit chain can
+        # store, so glow OUTSIDE the sprite (x=0.64) proves over-range light
+        # survived the float intermediates — the same scene blooms NOTHING in
+        # gamma mode.
+        run_scene bloom-ldr \
+          ESTELLA_VERIFY_PLAY=1 \
+          ESTELLA_VERIFY_SCENE=/scenes/bloom-ldr.esscene \
+          ESTELLA_VERIFY_MANIFEST=/scenes/bloom-ldr.textures.json \
+          ESTELLA_VERIFY_W=256 ESTELLA_VERIFY_H=256 ESTELLA_VERIFY_STEPS=10 \
+          'ESTELLA_VERIFY_EXPECT=[{"x":0.61,"y":0.5,"rgb":[0,130,0],"tol":35},{"x":0.70,"y":0.5,"rgb":[0,32,0],"tol":25},{"x":0.85,"y":0.5,"rgb":[0,0,0],"tol":12}]'
+        run_scene hdr-bloom \
+          ESTELLA_VERIFY_PLAY=1 ESTELLA_VERIFY_COLORSPACE=linear \
+          ESTELLA_VERIFY_SCENE=/scenes/hdr-bloom.esscene \
+          ESTELLA_VERIFY_MANIFEST=/scenes/hdr-bloom.textures.json \
+          ESTELLA_VERIFY_W=256 ESTELLA_VERIFY_H=256 ESTELLA_VERIFY_STEPS=10 \
+          'ESTELLA_VERIFY_EXPECT=[{"x":0.5,"y":0.5,"rgb":[0,255,0],"tol":25},{"x":0.64,"y":0.5,"rgb":[0,255,0],"tol":35},{"x":0.85,"y":0.5,"rgb":[0,0,0],"tol":12}]'
 
     # The SAME pixel assertions on the WebGPU backend — Dawn renders through the
     # bundled SwiftShader Vulkan (--use-webgpu-adapter=swiftshader), so a GPU-less
@@ -354,3 +372,18 @@ jobs:
           ESTELLA_VERIFY_MANIFEST=/scenes/srgb-midtone.textures.json \
           ESTELLA_VERIFY_W=256 ESTELLA_VERIFY_H=256 ESTELLA_VERIFY_STEPS=2 \
           'ESTELLA_VERIFY_EXPECT=[{"x":0.5,"y":0.5,"rgb":[128,128,128],"tol":6}]'
+        # Bloom on the second backend — measured byte-identical to GL after the
+        # bind-group eviction fix (stale-id aliasing silently zeroed the WGSL
+        # chain's params); these scenes keep that regression impossible to miss.
+        run_scene webgpu-bloom-ldr \
+          ESTELLA_VERIFY_PLAY=1 \
+          ESTELLA_VERIFY_SCENE=/scenes/bloom-ldr.esscene \
+          ESTELLA_VERIFY_MANIFEST=/scenes/bloom-ldr.textures.json \
+          ESTELLA_VERIFY_W=256 ESTELLA_VERIFY_H=256 ESTELLA_VERIFY_STEPS=10 \
+          'ESTELLA_VERIFY_EXPECT=[{"x":0.61,"y":0.5,"rgb":[0,130,0],"tol":35},{"x":0.70,"y":0.5,"rgb":[0,32,0],"tol":25},{"x":0.85,"y":0.5,"rgb":[0,0,0],"tol":12}]'
+        run_scene webgpu-hdr-bloom \
+          ESTELLA_VERIFY_PLAY=1 ESTELLA_VERIFY_COLORSPACE=linear \
+          ESTELLA_VERIFY_SCENE=/scenes/hdr-bloom.esscene \
+          ESTELLA_VERIFY_MANIFEST=/scenes/hdr-bloom.textures.json \
+          ESTELLA_VERIFY_W=256 ESTELLA_VERIFY_H=256 ESTELLA_VERIFY_STEPS=10 \
+          'ESTELLA_VERIFY_EXPECT=[{"x":0.5,"y":0.5,"rgb":[0,255,0],"tol":25},{"x":0.64,"y":0.5,"rgb":[0,255,0],"tol":35},{"x":0.85,"y":0.5,"rgb":[0,0,0],"tol":12}]'

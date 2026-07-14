@@ -203,7 +203,7 @@ void main() {
         const source = `#pragma shader "PP Bloom Extract"
 #pragma version 300 es
 #pragma domain PostProcess
-#pragma param u_threshold float default(0.4) range(0,1)
+#pragma param u_threshold float default(0.4) range(0,2)
 
 #pragma fragment
 precision highp float;

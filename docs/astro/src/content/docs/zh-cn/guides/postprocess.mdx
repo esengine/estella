@@ -31,6 +31,21 @@ Estella 通过 ping-pong 帧缓冲运行全屏后处理。加一个 `PostProcess
 `lutGrade`),加进去不调参不改画面。少数一加就可见——`grayscale`(完全去色)、`vignette`、
 `bloom`、`outline`、`tonemap`(ACES 曲线恒生效)——这些只在你需要时才启用。
 
+## HDR(线性色彩空间)
+
+当项目以**线性色彩空间**渲染时(见[光照](/docs/zh-cn/guides/lighting/)),只要浮点渲染目标
+可用——WebGPU 恒可用,WebGL2 上是几乎无处不在的 `EXT_color_buffer_float`——效果链就跑在
+**半浮点 HDR** 上。超过 `1.0` 的光照累积(`intensity` 大于 1 的 `Light2D`)会*存活*进效果链,
+而不是在 8 位存储处被压平:
+
+- **`threshold` 大于 1 的 `bloom`** 只让超范围能量泛光——亮光发辉光,普通 LDR 美术保持锐利。
+  这就是经典的"自发光辉光"配方:拉高灯的 `intensity`,把 `threshold` 设在约 1.2–1.5。
+- **`tonemap`** 收到真正的 HDR 输入,ACES 曲线得以收卷高光,而不是对已压平的值做整形。
+- 不加 tonemap 时,超范围值在最终的线性→sRGB 编码处直接截断——轻微辉光没问题,大面积过曝会显得生硬。
+
+伽马模式(或无浮点目标能力)下效果链仍是 LDR,行为与从前一致;此时 `threshold` 超过约 0.75
+就永远不会触发。
+
 ## 使用 `PostProcessVolume`
 
 加一个 `PostProcessVolume`,启用效果,设置参数。体积**在重叠处混合**,所以你可以按区域驱动

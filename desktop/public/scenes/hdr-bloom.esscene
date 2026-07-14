@@ -1,0 +1,75 @@
+{
+  "version": "1.0",
+  "name": "HDR Bloom",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 10 } } },
+        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 300, "isActive": true, "priority": 0 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "LitQuad",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 120, "y": 120 }, "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "lit": true } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 2,
+      "name": "HotGreenLight",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 0 } } },
+        {
+          "type": "Light2D",
+          "data": {
+            "type": 0,
+            "color": { "r": 0, "g": 1, "b": 0, "a": 1 },
+            "intensity": 6,
+            "radius": 400
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 3,
+      "name": "PostProcess",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 0 } } },
+        {
+          "type": "PostProcessVolume",
+          "data": {
+            "isGlobal": true,
+            "priority": 0,
+            "weight": 1,
+            "blendDistance": 0,
+            "shape": "box",
+            "size": { "x": 5, "y": 5 },
+            "effects": [
+              {
+                "type": "bloom",
+                "enabled": true,
+                "uniforms": { "u_threshold": 1.5, "u_intensity": 2, "u_radius": 3 }
+              }
+            ]
+          }
+        }
+      ],
+      "visible": true
+    }
+  ]
+}

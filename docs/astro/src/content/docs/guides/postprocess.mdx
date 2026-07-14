@@ -34,6 +34,26 @@ so adding them changes nothing until you dial them in. A few are visible the mom
 you add them — `grayscale` (full desaturation), `vignette`, `bloom`, `outline`, and
 `tonemap` (the ACES curve always applies) — so enable those only when you want them.
 
+## HDR (linear color space)
+
+When the project renders in the **linear color space** (see
+[Lighting](/docs/guides/lighting/)), the effect chain runs in **half-float HDR**
+wherever float render targets are available — always on WebGPU, and on WebGL2 with
+the near-universal `EXT_color_buffer_float`. Light accumulation past `1.0` (a
+`Light2D` with `intensity` above 1) then *survives* into the chain instead of
+clamping at the 8-bit store:
+
+- **`bloom` with `threshold` above 1** blooms only over-range energy — bright
+  lights glow while ordinary LDR art stays crisp. This is the classic "emissive
+  glow" setup: crank a light's `intensity`, set `threshold` ≈ 1.2–1.5.
+- **`tonemap`** receives true HDR input, so the ACES curve rolls off highlights
+  instead of shaping already-clamped values.
+- Without a tonemap pass, over-range values simply clip at the final
+  linear→sRGB encode — fine for subtle glow, harsh for large over-exposure.
+
+In gamma mode (or without float-target support) the chain is LDR and behaves as
+before; a `threshold` above ~0.75 then never fires.
+
 ## Using a `PostProcessVolume`
 
 Add a `PostProcessVolume`, enable effects, and set their parameters. Volumes

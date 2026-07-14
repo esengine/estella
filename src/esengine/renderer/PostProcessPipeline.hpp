@@ -254,6 +254,8 @@ public:
 
 private:
     PostProcessPass* findPass(const std::string& name);
+    /** Intermediate/capture attachment format for the active pipeline mode. */
+    GfxPixelFormat interFormat() const;
     void ensureFBOs();
     void ensureScreenQuad();
     void drawScreenQuad();
