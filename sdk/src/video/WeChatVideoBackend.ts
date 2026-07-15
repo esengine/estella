@@ -12,6 +12,13 @@ import { log } from '../logger';
 let nextId_ = 1;
 const clamp01 = (v: number): number => (v < 0 ? 0 : v > 1 ? 1 : v);
 
+// wx failures carry `errMsg`, plain errors `message`.
+function errMsg(e: unknown): string {
+    if (e instanceof Error) return e.message;
+    if (e && typeof e === 'object' && 'errMsg' in e) return String((e as { errMsg: unknown }).errMsg);
+    return String(e);
+}
+
 class WeChatVideoStreamHandle implements VideoStreamHandle {
     readonly id = nextId_++;
     onReady?: () => void;
@@ -57,27 +64,31 @@ class WeChatVideoStreamHandle implements VideoStreamHandle {
     // writable dir. Try the package path first, then a staged copy on a fresh
     // decoder. (mode 0 = decode by PTS; start() also rejects in the devtools.)
     private async start_(url: string, options: VideoStreamOptions): Promise<void> {
-        if (await this.tryStart_(url)) return this.afterStart_(options);
+        const pkgErr = await this.tryStart_(url);
+        if (pkgErr === null) return this.afterStart_(options);
         if (this.disposed_) return;
 
         let staged: string;
         try {
             staged = await this.stageSource_(url);
         } catch (err) {
-            log.error('video', `WeChat decoder start failed and staging failed: ${url}`, err);
-            this.onError?.(err);
+            log.error('video', `WeChat decoder start failed: ${errMsg(pkgErr)}; staging failed: ${errMsg(err)}`);
+            this.onError?.(pkgErr);
             return;
         }
         if (this.disposed_ || staged === url) return;
 
         this.decoder_.remove().catch(() => { /* ignore */ });
         this.decoder_ = this.makeDecoder_();
-        if (await this.tryStart_(staged)) return this.afterStart_(options);
-        log.error('video', `WeChat decoder start failed (package and staged): ${url}`);
+        const stagedErr = await this.tryStart_(staged);
+        if (stagedErr === null) return this.afterStart_(options);
+        log.error('video', `WeChat decoder start failed — package: ${errMsg(pkgErr)}; staged: ${errMsg(stagedErr)}`);
+        this.onError?.(stagedErr);
     }
 
-    private tryStart_(source: string): Promise<boolean> {
-        return this.decoder_.start({ source, mode: 0 }).then(() => true).catch(() => false);
+    /** null = started; otherwise the rejection. */
+    private tryStart_(source: string): Promise<unknown> {
+        return this.decoder_.start({ source, mode: 0 }).then(() => null).catch((err) => err ?? new Error('start rejected'));
     }
 
     private afterStart_(options: VideoStreamOptions): void {
