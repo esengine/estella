@@ -263,14 +263,18 @@ export function initWeChatPlatform(): void {
 
 function polyfillPerformance(): void {
     const g = globalThis as any;
-    if (typeof g.performance === 'undefined') {
-        const start = Date.now();
-        g.performance = {
-            now(): number {
-                return Date.now() - start;
-            }
-        };
+    if (typeof g.performance !== 'undefined') return;
+    // Prefer WeChat's own high-res clock: its framework SDK reads
+    // globalThis.performance and needs the full object (getSystemNanoTime etc.),
+    // not a bare { now } — a stub makes getFileSystemManager and friends throw.
+    const wxAny = wx as unknown as { getPerformance?: () => { now?: () => number } };
+    const wxPerf = typeof wxAny.getPerformance === 'function' ? wxAny.getPerformance() : null;
+    if (wxPerf && typeof wxPerf.now === 'function') {
+        g.performance = wxPerf;
+        return;
     }
+    const start = Date.now();
+    g.performance = { now: (): number => Date.now() - start };
 }
 
 function polyfillTextEncoder(): void {
