@@ -412,10 +412,22 @@ export async function exportWeChat(opts: {
     engineGlueFile.replace(/\.js$/, '.wasm'),
     ...sideModules.flatMap((m) => [`${m.file}.js`, `${m.file}.wasm`]),
   ];
+  const { transform } = await loadEsbuild();
   for (const f of runtimeFiles) {
     const src = path.join(opts.wasmDir, f);
-    if (existsSync(src)) await cp(src, path.join(wasmOut, f));
-    else errors.push(`wechat runtime file missing: ${f} (in ${opts.wasmDir}) — rebuild with \`node build-tools/cli.js build -t wechat\``);
+    if (!existsSync(src)) {
+      errors.push(`wechat runtime file missing: ${f} (in ${opts.wasmDir}) — rebuild with \`node build-tools/cli.js build -t wechat\``);
+      continue;
+    }
+    const dest = path.join(wasmOut, f);
+    if (f.endsWith('.js')) {
+      // Emscripten glue can carry es2020 syntax (`?.`, `??`) that real-device
+      // WeChat rejects — down-level it like the game bundle.
+      const out = await transform(await readFile(src, 'utf8'), { target: 'es2017', loader: 'js' });
+      await writeFile(dest, out.code);
+    } else {
+      await cp(src, dest);
+    }
   }
 
   return { ok: errors.length === 0, platform: 'wechat', outDir: absOut, included: cook.included.length, warnings, errors };
