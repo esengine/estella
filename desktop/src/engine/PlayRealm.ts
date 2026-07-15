@@ -42,6 +42,7 @@ export class PlayRealmInstance {
   // so a re-Play hands over the new scene instead of cold-booting a fresh iframe
   // (single-player primary only; multiplayer + play-in-window cold-boot as before).
   private warm = false;
+  private warmedResolve: (() => void) | null = null;
   private readonly store = createStore<PlayRealmSnapshot>(() => ({ playing: false, ready: false, error: null }));
 
   constructor(readonly id: number) {}
@@ -165,6 +166,27 @@ export class PlayRealmInstance {
     this.post({ type: 'estella:play:setPaused', paused });
   }
 
+  /** Idle prewarm: mount + boot the realm's engine (wasm + GL, NO scene) in the
+   *  persistent iframe so the FIRST Play is a warm scene load, not a cold engine
+   *  bring-up. Resolves when the engine is up (or on a timeout / if it can't warm
+   *  yet). Best-effort: any failure just leaves the first Play cold. */
+  async prewarm(): Promise<void> {
+    if (this.id !== 0 || this.warm || this.store.getState().playing) return;
+    const realm = await window.estella.project.preparePlayRealm().catch(() => null);
+    if (!realm?.ok || this.warm || this.store.getState().playing) return;
+    const frame = this.ensureIframe();
+    // Must be in the DOM to load; the viewport attaches it as the persistent play
+    // host. Not attached yet ⇒ skip — a later prewarm tick warms it.
+    if (!frame.isConnected) return;
+    frame.style.visibility = 'hidden';
+    frame.src = `estella://project/${realm.hostPath}?n=${++this.epoch}`;
+    // hello (no payload) → we post 'warm' → host boots engine → 'warmed' resolves this.
+    await new Promise<void>((resolve) => {
+      this.warmedResolve = resolve;
+      setTimeout(resolve, 10000); // never block the loading gate forever
+    });
+  }
+
   /** Hot-reload the running realm's project code in place: the realm re-imports
    *  the rebuilt bundle and rebuilds its World on the live wasm + GL + assets
    *  (fast restart from the play-start snapshot), no iframe reboot. No-op unless a
@@ -243,7 +265,10 @@ export class PlayRealmInstance {
           break;
         }
         if (this.id === 0) bootProfiler.mark('iframe + host bundle load (→hello)');
-        this.postInit();
+        // A real start() set the payload → play it; a prewarm navigate left it null
+        // → boot the engine only (no scene) so the first Play is warm.
+        if (this.payload) this.postInit();
+        else this.post({ type: 'estella:play:warm' });
         break;
       }
       case 'estella:play:log':
@@ -271,6 +296,13 @@ export class PlayRealmInstance {
         // click the game first and WASD/arrows do nothing until they do. In a
         // multiplayer session only player 1 grabs focus (last-ready would steal it).
         if (this.id === 0) this.focusGame();
+        break;
+      case 'estella:play:warmed':
+        // Idle prewarm finished: the engine is up with no scene, so the first
+        // Play is a warm scene load. Resolve any awaiting prewarm() (loading gate).
+        if (this.id === 0 && !this.netPorts) this.warm = true;
+        this.warmedResolve?.();
+        this.warmedResolve = null;
         break;
       case 'estella:play:error':
         this.set({ error: data.message ?? t('proj.playRealmError') });
@@ -326,9 +358,11 @@ class PlayRealmsManager {
     return this.clients_.find((c) => c.id === id) ?? null;
   }
 
-  /** Stage the realm ahead of time so Play's prepare hits warm stamps. */
-  prewarm(): void {
-    window.estella.project.preparePlayRealm().catch(() => {});
+  /** Prewarm the primary realm's engine ahead of Play (idle / project-open loading
+   *  gate): boots its wasm + GL with no scene so the first Play is a warm scene
+   *  load. Resolves when warm (or on timeout). Best-effort. */
+  prewarm(): Promise<void> {
+    return this.primary.prewarm();
   }
 
   async startSession(payload: PlayPayload, players = 1): Promise<void> {

@@ -284,6 +284,24 @@ async function warmRebuild(msg: InitMessage): Promise<void> {
   }
 }
 
+/** Bring up the project bundle + wasm + GL WITHOUT a scene (idle prewarm). A
+ *  later `init` then only pays the scene load — the first Play is warm too.
+ *  ensureEngine is idempotent, so a subsequent boot()/warmRebuild is a no-op here. */
+async function warm(): Promise<void> {
+  try {
+    try {
+      await import(/* @vite-ignore */ bundleUrl);
+    } catch {
+      /* no project bundle — builtin-only */
+    }
+    await ensureEngine();
+    post({ type: 'estella:play:warmed' });
+  } catch (err) {
+    // Prewarm is best-effort: a failure just means the first Play cold-boots.
+    console.warn('[play] prewarm failed', err);
+  }
+}
+
 async function boot(msg: InitMessage): Promise<void> {
   lastInit = msg;
   // Warm re-Play: wasm + GL are already alive from a prior Play, so rebuild the
@@ -431,6 +449,9 @@ window.addEventListener('message', (e: MessageEvent) => {
   switch (data.type) {
     case 'estella:play:init':
       void boot(e.data as InitMessage);
+      break;
+    case 'estella:play:warm':
+      void warm();
       break;
     case 'estella:play:setPaused':
       app?.setPaused(!!data.paused);

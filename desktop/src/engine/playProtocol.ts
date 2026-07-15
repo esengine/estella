@@ -97,6 +97,9 @@ export interface PlayStatsReply {
  *  MessagePorts in `netPorts` (server: one per client; client: exactly one). */
 export type PlayOutbound =
   | ({ type: 'estella:play:init'; netPorts?: MessagePort[] } & PlayPayload)
+  // Boot the realm's wasm + GL WITHOUT a scene (idle prewarm), so the first Play
+  // is a warm scene load, not a cold engine bring-up. Replied with `warmed`.
+  | { type: 'estella:play:warm' }
   | { type: 'estella:play:setPaused'; paused: boolean }
   | { type: 'estella:play:reload' }
   | { type: 'estella:play:query'; kind: PlayQueryKind; reqId: number; selectedId?: number | null }
@@ -105,6 +108,8 @@ export type PlayOutbound =
 /** realm → editor. Discriminated by `type`. */
 export type PlayInbound =
   | { type: 'estella:play:hello'; protocolVersion: number }
+  // The realm's engine is up (reply to `warm`) — the editor's first Play will be warm.
+  | { type: 'estella:play:warmed' }
   // `phases` (optional) carries the realm's own boot sub-timing (bundle import,
   // wasm instantiate, scene+asset load) so the editor can fold it into the Play
   // profile — the realm runs in a separate JS realm and can't share the profiler.

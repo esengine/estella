@@ -80,6 +80,8 @@ export const layoutMessages = defineMessages({
     'layout.mods.running': { en: 'running', zh: '运行中' },
     'layout.mods.idle': { en: 'idle', zh: '空闲' },
     'layout.mods.ready': { en: 'ready', zh: '就绪' },
+    'load.engine': { en: 'Loading engine…', zh: '加载引擎…' },
+    'load.playRealm': { en: 'Preparing play realm…', zh: '预热运行环境…' },
 
     // — Window controls —
     'layout.minimize': { en: 'Minimize', zh: '最小化' },

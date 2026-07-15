@@ -716,3 +716,51 @@ body.thumb-capture .viewport__play-stop {
     transform: translateY(0);
   }
 }
+
+/* Project-open loading overlay (LoadingScreen): an Unreal-style splash over the
+   mounting editor while prewarm tasks run (editor engine + play realm). Covers
+   the shell at a high z so a half-mounted editor never flashes through; the gate
+   store clears `active` when every task is done and the overlay unmounts. */
+.loadscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  background: var(--srf-0);
+  animation: loadscreen-in 140ms ease;
+}
+.loadscreen__panel { display: flex; flex-direction: column; align-items: center; gap: 26px; }
+.loadscreen__mark {
+  width: 54px;
+  height: 54px;
+  fill: var(--run);
+  animation: loadscreen-pulse 1.7s ease-in-out infinite;
+}
+.loadscreen__tasks { display: flex; flex-direction: column; gap: 11px; min-width: 200px; }
+.loadscreen__task {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-dim);
+  font-size: 13px;
+  transition: color 220ms ease;
+}
+.loadscreen__task.is-done { color: var(--text); }
+.loadscreen__spinner {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  border-top-color: var(--run);
+  animation: loadscreen-spin 720ms linear infinite;
+}
+.loadscreen__task.is-done .loadscreen__spinner {
+  border-color: var(--run);
+  background: var(--run);
+  animation: none;
+}
+@keyframes loadscreen-spin { to { transform: rotate(360deg); } }
+@keyframes loadscreen-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@keyframes loadscreen-in { from { opacity: 0; } to { opacity: 1; } }

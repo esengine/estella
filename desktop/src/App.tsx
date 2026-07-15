@@ -11,6 +11,8 @@ import '@/engine/EditorSession'; // side effect: constructs defaultSession → w
 import { Launcher } from '@/launcher/Launcher';
 import { Toaster } from '@/components/Toaster';
 import { ConfirmHost } from '@/components/ConfirmHost';
+import { LoadingScreen } from '@/components/LoadingScreen';
+import { LoadGate } from '@/store/loadGate';
 import { Perf } from '@/components/Perf';
 import { PerfRealmBridge } from '@/components/PerfRealmBridge';
 import { BuildDialog } from '@/components/BuildDialog';
@@ -185,9 +187,32 @@ export function App() {
   // The editor opens on the launcher (project browser); the shell + engine mount
   // only once a project is opened. (Logic wiring lands with the recents IPC.)
   const showLauncher = useEditorStore((s) => s.showLauncher);
-  // Prewarm the play realm as soon as a project opens.
+  // Project-open loading gate (Unreal-style): overlay the mounting editor while
+  // the editor engine boots AND the play realm prewarms its engine, so entering
+  // the editor and the FIRST Play are both smooth. Everything heavy is warmed up
+  // front; the overlay clears when every task is done.
   useEffect(() => {
-    if (!showLauncher) idle(() => PlayRealms.prewarm());
+    if (showLauncher) return;
+    LoadGate.begin([
+      { key: 'engine', label: t('load.engine') },
+      { key: 'playRealm', label: t('load.playRealm') },
+    ]);
+    let cancelled = false;
+    const safety = setTimeout(() => LoadGate.close(), 20000); // never trap the user behind the overlay
+    const engineReady = new Promise<void>((resolve) => {
+      if (EngineHost.getSnapshot().status === 'ready') return resolve();
+      const un = EngineHost.subscribe(() => {
+        if (EngineHost.getSnapshot().status === 'ready') { un(); resolve(); }
+      });
+    });
+    void engineReady
+      .then(() => { if (!cancelled) LoadGate.done('engine'); })
+      // Engine ready ⇒ the viewport is mounted ⇒ the persistent play host is
+      // attached, so the realm can boot its engine now (no scene, off-screen).
+      .then(() => (cancelled ? undefined : PlayRealms.prewarm()))
+      .then(() => { if (!cancelled) LoadGate.done('playRealm'); })
+      .finally(() => clearTimeout(safety));
+    return () => { cancelled = true; clearTimeout(safety); LoadGate.close(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showLauncher]);
   const buildOpen = useEditorStore((s) => s.buildOpen);
@@ -211,6 +236,7 @@ export function App() {
       {tilemapPickerOpen && <TilemapPickerDialog />}
       <Toaster />
       <ConfirmHost />
+      <LoadingScreen />
     </div>
   );
 }
