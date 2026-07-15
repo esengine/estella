@@ -110,13 +110,21 @@ const unpacked = (p: string): string => p.replace(/app\.asar(?=[\\/])/, 'app.asa
 const HOSTS_DIR = unpacked(path.join(__dirname, 'hosts'));
 /** The esengine SDK dist: staged into realms/exports, aliased into inlined bundles. */
 const SDK_DIST = unpacked(path.join(process.env.APP_ROOT, 'node_modules', 'esengine', 'dist'));
-/** Where the types mirror may READ the SDK dist from, in preference order. The
- *  mirror is plain Node fs, which reads app.asar fine — so the in-archive path
- *  is a valid fallback when the unpacked copy is missing (v0.22.0 shipped
- *  without asarUnpack for the sdk; the mirror silently skipped and projects
- *  lost their `esengine` types — issue #49). Native consumers (esbuild) must
- *  keep using SDK_DIST only. */
-const SDK_TYPES_CANDIDATES = [SDK_DIST, path.join(process.env.APP_ROOT, 'node_modules', 'esengine', 'dist')];
+/** Where the types mirror may READ the SDK dist's `.d.ts` from, in preference
+ *  order. Packaged first: electron-builder strips *.d.ts from node_modules
+ *  (excludedExts), so the SDK_DIST copy ships the SDK's .js but none of its
+ *  declarations — the declarations ride along as an extraResource under
+ *  resources/sdk-types instead (see electron-builder.yml). Dev falls through to
+ *  the real node_modules dist (which has both). The mirror is plain Node fs, so
+ *  the in-asar path stays as a last-ditch fallback. Native consumers (esbuild)
+ *  must keep using SDK_DIST only — types never travel that path. Shipping
+ *  without the declarations is how projects lost their `esengine` types with
+ *  only a staging error to show for it (issue #49). */
+const SDK_TYPES_CANDIDATES = [
+  ...(app.isPackaged ? [path.join(process.resourcesPath, 'sdk-types')] : []),
+  SDK_DIST,
+  path.join(process.env.APP_ROOT, 'node_modules', 'esengine', 'dist'),
+];
 /** The web engine runtime (glue + wasm + side modules) staged into play realms and
  *  exports by recursive directory copy — which cannot source from inside app.asar. */
 const WEB_WASM_DIR = unpacked(

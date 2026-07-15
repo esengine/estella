@@ -40,6 +40,18 @@ asarUnpack:
 extraResources:
   - from: ../build-tools/basis
     to: build-tools/basis
+  # The SDK's TypeScript declarations, shipped as a real resource so a project's
+  # `.esengine/sdk` types mirror can be staged on open (see electron/main.ts →
+  # syncSdkTypes). electron-builder strips *.d.ts from node_modules by default
+  # (app-builder-lib excludedExts), so node_modules/esengine/dist carries the
+  # SDK's .js — used by the play runtime and esbuild aliasing — but NONE of its
+  # .d.ts; without this the IDE cannot resolve `esengine` in a shipped build
+  # (the real root cause behind issue #49's staging error). SDK dist is built
+  # before packaging (release-desktop.yml "Build SDK").
+  - from: ../sdk/dist
+    to: sdk-types
+    filter:
+      - "**/*.d.ts"
   # New-project templates: the bundled blank-slate starter(s) plus the sample
   # projects, staged as real directories (createFromTemplate copies a template
   # with fs.cp, which cannot source from inside the asar). The launcher reads
