@@ -38,7 +38,9 @@ function formatReadError(path: string, errMsg: string): string {
         if (isCustomExtension(path)) {
             const ext = path.substring(path.lastIndexOf('.'));
             return `[ESEngine] Cannot read "${path}": WeChat blocked access to "${ext}" files. `
-                + `Add { type: "suffix", value: "${ext}" } to packOptions.include in project.config.json`;
+                + `Add { type: "suffix", value: "${ext}" } to packOptions.include in project.config.json. `
+                + `Some suffixes are denied regardless of packOptions — the exporter restages those `
+                + `as "${ext}.bin" (ktx2/esv already are); re-export if this file predates that.`;
         }
         return `[ESEngine] Cannot read "${path}": permission denied. Check file is included in WeChat package`;
     }

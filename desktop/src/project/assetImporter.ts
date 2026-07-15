@@ -77,6 +77,18 @@ const VIDEO: ImporterFieldSpec[] = [
     key: 'muted', label: 'Muted', type: 'bool', default: true, category: 'Video',
     tooltip: 'Muted clips can autoplay; unmuted autoplay is blocked until a user gesture.',
   },
+  {
+    key: 'quality', label: 'Cook Quality', type: 'number', default: 4, min: 2, max: 31, step: 1,
+    category: 'Video', advanced: true,
+    tooltip: 'MPEG-1 quantizer for targets on the wasm decode path (WeChat): '
+      + '2 = near-lossless (largest file), 31 = smallest. Web targets ship the source untouched.',
+  },
+  {
+    key: 'audioBitrateKbps', label: 'Cook Audio Bitrate', type: 'enum', default: 128,
+    category: 'Video', advanced: true,
+    options: [96, 128, 192].map((n) => ({ label: `${n} kbps`, value: n })),
+    tooltip: 'AAC bitrate for the audio track demuxed at cook (wasm decode path).',
+  },
 ];
 
 const SCENELIKE: ImporterFieldSpec[] = [
