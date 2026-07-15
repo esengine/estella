@@ -22,6 +22,7 @@ import type { SubsystemStatus } from 'esengine';
 import { LogStore } from '@/store/LogStore';
 import { t } from '@/i18n';
 import { playProtocolMismatch } from './playProtocol';
+import { bootProfiler } from './bootProfiler';
 import type { PlayOutbound, PlayInbound, PlayPayload, PlaySnapshot, PlayStatsReply } from './playProtocol';
 
 export type { PlayPayload, PlaySnapshot } from './playProtocol';
@@ -90,10 +91,14 @@ export class PlayRealmInstance {
     this.payload = payload;
     this.netPorts = netPorts ?? null;
     this.set({ playing: true, ready: false, error: null });
+    // Time Play-click → first frame. Only the primary realm profiles (a
+    // multiplayer session's client realms would clobber the shared singleton).
+    if (this.id === 0) bootProfiler.begin('play (click → first frame)');
     const frame = this.ensureIframe();
     frame.style.visibility = 'hidden';
     try {
       const realm = await window.estella.project.preparePlayRealm();
+      if (this.id === 0) bootProfiler.mark('preparePlayRealm (stage + esbuild)');
       if (!realm.ok) {
         this.set({ error: realm.errors[0] ?? t('proj.playPrepareFailed') });
         return;
@@ -205,6 +210,7 @@ export class PlayRealmInstance {
           this.set({ error: mismatch });
           break;
         }
+        if (this.id === 0) bootProfiler.mark('iframe + host bundle load (→hello)');
         if (this.payload) {
           const ports = this.netPorts ?? undefined;
           this.post({ type: 'estella:play:init', ...this.payload, netPorts: ports }, ports);
@@ -218,6 +224,13 @@ export class PlayRealmInstance {
         LogStore.push(data.level ?? 'info', this.id === 0 ? 'Play' : `Play P${this.id + 1}`, data.line ?? '');
         break;
       case 'estella:play:ready':
+        if (this.id === 0) {
+          // Fold the realm's own boot sub-timing (bundle/wasm/scene) into the
+          // 'realm boot' phase, then close the Play profile.
+          if (data.phases) bootProfiler.detail('realm boot: wasm + scene (→ready)', data.phases);
+          bootProfiler.mark('realm boot: wasm + scene (→ready)');
+          bootProfiler.report();
+        }
         this.set({ ready: true });
         if (this.iframe) this.iframe.style.visibility = 'visible';
         // Hand the running game keyboard focus so it's playable immediately — the

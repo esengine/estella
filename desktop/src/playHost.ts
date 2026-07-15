@@ -256,6 +256,10 @@ async function boot(msg: InitMessage): Promise<void> {
   booted = true;
   lastInit = msg;
   try {
+    // Sub-phase timing reported back to the editor on `ready` — the realm runs in
+    // its own JS realm, so it can't write the editor's boot profiler directly.
+    const r1 = (n: number): number => Math.round(n * 10) / 10;
+    const tBundle = performance.now();
     // Register the project's own components/systems FIRST (side-effect import; its
     // `import 'esengine'` resolves through the import map to the shared instance).
     // Absent (a project with no scripts) → builtin-only, which is fine.
@@ -264,9 +268,19 @@ async function boot(msg: InitMessage): Promise<void> {
     } catch {
       /* no project bundle — builtin components/systems only */
     }
+    const tEngine = performance.now();
     await ensureEngine();
+    const tRuntime = performance.now();
     await buildAppAndRun(msg);
-    post({ type: 'estella:play:ready' });
+    const tEnd = performance.now();
+    post({
+      type: 'estella:play:ready',
+      phases: {
+        bundleImport: r1(tEngine - tBundle),
+        engineInstantiate: r1(tRuntime - tEngine),
+        sceneAndAssets: r1(tEnd - tRuntime),
+      },
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     if (err === 'unwind' || message.includes('unwind')) {

@@ -38,13 +38,31 @@ class BootProfiler {
   // the phase — so buffer it by name and attach when the phase lands.
   private pendingDetails = new Map<string, Record<string, number>>();
 
+  private lastMarkAt = 0;
+
   /** Open a fresh profile. A second begin() before report() discards the first. */
   begin(label: string): void {
     this.active = true;
     this.label = label;
     this.t0 = now();
+    this.lastMarkAt = 0;
     this.phases = [];
     this.pendingDetails.clear();
+  }
+
+  /**
+   * Record an event boundary — the phase is the gap since the previous mark (or
+   * begin). For event-driven sequences (e.g. Play: prepare → iframe hello →
+   * ready) where phase() can't wrap a single awaited call.
+   */
+  mark(name: string): void {
+    if (!this.active) return;
+    const at = now() - this.t0;
+    const phase: BootPhase = { name, ms: round1(at - this.lastMarkAt) };
+    const pending = this.pendingDetails.get(name);
+    if (pending) { phase.detail = pending; this.pendingDetails.delete(name); }
+    this.phases.push(phase);
+    this.lastMarkAt = at;
   }
 
   get isActive(): boolean {

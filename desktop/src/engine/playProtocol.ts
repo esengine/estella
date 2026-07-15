@@ -105,7 +105,10 @@ export type PlayOutbound =
 /** realm → editor. Discriminated by `type`. */
 export type PlayInbound =
   | { type: 'estella:play:hello'; protocolVersion: number }
-  | { type: 'estella:play:ready' }
+  // `phases` (optional) carries the realm's own boot sub-timing (bundle import,
+  // wasm instantiate, scene+asset load) so the editor can fold it into the Play
+  // profile — the realm runs in a separate JS realm and can't share the profiler.
+  | { type: 'estella:play:ready'; phases?: Record<string, number> }
   | { type: 'estella:play:error'; message: string }
   | { type: 'estella:play:log'; level: PlayLogLevel; line: string }
   | { type: 'estella:play:reply'; reqId: number; data: unknown };
