@@ -20,6 +20,8 @@ import type {
 import { WeChatSocket } from '../../net/WeChatSocket';
 import { WeChatAudioBackend } from '../../audio/WeChatAudioBackend';
 import type { PlatformAudioBackend } from '../../audio/PlatformAudioBackend';
+import { WeChatVideoBackend } from '../../video/WeChatVideoBackend';
+import type { PlatformVideoBackend } from '../../video/PlatformVideoBackend';
 import { wxFetch, polyfillFetch } from './fetch';
 import { wxInstantiateWasm, polyfillWebAssembly } from './wasm';
 import { wxReadFileSync, wxReadTextFileSync, wxFileExistsSync } from './fs';
@@ -171,6 +173,10 @@ class WeChatPlatformAdapter implements PlatformAdapter {
 
     createAudioBackend(): PlatformAudioBackend {
         return new WeChatAudioBackend();
+    }
+
+    createVideoBackend(): PlatformVideoBackend {
+        return new WeChatVideoBackend();
     }
 
     createSocket(options: PlatformSocketOptions): PlatformSocket {

@@ -1,14 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-/**
- * @file    video/VideoPlugin.ts
- * @brief   Wires the video system into an App — the visual mirror of AudioPlugin.
- *          Builds the platform video backend, exposes it as the `VideoPlayer`
- *          resource, and runs one Update-schedule system that: starts a stream
- *          per playing `Video` entity, uploads decoded frames into their pathless
- *          textures, and drives each entity's sibling `Sprite` from the current
- *          frame. Runs only in play mode (editor edit-mode leaves videos paused).
- */
+// Wires the video system into an App: builds the backend, exposes VideoPlayer,
+// and runs one play-mode system that streams each Video and drives its Sprite.
 import type { App, Plugin } from '../app';
 import type { Entity } from '../types';
 import { defineSystem, Schedule } from '../system';
@@ -28,15 +21,12 @@ export class VideoPlugin implements Plugin {
     private handles_: Map<number, VideoStreamHandle> | null = null;
 
     build(app: App): void {
-        // `createVideoBackend` is an optional platform capability (like
-        // createSocket/loadSubpackage): web provides a real one, headless/WeChat
-        // fall back to the silent Null backend until their own lands.
+        // createVideoBackend is optional; fall back to the silent Null backend.
         const backend = getPlatform().createVideoBackend?.() ?? new NullVideoBackend();
         const video = new VideoAPI(backend);
         this.video_ = video;
         app.insertResource(VideoPlayer, video);
 
-        // entity id → its component-driven stream.
         const handles = new Map<number, VideoStreamHandle>();
         this.handles_ = handles;
         const warnedNoSprite = new Set<number>();
@@ -64,8 +54,7 @@ export class VideoPlugin implements Plugin {
                     const entities = world.getEntitiesWithComponents([Video]);
                     live.clear();
 
-                    // Ensure a stream per playing entity (before the pump below,
-                    // so a freshly-started stream uploads its first frame this tick).
+                    // Start streams before the pump so a new one uploads this tick.
                     for (const entity of entities) {
                         const v = world.get(entity, Video) as VideoData;
                         if (!v.enabled || !v.source) continue;
@@ -82,10 +71,8 @@ export class VideoPlugin implements Plugin {
                         }
                     }
 
-                    // Upload any newly-decoded frames (component + imperative streams).
                     videoAPI.update(module);
 
-                    // Project the current frame onto each entity's sibling Sprite.
                     for (const entity of entities) {
                         const id = entity as number;
                         const handle = handles.get(id);
@@ -100,12 +87,8 @@ export class VideoPlugin implements Plugin {
                             continue;
                         }
 
-                        // Builtin components hand back a snapshot copy — mutating it
-                        // is discarded unless written back with `world.insert` (the
-                        // same pattern SpriteAnimator uses). The video's per-frame
-                        // pixels ride the SAME texture handle (updated in place), so
-                        // the Sprite only needs a write-back when the handle or size
-                        // actually changes — typically once, on the first ready frame.
+                        // Builtin get() is a snapshot copy — needs world.insert to
+                        // persist. The handle is stable, so write back only on change.
                         let dirty = false;
                         if (sprite.texture !== handle.textureHandle) {
                             sprite.texture = handle.textureHandle;
@@ -120,7 +103,7 @@ export class VideoPlugin implements Plugin {
                         if (dirty) world.insert(entity, Sprite, sprite);
                     }
 
-                    // Reap streams whose entity vanished, was disabled, or lost its source.
+                    // Reap streams whose entity is gone, disabled, or source-cleared.
                     for (const [id, handle] of handles) {
                         if (!live.has(id)) {
                             videoAPI.stop(handle);

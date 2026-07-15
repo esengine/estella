@@ -1,14 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-/**
- * @file    video/NullVideoBackend.ts
- * @brief   Silent no-op video backend — the visual mirror of NullAudioBackend.
- *          Used on headless Node (authoritative server), as the WeChat fallback
- *          until WeChatVideoBackend lands, and anywhere a platform advertises no
- *          video capability. Every call succeeds and does nothing; the frame
- *          texture stays 0 so a driven Sprite simply shows no video. DOM-free,
- *          so importing it never pulls browser globals into a headless bundle.
- */
+// Silent no-op video backend — headless Node and the fallback when a platform
+// has no video capability. textureHandle stays 0; DOM-free.
 import type { PlatformVideoBackend, VideoStreamHandle, VideoStreamOptions } from './PlatformVideoBackend';
 
 let nextId_ = 1;

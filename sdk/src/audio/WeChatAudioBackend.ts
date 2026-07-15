@@ -1,38 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/// <reference types="minigame-api-typings" />
 import type { AudioHandle, AudioBufferHandle, PlayConfig, PlatformAudioBackend, AudioBackendInitOptions } from './PlatformAudioBackend';
 import type { AudioMixer } from './AudioMixer';
 import { log } from '../logger';
-
-interface WxInnerAudioContext {
-    src: string;
-    startTime: number;
-    autoplay: boolean;
-    loop: boolean;
-    obeyMuteSwitch: boolean;
-    volume: number;
-    playbackRate: number;
-    duration: number;
-    currentTime: number;
-    paused: boolean;
-    play(): void;
-    pause(): void;
-    stop(): void;
-    seek(position: number): void;
-    destroy(): void;
-    onEnded(callback: () => void): void;
-    offEnded(callback: () => void): void;
-    onError(callback: (res: { errMsg: string }) => void): void;
-}
 
 class WeChatAudioHandle implements AudioHandle {
     readonly id: number;
     onEnd?: () => void;
 
-    private ctx_: WxInnerAudioContext;
-    private contexts_: Map<number, WxInnerAudioContext>;
+    private ctx_: WechatMinigame.InnerAudioContext;
+    private contexts_: Map<number, WechatMinigame.InnerAudioContext>;
 
-    constructor(id: number, ctx: WxInnerAudioContext, contexts: Map<number, WxInnerAudioContext>) {
+    constructor(id: number, ctx: WechatMinigame.InnerAudioContext, contexts: Map<number, WechatMinigame.InnerAudioContext>) {
         this.id = id;
         this.ctx_ = ctx;
         this.contexts_ = contexts;
@@ -89,7 +69,7 @@ class WeChatAudioHandle implements AudioHandle {
 export class WeChatAudioBackend implements PlatformAudioBackend {
     readonly name = 'WeChat';
 
-    private contexts_ = new Map<number, WxInnerAudioContext>();
+    private contexts_ = new Map<number, WechatMinigame.InnerAudioContext>();
     private urlCache_ = new Map<number, string>();
     private nextId_ = 0;
 
@@ -129,7 +109,7 @@ export class WeChatAudioBackend implements PlatformAudioBackend {
             throw new Error(`Buffer ${buffer.id} not found`);
         }
 
-        const ctx: WxInnerAudioContext = (wx as any).createInnerAudioContext();
+        const ctx: WechatMinigame.InnerAudioContext = wx.createInnerAudioContext();
         ctx.loop = config.loop ?? false;
         ctx.volume = config.volume ?? 1.0;
         ctx.playbackRate = config.playbackRate ?? 1.0;

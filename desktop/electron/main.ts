@@ -715,10 +715,8 @@ ipcMain.handle('project:saveDialog', async (_e, defaultRel?: string) => {
   return rel;
 });
 
-// Serve a project file, honoring an HTTP Range request (206) when present.
-// <video> streams and seeks via Range; every other client omits the header and
-// gets the whole file (200). Ranged reads pull only the requested slice off
-// disk, so seeking a large clip never loads it whole into memory.
+// Serve a project file, honoring an HTTP Range request (206) when present so
+// <video> streams/seeks; ranged reads pull only the requested slice off disk.
 async function serveProjectFile(abs: string, request: Request): Promise<Response> {
   const headers: Record<string, string> = {
     'content-type': httpContentType(abs),

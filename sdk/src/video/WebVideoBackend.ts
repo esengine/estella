@@ -1,20 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-/**
- * @file    video/WebVideoBackend.ts
- * @brief   Browser / Electron video backend. An HTMLVideoElement does the
- *          demux + decode + audio + loop + seek natively and streams over the
- *          asset URL (HTTP range). Each newly-decoded frame is drawn into a
- *          reused canvas and pushed into a pathless engine texture via the same
- *          `updateTextureSubregion` sub-upload the dynamic glyph atlas uses, so
- *          a Sprite sampling that handle shows live video.
- *
- * The frame texture is created once (at the video's native size) and updated in
- * place; being pathless it is never touched by the residency LRU while the
- * handle holds it. A future optimization can swap the CPU readback for a
- * zero-copy `texImage2D(video)` onto a shared-context external texture behind
- * this same contract — no interface change.
- */
+// Browser / Electron video backend: an HTMLVideoElement streams and decodes,
+// each frame is drawn to a canvas and uploaded into a pathless engine texture.
 import type { ESEngineModule } from '../wasm';
 import type { PlatformVideoBackend, VideoStreamHandle, VideoStreamOptions } from './PlatformVideoBackend';
 import { createTextureFromPixels, updateTextureSubregion } from '../runtimeAssets';
@@ -48,10 +35,7 @@ class WebVideoStreamHandle implements VideoStreamHandle {
     constructor(url: string, options: VideoStreamOptions) {
         const video = document.createElement('video');
         this.rvfcSupported_ = typeof video.requestVideoFrameCallback === 'function';
-        // Same-origin `estella://` and blob URLs need no CORS, but a remote http
-        // source must be CORS-clean or the canvas readback taints and throws.
-        video.crossOrigin = 'anonymous';
-        // Inline (never fullscreen-hijack on mobile Safari) and quiet unless asked.
+        video.crossOrigin = 'anonymous'; // else the canvas readback taints
         video.playsInline = true;
         video.setAttribute('playsinline', '');
         video.loop = options.loop ?? false;
@@ -90,18 +74,12 @@ class WebVideoStreamHandle implements VideoStreamHandle {
     };
 
     private tryPlay_(): void {
-        // play() returns a promise that rejects when autoplay policy blocks an
-        // unmuted start; surface it as a one-time warning, playback resumes on
-        // the next explicit play() after a user gesture.
         const p = this.video_.play() as unknown as Promise<void> | undefined;
         if (p && typeof p.catch === 'function') {
             p.catch((err) => log.warn('video', 'autoplay blocked (mute the video or start on input)', err));
         }
     }
 
-    /** requestVideoFrameCallback fires exactly when a new frame is presentable
-     *  — the modern, jank-free signal. Falls back to per-tick currentTime deltas
-     *  in `pump` when the API is absent. */
     private scheduleFrame_(): void {
         if (this.disposed_ || !this.rvfcSupported_) return;
         this.rvfcId_ = this.video_.requestVideoFrameCallback(() => {
@@ -123,14 +101,10 @@ class WebVideoStreamHandle implements VideoStreamHandle {
 
     pump(module: ESEngineModule): void {
         if (this.disposed_ || this.width_ <= 0 || this.height_ <= 0) return;
-        // HAVE_CURRENT_DATA — there is a frame to sample.
-        if (this.video_.readyState < 2) return;
+        if (this.video_.readyState < 2) return; // HAVE_CURRENT_DATA — a frame to sample
 
-        // Upload when a new frame is signalled (requestVideoFrameCallback) OR the
-        // playhead moved since the last upload. The currentTime check is the
-        // fallback for runtimes without rVFC, and also covers hosts where rVFC is
-        // starved because the window never composites (a hidden/offscreen window,
-        // e.g. the headless verify harness).
+        // Upload on a new-frame signal OR a moved playhead — the latter also
+        // covers hosts where rVFC is starved (hidden/offscreen window).
         const advanced = this.video_.currentTime !== this.lastUploadTime_;
         if (this.ready_ && !this.newFrame_ && !advanced) return;
 
@@ -138,10 +112,8 @@ class WebVideoStreamHandle implements VideoStreamHandle {
         const ctx = this.ctx_;
         if (!ctx) return;
 
-        // Draw flipped vertically so getImageData yields bottom-first rows: the
-        // engine's `updateTextureSubregion` uploads bytes as-is (flipY off),
-        // and Sprite sampling expects the same orientation image loads produce
-        // (which upload top-first pixels flipY-on). Flipping here reconciles them.
+        // Draw flipped so getImageData yields bottom-first rows — the orientation
+        // updateTextureSubregion (flipY-off) needs for a Sprite to sample upright.
         ctx.save();
         ctx.translate(0, this.height_);
         ctx.scale(1, -1);
