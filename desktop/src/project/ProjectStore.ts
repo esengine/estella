@@ -5,6 +5,7 @@ import { getComponent, getEditorType, Assets, migratePrefabData, extractPrefab, 
 import { readTextureImportSettings } from './assetImporter';
 import type { SceneData, PrefabData, ExtractEntity, ProcessedEntity, PhysicsPluginConfig, AudioProjectConfig, AssetsData } from 'esengine';
 import { EngineHost } from '@/engine/EngineHost';
+import { bootProfiler } from '@/engine/bootProfiler';
 import { SceneModel } from '@/engine/SceneModel';
 import { Reconciler } from '@/engine/Reconciler';
 import { blankInputMap } from './inputMapDoc';
@@ -347,24 +348,26 @@ class ProjectStoreImpl {
       );
     }
     // Build the uuid→path registry first (prefab + texture refs resolve through it).
-    await this.buildAssetRegistry();
+    // This runs the full project-wide asset scan (O(files)) on every open — the
+    // usual boot-time hot spot on asset-heavy projects, so it gets its own phase.
+    await bootProfiler.phase('scanAssets', () => this.buildAssetRegistry());
 
     // Expand prefab-instance entries into ordinary tagged entities (the model is
     // always expanded; the file stores deltas). Internal
     // entities get fresh ids above the file's max so they don't collide.
     let nextId = raw.entities.reduce((m, e) => Math.max(m, (e as { id?: number }).id ?? 0), 0) + 1;
-    const { scene: expandedRaw, tags } = await expandScenePrefabs(
+    const { scene: expandedRaw, tags } = await bootProfiler.phase('expandPrefabs', () => expandScenePrefabs(
       raw,
       (ref) => this.loadPrefabAsset(ref),
       () => nextId++,
-    );
+    ));
 
     // Preload EVERY referenced asset type through the engine's own system, and
     // resolve a COPY of the (expanded) scene (refs → handles) for the World.
     const assets = EngineHost.getResource(Assets);
     let resolved: SceneData = expandedRaw;
     if (assets) {
-      const result = await assets.preloadSceneAssets(expandedRaw);
+      const result = await bootProfiler.phase('preloadSceneAssets', () => assets.preloadSceneAssets(expandedRaw));
       resolved = JSON.parse(JSON.stringify(expandedRaw)) as SceneData; // resolveSceneAssetPaths mutates
       assets.resolveSceneAssetPaths(resolved, result);
       this.lastAssetResult = result; // narrowed to the handle maps the resolver reads
@@ -390,7 +393,7 @@ class ProjectStoreImpl {
     // of the model, driven by model events: adopt's `reset` performs the initial
     // bind, and later ref/field edits keep the viewport true (see spineSync).
     installSpineSync(this.spineTransport());
-    Reconciler.adopt(expandedRaw, resolved);
+    await bootProfiler.phase('reconcile (build world)', () => Reconciler.adopt(expandedRaw, resolved));
     // Re-apply prefab-instance tags (adopt cleared them) so save can collapse.
     for (const { id, tag } of tags) SceneModel.setPrefabTag(id, tag);
 
@@ -481,6 +484,8 @@ class ProjectStoreImpl {
       const scan = await window.estella.project.scanAssets();
       ({ entries } = scan.index);
       adopted = scan.adopted ?? [];
+      // Fold the main-process scan's sub-phase split into the 'scanAssets' boot phase.
+      if (scan.timingMs) bootProfiler.detail('scanAssets', scan.timingMs);
     } catch (err) {
       console.warn('[project] asset scan failed', err);
       return;

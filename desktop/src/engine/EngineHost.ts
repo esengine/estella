@@ -22,6 +22,7 @@ import { SceneLoader } from './SceneLoader';
 import { useSettings } from '@/store/settingsStore';
 import { loadEditorSpine } from './spineLoad';
 import { checkEngineBuild } from './EngineGuard';
+import { bootProfiler } from './bootProfiler';
 import { PROJECT_MANIFEST_FILE } from '@/project/format';
 import type { ReadonlyWorldT, WorldT } from './schema';
 
@@ -476,11 +477,12 @@ class EngineHostImpl {
     this.activeBackend = backend;
     this.activeColorSpace = opts.colorSpace ?? 'gamma';
     console.info(`[engine] backend: ${backend}, colorSpace: ${this.activeColorSpace}`);
+    bootProfiler.begin(`engine boot (${backend})`);
     // Early build-consistency check: compare the wasm's stamped manifest
     // (variant / ABI / provenance) against this SDK before the heavy
     // instantiate. Advisory only — the runtime bridge handshake is the
     // authoritative fatal layout check (reads the real binary).
-    const guard = await checkEngineBuild();
+    const guard = await bootProfiler.phase('checkBuild', () => checkEngineBuild());
     if (guard.level === 'warn') console.warn('[engine]', guard.message);
     else console.info('[engine]', guard.message);
 
@@ -491,7 +493,7 @@ class EngineHostImpl {
     // NOTE: works in dev (http origin); production packaging will need a
     // custom protocol or relative base since file:// roots differently.
     const glueUrl = `${location.origin}/wasm/esengine.js`;
-    const { default: createModule } = (await import(/* @vite-ignore */ glueUrl)) as {
+    const { default: createModule } = await bootProfiler.phase('importGlue', () => import(/* @vite-ignore */ glueUrl)) as {
       default: (options?: Record<string, unknown>) => Promise<ESEngineModule>;
     };
 
@@ -547,7 +549,7 @@ class EngineHostImpl {
         document.body.appendChild(canvas);
       }
     }
-    const module = await createModule(moduleArg);
+    const module = await bootProfiler.phase('createModule (wasm instantiate)', () => createModule(moduleArg));
     this.module_ = module;
 
     // WebGL2: bind the renderer to a context WE create on this canvas (rather
@@ -573,7 +575,7 @@ class EngineHostImpl {
       });
     }
 
-    const app = createWebApp(module, {
+    const app = await bootProfiler.phase('createWebApp', () => createWebApp(module, {
       backend,
       colorSpace: opts.colorSpace,
       canvasSelector: `#${canvas.id}`,
@@ -583,7 +585,7 @@ class EngineHostImpl {
       // (same /wasm/ dir as locateFile above), so the web spine provider can
       // load 3.8/4.1 assets in the viewport, not just the engine-linked 4.2.
       wasmBaseUrl: '/wasm',
-    });
+    }));
     this.app_ = app;
     if (this.targetFps_ > 0) app.setTargetFrameRate(this.targetFps_);
 
@@ -638,6 +640,9 @@ class EngineHostImpl {
 
     // Report ready before run() (the DOM path) in case the loop never resolves.
     this.setStatus('ready');
+    // Emit the boot timing table now that the overlay is about to clear — the
+    // sceneBootstrap above recorded its own sub-phases (asset scan, preload, …).
+    bootProfiler.report();
     if (opts.runLoop) {
       void Promise.resolve(app.run()).catch((err) => this.swallowUnwind(err));
     }

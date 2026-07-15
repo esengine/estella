@@ -61,6 +61,10 @@ export interface ScanAssetsResult {
   warnings: string[];
   /** Orphan content files the scan adopted (minted a `.meta` for) this pass. */
   adopted: string[];
+  /** Per-sub-phase wall time (ms) — surfaced in the renderer boot profile so the
+   *  cost of this O(files) scan is visible and attributable (adopt vs meta-walk
+   *  vs dependency graph vs write-back). */
+  timingMs?: { adopt: number; walk: number; deps: number; write: number; total: number; files: number };
 }
 
 /** Recursively yield every `<file>.meta` path (project-relative, forward-slashed). */
@@ -184,10 +188,18 @@ export async function scanAssetDatabase(
   const entries: AssetEntry[] = [];
   const warnings: string[] = [];
 
+  // Sub-phase timing: this scan is O(files) and runs on every project open, so
+  // make each phase's cost visible (returned as timingMs, folded into the boot
+  // profile). performance.now() is a Node global.
+  const t = { adopt: 0, walk: 0, deps: 0, write: 0 };
+  const tStart = performance.now();
+
   // Adopt-before-index: orphans minted here are picked up by the meta walk below,
   // so a single scan both registers and indexes them (no second pass needed).
   const adopted = opts?.adopt === false ? [] : await adoptOrphans(root);
+  t.adopt = performance.now() - tStart;
 
+  const tWalk = performance.now();
   for await (const metaRel of walkMeta(root)) {
     let meta: { uuid?: unknown; type?: unknown; importer?: unknown };
     try {
@@ -209,7 +221,9 @@ export async function scanAssetDatabase(
   }
 
   entries.sort((a, b) => a.path.localeCompare(b.path));
+  t.walk = performance.now() - tWalk;
 
+  const tDeps = performance.now();
   // Dependency graph: any JSON asset can reference others — by uuid or by path
   // (project-relative like a scene's "assets/materials/x.esmaterial", or
   // relative to the referencing document's own directory like a material's
@@ -256,8 +270,10 @@ export async function scanAssetDatabase(
     }
   }
 
+  t.deps = performance.now() - tDeps;
   const index: AssetIndex = { version: '1.0', entries, deps };
 
+  const tWrite = performance.now();
   let outputPath: string | null = null;
   if (opts?.write !== false) {
     outputPath = path.join(root, CACHE_DIR, OUTPUT);
@@ -277,5 +293,16 @@ export async function scanAssetDatabase(
     }
   }
 
-  return { ok: true, outputPath, index, warnings, adopted };
+  t.write = performance.now() - tWrite;
+  const round1 = (n: number): number => Math.round(n * 10) / 10;
+  const timingMs = {
+    adopt: round1(t.adopt), walk: round1(t.walk), deps: round1(t.deps), write: round1(t.write),
+    total: round1(performance.now() - tStart), files: entries.length,
+  };
+  console.info(
+    `[boot] scanAssetDatabase: ${timingMs.total}ms (${timingMs.files} assets) — ` +
+    `adopt ${timingMs.adopt} / walk ${timingMs.walk} / deps ${timingMs.deps} / write ${timingMs.write}`,
+  );
+
+  return { ok: true, outputPath, index, warnings, adopted, timingMs };
 }
