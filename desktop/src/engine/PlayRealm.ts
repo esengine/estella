@@ -38,6 +38,10 @@ export class PlayRealmInstance {
   private payload: PlayPayload | null = null;
   private netPorts: MessagePort[] | null = null;
   private epoch = 0;
+  // The realm's wasm + GL are alive in the (persistent) iframe from a prior Play,
+  // so a re-Play hands over the new scene instead of cold-booting a fresh iframe
+  // (single-player primary only; multiplayer + play-in-window cold-boot as before).
+  private warm = false;
   private readonly store = createStore<PlayRealmSnapshot>(() => ({ playing: false, ready: false, error: null }));
 
   constructor(readonly id: number) {}
@@ -96,6 +100,16 @@ export class PlayRealmInstance {
     if (this.id === 0) bootProfiler.begin('play (click → first frame)');
     const frame = this.ensureIframe();
     frame.style.visibility = 'hidden';
+
+    // Warm re-Play: the engine is alive in the persistent iframe — hand it the new
+    // scene directly (the host does a warm rebuild: no second wasm instantiate, no
+    // iframe/bundle reload). Single-player primary only; anything else cold-boots.
+    if (this.warm && this.id === 0 && !this.netPorts) {
+      bootProfiler.mark('warm re-Play (engine kept alive)');
+      this.postInit();
+      return;
+    }
+
     try {
       const realm = await window.estella.project.preparePlayRealm();
       if (this.id === 0) bootProfiler.mark('preparePlayRealm (stage + esbuild)');
@@ -109,20 +123,38 @@ export class PlayRealmInstance {
     }
   }
 
-  /** Tear the realm down (releases its wasm + GL by navigating to a blank page). */
+  /** Post the scene payload to the (loaded) realm — cold on `hello`, or directly
+   *  on a warm re-Play. Transfers net MessagePorts with it for multiplayer. */
+  private postInit(): void {
+    if (!this.payload) return;
+    const ports = this.netPorts ?? undefined;
+    this.post({ type: 'estella:play:init', ...this.payload, netPorts: ports }, ports);
+  }
+
+  /** Stop the game. Single-player keeps the engine WARM (hide + pause, no reboot)
+   *  so the next Play is a fast scene swap; multiplayer/other realms release the
+   *  wasm + GL by navigating to a blank page. */
   stop(): void {
     this.payload = null;
     this.netPorts = null;
+    if (this.warm && this.id === 0) {
+      if (this.iframe) this.iframe.style.visibility = 'hidden';
+      this.setPaused(true); // freeze the world so a hidden realm doesn't keep simulating
+      this.set({ playing: false, ready: false, error: null });
+      return;
+    }
     if (this.iframe) {
       this.iframe.style.visibility = 'hidden';
       this.iframe.src = 'about:blank';
     }
+    this.warm = false;
     this.set({ playing: false, ready: false, error: null });
   }
 
   /** Full teardown for a session-scoped (client) realm: stop + drop the iframe
    *  and the window listener. The instance is not reusable afterwards. */
   destroy(): void {
+    this.warm = false; // force stop() down the cold teardown path (release wasm + GL)
     this.stop();
     window.removeEventListener('message', this.onMessage);
     this.detach();
@@ -211,10 +243,7 @@ export class PlayRealmInstance {
           break;
         }
         if (this.id === 0) bootProfiler.mark('iframe + host bundle load (→hello)');
-        if (this.payload) {
-          const ports = this.netPorts ?? undefined;
-          this.post({ type: 'estella:play:init', ...this.payload, netPorts: ports }, ports);
-        }
+        this.postInit();
         break;
       }
       case 'estella:play:log':
@@ -231,6 +260,9 @@ export class PlayRealmInstance {
           bootProfiler.mark('realm boot: wasm + scene (→ready)');
           bootProfiler.report();
         }
+        // The engine is now alive in the iframe; a single-player primary keeps it
+        // warm across Stop so the next Play is a scene swap, not a cold reboot.
+        if (this.id === 0 && !this.netPorts) this.warm = true;
         this.set({ ready: true });
         if (this.iframe) this.iframe.style.visibility = 'visible';
         // Hand the running game keyboard focus so it's playable immediately — the

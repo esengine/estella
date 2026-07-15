@@ -251,14 +251,53 @@ function beginNet(msg: InitMessage): Promise<void> {
   });
 }
 
+const r1 = (n: number): number => Math.round(n * 10) / 10;
+
+/**
+ * Rebuild the World for a NEW scene on the ALREADY-LIVE wasm + GL — the warm
+ * re-Play path (the editor keeps the realm iframe persistent across Stop, so a
+ * second Play reuses this engine instead of cold-booting a fresh iframe). Same
+ * teardown as {@link reload}'s full restart, but with the new payload. Reports
+ * bundle/engine as 0 in the profile — only the scene+asset load is paid.
+ */
+async function warmRebuild(msg: InitMessage): Promise<void> {
+  try {
+    if (app) {
+      const oldRegistry = app.world.getCppRegistry();
+      app.quit({ keepRenderer: true }); // keep wasm + GL; a full quit destroys the context
+      try { (oldRegistry as { delete?: () => void } | null)?.delete?.(); } catch { /* already freed */ }
+      app = null;
+    }
+    clearUserComponents();
+    try {
+      await import(/* @vite-ignore */ `${bundleUrl}?v=${++reloadSeq}`); // cache-bust: pick up edited code
+    } catch {
+      /* no project bundle — builtin-only */
+    }
+    const t = performance.now();
+    await buildAppAndRun(msg);
+    post({ type: 'estella:play:ready', phases: { bundleImport: 0, engineInstantiate: 0, sceneAndAssets: r1(performance.now() - t) } });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[play] warm rebuild failed', err);
+    post({ type: 'estella:play:error', message });
+  }
+}
+
 async function boot(msg: InitMessage): Promise<void> {
+  lastInit = msg;
+  // Warm re-Play: wasm + GL are already alive from a prior Play, so rebuild the
+  // World on them — no second instantiate, no bundle re-parse. (A multiplayer
+  // realm can't hot-rebuild — its net ports were consumed — so it cold-boots.)
+  if (booted && engineModule && !msg.net) {
+    await warmRebuild(msg);
+    return;
+  }
   if (booted) return;
   booted = true;
-  lastInit = msg;
   try {
     // Sub-phase timing reported back to the editor on `ready` — the realm runs in
     // its own JS realm, so it can't write the editor's boot profiler directly.
-    const r1 = (n: number): number => Math.round(n * 10) / 10;
     const tBundle = performance.now();
     // Register the project's own components/systems FIRST (side-effect import; its
     // `import 'esengine'` resolves through the import map to the shared instance).

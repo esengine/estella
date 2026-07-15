@@ -725,14 +725,17 @@ export function Viewport() {
   }, [showGrid, snapStep, primaryId, engine.status]);
 
   // Play In Viewport (UE5 PIE): host the realm iframe over the stage while playing
-  // here; App.start() already booted the realm — we just re-parent its iframe.
+  // here. The host div is PERSISTENT (mounted whenever the viewport is the play
+  // target, parked off-screen when not playing) so the realm's wasm + GL survive
+  // Stop and a re-Play is a warm scene swap — moving an iframe between parents
+  // reloads it, so it must never leave this host. Detach only on target switch.
   const playInViewport = isPlaying && playTarget === 'viewport';
   useEffect(() => {
-    if (!playInViewport) return;
+    if (playTarget !== 'viewport') return;
     const host = playHostRef.current;
     if (host) PlayRealm.attach(host);
     return () => PlayRealm.detach();
-  }, [playInViewport]);
+  }, [playTarget]);
 
   // Wheel = zoom about the view (native non-passive listener so we can preventDefault).
   useEffect(() => {
@@ -1872,23 +1875,28 @@ export function Viewport() {
         </svg>
       ))}
 
-      {/* Play In Viewport: the realm iframe fills the stage; a thin badge marks PIE. */}
-      {playInViewport && (
-        <div className="viewport__play">
+      {/* Play In Viewport: the realm iframe fills the stage. The host stays mounted
+          whenever the viewport is the play target (parked when not playing) so the
+          engine survives Stop for a warm re-Play; the status + stop chrome is
+          play-only. */}
+      {playTarget === 'viewport' && (
+        <div className={`viewport__play${playInViewport ? '' : ' viewport__play--parked'}`}>
           <div className="viewport__play-host" ref={playHostRef} />
-          {(!realm.ready || realm.error) && (
+          {playInViewport && (!realm.ready || realm.error) && (
             <div className={`viewport__play-status${realm.error ? ' error' : ''}`}>
               {realm.error ? t('vp.playFailed', { error: realm.error }) : t('vp.startingGame')}
             </div>
           )}
-          <button
-            type="button"
-            className="viewport__play-stop"
-            title={t('vp.stopTitle')}
-            onClick={() => useEditorStore.getState().stop()}
-          >
-            {t('vp.playingStop')}
-          </button>
+          {playInViewport && (
+            <button
+              type="button"
+              className="viewport__play-stop"
+              title={t('vp.stopTitle')}
+              onClick={() => useEditorStore.getState().stop()}
+            >
+              {t('vp.playingStop')}
+            </button>
+          )}
         </div>
       )}
 
