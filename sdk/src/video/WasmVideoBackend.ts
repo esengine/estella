@@ -61,7 +61,11 @@ const CLOCK_BACK_JUMP = 0.25;
 // Bus the audio track routes through (created on demand under master).
 const VIDEO_AUDIO_BUS = 'video';
 // Video extensions whose cooked `.m4a` audio-track sibling is worth probing.
-const AUDIO_SIBLING_RE = /\.(esv|mpg|mpeg)$/i;
+// `.esv.bin` is the WeChat-export restaging of `.esv` (code-package suffix
+// whitelist); the sibling keeps the cook's `.esv.m4a` name, so derivation
+// strips the `.bin` first.
+const AUDIO_SIBLING_RE = /\.(esv|mpg|mpeg)(\.bin)?$/i;
+const audioSiblingUrl = (url: string): string => `${url.replace(/\.bin$/i, '')}.m4a`;
 
 class WasmVideoStreamHandle implements VideoStreamHandle {
     readonly id = nextId_++;
@@ -134,7 +138,7 @@ class WasmVideoStreamHandle implements VideoStreamHandle {
             }
 
             this.audioApi_ = deps.audio();
-            if (this.audioApi_ && AUDIO_SIBLING_RE.test(url)) this.audioUrl_ = `${url}.m4a`;
+            if (this.audioApi_ && AUDIO_SIBLING_RE.test(url)) this.audioUrl_ = audioSiblingUrl(url);
             if (this.playing_) void this.startAudio_(startAt);
         } catch (err) {
             if (this.disposed_) return;
@@ -163,6 +167,15 @@ class WasmVideoStreamHandle implements VideoStreamHandle {
         const url = this.audioUrl_;
         if (!api || !url) return;
         const gen = ++this.audioGen_;
+        // A silent video has no cooked sibling — check local paths first so the
+        // expected miss stays silent (the audio backend logs a load failure as
+        // an error). Remote URLs can't be probed cheaply; playTrack's null
+        // return covers them.
+        if (!/^https?:\/\//.test(url) && !(await getPlatform().fileExists(url))) {
+            if (gen === this.audioGen_) this.audioUrl_ = null;
+            return;
+        }
+        if (this.disposed_ || gen !== this.audioGen_) return;
         const handle = await api.playTrack(url, {
             bus: VIDEO_AUDIO_BUS,
             volume: this.muted_ ? 0 : this.volume_,

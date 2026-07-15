@@ -306,10 +306,12 @@ export async function exportWeChat(opts: {
   const cook = await cookAssets(opts.root, { entryScenes: scenes.map((s) => s.path), outDir: absOut, contentAddressed: opts.contentAddressed, compressTextures: opts.compressTextures, compressAudio: opts.compressAudio, atlasTextures: opts.atlasTextures, transcodeVideo: true });
   warnings.push(...cook.warnings);
 
-  // 1a. Restage for WeChat's code-package suffix whitelist (it has no `ktx2`
-  //     or `esscene`; the packer drops such files and fs reads are denied
+  // 1a. Restage for WeChat's code-package suffix whitelist (it has no `ktx2`,
+  //     `esv` or `esscene`; the packer drops such files and fs reads are denied
   //     regardless of packOptions):
   //       *.ktx2                → *.ktx2.bin (whitelisted; isKtx2Path accepts both)
+  //       *.esv                 → *.esv.bin (the wasm video backend strips the
+  //                               .bin when deriving the .m4a audio sibling)
   //       assets/…/<x>.esscene  → scenes/<name>.json, @uuid: refs stripped to the
   //                               bare uuids the WeChat resolver keys by; the
   //                               manifest entry follows, so scene refs resolve
@@ -321,7 +323,7 @@ export async function exportWeChat(opts: {
   try {
     const flat = JSON.parse(await readFile(flatManifestPath, 'utf8')) as CookManifest;
     for (const e of flat.entries) {
-      if (e.path.toLowerCase().endsWith('.ktx2')) {
+      if (/\.(ktx2|esv)$/.test(e.path.toLowerCase())) {
         await rename(path.join(absOut, e.path), path.join(absOut, `${e.path}.bin`));
         e.path = `${e.path}.bin`;
         continue;

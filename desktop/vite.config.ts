@@ -87,10 +87,11 @@ export default defineConfig({
         // exportGame run it). Keep it external → required from node_modules at
         // runtime where its binary resolution works. (Vite 8 = Rolldown, so the
         // option is `rolldownOptions`, not `rollupOptions`.)
-        // esbuild + the vendored Basis KTX2 encoder both resolve sibling binaries
-        // at runtime (native exe / wasm via import.meta.url), so bundling them
-        // breaks that — keep them external, loaded from disk by the cook.
-        vite: { build: { rolldownOptions: { external: ['esbuild', /[\\/]build-tools[\\/]basis[\\/]/] } } },
+        // esbuild + the vendored Basis KTX2 encoder + ffmpeg-static all resolve
+        // sibling binaries at runtime (native exe / wasm via import.meta.url /
+        // module __dirname), so bundling them breaks that — keep them external,
+        // loaded from disk by the cook.
+        vite: { build: { rolldownOptions: { external: ['esbuild', 'ffmpeg-static', /[\\/]build-tools[\\/]basis[\\/]/] } } },
       },
       preload: {
         input: 'electron/preload.ts',

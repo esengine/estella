@@ -356,6 +356,33 @@ describe('WasmVideoBackend audio-track clock', () => {
         handle.stop();
     });
 
+    it('derives the sibling through the WeChat .bin restaging (clip.esv.bin → clip.esv.m4a)', async () => {
+        const { mod } = mockVideoModule();
+        const { api, playTrack } = mockAudio();
+        const backend = new WasmVideoBackend({ sideModules: () => hostFor(mod), audio: () => api });
+        const handle = backend.createStream('assets/video/clip.esv.bin', {});
+        await flush();
+        expect(playTrack).toHaveBeenCalledWith('assets/video/clip.esv.m4a', expect.anything());
+        handle.stop();
+    });
+
+    it('a silent video (no sibling file) never reaches the audio backend', async () => {
+        const { mod } = mockVideoModule();
+        const { api, playTrack } = mockAudio();
+        setPlatform({ ...mockPlatform(new ArrayBuffer(64)), fileExists: async () => false });
+        const backend = new WasmVideoBackend({ sideModules: () => hostFor(mod), audio: () => api });
+        const handle = backend.createStream('clip.esv', {});
+        await flush();
+        expect(playTrack).not.toHaveBeenCalled();
+        // engine clock still drives the video
+        nowMs = 16;
+        handle.pump(engineModule);
+        nowMs = 32;
+        handle.pump(engineModule);
+        expect(handle.isPlaying).toBe(true);
+        handle.stop();
+    });
+
     it('never probes a sibling for non-esv sources', async () => {
         const { mod } = mockVideoModule();
         const { api, playTrack } = mockAudio();

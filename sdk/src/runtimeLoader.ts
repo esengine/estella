@@ -25,6 +25,7 @@ import { SceneManager, type SceneConfig } from './sceneManager';
 import { DEFAULT_GRAVITY, DEFAULT_FIXED_TIMESTEP } from './defaults';
 import { SpriteAnimation } from './animation/SpriteAnimator';
 import { Audio } from './audio/Audio';
+import { VideoPlayer } from './video/VideoAPI';
 import { Localization, matchLocale } from './i18n/Localization';
 import { LocalizationPlugin } from './i18n/LocalizationPlugin';
 import { platformLanguage } from './platform';
@@ -238,6 +239,12 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
     // SAME resolver the preload keyed the caches with) and persists across scene
     // loads. Spine stays a two-phase load+apply below (skipSpine).
     const sceneAssets = ensureRuntimeAssets(app, module, source);
+    // Video source refs resolve through the SAME channel as every other asset
+    // (the editor's play realm wires this too) — a cooked build maps the
+    // authored logical ref (clip.mp4 / @uuid) to its staged .esv.
+    if (source.resolveRef && app.hasResource(VideoPlayer)) {
+        app.getResource(VideoPlayer).setRefResolver(source.resolveRef);
+    }
     mergeSceneTextureImportSettings(sceneAssets, sceneData, source.resolveRef ?? ((r) => r));
     const assetResult = await sceneAssets.preloadSceneAssets(sceneData, undefined, { skipSpine: true });
     sceneAssets.resolveSceneAssetPaths(sceneData, assetResult);

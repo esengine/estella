@@ -10,19 +10,23 @@
  *        lazily and only when a cook actually ships video.
  */
 import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 /** Resolve the ffmpeg binary: env override first, then the bundled static
  *  build. Inside a packaged app the binary must run from the unpacked twin of
- *  the asar (executables cannot spawn from an archive). Null if unavailable. */
+ *  the asar (executables cannot spawn from an archive). Null if unavailable —
+ *  including when the resolved path dangles (e.g. ffmpeg-static was bundled,
+ *  which rebases its __dirname-derived path onto the bundle dir). */
 export async function resolveFfmpeg(): Promise<string | null> {
   if (process.env.ESTELLA_FFMPEG) return process.env.ESTELLA_FFMPEG;
   try {
     const mod = await import('ffmpeg-static');
     const p = (mod.default ?? mod) as unknown as string | null;
-    return p ? p.replace(`app.asar${path.sep}`, `app.asar.unpacked${path.sep}`) : null;
+    const real = p ? p.replace(`app.asar${path.sep}`, `app.asar.unpacked${path.sep}`) : null;
+    return real && existsSync(real) ? real : null;
   } catch {
     return null;
   }
@@ -113,6 +117,10 @@ export async function transcodeVideoForWasm(
       warnings.push(`audio track extract failed: ${lastLine(audioRes.stderr)}`);
     }
     return { esv, audio, warnings };
+  } catch (err) {
+    // spawn-level failure (ENOENT, EPERM) — report, don't abort the cook loop.
+    warnings.push(`ffmpeg failed to run: ${err instanceof Error ? err.message : String(err)}`);
+    return { esv: null, audio: null, warnings };
   } finally {
     await rm(tmp, { recursive: true, force: true });
   }
