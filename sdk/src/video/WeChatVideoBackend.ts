@@ -18,7 +18,7 @@ class WeChatVideoStreamHandle implements VideoStreamHandle {
     onEnded?: () => void;
     onError?: (error: unknown) => void;
 
-    private readonly decoder_: WechatMinigame.VideoDecoder;
+    private decoder_: WechatMinigame.VideoDecoder;
     private audioPlayer_: WechatMinigame.MediaAudioPlayer | null = null;
     private texture_ = 0;
     private width_ = 0;
@@ -35,8 +35,12 @@ class WeChatVideoStreamHandle implements VideoStreamHandle {
     constructor(url: string, options: VideoStreamOptions) {
         this.playing_ = options.autoplay ?? true;
         this.loop_ = options.loop ?? false;
+        this.decoder_ = this.makeDecoder_();
+        void this.start_(url, options);
+    }
+
+    private makeDecoder_(): WechatMinigame.VideoDecoder {
         const decoder = wx.createVideoDecoder();
-        this.decoder_ = decoder;
         decoder.on('ended', () => {
             if (this.loop_) {
                 this.lastPts_ = -1;
@@ -45,23 +49,39 @@ class WeChatVideoStreamHandle implements VideoStreamHandle {
                 this.onEnded?.();
             }
         });
-        void this.start_(url, options);
+        return decoder;
     }
 
-    // VideoDecoder can't read the read-only code package on-device ("playerStart
-    // failed") — stage the clip into the writable user dir, then start (mode 0 =
-    // decode by PTS). start() also rejects in the devtools (real-device only).
+    // Runtimes disagree on the source path: WeChat PC decodes the packaged path,
+    // real phones reject it ("playerStart failed") and need the clip staged to a
+    // writable dir. Try the package path first, then a staged copy on a fresh
+    // decoder. (mode 0 = decode by PTS; start() also rejects in the devtools.)
     private async start_(url: string, options: VideoStreamOptions): Promise<void> {
-        let source = url;
-        try {
-            source = await this.stageSource_(url);
-        } catch (err) {
-            log.warn('video', `WeChat stage failed, decoding from package: ${url}`, err);
-        }
+        if (await this.tryStart_(url)) return this.afterStart_(options);
         if (this.disposed_) return;
-        this.decoder_.start({ source, mode: 0 })
-            .then(() => log.info('video', `WeChat decoder started: ${source}`))
-            .catch((err) => { log.error('video', `WeChat decoder start failed: ${source}`, err); this.onError?.(err); });
+
+        let staged: string;
+        try {
+            staged = await this.stageSource_(url);
+        } catch (err) {
+            log.error('video', `WeChat decoder start failed and staging failed: ${url}`, err);
+            this.onError?.(err);
+            return;
+        }
+        if (this.disposed_ || staged === url) return;
+
+        this.decoder_.remove().catch(() => { /* ignore */ });
+        this.decoder_ = this.makeDecoder_();
+        if (await this.tryStart_(staged)) return this.afterStart_(options);
+        log.error('video', `WeChat decoder start failed (package and staged): ${url}`);
+    }
+
+    private tryStart_(source: string): Promise<boolean> {
+        return this.decoder_.start({ source, mode: 0 }).then(() => true).catch(() => false);
+    }
+
+    private afterStart_(options: VideoStreamOptions): void {
+        if (this.disposed_) return;
         if (!(options.muted ?? false)) this.attachAudio_(options.volume ?? 1);
     }
 
