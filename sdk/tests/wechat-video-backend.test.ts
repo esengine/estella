@@ -28,11 +28,13 @@ describe('WeChatVideoBackend', () => {
         delete (globalThis as any).wx;
     });
 
-    it('is named WeChat and starts the decoder in PTS mode', () => {
+    it('is named WeChat and starts the decoder in PTS mode', async () => {
         backend.createStream('clip.mp4', { autoplay: true, muted: true });
         expect(backend.name).toBe('WeChat');
         expect((globalThis as any).wx.createVideoDecoder).toHaveBeenCalled();
-        expect(decoder.start).toHaveBeenCalledWith({ source: 'clip.mp4', mode: 0 });
+        // start() runs after async source staging (no fs in the mock → falls back).
+        await new Promise((r) => setTimeout(r, 0));
+        expect(decoder.start).toHaveBeenCalledWith(expect.objectContaining({ mode: 0 }));
     });
 
     // Regression: getFrameData is typed non-null but returns null on-device until

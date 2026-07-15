@@ -30,16 +30,13 @@ class WeChatVideoStreamHandle implements VideoStreamHandle {
     private lastPts_ = -1;
     private flip_: Uint8Array | null = null;
     private rateWarned_ = false;
+    private stagedPath_: string | null = null;
 
     constructor(url: string, options: VideoStreamOptions) {
         this.playing_ = options.autoplay ?? true;
         this.loop_ = options.loop ?? false;
         const decoder = wx.createVideoDecoder();
         this.decoder_ = decoder;
-        // mode 0 = decode by PTS. start() rejects in the WeChat devtools —
-        // VideoDecoder is real-device only — so surface the failure loudly.
-        decoder.start({ source: url, mode: 0 })
-            .catch((err) => { log.error('video', `WeChat decoder start failed: ${url}`, err); this.onError?.(err); });
         decoder.on('ended', () => {
             if (this.loop_) {
                 this.lastPts_ = -1;
@@ -48,7 +45,39 @@ class WeChatVideoStreamHandle implements VideoStreamHandle {
                 this.onEnded?.();
             }
         });
+        void this.start_(url, options);
+    }
+
+    // VideoDecoder can't read the read-only code package on-device ("playerStart
+    // failed") — stage the clip into the writable user dir, then start (mode 0 =
+    // decode by PTS). start() also rejects in the devtools (real-device only).
+    private async start_(url: string, options: VideoStreamOptions): Promise<void> {
+        let source = url;
+        try {
+            source = await this.stageSource_(url);
+        } catch (err) {
+            log.warn('video', `WeChat stage failed, decoding from package: ${url}`, err);
+        }
+        if (this.disposed_) return;
+        this.decoder_.start({ source, mode: 0 })
+            .then(() => log.info('video', `WeChat decoder started: ${source}`))
+            .catch((err) => { log.error('video', `WeChat decoder start failed: ${source}`, err); this.onError?.(err); });
         if (!(options.muted ?? false)) this.attachAudio_(options.volume ?? 1);
+    }
+
+    private async stageSource_(url: string): Promise<string> {
+        // Remote or already-writable paths need no staging.
+        if (/^https?:\/\//.test(url) || url.startsWith('wxfile://')) return url;
+        const userDir = wx.env.USER_DATA_PATH;
+        if (!userDir) return url;
+        const name = (url.split('/').pop() || 'clip.mp4').replace(/[^\w.-]/g, '_');
+        const dest = `${userDir}/estella_video_${this.id}_${name}`;
+        const fs = wx.getFileSystemManager();
+        await new Promise<void>((resolve, reject) => {
+            fs.copyFile({ srcPath: url, destPath: dest, success: () => resolve(), fail: reject });
+        });
+        this.stagedPath_ = dest;
+        return dest;
     }
 
     private attachAudio_(volume: number): void {
@@ -155,6 +184,10 @@ class WeChatVideoStreamHandle implements VideoStreamHandle {
         if (this.texture_) {
             requireResourceManager().releaseTexture(this.texture_);
             this.texture_ = 0;
+        }
+        if (this.stagedPath_) {
+            try { wx.getFileSystemManager().unlink({ filePath: this.stagedPath_, success: () => {}, fail: () => {} }); } catch { /* ignore */ }
+            this.stagedPath_ = null;
         }
         this.flip_ = null;
     }
