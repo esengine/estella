@@ -15,11 +15,11 @@
     "config": "shipping",
     "sourceMaps": false,
     "openFolder": true,
-    "compressTextures": false,
-    "atlasTextures": false,
-    "compressAudio": false,
     "outDir": {
       "wechat": "dist-wechat"
-    }
+    },
+    "compressTextures": false,
+    "atlasTextures": false,
+    "compressAudio": false
   }
 }

@@ -36,7 +36,12 @@ class WeChatVideoStreamHandle implements VideoStreamHandle {
         this.loop_ = options.loop ?? false;
         const decoder = wx.createVideoDecoder();
         this.decoder_ = decoder;
-        decoder.start({ source: url, mode: 0 }).catch((err) => this.onError?.(err)); // mode 0 = decode by PTS
+        // mode 0 = decode by PTS. Surface start success/failure — a bad package
+        // path or unsupported codec otherwise just yields a silent white frame.
+        decoder.start({ source: url, mode: 0 })
+            .then(() => log.info('video', `WeChat decoder started: ${url}`))
+            .catch((err) => { log.error('video', `WeChat decoder start failed: ${url}`, err); this.onError?.(err); });
+        decoder.on('start', (res: unknown) => log.info('video', `WeChat decode 'start'`, res));
         decoder.on('ended', () => {
             if (this.loop_) {
                 this.lastPts_ = -1;
@@ -86,6 +91,7 @@ class WeChatVideoStreamHandle implements VideoStreamHandle {
                 /* flipY */ false,
                 { filterMode: 'linear', wrapMode: 'clamp' },
             );
+            log.info('video', `WeChat first frame ${w}x${h}`);
             this.ready_ = true;
             this.onReady?.();
         } else if (w === this.width_ && h === this.height_) {
