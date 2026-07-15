@@ -125,8 +125,11 @@ jobs:
     - name: Install dependencies
       run: pnpm install
 
+    # Filtered so the SDK is checked by ITS OWN pinned TypeScript (the workspace
+    # carries two majors — desktop is on 6.x); a bare root `pnpm exec tsc`
+    # resolves an arbitrary compiler. Mirrors the repo's `verify` gate exactly.
     - name: Type-check SDK
-      run: pnpm exec tsc --noEmit -p sdk/tsconfig.json
+      run: pnpm --filter ./sdk exec tsc --noEmit
 
     - name: Check API surface (snapshot + release-tag policy)
       run: node tools/api-surface.mjs --check

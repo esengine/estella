@@ -35,7 +35,7 @@ import {
 } from './protocol';
 import {
     buildReplicationTable, cloneValue, decodeStateFrame, tableSchemas,
-    type EntityRefMap, type FieldShape, type ReplicationTable, type StateFrame,
+    type EntityRefMap, type FieldShape, type ReplicationTable, type ReplicationTableEntry, type StateFrame,
 } from './codec';
 import { NetGhost, Replicated, type ReplicatedData } from './components';
 import { NetIds } from './NetIds';
@@ -349,10 +349,12 @@ export class ReplicationClient {
             const keep = Math.pow(0.5, this.fixedDelta_ / smoothing.halfLife);
             const maxError = smoothing.maxError ?? Infinity;
             for (const e of owned) {
-                const perComp = seen.get(e);
+                // Annotated: some tsc releases flag this chain as circular
+                // inference (TS7022) without them.
+                const perComp: Map<number, Record<string, unknown>> | undefined = seen.get(e);
                 if (!perComp) continue;
                 for (const [componentId, prev] of perComp) {
-                    const te = this.table.entries[componentId];
+                    const te: ReplicationTableEntry | undefined = this.table.entries[componentId];
                     if (!te || !this.world_.has(e, te.def)) continue;
                     const data = this.world_.tryGet(e, te.def) as Record<string, unknown>;
                     let changed = false;
