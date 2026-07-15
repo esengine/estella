@@ -178,6 +178,33 @@ function normalizeRefPath(ref: string): string {
 }
 
 /**
+ * Bounded-concurrency map preserving output order. The scan reads hundreds of
+ * tiny files; serial `await readFile` left the disk idle between reads (~5×
+ * slower than parallel on an 800-file project). This keeps a fixed number of
+ * reads in flight — fast, but without the unbounded fd/memory pressure a raw
+ * `Promise.all` would put on a very large tree.
+ */
+async function mapLimit<T, R>(
+  items: readonly T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const out = new Array<R>(items.length);
+  let next = 0;
+  const worker = async (): Promise<void> => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await fn(items[i], i);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return out;
+}
+
+/** Reads in flight during the scan's meta-walk and dependency-graph passes. */
+const SCAN_IO_CONCURRENCY = 48;
+
+/**
  * Scan `root` for `.meta` sidecars → build the asset index (registry + dep
  * graph) and (unless `write: false`) write `.esengine/cache/assets.json`.
  */
@@ -200,24 +227,33 @@ export async function scanAssetDatabase(
   t.adopt = performance.now() - tStart;
 
   const tWalk = performance.now();
-  for await (const metaRel of walkMeta(root)) {
+  // The generator walk is just readdir (cheap); the readFile+parse per .meta is
+  // the cost — run those in parallel, then assemble deterministically in order.
+  const metaRels: string[] = [];
+  for await (const metaRel of walkMeta(root)) metaRels.push(metaRel);
+  type WalkResult = { entry?: AssetEntry; warning?: string };
+  const walkResults = await mapLimit(metaRels, SCAN_IO_CONCURRENCY, async (metaRel): Promise<WalkResult> => {
     let meta: { uuid?: unknown; type?: unknown; importer?: unknown };
     try {
       meta = JSON.parse(await readFile(path.join(root, metaRel), 'utf8'));
     } catch (err) {
-      warnings.push(`${metaRel}: ${err instanceof Error ? err.message : String(err)}`);
-      continue;
+      return { warning: `${metaRel}: ${err instanceof Error ? err.message : String(err)}` };
     }
     if (typeof meta?.uuid !== 'string' || typeof meta?.type !== 'string') {
-      warnings.push(`${metaRel}: missing uuid or type`);
-      continue;
+      return { warning: `${metaRel}: missing uuid or type` };
     }
-    entries.push({
-      uuid: meta.uuid.toLowerCase(),
-      path: metaRel.replace(/\.meta$/, ''),
-      type: meta.type,
-      importer: (meta.importer as Record<string, unknown>) ?? {},
-    });
+    return {
+      entry: {
+        uuid: meta.uuid.toLowerCase(),
+        path: metaRel.replace(/\.meta$/, ''),
+        type: meta.type,
+        importer: (meta.importer as Record<string, unknown>) ?? {},
+      },
+    };
+  });
+  for (const r of walkResults) {
+    if (r.entry) entries.push(r.entry);
+    else if (r.warning) warnings.push(r.warning);
   }
 
   entries.sort((a, b) => a.path.localeCompare(b.path));
@@ -232,13 +268,16 @@ export async function scanAssetDatabase(
   const byPath = new Map(entries.map((e) => [e.path, e]));
   const uuids = new Set(entries.map((e) => e.uuid));
   const deps: Record<string, string[]> = {};
-  for (const entry of entries) {
+  // Only JSON-ref assets + spine atlases carry edges; read those (the cost) in
+  // parallel and assemble in order so warnings/deps stay deterministic.
+  const refEntries = entries.filter((e) => JSON_REF_TYPES.has(e.type) || getEditorType(e.path) === 'spine-atlas');
+  type DepResult = { uuid: string; refs: string[] } | { warning: string };
+  const depResults = await mapLimit(refEntries, SCAN_IO_CONCURRENCY, async (entry): Promise<DepResult> => {
     // A spine `.atlas` is a TEXT manifest (not JSON): its page image names are
     // texture deps — the same edge the SpineAssetLoader walks at runtime. Scan it
     // apart from the JSON path so the cook embeds those textures (else the atlas
     // ships but its .png is culled and the playable 404s it).
     const isSpineAtlas = getEditorType(entry.path) === 'spine-atlas';
-    if (!JSON_REF_TYPES.has(entry.type) && !isSpineAtlas) continue;
     try {
       const refs = new Set<string>();
       if (isSpineAtlas) {
@@ -264,10 +303,14 @@ export async function scanAssetDatabase(
         }, (id) => uuids.has(id));
       }
       refs.delete(entry.uuid);
-      if (refs.size > 0) deps[entry.uuid] = [...refs].sort();
+      return { uuid: entry.uuid, refs: [...refs].sort() };
     } catch (err) {
-      warnings.push(`${entry.path}: ${err instanceof Error ? err.message : String(err)}`);
+      return { warning: `${entry.path}: ${err instanceof Error ? err.message : String(err)}` };
     }
+  });
+  for (const r of depResults) {
+    if ('warning' in r) warnings.push(r.warning);
+    else if (r.refs.length > 0) deps[r.uuid] = r.refs;
   }
 
   t.deps = performance.now() - tDeps;
