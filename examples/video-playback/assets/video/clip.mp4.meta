@@ -1,0 +1,10 @@
+{
+  "uuid": "4fadbb7a-a246-4f02-8883-f69c3d8f210f",
+  "version": "2.0",
+  "type": "video",
+  "importer": {
+    "loop": true,
+    "autoplay": true,
+    "muted": true
+  }
+}

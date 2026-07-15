@@ -72,6 +72,7 @@ const MIME = {
   '.css': 'text/css', '.json': 'application/json', '.esscene': 'application/json',
   '.wasm': 'application/wasm', '.png': 'image/png', '.jpg': 'image/jpeg',
   '.webp': 'image/webp', '.woff': 'font/woff', '.woff2': 'font/woff2', '.svg': 'image/svg+xml',
+  '.mp4': 'video/mp4', '.webm': 'video/webm',
 };
 
 function serveDist() {
@@ -165,6 +166,20 @@ app.whenReady().then(async () => {
           const t = N === 0 ? 1 : i / N;
           api.setEntityXY(target, fx + (tx - fx) * t, fy + (ty - fy) * t);
           await api.step(1, 1 / 60);
+        }
+      })()`);
+    } else if (process.env.ESTELLA_VERIFY_SETTLE_MS) {
+      // Real-time settle: some content decodes on the wall clock, not engine dt
+      // — video (HTMLVideoElement) decodes frames in real time and its system
+      // uploads the newest frame each tick. Interleave engine steps with real
+      // delays so frames actually arrive before the capture. Requires play mode.
+      const ms = Number(process.env.ESTELLA_VERIFY_SETTLE_MS) || 1500;
+      await exec(`(async () => {
+        const api = window.__estellaHeadless.api;
+        const end = performance.now() + ${ms};
+        while (performance.now() < end) {
+          await api.step(1, 1 / 60);
+          await new Promise((r) => setTimeout(r, 16));
         }
       })()`);
     } else {

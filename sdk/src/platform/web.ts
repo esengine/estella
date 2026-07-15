@@ -18,6 +18,8 @@ import type {
 } from './types';
 import { WebAudioBackend } from '../audio/WebAudioBackend';
 import type { PlatformAudioBackend } from '../audio/PlatformAudioBackend';
+import { WebVideoBackend } from '../video/WebVideoBackend';
+import type { PlatformVideoBackend } from '../video/PlatformVideoBackend';
 import { GameSocket } from '../net/GameSocket';
 
 const WHEEL_LINE_HEIGHT = 16;
@@ -274,6 +276,10 @@ class WebPlatformAdapter implements PlatformAdapter {
 
     createAudioBackend(): PlatformAudioBackend {
         return new WebAudioBackend();
+    }
+
+    createVideoBackend(): PlatformVideoBackend {
+        return new WebVideoBackend();
     }
 
     createSocket(options: PlatformSocketOptions): PlatformSocket {

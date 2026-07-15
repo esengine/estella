@@ -18,6 +18,7 @@
 import type { App } from './app';
 import type { ESEngineModule } from './wasm';
 import { Audio } from './audio/Audio';
+import { VideoPlayer } from './video/VideoAPI';
 import { initRuntime } from './runtimeLoader';
 import type { RuntimeAssetSource } from './runtimeAssets';
 import { HttpBackend } from './asset/Backend';
@@ -158,6 +159,12 @@ export async function initPlayRealmRuntime(config: PlayRealmRuntimeConfig): Prom
     // logical→staged map. One resolution channel, no parallel baseUrl logic.
     if (app.hasResource(Audio)) {
         app.getResource(Audio).setRefResolver(
+            (ref) => resolvePlayAssetRef(ref, assetManifest, assetBaseUrl, config.assetPathMap),
+        );
+    }
+    // Video source refs resolve through the same channel (see the Audio note above).
+    if (app.hasResource(VideoPlayer)) {
+        app.getResource(VideoPlayer).setRefResolver(
             (ref) => resolvePlayAssetRef(ref, assetManifest, assetBaseUrl, config.assetPathMap),
         );
     }

@@ -17,6 +17,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "verify:render": "vite build && electron scripts/headless-verify.mjs",
+    "verify:render:video": "vite build && ESTELLA_VERIFY_PLAY=1 ESTELLA_VERIFY_SETTLE_MS=2500 ESTELLA_VERIFY_SCENE=/scenes/video-playback.esscene ESTELLA_VERIFY_MANIFEST=/scenes/video-playback.textures.json ESTELLA_VERIFY_W=256 ESTELLA_VERIFY_H=256 ESTELLA_VERIFY_EXPECT=\"[{\\\"x\\\":0.5,\\\"y\\\":0.25,\\\"rgb\\\":[255,0,0],\\\"tol\\\":90},{\\\"x\\\":0.5,\\\"y\\\":0.75,\\\"rgb\\\":[0,0,255],\\\"tol\\\":90}]\" electron scripts/headless-verify.mjs",
     "editor:mcp": "node scripts/editor-mcp.mjs",
     "editor:mcp:build": "vite build && node scripts/editor-mcp.mjs",
     "editor:mcp:e2e": "vite build && node scripts/editor-mcp-e2e.mjs",

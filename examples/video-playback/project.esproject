@@ -1,0 +1,13 @@
+{
+  "formatVersion": "1",
+  "name": "Video Playback",
+  "description": "Play a video on a Sprite via the Video component (M0).",
+  "tag": "Rendering",
+  "version": "0.1.0",
+  "defaultScene": "assets/scenes/main.esscene",
+  "designResolution": {
+    "width": 640,
+    "height": 480
+  },
+  "spineVersion": "none"
+}

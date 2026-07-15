@@ -322,6 +322,24 @@ export {
 } from './audio';
 
 // =============================================================================
+// Video
+// =============================================================================
+
+export {
+    VideoPlayer,
+    VideoAPI,
+    VideoPlugin,
+    videoPlugin,
+    Video,
+    type VideoHandle,
+    type VideoPlayOptions,
+    type VideoData,
+    type PlatformVideoBackend,
+    type VideoStreamHandle,
+    type VideoStreamOptions,
+} from './video';
+
+// =============================================================================
 // Particle
 // =============================================================================
 
