@@ -67,8 +67,10 @@ class WeChatVideoStreamHandle implements VideoStreamHandle {
 
     pump(module: ESEngineModule): void {
         if (this.disposed_ || !this.playing_) return;
-        const frame = this.decoder_.getFrameData();
-        if (!frame.data || frame.data.byteLength === 0 || frame.width <= 0) return; // not decoded yet
+        // getFrameData is typed non-null but returns null on-device until a frame
+        // has decoded — guard for it rather than trusting the vendor type.
+        const frame: WechatMinigame.FrameDataOptions | null = this.decoder_.getFrameData();
+        if (!frame || !frame.data || frame.data.byteLength === 0 || frame.width <= 0) return;
         if (frame.pkPts === this.lastPts_) return; // no new frame
         this.lastPts_ = frame.pkPts;
 
