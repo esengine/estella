@@ -7,6 +7,7 @@ import { ProjectStore } from '@/project/ProjectStore';
 import { WindowControls } from '@/layout/WindowControls';
 import { SearchField } from '@/components/SearchField';
 import { Segmented } from '@/components/Segmented';
+import { Toaster } from '@/components/Toaster';
 import { t } from '@/i18n';
 import type { RecentEntry, TemplateEntry } from '@/project/format';
 import { version } from '../../package.json';
@@ -257,9 +258,14 @@ function NewView({ onCreated }: { onCreated: () => void }) {
       setLocation(loc);
     }
     setBusy(true);
-    const ok = await ProjectStore.createAndOpen(tpl.dir, loc, name || tpl.name);
-    setBusy(false);
-    if (ok) onCreated();
+    try {
+      const ok = await ProjectStore.createAndOpen(tpl.dir, loc, name || tpl.name);
+      if (ok) onCreated();
+    } finally {
+      // Always release the button — a failed create must return to "Create
+      // Project", never stick on "Creating…".
+      setBusy(false);
+    }
   };
 
   return (
@@ -428,6 +434,9 @@ export function Launcher() {
           )}
         </main>
       </div>
+      {/* Launcher-stage feedback (create/open failures) — the editor shell's
+          Toaster isn't mounted yet on this screen. */}
+      <Toaster />
     </div>
   );
 }

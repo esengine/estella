@@ -243,8 +243,16 @@ class ProjectStoreImpl {
   async createAndOpen(templateDir: string, location: string, name: string): Promise<boolean> {
     const bridge = window.estella;
     if (!bridge?.project?.createFromTemplate) return false;
-    const root = await bridge.project.createFromTemplate(templateDir, location, name);
-    return this.open(root);
+    // Scaffolding can reject (name already taken, unwritable location, …) — the
+    // same as open()/openViaDialog(). Surface it as a toast; an unhandled
+    // rejection here strands the launcher on "Creating…" forever.
+    try {
+      const root = await bridge.project.createFromTemplate(templateDir, location, name);
+      return this.open(root);
+    } catch (e) {
+      Toasts.push(t('proj.createFailed', { message: e instanceof Error ? e.message : String(e) }), 'error');
+      return false;
+    }
   }
 
   /**
