@@ -81,6 +81,15 @@ export default {
                 'sdk/spine42.wasm': 'wasm/web/spine42.wasm',
             },
         },
+        videodec: {
+            buildDir: 'build-web',
+            cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_WEBGPU=ON'],
+            targets: ['video_module'],
+            outputs: {
+                'sdk/videodec.js': 'wasm/web/videodec.js',
+                'sdk/videodec.wasm': 'wasm/web/videodec.wasm',
+            },
+        },
         spine38: {
             buildDir: 'build-web',
             cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_WEBGPU=ON'],
@@ -120,6 +129,15 @@ export default {
             outputs: {
                 'sdk/basis.js': 'wasm/wechat/basis.js',
                 'sdk/basis.wasm': 'wasm/wechat/basis.wasm',
+            },
+        },
+        'videodec-wechat': {
+            buildDir: 'build-videodec-wechat',
+            cmakeFlags: ['-DES_BUILD_WXGAME=ON', '-DES_BUILD_TESTS=OFF'],
+            targets: ['video_module'],
+            outputs: {
+                'sdk/videodec.js': 'wasm/wechat/videodec.js',
+                'sdk/videodec.wasm': 'wasm/wechat/videodec.wasm',
             },
         },
         'spine-wechat': {

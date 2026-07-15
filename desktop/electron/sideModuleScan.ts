@@ -35,12 +35,24 @@ export function sceneUsesPhysics(scene: SceneLike): boolean {
   return false;
 }
 
+/** True if any entity carries a Video component — the wasm video decoder is
+ *  WeChat's only video path, so any Video means the module must ship. */
+export function sceneUsesVideo(scene: SceneLike): boolean {
+  for (const entity of scene.entities ?? []) {
+    for (const comp of entity.components ?? []) {
+      if (comp.type === 'Video') return true;
+    }
+  }
+  return false;
+}
+
 export type SpineVersion = '3.8' | '4.1' | '4.2';
 
 /** id → artifact base name. Mirrors sdk/src/sideModules/registry.ts SIDE_MODULES. */
 export const SIDE_MODULE_FILE: Record<string, string> = {
   physics: 'physics',
   basis: 'basis',
+  videodec: 'videodec',
   'spine:3.8': 'spine38',
   'spine:4.1': 'spine41',
   'spine:4.2': 'spine42',
@@ -50,6 +62,7 @@ export const SIDE_MODULE_FILE: Record<string, string> = {
 export const WECHAT_MODULE_BUILD_TARGET: Record<string, string> = {
   physics: 'physics-wechat',
   basis: 'basis-wechat',
+  videodec: 'videodec-wechat',
   'spine:3.8': 'spine-wechat',
   'spine:4.1': 'spine-wechat',
   'spine:4.2': 'spine-wechat',

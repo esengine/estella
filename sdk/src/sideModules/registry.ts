@@ -18,7 +18,7 @@
 export type SpineVersion = '3.8' | '4.1' | '4.2';
 
 /** Identifies an optional native module across every realm and transport. */
-export type SideModuleId = 'physics' | 'basis' | `spine:${SpineVersion}`;
+export type SideModuleId = 'physics' | 'basis' | 'videodec' | `spine:${SpineVersion}`;
 
 export interface SideModuleDescriptor {
     /** Artifact base name: the glue is `<file>.js`, the binary `<file>.wasm`. */
@@ -37,6 +37,9 @@ export const SIDE_MODULES: Record<SideModuleId, SideModuleDescriptor> = {
     // Basis Universal KTX2 transcoder — compressed textures decode to a
     // GPU format on demand. MODULARIZE glue with a named EXPORT_NAME, like spine.
     basis: { file: 'basis', globalName: 'ESBasisModule' },
+    // MPEG-1 software video decoder (pl_mpeg) — the engine-owned decode path
+    // behind the wasm video backend on runtimes without a reliable native decoder.
+    videodec: { file: 'videodec', globalName: 'ESVideoModule' },
     'spine:3.8': { file: 'spine38', globalName: 'ESSpineModule' },
     'spine:4.1': { file: 'spine41', globalName: 'ESSpineModule' },
     'spine:4.2': { file: 'spine42', globalName: 'ESSpineModule' },

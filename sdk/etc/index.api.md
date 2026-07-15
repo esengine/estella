@@ -4189,7 +4189,7 @@ createAudioBackend: () => PlatformAudioBackend
 createCanvas: (width: number, height: number) => HTMLCanvasElement | OffscreenCanvas
 createImage: () => HTMLImageElement
 createSocket: ((options: PlatformSocketOptions) => PlatformSocket) | undefined
-createVideoBackend: (() => PlatformVideoBackend) | undefined
+createVideoBackend: ((ctx: VideoBackendContext) => PlatformVideoBackend) | undefined
 devicePixelRatio: () => number
 fetch: (url: string, options?: PlatformRequestOptions) => Promise<PlatformResponse>
 fileExists: (path: string) => Promise<boolean>
@@ -5441,7 +5441,7 @@ acquire: (id: SideModuleId) => Promise<SideModule | null>
 
 ## SideModuleId — type
 ```
-'physics' | 'basis' | `spine:${SpineVersion}`
+'physics' | 'basis' | 'videodec' | `spine:${SpineVersion}`
 ```
 
 ## Signal — interface

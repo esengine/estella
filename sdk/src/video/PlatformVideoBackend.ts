@@ -46,3 +46,12 @@ export interface PlatformVideoBackend {
     createStream(url: string, options: VideoStreamOptions): VideoStreamHandle;
     dispose(): void;
 }
+
+/**
+ * What the app hands a platform's backend factory. `sideModules` is a lazy
+ * getter — the host may attach to the app after plugins build, so backends
+ * resolve it per stream, not at construction.
+ */
+export interface VideoBackendContext {
+    sideModules(): import('../sideModules/host').SideModuleHost | null;
+}

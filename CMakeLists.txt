@@ -528,6 +528,22 @@ html,body{width:100%;height:100%;overflow:hidden;background:#1a1a1a}
         )
     endif()
 
+    # MPEG-1 video decoder module (pl_mpeg) — the engine-owned software decode
+    # path behind the wasm video backend (WeChat / headless).
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/pl_mpeg")
+        add_executable(video_module
+            src/esengine/bindings/VideoModuleEntry.cpp
+        )
+        target_include_directories(video_module PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/third_party/pl_mpeg
+        )
+        es_apply_video_module_settings(video_module)
+        set_target_properties(video_module PROPERTIES
+            OUTPUT_NAME "videodec"
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/sdk"
+        )
+    endif()
+
     # Physics standalone WASM module. The require()-style and ES6 flavours both emit
     # sdk/physics.{js,wasm} from identical sources, so only one may be defined per
     # configure (ES_PHYSICS_ESM selects which) — defining both makes Ninja error with

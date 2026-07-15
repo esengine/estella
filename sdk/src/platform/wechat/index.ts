@@ -20,8 +20,8 @@ import type {
 import { WeChatSocket } from '../../net/WeChatSocket';
 import { WeChatAudioBackend } from '../../audio/WeChatAudioBackend';
 import type { PlatformAudioBackend } from '../../audio/PlatformAudioBackend';
-import { WeChatVideoBackend } from '../../video/WeChatVideoBackend';
-import type { PlatformVideoBackend } from '../../video/PlatformVideoBackend';
+import { WasmVideoBackend } from '../../video/WasmVideoBackend';
+import type { PlatformVideoBackend, VideoBackendContext } from '../../video/PlatformVideoBackend';
 import { wxFetch, polyfillFetch } from './fetch';
 import { wxInstantiateWasm, polyfillWebAssembly } from './wasm';
 import { wxReadFileSync, wxReadTextFileSync, wxFileExistsSync } from './fs';
@@ -175,8 +175,12 @@ class WeChatPlatformAdapter implements PlatformAdapter {
         return new WeChatAudioBackend();
     }
 
-    createVideoBackend(): PlatformVideoBackend {
-        return new WeChatVideoBackend();
+    // WeChat gets the engine-owned wasm decoder on every device class. The
+    // native wx.createVideoDecoder is deliberately not used: it is absent on the
+    // PC client and unreliable on phones (per-device staging, null frames, no
+    // playhead), so the deterministic single path is the software decode.
+    createVideoBackend(ctx: VideoBackendContext): PlatformVideoBackend {
+        return new WasmVideoBackend(ctx);
     }
 
     createSocket(options: PlatformSocketOptions): PlatformSocket {

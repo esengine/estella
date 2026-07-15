@@ -33,10 +33,14 @@ const ASSET_TYPE_REGISTRY: readonly AssetTypeEntry[] = [
     // extensions — KTX2 textures are fs-read (transcoded), not image-decoded.
     { extensions: ['ktx2'], contentType: 'binary', editorType: 'texture', addressableType: 'texture', wechatPackInclude: true, hasTransitiveDeps: false },
     { extensions: ['mp3', 'wav', 'ogg', 'aac', 'flac', 'm4a', 'webm'], contentType: 'audio', editorType: 'audio', addressableType: 'audio', wechatPackInclude: false, hasTransitiveDeps: false },
-    // Video container, streamed + decoded by the video system (HTMLVideoElement /
-    // wx.createVideoDecoder). `webm` stays with audio above to avoid the ambiguity;
-    // a .webm video is disambiguated by its `.meta` type. Cooked/copied as binary.
+    // Video container, streamed + decoded by the video system (HTMLVideoElement
+    // on web). `webm` stays with audio above to avoid the ambiguity; a .webm
+    // video is disambiguated by its `.meta` type. Cooked/copied as binary.
     { extensions: ['mp4', 'm4v', 'mov'], contentType: 'binary', editorType: 'video', addressableType: 'binary', wechatPackInclude: false, hasTransitiveDeps: false },
+    // MPEG-1 video for the wasm decode path (WeChat / headless). `.esv` is the
+    // cook's codec-tagged output; `.mpg` an authored source. fs-read by the
+    // decoder, so packaged WeChat reads need the pack-include whitelist.
+    { extensions: ['mpg', 'mpeg', 'esv'], contentType: 'binary', editorType: 'video', addressableType: 'binary', wechatPackInclude: true, hasTransitiveDeps: false },
     { extensions: ['esmaterial'], contentType: 'json', editorType: 'material', addressableType: 'material', wechatPackInclude: true, hasTransitiveDeps: true },
     { extensions: ['esshader'], contentType: 'text', editorType: 'shader', addressableType: null, wechatPackInclude: false, hasTransitiveDeps: false },
     { extensions: ['atlas'], contentType: 'text', editorType: 'spine-atlas', addressableType: 'binary', wechatPackInclude: true, hasTransitiveDeps: true },
@@ -78,6 +82,9 @@ const MIME_MAP: Record<string, string> = {
     mp4: 'video/mp4',
     m4v: 'video/x-m4v',
     mov: 'video/quicktime',
+    mpg: 'video/mpeg',
+    mpeg: 'video/mpeg',
+    esv: 'video/mpeg',
     json: 'application/json',
     atlas: 'text/plain',
     skel: 'application/octet-stream',

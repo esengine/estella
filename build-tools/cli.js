@@ -50,7 +50,7 @@ program
 
             const isDebug = options.debug && !options.release;
             const targets = options.target === 'all'
-                ? ['web', 'wechat', 'playable', 'spine', 'spine38', 'spine41', 'physics', 'physics-wechat', 'spine-wechat', 'basis']
+                ? ['web', 'wechat', 'playable', 'spine', 'spine38', 'spine41', 'physics', 'physics-wechat', 'spine-wechat', 'basis', 'basis-wechat', 'videodec', 'videodec-wechat']
                 : [options.target];
 
             if (options.clean) {

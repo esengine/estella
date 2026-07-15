@@ -30,7 +30,7 @@ import type { ExportScene } from './exportGame';
 import type { OnExportProgress } from './exportProgress';
 import { esengineAlias } from './esengineResolve';
 import {
-  sceneUsesPhysics, detectSpineVersion, detectSpineVersionJson,
+  sceneUsesPhysics, sceneUsesVideo, detectSpineVersion, detectSpineVersionJson,
   spineModuleId, SIDE_MODULE_FILE, WECHAT_MODULE_BUILD_TARGET,
 } from './sideModuleScan';
 
@@ -158,6 +158,7 @@ async function scanWeChatSideModules(
 ): Promise<Array<{ id: string; file: string }>> {
   const ids = new Set<string>();
   if (sceneDatas.some((s) => s && sceneUsesPhysics(s as Parameters<typeof sceneUsesPhysics>[0]))) ids.add('physics');
+  if (sceneDatas.some((s) => s && sceneUsesVideo(s as Parameters<typeof sceneUsesVideo>[0]))) ids.add('videodec');
   // Spine: the skeleton carries the version. Skeleton + atlas share the authored
   // meta type `spine`, so discriminate by extension — `.skel` is a binary
   // skeleton, `.json` a JSON one; the `.atlas` sibling is not a skeleton.

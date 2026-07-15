@@ -146,11 +146,14 @@ export interface PlatformAdapter {
 
     createAudioBackend(): import('../audio/PlatformAudioBackend').PlatformAudioBackend;
 
-    /** Create the platform video backend (HTMLVideoElement on web,
-     *  wx.createVideoDecoder on WeChat). Optional — like createSocket, platforms
-     *  without video decode omit it and the video system falls back to a silent
-     *  Null backend (headless server, WeChat until its backend lands). */
-    createVideoBackend?(): import('../video/PlatformVideoBackend').PlatformVideoBackend;
+    /** Create the platform video backend: HTMLVideoElement on web, the wasm
+     *  software decoder (videodec side module) on WeChat. The choice is a static
+     *  per-platform matrix — no runtime fallback chain. Optional — a platform
+     *  without video (headless server) omits it and the video system uses the
+     *  silent Null backend. */
+    createVideoBackend?(
+        ctx: import('../video/PlatformVideoBackend').VideoBackendContext
+    ): import('../video/PlatformVideoBackend').PlatformVideoBackend;
 
     /** Download an on-demand asset subpackage by name and resolve when its files
      *  are available. WeChat → wx.loadSubpackage; platforms with no subpackage

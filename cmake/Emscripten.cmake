@@ -381,6 +381,44 @@ function(es_apply_basis_module_settings TARGET_NAME)
 endfunction()
 
 # =============================================================================
+# Video Decoder Module (pl_mpeg, standalone WASM, no GL)
+# =============================================================================
+
+set(ES_EMSCRIPTEN_VIDEO_MODULE_FLAGS
+    -sWASM=1
+    -sALLOW_MEMORY_GROWTH=1
+    -sNO_EXIT_RUNTIME=1
+    -sEXPORT_ES6=0
+    -sMODULARIZE=1
+    -sDYNAMIC_EXECUTION=0
+    -sFILESYSTEM=0
+    "-sEXPORT_NAME='ESVideoModule'"
+    "-sEXPORTED_FUNCTIONS=['_es_video_open','_es_video_close','_es_video_width','_es_video_height','_es_video_duration','_es_video_framerate','_es_video_time','_es_video_set_loop','_es_video_has_ended','_es_video_advance','_es_video_frame_rgba','_es_video_seek','_malloc','_free']"
+    "-sEXPORTED_RUNTIME_METHODS=['cwrap','HEAPU8','HEAPU32']"
+    -O3
+    -flto
+    -Wl,--gc-sections
+    -fno-exceptions
+    -fno-rtti
+)
+
+function(es_apply_video_module_settings TARGET_NAME)
+    if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
+        target_compile_options(${TARGET_NAME} PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS} -flto -fno-exceptions -fno-rtti)
+
+        set(_VIDEO_LINK_FLAGS ${ES_EMSCRIPTEN_VIDEO_MODULE_FLAGS})
+        if(ES_BUILD_WXGAME)
+            list(APPEND _VIDEO_LINK_FLAGS ${ES_EMSCRIPTEN_WXGAME_MODULE_EXTRA})
+        endif()
+        string(REPLACE ";" " " LINK_FLAGS_STR "${_VIDEO_LINK_FLAGS}")
+        set_target_properties(${TARGET_NAME} PROPERTIES
+            SUFFIX ".js"
+            LINK_FLAGS "${LINK_FLAGS_STR}"
+        )
+    endif()
+endfunction()
+
+# =============================================================================
 # Physics Module (standalone WASM, no GL)
 # =============================================================================
 

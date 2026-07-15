@@ -65,7 +65,10 @@ export class VideoPlugin implements Plugin {
 
     build(app: App): void {
         // createVideoBackend is optional; fall back to the silent Null backend.
-        const backend = getPlatform().createVideoBackend?.() ?? new NullVideoBackend();
+        // The context's lazy sideModules getter lets the wasm backend resolve the
+        // host per stream (it may attach to the app after plugins build).
+        const backend = getPlatform().createVideoBackend?.({ sideModules: () => app.sideModules })
+            ?? new NullVideoBackend();
         const video = new VideoAPI(backend);
         this.video_ = video;
         app.insertResource(VideoPlayer, video);

@@ -5,8 +5,10 @@ export { VideoAPI, VideoPlayer, type VideoHandle, type VideoPlayOptions } from '
 export { Video, type VideoData } from './VideoComponents';
 export type {
     PlatformVideoBackend,
+    VideoBackendContext,
     VideoStreamHandle,
     VideoStreamOptions,
 } from './PlatformVideoBackend';
 export { WebVideoBackend } from './WebVideoBackend';
+export { WasmVideoBackend, type VideoWasmModule } from './WasmVideoBackend';
 export { NullVideoBackend } from './NullVideoBackend';
