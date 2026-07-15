@@ -557,6 +557,7 @@ invalidateBuffer: (url: string) => boolean
 muteBus: (busName: string, muted: boolean) => void
 playBGM: (url: string, config?: { volume?: number; fadeIn?: number; crossFade?: number; }) => void
 playSFX: (url: string, config?: { volume?: number; pitch?: number; pan?: number; priority?: number; }) => AudioHandle
+playTrack: (url: string, config?: PlayConfig) => Promise<AudioHandle | null>
 preload: (url: string) => Promise<void>
 preloadAll: (urls: string[]) => Promise<void>
 preloadFromData: (url: string, data: ArrayBuffer) => Promise<void>

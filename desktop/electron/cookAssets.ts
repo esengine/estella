@@ -197,13 +197,14 @@ export async function cookAssets(
   opts: {
     entryScenes: string[]; outDir: string;
     contentAddressed?: boolean; compressTextures?: boolean; atlasTextures?: boolean;
-    compressAudio?: boolean;
+    compressAudio?: boolean; transcodeVideo?: boolean;
   },
 ): Promise<CookResult> {
   const contentAddressed = opts.contentAddressed ?? false;
   const compressTextures = opts.compressTextures ?? false;
   const atlasTextures = opts.atlasTextures ?? false;
   const compressAudio = opts.compressAudio ?? false;
+  const transcodeVideo = opts.transcodeVideo ?? false;
   const { index } = await scanAssetDatabase(root, { write: false, adopt: false });
   const byUuid = new Map(index.entries.map((e) => [e.uuid, e]));
   const byPath = new Map(index.entries.map((e) => [e.path, e]));
@@ -266,6 +267,12 @@ export async function cookAssets(
   let audioEnc: typeof import('./audioCook') | null = null;
   if (compressAudio) {
     audioEnc = await import('./audioCook');
+  }
+  // Video → MPEG-1 `.esv` + `.m4a` audio sibling, for targets whose only video
+  // path is the wasm decoder (WeChat). ffmpeg loads lazily the same way.
+  let videoEnc: typeof import('./videoCook') | null = null;
+  if (transcodeVideo) {
+    videoEnc = await import('./videoCook');
   }
 
   const manifestEntries: CookManifestEntry[] = [];
@@ -391,6 +398,21 @@ export async function cookAssets(
           }
         }
       }
+      // Video → `.esv` (MPEG-1 for the wasm decoder) + audio-track sibling.
+      // `.esv` sources are already in the cooked format and pass through.
+      let videoAudio: Uint8Array | null = null;
+      if (videoEnc && entry.type === 'video' && ext.toLowerCase() !== '.esv') {
+        const settings = videoEnc.videoImportSettings(entry.importer);
+        const res = await videoEnc.transcodeVideoForWasm(path.join(root, entry.path), settings);
+        warnings.push(...res.warnings.map((w) => `${entry.path}: ${w}`));
+        if (res.esv) {
+          data = res.esv;
+          ext = '.esv';
+          videoAudio = res.audio;
+        } else {
+          warnings.push(`${entry.path}: shipped untranscoded — this video will NOT play on the wasm decode path (WeChat)`);
+        }
+      }
       // Materials: relative refs → logical project paths (see rewriteMaterialRefs).
       if (ext.toLowerCase() === '.esmaterial') {
         try {
@@ -450,6 +472,27 @@ export async function cookAssets(
         group,
         ...(compressedFormats ? { compressedFormats } : {}),
       });
+      // The video's audio track ships as an `<staged>.m4a` SIBLING of the
+      // `.esv` — appended (not extension-swapped) so it can never collide with
+      // a real project `.m4a`, and the runtime derives it from the resolved
+      // video URL with no metadata channel. Its own manifest entry keeps
+      // addressable/CDN flows aware of the file.
+      if (videoAudio) {
+        const audioOutRel = `${outRel}.m4a`;
+        if (!staged.has(audioOutRel)) {
+          await writeFile(path.join(absOut, audioOutRel), videoAudio);
+          staged.add(audioOutRel);
+        }
+        manifestEntries.push({
+          uuid: `${entry.uuid}-audio`,
+          path: audioOutRel,
+          sourcePath: `${entry.path}.m4a`,
+          type: 'audio',
+          contentHash: contentHashHex(videoAudio),
+          size: videoAudio.byteLength,
+          group,
+        });
+      }
     } catch (err) {
       warnings.push(`copy failed ${entry.path}: ${err instanceof Error ? err.message : String(err)}`);
     }

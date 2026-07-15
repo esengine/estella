@@ -14,6 +14,7 @@ import type { UIVisualData } from '../component.generated';
 import { UIVisual } from '../ui/core/ui-visual';
 import type { VideoStreamHandle } from './PlatformVideoBackend';
 import { NullVideoBackend } from './NullVideoBackend';
+import { Audio } from '../audio/Audio';
 import { getPlatform } from '../platform/base';
 import { isEditor, isPlayMode } from '../env';
 import { log } from '../logger';
@@ -65,10 +66,15 @@ export class VideoPlugin implements Plugin {
 
     build(app: App): void {
         // createVideoBackend is optional; fall back to the silent Null backend.
-        // The context's lazy sideModules getter lets the wasm backend resolve the
-        // host per stream (it may attach to the app after plugins build).
-        const backend = getPlatform().createVideoBackend?.({ sideModules: () => app.sideModules })
-            ?? new NullVideoBackend();
+        // The context's getters are lazy so the wasm backend resolves the
+        // side-module host / audio service per stream (they may attach to the
+        // app after plugins build).
+        const backend = getPlatform().createVideoBackend?.({
+            sideModules: () => app.sideModules,
+            audio: () => {
+                try { return app.getResource(Audio); } catch { return null; }
+            },
+        }) ?? new NullVideoBackend();
         const video = new VideoAPI(backend);
         this.video_ = video;
         app.insertResource(VideoPlayer, video);

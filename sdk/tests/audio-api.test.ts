@@ -281,4 +281,36 @@ describe('AudioAPI', () => {
             expect(backend2.loadBuffer).toHaveBeenCalledTimes(1);
         });
     });
+
+    describe('playTrack', () => {
+        it('loads the URL verbatim (no ref resolution) and plays it on the bus', async () => {
+            const backend = createMockBackend();
+            const audio = new AudioAPI(backend, createMockMixer());
+            audio.setRefResolver(() => { throw new Error('must not resolve'); });
+            const handle = await audio.playTrack('assets/clip.esv.m4a', { bus: 'video', startOffset: 1.5, volume: 0.5 });
+            expect(handle).not.toBeNull();
+            expect(backend.loadBuffer).toHaveBeenCalledWith('assets/clip.esv.m4a');
+            expect(backend.play).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+                bus: 'video', startOffset: 1.5, volume: 0.5,
+            }));
+        });
+
+        it('creates the bus on demand and caches the buffer across plays', async () => {
+            const backend = createMockBackend();
+            const mixer = createMockMixer();
+            (mixer.getBus as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
+            const audio = new AudioAPI(backend, mixer);
+            await audio.playTrack('t.m4a', { bus: 'video' });
+            expect(mixer.createBus).toHaveBeenCalledWith(expect.objectContaining({ name: 'video' }));
+            await audio.playTrack('t.m4a', { bus: 'video' });
+            expect(backend.loadBuffer).toHaveBeenCalledTimes(1);
+        });
+
+        it('resolves null when the clip cannot load', async () => {
+            const backend = createMockBackend();
+            (backend.loadBuffer as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('404'));
+            const audio = new AudioAPI(backend, createMockMixer());
+            expect(await audio.playTrack('missing.m4a')).toBeNull();
+        });
+    });
 });

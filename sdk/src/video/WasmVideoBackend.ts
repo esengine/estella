@@ -5,9 +5,18 @@
 // pump as every other backend. Runs wherever the engine's wasm runs — the
 // guaranteed path on platforms without a reliable native decoder (WeChat, headless)
 // — and owns the clock, so seek/currentTime/duration/rate all work uniformly.
+//
+// Audio: the cook demuxes the source's audio track into an `<staged>.m4a`
+// sibling played through the audio pipeline (bus-routed, so mixer/ducking
+// apply). When a track exists, IT is the clock — the video decodes toward the
+// track's playhead — since audio glitches are far more audible than a video
+// frame arriving late. Without a track (or when it ends first), the engine
+// wall clock drives.
 import type { ESEngineModule } from '../wasm';
 import type { PlatformVideoBackend, VideoBackendContext, VideoStreamHandle, VideoStreamOptions } from './PlatformVideoBackend';
 import type { SideModule } from '../sideModules/host';
+import type { AudioAPI } from '../audio/Audio';
+import type { AudioHandle } from '../audio/PlatformAudioBackend';
 import { createTextureFromPixels, updateTextureSubregion } from '../runtimeAssets';
 import { requireResourceManager } from '../resourceManager';
 import { getPlatform } from '../platform/base';
@@ -36,10 +45,23 @@ export interface VideoWasmModule {
     readonly HEAPU8: Uint8Array;
 }
 
+/** What the wasm stream needs from its backend (module + optional audio). */
+interface WasmStreamDeps {
+    acquire(): Promise<SideModule | null>;
+    audio(): AudioAPI | null;
+}
+
 // Longest catch-up decoded in one pump. MPEG-1 has no frame-skip (P/B frames
 // need every predecessor), so a huge dt after a hidden window would stall the
 // frame decoding it all; clamping instead slows playback to real decode speed.
 const MAX_PUMP_DT = 0.25;
+// An audio clock this far BEHIND the video is a loop wrap or backward seek —
+// exact-seek the video instead of waiting for the clock to catch up.
+const CLOCK_BACK_JUMP = 0.25;
+// Bus the audio track routes through (created on demand under master).
+const VIDEO_AUDIO_BUS = 'video';
+// Video extensions whose cooked `.m4a` audio-track sibling is worth probing.
+const AUDIO_SIBLING_RE = /\.(esv|mpg|mpeg)$/i;
 
 class WasmVideoStreamHandle implements VideoStreamHandle {
     readonly id = nextId_++;
@@ -61,20 +83,28 @@ class WasmVideoStreamHandle implements VideoStreamHandle {
     private playing_: boolean;
     private loop_: boolean;
     private rate_: number;
+    private volume_: number;
+    private muted_: boolean;
     private lastNow_ = -1;
     private frameDirty_ = false;
     private pendingSeek_ = -1;
+    private audioApi_: AudioAPI | null = null;
+    private audioUrl_: string | null = null;
+    private audio_: AudioHandle | null = null;
+    private audioGen_ = 0;
 
-    constructor(url: string, options: VideoStreamOptions, acquire: () => Promise<SideModule | null>) {
+    constructor(url: string, options: VideoStreamOptions, deps: WasmStreamDeps) {
         this.playing_ = options.autoplay ?? true;
         this.loop_ = options.loop ?? false;
         this.rate_ = options.playbackRate ?? 1;
-        void this.start_(url, acquire);
+        this.volume_ = options.volume ?? 1;
+        this.muted_ = options.muted ?? false;
+        void this.start_(url, deps);
     }
 
-    private async start_(url: string, acquire: () => Promise<SideModule | null>): Promise<void> {
+    private async start_(url: string, deps: WasmStreamDeps): Promise<void> {
         try {
-            const [bytes, mod] = await Promise.all([this.loadBytes_(url), acquire()]);
+            const [bytes, mod] = await Promise.all([this.loadBytes_(url), deps.acquire()]);
             if (this.disposed_) return;
             if (!mod) throw new Error('the "videodec" side module is unavailable');
             const video = mod as unknown as VideoWasmModule;
@@ -96,11 +126,16 @@ class WasmVideoStreamHandle implements VideoStreamHandle {
             this.framePtr_ = video._malloc(this.frameBytes_);
             if (!this.framePtr_) throw new Error('videodec out of memory');
             video._es_video_set_loop(decoder, this.loop_ ? 1 : 0);
+            let startAt = 0;
             if (this.pendingSeek_ >= 0) {
-                video._es_video_seek(decoder, this.pendingSeek_);
+                if (video._es_video_seek(decoder, this.pendingSeek_)) this.frameDirty_ = true;
+                startAt = this.pendingSeek_;
                 this.pendingSeek_ = -1;
-                this.frameDirty_ = true;
             }
+
+            this.audioApi_ = deps.audio();
+            if (this.audioApi_ && AUDIO_SIBLING_RE.test(url)) this.audioUrl_ = `${url}.m4a`;
+            if (this.playing_) void this.startAudio_(startAt);
         } catch (err) {
             if (this.disposed_) return;
             log.error('video', `wasm decode failed for "${url}"`, err);
@@ -119,6 +154,53 @@ class WasmVideoStreamHandle implements VideoStreamHandle {
         return platform.readFile(url);
     }
 
+    // === audio track ========================================================
+
+    /** (Re)start the audio-track sibling at `offset` seconds. A missing track
+     *  resolves to null once and disables further probes (engine clock drives). */
+    private async startAudio_(offset: number): Promise<void> {
+        const api = this.audioApi_;
+        const url = this.audioUrl_;
+        if (!api || !url) return;
+        const gen = ++this.audioGen_;
+        const handle = await api.playTrack(url, {
+            bus: VIDEO_AUDIO_BUS,
+            volume: this.muted_ ? 0 : this.volume_,
+            loop: this.loop_,
+            playbackRate: this.rate_,
+            startOffset: offset,
+        });
+        if (!handle) {
+            if (gen === this.audioGen_) this.audioUrl_ = null; // no track — engine clock
+            return;
+        }
+        if (this.disposed_ || gen !== this.audioGen_) {
+            handle.stop();
+            return;
+        }
+        // The audio track is the clock now; the video must not free-wrap on its
+        // own (the wrap is driven by the track's playhead jumping back).
+        this.mod_?._es_video_set_loop(this.decoder_, 0);
+        // A non-looping track that ends BEFORE the last video frame hands the
+        // clock back to the engine so the tail still plays out.
+        handle.onEnd = () => {
+            if (this.audio_ === handle && !this.loop_) {
+                this.audio_ = null;
+                this.lastNow_ = -1;
+            }
+        };
+        if (!this.playing_) handle.pause();
+        this.audio_ = handle;
+    }
+
+    private stopAudio_(): void {
+        this.audioGen_++;
+        if (this.audio_) {
+            this.audio_.stop();
+            this.audio_ = null;
+        }
+    }
+
     // === texture pump =======================================================
 
     pump(module: ESEngineModule): void {
@@ -126,15 +208,33 @@ class WasmVideoStreamHandle implements VideoStreamHandle {
         if (this.disposed_ || !video) return;
 
         if (this.playing_ && !this.ended_) {
-            const now = getPlatform().now();
-            const dt = this.lastNow_ < 0 ? 0 : Math.min((now - this.lastNow_) / 1000, MAX_PUMP_DT);
-            this.lastNow_ = now;
-            if (dt > 0 && video._es_video_advance(this.decoder_, dt * this.rate_)) {
-                this.frameDirty_ = true;
+            if (this.audio_) {
+                // Audio-track clock: decode toward the track's playhead.
+                const target = this.audio_.currentTime;
+                const cur = video._es_video_time(this.decoder_);
+                const dt = target - cur;
+                if (dt > 0.001) {
+                    if (video._es_video_advance(this.decoder_, Math.min(dt, MAX_PUMP_DT))) {
+                        this.frameDirty_ = true;
+                    }
+                } else if (dt < -CLOCK_BACK_JUMP) {
+                    // The track wrapped (loop) or jumped backwards — follow it.
+                    if (video._es_video_seek(this.decoder_, Math.max(target, 0))) {
+                        this.frameDirty_ = true;
+                    }
+                }
+            } else {
+                const now = getPlatform().now();
+                const dt = this.lastNow_ < 0 ? 0 : Math.min((now - this.lastNow_) / 1000, MAX_PUMP_DT);
+                this.lastNow_ = now;
+                if (dt > 0 && video._es_video_advance(this.decoder_, dt * this.rate_)) {
+                    this.frameDirty_ = true;
+                }
             }
             if (!this.loop_ && video._es_video_has_ended(this.decoder_)) {
                 this.ended_ = true;
                 this.playing_ = false;
+                this.stopAudio_();
                 this.onEnded?.();
             }
         }
@@ -176,10 +276,16 @@ class WasmVideoStreamHandle implements VideoStreamHandle {
         if (this.ended_) {
             this.ended_ = false;
             this.seek(0);
+            return;
         }
+        if (this.audio_) this.audio_.resume();
+        else if (this.mod_) void this.startAudio_(this.currentTime);
     }
 
-    pause(): void { this.playing_ = false; }
+    pause(): void {
+        this.playing_ = false;
+        this.audio_?.pause();
+    }
 
     seek(timeSeconds: number): void {
         const t = timeSeconds > 0 ? timeSeconds : 0;
@@ -189,23 +295,37 @@ class WasmVideoStreamHandle implements VideoStreamHandle {
         }
         this.ended_ = false;
         if (this.mod_._es_video_seek(this.decoder_, t)) this.frameDirty_ = true;
+        // AudioHandles have no in-place seek — restart the track at the offset.
+        this.stopAudio_();
+        if (this.playing_) void this.startAudio_(t);
     }
 
-    // The wasm path decodes video only — the cook demuxes the audio track for
-    // the audio pipeline, so per-stream volume/mute live there, not here.
-    setVolume(_volume: number): void {}
-    setMuted(_muted: boolean): void {}
+    setVolume(volume: number): void {
+        this.volume_ = volume;
+        this.audio_?.setVolume(this.muted_ ? 0 : volume);
+    }
+
+    setMuted(muted: boolean): void {
+        this.muted_ = muted;
+        this.audio_?.setVolume(muted ? 0 : this.volume_);
+    }
 
     setLoop(loop: boolean): void {
         this.loop_ = loop;
-        this.mod_?._es_video_set_loop(this.decoder_, loop ? 1 : 0);
+        this.audio_?.setLoop(loop);
+        // Without an audio clock the decoder wraps itself.
+        if (!this.audio_) this.mod_?._es_video_set_loop(this.decoder_, loop ? 1 : 0);
     }
 
-    setPlaybackRate(rate: number): void { this.rate_ = rate > 0 ? rate : 0; }
+    setPlaybackRate(rate: number): void {
+        this.rate_ = rate > 0 ? rate : 0;
+        this.audio_?.setPlaybackRate(this.rate_);
+    }
 
     stop(): void {
         if (this.disposed_) return;
         this.disposed_ = true;
+        this.stopAudio_();
         if (this.mod_) {
             this.mod_._es_video_close(this.decoder_);
             if (this.framePtr_) this.mod_._free(this.framePtr_);
@@ -226,10 +346,13 @@ export class WasmVideoBackend implements PlatformVideoBackend {
     constructor(private readonly ctx_: VideoBackendContext) {}
 
     createStream(url: string, options: VideoStreamOptions): VideoStreamHandle {
-        return new WasmVideoStreamHandle(url, options, () => {
-            const host = this.ctx_.sideModules();
-            if (!host) return Promise.resolve(null);
-            return host.acquire('videodec');
+        return new WasmVideoStreamHandle(url, options, {
+            acquire: () => {
+                const host = this.ctx_.sideModules();
+                if (!host) return Promise.resolve(null);
+                return host.acquire('videodec');
+            },
+            audio: () => this.ctx_.audio?.() ?? null,
         });
     }
 

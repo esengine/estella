@@ -48,10 +48,14 @@ export interface PlatformVideoBackend {
 }
 
 /**
- * What the app hands a platform's backend factory. `sideModules` is a lazy
- * getter — the host may attach to the app after plugins build, so backends
- * resolve it per stream, not at construction.
+ * What the app hands a platform's backend factory. Both accessors are lazy —
+ * the side-module host and the audio service may attach to the app after
+ * plugins build, so backends resolve them per stream, not at construction.
  */
 export interface VideoBackendContext {
     sideModules(): import('../sideModules/host').SideModuleHost | null;
+    /** The app's audio service, when the audio plugin is installed. The wasm
+     *  backend plays the cook-demuxed `.m4a` audio track through it and slaves
+     *  the video clock to the track's playhead. */
+    audio?(): import('../audio/Audio').AudioAPI | null;
 }

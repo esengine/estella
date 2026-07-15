@@ -5,6 +5,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { WasmVideoBackend, type VideoWasmModule } from '../src/video/WasmVideoBackend';
 import type { SideModuleHost } from '../src/sideModules/host';
+import type { AudioAPI } from '../src/audio/Audio';
+import type { AudioHandle } from '../src/audio/PlatformAudioBackend';
 import { setPlatform } from '../src/platform/base';
 import { initResourceManager, shutdownResourceManager } from '../src/resourceManager';
 import type { PlatformAdapter } from '../src/platform/types';
@@ -232,5 +234,135 @@ describe('WasmVideoBackend', () => {
         await flush();
         expect(onError).toHaveBeenCalledTimes(1);
         expect(() => handle.pump(engineModule)).not.toThrow();
+    });
+});
+
+// === audio-track clock ======================================================
+
+function mockAudio() {
+    const handles: FakeAudioHandle[] = [];
+    class FakeAudioHandle {
+        time = 0;
+        playing = true;
+        onEnd?: () => void;
+        stop = vi.fn(() => { this.playing = false; });
+        pause = vi.fn(() => { this.playing = false; });
+        resume = vi.fn(() => { this.playing = true; });
+        setVolume = vi.fn();
+        setPan = vi.fn();
+        setLoop = vi.fn();
+        setPlaybackRate = vi.fn();
+        get isPlaying() { return this.playing; }
+        get currentTime() { return this.time; }
+        get duration() { return 2.5; }
+        readonly id = handles.length + 1;
+    }
+    const playTrack = vi.fn(async (_url: string, cfg: { startOffset?: number }) => {
+        const h = new FakeAudioHandle();
+        h.time = cfg.startOffset ?? 0;
+        handles.push(h);
+        return h as unknown as AudioHandle;
+    });
+    const api = { playTrack } as unknown as AudioAPI;
+    return { api, playTrack, handles };
+}
+
+describe('WasmVideoBackend audio-track clock', () => {
+    it('starts the .m4a sibling on the video bus and slaves the video clock to it', async () => {
+        const { mod, raw } = mockVideoModule();
+        const { api, playTrack, handles } = mockAudio();
+        const backend = new WasmVideoBackend({ sideModules: () => hostFor(mod), audio: () => api });
+        const handle = backend.createStream('videos/clip.esv', { volume: 0.5, loop: false });
+        await flush();
+
+        expect(playTrack).toHaveBeenCalledWith('videos/clip.esv.m4a', expect.objectContaining({
+            bus: 'video', volume: 0.5, loop: false, startOffset: 0,
+        }));
+        // The decoder must not free-wrap while the track drives the clock.
+        expect(raw._es_video_set_loop).toHaveBeenLastCalledWith(1, 0);
+
+        handles[0].time = 0.1;
+        handle.pump(engineModule);
+        expect((raw._es_video_advance.mock.calls.at(-1) as number[])[1]).toBeCloseTo(0.1);
+
+        // Audio clock jumping far backwards (loop wrap) exact-seeks the video.
+        raw._es_video_advance(1, 2.0); // decoder time → ~2.1
+        handles[0].time = 0.02;
+        handle.pump(engineModule);
+        expect(raw._es_video_seek).toHaveBeenCalledWith(1, 0.02);
+        handle.stop();
+        expect(handles[0].stop).toHaveBeenCalled();
+    });
+
+    it('muted stream starts its track at volume 0; volume/mute changes forward', async () => {
+        const { mod } = mockVideoModule();
+        const { api, playTrack, handles } = mockAudio();
+        const backend = new WasmVideoBackend({ sideModules: () => hostFor(mod), audio: () => api });
+        const handle = backend.createStream('clip.esv', { muted: true, volume: 0.8 });
+        await flush();
+        expect(playTrack).toHaveBeenCalledWith('clip.esv.m4a', expect.objectContaining({ volume: 0 }));
+        handle.setMuted(false);
+        expect(handles[0].setVolume).toHaveBeenLastCalledWith(0.8);
+        handle.setVolume(0.3);
+        expect(handles[0].setVolume).toHaveBeenLastCalledWith(0.3);
+        handle.stop();
+    });
+
+    it('seek restarts the track at the offset; pause/play suspend and resume it', async () => {
+        const { mod } = mockVideoModule();
+        const { api, playTrack, handles } = mockAudio();
+        const backend = new WasmVideoBackend({ sideModules: () => hostFor(mod), audio: () => api });
+        const handle = backend.createStream('clip.esv', {});
+        await flush();
+        handle.seek(1.5);
+        await flush();
+        expect(handles[0].stop).toHaveBeenCalled();
+        expect(playTrack).toHaveBeenLastCalledWith('clip.esv.m4a', expect.objectContaining({ startOffset: 1.5 }));
+        handle.pause();
+        expect(handles[1].pause).toHaveBeenCalled();
+        handle.play();
+        expect(handles[1].resume).toHaveBeenCalled();
+        handle.stop();
+    });
+
+    it('a missing track falls back to the engine clock', async () => {
+        const { mod, raw } = mockVideoModule();
+        const playTrack = vi.fn(async () => null);
+        const api = { playTrack } as unknown as AudioAPI;
+        const backend = new WasmVideoBackend({ sideModules: () => hostFor(mod), audio: () => api });
+        const handle = backend.createStream('clip.esv', {});
+        await flush();
+        expect(playTrack).toHaveBeenCalledTimes(1);
+        nowMs = 16;
+        handle.pump(engineModule);
+        nowMs = 32;
+        handle.pump(engineModule);
+        expect(raw._es_video_advance).toHaveBeenCalled();
+        handle.stop();
+    });
+
+    it('a non-looping track ending early hands the clock back to the engine', async () => {
+        const { mod, raw } = mockVideoModule();
+        const { api, handles } = mockAudio();
+        const backend = new WasmVideoBackend({ sideModules: () => hostFor(mod), audio: () => api });
+        const handle = backend.createStream('clip.esv', { loop: false });
+        await flush();
+        handles[0].onEnd?.();
+        nowMs = 16;
+        handle.pump(engineModule); // clock base
+        nowMs = 32;
+        handle.pump(engineModule);
+        expect(raw._es_video_advance).toHaveBeenCalled(); // engine clock drove
+        handle.stop();
+    });
+
+    it('never probes a sibling for non-esv sources', async () => {
+        const { mod } = mockVideoModule();
+        const { api, playTrack } = mockAudio();
+        const backend = new WasmVideoBackend({ sideModules: () => hostFor(mod), audio: () => api });
+        const handle = backend.createStream('clip.bin', {});
+        await flush();
+        expect(playTrack).not.toHaveBeenCalled();
+        handle.stop();
     });
 });

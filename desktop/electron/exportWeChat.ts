@@ -303,7 +303,7 @@ export async function exportWeChat(opts: {
   //    manifest. KTX2 textures are fine here: the scan below sees the staged
   //    .ktx2 files and ships the Basis transcoder side module with them.
   progress({ phase: 'Cooking assets' });
-  const cook = await cookAssets(opts.root, { entryScenes: scenes.map((s) => s.path), outDir: absOut, contentAddressed: opts.contentAddressed, compressTextures: opts.compressTextures, compressAudio: opts.compressAudio, atlasTextures: opts.atlasTextures });
+  const cook = await cookAssets(opts.root, { entryScenes: scenes.map((s) => s.path), outDir: absOut, contentAddressed: opts.contentAddressed, compressTextures: opts.compressTextures, compressAudio: opts.compressAudio, atlasTextures: opts.atlasTextures, transcodeVideo: true });
   warnings.push(...cook.warnings);
 
   // 1a. Restage for WeChat's code-package suffix whitelist (it has no `ktx2`

@@ -35,6 +35,13 @@ license text is included in its directory under third_party/.
   pl_mpeg              third_party/pl_mpeg               MIT
   Spine Runtimes       third_party/spine-runtimes-*      Spine Runtimes License
 
+The desktop editor additionally bundles an FFmpeg binary (via the ffmpeg-static
+npm package; FFmpeg is a trademark of Fabrice Bellard). It is licensed under the
+GPL (see the LICENSE file inside the ffmpeg-static package) and is invoked by
+the editor's asset cook strictly as a separate external process — it is not
+linked into, nor does its license extend to, Estella itself. It does not ship
+in exported games. Set ESTELLA_FFMPEG to use a system FFmpeg instead.
+
 IMPORTANT — Spine Runtimes are NOT open source. Relicensing Estella to Apache-2.0
 does NOT change this: the Spine Runtimes remain governed by the Spine Runtimes
 License Agreement from Esoteric Software (see third_party/spine-runtimes-*/LICENSE).

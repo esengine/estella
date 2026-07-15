@@ -25,6 +25,9 @@ files:
 #     directory copy, which cannot source from inside an asar.
 asarUnpack:
   - "**/node_modules/{esbuild,@esbuild}/**"
+  # ffmpeg (video cook) spawns as a subprocess — executables cannot run from
+  # inside the asar (videoCook resolves the app.asar.unpacked twin).
+  - "**/node_modules/ffmpeg-static/**"
   - dist-electron/hosts/**
   # The MCP front: an MCP client runs this with plain node (node cannot read
   # inside an asar), which spawns/attaches the editor as the MCP host.

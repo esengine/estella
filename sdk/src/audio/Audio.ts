@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import type { PlatformAudioBackend, AudioBufferHandle, AudioHandle } from './PlatformAudioBackend';
+import type { PlatformAudioBackend, AudioBufferHandle, AudioHandle, PlayConfig } from './PlatformAudioBackend';
 import type { AudioMixer, BusDuckRule } from './AudioMixer';
 import type { BusEffectDef } from './BusEffects';
 import { defineResource } from '../resource';
@@ -237,6 +237,30 @@ export class AudioAPI {
         if (this.bufferCache_.has(url)) return;
         const buffer = await this.backend_.loadBufferFromData(url, data);
         if (!this.bufferCache_.has(url)) this.insertEntry_(url, buffer);
+    }
+
+    /**
+     * Play a fully-RESOLVED clip URL on an explicit bus (created on demand
+     * under master). Unlike playSFX/playBGM this applies no ref resolution —
+     * the caller already holds the final URL (the video system's audio track
+     * derives it from the resolved video source). Null when the clip can't
+     * load; loaded buffers share the residency cache.
+     */
+    async playTrack(url: string, config: PlayConfig = {}): Promise<AudioHandle | null> {
+        if (this.disposed_) return null;
+        try {
+            if (!this.bufferCache_.has(url)) {
+                const buffer = await this.backend_.loadBuffer(url);
+                if (!this.bufferCache_.has(url)) this.insertEntry_(url, buffer);
+            }
+        } catch {
+            return null;
+        }
+        if (this.disposed_) return null;
+        const buffer = this.lookupBuffer_(url);
+        if (!buffer) return null;
+        if (config.bus) this.ensureBus(config.bus);
+        return this.backend_.play(buffer, config);
     }
 
     playSFX(url: string, config?: {
