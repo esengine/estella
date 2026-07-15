@@ -50,4 +50,13 @@ describe('WeChatVideoBackend', () => {
         expect(() => handle.pump({} as never)).not.toThrow();
         expect(handle.textureHandle).toBe(0);
     });
+
+    // The WeChat devtools throws on getFrameData (VideoDecoder is real-device only) —
+    // pump must swallow it, not crash the whole video system.
+    it('pump tolerates getFrameData() throwing (unsupported API)', () => {
+        decoder.getFrameData.mockImplementation(() => { throw new Error('unsupported in devtools'); });
+        const handle = backend.createStream('clip.mp4', { autoplay: true, muted: true });
+        expect(() => handle.pump({} as never)).not.toThrow();
+        expect(handle.textureHandle).toBe(0);
+    });
 });

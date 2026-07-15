@@ -36,12 +36,10 @@ class WeChatVideoStreamHandle implements VideoStreamHandle {
         this.loop_ = options.loop ?? false;
         const decoder = wx.createVideoDecoder();
         this.decoder_ = decoder;
-        // mode 0 = decode by PTS. Surface start success/failure — a bad package
-        // path or unsupported codec otherwise just yields a silent white frame.
+        // mode 0 = decode by PTS. start() rejects in the WeChat devtools —
+        // VideoDecoder is real-device only — so surface the failure loudly.
         decoder.start({ source: url, mode: 0 })
-            .then(() => log.info('video', `WeChat decoder started: ${url}`))
             .catch((err) => { log.error('video', `WeChat decoder start failed: ${url}`, err); this.onError?.(err); });
-        decoder.on('start', (res: unknown) => log.info('video', `WeChat decode 'start'`, res));
         decoder.on('ended', () => {
             if (this.loop_) {
                 this.lastPts_ = -1;
@@ -73,8 +71,16 @@ class WeChatVideoStreamHandle implements VideoStreamHandle {
     pump(module: ESEngineModule): void {
         if (this.disposed_ || !this.playing_) return;
         // getFrameData is typed non-null but returns null on-device until a frame
-        // has decoded — guard for it rather than trusting the vendor type.
-        const frame: WechatMinigame.FrameDataOptions | null = this.decoder_.getFrameData();
+        // has decoded (and throws where the API is unsupported) — guard both so a
+        // stalled or unsupported decoder never crashes the video system.
+        let frame: WechatMinigame.FrameDataOptions | null;
+        try {
+            frame = this.decoder_.getFrameData();
+        } catch (err) {
+            this.onError?.(err);
+            this.disposed_ = true;
+            return;
+        }
         if (!frame || !frame.data || frame.data.byteLength === 0 || frame.width <= 0) return;
         if (frame.pkPts === this.lastPts_) return; // no new frame
         this.lastPts_ = frame.pkPts;
@@ -91,7 +97,6 @@ class WeChatVideoStreamHandle implements VideoStreamHandle {
                 /* flipY */ false,
                 { filterMode: 'linear', wrapMode: 'clamp' },
             );
-            log.info('video', `WeChat first frame ${w}x${h}`);
             this.ready_ = true;
             this.onReady?.();
         } else if (w === this.width_ && h === this.height_) {
