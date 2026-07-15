@@ -40,4 +40,6 @@ export const Video = defineComponent<VideoData>('Video', {
     playbackRate: 1.0,
     fitSize: true,
     enabled: true,
+}, {
+    assetFields: [{ field: 'source', type: 'video' }],
 });

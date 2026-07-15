@@ -2329,6 +2329,17 @@ function GenericAssetInspector({ path }: { path: string }) {
             Import Settings sit above the fold (the reason to open an asset). */}
         {type === 'audio' ? (
           <AudioWavePreview path={path} />
+        ) : type === 'video' ? (
+          <div className="cb-prev" style={{ height: 160 }}>
+            <video
+              src={`estella://project/${path}`}
+              controls
+              muted
+              loop
+              playsInline
+              style={{ maxWidth: '100%', maxHeight: 160, display: 'block', margin: '0 auto' }}
+            />
+          </div>
         ) : (
           <div className="cb-prev" style={{ height: 108 }}>
             <div className="pv">

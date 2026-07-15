@@ -13,7 +13,7 @@
  */
 import {
   Folder, Film, Image, FileImage, PersonStanding, Music,
-  Component, Blend, FileCode2, Clapperboard, Grid3x3, File, Workflow, Gamepad2, GitBranch, ListTree, Languages, Images,
+  Component, Blend, FileCode2, Clapperboard, Grid3x3, File, Workflow, Gamepad2, GitBranch, ListTree, Languages, Images, Video,
   type LucideIcon,
 } from 'lucide-react';
 import type { AssetType } from '@/types';
@@ -37,6 +37,7 @@ export const ASSET_TYPES: Record<AssetType, AssetTypeDef> = {
   sprite: { extensions: ['jpg', 'jpeg', 'gif'], badge: 'IMG', icon: Image, tint: '#7fa6c4' },
   spine: { extensions: ['atlas', 'skel'], badge: 'SPN', icon: PersonStanding, tint: '#9b8fc0' },
   audio: { extensions: ['ogg', 'mp3', 'wav', 'aac', 'flac', 'm4a', 'webm'], badge: 'AUD', icon: Music, tint: '#7faf9c' },
+  video: { extensions: ['mp4', 'm4v', 'mov'], badge: 'VID', icon: Video, tint: '#c08fb5' },
   prefab: { extensions: ['esprefab'], badge: 'PFB', icon: Component, tint: '#c2a274' },
   // .esmaterial is the real extension (the SDK MaterialAssetLoader only loads it);
   // .esmat is tolerated as a legacy alias (cf. electron/importAssets.ts).

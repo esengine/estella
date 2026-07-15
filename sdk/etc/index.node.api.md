@@ -453,7 +453,7 @@ static prototype: ArrayDataSource<any>
 
 ## AssetFieldType — type
 ```
-'texture' | 'material' | 'font' | 'anim-clip' | 'audio' | 'tilemap' | 'tileset' | 'timeline' | 'statemachine' | 'behaviortree'
+'texture' | 'material' | 'font' | 'anim-clip' | 'audio' | 'video' | 'tilemap' | 'tileset' | 'timeline' | 'statemachine' | 'behaviortree'
 ```
 
 ## AssetPlugin — class
@@ -2217,7 +2217,7 @@ undefineMaterial: (materialId: number) => void
 ## EditorAssetType — type
 ```
 | 'texture' | 'material' | 'shader' | 'spine-atlas' | 'spine-skeleton'
-    | 'bitmap-font' | 'prefab' | 'json' | 'audio' | 'scene' | 'anim-clip'
+    | 'bitmap-font' | 'prefab' | 'json' | 'audio' | 'video' | 'scene' | 'anim-clip'
     | 'tilemap' | 'timeline'
     | 'unknown'
 ```

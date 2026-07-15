@@ -91,6 +91,7 @@ const COMPONENT_CATEGORY: Record<string, string> = {
   ShapeRenderer: 'Rendering',
   BitmapText: 'Rendering',
   TilemapLayer: 'Rendering',
+  Video: 'Rendering',
   Canvas: 'UI',
   SpineAnimation: 'Animation',
   ParticleEmitter: 'Effects',

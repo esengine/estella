@@ -8,7 +8,7 @@ export type AddressableAssetType =
 
 export type EditorAssetType =
     | 'texture' | 'material' | 'shader' | 'spine-atlas' | 'spine-skeleton'
-    | 'bitmap-font' | 'prefab' | 'json' | 'audio' | 'scene' | 'anim-clip'
+    | 'bitmap-font' | 'prefab' | 'json' | 'audio' | 'video' | 'scene' | 'anim-clip'
     | 'tilemap' | 'timeline'
     | 'unknown';
 
@@ -33,6 +33,10 @@ const ASSET_TYPE_REGISTRY: readonly AssetTypeEntry[] = [
     // extensions — KTX2 textures are fs-read (transcoded), not image-decoded.
     { extensions: ['ktx2'], contentType: 'binary', editorType: 'texture', addressableType: 'texture', wechatPackInclude: true, hasTransitiveDeps: false },
     { extensions: ['mp3', 'wav', 'ogg', 'aac', 'flac', 'm4a', 'webm'], contentType: 'audio', editorType: 'audio', addressableType: 'audio', wechatPackInclude: false, hasTransitiveDeps: false },
+    // Video container, streamed + decoded by the video system (HTMLVideoElement /
+    // wx.createVideoDecoder). `webm` stays with audio above to avoid the ambiguity;
+    // a .webm video is disambiguated by its `.meta` type. Cooked/copied as binary.
+    { extensions: ['mp4', 'm4v', 'mov'], contentType: 'binary', editorType: 'video', addressableType: 'binary', wechatPackInclude: false, hasTransitiveDeps: false },
     { extensions: ['esmaterial'], contentType: 'json', editorType: 'material', addressableType: 'material', wechatPackInclude: true, hasTransitiveDeps: true },
     { extensions: ['esshader'], contentType: 'text', editorType: 'shader', addressableType: null, wechatPackInclude: false, hasTransitiveDeps: false },
     { extensions: ['atlas'], contentType: 'text', editorType: 'spine-atlas', addressableType: 'binary', wechatPackInclude: true, hasTransitiveDeps: true },
@@ -71,6 +75,9 @@ const MIME_MAP: Record<string, string> = {
     m4a: 'audio/mp4',
     flac: 'audio/flac',
     webm: 'audio/webm',
+    mp4: 'video/mp4',
+    m4v: 'video/x-m4v',
+    mov: 'video/quicktime',
     json: 'application/json',
     atlas: 'text/plain',
     skel: 'application/octet-stream',

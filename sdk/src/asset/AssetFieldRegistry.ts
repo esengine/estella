@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-export type AssetFieldType = 'texture' | 'material' | 'font' | 'anim-clip' | 'audio' | 'tilemap' | 'tileset' | 'timeline' | 'statemachine' | 'behaviortree';
+export type AssetFieldType = 'texture' | 'material' | 'font' | 'anim-clip' | 'audio' | 'video' | 'tilemap' | 'tileset' | 'timeline' | 'statemachine' | 'behaviortree';
 
 export interface AssetFieldDescriptor {
     field: string;
@@ -83,6 +83,10 @@ export function initBuiltinAssetFields(): void {
 
     registerAssetFields('AudioSource', [
         { field: 'clip', type: 'audio' },
+    ]);
+
+    registerAssetFields('Video', [
+        { field: 'source', type: 'video' },
     ]);
 
     registerAssetFields('ParticleEmitter', [

@@ -105,6 +105,7 @@ function metaTypeToSlot(metaType: string | undefined): string | null {
     case 'material': return 'material';
     case 'font': case 'bitmapFont': return 'font';
     case 'audio': return 'audio';
+    case 'video': return 'video';
     case 'animclip': return 'anim-clip';
     case 'animation': return 'timeline';
     case 'tilemap': return 'tilemap';
@@ -668,6 +669,10 @@ class ProjectStoreImpl {
         return assets.loadFont(ref).then((r) => this.recordHandle('font', path, r.handle));
       case 'audio':
         return assets.loadAudio(ref);
+      case 'video':
+        // Video streams at runtime (the video system, play-mode only) — there is
+        // no edit-mode handle to preload. The ref is valid; nothing to load here.
+        return Promise.resolve();
       case 'anim-clip':
         return assets.loadAnimClip(ref); // raw ref: the loader aliases it for component lookups
       case 'tilemap':

@@ -21,6 +21,7 @@ const HTTP_MIME: Record<string, string> = {
   png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
   webp: 'image/webp', svg: 'image/svg+xml', ktx2: 'image/ktx2', ico: 'image/x-icon',
   ogg: 'audio/ogg', mp3: 'audio/mpeg', wav: 'audio/wav', m4a: 'audio/mp4', aac: 'audio/aac',
+  mp4: 'video/mp4', m4v: 'video/x-m4v', mov: 'video/quicktime',
   ttf: 'font/ttf', woff: 'font/woff', woff2: 'font/woff2',
 };
 

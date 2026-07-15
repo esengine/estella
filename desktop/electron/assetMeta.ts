@@ -25,6 +25,7 @@ export const EXT_TO_TYPE: Record<string, string> = {
   '.png': 'texture', '.jpg': 'texture', '.jpeg': 'texture', '.webp': 'texture', '.bmp': 'texture',
   '.ktx2': 'texture',
   '.wav': 'audio', '.mp3': 'audio', '.ogg': 'audio', '.aac': 'audio', '.flac': 'audio', '.m4a': 'audio', '.webm': 'audio',
+  '.mp4': 'video', '.m4v': 'video', '.mov': 'video',
   '.esprefab': 'prefab', '.esscene': 'scene', '.esshader': 'shader', '.esmaterial': 'material', '.esmat': 'material',
   '.esanim': 'animclip', '.esanimclip': 'animclip', '.estimeline': 'animation',
   '.estileset': 'tileset', '.esfsm': 'statemachine', '.esbt': 'behaviortree', '.eslocale': 'locale',

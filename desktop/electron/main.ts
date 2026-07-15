@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { app, BrowserWindow, Menu, shell, ipcMain, dialog, protocol } from 'electron';
 import { fileURLToPath } from 'node:url';
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile, open, stat } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import {
@@ -715,23 +715,73 @@ ipcMain.handle('project:saveDialog', async (_e, defaultRel?: string) => {
   return rel;
 });
 
+// Serve a project file, honoring an HTTP Range request (206) when present.
+// <video> streams and seeks via Range; every other client omits the header and
+// gets the whole file (200). Ranged reads pull only the requested slice off
+// disk, so seeking a large clip never loads it whole into memory.
+async function serveProjectFile(abs: string, request: Request): Promise<Response> {
+  const headers: Record<string, string> = {
+    'content-type': httpContentType(abs),
+    // The play realm (app:// origin) loads project assets cross-scheme via
+    // <img crossorigin> + fetch; allow it. estella:// is only reachable inside
+    // the Electron app, so there is no untrusted-web exposure.
+    'access-control-allow-origin': '*',
+    'accept-ranges': 'bytes',
+    'cache-control': 'no-store',
+  };
+  const rangeHeader = request.headers.get('range');
+  const range = rangeHeader ? parseByteRange(rangeHeader, (await stat(abs)).size) : null;
+  if (range === 'invalid') {
+    return new Response('range not satisfiable', {
+      status: 416, headers: { ...headers, 'content-range': `bytes */${(await stat(abs)).size}` },
+    });
+  }
+  if (range) {
+    const fh = await open(abs, 'r');
+    try {
+      const buf = Buffer.alloc(range.length);
+      await fh.read(buf, 0, range.length, range.start);
+      return new Response(new Uint8Array(buf), {
+        status: 206,
+        headers: { ...headers, 'content-range': `bytes ${range.start}-${range.end}/${range.size}`, 'content-length': String(range.length) },
+      });
+    } finally {
+      await fh.close();
+    }
+  }
+  const bytes = await readFile(abs);
+  return new Response(new Uint8Array(bytes), { headers });
+}
+
+/** Parse a single-range `bytes=start-end` header against a known file size.
+ *  Returns the resolved slice, `'invalid'` for an unsatisfiable range, or null
+ *  when the header isn't a form we serve (caller sends the whole file). */
+function parseByteRange(header: string, size: number):
+  { start: number; end: number; length: number; size: number } | 'invalid' | null {
+  const m = /^bytes=(\d*)-(\d*)$/.exec(header.trim());
+  if (!m) return null;
+  let start = m[1] === '' ? NaN : parseInt(m[1], 10);
+  let end = m[2] === '' ? NaN : parseInt(m[2], 10);
+  if (Number.isNaN(start)) {
+    // suffix range `bytes=-N`: the last N bytes.
+    const n = Number.isNaN(end) ? 0 : end;
+    start = Math.max(0, size - n);
+    end = size - 1;
+  } else if (Number.isNaN(end)) {
+    end = size - 1;
+  }
+  if (size === 0 || start > end || start >= size) return 'invalid';
+  end = Math.min(end, size - 1);
+  return { start, end, length: end - start + 1, size };
+}
+
 // estella://project/<relpath> → bytes from the open project root (sandboxed).
 async function handleEstella(request: Request): Promise<Response> {
   if (!projectRoot) return new Response('no project open', { status: 503 });
   try {
     const rel = decodeURIComponent(new URL(request.url).pathname).replace(/^\/+/, '');
     const abs = resolveInRoot(projectRoot, rel); // throws if it escapes the root
-    const bytes = await readFile(abs);
-    return new Response(new Uint8Array(bytes), {
-      headers: {
-        'content-type': httpContentType(abs),
-        // The play realm (app:// origin) loads project assets cross-scheme via
-        // <img crossorigin> + fetch; allow it. estella:// is only reachable inside
-        // the Electron app, so there is no untrusted-web exposure.
-        'access-control-allow-origin': '*',
-        'cache-control': 'no-store',
-      },
-    });
+    return await serveProjectFile(abs, request);
   } catch (err) {
     return new Response(String(err), { status: 404 });
   }
@@ -752,10 +802,7 @@ async function handleApp(request: Request): Promise<Response> {
     if (rel.startsWith(PROJECT_PREFIX)) {
       if (!projectRoot) return new Response('no project open', { status: 503 });
       const abs = resolveInRoot(projectRoot, rel.slice(PROJECT_PREFIX.length));
-      const bytes = await readFile(abs);
-      return new Response(new Uint8Array(bytes), {
-        headers: { 'content-type': httpContentType(abs), 'access-control-allow-origin': '*', 'cache-control': 'no-store' },
-      });
+      return await serveProjectFile(abs, request);
     }
     const abs = path.join(RENDERER_DIST, rel);
     if (abs !== RENDERER_DIST && !abs.startsWith(RENDERER_DIST + path.sep)) {

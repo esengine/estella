@@ -67,6 +67,18 @@ const AUDIO: ImporterFieldSpec[] = [
   },
 ];
 
+const VIDEO: ImporterFieldSpec[] = [
+  {
+    key: 'loop', label: 'Loop', type: 'bool', default: true, category: 'Video',
+    tooltip: 'Suggested loop state when this clip is assigned to a Video component.',
+  },
+  { key: 'autoplay', label: 'Autoplay', type: 'bool', default: true, category: 'Video' },
+  {
+    key: 'muted', label: 'Muted', type: 'bool', default: true, category: 'Video',
+    tooltip: 'Muted clips can autoplay; unmuted autoplay is blocked until a user gesture.',
+  },
+];
+
 const SCENELIKE: ImporterFieldSpec[] = [
   {
     key: 'autoMigrate', label: 'Auto Migrate', type: 'bool', default: true, category: 'Import',
@@ -81,6 +93,7 @@ export const IMPORTER_SCHEMAS: Record<string, ImporterFieldSpec[]> = {
   sprite: TEXTURE,
   spine: SPINE,
   audio: AUDIO,
+  video: VIDEO,
   scene: SCENELIKE,
   prefab: SCENELIKE,
 };

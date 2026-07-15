@@ -907,6 +907,22 @@ export class SceneCommandsImpl {
   /** Add a component (with its registered/schema defaults) to an entity. Undoable. */
   // Apply an add to the model and return its undo op, or null if it's a no-op
   // (entity gone / component already present). Shared by the single + batch paths.
+  /** Components auto-added alongside another (a lightweight dependency). A Video
+   *  renders through a Sprite, so adding a Video ensures a Sprite is present. */
+  private requiredComponents(compName: string): readonly string[] {
+    if (compName === 'Video') return ['Sprite'];
+    return [];
+  }
+
+  /** The add op for `compName` plus ops for any components it requires. Each op is
+   *  null when that component already exists, so dependencies never duplicate. */
+  private addComponentOpsWithDeps(sourceId: EntityId, compName: string): UndoOp[] {
+    return [
+      ...this.requiredComponents(compName).map((dep) => this.addComponentOp(sourceId, dep)),
+      this.addComponentOp(sourceId, compName),
+    ].filter((o): o is UndoOp => !!o);
+  }
+
   private addComponentOp(sourceId: EntityId, compName: string): UndoOp | null {
     const entity = this.model.entityBySource(sourceId);
     if (!entity || entity.components.some((c) => c.type === compName)) return null;
@@ -944,8 +960,8 @@ export class SceneCommandsImpl {
   }
 
   addComponent(sourceId: EntityId, compName: string): void {
-    const op = this.addComponentOp(sourceId, compName);
-    if (op) this.history.record(`Add ${prettyLabel(compName)}`, op.forward, op.reverse);
+    const ops = this.addComponentOpsWithDeps(sourceId, compName);
+    if (ops.length) this.history.batch(`Add ${prettyLabel(compName)}`, ops);
   }
 
   /**
@@ -981,7 +997,7 @@ export class SceneCommandsImpl {
 
   /** Add a component to many entities (multi-select) as ONE undo step. */
   addComponentMany(sourceIds: readonly EntityId[], compName: string): void {
-    const ops = sourceIds.map((id) => this.addComponentOp(id, compName)).filter((o): o is UndoOp => !!o);
+    const ops = sourceIds.flatMap((id) => this.addComponentOpsWithDeps(id, compName));
     this.history.batch(`Add ${prettyLabel(compName)}`, ops);
   }
 

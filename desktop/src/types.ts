@@ -155,6 +155,7 @@ export type AssetType =
   | 'texture'
   | 'spine'
   | 'audio'
+  | 'video'
   | 'prefab'
   | 'material'
   | 'materialgraph'
