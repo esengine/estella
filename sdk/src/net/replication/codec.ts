@@ -140,8 +140,13 @@ export function diffSchemas(mine: ReplComponentSchema[], theirs: ReplComponentSc
 // Byte streams
 // =============================================================================
 
-const textEncoder = new TextEncoder();
-const textDecoder = new TextDecoder();
+// Lazy: WeChat installs its TextEncoder/TextDecoder polyfill during platform
+// init, after this module is evaluated — a module-level `new` would
+// ReferenceError on a real device (the devtools has them natively).
+let textEncoder_: TextEncoder | undefined;
+let textDecoder_: TextDecoder | undefined;
+const textEncoder = (): TextEncoder => textEncoder_ ?? (textEncoder_ = new TextEncoder());
+const textDecoder = (): TextDecoder => textDecoder_ ?? (textDecoder_ = new TextDecoder());
 
 export class ByteWriter {
     private buf_: Uint8Array;
@@ -171,7 +176,7 @@ export class ByteWriter {
     f32(v: number): void { this.ensure_(4); this.view_.setFloat32(this.len_, v, true); this.len_ += 4; }
 
     string(s: string): void {
-        const bytes = textEncoder.encode(s);
+        const bytes = textEncoder().encode(s);
         if (bytes.byteLength > 0xffff) throw new Error('[repl] string field exceeds 65535 utf-8 bytes');
         this.u16(bytes.byteLength);
         this.ensure_(bytes.byteLength);
@@ -206,7 +211,7 @@ export class ByteReader {
 
     string(): string {
         const len = this.u16();
-        const s = textDecoder.decode(this.bytes_.subarray(this.pos_, this.pos_ + len));
+        const s = textDecoder().decode(this.bytes_.subarray(this.pos_, this.pos_ + len));
         this.pos_ += len;
         return s;
     }
