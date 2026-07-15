@@ -381,7 +381,9 @@ export async function exportWeChat(opts: {
       bundle: true,
       format: 'cjs',
       platform: 'browser',
-      target: 'es2020',
+      // Real-device WeChat rejects es2020 syntax (`??`, `?.`) even though the
+      // devtools accepts it; es2017 down-levels those while keeping async/await.
+      target: 'es2017',
       alias: esengineAlias(opts.sdkDir, 'index.wechat.js'),
       minify: opts.minify ?? false,
       sourcemap: false,
