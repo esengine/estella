@@ -23,7 +23,7 @@ import {
 import { listRecents, addRecent, removeRecent, listTemplates, createFromTemplate } from './launcher';
 import { buildProjectScripts } from './buildScripts';
 import { extractProjectSchemas } from './extractSchemas';
-import { scanAssetDatabase } from './assetDb';
+import { scanAssetDatabase, readCachedAssetIndex } from './assetDb';
 import { cookAssets } from './cookAssets';
 import { startProjectWatch, stopProjectWatch } from './projectWatcher';
 import { importAssets, createAsset, IMPORT_EXTENSIONS } from './importAssets';
@@ -587,6 +587,9 @@ ipcMain.handle('project:extractSchemas', async () => {
 // this into the engine Assets registry (one resolution path) and the Content
 // Browser; the cook walks `deps` (REARCH_ASSETS.md A2).
 ipcMain.handle('project:scanAssets', async () => scanAssetDatabase(requireRoot()));
+// Fast boot path: the cached index without a tree walk (renderer revalidates via
+// scanAssets off the critical path). See ProjectStore.buildAssetRegistry.
+ipcMain.handle('project:cachedAssetIndex', async () => readCachedAssetIndex(requireRoot()));
 
 // Cook the project's assets for shipping: from the entry scene, walk the
 // dependency graph to the reachable assets, stage them into `outDir`, and emit

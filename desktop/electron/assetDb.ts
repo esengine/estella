@@ -205,6 +205,30 @@ async function mapLimit<T, R>(
 const SCAN_IO_CONCURRENCY = 48;
 
 /**
+ * Read the cached asset index (assets.json) WITHOUT walking the tree. The boot
+ * path uses this to build the registry immediately — the full O(files) scan
+ * (~1.5s cold on an 800-file project, dominated by per-file disk reads) then
+ * runs off the critical path to catch anything changed while the project was
+ * closed. Returns null when the cache is absent/unparseable/malformed, so the
+ * caller falls back to a full scan (first-ever open of a project).
+ */
+export async function readCachedAssetIndex(root: string): Promise<AssetIndex | null> {
+  try {
+    const raw = JSON.parse(await readFile(path.join(root, CACHE_DIR, OUTPUT), 'utf8'));
+    if (raw && Array.isArray(raw.entries)) {
+      return {
+        version: typeof raw.version === 'string' ? raw.version : '1.0',
+        entries: raw.entries as AssetEntry[],
+        deps: (raw.deps as Record<string, string[]>) ?? {},
+      };
+    }
+  } catch {
+    // missing or malformed — caller falls back to a full scan
+  }
+  return null;
+}
+
+/**
  * Scan `root` for `.meta` sidecars → build the asset index (registry + dep
  * graph) and (unless `write: false`) write `.esengine/cache/assets.json`.
  */

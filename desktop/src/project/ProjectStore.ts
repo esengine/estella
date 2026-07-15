@@ -149,6 +149,10 @@ function unknownComponentTypes(data: SceneData): string[] {
   return [...unknown];
 }
 
+/** An asset index entry as the registry consumes it (from scanAssets or the
+ *  cached assets.json — same shape). */
+type AssetEntryLite = { uuid: string; path: string; type?: string; importer?: Record<string, unknown> };
+
 class ProjectStoreImpl {
   private readonly store = createStore<{ project: ProjectState | null }>(() => ({ project: null }));
   /** uuid → project-relative path, scanned from `.meta` sidecars — the editor's
@@ -172,6 +176,8 @@ class ProjectStoreImpl {
   /** Resolved path → error message for live loads that FAILED — diagnostics
    *  surfaces these (the model looks fine; only the load knows it's broken). */
   private readonly assetLoadFailures = new Map<string, string>();
+  /** Guards the off-critical-path asset revalidation after a cache-first boot. */
+  private revalidating = false;
   /** The latest scene preload result; the Reconciler resolver reads handles from
    *  it for entities recreated incrementally (duplicate / undo / play-stop). */
   private lastAssetResult: PreloadResult | null = null;
@@ -348,9 +354,9 @@ class ProjectStoreImpl {
       );
     }
     // Build the uuid→path registry first (prefab + texture refs resolve through it).
-    // This runs the full project-wide asset scan (O(files)) on every open — the
-    // usual boot-time hot spot on asset-heavy projects, so it gets its own phase.
-    await bootProfiler.phase('scanAssets', () => this.buildAssetRegistry());
+    // Cache-first so the full O(files) disk scan doesn't gate engine-ready — it
+    // revalidates in the background (see buildAssetRegistry).
+    await bootProfiler.phase('scanAssets', () => this.buildAssetRegistry({ preferCache: true }));
 
     // Expand prefab-instance entries into ordinary tagged entities (the model is
     // always expanded; the file stores deltas). Internal
@@ -476,26 +482,47 @@ class ProjectStoreImpl {
    * asset-resolution path: `Assets.resolveRef` turns `@uuid:` → path, the backend
    * fetches `estella://project/<path>`.
    */
-  private async buildAssetRegistry(): Promise<void> {
+  private async buildAssetRegistry(opts?: { preferCache?: boolean }): Promise<void> {
     if (!this.state) return;
-    let entries: { uuid: string; path: string; type?: string; importer?: Record<string, unknown> }[];
-    let adopted: string[] = [];
+    // Cache-first (boot): the O(files) disk scan is ~1.5s cold on an asset-heavy
+    // project and gates the "engine ready" overlay. The cached assets.json is
+    // almost always current (the fs watcher keeps it live while open), so build
+    // the registry from it immediately and revalidate with the authoritative
+    // scan OFF the critical path — only re-projecting if something changed while
+    // the project was closed.
+    if (opts?.preferCache) {
+      const cached = await window.estella.project.cachedAssetIndex().catch(() => null);
+      if (cached) {
+        this.populateRegistry(cached.entries);
+        void this.revalidateAssets();
+        return;
+      }
+      // No cache (first-ever open) → fall through to a full, blocking scan.
+    }
+    const entries = await this.scanAssetsReporting();
+    if (entries) this.populateRegistry(entries);
+  }
+
+  /** Run the authoritative scan; report its boot timing + any adopted orphans. */
+  private async scanAssetsReporting(): Promise<AssetEntryLite[] | null> {
     try {
       const scan = await window.estella.project.scanAssets();
-      ({ entries } = scan.index);
-      adopted = scan.adopted ?? [];
-      // Fold the main-process scan's sub-phase split into the 'scanAssets' boot phase.
       if (scan.timingMs) bootProfiler.detail('scanAssets', scan.timingMs);
+      if ((scan.adopted?.length ?? 0) > 0) {
+        console.info(
+          `[assets] adopted ${scan.adopted.length} file(s) that had no .meta — they are now registered assets`,
+          scan.adopted,
+        );
+      }
+      return scan.index.entries;
     } catch (err) {
       console.warn('[project] asset scan failed', err);
-      return;
+      return null;
     }
-    if (adopted.length > 0) {
-      console.info(
-        `[assets] adopted ${adopted.length} file(s) that had no .meta — they are now registered assets`,
-        adopted,
-      );
-    }
+  }
+
+  /** Rebuild the uuid↔path registry + Assets resolvers from an index's entries. */
+  private populateRegistry(entries: readonly AssetEntryLite[]): void {
     this.uuidToPath.clear();
     this.pathToUuid.clear();
     this.uuidToImporter.clear();
@@ -518,6 +545,29 @@ class ProjectStoreImpl {
       // Edit viewport honors each texture's `.meta` filter/wrap at load — the same
       // settings the runtime applies (was runtime-only, so edit ≠ play before).
       assets.setTextureImportSettingsResolver((ref) => this.textureImportFor(ref));
+    }
+  }
+
+  /** Off-critical-path authoritative scan after a cache-first boot: repopulate +
+   *  re-project only the paths that changed while the project was closed (the
+   *  common case is zero changes → a pure no-op). */
+  private async revalidateAssets(): Promise<void> {
+    if (this.revalidating) return;
+    this.revalidating = true;
+    try {
+      const entries = await this.scanAssetsReporting();
+      if (!entries) return;
+      const fresh = new Map<string, string>();
+      for (const e of entries) fresh.set(e.path, e.uuid.toLowerCase());
+      const changed: string[] = [];
+      for (const [p, u] of fresh) if (this.pathToUuid.get(p) !== u) changed.push(p);
+      for (const p of this.pathToUuid.keys()) if (!fresh.has(p)) changed.push(p); // removed
+      if (changed.length === 0) return; // the cache was authoritative — nothing to do
+      console.info(`[assets] revalidation: ${changed.length} asset change(s) since the project was last open`);
+      this.populateRegistry(entries);
+      this.hotSyncChangedPaths(changed);
+    } finally {
+      this.revalidating = false;
     }
   }
 
