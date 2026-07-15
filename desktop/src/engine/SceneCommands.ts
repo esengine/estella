@@ -907,18 +907,21 @@ export class SceneCommandsImpl {
   /** Add a component (with its registered/schema defaults) to an entity. Undoable. */
   // Apply an add to the model and return its undo op, or null if it's a no-op
   // (entity gone / component already present). Shared by the single + batch paths.
-  /** Components auto-added alongside another (a lightweight dependency). A Video
-   *  renders through a Sprite, so adding a Video ensures a Sprite is present. */
-  private requiredComponents(compName: string): readonly string[] {
-    if (compName === 'Video') return ['Sprite'];
-    return [];
+  /** Components auto-added alongside another. A Video renders through a
+   *  renderable, so adding one ensures a Sprite unless the entity already has a
+   *  renderable (a UI Video keeps its UIVisual, not a redundant Sprite). */
+  private requiredComponents(sourceId: EntityId, compName: string): readonly string[] {
+    if (compName !== 'Video') return [];
+    const comps = this.model.entityBySource(sourceId)?.components ?? [];
+    const hasRenderable = comps.some((c) => c.type === 'Sprite' || c.type === 'UIVisual' || c.type === 'Mesh2D');
+    return hasRenderable ? [] : ['Sprite'];
   }
 
   /** The add op for `compName` plus ops for any components it requires. Each op is
    *  null when that component already exists, so dependencies never duplicate. */
   private addComponentOpsWithDeps(sourceId: EntityId, compName: string): UndoOp[] {
     return [
-      ...this.requiredComponents(compName).map((dep) => this.addComponentOp(sourceId, dep)),
+      ...this.requiredComponents(sourceId, compName).map((dep) => this.addComponentOp(sourceId, dep)),
       this.addComponentOp(sourceId, compName),
     ].filter((o): o is UndoOp => !!o);
   }

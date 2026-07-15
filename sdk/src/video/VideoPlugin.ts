@@ -1,19 +1,62 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 // Wires the video system into an App: builds the backend, exposes VideoPlayer,
-// and runs one play-mode system that streams each Video and drives its Sprite.
+// and runs one play-mode system that streams each Video onto its renderable.
 import type { App, Plugin } from '../app';
 import type { Entity } from '../types';
+import type { World } from '../world';
 import { defineSystem, Schedule } from '../system';
 import { Res, Time, type TimeData } from '../resource';
 import { VideoPlayer, VideoAPI } from './VideoAPI';
 import { Video, type VideoData } from './VideoComponents';
-import { Sprite, type SpriteData } from '../component';
+import { Sprite, Mesh2D, type SpriteData, type Mesh2DData } from '../component';
+import type { UIVisualData } from '../component.generated';
+import { UIVisual } from '../ui/core/ui-visual';
 import type { VideoStreamHandle } from './PlatformVideoBackend';
 import { NullVideoBackend } from './NullVideoBackend';
 import { getPlatform } from '../platform/base';
 import { isEditor, isPlayMode } from '../env';
 import { log } from '../logger';
+
+const UI_VISUAL_IMAGE = 2; // UIVisualType.Image — samples the texture
+
+// Drive the entity's renderable sibling (Sprite / UIVisual / Mesh2D) from the
+// current frame. Builtin get() is a snapshot copy, so mutations need world.insert;
+// the handle is stable, so we write back only on change. Returns false if the
+// entity has no renderable to show the video on.
+function driveRenderable(world: World, entity: Entity, handle: VideoStreamHandle, video: VideoData): boolean {
+    const tex = handle.textureHandle;
+
+    const sprite = world.tryGet(entity, Sprite) as SpriteData | null;
+    if (sprite) {
+        let dirty = false;
+        if (sprite.texture !== tex) { sprite.texture = tex; dirty = true; }
+        if (video.fitSize && handle.width > 0 &&
+            (sprite.size.x !== handle.width || sprite.size.y !== handle.height)) {
+            sprite.size = { x: handle.width, y: handle.height };
+            dirty = true;
+        }
+        if (dirty) world.insert(entity, Sprite, sprite);
+        return true;
+    }
+
+    const uiv = world.tryGet(entity, UIVisual) as UIVisualData | null;
+    if (uiv) {
+        let dirty = false;
+        if (uiv.texture !== tex) { uiv.texture = tex; dirty = true; }
+        if (uiv.visualType !== UI_VISUAL_IMAGE) { uiv.visualType = UI_VISUAL_IMAGE; dirty = true; }
+        if (dirty) world.insert(entity, UIVisual, uiv);
+        return true;
+    }
+
+    const mesh = world.tryGet(entity, Mesh2D) as Mesh2DData | null;
+    if (mesh) {
+        if (mesh.texture !== tex) { mesh.texture = tex; world.insert(entity, Mesh2D, mesh); }
+        return true;
+    }
+
+    return false;
+}
 
 export class VideoPlugin implements Plugin {
     name = 'video';
@@ -78,29 +121,11 @@ export class VideoPlugin implements Plugin {
                         const handle = handles.get(id);
                         if (!handle || !handle.textureHandle) continue;
 
-                        const sprite = world.tryGet(entity, Sprite) as SpriteData | null;
-                        if (!sprite) {
-                            if (!warnedNoSprite.has(id)) {
-                                log.warn('video', `entity ${id} has a Video but no Sprite to render into — add a Sprite component`);
-                                warnedNoSprite.add(id);
-                            }
-                            continue;
-                        }
-
-                        // Builtin get() is a snapshot copy — needs world.insert to
-                        // persist. The handle is stable, so write back only on change.
-                        let dirty = false;
-                        if (sprite.texture !== handle.textureHandle) {
-                            sprite.texture = handle.textureHandle;
-                            dirty = true;
-                        }
                         const v = world.get(entity, Video) as VideoData;
-                        if (v.fitSize && handle.width > 0 &&
-                            (sprite.size.x !== handle.width || sprite.size.y !== handle.height)) {
-                            sprite.size = { x: handle.width, y: handle.height };
-                            dirty = true;
+                        if (!driveRenderable(world, entity, handle, v) && !warnedNoSprite.has(id)) {
+                            log.warn('video', `entity ${id} has a Video but no renderable (Sprite/UIVisual/Mesh2D) to show it on`);
+                            warnedNoSprite.add(id);
                         }
-                        if (dirty) world.insert(entity, Sprite, sprite);
                     }
 
                     // Reap streams whose entity is gone, disabled, or source-cleared.

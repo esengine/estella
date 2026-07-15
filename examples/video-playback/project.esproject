@@ -9,5 +9,17 @@
     "width": 640,
     "height": 480
   },
-  "spineVersion": "none"
+  "spineVersion": "none",
+  "packaging": {
+    "platform": "wechat",
+    "config": "shipping",
+    "sourceMaps": false,
+    "openFolder": true,
+    "compressTextures": false,
+    "atlasTextures": false,
+    "compressAudio": false,
+    "outDir": {
+      "wechat": "dist-wechat"
+    }
+  }
 }
