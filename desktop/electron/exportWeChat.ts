@@ -159,6 +159,9 @@ async function scanWeChatSideModules(
   const ids = new Set<string>();
   if (sceneDatas.some((s) => s && sceneUsesPhysics(s as Parameters<typeof sceneUsesPhysics>[0]))) ids.add('physics');
   if (sceneDatas.some((s) => s && sceneUsesVideo(s as Parameters<typeof sceneUsesVideo>[0]))) ids.add('videodec');
+  // Any staged .esv also needs the decoder: script-driven playback
+  // (VideoPlayer.play) references cooked videos no scene component names.
+  if (cookEntries.some((e) => /\.esv(\.bin)?$/.test(e.path.toLowerCase()))) ids.add('videodec');
   // Spine: the skeleton carries the version. Skeleton + atlas share the authored
   // meta type `spine`, so discriminate by extension — `.skel` is a binary
   // skeleton, `.json` a JSON one; the `.atlas` sibling is not a skeleton.

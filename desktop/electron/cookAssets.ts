@@ -373,7 +373,14 @@ export async function cookAssets(
       continue;
     }
     try {
-      let data: Uint8Array = await readFile(path.join(root, entry.path));
+      // Videos headed for transcode skip the eager read: ffmpeg streams the
+      // file itself, so slurping a (potentially huge) source here would double
+      // the I/O just to throw the bytes away.
+      const willTranscodeVideo =
+        videoEnc != null && entry.type === 'video' && path.extname(entry.path).toLowerCase() !== '.esv';
+      let data: Uint8Array = willTranscodeVideo
+        ? new Uint8Array(0)
+        : await readFile(path.join(root, entry.path));
       let ext = path.extname(entry.path);
       let compressedFormats: string[] | undefined;
       // Encode raster textures (PNG) to GPU-compressed KTX2 — they stay compressed
@@ -401,7 +408,7 @@ export async function cookAssets(
       // Video → `.esv` (MPEG-1 for the wasm decoder) + audio-track sibling.
       // `.esv` sources are already in the cooked format and pass through.
       let videoAudio: Uint8Array | null = null;
-      if (videoEnc && entry.type === 'video' && ext.toLowerCase() !== '.esv') {
+      if (willTranscodeVideo && videoEnc) {
         const settings = videoEnc.videoImportSettings(entry.importer);
         const res = await videoEnc.transcodeVideoForWasm(path.join(root, entry.path), settings);
         warnings.push(...res.warnings.map((w) => `${entry.path}: ${w}`));
@@ -410,6 +417,7 @@ export async function cookAssets(
           ext = '.esv';
           videoAudio = res.audio;
         } else {
+          data = await readFile(path.join(root, entry.path));
           warnings.push(`${entry.path}: shipped untranscoded — this video will NOT play on the wasm decode path (WeChat)`);
         }
       }
@@ -472,13 +480,17 @@ export async function cookAssets(
         group,
         ...(compressedFormats ? { compressedFormats } : {}),
       });
-      // The video's audio track ships as an `<staged>.m4a` SIBLING of the
-      // `.esv` — appended (not extension-swapped) so it can never collide with
-      // a real project `.m4a`, and the runtime derives it from the resolved
-      // video URL with no metadata channel. Its own manifest entry keeps
-      // addressable/CDN flows aware of the file.
+      // The video's audio track ships as its own manifest entry addressed as
+      // `<source path>.m4a` / uuid `<video uuid>-audio` — the runtime resolves
+      // it through the same ref channel as everything else. The flat layout
+      // also keeps the `<staged>.m4a` sibling NAME (appended, not
+      // extension-swapped, so it can't collide with a real `.m4a` asset) as a
+      // resolver-free fallback; content addressing names it by ITS OWN bytes —
+      // two videos with identical footage but different audio must not dedup
+      // to one soundtrack.
       if (videoAudio) {
-        const audioOutRel = `${outRel}.m4a`;
+        const audioHash = contentHashHex(videoAudio);
+        const audioOutRel = useCA ? `${caBase}/${audioHash}.m4a` : `${outRel}.m4a`;
         if (!staged.has(audioOutRel)) {
           await writeFile(path.join(absOut, audioOutRel), videoAudio);
           staged.add(audioOutRel);
@@ -488,7 +500,7 @@ export async function cookAssets(
           path: audioOutRel,
           sourcePath: `${entry.path}.m4a`,
           type: 'audio',
-          contentHash: contentHashHex(videoAudio),
+          contentHash: audioHash,
           size: videoAudio.byteLength,
           group,
         });

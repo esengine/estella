@@ -3,6 +3,7 @@
 /// <reference types="minigame-api-typings" />
 import type { AudioHandle, AudioBufferHandle, PlayConfig, PlatformAudioBackend, AudioBackendInitOptions } from './PlatformAudioBackend';
 import type { AudioMixer } from './AudioMixer';
+import { scalar } from '../math/scalar';
 import { log } from '../logger';
 
 class WeChatAudioHandle implements AudioHandle {
@@ -33,7 +34,9 @@ class WeChatAudioHandle implements AudioHandle {
     }
 
     setVolume(volume: number): void {
-        this.ctx_.volume = volume;
+        // InnerAudioContext.volume is only valid in [0,1] — out-of-range writes
+        // are rejected on-device rather than clamped.
+        this.ctx_.volume = scalar.clamp01(volume);
     }
 
     private panWarned_ = false;
@@ -111,7 +114,7 @@ export class WeChatAudioBackend implements PlatformAudioBackend {
 
         const ctx: WechatMinigame.InnerAudioContext = wx.createInnerAudioContext();
         ctx.loop = config.loop ?? false;
-        ctx.volume = config.volume ?? 1.0;
+        ctx.volume = scalar.clamp01(config.volume ?? 1.0);
         ctx.playbackRate = config.playbackRate ?? 1.0;
         ctx.startTime = config.startOffset ?? 0;
         ctx.obeyMuteSwitch = false;

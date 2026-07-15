@@ -156,4 +156,22 @@ describe.skipIf(!ffmpeg)('cookAssets video wiring', () => {
         expect(video.path).toBe('assets/videos/clip.mp4');
         expect(manifest.entries.find((e: { uuid: string }) => e.uuid === `${VIDEO_UUID}-audio`)).toBeUndefined();
     });
+
+    it('content-addressed staging names the audio sibling by ITS OWN hash', async () => {
+        const root = await makeProject();
+        await cookAssets(root, {
+            entryScenes: ['assets/scenes/main.esscene'], outDir: 'build',
+            transcodeVideo: true, contentAddressed: true,
+        });
+        const manifest = JSON.parse(readFileSync(path.join(root, 'build/assets.manifest.json'), 'utf8'));
+        const video = manifest.entries.find((e: { uuid: string }) => e.uuid === VIDEO_UUID);
+        const audio = manifest.entries.find((e: { uuid: string }) => e.uuid === `${VIDEO_UUID}-audio`);
+        expect(video.path).toMatch(/^assets\/[0-9a-f]{16}\.esv$/);
+        expect(audio.path).toMatch(/^assets\/[0-9a-f]{16}\.m4a$/);
+        // Named by the AUDIO bytes, not the video's — different soundtracks over
+        // identical footage must not dedup to one file.
+        expect(audio.path).toBe(`assets/${audio.contentHash}.m4a`);
+        expect(audio.contentHash).not.toBe(video.contentHash);
+        expect(existsSync(path.join(root, 'build', audio.path))).toBe(true);
+    });
 });

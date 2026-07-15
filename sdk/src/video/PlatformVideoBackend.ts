@@ -39,6 +39,11 @@ export interface VideoStreamOptions {
     muted?: boolean;
     volume?: number;
     playbackRate?: number;
+    /** Resolved URL of the cook-demuxed audio-track sibling, when the realm's
+     *  manifest knows one (content-addressed staging renames files, so it can't
+     *  be derived from the video URL). Backends without out-of-band audio
+     *  (HTMLVideoElement) ignore it. */
+    audioTrackUrl?: string;
 }
 
 export interface PlatformVideoBackend {

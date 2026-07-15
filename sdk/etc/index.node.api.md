@@ -7050,6 +7050,7 @@ width: number
 
 ## VideoStreamOptions — interface
 ```
+audioTrackUrl: string | undefined
 autoplay: boolean | undefined
 loop: boolean | undefined
 muted: boolean | undefined

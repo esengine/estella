@@ -294,17 +294,47 @@ describe('WasmVideoBackend audio-track clock', () => {
         expect(handles[0].stop).toHaveBeenCalled();
     });
 
-    it('muted stream starts its track at volume 0; volume/mute changes forward', async () => {
+    it('a muted stream defers its track until unmute, then attaches at the playhead', async () => {
         const { mod } = mockVideoModule();
         const { api, playTrack, handles } = mockAudio();
         const backend = new WasmVideoBackend({ sideModules: () => hostFor(mod), audio: () => api });
         const handle = backend.createStream('clip.esv', { muted: true, volume: 0.8 });
         await flush();
-        expect(playTrack).toHaveBeenCalledWith('clip.esv.m4a', expect.objectContaining({ volume: 0 }));
+        expect(playTrack).not.toHaveBeenCalled(); // no audio channel spent on a muted clock
+
         handle.setMuted(false);
-        expect(handles[0].setVolume).toHaveBeenLastCalledWith(0.8);
+        await flush();
+        expect(playTrack).toHaveBeenCalledWith('clip.esv.m4a', expect.objectContaining({ volume: 0.8 }));
         handle.setVolume(0.3);
         expect(handles[0].setVolume).toHaveBeenLastCalledWith(0.3);
+        handle.setMuted(true); // once attached, mute = volume 0 (clock stays)
+        expect(handles[0].setVolume).toHaveBeenLastCalledWith(0);
+        handle.stop();
+    });
+
+    it('a manifest-resolved audioTrackUrl overrides URL derivation', async () => {
+        const { mod } = mockVideoModule();
+        const { api, playTrack } = mockAudio();
+        const backend = new WasmVideoBackend({ sideModules: () => hostFor(mod), audio: () => api });
+        const handle = backend.createStream('assets/1f2e3d.esv.bin', { audioTrackUrl: 'assets/9a8b7c.m4a' });
+        await flush();
+        expect(playTrack).toHaveBeenCalledWith('assets/9a8b7c.m4a', expect.anything());
+        handle.stop();
+    });
+
+    it('does not restart a finished non-looping track from its tail', async () => {
+        const { mod, state } = mockVideoModule();
+        const { api, playTrack, handles } = mockAudio();
+        const backend = new WasmVideoBackend({ sideModules: () => hostFor(mod), audio: () => api });
+        const handle = backend.createStream('clip.esv', { loop: false });
+        await flush();
+        expect(playTrack).toHaveBeenCalledTimes(1);
+        handles[0].onEnd?.(); // track (duration 2.5) finished before the video
+        state.time = 2.48;    // playhead inside the video tail, past the track
+        handle.pause();
+        handle.play();
+        await flush();
+        expect(playTrack).toHaveBeenCalledTimes(1); // no tail replay
         handle.stop();
     });
 
@@ -391,5 +421,85 @@ describe('WasmVideoBackend audio-track clock', () => {
         await flush();
         expect(playTrack).not.toHaveBeenCalled();
         handle.stop();
+    });
+});
+
+// === VideoAPI ===============================================================
+
+import { VideoAPI } from '../src/video/VideoAPI';
+import type { VideoStreamOptions, VideoStreamHandle } from '../src/video/PlatformVideoBackend';
+
+function recordingBackend() {
+    const created: Array<{ url: string; options: VideoStreamOptions }> = [];
+    const handles: VideoStreamHandle[] = [];
+    return {
+        created,
+        handles,
+        backend: {
+            name: 'recording',
+            createStream(url: string, options: VideoStreamOptions): VideoStreamHandle {
+                created.push({ url, options });
+                const h = { id: handles.length + 1, textureHandle: 0, width: 0, height: 0, isReady: false, isPlaying: false, currentTime: 0, duration: 0, play() {}, pause() {}, stop() {}, seek() {}, setVolume() {}, setMuted() {}, setLoop() {}, setPlaybackRate() {}, pump() {} } as VideoStreamHandle;
+                handles.push(h);
+                return h;
+            },
+            dispose() {},
+        },
+    };
+}
+
+describe('VideoAPI audio-track resolution', () => {
+    it('resolves the cooked sibling ref (path and @uuid forms) and passes it to the backend', () => {
+        const { backend, created } = recordingBackend();
+        const api = new VideoAPI(backend);
+        const table: Record<string, string> = {
+            'assets/video/clip.mp4': 'assets/1f2e3d.esv.bin',
+            'assets/video/clip.mp4.m4a': 'assets/9a8b7c.m4a',
+            '@uuid:aaaa': 'assets/1f2e3d.esv.bin',
+            '@uuid:aaaa-audio': 'assets/9a8b7c.m4a',
+        };
+        api.setRefResolver((ref) => table[ref] ?? ref);
+
+        api.play('assets/video/clip.mp4');
+        expect(created[0].url).toBe('assets/1f2e3d.esv.bin');
+        expect(created[0].options.audioTrackUrl).toBe('assets/9a8b7c.m4a');
+
+        api.play('@uuid:aaaa');
+        expect(created[1].options.audioTrackUrl).toBe('assets/9a8b7c.m4a');
+        api.dispose();
+    });
+
+    it('a resolver miss leaves audioTrackUrl undefined (backend derivation fallback)', () => {
+        const { backend, created } = recordingBackend();
+        const api = new VideoAPI(backend);
+        api.setRefResolver((ref) => ref); // passthrough resolver
+        api.play('videos/raw.esv');
+        expect(created[0].options.audioTrackUrl).toBeUndefined();
+        api.dispose();
+    });
+
+    it('update isolates a throwing pump: the bad stream stops, others keep pumping', () => {
+        const { backend } = recordingBackend();
+        const api = new VideoAPI(backend as never);
+        const bad = api.play('a.esv');
+        const good = api.play('b.esv');
+        const goodPump = vi.fn();
+        (bad as { pump(m: unknown): void }).pump = () => { throw new Error('wasm abort'); };
+        (good as { pump(m: unknown): void }).pump = goodPump;
+        const badStop = vi.fn();
+        (bad as { stop(): void }).stop = badStop;
+        const onError = vi.fn();
+        bad.onError = onError;
+
+        expect(() => api.update({} as never)).not.toThrow();
+        expect(goodPump).toHaveBeenCalled();
+        expect(badStop).toHaveBeenCalled();
+        expect(onError).toHaveBeenCalled();
+
+        goodPump.mockClear();
+        api.update({} as never); // bad stream evicted — no repeat error spam
+        expect(goodPump).toHaveBeenCalledTimes(1);
+        expect(onError).toHaveBeenCalledTimes(1);
+        api.dispose();
     });
 });

@@ -28,8 +28,11 @@ describe('video asset type', () => {
     expect(metaTypeFor('sound.webm')).toBe('audio');
   });
 
-  it('exposes video import settings (playback defaults)', () => {
+  it('exposes video import settings (playback defaults + cook fields)', () => {
     expect(hasImporterSettings('video')).toBe(true);
-    expect(importerDefaults('video')).toEqual({ loop: true, autoplay: true, muted: true });
+    expect(importerDefaults('video')).toEqual({
+      loop: true, autoplay: true, muted: true,
+      quality: 4, audioBitrateKbps: 128,
+    });
   });
 });

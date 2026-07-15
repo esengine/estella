@@ -217,6 +217,14 @@ export class AudioAPI {
         return `${this.baseUrl}/${url}`;
     }
 
+    /** Load `url`'s buffer into the residency cache unless already there. The
+     *  double `has()` check absorbs a concurrent load racing to insert first. */
+    private async ensureBuffer_(url: string, load: () => Promise<AudioBufferHandle>): Promise<void> {
+        if (this.bufferCache_.has(url)) return;
+        const buffer = await load();
+        if (!this.bufferCache_.has(url)) this.insertEntry_(url, buffer);
+    }
+
     async preload(url: string): Promise<void> {
         if (this.bufferCache_.has(url)) return;
         if (this.assetResolver_) {
@@ -225,8 +233,7 @@ export class AudioAPI {
                 return this.preloadFromData(url, data);
             }
         }
-        const buffer = await this.backend_.loadBuffer(this.resolveUrl_(url));
-        if (!this.bufferCache_.has(url)) this.insertEntry_(url, buffer);
+        await this.ensureBuffer_(url, () => this.backend_.loadBuffer(this.resolveUrl_(url)));
     }
 
     async preloadAll(urls: string[]): Promise<void> {
@@ -234,9 +241,7 @@ export class AudioAPI {
     }
 
     async preloadFromData(url: string, data: ArrayBuffer): Promise<void> {
-        if (this.bufferCache_.has(url)) return;
-        const buffer = await this.backend_.loadBufferFromData(url, data);
-        if (!this.bufferCache_.has(url)) this.insertEntry_(url, buffer);
+        await this.ensureBuffer_(url, () => this.backend_.loadBufferFromData(url, data));
     }
 
     /**
@@ -249,10 +254,7 @@ export class AudioAPI {
     async playTrack(url: string, config: PlayConfig = {}): Promise<AudioHandle | null> {
         if (this.disposed_) return null;
         try {
-            if (!this.bufferCache_.has(url)) {
-                const buffer = await this.backend_.loadBuffer(url);
-                if (!this.bufferCache_.has(url)) this.insertEntry_(url, buffer);
-            }
+            await this.ensureBuffer_(url, () => this.backend_.loadBuffer(url));
         } catch {
             return null;
         }

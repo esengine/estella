@@ -86,30 +86,34 @@ export async function transcodeVideoForWasm(
   const tmp = await mkdtemp(path.join(tmpdir(), 'estella-video-'));
   try {
     const esvPath = path.join(tmp, 'out.esv');
+    const m4aPath = path.join(tmp, 'out.m4a');
     const videoArgs = (extraFilter: string) => [
       '-y', '-i', srcAbs, '-an',
       '-c:v', 'mpeg1video', '-q:v', String(settings.quality),
       '-vf', extraFilter ? `${EVEN_SCALE},${extraFilter}` : EVEN_SCALE,
       '-f', 'mpeg', esvPath,
     ];
-    let res = await run(ffmpeg, videoArgs(''));
-    if (res.code !== 0 && /fps|frame ?rate/i.test(res.stderr)) {
-      // Source frame rate is outside MPEG-1's table (or variable) — resample.
-      res = await run(ffmpeg, videoArgs('fps=30'));
-    }
+    // The two passes are independent (-an vs -vn, separate outputs) — overlap them.
+    const [res, audioRes] = await Promise.all([
+      (async () => {
+        const first = await run(ffmpeg, videoArgs(''));
+        if (first.code === 0 || !/fps|frame ?rate/i.test(first.stderr)) return first;
+        // Source frame rate is outside MPEG-1's table (or variable) — resample.
+        return run(ffmpeg, videoArgs('fps=30'));
+      })(),
+      run(ffmpeg, [
+        '-y', '-i', srcAbs, '-vn',
+        '-c:a', 'aac', '-b:a', `${settings.audioBitrateKbps}k`,
+        '-f', 'ipod', m4aPath,
+      ]),
+    ]);
+
     let esv: Uint8Array | null = null;
     if (res.code === 0) {
       esv = new Uint8Array(await readFile(esvPath));
     } else {
       warnings.push(`video transcode failed: ${lastLine(res.stderr)}`);
     }
-
-    const m4aPath = path.join(tmp, 'out.m4a');
-    const audioRes = await run(ffmpeg, [
-      '-y', '-i', srcAbs, '-vn',
-      '-c:a', 'aac', '-b:a', `${settings.audioBitrateKbps}k`,
-      '-f', 'ipod', m4aPath,
-    ]);
     let audio: Uint8Array | null = null;
     if (audioRes.code === 0) {
       audio = new Uint8Array(await readFile(m4aPath));

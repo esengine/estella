@@ -5,6 +5,7 @@
 import type { ESEngineModule } from '../wasm';
 import type { PlatformVideoBackend, VideoStreamHandle, VideoStreamOptions } from './PlatformVideoBackend';
 import { defineResource } from '../resource';
+import { log } from '../logger';
 
 export type VideoHandle = VideoStreamHandle;
 export type VideoPlayOptions = VideoStreamOptions;
@@ -35,14 +36,41 @@ export class VideoAPI {
     }
 
     play(source: string, options: VideoPlayOptions = {}): VideoStreamHandle {
-        const handle = this.backend_.createStream(this.resolveUrl_(source), options);
+        const handle = this.backend_.createStream(this.resolveUrl_(source), {
+            ...options,
+            audioTrackUrl: options.audioTrackUrl ?? this.resolveAudioTrack_(source),
+        });
         this.handles_.add(handle);
         return handle;
     }
 
+    /**
+     * Resolve the cook-demuxed audio-track sibling through the realm's ref
+     * resolver: the cook registers it as `<source path>.m4a` (path refs) or
+     * `<uuid>-audio` (uuid refs). A resolver miss returns the ref unchanged —
+     * treated as "no cooked sibling" so backends fall back to URL derivation.
+     */
+    private resolveAudioTrack_(source: string): string | undefined {
+        if (!this.refResolver_) return undefined;
+        const siblingRef = source.startsWith('@uuid:') ? `${source}-audio` : `${source}.m4a`;
+        const resolved = this.refResolver_(siblingRef);
+        return resolved !== siblingRef ? resolved : undefined;
+    }
+
     update(module: ESEngineModule): void {
         if (this.disposed_) return;
-        for (const handle of this.handles_) handle.pump(module);
+        for (const handle of this.handles_) {
+            // One stream's decode failure (wasm abort, detached heap) must not
+            // stall every other video this tick.
+            try {
+                handle.pump(module);
+            } catch (err) {
+                log.error('video', `pump failed for stream #${handle.id} — stopping it`, err);
+                this.handles_.delete(handle);
+                try { handle.stop(); } catch { /* already broken */ }
+                handle.onError?.(err);
+            }
+        }
     }
 
     stop(handle: VideoStreamHandle): void {
