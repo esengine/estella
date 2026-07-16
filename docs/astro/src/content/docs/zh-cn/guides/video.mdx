@@ -1,0 +1,151 @@
+---
+title: 视频
+description: 视频完整指南——声明式 Video 组件、在精灵/UI/网格上播放、命令式 VideoPlayer、一条流喂多个表面、导入设置,以及微信的 wasm 解码路径。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Estella 通过声明式的 `Video` 组件把视频播放到任何可绘制的东西上——*一个纹理活着的精灵*。
+一条解码流驱动一张每帧刷新的活 GPU 纹理。在 Web 和桌面端由 `HTMLVideoElement` 解码
+(WebGL2 上零拷贝);在微信上则由引擎自带的 MPEG-1 wasm 解码器跑**完全相同**的纹理泵——
+手机、PC、无头环境一视同仁。
+
+## 工作原理
+
+给一个同时带有可绘制组件(`Sprite`、`UIVisual` 或 `Mesh2D`)的实体加上 `Video` 组件,
+视频系统就会把 `source` 解码成一张纹理,并每帧把该纹理句柄写到那个可绘制组件上。这张帧纹理
+是**无路径的**(永不淘汰)且稳定的,所以写一次的句柄在整条流的生命周期内一直有效。
+
+视频解码**只在运行模式下进行**——编辑时不解码,编辑器因此保持流畅。这个插件和音频一样默认
+已注册:无需加插件。
+
+<Aside type="note">
+  静音的片段在任何地方都能自动播放。非静音的自动播放会被拦截,直到有用户手势(浏览器策略),
+  所以带声音的播放要从点击或按键开始。`Video` 需要一个 `Sprite` / `UIVisual` / `Mesh2D`
+  兄弟组件来显示——单独存在时它会解码,但没有可绘制的目标。
+</Aside>
+
+## `Video` 组件
+
+在编辑器里,给一个带 **Sprite** 的实体加上 **Video** 组件并设置它的 **Source**。在代码里,
+把它和可绘制组件一起插入:
+
+```typescript
+import { defineSystem, Commands, Transform, Sprite, Video } from 'esengine';
+
+const spawnScreen = defineSystem([Commands()], (cmds) => {
+  cmds.spawn()
+    .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+    .insert(Sprite, { size: { x: 360, y: 360 } })
+    .insert(Video, { source: 'assets/clip.mp4', autoplay: true, loop: true, muted: true });
+});
+```
+
+| 属性 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `source` | 资产 | `''` | 要播放的视频片段。 |
+| `autoplay` | boolean | `true` | 首帧就绪后立即开始。 |
+| `loop` | boolean | `true` | 播完后从头重新开始。 |
+| `muted` | boolean | `true` | 静音。静音片段可自动播放;非静音需要用户手势。 |
+| `volume` | number | `1.0` | 音量,0..1(`muted` 时忽略)。 |
+| `playbackRate` | number | `1.0` | 播放速度 / 音高(`1` = 正常)。 |
+| `fitSize` | boolean | `true` | 首帧时把 Sprite 调整为视频的原生像素尺寸。 |
+| `enabled` | boolean | `true` | 关闭即停止并释放流,而不移除组件。 |
+
+同一个组件会驱动它找到的第一个可绘制组件,顺序为 **`Sprite` → `UIVisual` → `Mesh2D`**:
+把 `Video` 放到 `UIVisual` 上做 HUD 里的视频面板,或放到 `Mesh2D` 上把片段映射到自定义几何。
+
+## 一条流,多个表面
+
+帧纹理只是一个普通句柄,所以任意多个精灵都能共享它——读取正在播放的精灵的 `texture` 再赋给
+其他精灵即可。每个表面再用 Sprite 的 `uvOffset` / `uvScale` 挑选帧的一个**区域**(与图集帧
+相同的约定,`v = 0` 是图像的底行)。一次解码喂饱所有表面——没有逐表面解码,也没有额外 API。
+
+```typescript
+// 把活视频纹理镜像到每个瓦片上,然后每个采样 1/N 的区域。
+const shareVideoTexture = defineSystem(
+  [Query(Sprite, Video), Query(Mut(Sprite), PuzzlePiece)],
+  (preview, pieces) => {
+    let texture = 0;
+    for (const [, sprite] of preview) { texture = sprite.texture; break; }
+    if (!texture) return;                       // 首帧还没解码
+    for (const [, sprite] of pieces) {
+      if (sprite.texture !== texture) sprite.texture = texture;   // 每片写一次
+    }
+  },
+);
+```
+
+**video-puzzle** 示例正是这样把单个片段变成一整块由活瓦片组成、可交换的拼图板。
+
+## 命令式播放 —— `VideoPlayer`
+
+对于不用组件、由代码驱动的视频,`VideoPlayer` 资源播放一个源并交回一个**流句柄**,你可以把它的
+`textureHandle` 放到任何精灵或材质上:
+
+```typescript
+import { defineSystem, Res, VideoPlayer } from 'esengine';
+
+const playIntro = defineSystem([Res(VideoPlayer)], (video) => {
+  const stream = video.play('assets/intro.mp4', { loop: false, muted: true });
+  stream.onEnded = () => { /* 跳过片头 */ };
+  // stream.isReady 后把 stream.textureHandle 赋到某个 Sprite/Mesh2D 上
+});
+```
+
+| 成员 | 种类 | 说明 |
+|---|---|---|
+| `play()` / `pause()` / `stop()` | 方法 | 传输控制。 |
+| `seek(seconds)` | 方法 | 跳到某个时间。 |
+| `setVolume(v)` / `setMuted(m)` | 方法 | 实时调整音频。 |
+| `setLoop(l)` / `setPlaybackRate(r)` | 方法 | 实时调整循环 / 速度。 |
+| `textureHandle` | 只读 | 活帧纹理——首帧前为 `0`,之后无路径(永不淘汰)。 |
+| `width` / `height` | 只读 | 原生像素尺寸。 |
+| `isReady` | 只读 | 首帧已解码。 |
+| `isPlaying` | 只读 | 正在播放。 |
+| `currentTime` / `duration` | 只读 | 秒。 |
+| `onReady` / `onEnded` / `onError` | 回调 | 生命周期钩子。 |
+
+`video.play(source, options)` 接受与组件相同的选项(`autoplay`、`loop`、`muted`、
+`volume`、`playbackRate`);`video.stop(handle)` 结束一条流,`video.stopAll()` 结束所有流。
+
+## 导入设置与烹饪后的视频
+
+选中一个视频资产会显示预览以及**导入设置**。`Autoplay`、`Loop`、`Muted` 是把片段拖到
+`Video` 组件上时套用的建议状态。两个**高级**设置控制微信的转码:
+
+| 设置 | 范围 | 默认值 | 说明 |
+|---|---|---|---|
+| **Cook Quality** | `2`–`31` | `4` | wasm 解码路径的 MPEG-1 量化器——越低画质越高、文件越大。 |
+| **Cook Audio Bitrate** | `96` / `128` / `192` kbps | `128` | 解复用出的音轨的 AAC 码率。 |
+
+导出时,烹饪会把每个随包发布的视频转码成一个带编解码标记的 **`.esv`**(MPEG-1 程序流)加上一个
+**`.m4a`** 音轨兄弟文件——这正是 wasm 解码器读取的格式,音轨通过音频管线播放并作为视频的时钟。
+在 Web 和桌面端,原始文件原样播放。
+
+## 平台后端
+
+纹理句柄契约在每个后端上都完全一致——同一个场景、同一个组件、同一套句柄共享——只有解码器不同:
+
+| 平台 | 解码器 | 说明 |
+|---|---|---|
+| Web / 桌面 | `HTMLVideoElement` | 任何浏览器支持的编解码(H.264 `.mp4`、WebM……)。WebGL2 逐帧零拷贝上传;WebGPU 走 canvas 回读。 |
+| 微信 | 引擎自带 MPEG-1 wasm(`videodec`,pl_mpeg) | 每个设备上都确定——`wx.createVideoDecoder` 在 PC 上缺失、在手机上不可靠。场景一旦用到 `Video` 就自动随包;播放烹饪后的 `.esv` + `.m4a`。 |
+
+## 最佳实践
+
+- **自动播放就保持 `muted: true`**——带声音的播放要从用户手势开始,否则浏览器会拦截。
+- **共享一条流**给多个表面(用纹理句柄 + `uvOffset` / `uvScale`),而不是用多个 `Video` 组件
+  重复解码同一个片段。
+- **给 Video 一个可绘制组件**——`Sprite`(世界)、`UIVisual`(HUD)或 `Mesh2D`(自定义几何)
+  ——才能真正显示帧。
+- **注意 `fitSize`**——它会在首帧把 Sprite 贴到片段的原生像素;当你设了明确尺寸(比如固定的
+  屏幕)时把它关掉。
+- **尽早面向微信**——烹饪会替你完成 MPEG-1 转码,但把片段控制得短小、分辨率适中:软解码和下载
+  都随尺寸增长。
+
+## 参见
+
+- [精灵与渲染](/docs/zh-cn/guides/sprites/) —— Video 写入的纹理及其 `uvOffset` / `uvScale`。
+- [资源](/docs/zh-cn/guides/assets/) —— 加载与打包视频片段。
+- [微信小游戏](/docs/zh-cn/guides/wechat/) —— wasm 解码路径与导出。

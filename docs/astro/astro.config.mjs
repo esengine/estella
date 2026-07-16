@@ -86,6 +86,7 @@ export default defineConfig({
           translations: { 'zh-CN': '图形与 UI' },
           items: [
             { label: 'Sprites & Rendering', translations: { 'zh-CN': '精灵与渲染' }, slug: 'guides/sprites' },
+            { label: 'Video', translations: { 'zh-CN': '视频' }, slug: 'guides/video' },
             { label: 'Tilemaps', translations: { 'zh-CN': '瓦片地图' }, slug: 'guides/tilemap' },
             { label: 'UI', translations: { 'zh-CN': 'UI' }, slug: 'guides/ui' },
             { label: 'UI Components', translations: { 'zh-CN': 'UI 控件' }, slug: 'guides/ui-components' },

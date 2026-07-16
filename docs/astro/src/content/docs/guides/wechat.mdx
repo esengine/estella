@@ -19,6 +19,7 @@ node build-tools/cli.js build -t wechat
 node build-tools/cli.js build -t physics-wechat   # physics
 node build-tools/cli.js build -t spine-wechat     # Spine (builds 3.8 + 4.1 + 4.2)
 node build-tools/cli.js build -t basis-wechat     # KTX2 / compressed textures
+node build-tools/cli.js build -t videodec-wechat  # video (MPEG-1 wasm decoder)
 ```
 
 <Aside type="note">
@@ -104,4 +105,5 @@ levels download on demand rather than bloating the initial package:
 
 - [Assets](/docs/guides/assets/) — addressable groups and cooking map onto subpackages.
 - [Building & Exporting](/docs/guides/build-export/) — the Package Project dialog.
+- [Video](/docs/guides/video/) — the MPEG-1 wasm decode path shipped for WeChat.
 - [Networking](/docs/guides/networking/) — sockets use `wx.connectSocket` here.

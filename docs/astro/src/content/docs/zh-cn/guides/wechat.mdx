@@ -18,6 +18,7 @@ node build-tools/cli.js build -t wechat
 node build-tools/cli.js build -t physics-wechat   # 物理
 node build-tools/cli.js build -t spine-wechat     # Spine（一次构建 3.8 + 4.1 + 4.2）
 node build-tools/cli.js build -t basis-wechat     # KTX2 / 压缩纹理
+node build-tools/cli.js build -t videodec-wechat  # 视频（MPEG-1 wasm 解码器）
 ```
 
 <Aside type="note">
@@ -92,4 +93,5 @@ node build-tools/cli.js build -t basis-wechat     # KTX2 / 压缩纹理
 
 - [资源](/docs/zh-cn/guides/assets/) —— 可寻址分组与 cook 映射到分包。
 - [构建与导出](/docs/zh-cn/guides/build-export/) —— Package Project 对话框。
+- [视频](/docs/zh-cn/guides/video/) —— 为微信随包发布的 MPEG-1 wasm 解码路径。
 - [联网](/docs/zh-cn/guides/networking/) —— 那里套接字用 `wx.connectSocket`。
