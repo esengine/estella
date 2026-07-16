@@ -595,11 +595,16 @@ export function Viewport() {
   // Derived from the pin + selection, so subscribe to the pin here.
   useEditorMode((s) => s.pinned);
   const mode = activeMode();
-  // Device-preview controls for the UI-mode design-resolution overlay (the rAF reads
-  // these via getState(); the subscriptions keep the device dropdown label current).
+  // Device-preview controls for the design-resolution overlay (the rAF reads these via
+  // getState(); the subscriptions keep the device dropdown label current). Available in
+  // any editor mode — a device preview is a screen concern, not a UI-layer one.
   const device = useEditorMode((s) => s.device);
   const orientation = useEditorMode((s) => s.orientation);
   const showSafeArea = useEditorMode((s) => s.showSafeArea);
+  // Project design resolution — the reference the preview falls back to when the scene
+  // has no Canvas (so gameplay-only scenes preview on devices too). Reactive for the label.
+  const projectState = useSyncExternalStore(ProjectStore.subscribe, ProjectStore.getSnapshot);
+  const projectDesign = projectState?.designResolution ?? { width: 1920, height: 1080 };
   // The scene's Canvas + its authored design resolution — the value the Design control
   // edits (the single source of truth). Re-read on any model change so the label tracks.
   const dataRev = useSyncExternalStore(SceneStore.subscribe, SceneStore.getRevision);
@@ -803,7 +808,13 @@ export function Viewport() {
       // all projected from world each frame so they lock to pan/zoom.
       const dsvg = designSvgRef.current;
       if (dsvg) {
-        const ci = ready && showG && activeModeOverlays().designFrame ? ViewportController.canvasInfo() : null;
+        // Show the design/device overlay in UI mode (design frame always) OR in any mode
+        // once a real device is picked — reading the project design resolution when the
+        // scene has no Canvas, so a gameplay scene previews on devices without a UI layer.
+        const ms0 = useEditorMode.getState();
+        const ci = ready && showG && (activeModeOverlays().designFrame || ms0.device !== 'design')
+          ? ViewportController.screenInfo()
+          : null;
         // The design frame lives in the UI world scale: 1 unit = 1 design px (the invariant
         // CameraPlugin's uiLayoutRect / buildCameraInfo use). pixelsPerUnit is physics-only
         // and must NOT scale it, or the frame renders 100× off from where UI lays out.
@@ -1543,55 +1554,55 @@ export function Viewport() {
             <Crosshair size={13} strokeWidth={1.9} />
             <span className="val">{pivotMode === 'pivot' ? t('vp.pivot.pivot') : t('vp.pivot.center')}</span>
           </button>
-          {mode.overlays?.designFrame && (
-            <>
-              <span className="ov-divider" />
-              {sceneCanvas && (
-                <OvDropdown
-                  icon={Monitor}
-                  label={<span className="val">{sceneCanvas.x}×{sceneCanvas.y}</span>}
-                  title={t('vp.designResTitle')}
-                >
-                  <div className="ovmenu-lbl">{t('vp.designRes')}</div>
-                  {DESIGN_RESOLUTION_PRESETS.map((p) => (
-                    <DdRadio
-                      key={p.label}
-                      on={sceneCanvas.x === p.x && sceneCanvas.y === p.y}
-                      label={p.label}
-                      onClick={() => {
-                        SceneCommands.setField(sceneCanvas.id, 'Canvas', 'designResolution', 'vec2', [p.x, p.y]);
-                        ViewportController.frameCanvas();
-                      }}
-                    />
-                  ))}
-                  <div className="ovmenu-lbl">{t('vp.designResExact')}</div>
-                </OvDropdown>
-              )}
-              <OvDropdown
-                icon={Smartphone}
-                label={<span className="val">{RESOLUTION_PRESET_BY_ID[device].label}</span>}
-                title={t('vp.deviceTitle')}
-              >
-                <div className="ovmenu-lbl">{t('vp.device')}</div>
-                {RESOLUTION_PRESETS.map((p) => (
-                  <DdRadio key={p.id} on={device === p.id} label={p.label} onClick={() => useEditorMode.getState().setDevice(p.id)} />
-                ))}
-                <div className="ovmenu-lbl">{t('vp.orientation')}</div>
-                <DdRadio
-                  on={orientation === 'landscape'}
-                  label={t('vp.landscape')}
-                  onClick={() => orientation !== 'landscape' && useEditorMode.getState().toggleOrientation()}
-                />
-                <DdRadio
-                  on={orientation === 'portrait'}
-                  label={t('vp.portrait')}
-                  onClick={() => orientation !== 'portrait' && useEditorMode.getState().toggleOrientation()}
-                />
-                <div className="ovmenu-lbl">{t('vp.overlay')}</div>
-                <DdCheck on={showSafeArea} label={t('vp.safeArea')} onClick={() => useEditorMode.getState().toggleSafeArea()} />
-              </OvDropdown>
-            </>
-          )}
+          {/* Screen controls — available in EVERY editor mode. Design resolution edits
+              the scene Canvas when present, else the project reference resolution; the
+              device dropdown simulates a real screen regardless of any UI layer. */}
+          <span className="ov-divider" />
+          <OvDropdown
+            icon={Monitor}
+            label={<span className="val">{sceneCanvas ? `${sceneCanvas.x}×${sceneCanvas.y}` : `${projectDesign.width}×${projectDesign.height}`}</span>}
+            title={t('vp.designResTitle')}
+          >
+            <div className="ovmenu-lbl">{t('vp.designRes')}</div>
+            {DESIGN_RESOLUTION_PRESETS.map((p) => (
+              <DdRadio
+                key={p.label}
+                on={sceneCanvas ? (sceneCanvas.x === p.x && sceneCanvas.y === p.y) : (projectDesign.width === p.x && projectDesign.height === p.y)}
+                label={p.label}
+                onClick={() => {
+                  // With a Canvas, edit its authored resolution; without one, edit the
+                  // project reference resolution (the source screenInfo/seeding read).
+                  if (sceneCanvas) SceneCommands.setField(sceneCanvas.id, 'Canvas', 'designResolution', 'vec2', [p.x, p.y]);
+                  else void ProjectStore.setDisplay({ width: p.x, height: p.y });
+                  ViewportController.frameCanvas();
+                }}
+              />
+            ))}
+            <div className="ovmenu-lbl">{t('vp.designResExact')}</div>
+          </OvDropdown>
+          <OvDropdown
+            icon={Smartphone}
+            label={<span className="val">{RESOLUTION_PRESET_BY_ID[device].label}</span>}
+            title={t('vp.deviceTitle')}
+          >
+            <div className="ovmenu-lbl">{t('vp.device')}</div>
+            {RESOLUTION_PRESETS.map((p) => (
+              <DdRadio key={p.id} on={device === p.id} label={p.label} onClick={() => useEditorMode.getState().setDevice(p.id)} />
+            ))}
+            <div className="ovmenu-lbl">{t('vp.orientation')}</div>
+            <DdRadio
+              on={orientation === 'landscape'}
+              label={t('vp.landscape')}
+              onClick={() => orientation !== 'landscape' && useEditorMode.getState().toggleOrientation()}
+            />
+            <DdRadio
+              on={orientation === 'portrait'}
+              label={t('vp.portrait')}
+              onClick={() => orientation !== 'portrait' && useEditorMode.getState().toggleOrientation()}
+            />
+            <div className="ovmenu-lbl">{t('vp.overlay')}</div>
+            <DdCheck on={showSafeArea} label={t('vp.safeArea')} onClick={() => useEditorMode.getState().toggleSafeArea()} />
+          </OvDropdown>
         </div>
       </div>
 

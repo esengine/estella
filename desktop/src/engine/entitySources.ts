@@ -138,6 +138,13 @@ export function setCanvasDesignSeed(fn: () => { width: number; height: number })
   canvasDesignSeed = fn;
 }
 
+/** The project's reference (design) resolution, from the same provider that seeds new
+ *  Canvases. Read by the editor's design/device preview so it works without a UI Canvas —
+ *  exposed here (rather than importing ProjectStore) to keep the engine modules acyclic. */
+export function projectDesignSeed(): { width: number; height: number } {
+  return canvasDesignSeed?.() ?? { width: 1920, height: 1080 };
+}
+
 const UI_WIDGET_ICON: Record<string, LucideIcon> = {
   Button: SquareMousePointer,
   Toggle: ToggleLeft,

@@ -8,6 +8,7 @@ import {
 } from 'esengine';
 import type { EntityId } from '@/types';
 import { EngineHost } from './EngineHost';
+import { projectDesignSeed } from './entitySources';
 import { SceneModel } from './SceneModel';
 import {
   type OBB,
@@ -84,6 +85,18 @@ function clientToScreen(clientX: number, clientY: number): { sx: number; sy: num
     sx: (clientX - rect.left) * dpr,
     sy: canvas.height - (clientY - rect.top) * dpr, // GL is y-up; flip
   };
+}
+
+/** The "screen" the design/device preview draws against — a Canvas' presentation
+ *  fields, or the project design resolution when no Canvas is in the scene. */
+export interface EditorScreenInfo {
+  cx: number;
+  cy: number;
+  designResolution: { x: number; y: number };
+  pixelsPerUnit: number;
+  scaleMode: number;
+  matchWidthOrHeight: number;
+  backgroundColor: { r: number; g: number; b: number; a: number };
 }
 
 // Picking and screen<->world conversions for the viewport, all routed through
@@ -376,9 +389,9 @@ export const ViewportController = {
    */
   frameCanvas(): void {
     const view = editorView();
-    const ci = this.canvasInfo();
+    const ci = this.screenInfo(); // Canvas if present, else the project design rect at origin
     const panel = EngineHost.canvas;
-    if (!view || !ci) return;
+    if (!view) return;
     const desHalfW = ci.designResolution.x / 2;
     const desHalfH = ci.designResolution.y / 2;
     if (desHalfW <= 0 || desHalfH <= 0) return;
@@ -528,14 +541,7 @@ export const ViewportController = {
    * Reads the first entity carrying a Canvas (the same singleton-per-scene assumption
    * as the runtime's registry_getCanvasEntity), centered on its Transform.
    */
-  canvasInfo(): {
-    cx: number; cy: number;
-    designResolution: { x: number; y: number };
-    pixelsPerUnit: number;
-    scaleMode: number;
-    matchWidthOrHeight: number;
-    backgroundColor: { r: number; g: number; b: number; a: number };
-  } | null {
+  canvasInfo(): EditorScreenInfo | null {
     const world = EngineHost.world;
     if (!world) return null;
     for (const e of world.getAllEntities()) {
@@ -559,6 +565,31 @@ export const ViewportController = {
       };
     }
     return null;
+  },
+
+  /**
+   * The effective "screen" for the design/device preview: the scene's Canvas when
+   * present (UI-authored), else the PROJECT design resolution centered at origin.
+   * This is what decouples the device preview from the UI layer — a pure gameplay
+   * scene (no Canvas) still previews on any device against the project reference
+   * resolution, and the device dropdown works in any editor mode. Never null.
+   *
+   * Without a Canvas the fit uses FixedHeight (the engine's Canvas default) so the
+   * device frame has a defined shape; once a project camera-fit is set it drives this.
+   */
+  screenInfo(): EditorScreenInfo {
+    const canvas = this.canvasInfo();
+    if (canvas) return canvas;
+    const d = projectDesignSeed();
+    return {
+      cx: 0, cy: 0,
+      designResolution: { x: d.width, y: d.height },
+      pixelsPerUnit: 100,
+      scaleMode: 1, // CanvasScaleMode.FixedHeight — the engine's Canvas default
+      matchWidthOrHeight: 0.5,
+      // No Canvas ⇒ no authored letterbox tint; the overlay falls back to a neutral scrim.
+      backgroundColor: { r: 0, g: 0, b: 0, a: 0 },
+    };
   },
 
   /**
