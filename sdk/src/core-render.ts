@@ -42,6 +42,8 @@ export { TextureFilter, TextureWrap, setTextureFilter, setTextureWrap, setTextur
 export { CameraView, CameraViewApi } from './camera/Camera';
 export { EditorView, DEFAULT_EDITOR_VIEW } from './camera/EditorView';
 export type { EditorViewData } from './camera/EditorView';
+export { ScreenScaling, DEFAULT_SCREEN_SCALING, SCREEN_FIT_OFF } from './camera/ScreenScaling';
+export type { ScreenScalingData } from './camera/ScreenScaling';
 export { EditorGrid, DEFAULT_EDITOR_GRID } from './camera/EditorGrid';
 export type { EditorGridData, GridColor } from './camera/EditorGrid';
 export { installEditorGrid } from './camera/editorGridRenderer';

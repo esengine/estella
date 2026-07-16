@@ -26,6 +26,7 @@ import { getDefaultContext } from './context';
 import { setLinearColorSpace } from './env';
 import { seedEngineComponents } from './component';
 import { cameraPlugin } from './camera/CameraPlugin';
+import { ScreenScaling, SCREEN_FIT_OFF, type ScreenScalingData } from './camera/ScreenScaling';
 import { PhysicsRuntime } from './physics/PhysicsRuntime';
 import { SubsystemRegistry } from './subsystems';
 import type { SideModuleHost } from './sideModules/host';
@@ -1031,6 +1032,14 @@ export interface WebAppOptions {
      * Must be declared at app creation — shaders compile against it.
      */
     colorSpace?: 'gamma' | 'linear';
+    /**
+     * Project camera fit (Project Settings → Display). When set with a real
+     * scaleMode (≥ 0), the MAIN scene camera letterboxes this design resolution
+     * into the actual aspect regardless of any UI Canvas; omitted / scaleMode = -1
+     * keeps the legacy behavior (Canvas fit when present, else raw orthoSize). See
+     * {@link ScreenScaling}.
+     */
+    screenFit?: ScreenScalingData;
 }
 
 export function createWebApp(module: ESEngineModule, options?: WebAppOptions): App {
@@ -1075,6 +1084,13 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
     app.addPlugin(sceneManagerPlugin);
     if (options?.plugins) {
         app.addPlugins(options.plugins);
+    }
+
+    // Project camera fit: only install the resource when the project opts in (a real
+    // scaleMode). Absent ⇒ CameraPlugin.resolveFitSource sees no resource and keeps
+    // the legacy Canvas-or-raw fit, so an unconfigured game is byte-for-byte unchanged.
+    if (options?.screenFit && options.screenFit.scaleMode > SCREEN_FIT_OFF) {
+        app.insertResource(ScreenScaling, { ...options.screenFit });
     }
 
     return app;

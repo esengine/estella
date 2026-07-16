@@ -16,8 +16,9 @@ import type { World } from '../world';
 import type { Entity } from '../types';
 import { UICameraInfo } from '../ui/core/ui-camera-info';
 import { ProjectionType, SceneOwner, ClearFlags } from '../component';
-import { uiLayoutRect, computeEffectiveOrthoSize, EDITOR_VIEW_ENTITY } from './uiLayoutRect';
+import { uiLayoutRect, computeEffectiveOrthoSize, EDITOR_VIEW_ENTITY, type CanvasScale } from './uiLayoutRect';
 import { EditorView, DEFAULT_EDITOR_VIEW, type EditorViewData } from './EditorView';
+import { ScreenScaling, DEFAULT_SCREEN_SCALING, SCREEN_FIT_OFF } from './ScreenScaling';
 import { CameraDirector, createDirectorState, resolveMainPOV } from './CameraDirector';
 import { RenderPipeline } from '../renderPipeline';
 import { Renderer } from '../renderer';
@@ -149,7 +150,7 @@ export function buildCameraInfo(
     pov: CameraPOV,
     width: number,
     height: number,
-    canvas: ReturnType<typeof findCanvasData>,
+    canvas: CanvasScale | null,
     pool: CameraInfo[],
     index: number,
 ): CameraInfo {
@@ -305,6 +306,27 @@ export function editorCameraInfo(
  * `advance` ticks the director's blend; the early UICameraInfo sync peeks (false)
  * so it doesn't double-advance the same frame's blend.
  */
+/**
+ * The design-resolution source the MAIN scene camera fits to: the project screen fit
+ * (ScreenScaling) when it opts in (scaleMode ≥ 0), else the scene's UI Canvas (legacy
+ * behavior), else null (raw orthoSize). The project fit works WITHOUT a Canvas and, when
+ * set, is authoritative for the camera — UI layout still reads the Canvas (uiLayoutRect),
+ * so gameplay and UI can scale independently.
+ */
+function resolveFitSource(app: App, canvas: CanvasScale | null): CanvasScale | null {
+    if (app.hasResource(ScreenScaling)) {
+        const s = app.getResource(ScreenScaling);
+        if (s.scaleMode > SCREEN_FIT_OFF) {
+            return {
+                designResolution: { x: s.designWidth, y: s.designHeight },
+                scaleMode: s.scaleMode,
+                matchWidthOrHeight: s.matchWidthOrHeight,
+            };
+        }
+    }
+    return canvas;
+}
+
 function resolveCameras(
     app: App,
     module: ESEngineModule,
@@ -326,7 +348,7 @@ function resolveCameras(
 
     const povs = collectCameraPOVs(module, cppRegistry, width, height, world, activeScenes);
     if (povs.length === 0) return [];
-    const canvas = findCanvasData(module, cppRegistry);
+    const canvas = resolveFitSource(app, findCanvasData(module, cppRegistry));
     const fullFrame = povs.filter((p) => isFullFrame(p.viewport));
     const overlays = povs.filter((p) => !isFullFrame(p.viewport)).sort((a, b) => a.priority - b.priority);
 
