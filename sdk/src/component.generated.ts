@@ -7,7 +7,7 @@
 import type { AssetFieldType } from './scene';
 import type { FieldMeta } from './component';
 import type { Color, Entity, Quat, Vec2, Vec3, Vec4 } from './types';
-import type { Dimension, Padding, VisualState } from './wasm.generated';
+import type { Dimension, Padding } from './wasm.generated';
 
 /**
  * Single-source-of-truth hash of the C++/TS boundary ABI (component
@@ -15,7 +15,7 @@ import type { Dimension, Padding, VisualState } from './wasm.generated';
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '89ad72a9b853289f';
+export const ABI_LAYOUT_HASH = 'f9191aeae848066e';
 
 export interface AssetFieldMeta {
     field: string;
@@ -516,28 +516,6 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             material: { advanced: true },
         },
     },
-    StateMachine: {
-        defaults: {
-            current: '',
-            previous: '',
-        },
-        assetFields: [],
-        entityFields: [],
-        colorFields: [],
-        animatableFields: [],
-    },
-    StateVisuals: {
-        defaults: {
-            targetGraphic: 0,
-            transitionFlags: 0,
-            fadeDuration: 0,
-            states: [],
-        },
-        assetFields: [],
-        entityFields: ['targetGraphic'],
-        colorFields: [],
-        animatableFields: [],
-    },
     TilemapLayer: {
         defaults: {
             cellSize: { x: 32, y: 32 },
@@ -946,18 +924,6 @@ export interface SpriteData {
     parallax: Vec2;
     material: number;
     enabled: boolean;
-}
-
-export interface StateMachineData {
-    current: string;
-    previous: string;
-}
-
-export interface StateVisualsData {
-    targetGraphic: Entity;
-    transitionFlags: number;
-    fadeDuration: number;
-    states: VisualState[];
 }
 
 export interface TilemapLayerData {

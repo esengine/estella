@@ -175,45 +175,50 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
             }
           },
           {
-            "type": "StateMachine",
+            "type": "UIController",
             "data": {
-              "current": "normal",
-              "previous": ""
+              "controllers": [
+                {
+                  "name": "$interaction",
+                  "pages": [
+                    "normal",
+                    "hover",
+                    "pressed",
+                    "disabled"
+                  ],
+                  "current": "normal"
+                }
+              ]
             }
           },
           {
-            "type": "StateVisuals",
+            "type": "UIGear",
             "data": {
-              "targetGraphic": 0,
-              "transitionFlags": 1,
-              "fadeDuration": 0,
-              "states": [
+              "bindings": [
                 {
-                  "name": "normal",
-                  "r": 0.22,
-                  "g": 0.22,
-                  "b": 0.26,
-                  "a": 1,
-                  "sprite": 0,
-                  "scale": 1
-                },
-                {
-                  "name": "hover",
-                  "r": 0.28,
-                  "g": 0.28,
-                  "b": 0.32,
-                  "a": 1,
-                  "sprite": 0,
-                  "scale": 1
-                },
-                {
-                  "name": "pressed",
-                  "r": 0.18,
-                  "g": 0.18,
-                  "b": 0.22,
-                  "a": 1,
-                  "sprite": 0,
-                  "scale": 1
+                  "controller": "$interaction",
+                  "component": "UIVisual",
+                  "property": "color",
+                  "pages": {
+                    "normal": {
+                      "r": 0.22,
+                      "g": 0.22,
+                      "b": 0.26,
+                      "a": 1
+                    },
+                    "hover": {
+                      "r": 0.28,
+                      "g": 0.28,
+                      "b": 0.32,
+                      "a": 1
+                    },
+                    "pressed": {
+                      "r": 0.18,
+                      "g": 0.18,
+                      "b": 0.22,
+                      "a": 1
+                    }
+                  }
                 }
               ]
             }
@@ -552,45 +557,50 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
             }
           },
           {
-            "type": "StateMachine",
+            "type": "UIController",
             "data": {
-              "current": "normal",
-              "previous": ""
+              "controllers": [
+                {
+                  "name": "$interaction",
+                  "pages": [
+                    "normal",
+                    "hover",
+                    "pressed",
+                    "disabled"
+                  ],
+                  "current": "normal"
+                }
+              ]
             }
           },
           {
-            "type": "StateVisuals",
+            "type": "UIGear",
             "data": {
-              "targetGraphic": 0,
-              "transitionFlags": 1,
-              "fadeDuration": 0,
-              "states": [
+              "bindings": [
                 {
-                  "name": "normal",
-                  "r": 0.22,
-                  "g": 0.22,
-                  "b": 0.26,
-                  "a": 1,
-                  "sprite": 0,
-                  "scale": 1
-                },
-                {
-                  "name": "hover",
-                  "r": 0.28,
-                  "g": 0.28,
-                  "b": 0.32,
-                  "a": 1,
-                  "sprite": 0,
-                  "scale": 1
-                },
-                {
-                  "name": "pressed",
-                  "r": 0.18,
-                  "g": 0.18,
-                  "b": 0.22,
-                  "a": 1,
-                  "sprite": 0,
-                  "scale": 1
+                  "controller": "$interaction",
+                  "component": "UIVisual",
+                  "property": "color",
+                  "pages": {
+                    "normal": {
+                      "r": 0.22,
+                      "g": 0.22,
+                      "b": 0.26,
+                      "a": 1
+                    },
+                    "hover": {
+                      "r": 0.28,
+                      "g": 0.28,
+                      "b": 0.32,
+                      "a": 1
+                    },
+                    "pressed": {
+                      "r": 0.18,
+                      "g": 0.18,
+                      "b": 0.22,
+                      "a": 1
+                    }
+                  }
                 }
               ]
             }
@@ -1698,45 +1708,49 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
             }
           },
           {
-            "type": "StateMachine",
+            "type": "UIController",
             "data": {
-              "current": "normal",
-              "previous": ""
+              "controllers": [
+                {
+                  "name": "$interaction",
+                  "pages": [
+                    "normal",
+                    "hover",
+                    "pressed"
+                  ],
+                  "current": "normal"
+                }
+              ]
             }
           },
           {
-            "type": "StateVisuals",
+            "type": "UIGear",
             "data": {
-              "targetGraphic": 0,
-              "transitionFlags": 1,
-              "fadeDuration": 0,
-              "states": [
+              "bindings": [
                 {
-                  "name": "normal",
-                  "r": 0.22,
-                  "g": 0.22,
-                  "b": 0.26,
-                  "a": 1,
-                  "sprite": 0,
-                  "scale": 1
-                },
-                {
-                  "name": "hover",
-                  "r": 0.28,
-                  "g": 0.28,
-                  "b": 0.32,
-                  "a": 1,
-                  "sprite": 0,
-                  "scale": 1
-                },
-                {
-                  "name": "pressed",
-                  "r": 0.18,
-                  "g": 0.18,
-                  "b": 0.22,
-                  "a": 1,
-                  "sprite": 0,
-                  "scale": 1
+                  "controller": "$interaction",
+                  "component": "UIVisual",
+                  "property": "color",
+                  "pages": {
+                    "normal": {
+                      "r": 0.22,
+                      "g": 0.22,
+                      "b": 0.26,
+                      "a": 1
+                    },
+                    "hover": {
+                      "r": 0.28,
+                      "g": 0.28,
+                      "b": 0.32,
+                      "a": 1
+                    },
+                    "pressed": {
+                      "r": 0.18,
+                      "g": 0.18,
+                      "b": 0.22,
+                      "a": 1
+                    }
+                  }
                 }
               ]
             }

@@ -11,11 +11,6 @@ import type { Entity, Vec2 } from '../../types';
 import { UIEvents, UIEventQueue } from '../core/events';
 import { UICameraInfo, type UICameraData } from '../core/ui-camera-info';
 import { PluginName, SystemLabel } from '../../systemLabels';
-import {
-    createInteractableDriverSystem,
-    createStateMachineDiffSystem,
-    createStateVisualsApplySystem,
-} from './systems';
 import { ListView, ListViewRegistry } from '../collection/list-view';
 import { ScrollContainer, ScrollContainerRegistry } from '../collection/scroll-container';
 import { KineticScroll } from '../collection/kinetic-scroll';
@@ -26,8 +21,10 @@ import { getEntityDepth } from '../util/helpers';
 const SCROLL_DRAG_THRESHOLD_PX = 5;
 
 /**
- * Wires the Layer 2 behavior systems — interactable-driven state machine
- * diffing and state-visual application — and owns the shared event bus.
+ * Wires the Layer 2 behavior systems — list views and scroll containers — and
+ * owns the shared event bus. Interaction *state* (button hover/pressed pages)
+ * lives in the controller layer: the `$interaction` UIController driver + gear
+ * apply (see ui/controller).
  *
  * Depends on the existing hit-test system to have written UIInteraction
  * during PreUpdate; these systems run in Update and react to that data.
@@ -93,20 +90,6 @@ export class UIBehaviorPlugin implements Plugin {
 
         const world = app.world;
 
-        app.addSystemToSchedule(
-            Schedule.Update,
-            createInteractableDriverSystem(app.world),
-        );
-        app.addSystemToSchedule(
-            Schedule.Update,
-            createStateMachineDiffSystem(app.world, events),
-            { runAfter: ['InteractableDriverSystem'] },
-        );
-        app.addSystemToSchedule(
-            Schedule.Update,
-            createStateVisualsApplySystem(app.world),
-            { runAfter: ['StateMachineDiffSystem'] },
-        );
         app.addSystemToSchedule(
             Schedule.Update,
             defineSystem([], () => listViews.tick(), { name: 'ListViewSystem' }),

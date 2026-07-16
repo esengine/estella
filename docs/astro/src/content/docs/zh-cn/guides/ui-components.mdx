@@ -5,8 +5,8 @@ description: 内置控件工厂——Button、Toggle、Slider、Progress、Dropd
 
 import { Aside } from '@astrojs/starlight/components';
 
-控件工厂用 [UI](/docs/zh-cn/guides/ui/) 组件模型(`UINode` + `Interactable` + `StateMachine` +
-`StateVisuals`)构建常见控件,免得你逐个手动接线。每个工厂接收一个选项对象,返回创建的实体
+控件工厂用 [UI](/docs/zh-cn/guides/ui/) 组件模型(`UINode` + `Interactable` +
+`$interaction` [控制器与属性绑定](/docs/zh-cn/guides/ui-controllers/))构建常见控件,免得你逐个手动接线。每个工厂接收一个选项对象,返回创建的实体
 (Button)或一个带命令式方法、用于读取和驱动它的**句柄(handle)**。
 
 交互式控件需要 world 和 UI 事件队列——`world` 来自 `GetWorld()`,`events` 来自 `Res(UIEvents)`,

@@ -24,17 +24,12 @@ class TypeSystem:
     #
     # Structs used as a DIRECT component field (Padding/Dimension) must have only
     # primitive members in PtrLayoutGenerator.TYPE_SIZES (they go through the
-    # pointer cursor). Structs used ONLY as a `std::vector<Struct>` element
-    # (VisualState) are exempt — vectors are never pointer-accessed — so they may
-    # carry std::string members.
+    # pointer cursor). Structs used ONLY as a `std::vector<Struct>` element are
+    # exempt — vectors are never pointer-accessed — so they may carry std::string
+    # members.
     CUSTOM_STRUCTS = {
         'Padding': [('left', 'f32'), ('top', 'f32'), ('right', 'f32'), ('bottom', 'f32')],
         'Dimension': [('value', 'f32'), ('unit', 'u8')],
-        'VisualState': [
-            ('name', 'std::string'),
-            ('r', 'f32'), ('g', 'f32'), ('b', 'f32'), ('a', 'f32'),
-            ('sprite', 'u32'), ('scale', 'f32'),
-        ],
     }
 
     SKIP_TYPES = {'glm::mat4', 'std::function'}
@@ -100,7 +95,7 @@ class TypeSystem:
 
     def struct_vector_js_name(self, cpp_type: str) -> str:
         """embind register_vector binding name for a struct-vector, e.g.
-        std::vector<VisualState> -> VectorVisualState."""
+        std::vector<Foo> -> VectorFoo."""
         return f'Vector{self.vector_elem(cpp_type)}'
 
     def is_skip(self, cpp_type: str) -> bool:
@@ -154,7 +149,7 @@ class TypeSystem:
         if self.is_struct_vector(t):
             # embind can't auto-convert a JS array to a registered std::vector, so
             # the wrapper field is an emscripten::val (a JS array) and from/toJS
-            # convert element-by-element via the VisualState value_object.
+            # convert element-by-element via the element's value_object.
             return 'emscripten::val'
         return t
 
@@ -169,7 +164,7 @@ class TypeSystem:
         if t in self.VECTOR_TYPES:
             return self.VECTOR_TYPES[t][2]
         if self.is_struct_vector(t):
-            return f'{self.vector_elem(t)}[]'  # e.g. VisualState[]
+            return f'{self.vector_elem(t)}[]'
         if t in self.CUSTOM_STRUCTS:
             return t  # the struct name is its own TS interface name
         return 'unknown'

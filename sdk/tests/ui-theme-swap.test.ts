@@ -2,8 +2,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  Live re-theming: switchTheme re-resolves every ThemeStyle-tagged entity's
- *        role bindings onto its UIVisual / Text / StateVisuals, so already-built
- *        widgets restyle — not just future ones.
+ *        role bindings onto its UIVisual / Text / `$interaction` colour gear, so
+ *        already-built widgets restyle — not just future ones.
  */
 import { describe, it, expect, afterEach } from 'vitest';
 import {
@@ -15,11 +15,12 @@ import {
     UIVisual,
     UIVisualType,
     Text,
-    StateVisuals,
+    UIGear,
     DARK_TOKENS,
     LIGHT_TOKENS,
     setTheme,
-    themeColors,
+    type UIGearData,
+    type GearValue,
 } from '../src/ui';
 import type { Entity } from '../src/types';
 import type { World } from '../src/world';
@@ -75,22 +76,22 @@ describe('live re-theming', () => {
         expect(t.color.r).toBeCloseTo(LIGHT_TOKENS.colors.text.r);
     });
 
-    it('switchTheme restyles an already-built button (states + label)', () => {
+    const colorPages = (w: World, e: Entity): Record<string, GearValue> =>
+        (w.get(e, UIGear) as UIGearData).bindings.find((b) => b.property === 'color')!.pages;
+
+    it('switchTheme restyles an already-built button (gear pages + label)', () => {
         const w = mockWorld();
         const btn = createButton({ world: w, events: noEvents, text: 'OK' });
         // Built under the default dark theme.
-        const svBefore = w.get(btn, StateVisuals) as { states: Array<{ name: string; r: number }> };
-        expect(svBefore.states.find((s) => s.name === 'normal')!.r).toBeCloseTo(DARK_TOKENS.colors.control.r);
+        expect((colorPages(w, btn).normal as { r: number }).r).toBeCloseTo(DARK_TOKENS.colors.control.r);
 
         switchTheme(w, LIGHT_TOKENS);
 
-        const sv = w.get(btn, StateVisuals) as { states: Array<{ name: string; r: number; g: number; b: number; a: number }> };
-        const normal = sv.states.find((s) => s.name === 'normal')!;
-        expect(normal).toMatchObject(LIGHT_TOKENS.colors.control);
-        const hover = sv.states.find((s) => s.name === 'hover')!;
-        expect(hover).toMatchObject(LIGHT_TOKENS.colors.controlHover);
-        // The dimmed 'disabled' state keeps its half alpha; only the hue re-themes.
-        const disabled = sv.states.find((s) => s.name === 'disabled')!;
+        const pages = colorPages(w, btn);
+        expect(pages.normal).toMatchObject(LIGHT_TOKENS.colors.control);
+        expect(pages.hover).toMatchObject(LIGHT_TOKENS.colors.controlHover);
+        // The dimmed 'disabled' page keeps its half alpha; only the hue re-themes.
+        const disabled = pages.disabled as { r: number; a: number };
         expect(disabled.a).toBeCloseTo(DARK_TOKENS.colors.control.a * 0.5);
         expect(disabled.r).toBeCloseTo(LIGHT_TOKENS.colors.control.r);
     });
@@ -103,7 +104,6 @@ describe('live re-theming', () => {
         });
         expect(w.has(btn, ThemeStyle)).toBe(false); // untagged → not theme-managed
         switchTheme(w, LIGHT_TOKENS);
-        const sv = w.get(btn, StateVisuals) as { states: Array<{ r: number; g: number; b: number }> };
-        expect(sv.states[0]).toMatchObject({ r: 0.5, g: 0.1, b: 0.9 }); // caller's color survives
+        expect(colorPages(w, btn).normal).toMatchObject({ r: 0.5, g: 0.1, b: 0.9 }); // caller's color survives
     });
 });

@@ -180,8 +180,8 @@ class MetadataGenerator:
         return fields
 
     # TS helper types a generated data interface field may reference (imported from
-    # './types'); custom-struct names (Padding/Dimension/VisualState) come instead
-    # from './wasm.generated'.
+    # './types'); custom-struct names (Padding/Dimension) come instead from
+    # './wasm.generated'.
     _BASE_TS_TYPES = {'Entity', 'Vec2', 'Vec3', 'Vec4', 'Quat', 'Color'}
 
     def _data_ts_type(self, prop: Property) -> str:

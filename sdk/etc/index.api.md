@@ -5,7 +5,7 @@ Symbols: 1204 stable · 17 beta · 1 deprecated
 
 ## ABI_LAYOUT_HASH — const
 ```
-"89ad72a9b853289f"
+"f9191aeae848066e"
 ```
 
 ## ANCHOR_AXES — const
@@ -1080,7 +1080,6 @@ onClick: ((entity: Entity) => void) | undefined
 parent: number | undefined
 states: Record<string, ButtonStateVisual> | undefined
 text: string | TextInit | undefined
-transitionFlags: number | undefined
 world: World
 ```
 
@@ -1557,8 +1556,6 @@ addShadowCaster2D: (entity: Entity, component: ShadowCaster2D) => void
 addShapeRenderer: (entity: Entity, component: ShapeRenderer) => void
 addSpineAnimation: (entity: Entity, component: SpineAnimation) => void
 addSprite: (entity: Entity, component: Sprite) => void
-addStateMachine: (entity: Entity, component: StateMachine) => void
-addStateVisuals: (entity: Entity, component: StateVisuals) => void
 addTilemapLayer: (entity: Entity, component: TilemapLayer) => void
 addTrailRenderer: (entity: Entity, component: TrailRenderer) => void
 addTransform: (entity: Entity, component: Transform) => void
@@ -1590,8 +1587,6 @@ getShadowCaster2D: (entity: Entity) => ShadowCaster2D
 getShapeRenderer: (entity: Entity) => ShapeRenderer
 getSpineAnimation: (entity: Entity) => SpineAnimation
 getSprite: (entity: Entity) => Sprite
-getStateMachine: (entity: Entity) => StateMachine
-getStateVisuals: (entity: Entity) => StateVisuals
 getTilemapLayer: (entity: Entity) => TilemapLayer
 getTrailRenderer: (entity: Entity) => TrailRenderer
 getTransform: (entity: Entity) => Transform
@@ -1619,8 +1614,6 @@ hasShadowCaster2D: (entity: Entity) => boolean
 hasShapeRenderer: (entity: Entity) => boolean
 hasSpineAnimation: (entity: Entity) => boolean
 hasSprite: (entity: Entity) => boolean
-hasStateMachine: (entity: Entity) => boolean
-hasStateVisuals: (entity: Entity) => boolean
 hasTilemapLayer: (entity: Entity) => boolean
 hasTrailRenderer: (entity: Entity) => boolean
 hasTransform: (entity: Entity) => boolean
@@ -1648,8 +1641,6 @@ removeShadowCaster2D: (entity: Entity) => void
 removeShapeRenderer: (entity: Entity) => void
 removeSpineAnimation: (entity: Entity) => void
 removeSprite: (entity: Entity) => void
-removeStateMachine: (entity: Entity) => void
-removeStateVisuals: (entity: Entity) => void
 removeTilemapLayer: (entity: Entity) => void
 removeTrailRenderer: (entity: Entity) => void
 removeTransform: (entity: Entity) => void

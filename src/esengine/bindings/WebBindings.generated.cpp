@@ -26,8 +26,6 @@
 #include "../ecs/components/ShapeRenderer.hpp"
 #include "../ecs/components/SpineAnimation.hpp"
 #include "../ecs/components/Sprite.hpp"
-#include "../ecs/components/StateMachine.hpp"
-#include "../ecs/components/StateVisuals.hpp"
 #include "../ecs/components/TilemapLayer.hpp"
 #include "../ecs/components/TrailRenderer.hpp"
 #include "../ecs/components/Transform.hpp"
@@ -80,15 +78,6 @@ EMSCRIPTEN_BINDINGS(esengine_math) {
     value_object<esengine::Dimension>("Dimension")
         .field("value", &esengine::Dimension::value)
         .field("unit", &esengine::Dimension::unit);
-
-    value_object<esengine::VisualState>("VisualState")
-        .field("name", &esengine::VisualState::name)
-        .field("r", &esengine::VisualState::r)
-        .field("g", &esengine::VisualState::g)
-        .field("b", &esengine::VisualState::b)
-        .field("a", &esengine::VisualState::a)
-        .field("sprite", &esengine::VisualState::sprite)
-        .field("scale", &esengine::VisualState::scale);
 }
 
 // =============================================================================
@@ -668,34 +657,6 @@ SpriteJS spriteToJS(const esengine::ecs::Sprite& c) {
     return js;
 }
 
-struct StateVisualsJS {
-    u32 targetGraphic;
-    u32 transitionFlags;
-    f32 fadeDuration;
-    emscripten::val states = emscripten::val::array();
-};
-
-esengine::ecs::StateVisuals statevisualsFromJS(const StateVisualsJS& js) {
-    esengine::ecs::StateVisuals c;
-    c.targetGraphic = Entity(js.targetGraphic);
-    c.transitionFlags = js.transitionFlags;
-    c.fadeDuration = js.fadeDuration;
-    { const size_t n = js.states["length"].as<size_t>();
-      c.states.clear(); c.states.reserve(n);
-      for (size_t i = 0; i < n; ++i) c.states.push_back(js.states[i].as<esengine::VisualState>()); }
-    return c;
-}
-
-StateVisualsJS statevisualsToJS(const esengine::ecs::StateVisuals& c) {
-    StateVisualsJS js;
-    js.targetGraphic = static_cast<u32>(c.targetGraphic);
-    js.transitionFlags = c.transitionFlags;
-    js.fadeDuration = c.fadeDuration;
-    js.states = emscripten::val::array();
-    for (size_t i = 0; i < c.states.size(); ++i) js.states.set(i, emscripten::val(c.states[i]));
-    return js;
-}
-
 struct TilemapLayerJS {
     glm::vec2 cellSize;
     glm::vec2 originOffset;
@@ -1143,16 +1104,6 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("parallax", &SpriteJS::parallax)
         .field("material", &SpriteJS::material)
         .field("enabled", &SpriteJS::enabled);
-
-    value_object<esengine::ecs::StateMachine>("StateMachine")
-        .field("current", &esengine::ecs::StateMachine::current)
-        .field("previous", &esengine::ecs::StateMachine::previous);
-
-    value_object<StateVisualsJS>("StateVisuals")
-        .field("targetGraphic", &StateVisualsJS::targetGraphic)
-        .field("transitionFlags", &StateVisualsJS::transitionFlags)
-        .field("fadeDuration", &StateVisualsJS::fadeDuration)
-        .field("states", &StateVisualsJS::states);
 
     value_object<TilemapLayerJS>("TilemapLayer")
         .field("cellSize", &TilemapLayerJS::cellSize)
@@ -1646,47 +1597,6 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             r.remove<esengine::ecs::Sprite>(entity);
         }))
 
-        // StateMachine
-        .function("hasStateMachine", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::StateMachine>(static_cast<Entity>(e));
-        }))
-        .function("getStateMachine", optional_override([](Registry& r, u32 e) -> esengine::ecs::StateMachine& {
-            auto entity = static_cast<Entity>(e);
-            static esengine::ecs::StateMachine s_dummy{};
-            if (!r.valid(entity) || !r.has<esengine::ecs::StateMachine>(entity)) return s_dummy;
-            return r.get<esengine::ecs::StateMachine>(entity);
-        }), allow_raw_pointers())
-        .function("addStateMachine", optional_override([](Registry& r, u32 e, const esengine::ecs::StateMachine& c) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity)) return;
-            r.emplaceOrReplace<esengine::ecs::StateMachine>(entity, c);
-        }))
-        .function("removeStateMachine", optional_override([](Registry& r, u32 e) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::StateMachine>(entity)) return;
-            r.remove<esengine::ecs::StateMachine>(entity);
-        }))
-
-        // StateVisuals
-        .function("hasStateVisuals", optional_override([](Registry& r, u32 e) {
-            return r.has<esengine::ecs::StateVisuals>(static_cast<Entity>(e));
-        }))
-        .function("getStateVisuals", optional_override([](Registry& r, u32 e) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::StateVisuals>(entity)) return StateVisualsJS{};
-            return statevisualsToJS(r.get<esengine::ecs::StateVisuals>(entity));
-        }))
-        .function("addStateVisuals", optional_override([](Registry& r, u32 e, const StateVisualsJS& js) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity)) return;
-            r.emplaceOrReplace<esengine::ecs::StateVisuals>(entity, statevisualsFromJS(js));
-        }))
-        .function("removeStateVisuals", optional_override([](Registry& r, u32 e) {
-            auto entity = static_cast<Entity>(e);
-            if (!r.valid(entity) || !r.has<esengine::ecs::StateVisuals>(entity)) return;
-            r.remove<esengine::ecs::StateVisuals>(entity);
-        }))
-
         // TilemapLayer
         .function("hasTilemapLayer", optional_override([](Registry& r, u32 e) {
             return r.has<esengine::ecs::TilemapLayer>(static_cast<Entity>(e));
@@ -1887,8 +1797,6 @@ emscripten::val esengineGetBuiltinComponentNames() {
     arr.set(i++, val(std::string("ShapeRenderer")));
     arr.set(i++, val(std::string("SpineAnimation")));
     arr.set(i++, val(std::string("Sprite")));
-    arr.set(i++, val(std::string("StateMachine")));
-    arr.set(i++, val(std::string("StateVisuals")));
     arr.set(i++, val(std::string("TilemapLayer")));
     arr.set(i++, val(std::string("TrailRenderer")));
     arr.set(i++, val(std::string("Transform")));
@@ -2138,7 +2046,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "89ad72a9b853289f";
+static const char* kEsAbiLayoutHash = "f9191aeae848066e";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

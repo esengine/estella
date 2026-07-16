@@ -4,11 +4,10 @@
  * @file    ui/controller/ui-controller.ts
  * @brief   UIController — a shared, named enum-state ("pages") scoped to a UI root.
  *
- * The shared, multi-page generalization of the per-entity `StateMachine`: where
- * that holds one entity's interaction state, a controller is a named state that
- * MANY descendant elements subscribe to. Expressed as a plain TS-side
- * `defineComponent` (same class as StateMachineAgent / TimelinePlayer / the
- * physics joints — no C++ struct, serializes through the prefab/scene path). A
+ * A controller is a named state that MANY descendant elements subscribe to —
+ * one enum on the UI root, arbitrarily many geared leaves. Expressed as a plain
+ * TS-side `defineComponent` (same class as StateMachineAgent / TimelinePlayer /
+ * the physics joints — no C++ struct, serializes through the prefab/scene path). A
  * controller is deliberately a *dumb enum*, not an FSM: it names a set of `pages`
  * and holds the `current` one. Deciding *when* to switch pages is someone else's
  * job — game code calling {@link setControllerPage}, the `$interaction` driver,
@@ -43,8 +42,8 @@ export const UIController = defineComponent<UIControllerData>('UIController', {
 /**
  * The built-in controller name driven by pointer state (normal/hover/pressed/
  * disabled). An entity that carries a `$interaction` controller + Interactable
- * gets its button states through gears — the unified replacement for the bespoke
- * StateMachine + StateVisuals pair (color/sprite/scale generalized to any field).
+ * gets its button states through gears — the one mechanism for all widget
+ * interaction visuals (color/sprite/scale, or any other reflected field).
  */
 export const INTERACTION_CONTROLLER = '$interaction';
 

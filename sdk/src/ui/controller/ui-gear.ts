@@ -4,8 +4,8 @@
  * @file    ui/controller/ui-gear.ts
  * @brief   UIGear — declarative "per-page value" bindings from a controller.
  *
- * The generalization of `StateVisuals` from a fixed colour/sprite/scale trio to
- * ANY reflected field. Each {@link GearBinding} says: "while controller C is on
+ * Per-page overrides for ANY reflected field — not a fixed visual trio. Each
+ * {@link GearBinding} says: "while controller C is on
  * page P, this component field should hold value V." One entity can carry many
  * bindings, each pointing at a different (controller, field) — so a single
  * element's colour follows the interaction controller while its position follows

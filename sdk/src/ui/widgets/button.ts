@@ -3,15 +3,16 @@
 import type { Color, Entity } from '../../types';
 import type { World } from '../../world';
 
-import { Interactable, UIInteraction } from '../input/interactable';
-import { StateMachine } from '../behavior/state-machine';
+import { Interactable, UIInteraction, type InteractableData } from '../input/interactable';
 import {
-    StateVisuals,
-    TransitionFlag,
-    visualState,
-    type VisualState,
-    type StateVisualsData,
-} from '../behavior/state-visuals';
+    UIController,
+    INTERACTION_CONTROLLER,
+    INTERACTION_PAGES,
+    interactionController,
+    type UIControllerData,
+} from '../controller/ui-controller';
+import { UIGear, gearBinding, type GearBinding, type GearValue } from '../controller/ui-gear';
+import { EasingType } from '../../animation/Easing';
 import { UIEventType, type UIEventQueue } from '../core/events';
 import { themeColors, themeType } from '../theme/tokens';
 import { markThemed } from '../theme/theme-style';
@@ -24,8 +25,8 @@ import {
 } from './helpers';
 
 /**
- * Visual overrides for a single button state. Omitted fields stay at
- * their slot default (color white, scale 1, no sprite).
+ * Visual overrides for a single button state. Omitted fields leave the
+ * live value alone on that state (the gear's sparse-page semantics).
  */
 export interface ButtonStateVisual {
     color?: Color;
@@ -45,26 +46,52 @@ export interface ButtonOptions {
     text?: string | TextInit;
     /**
      * Map of state name (e.g. "normal", "hover", "pressed", "disabled")
-     * to its visual override. The Interactable driver writes the four
+     * to its visual override. The `$interaction` driver writes the four
      * canonical state names; callers may add more (e.g. "loading") and
-     * flip them manually via `setState`. Omit to default to the active
-     * theme's control roles ({@link themeButtonStates}).
+     * flip them manually via `setButtonState`. Omit to default to the
+     * active theme's control roles ({@link themeButtonStates}).
      */
     states?: Record<string, ButtonStateVisual>;
-    /** Combination of TransitionFlag values. Default: ColorTint. */
-    transitionFlags?: number;
-    /** Lerp time for ColorTint/Scale transitions. Default 0 (snap). */
+    /** Tween time for color/scale state changes. Default 0 (snap). */
     fadeDuration?: number;
     /** Start in the disabled state (Interactable.enabled = false). */
     disabled?: boolean;
     onClick?: (entity: Entity) => void;
 }
 
-/** Map the state-name → override record to the VisualState[] list. */
-function buildStates(states: Record<string, ButtonStateVisual>): VisualState[] {
-    return Object.entries(states).map(([name, v]) =>
-        visualState(name, v.color ?? { r: 1, g: 1, b: 1, a: 1 },
-            { sprite: v.sprite, scale: v.scale }));
+/**
+ * Fold the state-name → override record into per-field gear bindings on the
+ * `$interaction` controller. A field a state doesn't override gets no page
+ * entry there (sparse pages: the gear leaves it alone). Sprite swaps are
+ * discrete and always snap; color and scale tween over `fadeDuration`.
+ */
+export function interactionGears(
+    states: Record<string, ButtonStateVisual>,
+    fadeDuration = 0,
+): GearBinding[] {
+    const color: Record<string, GearValue> = {};
+    const sprite: Record<string, GearValue> = {};
+    const scale: Record<string, GearValue> = {};
+    for (const [page, v] of Object.entries(states)) {
+        if (v.color !== undefined) color[page] = { ...v.color };
+        if (v.sprite !== undefined) sprite[page] = v.sprite;
+        if (v.scale !== undefined) scale[page] = { x: v.scale, y: v.scale, z: 1 };
+    }
+    const tween = fadeDuration > 0
+        ? { easing: EasingType.Linear, duration: fadeDuration }
+        : undefined;
+
+    const bindings: GearBinding[] = [];
+    if (Object.keys(color).length > 0) {
+        bindings.push(gearBinding(INTERACTION_CONTROLLER, 'UIVisual', 'color', color, tween));
+    }
+    if (Object.keys(sprite).length > 0) {
+        bindings.push(gearBinding(INTERACTION_CONTROLLER, 'UIVisual', 'texture', sprite));
+    }
+    if (Object.keys(scale).length > 0) {
+        bindings.push(gearBinding(INTERACTION_CONTROLLER, 'Transform', 'scale', scale, tween));
+    }
+    return bindings;
 }
 
 /** The canonical button state colors from the active theme's control roles —
@@ -81,11 +108,11 @@ export function themeButtonStates(): Record<string, ButtonStateVisual> {
 }
 
 /**
- * Spawn a clickable button entity composed of Interactable +
- * StateMachine + StateVisuals, optionally with a child Text label.
+ * Spawn a clickable button entity composed of Interactable + a `$interaction`
+ * UIController + UIGear state bindings, optionally with a child Text label.
  *
- * Click is detected via state_changed (`pressed` → `hover`): the
- * canonical "released while still over the button" gesture.
+ * Click comes straight from the interaction layer's `click` event (released
+ * while still over the button); the handler is gated on Interactable.enabled.
  */
 export function createButton(opts: ButtonOptions): Entity {
     const { world, events } = opts;
@@ -105,18 +132,19 @@ export function createButton(opts: ButtonOptions): Entity {
     world.insert(entity, UIInteraction, {
         hovered: false, pressed: false, justPressed: false, justReleased: false,
     });
-    world.insert(entity, StateMachine, {
-        current: opts.disabled ? 'disabled' : 'normal',
-        previous: '',
-    });
 
-    const visuals: StateVisualsData = {
-        targetGraphic: 0 as Entity,
-        transitionFlags: opts.transitionFlags ?? TransitionFlag.ColorTint,
-        fadeDuration: opts.fadeDuration ?? 0,
-        states: buildStates(opts.states ?? themeButtonStates()),
-    };
-    world.insert(entity, StateVisuals, visuals);
+    const states = opts.states ?? themeButtonStates();
+    // Canonical pages first (the driver's vocabulary), then any custom states
+    // (e.g. "loading") so setButtonState can flip to them.
+    const pages = [
+        ...INTERACTION_PAGES,
+        ...Object.keys(states).filter((s) => !(INTERACTION_PAGES as readonly string[]).includes(s)),
+    ];
+    const ctrl = interactionController(pages);
+    ctrl.current = opts.disabled ? 'disabled' : 'normal';
+    world.insert(entity, UIController, { controllers: [ctrl] });
+    world.insert(entity, UIGear, { bindings: interactionGears(states, opts.fadeDuration ?? 0) });
+
     // Only theme-managed default states re-resolve on a theme swap; caller-supplied
     // colors are the caller's own.
     if (opts.states === undefined) {
@@ -140,11 +168,9 @@ export function createButton(opts: ButtonOptions): Entity {
 
     if (opts.onClick) {
         const handler = opts.onClick;
-        events.on(entity, UIEventType.StateChanged, (event) => {
-            const data = event.data as { from: string; to: string };
-            if (data.from === 'pressed' && data.to === 'hover') {
-                handler(entity);
-            }
+        events.on(entity, UIEventType.Click, () => {
+            const interactable = world.get(entity, Interactable) as InteractableData;
+            if (interactable.enabled) handler(entity);
         });
     }
 
@@ -152,13 +178,16 @@ export function createButton(opts: ButtonOptions): Entity {
 }
 
 /**
- * Imperatively set a button's state string. Useful for custom states
- * like "loading" that the Interactable driver does not manage.
+ * Imperatively set a button's `$interaction` page. Useful for custom states
+ * like "loading" that the pointer driver does not manage — the driver leaves
+ * any non-canonical page alone until user code switches back.
  */
 export function setButtonState(world: World, entity: Entity, state: string): void {
-    if (!world.has(entity, StateMachine)) return;
-    const sm = world.get(entity, StateMachine) as { current: string; previous: string };
-    if (sm.current === state) return;
-    sm.current = state;
-    world.insert(entity, StateMachine, sm);
+    if (!world.has(entity, UIController)) return;
+    const data = world.get(entity, UIController) as UIControllerData;
+    const ctrl = data.controllers.find((c) => c.name === INTERACTION_CONTROLLER);
+    if (!ctrl || ctrl.current === state) return;
+    if (!ctrl.pages.includes(state)) ctrl.pages.push(state);
+    ctrl.current = state;
+    world.insert(entity, UIController, data);
 }

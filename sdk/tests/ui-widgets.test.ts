@@ -7,9 +7,11 @@ import {
     createProgress,
     createDialog,
     setButtonState,
+    interactionGears,
     Interactable,
-    StateMachine,
-    StateVisuals,
+    UIController,
+    UIGear,
+    INTERACTION_CONTROLLER,
     UINode,
     UIVisual,
     UIVisualType,
@@ -17,8 +19,9 @@ import {
     FillOrigin,
     UIEventQueue,
     UIEventType,
-    TransitionFlag,
     themeColors,
+    type UIControllerData,
+    type UIGearData,
 } from '../src/ui';
 import type { Entity } from '../src/types';
 import type { World } from '../src/world';
@@ -99,6 +102,10 @@ describe('createButton', () => {
         events = new UIEventQueue();
     });
 
+    const interactionOf = (btn: Entity) =>
+        (world.get(btn, UIController) as UIControllerData).controllers
+            .find((c) => c.name === INTERACTION_CONTROLLER)!;
+
     it('attaches the required components', () => {
         const btn = createButton({
             world: world as unknown as World,
@@ -114,11 +121,11 @@ describe('createButton', () => {
         expect(world.has(btn, UINode)).toBe(true);
         expect(world.has(btn, UIVisual)).toBe(true);
         expect(world.has(btn, Interactable)).toBe(true);
-        expect(world.has(btn, StateMachine)).toBe(true);
-        expect(world.has(btn, StateVisuals)).toBe(true);
+        expect(world.has(btn, UIController)).toBe(true);
+        expect(world.has(btn, UIGear)).toBe(true);
     });
 
-    it('populates the StateVisuals states list from the `states` map', () => {
+    it('folds the `states` map into a $interaction color gear', () => {
         const btn = createButton({
             world: world as unknown as World,
             events,
@@ -126,31 +133,31 @@ describe('createButton', () => {
                 normal: { color: { r: 1, g: 0, b: 0, a: 1 } },
                 hover: { color: { r: 0, g: 1, b: 0, a: 1 } },
             },
-            transitionFlags: TransitionFlag.ColorTint,
+            fadeDuration: 0.2,
         });
 
-        const sv = world.get(btn, StateVisuals) as {
-            states: Array<{ name: string; r: number; g: number; b: number; a: number }>;
-            transitionFlags: number;
-        };
-        expect(sv.states.map(s => s.name)).toEqual(['normal', 'hover']);
-        expect(sv.states[0]).toMatchObject({ r: 1, g: 0, b: 0, a: 1 });
-        expect(sv.transitionFlags).toBe(TransitionFlag.ColorTint);
+        const gear = world.get(btn, UIGear) as UIGearData;
+        expect(gear.bindings).toHaveLength(1);
+        const b = gear.bindings[0]!;
+        expect(b).toMatchObject({ controller: INTERACTION_CONTROLLER, component: 'UIVisual', property: 'color' });
+        expect(b.pages.normal).toEqual({ r: 1, g: 0, b: 0, a: 1 });
+        expect(b.pages.hover).toEqual({ r: 0, g: 1, b: 0, a: 1 });
+        expect(b.pages.pressed).toBeUndefined(); // sparse: unauthored pages leave the field alone
+        expect(b.tween?.duration).toBeCloseTo(0.2);
     });
 
     it('defaults its states to the active theme control roles (de-nude)', () => {
         const btn = createButton({ world: world as unknown as World, events, text: 'OK' });
-        const sv = world.get(btn, StateVisuals) as {
-            states: Array<{ name: string; r: number; g: number; b: number; a: number }>;
-        };
+        const gear = world.get(btn, UIGear) as UIGearData;
+        const colorGear = gear.bindings.find((b) => b.property === 'color')!;
         const c = themeColors();
-        expect(sv.states.map(s => s.name)).toEqual(['normal', 'hover', 'pressed', 'disabled']);
-        expect(sv.states[0]).toMatchObject(c.control);
-        expect(sv.states[1]).toMatchObject(c.controlHover);
-        expect(sv.states[2]).toMatchObject(c.controlActive);
+        expect(colorGear.pages.normal).toMatchObject(c.control);
+        expect(colorGear.pages.hover).toMatchObject(c.controlHover);
+        expect(colorGear.pages.pressed).toMatchObject(c.controlActive);
+        expect(colorGear.pages.disabled).toBeDefined();
     });
 
-    it('starts in "disabled" state when opts.disabled is true', () => {
+    it('starts on the "disabled" page when opts.disabled is true', () => {
         const btn = createButton({
             world: world as unknown as World,
             events,
@@ -160,25 +167,23 @@ describe('createButton', () => {
             },
         });
 
-        const sm = world.get(btn, StateMachine) as { current: string };
         const i = world.get(btn, Interactable) as { enabled: boolean };
-        expect(sm.current).toBe('disabled');
+        expect(interactionOf(btn).current).toBe('disabled');
         expect(i.enabled).toBe(false);
     });
 
-    it('supports an arbitrary number of states (variable-length, REARCH_GUI F5)', () => {
+    it('lists canonical pages first, then custom states', () => {
         const btn = createButton({
             world: world as unknown as World,
             events,
-            states: Object.fromEntries(
-                Array.from({ length: 12 }, (_, i) => [`s${i}`, {}]),
-            ),
+            states: { normal: {}, loading: {}, celebrating: {} },
         });
-        const sv = world.get(btn, StateVisuals) as { states: unknown[] };
-        expect(sv.states).toHaveLength(12);
+        expect(interactionOf(btn).pages).toEqual(
+            ['normal', 'hover', 'pressed', 'disabled', 'loading', 'celebrating'],
+        );
     });
 
-    it('fires onClick when the state transitions pressed → hover', () => {
+    it('fires onClick on the interaction layer click event', () => {
         const onClick = vi.fn();
         const btn = createButton({
             world: world as unknown as World,
@@ -187,32 +192,63 @@ describe('createButton', () => {
             onClick,
         });
 
-        events.emit(btn, UIEventType.StateChanged, { from: 'pressed', to: 'hover' });
+        events.emit(btn, UIEventType.Click);
         expect(onClick).toHaveBeenCalledWith(btn);
     });
 
-    it('does not fire onClick on pressed → normal (released outside)', () => {
+    it('swallows clicks while disabled', () => {
         const onClick = vi.fn();
         const btn = createButton({
             world: world as unknown as World,
             events,
+            disabled: true,
             states: { normal: {}, hover: {}, pressed: {} },
             onClick,
         });
 
-        events.emit(btn, UIEventType.StateChanged, { from: 'pressed', to: 'normal' });
+        events.emit(btn, UIEventType.Click);
         expect(onClick).not.toHaveBeenCalled();
     });
 
-    it('setButtonState writes StateMachine.current', () => {
+    it('setButtonState writes the $interaction page, growing the enum for custom states', () => {
         const btn = createButton({
             world: world as unknown as World,
             events,
-            states: { normal: {}, loading: {} },
+            states: { normal: {} },
         });
 
         setButtonState(world as unknown as World, btn, 'loading');
-        expect((world.get(btn, StateMachine) as { current: string }).current).toBe('loading');
+        const ctrl = interactionOf(btn);
+        expect(ctrl.current).toBe('loading');
+        expect(ctrl.pages).toContain('loading');
+    });
+});
+
+describe('interactionGears', () => {
+    it('splits color / sprite / scale overrides into per-field bindings', () => {
+        const bindings = interactionGears({
+            normal: { color: { r: 1, g: 1, b: 1, a: 1 }, sprite: 7, scale: 1 },
+            pressed: { color: { r: 0.5, g: 0.5, b: 0.5, a: 1 }, sprite: 8, scale: 0.95 },
+        }, 0.1);
+
+        const byProp = Object.fromEntries(bindings.map((b) => [b.property, b]));
+        expect(Object.keys(byProp).sort()).toEqual(['color', 'scale', 'texture']);
+        expect(byProp.color!.component).toBe('UIVisual');
+        expect(byProp.texture!.component).toBe('UIVisual');
+        expect(byProp.scale!.component).toBe('Transform');
+        expect(byProp.texture!.pages.pressed).toBe(8);
+        expect(byProp.scale!.pages.pressed).toEqual({ x: 0.95, y: 0.95, z: 1 });
+        // Sprite swaps are discrete: no tween even when fadeDuration is set.
+        expect(byProp.texture!.tween).toBeUndefined();
+        expect(byProp.color!.tween?.duration).toBeCloseTo(0.1);
+        expect(byProp.scale!.tween?.duration).toBeCloseTo(0.1);
+    });
+
+    it('emits no binding for a field no state overrides', () => {
+        const bindings = interactionGears({ normal: { color: { r: 1, g: 1, b: 1, a: 1 } }, hover: {} });
+        expect(bindings).toHaveLength(1);
+        expect(bindings[0]!.property).toBe('color');
+        expect(bindings[0]!.tween).toBeUndefined();
     });
 });
 
@@ -245,7 +281,7 @@ describe('createToggle', () => {
             onChange,
         });
 
-        events.emit(toggle.entity, UIEventType.StateChanged, { from: 'pressed', to: 'hover' });
+        events.emit(toggle.entity, UIEventType.Click);
 
         expect(toggle.isOn()).toBe(true);
         expect(onChange).toHaveBeenCalledWith(true, toggle.entity);

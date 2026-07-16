@@ -4,6 +4,7 @@ import type { Color, Entity } from '../../types';
 import type { World } from '../../world';
 
 import { UIEventType, type UIEventQueue } from '../core/events';
+import { Interactable, type InteractableData } from '../input/interactable';
 
 import { createButton, type ButtonStateVisual } from './button';
 import { spawnUIEntity, setUIVisible, type UINodeInit, type UIVisualInit } from './helpers';
@@ -80,11 +81,9 @@ export function createToggle(opts: ToggleOptions): ToggleHandle {
 
     setUIVisible(world, check, isOn);
 
-    const offClick = events.on(button, UIEventType.StateChanged, (event) => {
-        const data = event.data as { from: string; to: string };
-        if (data.from === 'pressed' && data.to === 'hover') {
-            setIsOn(!isOn);
-        }
+    const offClick = events.on(button, UIEventType.Click, () => {
+        const interactable = world.get(button, Interactable) as InteractableData;
+        if (interactable.enabled) setIsOn(!isOn);
     });
 
     function setIsOn(value: boolean, silent = false): void {

@@ -6,7 +6,7 @@
  *          {@link ThemeColors} role each of an entity's themeable properties uses.
  *
  * It is the missing link for live re-theming: widgets bake a theme's colors into
- * `UIVisual`/`Text`/`StateVisuals` at construction, so without recording the
+ * `UIVisual`/`Text`/their `$interaction` colour gears at construction, so without recording the
  * *role* there is no way to re-resolve them when the theme changes. A widget tags
  * the entities it themes (via {@link markThemed}); `applyThemeToWorld` re-resolves
  * the tags against the active theme. Not serialized — it lives only on
@@ -25,7 +25,7 @@ export interface ThemeStyleData {
     visual?: ColorRole;
     /** Role that drives this entity's `Text.color`. */
     text?: ColorRole;
-    /** State-name → role, for each `StateVisuals` state color. */
+    /** Page-name → role, for each `$interaction` colour-gear page. */
     states?: Record<string, ColorRole>;
 }
 

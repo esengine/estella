@@ -6,7 +6,8 @@ description: The built-in widget factories — Button, Toggle, Slider, Progress,
 import { Aside } from '@astrojs/starlight/components';
 
 The widget factories build common controls out of the [UI](/docs/guides/ui/) component
-model (`UINode` + `Interactable` + `StateMachine` + `StateVisuals`), so you don't wire
+model (`UINode` + `Interactable` + a `$interaction`
+[controller with gears](/docs/guides/ui-controllers/)), so you don't wire
 each one by hand. Each factory takes an options object and returns either the created
 entity (Button) or a **handle** with imperative methods to read and drive it.
 

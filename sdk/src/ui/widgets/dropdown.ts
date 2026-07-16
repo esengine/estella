@@ -4,8 +4,9 @@ import type { Color, Entity } from '../../types';
 import type { World } from '../../world';
 
 import { Interactable, UIInteraction } from '../input/interactable';
-import { StateMachine } from '../behavior/state-machine';
-import { StateVisuals, TransitionFlag, visualState, type StateVisualsData } from '../behavior/state-visuals';
+import { UIController, interactionController } from '../controller/ui-controller';
+import { UIGear } from '../controller/ui-gear';
+import { interactionGears } from './button';
 import { UIEventType, type UIEventQueue } from '../core/events';
 import { Text, type TextData } from '../core/text';
 
@@ -60,19 +61,22 @@ const INTERACTION_DEFAULT = {
     hovered: false, pressed: false, justPressed: false, justReleased: false,
 };
 
-function makeStatesSV(colors: {
-    normal: Color; hover: Color; pressed: Color;
-}): StateVisualsData {
-    return {
-        targetGraphic: 0 as Entity,
-        transitionFlags: TransitionFlag.ColorTint,
-        fadeDuration: 0,
-        states: [
-            visualState('normal', colors.normal),
-            visualState('hover', colors.hover),
-            visualState('pressed', colors.pressed),
-        ],
-    };
+/** Attach a `$interaction` controller + a color gear over its three pages. */
+function addInteractionStates(
+    world: World,
+    entity: Entity,
+    colors: { normal: Color; hover: Color; pressed: Color },
+): void {
+    world.insert(entity, UIController, {
+        controllers: [interactionController(['normal', 'hover', 'pressed'])],
+    });
+    world.insert(entity, UIGear, {
+        bindings: interactionGears({
+            normal: { color: colors.normal },
+            hover: { color: colors.hover },
+            pressed: { color: colors.pressed },
+        }),
+    });
 }
 
 /**
@@ -109,8 +113,7 @@ export function createDropdown<T>(opts: DropdownOptions<T>): DropdownHandle<T> {
     });
     world.insert(button, Interactable, { enabled: true, blockRaycast: true, raycastTarget: true });
     world.insert(button, UIInteraction, INTERACTION_DEFAULT);
-    world.insert(button, StateMachine, { current: 'normal', previous: '' });
-    world.insert(button, StateVisuals, makeStatesSV(btnColors));
+    addInteractionStates(world, button, btnColors);
     if (opts.buttonStates === undefined) {
         markThemed(world, button, { states: { normal: 'control', hover: 'controlHover', pressed: 'controlActive' } });
     }
@@ -151,12 +154,7 @@ export function createDropdown<T>(opts: DropdownOptions<T>): DropdownHandle<T> {
         for (let i = 0; i < opts.options.length; i++) {
             const index = i;
             const row = spawnOptionRow(index);
-            const off = events.on(row, UIEventType.StateChanged, (e) => {
-                const d = e.data as { from: string; to: string };
-                if (d.from === 'pressed' && d.to === 'hover') {
-                    selectAndClose(index);
-                }
-            });
+            const off = events.on(row, UIEventType.Click, () => selectAndClose(index));
             optionUnsubs.push(off);
         }
     }
@@ -177,8 +175,7 @@ export function createDropdown<T>(opts: DropdownOptions<T>): DropdownHandle<T> {
         });
         world.insert(row, Interactable, { enabled: true, blockRaycast: true, raycastTarget: true });
         world.insert(row, UIInteraction, INTERACTION_DEFAULT);
-        world.insert(row, StateMachine, { current: 'normal', previous: '' });
-        world.insert(row, StateVisuals, makeStatesSV(optColors));
+        addInteractionStates(world, row, optColors);
 
         spawnUIEntity({
             world,
@@ -216,11 +213,8 @@ export function createDropdown<T>(opts: DropdownOptions<T>): DropdownHandle<T> {
     }
 
     // Click on button toggles popup.
-    const offButtonClick = events.on(button, UIEventType.StateChanged, (e) => {
-        const d = e.data as { from: string; to: string };
-        if (d.from === 'pressed' && d.to === 'hover') {
-            isOpen() ? close() : open();
-        }
+    const offButtonClick = events.on(button, UIEventType.Click, () => {
+        isOpen() ? close() : open();
     });
 
     return {

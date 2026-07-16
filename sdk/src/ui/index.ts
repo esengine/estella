@@ -113,19 +113,6 @@ export {
 } from './input/interactable';
 
 export {
-    StateMachine,
-    type StateMachineData,
-} from './behavior/state-machine';
-
-export {
-    StateVisuals,
-    TransitionFlag,
-    visualState,
-    type VisualState,
-    type StateVisualsData,
-} from './behavior/state-visuals';
-
-export {
     Focusable,
     FocusManager,
     FocusManagerState,
@@ -138,14 +125,6 @@ export {
     type DraggableData,
     type DragStateData,
 } from './input/draggable';
-
-export {
-    driverStateFor,
-    findStateSlot,
-    createInteractableDriverSystem,
-    createStateMachineDiffSystem,
-    createStateVisualsApplySystem,
-} from './behavior/systems';
 
 export { UIBehaviorPlugin, uiBehaviorPlugin } from './behavior/plugin';
 
@@ -176,6 +155,7 @@ export {
 export {
     createInteractionControllerDriverSystem,
     createGearApplySystem,
+    driverStateFor,
     readFieldPath,
     writeFieldPath,
     isLerpable,
@@ -251,6 +231,7 @@ export {
     createButton,
     setButtonState,
     themeButtonStates,
+    interactionGears,
     type ButtonOptions,
     type ButtonStateVisual,
 } from './widgets/button';

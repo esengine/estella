@@ -68,7 +68,7 @@ describe('UI widget prefab codegen', () => {
 
         const root = typesOf(prefab, prefab.rootEntityId);
         expect(root).toEqual(expect.arrayContaining([
-            'Transform', 'UINode', 'UIVisual', 'Interactable', 'UIInteraction', 'StateMachine', 'StateVisuals',
+            'Transform', 'UINode', 'UIVisual', 'Interactable', 'UIInteraction', 'UIController', 'UIGear',
         ]));
         const rootEnt = entityById(prefab, prefab.rootEntityId);
         expect(rootEnt.children.length).toBe(1);
@@ -89,7 +89,7 @@ describe('UI widget prefab codegen', () => {
                 check: { color: c.primary }, isOn: true,
             }).entity as unknown as number,
         );
-        expect(typesOf(prefab, prefab.rootEntityId)).toEqual(expect.arrayContaining(['UINode', 'Interactable', 'StateVisuals']));
+        expect(typesOf(prefab, prefab.rootEntityId)).toEqual(expect.arrayContaining(['UINode', 'Interactable', 'UIGear']));
         expect(entityById(prefab, prefab.rootEntityId).children.length).toBeGreaterThanOrEqual(1);
     });
 

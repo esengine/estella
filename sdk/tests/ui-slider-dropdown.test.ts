@@ -182,14 +182,14 @@ describe('createDropdown', () => {
         expect(label.content).toBe('Banana');
     });
 
-    it('opens popup on button click (pressed → hover)', () => {
+    it('opens popup on button click', () => {
         const dd = createDropdown({
             world: world as unknown as World, events,
             options: ['a', 'b'],
         });
         expect(dd.isOpen()).toBe(false);
 
-        events.emit(dd.entity, UIEventType.StateChanged, { from: 'pressed', to: 'hover' });
+        events.emit(dd.entity, UIEventType.Click);
         expect(dd.isOpen()).toBe(true);
     });
 
@@ -199,10 +199,10 @@ describe('createDropdown', () => {
             options: ['a', 'b'],
         });
 
-        events.emit(dd.entity, UIEventType.StateChanged, { from: 'pressed', to: 'hover' });
+        events.emit(dd.entity, UIEventType.Click);
         expect(dd.isOpen()).toBe(true);
 
-        events.emit(dd.entity, UIEventType.StateChanged, { from: 'pressed', to: 'hover' });
+        events.emit(dd.entity, UIEventType.Click);
         expect(dd.isOpen()).toBe(false);
     });
 

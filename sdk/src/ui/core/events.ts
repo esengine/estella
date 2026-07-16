@@ -25,7 +25,6 @@ export const UIEventType = {
     Scroll: 'scroll',
     Select: 'select',
     Deselect: 'deselect',
-    StateChanged: 'state_changed',
 } as const;
 
 /**
@@ -36,7 +35,7 @@ export const UIEventType = {
 export type UIEventType = typeof UIEventType[keyof typeof UIEventType];
 
 export interface UIEvent<TData = unknown> {
-    /** Event type string (e.g. `'click'`, `'state_changed'`). */
+    /** Event type string (e.g. `'click'`, `'change'`). */
     readonly type: string;
     /** The entity where the event originated. */
     readonly target: Entity;

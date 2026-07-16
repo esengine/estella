@@ -4,12 +4,11 @@
  * @file    ui/controller/gear-apply.ts
  * @brief   The systems that turn controller pages into applied field values.
  *
- * Two systems, both modelled on the proven StateVisualsApplySystem shape:
+ * Two systems:
  *
  *   • InteractionControllerDriverSystem — writes the `$interaction` controller's
- *     `current` page from pointer state (reusing `driverStateFor`), so a button
- *     built from UIController + gears reproduces normal/hover/pressed/disabled
- *     with no bespoke StateMachine.
+ *     `current` page from pointer state (via `driverStateFor`), so a button
+ *     built from UIController + gears gets normal/hover/pressed/disabled for free.
  *   • GearApplySystem — for every UIGear binding, resolves its controller's page,
  *     looks up the page's value, and writes it to the target field, snapping or
  *     tweening. It runs in edit mode too (not play-gated): setting a controller's
@@ -24,7 +23,6 @@ import { Res, Time, type TimeData } from '../../resource';
 import { applyEasing } from '../../animation/Easing';
 import { EntityStateMap } from '../util/helpers';
 import { Interactable, UIInteraction, type InteractableData, type UIInteractionData } from '../input/interactable';
-import { driverStateFor } from '../behavior/systems';
 import type { Entity } from '../../types';
 import type { World } from '../../world';
 import {
@@ -110,18 +108,41 @@ export function lerpGearValue(from: unknown, to: unknown, t: number): unknown {
 // ─── Systems ────────────────────────────────────────────────────────────────
 
 /**
- * Writes the `$interaction` controller's page from Interactable + UIInteraction,
- * reusing the same pure derivation the legacy StateMachine driver uses. Only
- * touches entities that actually declare a `$interaction` controller, and only
+ * Pages the `$interaction` driver owns. If the controller's `current` holds any
+ * other value, user code set it (e.g. "loading" via {@link setButtonState}) and
+ * the driver must not steal it back.
+ */
+const DRIVER_OWNED_PAGES: ReadonlySet<string> = new Set([
+    '', 'normal', 'hover', 'pressed', 'disabled',
+]);
+
+/**
+ * Pure derivation: choose the interaction page a hit-test pass implies.
+ * Extracted so unit tests can cover the branching without a World.
+ */
+export function driverStateFor(
+    enabled: boolean,
+    interaction: UIInteractionData | null,
+): string {
+    if (!enabled) return 'disabled';
+    if (interaction?.pressed) return 'pressed';
+    if (interaction?.hovered) return 'hover';
+    return 'normal';
+}
+
+/**
+ * Writes the `$interaction` controller's page from Interactable + UIInteraction.
+ * Only touches entities that actually declare a `$interaction` controller, only
  * to a page the controller lists — so a controller with a custom page set (say
- * no "disabled") is never forced into a page it doesn't have.
+ * no "disabled") is never forced into a page it doesn't have — and never while
+ * `current` holds a user-managed page outside {@link DRIVER_OWNED_PAGES}.
  */
 export function createInteractionControllerDriverSystem(world: World): SystemDef {
     return defineSystem([], () => {
         for (const e of world.getEntitiesWithComponents([Interactable, UIController])) {
             const data = world.get(e, UIController) as UIControllerData;
             const ctrl = data.controllers.find(c => c.name === INTERACTION_CONTROLLER);
-            if (!ctrl) continue;
+            if (!ctrl || !DRIVER_OWNED_PAGES.has(ctrl.current)) continue;
 
             const inter = world.has(e, UIInteraction)
                 ? (world.get(e, UIInteraction) as UIInteractionData)
@@ -151,8 +172,7 @@ interface BindingTx {
  * Applies every UIGear binding from its controller's current page. Snaps when the
  * binding has no tween (or the value can't interpolate); otherwise eases from the
  * field's value at page-change time over `tween.duration`. Idle bindings settle
- * (stop writing) until their page changes, matching StateVisuals' write-once
- * behaviour so a static UI costs nothing per frame.
+ * (stop writing) until their page changes, so a static UI costs nothing per frame.
  */
 export function createGearApplySystem(world: World): SystemDef {
     const tracker = new EntityStateMap<Array<BindingTx | null>>();

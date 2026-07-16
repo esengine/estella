@@ -10,7 +10,6 @@ import type { Entity, Vec2, Vec3, Vec4, Quat } from './types';
 export interface UVec2 { x: number; y: number; }
 export interface Padding { left: number; top: number; right: number; bottom: number; }
 export interface Dimension { value: number; unit: number; }
-export interface VisualState { name: string; r: number; g: number; b: number; a: number; sprite: number; scale: number; }
 export type Mat4 = number[];
 
 // Emscripten Vector Types
@@ -403,18 +402,6 @@ export interface Sprite {
     enabled: boolean;
 }
 
-export interface StateMachine {
-    current: string;
-    previous: string;
-}
-
-export interface StateVisuals {
-    targetGraphic: number;
-    transitionFlags: number;
-    fadeDuration: number;
-    states: VisualState[];
-}
-
 export interface TilemapLayer {
     cellSize: Vec2;
     originOffset: Vec2;
@@ -589,14 +576,6 @@ export interface Registry {
     getSprite(entity: Entity): Sprite;
     addSprite(entity: Entity, component: Sprite): void;
     removeSprite(entity: Entity): void;
-    hasStateMachine(entity: Entity): boolean;
-    getStateMachine(entity: Entity): StateMachine;
-    addStateMachine(entity: Entity, component: StateMachine): void;
-    removeStateMachine(entity: Entity): void;
-    hasStateVisuals(entity: Entity): boolean;
-    getStateVisuals(entity: Entity): StateVisuals;
-    addStateVisuals(entity: Entity, component: StateVisuals): void;
-    removeStateVisuals(entity: Entity): void;
     hasTilemapLayer(entity: Entity): boolean;
     getTilemapLayer(entity: Entity): TilemapLayer;
     addTilemapLayer(entity: Entity, component: TilemapLayer): void;
@@ -662,8 +641,6 @@ export interface ESEngineModule {
     ShapeRenderer: new () => ShapeRenderer;
     SpineAnimation: new () => SpineAnimation;
     Sprite: new () => Sprite;
-    StateMachine: new () => StateMachine;
-    StateVisuals: new () => StateVisuals;
     TilemapLayer: new () => TilemapLayer;
     TrailRenderer: new () => TrailRenderer;
     Transform: new () => Transform;

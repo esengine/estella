@@ -3,8 +3,8 @@
 /**
  * @file    ui-controller-gear.test.ts
  * @brief   UIController + UIGear: page resolution (self/ancestor), gear snap &
- *          tween, sparse pages, and the $interaction driver reproducing the
- *          StateVisuals normal/hover/pressed states through the unified layer.
+ *          tween, sparse pages, and the $interaction driver producing the
+ *          normal/hover/pressed/disabled states through the unified layer.
  */
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { Transform, Parent, type TransformData } from '../src/component';
@@ -258,11 +258,21 @@ describe('GearApplySystem — tween', () => {
         runSystem(sys, 1.0); // past the end → clamp
         expect((world.get(e, UIVisual) as UIVisualData).color).toEqual({ r: 1, g: 1, b: 1, a: 1 });
     });
+
+    it('restarts a tween from the live value when the page changes mid-transition', () => {
+        const sys = createGearApplySystem(world as never);
+        runSystem(sys, 0);
+        runSystem(sys, 0.5); // halfway toward 'on': r ≈ 0.5
+        setControllerPage(world as never, e, 'c', 'off');
+        runSystem(sys, 0);   // reseed toward 'off' — from the mid-fade value, not from 'on'
+        runSystem(sys, 0.5); // halfway back: 0.5 → 0 at t=0.5 → r ≈ 0.25
+        expect((world.get(e, UIVisual) as UIVisualData).color.r).toBeCloseTo(0.25, 2);
+    });
 });
 
 // ─── $interaction driver parity ─────────────────────────────────────────────
 
-describe('InteractionControllerDriverSystem — StateVisuals parity through gears', () => {
+describe('InteractionControllerDriverSystem — button states through gears', () => {
     let world: MockWorld;
     let e: Entity;
     beforeEach(() => {
@@ -309,5 +319,22 @@ describe('InteractionControllerDriverSystem — StateVisuals parity through gear
         tick(driver, apply);
         expect(getControllerPage(world as never, e, '$interaction')).toBe('disabled');
         expect((world.get(e, UIVisual) as UIVisualData).color).toEqual({ r: 0.3, g: 0.3, b: 0.3, a: 1 });
+    });
+
+    it('leaves a user-managed custom page alone (e.g. "loading")', () => {
+        const driver = createInteractionControllerDriverSystem(world as never);
+        const data = world.get(e, UIController) as UIControllerData;
+        data.controllers[0]!.pages.push('loading');
+        data.controllers[0]!.current = 'loading';
+        world.insert(e, UIController, data);
+
+        world.insert(e, UIInteraction, { hovered: true, pressed: false, justPressed: false, justReleased: false });
+        runSystem(driver, 1 / 60);
+        expect(getControllerPage(world as never, e, '$interaction')).toBe('loading');
+
+        // Back on a driver-owned page, pointer state takes over again.
+        setControllerPage(world as never, e, '$interaction', 'normal');
+        runSystem(driver, 1 / 60);
+        expect(getControllerPage(world as never, e, '$interaction')).toBe('hover');
     });
 });
