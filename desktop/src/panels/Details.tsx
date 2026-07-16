@@ -967,15 +967,16 @@ function GearPopover({ anchor, onClose, entity, controller, component, property 
   );
 }
 
-function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp: string; field: InspectorField; write?: FieldWrite }) {
-  const mixed = field.mixed === true;
-  const { apply, begin, end } = fieldWriter(entities, comp, field, write);
-
-  // Gear dot: only for a single authored entity that resolves the active
-  // controller. Clicking an unbound dot binds the field (seeding the current page
-  // with its value); clicking a bound dot opens the gear popover (transition
-  // tween + unbind) instead of destructively toggling. While recording, bound
-  // dots go red — the affordance for "edits here land in the current page".
+/**
+ * Gear dot for one (component, field) — only for a single authored entity that
+ * resolves the active controller. Clicking an unbound dot binds the field
+ * (seeding the current page with its value); clicking a bound dot opens the gear
+ * popover (transition tween + unbind) instead of destructively toggling. While
+ * recording, bound dots go red — "edits here land in the current page". Returns
+ * the rendered dot (+ popover) or null, so both FieldRow and the component
+ * header's promoted enable-checkbox share one implementation.
+ */
+function useGearDot(entities: EntityId[], comp: string, key: string, write?: FieldWrite): ReactNode {
   const activeController = useControllerStore((s) => s.activeController);
   const recording = useControllerStore((s) => s.recording);
   const gearPop = usePopover();
@@ -984,22 +985,54 @@ function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp
     ? controllerCurrentPage(gearEntity, activeController)
     : null;
   const gearable = gearPage != null && activeController != null;
-  const geared = gearable && isGeared(gearEntity, activeController, comp, field.key);
+  const geared = gearable && isGeared(gearEntity, activeController, comp, key);
+  if (!gearable || activeController == null || gearPage == null) return null;
+
   const onGearClick = (e: ReactMouseEvent<HTMLButtonElement>) => {
-    if (!gearable || activeController == null || gearPage == null) return;
+    e.stopPropagation();
     if (geared) {
       gearPop.open(e.currentTarget);
     } else {
-      const value = readModelField(gearEntity, comp, field.key);
+      const value = readModelField(gearEntity, comp, key);
       if (value === undefined) return;
       SceneCommands.addGearBinding(gearEntity, {
         controller: activeController,
         component: comp,
-        property: field.key,
+        property: key,
         pages: { [gearPage]: value as GearValue },
       });
     }
   };
+
+  return (
+    <>
+      <button
+        type="button"
+        className={`prop-gear${geared ? ' on' : ''}${geared && recording ? ' rec' : ''}`}
+        tabIndex={-1}
+        title={geared ? t('ctrl.gearSettings') : t('ctrl.gearBind')}
+        onClick={onGearClick}
+      >
+        <Cog size={11} strokeWidth={2} />
+      </button>
+      {gearPop.anchor && (
+        <GearPopover
+          anchor={gearPop.anchor}
+          onClose={gearPop.close}
+          entity={gearEntity}
+          controller={activeController}
+          component={comp}
+          property={key}
+        />
+      )}
+    </>
+  );
+}
+
+function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp: string; field: InspectorField; write?: FieldWrite }) {
+  const mixed = field.mixed === true;
+  const { apply, begin, end } = fieldWriter(entities, comp, field, write);
+  const gearDot = useGearDot(entities, comp, field.key, write);
 
   // Plain numbers + angles scrub from the label; vectors from their axis tabs; a
   // slider owns its own drag so its label stays inert.
@@ -1170,27 +1203,7 @@ function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp
       </span>
       <div className="prop-value">
         {control}
-        {gearable && (
-          <button
-            type="button"
-            className={`prop-gear${geared ? ' on' : ''}${geared && recording ? ' rec' : ''}`}
-            tabIndex={-1}
-            title={geared ? t('ctrl.gearSettings') : t('ctrl.gearBind')}
-            onClick={onGearClick}
-          >
-            <Cog size={11} strokeWidth={2} />
-          </button>
-        )}
-        {gearPop.anchor && activeController != null && (
-          <GearPopover
-            anchor={gearPop.anchor}
-            onClose={gearPop.close}
-            entity={gearEntity}
-            controller={activeController}
-            component={comp}
-            property={field.key}
-          />
-        )}
+        {gearDot}
       </div>
       <button
         type="button"
@@ -1657,6 +1670,9 @@ function ComponentSection({
   }
   const row = (f: InspectorField) => <FieldRow key={f.key} entities={entities} comp={comp.name} field={f} write={write} />;
   const enable = comp.enable;
+  // The promoted enable field is hidden from the body, so it gets its gear dot
+  // here — page-driven show/hide is the most common boolean gear.
+  const enableGear = useGearDot(entities, comp.name, enable?.key ?? 'enabled', write);
   const on = !enable || enable.value;
   // The header checkbox toggles the component's enable field across the whole
   // selection (one undo step), or is a static "always on" for components that
@@ -1688,6 +1704,7 @@ function ComponentSection({
         >
           {on && <Check size={9} strokeWidth={3.2} />}
         </span>
+        {enable && enableGear}
         <span className="comp-icon">
           <Icon size={13} strokeWidth={1.9} />
         </span>

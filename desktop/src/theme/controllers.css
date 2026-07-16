@@ -64,6 +64,9 @@
 .prop-gear.on { opacity: 1; color: var(--acc); }
 /* Recording: bound dots go red — edits to these fields land in the current page. */
 .prop-gear.rec { color: #ff5a5a; }
+/* The component header's dot (gears the promoted enable field). */
+.comp-head .prop-gear { margin-right: 2px; }
+.comp-head:hover .prop-gear { opacity: 0.7; }
 
 /* Gear settings popover (transition tween + unbind), opened from a bound dot. */
 .gear-pop { display: flex; flex-direction: column; gap: 6px; padding: 8px; }
