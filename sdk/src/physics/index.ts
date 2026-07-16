@@ -72,6 +72,17 @@ export {
 } from './PhysicsDebugDraw';
 
 export {
+    readColliderShapes,
+    shapeOffset,
+    shapeCenter,
+    colliderShapeOutline,
+    CAPSULE_ARC_SEGMENTS,
+    type ColliderShape,
+    type ColliderInstance,
+    type ColliderOutline,
+} from './ColliderShape';
+
+export {
     CharacterController,
     moveAndSlide,
     registerCharacterControllerSystem,

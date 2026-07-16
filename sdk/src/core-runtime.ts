@@ -158,6 +158,17 @@ export {
     type CharacterControllerData,
 } from './physics/CharacterController';
 
+export {
+    readColliderShapes,
+    shapeOffset,
+    shapeCenter,
+    colliderShapeOutline,
+    CAPSULE_ARC_SEGMENTS,
+    type ColliderShape,
+    type ColliderInstance,
+    type ColliderOutline,
+} from './physics/ColliderShape';
+
 // =============================================================================
 // Resources
 // =============================================================================

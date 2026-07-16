@@ -4,19 +4,14 @@ import type { App } from '../app';
 import type { Color } from '../types';
 import type { TransformData, CanvasData } from '../component';
 import type { ResourceDef } from '../resource';
-import type {
-    RigidBodyData, BoxColliderData, CircleColliderData, CapsuleColliderData,
-    SegmentColliderData, PolygonColliderData, ChainColliderData,
-} from './PhysicsComponents';
+import type { RigidBodyData } from './PhysicsComponents';
 import type { PhysicsEventsData } from './PhysicsPlugin';
 import { Transform, Canvas } from '../component';
 import { Draw } from '../draw';
 import { defineResource } from '../resource';
 import { registerDrawCallback } from '../customDraw';
-import {
-    RigidBody, BoxCollider, CircleCollider, CapsuleCollider,
-    SegmentCollider, PolygonCollider, ChainCollider, BodyType,
-} from './PhysicsComponents';
+import { RigidBody, BodyType } from './PhysicsComponents';
+import { readColliderShapes, shapeCenter, colliderShapeOutline } from './ColliderShape';
 
 export interface PhysicsDebugDrawConfig {
     enabled: boolean;
@@ -46,7 +41,6 @@ const DEBUG_LINE_THICKNESS = 1.5;
 const CONTACT_POINT_RADIUS = 3;
 const VELOCITY_SCALE = 0.5;
 const CIRCLE_SEGMENTS = 32;
-const CAPSULE_ARC_SEGMENTS = 16;
 
 function quatToAngleZ(q: { w: number; x: number; y: number; z: number }): number {
     return Math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z));
@@ -70,78 +64,6 @@ function readPixelsPerUnit(app: App): number {
         }
     }
     return 100;
-}
-
-function drawRotatedBox(
-    cx: number, cy: number,
-    halfW: number, halfH: number,
-    angle: number, color: Color,
-): void {
-    const cos = Math.cos(angle);
-    const sin = Math.sin(angle);
-    const corners = [
-        { x: -halfW, y: -halfH },
-        { x:  halfW, y: -halfH },
-        { x:  halfW, y:  halfH },
-        { x: -halfW, y:  halfH },
-    ];
-    const pts = corners.map(c => ({
-        x: cx + c.x * cos - c.y * sin,
-        y: cy + c.x * sin + c.y * cos,
-    }));
-    for (let i = 0; i < 4; i++) {
-        Draw.line(pts[i], pts[(i + 1) % 4], color, DEBUG_LINE_THICKNESS);
-    }
-}
-
-function drawCapsule(
-    cx: number, cy: number,
-    radius: number, halfHeight: number,
-    angle: number, color: Color,
-): void {
-    const cos = Math.cos(angle);
-    const sin = Math.sin(angle);
-
-    const toWorld = (lx: number, ly: number) => ({
-        x: cx + lx * cos - ly * sin,
-        y: cy + lx * sin + ly * cos,
-    });
-
-    const topLeft = toWorld(-radius, halfHeight);
-    const topRight = toWorld(radius, halfHeight);
-    const bottomLeft = toWorld(-radius, -halfHeight);
-    const bottomRight = toWorld(radius, -halfHeight);
-
-    Draw.line(topLeft, bottomLeft, color, DEBUG_LINE_THICKNESS);
-    Draw.line(topRight, bottomRight, color, DEBUG_LINE_THICKNESS);
-
-    for (let i = 0; i < CAPSULE_ARC_SEGMENTS; i++) {
-        const a0 = (i / CAPSULE_ARC_SEGMENTS) * Math.PI;
-        const a1 = ((i + 1) / CAPSULE_ARC_SEGMENTS) * Math.PI;
-        const p0 = toWorld(
-            -radius * Math.cos(a0),
-            halfHeight + radius * Math.sin(a0),
-        );
-        const p1 = toWorld(
-            -radius * Math.cos(a1),
-            halfHeight + radius * Math.sin(a1),
-        );
-        Draw.line(p0, p1, color, DEBUG_LINE_THICKNESS);
-    }
-
-    for (let i = 0; i < CAPSULE_ARC_SEGMENTS; i++) {
-        const a0 = Math.PI + (i / CAPSULE_ARC_SEGMENTS) * Math.PI;
-        const a1 = Math.PI + ((i + 1) / CAPSULE_ARC_SEGMENTS) * Math.PI;
-        const p0 = toWorld(
-            -radius * Math.cos(a0),
-            -halfHeight + radius * Math.sin(a0),
-        );
-        const p1 = toWorld(
-            -radius * Math.cos(a1),
-            -halfHeight + radius * Math.sin(a1),
-        );
-        Draw.line(p0, p1, color, DEBUG_LINE_THICKNESS);
-    }
 }
 
 function drawVelocityArrow(
@@ -195,92 +117,20 @@ export function drawPhysicsDebug(
         const angle = quatToAngleZ(wt.worldRotation);
 
         if (config.showColliders) {
-            if (app.world.has(entity, BoxCollider)) {
-                const box = app.world.get(entity, BoxCollider) as BoxColliderData;
-                const baseColor = box.isSensor ? SENSOR_COLOR : bodyTypeColor(rb.bodyType);
-                const offsetX = box.offset.x * ppu;
-                const offsetY = box.offset.y * ppu;
-                const cosA = Math.cos(angle);
-                const sinA = Math.sin(angle);
-                const cx = wx + offsetX * cosA - offsetY * sinA;
-                const cy = wy + offsetX * sinA + offsetY * cosA;
-                drawRotatedBox(cx, cy, box.halfExtents.x * ppu, box.halfExtents.y * ppu, angle, baseColor);
-            }
-
-            if (app.world.has(entity, CircleCollider)) {
-                const circle = app.world.get(entity, CircleCollider) as CircleColliderData;
-                const baseColor = circle.isSensor ? SENSOR_COLOR : bodyTypeColor(rb.bodyType);
-                const offsetX = circle.offset.x * ppu;
-                const offsetY = circle.offset.y * ppu;
-                const cosA = Math.cos(angle);
-                const sinA = Math.sin(angle);
-                const cx = wx + offsetX * cosA - offsetY * sinA;
-                const cy = wy + offsetX * sinA + offsetY * cosA;
-                Draw.circleOutline(
-                    { x: cx, y: cy },
-                    circle.radius * ppu,
-                    baseColor,
-                    DEBUG_LINE_THICKNESS,
-                    CIRCLE_SEGMENTS,
-                );
-            }
-
-            if (app.world.has(entity, CapsuleCollider)) {
-                const capsule = app.world.get(entity, CapsuleCollider) as CapsuleColliderData;
-                const baseColor = capsule.isSensor ? SENSOR_COLOR : bodyTypeColor(rb.bodyType);
-                const offsetX = capsule.offset.x * ppu;
-                const offsetY = capsule.offset.y * ppu;
-                const cosA = Math.cos(angle);
-                const sinA = Math.sin(angle);
-                const cx = wx + offsetX * cosA - offsetY * sinA;
-                const cy = wy + offsetX * sinA + offsetY * cosA;
-                drawCapsule(cx, cy, capsule.radius * ppu, capsule.halfHeight * ppu, angle, baseColor);
-            }
-
-            if (app.world.has(entity, SegmentCollider)) {
-                const seg = app.world.get(entity, SegmentCollider) as SegmentColliderData;
-                const baseColor = seg.isSensor ? SENSOR_COLOR : bodyTypeColor(rb.bodyType);
-                const cosA = Math.cos(angle);
-                const sinA = Math.sin(angle);
-                const p1x = wx + (seg.point1.x * ppu * cosA - seg.point1.y * ppu * sinA);
-                const p1y = wy + (seg.point1.x * ppu * sinA + seg.point1.y * ppu * cosA);
-                const p2x = wx + (seg.point2.x * ppu * cosA - seg.point2.y * ppu * sinA);
-                const p2y = wy + (seg.point2.x * ppu * sinA + seg.point2.y * ppu * cosA);
-                Draw.line({ x: p1x, y: p1y }, { x: p2x, y: p2y }, baseColor, DEBUG_LINE_THICKNESS);
-            }
-
-            if (app.world.has(entity, PolygonCollider)) {
-                const poly = app.world.get(entity, PolygonCollider) as PolygonColliderData;
-                const baseColor = poly.isSensor ? SENSOR_COLOR : bodyTypeColor(rb.bodyType);
-                const cosA = Math.cos(angle);
-                const sinA = Math.sin(angle);
-                const verts = poly.vertices;
-                for (let vi = 0; vi < verts.length; vi++) {
-                    const v0 = verts[vi];
-                    const v1 = verts[(vi + 1) % verts.length];
-                    const x0 = wx + (v0.x * ppu * cosA - v0.y * ppu * sinA);
-                    const y0 = wy + (v0.x * ppu * sinA + v0.y * ppu * cosA);
-                    const x1 = wx + (v1.x * ppu * cosA - v1.y * ppu * sinA);
-                    const y1 = wy + (v1.x * ppu * sinA + v1.y * ppu * cosA);
-                    Draw.line({ x: x0, y: y0 }, { x: x1, y: y1 }, baseColor, DEBUG_LINE_THICKNESS);
+            // One projection for every shape: read the collider(s), take the offset+rotation
+            // centre, and stroke the world-space outline. Same geometry the per-type branches
+            // produced, now shared with the editor gizmo (see ColliderShape).
+            for (const { shape, isSensor } of readColliderShapes(app.world, entity)) {
+                const color = isSensor ? SENSOR_COLOR : bodyTypeColor(rb.bodyType);
+                const center = shapeCenter(shape, { x: wx, y: wy }, angle, ppu);
+                const outline = colliderShapeOutline(shape, center, angle, ppu);
+                for (const pl of outline.polylines) {
+                    for (let i = 0; i + 1 < pl.length; i++) {
+                        Draw.line(pl[i], pl[i + 1], color, DEBUG_LINE_THICKNESS);
+                    }
                 }
-            }
-
-            if (app.world.has(entity, ChainCollider)) {
-                const chain = app.world.get(entity, ChainCollider) as ChainColliderData;
-                const baseColor = bodyTypeColor(rb.bodyType);
-                const cosA = Math.cos(angle);
-                const sinA = Math.sin(angle);
-                const pts = chain.points;
-                const end = chain.isLoop ? pts.length : pts.length - 1;
-                for (let pi = 0; pi < end; pi++) {
-                    const p0 = pts[pi];
-                    const p1 = pts[(pi + 1) % pts.length];
-                    const x0 = wx + (p0.x * ppu * cosA - p0.y * ppu * sinA);
-                    const y0 = wy + (p0.x * ppu * sinA + p0.y * ppu * cosA);
-                    const x1 = wx + (p1.x * ppu * cosA - p1.y * ppu * sinA);
-                    const y1 = wy + (p1.x * ppu * sinA + p1.y * ppu * cosA);
-                    Draw.line({ x: x0, y: y0 }, { x: x1, y: y1 }, baseColor, DEBUG_LINE_THICKNESS);
+                for (const circ of outline.circles) {
+                    Draw.circleOutline(circ.c, circ.r, color, DEBUG_LINE_THICKNESS, CIRCLE_SEGMENTS);
                 }
             }
         }
