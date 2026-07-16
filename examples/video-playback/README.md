@@ -41,9 +41,13 @@ handle.onEnded = () => console.log('finished');
 // once handle.isReady, sample handle.textureHandle from any Sprite/material.
 ```
 
-## Status
+## Platforms
 
-This is the **M0** milestone: the runtime playback path (web / desktop). It is
-verified on both WebGL2 and WebGPU (`desktop/scripts/headless-verify.mjs` →
-`verify:render:video`). The editor asset-slot picker, `.mp4` import, and the
-WeChat backend land in the following milestones.
+Web / desktop decode through the platform `<video>` element (hardware,
+zero-copy on WebGL2); WeChat MiniGame decodes through the engine's own wasm
+MPEG-1 decoder — the export cook transcodes the clip to `.esv` and demuxes its
+audio track automatically, so the same scene ships everywhere unchanged. Both
+paths are pixel-verified headless (`verify:render:video[:ui]`).
+
+For many surfaces sharing ONE stream (e.g. a puzzle of live tiles), see the
+**video-puzzle** example.

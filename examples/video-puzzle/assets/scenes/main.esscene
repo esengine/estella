@@ -1,0 +1,48 @@
+{
+  "version": "1.0",
+  "name": "Main",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 10 } } },
+        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 240, "isActive": true, "priority": 0 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "Preview",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 232, "y": 156, "z": 0 } } },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": { "x": 128, "y": 96 },
+            "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+            "layer": 1
+          }
+        },
+        {
+          "type": "Video",
+          "data": {
+            "source": "assets/video/clip.mp4",
+            "autoplay": true,
+            "loop": true,
+            "muted": true,
+            "volume": 1,
+            "playbackRate": 1,
+            "fitSize": false,
+            "enabled": true
+          }
+        }
+      ],
+      "visible": true
+    }
+  ]
+}

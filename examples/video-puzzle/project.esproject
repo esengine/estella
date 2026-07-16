@@ -1,8 +1,8 @@
 {
   "formatVersion": "1",
-  "name": "Video Playback",
-  "description": "Play a video on a Sprite via the Video component.",
-  "tag": "Rendering",
+  "name": "Video Puzzle",
+  "description": "A sliding-tile puzzle whose tiles are live regions of ONE playing video.",
+  "tag": "Gameplay",
   "version": "0.1.0",
   "defaultScene": "assets/scenes/main.esscene",
   "designResolution": {

@@ -46,11 +46,16 @@ function setupTypeLinks(exampleDir, rootDir) {
 
     mkdirSync(esengineDir, { recursive: true });
 
-    if (!existsSync(sdkLink)) {
-        symlinkSync(sdkDist, sdkLink, 'dir');
-    }
+    // Always relink to the LIVE dist: the editor stages a real-directory type
+    // mirror at the same path when a project is opened, and a stale mirror
+    // would silently shadow current SDK types (checks would fail — or pass —
+    // against an old API). The mirror is a disposable cache; the editor
+    // re-stages it on the next open.
+    rmSync(sdkLink, { recursive: true, force: true });
+    symlinkSync(sdkDist, sdkLink, 'dir');
 
-    if (!existsSync(editorLink) && existsSync(editorDist)) {
+    if (existsSync(editorDist)) {
+        rmSync(editorLink, { recursive: true, force: true });
         symlinkSync(editorDist, editorLink, 'dir');
     }
 }

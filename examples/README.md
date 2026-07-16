@@ -29,6 +29,7 @@ for your own game.
 | **postprocess-effects** | Effects | Full-screen post-processing: bloom, vignette, color grading. |
 | **lighting-2d** | Rendering | Dynamic 2D lights and soft shadow casters over `Sprite.lit` surfaces. |
 | **effects-gallery** | Rendering | The built-in material effect templates — hit flash, outline, dissolve, pixelate, UV scroll — with params driven from code. |
+| **video-playback** | Rendering | Play a video on a Sprite with the declarative `Video` component — "a Sprite whose texture is alive". |
 | **tilemap-demo** | Tilemap | Two scenes: a Tiled `.tmj` import and an engine-native `.estileset` — multi-tileset, parallax, animated water, per-tile collision. |
 | **ui-controls** | UI | Buttons, sliders, toggles and progress bars. |
 | **ui-interaction** | UI | Dragging, focus and pointer interaction. |
@@ -37,6 +38,7 @@ for your own game.
 | **enemy-ai** | AI | A state machine drives enemies to patrol, sense the player, and chase via A* navigation. |
 | **multiplayer-arena** | Networking | Server-authoritative multiplayer with client prediction: each player steers a replicated pawn, own-pawn input applies instantly ('2 Players' in the Play dropdown runs listen server + client). |
 | **platformer** | Game | A tiny platformer — run, jump and collect coins. |
+| **video-puzzle** | Game | A tile-swap puzzle whose tiles are live regions of ONE playing video — texture-handle sharing + per-piece `uvOffset`/`uvScale`. |
 | **space-shooter** | Game | A vertical shmup with prefabs, a HUD and a difficulty ramp. |
 
 ## Art & assets
