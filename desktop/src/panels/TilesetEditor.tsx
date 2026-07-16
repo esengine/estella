@@ -24,6 +24,7 @@ import {
 } from 'esengine';
 import { Segmented } from '@/components/Segmented';
 import { Select } from '@/components/Select';
+import { usePanelWindow } from '@/components/PanelWindow';
 import { DirtyDot } from '@/components/DirtyDot';
 import { GridField } from '@/components/GridField';
 import { TilesetDocument } from '@/tileset/TilesetDocument';
@@ -53,6 +54,7 @@ function PolygonEditor(props: {
   tileId: number; cols: number; onClose: () => void;
 }) {
   const { asset, texUrl, natural, tileId, cols, onClose } = props;
+  const win = usePanelWindow();
   const { tileWidth: tw, tileHeight: th, margin: mg, spacing: sp } = asset;
   const col = (tileId - 1) % cols;
   const row = Math.floor((tileId - 1) / cols);
@@ -80,9 +82,9 @@ function PolygonEditor(props: {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+    win.addEventListener('keydown', onKey);
+    return () => win.removeEventListener('keydown', onKey);
+  }, [onClose, win]);
 
   return (
     <div className="ts-pe-backdrop" onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
