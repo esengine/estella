@@ -106,20 +106,22 @@ editor suggests **UI** mode, a `TilemapLayer` suggests **Tilemap**. Each mode re
 companion panels (UI Widgets, the Tilemap painter) and its viewport aids; clicking a mode
 pins it until your selection implies another.
 
-**UI mode — the design frame.** UI is authored against the Canvas' **design resolution** —
-a fixed reference size (e.g. `1920 × 1080` landscape or `750 × 1334` portrait). In UI mode
-the viewport draws that design frame and, on entry, **frames it** and dims everything
-outside, so it reads as the target screen. The editor is **WYSIWYG** with it: what you lay
-out inside the frame is exactly what ships at that resolution — edge-anchored UI sits at the
-frame's corners, and a portrait resolution lays out as a portrait screen.
+**The design frame + device preview.** A scene is authored against a **design resolution** —
+a fixed reference size (e.g. `1920 × 1080` landscape or `750 × 1334` portrait). This is a
+**project-level** value (Project Settings → Display), not a UI-layer one: the viewport's
+**Design** and **Device** controls work in **every** editor mode (Scene / UI / Tilemap), so
+you can preview a gameplay-only scene on a real device **without** a UI Canvas. When the
+scene has a Canvas, UI additionally lays out inside the frame per its scale mode.
 
-- **Design** dropdown (viewport toolbar) — picks the Canvas design resolution and reframes
-  to it (undoable; the authoritative value also lives on the Canvas in the Details panel).
-  This is the size your UI lays out against.
-- **Device** dropdown — *simulates* a target screen (iPhone / iPad / 1080p …): the UI
-  **relayouts to that device's aspect** (per the Canvas scale mode) inside letterbox bars and
-  safe-area insets, so you preview how it actually adapts. A preview only — it does **not**
-  change your design resolution.
+- **Design** dropdown (viewport toolbar) — sets the design resolution and reframes to it
+  (undoable). With a Canvas it edits that Canvas; otherwise it edits the project value.
+- **Device** dropdown — *simulates* a target screen (iPhone / iPad / 1080p …) in any mode:
+  draws the device's aspect as letterbox bars + safe-area insets over your scene, so you
+  preview how it fits. A preview only — it does **not** change your design resolution.
+- **Camera Fit** (Project Settings → Display) — how the **main camera** scales the design
+  resolution, independent of any UI Canvas. `None` (default) keeps the camera's own
+  orthoSize; any other mode letterboxes the game the same way on every device, and the
+  device preview then shows the **real** framing (WYSIWYG for gameplay, not just UI).
 
 ## Building a scene
 
@@ -225,9 +227,10 @@ Open settings with **Ctrl / ⌘ + ,** or the Activity Bar's gear. Settings are g
   snapping, gizmos), **Keyboard Shortcuts** (every shortcut below is rebindable
   here), and Console.
 - **Project** (saved into `project.esproject`):
-  - **Display** — the design resolution new Canvases seed from, and the project-wide
-    **screen orientation** (every export target honors it; unset ⇒ derived from the
-    design resolution's aspect).
+  - **Display** — the project design resolution (seeds new Canvases + drives the device
+    preview in any scene), the project-wide **screen orientation** (every export target
+    honors it; unset ⇒ derived from the design resolution's aspect), and the **camera fit**
+    (how the main camera scales the design resolution without a UI Canvas; `None` = off).
   - **Physics** — enable, gravity, sixteen collision-layer names and a 16×16 collision
     matrix, plus solver tuning (fixed timestep, sub-steps, contact Hz/damping/push
     speed, sleeping, continuous collision). See [Physics](/docs/guides/physics/).
