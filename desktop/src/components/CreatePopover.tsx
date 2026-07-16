@@ -16,6 +16,7 @@ import { ENTITY_SOURCES, userComponentSources, matchSources, CREATE_CATEGORY_ORD
 import { ProjectStore } from '@/project/ProjectStore';
 import { SearchField } from '@/components/SearchField';
 import { useDialogFocus } from '@/components/dialogFocus';
+import { usePanelWindow } from '@/components/PanelWindow';
 import { t } from '@/i18n';
 
 /** Group sources by category, ordered by CREATE_CATEGORY_ORDER — sources arrive in
@@ -44,6 +45,7 @@ export function CreatePopover({
   onPick: (s: EntitySource) => void;
   onClose: () => void;
 }) {
+  const win = usePanelWindow();
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -66,13 +68,13 @@ export function CreatePopover({
   useEffect(() => {
     const close = () => onClose();
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('mousedown', close);
-    window.addEventListener('keydown', onKey);
+    win.addEventListener('mousedown', close);
+    win.addEventListener('keydown', onKey);
     return () => {
-      window.removeEventListener('mousedown', close);
-      window.removeEventListener('keydown', onKey);
+      win.removeEventListener('mousedown', close);
+      win.removeEventListener('keydown', onKey);
     };
-  }, [onClose]);
+  }, [onClose, win]);
 
   const commit = (s: EntitySource) => {
     onClose();
@@ -136,6 +138,6 @@ export function CreatePopover({
         </div>
       </div>
     </div>,
-    document.body,
+    win.document.body,
   );
 }

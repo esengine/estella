@@ -13,6 +13,7 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { usePanelWindow } from '@/components/PanelWindow';
 
 // UE-style hover delay: long enough not to flicker while sweeping over a grid.
 const OPEN_DELAY = 450;
@@ -26,6 +27,9 @@ function Tooltip({
   onDismiss: () => void;
   children: ReactNode;
 }) {
+  // Cast exposes the observer constructors (globals, not on the Window interface);
+  // using the panel's own window's observers keeps them correct across a popout.
+  const win = usePanelWindow() as Window & typeof globalThis;
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState(() => {
     const r = anchor.getBoundingClientRect();
@@ -42,43 +46,43 @@ function Tooltip({
       const r = el.getBoundingClientRect();
       const pad = 8;
       let left = a.right + 10;
-      if (left + r.width > window.innerWidth - pad) left = Math.max(pad, a.left - r.width - 10);
+      if (left + r.width > win.innerWidth - pad) left = Math.max(pad, a.left - r.width - 10);
       let top = a.top;
-      if (top + r.height > window.innerHeight - pad) top = Math.max(pad, window.innerHeight - r.height - pad);
+      if (top + r.height > win.innerHeight - pad) top = Math.max(pad, win.innerHeight - r.height - pad);
       setPos((p) => (p.left === left && p.top === top ? p : { left, top }));
     };
     place();
-    const ro = new ResizeObserver(place);
+    const ro = new win.ResizeObserver(place);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [anchor]);
+  }, [anchor, win]);
 
   // Dismiss the moment the anchor leaves the screen. The IntersectionObserver is
   // the load-bearing part: it reports the anchor non-intersecting when its panel
   // is detached on a dock tab switch or collapsed — cases a mouseleave never sees.
   useEffect(() => {
-    const io = new IntersectionObserver((entries) => {
+    const io = new win.IntersectionObserver((entries) => {
       if (entries.some((e) => !e.isIntersecting)) onDismiss();
     });
     io.observe(anchor);
-    window.addEventListener('scroll', onDismiss, true);
-    window.addEventListener('wheel', onDismiss, { passive: true });
-    window.addEventListener('resize', onDismiss);
-    window.addEventListener('blur', onDismiss);
+    win.addEventListener('scroll', onDismiss, true);
+    win.addEventListener('wheel', onDismiss, { passive: true });
+    win.addEventListener('resize', onDismiss);
+    win.addEventListener('blur', onDismiss);
     return () => {
       io.disconnect();
-      window.removeEventListener('scroll', onDismiss, true);
-      window.removeEventListener('wheel', onDismiss);
-      window.removeEventListener('resize', onDismiss);
-      window.removeEventListener('blur', onDismiss);
+      win.removeEventListener('scroll', onDismiss, true);
+      win.removeEventListener('wheel', onDismiss);
+      win.removeEventListener('resize', onDismiss);
+      win.removeEventListener('blur', onDismiss);
     };
-  }, [anchor, onDismiss]);
+  }, [anchor, onDismiss, win]);
 
   return createPortal(
     <div ref={ref} className="tooltip" role="tooltip" style={{ left: pos.left, top: pos.top }}>
       {children}
     </div>,
-    document.body,
+    win.document.body,
   );
 }
 

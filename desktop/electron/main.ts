@@ -70,6 +70,17 @@ protocol.registerSchemesAsPrivileged([
 // The app:// renderer origin (host is arbitrary; `local` keeps URLs readable).
 const APP_ORIGIN = 'app://local';
 
+// dockview pops a dock panel into its own window by opening `popout.html` on our
+// origin (http://localhost in dev, app://local when packaged). Match by pathname so
+// the window-open handler can tell a legit panel pop-out from an external link.
+const isPopoutUrl = (url: string): boolean => {
+  try {
+    return new URL(url).pathname.endsWith('/popout.html');
+  } catch {
+    return false;
+  }
+};
+
 // The engine's Emscripten/embind glue requires 'unsafe-eval' in the renderer
 // CSP (it JIT-compiles call bridges via new Function). That's a deliberate,
 // accepted trade-off for this local dev tool, so silence the dev-only warning.
@@ -359,8 +370,26 @@ function createWindow() {
     },
   });
 
-  // Open external links in the OS browser, never in-app.
   win.webContents.setWindowOpenHandler(({ url }) => {
+    // dockview "move panel to new window" opens a same-origin popout.html child. Allow
+    // it as a real OS window the user can drag to another monitor: only the panel's DOM
+    // is re-parented there — its React tree + editor state stay in this opener realm
+    // (same-origin window.open) — so the child needs no bridge, just a native frame.
+    if (isPopoutUrl(url)) {
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: {
+          width: 720,
+          height: 560,
+          minWidth: 320,
+          minHeight: 240,
+          backgroundColor: '#0E121B',
+          autoHideMenuBar: true,
+          title: 'Estella',
+        },
+      };
+    }
+    // Everything else is an external link → OS browser, never in-app.
     if (url.startsWith('http')) shell.openExternal(url);
     return { action: 'deny' };
   });

@@ -12,6 +12,7 @@
  */
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { usePanelWindow } from '@/components/PanelWindow';
 
 export function Popover({
   anchor,
@@ -30,20 +31,22 @@ export function Popover({
   /** Extra class on the `.popover` shell — e.g. a glass variant for overlays. */
   className?: string;
 }) {
+  const win = usePanelWindow();
+  const doc = win.document;
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number }>({ left: anchor.left, top: anchor.bottom + 2 });
   // Who had focus when the popover opened (usually the trigger) — keyboard focus
   // returns there on close, unless the dismissal itself focused another control.
-  const opener = useRef<HTMLElement | null>(document.activeElement as HTMLElement | null);
+  const opener = useRef<HTMLElement | null>(doc.activeElement as HTMLElement | null);
 
   useEffect(
     () => () => {
-      const cur = document.activeElement;
-      const stillOurs = cur == null || cur === document.body || (ref.current?.contains(cur) ?? false);
+      const cur = doc.activeElement;
+      const stillOurs = cur == null || cur === doc.body || (ref.current?.contains(cur) ?? false);
       const el = opener.current;
-      if (stillOurs && el && document.contains(el)) el.focus();
+      if (stillOurs && el && doc.contains(el)) el.focus();
     },
-    [],
+    [doc],
   );
 
   // Measure then clamp before paint so the first frame is already on-screen.
@@ -53,29 +56,29 @@ export function Popover({
     const r = el.getBoundingClientRect();
     const pad = 8;
     let left = anchor.left;
-    if (left + r.width > window.innerWidth - pad) left = Math.max(pad, window.innerWidth - r.width - pad);
+    if (left + r.width > win.innerWidth - pad) left = Math.max(pad, win.innerWidth - r.width - pad);
     let top = anchor.bottom + 2;
     // No room below → flip above the anchor.
-    if (top + r.height > window.innerHeight - pad) top = Math.max(pad, anchor.top - r.height - 2);
+    if (top + r.height > win.innerHeight - pad) top = Math.max(pad, anchor.top - r.height - 2);
     setPos({ left, top });
-  }, [anchor]);
+  }, [anchor, win]);
 
   useEffect(() => {
     const close = () => onClose();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
-    window.addEventListener('mousedown', close);
-    window.addEventListener('scroll', close, true);
-    window.addEventListener('resize', close);
-    window.addEventListener('keydown', onKey);
+    win.addEventListener('mousedown', close);
+    win.addEventListener('scroll', close, true);
+    win.addEventListener('resize', close);
+    win.addEventListener('keydown', onKey);
     return () => {
-      window.removeEventListener('mousedown', close);
-      window.removeEventListener('scroll', close, true);
-      window.removeEventListener('resize', close);
-      window.removeEventListener('keydown', onKey);
+      win.removeEventListener('mousedown', close);
+      win.removeEventListener('scroll', close, true);
+      win.removeEventListener('resize', close);
+      win.removeEventListener('keydown', onKey);
     };
-  }, [onClose]);
+  }, [onClose, win]);
 
   return createPortal(
     <div
@@ -86,7 +89,7 @@ export function Popover({
     >
       {children}
     </div>,
-    document.body,
+    doc.body,
   );
 }
 

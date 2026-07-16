@@ -20,6 +20,7 @@ export const layoutMessages = defineMessages({
 
     // — Dock chrome (tabs, collapse chevron) —
     'layout.closeTab': { en: 'Close {title}', zh: '关闭 {title}' },
+    'layout.popOut': { en: 'Move to new window', zh: '移动到新窗口' },
     'layout.collapsePanel': { en: 'Collapse panel', zh: '折叠面板' },
     'layout.expandPanel': { en: 'Expand panel', zh: '展开面板' },
 

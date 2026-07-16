@@ -113,21 +113,27 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.dockview-theme-estella .dv-estella-tab .tab-popout,
 .dockview-theme-estella .dv-estella-tab .tab-x {
   width: 16px;
   height: 16px;
   display: grid;
   place-items: center;
-  margin-right: -6px;
   border-radius: var(--r-xs);
   color: var(--text-faint);
   opacity: 0;
   transition: opacity var(--t-fast), color var(--t-fast), background var(--t-fast);
 }
+.dockview-theme-estella .dv-estella-tab .tab-x {
+  margin-right: -6px;
+}
+.dockview-theme-estella .dv-tab:hover .tab-popout,
+.dockview-theme-estella .dv-tab.dv-active-tab .tab-popout,
 .dockview-theme-estella .dv-tab:hover .tab-x,
 .dockview-theme-estella .dv-tab.dv-active-tab .tab-x {
   opacity: 1;
 }
+.dockview-theme-estella .dv-estella-tab .tab-popout:hover,
 .dockview-theme-estella .dv-estella-tab .tab-x:hover {
   color: var(--text);
   background: var(--srf-4);

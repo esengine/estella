@@ -28,11 +28,15 @@ export function useDialogFocus(ref: RefObject<HTMLElement | null>): void {
   useEffect(() => {
     const container = ref.current;
     if (!container) return;
-    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    // Resolve the container's own document/window — the popout window's when the
+    // dialog was summoned from a popped-out panel, not the main editor window's.
+    const doc = container.ownerDocument;
+    const win = doc.defaultView ?? window;
+    const opener = doc.activeElement instanceof HTMLElement ? doc.activeElement : null;
 
     // Seed focus inside — unless the shell already autofocused its own field
     // (command palettes / settings focus their search input on mount).
-    if (!container.contains(document.activeElement)) container.focus();
+    if (!container.contains(doc.activeElement)) container.focus();
 
     // Trap Tab: cycle within the container; recapture if focus escaped.
     const onKey = (e: KeyboardEvent) => {
@@ -45,7 +49,7 @@ export function useDialogFocus(ref: RefObject<HTMLElement | null>): void {
       }
       const first = items[0];
       const last = items[items.length - 1];
-      const active = document.activeElement;
+      const active = doc.activeElement;
       const inside = active instanceof HTMLElement && container.contains(active);
       if (e.shiftKey && (!inside || active === first)) {
         e.preventDefault();
@@ -55,9 +59,9 @@ export function useDialogFocus(ref: RefObject<HTMLElement | null>): void {
         first.focus();
       }
     };
-    window.addEventListener('keydown', onKey, true);
+    win.addEventListener('keydown', onKey, true);
     return () => {
-      window.removeEventListener('keydown', onKey, true);
+      win.removeEventListener('keydown', onKey, true);
       // Hand focus back to whoever opened the dialog (if still in the DOM).
       if (opener?.isConnected) opener.focus();
     };

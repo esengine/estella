@@ -11,6 +11,7 @@ import { X } from 'lucide-react';
 import { t } from '@/i18n';
 import { IconButton } from './IconButton';
 import { useDialogFocus } from './dialogFocus';
+import { usePanelWindow } from './PanelWindow';
 
 export function Modal({
   title,
@@ -25,6 +26,7 @@ export function Modal({
   footer?: ReactNode;
   width?: number;
 }) {
+  const win = usePanelWindow();
   const winRef = useRef<HTMLDivElement>(null);
   useDialogFocus(winRef);
 
@@ -32,9 +34,9 @@ export function Modal({
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+    win.addEventListener('keydown', onKey);
+    return () => win.removeEventListener('keydown', onKey);
+  }, [onClose, win]);
 
   return createPortal(
     <div className="modal-backdrop" onMouseDown={onClose}>
@@ -58,6 +60,6 @@ export function Modal({
         {footer && <div className="modal__foot">{footer}</div>}
       </div>
     </div>,
-    document.body,
+    win.document.body,
   );
 }

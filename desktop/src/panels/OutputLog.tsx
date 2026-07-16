@@ -12,6 +12,7 @@ import { createPortal } from 'react-dom';
 import { Trash2, ArrowDownToLine, Clock, ListFilter, Check } from 'lucide-react';
 import { LogStore, type LogLevel, type LogEntry } from '@/store/LogStore';
 import { ContextMenu, type MenuItem } from '@/components/Menu';
+import { usePanelWindow } from '@/components/PanelWindow';
 import { SearchField } from '@/components/SearchField';
 import { Toasts } from '@/store/Toasts';
 import { t } from '@/i18n';
@@ -60,6 +61,7 @@ function CategoryMenu({
   onHideAll: () => void;
   onClose: () => void;
 }) {
+  const win = usePanelWindow();
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState(anchor);
 
@@ -69,24 +71,24 @@ function CategoryMenu({
     const r = el.getBoundingClientRect();
     const pad = 8;
     const left =
-      anchor.left + r.width > window.innerWidth - pad
-        ? Math.max(pad, window.innerWidth - r.width - pad)
+      anchor.left + r.width > win.innerWidth - pad
+        ? Math.max(pad, win.innerWidth - r.width - pad)
         : anchor.left;
     setPos({ left, top: anchor.top });
-  }, [anchor]);
+  }, [anchor, win]);
 
   useEffect(() => {
     const close = () => onClose();
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('mousedown', close);
-    window.addEventListener('scroll', close, true);
-    window.addEventListener('keydown', onKey);
+    win.addEventListener('mousedown', close);
+    win.addEventListener('scroll', close, true);
+    win.addEventListener('keydown', onKey);
     return () => {
-      window.removeEventListener('mousedown', close);
-      window.removeEventListener('scroll', close, true);
-      window.removeEventListener('keydown', onKey);
+      win.removeEventListener('mousedown', close);
+      win.removeEventListener('scroll', close, true);
+      win.removeEventListener('keydown', onKey);
     };
-  }, [onClose]);
+  }, [onClose, win]);
 
   return createPortal(
     <div
@@ -114,7 +116,7 @@ function CategoryMenu({
         </button>
       ))}
     </div>,
-    document.body,
+    win.document.body,
   );
 }
 

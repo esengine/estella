@@ -4,11 +4,12 @@ import { useEffect, useState, useSyncExternalStore, type FC, type ReactNode } fr
 import {
   DockviewReact,
   type DockviewReadyEvent,
+  type DockviewPanelApi,
   type IDockviewPanelProps,
   type IDockviewPanelHeaderProps,
   type IDockviewHeaderActionsProps,
 } from 'dockview';
-import { ChevronDown, X } from 'lucide-react';
+import { ChevronDown, X, SquareArrowOutUpRight } from 'lucide-react';
 import { DirtyDot } from '@/components/DirtyDot';
 import { panelDirtySource } from '@/layout/panelDirty';
 import { Outliner } from '@/panels/Outliner';
@@ -29,38 +30,48 @@ import { BtTreeEditor } from '@/panels/BtTreeEditor';
 import { ProfilerPanel } from '@/panels/ProfilerPanel';
 import { Perf } from '@/components/Perf';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
-import { dockApi } from '@/layout/dockApi';
+import { PanelWindowProvider } from '@/components/PanelWindow';
+import { dockApi, applyPopoutTheme } from '@/layout/dockApi';
 import { t } from '@/i18n';
 
-const panel = (id: string, node: ReactNode) => (
-  <Perf id={id}>
-    <ErrorBoundary label={id}>{node}</ErrorBoundary>
-  </Perf>
+// Each dock panel is a thin wrapper so dockview owns mount/unmount. The
+// PanelWindowProvider hands the panel's live window down the tree so floating UI
+// (menus, popovers, tooltips) lands in the right OS window once it's popped out.
+const panel = (id: string, api: DockviewPanelApi, node: ReactNode) => (
+  <PanelWindowProvider api={api}>
+    <Perf id={id}>
+      <ErrorBoundary label={id}>{node}</ErrorBoundary>
+    </Perf>
+  </PanelWindowProvider>
 );
 
-// Each dock panel is a thin wrapper so dockview owns mount/unmount.
 const components: Record<string, FC<IDockviewPanelProps>> = {
-  outliner: () => panel('outliner', <Outliner />),
-  viewport: () => panel('viewport', <Viewport />),
-  details: () => panel('details', <Details />),
-  content: () => panel('content', <ContentBrowser />),
-  log: () => panel('log', <OutputLog />),
-  sequencer: () => panel('sequencer', <Sequencer />),
-  tileset: () => panel('tileset', <TilesetEditor />),
-  flipbook: () => panel('flipbook', <FlipbookEditor />),
-  audiomixer: () => panel('audiomixer', <AudioMixerPanel />),
-  tilemap: () => panel('tilemap', <TilemapPainter />),
-  uiWidgets: () => panel('uiWidgets', <UIWidgetsPanel />),
-  materialgraph: () => panel('materialgraph', <MaterialGraphEditor />),
-  statemachine: () => panel('statemachine', <StateMachineEditor />),
-  behaviortree: () => panel('behaviortree', <BtTreeEditor />),
-  profiler: () => <ErrorBoundary label="profiler"><ProfilerPanel /></ErrorBoundary>,
+  outliner: (p) => panel('outliner', p.api, <Outliner />),
+  viewport: (p) => panel('viewport', p.api, <Viewport />),
+  details: (p) => panel('details', p.api, <Details />),
+  content: (p) => panel('content', p.api, <ContentBrowser />),
+  log: (p) => panel('log', p.api, <OutputLog />),
+  sequencer: (p) => panel('sequencer', p.api, <Sequencer />),
+  tileset: (p) => panel('tileset', p.api, <TilesetEditor />),
+  flipbook: (p) => panel('flipbook', p.api, <FlipbookEditor />),
+  audiomixer: (p) => panel('audiomixer', p.api, <AudioMixerPanel />),
+  tilemap: (p) => panel('tilemap', p.api, <TilemapPainter />),
+  uiWidgets: (p) => panel('uiWidgets', p.api, <UIWidgetsPanel />),
+  materialgraph: (p) => panel('materialgraph', p.api, <MaterialGraphEditor />),
+  statemachine: (p) => panel('statemachine', p.api, <StateMachineEditor />),
+  behaviortree: (p) => panel('behaviortree', p.api, <BtTreeEditor />),
+  // Profiler skips the Perf wrapper (it must not profile its own render).
+  profiler: (p) => (
+    <PanelWindowProvider api={p.api}>
+      <ErrorBoundary label="profiler"><ProfilerPanel /></ErrorBoundary>
+    </PanelWindowProvider>
+  ),
   // The "Game" view (isolated play realm) — added on Play, removed on Stop.
-  game: () => panel('game', <GamePanel />),
+  game: (p) => panel('game', p.api, <GamePanel />),
   // Multiplayer client realms ("Game P2..N") — session-scoped, keyed by realmId.
   gameClient: (props) => {
     const realmId = Number((props.params as { realmId?: number } | undefined)?.realmId ?? 0);
-    return panel(`game-client-${realmId}`, <GameClientPanel realmId={realmId} />);
+    return panel(`game-client-${realmId}`, props.api, <GameClientPanel realmId={realmId} />);
   },
 };
 
@@ -169,14 +180,34 @@ function EstellaTab(props: IDockviewPanelHeaderProps) {
   const source = panelDirtySource(props.api.id);
   const dirty = useSyncExternalStore(source.subscribe, source.isDirty);
   const [title, setTitle] = useState(props.api.title ?? props.api.id);
+  // The pop-out affordance shows only for a poppable panel that's still in the main
+  // grid — once it's in its own window the way back is to close that window.
+  const [docked, setDocked] = useState(() => props.api.location.type === 'grid');
   useEffect(() => {
-    const d = props.api.onDidTitleChange((e) => setTitle(e.title));
-    return () => d.dispose();
+    const dt = props.api.onDidTitleChange((e) => setTitle(e.title));
+    const dl = props.api.onDidLocationChange(() => setDocked(props.api.location.type === 'grid'));
+    return () => { dt.dispose(); dl.dispose(); };
   }, [props.api]);
+  const poppable = docked && dockApi.canPopout(props.api.id);
   return (
     <div className="dv-estella-tab">
       <span className="tab-title">{title}</span>
       {dirty && <DirtyDot />}
+      {poppable && (
+        <button
+          type="button"
+          className="tab-popout"
+          title={t('layout.popOut')}
+          aria-label={t('layout.popOut')}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            dockApi.popout(props.api.id);
+          }}
+        >
+          <SquareArrowOutUpRight size={11} strokeWidth={2} />
+        </button>
+      )}
       <button
         type="button"
         className="tab-x"
@@ -199,7 +230,11 @@ function EstellaTab(props: IDockviewPanelHeaderProps) {
 // (the center stage isn't an accordion). State follows the live group height, so
 // it stays correct after splitter drags and layout restores.
 function CollapseHeaderAction(props: IDockviewHeaderActionsProps) {
-  const collapsible = !props.panels.some((p) => p.id === 'viewport' || p.id === 'game');
+  // Only grid groups collapse-to-header; a popped-out group owns its whole window,
+  // where a height accordion makes no sense (resize the OS window instead).
+  const collapsible =
+    props.api.location.type === 'grid' &&
+    !props.panels.some((p) => p.id === 'viewport' || p.id === 'game');
   const [collapsed, setCollapsed] = useState(() => dockApi.groupCollapsed(props.api));
   useEffect(() => {
     const d = props.api.onDidDimensionsChange(() => setCollapsed(dockApi.groupCollapsed(props.api)));
@@ -224,6 +259,15 @@ export function DockLayout() {
   const onReady = (event: DockviewReadyEvent) => {
     const { api } = event;
     dockApi.set(api); // expose to the activity bar (reveal/focus panels)
+
+    // Every popout group (a manual pop-out AND one dockview reopens while restoring a
+    // saved layout) is re-themed here: dockview copies only the first `dockview-theme-*`
+    // class into the child window, so re-add our estella override so the popped-out
+    // chrome matches the dock exactly. One hook covers both paths.
+    api.onDidAddGroup((group) => {
+      const loc = group.api.location;
+      if (loc.type === 'popout') applyPopoutTheme(loc.getWindow());
+    });
 
     const saved = localStorage.getItem(LAYOUT_KEY);
     if (saved) {

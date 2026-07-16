@@ -10,6 +10,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, ChevronRight } from 'lucide-react';
+import { usePanelWindow } from '@/components/PanelWindow';
 
 export type MenuItem =
   | { sep: true }
@@ -78,7 +79,9 @@ export function handleMenuListKey(e: React.KeyboardEvent, container: HTMLElement
   if (!container) return false;
   const items = ownMenuItems(container);
   if (items.length === 0) return false;
-  const idx = items.indexOf(document.activeElement as HTMLButtonElement);
+  // The focused item lives in the container's own document — which is the popout
+  // window's document when this menu was summoned there, not the main window's.
+  const idx = items.indexOf(container.ownerDocument.activeElement as HTMLButtonElement);
   const focusAt = (i: number) => items[((i % items.length) + items.length) % items.length].focus();
   if (e.key === 'ArrowDown') focusAt(idx + 1);
   else if (e.key === 'ArrowUp') focusAt(idx < 0 ? -1 : idx - 1);
@@ -99,11 +102,11 @@ export function handleMenuListKey(e: React.KeyboardEvent, container: HTMLElement
 /** Margin kept between any floating menu and the window edge. */
 const VIEWPORT_PAD = 8;
 
-/** Pull a measured floating rect fully inside the viewport on both axes. */
-function clampToViewport(left: number, top: number, width: number, height: number) {
+/** Pull a measured floating rect fully inside `win`'s viewport on both axes. */
+function clampToViewport(left: number, top: number, width: number, height: number, win: Window) {
   return {
-    left: Math.max(VIEWPORT_PAD, Math.min(left, window.innerWidth - width - VIEWPORT_PAD)),
-    top: Math.max(VIEWPORT_PAD, Math.min(top, window.innerHeight - height - VIEWPORT_PAD)),
+    left: Math.max(VIEWPORT_PAD, Math.min(left, win.innerWidth - width - VIEWPORT_PAD)),
+    top: Math.max(VIEWPORT_PAD, Math.min(top, win.innerHeight - height - VIEWPORT_PAD)),
   };
 }
 
@@ -125,22 +128,24 @@ export function ContextMenu({
   items: MenuItem[];
   onClose: () => void;
 }) {
+  const win = usePanelWindow();
+  const doc = win.document;
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ left: x, top: y });
   // Who had focus when the menu opened (captured at first render, before the
   // seed-focus effect steals it) — keyboard focus returns there on close.
-  const opener = useRef<HTMLElement | null>(document.activeElement as HTMLElement | null);
+  const opener = useRef<HTMLElement | null>(doc.activeElement as HTMLElement | null);
 
   // Restore focus to the opener — unless the dismissal itself moved focus
   // somewhere real (outside-press on another control must keep that focus).
   useEffect(
     () => () => {
-      const cur = document.activeElement;
-      const stillOurs = cur == null || cur === document.body || (ref.current?.contains(cur) ?? false);
+      const cur = doc.activeElement;
+      const stillOurs = cur == null || cur === doc.body || (ref.current?.contains(cur) ?? false);
       const el = opener.current;
-      if (stillOurs && el && document.contains(el)) el.focus();
+      if (stillOurs && el && doc.contains(el)) el.focus();
     },
-    [],
+    [doc],
   );
 
   // Measure the rendered menu and pull it back inside the viewport (runs before
@@ -149,8 +154,8 @@ export function ContextMenu({
     const el = ref.current;
     if (!el) return;
     const r = el.getBoundingClientRect();
-    setPos(clampToViewport(x, y, r.width, r.height));
-  }, [x, y]);
+    setPos(clampToViewport(x, y, r.width, r.height, win));
+  }, [x, y, win]);
 
   // Seed focus on the first item so arrow keys work immediately (a mouse-opened
   // menu shows no ring — :focus-visible only matches keyboard focus).
@@ -163,15 +168,15 @@ export function ContextMenu({
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
-    window.addEventListener('mousedown', close);
-    window.addEventListener('scroll', close, true);
-    window.addEventListener('keydown', onKey);
+    win.addEventListener('mousedown', close);
+    win.addEventListener('scroll', close, true);
+    win.addEventListener('keydown', onKey);
     return () => {
-      window.removeEventListener('mousedown', close);
-      window.removeEventListener('scroll', close, true);
-      window.removeEventListener('keydown', onKey);
+      win.removeEventListener('mousedown', close);
+      win.removeEventListener('scroll', close, true);
+      win.removeEventListener('keydown', onKey);
     };
-  }, [onClose]);
+  }, [onClose, win]);
 
   return createPortal(
     <div
@@ -184,7 +189,7 @@ export function ContextMenu({
     >
       <CtxItems items={items} onClose={onClose} />
     </div>,
-    document.body,
+    doc.body,
   );
 }
 
@@ -276,6 +281,7 @@ function CtxFlyout({
   /** ← pressed inside the flyout: close it and refocus the parent item. */
   onBack?: () => void;
 }) {
+  const win = usePanelWindow();
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ left: 0, top: 0 });
 
@@ -293,9 +299,9 @@ function CtxFlyout({
     // parent item into the flyout unbroken. -5px lines the first flyout item up
     // with the anchor row (menu padding + border).
     let left = a.right - 4;
-    if (left + r.width > window.innerWidth - VIEWPORT_PAD) left = a.left - r.width + 4;
-    setPos(clampToViewport(left, a.top - 5, r.width, r.height));
-  }, [anchor]);
+    if (left + r.width > win.innerWidth - VIEWPORT_PAD) left = a.left - r.width + 4;
+    setPos(clampToViewport(left, a.top - 5, r.width, r.height, win));
+  }, [anchor, win]);
 
   return (
     <div

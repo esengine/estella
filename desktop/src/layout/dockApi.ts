@@ -34,6 +34,29 @@ const prefersReducedMotion = (): boolean =>
   typeof window.matchMedia === 'function' &&
   window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+// Panels bound to the editor's single engine surface can't move to another OS
+// window: the Viewport owns the one WebGL canvas and the Game view hosts the play
+// iframe — a live GL context / iframe doesn't survive being re-parented across
+// documents. Everything else is model/store-driven and pops out cleanly.
+const NON_POPPABLE = new Set(['viewport', 'game']);
+
+// dockview's getDockviewTheme copies only the FIRST `dockview-theme-*` class onto
+// the popout container (our root carries `dockview-theme-abyss dockview-theme-estella`,
+// so only abyss makes it across). Re-add the estella override on the SAME element so
+// the compound `.dockview-theme-abyss.dockview-theme-estella` variable block and every
+// estella chrome selector match in the popped-out window — pixel-identical to the dock.
+// The container only gains its `dv-dockview` class after the child window's load event,
+// so poll a bounded number of that window's frames for it to appear.
+export function applyPopoutTheme(popoutWindow: Window): void {
+  let tries = 0;
+  const add = () => {
+    const el = popoutWindow.document.querySelector('.dv-dockview');
+    if (el) el.classList.add('dockview-theme-estella');
+    else if (tries++ < 60 && !popoutWindow.closed) popoutWindow.requestAnimationFrame(add);
+  };
+  add();
+}
+
 export const dockApi = {
   set(next: DockviewApi | null) {
     api = next;
@@ -41,6 +64,29 @@ export const dockApi = {
   /** Bring a docked panel to the front of its group (no-op if absent). */
   reveal(id: string) {
     api?.getPanel(id)?.api.setActive();
+  },
+  /** True when a panel may be popped out into its own OS window (see NON_POPPABLE). */
+  canPopout(id: string): boolean {
+    return !NON_POPPABLE.has(id) && !id.startsWith('game-client-');
+  },
+  /**
+   * Move a docked panel into its own OS window (dockview addPopoutGroup → a real
+   * child window on any monitor). Because the popout is a same-origin `window.open`,
+   * the panel's React tree and every editor store stay in THIS window's JS realm —
+   * only its DOM is re-parented — so a popped-out Inspector/Outliner shares live
+   * selection and edits with the main window with no cross-window messaging. dockview
+   * copies the stylesheets over; applyPopoutTheme re-adds our theme override class so
+   * the popped-out chrome matches exactly. Layout persistence carries popout groups,
+   * so a popped-out panel reopens where it was after a reload.
+   */
+  popout(id: string) {
+    if (!api || !this.canPopout(id)) return;
+    const panel = api.getPanel(id);
+    if (!panel) return;
+    void api.addPopoutGroup(panel, {
+      popoutUrl: '/popout.html',
+      onDidOpen: ({ window: popoutWindow }) => applyPopoutTheme(popoutWindow),
+    });
   },
   /**
    * Open (or front) a large editor as a document tab in the CENTER stage beside

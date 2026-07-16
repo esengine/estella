@@ -12,6 +12,7 @@ import { createPortal } from 'react-dom';
 import { ComponentIcon } from '@/components/icons';
 import { SearchField } from '@/components/SearchField';
 import { useDialogFocus } from '@/components/dialogFocus';
+import { usePanelWindow } from '@/components/PanelWindow';
 import { CATEGORY_ORDER } from '@/engine/schema';
 import { t } from '@/i18n';
 
@@ -51,6 +52,7 @@ export function AddComponentMenu({
   onAdd: (name: string) => void;
   onClose: () => void;
 }) {
+  const win = usePanelWindow();
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -72,13 +74,13 @@ export function AddComponentMenu({
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
-    window.addEventListener('mousedown', close);
-    window.addEventListener('keydown', onKey);
+    win.addEventListener('mousedown', close);
+    win.addEventListener('keydown', onKey);
     return () => {
-      window.removeEventListener('mousedown', close);
-      window.removeEventListener('keydown', onKey);
+      win.removeEventListener('mousedown', close);
+      win.removeEventListener('keydown', onKey);
     };
-  }, [onClose]);
+  }, [onClose, win]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -175,6 +177,6 @@ export function AddComponentMenu({
         </div>
       </div>
     </div>,
-    document.body,
+    win.document.body,
   );
 }
