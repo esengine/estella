@@ -8,13 +8,15 @@ import { Aside } from '@astrojs/starlight/components';
 The widget factories build common controls out of the [UI](/docs/guides/ui/) component
 model (`UINode` + `Interactable` + a `$interaction`
 [controller with gears](/docs/guides/ui-controllers/)), so you don't wire
-each one by hand. Each factory takes an options object and returns either the created
-entity (Button) or a **handle** with imperative methods to read and drive it.
+each one by hand. Each factory takes an options object and returns a **handle** —
+always with `entity` and `dispose()`, plus imperative methods to read and drive it.
 
 Interactive widgets need the world and the UI event queue — `world` from `GetWorld()`
 and `events` from `Res(UIEvents)`, exactly as in the [UI guide](/docs/guides/ui/). They
 all accept `parent?`, a `node?` ([`UINode`](/docs/guides/ui/#uinode--the-layout-box)
-layout), and visual overrides.
+layout), and visual overrides. Interactive widgets are **keyboard-reachable by
+default**: they carry a `Focusable`, so Tab reaches them, Enter/Space clicks them, and
+arrow keys drive sliders — opt out with `focusable: false`.
 
 <Aside type="tip">
   These are a convenient starting point, not a closed set — a widget is just an entity
@@ -31,8 +33,8 @@ layout), and visual overrides.
 ## Button
 
 `createButton(opts)` spawns a clickable entity (with an optional child label) that
-transitions between visual states. Returns the button **entity**. A click is a
-press-then-release *over* the button.
+transitions between visual states. Returns a `ButtonHandle`. A click is a
+press-then-release *over* the button — or Enter/Space while it has keyboard focus.
 
 ```typescript
 import { createButton } from 'esengine';
@@ -54,13 +56,16 @@ const btn = createButton({
 | Option | Description |
 |---|---|
 | `text` | Label — a string or a `TextInit`. Omit for no label. |
-| `states` | Map of state name (`normal` / `hover` / `pressed` / `disabled`) → color / sprite / scale override. |
+| `states` | Map of state name (`normal` / `hover` / `pressed` / `disabled` / `focused`) → color / sprite / scale override. Omit to use the active theme's control roles. |
 | `background` | Background visual (default: solid white). |
 | `fadeDuration` | Tween time for color/scale state changes (default `0` = snap; sprite swaps always snap). |
 | `disabled` | Start disabled. |
+| `focusable` / `tabIndex` | Keyboard reachability (default `true` / `0`). |
 | `onClick(entity)` | Click callback. |
 
-Flip a custom state later with `setButtonState(world, entity, 'loading')`.
+**Handle:** `entity`, `setDisabled(disabled)`, `dispose()`.
+
+Flip a custom state later with `setButtonState(world, handle.entity, 'loading')`.
 
 ## Toggle
 
@@ -84,22 +89,25 @@ toggle.setIsOn(true, true); // silent — skips onChange
 
 | Option | Description |
 |---|---|
-| `interactionStates` | Frame visual states (like the button's `states`). |
-| `check` | The on-state indicator: `{ node?, color?, sprite? }`, shown when on. |
+| `interactionStates` | Frame visual states (like the button's `states`; theme defaults when omitted). |
+| `check` | The on-state indicator: `{ node?, color?, sprite? }`, shown when on (theme accent by default). |
 | `isOn` | Initial state. |
 | `onChange(isOn, entity)` | Fires on toggle. |
 
-**Handle:** `isOn()`, `setIsOn(value, silent?)`, `entity`, `dispose()`.
+**Handle:** `isOn()`, `setIsOn(value, silent?)`, `setDisabled(disabled)`, `entity`, `dispose()`.
 
 ## Slider
 
 `createSlider(opts)` builds a track + fill + handle. Returns a `SliderHandle`.
+Input is built in: **drag** anywhere on the track (press captures until release),
+or focus it and use **arrow keys** (`step`, or 1% of the range when continuous),
+**Home**/**End**.
 
 ```typescript
 import { createSlider } from 'esengine';
 
 const slider = createSlider({
-  world, parent,
+  world, events, parent,
   min: 0, max: 100, value: 50, step: 5,
   onChange: (value) => { /* … */ },
 });
@@ -110,17 +118,20 @@ slider.setValue(75);
 | Option | Description |
 |---|---|
 | `min` / `max` / `value` | Range and initial value. |
-| `step` | Quantization step (`0` = continuous). |
+| `step` | Quantization step (`0` = continuous). Also the keyboard nudge. |
 | `handleWidth` | Thumb width in pixels (default `12`). |
+| `disabled` / `focusable` / `tabIndex` | Interactivity + keyboard reachability. |
 | `trackVisual` / `fillVisual` / `handleVisual` | Per-part visuals. |
-| `onChange(value, entity)` | Fires on value change. |
+| `onChange(value, entity)` | Fires on value change — from input, `setValue`, or any other writer. |
 
-**Handle:** `getValue()`, `setValue(v)`, `valueAtLocalX(localX, trackWidth)`,
-`dispose()`, plus `trackEntity` / `fillEntity` / `handleEntity`.
+**Handle:** `getValue()`, `setValue(v)`, `dispose()`, plus `trackEntity` /
+`fillEntity` / `handleEntity`.
 
 <Aside type="note">
-  The slider has **no built-in pointer input** — wire your own drag/click handler and
-  convert the pointer position with `valueAtLocalX()`, or call `setValue()` directly.
+  The state lives in a **`UISlider` component** on the track entity; the behavior
+  system is the single writer of the visuals. Anything that writes `UISlider.value` —
+  the pointer, the keyboard, `setValue`, the editor inspector on a placed prefab —
+  moves the fill and thumb and fires `change` identically.
 </Aside>
 
 ## Progress
@@ -207,13 +218,14 @@ createDropdown({
 
 `createDialog(opts)` is a modal: a click-blocking backdrop with a centered panel,
 hidden until opened. Returns a `DialogHandle`. **Add your content as children of
-`panelEntity`.**
+`panelEntity`** — closing sets `display: none` on the backdrop root, so the whole
+subtree (your content included) leaves layout, rendering, and input in one write.
 
 ```typescript
 import { createDialog, spawnUIEntity } from 'esengine';
 
 const dialog = createDialog({
-  world, parent,
+  world, events, parent,
   panelNode: { width: px(420), height: px(260) },
 });
 
@@ -229,9 +241,17 @@ dialog.close();
 | `backdropNode` / `backdropVisual` | The full-viewport scrim behind the panel. |
 | `panelNode` / `panelVisual` | The modal panel (default: 400×300, centered). |
 | `startHidden` | Start closed (default `true`). |
+| `closeOnEscape` / `closeOnBackdrop` | The standard dismissals — Escape, and a click on the scrim (not the panel). Both default `true`. |
+| `onOpenChange(open)` | Fires on every open/close, whoever initiated it. |
 
-**Handle:** `open()`, `close()`, `isOpen()`, `dispose()`, plus `backdropEntity` /
-`panelEntity`.
+**Handle:** `open()`, `close()`, `isOpen()`, `dispose()`, plus `entity` (the
+backdrop root) / `panelEntity`.
+
+<Aside type="note">
+  Dismissal is data-driven by a **`UIDialog` component** on the backdrop root, and the
+  open state IS the root's `UINode.display` — so a dialog instantiated from the editor
+  prefab closes on Escape / scrim clicks without any code hookup.
+</Aside>
 
 ## Lists & collections
 
@@ -241,10 +261,10 @@ viewport are ever mounted, so a 10 000-row list stays cheap. One call composes a
 source, a layout, item recycling, scrolling, and clipping.
 
 ```typescript
-import { createListView, arrayDataSource, spawnUIEntity, px } from 'esengine';
+import { createListView, uiPlugin, arrayDataSource, spawnUIEntity, px } from 'esengine';
 
 const list = createListView<Player>({
-  world, parent,
+  world, host: uiPlugin, parent,
   viewportSize: { x: 320, y: 480 },     // the visible window, in pixels
   data: arrayDataSource(players),        // any DataSource<T>, or a raw array
   layout: { itemHeight: 56 },            // a column list
@@ -255,9 +275,10 @@ const list = createListView<Player>({
 });
 ```
 
-`item.create` builds one row entity; `item.bind` fills it from the data. `bind` runs
-every time a row is reused for a different index, so keep it a pure "apply this data"
-function.
+`host` is the plugin that ticks virtualization and routes scroll input — pass the
+`uiPlugin` your app was built with. `item.create` builds one row entity; `item.bind`
+fills it from the data. `bind` runs every time a row is reused for a different index,
+so keep it a pure "apply this data" function.
 
 **Layout** is a column, a row, or a grid:
 
@@ -290,10 +311,46 @@ list.data.setItems(freshList);         // replace all
   `item`, and give the data source a `getItemType(i)`.
 </Aside>
 
+### Free-form scrolling
+
+For a scrollable panel of **arbitrary content** (a settings page, a long form) — no
+virtualization, no data source — use `createScrollView` and parent anything under its
+`content` frame:
+
+```typescript
+import { createScrollView, uiPlugin } from 'esengine';
+
+const panel = createScrollView({
+  world, host: uiPlugin, parent,
+  viewportSize: { x: 320, y: 480 },
+  contentSize:  { x: 320, y: 1200 },
+});
+// build your content under panel.content …
+panel.scrollTo({ x: 0, y: 300 });
+```
+
+Wheel, drag/touch, and the kinetic fling work exactly as in the list view; call
+`setContentSize()` after the content grows.
+
 ## Text input
 
-`TextInput` is a component, not a factory: put it on a UI entity and it becomes an
-editable field — background, caret, placeholder, and IME plumbing included:
+`createTextInput(opts)` builds an editable field — background, caret, placeholder,
+and IME plumbing included — with theme-role colors that re-resolve on a theme swap.
+Returns a `TextInputHandle` (`getValue()` / `setValue(v)` / `entity` / `dispose()`).
+
+```typescript
+import { createTextInput } from 'esengine';
+
+const name = createTextInput({
+  world, events, parent,
+  placeholder: 'Your name', maxLength: 20,
+  onChange: (value) => { /* value edited */ },
+  onSubmit: (value) => save(value),   // Enter
+});
+```
+
+The factory is sugar over the `TextInput` **component** — insert that directly on any
+UI entity for full manual control:
 
 ```typescript
 import { spawnUIEntity, TextInput, px } from 'esengine';
@@ -341,10 +398,14 @@ drop-target concept — decide what the drop hit in your `drag_end` handler.
 
 Entities with a `Focusable` component participate in keyboard focus: **click**
 focuses, **Tab / Shift+Tab** cycles (ordered by `tabIndex` ascending, skipping
-disabled widgets, wrapping at the ends). The `FocusManager` resource exposes
-`focusedEntity` plus `focus(entity)` / `blur()` for programmatic control, and
-focused entities receive `focus` / `blur` events on the UI event bus.
-`TextInput` adds its own `Focusable` automatically.
+disabled widgets, wrapping at the ends), **Enter / Space** activates the focused
+control (a synthesized `click`; text fields keep those keys for editing), sliders
+take the **arrow keys**, and **Escape** or a click on empty space clears focus.
+Widget factories add `Focusable` automatically (`focusable: false` opts out); a
+focused control shows its `focused` interaction page (theme hover color by
+default). The `FocusManager` resource exposes `focusedEntity` plus
+`focus(entity)` / `blur()` for programmatic control, and focused entities
+receive `focus` / `blur` events on the UI event bus.
 
 ## Safe area (mobile notches)
 
@@ -358,12 +419,16 @@ apply.
 
 Widget colors come from a shared token set: `getTheme()` / `setTheme(tokens)`
 with roles like `surface`, `control`, `controlHover`, `primary`, `onPrimary`,
-`track`, and `backdrop` (`DARK_TOKENS` is the built-in dark theme). `setTheme`
-affects widgets **constructed afterwards** — set your theme once at startup,
-before building UI; widgets already on screen keep their baked colors.
+`track`, and `backdrop` (`DARK_TOKENS` / `LIGHT_TOKENS` are built in). `setTheme`
+affects widgets constructed afterwards; **`switchTheme(world, tokens)`** also
+live-restyles everything already on screen — widgets record which theme *role*
+each color came from (a `ThemeStyle` component, carried into prefabs too), so a
+swap re-resolves hues while preserving each color's alpha.
 
 ## Editor prefabs
 
 The same widgets ship as editor prefabs, so **Create… → UI** drops a ready-made
-Button, Toggle, Slider, and so on into the scene, which you then edit in Details. See
+Button, Toggle, Slider, Dialog, TextInput, and so on into the scene, which you then
+edit in Details. Behavior that lives in components — a slider's drag/keys, a
+dialog's Escape/scrim dismissal — works on placed prefabs without code. See
 [The Editor](/docs/guides/editor/).

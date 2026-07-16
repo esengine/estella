@@ -6,12 +6,14 @@ description: 内置控件工厂——Button、Toggle、Slider、Progress、Dropd
 import { Aside } from '@astrojs/starlight/components';
 
 控件工厂用 [UI](/docs/zh-cn/guides/ui/) 组件模型(`UINode` + `Interactable` +
-`$interaction` [控制器与属性绑定](/docs/zh-cn/guides/ui-controllers/))构建常见控件,免得你逐个手动接线。每个工厂接收一个选项对象,返回创建的实体
-(Button)或一个带命令式方法、用于读取和驱动它的**句柄(handle)**。
+`$interaction` [控制器与属性绑定](/docs/zh-cn/guides/ui-controllers/))构建常见控件,免得你逐个手动接线。每个工厂接收一个选项对象,返回一个**句柄(handle)**——
+总是带 `entity` 和 `dispose()`,外加读取和驱动它的命令式方法。
 
 交互式控件需要 world 和 UI 事件队列——`world` 来自 `GetWorld()`,`events` 来自 `Res(UIEvents)`,
 和 [UI 指南](/docs/zh-cn/guides/ui/)里一样。它们都接受 `parent?`、一个 `node?`
-([`UINode`](/docs/zh-cn/guides/ui/#uinode--the-layout-box) 布局)和视觉覆盖。
+([`UINode`](/docs/zh-cn/guides/ui/#uinode--the-layout-box) 布局)和视觉覆盖。交互式控件
+**默认键盘可达**:它们自带 `Focusable`,Tab 能到达、Enter/Space 能点击、方向键能驱动滑块——
+用 `focusable: false` 退出。
 
 <Aside type="tip">
   这些是方便的起点,而非封闭集合——一个控件不过是挂了 UI 组件的实体树,所以你能用同样方式组合
@@ -26,8 +28,8 @@ import { Aside } from '@astrojs/starlight/components';
 
 ## Button 按钮
 
-`createButton(opts)` 生成一个可点击实体(带可选子标签),在各视觉状态间过渡。返回按钮**实体**。
-一次点击是在按钮*上*按下再松开。
+`createButton(opts)` 生成一个可点击实体(带可选子标签),在各视觉状态间过渡。返回 `ButtonHandle`。
+一次点击是在按钮*上*按下再松开——或在它持有键盘焦点时按 Enter/Space。
 
 ```typescript
 import { createButton } from 'esengine';
@@ -49,13 +51,16 @@ const btn = createButton({
 | 选项 | 说明 |
 |---|---|
 | `text` | 标签——字符串或 `TextInit`。省略则无标签。 |
-| `states` | 状态名(`normal` / `hover` / `pressed` / `disabled`)→ 颜色 / sprite / 缩放覆盖的映射。 |
+| `states` | 状态名(`normal` / `hover` / `pressed` / `disabled` / `focused`)→ 颜色 / sprite / 缩放覆盖的映射。省略则用当前主题的 control 角色。 |
 | `background` | 背景视觉(默认:纯白)。 |
 | `fadeDuration` | 颜色 / 缩放状态切换的补间时长(默认 `0` = 瞬切;sprite 交换总是瞬切)。 |
 | `disabled` | 初始禁用。 |
+| `focusable` / `tabIndex` | 键盘可达性(默认 `true` / `0`)。 |
 | `onClick(entity)` | 点击回调。 |
 
-之后可用 `setButtonState(world, entity, 'loading')` 切到自定义状态。
+**句柄:** `entity`、`setDisabled(disabled)`、`dispose()`。
+
+之后可用 `setButtonState(world, handle.entity, 'loading')` 切到自定义状态。
 
 ## Toggle 开关
 
@@ -78,22 +83,24 @@ toggle.setIsOn(true, true); // 静默——跳过 onChange
 
 | 选项 | 说明 |
 |---|---|
-| `interactionStates` | 框架视觉状态(类似按钮的 `states`)。 |
-| `check` | 开状态指示器:`{ node?, color?, sprite? }`,开时显示。 |
+| `interactionStates` | 框架视觉状态(类似按钮的 `states`;省略则用主题默认)。 |
+| `check` | 开状态指示器:`{ node?, color?, sprite? }`,开时显示(默认主题强调色)。 |
 | `isOn` | 初始状态。 |
 | `onChange(isOn, entity)` | 切换时触发。 |
 
-**句柄:** `isOn()`、`setIsOn(value, silent?)`、`entity`、`dispose()`。
+**句柄:** `isOn()`、`setIsOn(value, silent?)`、`setDisabled(disabled)`、`entity`、`dispose()`。
 
 ## Slider 滑块
 
 `createSlider(opts)` 构建轨道 + 填充 + 手柄。返回 `SliderHandle`。
+输入是内置的:在轨道上任意位置**拖拽**(按下即捕获,直到松开),或聚焦后用**方向键**
+(步长为 `step`,连续滑块为量程的 1%)、**Home**/**End**。
 
 ```typescript
 import { createSlider } from 'esengine';
 
 const slider = createSlider({
-  world, parent,
+  world, events, parent,
   min: 0, max: 100, value: 50, step: 5,
   onChange: (value) => { /* … */ },
 });
@@ -104,17 +111,19 @@ slider.setValue(75);
 | 选项 | 说明 |
 |---|---|
 | `min` / `max` / `value` | 范围与初始值。 |
-| `step` | 量化步长(`0` = 连续)。 |
+| `step` | 量化步长(`0` = 连续)。同时是键盘步进量。 |
 | `handleWidth` | 手柄宽度(像素,默认 `12`)。 |
+| `disabled` / `focusable` / `tabIndex` | 交互性与键盘可达性。 |
 | `trackVisual` / `fillVisual` / `handleVisual` | 各部件视觉。 |
-| `onChange(value, entity)` | 值改变时触发。 |
+| `onChange(value, entity)` | 值改变时触发——无论来自输入、`setValue` 还是任何其他写者。 |
 
-**句柄:** `getValue()`、`setValue(v)`、`valueAtLocalX(localX, trackWidth)`、`dispose()`,
-以及 `trackEntity` / `fillEntity` / `handleEntity`。
+**句柄:** `getValue()`、`setValue(v)`、`dispose()`,以及 `trackEntity` /
+`fillEntity` / `handleEntity`。
 
 <Aside type="note">
-  滑块**没有内置指针输入**——自己接一个拖拽/点击处理器,用 `valueAtLocalX()` 把指针位置转成值,
-  或直接调 `setValue()`。
+  状态存在轨道实体上的 **`UISlider` 组件**里;行为系统是视觉的唯一写者。任何写
+  `UISlider.value` 的东西——指针、键盘、`setValue`、编辑器 Inspector 里改摆放的
+  prefab——都会同样地移动填充与手柄并触发 `change`。
 </Aside>
 
 ## Progress 进度条
@@ -198,13 +207,14 @@ createDropdown({
 ## Dialog 对话框
 
 `createDialog(opts)` 是一个模态:一个挡住点击的背景加一个居中面板,打开前隐藏。返回
-`DialogHandle`。**把你的内容作为 `panelEntity` 的子实体加进去。**
+`DialogHandle`。**把你的内容作为 `panelEntity` 的子实体加进去**——关闭时会在背景根上
+设置 `display: none`,整棵子树(包括你的内容)一次性退出布局、渲染和输入。
 
 ```typescript
 import { createDialog, spawnUIEntity } from 'esengine';
 
 const dialog = createDialog({
-  world, parent,
+  world, events, parent,
   panelNode: { width: px(420), height: px(260) },
 });
 
@@ -220,8 +230,16 @@ dialog.close();
 | `backdropNode` / `backdropVisual` | 面板后方的全视口遮罩。 |
 | `panelNode` / `panelVisual` | 模态面板(默认:400×300,居中)。 |
 | `startHidden` | 初始关闭(默认 `true`)。 |
+| `closeOnEscape` / `closeOnBackdrop` | 两个标准关闭方式——Escape,以及点击遮罩(不含面板)。都默认 `true`。 |
+| `onOpenChange(open)` | 每次开/关都会触发,无论由谁发起。 |
 
-**句柄:** `open()`、`close()`、`isOpen()`、`dispose()`,以及 `backdropEntity` / `panelEntity`。
+**句柄:** `open()`、`close()`、`isOpen()`、`dispose()`,以及 `entity`(背景根)/ `panelEntity`。
+
+<Aside type="note">
+  关闭行为由背景根上的 **`UIDialog` 组件**数据驱动,打开状态就是根的
+  `UINode.display`——因此从编辑器 prefab 实例化的对话框无需任何代码就能响应
+  Escape / 遮罩点击。
+</Aside>
 
 ## 列表与集合
 
@@ -230,10 +248,10 @@ dialog.close();
 数据源、布局、条目回收、滚动和裁剪。
 
 ```typescript
-import { createListView, arrayDataSource, spawnUIEntity, px } from 'esengine';
+import { createListView, uiPlugin, arrayDataSource, spawnUIEntity, px } from 'esengine';
 
 const list = createListView<Player>({
-  world, parent,
+  world, host: uiPlugin, parent,
   viewportSize: { x: 320, y: 480 },     // 可见窗口,像素
   data: arrayDataSource(players),        // 任意 DataSource<T>,或裸数组
   layout: { itemHeight: 56 },            // 列表
@@ -244,6 +262,7 @@ const list = createListView<Player>({
 });
 ```
 
+`host` 是驱动虚拟化并路由滚动输入的插件——传你 app 构建时用的 `uiPlugin`。
 `item.create` 建一个行实体;`item.bind` 用数据填它。`bind` 每当一行被复用到不同索引时都会跑,
 所以把它写成纯粹的"应用这份数据"函数。
 
@@ -275,10 +294,43 @@ list.data.setItems(freshList);         // 全替换
   的映射代替单个 `item`,并给数据源一个 `getItemType(i)`。
 </Aside>
 
+### 自由内容滚动
+
+滚动**任意内容**的面板(设置页、长表单)——不虚拟化、无数据源——用 `createScrollView`,
+把内容挂到它的 `content` 帧下:
+
+```typescript
+import { createScrollView, uiPlugin } from 'esengine';
+
+const panel = createScrollView({
+  world, host: uiPlugin, parent,
+  viewportSize: { x: 320, y: 480 },
+  contentSize:  { x: 320, y: 1200 },
+});
+// 在 panel.content 下构建内容 …
+panel.scrollTo({ x: 0, y: 300 });
+```
+
+滚轮、拖拽/触摸和惯性甩动与列表视图完全一致;内容变大后调 `setContentSize()`。
+
 ## 文本输入
 
-`TextInput` 是组件而不是工厂:放到一个 UI 实体上,它就成为可编辑的输入框——背景、
-光标、占位提示和 IME 管线都齐了:
+`createTextInput(opts)` 构建可编辑输入框——背景、光标、占位提示和 IME 管线都齐了——
+颜色走主题角色,换主题时会重新解析。返回 `TextInputHandle`(`getValue()` /
+`setValue(v)` / `entity` / `dispose()`)。
+
+```typescript
+import { createTextInput } from 'esengine';
+
+const name = createTextInput({
+  world, events, parent,
+  placeholder: '你的名字', maxLength: 20,
+  onChange: (value) => { /* 内容被编辑 */ },
+  onSubmit: (value) => save(value),   // 回车
+});
+```
+
+工厂是 `TextInput` **组件**之上的糖——想完全手动控制,把组件直接插到任意 UI 实体上:
 
 ```typescript
 import { spawnUIEntity, TextInput, px } from 'esengine';
@@ -325,9 +377,12 @@ events.on(entity, 'drag_start', () => { /* 还有 'drag_move' 与 'drag_end' */ 
 ## 键盘焦点
 
 带 `Focusable` 组件的实体参与键盘焦点:**点击**聚焦,**Tab / Shift+Tab** 轮换
-(按 `tabIndex` 升序,跳过禁用控件,到头回绕)。`FocusManager` 资源暴露
+(按 `tabIndex` 升序,跳过禁用控件,到头回绕),**Enter / Space** 激活聚焦的控件
+(合成一次 `click`;文本框保留这些键用于编辑),滑块响应**方向键**,**Escape**
+或点击空白处清除焦点。控件工厂自动添加 `Focusable`(用 `focusable: false` 退出);
+聚焦的控件显示它的 `focused` 交互页(默认主题 hover 色)。`FocusManager` 资源暴露
 `focusedEntity` 以及 `focus(entity)` / `blur()` 供编程控制,被聚焦的实体在 UI
-事件总线上收到 `focus` / `blur` 事件。`TextInput` 会自动加上自己的 `Focusable`。
+事件总线上收到 `focus` / `blur` 事件。
 
 ## 安全区(移动端刘海)
 
@@ -340,10 +395,14 @@ events.on(entity, 'drag_start', () => { /* 还有 'drag_move' 与 'drag_end' */ 
 
 控件颜色来自一套共享令牌:`getTheme()` / `setTheme(tokens)`,角色包括
 `surface`、`control`、`controlHover`、`primary`、`onPrimary`、`track`、
-`backdrop`(`DARK_TOKENS` 是内置的暗色主题)。`setTheme` 只影响**之后构建**的
-控件——在启动时、搭 UI 之前设好主题;已经在屏幕上的控件保持既有颜色。
+`backdrop`(内置 `DARK_TOKENS` / `LIGHT_TOKENS`)。`setTheme` 影响之后构建的控件;
+**`switchTheme(world, tokens)`** 还会实时重刷屏幕上已有的一切——控件记录了每个颜色
+来自哪个主题*角色*(`ThemeStyle` 组件,也随 prefab 持久化),换主题时按角色重新
+解析色相并保留各自的 alpha。
 
 ## 编辑器预制体
 
-这些控件同时作为编辑器预制体提供,所以 **创建… → UI** 会把现成的 Button、Toggle、Slider 等放进
-场景,你再在 Details 里编辑。见 [编辑器](/docs/zh-cn/guides/editor/)。
+这些控件同时作为编辑器预制体提供,所以 **创建… → UI** 会把现成的 Button、Toggle、Slider、
+Dialog、TextInput 等放进场景,你再在 Details 里编辑。存在组件里的行为——滑块的拖拽/方向键、
+对话框的 Escape/遮罩关闭——摆出来的 prefab 无需代码即可用。见
+[编辑器](/docs/zh-cn/guides/editor/)。
