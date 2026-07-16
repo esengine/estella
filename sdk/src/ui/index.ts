@@ -149,6 +149,41 @@ export {
 
 export { UIBehaviorPlugin, uiBehaviorPlugin } from './behavior/plugin';
 
+// ─── Controllers + Gears (shared UI state) ──────────────────────────────────
+
+export {
+    UIController,
+    INTERACTION_CONTROLLER,
+    INTERACTION_PAGES,
+    interactionController,
+    controllerState,
+    findControllerOwner,
+    getControllerPage,
+    setControllerPage,
+    type ControllerState,
+    type UIControllerData,
+} from './controller/ui-controller';
+
+export {
+    UIGear,
+    gearBinding,
+    type GearValue,
+    type GearTween,
+    type GearBinding,
+    type UIGearData,
+} from './controller/ui-gear';
+
+export {
+    createInteractionControllerDriverSystem,
+    createGearApplySystem,
+    readFieldPath,
+    writeFieldPath,
+    isLerpable,
+    lerpGearValue,
+} from './controller/gear-apply';
+
+export { UIControllerPlugin, uiControllerPlugin } from './controller/plugin';
+
 // ─── Collection ─────────────────────────────────────────────────────────────
 
 export {

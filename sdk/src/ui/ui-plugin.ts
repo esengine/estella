@@ -22,6 +22,7 @@ import { safeAreaPlugin } from './layout/safe-area';
 import { textPlugin } from './text/plugin';
 import { uiInteractionPlugin } from './input/interaction';
 import { uiBehaviorPlugin } from './behavior/plugin';
+import { uiControllerPlugin } from './controller/plugin';
 import { dragPlugin } from './input/drag';
 import { focusPlugin } from './input/focus';
 import { textInputPlugin } from './text/text-input-plugin';
@@ -44,6 +45,7 @@ export class UIPlugin implements Plugin {
         textPlugin.build(app);
         uiInteractionPlugin.build(app);
         uiBehaviorPlugin.build(app);
+        uiControllerPlugin.build(app);
         dragPlugin.build(app);
         focusPlugin.build(app);
         textInputPlugin.build(app);

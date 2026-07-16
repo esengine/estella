@@ -107,6 +107,29 @@ export {
     type ReadonlySignal,
 } from './ui';
 
+// ─── Controllers + Gears (shared UI state) ───────────────────────────────────
+// A UIController is a named enum of pages scoped to a UI root; UIGears bind a
+// component field to per-page values (snap or tween). The curated authoring
+// surface — components, the page-control helpers, and the gear builder.
+export {
+    UIController,
+    UIGear,
+    interactionController,
+    controllerState,
+    INTERACTION_CONTROLLER,
+    INTERACTION_PAGES,
+    gearBinding,
+    setControllerPage,
+    getControllerPage,
+    findControllerOwner,
+    type UIControllerData,
+    type ControllerState,
+    type UIGearData,
+    type GearBinding,
+    type GearValue,
+    type GearTween,
+} from './ui';
+
 // ─── UI code-composition surface ─────────────────────────────────────────────
 // Promoted so UI can be built in code, not just authored in the editor:
 // flexbox config, dimension helpers, node/visual/text builders, and the widget
