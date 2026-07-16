@@ -279,6 +279,33 @@ describe('exportGame (wechat)', () => {
     expect(res.errors.some((e) => e.includes('basis-wechat'))).toBe(true);
   }, 60_000);
 
+  it('re-exporting into a populated dir rematerializes wasm/, dropping a stale side module', async () => {
+    // A prior export shipped the Basis transcoder (KTX2 was on then), including
+    // a glue file an older pipeline emitted with un-down-leveled es2020 syntax —
+    // the mini-game packer compiles EVERY .js in the package, so a leftover
+    // `wasm/basis.js` with `?.` fails real-device compile. This project needs no
+    // basis (plain texture scene); the re-export must wipe wasm/ and repopulate
+    // it with exactly the engine glue, so the stale module cannot ride along.
+    const outStale = path.join(root, 'dist-wechat-stale');
+    mkdirSync(path.join(outStale, 'wasm'), { recursive: true });
+    writeFileSync(path.join(outStale, 'wasm', 'basis.js'), 'var s = globalThis.document?.currentScript?.src;');
+    writeFileSync(path.join(outStale, 'wasm', 'basis.wasm'), 'stalebytes');
+    const res = await exportGame({
+      root,
+      entryScene: 'scenes/main.esscene',
+      gameHostEntry: 'unused-for-wechat',
+      scriptsEntry: 'src/main.ts',
+      sdkDistDir: path.join(root, '_sdk'),
+      wasmDir: path.join(root, '_wxwasm'),
+      outDir: outStale,
+      platform: 'wechat',
+    });
+    expect(res.ok).toBe(true);
+    expect(existsSync(path.join(outStale, 'wasm', 'esengine.js'))).toBe(true);
+    expect(existsSync(path.join(outStale, 'wasm', 'basis.js'))).toBe(false);
+    expect(existsSync(path.join(outStale, 'wasm', 'basis.wasm'))).toBe(false);
+  }, 60_000);
+
   it('content-addressed export carries the logical path as the asset address', async () => {
     const outCa = path.join(root, 'dist-wechat-ca');
     const res = await exportGame({

@@ -378,8 +378,18 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
 
   // 6. The engine runtime + exactly the side modules the scene needs. WeChat's
   //    main package has a 4MB budget — unneeded side modules must not ride along.
+  //    Rematerialize wasm/ from scratch: it holds EXACTLY this export's runtime
+  //    set and nothing else. A prior export into the same outDir may have staged
+  //    a module this project no longer needs (e.g. basis.js when KTX2 was on),
+  //    and this run — copying only the current set — would leave that stale .js
+  //    behind. The mini-game packer compiles EVERY .js in the package, so a stale
+  //    glue built by an older pipeline (raw es2020 `?.`/`??`, not down-leveled)
+  //    fails real-device compile ("invalid file: wasm/basis.js … Unexpected token .").
+  //    Scoped to wasm/ (exporter-owned); the outDir root also hosts devtools'
+  //    project.private.config.json, so we don't wipe the whole tree.
   progress({ phase: 'Copying runtime' });
   const wasmOut = path.join(absOut, 'wasm');
+  await rm(wasmOut, { recursive: true, force: true });
   await mkdir(wasmOut, { recursive: true });
   const runtimeFiles = [
     engineGlueFile,
