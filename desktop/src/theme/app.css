@@ -425,6 +425,41 @@ body.thumb-capture .viewport > :not(.viewport__stage):not(.viewport__play) {
   opacity: 0;
 }
 
+/* Tile-collision overlay: the selected TilemapLayer's per-tile collision — solid
+   outlines, dashed sensors, one-way arrows — all in ONE viewport-spanning SVG whose
+   path data the rAF writes each frame. Shares the collider colour: tile and entity
+   collision are the same concept, one visual language. */
+.viewport__tilecol-gizmo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+  pointer-events: none;
+  overflow: visible;
+}
+.viewport__tilecol-gizmo .tc-solid {
+  fill: color-mix(in srgb, var(--gizmo-collider) 8%, transparent);
+  stroke: var(--gizmo-collider);
+  stroke-width: 1.25;
+  stroke-linejoin: round;
+}
+.viewport__tilecol-gizmo .tc-sensor {
+  fill: none;
+  stroke: var(--gizmo-collider);
+  stroke-width: 1.25;
+  stroke-dasharray: 4 3;
+  opacity: 0.8;
+}
+.viewport__tilecol-gizmo .tc-oneway {
+  stroke: var(--gizmo-collider);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+.viewport__tilecol-gizmo .tc-oneway-head {
+  fill: var(--gizmo-collider);
+}
+
 /* Joint link gizmo: anchor dots + link line (own body ↔ connected body), the
    prismatic/wheel slide axis, and the motor target-velocity arrow. The SVG spans
    the viewport; the rAF writes absolute canvas-relative px. */

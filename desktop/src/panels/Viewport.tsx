@@ -15,7 +15,7 @@ import { activeMode, activeModeOverlays } from '@/mode/activeMode';
 import { useEditorMode } from '@/store/editorModeStore';
 import { RESOLUTION_PRESETS, RESOLUTION_PRESET_BY_ID, DESIGN_RESOLUTION_PRESETS, deviceDims } from '@/mode/resolutionPresets';
 import { buildStampGhost } from '@/tools/tileStampGhost';
-import { TilemapAPI, tileIdOf, UINode, DimensionUnit, computeEffectiveOrthoSize } from 'esengine';
+import { TilemapAPI, tileIdOf, UINode, DimensionUnit, computeEffectiveOrthoSize, type TileCollisionPiece, type TilesetModel } from 'esengine';
 import { commands } from '@/commands';
 import { MOD_LABEL } from '@/commands/keybinding';
 import { EngineHost } from '@/engine/EngineHost';
@@ -26,6 +26,7 @@ import { createFromSource, sourceById, SOURCE_DND_MIME } from '@/engine/entitySo
 import { resizeUINodeAxis, type ResizeSide, type AxisResizeWrites } from '@/engine/uiResize';
 import { IMAGE_RE } from '@/project/assetMeta';
 import { createTilemapFromTileset } from '@/tilemap/createTilemap';
+import { layerTilesetRefs, loadLayerTilesetModel } from '@/tilemap/layerTilesetModel';
 import { createAnimatedSpriteFromClip } from '@/flipbook/createAnimatedSprite';
 import { SceneModel } from '@/engine/SceneModel';
 import { SceneCommands } from '@/engine/SceneCommands';
@@ -581,6 +582,7 @@ export function Viewport() {
   const showGrid = useEditorStore((s) => s.showGrid);
   const showGizmos = useEditorStore((s) => s.showGizmos);
   const showColliders = useEditorStore((s) => s.showColliders);
+  const showTileCollision = useEditorStore((s) => s.showTileCollision);
   const previewFx = useEditorStore((s) => s.previewFx);
   const activeGizmoAxis = useEditorStore((s) => s.activeGizmoAxis);
   const coordSpace = useEditorStore((s) => s.coordSpace);
@@ -700,6 +702,40 @@ export function Viewport() {
     () => (engine.status === 'ready' && showColliders ? ViewportController.colliderIds() : []),
     [structRev, engine.status, showColliders],
   );
+  // Tile-collision overlay: the selected TilemapLayer's per-tile collision, drawn into
+  // ONE SVG (not one per tile). Its world-space outlines are (re)built into a ref by the
+  // effect below whenever the layer / its content changes; the rAF projects them each
+  // frame. The tileset model is cached (keyed by the layer's tileset refs) so a paint
+  // stroke rebuilds outlines without re-reading the .estileset(s) from disk.
+  const tileColRef = useRef<SVGSVGElement | null>(null);
+  const tileColPiecesRef = useRef<TileCollisionPiece[]>([]);
+  const tileColModelRef = useRef<{ key: string; model: TilesetModel | null }>({ key: '', model: null });
+  useEffect(() => {
+    const clear = () => { tileColPiecesRef.current = []; };
+    if (engine.status !== 'ready' || !showTileCollision || !tilemapSelected || primaryId == null) {
+      clear();
+      tileColModelRef.current = { key: '', model: null };
+      return;
+    }
+    const refs = layerTilesetRefs(primaryId);
+    const key = refs.join('|');
+    const build = () => {
+      const model = tileColModelRef.current.model;
+      tileColPiecesRef.current = model ? ViewportController.tilemapColliderOutlines(primaryId, model) : [];
+    };
+    // Same tileset list as last time → reuse the cached model, just re-read the tiles.
+    if (tileColModelRef.current.key === key && tileColModelRef.current.model) { build(); return; }
+    // Tileset refs changed (or first show): reload the model, then build once it lands.
+    let alive = true;
+    clear();
+    void loadLayerTilesetModel(refs).then((model) => {
+      if (!alive) return;
+      tileColModelRef.current = { key, model };
+      build();
+    });
+    return () => { alive = false; };
+  }, [engine.status, showTileCollision, tilemapSelected, primaryId, dataRev]);
+
   // Scene-authored joints are equally invisible — draw each as an anchor link (plus
   // axis/velocity direction). Keyed by entity + joint type; same physics show flag.
   const jointRefs = useRef(new Map<string, SVGSVGElement | null>());
@@ -1169,6 +1205,26 @@ export function Viewport() {
         }
       }
 
+      // Tile-collision overlay — the selected layer's per-tile collision, all in one SVG.
+      // Pieces are prebuilt in world space (the effect above); here we only project them
+      // to screen paths, culled to the visible world rect. Empty (flag off / no layer /
+      // still loading) clears the paths cheaply.
+      const tcSvg = tileColRef.current;
+      if (tcSvg) {
+        const pieces = tileColPiecesRef.current;
+        const paths = ready && !useEditorStore.getState().isPlaying && pieces.length > 0
+          ? ViewportController.projectTileCollision(pieces)
+          : null;
+        const setD = (sel: string, d: string) => {
+          const el = tcSvg.querySelector(sel) as SVGPathElement | null;
+          if (el) el.setAttribute('d', d);
+        };
+        setD('.tc-solid', paths?.solid ?? '');
+        setD('.tc-sensor', paths?.sensor ?? '');
+        setD('.tc-oneway', paths?.onewayLine ?? '');
+        setD('.tc-oneway-head', paths?.onewayHead ?? '');
+      }
+
       // Joint gizmos — the anchor-to-anchor link (own body ↔ connected body), the
       // prismatic/wheel slide axis, and the motor joint's target-velocity arrow.
       // Unlinked joints (no connectedEntity yet) show just their own anchor dot.
@@ -1556,6 +1612,7 @@ export function Viewport() {
             <DdCheck on={showGrid} label={t('vp.flag.grid')} onClick={() => commands.run('view.toggleGrid')} />
             <DdCheck on={showGizmos} label={t('vp.flag.gizmos')} onClick={() => commands.run('view.toggleGizmos')} />
             <DdCheck on={showColliders} label={t('vp.flag.colliders')} onClick={() => commands.run('view.toggleColliders')} />
+            <DdCheck on={showTileCollision} label={t('vp.flag.tileCollision')} onClick={() => commands.run('view.toggleTileCollision')} />
             <DdCheck on={previewFx} label={t('vp.flag.previewFx')} onClick={() => commands.run('view.togglePreviewFx')} />
             <DdCheck on={perfVisible} label={t('vp.flag.perf')} onClick={() => PerfMonitor.toggleOverlay()} />
           </OvDropdown>
@@ -1758,6 +1815,16 @@ export function Viewport() {
           </div>
         );
       })}
+
+      {/* Tile-collision overlay: ONE viewport-spanning SVG for the selected layer's whole
+          collision (solid outlines + dashed sensors + one-way arrows). The rAF writes the
+          combined path data each frame; empty when the flag's off or no tilemap is picked. */}
+      <svg className="viewport__tilecol-gizmo" ref={tileColRef} aria-hidden="true">
+        <path className="tc-solid" d="" />
+        <path className="tc-sensor" d="" />
+        <path className="tc-oneway" d="" />
+        <path className="tc-oneway-head" d="" />
+      </svg>
 
       {/* Collider gizmos: a full-viewport SVG per collider (box polygon / circle),
           positioned in absolute canvas-relative CSS px by the rAF. */}

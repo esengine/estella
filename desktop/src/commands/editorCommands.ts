@@ -325,6 +325,13 @@ commands.register({
   run: () => editor().toggleColliders(),
 });
 commands.register({
+  id: 'view.toggleTileCollision',
+  label: t('cmd.view.toggleTileCollision'),
+  category: t('cat.view'),
+  isChecked: () => editor().showTileCollision,
+  run: () => editor().toggleTileCollision(),
+});
+commands.register({
   id: 'view.toggleCoordSpace',
   label: t('cmd.view.toggleCoordSpace'),
   category: t('cat.view'),

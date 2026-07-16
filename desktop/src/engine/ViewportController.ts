@@ -5,6 +5,8 @@ import {
   ParticleEmitter, OneWayPlatform,
   RevoluteJoint, DistanceJoint, PrismaticJoint, WeldJoint, WheelJoint, MotorJoint,
   UINode, UICameraInfo, screenToUiWorld, uiWorldToScreen, uiPickAllWorld, type UICameraData,
+  TilemapLayer, TilemapAPI, decodeTilemapChunks, tileCollisionOutlines,
+  type TilesetModel, type TileCollisionPiece,
 } from 'esengine';
 import type { EntityId } from '@/types';
 import { EngineHost } from './EngineHost';
@@ -690,6 +692,108 @@ export const ViewportController = {
     // Radius handle at the top of the circle (drag = radius, in physics meters).
     const handle = this.worldToClient(c.x, c.y + cc.radius * ppu);
     return { kind: 'circle', cx: center.x, cy: center.y, r: Math.hypot(edge.x - center.x, edge.y - center.y), pts: [], handle: handle ?? null, sizeHandle: null, oneWay };
+  },
+
+  /**
+   * World-space collision outlines for a selected TilemapLayer's placed tiles — the
+   * SAME merged boxes + flip-aware rich shapes (slopes / circles / one-way / sensors)
+   * the runtime spawns at Play, but as a picture (nothing is spawned). `model` is the
+   * layer's resolved {@link TilesetModel} (re-resolved by the editor, not read from the
+   * plugin's private map). Empty when the entity isn't a live infinite tilemap layer.
+   * The per-frame projection is {@link projectTileCollision}; this is the cacheable half.
+   */
+  tilemapColliderOutlines(sourceId: EntityId, model: TilesetModel): TileCollisionPiece[] {
+    const world = EngineHost.world;
+    const rt = SceneModel.runtimeFor(sourceId);
+    if (!world || rt == null || !world.valid(rt) || !world.has(rt, TilemapLayer) || !world.has(rt, Transform)) return [];
+    const layer = world.get(rt, TilemapLayer) as { cellSize: { x: number; y: number } };
+    const tw = layer.cellSize.x;
+    const th = layer.cellSize.y;
+    if (!(tw > 0) || !(th > 0)) return [];
+    const t = world.get(rt, Transform);
+    const chunks = decodeTilemapChunks(TilemapAPI.exportChunks(rt) || '');
+    return tileCollisionOutlines(chunks, model, tw, th, t.worldPosition.x, t.worldPosition.y);
+  },
+
+  /**
+   * Project world-space tile-collision {@link TileCollisionPiece}s to screen SVG path
+   * data (CSS px), culling pieces whose centre falls outside the visible world rect so a
+   * large map only pays for what's on-screen. Returns four `d` strings: solid outlines,
+   * sensor outlines (styled dashed), and the one-way arrows split into shafts + heads.
+   * Null when there's no camera view.
+   */
+  projectTileCollision(
+    pieces: TileCollisionPiece[],
+  ): { solid: string; sensor: string; onewayLine: string; onewayHead: string } | null {
+    const canvas = EngineHost.canvas;
+    if (!canvas || !cameraView()) return null;
+    // Visible world AABB from the canvas corners (page coords → world), padded a couple
+    // of tiles so a piece straddling the edge still draws. If the projection is degenerate
+    // (no bounds), fall back to drawing everything.
+    const rect = canvas.getBoundingClientRect();
+    const corners = [
+      this.canvasToWorld(rect.left, rect.top),
+      this.canvasToWorld(rect.right, rect.top),
+      this.canvasToWorld(rect.left, rect.bottom),
+      this.canvasToWorld(rect.right, rect.bottom),
+    ];
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const c of corners) {
+      if (!c) continue;
+      minX = Math.min(minX, c.x); maxX = Math.max(maxX, c.x);
+      minY = Math.min(minY, c.y); maxY = Math.max(maxY, c.y);
+    }
+    const cull = Number.isFinite(minX);
+    const PAD = 128;
+    minX -= PAD; minY -= PAD; maxX += PAD; maxY += PAD;
+
+    let solid = '';
+    let sensor = '';
+    let onewayLine = '';
+    let onewayHead = '';
+    for (const piece of pieces) {
+      if (cull && (piece.center.x < minX || piece.center.x > maxX || piece.center.y < minY || piece.center.y > maxY)) continue;
+
+      for (const line of piece.polylines) {
+        let d = '';
+        for (let i = 0; i < line.length; i++) {
+          const s = this.worldToClient(line[i].x, line[i].y);
+          if (!s) { d = ''; break; }
+          d += `${i ? 'L' : 'M'}${s.x},${s.y}`;
+        }
+        if (d) { if (piece.sensor) sensor += `${d} `; else solid += `${d} `; }
+      }
+      for (const c of piece.circles) {
+        const ctr = this.worldToClient(c.c.x, c.c.y);
+        const edge = this.worldToClient(c.c.x + c.r, c.c.y);
+        if (!ctr || !edge) continue;
+        const r = Math.hypot(edge.x - ctr.x, edge.y - ctr.y);
+        // A full circle as two half-arcs (SVG has no closed-circle path primitive).
+        const arc = `M${ctr.x - r},${ctr.y}a${r},${r} 0 1,0 ${2 * r},0a${r},${r} 0 1,0 ${-2 * r},0 `;
+        if (piece.sensor) sensor += arc; else solid += arc;
+      }
+      // One-way: a short arrow out of the centre along the solid-side normal (world y-up
+      // → screen y-down). Screen-fixed length so it reads at any zoom, like the collider
+      // gizmo's one-way arrow. The side a body can land on; it passes through from behind.
+      if (piece.oneWay) {
+        const c = this.worldToClient(piece.center.x, piece.center.y);
+        if (c) {
+          const dx = piece.oneWay.nx;
+          const dy = -piece.oneWay.ny;
+          const len = Math.hypot(dx, dy) || 1;
+          const ux = dx / len;
+          const uy = dy / len;
+          const L = 14;
+          const bx = c.x + ux * L;
+          const by = c.y + uy * L;
+          onewayLine += `M${c.x},${c.y}L${bx},${by} `;
+          const px = -uy;
+          const py = ux;
+          onewayHead += `M${bx + ux * 6},${by + uy * 6}L${bx + px * 3.2},${by + py * 3.2}L${bx - px * 3.2},${by - py * 3.2}Z `;
+        }
+      }
+    }
+    return { solid, sensor, onewayLine, onewayHead };
   },
 
   /** (entity, joint-type) pairs for every scene-authored joint — the joint-gizmo set. */

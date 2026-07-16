@@ -38,6 +38,7 @@ function uploadTiledLayerTiles(entity: Entity, layer: TiledLayerData): void {
     }
 }
 import { RigidBody, BoxCollider, CircleCollider, PolygonCollider, ChainCollider, OneWayPlatform, BodyType } from '../physics/PhysicsComponents';
+import type { ColliderShape } from '../physics/ColliderShape';
 import type { ResolvedTileCollision } from './tilesetResolve';
 import { mergeCollisionTiles } from './collisionMerge';
 import { CHUNK_SIZE } from './chunkCodec';
@@ -831,6 +832,35 @@ export function polygonLocalVerts(
 }
 
 /**
+ * The pixel-space {@link ColliderShape} for a resolved tile collision, the cell's flip
+ * flags applied (origin = cell center, y up). The SINGLE tile→geometry definition shared
+ * by the runtime spawn ({@link generateChunkTileShapes}, which divides by ppu into a
+ * collider component) and the editor's tile-collision overlay (which feeds it to
+ * `colliderShapeOutline`). A box is flip-symmetric so its geometry ignores the flags; a
+ * polygon and a circle's centre go through {@link polygonLocalVerts}, matching the render.
+ */
+export function tileColliderShape(
+    rc: ResolvedTileCollision,
+    tileW: number,
+    tileH: number,
+    flipH: boolean,
+    flipV: boolean,
+    flipD: boolean,
+): ColliderShape {
+    const s = rc.shape;
+    if (s.type === 'polygon') {
+        return { kind: 'polygon', vertices: polygonLocalVerts(s.points, tileW, tileH, flipH, flipV, flipD) };
+    }
+    if (s.type === 'circle') {
+        // Reuse the polygon transform on the single centre point to apply flips; the
+        // radius is a tile-width fraction (assumes square-ish cells).
+        const c = polygonLocalVerts([[s.cx, s.cy]], tileW, tileH, flipH, flipV, flipD)[0];
+        return { kind: 'circle', radius: s.r * tileW, offset: c };
+    }
+    return { kind: 'box', halfExtents: { x: tileW * 0.5, y: tileH * 0.5 }, offset: { x: 0, y: 0 } };
+}
+
+/**
  * Spawn one static PolygonCollider per placed tile whose global id has a polygon shape
  * (slopes / partial tiles). Box-shaped tiles are handled by {@link generateChunkCollision};
  * the two run together. Flip flags on a cell flip its polygon to match the render.
@@ -876,8 +906,9 @@ export function generateChunkPolygonCollision(
 }
 
 /** A one-way solid-side normal (world y-up; {0,1} = solid-top), reoriented by cell flips
- *  so a flipped platform's solid side follows the render. */
-function oneWayNormalWorld(nx: number, ny: number, fH: boolean, fV: boolean, fD: boolean): { x: number; y: number } {
+ *  so a flipped platform's solid side follows the render. Shared with the editor overlay,
+ *  so a flipped one-way tile's arrow matches the side a body actually lands on at Play. */
+export function oneWayNormalWorld(nx: number, ny: number, fH: boolean, fV: boolean, fD: boolean): { x: number; y: number } {
     let x = nx;
     let y = ny;
     if (fH) x = -x;
@@ -929,25 +960,24 @@ export function generateChunkTileShapes(
             if (rc.restitution !== undefined) mat.restitution = rc.restitution;
             if (rc.sensor) mat.isSensor = true;
 
-            const s = rc.shape;
-            if (s.type === 'polygon') {
+            // One pixel-space shape definition (flip-applied), scaled to physics units
+            // (÷ppu) into the matching collider component — the same geometry the editor
+            // overlay draws, so what you see out of Play is what spawns.
+            const shape = tileColliderShape(rc, tileW, tileH, f.flipH, f.flipV, f.flipD);
+            if (shape.kind === 'polygon') {
                 world.insert(entity, PolygonCollider, {
-                    vertices: polygonLocalVerts(s.points, tileW, tileH, f.flipH, f.flipV, f.flipD)
-                        .map((v) => ({ x: v.x / ppu, y: v.y / ppu })),
+                    vertices: shape.vertices.map((v) => ({ x: v.x / ppu, y: v.y / ppu })),
                     ...mat,
                 });
-            } else if (s.type === 'circle') {
-                // Reuse the polygon transform on the single centre point to apply flips; the
-                // radius is a tile-width fraction (assumes square-ish cells).
-                const c = polygonLocalVerts([[s.cx, s.cy]], tileW, tileH, f.flipH, f.flipV, f.flipD)[0];
+            } else if (shape.kind === 'circle') {
                 world.insert(entity, CircleCollider, {
-                    radius: (s.r * tileW) / ppu,
-                    offset: { x: c.x / ppu, y: c.y / ppu },
+                    radius: shape.radius / ppu,
+                    offset: { x: shape.offset.x / ppu, y: shape.offset.y / ppu },
                     ...mat,
                 });
-            } else {
+            } else if (shape.kind === 'box') {
                 world.insert(entity, BoxCollider, {
-                    halfExtents: { x: (tileW * 0.5) / ppu, y: (tileH * 0.5) / ppu },
+                    halfExtents: { x: shape.halfExtents.x / ppu, y: shape.halfExtents.y / ppu },
                     ...mat,
                 });
             }

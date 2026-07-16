@@ -218,6 +218,7 @@
 .viewport--play .viewport__cam-gizmo,
 .viewport--play .viewport__light-gizmo,
 .viewport--play .viewport__collider-gizmo,
+.viewport--play .viewport__tilecol-gizmo,
 .viewport--play .viewport__particle-gizmo {
   display: none;
 }

@@ -131,6 +131,7 @@ export function MenuBar() {
         cmdItem('view.toggleGrid'),
         cmdItem('view.toggleGizmos'),
         cmdItem('view.toggleColliders'),
+        cmdItem('view.toggleTileCollision'),
         cmdItem('view.togglePreviewFx'),
         { sep: true },
         cmdItem('view.toggleCoordSpace'),

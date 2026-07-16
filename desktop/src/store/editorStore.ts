@@ -41,6 +41,9 @@ interface EditorState {
   showGizmos: boolean;
   /** Draw collider outlines in the viewport (off declutters a physics-heavy scene). */
   showColliders: boolean;
+  /** Draw the selected TilemapLayer's tile collision (slopes / circles / one-way /
+   *  sensors) in the viewport, so tile collision is visible without entering Play. */
+  showTileCollision: boolean;
   /** Simulate particle emitters live in edit mode (authoring preview). */
   previewFx: boolean;
   snapping: boolean;
@@ -66,6 +69,7 @@ interface EditorState {
   toggleGrid: () => void;
   toggleGizmos: () => void;
   toggleColliders: () => void;
+  toggleTileCollision: () => void;
   togglePreviewFx: () => void;
   toggleSnapping: () => void;
   setSnapStep: (step: number) => void;
@@ -128,6 +132,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   showGrid: true,
   showGizmos: true,
   showColliders: true,
+  showTileCollision: true,
   previewFx: true,
   snapping: false,
   snapStep: 32,
@@ -142,6 +147,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   toggleGrid: () => set((s) => ({ showGrid: !s.showGrid })),
   toggleGizmos: () => set((s) => ({ showGizmos: !s.showGizmos })),
   toggleColliders: () => set((s) => ({ showColliders: !s.showColliders })),
+  toggleTileCollision: () => set((s) => ({ showTileCollision: !s.showTileCollision })),
   togglePreviewFx: () => set((s) => ({ previewFx: !s.previewFx })),
   toggleSnapping: () => set((s) => ({ snapping: !s.snapping })),
   setSnapStep: (snapStep) => set({ snapStep, snapping: true }),

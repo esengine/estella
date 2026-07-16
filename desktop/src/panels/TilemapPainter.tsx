@@ -28,6 +28,7 @@ import { buildStampGhost } from '@/tools/tileStampGhost';
 import { colsFor, rowsFor, TERRAIN_COLORS } from '@/tools/tileMath';
 import { loadTilesetAsset } from '@/tileset/loadTileset';
 import { createTilemapFromTileset } from '@/tilemap/createTilemap';
+import { layerTilesetRefs } from '@/tilemap/layerTilesetModel';
 import { AnimPreview, tileThumbStyle, type TileAtlas } from '@/tools/tileThumb';
 import { parseStampLibrary, serializeStampLibrary, stampLibraryKey, addStamp, removeStampAt, type SavedStamp } from '@/tools/stampLibrary';
 import { IconButton } from '@/components/IconButton';
@@ -44,19 +45,6 @@ const TOOLS: { id: PaintTool; icon: typeof Brush; label: string }[] = [
   { id: 'eyedropper', icon: Pipette, label: t('tile.tool.eyedropper') },
   { id: 'terrain', icon: Mountain, label: t('tile.tool.terrain') },
 ];
-
-/** Resolve the .estileset ref(s) a selected TilemapLayer references — the `tilesetAssets`
- *  list (multi-tileset) or the singular `tilesetAsset` — as @uuid refs (not yet paths). */
-function selectedTilemapTilesetRefs(selectedId: number | null): string[] {
-  if (selectedId == null) return [];
-  const e = SceneModel.entityBySource(selectedId);
-  const layer = e?.components.find((c) => c.type === 'TilemapLayer');
-  if (!layer) return [];
-  const data = layer.data as Record<string, unknown>;
-  const list = data.tilesetAssets;
-  if (Array.isArray(list)) return list.filter((r): r is string => typeof r === 'string' && r !== '');
-  return typeof data.tilesetAsset === 'string' && data.tilesetAsset ? [data.tilesetAsset] : [];
-}
 
 /** Natural pixel size of an image URL (for deriving a tileset's rows → tile count). */
 function loadImageDims(url: string): Promise<{ w: number; h: number }> {
@@ -127,7 +115,7 @@ export function TilemapPainter() {
   // each assigned its firstId (matching resolveTilesetModel's running sum), so the tab
   // bar can switch between them and painted cells encode to the right global gid.
   useEffect(() => {
-    const paths = selectedTilemapTilesetRefs(selectedId)
+    const paths = layerTilesetRefs(selectedId)
       .map((r) => ProjectStore.assetInfo(r)?.path).filter((p): p is string => !!p);
     if (paths.length === 0) { setTilesets([]); return; }
     let alive = true;
@@ -328,18 +316,18 @@ export function TilemapPainter() {
   // runtime), then reload the palette. Refs are @uuid, in firstId order == tab order.
   const addTileset = (ref: string) => {
     if (selectedId == null) return;
-    SceneCommands.setLayerTilesets(selectedId, [...selectedTilemapTilesetRefs(selectedId), ref]);
+    SceneCommands.setLayerTilesets(selectedId, [...layerTilesetRefs(selectedId), ref]);
     setAddOpen(false);
     setReloadKey((k) => k + 1);
   };
   const removeTilesetAt = (i: number) => {
     if (selectedId == null) return;
-    SceneCommands.setLayerTilesets(selectedId, selectedTilemapTilesetRefs(selectedId).filter((_, j) => j !== i));
+    SceneCommands.setLayerTilesets(selectedId, layerTilesetRefs(selectedId).filter((_, j) => j !== i));
     setReloadKey((k) => k + 1);
   };
   // The project's .estileset assets not already on this layer (populated on open).
   const addable = addOpen
-    ? ProjectStore.listAssets('tileset').filter((a) => !selectedTilemapTilesetRefs(selectedId).includes(a.ref))
+    ? ProjectStore.listAssets('tileset').filter((a) => !layerTilesetRefs(selectedId).includes(a.ref))
     : [];
 
   const atlas: TileAtlas | null = texUrl && natural

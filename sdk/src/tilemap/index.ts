@@ -8,12 +8,13 @@ export {
     parseTmjJson, parseTmjWithExternals, loadTiledMap, loadTiledCollisionObjects,
     generateTileCollision, generateLayerCollision, generateChunkCollision,
     generateChunkPolygonCollision, generateChunkTileShapes, generateObjectCollision, isCollisionObjectGroup,
-    polygonLocalVerts, resolveRelativePath, packCollectionGrid,
+    polygonLocalVerts, tileColliderShape, oneWayNormalWorld, resolveRelativePath, packCollectionGrid,
     type TiledMapData, type TiledLayerData, type TiledTilesetData,
     type TiledCollectionTile, type CollectionGridTile,
     type TiledObjectData, type TiledObjectGroupData, type TiledObjectShape,
     type TiledAnimFrame, type TilemapLoadOptions,
 } from './tiledLoader';
+export { tileCollisionOutlines, type TileCollisionPiece } from './tileCollisionOutline';
 export { mergeCollisionTiles, type MergedRect } from './collisionMerge';
 export { decodeTilemapChunks, CHUNK_SIZE, type DecodedChunk } from './chunkCodec';
 export {
