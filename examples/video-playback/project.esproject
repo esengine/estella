@@ -11,12 +11,13 @@
   },
   "spineVersion": "none",
   "packaging": {
-    "platform": "wechat",
+    "platform": "playable",
     "config": "shipping",
     "sourceMaps": false,
     "openFolder": true,
     "outDir": {
-      "wechat": "dist-wechat"
+      "wechat": "dist-wechat",
+      "playable": "dist-playable"
     },
     "compressTextures": false,
     "atlasTextures": false,
