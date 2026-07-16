@@ -168,12 +168,29 @@ tilemap.setChunkTiles(layer, chunkX, chunkY, tiles, 32, 32);
 ## Tilesets & collision
 
 The engine's first-class tileset asset is **`.estileset`** — it references an atlas
-texture and carries per-tile collision, animation, and terrain/auto-tile data.
+texture and carries per-tile collision, animation, terrain/auto-tile data, and
+custom key/value properties.
+
+Per-tile collision goes well beyond solid squares. In the tileset editor's
+**Collision** mode you author, per tile:
+
+- **Shapes** — full-cell **box** (drag-paints), fitted **circle** (drag-paints),
+  or a freeform **polygon** via the vertex editor; one-click **slope / half-tile
+  presets** stamp the common ramps (drag to stamp a run of them).
+- **Modifiers**, riding on whatever shape you paint: **one-way** (jump-through
+  platforms with a solid-top normal), **sensor** (overlap events, no contact
+  response), and physics-material overrides (**friction / bounce / density**).
+
+Plain solid boxes are greedy-merged into large static colliders at spawn; shaped,
+one-way, sensor, and material tiles spawn one collider each, with tile flip flags
+reorienting the geometry to match the rendering. The scene viewport draws the
+selected layer's whole collision as an overlay (Show Flags → tile collision) —
+WYSIWYG with what Play spawns.
 
 <Aside type="note">
-  Tile **collision is play-mode only**: static colliders are spawned from collidable
-  tiles (marked in the `.estileset`) when the scene runs — they are never in the edit
-  world or serialized.
+  Tile **collision is play-mode only**: static colliders are spawned from the
+  `.estileset`'s per-tile collision when the scene runs — they are never in the
+  edit world or serialized.
 </Aside>
 
 ## Object layers
@@ -224,6 +241,9 @@ origin / pixels-per-unit / play-mode lifecycle as tile collision.
 | `setChunkTiles(layer, cx, cy, tiles, w, h)` | Write a chunk (infinite layers). |
 | `exportChunks(layer)` / `importChunks(layer, data)` | Serialize / restore chunk data. |
 | `setTint(layer, color)` / `setVisible(layer, on)` / `setRenderProps(...)` | Live visual overrides. |
+| `setTileProperty(...)` / `getTileProperty(...)` | Per-tile custom key/value properties. |
+| `setGridType(layer, type)` / `setHexParams(...)` | Orientation (orthogonal / isometric / hex). |
+| `destroyLayer(layer)` | Tear a layer down. |
 
 ## Best practices
 
