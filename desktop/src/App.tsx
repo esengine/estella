@@ -35,6 +35,7 @@ import { TimelineRecorder } from '@/timeline/TimelineRecorder';
 import { ProjectStore } from '@/project/ProjectStore';
 import { EditorHistory } from '@/engine/EditorHistory';
 import { dockApi } from '@/layout/dockApi';
+import { forEachEditorWindow } from '@/layout/editorWindows';
 import { Toasts } from '@/store/Toasts';
 import { t } from '@/i18n';
 
@@ -43,7 +44,8 @@ import { t } from '@/i18n';
 export function App() {
   // Global keymap: every shortcut is declared on its Command (single source).
   // Skipped while a text field is focused so typing, native text undo, and
-  // backspace-to-delete-text aren't hijacked.
+  // backspace-to-delete-text aren't hijacked. Attached to EVERY editor window
+  // (main + each popped-out panel) so shortcuts fire whichever one has focus.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       // Ctrl+Space summons the Content Drawer — works even from a field.
@@ -52,7 +54,9 @@ export function App() {
         useEditorStore.getState().toggleContentDrawer();
         return;
       }
-      const el = document.activeElement as HTMLElement | null;
+      // The keydown's own target is the focused element in whichever window fired
+      // it — correct across popouts, unlike the main window's document.activeElement.
+      const el = e.target as HTMLElement | null;
       if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) {
         return;
       }
@@ -68,8 +72,10 @@ export function App() {
         cmd.run();
       }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    return forEachEditorWindow((win) => {
+      win.addEventListener('keydown', onKey);
+      return () => win.removeEventListener('keydown', onKey);
+    });
   }, []);
 
   // Reveal a mode's companion panels when the selection enters that mode (only on the

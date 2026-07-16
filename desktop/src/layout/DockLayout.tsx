@@ -32,6 +32,7 @@ import { Perf } from '@/components/Perf';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { PanelWindowProvider } from '@/components/PanelWindow';
 import { dockApi, applyPopoutTheme } from '@/layout/dockApi';
+import { addEditorWindow, removeEditorWindow } from '@/layout/editorWindows';
 import { t } from '@/i18n';
 
 // Each dock panel is a thin wrapper so dockview owns mount/unmount. The
@@ -261,12 +262,17 @@ export function DockLayout() {
     dockApi.set(api); // expose to the activity bar (reveal/focus panels)
 
     // Every popout group (a manual pop-out AND one dockview reopens while restoring a
-    // saved layout) is re-themed here: dockview copies only the first `dockview-theme-*`
-    // class into the child window, so re-add our estella override so the popped-out
-    // chrome matches the dock exactly. One hook covers both paths.
+    // saved layout) is registered here: re-theme its window (dockview copies only the
+    // first `dockview-theme-*` class over, so re-add our estella override), and add it
+    // to the editor-window set so window-global features (the keymap) attach to it.
+    // Its own pagehide unregisters it when the popout closes or docks back.
     api.onDidAddGroup((group) => {
       const loc = group.api.location;
-      if (loc.type === 'popout') applyPopoutTheme(loc.getWindow());
+      if (loc.type !== 'popout') return;
+      const w = loc.getWindow();
+      applyPopoutTheme(w);
+      addEditorWindow(w);
+      w.addEventListener('pagehide', () => removeEditorWindow(w), { once: true });
     });
 
     const saved = localStorage.getItem(LAYOUT_KEY);

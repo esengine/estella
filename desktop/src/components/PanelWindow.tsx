@@ -22,7 +22,7 @@ import type { DockviewPanelApi } from 'dockview';
 // The main editor window — resolved defensively so importing this module in a
 // non-DOM context (unit tests run under node) doesn't touch an undefined `window`
 // at load time. In the browser/Electron renderer this is always the real window.
-const mainWindow: Window =
+export const mainWindow: Window =
   typeof window !== 'undefined' ? window : (globalThis as unknown as Window);
 
 const PanelWindowContext = createContext<Window>(mainWindow);
