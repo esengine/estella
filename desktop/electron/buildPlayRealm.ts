@@ -101,7 +101,9 @@ async function syncDir(src: string, dst: string, stampFile: string): Promise<voi
   if (!existsSync(src)) return;
   const sig = await dirSignature(src);
   if (existsSync(dst) && existsSync(stampFile) && (await readFile(stampFile, 'utf8')) === sig) return;
-  await rm(dst, { recursive: true, force: true });
+  // Retries absorb the transient ENOTEMPTY when another editor instance (or a
+  // crashed earlier copy) still has fingers in this disposable staging dir.
+  await rm(dst, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
   await cp(src, dst, { recursive: true });
   await writeFile(stampFile, sig);
 }
