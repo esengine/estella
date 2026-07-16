@@ -18,6 +18,12 @@ import { Aside } from '@astrojs/starlight/components';
   自己的控件。
 </Aside>
 
+<Aside type="note">
+  需要跨多个元素的 **共享** 状态——页签、单选组、显隐面板、或从数据驱动的自定义按钮状态——
+  请用 [UI 控制器](/docs/zh-cn/guides/ui-controllers/):一个具名的"页"状态,加上声明式的每页字段
+  绑定,可在编辑器里授权。
+</Aside>
+
 ## Button 按钮
 
 `createButton(opts)` 生成一个可点击实体(带可选子标签),在各视觉状态间过渡。返回按钮**实体**。

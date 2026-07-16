@@ -20,6 +20,13 @@ layout), and visual overrides.
   tree with the UI components on it, so you can compose your own the same way.
 </Aside>
 
+<Aside type="note">
+  For **shared** state across many elements — tabs, radio groups, show/hide panels, or
+  custom button states driven from data — reach for
+  [UI Controllers](/docs/guides/ui-controllers/): a named "page" state plus declarative
+  per-page field bindings, authorable in the editor.
+</Aside>
+
 ## Button
 
 `createButton(opts)` spawns a clickable entity (with an optional child label) that

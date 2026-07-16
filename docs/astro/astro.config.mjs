@@ -90,6 +90,7 @@ export default defineConfig({
             { label: 'Tilemaps', translations: { 'zh-CN': '瓦片地图' }, slug: 'guides/tilemap' },
             { label: 'UI', translations: { 'zh-CN': 'UI' }, slug: 'guides/ui' },
             { label: 'UI Components', translations: { 'zh-CN': 'UI 控件' }, slug: 'guides/ui-components' },
+            { label: 'UI Controllers', translations: { 'zh-CN': 'UI 控制器' }, slug: 'guides/ui-controllers' },
             { label: 'Particles', translations: { 'zh-CN': '粒子' }, slug: 'guides/particle' },
             { label: 'Post-processing', translations: { 'zh-CN': '后处理' }, slug: 'guides/postprocess' },
             { label: 'Materials & Shaders', translations: { 'zh-CN': '材质与着色器' }, slug: 'guides/material' },
