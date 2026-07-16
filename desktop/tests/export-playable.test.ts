@@ -99,6 +99,21 @@ describe('exportGame (playable)', () => {
     expect(html).toMatch(/screen\.orientation[\s\S]*lock\("landscape"\)/);
   }, 60_000);
 
+  it('inlines the project camera fit as __GAME_SCREENFIT__ (only when opted in)', async () => {
+    const o = path.join(root, 'dist-playable-fit');
+    const res = await exportGame({
+      root, entryScene: 'scenes/main.esscene', gameHostEntry: 'unused-for-playable',
+      playableHostEntry: PLAYABLE_HOST, scriptsEntry: 'src/main.ts',
+      sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wasm'),
+      outDir: o, platform: 'playable', screenFit: { designWidth: 750, designHeight: 1334, scaleMode: 1, matchWidthOrHeight: 0.5 },
+    });
+    expect(res.ok).toBe(true);
+    const html = readFileSync(path.join(o, 'index.html'), 'utf8');
+    expect(html).toContain('__GAME_SCREENFIT__');
+    expect(html).toMatch(/"scaleMode":1/);
+    expect(html).toMatch(/"designWidth":750/);
+  }, 60_000);
+
   it('pins the single file to an explicit portrait orientation', async () => {
     const o = path.join(root, 'dist-playable-portrait');
     const res = await exportGame({

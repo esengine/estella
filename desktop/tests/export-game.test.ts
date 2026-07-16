@@ -104,6 +104,27 @@ describe('exportGame', () => {
     expect(JSON.parse(readFileSync(path.join(out, 'game.config.json'), 'utf8')).entryScene).toBe('scenes/main.esscene');
   }, 60_000);
 
+  it('writes the project camera fit into game.config.json (only when opted in)', async () => {
+    const fitOut = path.join(root, 'dist-game-fit');
+    const res = await exportGame({
+      root, entryScene: 'scenes/main.esscene', gameHostEntry: GAME_HOST, scriptsEntry: 'src/main.ts',
+      sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wasm'), outDir: fitOut, title: 'Fit Game',
+      screenFit: { designWidth: 1080, designHeight: 1920, scaleMode: 2, matchWidthOrHeight: 0.5 },
+    });
+    expect(res.ok).toBe(true);
+    const cfg = JSON.parse(readFileSync(path.join(fitOut, 'game.config.json'), 'utf8'));
+    expect(cfg.screenFit).toEqual({ designWidth: 1080, designHeight: 1920, scaleMode: 2, matchWidthOrHeight: 0.5 });
+
+    // Off (scaleMode -1) ⇒ no screenFit key, so an unconfigured game's config is unchanged.
+    const offOut = path.join(root, 'dist-game-fitoff');
+    await exportGame({
+      root, entryScene: 'scenes/main.esscene', gameHostEntry: GAME_HOST, scriptsEntry: 'src/main.ts',
+      sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wasm'), outDir: offOut,
+      screenFit: { designWidth: 1920, designHeight: 1080, scaleMode: -1, matchWidthOrHeight: 0.5 },
+    });
+    expect(JSON.parse(readFileSync(path.join(offOut, 'game.config.json'), 'utf8')).screenFit).toBeUndefined();
+  }, 60_000);
+
   it('content-addresses + KTX2-compresses cooked assets when opted in', async () => {
     const out2 = path.join(root, 'dist-game-ca');
     const res = await exportGame({
