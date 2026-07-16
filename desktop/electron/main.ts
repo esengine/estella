@@ -28,7 +28,7 @@ import { cookAssets } from './cookAssets';
 import { startProjectWatch, stopProjectWatch } from './projectWatcher';
 import { importAssets, createAsset, IMPORT_EXTENSIONS } from './importAssets';
 import { exportGame } from './exportGame';
-import { previewServer, closeAllPreviewServers } from './exportPreview';
+import { loopbackServer, closeAllLoopbackServers } from './loopbackServer';
 import { httpContentType } from './mimeTypes';
 import { buildPlayRealm } from './buildPlayRealm';
 import { ensureSdkTypes } from './syncSdkTypes';
@@ -47,10 +47,12 @@ app.commandLine.appendSwitch('enable-unsafe-webgpu');
 // Two privileged custom schemes (must be declared before app ready):
 //  • estella:// serves files from the open project root (sandboxed) — lets the
 //    engine fetch project assets (textures via Assets.loadTexture → fetch).
-//  • app://     serves the built renderer (dist/) so the editor + play realm load
-//    over a STABLE origin instead of file://. Under file:// the engine glue path
-//    `${location.origin}/wasm/esengine.js` resolves to the filesystem root (404);
-//    app:// gives a real origin where `/wasm/...` + the play iframe resolve.
+//  • app://     serves the built renderer (dist/) — kept as a fallback origin. The
+//    packaged renderer normally loads over a loopback http origin instead (see
+//    loopbackServer + appBaseUrl) so it has a real http origin: the engine glue path
+//    `${location.origin}/wasm/esengine.js` resolves there, and dockview popouts get
+//    the same-origin http opener they require. app:// is a stable fallback if the
+//    loopback server can't start. (Under file:// the glue path 404s at the fs root.)
 // corsEnabled: the renderer reads texture pixels via `<img crossOrigin>` (TextureLoader)
 // + `fetch`, which are CORS requests. Without it Chromium rejects custom-scheme cross-
 // origin at the scheme level (even though the handler returns `access-control-allow-origin:
@@ -67,11 +69,18 @@ protocol.registerSchemesAsPrivileged([
   },
 ]);
 
-// The app:// renderer origin (host is arbitrary; `local` keeps URLs readable).
+// The app:// renderer origin (host is arbitrary; `local` keeps URLs readable). Kept
+// as a fallback; the packaged renderer normally loads over a loopback http origin
+// (see appBaseUrl) so dockview popouts get the same-origin http opener they require.
 const APP_ORIGIN = 'app://local';
 
+// Where the renderer is served from: Vite dev server, a loopback http origin when
+// packaged (set in whenReady), or app:// as a last resort. Trailing slash so
+// `${appBaseUrl}index.html` composes cleanly.
+let appBaseUrl = `${APP_ORIGIN}/`;
+
 // dockview pops a dock panel into its own window by opening `popout.html` on our
-// origin (http://localhost in dev, app://local when packaged). Match by pathname so
+// origin (http://localhost in dev, http://127.0.0.1 when packaged). Match by pathname so
 // the window-open handler can tell a legit panel pop-out from an external link.
 const isPopoutUrl = (url: string): boolean => {
   try {
@@ -412,9 +421,10 @@ function createWindow() {
     // SHOT_DEVTOOLS: measure the overhead DevTools itself adds to a run.
     if (!shotOut || process.env.ESTELLA_SHOT_DEVTOOLS) win.webContents.openDevTools({ mode: 'detach' });
   } else {
-    // Load over app:// (not file://) so the engine glue + play realm resolve from
-    // a real origin. handleApp serves dist/.
-    win.loadURL(`${APP_ORIGIN}/index.html${automation}`);
+    // Load over the loopback http origin (set in whenReady) so the renderer has a real
+    // http origin — the engine glue resolves from it and dockview popouts can open a
+    // same-origin http child window. Falls back to app:// if the server didn't start.
+    win.loadURL(`${appBaseUrl}index.html${automation}`);
   }
 
   if (shotOut) void runScreenshot(win, shotOut);
@@ -692,7 +702,7 @@ ipcMain.handle(
 // http origin (static host / ad-network iframe) — so the file:// opaque-origin rules
 // (blocked subresource loads, no wasm streaming) never apply. Returns the URL.
 ipcMain.handle('export:preview', async (_e, absDir: string) => {
-  const url = await previewServer(absDir);
+  const url = await loopbackServer(absDir);
   await shell.openExternal(url);
   return url;
 });
@@ -856,9 +866,22 @@ async function handleApp(request: Request): Promise<Response> {
 
 installCrashCapture();
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   protocol.handle('estella', handleEstella);
   protocol.handle('app', handleApp);
+  // Packaged: serve the built renderer (dist/) over a loopback http origin so it has a
+  // real http origin, the way dev already runs on Vite's http. dockview's pop-a-panel-
+  // out uses a same-origin `window.open`, which it rejects for the app:// custom scheme;
+  // http satisfies it. estella:// (project assets + the play realm) is a separate scheme
+  // and is unaffected. Fall back to app:// if the server can't start.
+  if (!VITE_DEV_SERVER_URL) {
+    try {
+      appBaseUrl = await loopbackServer(RENDERER_DIST);
+    } catch (err) {
+      console.error('[loopback] renderer server failed; falling back to app://', err);
+      appBaseUrl = `${APP_ORIGIN}/`;
+    }
+  }
   createWindow();
 
   // Startup update check: silent unless a newer release exists (offline = no-op).
@@ -884,5 +907,5 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
 
-// Tear down any loopback export-preview servers on quit.
-app.on('before-quit', () => closeAllPreviewServers());
+// Tear down the loopback servers (renderer shell + export previews) on quit.
+app.on('before-quit', () => closeAllLoopbackServers());
