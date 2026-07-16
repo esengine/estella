@@ -14,6 +14,96 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-07-15
+
+Video comes to Estella. A declarative Video component plays a stream on any
+renderable — a sprite, a UI element, or a 2D mesh — uploaded straight to the
+GPU with no CPU copy on WebGL2; and on WeChat, where the platform's own decoder
+is absent on PC and unreliable on phones, the engine ships its own wasm MPEG-1
+decoder so every device plays the same frames. The design resolution graduates
+from a UI-Canvas detail to a project-level truth: gameplay can letterbox to a
+reference resolution with no dummy Canvas, the device preview works on any
+scene, and screen orientation is one project-wide setting that ships correctly
+to web, desktop, playable, and WeChat alike. Under the hood, WeChat becomes the
+first member of a mini-game platform family described as data, and the editor
+opens and re-Plays noticeably faster.
+
+### Added
+
+- **Video playback.** A declarative `Video` component streams onto whichever
+  renderable an entity has — `Sprite`, `UIVisual` (video in menus and loading
+  screens), or `Mesh2D` — driving a live texture that updates every frame. On
+  the web/desktop backend it plays through an `HTMLVideoElement` (any format the
+  runtime decodes) and, on WebGL2, uploads each frame GPU→GPU with
+  `texImage2D(video)` — no CPU readback; WebGPU keeps a correct readback
+  fallback behind the same pump. The subsystem mirrors the audio architecture
+  end to end — a `PlatformVideoBackend` chosen by the platform adapter, a
+  `VideoPlayer` resource, a `VideoPlugin` — and both backends are pixel-verified
+  headless on WebGL2 and WebGPU.
+- **Video on WeChat, engine-owned.** `wx.createVideoDecoder` is absent on the PC
+  client and unreliable on phones, so the WeChat video path is deterministic
+  instead: a ~61 KB `videodec` wasm side module (pl_mpeg, MIT) decodes MPEG-1
+  behind the same texture pump on every device class — phone, PC, devtools,
+  headless. The cook transcodes each authored video into an MPEG-1 `.esv` plus
+  an AAC `.esv.m4a` audio track that becomes the playback **clock** (the video
+  decodes toward the track's playhead; loop-wraps and seeks exact-seek), shelling
+  out to a bundled ffmpeg at cook time. Cook quality and audio bitrate are
+  per-asset Import Settings.
+- **Opt-in project camera fit.** A gameplay scene can now letterbox to a
+  reference resolution without a dummy UI `Canvas`: a `ScreenScaling` resource
+  (design width/height, scale mode, match axis) fits the main camera whenever a
+  scale mode is set, while UI layout keeps scaling independently off its own
+  Canvas. Off by default — an unconfigured game renders unchanged — and honored
+  by every runtime: the editor Play realm, web, desktop, playable, and WeChat.
+- **Device preview on any scene.** The design frame, letterbox, and safe-area
+  overlay were a UI-layer feature that needed a `Canvas`; they now read the
+  project design resolution and show in any editor mode once a device is picked,
+  so a pure gameplay scene gets the same framing preview and quick device menu.
+- **Faster editor open, with a loading screen.** Opening a project shows a
+  loading screen while the Play-realm engine prewarms in the background, so the
+  first click-to-Play is quick; re-Play keeps that realm engine alive across Stop
+  for a warm restart; and the asset registry is now cache-first with a
+  parallelized disk scan (~3.5× on a large project), so scanning no longer gates
+  boot.
+
+### Changed
+
+- **One screen orientation, project-wide.** Orientation was a per-platform
+  packaging field that only WeChat consumed (web/desktop had none; the playable's
+  was an orphaned no-op). It collapses to a single `packaging.orientation`,
+  defaulted from the design resolution's aspect so a landscape design ships
+  landscape everywhere with zero config, and consumed by every target — WeChat
+  `deviceOrientation`, a rotate-to-fit overlay on web and playable, and the
+  Electron window size on desktop. Legacy per-platform fields migrate forward
+  automatically on open, and Project Settings replaces the two old controls with
+  one.
+- **WeChat is now a mini-game platform family.** The WeChat integration is
+  refactored into a normalized mini-game platform — a host-global surface, a data
+  `MiniGameProfile`, and one adapter — with the shared filesystem/fetch/image/
+  input/storage/canvas logic written once; WeChat becomes a profile that binds
+  `wx`. The export pipeline likewise splits into a vendor-neutral `exportMiniGame`
+  plus a WeChat profile. WeChat output is byte-identical and the public `wx*`
+  helpers stay as thin back-compat wrappers — groundwork for additional mini-game
+  vendors, with no behavior change today.
+
+### Fixed
+
+- **One bad value no longer bricks a scene.** Scene load now salvages invalid
+  fields — an out-of-range or wrong-typed value is coerced or dropped with a
+  diagnostic instead of failing the whole scene — and the MCP `set_field` door
+  coerces and validates on the way in, so automation can't write a value that a
+  later open chokes on.
+- **A failed New Project says so.** Project creation that errors now surfaces a
+  toast instead of leaving the dialog stuck on "Creating…".
+- **WeChat real-device hardening.** The export bundle and emscripten glue
+  down-level to ES2017 for the on-device JS engine, the replication codec creates
+  its `TextEncoder`/`TextDecoder` lazily, and the `performance` polyfill is
+  stabilized — the fixes that carried the video path from black frames to first
+  live playback on a physical device.
+- **Packaged editors ship the SDK types.** The desktop build now bundles the SDK
+  `.d.ts`, so a packaged editor can stage a project's `esengine` types for the
+  IDE even when the unpacked SDK copy isn't present.
+
 ## [0.23.0] - 2026-07-14
 
 The editor opens its doors to AI agents, and the asset registry comes alive.
