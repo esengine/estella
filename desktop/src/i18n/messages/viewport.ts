@@ -116,8 +116,6 @@ export const viewportMessages = defineMessages({
     // — Play chrome (Play-in-viewport + Game panel) —
     'vp.playFailed': { en: 'Play failed: {error}', zh: '运行失败：{error}' },
     'vp.startingGame': { en: 'Starting game…', zh: '正在启动游戏…' },
-    'vp.stopTitle': { en: 'Stop (Esc)', zh: '停止（Esc）' },
-    'vp.playingStop': { en: '● Playing · Stop', zh: '● 运行中 · 停止' },
     'vp.playFlag': { en: '● PLAY', zh: '● 运行中' },
     'vp.pressPlay': { en: 'Press Play to run the game.', zh: '点击“运行”启动游戏。' },
     'vp.starting': { en: 'Starting…', zh: '正在启动…' },

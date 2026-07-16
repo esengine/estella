@@ -967,7 +967,9 @@ export function Viewport() {
         const dragging = TilePaintPreview.get() != null;
         const hov = hoverTileRef.current;
         const gesturing = dragging && (paint.tool === 'rect' || paint.tool === 'line');
-        const stampSized = paint.tool === 'brush' || paint.tool === 'erase';
+        // Random brush lays ONE sampled tile per cell, so its footprint is 1×1 — only a
+        // pattern brush (or erase, which clears the whole w×h) previews at the stamp size.
+        const stampSized = paint.tool === 'erase' || (paint.tool === 'brush' && !paint.randomBrush);
         const canFoot = !!(paint.tool && !gesturing && hov && cs?.cellSize && origin);
         // Footprint corners in client px (fw×fh cells at the hovered cell).
         let ftl: { x: number; y: number } | null = null;
@@ -1888,8 +1890,9 @@ export function Viewport() {
 
       {/* Play In Viewport: the realm iframe fills the stage. The host stays mounted
           whenever the viewport is the play target (parked when not playing) so the
-          engine survives Stop for a warm re-Play; the status + stop chrome is
-          play-only. */}
+          engine survives Stop for a warm re-Play; the status overlay is play-only.
+          Stop lives solely on the toolbar's play controls — no duplicate in-canvas
+          button obscuring the running game. */}
       {playTarget === 'viewport' && (
         <div className={`viewport__play${playInViewport ? '' : ' viewport__play--parked'}`}>
           <div className="viewport__play-host" ref={playHostRef} />
@@ -1897,16 +1900,6 @@ export function Viewport() {
             <div className={`viewport__play-status${realm.error ? ' error' : ''}`}>
               {realm.error ? t('vp.playFailed', { error: realm.error }) : t('vp.startingGame')}
             </div>
-          )}
-          {playInViewport && (
-            <button
-              type="button"
-              className="viewport__play-stop"
-              title={t('vp.stopTitle')}
-              onClick={() => useEditorStore.getState().stop()}
-            >
-              {t('vp.playingStop')}
-            </button>
           )}
         </div>
       )}

@@ -199,26 +199,6 @@
   pointer-events: none;
 }
 .viewport__play-status.error { color: var(--error); font-family: var(--mono); font-size: var(--fs-xs); }
-.viewport__play-stop {
-  position: absolute;
-  top: 10px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 7;
-  height: 24px;
-  padding: 0 12px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  color: var(--on-accent);
-  background: var(--run);
-  border-radius: var(--r-pill);
-  box-shadow: var(--shadow-2);
-  transition: background var(--t-fast);
-}
-.viewport__play-stop:hover { background: var(--run-hi); }
 
 /* Play mode: the running game owns the viewport, so every edit-only overlay is hidden.
    `display: none` (not just opacity) also drops the interactive UI-gizmo handles from

@@ -313,9 +313,8 @@
 /* Cover capture (ProjectStore.captureThumbnail): for the capture frame, hide every
    viewport overlay except the rendered scene itself — no gizmo icons, toolbars, or
    perf HUD in a project cover. The play layer stays (a play-mode capture should
-   show the game), minus its Stop badge. */
-body.thumb-capture .viewport > :not(.viewport__stage):not(.viewport__play),
-body.thumb-capture .viewport__play-stop {
+   show the game). */
+body.thumb-capture .viewport > :not(.viewport__stage):not(.viewport__play) {
   visibility: hidden !important;
 }
 
