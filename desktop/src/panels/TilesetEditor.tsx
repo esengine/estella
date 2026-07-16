@@ -584,6 +584,20 @@ export function TilesetEditor() {
               <span className="ts-fthumb" style={thumb(propTile)} title={`#${propTile}`} />
               <span className="ts-astat">#{propTile}</span>
               <span className="ts-sep" />
+              <label className="ts-modnum" title={t('tile.prop.probabilityTip')}>
+                <span>{t('tile.prop.probability')}</span>
+                <input
+                  key={`${propTile}-p-${asset.tiles[propTile]?.probability ?? 1}`}
+                  type="text" inputMode="decimal" spellCheck={false}
+                  defaultValue={String(asset.tiles[propTile]?.probability ?? 1)}
+                  onBlur={(e) => {
+                    const n = parseFloat(e.target.value);
+                    TilesetCommands.setTileProbability(propTile, Number.isFinite(n) ? n : 1);
+                  }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                />
+              </label>
+              <span className="ts-sep" />
               {Object.entries(asset.tiles[propTile]?.properties ?? {}).map(([k, v]) => (
                 <span key={k} className="ts-prop">
                   <span className="ts-prop-key" title={k}>{k}</span>

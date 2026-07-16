@@ -22,3 +22,33 @@ describe('squareSnap (Shift-constrained rect/ellipse)', () => {
     expect(squareSnap(10, 10, 6, 12)).toEqual({ x: 6, y: 14 });
   });
 });
+
+import { ellipseRing, weightedSampler } from '@/tools/tileTools';
+import { encodeTile } from 'esengine';
+
+describe('ellipseRing (Alt-hollow ellipse)', () => {
+  it('keeps only the outline for boxes with an interior', () => {
+    const ring = ellipseRing(0, 0, 4, 4);
+    const keys = new Set(ring.map((c) => `${c.x},${c.y}`));
+    expect(keys.has('2,2')).toBe(false); // centre carved out
+    expect(keys.has('2,0')).toBe(true);  // top of the ring survives
+    expect(keys.has('0,2')).toBe(true);
+  });
+  it('degenerates to the full set when there is no interior', () => {
+    expect(ellipseRing(0, 0, 1, 1).length).toBe(4);
+  });
+});
+
+describe('weightedSampler (tile probability)', () => {
+  const pool = [encodeTile(1), encodeTile(2)];
+  it('never picks a zero-weight tile when another has weight', () => {
+    const pick = weightedSampler(pool, (gid) => (gid === 1 ? 0 : 1));
+    for (let i = 0; i < 50; i++) expect(pick()).toBe(pool[1]);
+  });
+  it('falls back to uniform when every weight is zero', () => {
+    const pick = weightedSampler(pool, () => 0);
+    const seen = new Set<number>();
+    for (let i = 0; i < 200; i++) seen.add(pick());
+    expect(seen.size).toBe(2);
+  });
+});

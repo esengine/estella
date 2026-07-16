@@ -62,12 +62,41 @@ function stampPool(stamp: TileStamp): number[] {
   return stamp.cells.filter((c) => tileIdOf(c) !== 0);
 }
 
+/** A gid's random-brush weight from its owning palette tileset (tile `probability`). */
+function tileWeight(gid: number): number {
+  const ts = useTilemapPaint.getState().tilesets;
+  for (let i = ts.length - 1; i >= 0; i--) {
+    if (ts[i].firstId <= gid) {
+      const p = ts[i].asset.tiles[gid - ts[i].firstId + 1]?.probability;
+      return typeof p === 'number' && p >= 0 ? p : 1;
+    }
+  }
+  return 1;
+}
+
+/** Weighted sampler over the pool (per-tile `probability`; all-zero falls back to uniform).
+ *  Exported for tests (like lineCells). */
+export function weightedSampler(pool: number[], weightOf: (gid: number) => number = tileWeight): () => number {
+  const weights = pool.map((c) => weightOf(tileIdOf(c)));
+  const total = weights.reduce((a, b) => a + b, 0);
+  if (total <= 0) return () => pool[(Math.random() * pool.length) | 0];
+  return () => {
+    let r = Math.random() * total;
+    for (let i = 0; i < pool.length; i++) {
+      r -= weights[i];
+      if (r <= 0) return pool[i];
+    }
+    return pool[pool.length - 1];
+  };
+}
+
 /** Point-tool edits at (x, y): the stamp footprint, or ONE sampled tile in random mode.
  *  Exported for tests (like lineCells). */
 export function brushEdits(stamp: TileStamp, x: number, y: number): TilePaint[] {
   if (useTilemapPaint.getState().randomBrush) {
     const pool = stampPool(stamp);
-    return pool.length ? [{ x, y, tileId: pool[(Math.random() * pool.length) | 0] }] : [];
+    if (!pool.length) return [];
+    return [{ x, y, tileId: weightedSampler(pool)() }];
   }
   return stampEdits(stamp, x, y);
 }
@@ -77,7 +106,7 @@ export function brushEdits(stamp: TileStamp, x: number, y: number): TilePaint[] 
 export function cellPicker(stamp: TileStamp): (x: number, y: number) => number {
   if (useTilemapPaint.getState().randomBrush) {
     const pool = stampPool(stamp);
-    return pool.length ? () => pool[(Math.random() * pool.length) | 0] : () => 0;
+    return pool.length ? weightedSampler(pool) : () => 0;
   }
   return (x, y) => tiledCell(stamp, x, y);
 }
@@ -107,6 +136,22 @@ export function ellipseCells(x0: number, y0: number, x1: number, y1: number): { 
     }
   }
   return cells;
+}
+
+/**
+ * The ellipse OUTLINE: the inscribed ellipse's cells minus the ellipse one cell
+ * smaller on every side (Alt-hollow mode). Degenerate boxes (≤2 wide/tall) have
+ * no interior, so the ring is the full set. Exported for tests (like lineCells).
+ */
+export function ellipseRing(x0: number, y0: number, x1: number, y1: number): { x: number; y: number }[] {
+  const full = ellipseCells(x0, y0, x1, y1);
+  const minX = Math.min(x0, x1);
+  const maxX = Math.max(x0, x1);
+  const minY = Math.min(y0, y1);
+  const maxY = Math.max(y0, y1);
+  if (maxX - minX < 2 || maxY - minY < 2) return full;
+  const inner = new Set(ellipseCells(minX + 1, minY + 1, maxX - 1, maxY - 1).map((c) => `${c.x},${c.y}`));
+  return full.filter((c) => !inner.has(`${c.x},${c.y}`));
 }
 
 /** The tile coords a Bresenham line from (x0,y0) to (x1,y1) passes through (inclusive). */
@@ -353,6 +398,8 @@ function makeRectTool(): EditorTool {
         const edits: TilePaint[] = [];
         for (let y = y0; y <= y1; y++) {
           for (let x = x0; x <= x1; x++) {
+            // Alt = hollow: keep the perimeter, skip the interior.
+            if (p.alt && x !== x0 && x !== x1 && y !== y0 && y !== y1) continue;
             const raw = pick(x - x0, y - y0);
             if (tileIdOf(raw) === 0) continue;
             edits.push({ x, y, tileId: raw });
@@ -434,7 +481,8 @@ function makeEllipseTool(): EditorTool {
       let tile = cursorTile(p.clientX, p.clientY, stroke.sourceId);
       if (!tile) return;
       if (p.shift) tile = squareSnap(stroke.startX, stroke.startY, tile.x, tile.y);
-      TilePaintPreview.set({ kind: 'line', cells: ellipseCells(stroke.startX, stroke.startY, tile.x, tile.y) });
+      const cells = (p.alt ? ellipseRing : ellipseCells)(stroke.startX, stroke.startY, tile.x, tile.y);
+      TilePaintPreview.set({ kind: 'line', cells });
     },
     onPointerUp(p, ctx) {
       if (!stroke) return;
@@ -446,8 +494,10 @@ function makeEllipseTool(): EditorTool {
         const minX = Math.min(stroke.startX, tile.x);
         const minY = Math.min(stroke.startY, tile.y);
         const pick = cellPicker(activeStamp());
+        let cells = ellipseCells(stroke.startX, stroke.startY, tile.x, tile.y);
+        if (p.alt) cells = ellipseRing(stroke.startX, stroke.startY, tile.x, tile.y);
         const edits: TilePaint[] = [];
-        for (const c of ellipseCells(stroke.startX, stroke.startY, tile.x, tile.y)) {
+        for (const c of cells) {
           const raw = pick(c.x - minX, c.y - minY);
           if (tileIdOf(raw) === 0) continue;
           edits.push({ x: c.x, y: c.y, tileId: raw });

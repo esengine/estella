@@ -112,3 +112,19 @@ describe('TilesetCommands — stamps + properties', () => {
     expect(tiles()[7].properties).toEqual({ kind: 'spike' });
   });
 });
+
+describe('TilesetCommands — probability', () => {
+  beforeEach(() => {
+    EditorHistory.clear();
+    TilesetDocument.open(freshTileset(), 'a.estileset');
+  });
+
+  it('sets a weight, clears at the default 1, and undoes', () => {
+    TilesetCommands.setTileProbability(3, 0.2);
+    expect(tiles()[3].probability).toBe(0.2);
+    TilesetCommands.setTileProbability(3, 1);
+    expect(tiles()[3]).toBeUndefined(); // pruned back to sparse
+    EditorHistory.undo();
+    expect(tiles()[3].probability).toBe(0.2);
+  });
+});

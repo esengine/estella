@@ -517,9 +517,26 @@ export class TilemapPlugin implements Plugin {
                         if (hasTileCollision || hasTileShapes) {
                             const ids = new Set(cached.collisionTileIds);
                             for (const layer of cached.layers) {
-                                // Collision covers finite layers (flat tile arrays);
-                                // infinite/chunk collision is deferred.
-                                if (layer.infinite || layer.tiles.length === 0) continue;
+                                if (layer.infinite) {
+                                    // Infinite Tiled layers are re-chunked to CHUNK_SIZE at
+                                    // parse, so they ride the SAME chunk generators the
+                                    // painted path uses.
+                                    if (layer.chunks.length === 0) continue;
+                                    if (hasTileCollision) {
+                                        spawned.push(...generateChunkCollision(
+                                            world, layer.chunks, ids,
+                                            cached.tileWidth, cached.tileHeight, ox, oy, pixelsPerUnit,
+                                        ));
+                                    }
+                                    if (hasTileShapes) {
+                                        spawned.push(...generateChunkTileShapes(
+                                            world, layer.chunks, cached.tileShapes!,
+                                            cached.tileWidth, cached.tileHeight, ox, oy, pixelsPerUnit,
+                                        ));
+                                    }
+                                    continue;
+                                }
+                                if (layer.tiles.length === 0) continue;
                                 if (hasTileCollision) {
                                     spawned.push(...generateLayerCollision(
                                         world, layer.tiles, layer.width, layer.height,

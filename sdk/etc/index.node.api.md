@@ -6456,6 +6456,7 @@ name: string
 ```
 animation: TilesetAnimFrame[] | undefined
 collision: TilesetCollision | undefined
+probability: number | undefined
 properties: Record<string, string> | undefined
 terrain: TilesetTileTerrain | undefined
 ```

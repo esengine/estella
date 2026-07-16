@@ -1191,19 +1191,25 @@ export function loadTiledMap(
     if (tileCollisionIds.size > 0) {
         for (const layer of mapData.layers) {
             if (!layer.visible) continue;
-            const tileEntities = generateTileCollision(
-                world, layer, mapData, tileCollisionIds, 0, 0,
-            );
-            entities.push(...tileEntities);
+            // Infinite layers are re-chunked to CHUNK_SIZE at parse — same generators
+            // as the painted path.
+            entities.push(...(layer.infinite
+                ? generateChunkCollision(
+                    world, layer.chunks, tileCollisionIds,
+                    mapData.tileWidth, mapData.tileHeight, 0, 0)
+                : generateTileCollision(world, layer, mapData, tileCollisionIds, 0, 0)));
         }
     }
     if (mapData.tileShapes && mapData.tileShapes.size > 0) {
         for (const layer of mapData.layers) {
             if (!layer.visible) continue;
-            entities.push(...generateLayerTileShapes(
-                world, layer.tiles, layer.width, layer.height, mapData.tileShapes,
-                mapData.tileWidth, mapData.tileHeight, 0, 0,
-            ));
+            entities.push(...(layer.infinite
+                ? generateChunkTileShapes(
+                    world, layer.chunks, mapData.tileShapes,
+                    mapData.tileWidth, mapData.tileHeight, 0, 0)
+                : generateLayerTileShapes(
+                    world, layer.tiles, layer.width, layer.height, mapData.tileShapes,
+                    mapData.tileWidth, mapData.tileHeight, 0, 0)));
         }
     }
 

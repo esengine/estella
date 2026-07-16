@@ -7,13 +7,13 @@ import { defineMessages } from './types';
 
 export const tileMessages = defineMessages({
     // — Painter paint tools (button tooltips; the shortcut letter is appended in code) —
-    'tile.tool.brush': { en: 'Brush', zh: '笔刷' },
+    'tile.tool.brush': { en: 'Brush (Alt eyedrops)', zh: '笔刷（Alt 取色）' },
     'tile.tool.eraser': { en: 'Eraser', zh: '橡皮擦' },
-    'tile.tool.rect': { en: 'Rect', zh: '矩形' },
-    'tile.tool.ellipse': { en: 'Ellipse', zh: '椭圆' },
-    'tile.tool.line': { en: 'Line', zh: '直线' },
+    'tile.tool.rect': { en: 'Rect (Shift square · Alt hollow)', zh: '矩形（Shift 正方 · Alt 空心）' },
+    'tile.tool.ellipse': { en: 'Ellipse (Shift circle · Alt hollow)', zh: '椭圆（Shift 正圆 · Alt 空心）' },
+    'tile.tool.line': { en: 'Line (Shift 45°)', zh: '直线（Shift 45°）' },
     'tile.tool.bucket': { en: 'Bucket', zh: '填充' },
-    'tile.tool.select': { en: 'Select ({mod}C/X/V copy/cut/paste)', zh: '选择（{mod}C/X/V 复制/剪切/粘贴）' },
+    'tile.tool.select': { en: 'Select ({mod}C/X/V copy/cut/paste · drag inside to move)', zh: '选择（{mod}C/X/V 复制/剪切/粘贴 · 选区内拖动=移动）' },
     'tile.tool.eyedropper': { en: 'Eyedropper', zh: '取色器' },
     'tile.tool.terrain': { en: 'Terrain', zh: '地形' },
     'tile.tool.exit': { en: 'Select / transform (Q · Esc to exit painting)', zh: '选择 / 变换（Q · Esc 退出绘制）' },
@@ -21,8 +21,8 @@ export const tileMessages = defineMessages({
     'tile.flipV': { en: 'Flip vertical (V)', zh: '垂直翻转（V）' },
     'tile.rotate': { en: 'Rotate 90° (R)', zh: '旋转 90°（R）' },
     'tile.randomTip': {
-        en: 'Random: each painted cell samples one tile from the selection',
-        zh: '随机：每个绘制的单元格从选区中随机取一块瓦片',
+        en: 'Random: each painted cell samples one tile from the selection (weighted by tile probability)',
+        zh: '随机：每个绘制的单元格从选区中随机取一块瓦片（按瓦片概率加权）',
     },
     'tile.terrainBrush': { en: 'Terrain brush', zh: '地形笔刷' },
 
@@ -105,6 +105,11 @@ export const tileMessages = defineMessages({
     'tile.cell.circleTip': { en: 'Tile #{id} — drag paints fitted circle colliders (start on a circled tile to clear)', zh: '瓦片 #{id}——拖动铺设圆形碰撞（从已有圆形的瓦片起拖则清除）' },
     'tile.cell.propTip': { en: 'Tile #{id} — click to edit its custom properties', zh: '瓦片 #{id}——点击编辑自定义属性' },
     'tile.prop.pickHint': { en: 'Click a tile to edit its custom key/value properties.', zh: '点击一个瓦片以编辑它的自定义键值属性。' },
+    'tile.prop.probability': { en: 'probability', zh: '概率' },
+    'tile.prop.probabilityTip': {
+      en: 'Random-brush weight (default 1; 0 = never scattered)',
+      zh: '随机刷权重（默认 1；0 = 永不散布）',
+    },
     'tile.prop.key': { en: 'key', zh: '键' },
     'tile.prop.value': { en: 'value', zh: '值' },
     'tile.prop.add': { en: 'Add property', zh: '添加属性' },

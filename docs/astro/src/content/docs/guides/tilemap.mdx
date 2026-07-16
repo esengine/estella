@@ -30,13 +30,13 @@ viewport — a stamp ghost previews every stroke:
 
 | Tool | Key | What it does |
 |---|---|---|
-| Brush | `B` | Paint the current stamp; drag for strokes. |
+| Brush | `B` | Paint the current stamp; drag for strokes. `Alt`+click eyedrops. |
 | Erase | `E` | Clear tiles. |
-| Rectangle | `U` | Fill a dragged rectangle with the stamp pattern. |
-| Ellipse | `O` | Drag a bounding box, fill its inscribed ellipse. |
-| Line | `L` | Lay the stamp along a straight line. |
+| Rectangle | `U` | Fill a dragged rectangle with the stamp pattern. `Shift` squares it, `Alt` paints the outline only. |
+| Ellipse | `O` | Drag a bounding box, fill its inscribed ellipse. `Shift` makes a circle, `Alt` a ring. |
+| Line | `L` | Lay the stamp along a straight line. `Shift` constrains to horizontal / vertical / 45°. |
 | Bucket | `G` | Flood-fill the connected region of matching tiles. |
-| Select | `M` | Marquee a region — `mod + C` / `X` copy / cut it, `Delete` clears it, `mod + V` pastes it as the brush. |
+| Select | `M` | Marquee a region — `mod + C` / `X` copy / cut it, `Delete` clears it, `mod + V` pastes it as the brush; **drag from inside the marquee to move the block** (one undo step, `Esc` cancels). |
 | Eyedropper | `I` | Pick the stamp from tiles already on the layer. |
 | Terrain | `T` | Autotile brush — paints a terrain and fixes up the neighbors. |
 
@@ -51,7 +51,8 @@ While a paint tool is active, `H` / `V` flip the stamp and `R` rotates it 90°.
   deletes it. Identical patterns deduplicate.
 - **Random mode** — toggle the dice button and each painted cell samples one tile
   at random from the stamp instead of repeating the pattern — quick scatter for
-  grass, rubble, and other variation.
+  grass, rubble, and other variation. Sampling honors each tile's **probability**
+  weight from the tileset editor's Properties mode (default 1; 0 = never scattered).
 - **Layer strip** — when the scene has several tilemap layers, a strip at the top
   of the panel switches the active layer and toggles per-layer visibility and lock.
 

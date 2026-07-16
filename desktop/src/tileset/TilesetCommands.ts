@@ -39,7 +39,8 @@ function withMods<T extends object>(shape: T, mods?: TileCollisionMods): T & Til
 /** Drop a tile entry that no longer carries any metadata, keeping the map sparse. */
 function pruneEmpty(asset: TilesetAsset, id: number): void {
   const t = asset.tiles[id];
-  if (t && !t.collision && !t.properties && !t.animation && !t.terrain) delete asset.tiles[id];
+  if (t && !t.collision && !t.properties && !t.animation && !t.terrain
+      && t.probability === undefined) delete asset.tiles[id];
 }
 
 export const TilesetCommands = {
@@ -126,6 +127,19 @@ export const TilesetCommands = {
           delete a.tiles[id].collision;
           pruneEmpty(a, id);
         }
+      }
+    });
+  },
+
+  /** Set a tile's random-brush weight as ONE undo step; 1 (the default) clears it. */
+  setTileProbability(id: number, p: number): void {
+    if (id <= 0) return;
+    TilesetDocument.edit('Edit Tile Probability', (a) => {
+      if (Number.isFinite(p) && p >= 0 && p !== 1) {
+        a.tiles[id] = { ...(a.tiles[id] ?? {}), probability: p };
+      } else if (a.tiles[id]?.probability !== undefined) {
+        delete a.tiles[id].probability;
+        pruneEmpty(a, id);
       }
     });
   },

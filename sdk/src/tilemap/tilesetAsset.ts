@@ -79,6 +79,8 @@ export interface TilesetTile {
     properties?: Record<string, string>;
     animation?: TilesetAnimFrame[];
     terrain?: TilesetTileTerrain;
+    /** Random-brush weight (Tiled's tile probability). Default 1; 0 = never scattered. */
+    probability?: number;
 }
 
 /** A reusable tileset palette asset (`.estileset`). */
@@ -182,7 +184,12 @@ export function parseTileset(raw: any): TilesetAsset {
             && Number.isInteger(t.terrain.mask) && t.terrain.mask >= 0) {
             tile.terrain = { set: t.terrain.set, mask: t.terrain.mask };
         }
-        if (tile.collision || tile.properties || tile.animation || tile.terrain) tiles[id] = tile;
+        if (typeof t.probability === 'number' && Number.isFinite(t.probability)
+            && t.probability >= 0 && t.probability !== 1) {
+            tile.probability = t.probability;
+        }
+        if (tile.collision || tile.properties || tile.animation || tile.terrain
+            || tile.probability !== undefined) tiles[id] = tile;
     }
     const terrains: TilesetTerrain[] = Array.isArray(raw?.terrains)
         ? raw.terrains

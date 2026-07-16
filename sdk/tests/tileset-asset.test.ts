@@ -107,3 +107,23 @@ describe('tilesetAsset (.estileset format)', () => {
         });
     });
 });
+
+describe('tile probability', () => {
+    it('parses, round-trips, and drops the default weight of 1', () => {
+        const asset = parseTileset({
+            texture: '@uuid:x', tileWidth: 16, tileHeight: 16, columns: 4,
+            tiles: {
+                2: { probability: 0.25 },
+                3: { probability: 1 },     // default → dropped
+                4: { probability: 0 },     // "never scattered" is meaningful
+            },
+        });
+        expect(asset.tiles[2]).toEqual({ probability: 0.25 });
+        expect(asset.tiles[3]).toBeUndefined();
+        expect(asset.tiles[4]).toEqual({ probability: 0 });
+
+        const round = parseTileset(serializeTileset(asset));
+        expect(round.tiles[2]).toEqual({ probability: 0.25 });
+        expect(round.tiles[4]).toEqual({ probability: 0 });
+    });
+});
