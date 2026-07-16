@@ -25,7 +25,8 @@ import { confirmDiscard } from './discardGuard';
 import { t } from '@/i18n';
 import { assetTypeOf } from '@/project/assetMeta';
 import type { AssetType } from '@/types';
-import { resolveLayout, WORKSPACE_DIR, PROJECT_MANIFEST_FILE, type OpenedProject, type ProjectFeatures, type ProjectLayout, type ProjectPackaging, type WorkspaceState, type DesignResolution } from './format';
+import { resolveLayout, orientationFromDesignResolution, resolveOrientation, WORKSPACE_DIR, PROJECT_MANIFEST_FILE, type OpenedProject, type ProjectFeatures, type ProjectLayout, type ProjectPackaging, type WorkspaceState, type DesignResolution, type ScreenOrientation } from './format';
+import { useEditorMode } from '@/store/editorModeStore';
 
 /** Pad/truncate collision-layer names to the 16 Box2D filter bits (layer 0 = Default). */
 function normalizeLayers(layers?: string[]): string[] {
@@ -330,6 +331,9 @@ class ProjectStoreImpl {
         currentScene: null,
       },
     });
+    // Seed the device-preview orientation from the project so the editor opens
+    // matching the shipped orientation; the viewport toggle can still override it.
+    useEditorMode.setState({ orientation: resolveOrientation(opened.manifest) });
   }
 
   /** Load the project's last-opened scene (or `<scenes>/main.esscene`) into the world. */
@@ -1221,7 +1225,14 @@ class ProjectStoreImpl {
     }
   }
 
-  /** Per-platform packaging config (appid / app id / orientation), or {}. */
+  /** The project's effective screen orientation — the explicit packaging setting, else
+   *  derived from the design resolution's aspect. Drives the export targets and the
+   *  editor's device preview; the segmented control reflects this resolved value. */
+  resolvedOrientation(): ScreenOrientation {
+    return this.state?.packaging?.orientation ?? orientationFromDesignResolution(this.designResolution());
+  }
+
+  /** Per-platform packaging config (appid / app id), or {}. */
   platformPackaging(): NonNullable<ProjectPackaging['platforms']> {
     return this.state?.packaging?.platforms ?? {};
   }

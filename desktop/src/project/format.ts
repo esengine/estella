@@ -98,10 +98,11 @@ export interface ProjectFeatures {
 }
 
 export type ScreenOrientation = 'portrait' | 'landscape';
-/** Per-platform packaging config (the platform-specific Project Settings pages). */
-export interface WeChatPackaging { appid?: string; orientation?: ScreenOrientation; }
+/** Per-platform packaging config (the platform-specific Project Settings pages).
+ *  Orientation is NOT here — it is one project-wide {@link ProjectPackaging.orientation}
+ *  consumed by every target (a landscape build is landscape everywhere). */
+export interface WeChatPackaging { appid?: string; }
 export interface DesktopPackaging { appId?: string; productName?: string; }
-export interface PlayablePackaging { orientation?: ScreenOrientation; }
 
 /** Persisted Package Project settings (UE's ProjectPackagingSettings analog) —
  *  committed with the project so the build dialog restores the last target/config
@@ -111,6 +112,11 @@ export interface ProjectPackaging {
   config?: 'development' | 'shipping';
   sourceMaps?: boolean;
   openFolder?: boolean;
+  /** Screen orientation for EVERY export target (WeChat game.json deviceOrientation,
+   *  the web/playable rotate-to-fit hint, the desktop window's aspect). Absent ⇒
+   *  derived from the design resolution's aspect (see {@link resolveOrientation}) —
+   *  so a landscape design ships landscape with zero config. */
+  orientation?: ScreenOrientation;
   /** Cook PNGs to GPU-ready KTX2 (Basis Universal). */
   compressTextures?: boolean;
   /** Cook WAV sources to MP3 (per-asset Import Settings can override). */
@@ -123,8 +129,8 @@ export interface ProjectPackaging {
   excludeScenes?: string[];
   /** Per-platform output-dir overrides (else the per-platform default). */
   outDir?: Partial<Record<'web' | 'desktop' | 'wechat' | 'playable', string>>;
-  /** Per-platform packaging config (appid, app id, orientation, …). */
-  platforms?: { wechat?: WeChatPackaging; desktop?: DesktopPackaging; playable?: PlayablePackaging };
+  /** Per-platform packaging config (appid, app id, …). */
+  platforms?: { wechat?: WeChatPackaging; desktop?: DesktopPackaging };
 }
 
 /** Committed project identity + config (`project.esproject`). */
@@ -306,6 +312,12 @@ export function parseManifest(raw: unknown): ProjectManifest {
     if (p.config === 'development' || p.config === 'shipping') pkg.config = p.config;
     if (typeof p.sourceMaps === 'boolean') pkg.sourceMaps = p.sourceMaps;
     if (typeof p.openFolder === 'boolean') pkg.openFolder = p.openFolder;
+    // Project-wide orientation. `orientation` is authoritative; a project written by
+    // an older editor carried it per-platform (packaging.platforms.{wechat|playable}
+    // .orientation) — hoist the first legacy value found (below) as a migration, then
+    // it re-persists at the top level on the next write.
+    let orientation: ScreenOrientation | undefined =
+      p.orientation === 'portrait' || p.orientation === 'landscape' ? p.orientation : undefined;
     if (Array.isArray(p.excludeScenes)) {
       const ex = p.excludeScenes.filter((s): s is string => typeof s === 'string' && s !== '');
       if (ex.length > 0) pkg.excludeScenes = ex;
@@ -325,7 +337,8 @@ export function parseManifest(raw: unknown): ProjectManifest {
       if (wx && typeof wx === 'object') {
         const w: WeChatPackaging = {};
         if (typeof wx.appid === 'string') w.appid = wx.appid;
-        if (wx.orientation === 'portrait' || wx.orientation === 'landscape') w.orientation = wx.orientation;
+        // Legacy per-platform orientation → the project-wide field (WeChat first).
+        if (!orientation && (wx.orientation === 'portrait' || wx.orientation === 'landscape')) orientation = wx.orientation;
         if (Object.keys(w).length > 0) platforms.wechat = w;
       }
       const dt = pl.desktop as Record<string, unknown> | undefined;
@@ -335,14 +348,15 @@ export function parseManifest(raw: unknown): ProjectManifest {
         if (typeof dt.productName === 'string') d.productName = dt.productName;
         if (Object.keys(d).length > 0) platforms.desktop = d;
       }
+      // Legacy playable.orientation (its only field) also migrates; the platform
+      // block itself is gone (playable has no per-platform config anymore).
       const pa = pl.playable as Record<string, unknown> | undefined;
-      if (pa && typeof pa === 'object') {
-        const a: PlayablePackaging = {};
-        if (pa.orientation === 'portrait' || pa.orientation === 'landscape') a.orientation = pa.orientation;
-        if (Object.keys(a).length > 0) platforms.playable = a;
+      if (!orientation && pa && typeof pa === 'object' && (pa.orientation === 'portrait' || pa.orientation === 'landscape')) {
+        orientation = pa.orientation;
       }
       if (Object.keys(platforms).length > 0) pkg.platforms = platforms;
     }
+    if (orientation) pkg.orientation = orientation;
     if (Object.keys(pkg).length > 0) manifest.packaging = pkg;
   }
   return manifest;
@@ -351,6 +365,21 @@ export function parseManifest(raw: unknown): ProjectManifest {
 /** Effective layout = defaults overlaid with the manifest's overrides. */
 export function resolveLayout(manifest: Pick<ProjectManifest, 'layout'>): ProjectLayout {
   return { ...DEFAULT_LAYOUT, ...(manifest.layout ?? {}) };
+}
+
+/** The orientation a design resolution implies: landscape when at least as wide as
+ *  tall (matches the engine's 1920×1080 Canvas default), portrait otherwise. */
+export function orientationFromDesignResolution(dr?: DesignResolution): ScreenOrientation {
+  const width = dr?.width ?? 1920;
+  const height = dr?.height ?? 1080;
+  return width >= height ? 'landscape' : 'portrait';
+}
+
+/** Effective screen orientation for every export target: the explicit project
+ *  setting when set, else derived from the design resolution's aspect. One value,
+ *  read by WeChat/playable/web/desktop alike — the single source of truth. */
+export function resolveOrientation(manifest: Pick<ProjectManifest, 'packaging' | 'designResolution'>): ScreenOrientation {
+  return manifest.packaging?.orientation ?? orientationFromDesignResolution(manifest.designResolution);
 }
 
 /** Default script entries — the convention most projects follow without config. */

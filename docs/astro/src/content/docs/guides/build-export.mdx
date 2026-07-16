@@ -116,9 +116,18 @@ The Package dialog also drives what the **cook** does to your assets:
 Per-target metadata lives in **Project Settings → Packaging** and is saved with the
 project:
 
-- **WeChat** — AppID and screen orientation.
+- **WeChat** — AppID.
 - **Desktop** — application id and product name (used to name the installer).
-- **Playable** — orientation.
+
+### Screen orientation
+
+Orientation is **one project-wide setting**, not per-target: **Project Settings →
+Display → Orientation** (portrait or landscape), right beside the design resolution.
+Every target honors it — the WeChat `game.json` `deviceOrientation`, the web and
+playable builds' rotate-to-fit prompt (and a best-effort `screen.orientation.lock`),
+and the desktop window's aspect. Left unset, it's **derived from the design
+resolution's aspect** (wider-or-square ⇒ landscape, taller ⇒ portrait), so a
+landscape design ships landscape everywhere with zero configuration.
 
 See [The Editor](/docs/guides/editor/) for the settings UI.
 

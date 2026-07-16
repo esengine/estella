@@ -82,6 +82,11 @@ describe('exportGame (desktop)', () => {
     expect(main).toContain('registerSchemesAsPrivileged');
     expect(main).toContain("SCHEME = 'game'");
     expect(main).toContain('://app/index.html'); // window loads the payload over the scheme
+    // Default landscape ⇒ 1280×720 window; the desktop page carries NO rotate overlay
+    // (a resizable desktop window isn't a phone — orientation is the window aspect).
+    expect(main).toContain('width: 1280');
+    expect(main).toContain('height: 720');
+    expect(readFileSync(path.join(app, 'index.html'), 'utf8')).not.toContain('rotate-hint');
 
     const pkg = JSON.parse(readFileSync(path.join(out, 'package.json'), 'utf8'));
     expect(pkg.main).toBe('main.cjs');
@@ -112,5 +117,18 @@ describe('exportGame (desktop)', () => {
     expect(existsSync(path.join(webOut, 'index.html'))).toBe(true); // top-level, not under app/
     expect(existsSync(path.join(webOut, 'app'))).toBe(false);
     expect(existsSync(path.join(webOut, 'main.cjs'))).toBe(false);
+  }, 60_000);
+
+  it('sizes the desktop window to a portrait orientation', async () => {
+    const pOut = path.join(root, 'dist-desktop-portrait');
+    const res = await exportGame({
+      root, entryScene: 'scenes/main.esscene', gameHostEntry: GAME_HOST, scriptsEntry: 'src/main.ts',
+      sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wasm'),
+      outDir: pOut, title: 'Portrait Game', platform: 'desktop', orientation: 'portrait',
+    });
+    expect(res.ok).toBe(true);
+    const main = readFileSync(path.join(pOut, 'main.cjs'), 'utf8');
+    expect(main).toContain('width: 720');
+    expect(main).toContain('height: 1280');
   }, 60_000);
 });

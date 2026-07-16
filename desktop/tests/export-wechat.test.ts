@@ -65,7 +65,7 @@ describe('exportGame (wechat)', () => {
       title: 'My Game',
       platform: 'wechat',
       wechatAppid: 'wxTEST0123456789',
-      wechatOrientation: 'landscape',
+      orientation: 'landscape',
     });
 
     expect(res.ok).toBe(true);

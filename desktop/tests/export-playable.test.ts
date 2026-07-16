@@ -92,6 +92,26 @@ describe('exportGame (playable)', () => {
     expect(html).toContain('"main"');                                // first scene name
     expect(html).toContain('__GAME_SCENES__');
     expect(html).toContain('<title>Playable Demo</title>');
+    // Orientation pin: no explicit setting ⇒ landscape default (rotate-to-fit + lock).
+    expect(html).toContain('id="rotate-hint"');
+    expect(html).toContain('Rotate your device to landscape');
+    expect(html).toContain('@media (orientation:portrait)');            // hide canvas when wrong way
+    expect(html).toMatch(/screen\.orientation[\s\S]*lock\("landscape"\)/);
+  }, 60_000);
+
+  it('pins the single file to an explicit portrait orientation', async () => {
+    const o = path.join(root, 'dist-playable-portrait');
+    const res = await exportGame({
+      root, entryScene: 'scenes/main.esscene', gameHostEntry: 'unused-for-playable',
+      playableHostEntry: PLAYABLE_HOST, scriptsEntry: 'src/main.ts',
+      sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wasm'),
+      outDir: o, title: 'Playable Demo', platform: 'playable', orientation: 'portrait',
+    });
+    expect(res.ok).toBe(true);
+    const html = readFileSync(path.join(o, 'index.html'), 'utf8');
+    expect(html).toContain('Rotate your device to portrait');
+    expect(html).toContain('@media (orientation:landscape)');           // hide canvas when wrong way
+    expect(html).toMatch(/screen\.orientation[\s\S]*lock\("portrait"\)/);
   }, 60_000);
 });
 

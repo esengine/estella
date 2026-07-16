@@ -55,7 +55,6 @@ export const settingsMessages = defineMessages({
     'set.group.solver': { en: 'Solver', zh: '求解器' },
     'set.group.wechat': { en: 'WeChat', zh: '微信' },
     'set.group.desktop': { en: 'Desktop', zh: '桌面' },
-    'set.group.playable': { en: 'Playable', zh: 'Playable' },
 
     // — Editor settings —
     'set.appearance.language': { en: 'Language', zh: '语言' },
@@ -104,6 +103,11 @@ export const settingsMessages = defineMessages({
         zh: '新建 Canvas 实体使用的参考分辨率；创建后每个 Canvas 保留自己的值。',
     },
     'set.project.display.height': { en: 'Height', zh: '高度' },
+    'set.project.display.orientation': { en: 'Orientation', zh: '屏幕方向' },
+    'set.project.display.orientation.desc': {
+        en: 'Screen orientation for every export target (WeChat, playable, web, desktop). Defaults to the design resolution’s aspect — override to lock a specific orientation.',
+        zh: '所有导出目标（微信、Playable、Web、桌面）的屏幕方向。默认取设计分辨率的宽高比 — 可覆盖以锁定特定方向。',
+    },
     'set.project.rendering.sortingLayers': { en: 'Layer names', zh: '层名称' },
     'set.project.rendering.sortingLayers.desc': {
         en: 'Name render sorting layers (lowest first); a render `layer` field then picks from them instead of a raw number.',
@@ -182,7 +186,6 @@ export const settingsMessages = defineMessages({
         en: 'Your WeChat MiniGame appid — written into project.config.json on export.',
         zh: '微信小游戏的 appid——导出时写入 project.config.json。',
     },
-    'set.project.packaging.orientation': { en: 'Orientation', zh: '屏幕方向' },
     'set.orientation.portrait': { en: 'Portrait', zh: '竖屏' },
     'set.orientation.landscape': { en: 'Landscape', zh: '横屏' },
     'set.project.packaging.desktop.appId': { en: 'App ID', zh: 'App ID' },

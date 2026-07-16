@@ -35,7 +35,7 @@ import { ensureSdkTypes } from './syncSdkTypes';
 import { installCrashCapture, logsDir } from './resilience';
 import { mcpMode, startMcpEndpoint } from './mcpEndpoint';
 import { checkForUpdate } from './updateCheck';
-import { resolveLayout, resolveScripts } from '../src/project/format';
+import { resolveLayout, resolveScripts, resolveOrientation } from '../src/project/format';
 import type { WorkspaceState } from '../src/project/format';
 
 // Enable WebGPU in the renderer so the viewport's WebGPU backend (Settings →
@@ -641,7 +641,9 @@ ipcMain.handle(
       desktopAppId: plat?.desktop?.appId,
       desktopProductName: plat?.desktop?.productName,
       wechatAppid: plat?.wechat?.appid,
-      wechatOrientation: plat?.wechat?.orientation,
+      // One project-wide orientation for every target: the explicit packaging
+      // setting, else derived from the design resolution's aspect.
+      orientation: resolveOrientation(manifest),
       minify: opts?.minify,
       sourcemap: opts?.sourcemap,
       compressTextures: opts?.compressTextures,

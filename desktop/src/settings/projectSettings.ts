@@ -11,9 +11,16 @@ import { settingsRegistry } from './registry';
 import { ProjectStore } from '@/project/ProjectStore';
 import { EngineHost } from '@/engine/EngineHost';
 import { Toasts } from '@/store/Toasts';
+import { useEditorMode } from '@/store/editorModeStore';
+import type { ScreenOrientation } from '@/project/format';
 import { t } from '@/i18n';
 
-// ── Display (design/reference resolution; seeds new Canvas entities) ──
+const ORIENTATION = [
+  { value: 'portrait', label: t('set.orientation.portrait') },
+  { value: 'landscape', label: t('set.orientation.landscape') },
+];
+
+// ── Display (design/reference resolution + orientation; screen shape) ──
 settingsRegistry.registerSection({ id: 'display', label: t('set.section.display'), category: 'project', order: 0 });
 
 settingsRegistry.register({
@@ -36,6 +43,26 @@ settingsRegistry.register({
   bind: {
     get: () => ProjectStore.designResolution().height,
     set: (v) => void ProjectStore.setDisplay({ height: Math.round(v) }),
+  },
+});
+
+// Project-wide screen orientation — one value every export target reads (WeChat
+// game.json, the web/playable rotate hint, the desktop window aspect). Shown as the
+// resolved value (explicit, else derived from the design resolution's aspect); the
+// segmented control's default is only the fallback before a project loads.
+settingsRegistry.register({
+  id: 'project.display.orientation',
+  type: 'enum', scope: 'project', section: 'display', group: t('set.group.designResolution'),
+  label: t('set.project.display.orientation'),
+  description: t('set.project.display.orientation.desc'),
+  options: ORIENTATION, segmented: true, default: 'landscape',
+  bind: {
+    get: () => ProjectStore.resolvedOrientation(),
+    set: (v) => {
+      void ProjectStore.setPackaging({ orientation: v as ScreenOrientation });
+      // Keep the editor's device preview in lockstep with the shipped orientation.
+      useEditorMode.setState({ orientation: v as ScreenOrientation });
+    },
   },
 });
 
@@ -175,11 +202,6 @@ settingsRegistry.register({
 // ── Packaging (per-platform Project Settings; read by the export, persisted to project.esproject) ──
 settingsRegistry.registerSection({ id: 'packaging', label: t('set.section.packaging'), category: 'project', order: 3 });
 
-const ORIENTATION = [
-  { value: 'portrait', label: t('set.orientation.portrait') },
-  { value: 'landscape', label: t('set.orientation.landscape') },
-];
-
 settingsRegistry.register({
   id: 'project.packaging.wechat.appid',
   type: 'string', scope: 'project', section: 'packaging', group: t('set.group.wechat'),
@@ -189,16 +211,6 @@ settingsRegistry.register({
   bind: {
     get: () => ProjectStore.platformPackaging().wechat?.appid ?? '',
     set: (v) => void ProjectStore.setPlatformPackaging('wechat', { appid: v }),
-  },
-});
-
-settingsRegistry.register({
-  id: 'project.packaging.wechat.orientation',
-  type: 'enum', scope: 'project', section: 'packaging', group: t('set.group.wechat'),
-  label: t('set.project.packaging.orientation'), options: ORIENTATION, segmented: true, default: 'portrait',
-  bind: {
-    get: () => ProjectStore.platformPackaging().wechat?.orientation ?? 'portrait',
-    set: (v) => void ProjectStore.setPlatformPackaging('wechat', { orientation: v as 'portrait' | 'landscape' }),
   },
 });
 
@@ -223,16 +235,6 @@ settingsRegistry.register({
   bind: {
     get: () => ProjectStore.platformPackaging().desktop?.productName ?? '',
     set: (v) => void ProjectStore.setPlatformPackaging('desktop', { productName: v }),
-  },
-});
-
-settingsRegistry.register({
-  id: 'project.packaging.playable.orientation',
-  type: 'enum', scope: 'project', section: 'packaging', group: t('set.group.playable'),
-  label: t('set.project.packaging.orientation'), options: ORIENTATION, segmented: true, default: 'portrait',
-  bind: {
-    get: () => ProjectStore.platformPackaging().playable?.orientation ?? 'portrait',
-    set: (v) => void ProjectStore.setPlatformPackaging('playable', { orientation: v as 'portrait' | 'landscape' }),
   },
 });
 

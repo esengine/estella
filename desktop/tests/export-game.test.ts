@@ -97,6 +97,10 @@ describe('exportGame', () => {
     expect(html).toContain('importmap');
     expect(html).toContain('./sdk/index.js');
     expect(html).toContain('./game.js');
+    // Web pins orientation (default landscape ⇒ rotate-to-fit overlay + best-effort lock).
+    expect(html).toContain('id="rotate-hint"');
+    expect(html).toContain('Rotate your device to landscape');
+    expect(html).toMatch(/screen\.orientation[\s\S]*lock\("landscape"\)/);
     expect(JSON.parse(readFileSync(path.join(out, 'game.config.json'), 'utf8')).entryScene).toBe('scenes/main.esscene');
   }, 60_000);
 

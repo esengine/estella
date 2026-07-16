@@ -34,7 +34,9 @@ node build-tools/cli.js build -t videodec-wechat  # video (MPEG-1 wasm decoder)
 
 <Steps>
 
-1. In **Project Settings → Packaging → WeChat**, set your AppID and orientation.
+1. In **Project Settings → Packaging → WeChat**, set your AppID. Screen orientation
+   is project-wide — set it once in **Project Settings → Display → Orientation** (it
+   drives the `game.json` `deviceOrientation` below).
 
 2. Open **File → Build…**, pick the **WeChat** platform in the Package Project
    dialog, review the **Scenes in build** list, and click **Package**. Estella

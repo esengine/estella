@@ -21,6 +21,7 @@ import path from 'node:path';
 import { cookAssets } from './cookAssets';
 import type { OnExportProgress } from './exportProgress';
 import { esengineAlias } from './esengineResolve';
+import { orientationCss, orientationOverlayHtml, orientationLockScript, type ScreenOrientation } from './orientationHtml';
 import {
   sceneUsesPhysics, detectSpineVersion, detectSpineVersionJson,
   spineModuleId, SIDE_MODULE_FILE, type SpineVersion,
@@ -53,7 +54,7 @@ const mimeOf = (p: string): string => MIME[path.extname(p).slice(1).toLowerCase(
 /** Escape `</script` so inlined content can't close the host <script> early. */
 const inlineSafe = (s: string): string => s.replace(/<\/script/gi, '<\\/script');
 
-function indexHtml(title: string, globals: string, bundle: string): string {
+function indexHtml(title: string, globals: string, bundle: string, orientation: ScreenOrientation): string {
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -64,10 +65,13 @@ function indexHtml(title: string, globals: string, bundle: string): string {
       * { margin: 0; padding: 0; box-sizing: border-box; }
       html, body { width: 100%; height: 100%; overflow: hidden; background: #0e121b; }
       #canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+      ${orientationCss(orientation)}
     </style>
   </head>
   <body>
     <canvas id="canvas"></canvas>
+    ${orientationOverlayHtml(orientation)}
+    ${orientationLockScript(orientation)}
     <script>${inlineSafe(globals)}</script>
     <script>${inlineSafe(bundle)}</script>
   </body>
@@ -143,6 +147,9 @@ export async function exportPlayable(opts: {
   wasmDir: string;
   outDir: string;
   title?: string;
+  /** Screen orientation (format.ts resolveOrientation) → rotate-to-fit overlay +
+   *  best-effort lock in the single-file HTML. Default landscape. */
+  orientation?: ScreenOrientation;
   minify?: boolean;
   /** Bitmask of render layers (0..31) that y-sort (Project Settings → Rendering). */
   ySortLayers?: number;
@@ -151,6 +158,7 @@ export async function exportPlayable(opts: {
   onProgress?: OnExportProgress;
 }): Promise<ExportPlayableResult> {
   const title = opts.title ?? 'Game';
+  const orientation: ScreenOrientation = opts.orientation ?? 'landscape';
   const absOut = path.isAbsolute(opts.outDir) ? opts.outDir : path.join(opts.root, opts.outDir);
   const progress = opts.onProgress ?? (() => {});
   const warnings: string[] = [];
@@ -265,7 +273,7 @@ export async function exportPlayable(opts: {
     `window.__GAME_YSORT__=${(opts.ySortLayers ?? 0) >>> 0};` +
     `window.__GAME_COLORSPACE__=${JSON.stringify(opts.colorSpace === 'linear' ? 'linear' : 'gamma')};`;
   const outFile = path.join(absOut, 'index.html');
-  await writeFile(outFile, indexHtml(title, globals, bundle));
+  await writeFile(outFile, indexHtml(title, globals, bundle, orientation));
   await rm(cookDir, { recursive: true, force: true });
 
   const bytes = (await stat(outFile)).size;

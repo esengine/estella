@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect } from 'vitest';
-import { parseManifest } from '../src/project/format';
+import { parseManifest, resolveOrientation, orientationFromDesignResolution } from '../src/project/format';
 
 describe('parseManifest — packaging', () => {
   it('parses a valid packaging section', () => {
@@ -45,21 +45,75 @@ describe('parseManifest — packaging', () => {
       name: 'X',
       packaging: {
         platforms: {
-          wechat: { appid: 'wx123', orientation: 'landscape', junk: 1 },
+          wechat: { appid: 'wx123', junk: 1 },
           desktop: { appId: 'com.x.y', productName: 'Y', extra: 'z' },
-          playable: { orientation: 'portrait' },
         },
       },
     });
     expect(m.packaging?.platforms).toEqual({
-      wechat: { appid: 'wx123', orientation: 'landscape' },
+      wechat: { appid: 'wx123' },
       desktop: { appId: 'com.x.y', productName: 'Y' },
-      playable: { orientation: 'portrait' },
     });
   });
+});
 
-  it('drops invalid orientation + empty platform objects', () => {
-    const m = parseManifest({ name: 'X', packaging: { platforms: { wechat: { orientation: 'diagonal' }, desktop: {} } } });
-    expect(m.packaging).toBeUndefined(); // nothing valid survives
+describe('parseManifest — orientation (unified, project-wide)', () => {
+  it('parses a top-level orientation', () => {
+    expect(parseManifest({ name: 'X', packaging: { orientation: 'landscape' } }).packaging?.orientation).toBe('landscape');
+    expect(parseManifest({ name: 'X', packaging: { orientation: 'portrait' } }).packaging?.orientation).toBe('portrait');
+  });
+
+  it('drops an invalid top-level orientation', () => {
+    expect(parseManifest({ name: 'X', packaging: { orientation: 'diagonal' } }).packaging).toBeUndefined();
+  });
+
+  it('migrates a legacy wechat.orientation to the top level, dropping the per-platform field', () => {
+    const m = parseManifest({
+      name: 'X',
+      packaging: { platforms: { wechat: { appid: 'wx1', orientation: 'landscape' } } },
+    });
+    expect(m.packaging?.orientation).toBe('landscape');
+    expect(m.packaging?.platforms).toEqual({ wechat: { appid: 'wx1' } }); // orientation hoisted out
+  });
+
+  it('migrates a legacy playable.orientation and drops the (now-empty) playable block', () => {
+    const m = parseManifest({
+      name: 'X',
+      packaging: { platforms: { playable: { orientation: 'portrait' } } },
+    });
+    expect(m.packaging?.orientation).toBe('portrait');
+    expect(m.packaging?.platforms).toBeUndefined(); // playable had only orientation → gone
+  });
+
+  it('prefers an explicit top-level orientation over a legacy per-platform one', () => {
+    const m = parseManifest({
+      name: 'X',
+      packaging: { orientation: 'portrait', platforms: { wechat: { orientation: 'landscape' } } },
+    });
+    expect(m.packaging?.orientation).toBe('portrait');
+  });
+
+  it('prefers wechat over playable when both legacy fields are present', () => {
+    const m = parseManifest({
+      name: 'X',
+      packaging: { platforms: { wechat: { orientation: 'landscape' }, playable: { orientation: 'portrait' } } },
+    });
+    expect(m.packaging?.orientation).toBe('landscape');
+  });
+});
+
+describe('resolveOrientation / orientationFromDesignResolution', () => {
+  it('derives orientation from the design resolution aspect', () => {
+    expect(orientationFromDesignResolution({ width: 1920, height: 1080 })).toBe('landscape');
+    expect(orientationFromDesignResolution({ width: 1080, height: 1920 })).toBe('portrait');
+    expect(orientationFromDesignResolution({ width: 800, height: 800 })).toBe('landscape'); // square ⇒ landscape
+    expect(orientationFromDesignResolution(undefined)).toBe('landscape'); // engine default 1920×1080
+  });
+
+  it('resolves the explicit setting first, else derives from the design resolution', () => {
+    expect(resolveOrientation({ packaging: { orientation: 'portrait' }, designResolution: { width: 1920, height: 1080 } })).toBe('portrait');
+    expect(resolveOrientation({ designResolution: { width: 1080, height: 1920 } })).toBe('portrait');
+    expect(resolveOrientation({ designResolution: { width: 1280, height: 720 } })).toBe('landscape');
+    expect(resolveOrientation({})).toBe('landscape'); // no packaging, no design res
   });
 });

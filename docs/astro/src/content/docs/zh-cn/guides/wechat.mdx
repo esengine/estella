@@ -31,7 +31,7 @@ node build-tools/cli.js build -t videodec-wechat  # 视频（MPEG-1 wasm 解码�
 
 <Steps>
 
-1. 在**项目设置 → 打包 → 微信**中，填写 AppID 与横竖屏方向。
+1. 在**项目设置 → 打包 → 微信**中，填写 AppID。屏幕方向是项目级设置——在**项目设置 → 显示 → 屏幕方向**里设一次即可(它驱动下面 `game.json` 的 `deviceOrientation`)。
 
 2. 打开**文件 → 构建…**，在 Package Project 对话框里选 **WeChat** 平台，
    检查**构建场景**列表，点击 **Package**。Estella 会烘焙资源，把 SDK 与你的
