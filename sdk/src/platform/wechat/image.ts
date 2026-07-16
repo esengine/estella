@@ -2,75 +2,31 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    image.ts
- * @brief   WeChat MiniGame image loading utilities
+ * @brief   Public `wx*` image helpers — thin back-compat wrappers binding the
+ *          WeChat global to the vendor-neutral family image decode
+ *          (../minigame/image.ts). Retained as part of `esengine/wechat`.
  */
 
 /// <reference types="minigame-api-typings" />
 
-// =============================================================================
-// Types
-// =============================================================================
+import type { MiniGameGlobal, MiniGameImage } from '../minigame';
+import { mgLoadImage, mgGetImagePixels, mgLoadImagePixels } from '../minigame';
+import type { ImageLoadResult } from '../types';
 
-export interface ImageLoadResult {
-    width: number;
-    height: number;
-    pixels: Uint8Array;
+export type { ImageLoadResult };
+
+function g(): MiniGameGlobal {
+    return wx as unknown as MiniGameGlobal;
 }
 
-// =============================================================================
-// Canvas Management
-// =============================================================================
-
-function getOffscreenCanvas(width: number, height: number): {
-    canvas: WechatMinigame.Canvas;
-    ctx: CanvasRenderingContext2D;
-} {
-    const canvas = wx.createCanvas();
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
-    return { canvas, ctx };
+export function wxLoadImage(path: string): Promise<MiniGameImage> {
+    return mgLoadImage(g(), path);
 }
 
-// =============================================================================
-// Image Loading
-// =============================================================================
-
-/**
- * Load an image from a file path
- * @param path - File path relative to game root
- */
-export function wxLoadImage(path: string): Promise<WechatMinigame.Image> {
-    return new Promise((resolve, reject) => {
-        const img = wx.createImage();
-        img.onload = () => resolve(img);
-        img.onerror = (err) => reject(new Error(`Failed to load image: ${path}, ${err}`));
-        img.src = path;
-    });
+export function wxGetImagePixels(img: MiniGameImage): ImageLoadResult {
+    return mgGetImagePixels(g(), img);
 }
 
-/**
- * Extract pixel data from an image
- * @param img - Loaded image object
- */
-export function wxGetImagePixels(img: WechatMinigame.Image): ImageLoadResult {
-    const { width, height } = img;
-    const { ctx } = getOffscreenCanvas(width, height);
-
-    ctx.clearRect(0, 0, width, height);
-    ctx.drawImage(img as unknown as CanvasImageSource, 0, 0);
-    const imageData = ctx.getImageData(0, 0, width, height);
-    const pixels = new Uint8Array(imageData.data.buffer);
-
-    return { width, height, pixels };
+export function wxLoadImagePixels(path: string): Promise<ImageLoadResult> {
+    return mgLoadImagePixels(g(), path);
 }
-
-/**
- * Load image and get pixel data in one call
- * @param path - File path relative to game root
- */
-export async function wxLoadImagePixels(path: string): Promise<ImageLoadResult> {
-    const img = await wxLoadImage(path);
-    return wxGetImagePixels(img);
-}
-

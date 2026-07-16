@@ -4194,7 +4194,7 @@ instantiateWasm: (pathOrBuffer: string | ArrayBuffer, imports: WebAssembly.Impor
 language: (() => string) | undefined
 loadImagePixels: (path: string) => Promise<ImageLoadResult>
 loadSubpackage: ((name: string) => Promise<void>) | undefined
-name: "web" | "wechat" | "node"
+name: "web" | "wechat" | "douyin" | "node"
 now: () => number
 onMemoryWarning: ((callback: () => void) => () => void) | undefined
 pollGamepads: (() => GamepadSnapshot[]) | undefined
@@ -4266,7 +4266,7 @@ url: string
 
 ## PlatformType — type
 ```
-'web' | 'wechat'
+'web' | 'wechat' | 'douyin'
 ```
 
 ## PlatformVideoBackend — interface

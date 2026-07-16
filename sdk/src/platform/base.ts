@@ -49,10 +49,21 @@ export function getPlatformType(): PlatformAdapter['name'] | null {
 }
 
 /**
- * Check if running on WeChat
+ * Check if running on WeChat specifically (true vendor identity).
+ * Prefer isMiniGame() for "no DOM / packaged fs / subpackages" checks that hold
+ * for every mini-game vendor, not just WeChat.
  */
 export function isWeChat(): boolean {
     return currentPlatform?.name === 'wechat';
+}
+
+/**
+ * Check if running on any mini-game host (WeChat, Douyin, …) — the capability
+ * family that shares the packaged-filesystem / subpackage / no-DOM model.
+ */
+export function isMiniGame(): boolean {
+    const name = currentPlatform?.name;
+    return name === 'wechat' || name === 'douyin';
 }
 
 /**

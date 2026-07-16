@@ -114,7 +114,7 @@ export interface PlatformSocket {
 // =============================================================================
 
 export interface PlatformAdapter {
-    readonly name: 'web' | 'wechat' | 'node';
+    readonly name: 'web' | 'wechat' | 'douyin' | 'node';
 
     fetch(url: string, options?: PlatformRequestOptions): Promise<PlatformResponse>;
 
@@ -187,12 +187,16 @@ export interface PlatformAdapter {
 // Platform Detection
 // =============================================================================
 
-export type PlatformType = 'web' | 'wechat';
+export type PlatformType = 'web' | 'wechat' | 'douyin';
 
 export function detectPlatform(): PlatformType {
-    // Check for WeChat MiniGame environment
+    // Mini-game hosts expose their API under a vendor global (`tt` = Douyin,
+    // `wx` = WeChat). Probe Douyin first — WeChat never defines `tt`.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const g = globalThis as any;
+    if (typeof g.tt !== 'undefined' && typeof g.tt.getSystemInfoSync === 'function') {
+        return 'douyin';
+    }
     if (typeof g.wx !== 'undefined' && typeof g.wx.getSystemInfoSync === 'function') {
         return 'wechat';
     }

@@ -22,6 +22,7 @@ export {
     getPlatformType,
     isPlatformInitialized,
     isWeChat,
+    isMiniGame,
     isWeb,
     platformFetch,
     platformReadFile,
