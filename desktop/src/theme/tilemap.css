@@ -71,6 +71,17 @@
 }
 .tp-layer.is-active .tp-layer-name { color: var(--text); }
 .tp-layer-name:hover { color: var(--text); }
+.tp-layer-rename {
+  font: inherit;
+  color: var(--text);
+  background: var(--srf-2);
+  border: 1px solid var(--acc);
+  border-radius: var(--r-sm);
+  padding: 2px 6px;
+  margin: 0 1px;
+  width: 110px;
+  outline: none;
+}
 .tp-layer-op { width: 44px; margin: 0 4px; align-self: center; accent-color: var(--acc); cursor: pointer; }
 .tp-grow { flex: 1 1 auto; }
 .tp-sep { width: 1px; align-self: stretch; margin: 2px 4px; background: var(--line); }

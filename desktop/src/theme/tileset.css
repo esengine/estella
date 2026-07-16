@@ -333,3 +333,12 @@
   color: var(--text-faint);
 }
 .ts-hint { font-size: var(--fs-xs); }
+
+/* Tile custom-properties bar (mode = properties). */
+.ts-prop { display: inline-flex; align-items: center; gap: 3px; background: var(--srf-3); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 2px 4px; }
+.ts-prop-key { color: var(--text-dim); font-size: var(--fs-2xs); max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ts-prop-in { width: 74px; font-size: var(--fs-2xs); color: var(--text); background: var(--srf-2); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 2px 5px; }
+.ts-prop-in:focus { outline: none; border-color: var(--acc); }
+.ts-prop-btn { display: inline-flex; align-items: center; color: var(--text-dim); background: none; border: none; cursor: pointer; padding: 1px; }
+.ts-prop-btn:hover { color: var(--text); }
+.ts-prop-add { display: inline-flex; align-items: center; gap: 3px; }

@@ -102,6 +102,48 @@ export const TilesetCommands = {
     });
   },
 
+  /** Stamp the same polygon onto a set of tiles as ONE undo step (preset drag-paint). */
+  stampPolygons(tileIds: number[], points: [number, number][], mods?: TileCollisionMods): void {
+    if (tileIds.length === 0 || points.length < 3) return;
+    TilesetDocument.edit('Stamp Tile Collision', (a) => {
+      for (const id of tileIds) {
+        if (id <= 0) continue;
+        const copy = points.map((p) => [p[0], p[1]] as [number, number]);
+        a.tiles[id] = { ...(a.tiles[id] ?? {}), collision: withMods({ type: 'polygon' as const, points: copy }, mods) };
+      }
+    });
+  },
+
+  /** Stamp (on) or clear (off) a fitted circle on a set of tiles as ONE undo step. */
+  stampCircles(tileIds: number[], on: boolean, cx: number, cy: number, r: number, mods?: TileCollisionMods): void {
+    if (tileIds.length === 0) return;
+    TilesetDocument.edit(on ? 'Stamp Tile Collision' : 'Remove Tile Collision', (a) => {
+      for (const id of tileIds) {
+        if (id <= 0) continue;
+        if (on) {
+          a.tiles[id] = { ...(a.tiles[id] ?? {}), collision: withMods({ type: 'circle' as const, cx, cy, r }, mods) };
+        } else if (a.tiles[id]?.collision?.type === 'circle') {
+          delete a.tiles[id].collision;
+          pruneEmpty(a, id);
+        }
+      }
+    });
+  },
+
+  /** Replace a tile's custom properties as ONE undo step; an empty record clears them. */
+  setTileProperties(id: number, props: Record<string, string>): void {
+    if (id <= 0) return;
+    TilesetDocument.edit('Edit Tile Properties', (a) => {
+      const clean = Object.fromEntries(Object.entries(props).filter(([k]) => k.trim() !== ''));
+      if (Object.keys(clean).length > 0) {
+        a.tiles[id] = { ...(a.tiles[id] ?? {}), properties: clean };
+      } else if (a.tiles[id]?.properties) {
+        delete a.tiles[id].properties;
+        pruneEmpty(a, id);
+      }
+    });
+  },
+
   /** Add a terrain (autotile) set; returns the new set's index. */
   addTerrain(name: string, mode: TerrainMode): void {
     TilesetDocument.edit('Add Terrain', (a) => {

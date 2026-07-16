@@ -124,6 +124,36 @@ function PolygonEditor(props: {
   );
 }
 
+/** Key/value entry row for the tile-properties bar; commits on ＋ or Enter. */
+function AddPropRow({ onAdd }: { onAdd: (k: string, v: string) => void }) {
+  const [k, setK] = useState('');
+  const [v, setV] = useState('');
+  const add = () => {
+    const key = k.trim();
+    if (!key) return;
+    onAdd(key, v);
+    setK('');
+    setV('');
+  };
+  return (
+    <span className="ts-prop-add">
+      <input
+        className="ts-prop-in" placeholder={t('tile.prop.key')} value={k} spellCheck={false}
+        onChange={(e) => setK(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter') add(); }}
+      />
+      <input
+        className="ts-prop-in" placeholder={t('tile.prop.value')} value={v} spellCheck={false}
+        onChange={(e) => setV(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter') add(); }}
+      />
+      <button type="button" className="ts-prop-btn" title={t('tile.prop.add')} onClick={add}>
+        <Plus size={12} />
+      </button>
+    </span>
+  );
+}
+
 export function TilesetEditor() {
   useSyncExternalStore(TilesetDocument.subscribe, TilesetDocument.getRevision);
   const asset = TilesetDocument.asset;
@@ -134,8 +164,9 @@ export function TilesetEditor() {
 
   const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
   const [zoom, setZoom] = useState(2);
-  const [mode, setMode] = useState<'collision' | 'terrain' | 'animation'>('collision');
+  const [mode, setMode] = useState<'collision' | 'terrain' | 'animation' | 'properties'>('collision');
   const [animTile, setAnimTile] = useState<number | null>(null);
+  const [propTile, setPropTile] = useState<number | null>(null);
   const [shape, setShape] = useState<'box' | 'polygon' | 'circle'>('box');
   const [polyTile, setPolyTile] = useState<number | null>(null);
   // In polygon mode, an active preset stamps that canned slope/half-tile on click;
@@ -147,12 +178,17 @@ export function TilesetEditor() {
   const [sensorOn, setSensorOn] = useState(false);
   const [frictionStr, setFrictionStr] = useState('');
   const [restitutionStr, setRestitutionStr] = useState('');
+  const [densityStr, setDensityStr] = useState('');
   const [activeSet, setActiveSet] = useState(0);
   const [hovered, setHovered] = useState<number | null>(null);
   // Live collision paint stroke: which tiles + the target on/off state, one undo step.
   const [drag, setDrag] = useState<{ ids: Set<number>; on: boolean } | null>(null);
   const dragRef = useRef(drag);
   dragRef.current = drag;
+  // Circle / preset drag-stamp stroke — same drag-paint feel as box collision.
+  const [stampDrag, setStampDrag] = useState<{ ids: Set<number>; on: boolean; kind: 'circle' | 'preset' } | null>(null);
+  const stampDragRef = useRef(stampDrag);
+  stampDragRef.current = stampDrag;
 
   useEffect(() => setNatural(null), [texUrl]);
 
@@ -174,7 +210,6 @@ export function TilesetEditor() {
 
   const isSolid = (id: number): boolean =>
     drag?.ids.has(id) ? drag.on : asset.tiles[id]?.collision?.type === 'box';
-  const hasPolygon = (id: number): boolean => asset.tiles[id]?.collision?.type === 'polygon';
   const polyPointsOf = (id: number): [number, number][] | null => {
     const c = asset.tiles[id]?.collision;
     return c?.type === 'polygon' ? c.points : null;
@@ -195,6 +230,7 @@ export function TilesetEditor() {
     if (sensorOn) m.sensor = true;
     const fr = numOrU(frictionStr); if (fr !== undefined) m.friction = fr;
     const re = numOrU(restitutionStr); if (re !== undefined) m.restitution = re;
+    const de = numOrU(densityStr); if (de !== undefined) m.density = de;
     return m;
   })();
 
@@ -202,6 +238,22 @@ export function TilesetEditor() {
     const d = dragRef.current;
     if (d) TilesetCommands.paintCollision([...d.ids], d.on, brushMods);
     setDrag(null);
+    const sd = stampDragRef.current;
+    if (sd) {
+      if (sd.kind === 'circle') {
+        TilesetCommands.stampCircles([...sd.ids], sd.on, tw / 2, th / 2, Math.min(tw, th) / 2, brushMods);
+      } else if (activePreset) {
+        TilesetCommands.stampPolygons([...sd.ids], presetPointsPx(activePreset, tw, th), brushMods);
+      }
+      setStampDrag(null);
+    }
+  };
+  const growStampDrag = (id: number) => {
+    const sd = stampDragRef.current;
+    if (!sd || sd.ids.has(id)) return;
+    const ids = new Set(sd.ids);
+    ids.add(id);
+    setStampDrag({ ...sd, ids });
   };
 
   // Grid edits recompute columns from the atlas so the asset stays consistent.
@@ -246,19 +298,22 @@ export function TilesetEditor() {
         const w = tw * zoom;
         const h = th * zoom;
         if (mode === 'collision' && shape === 'polygon') {
-          const pts = polyPointsOf(id);
+          // A preset drag-paints (live-previewed via stampDrag, one undo step on
+          // release); freeform click opens the vertex editor.
+          const inStamp = activePreset != null && stampDrag?.kind === 'preset' && stampDrag.ids.has(id);
+          const pts = inStamp ? presetPointsPx(activePreset!, tw, th) : polyPointsOf(id);
           cells.push(
             <div
               key={id}
-              className={'ts-cell ts-pcell' + (hasPolygon(id) ? ' is-poly' : '') + (hasOneWay(id) ? ' is-oneway' : '') + (hasSensor(id) ? ' is-sensor' : '')}
+              className={'ts-cell ts-pcell' + (pts ? ' is-poly' : '') + (hasOneWay(id) ? ' is-oneway' : '') + (hasSensor(id) ? ' is-sensor' : '')}
               style={{ left, top, width: w, height: h }}
               title={activePreset ? t('tile.slope.stampTip', { name: t(activePreset.labelKey) }) : t('tile.cell.polyTip', { id })}
               onPointerDown={(e) => {
                 e.preventDefault();
-                // A preset stamps directly; freeform opens the vertex editor.
-                if (activePreset) TilesetCommands.setTilePolygon(id, presetPointsPx(activePreset, tw, th), brushMods);
+                if (activePreset) setStampDrag({ ids: new Set([id]), on: true, kind: 'preset' });
                 else setPolyTile(id);
               }}
+              onPointerEnter={() => growStampDrag(id)}
             >
               {pts && (
                 <svg className="ts-pe-svg" width={w} height={h} viewBox={`0 0 ${tw} ${th}`} preserveAspectRatio="none">
@@ -272,7 +327,12 @@ export function TilesetEditor() {
             </div>,
           );
         } else if (mode === 'collision' && shape === 'circle') {
-          const circ = circleOf(id);
+          // Drag paints (or clears, when starting on a circled tile) fitted discs —
+          // the same stroke feel as box collision, one undo step on release.
+          const inStamp = stampDrag?.kind === 'circle' && stampDrag.ids.has(id);
+          const circ = inStamp
+            ? (stampDrag!.on ? { cx: tw / 2, cy: th / 2, r: Math.min(tw, th) / 2 } : null)
+            : circleOf(id);
           cells.push(
             <div
               key={id}
@@ -281,10 +341,9 @@ export function TilesetEditor() {
               title={t('tile.cell.circleTip', { id })}
               onPointerDown={(e) => {
                 e.preventDefault();
-                // Toggle: click a circle tile again to clear it; else stamp a fitted disc.
-                if (circ) TilesetCommands.setTileCircle(id, 0, 0, 0);
-                else TilesetCommands.setTileCircle(id, tw / 2, th / 2, Math.min(tw, th) / 2, brushMods);
+                setStampDrag({ ids: new Set([id]), on: !circleOf(id), kind: 'circle' });
               }}
+              onPointerEnter={() => growStampDrag(id)}
             >
               {circ && (
                 <svg className="ts-pe-svg" width={w} height={h} viewBox={`0 0 ${tw} ${th}`} preserveAspectRatio="none">
@@ -323,6 +382,17 @@ export function TilesetEditor() {
                 if (animTile == null) setAnimTile(id);
                 else setFrames([...animFrames, { tile: id, durationMs: 120 }]);
               }}
+            />,
+          );
+        } else if (mode === 'properties') {
+          const hasProps = !!asset.tiles[id]?.properties && Object.keys(asset.tiles[id]!.properties!).length > 0;
+          cells.push(
+            <div
+              key={id}
+              className={'ts-cell ts-acell' + (hasProps ? ' has-anim' : '') + (propTile === id ? ' is-target' : '')}
+              style={{ left, top, width: w, height: h }}
+              title={t('tile.cell.propTip', { id })}
+              onPointerDown={(e) => { e.preventDefault(); setPropTile(id); }}
             />,
           );
         } else {
@@ -383,6 +453,7 @@ export function TilesetEditor() {
             { value: 'collision', label: t('tile.mode.collision') },
             { value: 'terrain', label: t('tile.mode.terrain') },
             { value: 'animation', label: t('tile.mode.animation') },
+            { value: 'properties', label: t('tile.mode.properties') },
           ]}
         />
         {mode === 'collision' && (
@@ -504,6 +575,52 @@ export function TilesetEditor() {
         </div>
       )}
 
+      {mode === 'properties' && (
+        <div className="ts-anims ts-props">
+          {propTile == null ? (
+            <span className="ts-ahint">{t('tile.prop.pickHint')}</span>
+          ) : (
+            <>
+              <span className="ts-fthumb" style={thumb(propTile)} title={`#${propTile}`} />
+              <span className="ts-astat">#{propTile}</span>
+              <span className="ts-sep" />
+              {Object.entries(asset.tiles[propTile]?.properties ?? {}).map(([k, v]) => (
+                <span key={k} className="ts-prop">
+                  <span className="ts-prop-key" title={k}>{k}</span>
+                  <input
+                    key={`${propTile}-${k}-${v}`}
+                    className="ts-prop-in"
+                    defaultValue={v}
+                    spellCheck={false}
+                    onBlur={(e) => {
+                      if (e.target.value === v) return;
+                      const next = { ...(asset.tiles[propTile]?.properties ?? {}) };
+                      next[k] = e.target.value;
+                      TilesetCommands.setTileProperties(propTile, next);
+                    }}
+                    onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                  />
+                  <button
+                    type="button" className="ts-prop-btn" title={t('tile.prop.remove')}
+                    onClick={() => {
+                      const next = { ...(asset.tiles[propTile]?.properties ?? {}) };
+                      delete next[k];
+                      TilesetCommands.setTileProperties(propTile, next);
+                    }}
+                  >
+                    <X size={11} />
+                  </button>
+                </span>
+              ))}
+              <AddPropRow
+                onAdd={(k, v) =>
+                  TilesetCommands.setTileProperties(propTile, { ...(asset.tiles[propTile]?.properties ?? {}), [k]: v })}
+              />
+            </>
+          )}
+        </div>
+      )}
+
       {mode === 'collision' && (
         <div className="ts-modbar">
           <span className="ts-slabel">{t('tile.modifiers')}</span>
@@ -539,20 +656,31 @@ export function TilesetEditor() {
               onChange={(e) => setRestitutionStr(e.target.value)}
             />
           </label>
+          <label className="ts-modnum">
+            <span>{t('tile.density')}</span>
+            <input
+              type="text" inputMode="decimal" placeholder="1" value={densityStr} spellCheck={false}
+              onChange={(e) => setDensityStr(e.target.value)}
+            />
+          </label>
         </div>
       )}
 
-      {mode === 'collision' && shape === 'polygon' && (
+      {mode === 'collision' && (
         <div className="ts-slopes">
           <span className="ts-slabel">{t('tile.slope.presets')}</span>
           {SLOPE_PRESETS.map((p) => (
             <button
               key={p.id}
               type="button"
-              className={'ts-slope' + (activePreset?.id === p.id ? ' is-active' : '')}
+              className={'ts-slope' + (shape === 'polygon' && activePreset?.id === p.id ? ' is-active' : '')}
               title={t(p.labelKey)}
               aria-label={t(p.labelKey)}
-              onClick={() => setActivePreset((cur) => (cur?.id === p.id ? null : p))}
+              onClick={() => {
+                // Arming a preset implies polygon shape — no mode dance first.
+                setShape('polygon');
+                setActivePreset((cur) => (shape === 'polygon' && cur?.id === p.id ? null : p));
+              }}
             >
               <svg width={20} height={20} viewBox="0 0 10 10" preserveAspectRatio="none" aria-hidden="true">
                 <polygon className="ts-pe-poly" points={p.points.map(([x, y]) => `${x * 10},${y * 10}`).join(' ')} style={{ vectorEffect: 'non-scaling-stroke' }} />
@@ -561,9 +689,9 @@ export function TilesetEditor() {
           ))}
           <button
             type="button"
-            className={'ts-slope ts-slope-free' + (activePreset === null ? ' is-active' : '')}
+            className={'ts-slope ts-slope-free' + (shape === 'polygon' && activePreset === null ? ' is-active' : '')}
             title={t('tile.slope.freeform')}
-            onClick={() => setActivePreset(null)}
+            onClick={() => { setShape('polygon'); setActivePreset(null); }}
           >
             {t('tile.slope.freeform')}
           </button>

@@ -77,3 +77,38 @@ describe('TilesetCommands', () => {
     expect(tiles()[5].collision).toEqual({ type: 'polygon', points: [[0, 16], [16, 16], [16, 0]], sensor: true });
   });
 });
+
+describe('TilesetCommands — stamps + properties', () => {
+  beforeEach(() => {
+    EditorHistory.clear();
+    TilesetDocument.open(freshTileset(), 'a.estileset');
+  });
+
+  it('stampPolygons stamps one polygon across many tiles as one undo step', () => {
+    const ramp: [number, number][] = [[0, 16], [16, 16], [16, 0]];
+    TilesetCommands.stampPolygons([2, 3, 4], ramp, { oneWay: { nx: 0, ny: 1 } });
+    expect(tiles()[3].collision).toEqual({ type: 'polygon', points: ramp, oneWay: { nx: 0, ny: 1 } });
+    // Points are copied, not aliased, across tiles.
+    expect((tiles()[2].collision as { points: unknown }).points).not.toBe((tiles()[3].collision as { points: unknown }).points);
+    EditorHistory.undo();
+    expect(Object.keys(tiles())).toEqual([]);
+  });
+
+  it('stampCircles paints fitted discs and clears them (on=false) as one step each', () => {
+    TilesetCommands.stampCircles([1, 2], true, 8, 8, 8);
+    expect(tiles()[1].collision).toEqual({ type: 'circle', cx: 8, cy: 8, r: 8 });
+    TilesetCommands.stampCircles([1, 2], false, 8, 8, 8);
+    expect(Object.keys(tiles())).toEqual([]);
+    EditorHistory.undo();
+    expect(tiles()[2].collision).toEqual({ type: 'circle', cx: 8, cy: 8, r: 8 });
+  });
+
+  it('setTileProperties round-trips, drops blank keys, and clears on empty', () => {
+    TilesetCommands.setTileProperties(7, { kind: 'spike', '  ': 'ignored' });
+    expect(tiles()[7].properties).toEqual({ kind: 'spike' });
+    TilesetCommands.setTileProperties(7, {});
+    expect(tiles()[7]).toBeUndefined();
+    EditorHistory.undo();
+    expect(tiles()[7].properties).toEqual({ kind: 'spike' });
+  });
+});

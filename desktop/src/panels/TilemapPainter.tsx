@@ -32,6 +32,7 @@ import { layerTilesetRefs } from '@/tilemap/layerTilesetModel';
 import { AnimPreview, tileThumbStyle, type TileAtlas } from '@/tools/tileThumb';
 import { parseStampLibrary, serializeStampLibrary, stampLibraryKey, addStamp, removeStampAt, type SavedStamp } from '@/tools/stampLibrary';
 import { IconButton } from '@/components/IconButton';
+import { ContextMenu } from '@/components/Menu';
 import { t } from '@/i18n';
 
 const TOOLS: { id: PaintTool; icon: typeof Brush; label: string }[] = [
@@ -100,6 +101,8 @@ export function TilemapPainter() {
   // did not, so the palette-load effect below wouldn't otherwise re-read the new list.
   const [reloadKey, setReloadKey] = useState(0);
   const [addOpen, setAddOpen] = useState(false);
+  const [layerCtx, setLayerCtx] = useState<{ x: number; y: number; id: number } | null>(null);
+  const [renamingLayer, setRenamingLayer] = useState<number | null>(null);
 
   // Saved-stamp library — per project (stamps carry gids only this project's tilesets
   // mint), persisted in localStorage, pure logic in tools/stampLibrary.
@@ -261,6 +264,19 @@ export function TilemapPainter() {
   const setLayerOpacity = (id: number, v: number) =>
     SceneCommands.setField(id, 'TilemapLayer', 'opacity', 'number', v);
 
+  // Layer chip context menu (rename / duplicate / reorder / delete) — the layer
+  // bar is the tilemap home, so managing layers must not require the Outliner.
+  const layerMenuItems = (id: number) => {
+    const i = layers.findIndex((L) => L.id === id);
+    return [
+      { label: t('tile.layerRename'), onClick: () => setRenamingLayer(id) },
+      { label: t('tile.layerDuplicate'), onClick: () => SceneCommands.duplicateEntity(id) },
+      { label: t('tile.layerMoveUp'), disabled: i <= 0, onClick: () => SceneCommands.reorderEntity(id, layers[i - 1]!.id, true) },
+      { label: t('tile.layerMoveDown'), disabled: i < 0 || i >= layers.length - 1, onClick: () => SceneCommands.reorderEntity(id, layers[i + 1]!.id, false) },
+      { label: t('tile.layerDelete'), onClick: () => SceneCommands.deleteEntity(id) },
+    ];
+  };
+
   const commitSel = (r: SelRect) => {
     const w = r.c1 - r.c0 + 1;
     const h = r.r1 - r.r0 + 1;
@@ -388,19 +404,45 @@ export function TilemapPainter() {
             <Plus size={14} />
           </IconButton>
           {layers.map((L) => (
-            <span key={L.id} className={'tp-layer' + (L.id === selectedId ? ' is-active' : '')}>
+            <span
+              key={L.id}
+              className={'tp-layer' + (L.id === selectedId ? ' is-active' : '')}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                setLayerCtx({ x: e.clientX, y: e.clientY, id: L.id });
+              }}
+            >
               <button
                 type="button" className="tp-layer-vis" title={L.hidden ? t('tile.show') : t('tile.hide')}
                 onClick={() => SceneCommands.setEntityVisible(L.id, L.hidden)}
               >
                 {L.hidden ? <EyeOff size={12} /> : <Eye size={12} />}
               </button>
-              <button
-                type="button" className="tp-layer-name" title={t('tile.paintOn', { name: L.name })}
-                onClick={() => useSelection.getState().select(L.id)}
-              >
-                {L.name}
-              </button>
+              {renamingLayer === L.id ? (
+                <input
+                  className="tp-layer-rename"
+                  defaultValue={L.name}
+                  autoFocus
+                  onFocus={(e) => e.target.select()}
+                  onBlur={(e) => {
+                    const name = e.target.value.trim();
+                    if (name && name !== L.name) SceneCommands.renameEntity(L.id, name);
+                    setRenamingLayer(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                    if (e.key === 'Escape') setRenamingLayer(null);
+                  }}
+                />
+              ) : (
+                <button
+                  type="button" className="tp-layer-name" title={t('tile.paintOn', { name: L.name })}
+                  onClick={() => useSelection.getState().select(L.id)}
+                  onDoubleClick={() => setRenamingLayer(L.id)}
+                >
+                  {L.name}
+                </button>
+              )}
               <input
                 className="tp-layer-op" type="range" min={0} max={1} step={0.05} value={L.opacity}
                 title={t('tile.opacityPct', { pct: Math.round(L.opacity * 100) })}
@@ -416,6 +458,14 @@ export function TilemapPainter() {
               </button>
             </span>
           ))}
+          {layerCtx && (
+            <ContextMenu
+              x={layerCtx.x}
+              y={layerCtx.y}
+              onClose={() => setLayerCtx(null)}
+              items={layerMenuItems(layerCtx.id)}
+            />
+          )}
         </div>
       )}
       <div className="tp-tools">

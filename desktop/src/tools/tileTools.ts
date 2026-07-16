@@ -129,11 +129,36 @@ export function lineCells(x0: number, y0: number, x1: number, y1: number): { x: 
   return cells;
 }
 
+/**
+ * Read the raw cell (id + flip flags) under the cursor into the brush; on a
+ * multi-tileset layer also switches the palette tab to the gid's owning tileset
+ * so the brush ghost resolves. Shared by the eyedropper tool and alt-picking.
+ */
+function pickTileIntoBrush(clientX: number, clientY: number): void {
+  const selId = selectedTilemap();
+  if (selId == null) return;
+  const tile = cursorTile(clientX, clientY, selId);
+  const rt = SceneModel.runtimeFor(selId);
+  if (!tile || rt == null) return;
+  const raw = TilemapAPI.getTile(rt, tile.x, tile.y);
+  const gid = tileIdOf(raw);
+  if (gid <= 0) return;
+  const ps = useTilemapPaint.getState();
+  let owner = ps.activeTileset;
+  for (let i = 0; i < ps.tilesets.length; i++) {
+    if (ps.tilesets[i].firstId <= gid) owner = i; else break;
+  }
+  if (owner !== ps.activeTileset) ps.setActiveTileset(owner);
+  ps.setStamp(singleStamp(raw));
+}
+
 // ── Shared drag-stroke driver ────────────────────────────────────────────────
 // begin() opens a per-stroke context (null aborts); onCell() runs once per newly
 // entered tile during press+drag; end() commits. Used by brush/erase/terrain.
 interface StrokeSpec<C> {
   id: string;
+  /** Alt+click eyedrops instead of stroking (the raster-editor reflex). */
+  altEyedrop?: boolean;
   begin(sourceId: number): C | null;
   onCell(ctx: C, x: number, y: number): void;
   end(ctx: C): void;
@@ -144,6 +169,10 @@ function makeStrokeTool<C>(spec: StrokeSpec<C>): EditorTool {
   return {
     id: spec.id,
     onPointerDown(p, ctx) {
+      if (p.alt && spec.altEyedrop) {
+        pickTileIntoBrush(p.clientX, p.clientY);
+        return false; // one-shot pick, no stroke
+      }
       const selId = selectedTilemap();
       if (selId == null) return false;
       const tile = cursorTile(p.clientX, p.clientY, selId);
@@ -186,6 +215,7 @@ function makeStrokeTool<C>(spec: StrokeSpec<C>): EditorTool {
 
 const brushTool = makeStrokeTool<number>({
   id: 'tilemap.brush',
+  altEyedrop: true,
   begin: (selId) => { SceneCommands.beginTilePaint(selId); return selId; },
   onCell: (selId, x, y) => {
     for (const e of brushEdits(activeStamp(), x, y)) SceneCommands.paintTileLive(selId, e.x, e.y, e.tileId);
@@ -264,7 +294,29 @@ const terrainTool = makeStrokeTool<TerrainCtx>({
 
 // ── Gesture tools (commit once on release / click) ───────────────────────────
 
-/** Rect fill: drag a rectangle, tile the active stamp across it on release (one step). */
+// Shift-constraints, matching every raster/tile editor's muscle memory: lines snap
+// to the 8 compass directions, rect/ellipse boxes snap square (circle).
+
+/** Snap (x,y) to the nearest horizontal / vertical / 45° ray from (sx,sy). */
+export function octantSnap(sx: number, sy: number, x: number, y: number): { x: number; y: number } {
+  const dx = x - sx;
+  const dy = y - sy;
+  const adx = Math.abs(dx);
+  const ady = Math.abs(dy);
+  if (adx >= 2 * ady) return { x, y: sy };
+  if (ady >= 2 * adx) return { x: sx, y };
+  const d = Math.max(adx, ady);
+  return { x: sx + Math.sign(dx) * d, y: sy + Math.sign(dy) * d };
+}
+
+/** Snap (x,y) so the (sx,sy)-cornered box is square, keeping the drag quadrant. */
+export function squareSnap(sx: number, sy: number, x: number, y: number): { x: number; y: number } {
+  const d = Math.max(Math.abs(x - sx), Math.abs(y - sy));
+  return { x: sx + (x >= sx ? d : -d), y: sy + (y >= sy ? d : -d) };
+}
+
+/** Rect fill: drag a rectangle, tile the active stamp across it on release (one step).
+ *  Shift constrains the box square. */
 function makeRectTool(): EditorTool {
   let stroke: { sourceId: number; startX: number; startY: number } | null = null;
   return {
@@ -281,15 +333,17 @@ function makeRectTool(): EditorTool {
     },
     onPointerMove(p) {
       if (!stroke) return;
-      const tile = cursorTile(p.clientX, p.clientY, stroke.sourceId);
+      let tile = cursorTile(p.clientX, p.clientY, stroke.sourceId);
       if (!tile) return;
+      if (p.shift) tile = squareSnap(stroke.startX, stroke.startY, tile.x, tile.y);
       TilePaintPreview.set({ kind: 'rect', x0: stroke.startX, y0: stroke.startY, x1: tile.x, y1: tile.y });
     },
     onPointerUp(p, ctx) {
       if (!stroke) return;
       ctx.release(p.pointerId);
       TilePaintPreview.clear();
-      const tile = cursorTile(p.clientX, p.clientY, stroke.sourceId);
+      let tile = cursorTile(p.clientX, p.clientY, stroke.sourceId);
+      if (tile && p.shift) tile = squareSnap(stroke.startX, stroke.startY, tile.x, tile.y);
       if (tile) {
         const x0 = Math.min(stroke.startX, tile.x);
         const x1 = Math.max(stroke.startX, tile.x);
@@ -312,7 +366,8 @@ function makeRectTool(): EditorTool {
   };
 }
 
-/** Line: drag from press to release, stamp the brush along the Bresenham line (one step). */
+/** Line: drag from press to release, stamp the brush along the Bresenham line (one step).
+ *  Shift constrains to horizontal / vertical / 45°. */
 function makeLineTool(): EditorTool {
   let stroke: { sourceId: number; startX: number; startY: number } | null = null;
   return {
@@ -329,15 +384,17 @@ function makeLineTool(): EditorTool {
     },
     onPointerMove(p) {
       if (!stroke) return;
-      const tile = cursorTile(p.clientX, p.clientY, stroke.sourceId);
+      let tile = cursorTile(p.clientX, p.clientY, stroke.sourceId);
       if (!tile) return;
+      if (p.shift) tile = octantSnap(stroke.startX, stroke.startY, tile.x, tile.y);
       TilePaintPreview.set({ kind: 'line', cells: lineCells(stroke.startX, stroke.startY, tile.x, tile.y) });
     },
     onPointerUp(p, ctx) {
       if (!stroke) return;
       ctx.release(p.pointerId);
       TilePaintPreview.clear();
-      const tile = cursorTile(p.clientX, p.clientY, stroke.sourceId);
+      let tile = cursorTile(p.clientX, p.clientY, stroke.sourceId);
+      if (tile && p.shift) tile = octantSnap(stroke.startX, stroke.startY, tile.x, tile.y);
       if (tile) {
         // One tiled cell per line cell (like rect/ellipse), so the thin-line preview
         // matches what lands — not the whole w×h footprint stamped at every point.
@@ -356,7 +413,8 @@ function makeLineTool(): EditorTool {
   };
 }
 
-/** Ellipse fill: drag the bounding box, fill its inscribed ellipse on release (one step). */
+/** Ellipse fill: drag the bounding box, fill its inscribed ellipse on release (one step).
+ *  Shift constrains the box square — a circle. */
 function makeEllipseTool(): EditorTool {
   let stroke: { sourceId: number; startX: number; startY: number } | null = null;
   return {
@@ -373,15 +431,17 @@ function makeEllipseTool(): EditorTool {
     },
     onPointerMove(p) {
       if (!stroke) return;
-      const tile = cursorTile(p.clientX, p.clientY, stroke.sourceId);
+      let tile = cursorTile(p.clientX, p.clientY, stroke.sourceId);
       if (!tile) return;
+      if (p.shift) tile = squareSnap(stroke.startX, stroke.startY, tile.x, tile.y);
       TilePaintPreview.set({ kind: 'line', cells: ellipseCells(stroke.startX, stroke.startY, tile.x, tile.y) });
     },
     onPointerUp(p, ctx) {
       if (!stroke) return;
       ctx.release(p.pointerId);
       TilePaintPreview.clear();
-      const tile = cursorTile(p.clientX, p.clientY, stroke.sourceId);
+      let tile = cursorTile(p.clientX, p.clientY, stroke.sourceId);
+      if (tile && p.shift) tile = squareSnap(stroke.startX, stroke.startY, tile.x, tile.y);
       if (tile) {
         const minX = Math.min(stroke.startX, tile.x);
         const minY = Math.min(stroke.startY, tile.y);
@@ -485,25 +545,7 @@ function makeSelectTool(): EditorTool {
 const eyedropperTool: EditorTool = {
   id: 'tilemap.eyedropper',
   onPointerDown(p) {
-    const selId = selectedTilemap();
-    if (selId == null) return false;
-    const tile = cursorTile(p.clientX, p.clientY, selId);
-    if (!tile) return false;
-    const rt = SceneModel.runtimeFor(selId);
-    const raw = rt != null ? TilemapAPI.getTile(rt, tile.x, tile.y) : 0;
-    const gid = tileIdOf(raw);
-    if (gid > 0) {
-      const ps = useTilemapPaint.getState();
-      // On a multi-tileset layer, switch the palette to the tileset that owns the
-      // picked gid (tilesets are in ascending firstId order) so its atlas resolves
-      // the brush ghost — otherwise the hover preview goes blank.
-      let owner = ps.activeTileset;
-      for (let i = 0; i < ps.tilesets.length; i++) {
-        if (ps.tilesets[i].firstId <= gid) owner = i; else break;
-      }
-      if (owner !== ps.activeTileset) ps.setActiveTileset(owner);
-      ps.setStamp(singleStamp(raw));
-    }
+    pickTileIntoBrush(p.clientX, p.clientY);
     return false; // no ongoing stroke
   },
   onPointerMove() {},
