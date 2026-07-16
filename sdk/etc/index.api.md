@@ -369,6 +369,7 @@ connectCpp: (cppRegistry: CppRegistry, module?: ESEngineModule, options?: Bridge
 enableStats: () => App
 getEntityCount: () => number
 getFixedTimestep: () => number
+getFrameScopes: () => ReadonlyMap<string, number> | null
 getPhaseTimings: () => ReadonlyMap<string, number> | null
 getPlaySpeed: () => number
 getPlugin: <T extends Plugin>(ctor: new (...args: any[]) => T) => T | undefined
@@ -383,6 +384,7 @@ hotSwapSystems: (incoming: ReadonlyArray<{ schedule: number; system: SystemDef; 
 insertResource: <T>(resource: ResourceDef<T>, value: T) => App
 isPaused: () => boolean
 isPhysicsReady: boolean
+measureFrameScope: <T>(name: string, fn: () => T) => T
 onError: (handler: (error: unknown, systemName: string) => void) => App
 onSystemError: (handler: (error: Error, systemName?: string) => "continue" | "pause") => App
 onWasmError: (handler: (error: unknown, context: string) => void) => App

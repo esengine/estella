@@ -112,6 +112,11 @@ export class App {
     private system_error_handler_: ((error: Error, systemName?: string) => 'continue' | 'pause') | null = null;
     private statsEnabled_ = false;
     private phaseTimings_: Map<string, number> | null = null;
+    // Sub-frame CPU scopes inside a single system (e.g. the render system's
+    // resolveCameras / submit split) — the JS-side sibling of the engine's C++
+    // ES_PROFILE_SCOPE. Null unless stats are on; same per-frame lifecycle as
+    // phaseTimings_ (cleared at tick start, read after the tick).
+    private frameScopes_: Map<string, number> | null = null;
     private frame_paused_ = false;
     private user_paused_ = false;
     private step_pending_ = false;
@@ -515,6 +520,7 @@ export class App {
     enableStats(): this {
         this.statsEnabled_ = true;
         this.phaseTimings_ = new Map();
+        this.frameScopes_ = new Map();
         this.runner_?.setTimingEnabled(true);
         return this;
     }
@@ -525,6 +531,32 @@ export class App {
 
     getPhaseTimings(): ReadonlyMap<string, number> | null {
         return this.phaseTimings_;
+    }
+
+    /**
+     * Sub-frame CPU scopes recorded this frame via {@link measureFrameScope} —
+     * the finer breakdown within a single system, keyed by scope name. Null when
+     * stats aren't enabled. Sibling of {@link getSystemTimings} /
+     * {@link getPhaseTimings}; surfaces as the profiler's `js.*` rows.
+     */
+    getFrameScopes(): ReadonlyMap<string, number> | null {
+        return this.frameScopes_;
+    }
+
+    /**
+     * Time `fn` as a named sub-frame scope (accumulated if the name repeats in a
+     * frame). A no-op passthrough when stats are off, so shipped games pay only a
+     * single branch. Use it to split a heavy system into attributable pieces.
+     */
+    measureFrameScope<T>(name: string, fn: () => T): T {
+        const scopes = this.frameScopes_;
+        if (!scopes) return fn();
+        const t0 = performance.now();
+        try {
+            return fn();
+        } finally {
+            scopes.set(name, (scopes.get(name) ?? 0) + (performance.now() - t0));
+        }
     }
 
     getEntityCount(): number {
@@ -689,6 +721,7 @@ export class App {
     private async runFrame_(delta: number): Promise<void> {
         this.runner_?.clearTimings();
         this.phaseTimings_?.clear();
+        this.frameScopes_?.clear();
         this.eventRegistry_.swapAll();
         this.world_.advanceTick();
         this.updateTime(delta);

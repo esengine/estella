@@ -202,6 +202,52 @@ describe('App stats API', () => {
         expect(typeof timings.get('MySystem')).toBe('number');
     });
 
+    it('getFrameScopes is null before enableStats; measureFrameScope is a passthrough', () => {
+        const app = App.new();
+        expect(app.getFrameScopes()).toBeNull();
+        // Off = no map, so the scope runs but records nothing and returns the value.
+        expect(app.measureFrameScope('x', () => 42)).toBe(42);
+        expect(app.getFrameScopes()).toBeNull();
+    });
+
+    it('measureFrameScope records a named scope after enableStats', () => {
+        const app = App.new();
+        app.enableStats();
+        const out = app.measureFrameScope('render.resolveCameras', () => 'ok');
+        expect(out).toBe('ok');
+        const scopes = app.getFrameScopes()!;
+        expect(scopes).toBeInstanceOf(Map);
+        expect(typeof scopes.get('render.resolveCameras')).toBe('number');
+        expect(scopes.get('render.resolveCameras')).toBeGreaterThanOrEqual(0);
+    });
+
+    it('measureFrameScope accumulates repeats of the same name within a frame', () => {
+        const app = App.new();
+        app.enableStats();
+        app.measureFrameScope('dup', () => {});
+        const first = app.getFrameScopes()!.get('dup')!;
+        app.measureFrameScope('dup', () => {});
+        expect(app.getFrameScopes()!.get('dup')!).toBeGreaterThanOrEqual(first);
+        // Still a single accumulated entry, not two.
+        expect([...app.getFrameScopes()!.keys()].filter((k) => k === 'dup')).toHaveLength(1);
+    });
+
+    it('frame scopes reset at tick start', async () => {
+        const app = App.new();
+        app.enableStats();
+        app.measureFrameScope('stale', () => {});
+        expect(app.getFrameScopes()!.has('stale')).toBe(true);
+        await app.tick(1 / 60); // no system records 'stale' this frame
+        expect(app.getFrameScopes()!.has('stale')).toBe(false);
+    });
+
+    it('measureFrameScope still records when the body throws', () => {
+        const app = App.new();
+        app.enableStats();
+        expect(() => app.measureFrameScope('boom', () => { throw new Error('x'); })).toThrow('x');
+        expect(app.getFrameScopes()!.has('boom')).toBe(true);
+    });
+
     it('should return entity count', () => {
         const app = App.new();
         expect(app.getEntityCount()).toBe(0);

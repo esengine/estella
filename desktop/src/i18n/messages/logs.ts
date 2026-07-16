@@ -80,6 +80,11 @@ export const logsMessages = defineMessages({
     'prof.editor': { en: 'editor', zh: '编辑器' },
     'prof.present': { en: 'present', zh: '呈现' },
     'prof.idle': { en: 'idle', zh: '空闲' },
+    'prof.presentWait': { en: 'present · vsync', zh: '呈现 · 垂直同步' },
+    'prof.presentWaitHint': {
+        en: 'CPU blocked waiting for the display swapchain (vsync), absorbed by the last system that submits to the GPU. This is idle wait, not a hotspot — it does not steal frame budget.',
+        zh: 'CPU 阻塞等待显示交换链（垂直同步），被最后一个向 GPU 提交的系统吸收。这是空闲等待、不是热点——不占帧预算。',
+    },
     'prof.na': { en: 'n/a', zh: '不可用' },
 
     // — Profiler: Render / Memory sections —

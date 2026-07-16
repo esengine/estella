@@ -431,6 +431,11 @@ export function cameraPlugin(
             // Per-App scratch pool for collectCameras — one per plugin instance,
             // so two Apps running at once never clobber each other's CameraInfo.
             const cameraInfoPool: CameraInfo[] = [];
+            // Last size pushed to the renderer — resize only when it actually
+            // changes (the C++ viewport state persists across frames), so a stable
+            // viewport pays no per-frame WASM crossing. Mirrors RenderPipeline.render.
+            let lastResizeW = 0;
+            let lastResizeH = 0;
 
             // The editor view is inactive by default — shipped games never touch
             // it; the editor activates it in edit mode (see desktop EngineHost).
@@ -477,7 +482,11 @@ export function cameraPlugin(
                     }
                     const elapsed = (platformNow() - startTime) / 1000;
 
-                    Renderer.resize(width, height);
+                    if (width !== lastResizeW || height !== lastResizeH) {
+                        app.measureFrameScope('render.resize', () => Renderer.resize(width, height));
+                        lastResizeW = width;
+                        lastResizeH = height;
+                    }
 
                     let activeScenes: Set<string> | undefined;
                     if (app.hasResource(SceneManager)) {
@@ -490,39 +499,46 @@ export function cameraPlugin(
 
                     pipeline.setActiveScenes(activeScenes ?? null);
                     // Authoritative tick (advance=true): ticks the director's blend.
-                    const cameras = resolveCameras(app, module, cppRegistry, width, height, app.world, activeScenes, cameraInfoPool, elapsed, true);
+                    const cameras = app.measureFrameScope('render.resolveCameras', () =>
+                        resolveCameras(app, module, cppRegistry, width, height, app.world, activeScenes, cameraInfoPool, elapsed, true));
 
-                    syncUICameraInfo(app, module, cppRegistry, width, height, cameras);
+                    app.measureFrameScope('render.uiCameraSync', () =>
+                        syncUICameraInfo(app, module, cppRegistry, width, height, cameras));
 
-                    if (cameras.length === 0) {
-                        pipeline.render({
-                            registry: { _cpp: cppRegistry },
-                            viewProjection: IDENTITY,
-                            width, height, elapsed,
-                            clearColor,
-                        });
-                    } else {
-                        pipeline.beginFrame(elapsed);
-                        pipeline.beginScreenCapture();
-                        for (const cam of cameras) {
-                            const vp = cam.viewportRect;
-                            const px = Math.round(vp.x * width);
-                            const py = Math.round((1 - vp.y - vp.h) * height);
-                            const pw = Math.round(vp.w * width);
-                            const ph = Math.round(vp.h * height);
-                            pipeline.renderCamera({
+                    // The JS-side dispatch of the frame — pairs with the engine's
+                    // cpp.render.* scopes (submit/finalize) and gpu.* to separate the
+                    // orchestration cost from the actual draw-list + GPU cost.
+                    app.measureFrameScope('render.submit', () => {
+                        if (cameras.length === 0) {
+                            pipeline.render({
                                 registry: { _cpp: cppRegistry },
-                                viewProjection: cam.viewProjection,
-                                viewportPixels: { x: px, y: py, w: pw, h: ph },
-                                clearFlags: cam.clearFlags,
-                                elapsed,
-                                cameraEntity: cam.entity,
+                                viewProjection: IDENTITY,
+                                width, height, elapsed,
                                 clearColor,
                             });
+                        } else {
+                            pipeline.beginFrame(elapsed);
+                            pipeline.beginScreenCapture();
+                            for (const cam of cameras) {
+                                const vp = cam.viewportRect;
+                                const px = Math.round(vp.x * width);
+                                const py = Math.round((1 - vp.y - vp.h) * height);
+                                const pw = Math.round(vp.w * width);
+                                const ph = Math.round(vp.h * height);
+                                pipeline.renderCamera({
+                                    registry: { _cpp: cppRegistry },
+                                    viewProjection: cam.viewProjection,
+                                    viewportPixels: { x: px, y: py, w: pw, h: ph },
+                                    clearFlags: cam.clearFlags,
+                                    elapsed,
+                                    cameraEntity: cam.entity,
+                                    clearColor,
+                                });
+                            }
+                            pipeline.endScreenCapture();
+                            Renderer.setViewport(0, 0, width, height);
                         }
-                        pipeline.endScreenCapture();
-                        Renderer.setViewport(0, 0, width, height);
-                    }
+                    });
                 },
             };
 

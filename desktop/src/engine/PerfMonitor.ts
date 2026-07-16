@@ -53,6 +53,9 @@ export interface EngineFrame {
   cppCounters: Record<string, number>;
   /** Per-frame per-pass GPU times (submit, postprocess), name → ms. */
   gpuScopes: Record<string, number>;
+  /** Per-frame JS-side sub-system CPU scopes (render.resolveCameras etc.) — the
+   *  `js.*` rows; the JS sibling of cppScopes. */
+  jsScopes: Record<string, number>;
   /** Total wasm linear memory (bytes) — the engine's heap. */
   wasmBytes: number;
   /** Resident texture VRAM (bytes, estimate). */
@@ -69,10 +72,15 @@ export interface FrameSample {
   engineMs: number;
   editorMs: number;
   gpuMs: number;
+  /** CPU blocked on the GPU swapchain/vsync (present wait), separated out of
+   *  engineMs so the render system isn't misread as a hotspot. Derived from
+   *  the render submit scope's wall-clock minus the C++ render CPU inside it. */
+  presentWaitMs: number;
   editorPhases: Record<string, number>;
   enginePhases: Record<string, number>;
   cppScopes: Record<string, number>;
   gpuScopes: Record<string, number>;
+  jsScopes: Record<string, number>;
   counters: Record<string, number>;
   systems: Array<{ name: string; ms: number }>;
   drawCalls: number;
@@ -100,6 +108,9 @@ export interface PerfSnapshot {
   enabled: boolean;
   engineMs: number;
   editorMs: number;
+  /** Windowed present/vsync wait (ms) — CPU blocked on the swapchain, split out
+   *  of engineMs. See FrameSample.presentWaitMs. */
+  presentWaitMs: number;
   drawCalls: number;
   triangles: number;
   entities: number;
@@ -143,6 +154,23 @@ export interface SessionCapture {
   longTasks?: Array<{ start: number; ms: number; name: string }>;
 }
 
+// The render system's JS scope that wraps the GPU submit + implicit present. Its
+// wall-clock minus the C++ render CPU inside it is the swapchain/vsync wait the
+// last GPU-submitting system absorbs — reclassified out of engine CPU (see loop).
+const RENDER_SUBMIT_SCOPE = 'render.submit';
+
+/**
+ * Present/vsync wait absorbed by the render system: the render submit scope's
+ * JS wall-clock minus the C++ render CPU dispatched inside it (`cppScopes`).
+ * What's left is the CPU blocked on the swapchain — not work. Returns 0 when the
+ * submit scope is absent (an SDK without the render.submit instrumentation), so
+ * the profiler degrades to the old lumped view rather than inventing a number.
+ */
+export function presentWait(jsScopes: Record<string, number>, cppScopes: Record<string, number>): number {
+  const submitWall = jsScopes[RENDER_SUBMIT_SCOPE] ?? 0;
+  return submitWall > 0 ? Math.max(0, submitWall - sumMs(cppScopes)) : 0;
+}
+
 const LONG_FRAME_MS = 24; // missed a 60Hz frame
 const HITCH_MS = 50; // auto-freeze threshold — a real hitch (below 20fps)
 const WINDOW_MS = 500;
@@ -153,7 +181,7 @@ const r1 = (n: number) => Math.round(n * 10) / 10;
 class PerfMonitorImpl {
   private readonly store = createStore<PerfSnapshot>(() => ({
     fps: 0, p50: 0, p95: 0, p99: 0, longFrames: 0, worstMs: 0, worstPhase: null, longTaskMs: 0, visible: false, enabled: true,
-    engineMs: 0, editorMs: 0, drawCalls: 0, triangles: 0, entities: 0, systemsTop: [], realm: 'edit', gpuMs: -1, frames: [],
+    engineMs: 0, editorMs: 0, presentWaitMs: 0, drawCalls: 0, triangles: 0, entities: 0, systemsTop: [], realm: 'edit', gpuMs: -1, frames: [],
     frozen: false, pinnedId: null, autoHitch: false, longTaskRev: 0,
     wasmMB: 0, jsHeapMB: 0, jsHeapLimitMB: 0, vramMB: 0, memHist: [], counters: {},
     recording: false, recordedFrames: 0,
@@ -176,6 +204,7 @@ class PerfMonitorImpl {
   private engineConsumers_ = 0;
   private engineSum = 0;
   private editorSum = 0;
+  private presentWaitSum = 0;
   private winFrames = 0;
   private systemMax: Record<string, number> = {};
   private counters = { drawCalls: 0, triangles: 0, entities: 0, gpuMs: -1 };
@@ -399,15 +428,22 @@ class PerfMonitorImpl {
       let enginePhases: Record<string, number> = {};
       let cppScopes: Record<string, number> = {};
       let gpuScopes: Record<string, number> = {};
+      let jsScopes: Record<string, number> = {};
       let engineCounters: Record<string, number> = {};
       let systemsFrame: Array<{ name: string; ms: number }> = [];
+      let presentWaitMs = 0;
       if (ef) {
         enginePhases = ef.phaseMs;
         cppScopes = ef.cppScopes;
         gpuScopes = ef.gpuScopes;
+        jsScopes = ef.jsScopes;
         engineCounters = ef.cppCounters;
         engineFrameMs = sumMs(enginePhases);
         this.engineSum += engineFrameMs;
+        // Split the swapchain/vsync block out of engine CPU (see presentWait): the
+        // render system reads as ~0, not a phantom multi-ms hotspot.
+        presentWaitMs = presentWait(jsScopes, cppScopes);
+        this.presentWaitSum += presentWaitMs;
         for (const k in ef.systemMs) {
           if (ef.systemMs[k] > (this.systemMax[k] ?? 0)) this.systemMax[k] = ef.systemMs[k];
         }
@@ -425,11 +461,13 @@ class PerfMonitorImpl {
         t1: now,
         engineMs: r1(engineFrameMs),
         editorMs: r1(editorFrameMs),
+        presentWaitMs: r1(presentWaitMs),
         gpuMs: this.counters.gpuMs >= 0 ? r1(this.counters.gpuMs) : -1,
         editorPhases: { ...editorPhases },
         enginePhases: { ...enginePhases },
         cppScopes: { ...cppScopes },
         gpuScopes: { ...gpuScopes },
+        jsScopes: { ...jsScopes },
         counters: { ...engineCounters, ...editorCounters },
         systems: systemsFrame,
         drawCalls: this.counters.drawCalls,
@@ -467,7 +505,7 @@ class PerfMonitorImpl {
         fps: p50 > 0 ? Math.round(1000 / p50) : 0,
         p50: r1(p50), p95: r1(percentile(this.frames, 95)), p99: r1(percentile(this.frames, 99)),
         longFrames: this.longFrames, worstMs: r1(this.worstMs), worstPhase: this.worstPhase, longTaskMs: r1(this.longTaskMs),
-        engineMs: r1(this.engineSum / wf), editorMs: r1(this.editorSum / wf),
+        engineMs: r1(this.engineSum / wf), editorMs: r1(this.editorSum / wf), presentWaitMs: r1(this.presentWaitSum / wf),
         drawCalls: this.counters.drawCalls, triangles: this.counters.triangles, entities: this.counters.entities,
         systemsTop: topSystems(this.systemMax, 5).map((s) => ({ name: s.name, ms: r1(s.ms) })),
         realm: this.realm,
@@ -479,7 +517,7 @@ class PerfMonitorImpl {
       });
       this.windowStart = now;
       this.longFrames = 0; this.worstMs = 0; this.worstPhase = null; this.longTaskMs = 0;
-      this.engineSum = 0; this.editorSum = 0; this.winFrames = 0; this.systemMax = {};
+      this.engineSum = 0; this.editorSum = 0; this.presentWaitSum = 0; this.winFrames = 0; this.systemMax = {};
     }
   };
 

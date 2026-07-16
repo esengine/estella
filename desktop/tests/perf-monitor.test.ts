@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect } from 'vitest';
-import { percentile, dominantPhase, sumMs, topSystems } from '@/engine/PerfMonitor';
+import { percentile, dominantPhase, sumMs, topSystems, presentWait } from '@/engine/PerfMonitor';
 
 describe('percentile', () => {
   const v = Array.from({ length: 100 }, (_, i) => i + 1); // 1..100
@@ -39,5 +39,24 @@ describe('topSystems', () => {
   });
   it('caps at the map size', () => {
     expect(topSystems({ a: 1 }, 5)).toEqual([{ name: 'a', ms: 1 }]);
+  });
+});
+
+describe('presentWait', () => {
+  it('is the submit wall-clock minus the C++ render CPU inside it', () => {
+    // Real numbers from an empty-scene capture: 2.1ms submit, ~0.02ms C++ work.
+    const js = { 'render.submit': 2.1, 'render.resolveCameras': 0.007 };
+    const cpp = { 'render.collect': 0.013, 'render.submit': 0.006, 'render.finalize': 0.002 };
+    expect(presentWait(js, cpp)).toBeCloseTo(2.079, 3);
+  });
+  it('is 0 when the submit scope is absent (old SDK, no instrumentation)', () => {
+    expect(presentWait({}, { 'render.submit': 0.5 })).toBe(0);
+    expect(presentWait({ 'render.resolveCameras': 0.1 }, {})).toBe(0);
+  });
+  it('never goes negative when C++ work exceeds the (tiny) submit wall', () => {
+    expect(presentWait({ 'render.submit': 0.1 }, { 'render.submit': 0.5 })).toBe(0);
+  });
+  it('equals the full submit wall when no C++ scopes are reported', () => {
+    expect(presentWait({ 'render.submit': 1.8 }, {})).toBe(1.8);
   });
 });

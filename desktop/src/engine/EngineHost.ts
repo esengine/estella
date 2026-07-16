@@ -138,6 +138,7 @@ class EngineHostImpl {
     cppScopes: Record<string, number>;
     cppCounters: Record<string, number>;
     gpuScopes: Record<string, number>;
+    jsScopes: Record<string, number>;
     wasmBytes: number;
     vramBytes: number;
   } | null {
@@ -146,6 +147,7 @@ class EngineHostImpl {
     const m = this.module_;
     const phases = app.getPhaseTimings();
     const systems = app.getSystemTimings();
+    const jsScopes = app.getFrameScopes();
     let cppScopes: Record<string, number> = {};
     const scopesJson = m?.engine_getCpuScopes?.();
     if (scopesJson) {
@@ -172,6 +174,7 @@ class EngineHostImpl {
       cppScopes,
       cppCounters,
       gpuScopes,
+      jsScopes: jsScopes ? Object.fromEntries(jsScopes) : {},
       wasmBytes: m?.HEAPU8?.byteLength ?? 0,
       vramBytes: m?.renderer_getTextureBytes?.() ?? 0,
     };

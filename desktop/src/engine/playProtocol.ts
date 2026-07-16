@@ -92,6 +92,7 @@ export interface PlayStatsReply {
   cppScopes: Record<string, number>;
   cppCounters: Record<string, number>;
   gpuScopes: Record<string, number>;
+  jsScopes: Record<string, number>;
   wasmBytes: number;
   vramBytes: number;
 }
