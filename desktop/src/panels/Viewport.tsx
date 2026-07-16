@@ -20,7 +20,7 @@ import { commands } from '@/commands';
 import { MOD_LABEL } from '@/commands/keybinding';
 import { EngineHost } from '@/engine/EngineHost';
 import { PlayRealm } from '@/engine/PlayRealm';
-import { ViewportController, type JointGizmoType } from '@/engine/ViewportController';
+import { ViewportController, type JointGizmoType, type ColliderPointHandle } from '@/engine/ViewportController';
 import { ProjectStore } from '@/project/ProjectStore';
 import { createFromSource, sourceById, SOURCE_DND_MIME } from '@/engine/entitySources';
 import { resizeUINodeAxis, type ResizeSide, type AxisResizeWrites } from '@/engine/uiResize';
@@ -119,6 +119,95 @@ function startSizeHandleDrag(
   };
   win.addEventListener('pointermove', onMove);
   win.addEventListener('pointerup', onUp);
+}
+
+// Drag a collider point handle → a Vec2 field (box/circle/capsule offset, segment
+// endpoint) or ONE element of a Vec2[] (polygon vertex, chain point). The cursor is
+// un-rotated into the entity's local frame and scaled to physics metres (÷ppu), then
+// written through the same setField + begin/endGesture channel as every other handle
+// (one coalesced undo step). Array targets rewrite the whole Vec2[] with only index i
+// changed — snapshotted at grab so a drag can't compound. One channel for all six shapes.
+function startColliderPointDrag(
+  rt: number,
+  target: { comp: string; key: string; index: number | null },
+  ppu: number,
+  e: { button: number; clientX: number; clientY: number; currentTarget: EventTarget | null; stopPropagation(): void },
+): void {
+  if (e.button !== 0) return;
+  const src = SceneModel.sourceFor(rt);
+  const origin = ViewportController.getEntityWorldXY(rt);
+  if (src == null || !origin) return;
+  e.stopPropagation();
+  const rot = ViewportController.getEntityWorldAngleRad(rt);
+  const cos = Math.cos(rot), sin = Math.sin(rot);
+  const base = target.index == null
+    ? null
+    : (((SceneModel.entityBySource(src)?.components.find((c) => c.type === target.comp)?.data as Record<string, unknown> | undefined)?.[target.key]) as Array<{ x: number; y: number }> | undefined) ?? null;
+  const win = eventWindow(e);
+  SceneCommands.beginGesture('Edit Collider');
+  const onMove = (ev: PointerEvent) => {
+    const w = ViewportController.canvasToWorld(ev.clientX, ev.clientY);
+    if (!w) return;
+    const dx = w.x - origin.x, dy = w.y - origin.y;
+    const lx = (dx * cos + dy * sin) / (ppu || 1);   // un-rotate into local → metres
+    const ly = (-dx * sin + dy * cos) / (ppu || 1);
+    if (target.index == null) {
+      SceneCommands.setField(src, target.comp, target.key, 'vec2', [lx, ly]);
+    } else if (base) {
+      SceneCommands.setVertexArray(src, target.comp, target.key,
+        base.map((p, i) => (i === target.index ? { x: lx, y: ly } : { x: p.x, y: p.y })));
+    }
+  };
+  const onUp = () => {
+    SceneCommands.endGesture();
+    win.removeEventListener('pointermove', onMove);
+    win.removeEventListener('pointerup', onUp);
+  };
+  win.addEventListener('pointermove', onMove);
+  win.addEventListener('pointerup', onUp);
+}
+
+// Native pointerdown on a pooled collider point handle → the drag above. The target field
+// is read off the circle's data-*; the entity off the owning gizmo SVG's data-src. Native
+// (not React) so the imperatively-pooled circles work in a popped-out viewport window too.
+function onColliderPointDown(e: PointerEvent): void {
+  const el = e.currentTarget as SVGCircleElement;
+  const comp = el.getAttribute('data-comp');
+  const key = el.getAttribute('data-key');
+  const srcAttr = el.closest('.viewport__collider-gizmo')?.getAttribute('data-src');
+  if (!comp || !key || srcAttr == null) return;
+  const rt = SceneModel.runtimeFor(Number(srcAttr));
+  if (rt == null) return;
+  const idx = el.getAttribute('data-index');
+  startColliderPointDrag(rt, { comp, key, index: idx ? Number(idx) : null }, ViewportController.colliderPixelsPerUnit(), e);
+}
+
+// Pool the point-handle circles inside a gizmo's <g> — one per handle, reused across
+// frames, created (and bound) lazily, extras hidden. Uses the SVG's OWN document so a
+// popped-out viewport gets its handles in the right window.
+function syncColliderPoints(g: SVGGElement, points: ColliderPointHandle[]): void {
+  const doc = g.ownerDocument;
+  let child = g.firstElementChild as SVGCircleElement | null;
+  for (const p of points) {
+    if (!child) {
+      child = doc.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      child.setAttribute('r', '4');
+      child.addEventListener('pointerdown', onColliderPointDown);
+      g.appendChild(child);
+    }
+    child.setAttribute('cx', String(p.x));
+    child.setAttribute('cy', String(p.y));
+    child.setAttribute('data-comp', p.comp);
+    child.setAttribute('data-key', p.key);
+    child.setAttribute('data-index', p.index == null ? '' : String(p.index));
+    child.setAttribute('class', p.key === 'offset' ? 'cl-vert cl-offset' : 'cl-vert');
+    child.style.display = '';
+    child = child.nextElementSibling as SVGCircleElement | null;
+  }
+  while (child) {
+    child.style.display = 'none';
+    child = child.nextElementSibling as SVGCircleElement | null;
+  }
 }
 
 // Project a world-space, axis-aligned rect (center + half extents) to a CSS-px
@@ -1129,62 +1218,45 @@ export function Viewport() {
         }
       }
 
-      // Collider gizmos — box polygon / circle outline at the collider's shape.
-      // Resolve the scene-wide pixelsPerUnit once, not once per collider.
+      // Collider gizmos — the merged outline of EVERY collider shape (box/circle/capsule/
+      // segment/polygon/chain), one <svg> per entity, all via the shared shape-outline
+      // projection. Resolve the scene-wide pixelsPerUnit once, not once per collider.
       const colliderPpu = camsOn ? ViewportController.colliderPixelsPerUnit() : 0;
       for (const [cid, svg] of colliderRefs.current) {
         if (!svg) continue;
         const cg = camsOn ? ViewportController.getColliderGizmo(cid, colliderPpu) : null;
-        const poly = svg.querySelector('.cl-box') as SVGPolygonElement | null;
-        const circ = svg.querySelector('.cl-circle') as SVGCircleElement | null;
-        if (cg && cg.kind === 'box' && poly) {
-          poly.setAttribute('points', cg.pts.map((p) => `${p.x},${p.y}`).join(' '));
-          poly.style.opacity = '1';
-          if (circ) circ.style.opacity = '0';
-        } else if (cg && cg.kind === 'circle' && circ) {
-          circ.setAttribute('cx', String(cg.cx));
-          circ.setAttribute('cy', String(cg.cy));
-          circ.setAttribute('r', String(cg.r));
-          circ.style.opacity = '1';
-          if (poly) poly.style.opacity = '0';
-        } else {
-          if (poly) poly.style.opacity = '0';
-          if (circ) circ.style.opacity = '0';
-        }
-        // Collider drag handles: circle radius (cl-handle) / box corner size (cl-size-handle).
-        const chnd = svg.querySelector('.cl-handle') as SVGCircleElement | null;
-        if (chnd) {
-          if (cg && cg.kind === 'circle' && cg.handle) {
-            chnd.setAttribute('cx', String(cg.handle.x));
-            chnd.setAttribute('cy', String(cg.handle.y));
-            chnd.style.display = '';
-          } else {
-            chnd.style.display = 'none';
-          }
-        }
+        const outline = svg.querySelector('.cl-outline') as SVGPathElement | null;
+        const outlineS = svg.querySelector('.cl-outline-sensor') as SVGPathElement | null;
+        if (outline) outline.setAttribute('d', cg?.outline ?? '');
+        if (outlineS) outlineS.setAttribute('d', cg?.outlineSensor ?? '');
+        // Scalar handles: box corner size (cl-size-handle) / circle radius (cl-handle).
         const csz = svg.querySelector('.cl-size-handle') as SVGCircleElement | null;
         if (csz) {
-          if (cg && cg.kind === 'box' && cg.sizeHandle) {
-            csz.setAttribute('cx', String(cg.sizeHandle.x));
-            csz.setAttribute('cy', String(cg.sizeHandle.y));
-            csz.style.display = '';
-          } else {
-            csz.style.display = 'none';
-          }
+          if (cg?.sizeHandle) { csz.setAttribute('cx', String(cg.sizeHandle.x)); csz.setAttribute('cy', String(cg.sizeHandle.y)); csz.style.display = ''; }
+          else csz.style.display = 'none';
         }
+        const chnd = svg.querySelector('.cl-handle') as SVGCircleElement | null;
+        if (chnd) {
+          if (cg?.radiusHandle) { chnd.setAttribute('cx', String(cg.radiusHandle.x)); chnd.setAttribute('cy', String(cg.radiusHandle.y)); chnd.style.display = ''; }
+          else chnd.style.display = 'none';
+        }
+        // Point handles: polygon vertices / chain points / segment endpoints / offsets,
+        // pooled in the <g> (their count varies with the shape).
+        const g = svg.querySelector('.cl-points') as SVGGElement | null;
+        if (g) syncColliderPoints(g, cg?.points ?? []);
         // One-way platform: an arrow out of the collider center along the solid-side
-        // normal (screen-fixed length, like the light direction line, so it reads at
-        // any zoom) — the side a body can land on; it passes through from the other.
+        // normal (screen-fixed length, so it reads at any zoom) — the side a body can
+        // land on; it passes through from the other.
         const owLine = svg.querySelector('.cl-oneway') as SVGLineElement | null;
         const owHead = svg.querySelector('.cl-oneway-head') as SVGPolygonElement | null;
-        if (cg && cg.oneWay) {
+        if (cg?.oneWay) {
           const L = 30;
-          const { dx, dy } = cg.oneWay;
-          const bx = cg.cx + dx * L;
-          const by = cg.cy + dy * L;
+          const { cx, cy, dx, dy } = cg.oneWay;
+          const bx = cx + dx * L;
+          const by = cy + dy * L;
           if (owLine) {
-            owLine.setAttribute('x1', String(cg.cx));
-            owLine.setAttribute('y1', String(cg.cy));
+            owLine.setAttribute('x1', String(cx));
+            owLine.setAttribute('y1', String(cy));
             owLine.setAttribute('x2', String(bx));
             owLine.setAttribute('y2', String(by));
             owLine.style.opacity = '1';
@@ -1839,8 +1911,9 @@ export function Viewport() {
           data-src={SceneModel.sourceFor(id)}
           aria-hidden="true"
         >
-          <polygon className="cl-box" points="" />
-          <circle className="cl-circle" cx="0" cy="0" r="0" />
+          {/* Merged outline of every collider shape on the entity (solid + dashed sensor). */}
+          <path className="cl-outline" d="" />
+          <path className="cl-outline-sensor" d="" />
           <line className="cl-oneway" x1="0" y1="0" x2="0" y2="0" />
           <polygon className="cl-oneway-head" points="" />
           <circle
@@ -1859,6 +1932,10 @@ export function Viewport() {
             style={{ display: 'none' }}
             onPointerDown={(e) => startSizeHandleDrag(id, 'BoxCollider', 'halfExtents', ViewportController.colliderPixelsPerUnit(), false, e, ViewportController.colliderWorldCenter(id))}
           />
+          {/* Point handles (vertices / endpoints / offsets) — pooled imperatively by the
+              rAF since their count varies with the shape; each binds its own native
+              pointerdown (see syncColliderPoints). */}
+          <g className="cl-points" />
         </svg>
       ))}
 

@@ -2,10 +2,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import {
   Camera, CameraView, EditorView, Light2D, Sprite, Transform, Canvas, BoxCollider, CircleCollider,
+  CapsuleCollider, SegmentCollider, PolygonCollider, ChainCollider,
   ParticleEmitter, OneWayPlatform,
   RevoluteJoint, DistanceJoint, PrismaticJoint, WeldJoint, WheelJoint, MotorJoint,
   UINode, UICameraInfo, screenToUiWorld, uiWorldToScreen, uiPickAllWorld, type UICameraData,
   TilemapLayer, TilemapAPI, decodeTilemapChunks, tileCollisionOutlines,
+  readColliderShapes, colliderShapeOutline, shapeCenter,
   type TilesetModel, type TileCollisionPiece,
 } from 'esengine';
 import type { EntityId } from '@/types';
@@ -99,6 +101,31 @@ export interface EditorScreenInfo {
   scaleMode: number;
   matchWidthOrHeight: number;
   backgroundColor: { r: number; g: number; b: number; a: number };
+}
+
+/** A draggable collider point handle (CSS px) + the field it writes. `index` null = a
+ *  Vec2 field (box/circle/capsule offset, segment endpoint); ≥ 0 = one element of a
+ *  Vec2[] (polygon vertex, chain point). One drag channel edits every collider point. */
+export interface ColliderPointHandle {
+  x: number;
+  y: number;
+  comp: string;
+  key: string;
+  index: number | null;
+}
+
+/** Screen-space gizmo for EVERY collider on an entity: the merged outline as SVG path
+ *  data (solid + dashed-sensor, CSS px), the one-way arrow, the box-size / circle-radius
+ *  scalar handles, and every draggable point (vertices / endpoints / offsets). All six
+ *  shapes project through the shared `colliderShapeOutline` seam — the same geometry
+ *  PhysicsDebugDraw and the tile-collision overlay use. */
+export interface ColliderGizmo {
+  outline: string;
+  outlineSensor: string;
+  oneWay: { cx: number; cy: number; dx: number; dy: number } | null;
+  sizeHandle: { x: number; y: number } | null;
+  radiusHandle: { x: number; y: number } | null;
+  points: ColliderPointHandle[];
 }
 
 // Picking and screen<->world conversions for the viewport, all routed through
@@ -512,13 +539,18 @@ export const ViewportController = {
     return { cx: center.x, cy: center.y, kind: l.type, color, radiusPx, sdx, sdy, coneHalf, on, handle: handle ?? null };
   },
 
-  /** Ids of entities carrying a box/circle collider — the collider-gizmo set. */
+  /** Ids of entities carrying ANY collider (box/circle/capsule/segment/polygon/chain) —
+   *  the collider-gizmo set. All six render through the shared shape-outline projection. */
   colliderIds(): EntityId[] {
     const world = EngineHost.world;
     if (!world) return [];
     const out: EntityId[] = [];
     for (const e of world.getAllEntities()) {
-      if (world.has(e, Transform) && (world.has(e, BoxCollider) || world.has(e, CircleCollider))) out.push(e);
+      if (!world.has(e, Transform)) continue;
+      if (world.has(e, BoxCollider) || world.has(e, CircleCollider) || world.has(e, CapsuleCollider)
+        || world.has(e, SegmentCollider) || world.has(e, PolygonCollider) || world.has(e, ChainCollider)) {
+        out.push(e);
+      }
     }
     return out;
   },
@@ -636,62 +668,123 @@ export const ViewportController = {
   },
 
   /**
-   * Screen-space collider outline for the gizmo: a 4-corner polygon (box) or a
-   * center + radius (circle), in CSS px. The collider lives at the entity's world
-   * transform + its (meter) offset, scaled to pixels by pixelsPerUnit. `cx/cy` is
-   * the shape's screen center for both kinds. `oneWay` is the OneWayPlatform solid-
-   * side normal as a screen unit vector (world-space — contact normals don't rotate
-   * with the entity), or null when the entity has none / it's disabled.
+   * Screen-space gizmo for EVERY collider on `id`, projected through the shared
+   * `readColliderShapes` + `colliderShapeOutline` seam so all six shapes (box / circle /
+   * capsule / segment / polygon / chain) render one way — identical geometry to
+   * PhysicsDebugDraw and the tile-collision overlay. Merged outline path data (solid +
+   * dashed-sensor), the one-way arrow, box-size / circle-radius scalar handles, and the
+   * draggable point handles (vertices / endpoints / offsets). `ppuHint` avoids re-scanning
+   * for the Canvas once per collider. Null when the entity has no collider / no transform.
    */
-  getColliderGizmo(
-    id: EntityId,
-    ppuHint?: number,
-  ): { kind: 'box'; cx: number; cy: number; r: number; pts: Array<{ x: number; y: number }>; handle: { x: number; y: number } | null; sizeHandle: { x: number; y: number } | null; oneWay: { dx: number; dy: number } | null } | { kind: 'circle'; cx: number; cy: number; r: number; pts: Array<{ x: number; y: number }>; handle: { x: number; y: number } | null; sizeHandle: { x: number; y: number } | null; oneWay: { dx: number; dy: number } | null } | null {
+  getColliderGizmo(id: EntityId, ppuHint?: number): ColliderGizmo | null {
     const world = EngineHost.world;
     if (!world || !world.valid(id) || !world.has(id, Transform)) return null;
     const t = world.get(id, Transform);
-    // pixelsPerUnit is a scene-wide constant; callers looping many colliders pass
-    // it in to avoid re-scanning all entities for the Canvas once per collider.
     const ppu = ppuHint ?? this.colliderPixelsPerUnit();
     const rot = quatAngleZ(t.worldRotation as { w: number; x: number; y: number; z: number });
     const cos = Math.cos(rot);
     const sin = Math.sin(rot);
-    const placeOffset = (off: { x: number; y: number }) => ({
-      x: t.worldPosition.x + (off.x * ppu) * cos - (off.y * ppu) * sin,
-      y: t.worldPosition.y + (off.x * ppu) * sin + (off.y * ppu) * cos,
-    });
-    // One-way platforms cancel contacts approaching from behind `normal` — show the
-    // solid side. The normal is world-space (screen y flips), independent of rotation.
-    let oneWay: { dx: number; dy: number } | null = null;
-    if (world.has(id, OneWayPlatform)) {
+    const wp = { x: t.worldPosition.x, y: t.worldPosition.y };
+
+    // readColliderShapes only reads (has/get); the editor world is the readonly view.
+    const instances = readColliderShapes(world as unknown as Parameters<typeof readColliderShapes>[0], id);
+    if (instances.length === 0) return null;
+
+    // A world-px outline → SVG path data in CSS px (polylines as move/line runs, a circle
+    // as two half-arcs). A run drops out if any of its points is off-camera.
+    const outlinePath = (o: { polylines: Array<Array<{ x: number; y: number }>>; circles: Array<{ c: { x: number; y: number }; r: number }> }): string => {
+      let d = '';
+      for (const line of o.polylines) {
+        let seg = '';
+        for (let i = 0; i < line.length; i++) {
+          const s = this.worldToClient(line[i].x, line[i].y);
+          if (!s) { seg = ''; break; }
+          seg += `${i ? 'L' : 'M'}${s.x},${s.y}`;
+        }
+        if (seg) d += `${seg} `;
+      }
+      for (const c of o.circles) {
+        const ctr = this.worldToClient(c.c.x, c.c.y);
+        const edge = this.worldToClient(c.c.x + c.r, c.c.y);
+        if (!ctr || !edge) continue;
+        const r = Math.hypot(edge.x - ctr.x, edge.y - ctr.y);
+        d += `M${ctr.x - r},${ctr.y}a${r},${r} 0 1,0 ${2 * r},0a${r},${r} 0 1,0 ${-2 * r},0 `;
+      }
+      return d;
+    };
+    // Entity-local (metre) point → CSS px, rotated by the entity angle about its origin.
+    const localToClient = (lx: number, ly: number) =>
+      this.worldToClient(wp.x + lx * ppu * cos - ly * ppu * sin, wp.y + lx * ppu * sin + ly * ppu * cos);
+
+    let solid = '';
+    let sensor = '';
+    let sizeHandle: { x: number; y: number } | null = null;
+    let radiusHandle: { x: number; y: number } | null = null;
+    let oneWayCenter: { x: number; y: number } | null = null;
+    const points: ColliderPointHandle[] = [];
+    const pushPoint = (lx: number, ly: number, comp: string, key: string, index: number | null) => {
+      const s = localToClient(lx, ly);
+      if (s) points.push({ x: s.x, y: s.y, comp, key, index });
+    };
+
+    for (const inst of instances) {
+      const shape = inst.shape;
+      const center = shapeCenter(shape, wp, rot, ppu); // world px (offset applied)
+      const outline = colliderShapeOutline(shape, center, rot, ppu);
+      const d = outlinePath(outline);
+      if (inst.isSensor) sensor += d; else solid += d;
+      if (!oneWayCenter) oneWayCenter = this.worldToClient(center.x, center.y);
+
+      switch (shape.kind) {
+        case 'box': {
+          // Size handle at the +hx,+hy corner (drag = halfExtents), rotated with the entity.
+          const hx = shape.halfExtents.x * ppu;
+          const hy = shape.halfExtents.y * ppu;
+          const hs = this.worldToClient(center.x + hx * cos - hy * sin, center.y + hx * sin + hy * cos);
+          if (hs) sizeHandle = hs;
+          const os = this.worldToClient(center.x, center.y); // offset handle at the shape center
+          if (os) points.push({ x: os.x, y: os.y, comp: 'BoxCollider', key: 'offset', index: null });
+          break;
+        }
+        case 'circle': {
+          // Radius handle at the shape's local top (drag = radius, in physics metres).
+          const r = shape.radius * ppu;
+          const rs = this.worldToClient(center.x - r * sin, center.y + r * cos);
+          if (rs) radiusHandle = rs;
+          const os = this.worldToClient(center.x, center.y);
+          if (os) points.push({ x: os.x, y: os.y, comp: 'CircleCollider', key: 'offset', index: null });
+          break;
+        }
+        case 'capsule': {
+          // radius / halfHeight stay Inspector-edited (rare shape); the offset is draggable.
+          const os = this.worldToClient(center.x, center.y);
+          if (os) points.push({ x: os.x, y: os.y, comp: 'CapsuleCollider', key: 'offset', index: null });
+          break;
+        }
+        case 'segment':
+          pushPoint(shape.point1.x, shape.point1.y, 'SegmentCollider', 'point1', null);
+          pushPoint(shape.point2.x, shape.point2.y, 'SegmentCollider', 'point2', null);
+          break;
+        case 'polygon':
+          shape.vertices.forEach((v, i) => pushPoint(v.x, v.y, 'PolygonCollider', 'vertices', i));
+          break;
+        case 'chain':
+          shape.points.forEach((v, i) => pushPoint(v.x, v.y, 'ChainCollider', 'points', i));
+          break;
+      }
+    }
+
+    // One-way solid-side arrow: the world-space normal (screen y flips), out of the first
+    // collider's center — the side a body can land on; it passes through from behind.
+    let oneWay: ColliderGizmo['oneWay'] = null;
+    if (oneWayCenter && world.has(id, OneWayPlatform)) {
       const ow = world.get(id, OneWayPlatform) as { normal: { x: number; y: number }; enabled: boolean };
       const len = Math.hypot(ow.normal.x, ow.normal.y);
-      if (ow.enabled !== false && len > 1e-4) oneWay = { dx: ow.normal.x / len, dy: -ow.normal.y / len };
+      if (ow.enabled !== false && len > 1e-4) {
+        oneWay = { cx: oneWayCenter.x, cy: oneWayCenter.y, dx: ow.normal.x / len, dy: -ow.normal.y / len };
+      }
     }
-
-    if (world.has(id, BoxCollider)) {
-      const b = world.get(id, BoxCollider) as { halfExtents: { x: number; y: number }; offset: { x: number; y: number } };
-      const c = placeOffset(b.offset);
-      const hw = b.halfExtents.x * ppu;
-      const hh = b.halfExtents.y * ppu;
-      const centerS = this.worldToClient(c.x, c.y);
-      const screen = obbCorners({ cx: c.x, cy: c.y, hw: Math.abs(hw), hh: Math.abs(hh), rot }).map(([wx, wy]) =>
-        this.worldToClient(wx, wy),
-      );
-      if (!centerS || screen.some((p) => !p)) return null;
-      const bs = screen.map((p) => ({ x: p!.x, y: p!.y }));
-      // Size handle at the +hw,+hh corner (obbCorners index 2) — drag = halfExtents.
-      return { kind: 'box', cx: centerS.x, cy: centerS.y, r: 0, pts: bs, handle: null, sizeHandle: bs[2], oneWay };
-    }
-
-    const cc = world.get(id, CircleCollider) as { radius: number; offset: { x: number; y: number } };
-    const c = placeOffset(cc.offset);
-    const center = this.worldToClient(c.x, c.y);
-    const edge = this.worldToClient(c.x + cc.radius * ppu, c.y);
-    if (!center || !edge) return null;
-    // Radius handle at the top of the circle (drag = radius, in physics meters).
-    const handle = this.worldToClient(c.x, c.y + cc.radius * ppu);
-    return { kind: 'circle', cx: center.x, cy: center.y, r: Math.hypot(edge.x - center.x, edge.y - center.y), pts: [], handle: handle ?? null, sizeHandle: null, oneWay };
+    return { outline: solid, outlineSensor: sensor, oneWay, sizeHandle, radiusHandle, points };
   },
 
   /**

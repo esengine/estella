@@ -33,6 +33,7 @@ export type InspectorFieldType =
   | 'string'
   | 'vec2'
   | 'vec3'
+  | 'vec2list' // a whole Vec2[] written at once (polygon vertices / chain points) — viewport vertex drag
   | 'angle' // 2D rotation: a quaternion shown/edited as Z degrees
   | 'color'
   | 'enum' // an int field with named options, shown as a dropdown

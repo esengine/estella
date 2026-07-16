@@ -394,12 +394,21 @@ body.thumb-capture .viewport > :not(.viewport__stage):not(.viewport__play) {
   pointer-events: none;
   overflow: visible;
 }
-.viewport__collider-gizmo .cl-box,
-.viewport__collider-gizmo .cl-circle {
+/* Merged outline of every collider shape (box/circle/capsule/segment/polygon/chain) as
+   one path — empty `d` when off / no collider, so no opacity toggle is needed. */
+.viewport__collider-gizmo .cl-outline {
   fill: color-mix(in srgb, var(--gizmo-collider) 6%, transparent);
   stroke: var(--gizmo-collider);
   stroke-width: 1.5;
-  opacity: 0;
+  stroke-linejoin: round;
+}
+/* Sensor colliders: dashed, unfilled — a trigger reads distinct from a solid body. */
+.viewport__collider-gizmo .cl-outline-sensor {
+  fill: none;
+  stroke: var(--gizmo-collider);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 3;
+  opacity: 0.85;
 }
 /* Draggable handles — circle radius / box corner size (meters), written on canvas. */
 .viewport__collider-gizmo .cl-handle,
@@ -412,6 +421,22 @@ body.thumb-capture .viewport > :not(.viewport__stage):not(.viewport__play) {
 }
 .viewport__collider-gizmo .cl-size-handle {
   cursor: nwse-resize;
+}
+/* Point handles: polygon vertices / chain points / segment endpoints (filled), and
+   box/circle/capsule offsets (hollow — "move the shape", not "a vertex"). */
+.viewport__collider-gizmo .cl-vert {
+  fill: var(--gizmo-collider);
+  stroke: var(--srf-2);
+  stroke-width: 1.25;
+  pointer-events: auto;
+  cursor: move;
+}
+.viewport__collider-gizmo .cl-vert:hover {
+  fill: color-mix(in srgb, var(--gizmo-collider) 70%, white);
+}
+.viewport__collider-gizmo .cl-offset {
+  fill: var(--srf-2);
+  stroke: var(--gizmo-collider);
 }
 /* One-way platform solid-side arrow (world-space normal out of the collider center). */
 .viewport__collider-gizmo .cl-oneway {

@@ -77,7 +77,9 @@ export function toModelValue(
   cur: Record<string, unknown>,
   type: InspectorFieldType,
   key: string,
-  value: InspectorFieldValue,
+  // `vec2list` carries a Vec2[] — outside the Inspector's scalar vocabulary, so the write
+  // channel accepts it here without widening the Inspector's InspectorFieldValue.
+  value: InspectorFieldValue | Array<{ x: number; y: number }>,
 ): unknown {
   switch (type) {
     case 'number':
@@ -96,6 +98,10 @@ export function toModelValue(
       const [x, y, z] = value as [number, number, number];
       return { ...(cur[key] as object), x, y, z };
     }
+    case 'vec2list':
+      // A whole Vec2[] replacement (polygon vertices / chain points) — normalized to
+      // plain {x,y} so a dragged vertex writes clean data; coalesced to one undo step.
+      return (value as Array<{ x: number; y: number }>).map((p) => ({ x: p.x, y: p.y }));
     case 'angle':
       return angleZToQuat(Number(value));
     case 'color':
@@ -292,13 +298,22 @@ export class SceneCommandsImpl {
     if (bakeAbsolute) applySeed(); // coalesced into the caller's gesture
   }
 
+  /**
+   * Write a whole Vec2[] field (polygon vertices / chain points) — the viewport vertex-
+   * drag door. Same model + undo/gesture bookkeeping as {@link setField}, but the value
+   * is a Vec2[] (outside the Inspector's scalar-field vocabulary, so it has its own door).
+   */
+  setVertexArray(sourceId: EntityId, compName: string, key: string, verts: Array<{ x: number; y: number }>): void {
+    this.writeField_(sourceId, compName, key, 'vec2list', verts);
+  }
+
   /** The unconditional single-field write (model + undo/gesture bookkeeping). */
   private writeField_(
     sourceId: EntityId,
     compName: string,
     key: string,
     type: InspectorFieldType,
-    value: InspectorFieldValue,
+    value: InspectorFieldValue | Array<{ x: number; y: number }>,
   ): void {
     const e = this.model.entityBySource(sourceId);
     if (!e) return;

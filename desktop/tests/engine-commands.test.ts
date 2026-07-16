@@ -14,7 +14,7 @@
  * ids; the World is asserted via session.model.runtimeFor.
  */
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
-import { App, Transform, Parent, Children, Sprite, Interactable, BUILTIN_UI_PREFABS } from 'esengine';
+import { App, Transform, Parent, Children, Sprite, Interactable, PolygonCollider, BUILTIN_UI_PREFABS } from 'esengine';
 import type { ESEngineModule } from 'esengine';
 import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
 
@@ -98,6 +98,26 @@ describe.skipIf(!HAS_WASM)('SceneCommands / SceneQuery (headless World)', () => 
 
         S.history.undo(); // one step undoes the whole drag
         expect(host.world.get(e, Transform).position.x).toBe(0);
+    });
+
+    it('setVertexArray writes a whole Vec2[] collider field to the World; a gesture coalesces the drag; undo reverts', () => {
+        const id = S.commands.addEntity()!;
+        const e = rt(id);
+        S.commands.addComponent(id, 'PolygonCollider');
+        const defLen = (host.world.get(e, PolygonCollider).vertices as ArrayLike<unknown>).length;
+        // Simulate a viewport vertex drag: successive whole-array writes, only index 0
+        // moving, coalesced into one undo step.
+        S.commands.beginGesture('Drag vertex');
+        S.commands.setVertexArray(id, 'PolygonCollider', 'vertices', [{ x: 1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: 0 }]);
+        S.commands.setVertexArray(id, 'PolygonCollider', 'vertices', [{ x: 2, y: 0 }, { x: 0, y: 1 }, { x: 0, y: 0 }]);
+        S.commands.endGesture();
+        const v = host.world.get(e, PolygonCollider).vertices as ArrayLike<{ x: number; y: number }>;
+        expect(v.length).toBe(3);
+        expect(v[0]).toMatchObject({ x: 2, y: 0 }); // the dragged vertex
+        expect(v[1]).toMatchObject({ x: 0, y: 1 }); // the others intact
+
+        S.history.undo(); // one step undoes the whole drag
+        expect((host.world.get(e, PolygonCollider).vertices as ArrayLike<unknown>).length).toBe(defLen);
     });
 
     it('deleteEntity removes the entity; undo re-creates it', () => {
