@@ -73,11 +73,13 @@ function Slider({
 function NumberControl({ setting }: { setting: NumberSetting }) {
   const setValue = useSettings((s) => s.setValue);
   const value = Number(useSettings((s) => s.getValue<number>(setting.id)));
-  const { min = 0, max = 100, step = 1, slider, suffix } = setting;
+  // An absent max means unbounded for the numeric field (a design width is not a
+  // percentage); only the slider needs a finite range, so it falls back to 100.
+  const { min = 0, max = Infinity, step = 1, slider, suffix } = setting;
   return (
     <>
       {slider && (
-        <Slider value={value} min={min} max={max} step={step} onChange={(v) => setValue(setting.id, v)} />
+        <Slider value={value} min={min} max={Number.isFinite(max) ? max : 100} step={step} onChange={(v) => setValue(setting.id, v)} />
       )}
       <input
         className="set-num"
