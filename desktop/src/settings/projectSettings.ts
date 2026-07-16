@@ -12,12 +12,21 @@ import { ProjectStore } from '@/project/ProjectStore';
 import { EngineHost } from '@/engine/EngineHost';
 import { Toasts } from '@/store/Toasts';
 import { useEditorMode } from '@/store/editorModeStore';
-import type { ScreenOrientation } from '@/project/format';
+import type { ScreenOrientation, CameraScaleMode } from '@/project/format';
 import { t } from '@/i18n';
 
 const ORIENTATION = [
   { value: 'portrait', label: t('set.orientation.portrait') },
   { value: 'landscape', label: t('set.orientation.landscape') },
+];
+
+const CAMERA_FIT = [
+  { value: 'none', label: t('set.cameraFit.none') },
+  { value: 'fixed-height', label: t('set.cameraFit.fixedHeight') },
+  { value: 'fixed-width', label: t('set.cameraFit.fixedWidth') },
+  { value: 'expand', label: t('set.cameraFit.expand') },
+  { value: 'shrink', label: t('set.cameraFit.shrink') },
+  { value: 'match', label: t('set.cameraFit.match') },
 ];
 
 // ── Display (design/reference resolution + orientation; screen shape) ──
@@ -63,6 +72,33 @@ settingsRegistry.register({
       // Keep the editor's device preview in lockstep with the shipped orientation.
       useEditorMode.setState({ orientation: v as ScreenOrientation });
     },
+  },
+});
+
+// Camera fit — how the MAIN camera scales the design resolution, independent of any UI
+// Canvas. 'None' (default) keeps the raw orthoSize (zero regression); any other mode
+// letterboxes every target + the editor device preview. The sibling of a UI CanvasScaler.
+settingsRegistry.register({
+  id: 'project.display.cameraFit',
+  type: 'enum', scope: 'project', section: 'display', group: t('set.group.designResolution'),
+  label: t('set.project.display.cameraFit'),
+  description: t('set.project.display.cameraFit.desc'),
+  options: CAMERA_FIT, default: 'none',
+  bind: {
+    get: () => ProjectStore.renderingFeature().cameraScaleMode,
+    set: (v) => void ProjectStore.setRendering({ cameraScaleMode: v as CameraScaleMode }),
+  },
+});
+
+settingsRegistry.register({
+  id: 'project.display.cameraMatch',
+  type: 'number', scope: 'project', section: 'display', group: t('set.group.designResolution'),
+  label: t('set.project.display.cameraMatch'),
+  description: t('set.project.display.cameraMatch.desc'),
+  default: 0.5, min: 0, max: 1, step: 0.05,
+  bind: {
+    get: () => ProjectStore.renderingFeature().cameraMatch,
+    set: (v) => void ProjectStore.setRendering({ cameraMatch: v }),
   },
 });
 

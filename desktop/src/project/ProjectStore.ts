@@ -13,7 +13,7 @@ import { EditorHistory } from '@/engine/EditorHistory';
 import { expandScenePrefabs, collapseScenePrefabs } from '@/engine/PrefabInstance';
 import { SceneCommands } from '@/engine/SceneCommands';
 import { Boxes } from 'lucide-react';
-import { spritePrefab, setCanvasDesignSeed, type EntitySource } from '@/engine/entitySources';
+import { spritePrefab, setCanvasDesignSeed, setProjectCameraFit, type EntitySource } from '@/engine/entitySources';
 import { setPrefabBaseResolver } from '@/engine/SceneQuery';
 import { setUserSchemas, userSchema, setBitmaskSource, setEnumSource, type UserComponentSchema } from '@/engine/schema';
 import { setAssetRefProblemResolver } from '@/engine/EditorControlSurface';
@@ -25,7 +25,7 @@ import { confirmDiscard } from './discardGuard';
 import { t } from '@/i18n';
 import { assetTypeOf } from '@/project/assetMeta';
 import type { AssetType } from '@/types';
-import { resolveLayout, orientationFromDesignResolution, resolveOrientation, WORKSPACE_DIR, PROJECT_MANIFEST_FILE, type OpenedProject, type ProjectFeatures, type ProjectLayout, type ProjectPackaging, type WorkspaceState, type DesignResolution, type ScreenOrientation } from './format';
+import { resolveLayout, orientationFromDesignResolution, resolveOrientation, cameraScaleModeValue, WORKSPACE_DIR, PROJECT_MANIFEST_FILE, type OpenedProject, type ProjectFeatures, type ProjectLayout, type ProjectPackaging, type WorkspaceState, type DesignResolution, type ScreenOrientation, type CameraScaleMode } from './format';
 import { useEditorMode } from '@/store/editorModeStore';
 
 /** Pad/truncate collision-layer names to the 16 Box2D filter bits (layer 0 = Default). */
@@ -202,6 +202,12 @@ class ProjectStoreImpl {
     setEnumSource('sortingLayers', () => this.sortingLayerOptions());
     // New Canvas entities seed their design resolution from the project setting.
     setCanvasDesignSeed(() => this.designResolution());
+    // The device preview reads the project camera fit so its letterbox matches the
+    // runtime (WYSIWYG when the fit is on).
+    setProjectCameraFit(() => {
+      const f = this.screenFit();
+      return { scaleMode: f.scaleMode, matchWidthOrHeight: f.matchWidthOrHeight };
+    });
     // Diagnostics ask the registry whether a model-healthy asset ref actually
     // names a real, loadable asset (dead refs draw white boxes in silence).
     setAssetRefProblemResolver((ref) => this.assetRefProblem(ref));
@@ -1032,6 +1038,7 @@ class ProjectStoreImpl {
     audioConfig?: AudioProjectConfig;
     ySortLayers?: number;
     colorSpace?: 'gamma' | 'linear';
+    screenFit?: { designWidth: number; designHeight: number; scaleMode: number; matchWidthOrHeight: number };
   } | null {
     const sceneData = SceneModel.serialize();
     if (!sceneData) return null;
@@ -1062,11 +1069,15 @@ class ProjectStoreImpl {
     const ySortLayers = this.ySortMask();
     const audioConfig = this.audioFeature();
     const colorSpace = this.renderingFeature().colorSpace;
+    // Camera fit: only sent when the project opts in (scaleMode ≥ 0), so a played
+    // scene with no fit boots exactly as before.
+    const screenFit = this.screenFit();
     return {
       sceneData, assetManifest, physicsEnabled: f.enabled, physicsConfig,
       ...(audioConfig.buses ? { audioConfig } : {}),
       ...(ySortLayers !== 0 ? { ySortLayers } : {}),
       ...(colorSpace === 'linear' ? { colorSpace } : {}),
+      ...(screenFit.scaleMode >= 0 ? { screenFit } : {}),
     };
   }
 
@@ -1127,12 +1138,27 @@ class ProjectStoreImpl {
   }
 
   /** Named render sorting layers (z-order = slot index). Default empty list. */
-  renderingFeature(): { sortingLayers: string[]; ySortLayers: number[]; colorSpace: 'gamma' | 'linear' } {
+  renderingFeature(): { sortingLayers: string[]; ySortLayers: number[]; colorSpace: 'gamma' | 'linear'; cameraScaleMode: CameraScaleMode; cameraMatch: number } {
     const r = this.state?.features?.rendering;
     return {
       sortingLayers: Array.from({ length: 8 }, (_, i) => r?.sortingLayers?.[i] ?? ''),
       ySortLayers: r?.ySortLayers ?? [],
       colorSpace: r?.colorSpace === 'linear' ? 'linear' : 'gamma',
+      cameraScaleMode: r?.cameraScaleMode ?? 'none',
+      cameraMatch: r?.cameraMatch ?? 0.5,
+    };
+  }
+
+  /** The runtime screen-fit (createWebApp `screenFit` / ScreenScaling): the project
+   *  design resolution + the mapped camera fit. `scaleMode` -1 ⇒ off (raw orthoSize). */
+  screenFit(): { designWidth: number; designHeight: number; scaleMode: number; matchWidthOrHeight: number } {
+    const d = this.designResolution();
+    const r = this.renderingFeature();
+    return {
+      designWidth: d.width,
+      designHeight: d.height,
+      scaleMode: cameraScaleModeValue(r.cameraScaleMode),
+      matchWidthOrHeight: r.cameraMatch,
     };
   }
 
@@ -1154,7 +1180,7 @@ class ProjectStoreImpl {
   /** Set rendering-feature config (sorting layers, y-sort, color space) and persist
    *  to the manifest. Sorting/y-sort live-apply; colorSpace is boot-fixed (shaders
    *  compile against it) — the settings page prompts for a reload, like the backend. */
-  async setRendering(patch: { sortingLayers?: string[]; ySortLayers?: number[]; colorSpace?: 'gamma' | 'linear' }): Promise<void> {
+  async setRendering(patch: { sortingLayers?: string[]; ySortLayers?: number[]; colorSpace?: 'gamma' | 'linear'; cameraScaleMode?: CameraScaleMode; cameraMatch?: number }): Promise<void> {
     const st = this.state;
     if (!st) return;
     const rendering: NonNullable<ProjectFeatures['rendering']> = { ...st.features?.rendering };
@@ -1163,6 +1189,10 @@ class ProjectStoreImpl {
     // 'gamma' is the default — expressed by ABSENCE so untouched manifests stay untouched.
     if (patch.colorSpace === 'linear') rendering.colorSpace = 'linear';
     else if (patch.colorSpace === 'gamma') delete rendering.colorSpace;
+    // 'none' (off) is the default — expressed by ABSENCE, like colorSpace 'gamma'.
+    if (patch.cameraScaleMode === 'none') delete rendering.cameraScaleMode;
+    else if (patch.cameraScaleMode !== undefined) rendering.cameraScaleMode = patch.cameraScaleMode;
+    if (patch.cameraMatch !== undefined) rendering.cameraMatch = patch.cameraMatch;
     const features: ProjectFeatures = { ...st.features, rendering };
     this.store.setState({ project: { ...st, features } });
     Renderer.setYSortLayers(this.ySortMask());

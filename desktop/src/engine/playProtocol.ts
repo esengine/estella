@@ -63,6 +63,9 @@ export interface PlayPayload {
   ySortLayers?: number;
   /** Project color space — 'linear' boots the realm on the linear-light pipeline. */
   colorSpace?: 'gamma' | 'linear';
+  /** Project camera fit (design resolution + scale mode) — letterboxes the realm's
+   *  main camera without a UI Canvas; absent = no fit (raw orthoSize). */
+  screenFit?: { designWidth: number; designHeight: number; scaleMode: number; matchWidthOrHeight: number };
   /** Multiplayer preview role; absent = a plain single-player session. */
   net?: PlayNetConfig;
 }

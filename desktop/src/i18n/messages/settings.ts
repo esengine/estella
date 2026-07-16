@@ -108,6 +108,22 @@ export const settingsMessages = defineMessages({
         en: 'Screen orientation for every export target (WeChat, playable, web, desktop). Defaults to the design resolution’s aspect — override to lock a specific orientation.',
         zh: '所有导出目标（微信、Playable、Web、桌面）的屏幕方向。默认取设计分辨率的宽高比 — 可覆盖以锁定特定方向。',
     },
+    'set.project.display.cameraFit': { en: 'Camera Fit', zh: '相机适配' },
+    'set.project.display.cameraFit.desc': {
+        en: 'How the main camera scales the design resolution — independent of any UI Canvas, so it works in a gameplay-only scene. “None” keeps the camera’s own orthoSize (default); any other mode letterboxes every target and the editor device preview.',
+        zh: '主相机如何按设计分辨率缩放——独立于任何 UI Canvas，纯玩法场景也生效。“无”保持相机自身的 orthoSize（默认）；其他模式会让所有导出目标与编辑器设备预览都做 letterbox。',
+    },
+    'set.project.display.cameraMatch': { en: 'Match (width ↔ height)', zh: '匹配（宽 ↔ 高）' },
+    'set.project.display.cameraMatch.desc': {
+        en: 'Blend between fitting width (0) and height (1), for the “Match” camera fit only.',
+        zh: '在适配宽度（0）与高度（1）之间插值，仅“匹配”相机适配模式生效。',
+    },
+    'set.cameraFit.none': { en: 'None', zh: '无' },
+    'set.cameraFit.fixedHeight': { en: 'Fit Height', zh: '适配高度' },
+    'set.cameraFit.fixedWidth': { en: 'Fit Width', zh: '适配宽度' },
+    'set.cameraFit.expand': { en: 'Expand', zh: '扩展' },
+    'set.cameraFit.shrink': { en: 'Shrink', zh: '收缩' },
+    'set.cameraFit.match': { en: 'Match', zh: '匹配' },
     'set.project.rendering.sortingLayers': { en: 'Layer names', zh: '层名称' },
     'set.project.rendering.sortingLayers.desc': {
         en: 'Name render sorting layers (lowest first); a render `layer` field then picks from them instead of a raw number.',

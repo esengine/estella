@@ -92,12 +92,23 @@ export interface ProjectFeatures {
      *  sample, linear blending, OETF at the final blit). Fixed at engine boot —
      *  shaders compile against it. Absent ⇒ 'gamma'. */
     colorSpace?: 'linear';
+    /** How the MAIN camera fits the design resolution, INDEPENDENT of any UI Canvas
+     *  (the runtime's ScreenScaling). Absent/'none' ⇒ the camera keeps its raw
+     *  orthoSize (Canvas fit when present) — the zero-regression default. */
+    cameraScaleMode?: CameraScaleMode;
+    /** Match-mode blend 0..1 (0 = fit width, 1 = fit height); cameraScaleMode='match' only. */
+    cameraMatch?: number;
   };
   /** Project mixer state (bus volumes / custom buses / effects / duck rules). */
   audio?: AudioProjectConfig;
 }
 
 export type ScreenOrientation = 'portrait' | 'landscape';
+
+/** Project camera fit — how the main camera scales the design resolution (a superset of
+ *  the engine's CanvasScaleMode names, plus 'none' = off). See {@link cameraScaleModeValue}. */
+export type CameraScaleMode = 'none' | 'fixed-width' | 'fixed-height' | 'expand' | 'shrink' | 'match';
+
 /** Per-platform packaging config (the platform-specific Project Settings pages).
  *  Orientation is NOT here — it is one project-wide {@link ProjectPackaging.orientation}
  *  consumed by every target (a landscape build is landscape everywhere). */
@@ -297,6 +308,14 @@ export function parseManifest(raw: unknown): ProjectManifest {
       }
       // Only 'linear' persists; 'gamma' (the default) is expressed by absence.
       if (r.colorSpace === 'linear') rendering.colorSpace = 'linear';
+      // Camera fit — 'none' (off) is the default, expressed by absence.
+      if (r.cameraScaleMode === 'fixed-width' || r.cameraScaleMode === 'fixed-height' ||
+          r.cameraScaleMode === 'expand' || r.cameraScaleMode === 'shrink' || r.cameraScaleMode === 'match') {
+        rendering.cameraScaleMode = r.cameraScaleMode;
+      }
+      if (typeof r.cameraMatch === 'number' && Number.isFinite(r.cameraMatch)) {
+        rendering.cameraMatch = Math.min(1, Math.max(0, r.cameraMatch));
+      }
       if (Object.keys(rendering).length > 0) features.rendering = rendering;
     }
     if (f.audio && typeof f.audio === 'object') {
@@ -380,6 +399,35 @@ export function orientationFromDesignResolution(dr?: DesignResolution): ScreenOr
  *  read by WeChat/playable/web/desktop alike — the single source of truth. */
 export function resolveOrientation(manifest: Pick<ProjectManifest, 'packaging' | 'designResolution'>): ScreenOrientation {
   return manifest.packaging?.orientation ?? orientationFromDesignResolution(manifest.designResolution);
+}
+
+/** cameraScaleMode → the engine's CanvasScaleMode value the runtime consumes
+ *  (FixedWidth=0, FixedHeight=1, Expand=2, Shrink=3, Match=4), or -1 (SCREEN_FIT_OFF)
+ *  for 'none'/absent — the camera keeps its raw orthoSize. Single-sourced here so the
+ *  editor, the export config writers, and the play realm all map identically. */
+export function cameraScaleModeValue(m: CameraScaleMode | undefined): number {
+  switch (m) {
+    case 'fixed-width': return 0;
+    case 'fixed-height': return 1;
+    case 'expand': return 2;
+    case 'shrink': return 3;
+    case 'match': return 4;
+    default: return -1;
+  }
+}
+
+/** The runtime screen-fit config (createWebApp `screenFit` / ScreenScaling) for a
+ *  project: its design resolution + the mapped camera fit. `scaleMode` -1 ⇒ off. */
+export function resolveScreenFit(manifest: Pick<ProjectManifest, 'designResolution' | 'features'>): {
+  designWidth: number; designHeight: number; scaleMode: number; matchWidthOrHeight: number;
+} {
+  const dr = manifest.designResolution;
+  return {
+    designWidth: dr?.width ?? 1920,
+    designHeight: dr?.height ?? 1080,
+    scaleMode: cameraScaleModeValue(manifest.features?.rendering?.cameraScaleMode),
+    matchWidthOrHeight: manifest.features?.rendering?.cameraMatch ?? 0.5,
+  };
 }
 
 /** Default script entries — the convention most projects follow without config. */

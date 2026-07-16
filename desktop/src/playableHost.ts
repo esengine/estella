@@ -27,6 +27,7 @@ declare const __GAME_SCENES__: Array<{ name: string; data: SceneData }>;
 declare const __GAME_FIRST__: string;
 declare const __GAME_YSORT__: number;
 declare const __GAME_COLORSPACE__: 'gamma' | 'linear';
+declare const __GAME_SCREENFIT__: { designWidth: number; designHeight: number; scaleMode: number; matchWidthOrHeight: number };
 
 function decodeBase64(b64: string): Uint8Array {
   const raw = atob(b64);
@@ -76,6 +77,8 @@ async function boot(): Promise<void> {
     glContextHandle: glHandle,
     // Older exports predate the color-space global; treat it as optional.
     colorSpace: typeof __GAME_COLORSPACE__ !== 'undefined' ? __GAME_COLORSPACE__ : undefined,
+    // Present only when the project opts into a camera fit; optional otherwise.
+    screenFit: typeof __GAME_SCREENFIT__ !== 'undefined' ? __GAME_SCREENFIT__ : undefined,
     getViewportSize: () => ({ width: canvas.width, height: canvas.height }),
     // Physics + spine resolve from the inlined base64 registry (no fetch).
     sideModules: createEmbeddedSideModuleHost(typeof __SIDE_MODULES__ !== 'undefined' ? __SIDE_MODULES__ : {}),

@@ -35,7 +35,7 @@ import { ensureSdkTypes } from './syncSdkTypes';
 import { installCrashCapture, logsDir } from './resilience';
 import { mcpMode, startMcpEndpoint } from './mcpEndpoint';
 import { checkForUpdate } from './updateCheck';
-import { resolveLayout, resolveScripts, resolveOrientation } from '../src/project/format';
+import { resolveLayout, resolveScripts, resolveOrientation, resolveScreenFit } from '../src/project/format';
 import type { WorkspaceState } from '../src/project/format';
 
 // Enable WebGPU in the renderer so the viewport's WebGPU backend (Settings →
@@ -623,6 +623,9 @@ ipcMain.handle(
     const ySortLayers =
       (manifest.features?.rendering?.ySortLayers ?? []).reduce((m, i) => m | (1 << i), 0) >>> 0;
     const colorSpace = manifest.features?.rendering?.colorSpace === 'linear' ? 'linear' as const : undefined;
+    // Project camera fit → runtime screenFit (only when the project opts in; scaleMode < 0 = off).
+    const fit = resolveScreenFit(manifest);
+    const screenFit = fit.scaleMode >= 0 ? fit : undefined;
     return exportGame({
       root,
       entryScene,
@@ -630,6 +633,7 @@ ipcMain.handle(
       excludeScenes: manifest.packaging?.excludeScenes,
       ySortLayers,
       colorSpace,
+      screenFit,
       gameHostEntry: path.join(HOSTS_DIR, 'gameHost.js'),
       playableHostEntry: path.join(HOSTS_DIR, 'playableHost.js'),
       scriptsEntry: resolveScripts(manifest).main,

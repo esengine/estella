@@ -8,7 +8,7 @@ import {
 } from 'esengine';
 import type { EntityId } from '@/types';
 import { EngineHost } from './EngineHost';
-import { projectDesignSeed } from './entitySources';
+import { projectDesignSeed, projectCameraFit } from './entitySources';
 import { SceneModel } from './SceneModel';
 import {
   type OBB,
@@ -579,13 +579,31 @@ export const ViewportController = {
    */
   screenInfo(): EditorScreenInfo {
     const canvas = this.canvasInfo();
+    const fit = projectCameraFit(); // { scaleMode, matchWidthOrHeight }; scaleMode -1 ⇒ off
+    // Project camera fit is on ⇒ it is authoritative for the camera (overrides the Canvas),
+    // so the device frame must preview THAT: the project design resolution + fit mode.
+    if (fit.scaleMode >= 0) {
+      const d = projectDesignSeed();
+      return {
+        cx: canvas?.cx ?? 0,
+        cy: canvas?.cy ?? 0,
+        designResolution: { x: d.width, y: d.height },
+        pixelsPerUnit: canvas?.pixelsPerUnit ?? 100,
+        scaleMode: fit.scaleMode,
+        matchWidthOrHeight: fit.matchWidthOrHeight,
+        backgroundColor: canvas?.backgroundColor ?? { r: 0, g: 0, b: 0, a: 0 },
+      };
+    }
+    // No project fit: the Canvas (its own scaleMode) when present, else the project
+    // design resolution with FixedHeight (the engine's Canvas default) so the frame
+    // has a defined shape.
     if (canvas) return canvas;
     const d = projectDesignSeed();
     return {
       cx: 0, cy: 0,
       designResolution: { x: d.width, y: d.height },
       pixelsPerUnit: 100,
-      scaleMode: 1, // CanvasScaleMode.FixedHeight — the engine's Canvas default
+      scaleMode: 1, // CanvasScaleMode.FixedHeight
       matchWidthOrHeight: 0.5,
       // No Canvas ⇒ no authored letterbox tint; the overlay falls back to a neutral scrim.
       backgroundColor: { r: 0, g: 0, b: 0, a: 0 },

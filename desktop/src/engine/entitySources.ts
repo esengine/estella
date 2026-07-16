@@ -145,6 +145,18 @@ export function projectDesignSeed(): { width: number; height: number } {
   return canvasDesignSeed?.() ?? { width: 1920, height: 1080 };
 }
 
+// Project camera fit provider (ProjectStore wires this). `scaleMode` is a CanvasScaleMode
+// (0..4) or -1 (off). Same injection pattern as canvasDesignSeed — the device preview
+// reads it so its letterbox matches the runtime fit (WYSIWYG), without importing ProjectStore.
+let projectCameraFitSeed: (() => { scaleMode: number; matchWidthOrHeight: number }) | null = null;
+export function setProjectCameraFit(fn: () => { scaleMode: number; matchWidthOrHeight: number }): void {
+  projectCameraFitSeed = fn;
+}
+/** The project's camera fit (scaleMode -1 ⇒ off). Read by ViewportController.screenInfo. */
+export function projectCameraFit(): { scaleMode: number; matchWidthOrHeight: number } {
+  return projectCameraFitSeed?.() ?? { scaleMode: -1, matchWidthOrHeight: 0.5 };
+}
+
 const UI_WIDGET_ICON: Record<string, LucideIcon> = {
   Button: SquareMousePointer,
   Toggle: ToggleLeft,

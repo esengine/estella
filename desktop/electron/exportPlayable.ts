@@ -155,6 +155,9 @@ export async function exportPlayable(opts: {
   ySortLayers?: number;
   /** Project color space — 'linear' boots the playable on the linear-light pipeline. */
   colorSpace?: 'gamma' | 'linear';
+  /** Project camera fit (design resolution + scale mode) — letterboxes the main camera
+   *  without a UI Canvas; absent = no fit. */
+  screenFit?: { designWidth: number; designHeight: number; scaleMode: number; matchWidthOrHeight: number };
   onProgress?: OnExportProgress;
 }): Promise<ExportPlayableResult> {
   const title = opts.title ?? 'Game';
@@ -271,7 +274,8 @@ export async function exportPlayable(opts: {
     `window.__GAME_SCENES__=${JSON.stringify(scenes)};` +
     `window.__GAME_FIRST__=${JSON.stringify(sceneName)};` +
     `window.__GAME_YSORT__=${(opts.ySortLayers ?? 0) >>> 0};` +
-    `window.__GAME_COLORSPACE__=${JSON.stringify(opts.colorSpace === 'linear' ? 'linear' : 'gamma')};`;
+    `window.__GAME_COLORSPACE__=${JSON.stringify(opts.colorSpace === 'linear' ? 'linear' : 'gamma')};` +
+    (opts.screenFit && opts.screenFit.scaleMode >= 0 ? `window.__GAME_SCREENFIT__=${JSON.stringify(opts.screenFit)};` : '');
   const outFile = path.join(absOut, 'index.html');
   await writeFile(outFile, indexHtml(title, globals, bundle, orientation));
   await rm(cookDir, { recursive: true, force: true });

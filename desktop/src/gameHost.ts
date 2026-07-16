@@ -22,6 +22,9 @@ interface GameConfig {
   ySortLayers?: number;
   /** Project color space — 'linear' boots the linear-light pipeline. */
   colorSpace?: 'gamma' | 'linear';
+  /** Project camera fit (design resolution + scale mode) — letterboxes the main camera
+   *  without a UI Canvas; absent = no fit. */
+  screenFit?: { designWidth: number; designHeight: number; scaleMode: number; matchWidthOrHeight: number };
 }
 interface CookedManifest {
   entries: { uuid: string; path: string; sourcePath?: string; type: string; atlas?: CookedAtlasInfo }[];
@@ -106,6 +109,7 @@ async function boot(): Promise<void> {
     glContextHandle: glHandle,
     ySortLayers: cfg.ySortLayers,
     colorSpace: cfg.colorSpace,
+    screenFit: cfg.screenFit,
     getViewportSize: () => ({ width: canvas.width, height: canvas.height }),
     wasmBaseUrl: wasmBase.replace(/\/$/, ''), // SDK appends "/<file>" — no trailing slash
   });

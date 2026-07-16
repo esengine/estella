@@ -299,6 +299,9 @@ export async function exportGame(opts: {
   ySortLayers?: number;
   /** Project color space — 'linear' boots the shipped game on the linear-light pipeline. */
   colorSpace?: 'gamma' | 'linear';
+  /** Project camera fit (Project Settings → Display) — the main camera letterboxes this
+   *  design resolution regardless of any UI Canvas. Absent ⇒ no fit (raw orthoSize). */
+  screenFit?: { designWidth: number; designHeight: number; scaleMode: number; matchWidthOrHeight: number };
 }): Promise<ExportGameResult> {
   const platform = opts.platform ?? 'web';
   const title = opts.title ?? 'Game';
@@ -349,6 +352,7 @@ export async function exportGame(opts: {
       minify: opts.minify,
       ySortLayers: opts.ySortLayers,
       colorSpace: opts.colorSpace,
+      screenFit: opts.screenFit,
       onProgress: opts.onProgress,
     });
   }
@@ -419,6 +423,7 @@ export async function exportGame(opts: {
         entryScene: opts.entryScene, scenes,
         ...(opts.ySortLayers ? { ySortLayers: opts.ySortLayers } : {}),
         ...(opts.colorSpace === 'linear' ? { colorSpace: opts.colorSpace } : {}),
+        ...(opts.screenFit && opts.screenFit.scaleMode >= 0 ? { screenFit: opts.screenFit } : {}),
       },
       null, 2,
     ) + '\n',
