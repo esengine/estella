@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import type { SceneData, PrefabData, ControllerState, UIControllerData, GearBinding, UIGearData } from 'esengine';
+import type { SceneData, PrefabData, ControllerState, UIControllerData, GearBinding, GearTween, UIGearData } from 'esengine';
 import { TilemapAPI, TilemapLiveSync, UIPositionType, DimensionUnit, anchorPresetFields, type AnchorPreset } from 'esengine';
 import type { EntityId, InspectorFieldType, InspectorFieldValue } from '@/types';
 import { EditorHistory, EditorHistoryImpl } from './EditorHistory';
@@ -1223,9 +1223,12 @@ export class SceneCommandsImpl {
   // A UIController is a named enum of "pages" scoped to a UI root; a UIGear binds a
   // component field to per-page values. Both are plain array fields — model.setField
   // creates the component if absent, so these mirror setLayerTilesets (read → transform
-  // → write + one undo step). Renames are intentionally absent: they would dangle the
-  // gear references keyed by controller/page name (a cascade left for a later pass);
-  // removal is safe because an orphaned gear simply goes inert (getControllerPage → null).
+  // → write + one undo step). Controller/page renames and page removal CASCADE into
+  // the gear bindings that resolve to the edited controller (nearest-ancestor rule,
+  // so a shadowing same-name controller lower in the tree keeps its gears), all in
+  // one undo step. Removing a whole controller deliberately does NOT cascade: an
+  // orphaned gear goes inert (getControllerPage → null) and re-resolves if the
+  // controller is re-declared on an ancestor — the "move it up the tree" workflow.
 
   private controllersOf(id: EntityId): ControllerState[] {
     const d = this.model.entityBySource(id)?.components.find((c) => c.type === 'UIController')?.data as UIControllerData | undefined;
@@ -1269,11 +1272,103 @@ export class SceneCommandsImpl {
 
   removeControllerPage(id: EntityId, name: string, page: string): void {
     const cur = this.controllersOf(id);
-    this.writeControllers(id, 'Remove Page', cur.map((c) => {
+    const ctrl = cur.find((c) => c.name === name);
+    if (!ctrl || !ctrl.pages.includes(page) || ctrl.pages.length <= 1) return;
+    const next = cur.map((c) => {
       if (c.name !== name) return c;
       const pages = c.pages.filter((p) => p !== page);
       return { ...c, pages, current: c.current === page ? (pages[0] ?? '') : c.current };
+    });
+    // Strip the page's authored values from resolving gears so re-adding a page
+    // with the same name later starts clean instead of reviving stale values.
+    this.recordControllerCascade('Remove Page', id, next, name, (b) => {
+      if (b.controller !== name || !(page in b.pages)) return b;
+      const pages = { ...b.pages };
+      delete pages[page];
+      return { ...b, pages };
+    });
+  }
+
+  renameController(id: EntityId, from: string, to: string): void {
+    const name = to.trim();
+    const cur = this.controllersOf(id);
+    if (!name || name === from) return;
+    if (!cur.some((c) => c.name === from) || cur.some((c) => c.name === name)) return;
+    const next = cur.map((c) => (c.name === from ? { ...c, name } : c));
+    this.recordControllerCascade('Rename Controller', id, next, from,
+      (b) => (b.controller === from ? { ...b, controller: name } : b));
+  }
+
+  renameControllerPage(id: EntityId, ctrlName: string, from: string, to: string): void {
+    const page = to.trim();
+    const cur = this.controllersOf(id);
+    const ctrl = cur.find((c) => c.name === ctrlName);
+    if (!page || page === from || !ctrl || !ctrl.pages.includes(from) || ctrl.pages.includes(page)) return;
+    const next = cur.map((c) => (c.name !== ctrlName ? c : {
+      ...c,
+      pages: c.pages.map((p) => (p === from ? page : p)),
+      current: c.current === from ? page : c.current,
     }));
+    this.recordControllerCascade('Rename Page', id, next, ctrlName, (b) => {
+      if (b.controller !== ctrlName || !(from in b.pages)) return b;
+      const pages = { ...b.pages };
+      pages[page] = pages[from]!;
+      delete pages[from];
+      return { ...b, pages };
+    });
+  }
+
+  /** Entity ids in `rootId`'s subtree (inclusive) that carry a UIGear. */
+  private subtreeWithGears(rootId: EntityId): EntityId[] {
+    const out: EntityId[] = [];
+    const stack: EntityId[] = [rootId];
+    while (stack.length > 0) {
+      const id = stack.pop()!;
+      const e = this.model.entityBySource(id);
+      if (!e) continue;
+      if (e.components.some((c) => c.type === 'UIGear')) out.push(id);
+      for (const child of e.children) stack.push(child as EntityId);
+    }
+    return out;
+  }
+
+  /** Whether the nearest declaration of controller `name` from `entityId` is `ownerId`. */
+  private resolvesTo(entityId: EntityId, ownerId: EntityId, name: string): boolean {
+    let cur: EntityId | null = entityId;
+    while (cur != null) {
+      if (this.controllersOf(cur).some((c) => c.name === name)) return cur === ownerId;
+      cur = (this.model.entityBySource(cur)?.parent as EntityId | null) ?? null;
+    }
+    return false;
+  }
+
+  /**
+   * Write `nextControllers` on the owner AND rewrite every resolving gear binding
+   * in its subtree through `editBinding`, as ONE undo step — the shared engine
+   * behind rename/remove-page cascades.
+   */
+  private recordControllerCascade(
+    label: string,
+    ownerId: EntityId,
+    nextControllers: ControllerState[],
+    name: string,
+    editBinding: (b: GearBinding) => GearBinding,
+  ): void {
+    const beforeCtrls = this.controllersOf(ownerId);
+    const gearEdits: Array<{ id: EntityId; before: GearBinding[]; after: GearBinding[] }> = [];
+    for (const gid of this.subtreeWithGears(ownerId)) {
+      if (!this.resolvesTo(gid, ownerId, name)) continue;
+      const before = this.gearBindingsOf(gid);
+      const after = before.map(editBinding);
+      if (!valueEqual(before, after)) gearEdits.push({ id: gid, before, after });
+    }
+    if (valueEqual(beforeCtrls, nextControllers) && gearEdits.length === 0) return;
+    const apply = (ctrls: ControllerState[], pick: 'before' | 'after') => {
+      this.model.setField(ownerId, 'UIController', 'controllers', structuredClone(ctrls));
+      for (const g of gearEdits) this.model.setField(g.id, 'UIGear', 'bindings', structuredClone(g[pick]));
+    };
+    apply(nextControllers, 'after');
+    this.history.record(label, () => apply(nextControllers, 'after'), () => apply(beforeCtrls, 'before'));
   }
 
   moveControllerPage(id: EntityId, name: string, from: number, to: number): void {
@@ -1318,6 +1413,20 @@ export class SceneCommandsImpl {
     const cur = this.gearBindingsOf(id);
     this.writeGearBindings(id, 'Remove Gear',
       cur.filter((b) => !(b.controller === controller && b.component === component && b.property === property)));
+  }
+
+  /** Set (or clear, with undefined) one gear binding's page-change transition. Undoable. */
+  setGearTween(id: EntityId, controller: string, component: string, property: string, tween?: GearTween): void {
+    const cur = this.gearBindingsOf(id);
+    const next = cur.map((b) => {
+      if (b.controller !== controller || b.component !== component || b.property !== property) return b;
+      if (!tween) {
+        const { tween: _removed, ...rest } = b;
+        return rest as GearBinding;
+      }
+      return { ...b, tween: { ...tween } };
+    });
+    this.writeGearBindings(id, 'Set Gear Transition', next);
   }
 }
 

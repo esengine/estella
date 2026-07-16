@@ -32,8 +32,10 @@ export type AnyComp = Parameters<WorldT['has']>[1];
 
 // — Presentation policy (editor-side, not engine schema) —
 
-// Structural/relationship components that drive the tree, not the inspector.
-const HIDDEN_COMPONENTS = new Set(['Parent', 'Children', 'Name']);
+// Structural/relationship components that drive the tree, not the inspector —
+// plus UIController/UIGear, whose authoring surface is the Controllers panel and
+// the Details gear dots (their array-of-object data has no generic field control).
+const HIDDEN_COMPONENTS = new Set(['Parent', 'Children', 'Name', 'UIController', 'UIGear']);
 // Components whose enable flag drives the entity's RENDER visibility (the Outliner
 // eye + hidden state). Disabling a non-render component (physics, audio, a script)
 // turns that behaviour off without hiding the entity. Light2D/ShadowCaster2D belong

@@ -240,7 +240,7 @@ describe.skipIf(!HAS_WASM)('SceneCommands / SceneQuery (headless World)', () => 
         // Model: button root + one Text label child, and NO prefab-instance link.
         const rootEnt = S.model.entityBySource(root)!;
         expect(rootEnt.components.map((c) => c.type)).toEqual(
-            expect.arrayContaining(['UINode', 'Interactable', 'StateMachine', 'StateVisuals']),
+            expect.arrayContaining(['UINode', 'Interactable', 'UIController', 'UIGear']),
         );
         expect(rootEnt.children.length).toBe(1);
         const label = S.model.entityBySource(rootEnt.children[0])!;

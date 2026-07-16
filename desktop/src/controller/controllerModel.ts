@@ -19,6 +19,38 @@ export function readControllers(id: EntityId): ControllerState[] {
   return d?.controllers ?? [];
 }
 
+export interface ResolvedController {
+  ctrl: ControllerState;
+  /** Entity that declares the controller (page edits target this id). */
+  owner: EntityId;
+  ownerName: string;
+  /** Declared on an ancestor rather than the queried entity itself. */
+  inherited: boolean;
+}
+
+/**
+ * Every controller visible from `id` — its own plus each ancestor's, nearest
+ * declaration winning on a name clash (the same rule the runtime resolves gears
+ * by). This is what lets the Controllers panel keep showing (and switching) the
+ * root's controllers while a geared leaf is selected.
+ */
+export function resolveControllers(id: EntityId): ResolvedController[] {
+  const out: ResolvedController[] = [];
+  const seen = new Set<string>();
+  let cur: EntityId | null = id;
+  while (cur != null) {
+    const e = SceneModel.entityBySource(cur);
+    if (!e) break;
+    for (const ctrl of readControllers(cur)) {
+      if (seen.has(ctrl.name)) continue;
+      seen.add(ctrl.name);
+      out.push({ ctrl, owner: cur, ownerName: e.name, inherited: cur !== id });
+    }
+    cur = (e.parent as EntityId | null) ?? null;
+  }
+  return out;
+}
+
 export function readGearBindings(id: EntityId): GearBinding[] {
   const d = SceneModel.entityBySource(id)?.components.find((c) => c.type === 'UIGear')?.data as UIGearData | undefined;
   return d?.bindings ?? [];

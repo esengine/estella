@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react';
+import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode } from 'react';
 import {
   Box,
   Camera,
@@ -41,7 +41,7 @@ import { revealAsset } from '@/project/assetReveal';
 import { useSelection } from '@/store/selectionStore';
 import { useEditorStore } from '@/store/editorStore';
 import { useControllerStore } from '@/store/controllerStore';
-import { isGeared, controllerCurrentPage, readModelField } from '@/controller/controllerModel';
+import { isGeared, controllerCurrentPage, readModelField, readGearBindings } from '@/controller/controllerModel';
 import { useOutliner } from '@/outliner/OutlinerController';
 import { isFolderUnder, folderName } from '@/outliner/folders';
 import { EngineHost } from '@/engine/EngineHost';
@@ -52,8 +52,8 @@ import { InspectorClipboard } from '@/engine/inspectorClipboard';
 import { SceneCommands, toModelValue } from '@/engine/SceneCommands';
 import { ENTITY_SOURCES, createFromSource } from '@/engine/entitySources';
 import { PlayInspect } from '@/engine/PlayInspect';
-import { DimensionUnit, AnchorAxis, detectAnchor, UIPositionType, parseLocaleTable } from 'esengine';
-import type { SceneData, InputMapAsset, ActionType, Binding, LocaleTableAsset, PluralCategory, GearValue } from 'esengine';
+import { DimensionUnit, AnchorAxis, detectAnchor, UIPositionType, parseLocaleTable, EasingType } from 'esengine';
+import type { SceneData, InputMapAsset, ActionType, Binding, LocaleTableAsset, PluralCategory, GearValue, GearTween } from 'esengine';
 import { modelAddableComponentEntries, subscribeSchemas, getSchemaRevision, prettyLabel, hexToRgba, dynamicEnumOptions, boxGroupsFor, isRequiredEmpty, type BoxGroupDef } from '@/engine/schema';
 import * as imap from '@/project/inputMapDoc';
 import * as ldoc from '@/project/localeTableDoc';
@@ -887,24 +887,108 @@ function fieldWriter(entities: EntityId[], comp: string, field: InspectorField, 
   return { apply, begin, end };
 }
 
+// Curated page-change easings for the gear popover, name → EasingType value.
+const GEAR_EASINGS = [
+  'Linear', 'EaseOutQuad', 'EaseInOutQuad', 'EaseOutCubic',
+  'EaseInOutCubic', 'EaseOutBack', 'EaseOutElastic', 'EaseOutBounce',
+] as const;
+type GearEasingName = (typeof GEAR_EASINGS)[number];
+
+/**
+ * Settings for one bound gear: page-change transition (duration 0 = snap, else
+ * duration + easing tween) and the unbind action — opened from a bound gear dot
+ * so unbinding is a deliberate second step, not a destructive dot toggle.
+ */
+function GearPopover({ anchor, onClose, entity, controller, component, property }: {
+  anchor: DOMRect;
+  onClose: () => void;
+  entity: EntityId;
+  controller: string;
+  component: string;
+  property: string;
+}) {
+  useSyncExternalStore(SceneStore.subscribe, SceneStore.getRevision);
+  const binding = readGearBindings(entity).find(
+    (b) => b.controller === controller && b.component === component && b.property === property);
+  const tween = binding?.tween;
+  const duration = tween?.duration ?? 0;
+  const [durText, setDurText] = useState(String(duration));
+
+  if (!binding) return null;
+
+  const setTween = (next?: GearTween) =>
+    SceneCommands.setGearTween(entity, controller, component, property, next);
+  const commitDuration = () => {
+    const d = Math.max(0, parseFloat(durText) || 0);
+    setDurText(String(d));
+    if (d === duration) return;
+    setTween(d > 0 ? { easing: tween?.easing ?? EasingType.EaseOutQuad, duration: d } : undefined);
+  };
+  const easingName: GearEasingName =
+    GEAR_EASINGS.find((n) => EasingType[n] === (tween?.easing ?? EasingType.Linear)) ?? 'Linear';
+
+  return (
+    <Popover anchor={anchor} width={210} onClose={onClose} className="gear-pop">
+      <div className="gear-pop-title">{controller} · {component}.{property}</div>
+      <div className="gear-pop-row">
+        <span className="gear-pop-label">{t('ctrl.gearDuration')}</span>
+        <input
+          type="number"
+          className="gear-pop-num"
+          min={0}
+          step={0.05}
+          value={durText}
+          onChange={(e) => setDurText(e.target.value)}
+          onBlur={commitDuration}
+          onKeyDown={(e) => { if (e.key === 'Enter') commitDuration(); }}
+        />
+      </div>
+      <div className="gear-pop-row">
+        <span className="gear-pop-label">{t('ctrl.gearEasing')}</span>
+        <Select<GearEasingName>
+          value={easingName}
+          options={GEAR_EASINGS.map((n) => ({ value: n }))}
+          onChange={(n) => setTween({ easing: EasingType[n], duration: duration > 0 ? duration : 0.15 })}
+          className="gear-pop-select"
+          ariaLabel={t('ctrl.gearEasing')}
+        />
+      </div>
+      <button
+        type="button"
+        className="gear-pop-remove"
+        onClick={() => {
+          SceneCommands.removeGearBinding(entity, controller, component, property);
+          onClose();
+        }}
+      >
+        {t('ctrl.gearUnbind')}
+      </button>
+    </Popover>
+  );
+}
+
 function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp: string; field: InspectorField; write?: FieldWrite }) {
   const mixed = field.mixed === true;
   const { apply, begin, end } = fieldWriter(entities, comp, field, write);
 
   // Gear dot: only for a single authored entity that resolves the active
-  // controller. Clicking binds this field to that controller (seeding the current
-  // page with the field's current value); clicking again unbinds it.
+  // controller. Clicking an unbound dot binds the field (seeding the current page
+  // with its value); clicking a bound dot opens the gear popover (transition
+  // tween + unbind) instead of destructively toggling. While recording, bound
+  // dots go red — the affordance for "edits here land in the current page".
   const activeController = useControllerStore((s) => s.activeController);
+  const recording = useControllerStore((s) => s.recording);
+  const gearPop = usePopover();
   const gearEntity = entities[0];
   const gearPage = entities.length === 1 && !write && activeController != null
     ? controllerCurrentPage(gearEntity, activeController)
     : null;
   const gearable = gearPage != null && activeController != null;
   const geared = gearable && isGeared(gearEntity, activeController, comp, field.key);
-  const toggleGear = () => {
+  const onGearClick = (e: ReactMouseEvent<HTMLButtonElement>) => {
     if (!gearable || activeController == null || gearPage == null) return;
     if (geared) {
-      SceneCommands.removeGearBinding(gearEntity, activeController, comp, field.key);
+      gearPop.open(e.currentTarget);
     } else {
       const value = readModelField(gearEntity, comp, field.key);
       if (value === undefined) return;
@@ -1089,13 +1173,23 @@ function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp
         {gearable && (
           <button
             type="button"
-            className={`prop-gear${geared ? ' on' : ''}`}
+            className={`prop-gear${geared ? ' on' : ''}${geared && recording ? ' rec' : ''}`}
             tabIndex={-1}
-            title={geared ? t('ctrl.gearUnbind') : t('ctrl.gearBind')}
-            onClick={toggleGear}
+            title={geared ? t('ctrl.gearSettings') : t('ctrl.gearBind')}
+            onClick={onGearClick}
           >
             <Cog size={11} strokeWidth={2} />
           </button>
+        )}
+        {gearPop.anchor && activeController != null && (
+          <GearPopover
+            anchor={gearPop.anchor}
+            onClose={gearPop.close}
+            entity={gearEntity}
+            controller={activeController}
+            component={comp}
+            property={field.key}
+          />
         )}
       </div>
       <button

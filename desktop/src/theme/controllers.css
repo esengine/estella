@@ -23,7 +23,26 @@
 .ctrl-del { margin-left: auto; display: inline-flex; color: var(--text-dim); background: none; border: none; cursor: pointer; padding: 2px; border-radius: 3px; }
 .ctrl-del:hover { color: #ff5a5a; background: var(--srf-4); }
 
-.ctrl-pages { min-width: 0; overflow-x: auto; }
+.ctrl-owner { display: inline-flex; align-items: center; gap: 2px; font-size: 9px; color: var(--text-dim); border: 1px solid var(--border); border-radius: 3px; padding: 0 4px; }
+
+/* Page chips: click select, double-click rename, hover × delete, drag reorder. */
+.ctrl-chips { display: flex; flex-wrap: wrap; gap: 4px; min-width: 0; }
+.ctrl-chip { position: relative; display: inline-flex; align-items: center; gap: 3px; font-size: var(--fs-2xs); color: var(--text-dim); background: var(--srf-2); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 2px 7px; cursor: pointer; user-select: none; transition: color var(--t-fast), border-color var(--t-fast), background var(--t-fast); }
+.ctrl-chip:hover { color: var(--text); border-color: var(--srf-5); }
+.ctrl-chip.on { color: var(--acc-fg, #fff); background: var(--acc); border-color: var(--acc); }
+.ctrl-chip.drop { border-color: var(--acc); border-style: dashed; }
+.ctrl-chip-x { display: none; align-items: center; justify-content: center; color: inherit; background: none; border: none; cursor: pointer; padding: 0; margin-left: 1px; opacity: 0.7; }
+.ctrl-chip:hover .ctrl-chip-x { display: inline-flex; }
+.ctrl-chip-x:hover { opacity: 1; }
+.ctrl-input.chip-edit { flex: 0 1 90px; }
+
+/* Gear overview: the selected entity's own bindings. */
+.ctrl-gears { display: flex; flex-direction: column; gap: 3px; }
+.ctrl-gears-title { font-size: var(--fs-2xs); font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; }
+.ctrl-gear-row { display: flex; align-items: center; gap: 6px; font-size: var(--fs-2xs); padding: 3px 6px; background: var(--srf-3); border: 1px solid var(--border); border-radius: var(--r-sm); min-width: 0; }
+.ctrl-gear-field { color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ctrl-gear-meta { color: var(--text-dim); white-space: nowrap; margin-left: auto; }
+
 .ctrl-page-edit { display: flex; align-items: center; gap: 4px; }
 
 .ctrl-add { display: flex; align-items: center; gap: 4px; }
@@ -43,3 +62,16 @@
 .prop:hover .prop-gear { opacity: 0.7; }
 .prop-gear:hover { opacity: 1 !important; color: var(--text); }
 .prop-gear.on { opacity: 1; color: var(--acc); }
+/* Recording: bound dots go red — edits to these fields land in the current page. */
+.prop-gear.rec { color: #ff5a5a; }
+
+/* Gear settings popover (transition tween + unbind), opened from a bound dot. */
+.gear-pop { display: flex; flex-direction: column; gap: 6px; padding: 8px; }
+.gear-pop-title { font-size: var(--fs-2xs); color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gear-pop-row { display: flex; align-items: center; gap: 6px; }
+.gear-pop-label { flex: 0 0 auto; font-size: var(--fs-2xs); color: var(--text-dim); min-width: 52px; }
+.gear-pop-num { flex: 1 1 auto; min-width: 0; font-size: var(--fs-2xs); color: var(--text); background: var(--srf-2); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 3px 5px; }
+.gear-pop-num:focus { border-color: var(--acc); outline: none; }
+.gear-pop-select { flex: 1 1 auto; min-width: 0; }
+.gear-pop-remove { align-self: stretch; font-size: var(--fs-2xs); color: #ff5a5a; background: var(--srf-3); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 4px 6px; cursor: pointer; transition: border-color var(--t-fast); }
+.gear-pop-remove:hover { border-color: #ff5a5a; }

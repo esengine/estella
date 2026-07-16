@@ -96,8 +96,8 @@ controller for that field: on each page change the gear applies the page's value
 
 The built-in controller name **`$interaction`** is driven by pointer state
 (`normal` / `hover` / `pressed` / `disabled`). Give an element an `$interaction`
-controller + an `Interactable` + a gear, and it reproduces button states with no
-`StateMachine` — the unified replacement for the old state components:
+controller + an `Interactable` + a gear, and it gets its button states through the
+same mechanism as everything else — this is what `createButton` itself is made of:
 
 ```typescript
 import { UIController, UIGear, interactionController, gearBinding, EasingType } from 'esengine';
@@ -120,17 +120,26 @@ label — all four states, one mechanism.
 
 ## Authoring in the editor
 
-Everything above can be authored visually — no code. Select a UI root and the
-**Controllers** panel (revealed in UI mode) lists its controllers:
+Everything above can be authored visually — no code. Select any UI entity and the
+**Controllers** panel (revealed in UI mode) lists every controller it can see —
+its own plus each ancestor's (inherited rows carry the owner's name), so the
+root's controllers stay switchable while you work on a geared leaf:
 
-- **Add a controller**, then add/remove **pages**; the page selector switches `current`
-  and the viewport reflows live.
+- **Add a controller** (the pointer-button preset adds `$interaction` with its four
+  pages in one click), then manage **pages** as chips: click to preview, double-click
+  to rename, drag to reorder, and the hover × deletes — renames cascade into every
+  gear binding that resolves to the controller, and deleting a page clears its
+  recorded values.
 - Click a controller to make it **active**. In the [Details](/docs/guides/editor/) panel,
   every field then shows a small **gear dot** — click it to bind that field to the active
-  controller (seeding the current page with the field's value).
+  controller (seeding the current page with the field's value). Click a bound dot to open
+  its settings: the page-change **transition** (duration + easing, 0 = snap) and unbind.
 - Turn on **Record**: now editing a geared field writes the value into the controller's
-  **current page**. Switch page, edit, switch page, edit — each page captures its own
-  values. This is the fast path — "pick a page, change things, it's recorded".
+  **current page** (bound gear dots glow red while recording). Switch page, edit, switch
+  page, edit — each page captures its own values. This is the fast path — "pick a page,
+  change things, it's recorded".
+- The panel's **Gears on this entity** list shows every binding the selected entity
+  carries — field, driving controller, page count, transition — with one-click removal.
 
 Controllers and gears are components, so they save into the scene / prefab like anything
 else, and instance with it.
