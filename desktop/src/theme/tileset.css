@@ -182,6 +182,32 @@
 }
 /* Solid side of a one-way tile — a bright top edge (the default {0,1} solid-top normal). */
 .ts-cell.is-oneway { box-shadow: inset 0 2px 0 var(--warn); }
+
+/* Collision brush-modifier sub-bar (one-way / sensor toggles + material inputs) */
+.ts-modbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line);
+  background: var(--srf-2);
+  flex: 0 0 auto;
+}
+.ts-modnum { display: inline-flex; align-items: center; gap: 4px; color: var(--text-faint); font-size: var(--fs-2xs); }
+.ts-modnum input {
+  width: 44px;
+  background: var(--srf-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-xs);
+  color: var(--text);
+  padding: 2px 5px;
+  font: inherit;
+  font-size: var(--fs-2xs);
+}
+.ts-modnum input:focus { outline: none; border-color: var(--star); }
+/* Sensor tile — a dashed outline (non-solid trigger). */
+.ts-cell.is-sensor { outline: 1px dashed var(--warn); outline-offset: -2px; }
 .ts-tname {
   width: 110px;
   background: var(--inset);

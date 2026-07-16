@@ -88,8 +88,13 @@ export const tileMessages = defineMessages({
     'tile.shape.box': { en: 'Box', zh: '矩形' },
     'tile.shape.polygon': { en: 'Polygon', zh: '多边形' },
     'tile.shape.circle': { en: 'Circle', zh: '圆形' },
+    'tile.modifiers': { en: 'Modifiers', zh: '修饰' },
     'tile.oneWay': { en: 'One-way', zh: '单向' },
     'tile.oneWayTip': { en: 'One-way platform: painted collision is solid on top, pass-through from below', zh: '单向平台：所画碰撞上方实心、下方可穿过' },
+    'tile.sensor': { en: 'Sensor', zh: '触发器' },
+    'tile.sensorTip': { en: 'Sensor: painted collision is a non-solid trigger (fires events, no physical response)', zh: '触发器：所画碰撞为非实心触发（触发事件、无物理响应）' },
+    'tile.friction': { en: 'friction', zh: '摩擦' },
+    'tile.restitution': { en: 'bounce', zh: '弹性' },
     'tile.cell.circleTip': { en: 'Tile #{id} — click to fit a circle collider (click again to clear)', zh: '瓦片 #{id}——点击放入圆形碰撞（再点清除）' },
     // Slope / half-tile presets (polygon mode): pick one, then click tiles to stamp it.
     'tile.slope.presets': { en: 'Presets', zh: '预设' },

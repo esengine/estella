@@ -15,6 +15,27 @@ import { t } from '@/i18n';
 
 type GridPatch = Partial<Pick<TilesetAsset, 'tileWidth' | 'tileHeight' | 'margin' | 'spacing' | 'columns'>>;
 
+/** Cross-cutting collision modifiers applied to whatever shape is painted/stamped. */
+export interface TileCollisionMods {
+  oneWay?: { nx: number; ny: number };
+  sensor?: boolean;
+  density?: number;
+  friction?: number;
+  restitution?: number;
+}
+
+/** Attach the present modifiers to a bare shape (absent ones stay at engine defaults). */
+function withMods<T extends object>(shape: T, mods?: TileCollisionMods): T & TileCollisionMods {
+  const out = { ...shape } as T & TileCollisionMods;
+  if (!mods) return out;
+  if (mods.oneWay) out.oneWay = mods.oneWay;
+  if (mods.sensor) out.sensor = true;
+  if (mods.density !== undefined) out.density = mods.density;
+  if (mods.friction !== undefined) out.friction = mods.friction;
+  if (mods.restitution !== undefined) out.restitution = mods.restitution;
+  return out;
+}
+
 /** Drop a tile entry that no longer carries any metadata, keeping the map sparse. */
 function pruneEmpty(asset: TilesetAsset, id: number): void {
   const t = asset.tiles[id];
@@ -37,13 +58,13 @@ export const TilesetCommands = {
   },
 
   /** Set box collision on/off for a set of tiles as ONE undo step (a paint stroke).
-   *  `oneWay` (a solid-side normal) tags the painted boxes as jump-through platforms. */
-  paintCollision(tileIds: number[], on: boolean, oneWay?: { nx: number; ny: number }): void {
+   *  `mods` (one-way / sensor / material) ride along on the painted boxes. */
+  paintCollision(tileIds: number[], on: boolean, mods?: TileCollisionMods): void {
     if (tileIds.length === 0) return;
     TilesetDocument.edit(on ? 'Add Tile Collision' : 'Remove Tile Collision', (a) => {
       for (const id of tileIds) {
         if (id <= 0) continue;
-        if (on) a.tiles[id] = { ...(a.tiles[id] ?? {}), collision: { type: 'box', ...(oneWay ? { oneWay } : {}) } };
+        if (on) a.tiles[id] = { ...(a.tiles[id] ?? {}), collision: withMods({ type: 'box' as const }, mods) };
         else if (a.tiles[id]?.collision) {
           delete a.tiles[id].collision;
           pruneEmpty(a, id);
@@ -56,11 +77,11 @@ export const TilesetCommands = {
    * Set a tile's polygon collision outline (tile-local pixels) as ONE undo step. Fewer
    * than 3 points clears any polygon collision on the tile (parseTileset would drop it).
    */
-  setTilePolygon(id: number, points: [number, number][], oneWay?: { nx: number; ny: number }): void {
+  setTilePolygon(id: number, points: [number, number][], mods?: TileCollisionMods): void {
     if (id <= 0) return;
     TilesetDocument.edit('Edit Tile Collision Shape', (a) => {
       if (points.length >= 3) {
-        a.tiles[id] = { ...(a.tiles[id] ?? {}), collision: { type: 'polygon', points, ...(oneWay ? { oneWay } : {}) } };
+        a.tiles[id] = { ...(a.tiles[id] ?? {}), collision: withMods({ type: 'polygon' as const, points }, mods) };
       } else if (a.tiles[id]?.collision?.type === 'polygon') {
         delete a.tiles[id].collision;
         pruneEmpty(a, id);
@@ -69,11 +90,11 @@ export const TilesetCommands = {
   },
 
   /** Set a tile's circle collision (tile-local pixels) as ONE undo step; r ≤ 0 clears it. */
-  setTileCircle(id: number, cx: number, cy: number, r: number, oneWay?: { nx: number; ny: number }): void {
+  setTileCircle(id: number, cx: number, cy: number, r: number, mods?: TileCollisionMods): void {
     if (id <= 0) return;
     TilesetDocument.edit('Edit Tile Collision Shape', (a) => {
       if (r > 0) {
-        a.tiles[id] = { ...(a.tiles[id] ?? {}), collision: { type: 'circle', cx, cy, r, ...(oneWay ? { oneWay } : {}) } };
+        a.tiles[id] = { ...(a.tiles[id] ?? {}), collision: withMods({ type: 'circle' as const, cx, cy, r }, mods) };
       } else if (a.tiles[id]?.collision?.type === 'circle') {
         delete a.tiles[id].collision;
         pruneEmpty(a, id);

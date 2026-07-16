@@ -54,4 +54,26 @@ describe('TilesetCommands', () => {
     EditorHistory.undo();
     expect(TilesetDocument.asset!.tileWidth).toBe(16);
   });
+
+  it('paintCollision carries the brush modifiers (one-way / sensor / material)', () => {
+    TilesetCommands.paintCollision([5], true, { oneWay: { nx: 0, ny: 1 }, sensor: true, friction: 0.1 });
+    expect(tiles()[5].collision).toEqual({ type: 'box', oneWay: { nx: 0, ny: 1 }, sensor: true, friction: 0.1 });
+  });
+
+  it('a plain box carries no modifier keys', () => {
+    TilesetCommands.paintCollision([5], true, {});
+    expect(tiles()[5].collision).toEqual({ type: 'box' });
+  });
+
+  it('setTileCircle stores a circle (with modifiers) and clears on r ≤ 0', () => {
+    TilesetCommands.setTileCircle(5, 8, 8, 6, { oneWay: { nx: 0, ny: 1 } });
+    expect(tiles()[5].collision).toEqual({ type: 'circle', cx: 8, cy: 8, r: 6, oneWay: { nx: 0, ny: 1 } });
+    TilesetCommands.setTileCircle(5, 0, 0, 0);
+    expect(tiles()[5]).toBeUndefined(); // pruned
+  });
+
+  it('setTilePolygon carries modifiers on the polygon shape', () => {
+    TilesetCommands.setTilePolygon(5, [[0, 16], [16, 16], [16, 0]], { sensor: true });
+    expect(tiles()[5].collision).toEqual({ type: 'polygon', points: [[0, 16], [16, 16], [16, 0]], sensor: true });
+  });
 });

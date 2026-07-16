@@ -9,8 +9,9 @@
  *          against. Subscribes to the reactive TilesetDocument; mutations go through
  *          TilesetCommands (one undo step each).
  *
- * Scope: grid geometry + box/polygon collision (freeform vertices or one-click slope /
- * half-tile presets) + terrain peering + per-tile animation.
+ * Scope: grid geometry + box/polygon/circle collision (freeform vertices, one-click slope
+ * presets, fitted discs) with one-way / sensor / material brush modifiers + terrain peering
+ * + per-tile animation.
  */
 
 import {
@@ -28,7 +29,7 @@ import { usePanelWindow } from '@/components/PanelWindow';
 import { DirtyDot } from '@/components/DirtyDot';
 import { GridField } from '@/components/GridField';
 import { TilesetDocument } from '@/tileset/TilesetDocument';
-import { TilesetCommands } from '@/tileset/TilesetCommands';
+import { TilesetCommands, type TileCollisionMods } from '@/tileset/TilesetCommands';
 import { ProjectStore } from '@/project/ProjectStore';
 import { colsFor, rowsFor, TERRAIN_COLORS } from '@/tools/tileMath';
 import { AnimPreview, tileThumbStyle, type TileAtlas } from '@/tools/tileThumb';
@@ -140,9 +141,12 @@ export function TilesetEditor() {
   // In polygon mode, an active preset stamps that canned slope/half-tile on click;
   // null = freeform (click opens the vertex editor). See slopePresets.
   const [activePreset, setActivePreset] = useState<SlopePreset | null>(null);
-  // One-way brush: while on, painted/stamped collision is a solid-top jump-through
-  // platform (normal {0,1}). A modifier orthogonal to the shape.
+  // Collision brush modifiers, orthogonal to the shape: while set, painted/stamped
+  // collision carries a solid-top one-way normal, sensor flag, and/or a material override.
   const [oneWayOn, setOneWayOn] = useState(false);
+  const [sensorOn, setSensorOn] = useState(false);
+  const [frictionStr, setFrictionStr] = useState('');
+  const [restitutionStr, setRestitutionStr] = useState('');
   const [activeSet, setActiveSet] = useState(0);
   const [hovered, setHovered] = useState<number | null>(null);
   // Live collision paint stroke: which tiles + the target on/off state, one undo step.
@@ -180,11 +184,23 @@ export function TilesetEditor() {
     return c?.type === 'circle' ? { cx: c.cx, cy: c.cy, r: c.r } : null;
   };
   const hasOneWay = (id: number): boolean => !!asset.tiles[id]?.collision?.oneWay;
-  const oneWayMod = oneWayOn ? { nx: 0, ny: 1 } : undefined;
+  const hasSensor = (id: number): boolean => !!asset.tiles[id]?.collision?.sensor;
+  const numOrU = (s: string): number | undefined => {
+    const n = Number(s);
+    return s.trim() !== '' && Number.isFinite(n) ? n : undefined;
+  };
+  const brushMods = ((): TileCollisionMods => {
+    const m: TileCollisionMods = {};
+    if (oneWayOn) m.oneWay = { nx: 0, ny: 1 };
+    if (sensorOn) m.sensor = true;
+    const fr = numOrU(frictionStr); if (fr !== undefined) m.friction = fr;
+    const re = numOrU(restitutionStr); if (re !== undefined) m.restitution = re;
+    return m;
+  })();
 
   const commitDrag = () => {
     const d = dragRef.current;
-    if (d) TilesetCommands.paintCollision([...d.ids], d.on, oneWayOn ? { nx: 0, ny: 1 } : undefined);
+    if (d) TilesetCommands.paintCollision([...d.ids], d.on, brushMods);
     setDrag(null);
   };
 
@@ -234,13 +250,13 @@ export function TilesetEditor() {
           cells.push(
             <div
               key={id}
-              className={'ts-cell ts-pcell' + (hasPolygon(id) ? ' is-poly' : '') + (hasOneWay(id) ? ' is-oneway' : '')}
+              className={'ts-cell ts-pcell' + (hasPolygon(id) ? ' is-poly' : '') + (hasOneWay(id) ? ' is-oneway' : '') + (hasSensor(id) ? ' is-sensor' : '')}
               style={{ left, top, width: w, height: h }}
               title={activePreset ? t('tile.slope.stampTip', { name: t(activePreset.labelKey) }) : t('tile.cell.polyTip', { id })}
               onPointerDown={(e) => {
                 e.preventDefault();
                 // A preset stamps directly; freeform opens the vertex editor.
-                if (activePreset) TilesetCommands.setTilePolygon(id, presetPointsPx(activePreset, tw, th), oneWayMod);
+                if (activePreset) TilesetCommands.setTilePolygon(id, presetPointsPx(activePreset, tw, th), brushMods);
                 else setPolyTile(id);
               }}
             >
@@ -260,14 +276,14 @@ export function TilesetEditor() {
           cells.push(
             <div
               key={id}
-              className={'ts-cell ts-pcell' + (circ ? ' is-poly' : '') + (hasOneWay(id) ? ' is-oneway' : '')}
+              className={'ts-cell ts-pcell' + (circ ? ' is-poly' : '') + (hasOneWay(id) ? ' is-oneway' : '') + (hasSensor(id) ? ' is-sensor' : '')}
               style={{ left, top, width: w, height: h }}
               title={t('tile.cell.circleTip', { id })}
               onPointerDown={(e) => {
                 e.preventDefault();
                 // Toggle: click a circle tile again to clear it; else stamp a fitted disc.
                 if (circ) TilesetCommands.setTileCircle(id, 0, 0, 0);
-                else TilesetCommands.setTileCircle(id, tw / 2, th / 2, Math.min(tw, th) / 2, oneWayMod);
+                else TilesetCommands.setTileCircle(id, tw / 2, th / 2, Math.min(tw, th) / 2, brushMods);
               }}
             >
               {circ && (
@@ -281,7 +297,7 @@ export function TilesetEditor() {
           cells.push(
             <div
               key={id}
-              className={'ts-cell' + (isSolid(id) ? ' is-solid' : '') + (hasOneWay(id) ? ' is-oneway' : '')}
+              className={'ts-cell' + (isSolid(id) ? ' is-solid' : '') + (hasOneWay(id) ? ' is-oneway' : '') + (hasSensor(id) ? ' is-sensor' : '')}
               style={{ left, top, width: w, height: h }}
               title={`#${id}`}
               onPointerDown={(e) => { e.preventDefault(); setDrag({ ids: new Set([id]), on: !isSolid(id) }); }}
@@ -370,27 +386,16 @@ export function TilesetEditor() {
           ]}
         />
         {mode === 'collision' && (
-          <>
-            <Segmented
-              value={shape}
-              onChange={setShape}
-              ariaLabel={t('tile.shape.aria')}
-              options={[
-                { value: 'box', label: t('tile.shape.box') },
-                { value: 'polygon', label: t('tile.shape.polygon') },
-                { value: 'circle', label: t('tile.shape.circle') },
-              ]}
-            />
-            <button
-              type="button"
-              className={'ts-oneway' + (oneWayOn ? ' is-active' : '')}
-              title={t('tile.oneWayTip')}
-              aria-pressed={oneWayOn}
-              onClick={() => setOneWayOn((v) => !v)}
-            >
-              <ArrowUp size={13} /> {t('tile.oneWay')}
-            </button>
-          </>
+          <Segmented
+            value={shape}
+            onChange={setShape}
+            ariaLabel={t('tile.shape.aria')}
+            options={[
+              { value: 'box', label: t('tile.shape.box') },
+              { value: 'polygon', label: t('tile.shape.polygon') },
+              { value: 'circle', label: t('tile.shape.circle') },
+            ]}
+          />
         )}
         <span className="ts-sep" />
         <label className="ts-field">
@@ -496,6 +501,44 @@ export function TilesetEditor() {
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {mode === 'collision' && (
+        <div className="ts-modbar">
+          <span className="ts-slabel">{t('tile.modifiers')}</span>
+          <button
+            type="button"
+            className={'ts-oneway' + (oneWayOn ? ' is-active' : '')}
+            title={t('tile.oneWayTip')}
+            aria-pressed={oneWayOn}
+            onClick={() => setOneWayOn((v) => !v)}
+          >
+            <ArrowUp size={13} /> {t('tile.oneWay')}
+          </button>
+          <button
+            type="button"
+            className={'ts-oneway' + (sensorOn ? ' is-active' : '')}
+            title={t('tile.sensorTip')}
+            aria-pressed={sensorOn}
+            onClick={() => setSensorOn((v) => !v)}
+          >
+            {t('tile.sensor')}
+          </button>
+          <label className="ts-modnum">
+            <span>{t('tile.friction')}</span>
+            <input
+              type="text" inputMode="decimal" placeholder="0.3" value={frictionStr} spellCheck={false}
+              onChange={(e) => setFrictionStr(e.target.value)}
+            />
+          </label>
+          <label className="ts-modnum">
+            <span>{t('tile.restitution')}</span>
+            <input
+              type="text" inputMode="decimal" placeholder="0" value={restitutionStr} spellCheck={false}
+              onChange={(e) => setRestitutionStr(e.target.value)}
+            />
+          </label>
         </div>
       )}
 
