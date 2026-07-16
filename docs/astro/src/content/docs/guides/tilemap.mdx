@@ -187,6 +187,13 @@ reorienting the geometry to match the rendering. The scene viewport draws the
 selected layer's whole collision as an overlay (Show Flags → tile collision) —
 WYSIWYG with what Play spawns.
 
+Tiled maps get the same treatment: shapes drawn in **Tiled's tile collision
+editor** (rectangles, ellipses, polygons) import into the identical model — a
+full-cell rectangle stays a merge-eligible solid box, everything else spawns
+one collider per tile — and the tile properties `oneway` / `sensor` /
+`friction` / `restitution` / `density` apply the same modifiers. The legacy
+`collision=true` tile property still marks a plain solid box.
+
 <Aside type="note">
   Tile **collision is play-mode only**: static colliders are spawned from the
   `.estileset`'s per-tile collision when the scene runs — they are never in the
@@ -244,6 +251,12 @@ origin / pixels-per-unit / play-mode lifecycle as tile collision.
 | `setTileProperty(...)` / `getTileProperty(...)` | Per-tile custom key/value properties. |
 | `setGridType(layer, type)` / `setHexParams(...)` | Orientation (orthogonal / isometric / hex). |
 | `destroyLayer(layer)` | Tear a layer down. |
+
+Tile **collision queries** run against the resolved collision data (no physics
+raycast needed): `tileCollisionAt(layer, x, y)` returns the tile's resolved
+shape + modifiers (or null), `isTileSolid(layer, x, y)` is true for any
+non-sensor collision (one-way platforms count — check `.oneWay` to treat them
+specially), and `tileCollisionAtWorld(...)` addresses in world pixels.
 
 ## Best practices
 

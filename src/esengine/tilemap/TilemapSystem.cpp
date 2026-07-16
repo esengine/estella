@@ -251,12 +251,36 @@ void TilemapSystem::setTileAnimation(Entity entity, u16 tileId,
     }
     if (anim.total_duration_ms == 0) return;
     layer->tile_animations[tileId] = std::move(anim);
+    layer->anim_revision++;  // the frame table changed — cached meshes are stale
 }
+
+namespace {
+/// Index of the frame an animation shows at `elapsedMs` (looped).
+u32 frameIndexAt(const TileAnimation& anim, f32 elapsedMs) {
+    u32 t = static_cast<u32>(std::fmod(elapsedMs, static_cast<f32>(anim.total_duration_ms)));
+    u32 acc = 0;
+    for (u32 i = 0; i < anim.frames.size(); ++i) {
+        acc += anim.frames[i].duration_ms;
+        if (t < acc) return i;
+    }
+    return static_cast<u32>(anim.frames.size()) - 1;
+}
+}  // namespace
 
 void TilemapSystem::advanceAnimations(Entity entity, f32 dtMs) {
     auto* layer = getLayerDataMut(entity);
     if (!layer || layer->tile_animations.empty()) return;
+    const f32 prev = layer->elapsed_ms;
     layer->elapsed_ms += dtMs;
+    // Bump the revision only when some animation's visible frame actually
+    // flipped — the renderer rebuilds animated chunks on this stamp instead of
+    // every frame, so slow animations cost re-meshing only at their frame rate.
+    for (const auto& [id, anim] : layer->tile_animations) {
+        if (frameIndexAt(anim, prev) != frameIndexAt(anim, layer->elapsed_ms)) {
+            layer->anim_revision++;
+            return;
+        }
+    }
 }
 
 u16 TilemapSystem::resolveAnimatedTile(Entity entity, u16 tileId) const {
@@ -267,13 +291,7 @@ u16 TilemapSystem::resolveAnimatedTile(Entity entity, u16 tileId) const {
     if (it == layer->tile_animations.end()) return tileId;
 
     const auto& anim = it->second;
-    u32 t = static_cast<u32>(std::fmod(layer->elapsed_ms, static_cast<f32>(anim.total_duration_ms)));
-    u32 acc = 0;
-    for (const auto& frame : anim.frames) {
-        acc += frame.duration_ms;
-        if (t < acc) return frame.tile_id;
-    }
-    return anim.frames.back().tile_id;
+    return anim.frames[frameIndexAt(anim, layer->elapsed_ms)].tile_id;
 }
 
 void TilemapSystem::setTileProperty(Entity entity, u16 tileId,

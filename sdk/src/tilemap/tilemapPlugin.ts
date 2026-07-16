@@ -11,9 +11,10 @@ import { Tilemap } from './components';
 import { registerSceneComponentCodec } from '../scene';
 import { getTilemapSource, getResolvedTileset, type LoadedTilemapSource } from './tilesetCache';
 import { resolveTilesetModel } from './tilesetResolve';
+import { _bindTileCollisionLookup, type LayerCollisionTable } from './tileQuery';
 import type { ResolvedTileCollision } from './tilesetResolve';
 import {
-    generateLayerCollision, generateChunkCollision, generateChunkTileShapes,
+    generateLayerCollision, generateLayerTileShapes, generateChunkCollision, generateChunkTileShapes,
     generateObjectCollision, isCollisionObjectGroup, decodeTiledGid,
 } from './tiledLoader';
 import { decodeTilemapChunks } from './chunkCodec';
@@ -65,6 +66,14 @@ export class TilemapPlugin implements Plugin {
     private liveResolved_ = new Set<number>();
     /** Resolved `.estileset` paths a load has already been kicked off for (de-dupes the lazy load). */
     private requestedTilesetLoads_ = new Set<string>();
+    /** Tiled DERIVED child layer → its collision query table (see tileQuery). */
+    private derivedQueryTables_ = new Map<number, LayerCollisionTable>();
+    /** Painted-layer query-table cache, invalidated by source-map identity. */
+    private queryTableCache_ = new Map<number, {
+        ids: number[] | undefined;
+        shapes: Map<number, ResolvedTileCollision> | undefined;
+        table: LayerCollisionTable;
+    }>();
 
     build(app: App): void {
         const module = app.wasmModule as ESEngineModule;
@@ -90,6 +99,22 @@ export class TilemapPlugin implements Plugin {
             liveResolved.delete(entity);
         };
         TilemapLiveSync._bind(applyTilesetRefs);
+
+        // Tile-collision queries (tileCollisionAt / isTileSolid): resolve a layer to
+        // its collision vocabulary — a derived Tiled child's table, or a painted
+        // layer's live-resolved/baked sets (cached per source identity).
+        _bindTileCollisionLookup((layer) => {
+            const derived = this.derivedQueryTables_.get(layer);
+            if (derived) return derived;
+            const ids = this.nativeCollisionIds_.get(layer);
+            const shapes = this.nativeTileShapes_.get(layer);
+            if (!ids && !shapes) return null;
+            const cached = this.queryTableCache_.get(layer);
+            if (cached && cached.ids === ids && cached.shapes === shapes) return cached.table;
+            const table: LayerCollisionTable = { boxIds: new Set(ids ?? []), shapes: shapes ?? new Map() };
+            this.queryTableCache_.set(layer, { ids, shapes, table });
+            return table;
+        });
 
         registerSceneComponentCodec('TilemapLayer', {
             exportData: (entity, data) => {
@@ -398,6 +423,15 @@ export class TilemapPlugin implements Plugin {
                                     + 'works). See earlier [tilemap] load errors for the failing image path(s).');
                             }
 
+                            // The child answers tile-collision queries with the
+                            // source map's vocabulary (same table as the spawn path).
+                            if ((cached.collisionTileIds?.length ?? 0) > 0 || (cached.tileShapes?.size ?? 0) > 0) {
+                                this.derivedQueryTables_.set(child, {
+                                    boxIds: new Set(cached.collisionTileIds ?? []),
+                                    shapes: cached.tileShapes ?? new Map(),
+                                });
+                            }
+
                             children.push(child);
                             initializedLayers.add(child);
                         }
@@ -466,29 +500,42 @@ export class TilemapPlugin implements Plugin {
                     }
 
                     const hasTileCollision = !!(cached.collisionTileIds && cached.collisionTileIds.length > 0);
+                    const hasTileShapes = !!(cached.tileShapes && cached.tileShapes.size > 0);
                     const collisionGroups = cached.objectGroups
                         ? cached.objectGroups.filter(isCollisionObjectGroup)
                         : [];
                     if (
                         playMode
                         && !collisionEntities.has(entity)
-                        && (hasTileCollision || collisionGroups.length > 0)
+                        && (hasTileCollision || hasTileShapes || collisionGroups.length > 0)
                     ) {
                         const tf = world.tryGet(entity, Transform) as
                             { position: { x: number; y: number } } | null;
                         const ox = tf?.position.x ?? 0;
                         const oy = tf?.position.y ?? 0;
                         const spawned: Entity[] = [];
-                        if (hasTileCollision) {
+                        if (hasTileCollision || hasTileShapes) {
                             const ids = new Set(cached.collisionTileIds);
                             for (const layer of cached.layers) {
                                 // Collision covers finite layers (flat tile arrays);
                                 // infinite/chunk collision is deferred.
                                 if (layer.infinite || layer.tiles.length === 0) continue;
-                                spawned.push(...generateLayerCollision(
-                                    world, layer.tiles, layer.width, layer.height,
-                                    cached.tileWidth, cached.tileHeight, ids, ox, oy, pixelsPerUnit,
-                                ));
+                                if (hasTileCollision) {
+                                    spawned.push(...generateLayerCollision(
+                                        world, layer.tiles, layer.width, layer.height,
+                                        cached.tileWidth, cached.tileHeight, ids, ox, oy, pixelsPerUnit,
+                                    ));
+                                }
+                                // Rich Tiled tile-collision (shapes / one-way / sensor /
+                                // material) spawns through the same per-tile core as the
+                                // painted `.estileset` path.
+                                if (hasTileShapes) {
+                                    spawned.push(...generateLayerTileShapes(
+                                        world, layer.tiles, layer.width, layer.height,
+                                        cached.tileShapes!, cached.tileWidth, cached.tileHeight,
+                                        ox, oy, pixelsPerUnit,
+                                    ));
+                                }
                             }
                         }
                         // Tiled OBJECT layers marked as collision spawn static colliders
@@ -534,6 +581,7 @@ export class TilemapPlugin implements Plugin {
                 this.initializedLayers_.delete(child);
             }
             this.animatedLayers_.delete(child);
+            this.derivedQueryTables_.delete(child);
             // An owner despawn cascades to its children; only a component
             // removal leaves them alive to clean up here.
             if (world.valid(child)) world.despawn(child);
@@ -564,11 +612,14 @@ export class TilemapPlugin implements Plugin {
         this.tilesetRefs_.clear();
         this.liveResolved_.clear();
         this.requestedTilesetLoads_.clear();
+        this.derivedQueryTables_.clear();
+        this.queryTableCache_.clear();
     }
 
     cleanup(): void {
         this.resetLayers();
         TilemapLiveSync._bind(null);
+        _bindTileCollisionLookup(null);
         shutdownTilemapAPI();
     }
 }

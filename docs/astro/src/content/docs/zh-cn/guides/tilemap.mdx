@@ -168,6 +168,11 @@ tilemap.setChunkTiles(layer, chunkX, chunkY, tiles, 32, 32);
 生成一个碰撞体,并按瓦片翻转标志重定向几何、与渲染严格一致。场景视口会把所选图层的完整
 碰撞画成覆盖层(显示标志 → 瓦片碰撞)——与 Play 生成的完全一致。
 
+Tiled 地图享受同等待遇:在 **Tiled 瓦片碰撞编辑器** 里画的形状(矩形、椭圆、多边形)
+导入到同一模型——整格矩形保持可合并的实心方块,其余每瓦片各生成一个碰撞体;瓦片属性
+`oneway` / `sensor` / `friction` / `restitution` / `density` 应用相同修饰符。旧的
+`collision=true` 瓦片属性仍标记普通实心方块。
+
 <Aside type="note">
   瓦片**碰撞仅在播放模式**存在:静态碰撞体在场景运行时从 `.estileset` 的逐瓦片碰撞
   生成——它们从不在编辑世界里,也不被序列化。
@@ -221,6 +226,10 @@ origin / 每单位像素 / 播放模式生命周期。
 | `setTileProperty(...)` / `getTileProperty(...)` | 逐瓦片自定义键值属性。 |
 | `setGridType(layer, type)` / `setHexParams(...)` | 朝向(正交 / 等距 / 六边形)。 |
 | `destroyLayer(layer)` | 销毁图层。 |
+
+瓦片**碰撞查询**直接查已解析的碰撞数据(无需物理射线):`tileCollisionAt(layer, x, y)`
+返回该瓦片解析后的形状+修饰符(或 null);`isTileSolid(layer, x, y)` 对任何非传感器碰撞
+为 true(单向平台也算——用 `.oneWay` 特殊处理);`tileCollisionAtWorld(...)` 以世界像素寻址。
 
 ## 最佳实践
 

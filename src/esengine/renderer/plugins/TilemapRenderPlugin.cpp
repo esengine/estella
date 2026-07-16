@@ -270,12 +270,13 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
                 auto& cache = chunkCaches[coord];
 
                 if (chunkData.revision != cache.built_revision
-                    || cache.has_animated_tiles
+                    || (cache.has_animated_tiles && layer.anim_revision != cache.built_anim_revision)
                     || cache.slots.size() != slots.size()) {
                     rebuildChunk(layer, chunkData, coord,
                                 adjOriginX, adjOriginY, packedColor,
                                 slots, resolved, entity, cache);
                     cache.built_revision = chunkData.revision;
+                    cache.built_anim_revision = layer.anim_revision;
                 }
 
                 for (usize si = 0; si < slots.size() && si < cache.slots.size(); ++si) {

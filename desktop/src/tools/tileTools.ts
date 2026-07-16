@@ -506,10 +506,36 @@ const bucketTool: EditorTool = {
   onPointerUp() {},
 };
 
-/** Select: drag a marquee over the layer to define a tile-rect selection (copy/cut/paste). */
+/**
+ * Select: drag a marquee over the layer to define a tile-rect selection
+ * (copy/cut/paste), and drag from INSIDE the selection to MOVE its tiles — a
+ * floating cut that erases live, previews the target rect while dragging, and
+ * lands as ONE undo step on release (Esc restores the pre-drag tiles).
+ */
 function makeSelectTool(): EditorTool {
   let anchor: { x: number; y: number } | null = null;
   let sourceId: number | null = null;
+  let move: {
+    sourceId: number;
+    /** Region content lifted at grab time (raw cells incl. flip flags). */
+    buf: number[];
+    x0: number; y0: number; w: number; h: number;
+    /** Grab point offset within the region, so it drags from where you grabbed it. */
+    dx: number; dy: number;
+    /** Target top-left (updates while dragging). */
+    tx: number; ty: number;
+  } | null = null;
+
+  const inSelection = (t: { x: number; y: number }): { x0: number; y0: number; x1: number; y1: number } | null => {
+    const sel = useTilemapPaint.getState().selection;
+    if (!sel) return null;
+    const x0 = Math.min(sel.x0, sel.x1);
+    const x1 = Math.max(sel.x0, sel.x1);
+    const y0 = Math.min(sel.y0, sel.y1);
+    const y1 = Math.max(sel.y0, sel.y1);
+    return t.x >= x0 && t.x <= x1 && t.y >= y0 && t.y <= y1 ? { x0, y0, x1, y1 } : null;
+  };
+
   return {
     id: 'tilemap.select',
     onPointerDown(p, ctx) {
@@ -517,6 +543,29 @@ function makeSelectTool(): EditorTool {
       if (selId == null) return false;
       const tile = cursorTile(p.clientX, p.clientY, selId);
       if (!tile) return false;
+      const rt = SceneModel.runtimeFor(selId);
+      const region = inSelection(tile);
+      if (region && rt != null) {
+        // Grab the region: lift its cells, erase them live, drag the block.
+        const w = region.x1 - region.x0 + 1;
+        const h = region.y1 - region.y0 + 1;
+        const buf: number[] = [];
+        for (let y = region.y0; y <= region.y1; y++) {
+          for (let x = region.x0; x <= region.x1; x++) buf.push(TilemapAPI.getTile(rt, x, y));
+        }
+        SceneCommands.beginTilePaint(selId);
+        for (let y = region.y0; y <= region.y1; y++) {
+          for (let x = region.x0; x <= region.x1; x++) SceneCommands.paintTileLive(selId, x, y, 0);
+        }
+        move = {
+          sourceId: selId, buf, x0: region.x0, y0: region.y0, w, h,
+          dx: tile.x - region.x0, dy: tile.y - region.y0,
+          tx: region.x0, ty: region.y0,
+        };
+        TilePaintPreview.set({ kind: 'rect', x0: region.x0, y0: region.y0, x1: region.x1, y1: region.y1 });
+        ctx.capture(p.pointerId);
+        return true;
+      }
       anchor = tile;
       sourceId = selId;
       useTilemapPaint.getState().setSelection({ x0: tile.x, y0: tile.y, x1: tile.x, y1: tile.y });
@@ -524,6 +573,17 @@ function makeSelectTool(): EditorTool {
       return true;
     },
     onPointerMove(p) {
+      if (move) {
+        const tile = cursorTile(p.clientX, p.clientY, move.sourceId);
+        if (!tile) return;
+        move.tx = tile.x - move.dx;
+        move.ty = tile.y - move.dy;
+        TilePaintPreview.set({
+          kind: 'rect',
+          x0: move.tx, y0: move.ty, x1: move.tx + move.w - 1, y1: move.ty + move.h - 1,
+        });
+        return;
+      }
       if (!anchor || sourceId == null) return;
       const tile = cursorTile(p.clientX, p.clientY, sourceId);
       if (!tile) return;
@@ -531,10 +591,32 @@ function makeSelectTool(): EditorTool {
     },
     onPointerUp(p, ctx) {
       ctx.release(p.pointerId);
+      if (move) {
+        TilePaintPreview.clear();
+        // Land the lifted block at the target: erase + place is ONE stroke commit.
+        for (let dy = 0; dy < move.h; dy++) {
+          for (let dx = 0; dx < move.w; dx++) {
+            const raw = move.buf[dy * move.w + dx];
+            if (tileIdOf(raw) === 0) continue; // sparse — moved emptiness never erases the target
+            SceneCommands.paintTileLive(move.sourceId, move.tx + dx, move.ty + dy, raw);
+          }
+        }
+        SceneCommands.endTilePaint();
+        useTilemapPaint.getState().setSelection({
+          x0: move.tx, y0: move.ty, x1: move.tx + move.w - 1, y1: move.ty + move.h - 1,
+        });
+        move = null;
+        return;
+      }
       anchor = null;
       sourceId = null;
     },
     cancel() {
+      if (move) {
+        SceneCommands.cancelTilePaint(); // restore the lifted tiles, no undo entry
+        TilePaintPreview.clear();
+        move = null;
+      }
       anchor = null;
       sourceId = null;
     },

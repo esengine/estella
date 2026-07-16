@@ -3378,6 +3378,7 @@ staggerIndex: string | undefined
 tileAnimations: Map<number, { tileId: number; duration: number; }[]> | undefined
 tileHeight: number
 tileProperties: Map<number, Map<string, string>> | undefined
+tileShapes: Map<number, ResolvedTileCollision> | undefined
 tileWidth: number
 tilesets: LoadedTilemapTileset[]
 ```
@@ -6330,6 +6331,7 @@ staggerIndex: string
 tileAnimations: Map<number, TiledAnimFrame[]>
 tileHeight: number
 tileProperties: Map<number, Map<string, string>>
+tileShapes: Map<number, ResolvedTileCollision>
 tileWidth: number
 tilesets: TiledTilesetData[]
 width: number

@@ -80,6 +80,7 @@ export class TilemapAssetLoader implements AssetLoader<TilemapResult> {
             })),
             tilesets,
             collisionTileIds: mapData.collisionTileIds,
+            tileShapes: mapData.tileShapes,
             tileAnimations: mapData.tileAnimations,
             tileProperties: mapData.tileProperties,
             objectGroups: mapData.objectGroups,

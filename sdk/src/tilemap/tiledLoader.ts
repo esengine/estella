@@ -142,6 +142,13 @@ export interface TiledMapData {
     tilesets: TiledTilesetData[];
     objectGroups: TiledObjectGroupData[];
     collisionTileIds: number[];
+    /**
+     * Rich per-tile collision (global id → normalized shape + modifiers), read from
+     * Tiled's tile collision editor (`tiles[].objectgroup`) and tile properties —
+     * the same {@link ResolvedTileCollision} model `.estileset` tiles resolve to,
+     * so both asset paths spawn identical colliders.
+     */
+    tileShapes: Map<number, ResolvedTileCollision>;
     tileAnimations: Map<number, TiledAnimFrame[]>;
     tileProperties: Map<number, Map<string, string>>;
 }
@@ -416,10 +423,13 @@ export function parseTmjJson(json: Record<string, unknown>): TiledMapData | null
 
     const tileAnimations = new Map<number, TiledAnimFrame[]>();
     const tileProperties = new Map<number, Map<string, string>>();
+    const tileShapes = new Map<number, ResolvedTileCollision>();
 
     if (rawTilesets) {
         for (const ts of rawTilesets) {
             const firstGid = (ts.firstgid as number) ?? 1;
+            const tsTw = (ts.tilewidth as number) || tileWidth || 1;
+            const tsTh = (ts.tileheight as number) || tileHeight || 1;
             const rawTiles = ts.tiles as Array<Record<string, unknown>> | undefined;
             if (rawTiles) {
                 for (const tile of rawTiles) {
@@ -438,17 +448,34 @@ export function parseTmjJson(json: Record<string, unknown>): TiledMapData | null
                     }
 
                     const tileProps = tile.properties as Array<Record<string, unknown>> | undefined;
+                    let legacyCollision = false;
                     if (tileProps) {
                         const propMap = new Map<string, string>();
                         for (const p of tileProps) {
                             const name = p.name as string;
-                            if (name === 'collision' && p.value === true) {
-                                collisionTileIds.push(localId + firstGid);
-                            }
+                            if (name === 'collision' && p.value === true) legacyCollision = true;
                             propMap.set(name, String(p.value));
                         }
                         if (propMap.size > 0) {
                             tileProperties.set(engineId, propMap);
+                        }
+                    }
+
+                    // Tiled's tile collision editor (objectgroup) or the legacy
+                    // `collision=true` property, folded into the SAME resolved model
+                    // `.estileset` tiles use — plain solid boxes stay merge-eligible
+                    // (collisionTileIds), everything richer spawns one collider each.
+                    const og = tile.objectgroup as Record<string, unknown> | undefined;
+                    const shape = tiledObjectgroupShape(
+                        og?.objects as Array<Record<string, unknown>> | undefined, tsTw, tsTh)
+                        ?? (legacyCollision ? { type: 'box' as const } : null);
+                    if (shape) {
+                        const rc: ResolvedTileCollision = { shape, ...tiledCollisionMods(tileProps) };
+                        if (shape.type === 'box' && !rc.oneWay && !rc.sensor
+                            && rc.density === undefined && rc.friction === undefined && rc.restitution === undefined) {
+                            collisionTileIds.push(engineId);
+                        } else {
+                            tileShapes.set(engineId, rc);
                         }
                     }
                 }
@@ -464,9 +491,72 @@ export function parseTmjJson(json: Record<string, unknown>): TiledMapData | null
     return {
         width, height, tileWidth, tileHeight, orientation,
         hexSideLength, staggerAxis, staggerIndex,
-        layers, tilesets, objectGroups, collisionTileIds,
+        layers, tilesets, objectGroups, collisionTileIds, tileShapes,
         tileAnimations, tileProperties,
     };
+}
+
+/**
+ * The first collision-editor object of a Tiled tile's `objectgroup`, as a
+ * normalized {@link ResolvedTileCollision} shape (tile-fraction coordinates, the
+ * same space `.estileset` collision resolves into). A full-cell rectangle folds
+ * to `box` (merge-eligible); a partial rectangle becomes its 4-corner polygon;
+ * an ellipse becomes the inscribed-average circle. Polylines/points are skipped.
+ */
+export function tiledObjectgroupShape(
+    objects: Array<Record<string, unknown>> | undefined,
+    tw: number,
+    th: number,
+): ResolvedTileCollision['shape'] | null {
+    if (!objects) return null;
+    for (const o of objects) {
+        if (o.point === true || o.polyline) continue;
+        const x = (o.x as number) ?? 0;
+        const y = (o.y as number) ?? 0;
+        const w = (o.width as number) ?? 0;
+        const h = (o.height as number) ?? 0;
+        if (o.ellipse === true) {
+            if (w <= 0 || h <= 0) continue;
+            return { type: 'circle', cx: (x + w / 2) / tw, cy: (y + h / 2) / th, r: (w + h) / 4 / tw };
+        }
+        const poly = o.polygon as Array<{ x: number; y: number }> | undefined;
+        if (poly && poly.length >= 3) {
+            return { type: 'polygon', points: poly.map((p) => [(x + p.x) / tw, (y + p.y) / th]) };
+        }
+        if (w > 0 && h > 0) {
+            const eps = 0.5; // px — Tiled UI drags land on fractional coords
+            if (Math.abs(x) <= eps && Math.abs(y) <= eps && Math.abs(w - tw) <= eps && Math.abs(h - th) <= eps) {
+                return { type: 'box' };
+            }
+            return {
+                type: 'polygon',
+                points: [[x / tw, y / th], [(x + w) / tw, y / th], [(x + w) / tw, (y + h) / th], [x / tw, (y + h) / th]],
+            };
+        }
+    }
+    return null;
+}
+
+/**
+ * Collision modifiers from a Tiled tile's typed properties — the same vocabulary
+ * the `.estileset` modifier bar writes: `oneway` (bool, solid-top), `sensor`
+ * (bool), `friction` / `restitution` / `density` (float).
+ */
+export function tiledCollisionMods(
+    props: Array<Record<string, unknown>> | undefined,
+): Partial<Pick<ResolvedTileCollision, 'oneWay' | 'sensor' | 'density' | 'friction' | 'restitution'>> {
+    const out: Partial<Pick<ResolvedTileCollision, 'oneWay' | 'sensor' | 'density' | 'friction' | 'restitution'>> = {};
+    if (!props) return out;
+    for (const p of props) {
+        const name = (p.name as string ?? '').toLowerCase();
+        const v = p.value;
+        if (name === 'oneway' && v === true) out.oneWay = { nx: 0, ny: 1 };
+        else if (name === 'sensor' && v === true) out.sensor = true;
+        else if ((name === 'friction' || name === 'restitution' || name === 'density') && typeof v === 'number') {
+            out[name] = v;
+        }
+    }
+    return out;
 }
 
 /**
@@ -918,6 +1008,67 @@ export function oneWayNormalWorld(nx: number, ny: number, fH: boolean, fV: boole
 }
 
 /**
+ * Spawn ONE static collider for a rich-shaped tile at grid cell (gx, gy) — the
+ * per-cell core shared by the chunked (painted-layer) and finite (Tiled-layer)
+ * drivers, so both asset paths produce byte-identical collision entities.
+ */
+function spawnTileShape(
+    world: World,
+    rc: ResolvedTileCollision,
+    raw: number,
+    gx: number,
+    gy: number,
+    tileW: number,
+    tileH: number,
+    originX: number,
+    originY: number,
+    ppu: number,
+): Entity {
+    const f = tileFlagsOf(raw);
+    const entity = world.spawn();
+    world.insert(entity, Transform, {
+        position: { x: originX + (gx + 0.5) * tileW, y: originY - (gy + 0.5) * tileH, z: 0 },
+    });
+    world.insert(entity, RigidBody, { bodyType: BodyType.Static });
+
+    // Only the material/sensor fields the tile overrode; the rest keep component defaults.
+    const mat: { density?: number; friction?: number; restitution?: number; isSensor?: boolean } = {};
+    if (rc.density !== undefined) mat.density = rc.density;
+    if (rc.friction !== undefined) mat.friction = rc.friction;
+    if (rc.restitution !== undefined) mat.restitution = rc.restitution;
+    if (rc.sensor) mat.isSensor = true;
+
+    // One pixel-space shape definition (flip-applied), scaled to physics units
+    // (÷ppu) into the matching collider component — the same geometry the editor
+    // overlay draws, so what you see out of Play is what spawns.
+    const shape = tileColliderShape(rc, tileW, tileH, f.flipH, f.flipV, f.flipD);
+    if (shape.kind === 'polygon') {
+        world.insert(entity, PolygonCollider, {
+            vertices: shape.vertices.map((v) => ({ x: v.x / ppu, y: v.y / ppu })),
+            ...mat,
+        });
+    } else if (shape.kind === 'circle') {
+        world.insert(entity, CircleCollider, {
+            radius: shape.radius / ppu,
+            offset: { x: shape.offset.x / ppu, y: shape.offset.y / ppu },
+            ...mat,
+        });
+    } else if (shape.kind === 'box') {
+        world.insert(entity, BoxCollider, {
+            halfExtents: { x: shape.halfExtents.x / ppu, y: shape.halfExtents.y / ppu },
+            ...mat,
+        });
+    }
+
+    if (rc.oneWay) {
+        world.insert(entity, OneWayPlatform, {
+            normal: oneWayNormalWorld(rc.oneWay.nx, rc.oneWay.ny, f.flipH, f.flipV, f.flipD),
+        });
+    }
+    return entity;
+}
+
+/**
  * Spawn one static collider per placed tile whose global id resolves to a RICH shape —
  * polygon / circle, or a box carrying a one-way / sensor / material modifier — i.e. the
  * tiles the plain-box greedy merge ({@link generateChunkCollision}) deliberately skips.
@@ -946,49 +1097,41 @@ export function generateChunkTileShapes(
             if (!rc) continue;
             const gx = baseX + (i % CHUNK_SIZE);
             const gy = baseY + Math.floor(i / CHUNK_SIZE);
-            const f = tileFlagsOf(raw);
-            const entity = world.spawn();
-            world.insert(entity, Transform, {
-                position: { x: originX + (gx + 0.5) * tileW, y: originY - (gy + 0.5) * tileH, z: 0 },
-            });
-            world.insert(entity, RigidBody, { bodyType: BodyType.Static });
-
-            // Only the material/sensor fields the tile overrode; the rest keep component defaults.
-            const mat: { density?: number; friction?: number; restitution?: number; isSensor?: boolean } = {};
-            if (rc.density !== undefined) mat.density = rc.density;
-            if (rc.friction !== undefined) mat.friction = rc.friction;
-            if (rc.restitution !== undefined) mat.restitution = rc.restitution;
-            if (rc.sensor) mat.isSensor = true;
-
-            // One pixel-space shape definition (flip-applied), scaled to physics units
-            // (÷ppu) into the matching collider component — the same geometry the editor
-            // overlay draws, so what you see out of Play is what spawns.
-            const shape = tileColliderShape(rc, tileW, tileH, f.flipH, f.flipV, f.flipD);
-            if (shape.kind === 'polygon') {
-                world.insert(entity, PolygonCollider, {
-                    vertices: shape.vertices.map((v) => ({ x: v.x / ppu, y: v.y / ppu })),
-                    ...mat,
-                });
-            } else if (shape.kind === 'circle') {
-                world.insert(entity, CircleCollider, {
-                    radius: shape.radius / ppu,
-                    offset: { x: shape.offset.x / ppu, y: shape.offset.y / ppu },
-                    ...mat,
-                });
-            } else if (shape.kind === 'box') {
-                world.insert(entity, BoxCollider, {
-                    halfExtents: { x: shape.halfExtents.x / ppu, y: shape.halfExtents.y / ppu },
-                    ...mat,
-                });
-            }
-
-            if (rc.oneWay) {
-                world.insert(entity, OneWayPlatform, {
-                    normal: oneWayNormalWorld(rc.oneWay.nx, rc.oneWay.ny, f.flipH, f.flipV, f.flipD),
-                });
-            }
-            entities.push(entity);
+            entities.push(spawnTileShape(world, rc, raw, gx, gy, tileW, tileH, originX, originY, ppu));
         }
+    }
+    return entities;
+}
+
+/**
+ * Finite-layer sibling of {@link generateChunkTileShapes} — rich shapes for a flat
+ * Tiled layer array. Runs alongside {@link generateLayerCollision} the same way
+ * the chunk pair runs together on the painted path.
+ */
+export function generateLayerTileShapes(
+    world: World,
+    tiles: ArrayLike<number>,
+    gridWidth: number,
+    gridHeight: number,
+    tileShapes: Map<number, ResolvedTileCollision>,
+    tileW: number,
+    tileH: number,
+    originX: number,
+    originY: number,
+    pixelsPerUnit: number = 1,
+): Entity[] {
+    const entities: Entity[] = [];
+    if (tileShapes.size === 0) return entities;
+    const ppu = pixelsPerUnit || 1;
+    const count = Math.min(tiles.length, gridWidth * gridHeight);
+    for (let i = 0; i < count; i++) {
+        const raw = tiles[i];
+        const rc = tileShapes.get(tileIdOf(raw));
+        if (!rc) continue;
+        entities.push(spawnTileShape(
+            world, rc, raw, i % gridWidth, Math.floor(i / gridWidth),
+            tileW, tileH, originX, originY, ppu,
+        ));
     }
     return entities;
 }
@@ -1052,6 +1195,15 @@ export function loadTiledMap(
                 world, layer, mapData, tileCollisionIds, 0, 0,
             );
             entities.push(...tileEntities);
+        }
+    }
+    if (mapData.tileShapes && mapData.tileShapes.size > 0) {
+        for (const layer of mapData.layers) {
+            if (!layer.visible) continue;
+            entities.push(...generateLayerTileShapes(
+                world, layer.tiles, layer.width, layer.height, mapData.tileShapes,
+                mapData.tileWidth, mapData.tileHeight, 0, 0,
+            ));
         }
     }
 

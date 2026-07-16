@@ -7,7 +7,8 @@ export { TilemapPlugin, tilemapPlugin } from './tilemapPlugin';
 export {
     parseTmjJson, parseTmjWithExternals, loadTiledMap, loadTiledCollisionObjects,
     generateTileCollision, generateLayerCollision, generateChunkCollision,
-    generateChunkPolygonCollision, generateChunkTileShapes, generateObjectCollision, isCollisionObjectGroup,
+    generateChunkPolygonCollision, generateChunkTileShapes, generateLayerTileShapes,
+    tiledObjectgroupShape, tiledCollisionMods, generateObjectCollision, isCollisionObjectGroup,
     polygonLocalVerts, tileColliderShape, oneWayNormalWorld, resolveRelativePath, packCollectionGrid,
     type TiledMapData, type TiledLayerData, type TiledTilesetData,
     type TiledCollectionTile, type CollectionGridTile,
@@ -45,3 +46,8 @@ export {
     type LoadedTilemapSource, type LoadedTilemapLayer, type LoadedTilemapTileset,
 } from './tilesetCache';
 export { getTextureDimensions, type TextureDimensions } from '../resourceManager';
+
+export {
+    tileCollisionAt, isTileSolid, tileCollisionAtWorld,
+    type LayerCollisionTable,
+} from './tileQuery';

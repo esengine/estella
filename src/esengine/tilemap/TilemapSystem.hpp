@@ -147,6 +147,10 @@ public:
 
         std::unordered_map<u16, TileAnimation> tile_animations;
         f32 elapsed_ms = 0;
+        // Bumped only when some animation's CURRENT frame changes (or the
+        // animation table itself does) — animated chunk meshes rebuild on this,
+        // not every frame.
+        u32 anim_revision = 0;
 
         std::unordered_map<u16, std::unordered_map<std::string, std::string>> tile_properties;
     };

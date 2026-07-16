@@ -37,6 +37,9 @@ private:
         // against ChunkData::revision so we rebuild only on real edits — the
         // renderer reads this snapshot stamp and never writes to content.
         u32 built_revision = 0;
+        // Animation-frame revision this cache was built at; an animated chunk
+        // rebuilds when a visible frame flips, not every frame.
+        u32 built_anim_revision = 0;
     };
 
     // A layer slot with its texture resolved for the current frame.
