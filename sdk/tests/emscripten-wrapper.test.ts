@@ -21,6 +21,7 @@ const auto = () => ({ value: 0, unit: 2 });
 function fullNode(over: Partial<UINodeData> = {}): UINodeData {
     return {
         position: 0,
+        display: 0,
         width: auto(), height: auto(),
         minWidth: auto(), minHeight: auto(),
         maxWidth: auto(), maxHeight: auto(),

@@ -137,6 +137,11 @@ export enum TextAlign {
     Right = 2,
 }
 
+export enum UIDisplay {
+    Flex = 0,
+    None = 1,
+}
+
 export enum UIFillMethod {
     Horizontal = 0,
     Vertical = 1,
@@ -453,6 +458,7 @@ export interface UIMask {
 
 export interface UINode {
     position: number;
+    display: number;
     width: Dimension;
     height: Dimension;
     minWidth: Dimension;

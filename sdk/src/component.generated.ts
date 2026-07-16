@@ -15,7 +15,7 @@ import type { Dimension, Padding } from './wasm.generated';
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = 'f9191aeae848066e';
+export const ABI_LAYOUT_HASH = 'bde213b560e9ce4c';
 
 export interface AssetFieldMeta {
     field: string;
@@ -622,6 +622,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
     UINode: {
         defaults: {
             position: 0,
+            display: 0,
             width: { value: 0, unit: 2 },
             height: { value: 0, unit: 2 },
             minWidth: { value: 0, unit: 2 },
@@ -647,6 +648,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         animatableFields: [],
         fields: {
             position: { enum: [{ label: 'Relative', value: 0 }, { label: 'Absolute', value: 1 }] },
+            display: { enum: [{ label: 'Flex', value: 0 }, { label: 'None', value: 1 }], tooltip: "None removes this node and its whole subtree from layout, rendering and input." },
             alignSelf: { enum: [{ label: 'Auto', value: 0 }, { label: 'Start', value: 1 }, { label: 'Center', value: 2 }, { label: 'End', value: 3 }, { label: 'Stretch', value: 4 }] },
         },
     },
@@ -977,6 +979,7 @@ export interface UIMaskData {
 
 export interface UINodeData {
     position: number;
+    display: number;
     width: Dimension;
     height: Dimension;
     minWidth: Dimension;

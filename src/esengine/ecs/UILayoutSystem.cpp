@@ -141,6 +141,8 @@ void applyInset(YGNodeRef n, YGEdge edge, const Dimension& d) {
 
 void applyUINodeStyle(Registry& registry, Entity entity, YGNodeRef yg) {
     auto& n = registry.get<UINode>(entity);
+    YGNodeStyleSetDisplay(yg, n.display == UIDisplay::None
+        ? YGDisplayNone : YGDisplayFlex);
     YGNodeStyleSetPositionType(yg, n.position == UIPositionType::Absolute
         ? YGPositionTypeAbsolute : YGPositionTypeRelative);
     applyInset(yg, YGEdgeLeft, n.insetLeft);
@@ -271,6 +273,26 @@ void layoutUINodeSubtree(
     YGNodeFreeRecursive(rootYG);
 }
 
+// Resolve display:none hierarchically over the DFS-ordered tree: a node with
+// display None hides its whole subtree. Rendering, text and hit-testing read
+// the resulting UINode.hidden_in_tree_ bit so they never need tree knowledge.
+void propagateHiddenInTree(Registry& registry, UITree& tree) {
+    auto& nodes = tree.nodes_;
+    for (i32 i = 0; i < static_cast<i32>(nodes.size()); ) {
+        auto* n = registry.tryGet<UINode>(nodes[i].entity);
+        if (n && n->display == UIDisplay::None) {
+            i32 end = i + nodes[i].subtree_size;
+            for (i32 k = i; k < end; ++k) {
+                if (auto* c = registry.tryGet<UINode>(nodes[k].entity)) c->hidden_in_tree_ = true;
+            }
+            i = end;
+        } else {
+            if (n) n->hidden_in_tree_ = false;
+            ++i;
+        }
+    }
+}
+
 void unifiedLayoutPass(Registry& registry, UITree& tree, const LayoutRect& cameraRect) {
     for (i32 i = 0; i < static_cast<i32>(tree.nodes_.size()); ) {
         auto& node = tree.nodes_[i];
@@ -304,6 +326,7 @@ void UISystem::layoutUpdate(
     f32 camLeft, f32 camBottom, f32 camRight, f32 camTop
 ) {
     tree.rebuild(registry);
+    propagateHiddenInTree(registry, tree);
     LayoutRect cameraRect{ camLeft, camBottom, camRight, camTop };
     unifiedLayoutPass(registry, tree, cameraRect);
 }

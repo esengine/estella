@@ -105,6 +105,8 @@ export class TextPlugin implements Plugin {
                 const t = world.get(entity, Text) as TextData;
                 // enabled === false: pre-upgrade data lacks the field → visible.
                 if (!t.content || t.enabled === false) continue;
+                // display:none anywhere up the UI tree hides this text too.
+                if (module.getUINodeHiddenInTree?.(registry, entity)) continue;
                 seen.add(entity as number);
 
                 const tr = world.get(entity, Transform) as TransformData;

@@ -7,7 +7,7 @@ import {
 import type { Entity, Vec2 } from '../../types';
 import type { World } from '../../world';
 
-import { UINode, UIPositionType, type UINodeData } from '../core/ui-node';
+import { UINode, UIPositionType, UIDisplay, type UINodeData } from '../core/ui-node';
 import { px, percent, auto, type Dimension } from '../core/dimension';
 import { UIVisual, UIVisualType, FillMethod, FillOrigin, type UIVisualData } from '../core/ui-visual';
 import { Text, TextAlign, TextVerticalAlign, TextRenderMode, type TextData } from '../core/text';
@@ -52,6 +52,7 @@ export function buildUINode(init: UINodeInit = {}): UINodeData {
     const fill = init.fill ?? false;
     return {
         position: init.position ?? (fill ? UIPositionType.Absolute : UIPositionType.Relative),
+        display: UIDisplay.Flex,
         width: init.width ?? auto(),
         height: init.height ?? auto(),
         minWidth: auto(),

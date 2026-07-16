@@ -37,6 +37,18 @@ enum class UIPositionType : u8 {
 };
 
 /**
+ * @brief CSS `display`. None removes the node AND its whole subtree from
+ *        layout, rendering, and hit-testing — the hierarchical show/hide
+ *        primitive (a closed dialog, a collapsed panel). Contrast with
+ *        UIVisual.enabled, which hides only that entity's own visual.
+ */
+ES_ENUM()
+enum class UIDisplay : u8 {
+    Flex,
+    None
+};
+
+/**
  * @brief UINode — the CSS box-model layout input (the CSS/Flex
  *        primary layout model).
  *
@@ -55,6 +67,9 @@ struct UINode {
     // Positioning: Relative = in flex flow; Absolute = placed by `inset`.
     ES_PROPERTY()
     UIPositionType position{UIPositionType::Relative};
+
+    ES_PROPERTY(tooltip="None removes this node and its whole subtree from layout, rendering and input.")
+    UIDisplay display{UIDisplay::Flex};
 
     // Box size; auto = content-/flex-driven.
     ES_PROPERTY()
@@ -104,6 +119,11 @@ struct UINode {
 
     // Layout output (not serialized): resolved px size written by the Yoga pass.
     glm::vec2 computed_size_{0.0f};
+
+    // Computed (not serialized): true when this node or any ancestor has
+    // display None. Written by the layout pass; read by rendering, text and
+    // hit-testing so the whole subtree disappears from all three.
+    bool hidden_in_tree_{false};
 
     // Set by the tween system for Transform fields it drives, so the layout pass
     // leaves those fields alone this frame (cleared each frame).

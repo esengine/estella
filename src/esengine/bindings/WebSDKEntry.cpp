@@ -776,6 +776,11 @@ void uiTree_markAllDirty() {
 
 // UINode (CSS box) computed size — its internal computed_size_ is not
 // embind-readable, so expose it for TS uiHelpers.
+bool getUINodeHiddenInTree(ecs::Registry& registry, u32 entity) {
+    auto* node = registry.tryGet<ecs::UINode>(Entity::fromRaw(entity));
+    return node && node->hidden_in_tree_;
+}
+
 f32 getUINodeComputedWidth(ecs::Registry& registry, u32 entity) {
     auto* node = registry.tryGet<ecs::UINode>(Entity::fromRaw(entity));
     if (!node) return 0.0f;
@@ -820,6 +825,7 @@ EMSCRIPTEN_BINDINGS(esengine_ui_systems) {
     emscripten::function("uiRenderOrder_update", &esengine::uiRenderOrder_update);
     emscripten::function("ui_getRenderOrder", &esengine::ui_getRenderOrder);
     emscripten::function("uiFlexLayout_update", &esengine::uiFlexLayout_update);
+    emscripten::function("getUINodeHiddenInTree", &esengine::getUINodeHiddenInTree);
     emscripten::function("getUINodeComputedWidth", &esengine::getUINodeComputedWidth);
     emscripten::function("getUINodeComputedHeight", &esengine::getUINodeComputedHeight);
     emscripten::function("uiTree_markStructureDirty", &esengine::uiTree_markStructureDirty);

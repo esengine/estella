@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 #include "UIElementPlugin.hpp"
+#include "../MaterialStore.hpp"
 #include "../RenderContext.hpp"
 #include "../RenderFrame.hpp"
 #include "../Texture.hpp"
@@ -57,7 +58,7 @@ void UIElementPlugin::collect(RenderCollectContext& collect_ctx) {
 
         // Geometry from the UINode (CSS box) — always pivot-centered.
         const auto* node = registry.tryGet<ecs::UINode>(entity);
-        if (!node) continue;
+        if (!node || node->hidden_in_tree_) continue;
         f32 w = node->computed_size_.x, h = node->computed_size_.y;
         f32 pivotX = 0.5f, pivotY = 0.5f;
         if (w <= 0.0f && h <= 0.0f) continue;
@@ -198,6 +199,19 @@ void UIElementPlugin::collect(RenderCollectContext& collect_ctx) {
             .entity = entity,
             .type = RenderType::UIElement,
         };
+
+        // Same resolution as SpritePlugin: an unregistered handle falls back to
+        // the default batch shader, so a dangling material renders plainly.
+        if (renderer.material != 0) {
+            if (const MaterialRecord* m = ctx.materials ? ctx.materials->find(renderer.material) : nullptr) {
+                key.shaderId = (m->shader != 0) ? m->shader : batch_shader_id_;
+                key.blend = m->blend;
+                key.materialId = renderer.material;
+                key.depthTest = m->depthTest;
+                key.depthWrite = m->depthWrite;
+                key.cull = static_cast<u8>(m->cull);
+            }
+        }
 
         constexpr glm::vec2 CENTERED_PIVOT{0.5f, 0.5f};
 

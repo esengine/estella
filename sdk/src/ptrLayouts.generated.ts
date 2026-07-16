@@ -335,6 +335,7 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
         ptrFn: 'getUINodePtr',
         fields: [
             { name: 'position', type: 'u8', offset: 0 },
+            { name: 'display', type: 'u8', offset: 1 },
             { name: 'flexGrow', type: 'f32', offset: 52 },
             { name: 'flexShrink', type: 'f32', offset: 56 },
             { name: 'alignSelf', type: 'u8', offset: 68 },

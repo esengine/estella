@@ -19,6 +19,7 @@ import {
     FillOrigin,
     UIEventQueue,
     UIEventType,
+    UIDisplay,
     themeColors,
     type UIControllerData,
     type UIGearData,
@@ -412,34 +413,34 @@ describe('createDialog', () => {
         world = createMockWorld();
     });
 
-    it('starts hidden by default', () => {
+    it('starts hidden by default — backdrop subtree is display:none', () => {
         const dialog = createDialog({ world: world as unknown as World });
         expect(dialog.isOpen()).toBe(false);
-        const bg = world.get(dialog.backdropEntity, UIVisual) as { enabled: boolean };
-        expect(bg.enabled).toBe(false);
+        const bg = world.get(dialog.backdropEntity, UINode) as { display: number };
+        expect(bg.display).toBe(UIDisplay.None);
     });
 
-    it('open() shows backdrop + panel and enables Interactable', () => {
+    it('open() restores display:flex on the backdrop root', () => {
         const dialog = createDialog({ world: world as unknown as World });
         dialog.open();
         expect(dialog.isOpen()).toBe(true);
 
-        const bg = world.get(dialog.backdropEntity, UIVisual) as { enabled: boolean };
-        const panel = world.get(dialog.panelEntity, UIVisual) as { enabled: boolean };
+        const bg = world.get(dialog.backdropEntity, UINode) as { display: number };
+        expect(bg.display).toBe(UIDisplay.Flex);
+        // The blocker stays enabled permanently — display:none already removes
+        // the whole subtree from hit-testing while closed.
         const inter = world.get(dialog.backdropEntity, Interactable) as { enabled: boolean };
-        expect(bg.enabled).toBe(true);
-        expect(panel.enabled).toBe(true);
         expect(inter.enabled).toBe(true);
     });
 
-    it('close() hides and disables the backdrop Interactable', () => {
+    it('close() sets display:none so user children under the panel vanish too', () => {
         const dialog = createDialog({ world: world as unknown as World, startHidden: false });
         expect(dialog.isOpen()).toBe(true);
 
         dialog.close();
-        const inter = world.get(dialog.backdropEntity, Interactable) as { enabled: boolean };
         expect(dialog.isOpen()).toBe(false);
-        expect(inter.enabled).toBe(false);
+        const bg = world.get(dialog.backdropEntity, UINode) as { display: number };
+        expect(bg.display).toBe(UIDisplay.None);
     });
 
     it('dispose despawns the backdrop', () => {

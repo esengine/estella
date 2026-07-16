@@ -49,7 +49,7 @@ void UISystem::hitTestUpdate(
 
         // Hit geometry from the UINode (CSS box, pivot-centered).
         auto* node = registry.tryGet<UINode>(entity);
-        if (!node) continue;
+        if (!node || node->hidden_in_tree_) continue;
         f32 baseW = node->computed_size_.x;
         f32 baseH = node->computed_size_.y;
         f32 pivotX = 0.5f, pivotY = 0.5f;

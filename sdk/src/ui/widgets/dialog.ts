@@ -5,7 +5,8 @@ import type { World } from '../../world';
 
 import { Interactable, UIInteraction } from '../input/interactable';
 
-import { spawnUIEntity, setUIVisible, type UINodeInit, type UIVisualInit } from './helpers';
+import { spawnUIEntity, type UINodeInit, type UIVisualInit } from './helpers';
+import { UINode, UIDisplay, type UINodeData } from '../core/ui-node';
 import { px, percent } from '../core/dimension';
 import { themeColors } from '../theme/tokens';
 import { markThemed } from '../theme/theme-style';
@@ -82,20 +83,13 @@ export function createDialog(opts: DialogOptions): DialogHandle {
     let open = !(opts.startHidden ?? true);
     applyOpen(open);
 
+    // display:none removes the backdrop AND everything the user parented under
+    // the panel from layout, rendering and hit-testing in one write — closing
+    // must hide user content too, not just the two entities we own.
     function applyOpen(value: boolean): void {
-        setUIVisible(world, backdrop, value);
-        setUIVisible(world, panel, value);
-        // Disable the backdrop's raycast blocker when hidden so clicks
-        // fall through to scene behind.
-        if (world.has(backdrop, Interactable)) {
-            const i = world.get(backdrop, Interactable) as {
-                enabled: boolean;
-                blockRaycast: boolean;
-                raycastTarget: boolean;
-            };
-            i.enabled = value;
-            world.insert(backdrop, Interactable, i);
-        }
+        const node = world.get(backdrop, UINode) as UINodeData;
+        node.display = value ? UIDisplay.Flex : UIDisplay.None;
+        world.insert(backdrop, UINode, node);
     }
 
     return {

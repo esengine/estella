@@ -418,6 +418,7 @@ export interface ESEngineModule {
     uiFlexLayout_update(registry: CppRegistry): void;
     getUINodeComputedWidth?(registry: CppRegistry, entity: number): number;
     getUINodeComputedHeight?(registry: CppRegistry, entity: number): number;
+    getUINodeHiddenInTree?(registry: CppRegistry, entity: number): boolean;
     uiTree_markStructureDirty(): void;
     uiTree_markDirty(entity: number): void;
     uiTree_markAllDirty(): void;

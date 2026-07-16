@@ -144,6 +144,7 @@ export {
     type Dimension,
     // UINode layout enums
     UIPositionType,
+    UIDisplay,
     AlignSelf,
     // Flex container
     FlexContainer,
