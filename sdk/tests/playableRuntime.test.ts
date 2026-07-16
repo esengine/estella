@@ -21,7 +21,8 @@ function createMockConfig(overrides?: Partial<PlayableRuntimeConfig>): PlayableR
         getResource: vi.fn().mockReturnValue({
             registerEmbeddedAssets: vi.fn(),
             setEmbeddedOnly: vi.fn(),
-            setAssetResolver: vi.fn(),
+            setAssetResolver: vi.fn(),   // Audio
+            setRefResolver: vi.fn(),     // VideoPlayer
         }),
         hasResource: vi.fn().mockReturnValue(true),
         run: vi.fn(),
@@ -97,5 +98,22 @@ describe('initPlayableRuntime', () => {
         expect(backend.resolveUrl('/assets/m.esmaterial')).toBe('data:text/plain;base64,QQ==');
         // The original key still resolves; unknown targets alias nothing.
         expect(backend.resolveUrl('@uuid:aaaa')).toBe('data:text/plain;base64,QQ==');
+    });
+
+    // A single-file playable makes NO external requests — its `file://` page is a
+    // null origin whose sibling fetches are CORS-blocked. Video is the newest
+    // asset channel, so it must resolve through the SAME embedded map as every
+    // other subsystem: the clip ref maps to its inlined data URL.
+    it('wires the video ref resolver to the embedded data-URL map', async () => {
+        const config = createMockConfig({
+            assets: { 'assets/video/clip.mp4': 'data:video/mp4;base64,AAAA' },
+        });
+
+        await initPlayableRuntime(config);
+
+        const resolver = (config.app.getResource() as { setRefResolver: ReturnType<typeof vi.fn> })
+            .setRefResolver.mock.calls[0][0] as (ref: string) => string;
+        expect(resolver('assets/video/clip.mp4')).toBe('data:video/mp4;base64,AAAA');
+        expect(resolver('assets/nope.mp4')).toBe('assets/nope.mp4'); // passthrough, no external fetch key
     });
 });

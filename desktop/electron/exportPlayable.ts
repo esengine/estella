@@ -46,6 +46,7 @@ const MIME: Record<string, string> = {
   svg: 'image/svg+xml', ktx2: 'image/ktx2', json: 'application/json', esscene: 'application/json',
   fnt: 'text/plain', txt: 'text/plain', ogg: 'audio/ogg', mp3: 'audio/mpeg', wav: 'audio/wav',
   m4a: 'audio/mp4', aac: 'audio/aac', ttf: 'font/ttf', woff: 'font/woff', woff2: 'font/woff2',
+  mp4: 'video/mp4', m4v: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm',
 };
 const mimeOf = (p: string): string => MIME[path.extname(p).slice(1).toLowerCase()] ?? 'application/octet-stream';
 

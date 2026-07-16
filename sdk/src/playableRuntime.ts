@@ -20,6 +20,7 @@ import type { AddressableManifest } from './asset/AddressableManifest';
 import type { Vec2 } from './types';
 import type { SceneData } from './scene';
 import { Audio } from './audio/Audio';
+import { VideoPlayer } from './video/VideoAPI';
 
 export interface PlayableRuntimeConfig {
     app: App;
@@ -105,6 +106,14 @@ export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promis
             if (!dataUrl) return null;
             return decodeDataUrlBinary(dataUrl).buffer as ArrayBuffer;
         });
+    }
+
+    // Video source refs resolve through the SAME embedded map — the Video
+    // component's clip and VideoPlayer.play() both get the inlined data URL, so
+    // the single-file playable never fetches an external file (a `file://` page
+    // is a null origin and its sibling requests are CORS-blocked).
+    if (app.hasResource(VideoPlayer)) {
+        app.getResource(VideoPlayer).setRefResolver((ref) => assets[ref] ?? ref);
     }
 
     await initRuntime({
