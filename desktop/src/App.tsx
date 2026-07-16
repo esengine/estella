@@ -32,6 +32,7 @@ import { PlayInspect } from '@/engine/PlayInspect';
 import { TimelinePreview } from '@/engine/TimelinePreview';
 import { FlipbookViewportPreview } from '@/engine/FlipbookViewportPreview';
 import { TimelineRecorder } from '@/timeline/TimelineRecorder';
+import { ControllerRecorder } from '@/controller/ControllerRecorder';
 import { ProjectStore } from '@/project/ProjectStore';
 import { EditorHistory } from '@/engine/EditorHistory';
 import { dockApi } from '@/layout/dockApi';
@@ -118,6 +119,7 @@ export function App() {
     TimelinePreview.attach();
     FlipbookViewportPreview.attach();
     TimelineRecorder.attach();
+    ControllerRecorder.attach();
   }, []);
 
   // Mirror unsaved-changes state to main for the window-close quit guard, and run

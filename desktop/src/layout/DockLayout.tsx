@@ -24,6 +24,7 @@ import { FlipbookEditor } from '@/panels/FlipbookEditor';
 import { AudioMixerPanel } from '@/panels/AudioMixerPanel';
 import { TilemapPainter } from '@/panels/TilemapPainter';
 import { UIWidgetsPanel } from '@/panels/UIWidgetsPanel';
+import { ControllersPanel } from '@/panels/ControllersPanel';
 import { MaterialGraphEditor } from '@/panels/MaterialGraphEditor';
 import { StateMachineEditor } from '@/panels/StateMachineEditor';
 import { BtTreeEditor } from '@/panels/BtTreeEditor';
@@ -58,6 +59,7 @@ const components: Record<string, FC<IDockviewPanelProps>> = {
   audiomixer: (p) => panel('audiomixer', p.api, <AudioMixerPanel />),
   tilemap: (p) => panel('tilemap', p.api, <TilemapPainter />),
   uiWidgets: (p) => panel('uiWidgets', p.api, <UIWidgetsPanel />),
+  controllers: (p) => panel('controllers', p.api, <ControllersPanel />),
   materialgraph: (p) => panel('materialgraph', p.api, <MaterialGraphEditor />),
   statemachine: (p) => panel('statemachine', p.api, <StateMachineEditor />),
   behaviortree: (p) => panel('behaviortree', p.api, <BtTreeEditor />),
@@ -163,6 +165,7 @@ const PANEL_TITLES: Record<string, () => string> = {
   audiomixer: () => t('mix.panelTitle'),
   tilemap: () => t('panel.tilemap'),
   'ui-widgets': () => t('panel.uiWidgets'),
+  controllers: () => t('panel.controllers'),
   materialgraph: () => t('mat.panelTitle'),
   statemachine: () => t('fsm.tabTitle'),
   behaviortree: () => t('bt.tabTitle'),

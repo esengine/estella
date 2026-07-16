@@ -36,6 +36,7 @@ import { flipbookMessages } from './flipbook';
 import { mixerMessages } from './mixer';
 import { materialMessages } from './material';
 import { projectMessages } from './project';
+import { controllerMessages } from './controllers';
 
 /** Every per-area module, for the uniqueness guard in i18n.test.ts. */
 export const messageModules = {
@@ -57,6 +58,7 @@ export const messageModules = {
     mixer: mixerMessages,
     material: materialMessages,
     project: projectMessages,
+    controllers: controllerMessages,
 } as const;
 
 export const editorMessages = {
@@ -78,4 +80,5 @@ export const editorMessages = {
     ...mixerMessages,
     ...materialMessages,
     ...projectMessages,
+    ...controllerMessages,
 } as const;

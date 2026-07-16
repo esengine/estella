@@ -28,6 +28,7 @@ import './theme/tileset.css';
 import './theme/flipbook.css';
 import './theme/tilemap.css';
 import './theme/ui-palette.css';
+import './theme/controllers.css';
 import './theme/material.css';
 import './theme/nodegraph.css';
 import './theme/chrome.css';

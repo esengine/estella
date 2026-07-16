@@ -1,0 +1,45 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team */
+
+/* Controllers panel (ControllersPanel): author UIController pages + record mode. */
+.ctrl-panel { padding: 8px; display: flex; flex-direction: column; gap: 8px; height: 100%; overflow-y: auto; }
+.ctrl-empty { padding: 16px 12px; font-size: var(--fs-2xs); color: var(--text-dim); line-height: 1.5; text-align: center; }
+.ctrl-hint { font-size: var(--fs-2xs); color: var(--text-dim); line-height: 1.4; padding: 0 2px; }
+
+.ctrl-head { display: flex; align-items: center; justify-content: space-between; }
+.ctrl-title { font-size: var(--fs-xs); font-weight: 600; color: var(--text); }
+.ctrl-rec { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; font-size: var(--fs-2xs); color: var(--text-dim); background: var(--srf-3); border: 1px solid var(--border); border-radius: var(--r-sm); cursor: pointer; transition: color var(--t-fast), border-color var(--t-fast); }
+.ctrl-rec:hover { color: var(--text); }
+.ctrl-rec.on { color: #ff5a5a; border-color: #ff5a5a; }
+
+.ctrl-list { display: flex; flex-direction: column; gap: 6px; }
+.ctrl-row { display: flex; flex-direction: column; gap: 6px; padding: 8px; background: var(--srf-3); border: 1px solid var(--border); border-radius: var(--r-sm); cursor: pointer; transition: border-color var(--t-fast); }
+.ctrl-row:hover { border-color: var(--srf-5); }
+.ctrl-row.active { border-color: var(--acc); }
+
+.ctrl-row-head { display: flex; align-items: center; gap: 6px; }
+.ctrl-name { font-size: var(--fs-xs); font-weight: 600; color: var(--text); }
+.ctrl-badge { font-size: 9px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--acc); border: 1px solid var(--acc); border-radius: 3px; padding: 0 4px; }
+.ctrl-del { margin-left: auto; display: inline-flex; color: var(--text-dim); background: none; border: none; cursor: pointer; padding: 2px; border-radius: 3px; }
+.ctrl-del:hover { color: #ff5a5a; background: var(--srf-4); }
+
+.ctrl-pages { min-width: 0; overflow-x: auto; }
+.ctrl-page-edit { display: flex; align-items: center; gap: 4px; }
+
+.ctrl-add { display: flex; align-items: center; gap: 4px; }
+.ctrl-input { flex: 1 1 auto; min-width: 0; font-size: var(--fs-2xs); color: var(--text); background: var(--srf-2); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 4px 6px; }
+.ctrl-input.sm { padding: 3px 5px; }
+.ctrl-input:focus { border-color: var(--acc); outline: none; }
+.ctrl-btn { display: inline-flex; align-items: center; justify-content: center; color: var(--text); background: var(--srf-3); border: 1px solid var(--border); border-radius: var(--r-sm); cursor: pointer; padding: 4px 6px; transition: background var(--t-fast); }
+.ctrl-btn.sm { padding: 3px 5px; }
+.ctrl-btn:hover:not(:disabled) { background: var(--srf-4); border-color: var(--acc); }
+.ctrl-btn:disabled { opacity: 0.4; cursor: default; }
+
+/* The gear dot injected inside each Details field's .prop-value (flex column),
+   after the control — marks the field geared to the active controller. It only
+   renders while a controller is active, so it's faintly visible by default (a
+   discoverable "you can gear this" hint), brighter on hover, accent when geared. */
+.prop-gear { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; color: var(--text-dim); background: none; border: none; cursor: pointer; padding: 0; opacity: 0.35; transition: opacity var(--t-fast), color var(--t-fast); }
+.prop:hover .prop-gear { opacity: 0.7; }
+.prop-gear:hover { opacity: 1 !important; color: var(--text); }
+.prop-gear.on { opacity: 1; color: var(--acc); }

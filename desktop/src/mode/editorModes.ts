@@ -59,7 +59,10 @@ const uiMode: EditorModeDef = {
   label: t('mode.ui'),
   icon: LayoutPanelTop,
   toolset: 'transform',
-  panels: [{ id: 'ui-widgets', component: 'uiWidgets', title: t('panel.uiWidgets'), side: 'left', width: 240 }],
+  panels: [
+    { id: 'ui-widgets', component: 'uiWidgets', title: t('panel.uiWidgets'), side: 'left', width: 240 },
+    { id: 'controllers', component: 'controllers', title: t('panel.controllers'), side: 'left', width: 260 },
+  ],
   overlays: { designFrame: true, safeArea: true, letterbox: true },
   suggestFor: (s) => s.hasComponent('Canvas') || s.hasComponent('UINode'),
 };

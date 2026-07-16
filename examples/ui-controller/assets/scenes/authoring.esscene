@@ -1,0 +1,82 @@
+{
+  "version": "1.0",
+  "name": "Authoring",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 10 } } },
+        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 300, "isActive": true, "priority": 0 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "Canvas",
+      "parent": null,
+      "children": [2, 4],
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "Canvas", "data": { "designResolution": { "x": 800, "y": 600 }, "scaleMode": 2 } },
+        { "type": "UINode", "data": {} },
+        { "type": "UIController", "data": { "controllers": [ { "name": "theme", "pages": ["sky", "rose"], "current": "sky" } ] } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 2,
+      "name": "Title",
+      "parent": 1,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": {
+          "position": 1, "width": { "value": 620, "unit": 0 },
+          "insetLeft": { "value": 50, "unit": 1 }, "marginLeft": { "value": -310, "unit": 0 },
+          "insetTop": { "value": 40, "unit": 0 }, "height": { "value": 40, "unit": 0 } } },
+        { "type": "Text", "data": {
+          "content": "Editor-authored controller — switch the theme page in the Controllers panel",
+          "fontSize": 17, "color": { "r": 0.9, "g": 0.92, "b": 0.96, "a": 1 }, "align": 1, "verticalAlign": 1 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 4,
+      "name": "ThemeCard",
+      "parent": 1,
+      "children": [5],
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": {
+          "position": 1, "width": { "value": 440, "unit": 0 }, "height": { "value": 220, "unit": 0 },
+          "insetLeft": { "value": 50, "unit": 1 }, "marginLeft": { "value": -220, "unit": 0 },
+          "insetTop": { "value": 160, "unit": 0 } } },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0.28, "g": 0.55, "b": 0.85, "a": 1 } } },
+        { "type": "UIGear", "data": { "bindings": [
+          { "controller": "theme", "component": "UIVisual", "property": "color",
+            "pages": { "sky": { "r": 0.28, "g": 0.55, "b": 0.85, "a": 1 }, "rose": { "r": 0.87, "g": 0.38, "b": 0.5, "a": 1 } },
+            "tween": { "easing": 5, "duration": 0.2 } } ] } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 5,
+      "name": "CardLabel",
+      "parent": 4,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": {
+          "position": 1, "insetLeft": { "value": 20, "unit": 0 }, "insetRight": { "value": 20, "unit": 0 },
+          "insetTop": { "value": 0, "unit": 0 }, "insetBottom": { "value": 0, "unit": 0 } } },
+        { "type": "Text", "data": {
+          "content": "This card's colour is a UIGear bound to the \"theme\" controller.",
+          "fontSize": 16, "wordWrap": true, "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "align": 1, "verticalAlign": 1 } }
+      ],
+      "visible": true
+    }
+  ]
+}

@@ -10,6 +10,7 @@ import {
   ChevronRight,
   Circle,
   Code2,
+  Cog,
   Component as ComponentIcon,
   Copy,
   ClipboardPaste,
@@ -39,6 +40,8 @@ import { baseName, assetTypeOf, IMAGE_RE } from '@/project/assetMeta';
 import { revealAsset } from '@/project/assetReveal';
 import { useSelection } from '@/store/selectionStore';
 import { useEditorStore } from '@/store/editorStore';
+import { useControllerStore } from '@/store/controllerStore';
+import { isGeared, controllerCurrentPage, readModelField } from '@/controller/controllerModel';
 import { useOutliner } from '@/outliner/OutlinerController';
 import { isFolderUnder, folderName } from '@/outliner/folders';
 import { EngineHost } from '@/engine/EngineHost';
@@ -50,7 +53,7 @@ import { SceneCommands, toModelValue } from '@/engine/SceneCommands';
 import { ENTITY_SOURCES, createFromSource } from '@/engine/entitySources';
 import { PlayInspect } from '@/engine/PlayInspect';
 import { DimensionUnit, AnchorAxis, detectAnchor, UIPositionType, parseLocaleTable } from 'esengine';
-import type { SceneData, InputMapAsset, ActionType, Binding, LocaleTableAsset, PluralCategory } from 'esengine';
+import type { SceneData, InputMapAsset, ActionType, Binding, LocaleTableAsset, PluralCategory, GearValue } from 'esengine';
 import { modelAddableComponentEntries, subscribeSchemas, getSchemaRevision, prettyLabel, hexToRgba, dynamicEnumOptions, boxGroupsFor, isRequiredEmpty, type BoxGroupDef } from '@/engine/schema';
 import * as imap from '@/project/inputMapDoc';
 import * as ldoc from '@/project/localeTableDoc';
@@ -888,6 +891,32 @@ function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp
   const mixed = field.mixed === true;
   const { apply, begin, end } = fieldWriter(entities, comp, field, write);
 
+  // Gear dot: only for a single authored entity that resolves the active
+  // controller. Clicking binds this field to that controller (seeding the current
+  // page with the field's current value); clicking again unbinds it.
+  const activeController = useControllerStore((s) => s.activeController);
+  const gearEntity = entities[0];
+  const gearPage = entities.length === 1 && !write && activeController != null
+    ? controllerCurrentPage(gearEntity, activeController)
+    : null;
+  const gearable = gearPage != null && activeController != null;
+  const geared = gearable && isGeared(gearEntity, activeController, comp, field.key);
+  const toggleGear = () => {
+    if (!gearable || activeController == null || gearPage == null) return;
+    if (geared) {
+      SceneCommands.removeGearBinding(gearEntity, activeController, comp, field.key);
+    } else {
+      const value = readModelField(gearEntity, comp, field.key);
+      if (value === undefined) return;
+      SceneCommands.addGearBinding(gearEntity, {
+        controller: activeController,
+        component: comp,
+        property: field.key,
+        pages: { [gearPage]: value as GearValue },
+      });
+    }
+  };
+
   // Plain numbers + angles scrub from the label; vectors from their axis tabs; a
   // slider owns its own drag so its label stays inert.
   const isScalar = (field.type === 'number' && !field.slider) || field.type === 'angle';
@@ -1055,7 +1084,20 @@ function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp
       >
         {field.label}
       </span>
-      <div className="prop-value">{control}</div>
+      <div className="prop-value">
+        {control}
+        {gearable && (
+          <button
+            type="button"
+            className={`prop-gear${geared ? ' on' : ''}`}
+            tabIndex={-1}
+            title={geared ? t('ctrl.gearUnbind') : t('ctrl.gearBind')}
+            onClick={toggleGear}
+          >
+            <Cog size={11} strokeWidth={2} />
+          </button>
+        )}
+      </div>
       <button
         type="button"
         className={`prop-reset${modified ? ' show' : ''}`}

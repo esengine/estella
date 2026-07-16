@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import type { SceneData, PrefabData } from 'esengine';
+import type { SceneData, PrefabData, ControllerState, UIControllerData, GearBinding, UIGearData } from 'esengine';
 import { TilemapAPI, TilemapLiveSync, UIPositionType, DimensionUnit, anchorPresetFields, type AnchorPreset } from 'esengine';
 import type { EntityId, InspectorFieldType, InspectorFieldValue } from '@/types';
 import { EditorHistory, EditorHistoryImpl } from './EditorHistory';
@@ -1217,6 +1217,107 @@ export class SceneCommandsImpl {
       this.model.setField(sourceId, 'TilemapLayer', 'chunks', blob);
     };
     this.history.record('Paint Tiles', () => restore(after), () => restore(before));
+  }
+
+  // ─── UI Controllers + Gears ────────────────────────────────────────────────
+  // A UIController is a named enum of "pages" scoped to a UI root; a UIGear binds a
+  // component field to per-page values. Both are plain array fields — model.setField
+  // creates the component if absent, so these mirror setLayerTilesets (read → transform
+  // → write + one undo step). Renames are intentionally absent: they would dangle the
+  // gear references keyed by controller/page name (a cascade left for a later pass);
+  // removal is safe because an orphaned gear simply goes inert (getControllerPage → null).
+
+  private controllersOf(id: EntityId): ControllerState[] {
+    const d = this.model.entityBySource(id)?.components.find((c) => c.type === 'UIController')?.data as UIControllerData | undefined;
+    return d?.controllers ? structuredClone(d.controllers) : [];
+  }
+
+  private writeControllers(id: EntityId, label: string, next: ControllerState[]): void {
+    const cur = this.controllersOf(id);
+    if (valueEqual(cur, next)) return;
+    const apply = (list: ControllerState[]) => this.model.setField(id, 'UIController', 'controllers', structuredClone(list));
+    apply(next);
+    this.history.record(label, () => apply(next), () => apply(cur));
+  }
+
+  addController(id: EntityId, name: string, pages: string[] = ['default']): void {
+    const cur = this.controllersOf(id);
+    if (!name || cur.some((c) => c.name === name)) return;
+    const p = pages.length ? pages : ['default'];
+    this.writeControllers(id, 'Add Controller', [...cur, { name, pages: [...p], current: p[0] }]);
+  }
+
+  removeController(id: EntityId, name: string): void {
+    const cur = this.controllersOf(id);
+    if (!cur.some((c) => c.name === name)) return;
+    this.writeControllers(id, 'Remove Controller', cur.filter((c) => c.name !== name));
+  }
+
+  setControllerPage(id: EntityId, name: string, page: string): void {
+    const cur = this.controllersOf(id);
+    const ctrl = cur.find((c) => c.name === name);
+    if (!ctrl || ctrl.current === page || !ctrl.pages.includes(page)) return;
+    this.writeControllers(id, 'Set Page', cur.map((c) => (c.name === name ? { ...c, current: page } : c)));
+  }
+
+  addControllerPage(id: EntityId, name: string, page: string): void {
+    if (!page) return;
+    const cur = this.controllersOf(id);
+    this.writeControllers(id, 'Add Page', cur.map((c) =>
+      c.name === name && !c.pages.includes(page) ? { ...c, pages: [...c.pages, page] } : c));
+  }
+
+  removeControllerPage(id: EntityId, name: string, page: string): void {
+    const cur = this.controllersOf(id);
+    this.writeControllers(id, 'Remove Page', cur.map((c) => {
+      if (c.name !== name) return c;
+      const pages = c.pages.filter((p) => p !== page);
+      return { ...c, pages, current: c.current === page ? (pages[0] ?? '') : c.current };
+    }));
+  }
+
+  moveControllerPage(id: EntityId, name: string, from: number, to: number): void {
+    const cur = this.controllersOf(id);
+    this.writeControllers(id, 'Reorder Page', cur.map((c) => {
+      if (c.name !== name || from < 0 || to < 0 || from >= c.pages.length || to >= c.pages.length) return c;
+      const pages = c.pages.slice();
+      const [moved] = pages.splice(from, 1);
+      pages.splice(to, 0, moved);
+      return { ...c, pages };
+    }));
+  }
+
+  private gearBindingsOf(id: EntityId): GearBinding[] {
+    const d = this.model.entityBySource(id)?.components.find((c) => c.type === 'UIGear')?.data as UIGearData | undefined;
+    return d?.bindings ? structuredClone(d.bindings) : [];
+  }
+
+  private writeGearBindings(id: EntityId, label: string, next: GearBinding[]): void {
+    const cur = this.gearBindingsOf(id);
+    if (valueEqual(cur, next)) return;
+    const apply = (list: GearBinding[]) => this.model.setField(id, 'UIGear', 'bindings', structuredClone(list));
+    apply(next);
+    this.history.record(label, () => apply(next), () => apply(cur));
+  }
+
+  /** Live gear-bindings write with NO history — the ControllerRecorder owns undo for a burst. */
+  setGearBindingsLive(id: EntityId, next: GearBinding[]): void {
+    this.model.setField(id, 'UIGear', 'bindings', structuredClone(next));
+  }
+
+  /** Add (or replace, by controller+component+property) one gear binding. Undoable. */
+  addGearBinding(id: EntityId, binding: GearBinding): void {
+    const cur = this.gearBindingsOf(id);
+    const idx = cur.findIndex((b) =>
+      b.controller === binding.controller && b.component === binding.component && b.property === binding.property);
+    const next = idx >= 0 ? cur.map((b, i) => (i === idx ? binding : b)) : [...cur, binding];
+    this.writeGearBindings(id, 'Add Gear', next);
+  }
+
+  removeGearBinding(id: EntityId, controller: string, component: string, property: string): void {
+    const cur = this.gearBindingsOf(id);
+    this.writeGearBindings(id, 'Remove Gear',
+      cur.filter((b) => !(b.controller === controller && b.component === component && b.property === property)));
   }
 }
 
