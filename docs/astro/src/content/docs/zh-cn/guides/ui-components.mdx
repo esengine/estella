@@ -51,7 +51,7 @@ const btn = createButton({
 | `text` | 标签——字符串或 `TextInit`。省略则无标签。 |
 | `states` | 状态名(`normal` / `hover` / `pressed` / `disabled`)→ 颜色 / sprite / 缩放覆盖的映射。 |
 | `background` | 背景视觉(默认:纯白)。 |
-| `transitionFlags` / `fadeDuration` | 过渡类型(默认 `ColorTint`)和插值时间(默认 `0` = 立即)。 |
+| `fadeDuration` | 颜色 / 缩放状态切换的补间时长(默认 `0` = 瞬切;sprite 交换总是瞬切)。 |
 | `disabled` | 初始禁用。 |
 | `onClick(entity)` | 点击回调。 |
 
