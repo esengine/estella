@@ -129,6 +129,36 @@
 .ts-tmode { color: var(--text-faint); font-size: var(--fs-2xs); }
 .ts-add { padding: 3px 6px; }
 .ts-tedit { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
+
+/* Collision polygon presets (slopes / half-tiles) — a sub-bar mirroring the terrain bar */
+.ts-slopes {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line);
+  background: var(--srf-2);
+  flex: 0 0 auto;
+}
+.ts-slabel { color: var(--text-faint); font-size: var(--fs-2xs); margin-right: 2px; }
+.ts-slope {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--srf-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  color: var(--text-dim);
+  padding: 3px;
+  cursor: pointer;
+  font: inherit;
+  transition: color var(--t-fast), border-color var(--t-fast);
+}
+.ts-slope-free { padding: 3px 8px; }
+.ts-slope:not(.is-active):hover { border-color: var(--line-strong); color: var(--text); }
+.ts-slope.is-active { border-color: var(--star); color: var(--text); }
+.ts-slope svg { display: block; }
 .ts-tname {
   width: 110px;
   background: var(--inset);

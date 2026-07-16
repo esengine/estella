@@ -9,8 +9,8 @@
  *          against. Subscribes to the reactive TilesetDocument; mutations go through
  *          TilesetCommands (one undo step each).
  *
- * Scope: grid geometry + box collision + terrain peering. Per-tile polygon shapes and
- * animation slot onto the same asset later (the schema already carries them).
+ * Scope: grid geometry + box/polygon collision (freeform vertices or one-click slope /
+ * half-tile presets) + terrain peering + per-tile animation.
  */
 
 import {
@@ -31,6 +31,7 @@ import { TilesetCommands } from '@/tileset/TilesetCommands';
 import { ProjectStore } from '@/project/ProjectStore';
 import { colsFor, rowsFor, TERRAIN_COLORS } from '@/tools/tileMath';
 import { AnimPreview, tileThumbStyle, type TileAtlas } from '@/tools/tileThumb';
+import { SLOPE_PRESETS, presetPointsPx, type SlopePreset } from '@/tileset/slopePresets';
 import { t } from '@/i18n';
 
 // Peering zones in the cell's 3×3 grid; center (membership) is handled separately.
@@ -134,6 +135,9 @@ export function TilesetEditor() {
   const [animTile, setAnimTile] = useState<number | null>(null);
   const [shape, setShape] = useState<'box' | 'polygon'>('box');
   const [polyTile, setPolyTile] = useState<number | null>(null);
+  // In polygon mode, an active preset stamps that canned slope/half-tile on click;
+  // null = freeform (click opens the vertex editor). See slopePresets.
+  const [activePreset, setActivePreset] = useState<SlopePreset | null>(null);
   const [activeSet, setActiveSet] = useState(0);
   const [hovered, setHovered] = useState<number | null>(null);
   // Live collision paint stroke: which tiles + the target on/off state, one undo step.
@@ -162,6 +166,10 @@ export function TilesetEditor() {
   const isSolid = (id: number): boolean =>
     drag?.ids.has(id) ? drag.on : asset.tiles[id]?.collision?.type === 'box';
   const hasPolygon = (id: number): boolean => asset.tiles[id]?.collision?.type === 'polygon';
+  const polyPointsOf = (id: number): [number, number][] | null => {
+    const c = asset.tiles[id]?.collision;
+    return c?.type === 'polygon' ? c.points : null;
+  };
 
   const commitDrag = () => {
     const d = dragRef.current;
@@ -211,14 +219,30 @@ export function TilesetEditor() {
         const w = tw * zoom;
         const h = th * zoom;
         if (mode === 'collision' && shape === 'polygon') {
+          const pts = polyPointsOf(id);
           cells.push(
             <div
               key={id}
               className={'ts-cell ts-pcell' + (hasPolygon(id) ? ' is-poly' : '')}
               style={{ left, top, width: w, height: h }}
-              title={t('tile.cell.polyTip', { id })}
-              onPointerDown={(e) => { e.preventDefault(); setPolyTile(id); }}
-            />,
+              title={activePreset ? t('tile.slope.stampTip', { name: t(activePreset.labelKey) }) : t('tile.cell.polyTip', { id })}
+              onPointerDown={(e) => {
+                e.preventDefault();
+                // A preset stamps directly; freeform opens the vertex editor.
+                if (activePreset) TilesetCommands.setTilePolygon(id, presetPointsPx(activePreset, tw, th));
+                else setPolyTile(id);
+              }}
+            >
+              {pts && (
+                <svg className="ts-pe-svg" width={w} height={h} viewBox={`0 0 ${tw} ${th}`} preserveAspectRatio="none">
+                  <polygon
+                    className="ts-pe-poly"
+                    points={pts.map((p) => `${p[0]},${p[1]}`).join(' ')}
+                    style={{ vectorEffect: 'non-scaling-stroke' }}
+                  />
+                </svg>
+              )}
+            </div>,
           );
         } else if (mode === 'collision') {
           cells.push(
@@ -427,6 +451,34 @@ export function TilesetEditor() {
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {mode === 'collision' && shape === 'polygon' && (
+        <div className="ts-slopes">
+          <span className="ts-slabel">{t('tile.slope.presets')}</span>
+          {SLOPE_PRESETS.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              className={'ts-slope' + (activePreset?.id === p.id ? ' is-active' : '')}
+              title={t(p.labelKey)}
+              aria-label={t(p.labelKey)}
+              onClick={() => setActivePreset((cur) => (cur?.id === p.id ? null : p))}
+            >
+              <svg width={20} height={20} viewBox="0 0 10 10" preserveAspectRatio="none" aria-hidden="true">
+                <polygon className="ts-pe-poly" points={p.points.map(([x, y]) => `${x * 10},${y * 10}`).join(' ')} style={{ vectorEffect: 'non-scaling-stroke' }} />
+              </svg>
+            </button>
+          ))}
+          <button
+            type="button"
+            className={'ts-slope ts-slope-free' + (activePreset === null ? ' is-active' : '')}
+            title={t('tile.slope.freeform')}
+            onClick={() => setActivePreset(null)}
+          >
+            {t('tile.slope.freeform')}
+          </button>
         </div>
       )}
 
