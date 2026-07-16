@@ -122,6 +122,23 @@ describe.skipIf(!HAS_WASM)('controller + gear commands (cascades)', () => {
         expect(gearsOf(leaf)[0]!.pages.b).toEqual({ r: 0, g: 1, b: 0, a: 1 });
     });
 
+    it('setControllerPage projects the page values into the MODEL fields (undo restores both)', () => {
+        const { root, leaf } = makeTree();
+        S.commands.addComponent(leaf, 'UIVisual');
+        const colorOf = () =>
+            (S.model.entityBySource(leaf)?.components.find((c) => c.type === 'UIVisual')?.data as
+                { color: { r: number; g: number } }).color;
+        const white = structuredClone(colorOf());
+
+        S.commands.setControllerPage(root, 'tab', 'b');
+        expect(controllersOf(root)[0]!.current).toBe('b');
+        expect(colorOf()).toEqual({ r: 0, g: 1, b: 0, a: 1 }); // page b's authored green
+
+        S.history.undo();
+        expect(controllersOf(root)[0]!.current).toBe('a');
+        expect(colorOf()).toEqual(white); // the field write undoes with the page switch
+    });
+
     it('refuses to remove the last page', () => {
         const { root } = makeTree();
         S.commands.removeControllerPage(root, 'tab', 'b');

@@ -123,6 +123,8 @@ export {
     getControllerPage,
     findControllerOwner,
     bindControllerPage,
+    readFieldPath,
+    writeFieldPath,
     type UIControllerData,
     type ControllerState,
     type UIGearData,

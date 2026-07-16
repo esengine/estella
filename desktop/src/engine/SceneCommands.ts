@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { SceneData, PrefabData, ControllerState, UIControllerData, GearBinding, GearTween, UIGearData } from 'esengine';
-import { TilemapAPI, TilemapLiveSync, UIPositionType, DimensionUnit, anchorPresetFields, type AnchorPreset } from 'esengine';
+import { TilemapAPI, TilemapLiveSync, UIPositionType, DimensionUnit, anchorPresetFields, writeFieldPath, type AnchorPreset } from 'esengine';
 import type { EntityId, InspectorFieldType, InspectorFieldValue } from '@/types';
 import { EditorHistory, EditorHistoryImpl } from './EditorHistory';
 import { SceneModel, SceneModelImpl } from './SceneModel';
@@ -1260,7 +1260,40 @@ export class SceneCommandsImpl {
     const cur = this.controllersOf(id);
     const ctrl = cur.find((c) => c.name === name);
     if (!ctrl || ctrl.current === page || !ctrl.pages.includes(page)) return;
-    this.writeControllers(id, 'Set Page', cur.map((c) => (c.name === name ? { ...c, current: page } : c)));
+    const next = cur.map((c) => (c.name === name ? { ...c, current: page } : c));
+
+    // Project the page's authored gear values into the MODEL, not just the world:
+    // the model is the document — Details and the saved scene must show the
+    // selected page's values, while the runtime gear-apply system mirrors them
+    // (with tween) in the world. Raw model.setField: bypassing the command door
+    // keeps an armed ControllerRecorder from re-capturing its own projection.
+    const edits: Array<{ id: EntityId; comp: string; key: string; before: unknown; after: unknown }> = [];
+    for (const gid of this.subtreeWithGears(id)) {
+      if (!this.resolvesTo(gid, id, name)) continue;
+      for (const b of this.gearBindingsOf(gid)) {
+        if (b.controller !== name) continue;
+        const target = b.pages[page];
+        if (target === undefined) continue;
+        const data = this.model.entityBySource(gid)?.components.find((c) => c.type === b.component)?.data as
+          Record<string, unknown> | undefined;
+        if (!data) continue;
+        const key = b.property.split('.')[0]!;
+        const scratch = structuredClone(data);
+        if (!writeFieldPath(scratch, b.property, target)) continue;
+        if (valueEqual(scratch[key], data[key])) continue;
+        edits.push({
+          id: gid, comp: b.component, key,
+          before: structuredClone(data[key]), after: structuredClone(scratch[key]),
+        });
+      }
+    }
+
+    const apply = (ctrls: ControllerState[], pick: 'before' | 'after') => {
+      this.model.setField(id, 'UIController', 'controllers', structuredClone(ctrls));
+      for (const e of edits) this.model.setField(e.id, e.comp, e.key, structuredClone(pick === 'after' ? e.after : e.before));
+    };
+    apply(next, 'after');
+    this.history.record('Set Page', () => apply(next, 'after'), () => apply(cur, 'before'));
   }
 
   addControllerPage(id: EntityId, name: string, page: string): void {
