@@ -19,6 +19,7 @@ import { UIVisual, type UIVisualData } from '../core/ui-visual';
 import { Text, type TextData } from '../core/text';
 import { INTERACTION_CONTROLLER } from '../controller/ui-controller';
 import { UIGear, type UIGearData } from '../controller/ui-gear';
+import { TextInput, type TextInputData } from '../text/text-input';
 
 /**
  * Re-resolve every {@link ThemeStyle} entity's role bindings and write the active
@@ -41,6 +42,17 @@ export function applyThemeToWorld(world: World): void {
             const t = world.get(e, Text) as TextData;
             const c = colors[s.text];
             world.insert(e, Text, { ...t, color: { r: c.r, g: c.g, b: c.b, a: t.color.a } });
+        }
+        if (s.input && world.has(e, TextInput)) {
+            const ti = world.get(e, TextInput) as TextInputData;
+            const dye = (role: keyof typeof colors | undefined, cur: Color): Color =>
+                role ? { r: colors[role].r, g: colors[role].g, b: colors[role].b, a: cur.a } : cur;
+            world.insert(e, TextInput, {
+                ...ti,
+                backgroundColor: dye(s.input.background, ti.backgroundColor),
+                color: dye(s.input.text, ti.color),
+                placeholderColor: dye(s.input.placeholder, ti.placeholderColor),
+            });
         }
         if (s.states && world.has(e, UIGear)) {
             const g = world.get(e, UIGear) as UIGearData;

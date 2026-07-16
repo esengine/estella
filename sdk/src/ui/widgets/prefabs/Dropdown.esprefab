@@ -163,6 +163,13 @@
           }
         },
         {
+          "type": "Focusable",
+          "data": {
+            "tabIndex": 0,
+            "isFocused": false
+          }
+        },
+        {
           "type": "UIController",
           "data": {
             "controllers": [

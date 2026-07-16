@@ -57,6 +57,7 @@ describe.skipIf(!HAS_WASM)('createListView (WASM integration)', () => {
     it('virtualizes: a 1000-item list mounts only items near the viewport', async () => {
         const { app, registry } = createApp();
         const list = createListView<number>({
+            host: uiPlugin,
             world: app.world,
             viewportSize: { x: 200, y: 200 },   // 5 rows visible @ 40px
             data: bigList(1000),
@@ -77,6 +78,7 @@ describe.skipIf(!HAS_WASM)('createListView (WASM integration)', () => {
     it('re-mounts a new window on scroll without growing the mount set', async () => {
         const { app, registry } = createApp();
         const list = createListView<number>({
+            host: uiPlugin,
             world: app.world,
             viewportSize: { x: 200, y: 200 },
             data: bigList(1000),
@@ -101,6 +103,7 @@ describe.skipIf(!HAS_WASM)('createListView (WASM integration)', () => {
         const { app, registry } = createApp();
         const data = bigList(3);
         const list = createListView<number>({
+            host: uiPlugin,
             world: app.world,
             viewportSize: { x: 200, y: 400 },   // fits ~10 rows → all 3 visible
             data,
@@ -123,6 +126,7 @@ describe.skipIf(!HAS_WASM)('createListView (WASM integration)', () => {
     it('grid layout mounts a virtualized subset of a large tile set', async () => {
         const { app, registry } = createApp();
         const list = createListView<number>({
+            host: uiPlugin,
             world: app.world,
             viewportSize: { x: 300, y: 200 },
             data: bigList(1000),

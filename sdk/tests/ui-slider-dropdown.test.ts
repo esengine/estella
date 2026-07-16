@@ -3,6 +3,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
     createSlider,
+    createSliderSystem,
+    UISlider,
+    Focusable,
     createDropdown,
     UIEventQueue,
     UIEventType,
@@ -27,6 +30,7 @@ interface MockWorld {
     has(e: Entity, c: object): boolean;
     get(e: Entity, c: object): unknown;
     insert(e: Entity, c: object, data: unknown): void;
+    getEntitiesWithComponents(cs: object[]): Entity[];
     onDespawn(cb: (e: Entity) => void): () => void;
 }
 
@@ -50,6 +54,10 @@ function createMockWorld(): MockWorld {
         has(e, c) { return w._components.get(e as number)?.has(c) ?? false; },
         get(e, c) { return w._components.get(e as number)?.get(c); },
         insert(e, c, d) { w._components.get(e as number)?.set(c, d); },
+        getEntitiesWithComponents(cs: object[]) {
+            return [...w._entities].filter((e) =>
+                cs.every((c) => w._components.get(e)?.has(c))) as Entity[];
+        },
         onDespawn(cb) {
             w._despawnListeners.push(cb);
             return () => {
@@ -63,33 +71,42 @@ function createMockWorld(): MockWorld {
 
 describe('createSlider', () => {
     let world: MockWorld;
+    let events: UIEventQueue;
+    let keys: Set<string>;
+    let tick: () => void;
 
     beforeEach(() => {
         world = createMockWorld();
+        events = new UIEventQueue();
+        keys = new Set();
+        const sys = createSliderSystem(world as unknown as World, events);
+        const input = {
+            isMouseButtonDown: () => false,
+            isKeyPressed: (k: string) => keys.has(k),
+        };
+        const camera = { valid: false };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        tick = () => (sys as any)._fn(input, camera);
     });
 
+    const make = (opts: Record<string, unknown> = {}) =>
+        createSlider({ world: world as unknown as World, events, ...opts });
+
     it('initializes at the provided value, clamped to [min, max]', () => {
-        const slider = createSlider({
-            world: world as unknown as World,
-            min: 0, max: 10, value: 5,
-        });
+        const slider = make({ min: 0, max: 10, value: 5 });
         expect(slider.getValue()).toBe(5);
 
-        const clipped = createSlider({
-            world: world as unknown as World,
-            min: 0, max: 10, value: 99,
-        });
+        const clipped = make({ min: 0, max: 10, value: 99 });
         expect(clipped.getValue()).toBe(10);
     });
 
-    it('setValue clamps and triggers onChange', () => {
+    it('setValue clamps, syncs visuals through the system, and fires onChange', () => {
         const onChange = vi.fn();
-        const slider = createSlider({
-            world: world as unknown as World,
-            min: 0, max: 1, value: 0,
-            onChange,
-        });
+        const slider = make({ min: 0, max: 1, value: 0, onChange });
+        tick(); // initial paint — must not fire a change
+
         slider.setValue(0.5);
+        tick();
         expect(slider.getValue()).toBe(0.5);
         expect(onChange).toHaveBeenCalledWith(0.5, slider.entity);
 
@@ -98,10 +115,7 @@ describe('createSlider', () => {
     });
 
     it('setValue with step snaps to the nearest step', () => {
-        const slider = createSlider({
-            world: world as unknown as World,
-            min: 0, max: 10, step: 2, value: 0,
-        });
+        const slider = make({ min: 0, max: 10, step: 2, value: 0 });
         slider.setValue(3);   // nearest 2-step → 2 or 4 (round half up in JS → 4)
         expect([2, 4]).toContain(slider.getValue());
 
@@ -111,52 +125,71 @@ describe('createSlider', () => {
 
     it('setValue does not fire onChange when value is unchanged', () => {
         const onChange = vi.fn();
-        const slider = createSlider({
-            world: world as unknown as World,
-            min: 0, max: 1, value: 0.5, onChange,
-        });
+        const slider = make({ min: 0, max: 1, value: 0.5, onChange });
+        tick();
         slider.setValue(0.5);
+        tick();
         expect(onChange).not.toHaveBeenCalled();
     });
 
-    it('updates fill amount (Filled crop) on setValue', () => {
-        const slider = createSlider({
-            world: world as unknown as World,
-            min: 0, max: 1, value: 0,
-        });
+    it('updates fill amount (Filled crop) through the system', () => {
+        const slider = make({ min: 0, max: 1, value: 0 });
         slider.setValue(0.25);
+        tick();
         const vis = world.get(slider.fillEntity, UIVisual) as { fillAmount: number };
         expect(vis.fillAmount).toBe(0.25);
     });
 
-    it('updates handle left inset (percent) to position it at t', () => {
-        const slider = createSlider({
-            world: world as unknown as World,
-            min: 0, max: 1, value: 0,
-        });
+    it('updates handle left inset (percent) through the system', () => {
+        const slider = make({ min: 0, max: 1, value: 0 });
         slider.setValue(0.5);
+        tick();
         const node = world.get(slider.handleEntity, UINode) as {
             insetLeft: { value: number; unit: number };
         };
         expect(node.insetLeft).toEqual({ value: 50, unit: DimensionUnit.Percent });
     });
 
-    it('valueAtLocalX maps pointer X to value (with clamping)', () => {
-        const slider = createSlider({
-            world: world as unknown as World,
-            min: 0, max: 100,
-        });
-        expect(slider.valueAtLocalX(0, 200)).toBe(0);
-        expect(slider.valueAtLocalX(100, 200)).toBe(50);
-        expect(slider.valueAtLocalX(200, 200)).toBe(100);
-        expect(slider.valueAtLocalX(-50, 200)).toBe(0);
-        expect(slider.valueAtLocalX(1000, 200)).toBe(100);
+    it('arrow keys nudge the focused slider (1% of range when continuous)', () => {
+        const onChange = vi.fn();
+        const slider = make({ min: 0, max: 100, value: 50, onChange });
+        tick();
+
+        const f = world.get(slider.entity, Focusable) as { isFocused: boolean };
+        f.isFocused = true;
+        world.insert(slider.entity, Focusable, f);
+
+        keys.add('ArrowRight');
+        tick();
+        expect(slider.getValue()).toBe(51);
+        expect(onChange).toHaveBeenCalledWith(51, slider.entity);
+
+        keys.clear();
+        keys.add('Home');
+        tick();
+        expect(slider.getValue()).toBe(0);
+    });
+
+    it('ignores input while disabled', () => {
+        const slider = make({ min: 0, max: 100, value: 50, disabled: true });
+        tick();
+        const f = world.get(slider.entity, Focusable) as { isFocused: boolean };
+        f.isFocused = true;
+        world.insert(slider.entity, Focusable, f);
+        keys.add('ArrowRight');
+        tick();
+        expect(slider.getValue()).toBe(50);
+    });
+
+    it('carries the UISlider component with fill/handle refs', () => {
+        const slider = make({ min: 0, max: 10, value: 5 });
+        const d = world.get(slider.entity, UISlider) as { fill: number; handle: number };
+        expect(d.fill).toBe(slider.fillEntity);
+        expect(d.handle).toBe(slider.handleEntity);
     });
 
     it('dispose despawns the track root', () => {
-        const slider = createSlider({
-            world: world as unknown as World,
-        });
+        const slider = make({});
         expect(world.valid(slider.entity)).toBe(true);
         slider.dispose();
         expect(world.valid(slider.entity)).toBe(false);

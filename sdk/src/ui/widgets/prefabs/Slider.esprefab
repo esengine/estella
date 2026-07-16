@@ -160,6 +160,32 @@
           "data": {
             "visual": "track"
           }
+        },
+        {
+          "type": "Interactable",
+          "data": {
+            "enabled": true,
+            "blockRaycast": true,
+            "raycastTarget": true
+          }
+        },
+        {
+          "type": "Focusable",
+          "data": {
+            "tabIndex": 0,
+            "isFocused": false
+          }
+        },
+        {
+          "type": "UISlider",
+          "data": {
+            "min": 0,
+            "max": 100,
+            "step": 1,
+            "value": 50,
+            "fill": "2",
+            "handle": "1"
+          }
         }
       ],
       "visible": true

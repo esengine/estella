@@ -2,7 +2,6 @@ import {
     defineSystem, Res, GetWorld,
     UIEvents,
     Text, UIVisual,
-    Interactable, UIInteraction,
     spawnUIEntity,
     createButton, createToggle, createSlider, createProgress, createDropdown, createDialog,
     themeColors, px, percent,
@@ -25,8 +24,11 @@ export const buildSystem = defineSystem(
 
         const c = themeColors();
 
+        // Dialog content is built ONCE: closing sets display:none on the
+        // backdrop root, which hides the whole subtree (text included) and
+        // removes it from input. Escape / a scrim click also close it.
         const dialog = createDialog({
-            world, parent: canvas, startHidden: true,
+            world, events, parent: canvas, startHidden: true,
             panelNode: {
                 position: UIPositionType.Absolute,
                 width: px(360), height: px(190),
@@ -35,41 +37,28 @@ export const buildSystem = defineSystem(
             },
             panelVisual: { color: c.surfaceElevated },
         });
-        // Materialize the modal's content only while open — hiding a UI subtree does not hide child Text.
-        let dialogContent: Entity[] = [];
-        function closeDialog(): void {
-            dialog.close();
-            for (const e of dialogContent) if (world.valid(e)) world.despawn(e);
-            dialogContent = [];
-        }
-        function openDialog(): void {
-            if (dialogContent.length) return;
-            dialog.open();
-            dialogContent = [
-                spawnUIEntity({
-                    world, parent: dialog.panelEntity,
-                    node: { position: UIPositionType.Absolute, insetLeft: px(0), insetRight: px(0),
-                        insetTop: px(26), height: px(26) },
-                    text: { content: 'Hello from a modal', fontSize: 18, bold: true, color: c.onPrimary },
-                }),
-                spawnUIEntity({
-                    world, parent: dialog.panelEntity,
-                    node: { position: UIPositionType.Absolute, insetLeft: px(28), insetRight: px(28),
-                        insetTop: px(66), height: px(48) },
-                    text: { content: 'A dialog is just a backdrop plus a panel you fill with children.',
-                        fontSize: 13, color: c.onPrimary, wordWrap: true,
-                        verticalAlign: TextVerticalAlign.Top },
-                }),
-                createButton({
-                    world, events, parent: dialog.panelEntity,
-                    node: { position: UIPositionType.Absolute, width: px(120), height: px(CONTROL_H),
-                        insetLeft: percent(50), marginLeft: px(-60), insetBottom: px(22) },
-                    states: controlStates(c),
-                    text: { content: 'Close', color: c.onPrimary, fontSize: 14 },
-                    onClick: closeDialog,
-                }),
-            ];
-        }
+        spawnUIEntity({
+            world, parent: dialog.panelEntity,
+            node: { position: UIPositionType.Absolute, insetLeft: px(0), insetRight: px(0),
+                insetTop: px(26), height: px(26) },
+            text: { content: 'Hello from a modal', fontSize: 18, bold: true, color: c.onPrimary },
+        });
+        spawnUIEntity({
+            world, parent: dialog.panelEntity,
+            node: { position: UIPositionType.Absolute, insetLeft: px(28), insetRight: px(28),
+                insetTop: px(66), height: px(48) },
+            text: { content: 'A dialog is just a backdrop plus a panel you fill with children.',
+                fontSize: 13, color: c.onPrimary, wordWrap: true,
+                verticalAlign: TextVerticalAlign.Top },
+        });
+        createButton({
+            world, events, parent: dialog.panelEntity,
+            node: { position: UIPositionType.Absolute, width: px(120), height: px(CONTROL_H),
+                insetLeft: percent(50), marginLeft: px(-60), insetBottom: px(22) },
+            states: controlStates(c),
+            text: { content: 'Close', color: c.onPrimary, fontSize: 14 },
+            onClick: () => dialog.close(),
+        });
 
         withRow(world, 'ClicksRow', (row) => {
             const label = world.findEntityByName('ClicksLabel');
@@ -98,18 +87,14 @@ export const buildSystem = defineSystem(
 
         withRow(world, 'VolumeRow', (row) => {
             const label = world.findEntityByName('VolumeLabel');
-            const slider = createSlider({
-                world, parent: row,
+            // Input is built in: drag the track, or Tab to it and use the
+            // arrow keys.
+            state.slider = createSlider({
+                world, events, parent: row,
                 node: slot(SLIDER_W, SLIDER_H),
                 min: 0, max: 100, step: 1, value: 60, handleWidth: 14,
                 onChange: (v) => { if (label !== null) setText(world, label, `Volume  ${Math.round(v)}%`); },
             });
-            // createSlider ships no input; make the track hit-testable for controls.ts.
-            world.insert(slider.trackEntity, Interactable,
-                { enabled: true, blockRaycast: true, raycastTarget: true });
-            world.insert(slider.trackEntity, UIInteraction,
-                { hovered: false, pressed: false, justPressed: false, justReleased: false });
-            state.slider = slider;
         });
 
         withRow(world, 'LoadingRow', (row) => {
@@ -127,7 +112,7 @@ export const buildSystem = defineSystem(
                 node: slot(140, CONTROL_H),
                 states: controlStates(c),
                 text: { content: 'Open…', color: c.onPrimary, fontSize: 14 },
-                onClick: openDialog,
+                onClick: () => dialog.open(),
             });
         });
 

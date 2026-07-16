@@ -119,7 +119,7 @@ export const buildSystem = defineSystem(
                 onClick: () => { set((get() + 1) % opts.length); refresh(); apply(); },
             });
             label = spawnUIEntity({
-                world, parent: btn, node: { fill: true },
+                world, parent: btn.entity, node: { fill: true },
                 text: { content: '', fontSize: 13, color: c.onPrimary,
                     align: TextAlign.Center, verticalAlign: TextVerticalAlign.Middle },
             });

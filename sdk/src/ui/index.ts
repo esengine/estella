@@ -110,6 +110,22 @@ export {
 
 export { UIBehaviorPlugin, uiBehaviorPlugin } from './behavior/plugin';
 
+export {
+    UIDialog,
+    isDialogOpen,
+    setDialogOpen,
+    createDialogSystem,
+    type UIDialogData,
+} from './behavior/dialog';
+
+export {
+    UISlider,
+    sliderClamp,
+    sliderFraction,
+    createSliderSystem,
+    type UISliderData,
+} from './behavior/slider';
+
 // ─── Controllers + Gears (shared UI state) ──────────────────────────────────
 
 export {
@@ -201,12 +217,14 @@ export {
     buildText,
     spawnUIEntity,
     setUIVisible,
+    makeWidgetInteractable,
     FILL_AXIS,
     type LinearFillDirection,
     type UINodeInit,
     type UIVisualInit,
     type TextInit,
     type UIEntityInit,
+    type WidgetInteractionInit,
 } from './widgets/helpers';
 
 export {
@@ -215,8 +233,21 @@ export {
     themeButtonStates,
     interactionGears,
     type ButtonOptions,
+    type ButtonHandle,
     type ButtonStateVisual,
 } from './widgets/button';
+
+export {
+    createTextInput,
+    type TextInputOptions,
+    type TextInputHandle,
+} from './widgets/text-input';
+
+export {
+    createScrollView,
+    type ScrollViewOptions,
+    type ScrollViewHandle,
+} from './widgets/scroll-view';
 
 export {
     createToggle,
@@ -252,6 +283,7 @@ export {
     createListView,
     type CreateListViewOptions,
     type ListViewHandle,
+    type ListViewHost,
     type ListItemTemplate,
     type ListLayoutSpec,
 } from './widgets/list-view';

@@ -13,8 +13,9 @@ import { Interactable } from './interactable';
 import type { InteractableData } from './interactable';
 import { UIInteraction } from './interactable';
 import type { UIInteractionData } from './interactable';
+import { TextInput } from '../text/text-input';
 import { playModeOnly } from '../../env';
-import { UIEvents, UIEventQueue } from '../core/events';
+import { UIEvents, UIEventQueue, UIEventType } from '../core/events';
 import { PluginName } from '../../systemLabels';
 
 export class FocusPlugin implements Plugin {
@@ -37,12 +38,31 @@ export class FocusPlugin implements Plugin {
 
                 const focusableEntities = world.getEntitiesWithComponents([Focusable]);
 
+                let pressedFocusable = false;
                 for (const entity of focusableEntities) {
                     if (!world.has(entity, UIInteraction)) continue;
                     const interaction = world.get(entity, UIInteraction) as UIInteractionData;
                     if (interaction.justPressed) {
+                        pressedFocusable = true;
                         setFocus(entity);
                     }
+                }
+
+                // A press anywhere that is not a focusable clears focus, and so
+                // does Escape — standard focus-dismissal affordances.
+                if (focusManager.focusedEntity !== null) {
+                    const pressedElsewhere = input.isMouseButtonPressed(0) && !pressedFocusable;
+                    if (pressedElsewhere || input.isKeyPressed('Escape')) clearFocus();
+                }
+
+                // Keyboard activation: Enter/Space on the focused control acts as
+                // a click. Text fields consume those keys for editing instead.
+                const focused = focusManager.focusedEntity;
+                if (focused !== null && world.valid(focused) && !world.has(focused, TextInput)
+                    && (input.isKeyPressed('Enter') || input.isKeyPressed('Space'))) {
+                    const enabled = !world.has(focused, Interactable)
+                        || (world.get(focused, Interactable) as InteractableData).enabled;
+                    if (enabled) events.emit(focused, UIEventType.Click);
                 }
 
                 if (input.isKeyPressed('Tab')) {
@@ -85,16 +105,25 @@ export class FocusPlugin implements Plugin {
                     const prev = focusManager.focusedEntity;
                     if (prev === entity) return;
 
-                    if (prev !== null && world.valid(prev) && world.has(prev, Focusable)) {
-                        const prevF = world.get(prev, Focusable) as FocusableData;
-                        prevF.isFocused = false;
-                        events.emit(prev, 'blur');
-                    }
-
+                    blurEntity(prev);
                     focusManager.focus(entity);
                     const f = world.get(entity, Focusable) as FocusableData;
                     f.isFocused = true;
-                    events.emit(entity, 'focus');
+                    world.insert(entity, Focusable, f);
+                    events.emit(entity, UIEventType.Focus);
+                }
+
+                function clearFocus(): void {
+                    blurEntity(focusManager.focusedEntity);
+                    focusManager.blur();
+                }
+
+                function blurEntity(entity: Entity | null): void {
+                    if (entity === null || !world.valid(entity) || !world.has(entity, Focusable)) return;
+                    const f = world.get(entity, Focusable) as FocusableData;
+                    f.isFocused = false;
+                    world.insert(entity, Focusable, f);
+                    events.emit(entity, UIEventType.Blur);
                 }
             },
             { name: 'FocusSystem' }

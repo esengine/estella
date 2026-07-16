@@ -48,7 +48,7 @@ export const UIController = defineComponent<UIControllerData>('UIController', {
 export const INTERACTION_CONTROLLER = '$interaction';
 
 /** Canonical interaction pages, in the order the driver prefers them. */
-export const INTERACTION_PAGES = ['normal', 'hover', 'pressed', 'disabled'] as const;
+export const INTERACTION_PAGES = ['normal', 'hover', 'pressed', 'disabled', 'focused'] as const;
 
 /** Build an interaction ControllerState (defaults to the 4 canonical pages). */
 export function interactionController(pages: string[] = [...INTERACTION_PAGES]): ControllerState {

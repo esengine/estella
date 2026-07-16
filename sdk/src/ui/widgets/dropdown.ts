@@ -3,14 +3,13 @@
 import type { Color, Entity } from '../../types';
 import type { World } from '../../world';
 
-import { Interactable, UIInteraction } from '../input/interactable';
 import { UIController, interactionController } from '../controller/ui-controller';
 import { UIGear } from '../controller/ui-gear';
 import { interactionGears } from './button';
 import { UIEventType, type UIEventQueue } from '../core/events';
 import { Text, type TextData } from '../core/text';
 
-import { spawnUIEntity, type UINodeInit, type UIVisualInit } from './helpers';
+import { spawnUIEntity, makeWidgetInteractable, type UINodeInit, type UIVisualInit } from './helpers';
 import { px, percent } from '../core/dimension';
 import { themeColors } from '../theme/tokens';
 import { markThemed } from '../theme/theme-style';
@@ -57,10 +56,6 @@ export interface DropdownHandle<T> {
     dispose(): void;
 }
 
-const INTERACTION_DEFAULT = {
-    hovered: false, pressed: false, justPressed: false, justReleased: false,
-};
-
 /** Attach a `$interaction` controller + a color gear over its three pages. */
 function addInteractionStates(
     world: World,
@@ -106,8 +101,7 @@ export function createDropdown<T>(opts: DropdownOptions<T>): DropdownHandle<T> {
         node: opts.node ?? { fill: true },
         visual: { color: btnColors.normal },
     });
-    world.insert(button, Interactable, { enabled: true, blockRaycast: true, raycastTarget: true });
-    world.insert(button, UIInteraction, INTERACTION_DEFAULT);
+    makeWidgetInteractable(world, button);
     addInteractionStates(world, button, btnColors);
     if (opts.buttonStates === undefined) {
         markThemed(world, button, { states: { normal: 'control', hover: 'controlHover', pressed: 'controlActive' } });
@@ -182,8 +176,9 @@ export function createDropdown<T>(opts: DropdownOptions<T>): DropdownHandle<T> {
             },
             visual: { color: optColors.normal },
         });
-        world.insert(row, Interactable, { enabled: true, blockRaycast: true, raycastTarget: true });
-        world.insert(row, UIInteraction, INTERACTION_DEFAULT);
+        // Rows are pointer-only: the popup is transient, so they stay out of
+        // the Tab ring (keyboard option navigation is a later step).
+        makeWidgetInteractable(world, row, { focusable: false });
         addInteractionStates(world, row, optColors);
         if (opts.optionStates === undefined) {
             markThemed(world, row, { states: { normal: 'control', hover: 'primaryHover', pressed: 'primaryActive' } });

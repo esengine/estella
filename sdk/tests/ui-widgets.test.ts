@@ -20,6 +20,7 @@ import {
     UIEventQueue,
     UIEventType,
     UIDisplay,
+    UIDialog,
     themeColors,
     type UIControllerData,
     type UIGearData,
@@ -108,7 +109,7 @@ describe('createButton', () => {
             .find((c) => c.name === INTERACTION_CONTROLLER)!;
 
     it('attaches the required components', () => {
-        const btn = createButton({
+        const { entity: btn } = createButton({
             world: world as unknown as World,
             events,
             states: {
@@ -127,7 +128,7 @@ describe('createButton', () => {
     });
 
     it('folds the `states` map into a $interaction color gear', () => {
-        const btn = createButton({
+        const { entity: btn } = createButton({
             world: world as unknown as World,
             events,
             states: {
@@ -148,7 +149,7 @@ describe('createButton', () => {
     });
 
     it('defaults its states to the active theme control roles (de-nude)', () => {
-        const btn = createButton({ world: world as unknown as World, events, text: 'OK' });
+        const { entity: btn } = createButton({ world: world as unknown as World, events, text: 'OK' });
         const gear = world.get(btn, UIGear) as UIGearData;
         const colorGear = gear.bindings.find((b) => b.property === 'color')!;
         const c = themeColors();
@@ -159,7 +160,7 @@ describe('createButton', () => {
     });
 
     it('starts on the "disabled" page when opts.disabled is true', () => {
-        const btn = createButton({
+        const { entity: btn } = createButton({
             world: world as unknown as World,
             events,
             disabled: true,
@@ -174,19 +175,19 @@ describe('createButton', () => {
     });
 
     it('lists canonical pages first, then custom states', () => {
-        const btn = createButton({
+        const { entity: btn } = createButton({
             world: world as unknown as World,
             events,
             states: { normal: {}, loading: {}, celebrating: {} },
         });
         expect(interactionOf(btn).pages).toEqual(
-            ['normal', 'hover', 'pressed', 'disabled', 'loading', 'celebrating'],
+            ['normal', 'hover', 'pressed', 'disabled', 'focused', 'loading', 'celebrating'],
         );
     });
 
     it('fires onClick on the interaction layer click event', () => {
         const onClick = vi.fn();
-        const btn = createButton({
+        const { entity: btn } = createButton({
             world: world as unknown as World,
             events,
             states: { normal: {}, hover: {}, pressed: {} },
@@ -199,7 +200,7 @@ describe('createButton', () => {
 
     it('swallows clicks while disabled', () => {
         const onClick = vi.fn();
-        const btn = createButton({
+        const { entity: btn } = createButton({
             world: world as unknown as World,
             events,
             disabled: true,
@@ -212,7 +213,7 @@ describe('createButton', () => {
     });
 
     it('setButtonState writes the $interaction page, growing the enum for custom states', () => {
-        const btn = createButton({
+        const { entity: btn } = createButton({
             world: world as unknown as World,
             events,
             states: { normal: {} },
@@ -408,45 +409,59 @@ describe('createProgress', () => {
 
 describe('createDialog', () => {
     let world: MockWorld;
+    let events: UIEventQueue;
 
     beforeEach(() => {
         world = createMockWorld();
+        events = new UIEventQueue();
     });
 
     it('starts hidden by default — backdrop subtree is display:none', () => {
-        const dialog = createDialog({ world: world as unknown as World });
+        const dialog = createDialog({ world: world as unknown as World, events });
         expect(dialog.isOpen()).toBe(false);
-        const bg = world.get(dialog.backdropEntity, UINode) as { display: number };
+        const bg = world.get(dialog.entity, UINode) as { display: number };
         expect(bg.display).toBe(UIDisplay.None);
     });
 
     it('open() restores display:flex on the backdrop root', () => {
-        const dialog = createDialog({ world: world as unknown as World });
+        const dialog = createDialog({ world: world as unknown as World, events });
         dialog.open();
         expect(dialog.isOpen()).toBe(true);
 
-        const bg = world.get(dialog.backdropEntity, UINode) as { display: number };
+        const bg = world.get(dialog.entity, UINode) as { display: number };
         expect(bg.display).toBe(UIDisplay.Flex);
         // The blocker stays enabled permanently — display:none already removes
         // the whole subtree from hit-testing while closed.
-        const inter = world.get(dialog.backdropEntity, Interactable) as { enabled: boolean };
+        const inter = world.get(dialog.entity, Interactable) as { enabled: boolean };
         expect(inter.enabled).toBe(true);
     });
 
     it('close() sets display:none so user children under the panel vanish too', () => {
-        const dialog = createDialog({ world: world as unknown as World, startHidden: false });
+        const dialog = createDialog({ world: world as unknown as World, events, startHidden: false });
         expect(dialog.isOpen()).toBe(true);
 
         dialog.close();
         expect(dialog.isOpen()).toBe(false);
-        const bg = world.get(dialog.backdropEntity, UINode) as { display: number };
+        const bg = world.get(dialog.entity, UINode) as { display: number };
         expect(bg.display).toBe(UIDisplay.None);
     });
 
+    it('open/close carry the dismissal component and report through onOpenChange', () => {
+        const seen: boolean[] = [];
+        const dialog = createDialog({
+            world: world as unknown as World, events,
+            onOpenChange: (open) => seen.push(open),
+        });
+        expect(world.has(dialog.entity, UIDialog)).toBe(true);
+        dialog.open();
+        dialog.close();
+        expect(seen).toEqual([true, false]);
+    });
+
     it('dispose despawns the backdrop', () => {
-        const dialog = createDialog({ world: world as unknown as World });
-        expect(world.valid(dialog.backdropEntity)).toBe(true);
+        const dialog = createDialog({ world: world as unknown as World, events });
+        expect(world.valid(dialog.entity)).toBe(true);
         dialog.dispose();
-        expect(world.valid(dialog.backdropEntity)).toBe(false);
+        expect(world.valid(dialog.entity)).toBe(false);
     });
 });

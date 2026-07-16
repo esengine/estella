@@ -12,6 +12,10 @@ import { createToggle } from '../src/ui/widgets/toggle';
 import { createSlider } from '../src/ui/widgets/slider';
 import { createProgress } from '../src/ui/widgets/progress';
 import { createDropdown } from '../src/ui/widgets/dropdown';
+import { createDialog } from '../src/ui/widgets/dialog';
+import { createTextInput } from '../src/ui/widgets/text-input';
+import { UISlider } from '../src/ui/behavior/slider';
+import { registerComponent } from '../src/component';
 import { spawnUIEntity } from '../src/ui/widgets/helpers';
 import { UIMask, MaskMode } from '../src/ui/core/ui-mask';
 import { Interactable } from '../src/ui/input/interactable';
@@ -61,12 +65,12 @@ describe('UI widget prefab codegen', () => {
                 world, events: noEvents,
                 node: { width: px(140), height: px(40) },
                 text: { content: 'Button', fontSize: 14 },
-            }) as unknown as number,
+            }).entity as unknown as number,
         );
 
         const root = typesOf(prefab, prefab.rootEntityId);
         expect(root).toEqual(expect.arrayContaining([
-            'Transform', 'UINode', 'UIVisual', 'Interactable', 'UIController', 'UIGear',
+            'Transform', 'UINode', 'UIVisual', 'Interactable', 'Focusable', 'UIController', 'UIGear',
         ]));
         const rootEnt = entityById(prefab, prefab.rootEntityId);
         expect(rootEnt.children.length).toBe(1);
@@ -88,13 +92,53 @@ describe('UI widget prefab codegen', () => {
     });
 
     it('Slider: track + fill + handle', () => {
+        // The suite-wide beforeEach clears user components; capture-side entity
+        // ref remapping resolves UISlider by name, so put it back (the behavior
+        // plugin does this in a real app).
+        registerComponent('UISlider', UISlider);
         const prefab = generate('Slider', (world) =>
             createSlider({
-                world, node: { width: px(200), height: px(18) },
+                world, events: noEvents, node: { width: px(200), height: px(18) },
                 min: 0, max: 100, step: 1, value: 50, handleWidth: 14,
             }).entity as unknown as number,
         );
         expect(entityById(prefab, prefab.rootEntityId).children.length).toBe(2);
+        // The behavior component rides along, with its intra-prefab entity refs
+        // remapped to prefab-local ids — an editor-placed slider is functional.
+        const sliderComp = entityById(prefab, prefab.rootEntityId).components
+            .find((cc) => cc.type === 'UISlider')!;
+        expect(sliderComp).toBeDefined();
+        const kids = entityById(prefab, prefab.rootEntityId).children;
+        expect(kids).toContain(sliderComp.data.fill);
+        expect(kids).toContain(sliderComp.data.handle);
+    });
+
+    it('Dialog: backdrop scrim + panel, dismissal data-driven by UIDialog', () => {
+        const prefab = generate('Dialog', (world) =>
+            createDialog({
+                world, events: noEvents,
+                startHidden: false, // an editor-placed dialog should be visible
+            }).entity as unknown as number,
+        );
+        expect(typesOf(prefab, prefab.rootEntityId)).toEqual(expect.arrayContaining([
+            'UINode', 'UIVisual', 'Interactable', 'UIDialog',
+        ]));
+        const rootEnt = entityById(prefab, prefab.rootEntityId);
+        expect(rootEnt.children.length).toBe(1);
+        expect(typesOf(prefab, rootEnt.children[0]!)).toEqual(
+            expect.arrayContaining(['UINode', 'UIVisual', 'Interactable']));
+    });
+
+    it('TextInput: an editable field over the SDF input plugin', () => {
+        const prefab = generate('TextInput', (world) =>
+            createTextInput({
+                world, events: noEvents,
+                placeholder: 'Text…',
+            }).entity as unknown as number,
+        );
+        expect(typesOf(prefab, prefab.rootEntityId)).toEqual(expect.arrayContaining([
+            'UINode', 'Interactable', 'Focusable', 'TextInput', 'ThemeStyle',
+        ]));
     });
 
     it('Progress: track + fill', () => {

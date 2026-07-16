@@ -16,6 +16,9 @@ import { ScrollContainer, ScrollContainerRegistry } from '../collection/scroll-c
 import { KineticScroll } from '../collection/kinetic-scroll';
 import { UIInteraction, type UIInteractionData } from '../input/interactable';
 import { getEntityDepth } from '../util/helpers';
+import { UIDialog, createDialogSystem } from './dialog';
+import { UISlider, createSliderSystem } from './slider';
+import { registerComponent } from '../../component';
 
 /** Screen-px slop before a press becomes a scroll drag (matches Draggable). */
 const SCROLL_DRAG_THRESHOLD_PX = 5;
@@ -89,6 +92,20 @@ export class UIBehaviorPlugin implements Plugin {
         app.world.onDespawn((entity) => scrollContainers.detach(entity));
 
         const world = app.world;
+
+        registerComponent('UIDialog', UIDialog);
+        app.addSystemToSchedule(
+            Schedule.Update,
+            createDialogSystem(world, events),
+            { runIf: playModeOnly },
+        );
+
+        registerComponent('UISlider', UISlider);
+        app.addSystemToSchedule(
+            Schedule.Update,
+            createSliderSystem(world, events),
+            { runIf: playModeOnly },
+        );
 
         app.addSystemToSchedule(
             Schedule.Update,

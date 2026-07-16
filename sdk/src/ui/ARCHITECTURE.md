@@ -43,13 +43,13 @@ collection, or widgets.
 | `layout/` | Flexbox layout + safe area + layout bookkeeping | `anchor`, `flex`, `layout` (Yoga driver plugin), `safe-area`, `ui-layout-generation` |
 | `input/` | Pointer/keyboard interaction primitives + their plugins | `interactable`, `draggable`, `focusable`, `drag`, `focus`, `interaction` |
 | `controller/` | The one widget-state mechanism: named pages + per-component property gears, tween-applied | `ui-controller`, `ui-gear`, `gear-apply`, `bind-page`, `ai-builtins`, `plugin` |
-| `behavior/` | Runtime systems for scroll/collection ticking + theme re-resolution | `plugin` (UIBehaviorPlugin), `theme-apply` |
+| `behavior/` | Runtime systems: scroll/collection ticking, data-driven widget behavior, theme re-resolution | `plugin` (UIBehaviorPlugin), `dialog`, `slider`, `theme-apply` |
 | `render/` | UI-specific render concerns | `mask`, `render-order` |
 | `collection/` | Data-driven collections + view recycling | `list-view`, `scroll-container`, `view-pool`, `data-source`, `layout-provider` |
 | `text/` | SDF glyph atlas, text layout, rich text, editable text | `glyph-atlas`, `text-renderer`, `layout`, `rich-text-*`, `text-input`, `image-resolver` |
 | `theme/` | Design tokens + per-entity role markers | `tokens`, `theme-style` |
 | `util/` | Cross-cutting helpers (no engine state of their own) | `helpers`, `math`, `constants`, `property-path`, `ui-pick` |
-| `widgets/` | Layer-4 widget **factory functions** + their prefab capture | `button`, `toggle`, `slider`, `progress`, `dialog`, `dropdown`, `list-view`, `helpers`, `toPrefab`, `prefabs/` |
+| `widgets/` | Layer-4 widget **factory functions** + their prefab capture | `button`, `toggle`, `slider`, `progress`, `dialog`, `dropdown`, `text-input`, `list-view`, `scroll-view`, `helpers`, `toPrefab`, `prefabs/` |
 
 Only two files live at the module root, and that is deliberate:
 

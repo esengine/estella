@@ -2,6 +2,7 @@ import {
     defineSystem, Res, GetWorld,
     UIEvents,
     Text, UIVisual,
+    uiPlugin,
     createListView, createButton,
     ArrayDataSource,
     spawnUIEntity,
@@ -77,6 +78,7 @@ export const buildSystem = defineSystem(
         };
 
         state.list = createListView<Contact>({
+            host: uiPlugin,
             world, parent: listSlot,
             viewportSize: { x: LIST_W, y: LIST_H },
             background: { color: { r: 0.11, g: 0.11, b: 0.13, a: 1 } },
@@ -106,6 +108,7 @@ export const buildSystem = defineSystem(
         };
 
         state.grid = createListView<number>({
+            host: uiPlugin,
             world, parent: gridSlot,
             viewportSize: { x: GRID_W, y: GRID_H },
             background: { color: { r: 0.11, g: 0.11, b: 0.13, a: 1 } },

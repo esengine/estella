@@ -1,0 +1,183 @@
+{
+  "version": "2",
+  "name": "TextInput",
+  "rootEntityId": "0",
+  "entities": [
+    {
+      "prefabEntityId": "0",
+      "name": "TextInput",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "worldPosition": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "worldRotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "worldScale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 0,
+            "display": 0,
+            "width": {
+              "value": 220,
+              "unit": 0
+            },
+            "height": {
+              "value": 32,
+              "unit": 0
+            },
+            "minWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "minHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "flexGrow": 0,
+            "flexShrink": 1,
+            "flexBasis": {
+              "value": 0,
+              "unit": 2
+            },
+            "alignSelf": 0,
+            "marginLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginBottom": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0,
+              "unit": 2
+            },
+            "insetTop": {
+              "value": 0,
+              "unit": 2
+            },
+            "insetRight": {
+              "value": 0,
+              "unit": 2
+            },
+            "insetBottom": {
+              "value": 0,
+              "unit": 2
+            }
+          }
+        },
+        {
+          "type": "Interactable",
+          "data": {
+            "enabled": true,
+            "blockRaycast": true,
+            "raycastTarget": true
+          }
+        },
+        {
+          "type": "Focusable",
+          "data": {
+            "tabIndex": 0,
+            "isFocused": false
+          }
+        },
+        {
+          "type": "TextInput",
+          "data": {
+            "value": "",
+            "placeholder": "Text…",
+            "placeholderColor": {
+              "r": 0.92,
+              "g": 0.92,
+              "b": 0.94,
+              "a": 0.5
+            },
+            "fontFamily": "Arial",
+            "fontSize": 14,
+            "color": {
+              "r": 0.92,
+              "g": 0.92,
+              "b": 0.94,
+              "a": 1
+            },
+            "backgroundColor": {
+              "r": 0.22,
+              "g": 0.22,
+              "b": 0.26,
+              "a": 1
+            },
+            "padding": 6,
+            "maxLength": 0,
+            "multiline": false,
+            "password": false,
+            "readOnly": false,
+            "focused": false,
+            "cursorPos": 0,
+            "dirty": true
+          }
+        },
+        {
+          "type": "ThemeStyle",
+          "data": {
+            "input": {
+              "background": "control",
+              "text": "text",
+              "placeholder": "text"
+            }
+          }
+        }
+      ],
+      "visible": true
+    }
+  ]
+}

@@ -81,7 +81,7 @@ describe('live re-theming', () => {
 
     it('switchTheme restyles an already-built button (gear pages + label)', () => {
         const w = mockWorld();
-        const btn = createButton({ world: w, events: noEvents, text: 'OK' });
+        const { entity: btn } = createButton({ world: w, events: noEvents, text: 'OK' });
         // Built under the default dark theme.
         expect((colorPages(w, btn).normal as { r: number }).r).toBeCloseTo(DARK_TOKENS.colors.control.r);
 
@@ -98,7 +98,7 @@ describe('live re-theming', () => {
 
     it('does not clobber a button whose states the caller supplied', () => {
         const w = mockWorld();
-        const btn = createButton({
+        const { entity: btn } = createButton({
             world: w, events: noEvents,
             states: { normal: { color: { r: 0.5, g: 0.1, b: 0.9, a: 1 } } },
         });

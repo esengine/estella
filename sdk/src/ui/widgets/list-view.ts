@@ -14,17 +14,14 @@
  * a kinetic fling) are handled by the behavior plugin once the viewport is a
  * hovered raycast target.
  */
-import { Transform } from '../../component';
 import type { Entity, Vec2 } from '../../types';
 import type { World } from '../../world';
 
 import { UINode, UIPositionType, type UINodeData } from '../core/ui-node';
 import { px, auto } from '../core/dimension';
 import { UIMask, MaskMode } from '../core/ui-mask';
-import { Interactable, UIInteraction } from '../input/interactable';
-import { uiPlugin } from '../ui-plugin';
 
-import { spawnUIEntity, setUIVisible, type UINodeInit, type UIVisualInit } from './helpers';
+import { spawnUIEntity, setUIVisible, makeWidgetInteractable, type UINodeInit, type UIVisualInit } from './helpers';
 
 import {
     type DataSource,
@@ -38,6 +35,20 @@ import {
 } from '../collection/layout-provider';
 import { ListView } from '../collection/list-view';
 import { ScrollContainer } from '../collection/scroll-container';
+
+/**
+ * The per-frame runtime a list view plugs into: the tick registry that drives
+ * virtualization and the scroll input hookup. The composed `uiPlugin` (and the
+ * granular `uiBehaviorPlugin`) satisfy this — passed explicitly so the factory
+ * works against whichever plugin instance owns the app, never a module
+ * singleton.
+ */
+export interface ListViewHost {
+    registerListView(list: ListView<unknown>): void;
+    unregisterListView(list: ListView<unknown>): void;
+    attachScrollContainer(entity: Entity, container: ScrollContainer): void;
+    detachScrollContainer(entity: Entity): void;
+}
 
 /** A single item type: how to build the entity and how to bind data to it. */
 export interface ListItemTemplate<T> {
@@ -55,6 +66,8 @@ export type ListLayoutSpec =
 
 export interface CreateListViewOptions<T> {
     world: World;
+    /** The plugin that ticks virtualization + routes scroll input (`uiPlugin`). */
+    host: ListViewHost;
     parent?: Entity;
     /** Pixel size of the visible window. Required — scroll math needs it up front. */
     viewportSize: Vec2;
@@ -160,7 +173,7 @@ function placeByInset(world: World, entity: Entity, rect: Rect): void {
  * list.data.append([newPlayer]);   // auto-refreshes
  */
 export function createListView<T>(opts: CreateListViewOptions<T>): ListViewHandle<T> {
-    const { world, viewportSize } = opts;
+    const { world, host, viewportSize } = opts;
 
     // 1) Viewport: sized box + Scissor mask + a hovered hit-target (for the wheel).
     const viewport = spawnUIEntity({
@@ -170,8 +183,7 @@ export function createListView<T>(opts: CreateListViewOptions<T>): ListViewHandl
         visual: opts.background ?? { color: { r: 0, g: 0, b: 0, a: 0 } },
     });
     world.insert(viewport, UIMask, { enabled: true, mode: MaskMode.Scissor });
-    world.insert(viewport, Interactable, { enabled: true, blockRaycast: true, raycastTarget: true });
-    world.insert(viewport, UIInteraction, { hovered: false, pressed: false, justPressed: false, justReleased: false });
+    makeWidgetInteractable(world, viewport, { focusable: false });
 
     // 2) Content: an Absolute frame translated by the scroll offset; items live here.
     const content = spawnUIEntity({
@@ -207,7 +219,7 @@ export function createListView<T>(opts: CreateListViewOptions<T>): ListViewHandl
         setVisible: (w, e, v) => setUIVisible(w, e, v),
         onItemBound: opts.onItemBound,
     });
-    uiPlugin.registerListView(view as ListView<unknown>);
+    host.registerListView(view as ListView<unknown>);
 
     // 6) Scroll model: wheel- and drag-driven by the plugin; onScroll translates
     //    the content frame and pushes the offset into the driver.
@@ -226,7 +238,7 @@ export function createListView<T>(opts: CreateListViewOptions<T>): ListViewHandl
         world.insert(content, UINode, n);
         view.setScrollOffset(offset);
     });
-    uiPlugin.attachScrollContainer(viewport, scroll);
+    host.attachScrollContainer(viewport, scroll);
 
     // 7) Keep the scroll range in step with the data count.
     const offData = data.subscribe?.(() => {
@@ -251,8 +263,8 @@ export function createListView<T>(opts: CreateListViewOptions<T>): ListViewHandl
             disposed = true;
             offScroll();
             offData?.();
-            uiPlugin.unregisterListView(view as ListView<unknown>);
-            uiPlugin.detachScrollContainer(viewport);
+            host.unregisterListView(view as ListView<unknown>);
+            host.detachScrollContainer(viewport);
             scroll.dispose();
             view.dispose();
             if (world.valid(viewport)) world.despawn(viewport);

@@ -23,6 +23,7 @@ import { Res, Time, type TimeData } from '../../resource';
 import { applyEasing } from '../../animation/Easing';
 import { EntityStateMap } from '../util/helpers';
 import { Interactable, UIInteraction, type InteractableData, type UIInteractionData } from '../input/interactable';
+import { Focusable, type FocusableData } from '../input/focusable';
 import type { Entity } from '../../types';
 import type { World } from '../../world';
 import {
@@ -113,7 +114,7 @@ export function lerpGearValue(from: unknown, to: unknown, t: number): unknown {
  * the driver must not steal it back.
  */
 const DRIVER_OWNED_PAGES: ReadonlySet<string> = new Set([
-    '', 'normal', 'hover', 'pressed', 'disabled',
+    '', 'normal', 'hover', 'pressed', 'disabled', 'focused',
 ]);
 
 /**
@@ -123,10 +124,12 @@ const DRIVER_OWNED_PAGES: ReadonlySet<string> = new Set([
 export function driverStateFor(
     enabled: boolean,
     interaction: UIInteractionData | null,
+    focused = false,
 ): string {
     if (!enabled) return 'disabled';
     if (interaction?.pressed) return 'pressed';
     if (interaction?.hovered) return 'hover';
+    if (focused) return 'focused';
     return 'normal';
 }
 
@@ -148,7 +151,9 @@ export function createInteractionControllerDriverSystem(world: World): SystemDef
                 ? (world.get(e, UIInteraction) as UIInteractionData)
                 : null;
             const interactable = world.get(e, Interactable) as InteractableData;
-            const next = driverStateFor(interactable.enabled, inter);
+            const focused = world.has(e, Focusable)
+                && (world.get(e, Focusable) as FocusableData).isFocused;
+            const next = driverStateFor(interactable.enabled, inter, focused);
             if (next !== ctrl.current && ctrl.pages.includes(next)) {
                 ctrl.current = next;
                 world.insert(e, UIController, data);

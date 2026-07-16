@@ -3,27 +3,35 @@
 import type { Entity } from '../../types';
 import type { World } from '../../world';
 
-import { UINode, type UINodeData } from '../core/ui-node';
 import { px, percent } from '../core/dimension';
-import { UIVisual, UIVisualType, type UIVisualData } from '../core/ui-visual';
+import { UIVisualType } from '../core/ui-visual';
+import { UIEventType, type UIEventQueue } from '../core/events';
 
-import { spawnUIEntity, FILL_AXIS, type UINodeInit, type UIVisualInit } from './helpers';
+import { spawnUIEntity, makeWidgetInteractable, FILL_AXIS, type UINodeInit, type UIVisualInit } from './helpers';
 import { themeColors } from '../theme/tokens';
 import { markThemed } from '../theme/theme-style';
+import { UISlider, sliderClamp, sliderFraction, type UISliderData } from '../behavior/slider';
 
 export interface SliderOptions {
     world: World;
+    events: UIEventQueue;
     parent?: Entity;
     node?: UINodeInit;
     min?: number;
     max?: number;
     value?: number;
     /**
-     * Optional quantization step. `0` (default) = continuous.
+     * Optional quantization step. `0` (default) = continuous. Also the
+     * keyboard nudge; a continuous slider nudges by 1% of the range.
      */
     step?: number;
     /** Handle width in pixels. Default 12. */
     handleWidth?: number;
+    /** Start disabled. */
+    disabled?: boolean;
+    /** Participate in Tab traversal + arrow-key nudging. Default true. */
+    focusable?: boolean;
+    tabIndex?: number;
 
     trackVisual?: UIVisualInit;
     fillVisual?: UIVisualInit;
@@ -39,27 +47,24 @@ export interface SliderHandle {
     readonly handleEntity: Entity;
     getValue(): number;
     setValue(value: number): void;
-    /**
-     * Translate a track-local x position (pixels from left) to a slider
-     * value, clamped and optionally snapped to `step`. Caller wires
-     * this to their drag / click handlers — v1 has no built-in input.
-     */
-    valueAtLocalX(localX: number, trackWidth: number): number;
     dispose(): void;
 }
 
 /**
  * Horizontal slider composed of a track, a fill bar, and a handle thumb.
- * Interaction (drag, click-to-snap) is not wired here — use
- * `valueAtLocalX()` with your own pointer handler, or call `setValue`
- * directly.
+ * State + input live in the {@link UISlider} component and its behavior
+ * system: pointer drag (press-capture on the track), arrow keys / Home / End
+ * while focused, and value→visual sync for any writer — this handle, a
+ * binding, or the editor inspector.
  */
 export function createSlider(opts: SliderOptions): SliderHandle {
+    const { world, events } = opts;
     const min = opts.min ?? 0;
     const max = opts.max ?? 1;
     const step = opts.step ?? 0;
     const handleWidth = opts.handleWidth ?? 12;
-    let value = clampAndSnap(opts.value ?? min, min, max, step);
+    const value = sliderClamp(opts.value ?? min, { min, max, step });
+    const frac = sliderFraction({ min, max, value });
 
     const c = themeColors();
 
@@ -68,79 +73,67 @@ export function createSlider(opts: SliderOptions): SliderHandle {
     const [fillMethod, fillOrigin] = FILL_AXIS.right;
 
     const track = spawnUIEntity({
-        world: opts.world,
+        world,
         parent: opts.parent,
         node: opts.node ?? { fill: true },
         visual: opts.trackVisual ?? { color: c.track },
     });
-    if (!opts.trackVisual) markThemed(opts.world, track, { visual: 'track' });
+    if (!opts.trackVisual) markThemed(world, track, { visual: 'track' });
+    makeWidgetInteractable(world, track, {
+        disabled: opts.disabled,
+        focusable: opts.focusable,
+        tabIndex: opts.tabIndex,
+    });
 
     const fill = spawnUIEntity({
-        world: opts.world,
+        world,
         parent: track,
         node: { fill: true },
         visual: {
             visualType: UIVisualType.Filled,
             fillMethod,
             fillOrigin,
-            fillAmount: fraction(value, min, max),
+            fillAmount: frac,
             ...(opts.fillVisual ?? { color: c.primary }),
         },
     });
-    if (!opts.fillVisual) markThemed(opts.world, fill, { visual: 'primary' });
+    if (!opts.fillVisual) markThemed(world, fill, { visual: 'primary' });
 
     const handle = spawnUIEntity({
-        world: opts.world,
+        world,
         parent: track,
-        node: handleNodeAt(fraction(value, min, max), handleWidth),
+        node: handleNodeAt(frac, handleWidth),
         visual: opts.handleVisual ?? { color: c.onPrimary },
     });
-    if (!opts.handleVisual) markThemed(opts.world, handle, { visual: 'onPrimary' });
+    if (!opts.handleVisual) markThemed(world, handle, { visual: 'onPrimary' });
 
-    // Value -> visuals: the fill's Filled amount is the value fraction (a
-    // render-time crop, no relayout); the handle's left inset tracks it,
-    // centered via a -half-width margin.
-    function writeVisuals(t: number): void {
-        const vis = opts.world.get(fill, UIVisual) as UIVisualData;
-        vis.fillAmount = t;
-        opts.world.insert(fill, UIVisual, vis);
+    world.insert(track, UISlider, { min, max, step, value, fill, handle });
 
-        const handleNode = opts.world.get(handle, UINode) as UINodeData;
-        handleNode.insetLeft = percent(t * 100);
-        opts.world.insert(handle, UINode, handleNode);
-    }
-
-    function setValue(next: number): void {
-        const v = clampAndSnap(next, min, max, step);
-        if (v === value) return;
-        value = v;
-        writeVisuals(fraction(value, min, max));
-        opts.onChange?.(value, track);
-    }
-
-    function valueAtLocalX(localX: number, trackWidth: number): number {
-        if (trackWidth <= 0) return min;
-        const t = clamp(localX / trackWidth, 0, 1);
-        return clampAndSnap(min + t * (max - min), min, max, step);
-    }
+    const offChange = opts.onChange
+        ? events.on(track, UIEventType.Change, (ev) => {
+              opts.onChange!((ev.data as { value: number }).value, track);
+          })
+        : undefined;
 
     return {
         entity: track,
         trackEntity: track,
         fillEntity: fill,
         handleEntity: handle,
-        getValue: () => value,
-        setValue,
-        valueAtLocalX,
+        getValue: () => (world.get(track, UISlider) as UISliderData).value,
+        setValue: (next: number) => {
+            const d = world.get(track, UISlider) as UISliderData;
+            const v = sliderClamp(next, d);
+            if (v !== d.value) {
+                d.value = v;
+                world.insert(track, UISlider, d);
+            }
+        },
         dispose: () => {
-            if (opts.world.valid(track)) opts.world.despawn(track);
+            offChange?.();
+            if (world.valid(track)) world.despawn(track);
         },
     };
-}
-
-function fraction(value: number, min: number, max: number): number {
-    if (max <= min) return 0;
-    return clamp((value - min) / (max - min), 0, 1);
 }
 
 // Handle: absolute, full height, fixed width, centered at the value fraction
@@ -154,15 +147,4 @@ function handleNodeAt(t: number, width: number): UINodeInit {
         marginLeft: px(-width / 2),
         width: px(width),
     };
-}
-
-function clamp(value: number, lo: number, hi: number): number {
-    return value < lo ? lo : value > hi ? hi : value;
-}
-
-function clampAndSnap(value: number, min: number, max: number, step: number): number {
-    const clamped = clamp(value, min, max);
-    if (step <= 0) return clamped;
-    const snapped = Math.round((clamped - min) / step) * step + min;
-    return clamp(snapped, min, max);
 }

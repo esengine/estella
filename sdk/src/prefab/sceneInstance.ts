@@ -29,6 +29,7 @@
 import { flattenPrefab } from './flatten';
 import { diffAgainstSource } from './diff';
 import { cloneComponents } from './clone';
+import { getComponent } from '../component';
 import { PREFAB_FORMAT_VERSION } from './migrate';
 import type {
     PrefabData,
@@ -218,10 +219,29 @@ export interface ExtractEntity {
  * components are deep-cloned so the asset owns its own data. Emits the current
  * prefab format, so no migration runs on load.
  *
- * NOTE: component fields that REFERENCE another entity by id are left as-is —
- * remapping internal entity links to prefab ids is a later refinement; the
- * common case (no intra-prefab entity refs) round-trips exactly.
+ * Component fields that REFERENCE another entity (declared via the component's
+ * `entityFields` metadata) are remapped to prefab-local ids when the target is
+ * inside the subtree; instantiation maps them back (see remapComponentEntityRefs).
+ * A reference pointing outside the subtree is left numeric and will dangle.
  */
+/** Capture-side twin of remapComponentEntityRefs: runtime id → prefab-local id. */
+function captureEntityRefs(
+    components: ComponentData[],
+    idMap: Map<number, string>,
+): ComponentData[] {
+    for (const comp of components) {
+        const def = getComponent(comp.type);
+        if (!def || def.entityFields.length === 0) continue;
+        for (const field of def.entityFields) {
+            const value = comp.data[field];
+            if (typeof value === 'number' && idMap.has(value)) {
+                comp.data[field] = idMap.get(value)!;
+            }
+        }
+    }
+    return components;
+}
+
 export function extractPrefab(
     entities: readonly ExtractEntity[],
     rootId: number,
@@ -238,7 +258,7 @@ export function extractPrefab(
         name: e.name,
         parent: e.id === rootId ? null : inSubtree(e.parent) ? idMap.get(e.parent!)! : null,
         children: e.children.filter((c) => idMap.has(c)).map((c) => idMap.get(c)!),
-        components: cloneComponents(e.components),
+        components: captureEntityRefs(cloneComponents(e.components), idMap),
         visible: e.visible ?? true,
     }));
 

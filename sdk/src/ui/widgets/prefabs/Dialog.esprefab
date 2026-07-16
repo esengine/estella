@@ -1,256 +1,15 @@
 {
   "version": "2",
-  "name": "Toggle",
+  "name": "Dialog",
   "rootEntityId": "0",
   "entities": [
     {
       "prefabEntityId": "0",
-      "name": "Toggle",
+      "name": "Dialog",
       "parent": null,
       "children": [
         "1"
       ],
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            },
-            "rotation": {
-              "w": 1,
-              "x": 0,
-              "y": 0,
-              "z": 0
-            },
-            "scale": {
-              "x": 1,
-              "y": 1,
-              "z": 1
-            },
-            "worldPosition": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            },
-            "worldRotation": {
-              "w": 1,
-              "x": 0,
-              "y": 0,
-              "z": 0
-            },
-            "worldScale": {
-              "x": 1,
-              "y": 1,
-              "z": 1
-            }
-          }
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 0,
-            "display": 0,
-            "width": {
-              "value": 28,
-              "unit": 0
-            },
-            "height": {
-              "value": 28,
-              "unit": 0
-            },
-            "minWidth": {
-              "value": 0,
-              "unit": 2
-            },
-            "minHeight": {
-              "value": 0,
-              "unit": 2
-            },
-            "maxWidth": {
-              "value": 0,
-              "unit": 2
-            },
-            "maxHeight": {
-              "value": 0,
-              "unit": 2
-            },
-            "flexGrow": 0,
-            "flexShrink": 1,
-            "flexBasis": {
-              "value": 0,
-              "unit": 2
-            },
-            "alignSelf": 0,
-            "marginLeft": {
-              "value": 0,
-              "unit": 0
-            },
-            "marginTop": {
-              "value": 0,
-              "unit": 0
-            },
-            "marginRight": {
-              "value": 0,
-              "unit": 0
-            },
-            "marginBottom": {
-              "value": 0,
-              "unit": 0
-            },
-            "insetLeft": {
-              "value": 0,
-              "unit": 2
-            },
-            "insetTop": {
-              "value": 0,
-              "unit": 2
-            },
-            "insetRight": {
-              "value": 0,
-              "unit": 2
-            },
-            "insetBottom": {
-              "value": 0,
-              "unit": 2
-            }
-          }
-        },
-        {
-          "type": "UIVisual",
-          "data": {
-            "visualType": 1,
-            "texture": 0,
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "uvOffset": {
-              "x": 0,
-              "y": 0
-            },
-            "uvScale": {
-              "x": 1,
-              "y": 1
-            },
-            "sliceBorder": {
-              "x": 0,
-              "y": 0,
-              "z": 0,
-              "w": 0
-            },
-            "tileSize": {
-              "x": 32,
-              "y": 32
-            },
-            "fillMethod": 0,
-            "fillOrigin": 0,
-            "fillAmount": 1,
-            "material": 0,
-            "enabled": true
-          }
-        },
-        {
-          "type": "Interactable",
-          "data": {
-            "enabled": true,
-            "blockRaycast": true,
-            "raycastTarget": true
-          }
-        },
-        {
-          "type": "Focusable",
-          "data": {
-            "tabIndex": 0,
-            "isFocused": false
-          }
-        },
-        {
-          "type": "UIController",
-          "data": {
-            "controllers": [
-              {
-                "name": "$interaction",
-                "pages": [
-                  "normal",
-                  "hover",
-                  "pressed",
-                  "disabled",
-                  "focused"
-                ],
-                "current": "normal"
-              }
-            ]
-          }
-        },
-        {
-          "type": "UIGear",
-          "data": {
-            "bindings": [
-              {
-                "controller": "$interaction",
-                "component": "UIVisual",
-                "property": "color",
-                "pages": {
-                  "normal": {
-                    "r": 0.22,
-                    "g": 0.22,
-                    "b": 0.26,
-                    "a": 1
-                  },
-                  "hover": {
-                    "r": 0.28,
-                    "g": 0.28,
-                    "b": 0.32,
-                    "a": 1
-                  },
-                  "pressed": {
-                    "r": 0.18,
-                    "g": 0.18,
-                    "b": 0.22,
-                    "a": 1
-                  },
-                  "disabled": {
-                    "r": 0.22,
-                    "g": 0.22,
-                    "b": 0.26,
-                    "a": 0.5
-                  },
-                  "focused": {
-                    "r": 0.28,
-                    "g": 0.28,
-                    "b": 0.32,
-                    "a": 1
-                  }
-                }
-              }
-            ]
-          }
-        },
-        {
-          "type": "ThemeStyle",
-          "data": {
-            "states": {
-              "normal": "control",
-              "hover": "controlHover",
-              "pressed": "controlActive",
-              "disabled": "control",
-              "focused": "controlHover"
-            }
-          }
-        }
-      ],
-      "visible": true
-    },
-    {
-      "prefabEntityId": "1",
-      "name": "Node",
-      "parent": "0",
-      "children": [],
       "components": [
         {
           "type": "Transform",
@@ -365,9 +124,182 @@
             "visualType": 1,
             "texture": 0,
             "color": {
-              "r": 0.25,
-              "g": 0.56,
-              "b": 0.96,
+              "r": 0,
+              "g": 0,
+              "b": 0,
+              "a": 0.5
+            },
+            "uvOffset": {
+              "x": 0,
+              "y": 0
+            },
+            "uvScale": {
+              "x": 1,
+              "y": 1
+            },
+            "sliceBorder": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 0
+            },
+            "tileSize": {
+              "x": 32,
+              "y": 32
+            },
+            "fillMethod": 0,
+            "fillOrigin": 0,
+            "fillAmount": 1,
+            "material": 0,
+            "enabled": true
+          }
+        },
+        {
+          "type": "ThemeStyle",
+          "data": {
+            "visual": "backdrop"
+          }
+        },
+        {
+          "type": "Interactable",
+          "data": {
+            "enabled": true,
+            "blockRaycast": true,
+            "raycastTarget": true
+          }
+        },
+        {
+          "type": "UIDialog",
+          "data": {
+            "closeOnEscape": true,
+            "closeOnBackdrop": true
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "prefabEntityId": "1",
+      "name": "Node",
+      "parent": "0",
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "worldPosition": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "worldRotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "worldScale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "display": 0,
+            "width": {
+              "value": 400,
+              "unit": 0
+            },
+            "height": {
+              "value": 300,
+              "unit": 0
+            },
+            "minWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "minHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "flexGrow": 0,
+            "flexShrink": 1,
+            "flexBasis": {
+              "value": 0,
+              "unit": 2
+            },
+            "alignSelf": 0,
+            "marginLeft": {
+              "value": -200,
+              "unit": 0
+            },
+            "marginTop": {
+              "value": -150,
+              "unit": 0
+            },
+            "marginRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginBottom": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 50,
+              "unit": 1
+            },
+            "insetTop": {
+              "value": 50,
+              "unit": 1
+            },
+            "insetRight": {
+              "value": 0,
+              "unit": 2
+            },
+            "insetBottom": {
+              "value": 0,
+              "unit": 2
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "texture": 0,
+            "color": {
+              "r": 0.16,
+              "g": 0.16,
+              "b": 0.18,
               "a": 1
             },
             "uvOffset": {
@@ -398,7 +330,15 @@
         {
           "type": "ThemeStyle",
           "data": {
-            "visual": "primary"
+            "visual": "surface"
+          }
+        },
+        {
+          "type": "Interactable",
+          "data": {
+            "enabled": true,
+            "blockRaycast": true,
+            "raycastTarget": true
           }
         }
       ],

@@ -3,7 +3,7 @@
 import type { Color, Entity } from '../../types';
 import type { World } from '../../world';
 
-import { Interactable, UIInteraction, type InteractableData } from '../input/interactable';
+import { Interactable, type InteractableData } from '../input/interactable';
 import {
     UIController,
     INTERACTION_CONTROLLER,
@@ -19,6 +19,7 @@ import { markThemed } from '../theme/theme-style';
 
 import {
     spawnUIEntity,
+    makeWidgetInteractable,
     type UINodeInit,
     type UIVisualInit,
     type TextInit,
@@ -56,7 +57,17 @@ export interface ButtonOptions {
     fadeDuration?: number;
     /** Start in the disabled state (Interactable.enabled = false). */
     disabled?: boolean;
+    /** Participate in Tab traversal + Enter/Space activation. Default true. */
+    focusable?: boolean;
+    /** Tab order within the focus ring. Default 0 (document order). */
+    tabIndex?: number;
     onClick?: (entity: Entity) => void;
+}
+
+export interface ButtonHandle {
+    readonly entity: Entity;
+    setDisabled(disabled: boolean): void;
+    dispose(): void;
 }
 
 /**
@@ -104,6 +115,8 @@ export function themeButtonStates(): Record<string, ButtonStateVisual> {
         hover: { color: c.controlHover },
         pressed: { color: c.controlActive },
         disabled: { color: { ...c.control, a: c.control.a * 0.5 } },
+        // Keyboard focus reads as hover — there is no ring primitive (yet).
+        focused: { color: c.controlHover },
     };
 }
 
@@ -114,7 +127,7 @@ export function themeButtonStates(): Record<string, ButtonStateVisual> {
  * Click comes straight from the interaction layer's `click` event (released
  * while still over the button); the handler is gated on Interactable.enabled.
  */
-export function createButton(opts: ButtonOptions): Entity {
+export function createButton(opts: ButtonOptions): ButtonHandle {
     const { world, events } = opts;
 
     const entity = spawnUIEntity({
@@ -124,13 +137,10 @@ export function createButton(opts: ButtonOptions): Entity {
         visual: opts.background ?? {},
     });
 
-    world.insert(entity, Interactable, {
-        enabled: !opts.disabled,
-        blockRaycast: true,
-        raycastTarget: true,
-    });
-    world.insert(entity, UIInteraction, {
-        hovered: false, pressed: false, justPressed: false, justReleased: false,
+    makeWidgetInteractable(world, entity, {
+        disabled: opts.disabled,
+        focusable: opts.focusable,
+        tabIndex: opts.tabIndex,
     });
 
     const states = opts.states ?? themeButtonStates();
@@ -149,7 +159,10 @@ export function createButton(opts: ButtonOptions): Entity {
     // colors are the caller's own.
     if (opts.states === undefined) {
         markThemed(world, entity, {
-            states: { normal: 'control', hover: 'controlHover', pressed: 'controlActive', disabled: 'control' },
+            states: {
+                normal: 'control', hover: 'controlHover', pressed: 'controlActive',
+                disabled: 'control', focused: 'controlHover',
+            },
         });
     }
 
@@ -166,15 +179,30 @@ export function createButton(opts: ButtonOptions): Entity {
         if (userText.color === undefined) markThemed(world, label, { text: 'text' });
     }
 
+    let offClick: (() => void) | undefined;
     if (opts.onClick) {
         const handler = opts.onClick;
-        events.on(entity, UIEventType.Click, () => {
+        offClick = events.on(entity, UIEventType.Click, () => {
             const interactable = world.get(entity, Interactable) as InteractableData;
             if (interactable.enabled) handler(entity);
         });
     }
 
-    return entity;
+    return {
+        entity,
+        setDisabled: (disabled: boolean) => {
+            if (!world.valid(entity)) return;
+            const i = world.get(entity, Interactable) as InteractableData;
+            if (i.enabled !== !disabled) {
+                i.enabled = !disabled;
+                world.insert(entity, Interactable, i);
+            }
+        },
+        dispose: () => {
+            offClick?.();
+            if (world.valid(entity)) world.despawn(entity);
+        },
+    };
 }
 
 /**

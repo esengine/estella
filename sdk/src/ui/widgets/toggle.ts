@@ -39,6 +39,9 @@ export interface ToggleOptions {
     isOn?: boolean;
     /** Start disabled. */
     disabled?: boolean;
+    /** Participate in Tab traversal + Enter/Space activation. Default true. */
+    focusable?: boolean;
+    tabIndex?: number;
 
     onChange?: (isOn: boolean, entity: Entity) => void;
 }
@@ -47,6 +50,7 @@ export interface ToggleHandle {
     readonly entity: Entity;
     isOn(): boolean;
     setIsOn(value: boolean, silent?: boolean): void;
+    setDisabled(disabled: boolean): void;
     dispose(): void;
 }
 
@@ -59,7 +63,7 @@ export function createToggle(opts: ToggleOptions): ToggleHandle {
     const { world, events } = opts;
     let isOn = opts.isOn ?? false;
 
-    const button = createButton({
+    const btn = createButton({
         world,
         events,
         parent: opts.parent,
@@ -67,7 +71,10 @@ export function createToggle(opts: ToggleOptions): ToggleHandle {
         background: opts.background,
         states: opts.interactionStates,
         disabled: opts.disabled,
+        focusable: opts.focusable,
+        tabIndex: opts.tabIndex,
     });
+    const button = btn.entity;
 
     // The on-state indicator defaults to the theme accent so it re-themes live;
     // a caller-supplied color is the caller's own.
@@ -104,9 +111,10 @@ export function createToggle(opts: ToggleOptions): ToggleHandle {
         entity: button,
         isOn: () => isOn,
         setIsOn,
+        setDisabled: btn.setDisabled,
         dispose: () => {
             offClick();
-            if (world.valid(button)) world.despawn(button);
+            btn.dispose();
         },
     };
 }

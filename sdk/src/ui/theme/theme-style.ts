@@ -28,6 +28,9 @@ export interface ThemeStyleData {
     text?: ColorRole;
     /** Page-name → role, for each `$interaction` colour-gear page. */
     states?: Record<string, ColorRole>;
+    /** Roles that drive a `TextInput`'s background / text / placeholder colors
+     *  (the input plugin owns its UIVisual, so those fields are the source). */
+    input?: { background?: ColorRole; text?: ColorRole; placeholder?: ColorRole };
 }
 
 // The default DECLARES the fields (even though all are optional): `insert`
@@ -35,7 +38,7 @@ export interface ThemeStyleData {
 // every role a widget tags (e.g. a dialog's `{ visual: 'backdrop' }`).
 export const ThemeStyle = defineComponent<ThemeStyleData>(
     'ThemeStyle',
-    { visual: undefined, text: undefined, states: {} },
+    { visual: undefined, text: undefined, states: {}, input: undefined },
 );
 
 /** Tag `entity` so the active theme's colors re-resolve onto it (see

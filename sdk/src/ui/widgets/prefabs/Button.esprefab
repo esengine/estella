@@ -163,6 +163,13 @@
           }
         },
         {
+          "type": "Focusable",
+          "data": {
+            "tabIndex": 0,
+            "isFocused": false
+          }
+        },
+        {
           "type": "UIController",
           "data": {
             "controllers": [
@@ -172,7 +179,8 @@
                   "normal",
                   "hover",
                   "pressed",
-                  "disabled"
+                  "disabled",
+                  "focused"
                 ],
                 "current": "normal"
               }
@@ -211,6 +219,12 @@
                     "g": 0.22,
                     "b": 0.26,
                     "a": 0.5
+                  },
+                  "focused": {
+                    "r": 0.28,
+                    "g": 0.28,
+                    "b": 0.32,
+                    "a": 1
                   }
                 }
               }
@@ -224,7 +238,8 @@
               "normal": "control",
               "hover": "controlHover",
               "pressed": "controlActive",
-              "disabled": "control"
+              "disabled": "control",
+              "focused": "controlHover"
             }
           }
         }

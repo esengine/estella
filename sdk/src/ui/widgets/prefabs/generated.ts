@@ -167,6 +167,13 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
             }
           },
           {
+            "type": "Focusable",
+            "data": {
+              "tabIndex": 0,
+              "isFocused": false
+            }
+          },
+          {
             "type": "UIController",
             "data": {
               "controllers": [
@@ -176,7 +183,8 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
                     "normal",
                     "hover",
                     "pressed",
-                    "disabled"
+                    "disabled",
+                    "focused"
                   ],
                   "current": "normal"
                 }
@@ -215,6 +223,12 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
                       "g": 0.22,
                       "b": 0.26,
                       "a": 0.5
+                    },
+                    "focused": {
+                      "r": 0.28,
+                      "g": 0.28,
+                      "b": 0.32,
+                      "a": 1
                     }
                   }
                 }
@@ -228,7 +242,8 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
                 "normal": "control",
                 "hover": "controlHover",
                 "pressed": "controlActive",
-                "disabled": "control"
+                "disabled": "control",
+                "focused": "controlHover"
               }
             }
           }
@@ -565,6 +580,13 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
             }
           },
           {
+            "type": "Focusable",
+            "data": {
+              "tabIndex": 0,
+              "isFocused": false
+            }
+          },
+          {
             "type": "UIController",
             "data": {
               "controllers": [
@@ -574,7 +596,8 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
                     "normal",
                     "hover",
                     "pressed",
-                    "disabled"
+                    "disabled",
+                    "focused"
                   ],
                   "current": "normal"
                 }
@@ -613,6 +636,12 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
                       "g": 0.22,
                       "b": 0.26,
                       "a": 0.5
+                    },
+                    "focused": {
+                      "r": 0.28,
+                      "g": 0.28,
+                      "b": 0.32,
+                      "a": 1
                     }
                   }
                 }
@@ -626,7 +655,8 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
                 "normal": "control",
                 "hover": "controlHover",
                 "pressed": "controlActive",
-                "disabled": "control"
+                "disabled": "control",
+                "focused": "controlHover"
               }
             }
           }
@@ -955,6 +985,32 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
             "data": {
               "visual": "track"
             }
+          },
+          {
+            "type": "Interactable",
+            "data": {
+              "enabled": true,
+              "blockRaycast": true,
+              "raycastTarget": true
+            }
+          },
+          {
+            "type": "Focusable",
+            "data": {
+              "tabIndex": 0,
+              "isFocused": false
+            }
+          },
+          {
+            "type": "UISlider",
+            "data": {
+              "min": 0,
+              "max": 100,
+              "step": 1,
+              "value": 50,
+              "fill": "2",
+              "handle": "1"
+            }
           }
         ],
         "visible": true
@@ -1270,6 +1326,537 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
             "type": "ThemeStyle",
             "data": {
               "visual": "primary"
+            }
+          }
+        ],
+        "visible": true
+      }
+    ]
+  },
+  "Dialog": {
+    "version": "2",
+    "name": "Dialog",
+    "rootEntityId": "0",
+    "entities": [
+      {
+        "prefabEntityId": "0",
+        "name": "Dialog",
+        "parent": null,
+        "children": [
+          "1"
+        ],
+        "components": [
+          {
+            "type": "Transform",
+            "data": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              },
+              "worldPosition": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "worldRotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "worldScale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              }
+            }
+          },
+          {
+            "type": "UINode",
+            "data": {
+              "position": 1,
+              "display": 0,
+              "width": {
+                "value": 0,
+                "unit": 2
+              },
+              "height": {
+                "value": 0,
+                "unit": 2
+              },
+              "minWidth": {
+                "value": 0,
+                "unit": 2
+              },
+              "minHeight": {
+                "value": 0,
+                "unit": 2
+              },
+              "maxWidth": {
+                "value": 0,
+                "unit": 2
+              },
+              "maxHeight": {
+                "value": 0,
+                "unit": 2
+              },
+              "flexGrow": 0,
+              "flexShrink": 1,
+              "flexBasis": {
+                "value": 0,
+                "unit": 2
+              },
+              "alignSelf": 0,
+              "marginLeft": {
+                "value": 0,
+                "unit": 0
+              },
+              "marginTop": {
+                "value": 0,
+                "unit": 0
+              },
+              "marginRight": {
+                "value": 0,
+                "unit": 0
+              },
+              "marginBottom": {
+                "value": 0,
+                "unit": 0
+              },
+              "insetLeft": {
+                "value": 0,
+                "unit": 0
+              },
+              "insetTop": {
+                "value": 0,
+                "unit": 0
+              },
+              "insetRight": {
+                "value": 0,
+                "unit": 0
+              },
+              "insetBottom": {
+                "value": 0,
+                "unit": 0
+              }
+            }
+          },
+          {
+            "type": "UIVisual",
+            "data": {
+              "visualType": 1,
+              "texture": 0,
+              "color": {
+                "r": 0,
+                "g": 0,
+                "b": 0,
+                "a": 0.5
+              },
+              "uvOffset": {
+                "x": 0,
+                "y": 0
+              },
+              "uvScale": {
+                "x": 1,
+                "y": 1
+              },
+              "sliceBorder": {
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 0
+              },
+              "tileSize": {
+                "x": 32,
+                "y": 32
+              },
+              "fillMethod": 0,
+              "fillOrigin": 0,
+              "fillAmount": 1,
+              "material": 0,
+              "enabled": true
+            }
+          },
+          {
+            "type": "ThemeStyle",
+            "data": {
+              "visual": "backdrop"
+            }
+          },
+          {
+            "type": "Interactable",
+            "data": {
+              "enabled": true,
+              "blockRaycast": true,
+              "raycastTarget": true
+            }
+          },
+          {
+            "type": "UIDialog",
+            "data": {
+              "closeOnEscape": true,
+              "closeOnBackdrop": true
+            }
+          }
+        ],
+        "visible": true
+      },
+      {
+        "prefabEntityId": "1",
+        "name": "Node",
+        "parent": "0",
+        "children": [],
+        "components": [
+          {
+            "type": "Transform",
+            "data": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              },
+              "worldPosition": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "worldRotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "worldScale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              }
+            }
+          },
+          {
+            "type": "UINode",
+            "data": {
+              "position": 1,
+              "display": 0,
+              "width": {
+                "value": 400,
+                "unit": 0
+              },
+              "height": {
+                "value": 300,
+                "unit": 0
+              },
+              "minWidth": {
+                "value": 0,
+                "unit": 2
+              },
+              "minHeight": {
+                "value": 0,
+                "unit": 2
+              },
+              "maxWidth": {
+                "value": 0,
+                "unit": 2
+              },
+              "maxHeight": {
+                "value": 0,
+                "unit": 2
+              },
+              "flexGrow": 0,
+              "flexShrink": 1,
+              "flexBasis": {
+                "value": 0,
+                "unit": 2
+              },
+              "alignSelf": 0,
+              "marginLeft": {
+                "value": -200,
+                "unit": 0
+              },
+              "marginTop": {
+                "value": -150,
+                "unit": 0
+              },
+              "marginRight": {
+                "value": 0,
+                "unit": 0
+              },
+              "marginBottom": {
+                "value": 0,
+                "unit": 0
+              },
+              "insetLeft": {
+                "value": 50,
+                "unit": 1
+              },
+              "insetTop": {
+                "value": 50,
+                "unit": 1
+              },
+              "insetRight": {
+                "value": 0,
+                "unit": 2
+              },
+              "insetBottom": {
+                "value": 0,
+                "unit": 2
+              }
+            }
+          },
+          {
+            "type": "UIVisual",
+            "data": {
+              "visualType": 1,
+              "texture": 0,
+              "color": {
+                "r": 0.16,
+                "g": 0.16,
+                "b": 0.18,
+                "a": 1
+              },
+              "uvOffset": {
+                "x": 0,
+                "y": 0
+              },
+              "uvScale": {
+                "x": 1,
+                "y": 1
+              },
+              "sliceBorder": {
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": 0
+              },
+              "tileSize": {
+                "x": 32,
+                "y": 32
+              },
+              "fillMethod": 0,
+              "fillOrigin": 0,
+              "fillAmount": 1,
+              "material": 0,
+              "enabled": true
+            }
+          },
+          {
+            "type": "ThemeStyle",
+            "data": {
+              "visual": "surface"
+            }
+          },
+          {
+            "type": "Interactable",
+            "data": {
+              "enabled": true,
+              "blockRaycast": true,
+              "raycastTarget": true
+            }
+          }
+        ],
+        "visible": true
+      }
+    ]
+  },
+  "TextInput": {
+    "version": "2",
+    "name": "TextInput",
+    "rootEntityId": "0",
+    "entities": [
+      {
+        "prefabEntityId": "0",
+        "name": "TextInput",
+        "parent": null,
+        "children": [],
+        "components": [
+          {
+            "type": "Transform",
+            "data": {
+              "position": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "rotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "scale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              },
+              "worldPosition": {
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "worldRotation": {
+                "w": 1,
+                "x": 0,
+                "y": 0,
+                "z": 0
+              },
+              "worldScale": {
+                "x": 1,
+                "y": 1,
+                "z": 1
+              }
+            }
+          },
+          {
+            "type": "UINode",
+            "data": {
+              "position": 0,
+              "display": 0,
+              "width": {
+                "value": 220,
+                "unit": 0
+              },
+              "height": {
+                "value": 32,
+                "unit": 0
+              },
+              "minWidth": {
+                "value": 0,
+                "unit": 2
+              },
+              "minHeight": {
+                "value": 0,
+                "unit": 2
+              },
+              "maxWidth": {
+                "value": 0,
+                "unit": 2
+              },
+              "maxHeight": {
+                "value": 0,
+                "unit": 2
+              },
+              "flexGrow": 0,
+              "flexShrink": 1,
+              "flexBasis": {
+                "value": 0,
+                "unit": 2
+              },
+              "alignSelf": 0,
+              "marginLeft": {
+                "value": 0,
+                "unit": 0
+              },
+              "marginTop": {
+                "value": 0,
+                "unit": 0
+              },
+              "marginRight": {
+                "value": 0,
+                "unit": 0
+              },
+              "marginBottom": {
+                "value": 0,
+                "unit": 0
+              },
+              "insetLeft": {
+                "value": 0,
+                "unit": 2
+              },
+              "insetTop": {
+                "value": 0,
+                "unit": 2
+              },
+              "insetRight": {
+                "value": 0,
+                "unit": 2
+              },
+              "insetBottom": {
+                "value": 0,
+                "unit": 2
+              }
+            }
+          },
+          {
+            "type": "Interactable",
+            "data": {
+              "enabled": true,
+              "blockRaycast": true,
+              "raycastTarget": true
+            }
+          },
+          {
+            "type": "Focusable",
+            "data": {
+              "tabIndex": 0,
+              "isFocused": false
+            }
+          },
+          {
+            "type": "TextInput",
+            "data": {
+              "value": "",
+              "placeholder": "Text…",
+              "placeholderColor": {
+                "r": 0.92,
+                "g": 0.92,
+                "b": 0.94,
+                "a": 0.5
+              },
+              "fontFamily": "Arial",
+              "fontSize": 14,
+              "color": {
+                "r": 0.92,
+                "g": 0.92,
+                "b": 0.94,
+                "a": 1
+              },
+              "backgroundColor": {
+                "r": 0.22,
+                "g": 0.22,
+                "b": 0.26,
+                "a": 1
+              },
+              "padding": 6,
+              "maxLength": 0,
+              "multiline": false,
+              "password": false,
+              "readOnly": false,
+              "focused": false,
+              "cursorPos": 0,
+              "dirty": true
+            }
+          },
+          {
+            "type": "ThemeStyle",
+            "data": {
+              "input": {
+                "background": "control",
+                "text": "text",
+                "placeholder": "text"
+              }
             }
           }
         ],
@@ -1764,6 +2351,13 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
               "enabled": true,
               "blockRaycast": true,
               "raycastTarget": true
+            }
+          },
+          {
+            "type": "Focusable",
+            "data": {
+              "tabIndex": 0,
+              "isFocused": false
             }
           },
           {
@@ -2339,4 +2933,4 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
   }
 };
 
-export const BUILTIN_UI_WIDGET_NAMES = ["Button","Toggle","Slider","Progress","Dropdown","ListView"] as const;
+export const BUILTIN_UI_WIDGET_NAMES = ["Button","Toggle","Slider","Dialog","TextInput","Progress","Dropdown","ListView"] as const;

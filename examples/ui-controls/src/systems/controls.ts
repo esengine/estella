@@ -1,29 +1,12 @@
-import {
-    defineSystem, Res, GetWorld,
-    Time, Input, UICameraInfo, Transform, UIInteraction,
-} from 'esengine';
-import type { TransformData, UIInteractionData } from 'esengine';
+import { defineSystem, Res, Time } from 'esengine';
 
-import { SLIDER_W, PROGRESS_SPEED } from '../config';
+import { PROGRESS_SPEED } from '../config';
 import { state } from '../state';
 
 export const controlsSystem = defineSystem(
-    [Res(Time), Res(Input), Res(UICameraInfo), GetWorld()],
-    (time, input, camera, world) => {
-        const slider = state.slider;
-        if (slider && camera.valid && world.valid(slider.trackEntity)) {
-            const inter = world.get(slider.trackEntity, UIInteraction) as UIInteractionData;
-            if (input.isMouseButtonPressed(0) && inter.hovered) state.dragging = true;
-            if (!input.isMouseButtonDown(0)) state.dragging = false;
-
-            if (state.dragging) {
-                const wt = world.get(slider.trackEntity, Transform) as TransformData;
-                const width = SLIDER_W * wt.worldScale.x;          // px == world units, times canvas scale
-                const left = wt.worldPosition.x - width / 2;
-                slider.setValue(slider.valueAtLocalX(camera.worldMouseX - left, width));
-            }
-        }
-
+    [Res(Time)],
+    (time) => {
+        // Slider input (drag + arrow keys) is built into the UISlider system.
         const progress = state.progress;
         if (progress && !state.paused) {
             state.progressT += time.delta * PROGRESS_SPEED * state.progressDir;
