@@ -66,6 +66,7 @@ describe('exportGame (wechat)', () => {
       platform: 'wechat',
       wechatAppid: 'wxTEST0123456789',
       orientation: 'landscape',
+      screenFit: { designWidth: 1280, designHeight: 720, scaleMode: 2, matchWidthOrHeight: 0.5 },
     });
 
     expect(res.ok).toBe(true);
@@ -92,6 +93,9 @@ describe('exportGame (wechat)', () => {
     // The boot config names the staged glue's .wasm twin — WXWebAssembly
     // instantiates by package-relative path, so the runtime must not guess.
     expect(bundle).toContain('wasm/esengine.wasm');
+    // The project camera fit rides the boot config into initWeChatRuntime.
+    expect(bundle).toContain('screenFit');
+    expect(bundle).toMatch(/"scaleMode":\s*2/);
 
     // Config + runtime copy.
     const pcfg = JSON.parse(readFileSync(path.join(out, 'project.config.json'), 'utf8'));

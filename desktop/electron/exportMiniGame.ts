@@ -222,6 +222,9 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   ySortLayers?: number;
   /** Project color space — 'linear' boots the mini-game on the linear-light pipeline. */
   colorSpace?: 'gamma' | 'linear';
+  /** Project camera fit (Project Settings → Display) — letterboxes the design resolution
+   *  without a UI Canvas; absent = no fit. */
+  screenFit?: { designWidth: number; designHeight: number; scaleMode: number; matchWidthOrHeight: number };
   minify?: boolean;
   /** Emit content-addressed asset filenames (<hash><ext>) for dedup + immutable caching. */
   contentAddressed?: boolean;
@@ -337,7 +340,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
     `import { ${profile.runtimeInit} } from 'esengine';\n` +
     (scriptsAbs && existsSync(scriptsAbs) ? `import ${JSON.stringify(scriptsAbs)};\n` : '') +
     `export function boot(engineFactory, sideModuleFactories) {\n` +
-    `  return ${profile.runtimeInit}({ engineFactory, engineWasmPath: ${JSON.stringify(engineWasmPath)}, sideModuleFactories, sceneNames: ${JSON.stringify(scenes.map((s) => s.name))}, firstScene: ${JSON.stringify(sceneName)}${opts.ySortLayers ? `, ySortLayers: ${opts.ySortLayers >>> 0}` : ''}${opts.colorSpace === 'linear' ? `, colorSpace: 'linear'` : ''} });\n` +
+    `  return ${profile.runtimeInit}({ engineFactory, engineWasmPath: ${JSON.stringify(engineWasmPath)}, sideModuleFactories, sceneNames: ${JSON.stringify(scenes.map((s) => s.name))}, firstScene: ${JSON.stringify(sceneName)}${opts.ySortLayers ? `, ySortLayers: ${opts.ySortLayers >>> 0}` : ''}${opts.colorSpace === 'linear' ? `, colorSpace: 'linear'` : ''}${opts.screenFit && opts.screenFit.scaleMode >= 0 ? `, screenFit: ${JSON.stringify(opts.screenFit)}` : ''} });\n` +
     `}\n`;
   progress({ phase: 'Bundling game' });
   try {

@@ -78,6 +78,9 @@ export interface WeChatRuntimeConfig {
     ySortLayers?: number;
     /** Project color space — 'linear' boots the linear-light pipeline (Project Settings → Rendering). */
     colorSpace?: 'gamma' | 'linear';
+    /** Project camera fit (Project Settings → Display) — letterboxes the design resolution
+     *  without a UI Canvas; absent = no fit (raw orthoSize). */
+    screenFit?: { designWidth: number; designHeight: number; scaleMode: number; matchWidthOrHeight: number };
     /** id → emscripten factory (`require('./wasm/<file>.js')`); the generated
      *  game.js supplies exactly the modules the scene needs. Physics + spine
      *  self-gate off these via {@link createWeChatSideModuleHost}. */
@@ -143,6 +146,7 @@ export async function initWeChatRuntime(config: WeChatRuntimeConfig): Promise<vo
         glContextHandle: glHandle,
         ySortLayers: config.ySortLayers,
         colorSpace: config.colorSpace,
+        screenFit: config.screenFit,
         getViewportSize: () => ({
             width: canvas.width,
             height: canvas.height,

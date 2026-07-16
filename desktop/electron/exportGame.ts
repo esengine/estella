@@ -327,6 +327,7 @@ export async function exportGame(opts: {
       orientation,
       ySortLayers: opts.ySortLayers,
       colorSpace: opts.colorSpace,
+      screenFit: opts.screenFit,
       minify: opts.minify,
       contentAddressed: opts.contentAddressed,
       compressTextures: opts.compressTextures,
