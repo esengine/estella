@@ -64,8 +64,10 @@ export function cutSelection(): void {
 
 /** Paste = make the clipboard the active brush + switch to the brush tool to place it. */
 export function pasteClipboard(): void {
-  const { clipboard, setStamp, setTool } = useTilemapPaint.getState();
-  if (!clipboard) return;
-  setStamp(clipboard);
-  setTool('brush');
+  const st = useTilemapPaint.getState();
+  if (!st.clipboard) return;
+  st.setStamp(st.clipboard);
+  st.setTool('brush');
+  // Paste places the copied pattern verbatim — random scatter would defeat that.
+  if (st.randomBrush) st.toggleRandomBrush();
 }

@@ -108,10 +108,13 @@ export const useTilemapPaint = create<TilemapPaintState>((set) => ({
         activeTileset: 0,
         tilesetPath: tilesets[0]?.path ?? null,
         tilesetAsset: tilesets[0]?.asset ?? null,
+        // A different tileset's terrain sets don't map across — reset so the terrain
+        // tool can't silently no-op on a stale, now-out-of-range index.
+        terrainSet: 0,
     }),
     setActiveTileset: (index) => set((s) => {
         const ts = s.tilesets[index];
-        return ts ? { activeTileset: index, tilesetPath: ts.path, tilesetAsset: ts.asset } : {};
+        return ts ? { activeTileset: index, tilesetPath: ts.path, tilesetAsset: ts.asset, terrainSet: 0 } : {};
     }),
     setTileset: (tilesetPath) => set({ tilesetPath }),
     setTilesetAsset: (tilesetAsset) => set({ tilesetAsset }),

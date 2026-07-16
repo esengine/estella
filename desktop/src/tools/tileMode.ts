@@ -11,7 +11,7 @@
  *        switching the transform tool to Scale).
  *
  * Modality: a tilemap being SELECTED is the tile context. Non-colliding letters
- * (B/U/L/G/M/I/T, plus E for erase) enter a paint tool from there. The letters that
+ * (B/U/O/L/G/M/I/T, plus E for erase) enter a paint tool from there. The letters that
  * collide with the transform tools (Q/W/E/R) are consumed for painting ONLY while a
  * paint tool is active, and Q/W then double as the explicit exit back to
  * select/move — so there is never a hidden "painting yet the toolbar says Scale" state.

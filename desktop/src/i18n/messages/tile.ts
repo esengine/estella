@@ -43,6 +43,7 @@ export const tileMessages = defineMessages({
 
     // — Painter tileset tabs —
     'tile.tilesetN': { en: 'Tileset {n}', zh: '瓦片集 {n}' },
+    'tile.tilesetGid': { en: '{path}  (gid {gid}+)', zh: '{path}（gid {gid}+）' },
     'tile.addTileset': { en: 'Add tileset', zh: '添加瓦片集' },
     'tile.removeTileset': { en: 'Remove tileset', zh: '移除瓦片集' },
     'tile.noTilesetsToAdd': { en: 'No tilesets to add', zh: '没有可添加的瓦片集' },

@@ -214,13 +214,18 @@ interface TerrainCtx {
   set: number;
   indices: TerrainIndices;
   assigned: Map<string, number>;
+  // firstId − 1 of the active tileset. buildTerrainIndices keys by tileset-LOCAL id,
+  // but cells store GLOBAL gids, so read a cell as gid − base and write local + base
+  // (base is 0 for a single-tileset layer, so this is a no-op there).
+  base: number;
 }
 
 function terrainAt(s: TerrainCtx, x: number, y: number): number | null {
   const key = `${x},${y}`;
   if (s.assigned.has(key)) return s.assigned.get(key)!;
-  const id = tileIdOf(TilemapAPI.getTile(s.rt, x, y));
-  return s.indices.tileTerrain.get(id) ?? null;
+  const gid = tileIdOf(TilemapAPI.getTile(s.rt, x, y));
+  if (gid === 0) return null;
+  return s.indices.tileTerrain.get(gid - s.base) ?? null;
 }
 
 function recomputeTerrain(s: TerrainCtx, x: number, y: number): void {
@@ -229,8 +234,8 @@ function recomputeTerrain(s: TerrainCtx, x: number, y: number): void {
   const index = s.indices.sets.get(set);
   if (!index) return;
   const neighbors = TERRAIN_NEIGHBORS.map((n) => terrainAt(s, x + n.dx, y + n.dy) === set);
-  const tileId = resolveAutotile(index, neighbors);
-  if (tileId > 0) SceneCommands.paintTileLive(s.sourceId, x, y, encodeTile(tileId));
+  const local = resolveAutotile(index, neighbors);
+  if (local > 0) SceneCommands.paintTileLive(s.sourceId, x, y, encodeTile(local + s.base));
 }
 
 /** Join (x,y) to the active terrain, then re-resolve it and its 8 neighbours. */
@@ -250,7 +255,8 @@ const terrainTool = makeStrokeTool<TerrainCtx>({
     const indices = buildTerrainIndices(asset);
     if (!indices.sets.has(ps.terrainSet)) return null; // active terrain has no tiles yet
     SceneCommands.beginTilePaint(selId);
-    return { sourceId: selId, rt, set: ps.terrainSet, indices, assigned: new Map() };
+    const base = (ps.tilesets[ps.activeTileset]?.firstId ?? 1) - 1;
+    return { sourceId: selId, rt, set: ps.terrainSet, indices, assigned: new Map(), base };
   },
   onCell: (s, x, y) => { if (!s.assigned.has(`${x},${y}`)) stampTerrain(s, x, y); },
   end: () => SceneCommands.endTilePaint(),
@@ -333,10 +339,14 @@ function makeLineTool(): EditorTool {
       TilePaintPreview.clear();
       const tile = cursorTile(p.clientX, p.clientY, stroke.sourceId);
       if (tile) {
-        const stamp = activeStamp();
+        // One tiled cell per line cell (like rect/ellipse), so the thin-line preview
+        // matches what lands — not the whole w×h footprint stamped at every point.
+        const pick = cellPicker(activeStamp());
         const edits: TilePaint[] = [];
         for (const c of lineCells(stroke.startX, stroke.startY, tile.x, tile.y)) {
-          for (const e of brushEdits(stamp, c.x, c.y)) edits.push(e);
+          const raw = pick(c.x, c.y);
+          if (tileIdOf(raw) === 0) continue;
+          edits.push({ x: c.x, y: c.y, tileId: raw });
         }
         if (edits.length > 0) SceneCommands.paintTiles(stroke.sourceId, edits);
       }
@@ -481,7 +491,19 @@ const eyedropperTool: EditorTool = {
     if (!tile) return false;
     const rt = SceneModel.runtimeFor(selId);
     const raw = rt != null ? TilemapAPI.getTile(rt, tile.x, tile.y) : 0;
-    if (tileIdOf(raw) > 0) useTilemapPaint.getState().setStamp(singleStamp(raw));
+    const gid = tileIdOf(raw);
+    if (gid > 0) {
+      const ps = useTilemapPaint.getState();
+      // On a multi-tileset layer, switch the palette to the tileset that owns the
+      // picked gid (tilesets are in ascending firstId order) so its atlas resolves
+      // the brush ghost — otherwise the hover preview goes blank.
+      let owner = ps.activeTileset;
+      for (let i = 0; i < ps.tilesets.length; i++) {
+        if (ps.tilesets[i].firstId <= gid) owner = i; else break;
+      }
+      if (owner !== ps.activeTileset) ps.setActiveTileset(owner);
+      ps.setStamp(singleStamp(raw));
+    }
     return false; // no ongoing stroke
   },
   onPointerMove() {},

@@ -6,9 +6,12 @@
  *        separately) — the painter + viewport tools read `stamp` straight off this store.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { tileIdOf, tileFlagsOf } from 'esengine';
-import { useTilemapPaint } from '@/store/tilemapPaintStore';
+import { tileIdOf, tileFlagsOf, type TilesetAsset } from 'esengine';
+import { useTilemapPaint, type PaletteTileset } from '@/store/tilemapPaintStore';
 import { pasteClipboard } from '@/tools/tileClipboard';
+
+const fakeTileset = (path: string, firstId: number): PaletteTileset =>
+  ({ path, asset: {} as TilesetAsset, firstId });
 
 describe('tilemap paint store', () => {
   beforeEach(() => {
@@ -16,6 +19,9 @@ describe('tilemap paint store', () => {
     useTilemapPaint.getState().setSelection(null);
     useTilemapPaint.getState().setClipboard(null);
     useTilemapPaint.getState().setTool(null);
+    useTilemapPaint.getState().setTilesets([]);
+    useTilemapPaint.getState().setTerrainSet(0);
+    if (useTilemapPaint.getState().randomBrush) useTilemapPaint.getState().toggleRandomBrush();
   });
 
   it('setBrushTile makes a 1×1 stamp of that id with no flags', () => {
@@ -70,5 +76,25 @@ describe('tilemap paint store', () => {
     useTilemapPaint.getState().setTool('select');
     pasteClipboard();
     expect(useTilemapPaint.getState().tool).toBe('select'); // unchanged
+  });
+
+  it('paste turns off random mode so the copied pattern lands verbatim', () => {
+    useTilemapPaint.getState().setClipboard({ w: 2, h: 2, cells: [1, 2, 3, 4] });
+    useTilemapPaint.getState().toggleRandomBrush();
+    expect(useTilemapPaint.getState().randomBrush).toBe(true);
+    pasteClipboard();
+    expect(useTilemapPaint.getState().randomBrush).toBe(false);
+    expect(useTilemapPaint.getState().stamp).toEqual({ w: 2, h: 2, cells: [1, 2, 3, 4] });
+  });
+
+  it('switching tileset resets terrainSet (a stale index silently no-ops the terrain tool)', () => {
+    useTilemapPaint.getState().setTilesets([fakeTileset('a.estileset', 1), fakeTileset('b.estileset', 100)]);
+    useTilemapPaint.getState().setTerrainSet(3);
+    useTilemapPaint.getState().setActiveTileset(1);
+    expect(useTilemapPaint.getState().terrainSet).toBe(0);
+    // A fresh palette load resets it too.
+    useTilemapPaint.getState().setTerrainSet(2);
+    useTilemapPaint.getState().setTilesets([fakeTileset('c.estileset', 1)]);
+    expect(useTilemapPaint.getState().terrainSet).toBe(0);
   });
 });

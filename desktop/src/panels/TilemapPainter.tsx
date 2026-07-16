@@ -100,7 +100,7 @@ function BrushThumbnail({ stamp, atlas }: { stamp: TileStamp; atlas: AtlasInfo |
 export function TilemapPainter() {
   const {
     tilesetPath, tilesets, activeTileset, stamp, tool, terrainSet,
-    setTilesets, setActiveTileset, setTilesetAsset, setStamp, setTool, setTerrainSet,
+    setTilesets, setActiveTileset, setTilesetAsset, setStamp, setBrushTile, setTool, setTerrainSet,
     setActiveAtlas, flipH, flipV, rotateCW, randomBrush, toggleRandomBrush,
   } = useTilemapPaint();
   const selectedId = useSelection((s) => s.selectedId);
@@ -149,6 +149,10 @@ export function TilemapPainter() {
     })();
     return () => { alive = false; };
   }, [selectedId, setTilesets, reloadKey]);
+
+  // A tile selection (the select-tool marquee) is layer-scoped: drop it when the active
+  // layer changes so a stale marquee can't drive copy/cut/delete on the wrong layer.
+  useEffect(() => { useTilemapPaint.getState().setSelection(null); }, [selectedId]);
 
   const [asset, setAsset] = useState<TilesetAsset | null>(null);
   useEffect(() => {
@@ -509,9 +513,11 @@ export function TilemapPainter() {
             <span
               key={ts.path}
               className={'tp-tschip' + (i === activeTileset ? ' is-active' : '')}
-              title={`${ts.path}  (gid ${ts.firstId}+)`}
+              title={t('tile.tilesetGid', { path: ts.path, gid: ts.firstId })}
             >
-              <button type="button" className="tp-tsbtn" onClick={() => setActiveTileset(i)}>
+              {/* Switching tabs resets the brush to the new tileset's first tile so the
+                  stamp + thumbnail can't linger on the previous tileset's (now blank) gids. */}
+              <button type="button" className="tp-tsbtn" onClick={() => { setActiveTileset(i); setBrushTile(ts.firstId); }}>
                 {ts.path.split(/[\\/]/).pop()?.replace(/\.estileset$/, '') ?? t('tile.tilesetN', { n: i + 1 })}
               </button>
               {tilesets.length > 1 && (

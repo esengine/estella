@@ -966,7 +966,7 @@ export function Viewport() {
         // Hidden for rect/line while their gesture preview draws the shape.
         const dragging = TilePaintPreview.get() != null;
         const hov = hoverTileRef.current;
-        const gesturing = dragging && (paint.tool === 'rect' || paint.tool === 'line');
+        const gesturing = dragging && (paint.tool === 'rect' || paint.tool === 'line' || paint.tool === 'ellipse');
         // Random brush lays ONE sampled tile per cell, so its footprint is 1×1 — only a
         // pattern brush (or erase, which clears the whole w×h) previews at the stamp size.
         const stampSized = paint.tool === 'erase' || (paint.tool === 'brush' && !paint.randomBrush);
