@@ -19,6 +19,7 @@ import { useRef, useState } from 'react';
 import { evaluateChannel, type TimelineAsset, type Keyframe } from 'esengine';
 import { TimelineCommands } from '@/timeline/TimelineCommands';
 import { useSequencerStore } from '@/store/sequencerStore';
+import { eventWindow } from '@/components/PanelWindow';
 import { findChannel, timeToPct, type SeqRow } from '@/timeline/timelineView';
 
 const PAD_T = 8;
@@ -84,6 +85,7 @@ export function SequencerCurve({
     e.stopPropagation();
     useSequencerStore.getState().setPlaying(false);
     useSequencerStore.getState().selectKey(`${row.id}@${kf.time}`);
+    const win = eventWindow(e);
     const sx = e.clientX, sy = e.clientY;
     let moved = false, curT = kf.time, curV = kf.value;
     const move = (ev: PointerEvent) => {
@@ -94,21 +96,22 @@ export function SequencerCurve({
       setDrag({ rowId: row.id, fromTime: kf.time, time: curT, value: curV });
     };
     const up = () => {
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', up);
+      win.removeEventListener('pointermove', move);
+      win.removeEventListener('pointerup', up);
       setDrag(null);
       if (moved && row.ref) {
         TimelineCommands.editKey(row.ref, kf.time, curT, curV);
         useSequencerStore.getState().selectKey(`${row.id}@${curT}`);
       }
     };
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', up);
+    win.addEventListener('pointermove', move);
+    win.addEventListener('pointerup', up);
   };
 
   // Drag a tangent handle of the selected key → set in/out slope.
   const onHandleDown = (e: React.PointerEvent, row: SeqRow, kf: Keyframe, side: 'in' | 'out') => {
     e.stopPropagation();
+    const win = eventWindow(e);
     const move = (ev: PointerEvent) => {
       const t = timeFromClientX(ev.clientX);
       const v = valueFromClientY(ev.clientY);
@@ -123,11 +126,11 @@ export function SequencerCurve({
       );
     };
     const up = () => {
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', up);
+      win.removeEventListener('pointermove', move);
+      win.removeEventListener('pointerup', up);
     };
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', up);
+    win.addEventListener('pointermove', move);
+    win.addEventListener('pointerup', up);
   };
 
   const HL = duration * 0.08; // tangent-handle length, in seconds

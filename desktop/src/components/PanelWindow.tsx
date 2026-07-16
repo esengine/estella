@@ -22,13 +22,25 @@ import type { DockviewPanelApi } from 'dockview';
 // The main editor window — resolved defensively so importing this module in a
 // non-DOM context (unit tests run under node) doesn't touch an undefined `window`
 // at load time. In the browser/Electron renderer this is always the real window.
-const mainWindow: Window = (typeof window !== 'undefined' ? window : globalThis) as Window;
+const mainWindow: Window =
+  typeof window !== 'undefined' ? window : (globalThis as unknown as Window);
 
 const PanelWindowContext = createContext<Window>(mainWindow);
 
 /** The Window the calling subtree's DOM lives in (main window unless popped out). */
 export function usePanelWindow(): Window {
   return useContext(PanelWindowContext);
+}
+
+/**
+ * The Window a DOM event was dispatched in — for drags that attach their
+ * pointermove/up on pointerdown. Reading it from the event (rather than a hook)
+ * keeps the listeners on the window the gesture actually started in, so a drag in
+ * a popped-out panel isn't stranded listening on the main window.
+ */
+export function eventWindow(e: { currentTarget: EventTarget | null }): Window {
+  const el = e.currentTarget as Element | null;
+  return el?.ownerDocument?.defaultView ?? mainWindow;
 }
 
 const resolveWindow = (api: DockviewPanelApi): Window => {

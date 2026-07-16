@@ -23,6 +23,7 @@ import { SceneCommands } from '@/engine/SceneCommands';
 import { ProjectStore } from '@/project/ProjectStore';
 import { TILE_TOOL_KEY, exitTilePaint } from '@/tools/tileMode';
 import { MOD_LABEL } from '@/commands/keybinding';
+import { usePanelWindow } from '@/components/PanelWindow';
 import { buildStampGhost } from '@/tools/tileStampGhost';
 import { colsFor, rowsFor, TERRAIN_COLORS } from '@/tools/tileMath';
 import { loadTilesetAsset } from '@/tileset/loadTileset';
@@ -103,6 +104,7 @@ export function TilemapPainter() {
     setTilesets, setActiveTileset, setTilesetAsset, setStamp, setBrushTile, setTool, setTerrainSet,
     setActiveAtlas, flipH, flipV, rotateCW, randomBrush, toggleRandomBrush,
   } = useTilemapPaint();
+  const win = usePanelWindow();
   const selectedId = useSelection((s) => s.selectedId);
   const hasTilemap = selectedId != null
     && !!SceneModel.entityBySource(selectedId)?.components.some((c) => c.type === 'TilemapLayer');
@@ -215,13 +217,13 @@ export function TilemapPainter() {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setAddOpen(false);
     };
-    window.addEventListener('pointerdown', close);
-    window.addEventListener('keydown', onKey);
+    win.addEventListener('pointerdown', close);
+    win.addEventListener('keydown', onKey);
     return () => {
-      window.removeEventListener('pointerdown', close);
-      window.removeEventListener('keydown', onKey);
+      win.removeEventListener('pointerdown', close);
+      win.removeEventListener('keydown', onKey);
     };
-  }, [addOpen]);
+  }, [addOpen, win]);
 
   // Re-render the layer strip on any model change (add/remove/rename/hide/lock).
   const [, bumpModel] = useState(0);

@@ -16,6 +16,7 @@
  */
 import { useEffect, useImperativeHandle, useRef, useState, type ReactNode, type Ref, type MouseEvent as ReactMouseEvent } from 'react';
 import { ContextMenu, type MenuItem } from '@/components/Menu';
+import { usePanelWindow } from '@/components/PanelWindow';
 import { t } from '@/i18n';
 
 export type { MenuItem };
@@ -125,6 +126,7 @@ export function NodeGraphCanvas<N extends CanvasNode, E extends CanvasEdge>(prop
   const portY = (ports: CanvasPort[], id: string | undefined, fallback: number): number =>
     (ports.find((p) => p.id === (id ?? '')) ?? ports[0])?.y ?? fallback;
 
+  const win = usePanelWindow();
   const [wiring, setWiring] = useState(false);
   const [menu, setMenu] = useState<{ screenX: number; screenY: number; target: ContextTarget } | null>(null);
   // Infinite-canvas viewport: pan offset (screen px) + zoom. Content is drawn in
@@ -220,14 +222,14 @@ export function NodeGraphCanvas<N extends CanvasNode, E extends CanvasEdge>(prop
         setWiring(false);
       }
     };
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
+    win.addEventListener('pointermove', onMove);
+    win.addEventListener('pointerup', onUp);
     return () => {
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
+      win.removeEventListener('pointermove', onMove);
+      win.removeEventListener('pointerup', onUp);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, vp]);
+  }, [nodes, vp, win]);
 
   // Keyboard, scoped to the focused canvas (the canvas div carries tabIndex, so
   // clicking a node lands focus here) — a window listener would make two open

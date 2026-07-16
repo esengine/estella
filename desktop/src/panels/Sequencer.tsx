@@ -27,6 +27,7 @@ import { useSequencerStore } from '@/store/sequencerStore';
 import { useSelection } from '@/store/selectionStore';
 import { SceneModel } from '@/engine/SceneModel';
 import { ContextMenu, type MenuItem } from '@/components/Menu';
+import { eventWindow } from '@/components/PanelWindow';
 import { DirtyDot } from '@/components/DirtyDot';
 import { IconButton } from '@/components/IconButton';
 import { NumField } from '@/components/NumField';
@@ -166,6 +167,7 @@ function SequencerBody() {
   const onKeyPointerDown = (e: React.PointerEvent, ref: ChannelRef, rowId: string, time: number) => {
     e.stopPropagation();
     useSequencerStore.getState().setPlaying(false);
+    const win = eventWindow(e);
     const startX = e.clientX;
     const anchor = (e.currentTarget as HTMLElement).getBoundingClientRect();
     let moved = false;
@@ -177,8 +179,8 @@ function SequencerBody() {
       setDragKey({ rowId, ref, fromTime: time, time: liveTime });
     };
     const up = () => {
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', up);
+      win.removeEventListener('pointermove', move);
+      win.removeEventListener('pointerup', up);
       setDragKey(null);
       if (moved) {
         TimelineCommands.moveKey(ref, time, liveTime);
@@ -189,8 +191,8 @@ function SequencerBody() {
         setInterpPopover({ ref, time, x: anchor.left, y: anchor.bottom + 6 });
       }
     };
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', up);
+    win.addEventListener('pointermove', move);
+    win.addEventListener('pointerup', up);
   };
 
   // Channel "key" button: insert a key at the playhead holding the curve's
@@ -213,7 +215,7 @@ function SequencerBody() {
 
   const popoverAt = (e: React.MouseEvent) => {
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    return { x: Math.min(r.left, window.innerWidth - 240), y: r.bottom + 6 };
+    return { x: Math.min(r.left, eventWindow(e).innerWidth - 240), y: r.bottom + 6 };
   };
 
   // ── playback (visual playhead; viewport preview is the next P1 step) ──
@@ -315,14 +317,15 @@ function SequencerBody() {
   const onScrubDown = (e: React.PointerEvent) => {
     if ((e.target as HTMLElement).closest('.seq-key')) return;
     useSequencerStore.getState().setPlaying(false);
+    const win = eventWindow(e);
     setTime(timeFromClientX(e.clientX));
     const move = (ev: PointerEvent) => setTime(timeFromClientX(ev.clientX));
     const up = () => {
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', up);
+      win.removeEventListener('pointermove', move);
+      win.removeEventListener('pointerup', up);
     };
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', up);
+    win.addEventListener('pointermove', move);
+    win.addEventListener('pointerup', up);
   };
 
   // ── ruler ticks ──
