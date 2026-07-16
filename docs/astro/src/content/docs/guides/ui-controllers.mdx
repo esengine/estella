@@ -134,10 +134,10 @@ root's controllers stay switchable while you work on a geared leaf:
   every field then shows a small **gear dot** — click it to bind that field to the active
   controller (seeding the current page with the field's value). Click a bound dot to open
   its settings: the page-change **transition** (duration + easing, 0 = snap) and unbind.
-- Turn on **Record**: now editing a geared field writes the value into the controller's
-  **current page** (bound gear dots glow red while recording). Switch page, edit, switch
-  page, edit — each page captures its own values. This is the fast path — "pick a page,
-  change things, it's recorded".
+- Turn on **Record**: now every edit writes into the controller's **current page** —
+  a field with no gear yet gears itself automatically (auto-key), and bound gear dots
+  glow red while recording. Switch page, edit, switch page, edit — each page captures
+  its own values. This is the fast path — "pick a page, change things, it's recorded".
 - The panel's **Gears on this entity** list shows every binding the selected entity
   carries — field, driving controller, page count, transition — with one-click removal.
 

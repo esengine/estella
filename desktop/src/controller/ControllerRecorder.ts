@@ -5,13 +5,15 @@
  * @brief   Record mode for UI gears — auto-write a field edit into the active
  *          controller's current page.
  *
- * Mirrors TimelineRecorder: it registers one hook on the single SceneCommands
- * field-edit door. When recording is armed and the edited entity carries a UIGear
- * binding for the active controller + that field, it stores the edited value under
- * the controller's current page. Observe-only (returns false) so the scene edit
- * still lands and the gear-apply system re-projects the same value — a burst (drag)
- * coalesces into one undo step. This is the "select a page → edit geared fields →
- * auto-recorded" half of the authoring flow; the gear dot in Details opts a field in.
+ * Mirrors TimelineRecorder's edit-hook shape: one hook on the single SceneCommands
+ * field-edit door. When recording is armed and the edited entity resolves the
+ * active controller, the edited value is stored under the controller's current
+ * page — into the field's existing gear binding, or AUTO-KEY: a field with no
+ * binding yet gears itself on the spot (whole-field, seeded with the edit). So
+ * "record → switch page → change things" just works, no per-field opt-in dance;
+ * the Details gear dot remains the explicit path (and the settings door).
+ * Observe-only (returns false) so the scene edit still lands and the gear-apply
+ * system re-projects the same value — a burst (drag) coalesces into one undo step.
  */
 import { useControllerStore } from '@/store/controllerStore';
 import { SceneCommands, toModelValue } from '@/engine/SceneCommands';
@@ -65,8 +67,6 @@ class ControllerRecorderImpl {
     const { recording, activeController } = useControllerStore.getState();
     if (!recording || !activeController) return false;
 
-    const bindings = readGearBindings(sourceId);
-    if (bindings.length === 0) return false;
     const page = controllerCurrentPage(sourceId, activeController);
     if (page == null) return false;
     const cur = readComponentData(sourceId, compName);
@@ -76,6 +76,7 @@ class ControllerRecorderImpl {
     // A new burst on a different entity flushes the previous one first.
     if (this.burst && this.burst.entity !== sourceId) this.flush();
 
+    const bindings = readGearBindings(sourceId);
     const next = clone(bindings);
     let wrote = 0;
     for (const b of next) {
@@ -86,7 +87,17 @@ class ControllerRecorderImpl {
       b.pages[page] = gv;
       wrote++;
     }
-    if (wrote === 0) return false;
+    if (wrote === 0) {
+      // Auto-key: recording an un-geared field gears it on the spot, seeding the
+      // current page with the edited value (other pages stay unauthored/sparse).
+      if (modelValue == null) return false;
+      next.push({
+        controller: activeController,
+        component: compName,
+        property: key,
+        pages: { [page]: modelValue as GearValue },
+      });
+    }
 
     if (!this.burst) this.burst = { entity: sourceId, before: clone(bindings) };
     SceneCommands.setGearBindingsLive(sourceId, next); // live: reconciler → gear-apply re-projects

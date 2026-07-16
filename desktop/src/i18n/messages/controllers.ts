@@ -11,8 +11,8 @@ export const controllerMessages = defineMessages({
   'ctrl.title': { en: 'Controllers', zh: '控制器' },
   'ctrl.record': { en: 'Record', zh: '录制' },
   'ctrl.recordTitle': {
-    en: 'Record: editing a geared field writes the active controller page',
-    zh: '录制：编辑受控字段时写入当前控制器页',
+    en: 'Record: edits write into the active controller’s current page (un-geared fields gear themselves)',
+    zh: '录制：编辑写入活动控制器的当前页（未绑定的字段会自动绑定）',
   },
   'ctrl.emptyNoSelection': {
     en: 'Select a UI entity to author its controllers.',
