@@ -53,19 +53,35 @@ export class PlayRealmInstance {
     this.store.setState({ ...this.store.getState(), ...patch });
   }
 
+  // The window the realm→editor message listener is bound to. The realm iframe posts
+  // to its PARENT window, which is whichever window currently hosts the iframe element
+  // — the main window normally, but the popout window when the viewport is popped out.
+  // The listener must live on that window or the hello/ready handshake never arrives.
+  private msgWin: Window | null = null;
+
+  private bindMessages(win: Window): void {
+    if (this.msgWin === win) return;
+    try { this.msgWin?.removeEventListener('message', this.onMessage); } catch { /* window may be closed */ }
+    win.addEventListener('message', this.onMessage);
+    this.msgWin = win;
+  }
+
   private ensureIframe(): HTMLIFrameElement {
     if (!this.iframe) {
       const f = document.createElement('iframe');
       f.title = this.id === 0 ? 'Game' : `Game P${this.id + 1}`;
       f.style.cssText = 'display:block;width:100%;height:100%;border:0;background:var(--srf-1)';
-      window.addEventListener('message', this.onMessage);
+      this.bindMessages(window);
       this.iframe = f;
     }
     return this.iframe;
   }
 
-  /** Re-parent the realm iframe into a Game panel (kept alive across remounts). */
+  /** Re-parent the realm iframe into a host panel (kept alive across remounts), and
+   *  bind the realm→editor listener to the host's window so it keeps working when the
+   *  viewport (and its play host) is popped out into its own OS window. */
   attach(container: HTMLElement): void {
+    this.bindMessages(container.ownerDocument.defaultView ?? window);
     container.appendChild(this.ensureIframe());
   }
 

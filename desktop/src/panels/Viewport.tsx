@@ -35,6 +35,7 @@ import { PerfMonitor } from '@/engine/PerfMonitor';
 import { PerfOverlay } from '@/components/PerfOverlay';
 import { Perf } from '@/components/Perf';
 import { Popover, usePopover } from '@/components/Popover';
+import { usePanelWindow, eventWindow } from '@/components/PanelWindow';
 import type { ToolMode, EntityId } from '@/types';
 import { resolveActiveTool, type EditorTool, type ToolContext, type PointerInput } from '@/tools';
 import { cursorTile } from '@/tools/tileTools';
@@ -66,6 +67,7 @@ function startRadiusHandleDrag(
   const center = centerOverride ?? ViewportController.getEntityWorldXY(rt);
   if (src == null || !center) return;
   e.stopPropagation();
+  const win = eventWindow(e);
   SceneCommands.beginGesture(`${component} radius`);
   const onMove = (ev: PointerEvent) => {
     const w = ViewportController.canvasToWorld(ev.clientX, ev.clientY);
@@ -75,11 +77,11 @@ function startRadiusHandleDrag(
   };
   const onUp = () => {
     SceneCommands.endGesture();
-    window.removeEventListener('pointermove', onMove);
-    window.removeEventListener('pointerup', onUp);
+    win.removeEventListener('pointermove', onMove);
+    win.removeEventListener('pointerup', onUp);
   };
-  window.addEventListener('pointermove', onMove);
-  window.addEventListener('pointerup', onUp);
+  win.addEventListener('pointermove', onMove);
+  win.addEventListener('pointerup', onUp);
 }
 
 // Drag a box corner handle → a vec2 size field. Same channel as the radius drag; the
@@ -98,6 +100,7 @@ function startSizeHandleDrag(
   e.stopPropagation();
   const rot = ViewportController.getEntityWorldAngleRad(rt);
   const cos = Math.cos(rot), sin = Math.sin(rot);
+  const win = eventWindow(e);
   SceneCommands.beginGesture(`${component} size`);
   const onMove = (ev: PointerEvent) => {
     const w = ViewportController.canvasToWorld(ev.clientX, ev.clientY);
@@ -110,11 +113,11 @@ function startSizeHandleDrag(
   };
   const onUp = () => {
     SceneCommands.endGesture();
-    window.removeEventListener('pointermove', onMove);
-    window.removeEventListener('pointerup', onUp);
+    win.removeEventListener('pointermove', onMove);
+    win.removeEventListener('pointerup', onUp);
   };
-  window.addEventListener('pointermove', onMove);
-  window.addEventListener('pointerup', onUp);
+  win.addEventListener('pointermove', onMove);
+  win.addEventListener('pointerup', onUp);
 }
 
 // Project a world-space, axis-aligned rect (center + half extents) to a CSS-px
@@ -200,6 +203,7 @@ function startUiResizeDrag(rt: number, edge: UiEdge, e: ReactPointerEvent): void
   const fy = { size: uiDim(src, 'height'), nearInset: uiDim(src, 'insetBottom'), farInset: uiDim(src, 'insetTop') };
   const parentW = 2 * pobb.hw, parentH = 2 * pobb.hh;
 
+  const win = eventWindow(e);
   SceneCommands.beginGesture('Resize UI');
   const onMove = (ev: PointerEvent) => {
     const wp = ViewportController.canvasToWorld(ev.clientX, ev.clientY);
@@ -221,11 +225,11 @@ function startUiResizeDrag(rt: number, edge: UiEdge, e: ReactPointerEvent): void
   };
   const onUp = () => {
     SceneCommands.endGesture();
-    window.removeEventListener('pointermove', onMove);
-    window.removeEventListener('pointerup', onUp);
+    win.removeEventListener('pointermove', onMove);
+    win.removeEventListener('pointerup', onUp);
   };
-  window.addEventListener('pointermove', onMove);
-  window.addEventListener('pointerup', onUp);
+  win.addEventListener('pointermove', onMove);
+  win.addEventListener('pointerup', onUp);
 }
 
 // Drag a cone's edge handle → its spread angle (ParticleEmitter.shapeAngle, degrees).
@@ -238,6 +242,7 @@ function startAngleHandleDrag(rt: number, e: ReactPointerEvent): void {
   e.stopPropagation();
   const rot = ViewportController.getEntityWorldAngleRad(rt);
   const cos = Math.cos(rot), sin = Math.sin(rot);
+  const win = eventWindow(e);
   SceneCommands.beginGesture('Cone angle');
   const onMove = (ev: PointerEvent) => {
     const w = ViewportController.canvasToWorld(ev.clientX, ev.clientY);
@@ -250,11 +255,11 @@ function startAngleHandleDrag(rt: number, e: ReactPointerEvent): void {
   };
   const onUp = () => {
     SceneCommands.endGesture();
-    window.removeEventListener('pointermove', onMove);
-    window.removeEventListener('pointerup', onUp);
+    win.removeEventListener('pointermove', onMove);
+    win.removeEventListener('pointerup', onUp);
   };
-  window.addEventListener('pointermove', onMove);
-  window.addEventListener('pointerup', onUp);
+  win.addEventListener('pointermove', onMove);
+  win.addEventListener('pointerup', onUp);
 }
 
 // Drag a joint anchor dot → its anchorA/anchorB vec2 (world px in the owning body's
@@ -269,6 +274,7 @@ function startJointAnchorDrag(rt: number, type: JointGizmoType, end: 'a' | 'b', 
   if (src == null || !frame) return;
   e.stopPropagation();
   const cos = Math.cos(frame.rot), sin = Math.sin(frame.rot);
+  const win = eventWindow(e);
   SceneCommands.beginGesture(`${type} anchor`);
   const onMove = (ev: PointerEvent) => {
     const w = ViewportController.canvasToWorld(ev.clientX, ev.clientY);
@@ -279,11 +285,11 @@ function startJointAnchorDrag(rt: number, type: JointGizmoType, end: 'a' | 'b', 
   };
   const onUp = () => {
     SceneCommands.endGesture();
-    window.removeEventListener('pointermove', onMove);
-    window.removeEventListener('pointerup', onUp);
+    win.removeEventListener('pointermove', onMove);
+    win.removeEventListener('pointerup', onUp);
   };
-  window.addEventListener('pointermove', onMove);
-  window.addEventListener('pointerup', onUp);
+  win.addEventListener('pointermove', onMove);
+  win.addEventListener('pointerup', onUp);
 }
 
 // Drag the prismatic/wheel axis tip → the slide direction. The axis lives in the
@@ -296,6 +302,7 @@ function startJointAxisDrag(rt: number, type: JointGizmoType, e: ReactPointerEve
   if (src == null || !frame) return;
   e.stopPropagation();
   const cos = Math.cos(frame.rot), sin = Math.sin(frame.rot);
+  const win = eventWindow(e);
   SceneCommands.beginGesture(`${type} axis`);
   const onMove = (ev: PointerEvent) => {
     const w = ViewportController.canvasToWorld(ev.clientX, ev.clientY);
@@ -310,11 +317,11 @@ function startJointAxisDrag(rt: number, type: JointGizmoType, e: ReactPointerEve
   };
   const onUp = () => {
     SceneCommands.endGesture();
-    window.removeEventListener('pointermove', onMove);
-    window.removeEventListener('pointerup', onUp);
+    win.removeEventListener('pointermove', onMove);
+    win.removeEventListener('pointerup', onUp);
   };
-  window.addEventListener('pointermove', onMove);
-  window.addEventListener('pointerup', onUp);
+  win.addEventListener('pointermove', onMove);
+  win.addEventListener('pointerup', onUp);
 }
 
 // The interactive transform gizmo, drawn from the origin (= the selection pivot, the
@@ -565,6 +572,9 @@ function ViewportHud({ ready, selCount, zoomPct, tool, paintHint }: {
 }
 
 export function Viewport() {
+  // The window this viewport currently lives in — main, or its own OS window once
+  // popped out. Drives resize re-binding and any window-scoped listeners below.
+  const win = usePanelWindow();
   const isPlaying = useEditorStore((s) => s.isPlaying);
   const playTarget = useEditorStore((s) => s.playTarget);
   const tool = useEditorStore((s) => s.tool);
@@ -716,6 +726,15 @@ export function Viewport() {
     return () => EngineHost.detach();
   }, []);
 
+  // When the viewport is popped out into (or docked back from) its own OS window, the
+  // engine canvas rides the DOM move — a same-origin move keeps its live GL context —
+  // but its resize observer must re-bind to the new window so the canvas keeps sizing
+  // to the panel. (No re-attach: re-parenting/re-booting the engine would be wasteful.)
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (stage) EngineHost.rebindResize(stage);
+  }, [win]);
+
   // Drive the engine's world-space editor grid from Show-Flags (Grid) + Snap
   // step. Re-applied when the engine becomes ready, since the grid resource
   // exists only after boot. Play/edit gating lives in the renderer (EditorView).
@@ -733,14 +752,17 @@ export function Viewport() {
   // here. The host div is PERSISTENT (mounted whenever the viewport is the play
   // target, parked off-screen when not playing) so the realm's wasm + GL survive
   // Stop and a re-Play is a warm scene swap — moving an iframe between parents
-  // reloads it, so it must never leave this host. Detach only on target switch.
+  // reloads it, so it must never leave this host. Re-attach on a target switch AND
+  // when the viewport is popped out / docked back (`win`): the iframe rides the DOM
+  // to the new window, so PlayRealm must re-bind its message listener to that window
+  // (attach does), or the realm→editor handshake is stranded on the old one.
   const playInViewport = isPlaying && playTarget === 'viewport';
   useEffect(() => {
     if (playTarget !== 'viewport') return;
     const host = playHostRef.current;
     if (host) PlayRealm.attach(host);
     return () => PlayRealm.detach();
-  }, [playTarget]);
+  }, [playTarget, win]);
 
   // Wheel = zoom about the view (native non-passive listener so we can preventDefault).
   useEffect(() => {
@@ -1025,7 +1047,9 @@ export function Viewport() {
               if (!tl || !br) return;
               let cell = pool[used];
               if (!cell) {
-                cell = document.createElement('div');
+                // Create in the stage's own document so pooled cells belong to the
+                // popped-out window rather than being adopted across documents.
+                cell = pp.ownerDocument.createElement('div');
                 cell.className = 'viewport__tilepaint-cell';
                 pp.appendChild(cell);
                 pool[used] = cell;
@@ -1389,9 +1413,9 @@ export function Viewport() {
         e.stopImmediatePropagation();
       }
     };
-    window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
-  }, [toolCtx]);
+    win.addEventListener('keydown', onKey, true);
+    return () => win.removeEventListener('keydown', onKey, true);
+  }, [toolCtx, win]);
 
   const onPointerDown = (e: ReactPointerEvent) => {
     if (engine.status !== 'ready') return;

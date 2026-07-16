@@ -34,11 +34,12 @@ const prefersReducedMotion = (): boolean =>
   typeof window.matchMedia === 'function' &&
   window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-// Panels bound to the editor's single engine surface can't move to another OS
-// window: the Viewport owns the one WebGL canvas and the Game view hosts the play
-// iframe — a live GL context / iframe doesn't survive being re-parented across
-// documents. Everything else is model/store-driven and pops out cleanly.
-const NON_POPPABLE = new Set(['viewport', 'game']);
+// The Game view hosts the play-realm iframe, and re-parenting an iframe across
+// documents reloads it (its wasm/GL would restart) — so it stays put. The Viewport
+// CAN pop out: a same-origin canvas move preserves the live WebGL context, so its
+// single engine canvas rides the move into the new window (EngineHost.rebindResize
+// re-binds sizing). Everything else is model/store-driven and pops out cleanly.
+const NON_POPPABLE = new Set(['game']);
 
 // dockview's getDockviewTheme copies only the FIRST `dockview-theme-*` class onto
 // the popout container (our root carries `dockview-theme-abyss dockview-theme-estella`,

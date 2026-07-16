@@ -226,10 +226,23 @@ class EngineHostImpl {
   attach(container: HTMLElement) {
     const canvas = this.ensureCanvas();
     container.appendChild(canvas);
-    this.resize();
-    this.resizeObserver = new ResizeObserver(() => this.resize());
-    this.resizeObserver.observe(container);
+    this.rebindResize(container);
     void this.boot();
+  }
+
+  /**
+   * Point the resize observer at `container` in its CURRENT window. The single
+   * canvas rides the DOM when the viewport panel is popped out into its own OS
+   * window (a same-origin move preserves the live GL context), but a ResizeObserver
+   * created in the main window won't reliably fire for the popout — so re-create it
+   * from the container's own window whenever the viewport changes windows.
+   */
+  rebindResize(container: HTMLElement) {
+    this.resizeObserver?.disconnect();
+    const RO = container.ownerDocument.defaultView?.ResizeObserver ?? ResizeObserver;
+    this.resizeObserver = new RO(() => this.resize());
+    this.resizeObserver.observe(container);
+    this.resize();
   }
 
   /** Remove the canvas from its container; the engine keeps running detached. */
