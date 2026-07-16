@@ -1,31 +1,32 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  The loopback export-preview server: serves a build dir over http (its real
- *        deployment surface) so web/playable previews never hit file:// opaque-origin
- *        rules. Asserts it serves index.html + assets with correct content-types,
- *        contains within the root (no traversal), and fails fast without an index.html.
+ * @file  The loopback static server (serves the packaged editor shell and export
+ *        previews over http, so both get a real http origin instead of file:// or
+ *        the app:// custom scheme). Asserts it serves index.html + assets with
+ *        correct content-types, contains within the root (no traversal), reuses one
+ *        server per root, and fails fast without an index.html.
  */
 import { describe, it, expect, afterAll } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { previewServer, closeAllPreviewServers } from '../electron/exportPreview';
+import { loopbackServer, closeAllLoopbackServers } from '../electron/loopbackServer';
 
-afterAll(() => closeAllPreviewServers());
+afterAll(() => closeAllLoopbackServers());
 
 function buildDir(): string {
-  const dir = mkdtempSync(path.join(tmpdir(), 'estella-preview-'));
+  const dir = mkdtempSync(path.join(tmpdir(), 'estella-loopback-'));
   writeFileSync(path.join(dir, 'index.html'), '<!doctype html><title>P</title><canvas id="canvas"></canvas>');
   writeFileSync(path.join(dir, 'esengine.wasm'), 'WASMBYTES');
   return dir;
 }
 
-describe('exportPreview loopback server', () => {
+describe('loopback server', () => {
   it('serves index.html and the wasm with correct content-types over http', async () => {
     const dir = buildDir();
     try {
-      const url = await previewServer(dir);
+      const url = await loopbackServer(dir);
       expect(url).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/$/);
 
       const index = await fetch(url);
@@ -42,10 +43,10 @@ describe('exportPreview loopback server', () => {
     }
   });
 
-  it('reuses one server per root (same URL on re-preview)', async () => {
+  it('reuses one server per root (same URL on re-serve)', async () => {
     const dir = buildDir();
     try {
-      expect(await previewServer(dir)).toBe(await previewServer(dir));
+      expect(await loopbackServer(dir)).toBe(await loopbackServer(dir));
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -54,7 +55,7 @@ describe('exportPreview loopback server', () => {
   it('contains within the served root (no path traversal)', async () => {
     const dir = buildDir();
     try {
-      const url = await previewServer(dir);
+      const url = await loopbackServer(dir);
       const res = await fetch(`${url}../../etc/hosts`);
       expect([403, 404]).toContain(res.status);
     } finally {
@@ -63,10 +64,10 @@ describe('exportPreview loopback server', () => {
   });
 
   it('fails fast when the dir has no index.html', async () => {
-    const empty = mkdtempSync(path.join(tmpdir(), 'estella-preview-empty-'));
+    const empty = mkdtempSync(path.join(tmpdir(), 'estella-loopback-empty-'));
     mkdirSync(path.join(empty, 'sub'), { recursive: true });
     try {
-      await expect(previewServer(empty)).rejects.toThrow(/index\.html/);
+      await expect(loopbackServer(empty)).rejects.toThrow(/index\.html/);
     } finally {
       rmSync(empty, { recursive: true, force: true });
     }
