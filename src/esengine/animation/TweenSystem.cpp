@@ -16,6 +16,11 @@ namespace esengine::animation {
 void TweenSystem::update(ecs::Registry& registry, f32 deltaTime) {
     pending_remove_.clear();
 
+    for (auto entity : ui_flagged_) {
+        if (auto* n = registry.tryGet<ecs::UINode>(entity)) n->anim_override_ = 0;
+    }
+    ui_flagged_.clear();
+
     for (auto entity : registry.view<TweenData>()) {
         auto& tween = registry.get<TweenData>(entity);
 
@@ -133,23 +138,28 @@ void TweenSystem::resumeTween(ecs::Registry& registry, Entity tweenEntity) {
 // per-field semantics exactly: rotation.z → half-angle quaternion, and the UINode
 // `anim_override_` flags so UI layout doesn't clobber animated Transform fields.
 // Flag the entity's UINode so the layout pass leaves the tween-driven Transform
-// field alone this frame.
-static void markUIAnimOverride(ecs::Registry& registry, Entity entity, u8 flag) {
-    if (auto* n = registry.tryGet<ecs::UINode>(entity)) n->anim_override_ |= flag;
+// field alone this frame; `flagged` remembers the entity for next frame's clear.
+static void markUIAnimOverride(ecs::Registry& registry, Entity entity, u8 flag,
+                               std::vector<Entity>& flagged) {
+    if (auto* n = registry.tryGet<ecs::UINode>(entity)) {
+        if (n->anim_override_ == 0) flagged.push_back(entity);
+        n->anim_override_ |= flag;
+    }
 }
 
-static void applyTweenValue(ecs::Registry& registry, Entity entity, TweenTarget target, f32 value) {
+static void applyTweenValue(ecs::Registry& registry, Entity entity, TweenTarget target, f32 value,
+                            std::vector<Entity>& flagged) {
     switch (target) {
         case TweenTarget::TransformPositionX:
             if (auto* c = registry.tryGet<ecs::Transform>(entity)) {
                 c->position.x = value;
-                markUIAnimOverride(registry, entity, ecs::UINode::ANIM_POS_X);
+                markUIAnimOverride(registry, entity, ecs::UINode::ANIM_POS_X, flagged);
             }
             break;
         case TweenTarget::TransformPositionY:
             if (auto* c = registry.tryGet<ecs::Transform>(entity)) {
                 c->position.y = value;
-                markUIAnimOverride(registry, entity, ecs::UINode::ANIM_POS_Y);
+                markUIAnimOverride(registry, entity, ecs::UINode::ANIM_POS_Y, flagged);
             }
             break;
         case TweenTarget::TransformPositionZ:
@@ -158,20 +168,20 @@ static void applyTweenValue(ecs::Registry& registry, Entity entity, TweenTarget 
         case TweenTarget::TransformScaleX:
             if (auto* c = registry.tryGet<ecs::Transform>(entity)) {
                 c->scale.x = value;
-                markUIAnimOverride(registry, entity, ecs::UINode::ANIM_SCALE_X);
+                markUIAnimOverride(registry, entity, ecs::UINode::ANIM_SCALE_X, flagged);
             }
             break;
         case TweenTarget::TransformScaleY:
             if (auto* c = registry.tryGet<ecs::Transform>(entity)) {
                 c->scale.y = value;
-                markUIAnimOverride(registry, entity, ecs::UINode::ANIM_SCALE_Y);
+                markUIAnimOverride(registry, entity, ecs::UINode::ANIM_SCALE_Y, flagged);
             }
             break;
         case TweenTarget::TransformRotationZ:
             if (auto* c = registry.tryGet<ecs::Transform>(entity)) {
                 f32 h = value * 0.5f;
                 c->rotation = glm::quat(std::cos(h), 0.0f, 0.0f, std::sin(h));
-                markUIAnimOverride(registry, entity, ecs::UINode::ANIM_ROT_Z);
+                markUIAnimOverride(registry, entity, ecs::UINode::ANIM_ROT_Z, flagged);
             }
             break;
         case TweenTarget::SpriteColorR:
@@ -205,7 +215,7 @@ void TweenSystem::applyValue(ecs::Registry& registry, const TweenData& tween, f3
     if (!registry.valid(target)) {
         return;
     }
-    applyTweenValue(registry, target, tween.target_property, value);
+    applyTweenValue(registry, target, tween.target_property, value, ui_flagged_);
 }
 
 f32 TweenSystem::evaluateEasing(const TweenData& tween, f32 t) {

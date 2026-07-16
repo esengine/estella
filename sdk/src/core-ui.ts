@@ -7,7 +7,7 @@
  *
  * This is the curated *public* UI API. The complete UI module surface — which
  * also includes low-level text/atlas internals and engine-internal composition
- * glue (e.g. `withChildEntity`, `setEntityColor`, `EntityStateMap`) — lives in
+ * glue (e.g. `EntityStateMap`, `ensureComponent`) — lives in
  * `./ui` and is imported module-directly by the SDK code that needs it. Those
  * internals are intentionally NOT re-exported here, so the public `esengine`
  * namespace stays a stable, intentional surface.
@@ -44,10 +44,8 @@ export {
     quaternionToAngle2D,
     Interactable,
     UIInteraction,
-    AnimOverride,
     UIEvents,
     UIEventQueue,
-    makeInteractable,
     UICameraInfo,
     screenToUiWorld,
     uiWorldToScreen,
@@ -59,7 +57,6 @@ export {
     FillOrigin,
     Draggable,
     DragState,
-    FillDirection,
     Focusable,
     FocusManager,
     FocusManagerState,

@@ -4,8 +4,8 @@
  * @file    ui/ui-plugin.ts
  * @brief   UIPlugin — the single declarative UI pipeline.
  *
- * Composes the formerly separate concept plugins (layout, mask, safe-area,
- * text, interaction, behavior, drag, focus, text-input, render-order) into one
+ * Composes the separate concept plugins (layout, mask, safe-area, text,
+ * interaction, behavior, controller, drag, focus, text-input, render-order) into one
  * plugin so the app's plugin list carries a single UI entry instead of ten
  * hand-ordered ones. System *execution* order is still defined declaratively by
  * each system's runAfter/runBefore labels; composition only fixes *build* order

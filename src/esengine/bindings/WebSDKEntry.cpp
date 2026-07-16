@@ -798,20 +798,6 @@ void transform_update(ecs::Registry& registry) {
     }
 }
 
-// Per-frame clear of UINode tween anim-override flags (set by the tween system,
-// read by the layout pass). Name kept (ui_*) for the TS binding.
-void uiRect_clearAnimOverrides(ecs::Registry& registry) {
-    for (auto entity : registry.view<ecs::UINode>()) {
-        registry.get<ecs::UINode>(entity).anim_override_ = 0;
-    }
-}
-
-void uiRect_setAnimOverride(ecs::Registry& registry, u32 entity, u8 flags) {
-    if (auto* n = registry.tryGet<ecs::UINode>(Entity::fromRaw(entity))) {
-        n->anim_override_ |= flags;
-    }
-}
-
 void transform_patchPosition(ecs::Registry& registry, u32 entity,
                              f32 x, f32 y, f32 z) {
     auto* transform = registry.tryGet<ecs::Transform>(Entity::fromRaw(entity));
@@ -840,8 +826,6 @@ EMSCRIPTEN_BINDINGS(esengine_ui_systems) {
     emscripten::function("uiTree_markDirty", &esengine::uiTree_markDirty);
     emscripten::function("uiTree_markAllDirty", &esengine::uiTree_markAllDirty);
     emscripten::function("transform_update", &esengine::transform_update);
-    emscripten::function("uiRect_clearAnimOverrides", &esengine::uiRect_clearAnimOverrides);
-    emscripten::function("uiRect_setAnimOverride", &esengine::uiRect_setAnimOverride);
     emscripten::function("transform_patchPosition", &esengine::transform_patchPosition);
 }
 

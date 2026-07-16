@@ -422,10 +422,6 @@ export interface ESEngineModule {
     uiTree_markDirty(entity: number): void;
     uiTree_markAllDirty(): void;
     transform_update(registry: CppRegistry): void;
-    // Layout anim-override flags (function names predate the UINode rename; they
-    // now operate on UINode.anim_override_).
-    uiRect_clearAnimOverrides(registry: CppRegistry): void;
-    uiRect_setAnimOverride(registry: CppRegistry, entity: number, flags: number): void;
     transform_patchPosition(registry: CppRegistry, entity: number, x: number, y: number, z: number): void;
 
     // Animation (Tween) API

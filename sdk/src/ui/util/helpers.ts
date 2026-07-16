@@ -1,16 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { CoreApiBridge } from '../../CoreApiBridge';
-import { Sprite, Parent, Transform } from '../../component';
-import type { ParentData, SpriteData, TransformData, AnyComponentDef } from '../../component';
-import type { Entity, Color } from '../../types';
+import { Parent } from '../../component';
+import type { ParentData, AnyComponentDef } from '../../component';
+import type { Entity } from '../../types';
 import type { World } from '../../world';
 import { UIVisual, UIVisualType } from '../core/ui-visual';
-import type { UIVisualData } from '../core/ui-visual';
-import { FillDirection } from './types';
-import type { ColorTransition } from './types';
 import type { ESEngineModule, CppRegistry } from '../../wasm';
-import { Interactable } from '../input/interactable';
 
 const bridge = new CoreApiBridge('uiHelpers');
 let module_: ESEngineModule | null = null;
@@ -23,106 +19,11 @@ export function initUIHelpers(module: ESEngineModule, registry: CppRegistry): vo
 }
 
 
-export function applyColorTransition(
-    transition: ColorTransition,
-    enabled: boolean,
-    pressed: boolean,
-    hovered: boolean,
-): Color {
-    if (!enabled) return { ...transition.disabledColor };
-    if (pressed) return { ...transition.pressedColor };
-    if (hovered) return { ...transition.hoveredColor };
-    return { ...transition.normalColor };
-}
-
-const TINT_HOVER = 1.15;
-const TINT_PRESSED = 0.75;
-const TINT_DISABLED = 0.5;
-const TINT_DISABLED_ALPHA = 0.6;
-
-export function applyDefaultTint(
-    baseColor: Color,
-    enabled: boolean,
-    pressed: boolean,
-    hovered: boolean,
-): Color {
-    if (!enabled) {
-        return {
-            r: baseColor.r * TINT_DISABLED,
-            g: baseColor.g * TINT_DISABLED,
-            b: baseColor.b * TINT_DISABLED,
-            a: baseColor.a * TINT_DISABLED_ALPHA,
-        };
-    }
-    if (pressed) {
-        return {
-            r: baseColor.r * TINT_PRESSED,
-            g: baseColor.g * TINT_PRESSED,
-            b: baseColor.b * TINT_PRESSED,
-            a: baseColor.a,
-        };
-    }
-    if (hovered) {
-        return {
-            r: Math.min(1, baseColor.r * TINT_HOVER),
-            g: Math.min(1, baseColor.g * TINT_HOVER),
-            b: Math.min(1, baseColor.b * TINT_HOVER),
-            a: baseColor.a,
-        };
-    }
-    return { ...baseColor };
-}
-
 export function isWordChar(code: number): boolean {
     return (code >= 0x41 && code <= 0x5A)
         || (code >= 0x61 && code <= 0x7A)
         || (code >= 0x30 && code <= 0x39)
         || code === 0x5F;
-}
-
-export function wrapText(
-    ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
-    text: string,
-    maxWidth: number,
-): string[] {
-    if (!text) return [''];
-    if (maxWidth <= 0) return text.split('\n');
-    const paragraphs = text.split('\n');
-    const lines: string[] = [];
-    for (const paragraph of paragraphs) {
-        if (!paragraph) { lines.push(''); continue; }
-        let currentLine = '';
-        for (let i = 0; i < paragraph.length; i++) {
-            const char = paragraph[i];
-            const testLine = currentLine + char;
-            if (ctx.measureText(testLine).width > maxWidth && currentLine) {
-                const code = char.charCodeAt(0);
-                if (isWordChar(code) && currentLine.length > 0 && isWordChar(currentLine.charCodeAt(currentLine.length - 1))) {
-                    let breakPos = -1;
-                    for (let j = currentLine.length - 1; j >= 0; j--) {
-                        if (!isWordChar(currentLine.charCodeAt(j))) {
-                            breakPos = j;
-                            break;
-                        }
-                    }
-                    if (breakPos >= 0) {
-                        lines.push(currentLine.substring(0, breakPos + 1));
-                        currentLine = currentLine.substring(breakPos + 1) + char;
-                    } else {
-                        lines.push(currentLine);
-                        currentLine = char;
-                    }
-                } else {
-                    lines.push(currentLine);
-                    currentLine = char;
-                }
-            } else {
-                currentLine = testLine;
-            }
-        }
-        if (currentLine) lines.push(currentLine);
-    }
-    return lines.length > 0 ? lines : [''];
 }
 
 export function nextPowerOf2(n: number): number {
@@ -160,36 +61,6 @@ export function getUINodeHeight(entity: Entity): number {
     return 0;
 }
 
-
-export function syncFillSpriteSize(
-    world: World,
-    fillEntity: Entity,
-    direction: number,
-    normalizedValue: number,
-    sliderW: number,
-    sliderH: number,
-): void {
-    if (!world.has(fillEntity, Sprite)) return;
-    const sprite = world.get(fillEntity, Sprite) as SpriteData;
-    let w: number;
-    let h: number;
-    switch (direction) {
-        case FillDirection.BottomToTop:
-        case FillDirection.TopToBottom:
-            w = sliderW;
-            h = sliderH * normalizedValue;
-            break;
-        default:
-            w = sliderW * normalizedValue;
-            h = sliderH;
-            break;
-    }
-    if (sprite.size.x !== w || sprite.size.y !== h) {
-        sprite.size.x = w;
-        sprite.size.y = h;
-        world.insert(fillEntity, Sprite, sprite);
-    }
-}
 
 export function walkParentChain(
     world: World, entity: Entity,
@@ -231,77 +102,6 @@ export function ensureUIVisual(world: World, entity: Entity): void {
             enabled: true,
         });
     }
-}
-
-export function makeInteractable(world: World, entity: Entity): void {
-    ensureComponent(world, entity, Interactable, {
-        enabled: true,
-        blockRaycast: true,
-        raycastTarget: true,
-    });
-}
-
-export function withChildEntity(
-    world: World,
-    childId: Entity,
-    callback: (entity: Entity) => void,
-): void {
-    if (childId !== 0 && world.valid(childId)) {
-        callback(childId);
-    }
-}
-
-function colorEquals(a: Color, b: Color): boolean {
-    return a.r === b.r && a.g === b.g && a.b === b.b && a.a === b.a;
-}
-
-export function setEntityColor(world: World, entity: Entity, color: Color): void {
-    if (world.has(entity, Sprite)) {
-        const s = world.get(entity, Sprite) as SpriteData;
-        if (!colorEquals(s.color, color)) {
-            s.color = color;
-            world.insert(entity, Sprite, s);
-        }
-    } else if (world.has(entity, UIVisual)) {
-        const r = world.get(entity, UIVisual) as UIVisualData;
-        if (!colorEquals(r.color, color)) {
-            r.color = color;
-            world.insert(entity, UIVisual, r);
-        }
-    }
-}
-
-export function setEntityEnabled(world: World, entity: Entity, enabled: boolean): void {
-    if (world.has(entity, Sprite)) {
-        const s = world.get(entity, Sprite) as SpriteData;
-        if (s.enabled !== enabled) {
-            s.enabled = enabled;
-            world.insert(entity, Sprite, s);
-        }
-    } else if (world.has(entity, UIVisual)) {
-        const r = world.get(entity, UIVisual) as UIVisualData;
-        if (r.enabled !== enabled) {
-            r.enabled = enabled;
-            world.insert(entity, UIVisual, r);
-        }
-    }
-}
-
-export function colorScale(c: Color, factor: number): Color {
-    return {
-        r: Math.min(1, c.r * factor),
-        g: Math.min(1, c.g * factor),
-        b: Math.min(1, c.b * factor),
-        a: c.a,
-    };
-}
-
-export function colorWithAlpha(c: Color, alpha: number): Color {
-    return { r: c.r, g: c.g, b: c.b, a: alpha };
-}
-
-export function colorToRgba(c: Color): string {
-    return `rgba(${Math.round(c.r * 255)}, ${Math.round(c.g * 255)}, ${Math.round(c.b * 255)}, ${c.a})`;
 }
 
 export class EntityStateMap<T> {

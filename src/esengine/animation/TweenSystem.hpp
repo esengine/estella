@@ -28,6 +28,9 @@ private:
     f32 evaluateEasing(const TweenData& tween, f32 t);
 
     std::vector<Entity> pending_remove_;
+    // UINode entities whose anim_override_ flags were set this frame; cleared at
+    // the start of the next update so layout regains the field once a tween ends.
+    std::vector<Entity> ui_flagged_;
 };
 
 }  // namespace esengine::animation

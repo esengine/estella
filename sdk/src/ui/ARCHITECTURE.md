@@ -22,13 +22,13 @@ layer above it in this list; it must **not** import from a layer below it.
 ```
 Layer 0  Events        core/events.ts                      (the UI event bus)
 Layer 1  Primitives    core/  + layout/flex.ts             (components = data)
-Layer 2  Behaviors     input/  behavior/                   (interaction, FSM, drag, focus)
+Layer 2  Behaviors     input/  controller/  behavior/      (interaction, controllers+gears, drag, focus)
          Layout/Render layout/  render/                    (Yoga driver, masking, draw order)
 Layer 3  Collection    collection/                         (lists, scroll, virtualization)
 Layer 4  Widgets       widgets/                            (factory functions: button, dialog, …)
 Cross    Text          text/                               (SDF/atlas/rich-text pipeline)
 Cross    Theme         theme/                              (design tokens)
-Cross    Util          util/                               (pure helpers, math, types, constants)
+Cross    Util          util/                               (pure helpers, math, constants)
 ```
 
 `util/`, `text/`, and `theme/` are cross-cutting: they sit beside the layers and
@@ -40,15 +40,16 @@ collection, or widgets.
 | Folder | Responsibility | Key files |
 |--------|----------------|-----------|
 | `core/` | Layer 0–1 primitives: the components that *are* the UI | `ui-node`, `ui-visual`, `ui-mask`, `text`, `dimension`, `events`, `ui-camera-info` |
-| `layout/` | Flexbox layout + safe area + layout bookkeeping | `flex`, `layout` (Yoga driver plugin), `safe-area`, `ui-layout-generation` |
+| `layout/` | Flexbox layout + safe area + layout bookkeeping | `anchor`, `flex`, `layout` (Yoga driver plugin), `safe-area`, `ui-layout-generation` |
 | `input/` | Pointer/keyboard interaction primitives + their plugins | `interactable`, `draggable`, `focusable`, `drag`, `focus`, `interaction` |
-| `behavior/` | Stateful behavior layer (FSM + visual states) | `state-machine`, `state-visuals`, `systems`, `plugin` (UIBehaviorPlugin) |
+| `controller/` | The one widget-state mechanism: named pages + per-component property gears, tween-applied | `ui-controller`, `ui-gear`, `gear-apply`, `bind-page`, `ai-builtins`, `plugin` |
+| `behavior/` | Runtime systems for scroll/collection ticking + theme re-resolution | `plugin` (UIBehaviorPlugin), `theme-apply` |
 | `render/` | UI-specific render concerns | `mask`, `render-order` |
 | `collection/` | Data-driven collections + view recycling | `list-view`, `scroll-container`, `view-pool`, `data-source`, `layout-provider` |
 | `text/` | SDF glyph atlas, text layout, rich text, editable text | `glyph-atlas`, `text-renderer`, `layout`, `rich-text-*`, `text-input`, `image-resolver` |
-| `theme/` | Design tokens | `tokens` |
-| `util/` | Cross-cutting helpers (no engine state of their own) | `helpers`, `math`, `types`, `constants`, `property-path` |
-| `widgets/` | Layer-3 widget **factory functions** | `button`, `toggle`, `slider`, `progress`, `dialog`, `dropdown`, `helpers` |
+| `theme/` | Design tokens + per-entity role markers | `tokens`, `theme-style` |
+| `util/` | Cross-cutting helpers (no engine state of their own) | `helpers`, `math`, `constants`, `property-path`, `ui-pick` |
+| `widgets/` | Layer-4 widget **factory functions** + their prefab capture | `button`, `toggle`, `slider`, `progress`, `dialog`, `dropdown`, `list-view`, `helpers`, `toPrefab`, `prefabs/` |
 
 Only two files live at the module root, and that is deliberate:
 
@@ -65,8 +66,8 @@ There are exactly two export surfaces, with distinct jobs:
    offers, including low-level text/atlas internals for advanced use.
 2. **`sdk/src/core-ui.ts`** promotes the *stable, curated* subset into the
    top-level `esengine` namespace. It re-exports **only** intentional public
-   API — never `@internal` glue (`withChildEntity`, `setEntityColor`,
-   `EntityStateMap`, …). Those stay importable from `./ui` for SDK-internal use.
+   API — never `@internal` glue (`EntityStateMap`, `ensureComponent`, …).
+   Those stay importable from `./ui` for SDK-internal use.
 
 Rules:
 

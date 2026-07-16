@@ -5,27 +5,12 @@
  * @brief   UI module — public barrel.
  */
 
-// Shared Types
-export {
-    FillDirection,
-    type ColorTransition,
-} from './util/types';
-
 // Shared Helpers
 export {
     initUIHelpers,
-    applyColorTransition,
-    wrapText,
     nextPowerOf2,
     ensureComponent,
-    makeInteractable,
-    syncFillSpriteSize,
     walkParentChain,
-    withChildEntity,
-    setEntityColor,
-    setEntityEnabled,
-    colorScale,
-    colorWithAlpha,
     EntityStateMap,
 } from './util/helpers';
 
@@ -44,9 +29,6 @@ export {
     SCROLL_ELASTIC_SNAP_THRESHOLD,
     SCROLL_MAX_OVERSCROLL_RATIO,
     SCROLL_MAX_VELOCITY_RATIO,
-    DROPDOWN_ITEM_HEIGHT,
-    DROPDOWN_FONT_SIZE,
-    DROPDOWN_HIGHLIGHT_COLOR,
 } from './util/constants';
 
 // ─── Layer 0: Events ────────────────────────────────────────────────────────
@@ -464,11 +446,3 @@ export {
 export { ShelfPacker, type Packer, type PackPos } from './text/atlas-packer';
 export { sdfFromAlpha } from './text/sdf';
 export { submitTextBatch, TEXT_VERTEX_FLOATS } from './text/submit';
-
-export const AnimOverride = {
-    POS_X: 1,
-    POS_Y: 2,
-    ROT_Z: 4,
-    SCALE_X: 8,
-    SCALE_Y: 16,
-} as const;

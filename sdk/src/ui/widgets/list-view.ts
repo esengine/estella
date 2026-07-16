@@ -169,7 +169,7 @@ export function createListView<T>(opts: CreateListViewOptions<T>): ListViewHandl
         node: { width: px(viewportSize.x), height: px(viewportSize.y), ...opts.node },
         visual: opts.background ?? { color: { r: 0, g: 0, b: 0, a: 0 } },
     });
-    world.insert(viewport, UIMask, { enabled: true, mode: MaskMode.Scissor, maskTexture: 0, inverted: false });
+    world.insert(viewport, UIMask, { enabled: true, mode: MaskMode.Scissor });
     world.insert(viewport, Interactable, { enabled: true, blockRaycast: true, raycastTarget: true });
     world.insert(viewport, UIInteraction, { hovered: false, pressed: false, justPressed: false, justReleased: false });
 

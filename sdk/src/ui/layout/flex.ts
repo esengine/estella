@@ -41,6 +41,3 @@ export const FlexContainer = defineBuiltin<FlexContainerData>('FlexContainer', {
     padding: { left: 0, top: 0, right: 0, bottom: 0 },
 });
 
-// Per-item flex properties (grow/shrink/basis/alignSelf/margin/min-max) live on
-// UINode now; the standalone FlexItem component was removed.
-// `AlignSelf` moved to ui/core/ui-node.ts alongside the other item properties.

@@ -55,7 +55,7 @@ export interface ViewPoolOptions {
  * ```ts
  * const pool = new ViewPool({
  *   world,
- *   setVisible: (w, e, v) => setEntityEnabled(w, e, v),
+ *   setVisible: (w, e, v) => w.insert(e, UIVisual, { ...w.get(e, UIVisual), enabled: v }),
  * });
  *
  * pool.setTemplate('default', {
