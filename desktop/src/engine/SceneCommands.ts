@@ -18,6 +18,7 @@ import {
   clampFieldValue,
 } from './schema';
 import { normalizeFolder, folderParent, isFolderUnder, rebaseFolder } from '@/outliner/folders';
+import { convertColliderData, COLLIDER_SHAPE_COMP, COMP_COLLIDER_SHAPE, type ColliderShapeKind } from './colliderConvert';
 
 type SceneEntity = SceneData['entities'][number];
 type SceneComponent = SceneEntity['components'][number];
@@ -1023,6 +1024,40 @@ export class SceneCommandsImpl {
   removeComponentMany(sourceIds: readonly EntityId[], compName: string): void {
     const ops = sourceIds.map((id) => this.removeComponentOp(id, compName)).filter((o): o is UndoOp => !!o);
     this.history.batch(`Remove ${prettyLabel(compName)}`, ops);
+  }
+
+  /**
+   * Convert an entity's collider to another authorable shape (box / circle / polygon),
+   * preserving material / sensor / filter / enable and re-deriving the geometry so the
+   * shape stays where it was drawn (see {@link convertColliderData}). One undo step.
+   */
+  convertCollider(sourceId: EntityId, toShape: ColliderShapeKind): void {
+    const op = this.convertColliderOp_(sourceId, toShape);
+    if (op) this.history.record('Convert Collider', op.forward, op.reverse);
+  }
+
+  /** Convert the collider on many entities (multi-select) as ONE undo step. */
+  convertColliderMany(sourceIds: readonly EntityId[], toShape: ColliderShapeKind): void {
+    const ops = sourceIds.map((id) => this.convertColliderOp_(id, toShape)).filter((o): o is UndoOp => !!o);
+    if (ops.length) this.history.batch('Convert Collider', ops);
+  }
+
+  /** Eagerly swap the entity's current convertible collider (box/circle/polygon) for
+   *  `toShape`, returning the undo op. Null when it has none / is already that shape. */
+  private convertColliderOp_(sourceId: EntityId, toShape: ColliderShapeKind): UndoOp | null {
+    const cur = this.model.entityBySource(sourceId)?.components.find((c) => COMP_COLLIDER_SHAPE[c.type]);
+    if (!cur) return null;
+    const toComp = COLLIDER_SHAPE_COMP[toShape];
+    if (cur.type === toComp) return null;
+    const fromComp = cur.type;
+    const oldData = structuredClone(cur.data) as Record<string, unknown>;
+    const newData = convertColliderData(fromComp, toComp, oldData, this.defaultDataFor(toComp));
+    this.model.removeComponent(sourceId, fromComp);
+    this.model.setComponent(sourceId, toComp, structuredClone(newData));
+    return {
+      forward: () => { this.model.removeComponent(sourceId, fromComp); this.model.setComponent(sourceId, toComp, structuredClone(newData)); },
+      reverse: () => { this.model.removeComponent(sourceId, toComp); this.model.setComponent(sourceId, fromComp, structuredClone(oldData)); },
+    };
   }
 
   /**

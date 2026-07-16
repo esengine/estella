@@ -218,6 +218,10 @@ export const detailsMessages = defineMessages({
     'det.resetDefaults': { en: 'Reset to Defaults', zh: '重置为默认值' },
     'det.removeComponent': { en: 'Remove Component', zh: '移除组件' },
     'det.removeComponentN': { en: 'Remove Component ({count})', zh: '移除组件（{count}）' },
+    'det.colliderShape': { en: 'Shape', zh: '形状' },
+    'det.shapeBox': { en: 'Box', zh: '矩形' },
+    'det.shapeCircle': { en: 'Circle', zh: '圆形' },
+    'det.shapePolygon': { en: 'Polygon', zh: '多边形' },
 
     // — Add Component picker (AddComponentMenu.tsx) —
     'det.addComponentAria': { en: 'Add component', zh: '添加组件' },

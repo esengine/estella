@@ -8,11 +8,13 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  Circle,
   Code2,
   Component as ComponentIcon,
   Copy,
   ClipboardPaste,
   Filter,
+  Hexagon,
   FolderOpen,
   Image as ImageIcon,
   MoreHorizontal,
@@ -30,6 +32,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { AssetIcon } from '@/components/icons';
+import { COMP_COLLIDER_SHAPE, type ColliderShapeKind } from '@/engine/colliderConvert';
 import { AudioWavePreview } from '@/components/AudioWavePreview';
 import { Toasts } from '@/store/Toasts';
 import { baseName, assetTypeOf, IMAGE_RE } from '@/project/assetMeta';
@@ -73,7 +76,7 @@ import { NumField, useScrub, fmt, type ControlGesture } from '@/components/NumFi
 import { Popover, usePopover } from '@/components/Popover';
 import { SearchField } from '@/components/SearchField';
 import { Select } from '@/components/Select';
-import { Segmented } from '@/components/Segmented';
+import { Segmented, type SegmentedOption } from '@/components/Segmented';
 import { AddComponentMenu } from '@/components/AddComponentMenu';
 import type { InspectorComponent, InspectorField, InspectorFieldValue, EntityId, NodeKind, EnumOption, AssetType, GradientValue, GradientStop, CurveValue, CurveKey, DimensionValue } from '@/types';
 
@@ -1313,6 +1316,35 @@ function FlowLayoutControls({ entities, comp }: { entities: EntityId[]; comp: In
  *  never shows a meaningless "Custom" anchor; it shows how it sits in its parent's
  *  flex layout instead. The mode switch writes `position` (flipping to Absolute bakes
  *  the current on-screen box into px insets — see SceneCommands.setField). */
+// The convertible collider shapes, shown as a segmented switch on the collider card's
+// header. Converting preserves material / sensor / filter and re-derives geometry (see
+// SceneCommands.convertCollider) — you can start with a box and turn it into a slope
+// polygon without losing what you set.
+const COLLIDER_SHAPE_OPTIONS: SegmentedOption<ColliderShapeKind>[] = [
+  { value: 'box', label: t('det.shapeBox'), icon: <Square size={11} />, title: t('det.shapeBox') },
+  { value: 'circle', label: t('det.shapeCircle'), icon: <Circle size={11} />, title: t('det.shapeCircle') },
+  { value: 'polygon', label: t('det.shapePolygon'), icon: <Hexagon size={11} />, title: t('det.shapePolygon') },
+];
+
+// Shape switch for a box/circle/polygon collider card — click another shape to convert
+// the collider on every selected entity (one undo step). Null for non-convertible cards.
+function ColliderShapeControl({ entities, current }: { entities: EntityId[]; current: string }) {
+  const kind = COMP_COLLIDER_SHAPE[current];
+  if (!kind) return null;
+  return (
+    <div className="collider-shape">
+      <span className="collider-shape-lbl">{t('det.colliderShape')}</span>
+      <Segmented
+        value={kind}
+        options={COLLIDER_SHAPE_OPTIONS}
+        ariaLabel={t('det.colliderShape')}
+        grow
+        onChange={(to) => { if (to !== kind) SceneCommands.convertColliderMany(entities, to); }}
+      />
+    </div>
+  );
+}
+
 function UILayoutControl({ entities, comp }: { entities: EntityId[]; comp: InspectorComponent }) {
   const posField = comp.fields.find((f) => f.key === 'position');
   const absolute = Number(posField?.value ?? 0) === UIPositionType.Absolute;
@@ -2636,7 +2668,13 @@ function EditorDetails() {
             onToggle={() => toggle(comp.name)}
             onMore={(e, name) => setCompMenu({ x: e.clientX, y: e.clientY, comp: name })}
             action={uiNodeCanvasAction(ids, comp)}
-            extra={comp.name === 'UINode' ? <UILayoutControl entities={ids} comp={comp} /> : undefined}
+            extra={
+              comp.name === 'UINode'
+                ? <UILayoutControl entities={ids} comp={comp} />
+                : COMP_COLLIDER_SHAPE[comp.name]
+                  ? <ColliderShapeControl entities={ids} current={comp.name} />
+                  : undefined
+            }
             hideFields={
               comp.name === 'UINode'
                 ? uiLayoutOwnedFields(

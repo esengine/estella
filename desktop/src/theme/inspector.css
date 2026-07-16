@@ -75,6 +75,10 @@
 .comp-notice { margin: 6px 8px 0; padding: 5px 8px; font-size: var(--fs-2xs); line-height: 1.45; color: var(--warn); background: rgba(214, 166, 90, 0.10); border: 1px solid rgba(214, 166, 90, 0.25); border-radius: var(--r-sm); }
 .comp-action { margin: 6px 8px 0; padding: 4px 8px; width: calc(100% - 16px); font-size: var(--fs-2xs); color: var(--text); background: var(--srf-3); border: 1px solid var(--border); border-radius: var(--r-sm); cursor: pointer; transition: background var(--t-fast), border-color var(--t-fast); }
 .comp-action:hover { background: var(--srf-4); border-color: var(--acc); }
+/* Collider shape switch (Box/Circle/Polygon) on a collider card header — convert in place. */
+.collider-shape { display: flex; align-items: center; gap: 8px; margin: 6px 8px 2px; }
+.collider-shape-lbl { flex: 0 0 auto; font-size: var(--fs-2xs); color: var(--text-dim); }
+.collider-shape .seg { flex: 1; }
 
 /* Anchor control (UINode): a live preview of where the element sits in its parent,
    beside two named Horizontal/Vertical pickers. Each axis is an independent labelled

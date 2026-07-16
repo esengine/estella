@@ -14,7 +14,7 @@
  * ids; the World is asserted via session.model.runtimeFor.
  */
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
-import { App, Transform, Parent, Children, Sprite, Interactable, PolygonCollider, BUILTIN_UI_PREFABS } from 'esengine';
+import { App, Transform, Parent, Children, Sprite, Interactable, BoxCollider, CircleCollider, PolygonCollider, BUILTIN_UI_PREFABS } from 'esengine';
 import type { ESEngineModule } from 'esengine';
 import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
 
@@ -118,6 +118,26 @@ describe.skipIf(!HAS_WASM)('SceneCommands / SceneQuery (headless World)', () => 
 
         S.history.undo(); // one step undoes the whole drag
         expect((host.world.get(e, PolygonCollider).vertices as ArrayLike<unknown>).length).toBe(defLen);
+    });
+
+    it('convertCollider swaps the collider shape in the World, keeps material, re-derives geometry; undo restores', () => {
+        const id = S.commands.addEntity()!;
+        const e = rt(id);
+        S.commands.addComponent(id, 'BoxCollider');
+        S.commands.setField(id, 'BoxCollider', 'halfExtents', 'vec2', [2, 1]);
+        S.commands.setField(id, 'BoxCollider', 'friction', 'number', 0.9);
+        expect(host.world.has(e, BoxCollider)).toBe(true);
+
+        S.commands.convertCollider(id, 'circle'); // box → circle
+        expect(host.world.has(e, BoxCollider)).toBe(false);
+        expect(host.world.has(e, CircleCollider)).toBe(true);
+        expect((host.world.get(e, CircleCollider) as { radius: number }).radius).toBeCloseTo(2); // max half extent
+        expect((host.world.get(e, CircleCollider) as { friction: number }).friction).toBeCloseTo(0.9); // material carried
+
+        S.history.undo(); // one step back to the box
+        expect(host.world.has(e, CircleCollider)).toBe(false);
+        expect(host.world.has(e, BoxCollider)).toBe(true);
+        expect((host.world.get(e, BoxCollider) as { halfExtents: { x: number; y: number } }).halfExtents).toMatchObject({ x: 2, y: 1 });
     });
 
     it('deleteEntity removes the entity; undo re-creates it', () => {
