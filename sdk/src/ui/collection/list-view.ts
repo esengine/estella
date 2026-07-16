@@ -178,10 +178,19 @@ export class ListView<T = unknown> {
             const existing = this.mounted_.get(i);
             const itemType = this.dataSource_.getItemType?.(i) ?? 'default';
 
+            // A mounted entity is only reusable if its template type still
+            // matches — after a data reset the same index can change type, and
+            // binding a new type's data to the old template's entity corrupts it.
+            if (existing && existing.itemType !== itemType) {
+                this.pool_.release(existing.itemType, existing.entity);
+                this.mounted_.delete(i);
+            }
+
             let entity: Entity;
-            if (existing) {
+            const reusable = this.mounted_.get(i);
+            if (reusable) {
                 // Item already mounted; bind again in case data updated.
-                entity = existing.entity;
+                entity = reusable.entity;
             } else {
                 if (!this.pool_.hasTemplate(itemType)) {
                     log.warn('ui', `ListView: No template for item type "${itemType}" at index ${i}`);

@@ -175,7 +175,7 @@ interface BindingTx {
  * (stop writing) until their page changes, so a static UI costs nothing per frame.
  */
 export function createGearApplySystem(world: World): SystemDef {
-    const tracker = new EntityStateMap<Array<BindingTx | null>>();
+    const tracker = new EntityStateMap<{ ref: unknown; txs: Array<BindingTx | null> }>();
 
     return defineSystem([Res(Time)], (time: TimeData) => {
         const dt = time.delta;
@@ -186,11 +186,15 @@ export function createGearApplySystem(world: World): SystemDef {
             const gear = world.get(e, UIGear) as UIGearData;
             const bindings = gear.bindings;
 
-            let txs = tracker.get(e);
-            if (!txs || txs.length !== bindings.length) {
-                txs = bindings.map(() => null);
-                tracker.set(e, txs);
+            // Keyed on the bindings array's identity: any rewrite (theme
+            // re-resolution, editor gear authoring) swaps in a new array, which
+            // must re-arm settled transitions or the current page never repaints.
+            let entry = tracker.get(e);
+            if (!entry || entry.ref !== bindings || entry.txs.length !== bindings.length) {
+                entry = { ref: bindings, txs: bindings.map(() => null) };
+                tracker.set(e, entry);
             }
+            const txs = entry.txs;
 
             for (let i = 0; i < bindings.length; i++) {
                 const b = bindings[i];

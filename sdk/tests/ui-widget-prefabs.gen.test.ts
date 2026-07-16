@@ -14,8 +14,9 @@ import { createProgress } from '../src/ui/widgets/progress';
 import { createDropdown } from '../src/ui/widgets/dropdown';
 import { spawnUIEntity } from '../src/ui/widgets/helpers';
 import { UIMask, MaskMode } from '../src/ui/core/ui-mask';
-import { Interactable, UIInteraction } from '../src/ui/input/interactable';
+import { Interactable } from '../src/ui/input/interactable';
 import { themeColors } from '../src/ui/theme/tokens';
+import { markThemed } from '../src/ui/theme/theme-style';
 import { px } from '../src/ui/core/dimension';
 
 const OUT_DIR = resolve(__dirname, '../src/ui/widgets/prefabs');
@@ -54,21 +55,18 @@ afterAll(() => {
 describe('UI widget prefab codegen', () => {
     it('Button: factory → prefab captures the full clickable tree + label', () => {
         const prefab = generate('Button', (world) =>
+            // No explicit states/colors: the factory's theme defaults also tag the
+            // entities with ThemeStyle roles, so the prefab re-themes at runtime.
             createButton({
                 world, events: noEvents,
                 node: { width: px(140), height: px(40) },
-                states: {
-                    normal: { color: c.control },
-                    hover: { color: c.controlHover },
-                    pressed: { color: c.controlActive },
-                },
-                text: { content: 'Button', color: c.onPrimary, fontSize: 14 },
+                text: { content: 'Button', fontSize: 14 },
             }) as unknown as number,
         );
 
         const root = typesOf(prefab, prefab.rootEntityId);
         expect(root).toEqual(expect.arrayContaining([
-            'Transform', 'UINode', 'UIVisual', 'Interactable', 'UIInteraction', 'UIController', 'UIGear',
+            'Transform', 'UINode', 'UIVisual', 'Interactable', 'UIController', 'UIGear',
         ]));
         const rootEnt = entityById(prefab, prefab.rootEntityId);
         expect(rootEnt.children.length).toBe(1);
@@ -82,11 +80,7 @@ describe('UI widget prefab codegen', () => {
             createToggle({
                 world, events: noEvents,
                 node: { width: px(28), height: px(28) },
-                background: { color: c.control },
-                interactionStates: {
-                    normal: { color: c.control }, hover: { color: c.controlHover }, pressed: { color: c.controlActive },
-                },
-                check: { color: c.primary }, isOn: true,
+                isOn: true,
             }).entity as unknown as number,
         );
         expect(typesOf(prefab, prefab.rootEntityId)).toEqual(expect.arrayContaining(['UINode', 'Interactable', 'UIGear']));
@@ -107,7 +101,7 @@ describe('UI widget prefab codegen', () => {
         const prefab = generate('Progress', (world) =>
             createProgress({
                 world, node: { width: px(200), height: px(14) },
-                fill: { color: c.primary }, value: 0.4,
+                value: 0.4,
             }).entity as unknown as number,
         );
         expect(entityById(prefab, prefab.rootEntityId).children.length).toBe(1);
@@ -134,14 +128,15 @@ describe('UI widget prefab codegen', () => {
                 node: { width: px(240), height: px(320) },
                 visual: { color: c.control },
             });
-            world.insert(viewport, UIMask, { enabled: true, mode: MaskMode.Scissor, maskTexture: 0, inverted: false });
+            markThemed(world, viewport, { visual: 'control' });
+            world.insert(viewport, UIMask, { enabled: true, mode: MaskMode.Scissor });
             world.insert(viewport, Interactable, { enabled: true, blockRaycast: true, raycastTarget: true });
-            world.insert(viewport, UIInteraction, { hovered: false, pressed: false, justPressed: false, justReleased: false });
-            spawnUIEntity({
+            const label = spawnUIEntity({
                 world, parent: viewport,
                 node: { fill: true },
-                text: { content: 'List View', color: c.onPrimary, fontSize: 14 },
+                text: { content: 'List View', color: c.text, fontSize: 14 },
             });
+            markThemed(world, label, { text: 'text' });
             return viewport as unknown as number;
         });
         expect(typesOf(prefab, prefab.rootEntityId)).toEqual(expect.arrayContaining([

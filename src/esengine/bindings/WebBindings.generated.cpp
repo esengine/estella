@@ -182,6 +182,10 @@ EMSCRIPTEN_BINDINGS(esengine_enums) {
         .value("Center", esengine::ecs::TextAlign::Center)
         .value("Right", esengine::ecs::TextAlign::Right);
 
+    enum_<esengine::ecs::UIDisplay>("UIDisplay")
+        .value("Flex", esengine::ecs::UIDisplay::Flex)
+        .value("None", esengine::ecs::UIDisplay::None);
+
     enum_<esengine::ecs::UIFillMethod>("UIFillMethod")
         .value("Horizontal", esengine::ecs::UIFillMethod::Horizontal)
         .value("Vertical", esengine::ecs::UIFillMethod::Vertical)
@@ -770,6 +774,7 @@ UIMaskJS uimaskToJS(const esengine::ecs::UIMask& c) {
 
 struct UINodeJS {
     i32 position;
+    i32 display;
     Dimension width;
     Dimension height;
     Dimension minWidth;
@@ -793,6 +798,7 @@ struct UINodeJS {
 esengine::ecs::UINode uinodeFromJS(const UINodeJS& js) {
     esengine::ecs::UINode c;
     c.position = static_cast<UIPositionType>(js.position);
+    c.display = static_cast<UIDisplay>(js.display);
     c.width = js.width;
     c.height = js.height;
     c.minWidth = js.minWidth;
@@ -817,6 +823,7 @@ esengine::ecs::UINode uinodeFromJS(const UINodeJS& js) {
 UINodeJS uinodeToJS(const esengine::ecs::UINode& c) {
     UINodeJS js;
     js.position = static_cast<i32>(c.position);
+    js.display = static_cast<i32>(c.display);
     js.width = c.width;
     js.height = c.height;
     js.minWidth = c.minWidth;
@@ -1151,6 +1158,7 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
 
     value_object<UINodeJS>("UINode")
         .field("position", &UINodeJS::position)
+        .field("display", &UINodeJS::display)
         .field("width", &UINodeJS::width)
         .field("height", &UINodeJS::height)
         .field("minWidth", &UINodeJS::minWidth)
@@ -2023,6 +2031,7 @@ static_assert(offsetof(esengine::ecs::UIInteraction, justReleased) == 3, "ABI of
 static_assert(offsetof(esengine::ecs::UIMask, enabled) == 0, "ABI offset drift: esengine::ecs::UIMask.enabled (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::UIMask, mode) == 1, "ABI offset drift: esengine::ecs::UIMask.mode (EHT expected 1)");
 static_assert(offsetof(esengine::ecs::UINode, position) == 0, "ABI offset drift: esengine::ecs::UINode.position (EHT expected 0)");
+static_assert(offsetof(esengine::ecs::UINode, display) == 1, "ABI offset drift: esengine::ecs::UINode.display (EHT expected 1)");
 static_assert(offsetof(esengine::ecs::UINode, flexGrow) == 52, "ABI offset drift: esengine::ecs::UINode.flexGrow (EHT expected 52)");
 static_assert(offsetof(esengine::ecs::UINode, flexShrink) == 56, "ABI offset drift: esengine::ecs::UINode.flexShrink (EHT expected 56)");
 static_assert(offsetof(esengine::ecs::UINode, alignSelf) == 68, "ABI offset drift: esengine::ecs::UINode.alignSelf (EHT expected 68)");
@@ -2046,7 +2055,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "f9191aeae848066e";
+static const char* kEsAbiLayoutHash = "bde213b560e9ce4c";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

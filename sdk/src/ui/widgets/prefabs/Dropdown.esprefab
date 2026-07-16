@@ -52,6 +52,7 @@
           "type": "UINode",
           "data": {
             "position": 0,
+            "display": 0,
             "width": {
               "value": 150,
               "unit": 0
@@ -162,15 +163,6 @@
           }
         },
         {
-          "type": "UIInteraction",
-          "data": {
-            "hovered": false,
-            "pressed": false,
-            "justPressed": false,
-            "justReleased": false
-          }
-        },
-        {
           "type": "UIController",
           "data": {
             "controllers": [
@@ -216,6 +208,16 @@
                 }
               }
             ]
+          }
+        },
+        {
+          "type": "ThemeStyle",
+          "data": {
+            "states": {
+              "normal": "control",
+              "hover": "controlHover",
+              "pressed": "controlActive"
+            }
           }
         }
       ],
@@ -268,6 +270,7 @@
           "type": "UINode",
           "data": {
             "position": 1,
+            "display": 0,
             "width": {
               "value": 0,
               "unit": 2
@@ -372,6 +375,12 @@
             "richText": false,
             "renderMode": 0,
             "enabled": true
+          }
+        },
+        {
+          "type": "ThemeStyle",
+          "data": {
+            "text": "text"
           }
         }
       ],

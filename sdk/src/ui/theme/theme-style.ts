@@ -9,8 +9,9 @@
  * `UIVisual`/`Text`/their `$interaction` colour gears at construction, so without recording the
  * *role* there is no way to re-resolve them when the theme changes. A widget tags
  * the entities it themes (via {@link markThemed}); `applyThemeToWorld` re-resolves
- * the tags against the active theme. Not serialized — it lives only on
- * code-constructed widgets.
+ * the tags against the active theme. Role tags are authoring data and persist
+ * into prefabs/scenes — an editor-placed widget must re-theme like a
+ * code-constructed one.
  */
 import { defineComponent } from '../../component';
 import type { World } from '../../world';
@@ -29,15 +30,12 @@ export interface ThemeStyleData {
     states?: Record<string, ColorRole>;
 }
 
-// Runtime-only: a widget's theme-role tags are re-derived from code on every
-// construct, never persisted — so it stays out of scenes and prefabs. The default
-// DECLARES the fields (even though all are optional): `insert` validates data
-// against the schema's keys, so an empty default would reject every role a widget
-// tags (e.g. a dialog's `{ visual: 'backdrop' }`).
+// The default DECLARES the fields (even though all are optional): `insert`
+// validates data against the schema's keys, so an empty default would reject
+// every role a widget tags (e.g. a dialog's `{ visual: 'backdrop' }`).
 export const ThemeStyle = defineComponent<ThemeStyleData>(
     'ThemeStyle',
     { visual: undefined, text: undefined, states: {} },
-    { transient: true },
 );
 
 /** Tag `entity` so the active theme's colors re-resolve onto it (see

@@ -52,6 +52,7 @@
           "type": "UINode",
           "data": {
             "position": 0,
+            "display": 0,
             "width": {
               "value": 28,
               "unit": 0
@@ -123,9 +124,9 @@
             "visualType": 1,
             "texture": 0,
             "color": {
-              "r": 0.22,
-              "g": 0.22,
-              "b": 0.26,
+              "r": 1,
+              "g": 1,
+              "b": 1,
               "a": 1
             },
             "uvOffset": {
@@ -159,15 +160,6 @@
             "enabled": true,
             "blockRaycast": true,
             "raycastTarget": true
-          }
-        },
-        {
-          "type": "UIInteraction",
-          "data": {
-            "hovered": false,
-            "pressed": false,
-            "justPressed": false,
-            "justReleased": false
           }
         },
         {
@@ -213,10 +205,27 @@
                     "g": 0.18,
                     "b": 0.22,
                     "a": 1
+                  },
+                  "disabled": {
+                    "r": 0.22,
+                    "g": 0.22,
+                    "b": 0.26,
+                    "a": 0.5
                   }
                 }
               }
             ]
+          }
+        },
+        {
+          "type": "ThemeStyle",
+          "data": {
+            "states": {
+              "normal": "control",
+              "hover": "controlHover",
+              "pressed": "controlActive",
+              "disabled": "control"
+            }
           }
         }
       ],
@@ -269,6 +278,7 @@
           "type": "UINode",
           "data": {
             "position": 1,
+            "display": 0,
             "width": {
               "value": 0,
               "unit": 2
@@ -368,6 +378,12 @@
             "fillAmount": 1,
             "material": 0,
             "enabled": true
+          }
+        },
+        {
+          "type": "ThemeStyle",
+          "data": {
+            "visual": "primary"
           }
         }
       ],

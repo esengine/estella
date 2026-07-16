@@ -8,6 +8,8 @@ import { Interactable, type InteractableData } from '../input/interactable';
 
 import { createButton, type ButtonStateVisual } from './button';
 import { spawnUIEntity, setUIVisible, type UINodeInit, type UIVisualInit } from './helpers';
+import { themeColors } from '../theme/tokens';
+import { markThemed } from '../theme/theme-style';
 
 export interface ToggleOptions {
     world: World;
@@ -18,8 +20,9 @@ export interface ToggleOptions {
     /** Background renderer for the frame. */
     background?: UIVisualInit;
 
-    /** Interaction states (normal / hover / pressed / disabled) for the frame. */
-    interactionStates: Record<string, ButtonStateVisual>;
+    /** Interaction states (normal / hover / pressed / disabled) for the frame.
+     *  Defaults to the active theme's control roles (as createButton). */
+    interactionStates?: Record<string, ButtonStateVisual>;
 
     /**
      * Optional rendering for the on-state indicator ("check mark").
@@ -66,18 +69,19 @@ export function createToggle(opts: ToggleOptions): ToggleHandle {
         disabled: opts.disabled,
     });
 
+    // The on-state indicator defaults to the theme accent so it re-themes live;
+    // a caller-supplied color is the caller's own.
     const check = spawnUIEntity({
         world,
         parent: button,
         node: opts.check?.node ?? { fill: true },
-        visual: opts.check
-            ? {
-                  color: opts.check.color,
-                  texture: opts.check.sprite,
-                  visualType: opts.check.sprite ? 2 /* Image */ : 1 /* SolidColor */,
-              }
-            : {},
+        visual: {
+            color: opts.check?.color ?? themeColors().primary,
+            texture: opts.check?.sprite,
+            visualType: opts.check?.sprite ? 2 /* Image */ : 1 /* SolidColor */,
+        },
     });
+    if (opts.check?.color === undefined) markThemed(world, check, { visual: 'primary' });
 
     setUIVisible(world, check, isOn);
 

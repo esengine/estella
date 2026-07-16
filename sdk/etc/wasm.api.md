@@ -219,6 +219,7 @@ getSpritePtr: (registry: CppRegistry, entity: number) => number
 getTransformPtr: (registry: CppRegistry, entity: number) => number
 getUINodeComputedHeight: ((registry: CppRegistry, entity: number) => number) | undefined
 getUINodeComputedWidth: ((registry: CppRegistry, entity: number) => number) | undefined
+getUINodeHiddenInTree: ((registry: CppRegistry, entity: number) => boolean) | undefined
 getVelocityPtr: (registry: CppRegistry, entity: number) => number
 gl_checkErrors: (context: string) => number
 gl_enableErrorCheck: (enabled: boolean) => void
@@ -358,8 +359,6 @@ uiHitTest_update: (registry: CppRegistry, mouseWorldX: number, mouseWorldY: numb
 uiLayout_update: (registry: CppRegistry, camLeft: number, camBottom: number, camRight: number, camTop: number) => void
 uiNode_computedHeight: (registry: CppRegistry, entity: number) => number
 uiNode_computedWidth: (registry: CppRegistry, entity: number) => number
-uiRect_clearAnimOverrides: (registry: CppRegistry) => void
-uiRect_setAnimOverride: (registry: CppRegistry, entity: number, flags: number) => void
 uiRenderOrder_update: (registry: CppRegistry) => void
 uiTree_markAllDirty: () => void
 uiTree_markDirty: (entity: number) => void

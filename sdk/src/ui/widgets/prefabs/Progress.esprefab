@@ -52,6 +52,7 @@
           "type": "UINode",
           "data": {
             "position": 0,
+            "display": 0,
             "width": {
               "value": 200,
               "unit": 0
@@ -152,6 +153,12 @@
             "material": 0,
             "enabled": true
           }
+        },
+        {
+          "type": "ThemeStyle",
+          "data": {
+            "visual": "track"
+          }
         }
       ],
       "visible": true
@@ -203,6 +210,7 @@
           "type": "UINode",
           "data": {
             "position": 1,
+            "display": 0,
             "width": {
               "value": 0,
               "unit": 2
@@ -302,6 +310,12 @@
             "fillAmount": 0.4,
             "material": 0,
             "enabled": true
+          }
+        },
+        {
+          "type": "ThemeStyle",
+          "data": {
+            "visual": "primary"
           }
         }
       ],

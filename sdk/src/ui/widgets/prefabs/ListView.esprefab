@@ -52,6 +52,7 @@
           "type": "UINode",
           "data": {
             "position": 0,
+            "display": 0,
             "width": {
               "value": 240,
               "unit": 0
@@ -154,12 +155,16 @@
           }
         },
         {
+          "type": "ThemeStyle",
+          "data": {
+            "visual": "control"
+          }
+        },
+        {
           "type": "UIMask",
           "data": {
             "enabled": true,
-            "mode": 0,
-            "maskTexture": 0,
-            "inverted": false
+            "mode": 0
           }
         },
         {
@@ -168,15 +173,6 @@
             "enabled": true,
             "blockRaycast": true,
             "raycastTarget": true
-          }
-        },
-        {
-          "type": "UIInteraction",
-          "data": {
-            "hovered": false,
-            "pressed": false,
-            "justPressed": false,
-            "justReleased": false
           }
         }
       ],
@@ -229,6 +225,7 @@
           "type": "UINode",
           "data": {
             "position": 1,
+            "display": 0,
             "width": {
               "value": 0,
               "unit": 2
@@ -302,9 +299,9 @@
             "fontFamily": "Arial",
             "fontSize": 14,
             "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
+              "r": 0.92,
+              "g": 0.92,
+              "b": 0.94,
               "a": 1
             },
             "align": 1,
@@ -333,6 +330,12 @@
             "richText": false,
             "renderMode": 0,
             "enabled": true
+          }
+        },
+        {
+          "type": "ThemeStyle",
+          "data": {
+            "text": "text"
           }
         }
       ],

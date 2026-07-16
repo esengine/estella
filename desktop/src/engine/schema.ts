@@ -95,6 +95,18 @@ const COMPONENT_CATEGORY: Record<string, string> = {
   TilemapLayer: 'Rendering',
   Video: 'Rendering',
   Canvas: 'UI',
+  UINode: 'UI',
+  UIVisual: 'UI',
+  UIMask: 'UI',
+  FlexContainer: 'UI',
+  SafeArea: 'UI',
+  Interactable: 'UI',
+  Focusable: 'UI',
+  Draggable: 'UI',
+  TextInput: 'UI',
+  ThemeStyle: 'UI',
+  UIController: 'UI',
+  UIGear: 'UI',
   SpineAnimation: 'Animation',
   ParticleEmitter: 'Effects',
   RigidBody: 'Physics',
@@ -621,8 +633,9 @@ export function modelAddableComponentEntries(
   const present = new Set(entity.components.map((c) => c.type));
   const userNames = new Set(getUserComponents().keys());
   const out: Array<{ name: string; label: string; category: string }> = [];
-  for (const [name] of getAllRegisteredComponents()) {
+  for (const [name, def] of getAllRegisteredComponents()) {
     if (HIDDEN_COMPONENTS.has(name) || name === 'Transform' || present.has(name)) continue;
+    if (def.transient) continue; // runtime-only state is never authorable
     out.push({ name, label: prettyLabel(name), category: componentCategory(name, userNames.has(name)) });
   }
   for (const name of userSchemas.keys()) {

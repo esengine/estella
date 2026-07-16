@@ -56,6 +56,7 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
             "type": "UINode",
             "data": {
               "position": 0,
+              "display": 0,
               "width": {
                 "value": 140,
                 "unit": 0
@@ -166,15 +167,6 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
             }
           },
           {
-            "type": "UIInteraction",
-            "data": {
-              "hovered": false,
-              "pressed": false,
-              "justPressed": false,
-              "justReleased": false
-            }
-          },
-          {
             "type": "UIController",
             "data": {
               "controllers": [
@@ -217,10 +209,27 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
                       "g": 0.18,
                       "b": 0.22,
                       "a": 1
+                    },
+                    "disabled": {
+                      "r": 0.22,
+                      "g": 0.22,
+                      "b": 0.26,
+                      "a": 0.5
                     }
                   }
                 }
               ]
+            }
+          },
+          {
+            "type": "ThemeStyle",
+            "data": {
+              "states": {
+                "normal": "control",
+                "hover": "controlHover",
+                "pressed": "controlActive",
+                "disabled": "control"
+              }
             }
           }
         ],
@@ -273,6 +282,7 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
             "type": "UINode",
             "data": {
               "position": 1,
+              "display": 0,
               "width": {
                 "value": 0,
                 "unit": 2
@@ -346,9 +356,9 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
               "fontFamily": "Arial",
               "fontSize": 14,
               "color": {
-                "r": 1,
-                "g": 1,
-                "b": 1,
+                "r": 0.92,
+                "g": 0.92,
+                "b": 0.94,
                 "a": 1
               },
               "align": 1,
@@ -377,6 +387,12 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
               "richText": false,
               "renderMode": 0,
               "enabled": true
+            }
+          },
+          {
+            "type": "ThemeStyle",
+            "data": {
+              "text": "text"
             }
           }
         ],
@@ -438,6 +454,7 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
             "type": "UINode",
             "data": {
               "position": 0,
+              "display": 0,
               "width": {
                 "value": 28,
                 "unit": 0
@@ -509,9 +526,9 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
               "visualType": 1,
               "texture": 0,
               "color": {
-                "r": 0.22,
-                "g": 0.22,
-                "b": 0.26,
+                "r": 1,
+                "g": 1,
+                "b": 1,
                 "a": 1
               },
               "uvOffset": {
@@ -545,15 +562,6 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
               "enabled": true,
               "blockRaycast": true,
               "raycastTarget": true
-            }
-          },
-          {
-            "type": "UIInteraction",
-            "data": {
-              "hovered": false,
-              "pressed": false,
-              "justPressed": false,
-              "justReleased": false
             }
           },
           {
@@ -599,10 +607,27 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
                       "g": 0.18,
                       "b": 0.22,
                       "a": 1
+                    },
+                    "disabled": {
+                      "r": 0.22,
+                      "g": 0.22,
+                      "b": 0.26,
+                      "a": 0.5
                     }
                   }
                 }
               ]
+            }
+          },
+          {
+            "type": "ThemeStyle",
+            "data": {
+              "states": {
+                "normal": "control",
+                "hover": "controlHover",
+                "pressed": "controlActive",
+                "disabled": "control"
+              }
             }
           }
         ],
@@ -655,6 +680,7 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
             "type": "UINode",
             "data": {
               "position": 1,
+              "display": 0,
               "width": {
                 "value": 0,
                 "unit": 2
@@ -755,6 +781,12 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
               "material": 0,
               "enabled": true
             }
+          },
+          {
+            "type": "ThemeStyle",
+            "data": {
+              "visual": "primary"
+            }
           }
         ],
         "visible": true
@@ -816,6 +848,7 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
             "type": "UINode",
             "data": {
               "position": 0,
+              "display": 0,
               "width": {
                 "value": 200,
                 "unit": 0
@@ -916,6 +949,12 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
               "material": 0,
               "enabled": true
             }
+          },
+          {
+            "type": "ThemeStyle",
+            "data": {
+              "visual": "track"
+            }
           }
         ],
         "visible": true
@@ -967,6 +1006,7 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
             "type": "UINode",
             "data": {
               "position": 1,
+              "display": 0,
               "width": {
                 "value": 14,
                 "unit": 0
@@ -1067,6 +1107,12 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
               "material": 0,
               "enabled": true
             }
+          },
+          {
+            "type": "ThemeStyle",
+            "data": {
+              "visual": "onPrimary"
+            }
           }
         ],
         "visible": true
@@ -1118,6 +1164,7 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
             "type": "UINode",
             "data": {
               "position": 1,
+              "display": 0,
               "width": {
                 "value": 0,
                 "unit": 2
@@ -1218,6 +1265,12 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
               "material": 0,
               "enabled": true
             }
+          },
+          {
+            "type": "ThemeStyle",
+            "data": {
+              "visual": "primary"
+            }
           }
         ],
         "visible": true
@@ -1278,6 +1331,7 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
             "type": "UINode",
             "data": {
               "position": 0,
+              "display": 0,
               "width": {
                 "value": 200,
                 "unit": 0
@@ -1378,6 +1432,12 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
               "material": 0,
               "enabled": true
             }
+          },
+          {
+            "type": "ThemeStyle",
+            "data": {
+              "visual": "track"
+            }
           }
         ],
         "visible": true
@@ -1429,6 +1489,7 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
             "type": "UINode",
             "data": {
               "position": 1,
+              "display": 0,
               "width": {
                 "value": 0,
                 "unit": 2
@@ -1529,6 +1590,12 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
               "material": 0,
               "enabled": true
             }
+          },
+          {
+            "type": "ThemeStyle",
+            "data": {
+              "visual": "primary"
+            }
           }
         ],
         "visible": true
@@ -1589,6 +1656,7 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
             "type": "UINode",
             "data": {
               "position": 0,
+              "display": 0,
               "width": {
                 "value": 150,
                 "unit": 0
@@ -1699,15 +1767,6 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
             }
           },
           {
-            "type": "UIInteraction",
-            "data": {
-              "hovered": false,
-              "pressed": false,
-              "justPressed": false,
-              "justReleased": false
-            }
-          },
-          {
             "type": "UIController",
             "data": {
               "controllers": [
@@ -1753,6 +1812,16 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
                   }
                 }
               ]
+            }
+          },
+          {
+            "type": "ThemeStyle",
+            "data": {
+              "states": {
+                "normal": "control",
+                "hover": "controlHover",
+                "pressed": "controlActive"
+              }
             }
           }
         ],
@@ -1805,6 +1874,7 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
             "type": "UINode",
             "data": {
               "position": 1,
+              "display": 0,
               "width": {
                 "value": 0,
                 "unit": 2
@@ -1910,6 +1980,12 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
               "renderMode": 0,
               "enabled": true
             }
+          },
+          {
+            "type": "ThemeStyle",
+            "data": {
+              "text": "text"
+            }
           }
         ],
         "visible": true
@@ -1970,6 +2046,7 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
             "type": "UINode",
             "data": {
               "position": 0,
+              "display": 0,
               "width": {
                 "value": 240,
                 "unit": 0
@@ -2072,12 +2149,16 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
             }
           },
           {
+            "type": "ThemeStyle",
+            "data": {
+              "visual": "control"
+            }
+          },
+          {
             "type": "UIMask",
             "data": {
               "enabled": true,
-              "mode": 0,
-              "maskTexture": 0,
-              "inverted": false
+              "mode": 0
             }
           },
           {
@@ -2086,15 +2167,6 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
               "enabled": true,
               "blockRaycast": true,
               "raycastTarget": true
-            }
-          },
-          {
-            "type": "UIInteraction",
-            "data": {
-              "hovered": false,
-              "pressed": false,
-              "justPressed": false,
-              "justReleased": false
             }
           }
         ],
@@ -2147,6 +2219,7 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
             "type": "UINode",
             "data": {
               "position": 1,
+              "display": 0,
               "width": {
                 "value": 0,
                 "unit": 2
@@ -2220,9 +2293,9 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
               "fontFamily": "Arial",
               "fontSize": 14,
               "color": {
-                "r": 1,
-                "g": 1,
-                "b": 1,
+                "r": 0.92,
+                "g": 0.92,
+                "b": 0.94,
                 "a": 1
               },
               "align": 1,
@@ -2251,6 +2324,12 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
               "richText": false,
               "renderMode": 0,
               "enabled": true
+            }
+          },
+          {
+            "type": "ThemeStyle",
+            "data": {
+              "text": "text"
             }
           }
         ],

@@ -113,11 +113,24 @@ export class UIBehaviorPlugin implements Plugin {
                 const dx = input.scrollDeltaX;
                 const dy = input.scrollDeltaY;
                 if (dx === 0 && dy === 0) return;
-                for (const [entity, container] of scrollContainers.entries()) {
+                // Deepest hovered container wins (same arbitration as drag
+                // scrolling) — a wheel over a nested list must not scroll its
+                // ancestor too.
+                let best: Entity | null = null;
+                let bestDepth = -1;
+                for (const [entity] of scrollContainers.entries()) {
                     if (!world.has(entity as Entity, UIInteraction)) continue;
                     const ui = world.get(entity as Entity, UIInteraction) as UIInteractionData;
                     if (!ui.hovered) continue;
-                    dynamics.get(entity as Entity)?.stop(); // wheel takes over from a fling
+                    const depth = getEntityDepth(world, entity as Entity);
+                    if (depth > bestDepth) {
+                        bestDepth = depth;
+                        best = entity as Entity;
+                    }
+                }
+                if (best !== null) {
+                    const container = scrollContainers.get(best)!;
+                    dynamics.get(best)?.stop(); // wheel takes over from a fling
                     const speed = container.getWheelSpeed();
                     container.scrollBy({ x: dx * speed, y: dy * speed });
                 }

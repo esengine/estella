@@ -34,6 +34,8 @@ export interface DragStateData {
     pointerStartWorld: { x: number; y: number };
 }
 
+// Per-frame drag state written by the drag system — never authored, never
+// persisted.
 export const DragState = defineComponent<DragStateData>('DragState', {
     isDragging: false,
     startWorldPos: { x: 0, y: 0 },
@@ -41,4 +43,4 @@ export const DragState = defineComponent<DragStateData>('DragState', {
     deltaWorld: { x: 0, y: 0 },
     totalDeltaWorld: { x: 0, y: 0 },
     pointerStartWorld: { x: 0, y: 0 },
-});
+}, { transient: true });

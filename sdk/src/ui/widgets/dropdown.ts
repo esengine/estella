@@ -98,11 +98,6 @@ export function createDropdown<T>(opts: DropdownOptions<T>): DropdownHandle<T> {
         hover:   opts.buttonStates?.hover   ?? c.controlHover,
         pressed: opts.buttonStates?.pressed ?? c.controlActive,
     };
-    const optColors = {
-        normal:  opts.optionStates?.normal  ?? c.control,
-        hover:   opts.optionStates?.hover   ?? c.primaryHover,
-        pressed: opts.optionStates?.pressed ?? c.primaryActive,
-    };
 
     // Button root.
     const button = spawnUIEntity({
@@ -137,6 +132,15 @@ export function createDropdown<T>(opts: DropdownOptions<T>): DropdownHandle<T> {
         if (popupPanel) return;
         const totalHeight = opts.options.length * optionHeight;
 
+        // Resolve theme colors at open time — the popup is rebuilt per open, so a
+        // construction-time capture would pin the theme active back then.
+        const t = themeColors();
+        const optColors = {
+            normal:  opts.optionStates?.normal  ?? t.control,
+            hover:   opts.optionStates?.hover   ?? t.primaryHover,
+            pressed: opts.optionStates?.pressed ?? t.primaryActive,
+        };
+
         popupPanel = spawnUIEntity({
             world,
             parent: button,
@@ -148,18 +152,23 @@ export function createDropdown<T>(opts: DropdownOptions<T>): DropdownHandle<T> {
                 insetTop: percent(100),
                 height: px(totalHeight),
             },
-            visual: opts.popupVisual ?? { color: c.surfaceElevated },
+            visual: opts.popupVisual ?? { color: t.surfaceElevated },
         });
+        if (!opts.popupVisual) markThemed(world, popupPanel, { visual: 'surfaceElevated' });
 
         for (let i = 0; i < opts.options.length; i++) {
             const index = i;
-            const row = spawnOptionRow(index);
+            const row = spawnOptionRow(index, optColors, t.text);
             const off = events.on(row, UIEventType.Click, () => selectAndClose(index));
             optionUnsubs.push(off);
         }
     }
 
-    function spawnOptionRow(index: number): Entity {
+    function spawnOptionRow(
+        index: number,
+        optColors: { normal: Color; hover: Color; pressed: Color },
+        textColor: Color,
+    ): Entity {
         const row = spawnUIEntity({
             world,
             parent: popupPanel!,
@@ -176,13 +185,17 @@ export function createDropdown<T>(opts: DropdownOptions<T>): DropdownHandle<T> {
         world.insert(row, Interactable, { enabled: true, blockRaycast: true, raycastTarget: true });
         world.insert(row, UIInteraction, INTERACTION_DEFAULT);
         addInteractionStates(world, row, optColors);
+        if (opts.optionStates === undefined) {
+            markThemed(world, row, { states: { normal: 'control', hover: 'primaryHover', pressed: 'primaryActive' } });
+        }
 
-        spawnUIEntity({
+        const rowLabel = spawnUIEntity({
             world,
             parent: row,
             node: { fill: true },
-            text: { content: labelOf(opts.options[index]!, index) },
+            text: { content: labelOf(opts.options[index]!, index), color: textColor },
         });
+        markThemed(world, rowLabel, { text: 'text' });
 
         return row;
     }
