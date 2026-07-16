@@ -19,13 +19,32 @@
 export const TILESET_FORMAT_VERSION = '1';
 
 /**
- * A tile's collision shape. `box` = the full cell AABB (greedy-merged at runtime);
- * `polygon` = custom points in tile-local pixels (origin top-left, y-down like the atlas),
- * for slopes / partial tiles. Absence of `collision` on a tile = no collision.
+ * A tile's collision SHAPE, in tile-local pixels (origin top-left, y-down like the atlas).
+ * `box` = the full cell AABB (greedy-merged at runtime); `polygon` = custom points for
+ * slopes / partial tiles; `circle` = a disc centred at (cx, cy) with radius r.
  */
-export type TilesetCollision =
+export type TileCollisionShape =
     | { type: 'box' }
-    | { type: 'polygon'; points: [number, number][] };
+    | { type: 'polygon'; points: [number, number][] }
+    | { type: 'circle'; cx: number; cy: number; r: number };
+
+/**
+ * A tile's collision = a {@link TileCollisionShape} plus optional cross-cutting modifiers.
+ * Every modifier is optional and omitted when at its engine default, so existing
+ * `.estileset` files (plain `{type:'box'}` / `{type:'polygon'}`) round-trip byte-for-byte.
+ * `oneWay` is the solid-side normal in physics/world convention (y-up; `{0,1}` = solid-top,
+ * jump-through floor); flip flags reorient it at placement. Absence of `collision` = none.
+ */
+export type TilesetCollision = TileCollisionShape & {
+    /** One-way (jump-through) platform: contacts from behind this normal pass through. */
+    oneWay?: { nx: number; ny: number };
+    /** Non-solid trigger volume (fires events, no physical response). */
+    sensor?: boolean;
+    /** Physics material overrides (absent = engine defaults). */
+    density?: number;
+    friction?: number;
+    restitution?: number;
+};
 
 /** One animation frame: show tile `tile` for `durationMs` milliseconds. */
 export interface TilesetAnimFrame {
@@ -91,18 +110,50 @@ function nonNeg(v: unknown, fallback: number): number {
     return typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : fallback;
 }
 
+/** A one-way normal: `true` → solid-top (0,1); an {nx,ny}/{x,y} object → that unit normal. */
+function normalizeOneWay(raw: any): { nx: number; ny: number } | undefined {
+    if (raw === true) return { nx: 0, ny: 1 };
+    if (!raw || typeof raw !== 'object') return undefined;
+    const nx = Number.isFinite(raw.nx) ? raw.nx : (Number.isFinite(raw.x) ? raw.x : 0);
+    const ny = Number.isFinite(raw.ny) ? raw.ny : (Number.isFinite(raw.y) ? raw.y : 1);
+    const len = Math.hypot(nx, ny);
+    return len > 1e-6 ? { nx: nx / len, ny: ny / len } : { nx: 0, ny: 1 };
+}
+
 function normalizeCollision(raw: any): TilesetCollision | undefined {
     if (raw === true) return { type: 'box' };          // legacy / Tiled-style boolean flag
     if (!raw || typeof raw !== 'object') return undefined;
+
+    // Shape first.
+    let shape: TileCollisionShape;
     if (raw.type === 'polygon' && Array.isArray(raw.points)) {
         const points = raw.points
             .filter((p: any) => Array.isArray(p) && p.length >= 2
                 && typeof p[0] === 'number' && typeof p[1] === 'number')
             .map((p: any) => [p[0], p[1]] as [number, number]);
-        return points.length >= 3 ? { type: 'polygon', points } : undefined;
+        if (points.length < 3) return undefined;      // a polygon needs at least a triangle
+        shape = { type: 'polygon', points };
+    } else if (raw.type === 'circle' && Number.isFinite(raw.r) && raw.r > 0) {
+        shape = {
+            type: 'circle',
+            cx: Number.isFinite(raw.cx) ? raw.cx : 0,
+            cy: Number.isFinite(raw.cy) ? raw.cy : 0,
+            r: raw.r,
+        };
+    } else {
+        // Any other truthy collision (incl. `{type:'box'}` or a legacy `true`) = a full-cell box.
+        shape = { type: 'box' };
     }
-    // Any other truthy collision (incl. `{type:'box'}` or a legacy `true`) = a full-cell box.
-    return { type: 'box' };
+
+    // Modifiers — attached only when present, so a plain box/polygon stays byte-identical.
+    const out: TilesetCollision = shape;
+    const oneWay = normalizeOneWay(raw.oneWay);
+    if (oneWay) out.oneWay = oneWay;
+    if (raw.sensor === true) out.sensor = true;
+    if (Number.isFinite(raw.density)) out.density = raw.density;
+    if (Number.isFinite(raw.friction)) out.friction = raw.friction;
+    if (Number.isFinite(raw.restitution)) out.restitution = raw.restitution;
+    return out;
 }
 
 /** Parse arbitrary JSON into a normalized {@link TilesetAsset} (tolerant of missing fields). */

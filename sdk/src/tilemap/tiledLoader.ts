@@ -37,7 +37,8 @@ function uploadTiledLayerTiles(entity: Entity, layer: TiledLayerData): void {
         }
     }
 }
-import { RigidBody, BoxCollider, CircleCollider, PolygonCollider, ChainCollider, BodyType } from '../physics/PhysicsComponents';
+import { RigidBody, BoxCollider, CircleCollider, PolygonCollider, ChainCollider, OneWayPlatform, BodyType } from '../physics/PhysicsComponents';
+import type { ResolvedTileCollision } from './tilesetResolve';
 import { mergeCollisionTiles } from './collisionMerge';
 import { CHUNK_SIZE } from './chunkCodec';
 import { tileIdOf, tileFlagsOf } from './tileBits';
@@ -868,6 +869,94 @@ export function generateChunkPolygonCollision(
                 vertices: polygonLocalVerts(shape, tileW, tileH, f.flipH, f.flipV, f.flipD)
                     .map((v) => ({ x: v.x / pixelsPerUnit, y: v.y / pixelsPerUnit })),
             });
+            entities.push(entity);
+        }
+    }
+    return entities;
+}
+
+/** A one-way solid-side normal (world y-up; {0,1} = solid-top), reoriented by cell flips
+ *  so a flipped platform's solid side follows the render. */
+function oneWayNormalWorld(nx: number, ny: number, fH: boolean, fV: boolean, fD: boolean): { x: number; y: number } {
+    let x = nx;
+    let y = ny;
+    if (fH) x = -x;
+    if (fV) y = -y;
+    if (fD) { const tmp = x; x = y; y = tmp; }
+    return { x, y };
+}
+
+/**
+ * Spawn one static collider per placed tile whose global id resolves to a RICH shape —
+ * polygon / circle, or a box carrying a one-way / sensor / material modifier — i.e. the
+ * tiles the plain-box greedy merge ({@link generateChunkCollision}) deliberately skips.
+ * Both run together over the same chunks. Flip flags reorient the shape (and the one-way
+ * normal) to match the rendered tile. Geometry is in physics units (÷ pixelsPerUnit).
+ */
+export function generateChunkTileShapes(
+    world: World,
+    chunks: { x: number; y: number; tiles: Uint16Array }[],
+    tileShapes: Map<number, ResolvedTileCollision>,
+    tileW: number,
+    tileH: number,
+    originX: number,
+    originY: number,
+    pixelsPerUnit: number = 1,
+): Entity[] {
+    const entities: Entity[] = [];
+    if (tileShapes.size === 0) return entities;
+    const ppu = pixelsPerUnit || 1;
+    for (const chunk of chunks) {
+        const baseX = chunk.x * CHUNK_SIZE;
+        const baseY = chunk.y * CHUNK_SIZE;
+        for (let i = 0; i < chunk.tiles.length; i++) {
+            const raw = chunk.tiles[i];
+            const rc = tileShapes.get(tileIdOf(raw));
+            if (!rc) continue;
+            const gx = baseX + (i % CHUNK_SIZE);
+            const gy = baseY + Math.floor(i / CHUNK_SIZE);
+            const f = tileFlagsOf(raw);
+            const entity = world.spawn();
+            world.insert(entity, Transform, {
+                position: { x: originX + (gx + 0.5) * tileW, y: originY - (gy + 0.5) * tileH, z: 0 },
+            });
+            world.insert(entity, RigidBody, { bodyType: BodyType.Static });
+
+            // Only the material/sensor fields the tile overrode; the rest keep component defaults.
+            const mat: { density?: number; friction?: number; restitution?: number; isSensor?: boolean } = {};
+            if (rc.density !== undefined) mat.density = rc.density;
+            if (rc.friction !== undefined) mat.friction = rc.friction;
+            if (rc.restitution !== undefined) mat.restitution = rc.restitution;
+            if (rc.sensor) mat.isSensor = true;
+
+            const s = rc.shape;
+            if (s.type === 'polygon') {
+                world.insert(entity, PolygonCollider, {
+                    vertices: polygonLocalVerts(s.points, tileW, tileH, f.flipH, f.flipV, f.flipD)
+                        .map((v) => ({ x: v.x / ppu, y: v.y / ppu })),
+                    ...mat,
+                });
+            } else if (s.type === 'circle') {
+                // Reuse the polygon transform on the single centre point to apply flips; the
+                // radius is a tile-width fraction (assumes square-ish cells).
+                const c = polygonLocalVerts([[s.cx, s.cy]], tileW, tileH, f.flipH, f.flipV, f.flipD)[0];
+                world.insert(entity, CircleCollider, {
+                    radius: (s.r * tileW) / ppu,
+                    offset: { x: c.x / ppu, y: c.y / ppu },
+                    ...mat,
+                });
+            } else {
+                world.insert(entity, BoxCollider, {
+                    halfExtents: { x: (tileW * 0.5) / ppu, y: (tileH * 0.5) / ppu },
+                    ...mat,
+                });
+            }
+
+            if (rc.oneWay) {
+                world.insert(entity, OneWayPlatform, {
+                    normal: oneWayNormalWorld(rc.oneWay.nx, rc.oneWay.ny, f.flipH, f.flipV, f.flipD),
+                });
+            }
             entities.push(entity);
         }
     }

@@ -443,6 +443,8 @@ export {
     type TilesetAsset,
     type TilesetTile,
     type TilesetCollision,
+    type TileCollisionShape,
+    type ResolvedTileCollision,
     type TilesetAnimFrame,
     type TerrainMode,
     type TilesetTerrain,

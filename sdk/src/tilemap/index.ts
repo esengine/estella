@@ -7,7 +7,7 @@ export { TilemapPlugin, tilemapPlugin } from './tilemapPlugin';
 export {
     parseTmjJson, parseTmjWithExternals, loadTiledMap, loadTiledCollisionObjects,
     generateTileCollision, generateLayerCollision, generateChunkCollision,
-    generateChunkPolygonCollision, generateObjectCollision, isCollisionObjectGroup,
+    generateChunkPolygonCollision, generateChunkTileShapes, generateObjectCollision, isCollisionObjectGroup,
     polygonLocalVerts, resolveRelativePath, packCollectionGrid,
     type TiledMapData, type TiledLayerData, type TiledTilesetData,
     type TiledCollectionTile, type CollectionGridTile,
@@ -26,12 +26,12 @@ export {
 } from './tileStamp';
 export {
     TILESET_FORMAT_VERSION, parseTileset, serializeTileset, createTileset, collidableTileIds,
-    type TilesetAsset, type TilesetTile, type TilesetCollision, type TilesetAnimFrame,
+    type TilesetAsset, type TilesetTile, type TilesetCollision, type TileCollisionShape, type TilesetAnimFrame,
     type TerrainMode, type TilesetTerrain, type TilesetTileTerrain,
 } from './tilesetAsset';
 export {
     resolveTilesetModel,
-    type ResolvedTileset, type TilesetModel, type TilesetModelSlot,
+    type ResolvedTileset, type TilesetModel, type TilesetModelSlot, type ResolvedTileCollision,
 } from './tilesetResolve';
 export {
     TB_N, TB_E, TB_S, TB_W, TB_NE, TB_SE, TB_SW, TB_NW, TERRAIN_NEIGHBORS,

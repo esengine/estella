@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, vi } from 'vitest';
-import { polygonLocalVerts, generateChunkPolygonCollision } from '../src/tilemap/tiledLoader';
-import { resolveTilesetModel } from '../src/tilemap/tilesetResolve';
+import { polygonLocalVerts, generateChunkPolygonCollision, generateChunkTileShapes } from '../src/tilemap/tiledLoader';
+import { resolveTilesetModel, type ResolvedTileCollision } from '../src/tilemap/tilesetResolve';
 import { parseTileset } from '../src/tilemap/tilesetAsset';
 import { encodeTile } from '../src/tilemap/tileBits';
 import { CHUNK_SIZE } from '../src/tilemap/chunkCodec';
@@ -30,8 +30,8 @@ describe('resolveTilesetModel polygon shapes', () => {
     });
     const model = resolveTilesetModel([{ asset, textureHandle: 1 }]);
     expect(model.collidableTileIds).toEqual([2]); // box only
-    expect(model.polygonShapes.get(3)).toEqual([[0, 0], [1, 0], [1, 0.5]]); // normalized
-    expect(model.polygonShapes.has(2)).toBe(false);
+    expect(model.tileShapes.get(3)?.shape).toEqual({ type: 'polygon', points: [[0, 0], [1, 0], [1, 0.5]] }); // normalized
+    expect(model.tileShapes.has(2)).toBe(false); // plain box → merge set, not tileShapes
   });
 
   it('re-keys polygon ids into the global id space across tilesets', () => {
@@ -44,8 +44,8 @@ describe('resolveTilesetModel polygon shapes', () => {
       tiles: { 1: { collision: { type: 'polygon', points: [[0, 0], [16, 0], [0, 16]] } } },
     });
     const model = resolveTilesetModel([{ asset: a, textureHandle: 1 }, { asset: b, textureHandle: 2 }]);
-    expect(model.polygonShapes.has(1)).toBe(true);  // tileset a, local 1 → global 1
-    expect(model.polygonShapes.has(5)).toBe(true);  // tileset b, local 1 → global 1+4 = 5
+    expect(model.tileShapes.has(1)).toBe(true);  // tileset a, local 1 → global 1
+    expect(model.tileShapes.has(5)).toBe(true);  // tileset b, local 1 → global 1+4 = 5
   });
 });
 
@@ -99,5 +99,43 @@ describe('generateChunkPolygonCollision', () => {
     tiles[0] = encodeTile(9);
     const shapes = new Map<number, [number, number][]>([[3, [[0, 0]]]]);
     expect(generateChunkPolygonCollision(world, [{ x: 0, y: 0, tiles }], shapes, 16, 16, 0, 0)).toHaveLength(0);
+  });
+});
+
+describe('generateChunkTileShapes (rich per-tile shapes)', () => {
+  function spawnOne(shape: ResolvedTileCollision, flags?: { flipH?: boolean; flipV?: boolean; flipD?: boolean }) {
+    const { world, comps } = mockWorld();
+    const tiles = new Uint16Array(CHUNK_SIZE * CHUNK_SIZE);
+    tiles[0] = flags ? encodeTile(1, { flipH: !!flags.flipH, flipV: !!flags.flipV, flipD: !!flags.flipD }) : encodeTile(1);
+    const ents = generateChunkTileShapes(world, [{ x: 0, y: 0, tiles }], new Map([[1, shape]]), 16, 16, 0, 0);
+    return comps.get(ents[0] as number)!;
+  }
+
+  it('circle tile → CircleCollider (radius as tile-width fraction, centre offset)', () => {
+    const c = spawnOne({ shape: { type: 'circle', cx: 0.5, cy: 0.5, r: 0.5 } });
+    expect(c.get('CircleCollider').radius).toBeCloseTo(8); // 0.5 × 16
+    expect(c.get('CircleCollider').offset).toEqual({ x: 0, y: 0 }); // centred
+    expect(c.has('BoxCollider')).toBe(false);
+  });
+
+  it('box tile carries the material + sensor overrides it set', () => {
+    const c = spawnOne({ shape: { type: 'box' }, friction: 0.1, restitution: 0.9, density: 3, sensor: true });
+    expect(c.get('BoxCollider')).toMatchObject({ friction: 0.1, restitution: 0.9, density: 3, isSensor: true });
+  });
+
+  it('one-way box → OneWayPlatform with the solid-top normal', () => {
+    const c = spawnOne({ shape: { type: 'box' }, oneWay: { nx: 0, ny: 1 } });
+    expect(c.get('OneWayPlatform').normal).toEqual({ x: 0, y: 1 });
+  });
+
+  it('a vertically flipped cell flips the one-way normal', () => {
+    const c = spawnOne({ shape: { type: 'box' }, oneWay: { nx: 0, ny: 1 } }, { flipV: true });
+    expect(c.get('OneWayPlatform').normal).toEqual({ x: 0, y: -1 });
+  });
+
+  it('polygon tile → PolygonCollider (vertices from the flip-aware transform)', () => {
+    const c = spawnOne({ shape: { type: 'polygon', points: [[0, 1], [1, 1], [1, 0]] } });
+    expect(c.get('PolygonCollider').vertices).toHaveLength(3);
+    expect(c.has('OneWayPlatform')).toBe(false);
   });
 });
