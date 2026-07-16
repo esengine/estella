@@ -36,13 +36,14 @@ export const TilesetCommands = {
     });
   },
 
-  /** Set box collision on/off for a set of tiles as ONE undo step (a paint stroke). */
-  paintCollision(tileIds: number[], on: boolean): void {
+  /** Set box collision on/off for a set of tiles as ONE undo step (a paint stroke).
+   *  `oneWay` (a solid-side normal) tags the painted boxes as jump-through platforms. */
+  paintCollision(tileIds: number[], on: boolean, oneWay?: { nx: number; ny: number }): void {
     if (tileIds.length === 0) return;
     TilesetDocument.edit(on ? 'Add Tile Collision' : 'Remove Tile Collision', (a) => {
       for (const id of tileIds) {
         if (id <= 0) continue;
-        if (on) a.tiles[id] = { ...(a.tiles[id] ?? {}), collision: { type: 'box' } };
+        if (on) a.tiles[id] = { ...(a.tiles[id] ?? {}), collision: { type: 'box', ...(oneWay ? { oneWay } : {}) } };
         else if (a.tiles[id]?.collision) {
           delete a.tiles[id].collision;
           pruneEmpty(a, id);
@@ -55,12 +56,25 @@ export const TilesetCommands = {
    * Set a tile's polygon collision outline (tile-local pixels) as ONE undo step. Fewer
    * than 3 points clears any polygon collision on the tile (parseTileset would drop it).
    */
-  setTilePolygon(id: number, points: [number, number][]): void {
+  setTilePolygon(id: number, points: [number, number][], oneWay?: { nx: number; ny: number }): void {
     if (id <= 0) return;
     TilesetDocument.edit('Edit Tile Collision Shape', (a) => {
       if (points.length >= 3) {
-        a.tiles[id] = { ...(a.tiles[id] ?? {}), collision: { type: 'polygon', points } };
+        a.tiles[id] = { ...(a.tiles[id] ?? {}), collision: { type: 'polygon', points, ...(oneWay ? { oneWay } : {}) } };
       } else if (a.tiles[id]?.collision?.type === 'polygon') {
+        delete a.tiles[id].collision;
+        pruneEmpty(a, id);
+      }
+    });
+  },
+
+  /** Set a tile's circle collision (tile-local pixels) as ONE undo step; r ≤ 0 clears it. */
+  setTileCircle(id: number, cx: number, cy: number, r: number, oneWay?: { nx: number; ny: number }): void {
+    if (id <= 0) return;
+    TilesetDocument.edit('Edit Tile Collision Shape', (a) => {
+      if (r > 0) {
+        a.tiles[id] = { ...(a.tiles[id] ?? {}), collision: { type: 'circle', cx, cy, r, ...(oneWay ? { oneWay } : {}) } };
+      } else if (a.tiles[id]?.collision?.type === 'circle') {
         delete a.tiles[id].collision;
         pruneEmpty(a, id);
       }

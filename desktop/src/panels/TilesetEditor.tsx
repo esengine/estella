@@ -17,7 +17,7 @@ import {
   useEffect, useRef, useState, useSyncExternalStore,
   type CSSProperties, type MouseEvent as ReactMouseEvent,
 } from 'react';
-import { Save, Plus, Trash2, X } from 'lucide-react';
+import { Save, Plus, Trash2, X, ArrowUp } from 'lucide-react';
 import {
   TB_N, TB_E, TB_S, TB_W, TB_NE, TB_SE, TB_SW, TB_NW,
   type TilesetAsset, type TilesetAnimFrame,
@@ -135,11 +135,14 @@ export function TilesetEditor() {
   const [zoom, setZoom] = useState(2);
   const [mode, setMode] = useState<'collision' | 'terrain' | 'animation'>('collision');
   const [animTile, setAnimTile] = useState<number | null>(null);
-  const [shape, setShape] = useState<'box' | 'polygon'>('box');
+  const [shape, setShape] = useState<'box' | 'polygon' | 'circle'>('box');
   const [polyTile, setPolyTile] = useState<number | null>(null);
   // In polygon mode, an active preset stamps that canned slope/half-tile on click;
   // null = freeform (click opens the vertex editor). See slopePresets.
   const [activePreset, setActivePreset] = useState<SlopePreset | null>(null);
+  // One-way brush: while on, painted/stamped collision is a solid-top jump-through
+  // platform (normal {0,1}). A modifier orthogonal to the shape.
+  const [oneWayOn, setOneWayOn] = useState(false);
   const [activeSet, setActiveSet] = useState(0);
   const [hovered, setHovered] = useState<number | null>(null);
   // Live collision paint stroke: which tiles + the target on/off state, one undo step.
@@ -172,10 +175,16 @@ export function TilesetEditor() {
     const c = asset.tiles[id]?.collision;
     return c?.type === 'polygon' ? c.points : null;
   };
+  const circleOf = (id: number): { cx: number; cy: number; r: number } | null => {
+    const c = asset.tiles[id]?.collision;
+    return c?.type === 'circle' ? { cx: c.cx, cy: c.cy, r: c.r } : null;
+  };
+  const hasOneWay = (id: number): boolean => !!asset.tiles[id]?.collision?.oneWay;
+  const oneWayMod = oneWayOn ? { nx: 0, ny: 1 } : undefined;
 
   const commitDrag = () => {
     const d = dragRef.current;
-    if (d) TilesetCommands.paintCollision([...d.ids], d.on);
+    if (d) TilesetCommands.paintCollision([...d.ids], d.on, oneWayOn ? { nx: 0, ny: 1 } : undefined);
     setDrag(null);
   };
 
@@ -225,13 +234,13 @@ export function TilesetEditor() {
           cells.push(
             <div
               key={id}
-              className={'ts-cell ts-pcell' + (hasPolygon(id) ? ' is-poly' : '')}
+              className={'ts-cell ts-pcell' + (hasPolygon(id) ? ' is-poly' : '') + (hasOneWay(id) ? ' is-oneway' : '')}
               style={{ left, top, width: w, height: h }}
               title={activePreset ? t('tile.slope.stampTip', { name: t(activePreset.labelKey) }) : t('tile.cell.polyTip', { id })}
               onPointerDown={(e) => {
                 e.preventDefault();
                 // A preset stamps directly; freeform opens the vertex editor.
-                if (activePreset) TilesetCommands.setTilePolygon(id, presetPointsPx(activePreset, tw, th));
+                if (activePreset) TilesetCommands.setTilePolygon(id, presetPointsPx(activePreset, tw, th), oneWayMod);
                 else setPolyTile(id);
               }}
             >
@@ -246,11 +255,33 @@ export function TilesetEditor() {
               )}
             </div>,
           );
+        } else if (mode === 'collision' && shape === 'circle') {
+          const circ = circleOf(id);
+          cells.push(
+            <div
+              key={id}
+              className={'ts-cell ts-pcell' + (circ ? ' is-poly' : '') + (hasOneWay(id) ? ' is-oneway' : '')}
+              style={{ left, top, width: w, height: h }}
+              title={t('tile.cell.circleTip', { id })}
+              onPointerDown={(e) => {
+                e.preventDefault();
+                // Toggle: click a circle tile again to clear it; else stamp a fitted disc.
+                if (circ) TilesetCommands.setTileCircle(id, 0, 0, 0);
+                else TilesetCommands.setTileCircle(id, tw / 2, th / 2, Math.min(tw, th) / 2, oneWayMod);
+              }}
+            >
+              {circ && (
+                <svg className="ts-pe-svg" width={w} height={h} viewBox={`0 0 ${tw} ${th}`} preserveAspectRatio="none">
+                  <circle className="ts-pe-poly" cx={circ.cx} cy={circ.cy} r={circ.r} style={{ vectorEffect: 'non-scaling-stroke' }} />
+                </svg>
+              )}
+            </div>,
+          );
         } else if (mode === 'collision') {
           cells.push(
             <div
               key={id}
-              className={'ts-cell' + (isSolid(id) ? ' is-solid' : '')}
+              className={'ts-cell' + (isSolid(id) ? ' is-solid' : '') + (hasOneWay(id) ? ' is-oneway' : '')}
               style={{ left, top, width: w, height: h }}
               title={`#${id}`}
               onPointerDown={(e) => { e.preventDefault(); setDrag({ ids: new Set([id]), on: !isSolid(id) }); }}
@@ -339,15 +370,27 @@ export function TilesetEditor() {
           ]}
         />
         {mode === 'collision' && (
-          <Segmented
-            value={shape}
-            onChange={setShape}
-            ariaLabel={t('tile.shape.aria')}
-            options={[
-              { value: 'box', label: t('tile.shape.box') },
-              { value: 'polygon', label: t('tile.shape.polygon') },
-            ]}
-          />
+          <>
+            <Segmented
+              value={shape}
+              onChange={setShape}
+              ariaLabel={t('tile.shape.aria')}
+              options={[
+                { value: 'box', label: t('tile.shape.box') },
+                { value: 'polygon', label: t('tile.shape.polygon') },
+                { value: 'circle', label: t('tile.shape.circle') },
+              ]}
+            />
+            <button
+              type="button"
+              className={'ts-oneway' + (oneWayOn ? ' is-active' : '')}
+              title={t('tile.oneWayTip')}
+              aria-pressed={oneWayOn}
+              onClick={() => setOneWayOn((v) => !v)}
+            >
+              <ArrowUp size={13} /> {t('tile.oneWay')}
+            </button>
+          </>
         )}
         <span className="ts-sep" />
         <label className="ts-field">

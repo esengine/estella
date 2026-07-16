@@ -159,6 +159,29 @@
 .ts-slope:not(.is-active):hover { border-color: var(--line-strong); color: var(--text); }
 .ts-slope.is-active { border-color: var(--star); color: var(--text); }
 .ts-slope svg { display: block; }
+
+/* One-way brush toggle + the solid-side edge marker on one-way tiles */
+.ts-oneway {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--srf-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  color: var(--text-dim);
+  padding: 3px 8px;
+  cursor: pointer;
+  font: inherit;
+  transition: color var(--t-fast), border-color var(--t-fast);
+}
+.ts-oneway:not(.is-active):hover { border-color: var(--line-strong); color: var(--text); }
+.ts-oneway.is-active {
+  border-color: var(--warn);
+  color: var(--text);
+  background: color-mix(in srgb, var(--warn) 15%, var(--srf-3));
+}
+/* Solid side of a one-way tile — a bright top edge (the default {0,1} solid-top normal). */
+.ts-cell.is-oneway { box-shadow: inset 0 2px 0 var(--warn); }
 .ts-tname {
   width: 110px;
   background: var(--inset);
