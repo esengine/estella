@@ -182,6 +182,9 @@ export {
     lerpGearValue,
 } from './controller/gear-apply';
 
+export { bindControllerPage } from './controller/bind-page';
+export { ensureControllerAiRegistrations } from './controller/ai-builtins';
+
 export { UIControllerPlugin, uiControllerPlugin } from './controller/plugin';
 
 // ─── Collection ─────────────────────────────────────────────────────────────

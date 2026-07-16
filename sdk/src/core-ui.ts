@@ -122,6 +122,7 @@ export {
     setControllerPage,
     getControllerPage,
     findControllerOwner,
+    bindControllerPage,
     type UIControllerData,
     type ControllerState,
     type UIGearData,

@@ -17,8 +17,8 @@ import {
     Transform, UIVisual, Interactable, UIInteraction,
     spawnUIEntity, px, percent, UIPositionType,
     UIController, UIGear, interactionController, controllerState,
-    setControllerPage, getControllerPage, gearBinding,
-    EasingType,
+    setControllerPage, getControllerPage, gearBinding, bindControllerPage,
+    signal, EasingType,
 } from 'esengine';
 import type { Entity, World, Color, UIEventQueue } from 'esengine';
 
@@ -80,6 +80,12 @@ export const buildSystem = defineSystem(
 // ── 1. Tab bar ───────────────────────────────────────────────────────────────
 
 function buildTabBar(world: World, events: UIEventQueue, canvas: Entity): void {
+    // Data-driven: a signal names the active tab, bound to the 'tab' controller.
+    // Clicks set the signal (the data model); the controller follows and every
+    // geared element reflows — the same shape as binding UI to any game state.
+    const activeTab = signal<string>('overview');
+    bindControllerPage(world, canvas, 'tab', activeTab);
+
     TAB_PAGES.forEach((page, i) => {
         const btn = panel(world, canvas, {
             width: 150, height: 40, top: 96, centerOffsetX: (i - 1) * 160,
@@ -96,7 +102,7 @@ function buildTabBar(world: World, events: UIEventQueue, canvas: Entity): void {
                 { easing: EasingType.EaseOutCubic, duration: 0.12 })],
         });
 
-        events.on(btn, 'click', () => setControllerPage(world, canvas, 'tab', page));
+        events.on(btn, 'click', () => activeTab.set(page));
     });
 }
 

@@ -35,4 +35,7 @@ export {
     lerpGearValue,
 } from './gear-apply';
 
+export { bindControllerPage } from './bind-page';
+export { ensureControllerAiRegistrations } from './ai-builtins';
+
 export { UIControllerPlugin, uiControllerPlugin } from './plugin';

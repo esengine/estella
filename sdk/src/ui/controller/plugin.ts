@@ -14,11 +14,16 @@ import type { App, Plugin } from '../../app';
 import { Schedule } from '../../system';
 import { SystemLabel } from '../../systemLabels';
 import { createGearApplySystem, createInteractionControllerDriverSystem } from './gear-apply';
+import { ensureControllerAiRegistrations } from './ai-builtins';
 
 export class UIControllerPlugin implements Plugin {
     name = 'uiController';
 
     build(app: App): void {
+        // Register the `.esfsm`/`.esbt` → controller glue (idempotent) so a
+        // data-driven state machine can drive `ui.setPage`.
+        ensureControllerAiRegistrations();
+
         app.addSystemToSchedule(
             Schedule.Update,
             createInteractionControllerDriverSystem(app.world),
