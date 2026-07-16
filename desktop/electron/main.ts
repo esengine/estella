@@ -181,6 +181,10 @@ async function runScreenshot(w: BrowserWindow, out: string): Promise<void> {
       const ok = await exec(`window.__estellaEditor.open(${JSON.stringify(project)})`);
       if (ok) await exec('window.__estellaEditor.enterEditor()');
       await waitFor(sceneReady, 'editor mounted + scene projected'); // was sleep(1500)
+      // The project-open load gate (engine boot + play-realm prewarm) overlays
+      // the whole shell; capturing through it screenshots a spinner instead of
+      // the editor. Its own safety timer force-closes at 20s, so wait past it.
+      await waitFor('!document.querySelector(".loadscreen")', 'load gate cleared', 25000);
       if (scene) {
         await exec(`window.__estellaEditor.openScene(${JSON.stringify(scene)})`);
         await waitFor(sceneReady, 'scene loaded'); // was sleep(1500)
