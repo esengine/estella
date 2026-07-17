@@ -936,6 +936,10 @@ export const ViewportController = {
   ): string {
     const outline = tileCellOutline(params);
     const canvas = EngineHost.canvas;
+    // The cull box is in the SAME frame worldToClient reports — canvas-relative CSS px,
+    // origin at the canvas top-left — so it's [0..w, 0..h], NOT the page-relative
+    // getBoundingClientRect() (whose left/top carry the canvas's page offset; comparing
+    // against those over-culls the whole left/top band once the viewport is inset).
     const rect = cullPad === Infinity || !canvas ? null : canvas.getBoundingClientRect();
     let d = '';
     for (const cell of cells) {
@@ -944,8 +948,8 @@ export const ViewportController = {
       const cy = origin.y + c.y;
       if (rect) {
         const sc = this.worldToClient(cx, cy);
-        if (!sc || sc.x < rect.left - cullPad || sc.x > rect.right + cullPad
-          || sc.y < rect.top - cullPad || sc.y > rect.bottom + cullPad) continue;
+        if (!sc || sc.x < -cullPad || sc.x > rect.width + cullPad
+          || sc.y < -cullPad || sc.y > rect.height + cullPad) continue;
       }
       let sub = '';
       for (let i = 0; i < outline.length; i++) {
