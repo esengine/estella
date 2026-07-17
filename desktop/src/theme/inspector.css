@@ -9,7 +9,8 @@
    ========================================================================== */
 
 /* ════════════════════════ INSPECTOR (Details) ════════════════════════ */
-.insp { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+/* Size container: field rows restack via @container when the dock gets narrow. */
+.insp { display: flex; flex-direction: column; height: 100%; min-height: 0; container-type: inline-size; }
 /* shared .phead, one row taller for the 26px search well */
 .insp-head { height: 38px; }
 .insp-head .search { height: 26px; }
@@ -132,9 +133,23 @@
 .prop:hover .prop-reset.show, .prop.modified .prop-reset.show { opacity: .85; }
 .prop-reset:hover { opacity: 1 !important; }
 
+/* Narrow dock: the 38% label column would crush the controls into unreadable
+   slivers, so rows restack — label on its own line, controls on the full row
+   width below (the standard modern-inspector degradation). */
+@container (max-width: 252px) {
+  .prop { grid-template-columns: 1fr 18px; row-gap: 1px; }
+  .prop-label { grid-column: 1 / -1; }
+  .prop-value { grid-column: 1; }
+  .prop-reset { grid-column: 2; grid-row: 2; }
+}
+
 /* `.field` (the input well NumField and the dropdown trigger sit in) is the
    shared primitive in controls.css. */
-.vec { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; flex: 1; min-width: 0; }
+/* Components share the row but wrap instead of crushing once each can't keep
+   a readable minimum (grid auto-fit is unreliable inside a flex item — the
+   track count resolves from min-content there — so plain flex wrap it is). */
+.vec { display: flex; flex-wrap: wrap; gap: 4px; flex: 1; min-width: 0; }
+.vec .vfield { flex: 1 1 56px; }
 .vfield { height: 22px; display: flex; align-items: center; background: var(--inset); border: 1px solid var(--border); border-radius: var(--r-sm); overflow: hidden; min-width: 0; transition: border-color var(--t-fast), box-shadow var(--t-fast); }
 .vfield:focus-within { border-color: var(--acc); box-shadow: 0 0 0 2px var(--acc-soft); }
 .ax { width: 16px; height: 100%; display: grid; place-items: center; font-size: var(--fs-3xs); font-weight: 700; font-family: var(--mono); color: var(--on-accent); cursor: ew-resize; flex-shrink: 0; font-style: normal; }

@@ -80,6 +80,13 @@
 .row .rcol-spacer { flex-shrink: 0; } /* aligns columns where a row has no cell (e.g. folder lock/vis) */
 .row .rtype { width: 78px; font-size: var(--fs-2xs); color: var(--text-mute); font-family: var(--mono); flex-shrink: 0; }
 .row.sel .rtype { color: rgba(255, 255, 255, 0.72); }
+/* Narrow dock: the fixed Type column would eat the name into "C…" slivers —
+   drop it and give the name the full row (lock/visibility keep their cells). */
+@container (max-width: 209px) {
+  .row .rtype,
+  .row .rcol-spacer[data-col='type'],
+  .outliner-cols .c-col[data-col='type'] { display: none; }
+}
 .row .rvis, .row .rlock { width: 24px; display: grid; place-items: center; color: var(--text-mute); opacity: 0; transition: opacity var(--t-fast), color var(--t-fast); flex-shrink: 0; }
 .row:hover .rvis, .row.sel .rvis, .row.hidden .rvis { opacity: 1; }
 .row:hover .rlock, .row.sel .rlock, .row.locked .rlock { opacity: 1; }

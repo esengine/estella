@@ -164,6 +164,8 @@ if (new URLSearchParams(location.search).has('automation')) {
       ASSET_OPEN[assetTypeOf(name)]?.(path, name);
     },
     reveal: (id: string) => dockApi.revealAndExpand(id),
+    /** Resize a docked panel (shot tests: reproduce narrow-dock layouts). */
+    setPanelSize: (id: string, size: { width?: number; height?: number }) => dockApi.setPanelSize(id, size),
     /** The Output Log's captured entries (editor + SDK + wasm + play realm),
      *  newest last — an agent's only eyes on runtime errors. */
     logs: (tail = 50) => LogStore.getSnapshot().slice(-tail),

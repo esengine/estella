@@ -93,6 +93,8 @@
   flex-direction: column;
   height: 100%;
   background: var(--panel);
+  /* Size container: panel content degrades via @container as the dock narrows. */
+  container-type: inline-size;
 }
 
 .btn-soft {
@@ -166,6 +168,8 @@
   height: 100%;
   background: var(--void);
   overflow: hidden;
+  /* Size container: overlay chrome repositions via @container when squeezed. */
+  container-type: inline-size;
 }
 .viewport__stage {
   position: absolute;
@@ -706,6 +710,13 @@ body.thumb-capture .viewport > :not(.viewport__stage):not(.viewport__play) {
   padding: 4px 12px;
   border-radius: 999px;
   pointer-events: none;
+}
+
+/* Squeezed viewport: the centered flags would slide under the top toolbars —
+   drop them to a second row instead of overlapping. */
+@container (max-width: 1099px) {
+  .viewport__tileflag,
+  .viewport__playflag { top: 54px; }
 }
 
 /* Engine boot / error overlay, centered over the stage. */

@@ -66,6 +66,10 @@ export const dockApi = {
   reveal(id: string) {
     api?.getPanel(id)?.api.setActive();
   },
+  /** Resize a docked panel's group (automation/shot tests: reproduce narrow docks). */
+  setPanelSize(id: string, size: { width?: number; height?: number }) {
+    api?.getPanel(id)?.api.setSize(size);
+  },
   /** True when a panel may be popped out into its own OS window (see NON_POPPABLE). */
   canPopout(id: string): boolean {
     return !NON_POPPABLE.has(id) && !id.startsWith('game-client-');

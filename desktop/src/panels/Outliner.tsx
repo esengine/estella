@@ -664,7 +664,7 @@ export function Outliner() {
             >
               <span className="c-name">{t('out.colName')}</span>
               {activeColumns.map((col) => (
-                <span key={col.id} className="c-col" style={{ width: col.width }}>
+                <span key={col.id} className="c-col" data-col={col.id} style={{ width: col.width }}>
                   {col.header}
                 </span>
               ))}
