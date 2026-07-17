@@ -31,6 +31,7 @@ const GRID_TYPE_MAP: Record<string, number> = {
     staggered: 2,
     hexagonal: 3,
 };
+const GRID_STAGGERED = 2;
 const GRID_HEXAGONAL = 3;
 
 export class TilemapPlugin implements Plugin {
@@ -42,6 +43,11 @@ export class TilemapPlugin implements Plugin {
      *  is the authority, so an edit must re-push — otherwise the paint grid (cellSize)
      *  and the drawn/hit grid (stale tile_width) diverge and tiles land off-cursor. */
     private appliedCellSize_ = new Map<number, number>();
+    /** TilemapLayer entity → the grid params last pushed (orientation|side|axis|index).
+     *  Grid type + stagger/hex params live in the C++ LayerData; the component is the
+     *  authority, so an orientation edit (or a cellSize re-init, which resets LayerData)
+     *  must re-push — otherwise the drawn/hit grid diverges from the authored one. */
+    private appliedGrid_ = new Map<number, string>();
     private animatedLayers_ = new Set<number>();
     /** Tilemap(source) entity → the RuntimeOnly child layer entities derived from its `.tmj`. */
     private sourceLayerEntities_ = new Map<number, Entity[]>();
@@ -159,6 +165,7 @@ export class TilemapPlugin implements Plugin {
         const world = app.world;
         const initializedLayers = this.initializedLayers_;
         const appliedCellSize = this.appliedCellSize_;
+        const appliedGrid = this.appliedGrid_;
         const animatedLayers = this.animatedLayers_;
         const sourceLayerEntities = this.sourceLayerEntities_;
         const collisionEntities = this.collisionEntities_;
@@ -197,6 +204,7 @@ export class TilemapPlugin implements Plugin {
                         TilemapAPI.destroyLayer(entity);
                         initializedLayers.delete(entity);
                         appliedCellSize.delete(entity);
+                        appliedGrid.delete(entity);
                         nativeCollisionIds.delete(entity);
                         nativeTileShapes.delete(entity);
                         tilesetRefs.delete(entity);
@@ -229,6 +237,7 @@ export class TilemapPlugin implements Plugin {
                     // whenever the applied size drifts. Stale dims misplace every tile
                     // relative to the paint grid (renderer + worldToTile read tile_width).
                     const csKey = layerData.cellSize.x * 65536 + layerData.cellSize.y;
+                    let reinit = false;
                     if (!initializedLayers.has(entity)) {
                         TilemapAPI.initInfiniteLayer(
                             entity, layerData.cellSize.x, layerData.cellSize.y,
@@ -236,11 +245,30 @@ export class TilemapPlugin implements Plugin {
                         TilemapAPI.setOriginEntity(entity, entity);
                         initializedLayers.add(entity);
                         appliedCellSize.set(entity, csKey);
+                        reinit = true;
                     } else if (appliedCellSize.get(entity) !== csKey) {
                         TilemapAPI.initInfiniteLayer(
                             entity, layerData.cellSize.x, layerData.cellSize.y,
                         );
                         appliedCellSize.set(entity, csKey);
+                        reinit = true;
+                    }
+
+                    // Grid orientation + stagger/hex params from the component (the
+                    // authority): push on an orientation edit, or after a (re)init that
+                    // reset the C++ LayerData grid state. Staggered (2) and hexagonal (3)
+                    // both read the stagger axis/index; orthogonal/isometric ignore them.
+                    // Same worldToTile/renderer path the imported .tmj layers use, so a
+                    // painted iso/hex map places tiles exactly like an imported one.
+                    const gridKey = `${layerData.orientation ?? 0}|${layerData.hexSideLength ?? 0}`
+                        + `|${layerData.staggerAxis ?? 0}|${layerData.staggerIndex ?? 0}`;
+                    if (reinit || appliedGrid.get(entity) !== gridKey) {
+                        TilemapAPI.setGridType(entity, layerData.orientation ?? 0);
+                        TilemapAPI.setHexParams(
+                            entity, layerData.hexSideLength ?? 0,
+                            (layerData.staggerAxis ?? 0) === 1, (layerData.staggerIndex ?? 0) === 1,
+                        );
+                        appliedGrid.set(entity, gridKey);
                     }
 
                     // Live tileset(s): when ALL the layer's `.estileset` refs have loaded,
@@ -378,7 +406,9 @@ export class TilemapPlugin implements Plugin {
                             if (gridType !== 0) {
                                 TilemapAPI.setGridType(child, gridType);
                             }
-                            if (gridType === GRID_HEXAGONAL) {
+                            // Staggered + hexagonal both read the stagger axis/index (the
+                            // half-cell shift). Staggered iso ignores the side length.
+                            if (gridType === GRID_STAGGERED || gridType === GRID_HEXAGONAL) {
                                 TilemapAPI.setHexParams(
                                     child, cached.hexSideLength ?? 0,
                                     cached.staggerAxis === 'x', cached.staggerIndex === 'even',

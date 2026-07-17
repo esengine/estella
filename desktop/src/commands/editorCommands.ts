@@ -17,7 +17,6 @@ import { SceneModel } from '@/engine/SceneModel';
 import { hasEntityClipboard } from '@/engine/entityClipboard';
 import { ViewportController } from '@/engine/ViewportController';
 import { applyFxPreview } from '@/engine/fxPreview';
-import { createTilemapFromTileset } from '@/tilemap/createTilemap';
 import { dockApi } from '@/layout/dockApi';
 import { EDITOR_MODES } from '@/mode/editorModes';
 import { activeMode } from '@/mode/activeMode';
@@ -123,18 +122,14 @@ commands.register({
   label: t('cmd.tilemap.new'),
   category: t('cat.entity'),
   isEnabled: () => !!ProjectStore.getSnapshot(),
-  // A tilemap needs a tileset palette. Zero → guide the user to make one; exactly
-  // one → create straight away; many → let them pick (TilemapPickerDialog). The
-  // downstream createTilemapFromTileset does all the entity wiring either way.
+  // A tilemap needs a tileset palette. Zero → guide the user to make one; otherwise
+  // open the picker so they choose the orientation (orthogonal / iso / staggered /
+  // hex) AND the tileset up front, like Tiled's New Map dialog. createTilemapFromTileset
+  // does all the entity wiring; the picker just gathers the grid + palette choice.
   run: () => {
     const list = ProjectStore.listAssets('tileset');
     if (list.length === 0) {
       Toasts.push(t('toast.noTileset'), 'warn');
-      return;
-    }
-    if (list.length === 1) {
-      const path = ProjectStore.assetInfo(list[0].ref)?.path;
-      if (path) void createTilemapFromTileset(path);
       return;
     }
     editor().setTilemapPickerOpen(true);

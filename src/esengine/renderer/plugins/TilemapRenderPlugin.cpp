@@ -76,17 +76,17 @@ void TilemapRenderPlugin::rebuildChunk(
             if (layer.grid_type == tilemap::GridType::Isometric) {
                 worldX = originX + static_cast<f32>(tx - ty) * hw;
                 worldY = originY - static_cast<f32>(tx + ty) * hh;
-            } else if (layer.grid_type == tilemap::GridType::StaggeredIsometric) {
-                f32 offsetX = (ty & 1) ? hw : 0.0f;
-                worldX = originX + static_cast<f32>(tx) * layer.tile_width + offsetX + hw;
-                worldY = originY - static_cast<f32>(ty) * hh - hh;
-            } else if (layer.grid_type == tilemap::GridType::Hexagonal) {
-                // Tiled hexagonal layout: the stagger axis advances by
-                // (tile + hexSideLength)/2, staggered lines shift half a tile
-                // along the other axis — matches Tiled's pixel placement so
-                // imported maps line up 1:1.
-                f32 side = layer.hex_side_length > 0.0f ? layer.hex_side_length
-                                                        : layer.tile_height * 0.5f;
+            } else if (layer.grid_type == tilemap::GridType::StaggeredIsometric
+                    || layer.grid_type == tilemap::GridType::Hexagonal) {
+                // Staggered/hex share one layout: the stagger axis advances by
+                // (tile + side)/2, staggered lines shift half a tile along the
+                // other axis — matching Tiled's pixel placement so imported maps
+                // line up 1:1. Staggered iso is exactly hex with side length 0;
+                // hex with side 0 falls back to a regular pointy hex.
+                bool isHex = layer.grid_type == tilemap::GridType::Hexagonal;
+                f32 side = isHex ? (layer.hex_side_length > 0.0f ? layer.hex_side_length
+                                                                 : layer.tile_height * 0.5f)
+                                 : 0.0f;
                 if (layer.hex_stagger_axis_x) {
                     f32 colW = (layer.tile_width + side) * 0.5f;
                     bool staggered = ((tx & 1) != 0) != layer.hex_stagger_index_even;

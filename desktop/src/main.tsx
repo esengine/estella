@@ -47,7 +47,9 @@ import { EngineHost } from './engine/EngineHost';
 import { Particle, getComponent } from 'esengine';
 import { applyFxPreview, initFxPreviewEditRestart } from './engine/fxPreview';
 import { commands } from './commands/registry';
-import { ENTITY_SOURCES, sourceById, createFromSource } from './engine/entitySources';
+import { ENTITY_SOURCES, sourceById, createFromSource, type TileGridConfig } from './engine/entitySources';
+import { createTilemapFromTileset } from './tilemap/createTilemap';
+import { SceneCommands } from './engine/SceneCommands';
 import { ViewportController } from './engine/ViewportController';
 import { PerfMonitor } from './engine/PerfMonitor';
 import { LogStore } from './store/LogStore';
@@ -133,6 +135,12 @@ if (new URLSearchParams(location.search).has('automation')) {
     createSceneFile: (destDir: string) => ProjectStore.createSceneFile(destDir),
     /** The Create-popover catalog: every ready-made entity the editor can spawn. */
     listEntityTemplates: () => ENTITY_SOURCES.map(({ id, label, category }) => ({ id, label, category })),
+    /** Create a TilemapLayer from an .estileset with an optional grid layout
+     *  (orientation/stagger/hex) — drives the New-Tilemap flow headlessly. */
+    createTilemap: (tilesetPath: string, grid?: TileGridConfig) => createTilemapFromTileset(tilesetPath, grid),
+    /** Paint tiles into a TilemapLayer SOURCE entity (one undo step) — for shot tests. */
+    paintTiles: (sourceId: number, edits: { x: number; y: number; tileId: number }[]) =>
+      SceneCommands.paintTiles(sourceId, edits),
     /** Spawn a ready-made entity through the one create pipeline (menu/DnD parity). */
     createEntity: async (sourceId: string, opts?: { parent?: number | null; x?: number; y?: number }) => {
       const source = sourceById(sourceId);

@@ -7,8 +7,9 @@ import {
   RevoluteJoint, DistanceJoint, PrismaticJoint, WeldJoint, WheelJoint, MotorJoint,
   UINode, UICameraInfo, screenToUiWorld, uiWorldToScreen, uiPickAllWorld, type UICameraData,
   TilemapLayer, TilemapAPI, decodeTilemapChunks, tileCollisionOutlines,
+  tileCellCenter, tileCellOutline, isNonOrthogonal,
   readColliderShapes, colliderShapeOutline, shapeCenter,
-  type TilesetModel, type TileCollisionPiece,
+  type TilesetModel, type TileCollisionPiece, type TileGridParams,
 } from 'esengine';
 import type { EntityId } from '@/types';
 import { EngineHost } from './EngineHost';
@@ -887,6 +888,107 @@ export const ViewportController = {
       }
     }
     return { solid, sensor, onewayLine, onewayHead };
+  },
+
+  // ── Orientation-aware tile-grid overlay ─────────────────────────────────────
+  // Non-orthogonal maps (iso / staggered / hex) can't be drawn by the engine's square
+  // grid or the axis-aligned div ghost, so the editor draws their cells as shaped SVG
+  // polygons. All three read the SAME cell geometry the runtime places tiles with
+  // ({@link tileCellCenter}/{@link tileCellOutline}), so overlay and rendered tiles line up.
+
+  /** The selected layer's grid layout + world origin, or null (not a tilemap / no runtime). */
+  tileGridParams(id: EntityId): { params: TileGridParams; origin: { x: number; y: number } } | null {
+    const comp = SceneModel.entityBySource(id)?.components.find((c) => c.type === 'TilemapLayer');
+    const d = comp?.data as {
+      cellSize?: { x: number; y: number }; orientation?: number; hexSideLength?: number;
+      staggerAxis?: number; staggerIndex?: number;
+    } | undefined;
+    if (!d?.cellSize) return null;
+    const rt = SceneModel.runtimeFor(id);
+    const origin = rt != null ? this.getEntityWorldXY(rt) : null;
+    if (!origin) return null;
+    return {
+      params: {
+        orientation: d.orientation ?? 0,
+        tileWidth: d.cellSize.x, tileHeight: d.cellSize.y,
+        hexSideLength: d.hexSideLength ?? 0,
+        staggerAxisX: (d.staggerAxis ?? 0) === 1,
+        staggerIndexEven: (d.staggerIndex ?? 0) === 1,
+      },
+      origin,
+    };
+  },
+
+  /** True when the selected layer uses a non-orthogonal grid (drives the SVG overlay). */
+  tileLayerIsNonOrthogonal(id: EntityId): boolean {
+    const gp = this.tileGridParams(id);
+    return !!gp && isNonOrthogonal(gp.params.orientation);
+  },
+
+  /**
+   * SVG path `d` for the outlines of the given tile cells (each a closed polygon in the
+   * layer's orientation). `cullPad` (client px) drops cells whose center projects well
+   * off-canvas so the grid path stays small when zoomed in.
+   */
+  projectTileCellPaths(
+    params: TileGridParams, origin: { x: number; y: number },
+    cells: Iterable<{ x: number; y: number }>, cullPad = Infinity,
+  ): string {
+    const outline = tileCellOutline(params);
+    const canvas = EngineHost.canvas;
+    const rect = cullPad === Infinity || !canvas ? null : canvas.getBoundingClientRect();
+    let d = '';
+    for (const cell of cells) {
+      const c = tileCellCenter(params, cell.x, cell.y);
+      const cx = origin.x + c.x;
+      const cy = origin.y + c.y;
+      if (rect) {
+        const sc = this.worldToClient(cx, cy);
+        if (!sc || sc.x < rect.left - cullPad || sc.x > rect.right + cullPad
+          || sc.y < rect.top - cullPad || sc.y > rect.bottom + cullPad) continue;
+      }
+      let sub = '';
+      for (let i = 0; i < outline.length; i++) {
+        const s = this.worldToClient(cx + outline[i].x, cy + outline[i].y);
+        if (!s) { sub = ''; break; }
+        sub += `${i ? 'L' : 'M'}${s.x.toFixed(1)},${s.y.toFixed(1)}`;
+      }
+      if (sub) d += `${sub}Z`;
+    }
+    return d;
+  },
+
+  /**
+   * The visible tile-index bbox for the grid overlay (the on-screen corners mapped back
+   * to tile coords, padded for iso/hex diamonds that reach past the corner samples), or
+   * null when it would exceed `cap` cells (too zoomed out to draw a useful grid).
+   */
+  visibleTileRange(
+    id: EntityId, origin: { x: number; y: number }, cap: number,
+  ): { x0: number; y0: number; x1: number; y1: number } | null {
+    const rt = SceneModel.runtimeFor(id);
+    const canvas = EngineHost.canvas;
+    if (rt == null || !canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    const corners = [
+      this.canvasToWorld(rect.left, rect.top),
+      this.canvasToWorld(rect.right, rect.top),
+      this.canvasToWorld(rect.left, rect.bottom),
+      this.canvasToWorld(rect.right, rect.bottom),
+    ];
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const c of corners) {
+      if (!c) continue;
+      const t = TilemapAPI.worldToTile(rt, c.x, c.y, origin.x, origin.y);
+      x0 = Math.min(x0, t.x); x1 = Math.max(x1, t.x);
+      y0 = Math.min(y0, t.y); y1 = Math.max(y1, t.y);
+    }
+    if (!Number.isFinite(x0)) return null;
+    const PAD = 3; // partial cells + iso/hex extremes past the corner samples
+    x0 = Math.floor(x0) - PAD; y0 = Math.floor(y0) - PAD;
+    x1 = Math.ceil(x1) + PAD; y1 = Math.ceil(y1) + PAD;
+    if ((x1 - x0 + 1) * (y1 - y0 + 1) > cap) return null;
+    return { x0, y0, x1, y1 };
   },
 
   /** (entity, joint-type) pairs for every scene-authored joint — the joint-gizmo set. */

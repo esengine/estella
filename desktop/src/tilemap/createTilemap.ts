@@ -11,7 +11,7 @@
  */
 import { parseTileset } from 'esengine';
 import { Grid3x3 } from 'lucide-react';
-import { createFromSource, tilemapPrefab, type EntitySource } from '@/engine/entitySources';
+import { createFromSource, tilemapPrefab, type EntitySource, type TileGridConfig } from '@/engine/entitySources';
 import { useSelection } from '@/store/selectionStore';
 import { useTilemapPaint } from '@/store/tilemapPaintStore';
 import { ProjectStore } from '@/project/ProjectStore';
@@ -24,7 +24,9 @@ import { t } from '@/i18n';
  * size, and afterCreate links the tileset live + opens the painter. `tileWidth/Height`
  * are read from the already-parsed tileset so `build` stays synchronous.
  */
-function tilesetSource(tilesetPath: string, tilesetRef: string, tileWidth: number, tileHeight: number): EntitySource {
+function tilesetSource(
+  tilesetPath: string, tilesetRef: string, tileWidth: number, tileHeight: number, grid?: TileGridConfig,
+): EntitySource {
   return {
     id: `tileset:${tilesetPath}`,
     label: 'Tilemap',
@@ -32,7 +34,7 @@ function tilesetSource(tilesetPath: string, tilesetRef: string, tileWidth: numbe
     icon: Grid3x3,
     // tilesetRef bakes the link into the prefab; the Reconciler live-pushes it on
     // spawn/redo, so the map is a single undoable create with no wiring step.
-    build: () => tilemapPrefab('Tilemap', { x: tileWidth, y: tileHeight }, tilesetRef),
+    build: () => tilemapPrefab('Tilemap', { x: tileWidth, y: tileHeight }, tilesetRef, grid),
     afterCreate: (_ctx, rootId) => {
       useSelection.getState().select(rootId);
       useTilemapPaint.getState().setTileset(tilesetPath);
@@ -45,8 +47,9 @@ function tilesetSource(tilesetPath: string, tilesetRef: string, tileWidth: numbe
   };
 }
 
-/** Create a TilemapLayer entity referencing the given .estileset, select it, and start painting. */
-export async function createTilemapFromTileset(tilesetPath: string): Promise<void> {
+/** Create a TilemapLayer entity referencing the given .estileset, select it, and start
+ *  painting. `grid` sets the orientation/stagger layout (defaults to orthogonal). */
+export async function createTilemapFromTileset(tilesetPath: string, grid?: TileGridConfig): Promise<void> {
   const tilesetRef = ProjectStore.assetRef(tilesetPath); // .estileset → @uuid
   if (!tilesetRef) {
     Toasts.push(t('tile.toast.untracked'), 'error');
@@ -59,5 +62,7 @@ export async function createTilemapFromTileset(tilesetPath: string): Promise<voi
     Toasts.push(t('tile.toast.readFailed', { error: String(e) }), 'error');
     return;
   }
-  await createFromSource(tilesetSource(tilesetPath, tilesetRef, asset.tileWidth, asset.tileHeight), { parent: null });
+  await createFromSource(
+    tilesetSource(tilesetPath, tilesetRef, asset.tileWidth, asset.tileHeight, grid), { parent: null },
+  );
 }

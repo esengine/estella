@@ -15,7 +15,7 @@ import { activeMode, activeModeOverlays } from '@/mode/activeMode';
 import { useEditorMode } from '@/store/editorModeStore';
 import { RESOLUTION_PRESETS, RESOLUTION_PRESET_BY_ID, DESIGN_RESOLUTION_PRESETS, deviceDims } from '@/mode/resolutionPresets';
 import { buildStampGhost } from '@/tools/tileStampGhost';
-import { TilemapAPI, tileIdOf, UINode, DimensionUnit, computeEffectiveOrthoSize, type TileCollisionPiece, type TilesetModel } from 'esengine';
+import { TilemapAPI, tileIdOf, isNonOrthogonal, UINode, DimensionUnit, computeEffectiveOrthoSize, type TileCollisionPiece, type TilesetModel } from 'esengine';
 import { commands } from '@/commands';
 import { MOD_LABEL } from '@/commands/keybinding';
 import { EngineHost } from '@/engine/EngineHost';
@@ -44,6 +44,10 @@ import { GIZMO, type GizmoAxis } from '@/tools/gizmo';
 import { selectionPivot, gizmoScreenAngleRad } from '@/tools/transformTools';
 import { Marquee } from '@/tools/marquee';
 import { TilePaintPreview } from '@/tools/tilePreview';
+
+// Cap on the non-orthogonal grid overlay's drawn cells — beyond this the view is too
+// zoomed out for a cell grid to read, so it's skipped rather than churning a huge path.
+const TILE_GRID_CELL_CAP = 4000;
 
 // A React pointer event → the tool-facing PointerInput (no DOM coupling in tools).
 const toInput = (e: ReactPointerEvent): PointerInput => ({
@@ -752,6 +756,10 @@ export function Viewport() {
   const tilePaintRef = useRef<HTMLDivElement>(null);
   const paintPoolRef = useRef<HTMLDivElement[]>([]);
   const hoverTileRef = useRef<{ x: number; y: number } | null>(null);
+  // Orientation-aware overlay for non-orthogonal maps (iso/staggered/hex): one SVG
+  // whose shaped-cell paths (grid + selection + gesture + hover) replace the square
+  // engine grid and the axis-aligned div ghost, which only fit an orthogonal grid.
+  const tileGridRef = useRef<SVGSVGElement | null>(null);
   // Camera pan (middle/right drag) is built-in navigation, separate from tools.
   const panRef = useRef<{ px: number; py: number } | null>(null);
   // The tool that owns the in-progress left-button stroke (move/up route to it).
@@ -869,9 +877,12 @@ export function Viewport() {
   // origin-offset support lands.)
   useEffect(() => {
     if (engine.status !== 'ready') return;
+    // Non-orthogonal maps draw their own shaped grid (viewport__tilegrid), so turn the
+    // engine's square grid off for them — a square grid over an iso/hex map misleads.
+    const nonOrtho = primaryId != null && ViewportController.tileLayerIsNonOrthogonal(primaryId);
     const cell = selectedTilemapCellSize();
-    EngineHost.setGrid(showGrid, cell ? cell.x : snapStep);
-  }, [showGrid, snapStep, primaryId, engine.status]);
+    EngineHost.setGrid(showGrid && !nonOrtho, cell ? cell.x : snapStep);
+  }, [showGrid, snapStep, primaryId, engine.status, dataRev]);
 
   // Play In Viewport (UE5 PIE): host the realm iframe over the stage while playing
   // here. The host div is PERSISTENT (mounted whenever the viewport is the play
@@ -1082,13 +1093,16 @@ export function Viewport() {
         const sid = useSelection.getState().selectedId;
         const rt = ready && sid != null ? SceneModel.runtimeFor(sid) : undefined;
         const paint = useTilemapPaint.getState();
+        // Non-orthogonal maps route ALL tile overlays through the shaped SVG below, so the
+        // axis-aligned div marquee/ghost/preview stay hidden (their corner math is square).
+        const nonOrtho = ready && sid != null && ViewportController.tileLayerIsNonOrthogonal(sid);
         const tsel = paint.tool === 'select' ? paint.selection : null;
         const layer = ready && sid != null
           ? SceneModel.entityBySource(sid)?.components.find((c) => c.type === 'TilemapLayer')
           : undefined;
         const cs = layer?.data as { cellSize?: { x: number; y: number } } | undefined;
         const origin = ready && rt != null ? ViewportController.getEntityWorldXY(rt) : null;
-        if (tsel && cs?.cellSize && origin) {
+        if (tsel && cs?.cellSize && origin && !nonOrtho) {
           const x0 = Math.min(tsel.x0, tsel.x1);
           const y0 = Math.min(tsel.y0, tsel.y1);
           const x1 = Math.max(tsel.x0, tsel.x1);
@@ -1117,7 +1131,7 @@ export function Viewport() {
         // Random brush lays ONE sampled tile per cell, so its footprint is 1×1 — only a
         // pattern brush (or erase, which clears the whole w×h) previews at the stamp size.
         const stampSized = paint.tool === 'erase' || (paint.tool === 'brush' && !paint.randomBrush);
-        const canFoot = !!(paint.tool && !gesturing && hov && cs?.cellSize && origin);
+        const canFoot = !!(paint.tool && !gesturing && hov && cs?.cellSize && origin && !nonOrtho);
         // Footprint corners in client px (fw×fh cells at the hovered cell).
         let ftl: { x: number; y: number } | null = null;
         let fbr: { x: number; y: number } | null = null;
@@ -1163,7 +1177,7 @@ export function Viewport() {
           const shape = TilePaintPreview.get();
           const pool = paintPoolRef.current;
           let used = 0;
-          if (shape && cs?.cellSize && origin) {
+          if (shape && cs?.cellSize && origin && !nonOrtho) {
             const cw = cs.cellSize.x;
             const ch = cs.cellSize.y;
             const place = (tx: number, ty: number, w: number, h: number): void => {
@@ -1194,6 +1208,71 @@ export function Viewport() {
             }
           }
           for (let i = used; i < pool.length; i++) pool[i].style.display = 'none';
+        }
+      }
+
+      // Orientation-aware tile overlay (iso / staggered / hex): the shaped grid + the
+      // selection / gesture-preview / hover cells, all built from the SAME cell geometry
+      // the runtime places tiles with, so the outlines sit exactly on the drawn tiles.
+      const tgSvg = tileGridRef.current;
+      if (tgSvg) {
+        const sid = useSelection.getState().selectedId;
+        const gp = ready && sid != null && !useEditorStore.getState().isPlaying
+          ? ViewportController.tileGridParams(sid) : null;
+        const setD = (sel: string, d: string) => {
+          const el = tgSvg.querySelector(sel) as SVGPathElement | null;
+          if (el) el.setAttribute('d', d);
+        };
+        if (gp && sid != null && isNonOrthogonal(gp.params.orientation)) {
+          const { params, origin } = gp;
+          const paint = useTilemapPaint.getState();
+          const rangeCells = (x0: number, y0: number, x1: number, y1: number): { x: number; y: number }[] => {
+            const cells: { x: number; y: number }[] = [];
+            for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) cells.push({ x: tx, y: ty });
+            return cells;
+          };
+          // Grid: visible cells, faint. Off when the grid flag is off or too zoomed out.
+          let gridD = '';
+          if (useEditorStore.getState().showGrid) {
+            const range = ViewportController.visibleTileRange(sid, origin, TILE_GRID_CELL_CAP);
+            if (range) {
+              gridD = ViewportController.projectTileCellPaths(
+                params, origin, rangeCells(range.x0, range.y0, range.x1, range.y1), 96,
+              );
+            }
+          }
+          setD('.tg-grid', gridD);
+          // Selection marquee cells.
+          const sel = paint.tool === 'select' ? paint.selection : null;
+          setD('.tg-select', sel
+            ? ViewportController.projectTileCellPaths(params, origin, rangeCells(
+                Math.min(sel.x0, sel.x1), Math.min(sel.y0, sel.y1), Math.max(sel.x0, sel.x1), Math.max(sel.y0, sel.y1),
+              ))
+            : '');
+          // Gesture preview (rect fill box / line / ellipse cells).
+          const shape = TilePaintPreview.get();
+          let prevD = '';
+          if (shape) {
+            const cells = shape.kind === 'rect'
+              ? rangeCells(Math.min(shape.x0, shape.x1), Math.min(shape.y0, shape.y1), Math.max(shape.x0, shape.x1), Math.max(shape.y0, shape.y1))
+              : shape.cells;
+            prevD = ViewportController.projectTileCellPaths(params, origin, cells);
+          }
+          setD('.tg-preview', prevD);
+          // Hover footprint (the cells the brush will lay), unless a gesture is drawing.
+          const hov = hoverTileRef.current;
+          let hovD = '';
+          if (hov && paint.tool && paint.tool !== 'select' && !shape) {
+            const stampSized = paint.tool === 'erase' || (paint.tool === 'brush' && !paint.randomBrush);
+            const cells: { x: number; y: number }[] = stampSized
+              ? rangeCells(hov.x, hov.y, hov.x + paint.stamp.w - 1, hov.y + paint.stamp.h - 1)
+              : [{ x: hov.x, y: hov.y }];
+            hovD = ViewportController.projectTileCellPaths(params, origin, cells);
+          }
+          setD('.tg-hover', hovD);
+          tgSvg.style.display = '';
+        } else {
+          tgSvg.style.display = 'none';
         }
       }
 
@@ -1899,6 +1978,16 @@ export function Viewport() {
         <path className="tc-sensor" d="" />
         <path className="tc-oneway" d="" />
         <path className="tc-oneway-head" d="" />
+      </svg>
+
+      {/* Orientation-aware tile overlay for iso/staggered/hex maps: shaped grid + selection
+          + gesture preview + hover cells (the square engine grid + div ghost can't draw a
+          diamond/hex). The rAF writes each path's data; hidden for orthogonal maps. */}
+      <svg className="viewport__tilegrid" ref={tileGridRef} aria-hidden="true" style={{ display: 'none' }}>
+        <path className="tg-grid" d="" />
+        <path className="tg-select" d="" />
+        <path className="tg-preview" d="" />
+        <path className="tg-hover" d="" />
       </svg>
 
       {/* Collider gizmos: a full-viewport SVG per collider (box polygon / circle),

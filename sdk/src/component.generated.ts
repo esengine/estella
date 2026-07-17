@@ -15,7 +15,7 @@ import type { Dimension, Padding } from './wasm.generated';
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = 'bde213b560e9ce4c';
+export const ABI_LAYOUT_HASH = '4e0613ea05e766a3';
 
 export interface AssetFieldMeta {
     field: string;
@@ -519,6 +519,10 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
     TilemapLayer: {
         defaults: {
             cellSize: { x: 32, y: 32 },
+            orientation: 0,
+            hexSideLength: 0,
+            staggerAxis: 0,
+            staggerIndex: 0,
             originOffset: { x: 0, y: 0 },
             tileset: 0,
             tilesetColumns: 1,
@@ -534,6 +538,10 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         colorFields: ['tintColor'],
         animatableFields: ['tintColor.r', 'tintColor.g', 'tintColor.b', 'tintColor.a', 'opacity'],
         fields: {
+            orientation: { enum: [{ label: 'Orthogonal', value: 0 }, { label: 'Isometric', value: 1 }, { label: 'Staggered', value: 2 }, { label: 'Hexagonal', value: 3 }], tooltip: "Grid layout: orthogonal, isometric, staggered, or hexagonal." },
+            hexSideLength: { min: 0, step: 1, tooltip: "Hexagonal side length in px (0 = a regular pointy hex = tileHeight/2). Ignored unless orientation is Hexagonal." },
+            staggerAxis: { enum: [{ label: 'Y', value: 0 }, { label: 'X', value: 1 }], tooltip: "Stagger axis (staggered/hex): Y shifts rows, X shifts columns." },
+            staggerIndex: { enum: [{ label: 'Odd', value: 0 }, { label: 'Even', value: 1 }], tooltip: "Which lines carry the half-cell shift (staggered/hex)." },
             tilesetColumns: { min: 1, step: 1 },
             tilesetRows: { min: 1, step: 1 },
             renderLayer: { step: 1, enumSource: "sortingLayers" },
@@ -930,6 +938,10 @@ export interface SpriteData {
 
 export interface TilemapLayerData {
     cellSize: Vec2;
+    orientation: number;
+    hexSideLength: number;
+    staggerAxis: number;
+    staggerIndex: number;
     originOffset: Vec2;
     tileset: number;
     tilesetColumns: number;

@@ -374,17 +374,16 @@ void TilemapSystem::tileToWorld(Entity entity, i32 tx, i32 ty,
             outX = originX + static_cast<f32>(tx - ty) * tw * 0.5f;
             outY = originY - static_cast<f32>(tx + ty) * th * 0.5f;
             break;
-        case GridType::StaggeredIsometric: {
-            f32 offsetX = (ty & 1) ? tw * 0.5f : 0.0f;
-            outX = originX + static_cast<f32>(tx) * tw + offsetX;
-            outY = originY - static_cast<f32>(ty) * th * 0.5f;
-            break;
-        }
+        case GridType::StaggeredIsometric:
         case GridType::Hexagonal: {
-            // Tiled hexagonal layout: the stagger axis advances by
-            // (tile + hexSideLength)/2 and staggered lines shift half a tile
-            // along the other axis (staggerindex picks odd or even lines).
-            f32 side = layer->hex_side_length > 0.0f ? layer->hex_side_length : th * 0.5f;
+            // Staggered/hex share one layout: the stagger axis advances by
+            // (tile + side)/2 and staggered lines shift half a tile along the
+            // other axis (staggerindex picks odd or even lines). Staggered iso
+            // is exactly hex with side length 0; hex with side 0 falls back to a
+            // regular pointy hex (side = tileHeight/2).
+            bool isHex = layer->grid_type == GridType::Hexagonal;
+            f32 side = isHex ? (layer->hex_side_length > 0.0f ? layer->hex_side_length : th * 0.5f)
+                             : 0.0f;
             if (layer->hex_stagger_axis_x) {
                 f32 colW = (tw + side) * 0.5f;
                 bool staggered = ((tx & 1) != 0) != layer->hex_stagger_index_even;
@@ -424,17 +423,14 @@ void TilemapSystem::worldToTile(Entity entity, f32 wx, f32 wy,
             outTy = static_cast<i32>(std::floor(fty));
             break;
         }
-        case GridType::StaggeredIsometric: {
-            i32 roughY = static_cast<i32>(std::floor(ly / (th * 0.5f)));
-            f32 offsetX = (roughY & 1) ? tw * 0.5f : 0.0f;
-            outTx = static_cast<i32>(std::floor((lx - offsetX) / tw));
-            outTy = roughY;
-            break;
-        }
+        case GridType::StaggeredIsometric:
         case GridType::Hexagonal: {
-            // Box-approximate like the staggered-iso case: resolve the stagger
-            // line first, then the cell along it (no exact hex hit-test).
-            f32 side = layer->hex_side_length > 0.0f ? layer->hex_side_length : th * 0.5f;
+            // Box-approximate: resolve the stagger line first, then the cell
+            // along it (no exact hex hit-test). Staggered iso is hex with side
+            // length 0; hex with side 0 falls back to a regular pointy hex.
+            bool isHex = layer->grid_type == GridType::Hexagonal;
+            f32 side = isHex ? (layer->hex_side_length > 0.0f ? layer->hex_side_length : th * 0.5f)
+                             : 0.0f;
             if (layer->hex_stagger_axis_x) {
                 f32 colW = (tw + side) * 0.5f;
                 i32 roughX = static_cast<i32>(std::floor(lx / colW));

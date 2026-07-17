@@ -185,6 +185,20 @@ export const tileMessages = defineMessages({
     'tile.pick.search': { en: 'Search tilesets…', zh: '搜索瓦片集…' },
     'tile.pick.noMatch': { en: 'No matching tilesets', zh: '没有匹配的瓦片集' },
 
+    // — Orientation picker (New-Tilemap dialog + inspector labels) —
+    'tile.orient.label': { en: 'Orientation', zh: '朝向' },
+    'tile.orient.orthogonal': { en: 'Orthogonal', zh: '正交' },
+    'tile.orient.isometric': { en: 'Isometric', zh: '等距' },
+    'tile.orient.staggered': { en: 'Staggered', zh: '交错' },
+    'tile.orient.hexagonal': { en: 'Hexagonal', zh: '六边形' },
+    'tile.orient.staggerAxis': { en: 'Stagger axis', zh: '交错轴' },
+    'tile.orient.staggerIndex': { en: 'Stagger index', zh: '交错序号' },
+    'tile.orient.axisY': { en: 'Y (rows)', zh: 'Y（行）' },
+    'tile.orient.axisX': { en: 'X (columns)', zh: 'X（列）' },
+    'tile.orient.odd': { en: 'Odd', zh: '奇数' },
+    'tile.orient.even': { en: 'Even', zh: '偶数' },
+    'tile.orient.hexSide': { en: 'Hex side (px)', zh: '六边形边长（px）' },
+
     // — Dock panel title (the Tileset editor tab) —
     'tile.panelTileset': { en: 'Tileset', zh: '瓦片集' },
 

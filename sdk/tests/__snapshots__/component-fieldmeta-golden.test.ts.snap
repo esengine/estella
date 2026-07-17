@@ -529,15 +529,67 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
     },
   },
   "TilemapLayer": {
+    "hexSideLength": {
+      "min": 0,
+      "step": 1,
+      "tooltip": "Hexagonal side length in px (0 = a regular pointy hex = tileHeight/2). Ignored unless orientation is Hexagonal.",
+    },
     "opacity": {
       "max": 1,
       "min": 0,
       "slider": true,
       "tooltip": "Layer transparency (0 = invisible, 1 = opaque).",
     },
+    "orientation": {
+      "enum": [
+        {
+          "label": "Orthogonal",
+          "value": 0,
+        },
+        {
+          "label": "Isometric",
+          "value": 1,
+        },
+        {
+          "label": "Staggered",
+          "value": 2,
+        },
+        {
+          "label": "Hexagonal",
+          "value": 3,
+        },
+      ],
+      "tooltip": "Grid layout: orthogonal, isometric, staggered, or hexagonal.",
+    },
     "renderLayer": {
       "enumSource": "sortingLayers",
       "step": 1,
+    },
+    "staggerAxis": {
+      "enum": [
+        {
+          "label": "Y",
+          "value": 0,
+        },
+        {
+          "label": "X",
+          "value": 1,
+        },
+      ],
+      "tooltip": "Stagger axis (staggered/hex): Y shifts rows, X shifts columns.",
+    },
+    "staggerIndex": {
+      "enum": [
+        {
+          "label": "Odd",
+          "value": 0,
+        },
+        {
+          "label": "Even",
+          "value": 1,
+        },
+      ],
+      "tooltip": "Which lines carry the half-cell shift (staggered/hex).",
     },
     "tilesetColumns": {
       "min": 1,

@@ -14,6 +14,33 @@
 namespace esengine::ecs {
 
 /**
+ * Grid layout of a tilemap layer. Values match tilemap::GridType 1:1 so the
+ * component field maps straight to the runtime grid type. "Staggered" is the
+ * staggered-isometric grid; it and Hexagonal share the stagger axis/index.
+ */
+ES_ENUM()
+enum class TilemapOrientation : u8 {
+    Orthogonal = 0,
+    Isometric = 1,
+    Staggered = 2,
+    Hexagonal = 3,
+};
+
+/** Which axis the stagger runs along (Tiled staggeraxis). Y = rows shift, X = columns shift. */
+ES_ENUM()
+enum class TilemapStaggerAxis : u8 {
+    Y = 0,
+    X = 1,
+};
+
+/** Which lines carry the half-cell shift (Tiled staggerindex). */
+ES_ENUM()
+enum class TilemapStaggerIndex : u8 {
+    Odd = 0,
+    Even = 1,
+};
+
+/**
  * Heavy tile data (chunks, animations, per-tile properties) lives in
  * TilemapSystem's LayerData keyed by this entity. Chunks flow through
  * tilemap_exportChunks / tilemap_importChunks during scene I/O.
@@ -22,6 +49,18 @@ ES_COMPONENT()
 struct TilemapLayer {
     ES_PROPERTY()
     glm::vec2 cellSize{32.0f, 32.0f};
+
+    ES_PROPERTY(enum=TilemapOrientation, tooltip="Grid layout: orthogonal, isometric, staggered, or hexagonal.")
+    u8 orientation{0};
+
+    ES_PROPERTY(min=0, step=1, tooltip="Hexagonal side length in px (0 = a regular pointy hex = tileHeight/2). Ignored unless orientation is Hexagonal.")
+    f32 hexSideLength{0.0f};
+
+    ES_PROPERTY(enum=TilemapStaggerAxis, tooltip="Stagger axis (staggered/hex): Y shifts rows, X shifts columns.")
+    u8 staggerAxis{0};
+
+    ES_PROPERTY(enum=TilemapStaggerIndex, tooltip="Which lines carry the half-cell shift (staggered/hex).")
+    u8 staggerIndex{0};
 
     ES_PROPERTY()
     glm::vec2 originOffset{0.0f, 0.0f};

@@ -182,6 +182,20 @@ EMSCRIPTEN_BINDINGS(esengine_enums) {
         .value("Center", esengine::ecs::TextAlign::Center)
         .value("Right", esengine::ecs::TextAlign::Right);
 
+    enum_<esengine::ecs::TilemapOrientation>("TilemapOrientation")
+        .value("Orthogonal", esengine::ecs::TilemapOrientation::Orthogonal)
+        .value("Isometric", esengine::ecs::TilemapOrientation::Isometric)
+        .value("Staggered", esengine::ecs::TilemapOrientation::Staggered)
+        .value("Hexagonal", esengine::ecs::TilemapOrientation::Hexagonal);
+
+    enum_<esengine::ecs::TilemapStaggerAxis>("TilemapStaggerAxis")
+        .value("Y", esengine::ecs::TilemapStaggerAxis::Y)
+        .value("X", esengine::ecs::TilemapStaggerAxis::X);
+
+    enum_<esengine::ecs::TilemapStaggerIndex>("TilemapStaggerIndex")
+        .value("Odd", esengine::ecs::TilemapStaggerIndex::Odd)
+        .value("Even", esengine::ecs::TilemapStaggerIndex::Even);
+
     enum_<esengine::ecs::UIDisplay>("UIDisplay")
         .value("Flex", esengine::ecs::UIDisplay::Flex)
         .value("None", esengine::ecs::UIDisplay::None);
@@ -663,6 +677,10 @@ SpriteJS spriteToJS(const esengine::ecs::Sprite& c) {
 
 struct TilemapLayerJS {
     glm::vec2 cellSize;
+    u8 orientation;
+    f32 hexSideLength;
+    u8 staggerAxis;
+    u8 staggerIndex;
     glm::vec2 originOffset;
     u32 tileset;
     i32 tilesetColumns;
@@ -677,6 +695,10 @@ struct TilemapLayerJS {
 esengine::ecs::TilemapLayer tilemaplayerFromJS(const TilemapLayerJS& js) {
     esengine::ecs::TilemapLayer c;
     c.cellSize = js.cellSize;
+    c.orientation = js.orientation;
+    c.hexSideLength = js.hexSideLength;
+    c.staggerAxis = js.staggerAxis;
+    c.staggerIndex = js.staggerIndex;
     c.originOffset = js.originOffset;
     c.tileset = resource::TextureHandle(js.tileset);
     c.tilesetColumns = js.tilesetColumns;
@@ -692,6 +714,10 @@ esengine::ecs::TilemapLayer tilemaplayerFromJS(const TilemapLayerJS& js) {
 TilemapLayerJS tilemaplayerToJS(const esengine::ecs::TilemapLayer& c) {
     TilemapLayerJS js;
     js.cellSize = c.cellSize;
+    js.orientation = c.orientation;
+    js.hexSideLength = c.hexSideLength;
+    js.staggerAxis = c.staggerAxis;
+    js.staggerIndex = c.staggerIndex;
     js.originOffset = c.originOffset;
     js.tileset = c.tileset.id();
     js.tilesetColumns = c.tilesetColumns;
@@ -1114,6 +1140,10 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
 
     value_object<TilemapLayerJS>("TilemapLayer")
         .field("cellSize", &TilemapLayerJS::cellSize)
+        .field("orientation", &TilemapLayerJS::orientation)
+        .field("hexSideLength", &TilemapLayerJS::hexSideLength)
+        .field("staggerAxis", &TilemapLayerJS::staggerAxis)
+        .field("staggerIndex", &TilemapLayerJS::staggerIndex)
         .field("originOffset", &TilemapLayerJS::originOffset)
         .field("tileset", &TilemapLayerJS::tileset)
         .field("tilesetColumns", &TilemapLayerJS::tilesetColumns)
@@ -1997,15 +2027,19 @@ static_assert(offsetof(esengine::ecs::Sprite, parallax) == 76, "ABI offset drift
 static_assert(offsetof(esengine::ecs::Sprite, material) == 84, "ABI offset drift: esengine::ecs::Sprite.material (EHT expected 84)");
 static_assert(offsetof(esengine::ecs::Sprite, enabled) == 88, "ABI offset drift: esengine::ecs::Sprite.enabled (EHT expected 88)");
 static_assert(offsetof(esengine::ecs::TilemapLayer, cellSize) == 0, "ABI offset drift: esengine::ecs::TilemapLayer.cellSize (EHT expected 0)");
-static_assert(offsetof(esengine::ecs::TilemapLayer, originOffset) == 8, "ABI offset drift: esengine::ecs::TilemapLayer.originOffset (EHT expected 8)");
-static_assert(offsetof(esengine::ecs::TilemapLayer, tileset) == 16, "ABI offset drift: esengine::ecs::TilemapLayer.tileset (EHT expected 16)");
-static_assert(offsetof(esengine::ecs::TilemapLayer, tilesetColumns) == 20, "ABI offset drift: esengine::ecs::TilemapLayer.tilesetColumns (EHT expected 20)");
-static_assert(offsetof(esengine::ecs::TilemapLayer, tilesetRows) == 24, "ABI offset drift: esengine::ecs::TilemapLayer.tilesetRows (EHT expected 24)");
-static_assert(offsetof(esengine::ecs::TilemapLayer, renderLayer) == 28, "ABI offset drift: esengine::ecs::TilemapLayer.renderLayer (EHT expected 28)");
-static_assert(offsetof(esengine::ecs::TilemapLayer, tintColor) == 32, "ABI offset drift: esengine::ecs::TilemapLayer.tintColor (EHT expected 32)");
-static_assert(offsetof(esengine::ecs::TilemapLayer, opacity) == 48, "ABI offset drift: esengine::ecs::TilemapLayer.opacity (EHT expected 48)");
-static_assert(offsetof(esengine::ecs::TilemapLayer, parallaxFactor) == 52, "ABI offset drift: esengine::ecs::TilemapLayer.parallaxFactor (EHT expected 52)");
-static_assert(offsetof(esengine::ecs::TilemapLayer, visible) == 60, "ABI offset drift: esengine::ecs::TilemapLayer.visible (EHT expected 60)");
+static_assert(offsetof(esengine::ecs::TilemapLayer, orientation) == 8, "ABI offset drift: esengine::ecs::TilemapLayer.orientation (EHT expected 8)");
+static_assert(offsetof(esengine::ecs::TilemapLayer, hexSideLength) == 12, "ABI offset drift: esengine::ecs::TilemapLayer.hexSideLength (EHT expected 12)");
+static_assert(offsetof(esengine::ecs::TilemapLayer, staggerAxis) == 16, "ABI offset drift: esengine::ecs::TilemapLayer.staggerAxis (EHT expected 16)");
+static_assert(offsetof(esengine::ecs::TilemapLayer, staggerIndex) == 17, "ABI offset drift: esengine::ecs::TilemapLayer.staggerIndex (EHT expected 17)");
+static_assert(offsetof(esengine::ecs::TilemapLayer, originOffset) == 20, "ABI offset drift: esengine::ecs::TilemapLayer.originOffset (EHT expected 20)");
+static_assert(offsetof(esengine::ecs::TilemapLayer, tileset) == 28, "ABI offset drift: esengine::ecs::TilemapLayer.tileset (EHT expected 28)");
+static_assert(offsetof(esengine::ecs::TilemapLayer, tilesetColumns) == 32, "ABI offset drift: esengine::ecs::TilemapLayer.tilesetColumns (EHT expected 32)");
+static_assert(offsetof(esengine::ecs::TilemapLayer, tilesetRows) == 36, "ABI offset drift: esengine::ecs::TilemapLayer.tilesetRows (EHT expected 36)");
+static_assert(offsetof(esengine::ecs::TilemapLayer, renderLayer) == 40, "ABI offset drift: esengine::ecs::TilemapLayer.renderLayer (EHT expected 40)");
+static_assert(offsetof(esengine::ecs::TilemapLayer, tintColor) == 44, "ABI offset drift: esengine::ecs::TilemapLayer.tintColor (EHT expected 44)");
+static_assert(offsetof(esengine::ecs::TilemapLayer, opacity) == 60, "ABI offset drift: esengine::ecs::TilemapLayer.opacity (EHT expected 60)");
+static_assert(offsetof(esengine::ecs::TilemapLayer, parallaxFactor) == 64, "ABI offset drift: esengine::ecs::TilemapLayer.parallaxFactor (EHT expected 64)");
+static_assert(offsetof(esengine::ecs::TilemapLayer, visible) == 72, "ABI offset drift: esengine::ecs::TilemapLayer.visible (EHT expected 72)");
 static_assert(offsetof(esengine::ecs::TrailRenderer, time) == 0, "ABI offset drift: esengine::ecs::TrailRenderer.time (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::TrailRenderer, minVertexDistance) == 4, "ABI offset drift: esengine::ecs::TrailRenderer.minVertexDistance (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::TrailRenderer, emitting) == 8, "ABI offset drift: esengine::ecs::TrailRenderer.emitting (EHT expected 8)");
@@ -2055,7 +2089,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "bde213b560e9ce4c";
+static const char* kEsAbiLayoutHash = "4e0613ea05e766a3";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

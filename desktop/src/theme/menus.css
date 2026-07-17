@@ -143,6 +143,12 @@
 .tmpick__icon { flex: 0 0 auto; color: var(--text-mute); }
 .tmpick__name { flex: 0 0 auto; font-weight: 600; }
 .tmpick__path { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-2xs); color: var(--text-mute); text-align: right; }
+/* Orientation chooser block */
+.tmpick__orient { display: flex; flex-direction: column; gap: 7px; padding: 10px; background: var(--srf-3); border-radius: var(--r-md); }
+.tmpick__flabel { font-size: var(--fs-2xs); font-weight: 600; color: var(--text-mute); text-transform: uppercase; letter-spacing: 0.04em; }
+.tmpick__grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 10px; align-items: center; }
+.tmpick__row { display: flex; align-items: center; gap: 10px; }
+.tmpick__num { width: 90px; height: 26px; }
 
 /* ── Package / Build dialog ── */
 .build { display: flex; flex-direction: column; gap: 12px; }

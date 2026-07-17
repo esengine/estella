@@ -1027,6 +1027,10 @@ export function createSpriteData(): SpritePtrData {
 
 export interface TilemapLayerPtrData {
     cellSize: Vec2;
+    orientation: number;
+    hexSideLength: number;
+    staggerAxis: number;
+    staggerIndex: number;
     originOffset: Vec2;
     tileset: number;
     tilesetColumns: number;
@@ -1043,15 +1047,19 @@ export function fillTilemapLayer(
     ptr: number, out: TilemapLayerPtrData,
 ): void {
     const cellSize_ = out.cellSize; cellSize_.x = f32[ptr >> 2]; cellSize_.y = f32[(ptr >> 2) + 1];
-    const originOffset_ = out.originOffset; originOffset_.x = f32[(ptr + 8) >> 2]; originOffset_.y = f32[((ptr + 8) >> 2) + 1];
-    out.tileset = u32[(ptr + 16) >> 2];
-    out.tilesetColumns = u32[(ptr + 20) >> 2] | 0;
-    out.tilesetRows = u32[(ptr + 24) >> 2] | 0;
-    out.renderLayer = u32[(ptr + 28) >> 2] | 0;
-    const tintColor_ = out.tintColor; tintColor_.r = f32[(ptr + 32) >> 2]; tintColor_.g = f32[((ptr + 32) >> 2) + 1]; tintColor_.b = f32[((ptr + 32) >> 2) + 2]; tintColor_.a = f32[((ptr + 32) >> 2) + 3];
-    out.opacity = f32[(ptr + 48) >> 2];
-    const parallaxFactor_ = out.parallaxFactor; parallaxFactor_.x = f32[(ptr + 52) >> 2]; parallaxFactor_.y = f32[((ptr + 52) >> 2) + 1];
-    out.visible = u8[ptr + 60] !== 0;
+    out.orientation = u8[ptr + 8];
+    out.hexSideLength = f32[(ptr + 12) >> 2];
+    out.staggerAxis = u8[ptr + 16];
+    out.staggerIndex = u8[ptr + 17];
+    const originOffset_ = out.originOffset; originOffset_.x = f32[(ptr + 20) >> 2]; originOffset_.y = f32[((ptr + 20) >> 2) + 1];
+    out.tileset = u32[(ptr + 28) >> 2];
+    out.tilesetColumns = u32[(ptr + 32) >> 2] | 0;
+    out.tilesetRows = u32[(ptr + 36) >> 2] | 0;
+    out.renderLayer = u32[(ptr + 40) >> 2] | 0;
+    const tintColor_ = out.tintColor; tintColor_.r = f32[(ptr + 44) >> 2]; tintColor_.g = f32[((ptr + 44) >> 2) + 1]; tintColor_.b = f32[((ptr + 44) >> 2) + 2]; tintColor_.a = f32[((ptr + 44) >> 2) + 3];
+    out.opacity = f32[(ptr + 60) >> 2];
+    const parallaxFactor_ = out.parallaxFactor; parallaxFactor_.x = f32[(ptr + 64) >> 2]; parallaxFactor_.y = f32[((ptr + 64) >> 2) + 1];
+    out.visible = u8[ptr + 72] !== 0;
 }
 
 export function writeTilemapLayer(
@@ -1059,20 +1067,28 @@ export function writeTilemapLayer(
     ptr: number, data: TilemapLayerPtrData,
 ): void {
     f32[ptr >> 2] = data.cellSize.x; f32[(ptr >> 2) + 1] = data.cellSize.y;
-    f32[(ptr + 8) >> 2] = data.originOffset.x; f32[((ptr + 8) >> 2) + 1] = data.originOffset.y;
-    u32[(ptr + 16) >> 2] = data.tileset;
-    u32[(ptr + 20) >> 2] = data.tilesetColumns | 0;
-    u32[(ptr + 24) >> 2] = data.tilesetRows | 0;
-    u32[(ptr + 28) >> 2] = data.renderLayer | 0;
-    f32[(ptr + 32) >> 2] = data.tintColor.r; f32[((ptr + 32) >> 2) + 1] = data.tintColor.g; f32[((ptr + 32) >> 2) + 2] = data.tintColor.b; f32[((ptr + 32) >> 2) + 3] = data.tintColor.a;
-    f32[(ptr + 48) >> 2] = data.opacity;
-    f32[(ptr + 52) >> 2] = data.parallaxFactor.x; f32[((ptr + 52) >> 2) + 1] = data.parallaxFactor.y;
-    u8[ptr + 60] = data.visible ? 1 : 0;
+    u8[ptr + 8] = data.orientation;
+    f32[(ptr + 12) >> 2] = data.hexSideLength;
+    u8[ptr + 16] = data.staggerAxis;
+    u8[ptr + 17] = data.staggerIndex;
+    f32[(ptr + 20) >> 2] = data.originOffset.x; f32[((ptr + 20) >> 2) + 1] = data.originOffset.y;
+    u32[(ptr + 28) >> 2] = data.tileset;
+    u32[(ptr + 32) >> 2] = data.tilesetColumns | 0;
+    u32[(ptr + 36) >> 2] = data.tilesetRows | 0;
+    u32[(ptr + 40) >> 2] = data.renderLayer | 0;
+    f32[(ptr + 44) >> 2] = data.tintColor.r; f32[((ptr + 44) >> 2) + 1] = data.tintColor.g; f32[((ptr + 44) >> 2) + 2] = data.tintColor.b; f32[((ptr + 44) >> 2) + 3] = data.tintColor.a;
+    f32[(ptr + 60) >> 2] = data.opacity;
+    f32[(ptr + 64) >> 2] = data.parallaxFactor.x; f32[((ptr + 64) >> 2) + 1] = data.parallaxFactor.y;
+    u8[ptr + 72] = data.visible ? 1 : 0;
 }
 
 export function createTilemapLayerData(): TilemapLayerPtrData {
     return {
         cellSize: { x: 0, y: 0 },
+        orientation: 0,
+        hexSideLength: 0,
+        staggerAxis: 0,
+        staggerIndex: 0,
         originOffset: { x: 0, y: 0 },
         tileset: 0,
         tilesetColumns: 0,

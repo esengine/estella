@@ -108,15 +108,35 @@ export function animatedSpritePrefab(
   ]);
 }
 
+/** Grid layout for a new tilemap (subset of TilemapLayer). Values match the C++
+ *  TilemapOrientation / TilemapStaggerAxis / TilemapStaggerIndex enums. Only the
+ *  non-default fields are baked into the prefab, so an orthogonal map stays clean. */
+export interface TileGridConfig {
+  /** 0 orthogonal · 1 isometric · 2 staggered · 3 hexagonal. */
+  orientation?: number;
+  hexSideLength?: number;
+  /** 0 = Y (rows stagger) · 1 = X (columns stagger). */
+  staggerAxis?: number;
+  /** 0 = odd · 1 = even. */
+  staggerIndex?: number;
+}
+
 /**
  * A Transform + TilemapLayer prefab whose `cellSize` (a vec2 → `{x, y}` in the model)
  * is seeded from the tileset's tile size. `tilesetRef` bakes the out-of-band
  * `.estileset` link into the prefab, so it rides the single create step into the
  * model; the Reconciler live-pushes it to the plugin on spawn (create AND
  * redo/reload restore it), which is why creation needs no setLayerTilesets step.
+ * `grid` seeds the orientation/stagger fields (omitted when orthogonal-default).
  */
-export function tilemapPrefab(name: string, cellSize: { x: number; y: number }, tilesetRef?: string): PrefabData {
+export function tilemapPrefab(
+  name: string, cellSize: { x: number; y: number }, tilesetRef?: string, grid?: TileGridConfig,
+): PrefabData {
   const layer: Record<string, unknown> = { cellSize: { x: cellSize.x, y: cellSize.y } };
+  if (grid?.orientation) layer.orientation = grid.orientation;
+  if (grid?.hexSideLength) layer.hexSideLength = grid.hexSideLength;
+  if (grid?.staggerAxis) layer.staggerAxis = grid.staggerAxis;
+  if (grid?.staggerIndex) layer.staggerIndex = grid.staggerIndex;
   if (tilesetRef) {
     layer.tilesetAssets = [tilesetRef];
     layer.tilesetAsset = tilesetRef; // back-compat singular first tileset

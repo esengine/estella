@@ -16,6 +16,10 @@ export {
     type TiledAnimFrame, type TilemapLoadOptions,
 } from './tiledLoader';
 export { tileCollisionOutlines, type TileCollisionPiece } from './tileCollisionOutline';
+export {
+    tileCellCenter, tileCellOutline, isNonOrthogonal, usesStagger, isHexOrientation, TileOrientation,
+    type TileGridParams, type Vec2Like,
+} from './tileGeometry';
 export { mergeCollisionTiles, type MergedRect } from './collisionMerge';
 export { decodeTilemapChunks, CHUNK_SIZE, type DecodedChunk } from './chunkCodec';
 export {

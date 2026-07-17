@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { getAllRegisteredComponents, getUserComponents, getComponent, getComponentAssetFieldDescriptors, getComponentSpineFieldDescriptor, getComponentFieldMeta, Light2DType } from 'esengine';
+import { getAllRegisteredComponents, getUserComponents, getComponent, getComponentAssetFieldDescriptors, getComponentSpineFieldDescriptor, getComponentFieldMeta, Light2DType, usesStagger, isHexOrientation } from 'esengine';
 import type { App, SceneData } from 'esengine';
 import type { NodeKind, InspectorField, EnumOption, GradientValue, CurveValue } from '@/types';
 
@@ -553,6 +553,18 @@ function fieldFor(
  * registered default. The caller diffs `value` vs `defaultValue` to mark
  * overrides; an entity with no prefab base just compares against the default.
  */
+// Fields that only apply to some states of the SAME component — hidden from the
+// inspector when inert so the panel shows just the controls that matter. Currently
+// the tilemap stagger/hex fields, gated on the layer's orientation (an orthogonal or
+// isometric map has no stagger; only hexagonal reads the side length).
+function isConditionallyHidden(compType: string, key: string, data: Record<string, unknown>): boolean {
+  if (compType !== 'TilemapLayer') return false;
+  const orientation = Number(data.orientation) || 0;
+  if (key === 'hexSideLength') return !isHexOrientation(orientation);
+  if (key === 'staggerAxis' || key === 'staggerIndex') return !usesStagger(orientation);
+  return false;
+}
+
 export function inspectorFields(
   compType: string,
   data: Record<string, unknown>,
@@ -567,6 +579,7 @@ export function inspectorFields(
   const fields: InspectorField[] = [];
   for (const key of keys) {
     if (DERIVED_FIELDS.has(key)) continue;
+    if (isConditionallyHidden(compType, key, data)) continue;
     const value = key in data ? data[key] : defaults?.[key];
     const f = fieldFor(compType, key, value, colorKeys.has(key));
     if (!f) continue;

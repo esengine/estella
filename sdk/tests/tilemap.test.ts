@@ -76,6 +76,10 @@ describe('Tilemap Components', () => {
         it('should have correct defaults', () => {
             expect(TilemapLayer._default).toEqual({
                 cellSize: { x: 32, y: 32 },
+                orientation: 0,
+                hexSideLength: 0,
+                staggerAxis: 0,
+                staggerIndex: 0,
                 originOffset: { x: 0, y: 0 },
                 tileset: 0,
                 tilesetColumns: 1,

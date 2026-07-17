@@ -137,6 +137,23 @@ export enum TextAlign {
     Right = 2,
 }
 
+export enum TilemapOrientation {
+    Orthogonal = 0,
+    Isometric = 1,
+    Staggered = 2,
+    Hexagonal = 3,
+}
+
+export enum TilemapStaggerAxis {
+    Y = 0,
+    X = 1,
+}
+
+export enum TilemapStaggerIndex {
+    Odd = 0,
+    Even = 1,
+}
+
 export enum UIDisplay {
     Flex = 0,
     None = 1,
@@ -409,6 +426,10 @@ export interface Sprite {
 
 export interface TilemapLayer {
     cellSize: Vec2;
+    orientation: number;
+    hexSideLength: number;
+    staggerAxis: number;
+    staggerIndex: number;
     originOffset: Vec2;
     tileset: number;
     tilesetColumns: number;
