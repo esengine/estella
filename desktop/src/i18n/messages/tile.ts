@@ -173,7 +173,7 @@ export const tileMessages = defineMessages({
     'tile.terrain.delete': { en: 'Delete terrain', zh: '删除地形' },
 
     // — Tileset editor: wang (corner) terrain authoring —
-    'tile.wang.cornerTip': { en: 'Paint the active color on the {dir} corner (right-click clears)', zh: '在{dir}角绘制当前颜色（右键清除）' },
+    'tile.wang.cornerTip': { en: 'Paint the active color on the {dir} corner — drag for a stroke, right button erases', zh: '在{dir}角绘制当前颜色——拖动连续绘制，右键擦除' },
     'tile.wang.pickColor': { en: 'Paint with "{name}"', zh: '使用「{name}」绘制' },
     'tile.wang.recolor': { en: 'Change color', zh: '更改颜色' },
     'tile.wang.addColor': { en: 'Add color', zh: '添加颜色' },

@@ -48,13 +48,14 @@ const ZONES: { gx: number; gy: number; bit: number; corner: boolean; dir: string
   { gx: 0, gy: 0, bit: TB_NW, corner: true, dir: t('tile.dir.northWest') },
 ];
 
-// Wang corner dots, placed at the cell's 4 corners. Index order matches the tile's
-// `corners` array: [top-left, top-right, bottom-right, bottom-left].
-const WANG_CORNERS: { i: number; gx: number; gy: number; dir: string }[] = [
-  { i: 0, gx: 0, gy: 0, dir: t('tile.dir.northWest') },
-  { i: 1, gx: 1, gy: 0, dir: t('tile.dir.northEast') },
-  { i: 2, gx: 1, gy: 1, dir: t('tile.dir.southEast') },
-  { i: 3, gx: 0, gy: 1, dir: t('tile.dir.southWest') },
+// Wang corner quadrants: each quarter of the cell is the (large, non-overlapping)
+// click target for its corner. Index order matches the tile's `corners` array:
+// [top-left, top-right, bottom-right, bottom-left].
+const WANG_CORNERS: { i: number; dir: string }[] = [
+  { i: 0, dir: t('tile.dir.northWest') },
+  { i: 1, dir: t('tile.dir.northEast') },
+  { i: 2, dir: t('tile.dir.southEast') },
+  { i: 3, dir: t('tile.dir.southWest') },
 ];
 
 /** A focused per-tile collision-polygon editor: a magnified tile + click-to-add /
@@ -200,6 +201,11 @@ export function TilesetEditor() {
   const [stampDrag, setStampDrag] = useState<{ ids: Set<number>; on: boolean; kind: 'circle' | 'preset' } | null>(null);
   const stampDragRef = useRef(stampDrag);
   stampDragRef.current = stampDrag;
+  // Live wang stroke: painted (tile, corner) cells + the color (0 = erasing),
+  // committed as one undo step on release.
+  const [wangDrag, setWangDrag] = useState<{ keys: Set<string>; cells: { id: number; corner: number }[]; color: number } | null>(null);
+  const wangDragRef = useRef(wangDrag);
+  wangDragRef.current = wangDrag;
 
   useEffect(() => setNatural(null), [texUrl]);
 
@@ -258,6 +264,11 @@ export function TilesetEditor() {
       }
       setStampDrag(null);
     }
+    const wd = wangDragRef.current;
+    if (wd) {
+      TilesetCommands.paintWangCorners(wd.cells, activeSet, wd.color);
+      setWangDrag(null);
+    }
   };
   const growStampDrag = (id: number) => {
     const sd = stampDragRef.current;
@@ -286,9 +297,22 @@ export function TilesetEditor() {
     if (tileTerrain(id)) TilesetCommands.setTileTerrain(id, null, 0);
     else TilesetCommands.setTileTerrain(id, activeSet, 0);
   };
-  // Wang authoring: assign the active color to one of a tile's 4 corners (right-click clears).
-  const setCorner = (id: number, corner: number, color: number) =>
-    TilesetCommands.setTileWangCorner(id, activeSet, corner, color);
+  // Wang authoring: strokes of (tile, corner) cells, same drag-paint feel as
+  // collision. Left paints the active color, right (or right-drag) erases.
+  const startWangDrag = (id: number, corner: number, color: number) =>
+    setWangDrag({ keys: new Set([`${id}:${corner}`]), cells: [{ id, corner }], color });
+  const growWangDrag = (id: number, corner: number) => {
+    const wd = wangDragRef.current;
+    if (!wd || wd.keys.has(`${id}:${corner}`)) return;
+    const keys = new Set(wd.keys);
+    keys.add(`${id}:${corner}`);
+    setWangDrag({ keys, cells: [...wd.cells, { id, corner }], color: wd.color });
+  };
+  // The corner's value as displayed — the live stroke wins over the asset.
+  const wangCornerOf = (id: number, corner: number): number => {
+    if (wangDrag?.keys.has(`${id}:${corner}`)) return wangDrag.color;
+    return tileTerrain(id)?.corners?.[corner] ?? 0;
+  };
 
   // ── animation authoring ──
   const animFrames: TilesetAnimFrame[] = animTile != null ? asset.tiles[animTile]?.animation ?? [] : [];
@@ -415,6 +439,10 @@ export function TilesetEditor() {
           const showZones = hovered === id || tt != null;
           const cellStyle: CSSProperties = { left, top, width: w, height: h };
           if (tt && !isWang) (cellStyle as Record<string, string | number>)['--tcolor'] = terrainColor;
+          if (isWang) {
+            const active = terrain?.colors?.[activeColor - 1]?.color;
+            if (active) (cellStyle as Record<string, string | number>)['--wactive'] = active;
+          }
           cells.push(
             <div
               key={id}
@@ -425,21 +453,34 @@ export function TilesetEditor() {
               onPointerLeave={() => setHovered((cur) => (cur === id ? null : cur))}
             >
               {isWang ? (
-                // A colored dot at each of the tile's 4 corners — click paints the active
-                // color, right-click clears. The dots ARE the "circle in the corner" UI.
-                (showZones || tt) && terrain && WANG_CORNERS.map((c) => {
-                  const cv = tt?.corners?.[c.i] ?? 0;
+                // Each quarter of the cell paints its corner — large hit areas that
+                // never overlap a neighbor's. The colored quarter-disc in the corner
+                // is the "circle in the corner" visual; matching adjacent tiles
+                // compose full circles across cell borders. Drag paints a stroke
+                // (one undo step), right button — or right-drag — erases.
+                (showZones || tt || wangDrag) && terrain && WANG_CORNERS.map((c) => {
+                  const cv = wangCornerOf(id, c.i);
                   const col = cv > 0 ? terrain.colors?.[cv - 1]?.color : undefined;
                   return (
                     <button
                       key={c.i}
                       type="button"
-                      className={'ts-wcorner' + (cv > 0 ? ' is-on' : '')}
-                      style={{ left: `${c.gx * 100}%`, top: `${c.gy * 100}%`, ...(col ? { background: col } : {}) }}
+                      className={'ts-wquad ts-wquad-' + c.i + (cv > 0 ? ' is-on' : '')}
+                      style={col ? ({ '--wc': col } as CSSProperties) : undefined}
                       aria-label={t('tile.zone.aria', { dir: c.dir })}
                       title={t('tile.wang.cornerTip', { dir: c.dir })}
-                      onClick={() => setCorner(id, c.i, activeColor)}
-                      onContextMenu={(e) => { e.preventDefault(); setCorner(id, c.i, 0); }}
+                      onPointerDown={(e) => {
+                        if (e.button !== 0 && e.button !== 2) return;
+                        e.preventDefault();
+                        startWangDrag(id, c.i, e.button === 2 ? 0 : activeColor);
+                      }}
+                      onPointerEnter={() => growWangDrag(id, c.i)}
+                      onContextMenu={(e) => e.preventDefault()}
+                      onClick={(e) => {
+                        // Keyboard activation only (detail 0) — pointer strokes
+                        // commit on release via commitDrag.
+                        if (e.detail === 0) TilesetCommands.paintWangCorners([{ id, corner: c.i }], activeSet, activeColor);
+                      }}
                     />
                   );
                 })
@@ -787,8 +828,7 @@ export function TilesetEditor() {
         </div>
       )}
 
-      <div className="ts-canvas" onPointerUp={mode === 'collision' ? commitDrag : undefined}
-        onPointerLeave={mode === 'collision' ? commitDrag : undefined}>
+      <div className="ts-canvas" onPointerUp={commitDrag} onPointerLeave={commitDrag}>
         {!texUrl ? (
           <div className="ts-warn">{t('tile.texNotFound', { ref: String(asset.texture) || t('tile.refEmpty') })}</div>
         ) : (

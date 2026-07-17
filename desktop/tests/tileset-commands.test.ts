@@ -128,3 +128,37 @@ describe('TilesetCommands — probability', () => {
     expect(tiles()[3].probability).toBe(0.2);
   });
 });
+
+describe('TilesetCommands — wang corner strokes', () => {
+  beforeEach(() => {
+    EditorHistory.clear();
+    TilesetDocument.open(freshTileset(), 'a.estileset');
+    TilesetCommands.addTerrain('blend', 'wang');
+    TilesetCommands.addWangColor(0); // color 1
+    TilesetCommands.addWangColor(0); // color 2
+  });
+
+  it('paints a whole stroke across tiles and corners as one undo step', () => {
+    TilesetCommands.paintWangCorners(
+      [{ id: 5, corner: 0 }, { id: 5, corner: 1 }, { id: 6, corner: 3 }], 0, 1,
+    );
+    expect(tiles()[5].terrain).toEqual({ set: 0, corners: [1, 1, 0, 0] });
+    expect(tiles()[6].terrain).toEqual({ set: 0, corners: [0, 0, 0, 1] });
+    EditorHistory.undo();
+    expect(tiles()[5]).toBeUndefined();
+    expect(tiles()[6]).toBeUndefined();
+  });
+
+  it('erasing (color 0) every corner drops the membership and prunes the tile', () => {
+    TilesetCommands.paintWangCorners([{ id: 5, corner: 0 }, { id: 5, corner: 2 }], 0, 2);
+    TilesetCommands.paintWangCorners([{ id: 5, corner: 0 }, { id: 5, corner: 2 }], 0, 0);
+    expect(tiles()[5]).toBeUndefined();
+    EditorHistory.undo();
+    expect(tiles()[5].terrain).toEqual({ set: 0, corners: [2, 0, 2, 0] });
+  });
+
+  it('ignores out-of-range corners and non-positive ids', () => {
+    TilesetCommands.paintWangCorners([{ id: 0, corner: 0 }, { id: 5, corner: 4 }, { id: 5, corner: -1 }], 0, 1);
+    expect(tiles()[5]).toBeUndefined();
+  });
+});

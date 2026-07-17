@@ -210,8 +210,10 @@ of two models:
   paints colors on a **half-cell corner grid** — click between four tiles and
   the resolver re-tiles all of them by exact corner match (nearest-mismatch
   fallback), producing smooth marching-squares boundaries. The tileset editor
-  authors the color palette (add / rename / recolor / remove) and per-tile
-  corner dots; the painter lists the colors to paint with.
+  authors the color palette (add / rename / recolor / remove) and the per-tile
+  corners: each quarter of a tile is the click target for its corner — click or
+  drag a stroke to paint the active color, right button erases — and the
+  painter lists the colors to paint with.
 
 The painter's terrain brush dispatches on the set's model automatically. A
 blended-island corner-Wang demo ships in `examples/`.

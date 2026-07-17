@@ -253,23 +253,49 @@
 .ts-zone-c { left: 33.34%; top: 33.34%; }
 .ts-zone-c:hover { background: rgba(255, 255, 255, 0.1); }
 
-/* Wang (corner) authoring: a colored dot at each of a tile's 4 corners — the "circle in
-   the corner" UI. Empty = faint ring; assigned = filled with the terrain color (inline). */
-.ts-wcorner {
+/* Wang (corner) authoring: each quarter of the cell is the click target for its
+   corner — large hit areas that never overlap a neighbor's. The corner's color
+   draws as a quarter-disc anchored in the cell corner (the "circle in the
+   corner"); matching adjacent tiles compose full circles across cell borders. */
+.ts-wquad {
   position: absolute;
-  width: 11px;
-  height: 11px;
+  width: 50%;
+  height: 50%;
   margin: 0;
   padding: 0;
-  transform: translate(-50%, -50%);
-  border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.55);
-  background: rgba(18, 19, 24, 0.5);
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
+  border: 0;
+  background: transparent;
   cursor: pointer;
 }
-.ts-wcorner.is-on { border-color: rgba(255, 255, 255, 0.9); }
-.ts-wcorner:hover { border-color: var(--star); transform: translate(-50%, -50%) scale(1.15); }
+.ts-wquad-0 { left: 0; top: 0; }
+.ts-wquad-1 { right: 0; top: 0; }
+.ts-wquad-2 { right: 0; bottom: 0; }
+.ts-wquad-3 { left: 0; bottom: 0; }
+.ts-wquad::before {
+  content: '';
+  position: absolute;
+  width: 58%;
+  height: 58%;
+  background: rgba(18, 19, 24, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  opacity: 0.65;
+}
+/* Anchor the disc into the cell corner; round + outline only the inner arc. */
+.ts-wquad-0::before { left: 0; top: 0; border-bottom-right-radius: 100%; border-top: 0; border-left: 0; }
+.ts-wquad-1::before { right: 0; top: 0; border-bottom-left-radius: 100%; border-top: 0; border-right: 0; }
+.ts-wquad-2::before { right: 0; bottom: 0; border-top-left-radius: 100%; border-bottom: 0; border-right: 0; }
+.ts-wquad-3::before { left: 0; bottom: 0; border-top-right-radius: 100%; border-bottom: 0; border-left: 0; }
+.ts-wquad.is-on::before { background: var(--wc); border-color: rgba(255, 255, 255, 0.9); opacity: 1; }
+/* Hovering an empty quadrant previews the active color about to be painted. */
+.ts-wquad:hover::before {
+  width: 70%;
+  height: 70%;
+  border-color: var(--star);
+  opacity: 1;
+}
+.ts-wquad:hover:not(.is-on)::before {
+  background: color-mix(in srgb, var(--wactive, transparent) 55%, transparent);
+}
 
 /* Wang color palette (below the terrain editor row): swatch · name · picker · remove. */
 .ts-wcolors {

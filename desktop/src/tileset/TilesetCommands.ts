@@ -226,21 +226,24 @@ export const TilesetCommands = {
   },
 
   /**
-   * Assign one corner of a tile's wang membership (corner 0-3 = TL/TR/BR/BL, color 0 = none)
-   * as ONE undo step. Clearing every corner drops the membership.
+   * Paint one wang color onto many (tile, corner) cells (corner 0-3 = TL/TR/BR/BL,
+   * color 0 = erase) as ONE undo step — a whole brush stroke. A tile whose corners
+   * all clear drops its membership.
    */
-  setTileWangCorner(id: number, set: number, corner: number, color: number): void {
-    if (id <= 0 || corner < 0 || corner > 3) return;
-    TilesetDocument.edit('Edit Tile Corner', (a) => {
-      const existing = a.tiles[id]?.terrain;
-      const corners = existing && existing.set === set && existing.corners
-        ? [...existing.corners] : [0, 0, 0, 0];
-      corners[corner] = color & 0xff;
-      if (corners.every((c) => c === 0)) {
-        if (a.tiles[id]?.terrain) { delete a.tiles[id].terrain; pruneEmpty(a, id); }
-        return;
+  paintWangCorners(cells: { id: number; corner: number }[], set: number, color: number): void {
+    TilesetDocument.edit('Paint Tile Corners', (a) => {
+      for (const { id, corner } of cells) {
+        if (id <= 0 || corner < 0 || corner > 3) continue;
+        const existing = a.tiles[id]?.terrain;
+        const corners = existing && existing.set === set && existing.corners
+          ? [...existing.corners] : [0, 0, 0, 0];
+        corners[corner] = color & 0xff;
+        if (corners.every((c) => c === 0)) {
+          if (a.tiles[id]?.terrain) { delete a.tiles[id].terrain; pruneEmpty(a, id); }
+          continue;
+        }
+        a.tiles[id] = { ...(a.tiles[id] ?? {}), terrain: { set, corners } };
       }
-      a.tiles[id] = { ...(a.tiles[id] ?? {}), terrain: { set, corners } };
     });
   },
 
