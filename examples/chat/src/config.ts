@@ -7,11 +7,14 @@ export const CHAT_W = 720;
 export const CHAT_H = 424;
 
 // Rows auto-size to their wrapped text (createListView's measured layout). Bubbles
-// are pinned left (them) or right (you) at a fixed max width, and grow taller as
-// the message wraps.
+// are pinned left (them) or right (you) and sized to their content — up to a max
+// width, growing taller as the message wraps.
 export const ROW_SPACING = 8;
+// Max bubble width; a bubble shrinks to fit shorter messages (see bubbleMetrics).
 export const BUBBLE_W = 460;
-// Right-side bubbles leave a gutter so they clear the scroll edge.
+// Bubbles hug their side, leaving a gutter: left for them, right (clearing the
+// scrollbar edge) for you.
+export const LEFT_GUTTER = 12;
 export const RIGHT_GUTTER = 24;
 
 // Bubble text metrics.
@@ -20,14 +23,21 @@ export const BUBBLE_VPAD = 10;  // vertical padding above + below the text
 export const FONT_SIZE = 14;
 
 /**
- * Pixel height of a message bubble sized to its wrapped text — fed to
- * createListView as `itemHeight(index)`. Uses the engine's `measureText` (the
- * same Canvas2D metrics the renderer wraps by), so the row is exactly as tall as
- * the text renders, no overflow. fontSize + the Text default 1.2 line-height ratio.
+ * A message bubble sized to its wrapped text — the single source of truth for
+ * both the row height (createListView's `itemHeight`) and the bubble's own width
+ * (set per-bind so short messages get a snug bubble, long ones grow to the max).
+ *
+ * Uses the engine's `measureText` (the same Canvas2D metrics the renderer wraps
+ * by), so the measured wrap matches the rendered one exactly — no overflow. Text
+ * is wrapped to `BUBBLE_W - 2*LABEL_PAD`; `width` is the widest wrapped line (ceil
+ * for sub-pixel slack, clamped to the max), so the bubble hugs its content. Height
+ * is `lineCount * lineHeight` (fontSize × the Text default 1.2 ratio).
  */
-export function bubbleHeight(msg: Message): number {
-    const { height } = measureText(msg.text, { fontSize: FONT_SIZE, maxWidth: BUBBLE_W - 2 * LABEL_PAD });
-    return height + 2 * BUBBLE_VPAD;
+export function bubbleMetrics(msg: Message): { width: number; height: number } {
+    const maxText = BUBBLE_W - 2 * LABEL_PAD;
+    const m = measureText(msg.text, { fontSize: FONT_SIZE, maxWidth: maxText });
+    const textW = Math.min(maxText, Math.ceil(m.width));
+    return { width: textW + 2 * LABEL_PAD, height: m.height + 2 * BUBBLE_VPAD };
 }
 
 export const COMPOSER_H = 40;

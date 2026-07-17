@@ -1,7 +1,7 @@
 import {
     defineSystem, Res, GetWorld,
     UIEvents,
-    UIVisual, Text,
+    UIVisual, UINode, Text,
     uiPlugin,
     createListView, createButton, createTextInput,
     ArrayDataSource,
@@ -15,8 +15,8 @@ import type {
 } from 'esengine';
 
 import {
-    CHAT_W, CHAT_H, ROW_SPACING, BUBBLE_W, RIGHT_GUTTER,
-    LABEL_PAD, BUBBLE_VPAD, FONT_SIZE, bubbleHeight,
+    CHAT_W, CHAT_H, ROW_SPACING, LEFT_GUTTER, RIGHT_GUTTER,
+    LABEL_PAD, BUBBLE_VPAD, FONT_SIZE, bubbleMetrics,
     COMPOSER_H, SEND_W, INPUT_W,
     ME_BUBBLE, BOT_BUBBLE, BUBBLE_TEXT,
     botReply, SEED,
@@ -24,9 +24,11 @@ import {
 } from '../config';
 import { state } from '../state';
 
-// One row pools BOTH a left (them) and a right (you) bubble, pinned at create
-// time; bind() just enables the sender's side and fills its label. Only UIVisual
-// + Text are mutated per bind — never layout — so recycling stays cheap.
+// One row pools BOTH a left (them) and a right (you) bubble; bind() enables the
+// sender's side, fills its label, and sizes the bubble to the wrapped text so it
+// hugs its content (short messages get a snug bubble, long ones grow to the max).
+// The width + horizontal pin are set per-bind via layoutBubble — the same
+// insetLeft+width idiom ListView.placeByInset uses for the rows themselves.
 interface Side { bubble: Entity; label: Entity; }
 const rowSides = new Map<Entity, { me: Side; bot: Side }>();
 
@@ -49,13 +51,11 @@ export const buildSystem = defineSystem(
         const makeSide = (w: World, row: Entity, mine: boolean): Side => {
             const bubble = spawnUIEntity({
                 world: w, parent: row,
-                // Fills the row's (measured) height; width fixed, pinned to a side.
+                // Fills the row's (measured) height; width + horizontal pin are set
+                // per-bind by layoutBubble once the message's wrap is measured.
                 node: {
                     position: UIPositionType.Absolute,
-                    insetLeft: px(mine ? CHAT_W - BUBBLE_W - RIGHT_GUTTER : 12),
-                    insetTop: px(0),
-                    insetBottom: px(0),
-                    width: px(BUBBLE_W),
+                    insetTop: px(0), insetBottom: px(0),
                 },
                 visual: { color: mine ? ME_BUBBLE : BOT_BUBBLE, enabled: false },
             });
@@ -66,9 +66,11 @@ export const buildSystem = defineSystem(
                     insetLeft: px(LABEL_PAD), insetRight: px(LABEL_PAD),
                     insetTop: px(BUBBLE_VPAD), insetBottom: px(BUBBLE_VPAD),
                 },
+                // Always left-aligned: chat text reads L→R regardless of side, so a
+                // wrapped message stays flush-left instead of drifting right.
                 text: {
                     content: '', fontSize: FONT_SIZE, color: BUBBLE_TEXT,
-                    align: mine ? TextAlign.Right : TextAlign.Left,
+                    align: TextAlign.Left,
                     verticalAlign: TextVerticalAlign.Middle, wordWrap: true,
                 },
             });
@@ -84,10 +86,12 @@ export const buildSystem = defineSystem(
             bind: (row, msg) => {
                 const sides = rowSides.get(row);
                 if (!sides) return;
-                const on = msg.from === 'me' ? sides.me : sides.bot;
-                const off = msg.from === 'me' ? sides.bot : sides.me;
+                const mine = msg.from === 'me';
+                const on = mine ? sides.me : sides.bot;
+                const off = mine ? sides.bot : sides.me;
                 setVisible(world, on.bubble, true);
                 setVisible(world, off.bubble, false);
+                layoutBubble(world, on.bubble, mine, bubbleMetrics(msg).width);
                 setText(world, on.label, msg.text);
                 setText(world, off.label, '');
             },
@@ -100,7 +104,7 @@ export const buildSystem = defineSystem(
             background: { color: LIST_BG },
             data: messages,
             // Rows auto-size to each message's wrapped text (measured layout).
-            layout: { itemHeight: (i) => bubbleHeight(messages.getItem(i)), spacing: ROW_SPACING },
+            layout: { itemHeight: (i) => bubbleMetrics(messages.getItem(i)).height, spacing: ROW_SPACING },
             item: rowTemplate,
         });
 
@@ -147,6 +151,20 @@ function send(): void {
     append('me', text);
     input.setValue('');
     append('bot', botReply(text, state.botTurn++));
+}
+
+/**
+ * Size a bubble to `contentW` and pin it to its side of the row: yours hugs the
+ * right edge (clearing the scrollbar gutter), theirs the left. Uses insetLeft +
+ * width so a narrow bubble stays anchored to its side rather than centered.
+ */
+function layoutBubble(world: World, bubble: Entity, mine: boolean, contentW: number): void {
+    if (!world.valid(bubble) || !world.has(bubble, UINode)) return;
+    const n = world.get(bubble, UINode);
+    const left = mine ? CHAT_W - contentW - RIGHT_GUTTER : LEFT_GUTTER;
+    n.insetLeft = px(left);
+    n.width = px(contentW);
+    world.insert(bubble, UINode, n);
 }
 
 function setVisible(world: World, entity: Entity, on: boolean): void {
