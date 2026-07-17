@@ -510,15 +510,6 @@ export function TilemapPainter() {
         >
           <Dices size={15} />
         </IconButton>
-        <span className="tp-grow" />
-        <span className="tp-brush">
-          {tool === 'terrain' ? t('tile.terrainBrush') : (
-            <>
-              <BrushThumbnail stamp={stamp} atlas={localAtlas} />
-              {stamp.w}×{stamp.h}
-            </>
-          )}
-        </span>
       </div>
       {tool !== 'terrain' && (
         <div className="tp-stamps">
@@ -609,6 +600,13 @@ export function TilemapPainter() {
         <>
           {texUrl && (
             <div className="tp-palbar">
+              {/* Active-brush preview lives with the palette it's picked from + the zoom it
+                  scales with — always visible (the tools row above no longer steals it). */}
+              <span className="tp-brush">
+                <BrushThumbnail stamp={stamp} atlas={localAtlas} />
+                {stamp.w}×{stamp.h}
+              </span>
+              <span className="tp-grow" />
               <button type="button" className="tp-zbtn" title={t('tile.zoomOut')} onClick={() => setZoom((z) => clamp(z / 1.25, 0.25, 8))}>
                 <ZoomOut size={13} />
               </button>

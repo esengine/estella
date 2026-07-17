@@ -14,7 +14,9 @@
 .tp-tools {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 4px;
+  row-gap: 5px;
   padding: 6px 10px;
   border-bottom: 1px solid var(--line);
   background: var(--srf-2);
@@ -82,7 +84,10 @@
   width: 110px;
   outline: none;
 }
-.tp-layer-op { width: 44px; margin: 0 4px; align-self: center; accent-color: var(--acc); cursor: pointer; }
+/* Opacity slider is contextual to the ACTIVE layer (the one you're painting) — inactive
+   chips stay compact (eye · name · lock) so more layers fit the narrow strip. */
+.tp-layer-op { display: none; width: 44px; margin: 0 4px; align-self: center; accent-color: var(--acc); cursor: pointer; }
+.tp-layer.is-active .tp-layer-op { display: inline-block; }
 .tp-grow { flex: 1 1 auto; }
 .tp-sep { width: 1px; align-self: stretch; margin: 2px 4px; background: var(--line); }
 .tp-brush {
@@ -111,12 +116,16 @@
 .tp-palbar {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 4px;
+  row-gap: 4px;
   padding: 4px 8px;
   background: var(--srf-0);
   border-bottom: 1px solid var(--line);
   flex: 0 0 auto;
 }
+/* Brush preview sits with the palette + zoom; keep it from being squeezed to nothing. */
+.tp-palbar .tp-brush { flex: 0 0 auto; }
 .tp-zbtn {
   display: inline-flex;
   align-items: center;
