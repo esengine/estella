@@ -318,6 +318,7 @@ export { BUILTIN_UI_PREFABS, BUILTIN_UI_WIDGET_NAMES } from './widgets/prefabs/g
 // All text — display (Text) and editable (TextInput) — now renders through the
 // SDF glyph atlas; the Canvas2D TextRenderer was retired.
 export { TextPlugin, textPlugin, resolveTextRenderMode } from './text/plugin';
+export { measureText, type MeasureTextOptions, type TextMetrics } from './text/measure-text';
 
 // UI Math Utilities
 export {

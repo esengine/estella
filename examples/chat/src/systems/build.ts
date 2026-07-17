@@ -16,7 +16,7 @@ import type {
 
 import {
     CHAT_W, CHAT_H, ROW_SPACING, BUBBLE_W, RIGHT_GUTTER,
-    LABEL_PAD, BUBBLE_VPAD, bubbleHeight,
+    LABEL_PAD, BUBBLE_VPAD, FONT_SIZE, bubbleHeight,
     COMPOSER_H, SEND_W, INPUT_W,
     ME_BUBBLE, BOT_BUBBLE, BUBBLE_TEXT,
     botReply, SEED,
@@ -67,7 +67,7 @@ export const buildSystem = defineSystem(
                     insetTop: px(BUBBLE_VPAD), insetBottom: px(BUBBLE_VPAD),
                 },
                 text: {
-                    content: '', fontSize: 14, color: BUBBLE_TEXT,
+                    content: '', fontSize: FONT_SIZE, color: BUBBLE_TEXT,
                     align: mine ? TextAlign.Right : TextAlign.Left,
                     verticalAlign: TextVerticalAlign.Middle, wordWrap: true,
                 },

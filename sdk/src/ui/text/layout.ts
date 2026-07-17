@@ -179,15 +179,13 @@ export function measureWidth(
 }
 
 /**
- * Greedy word-wrap a single line to `maxWidth` (display px). Breaks at spaces;
- * a single token wider than the line (long word, or CJK runs which have no
- * spaces) is broken character-by-character. Returns the wrapped sub-lines.
+ * Greedy word-wrap using an arbitrary width `measure` (display px). Breaks at
+ * spaces; a token wider than the line (long word, or CJK runs with no spaces) is
+ * broken character-by-character. The single source of wrap truth — the
+ * atlas-backed {@link wrapLine} and the Canvas2D-backed `measureText` both call
+ * it, so measured heights match rendered wraps.
  */
-export function wrapLine(
-    text: string, atlas: GlyphAtlas, fontFamily: string, fontSizePx: number,
-    style: number, maxWidth: number, letterSpacing = 0,
-): string[] {
-    const measure = (s: string) => measureWidth(s, atlas, fontFamily, fontSizePx, style, letterSpacing);
+export function wrapByMeasure(text: string, measure: (s: string) => number, maxWidth: number): string[] {
     const out: string[] = [];
     let cur = '';
     const flush = () => { const t = cur.replace(/\s+$/, ''); if (t) out.push(t); cur = ''; };
@@ -214,6 +212,17 @@ export function wrapLine(
     }
     flush();
     return out.length ? out : [''];
+}
+
+/**
+ * Greedy word-wrap a single line to `maxWidth` (display px) using the glyph
+ * atlas's advances. Thin wrapper over {@link wrapByMeasure}.
+ */
+export function wrapLine(
+    text: string, atlas: GlyphAtlas, fontFamily: string, fontSizePx: number,
+    style: number, maxWidth: number, letterSpacing = 0,
+): string[] {
+    return wrapByMeasure(text, (s) => measureWidth(s, atlas, fontFamily, fontSizePx, style, letterSpacing), maxWidth);
 }
 
 /**
