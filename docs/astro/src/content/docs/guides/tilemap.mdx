@@ -19,8 +19,8 @@ points an entity at a Tiled JSON file and, at load, spawns one **`TilemapLayer`*
 entity per layer. The **`Tilemaps`** resource is the imperative API for creating
 and editing layers from code. Every way the data ends up in the same runtime
 layer model. Tile ids are **1-based** (`0` = empty). **Orthogonal, isometric,
-staggered, and hexagonal** maps all render — the orientation is read from the
-Tiled file, no extra setup.
+staggered, and hexagonal** maps are all first-class — author any orientation
+natively in the editor, or import it from a Tiled file with no extra setup.
 
 ## Paint in the editor
 
@@ -49,12 +49,36 @@ While a paint tool is active, `H` / `V` flip the stamp and `R` rotates it 90°.
 - **Saved stamps** — the bookmark button below the tools saves the current brush
   into a per-project stamp library; click a chip to bring a pattern back, `×`
   deletes it. Identical patterns deduplicate.
-- **Random mode** — toggle the dice button and each painted cell samples one tile
-  at random from the stamp instead of repeating the pattern — quick scatter for
-  grass, rubble, and other variation. Sampling honors each tile's **probability**
-  weight from the tileset editor's Properties mode (default 1; 0 = never scattered).
+- **Random mode** — toggle the dice button (or press `D` while painting) and each
+  painted cell samples one tile at random from the stamp instead of repeating the
+  pattern — quick scatter for grass, rubble, and other variation. Sampling honors
+  each tile's **probability** weight from the tileset editor's Properties mode
+  (default 1; 0 = never scattered).
 - **Layer strip** — when the scene has several tilemap layers, a strip at the top
-  of the panel switches the active layer and toggles per-layer visibility and lock.
+  of the panel switches the active layer and toggles per-layer visibility and
+  lock; **drag a layer chip** to reorder layers.
+
+## Map orientations
+
+Orientation is a property of each `TilemapLayer`, not an import artifact. The
+**New Tilemap** dialog picks it up front — orthogonal, **isometric** (diamond),
+**staggered** (staggered-isometric), or **hexagonal** — along with the stagger
+axis/index and hex side length where they apply, and the Inspector edits the
+same fields afterwards. The viewport follows the layer: the grid overlay,
+brush ghost, hover/selection highlights, and every paint tool work on the
+diamond or hex grid exactly as they do on squares.
+
+| `TilemapLayer` field | Values | Description |
+|---|---|---|
+| `orientation` | Orthogonal / Isometric / Staggered / Hexagonal | Grid layout of the layer. |
+| `staggerAxis` | Y / X | Staggered & hex: `Y` shifts alternate rows, `X` shifts alternate columns. |
+| `staggerIndex` | Odd / Even | Which rows/columns carry the half-cell shift. |
+| `hexSideLength` | px | Hexagonal only: flat side length (`0` = regular pointy hex, `tileHeight / 2`). |
+
+Tiled maps of any orientation import into the same fields — including staggered
+maps' `staggeraxis` / `staggerindex`, so an imported staggered map places tiles
+exactly as Tiled shows it. `examples/` ships three painted showcases: an
+isometric island, a staggered patchwork, and a pointy-top hex strategy map.
 
 ## Load a Tiled map
 
@@ -96,6 +120,9 @@ renderer reads these live, so animating `tintColor` / `opacity` is lag-free.
 | `opacity` | number | `1` | Layer transparency, 0..1. Animatable. |
 | `parallaxFactor` | Vec2 | `{1, 1}` | Parallax scroll factor relative to the camera. |
 | `visible` | boolean | `true` | Show / hide the layer. |
+
+Plus the [orientation fields](#map-orientations) above — `orientation`,
+`staggerAxis`, `staggerIndex`, `hexSideLength`.
 
 ## Build a layer in code
 
@@ -165,6 +192,29 @@ For large or streaming worlds, use an infinite layer and write chunk by chunk;
 tilemap.initInfiniteLayer(layer, 16, 16);
 tilemap.setChunkTiles(layer, chunkX, chunkY, tiles, 32, 32);
 ```
+
+## Terrain autotiling
+
+Terrains make the `T` brush paint *meaning* instead of specific tiles — you say
+"grass here" and the resolver picks the tile whose edges match the neighbors.
+Author terrains in the **Tileset editor**'s Terrain mode; a terrain set uses one
+of two models:
+
+- **Peering (edge / corner-blob)** — the classic single-terrain model: each tile
+  declares which of its edges (16-tile sets) or edges + corners (47-tile blob
+  sets) belong to the terrain, and the brush paints the terrain while fixing up
+  neighbor transitions.
+- **Corner Wang (multi-terrain)** — the modern model from Tiled/Godot: the set
+  carries a palette of **colors** (grass, sand, water, …) and each tile assigns
+  a color to its four **corners**. One set blends many terrains, and the brush
+  paints colors on a **half-cell corner grid** — click between four tiles and
+  the resolver re-tiles all of them by exact corner match (nearest-mismatch
+  fallback), producing smooth marching-squares boundaries. The tileset editor
+  authors the color palette (add / rename / recolor / remove) and per-tile
+  corner dots; the painter lists the colors to paint with.
+
+The painter's terrain brush dispatches on the set's model automatically. A
+blended-island corner-Wang demo ships in `examples/`.
 
 ## Tilesets & collision
 

@@ -491,10 +491,32 @@ live-restyles everything already on screen — widgets record which theme *role*
 each color came from (a `ThemeStyle` component, carried into prefabs too), so a
 swap re-resolves hues while preserving each color's alpha.
 
+### The project theme
+
+A project declares its widget palette once, in **Project Settings → UI**: pick
+the base theme (**dark** is the default, **light** is built in), then override
+any **color role** in the **Theme Colors** group — a full color picker per
+role, with unset rows showing the inherited base value and a reset that clears
+the override. Overrides are stored in `project.esproject` as
+`features.ui.colors` (role → `#rrggbb[aa]` hex) and validated against the
+theme's role list.
+
+The resolved theme (base + overrides) applies **everywhere, identically**: the
+edit viewport previews it live as you change a setting, Play uses it, and every
+export target — web, desktop, WeChat, playable — resolves it at boot before
+re-theming widgets. Brand the accent by overriding `primary` (+ `primaryHover`
+/ `primaryActive`); `onPrimary` is the content drawn on top of it.
+
 ## Editor prefabs
 
 The same widgets ship as editor prefabs, so **Create… → UI** drops a ready-made
 Button, Toggle, Slider, Dialog, TextInput, and so on into the scene, which you then
 edit in Details. Behavior that lives in components — a slider's drag/keys, a
-dialog's Escape/scrim dismissal — works on placed prefabs without code. See
+dialog's Escape/scrim dismissal — works on placed prefabs without code.
+
+Dropping from the palette **nests**: the drop parents into the layout container
+under the pointer (a dashed outline previews the would-be parent while you
+drag), and an empty-canvas drop lands at the root as before. The anchor picker
+edits **per axis** and keeps the widget exactly where it was — changing the
+horizontal anchor never disturbs the vertical layout, and vice versa. See
 [The Editor](/docs/guides/editor/).

@@ -203,12 +203,15 @@ Double-click an asset in the Content Browser to open its editor in a document ta
   [Timeline](/docs/guides/timeline/).
 - **Tilemap painter** — tools for **brush, erase, rectangle, line, bucket, select,
   eyedropper**, and **terrain (autotile)**, plus stamp **flip-H / flip-V / rotate-90°**
-  (`H` / `V` / `R` while a paint tool is active) and a **random-scatter mode**. The
-  palette selects with the arrow keys (`Shift` grows a multi-tile stamp). See
+  (`H` / `V` / `R` while a paint tool is active) and a **random-scatter mode** (`D`). The
+  palette selects with the arrow keys (`Shift` grows a multi-tile stamp), and maps can
+  be **orthogonal, isometric, staggered, or hexagonal**. See
   [Tilemaps](/docs/guides/tilemap/).
-- **Tileset editor** — mark per-tile **collision** (box or polygon) and **terrain**
-  membership for autotiling, and author **animated tiles** (frame sequences with
-  per-frame durations and a live preview).
+- **Tileset editor** — author per-tile **collision** (box / circle / polygon, slope
+  presets, one-way / sensor / material modifiers), **terrain** sets for autotiling
+  (edge/corner peering or multi-color **corner Wang**), per-tile **probability**
+  weights and properties, and **animated tiles** (frame sequences with per-frame
+  durations and a live preview).
 - **State Machine** (`.esfsm`) and **Behavior Tree** (`.esbt`) editors — visual graphs
   for AI. See [Gameplay AI](/docs/guides/ai/).
 - **Material Graph** (`.esmatgraph`) — a node editor that compiles to a shader. See
@@ -231,6 +234,9 @@ Open settings with **Ctrl / ⌘ + ,** or the Activity Bar's gear. Settings are g
     preview in any scene), the project-wide **screen orientation** (every export target
     honors it; unset ⇒ derived from the design resolution's aspect), and the **camera fit**
     (how the main camera scales the design resolution without a UI Canvas; `None` = off).
+  - **UI** — the project's widget **theme** (dark / light) and per-role **Theme
+    Colors** overrides, applied identically in the editor, Play, and every export.
+    See [UI widgets — theming](/docs/guides/ui-components/#theming).
   - **Physics** — enable, gravity, sixteen collision-layer names and a 16×16 collision
     matrix, plus solver tuning (fixed timestep, sub-steps, contact Hz/damping/push
     speed, sleeping, continuous collision). See [Physics](/docs/guides/physics/).
