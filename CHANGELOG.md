@@ -14,6 +14,148 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-07-16
+
+The UI system grows up, and the editor breaks out of a single window. Widgets
+stop being closures full of hidden state and become **data**: every stateful
+control — button, toggle, dropdown, slider, dialog — carries its behavior in a
+component driven by a system, so a Toggle or Dropdown placed in the editor is
+fully functional without a line of code, keyboard access is on by default, and
+any widget value can be two-way bound to a signal. One state mechanism —
+`UIController` + `UIGear` — replaces the old per-entity `StateMachine` /
+`StateVisuals` pair across the whole engine, and it doubles as an authoring
+surface: a Controllers panel, gear dots on Details fields, and a record mode
+that keys edits into the active page, all previewing live in edit mode. On the
+editor side, any dock panel — and now the Viewport itself, engine canvas and all
+— can pop out into its own OS window and move to another monitor. Tilemaps gain
+rich per-tile collision you can author and *see*: circle, one-way, sensor, and
+material shapes, slope presets, Tiled parity, and runtime tile-collision
+queries — with the entity collider gizmo generalized to draw and edit all six
+shapes through the same geometry seam.
+
+### Added
+
+- **The editor pops out into multiple windows.** Any model/store-driven dock
+  panel — Inspector, Outliner, Content Browser, Console, the graph editors — can
+  now be moved into its own OS window and dragged to another monitor, and so can
+  the **Viewport**: the single engine canvas rides the DOM into the popout with
+  its live WebGL context intact (a same-origin move preserves the context — no
+  engine multi-instancing), Play-in-viewport works there too, and gizmo drags,
+  keyboard, and resize all resolve to whichever window hosts the panel. Popouts
+  are same-origin `window.open`, so a popped-out panel shares live selection,
+  stores, and edits with the main window with zero cross-window messaging, and
+  dockview restores the popouts after a reload. Works in the packaged app as
+  well (the packaged renderer is served over loopback http to satisfy the
+  same-origin requirement).
+- **UI Controllers & Gears.** A `UIController` is a named set of "pages" scoped
+  to a UI root; a `UIGear` binds any component field to per-page values that snap
+  or tween as the page changes. It generalizes the old per-entity state pair into
+  one shared, multi-page, any-field mechanism — no new asset type, no C++ — and
+  it is not play-gated, so the editor previews a page the instant it changes. The
+  authoring surface ships with it: a dockable **Controllers** panel, a gear dot on
+  each Details field that binds it to the active controller, and a **record mode**
+  that captures subsequent edits into the current page. Data-driven bridges
+  (`ui.setPage`, `bindControllerPage`) drive pages from game code, and a bilingual
+  guide documents the whole flow.
+- **Widgets as data — and two more of them.** Toggle, dropdown, slider, and
+  dialog behavior now lives in components + behavior systems rather than factory
+  closures, so an editor-placed control just works: a dropdown closes on an
+  outside click, a slider drags and takes arrow/Home/End keys, a dialog dismisses
+  on Escape or scrim click — no code. Two missing widgets close the set:
+  **`TextInput`** (with an Auto / Bitmap / SDF render-mode selector, clipping, and
+  horizontal scroll) and **`ScrollView`** (the non-virtualized sibling of
+  `ListView`), and `ListView` gains measured **auto-height** rows via a public
+  `measureText`. `bindWidgetValue` gives two-way binding between a signal and any
+  widget value. Text, Image, and Container primitives join the editor's Create → UI
+  palette, and a **chat demo** (a `ListView` log + a `TextInput` composer) shows
+  them together.
+- **Keyboard accessibility, on by default.** Widgets carry a `Focusable`;
+  Enter/Space synthesize a click on the focused control (text fields keep those
+  keys), Escape or a click on empty space clears focus, and the interaction driver
+  gains a `focused` state (disabled > pressed > hover > focused > normal). Modals
+  trap focus, dropdowns take open-state keyboard navigation, overlays get proper
+  scrollbars, and rich text word-wraps.
+- **Rich per-tile collision you can author and see.** Tile collision grows beyond
+  box|polygon: **circle** shapes plus cross-cutting **one-way** (solid-side
+  normal), **sensor**, and **material** (density/friction/restitution) modifiers,
+  authored with a brush-bar in the tileset editor and with **one-click slope /
+  half-tile presets**. The same collision is now **drawn in the scene viewport**,
+  shapes authored in Tiled's own tile-collision editor parse into the identical
+  model (finite and infinite layers alike), and the runtime answers
+  `tileCollisionAt` / `isTileSolid` / `tileCollisionAtWorld` with no physics
+  raycast. `.estileset` files round-trip byte-for-byte.
+- **One collider gizmo for all six shapes, convertible in place.** The entity
+  collider gizmo — previously box + circle only — is rebuilt on the shared
+  `ColliderShape` projection, so a polygon, capsule, segment, or chain collider is
+  visible and its vertices are draggable for the first time, through the same
+  geometry seam that draws physics debug and the tile-collision overlay. A
+  segmented control on the collider's Details card **converts** box ↔ circle ↔
+  polygon in place, preserving material, sensor, filter, and where you drew it,
+  as one undo step.
+- **More tilemap authoring reflexes.** A **probability-weighted scatter** brush
+  (per-tile weights authored in the tileset editor), **hollow** rect/ellipse tools
+  (Alt for an outline / ring), a **floating-selection move** (drag inside the
+  marquee to lift a region and land it as one undo step, Esc to restore), and
+  editor-convention muscle memory — modifier keys, a layer menu, and tileset batch
+  authoring.
+- **A project-declared UI theme.** Project Settings gains a UI section: the
+  built-in widget palette (`light`; dark is the default) rides the same
+  project-config channel as physics/audio to every shipped runtime — web,
+  playable, WeChat — and applies at boot, re-tinting prefab-instantiated widgets
+  to the project's palette.
+- **A unified viewport grid control.** The grid display toggle joins grid snap in
+  one place instead of two.
+
+### Changed
+
+- **One state mechanism — `StateMachine` / `StateVisuals` retired.** Widget
+  interaction states now build from the shared `UIController($interaction)` +
+  `UIGear` layer, and with no consumers left the legacy trio retires end to end:
+  the TS components, systems, and `StateChanged` event; the C++ `StateMachine` /
+  `StateVisuals` structs and the `VisualState` EHT entry (wasm rebuilt, ABI hash
+  rotated). Scenes still referencing the retired components **migrate forward
+  automatically on load**. Semantics are preserved — custom pages like `'loading'`,
+  `fadeDuration` as a linear gear tween, and live theme re-tint of the interaction
+  colour gear.
+- **Widget factories return handles, not bare entities.** Every factory now
+  returns a `{ entity, dispose }` handle (`createButton` was the last holdout),
+  assembles interaction through one `makeWidgetInteractable` helper, and
+  `createListView` takes its host plugin explicitly. Toggle's `silent` transition
+  parameter is retired — every widget reports its change identically. The
+  composition sugar (`buildUINode` / `buildUIVisual` / `buildText` /
+  `spawnUIEntity`) moves from `widgets/` to `core/compose`.
+- **The Canvas2D-era rich-text image machinery is gone.** `DefaultImageResolver`,
+  `setImageResolver`, `getImageResolver`, and `ResolvedImage` were built for the
+  retired Canvas2D renderer, resolved to DOM bitmaps the pipeline cannot draw, and
+  had zero product consumers. The `<img>` grammar still parses (it simply does not
+  render yet), so a future engine-texture implementation starts from the grammar,
+  not from DOM plumbing.
+- **Dead UI surface swept.** A ~12-symbol dead helper cluster in `ui/util`, a
+  zero-importer `controller/index.ts` barrel, tombstone comments, and an
+  `ARCHITECTURE.md` still describing the retired FSM are all removed. `UIMask`
+  drops its phantom `Alpha` / `maskTexture` / `inverted` fields (C++ only ever had
+  `enabled` + scissor/stencil), and `TweenSystem` now owns the full
+  `anim_override_` flag lifecycle — fixing a latent bug where a once-tweened UI
+  entity permanently escaped layout control of that axis.
+
+### Fixed
+
+- **Playable exports resolve Spine textures.** A Spine atlas in a playable build
+  now resolves its textures from the inlined asset map instead of failing to draw.
+- **A wedged Play no longer hangs the editor.** A play-realm prepare that gets
+  stuck now times out instead of hanging forever.
+- **Number settings without a max no longer clamp to 100.** Unbounded number
+  fields stop clamping to a phantom maximum of 100.
+- **Paint preview matches what it paints.** The tilemap paint tools' preview is
+  aligned with the tiles they actually place, and several multi-tileset bugs are
+  fixed.
+- **Theme roles survive into prefabs.** Theme role tags persist into
+  prefab-instantiated widgets, settled gears re-arm correctly, and scroll/list
+  behavior is corrected.
+- **Truthful render-system timing.** The profiler attributes the render system's
+  present/vsync wait to a distinct wait band instead of counting it as phantom CPU
+  time, and the status bar / panel re-render less during a viewport transform drag.
+
 ## [0.24.0] - 2026-07-15
 
 Video comes to Estella. A declarative Video component plays a stream on any
