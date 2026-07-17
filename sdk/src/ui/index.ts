@@ -81,6 +81,7 @@ export {
     ANCHOR_AXES,
     anchorPresetFields,
     detectAnchor,
+    detectAnchorAxes,
     type AnchorPreset,
     type AnchorFields,
 } from './layout/anchor';

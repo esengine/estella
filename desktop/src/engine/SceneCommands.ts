@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { SceneData, PrefabData, ControllerState, UIControllerData, GearBinding, GearTween, UIGearData } from 'esengine';
-import { TilemapAPI, TilemapLiveSync, UIPositionType, DimensionUnit, anchorPresetFields, writeFieldPath, type AnchorPreset } from 'esengine';
+import { TilemapAPI, TilemapLiveSync, UIPositionType, DimensionUnit, AnchorAxis, writeFieldPath, type AnchorPreset } from 'esengine';
 import type { EntityId, InspectorFieldType, InspectorFieldValue } from '@/types';
 import { EditorHistory, EditorHistoryImpl } from './EditorHistory';
 import { SceneModel, SceneModelImpl } from './SceneModel';
@@ -478,27 +478,82 @@ export class SceneCommandsImpl {
   }
 
   /**
-   * Apply an anchor preset (Start / Center / End / Stretch per axis) to each
-   * UINode as one undo step. A preset is a VIEW over the box fields, not stored
-   * state, so this simply writes `position` Absolute + the insets/margins (+ size
-   * for a Stretch axis) that express it — {@link detectAnchor} reads them back.
+   * Apply an anchor preset (Start / Center / End / Stretch, PER AXIS — an absent
+   * axis is left untouched) to each UINode as one undo step. A preset is a VIEW
+   * over the box fields, not stored state; the node's current resolved box is
+   * baked into the pinned insets so changing an anchor never moves the widget on
+   * screen (Center excepted — auto-margin centring has no offset to express), and
+   * leaving Stretch freezes the resolved size so the box doesn't collapse to its
+   * content. {@link detectAnchorAxes} reads the result back.
    */
-  setUINodeAnchor(sourceIds: EntityId[], preset: AnchorPreset): void {
-    const f = anchorPresetFields(preset);
-    const dims: Array<[string, { value: number; unit: number }]> = [
-      ['insetLeft', f.insetLeft], ['insetRight', f.insetRight],
-      ['insetTop', f.insetTop], ['insetBottom', f.insetBottom],
-      ['marginLeft', f.marginLeft], ['marginRight', f.marginRight],
-      ['marginTop', f.marginTop], ['marginBottom', f.marginBottom],
-    ];
-    if (f.width) dims.push(['width', f.width]);
-    if (f.height) dims.push(['height', f.height]);
+  setUINodeAnchor(sourceIds: EntityId[], preset: Partial<AnchorPreset>): void {
     this.beginGesture('Anchor');
     for (const id of sourceIds) {
-      this.setField(id, 'UINode', 'position', 'enum', f.position);
-      for (const [key, dim] of dims) this.setField(id, 'UINode', key, 'dimension', dim);
+      // Live boxes for the offset bake, read BEFORE any writes (world px == layout
+      // px in the UI world). Null without a live layout → preset zero offsets.
+      const rt = this.model.runtimeFor(id);
+      const parentSrc = this.model.entityBySource(id)?.parent;
+      const parentRt = parentSrc != null ? this.model.runtimeFor(parentSrc) : undefined;
+      const node = rt !== undefined ? ViewportController.uiEntityWorldOBB(rt) : null;
+      const parent = parentRt !== undefined ? ViewportController.uiEntityWorldOBB(parentRt) : null;
+      this.setField(id, 'UINode', 'position', 'enum', UIPositionType.Absolute);
+      for (const axis of ['h', 'v'] as const) {
+        const mode = preset[axis];
+        if (mode === undefined) continue;
+        // Edge gaps in layout space (y-down): near = left/top, far = right/bottom.
+        const gaps = node && parent
+          ? axis === 'h'
+            ? { near: (node.cx - node.hw) - (parent.cx - parent.hw), far: (parent.cx + parent.hw) - (node.cx + node.hw), size: node.hw * 2 }
+            : { near: (parent.cy + parent.hh) - (node.cy + node.hh), far: (node.cy - node.hh) - (parent.cy - parent.hh), size: node.hh * 2 }
+          : null;
+        this.applyAnchorAxis_(id, axis, mode, gaps);
+      }
     }
     this.endGesture();
+  }
+
+  /** One axis of {@link setUINodeAnchor}: writes the inset/margin (+ size) fields
+   *  that express `mode`, pinning at the baked `gaps` when available. */
+  private applyAnchorAxis_(
+    sourceId: EntityId, axis: 'h' | 'v', mode: AnchorAxis,
+    gaps: { near: number; far: number; size: number } | null,
+  ): void {
+    const keys = axis === 'h'
+      ? { near: 'insetLeft', far: 'insetRight', mNear: 'marginLeft', mFar: 'marginRight', size: 'width' }
+      : { near: 'insetTop', far: 'insetBottom', mNear: 'marginTop', mFar: 'marginBottom', size: 'height' };
+    const px = (v: number) => ({ value: Math.round(v), unit: DimensionUnit.Px });
+    const autoDim = () => ({ value: 0, unit: DimensionUnit.Auto });
+    const write = (key: string, dim: { value: number; unit: number }): void =>
+      this.setField(sourceId, 'UINode', key, 'dimension', dim);
+    switch (mode) {
+      case AnchorAxis.Start:
+        write(keys.near, px(gaps?.near ?? 0));
+        write(keys.far, autoDim());
+        break;
+      case AnchorAxis.End:
+        write(keys.near, autoDim());
+        write(keys.far, px(gaps?.far ?? 0));
+        break;
+      case AnchorAxis.Center:
+        write(keys.near, autoDim());
+        write(keys.far, autoDim());
+        break;
+      case AnchorAxis.Stretch:
+        write(keys.near, px(gaps?.near ?? 0));
+        write(keys.far, px(gaps?.far ?? 0));
+        write(keys.size, autoDim());
+        break;
+    }
+    // Center centres via auto margins; every other mode pins with 0 so the inset
+    // alone drives the position.
+    const m = mode === AnchorAxis.Center ? autoDim() : px(0);
+    write(keys.mNear, m);
+    write(keys.mFar, m);
+    // Leaving Stretch: freeze an auto (inset-driven) size at its resolved value.
+    if (mode !== AnchorAxis.Stretch && gaps) {
+      const cur = this.modelFieldValue(sourceId, 'UINode', keys.size) as { unit: number } | undefined;
+      if ((cur?.unit ?? DimensionUnit.Auto) === DimensionUnit.Auto) write(keys.size, px(gaps.size));
+    }
   }
 
   // — Undoable entity lifecycle (model ops; the Reconciler re-spawns/-despawns) —

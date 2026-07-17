@@ -52,7 +52,7 @@ import { InspectorClipboard } from '@/engine/inspectorClipboard';
 import { SceneCommands, toModelValue } from '@/engine/SceneCommands';
 import { ENTITY_SOURCES, createFromSource } from '@/engine/entitySources';
 import { PlayInspect } from '@/engine/PlayInspect';
-import { DimensionUnit, AnchorAxis, detectAnchor, UIPositionType, parseLocaleTable, EasingType } from 'esengine';
+import { DimensionUnit, AnchorAxis, detectAnchorAxes, UIPositionType, parseLocaleTable, EasingType } from 'esengine';
 import type { SceneData, InputMapAsset, ActionType, Binding, LocaleTableAsset, PluralCategory, GearValue, GearTween } from 'esengine';
 import { modelAddableComponentEntries, subscribeSchemas, getSchemaRevision, prettyLabel, hexToRgba, dynamicEnumOptions, boxGroupsFor, isRequiredEmpty, type BoxGroupDef } from '@/engine/schema';
 import * as imap from '@/project/inputMapDoc';
@@ -1371,8 +1371,8 @@ function uiLayoutOwnedFields(absolute: boolean): ReadonlySet<string> {
 
 /** The anchor 9-preset picker for an ABSOLUTE UINode: a live preview + two labelled
  *  Horizontal/Vertical pickers (Left/Center/Right/Stretch × Top/Middle/Bottom/Stretch).
- *  Each axis is an independent named choice; writing either applies the combined
- *  preset, read back via detectAnchor. */
+ *  Each axis is an independent choice, written alone so the other axis keeps its
+ *  state, read back per-axis via detectAnchorAxes. */
 function AnchorPicker({ entities, comp }: { entities: EntityId[]; comp: InspectorComponent }) {
   const dim = (key: string) => {
     const v = comp.fields.find((f) => f.key === key)?.value as { value: number; unit: number } | undefined;
@@ -1385,21 +1385,20 @@ function AnchorPicker({ entities, comp }: { entities: EntityId[]; comp: Inspecto
     marginLeft: dim('marginLeft'), marginRight: dim('marginRight'),
     marginTop: dim('marginTop'), marginBottom: dim('marginBottom'),
     width: dim('width'), height: dim('height'),
-  } as Parameters<typeof detectAnchor>[0];
-  const active = detectAnchor(node);
-  // Custom (non-preset) box → the pickers show nothing selected; changing one axis
-  // falls back to Center on the other so the result is still a clean preset.
-  const curH = active?.h ?? AnchorAxis.Center;
-  const curV = active?.v ?? AnchorAxis.Center;
-  const r = anchorWidgetRect(curH, curV);
+  } as Parameters<typeof detectAnchorAxes>[0];
+  // Each axis classifies independently, so a box with one hand-tuned axis still
+  // shows (and keeps) the clean one; writing an axis touches ONLY that axis.
+  const axes = detectAnchorAxes(node);
+  const clean = axes.h !== null && axes.v !== null;
+  const r = anchorWidgetRect(axes.h ?? AnchorAxis.Center, axes.v ?? AnchorAxis.Center);
   return (
     <>
       <div className="anchor-head">
         <span className="anchor-t">{t('det.anchor')}</span>
-        <em className="anchor-cur">{active ? anchorTitle(active.h, active.v) : t('det.anchorCustom')}</em>
+        <em className="anchor-cur">{clean ? anchorTitle(axes.h!, axes.v!) : t('det.anchorCustom')}</em>
       </div>
       <div className="anchor-body">
-        <div className={`anchor-preview${active ? '' : ' custom'}`} aria-hidden="true">
+        <div className={`anchor-preview${clean ? '' : ' custom'}`} aria-hidden="true">
           <svg viewBox="0 0 24 24">
             <rect className="anchor-frame" x="2.5" y="2.5" width="19" height="19" rx="3" ry="3" />
             <rect className="anchor-widget" x={r.x} y={r.y} width={r.w} height={r.h} rx="2" ry="2" />
@@ -1411,9 +1410,9 @@ function AnchorPicker({ entities, comp }: { entities: EntityId[]; comp: Inspecto
             <Segmented
               grow
               ariaLabel={t('det.horizontalAnchorAria')}
-              value={active ? String(active.h) : ''}
+              value={axes.h !== null ? String(axes.h) : ''}
               options={H_ANCHOR_OPTS}
-              onChange={(val) => SceneCommands.setUINodeAnchor(entities, { h: Number(val), v: curV })}
+              onChange={(val) => SceneCommands.setUINodeAnchor(entities, { h: Number(val) })}
             />
           </label>
           <label className="anchor-axis">
@@ -1421,9 +1420,9 @@ function AnchorPicker({ entities, comp }: { entities: EntityId[]; comp: Inspecto
             <Segmented
               grow
               ariaLabel={t('det.verticalAnchorAria')}
-              value={active ? String(active.v) : ''}
+              value={axes.v !== null ? String(axes.v) : ''}
               options={V_ANCHOR_OPTS}
-              onChange={(val) => SceneCommands.setUINodeAnchor(entities, { h: curH, v: Number(val) })}
+              onChange={(val) => SceneCommands.setUINodeAnchor(entities, { v: Number(val) })}
             />
           </label>
         </div>

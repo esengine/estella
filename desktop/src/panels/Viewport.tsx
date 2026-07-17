@@ -1044,11 +1044,16 @@ export function Viewport() {
               safe.style.opacity = '0';
             }
           }
-          // The authored resolution, pinned to the frame's top-left corner.
+          // The authored resolution, pinned to the frame's top-left corner but clamped
+          // into the viewport — when the frame corner pans off-screen the label sticks
+          // to the nearest edge instead of getting clipped away.
           const dlabel = designLabelRef.current;
           if (dlabel) {
             dlabel.textContent = `${ci.designResolution.x} × ${ci.designResolution.y}`;
-            dlabel.style.transform = `translate(${des.x + 4}px, ${des.y + 4}px)`;
+            // Top clamp clears the .ov-tl floating toolbar (top:10 + ~34px tall).
+            const lx = Math.min(Math.max(des.x + 4, 4), Math.max(dsvg.clientWidth - dlabel.offsetWidth - 4, 4));
+            const ly = Math.min(Math.max(des.y + 4, 48), Math.max(dsvg.clientHeight - dlabel.offsetHeight - 4, 48));
+            dlabel.style.transform = `translate(${lx}px, ${ly}px)`;
             dlabel.style.opacity = '1';
           }
         } else {
@@ -1821,7 +1826,24 @@ export function Viewport() {
           >
             <div className="ovmenu-lbl">{t('vp.device')}</div>
             {RESOLUTION_PRESETS.map((p) => (
-              <DdRadio key={p.id} on={device === p.id} label={p.label} onClick={() => useEditorMode.getState().setDevice(p.id)} />
+              <DdRadio
+                key={p.id}
+                on={device === p.id}
+                label={p.label}
+                onClick={() => {
+                  const ms = useEditorMode.getState();
+                  ms.setDevice(p.id);
+                  // Picking a real device snaps the orientation to the design's own
+                  // (a landscape design previews on a landscape phone); the explicit
+                  // orientation radios below still override.
+                  if (p.w > 0) {
+                    const dw = sceneCanvas ? sceneCanvas.x : projectDesign.width;
+                    const dh = sceneCanvas ? sceneCanvas.y : projectDesign.height;
+                    const want = dw >= dh ? 'landscape' : 'portrait';
+                    if (ms.orientation !== want) ms.toggleOrientation();
+                  }
+                }}
+              />
             ))}
             <div className="ovmenu-lbl">{t('vp.orientation')}</div>
             <DdRadio

@@ -123,13 +123,22 @@ function axisMode(near: Dimension, far: Dimension, mNear: Dimension, mFar: Dimen
     return null;
 }
 
+/** Per-axis classification of a UINode's box: each axis resolves independently
+ *  to its {@link AnchorAxis}, or null when that axis isn't a clean preset — so a
+ *  box with one hand-tuned axis still reads (and can keep) the other. */
+export function detectAnchorAxes(node: UINodeData): { h: AnchorAxis | null; v: AnchorAxis | null } {
+    if (node.position !== UIPositionType.Absolute) return { h: null, v: null };
+    return {
+        h: axisMode(node.insetLeft, node.insetRight, node.marginLeft, node.marginRight, node.width),
+        v: axisMode(node.insetTop, node.insetBottom, node.marginTop, node.marginBottom, node.height),
+    };
+}
+
 /** The preset a UINode currently matches, or null (Relative flow, or a custom
  *  box that isn't a clean preset). `detectAnchor(node with anchorPresetFields(p))`
  *  round-trips back to `p`. */
 export function detectAnchor(node: UINodeData): AnchorPreset | null {
-    if (node.position !== UIPositionType.Absolute) return null;
-    const h = axisMode(node.insetLeft, node.insetRight, node.marginLeft, node.marginRight, node.width);
-    const v = axisMode(node.insetTop, node.insetBottom, node.marginTop, node.marginBottom, node.height);
+    const { h, v } = detectAnchorAxes(node);
     if (h === null || v === null) return null;
     return { h, v };
 }
