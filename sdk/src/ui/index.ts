@@ -143,6 +143,8 @@ export {
     type UIDropdownData,
 } from './behavior/dropdown';
 
+export { createScrollbarSystem } from './behavior/scrollbar';
+
 // ─── Controllers + Gears (shared UI state) ──────────────────────────────────
 
 export {
@@ -478,6 +480,8 @@ export { EngineAtlasPageStore } from './text/atlas-page-store';
 export {
     layoutLine,
     layoutRichLine,
+    layoutRichRuns,
+    wrapRichRuns,
     layoutText,
     wrapLine,
     measureWidth,

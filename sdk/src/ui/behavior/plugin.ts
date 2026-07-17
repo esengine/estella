@@ -20,6 +20,7 @@ import { UIDialog, createDialogSystem } from './dialog';
 import { UISlider, createSliderSystem } from './slider';
 import { UIToggle, createToggleSystem } from './toggle';
 import { UIDropdown, createDropdownSystem } from './dropdown';
+import { createScrollbarSystem } from './scrollbar';
 import { registerComponent } from '../../component';
 
 /** Screen-px slop before a press becomes a scroll drag (matches Draggable). */
@@ -120,6 +121,12 @@ export class UIBehaviorPlugin implements Plugin {
         app.addSystemToSchedule(
             Schedule.Update,
             createDropdownSystem(world, events),
+            { runIf: playModeOnly },
+        );
+
+        app.addSystemToSchedule(
+            Schedule.Update,
+            createScrollbarSystem(world, scrollContainers),
             { runIf: playModeOnly },
         );
 

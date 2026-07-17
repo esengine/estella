@@ -219,7 +219,8 @@ createDropdown({
 <Aside type="note">
   Labels + selection live in a **`UIDropdown` component**; the behavior system owns
   the popup (click toggles it, **a click anywhere else closes it**), row selection,
-  and **arrow-key stepping** while the closed control is focused — so a
+  and the keyboard: arrows step the selection open or closed (the open popup
+  highlights the selected row), **Enter** confirms and **Escape** dismisses — so a
   prefab-placed dropdown is fully functional without code. The popup is rebuilt on
   each open with fresh theme roles.
 </Aside>
@@ -253,6 +254,9 @@ dialog.close();
 | `startHidden` | Start closed (default `true`). |
 | `closeOnEscape` / `closeOnBackdrop` | The standard dismissals — Escape, and a click on the scrim (not the panel). Both default `true`. |
 | `onOpenChange(open)` | Fires on every open/close, whoever initiated it. |
+
+While a dialog is open it also **traps the Tab ring**: only focusables inside the
+open dialog's subtree participate (the scrim already blocks pointer focus outside).
 
 **Handle:** `open()`, `close()`, `isOpen()`, `dispose()`, plus `entity` (the
 backdrop root) / `panelEntity`.
@@ -313,9 +317,11 @@ list.data.setItems(freshList);         // replace all
 `scroll` and `view` as escape hatches to the underlying `ScrollContainer` / `ListView`.
 
 <Aside type="note">
-  Scrolling works out of the box: mouse wheel over the viewport, and pointer **drag with
+  Scrolling works out of the box: mouse wheel over the viewport, pointer **drag with
   a kinetic fling** — the platform layer funnels the primary touch into the pointer
-  stream, so touch scrolling rides the same path. Tune it with `dragScroll: false` or
+  stream, so touch scrolling rides the same path — and an **auto-fading overlay
+  scrollbar** per scrollable axis (opt out with `showScrollbar: false` on the
+  ScrollContainer). Tune it with `dragScroll: false` or
   `decelerationRate` (fling velocity left after 1s; default `0.135`, the ScrollRect
   standard). For heterogeneous rows, pass a map of item type → template instead of one
   `item`, and give the data source a `getItemType(i)`.

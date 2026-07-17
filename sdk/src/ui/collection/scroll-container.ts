@@ -15,6 +15,8 @@ export interface ScrollContainerOptions {
     dragScroll?: boolean;
     /** Fling velocity left after 1s of coasting. Default 0.135. */
     decelerationRate?: number;
+    /** Auto-fading overlay scrollbar thumbs. Default true. */
+    showScrollbar?: boolean;
 }
 
 export type ScrollListener = (offset: Vec2) => void;
@@ -35,6 +37,7 @@ export class ScrollContainer {
     private readonly wheelSpeed_: number;
     private readonly dragScroll_: boolean;
     private readonly decelerationRate_: number;
+    private readonly showScrollbar_: boolean;
     private readonly listeners_ = new Set<ScrollListener>();
 
     constructor(opts: ScrollContainerOptions) {
@@ -44,6 +47,7 @@ export class ScrollContainer {
         this.wheelSpeed_ = opts.wheelSpeed ?? 1;
         this.dragScroll_ = opts.dragScroll ?? true;
         this.decelerationRate_ = opts.decelerationRate ?? 0.135;
+        this.showScrollbar_ = opts.showScrollbar ?? true;
         this.setOffset(opts.initialOffset ?? { x: 0, y: 0 });
     }
 
@@ -64,6 +68,10 @@ export class ScrollContainer {
             x: Math.max(0, this.contentSize_.x - this.viewportSize_.x),
             y: Math.max(0, this.contentSize_.y - this.viewportSize_.y),
         };
+    }
+
+    getShowScrollbar(): boolean {
+        return this.showScrollbar_;
     }
 
     getWheelSpeed(): number {

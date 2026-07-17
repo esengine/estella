@@ -9,7 +9,8 @@ import { describe, it, expect } from 'vitest';
 import {
     GlyphAtlas, type GlyphRasterizer, type AtlasPageStore, type RasterGlyph,
 } from '../src/ui/text/glyph-atlas';
-import { wrapLine, measureWidth, layoutText } from '../src/ui/text/layout';
+import { wrapLine, wrapRichRuns, measureWidth, layoutText } from '../src/ui/text/layout';
+import type { TextSegment } from '../src/ui/text/rich-text-parser';
 
 function makeAtlas(): GlyphAtlas {
     const rasterizer: GlyphRasterizer = {
@@ -51,6 +52,41 @@ describe('REARCH_GUI P1.4c: word-wrap', () => {
         expect(layout.glyphs.length).toBe(6);     // 3 lines × "AA"
         expect(layout.width).toBeCloseTo(11);     // widest wrapped line
         // glyphs of line 3 sit below line 1
+        expect(layout.glyphs[5].y0).toBeLessThan(layout.glyphs[0].y0);
+    });
+
+    const seg = (text: string, over: Partial<TextSegment> = {}): TextSegment => ({
+        type: 'text', text, bold: false, italic: false, color: null, fontSize: null, ...over,
+    });
+
+    it('wrapRichRuns breaks styled runs at spaces, preserving each token\'s run style', () => {
+        // "AA <b>AA AA</b>" at width 12 → three lines, the bold style survives the break.
+        const lines = wrapRichRuns(
+            [seg('AA '), seg('AA AA', { bold: true })],
+            makeAtlas(), 'Arial', F, 0, 12);
+        expect(lines.map((l) => l.map((r) => `${r.bold ? 'b' : 'n'}:${r.text}`))).toEqual([
+            ['n:AA'], ['b:AA'], ['b:AA'],
+        ]);
+    });
+
+    it('wrapRichRuns keeps a fitting styled line intact and merges same-style tokens', () => {
+        const lines = wrapRichRuns([seg('AA AA')], makeAtlas(), 'Arial', F, 0, 30);
+        expect(lines).toHaveLength(1);
+        expect(lines[0]).toHaveLength(1);         // tokens merged back into one segment
+        expect(lines[0]![0]!.text).toBe('AA AA');
+    });
+
+    it('wrapRichRuns measures a token with its own fontSize', () => {
+        // A double-size run: each glyph advances 11 (scale 1) instead of 5.5,
+        // so "AA" (22) overflows width 12 and char-breaks.
+        const lines = wrapRichRuns([seg('AA', { fontSize: 48 })], makeAtlas(), 'Arial', F, 0, 12);
+        expect(lines.map((l) => l.map((r) => r.text))).toEqual([['A'], ['A']]);
+    });
+
+    it('layoutText wraps rich markup end-to-end', () => {
+        const layout = layoutText('AA <b>AA</b> AA', makeAtlas(), 'Arial',
+            { fontSizePx: F, maxWidth: 12, rich: true });
+        expect(layout.glyphs.length).toBe(6);     // 3 lines × "AA"
         expect(layout.glyphs[5].y0).toBeLessThan(layout.glyphs[0].y0);
     });
 });

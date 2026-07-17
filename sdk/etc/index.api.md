@@ -5485,6 +5485,7 @@ getDecelerationRate: () => number
 getDragScroll: () => boolean
 getMaxOffset: () => Vec2
 getOffset: () => Vec2
+getShowScrollbar: () => boolean
 getViewportSize: () => Vec2
 getWheelSpeed: () => number
 onScroll: (listener: ScrollListener) => () => void

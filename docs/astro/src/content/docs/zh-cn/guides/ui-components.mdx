@@ -207,7 +207,8 @@ createDropdown({
 
 <Aside type="note">
   标签与选择存在 **`UIDropdown` 组件**里;行为系统拥有弹出层(点击开合,**点击其他任意位置
-  自动关闭**)、行选择、以及闭合聚焦时的**方向键换选**——摆出来的 prefab 无需代码即完整可用。
+  自动关闭**)、行选择、以及键盘:开合两态方向键都能换选(打开的弹出层高亮选中行),
+  **Enter** 确认、**Escape** 取消——摆出来的 prefab 无需代码即完整可用。
   弹出层每次打开都用新鲜的主题角色重建。
 </Aside>
 
@@ -239,6 +240,9 @@ dialog.close();
 | `startHidden` | 初始关闭(默认 `true`)。 |
 | `closeOnEscape` / `closeOnBackdrop` | 两个标准关闭方式——Escape,以及点击遮罩(不含面板)。都默认 `true`。 |
 | `onOpenChange(open)` | 每次开/关都会触发,无论由谁发起。 |
+
+对话框打开期间还会**捕获 Tab 环**:只有打开对话框子树内的可聚焦控件参与轮换
+(遮罩本来就挡住了外部的指针聚焦)。
 
 **句柄:** `open()`、`close()`、`isOpen()`、`dispose()`,以及 `entity`(背景根)/ `panelEntity`。
 
@@ -295,8 +299,9 @@ list.data.setItems(freshList);         // 全替换
 `ScrollContainer` / `ListView` 的逃生舱。
 
 <Aside type="note">
-  滚动开箱即用:视口上的鼠标滚轮,以及指针**拖拽 + 惯性甩动**——平台层把主触点并入指针流,
-  触摸滚动走同一条路径。可用 `dragScroll: false` 关闭,或用 `decelerationRate` 调惯性
+  滚动开箱即用:视口上的鼠标滚轮、指针**拖拽 + 惯性甩动**(平台层把主触点并入指针流,
+  触摸滚动走同一条路径),以及每个可滚动轴的**自动淡出悬浮滚动条**(ScrollContainer 传
+  `showScrollbar: false` 关闭)。可用 `dragScroll: false` 关闭,或用 `decelerationRate` 调惯性
   (甩动 1 秒后剩余的速度比例;默认 `0.135`,ScrollRect 标准值)。异构行:用「item 类型 → 模板」
   的映射代替单个 `item`,并给数据源一个 `getItemType(i)`。
 </Aside>

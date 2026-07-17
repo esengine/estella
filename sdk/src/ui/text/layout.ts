@@ -15,7 +15,7 @@
  */
 import type { GlyphAtlas } from './glyph-atlas';
 import { TEXT_VERTEX_FLOATS } from './submit';
-import { parseRichText } from './rich-text-parser';
+import { parseRichText, type TextSegment } from './rich-text-parser';
 import { UI_TEXT_BOLD, UI_TEXT_ITALIC } from './text-transform';
 
 export interface TextLayoutOptions {
@@ -152,7 +152,7 @@ export interface MultilineTextOptions extends TextLayoutOptions {
     rich?: boolean;
     /** Base color (used by rich runs without their own color). */
     color?: RGBA;
-    /** Word-wrap width in display px (plain text only). 0/undefined = no wrap. */
+    /** Word-wrap width in display px (plain and rich text). 0/undefined = no wrap. */
     maxWidth?: number;
     /**
      * Width (display px) each line is horizontally aligned within — the layout box.
@@ -233,14 +233,23 @@ export function layoutText(
     const align = opts.align ?? TEXT_ALIGN_LEFT;
     const baseColor = opts.color ?? ([1, 1, 1, 1] as const);
     const rawLines = text.split('\n');
-    // Word-wrap (plain text only) before stacking; explicit \n still hard-breaks.
-    const lines = (opts.maxWidth && opts.maxWidth > 0 && !opts.rich)
-        ? rawLines.flatMap(l => wrapLine(l, atlas, fontFamily, opts.fontSizePx, style, opts.maxWidth!, opts.letterSpacing ?? 0))
-        : rawLines;
+    const wrap = !!(opts.maxWidth && opts.maxWidth > 0);
+    const richOpts = { fontSizePx: opts.fontSizePx, letterSpacing: opts.letterSpacing, color: baseColor };
 
-    const lineLayouts = lines.map(line => (opts.rich
-        ? layoutRichLine(line, atlas, fontFamily, { fontSizePx: opts.fontSizePx, letterSpacing: opts.letterSpacing, color: baseColor }, style)
-        : layoutLine(line, atlas, fontFamily, opts, style)));
+    // Word-wrap before stacking; explicit \n still hard-breaks. Rich lines wrap
+    // at the styled-run level so a token measures with its own size/style.
+    const lineLayouts = opts.rich
+        ? rawLines
+              .map(l => parseRichText(l).filter((r): r is TextSegment => r.type === 'text'))
+              .flatMap(runs => (wrap
+                  ? wrapRichRuns(runs, atlas, fontFamily, opts.fontSizePx, style, opts.maxWidth!, opts.letterSpacing ?? 0)
+                  : [runs]))
+              .map(runs => layoutRichRuns(runs, atlas, fontFamily, richOpts, style))
+        : (wrap
+              ? rawLines.flatMap(l => wrapLine(l, atlas, fontFamily, opts.fontSizePx, style, opts.maxWidth!, opts.letterSpacing ?? 0))
+              : rawLines
+          ).map(line => layoutLine(line, atlas, fontFamily, opts, style));
+    const lines = lineLayouts; // line count only below
 
     const contentWidth = lineLayouts.reduce((m, l) => Math.max(m, l.width), 0);
     // Align within the layout box when one is given (independent of word-wrap), then
@@ -278,13 +287,119 @@ export function layoutRichLine(
     opts: RichTextLayoutOptions,
     baseStyle = 0,
 ): TextLayout {
+    return layoutRichRuns(
+        parseRichText(content).filter((r): r is TextSegment => r.type === 'text'),
+        atlas, fontFamily, opts, baseStyle);
+}
+
+/** Measure a styled run's advance width (mirrors layoutRichRuns' pen math). */
+function measureRun(
+    text: string, run: TextSegment, atlas: GlyphAtlas, fontFamily: string,
+    baseSizePx: number, baseStyle: number, spacing: number,
+): number {
+    const runSize = run.fontSize ?? baseSizePx;
+    const pixelSize = atlas.pixelSizeFor(runSize);
+    const scale = runSize / pixelSize;
+    const style = baseStyle | (run.bold ? UI_TEXT_BOLD : 0) | (run.italic ? UI_TEXT_ITALIC : 0);
+    let w = 0;
+    for (const ch of text) {
+        const cp = ch.codePointAt(0);
+        if (cp === undefined) continue;
+        const gph = atlas.getGlyph(cp, fontFamily, style, pixelSize);
+        if (gph) w += gph.advance * scale + spacing;
+    }
+    return w;
+}
+
+/**
+ * Greedy word-wrap over styled runs: tokens measure with their own run's
+ * size/style, breaks land at spaces (a single oversized token breaks
+ * character-by-character), and each output line is a run list ready for
+ * {@link layoutRichRuns}. The plain-text twin is {@link wrapLine}.
+ */
+export function wrapRichRuns(
+    runs: TextSegment[], atlas: GlyphAtlas, fontFamily: string,
+    baseSizePx: number, baseStyle: number, maxWidth: number, spacing = 0,
+): TextSegment[][] {
+    interface Token { run: TextSegment; text: string; space: boolean }
+    const tokens: Token[] = [];
+    for (const run of runs) {
+        for (const part of run.text.split(/(\s+)/)) {
+            if (part === '') continue;
+            tokens.push({ run, text: part, space: /^\s+$/.test(part) });
+        }
+    }
+
+    const lines: TextSegment[][] = [];
+    let cur: Token[] = [];
+    let curWidth = 0;
+    const measure = (t: Token) =>
+        measureRun(t.text, t.run, atlas, fontFamily, baseSizePx, baseStyle, spacing);
+    const flush = () => {
+        while (cur.length > 0 && cur[cur.length - 1]!.space) cur.pop();
+        // Merge adjacent tokens of the same run back into segments.
+        const segs: TextSegment[] = [];
+        for (const t of cur) {
+            const last = segs[segs.length - 1];
+            if (last && last.bold === t.run.bold && last.italic === t.run.italic
+                && last.color === t.run.color && last.fontSize === t.run.fontSize) {
+                last.text += t.text;
+            } else {
+                segs.push({ ...t.run, text: t.text });
+            }
+        }
+        if (segs.length > 0) lines.push(segs);
+        cur = [];
+        curWidth = 0;
+    };
+    const push = (t: Token) => { cur.push(t); curWidth += measure(t); };
+    const charBreak = (t: Token) => {
+        for (const ch of t.text) {
+            const w = measureRun(ch, t.run, atlas, fontFamily, baseSizePx, baseStyle, spacing);
+            if (cur.length > 0 && curWidth + w > maxWidth) flush();
+            push({ run: t.run, text: ch, space: false });
+        }
+    };
+
+    for (const t of tokens) {
+        if (t.space) {
+            if (cur.length > 0) push(t); // keep inter-word spaces, drop leading
+            continue;
+        }
+        const w = measure(t);
+        if (cur.length === 0) {
+            if (w <= maxWidth) push(t);
+            else charBreak(t);
+        } else if (curWidth + w <= maxWidth) {
+            push(t);
+        } else {
+            flush();
+            if (w <= maxWidth) push(t);
+            else charBreak(t);
+        }
+    }
+    flush();
+    return lines.length ? lines : [[]];
+}
+
+/**
+ * Lay out a single rich line from its styled runs: each run carries per-run
+ * color + size + bold/italic; all runs share the baseline (y = 0). Image runs
+ * never reach here (callers filter to TextSegments). Pure → unit-testable.
+ */
+export function layoutRichRuns(
+    runs: TextSegment[],
+    atlas: GlyphAtlas,
+    fontFamily: string,
+    opts: RichTextLayoutOptions,
+    baseStyle = 0,
+): TextLayout {
     const spacing = opts.letterSpacing ?? 0;
     const glyphs: LaidGlyph[] = [];
     let penX = 0;
     let lineHeight = opts.fontSizePx;
 
-    for (const run of parseRichText(content)) {
-        if (run.type !== 'text') continue; // embedded images: deferred
+    for (const run of runs) {
         const runSize = run.fontSize ?? opts.fontSizePx;
         const pixelSize = atlas.pixelSizeFor(runSize);
         const scale = runSize / pixelSize;

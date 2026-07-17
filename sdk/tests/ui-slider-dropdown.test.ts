@@ -276,6 +276,35 @@ describe('createDropdown', () => {
         expect(dd.isOpen()).toBe(false);
     });
 
+    it('open state: Enter closes the popup; the selected row holds the selected page', () => {
+        const dd = createDropdown({
+            world: world as unknown as World, events,
+            options: ['a', 'b', 'c'], selectedIndex: 1,
+        });
+        tick();
+        dd.open();
+        expect(dd.isOpen()).toBe(true);
+
+        // Exactly one popup row sits on the non-driver-owned 'selected' page.
+        const selectedRows = (world as unknown as { _components: Map<number, Map<object, unknown>> })
+            ._components;
+        let count = 0;
+        for (const comps of selectedRows.values()) {
+            for (const data of comps.values()) {
+                const d = data as { controllers?: Array<{ name: string; current: string }> };
+                if (d?.controllers?.some((c) => c.current === 'selected')) count++;
+            }
+        }
+        expect(count).toBe(1);
+
+        const f = world.get(dd.entity, Focusable) as { isFocused: boolean };
+        f.isFocused = true;
+        world.insert(dd.entity, Focusable, f);
+        keys.add('Enter');
+        tick();
+        expect(dd.isOpen()).toBe(false);
+    });
+
     it('arrow keys step the selection while focused and closed', () => {
         const dd = createDropdown({
             world: world as unknown as World, events,

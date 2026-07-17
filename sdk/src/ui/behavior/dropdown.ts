@@ -26,7 +26,7 @@ import { Text, type TextData } from '../core/text';
 import { UIEventType, type UIEventQueue } from '../core/events';
 import { Interactable, makeWidgetInteractable, type InteractableData } from '../input/interactable';
 import { Focusable, type FocusableData } from '../input/focusable';
-import { UIController, interactionController } from '../controller/ui-controller';
+import { UIController, interactionController, type UIControllerData, INTERACTION_CONTROLLER } from '../controller/ui-controller';
 import { UIGear } from '../controller/ui-gear';
 import { interactionGears } from '../controller/interaction-gears';
 import { themeColors } from '../theme/tokens';
@@ -52,6 +52,7 @@ export const UIDropdown = defineComponent<UIDropdownData>('UIDropdown', {
 
 interface PopupState {
     panel: Entity;
+    rows: Entity[];
     unsubs: Array<() => void>;
 }
 
@@ -104,6 +105,7 @@ export function openDropdown(world: World, events: UIEventQueue, e: Entity): voi
     markThemed(world, panel, { visual: 'surfaceElevated' });
 
     const unsubs: Array<() => void> = [];
+    const rows: Entity[] = [];
     for (let i = 0; i < d.options.length; i++) {
         const row = spawnUIEntity({
             world,
@@ -118,20 +120,25 @@ export function openDropdown(world: World, events: UIEventQueue, e: Entity): voi
             visual: { color: t.control },
         });
         // Rows are pointer-only: the popup is transient, so they stay out of
-        // the Tab ring.
+        // the Tab ring. 'selected' is NOT driver-owned — the keyboard highlight
+        // holds it, and the pointer driver leaves such pages alone.
         makeWidgetInteractable(world, row, { focusable: false });
         world.insert(row, UIController, {
-            controllers: [interactionController(['normal', 'hover', 'pressed'])],
+            controllers: [interactionController(['normal', 'hover', 'pressed', 'selected'])],
         });
         world.insert(row, UIGear, {
             bindings: interactionGears({
                 normal: { color: t.control },
                 hover: { color: t.primaryHover },
                 pressed: { color: t.primaryActive },
+                selected: { color: t.primaryActive },
             }),
         });
         markThemed(world, row, {
-            states: { normal: 'control', hover: 'primaryHover', pressed: 'primaryActive' },
+            states: {
+                normal: 'control', hover: 'primaryHover',
+                pressed: 'primaryActive', selected: 'primaryActive',
+            },
         });
 
         const rowLabel = spawnUIEntity({
@@ -151,8 +158,28 @@ export function openDropdown(world: World, events: UIEventQueue, e: Entity): voi
                 world.insert(e, UIDropdown, cur);
             }
         }));
+        rows.push(row);
     }
-    popups.set(e, { panel, unsubs });
+    popups.set(e, { panel, rows, unsubs });
+    highlightRow(world, rows, d.selectedIndex);
+}
+
+/** Keyboard highlight: the selected row holds the non-driver-owned 'selected'
+ *  page; every other row returns to 'normal', handing pointer hover back to
+ *  the driver. */
+function highlightRow(world: World, rows: Entity[], selected: number): void {
+    for (let i = 0; i < rows.length; i++) {
+        const row = rows[i]!;
+        if (!world.valid(row) || !world.has(row, UIController)) continue;
+        const data = world.get(row, UIController) as UIControllerData;
+        const ctrl = data.controllers.find((c) => c.name === INTERACTION_CONTROLLER);
+        if (!ctrl) continue;
+        const want = i === selected ? 'selected' : (ctrl.current === 'selected' ? 'normal' : ctrl.current);
+        if (ctrl.current !== want) {
+            ctrl.current = want;
+            world.insert(row, UIController, data);
+        }
+    }
 }
 
 /** True when `entity` is inside the popup subtree of any open dropdown. */
@@ -205,13 +232,15 @@ export function createDropdownSystem(world: World, events: UIEventQueue): System
         for (const e of world.getEntitiesWithComponents([UIDropdown])) {
             const d = world.get(e, UIDropdown) as UIDropdownData;
 
-            // Keyboard: step the selection while focused and closed (the
-            // native <select> convention).
+            // Keyboard: arrows step the selection whether the popup is open
+            // (moving the row highlight) or closed (the native <select>
+            // convention); Enter confirms and Escape dismisses an open popup.
             const focused = world.has(e, Focusable)
                 && (world.get(e, Focusable) as FocusableData).isFocused;
             const enabled = !world.has(e, Interactable)
                 || (world.get(e, Interactable) as InteractableData).enabled;
-            if (focused && enabled && !isDropdownOpen(world, e) && d.options.length > 0) {
+            const open = isDropdownOpen(world, e);
+            if (focused && enabled && d.options.length > 0) {
                 let next = d.selectedIndex;
                 if (input.isKeyPressed('ArrowDown')) next = Math.min(next + 1, d.options.length - 1);
                 if (input.isKeyPressed('ArrowUp')) next = Math.max(next - 1, 0);
@@ -219,9 +248,13 @@ export function createDropdownSystem(world: World, events: UIEventQueue): System
                     d.selectedIndex = next;
                     world.insert(e, UIDropdown, d);
                 }
+                if (open && (input.isKeyPressed('Enter') || input.isKeyPressed('Escape'))) {
+                    closeDropdown(world, e);
+                }
             }
 
-            // Selection → label + change event, whoever wrote the index.
+            // Selection → label + row highlight + change event, whoever wrote
+            // the index.
             if (shown.get(e) !== d.selectedIndex) {
                 const emitChange = shown.has(e); // first sync is initial paint
                 shown.set(e, d.selectedIndex);
@@ -233,6 +266,8 @@ export function createDropdownSystem(world: World, events: UIEventQueue): System
                         world.insert(d.label, Text, txt);
                     }
                 }
+                const popup = popupsOf(world).get(e);
+                if (popup) highlightRow(world, popup.rows, d.selectedIndex);
                 if (emitChange) events.emit(e, UIEventType.Change, { index: d.selectedIndex });
             }
         }
