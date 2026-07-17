@@ -20,6 +20,7 @@ import { UIDropdown } from '../src/ui/behavior/dropdown';
 import { registerComponent } from '../src/component';
 import { spawnUIEntity } from '../src/ui/core/compose';
 import { UIMask, MaskMode } from '../src/ui/core/ui-mask';
+import { UIPositionType } from '../src/ui/core/ui-node';
 import { Interactable } from '../src/ui/input/interactable';
 import { themeColors } from '../src/ui/theme/tokens';
 import { markThemed } from '../src/ui/theme/theme-style';
@@ -194,6 +195,35 @@ describe('UI widget prefab codegen', () => {
                 text: { content: 'List View', color: c.text, fontSize: 14 },
             });
             markThemed(world, label, { text: 'text' });
+            return viewport as unknown as number;
+        });
+        expect(typesOf(prefab, prefab.rootEntityId)).toEqual(expect.arrayContaining([
+            'UINode', 'UIVisual', 'UIMask', 'Interactable',
+        ]));
+        expect(entityById(prefab, prefab.rootEntityId).children.length).toBe(1);
+    });
+
+    it('ScrollView: a clipped scroll viewport shell (scroll model wired by createScrollView)', () => {
+        const prefab = generate('ScrollView', (world) => {
+            // The serializable half of createScrollView: a Scissor-masked viewport
+            // + a hit-target + an absolutely-placed content frame (taller than the
+            // window so there is something to scroll). The scroll model — wheel /
+            // drag / kinetic fling — is runtime-only; wire it with createScrollView.
+            const viewport = spawnUIEntity({
+                world,
+                node: { width: px(240), height: px(320) },
+                visual: { color: c.control },
+            });
+            markThemed(world, viewport, { visual: 'control' });
+            world.insert(viewport, UIMask, { enabled: true, mode: MaskMode.Scissor });
+            world.insert(viewport, Interactable, { enabled: true, blockRaycast: true, raycastTarget: true });
+            spawnUIEntity({
+                world, parent: viewport,
+                node: {
+                    position: UIPositionType.Absolute,
+                    insetLeft: px(0), insetTop: px(0), width: px(240), height: px(640),
+                },
+            });
             return viewport as unknown as number;
         });
         expect(typesOf(prefab, prefab.rootEntityId)).toEqual(expect.arrayContaining([

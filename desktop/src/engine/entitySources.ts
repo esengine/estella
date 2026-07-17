@@ -11,7 +11,7 @@
  * UI. (REARCH_ENTITY_CREATION E2.)
  */
 import type { LucideIcon } from 'lucide-react';
-import { CircleDot, LayoutPanelTop, ToggleLeft, SlidersHorizontal, List, ChevronDown, SquareMousePointer, RectangleHorizontal, Box, Type, Image as ImageIcon, SquareDashed } from 'lucide-react';
+import { CircleDot, LayoutPanelTop, ToggleLeft, SlidersHorizontal, List, ChevronDown, SquareMousePointer, RectangleHorizontal, Box, Type, Image as ImageIcon, SquareDashed, ScrollText } from 'lucide-react';
 import { BUILTIN_UI_PREFABS, BUILTIN_UI_WIDGET_NAMES, PREFAB_FORMAT_VERSION, getUserComponents, type PrefabData } from 'esengine';
 import type { EntityId } from '@/types';
 import { componentByName, componentDefaults, prettyLabel, componentCategory } from './schema';
@@ -164,6 +164,7 @@ const UI_WIDGET_ICON: Record<string, LucideIcon> = {
   Progress: RectangleHorizontal,
   Dropdown: ChevronDown,
   ListView: List,
+  ScrollView: ScrollText,
 };
 
 // UI primitives — the raw building blocks the widget prefabs are composed from: a
