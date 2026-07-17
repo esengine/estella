@@ -78,7 +78,6 @@ const toggle = createToggle({
 });
 
 toggle.setIsOn(false);      // 程序化改变(触发 onChange)
-toggle.setIsOn(true, true); // 静默——跳过 onChange
 ```
 
 | 选项 | 说明 |
@@ -88,7 +87,12 @@ toggle.setIsOn(true, true); // 静默——跳过 onChange
 | `isOn` | 初始状态。 |
 | `onChange(isOn, entity)` | 切换时触发。 |
 
-**句柄:** `isOn()`、`setIsOn(value, silent?)`、`setDisabled(disabled)`、`entity`、`dispose()`。
+**句柄:** `isOn()`、`setIsOn(value)`、`setDisabled(disabled)`、`entity`、`dispose()`。
+
+<Aside type="note">
+  状态存在 **`UIToggle` 组件**里;行为系统在点击时翻转它,并且是勾选视觉的唯一写者——
+  `setIsOn`、绑定、或编辑器 Inspector 改摆放的 prefab,都会同样地翻转指示器并触发 `change`。
+</Aside>
 
 ## Slider 滑块
 
@@ -193,15 +197,18 @@ createDropdown({
 | `options` | 可选值列表。 |
 | `selectedIndex` | 初始选择。 |
 | `optionToLabel(option, i)` | 把非字符串选项映射为显示文本。 |
-| `buttonStates` / `optionStates` | 主按钮和选项行的颜色。 |
+| `buttonStates` | 主按钮的颜色(选项行走主题角色)。 |
 | `optionHeight` | 行高(像素,默认 `32`)。 |
+| `disabled` / `focusable` / `tabIndex` | 交互性与键盘可达性。 |
 | `onSelect(index, option, entity)` | 选择时触发。 |
 
-**句柄:** `getSelected()`、`getSelectedIndex()`、`setSelectedIndex(i, silent?)`、`open()`、
+**句柄:** `getSelected()`、`getSelectedIndex()`、`setSelectedIndex(i)`、`open()`、
 `close()`、`isOpen()`、`dispose()`。
 
 <Aside type="note">
-  点击外部关闭没有接线——需要的话从你自己的全局输入层调 `close()`。
+  标签与选择存在 **`UIDropdown` 组件**里;行为系统拥有弹出层(点击开合,**点击其他任意位置
+  自动关闭**)、行选择、以及闭合聚焦时的**方向键换选**——摆出来的 prefab 无需代码即完整可用。
+  弹出层每次打开都用新鲜的主题角色重建。
 </Aside>
 
 ## Dialog 对话框
@@ -358,6 +365,25 @@ events.on(field, 'submit', () => save(world.get(field, TextInput).value));  // �
   文本输入只在**播放模式**运行,且需要浏览器 DOM(它驱动一个隐藏的原生
   textarea 以支持 IME)——在编辑器编辑态下不生效。
 </Aside>
+
+## 数据绑定
+
+控件的值就是普通组件字段,[signal](/docs/zh-cn/guides/ui/) 层可以直接绑——
+`bindWidgetValue` 让它**双向**:signal 驱动组件,控件的 `change` 事件回写 signal。
+
+```typescript
+import { signal, bindWidgetValue, UISlider, UIToggle } from 'esengine';
+
+const volume = signal(50);
+bindWidgetValue(world, events, slider.entity, UISlider, 'value', volume);
+const muted = signal(false);
+bindWidgetValue(world, events, toggle.entity, UIToggle, 'isOn', muted);
+
+volume.set(80);          // 滑块随之移动
+// 拖动滑块 ↦ volume.get() 跟随
+```
+
+signal 的等值守卫会打断回环,一个来回一跳即收敛。
 
 ## 拖放
 

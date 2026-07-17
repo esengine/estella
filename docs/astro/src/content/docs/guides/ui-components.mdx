@@ -84,7 +84,6 @@ const toggle = createToggle({
 });
 
 toggle.setIsOn(false);      // programmatic change (fires onChange)
-toggle.setIsOn(true, true); // silent — skips onChange
 ```
 
 | Option | Description |
@@ -94,7 +93,14 @@ toggle.setIsOn(true, true); // silent — skips onChange
 | `isOn` | Initial state. |
 | `onChange(isOn, entity)` | Fires on toggle. |
 
-**Handle:** `isOn()`, `setIsOn(value, silent?)`, `setDisabled(disabled)`, `entity`, `dispose()`.
+**Handle:** `isOn()`, `setIsOn(value)`, `setDisabled(disabled)`, `entity`, `dispose()`.
+
+<Aside type="note">
+  State lives in a **`UIToggle` component**; the behavior system flips it on click
+  and is the single writer of the check visual — `setIsOn`, a binding, or the
+  editor inspector on a placed prefab all flip the indicator and fire `change`
+  identically.
+</Aside>
 
 ## Slider
 
@@ -202,16 +208,20 @@ createDropdown({
 | `options` | The list of selectable values. |
 | `selectedIndex` | Initial selection. |
 | `optionToLabel(option, i)` | Map a non-string option to its display text. |
-| `buttonStates` / `optionStates` | Colors for the main button and the option rows. |
+| `buttonStates` | Colors for the main button (option rows use theme roles). |
 | `optionHeight` | Row height in pixels (default `32`). |
+| `disabled` / `focusable` / `tabIndex` | Interactivity + keyboard reachability. |
 | `onSelect(index, option, entity)` | Fires on selection. |
 
-**Handle:** `getSelected()`, `getSelectedIndex()`, `setSelectedIndex(i, silent?)`,
+**Handle:** `getSelected()`, `getSelectedIndex()`, `setSelectedIndex(i)`,
 `open()`, `close()`, `isOpen()`, `dispose()`.
 
 <Aside type="note">
-  Click-outside-to-close isn't wired — call `close()` from your own global input layer
-  if you need it.
+  Labels + selection live in a **`UIDropdown` component**; the behavior system owns
+  the popup (click toggles it, **a click anywhere else closes it**), row selection,
+  and **arrow-key stepping** while the closed control is focused — so a
+  prefab-placed dropdown is fully functional without code. The popup is rebuilt on
+  each open with fresh theme roles.
 </Aside>
 
 ## Dialog
@@ -378,6 +388,26 @@ Click (or Tab to) the field to focus it; **Escape** blurs, **Enter** fires
   Text input runs in **play mode only** and needs a browser DOM (it drives a
   hidden native textarea for IME support) — it's inert in the editor's edit view.
 </Aside>
+
+## Data binding
+
+Widget values are plain component fields, so the [signal](/docs/guides/ui/) layer
+binds to them directly — and `bindWidgetValue` makes it **two-way**: the signal
+drives the component, and the widget's `change` event writes back.
+
+```typescript
+import { signal, bindWidgetValue, UISlider, UIToggle } from 'esengine';
+
+const volume = signal(50);
+bindWidgetValue(world, events, slider.entity, UISlider, 'value', volume);
+const muted = signal(false);
+bindWidgetValue(world, events, toggle.entity, UIToggle, 'isOn', muted);
+
+volume.set(80);          // moves the slider
+// dragging the slider ↦ volume.get() follows
+```
+
+The signal's equality guard breaks the loop, so a round trip settles in one hop.
 
 ## Drag & drop
 
