@@ -20,6 +20,9 @@ import { SceneModel, SceneModelImpl, type ModelEvent } from './SceneModel';
  */
 export class SceneStoreImpl {
   private installed = false;
+  private suspended = false;
+  // A change (and whether any was structural) arrived while suspended.
+  private pending: { structural: boolean } | null = null;
   private readonly store = createStore<{ revision: number; structureRevision: number }>(() => ({
     revision: 1,
     structureRevision: 1,
@@ -35,11 +38,36 @@ export class SceneStoreImpl {
   }
 
   private bump(structural: boolean) {
+    if (this.suspended) {
+      // Coalesce: hold the bump (remembering if anything was structural) so a
+      // high-frequency gesture doesn't re-render React panels every mutation.
+      this.pending = { structural: (this.pending?.structural ?? false) || structural };
+      return;
+    }
     this.store.setState((s) => ({
       revision: s.revision + 1,
       structureRevision: structural ? s.structureRevision + 1 : s.structureRevision,
     }));
   }
+
+  /**
+   * Pause reactivity bumps during a high-frequency gesture (a viewport transform
+   * drag): React panels (Details, Outliner…) stop re-rendering until {@link resume}.
+   * The World stays live — the Reconciler subscribes to the model DIRECTLY, not
+   * through this store — and the status-bar readout samples on its own timer, so
+   * only the (potentially expensive) inspector re-render is deferred. Idempotent.
+   */
+  suspend = (): void => { this.suspended = true; };
+
+  /** End the gesture: flush a single coalesced bump if anything changed. Safe to
+   *  call when not suspended (no-op) so a missed pair can't wedge the panels off. */
+  resume = (): void => {
+    if (!this.suspended) return;
+    this.suspended = false;
+    const p = this.pending;
+    this.pending = null;
+    if (p) this.bump(p.structural);
+  };
 
   subscribe = (fn: () => void): (() => void) => this.store.subscribe(fn);
   getRevision = (): number => this.store.getState().revision;

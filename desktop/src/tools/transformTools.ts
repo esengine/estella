@@ -16,6 +16,7 @@ import { ViewportController } from '@/engine/ViewportController';
 import { SceneCommands, type EditorTransaction } from '@/engine/SceneCommands';
 import { SceneQuery } from '@/engine/SceneQuery';
 import { SceneModel } from '@/engine/SceneModel';
+import { SceneStore } from '@/engine/SceneStore';
 import { EngineHost } from '@/engine/EngineHost';
 import { snapTo } from '@/engine/viewportMath';
 import { useSelection } from '@/store/selectionStore';
@@ -233,6 +234,10 @@ function beginDrag(
 ): Drag {
   const label = kind === 'rotate' ? 'Rotate' : kind === 'scale' ? 'Scale' : 'Move';
   const downWorld = ViewportController.canvasToWorld(p.clientX, p.clientY) ?? { x: 0, y: 0 };
+  // Freeze React panel re-renders (Details/Outliner) for the drag — the model
+  // mutates every frame while the viewport stays live via the Reconciler. Resumed
+  // on commit (onPointerUp) or abort (cancel), flushing one final bump.
+  SceneStore.suspend();
   return {
     tx: SceneCommands.transaction(label),
     kind,
@@ -435,6 +440,7 @@ function makeTransformTool(mode: ToolMode): EditorTool {
       ctx.release(p.pointerId);
       if (drag) {
         drag.tx.commit();
+        SceneStore.resume();
         drag = null;
         useEditorStore.getState().setActiveGizmoAxis(null);
         // A bare click (no drag) on overlapping entities walks to the next one down.
@@ -477,6 +483,7 @@ function makeTransformTool(mode: ToolMode): EditorTool {
     cancel() {
       if (drag) {
         drag.tx.abort();
+        SceneStore.resume();
         drag = null;
         useEditorStore.getState().setActiveGizmoAxis(null);
       }
