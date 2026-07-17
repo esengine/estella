@@ -13,6 +13,44 @@ import { t } from '@/i18n';
 
 const formatMb = (bytes: number) => (bytes / (1024 * 1024)).toFixed(1);
 
+// Live readouts each subscribe to just their field of the stats snapshot, so the
+// 333ms stats tick — and a dragged entity's constantly-moving selection readout —
+// re-render only the affected text node, never the footer shell (its icons + i18n
+// labels + buttons). Field references stay stable when unchanged (see StatsStore),
+// so an unchanged field's leaf bails out. Mirrors CursorReadout below.
+function FpsValue() {
+  const fps = useSyncExternalStore(StatsStore.subscribe, () => StatsStore.getSnapshot().fps);
+  return <>{fps}</>;
+}
+
+function EntitiesValue() {
+  const entities = useSyncExternalStore(StatsStore.subscribe, () => StatsStore.getSnapshot().entities);
+  return <>{t('layout.status.entities', { count: entities })}</>;
+}
+
+function SelectionReadout() {
+  const selection = useSyncExternalStore(StatsStore.subscribe, () => StatsStore.getSnapshot().selection);
+  if (!selection) return null;
+  return (
+    <span className="sitem mono" title={t('layout.status.selectionTooltip')}>
+      {selection.x}, {selection.y}
+      <span className="smute"> · {selection.rot}°</span>
+    </span>
+  );
+}
+
+function VramReadout() {
+  const vram = useSyncExternalStore(StatsStore.subscribe, () => StatsStore.getSnapshot().vram);
+  if (!vram) return null;
+  return (
+    <span className="sitem mono" title={t('layout.status.vramTooltip', { count: vram.evictable })}>
+      <MemoryStick size={11} strokeWidth={1.85} />
+      {formatMb(vram.bytes)}
+      <span className="smute">/{formatMb(vram.budget)} MB</span>
+    </span>
+  );
+}
+
 // Only this text node re-renders on mouse move, never the footer.
 function CursorReadout() {
   const cursor = useSyncExternalStore(StatsStore.subscribeCursor, StatsStore.getCursor);
@@ -26,7 +64,6 @@ export function StatusBar() {
   const contentDrawer = useEditorStore((s) => s.contentDrawer);
   const toggleContentDrawer = useEditorStore((s) => s.toggleContentDrawer);
   const selectedIds = useSelection((s) => s.selectedIds);
-  const stats = useSyncExternalStore(StatsStore.subscribe, StatsStore.getSnapshot);
 
   return (
     <footer className="status">
@@ -48,12 +85,7 @@ export function StatusBar() {
         <span className="sitem">
           {selectedIds.size ? t('layout.status.selected', { count: selectedIds.size }) : t('layout.status.noSelection')}
         </span>
-        {stats.selection && (
-          <span className="sitem mono" title={t('layout.status.selectionTooltip')}>
-            {stats.selection.x}, {stats.selection.y}
-            <span className="smute"> · {stats.selection.rot}°</span>
-          </span>
-        )}
+        <SelectionReadout />
       </div>
 
       <span className="sp" />
@@ -63,21 +95,12 @@ export function StatusBar() {
         <CursorReadout />
       </span>
       <span className="sitem mono">
-        <Gauge size={11} strokeWidth={1.85} /> {stats.fps} fps
+        <Gauge size={11} strokeWidth={1.85} /> <FpsValue /> fps
       </span>
       <span className="sitem mono">
-        <Boxes size={11} strokeWidth={1.85} /> {t('layout.status.entities', { count: stats.entities })}
+        <Boxes size={11} strokeWidth={1.85} /> <EntitiesValue />
       </span>
-      {stats.vram && (
-        <span
-          className="sitem mono"
-          title={t('layout.status.vramTooltip', { count: stats.vram.evictable })}
-        >
-          <MemoryStick size={11} strokeWidth={1.85} />
-          {formatMb(stats.vram.bytes)}
-          <span className="smute">/{formatMb(stats.vram.budget)} MB</span>
-        </span>
-      )}
+      <VramReadout />
       <span
         className="sitem mono"
         title={t('layout.status.backendTooltip')}

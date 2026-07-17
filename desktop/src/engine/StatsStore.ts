@@ -96,7 +96,16 @@ class StatsStoreImpl {
         const vram = sampleVram();
         if (fps !== cur.fps || entities !== cur.entities
             || !selEq(selection, cur.selection) || !vramEq(vram, cur.vram)) {
-          this.store.setState({ fps, entities, selection, vram });
+          // Preserve the reference of any field whose value is unchanged, so a
+          // leaf that subscribes to only that field (see StatusBar) bails out of
+          // re-rendering. Without this, replacing the whole snapshot hands every
+          // leaf a fresh object each 333ms tick even when its value held.
+          this.store.setState({
+            fps,
+            entities,
+            selection: selEq(selection, cur.selection) ? cur.selection : selection,
+            vram: vramEq(vram, cur.vram) ? cur.vram : vram,
+          });
         }
       }
     };
