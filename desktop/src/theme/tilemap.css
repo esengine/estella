@@ -318,6 +318,17 @@
 }
 .tp-tsmenu-item:hover { background: var(--srf-4); color: var(--text); }
 .tp-warn { color: var(--text-faint); padding: 12px; font-size: var(--fs-xs); }
+.tp-warn-cta {
+  margin-top: 8px;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--srf-3);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.tp-warn-cta:hover { background: var(--srf-4); border-color: var(--acc); }
 
 .tp-cell {
   position: absolute;

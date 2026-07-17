@@ -66,6 +66,7 @@ export const tileMessages = defineMessages({
         en: "No terrains (create and tag tiles in the Tileset Editor's Terrain mode)",
         zh: '没有地形（在瓦片集编辑器的地形模式中创建并标记瓦片）',
     },
+    'tile.openTilesetEditor': { en: 'Open Tileset Editor', zh: '打开瓦片集编辑器' },
 
     // — Painter palette-cell badges —
     'tile.badgeCollision': { en: 'Has collision', zh: '有碰撞' },

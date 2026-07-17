@@ -27,6 +27,7 @@ import { usePanelWindow } from '@/components/PanelWindow';
 import { buildStampGhost } from '@/tools/tileStampGhost';
 import { colsFor, rowsFor, TERRAIN_COLORS } from '@/tools/tileMath';
 import { loadTilesetAsset } from '@/tileset/loadTileset';
+import { openTileset } from '@/tileset/openTileset';
 import { createTilemapFromTileset } from '@/tilemap/createTilemap';
 import { layerTilesetRefs } from '@/tilemap/layerTilesetModel';
 import { AnimPreview, tileThumbStyle, type TileAtlas } from '@/tools/tileThumb';
@@ -581,7 +582,14 @@ export function TilemapPainter() {
       {tool === 'terrain' ? (
         <div className="tp-terrains">
           {(asset?.terrains ?? []).length === 0 ? (
-            <div className="tp-warn">{t('tile.noTerrains')}</div>
+            <div className="tp-warn">
+              {t('tile.noTerrains')}
+              {tilesetPath && (
+                <button type="button" className="tp-warn-cta" onClick={() => void openTileset(tilesetPath)}>
+                  {t('tile.openTilesetEditor')}
+                </button>
+              )}
+            </div>
           ) : (
             (asset?.terrains ?? []).map((ter, i) => (
               ter.mode === 'wang' ? (
