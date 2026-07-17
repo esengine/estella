@@ -215,6 +215,21 @@
 .viewport__selection.primary {
   border-width: 1.5px;
 }
+/* Nest-target hint while dragging a widget from the palette — the container the
+   drop would parent into. Accent (UI chrome blue), distinct from the orange
+   selection outline. */
+.viewport__drophint {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 4;
+  opacity: 0;
+  pointer-events: none;
+  border: 1.5px dashed var(--acc);
+  background: var(--acc-soft);
+  border-radius: 2px;
+  will-change: transform, width, height, opacity;
+}
 /* Box-select marquee (rAF-driven by the transform tool's empty-space drag). */
 .viewport__marquee {
   position: absolute;

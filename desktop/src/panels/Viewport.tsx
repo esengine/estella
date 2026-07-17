@@ -1716,10 +1716,36 @@ export function Viewport() {
     e.dataTransfer.types.includes('application/x-estella-asset') ||
     e.dataTransfer.types.includes(SOURCE_DND_MIME);
 
+  const dropHintRef = useRef<HTMLDivElement>(null);
+  const hideDropHint = () => { if (dropHintRef.current) dropHintRef.current.style.opacity = '0'; };
+
   const onDragOver = (e: ReactDragEvent) => {
     if (!isAssetDrag(e)) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'copy';
+    // Live nest-target feedback for palette drags: outline the container the widget
+    // would nest into. The Canvas root gets no outline — an empty-area drop reads
+    // as before. (Drag data VALUES are sealed during dragover; types are readable.)
+    const hint = dropHintRef.current;
+    if (!hint) return;
+    let r: { x: number; y: number; w: number; h: number } | null = null;
+    if (e.dataTransfer.types.includes(SOURCE_DND_MIME)) {
+      const src = uiDropParent(e.clientX, e.clientY);
+      const comps = src != null ? SceneModel.entityBySource(src)?.components : undefined;
+      if (src != null && comps && !comps.some((c) => c.type === 'Canvas')) {
+        const rt = SceneModel.runtimeFor(src);
+        const obb = rt != null ? ViewportController.uiEntityWorldOBB(rt) : null;
+        if (obb) r = worldRectToScreen(obb.cx, obb.cy, obb.hw, obb.hh);
+      }
+    }
+    if (r) {
+      hint.style.opacity = '1';
+      hint.style.transform = `translate(${r.x}px, ${r.y}px)`;
+      hint.style.width = `${r.w}px`;
+      hint.style.height = `${r.h}px`;
+    } else {
+      hint.style.opacity = '0';
+    }
   };
 
   // The deepest plain layout container under the pointer — the drop parent for a
@@ -1740,6 +1766,7 @@ export function Viewport() {
   };
 
   const onDrop = (e: ReactDragEvent) => {
+    hideDropHint();
     // A widget dragged from the UI palette: create it at the drop point — nested
     // in the container under the pointer when there is one, else under the Canvas
     // via its placement rule — and select it.
@@ -1947,6 +1974,7 @@ export function Viewport() {
         onPointerLeave={() => { StatsStore.clearCursor(); StatsStore.clearTile(); hoverTileRef.current = null; }}
         onContextMenu={(e) => e.preventDefault()}
         onDragOver={onDragOver}
+        onDragLeave={hideDropHint}
         onDrop={onDrop}
       />
 
@@ -2231,6 +2259,7 @@ export function Viewport() {
         ))}
       </div>
       <div ref={tilePaintRef} className="viewport__tilepaint" aria-hidden="true" />
+      <div ref={dropHintRef} className="viewport__drophint" style={{ opacity: 0 }} aria-hidden="true" />
 
       <svg ref={designSvgRef} className="viewport__design-svg" style={{ opacity: 0 }} aria-hidden="true">
         <path className="df-letterbox" fillRule="evenodd" />
