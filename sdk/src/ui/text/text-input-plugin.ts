@@ -8,6 +8,7 @@ import { TextInput, type TextInputData } from './text-input';
 import { UINode, UIPositionType, type UINodeData } from '../core/ui-node';
 import { UIVisual, UIVisualType } from '../core/ui-visual';
 import type { UIVisualData } from '../core/ui-visual';
+import { UIMask, MaskMode } from '../core/ui-mask';
 import { Text, TextAlign, TextVerticalAlign, type TextData } from '../core/text';
 import { Interactable } from '../input/interactable';
 import { Focusable, FocusManager, FocusManagerState } from '../input/focusable';
@@ -284,13 +285,23 @@ export class TextInputPlugin implements Plugin {
 
                 for (const entity of world.getEntitiesWithComponents([TextInput, UINode])) {
                     const ti = world.get(entity, TextInput) as TextInputData;
+                    const w = getUINodeWidth(entity);
                     const h = getUINodeHeight(entity);
-                    if (getUINodeWidth(entity) <= 0 || h <= 0) continue;
+                    if (w <= 0 || h <= 0) continue;
 
                     ensureBackground(entity, ti);
                     const ch = ensureChildren(entity, ti);
-                    syncTextChild(ch.text, ti);
-                    syncCaretChild(ch.caret, ti, h);
+                    // Single-line fields scroll horizontally to keep the caret in view;
+                    // multiline wraps within the box and clips (no h-scroll).
+                    const innerW = Math.max(0, w - 2 * ti.padding);
+                    const caretText = ti.password
+                        ? PASSWORD_CHAR.repeat(ti.cursorPos)
+                        : ti.value.substring(0, ti.cursorPos);
+                    const caretRaw = measureWidth(caretText, ensureMeasure().atlas, ti.fontFamily, ti.fontSize, 0);
+                    const scrollX = ti.multiline ? 0 : Math.max(0, caretRaw - innerW);
+
+                    syncTextChild(ch.text, ti, innerW, scrollX);
+                    syncCaretChild(ch.caret, ti, h, ti.padding + caretRaw - scrollX);
                 }
             },
             { name: 'TextInputRenderSystem' }
@@ -303,6 +314,11 @@ export class TextInputPlugin implements Plugin {
                     : ti.value;
 
         function ensureBackground(entity: Entity, ti: TextInputData): void {
+            // Clip the editable text + caret to the field box: a long value scrolls
+            // horizontally past the edge and must not spill outside the input.
+            if (!world.has(entity, UIMask)) {
+                world.insert(entity, UIMask, { enabled: true, mode: MaskMode.Scissor });
+            }
             if (!world.has(entity, UIVisual)) {
                 world.insert(entity, UIVisual, {
                     visualType: UIVisualType.SolidColor, texture: 0,
@@ -330,7 +346,10 @@ export class TextInputPlugin implements Plugin {
             const pad = px(ti.padding);
             const text = spawnUIEntity({
                 world, parent: entity,
-                node: { position: UIPositionType.Absolute, insetLeft: pad, insetTop: px(0), insetRight: pad, insetBottom: px(0) },
+                // Left-anchored by insetLeft (scrolled by the render loop) with an
+                // explicit width — NOT insetRight — so a single-line value can slide
+                // under the Scissor mask instead of being pinned to the box.
+                node: { position: UIPositionType.Absolute, insetLeft: pad, insetTop: px(0), insetBottom: px(0), width: px(0) },
                 text: {
                     content: '', fontFamily: ti.fontFamily, fontSize: ti.fontSize,
                     align: TextAlign.Left, verticalAlign: TextVerticalAlign.Middle, wordWrap: ti.multiline,
@@ -347,7 +366,7 @@ export class TextInputPlugin implements Plugin {
             return ch;
         }
 
-        function syncTextChild(textEntity: Entity, ti: TextInputData): void {
+        function syncTextChild(textEntity: Entity, ti: TextInputData, innerW: number, scrollX: number): void {
             const t = world.get(textEntity, Text) as TextData;
             const show = displayString(ti);
             const col = ti.value.length === 0 ? ti.placeholderColor : ti.color;
@@ -362,13 +381,18 @@ export class TextInputPlugin implements Plugin {
                 t.color = { ...col };
                 world.insert(textEntity, Text, t);
             }
+            // Slide the text box by the scroll offset; width = the inner box (a
+            // single line overflows it rightward and the Scissor mask clips).
+            const node = world.get(textEntity, UINode) as UINodeData;
+            const left = ti.padding - scrollX;
+            if (node.insetLeft.value !== left || node.width.value !== innerW) {
+                node.insetLeft = px(left);
+                node.width = px(innerW);
+                world.insert(textEntity, UINode, node);
+            }
         }
 
-        function syncCaretChild(caretEntity: Entity, ti: TextInputData, boxH: number): void {
-            const cursorText = ti.password
-                ? PASSWORD_CHAR.repeat(ti.cursorPos)
-                : ti.value.substring(0, ti.cursorPos);
-            const caretX = ti.padding + measureWidth(cursorText, ensureMeasure().atlas, ti.fontFamily, ti.fontSize, 0);
+        function syncCaretChild(caretEntity: Entity, ti: TextInputData, boxH: number, caretX: number): void {
             const caretTop = Math.max(0, (boxH - ti.fontSize) / 2);
             const node = world.get(caretEntity, UINode) as UINodeData;
             if (node.insetLeft.value !== caretX || node.insetTop.value !== caretTop || node.height.value !== ti.fontSize) {
