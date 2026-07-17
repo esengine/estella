@@ -16,13 +16,16 @@ export const tileMessages = defineMessages({
     'tile.tool.select': { en: 'Select ({mod}C/X/V copy/cut/paste · drag inside to move)', zh: '选择（{mod}C/X/V 复制/剪切/粘贴 · 选区内拖动=移动）' },
     'tile.tool.eyedropper': { en: 'Eyedropper', zh: '取色器' },
     'tile.tool.terrain': { en: 'Terrain', zh: '地形' },
-    'tile.tool.exit': { en: 'Select / transform (Q · Esc to exit painting)', zh: '选择 / 变换（Q · Esc 退出绘制）' },
+    'tile.tool.exit': {
+        en: 'Exit painting — back to select/transform, the tilemap stays selected (Q · Esc)',
+        zh: '退出绘制——回到选择/变换，瓦片地图保持选中（Q · Esc）',
+    },
     'tile.flipH': { en: 'Flip horizontal (H)', zh: '水平翻转（H）' },
     'tile.flipV': { en: 'Flip vertical (V)', zh: '垂直翻转（V）' },
     'tile.rotate': { en: 'Rotate 90° (R)', zh: '旋转 90°（R）' },
     'tile.randomTip': {
-        en: 'Random: each painted cell samples one tile from the selection (weighted by tile probability)',
-        zh: '随机：每个绘制的单元格从选区中随机取一块瓦片（按瓦片概率加权）',
+        en: 'Random (D): each painted cell samples one tile from the selection (weighted by tile probability)',
+        zh: '随机（D）：每个绘制的单元格从选区中随机取一块瓦片（按瓦片概率加权）',
     },
     'tile.terrainBrush': { en: 'Terrain brush', zh: '地形笔刷' },
 

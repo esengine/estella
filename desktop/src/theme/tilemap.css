@@ -45,6 +45,7 @@
   overflow: hidden;
 }
 .tp-layer.is-active { border-color: var(--star); background: var(--star-dim); }
+.tp-layer.drop { border-color: var(--acc); border-style: dashed; }
 .tp-layer-vis,
 .tp-layer-lock {
   display: inline-flex;

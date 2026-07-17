@@ -104,6 +104,8 @@ export function TilemapPainter() {
   const [addOpen, setAddOpen] = useState(false);
   const [layerCtx, setLayerCtx] = useState<{ x: number; y: number; id: number } | null>(null);
   const [renamingLayer, setRenamingLayer] = useState<number | null>(null);
+  const layerDragFrom = useRef<number | null>(null);
+  const [layerDropIdx, setLayerDropIdx] = useState<number | null>(null);
 
   // Saved-stamp library — per project (stamps carry gids only this project's tilesets
   // mint), persisted in localStorage, pure logic in tools/stampLibrary.
@@ -404,14 +406,32 @@ export function TilemapPainter() {
           <IconButton size="sm" title={t('tile.newLayerTip')} disabled={!tilesetPath} onClick={addLayer}>
             <Plus size={14} />
           </IconButton>
-          {layers.map((L) => (
+          {layers.map((L, li) => (
             <span
               key={L.id}
-              className={'tp-layer' + (L.id === selectedId ? ' is-active' : '')}
+              draggable={renamingLayer !== L.id}
+              className={'tp-layer' + (L.id === selectedId ? ' is-active' : '') + (layerDropIdx === li ? ' drop' : '')}
               onContextMenu={(e) => {
                 e.preventDefault();
                 setLayerCtx({ x: e.clientX, y: e.clientY, id: L.id });
               }}
+              onDragStart={(e) => { layerDragFrom.current = li; e.dataTransfer.effectAllowed = 'move'; }}
+              onDragOver={(e) => {
+                if (layerDragFrom.current == null) return;
+                e.preventDefault();
+                setLayerDropIdx(li);
+              }}
+              onDragLeave={() => setLayerDropIdx((d) => (d === li ? null : d))}
+              onDrop={(e) => {
+                e.preventDefault();
+                setLayerDropIdx(null);
+                const from = layerDragFrom.current;
+                layerDragFrom.current = null;
+                if (from != null && from !== li && layers[from]) {
+                  SceneCommands.reorderEntity(layers[from].id, L.id, from > li);
+                }
+              }}
+              onDragEnd={() => { layerDragFrom.current = null; setLayerDropIdx(null); }}
             >
               <button
                 type="button" className="tp-layer-vis" title={L.hidden ? t('tile.show') : t('tile.hide')}
@@ -447,6 +467,8 @@ export function TilemapPainter() {
               <input
                 className="tp-layer-op" type="range" min={0} max={1} step={0.05} value={L.opacity}
                 title={t('tile.opacityPct', { pct: Math.round(L.opacity * 100) })}
+                draggable
+                onDragStart={(e) => { e.preventDefault(); e.stopPropagation(); }}
                 onPointerDown={() => SceneCommands.beginGesture('Layer opacity')}
                 onChange={(e) => setLayerOpacity(L.id, Number(e.target.value))}
                 onPointerUp={() => SceneCommands.endGesture()}

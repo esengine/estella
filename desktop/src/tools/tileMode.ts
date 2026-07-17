@@ -98,6 +98,7 @@ export function handleTilePaintKey(e: KeyboardEvent): boolean {
   if (k === 'r') { paint.rotateCW(); return true; }
   if (k === 'h') { paint.flipH(); return true; }
   if (k === 'v') { paint.flipV(); return true; }
+  if (k === 'd') { paint.toggleRandomBrush(); return true; }
   if (k === 'q') { exitTilePaint('select'); return true; }
   if (k === 'w') { exitTilePaint('move'); return true; }
   return false;
