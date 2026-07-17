@@ -14,6 +14,91 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-07-17
+
+Tilemaps leave the square grid, and projects make the UI their own. The editor
+now **authors** isometric, staggered, and hexagonal maps natively — orientation
+is a first-class layer property with its own grid overlay, brush ghost, and
+New-Tilemap picker, not a read-only Tiled import artifact — and terrain
+painting gains the modern **corner-Wang** model, where one terrain set blends
+many terrains (grass ↔ sand ↔ water) painted on a half-cell corner grid. On
+the UI side, a project can now **re-skin the built-in widget palette per color
+role** from Project Settings, shipped to every runtime, and the UI editor gets
+design-tool reflexes: palette drops nest into the container under the pointer
+(with a live outline of the would-be parent), and anchor edits are per-axis
+and never move the widget.
+
+### Added
+
+- **Native isometric, staggered & hexagonal map authoring.** The runtime
+  already rendered all four orientations, but the editor could only author
+  orthogonal maps. Orientation (+ hex side length, stagger axis/index) is now a
+  first-class `TilemapLayer` property end to end: the New-Tilemap dialog gains
+  an orientation picker, the Inspector shows the fields (hiding them when
+  inert), and a pure tile-geometry seam (`tileCellCenter` / `tileCellOutline`,
+  mirroring the C++ placement math) drives an orientation-aware grid overlay,
+  selection/hover cells, and the brush ghost. Merging the C++ placement
+  branches also fixes imported staggered maps ignoring `staggeraxis` /
+  `staggerindex`. Three painted showcase scenes — an iso island, a staggered
+  river patchwork, a pointy-top hex strategy map — ship in `examples/` with
+  two small CC0 tilesets.
+- **Corner-Wang (multi-terrain) autotiling.** Alongside the existing
+  edge/corner-blob peering, a terrain set can now carry **colors** with each
+  tile assigning a color to its four corners — the "circle in the corners"
+  technique — so one set blends many terrains and the terrain brush paints
+  colors onto a half-cell corner grid, re-tiling affected cells by exact corner
+  match with a nearest-mismatch fallback. The tileset editor grows the color
+  palette (add/rename/recolor/remove) and per-tile corner dots; a
+  procedurally-generated 45-tile grass/sand/water demo set and a blended-island
+  scene show it off.
+- **Project-level theme color overrides, end to end.** Beyond picking
+  dark/light, a project can now override the widget palette per color role:
+  `features.ui.colors` carries a role → hex map validated against the theme's
+  color roles, every runtime boot (web, play realm, WeChat, playable) resolves
+  base + overrides before re-theming, and the export chain now ships the theme
+  at all — it previously dropped `features.ui` entirely, so light/overridden
+  projects shipped dark. Project Settings → UI grows a **Theme Colors** group
+  with a full color picker per role (unset rows show the inherited base), and
+  the edit viewport previews changes live, so editing, Play, and shipped
+  builds resolve identically.
+- **Palette drops nest into the container under the pointer.** A widget
+  dragged from the palette used to always land at the Canvas root; the drop now
+  hit-tests the UI under the pointer and parents into the deepest plain layout
+  container, so dropping onto a panel or row nests Figma-style — and while
+  dragging, the would-be parent shows a live dashed outline, distinct from the
+  selection outline and cleared on drop/leave.
+- **Per-axis anchor edits that never move the widget.** The anchor picker used
+  to write both axes on every change, resetting the other axis' margins — a
+  hand-positioned widget jumped on any anchor edit. Anchors now classify and
+  write per axis, and applying one bakes the node's live resolved box into the
+  pinned insets, so Start/End/Stretch keep the widget exactly where it was and
+  leaving a Stretch axis freezes the resolved size. Plus viewport polish: the
+  design-resolution label clamps into view, device presets snap the preview
+  orientation to the design's aspect, and Dialog/TextInput get proper palette
+  icons.
+- **Tilemap editor reflexes.** Layer rows reorder by drag (on top of the
+  context-menu move up/down), the random-brush toggle gets the **D** key while
+  painting, and the terrain tool's no-terrains empty state now carries an
+  **Open Tileset Editor** button instead of a dead-end hint.
+
+### Fixed
+
+- **Change-detection queries type-check in systems.** `defineSystem` rejected
+  `Query(Added(...))` / `Query(Changed(...))` params at the type level even
+  though the runtime fully supports them; the canonical `QueryArg` is now
+  shared so the types can never drift again. (#52)
+- **The painter toolbar no longer clips at narrow panel widths.** The tools
+  row wraps instead of clipping the terrain/flip/rotate/random tools off the
+  right edge at the default dock width, and the active-brush preview moves to
+  the palette bar where it is always visible.
+- **Non-orthogonal grid overlays no longer vanish on the left.** The
+  shaped-cell overlay culled canvas-relative coordinates against page-relative
+  bounds, dropping the whole left band of iso/hex grid cells whenever docked
+  panels inset the viewport canvas.
+- **Chat example bubbles read like chat.** Bubble text is left-aligned
+  regardless of side and bubbles size to their wrapped text instead of a fixed
+  width.
+
 ## [0.25.0] - 2026-07-16
 
 The UI system grows up, and the editor breaks out of a single window. Widgets
