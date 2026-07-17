@@ -1780,6 +1780,9 @@ export function Viewport() {
             label={<span className="val">{snapping ? snapStep : t('vp.snapOff')}</span>}
             title={t('vp.gridSnap')}
           >
+            <div className="ovmenu-lbl">{t('vp.gridDisplay')}</div>
+            <DdCheck on={showGrid} label={t('vp.flag.grid')} onClick={() => commands.run('view.toggleGrid')} />
+            <div className="ovmenu-lbl">{t('vp.gridSnapSection')}</div>
             <DdRadio on={!snapping} label={t('vp.snapOff')} onClick={() => useEditorStore.setState({ snapping: false })} />
             <div className="ovmenu-lbl">{t('vp.snapMove')}</div>
             {SNAP_STEPS.map((s) => (

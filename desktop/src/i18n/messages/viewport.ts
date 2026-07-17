@@ -107,8 +107,10 @@ export const viewportMessages = defineMessages({
     'vp.overlay': { en: 'Overlay', zh: '叠加层' },
     'vp.safeArea': { en: 'Safe area', zh: '安全区域' },
 
-    // — Snap dropdown —
-    'vp.gridSnap': { en: 'Grid Snap', zh: '网格吸附' },
+    // — Grid & Snap dropdown (the ▦ control: grid display + snap steps) —
+    'vp.gridSnap': { en: 'Grid & Snap', zh: '网格与吸附' },
+    'vp.gridDisplay': { en: 'Display', zh: '显示' },
+    'vp.gridSnapSection': { en: 'Snap', zh: '吸附' },
     'vp.snapOff': { en: 'Off', zh: '关' },
     'vp.snapMove': { en: 'Move (units)', zh: '移动（单位）' },
     'vp.snapRotate': { en: 'Rotate (°)', zh: '旋转（°）' },
