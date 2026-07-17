@@ -27,6 +27,22 @@ import type { PlayOutbound, PlayInbound, PlayPayload, PlaySnapshot, PlayStatsRep
 
 export type { PlayPayload, PlaySnapshot } from './playProtocol';
 
+/** A cold first Play stages the SDK + wasm and bundles the project scripts (a few
+ *  seconds). Cap the wait so a WEDGED prepare step — e.g. a hung esbuild service —
+ *  surfaces as a retryable play error instead of an indefinite "Starting game…". */
+const PREPARE_TIMEOUT_MS = 30_000;
+
+/** Reject `p` if it hasn't settled within `ms`; otherwise pass its result through. */
+function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), ms);
+    p.then(
+      (v) => { clearTimeout(timer); resolve(v); },
+      (e) => { clearTimeout(timer); reject(e); },
+    );
+  });
+}
+
 export interface PlayRealmSnapshot {
   playing: boolean;
   ready: boolean;
@@ -128,7 +144,11 @@ export class PlayRealmInstance {
     }
 
     try {
-      const realm = await window.estella.project.preparePlayRealm();
+      const realm = await withTimeout(
+        window.estella.project.preparePlayRealm(),
+        PREPARE_TIMEOUT_MS,
+        t('proj.playPrepareTimeout'),
+      );
       if (this.id === 0) bootProfiler.mark('preparePlayRealm (stage + esbuild)');
       if (!realm.ok) {
         this.set({ error: realm.errors[0] ?? t('proj.playPrepareFailed') });

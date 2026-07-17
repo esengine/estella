@@ -125,5 +125,9 @@ export const projectMessages = defineMessages({
 
     // — Play realm (Game panel overlay fallbacks) —
     'proj.playPrepareFailed': { en: 'failed to prepare play realm', zh: '无法准备游戏运行环境' },
+    'proj.playPrepareTimeout': {
+        en: 'Preparing the game timed out (the script bundler may be wedged). Press Play to retry; restart the editor if it persists.',
+        zh: '准备游戏运行环境超时（脚本打包器可能卡死）。请再次点击运行重试；若仍然如此，请重启编辑器。',
+    },
     'proj.playRealmError': { en: 'play realm error', zh: '游戏运行环境错误' },
 });
