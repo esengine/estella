@@ -298,7 +298,7 @@ so keep it a pure "apply this data" function.
 
 | `layout` | Result |
 |---|---|
-| `{ itemHeight }` | A vertical list. |
+| `{ itemHeight }` | A vertical list — a fixed row height, or a **`(index) => number`** for [auto-height rows](#auto-height-rows). |
 | `{ itemWidth, direction: 'row' }` | A horizontal list. |
 | `{ columns, itemSize }` | A grid (a *TileView*). |
 
@@ -326,6 +326,34 @@ list.data.setItems(freshList);         // replace all
   standard). For heterogeneous rows, pass a map of item type → template instead of one
   `item`, and give the data source a `getItemType(i)`.
 </Aside>
+
+### Auto-height rows
+
+Pass a **function** for `itemHeight` to size each row to its content — perfect for a
+chat log where a bubble grows with its wrapped text. The list caches the measurement
+and re-flows on data or viewport changes:
+
+```typescript
+import { measureText } from 'esengine';
+
+createListView<Message>({
+  world, host: uiPlugin, parent,
+  viewportSize: { x: 360, y: 480 },
+  data: messages,
+  layout: {
+    itemHeight: (i) => measureText(messages.getItem(i).text, {
+      fontSize: 14, maxWidth: 320,
+    }).height + 16,                      // wrapped text height + vertical padding
+    spacing: 8,
+  },
+  item: { /* create / bind */ },
+});
+```
+
+`measureText(text, { fontSize, maxWidth?, bold?, italic?, letterSpacing?, lineHeight? })`
+returns `{ width, lineCount, height }` measured off the **same Canvas2D metrics the glyph
+atlas draws from**, so a measured height matches what actually renders — no more clipped
+or overflowing rows. (A DOM-less host falls back to an average-glyph estimate.)
 
 ### Free-form scrolling
 
@@ -386,9 +414,11 @@ events.on(field, 'submit', () => save(world.get(field, TextInput).value));  // E
 | `password` | `false` | Mask the characters. |
 | `readOnly` | `false` | Focusable but not editable. |
 | `fontSize` / `fontFamily` | `16` / `Arial` | Text style — `color`, `placeholderColor`, `backgroundColor`, and `padding` (`6`) round out the look. |
+| `renderMode` | `Auto` | Glyph pipeline for the field text — `Auto` (crisp bitmap when unscaled, SDF once scaled), always `Bitmap`, or always `Sdf`. |
 
 Click (or Tab to) the field to focus it; **Escape** blurs, **Enter** fires
-`submit` on single-line fields.
+`submit` on single-line fields. A value longer than the box **clips to it and scrolls
+horizontally** so the caret stays in view as you type.
 
 <Aside type="note">
   Text input runs in **play mode only** and needs a browser DOM (it drives a

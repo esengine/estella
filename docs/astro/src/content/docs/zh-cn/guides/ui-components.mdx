@@ -281,7 +281,7 @@ const list = createListView<Player>({
 
 | `layout` | 结果 |
 |---|---|
-| `{ itemHeight }` | 竖直列表。 |
+| `{ itemHeight }` | 竖直列表——固定行高,或传 **`(index) => number`** 实现[自适应行高](#自适应行高)。 |
 | `{ itemWidth, direction: 'row' }` | 水平列表。 |
 | `{ columns, itemSize }` | 网格(*TileView*)。 |
 
@@ -305,6 +305,32 @@ list.data.setItems(freshList);         // 全替换
   (甩动 1 秒后剩余的速度比例;默认 `0.135`,ScrollRect 标准值)。异构行:用「item 类型 → 模板」
   的映射代替单个 `item`,并给数据源一个 `getItemType(i)`。
 </Aside>
+
+### 自适应行高
+
+给 `itemHeight` 传一个**函数**,让每行按内容自适应高度——聊天记录里气泡随换行文本增高就是
+典型场景。列表会缓存测量结果,并在数据或视口变化时重排:
+
+```typescript
+import { measureText } from 'esengine';
+
+createListView<Message>({
+  world, host: uiPlugin, parent,
+  viewportSize: { x: 360, y: 480 },
+  data: messages,
+  layout: {
+    itemHeight: (i) => measureText(messages.getItem(i).text, {
+      fontSize: 14, maxWidth: 320,
+    }).height + 16,                      // 换行文本高度 + 上下内边距
+    spacing: 8,
+  },
+  item: { /* create / bind */ },
+});
+```
+
+`measureText(text, { fontSize, maxWidth?, bold?, italic?, letterSpacing?, lineHeight? })`
+返回 `{ width, lineCount, height }`,用的是**渲染器取字形 advance 的同一套 Canvas2D 度量**,
+所以测出的高度和实际渲染一致——不再有裁剪或溢出的行(无 DOM 的环境回退到平均字宽估算)。
 
 ### 自由内容滚动
 
@@ -362,9 +388,10 @@ events.on(field, 'submit', () => save(world.get(field, TextInput).value));  // �
 | `password` | `false` | 掩码显示。 |
 | `readOnly` | `false` | 可聚焦但不可编辑。 |
 | `fontSize` / `fontFamily` | `16` / `Arial` | 文字样式——`color`、`placeholderColor`、`backgroundColor` 和 `padding`(`6`)补全观感。 |
+| `renderMode` | `Auto` | 输入文本的字形管线——`Auto`(不缩放时用清晰位图、缩放后转 SDF)、始终 `Bitmap`、或始终 `Sdf`。 |
 
 点击(或 Tab 到)输入框即聚焦;**Escape** 失焦,单行输入框按**回车**触发
-`submit`。
+`submit`。内容超出框宽时会**裁剪到框内并横向滚动**,让光标随输入始终可见。
 
 <Aside type="note">
   文本输入只在**播放模式**运行,且需要浏览器 DOM(它驱动一个隐藏的原生
