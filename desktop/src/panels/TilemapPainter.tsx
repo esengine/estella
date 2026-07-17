@@ -89,8 +89,8 @@ function BrushThumbnail({ stamp, atlas }: { stamp: TileStamp; atlas: AtlasInfo |
 
 export function TilemapPainter() {
   const {
-    tilesetPath, tilesets, activeTileset, stamp, tool, terrainSet,
-    setTilesets, setActiveTileset, setTilesetAsset, setStamp, setBrushTile, setTool, setTerrainSet,
+    tilesetPath, tilesets, activeTileset, stamp, tool, terrainSet, wangColor,
+    setTilesets, setActiveTileset, setTilesetAsset, setStamp, setBrushTile, setTool, setTerrainSet, setWangColor,
     setActiveAtlas, flipH, flipV, rotateCW, randomBrush, toggleRandomBrush,
   } = useTilemapPaint();
   const win = usePanelWindow();
@@ -583,16 +583,37 @@ export function TilemapPainter() {
           {(asset?.terrains ?? []).length === 0 ? (
             <div className="tp-warn">{t('tile.noTerrains')}</div>
           ) : (
-            (asset?.terrains ?? []).map((t, i) => (
-              <button
-                key={i}
-                type="button"
-                className={'tp-terrain' + (i === terrainSet ? ' is-active' : '')}
-                onClick={() => setTerrainSet(i)}
-              >
-                <span className="tp-tswatch" style={{ background: TERRAIN_COLORS[i % TERRAIN_COLORS.length] }} />
-                {t.name}
-              </button>
+            (asset?.terrains ?? []).map((ter, i) => (
+              ter.mode === 'wang' ? (
+                // A wang set paints by COLOR: one swatch button per color in the set.
+                <span key={i} className="tp-wgroup">
+                  <span className="tp-wglabel">{ter.name}</span>
+                  <span className="tp-wcrow">
+                    {(ter.colors ?? []).map((c, ci) => (
+                      <button
+                        key={ci}
+                        type="button"
+                        className={'tp-wcbtn' + (i === terrainSet && ci + 1 === wangColor ? ' is-active' : '')}
+                        title={c.name}
+                        onClick={() => { setTerrainSet(i); setWangColor(ci + 1); }}
+                      >
+                        <span className="tp-tswatch" style={{ background: c.color }} />
+                        {c.name}
+                      </button>
+                    ))}
+                  </span>
+                </span>
+              ) : (
+                <button
+                  key={i}
+                  type="button"
+                  className={'tp-terrain' + (i === terrainSet ? ' is-active' : '')}
+                  onClick={() => setTerrainSet(i)}
+                >
+                  <span className="tp-tswatch" style={{ background: TERRAIN_COLORS[i % TERRAIN_COLORS.length] }} />
+                  {ter.name}
+                </button>
+              )
             ))
           )}
         </div>

@@ -60,6 +60,8 @@ interface TilemapPaintState {
     stamp: TileStamp;
     /** The active terrain set index (for the terrain tool). */
     terrainSet: number;
+    /** The active wang color (1-based) painted when the active terrain set is a wang set. */
+    wangColor: number;
     /** The select tool's current marquee (tile coords), or null. */
     selection: TileRect | null;
     /** The copy/cut buffer — a stamp lifted from a selection; pasted via the brush. */
@@ -83,6 +85,7 @@ interface TilemapPaintState {
     /** Set a 1×1 brush of one tile id (palette single-click; loses any flip flags). */
     setBrushTile(tileId: number): void;
     setTerrainSet(set: number): void;
+    setWangColor(color: number): void;
     setActiveAtlas(atlas: AtlasInfo | null): void;
     flipH(): void;
     flipV(): void;
@@ -98,6 +101,7 @@ export const useTilemapPaint = create<TilemapPaintState>((set) => ({
     tilesetAsset: null,
     stamp: singleStamp(encodeTile(1)),
     terrainSet: 0,
+    wangColor: 1,
     selection: null,
     clipboard: null,
     tool: null,
@@ -123,6 +127,7 @@ export const useTilemapPaint = create<TilemapPaintState>((set) => ({
     setClipboard: (clipboard) => set({ clipboard }),
     setBrushTile: (tileId) => set({ stamp: singleStamp(encodeTile(tileId)) }),
     setTerrainSet: (terrainSet) => set({ terrainSet }),
+    setWangColor: (wangColor) => set({ wangColor }),
     setActiveAtlas: (activeAtlas) => set({ activeAtlas }),
     flipH: () => set((s) => ({ stamp: flipStampH(s.stamp) })),
     flipV: () => set((s) => ({ stamp: flipStampV(s.stamp) })),

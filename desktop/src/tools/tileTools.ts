@@ -13,6 +13,7 @@
 import {
   TilemapAPI, tileIdOf, encodeTile, singleStamp, type TileStamp,
   buildTerrainIndices, resolveAutotile, TERRAIN_NEIGHBORS, type TerrainIndices,
+  buildWangIndices, resolveWang, type WangIndex, type TilesetAsset,
 } from 'esengine';
 import { ViewportController } from '@/engine/ViewportController';
 import { SceneCommands, type TilePaint } from '@/engine/SceneCommands';
@@ -282,20 +283,39 @@ const eraseTool = makeStrokeTool<number>({
   end: () => SceneCommands.endTilePaint(),
 });
 
-// ── Terrain (autotile) brush ─────────────────────────────────────────────────
-interface TerrainCtx {
+// ── Terrain brush ────────────────────────────────────────────────────────────
+// Two terrain models share one brush. PEERING (edge / corner blob) joins a cell to a
+// single terrain and re-tiles by neighbour matching. WANG (corner) paints a COLOR onto the
+// four corners around the cursor and re-tiles the affected cells by corner match — so one
+// set blends many terrains on a half-cell corner grid. The active set's `mode` picks which.
+// `base` = firstId − 1: cells store GLOBAL gids but the resolvers key by tileset-LOCAL id.
+
+interface PeerCtx {
+  kind: 'peer';
   sourceId: number;
   rt: number;
   set: number;
   indices: TerrainIndices;
   assigned: Map<string, number>;
-  // firstId − 1 of the active tileset. buildTerrainIndices keys by tileset-LOCAL id,
-  // but cells store GLOBAL gids, so read a cell as gid − base and write local + base
-  // (base is 0 for a single-tileset layer, so this is a no-op there).
   base: number;
 }
+interface WangCtx {
+  kind: 'wang';
+  sourceId: number;
+  rt: number;
+  set: number;
+  /** The wang color being painted (1-based). */
+  color: number;
+  index: WangIndex;
+  base: number;
+  asset: TilesetAsset;
+  /** Stroke-transient corner grid: vertex key "vx,vy" → color. */
+  corners: Map<string, number>;
+}
+type TerrainStroke = PeerCtx | WangCtx;
 
-function terrainAt(s: TerrainCtx, x: number, y: number): number | null {
+// — peering —
+function terrainAt(s: PeerCtx, x: number, y: number): number | null {
   const key = `${x},${y}`;
   if (s.assigned.has(key)) return s.assigned.get(key)!;
   const gid = tileIdOf(TilemapAPI.getTile(s.rt, x, y));
@@ -303,7 +323,7 @@ function terrainAt(s: TerrainCtx, x: number, y: number): number | null {
   return s.indices.tileTerrain.get(gid - s.base) ?? null;
 }
 
-function recomputeTerrain(s: TerrainCtx, x: number, y: number): void {
+function recomputeTerrain(s: PeerCtx, x: number, y: number): void {
   const set = terrainAt(s, x, y);
   if (set == null) return;
   const index = s.indices.sets.get(set);
@@ -314,26 +334,83 @@ function recomputeTerrain(s: TerrainCtx, x: number, y: number): void {
 }
 
 /** Join (x,y) to the active terrain, then re-resolve it and its 8 neighbours. */
-function stampTerrain(s: TerrainCtx, x: number, y: number): void {
+function stampTerrain(s: PeerCtx, x: number, y: number): void {
   s.assigned.set(`${x},${y}`, s.set);
   recomputeTerrain(s, x, y);
   for (const n of TERRAIN_NEIGHBORS) recomputeTerrain(s, x + n.dx, y + n.dy);
 }
 
-const terrainTool = makeStrokeTool<TerrainCtx>({
+// — wang (corner) —
+/** The wang corner colors of the tile at cell (gid), or null if it's not this set's wang tile. */
+function wangTileCorners(asset: TilesetAsset, set: number, base: number, gid: number): number[] | null {
+  if (gid <= 0) return null;
+  const t = asset.tiles[gid - base]?.terrain;
+  return t && t.set === set && t.corners ? t.corners : null;
+}
+
+/** The color at corner-grid vertex (vx,vy): the stroke's painted value, else derived from
+ *  whichever placed tile owns that vertex (probing the 4 cells around it). */
+function wangVertex(s: WangCtx, vx: number, vy: number): number {
+  const painted = s.corners.get(`${vx},${vy}`);
+  if (painted !== undefined) return painted;
+  // Each vertex is the TL of cell (vx,vy), TR of (vx−1,vy), BL of (vx,vy−1), BR of (vx−1,vy−1).
+  const probes: [number, number, number][] = [[vx, vy, 0], [vx - 1, vy, 1], [vx, vy - 1, 3], [vx - 1, vy - 1, 2]];
+  for (const [cx, cy, ci] of probes) {
+    const c = wangTileCorners(s.asset, s.set, s.base, tileIdOf(TilemapAPI.getTile(s.rt, cx, cy)));
+    if (c) return c[ci] ?? 0;
+  }
+  return 0;
+}
+
+/** Paint the active color onto (tx,ty)'s 4 corners, then re-tile the 3×3 cells they touch. */
+function stampWang(s: WangCtx, tx: number, ty: number): void {
+  s.corners.set(`${tx},${ty}`, s.color);
+  s.corners.set(`${tx + 1},${ty}`, s.color);
+  s.corners.set(`${tx + 1},${ty + 1}`, s.color);
+  s.corners.set(`${tx},${ty + 1}`, s.color);
+  // Resolve all affected cells from the (post-paint) corner grid FIRST, then apply — so the
+  // nine resolves don't see each other's mid-pass tile writes.
+  const edits: [number, number, number][] = [];
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      const x = tx + dx;
+      const y = ty + dy;
+      const corners = [wangVertex(s, x, y), wangVertex(s, x + 1, y), wangVertex(s, x + 1, y + 1), wangVertex(s, x, y + 1)];
+      if (corners[0] === 0 && corners[1] === 0 && corners[2] === 0 && corners[3] === 0) continue;
+      const local = resolveWang(s.index, corners);
+      if (local > 0) edits.push([x, y, local]);
+    }
+  }
+  for (const [x, y, local] of edits) SceneCommands.paintTileLive(s.sourceId, x, y, encodeTile(local + s.base));
+}
+
+const terrainTool = makeStrokeTool<TerrainStroke>({
   id: 'tilemap.terrain',
   begin: (selId) => {
     const rt = SceneModel.runtimeFor(selId);
     const ps = useTilemapPaint.getState();
     const asset = ps.tilesetAsset;
     if (rt == null || !asset) return null;
+    const base = (ps.tilesets[ps.activeTileset]?.firstId ?? 1) - 1;
+    const terrain = asset.terrains?.[ps.terrainSet];
+    if (terrain?.mode === 'wang') {
+      const index = buildWangIndices(asset).sets.get(ps.terrainSet);
+      if (!index) return null; // active wang set has no corner tiles yet
+      SceneCommands.beginTilePaint(selId);
+      return {
+        kind: 'wang', sourceId: selId, rt, set: ps.terrainSet, color: ps.wangColor || 1,
+        index, base, asset, corners: new Map(),
+      };
+    }
     const indices = buildTerrainIndices(asset);
     if (!indices.sets.has(ps.terrainSet)) return null; // active terrain has no tiles yet
     SceneCommands.beginTilePaint(selId);
-    const base = (ps.tilesets[ps.activeTileset]?.firstId ?? 1) - 1;
-    return { sourceId: selId, rt, set: ps.terrainSet, indices, assigned: new Map(), base };
+    return { kind: 'peer', sourceId: selId, rt, set: ps.terrainSet, indices, assigned: new Map(), base };
   },
-  onCell: (s, x, y) => { if (!s.assigned.has(`${x},${y}`)) stampTerrain(s, x, y); },
+  onCell: (s, x, y) => {
+    if (s.kind === 'wang') stampWang(s, x, y);
+    else if (!s.assigned.has(`${x},${y}`)) stampTerrain(s, x, y);
+  },
   end: () => SceneCommands.endTilePaint(),
 });
 

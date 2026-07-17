@@ -48,6 +48,15 @@ const ZONES: { gx: number; gy: number; bit: number; corner: boolean; dir: string
   { gx: 0, gy: 0, bit: TB_NW, corner: true, dir: t('tile.dir.northWest') },
 ];
 
+// Wang corner dots, placed at the cell's 4 corners. Index order matches the tile's
+// `corners` array: [top-left, top-right, bottom-right, bottom-left].
+const WANG_CORNERS: { i: number; gx: number; gy: number; dir: string }[] = [
+  { i: 0, gx: 0, gy: 0, dir: t('tile.dir.northWest') },
+  { i: 1, gx: 1, gy: 0, dir: t('tile.dir.northEast') },
+  { i: 2, gx: 1, gy: 1, dir: t('tile.dir.southEast') },
+  { i: 3, gx: 0, gy: 1, dir: t('tile.dir.southWest') },
+];
+
 /** A focused per-tile collision-polygon editor: a magnified tile + click-to-add /
  *  click-a-point-to-remove vertices, committed live (≥3 points) as undo steps. */
 function PolygonEditor(props: {
@@ -180,6 +189,8 @@ export function TilesetEditor() {
   const [restitutionStr, setRestitutionStr] = useState('');
   const [densityStr, setDensityStr] = useState('');
   const [activeSet, setActiveSet] = useState(0);
+  // The wang color being painted onto tile corners (1-based into the set's colors).
+  const [activeColor, setActiveColor] = useState(1);
   const [hovered, setHovered] = useState<number | null>(null);
   // Live collision paint stroke: which tiles + the target on/off state, one undo step.
   const [drag, setDrag] = useState<{ ids: Set<number>; on: boolean } | null>(null);
@@ -275,6 +286,9 @@ export function TilesetEditor() {
     if (tileTerrain(id)) TilesetCommands.setTileTerrain(id, null, 0);
     else TilesetCommands.setTileTerrain(id, activeSet, 0);
   };
+  // Wang authoring: assign the active color to one of a tile's 4 corners (right-click clears).
+  const setCorner = (id: number, corner: number, color: number) =>
+    TilesetCommands.setTileWangCorner(id, activeSet, corner, color);
 
   // ── animation authoring ──
   const animFrames: TilesetAnimFrame[] = animTile != null ? asset.tiles[animTile]?.animation ?? [] : [];
@@ -396,10 +410,11 @@ export function TilesetEditor() {
             />,
           );
         } else {
+          const isWang = terrain?.mode === 'wang';
           const tt = tileTerrain(id);
           const showZones = hovered === id || tt != null;
           const cellStyle: CSSProperties = { left, top, width: w, height: h };
-          if (tt) (cellStyle as Record<string, string | number>)['--tcolor'] = terrainColor;
+          if (tt && !isWang) (cellStyle as Record<string, string | number>)['--tcolor'] = terrainColor;
           cells.push(
             <div
               key={id}
@@ -409,25 +424,48 @@ export function TilesetEditor() {
               onPointerEnter={() => setHovered(id)}
               onPointerLeave={() => setHovered((cur) => (cur === id ? null : cur))}
             >
-              <button
-                type="button" className="ts-zone ts-zone-c"
-                title={t('tile.zone.member')}
-                onClick={() => toggleMember(id)}
-              />
-              {showZones && terrain && ZONES.filter((z) => terrain.mode === 'corner' || !z.corner).map((z) => {
-                const on = ((tt?.mask ?? 0) & z.bit) !== 0;
-                return (
+              {isWang ? (
+                // A colored dot at each of the tile's 4 corners — click paints the active
+                // color, right-click clears. The dots ARE the "circle in the corner" UI.
+                (showZones || tt) && terrain && WANG_CORNERS.map((c) => {
+                  const cv = tt?.corners?.[c.i] ?? 0;
+                  const col = cv > 0 ? terrain.colors?.[cv - 1]?.color : undefined;
+                  return (
+                    <button
+                      key={c.i}
+                      type="button"
+                      className={'ts-wcorner' + (cv > 0 ? ' is-on' : '')}
+                      style={{ left: `${c.gx * 100}%`, top: `${c.gy * 100}%`, ...(col ? { background: col } : {}) }}
+                      aria-label={t('tile.zone.aria', { dir: c.dir })}
+                      title={t('tile.wang.cornerTip', { dir: c.dir })}
+                      onClick={() => setCorner(id, c.i, activeColor)}
+                      onContextMenu={(e) => { e.preventDefault(); setCorner(id, c.i, 0); }}
+                    />
+                  );
+                })
+              ) : (
+                <>
                   <button
-                    key={z.bit}
-                    type="button"
-                    className={'ts-zone' + (on ? ' is-on' : '') + (z.corner ? ' is-corner' : '')}
-                    style={{ left: `${z.gx * 33.34}%`, top: `${z.gy * 33.34}%` }}
-                    aria-label={t('tile.zone.aria', { dir: z.dir })}
-                    title={t('tile.zone.peerTip', { dir: z.dir })}
-                    onClick={() => toggleBit(id, z.bit)}
+                    type="button" className="ts-zone ts-zone-c"
+                    title={t('tile.zone.member')}
+                    onClick={() => toggleMember(id)}
                   />
-                );
-              })}
+                  {showZones && terrain && ZONES.filter((z) => terrain.mode === 'corner' || !z.corner).map((z) => {
+                    const on = ((tt?.mask ?? 0) & z.bit) !== 0;
+                    return (
+                      <button
+                        key={z.bit}
+                        type="button"
+                        className={'ts-zone' + (on ? ' is-on' : '') + (z.corner ? ' is-corner' : '')}
+                        style={{ left: `${z.gx * 33.34}%`, top: `${z.gy * 33.34}%` }}
+                        aria-label={t('tile.zone.aria', { dir: z.dir })}
+                        title={t('tile.zone.peerTip', { dir: z.dir })}
+                        onClick={() => toggleBit(id, z.bit)}
+                      />
+                    );
+                  })}
+                </>
+              )}
             </div>,
           );
         }
@@ -544,7 +582,7 @@ export function TilesetEditor() {
             >
               <span className="ts-tswatch" style={{ background: TERRAIN_COLORS[i % TERRAIN_COLORS.length] }} />
               {ter.name}
-              <span className="ts-tmode">{ter.mode === 'corner' ? t('tile.terrain.cornerShort') : t('tile.terrain.edgeShort')}</span>
+              <span className="ts-tmode">{ter.mode === 'corner' ? t('tile.terrain.cornerShort') : ter.mode === 'wang' ? t('tile.terrain.wangShort') : t('tile.terrain.edgeShort')}</span>
             </button>
           ))}
           <button type="button" className="ts-terrain ts-add" title={t('tile.terrain.new')}
@@ -563,12 +601,49 @@ export function TilesetEditor() {
                 options={[
                   { value: 'edge', label: t('tile.terrain.edge4') },
                   { value: 'corner', label: t('tile.terrain.cornerBlob') },
+                  { value: 'wang', label: t('tile.terrain.wang') },
                 ]}
                 onChange={(v) => TilesetCommands.updateTerrain(activeSet, { mode: v })}
               />
               <button type="button" className="ts-trm" title={t('tile.terrain.delete')}
                 onClick={() => { TilesetCommands.removeTerrain(activeSet); setActiveSet(0); }}>
                 <Trash2 size={13} />
+              </button>
+            </div>
+          )}
+          {terrain?.mode === 'wang' && (
+            // The wang color palette: pick the active color, rename/recolor, add/remove.
+            // Then click tile corners in the atlas to paint that color.
+            <div className="ts-wcolors">
+              {(terrain.colors ?? []).map((c, i) => (
+                <span key={i} className={'ts-wcolor' + (activeColor === i + 1 ? ' is-active' : '')}>
+                  <button
+                    type="button" className="ts-wswatch" style={{ background: c.color }}
+                    title={t('tile.wang.pickColor', { name: c.name })} onClick={() => setActiveColor(i + 1)}
+                  />
+                  <input
+                    className="ts-wcname" value={c.name}
+                    onChange={(e) => TilesetCommands.updateWangColor(activeSet, i, { name: e.target.value })}
+                  />
+                  <input
+                    className="ts-wcpick" type="color" value={c.color} title={t('tile.wang.recolor')}
+                    onChange={(e) => TilesetCommands.updateWangColor(activeSet, i, { color: e.target.value })}
+                  />
+                  {(terrain.colors?.length ?? 0) > 1 && (
+                    <button
+                      type="button" className="ts-wcx" title={t('tile.wang.removeColor')}
+                      onClick={() => { TilesetCommands.removeWangColor(activeSet, i); setActiveColor(1); }}
+                    >
+                      <X size={11} />
+                    </button>
+                  )}
+                </span>
+              ))}
+              <button
+                type="button" className="ts-wcadd" title={t('tile.wang.addColor')}
+                onClick={() => { TilesetCommands.addWangColor(activeSet); setActiveColor((terrain.colors?.length ?? 0) + 1); }}
+              >
+                <Plus size={12} />
               </button>
             </div>
           )}

@@ -164,7 +164,16 @@ export const tileMessages = defineMessages({
     'tile.terrain.modeAria': { en: 'Terrain mode', zh: '地形模式' },
     'tile.terrain.edge4': { en: 'Edge (4-bit)', zh: '边（4 位）' },
     'tile.terrain.cornerBlob': { en: 'Corner (blob)', zh: '角（blob）' },
+    'tile.terrain.wang': { en: 'Corner (Wang)', zh: '角（Wang）' },
+    'tile.terrain.wangShort': { en: 'Wang', zh: 'Wang' },
     'tile.terrain.delete': { en: 'Delete terrain', zh: '删除地形' },
+
+    // — Tileset editor: wang (corner) terrain authoring —
+    'tile.wang.cornerTip': { en: 'Paint the active color on the {dir} corner (right-click clears)', zh: '在{dir}角绘制当前颜色（右键清除）' },
+    'tile.wang.pickColor': { en: 'Paint with "{name}"', zh: '使用「{name}」绘制' },
+    'tile.wang.recolor': { en: 'Change color', zh: '更改颜色' },
+    'tile.wang.addColor': { en: 'Add color', zh: '添加颜色' },
+    'tile.wang.removeColor': { en: 'Remove color', zh: '删除颜色' },
 
     // — Tileset editor: animation authoring —
     'tile.anim.pickHint': {

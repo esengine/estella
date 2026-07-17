@@ -423,6 +423,9 @@ export {
     canonicalMask,
     buildTerrainIndices,
     resolveAutotile,
+    packCorners,
+    buildWangIndices,
+    resolveWang,
     TILE_ID_MASK,
     TILE_FLIP_H,
     TILE_FLIP_V,
@@ -464,10 +467,13 @@ export {
     type Vec2Like,
     type TilesetAnimFrame,
     type TerrainMode,
+    type TerrainColor,
     type TilesetTerrain,
     type TilesetTileTerrain,
     type TerrainIndex,
     type TerrainIndices,
+    type WangIndex,
+    type WangIndices,
     type ApplyTilesetRefs,
 } from './tilemap';
 

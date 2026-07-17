@@ -8,7 +8,11 @@
  */
 
 import { serializeTileset } from 'esengine';
-import type { TilesetAsset, TilesetTerrain, TerrainMode, TilesetAnimFrame } from 'esengine';
+import type { TilesetAsset, TilesetTerrain, TerrainColor, TerrainMode, TilesetAnimFrame } from 'esengine';
+
+// A default palette for fresh wang colors (cycled as colors are added). Cosmetic — the
+// user recolors from the picker; distinct enough that a new color reads as new.
+const WANG_PALETTE = ['#5a9e3f', '#3a7ec8', '#d9c48a', '#8a8f96', '#8a6a44', '#b4536b', '#5bc0be', '#e0a458'];
 import { TilesetDocument } from './TilesetDocument';
 import { Toasts } from '@/store/Toasts';
 import { t } from '@/i18n';
@@ -158,11 +162,13 @@ export const TilesetCommands = {
     });
   },
 
-  /** Add a terrain (autotile) set; returns the new set's index. */
+  /** Add a terrain (autotile) set. A `wang` set is seeded with one corner color. */
   addTerrain(name: string, mode: TerrainMode): void {
     TilesetDocument.edit('Add Terrain', (a) => {
       const terrains = a.terrains ?? (a.terrains = []);
-      terrains.push({ name: name || `Terrain ${terrains.length + 1}`, mode });
+      const t: TilesetTerrain = { name: name || `Terrain ${terrains.length + 1}`, mode };
+      if (mode === 'wang') t.colors = [{ name: 'Color 1', color: WANG_PALETTE[0] }];
+      terrains.push(t);
     });
   },
 
@@ -172,8 +178,69 @@ export const TilesetCommands = {
       const t = a.terrains?.[set];
       if (!t) return;
       if (typeof patch.name === 'string') t.name = patch.name;
-      if (patch.mode === 'edge' || patch.mode === 'corner') t.mode = patch.mode;
+      if (patch.mode === 'edge' || patch.mode === 'corner' || patch.mode === 'wang') {
+        t.mode = patch.mode;
+        if (patch.mode === 'wang' && (!t.colors || t.colors.length === 0)) {
+          t.colors = [{ name: 'Color 1', color: WANG_PALETTE[0] }];
+        }
+      }
       if (typeof patch.color === 'string') t.color = patch.color;
+    });
+  },
+
+  /** Append a corner color to a `wang` set (cycles the default palette). */
+  addWangColor(set: number): void {
+    TilesetDocument.edit('Add Terrain Color', (a) => {
+      const ter = a.terrains?.[set];
+      if (!ter || ter.mode !== 'wang') return;
+      const colors = ter.colors ?? (ter.colors = []);
+      colors.push({ name: `Color ${colors.length + 1}`, color: WANG_PALETTE[colors.length % WANG_PALETTE.length] });
+    });
+  },
+
+  /** Edit a wang color's name / CSS color. */
+  updateWangColor(set: number, i: number, patch: Partial<TerrainColor>): void {
+    TilesetDocument.edit('Edit Terrain Color', (a) => {
+      const c = a.terrains?.[set]?.colors?.[i];
+      if (!c) return;
+      if (typeof patch.name === 'string') c.name = patch.name;
+      if (typeof patch.color === 'string') c.color = patch.color;
+    });
+  },
+
+  /** Remove a wang color, reindexing tiles' corners (its value → 0, higher values −1). */
+  removeWangColor(set: number, i: number): void {
+    TilesetDocument.edit('Remove Terrain Color', (a) => {
+      const ter = a.terrains?.[set];
+      if (!ter?.colors || i < 0 || i >= ter.colors.length) return;
+      ter.colors.splice(i, 1);
+      const removed = i + 1; // corners are 1-based (0 = none)
+      for (const key of Object.keys(a.tiles)) {
+        const id = Number(key);
+        const tt = a.tiles[id].terrain;
+        if (!tt || tt.set !== set || !tt.corners) continue;
+        tt.corners = tt.corners.map((c) => (c === removed ? 0 : c > removed ? c - 1 : c));
+        if (tt.corners.every((c) => c === 0)) { delete a.tiles[id].terrain; pruneEmpty(a, id); }
+      }
+    });
+  },
+
+  /**
+   * Assign one corner of a tile's wang membership (corner 0-3 = TL/TR/BR/BL, color 0 = none)
+   * as ONE undo step. Clearing every corner drops the membership.
+   */
+  setTileWangCorner(id: number, set: number, corner: number, color: number): void {
+    if (id <= 0 || corner < 0 || corner > 3) return;
+    TilesetDocument.edit('Edit Tile Corner', (a) => {
+      const existing = a.tiles[id]?.terrain;
+      const corners = existing && existing.set === set && existing.corners
+        ? [...existing.corners] : [0, 0, 0, 0];
+      corners[corner] = color & 0xff;
+      if (corners.every((c) => c === 0)) {
+        if (a.tiles[id]?.terrain) { delete a.tiles[id].terrain; pruneEmpty(a, id); }
+        return;
+      }
+      a.tiles[id] = { ...(a.tiles[id] ?? {}), terrain: { set, corners } };
     });
   },
 

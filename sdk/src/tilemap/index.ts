@@ -33,7 +33,7 @@ export {
 export {
     TILESET_FORMAT_VERSION, parseTileset, serializeTileset, createTileset, collidableTileIds,
     type TilesetAsset, type TilesetTile, type TilesetCollision, type TileCollisionShape, type TilesetAnimFrame,
-    type TerrainMode, type TilesetTerrain, type TilesetTileTerrain,
+    type TerrainMode, type TerrainColor, type TilesetTerrain, type TilesetTileTerrain,
 } from './tilesetAsset';
 export {
     resolveTilesetModel,
@@ -42,7 +42,8 @@ export {
 export {
     TB_N, TB_E, TB_S, TB_W, TB_NE, TB_SE, TB_SW, TB_NW, TERRAIN_NEIGHBORS,
     normalizeCornerMask, canonicalMask, buildTerrainIndices, resolveAutotile,
-    type TerrainIndex, type TerrainIndices,
+    packCorners, buildWangIndices, resolveWang,
+    type TerrainIndex, type TerrainIndices, type WangIndex, type WangIndices,
 } from './autotile';
 export {
     registerTilemapSource, getTilemapSource, clearTilemapSourceCache,

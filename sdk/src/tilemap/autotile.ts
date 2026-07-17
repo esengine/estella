@@ -79,8 +79,11 @@ export function buildTerrainIndices(asset: TilesetAsset): TerrainIndices {
         const id = Number(key);
         const t = asset.tiles[id].terrain;
         if (!t) continue;
-        tileTerrain.set(id, t.set);
         const mode: TerrainMode = terrains[t.set]?.mode ?? 'edge';
+        // Peering (edge/corner) only — wang sets carry per-corner colors, not a mask, and
+        // resolve through buildWangIndices; skip them (and any tile missing a mask).
+        if (mode === 'wang' || t.mask === undefined) continue;
+        tileTerrain.set(id, t.set);
         let index = sets.get(t.set);
         if (!index) {
             index = { mode, byMask: new Map() };
@@ -118,6 +121,74 @@ export function resolveAutotile(index: TerrainIndex, neighbors: readonly boolean
             bestDist = d;
             best = id;
         }
+    }
+    return best;
+}
+
+// ── Corner (Wang) terrain ────────────────────────────────────────────────────
+// The modern model: a tile carries a COLOR at each of its 4 corners. A cell is resolved
+// from the 4 colors on its corners (a half-cell "corner grid"), so one set blends many
+// terrains. Corner order everywhere is [top-left, top-right, bottom-right, bottom-left].
+
+/** Pack 4 corner color indices into one lookup key (8 bits each; up to 255 colors). */
+export function packCorners(tl: number, tr: number, br: number, bl: number): number {
+    // The low 3 bytes stay in int32 range; ADD the top byte (a plain multiply) so the OR's
+    // int32 coercion can't wrap the key negative.
+    return ((tl & 0xff) | ((tr & 0xff) << 8) | ((br & 0xff) << 16)) + ((bl & 0xff) * 0x1000000);
+}
+
+/** A wang set's resolver: packed 4-corner key → the tile id to draw. */
+export interface WangIndex {
+    byKey: Map<number, number>;
+}
+
+/** Built lookup over a tileset's wang terrains: per-set resolver + reverse tile→set. */
+export interface WangIndices {
+    sets: Map<number, WangIndex>;
+    tileTerrain: Map<number, number>;
+}
+
+/** Build the corner-match resolver tables for a tileset's `wang` sets (first tile wins a dup). */
+export function buildWangIndices(asset: TilesetAsset): WangIndices {
+    const sets = new Map<number, WangIndex>();
+    const tileTerrain = new Map<number, number>();
+    const terrains = asset.terrains ?? [];
+    for (const key of Object.keys(asset.tiles)) {
+        const id = Number(key);
+        const t = asset.tiles[id].terrain;
+        if (!t || !t.corners || (terrains[t.set]?.mode ?? 'edge') !== 'wang') continue;
+        tileTerrain.set(id, t.set);
+        let index = sets.get(t.set);
+        if (!index) { index = { byKey: new Map() }; sets.set(t.set, index); }
+        const k = packCorners(t.corners[0], t.corners[1], t.corners[2], t.corners[3]);
+        if (!index.byKey.has(k)) index.byKey.set(k, id);
+    }
+    return { sets, tileTerrain };
+}
+
+/** How many of the 4 corners differ between two packed keys. */
+function cornerDist(a: number, b: number): number {
+    let d = 0;
+    for (let s = 0; s < 32; s += 8) {
+        if (((a >>> s) & 0xff) !== ((b >>> s) & 0xff)) d++;
+    }
+    return d;
+}
+
+/**
+ * Pick the tile whose 4 corner colors match `corners` ([TL, TR, BR, BL]); when no tile has
+ * the exact combination, the nearest by corner-mismatch count is used, so a partial wang
+ * set still paints. Returns 0 if the set is empty.
+ */
+export function resolveWang(index: WangIndex, corners: readonly number[]): number {
+    const key = packCorners(corners[0] ?? 0, corners[1] ?? 0, corners[2] ?? 0, corners[3] ?? 0);
+    const exact = index.byKey.get(key);
+    if (exact !== undefined) return exact;
+    let best = 0;
+    let bestDist = Infinity;
+    for (const [k, id] of index.byKey) {
+        const d = cornerDist(k, key);
+        if (d < bestDist) { bestDist = d; best = id; }
     }
     return best;
 }

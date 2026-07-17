@@ -53,24 +53,42 @@ export interface TilesetAnimFrame {
 }
 
 /**
- * How a terrain's tiles peer with their neighbours. `edge` = 4-bit N/E/S/W matching
- * (16-tile sets, good for ground/walls); `corner` = the 8-bit "corners and sides" blob
- * (up to 47 tiles, smooth blobby terrain). See `autotile.ts` for the resolver.
+ * How a terrain's tiles match their neighbours. `edge` = 4-bit N/E/S/W peering (16-tile
+ * sets, good for ground/walls); `corner` = the 8-bit "corners and sides" blob (up to 47
+ * tiles, smooth blobby terrain) — both are single-terrain peering masks. `wang` = the
+ * modern corner (Wang) model: each tile assigns a COLOR to each of its 4 corners, so one
+ * set blends MANY terrains (grass↔sand↔water) and paints on a half-cell corner grid.
+ * See `autotile.ts` for the resolvers.
  */
-export type TerrainMode = 'edge' | 'corner';
+export type TerrainMode = 'edge' | 'corner' | 'wang';
+
+/** One terrain color in a `wang` set (a corner can carry this). */
+export interface TerrainColor {
+    name: string;
+    /** CSS color for the authoring dot / brush swatch. */
+    color: string;
+}
 
 /** A named terrain (autotile rule set) in a tileset; tiles join it via {@link TilesetTileTerrain}. */
 export interface TilesetTerrain {
     name: string;
     mode: TerrainMode;
-    /** Authoring tint for the terrain (CSS color); cosmetic. */
+    /** Authoring tint for a peering (edge/corner) terrain (CSS color); cosmetic. */
     color?: string;
+    /** The corner-color palette for a `wang` set (index 0 in `corners` = none/empty). */
+    colors?: TerrainColor[];
 }
 
-/** A tile's membership in a terrain: which set, and its peering bitmask (see `autotile.ts`). */
+/**
+ * A tile's membership in a terrain set. Edge/corner sets use `mask` (a peering bitmask,
+ * see `autotile.ts`); a `wang` set uses `corners` — the color index at each corner in
+ * [top-left, top-right, bottom-right, bottom-left] order (0 = none, else 1-based into the
+ * set's {@link TilesetTerrain.colors}).
+ */
 export interface TilesetTileTerrain {
     set: number;
-    mask: number;
+    mask?: number;
+    corners?: number[];
 }
 
 /** Per-tile metadata. Sparse — only tiles that carry any of these appear in the map. */
@@ -180,9 +198,15 @@ export function parseTileset(raw: any): TilesetAsset {
             if (frames.length > 0) tile.animation = frames;
         }
         if (t.terrain && typeof t.terrain === 'object'
-            && Number.isInteger(t.terrain.set) && t.terrain.set >= 0
-            && Number.isInteger(t.terrain.mask) && t.terrain.mask >= 0) {
-            tile.terrain = { set: t.terrain.set, mask: t.terrain.mask };
+            && Number.isInteger(t.terrain.set) && t.terrain.set >= 0) {
+            const tt: TilesetTileTerrain = { set: t.terrain.set };
+            if (Number.isInteger(t.terrain.mask) && t.terrain.mask >= 0) tt.mask = t.terrain.mask;
+            if (Array.isArray(t.terrain.corners) && t.terrain.corners.length === 4
+                && t.terrain.corners.every((c: any) => Number.isInteger(c) && c >= 0)) {
+                tt.corners = [t.terrain.corners[0], t.terrain.corners[1], t.terrain.corners[2], t.terrain.corners[3]];
+            }
+            // A membership needs at least one of the two payloads (peering mask or wang corners).
+            if (tt.mask !== undefined || tt.corners !== undefined) tile.terrain = tt;
         }
         if (typeof t.probability === 'number' && Number.isFinite(t.probability)
             && t.probability >= 0 && t.probability !== 1) {
@@ -194,11 +218,20 @@ export function parseTileset(raw: any): TilesetAsset {
     const terrains: TilesetTerrain[] = Array.isArray(raw?.terrains)
         ? raw.terrains
             .filter((t: any) => t && typeof t.name === 'string')
-            .map((t: any): TilesetTerrain => ({
-                name: t.name,
-                mode: t.mode === 'corner' ? 'corner' : 'edge',
-                ...(typeof t.color === 'string' ? { color: t.color } : {}),
-            }))
+            .map((t: any): TilesetTerrain => {
+                const mode: TerrainMode = t.mode === 'corner' ? 'corner' : t.mode === 'wang' ? 'wang' : 'edge';
+                const colors: TerrainColor[] = Array.isArray(t.colors)
+                    ? t.colors
+                        .filter((c: any) => c && typeof c.color === 'string')
+                        .map((c: any): TerrainColor => ({ name: typeof c.name === 'string' ? c.name : '', color: c.color }))
+                    : [];
+                return {
+                    name: t.name,
+                    mode,
+                    ...(typeof t.color === 'string' ? { color: t.color } : {}),
+                    ...(colors.length > 0 ? { colors } : {}),
+                };
+            })
         : [];
     return {
         version: typeof raw?.version === 'string' ? raw.version : TILESET_FORMAT_VERSION,

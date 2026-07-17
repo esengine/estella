@@ -193,7 +193,28 @@
 }
 .tp-terrain:not(.is-active):hover { border-color: var(--line-strong); color: var(--text); }
 .tp-terrain.is-active { border-color: var(--star); color: var(--text); }
-.tp-tswatch { width: 12px; height: 12px; border-radius: var(--r-xs); display: inline-block; }
+.tp-tswatch { width: 12px; height: 12px; border-radius: var(--r-xs); display: inline-block; flex: 0 0 auto; }
+
+/* Wang (corner) terrain: paint by COLOR, so the terrain list shows a labeled group of
+   color-swatch buttons (one per color in the set) instead of a single terrain button. */
+.tp-wgroup { display: flex; flex-direction: column; gap: 4px; }
+.tp-wglabel { font-size: var(--fs-2xs); font-weight: 600; color: var(--text-mute); text-transform: uppercase; letter-spacing: 0.04em; }
+.tp-wcrow { display: flex; flex-wrap: wrap; gap: 4px; }
+.tp-wcbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--srf-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  color: var(--text-dim);
+  padding: 4px 9px;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+.tp-wcbtn:not(.is-active):hover { border-color: var(--line-strong); color: var(--text); }
+.tp-wcbtn.is-active { border-color: var(--star); color: var(--text); box-shadow: 0 0 0 1px var(--star); }
 
 /* Multi-tileset tab bar — switch which of the layer's tilesets the palette paints from. */
 .tp-tilesets {

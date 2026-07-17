@@ -13,6 +13,18 @@ gameplay code**; the levels live entirely in the scene/assets.
 | `assets/scenes/iso-map.esscene` | `TilemapLayer` · **isometric** | A diamond-grid island — water border, sand beach, grass, forest, and a stone clearing. |
 | `assets/scenes/staggered-map.esscene` | `TilemapLayer` · **staggered** | The same diamond tiles in a staggered-isometric layout, with a river winding across the patchwork. |
 | `assets/scenes/hex-map.esscene` | `TilemapLayer` · **hexagonal** | A pointy-top hex strategy map — a lake with a sandy shore, forest, and a snow-capped mountain range. |
+| `assets/scenes/wang-map.esscene` | `TilemapLayer` · **corner-Wang terrain** | A grass island → sand beach → water sea whose transitions are **auto-tiled** by a corner-Wang set — paint a terrain color and the borders blend on their own. |
+
+## Corner-Wang terrain (auto-tiling)
+
+`wang.estileset` carries a **corner (Wang) terrain set** with three colors — grass,
+sand, water. Each tile assigns a color to its four corners (the colored dots in the
+Tileset editor's Terrain mode), and the painter's **terrain brush** picks the tile
+whose corners match, so painting one color **blends into its neighbours automatically**
+— the classic "circle in the four corners" technique, with **many terrains in one set**.
+Author your own with **Tileset → Terrain → add a set → Corner (Wang)**, add colors,
+click each tile's corners, then paint with the terrain tool. (The older `Edge` /
+`Corner (blob)` peering modes are still there for single-terrain autotiling.)
 
 ## Orientations
 
@@ -46,6 +58,7 @@ live collision and animation data. So:
 | `assets/tilesets/terrain.estileset` | The engine-native tileset: atlas grid + per-tile collision + water animation. |
 | `assets/tilesets/iso-tiles.png` + `iso.estileset` | Six 64×32 **isometric** diamond terrain tiles (grass/water/sand/stone/dirt/forest). |
 | `assets/tilesets/hex-tiles.png` + `hex.estileset` | Six 64×64 pointy-top **hexagon** terrain tiles (grass/water/sand/forest/mountain/snow). |
+| `assets/tilesets/wang-tiles.png` + `wang.estileset` | A 45-tile **corner-Wang** terrain set — every grass/sand/water corner combination, blended by a smooth marching-squares boundary. |
 
 The platformer art is **Kenney [Pixel Platformer](https://kenney.nl/assets/pixel-platformer)
 (CC0)** — reuse it freely, including commercially. See

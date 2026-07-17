@@ -253,6 +253,91 @@
 .ts-zone-c { left: 33.34%; top: 33.34%; }
 .ts-zone-c:hover { background: rgba(255, 255, 255, 0.1); }
 
+/* Wang (corner) authoring: a colored dot at each of a tile's 4 corners — the "circle in
+   the corner" UI. Empty = faint ring; assigned = filled with the terrain color (inline). */
+.ts-wcorner {
+  position: absolute;
+  width: 11px;
+  height: 11px;
+  margin: 0;
+  padding: 0;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  background: rgba(18, 19, 24, 0.5);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+}
+.ts-wcorner.is-on { border-color: rgba(255, 255, 255, 0.9); }
+.ts-wcorner:hover { border-color: var(--star); transform: translate(-50%, -50%) scale(1.15); }
+
+/* Wang color palette (below the terrain editor row): swatch · name · picker · remove. */
+.ts-wcolors {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+.ts-wcolor {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: var(--srf-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 2px 4px 2px 3px;
+}
+.ts-wcolor.is-active { border-color: var(--star); box-shadow: 0 0 0 1px var(--star); }
+.ts-wswatch {
+  width: 18px;
+  height: 18px;
+  border-radius: var(--r-xs);
+  border: 1px solid rgba(0, 0, 0, 0.4);
+  padding: 0;
+  cursor: pointer;
+}
+.ts-wcname {
+  width: 62px;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: var(--fs-xs);
+  padding: 2px;
+  outline: none;
+}
+.ts-wcname:focus { color: var(--text); }
+.ts-wcpick { width: 20px; height: 20px; padding: 0; border: none; background: none; cursor: pointer; }
+.ts-wcx {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  background: none;
+  border: none;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+.ts-wcx:hover { color: var(--error); }
+.ts-wcadd {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: var(--srf-3);
+  border: 1px dashed var(--line);
+  border-radius: var(--r-sm);
+  color: var(--text-dim);
+  padding: 4px 8px;
+  cursor: pointer;
+  font: inherit;
+}
+.ts-wcadd:hover { color: var(--text); border-color: var(--star); }
+
 /* Polygon-collision cell marker + the focused polygon editor overlay */
 .ts-pcell.is-poly { background: color-mix(in srgb, var(--gizmo-tile) 22%, transparent); border-color: color-mix(in srgb, var(--gizmo-tile) 85%, transparent); }
 .ts-pcell:hover { border-color: var(--star); background: var(--star-dim); }

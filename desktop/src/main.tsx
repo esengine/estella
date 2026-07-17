@@ -50,6 +50,7 @@ import { commands } from './commands/registry';
 import { ENTITY_SOURCES, sourceById, createFromSource, type TileGridConfig } from './engine/entitySources';
 import { createTilemapFromTileset } from './tilemap/createTilemap';
 import { SceneCommands } from './engine/SceneCommands';
+import { useTilemapPaint } from './store/tilemapPaintStore';
 import { ViewportController } from './engine/ViewportController';
 import { PerfMonitor } from './engine/PerfMonitor';
 import { LogStore } from './store/LogStore';
@@ -141,6 +142,13 @@ if (new URLSearchParams(location.search).has('automation')) {
     /** Paint tiles into a TilemapLayer SOURCE entity (one undo step) — for shot tests. */
     paintTiles: (sourceId: number, edits: { x: number; y: number; tileId: number }[]) =>
       SceneCommands.paintTiles(sourceId, edits),
+    /** Drive the tilemap paint store (tool / terrain set / wang color) — for shot tests. */
+    setTilePaint: (patch: { tool?: unknown; terrainSet?: number; wangColor?: number }) => {
+      const s = useTilemapPaint.getState();
+      if (patch.tool !== undefined) s.setTool(patch.tool as never);
+      if (patch.terrainSet !== undefined) s.setTerrainSet(patch.terrainSet);
+      if (patch.wangColor !== undefined) s.setWangColor(patch.wangColor);
+    },
     /** Spawn a ready-made entity through the one create pipeline (menu/DnD parity). */
     createEntity: async (sourceId: string, opts?: { parent?: number | null; x?: number; y?: number }) => {
       const source = sourceById(sourceId);
