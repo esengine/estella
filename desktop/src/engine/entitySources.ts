@@ -11,7 +11,7 @@
  * UI. (REARCH_ENTITY_CREATION E2.)
  */
 import type { LucideIcon } from 'lucide-react';
-import { CircleDot, LayoutPanelTop, ToggleLeft, SlidersHorizontal, List, ChevronDown, SquareMousePointer, RectangleHorizontal, Box } from 'lucide-react';
+import { CircleDot, LayoutPanelTop, ToggleLeft, SlidersHorizontal, List, ChevronDown, SquareMousePointer, RectangleHorizontal, Box, Type, Image as ImageIcon, SquareDashed } from 'lucide-react';
 import { BUILTIN_UI_PREFABS, BUILTIN_UI_WIDGET_NAMES, PREFAB_FORMAT_VERSION, getUserComponents, type PrefabData } from 'esengine';
 import type { EntityId } from '@/types';
 import { componentByName, componentDefaults, prettyLabel, componentCategory } from './schema';
@@ -166,6 +166,21 @@ const UI_WIDGET_ICON: Record<string, LucideIcon> = {
   ListView: List,
 };
 
+// UI primitives — the raw building blocks the widget prefabs are composed from: a
+// UINode (layout) plus, per role, a Text or UIVisual. Placed under the Canvas like
+// the widgets. Without these the palette jumped from Canvas straight to composite
+// widgets, with no way to drop a plain label, image, or layout container. Each maps
+// to one UI render component: Text→Text, Image→UIVisual, Container→bare UINode.
+const uiPx = (n: number) => ({ value: n, unit: 0 });
+const UI_PRIMITIVE_SPECS: { id: string; label: string; icon: LucideIcon; comps: CompSpec[] }[] = [
+  { id: 'ui-text', label: 'Text', icon: Type,
+    comps: ['Transform', ['UINode', { width: uiPx(160), height: uiPx(40) }], ['Text', { content: 'Text' }]] },
+  { id: 'ui-image', label: 'Image', icon: ImageIcon,
+    comps: ['Transform', ['UINode', { width: uiPx(100), height: uiPx(100) }], 'UIVisual'] },
+  { id: 'ui-container', label: 'Container', icon: SquareDashed,
+    comps: ['Transform', ['UINode', { width: uiPx(200), height: uiPx(120) }]] },
+];
+
 /**
  * The entity-anchor components — each seeds a plain entity of that type. THE authority
  * for "which components can start an entity": add an anchor here and it appears in the
@@ -215,6 +230,14 @@ export const ENTITY_SOURCES: EntitySource[] = [
       return preset('Canvas', ['Transform', ['Canvas', { designResolution: { x: d.width, y: d.height } }], 'UINode']);
     },
   },
+  ...UI_PRIMITIVE_SPECS.map((s): EntitySource => ({
+    id: s.id,
+    label: s.label,
+    category: 'UI',
+    icon: s.icon,
+    build: () => preset(s.label, s.comps),
+    placement: 'under-canvas',
+  })),
   ...BUILTIN_UI_WIDGET_NAMES.map((name): EntitySource => ({
     id: `ui-${name.toLowerCase()}`,
     label: name,

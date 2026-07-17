@@ -42,6 +42,19 @@ describe('Create catalog (searchable source registry)', () => {
     expect(ui).toEqual(expect.arrayContaining(['Canvas', 'Button', 'Toggle', 'Slider']));
   });
 
+  it('UI primitives (Text / Image / Container) sit under the Canvas', async () => {
+    const ui = ENTITY_SOURCES.filter((s) => s.category === 'UI').map((s) => s.label);
+    expect(ui).toEqual(expect.arrayContaining(['Text', 'Image', 'Container']));
+
+    const text = ENTITY_SOURCES.find((s) => s.id === 'ui-text')!;
+    expect(text.placement).toBe('under-canvas');
+    const built = (await text.build({ parent: null })).entities[0];
+    expect(built.components.map((c) => c.type)).toEqual(['Transform', 'UINode', 'Text']);
+    // Seeded so a freshly-dropped label reads, not an empty invisible node.
+    expect((built.components.find((c) => c.type === 'Text')!.data as { content: string }).content).toBe('Text');
+    expect((built.components.find((c) => c.type === 'UINode')!.data as { width: { value: number } }).width.value).toBe(160);
+  });
+
   it('sourceById round-trips a dragged palette id back to its source', () => {
     for (const s of ENTITY_SOURCES.filter((x) => x.category === 'UI')) {
       expect(sourceById(s.id)).toBe(s);
