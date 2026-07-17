@@ -15,7 +15,8 @@ import type {
 } from 'esengine';
 
 import {
-    CHAT_W, CHAT_H, ROW_H, ROW_SPACING, BUBBLE_W, RIGHT_GUTTER,
+    CHAT_W, CHAT_H, ROW_SPACING, BUBBLE_W, RIGHT_GUTTER,
+    LABEL_PAD, BUBBLE_VPAD, bubbleHeight,
     COMPOSER_H, SEND_W, INPUT_W,
     ME_BUBBLE, BOT_BUBBLE, BUBBLE_TEXT,
     botReply, SEED,
@@ -48,12 +49,13 @@ export const buildSystem = defineSystem(
         const makeSide = (w: World, row: Entity, mine: boolean): Side => {
             const bubble = spawnUIEntity({
                 world: w, parent: row,
+                // Fills the row's (measured) height; width fixed, pinned to a side.
                 node: {
                     position: UIPositionType.Absolute,
                     insetLeft: px(mine ? CHAT_W - BUBBLE_W - RIGHT_GUTTER : 12),
                     insetTop: px(0),
+                    insetBottom: px(0),
                     width: px(BUBBLE_W),
-                    height: px(ROW_H - ROW_SPACING),
                 },
                 visual: { color: mine ? ME_BUBBLE : BOT_BUBBLE, enabled: false },
             });
@@ -61,7 +63,8 @@ export const buildSystem = defineSystem(
                 world: w, parent: bubble,
                 node: {
                     position: UIPositionType.Absolute,
-                    insetLeft: px(12), insetRight: px(12), insetTop: px(0), insetBottom: px(0),
+                    insetLeft: px(LABEL_PAD), insetRight: px(LABEL_PAD),
+                    insetTop: px(BUBBLE_VPAD), insetBottom: px(BUBBLE_VPAD),
                 },
                 text: {
                     content: '', fontSize: 14, color: BUBBLE_TEXT,
@@ -96,7 +99,8 @@ export const buildSystem = defineSystem(
             viewportSize: { x: CHAT_W, y: CHAT_H },
             background: { color: LIST_BG },
             data: messages,
-            layout: { itemHeight: ROW_H, spacing: ROW_SPACING },
+            // Rows auto-size to each message's wrapped text (measured layout).
+            layout: { itemHeight: (i) => bubbleHeight(messages.getItem(i)), spacing: ROW_SPACING },
             item: rowTemplate,
         });
 

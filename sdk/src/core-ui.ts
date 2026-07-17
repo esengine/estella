@@ -228,6 +228,7 @@ export {
     arrayDataSource,
     type DataSource,
     LinearLayoutProvider,
+    MeasuredLinearLayoutProvider,
     GridLayoutProvider,
     type LayoutProvider,
     widgetToPrefab,

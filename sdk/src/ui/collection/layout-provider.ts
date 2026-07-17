@@ -88,6 +88,90 @@ export class LinearLayoutProvider implements LayoutProvider {
     }
 }
 
+// -- Measured linear (variable main-axis size) --------------------------------
+
+export interface MeasuredLinearLayoutOptions {
+    direction?: 'row' | 'column';
+    spacing?: number;
+    /** Fixed cross-axis size (width for a column list, height for a row). */
+    crossSize: number;
+    /** Main-axis size (height for a column, width for a row) of item `index`. */
+    mainSizeOf: (index: number) => number;
+}
+
+/**
+ * A linear list whose items vary along the main axis (e.g. chat bubbles that grow
+ * with their wrapped text). Item offsets are prefix-summed and cached; the cache
+ * rebuilds when the item count changes or {@link invalidate} is called (a data or
+ * measurement change — the ListView invalidates on both). `mainSizeOf` is the
+ * app's measure hook, so the list stays measurement-agnostic.
+ */
+export class MeasuredLinearLayoutProvider implements LayoutProvider {
+    private readonly dir_: 'row' | 'column';
+    private readonly spacing_: number;
+    private readonly crossSize_: number;
+    private readonly mainSizeOf_: (index: number) => number;
+    /** Prefix offsets: `offsets_[i]` = main-axis start of item `i`; length count+1. */
+    private offsets_: number[] = [0];
+    private total_ = 0;
+    private builtFor_ = -1; // item count the offsets were built for; -1 forces rebuild
+
+    constructor(opts: MeasuredLinearLayoutOptions) {
+        this.dir_ = opts.direction ?? 'column';
+        this.spacing_ = opts.spacing ?? 0;
+        this.crossSize_ = opts.crossSize;
+        this.mainSizeOf_ = opts.mainSizeOf;
+    }
+
+    /** Re-measure on the next query (an item's data/size changed, not just the count). */
+    invalidate(): void {
+        this.builtFor_ = -1;
+    }
+
+    private ensure_(count: number): void {
+        if (this.builtFor_ === count) return;
+        this.builtFor_ = count;
+        const offsets = new Array<number>(count + 1);
+        offsets[0] = 0;
+        for (let i = 0; i < count; i++) {
+            offsets[i + 1] = offsets[i] + Math.max(0, this.mainSizeOf_(i)) + this.spacing_;
+        }
+        this.offsets_ = offsets;
+        // Drop the trailing gap after the last item.
+        this.total_ = count > 0 ? offsets[count] - this.spacing_ : 0;
+    }
+
+    getContentSize(count: number): Vec2 {
+        this.ensure_(count);
+        return this.dir_ === 'column'
+            ? { x: this.crossSize_, y: this.total_ }
+            : { x: this.total_, y: this.crossSize_ };
+    }
+
+    getItemRect(index: number): Rect {
+        // getVisibleRange / getContentSize run first each update() and prime the cache.
+        const start = this.offsets_[index] ?? 0;
+        const size = Math.max(0, (this.offsets_[index + 1] ?? start) - start - this.spacing_);
+        return this.dir_ === 'column'
+            ? { x: 0, y: start, width: this.crossSize_, height: size }
+            : { x: start, y: 0, width: size, height: this.crossSize_ };
+    }
+
+    getVisibleRange(viewport: Rect, count: number): [number, number] {
+        this.ensure_(count);
+        if (count <= 0) return [0, 0];
+        const vStart = this.dir_ === 'column' ? viewport.y : viewport.x;
+        const vEnd = vStart + (this.dir_ === 'column' ? viewport.height : viewport.width);
+        // offsets_ is sorted, so scan for the first item whose end clears vStart and
+        // the last whose start is before vEnd (linear — visible spans are short).
+        let start = 0;
+        while (start < count && this.offsets_[start + 1] - this.spacing_ <= vStart) start++;
+        let end = start;
+        while (end < count && this.offsets_[end] < vEnd) end++;
+        return start < end ? [start, end] : [0, 0];
+    }
+}
+
 // -- Grid ---------------------------------------------------------------------
 
 export interface GridLayoutOptions {

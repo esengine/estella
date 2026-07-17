@@ -105,8 +105,16 @@ export class ListView<T = unknown> {
         if (this.dataSource_.subscribe) {
             this.unsubscribeDataSource_ = this.dataSource_.subscribe(() => {
                 this.dirty_ = true;
+                this.invalidateLayout_();
             });
         }
+    }
+
+    /** A measured layout caches per-item offsets; drop them when the data (or, for
+     *  width-dependent measures like wrapped text, the viewport) changes. No-op for
+     *  fixed-size providers. */
+    private invalidateLayout_(): void {
+        (this.layout_ as { invalidate?: () => void }).invalidate?.();
     }
 
     /** Current visible window within the content, in content-local coords. */
@@ -144,6 +152,7 @@ export class ListView<T = unknown> {
         if (size.x === this.viewportSize_.x && size.y === this.viewportSize_.y) return;
         this.viewportSize_ = { x: size.x, y: size.y };
         this.dirty_ = true;
+        this.invalidateLayout_(); // width-dependent measures (wrapped text) re-flow
     }
 
     /** Mark the mount set dirty — the next `update()` will re-sync. */

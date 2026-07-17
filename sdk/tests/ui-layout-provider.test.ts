@@ -1,10 +1,53 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect } from 'vitest';
-import { LinearLayoutProvider, GridLayoutProvider, type Rect } from '../src/ui';
+import { LinearLayoutProvider, MeasuredLinearLayoutProvider, GridLayoutProvider, type Rect } from '../src/ui';
 
 const VIEWPORT = (x: number, y: number, w: number, h: number): Rect =>
     ({ x, y, width: w, height: h });
+
+describe('MeasuredLinearLayoutProvider (variable height)', () => {
+    // Heights are mutable so the invalidate() case can re-measure.
+    const heights = [20, 40, 60, 30];
+    const p = new MeasuredLinearLayoutProvider({
+        direction: 'column',
+        crossSize: 200,
+        spacing: 4,
+        mainSizeOf: (i) => heights[i],
+    });
+
+    it('content height sums measured items plus inter-item spacing', () => {
+        // 20+40+60+30 = 150 + 3 gaps * 4 = 162
+        expect(p.getContentSize(4)).toEqual({ x: 200, y: 162 });
+    });
+
+    it('empty content has zero size', () => {
+        expect(p.getContentSize(0)).toEqual({ x: 200, y: 0 });
+    });
+
+    it('item rects offset by the running measured heights', () => {
+        p.getContentSize(4); // prime the cache
+        expect(p.getItemRect(0)).toEqual({ x: 0, y: 0, width: 200, height: 20 });
+        expect(p.getItemRect(1)).toEqual({ x: 0, y: 24, width: 200, height: 40 });
+        expect(p.getItemRect(2)).toEqual({ x: 0, y: 68, width: 200, height: 60 });
+        expect(p.getItemRect(3)).toEqual({ x: 0, y: 132, width: 200, height: 30 });
+    });
+
+    it('visible range spans items that overlap the window', () => {
+        // window 0..50 covers item0 (0..20) and item1 (24..64); item2 starts at 68
+        expect(p.getVisibleRange(VIEWPORT(0, 0, 200, 50), 4)).toEqual([0, 2]);
+        // scrolled to y=70 covers item2 (68..128) and item3 (132..162)
+        expect(p.getVisibleRange(VIEWPORT(0, 70, 200, 80), 4)).toEqual([2, 4]);
+    });
+
+    it('invalidate() re-measures after a height changes', () => {
+        heights[0] = 100; // item 0 grew
+        // Stale until invalidate: the cache still reports the old total.
+        expect(p.getContentSize(4).y).toBe(162);
+        p.invalidate();
+        expect(p.getContentSize(4).y).toBe(242); // 100+40+60+30 + 12
+    });
+});
 
 describe('LinearLayoutProvider (column)', () => {
     const p = new LinearLayoutProvider({

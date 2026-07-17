@@ -32,6 +32,7 @@ import {
     type LayoutProvider,
     type Rect,
     LinearLayoutProvider,
+    MeasuredLinearLayoutProvider,
     GridLayoutProvider,
 } from '../collection/layout-provider';
 import { ListView } from '../collection/list-view';
@@ -61,7 +62,7 @@ export interface ListItemTemplate<T> {
 
 /** Layout sugar. A column list, a row list, or a grid (`columns`). */
 export type ListLayoutSpec =
-    | { itemHeight: number; spacing?: number; direction?: 'column' }
+    | { itemHeight: number | ((index: number) => number); spacing?: number; direction?: 'column' }
     | { itemWidth: number; spacing?: number; direction: 'row' }
     | { columns: number; itemSize: Vec2; spacing?: Vec2 };
 
@@ -136,6 +137,13 @@ function buildLayout(spec: ListLayoutSpec, viewport: Vec2): { layout: LayoutProv
         return {
             layout: new LinearLayoutProvider({ direction: 'row', itemSize: { x: spec.itemWidth, y: viewport.y }, spacing: spec.spacing }),
             axis: 'horizontal',
+        };
+    }
+    if (typeof spec.itemHeight === 'function') {
+        const mainSizeOf = spec.itemHeight;
+        return {
+            layout: new MeasuredLinearLayoutProvider({ direction: 'column', crossSize: viewport.x, mainSizeOf, spacing: spec.spacing }),
+            axis: 'vertical',
         };
     }
     return {

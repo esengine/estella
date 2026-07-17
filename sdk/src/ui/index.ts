@@ -203,8 +203,10 @@ export {
     type LayoutProvider,
     type Rect,
     type LinearLayoutOptions,
+    type MeasuredLinearLayoutOptions,
     type GridLayoutOptions,
     LinearLayoutProvider,
+    MeasuredLinearLayoutProvider,
     GridLayoutProvider,
 } from './collection/layout-provider';
 

@@ -5,13 +5,46 @@ import type { Color } from 'esengine';
 export const CHAT_W = 720;
 export const CHAT_H = 424;
 
-// Fixed-height rows (the list recycles a handful of entities): a bubble plus an
-// 8px gap. Bubbles are pinned left (them) or right (you) at a fixed max width.
-export const ROW_H = 60;
+// Rows auto-size to their wrapped text (createListView's measured layout). Bubbles
+// are pinned left (them) or right (you) at a fixed max width, and grow taller as
+// the message wraps.
 export const ROW_SPACING = 8;
 export const BUBBLE_W = 460;
 // Right-side bubbles leave a gutter so they clear the scroll edge.
 export const RIGHT_GUTTER = 24;
+
+// Bubble text metrics.
+export const LABEL_PAD = 12;    // horizontal text inset inside a bubble
+export const BUBBLE_VPAD = 10;  // vertical padding above + below the text
+const FONT_SIZE = 14;
+const LINE_H = FONT_SIZE * 1.3;      // matches Text.lineHeight (1.3 ratio)
+const AVG_CHAR_W = FONT_SIZE * 0.6;  // deliberately wide → never under-count lines
+
+/**
+ * Estimated pixel height of a message bubble sized to its wrapped text. There is
+ * no public text-measure API yet, so this word-wraps at an estimated
+ * chars-per-line and errs TALL (a short estimate would overflow — the exact bug
+ * this fixes). Fed to createListView as `itemHeight(index)`.
+ */
+export function bubbleHeight(msg: Message): number {
+    const textW = BUBBLE_W - 2 * LABEL_PAD;
+    const cpl = Math.max(1, Math.floor(textW / AVG_CHAR_W));
+    return Math.max(1, wrapLines(msg.text, cpl)) * LINE_H + 2 * BUBBLE_VPAD;
+}
+
+/** Rough word-wrap line count at `cpl` chars per line (a word wider than a line
+ *  splits across lines). */
+function wrapLines(text: string, cpl: number): number {
+    let lines = 1;
+    let col = 0;
+    for (const word of text.split(/\s+/)) {
+        if (col === 0) col = word.length;
+        else if (col + 1 + word.length <= cpl) col += 1 + word.length;
+        else { lines++; col = word.length; }
+        while (col > cpl) { lines++; col -= cpl; }
+    }
+    return lines;
+}
 
 export const COMPOSER_H = 40;
 export const SEND_W = 84;
