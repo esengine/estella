@@ -762,7 +762,7 @@ Record<string, PrefabData>
 
 ## BUILTIN_UI_WIDGET_NAMES — const
 ```
-readonly ["Button", "Toggle", "Slider", "Dialog", "TextInput", "Progress", "Dropdown", "ListView"]
+readonly ["Button", "Toggle", "Slider", "Dialog", "TextInput", "Progress", "Dropdown", "ListView", "ScrollView"]
 ```
 
 ## BUNDLE_MODES — const
