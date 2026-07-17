@@ -1722,16 +1722,35 @@ export function Viewport() {
     e.dataTransfer.dropEffect = 'copy';
   };
 
+  // The deepest plain layout container under the pointer — the drop parent for a
+  // UI widget, so dropping onto a panel nests inside it (Figma-style) instead of
+  // always landing at the Canvas root. "Plain container" = a UINode that is not a
+  // widget behavior root, an interactive hit-area, a text leaf, or widget-internal
+  // chrome (builtin widget internals all carry ThemeStyle; user containers don't).
+  const uiDropParent = (clientX: number, clientY: number): EntityId | null => {
+    const NOT_CONTAINER = ['Text', 'Interactable', 'Focusable', 'ThemeStyle',
+      'UIToggle', 'UISlider', 'UIDropdown', 'UIDialog', 'TextInput'];
+    for (const rt of ViewportController.pickUIEntities(clientX, clientY)) {
+      const src = SceneModel.sourceFor(rt);
+      const comps = src != null ? SceneModel.entityBySource(src)?.components : undefined;
+      if (!comps) continue;
+      if (comps.some((c) => c.type === 'UINode') && !comps.some((c) => NOT_CONTAINER.includes(c.type))) return src!;
+    }
+    return null;
+  };
+
   const onDrop = (e: ReactDragEvent) => {
-    // A widget dragged from the UI palette: create it (under the Canvas via its
-    // placement rule) at the drop point and select it.
+    // A widget dragged from the UI palette: create it at the drop point — nested
+    // in the container under the pointer when there is one, else under the Canvas
+    // via its placement rule — and select it.
     const sourceId = e.dataTransfer.getData(SOURCE_DND_MIME);
     if (sourceId) {
       const source = sourceById(sourceId);
       if (!source) return;
       e.preventDefault();
       const drop = ViewportController.canvasToWorld(e.clientX, e.clientY);
-      void createFromSource(source, { parent: null, position: drop ?? undefined }).then((id) => {
+      const parent = source.placement === 'under-canvas' ? uiDropParent(e.clientX, e.clientY) : null;
+      void createFromSource(source, { parent, position: drop ?? undefined }).then((id) => {
         if (id != null) useSelection.getState().select(id);
       });
       return;
