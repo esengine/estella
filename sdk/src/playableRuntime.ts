@@ -14,6 +14,7 @@ import type { App } from './app';
 import type { ESEngineModule } from './wasm';
 import type { AudioProjectConfig } from './audio/AudioProjectConfig';
 import { initRuntime } from './runtimeLoader';
+import type { ThemeOverrides } from './ui';
 import type { RuntimeAssetSource } from './runtimeAssets';
 import { EmbeddedBackend } from './asset/Backend';
 import type { AddressableManifest } from './asset/AddressableManifest';
@@ -40,6 +41,8 @@ export interface PlayableRuntimeConfig {
     physicsConfig?: { gravity?: Vec2; fixedTimestep?: number; subStepCount?: number };
     /** Project-declared UI theme; 'light' re-skins ThemeStyle-tagged widgets at boot. */
     uiTheme?: 'dark' | 'light';
+    /** Project-declared theme token overrides (partial re-skin over the base). */
+    uiThemeOverrides?: ThemeOverrides;
     /** Project-declared mixer state (bus volumes / effects / duck rules). */
     audioConfig?: AudioProjectConfig;
     /** Bitmask of render layers (0..31) that y-sort within the layer (Project Settings → Rendering). */
@@ -135,6 +138,7 @@ export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promis
         firstScene,
         physicsConfig: config.physicsConfig,
         uiTheme: config.uiTheme,
+        uiThemeOverrides: config.uiThemeOverrides,
         audioConfig: config.audioConfig,
         aspectRatio: config.canvas.width / config.canvas.height,
     });

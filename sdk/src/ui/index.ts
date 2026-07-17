@@ -387,9 +387,13 @@ export {
     setTheme,
     themeColors,
     themeType,
+    resolveThemeTokens,
+    parseThemeOverrides,
+    THEME_COLOR_ROLES,
     type ThemeTokens,
     type ThemeColors,
     type ThemeType,
+    type ThemeOverrides,
 } from './theme/tokens';
 
 export {

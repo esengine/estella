@@ -158,6 +158,10 @@ export async function exportPlayable(opts: {
   /** Project camera fit (design resolution + scale mode) — letterboxes the main camera
    *  without a UI Canvas; absent = no fit. */
   screenFit?: { designWidth: number; designHeight: number; scaleMode: number; matchWidthOrHeight: number };
+  /** Project widget theme (Project Settings → UI); absent = dark. */
+  uiTheme?: 'light';
+  /** Project theme color overrides (role → #rrggbbaa hex) — the host parses them. */
+  uiThemeColors?: Record<string, string>;
   onProgress?: OnExportProgress;
 }): Promise<ExportPlayableResult> {
   const title = opts.title ?? 'Game';
@@ -275,7 +279,9 @@ export async function exportPlayable(opts: {
     `window.__GAME_FIRST__=${JSON.stringify(sceneName)};` +
     `window.__GAME_YSORT__=${(opts.ySortLayers ?? 0) >>> 0};` +
     `window.__GAME_COLORSPACE__=${JSON.stringify(opts.colorSpace === 'linear' ? 'linear' : 'gamma')};` +
-    (opts.screenFit && opts.screenFit.scaleMode >= 0 ? `window.__GAME_SCREENFIT__=${JSON.stringify(opts.screenFit)};` : '');
+    (opts.screenFit && opts.screenFit.scaleMode >= 0 ? `window.__GAME_SCREENFIT__=${JSON.stringify(opts.screenFit)};` : '') +
+    (opts.uiTheme === 'light' ? `window.__GAME_UITHEME__='light';` : '') +
+    (opts.uiThemeColors && Object.keys(opts.uiThemeColors).length > 0 ? `window.__GAME_UITHEMECOLORS__=${JSON.stringify(opts.uiThemeColors)};` : '');
   const outFile = path.join(absOut, 'index.html');
   await writeFile(outFile, indexHtml(title, globals, bundle, orientation));
   await rm(cookDir, { recursive: true, force: true });

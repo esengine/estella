@@ -198,6 +198,10 @@
   transition: box-shadow var(--t-fast);
 }
 .set-swatch.on { box-shadow: 0 0 0 2px var(--srf-2), 0 0 0 4px var(--acc); }
+/* Full color picker row (theme token overrides): picker + "inherited" tag while unset. */
+.set-colorpicker { display: flex; align-items: center; gap: 8px; }
+.set-colorpicker.inherited { opacity: 0.75; }
+.set-inherit { font-size: var(--fs-2xs); color: var(--text-faint); }
 
 /* The pill toggle is the shared `.toggle` primitive (controls.css). */
 

@@ -45,6 +45,12 @@ export const settingsMessages = defineMessages({
     },
     'set.project.ui.theme.dark': { en: 'Dark', zh: '暗色' },
     'set.project.ui.theme.light': { en: 'Light', zh: '亮色' },
+    'set.group.uiThemeColors': { en: 'Theme Colors', zh: '主题颜色' },
+    'set.project.ui.color.desc': {
+        en: 'Overrides this role for the whole project; unset inherits the base theme. The viewport and shipped builds resolve identically.',
+        zh: '为整个项目覆盖该颜色角色;不设置则继承基础主题。视口与导出成品解析一致。',
+    },
+    'set.inherited': { en: 'inherited', zh: '继承' },
     'set.section.packaging': { en: 'Packaging', zh: '打包' },
 
     // — Group headers —

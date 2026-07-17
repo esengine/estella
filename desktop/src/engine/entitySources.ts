@@ -12,11 +12,12 @@
  */
 import type { LucideIcon } from 'lucide-react';
 import { CircleDot, LayoutPanelTop, ToggleLeft, SlidersHorizontal, List, ChevronDown, SquareMousePointer, RectangleHorizontal, Box, Type, Image as ImageIcon, SquareDashed, ScrollText, AppWindow, TextCursorInput } from 'lucide-react';
-import { BUILTIN_UI_PREFABS, BUILTIN_UI_WIDGET_NAMES, PREFAB_FORMAT_VERSION, getUserComponents, type PrefabData } from 'esengine';
+import { BUILTIN_UI_PREFABS, BUILTIN_UI_WIDGET_NAMES, PREFAB_FORMAT_VERSION, getUserComponents, applyThemeToWorld, type PrefabData } from 'esengine';
 import type { EntityId } from '@/types';
 import { componentByName, componentDefaults, prettyLabel, componentCategory } from './schema';
 import { componentGlyph } from '@/components/icons';
 import { SceneCommands } from './SceneCommands';
+import { EngineHost } from './EngineHost';
 
 /** Where a source is created: the target parent + (for asset/drop sources) its origin. */
 export interface CreateContext {
@@ -341,5 +342,12 @@ export async function createFromSource(source: EntitySource, ctx: CreateContext)
     linkPrefabRef: source.linkPrefabRef?.(ctx),
   });
   if (id != null) source.afterCreate?.(ctx, id);
+  // Built-in widget prefabs bake the default dark palette; re-resolve the fresh
+  // ThemeStyle tags against the ACTIVE tokens so a themed project's palette drops
+  // don't flash dark (the active tokens were set by applyWidgetTheme at scene open).
+  if (id != null && source.placement === 'under-canvas') {
+    const world = EngineHost.mutableWorld();
+    if (world) applyThemeToWorld(world);
+  }
   return id;
 }

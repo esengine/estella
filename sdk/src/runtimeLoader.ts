@@ -7,7 +7,7 @@
 
 import { SceneOwner } from './component';
 import { loadSceneData, updateCameraAspectRatio, type SceneData } from './scene';
-import { switchTheme, LIGHT_TOKENS } from './ui';
+import { switchTheme, resolveThemeTokens, type ThemeOverrides } from './ui';
 import { discoverSceneAssets } from './asset/discoverAssets';
 import type { ESEngineModule } from './wasm';
 import type { SpineWasmModule } from './spine/SpineModuleLoader';
@@ -180,6 +180,9 @@ export interface LoadRuntimeSceneOptions {
      *  'light' switches the token set AND re-resolves already-instantiated
      *  ThemeStyle-tagged widgets (prefab instances carry dark baked values). */
     uiTheme?: 'dark' | 'light';
+    /** Project-declared partial re-skin over the base theme (Project Settings →
+     *  UI theme colors); merged via {@link resolveThemeTokens}. */
+    uiThemeOverrides?: ThemeOverrides;
     sceneName?: string;
 }
 
@@ -224,7 +227,7 @@ export function sceneUsesPhysics(sceneData: SceneData): boolean {
 }
 
 export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promise<void> {
-    const { app, module, sceneData, source, physicsConfig, physicsEnabled, uiTheme, sceneName } = options;
+    const { app, module, sceneData, source, physicsConfig, physicsEnabled, uiTheme, uiThemeOverrides, sceneName } = options;
 
     // The SpineManager is owned by SpinePlugin (built from the realm's
     // app.sideModules host); read it from there so every realm — play / playable /
@@ -332,8 +335,11 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
     const entityMap = loadSceneData(app.world, sceneData);
 
     // Apply the project theme over the freshly instantiated scene: prefabs bake
-    // the dark palette, so a light project re-resolves every ThemeStyle tag.
-    if (uiTheme === 'light') switchTheme(app.world, LIGHT_TOKENS);
+    // the default dark palette, so a light base or any token override re-resolves
+    // every ThemeStyle tag.
+    if (uiTheme === 'light' || uiThemeOverrides) {
+        switchTheme(app.world, resolveThemeTokens(uiTheme ?? 'dark', uiThemeOverrides));
+    }
 
     const cppRegistry = app.world.getCppRegistry();
     if (cppRegistry) {
@@ -410,6 +416,8 @@ export interface RuntimeInitConfig {
     audioConfig?: AudioProjectConfig;
     /** Project-declared UI theme; see {@link LoadRuntimeSceneOptions.uiTheme}. */
     uiTheme?: 'dark' | 'light';
+    /** Project-declared theme token overrides; see {@link LoadRuntimeSceneOptions.uiThemeOverrides}. */
+    uiThemeOverrides?: ThemeOverrides;
     aspectRatio?: number;
 }
 
@@ -439,6 +447,7 @@ export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
         physicsConfig: config.physicsConfig,
         physicsEnabled: config.physicsEnabled,
         uiTheme: config.uiTheme,
+        uiThemeOverrides: config.uiThemeOverrides,
     };
 
     const mgr = app.getResource(SceneManager);

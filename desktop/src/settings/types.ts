@@ -76,6 +76,15 @@ export interface ColorSetting extends BaseSetting<string> {
   swatches: string[];
 }
 
+/** A full HSV/alpha color picker (ColorControl), value `#rrggbbaa`. An empty
+ *  string means "unset" — the control shows {@link placeholderColor} (e.g. the
+ *  inherited base value) and the standard reset affordance clears the override. */
+export interface ColorPickerSetting extends BaseSetting<string> {
+  type: 'colorpicker';
+  /** The effective color shown while unset, read at render time. */
+  placeholderColor?: () => string;
+}
+
 /** Read-only display of a command's keybinding (editing is a later feature). */
 export interface KeybindingSetting extends BaseSetting<string> {
   type: 'keybinding';
@@ -118,6 +127,7 @@ export type Setting =
   | EnumSetting
   | StringSetting
   | ColorSetting
+  | ColorPickerSetting
   | KeybindingSetting
   | StringListSetting
   | MatrixSetting

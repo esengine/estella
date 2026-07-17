@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { createStore } from 'zustand/vanilla';
-import { getComponent, getEditorType, Assets, migratePrefabData, extractPrefab, diffAgainstSource, applyOverridesToSource, setTextureParams, TextureFilter, TextureWrap, Renderer, RETIRED_COMPONENT_TYPES } from 'esengine';
+import { getComponent, getEditorType, Assets, migratePrefabData, extractPrefab, diffAgainstSource, applyOverridesToSource, setTextureParams, TextureFilter, TextureWrap, Renderer, RETIRED_COMPONENT_TYPES, parseThemeOverrides } from 'esengine';
 import { readTextureImportSettings } from './assetImporter';
-import type { SceneData, PrefabData, ExtractEntity, ProcessedEntity, PhysicsPluginConfig, AudioProjectConfig, AssetsData } from 'esengine';
+import type { SceneData, PrefabData, ExtractEntity, ProcessedEntity, PhysicsPluginConfig, AudioProjectConfig, AssetsData, ThemeOverrides } from 'esengine';
 import { EngineHost } from '@/engine/EngineHost';
+import { applyWidgetTheme } from '@/engine/widgetTheme';
 import { bootProfiler } from '@/engine/bootProfiler';
 import { SceneModel } from '@/engine/SceneModel';
 import { Reconciler } from '@/engine/Reconciler';
@@ -444,6 +445,9 @@ class ProjectStoreImpl {
     for (const { id, tag } of tags) SceneModel.setPrefabTag(id, tag);
 
     EngineHost.syncEditorViewToScene();
+    // Edit-world live theme: re-resolve ThemeStyle-tagged widgets against the
+    // project's effective theme, matching what a shipped runtime boots with.
+    applyWidgetTheme(this.uiTheme(), this.uiThemeOverrides());
     this.store.setState({ project: { ...st, currentScene: rel } });
     this.knownSceneText = text;
     this.knownScenePath = rel;
@@ -1066,6 +1070,7 @@ class ProjectStoreImpl {
     physicsConfig?: PhysicsPluginConfig;
     audioConfig?: AudioProjectConfig;
     uiTheme?: 'light';
+    uiThemeOverrides?: ThemeOverrides;
     ySortLayers?: number;
     colorSpace?: 'gamma' | 'linear';
     screenFit?: { designWidth: number; designHeight: number; scaleMode: number; matchWidthOrHeight: number };
@@ -1103,10 +1108,12 @@ class ProjectStoreImpl {
     // scene with no fit boots exactly as before.
     const screenFit = this.screenFit();
     const uiTheme = this.uiTheme();
+    const uiThemeOverrides = this.uiThemeOverrides();
     return {
       sceneData, assetManifest, physicsEnabled: f.enabled, physicsConfig,
       ...(audioConfig.buses ? { audioConfig } : {}),
       ...(uiTheme === 'light' ? { uiTheme } : {}),
+      ...(uiThemeOverrides ? { uiThemeOverrides } : {}),
       ...(ySortLayers !== 0 ? { ySortLayers } : {}),
       ...(colorSpace === 'linear' ? { colorSpace } : {}),
       ...(screenFit.scaleMode >= 0 ? { screenFit } : {}),
@@ -1123,15 +1130,51 @@ class ProjectStoreImpl {
     return this.state?.features?.ui?.theme === 'light' ? 'light' : 'dark';
   }
 
-  /** Persist the widget theme; dark (the default) is expressed by absence. */
+  /** The project's theme color overrides (role → #rrggbbaa hex), possibly empty. */
+  uiThemeColors(): Record<string, string> {
+    return this.state?.features?.ui?.colors ?? {};
+  }
+
+  /** The color overrides as SDK {@link ThemeOverrides} (hex → 0..1 Color), or
+   *  undefined when the project overrides nothing — the payload/boot shape. */
+  uiThemeOverrides(): ThemeOverrides | undefined {
+    return parseThemeOverrides(this.uiThemeColors());
+  }
+
+  /** Persist the widget theme; dark (the default) is expressed by absence.
+   *  Color overrides survive a base-theme switch (they re-skin either base). */
   async setUiTheme(theme: 'dark' | 'light'): Promise<void> {
+    await this.patchUiFeature_({ theme: theme === 'light' ? 'light' : undefined });
+  }
+
+  /** Set or clear one theme color override (`#rrggbbaa`; null clears the role). */
+  async setUiThemeColor(role: string, hex: string | null): Promise<void> {
+    const colors = { ...this.uiThemeColors() };
+    if (hex) colors[role] = hex.toLowerCase();
+    else delete colors[role];
+    await this.patchUiFeature_({ colors: Object.keys(colors).length > 0 ? colors : undefined });
+  }
+
+  /** Merge a patch into `features.ui` and persist — a key set to undefined is
+   *  removed, and an empty `ui` disappears entirely (dark + no overrides). */
+  private async patchUiFeature_(patch: { theme?: 'light'; colors?: Record<string, string> }): Promise<void> {
     const st = this.state;
     if (!st) return;
-    const ui = theme === 'light' ? { theme } : undefined;
+    const cur: { theme?: 'light'; colors?: Record<string, string> } = { ...(st.features?.ui ?? {}) };
+    if ('theme' in patch) {
+      if (patch.theme) cur.theme = patch.theme;
+      else delete cur.theme;
+    }
+    if ('colors' in patch) {
+      if (patch.colors) cur.colors = patch.colors;
+      else delete cur.colors;
+    }
+    const ui = Object.keys(cur).length > 0 ? cur : undefined;
     const features: ProjectFeatures = { ...st.features };
     if (ui) features.ui = ui;
     else delete features.ui;
     this.store.setState({ project: { ...st, features } });
+    applyWidgetTheme(this.uiTheme(), this.uiThemeOverrides());
     try {
       const raw = JSON.parse(await window.estella.fs.read(PROJECT_MANIFEST_FILE)) as Record<string, unknown>;
       const rf = { ...(raw.features as Record<string, unknown> ?? {}) };
@@ -1141,7 +1184,7 @@ class ProjectStoreImpl {
       await window.estella.fs.write(PROJECT_MANIFEST_FILE, JSON.stringify(raw, null, 2) + '\n');
     } catch (e) {
       Toasts.push(t('proj.saveUiThemeFailed'), 'error');
-      console.error('[project] setUiTheme write failed', e);
+      console.error('[project] patchUiFeature write failed', e);
     }
   }
 

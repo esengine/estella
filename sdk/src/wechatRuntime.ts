@@ -11,6 +11,7 @@ import { createWebApp } from './webAppFactory';
 import type { ESEngineModule } from './wasm';
 import type { AudioProjectConfig } from './audio/AudioProjectConfig';
 import { initRuntime } from './runtimeLoader';
+import type { ThemeOverrides } from './ui';
 import type { RuntimeAssetSource } from './runtimeAssets';
 import { FileSystemBackend } from './asset/Backend';
 import { applyBuildRuntimeConfig, type RuntimeBuildConfig } from './defaults';
@@ -74,6 +75,8 @@ export interface WeChatRuntimeConfig {
     physicsConfig?: { gravity?: Vec2; fixedTimestep?: number; subStepCount?: number };
     /** Project-declared UI theme; 'light' re-skins ThemeStyle-tagged widgets at boot. */
     uiTheme?: 'dark' | 'light';
+    /** Project-declared theme token overrides (partial re-skin over the base). */
+    uiThemeOverrides?: ThemeOverrides;
     /** Project-declared mixer state (routing labels only on WeChat — no DSP graph). */
     audioConfig?: AudioProjectConfig;
     /** Bitmask of render layers (0..31) that y-sort within the layer (Project Settings → Rendering). */
@@ -204,6 +207,7 @@ export async function initWeChatRuntime(config: WeChatRuntimeConfig): Promise<vo
         firstScene: config.firstScene,
         physicsConfig: config.physicsConfig,
         uiTheme: config.uiTheme,
+        uiThemeOverrides: config.uiThemeOverrides,
         audioConfig: config.audioConfig,
         aspectRatio: canvas.width / canvas.height,
     });

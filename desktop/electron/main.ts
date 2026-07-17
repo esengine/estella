@@ -665,6 +665,8 @@ ipcMain.handle(
     // Project camera fit → runtime screenFit (only when the project opts in; scaleMode < 0 = off).
     const fit = resolveScreenFit(manifest);
     const screenFit = fit.scaleMode >= 0 ? fit : undefined;
+    const uiTheme = manifest.features?.ui?.theme === 'light' ? 'light' as const : undefined;
+    const uiThemeColors = manifest.features?.ui?.colors;
     return exportGame({
       root,
       entryScene,
@@ -673,6 +675,8 @@ ipcMain.handle(
       ySortLayers,
       colorSpace,
       screenFit,
+      uiTheme,
+      uiThemeColors,
       gameHostEntry: path.join(HOSTS_DIR, 'gameHost.js'),
       playableHostEntry: path.join(HOSTS_DIR, 'playableHost.js'),
       scriptsEntry: resolveScripts(manifest).main,

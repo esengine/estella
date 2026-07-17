@@ -21,6 +21,7 @@ import { IconButton } from '@/components/IconButton';
 import { SearchField } from '@/components/SearchField';
 import { Segmented } from '@/components/Segmented';
 import { Select } from '@/components/Select';
+import { ColorControl } from '@/components/ColorControl';
 import type { Setting, NumberSetting, KeybindingSetting, StringListSetting, MatrixSetting, FlagListSetting } from '@/settings/types';
 import { t } from '@/i18n';
 
@@ -276,6 +277,18 @@ function Control({ setting }: { setting: Setting }) {
           ))}
         </div>
       );
+    case 'colorpicker': {
+      const hex = String(value ?? '');
+      return (
+        <div className={`set-colorpicker${hex ? '' : ' inherited'}`}>
+          <ColorControl
+            value={hex || setting.placeholderColor?.() || '#00000000'}
+            onChange={(v) => setValue(setting.id, v)}
+          />
+          {!hex && <span className="set-inherit">{t('set.inherited')}</span>}
+        </div>
+      );
+    }
     case 'keybinding':
       return <KeybindCapture setting={setting} />;
     case 'string':

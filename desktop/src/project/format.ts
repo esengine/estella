@@ -18,7 +18,7 @@
  * into workspace.json.
  */
 
-import { parseAudioProjectConfig, type AudioProjectConfig } from 'esengine';
+import { parseAudioProjectConfig, THEME_COLOR_ROLES, type AudioProjectConfig } from 'esengine';
 
 export const PROJECT_FORMAT_VERSION = '1';
 export const PROJECT_MANIFEST_FILE = 'project.esproject';
@@ -105,6 +105,9 @@ export interface ProjectFeatures {
     /** Built-in widget theme. Only 'light' persists; dark (the default) is
      *  expressed by absence — like rendering.colorSpace. */
     theme?: 'light';
+    /** Partial re-skin over the base theme: color role → #rrggbbaa hex. Only
+     *  known roles with valid hex persist; absence means "inherit the base". */
+    colors?: Record<string, string>;
   };
 }
 
@@ -329,7 +332,17 @@ export function parseManifest(raw: unknown): ProjectManifest {
     }
     if (f.ui && typeof f.ui === 'object') {
       const u = f.ui as Record<string, unknown>;
-      if (u.theme === 'light') features.ui = { theme: 'light' };
+      const ui: NonNullable<ProjectFeatures['ui']> = {};
+      if (u.theme === 'light') ui.theme = 'light';
+      if (u.colors && typeof u.colors === 'object') {
+        const colors: Record<string, string> = {};
+        for (const role of THEME_COLOR_ROLES) {
+          const v = (u.colors as Record<string, unknown>)[role];
+          if (typeof v === 'string' && /^#[0-9a-f]{6}(?:[0-9a-f]{2})?$/i.test(v)) colors[role] = v.toLowerCase();
+        }
+        if (Object.keys(colors).length > 0) ui.colors = colors;
+      }
+      if (Object.keys(ui).length > 0) features.ui = ui;
     }
     if (Object.keys(features).length > 0) manifest.features = features;
   }

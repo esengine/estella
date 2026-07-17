@@ -11,7 +11,7 @@
  *          import of an editor module here would break the realm bundle. Type-only
  *          imports are erased before resolution and are safe.
  */
-import type { SceneData, PhysicsPluginConfig, AudioProjectConfig } from 'esengine';
+import type { SceneData, PhysicsPluginConfig, AudioProjectConfig, ThemeOverrides } from 'esengine';
 
 /**
  * Editor↔realm message-contract version. The realm reports it in `hello`; the editor
@@ -61,6 +61,8 @@ export interface PlayPayload {
   audioConfig?: AudioProjectConfig;
   /** Project widget theme; absent = dark (the default). */
   uiTheme?: 'light';
+  /** Project theme token overrides (partial re-skin over the base) — forwarded. */
+  uiThemeOverrides?: ThemeOverrides;
   /** Bitmask of render layers (0..31) that y-sort within the layer — forwarded. */
   ySortLayers?: number;
   /** Project color space — 'linear' boots the realm on the linear-light pipeline. */

@@ -11,7 +11,7 @@
  *        Builtin scenes run as-is; project custom-script bundles are a follow-up
  *        (shared with the play realm's import-map work).
  */
-import { createWebApp, setEditorMode, setPlayMode, initPlayRealmRuntime, atlasCatalogFields } from 'esengine';
+import { createWebApp, setEditorMode, setPlayMode, initPlayRealmRuntime, atlasCatalogFields, parseThemeOverrides } from 'esengine';
 import type { CatalogData, CookedAtlasInfo, ESEngineModule, SceneData } from 'esengine';
 
 interface GameConfig {
@@ -25,6 +25,10 @@ interface GameConfig {
   /** Project camera fit (design resolution + scale mode) — letterboxes the main camera
    *  without a UI Canvas; absent = no fit. */
   screenFit?: { designWidth: number; designHeight: number; scaleMode: number; matchWidthOrHeight: number };
+  /** Project widget theme; absent = dark. */
+  uiTheme?: 'light';
+  /** Project theme color overrides (role → #rrggbbaa hex). */
+  uiThemeColors?: Record<string, string>;
 }
 interface CookedManifest {
   entries: { uuid: string; path: string; sourcePath?: string; type: string; atlas?: CookedAtlasInfo }[];
@@ -146,6 +150,8 @@ async function boot(): Promise<void> {
     assetPathMap: pathMap,
     catalogData: catalog,
     wasmBaseUrl: wasmBase.replace(/\/$/, ''),
+    uiTheme: cfg.uiTheme,
+    uiThemeOverrides: parseThemeOverrides(cfg.uiThemeColors),
   });
 }
 

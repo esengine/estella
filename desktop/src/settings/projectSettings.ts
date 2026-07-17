@@ -7,8 +7,10 @@
  *        them under the "Project" category with no UI change. Bound to
  *        ProjectStore, which owns manifest read/write.
  */
+import { resolveThemeTokens, THEME_COLOR_ROLES } from 'esengine';
 import { settingsRegistry } from './registry';
 import { ProjectStore } from '@/project/ProjectStore';
+import { rgbaToHex8 } from '@/components/ColorControl';
 import { EngineHost } from '@/engine/EngineHost';
 import { Toasts } from '@/store/Toasts';
 import { useEditorMode } from '@/store/editorModeStore';
@@ -257,6 +259,32 @@ settingsRegistry.register({
     set: (v) => { void ProjectStore.setUiTheme(v as 'dark' | 'light'); },
   },
 });
+
+// Per-role token overrides — one picker per semantic color. Unset (the default)
+// inherits the base theme's value, shown as the picker's placeholder; the row's
+// standard reset affordance clears the override. Live-applied to the edit world
+// by ProjectStore.patchUiFeature_ → applyWidgetTheme.
+const roleLabel = (role: string): string => role.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase());
+for (const role of THEME_COLOR_ROLES) {
+  settingsRegistry.register({
+    id: `project.ui.color.${role}`,
+    type: 'colorpicker',
+    scope: 'project',
+    section: 'ui',
+    group: t('set.group.uiThemeColors'),
+    label: roleLabel(role),
+    ...(role === 'surface' ? { description: t('set.project.ui.color.desc') } : {}),
+    default: '',
+    placeholderColor: () => {
+      const c = resolveThemeTokens(ProjectStore.uiTheme()).colors[role];
+      return rgbaToHex8(c.r, c.g, c.b, c.a);
+    },
+    bind: {
+      get: () => ProjectStore.uiThemeColors()[role] ?? '',
+      set: (v) => { void ProjectStore.setUiThemeColor(role, v || null); },
+    },
+  });
+}
 
 settingsRegistry.registerSection({ id: 'packaging', label: t('set.section.packaging'), category: 'project', order: 4 });
 

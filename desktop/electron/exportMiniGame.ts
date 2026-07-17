@@ -225,6 +225,10 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   /** Project camera fit (Project Settings → Display) — letterboxes the design resolution
    *  without a UI Canvas; absent = no fit. */
   screenFit?: { designWidth: number; designHeight: number; scaleMode: number; matchWidthOrHeight: number };
+  /** Project widget theme (Project Settings → UI); absent = dark. */
+  uiTheme?: 'light';
+  /** Project theme color overrides (role → #rrggbbaa hex) — parsed by the generated boot. */
+  uiThemeColors?: Record<string, string>;
   minify?: boolean;
   /** Emit content-addressed asset filenames (<hash><ext>) for dedup + immutable caching. */
   contentAddressed?: boolean;
@@ -336,11 +340,12 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   // which glue it staged (esengine.wxgame vs the web-aligned esengine), and the
   // runtime must instantiate the staged glue's .wasm twin, not guess a name.
   const engineWasmPath = `wasm/${engineGlueFile.replace(/\.js$/, '.wasm')}`;
+  const themeColors = opts.uiThemeColors && Object.keys(opts.uiThemeColors).length > 0 ? opts.uiThemeColors : undefined;
   const entrySrc =
-    `import { ${profile.runtimeInit} } from 'esengine';\n` +
+    `import { ${profile.runtimeInit}${themeColors ? ', parseThemeOverrides' : ''} } from 'esengine';\n` +
     (scriptsAbs && existsSync(scriptsAbs) ? `import ${JSON.stringify(scriptsAbs)};\n` : '') +
     `export function boot(engineFactory, sideModuleFactories) {\n` +
-    `  return ${profile.runtimeInit}({ engineFactory, engineWasmPath: ${JSON.stringify(engineWasmPath)}, sideModuleFactories, sceneNames: ${JSON.stringify(scenes.map((s) => s.name))}, firstScene: ${JSON.stringify(sceneName)}${opts.ySortLayers ? `, ySortLayers: ${opts.ySortLayers >>> 0}` : ''}${opts.colorSpace === 'linear' ? `, colorSpace: 'linear'` : ''}${opts.screenFit && opts.screenFit.scaleMode >= 0 ? `, screenFit: ${JSON.stringify(opts.screenFit)}` : ''} });\n` +
+    `  return ${profile.runtimeInit}({ engineFactory, engineWasmPath: ${JSON.stringify(engineWasmPath)}, sideModuleFactories, sceneNames: ${JSON.stringify(scenes.map((s) => s.name))}, firstScene: ${JSON.stringify(sceneName)}${opts.ySortLayers ? `, ySortLayers: ${opts.ySortLayers >>> 0}` : ''}${opts.colorSpace === 'linear' ? `, colorSpace: 'linear'` : ''}${opts.screenFit && opts.screenFit.scaleMode >= 0 ? `, screenFit: ${JSON.stringify(opts.screenFit)}` : ''}${opts.uiTheme === 'light' ? `, uiTheme: 'light'` : ''}${themeColors ? `, uiThemeOverrides: parseThemeOverrides(${JSON.stringify(themeColors)})` : ''} });\n` +
     `}\n`;
   progress({ phase: 'Bundling game' });
   try {

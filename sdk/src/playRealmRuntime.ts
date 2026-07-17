@@ -20,6 +20,7 @@ import type { ESEngineModule } from './wasm';
 import { Audio } from './audio/Audio';
 import { VideoPlayer } from './video/VideoAPI';
 import { initRuntime } from './runtimeLoader';
+import type { ThemeOverrides } from './ui';
 import type { RuntimeAssetSource } from './runtimeAssets';
 import { HttpBackend } from './asset/Backend';
 import { Catalog, type CatalogData } from './asset/Catalog';
@@ -75,6 +76,8 @@ export interface PlayRealmRuntimeConfig {
     physicsConfig?: PhysicsPluginConfig;
     /** Project-declared UI theme; 'light' re-skins ThemeStyle-tagged widgets at boot. */
     uiTheme?: 'dark' | 'light';
+    /** Project-declared theme token overrides (partial re-skin over the base). */
+    uiThemeOverrides?: ThemeOverrides;
     /** Project-declared mixer state (bus volumes / effects / duck rules). */
     audioConfig?: AudioProjectConfig;
     /** Turn on per-phase / per-system frame timing (editor profiler; off in shipped games). */
@@ -185,6 +188,7 @@ export async function initPlayRealmRuntime(config: PlayRealmRuntimeConfig): Prom
         physicsEnabled: config.physicsEnabled,
         physicsConfig: config.physicsConfig,
         uiTheme: config.uiTheme,
+        uiThemeOverrides: config.uiThemeOverrides,
         audioConfig: config.audioConfig,
         // Physics (and spine) are acquired from app.sideModules — the fetch host
         // createWebApp built from this realm's wasmBaseUrl.

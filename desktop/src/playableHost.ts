@@ -9,7 +9,7 @@
  *        the SAME shipping runtime via initPlayableRuntime (play == ship). Nothing
  *        is fetched — the whole game is one self-contained .html (ad-network ready).
  */
-import { createWebApp, setEditorMode, setPlayMode, initPlayableRuntime, createEmbeddedSideModuleHost } from 'esengine';
+import { createWebApp, setEditorMode, setPlayMode, initPlayableRuntime, createEmbeddedSideModuleHost, parseThemeOverrides } from 'esengine';
 import type { ESEngineModule as EngineModule, SceneData, EmbeddedSideModuleRegistry } from 'esengine';
 
 type EngineFactory = (opts?: Record<string, unknown>) => Promise<EngineModule>;
@@ -28,6 +28,8 @@ declare const __GAME_FIRST__: string;
 declare const __GAME_YSORT__: number;
 declare const __GAME_COLORSPACE__: 'gamma' | 'linear';
 declare const __GAME_SCREENFIT__: { designWidth: number; designHeight: number; scaleMode: number; matchWidthOrHeight: number };
+declare const __GAME_UITHEME__: 'light';
+declare const __GAME_UITHEMECOLORS__: Record<string, string>;
 
 function decodeBase64(b64: string): Uint8Array {
   const raw = atob(b64);
@@ -97,6 +99,9 @@ async function boot(): Promise<void> {
     firstScene: __GAME_FIRST__,
     // Older exports predate y-sort; treat the global as optional.
     ySortLayers: typeof __GAME_YSORT__ !== 'undefined' ? __GAME_YSORT__ : undefined,
+    // Project widget theme + token overrides; optional like the rest.
+    uiTheme: typeof __GAME_UITHEME__ !== 'undefined' ? __GAME_UITHEME__ : undefined,
+    uiThemeOverrides: parseThemeOverrides(typeof __GAME_UITHEMECOLORS__ !== 'undefined' ? __GAME_UITHEMECOLORS__ : undefined),
   });
 }
 

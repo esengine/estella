@@ -37,6 +37,13 @@ export interface ThemeColors {
     backdrop: Color;
 }
 
+/** Every color role, in display order — THE list a theme editor or a project
+ *  format validator iterates (keyof ThemeColors, as a runtime value). */
+export const THEME_COLOR_ROLES: readonly (keyof ThemeColors)[] = [
+    'surface', 'surfaceElevated', 'control', 'controlHover', 'controlActive',
+    'track', 'primary', 'primaryHover', 'primaryActive', 'onPrimary', 'text', 'backdrop',
+];
+
 /** Typographic scale (font sizes in px) consumed by widget text. */
 export interface ThemeType {
     /** Control / label text (buttons, options). */
@@ -92,6 +99,53 @@ export const LIGHT_TOKENS: ThemeTokens = {
     },
     type: TYPE_SCALE,
 };
+
+/** A project's partial re-skin over a base theme: any subset of color roles
+ *  and type-scale steps. Absent keys inherit from the base. */
+export interface ThemeOverrides {
+    colors?: Partial<ThemeColors>;
+    type?: Partial<ThemeType>;
+}
+
+/**
+ * Parse a JSON-transportable color override map (role → `#rrggbb[aa]` hex — the
+ * shape project manifests and shipped game configs carry) into {@link ThemeOverrides}.
+ * Unknown roles and malformed hex are dropped; undefined when nothing valid remains.
+ * The ONE config→overrides converter shared by the editor and every shipped host.
+ */
+export function parseThemeOverrides(colors?: Record<string, string>): ThemeOverrides | undefined {
+    if (!colors) return undefined;
+    const out: Partial<ThemeColors> = {};
+    let any = false;
+    for (const role of THEME_COLOR_ROLES) {
+        const hex = colors[role];
+        const m = typeof hex === 'string' ? /^#([0-9a-f]{6})([0-9a-f]{2})?$/i.exec(hex.trim()) : null;
+        if (!m) continue;
+        const n = parseInt(m[1]!, 16);
+        out[role] = {
+            r: ((n >> 16) & 255) / 255,
+            g: ((n >> 8) & 255) / 255,
+            b: (n & 255) / 255,
+            a: m[2] ? parseInt(m[2], 16) / 255 : 1,
+        };
+        any = true;
+    }
+    return any ? { colors: out } : undefined;
+}
+
+/**
+ * The effective tokens for a base theme name plus a project's partial overrides —
+ * the ONE merge every runtime and the editor resolve through, so a project that
+ * overrides `primary` alone re-tints the accent while inheriting the rest.
+ */
+export function resolveThemeTokens(base: 'dark' | 'light', overrides?: ThemeOverrides): ThemeTokens {
+    const baseTokens = base === 'light' ? LIGHT_TOKENS : DARK_TOKENS;
+    if (!overrides || (!overrides.colors && !overrides.type)) return baseTokens;
+    return {
+        colors: { ...baseTokens.colors, ...overrides.colors },
+        type: { ...baseTokens.type, ...overrides.type },
+    };
+}
 
 let activeTheme: ThemeTokens = DARK_TOKENS;
 

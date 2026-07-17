@@ -302,6 +302,10 @@ export async function exportGame(opts: {
   /** Project camera fit (Project Settings → Display) — the main camera letterboxes this
    *  design resolution regardless of any UI Canvas. Absent ⇒ no fit (raw orthoSize). */
   screenFit?: { designWidth: number; designHeight: number; scaleMode: number; matchWidthOrHeight: number };
+  /** Project widget theme (Project Settings → UI); absent = dark. */
+  uiTheme?: 'light';
+  /** Project theme color overrides (role → #rrggbbaa hex) — the host parses them. */
+  uiThemeColors?: Record<string, string>;
 }): Promise<ExportGameResult> {
   const platform = opts.platform ?? 'web';
   const title = opts.title ?? 'Game';
@@ -328,6 +332,8 @@ export async function exportGame(opts: {
       ySortLayers: opts.ySortLayers,
       colorSpace: opts.colorSpace,
       screenFit: opts.screenFit,
+      uiTheme: opts.uiTheme,
+      uiThemeColors: opts.uiThemeColors,
       minify: opts.minify,
       contentAddressed: opts.contentAddressed,
       compressTextures: opts.compressTextures,
@@ -354,6 +360,8 @@ export async function exportGame(opts: {
       ySortLayers: opts.ySortLayers,
       colorSpace: opts.colorSpace,
       screenFit: opts.screenFit,
+      uiTheme: opts.uiTheme,
+      uiThemeColors: opts.uiThemeColors,
       onProgress: opts.onProgress,
     });
   }
@@ -425,6 +433,8 @@ export async function exportGame(opts: {
         ...(opts.ySortLayers ? { ySortLayers: opts.ySortLayers } : {}),
         ...(opts.colorSpace === 'linear' ? { colorSpace: opts.colorSpace } : {}),
         ...(opts.screenFit && opts.screenFit.scaleMode >= 0 ? { screenFit: opts.screenFit } : {}),
+        ...(opts.uiTheme === 'light' ? { uiTheme: opts.uiTheme } : {}),
+        ...(opts.uiThemeColors && Object.keys(opts.uiThemeColors).length > 0 ? { uiThemeColors: opts.uiThemeColors } : {}),
       },
       null, 2,
     ) + '\n',
