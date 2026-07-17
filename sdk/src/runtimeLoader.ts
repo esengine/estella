@@ -7,6 +7,7 @@
 
 import { SceneOwner } from './component';
 import { loadSceneData, updateCameraAspectRatio, type SceneData } from './scene';
+import { switchTheme, LIGHT_TOKENS } from './ui';
 import { discoverSceneAssets } from './asset/discoverAssets';
 import type { ESEngineModule } from './wasm';
 import type { SpineWasmModule } from './spine/SpineModuleLoader';
@@ -175,6 +176,10 @@ export interface LoadRuntimeSceneOptions {
      *  physics even for runtime-spawned bodies the static scene doesn't show.
      *  OR-combined with a content scan. */
     physicsEnabled?: boolean;
+    /** Project-declared UI theme (Project Settings → UI). Dark is the default;
+     *  'light' switches the token set AND re-resolves already-instantiated
+     *  ThemeStyle-tagged widgets (prefab instances carry dark baked values). */
+    uiTheme?: 'dark' | 'light';
     sceneName?: string;
 }
 
@@ -219,7 +224,7 @@ export function sceneUsesPhysics(sceneData: SceneData): boolean {
 }
 
 export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promise<void> {
-    const { app, module, sceneData, source, physicsConfig, physicsEnabled, sceneName } = options;
+    const { app, module, sceneData, source, physicsConfig, physicsEnabled, uiTheme, sceneName } = options;
 
     // The SpineManager is owned by SpinePlugin (built from the realm's
     // app.sideModules host); read it from there so every realm — play / playable /
@@ -326,6 +331,10 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
 
     const entityMap = loadSceneData(app.world, sceneData);
 
+    // Apply the project theme over the freshly instantiated scene: prefabs bake
+    // the dark palette, so a light project re-resolves every ThemeStyle tag.
+    if (uiTheme === 'light') switchTheme(app.world, LIGHT_TOKENS);
+
     const cppRegistry = app.world.getCppRegistry();
     if (cppRegistry) {
         (module as ESEngineModule).transform_update(cppRegistry);
@@ -399,6 +408,8 @@ export interface RuntimeInitConfig {
     /** Project-declared mixer state (bus volumes / custom buses / effects / duck
      *  rules) — threaded from the editor's audio config, applied once at boot. */
     audioConfig?: AudioProjectConfig;
+    /** Project-declared UI theme; see {@link LoadRuntimeSceneOptions.uiTheme}. */
+    uiTheme?: 'dark' | 'light';
     aspectRatio?: number;
 }
 
@@ -427,6 +438,7 @@ export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
         physicsModule: config.physicsModule,
         physicsConfig: config.physicsConfig,
         physicsEnabled: config.physicsEnabled,
+        uiTheme: config.uiTheme,
     };
 
     const mgr = app.getResource(SceneManager);

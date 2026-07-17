@@ -211,6 +211,7 @@ async function buildAppAndRun(msg: InitMessage): Promise<void> {
     physicsEnabled: msg.physicsEnabled,
     physicsConfig: msg.physicsConfig,
     audioConfig: msg.audioConfig,
+    uiTheme: msg.uiTheme,
     enableStats: true, // editor profiler: per-phase / per-system frame timing
   });
   // Realm-local debug handle for automation/diagnostics (mirrors the headless

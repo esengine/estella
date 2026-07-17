@@ -36,6 +36,15 @@ export const settingsMessages = defineMessages({
     'set.section.display': { en: 'Display', zh: '显示' },
     'set.section.physics': { en: 'Physics', zh: '物理' },
     'set.section.rendering': { en: 'Rendering', zh: '渲染' },
+    'set.section.ui': { en: 'UI', zh: 'UI' },
+    'set.group.uiTheme': { en: 'Widget Theme', zh: '控件主题' },
+    'set.project.ui.theme': { en: 'Theme', zh: '主题' },
+    'set.project.ui.theme.desc': {
+        en: 'Design-token palette for the built-in widgets. Applied when the game boots; themed widgets (including placed prefabs) re-resolve their colors.',
+        zh: '内置控件的设计令牌配色。游戏启动时应用;带主题标记的控件(包括摆放的预制体)会重新解析颜色。',
+    },
+    'set.project.ui.theme.dark': { en: 'Dark', zh: '暗色' },
+    'set.project.ui.theme.light': { en: 'Light', zh: '亮色' },
     'set.section.packaging': { en: 'Packaging', zh: '打包' },
 
     // — Group headers —

@@ -59,6 +59,8 @@ export interface PlayPayload {
   physicsConfig?: PhysicsPluginConfig;
   /** Project mixer state (bus volumes / effects / duck rules) — forwarded. */
   audioConfig?: AudioProjectConfig;
+  /** Project widget theme; absent = dark (the default). */
+  uiTheme?: 'light';
   /** Bitmask of render layers (0..31) that y-sort within the layer — forwarded. */
   ySortLayers?: number;
   /** Project color space — 'linear' boots the realm on the linear-light pipeline. */

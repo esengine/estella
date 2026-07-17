@@ -72,6 +72,8 @@ export interface WeChatRuntimeConfig {
     firstScene: string;
     runtimeConfig?: RuntimeBuildConfig;
     physicsConfig?: { gravity?: Vec2; fixedTimestep?: number; subStepCount?: number };
+    /** Project-declared UI theme; 'light' re-skins ThemeStyle-tagged widgets at boot. */
+    uiTheme?: 'dark' | 'light';
     /** Project-declared mixer state (routing labels only on WeChat — no DSP graph). */
     audioConfig?: AudioProjectConfig;
     /** Bitmask of render layers (0..31) that y-sort within the layer (Project Settings → Rendering). */
@@ -201,6 +203,7 @@ export async function initWeChatRuntime(config: WeChatRuntimeConfig): Promise<vo
         scenes,
         firstScene: config.firstScene,
         physicsConfig: config.physicsConfig,
+        uiTheme: config.uiTheme,
         audioConfig: config.audioConfig,
         aspectRatio: canvas.width / canvas.height,
     });

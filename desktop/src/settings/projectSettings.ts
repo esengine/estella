@@ -236,7 +236,29 @@ settingsRegistry.register({
 });
 
 // ── Packaging (per-platform Project Settings; read by the export, persisted to project.esproject) ──
-settingsRegistry.registerSection({ id: 'packaging', label: t('set.section.packaging'), category: 'project', order: 3 });
+settingsRegistry.registerSection({ id: 'ui', label: t('set.section.ui'), category: 'project', order: 3 });
+
+settingsRegistry.register({
+  id: 'project.ui.theme',
+  type: 'enum',
+  scope: 'project',
+  section: 'ui',
+  group: t('set.group.uiTheme'),
+  label: t('set.project.ui.theme'),
+  description: t('set.project.ui.theme.desc'),
+  default: 'dark',
+  segmented: true,
+  options: [
+    { value: 'dark', label: t('set.project.ui.theme.dark') },
+    { value: 'light', label: t('set.project.ui.theme.light') },
+  ],
+  bind: {
+    get: () => ProjectStore.uiTheme(),
+    set: (v) => { void ProjectStore.setUiTheme(v as 'dark' | 'light'); },
+  },
+});
+
+settingsRegistry.registerSection({ id: 'packaging', label: t('set.section.packaging'), category: 'project', order: 4 });
 
 settingsRegistry.register({
   id: 'project.packaging.wechat.appid',

@@ -101,6 +101,11 @@ export interface ProjectFeatures {
   };
   /** Project mixer state (bus volumes / custom buses / effects / duck rules). */
   audio?: AudioProjectConfig;
+  ui?: {
+    /** Built-in widget theme. Only 'light' persists; dark (the default) is
+     *  expressed by absence — like rendering.colorSpace. */
+    theme?: 'light';
+  };
 }
 
 export type ScreenOrientation = 'portrait' | 'landscape';
@@ -321,6 +326,10 @@ export function parseManifest(raw: unknown): ProjectManifest {
     if (f.audio && typeof f.audio === 'object') {
       const audio = parseAudioProjectConfig(f.audio);
       if (audio.buses) features.audio = audio;
+    }
+    if (f.ui && typeof f.ui === 'object') {
+      const u = f.ui as Record<string, unknown>;
+      if (u.theme === 'light') features.ui = { theme: 'light' };
     }
     if (Object.keys(features).length > 0) manifest.features = features;
   }

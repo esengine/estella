@@ -423,25 +423,6 @@ export {
     type RichTextRun,
 } from './text/rich-text-parser';
 
-export {
-    createFontSet,
-    layoutRichText,
-    measureLayoutWidth,
-    type FontSet,
-    type PositionedRun,
-    type TextPositionedRun,
-    type ImagePositionedRun,
-    type LayoutLine,
-} from './text/rich-text-layout';
-
-export {
-    setImageResolver,
-    getImageResolver,
-    DefaultImageResolver,
-    type ImageResolver,
-    type ResolvedImage,
-} from './text/image-resolver';
-
 // ─── SDF glyph-atlas text ───────────────────────────────────────────────────
 
 export {

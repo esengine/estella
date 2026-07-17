@@ -1036,6 +1036,7 @@ class ProjectStoreImpl {
     physicsEnabled?: boolean;
     physicsConfig?: PhysicsPluginConfig;
     audioConfig?: AudioProjectConfig;
+    uiTheme?: 'light';
     ySortLayers?: number;
     colorSpace?: 'gamma' | 'linear';
     screenFit?: { designWidth: number; designHeight: number; scaleMode: number; matchWidthOrHeight: number };
@@ -1072,9 +1073,11 @@ class ProjectStoreImpl {
     // Camera fit: only sent when the project opts in (scaleMode ≥ 0), so a played
     // scene with no fit boots exactly as before.
     const screenFit = this.screenFit();
+    const uiTheme = this.uiTheme();
     return {
       sceneData, assetManifest, physicsEnabled: f.enabled, physicsConfig,
       ...(audioConfig.buses ? { audioConfig } : {}),
+      ...(uiTheme === 'light' ? { uiTheme } : {}),
       ...(ySortLayers !== 0 ? { ySortLayers } : {}),
       ...(colorSpace === 'linear' ? { colorSpace } : {}),
       ...(screenFit.scaleMode >= 0 ? { screenFit } : {}),
@@ -1084,6 +1087,33 @@ class ProjectStoreImpl {
   /** The project's declared mixer state (Project Settings → Audio / the Mixer). */
   audioFeature(): AudioProjectConfig {
     return this.state?.features?.audio ?? {};
+  }
+
+  /** The project's built-in widget theme (Project Settings → UI). */
+  uiTheme(): 'dark' | 'light' {
+    return this.state?.features?.ui?.theme === 'light' ? 'light' : 'dark';
+  }
+
+  /** Persist the widget theme; dark (the default) is expressed by absence. */
+  async setUiTheme(theme: 'dark' | 'light'): Promise<void> {
+    const st = this.state;
+    if (!st) return;
+    const ui = theme === 'light' ? { theme } : undefined;
+    const features: ProjectFeatures = { ...st.features };
+    if (ui) features.ui = ui;
+    else delete features.ui;
+    this.store.setState({ project: { ...st, features } });
+    try {
+      const raw = JSON.parse(await window.estella.fs.read(PROJECT_MANIFEST_FILE)) as Record<string, unknown>;
+      const rf = { ...(raw.features as Record<string, unknown> ?? {}) };
+      if (ui) rf.ui = ui;
+      else delete rf.ui;
+      raw.features = rf;
+      await window.estella.fs.write(PROJECT_MANIFEST_FILE, JSON.stringify(raw, null, 2) + '\n');
+    } catch (e) {
+      Toasts.push(t('proj.saveUiThemeFailed'), 'error');
+      console.error('[project] setUiTheme write failed', e);
+    }
   }
 
   /**

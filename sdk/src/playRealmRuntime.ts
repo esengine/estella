@@ -73,6 +73,8 @@ export interface PlayRealmRuntimeConfig {
     /** Project-declared physics world config (gravity, solver tuning, collision-layer
      *  masks, sleep/continuous) from the editor's Project Settings. */
     physicsConfig?: PhysicsPluginConfig;
+    /** Project-declared UI theme; 'light' re-skins ThemeStyle-tagged widgets at boot. */
+    uiTheme?: 'dark' | 'light';
     /** Project-declared mixer state (bus volumes / effects / duck rules). */
     audioConfig?: AudioProjectConfig;
     /** Turn on per-phase / per-system frame timing (editor profiler; off in shipped games). */
@@ -182,6 +184,7 @@ export async function initPlayRealmRuntime(config: PlayRealmRuntimeConfig): Prom
         aspectRatio: canvas.width / canvas.height,
         physicsEnabled: config.physicsEnabled,
         physicsConfig: config.physicsConfig,
+        uiTheme: config.uiTheme,
         audioConfig: config.audioConfig,
         // Physics (and spine) are acquired from app.sideModules — the fetch host
         // createWebApp built from this realm's wasmBaseUrl.

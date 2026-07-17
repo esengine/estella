@@ -38,6 +38,8 @@ export interface PlayableRuntimeConfig {
     scenes: Array<{ name: string; data: SceneData }>;
     firstScene: string;
     physicsConfig?: { gravity?: Vec2; fixedTimestep?: number; subStepCount?: number };
+    /** Project-declared UI theme; 'light' re-skins ThemeStyle-tagged widgets at boot. */
+    uiTheme?: 'dark' | 'light';
     /** Project-declared mixer state (bus volumes / effects / duck rules). */
     audioConfig?: AudioProjectConfig;
     /** Bitmask of render layers (0..31) that y-sort within the layer (Project Settings → Rendering). */
@@ -123,6 +125,7 @@ export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promis
         scenes,
         firstScene,
         physicsConfig: config.physicsConfig,
+        uiTheme: config.uiTheme,
         audioConfig: config.audioConfig,
         aspectRatio: config.canvas.width / config.canvas.height,
     });
