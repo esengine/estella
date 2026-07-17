@@ -9,5 +9,17 @@
     "width": 800,
     "height": 600
   },
-  "spineVersion": "none"
+  "spineVersion": "none",
+  "packaging": {
+    "platform": "playable",
+    "config": "shipping",
+    "sourceMaps": false,
+    "openFolder": true,
+    "compressTextures": false,
+    "atlasTextures": false,
+    "compressAudio": false,
+    "outDir": {
+      "playable": "dist-playable"
+    }
+  }
 }
