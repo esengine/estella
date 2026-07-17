@@ -59,7 +59,12 @@ export function isChangedWrapper(value: unknown): value is ChangedWrapper<AnyCom
     return typeof value === 'object' && value !== null && '_filterType' in value && value._filterType === 'changed';
 }
 
-type QueryArg = AnyComponentDef | MutWrapper<AnyComponentDef> | AddedWrapper<AnyComponentDef> | ChangedWrapper<AnyComponentDef>;
+/**
+ * Every value accepted as a positional `Query(...)` argument: a bare component,
+ * or a component wrapped for mutation / change detection. Exported so `system.ts`
+ * can constrain `SystemParam` against the exact same set — the two must never drift.
+ */
+export type QueryArg = AnyComponentDef | MutWrapper<AnyComponentDef> | AddedWrapper<AnyComponentDef> | ChangedWrapper<AnyComponentDef>;
 
 // =============================================================================
 // Filter Expression Tree

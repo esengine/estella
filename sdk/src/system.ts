@@ -7,7 +7,7 @@
 
 import { AnyComponentDef } from './component';
 import { getDefaultContext } from './context';
-import { QueryDescriptor, QueryInstance, MutWrapper, RemovedQueryDescriptor, RemovedQueryInstance } from './query';
+import { QueryDescriptor, QueryInstance, QueryArg, RemovedQueryDescriptor, RemovedQueryInstance } from './query';
 import { ResDescriptor, ResMutDescriptor, ResMutInstance, ResourceStorage } from './resource';
 import { CommandsDescriptor, CommandsInstance } from './commands';
 import {
@@ -48,8 +48,6 @@ export function GetWorld(): GetWorldDescriptor {
 // =============================================================================
 // System Parameter Types
 // =============================================================================
-
-type QueryArg = AnyComponentDef | MutWrapper<AnyComponentDef>;
 
 export type SystemParam =
     | QueryDescriptor<readonly QueryArg[]>

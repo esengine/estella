@@ -11,7 +11,7 @@ import {
     SystemRunner,
 } from '../src/system';
 import { getDefaultContext } from '../src/context';
-import { Query, Mut, QueryInstance, Removed, RemovedQueryInstance } from '../src/query';
+import { Query, Mut, Added, Changed, QueryInstance, Removed, RemovedQueryInstance } from '../src/query';
 import { Res, ResMut, ResMutInstance, defineResource, ResourceStorage } from '../src/resource';
 import { Commands, CommandsInstance } from '../src/commands';
 import { EventWriter, EventReader, EventWriterInstance, EventReaderInstance, defineEvent, EventRegistry } from '../src/event';
@@ -206,6 +206,32 @@ describe('SystemRunner', () => {
             let received: unknown = null;
             const sys = defineSystem([Query(Position)], (q) => {
                 received = q;
+            });
+            runner.run(sys);
+            expect(received).toBeInstanceOf(QueryInstance);
+        });
+
+        it('should accept a Query(Added(...)) change-detection filter (issue #52)', () => {
+            let received: unknown = null;
+            // Must type-check: Query(Added(...)) is a valid SystemParam, and the
+            // callback element is inferred as the unwrapped component data.
+            const sys = defineSystem([Query(Added(Position))], (q) => {
+                received = q;
+                for (const [, pos] of q) {
+                    void pos.x;
+                }
+            });
+            runner.run(sys);
+            expect(received).toBeInstanceOf(QueryInstance);
+        });
+
+        it('should accept a Query(Changed(...)) change-detection filter (issue #52)', () => {
+            let received: unknown = null;
+            const sys = defineSystem([Query(Changed(Velocity))], (q) => {
+                received = q;
+                for (const [, vel] of q) {
+                    void vel.dx;
+                }
             });
             runner.run(sys);
             expect(received).toBeInstanceOf(QueryInstance);
