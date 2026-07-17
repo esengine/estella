@@ -6183,6 +6183,7 @@ password: boolean
 placeholder: string
 placeholderColor: Color
 readOnly: boolean
+renderMode: TextRenderMode
 value: string
 ```
 
@@ -6213,6 +6214,7 @@ password: boolean | undefined
 placeholder: string | undefined
 placeholderColor: Color | undefined
 readOnly: boolean | undefined
+renderMode: TextRenderMode | undefined
 tabIndex: number | undefined
 value: string | undefined
 world: World

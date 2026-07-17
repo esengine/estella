@@ -1853,7 +1853,8 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
               "readOnly": false,
               "focused": false,
               "cursorPos": 0,
-              "dirty": true
+              "dirty": true,
+              "renderMode": 0
             }
           },
           {

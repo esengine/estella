@@ -334,6 +334,7 @@ export class TextInputPlugin implements Plugin {
                 text: {
                     content: '', fontFamily: ti.fontFamily, fontSize: ti.fontSize,
                     align: TextAlign.Left, verticalAlign: TextVerticalAlign.Middle, wordWrap: ti.multiline,
+                    renderMode: ti.renderMode,
                 },
             });
             const caret = spawnUIEntity({
@@ -351,12 +352,13 @@ export class TextInputPlugin implements Plugin {
             const show = displayString(ti);
             const col = ti.value.length === 0 ? ti.placeholderColor : ti.color;
             if (t.content !== show || t.fontFamily !== ti.fontFamily || t.fontSize !== ti.fontSize
-                || t.wordWrap !== ti.multiline
+                || t.wordWrap !== ti.multiline || t.renderMode !== ti.renderMode
                 || t.color.r !== col.r || t.color.g !== col.g || t.color.b !== col.b || t.color.a !== col.a) {
                 t.content = show;
                 t.fontFamily = ti.fontFamily;
                 t.fontSize = ti.fontSize;
                 t.wordWrap = ti.multiline;
+                t.renderMode = ti.renderMode;
                 t.color = { ...col };
                 world.insert(textEntity, Text, t);
             }

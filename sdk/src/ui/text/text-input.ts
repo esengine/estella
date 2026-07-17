@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { defineComponent } from '../../component';
+import { defineComponent, enumOptions } from '../../component';
 import type { Color } from '../../types';
+import { TextRenderMode } from '../core/text';
 
 export interface TextInputData {
     value: string;
@@ -19,6 +20,9 @@ export interface TextInputData {
     focused: boolean;
     cursorPos: number;
     dirty: boolean;
+    /** Glyph pipeline for the field text — mirrors Text.renderMode, propagated to
+     *  the child Text the input plugin renders through (Auto / Bitmap / Sdf). */
+    renderMode: TextRenderMode;
 }
 
 export const TextInput = defineComponent<TextInputData>('TextInput', {
@@ -37,4 +41,12 @@ export const TextInput = defineComponent<TextInputData>('TextInput', {
     focused: false,
     cursorPos: 0,
     dirty: true,
+    renderMode: TextRenderMode.Auto,
+}, {
+    fields: {
+        renderMode: {
+            enum: enumOptions(TextRenderMode),
+            tooltip: 'Glyph pipeline for the field text — Auto (hinted bitmap when unscaled, SDF once scaled), always Bitmap, or always SDF.',
+        },
+    },
 });

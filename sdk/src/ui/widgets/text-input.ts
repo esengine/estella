@@ -6,6 +6,7 @@ import type { World } from '../../world';
 import { px } from '../core/dimension';
 import { type UIEventQueue } from '../core/events';
 import { TextInput, type TextInputData } from '../text/text-input';
+import { TextRenderMode } from '../core/text';
 
 import { spawnUIEntity, type UINodeInit } from '../core/compose';
 import { makeWidgetInteractable } from '../input/interactable';
@@ -31,6 +32,8 @@ export interface TextInputOptions {
     readOnly?: boolean;
     /** Inner horizontal padding in px. Default 6. */
     padding?: number;
+    /** Glyph pipeline for the field text. Default Auto (bitmap unscaled, SDF scaled). */
+    renderMode?: TextRenderMode;
 
     /** Text / background / placeholder color overrides (theme roles otherwise). */
     color?: Color;
@@ -86,6 +89,7 @@ export function createTextInput(opts: TextInputOptions): TextInputHandle {
         focused: false,
         cursorPos: (opts.value ?? '').length,
         dirty: true,
+        renderMode: opts.renderMode ?? TextRenderMode.Auto,
     });
     markThemed(world, entity, {
         input: {
