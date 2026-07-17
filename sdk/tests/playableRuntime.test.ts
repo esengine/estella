@@ -100,6 +100,27 @@ describe('initPlayableRuntime', () => {
         expect(backend.resolveUrl('@uuid:aaaa')).toBe('data:text/plain;base64,QQ==');
     });
 
+    // resolveRef must yield a logical PATH for an embedded @uuid key, not the bare
+    // key: consumers derive sibling paths from a resolved ref (a Spine atlas names
+    // its texture pages by filename, resolved against the atlas's directory).
+    // Regression: an identity resolveRef left the atlas dir empty → "/spineboy.png"
+    // → ERR_FILE_NOT_FOUND on a single-file playable.
+    it('resolveRef expands an embedded @uuid to its logical source path', async () => {
+        const config = createMockConfig({
+            assets: { '@uuid:atlas': 'data:application/octet-stream;base64,QQ==' },
+            assetPathMap: { 'assets/spine/boy.atlas': '@uuid:atlas' },
+        });
+
+        await initPlayableRuntime(config);
+
+        const call = vi.mocked(initRuntime).mock.calls[0][0];
+        const resolveRef = call.source.resolveRef as (r: string) => string;
+        expect(resolveRef('@uuid:atlas')).toBe('assets/spine/boy.atlas');
+        // A ref with no known path (or already a path) passes through unchanged.
+        expect(resolveRef('assets/spine/boy.png')).toBe('assets/spine/boy.png');
+        expect(resolveRef('@uuid:unknown')).toBe('@uuid:unknown');
+    });
+
     // A single-file playable makes NO external requests — its `file://` page is a
     // null origin whose sibling fetches are CORS-blocked. Video is the newest
     // asset channel, so it must resolve through the SAME embedded map as every

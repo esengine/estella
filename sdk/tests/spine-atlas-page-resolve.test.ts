@@ -85,6 +85,24 @@ describe('loadSpineAssets resolves atlas page paths through the manifest', () =>
         expect(source.decodePixels).toHaveBeenCalledWith('assets/1234abcd.png', false);
     });
 
+    it('derives the page dir from a @uuid atlas ref resolved to its PATH (playable)', async () => {
+        // The playable resolveRef expands @uuid → logical source path; the page
+        // path must come from THAT resolved dir, not the bare @uuid (which gave an
+        // empty dir → "/spineboy.png" → ERR_FILE_NOT_FOUND).
+        const source = makeSource({
+            '@uuid:skel': 'assets/spine/boy.skel',
+            '@uuid:atlas': 'assets/spine/boy.atlas',
+        });
+        await loadSpineAssets({} as never, source, null, [{ skeleton: '@uuid:skel', atlas: '@uuid:atlas' }]);
+        expect(source.decodePixels).toHaveBeenCalledWith('assets/spine/spineboy.png', false);
+    });
+
+    it('a dirless atlas path yields the bare page name, never a leading slash', async () => {
+        const source = makeSource({});
+        await loadSpineAssets({} as never, source, null, [{ skeleton: 'boy.skel', atlas: 'boy.atlas' }]);
+        expect(source.decodePixels).toHaveBeenCalledWith('spineboy.png', false);
+    });
+
     it('a KTX2 page in a realm without basis warns and skips, not throws', async () => {
         const source = makeSource({ 'assets/spine/spineboy.png': 'assets/spine/spineboy.ktx2' });
         const info = await loadSpineAssets({} as never, source, null, PAIR, async () => null);

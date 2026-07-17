@@ -110,7 +110,9 @@ export async function loadSpineAssets(
             const textures = new Map<string, { glId: number; w: number; h: number }>();
 
             for (const texName of texNames) {
-                const texPath = atlasDir + '/' + texName;
+                // No dir ⇒ the page name IS the path (never a leading-slash
+                // "/page.png", which resolves to nothing) — matches SpineAssetLoader.
+                const texPath = atlasDir ? atlasDir + '/' + texName : texName;
                 try {
                     // The atlas names its pages by AUTHORED filename; a cook may
                     // have re-encoded (.ktx2) or content-addressed the staged

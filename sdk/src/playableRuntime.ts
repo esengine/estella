@@ -84,18 +84,27 @@ export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promis
     // emit) — the aliases point at the SAME data-URL strings, so path refs cost
     // nothing and every consumer below resolves through one map.
     const assets = { ...config.assets };
+    const keyToPath: Record<string, string> = {};
     for (const [logical, key] of Object.entries(config.assetPathMap ?? {})) {
         const data = assets[key];
         if (!data) continue;
         assets[logical] ??= data;
         assets[`/${logical}`] ??= data;
+        // Reverse index (@uuid key → its logical source path); first path wins.
+        keyToPath[key] ??= logical;
     }
 
     // Canonical asset source: the shared EmbeddedBackend (data-URLs) + a DOM image
-    // decode over the same data-URL. Refs are the map keys (resolveRef = identity).
+    // decode over the same data-URL. `resolveRef` yields a logical PATH (not the
+    // bare @uuid key) so consumers that derive sibling paths from a resolved ref
+    // work — e.g. a Spine atlas names its texture pages by filename, resolved
+    // against the atlas's own directory. This matches the web/manifest runtime's
+    // resolveRef contract; a ref with no known path (or already a path) passes
+    // through, and the backend resolves both spellings off the same aliased map.
     const backend = new EmbeddedBackend(assets);
     const source: RuntimeAssetSource = {
         backend,
+        resolveRef: (ref) => keyToPath[ref] ?? ref,
         decodePixels: (path) => loadImagePixels(backend.resolveUrl(path)),
         // Map keys are the shippable paths (logical aliases included) — the
         // .eslocale discovery filters on extension, so aliases resolve fine.
