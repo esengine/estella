@@ -311,6 +311,24 @@ describe('Scene', () => {
                 .data.entities[0].components[0].data.mode).toBe(1);
         });
 
+        it('drops components retired by an engine upgrade, keeping live ones', () => {
+            const scene: SceneData = {
+                version: '1.0',
+                name: 't',
+                entities: [{
+                    id: 0, name: 'Button', parent: null, children: [],
+                    components: [
+                        { type: 'Transform', data: { position: { x: 0, y: 0, z: 0 } } },
+                        { type: 'StateMachine', data: {} },
+                        { type: 'StateVisuals', data: { states: [] } },
+                    ],
+                }],
+            };
+            const { data, migrated } = migrateSceneData(scene);
+            expect(migrated).toBe(true);
+            expect(data.entities[0].components.map((c) => c.type)).toEqual(['Transform']);
+        });
+
         it('reports migrated=true for legacy data, false for current', () => {
             expect(migrateSceneData(oneCompScene({ type: 'LocalTransform', data: {} })).migrated).toBe(true);
             expect(migrateSceneData(oneCompScene({ type: 'Transform', data: { position: { x: 0, y: 0, z: 0 } } })).migrated).toBe(false);

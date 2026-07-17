@@ -301,6 +301,17 @@ const versionNum = (v: string): number => {
 };
 
 /**
+ * Component types retired by an engine upgrade. A scene authored before the
+ * retirement still serializes them; {@link migrateSceneData} drops them so the
+ * loader never warns "Unknown component type" on dead data, and the editor tells
+ * them apart from genuinely-unknown project components (which it preserves). The
+ * behaviour they encoded lives on in successor systems — the retired UI
+ * StateMachine/StateVisuals pair is superseded by UIController($interaction) +
+ * UIGear, which the widget prefabs now carry.
+ */
+export const RETIRED_COMPONENT_TYPES: ReadonlySet<string> = new Set(['StateMachine', 'StateVisuals']);
+
+/**
  * Upgrade a SceneData to the current format. Total + idempotent: already-current
  * data returns `migrated: false`; migrations are shape-driven so they no-op on
  * current scenes. Rejects data newer than this engine. Returns a deep copy, so
@@ -328,6 +339,10 @@ export function migrateSceneData(raw: SceneData): SceneMigrationResult {
         // loader expands them first, so any seen here belong to the sync path
         // and are left untouched (spawnAndLoadEntities warns + skips them).
         if (isPrefabEntry(entity)) continue;
+        // Drop components retired by an engine upgrade before per-component
+        // normalization — keeping them would only make loadComponent warn + skip.
+        const live = entity.components.filter((c) => !RETIRED_COMPONENT_TYPES.has(c.type));
+        if (live.length !== entity.components.length) { entity.components = live; migrated = true; }
         for (const comp of entity.components) {
             if (normalizeLegacyComponent(comp)) migrated = true;
         }
