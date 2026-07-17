@@ -1,0 +1,13 @@
+{
+  "formatVersion": "1",
+  "name": "Chat",
+  "description": "A chat UI — a virtualized ListView log with a TextInput composer.",
+  "tag": "UI",
+  "version": "0.1.0",
+  "defaultScene": "assets/scenes/main.esscene",
+  "designResolution": {
+    "width": 800,
+    "height": 600
+  },
+  "spineVersion": "none"
+}
