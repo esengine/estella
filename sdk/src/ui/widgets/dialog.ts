@@ -3,7 +3,8 @@
 import type { Entity } from '../../types';
 import type { World } from '../../world';
 
-import { spawnUIEntity, makeWidgetInteractable, type UINodeInit, type UIVisualInit } from './helpers';
+import { spawnUIEntity, type UINodeInit, type UIVisualInit } from '../core/compose';
+import { makeWidgetInteractable } from '../input/interactable';
 import { UINode, UIDisplay, type UINodeData } from '../core/ui-node';
 import { px, percent } from '../core/dimension';
 import { themeColors } from '../theme/tokens';

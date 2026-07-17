@@ -1,5 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+ * @file    ui/core/compose.ts
+ * @brief   Composition sugar over the Layer-1 primitives: build full component
+ *          literals from sparse inits, and spawn a UI entity in one call.
+ *
+ * Lives in core (not widgets) because everything that assembles UI needs it —
+ * widget factories, the text-input plugin, and behavior systems that build
+ * transient subtrees (a dropdown popup). Pure over L1 components only.
+ */
 import {
     Transform,
     type TransformData,
@@ -7,12 +16,10 @@ import {
 import type { Entity, Vec2 } from '../../types';
 import type { World } from '../../world';
 
-import { UINode, UIPositionType, UIDisplay, type UINodeData } from '../core/ui-node';
-import { Interactable } from '../input/interactable';
-import { Focusable } from '../input/focusable';
-import { px, percent, auto, type Dimension } from '../core/dimension';
-import { UIVisual, UIVisualType, FillMethod, FillOrigin, type UIVisualData } from '../core/ui-visual';
-import { Text, TextAlign, TextVerticalAlign, TextRenderMode, type TextData } from '../core/text';
+import { UINode, UIPositionType, UIDisplay, type UINodeData } from './ui-node';
+import { px, auto, type Dimension } from './dimension';
+import { UIVisual, UIVisualType, FillMethod, FillOrigin, type UIVisualData } from './ui-visual';
+import { Text, TextAlign, TextVerticalAlign, TextRenderMode, type TextData } from './text';
 
 /** Identity Transform. Fresh object per call — safe to insert into ECS. */
 export function identityTransform(): TransformData {
@@ -74,36 +81,6 @@ export function buildUINode(init: UINodeInit = {}): UINodeData {
         insetRight: init.insetRight ?? (fill ? px(0) : auto()),
         insetBottom: init.insetBottom ?? (fill ? px(0) : auto()),
     };
-}
-
-export interface WidgetInteractionInit {
-    /** Start disabled (Interactable.enabled = false). */
-    disabled?: boolean;
-    /** Participate in Tab traversal + keyboard activation. Default true. */
-    focusable?: boolean;
-    /** Tab order within the focus ring. Default 0 (document order). */
-    tabIndex?: number;
-}
-
-/**
- * The one interaction assembly every widget shares: a raycast-blocking
- * Interactable plus (by default) a Focusable so the control is keyboard-
- * reachable. Per-frame pointer state (UIInteraction) is transient — the
- * hit-test system creates it on demand, widgets never insert it.
- */
-export function makeWidgetInteractable(
-    world: World,
-    entity: Entity,
-    init: WidgetInteractionInit = {},
-): void {
-    world.insert(entity, Interactable, {
-        enabled: !init.disabled,
-        blockRaycast: true,
-        raycastTarget: true,
-    });
-    if (init.focusable ?? true) {
-        world.insert(entity, Focusable, { tabIndex: init.tabIndex ?? 0, isFocused: false });
-    }
 }
 
 export interface UIVisualInit {

@@ -90,8 +90,10 @@ export {
 export {
     Interactable,
     UIInteraction,
+    makeWidgetInteractable,
     type InteractableData,
     type UIInteractionData,
+    type WidgetInteractionInit,
 } from './input/interactable';
 
 export {
@@ -125,6 +127,21 @@ export {
     createSliderSystem,
     type UISliderData,
 } from './behavior/slider';
+
+export {
+    UIToggle,
+    createToggleSystem,
+    type UIToggleData,
+} from './behavior/toggle';
+
+export {
+    UIDropdown,
+    isDropdownOpen,
+    openDropdown,
+    closeDropdown,
+    createDropdownSystem,
+    type UIDropdownData,
+} from './behavior/dropdown';
 
 // ─── Controllers + Gears (shared UI state) ──────────────────────────────────
 
@@ -217,24 +234,25 @@ export {
     buildText,
     spawnUIEntity,
     setUIVisible,
-    makeWidgetInteractable,
     FILL_AXIS,
     type LinearFillDirection,
     type UINodeInit,
     type UIVisualInit,
     type TextInit,
     type UIEntityInit,
-    type WidgetInteractionInit,
-} from './widgets/helpers';
+} from './core/compose';
+
+export {
+    interactionGears,
+    type ButtonStateVisual,
+} from './controller/interaction-gears';
 
 export {
     createButton,
     setButtonState,
     themeButtonStates,
-    interactionGears,
     type ButtonOptions,
     type ButtonHandle,
-    type ButtonStateVisual,
 } from './widgets/button';
 
 export {
@@ -381,6 +399,7 @@ export { applyThemeToWorld, switchTheme } from './behavior/theme-apply';
 
 export { signal, derived, type Signal, type ReadonlySignal } from './binding/signal';
 export { bind } from './binding/bind';
+export { bindWidgetValue } from './binding/two-way';
 
 // Property Path Utilities
 export {

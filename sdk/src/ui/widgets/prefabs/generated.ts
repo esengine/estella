@@ -659,6 +659,13 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
                 "focused": "controlHover"
               }
             }
+          },
+          {
+            "type": "UIToggle",
+            "data": {
+              "isOn": true,
+              "check": "1"
+            }
           }
         ],
         "visible": true
@@ -2416,6 +2423,19 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
                 "hover": "controlHover",
                 "pressed": "controlActive"
               }
+            }
+          },
+          {
+            "type": "UIDropdown",
+            "data": {
+              "options": [
+                "One",
+                "Two",
+                "Three"
+              ],
+              "selectedIndex": 0,
+              "optionHeight": 30,
+              "label": "1"
             }
           }
         ],

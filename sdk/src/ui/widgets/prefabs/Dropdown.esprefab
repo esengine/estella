@@ -226,6 +226,19 @@
               "pressed": "controlActive"
             }
           }
+        },
+        {
+          "type": "UIDropdown",
+          "data": {
+            "options": [
+              "One",
+              "Two",
+              "Three"
+            ],
+            "selectedIndex": 0,
+            "optionHeight": 30,
+            "label": "1"
+          }
         }
       ],
       "visible": true

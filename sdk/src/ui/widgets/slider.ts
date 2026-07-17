@@ -7,7 +7,8 @@ import { px, percent } from '../core/dimension';
 import { UIVisualType } from '../core/ui-visual';
 import { UIEventType, type UIEventQueue } from '../core/events';
 
-import { spawnUIEntity, makeWidgetInteractable, FILL_AXIS, type UINodeInit, type UIVisualInit } from './helpers';
+import { spawnUIEntity, FILL_AXIS, type UINodeInit, type UIVisualInit } from '../core/compose';
+import { makeWidgetInteractable } from '../input/interactable';
 import { themeColors } from '../theme/tokens';
 import { markThemed } from '../theme/theme-style';
 import { UISlider, sliderClamp, sliderFraction, type UISliderData } from '../behavior/slider';

@@ -11,13 +11,7 @@ import {
     type UIVisualData,
 } from '../core/ui-visual';
 
-import {
-    spawnUIEntity,
-    FILL_AXIS,
-    type UINodeInit,
-    type UIVisualInit,
-    type LinearFillDirection,
-} from './helpers';
+import { spawnUIEntity, FILL_AXIS, type UINodeInit, type UIVisualInit, type LinearFillDirection } from '../core/compose';
 import { themeColors } from '../theme/tokens';
 import { markThemed } from '../theme/theme-style';
 

@@ -21,7 +21,8 @@ import { UINode, UIPositionType, type UINodeData } from '../core/ui-node';
 import { px, auto } from '../core/dimension';
 import { UIMask, MaskMode } from '../core/ui-mask';
 
-import { spawnUIEntity, setUIVisible, makeWidgetInteractable, type UINodeInit, type UIVisualInit } from './helpers';
+import { spawnUIEntity, setUIVisible, type UINodeInit, type UIVisualInit } from '../core/compose';
+import { makeWidgetInteractable } from '../input/interactable';
 
 import {
     type DataSource,

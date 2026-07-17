@@ -15,7 +15,7 @@ import { UIEvents, UIEventQueue } from '../core/events';
 import { Res } from '../../resource';
 import { playModeOnly } from '../../env';
 import { ensureComponent, getUINodeWidth, getUINodeHeight } from '../util/helpers';
-import { spawnUIEntity } from '../widgets/helpers';
+import { spawnUIEntity } from '../core/compose';
 import { px } from '../core/dimension';
 import { SdfTextRenderer } from './text-renderer';
 import { measureWidth } from './layout';

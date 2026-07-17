@@ -39,11 +39,11 @@ collection, or widgets.
 
 | Folder | Responsibility | Key files |
 |--------|----------------|-----------|
-| `core/` | Layer 0–1 primitives: the components that *are* the UI | `ui-node`, `ui-visual`, `ui-mask`, `text`, `dimension`, `events`, `ui-camera-info` |
+| `core/` | Layer 0–1 primitives: the components that *are* the UI, plus composition sugar over them | `ui-node`, `ui-visual`, `ui-mask`, `text`, `dimension`, `events`, `ui-camera-info`, `compose` |
 | `layout/` | Flexbox layout + safe area + layout bookkeeping | `anchor`, `flex`, `layout` (Yoga driver plugin), `safe-area`, `ui-layout-generation` |
 | `input/` | Pointer/keyboard interaction primitives + their plugins | `interactable`, `draggable`, `focusable`, `drag`, `focus`, `interaction` |
-| `controller/` | The one widget-state mechanism: named pages + per-component property gears, tween-applied | `ui-controller`, `ui-gear`, `gear-apply`, `bind-page`, `ai-builtins`, `plugin` |
-| `behavior/` | Runtime systems: scroll/collection ticking, data-driven widget behavior, theme re-resolution | `plugin` (UIBehaviorPlugin), `dialog`, `slider`, `theme-apply` |
+| `controller/` | The one widget-state mechanism: named pages + per-component property gears, tween-applied | `ui-controller`, `ui-gear`, `gear-apply`, `interaction-gears`, `bind-page`, `ai-builtins`, `plugin` |
+| `behavior/` | Runtime systems: scroll/collection ticking, data-driven widget behavior, theme re-resolution | `plugin` (UIBehaviorPlugin), `dialog`, `slider`, `toggle`, `dropdown`, `theme-apply` |
 | `render/` | UI-specific render concerns | `mask`, `render-order` |
 | `collection/` | Data-driven collections + view recycling | `list-view`, `scroll-container`, `view-pool`, `data-source`, `layout-provider` |
 | `text/` | SDF glyph atlas, text layout, rich text, editable text | `glyph-atlas`, `text-renderer`, `layout`, `rich-text-*`, `text-input`, `image-resolver` |

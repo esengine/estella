@@ -17,7 +17,8 @@ import { px } from '../core/dimension';
 import { UIMask, MaskMode } from '../core/ui-mask';
 import { ScrollContainer } from '../collection/scroll-container';
 
-import { spawnUIEntity, makeWidgetInteractable, type UINodeInit, type UIVisualInit } from './helpers';
+import { spawnUIEntity, type UINodeInit, type UIVisualInit } from '../core/compose';
+import { makeWidgetInteractable } from '../input/interactable';
 import type { ListViewHost } from './list-view';
 
 export interface ScrollViewOptions {

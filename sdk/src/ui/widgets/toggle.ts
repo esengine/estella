@@ -4,12 +4,13 @@ import type { Color, Entity } from '../../types';
 import type { World } from '../../world';
 
 import { UIEventType, type UIEventQueue } from '../core/events';
-import { Interactable, type InteractableData } from '../input/interactable';
+import type { ButtonStateVisual } from '../controller/interaction-gears';
 
-import { createButton, type ButtonStateVisual } from './button';
-import { spawnUIEntity, setUIVisible, type UINodeInit, type UIVisualInit } from './helpers';
+import { createButton } from './button';
+import { spawnUIEntity, setUIVisible, type UINodeInit, type UIVisualInit } from '../core/compose';
 import { themeColors } from '../theme/tokens';
 import { markThemed } from '../theme/theme-style';
+import { UIToggle, type UIToggleData } from '../behavior/toggle';
 
 export interface ToggleOptions {
     world: World;
@@ -49,7 +50,7 @@ export interface ToggleOptions {
 export interface ToggleHandle {
     readonly entity: Entity;
     isOn(): boolean;
-    setIsOn(value: boolean, silent?: boolean): void;
+    setIsOn(value: boolean): void;
     setDisabled(disabled: boolean): void;
     dispose(): void;
 }
@@ -57,11 +58,13 @@ export interface ToggleHandle {
 /**
  * Compose a Toggle from a Button (interaction + visual states) plus a
  * separate child entity driven by `isOn` for the check-mark visual.
- * Click flips isOn and emits `change` on the button entity.
+ * State + flipping live in the {@link UIToggle} component and its behavior
+ * system — click, `setIsOn`, a binding, or the editor inspector all flip the
+ * indicator and emit `change` identically.
  */
 export function createToggle(opts: ToggleOptions): ToggleHandle {
     const { world, events } = opts;
-    let isOn = opts.isOn ?? false;
+    const isOn = opts.isOn ?? false;
 
     const btn = createButton({
         world,
@@ -91,29 +94,26 @@ export function createToggle(opts: ToggleOptions): ToggleHandle {
     if (opts.check?.color === undefined) markThemed(world, check, { visual: 'primary' });
 
     setUIVisible(world, check, isOn);
+    world.insert(button, UIToggle, { isOn, check });
 
-    const offClick = events.on(button, UIEventType.Click, () => {
-        const interactable = world.get(button, Interactable) as InteractableData;
-        if (interactable.enabled) setIsOn(!isOn);
-    });
-
-    function setIsOn(value: boolean, silent = false): void {
-        if (value === isOn) return;
-        isOn = value;
-        setUIVisible(world, check, isOn);
-        if (!silent) {
-            events.emit(button, UIEventType.Change, { isOn });
-            opts.onChange?.(isOn, button);
-        }
-    }
+    const offChange = opts.onChange
+        ? events.on(button, UIEventType.Change, (ev) => {
+              opts.onChange!((ev.data as { isOn: boolean }).isOn, button);
+          })
+        : undefined;
 
     return {
         entity: button,
-        isOn: () => isOn,
-        setIsOn,
+        isOn: () => (world.get(button, UIToggle) as UIToggleData).isOn,
+        setIsOn: (value: boolean) => {
+            const d = world.get(button, UIToggle) as UIToggleData;
+            if (d.isOn === value) return;
+            d.isOn = value;
+            world.insert(button, UIToggle, d);
+        },
         setDisabled: btn.setDisabled,
         dispose: () => {
-            offClick();
+            offChange?.();
             btn.dispose();
         },
     };

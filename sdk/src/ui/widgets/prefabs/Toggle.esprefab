@@ -242,6 +242,13 @@
               "focused": "controlHover"
             }
           }
+        },
+        {
+          "type": "UIToggle",
+          "data": {
+            "isOn": true,
+            "check": "1"
+          }
         }
       ],
       "visible": true

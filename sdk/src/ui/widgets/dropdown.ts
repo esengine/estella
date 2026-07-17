@@ -5,14 +5,20 @@ import type { World } from '../../world';
 
 import { UIController, interactionController } from '../controller/ui-controller';
 import { UIGear } from '../controller/ui-gear';
-import { interactionGears } from './button';
+import { interactionGears } from '../controller/interaction-gears';
 import { UIEventType, type UIEventQueue } from '../core/events';
-import { Text, type TextData } from '../core/text';
 
-import { spawnUIEntity, makeWidgetInteractable, type UINodeInit, type UIVisualInit } from './helpers';
-import { px, percent } from '../core/dimension';
+import { spawnUIEntity, type UINodeInit } from '../core/compose';
+import { makeWidgetInteractable } from '../input/interactable';
 import { themeColors } from '../theme/tokens';
 import { markThemed } from '../theme/theme-style';
+import {
+    UIDropdown,
+    isDropdownOpen,
+    openDropdown,
+    closeDropdown,
+    type UIDropdownData,
+} from '../behavior/dropdown';
 
 export interface DropdownOptions<T> {
     world: World;
@@ -30,16 +36,14 @@ export interface DropdownOptions<T> {
         hover?: Color;
         pressed?: Color;
     };
-    /** Visual state overrides for option rows in the popup. */
-    optionStates?: {
-        normal?: Color;
-        hover?: Color;
-        pressed?: Color;
-    };
-    /** Popup panel background. */
-    popupVisual?: UIVisualInit;
     /** Height of each option row in pixels. Default 32. */
     optionHeight?: number;
+
+    /** Start disabled. */
+    disabled?: boolean;
+    /** Participate in Tab traversal + arrow-key selection. Default true. */
+    focusable?: boolean;
+    tabIndex?: number;
 
     onSelect?: (index: number, option: T, entity: Entity) => void;
 }
@@ -50,42 +54,24 @@ export interface DropdownHandle<T> {
     isOpen(): boolean;
     getSelectedIndex(): number;
     getSelected(): T;
-    setSelectedIndex(index: number, silent?: boolean): void;
+    setSelectedIndex(index: number): void;
     open(): void;
     close(): void;
     dispose(): void;
 }
 
-/** Attach a `$interaction` controller + a color gear over its three pages. */
-function addInteractionStates(
-    world: World,
-    entity: Entity,
-    colors: { normal: Color; hover: Color; pressed: Color },
-): void {
-    world.insert(entity, UIController, {
-        controllers: [interactionController(['normal', 'hover', 'pressed'])],
-    });
-    world.insert(entity, UIGear, {
-        bindings: interactionGears({
-            normal: { color: colors.normal },
-            hover: { color: colors.hover },
-            pressed: { color: colors.pressed },
-        }),
-    });
-}
-
 /**
- * Dropdown: a button showing the current selection that opens a popup
- * with clickable option rows. Click an option to select it (popup
- * closes automatically). Click the button again to close without
- * selecting. Click-outside-to-close is not wired in v1 — callers can
- * call `close()` from their own global input layer if needed.
+ * Dropdown: a button showing the current selection that opens a popup with
+ * clickable option rows. State + behavior live in the {@link UIDropdown}
+ * component and its system: click toggles the popup, a click anywhere else
+ * closes it, arrow keys step the selection while focused, and the label
+ * follows `selectedIndex` for any writer. The factory adds the generic-type
+ * mapping (`options: T[]` + `optionToLabel`) on top.
  */
 export function createDropdown<T>(opts: DropdownOptions<T>): DropdownHandle<T> {
     const { world, events } = opts;
     const labelOf = opts.optionToLabel ?? ((o: T) => String(o));
-    const optionHeight = opts.optionHeight ?? 32;
-    let selectedIndex = opts.selectedIndex ?? 0;
+    const selectedIndex = opts.selectedIndex ?? 0;
 
     const c = themeColors();
     const btnColors = {
@@ -101,8 +87,21 @@ export function createDropdown<T>(opts: DropdownOptions<T>): DropdownHandle<T> {
         node: opts.node ?? { fill: true },
         visual: { color: btnColors.normal },
     });
-    makeWidgetInteractable(world, button);
-    addInteractionStates(world, button, btnColors);
+    makeWidgetInteractable(world, button, {
+        disabled: opts.disabled,
+        focusable: opts.focusable,
+        tabIndex: opts.tabIndex,
+    });
+    world.insert(button, UIController, {
+        controllers: [interactionController(['normal', 'hover', 'pressed'])],
+    });
+    world.insert(button, UIGear, {
+        bindings: interactionGears({
+            normal: { color: btnColors.normal },
+            hover: { color: btnColors.hover },
+            pressed: { color: btnColors.pressed },
+        }),
+    });
     if (opts.buttonStates === undefined) {
         markThemed(world, button, { states: { normal: 'control', hover: 'controlHover', pressed: 'controlActive' } });
     }
@@ -111,132 +110,45 @@ export function createDropdown<T>(opts: DropdownOptions<T>): DropdownHandle<T> {
         world,
         parent: button,
         node: { fill: true },
-        text: { content: labelOf(opts.options[selectedIndex]!, selectedIndex), color: themeColors().text },
+        text: { content: labelOf(opts.options[selectedIndex]!, selectedIndex), color: c.text },
     });
     markThemed(world, label, { text: 'text' });
 
-    let popupPanel: Entity | null = null;
-    const optionUnsubs: Array<() => void> = [];
-
-    function isOpen(): boolean {
-        return popupPanel !== null;
-    }
-
-    function open(): void {
-        if (popupPanel) return;
-        const totalHeight = opts.options.length * optionHeight;
-
-        // Resolve theme colors at open time — the popup is rebuilt per open, so a
-        // construction-time capture would pin the theme active back then.
-        const t = themeColors();
-        const optColors = {
-            normal:  opts.optionStates?.normal  ?? t.control,
-            hover:   opts.optionStates?.hover   ?? t.primaryHover,
-            pressed: opts.optionStates?.pressed ?? t.primaryActive,
-        };
-
-        popupPanel = spawnUIEntity({
-            world,
-            parent: button,
-            // Below the button: absolute, full width, top at the button's bottom edge.
-            node: {
-                position: 1,
-                insetLeft: px(0),
-                insetRight: px(0),
-                insetTop: percent(100),
-                height: px(totalHeight),
-            },
-            visual: opts.popupVisual ?? { color: t.surfaceElevated },
-        });
-        if (!opts.popupVisual) markThemed(world, popupPanel, { visual: 'surfaceElevated' });
-
-        for (let i = 0; i < opts.options.length; i++) {
-            const index = i;
-            const row = spawnOptionRow(index, optColors, t.text);
-            const off = events.on(row, UIEventType.Click, () => selectAndClose(index));
-            optionUnsubs.push(off);
-        }
-    }
-
-    function spawnOptionRow(
-        index: number,
-        optColors: { normal: Color; hover: Color; pressed: Color },
-        textColor: Color,
-    ): Entity {
-        const row = spawnUIEntity({
-            world,
-            parent: popupPanel!,
-            // Stacked top-down: absolute, full width, row i at i*optionHeight.
-            node: {
-                position: 1,
-                insetLeft: px(0),
-                insetRight: px(0),
-                insetTop: px(index * optionHeight),
-                height: px(optionHeight),
-            },
-            visual: { color: optColors.normal },
-        });
-        // Rows are pointer-only: the popup is transient, so they stay out of
-        // the Tab ring (keyboard option navigation is a later step).
-        makeWidgetInteractable(world, row, { focusable: false });
-        addInteractionStates(world, row, optColors);
-        if (opts.optionStates === undefined) {
-            markThemed(world, row, { states: { normal: 'control', hover: 'primaryHover', pressed: 'primaryActive' } });
-        }
-
-        const rowLabel = spawnUIEntity({
-            world,
-            parent: row,
-            node: { fill: true },
-            text: { content: labelOf(opts.options[index]!, index), color: textColor },
-        });
-        markThemed(world, rowLabel, { text: 'text' });
-
-        return row;
-    }
-
-    function close(): void {
-        if (!popupPanel) return;
-        for (const off of optionUnsubs) off();
-        optionUnsubs.length = 0;
-        if (world.valid(popupPanel)) world.despawn(popupPanel);
-        popupPanel = null;
-    }
-
-    function selectAndClose(index: number): void {
-        close();
-        setSelectedIndex(index, false);
-    }
-
-    function setSelectedIndex(index: number, silent = false): void {
-        if (index < 0 || index >= opts.options.length) return;
-        if (index === selectedIndex) return;
-        selectedIndex = index;
-        const labelData = world.get(label, Text) as TextData;
-        labelData.content = labelOf(opts.options[index]!, index);
-        world.insert(label, Text, labelData);
-        if (!silent) {
-            opts.onSelect?.(index, opts.options[index]!, button);
-        }
-    }
-
-    // Click on button toggles popup.
-    const offButtonClick = events.on(button, UIEventType.Click, () => {
-        isOpen() ? close() : open();
+    world.insert(button, UIDropdown, {
+        options: opts.options.map((o, i) => labelOf(o, i)),
+        selectedIndex,
+        optionHeight: opts.optionHeight ?? 32,
+        label,
     });
+
+    const offSelect = opts.onSelect
+        ? events.on(button, UIEventType.Change, (ev) => {
+              const data = ev.data as { index?: number };
+              if (typeof data?.index !== 'number') return;
+              opts.onSelect!(data.index, opts.options[data.index]!, button);
+          })
+        : undefined;
+
+    const selected = () => (world.get(button, UIDropdown) as UIDropdownData).selectedIndex;
 
     return {
         entity: button,
         labelEntity: label,
-        isOpen,
-        getSelectedIndex: () => selectedIndex,
-        getSelected: () => opts.options[selectedIndex]!,
-        setSelectedIndex,
-        open,
-        close,
+        isOpen: () => isDropdownOpen(world, button),
+        getSelectedIndex: selected,
+        getSelected: () => opts.options[selected()]!,
+        setSelectedIndex: (index: number) => {
+            if (index < 0 || index >= opts.options.length) return;
+            const d = world.get(button, UIDropdown) as UIDropdownData;
+            if (d.selectedIndex === index) return;
+            d.selectedIndex = index;
+            world.insert(button, UIDropdown, d);
+        },
+        open: () => openDropdown(world, events, button),
+        close: () => closeDropdown(world, button),
         dispose: () => {
-            offButtonClick();
-            close();
+            offSelect?.();
+            closeDropdown(world, button);
             if (world.valid(button)) world.despawn(button);
         },
     };

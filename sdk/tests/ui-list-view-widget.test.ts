@@ -12,7 +12,7 @@ import { App } from '../src/app';
 import { UICameraInfo } from '../src/ui/core/ui-camera-info';
 import { uiPlugin } from '../src/ui/ui-plugin';
 import { createListView } from '../src/ui/widgets/list-view';
-import { spawnUIEntity } from '../src/ui/widgets/helpers';
+import { spawnUIEntity } from '../src/ui/core/compose';
 import { arrayDataSource } from '../src/ui/collection/data-source';
 import { px } from '../src/ui/core/dimension';
 import type { ESEngineModule, CppRegistry } from '../src/wasm';

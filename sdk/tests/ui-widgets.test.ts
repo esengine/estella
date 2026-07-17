@@ -21,6 +21,8 @@ import {
     UIEventType,
     UIDisplay,
     UIDialog,
+    UIToggle,
+    createToggleSystem,
     themeColors,
     type UIControllerData,
     type UIGearData,
@@ -45,6 +47,7 @@ interface MockWorld {
     has(e: Entity, c: object): boolean;
     get(e: Entity, c: object): unknown;
     insert(e: Entity, c: object, data: unknown): void;
+    getEntitiesWithComponents(cs: object[]): Entity[];
     onDespawn(cb: (e: Entity) => void): () => void;
 }
 
@@ -83,6 +86,10 @@ function createMockWorld(): MockWorld {
         },
         insert(e, c, data) {
             w._components.get(e as number)?.set(c, data);
+        },
+        getEntitiesWithComponents(cs) {
+            return [...w._entities].filter((e) =>
+                cs.every((c) => w._components.get(e)?.has(c))) as Entity[];
         },
         onDespawn(cb) {
             w._despawnListeners.push(cb);
@@ -257,13 +264,17 @@ describe('interactionGears', () => {
 describe('createToggle', () => {
     let world: MockWorld;
     let events: UIEventQueue;
+    let tick: () => void;
 
     beforeEach(() => {
         world = createMockWorld();
         events = new UIEventQueue();
+        const sys = createToggleSystem(world as unknown as World, events);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        tick = () => (sys as any)._fn();
     });
 
-    it('starts with the provided isOn value', () => {
+    it('starts with the provided isOn value, carried in the UIToggle component', () => {
         const on = createToggle({
             world: world as unknown as World,
             events,
@@ -271,9 +282,10 @@ describe('createToggle', () => {
             isOn: true,
         });
         expect(on.isOn()).toBe(true);
+        expect((world.get(on.entity, UIToggle) as { isOn: boolean }).isOn).toBe(true);
     });
 
-    it('flips isOn on click and emits change', () => {
+    it('flips isOn on click through the behavior system and emits change', () => {
         const onChange = vi.fn();
         const toggle = createToggle({
             world: world as unknown as World,
@@ -282,14 +294,16 @@ describe('createToggle', () => {
             isOn: false,
             onChange,
         });
+        tick(); // initial paint — no change event
 
         events.emit(toggle.entity, UIEventType.Click);
-
         expect(toggle.isOn()).toBe(true);
+
+        tick();
         expect(onChange).toHaveBeenCalledWith(true, toggle.entity);
     });
 
-    it('setIsOn emits change unless silent is true', () => {
+    it('setIsOn writes the component; the system emits one change per transition', () => {
         const onChange = vi.fn();
         const toggle = createToggle({
             world: world as unknown as World,
@@ -297,12 +311,27 @@ describe('createToggle', () => {
             interactionStates: { normal: {}, hover: {}, pressed: {} },
             onChange,
         });
+        tick();
 
         toggle.setIsOn(true);
+        tick();
         expect(onChange).toHaveBeenCalledTimes(1);
 
-        toggle.setIsOn(false, true);
+        toggle.setIsOn(true); // no-op
+        tick();
         expect(onChange).toHaveBeenCalledTimes(1);
+        expect(toggle.isOn()).toBe(true);
+    });
+
+    it('ignores clicks while disabled', () => {
+        const toggle = createToggle({
+            world: world as unknown as World,
+            events,
+            interactionStates: { normal: {}, hover: {}, pressed: {} },
+            disabled: true,
+        });
+        tick();
+        events.emit(toggle.entity, UIEventType.Click);
         expect(toggle.isOn()).toBe(false);
     });
 

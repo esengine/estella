@@ -18,6 +18,8 @@ import { UIInteraction, type UIInteractionData } from '../input/interactable';
 import { getEntityDepth } from '../util/helpers';
 import { UIDialog, createDialogSystem } from './dialog';
 import { UISlider, createSliderSystem } from './slider';
+import { UIToggle, createToggleSystem } from './toggle';
+import { UIDropdown, createDropdownSystem } from './dropdown';
 import { registerComponent } from '../../component';
 
 /** Screen-px slop before a press becomes a scroll drag (matches Draggable). */
@@ -104,6 +106,20 @@ export class UIBehaviorPlugin implements Plugin {
         app.addSystemToSchedule(
             Schedule.Update,
             createSliderSystem(world, events),
+            { runIf: playModeOnly },
+        );
+
+        registerComponent('UIToggle', UIToggle);
+        app.addSystemToSchedule(
+            Schedule.Update,
+            createToggleSystem(world, events),
+            { runIf: playModeOnly },
+        );
+
+        registerComponent('UIDropdown', UIDropdown);
+        app.addSystemToSchedule(
+            Schedule.Update,
+            createDropdownSystem(world, events),
             { runIf: playModeOnly },
         );
 

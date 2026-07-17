@@ -7,6 +7,7 @@ import {
     UISlider,
     Focusable,
     createDropdown,
+    createDropdownSystem,
     UIEventQueue,
     UIEventType,
     UIRect,
@@ -199,10 +200,17 @@ describe('createSlider', () => {
 describe('createDropdown', () => {
     let world: MockWorld;
     let events: UIEventQueue;
+    let keys: Set<string>;
+    let tick: () => void;
 
     beforeEach(() => {
         world = createMockWorld();
         events = new UIEventQueue();
+        keys = new Set();
+        const sys = createDropdownSystem(world as unknown as World, events);
+        const input = { isKeyPressed: (k: string) => keys.has(k) };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        tick = () => (sys as any)._fn(input);
     });
 
     it('shows the current selection label', () => {
@@ -239,22 +247,56 @@ describe('createDropdown', () => {
         expect(dd.isOpen()).toBe(false);
     });
 
-    it('setSelectedIndex updates the label text and fires onSelect (unless silent)', () => {
+    it('setSelectedIndex writes the component; the system syncs the label and fires onSelect', () => {
         const onSelect = vi.fn();
         const dd = createDropdown({
             world: world as unknown as World, events,
             options: ['x', 'y', 'z'],
             onSelect,
         });
+        tick(); // initial paint — no change event
 
         dd.setSelectedIndex(2);
+        tick();
         expect(dd.getSelectedIndex()).toBe(2);
         expect((world.get(dd.labelEntity, Text) as { content: string }).content).toBe('z');
         expect(onSelect).toHaveBeenCalledWith(2, 'z', dd.entity);
+    });
 
-        dd.setSelectedIndex(0, true);
+    it('a click outside the dropdown closes the popup', () => {
+        const dd = createDropdown({
+            world: world as unknown as World, events,
+            options: ['a', 'b'],
+        });
+        dd.open();
+        expect(dd.isOpen()).toBe(true);
+
+        const elsewhere = world.spawn();
+        events.emit(elsewhere, UIEventType.Click);
+        expect(dd.isOpen()).toBe(false);
+    });
+
+    it('arrow keys step the selection while focused and closed', () => {
+        const dd = createDropdown({
+            world: world as unknown as World, events,
+            options: ['a', 'b', 'c'],
+        });
+        tick();
+
+        const f = world.get(dd.entity, Focusable) as { isFocused: boolean };
+        f.isFocused = true;
+        world.insert(dd.entity, Focusable, f);
+
+        keys.add('ArrowDown');
+        tick();
+        expect(dd.getSelectedIndex()).toBe(1);
+
+        keys.clear();
+        keys.add('ArrowUp');
+        tick();
         expect(dd.getSelectedIndex()).toBe(0);
-        expect(onSelect).toHaveBeenCalledTimes(1);   // silent
+        tick();
+        expect(dd.getSelectedIndex()).toBe(0); // clamped at the first option
     });
 
     it('open() / close() imperatively toggle the popup', () => {

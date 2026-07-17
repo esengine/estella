@@ -11,29 +11,16 @@ import {
     interactionController,
     type UIControllerData,
 } from '../controller/ui-controller';
-import { UIGear, gearBinding, type GearBinding, type GearValue } from '../controller/ui-gear';
-import { EasingType } from '../../animation/Easing';
+import { UIGear } from '../controller/ui-gear';
+import { interactionGears, type ButtonStateVisual } from '../controller/interaction-gears';
 import { UIEventType, type UIEventQueue } from '../core/events';
 import { themeColors, themeType } from '../theme/tokens';
 import { markThemed } from '../theme/theme-style';
 
-import {
-    spawnUIEntity,
-    makeWidgetInteractable,
-    type UINodeInit,
-    type UIVisualInit,
-    type TextInit,
-} from './helpers';
+import { spawnUIEntity, type UINodeInit, type UIVisualInit, type TextInit } from '../core/compose';
+import { makeWidgetInteractable } from '../input/interactable';
 
-/**
- * Visual overrides for a single button state. Omitted fields leave the
- * live value alone on that state (the gear's sparse-page semantics).
- */
-export interface ButtonStateVisual {
-    color?: Color;
-    sprite?: number;
-    scale?: number;
-}
+export type { ButtonStateVisual };
 
 export interface ButtonOptions {
     world: World;
@@ -68,41 +55,6 @@ export interface ButtonHandle {
     readonly entity: Entity;
     setDisabled(disabled: boolean): void;
     dispose(): void;
-}
-
-/**
- * Fold the state-name → override record into per-field gear bindings on the
- * `$interaction` controller. A field a state doesn't override gets no page
- * entry there (sparse pages: the gear leaves it alone). Sprite swaps are
- * discrete and always snap; color and scale tween over `fadeDuration`.
- */
-export function interactionGears(
-    states: Record<string, ButtonStateVisual>,
-    fadeDuration = 0,
-): GearBinding[] {
-    const color: Record<string, GearValue> = {};
-    const sprite: Record<string, GearValue> = {};
-    const scale: Record<string, GearValue> = {};
-    for (const [page, v] of Object.entries(states)) {
-        if (v.color !== undefined) color[page] = { ...v.color };
-        if (v.sprite !== undefined) sprite[page] = v.sprite;
-        if (v.scale !== undefined) scale[page] = { x: v.scale, y: v.scale, z: 1 };
-    }
-    const tween = fadeDuration > 0
-        ? { easing: EasingType.Linear, duration: fadeDuration }
-        : undefined;
-
-    const bindings: GearBinding[] = [];
-    if (Object.keys(color).length > 0) {
-        bindings.push(gearBinding(INTERACTION_CONTROLLER, 'UIVisual', 'color', color, tween));
-    }
-    if (Object.keys(sprite).length > 0) {
-        bindings.push(gearBinding(INTERACTION_CONTROLLER, 'UIVisual', 'texture', sprite));
-    }
-    if (Object.keys(scale).length > 0) {
-        bindings.push(gearBinding(INTERACTION_CONTROLLER, 'Transform', 'scale', scale, tween));
-    }
-    return bindings;
 }
 
 /** The canonical button state colors from the active theme's control roles —

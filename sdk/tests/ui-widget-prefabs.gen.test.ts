@@ -15,8 +15,10 @@ import { createDropdown } from '../src/ui/widgets/dropdown';
 import { createDialog } from '../src/ui/widgets/dialog';
 import { createTextInput } from '../src/ui/widgets/text-input';
 import { UISlider } from '../src/ui/behavior/slider';
+import { UIToggle } from '../src/ui/behavior/toggle';
+import { UIDropdown } from '../src/ui/behavior/dropdown';
 import { registerComponent } from '../src/component';
-import { spawnUIEntity } from '../src/ui/widgets/helpers';
+import { spawnUIEntity } from '../src/ui/core/compose';
 import { UIMask, MaskMode } from '../src/ui/core/ui-mask';
 import { Interactable } from '../src/ui/input/interactable';
 import { themeColors } from '../src/ui/theme/tokens';
@@ -79,7 +81,8 @@ describe('UI widget prefab codegen', () => {
         expect(label.parent).toBe(prefab.rootEntityId);
     });
 
-    it('Toggle: box + checkmark child', () => {
+    it('Toggle: box + checkmark child, behavior in UIToggle', () => {
+        registerComponent('UIToggle', UIToggle);
         const prefab = generate('Toggle', (world) =>
             createToggle({
                 world, events: noEvents,
@@ -87,8 +90,12 @@ describe('UI widget prefab codegen', () => {
                 isOn: true,
             }).entity as unknown as number,
         );
-        expect(typesOf(prefab, prefab.rootEntityId)).toEqual(expect.arrayContaining(['UINode', 'Interactable', 'UIGear']));
-        expect(entityById(prefab, prefab.rootEntityId).children.length).toBeGreaterThanOrEqual(1);
+        expect(typesOf(prefab, prefab.rootEntityId)).toEqual(expect.arrayContaining(
+            ['UINode', 'Interactable', 'UIGear', 'UIToggle']));
+        const rootEnt = entityById(prefab, prefab.rootEntityId);
+        const toggleComp = rootEnt.components.find((cc) => cc.type === 'UIToggle')!;
+        // The check-indicator ref is remapped to a prefab-local id.
+        expect(rootEnt.children).toContain(toggleComp.data.check);
     });
 
     it('Slider: track + fill + handle', () => {
@@ -151,7 +158,8 @@ describe('UI widget prefab codegen', () => {
         expect(entityById(prefab, prefab.rootEntityId).children.length).toBe(1);
     });
 
-    it('Dropdown: button + label (popup lives outside the subtree)', () => {
+    it('Dropdown: button + label, options + selection in UIDropdown (popup is runtime-only)', () => {
+        registerComponent('UIDropdown', UIDropdown);
         const prefab = generate('Dropdown', (world) =>
             createDropdown<string>({
                 world, events: noEvents,
@@ -159,7 +167,12 @@ describe('UI widget prefab codegen', () => {
                 options: ['One', 'Two', 'Three'], optionToLabel: (o) => o, optionHeight: 30,
             }).entity as unknown as number,
         );
-        expect(typesOf(prefab, prefab.rootEntityId)).toEqual(expect.arrayContaining(['UINode', 'Interactable']));
+        const rootEnt = entityById(prefab, prefab.rootEntityId);
+        expect(typesOf(prefab, prefab.rootEntityId)).toEqual(expect.arrayContaining(
+            ['UINode', 'Interactable', 'UIDropdown']));
+        const ddComp = rootEnt.components.find((cc) => cc.type === 'UIDropdown')!;
+        expect(ddComp.data.options).toEqual(['One', 'Two', 'Three']);
+        expect(rootEnt.children).toContain(ddComp.data.label);
     });
 
     it('ListView: a clipped viewport shell (items are populated by createListView in code)', () => {

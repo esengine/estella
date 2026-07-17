@@ -7,7 +7,8 @@ import { px } from '../core/dimension';
 import { type UIEventQueue } from '../core/events';
 import { TextInput, type TextInputData } from '../text/text-input';
 
-import { spawnUIEntity, makeWidgetInteractable, type UINodeInit } from './helpers';
+import { spawnUIEntity, type UINodeInit } from '../core/compose';
+import { makeWidgetInteractable } from '../input/interactable';
 import { themeColors, themeType } from '../theme/tokens';
 import { markThemed } from '../theme/theme-style';
 

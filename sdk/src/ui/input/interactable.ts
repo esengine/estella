@@ -7,6 +7,9 @@
  *          system). Foundation that controllers + drag/focus build on.
  */
 import { defineBuiltin } from '../../component';
+import type { Entity } from '../../types';
+import type { World } from '../../world';
+import { Focusable } from './focusable';
 
 export interface InteractableData {
     enabled: boolean;
@@ -35,3 +38,33 @@ export const UIInteraction = defineBuiltin<UIInteractionData>('UIInteraction', {
     justPressed: false,
     justReleased: false,
 }, { transient: true });
+
+export interface WidgetInteractionInit {
+    /** Start disabled (Interactable.enabled = false). */
+    disabled?: boolean;
+    /** Participate in Tab traversal + keyboard activation. Default true. */
+    focusable?: boolean;
+    /** Tab order within the focus ring. Default 0 (document order). */
+    tabIndex?: number;
+}
+
+/**
+ * The one interaction assembly every widget shares: a raycast-blocking
+ * Interactable plus (by default) a Focusable so the control is keyboard-
+ * reachable. Per-frame pointer state (UIInteraction) is transient — the
+ * hit-test system creates it on demand, widgets never insert it.
+ */
+export function makeWidgetInteractable(
+    world: World,
+    entity: Entity,
+    init: WidgetInteractionInit = {},
+): void {
+    world.insert(entity, Interactable, {
+        enabled: !init.disabled,
+        blockRaycast: true,
+        raycastTarget: true,
+    });
+    if (init.focusable ?? true) {
+        world.insert(entity, Focusable, { tabIndex: init.tabIndex ?? 0, isFocused: false });
+    }
+}
