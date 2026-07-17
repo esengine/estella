@@ -1,0 +1,11 @@
+{
+  "version": "1",
+  "texture": "@uuid:79acea81-9631-48a0-adcf-921654279f00",
+  "tileWidth": 64,
+  "tileHeight": 32,
+  "columns": 6,
+  "margin": 0,
+  "spacing": 0,
+  "tileCount": 6,
+  "tiles": {}
+}

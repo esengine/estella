@@ -1,14 +1,28 @@
 # Tilemap Demo
 
 Estella's tilemap system, shown two ways — **a Tiled `.tmj` import** and **an
-engine-native `.estileset`** — over the same Kenney Pixel Platformer art. Both are
-drawn by the built-in tilemap plugin with **no gameplay code**; the level lives
-entirely in the scene/assets.
+engine-native `.estileset`** — over the same Kenney Pixel Platformer art, plus
+three **orientation showcases** (isometric, staggered, hexagonal) painted natively
+in the editor. Everything is drawn by the built-in tilemap plugin with **no
+gameplay code**; the levels live entirely in the scene/assets.
 
 | Scene | Authoring path | What it shows |
 | --- | --- | --- |
 | `assets/scenes/tiled-map.esscene` *(default)* | `Tilemap { source: "…/level.tmj" }` | Imports a real [Tiled](https://www.mapeditor.org/) map: **two embedded tilesets** (`terrain` + `props`, global GIDs), a **parallax** background of clouds, **animated** water, and **per-tile collision** — the map is auto-loaded when the scene opens. |
 | `assets/scenes/native-map.esscene` | `TilemapLayer` → `.estileset` | References the engine's first-class tileset asset. Collision and the water animation are **derived live at runtime** from the tileset — nothing is baked into the scene but the tile chunks. |
+| `assets/scenes/iso-map.esscene` | `TilemapLayer` · **isometric** | A diamond-grid island — water border, sand beach, grass, forest, and a stone clearing. |
+| `assets/scenes/staggered-map.esscene` | `TilemapLayer` · **staggered** | The same diamond tiles in a staggered-isometric layout, with a river winding across the patchwork. |
+| `assets/scenes/hex-map.esscene` | `TilemapLayer` · **hexagonal** | A pointy-top hex strategy map — a lake with a sandy shore, forest, and a snow-capped mountain range. |
+
+## Orientations
+
+Isometric, staggered, and hexagonal maps are authored **natively in the editor** —
+no external tool needed. Create one with **Entity → New Tilemap**, pick the
+orientation (and, for hex/staggered, the stagger axis/index and hex side length),
+then paint. The viewport draws the matching diamond or hex grid, and the map's
+orientation is switchable any time from the **Tilemap Layer** inspector. The three
+scenes above were built exactly this way; open any of them to see the shaped grid
+and paint on it.
 
 ## One runtime model
 
@@ -30,10 +44,13 @@ live collision and animation data. So:
 | `assets/textures/props.png` | A few of its tiles repacked as a second tileset (gem, heart, coin box, key, foliage). |
 | `assets/maps/level.tmj` | The Tiled map (both tilesets embedded, CSV layer data). |
 | `assets/tilesets/terrain.estileset` | The engine-native tileset: atlas grid + per-tile collision + water animation. |
+| `assets/tilesets/iso-tiles.png` + `iso.estileset` | Six 64×32 **isometric** diamond terrain tiles (grass/water/sand/stone/dirt/forest). |
+| `assets/tilesets/hex-tiles.png` + `hex.estileset` | Six 64×64 pointy-top **hexagon** terrain tiles (grass/water/sand/forest/mountain/snow). |
 
-Art is **Kenney [Pixel Platformer](https://kenney.nl/assets/pixel-platformer)
+The platformer art is **Kenney [Pixel Platformer](https://kenney.nl/assets/pixel-platformer)
 (CC0)** — reuse it freely, including commercially. See
-[../ASSETS.md](../ASSETS.md).
+[../ASSETS.md](../ASSETS.md). The isometric and hexagonal tiles are simple
+procedurally-generated terrain shapes, CC0 as well.
 
 ## Running
 

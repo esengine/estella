@@ -1,0 +1,118 @@
+{
+  "version": "1.0",
+  "name": "Tilemap Demo",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 336,
+              "y": -224,
+              "z": 10
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 1,
+            "orthoSize": 210,
+            "isActive": true,
+            "priority": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "Tilemap",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "worldPosition": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "worldRotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "worldScale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "TilemapLayer",
+          "data": {
+            "cellSize": {
+              "x": 64,
+              "y": 64
+            },
+            "orientation": 3,
+            "hexSideLength": 0,
+            "staggerAxis": 0,
+            "staggerIndex": 0,
+            "originOffset": {
+              "x": 0,
+              "y": 0
+            },
+            "tileset": 0,
+            "tilesetColumns": 1,
+            "tilesetRows": 1,
+            "renderLayer": 0,
+            "tintColor": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "opacity": 1,
+            "parallaxFactor": {
+              "x": 1,
+              "y": 1
+            },
+            "visible": true,
+            "tilesetAssets": [
+              "@uuid:e69568b0-2a2e-4607-ae6f-e41480e199ad"
+            ],
+            "tilesetAsset": "@uuid:e69568b0-2a2e-4607-ae6f-e41480e199ad",
+            "chunks": "RVNUTQEAAAAAAAAAAAAAAAQABAABAAEAAQABAAEABgAGAAYAAAAAAAAAAAAAAAAAAQABAAEABAABAAQAAQAGAAYABgAAAAAAAAAAAAAAAAABAAEAAwADAAMAAQABAAUABQAFAAAAAAAAAAAAAAAAAAEAAwACAAIAAgADAAEABQAFAAUAAAAAAAAAAAAAAAAAAQADAAIAAgACAAMAAQABAAEAAQAAAAAAAAAAAAAAAAAEAAMAAgACAAIAAwABAAEAAQABAAAAAAAAAAAAAAAAAAEAAwACAAIAAgADAAEAAQABAAEAAAAAAAAAAAAAAAAAAQADAAIAAgACAAMAAQABAAEAAQAAAAAAAAAAAAAAAAABAAEAAwADAAMAAQABAAEAAQABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+          }
+        }
+      ],
+      "visible": true
+    }
+  ]
+}
