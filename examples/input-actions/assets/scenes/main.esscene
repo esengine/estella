@@ -1,0 +1,266 @@
+{
+  "version": "1.0",
+  "name": "Main",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 10 } } },
+        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 300, "isActive": true, "priority": 0 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "Ship",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": -30, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 44, "y": 44 }, "color": { "r": 0.35, "g": 0.85, "b": 1, "a": 1 }, "layer": 2 } },
+        { "type": "ShipControl", "data": { "speed": 260 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 2,
+      "name": "Canvas",
+      "parent": null,
+      "children": [3, 10],
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "Canvas", "data": { "designResolution": { "x": 800, "y": 600 }, "scaleMode": 2 } },
+        { "type": "UINode", "data": {} }
+      ],
+      "visible": true
+    },
+    {
+      "id": 3,
+      "name": "HudPanel",
+      "parent": 2,
+      "children": [4, 5, 6, 7, 9],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": { "value": 400, "unit": 0 },
+            "height": { "value": 196, "unit": 0 },
+            "insetLeft": { "value": 16, "unit": 0 },
+            "insetTop": { "value": 16, "unit": 0 }
+          }
+        },
+        {
+          "type": "FlexContainer",
+          "data": {
+            "direction": 1,
+            "justifyContent": 0,
+            "alignItems": 3,
+            "gap": { "x": 0, "y": 8 },
+            "padding": { "left": 16, "top": 14, "right": 16, "bottom": 14 }
+          }
+        },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0.1, "g": 0.1, "b": 0.13, "a": 0.85 }, "enabled": true } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 4,
+      "name": "Title",
+      "parent": 3,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "height": { "value": 26, "unit": 0 } } },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Input Actions",
+            "fontSize": 18,
+            "bold": true,
+            "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+            "align": 0,
+            "verticalAlign": 1
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 5,
+      "name": "MoveLabel",
+      "parent": 3,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "height": { "value": 20, "unit": 0 } } },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Move",
+            "fontSize": 13,
+            "color": { "r": 0.85, "g": 0.85, "b": 0.9, "a": 1 },
+            "align": 0,
+            "verticalAlign": 1
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 6,
+      "name": "FireLabel",
+      "parent": 3,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "height": { "value": 20, "unit": 0 } } },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Fire",
+            "fontSize": 13,
+            "color": { "r": 0.85, "g": 0.85, "b": 0.9, "a": 1 },
+            "align": 0,
+            "verticalAlign": 1
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 7,
+      "name": "RebindRow",
+      "parent": 3,
+      "children": [8],
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "height": { "value": 34, "unit": 0 } } },
+        {
+          "type": "FlexContainer",
+          "data": { "direction": 0, "justifyContent": 0, "alignItems": 1, "gap": { "x": 10, "y": 0 } }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 8,
+      "name": "RebindHint",
+      "parent": 7,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "flexGrow": 1, "alignSelf": 4 } },
+        {
+          "type": "Text",
+          "data": {
+            "content": "",
+            "fontSize": 12,
+            "color": { "r": 0.6, "g": 0.65, "b": 0.7, "a": 1 },
+            "align": 2,
+            "verticalAlign": 1
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 9,
+      "name": "StatusLabel",
+      "parent": 3,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "height": { "value": 20, "unit": 0 } } },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Bindings persist via Storage.",
+            "fontSize": 12,
+            "color": { "r": 1, "g": 0.85, "b": 0.4, "a": 1 },
+            "align": 0,
+            "verticalAlign": 1
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 10,
+      "name": "GesturePad",
+      "parent": 2,
+      "children": [11, 12],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": { "value": 0, "unit": 0 },
+            "insetRight": { "value": 0, "unit": 0 },
+            "insetBottom": { "value": 0, "unit": 0 },
+            "height": { "value": 25, "unit": 1 }
+          }
+        },
+        {
+          "type": "FlexContainer",
+          "data": {
+            "direction": 1,
+            "justifyContent": 1,
+            "alignItems": 1,
+            "gap": { "x": 0, "y": 6 }
+          }
+        },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0.12, "g": 0.14, "b": 0.2, "a": 0.55 }, "enabled": true } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 11,
+      "name": "GestureHint",
+      "parent": 10,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "height": { "value": 20, "unit": 0 } } },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Gesture pad - touch: swipe / pinch - mouse: drag = swipe, Shift-drag = pinch",
+            "fontSize": 13,
+            "color": { "r": 0.75, "g": 0.8, "b": 0.9, "a": 1 },
+            "align": 1,
+            "verticalAlign": 1
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 12,
+      "name": "GestureStatus",
+      "parent": 10,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "height": { "value": 20, "unit": 0 } } },
+        {
+          "type": "Text",
+          "data": {
+            "content": "-",
+            "fontSize": 13,
+            "bold": true,
+            "color": { "r": 0.5, "g": 0.9, "b": 1, "a": 1 },
+            "align": 1,
+            "verticalAlign": 1
+          }
+        }
+      ],
+      "visible": true
+    }
+  ]
+}

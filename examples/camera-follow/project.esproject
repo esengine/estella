@@ -1,0 +1,13 @@
+{
+  "formatVersion": "1",
+  "name": "Camera Follow",
+  "description": "The camera director: FollowTarget damping + dead zone, shakeCamera impacts, and setViewTarget blending to an overview camera.",
+  "tag": "Gameplay",
+  "version": "1.0.0",
+  "defaultScene": "assets/scenes/main.esscene",
+  "designResolution": {
+    "width": 1280,
+    "height": 720
+  },
+  "spineVersion": "none"
+}

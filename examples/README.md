@@ -15,12 +15,15 @@ for your own game.
 | **hello-world** | Basics | A minimal project — rotating, color-pulsing sprites. |
 | **ecs-basics** | ECS | Spawn, move, bounce and expire entities: the core ECS loop. |
 | **event-system** | ECS | Decoupled gameplay with typed events — collect, score, react. |
+| **scene-flow** | Basics | Runtime scene flow — menu → level 1 → level 2 through `SceneManager` fade transitions, over a persistent shell scene. |
+| **save-load** | Basics | Versioned persistence — `SaveManager` save/load with a live v1→v2 migration, plus raw `Storage` preferences. |
 | **sprite-rendering** | Rendering | Draw sprites with rotation, tint and flipping. |
 | **sprite-animation** | Animation | Frame animation via `.esanim` clips with an idle/walk switcher. |
 | **spine-demo** | Animation | A Spine skeleton cycling idle/walk/run/jump/shoot (1-5 to switch). |
 | **tween-animation** | Animation | Ease positions, scales and colors over time. |
 | **cutscene** | Animation | A code-free cutscene: an FSM state plays a timeline via the built-in `timeline.play` / `timeline.finished` names, then hands over to gameplay (R to replay). |
 | **input-demo** | Input | Keyboard, mouse and pointer input with a motion trail. |
+| **input-actions** | Input | Named, rebindable actions (`defineInputMap`) across keyboard + gamepad, plus swipe/pinch gestures with a mouse bridge. |
 | **audio-demo** | Audio | One-shot SFX and a beat visualizer driven by playback. |
 | **collision-layers** | Physics | Layer-based collision filtering between groups of bodies. |
 | **physics-playground** | Physics | Drop balls and crates into a rigid-body sandbox. |
@@ -35,7 +38,10 @@ for your own game.
 | **ui-interaction** | UI | Dragging, focus and pointer interaction. |
 | **ui-layout** | UI | Flexbox-style responsive UI layout. |
 | **ui-list** | UI | A virtualized list and grid — `createListView`, live data, `scrollToIndex`. |
+| **ui-controller** | UI | Shared UI controllers + declarative per-page gears: a tab bar, an `$interaction` button, and a tweened popup. |
+| **chat** | UI | A chat log — virtualized ListView + TextInput composer with two-way binding. |
 | **enemy-ai** | AI | A state machine drives enemies to patrol, sense the player, and chase via A* navigation. |
+| **camera-follow** | Gameplay | The camera director — `FollowTarget` damping + dead zone, `shakeCamera` impacts, `setViewTarget` blends to an overview camera. |
 | **multiplayer-arena** | Networking | Server-authoritative multiplayer with client prediction: each player steers a replicated pawn, own-pawn input applies instantly ('2 Players' in the Play dropdown runs listen server + client). |
 | **platformer** | Game | A tiny platformer — run, jump and collect coins. |
 | **video-puzzle** | Game | A tile-swap puzzle whose tiles are live regions of ONE playing video — texture-handle sharing + per-piece `uvOffset`/`uvScale`. |

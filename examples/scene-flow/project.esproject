@@ -1,0 +1,13 @@
+{
+  "formatVersion": "1",
+  "name": "Scene Flow",
+  "description": "Menu → Level 1 → Level 2: runtime scene switching through SceneManager with fade transitions.",
+  "tag": "Basics",
+  "version": "1.0.0",
+  "defaultScene": "assets/scenes/main.esscene",
+  "designResolution": {
+    "width": 800,
+    "height": 600
+  },
+  "spineVersion": "none"
+}
