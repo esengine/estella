@@ -105,11 +105,12 @@ void TilemapRenderPlugin::rebuildChunk(
                 worldY = originY - static_cast<f32>(ty) * layer.tile_height - hh;
             }
 
-            // Base tile UV rect (GL v increases upward, so vBottom < vTop).
-            f32 uMin = static_cast<f32>(tileCol) * uvTileW;
-            f32 uMax = uMin + uvTileW;
-            f32 vBottom = 1.0f - static_cast<f32>(tileRow + 1) * uvTileH;
-            f32 vTop = vBottom + uvTileH;
+            // Base tile UV rect (GL v increases upward, so vBottom < vTop),
+            // inset half a texel per edge so samples stay inside this tile.
+            f32 uMin = static_cast<f32>(tileCol) * uvTileW + resolved[slotIndex].insetU;
+            f32 uMax = uMin + uvTileW - 2.0f * resolved[slotIndex].insetU;
+            f32 vBottom = 1.0f - static_cast<f32>(tileRow + 1) * uvTileH + resolved[slotIndex].insetV;
+            f32 vTop = vBottom + uvTileH - 2.0f * resolved[slotIndex].insetV;
 
             // Map a corner's normalized (s,t) in {0,1}^2 to its texture UV, applying
             // the tile flip flags. Tiled order — diagonal (transpose) first, then H,
@@ -214,6 +215,8 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
             resolved[i].glTexId = tex->getId();
             resolved[i].uvW = layer.tile_width / tw;
             resolved[i].uvH = layer.tile_height / th;
+            resolved[i].insetU = 0.5f / tw;
+            resolved[i].insetV = 0.5f / th;
             anySlotValid = true;
         }
         if (!anySlotValid) continue;

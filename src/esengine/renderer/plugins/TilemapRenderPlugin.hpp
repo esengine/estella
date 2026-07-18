@@ -47,6 +47,12 @@ private:
         u32 glTexId = 0;
         f32 uvW = 0.0f;
         f32 uvH = 0.0f;
+        // Half a texel in UV space. Tile-corner UVs are inset by this so
+        // interpolated samples never cross into the neighboring atlas tile —
+        // the classic packed-atlas seam fix, for both linear and nearest
+        // (which otherwise rounds across the boundary at fractional zoom).
+        f32 insetU = 0.0f;
+        f32 insetV = 0.0f;
         bool valid = false;
     };
 
