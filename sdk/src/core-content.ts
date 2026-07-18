@@ -389,7 +389,6 @@ export {
     TilemapLayer,
     TilemapAPI,
     Tilemaps,
-    shutdownTilemapAPI,
     TilemapPlugin,
     tilemapPlugin,
     TilemapLiveSync,

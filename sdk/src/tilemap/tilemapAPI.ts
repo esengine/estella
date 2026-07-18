@@ -65,11 +65,19 @@ export function initTilemapAPI(m: ESEngineModule): void {
     module_ = bridge.module as unknown as TilemapModule;
 }
 
+/** @internal Wired by the engine plugins — not part of the public API. */
 export function shutdownTilemapAPI(): void {
     bridge.disconnect();
     module_ = null;
 }
 
+/**
+ * The static tilemap toolkit — chunk/tile accessors over the wasm module,
+ * addressed by runtime layer handle. Contract: game code reads this as the
+ * `Res(Tilemaps)` resource like every other subsystem; direct `TilemapAPI.*`
+ * calls are the host/tooling surface (the editor's tile tools, tests) where no
+ * App is in scope. Both names are the same object.
+ */
 export const TilemapAPI = {
     initLayer(entity: number, width: number, height: number,
               tileWidth: number, tileHeight: number): void {
@@ -241,8 +249,8 @@ export const TilemapAPI = {
 };
 
 /**
- * Public runtime tilemap API as a resource, so it is reached the same way as
- * the other subsystems — read it with `Res(Tilemaps)`. Wraps the
- * {@link TilemapAPI} singleton (still exported for direct use).
+ * The canonical game-code accessor: `Res(Tilemaps)`, same shape as every other
+ * subsystem resource. Wraps the {@link TilemapAPI} singleton — see its doc for
+ * when direct use is appropriate.
  */
 export const Tilemaps = defineResource<typeof TilemapAPI>(TilemapAPI, 'Tilemaps');
