@@ -285,7 +285,17 @@
 .ts-wquad-1::before { right: 0; top: 0; border-bottom-left-radius: 100%; border-top: 0; border-right: 0; }
 .ts-wquad-2::before { right: 0; bottom: 0; border-top-left-radius: 100%; border-bottom: 0; border-right: 0; }
 .ts-wquad-3::before { left: 0; bottom: 0; border-top-right-radius: 100%; border-bottom: 0; border-left: 0; }
-.ts-wquad.is-on::before { background: var(--wc); border-color: rgba(255, 255, 255, 0.9); opacity: 1; }
+/* Assigned corner: solid color with a double keyline (dark halo + white arc) so
+   the disc reads on any tile art, even art the same hue as the color. */
+.ts-wquad.is-on::before {
+  background: var(--wc);
+  border-color: rgba(255, 255, 255, 0.92);
+  opacity: 1;
+  box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.65);
+}
+/* Corners carrying the ACTIVE color: accent arc — shows at a glance where the
+   selected color is already used. */
+.ts-wquad.is-on.is-cur::before { border-color: var(--star); border-width: 2px; }
 /* Hovering an empty quadrant previews the active color about to be painted. */
 .ts-wquad:hover::before {
   width: 70%;
@@ -296,6 +306,9 @@
 .ts-wquad:hover:not(.is-on)::before {
   background: color-mix(in srgb, var(--wactive, transparent) 55%, transparent);
 }
+/* Terrain authoring dims the art (Tiled/Godot-style) so the color overlays and
+   membership tints — not the tile pixels — carry the mode's information. */
+.ts-canvas.is-terrain .ts-img { filter: brightness(0.55) saturate(0.72); }
 
 /* Wang color palette (below the terrain editor row): swatch · name · picker · remove. */
 .ts-wcolors {

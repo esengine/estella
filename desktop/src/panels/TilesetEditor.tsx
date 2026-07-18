@@ -475,7 +475,7 @@ export function TilesetEditor() {
                     <button
                       key={c.i}
                       type="button"
-                      className={'ts-wquad ts-wquad-' + c.i + (cv > 0 ? ' is-on' : '')}
+                      className={'ts-wquad ts-wquad-' + c.i + (cv > 0 ? ' is-on' : '') + (cv > 0 && cv === activeColor ? ' is-cur' : '')}
                       style={col ? ({ '--wc': col } as CSSProperties) : undefined}
                       aria-label={t('tile.zone.aria', { dir: c.dir })}
                       title={t('tile.wang.cornerTip', { dir: c.dir })}
@@ -838,7 +838,10 @@ export function TilesetEditor() {
         </div>
       )}
 
-      <div className="ts-canvas" onPointerUp={commitDrag} onPointerLeave={commitDrag}>
+      <div
+        className={'ts-canvas' + (mode === 'terrain' ? ' is-terrain' : '')}
+        onPointerUp={commitDrag} onPointerLeave={commitDrag}
+      >
         {!texUrl ? (
           <div className="ts-warn">{t('tile.texNotFound', { ref: String(asset.texture) || t('tile.refEmpty') })}</div>
         ) : (
