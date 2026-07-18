@@ -124,17 +124,30 @@ export const CameraDirector = defineResource<CameraDirectorState>(
 );
 
 /**
+ * Where director commands land: the App (host code) or the CameraDirector
+ * resource state itself (systems — `Res(CameraDirector)`).
+ */
+export type CameraDirectorHost = App | CameraDirectorState;
+
+function directorOf(host: CameraDirectorHost): CameraDirectorState {
+  return typeof (host as App).getResource === 'function'
+    ? (host as App).getResource(CameraDirector)
+    : (host as CameraDirectorState);
+}
+
+/**
  * Switch the active view target, optionally blending over `time` seconds with an
  * easing `curve`. Records intent; the director applies it on the next frame
  * (snapshotting the current view as the blend start). `time<=0` (or no prior
- * view) is an instant cut.
+ * view) is an instant cut. Pass the App from host code, or the
+ * `Res(CameraDirector)` state from inside a system.
  */
 export function setViewTarget(
-  app: App,
+  host: CameraDirectorHost,
   entity: number,
   opts?: { time?: number; curve?: number },
 ): void {
-  const dir = app.getResource(CameraDirector);
+  const dir = directorOf(host);
   dir.hasPending = true;
   dir.pendingTarget = entity;
   dir.pendingTime = opts?.time ?? 0;
@@ -145,12 +158,13 @@ export function setViewTarget(
  * Trigger a transient camera shake on the active view — a decaying perturbation
  * applied to the rendered POV only (never to a camera's Transform, so it always
  * recovers and never dirties the scene). The UE `StartCameraShake` analog.
+ * Pass the App from host code, or the `Res(CameraDirector)` state from a system.
  */
 export function shakeCamera(
-  app: App,
+  host: CameraDirectorHost,
   opts?: { amplitude?: number; rotation?: number; frequency?: number; duration?: number },
 ): void {
-  const dir = app.getResource(CameraDirector);
+  const dir = directorOf(host);
   dir.shakes.push({
     amplitude: opts?.amplitude ?? 12,
     rotation: opts?.rotation ?? 0,

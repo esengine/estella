@@ -90,50 +90,6 @@ struct Canvas {
     glm::vec4 backgroundColor{0.0f, 0.0f, 0.0f, 1.0f};
 
     Canvas() = default;
-
-    /**
-     * @brief Calculate orthographic camera size for this canvas
-     * @return Half-height in world units for orthographic projection
-     */
-    f32 getOrthoSize() const {
-        return (static_cast<f32>(designResolution.y) * 0.5f) / pixelsPerUnit;
-    }
-
-    /**
-     * @brief Calculate design aspect ratio
-     * @return Width / Height ratio
-     */
-    f32 getDesignAspectRatio() const {
-        return static_cast<f32>(designResolution.x) / static_cast<f32>(designResolution.y);
-    }
-
-    /**
-     * @brief Calculate world size of the design resolution
-     * @return Size in world units
-     */
-    glm::vec2 getWorldSize() const {
-        return glm::vec2(designResolution) / pixelsPerUnit;
-    }
-
-    /**
-     * @brief Convert pixel position to world position
-     * @param pixelPos Position in pixels (origin at bottom-left)
-     * @return Position in world units (centered origin)
-     */
-    glm::vec2 pixelToWorld(const glm::vec2& pixelPos) const {
-        glm::vec2 worldSize = getWorldSize();
-        return (pixelPos / pixelsPerUnit) - (worldSize * 0.5f);
-    }
-
-    /**
-     * @brief Convert world position to pixel position
-     * @param worldPos Position in world units
-     * @return Position in pixels (origin at bottom-left)
-     */
-    glm::vec2 worldToPixel(const glm::vec2& worldPos) const {
-        glm::vec2 worldSize = getWorldSize();
-        return (worldPos + worldSize * 0.5f) * pixelsPerUnit;
-    }
 };
 
 }  // namespace esengine::ecs
