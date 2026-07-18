@@ -59,7 +59,7 @@ await app.run();
    `RenderPipeline`。
 2. **UI**:`uiPlugins`——组合好的 UI 管线(布局、文本、文本输入、遮罩、
    渲染排序、交互、拖拽、焦点、安全区)。
-3. **基础内容**:`timerPlugin`、`lifecyclePlugin()`、`animationPlugin`、
+3. **基础内容**:`timerPlugin`、`lifecyclePlugin`、`animationPlugin`、
    `audioPlugin`、`videoPlugin`、`particlePlugin`、`trailPlugin`、
    `mesh2dPlugin`、`tilemapPlugin`、`postProcessPlugin`、`timelinePlugin`、
    `perceptionPlugin`、`fsmPlugin`、`btPlugin`、`navPlugin`、
@@ -96,7 +96,7 @@ stop();
 | `sideModules` | `SideModuleHost` | 可选原生模块获取器(服务器上的物理)。 |
 
 包含:`assetPlugin`、`prefabsPlugin`、`sceneManagerPlugin`、`timerPlugin`、
-`lifecyclePlugin()`、`audioPlugin`(无音频设备的宿主上静音),以及游戏 AI /
+`lifecyclePlugin`、`audioPlugin`(无音频设备的宿主上静音),以及游戏 AI /
 复制集合(`perceptionPlugin`、`fsmPlugin`、`btPlugin`、`navPlugin`、
 `replicationPlugin`)。
 
@@ -217,7 +217,7 @@ export const scorePlugin: Plugin = {
 
 ## 生命周期事件
 
-`lifecyclePlugin(options?)`(两个工厂都默认安装)发布 **`Lifecycle`** 资源——
+`lifecyclePlugin`(两个工厂都默认安装;用 `new LifecyclePlugin(options)` 配置)发布 **`Lifecycle`** 资源——
 一个跟踪页面可见性/焦点、并能自动暂停游戏的 `LifecycleManager`:
 
 ```typescript
@@ -233,7 +233,7 @@ const off = lifecycle.on((event) => {
 |---|---|---|
 | `visible` | `boolean` | 当前页面/应用可见性。 |
 | `focused` | `boolean` | 窗口焦点(会跟踪;变化不发事件)。 |
-| `autoPause` | `boolean` | 页面隐藏时是否暂停应用。默认 `true`;运行时可写,初值来自 `lifecyclePlugin({ autoPause })`。 |
+| `autoPause` | `boolean` | 页面隐藏时是否暂停应用。默认 `true`;运行时可写,初值来自 `new LifecyclePlugin({ autoPause })`。 |
 | `on(listener)` / `off(listener)` | — | 订阅事件;`on` 返回退订函数。 |
 
 `LifecycleEvent` 是 `'show' | 'hide' | 'pause' | 'resume'`,`LifecycleListener`
@@ -336,7 +336,7 @@ import 你的 bundle,返回一个 `ProbedRegistrations`:
   的存活性归因、可用的依赖报错。
 - **前置声明 `colorSpace` 和 `backend`。**两者都在创建时固化(着色器编译、设备
   注入)——不能在存活应用上切换。
-- **别和生命周期自动暂停较劲。**用 `lifecyclePlugin({ autoPause: false })`(或
+- **别和生命周期自动暂停较劲。**用 `new LifecyclePlugin({ autoPause: false })`(或
   `lifecycle.autoPause = false`)关掉它,而不是在监听器里解除暂停;manager 只会
   解除它自己造成的暂停。
 - **"X 加载了吗?"走 `app.subsystems`。**它区分*已加载*与*在运行*(`phase` 与

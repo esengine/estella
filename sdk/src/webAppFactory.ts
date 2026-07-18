@@ -35,7 +35,7 @@ export interface CreateWebAppOptions extends WebAppOptions {
     wasmBaseUrl?: string;
 }
 
-const basePlugins = [timerPlugin, lifecyclePlugin(), animationPlugin, audioPlugin, videoPlugin, particlePlugin, trailPlugin, mesh2dPlugin, tilemapPlugin, postProcessPlugin, timelinePlugin, perceptionPlugin, fsmPlugin, btPlugin, navPlugin, replicationPlugin];
+const basePlugins = [timerPlugin, lifecyclePlugin, animationPlugin, audioPlugin, videoPlugin, particlePlugin, trailPlugin, mesh2dPlugin, tilemapPlugin, postProcessPlugin, timelinePlugin, perceptionPlugin, fsmPlugin, btPlugin, navPlugin, replicationPlugin];
 
 export function createWebApp(module: ESEngineModule, options?: CreateWebAppOptions): App {
     const sideModules: SideModuleHost | undefined = options?.sideModules
@@ -57,7 +57,7 @@ export interface HeadlessAppOptions {
 // (particles, tilemap render, post-process, timeline, UI, spine) stay out —
 // they exist to be seen.
 const headlessBasePlugins = (): Plugin[] => [
-    timerPlugin, lifecyclePlugin(), audioPlugin,
+    timerPlugin, lifecyclePlugin, audioPlugin,
     perceptionPlugin, fsmPlugin, btPlugin, navPlugin, replicationPlugin,
 ];
 

@@ -191,6 +191,7 @@ export {
     LifecycleManager,
     Lifecycle,
     lifecyclePlugin,
+    LifecyclePlugin,
     type LifecycleEvent,
     type LifecycleListener,
     type LifecyclePluginOptions,

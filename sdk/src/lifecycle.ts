@@ -6,7 +6,7 @@
  */
 
 import { defineResource } from './resource';
-import type { Plugin } from './app';
+import type { App, Plugin } from './app';
 import { getPlatformType } from './platform';
 import { log } from './logger';
 
@@ -97,32 +97,36 @@ export interface LifecyclePluginOptions {
     autoPause?: boolean;
 }
 
-export const lifecyclePlugin = (options?: LifecyclePluginOptions): Plugin => {
-    let cleanupFn_: (() => void) | null = null;
+export class LifecyclePlugin implements Plugin {
+    name = 'Lifecycle';
+    private cleanupFn_: (() => void) | null = null;
 
-    return {
-        name: 'Lifecycle',
-        build(app) {
-            const autoPause = options?.autoPause ?? true;
-            const manager = new LifecycleManager(autoPause);
-            app.insertResource(Lifecycle, manager);
+    constructor(private readonly options_?: LifecyclePluginOptions) {}
 
-            const platformType = getPlatformType();
+    build(app: App): void {
+        const autoPause = this.options_?.autoPause ?? true;
+        const manager = new LifecycleManager(autoPause);
+        app.insertResource(Lifecycle, manager);
 
-            if (platformType === 'wechat') {
-                setupWeChatLifecycle_(manager, app);
-            } else if (typeof document !== 'undefined' && typeof window !== 'undefined') {
-                cleanupFn_ = setupWebLifecycle_(manager, app);
-            }
-            // Headless hosts (node server, workers) have no visibility/focus
-            // signal — the Lifecycle resource still exists, always visible.
-        },
-        cleanup() {
-            cleanupFn_?.();
-            cleanupFn_ = null;
-        },
-    };
-};
+        const platformType = getPlatformType();
+
+        if (platformType === 'wechat') {
+            setupWeChatLifecycle_(manager, app);
+        } else if (typeof document !== 'undefined' && typeof window !== 'undefined') {
+            this.cleanupFn_ = setupWebLifecycle_(manager, app);
+        }
+        // Headless hosts (node server, workers) have no visibility/focus
+        // signal — the Lifecycle resource still exists, always visible.
+    }
+
+    cleanup(): void {
+        this.cleanupFn_?.();
+        this.cleanupFn_ = null;
+    }
+}
+
+/** Default-config instance; `new LifecyclePlugin({ autoPause })` to configure. */
+export const lifecyclePlugin = new LifecyclePlugin();
 
 // =============================================================================
 // Web Platform

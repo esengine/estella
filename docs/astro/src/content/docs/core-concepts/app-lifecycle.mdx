@@ -64,7 +64,7 @@ content stack, in this order:
    `RenderPipeline`.
 2. **UI**: `uiPlugins` — the composed UI pipeline (layout, text, text input,
    masks, render order, interaction, drag, focus, safe area).
-3. **Base content**: `timerPlugin`, `lifecyclePlugin()`, `animationPlugin`,
+3. **Base content**: `timerPlugin`, `lifecyclePlugin`, `animationPlugin`,
    `audioPlugin`, `videoPlugin`, `particlePlugin`, `trailPlugin`,
    `mesh2dPlugin`, `tilemapPlugin`, `postProcessPlugin`, `timelinePlugin`,
    `perceptionPlugin`, `fsmPlugin`, `btPlugin`, `navPlugin`,
@@ -104,7 +104,7 @@ stop();
 | `sideModules` | `SideModuleHost` | Optional-native-module acquirer (physics on the server). |
 
 Included: `assetPlugin`, `prefabsPlugin`, `sceneManagerPlugin`, `timerPlugin`,
-`lifecyclePlugin()`, `audioPlugin` (silent on hosts without a device), and the
+`lifecyclePlugin`, `audioPlugin` (silent on hosts without a device), and the
 gameplay-AI/replication set (`perceptionPlugin`, `fsmPlugin`, `btPlugin`,
 `navPlugin`, `replicationPlugin`).
 
@@ -231,7 +231,7 @@ systems are flushed before the first frame.
 
 ## Lifecycle events
 
-`lifecyclePlugin(options?)` (installed by default in both factories) publishes
+`lifecyclePlugin` (installed by default in both factories; configure with `new LifecyclePlugin(options)`) publishes
 the **`Lifecycle`** resource — a `LifecycleManager` that tracks page
 visibility/focus and can auto-pause the game:
 
@@ -248,7 +248,7 @@ const off = lifecycle.on((event) => {
 |---|---|---|
 | `visible` | `boolean` | Current page/app visibility. |
 | `focused` | `boolean` | Window focus (tracked; changing it emits no event). |
-| `autoPause` | `boolean` | Whether hiding the page pauses the app. Default `true`; writable at runtime, seeded from `lifecyclePlugin({ autoPause })`. |
+| `autoPause` | `boolean` | Whether hiding the page pauses the app. Default `true`; writable at runtime, seeded from `new LifecyclePlugin({ autoPause })`. |
 | `on(listener)` / `off(listener)` | — | Subscribe to events; `on` returns an unsubscribe function. |
 
 `LifecycleEvent` is `'show' | 'hide' | 'pause' | 'resume'`, and a
@@ -376,7 +376,7 @@ after a reload — write them as idempotent setup (see
   creation (shader compilation, device injection) — they cannot be toggled on a
   live app.
 - **Don't fight the lifecycle auto-pause.** Turn it off with
-  `lifecyclePlugin({ autoPause: false })` (or `lifecycle.autoPause = false`)
+  `new LifecyclePlugin({ autoPause: false })` (or `lifecycle.autoPause = false`)
   rather than un-pausing in a listener; the manager only ever resumes a pause
   it made itself.
 - **Route "is X loaded?" through `app.subsystems`.** It distinguishes
