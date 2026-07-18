@@ -32,7 +32,7 @@ export {
 
 export {
     Timeline,
-    TimelineApi,
+    TimelineAPI,
     type PlayerFlagChannel,
 } from './TimelineControl';
 

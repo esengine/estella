@@ -6,7 +6,7 @@
  *          of Box2D v3's native kinematic mover.
  *
  * The controller reads the entity's own collider, derives a capsule mover from it,
- * and advances one step via `Physics.moveCharacter` — Box2D's `b2World_CollideMover`
+ * and advances one step via `PhysicsAPI.moveCharacter` — Box2D's `b2World_CollideMover`
  * + `b2SolvePlanes`, which collides the capsule into contact *planes* and solves a
  * depenetrating slide. That resolves a character resting on the ground with valid
  * normals (a generic shape cast reports the resting contact as a zero-normal
@@ -18,7 +18,7 @@
  * (and for its tests); the live system uses the native mover.
  *
  * Units: `velocity`/positions are world pixels (matching `Transform`); collider
- * dimensions are meters and are scaled to pixels via `Physics.getPixelsPerUnit()`.
+ * dimensions are meters and are scaled to pixels via `PhysicsAPI.getPixelsPerUnit()`.
  */
 import type { App } from '../app';
 import type { Entity, Vec2 } from '../types';
@@ -27,7 +27,7 @@ import { Schedule, defineSystem, GetWorld } from '../system';
 import { Query, Mut } from '../query';
 import { Res, Time, type TimeData } from '../resource';
 import { playModeOnly } from '../env';
-import { PhysicsAPI, type Physics } from './Physics';
+import { Physics, type PhysicsAPI } from './Physics';
 import { BoxCollider, CircleCollider, CapsuleCollider } from './PhysicsComponents';
 import type {
     BoxColliderData, CircleColliderData, CapsuleColliderData,
@@ -284,11 +284,11 @@ export function registerCharacterControllerSystem(app: App): void {
     app.addSystemToSchedule(
         Schedule.FixedUpdate,
         defineSystem(
-            [Query(Mut(CharacterController)), Res(Time), Res(PhysicsAPI), GetWorld()],
+            [Query(Mut(CharacterController)), Res(Time), Res(Physics), GetWorld()],
             (
                 query: Iterable<[Entity, CharacterControllerData]>,
                 time: TimeData,
-                physics: Physics,
+                physics: PhysicsAPI,
                 world: World,
             ) => {
                 const dt = time.fixedDelta;

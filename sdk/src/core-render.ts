@@ -39,7 +39,7 @@ export { TextureFilter, TextureWrap, setTextureFilter, setTextureWrap, setTextur
 // Camera
 // =============================================================================
 
-export { CameraView, CameraViewApi } from './camera/Camera';
+export { CameraView, CameraViewAPI } from './camera/Camera';
 export { EditorView, DEFAULT_EDITOR_VIEW } from './camera/EditorView';
 export type { EditorViewData } from './camera/EditorView';
 export { ScreenScaling, DEFAULT_SCREEN_SCALING, SCREEN_FIT_OFF } from './camera/ScreenScaling';
@@ -62,8 +62,6 @@ export type { CameraExtents, CanvasScale, WorldRect } from './camera/uiLayoutRec
 export {
     Draw,
     BlendMode,
-    initDrawAPI,
-    shutdownDrawAPI,
     type DrawAPI,
 } from './draw';
 
@@ -74,7 +72,6 @@ export {
 export {
     Material,
     ShaderSources,
-    initMaterialAPI,
     shutdownMaterialAPI,
     isTextureRef,
     CullMode,
@@ -117,7 +114,6 @@ export {
 export {
     Geometry,
     DataType,
-    initGeometryAPI,
     shutdownGeometryAPI,
     type GeometryHandle,
     type GeometryOptions,
@@ -130,10 +126,8 @@ export {
 
 export {
     PostProcess,
-    PostProcessApi,
+    PostProcessAPI,
     PostProcessStack,
-    initPostProcessAPI,
-    shutdownPostProcessAPI,
     type EffectDef,
     type EffectUniformDef,
     getEffectDef,
@@ -149,7 +143,6 @@ export {
     Renderer,
     RenderStage,
     SubmitSkipFlags,
-    initRendererAPI,
     shutdownRendererAPI,
     type RenderTargetHandle,
     type RenderStats,

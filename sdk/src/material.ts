@@ -147,6 +147,7 @@ const childrenOf = new Map<MaterialHandle, Set<MaterialHandle>>();
 // Initialization
 // =============================================================================
 
+/** @internal Wired by the engine plugins — not part of the public API. */
 export function initMaterialAPI(wasmModule: ESEngineModule): void {
     bridge.connect(wasmModule);
     module = bridge.module;

@@ -11,7 +11,7 @@ import { initGeometryAPI, shutdownGeometryAPI } from './geometry';
 import { initPostProcessAPI, shutdownPostProcessAPI } from './postprocess';
 import { initRendererAPI, shutdownRendererAPI } from './renderer';
 import { initGLDebugAPI, shutdownGLDebugAPI } from './glDebug';
-import { CameraView, CameraViewApi } from './camera/Camera';
+import { CameraView, CameraViewAPI } from './camera/Camera';
 
 let offMemoryWarning: (() => void) | null = null;
 
@@ -36,7 +36,7 @@ export const corePlugin: Plugin = {
         initPostProcessAPI(module);
         initRendererAPI(module);
         initGLDebugAPI(module);
-        app.insertResource(CameraView, new CameraViewApi(app));
+        app.insertResource(CameraView, new CameraViewAPI(app));
     },
 
     cleanup() {

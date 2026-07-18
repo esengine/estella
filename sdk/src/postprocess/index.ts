@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 export { PostProcessStack } from './PostProcessStack';
 export type { PassConfig } from './PostProcessStack';
-export { PostProcess, PostProcessApi, initPostProcessAPI, shutdownPostProcessAPI, syncStackToWasm } from './PostProcessAPI';
+export { PostProcess, PostProcessAPI, initPostProcessAPI, shutdownPostProcessAPI, syncStackToWasm } from './PostProcessAPI';
 export { postProcessEffects } from './postProcessEffects';
 export { POSTPROCESS_VERTEX } from './shaders';
 export {

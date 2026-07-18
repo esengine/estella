@@ -7,7 +7,7 @@
 
 export {
     Localization,
-    LocalizationApi,
+    LocalizationAPI,
     interpolate,
     selectPluralForm,
     defaultPluralSelector,

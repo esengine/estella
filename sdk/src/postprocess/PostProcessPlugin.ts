@@ -3,7 +3,7 @@
 import type { App, Plugin } from '../app';
 import { Schedule } from '../system';
 import { Assets } from '../asset/AssetPlugin';
-import { PostProcess, PostProcessApi } from './PostProcessAPI';
+import { PostProcess, PostProcessAPI } from './PostProcessAPI';
 import { postProcessVolumeSystem, cleanupVolumeSystem, setVolumeTextureResolver, PostProcessVolumeConfigResource } from './volumeSystem';
 
 export class PostProcessPlugin implements Plugin {
@@ -12,7 +12,7 @@ export class PostProcessPlugin implements Plugin {
     build(app: App): void {
         // Per-App post-process API, injected into the render pipeline as an
         // optional stage (the pipeline has no hard dependency on it).
-        const api = new PostProcessApi();
+        const api = new PostProcessAPI();
         app.insertResource(PostProcess, api);
         app.pipeline?.setPostProcess(api);
 

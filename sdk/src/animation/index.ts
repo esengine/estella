@@ -32,7 +32,7 @@ export {
 export {
     SpriteAnimator,
     SpriteAnimation,
-    SpriteAnimationApi,
+    SpriteAnimationAPI,
     type SpriteAnimatorData,
     type SpriteAnimClip,
     type SpriteAnimFrame,
@@ -43,7 +43,7 @@ export {
 export {
     Animator,
     AnimatorController,
-    AnimatorControllerApi,
+    AnimatorControllerAPI,
     evaluateAnimatorTransitions,
     evaluateAnimatorPath,
     enterStatePath,

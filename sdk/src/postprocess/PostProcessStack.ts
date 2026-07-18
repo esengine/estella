@@ -16,7 +16,7 @@ export interface PassConfig {
 /**
  * Owns one App's post-process stacks, camera bindings, screen stack, and id
  * counter. A stack registers into the state it is created with — no global.
- * Held by {@link PostProcessApi} (a per-App resource in B2b-3b).
+ * Held by {@link PostProcessAPI} (a per-App resource in B2b-3b).
  */
 export class PostProcessState {
     nextStackId = 1;

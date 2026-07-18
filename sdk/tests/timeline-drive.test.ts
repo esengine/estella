@@ -11,7 +11,7 @@ import {
     type TimelineState,
 } from '../src/timeline/TimelineDrive';
 import { TimelineEventType } from '../src/timeline/TimelineRuntime';
-import { TimelineApi } from '../src/timeline/TimelineControl';
+import { TimelineAPI } from '../src/timeline/TimelineControl';
 import { WrapMode, TrackType, InterpType, type TimelineAsset } from '../src/timeline/TimelineTypes';
 import type { SampleDeps } from '../src/timeline/TimelineEvaluator';
 
@@ -210,10 +210,10 @@ describe('TimelinePlayer flag contract (applyPlayerFlags / latchPlayerFinish)', 
     });
 });
 
-describe('TimelineApi write-through (play/pause/stop reach the component flags)', () => {
+describe('TimelineAPI write-through (play/pause/stop reach the component flags)', () => {
     it('routes to raise/lower/reset so the flag survives the per-tick reconcile', () => {
         const calls: string[] = [];
-        const api = new TimelineApi({
+        const api = new TimelineAPI({
             raise: e => calls.push(`raise:${e}`),
             lower: e => calls.push(`lower:${e}`),
             reset: e => calls.push(`reset:${e}`),
@@ -225,7 +225,7 @@ describe('TimelineApi write-through (play/pause/stop reach the component flags)'
     });
 
     it('stop also rewinds the clock state', () => {
-        const api = new TimelineApi();
+        const api = new TimelineAPI();
         const s = api.ensureState(ROOT, WrapMode.Once, 1);
         s.playing = true;
         s.time = 1.5;

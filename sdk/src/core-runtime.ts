@@ -71,7 +71,6 @@ export {
     getComponentFieldMeta,
     getReplicatedFields,
     getComponentRegistry,
-    getAllRegisteredComponents,
     getUserComponents,
     getUserComponentFingerprint,
     enumOptions,

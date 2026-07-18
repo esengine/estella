@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, vi } from 'vitest';
-import { CameraViewApi } from '../src/camera/Camera';
+import { CameraViewAPI } from '../src/camera/Camera';
 
 const mockUICameraData = {
     viewProjection: new Float32Array([
@@ -25,12 +25,12 @@ const mockUICameraData = {
     valid: true,
 };
 
-function makeCamera(cameraData = mockUICameraData): CameraViewApi {
+function makeCamera(cameraData = mockUICameraData): CameraViewAPI {
     const app = { getResource: vi.fn(() => cameraData) } as any;
-    return new CameraViewApi(app);
+    return new CameraViewAPI(app);
 }
 
-describe('CameraViewApi', () => {
+describe('CameraViewAPI', () => {
     it('returns null when the camera is invalid', () => {
         const cam = makeCamera({ ...mockUICameraData, valid: false });
         expect(cam.screenToWorld(400, 300)).toBeNull();
@@ -63,7 +63,7 @@ describe('CameraViewApi', () => {
         });
     });
 
-    // The whole point of F3: two Apps each have their own CameraViewApi reading
+    // The whole point of F3: two Apps each have their own CameraViewAPI reading
     // their own UICameraInfo — no shared global `app_` to bleed between them.
     it('is isolated per App', () => {
         const a = makeCamera({ ...mockUICameraData, worldMouseX: 1, worldMouseY: 2 });

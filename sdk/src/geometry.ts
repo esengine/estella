@@ -57,6 +57,7 @@ const LAYOUT_BUFFER_SIZE = 64;
 // Initialization
 // =============================================================================
 
+/** @internal Wired by the engine plugins — not part of the public API. */
 export function initGeometryAPI(wasmModule: ESEngineModule): void {
     bridge.connect(wasmModule);
     module = bridge.module;

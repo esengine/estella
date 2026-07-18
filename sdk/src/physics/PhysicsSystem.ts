@@ -18,7 +18,7 @@ import { Res, Time, type TimeData } from '../resource';
 import { Schedule, defineSystem } from '../system';
 import { playModeOnly } from '../env';
 import type { PhysicsWasmModule } from './PhysicsModuleLoader';
-import { PhysicsAPI } from './Physics';
+import { Physics } from './Physics';
 import {
     RigidBody, BoxCollider, CircleCollider, CapsuleCollider,
     SegmentCollider, PolygonCollider, ChainCollider, OneWayPlatform,
@@ -514,7 +514,7 @@ interface EventAccum {
 }
 
 /**
- * Drain this fixed step's events into the per-frame accumulator. Physics may step
+ * Drain this fixed step's events into the per-frame accumulator. PhysicsAPI may step
  * several times per rendered frame; accumulating (rather than overwriting) keeps
  * every collision — the interpolation system publishes + clears once per frame.
  */
@@ -722,7 +722,7 @@ export function registerPhysicsSystem(
                 const invPpu = 1 / ppu;
                 // Keep the query API's default scale in sync with the live Canvas,
                 // so raycast/overlap that omit `ppu` aren't silently scaled to 100.
-                if (app.hasResource(PhysicsAPI)) app.getResource(PhysicsAPI).setPixelsPerUnit(ppu);
+                if (app.hasResource(Physics)) app.getResource(Physics).setPixelsPerUnit(ppu);
                 // Steady-state fast path: skip the full entity reconcile unless
                 // something structural changed (spawn/despawn/add-remove component →
                 // structuralVersion) OR a physics component was edited (O(1) gate).

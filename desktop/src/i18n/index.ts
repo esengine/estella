@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  index.ts — editor localization, built on the ENGINE's LocalizationApi
+ * @file  index.ts — editor localization, built on the ENGINE's LocalizationAPI
  *        (one i18n engine for games and the editor — no second library). The
  *        locale is resolved ONCE at module load, before any other editor module
  *        evaluates: command labels, settings descriptors, and menu titles are
@@ -12,7 +12,7 @@
  *        t(key) is typed over the merged catalog — a typo'd key or a key
  *        missing a language is a compile error, not a runtime blank.
  */
-import { LocalizationApi, type TParams } from 'esengine';
+import { LocalizationAPI, type TParams } from 'esengine';
 import { editorMessages } from './messages';
 
 export type { Message, MessageMap } from './messages/types';
@@ -63,7 +63,7 @@ export const systemDefaultLocale: EditorLocale = resolveLocale(undefined, system
 /** The locale this editor session renders in — fixed for the session's lifetime. */
 export const editorLocale: EditorLocale = resolveLocale(readPersistedLanguage(), systemLang);
 
-const loc = new LocalizationApi(editorLocale, 'en');
+const loc = new LocalizationAPI(editorLocale, 'en');
 {
     const en: Record<string, string> = {};
     const zh: Record<string, string> = {};

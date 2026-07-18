@@ -11,11 +11,13 @@ import { PostProcessStack, PostProcessState } from './PostProcessStack';
 const bridge = new CoreApiBridge('postprocess');
 let module: ESEngineModule | null = null;
 
+/** @internal Wired by the engine plugins — not part of the public API. */
 export function initPostProcessAPI(wasmModule: ESEngineModule): void {
     bridge.connect(wasmModule);
     module = bridge.module;
 }
 
+/** @internal Wired by the engine plugins — not part of the public API. */
 export function shutdownPostProcessAPI(): void {
     // Per-App state dies with its App; here we only tear down the shared module.
     if (module) {
@@ -93,7 +95,7 @@ export function syncStackToWasm(stack: PostProcessStack): void {
  * B2b-3a: a single default instance is exported to keep call sites unchanged;
  * B2b-3b flips this to a per-App `defineResource` injected into the pipeline.
  */
-export class PostProcessApi {
+export class PostProcessAPI {
     readonly state = new PostProcessState();
 
     /** Volume-system bookkeeping (per-App): camera → the stack it created, and shared effect shaders. */
@@ -292,4 +294,4 @@ export class PostProcessApi {
  * Per-App post-process resource. Published + injected into the render pipeline
  * by `PostProcessPlugin`; read as `app.getResource(PostProcess)`.
  */
-export const PostProcess = defineResource<PostProcessApi>(null!, 'PostProcess');
+export const PostProcess = defineResource<PostProcessAPI>(null!, 'PostProcess');

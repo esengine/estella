@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { getAllRegisteredComponents, getUserComponents, getComponent, getComponentAssetFieldDescriptors, getComponentSpineFieldDescriptor, getComponentFieldMeta, Light2DType, usesStagger, isHexOrientation } from 'esengine';
+import { getComponentRegistry, getUserComponents, getComponent, getComponentAssetFieldDescriptors, getComponentSpineFieldDescriptor, getComponentFieldMeta, Light2DType, usesStagger, isHexOrientation } from 'esengine';
 import type { App, SceneData } from 'esengine';
 import type { NodeKind, InspectorField, EnumOption, GradientValue, CurveValue } from '@/types';
 
@@ -646,7 +646,7 @@ export function modelAddableComponentEntries(
   const present = new Set(entity.components.map((c) => c.type));
   const userNames = new Set(getUserComponents().keys());
   const out: Array<{ name: string; label: string; category: string }> = [];
-  for (const [name, def] of getAllRegisteredComponents()) {
+  for (const [name, def] of getComponentRegistry()) {
     if (HIDDEN_COMPONENTS.has(name) || name === 'Transform' || present.has(name)) continue;
     if (def.transient) continue; // runtime-only state is never authorable
     out.push({ name, label: prettyLabel(name), category: componentCategory(name, userNames.has(name)) });

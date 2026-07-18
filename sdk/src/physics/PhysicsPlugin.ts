@@ -2,10 +2,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    PhysicsPlugin.ts
- * @brief   Physics plugin — async wasm load + resource wiring
+ * @brief   PhysicsAPI plugin — async wasm load + resource wiring
  *
  * Thin orchestration layer. Types live in `PhysicsTypes.ts`,
- * the Physics API class in `Physics.ts`, and the per-frame loop
+ * the PhysicsAPI API class in `PhysicsAPI.ts`, and the per-frame loop
  * + entity-tracking state in `PhysicsSystem.ts`. This file just
  * loads the wasm module, wires resources, and hands off to the
  * system layer.
@@ -20,7 +20,7 @@ import {
 import { setupPhysicsDebugDraw } from './PhysicsDebugDraw';
 import { PhysicsBridge } from './PhysicsBridge';
 import { PhysicsRuntime } from './PhysicsRuntime';
-import { Physics, PhysicsAPI } from './Physics';
+import { PhysicsAPI, Physics } from './Physics';
 import { registerPhysicsSystem } from './PhysicsSystem';
 import { registerCharacterControllerSystem } from './CharacterController';
 import {
@@ -34,8 +34,8 @@ import { handleWasmError } from '../wasmError';
 // existing `import from './physics/PhysicsPlugin'` sites keep working.
 export {
     PhysicsEvents,
-    PhysicsAPI,
     Physics,
+    PhysicsAPI,
 };
 export type {
     PhysicsPluginConfig,
@@ -110,7 +110,7 @@ export class PhysicsPlugin implements Plugin {
                 // the terminal-abort guard and yields a guarded view in which
                 // every `_physics_*` call short-circuits after an abort. The
                 // guarded module has the same type, so every downstream call
-                // site (PhysicsSystem closures, the Physics API wrapper) gains
+                // site (PhysicsSystem closures, the PhysicsAPI API wrapper) gains
                 // abort safety without changing a single call.
                 this.bridge_.connect(loaded);
                 const module = this.bridge_.module;
@@ -135,9 +135,9 @@ export class PhysicsPlugin implements Plugin {
                 registerPhysicsSystem(app, module, this.config_);
 
                 app.getResource(PhysicsRuntime).module = module;
-                app.insertResource(PhysicsAPI, Physics._fromModule(module));
+                app.insertResource(Physics, PhysicsAPI._fromModule(module));
                 registerCharacterControllerSystem(app);
-                setupPhysicsDebugDraw(app, PhysicsAPI, PhysicsEvents);
+                setupPhysicsDebugDraw(app, Physics, PhysicsEvents);
                 app.setFixedTimestep(this.config_.fixedTimestep);
                 // Module loaded, world initialized, systems registered.
                 app.subsystems.transition('physics', 'ready');

@@ -5,7 +5,7 @@ import { defineResource, Res } from '../resource';
 import { Query } from '../query';
 import type { Entity } from '../types';
 import { PostProcessVolume, Transform, Camera, type PostProcessVolumeData, type TransformData, type CameraData } from '../component';
-import { PostProcess, type PostProcessApi } from './PostProcessAPI';
+import { PostProcess, type PostProcessAPI } from './PostProcessAPI';
 import { getEffectDef } from './effects';
 import { blendVolumeEffects, computeVolumeFactor, type ActiveVolume, type VolumeTransform } from './volumeBlending';
 import type { ShaderHandle } from '../material';
@@ -28,7 +28,7 @@ export function setVolumeTextureResolver(resolver: ((ref: string) => number) | n
     volumeTextureResolver = resolver;
 }
 
-function getOrCreateShader(api: PostProcessApi, key: string, factory: () => ShaderHandle): ShaderHandle {
+function getOrCreateShader(api: PostProcessAPI, key: string, factory: () => ShaderHandle): ShaderHandle {
     const existing = api.volumeShaders.get(key);
     if (existing !== undefined) return existing;
 
@@ -38,7 +38,7 @@ function getOrCreateShader(api: PostProcessApi, key: string, factory: () => Shad
 }
 
 function applyTextures(
-    stack: ReturnType<PostProcessApi['createStack']>,
+    stack: ReturnType<PostProcessAPI['createStack']>,
     passName: string,
     textures: Map<string, string>,
 ): void {
@@ -50,7 +50,7 @@ function applyTextures(
 }
 
 function applyBlendedEffects(
-    api: PostProcessApi,
+    api: PostProcessAPI,
     camera: Entity,
     effects: Map<string, { enabled: boolean; uniforms: Map<string, number>; textures: Map<string, string> }>,
 ): void {
@@ -107,7 +107,7 @@ function applyBlendedEffects(
 export const postProcessVolumeSystem = defineSystem(
     [Res(PostProcess), Query(PostProcessVolume, Transform), Query(Camera, Transform)],
     (
-        api: PostProcessApi,
+        api: PostProcessAPI,
         volumeQuery: Iterable<[Entity, PostProcessVolumeData, TransformData]>,
         cameraQuery: Iterable<[Entity, CameraData, TransformData]>,
     ) => {
@@ -139,7 +139,7 @@ export const postProcessVolumeSystem = defineSystem(
     { name: 'PostProcessVolumeSystem' }
 );
 
-export function cleanupVolumeSystem(api: PostProcessApi): void {
+export function cleanupVolumeSystem(api: PostProcessAPI): void {
     for (const [camera, stack] of api.volumeStacks) {
         api.unbind(camera);
         stack.destroy();

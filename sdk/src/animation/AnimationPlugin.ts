@@ -12,8 +12,8 @@ import { Time, type TimeData } from '../resource';
 import type { Entity } from '../types';
 import type { ESEngineModule, CppRegistry } from '../wasm';
 import { Tween, TweenAPI } from './Tween';
-import { SpriteAnimation, SpriteAnimationApi } from './SpriteAnimator';
-import { AnimatorController, AnimatorControllerApi } from './Animator';
+import { SpriteAnimation, SpriteAnimationAPI } from './SpriteAnimator';
+import { AnimatorController, AnimatorControllerAPI } from './Animator';
 import { playModeOnly } from '../env';
 import { SystemLabel } from '../systemLabels';
 
@@ -25,9 +25,9 @@ export class AnimationPlugin implements Plugin {
         const registry = app.world.getCppRegistry() as CppRegistry;
         const tween = new TweenAPI(module, registry);
         app.insertResource(Tween, tween);
-        const anim = new SpriteAnimationApi();
+        const anim = new SpriteAnimationAPI();
         app.insertResource(SpriteAnimation, anim);
-        const animator = new AnimatorControllerApi();
+        const animator = new AnimatorControllerAPI();
         app.insertResource(AnimatorController, animator);
         const world = app.world;
 
@@ -49,7 +49,7 @@ export class AnimationPlugin implements Plugin {
         // clip switch applies the same frame it fires.
         app.addSystemToSchedule(Schedule.Update, defineSystem(
             [Res(AnimatorController)],
-            (ctrl: AnimatorControllerApi) => {
+            (ctrl: AnimatorControllerAPI) => {
                 ctrl.update(world);
             },
             { name: 'AnimatorSystem' }
@@ -57,7 +57,7 @@ export class AnimationPlugin implements Plugin {
 
         app.addSystemToSchedule(Schedule.Update, defineSystem(
             [Res(Time), Res(SpriteAnimation)],
-            (time: TimeData, animApi: SpriteAnimationApi) => {
+            (time: TimeData, animApi: SpriteAnimationAPI) => {
                 animApi.update(world, time.delta);
             },
             { name: 'SpriteAnimatorSystem' }

@@ -35,6 +35,7 @@ const bridge = new CoreApiBridge('renderer');
 let module: ESEngineModule | null = null;
 let viewProjectionPtr: number = 0;
 
+/** @internal Wired by the engine plugins — not part of the public API. */
 export function initRendererAPI(wasmModule: ESEngineModule): void {
     bridge.connect(wasmModule);
     module = bridge.module;

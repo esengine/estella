@@ -1,7 +1,7 @@
 import {
     defineSystem, Res,
-    AnimatorController, AnimatorControllerApi, type AnimatorControllerDef,
-    SpriteAnimation, SpriteAnimationApi,
+    AnimatorController, AnimatorControllerAPI, type AnimatorControllerDef,
+    SpriteAnimation, SpriteAnimationAPI,
 } from 'esengine';
 import {
     CLIP_IDLE, CLIP_WALK, CLIP_HOP, CONTROLLER,
@@ -57,7 +57,7 @@ const alienController: AnimatorControllerDef = {
 // footstep listener (inert until events are attached below).
 export const setupSystem = defineSystem(
     [Res(AnimatorController), Res(SpriteAnimation)],
-    (ctrl: AnimatorControllerApi, anim: SpriteAnimationApi) => {
+    (ctrl: AnimatorControllerAPI, anim: SpriteAnimationAPI) => {
         ctrl.registerController(CONTROLLER, alienController);
         anim.onEventGlobal((event) => {
             if (event.name === 'footstep') footsteps.pending++;
@@ -74,7 +74,7 @@ export const setupSystem = defineSystem(
 let clipsWired = false;
 export const wireClipsSystem = defineSystem(
     [Res(SpriteAnimation)],
-    (anim: SpriteAnimationApi) => {
+    (anim: SpriteAnimationAPI) => {
         if (clipsWired) return;
         const idle = anim.getClip(CLIP_IDLE);
         const walk = anim.getClip(CLIP_WALK);

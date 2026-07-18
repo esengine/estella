@@ -7,7 +7,7 @@
  * `i18nKey` into live `content` and re-flows it on locale switch.
  */
 import { describe, it, expect } from 'vitest';
-import { LocalizationApi, parseLocaleTable, matchLocale } from '../src/i18n/Localization';
+import { LocalizationAPI, parseLocaleTable, matchLocale } from '../src/i18n/Localization';
 import { LocaleAssetLoader } from '../src/asset/loaders/LocaleAssetLoader';
 import type { LoadContext } from '../src/asset/AssetLoader';
 import { applyTextLocalization, type TextWorldView } from '../src/ui/text/localize';
@@ -104,7 +104,7 @@ describe('sceneUsesI18n', () => {
 // LocaleAssetLoader
 // =============================================================================
 
-function loaderCtx(text: string, i18n: LocalizationApi | null): LoadContext {
+function loaderCtx(text: string, i18n: LocalizationAPI | null): LoadContext {
     return {
         catalog: { getBuildPath: (p: string) => p },
         loadText: async () => text,
@@ -114,7 +114,7 @@ function loaderCtx(text: string, i18n: LocalizationApi | null): LoadContext {
 
 describe('LocaleAssetLoader', () => {
     it('merges the table into the app catalogs and reports locale + key count', async () => {
-        const i18n = new LocalizationApi('en', 'en');
+        const i18n = new LocalizationAPI('en', 'en');
         const loader = new LocaleAssetLoader();
         const result = await loader.load('i18n/zh-CN.eslocale', loaderCtx(JSON.stringify({
             version: 1,
@@ -133,7 +133,7 @@ describe('LocaleAssetLoader', () => {
     });
 
     it('propagates table validation errors (bad content never half-registers)', async () => {
-        const i18n = new LocalizationApi('en', 'en');
+        const i18n = new LocalizationAPI('en', 'en');
         const loader = new LocaleAssetLoader();
         await expect(loader.load('i18n/en.eslocale', loaderCtx('{"entries":{}}', i18n)))
             .rejects.toThrow(/'locale'/);
@@ -174,7 +174,7 @@ class FakeWorld implements TextWorldView {
 describe('applyTextLocalization', () => {
     function setup() {
         const world = new FakeWorld();
-        const i18n = new LocalizationApi('en', 'en');
+        const i18n = new LocalizationAPI('en', 'en');
         i18n.addCatalog('en', { play: 'Play' });
         i18n.addCatalog('zh-CN', { play: '开始' });
         return { world, i18n };

@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
-    SpriteAnimationApi,
+    SpriteAnimationAPI,
     type SpriteAnimClip,
     type SpriteAnimatorData,
 } from '../src/animation/SpriteAnimator';
@@ -38,10 +38,10 @@ function createAnimatorData(): SpriteAnimatorData {
 }
 
 describe('SpriteAnimator goto', () => {
-    let anim: SpriteAnimationApi;
+    let anim: SpriteAnimationAPI;
 
     beforeEach(() => {
-        anim = new SpriteAnimationApi();
+        anim = new SpriteAnimationAPI();
         anim.registerClip(createTestClip());
     });
 

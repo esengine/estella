@@ -247,7 +247,12 @@ enabled: boolean
 normal: Vec2
 ```
 
-## Physics — class
+## Physics — const
+```
+ResourceDef<PhysicsAPI>
+```
+
+## PhysicsAPI — class
 ```
 applyAngularImpulse: (entity: Entity, impulse: number) => void
 applyForce: (entity: Entity, force: Vec2) => void
@@ -317,16 +322,11 @@ setWheelJointMotorSpeed: (entity: Entity, speed: number) => void
 shapeCastBox: (center: Vec2, halfExtents: Vec2, angle: number, translation: Vec2, maskBits?: number, ppu?: number) => ShapeCastHit[]
 shapeCastCapsule: (center1: Vec2, center2: Vec2, radius: number, translation: Vec2, maskBits?: number, ppu?: number) => ShapeCastHit[]
 shapeCastCircle: (center: Vec2, radius: number, translation: Vec2, maskBits?: number, ppu?: number) => ShapeCastHit[]
-static _fromModule: (module: PhysicsWasmModule) => Physics
-static new (app: App): Physics
-static prototype: Physics
+static _fromModule: (module: PhysicsWasmModule) => PhysicsAPI
+static new (app: App): PhysicsAPI
+static prototype: PhysicsAPI
 static setDebugDraw: (app: App, enabled: boolean) => void
 static setDebugDrawConfig: (app: App, config: Partial<PhysicsDebugDrawConfig>) => void
-```
-
-## PhysicsAPI — const
-```
-ResourceDef<Physics>
 ```
 
 ## PhysicsDebugDraw — const

@@ -3,7 +3,7 @@
 import { describe, it, expect } from 'vitest';
 import {
     Animator,
-    AnimatorControllerApi,
+    AnimatorControllerAPI,
     evaluateAnimatorPath,
     enterStatePath,
     leafStateOf,
@@ -125,7 +125,7 @@ describe('evaluateAnimatorPath', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Integration: AnimatorControllerApi.update drives the leaf clip through nesting
+// Integration: AnimatorControllerAPI.update drives the leaf clip through nesting
 // ---------------------------------------------------------------------------
 
 function makeWorld() {
@@ -146,10 +146,10 @@ function makeWorld() {
     } as any;
 }
 
-describe('AnimatorControllerApi.update — nested machine', () => {
+describe('AnimatorControllerAPI.update — nested machine', () => {
     const E = 1;
     function setup() {
-        const ctrl = new AnimatorControllerApi();
+        const ctrl = new AnimatorControllerAPI();
         ctrl.registerController('hero', nestedController());
         const world = makeWorld();
         world.insert(E, Animator, { controller: 'hero', currentState: '', enabled: true } as AnimatorData);

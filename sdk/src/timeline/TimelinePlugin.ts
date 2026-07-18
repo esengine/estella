@@ -10,7 +10,7 @@ import { Assets } from '../asset/AssetPlugin';
 import { resolveAssetKey } from '../asset/resolveAssetKey';
 import { Audio, type AudioAPI } from '../audio/Audio';
 import { wrapModeFromName, TrackType, type TimelineAsset, type AnimFramesTrack } from './TimelineTypes';
-import { Timeline, TimelineApi } from './TimelineControl';
+import { Timeline, TimelineAPI } from './TimelineControl';
 import { resolveChildEntity } from './TimelineRuntime';
 import { advanceTimelineTS, applyPlayerFlags, latchPlayerFinish } from './TimelineDrive';
 import type { SampleDeps } from './TimelineEvaluator';
@@ -103,7 +103,7 @@ export class TimelinePlugin implements Plugin {
             if (clearFinished) player.finished = false;
             world.insert(entity, TimelinePlayer, player);
         };
-        app.insertResource(Timeline, new TimelineApi({
+        app.insertResource(Timeline, new TimelineAPI({
             raise: entity => setFlags(entity, true, false),
             lower: entity => setFlags(entity, false, false),
             reset: entity => setFlags(entity, false, true),

@@ -46,7 +46,7 @@ export function getCompoundAssetFields(componentType: string): CompoundFieldDesc
     return registry_.get(componentType)?.compounds ?? [];
 }
 
-export function getAllRegisteredComponents(): string[] {
+export function getAssetFieldComponents(): string[] {
     return Array.from(registry_.keys());
 }
 

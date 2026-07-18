@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect } from 'vitest';
 import {
-    LocalizationApi,
+    LocalizationAPI,
     interpolate,
     selectPluralForm,
     defaultPluralSelector,
@@ -39,9 +39,9 @@ describe('selectPluralForm', () => {
     });
 });
 
-describe('LocalizationApi', () => {
+describe('LocalizationAPI', () => {
     function setup() {
-        const loc = new LocalizationApi('en', 'en');
+        const loc = new LocalizationAPI('en', 'en');
         loc.addCatalog('en', {
             greeting: 'Hello {name}',
             apples: { zero: 'no apples', one: 'one apple', other: '{count} apples' },

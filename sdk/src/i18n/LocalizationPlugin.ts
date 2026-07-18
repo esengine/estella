@@ -9,7 +9,7 @@ import type { App, Plugin } from '../app';
 import { Schedule, defineSystem } from '../system';
 import { Assets } from '../asset/AssetPlugin';
 import { log } from '../logger';
-import { Localization, LocalizationApi, type LocaleCatalog } from './Localization';
+import { Localization, LocalizationAPI, type LocaleCatalog } from './Localization';
 
 export interface LocalizationOptions {
     /** Active locale (default 'en'). */
@@ -32,7 +32,7 @@ export class LocalizationPlugin implements Plugin {
     constructor(private readonly opts: LocalizationOptions = {}) {}
 
     build(app: App): void {
-        const loc = new LocalizationApi(this.opts.locale, this.opts.fallback);
+        const loc = new LocalizationAPI(this.opts.locale, this.opts.fallback);
         if (this.opts.catalogs) {
             for (const locale of Object.keys(this.opts.catalogs)) {
                 loc.addCatalog(locale, this.opts.catalogs[locale]);

@@ -23,6 +23,7 @@ const bridge = new ResourceManagerBridge();
 let rm_: CppResourceManager | null = null;
 const dimsCache_ = new Map<number, TextureDimensions>();
 
+/** @internal Wired by the engine plugins — not part of the public API. */
 export function initResourceManager(rm: CppResourceManager, module?: ESEngineModule): void {
     // Production (corePlugin) passes the main module → guarded calls. Tests pass
     // only a mock rm → kept raw (unguarded), since they don't exercise abort.
@@ -36,6 +37,7 @@ export function initResourceManager(rm: CppResourceManager, module?: ESEngineMod
     dimsCache_.clear();
 }
 
+/** @internal Wired by the engine plugins — not part of the public API. */
 export function shutdownResourceManager(): void {
     bridge.disconnect();
     rm_ = null;

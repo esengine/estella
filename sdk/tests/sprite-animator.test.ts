@@ -7,7 +7,7 @@ import type { CppRegistry, ESEngineModule } from '../src/wasm';
 import type { Entity } from '../src/types';
 import {
     SpriteAnimator,
-    SpriteAnimationApi,
+    SpriteAnimationAPI,
     type SpriteAnimatorData,
     type SpriteAnimClip,
 } from '../src/animation/SpriteAnimator';
@@ -48,12 +48,12 @@ function createAnimTestWorld(): { world: World; registry: CppRegistry } {
 
 describe('SpriteAnimator', () => {
     let world: World;
-    let anim: SpriteAnimationApi;
+    let anim: SpriteAnimationAPI;
 
     beforeEach(() => {
         const ctx = createAnimTestWorld();
         world = ctx.world;
-        anim = new SpriteAnimationApi();
+        anim = new SpriteAnimationAPI();
     });
 
     // =========================================================================

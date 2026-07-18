@@ -24,7 +24,7 @@ export { scalar, v2, v3, col } from './math';
 
 export {
     Localization,
-    LocalizationApi,
+    LocalizationAPI,
     LocalizationPlugin,
     localizationPlugin,
     interpolate,
@@ -146,8 +146,6 @@ export {
 
 export {
     GLDebug,
-    initGLDebugAPI,
-    shutdownGLDebugAPI,
 } from './glDebug';
 
 // =============================================================================
@@ -241,8 +239,6 @@ export {
 // =============================================================================
 
 export {
-    initResourceManager,
-    shutdownResourceManager,
     requireResourceManager,
     getResourceManager,
     evictTextureDimensions,

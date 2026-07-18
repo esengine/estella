@@ -10,7 +10,6 @@ import {
     getUserComponent,
     getUserComponents,
     getComponentRegistry,
-    getAllRegisteredComponents,
     getComponentDefaults,
     clearUserComponents,
     unregisterComponent,
@@ -249,8 +248,8 @@ describe('Component registry tiers (builtins global, user per-context)', () => {
         const all = getComponentRegistry();
         expect(all.get('TierBuiltin')).toBe(Builtin);
         expect(all.get('TierUser')).toBe(User);
-        // getAllRegisteredComponents is an alias of the complete view.
-        expect(getAllRegisteredComponents().get('TierBuiltin')).toBe(Builtin);
+        // getComponentRegistry is an alias of the complete view.
+        expect(getComponentRegistry().get('TierBuiltin')).toBe(Builtin);
         // getComponent resolves both tiers.
         expect(getComponent('TierBuiltin')).toBe(Builtin);
         expect(getComponent('TierUser')).toBe(User);

@@ -13,7 +13,7 @@
  * bound label on the very next frame with zero extra bookkeeping.
  */
 import type { Entity } from '../../types';
-import type { LocalizationApi } from '../../i18n/Localization';
+import type { LocalizationAPI } from '../../i18n/Localization';
 import { Text, type TextData } from '../core/text';
 
 /** The slice of World the binding needs — mirrors FsmWorldView so tests can
@@ -29,7 +29,7 @@ export interface TextWorldView {
  * `content` when it differs (missing keys resolve to the key itself — the
  * catalogs' visible, greppable fallback). Returns how many contents changed.
  */
-export function applyTextLocalization(world: TextWorldView, i18n: LocalizationApi): number {
+export function applyTextLocalization(world: TextWorldView, i18n: LocalizationAPI): number {
     let changed = 0;
     for (const e of world.getEntitiesWithComponents([Text])) {
         const entity = e as Entity;

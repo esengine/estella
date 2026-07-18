@@ -11,11 +11,13 @@ import { CoreApiBridge } from './CoreApiBridge';
 const bridge = new CoreApiBridge('glDebug');
 let module: ESEngineModule | null = null;
 
+/** @internal Wired by the engine plugins — not part of the public API. */
 export function initGLDebugAPI(wasmModule: ESEngineModule): void {
     bridge.connect(wasmModule);
     module = bridge.module;
 }
 
+/** @internal Wired by the engine plugins — not part of the public API. */
 export function shutdownGLDebugAPI(): void {
     bridge.disconnect();
     module = null;

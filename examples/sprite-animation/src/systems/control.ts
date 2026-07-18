@@ -1,7 +1,7 @@
 import {
     defineSystem, Query, Mut, Res, Time, Input,
     Transform, Sprite, Animator,
-    AnimatorController, AnimatorControllerApi,
+    AnimatorController, AnimatorControllerAPI,
 } from 'esengine';
 import { Player } from '../components';
 import {
@@ -14,7 +14,7 @@ import {
 // Space into the `hop` trigger — the state machine picks every clip.
 export const controlSystem = defineSystem(
     [Query(Mut(Transform), Mut(Sprite), Mut(Player), Animator), Res(Input), Res(Time), Res(AnimatorController)],
-    (players, input, time, ctrl: AnimatorControllerApi) => {
+    (players, input, time, ctrl: AnimatorControllerAPI) => {
         const dir =
             (input.isKeyDown('ArrowRight') || input.isKeyDown('KeyD') ? 1 : 0) -
             (input.isKeyDown('ArrowLeft') || input.isKeyDown('KeyA') ? 1 : 0);

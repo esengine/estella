@@ -14,7 +14,7 @@ import { screenToWorld, worldToScreen, createInvVPCache } from '../ui/util/math'
  * inverse-view-projection cache, so two Apps running at once never share a
  * single cached `app` or clobber each other's cache.
  */
-export class CameraViewApi {
+export class CameraViewAPI {
     private readonly invVPCache = createInvVPCache();
 
     constructor(private readonly app_: App) {}
@@ -57,4 +57,4 @@ export class CameraViewApi {
  * `app.getResource(CameraView)` to convert screen<->world etc. (Named
  * `CameraView` rather than `Camera` because `Camera` is the ECS component.)
  */
-export const CameraView = defineResource<CameraViewApi>(null!, 'CameraView');
+export const CameraView = defineResource<CameraViewAPI>(null!, 'CameraView');

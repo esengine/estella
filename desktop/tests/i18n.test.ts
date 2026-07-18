@@ -10,7 +10,7 @@
 import { describe, it, expect } from 'vitest';
 import { resolveLocale, t, editorLocale, editorMessages } from '@/i18n';
 import { messageModules } from '@/i18n/messages';
-import { LocalizationApi } from 'esengine';
+import { LocalizationAPI } from 'esengine';
 
 describe('resolveLocale', () => {
   it('persisted value wins when it is a shipped locale', () => {
@@ -63,10 +63,10 @@ describe('t()', () => {
 
   it('the zh catalog serves the same keys through the shared engine', () => {
     // The editor's own t() is boot-locked to en here; drive a second
-    // LocalizationApi over the same messages to pin the zh side.
+    // LocalizationAPI over the same messages to pin the zh side.
     const zh: Record<string, string> = {};
     for (const [k, m] of Object.entries(editorMessages)) zh[k] = m.zh;
-    const loc = new LocalizationApi('zh-CN', 'en');
+    const loc = new LocalizationAPI('zh-CN', 'en');
     loc.addCatalog('zh-CN', zh);
     expect(loc.t('cmd.entity.delete')).toBe('删除');
     expect(loc.t('set.layerN', { i: 3 })).toBe('层 3');

@@ -233,10 +233,10 @@ export {
     ValueTweenHandle,
     SpriteAnimator,
     SpriteAnimation,
-    SpriteAnimationApi,
+    SpriteAnimationAPI,
     Animator,
     AnimatorController,
-    AnimatorControllerApi,
+    AnimatorControllerAPI,
     evaluateAnimatorTransitions,
     resolveParams,
     selectBlendClip,
@@ -382,7 +382,6 @@ export {
     TilemapLayer,
     TilemapAPI,
     Tilemaps,
-    initTilemapAPI,
     shutdownTilemapAPI,
     TilemapPlugin,
     tilemapPlugin,
@@ -623,3 +622,27 @@ export {
     type PerceiverData,
     type PerceptionData,
 } from './ai';
+
+// =============================================================================
+// Timeline (Sequencer)
+// =============================================================================
+
+export {
+    TimelinePlugin,
+    timelinePlugin,
+    registerTimelineAsset,
+    parseTimelineAsset,
+    Timeline,
+    TimelineAPI,
+    TimelinePlayer,
+    type TimelinePlayerData,
+} from './timeline';
+// Authoring + pure-TS evaluation surface for the editor Sequencer.
+export {
+    sampleTimeline, sampleTimelineInWorld, evaluateChannel, applyWrapMode,
+    serializeTimelineAsset, serializeTimelineToJson, resolveChildEntity, parseAnimationClip,
+    TrackType, InterpType, WrapMode,
+    type SampleWorld, type SampleDeps, type SampleOptions,
+    type TimelineAsset, type Track, type PropertyTrack, type PropertyChannel, type Keyframe,
+    type SpriteAnimTrack, type AudioTrack, type ActivationTrack, type SpineTrack, type AnimFramesTrack,
+} from './timeline';

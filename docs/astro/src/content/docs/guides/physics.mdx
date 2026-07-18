@@ -113,13 +113,13 @@ dedicated layers so the mask narrows what each sensor considers.
 
 ## Moving bodies — forces & velocity
 
-Read the `PhysicsAPI` resource to drive bodies. Every method takes the world entity:
+Read the `Physics` resource to drive bodies. Every method takes the world entity:
 
 ```typescript
 import { defineSystem, Query, Res, RigidBody } from 'esengine';
-import { PhysicsAPI } from 'esengine/physics';
+import { Physics } from 'esengine/physics';
 
-const move = defineSystem([Query(RigidBody), Res(PhysicsAPI)], (q, physics) => {
+const move = defineSystem([Query(RigidBody), Res(Physics)], (q, physics) => {
   for (const [entity] of q) {
     physics.applyForce(entity, { x: 0, y: 20 });        // continuous force
     physics.applyImpulse(entity, { x: 0, y: 5 });       // instant kick (jump)

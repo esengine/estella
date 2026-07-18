@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { bench, describe } from 'vitest';
-import { defineComponent, getComponent, getAllRegisteredComponents, clearUserComponents } from '../src/component';
+import { defineComponent, getComponent, getComponentRegistry, clearUserComponents } from '../src/component';
 import { computeQueryCacheKey } from '../src/world';
 
 describe('Component - Definition', () => {
@@ -50,8 +50,8 @@ describe('Component - Registry lookup', () => {
         for (let i = 0; i < 1000; i++) getComponent('NonExistent');
     });
 
-    bench('getAllRegisteredComponents', () => {
-        getAllRegisteredComponents();
+    bench('getComponentRegistry', () => {
+        getComponentRegistry();
     });
 });
 

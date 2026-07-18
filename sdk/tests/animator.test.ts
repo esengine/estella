@@ -3,7 +3,7 @@
 import { describe, it, expect } from 'vitest';
 import {
     Animator,
-    AnimatorControllerApi,
+    AnimatorControllerAPI,
     evaluateAnimatorTransitions,
     resolveParams,
     selectBlendClip,
@@ -153,7 +153,7 @@ describe('selectBlendClip', () => {
 });
 
 // ---------------------------------------------------------------------------
-// AnimatorControllerApi.update drives SpriteAnimator (mock World)
+// AnimatorControllerAPI.update drives SpriteAnimator (mock World)
 // ---------------------------------------------------------------------------
 
 function makeWorld() {
@@ -178,11 +178,11 @@ function spriteData(over: Partial<SpriteAnimatorData> = {}): SpriteAnimatorData 
     return { clip: '', speed: 1, playing: false, loop: true, enabled: true, currentFrame: 5, frameTimer: 0.3, ...over };
 }
 
-describe('AnimatorControllerApi.update', () => {
+describe('AnimatorControllerAPI.update', () => {
     const E = 1;
 
     function setup() {
-        const ctrl = new AnimatorControllerApi();
+        const ctrl = new AnimatorControllerAPI();
         ctrl.registerController('hero', heroController());
         const world = makeWorld();
         world.insert(E, Animator, { controller: 'hero', currentState: '', enabled: true } as AnimatorData);
@@ -249,7 +249,7 @@ describe('AnimatorControllerApi.update', () => {
     });
 
     it('auto-advances on exit time when the current clip finishes', () => {
-        const ctrl = new AnimatorControllerApi();
+        const ctrl = new AnimatorControllerAPI();
         ctrl.registerController('atk', {
             parameters: [],
             initialState: 'attack',
@@ -271,7 +271,7 @@ describe('AnimatorControllerApi.update', () => {
         ctrl.update(world);
         expect((world.get(E, Animator) as AnimatorData).currentState).toBe('attack');
 
-        // Simulate the non-looping clip ending (SpriteAnimationApi clears playing).
+        // Simulate the non-looping clip ending (SpriteAnimationAPI clears playing).
         const sp = world.get(E, SpriteAnimator) as SpriteAnimatorData;
         sp.playing = false;
         world.insert(E, SpriteAnimator, sp);
@@ -283,7 +283,7 @@ describe('AnimatorControllerApi.update', () => {
 
     it('drives the Spine driver on entry to a spine state (and not every frame)', () => {
         const setAnimation = vi.fn();
-        const ctrl = new AnimatorControllerApi();
+        const ctrl = new AnimatorControllerAPI();
         ctrl.setSpineDriver({ setAnimation });
         ctrl.registerController('caster', {
             parameters: [{ name: 'cast', type: 'trigger' }],
@@ -313,7 +313,7 @@ describe('AnimatorControllerApi.update', () => {
     });
 
     it('spine states are inert without a driver (no throw)', () => {
-        const ctrl = new AnimatorControllerApi();
+        const ctrl = new AnimatorControllerAPI();
         ctrl.registerController('s', {
             parameters: [], initialState: 'a',
             states: [{ name: 'a', spine: { animation: 'a' }, transitions: [] }],
@@ -325,7 +325,7 @@ describe('AnimatorControllerApi.update', () => {
     });
 
     it('a 1D-blend state switches clip within the state as the parameter crosses thresholds', () => {
-        const ctrl = new AnimatorControllerApi();
+        const ctrl = new AnimatorControllerAPI();
         ctrl.registerController('loco', {
             parameters: [{ name: 'speed', type: 'float', default: 0 }],
             initialState: 'move',

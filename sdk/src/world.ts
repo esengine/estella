@@ -6,7 +6,7 @@
  */
 
 import { Entity, entityGeneration, entityIndex, makeEntity, INVALID_ENTITY } from './types';
-import { AnyComponentDef, ComponentDef, ComponentData, BuiltinComponentDef, isBuiltinComponent, getAllRegisteredComponents, getUserComponents, getComponent, Name, Parent, Children } from './component';
+import { AnyComponentDef, ComponentDef, ComponentData, BuiltinComponentDef, isBuiltinComponent, getComponentRegistry, getUserComponents, getComponent, Name, Parent, Children } from './component';
 import type { CppRegistry, ESEngineModule } from './wasm';
 import { handleWasmError } from './wasmError';
 import { BuiltinBridge, convertFromWasm, convertForWasm, type BridgeConnectOptions, type BuiltinMethods } from './ecs/BuiltinBridge';
@@ -605,7 +605,7 @@ export class World {
             try { if (methods.has(entity)) types.add(name); } catch (e) { log.warn('world', `Component check failed for ${name}`, e); }
         }
         if (this.builtin_.hasCpp) {
-            for (const [name, comp] of getAllRegisteredComponents()) {
+            for (const [name, comp] of getComponentRegistry()) {
                 if (isBuiltinComponent(comp) && !types.has(name)) {
                     try {
                         const m = this.builtin_.getBuiltinMethods(comp._cppName);

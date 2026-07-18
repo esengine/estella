@@ -60,7 +60,7 @@ export function shouldFireEvent(eventFrame: number, prevFrame: number, newFrame:
  * the {@link SpriteAnimation} resource; read it as
  * `app.getResource(SpriteAnimation)`.
  */
-export class SpriteAnimationApi {
+export class SpriteAnimationAPI {
     private readonly clips = new Map<string, SpriteAnimClip>();
     private readonly entityListeners = new Map<Entity, SpriteAnimEventHandler[]>();
     private readonly globalListeners: SpriteAnimEventHandler[] = [];
@@ -237,7 +237,7 @@ export class SpriteAnimationApi {
  * Per-App sprite-animation resource (clip registry + frame-event listeners),
  * published by `AnimationPlugin`. Read as `app.getResource(SpriteAnimation)`.
  */
-export const SpriteAnimation = defineResource<SpriteAnimationApi>(null!, 'SpriteAnimation');
+export const SpriteAnimation = defineResource<SpriteAnimationAPI>(null!, 'SpriteAnimation');
 
 // =============================================================================
 // SpriteAnimator Component

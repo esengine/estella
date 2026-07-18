@@ -26,7 +26,6 @@ export {
     UIVisualType,
     UILayoutGeneration,
     UIMask,
-    textPlugin,
     measureText,
     type MeasureTextOptions,
     type TextMetrics,

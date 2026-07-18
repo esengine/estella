@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
-    SpriteAnimationApi,
+    SpriteAnimationAPI,
     type SpriteAnimClip,
     type SpriteAnimEvent,
 } from '../src/animation/SpriteAnimator';
@@ -10,10 +10,10 @@ import {
 import { shouldFireEvent } from '../src/animation/SpriteAnimator';
 
 describe('SpriteAnimator Frame Events', () => {
-    let anim: SpriteAnimationApi;
+    let anim: SpriteAnimationAPI;
 
     beforeEach(() => {
-        anim = new SpriteAnimationApi();
+        anim = new SpriteAnimationAPI();
     });
 
     describe('shouldFireEvent', () => {

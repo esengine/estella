@@ -59,6 +59,7 @@ interface TilemapModule {
 const bridge = new CoreApiBridge('tilemap');
 let module_: TilemapModule | null = null;
 
+/** @internal Wired by the engine plugins — not part of the public API. */
 export function initTilemapAPI(m: ESEngineModule): void {
     bridge.connect(m);
     module_ = bridge.module as unknown as TilemapModule;

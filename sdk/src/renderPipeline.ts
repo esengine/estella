@@ -8,7 +8,7 @@
 import type { CppRegistry } from './wasm';
 import type { Entity } from './types';
 import { Renderer } from './renderer';
-import type { PostProcessApi } from './postprocess';
+import type { PostProcessAPI } from './postprocess';
 import { Draw } from './draw';
 import {
     getDrawCallbacks,
@@ -51,7 +51,7 @@ export class RenderPipeline {
     private lastHeight_ = 0;
     private activeScenes_: Set<string> | null = null;
     private preFlushCallbacks_: ((registry: { _cpp: CppRegistry }) => void)[] = [];
-    private postProcess_: PostProcessApi | null = null;
+    private postProcess_: PostProcessAPI | null = null;
 
     setActiveScenes(scenes: Set<string> | null): void {
         this.activeScenes_ = scenes;
@@ -62,7 +62,7 @@ export class RenderPipeline {
      * pipeline does no post-processing — it has no hard dependency on the
      * post-process subsystem.
      */
-    setPostProcess(pp: PostProcessApi | null): void {
+    setPostProcess(pp: PostProcessAPI | null): void {
         this.postProcess_ = pp;
     }
 

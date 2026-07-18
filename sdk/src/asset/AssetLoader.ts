@@ -101,14 +101,14 @@ export interface LoadContext {
      * Sprite-animation API for the owning app (clip registry), resolved lazily
      * like {@link getAudio}. Returns null when no AnimationPlugin is installed.
      */
-    getSpriteAnimation(): import('../animation/SpriteAnimator').SpriteAnimationApi | null;
+    getSpriteAnimation(): import('../animation/SpriteAnimator').SpriteAnimationAPI | null;
     /**
      * Localization service for the owning app, resolved lazily like
      * {@link getAudio}. Returns null when no LocalizationPlugin is installed —
      * loading a `.eslocale` then fails loud (a table with nowhere to register
      * is a setup error, not a soft skip).
      */
-    getLocalization(): import('../i18n/Localization').LocalizationApi | null;
+    getLocalization(): import('../i18n/Localization').LocalizationAPI | null;
 }
 
 export interface AssetLoader<T> {

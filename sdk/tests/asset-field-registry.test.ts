@@ -6,7 +6,7 @@ import {
     registerCompoundAssetFields,
     getAssetFields,
     getCompoundAssetFields,
-    getAllRegisteredComponents,
+    getAssetFieldComponents,
     clearAssetFieldRegistry,
     initBuiltinAssetFields,
 } from '../src/asset/AssetFieldRegistry';
@@ -49,7 +49,7 @@ describe('AssetFieldRegistry', () => {
         registerAssetFields('Sprite', [{ field: 'texture', type: 'texture' }]);
         registerAssetFields('Image', [{ field: 'texture', type: 'texture' }]);
 
-        const components = getAllRegisteredComponents();
+        const components = getAssetFieldComponents();
         expect(components).toContain('Sprite');
         expect(components).toContain('Image');
     });
@@ -57,7 +57,7 @@ describe('AssetFieldRegistry', () => {
     it('initBuiltinAssetFields registers all known components', () => {
         initBuiltinAssetFields();
 
-        const components = getAllRegisteredComponents();
+        const components = getAssetFieldComponents();
         expect(components).toContain('Sprite');
         expect(components).toContain('SpineAnimation');
         expect(components).toContain('BitmapText');

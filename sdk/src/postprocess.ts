@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 export {
     PostProcess,
-    PostProcessApi,
+    PostProcessAPI,
     PostProcessStack,
     postProcessEffects,
     initPostProcessAPI,

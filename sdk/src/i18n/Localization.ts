@@ -54,7 +54,7 @@ export function selectPluralForm(forms: PluralForms, count: number, selector: Pl
  * fallback, and `t()` resolution (active → fallback → the key itself). Published
  * as the {@link Localization} resource; read it as `app.getResource(Localization)`.
  */
-export class LocalizationApi {
+export class LocalizationAPI {
     private readonly catalogs = new Map<string, Map<string, LocaleEntry>>();
     private readonly selectors = new Map<string, PluralSelector>();
     private locale_: string;
@@ -117,7 +117,7 @@ export class LocalizationApi {
  * Per-App localization resource, published by `LocalizationPlugin`. Read as
  * `app.getResource(Localization)`.
  */
-export const Localization = defineResource<LocalizationApi>(null!, 'Localization');
+export const Localization = defineResource<LocalizationAPI>(null!, 'Localization');
 
 // =============================================================================
 // String-table asset (`.eslocale`)

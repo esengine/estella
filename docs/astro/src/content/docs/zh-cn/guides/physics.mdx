@@ -106,13 +106,13 @@ const LAYER_GROUND = 0x0008;
 
 ## 移动刚体 —— 力与速度
 
-读 `PhysicsAPI` 资源来驱动刚体。每个方法都取世界实体:
+读 `Physics` 资源来驱动刚体。每个方法都取世界实体:
 
 ```typescript
 import { defineSystem, Query, Res, RigidBody } from 'esengine';
-import { PhysicsAPI } from 'esengine/physics';
+import { Physics } from 'esengine/physics';
 
-const move = defineSystem([Query(RigidBody), Res(PhysicsAPI)], (q, physics) => {
+const move = defineSystem([Query(RigidBody), Res(Physics)], (q, physics) => {
   for (const [entity] of q) {
     physics.applyForce(entity, { x: 0, y: 20 });        // continuous force
     physics.applyImpulse(entity, { x: 0, y: 5 });       // instant kick (jump)

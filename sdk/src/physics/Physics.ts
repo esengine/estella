@@ -2,11 +2,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    Physics.ts
- * @brief   User-facing physics API + PhysicsAPI resource
+ * @brief   User-facing physics API + Physics resource
  *
- * `Physics` is the ergonomic wrapper game code uses to drive bodies
+ * `PhysicsAPI` is the ergonomic wrapper game code uses to drive bodies
  * (forces, impulses, joints, raycasts). It is published as the
- * `PhysicsAPI` resource once `PhysicsPlugin` finishes loading the
+ * `Physics` resource once `PhysicsPlugin` finishes loading the
  * wasm module; instantiation before that throws.
  */
 
@@ -28,7 +28,15 @@ import {
 // Physics API Helper
 // =============================================================================
 
-export class Physics {
+/**
+ * Unit contract: Box2D simulates in meters; the engine converts at the
+ * pixels-per-unit (PPU) boundary. Spatial *queries* (`raycast` / `shapeCast` /
+ * `overlapCircle` / `moveCharacter`) take and return **world pixels**, scaled by
+ * the live PPU. Everything that talks to the solver directly — forces, impulses,
+ * velocities, `setGravity` — is in **meters** (m/s, m/s²), matching the collider
+ * component dimensions. Convert with {@link getPixelsPerUnit} when mixing the two.
+ */
+export class PhysicsAPI {
     private module_: PhysicsWasmModule;
     // Live pixels-per-unit, pushed each frame by PhysicsSystem from the Canvas, so
     // a query that omits `ppu` is scaled correctly instead of silently assuming 100.
@@ -59,8 +67,8 @@ export class Physics {
     }
 
     /** @internal */
-    static _fromModule(module: PhysicsWasmModule): Physics {
-        const instance = Object.create(Physics.prototype) as Physics;
+    static _fromModule(module: PhysicsWasmModule): PhysicsAPI {
+        const instance = Object.create(PhysicsAPI.prototype) as PhysicsAPI;
         instance.module_ = module;
         return instance;
     }
@@ -83,6 +91,7 @@ export class Physics {
         return { x: this.module_.HEAPF32[base], y: this.module_.HEAPF32[base + 1] };
     }
 
+    /** World gravity in **meters/s²** (Box2D space), e.g. `{ x: 0, y: -9.81 }`. */
     setGravity(gravity: Vec2): void {
         this.module_._physics_setGravity(gravity.x, gravity.y);
     }
@@ -513,7 +522,7 @@ export class Physics {
 
 /**
  * Resource published by `PhysicsPlugin` once the wasm module is ready.
- * Game code reads it as `app.getResource(PhysicsAPI)` to call forces,
+ * Game code reads it as `Res(Physics)` / `app.getResource(Physics)` to call forces,
  * impulses, joint helpers, raycasts, etc.
  */
-export const PhysicsAPI = defineResource<Physics>(null!, 'PhysicsAPI');
+export const Physics = defineResource<PhysicsAPI>(null!, 'Physics');

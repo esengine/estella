@@ -39,6 +39,7 @@ const IDENTITY_TRANSFORM = new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0,
 // Initialization
 // =============================================================================
 
+/** @internal Wired by the engine plugins — not part of the public API. */
 export function initDrawAPI(wasmModule: ESEngineModule): void {
     bridge.connect(wasmModule);
     module = bridge.module;
@@ -47,6 +48,7 @@ export function initDrawAPI(wasmModule: ESEngineModule): void {
     uniformsPtr = module._malloc(UNIFORMS_BUFFER_SIZE * 4);
 }
 
+/** @internal Wired by the engine plugins — not part of the public API. */
 export function shutdownDrawAPI(): void {
     if (module) {
         if (viewProjectionPtr) {

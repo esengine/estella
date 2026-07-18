@@ -14,6 +14,7 @@
  */
 
 export * from './core-runtime';
+export * from './core-plugins';
 export * from './core-render';
 export * from './core-ui';
 export * from './core-content';

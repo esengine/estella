@@ -16,7 +16,7 @@ import { createBtRunState, tickBt } from '../src/ai/bt/BtRunner';
 import type { BtDefinition } from '../src/ai/bt/types';
 import type { FsmDefinition } from '../src/ai/fsm/types';
 import {
-    SpriteAnimator, SpriteAnimationApi, type SpriteAnimatorData, type SpriteAnimClip,
+    SpriteAnimator, SpriteAnimationAPI, type SpriteAnimatorData, type SpriteAnimClip,
 } from '../src/animation/SpriteAnimator';
 import type { World } from '../src/world';
 
@@ -110,7 +110,7 @@ describe('action argument plumbing', () => {
 });
 
 describe('finished-latch flag contract (system side)', () => {
-    /** Minimal World for SpriteAnimationApi.update: one entity, two components.
+    /** Minimal World for SpriteAnimationAPI.update: one entity, two components.
      *  `get` returns the live object (the real World's semantic — frame-timer
      *  accrual persists between ticks without an insert). */
     function makeWorld(comps: Map<string, unknown>): World {
@@ -128,7 +128,7 @@ describe('finished-latch flag contract (system side)', () => {
     };
 
     it('one-shot completion latches finished; raising playing replays from frame 0', () => {
-        const api = new SpriteAnimationApi();
+        const api = new SpriteAnimationAPI();
         api.registerClip(clip);
         const comps = new Map<string, unknown>([
             ['SpriteAnimator', animator({ clip: 'attack.esanim', loop: false, playing: true })],

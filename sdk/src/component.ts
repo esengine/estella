@@ -414,11 +414,6 @@ export function getComponentRegistry(): Map<string, AnyComponentDef> {
     return all;
 }
 
-/** @deprecated Alias of {@link getComponentRegistry}; kept for back-compat. */
-export function getAllRegisteredComponents(): Map<string, AnyComponentDef> {
-    return getComponentRegistry();
-}
-
 /** Just the current context's user/script components (excludes builtins). */
 export function getUserComponents(): Map<string, AnyComponentDef> {
     return userComponents();

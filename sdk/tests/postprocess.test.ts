@@ -9,7 +9,7 @@ vi.mock('../src/material', () => ({
 }));
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { PostProcessApi, PostProcessStack, postProcessEffects, initPostProcessAPI, shutdownPostProcessAPI, getEffectDef } from '../src/postprocess';
+import { PostProcessAPI, PostProcessStack, postProcessEffects, initPostProcessAPI, shutdownPostProcessAPI, getEffectDef } from '../src/postprocess';
 import { Material } from '../src/material';
 import type { ESEngineModule } from '../src/wasm';
 
@@ -42,13 +42,13 @@ type MockModule = ReturnType<typeof createPostProcessMockModule>;
 
 describe('PostProcess API', () => {
     let mock: MockModule;
-    let pp: PostProcessApi;
+    let pp: PostProcessAPI;
 
     beforeEach(() => {
         mock = createPostProcessMockModule();
         initPostProcessAPI(mock as unknown as ESEngineModule);
         vi.clearAllMocks();
-        pp = new PostProcessApi();
+        pp = new PostProcessAPI();
     });
 
     afterEach(() => {

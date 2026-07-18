@@ -31,7 +31,7 @@ export interface PlayerFlagChannel {
  * {@link TimelineState} every frame; these methods flip/seek that state and
  * write the play flags through to the entity's `TimelinePlayer` component.
  */
-export class TimelineApi {
+export class TimelineAPI {
     private readonly states_ = new Map<Entity, TimelineState>();
 
     constructor(private readonly flags_: PlayerFlagChannel | null = null) {}
@@ -104,4 +104,4 @@ export class TimelineApi {
  * Per-App timeline control resource, published by `TimelinePlugin`. Drive
  * playback as `app.getResource(Timeline).play(entity)`.
  */
-export const Timeline = defineResource<TimelineApi>(null!, 'Timeline');
+export const Timeline = defineResource<TimelineAPI>(null!, 'Timeline');

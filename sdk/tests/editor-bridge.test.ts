@@ -5,7 +5,7 @@ import {
     clearUserComponents,
     defineComponent,
     defineTag,
-    getAllRegisteredComponents,
+    getComponentRegistry,
     getComponent,
     isBuiltinComponent,
 } from '../src/component';
@@ -13,7 +13,7 @@ import { getDefaultContext } from '../src/context';
 
 /**
  * Confirms that the SDK-side `editorBridge` hook and the exports the
- * editor uses for initial-replay (`getAllRegisteredComponents`,
+ * editor uses for initial-replay (`getComponentRegistry`,
  * `isBuiltinComponent`) behave as the bridge plugin expects.
  *
  * These tests don't cover the editor plugin itself — that's wired in
@@ -79,9 +79,9 @@ describe('editor bridge', () => {
         expect(defPresent).toBe(true);
     });
 
-    it('getAllRegisteredComponents exposes both builtins and user-defined', () => {
+    it('getComponentRegistry exposes both builtins and user-defined', () => {
         defineComponent('BridgeTestUser1', { z: 0 });
-        const all = getAllRegisteredComponents();
+        const all = getComponentRegistry();
 
         expect(all.has('BridgeTestUser1')).toBe(true);
         // Transform is one of the core builtins — it must be present and

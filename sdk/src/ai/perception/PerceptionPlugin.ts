@@ -7,7 +7,7 @@
  *          decision system reads a fresh Perception the same frame.
  *
  *          `stepPerception` is extracted to unit-test against a fake world. Line
- *          of sight uses a physics raycast when a PhysicsAPI is present, and is
+ *          of sight uses a physics raycast when a Physics is present, and is
  *          skipped (range + FOV only) otherwise — no hard physics dependency.
  */
 
@@ -17,7 +17,7 @@ import { defineSystem, Schedule, GetWorld } from '../../system';
 import { playModeOnly } from '../../env';
 import { Transform } from '../../component';
 import type { AnyComponentDef, ComponentData } from '../../component';
-import { PhysicsAPI, type Physics } from '../../physics';
+import { Physics, type PhysicsAPI } from '../../physics';
 import { senseTarget, facingFromQuat } from './sense';
 import { Perceiver, Perception, PerceptionTarget, type PerceptionData } from './components';
 
@@ -66,7 +66,7 @@ export function stepPerception(world: PerceptionWorldView, isBlocked?: LosCheck)
 }
 
 /** Build a raycast-backed line-of-sight check. Occluded if anything is hit before the target. */
-export function makeLosCheck(physics: Physics): LosCheck {
+export function makeLosCheck(physics: PhysicsAPI): LosCheck {
     return (ox, oy, tx, ty) => {
         const dx = tx - ox;
         const dy = ty - oy;
@@ -87,7 +87,7 @@ export class PerceptionPlugin implements Plugin {
             defineSystem(
                 [GetWorld()],
                 world => {
-                    const physics = app.hasResource(PhysicsAPI) ? app.getResource<Physics>(PhysicsAPI) : null;
+                    const physics = app.hasResource(Physics) ? app.getResource<PhysicsAPI>(Physics) : null;
                     stepPerception(world as PerceptionWorldView, physics ? makeLosCheck(physics) : undefined);
                 },
                 { name: 'PerceptionSystem' },

@@ -97,10 +97,10 @@ export interface AssetsOptions {
      * in any order. Pass null (or omit) if no audio support is needed.
      */
     getAudio?: () => import('../audio/Audio').AudioAPI | null;
-    getSpriteAnimation?: () => import('../animation/SpriteAnimator').SpriteAnimationApi | null;
+    getSpriteAnimation?: () => import('../animation/SpriteAnimator').SpriteAnimationAPI | null;
     /** Lazy accessor for the owning app's Localization service, same contract
      *  as {@link getAudio} — `.eslocale` tables register through it. */
-    getLocalization?: () => import('../i18n/Localization').LocalizationApi | null;
+    getLocalization?: () => import('../i18n/Localization').LocalizationAPI | null;
 }
 
 export interface AssetBundle {
@@ -158,8 +158,8 @@ export class Assets {
     private module_: ESEngineModule;
     private manifestModel_: ManifestModel | null = null;
     private getAudio_: () => import('../audio/Audio').AudioAPI | null;
-    private getSpriteAnimation_: () => import('../animation/SpriteAnimator').SpriteAnimationApi | null;
-    private getLocalization_: () => import('../i18n/Localization').LocalizationApi | null;
+    private getSpriteAnimation_: () => import('../animation/SpriteAnimator').SpriteAnimationAPI | null;
+    private getLocalization_: () => import('../i18n/Localization').LocalizationAPI | null;
     private loaders_ = new Map<string, AssetLoader<unknown>>();
     private textureLoader_: TextureLoader;
     private textureImportResolver_: TextureImportSettingsResolver | null = null;

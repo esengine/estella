@@ -9,7 +9,7 @@
  * over the existing animation channels — it does not run its own clip playback.
  * A state names a sprite clip; when a transition fires, the Animator switches the
  * entity's {@link SpriteAnimator}.clip. Frame playback stays the single
- * responsibility of {@link SpriteAnimationApi}. Parameters/triggers drive
+ * responsibility of {@link SpriteAnimationAPI}. Parameters/triggers drive
  * transitions, mirroring the Unity Animator's SetFloat/SetBool/SetTrigger model.
  *
  * The transition evaluator ({@link evaluateAnimatorTransitions}) is pure — no
@@ -337,7 +337,7 @@ export function resolveParams(
 // =============================================================================
 
 export interface AnimatorData {
-    /** Registered controller name (see AnimatorControllerApi.registerController). */
+    /** Registered controller name (see AnimatorControllerAPI.registerController). */
     controller: string;
     /** Active state; empty until the first update seeds it from initialState. */
     currentState: string;
@@ -360,7 +360,7 @@ export const Animator: ComponentDef<AnimatorData> = defineComponent('Animator', 
  * SpriteAnimator clip on state changes. Published as the {@link AnimatorController}
  * resource; read it as `app.getResource(AnimatorController)`.
  */
-export class AnimatorControllerApi {
+export class AnimatorControllerAPI {
     private readonly controllers = new Map<string, AnimatorControllerDef>();
     private readonly params = new Map<Entity, Map<string, number | boolean>>();
     private readonly triggers = new Map<Entity, Set<string>>();
@@ -537,4 +537,4 @@ const EMPTY_TRIGGERS: ReadonlySet<string> = new Set();
  * Per-App animator resource (controller registry + per-entity parameters),
  * published by `AnimationPlugin`. Read as `app.getResource(AnimatorController)`.
  */
-export const AnimatorController = defineResource<AnimatorControllerApi>(null!, 'AnimatorController');
+export const AnimatorController = defineResource<AnimatorControllerAPI>(null!, 'AnimatorController');
