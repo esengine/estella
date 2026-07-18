@@ -15,8 +15,9 @@ import {
 //   does not re-render the scene for you. What it does is redirect whatever
 //   you draw with the immediate `Draw` API between `begin`/`end` into an
 //   offscreen target, under a view-projection matrix you supply. The handle's
-//   `textureId` is then an ordinary texture usable anywhere (here: the corner
-//   quad's `Sprite.texture`).
+//   `texture` (a resource-table handle) is then an ordinary texture usable
+//   anywhere (here: the corner quad's `Sprite.texture`); `textureId` is the
+//   raw device id for low-level paths.
 //
 // So the minimap is painted, not re-rendered: each frame this system opens the
 // target, lays down a background (the pass does NOT clear — the first opaque
@@ -68,9 +69,9 @@ export const minimapSystem = defineSystem(
         }
 
         // R cycles the target's resolution. resize() releases the old target
-        // and returns a NEW handle — the textureId changes, so every consumer
-        // must be re-pointed at it (done below, where the quad's Sprite is
-        // synced to rt.textureId every frame).
+        // and returns a NEW handle — the texture handle changes, so every
+        // consumer must be re-pointed at it (done below, where the quad's
+        // Sprite is synced to rt.texture every frame).
         if (input.isKeyPressed('KeyR')) {
             resolutionIndex = (resolutionIndex + 1) % MINIMAP_RESOLUTIONS.length;
             const res = MINIMAP_RESOLUTIONS[resolutionIndex];
@@ -78,7 +79,7 @@ export const minimapSystem = defineSystem(
         }
 
         for (const [, sprite] of minimapQuads) {
-            if (sprite.texture !== rt.textureId) sprite.texture = rt.textureId;
+            if (sprite.texture !== rt.texture) sprite.texture = rt.texture;
         }
 
         // --- The offscreen pass -------------------------------------------

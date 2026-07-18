@@ -4888,6 +4888,7 @@ _depth: boolean
 _filter: "linear" | "nearest"
 _handle: number
 height: number
+texture: number
 textureId: number
 width: number
 ```

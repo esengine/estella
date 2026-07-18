@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { Renderer, type RenderTargetHandle } from './renderer';
+import { getResourceManager } from './resourceManager';
 
 export interface RenderTextureOptions {
     width: number;
@@ -11,7 +12,15 @@ export interface RenderTextureOptions {
 
 export interface RenderTextureHandle {
     _handle: RenderTargetHandle;
+    /** Raw device texture id — for Draw.texture / low-level GL paths only. */
     textureId: number;
+    /**
+     * Resource-table handle for the color texture — what `Sprite.texture` /
+     * `UIVisual.texture` consume (components resolve through the texture table;
+     * a raw device id would fall back to the white texture). 0 when no resource
+     * manager is live (headless renderer-only hosts).
+     */
+    texture: number;
     width: number;
     height: number;
     _depth: boolean;
@@ -26,10 +35,16 @@ export const RenderTexture = {
 
         const handle = Renderer.createRenderTarget(options.width, options.height, flags);
         const textureId = Renderer.getTargetTexture(handle);
+        // Same channel video frames use: adopt the device texture into the
+        // resource table so components can reference it by handle.
+        const texture = textureId !== 0
+            ? getResourceManager()?.registerExternalTexture(textureId, options.width, options.height) ?? 0
+            : 0;
 
         return {
             _handle: handle,
             textureId,
+            texture,
             width: options.width,
             height: options.height,
             _depth: depth,
@@ -38,6 +53,7 @@ export const RenderTexture = {
     },
 
     release(rt: RenderTextureHandle): void {
+        if (rt.texture !== 0) getResourceManager()?.releaseTexture(rt.texture);
         Renderer.releaseRenderTarget(rt._handle);
     },
 

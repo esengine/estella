@@ -164,7 +164,7 @@ layout, so they pair directly with fragment-only `.esshader` materials.
 For minimaps, portraits, mirrors — and as the backing of
 [cache-as-bitmap](/docs/guides/sprites/) — `RenderTexture` allocates an offscreen
 render target. Wrap draw commands in `begin`/`end` to render into it; the
-resulting `textureId` is an ordinary texture handle usable anywhere (a
+resulting `texture` is an ordinary texture handle usable anywhere (a
 `Sprite.texture`, `Draw.texture`, a material texture param):
 
 ```typescript
@@ -176,7 +176,7 @@ RenderTexture.begin(rt, viewProjection);   // an ortho view-projection you suppl
 Draw.circle({ x: 0, y: 0 }, 80, { r: 1, g: 0.5, b: 0, a: 1 });
 RenderTexture.end();
 
-sprite.texture = rt.textureId;
+sprite.texture = rt.texture;
 ```
 
 ### `RenderTextureOptions`
@@ -191,10 +191,10 @@ sprite.texture = rt.textureId;
 
 | Method | Does |
 |---|---|
-| `create(options)` | Allocates the target; returns a handle with `textureId`, `width`, `height`. |
+| `create(options)` | Allocates the target; returns a handle with `texture` (resource-table handle for components), `textureId` (raw device id for low-level paths), `width`, `height`. |
 | `begin(rt, viewProjection)` | Redirects subsequent draws into the target (you supply the matrix). |
 | `end()` | Ends offscreen rendering, back to the screen. |
-| `resize(rt, width, height)` | Releases and re-creates — returns a **new** handle (the `textureId` changes). |
+| `resize(rt, width, height)` | Releases and re-creates — returns a **new** handle (the `texture` handle changes). |
 | `getDepthTexture(rt)` | The depth attachment as a sampleable texture handle. |
 | `release(rt)` | Frees the target and its textures. |
 

@@ -7,7 +7,7 @@ Colored shapes drift along orbits across a 3200×2000 world while the camera
 only ever shows the middle 1280×720 — most shapes are offscreen at any moment.
 A quad pinned to the top-right corner shows the whole world live: every frame
 a system paints a schematic of the world into a `RenderTexture`, and the
-quad's `Sprite` samples the target's `textureId`.
+quad's `Sprite` samples the target's `texture`.
 
 | Key | Action |
 |---|---|
@@ -26,7 +26,7 @@ quad's `Sprite` samples the target's `textureId`.
 
 So a "minimap" here is *painted*, not re-rendered: the system queries the
 shapes and draws one dot per shape with `Draw.rect`. (For a top-down minimap
-that is also what most real games do.) The resulting `textureId` is an
+that is also what most real games do.) The resulting `texture` is an
 ordinary texture handle usable anywhere — a `Sprite.texture`, `Draw.texture`,
 a material texture parameter.
 
@@ -91,7 +91,7 @@ const rt = RenderTexture.create({ width: 384, height: 240, depth: false, filter:
 
 | Field | Description |
 |---|---|
-| `textureId` | The color attachment as an ordinary texture handle — assign it to `Sprite.texture`, pass it to `Draw.texture`, bind it as a material param. |
+| `texture` | The color attachment as an ordinary texture handle — assign it to `Sprite.texture`, pass it to `Draw.texture`, bind it as a material param. |
 | `width` / `height` | The target's size in pixels. |
 
 ### Methods
@@ -100,7 +100,7 @@ const rt = RenderTexture.create({ width: 384, height: 240, depth: false, filter:
 |---|---|
 | `begin(rt, viewProjection)` | Redirects subsequent rendering into the target under the matrix you supply. **Does not clear** the target. |
 | `end()` | Ends the offscreen pass; rendering goes back to the screen. |
-| `resize(rt, width, height)` | Releases the old target and creates a fresh one, preserving `depth`/`filter`. **Returns a new handle — the old handle (and its `textureId`) is dead.** Re-point every consumer at the new `textureId`; this example syncs the quad's `Sprite.texture` to `rt.textureId` every frame, so pressing **R** just works. |
+| `resize(rt, width, height)` | Releases the old target and creates a fresh one, preserving `depth`/`filter`. **Returns a new handle — the old handle (and its `texture`) is dead.** Re-point every consumer at the new `texture`; this example syncs the quad's `Sprite.texture` to `rt.texture` every frame, so pressing **R** just works. |
 | `getDepthTexture(rt)` | The depth attachment as a sampleable texture handle (targets created with `depth: true` only). |
 | `release(rt)` | Frees the target and its textures. |
 
@@ -108,7 +108,7 @@ const rt = RenderTexture.create({ width: 384, height: 240, depth: false, filter:
 
 - `src/systems/minimap.ts` — the heart of the example: creates the target,
   paints it every frame with the `Draw` API, cycles its resolution on **R**,
-  and keeps the quad's `Sprite.texture` pointed at the current `textureId`.
+  and keeps the quad's `Sprite.texture` pointed at the current `texture`.
 - `src/systems/setup.ts` — spawns the world (ground-dot grid, border frame),
   the orbiting shapes, and the minimap quad (`flipY: true`).
 - `src/systems/orbit.ts` — drifts each shape along its ellipse.
@@ -123,7 +123,7 @@ const rt = RenderTexture.create({ width: 384, height: 240, depth: false, filter:
 
 引擎支持的确切流程（诚实说明):**相机不能以 RenderTexture 为渲染目标**,
 它也**不会替你重绘场景**;`begin`/`end` 之间用即时 `Draw` API 画什么,
-什么就落进离屏目标,视图投影矩阵由你自己提供。得到的 `textureId` 是普通
+什么就落进离屏目标,视图投影矩阵由你自己提供。得到的 `texture` 是普通
 纹理句柄,可赋给 `Sprite.texture` 等任何吃纹理的地方。
 
 - 彩色方块沿椭圆轨道漂移,大部分时间在相机视野之外;右上角小地图每帧由

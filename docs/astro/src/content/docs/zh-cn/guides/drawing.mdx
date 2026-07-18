@@ -153,7 +153,7 @@ registerDrawCallback('custom-mesh', () => {
 
 小地图、头像、镜面——以及[位图缓存](/docs/zh-cn/guides/sprites/)的底层——
 `RenderTexture` 分配一个离屏渲染目标。把绘制命令包在 `begin`/`end` 之间即渲染
-进去;得到的 `textureId` 是普通纹理句柄,哪里都能用(`Sprite.texture`、
+进去;得到的 `texture` 是普通纹理句柄,哪里都能用(`Sprite.texture`、
 `Draw.texture`、材质纹理参数):
 
 ```typescript
@@ -165,7 +165,7 @@ RenderTexture.begin(rt, viewProjection);   // 你提供的正交 view-projection
 Draw.circle({ x: 0, y: 0 }, 80, { r: 1, g: 0.5, b: 0, a: 1 });
 RenderTexture.end();
 
-sprite.texture = rt.textureId;
+sprite.texture = rt.texture;
 ```
 
 ### `RenderTextureOptions`
@@ -180,10 +180,10 @@ sprite.texture = rt.textureId;
 
 | 方法 | 作用 |
 |---|---|
-| `create(options)` | 分配目标;返回带 `textureId`、`width`、`height` 的句柄。 |
+| `create(options)` | 分配目标;返回带 `texture`(组件用的资源表句柄)、`textureId`(底层设备 id)、`width`、`height` 的句柄。 |
 | `begin(rt, viewProjection)` | 把后续绘制重定向进目标(矩阵由你提供)。 |
 | `end()` | 结束离屏渲染,回到屏幕。 |
-| `resize(rt, width, height)` | 释放并重建——返回**新**句柄(`textureId` 会变)。 |
+| `resize(rt, width, height)` | 释放并重建——返回**新**句柄(`texture` 句柄会变)。 |
 | `getDepthTexture(rt)` | 以可采样纹理句柄取深度附件。 |
 | `release(rt)` | 释放目标及其纹理。 |
 
