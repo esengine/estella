@@ -5243,6 +5243,7 @@ systems: { schedule: Schedule; system: SystemDef; }[] | undefined
 
 ## SceneContext — interface
 ```
+adopt: (entity: Entity) => void
 bindPostProcess: (camera: Entity, stack: PostProcessStack) => void
 despawn: (entity: Entity) => void
 entities: ReadonlySet<number>
@@ -9505,7 +9506,7 @@ TrailPlugin
 
 ## transitionTo — function
 ```
-(app: App, targetScene: string, config: TransitionConfig): Promise<void>
+(host: App | SceneManagerState, targetScene: string, config: TransitionConfig): Promise<void>
 ```
 
 ## trimTextureCache — function

@@ -51,6 +51,8 @@ export interface SceneContext {
     readonly name: string;
     readonly entities: ReadonlySet<Entity>;
     spawn(): Entity;
+    /** Track an externally-spawned entity as scene-owned (despawned on unload). */
+    adopt(entity: Entity): void;
     despawn(entity: Entity): void;
     registerDrawCallback(id: string, fn: DrawCallback): void;
     bindPostProcess(camera: Entity, stack: PostProcessStack): void;
@@ -117,12 +119,16 @@ class SceneContextImpl implements SceneContext {
 
     spawn(): Entity {
         const entity = this.app_.world.spawn();
+        this.adopt(entity);
+        return entity;
+    }
+
+    adopt(entity: Entity): void {
         this.instance_.entities.add(entity);
         this.app_.world.insert(entity, SceneOwner, {
             scene: this.instance_.config.name,
             persistent: false,
         });
-        return entity;
     }
 
     despawn(entity: Entity): void {

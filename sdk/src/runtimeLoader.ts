@@ -351,8 +351,12 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
     }
 
     if (sceneName && app.hasResource(SceneManager)) {
+        // Adopt into the SceneManager's instance set so unload/switchTo actually
+        // despawns these entities — SceneOwner alone is only the persistence tag.
+        const ctx = app.getResource(SceneManager).getScene(sceneName);
         for (const entity of entityMap.values()) {
-            app.world.insert(entity, SceneOwner, { scene: sceneName, persistent: false });
+            if (ctx) ctx.adopt(entity);
+            else app.world.insert(entity, SceneOwner, { scene: sceneName, persistent: false });
         }
     }
 }

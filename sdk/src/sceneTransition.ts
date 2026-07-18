@@ -7,7 +7,7 @@
 
 import type { App } from './app';
 import type { Color } from './types';
-import { SceneManager } from './sceneManager';
+import { SceneManager, SceneManagerState } from './sceneManager';
 
 export interface TransitionConfig {
     duration: number;
@@ -15,12 +15,16 @@ export interface TransitionConfig {
     color?: Color;
 }
 
+/**
+ * Pass the App from host code, or the `Res(SceneManager)` state from inside a
+ * system.
+ */
 export async function transitionTo(
-    app: App,
+    host: App | SceneManagerState,
     targetScene: string,
     config: TransitionConfig,
 ): Promise<void> {
-    const manager = app.getResource(SceneManager);
+    const manager = host instanceof SceneManagerState ? host : host.getResource(SceneManager);
     await manager.switchTo(targetScene, {
         transition: config.type,
         duration: config.duration,
