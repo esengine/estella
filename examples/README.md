@@ -17,6 +17,7 @@ for your own game.
 | **event-system** | ECS | Decoupled gameplay with typed events — collect, score, react. |
 | **scene-flow** | Basics | Runtime scene flow — menu → level 1 → level 2 through `SceneManager` fade transitions, over a persistent shell scene. |
 | **save-load** | Basics | Versioned persistence — `SaveManager` save/load with a live v1→v2 migration, plus raw `Storage` preferences. |
+| **timers-demo** | Basics | `TimerManager` delays, intervals and handles — pause/resume/cancel/reset plus `timeScale`, replacing hand-rolled `time.delta` accumulators. |
 | **sprite-rendering** | Rendering | Draw sprites with rotation, tint and flipping. |
 | **sprite-animation** | Animation | Frame animation via `.esanim` clips with an idle/walk switcher. |
 | **spine-demo** | Animation | A Spine skeleton cycling idle/walk/run/jump/shoot (1-5 to switch). |
@@ -29,9 +30,12 @@ for your own game.
 | **physics-playground** | Physics | Drop balls and crates into a rigid-body sandbox. |
 | **physics-spinner** | Physics | Revolute joints and continuous rotation. |
 | **particle-demo** | Effects | A configurable particle emitter with additive blending. |
+| **trail-demo** | Effects | The built-in `TrailRenderer` — comet, mouse-follow and dash trails with distinct width/color/blend configs, plus `Trail.clear` on teleport. |
 | **postprocess-effects** | Effects | Full-screen post-processing: bloom, vignette, color grading. |
 | **lighting-2d** | Rendering | Dynamic 2D lights and soft shadow casters over `Sprite.lit` surfaces. |
 | **effects-gallery** | Rendering | The built-in material effect templates — hit flash, outline, dissolve, pixelate, UV scroll — with params driven from code. |
+| **render-texture** | Rendering | Render-to-texture — a live minimap painted with the `Draw` API into a `RenderTexture`, resolution cycling on R. |
+| **drawing-demo** | Rendering | The three drawing tiers — immediate `Draw` radar overlay, retained `Graphics` vector star, procedural `Mesh2D` ribbon. |
 | **video-playback** | Rendering | Play a video on a Sprite with the declarative `Video` component — "a Sprite whose texture is alive". |
 | **tilemap-demo** | Tilemap | Two scenes: a Tiled `.tmj` import and an engine-native `.estileset` — multi-tileset, parallax, animated water, per-tile collision. |
 | **ui-controls** | UI | Buttons, sliders, toggles and progress bars. |

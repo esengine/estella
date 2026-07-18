@@ -1,0 +1,13 @@
+{
+  "formatVersion": "1",
+  "name": "Render Texture",
+  "description": "Offscreen rendering with RenderTexture: a live minimap painted with the Draw API every frame, displayed on a Sprite, with hot resolution switching.",
+  "tag": "Rendering",
+  "version": "1.0.0",
+  "defaultScene": "assets/scenes/main.esscene",
+  "designResolution": {
+    "width": 1280,
+    "height": 720
+  },
+  "spineVersion": "none"
+}

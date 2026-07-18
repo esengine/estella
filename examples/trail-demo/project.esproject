@@ -1,0 +1,13 @@
+{
+  "formatVersion": "1",
+  "name": "Trails",
+  "description": "The built-in TrailRenderer: a Lissajous comet, a cursor-chasing streak, and a click-to-dash burst, plus runtime control through the Trail resource.",
+  "tag": "Effects",
+  "version": "1.0.0",
+  "defaultScene": "assets/scenes/main.esscene",
+  "designResolution": {
+    "width": 1280,
+    "height": 720
+  },
+  "spineVersion": "none"
+}

@@ -1,0 +1,13 @@
+{
+  "formatVersion": "1",
+  "name": "Custom Drawing",
+  "description": "The three drawing tiers side by side: an immediate-mode Draw radar overlay, a retained Graphics star, and a procedural Mesh2D ribbon.",
+  "tag": "Rendering",
+  "version": "1.0.0",
+  "defaultScene": "assets/scenes/main.esscene",
+  "designResolution": {
+    "width": 1280,
+    "height": 720
+  },
+  "spineVersion": "none"
+}

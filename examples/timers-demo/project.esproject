@@ -1,0 +1,13 @@
+{
+  "formatVersion": "1",
+  "name": "Timers",
+  "description": "Delayed fireworks, heartbeat intervals and a controllable spawner — TimerManager instead of hand-rolled delta accumulators.",
+  "tag": "Basics",
+  "version": "1.0.0",
+  "defaultScene": "assets/scenes/main.esscene",
+  "designResolution": {
+    "width": 800,
+    "height": 600
+  },
+  "spineVersion": "none"
+}
