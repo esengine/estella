@@ -149,7 +149,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         colorFields: ['backgroundColor'],
         animatableFields: [],
         fields: {
-            pixelsPerUnit: { min: 1, tooltip: "Texture pixels mapped to one world unit." },
+            pixelsPerUnit: { min: 1, tooltip: "World pixels per physics meter (Box2D + tile collider scale)." },
             scaleMode: { enum: [{ label: 'FixedWidth', value: 0 }, { label: 'FixedHeight', value: 1 }, { label: 'Expand', value: 2 }, { label: 'Shrink', value: 3 }, { label: 'Match', value: 4 }], tooltip: "How the canvas adapts the design resolution to the screen." },
             matchWidthOrHeight: { min: 0, max: 1, slider: true, tooltip: "0 matches width, 1 matches height (Match mode only)." },
         },

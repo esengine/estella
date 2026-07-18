@@ -61,9 +61,11 @@ enum class CanvasScaleMode : u8 {
  *
  * Workflow:
  * 1. Artist creates assets at design resolution (e.g., 1920x1080)
- * 2. A 100x200 pixel sprite becomes 1x2 world units (at PPU=100)
- * 3. Camera orthoSize is calculated from design resolution and PPU
- * 4. At runtime, scaling adjusts for actual screen resolution
+ * 2. World units are design pixels: a 100x200 texture spawns a 100x200 sprite,
+ *    and the default scene camera shows designResolution.y world units of height
+ *    (orthoSize = designResolution.y / 2)
+ * 3. pixelsPerUnit is the physics scale: world pixels per Box2D meter
+ * 4. At runtime, scaleMode fits the design resolution to the actual screen
  */
 ES_COMPONENT()
 struct Canvas {
@@ -71,8 +73,8 @@ struct Canvas {
     ES_PROPERTY()
     glm::uvec2 designResolution{1920, 1080};
 
-    /** @brief Pixels per world unit (e.g., 100 means 100px = 1 unit) */
-    ES_PROPERTY(min=1, tooltip="Texture pixels mapped to one world unit.")
+    /** @brief World pixels per physics meter (e.g., 100 means 100px = 1 Box2D meter) */
+    ES_PROPERTY(min=1, tooltip="World pixels per physics meter (Box2D + tile collider scale).")
     f32 pixelsPerUnit{100.0f};
 
     /** @brief Scaling mode for different screen resolutions */

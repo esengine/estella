@@ -98,7 +98,7 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
     },
     "pixelsPerUnit": {
       "min": 1,
-      "tooltip": "Texture pixels mapped to one world unit.",
+      "tooltip": "World pixels per physics meter (Box2D + tile collider scale).",
     },
     "scaleMode": {
       "enum": [

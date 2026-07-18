@@ -9,7 +9,7 @@ import type { App, Plugin } from '../app';
 import type { SceneData } from '../scene';
 import { loadRuntimeScene } from '../runtimeLoader';
 import { Transform, Camera, Canvas, ProjectionType, ClearFlags, type TransformData, type CameraData, type CanvasData } from '../component';
-import { DEFAULT_DESIGN_WIDTH, DEFAULT_DESIGN_HEIGHT, DEFAULT_PIXELS_PER_UNIT } from '../defaults';
+import { DEFAULT_DESIGN_WIDTH, DEFAULT_DESIGN_HEIGHT } from '../defaults';
 import { platformFetch } from '../platform';
 import { SceneManager } from '../sceneManager';
 import { HttpBackend } from '../asset/Backend';
@@ -122,8 +122,10 @@ export class PreviewPlugin implements Plugin {
             for (const entity of canvasEntities) {
                 const canvas = world.get(entity, Canvas) as CanvasData;
                 if (canvas.designResolution) {
-                    const ppu = canvas.pixelsPerUnit || DEFAULT_PIXELS_PER_UNIT;
-                    orthoSize = (canvas.designResolution.y / 2) / ppu;
+                    // World units are design pixels (editor cameras author orthoSize
+                    // = designResolution.y / 2); pixelsPerUnit is the physics meter
+                    // scale and has no bearing on the camera fit.
+                    orthoSize = canvas.designResolution.y / 2;
                     aspectRatio = canvas.designResolution.x / canvas.designResolution.y;
                     break;
                 }
