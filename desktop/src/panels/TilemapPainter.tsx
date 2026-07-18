@@ -28,6 +28,7 @@ import { buildStampGhost } from '@/tools/tileStampGhost';
 import { colsFor, rowsFor, TERRAIN_COLORS } from '@/tools/tileMath';
 import { loadTilesetAsset } from '@/tileset/loadTileset';
 import { openTileset } from '@/tileset/openTileset';
+import { useTilesetView } from '@/tileset/tilesetView';
 import { createTilemapFromTileset } from '@/tilemap/createTilemap';
 import { layerTilesetRefs } from '@/tilemap/layerTilesetModel';
 import { AnimPreview, tileThumbStyle, type TileAtlas } from '@/tools/tileThumb';
@@ -165,7 +166,15 @@ export function TilemapPainter() {
 
   const texUrl = asset ? `estella://project/${ProjectStore.assetInfo(asset.texture)?.path ?? ''}` : null;
   const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
-  useEffect(() => setNatural(null), [texUrl]);
+  // On texture change adopt the size straight from the element when it is
+  // already complete — a cache-hit image can finish loading before React
+  // attaches onLoad, which would leave the palette collapsed at 0×0.
+  const atlasImgRef = useRef<HTMLImageElement | null>(null);
+  useEffect(() => {
+    const img = atlasImgRef.current;
+    if (img && img.complete && img.naturalWidth > 0) setNatural({ w: img.naturalWidth, h: img.naturalHeight });
+    else setNatural(null);
+  }, [texUrl]);
 
   // Publish the active tileset's atlas layout for the viewport's WYSIWYG brush ghost.
   // The painter is the one place that loads the atlas image, so it owns this geometry;
@@ -369,9 +378,14 @@ export function TilemapPainter() {
             title={`#${id}`}
             onPointerDown={(e) => {
               e.preventDefault();
-              // Picking a tile IS a brush action — leave the terrain tool so the
-              // atlas (kept visible for context) never dead-ends.
-              if (tool === 'terrain') setTool('brush');
+              // With the terrain tool, an atlas click means "edit this tileset's
+              // terrain" — deep-link into the Tileset Editor's Terrain tab
+              // instead of silently switching paint tools.
+              if (tool === 'terrain') {
+                useTilesetView.getState().setMode('terrain');
+                if (tilesetPath) void openTileset(tilesetPath);
+                return;
+              }
               dragAnchor.current = { c: col, r: row };
               setSel({ c0: col, r0: row, c1: col, r1: row });
             }}
@@ -610,7 +624,10 @@ export function TilemapPainter() {
             <div className="tp-warn">
               {t('tile.noTerrains')}
               {tilesetPath && (
-                <button type="button" className="tp-warn-cta" onClick={() => void openTileset(tilesetPath)}>
+                <button
+                  type="button" className="tp-warn-cta"
+                  onClick={() => { useTilesetView.getState().setMode('terrain'); void openTileset(tilesetPath); }}
+                >
                   {t('tile.openTilesetEditor')}
                 </button>
               )}
@@ -692,6 +709,7 @@ export function TilemapPainter() {
                   style={{ width: natural?.w ?? 0, height: natural?.h ?? 0, transform: `scale(${zoom})`, transformOrigin: '0 0' }}
                 >
                   <img
+                    ref={atlasImgRef}
                     className="tp-img" src={texUrl} alt="" draggable={false}
                     onLoad={(e) => setNatural({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })}
                   />

@@ -30,6 +30,7 @@ import { DirtyDot } from '@/components/DirtyDot';
 import { GridField } from '@/components/GridField';
 import { TilesetDocument } from '@/tileset/TilesetDocument';
 import { TilesetCommands, type TileCollisionMods } from '@/tileset/TilesetCommands';
+import { useTilesetView } from '@/tileset/tilesetView';
 import { ProjectStore } from '@/project/ProjectStore';
 import { colsFor, rowsFor, TERRAIN_COLORS } from '@/tools/tileMath';
 import { AnimPreview, tileThumbStyle, type TileAtlas } from '@/tools/tileThumb';
@@ -174,7 +175,8 @@ export function TilesetEditor() {
 
   const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
   const [zoom, setZoom] = useState(2);
-  const [mode, setMode] = useState<'collision' | 'terrain' | 'animation' | 'properties'>('collision');
+  const mode = useTilesetView((s) => s.mode);
+  const setMode = useTilesetView((s) => s.setMode);
   const [animTile, setAnimTile] = useState<number | null>(null);
   const [propTile, setPropTile] = useState<number | null>(null);
   const [shape, setShape] = useState<'box' | 'polygon' | 'circle'>('box');
@@ -207,7 +209,15 @@ export function TilesetEditor() {
   const wangDragRef = useRef(wangDrag);
   wangDragRef.current = wangDrag;
 
-  useEffect(() => setNatural(null), [texUrl]);
+  // On texture change adopt the size straight from the element when it is
+  // already complete — a cache-hit image can finish loading before React
+  // attaches onLoad, which would leave the stage collapsed at 0×0.
+  const imgRef = useRef<HTMLImageElement | null>(null);
+  useEffect(() => {
+    const img = imgRef.current;
+    if (img && img.complete && img.naturalWidth > 0) setNatural({ w: img.naturalWidth, h: img.naturalHeight });
+    else setNatural(null);
+  }, [texUrl]);
 
   if (!asset) {
     return (
@@ -834,6 +844,7 @@ export function TilesetEditor() {
         ) : (
           <div className="ts-stage" style={{ width: (natural?.w ?? 0) * zoom, height: (natural?.h ?? 0) * zoom }}>
             <img
+              ref={imgRef}
               className="ts-img" src={texUrl} alt="" draggable={false}
               onLoad={(e) => setNatural({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })}
             />
