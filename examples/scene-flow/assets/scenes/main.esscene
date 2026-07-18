@@ -11,7 +11,11 @@
         {
           "type": "Transform",
           "data": {
-            "position": { "x": 0, "y": 0, "z": 10 }
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 10
+            }
           }
         },
         {
@@ -34,13 +38,28 @@
       "components": [
         {
           "type": "Transform",
-          "data": { "position": { "x": 0, "y": 0, "z": -5 } }
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
         },
         {
           "type": "Sprite",
           "data": {
-            "size": { "x": 820, "y": 620 },
-            "color": { "r": 0.07, "g": 0.08, "b": 0.1, "a": 1 }
+            "size": {
+              "x": 820,
+              "y": 620
+            },
+            "color": {
+              "r": 0.07,
+              "g": 0.08,
+              "b": 0.1,
+              "a": 1
+            },
+            "layer": -10
           }
         }
       ],
@@ -61,7 +80,10 @@
         {
           "type": "Canvas",
           "data": {
-            "designResolution": { "x": 800, "y": 600 },
+            "designResolution": {
+              "x": 800,
+              "y": 600
+            },
             "scaleMode": 2
           }
         },
@@ -78,15 +100,30 @@
       "parent": 2,
       "children": [],
       "components": [
-        { "type": "Transform", "data": {} },
+        {
+          "type": "Transform",
+          "data": {}
+        },
         {
           "type": "UINode",
           "data": {
             "position": 1,
-            "insetLeft": { "value": 0, "unit": 0 },
-            "insetRight": { "value": 0, "unit": 0 },
-            "insetBottom": { "value": 10, "unit": 0 },
-            "height": { "value": 16, "unit": 0 }
+            "insetLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetBottom": {
+              "value": 10,
+              "unit": 0
+            },
+            "height": {
+              "value": 16,
+              "unit": 0
+            }
           }
         },
         {
@@ -94,7 +131,12 @@
           "data": {
             "content": "Shell scene — camera, backdrop and this footer persist across every scene swap",
             "fontSize": 11,
-            "color": { "r": 0.55, "g": 0.58, "b": 0.64, "a": 1 },
+            "color": {
+              "r": 0.55,
+              "g": 0.58,
+              "b": 0.64,
+              "a": 1
+            },
             "align": 1,
             "verticalAlign": 1
           }

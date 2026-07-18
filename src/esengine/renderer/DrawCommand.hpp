@@ -79,13 +79,17 @@ struct DrawCommand {
         u64 flagsKey = static_cast<u64>(stateFlags & 0x03) << 31;
         u64 materialKey = (static_cast<u64>(materialId) & 0x1FFFF) << 14;
 
+        // Order-preserving float mapping — monotonic over the FULL float range.
+        // The old [-1,1] normalize-and-truncate silently wrapped any real-world z
+        // (e.g. a backdrop at z=-5 sorted as if nearest), and had the painter's
+        // order inverted for the blended stages. Camera looks down -z, so larger
+        // z = nearer: transparent/overlay draw back-to-front (far first, near
+        // lands on top); opaque draws front-to-back (early-z friendly).
         u32 depthBits;
         if (stage == RenderStage::Transparent || stage == RenderStage::Overlay) {
-            f32 invDepth = 1.0f - (depth * 0.5f + 0.5f);
-            depthBits = static_cast<u32>(invDepth * 16383.0f);
+            depthBits = orderedFloatBits(depth) >> 18;
         } else {
-            f32 normDepth = depth * 0.5f + 0.5f;
-            depthBits = static_cast<u32>(normDepth * 16383.0f);
+            depthBits = (~orderedFloatBits(depth)) >> 18;
         }
         u64 depthKey = static_cast<u64>(depthBits & 0x3FFF);
 
