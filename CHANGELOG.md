@@ -14,6 +14,103 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-07-18
+
+The manual catches up with the engine, and the API learns to read one way.
+The docs site grows from per-subsystem overviews into a **fine-grained manual**:
+new foundational chapters finally teach what nothing taught before — that one
+world unit is one design pixel, that `Canvas.pixelsPerUnit` is the physics
+meter scale, how quaternion rotation works in 2D — and the UI manual splits
+into nine subchapters written from source, in both languages. Eight new
+examples cover every previously example-less pillar, and chasing them through
+live Play runs flushed out real engine bugs that had been hiding for releases:
+within a layer, **z now actually orders sprites**, and a `RenderTexture` can
+finally be shown by a Sprite.
+
+### Added
+
+- **Foundational documentation chapters** (en + 简体中文). Core Concepts gains
+  "Transforms, Units & Coordinates" (the Transform component, Y-up, the
+  world-units-are-design-pixels doctrine, quaternion rotation and its
+  helpers, parenting), "Screen & Design Resolution" (Canvas, every scale
+  mode's fit math, `ScreenScaling`, why UI px are design px, safe areas) and
+  "App Setup & Lifecycle" (`createWebApp`/headless options, the plugin
+  model, lifecycle events, subsystem health, side modules, hot reload);
+  Utilities gains "Profiling & Diagnostics" (stats overlay, `Logger`, frame
+  capture, texture budgets).
+- **The UI manual, split into nine subchapters** — Overview / Layout / Text /
+  Widgets / Lists & Scrolling / Interaction / Theming / Data Binding /
+  Controllers — documenting the previously invisible surface: dimension
+  semantics and anchor presets in code, the real rich-text tag set, the
+  focus/drag pipelines, the ListView virtualization contract, all twelve
+  theme color roles, and two-way widget binding.
+- **Eight new examples**, all verified in live editor Play runs:
+  `camera-follow` (FollowTarget damping/dead zone, screen shake, view-target
+  blends), `save-load` (versioned SaveManager slots with a live v1→v2
+  migration), `scene-flow` (menu → levels through SceneManager fades over a
+  persistent shell), `input-actions` (rebindable InputMap actions +
+  gestures), `timers-demo`, `trail-demo`, `render-texture` and
+  `drawing-demo` (immediate Draw, retained Graphics, procedural Mesh2D).
+  The catalog also lists the previously uncatalogued `chat` and
+  `ui-controller`.
+- **Play == ship scene registration.** Pressing Play now registers every
+  project scene under its export name (siblings lazily by path), so
+  `SceneManager.switchTo` behaves identically in the editor and in a
+  shipped build.
+- `RenderTextureHandle.texture` — a resource-table handle components can
+  actually consume (`Sprite.texture`, `UIVisual.texture`), registered
+  through the same external-texture channel video frames use.
+- The `Mesh2D` component and the animator sub-machine helpers
+  (`enterStatePath`, `leafStateOf`, `evaluateAnimatorPath`) join the main
+  barrel; Spine's wiring surface (`SpinePlugin`/`SpineEvents`/`Spine`) is
+  mirrored into the main barrel exactly like physics.
+
+### Changed
+
+- **The public API reads one way** (breaking, pre-1.0). The physics class is
+  now `PhysicsAPI` and the resource token `Physics` — `Res(Physics)` like
+  `Res(Audio)`/`Res(Tween)` everywhere else. Six `Api`-suffixed classes are
+  now `API` (`CameraViewAPI`, `SpriteAnimationAPI`, `AnimatorControllerAPI`,
+  `PostProcessAPI`, `LocalizationAPI`, `TimelineAPI`). The deprecated
+  `getAllRegisteredComponents` alias is gone (use `getComponentRegistry`).
+- **One plugin-construction shape.** A lowercase `xPlugin` export is always a
+  ready-to-add `Plugin` value; configurable plugins expose a PascalCase
+  class. `lifecyclePlugin` is now such a value (configure with
+  `new LifecyclePlugin({ autoPause })` — previously a factory call).
+- **Plugin wiring moved to one barrel.** `webAppFactory` now only ships the
+  app factories; the UI pipeline plugins, the physics/spine wiring and
+  `PostProcessPlugin` live in a dedicated `core-plugins` barrel, the
+  Timeline surface joined `core-content`, and engine-internal
+  `init*/shutdown*API` functions left the public surface.
+- **Director and scene APIs are callable from systems.** `setViewTarget`,
+  `shakeCamera` and `transitionTo` accept the `CameraDirector` /
+  `SceneManager` resource state alongside the `App`, so gameplay systems no
+  longer need an App handle they cannot get.
+- `Canvas.pixelsPerUnit` is documented (tooltip included) as what it actually
+  is — world pixels per physics meter — and the abandoned
+  texture-px-per-unit helpers on the C++ component are gone.
+
+### Fixed
+
+- **z actually orders sprites within a layer.** The draw sort key assumed
+  z ∈ [-1, 1] and truncated: any real-world z wrapped through the bit mask
+  and sorted non-monotonically, and the blended stages had the painter's
+  order inverted. Depth now maps through order-preserving float bits —
+  transparent draws back-to-front, opaque front-to-back.
+- **Runtime-loaded scenes unload cleanly.** Entities of a scene registered at
+  runtime carried the `SceneOwner` tag but were never adopted into the scene
+  instance's entity set, so `switchTo` away from such a scene leaked every
+  entity it had spawned.
+- **`RenderTexture` + `Sprite` no longer renders white.** Pointing
+  `Sprite.texture` at the raw device `textureId` sampled the white fallback;
+  the new `texture` handle goes through the resource table.
+- **PreviewPlugin's fallback camera un-zoomed.** It still derived its ortho
+  size from the abandoned px-per-unit doctrine — a 100× zoom-in whenever a
+  scene had a Canvas but no active camera.
+- The physics guide's joint samples used a `world.spawn(Component, …)`
+  overload that does not exist; unit contracts (meters vs world pixels) are
+  now stated on `PhysicsAPI` itself and in the guide.
+
 ## [0.26.0] - 2026-07-17
 
 Tilemaps leave the square grid, and projects make the UI their own. The editor
@@ -1012,7 +1109,8 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.23.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.27.0...HEAD
+[0.27.0]: https://github.com/esengine/estella/compare/v0.26.0...v0.27.0
 [0.23.0]: https://github.com/esengine/estella/compare/v0.22.0...v0.23.0
 [0.22.0]: https://github.com/esengine/estella/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/esengine/estella/compare/v0.20.0...v0.21.0
