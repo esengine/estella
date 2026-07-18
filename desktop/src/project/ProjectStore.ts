@@ -1066,6 +1066,8 @@ class ProjectStoreImpl {
   playPayload(): {
     sceneData: SceneData;
     assetManifest: Record<string, string>;
+    entrySceneName?: string;
+    extraScenes?: Array<{ name: string; path: string }>;
     physicsEnabled?: boolean;
     physicsConfig?: PhysicsPluginConfig;
     audioConfig?: AudioProjectConfig;
@@ -1081,6 +1083,24 @@ class ProjectStoreImpl {
     // same-origin estella:// — no cross-scheme dance needed.
     const assetManifest: Record<string, string> = {};
     for (const [uuid, path] of this.uuidToPath) assetManifest[uuid] = `estella://project/${path}`;
+    // Play == ship: register every other project scene under its export name
+    // (scenes-dir-relative path sans extension — the same rule exportGame's
+    // discoverProjectScenes uses), so SceneManager.switchTo('levels/boss')
+    // behaves in Play exactly as in a shipped build. The open scene's live
+    // snapshot is the entry and takes its export name too.
+    const st = this.state;
+    const scenesDir = (st?.layout.scenes ?? 'assets/scenes').replace(/\\/g, '/');
+    const exportSceneName = (p: string): string => {
+      const rel = p.startsWith(`${scenesDir}/`) ? p.slice(scenesDir.length + 1) : p;
+      return rel.replace(/\.esscene$/i, '');
+    };
+    const currentScene = st?.currentScene?.replace(/\\/g, '/') ?? null;
+    const extraScenes: Array<{ name: string; path: string }> = [];
+    for (const p of this.uuidToPath.values()) {
+      const q = p.replace(/\\/g, '/');
+      if (!/\.esscene$/i.test(q) || q === currentScene) continue;
+      extraScenes.push({ name: exportSceneName(q), path: q });
+    }
     // Carry the project's physics world config so the realm installs physics (even for
     // runtime-spawned bodies the static scene doesn't show) and matches the editor's
     // Project Settings. The collision matrix is sent ONLY when configured — otherwise
@@ -1111,6 +1131,8 @@ class ProjectStoreImpl {
     const uiThemeOverrides = this.uiThemeOverrides();
     return {
       sceneData, assetManifest, physicsEnabled: f.enabled, physicsConfig,
+      ...(currentScene ? { entrySceneName: exportSceneName(currentScene) } : {}),
+      ...(extraScenes.length > 0 ? { extraScenes } : {}),
       ...(audioConfig.buses ? { audioConfig } : {}),
       ...(uiTheme === 'light' ? { uiTheme } : {}),
       ...(uiThemeOverrides ? { uiThemeOverrides } : {}),

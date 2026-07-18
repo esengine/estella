@@ -204,6 +204,10 @@ async function buildAppAndRun(msg: InitMessage): Promise<void> {
     canvas,
     sceneData: msg.sceneData,
     assetManifest: msg.assetManifest,
+    // Play == ship: the entry keeps its export name and every sibling scene
+    // registers lazily by path, so runtime switchTo works like a shipped build.
+    entrySceneName: msg.entrySceneName,
+    extraScenes: msg.extraScenes,
     // playSFX/playBGM take project-relative paths — resolve them against the project root.
     assetBaseUrl: projectBase,
     // physics.wasm is served next to esengine.wasm; load it on demand.

@@ -53,6 +53,12 @@ export interface PlayNetConfig {
 export interface PlayPayload {
   sceneData: SceneData;
   assetManifest: Record<string, string>;
+  /** Export name of the entry scene (scenes-dir-relative, sans extension), so
+   *  switchTo back to it works exactly as in a shipped build. Absent = '__play'. */
+  entrySceneName?: string;
+  /** Every other project scene, registered lazily by project-relative path —
+   *  the same switchTo targets a shipped build exposes (play == ship). */
+  extraScenes?: Array<{ name: string; path: string }>;
   /** Project-declared physics enable (features.physics) — forwarded to the realm. */
   physicsEnabled?: boolean;
   /** Project physics world config (gravity, solver, collision matrix) — forwarded. */
