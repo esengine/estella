@@ -1,0 +1,394 @@
+---
+title: App Setup & Lifecycle
+description: How an Estella App boots, which plugins it installs, its public surface, lifecycle events, subsystem observability, side modules, and hot reload.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Everything in Estella runs inside an **`App`** — the container that owns the
+[world](/docs/core-concepts/ecs/), the resources, the system schedules, and the
+frame loop. The editor's play mode, an exported web/desktop game, a WeChat
+MiniGame, and a headless authoritative server all build the *same* `App` class;
+only the factory that assembles it differs. This page is the reference for
+those factories and for the app's runtime surface.
+
+<Aside type="note">
+  In an editor-driven project you rarely construct an `App` yourself — the
+  exported runtime does it for you. Read this page when you embed the engine in
+  your own host page, run a headless server, write a plugin, or want lifecycle
+  and health signals at runtime.
+</Aside>
+
+## `createWebApp(module, options)`
+
+The batteries-included entry point for a browser (or Electron) game. It takes
+the instantiated engine wasm module (`ESEngineModule`), initializes the
+renderer, and installs the full plugin stack:
+
+```typescript
+import { createWebApp } from 'esengine';
+
+const app = createWebApp(module, {
+  wasmBaseUrl: '/engine',        // where physics.wasm / spine42.wasm live
+  colorSpace: 'linear',
+  getViewportSize: () => ({ width: innerWidth, height: innerHeight }),
+});
+await app.run();
+```
+
+### `CreateWebAppOptions`
+
+All fields are optional. `CreateWebAppOptions` extends `WebAppOptions` (both
+importable from `esengine`) with `wasmBaseUrl`:
+
+| Option | Type | Default | Meaning |
+|---|---|---|---|
+| `wasmBaseUrl` | `string` | — | Base URL the [side-module](#side-modules) artifacts (`physics.wasm`, `spine38.js`/`.wasm`, …) are served from — usually the directory `esengine.wasm` itself came from. When set (and no explicit `sideModules` is given) it builds a fetch `SideModuleHost` for you. |
+| `sideModules` | `SideModuleHost` | built from `wasmBaseUrl`, else none | The realm's acquirer for optional native modules. Realms that inline their modules (Playable, WeChat) pass a host directly instead of a URL. |
+| `plugins` | `Plugin[]` | `[]` | Extra plugins, appended **after** the default set. |
+| `getViewportSize` | `() => { width, height }` | — | Viewport size callback for the camera system (and the WebGPU init size; `800×600` if absent). |
+| `glContextHandle` | `number` | — | A pre-registered WebGL2 context handle to render into; without it the module creates its own context via `initRenderer()`. |
+| `backend` | `'webgl2' \| 'webgpu'` | `'webgl2'` | `'webgpu'` boots the injected-device path — the host must have acquired a `GPUDevice` and passed it as the module factory's `preinitializedWebGPUDevice` before instantiation. |
+| `canvasSelector` | `string` | `'#canvas'` | CSS selector for the WebGPU swapchain canvas (must be in the DOM). WebGL ignores it. |
+| `colorSpace` | `'gamma' \| 'linear'` | `'gamma'` | Project color space. `'linear'` renders in linear light (sRGB decode on sample, linear blending, explicit encode in the final blit). Must be declared **at app creation** — shaders compile against it. |
+| `ySortLayers` | `number` | `0` | Bitmask of render layers (bits 0–31) that sort by world Y within the layer (top-down occlusion). |
+| `screenFit` | `ScreenScalingData` | off (`scaleMode: -1`) | Project camera fit: letterboxes a design resolution into the actual aspect. Only installed when `scaleMode` is a real mode (≥ 0); `SCREEN_FIT_OFF` (-1) keeps the legacy Canvas-or-raw fit. |
+
+### What it installs
+
+`createWebApp` first wires the core (renderer-facing) plugins, then the full
+content stack, in this order:
+
+1. **Core**: `corePlugin` (render facades), the camera plugin, `assetPlugin`,
+   `prefabsPlugin`, `inputPlugin`, `sceneManagerPlugin` — plus a fresh
+   `RenderPipeline`.
+2. **UI**: `uiPlugins` — the composed UI pipeline (layout, text, text input,
+   masks, render order, interaction, drag, focus, safe area).
+3. **Base content**: `timerPlugin`, `lifecyclePlugin()`, `animationPlugin`,
+   `audioPlugin`, `videoPlugin`, `particlePlugin`, `trailPlugin`,
+   `mesh2dPlugin`, `tilemapPlugin`, `postProcessPlugin`, `timelinePlugin`,
+   `perceptionPlugin`, `fsmPlugin`, `btPlugin`, `navPlugin`,
+   `replicationPlugin`.
+4. **Spine**: a `SpinePlugin` instance (it pulls its per-version wasm runtime
+   from `app.sideModules` on demand — nothing loads unless a scene uses Spine).
+5. **Your `plugins`**, in the order given.
+
+Physics is **not** in the default set: `PhysicsPlugin` needs the physics wasm
+module. The shipped runtime acquires `'physics'` from the side-module host and
+installs the plugin automatically when the project declares physics or the
+scene contains physics components; when composing manually, construct
+`PhysicsPlugin` yourself (it and `loadPhysicsModule` are exported from
+`esengine`; the full API lives on `esengine/physics`).
+
+## Headless apps
+
+`createHeadlessApp(module, options)` builds an app with the **full simulation
+stack and no presentation** — no renderer, no render pipeline, no input device,
+no UI. This is the authoritative-server shape (same wasm module, same gameplay
+code, same fixed-tick loop), also useful in workers and tests:
+
+```typescript
+import { createHeadlessApp, runHeadless } from 'esengine';
+
+const app = createHeadlessApp(module, { plugins: [gameplayPlugin] });
+const stop = runHeadless(app, { fps: 60 });
+// … later
+stop();
+```
+
+`HeadlessAppOptions` has two fields, both optional:
+
+| Option | Type | Meaning |
+|---|---|---|
+| `plugins` | `Plugin[]` | Your gameplay plugins, appended after the base set. |
+| `sideModules` | `SideModuleHost` | Optional-native-module acquirer (physics on the server). |
+
+Included: `assetPlugin`, `prefabsPlugin`, `sceneManagerPlugin`, `timerPlugin`,
+`lifecyclePlugin()`, `audioPlugin` (silent on hosts without a device), and the
+gameplay-AI/replication set (`perceptionPlugin`, `fsmPlugin`, `btPlugin`,
+`navPlugin`, `replicationPlugin`).
+
+Excluded — everything that exists *to be seen*: `corePlugin` (it wires render
+facades that only exist after `initRenderer()`), UI, particles, tilemap
+rendering, post-processing, timeline, Spine, input.
+
+`runHeadless(app, { fps? })` drives the app on a wall-clock `setInterval`
+(there is no `requestAnimationFrame` on a server), default 60 fps. Delta is
+measured, so the fixed-step accumulator keeps simulation cadence exact across
+timer jitter; a slow async tick never piles up re-entrantly. It returns a stop
+function. You can also drive the app manually with `app.tick(dt)`.
+
+<Aside type="caution">
+  `createHeadlessApp` and `runHeadless` are `@beta`: the headless asset story
+  (gameplay data without textures) is still settling and may change these
+  factories' options.
+</Aside>
+
+## The plugin model
+
+A plugin is a plain object that registers systems and resources on the app:
+
+```typescript
+import type { App, Plugin } from 'esengine';
+import { defineResource, defineSystem, Res } from 'esengine';
+
+const Score = defineResource({ value: 0 }, 'Score');
+const scoreSystem = defineSystem([Res(Score)], (score) => { /* … */ });
+
+export const scorePlugin: Plugin = {
+  name: 'score',
+  build(app: App) {
+    app.insertResource(Score, { value: 0 });
+    app.addSystem(scoreSystem);
+  },
+};
+```
+
+| Member | Type | Meaning |
+|---|---|---|
+| `name` | `string?` | Optional but recommended: named plugins auto-register in the [subsystem registry](#subsystem-observability), and systems added inside `build()` inherit the name for liveness reporting. |
+| `dependencies` | `PluginDependency[]?` | Prerequisites, each either a plugin **name** (`string`) or a **resource definition**. `addPlugin` throws if one is missing; `addPlugins` also uses the name edges to sort the batch. |
+| `before` / `after` | `string[]?` | Soft ordering hints against other plugin names, honored when installing a batch via `addPlugins`. |
+| `build(app)` | required | Register systems, resources, and events. Runs immediately on `addPlugin`. |
+| `finish(app)` | optional | Runs once, after **all** plugins have built, when the app first ticks/runs — for wiring that needs the complete set. |
+| `cleanup(app?)` | optional | Runs on `app.quit()`, in reverse install order. |
+
+`PluginDependency = string | ResourceDef<any>` — a name asserts install order;
+a resource def asserts the resource already exists.
+
+Installation: `app.addPlugin(plugin)` (idempotent per instance — adding the
+same object twice is a no-op) or `app.addPlugins([...])`, which topologically
+sorts the batch by `dependencies` / `before` / `after` and throws on a cycle.
+If `build()` throws, the plugin is rolled back and the failure stays visible in
+the subsystem registry as an `error` entry.
+
+**`flushPendingSystems(app)`** — module-level `addSystem` /
+`addStartupSystem` / `defineBehavior` calls (made at import time, outside any
+plugin) queue on the ambient context rather than on a specific app. The
+factories' runtimes drain that queue into the app for you; call
+`flushPendingSystems` yourself when you build a bare `App` manually and still
+want those module-level registrations.
+
+## The `App` surface
+
+The members exported for users, grouped:
+
+### World, resources, module
+
+| Member | Meaning |
+|---|---|
+| `app.world` | The ECS `World` — entities, components, queries. |
+| `app.insertResource(def, value)` / `app.getResource(def)` / `app.hasResource(def)` | The resource store systems read via `Res(...)`. `getResource` on a never-inserted resource installs and returns the def's default value — use `hasResource` to distinguish. |
+| `app.wasmModule` | The connected `ESEngineModule`, or `null` before `connectCpp`. |
+| `app.pipeline` | The `RenderPipeline`, or `null` in headless apps. |
+| `app.subsystems` | The per-app [`SubsystemRegistry`](#subsystem-observability). |
+| `app.sideModules` | The realm's [`SideModuleHost`](#side-modules), or `null` (headless/test apps without one). |
+| `app.getPlugin(Ctor)` | The installed plugin instance of a class, if any. |
+
+### Systems and events
+
+| Member | Meaning |
+|---|---|
+| `app.addSystem(sys)` | Register on `Schedule.Update`. |
+| `app.addStartupSystem(sys)` | Register on `Schedule.Startup` (runs once, before the first frame's schedules). |
+| `app.addSystemToSchedule(schedule, sys, { runBefore?, runAfter?, runIf? })` | Any schedule, with ordering edges and a run condition. |
+| `app.addSystemSet(set)` / `app.addSystemSetToSchedule(schedule, set)` | Register a whole `SystemSet`; members inherit the set's `runIf` and ordering, and other systems can order against the set's name. |
+| `app.removeSystem(systemId)` | Remove by the def's `_id` symbol. |
+| `app.addEvent(eventDef)` | Register an event channel (double-buffered; swapped each frame). |
+
+### The frame loop
+
+| Member | Meaning |
+|---|---|
+| `app.run()` | Start the `requestAnimationFrame` loop. |
+| `app.tick(delta)` | Advance exactly one frame (seconds) — how headless and test hosts drive the app. |
+| `app.quit({ keepRenderer? })` | Stop, run plugin `cleanup` in reverse order, despawn all entities, tear down the renderer (unless `keepRenderer`, used by hot reload). |
+| `app.setFixedTimestep(s)` / `app.getFixedTimestep()` | The `FixedUpdate` cadence. Default `1/60`. |
+| `app.setMaxDeltaTime(s)` | Clamp on a single frame's delta. Default `0.25`. |
+| `app.setMaxFixedSteps(n)` | Cap on fixed-step catch-up per frame. Default `8`. A time budget additionally caps catch-up so a too-heavy sim degrades to slow motion instead of freezing. |
+| `app.setPaused(v)` / `app.isPaused()` | User pause. While paused only `Schedule.Last` runs. |
+| `app.stepFrame()` | Queue exactly one full frame while paused (editor "step"). |
+| `app.setPlaySpeed(x)` / `app.getPlaySpeed()` | Time scale, clamped to `0.1`–`4.0`. Default `1.0`. |
+| `app.setTargetFrameRate(fps)` / `app.getTargetFrameRate()` | Frame cap; `0` (default) = uncapped (vsync). |
+
+Within one frame the schedules run: `First` → the fixed trio
+(`FixedPreUpdate` / `FixedUpdate` / `FixedPostUpdate`, zero or more times from
+the accumulator) → `PreUpdate` → `Update` → `PostUpdate` → `Last`. `Startup`
+systems are flushed before the first frame.
+
+### Errors, physics, stats
+
+| Member | Meaning |
+|---|---|
+| `app.onError(fn)` | Observe any system throw (`(error, systemName)`). |
+| `app.onSystemError(fn)` | Decide per throw: return `'continue'` or `'pause'` (pauses the rest of the frame). |
+| `app.onWasmError(fn)` | Observe errors crossing the wasm bridge. |
+| `app.waitForPhysics()` / `app.isPhysicsReady` | Await / query the async physics wasm init (no-op / `false` without `PhysicsPlugin`). |
+| `app.enableStats()` | Turn on timing collection. |
+| `app.getSystemTimings()` / `app.getPhaseTimings()` / `app.getFrameScopes()` | Per-system / per-schedule / sub-frame CPU timings this frame (`null` when stats are off). |
+| `app.measureFrameScope(name, fn)` | Time `fn` as a named sub-frame scope (a single-branch no-op when stats are off). |
+| `app.getEntityCount()` | Live entity count. |
+
+## Lifecycle events
+
+`lifecyclePlugin(options?)` (installed by default in both factories) publishes
+the **`Lifecycle`** resource — a `LifecycleManager` that tracks page
+visibility/focus and can auto-pause the game:
+
+```typescript
+import { Lifecycle } from 'esengine';
+
+const lifecycle = app.getResource(Lifecycle);
+const off = lifecycle.on((event) => {
+  if (event === 'pause') saveGame();
+});
+```
+
+| Member | Type | Meaning |
+|---|---|---|
+| `visible` | `boolean` | Current page/app visibility. |
+| `focused` | `boolean` | Window focus (tracked; changing it emits no event). |
+| `autoPause` | `boolean` | Whether hiding the page pauses the app. Default `true`; writable at runtime, seeded from `lifecyclePlugin({ autoPause })`. |
+| `on(listener)` / `off(listener)` | — | Subscribe to events; `on` returns an unsubscribe function. |
+
+`LifecycleEvent` is `'show' | 'hide' | 'pause' | 'resume'`, and a
+`LifecycleListener` is `(event: LifecycleEvent) => void`. The semantics:
+
+- **`hide` / `show`** fire on every visibility change (browser
+  `visibilitychange`; `wx.onHide` / `wx.onShow` on WeChat).
+- **`pause`** fires only when the lifecycle actually paused the app: the page
+  hid, `autoPause` is on, and the app wasn't already paused. **`resume`** fires
+  only when the lifecycle un-pauses its *own* pause — a manual
+  `app.setPaused(true)` is never overridden by the page becoming visible.
+- Headless hosts (Node, workers) have no visibility signal; the resource still
+  exists and stays `visible`.
+
+## Subsystem observability
+
+Every app carries a **`SubsystemRegistry`** at `app.subsystems` answering
+"which engine modules are loaded, ready, stepping, or errored". Named plugins
+register automatically; async plugins (physics) drive their own
+`initializing → ready`/`error` transitions.
+
+```typescript
+for (const s of app.subsystems.getStatuses()) {
+  console.log(s.id, s.phase, s.activity, s.lastError ?? '');
+}
+```
+
+- **`SubsystemPhase`** — the recorded lifecycle: `'registered'` →
+  `'initializing'` → `'ready'`, with `'error'` terminal.
+- **`SubsystemActivity`** — liveness, *derived at read time* from watchdog
+  beats (each system run "pets" its owning plugin): `'stepping'` (a beat within
+  the last 400 ms), `'idle'` (ready but stale — e.g. physics frozen in edit
+  mode), `'inactive'` (never beat; liveness unknown). Load ≠ run — this is the
+  distinction the editor's status UI shows.
+- **`SubsystemStatus`** — one entry per subsystem, install order: `id`,
+  `displayName`, `phase`, `activity`, `detail`, `lastError` (retained across
+  later transitions), `dependsOn` (declared plugin-name deps, for cascade
+  context), `phaseAgeMs`.
+- **`SubsystemEvent`** — one recorded transition (`id`, `phase`, `detail?`,
+  `atMs`, `seq`); `recentEvents(limit?)` returns the retained tail (capped at
+  128).
+- `subscribe(fn)` notifies on phase transitions (not per-beat) and returns an
+  unsubscribe.
+
+The registry is per-app (per realm) — the editor's edit and play realms report
+independently.
+
+## Side modules
+
+Optional native subsystems ship as **standalone wasm modules** loaded on
+demand, so the base engine download stays small: physics (Box2D), the
+per-version Spine runtimes, the Basis Universal texture transcoder, and the
+software video decoder. Each is an emscripten pair — `<file>.js` glue plus
+`<file>.wasm` — acquired uniformly through a `SideModuleHost`; only the
+*transport* differs per realm.
+
+**`SIDE_MODULES`** is the single source of truth mapping ids to artifacts:
+
+| `SideModuleId` | Artifacts | Contents |
+|---|---|---|
+| `'physics'` | `physics.js` / `.wasm` | Box2D physics. |
+| `'spine:3.8'` / `'spine:4.1'` / `'spine:4.2'` | `spine38` / `spine41` / `spine42` `.js`/`.wasm` | One Spine runtime per skeleton format version. |
+| `'basis'` | `basis.js` / `.wasm` | Basis Universal KTX2 transcoder (compressed textures). |
+| `'videodec'` | `videodec.js` / `.wasm` | MPEG-1 software video decoder. |
+
+`SPINE_VERSIONS` is the readonly list `['3.8', '4.1', '4.2']`, and
+`spineModuleId(version)` builds the corresponding id.
+
+A host answers `acquire(id)` with a promise of the instantiated module (cached
+per id, failures cached as `null` so a missing artifact isn't refetched). The
+built-in transports:
+
+- **`createFetchSideModuleHost(baseUrl)`** — fetch the glue and wasm from a
+  base URL (what `wasmBaseUrl` builds); used by the editor, web, and desktop.
+- **`createEmbeddedSideModuleHost(...)`** — modules inlined as base64
+  (Playable ads).
+- **`createWeChatSideModuleHost(...)`** — WeChat's precompiled module
+  factories.
+
+You normally never call `acquire` yourself — set `app.sideModules` (via
+`wasmBaseUrl` or `sideModules`) and the Spine plugin and physics install pull
+from it when needed.
+
+<Aside type="note">
+  The main `esengine` barrel mirrors exactly the physics/spine **wiring**
+  layer — `PhysicsPlugin`, `PhysicsEvents`, `Physics`, `loadPhysicsModule`,
+  `SpinePlugin`, `SpineEvents`, `Spine` — so hosts can register the plugins
+  without a subpath import. The full APIs live on the `esengine/physics` and
+  `esengine/spine` subpaths. See [Physics](/docs/guides/physics/) and
+  [Spine](/docs/guides/spine/).
+</Aside>
+
+## Hot reload
+
+When you edit project code while the editor plays, the editor tries a
+**state-preserving hot swap** before falling back to a full reload. It
+re-imports your bundle inside an isolated probe context via
+**`probeRegistrations(register)`**, which returns a `ProbedRegistrations`:
+
+- `fingerprint` — a digest of the user component **schemas** the bundle
+  declared (shape, not values). Unchanged fingerprint → the live `World` is
+  kept and only system function bodies are swapped in place; changed → full
+  reload.
+- `pending` — the systems the bundle queued, fed to `App.hotSwapSystems`
+  (which rejects the swap — again forcing a full reload — if a user system was
+  added, removed, or renamed).
+
+What your code must respect: **component identity is stable by name**.
+`defineComponent('Health', …)` re-run after a re-import resolves to the *same*
+component identity, so re-imported systems' queries reach the live storage.
+Consequently, renaming a component or behavior is a structural change (full
+reload + state loss for that data), and per-entity `start` hooks run again
+after a reload — write them as idempotent setup (see
+[Scripting](/docs/guides/scripting/)).
+
+## Best practices
+
+- **Prefer the factories.** `createWebApp` / `createHeadlessApp` encode the
+  supported plugin orders; hand-rolling `App.new()` plus a plugin list is for
+  engine embedders.
+- **Name your plugins.** A `name` costs nothing and buys observability: the
+  subsystem registry entry, liveness attribution for the plugin's systems, and
+  usable dependency errors.
+- **Declare `colorSpace` and `backend` up front.** Both are baked in at
+  creation (shader compilation, device injection) — they cannot be toggled on a
+  live app.
+- **Don't fight the lifecycle auto-pause.** Turn it off with
+  `lifecyclePlugin({ autoPause: false })` (or `lifecycle.autoPause = false`)
+  rather than un-pausing in a listener; the manager only ever resumes a pause
+  it made itself.
+- **Route "is X loaded?" through `app.subsystems`.** It distinguishes
+  *loaded* from *running* (`phase` vs `activity`) and retains the last error —
+  better than probing resources.
+
+## See also
+
+- [Plugins & Resources](/docs/core-concepts/plugins-resources/) — reaching
+  subsystem APIs with `Res(...)`.
+- [Systems](/docs/core-concepts/systems/) — schedules and system parameters.
+- [Building & Exporting](/docs/guides/build-export/) — how side-module
+  artifacts ship per target.
+- [Physics](/docs/guides/physics/) and [Spine](/docs/guides/spine/) — the two
+  subpath APIs behind side modules.

@@ -1,0 +1,234 @@
+---
+title: Theming
+description: The ThemeTokens design-token model — semantic color/text roles, dark/light palettes, live theme swap with switchTheme, project-level overrides, and theming custom widgets.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The widget layer never hard-codes colors. Every built-in widget resolves its
+defaults from **design tokens** — a palette of *semantic roles*
+(`surface`, `control`, `primary`, `text`, …) plus a type scale — so one place
+defines the look, the same widget code renders correctly under the dark or the
+light palette, and a whole UI re-skins by swapping the token set.
+
+Three layers make that work:
+
+1. **`ThemeTokens`** — the token model: color roles + type scale, with the
+   built-in `DARK_TOKENS` / `LIGHT_TOKENS` sets.
+2. **`ThemeStyle`** — a component that records *which role* an entity's colors
+   came from, so already-built widgets can re-resolve.
+3. **`switchTheme`** — the live swap: set the active tokens *and* restyle every
+   `ThemeStyle`-tagged entity in the world.
+
+## The token model — `ThemeTokens`
+
+```typescript
+interface ThemeTokens {
+  colors: ThemeColors;  // semantic color roles
+  type: ThemeType;      // font-size scale
+}
+```
+
+### Color roles (`ThemeColors`)
+
+Every role, in display order (this is also the runtime list `THEME_COLOR_ROLES`
+— the array a theme editor or config validator iterates):
+
+| Role | Purpose |
+|---|---|
+| `surface` | Dialog / panel background. |
+| `surfaceElevated` | Raised surface — popup / dropdown list background. |
+| `control` | Interactive control resting fill (button, option). |
+| `controlHover` | Control fill while hovered. |
+| `controlActive` | Control fill while pressed. |
+| `track` | Slider / progress track. |
+| `primary` | Accent — slider fill, progress fill, selected option. |
+| `primaryHover` | Accent while hovered. |
+| `primaryActive` | Accent while pressed. |
+| `onPrimary` | Content/handle drawn *on top of* `primary` (e.g. the slider thumb). |
+| `text` | Default foreground (label text / icon) on `surface` / `control`. |
+| `backdrop` | Modal scrim behind dialogs. |
+
+### Type scale (`ThemeType`)
+
+Font sizes in px, shared between the light and dark sets:
+
+| Step | Default | Used for |
+|---|---|---|
+| `label` | `14` | Control / label text (buttons, options). |
+| `body` | `15` | Body / default text. |
+| `title` | `20` | Headings (dialog titles). |
+
+### Built-in token sets
+
+- **`DARK_TOKENS`** — the built-in default.
+- **`LIGHT_TOKENS`** — the same roles on light surfaces with dark text.
+
+The active set is read with `getTheme()` (or the `themeColors()` /
+`themeType()` shorthands) and replaced with `setTheme(tokens)` — but note that
+`setTheme` alone only affects widgets constructed *afterwards*; for a live
+swap use [`switchTheme`](#live-theme-swap--switchtheme) below.
+
+## How widgets consume tokens
+
+Widget factories resolve tokens **at build time**: `createButton` reads
+`themeColors().control` / `controlHover` / `controlActive` for its state pages
+and `themeColors().text` + `themeType().label` for its label; `createSlider`
+reads `track` / `primary` / `onPrimary` for track, fill, and handle; and so on.
+The resolved values are baked into ordinary components (`UIVisual`, `Text`,
+`$interaction` color gears) — there is no per-frame theme lookup.
+
+Because the values are baked, each factory *also* tags the entities it themed
+with a **`ThemeStyle`** component recording which role each color came from:
+
+| `ThemeStyle` field | Records the role driving… |
+|---|---|
+| `visual` | …this entity's `UIVisual.color`. |
+| `text` | …this entity's `Text.color`. |
+| `states` | …each `$interaction` color-gear page (page name → role), e.g. a button's `{ normal: 'control', hover: 'controlHover', … }`. |
+| `input` | …a `TextInput`'s `background` / `text` / `placeholder` colors. |
+
+`markThemed(world, entity, style)` inserts the tag. Role tags are authoring
+data — they **persist into prefabs and scenes**, so an editor-placed widget
+re-themes exactly like a code-constructed one.
+
+## Live theme swap — `switchTheme`
+
+`switchTheme(world, tokens)` sets the active tokens **and** calls
+`applyThemeToWorld(world)`, which walks every `ThemeStyle`-tagged entity and
+re-resolves its role bindings — `UIVisual.color`, `Text.color`, `TextInput`
+colors, and each `$interaction` color-gear page — against the new palette:
+
+```typescript
+import { switchTheme, getTheme, DARK_TOKENS, LIGHT_TOKENS } from 'esengine';
+
+// e.g. from a settings toggle:
+switchTheme(world, getTheme() === DARK_TOKENS ? LIGHT_TOKENS : DARK_TOKENS);
+```
+
+Semantics worth knowing:
+
+- **Alpha is preserved** — only the hue re-themes. A dimmed `disabled` state
+  keeps its transparency, and any translucency you set survives the swap.
+- **Prefab-authored colors re-resolve too**: a widget instanced from a prefab
+  carries its baked colors *and* its `ThemeStyle` tags, so
+  `applyThemeToWorld` restyles it the same as a live-constructed one.
+- Entities *without* a `ThemeStyle` tag are untouched — explicit colors stay
+  yours (see [overrides](#per-widget-overrides-vs-tokens)).
+
+## Project-level theme
+
+You normally don't call `switchTheme` for the *base* look — the project
+declares it. **Project Settings → UI** in the editor writes two fields under
+`features.ui` in the project manifest (`project.esproject`):
+
+| Setting | Manifest field | Meaning |
+|---|---|---|
+| Theme | `features.ui.theme` | `'light'`, or absent for the dark default. |
+| Theme colors | `features.ui.colors` | Partial re-skin: color role → `#rrggbb[aa]` hex. Only known roles (the `THEME_COLOR_ROLES` list) with valid hex persist; an absent role inherits the base theme. |
+
+Two shared functions carry those settings to every runtime:
+
+- **`parseThemeOverrides(colors)`** — converts the JSON hex map into
+  `ThemeOverrides` (unknown roles and malformed hex are dropped).
+- **`resolveThemeTokens(base, overrides?)`** — merges a base name
+  (`'dark' | 'light'`) with the partial overrides into effective
+  `ThemeTokens`, so a project that overrides `primary` alone re-tints the
+  accent while inheriting everything else.
+
+```typescript
+import { resolveThemeTokens, parseThemeOverrides, switchTheme } from 'esengine';
+
+const overrides = parseThemeOverrides({ primary: '#e5484d' });
+switchTheme(world, resolveThemeTokens('dark', overrides));
+```
+
+The flow end to end: the **editor** previews the effective theme live in the
+edit viewport (it runs exactly `switchTheme(world, resolveThemeTokens(...))`
+on the edit world — WYSIWYG for the settings panel, with per-role color
+pickers whose placeholders show the inherited base value). On **export**, the
+theme and colors are cooked into the shipped game config, and every runtime
+boots the scene and then applies
+`switchTheme(world, resolveThemeTokens(theme, overrides))` — prefabs bake
+dark values, so the post-load swap is what re-resolves every `ThemeStyle` tag.
+
+<Aside type="note">
+  Dark is expressed by *absence*: only `'light'` and non-empty color overrides
+  persist in the manifest. A project with no `features.ui` block ships the
+  default `DARK_TOKENS` untouched.
+</Aside>
+
+## Per-widget overrides vs tokens
+
+Every factory lets you pass explicit colors — and doing so **opts that field
+out of theming**. The rule is consistent: a theme-defaulted field gets a
+`ThemeStyle` tag and re-resolves on swap; a caller-supplied color gets *no*
+tag and is yours forever.
+
+- `createButton({ states: {...} })` — custom state colors don't re-theme;
+  omit `states` to get `themeButtonStates()` (the canonical
+  `control`-role states), which do.
+- `createButton({ text: { color } })` — an explicit label color skips the
+  `text`-role tag; omit `color` and the label follows the theme.
+- `createSlider({ trackVisual / fillVisual / handleVisual })` — same story per
+  part.
+
+Prefer tokens for anything that should follow dark/light; reserve explicit
+colors for genuinely fixed branding (a red "record" dot stays red in both
+themes).
+
+## Theming custom widgets
+
+To make your own composition behave like a built-in widget, do what the
+factories do: resolve from `themeColors()` / `themeType()` at build, then
+`markThemed` each entity with the roles you used.
+
+```typescript
+import type { World, Entity } from 'esengine';
+import { spawnUIEntity, markThemed, themeColors, themeType, px } from 'esengine';
+
+function createBadge(world: World, parent: Entity, label: string): Entity {
+  const c = themeColors();
+
+  const badge = spawnUIEntity({
+    world, parent,
+    node: { width: px(64), height: px(24) },
+    visual: { color: c.primary },
+  });
+  markThemed(world, badge, { visual: 'primary' });
+
+  const text = spawnUIEntity({
+    world, parent: badge,
+    text: { content: label, color: c.onPrimary, fontSize: themeType().label },
+  });
+  markThemed(world, text, { text: 'onPrimary' });
+
+  return badge;
+}
+```
+
+Now `switchTheme` re-tints the badge with everything else. For an interactive
+widget with `$interaction` color gears, tag the page→role map instead:
+`markThemed(world, entity, { states: { normal: 'control', hover: 'controlHover', pressed: 'controlActive' } })`.
+
+## Best practices
+
+- **Roles, not colors.** Reach for `themeColors().primary`, not a literal —
+  and tag it with `markThemed` so it survives a swap.
+- **Declare the base theme in Project Settings**, not in code —
+  the editor preview, and every export target then agree.
+- **Re-tint via overrides**: overriding `primary` (+ `primaryHover` /
+  `primaryActive`) in `features.ui.colors` re-brands the accent across every
+  widget with zero code.
+- **Only intentional constants opt out.** Passing an explicit color is a
+  contract that this element does *not* follow the theme — make sure that's
+  what you mean.
+- **Swap with `switchTheme`, not `setTheme`.** Bare `setTheme` only affects
+  widgets built afterwards; `switchTheme` also restyles what's on screen.
+
+## See also
+
+- [UI](/docs/guides/ui/) — the component model the tokens color.
+- [UI Components](/docs/guides/ui-components/) — the widget factories that consume tokens.
+- [UI Controllers](/docs/guides/ui-controllers/) — the `$interaction` gears that theme state colors ride on.
+- [Data Binding](/docs/guides/ui-binding/) — reactive values into component fields.

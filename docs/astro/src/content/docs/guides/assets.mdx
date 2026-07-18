@@ -146,22 +146,49 @@ entities normally.
 The texture budget defaults to **64 MB** (`RuntimeConfig.textureCacheBudget`,
 also settable as `textureCacheBudget` in the build config); decoded audio has
 its own **32 MB** mirror (`audioCacheBudget` — see the
-[audio guide](/docs/guides/audio/)). Size the texture budget for your game with
-`setTextureBudget`, and watch residency with `getResourceStats`:
+[audio guide](/docs/guides/audio/)).
+
+## Texture memory & budgets
+
+Textures are the budget that matters — they dominate GPU memory. The engine
+applies `RuntimeConfig.textureCacheBudget` at startup; size it for your game
+with `setTextureBudget` (the single game-facing surface over the C++ pool —
+there is no parallel TS-side budget to drift from it), and watch residency with
+`getResourceStats`:
 
 ```typescript
-import { setTextureBudget, getResourceStats } from 'esengine';
+import { setTextureBudget, getResourceStats, trimTextureCache } from 'esengine';
 
 setTextureBudget(256 * 1024 * 1024);   // 256 MB texture budget
 
-const stats = getResourceStats();
+const stats = getResourceStats();      // null before the engine initializes
 // stats.textureBytes          — resident texture bytes (held + evictable)
-// stats.textureBudget         — the current budget
+// stats.textureBudget         — the current budget (0 = eviction off)
 // stats.textureEvictableCount — warm-cache entries awaiting revive/evict
+// …plus shaderCount / textureCount / vertexBufferCount / indexBufferCount
+//  and cacheHits / cacheMisses
+
+const freed = trimTextureCache();      // drop every evictable texture now
 ```
 
-Setting the budget to `0` disables the warm cache — every texture frees the
-moment its last reference is released.
+The "GC" here is the LRU described above: once `textureBytes` exceeds
+`textureBudget`, the C++ pool evicts the least-recently-used **unreferenced**
+textures until it fits — held textures are never touched. `setTextureBudget(0)`
+disables the warm cache entirely (every texture frees the moment its last
+reference is released), and `trimTextureCache()` frees all evictable entries at
+once, returning the count — the engine calls it on OS memory warnings; call it
+yourself before a known memory spike.
+
+Two small helpers round out the surface: `getTextureDimensions(handle)` returns
+a texture's `{ width, height }` (cached on the TS side after the first query),
+and `evictTextureDimensions(handle)` drops that cached entry — the asset system
+does this when a texture is truly freed, so you only need it if you destroy and
+recreate textures around the asset system's back.
+
+For watching these numbers frame-over-frame in the editor and at runtime, see
+[Profiling](/docs/guides/profiling/). Per-texture **sampling/filtering**
+parameters (pixel-art nearest vs. smooth linear) are covered in the
+[Sprites guide](/docs/guides/sprites/).
 
 ## Best practices
 

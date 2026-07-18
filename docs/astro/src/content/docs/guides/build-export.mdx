@@ -87,6 +87,36 @@ module for each engine feature the game uses (`physics-wechat`, `spine-wechat`,
 `basis-wechat` for compressed textures) — see
 [WeChat MiniGame](/docs/guides/wechat/).
 
+## Side modules
+
+Optional engine features ship as separate WebAssembly **side modules** — an
+emscripten `<file>.js` glue plus `<file>.wasm` per module — loaded on demand so
+the base engine stays small:
+
+| Module | Artifacts | Loaded when |
+|---|---|---|
+| Physics (Box2D) | `physics.js` / `physics.wasm` | The project declares physics or a scene uses physics components. |
+| Spine | `spine38` / `spine41` / `spine42` `.js`/`.wasm` | A scene uses a Spine skeleton of that format version. |
+| Basis transcoder | `basis.js` / `basis.wasm` | The build shipped KTX2-compressed textures. |
+| Video decoder | `videodec.js` / `videodec.wasm` | The wasm video path decodes a clip. |
+
+- **Web / Desktop** — the artifacts sit as loose files next to `esengine.wasm`;
+  the runtime fetches them from `wasmBaseUrl` (the directory the engine itself
+  was loaded from) via a fetch side-module host.
+- **Playable** — nothing external is allowed, so the exporter inlines the
+  modules as base64 into the single HTML file; the boot code
+  (`initPlayableRuntime`) is handed an embedded side-module host instead of a
+  URL.
+- **WeChat** — side modules are packaged as WeChat-precompiled module
+  factories (that's why each feature needs its `*-wechat` runtime build,
+  above).
+
+The editor's own play mode boots through the same shipping runtime
+(`initPlayRealmRuntime`), fetching side modules over the editor origin — so
+play == ship covers these modules too. See
+[App Setup & Lifecycle](/docs/core-concepts/app-lifecycle/#side-modules) for the
+runtime API.
+
 ## Build config & source maps
 
 - **Development** — an unminified build; pair it with source maps for debuggable

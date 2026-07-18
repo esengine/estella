@@ -384,6 +384,105 @@ registerAction('takeDamage', (ctx) => {
 `registerFsm`/`registerBt` 调用。因为两种范式都从同一份注册表解析叶子,你可以先把一个敌人
 原型成状态机,之后再换成行为树(或两者都跑),而不用动你的动作/条件代码。
 
+## 进阶:组件层之下
+
+`Nav`、`NavAgent`、`Perceiver`——组件层——覆盖了常见场景。它们底下的原语同样被导出,
+全是不依赖引擎/wasm 的纯 TypeScript,供你在不要 agent 的情况下求一条路径、
+或在没有 `Perceiver` 时做一次视线检查。
+
+### 手动寻路
+
+`findPath` 就是导航插件用的那个 A\*:在 `NavGrid` 格子上做均匀代价搜索,4 连通或
+8 连通,octile/曼哈顿启发式,且不切角(走对角线要求两个共享的正交格子都可通行)。
+当你要自己驱动移动、画路径预览、或计算可达性(回合制的移动范围)时下沉到它——
+或者当一张网格不够用时,因为 `Nav` 资源只持有一张网格:
+
+```typescript
+import { NavGrid, findPath, pathToWorld } from 'esengine';
+
+const grid = new NavGrid({ width: 32, height: 24, cellSize: 32 });
+
+const path = findPath(
+  grid,
+  grid.worldToCell(hero.x, hero.y),      // Cell — integer grid coordinates
+  grid.worldToCell(chest.x, chest.y),
+  { diagonal: false },
+);
+if (path) {
+  const waypoints = pathToWorld(grid, path);   // Vec2[] — cell centers, world pixels
+}
+```
+
+`findPath(grid, start, goal, opts?)` 返回含首尾两端的 `Cell[]` 路径,不可达时返回
+`null`。`Cell` 是整数网格坐标 `{ x, y }`(与 `Vec2` 刻意区分,以标示格子空间);用
+`grid.worldToCell` / `grid.cellToWorld` 互转,或用 `pathToWorld` 把整条路径转成
+世界空间路点。
+
+| `PathfindOptions` 字段 | 默认 | 说明 |
+|---|---|---|
+| `diagonal` | `true` | 允许 8 连通的对角移动。 |
+| `snapRadius` | `8` | 起点/终点落在被阻挡格子上时,先在此环半径内吸附到最近的可走格子再搜索;`0` 关闭吸附。 |
+
+`navGridFromTiles` 从任意瓦片读取器构建可走掩码——它是 `navGridFromTilemapLayer`
+底下的核心,后者只是接上了 `TilemapAPI.getTile`:
+
+```typescript
+import { navGridFromTiles } from 'esengine';
+
+const grid = navGridFromTiles((x, y) => level.tiles[y][x], {
+  width: 32, height: 24, cellSize: 32,
+  blockedTileIds: [WALL_TILE, WATER_TILE],
+});
+```
+
+| `BuildNavGridOptions` 字段 | 说明 |
+|---|---|
+| `width` / `height` / `cellSize` / `origin?` | 与 `NavGrid` 选项相同(见[构建网格](#构建网格))。 |
+| `blockedTileIds?` | 阻挡移动的瓦片 id 的精确集合。 |
+| `isBlocked?` | 针对瓦片 id 的自定义谓词(`0` = 空);覆盖 `blockedTileIds`。二者都不给时,任何非空瓦片都阻挡。 |
+
+### 感知内幕
+
+感知插件是四个导出函数之上的薄封装——适合在动作里做一次性视线检查、做自定义感官
+(记忆、听觉、多目标),或对着一个假 world 做单元测试:
+
+- **`senseTarget(ox, oy, facing, tx, ty, range, halfFov, isBlocked?)`**——纯几何:
+  先查距离,再查视野锥(`halfFov` 是锥角的*一半*,弧度;≥ π 表示全向),最后走可选的
+  遮挡回调。
+- **`facingFromQuat(z, w)`**——从 `Transform` 旋转四元数的 z/w 分量求 2D 朝向角
+  (弧度)。
+- **`makeLosCheck(physics)`**——用物理射线构建遮挡回调:任何命中明显落在目标之前
+  (`fraction < 0.98`——最后约 2% 是目标自己)即视为遮挡。
+- **`stepPerception(world, isBlocked?)`**——插件每帧在 `PreUpdate` 跑的那一步:
+  对每个 `Perceiver`,感知全部 `PerceptionTarget`,留下最近的可见者,写入
+  `Perception` 组件。
+
+```typescript
+import { senseTarget, facingFromQuat, Transform, registerCondition } from 'esengine';
+
+// A one-off sight check against a POINT — no PerceptionTarget needed.
+registerCondition('seesShrine', (ctx) => {
+  const tf = ctx.get(Transform);
+  const facing = facingFromQuat(tf.rotation.z, tf.rotation.w);
+  return senseTarget(
+    tf.position.x, tf.position.y, facing,
+    SHRINE.x, SHRINE.y,
+    300, Math.PI / 3,            // 300 px range, 120° cone
+  ).visible;
+});
+```
+
+`senseTarget` 返回一个 `SenseResult`:
+
+| `SenseResult` 字段 | 说明 |
+|---|---|
+| `visible` | 目标在范围内、在锥内、且未被遮挡。 |
+| `distance` | 到目标的距离——即使不可见也总是被设置。 |
+| `dirX` / `dirY` | 观察者 → 目标的单位方向;不可见时为 `(0, 0)`。 |
+
+内置系统只在物理模块已加载时才接入 `makeLosCheck`;否则感知只做距离 + 视野锥——
+AI 层没有对物理的硬依赖。
+
 ## 自定义应用
 
 感知、FSM、BT、导航这四个插件是默认插件集的一部分,所以**编辑器和 `esengine` Web 运行时会替你

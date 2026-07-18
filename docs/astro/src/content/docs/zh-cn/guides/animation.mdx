@@ -80,6 +80,39 @@ const jump = defineSystem([Query(Mut(SpriteAnimator)), Res(SpriteAnimation)], (q
 重新切片时所有帧一致跟随——帧引用的是网格格子,不是像素矩形。
 超出当前网格的帧会在帧条中标红。
 
+### 用代码创建剪辑
+
+`.esanim` 文档就是普通数据,所以剪辑也可以在运行时构建:`createAnimClip` 建一个
+按网格切片的剪辑,追加 `{ cell }` 帧,`parseAnimClipData` 把它解析成运行时的
+`SpriteAnimClip`,再用 `registerClip` 注册,任何 `SpriteAnimator` 都能用这个名字:
+
+```typescript
+import {
+  defineSystem, Res, Assets, SpriteAnimation,
+  createAnimClip, parseAnimClipData,
+} from 'esengine';
+
+const registerRun = defineSystem([Res(Assets), Res(SpriteAnimation)], async (assets, sprites) => {
+  const tex = await assets.loadTexture('textures/run-sheet.png');
+
+  // A 32×32 grid over the sheet; frames reference grid cells (row-major).
+  const data = createAnimClip('textures/run-sheet.png', 32, 32, tex.width, tex.height);
+  data.fps = 10;
+  for (let cell = 0; cell < 6; cell++) data.frames.push({ cell });
+
+  const handles = new Map([['textures/run-sheet.png', tex.handle]]);
+  sprites.registerClip(parseAnimClipData('run', data, handles));
+  // Any SpriteAnimator can now set clip = 'run'.
+});
+```
+
+| 辅助函数 | 说明 |
+|---|---|
+| `createAnimClip(texture, cellWidth, cellHeight, pageWidth, pageHeight)` | 一个全新的按网格切片的 `AnimClipAssetData`(fps `12`、`loop: true`、边距/间距 `0`、暂无帧)。 |
+| `parseAnimClipData(name, data, textureHandles)` | 把资产数据解析成运行时 `SpriteAnimClip`——每个格子帧得到纹理句柄与 UV 窗口。 |
+| `parseAnimClipAsset(json)` / `serializeAnimClip(data)` | 解析 / 写出 `.esanim` JSON 文档(两者可往返)。 |
+| `animClipCellRect(sheet, cell)` / `animClipCellUv(sheet, cell)` | 网格格子的像素矩形 / UV 窗口——即该帧 `Sprite` 显示的内容。 |
+
 ### 用状态机驱动剪辑——零代码
 
 [FSM/BT 内置](/docs/zh-cn/guides/ai/)以数据驱动翻页动画。动作的可选**参数**
@@ -166,6 +199,38 @@ tween.cancelAll(entity);    // stop everything on an entity
 
 `TweenHandle` 有 `.then(next)`、`.bezier(...)`、`.pause()`、`.resume()` 和 `.cancel()`。
 
+### 组合句柄
+
+`tween.parallel` 返回 `TweenGroup`,`tween.sequence` 返回 `TweenSequence`——它们是
+覆盖全体成员的父级句柄。两者都有 `state`(一个 `TweenState`)、会扇出到每个成员的
+`pause()` / `resume()` / `cancel()`,以及 `onComplete(cb)`:
+
+```typescript
+const popX = tween.to(e, TweenTarget.ScaleX, 1, 1.3, 0.2);
+const popY = tween.to(e, TweenTarget.ScaleY, 1, 1.3, 0.2);
+tween.parallel([popX, popY]).onComplete(() => spawnSparkles());
+
+tween.sequence([
+  () => tween.to(e, TweenTarget.PositionY, 0, 60, 0.3),
+  () => tween.delay(0.2),
+  () => tween.to(e, TweenTarget.PositionY, 60, 0, 0.3),
+]).onComplete(() => landDust());
+```
+
+组和序列一定要**通过 `Tween` 资源创建**——资源会把它们登记进内部轮询器
+(`TweenCompositionManager`),`onComplete` 的触发和序列推进到下一个工厂都靠它。
+手写 `new TweenGroup(...)` 不会被任何人轮询。
+
+`tween.value(...)` 和 `tween.delay(...)` 返回 `ValueTweenHandle`——同一套控制面
+(`state`、`.pause()` / `.resume()` / `.cancel()`、`.bezier(...)`),外加
+`.then(next)`:可以串接另一个数值补间,*或*任何可暂停/恢复的东西(一个组、一个序列)。
+`TweenHandle.then` 同样接受 `ValueTweenHandle`,所以属性补间和数值补间可以在一条链里
+自由混用。
+
+优先用简写辅助(`tween.parallel` / `tween.sequence` / `tween.delay` / 句柄的
+`.then`);这些类就是那些调用返回的东西——只有当你要存下句柄、稍后暂停/取消/观察
+组合时,才需要点名 `TweenGroup` / `TweenSequence` / `ValueTweenHandle`。
+
 ## 动画状态机
 
 角色动画用一个**动画控制器**:它持有状态、转移和由命名**参数**驱动的 1D 混合树。在编辑器
@@ -188,7 +253,7 @@ const drive = defineSystem([Query(Animator), Res(AnimatorController)], (q, anim)
 | `Animator` 字段 | 类型 | 默认 | 说明 |
 |---|---|---|---|
 | `controller` | string | `''` | 已注册的控制器名。 |
-| `currentState` | string | `''` | 活动状态(从控制器的初始状态种入)。 |
+| `currentState` | string | `''` | 活动状态;嵌套状态机时是 `/` 分隔的路径(从控制器的初始状态种入)。 |
 | `enabled` | boolean | `true` | 关掉即冻结状态机。 |
 
 | `AnimatorController` 方法 | 说明 |
@@ -201,6 +266,119 @@ const drive = defineSystem([Query(Animator), Res(AnimatorController)], (q, anim)
 
 控制器可以同时驱动精灵**和** [Spine](/docs/zh-cn/guides/spine/) 动画,所以一套状态机就能
 管一整个角色。
+
+参数有三种类型(`AnimatorParamType`):`'float'`、`'bool'`、`'trigger'`。条件用
+`gt` / `lt` / `eq` / `neq` 比较数值(带 `value`),用 `true` / `false` 测试 bool,
+`trigger` 触发一次即被消费。没有单独的 int 类型——整数走 float 参数配合
+`eq` / `neq`。
+
+### 混合树
+
+状态可以携带一个 1D **blend** 来代替单个片段:由一个 float 参数在
+`AnimatorBlendThreshold` 档位之间做选择。因为精灵通道一次只播一个片段,这里的混合是
+按阈值的*选择*——`value` 不超过参数值的档位中取最大者(低于所有档位时播第一个)——
+而不是加权姿态混合。每个档位是 `{ value, clip, speed?, loop? }`;档位级的
+`speed` / `loop` 覆盖状态自己的。选择每帧重算,所以 `speed` 参数上升时
+idle→walk→run 无需任何转移:
+
+```typescript
+import { defineSystem, Res, AnimatorController, type AnimatorControllerDef } from 'esengine';
+
+const movement: AnimatorControllerDef = {
+  parameters: [{ name: 'speed', type: 'float', default: 0 }],
+  initialState: 'move',
+  states: [{
+    name: 'move',
+    blend: {
+      parameter: 'speed',
+      thresholds: [
+        { value: 0,   clip: 'idle' },
+        { value: 0.5, clip: 'walk' },
+        { value: 4,   clip: 'run', speed: 1.2 },
+      ],
+    },
+    transitions: [],
+  }],
+};
+
+const setup = defineSystem([Res(AnimatorController)], (anim) => {
+  anim.registerController('movement', movement);
+});
+```
+
+纯函数 `selectBlendClip(blend, value)` 返回某个值会选中的档位——方便做工具或测试。
+
+骨骼角色的状态可以改为携带 `spine` 运动(`AnimatorSpineMotion`,
+`{ animation, loop? }`):进入时控制器设置该 [Spine](/docs/zh-cn/guides/spine/)
+动画(`loop` 默认 `true`),轨道播放与混合交给 Spine 运行时——完全不碰
+`SpriteAnimator`。状态互斥:`clip`、`blend`、`spine`、`stateMachine` 四者取一。
+
+### 子状态机
+
+携带 `stateMachine`(`AnimatorSubMachine`)的状态是一个**容器**:它自己不播任何运动。
+进入时状态机下钻到子机的 `initialState`;容器自己的 `transitions` 是*退出边*,
+从其内部的每个叶子状态求值。子机可以声明自己的 `anyStateTransitions`,对它的所有
+子状态生效。`Animator.currentState` 保存完整的 `/` 分隔路径(`STATE_PATH_SEP`),
+例如 `locomotion/run`:
+
+```typescript
+import { defineSystem, Res, AnimatorController, type AnimatorControllerDef } from 'esengine';
+
+const player: AnimatorControllerDef = {
+  parameters: [
+    { name: 'speed', type: 'float', default: 0 },
+    { name: 'jump', type: 'trigger' },
+  ],
+  initialState: 'locomotion',
+  states: [
+    {
+      name: 'locomotion',                    // container: no motion of its own
+      stateMachine: {
+        initialState: 'idle',
+        states: [
+          { name: 'idle', clip: 'idle', transitions: [
+            { to: 'run', conditions: [{ param: 'speed', op: 'gt', value: 0.1 }] },
+          ] },
+          { name: 'run', clip: 'run', transitions: [
+            { to: 'idle', conditions: [{ param: 'speed', op: 'lt', value: 0.1 }] },
+          ] },
+        ],
+      },
+      // Exit edges — leave the whole machine from idle OR run.
+      transitions: [{ to: 'jump', conditions: [{ param: 'jump', op: 'trigger' }] }],
+    },
+    { name: 'jump', clip: 'jump', loop: false, transitions: [
+      { to: 'locomotion', conditions: [], hasExitTime: true },   // back in at idle
+    ] },
+  ],
+};
+
+const setup = defineSystem([Res(AnimatorController)], (anim) => {
+  anim.registerController('player', player);
+});
+```
+
+进入 `locomotion` 会落在 `locomotion/idle`;jump 触发器从任一叶子退出;一次性的 jump
+片段播完后,`hasExitTime` 从容器的初始状态重新进入。转移优先级从高到低:顶层
+any-state → 各层子机的 any-state(由外向内)→ 叶子自己的转移 → 容器退出边(由内向外)。
+
+路径机制以纯函数形式暴露(`AnimatorScope` 是顶层控制器和每个子机共享的形状):
+
+```typescript
+import { enterStatePath, leafStateOf, evaluateAnimatorPath } from 'esengine';
+
+enterStatePath(player, 'locomotion');       // ['locomotion', 'idle']
+leafStateOf(player, 'locomotion/run')?.clip; // 'run'
+evaluateAnimatorPath(player, 'locomotion/idle', { speed: 3 }, new Set());
+// → { nextPath: 'locomotion/run', consumedTriggers: [] }
+```
+
+| 辅助函数 | 说明 |
+|---|---|
+| `enterStatePath(scope, name)` | 从某状态下钻到具体叶子;返回路径分段。 |
+| `leafStateOf(def, path)` | 路径的承载运动的叶子状态,或 `null`。 |
+| `evaluateAnimatorPath(def, path, params, triggers, clipFinished?)` | 对路径做一步纯求值 → `{ nextPath, consumedTriggers }`。 |
+| `STATE_PATH_SEP` | 路径分隔符,`'/'`。 |
 
 ## 如何选择
 

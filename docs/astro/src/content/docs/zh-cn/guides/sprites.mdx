@@ -1,6 +1,6 @@
 ---
 title: 精灵与渲染
-description: 用 Sprite 组件绘制 2D 图像——纹理、着色与透明、尺寸与轴心、翻转、排序层与绘制顺序、视差——外加 ShapeRenderer 图元、精灵滤镜、拖尾与世界空间位图文字。
+description: 用 Sprite 组件绘制 2D 图像——纹理、着色与透明、尺寸与轴心、翻转、排序层与绘制顺序、视差——外加纹理过滤、点击检测、位图缓存、ShapeRenderer 图元、精灵滤镜、拖尾与世界空间位图文字。
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -63,6 +63,21 @@ sprite.color = { r: 1, g: 1, b: 1, a: 0.5 };      // 50% 透明
 1:1,或设成别的值来缩放。`Transform` 上的缩放会再乘上去。`pivot` 是精灵旋转/缩放所绕的归一化
 轴心(0–1):`{0.5, 0.5}` 居中,`{0, 0}` 是左下角,`{0.5, 0}` 钉住底部中心(适合站在地面上的角色)。
 
+## 单位与坐标
+
+世界单位就是**设计像素**。把纹理拖进视口会生成一个尺寸等于纹理像素尺寸的精灵
+(`size = { tex.width, tex.height }`),而编辑器的相机按"一个世界单位 = 一个设计像素"
+创作(`orthoSize = designHeight / 2`)。因此 `Sprite.size` 的单位是设计像素,`pivot`
+是相对该尺寸的归一化比例。世界坐标 **Y 轴朝上**——屏幕向上是正 Y——所以
+`pivot: {0, 0}` 是**左下角**,不是左上角。
+
+<Aside type="note">
+  `Canvas.pixelsPerUnit`(默认 `100`)**不会**缩放精灵——它是**物理米尺度**:
+  多少设计像素等于一个 Box2D 米(见[物理](/docs/zh-cn/guides/physics/))。精灵的
+  显示尺寸只由 `size` × `Transform` 缩放决定,别无其他。完整的单位与坐标空间图景见
+  [变换](/docs/zh-cn/core-concepts/transforms/)。
+</Aside>
+
 ## 绘制顺序与排序层
 
 当精灵重叠时,绘制顺序决定谁在上面。顺序由**排序层**(`sprite.layer`)决定——一个你在
@@ -95,6 +110,38 @@ sprite.layer = 2;   // 例如 "Foreground" —— 画在上面
 - **图集**:把 `uvOffset` 和 `uvScale` 设为某个单元格的归一化矩形,显示打包图集里的一格。(逐帧动画
   请用 [Animator](/docs/zh-cn/guides/animation/) 驱动这些,而非手动。)
 - **滚动**:随时间改 `uvOffset` 来滚动纹理(水面、传送带),并设 `tileSize` 把它在大精灵上重复平铺。
+
+## 纹理过滤与环绕
+
+纹理的采样方式按**纹理句柄**设置,而非按精灵:
+
+| 枚举 | 取值 | 含义 |
+|---|---|---|
+| `TextureFilter` | `Nearest`、`Linear` | Nearest = 纹素边缘生硬(像素画);Linear = 平滑插值(默认)。 |
+| `TextureWrap` | `Repeat`、`ClampToEdge`、`MirroredRepeat` | 0–1 之外的 UV 采到什么——平铺重复,还是拉伸边缘像素。 |
+
+```typescript
+import { TextureFilter, TextureWrap, setTextureFilter, setTextureWrap, setTextureParams } from 'esengine';
+
+setTextureFilter(tex.handle, TextureFilter.Nearest);   // 像素画保持锐利
+setTextureWrap(tex.handle, TextureWrap.Repeat);        // 0–1 之外平铺
+
+// 上面两个便捷函数各自会把*另一组*参数重置为默认值
+// (ClampToEdge / Linear)。要同时设置过滤和环绕,用完整形式:
+setTextureParams(tex.handle, TextureFilter.Nearest, TextureFilter.Nearest,
+                 TextureWrap.Repeat, TextureWrap.Repeat);
+```
+
+`setTextureParams(textureId, minFilter, magFilter, wrapS, wrapT)` 是完整接口——
+缩小/放大过滤分开,环绕逐轴设置。`tileSize` 平铺和 UV 滚动效果要无缝,靠的就是
+`Repeat`。
+
+<Aside type="tip">
+  对像素画来说 `TextureFilter.Nearest` 只解决一半问题:它让**纹素**锐利,但相机
+  停在小数位置时精灵仍会落在屏幕像素之间,移动时闪烁。把它和相机的
+  `pixelPerfect` 标志配合使用——它把(正交)相机吸附到像素网格——见
+  [相机](/docs/zh-cn/guides/camera/)。
+</Aside>
 
 ## 视差背景
 
@@ -191,6 +238,92 @@ UI。把 `font` 指向一个 **BMFont** 资产(`.fnt` 文本或 `.bmfont` JSON),
 
 屏幕空间的 UI 文字(布局、换行、SDF 锐度)请用 UI 的 `Text` 控件——见
 [UI](/docs/zh-cn/guides/ui/)。
+
+## 精灵点击检测
+
+"这次点击落在这个精灵上了吗?"分两步:把屏幕点转到世界空间,再对精灵的矩形做测试。
+第一步由 `CameraView` 资源完成(见[相机](/docs/zh-cn/guides/camera/));第二步 SDK
+导出了感知轴心的点测试:
+
+| 函数 | 测试 |
+|---|---|
+| `pointInWorldRect(px, py, worldX, worldY, worldW, worldH, pivotX, pivotY)` | 由位置 + 轴心放置的轴对齐矩形(未旋转精灵的精确占位)。 |
+| `pointInOBB(…, rotationZ, rotationW)` | 同一矩形加**旋转**——传变换四元数的 `z`/`w`;未旋转时退化为矩形测试。 |
+| `pointInHitArea(px, py, area)` | 自定义 `HitAreaShape`——`rect`、`circle` 或 `polygon`。 |
+
+```typescript
+import { defineSystem, Query, Res, CameraView, Input, Transform, Sprite, pointInOBB } from 'esengine';
+
+const clickSprites = defineSystem(
+  [Query(Transform, Sprite), Res(CameraView), Res(Input)],
+  (q, view, input) => {
+    if (!input.isMouseButtonPressed(0)) return;
+    const p = view.screenToWorld(input.mouseX, input.mouseY);
+    if (!p) return;
+    for (const [entity, t, s] of q) {
+      const w = s.size.x * t.worldScale.x, h = s.size.y * t.worldScale.y;
+      if (pointInOBB(p.x, p.y, t.worldPosition.x, t.worldPosition.y,
+                     w, h, s.pivot.x, s.pivot.y,
+                     t.worldRotation.z, t.worldRotation.w)) {
+        console.log('hit', entity);
+      }
+    }
+  });
+```
+
+对可点击区域不是矩形的精灵——不规则角色、环形按钮——用精灵本地坐标描述一个
+`HitAreaShape`,再测试本地化后的点:
+
+```typescript
+import { pointInHitArea, type HitAreaShape } from 'esengine';
+
+const hull: HitAreaShape = { type: 'polygon', points: [0, 0, 64, 0, 64, 48, 32, 64, 0, 48] };
+// 未旋转的精灵,减去它的原点即可本地化:
+const hit = pointInHitArea(p.x - t.worldPosition.x, p.y - t.worldPosition.y, hull);
+```
+
+`screenToWorld` 也有独立导出(接收逆 view-projection 矩阵和视口矩形),供自己管理
+相机数学的代码使用——`CameraView` 资源就是同一个函数、替你填好了当前相机。至于
+交互式 **UI**,别手写这些:`Interactable` + `UIEvents` 会替你做拾取(见
+[UI](/docs/zh-cn/guides/ui/))。
+
+## 位图缓存(Cache as bitmap)
+
+**`CacheAsBitmap`** 支持把实体上昂贵的内容**渲染一次**进离屏纹理,之后只画这一个
+四边形——经典的 cache-as-bitmap 交换:用 GPU 内存(`width × height` RGBA)换每帧
+绘制开销。当内容每帧都画很贵(大量矢量路径、很多形状或文字)但**很少变化**时划算;
+内容每帧都变则毫无收益——你每次都得重渲缓存,*还*多付一次贴图开销。
+
+| 字段 | 默认 | 说明 |
+|---|---|---|
+| `enabled` | `true` | 该实体的缓存是否生效。 |
+| `dirty` | `true` | 设为 `true` 请求重新渲染缓存。 |
+| `width` / `height` | `256` | 缓存纹理的像素尺寸。 |
+
+这个组件是**记账的一半**——SDK 不内置自动遍历场景缓存子树的系统。刷新由你用导出的
+辅助函数驱动:逐实体缓存仓库(`getCacheForEntity`、`setCacheForEntity`、
+`removeCacheForEntity`、`clearAllCaches`)加 `CacheBitmap`——一个轻薄的渲染目标
+包装(`create`、`beginDraw`/`endDraw`、`resize`、`release`):
+
+```typescript
+import { CacheBitmap, getCacheForEntity, setCacheForEntity, Draw } from 'esengine';
+
+// 刷新(仅在 dirty 时):
+let cache = getCacheForEntity(entity);
+if (!cache) {
+  cache = CacheBitmap.create(512, 256);
+  setCacheForEntity(entity, cache);
+}
+CacheBitmap.beginDraw(cache, viewProjection);   // 一个框住内容的正交矩阵
+// … 用 Draw / Graphics 把昂贵内容画一次 …
+CacheBitmap.endDraw();
+
+// 此后每帧:画一个贴图四边形,而不是整套重绘。
+Draw.texture(pos, { x: 512, y: 256 }, cache.textureId);
+```
+
+`cache.textureId` 是普通的纹理句柄——也可以直接当 `Sprite.texture` 用。底层就是一个
+不带深度缓冲的 [RenderTexture](/docs/zh-cn/guides/drawing/)。
 
 ## 在编辑器里
 

@@ -73,6 +73,28 @@ const zoomIn = defineSystem([Res(Tween)], (tween) => {
 
 `Perspective` 只用于伪 3D 的分层场景;2D 游戏保持 `Orthographic`,尺寸才不随深度变化。
 
+## 设计分辨率适配
+
+发布的游戏里,主相机通常**不会**按原始 `orthoSize` 渲染。引擎每帧解析一个*适配源*,当其
+生效时,把项目的设计分辨率(默认 1920×1080)letterbox 进实际屏幕宽高比——可见半高由
+`designResolution.y / 2` 加一个缩放模式算出,让世界单位在任何设备上都是设计像素。适配源
+按此顺序:
+
+1. **`ScreenScaling`** 资源(项目设置 → 显示 → 相机适配),当其 `scaleMode` 是真实模式
+   (`≥ 0`)时;
+2. 否则,场景的 **`Canvas`** 组件(若存在);
+3. 否则无——相机按原始 `orthoSize` 渲染。
+
+<Aside type="caution">
+  适配源生效期间,相机自己写的 `orthoSize` **不会被使用**——可见区域来自设计分辨率与
+  缩放模式。通过 `orthoSize` 缩放(含上面的 tween)只在场景无 `Canvas` 且项目适配关闭时
+  生效。
+</Aside>
+
+默认 `orthoSize` 为 `540`,恰是 `designResolution.y / 2`,所以有无适配的视图在设计宽高比
+下一致。缩放模式、letterbox 实例与 `ScreenScaling` 字段详见
+[屏幕与设计分辨率](/docs/zh-cn/core-concepts/screen/)。
+
 ## 跟随目标
 
 给相机加一个 `FollowTarget` 并指向一个实体。跟随是帧率无关的阻尼移动,带一个死区,所以相机
@@ -100,6 +122,9 @@ const follow = defineSystem([Query(Camera), Commands()], (cameras, cmds) => {
 | `offsetY` | number | `0` | 相对目标的世界空间 Y 偏移。 |
 | `deadzone` | number | `0` | 目标可漫游而相机不动的半径(世界单位)。 |
 | `damping` | number | `0.25` | 平滑时间常数(秒,越大越慢;`0` = 立即吸附)。 |
+
+数据形状导出为 `FollowTargetData` 类型。跟随系统直接写相机的 `Transform`(所以 director
+混合的是已跟随的视图),且**只在 play 模式运行**——编辑器的导航视图永远不会被它拖走。
 
 ## 屏幕 ↔ 世界坐标
 
@@ -135,6 +160,17 @@ import { shakeCamera } from 'esengine';
 shakeCamera(app, { amplitude: 12, rotation: 0, frequency: 22, duration: 0.4 });
 ```
 
+`shakeCamera` 与 `setViewTarget` 的第一个参数既可以是 `App`(宿主代码),也可以是
+`CameraDirector` 资源状态——在系统里直接传 `Res(CameraDirector)` 给你的值:
+
+```typescript
+import { defineSystem, Res, Input, CameraDirector, shakeCamera } from 'esengine';
+
+const shakeOnHit = defineSystem([Res(Input), Res(CameraDirector)], (input, director) => {
+  if (input.isKeyPressed('Space')) shakeCamera(director, { amplitude: 16 });
+});
+```
+
 | 选项 | 默认 | 说明 |
 |---|---|---|
 | `amplitude` | `12` | 峰值位置偏移(世界单位)。 |
@@ -159,6 +195,70 @@ setViewTarget(app, cutsceneCamera, { time: 1.5, curve: BlendCurve.EaseInOut });
 `BlendCurve` 取值为 `Linear`、`EaseIn`、`EaseOut`、`EaseInOut`。`time <= 0`(或没有先前视图)
 即硬切。位置、缩放、旋转会插值;离散字段(投影、视口)在中点翻转。
 
+## 相机 director
+
+`setViewTarget` 与 `shakeCamera` 是**相机 director** 的 API——一个 per-app 资源
+(`CameraDirector`),每帧从全屏相机候选中解析出*一个*主视点:已提交的视图目标(或活动/
+最高优先级相机),过渡进行中则向新目标混合,震屏只叠加在渲染视图之上。其状态
+(`CameraDirectorState`)可读;把它当**只读**,用 `setViewTarget` / `shakeCamera` 去改:
+
+| 字段 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `target` | number | `-1` | 已提交的视图目标实体;`-1` = 回退到 `isActive` / 最高 `priority` 的选择。 |
+| `blending` | boolean | `false` | 视图目标混合正在进行。 |
+| `duration` / `curve` | number | `0` / `EaseInOut` | 当前混合的时长(秒)与缓动。 |
+| `currentMain` | `CameraPOV \| null` | `null` | 最后解析出的主 POV,**未加震屏**——也是屏幕↔世界转换所用的视图。 |
+| `shakes` | `ActiveShake[]` | `[]` | 活动的瞬时震屏(由 `shakeCamera` 压入,衰减完即丢弃)。 |
+
+其余字段(`hasPending`、`pendingTarget`、`pendingTime`、`pendingCurve`、`from`、
+`startTime`、`shakeSeq`)是 `setViewTarget` 写入的 director 内部请求/混合簿记。
+
+```typescript
+import { defineSystem, Res, CameraDirector } from 'esengine';
+
+const watchDirector = defineSystem([Res(CameraDirector)], (director) => {
+  if (director.blending) { /* e.g. suppress player input during the hand-off */ }
+  const pov = director.currentMain;   // CameraPOV | null — the view being rendered
+  if (pov) { /* pov.x, pov.y, pov.orthoSize, ... */ }
+});
+```
+
+### `CameraPOV`
+
+`CameraPOV` 是相机*被作者的视图参数*的一个纯快照——director 混合的单位,也是
+`currentMain` 存的形状:
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `entity` | number | 来源相机实体,`-1` 表示合成 POV(编辑器视图)。 |
+| `isActive` | boolean | 权威的"这就是主相机"标志。 |
+| `x` / `y` / `z` | number | 相机位置(世界单位)。 |
+| `rotation` | number | Z 旋转,弧度。 |
+| `projection` | number | 一个 `ProjectionType` 值。 |
+| `orthoSize` | number | 作者写的正交半高(世界单位)。 |
+| `fov` | number | 视场角,度(透视)。 |
+| `near` / `far` | number | 裁剪距离。 |
+| `viewport` | `{x, y, z, w}` | 屏幕矩形,0–1(`z`/`w` 是宽/高)。 |
+| `clearFlags` | number | 一个 `ClearFlags` 值。 |
+| `priority` | number | 活动相机间的优先级。 |
+| `pixelPerfect` | boolean | 像素网格吸附标志。 |
+
+混合期间,连续字段(位置、按最短角路径的 `rotation`、`orthoSize`、`fov`、`near`/`far`)
+插值;离散字段(`projection`、`pixelPerfect`)在中点翻转,`viewport` / `clearFlags` /
+`priority` 取目标值。
+
+## 匹配画布宽高比
+
+`updateCameraAspectRatio(world, aspect)` 把 `aspectRatio` 写到世界里**每个** `Camera`
+组件上。各发布运行时启动时用真实画布的 `width / height` 调用它,让作者字段与实际表面保持
+同步(渲染本身每帧从活动视口推导宽高比):
+
+```typescript
+import { updateCameraAspectRatio } from 'esengine';
+
+updateCameraAspectRatio(app.world, canvas.width / canvas.height);
+```
+
 ## 多相机与分屏
 
 有多个 `Camera` 实体时,`isActive` + `priority` 决定谁是活动的。用 `viewport` 给每个相机一个
@@ -179,6 +279,8 @@ setViewTarget(app, cutsceneCamera, { time: 1.5, curve: BlendCurve.EaseInOut });
 
 ## 参见
 
+- [屏幕与设计分辨率](/docs/zh-cn/core-concepts/screen/) —— 设计分辨率适配、缩放模式、
+  `ScreenScaling` 与 `pixelPerfect` 的深入讲解。
 - [动画](/docs/zh-cn/guides/animation/) —— 用 tween 缩放 `orthoSize`。
 - [输入](/docs/zh-cn/guides/input/) —— 用鼠标配 `screenToWorld` 做拾取。
 - [UI](/docs/zh-cn/guides/ui/) —— UI 在屏幕空间渲染,与相机无关。

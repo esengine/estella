@@ -187,7 +187,16 @@ const arm = defineSystem([Res(TimerRes)], (timers) => {
 钩子签名——`entity`、`world`、`commands`,外加 `self`——也和[游戏 AI](/docs/zh-cn/guides/ai/) 层
 的动作与行为树叶子是同一套编程模型,所以在 behavior 和 AI 动作之间搬逻辑很顺手。
 
-<Aside type="note">
-  热重载时,存活实体的 `start` 会再跑一次——契合 Estella 的快速重启语义,所以把 `start` 当作
-  幂等的初始化来写。
-</Aside>
+## 热重载
+
+编辑器播放期间保存代码时,只要可行就会触发**保状态热替换**:若组件形状未变、
+也没有系统被增、删或改名,存活的世界会被保留,只替换你的函数体。否则编辑器退回
+整体重载。这对你的代码的要求:
+
+- **组件与 behavior 的名字就是身份。**改名属于结构性变更——预期整体重载,该
+  数据的状态归零。
+- 任何一种重载后,存活实体的 `start` 都会再跑一次——契合 Estella 的快速重启
+  语义,所以把 `start` 当作幂等的初始化来写。
+
+其机制(探针上下文、模式指纹、`App.hotSwapSystems`)见
+[应用设置与生命周期](/docs/zh-cn/core-concepts/app-lifecycle/#热重载)。

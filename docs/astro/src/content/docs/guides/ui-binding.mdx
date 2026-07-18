@@ -1,0 +1,221 @@
+---
+title: Data Binding
+description: Reactive signals into component fields — signal/derived/bind, two-way widget binding with bindWidgetValue, and when to use binding vs controllers vs systems.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Data binding drives UI from game state **declaratively**: a *signal* holds a
+value, a *binding* writes it into a component field — applied immediately and
+on every change. It replaces the imperative "read the component, mutate the
+field, insert it back" loop, and it is **push-based**: subscribers run inside
+`set`, so there is no per-frame polling.
+
+## Signals — `signal()`
+
+`signal(initial)` creates a writable reactive value:
+
+```typescript
+import { signal } from 'esengine';
+
+const score = signal(0);
+
+score.get();                  // → 0
+score.set(10);                // notifies subscribers
+score.update((n) => n + 1);   // set via the previous value
+const off = score.subscribe((n) => console.log('score is', n));
+off();                        // unsubscribe
+```
+
+| `Signal<T>` member | Contract |
+|---|---|
+| `get()` | The current value. |
+| `set(value)` | Store + notify — but **only if the value actually changed** (`Object.is`); an unchanged write is free. |
+| `update(fn)` | `set(fn(previous))`. |
+| `subscribe(fn)` | Called on every change; returns an unsubscribe function. |
+
+`ReadonlySignal<T>` is the `get` + `subscribe` half — what `derived` returns
+and what `bind` accepts, so a consumer can't write back into a source it
+should only read.
+
+## Derived values — `derived()`
+
+`derived(sources, compute)` is a read-only signal computed from other signals;
+it recomputes (and notifies, again only on real change) whenever any source
+changes:
+
+```typescript
+import { signal, derived } from 'esengine';
+
+const health = signal(75);
+const maxHealth = signal(100);
+const healthFrac = derived([health, maxHealth], () => health.get() / maxHealth.get());
+```
+
+<Aside type="caution">
+  A `derived`'s subscriptions to its sources live for the process — use it for
+  **app-lifetime** derivations (score text, health fractions), not something
+  you mint per short-lived entity.
+</Aside>
+
+## One-way binding — `bind()`
+
+`bind(world, entity, Component, field, source)` drives one component field
+from a `ReadonlySignal`:
+
+```typescript
+import { signal, derived, bind, Text } from 'esengine';
+
+const score = signal(0);
+bind(world, scoreLabel, Text, 'content',
+  derived([score], () => `Score: ${score.get()}`));
+
+score.set(1200);   // the label now reads "Score: 1200"
+```
+
+The contract, from the source:
+
+- The field is **seeded immediately** with the signal's current value, then
+  tracks every change.
+- Writes are **guarded** — skipped if the entity is gone or lost the
+  component — and go through `world.insert` (a full component write, like any
+  other mutation).
+- The binding **auto-disposes when the entity despawns**; it also returns a
+  manual dispose to unbind early.
+- Types line up end to end: `bind(world, e, Text, 'content', source)` requires
+  `source` to be a `ReadonlySignal<string>` because `Text.content` is a string.
+
+Any reflected field works the same way — `UIVisual.color` from a
+`ReadonlySignal<Color>`, `Text.color`, a `UINode` dimension, etc.
+
+## Two-way widget binding — `bindWidgetValue()`
+
+Value widgets (slider, toggle, dropdown) need traffic in both directions:
+signal writes flow **down** into the widget's value field, and user input
+flows **up** from the widget's `change` event into the signal.
+`bindWidgetValue` wires both:
+
+```typescript
+bindWidgetValue(world, events, entity, Component, field, signal, payloadKey?)
+```
+
+- **Down**: a `bind` writes the signal into the field; the widget's behavior
+  system observes the component and updates visuals + emits `change`.
+- **Up**: the widget's `change` event writes its payload value back into the
+  signal.
+- **No loops**: the signal is the loop breaker — `Signal.set` and the
+  down-binding both no-op on equal values, so a round trip settles in one hop.
+- Returns a dispose that tears down both directions (the down-binding also
+  auto-disposes on despawn).
+
+`payloadKey` names the value inside the `change` payload and defaults to the
+field name:
+
+| Widget | Component / field | `payloadKey` |
+|---|---|---|
+| Slider | `UISlider.value` | `'value'` (the default) |
+| Toggle | `UIToggle.isOn` | `'isOn'` (the default) |
+| Dropdown | `UIDropdown.selectedIndex` | `'index'` (pass explicitly) |
+
+A volume row — slider and label, both bound to one signal:
+
+```typescript
+import {
+  defineSystem, addStartupSystem, GetWorld, Res, UIEvents,
+  spawnUIEntity, createSlider, px,
+  signal, derived, bind, bindWidgetValue,
+  UISlider, Text,
+} from 'esengine';
+
+const buildVolumeRow = defineSystem([GetWorld(), Res(UIEvents)], (world, events) => {
+  const volume = signal(0.8);
+
+  // The slider: dragging it (or arrow keys while focused) writes `volume` up.
+  const slider = createSlider({
+    world, events,
+    node: { width: px(240), height: px(20) },
+    min: 0, max: 1, value: volume.get(),
+  });
+  bindWidgetValue(world, events, slider.entity, UISlider, 'value', volume);
+
+  // The label: follows the same signal down.
+  const label = spawnUIEntity({ world, text: { content: '' } });
+  bind(world, label, Text, 'content',
+    derived([volume], () => `${Math.round(volume.get() * 100)}%`));
+
+  // Game code sets the signal; the slider fill+handle AND the label follow.
+  volume.set(0.5);
+});
+
+addStartupSystem(buildVolumeRow);
+```
+
+Because the down edge writes the *component* and the widget's behavior system
+is the single writer of the visuals, every writer — the pointer, the binding,
+`setValue` on the handle, the editor inspector — moves the fill and handle and
+fires `change` identically.
+
+## Binding controller pages
+
+`bindControllerPage(world, entity, controller, source)` drives a
+[UI controller's](/docs/guides/ui-controllers/) current page from a
+`ReadonlySignal<string>` — the declarative path to a data-driven tab bar. Set
+the signal, the page switches, every geared element reflows:
+
+```typescript
+import { signal, bindControllerPage } from 'esengine';
+
+const activeTab = signal('home');
+bindControllerPage(world, root, 'tab', activeTab);
+activeTab.set('shop');
+```
+
+Same lifecycle as `bind`: seeded now, auto-disposed on despawn, manual dispose
+returned. Unknown controllers/pages are ignored rather than throwing.
+
+## Binding and lists
+
+A [ListView](/docs/guides/ui-lists/) is *already* data-driven — it renders
+from a `DataSource` (e.g. `ArrayDataSource`) with fine-grained
+insert/remove/update notifications, which virtualization needs and a single
+value signal can't express. So: **collections go in a `DataSource`, scalar UI
+state goes in signals**, and the two compose — an item template's `bind`
+callback can read signals, and a signal (say, a selected id) can live next to
+the data source that owns the rows.
+
+## Binding vs controllers vs systems
+
+Three ways to get game state onto the screen — pick by the shape of the state:
+
+| State shape | Use | Why |
+|---|---|---|
+| A **value** — score, health, a name, a slider position | `signal` + `bind` / `bindWidgetValue` | Push on change, no polling; two-way for value widgets. |
+| A **named state** out of a finite set — tab, open/closed, button state | [Controller + gears](/docs/guides/ui-controllers/) | Many elements reflow from one page switch; editor-authorable; tweens. Bridge from data with `bindControllerPage`. |
+| A **collection** — inventory rows, leaderboard | `DataSource` + [ListView](/docs/guides/ui-lists/) | Fine-grained change notifications drive virtualization. |
+| A **per-frame** value derived from simulation — cooldown sweep, follow-the-player markers | A plain [system](/docs/guides/scripting/) writing components | The value changes every frame anyway; a query is the natural reader. |
+
+Rule of thumb: if you're about to write a system that only copies a variable
+into a component when it changes, that's a `bind`. If you're about to hand-set
+colors on five entities whenever a mode changes, that's a controller.
+
+## Best practices
+
+- **One signal per fact.** Derive presentation strings with `derived` instead
+  of storing formatted text.
+- **Let despawn clean up.** Bindings tied to an entity dispose themselves;
+  keep the returned dispose only when you unbind *before* the entity dies.
+- **Two-way only at the widget edge.** `bindWidgetValue` for the slider;
+  everything else reads the signal one-way.
+- **Don't fight the equality break.** Signals compare with `Object.is` — for
+  object values, `set` a *new* object; mutating the old one in place notifies
+  no one.
+- **Keep game logic out of subscribers.** Subscribers run synchronously inside
+  `set`; heavy work there stalls the setter. Bind UI, simulate in systems.
+
+## See also
+
+- [UI](/docs/guides/ui/) — the component model bindings write into.
+- [UI Components](/docs/guides/ui-components/) — the value widgets (`createSlider`, `createToggle`, `createDropdown`).
+- [UI Controllers](/docs/guides/ui-controllers/) — named page state + gears; `bindControllerPage` bridges signals into it.
+- [UI Lists](/docs/guides/ui-lists/) — `DataSource`-driven virtualized lists.
+- [Theming](/docs/guides/ui-theme/) — design tokens and live re-theming.

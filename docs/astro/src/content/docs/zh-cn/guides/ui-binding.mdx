@@ -1,0 +1,203 @@
+---
+title: 数据绑定
+description: 把响应式信号写进组件字段——signal/derived/bind、bindWidgetValue 双向控件绑定,以及绑定、控制器与系统三者的取舍。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+数据绑定以**声明式**从游戏状态驱动 UI:*信号(signal)*持有一个值,*绑定*把它
+写进组件字段——立即生效,且此后每次变化都生效。它取代了命令式的"读组件、改
+字段、再插回去"循环,并且是**推(push)模型**:订阅者在 `set` 内同步运行,
+没有逐帧轮询。
+
+## 信号 —— `signal()`
+
+`signal(initial)` 创建一个可写的响应式值:
+
+```typescript
+import { signal } from 'esengine';
+
+const score = signal(0);
+
+score.get();                  // → 0
+score.set(10);                // notifies subscribers
+score.update((n) => n + 1);   // set via the previous value
+const off = score.subscribe((n) => console.log('score is', n));
+off();                        // unsubscribe
+```
+
+| `Signal<T>` 成员 | 契约 |
+|---|---|
+| `get()` | 当前值。 |
+| `set(value)` | 存储 + 通知——但**仅当值真的变了**(`Object.is`);写入未变的值零开销。 |
+| `update(fn)` | 即 `set(fn(previous))`。 |
+| `subscribe(fn)` | 每次变化时调用;返回退订函数。 |
+
+`ReadonlySignal<T>` 是只含 `get` + `subscribe` 的那一半——`derived` 返回它、
+`bind` 接受它,消费方因此无法写回一个只应读取的来源。
+
+## 派生值 —— `derived()`
+
+`derived(sources, compute)` 是由其他信号计算而来的只读信号;任一来源变化时它
+重算(且同样只在真的变化时通知):
+
+```typescript
+import { signal, derived } from 'esengine';
+
+const health = signal(75);
+const maxHealth = signal(100);
+const healthFrac = derived([health, maxHealth], () => health.get() / maxHealth.get());
+```
+
+<Aside type="caution">
+  `derived` 对来源的订阅存续到进程结束——请用于**应用生命周期**的派生
+  (分数文本、血量比例),不要为短命实体逐个铸造。
+</Aside>
+
+## 单向绑定 —— `bind()`
+
+`bind(world, entity, Component, field, source)` 用一个 `ReadonlySignal` 驱动
+一个组件字段:
+
+```typescript
+import { signal, derived, bind, Text } from 'esengine';
+
+const score = signal(0);
+bind(world, scoreLabel, Text, 'content',
+  derived([score], () => `Score: ${score.get()}`));
+
+score.set(1200);   // the label now reads "Score: 1200"
+```
+
+按源码给出的契约:
+
+- 字段以信号的当前值**立即播种**,此后跟随每次变化。
+- 写入有**守卫**——实体已消失或丢失该组件时跳过——并经由 `world.insert`
+  完成(一次完整的组件写入,与任何其他变更一致)。
+- 绑定在**实体销毁(despawn)时自动解除**;同时返回手动 dispose,可提前解绑。
+- 类型端到端对齐:`bind(world, e, Text, 'content', source)` 要求 `source` 是
+  `ReadonlySignal<string>`,因为 `Text.content` 是字符串。
+
+任何反射字段都同理——用 `ReadonlySignal<Color>` 驱动 `UIVisual.color`、
+`Text.color`,或 `UINode` 的某个尺寸,等等。
+
+## 双向控件绑定 —— `bindWidgetValue()`
+
+值控件(滑杆、开关、下拉框)需要双向流量:信号写入**向下**流进控件的值字段,
+用户输入**向上**从控件的 `change` 事件流回信号。`bindWidgetValue` 把两个方向
+一次接好:
+
+```typescript
+bindWidgetValue(world, events, entity, Component, field, signal, payloadKey?)
+```
+
+- **向下**:一条 `bind` 把信号写进字段;控件的行为系统观察组件,更新视觉并
+  发出 `change`。
+- **向上**:控件的 `change` 事件把 payload 里的值写回信号。
+- **不成环**:信号就是断环器——`Signal.set` 与向下绑定对相等值都是 no-op,
+  一次往返一跳即收敛。
+- 返回的 dispose 同时拆除两个方向(向下绑定在实体销毁时也会自动解除)。
+
+`payloadKey` 指名 `change` payload 里承载值的字段,默认与组件字段同名:
+
+| 控件 | 组件 / 字段 | `payloadKey` |
+|---|---|---|
+| 滑杆 | `UISlider.value` | `'value'`(默认) |
+| 开关 | `UIToggle.isOn` | `'isOn'`(默认) |
+| 下拉框 | `UIDropdown.selectedIndex` | `'index'`(需显式传入) |
+
+一行音量控件——滑杆与标签绑到同一个信号:
+
+```typescript
+import {
+  defineSystem, addStartupSystem, GetWorld, Res, UIEvents,
+  spawnUIEntity, createSlider, px,
+  signal, derived, bind, bindWidgetValue,
+  UISlider, Text,
+} from 'esengine';
+
+const buildVolumeRow = defineSystem([GetWorld(), Res(UIEvents)], (world, events) => {
+  const volume = signal(0.8);
+
+  // The slider: dragging it (or arrow keys while focused) writes `volume` up.
+  const slider = createSlider({
+    world, events,
+    node: { width: px(240), height: px(20) },
+    min: 0, max: 1, value: volume.get(),
+  });
+  bindWidgetValue(world, events, slider.entity, UISlider, 'value', volume);
+
+  // The label: follows the same signal down.
+  const label = spawnUIEntity({ world, text: { content: '' } });
+  bind(world, label, Text, 'content',
+    derived([volume], () => `${Math.round(volume.get() * 100)}%`));
+
+  // Game code sets the signal; the slider fill+handle AND the label follow.
+  volume.set(0.5);
+});
+
+addStartupSystem(buildVolumeRow);
+```
+
+因为向下这一边写的是*组件*,而控件的行为系统是视觉的唯一写者,所以每种写入方
+——指针、绑定、句柄上的 `setValue`、编辑器检视器——移动填充与手柄、触发
+`change` 的方式完全一致。
+
+## 绑定控制器页
+
+`bindControllerPage(world, entity, controller, source)` 用一个
+`ReadonlySignal<string>` 驱动 [UI 控制器](/docs/zh-cn/guides/ui-controllers/)
+的当前页——数据驱动页签栏的声明式路径。设置信号,页切换,所有 geared 元素
+随之重排:
+
+```typescript
+import { signal, bindControllerPage } from 'esengine';
+
+const activeTab = signal('home');
+bindControllerPage(world, root, 'tab', activeTab);
+activeTab.set('shop');
+```
+
+生命周期与 `bind` 相同:立即播种、实体销毁时自动解除、返回手动 dispose。未知
+的控制器/页被忽略而非抛错。
+
+## 绑定与列表
+
+[ListView](/docs/zh-cn/guides/ui-lists/) 本身*已经*是数据驱动的——它渲染自
+`DataSource`(例如 `ArrayDataSource`),带细粒度的插入/删除/更新通知,这是
+虚拟化所必需、而单个值信号表达不了的。所以:**集合放进 `DataSource`,标量 UI
+状态放进信号**,两者组合使用——条目模板的 `bind` 回调可以读信号,而一个信号
+(比如选中的 id)可以与拥有行数据的 data source 并肩存在。
+
+## 绑定 vs 控制器 vs 系统
+
+把游戏状态搬上屏幕的三条路——按状态的形状选:
+
+| 状态形状 | 用 | 原因 |
+|---|---|---|
+| 一个**值**——分数、血量、名字、滑杆位置 | `signal` + `bind` / `bindWidgetValue` | 变化时推送,无轮询;值控件可双向。 |
+| 有限集合中的一个**命名状态**——页签、开/关、按钮状态 | [控制器 + gear](/docs/zh-cn/guides/ui-controllers/) | 一次翻页带动多元素重排;可在编辑器创作;支持补间。用 `bindControllerPage` 从数据接入。 |
+| 一个**集合**——背包行、排行榜 | `DataSource` + [ListView](/docs/zh-cn/guides/ui-lists/) | 细粒度变更通知驱动虚拟化。 |
+| 由模拟派生的**逐帧**值——冷却扫过、跟随玩家的标记 | 普通[系统](/docs/zh-cn/guides/scripting/)写组件 | 值本来每帧都变;query 是天然的读者。 |
+
+经验法则:如果你正要写一个只在变量变化时把它拷进组件的系统,那就是一条
+`bind`。如果你正要在模式切换时手动给五个实体设颜色,那就是一个控制器。
+
+## 最佳实践
+
+- **一个事实一个信号。** 展示字符串用 `derived` 派生,别存格式化文本。
+- **让 despawn 收尾。** 系于实体的绑定会自我解除;只有需要在实体死*之前*解绑
+  时才保留返回的 dispose。
+- **双向只在控件边缘。** 滑杆用 `bindWidgetValue`;其余一律单向读信号。
+- **别和相等断环较劲。** 信号用 `Object.is` 比较——对象值要 `set` 一个*新*
+  对象;原地改旧对象不会通知任何人。
+- **游戏逻辑别放订阅者里。** 订阅者在 `set` 内同步运行;重活会卡住写入方。
+  绑定管 UI,模拟归系统。
+
+## 参见
+
+- [UI](/docs/zh-cn/guides/ui/) —— 绑定所写入的组件模型。
+- [UI 控件](/docs/zh-cn/guides/ui-components/) —— 值控件(`createSlider`、`createToggle`、`createDropdown`)。
+- [UI 控制器](/docs/zh-cn/guides/ui-controllers/) —— 命名的页状态 + gear;`bindControllerPage` 把信号接进去。
+- [UI 列表](/docs/zh-cn/guides/ui-lists/) —— `DataSource` 驱动的虚拟化列表。
+- [主题](/docs/zh-cn/guides/ui-theme/) —— 设计令牌与实时换肤。

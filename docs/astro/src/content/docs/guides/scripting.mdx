@@ -204,7 +204,18 @@ programming model used by the [Gameplay AI](/docs/guides/ai/) layer's actions an
 behavior-tree leaves, so moving logic between a behavior and an AI action is
 straightforward.
 
-<Aside type="note">
-  On hot reload, per-entity `start` runs again for live entities — matching Estella's
-  fast-restart semantics, so treat `start` as idempotent setup.
-</Aside>
+## Hot reload
+
+While the editor plays, saving your code triggers a **state-preserving hot
+swap** when it can: if your components' shapes are unchanged and no system was
+added, removed, or renamed, the live world is kept and only your function
+bodies are replaced. Otherwise the editor falls back to a full reload. What
+that asks of your code:
+
+- **Component and behavior names are identity.** Renaming one is a structural
+  change — expect a full reload and fresh state for that data.
+- On any reload, per-entity `start` runs again for live entities — matching
+  Estella's fast-restart semantics, so treat `start` as idempotent setup.
+
+The mechanism (probe context, schema fingerprint, `App.hotSwapSystems`) is
+documented in [App Setup & Lifecycle](/docs/core-concepts/app-lifecycle/#hot-reload).

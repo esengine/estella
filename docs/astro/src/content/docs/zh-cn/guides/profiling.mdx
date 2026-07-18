@@ -1,0 +1,356 @@
+---
+title: 性能剖析与诊断
+description: 帧统计与游戏内浮层、结构化日志、帧捕获、GL 调试、GPU 资源预算,以及子系统健康。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Estella 把诊断能力做成普通的 SDK 表面:系统可以读取的 **`Stats` 资源**、**游戏内
+浮层**、带可插拔输出的结构化**日志器**、记录每个 draw call(并能重放到其中任意一个)
+的**帧捕获**、**GL 错误检查**、GPU **资源驻留统计**,以及每个 App 一份的**子系统健康
+注册表**。本篇逐一讲清。
+
+## 帧统计 — `statsPlugin`
+
+添加 `statsPlugin` 后,引擎每帧把性能数据收集进 `Stats` 资源(在 `Last` 调度阶段,
+一切系统跑完之后):
+
+```typescript
+import { statsPlugin } from 'esengine';
+
+app.addPlugin(statsPlugin);
+```
+
+`statsPlugin` 是一个带默认配置的现成实例。需要选项时,自己构造 `StatsPlugin`:
+
+```typescript
+import { StatsPlugin } from 'esengine';
+
+app.addPlugin(new StatsPlugin({ overlay: true, position: 'top-right' }));
+```
+
+| `StatsPluginOptions` | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `overlay` | boolean | `true` | 显示 DOM 浮层(没有 `document` 的环境会自动跳过)。 |
+| `position` | `StatsPosition` | `'bottom-left'` | 浮层角落:`'top-left'` / `'top-right'` / `'bottom-left'` / `'bottom-right'`。 |
+| `container` | HTMLElement | `document.body` | 浮层面板挂载到的元素。 |
+
+该插件还会调用 `app.enableStats()`,开启逐系统、逐阶段的耗时采集(默认关闭,
+所以正式发布的游戏不为此付费)。
+
+### 在系统里读取 `Stats`
+
+`Stats` 是普通资源——用 `Res(Stats)` 注入:
+
+```typescript
+import { defineSystem, addSystem, Res, Stats } from 'esengine';
+
+const watchPerf = defineSystem([Res(Stats)], (stats) => {
+  if (stats.fps > 0 && stats.fps < 30) {
+    console.warn(`slow frame: ${stats.frameTimeMs.toFixed(1)}ms, ${stats.drawCalls} draw calls`);
+  }
+});
+addSystem(watchPerf);
+```
+
+`FrameStats` 字段(FPS 与帧时间是 60 帧滑动窗口的平均;渲染计数是当前帧的):
+
+| `FrameStats` 字段 | 类型 | 说明 |
+|---|---|---|
+| `fps` | number | 每秒帧数,按最近 60 帧平均。 |
+| `frameTimeMs` | number | 同一窗口内的平均帧时间(毫秒)。 |
+| `entityCount` | number | 世界中的存活实体数。 |
+| `systemTimings` | `Map<string, number>` | 本帧每个系统的 CPU 毫秒数,按系统名索引。 |
+| `phaseTimings` | `Map<string, number>` | 本帧每个调度阶段的 CPU 毫秒数。 |
+| `drawCalls` | number | 本帧发出的 GPU draw call 数。 |
+| `triangles` | number | 本帧提交的三角形数。 |
+| `sprites` | number | 本帧渲染的精灵数。 |
+| `text` | number | 本帧渲染的文本实体数。 |
+| `spine` | number | 本帧渲染的 Spine 骨骼数。 |
+| `meshes` | number | 本帧渲染的网格数。 |
+| `culled` | number | 本帧被剔除(未提交)的实体数。 |
+
+## 统计浮层
+
+`overlay: true`(默认)时,插件渲染一个固定位置的小等宽字体面板:FPS + 帧时间、
+draw call / 三角形 / 精灵 / 剔除数、实体数,以及按最差帧排名的**前 5 个系统**——
+每行显示 `平均 / 最大 ms`。面板最多每 500&nbsp;毫秒重绘一次,期间持续累积系统耗时,
+因此开销极小,而单帧尖峰仍会出现在 `max` 列里。
+
+也可以自己驱动 `StatsOverlay`——比如绑到调试热键上:
+
+```typescript
+import { StatsOverlay, defineSystem, addSystem, Res, Stats } from 'esengine';
+
+const overlay = new StatsOverlay(document.body, 'top-right');
+
+const feedOverlay = defineSystem([Res(Stats)], (stats) => {
+  overlay.update(stats);
+});
+addSystem(feedOverlay);
+
+// overlay.hide() / overlay.show() 切换显示,overlay.dispose() 移除。
+```
+
+<Aside type="note">
+  浮层基于 DOM,因此在 Web 与桌面端存在,在无 DOM 的环境里没有;`statsPlugin`
+  会自动跳过创建。`Stats` 资源本身在所有环境都可用。
+</Aside>
+
+## 渲染器计数 — `Renderer.getStats()`
+
+`FrameStats` 里的渲染计数来自 `Renderer.getStats()`,也可以直接调用(不需要
+stats 插件)——它返回一个 `RenderStats`,同样是那七个字段:`drawCalls`、
+`triangles`、`sprites`、`text`、`spine`、`meshes`、`culled`。
+
+```typescript
+import { Renderer } from 'esengine';
+
+const rs = Renderer.getStats();
+console.log(`${rs.drawCalls} draw calls, ${rs.triangles} triangles`);
+```
+
+## 自建工具
+
+插件背后有两个小工具类,均已导出供自定义工具使用:
+
+- **`StatsCollector`** — `fps` / `frameTimeMs` 背后的 60 帧滑动窗口。用
+  `pushFrame(deltaSeconds)` 喂入帧间隔,读 `getFps()` / `getFrameTimeMs()`;
+  `reset()` 清空窗口。
+- **`FrameHistory`** — `FrameSnapshot` 的环形缓冲(默认容量 300,60&nbsp;fps 下约
+  5&nbsp;秒),用于绘制帧时间曲线。`push(frameTimeMs, phaseTimings, systemTimings?)`
+  会深拷贝两个 Map,快照保持有效;`getLatest()` 返回最新快照,`getAll()` 返回从旧到
+  新的整个窗口,`count` / `reset()` 顾名思义。
+
+| `FrameSnapshot` 字段 | 说明 |
+|---|---|
+| `frameTimeMs` | 该帧的总 CPU 时间。 |
+| `phaseTimings` | 逐阶段毫秒数(push 时拷贝)。 |
+| `systemTimings` | 逐系统毫秒数(push 时拷贝)。 |
+
+## 日志
+
+SDK 自身的诊断信息走结构化日志器而不是裸 `console.*`,你的游戏代码可以用同一条
+通道。每条消息有**级别**、自由字符串的**类别**(`'physics'`、`'net'`、你自己的
+`'gameplay'`……)、消息文本,以及可选的结构化 `data`:
+
+```typescript
+import { log, setLogLevel, LogLevel } from 'esengine';
+
+setLogLevel(LogLevel.Debug);              // default is LogLevel.Info
+
+log.debug('gameplay', 'Wave spawned', { wave: 3, enemies: 12 });
+log.info('save', 'Game saved');
+log.warn('net', 'High latency', { rttMs: 240 });
+log.error('boot', 'Asset manifest failed', err);   // Error keeps its stack
+```
+
+`LogLevel` 为 `Debug < Info < Warn < Error`;`setLogLevel` 设置最低级别——低于它
+的消息在到达任何 handler 之前就被丢弃。独立的 `debug` / `info` / `warn` / `error`
+函数同样已导出,转发到同一个默认日志器;需要 `Logger` 实例本身时用 `getLogger()`。
+
+默认装有一个控制台 handler:它格式化为 `[time] [LEVEL] [category] message`,按级别
+选择对应的 `console` 方法,并把 `Error` 数据作为独立参数传入,让浏览器原生渲染堆栈。
+
+### 自定义日志输出
+
+**`LogHandler`** 以结构化 `LogEntry` 的形式收到每条被接受的消息——这是游戏内
+控制台、文件写入器、崩溃报告面包屑的挂接点。handler 抛异常会被捕获并上报,
+绝不拖垮应用:
+
+```typescript
+import { getLogger, LogLevel, type LogEntry, type LogHandler } from 'esengine';
+
+class Breadcrumbs implements LogHandler {
+  entries: LogEntry[] = [];
+  handle(entry: LogEntry): void {
+    if (entry.level >= LogLevel.Warn) {
+      this.entries.push(entry);
+      if (this.entries.length > 100) this.entries.shift();
+    }
+  }
+}
+
+const crumbs = new Breadcrumbs();
+getLogger().addHandler(crumbs);
+// getLogger().removeHandler(crumbs) to detach,
+// getLogger().clearHandlers() to remove every handler (console one included).
+```
+
+| `LogEntry` 字段 | 类型 | 说明 |
+|---|---|---|
+| `timestamp` | number | 记录时刻的 `Date.now()`(epoch 毫秒)。 |
+| `level` | `LogLevel` | `Debug` / `Info` / `Warn` / `Error`。 |
+| `category` | string | 调用方传入的通道字符串。 |
+| `message` | string | 消息文本。 |
+| `data` | unknown | 可选负载(对象、`Error`……)。 |
+
+## 帧捕获 — 每个 draw call 都有解释
+
+当"这帧为什么是 40 个 draw call?"需要答案时,捕获一帧。先武装捕获,让一帧渲染
+完,然后读回**每个 draw call** 的记录——它画了什么、绑了哪个贴图/材质/着色器和
+什么状态,以及最关键的:**上一个批次为什么被打断**:
+
+```typescript
+import { Renderer, RenderType, FlushReason } from 'esengine';
+
+Renderer.captureNextFrame();          // arm: the NEXT rendered frame records
+
+// …one frame later:
+if (Renderer.hasCapturedData()) {
+  const capture = Renderer.getCapturedData();   // FrameCaptureData | null
+  for (const dc of capture!.drawCalls) {
+    console.log(
+      `#${dc.index} ${RenderType[dc.type]} tex=${dc.textureId} ` +
+      `tris=${dc.triangleCount} entities=${dc.entityCount} ` +
+      `flush=${FlushReason[dc.flushReason]}`
+    );
+  }
+  console.log(`${capture!.cameraCount} camera pass(es)`);
+}
+```
+
+`FrameCaptureData` 是 `{ drawCalls: DrawCallInfo[], cameraCount }`。每个
+`DrawCallInfo`:
+
+| `DrawCallInfo` 字段 | 说明 |
+|---|---|
+| `index` | 该 draw call 在帧内的序号(提交顺序)。 |
+| `cameraIndex` | 由哪个相机 pass 发出。 |
+| `stage` | 渲染阶段(`RenderStage`:Background / Opaque / Transparent / Overlay)。 |
+| `type` | 绘制的内容类型(`RenderType`,见下)。 |
+| `blendMode` | 生效的混合模式 id。 |
+| `textureId` / `materialId` / `shaderId` | 该调用绑定的 GPU 资源。 |
+| `vertexCount` / `triangleCount` | 提交的几何量。 |
+| `entityCount` / `entityOffset` / `entities` | 被批进该调用的实体 id。 |
+| `layer` | 批次的渲染层。 |
+| `flushReason` | 该批次为何结束(`FlushReason`,见下)。 |
+| `scissorX/Y/W/H`、`scissorEnabled` | 裁剪矩形状态(UI 遮罩)。 |
+| `stencilWrite` / `stencilTest` / `stencilRef` | 模板状态(遮罩写入/读取方)。 |
+| `textureSlotUsage` | 批次占用的纹理槽数。 |
+
+`RenderType` 说明一个调用画了什么:`Sprite`、`Spine`、`Mesh`、`ExternalMesh`、
+`Text`、`Particle`、`Shape`、`UIElement`。
+
+`FlushReason` 就是合批的故事——每个值都点名了迫使新开一个 draw call 的那次状态
+变化,也就是想合批更好该修什么:
+
+| `FlushReason` | 含义 |
+|---|---|
+| `BatchFull` | 顶点批次到达容量——"好"的 flush,说明内容多。 |
+| `TextureSlotsFull` | 纹理槽用尽——把更多贴图打进图集。 |
+| `ScissorChange` | 裁剪矩形变化(`UIMask` 边界)。 |
+| `StencilChange` | 模板状态变化(遮罩写入/测试边界)。 |
+| `MaterialChange` | 材质切换——按材质给实体分组。 |
+| `BlendModeChange` | 混合模式切换——加法/普通内容交错。 |
+| `StageEnd` | 渲染阶段边界。 |
+| `TypeChange` | 内容类型切换(如精灵 → 文本 → 精灵)。 |
+| `FrameEnd` | 该帧的最终 flush。 |
+
+### 重放到某个 draw call
+
+捕获可以**重放到任意 draw call**,看这一帧是怎么一步步画出来的——编辑器的帧检查
+器就是这么做的。`replayToDrawCall(i)` 把 draw call `0…i` 重渲染进一张快照;
+`getSnapshotImageData()` 在 GPU 回读落地后解析出像素(WebGL 上立即,WebGPU 上晚
+一个 tick):
+
+```typescript
+import { Renderer } from 'esengine';
+
+Renderer.replayToDrawCall(5);                       // draw calls 0..5 only
+const img = await Renderer.getSnapshotImageData();  // ImageData | null
+if (img) ctx2d.putImageData(img, 0, 0);             // e.g. into a debug canvas
+```
+
+## GL 调试 — `GLDebug`
+
+`GLDebug` 开关 wasm 渲染器内部的 GL 错误检查——默认关闭,因为检查有开销:
+
+```typescript
+import { GLDebug } from 'esengine';
+
+GLDebug.enable();                       // check GL errors at key points
+const errors = GLDebug.check('after-spawn');  // explicit check; returns error count
+GLDebug.diagnose();                     // dump renderer diagnostics to the console
+GLDebug.disable();
+```
+
+`check(context)` 立即执行一次错误检查并返回发现的 GL 错误数,日志输出会带上你的
+`context` 字符串,便于二分定位错误出现在帧内的哪个位置。
+
+## GPU 资源预算与驻留
+
+已释放的贴图会驻留在一个按字节预算的温缓存里(完整模型见
+[资源指南](/docs/zh-cn/guides/assets/#生命周期与引用计数))。这里是它的诊断面:
+
+```typescript
+import { getResourceStats, setTextureBudget, trimTextureCache } from 'esengine';
+
+setTextureBudget(256 * 1024 * 1024);   // resize the budget (0 = no warm cache)
+
+const stats = getResourceStats();       // ResourceStats | null before engine init
+if (stats && stats.textureBytes > stats.textureBudget * 0.9) {
+  const freed = trimTextureCache();     // drop every evictable texture now
+  console.log(`freed ${freed} cached textures`);
+}
+```
+
+| `ResourceStats` 字段 | 说明 |
+|---|---|
+| `shaderCount` | 存活的已编译着色器数。 |
+| `textureCount` | 存活的 GPU 贴图数。 |
+| `vertexBufferCount` / `indexBufferCount` | 存活的 GPU 缓冲数。 |
+| `cacheHits` / `cacheMisses` | 资源缓存命中/未命中计数。 |
+| `textureBytes` | 驻留贴图字节数(RGBA8 估算)——持有的 + 可逐出的。 |
+| `textureBudget` | 当前驻留字节预算(`0` = 关闭逐出缓存)。 |
+| `textureEvictableCount` | 引用数为 0、等待复活或逐出的缓存贴图数。 |
+
+`trimTextureCache()` 立即释放所有可逐出条目并返回释放的贴图数——引擎在收到 OS
+内存警告时会调用它;在已知的内存尖峰前你也可以主动调用。被持有(有引用)的贴图
+和预算本身不受影响。
+
+`evictTextureDimensions(handle)` 丢弃 SDK 侧缓存的某个贴图句柄的宽高,下一次
+`getTextureDimensions` 查询会重新从引擎读取——只有在同一句柄下替换贴图内容的
+工具代码才会用到。
+
+## 子系统健康
+
+每个 `App` 在 `app.subsystems` 上携带一个 `SubsystemRegistry`,跟踪各引擎子系统的
+生命周期阶段(`registered` → `initializing` → `ready`,`error` 为终态)和派生的
+活跃度(`stepping` / `idle` / `inactive`)——回答"物理到底在不在跑?":
+
+```typescript
+for (const s of app.subsystems.getStatuses()) {
+  console.log(`${s.displayName}: ${s.phase} (${s.activity})`, s.lastError ?? '');
+}
+```
+
+`recentEvents()` 返回最近的生命周期转换,`subscribe(fn)` 在阶段变化时通知。完整的
+生命周期模型见 [App 与生命周期](/docs/zh-cn/core-concepts/app-lifecycle/)。
+
+## 在编辑器里
+
+桌面编辑器的剖析 UI 建立在同一套表面上:**Profiler 面板**显示实时帧时间曲线以及
+逐阶段、逐系统的分解(点击某帧可检查它),视口里还有一个小的性能浮层用来一眼看
+FPS。对游戏内构建,上面的 `statsPlugin` 就是对应物。
+
+## 最佳实践
+
+- **发布时不带 `statsPlugin`**(或用调试开关门控)——耗时采集默认关闭是有原因的;
+  剖析时再加。
+- **先归因再优化** — 读 `systemTimings` / `phaseTimings` 找到*哪个*系统慢再动代码;
+  浮层的 `max` 列能抓住平均值掩盖的单帧尖峰。
+- **用帧捕获修 draw call** — `flushReason` 点名打断每个批次的那次状态变化
+  (`TextureSlotsFull` → 打图集;`MaterialChange` → 按材质分组)。
+- **用类别记日志,别用 `console.log`** — 结构化条目让 handler 能按通道和级别过滤,
+  `setLogLevel(LogLevel.Debug)` 不改代码就能打开详细输出。
+- **生产环境关闭 `GLDebug`** — 逐调用的 GL 错误检查很贵;只在追渲染 bug 时开。
+- **在内存受限的目标上盯住 `textureBytes` 与 `textureBudget` 的关系**,并在已知
+  尖峰前 `trimTextureCache()`。
+
+## 另请参阅
+
+- [资源](/docs/zh-cn/guides/assets/) — 资源统计所观察的贴图温缓存与预算。
+- [App 与生命周期](/docs/zh-cn/core-concepts/app-lifecycle/) — 插件、调度与子系统注册表。
+- [系统](/docs/zh-cn/core-concepts/systems/) — 调度与系统名(`systemTimings` 的键)。
+- [编辑器](/docs/zh-cn/guides/editor/) — 桌面编辑器,含其 Profiler 面板。

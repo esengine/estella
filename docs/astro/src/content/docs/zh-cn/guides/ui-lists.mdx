@@ -1,0 +1,451 @@
+---
+title: 列表与滚动
+description: 用 createListView 构建虚拟化的数据驱动列表与网格——数据源、布局提供者、实体回收、自动行高——外加 createScrollView 自由滚动、惯性甩动与滚动条。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+在 Estella 里,长的可滚动内容由 [UI](/docs/zh-cn/guides/ui/) 组件模型之上的两个工厂构建:
+
+- **`createListView`** —— **虚拟化**的数据驱动列表或网格。任何时刻只挂载视口附近的条目,
+  所以 10 000 行的背包、排行榜或聊天记录和 10 行的一样便宜。
+- **`createScrollView`** —— 承载**任意内容**的裁剪滚动面板(设置页、长表单)。
+  无虚拟化、无数据源——把你的实体挂到它下面即可。
+
+两者组合的是同一套原语:一个 Scissor 模式的 [`UIMask`](#裁剪--uimask) 视口、一个由
+[`ScrollContainer`](#滚动模型) 平移的内容框,以及由 UI 插件路由的滚轮 / 拖拽 / 惯性甩动输入。
+
+## `createListView`
+
+一次调用组合出数据源、布局、条目回收、滚动与裁剪:
+
+```typescript
+import { createListView, uiPlugin, arrayDataSource, spawnUIEntity, px } from 'esengine';
+
+const list = createListView<Player>({
+  world, host: uiPlugin, parent,
+  viewportSize: { x: 320, y: 480 },     // the visible window, in pixels
+  data: arrayDataSource(players),        // any DataSource<T>, or a raw array
+  layout: { itemHeight: 56 },            // a column list
+  item: {
+    create: (world, parent) => spawnUIEntity({ world, parent, node: { height: px(56) } }),
+    bind: (entity, player, index) => { /* fill the row's Text / Sprite from `player` */ },
+  },
+});
+```
+
+`host` 是驱动虚拟化 tick 并路由滚动输入的插件——传你的应用所构建的 `uiPlugin`
+(细粒度的 `uiBehaviorPlugin` 也满足该契约)。
+
+### 选项
+
+| 选项 | 默认 | 说明 |
+|---|---|---|
+| `world` / `host` | — | ECS world 与负责 tick 的插件(`uiPlugin`)。必填。 |
+| `parent` | 根 | 视口的父实体。 |
+| `viewportSize` | — | 可见窗口的像素尺寸。必填——滚动数学需要预先知道。 |
+| `node` | 尺寸取 `viewportSize` | 视口盒的额外 `UINode` 属性。 |
+| `background` | 透明 | 视口视觉。默认是不可见的**命中目标**——它必须存在,滚轮和拖拽才能落在列表上。 |
+| `data` | — | 一个 `DataSource<T>`,或裸数组(会被包成 `ArrayDataSource`——数组会被**拷贝**,之后请改数据源而不是你的原数组)。 |
+| `layout` | — | 布局语法糖(`itemHeight` / `itemWidth` / `columns`,见下)或完整的[布局提供者](#布局提供者)。 |
+| `item` | — | 一个[条目模板](#条目模板),或"条目类型 → 模板"的 map(异构行)。 |
+| `direction` | 由布局推导 | 滚动轴:`'vertical'` \| `'horizontal'` \| `'both'`。列/网格布局默认竖向,行布局默认横向。 |
+| `recycleBuffer` | `2` | 可见范围两侧各多保留挂载的索引数。网格按行思考:`columns * 2` 即多留两行。 |
+| `wheelSpeed` | `1` | 滚轮增量倍率。 |
+| `dragScroll` | `true` | 指针/触摸拖拽滚动,带惯性甩动。 |
+| `decelerationRate` | `0.135` | 甩动滑行 1 秒后剩余的速度比例。 |
+| `onItemBound` | — | 每次 bind 之后调用的 `(entity, data, index)`——用于逐条微调。 |
+
+**布局语法糖**(`ListLayoutSpec`)覆盖三种常见形态:
+
+| `layout` | 结果 |
+|---|---|
+| `{ itemHeight, spacing? }` | 竖向列表——固定行高,或传 **`(index) => number`** 函数做[自动行高](#自动行高)。 |
+| `{ itemWidth, direction: 'row', spacing? }` | 横向列表;条目撑满视口高度。 |
+| `{ columns, itemSize, spacing? }` | 网格(*TileView*);此处 `spacing` 是 `Vec2`。 |
+
+### 条目模板
+
+条目模板是一对 **create / bind**(`ListItemTemplate<T>`):
+
+```typescript
+item: {
+  // Build ONE row entity. Runs only when the pool has no free row to reuse.
+  create: (world, parent) => spawnUIEntity({ world, parent, text: { content: '' } }),
+  // Apply data to a row. Runs on every (re)bind — keep it a pure "apply this data".
+  bind: (entity, player, index) => setRowText(world, entity, player.name),
+}
+```
+
+- `create` 一次性搭好该行的实体子树——生成子实体、插组件、接交互都在这里。用
+  `spawnUIEntity`,让行自带 `UINode`。
+- `bind` 把数据填进行里。它在行**每次**被(重)用时运行——滚入视口时、数据更新时、
+  以及每个滚动步进对所有已挂载行再跑一遍——所以必须**幂等且便宜**。
+
+**回收规则。** 行是池化实体,不是新生成的:
+
+- 复用的行仍保留**上一次 bind 写入的一切**——你设置过的每个字段都要重置
+  (文本、颜色、条件子节点的可见性)。只对*部分*条目设置的字段,`bind`
+  也要为其余条目清掉。
+- 绝不要在 `bind` 里生成子实体或加组件——每次复用都会累积。结构属于 `create`。
+- 不要以行**实体**为键存外部状态——实体↔索引的映射随滚动变化。以数据为键
+  (或在 `bind` 里重新推导)。
+- 给写入加守卫:每个滚动步进 `bind` 会对所有已挂载行重跑,值没变就跳过组件写入
+  (提前返回的 `if (text.content === next) return;` 能让滚动零分配)。
+- 列表**拥有每行的盒子**:每次 bind 都会把该行的 `UINode` 设为 `Absolute`,
+  并用布局矩形覆写 inset 和 `width`/`height`。行*内容*的尺寸用行内的子节点控制,
+  不要写行节点本身。
+- 滚出屏幕的行会被隐藏(经 `setUIVisible`),不会销毁;它们被复用,或随列表一起销毁。
+
+**异构行**——传"条目类型 → 模板"的 map,并给数据源实现 `getItemType(index)`:
+
+```typescript
+item: {
+  header:  { create: makeHeader,  bind: bindHeader },
+  message: { create: makeMessage, bind: bindMessage },
+},
+```
+
+`getItemType` 返回的每个类型都必须有对应模板。当一次数据 reset 让某索引换了类型,
+旧行会被释放,换上正确模板的行再绑定。
+
+<Aside type="note">
+  **没有内置的选中模型**——行就是普通实体树。让行可点击(在 `create` 里放个
+  `createButton`,或 `Interactable` + `click` 处理器),把选中 id 存**在你的数据里**,
+  由 `bind` 渲染选中态。活在数据里的状态天然经得起回收。
+</Aside>
+
+### 句柄
+
+`createListView` 返回 `ListViewHandle<T>`:
+
+| 成员 | 说明 |
+|---|---|
+| `entity` | 视口实体(裁剪窗口;把它摆进你的 UI 树)。 |
+| `content` | 行所挂载的滚动内容框。 |
+| `data` | `DataSource<T>`——改它就是改列表。 |
+| `refresh()` | 强制下一帧重新同步已挂载行(用于绕过数据源的带外改动)。 |
+| `scrollToIndex(i)` | 滚动到条目 `i` 位于视口左上角(收敛到合法范围)。 |
+| `mountedCount()` | 当前挂载的行实体数——不随数据增长;测试里很好用。 |
+| `scroll` / `view` | 底层 `ScrollContainer` / `ListView` 驱动器的逃生口。 |
+| `dispose()` | 注销、释放行、退订滚动/数据、销毁视口。 |
+
+## 数据源
+
+列表通过 `DataSource<T>` 接口读取条目:
+
+```typescript
+interface DataSource<T> {
+  getCount(): number;
+  getItem(index: number): T;
+  getItemType?(index: number): string;                       // default 'default'
+  getItemId?(index: number, item: T): string | number;       // stable identity
+  subscribe?(listener: (change: DataSourceChange) => void): () => void;
+}
+```
+
+`subscribe` 让列表"活"起来:任何变更通知都会把视图标脏,下一帧重新同步——
+经数据源的改动永远不用你手动 `refresh()`。
+
+### `ArrayDataSource`
+
+内置的数组数据源(`arrayDataSource(items)` 是简写构造)。每个修改方法都在一次调用里
+更新数组**并**通知订阅者:
+
+| 方法 | 发出的变更 | 说明 |
+|---|---|---|
+| `setItems(items)` | `reset` | 替换全部条目。 |
+| `append(items)` | `insert` | 追加到末尾。 |
+| `insert(index, items)` | `insert` | 在 `index` 处插入(收敛到合法范围)。 |
+| `remove(index, count = 1)` | `remove` | 从 `index` 起移除 `count` 个。 |
+| `update(index, item)` | `update` | 替换一个条目。 |
+| `getCount()` / `getItem(i)` | — | 读取(`getItem` 越界会抛错)。 |
+| `subscribe(fn)` | — | 监听变更;返回退订函数。 |
+
+```typescript
+list.data.append([newPlayer]);        // add
+list.data.remove(3);                   // remove index 3
+list.data.update(0, updatedPlayer);    // replace one
+list.data.setItems(freshList);         // replace all
+```
+
+<Aside type="caution">
+  构造函数会**拷贝**你传入的数组。之后改你的原数组屏幕上什么也不会发生——请走上面的
+  修改方法。若必须改数据源看不见的共享状态,调 `list.refresh()`(并且要知道:
+  测量布局不会因此重新测量——见下文)。
+</Aside>
+
+### 自定义 `DataSource`
+
+数据不在数组里时——环形缓冲、查询结果、分页网络集合——直接实现接口:
+
+```typescript
+import type { DataSource, DataSourceChange } from 'esengine';
+
+class LogSource implements DataSource<string> {
+  private lines: string[] = [];
+  private listeners = new Set<(c: DataSourceChange) => void>();
+
+  getCount() { return this.lines.length; }
+  getItem(i: number) { return this.lines[i]; }
+  subscribe(fn: (c: DataSourceChange) => void) {
+    this.listeners.add(fn);
+    return () => this.listeners.delete(fn);
+  }
+
+  push(line: string) {
+    const at = this.lines.length;
+    this.lines.push(line);
+    for (const fn of this.listeners) fn({ type: 'insert', index: at, count: 1 });
+  }
+}
+```
+
+`getCount` + `getItem` 是必需的最小集;不实现 `subscribe` 列表也能工作,
+但每次改动后你得自己调 `refresh()`。
+
+## 布局提供者
+
+`layout` 选项接受完整的 `LayoutProvider`——语法糖背后的纯数学对象。提供者回答三个问题:
+内容总尺寸、条目 `i` 的矩形、给定视口矩形能看到哪个索引区间。内置三个实现:
+
+| 提供者 | 适用 | 选项 |
+|---|---|---|
+| `LinearLayoutProvider` | 定尺寸的行或列。 | `itemSize: Vec2`(必填)、`direction: 'row' \| 'column'`(默认 `'column'`)、`spacing`(默认 `0`)。 |
+| `GridLayoutProvider` | N 列定尺寸格子;竖向滚动。 | `columns`(必填,最小 1)、`itemSize: Vec2`(必填)、`spacing: Vec2`(默认 `{0, 0}`)。 |
+| `MeasuredLinearLayoutProvider` | 主轴尺寸逐条不同的行(聊天气泡、混排内容)。 | `crossSize`(必填)、`mainSizeOf: (index) => number`(必填)、`direction`(默认 `'column'`)、`spacing`(默认 `0`)。 |
+
+```typescript
+import { createListView, GridLayoutProvider, uiPlugin } from 'esengine';
+
+createListView<Item>({
+  world, host: uiPlugin, parent,
+  viewportSize: { x: 320, y: 480 },
+  data: items,
+  layout: new GridLayoutProvider({ columns: 4, itemSize: { x: 72, y: 72 }, spacing: { x: 8, y: 8 } }),
+  item: { create: makeCell, bind: bindCell },
+});
+```
+
+语法糖与它们一一对应:`{ itemHeight: 56 }` 构建以视口宽为交叉轴的
+`LinearLayoutProvider`;`{ itemHeight: (i) => … }` 构建
+`MeasuredLinearLayoutProvider`;`{ columns, itemSize }` 构建 `GridLayoutProvider`。
+
+**自动行高的机制。** `MeasuredLinearLayoutProvider` 对条目偏移做前缀和并缓存;
+条目定位与可见性查询都读缓存。缓存在条目数变化时、以及列表使其失效时重建——
+列表会在**每次数据源变更**和**视口改尺寸**时使其失效(依赖宽度的测量,如折行文本,
+需要重排)。一次重建会对每个条目各调一次 `mainSizeOf`,所以测量要便宜,或按条目做记忆化。
+
+### 自动行高
+
+给 `itemHeight` 传**函数**,让每行按内容定高——聊天记录里气泡随折行文本增高的完美场景:
+
+```typescript
+import { measureText } from 'esengine';
+
+createListView<Message>({
+  world, host: uiPlugin, parent,
+  viewportSize: { x: 360, y: 480 },
+  data: messages,
+  layout: {
+    itemHeight: (i) => measureText(messages.getItem(i).text, {
+      fontSize: 14, maxWidth: 320,
+    }).height + 16,                      // wrapped text height + vertical padding
+    spacing: 8,
+  },
+  item: { /* create / bind */ },
+});
+```
+
+`measureText(text, { fontSize, maxWidth?, fontFamily?, bold?, italic?, letterSpacing?, lineHeight? })`
+返回 `{ width, lineCount, height }`,度量来源与**字形图集绘制所用的同一份 Canvas2D 指标**,
+所以测出的高度与实际渲染一致——不再有被裁或溢出的行。`lineHeight` 默认
+`fontSize * 1.2`(`Text` 的默认比例);不传 `maxWidth` 即单行不折行。
+(无 DOM 的宿主回退到平均字宽估算。)
+
+## 虚拟化的工作方式
+
+每帧,host 插件对每个已注册的列表 tick 一次;除非有东西把列表标脏(滚动、数据变更、
+视口改尺寸),tick 是空操作。一次脏更新:
+
+1. 向布局提供者询问当前滚动偏移下的**可见索引区间**,
+2. 两侧各扩 `recycleBuffer` 个索引,
+3. 把落到区间外的已挂载行**释放**回实体池(隐藏,不销毁),
+4. 为进入区间的索引**获取**行——池里有空闲就复用,否则走模板的 `create`——
+   并对区间内每一行 **bind**。
+
+结果:每帧工作量是 `O(mounted)`,且无论数据多大,`mounted ≈ visible +
+2 × recycleBuffer`。`mountedCount()` 暴露这个数——在测试里断言它不涨。
+数据变更同样有界:对滚动位置远离末尾的列表 `append`,一行都不用绑。
+
+**要:**
+
+- 让 `bind` 便宜、幂等、带变更守卫——它是滚动的热路径。
+- 所有数据变更走数据源(或调 `refresh()`)。
+- 用 `getItemType` + 模板 map,别写一个塞满 `if` 的模板。
+- 需要高级池控制(如预热行避免首次滚动尖峰)时,`ViewPool` 原语是公开的——
+  用它组合你自己的 `ListView` 驱动。
+
+**不要:**
+
+- 别在 `bind` 里生成/插入,也别假设拿到的是新实体——见上文的回收规则。
+- 别跨帧按数据索引缓存实体引用。
+- 别从 `bind` 驱动逐行动画——bind 只写状态;动画用系统或 tween 去改行的组件。
+- 别给测量布局一个昂贵的 `mainSizeOf`——每次数据变更它会对**所有**条目运行。
+
+## 自由滚动 —— `createScrollView`
+
+任意内容的滚动面板——无虚拟化、无数据源——用 `createScrollView`,
+把内容挂到它的 `content` 框下:
+
+```typescript
+import { createScrollView, uiPlugin } from 'esengine';
+
+const panel = createScrollView({
+  world, host: uiPlugin, parent,
+  viewportSize: { x: 320, y: 480 },
+  contentSize:  { x: 320, y: 1200 },
+});
+// build your content under panel.content …
+panel.scrollTo({ x: 0, y: 300 });
+```
+
+| 选项 | 默认 | 说明 |
+|---|---|---|
+| `world` / `host` | — | world 与路由输入的插件(`uiPlugin`)。必填。 |
+| `parent` | 根 | 视口的父实体。 |
+| `viewportSize` | — | 可见窗口的像素尺寸。必填。 |
+| `contentSize` | — | 可滚动内容框的像素尺寸。必填——尺寸显式给出,滚动数学需要预先知道。 |
+| `node` / `background` | 定尺寸盒 / 透明命中目标 | 同 `createListView`。 |
+| `direction` | `'vertical'` | 滚动轴:`'vertical'` \| `'horizontal'` \| `'both'`。 |
+| `wheelSpeed` | `1` | 滚轮增量倍率。 |
+| `dragScroll` | `true` | 拖拽/触摸滚动,带惯性甩动。 |
+| `decelerationRate` | `0.135` | 甩动衰减(1 秒后剩余比例)。 |
+| `onScroll` | — | 每次偏移变化触发 `(offset)`。 |
+
+**句柄**(`ScrollViewHandle`):`entity`(裁剪视口)· `content`(把内容挂这里)·
+`scrollTo(offset)` · `setContentSize(size)`——内容变大变小后调用,同时改框尺寸*和*
+滚动范围 · `scroll`(底层 `ScrollContainer`)· `dispose()`。
+
+## 滚动模型
+
+两个工厂驱动的都是 **`ScrollContainer`**——不含输入与 ECS 知识的纯滚动状态模型。
+它把偏移按轴收敛到 `[0, contentSize − viewportSize]`(`'vertical'` 容器把 `x` 钉在 0,
+反之亦然),任何变化都通知 `onScroll` 监听者。工厂订阅它并把内容框平移 `-offset`;
+UI 插件负责喂输入:
+
+- **滚轮** —— 悬停视口上的增量,乘以 `wheelSpeed`。
+- **拖拽 / 触摸** —— `dragScroll: true`(默认)时指针抓取拖动内容;平台层把主触点
+  汇入指针流,所以触摸滚动走同一条路径。
+- **惯性甩动** —— 松手后按采样速度滑行、指数衰减:`decelerationRate` 是一秒后剩余的
+  速度比例(默认 `0.135`,ScrollRect 标准——更小停得更快)。底层 `KineticScroll`
+  模型同样公开,带静止速度下限(`4` px/s)与 EMA 采样率(`12`/s),供自定义组合使用。
+
+程序化滚动走句柄(`scrollToIndex`、`scrollTo`)或容器本身:
+`list.scroll.scrollBy({ x: 0, y: 120 })`。
+
+### 滚动条
+
+每个已挂接的滚动容器都会得到按可滚动轴的**自动淡出悬浮滚动条**:偏移移动时细长的
+thumb 出现,静止约 0.8 秒后淡出。thumb 长度跟随视口/内容比例,不占布局(脱离文档流)、
+不接输入(非交互),并以 `text` 主题角色标记,主题热切换时会重新上色。
+工厂始终开启滚动条;关闭(`showScrollbar: false`)是 `ScrollContainer`
+的构造选项,供手动组合使用。
+
+## 裁剪 —— `UIMask`
+
+两个工厂的视口实体都带 **Scissor** 模式的 `UIMask`:子节点只在视口的轴对齐矩形内渲染,
+这正是内容框滚出屏幕部分被隐藏的机制。Scissor 是一条渲染状态矩形——几乎免费,但只支持
+轴对齐;旋转下要正确裁剪用 **Stencil** 遮罩(`MaskMode.Stencil`)。你也可以用同样方式
+给任何 UI 节点加 `UIMask`:
+
+```typescript
+import { UIMask, MaskMode } from 'esengine';
+
+world.insert(panel, UIMask, { enabled: true, mode: MaskMode.Scissor });
+```
+
+## 完整示例:聊天记录
+
+把各部分拼起来——测量气泡行的虚拟化消息流,加一个向数据源追加的输入框
+(仓库里的 `examples/chat` 是完整的双侧气泡版本):
+
+```typescript
+import {
+  defineSystem, addStartupSystem, GetWorld, Res, UIEvents,
+  createListView, createTextInput, uiPlugin, ArrayDataSource,
+  spawnUIEntity, measureText, px, Text, UIPositionType,
+} from 'esengine';
+import type { World, Entity } from 'esengine';
+
+interface Message { from: 'me' | 'them'; text: string; }
+
+const W = 360, PAD = 8, FONT = 14;
+const messages = new ArrayDataSource<Message>([]);
+
+const rowHeight = (i: number) =>
+  measureText(messages.getItem(i).text, { fontSize: FONT, maxWidth: W - 2 * PAD }).height + 2 * PAD;
+
+function setRowText(world: World, row: Entity, content: string): void {
+  const t = world.get(row, Text);
+  if (t.content === content) return;      // change-guard: bind is the hot path
+  t.content = content;
+  world.insert(row, Text, t);
+}
+
+const buildChat = defineSystem([GetWorld(), Res(UIEvents)], (world, events) => {
+  const list = createListView<Message>({
+    world, host: uiPlugin,
+    viewportSize: { x: W, y: 480 },
+    data: messages,
+    layout: { itemHeight: rowHeight, spacing: 6 },
+    item: {
+      create: (w, parent) => spawnUIEntity({
+        world: w, parent,
+        // The row box is owned by the list; the bubble look lives on the row itself.
+        visual: { color: { r: 0.15, g: 0.17, b: 0.22, a: 1 } },
+        text: { content: '', fontSize: FONT, wordWrap: true },
+      }),
+      bind: (row, msg) => setRowText(world, row, `${msg.from}: ${msg.text}`),
+    },
+  });
+
+  createTextInput({
+    world, events,
+    node: { position: UIPositionType.Absolute, insetLeft: px(0), insetBottom: px(0), width: px(W), height: px(32) },
+    placeholder: 'Type a message and press Enter…',
+    onSubmit: (text, entity) => {
+      if (!text.trim()) return;
+      messages.append([{ from: 'me', text }]);          // notifies the list
+      list.scrollToIndex(messages.getCount() - 1);      // keep the newest in view
+    },
+  });
+});
+
+addStartupSystem(buildChat);
+```
+
+`append` 会通知列表(标脏 → 下一帧重同步)**并**重新收敛滚动范围;`scrollToIndex`
+随后落在新的最后一行。因为布局是测量式的,追加同时使偏移缓存失效,新气泡的折行高度
+会在摆放之前完成测量。
+
+## 最佳实践
+
+- **数据形状的内容都虚拟化。** 只要内容是"N 个同类东西",即使 N 不大也用
+  `createListView`——一次调用拿到回收、滚动、裁剪与实时数据更新。
+  `createScrollView` 留给*异构*内容。
+- **数据源是唯一真相。** 选中、高亮、角标——建模进数据、在 `bind` 里渲染;
+  绝不把列表状态存在行实体上。
+- **`bind` 里守卫写入。** 值没变就提前返回;每个滚动步进 `bind` 会跑遍所有挂载行。
+- **测量一次,处处复用。** 自动行高时,让 `itemHeight` 与行内文本布局共用同一个测量函数
+  (相同 `fontSize`、`maxWidth`),盒子与字形永远一致。
+- **创建的就要销毁。** `dispose()` 从插件注销、释放行、退订——泄漏的列表会一直 tick。
+
+## 另请参阅
+
+- [UI](/docs/zh-cn/guides/ui/) —— 这些工厂所依托的组件模型。
+- [UI 控件](/docs/zh-cn/guides/ui-components/) —— 其余控件工厂(Button、Dialog、文本输入……)。
+- [UI 布局](/docs/zh-cn/guides/ui-layout/) —— `UINode` 盒模型、flexbox 与尺寸。
+- [UI 数据绑定](/docs/zh-cn/guides/ui-binding/) —— 信号与控件双向绑定。
+- [UI 交互](/docs/zh-cn/guides/ui-interaction/) —— 指针事件、焦点、拖放。
+- [UI 主题](/docs/zh-cn/guides/ui-theme/) —— 滚动条与默认色所取用的 token 角色。

@@ -1,0 +1,386 @@
+---
+title: Profiling & Diagnostics
+description: Frame stats and the in-game overlay, structured logging, frame capture, GL debugging, GPU resource budgets, and subsystem health.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Estella ships its diagnostics as ordinary SDK surface: a **`Stats` resource** your
+systems can read, an **in-game overlay**, a structured **logger** with pluggable
+sinks, a **frame capture** that records every draw call (and can replay the frame
+up to any one of them), **GL error checking**, GPU **resource residency stats**,
+and a per-app **subsystem health registry**. This guide covers each piece.
+
+## Frame stats — `statsPlugin`
+
+Add `statsPlugin` and the engine collects per-frame performance data into the
+`Stats` resource every frame (in the `Last` schedule, after everything else ran):
+
+```typescript
+import { statsPlugin } from 'esengine';
+
+app.addPlugin(statsPlugin);
+```
+
+`statsPlugin` is a ready-made instance with defaults. For options, construct
+`StatsPlugin` yourself:
+
+```typescript
+import { StatsPlugin } from 'esengine';
+
+app.addPlugin(new StatsPlugin({ overlay: true, position: 'top-right' }));
+```
+
+| `StatsPluginOptions` | Type | Default | Description |
+|---|---|---|---|
+| `overlay` | boolean | `true` | Show the DOM overlay (skipped automatically where there's no `document`). |
+| `position` | `StatsPosition` | `'bottom-left'` | Overlay corner: `'top-left'` / `'top-right'` / `'bottom-left'` / `'bottom-right'`. |
+| `container` | HTMLElement | `document.body` | Element the overlay panel is appended to. |
+
+The plugin also calls `app.enableStats()`, which turns on per-system and
+per-phase timing collection (off otherwise, so shipped games don't pay for it).
+
+### Reading `Stats` from a system
+
+`Stats` is a normal resource — inject it with `Res(Stats)`:
+
+```typescript
+import { defineSystem, addSystem, Res, Stats } from 'esengine';
+
+const watchPerf = defineSystem([Res(Stats)], (stats) => {
+  if (stats.fps > 0 && stats.fps < 30) {
+    console.warn(`slow frame: ${stats.frameTimeMs.toFixed(1)}ms, ${stats.drawCalls} draw calls`);
+  }
+});
+addSystem(watchPerf);
+```
+
+`FrameStats` fields (FPS and frame time are a 60-frame sliding-window average;
+the render counters are the current frame's):
+
+| `FrameStats` field | Type | Description |
+|---|---|---|
+| `fps` | number | Frames per second, averaged over the last 60 frames. |
+| `frameTimeMs` | number | Average frame time in milliseconds over the same window. |
+| `entityCount` | number | Live entities in the world. |
+| `systemTimings` | `Map<string, number>` | CPU ms per system this frame, keyed by system name. |
+| `phaseTimings` | `Map<string, number>` | CPU ms per schedule phase this frame. |
+| `drawCalls` | number | GPU draw calls issued this frame. |
+| `triangles` | number | Triangles submitted this frame. |
+| `sprites` | number | Sprites rendered this frame. |
+| `text` | number | Text entities rendered this frame. |
+| `spine` | number | Spine skeletons rendered this frame. |
+| `meshes` | number | Meshes rendered this frame. |
+| `culled` | number | Entities culled (not submitted) this frame. |
+
+## The stats overlay
+
+With `overlay: true` (the default) the plugin renders a small fixed-position
+monospace panel: FPS + frame time, draw calls / triangles / sprites / culled,
+entity count, and the **top 5 systems** ranked by their worst frame — each as
+`avg / max ms`. The panel re-renders at most every 500&nbsp;ms, accumulating
+system timings in between, so it costs next to nothing and a one-frame spike
+still shows up in the `max` column.
+
+You can also drive a `StatsOverlay` yourself — for example to bind it to a
+debug hotkey:
+
+```typescript
+import { StatsOverlay, defineSystem, addSystem, Res, Stats } from 'esengine';
+
+const overlay = new StatsOverlay(document.body, 'top-right');
+
+const feedOverlay = defineSystem([Res(Stats)], (stats) => {
+  overlay.update(stats);
+});
+addSystem(feedOverlay);
+
+// overlay.hide() / overlay.show() to toggle, overlay.dispose() to remove it.
+```
+
+<Aside type="note">
+  The overlay is DOM-based, so it exists on web and desktop but not in
+  DOM-less environments; `statsPlugin` skips creating it there automatically.
+  The `Stats` resource itself works everywhere.
+</Aside>
+
+## Renderer counters — `Renderer.getStats()`
+
+The render counters in `FrameStats` come from `Renderer.getStats()`, which you
+can also call directly (no stats plugin needed) — it returns a `RenderStats`
+with the same seven fields: `drawCalls`, `triangles`, `sprites`, `text`,
+`spine`, `meshes`, `culled`.
+
+```typescript
+import { Renderer } from 'esengine';
+
+const rs = Renderer.getStats();
+console.log(`${rs.drawCalls} draw calls, ${rs.triangles} triangles`);
+```
+
+## Building your own tooling
+
+Two small utilities back the plugin and are exported for custom tooling:
+
+- **`StatsCollector`** — the 60-frame sliding window behind `fps` /
+  `frameTimeMs`. Feed it delta times with `pushFrame(deltaSeconds)` and read
+  `getFps()` / `getFrameTimeMs()`; `reset()` clears the window.
+- **`FrameHistory`** — a ring buffer of `FrameSnapshot`s (default capacity
+  300, ~5&nbsp;seconds at 60&nbsp;fps) for building frame-time graphs.
+  `push(frameTimeMs, phaseTimings, systemTimings?)` deep-copies the maps so
+  snapshots stay valid; `getLatest()` returns the newest snapshot, `getAll()`
+  the whole window oldest-first, and `count` / `reset()` do what they say.
+
+| `FrameSnapshot` field | Description |
+|---|---|
+| `frameTimeMs` | The frame's total CPU time. |
+| `phaseTimings` | Per-phase ms (copied at push time). |
+| `systemTimings` | Per-system ms (copied at push time). |
+
+## Logging
+
+The SDK routes its own diagnostics through a structured logger instead of raw
+`console.*`, and your game code can use the same channel. Every message has a
+**level**, a free-form **category** string (`'physics'`, `'net'`, your own
+`'gameplay'`…), a message, and optional structured `data`:
+
+```typescript
+import { log, setLogLevel, LogLevel } from 'esengine';
+
+setLogLevel(LogLevel.Debug);              // default is LogLevel.Info
+
+log.debug('gameplay', 'Wave spawned', { wave: 3, enemies: 12 });
+log.info('save', 'Game saved');
+log.warn('net', 'High latency', { rttMs: 240 });
+log.error('boot', 'Asset manifest failed', err);   // Error keeps its stack
+```
+
+`LogLevel` is `Debug < Info < Warn < Error`; `setLogLevel` sets the minimum
+level — anything below it is dropped before reaching any handler. The
+standalone `debug` / `info` / `warn` / `error` functions are also exported and
+forward to the same default logger; `getLogger()` returns it if you need the
+`Logger` instance itself.
+
+By default one console handler is installed: it formats
+`[time] [LEVEL] [category] message` and picks the matching `console` method
+per level, passing `Error` data through as a real argument so the browser
+renders the stack trace.
+
+### Custom log sinks
+
+A **`LogHandler`** receives every accepted message as a structured `LogEntry`
+— the hook for an in-game console, a file writer, or crash-report
+breadcrumbs. A handler that throws is caught and reported, never breaking the
+app:
+
+```typescript
+import { getLogger, LogLevel, type LogEntry, type LogHandler } from 'esengine';
+
+class Breadcrumbs implements LogHandler {
+  entries: LogEntry[] = [];
+  handle(entry: LogEntry): void {
+    if (entry.level >= LogLevel.Warn) {
+      this.entries.push(entry);
+      if (this.entries.length > 100) this.entries.shift();
+    }
+  }
+}
+
+const crumbs = new Breadcrumbs();
+getLogger().addHandler(crumbs);
+// getLogger().removeHandler(crumbs) to detach,
+// getLogger().clearHandlers() to remove every handler (console one included).
+```
+
+| `LogEntry` field | Type | Description |
+|---|---|---|
+| `timestamp` | number | `Date.now()` at log time (epoch ms). |
+| `level` | `LogLevel` | `Debug` / `Info` / `Warn` / `Error`. |
+| `category` | string | The channel string the caller passed. |
+| `message` | string | The message. |
+| `data` | unknown | Optional payload (object, `Error`, …). |
+
+## Frame capture — every draw call, explained
+
+When "why is this 40 draw calls?" needs an answer, capture a frame. Arm the
+capture, let one frame render, then read back a record for **every draw call**
+— what it drew, with which texture/material/shader and state, and crucially
+**why the previous batch broke**:
+
+```typescript
+import { Renderer, RenderType, FlushReason } from 'esengine';
+
+Renderer.captureNextFrame();          // arm: the NEXT rendered frame records
+
+// …one frame later:
+if (Renderer.hasCapturedData()) {
+  const capture = Renderer.getCapturedData();   // FrameCaptureData | null
+  for (const dc of capture!.drawCalls) {
+    console.log(
+      `#${dc.index} ${RenderType[dc.type]} tex=${dc.textureId} ` +
+      `tris=${dc.triangleCount} entities=${dc.entityCount} ` +
+      `flush=${FlushReason[dc.flushReason]}`
+    );
+  }
+  console.log(`${capture!.cameraCount} camera pass(es)`);
+}
+```
+
+`FrameCaptureData` is `{ drawCalls: DrawCallInfo[], cameraCount }`. Each
+`DrawCallInfo`:
+
+| `DrawCallInfo` field | Description |
+|---|---|
+| `index` | Draw call index within the frame (submission order). |
+| `cameraIndex` | Which camera pass issued it. |
+| `stage` | Render stage (`RenderStage`: Background / Opaque / Transparent / Overlay). |
+| `type` | What kind of content (`RenderType`, below). |
+| `blendMode` | Blend mode id in effect. |
+| `textureId` / `materialId` / `shaderId` | GPU resources bound for the call. |
+| `vertexCount` / `triangleCount` | Geometry submitted. |
+| `entityCount` / `entityOffset` / `entities` | The entity ids batched into this call. |
+| `layer` | Render layer of the batch. |
+| `flushReason` | Why this batch ended (`FlushReason`, below). |
+| `scissorX/Y/W/H`, `scissorEnabled` | Scissor rect state (UI masks). |
+| `stencilWrite` / `stencilTest` / `stencilRef` | Stencil state (mask writers/readers). |
+| `textureSlotUsage` | Texture slots the batch consumed. |
+
+`RenderType` tells you what a call drew: `Sprite`, `Spine`, `Mesh`,
+`ExternalMesh`, `Text`, `Particle`, `Shape`, `UIElement`.
+
+`FlushReason` is the batching story — each value names the state change that
+forced a new draw call, i.e. what to fix to batch better:
+
+| `FlushReason` | Meaning |
+|---|---|
+| `BatchFull` | Vertex batch hit capacity — a "good" flush; lots of content. |
+| `TextureSlotsFull` | Ran out of texture slots — atlas more textures together. |
+| `ScissorChange` | Scissor rect changed (a `UIMask` boundary). |
+| `StencilChange` | Stencil state changed (mask write/test boundary). |
+| `MaterialChange` | Material switched — group entities by material. |
+| `BlendModeChange` | Blend mode switched — interleaved additive/normal content. |
+| `StageEnd` | Render stage boundary. |
+| `TypeChange` | Content type switched (e.g. sprites → text → sprites). |
+| `FrameEnd` | Final flush of the frame. |
+
+### Replaying to a draw call
+
+A capture can be **replayed up to any draw call** to see the frame being built
+— this is what the editor's frame inspector does. `replayToDrawCall(i)`
+re-renders draw calls `0…i` into a snapshot; `getSnapshotImageData()` resolves
+with its pixels once the GPU readback lands (immediate on WebGL, a later tick
+on WebGPU):
+
+```typescript
+import { Renderer } from 'esengine';
+
+Renderer.replayToDrawCall(5);                       // draw calls 0..5 only
+const img = await Renderer.getSnapshotImageData();  // ImageData | null
+if (img) ctx2d.putImageData(img, 0, 0);             // e.g. into a debug canvas
+```
+
+## GL debugging — `GLDebug`
+
+`GLDebug` toggles GL error checking inside the wasm renderer — off by default
+because checking has a cost:
+
+```typescript
+import { GLDebug } from 'esengine';
+
+GLDebug.enable();                       // check GL errors at key points
+const errors = GLDebug.check('after-spawn');  // explicit check; returns error count
+GLDebug.diagnose();                     // dump renderer diagnostics to the console
+GLDebug.disable();
+```
+
+`check(context)` runs an immediate error check and returns the number of GL
+errors found, tagging any log output with your `context` string so you can
+bisect where in the frame an error appears.
+
+## GPU resource budgets & residency
+
+Released textures stay resident in a byte-budgeted warm cache (the full model
+is in the [assets guide](/docs/guides/assets/#lifetime--reference-counting)).
+The diagnostics side of it:
+
+```typescript
+import { getResourceStats, setTextureBudget, trimTextureCache } from 'esengine';
+
+setTextureBudget(256 * 1024 * 1024);   // resize the budget (0 = no warm cache)
+
+const stats = getResourceStats();       // ResourceStats | null before engine init
+if (stats && stats.textureBytes > stats.textureBudget * 0.9) {
+  const freed = trimTextureCache();     // drop every evictable texture now
+  console.log(`freed ${freed} cached textures`);
+}
+```
+
+| `ResourceStats` field | Description |
+|---|---|
+| `shaderCount` | Live compiled shaders. |
+| `textureCount` | Live GPU textures. |
+| `vertexBufferCount` / `indexBufferCount` | Live GPU buffers. |
+| `cacheHits` / `cacheMisses` | Resource-cache hit/miss counters. |
+| `textureBytes` | Resident texture bytes (RGBA8 estimate) — held + evictable. |
+| `textureBudget` | The current resident-byte budget (`0` = eviction off). |
+| `textureEvictableCount` | Cached refcount-0 textures awaiting revive or eviction. |
+
+`trimTextureCache()` frees every evictable entry immediately and returns how
+many textures it freed — the engine calls it on OS memory warnings; call it
+yourself before a known memory spike. Held (referenced) textures and the
+budget are untouched.
+
+`evictTextureDimensions(handle)` drops the SDK-side cached width/height for
+one texture handle so the next `getTextureDimensions` query re-reads it from
+the engine — only relevant to tooling that replaces texture contents under an
+existing handle.
+
+## Subsystem health
+
+Every `App` carries a `SubsystemRegistry` at `app.subsystems` that tracks each
+engine subsystem's lifecycle phase (`registered` → `initializing` → `ready`,
+`error` terminal) and derived liveness (`stepping` / `idle` / `inactive`) — the
+"is physics actually running?" question:
+
+```typescript
+for (const s of app.subsystems.getStatuses()) {
+  console.log(`${s.displayName}: ${s.phase} (${s.activity})`, s.lastError ?? '');
+}
+```
+
+`recentEvents()` returns the recent lifecycle transitions and `subscribe(fn)`
+notifies on phase changes. The full lifecycle model is covered in
+[App & Lifecycle](/docs/core-concepts/app-lifecycle/).
+
+## In the editor
+
+The desktop editor builds its profiling UI on these same surfaces: the
+**Profiler panel** shows a live frame-time graph with per-phase and per-system
+breakdowns (click a frame to inspect it), and the viewport has a small perf
+overlay for an at-a-glance FPS readout. For in-game builds, `statsPlugin` above
+is the equivalent.
+
+## Best practices
+
+- **Ship without `statsPlugin`** (or gate it behind a debug flag) — timing
+  collection is off by default for a reason; add it while profiling.
+- **Blame before optimizing** — read `systemTimings` / `phaseTimings` to find
+  *which* system is slow before touching code; the overlay's `max` column
+  catches one-frame spikes an average hides.
+- **Capture a frame to fix draw calls** — `flushReason` names the exact state
+  change that broke each batch (`TextureSlotsFull` → atlas; `MaterialChange` →
+  group by material).
+- **Log with categories, not `console.log`** — structured entries let a
+  handler filter by channel and level, and `setLogLevel(LogLevel.Debug)` turns
+  verbosity on without code changes.
+- **Leave `GLDebug` off in production** — per-call GL error checking is
+  expensive; enable it only while hunting a rendering bug.
+- **Watch `textureBytes` against `textureBudget`** on memory-constrained
+  targets, and `trimTextureCache()` before known spikes.
+
+## See also
+
+- [Assets](/docs/guides/assets/) — the texture warm cache and budget the resource stats observe.
+- [App & Lifecycle](/docs/core-concepts/app-lifecycle/) — plugins, schedules, and the subsystem registry.
+- [Systems](/docs/core-concepts/systems/) — schedules and system names (the keys in `systemTimings`).
+- [Editor](/docs/guides/editor/) — the desktop editor, including its Profiler panel.

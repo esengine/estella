@@ -22,6 +22,52 @@ const goToLevel2 = defineSystem([Res(SceneManager)], async (scenes) => {
 });
 ```
 
+## Scene transitions
+
+`switchTo` and `unload` take `TransitionOptions`. With `transition: 'fade'` the
+switch fades through a solid color in three phases: the overlay ramps to opaque
+over the first half of `duration`, **holds opaque while the old scene unloads and
+the new one loads** (a slow load extends the hold instead of flashing), then
+ramps back over the second half. The awaited promise resolves only after the
+fade-in completes — and rejects if the load failed. A `switchTo` issued while a
+transition is in flight is ignored with a warning; `isTransitioning()` tells you.
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `transition` | `'none' \| 'fade'` | `'none'` | Hard cut, or fade through `color`. |
+| `duration` | number | `0.3` | Total fade time in seconds — half out, half in (`RuntimeConfig.sceneTransitionDuration`). |
+| `color` | `Color` | opaque black | Overlay color (`RuntimeConfig.sceneTransitionColor`; the build config takes a hex string). |
+| `onStart` / `onComplete` | callback | – | Fired when the fade starts / after the fade-in finishes. |
+| `keepPersistent` | boolean | `true` | Keep entities marked via `SceneContext.setPersistent` alive through the unload. |
+
+`transitionTo` is a one-call convenience over the same machinery, configured
+with a `TransitionConfig` (`type: 'fade'`, `duration`, optional `color`). It
+accepts the `App` (bootstrap code, menu glue) or the SceneManager resource
+state — inside a system, pass what `Res(SceneManager)` gives you. A menu →
+level flow:
+
+```typescript
+import { transitionTo, type TransitionConfig } from 'esengine';
+
+const fadeToBlack: TransitionConfig = {
+  type: 'fade',
+  duration: 0.5,
+  color: { r: 0, g: 0, b: 0, a: 1 },
+};
+
+async function onPlayClicked() {
+  await transitionTo(app, 'levels/level1', fadeToBlack);   // menu → level
+}
+```
+
+<Aside type="note">
+  All of this ships with `sceneManagerPlugin`, which the default app bootstrap
+  already registers: it inserts the `SceneManager` and `SceneStreaming`
+  resources, loads the initial scene at startup, and advances transitions and
+  streaming every frame. You only add it yourself when assembling an `App` from
+  individual plugins.
+</Aside>
+
 ## Additive scenes
 
 Load a scene **on top** of the current one — a HUD, a pause menu, a streamed region
@@ -57,6 +103,28 @@ cells instead of unloading: entities stay in memory, disabled and hidden, so
 re-entering is instant at the cost of memory. Cell scenes are ordinary project
 scenes referenced by name (see below).
 
+Under the resource sits `SceneStreamingController` — pure orchestration over the
+`SceneManager` primitives (`loadAdditive` / `unload` / `sleep` / `wake`); it owns
+no loading itself. Distances are measured to the **cell edge** (center distance
+minus `radius`), so a large cell starts loading while its center is still far
+away. Loads and unloads are async, and the controller keeps them safe: a cell
+with a load or unload in flight is never issued twice, and if the focus has
+already left by the time a load resolves, the cell is dropped again instead of
+leaking. With no cells registered, `update()` is a no-op.
+
+| `SceneStreamingController` | Description |
+|---|---|
+| `configure({ loadRadius, unloadRadius, policy? })` | Set the radii (`unloadRadius` is clamped up to `loadRadius`) and the out-of-range policy — `'unload'` (default) or `'sleep'`. |
+| `register(cell)` / `unregister(scene)` / `clear()` | Manage the cell set (`{ scene, x, y, radius }`). |
+| `setFocus(x, y)` | Drive the focus point directly (call each frame). |
+| `setFocusEntity(entity)` / `getFocusEntity()` | Follow an entity instead — the streaming system reads its `Transform` each tick (play mode only). |
+| `getActive()` | Scene names the controller currently holds in-range. |
+| `update()` | Reconcile resident cells against the focus (`sceneManagerPlugin` calls this every frame). |
+
+The threshold math is also exported on its own as the pure
+`computeStreaming(cells, focusX, focusY, loadRadius, unloadRadius, active)` —
+useful for tests or a custom scheduler.
+
 ## Scenes in a build
 
 Every scene in the project's scenes folder ships with an export and registers as a
@@ -85,6 +153,96 @@ ship the startup scene only. See
 | `isActive(name)` | Whether a scene is active. |
 | `isPaused(name)` / `isSleeping(name)` | The suspension states above. |
 | `isTransitioning()` | `true` during a `switchTo` transition. |
+
+## Serialization & migration
+
+The scene file format is a public surface: `SceneData` is plain JSON, and the
+primitives the editor and runtime use to read and write it are exported for game
+code. You reach for them to save a **snapshot of the live world** (a checkpoint
+richer than the [save-game API](/docs/guides/save/)), to load player-generated
+or downloaded scenes, or to ship components whose state doesn't fit their plain
+fields.
+
+`serializeScene(world, name?)` walks the live world and produces a `SceneData`
+that round-trips through the loaders — hierarchy is collapsed into each entity
+record's `parent`/`children` fields, and runtime-only projection entities (tile
+colliders and the like, which their systems re-derive) are excluded.
+`loadSceneWithAssets(world, data, options?)` preloads every referenced asset,
+then spawns; the sync `loadSceneData(world, data)` spawns without asset
+resolution. Both return a map from serialized entity ids to live entities, and
+`findEntityByName(world, name)` finds an entity afterwards:
+
+```typescript
+import { defineSystem, GetWorld, Res, Assets, serializeScene,
+         loadSceneWithAssets, findEntityByName, MissingAssetsError } from 'esengine';
+
+const checkpoint = defineSystem([GetWorld(), Res(Assets)], async (world, assets) => {
+  // Save: snapshot the live world as ordinary scene JSON.
+  const data = serializeScene(world, 'checkpoint');
+  localStorage.setItem('checkpoint', JSON.stringify(data));
+
+  // Load: preload assets, then spawn. Old saves are migrated automatically.
+  try {
+    await loadSceneWithAssets(world, JSON.parse(localStorage.getItem('checkpoint')!), {
+      assets,
+      abortOnMissingAssets: true,        // throw instead of spawning with holes
+      onMissingAssets: (missing) => {    // called once per load (list may be empty)
+        for (const m of missing) console.warn(`${m.ref}: ${m.reason}`);
+      },
+    });
+  } catch (e) {
+    if (e instanceof MissingAssetsError) { /* "content missing" UI — e.missing */ }
+  }
+
+  const player = findEntityByName(world, 'Player');
+});
+```
+
+`SceneLoadOptions`:
+
+| Option | Description |
+|---|---|
+| `assets` | The `Assets` resource; enables asset preloading (and prefab-instance expansion) before spawn. |
+| `assetBaseUrl` | Base URL to resolve asset paths against. |
+| `onProgress` | `(loaded, total)` preload progress callback. |
+| `onMissingAssets` | Called once with every ref that failed to resolve or load (`MissingAsset[]` — `ref`, optional `type`, and `reason: 'unresolved' \| 'load-failed'`). Fires even when the list is empty. |
+| `abortOnMissingAssets` | Default `false` — missing assets get handle `0` and the scene loads anyway. `true` throws `MissingAssetsError` after preloading, before anything spawns. |
+| `collectAssets` | Bookkeeping sets the load adds acquired asset keys to, so the caller (normally the scene manager) can release them on unload. |
+
+**Versioning.** Scene files carry a `version` (currently
+`SCENE_FORMAT_VERSION = '1.0'`). `migrateSceneData(raw)` upgrades any older
+shape to the current one: it never mutates its input (it returns a migrated deep
+copy), is idempotent, drops component types retired by engine upgrades, and
+**rejects data newer than the engine**. Every loader runs it internally — call
+it yourself only to inspect `migrated` / `fromVersion` (say, to prompt a re-save
+of an upgraded file):
+
+```typescript
+import { migrateSceneData } from 'esengine';
+
+const { data, migrated, fromVersion } = migrateSceneData(raw);
+if (migrated) console.log(`upgraded scene from format ${fromVersion}`);
+```
+
+**Out-of-band component state.** A component whose full state doesn't fit its
+plain field record — a tilemap layer's tile chunks live in a C++ blob — registers
+a `SceneComponentCodec` so the generic (de)serializer can carry it without
+component-specific knowledge:
+
+```typescript
+import { registerSceneComponentCodec } from 'esengine';
+
+registerSceneComponentCodec('MyVoxelChunk', {
+  exportData(entity, data) { data.chunks = myStore.serialize(entity); },
+  outOfBandFields: ['chunks'],          // stripped before the component insert
+  importData(entity, outOfBand) { myStore.restore(entity, outOfBand.chunks); },
+});
+```
+
+`exportData` writes the extra state into the record on save; the listed
+`outOfBandFields` are stripped from the record before the component is inserted
+on load, then handed to `importData` afterwards. Registration is idempotent —
+the owning plugin (see `tilemapPlugin`) does it at startup.
 
 ## Best practices
 

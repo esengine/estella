@@ -160,6 +160,79 @@ audio.setBusDucking('music', null);  // 移除
 `Bitrate` 控制打包时的 WAV → MP3 转码(在打包对话框勾选**压缩音频**)。
 已压缩格式原样通过。MP3 有少量编码器延迟——需要无缝循环的素材请关闭 `Compress`。
 
+## 门面之下
+
+`Audio` 是一个门面,其后是 Web Audio 后端组装的三个导出类——`AudioMixer`、`AudioBus`、
+`AudioPool`。游戏里很少直接构造它们(微信后端上它们根本不存在,这正是总线 API 在那里
+降级为空操作的原因),但它们公开导出是为了两件实事:**内建四条之外的自定义总线**,以及
+**独立音频管线**——试听工具、自定义 `PlatformAudioBackend`、测试——建在你自己的
+`AudioContext` 上。
+
+自定义总线完全不需要类——门面就够:
+
+```typescript
+audio.ensureBus('ambience');                 // create under master (idempotent)
+audio.ensureBus('footsteps', 'sfx');         // or under an existing bus
+audio.setBusVolume('ambience', 0.5);
+audio.playSFX('assets/wind.ogg', { bus: 'ambience' });   // or AudioSource.bus
+```
+
+`ensureBus(name, parent?)` 在总线缺失时创建它(挂在 `parent` 下,默认 `master`),
+无混音图的后端上返回 `false`;之后所有按名字的门面调用(`setBusVolume`、`muteBus`、
+`setBusEffects`、`setBusDucking`)都能触达它。
+
+### `AudioBus`
+
+一条混音 strip:`input → [效果插入…] → duck → gain(volume) → parent`。声源和子总线
+连到 `input`;`node` 是**输出**增益——音量/静音作用在这里,父总线(或做 VU 表的
+`AnalyserNode`)也从这里取信号。闪避级是独立的增益,所以旁链闪避永远不会与用户音量设置
+打架。用 `AudioBusConfig` 构造:
+
+| `AudioBusConfig` | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `name` | string | – | 总线名。 |
+| `volume` | number | `1` | 初始音量,钳制到 0..1。 |
+| `muted` | boolean | `false` | 以静音启动。 |
+| `parent` | string | `'master'` | 父总线名(由 `AudioMixer.createBus` 消费)。 |
+
+| 成员 | 说明 |
+|---|---|
+| `input` / `node` | 入口 `GainNode` / 输出 `GainNode`(analyser 从 `node` 取信号)。 |
+| `volume` | 0..1;变化在约 15 ms 内平滑,永不爆音。 |
+| `muted` | 把输出渐变到 0 再回来,不丢失 `volume`。 |
+| `effects` / `setEffects(defs)` | 读取 / 幂等替换 DSP 插入链(`BusEffectDef[]`)。 |
+| `duckTo(level, timeConstant)` | 把闪避级向 `level` 渐变(混音器的闪避驱动它)。 |
+| `connect(dest)` / `addChild(bus)` | 把输出接进父总线或裸 `AudioNode`。 |
+
+### `AudioMixer`
+
+拥有总线树。构造一个就建好接到 `context.destination` 的
+`master → { music, sfx, ui, voice }`,音量来自 `AudioMixerConfig`
+(`masterVolume` / `musicVolume` / `sfxVolume` / `uiVolume` / `voiceVolume`——
+music 默认 `0.8`,其余 `1`):
+
+```typescript
+import { AudioMixer } from 'esengine';
+
+const mixer = new AudioMixer(new AudioContext(), { musicVolume: 0.6 });
+const ambience = mixer.createBus({ name: 'ambience' });   // under master
+```
+
+| 方法 | 说明 |
+|---|---|
+| `master` / `music` / `sfx` / `ui` / `voice` | 内建总线,作为只读字段。 |
+| `getBus(name)` / `busNames()` | 查找总线 / 列出所有名字(创建顺序,`master` 在先)。 |
+| `createBus(config)` | 创建总线并接到 `config.parent` 下(默认 `master`)。 |
+| `setDucking(target, rule \| null)` / `getDucking(target)` | 安装或清除旁链 `BusDuckRule`(`trigger`、`amount`、`attack`、`release`、`threshold`)。 |
+| `updateDucking()` | 每帧:测量各触发总线的 RMS,渐变其目标的闪避级(引擎的混音器由音频系统调用)。 |
+
+### `AudioPool`
+
+一次性播放背后的声部池:预建的 `gain → panner` 节点对(`PooledAudioNode`),每次播放
+`acquire()`、声音结束时 `release()`,超过初始 16 个时按需增长;`activeCount` 与
+`capacity` 报告用量。当你在自己的 `AudioContext` 上做自定义播放、想避免每次播放的节点
+开销时可以用它。
+
 ## 空间音频
 
 设 `AudioSource.spatial = true`,并给监听实体(通常是相机或玩家)加一个启用的 `AudioListener`。
@@ -191,6 +264,25 @@ const setupSpatial = defineSystem([Commands()], (cmds) => {
 | `Exponential` | 更陡的指数衰减。 |
 
 `AudioListener` 只有一个字段 `enabled`(默认 `true`)——场景里保持恰好一个启用的监听器。
+
+Estella 的空间管线是诚实的 2D:每帧,音频系统取声源和监听器的世界位置,算出距离,用
+`volume × 衰减` 加上**沿 x 轴的立体声声像**(`(sourceX − listenerX) / maxDistance`,
+钳制到 ±1)驱动正在播放的句柄。没有 HRTF、多普勒或遮挡。空间声源在没有启用监听器时播放,
+会警告一次并从世界原点量距离。
+
+曲线数学以纯函数导出,供工具和测试使用——`calculateAttenuation(distance, config)`
+配 `SpatialAudioConfig`(`model`、`refDistance`、`maxDistance`、`rolloff`——系统用
+`AudioSource.minDistance`/`maxDistance`/`rolloff` 填充它),以及
+`calculatePanning(sourceX, sourceY, listenerX, listenerY, maxDistance)`:
+
+```typescript
+import { calculateAttenuation, calculatePanning, AttenuationModel } from 'esengine';
+
+const gain = calculateAttenuation(250, {
+  model: AttenuationModel.Inverse, refDistance: 100, maxDistance: 1000, rolloff: 1,
+});                                                  // 0.4 — refDistance / distance
+const pan = calculatePanning(600, 0, 0, 0, 1000);    // 0.6 — to the right
+```
 
 ## 最佳实践
 

@@ -135,6 +135,117 @@ const v = Material.getUniform(tintMat, 'u_intensity');
 | `setUniform(material, name, value)` | 运行时设置一个反射参数。 |
 | `getUniform(material, name)` | 读取一个参数的当前值。 |
 
+### `MaterialOptions`
+
+`Material.create(options)` 接受完整的渲染状态,不只是着色器 + uniform:
+
+| 字段 | 默认 | 说明 |
+|---|---|---|
+| `shader` | — | `compileShader` / `createShader` 返回的着色器句柄(必填)。 |
+| `uniforms` | — | 按名字给出的初始参数值;纹理用 `Material.tex(textureId)`。 |
+| `blendMode` | `BlendMode.Normal` | 材质的合成方式(`Normal`、`Additive`、`Multiply` 等)。 |
+| `depthTest` | `false` | 对深度缓冲做测试。 |
+| `depthWrite` | `true` | 写入深度缓冲。 |
+| `cull` | `CullMode.None` | 三角形剔除模式。 |
+| `switches` | `{}` | 启用的 `#pragma switch` 名——该材质编译时选定的静态排列。 |
+
+每个状态字段都有运行时 setter——`setBlendMode`、`setDepthTest`、`setDepthWrite`、
+`setCull`——而 `Material.createInstance(source)` 构建一个廉价变体:从父材质继承
+一切,只存储你之后在它上面设置的差异。
+
+### `CullMode`
+
+| 值 | 含义 |
+|---|---|
+| `CullMode.None` | 双面都画(2D 默认)。 |
+| `CullMode.Back` | 剔除背面。 |
+| `CullMode.Front` | 剔除正面。 |
+
+### `ShaderSources`
+
+走原始 `createShader` 路径时,`ShaderSources` 提供现成的 ES 3.0 GLSL,使用批处理
+顶点布局(`vec3` position + `vec4` color + `vec2` texCoord,带 `u_projection` /
+`u_model` uniform)——顶点与片元配对使用:
+
+| 源 | Stage | 作用 |
+|---|---|---|
+| `ShaderSources.SPRITE_VERTEX` | 顶点 | 透传位置、颜色和 UV。 |
+| `ShaderSources.SPRITE_FRAGMENT` | 片元 | `texture(u_texture, uv) × v_color`。 |
+| `ShaderSources.COLOR_VERTEX` | 顶点 | 仅位置 + 颜色(无 UV)。 |
+| `ShaderSources.COLOR_FRAGMENT` | 片元 | 平铺顶点色。 |
+
+它们**不是** `.esshader` 模板——没有 `#pragma param` 反射;把它们当
+`Material.createShader(vertex, fragment)` 网格的起点。
+
+## 用代码构建材质图
+
+编辑器的材质图不是另一条管线——它是**生成 `.esshader` 的可视化前端**。
+`compileMaterialGraph(graph)` 从输出节点遍历节点 DAG,发出与手写等价的着色器源
+(GLSL 片元和它的 WGSL 孪生同时生成),所以图材质在两个后端都能跑,而它的
+常量/纹理节点会变成普通的反射 `#pragma param`。这意味着图可以完全用代码编写——
+图就是普通数据:
+
+```typescript
+import { compileMaterialGraph, Material, type MaterialGraph } from 'esengine';
+
+const graph: MaterialGraph = {
+  name: 'TintedSprite',
+  output: 'out',                     // 输出节点的 id
+  nodes: [
+    { id: 'tex',  type: 'textureSample', params: { name: 'u_albedo', default: 'white' } },
+    { id: 'tint', type: 'constColor',    params: { name: 'u_tint', value: [1, 0.6, 0.2, 1] } },
+    { id: 'mul',  type: 'multiply',      inputs: { a: 'tex', b: 'tint' } },
+    { id: 'out',  type: 'output',        inputs: { color: 'mul' } },
+  ],
+};
+
+const shader = Material.compileShader(compileMaterialGraph(graph));
+const mat = Material.create({ shader });
+Material.setUniform(mat, 'u_tint', [1, 0, 0, 1]);   // 图参数就是普通参数
+```
+
+`compileMaterialGraph` 在出现环、缺节点/缺输入、或 `output` 根不是 output 节点时
+抛错。
+
+### 节点类型
+
+`GraphNodeType` 覆盖输入、参数和数学(`NODE_SPECS` 保存每种类型的端口和可编辑
+字面量——编辑器调色板读的就是这份 schema):
+
+| 节点 | 输出 | 说明 |
+|---|---|---|
+| `uv` / `screenUV` | `vec2` | 纹理 UV / 画布归一化屏幕 UV(0–1,y 朝上)。 |
+| `vertexColor` | `vec4` | 精灵的逐实例色调。 |
+| `time` | `float` | 引擎帧时钟,单位秒。 |
+| `constFloat` / `constColor` | `float` / `vec4` | 一个反射材质参数(`params: { name, value }`)。 |
+| `textureSample` | `vec4` | 在某 UV 采样一个纹理参数(`params: { name, default }`)。 |
+| `multiply` / `add` / `lerp` | 拓宽类型 / `vec4` | 算术;标量对向量广播。 |
+| `oneMinus` / `saturate` / `sin` | 同输入类型 | `1 − x` / 钳制 0–1 / 正弦。 |
+| `smoothstep` | 同输入类型 | `smoothstep(edge0, edge1, x)`——边界是节点字面量。 |
+| `noise` | `float` | 基于 UV 的程序化值噪声(`scale` 字面量)。 |
+| `panner` | `vec2` | `uv + time × speed`——滚动 UV(`speedX` / `speedY` 字面量)。 |
+
+### 编辑操作
+
+面向工具(或程序化生成图),SDK 导出一组纯函数操作——每个都返回**新**图,
+不改动输入:
+
+| 函数 | 作用 |
+|---|---|
+| `newMaterialGraph()` | 起始图:一个白色 `textureSample` 接到 `output`。 |
+| `addNode(g, type, x, y)` | 添加带合理默认参数的节点;返回 `{ graph, id }`。 |
+| `connect(g, fromId, toId, toSlot)` | 连一条边;若会成环或槽位未知,**原样返回** `g`。 |
+| `disconnect(g, toId, toSlot)` | 清除一个输入连接。 |
+| `moveNode(g, id, x, y)` | 仅画布布局——编译器忽略位置。 |
+| `removeNode(g, id)` | 移除节点及所有相连的边(`output` 节点不可移除)。 |
+
+## 自定义几何
+
+材质不局限于组件渲染器:**`Geometry`** API(`Geometry.create` 加
+`GeometryOptions` 顶点布局,还有 `createQuad` / `createCircle` / `createPolygon`
+辅助函数)构建句柄式网格,用 `Draw.drawMeshWithMaterial(geometry, material)`
+即时绘制——完整参考见[自定义绘制](/docs/zh-cn/guides/drawing/)。
+
 ## 最佳实践
 
 - 启动时**只编译一次**着色器并复用句柄——绝不在每帧系统里编译。

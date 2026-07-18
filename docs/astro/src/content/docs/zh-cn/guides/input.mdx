@@ -119,6 +119,38 @@ if (Controls.pressed('Jump')) { /* 本帧边沿 */ }
 | `Keys2D(up, down, left, right)` | axis2d | 四个键 → 2D 方向。 |
 | `Stick('left' \| 'right', pad?)` | axis2d | 一根手柄摇杆(上 = +y,与 `Keys2D` 一致)。 |
 
+### 数据模型
+
+这些构造函数只是普通可序列化数据之上的糖——`Binding` 是一个带标签的联合类型,
+一个动作则是 `type` 加它的绑定列表:
+
+```typescript
+import { type Binding, type ActionDef } from 'esengine';
+
+const jump: ActionDef = {
+  type: 'button',                          // 'button' | 'axis' | 'axis2d'
+  bindings: [
+    { kind: 'key', code: 'Space' },        // Key('Space')
+    { kind: 'gpButton', button: 0 },       // GpButton(GamepadButton.South)
+  ],
+};
+```
+
+| `Binding` kind | 字段 | 构造函数 |
+|---|---|---|
+| `key` | `code` | `Key` |
+| `mouse` | `button` | `MouseButton` |
+| `gpButton` | `button`、`pad?` | `GpButton` |
+| `gpAxis` | `axis`、`pad?`、`scale?` | `GpAxis` |
+| `keys1d` | `neg`、`pos` | `Keys1D` |
+| `keys2d` | `up`、`down`、`left`、`right` | `Keys2D` |
+| `stick` | `stick: 'left' \| 'right'`、`pad?` | `Stick` |
+
+因为绑定就是数据,这一份模型同时也是**改键与持久化格式**:`toJSON()` / `loadJSON()`
+只往返绑定本身(每动作一个 `Binding[]`),而 `toAsset()` 序列化整张映射——连动作类型
+一起——成一个 `InputMapAsset`(`{ version, actions }`),即 `.inputmap` 文件的内容。
+`loadJSON` 会忽略映射里不存在的动作,所以已删除动作的陈旧存档数据永远不会复活它。
+
 ### 改键与持久化
 
 绑定是普通的可序列化数据,所以按键设置界面写起来很小:
@@ -130,6 +162,10 @@ Controls.save('controls');                // 持久化到平台 Storage
 // 启动时:
 Controls.load('controls');                // 重新应用已存的绑定(如有)
 ```
+
+`rebind` / `listenForBinding` 接受一个 `ListenOptions`,选择捕获监听哪些设备族:
+`keyboard` 和 `gamepad` 默认**开**,`mouse` 默认**关**——这样按下"改键"按钮的那次点击
+不会被捕获成绑定。轴类输入永远不会被捕获;改键只面向离散输入。
 
 `getBindings` / `setBindings` 以编程方式查看和编辑绑定;`cancelListen()` 中止
 挂起的捕获(以 `null` 解析)。
@@ -164,6 +200,60 @@ const gestureSystem = defineSystem([Res(Input), Res(Time)], (input, time) => {
 
 点按 = 0.3 s 内、移动小于 10 px;滑动需 ≥ 50 px 且 ≥ 200 px/s;捏合报告双指
 间距逐帧的缩放系数及中心点。
+
+## 输入路由(分层)
+
+原始平台事件在落进 `Input` 资源之前,会先经过 **`InputRouter`**——一条三层的
+责任链:
+
+1. **编辑器**——工具(gizmo、框选拖拽)最先认领。
+2. **UI**——组件和对话框认领落下来的部分。
+3. **游戏**——隐式的:就是 `Input` 资源本身。玩法只会看到没有被上游处理器
+   消费的事件。
+
+处理器回调返回 `true` 即**消费**该事件——它既不更新 `Input`,也不再传给后面的层。
+返回 `false` / 什么都不返回则放行。因为消费是按事件粒度的(而不是一个全局的
+"编辑器激活"开关),工具可以只认领它真正关心的:框选拖拽在按住期间消费指针移动,
+但让滚轮穿透到相机;模态框消费 Escape,却不管方向键。
+
+引擎的 UI 插件已经占据了 UI 层——`isPointerOverUI()` 和防点击穿透正是靠它工作的。
+只有在做工具、或把引擎嵌进宿主应用时,你才需要自己写处理器:
+
+```typescript
+import { inputRouter, type InputHandler } from 'esengine';
+
+const modalHandler: InputHandler = {
+  onKeyDown(code, mods) {
+    if (code === 'Escape') { closeModal(); return true; }   // consumed
+  },
+  onPointerDown(button, x, y, mods) {
+    return isInsideModal(x, y);   // claim clicks on the modal, pass the rest
+  },
+};
+
+const release = inputRouter.setUIHandler(modalHandler);
+// when the modal closes:
+release();
+```
+
+`inputRouter` 是模块级单例;`setEditorHandler` / `setUIHandler` 每层安装一个
+处理器,并返回一个注销函数(注销只移除*你的*处理器,不会碰更新的那个)。
+`InputHandler` 的所有方法都是可选的:
+
+| `InputHandler` 方法 | 签名 |
+|---|---|
+| `onKeyDown` / `onKeyUp` | `(code, mods)` |
+| `onPointerMove` | `(x, y, mods)` |
+| `onPointerDown` | `(button, x, y, mods)` |
+| `onPointerUp` | `(button, mods)` |
+| `onWheel` | `(deltaX, deltaY, mods)` |
+| `onTouchStart` / `onTouchMove` | `(id, x, y)` |
+| `onTouchEnd` / `onTouchCancel` | `(id)` |
+
+`mods` 是一份 **`Modifiers`** 快照——`{ shift, ctrl, alt, meta }`——由路由器从
+按键事件跟踪(任何时候也可以读 `inputRouter.currentMods`)。在释放修饰键的那个
+key-up 边沿,处理器看到的它仍是按住的,与 DOM `event.shiftKey` 的语义一致。
+抛异常的处理器按未消费处理,坏掉的工具不会吞掉全部输入。
 
 ## 参考
 

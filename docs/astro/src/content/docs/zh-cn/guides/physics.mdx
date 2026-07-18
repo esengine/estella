@@ -25,10 +25,34 @@ app.addPlugin(new PhysicsPlugin('physics.js', { gravity: { x: 0, y: -9.81 } }));
   `CharacterController`)来自主 `esengine` barrel。
 </Aside>
 
+## 单位
+
+Box2D 以**米**模拟;引擎其余部分以**世界像素**工作。二者的换算系数是当前的
+**每单位像素数**(PPU)——`Canvas.pixelsPerUnit`,默认每米 `100` 像素。物理 API 的
+每一部分都固定站在这条边界的某一侧:
+
+| 表面 | 单位 |
+|---|---|
+| 碰撞体组件尺寸——`halfExtents`、`radius`、`offset`…… | **米。** |
+| 面向求解器的方法——`applyForce` / `applyImpulse`、`setLinearVelocity` / `getLinearVelocity`、`setGravity`…… | **米**(m/s、m/s²)。 |
+| 空间查询——`raycast`、`shapeCast*`、`overlapCircle` / `overlapAABB`、`moveCharacter` | **世界像素**,按当前 PPU 缩放。 |
+| `CharacterController.velocity`、`MotorJoint.linearVelocity` | 世界像素/秒。 |
+
+`physics.getPixelsPerUnit()` 返回当前 PPU(每帧从 `Canvas` 推送),换算永远不用写死 `100`:
+
+```typescript
+const ppu = physics.getPixelsPerUnit();               // world pixels per meter
+const speedPx = physics.getLinearVelocity(e).x * ppu; // m/s → px/s
+physics.applyImpulse(e, { x: 0, y: jumpPx / ppu });   // px/s → m/s
+```
+
+混用两个空间——把像素传给 `applyForce`,或把米传给 `raycast`——是最常见的物理 bug。
+拿不准时记住:**组件与求解器 = 米;查询与角色控制器 = 像素。**
+
 ## 刚体与碰撞体
 
 加一个 `RigidBody` 再加一个碰撞体形状。**碰撞体尺寸以米计,不是像素**——把像素尺寸除以你的
-每单位像素数(PPU)。从一个取 `Commands()` 的系统里生成:
+每单位像素数(见[单位](#单位))。从一个取 `Commands()` 的系统里生成:
 
 ```typescript
 import {
@@ -36,7 +60,7 @@ import {
   RigidBody, BodyType, CircleCollider,
 } from 'esengine';
 
-const PPU = 100;
+const PPU = 100;   // = Canvas.pixelsPerUnit; read the live value via physics.getPixelsPerUnit()
 
 const spawnBall = defineSystem([Commands()], (cmds) => {
   cmds.spawn()
@@ -106,7 +130,8 @@ const LAYER_GROUND = 0x0008;
 
 ## 移动刚体 —— 力与速度
 
-读 `Physics` 资源来驱动刚体。每个方法都取世界实体:
+读 `Physics` 资源——一个 `PhysicsAPI` 实例——来驱动刚体。这些方法直接和求解器对话,
+所以全部以**米**计(m/s、m/s²——见[单位](#单位))。每个方法都取世界实体:
 
 ```typescript
 import { defineSystem, Query, Res, RigidBody } from 'esengine';
@@ -131,6 +156,14 @@ const move = defineSystem([Query(RigidBody), Res(Physics)], (q, physics) => {
 | `getMass(e)` / `getInertia(e)` / `getCenterOfMass(e)` / `getMassData(e)` | 质量属性。 |
 | `setAwake(e, awake)` / `isAwake(e)` | 睡眠刚体控制。 |
 
+`getMassData(e)` 把质量属性打包成一个 `MassData`:
+
+| `MassData` 字段 | 类型 | 说明 |
+|---|---|---|
+| `mass` | number | 刚体质量(由碰撞体 `density` × 面积得出)。 |
+| `inertia` | number | 绕质心的转动惯量。 |
+| `centerOfMass` | `Vec2` | 质心,在刚体的**局部坐标系**里,以像素计(× PPU)。 |
+
 ## 空间查询
 
 查询取**像素空间**参数,并按当前 PPU 自动缩放。每个都接受一个可选的 `maskBits` 按层过滤:
@@ -153,6 +186,15 @@ const swept  = physics.shapeCastCircle(/* … */);    // sweep a shape
 | `overlapCircle(center, radius, maskBits?)` | `Entity[]` | 与圆重叠的碰撞体。 |
 | `overlapAABB(min, max, maskBits?)` | `Entity[]` | 与盒重叠的碰撞体。 |
 | `shapeCastCircle` / `shapeCastBox` / `shapeCastCapsule` | 命中 | 扫掠一个形状并得到它会撞到什么。 |
+
+各种 cast 都返回 `RaycastHit`(`ShapeCastHit` 是同一个形状):
+
+| `RaycastHit` 字段 | 类型 | 说明 |
+|---|---|---|
+| `entity` | `Entity` | 被命中碰撞体所属的实体。 |
+| `point` | `Vec2` | 命中点,世界像素。 |
+| `normal` | `Vec2` | 命中点处的表面法线(单位向量)。 |
+| `fraction` | number | 命中处占投射距离的比例,`0..1`——结果按它排序,最近优先。 |
 
 ## 碰撞与传感事件
 
@@ -213,7 +255,7 @@ physics.destroyJoint(bodyA);
 
 ```typescript
 // 传送带:把箱子沿 +x 匀速驱动。
-world.spawn(MotorJoint, {
+world.insert(crate, MotorJoint, {
   connectedEntity: anchor,
   linearVelocity: { x: 200, y: 0 }, // 世界像素/秒
   maxVelocityForce: 500,            // 可用于达到该速度的力(牛顿)
@@ -302,12 +344,43 @@ const drive = defineSystem([Query(Mut(CharacterController))], (q) => {
 供独立的 `moveAndSlide` 解析器(`esengine/physics`)使用;实际控制器用的原生 mover 自带迭代与
 间隙处理,会忽略它们。斜坡/台阶的地面吸附(`snapLength`)是 mover 计划中的补充。</Aside>
 
+## 调试绘制
+
+物理插件会安装一个 **`PhysicsDebugDraw`** 资源——一个游戏内叠加层,通过
+[`Draw`](/docs/zh-cn/guides/drawing/) API 描出碰撞体轮廓、速度向量和接触点。
+它默认关闭;在任何系统里翻转 `enabled`,就能看见求解器眼中的世界:
+
+```typescript
+import { defineSystem, Res, Input } from 'esengine';
+import { PhysicsDebugDraw } from 'esengine/physics';
+
+const toggleDebug = defineSystem([Res(Input), Res(PhysicsDebugDraw)], (input, dbg) => {
+  if (input.isKeyPressed('F1')) dbg.enabled = !dbg.enabled;
+});
+```
+
+| `PhysicsDebugDrawConfig` 字段 | 默认 | 绘制内容 |
+|---|---|---|
+| `enabled` | `false` | 整个叠加层的总开关。 |
+| `showColliders` | `true` | 碰撞体轮廓,按刚体类型着色:蓝 = 静态,绿 = 动态,青 = 运动学;传感器为黄色。 |
+| `showVelocity` | `false` | 每个动态刚体沿线速度画一支红色箭头。 |
+| `showContacts` | `false` | 本帧新开始的每个接触点画一个红点。 |
+
+叠加层在每个刚体的实时变换处以**世界像素**绘制(按当前 PPU 缩放),你看到的正是查询
+认定的碰撞体位置。`setupPhysicsDebugDraw(app, Physics, PhysicsEvents)` 就是
+`PhysicsPlugin` 替你跑的接线——插入该资源并注册绘制回调;只有在绕开插件的自定义宿主里,
+才需要自己调它(或每帧调底层的 `drawPhysicsDebug(app, Physics, PhysicsEvents)`)。
+
+<Aside type="note">这是运行时的叠加层。**编辑器视口**在物理显示标记下有自己的碰撞体/关节
+gizmo(见[关节——在编辑器里](#在编辑器里));两者互相独立。</Aside>
+
 ## 最佳实践
 
 - **固定时间步**:*每帧*施加持续力、读 `PhysicsEvents`,因为物理独立于帧 delta 做子步。
 - 快速细小刚体(子弹、薄平台)用 **`bullet: true`** 防穿透。
 - 角色用 **`fixedRotation: true`** 免得翻倒。
-- **碰撞体用米**(÷ PPU),但**查询和角色控制器用像素**——混用是最常见的 bug。
+- **碰撞体与求解器用米,查询和角色控制器用像素**——混用是最常见的 bug;用
+  `physics.getPixelsPerUnit()` 换算(见[单位](#单位))。
 - **触发器用传感器**:`isSensor: true` 给出 enter/exit 事件而无物理推挤。
 - **用层过滤**(`categoryBits` / `maskBits`),而不是在事件处理里判断实体类型。
 

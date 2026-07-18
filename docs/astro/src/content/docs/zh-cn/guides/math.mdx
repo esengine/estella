@@ -7,7 +7,9 @@ import { Aside } from '@astrojs/starlight/components';
 
 SDK 附带了几个小的数学命名空间——`v2` / `v3`(向量)、`col`(颜色)、`scalar`(数值)
 ——它们操作的正是你组件里用的那套规范类型(`{x, y}` 向量、0..1 的 `{r, g, b, a}` 颜色)。
-每个辅助函数都是**纯函数**:返回新值,绝不修改入参。
+每个辅助函数都是**纯函数**:返回新值,绝不修改入参。至于这些数字*意味着*什么——世界
+单位、设计像素、物理米制以及 Y 轴向上的坐标系——见
+[变换、单位与坐标系](/docs/zh-cn/core-concepts/transforms/)。
 
 ## 向量
 
@@ -69,9 +71,46 @@ scalar.deg2rad(90);              // degrees -> radians
 
 还有:`clamp`、`inverseLerp`、`rad2deg`、`approximately`、`mod`、`sign`。
 
+## 旋转辅助
+
+`Transform.rotation` 是四元数;2D 下只会绕 Z 轴旋转,几个导出就覆盖了
+角度 ↔ 四元数的往返:
+
+```typescript
+import { quat, quaternionToAngle2D, facingFromQuat, normalizeAngle } from 'esengine';
+
+// Angle -> quaternion. NOTE: the factory takes w FIRST — quat(w, x, y, z).
+const a = Math.PI / 3;
+const rot = quat(Math.cos(a / 2), 0, 0, Math.sin(a / 2));
+
+// Quaternion -> angle (radians), from the z/w components.
+const facing = quaternionToAngle2D(rot.z, rot.w);   // Math.PI / 3
+facingFromQuat(rot.z, rot.w);                       // same math, the AI/perception spelling
+
+// Wrap to (-π, π] — the shortest signed turn from facing toward a target angle.
+const delta = normalizeAngle(targetAngle - facing);
+```
+
+| 辅助函数 | 说明 |
+|---|---|
+| `quat(w?, x?, y?, z?)` | 四元数工厂;不传参数得到单位四元数 `{w: 1, x: 0, y: 0, z: 0}`。 |
+| `quaternionToAngle2D(rz, rw)` | 由四元数的 `z`/`w` 求 Z 角度(弧度,`2 * atan2(z, w)`)。 |
+| `facingFromQuat(z, w)` | 同样的数学,AI/感知模块的命名。 |
+| `normalizeAngle(a)` | 把任意角度归一到 `(-π, π]`,用于最短转向比较。 |
+
+如果需要的是方向*向量*而不是旋转,留在 `v2` 里就好:`fromAngle` / `angle` /
+`rotate`。完整的工作示例(炮塔朝向光标)见
+[变换、单位与坐标系](/docs/zh-cn/core-concepts/transforms/#2d-旋转)。
+
 <Aside type="tip">
   返回值用的是和组件一样的规范类型,可以直接落回去——例如
   `transform.position = v2.add(transform.position, step)` 或
   `sprite.color = col.withAlpha(sprite.color, a)`,无需转换。因为每次调用都会分配一个
   新对象,在计较分配次数的热点内循环里请把它们提到循环外。
 </Aside>
+
+## 另请参阅
+
+- [变换、单位与坐标系](/docs/zh-cn/core-concepts/transforms/)——这些数字的含义:
+  世界单位 = 设计像素、物理米制、Y 轴向上,以及用四元数旋转实体。
+- [物理](/docs/zh-cn/guides/physics/)——这些辅助函数最终喂给的米制单位面。

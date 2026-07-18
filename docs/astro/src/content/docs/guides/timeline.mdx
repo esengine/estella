@@ -84,13 +84,98 @@ These methods write through to the `TimelinePlayer` flags — `timeline.play(e)`
 
 A timeline is a set of tracks evaluated together each frame:
 
-| Track | Drives |
+| Track | `TrackType` | Drives |
+|---|---|---|
+| Property | `Property` | Keyframed component fields — position / rotation / scale and any numeric dot-path. |
+| Sprite frames | `AnimFrames` | Swap sprite-sheet frames over time. |
+| Sprite clip | `SpriteAnim` | Start a named `anim-clip` at a time. |
+| Audio | `Audio` | Fire one-shot sounds at keyframes. |
+| Activation | `Activation` | Toggle entities on/off over ranges. |
+| Spine | `Spine` | Play Spine animations as clips. |
+| Marker | `Marker` | Named time markers. |
+| Custom event | `CustomEvent` | Named events with a payload, for your own systems. |
+
+## Timelines from code
+
+An `.estimeline` document is plain data — the `TimelineAsset` type plus the
+`TrackType` / `InterpType` / `WrapMode` constants let you build one entirely in
+code. Register it with `registerTimelineAsset(path, asset)`, and any
+`TimelinePlayer` whose `timeline` names that same path plays it like an authored
+asset:
+
+```typescript
+import {
+  defineSystem, Commands, registerTimelineAsset, TimelinePlayer,
+  TrackType, InterpType, WrapMode, type TimelineAsset,
+} from 'esengine';
+
+const slideIn: TimelineAsset = {
+  version: '1.1',
+  type: 'timeline',
+  duration: 2,
+  wrapMode: WrapMode.Once,
+  tracks: [{
+    type: TrackType.Property,
+    name: 'Slide in',
+    childPath: '',                       // '' = the player entity itself
+    component: 'Transform',
+    channels: [{
+      property: 'position.x',
+      keyframes: [
+        { time: 0, value: -200, inTangent: 0, outTangent: 0, interpolation: InterpType.EaseOut },
+        { time: 2, value: 0, inTangent: 0, outTangent: 0 },
+      ],
+    }],
+  }],
+};
+
+const attach = defineSystem([Commands()], (cmds) => {
+  registerTimelineAsset('code/slide-in', slideIn);
+  cmds.spawn().insert(TimelinePlayer, {
+    timeline: 'code/slide-in',
+    playing: true,
+    wrapMode: 'once',
+  });
+});
+```
+
+A `Keyframe` is `{ time, value, inTangent, outTangent, interpolation? }`. The
+segment *starting* at a keyframe uses that keyframe's `interpolation`:
+`Hermite` (the default — tangent-driven curves), `Linear`, `Step`, `EaseIn`,
+`EaseOut`, or `EaseInOut`. A property track resolves its target entity by
+`childPath` (child names separated by `/`; empty = the player entity) and writes
+the channel's dot-path field on the named component.
+
+### Wrap modes
+
+Playback uses the **player component's** `wrapMode` string; the numeric
+`WrapMode` constant lives on the asset and in the pure evaluation API. The
+mapping and behavior:
+
+| `WrapMode` | Player string | Behavior past the end |
+|---|---|---|
+| `WrapMode.Once` (`0`) | `'once'` | Clamp at `duration`, stop, latch `finished`. |
+| `WrapMode.Loop` (`1`) | `'loop'` | Wrap around (`time % duration`). |
+| `WrapMode.PingPong` (`2`) | `'pingPong'` | Play forward then backward each cycle. |
+
+`applyWrapMode(time, duration, mode)` is the pure mapping itself — it returns
+`{ time, stopped }` for an absolute clock time.
+
+### Sampling and serializing
+
+The evaluator is pure TypeScript, shared by playback and the editor's scrub —
+you can call it yourself:
+
+| Function | Description |
 |---|---|
-| Transform | Position / rotation / scale keyframes (hermite / linear / step). |
-| Sprite frames | Swap sprite-sheet frames over time. |
-| Audio | Fire one-shot sounds at keyframes. |
-| Activation | Toggle entities on/off. |
-| Spine | Play Spine animations as clips. |
+| `sampleTimelineInWorld(asset, time, world, rootEntity, opts?)` | Evaluate every property track at `time` and write the results into the world (the scrub operation). |
+| `sampleTimeline(asset, time, rootEntity, deps, opts?)` | Same, with injected `SampleDeps` (world / component lookup / child resolver) — for tests and tooling. |
+| `evaluateChannel(channel, time)` | Value of one property channel at `time`; endpoints clamp. |
+| `serializeTimelineAsset(asset)` | The asset as a JSON-ready object (the `.estimeline` document shape). |
+| `serializeTimelineToJson(asset, indent?)` | Pretty-printed `.estimeline` JSON string (indent defaults `2`). |
+
+Sampling covers property tracks; event-like tracks (audio, markers, custom
+events) fire edge-detected during playback, not on a sample.
 
 ## Best practices
 

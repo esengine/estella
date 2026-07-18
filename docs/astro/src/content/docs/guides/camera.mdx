@@ -79,6 +79,31 @@ const zoomIn = defineSystem([Res(Tween)], (tween) => {
 Use `Perspective` only for pseudo-3D layered scenes; leave 2D games on
 `Orthographic` so sizes stay constant with depth.
 
+## Design-resolution fit
+
+In a shipped game the main camera usually does **not** render its raw `orthoSize`.
+Each frame the engine resolves a *fit source* and, when one is active, letterboxes
+the project's design resolution (default 1920×1080) into the actual screen aspect —
+the visible half-height is computed from `designResolution.y / 2` and a scale mode,
+so world units stay design pixels on every device. The fit source is, in order:
+
+1. the **`ScreenScaling`** resource (Project Settings → Display → Camera fit), when
+   its `scaleMode` is a real mode (`≥ 0`);
+2. else the scene's **`Canvas`** component, if one exists;
+3. else none — the camera renders its raw `orthoSize`.
+
+<Aside type="caution">
+  While a fit source is active, the camera's authored `orthoSize` is **not used** —
+  the visible area comes from the design resolution and the scale mode. Zooming via
+  `orthoSize` (including the tween above) only takes effect with no `Canvas` in the
+  scene and the project fit off.
+</Aside>
+
+The default `orthoSize` of `540` is exactly `designResolution.y / 2`, so the fitted
+and unfitted views agree at the design aspect. Scale modes, worked letterbox
+examples, and the `ScreenScaling` fields are covered in
+[Screen & Design Resolution](/docs/core-concepts/screen/).
+
 ## Follow a target
 
 Add a `FollowTarget` to the camera and point it at an entity. The follow is a
@@ -107,6 +132,11 @@ const follow = defineSystem([Query(Camera), Commands()], (cameras, cmds) => {
 | `offsetY` | number | `0` | World-space Y offset from the target. |
 | `deadzone` | number | `0` | Radius (world units) the target may roam before the camera moves. |
 | `damping` | number | `0.25` | Smoothing time-constant in seconds (larger = slower; `0` = snap). |
+
+The data shape is exported as the `FollowTargetData` type. The follow system writes
+the camera's `Transform` directly (so the director blends already-followed views)
+and runs in **play mode only** — the editor's navigation view is never dragged
+around by it.
 
 ## Screen ↔ world coordinates
 
@@ -143,6 +173,18 @@ import { shakeCamera } from 'esengine';
 shakeCamera(app, { amplitude: 12, rotation: 0, frequency: 22, duration: 0.4 });
 ```
 
+Both `shakeCamera` and `setViewTarget` accept either the `App` (host code) or the
+`CameraDirector` resource state — inside a system, pass what `Res(CameraDirector)`
+gives you:
+
+```typescript
+import { defineSystem, Res, Input, CameraDirector, shakeCamera } from 'esengine';
+
+const shakeOnHit = defineSystem([Res(Input), Res(CameraDirector)], (input, director) => {
+  if (input.isKeyPressed('Space')) shakeCamera(director, { amplitude: 16 });
+});
+```
+
 | Option | Default | Description |
 |---|---|---|
 | `amplitude` | `12` | Peak positional offset (world units). |
@@ -168,6 +210,76 @@ setViewTarget(app, cutsceneCamera, { time: 1.5, curve: BlendCurve.EaseInOut });
 (or no prior view) is an instant cut. Position, zoom, and rotation interpolate;
 discrete fields (projection, viewport) snap at the midpoint.
 
+## The camera director
+
+`setViewTarget` and `shakeCamera` are the API of the **camera director** — a
+per-app resource (`CameraDirector`) that resolves *one* main point of view each
+frame from the full-frame camera candidates: the committed view target (or the
+active/priority camera), blended toward a new target while a transition is in
+flight, with shakes applied on top of the rendered view only. Its state
+(`CameraDirectorState`) is readable; treat it as **read-only** and mutate through
+`setViewTarget` / `shakeCamera`:
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `target` | number | `-1` | Committed view-target entity; `-1` = fall back to the `isActive` / highest-`priority` pick. |
+| `blending` | boolean | `false` | A view-target blend is currently in flight. |
+| `duration` / `curve` | number | `0` / `EaseInOut` | Length (seconds) and easing of the active blend. |
+| `currentMain` | `CameraPOV \| null` | `null` | The last resolved main POV, **pre-shake** — also what screen↔world conversion uses. |
+| `shakes` | `ActiveShake[]` | `[]` | Active transient shakes (pushed by `shakeCamera`, dropped when they decay out). |
+
+The remaining fields (`hasPending`, `pendingTarget`, `pendingTime`, `pendingCurve`,
+`from`, `startTime`, `shakeSeq`) are the director's internal request/blend
+bookkeeping written by `setViewTarget`.
+
+```typescript
+import { defineSystem, Res, CameraDirector } from 'esengine';
+
+const watchDirector = defineSystem([Res(CameraDirector)], (director) => {
+  if (director.blending) { /* e.g. suppress player input during the hand-off */ }
+  const pov = director.currentMain;   // CameraPOV | null — the view being rendered
+  if (pov) { /* pov.x, pov.y, pov.orthoSize, ... */ }
+});
+```
+
+### `CameraPOV`
+
+A `CameraPOV` is a camera's *authored view parameters* as one plain snapshot —
+the unit the director blends and the shape stored in `currentMain`:
+
+| Field | Type | Description |
+|---|---|---|
+| `entity` | number | Source camera entity, or `-1` for a synthetic POV (the editor view). |
+| `isActive` | boolean | The authoritative "this is the main camera" flag. |
+| `x` / `y` / `z` | number | Camera position (world units). |
+| `rotation` | number | Z rotation in radians. |
+| `projection` | number | A `ProjectionType` value. |
+| `orthoSize` | number | Authored ortho half-height (world units). |
+| `fov` | number | Field of view in degrees (Perspective). |
+| `near` / `far` | number | Clip distances. |
+| `viewport` | `{x, y, z, w}` | Screen rect in 0–1 (`z`/`w` are width/height). |
+| `clearFlags` | number | A `ClearFlags` value. |
+| `priority` | number | Tie-breaker among active cameras. |
+| `pixelPerfect` | boolean | Pixel-grid snapping flag. |
+
+During a blend, continuous fields (position, `rotation` via the shortest angular
+path, `orthoSize`, `fov`, `near`/`far`) interpolate; discrete fields (`projection`,
+`pixelPerfect`) flip at the midpoint, and `viewport` / `clearFlags` / `priority`
+take the target's values.
+
+## Matching the canvas aspect
+
+`updateCameraAspectRatio(world, aspect)` stamps `aspectRatio` onto **every**
+`Camera` component in the world. The shipped runtimes call it at boot with the
+real canvas's `width / height`, keeping the authored field in sync with the actual
+surface (rendering itself derives aspect from the live viewport each frame):
+
+```typescript
+import { updateCameraAspectRatio } from 'esengine';
+
+updateCameraAspectRatio(app.world, canvas.width / canvas.height);
+```
+
 ## Multiple cameras & split-screen
 
 With several `Camera` entities, `isActive` + `priority` decide which is live. Give
@@ -192,6 +304,8 @@ split-screen, left and right halves:
 
 ## See also
 
+- [Screen & Design Resolution](/docs/core-concepts/screen/) — the design-resolution
+  fit, scale modes, `ScreenScaling`, and `pixelPerfect` in depth.
 - [Animation](/docs/guides/animation/) — tween `orthoSize` for smooth zooms.
 - [Input](/docs/guides/input/) — `screenToWorld` with the mouse for picking.
 - [UI](/docs/guides/ui/) — UI renders in screen space, independent of the camera.

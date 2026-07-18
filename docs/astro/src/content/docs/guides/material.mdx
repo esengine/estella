@@ -144,6 +144,120 @@ const v = Material.getUniform(tintMat, 'u_intensity');
 | `setUniform(material, name, value)` | Set a reflected parameter at runtime. |
 | `getUniform(material, name)` | Read a parameter's current value. |
 
+### `MaterialOptions`
+
+`Material.create(options)` takes the full render state, not just shader + uniforms:
+
+| Field | Default | Description |
+|---|---|---|
+| `shader` | — | Shader handle from `compileShader` / `createShader` (required). |
+| `uniforms` | — | Initial parameter values by name; textures via `Material.tex(textureId)`. |
+| `blendMode` | `BlendMode.Normal` | How the material composites (`Normal`, `Additive`, `Multiply`, …). |
+| `depthTest` | `false` | Test against the depth buffer. |
+| `depthWrite` | `true` | Write to the depth buffer. |
+| `cull` | `CullMode.None` | Triangle culling mode. |
+| `switches` | `{}` | Enabled `#pragma switch` names — the static permutation this material was compiled for. |
+
+Each state field also has a runtime setter — `setBlendMode`, `setDepthTest`,
+`setDepthWrite`, `setCull` — and `Material.createInstance(source)` builds a cheap
+variant that inherits everything from a parent material and stores only the diffs
+you set on it.
+
+### `CullMode`
+
+| Value | Meaning |
+|---|---|
+| `CullMode.None` | Draw both faces (the 2D default). |
+| `CullMode.Back` | Cull back faces. |
+| `CullMode.Front` | Cull front faces. |
+
+### `ShaderSources`
+
+For the raw `createShader` path, `ShaderSources` ships ready-made ES 3.0 GLSL
+using the batch vertex layout (`vec3` position + `vec4` color + `vec2` texCoord,
+with `u_projection` / `u_model` uniforms) — pair a vertex with its fragment:
+
+| Source | Stage | What it does |
+|---|---|---|
+| `ShaderSources.SPRITE_VERTEX` | vertex | Passes position, color, and UV through. |
+| `ShaderSources.SPRITE_FRAGMENT` | fragment | `texture(u_texture, uv) × v_color`. |
+| `ShaderSources.COLOR_VERTEX` | vertex | Position + color only (no UV). |
+| `ShaderSources.COLOR_FRAGMENT` | fragment | Flat vertex color. |
+
+These are **not** the `.esshader` templates — no `#pragma param` reflection; use
+them as starting points for `Material.createShader(vertex, fragment)` meshes.
+
+## Building graphs in code
+
+The editor's material graph is not a separate pipeline — it's a **visual frontend
+that generates a `.esshader`**. `compileMaterialGraph(graph)` walks the node DAG
+from the output and emits the same shader source you'd write by hand (both the
+GLSL fragment and its WGSL twin), so a graph material runs on either backend and
+its const/texture nodes become ordinary reflected `#pragma param`s. That means you
+can author graphs entirely in code — the graph is plain data:
+
+```typescript
+import { compileMaterialGraph, Material, type MaterialGraph } from 'esengine';
+
+const graph: MaterialGraph = {
+  name: 'TintedSprite',
+  output: 'out',                     // id of the output node
+  nodes: [
+    { id: 'tex',  type: 'textureSample', params: { name: 'u_albedo', default: 'white' } },
+    { id: 'tint', type: 'constColor',    params: { name: 'u_tint', value: [1, 0.6, 0.2, 1] } },
+    { id: 'mul',  type: 'multiply',      inputs: { a: 'tex', b: 'tint' } },
+    { id: 'out',  type: 'output',        inputs: { color: 'mul' } },
+  ],
+};
+
+const shader = Material.compileShader(compileMaterialGraph(graph));
+const mat = Material.create({ shader });
+Material.setUniform(mat, 'u_tint', [1, 0, 0, 1]);   // graph params are ordinary params
+```
+
+`compileMaterialGraph` throws on a cycle, a missing node or input, or an `output`
+root that isn't an output node.
+
+### Node types
+
+`GraphNodeType` covers inputs, params, and math (`NODE_SPECS` holds each type's
+ports and editable literals — the same schema the editor's palette reads):
+
+| Node | Output | What |
+|---|---|---|
+| `uv` / `screenUV` | `vec2` | Texture UV / canvas-normalized screen UV (0–1, y-up). |
+| `vertexColor` | `vec4` | The sprite's per-instance tint. |
+| `time` | `float` | Engine frame clock in seconds. |
+| `constFloat` / `constColor` | `float` / `vec4` | A reflected material param (`params: { name, value }`). |
+| `textureSample` | `vec4` | Samples a texture param at a UV (`params: { name, default }`). |
+| `multiply` / `add` / `lerp` | widened / `vec4` | Arithmetic; scalars broadcast against vectors. |
+| `oneMinus` / `saturate` / `sin` | input type | `1 − x` / clamp 0–1 / sine. |
+| `smoothstep` | input type | `smoothstep(edge0, edge1, x)` — edges are node literals. |
+| `noise` | `float` | Procedural value noise over a UV (`scale` literal). |
+| `panner` | `vec2` | `uv + time × speed` — scrolling UVs (`speedX` / `speedY` literals). |
+
+### Editing operations
+
+For tooling (or generating graphs procedurally), the SDK exports pure operations —
+each returns a **new** graph, leaving the input untouched:
+
+| Function | Does |
+|---|---|
+| `newMaterialGraph()` | A starter graph: one white `textureSample` wired to `output`. |
+| `addNode(g, type, x, y)` | Adds a node with sensible default params; returns `{ graph, id }`. |
+| `connect(g, fromId, toId, toSlot)` | Wires an edge; returns `g` **unchanged** if it would create a cycle or the slot is unknown. |
+| `disconnect(g, toId, toSlot)` | Clears an input connection. |
+| `moveNode(g, id, x, y)` | Canvas layout only — the compiler ignores positions. |
+| `removeNode(g, id)` | Removes a node and every edge touching it (the `output` node can't be removed). |
+
+## Custom geometry
+
+Materials aren't limited to component renderers: the **`Geometry`** API
+(`Geometry.create` with a `GeometryOptions` vertex layout, plus `createQuad` /
+`createCircle` / `createPolygon` helpers) builds handle-based meshes you draw
+immediately with `Draw.drawMeshWithMaterial(geometry, material)` — the full
+reference lives in [Custom Drawing](/docs/guides/drawing/).
+
 ## Best practices
 
 - **Compile shaders once** at startup and reuse the handle — never in a per-frame

@@ -1,6 +1,6 @@
 ---
 title: Sprites & Rendering
-description: Draw 2D images with the Sprite component — textures, tint and transparency, size and pivot, flipping, sorting layers and draw order, parallax — plus ShapeRenderer primitives, sprite filters, motion trails, and world-space bitmap text.
+description: Draw 2D images with the Sprite component — textures, tint and transparency, size and pivot, flipping, sorting layers and draw order, parallax — plus texture filtering, hit-testing, cache-as-bitmap, ShapeRenderer primitives, sprite filters, motion trails, and world-space bitmap text.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -70,6 +70,23 @@ Scale on the `Transform` multiplies on top of it. `pivot` is the normalized anch
 bottom-left corner, `{0.5, 0}` pins the bottom-center (handy for characters standing on
 the ground).
 
+## Units & coordinates
+
+World units are **design pixels**. Dropping a texture into the viewport spawns a
+sprite at the texture's pixel dimensions (`size = { tex.width, tex.height }`), and
+the editor's cameras are authored so one world unit is one design pixel
+(`orthoSize = designHeight / 2`). So `Sprite.size` is in design pixels, and `pivot`
+is a normalized fraction of that size. The world is **Y-up** — positive Y is up on
+screen — which is why `pivot: {0, 0}` is the **bottom-left** corner, not the top-left.
+
+<Aside type="note">
+  `Canvas.pixelsPerUnit` (default `100`) does **not** scale sprites — it's the
+  **physics meter scale**: how many design pixels make one Box2D meter (see
+  [Physics](/docs/guides/physics/)). A sprite's displayed size is `size` ×
+  `Transform` scale, nothing else. The full units-and-spaces picture is in
+  [Transforms](/docs/core-concepts/transforms/).
+</Aside>
+
 ## Draw order & sorting layers
 
 When sprites overlap, draw order decides what's on top. Order is set by the **sorting
@@ -109,6 +126,39 @@ front of it — no manual `layer` or z juggling.
   [Animator](/docs/guides/animation/) instead of by hand.)
 - **Scrolling**: animate `uvOffset` over time to scroll a texture (water, conveyor
   belts), and set `tileSize` to repeat it across a large sprite.
+
+## Texture filtering & wrapping
+
+How a texture is sampled is set **per texture handle**, not per sprite:
+
+| Enum | Values | Meaning |
+|---|---|---|
+| `TextureFilter` | `Nearest`, `Linear` | Nearest = hard texel edges (pixel art); Linear = smooth interpolation (default). |
+| `TextureWrap` | `Repeat`, `ClampToEdge`, `MirroredRepeat` | What UVs outside 0–1 sample — tiling repeats, clamp stretches the edge pixel. |
+
+```typescript
+import { TextureFilter, TextureWrap, setTextureFilter, setTextureWrap, setTextureParams } from 'esengine';
+
+setTextureFilter(tex.handle, TextureFilter.Nearest);   // crisp pixel art
+setTextureWrap(tex.handle, TextureWrap.Repeat);        // tile outside 0–1 UVs
+
+// The two helpers above each reset the *other* params to their defaults
+// (ClampToEdge / Linear). To set filter and wrap together, use the full form:
+setTextureParams(tex.handle, TextureFilter.Nearest, TextureFilter.Nearest,
+                 TextureWrap.Repeat, TextureWrap.Repeat);
+```
+
+`setTextureParams(textureId, minFilter, magFilter, wrapS, wrapT)` is the complete
+surface — separate minification/magnification filters and per-axis wrap. `Repeat`
+is what makes `tileSize` tiling and UV-scroll effects seamless.
+
+<Aside type="tip">
+  For pixel art, `TextureFilter.Nearest` is half the story: it keeps **texels**
+  crisp, but a camera at a fractional position still lands sprites between screen
+  pixels and shimmers as it moves. Pair it with the camera's `pixelPerfect` flag,
+  which snaps the (orthographic) camera to the pixel grid — see
+  [Camera](/docs/guides/camera/).
+</Aside>
 
 ## Parallax backgrounds
 
@@ -212,6 +262,100 @@ numbers, name tags, retro UI. Point `font` at a **BMFont** asset (`.fnt` text or
 
 For screen-space UI text (layout, wrapping, SDF sharpness), use the UI `Text`
 widget instead — see [UI](/docs/guides/ui/).
+
+## Hit-testing sprites
+
+"Did the click land on this sprite?" is two steps: convert the screen point to
+world space, then test it against the sprite's rectangle. The `CameraView`
+resource does the first (see [Camera](/docs/guides/camera/)); for the second the
+SDK exports pivot-aware point tests:
+
+| Function | Tests |
+|---|---|
+| `pointInWorldRect(px, py, worldX, worldY, worldW, worldH, pivotX, pivotY)` | An axis-aligned rectangle placed by position + pivot (a sprite's exact footprint when unrotated). |
+| `pointInOBB(…, rotationZ, rotationW)` | The same rectangle **rotated** — pass the transform quaternion's `z`/`w`; falls back to the rect test when unrotated. |
+| `pointInHitArea(px, py, area)` | A custom `HitAreaShape` — `rect`, `circle`, or `polygon`. |
+
+```typescript
+import { defineSystem, Query, Res, CameraView, Input, Transform, Sprite, pointInOBB } from 'esengine';
+
+const clickSprites = defineSystem(
+  [Query(Transform, Sprite), Res(CameraView), Res(Input)],
+  (q, view, input) => {
+    if (!input.isMouseButtonPressed(0)) return;
+    const p = view.screenToWorld(input.mouseX, input.mouseY);
+    if (!p) return;
+    for (const [entity, t, s] of q) {
+      const w = s.size.x * t.worldScale.x, h = s.size.y * t.worldScale.y;
+      if (pointInOBB(p.x, p.y, t.worldPosition.x, t.worldPosition.y,
+                     w, h, s.pivot.x, s.pivot.y,
+                     t.worldRotation.z, t.worldRotation.w)) {
+        console.log('hit', entity);
+      }
+    }
+  });
+```
+
+For sprites whose clickable region isn't their rectangle — an irregular character,
+a donut-shaped button — describe the region as a `HitAreaShape` in sprite-local
+coordinates and test the localized point:
+
+```typescript
+import { pointInHitArea, type HitAreaShape } from 'esengine';
+
+const hull: HitAreaShape = { type: 'polygon', points: [0, 0, 64, 0, 64, 48, 32, 64, 0, 48] };
+// For an unrotated sprite, localize by subtracting its origin:
+const hit = pointInHitArea(p.x - t.worldPosition.x, p.y - t.worldPosition.y, hull);
+```
+
+`screenToWorld` is also exported standalone (it takes an inverse view-projection
+matrix and a viewport rectangle) for code that manages its own camera math — the
+`CameraView` resource is the same function with the active camera filled in. For
+interactive **UI**, don't hand-roll any of this: `Interactable` + `UIEvents` do
+picking for you (see [UI](/docs/guides/ui/)).
+
+## Cache as bitmap
+
+**`CacheAsBitmap`** supports rendering an entity's expensive content **once** into
+an offscreen texture and drawing that single quad afterwards — the classic
+cache-as-bitmap trade: GPU memory (`width × height` RGBA) for per-frame draw cost.
+It pays when content is costly to draw every frame (many vector paths, lots of
+text or shapes) but **rarely changes**; it does nothing for you if the content
+changes every frame — you'd re-render the cache each time *and* pay the extra blit.
+
+| Field | Default | Description |
+|---|---|---|
+| `enabled` | `true` | Whether caching is active for this entity. |
+| `dirty` | `true` | Set `true` to request a re-render of the cache. |
+| `width` / `height` | `256` | Cache texture size in pixels. |
+
+The component is the **bookkeeping half** — the SDK does not ship a system that
+walks the scene and caches subtrees automatically. You drive the refresh with the
+exported helpers: a per-entity cache store (`getCacheForEntity`,
+`setCacheForEntity`, `removeCacheForEntity`, `clearAllCaches`) and `CacheBitmap`,
+a thin render-target wrapper (`create`, `beginDraw`/`endDraw`, `resize`,
+`release`):
+
+```typescript
+import { CacheBitmap, getCacheForEntity, setCacheForEntity, Draw } from 'esengine';
+
+// Refresh (only when dirty):
+let cache = getCacheForEntity(entity);
+if (!cache) {
+  cache = CacheBitmap.create(512, 256);
+  setCacheForEntity(entity, cache);
+}
+CacheBitmap.beginDraw(cache, viewProjection);   // an ortho matrix framing the content
+// … draw the expensive content once, with Draw / Graphics …
+CacheBitmap.endDraw();
+
+// Every frame thereafter: one textured quad instead of the whole redraw.
+Draw.texture(pos, { x: 512, y: 256 }, cache.textureId);
+```
+
+`cache.textureId` is an ordinary texture handle — it also works as a
+`Sprite.texture`. Under the hood this is a [RenderTexture](/docs/guides/drawing/)
+without a depth buffer.
 
 ## In the editor
 

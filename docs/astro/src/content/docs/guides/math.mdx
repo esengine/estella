@@ -8,7 +8,9 @@ import { Aside } from '@astrojs/starlight/components';
 The SDK ships small math namespaces — `v2` / `v3` (vectors), `col` (colors), and
 `scalar` (numbers) — that operate on the same canonical types your components use
 (`{x, y}` vectors, `{r, g, b, a}` colors in 0..1). Every helper is **pure**: it
-returns a new value and never mutates its inputs.
+returns a new value and never mutates its inputs. For what the numbers *mean* —
+world units, design pixels, physics meters, and the Y-up coordinate system — see
+[Transforms, Units & Coordinates](/docs/core-concepts/transforms/).
 
 ## Vectors
 
@@ -71,6 +73,37 @@ scalar.deg2rad(90);              // degrees -> radians
 
 Also: `clamp`, `inverseLerp`, `rad2deg`, `approximately`, `mod`, `sign`.
 
+## Rotation helpers
+
+`Transform.rotation` is a quaternion; in 2D you only ever rotate about Z, and a
+handful of exports cover the angle ↔ quaternion round trip:
+
+```typescript
+import { quat, quaternionToAngle2D, facingFromQuat, normalizeAngle } from 'esengine';
+
+// Angle -> quaternion. NOTE: the factory takes w FIRST — quat(w, x, y, z).
+const a = Math.PI / 3;
+const rot = quat(Math.cos(a / 2), 0, 0, Math.sin(a / 2));
+
+// Quaternion -> angle (radians), from the z/w components.
+const facing = quaternionToAngle2D(rot.z, rot.w);   // Math.PI / 3
+facingFromQuat(rot.z, rot.w);                       // same math, the AI/perception spelling
+
+// Wrap to (-π, π] — the shortest signed turn from facing toward a target angle.
+const delta = normalizeAngle(targetAngle - facing);
+```
+
+| Helper | Description |
+|---|---|
+| `quat(w?, x?, y?, z?)` | Quaternion factory; no arguments gives the identity `{w: 1, x: 0, y: 0, z: 0}`. |
+| `quaternionToAngle2D(rz, rw)` | Z angle in radians from a quaternion's `z`/`w` (`2 * atan2(z, w)`). |
+| `facingFromQuat(z, w)` | Identical math under its AI/perception name. |
+| `normalizeAngle(a)` | Wrap any angle to `(-π, π]` for shortest-turn comparisons. |
+
+For direction *vectors* instead of rotations, stay in `v2`: `fromAngle` /
+`angle` / `rotate`. A full worked example (turrets facing the cursor) is in
+[Transforms, Units & Coordinates](/docs/core-concepts/transforms/#rotating-in-2d).
+
 <Aside type="tip">
   Results use the same canonical types as components, so they drop straight in —
   e.g. `transform.position = v2.add(transform.position, step)` or
@@ -78,3 +111,11 @@ Also: `clamp`, `inverseLerp`, `rad2deg`, `approximately`, `mod`, `sign`.
   the helpers allocate a new object per call, hoist them out of hot inner loops
   where you're counting allocations.
 </Aside>
+
+## See also
+
+- [Transforms, Units & Coordinates](/docs/core-concepts/transforms/) — what the
+  numbers mean: world units = design pixels, physics meters, Y-up, and rotating
+  entities with quaternions.
+- [Physics](/docs/guides/physics/) — the meter-based unit surface these helpers
+  feed into.

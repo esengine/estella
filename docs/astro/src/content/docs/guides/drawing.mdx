@@ -1,6 +1,6 @@
 ---
 title: Custom Drawing
-description: Draw beyond components — immediate-mode primitives with Draw, vector paths with Graphics, custom triangle meshes with Mesh2D, and offscreen render textures.
+description: Draw beyond components — immediate-mode primitives with Draw, vector paths with Graphics, custom triangle meshes with Mesh2D and the Geometry API, and offscreen render textures.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -8,6 +8,18 @@ import { Aside } from '@astrojs/starlight/components';
 Most visuals are components — [sprites](/docs/guides/sprites/), tilemaps,
 particles. When you need something they can't express — debug overlays, procedural
 shapes, custom geometry — the engine exposes its drawing layer directly.
+
+## Which API to use
+
+| API | Model | Reach for it when |
+|---|---|---|
+| `Draw` | **Immediate**, global — commands batch and clear every frame. | Debug overlays, gizmos, anything redrawn from scratch each frame. |
+| `Graphics` | **Retained** path recorder — build once, replay through `Draw` with `flush()`. | Vector shapes with paths/béziers/arcs you don't want to re-tessellate per frame. |
+| `ShapeRenderer` / `Mesh2D` | **Components** — entities with sorting layers, materials, editor gizmos. | Shapes/meshes that are part of the scene (see [Sprites](/docs/guides/sprites/)). |
+
+Rule of thumb: if the visual belongs to the *scene* (sorted, saved, inspectable),
+make it a component; if it belongs to a *frame* (debug, HUD-ish overlays,
+procedural effects), draw it in a callback.
 
 ## Draw callbacks
 
@@ -46,6 +58,7 @@ cleared every frame, so call it each frame you want the shape visible:
 | `circle(center, radius, color, filled?, segments?)` / `circleOutline(…)` | A circle (default `32` segments). |
 | `texture(pos, size, textureHandle, tint?)` | A textured quad. |
 | `textureRotated(pos, size, rotation, textureHandle, tint?)` | Same, rotated (radians). |
+| `drawMesh(geometry, shader, transform)` / `drawMeshWithMaterial(geometry, material, transform?)` | A custom mesh by handle (see the `Geometry` API below). |
 | `setLayer(layer)` / `setDepth(depth)` | Sorting of subsequent commands. |
 | `setBlendMode(mode)` / `setDepthTest(on)` | Blend / depth state for subsequent commands. |
 | `getDrawCallCount()` / `getPrimitiveCount()` | Frame stats. |
@@ -101,13 +114,92 @@ automatically; to **mutate it at runtime**, go through the `Meshes2D` resource �
 `getGeometry` / `clearGeometry` round it out. Direct writes to the `geometry`
 field alone are not change-detected.
 
+## Custom geometry: the `Geometry` API
+
+Where `Mesh2D` is the *component* path, `Geometry` is the *immediate* one: it
+uploads an indexed vertex buffer and hands back a **handle** you draw yourself —
+paired with a [material](/docs/guides/material/) via
+`Draw.drawMeshWithMaterial(geometry, material, transform?)` (or a raw shader via
+`Draw.drawMesh(geometry, shader, transform)`).
+
+```typescript
+import { Geometry, Draw, Material, registerDrawCallback } from 'esengine';
+
+const quad = Geometry.createQuad(120, 120);                  // 1 unit ≙ 1 design px
+const mat = Material.create({ shader });                     // a compileShader material
+
+registerDrawCallback('custom-mesh', () => {
+  Draw.drawMeshWithMaterial(quad, mat);                      // identity transform
+});
+```
+
+### `GeometryOptions`
+
+| Field | Default | Description |
+|---|---|---|
+| `vertices` | — | Interleaved vertex data as one `Float32Array` (max 64K floats per upload). |
+| `layout` | — | `VertexAttributeDescriptor[]` — one `{ name, type }` per attribute, in buffer order. |
+| `indices` | — | `Uint16Array` or `Uint32Array` triangle list (max 16K indices per upload). |
+| `dynamic` | `false` | Allocate for frequent updates via `updateVertices`. |
+
+`DataType` names each attribute's shape: `Float`, `Float2`, `Float3`, `Float4`,
+`Int`, `Int2`, `Int3`, `Int4`.
+
+### Methods & helpers
+
+| Method | Does |
+|---|---|
+| `create(options)` | Uploads the mesh; returns a `GeometryHandle` (throws on failure or oversized data). |
+| `updateVertices(handle, vertices, offset?)` | Rewrites vertex data on a `dynamic` geometry (offset in floats). |
+| `release(handle)` / `isValid(handle)` | Free / probe a handle. |
+| `createQuad(width?, height?)` | A centered quad (defaults 1×1), layout `a_position` + `a_texCoord`. |
+| `createCircle(radius?, segments?)` | A triangle-fan circle (defaults 1, 32), same layout. |
+| `createPolygon(points)` | A fan-triangulated polygon from `{x, y}` points, UVs from its bounding box. |
+
+The helper meshes all use the two-attribute `Float2` position + `Float2` UV
+layout, so they pair directly with fragment-only `.esshader` materials.
+
 ## Offscreen targets: `RenderTexture`
 
-For advanced setups — minimaps, portraits, mirrors — `RenderTexture.create({
-width, height })` allocates an offscreen target; wrap draw commands in
-`RenderTexture.begin(rt, viewProjection)` / `end()` to render into it, and
-`release(rt)` when done. This is a low-level surface (you supply the
-view-projection matrix yourself) — see the TypeScript API reference for details.
+For minimaps, portraits, mirrors — and as the backing of
+[cache-as-bitmap](/docs/guides/sprites/) — `RenderTexture` allocates an offscreen
+render target. Wrap draw commands in `begin`/`end` to render into it; the
+resulting `textureId` is an ordinary texture handle usable anywhere (a
+`Sprite.texture`, `Draw.texture`, a material texture param):
+
+```typescript
+import { RenderTexture, Draw } from 'esengine';
+
+const rt = RenderTexture.create({ width: 256, height: 256, filter: 'linear' });
+
+RenderTexture.begin(rt, viewProjection);   // an ortho view-projection you supply
+Draw.circle({ x: 0, y: 0 }, 80, { r: 1, g: 0.5, b: 0, a: 1 });
+RenderTexture.end();
+
+sprite.texture = rt.textureId;
+```
+
+### `RenderTextureOptions`
+
+| Field | Default | Description |
+|---|---|---|
+| `width` / `height` | — | Target size in pixels (required). |
+| `depth` | `true` | Attach a depth buffer — turn off for pure 2D compositing to save memory. |
+| `filter` | `'nearest'` | Sampling filter when the result is drawn: `'nearest'` or `'linear'`. |
+
+### Methods
+
+| Method | Does |
+|---|---|
+| `create(options)` | Allocates the target; returns a handle with `textureId`, `width`, `height`. |
+| `begin(rt, viewProjection)` | Redirects subsequent draws into the target (you supply the matrix). |
+| `end()` | Ends offscreen rendering, back to the screen. |
+| `resize(rt, width, height)` | Releases and re-creates — returns a **new** handle (the `textureId` changes). |
+| `getDepthTexture(rt)` | The depth attachment as a sampleable texture handle. |
+| `release(rt)` | Frees the target and its textures. |
+
+This is a low-level surface: it doesn't render the scene for you — it redirects
+whatever you draw between `begin`/`end`, under a view-projection matrix you build.
 
 ## See also
 

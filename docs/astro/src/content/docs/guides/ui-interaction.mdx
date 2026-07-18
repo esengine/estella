@@ -1,0 +1,281 @@
+---
+title: UI Interaction
+description: The complete UI interaction reference — hit-testing with Interactable/UIInteraction, the UIEvents bubbling bus, drag & drop, keyboard focus, manual picking helpers, and how UI layers over game input.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Pointer input flows through one pipeline every frame: the hit-test finds the
+topmost `Interactable` node under the cursor, writes per-frame state into
+`UIInteraction`, and emits bubbling events on the `UIEvents` bus. Drag and
+keyboard-focus systems layer on top. All of it ships in the default `uiPlugin`
+— nothing to install — and the interaction systems run in **play mode**.
+
+## Hit-testing: `Interactable` + `UIInteraction`
+
+Add `Interactable` to make a node hit-testable:
+
+| `Interactable` field | Default | Description |
+|---|---|---|
+| `enabled` | `true` | Master switch — a disabled node is skipped by hit-testing, events, and the Tab ring. |
+| `blockRaycast` | `true` | The node occludes nodes behind it (and stops the event-bubbling walk above it). |
+| `raycastTarget` | `true` | The node itself can be the hit result. |
+
+Each frame the hit-test writes pointer state into `UIInteraction` on the hit
+entity. It is created on demand (**transient** — never authored, never saved)
+and is **read-only for your logic**: query it, never mutate it.
+
+| `UIInteraction` field | Description |
+|---|---|
+| `hovered` | The pointer is over the node. |
+| `pressed` | The primary button is held down on the node. |
+| `justPressed` | Became pressed this frame (one-frame edge). |
+| `justReleased` | Released this frame on the node that was pressed (one-frame edge — a click). |
+
+```typescript
+import { defineSystem, Query, Interactable, UIInteraction } from 'esengine';
+
+const onTiles = defineSystem([Query(Interactable, UIInteraction)], (q) => {
+  for (const [entity, _gate, state] of q) {
+    if (state.justReleased) { /* this node was clicked */ }
+  }
+});
+```
+
+While any UI node is hit, `input.isPointerOverUI()` is `true` — the standard
+guard that keeps a button click from also firing a world click.
+
+## The `UIEvents` bus
+
+The `UIEvents` resource is a pub/sub queue with DOM-like bubbling. Widgets and
+the interaction systems emit the standard set; the type space is **open** —
+emit any string you like (a ListView emits `'item_selected'`).
+
+| `UIEventType` constant | String | Emitted when | Bubbles |
+|---|---|---|---|
+| `Click` | `'click'` | Press and release on the same node. Keyboard Enter/Space also emits it (on the target only, no bubble). | Yes |
+| `Press` / `Release` | `'press'` / `'release'` | Primary button down / up on a node. | Yes |
+| `HoverEnter` / `HoverExit` | `'hover_enter'` / `'hover_exit'` | The hit node changed. | No |
+| `Focus` / `Blur` | `'focus'` / `'blur'` | Keyboard focus moved (see [Focus](#focus--keyboard)). | No |
+| `Change` | `'change'` | A widget's value changed (toggle, slider, dropdown…). | No |
+| `Submit` | `'submit'` | A text input confirmed (Enter). | No |
+| `DragStart` / `DragMove` / `DragEnd` | `'drag_start'` / `'drag_move'` / `'drag_end'` | The drag system (see [Drag](#drag--drop)). | No |
+| `Scroll` / `Select` / `Deselect` | `'scroll'` / `'select'` / `'deselect'` | Scroll views and list selection. | No |
+
+Bubbling events climb the parent chain, revisiting every **enabled**
+`Interactable` ancestor; an ancestor with `blockRaycast` ends the walk, and any
+handler can call `stopPropagation()`. Each `UIEvent` carries:
+
+| `UIEvent` field | Description |
+|---|---|
+| `type` | The event string. |
+| `target` | The entity where the event originated. |
+| `currentTarget` | The entity currently handling it (differs from `target` while bubbling). |
+| `data` | Optional payload (e.g. `{ index }` on a dropdown `change`). |
+| `stopPropagation()` / `propagationStopped` | Halt bubbling. |
+| `preventDefault()` / `defaultPrevented` | Ask the emitter to skip its default action. |
+
+Subscribe per entity or globally — `on` returns an unsubscribe function, and
+handlers for a despawned entity are pruned automatically:
+
+```typescript
+import { defineSystem, addStartupSystem, Res, UIEvents } from 'esengine';
+
+const wireMenu = defineSystem([Res(UIEvents)], (events) => {
+  events.on(buttonEntity, 'click', (e) => { /* one widget */ });
+  events.on('click', (e) => console.log('clicked', e.target)); // any entity
+});
+addStartupSystem(wireMenu);
+```
+
+A system can also read the frame's queue without subscribing:
+`events.query('click')` inspects pending events non-destructively (the
+interaction plugin drains the queue at the start of each frame).
+
+## `makeWidgetInteractable` — wiring custom widgets
+
+Every built-in widget factory shares one interaction assembly, exported for
+your own widgets:
+
+```typescript
+import { makeWidgetInteractable } from 'esengine';
+
+makeWidgetInteractable(world, myWidgetRoot, { tabIndex: 2 });
+```
+
+It inserts a raycast-blocking `Interactable` plus — by default — a `Focusable`,
+so the widget is clickable **and** keyboard-reachable (Tab to it, Enter/Space
+activates). Options: `disabled` (start with `Interactable.enabled = false`),
+`focusable` (default `true`), `tabIndex` (default `0` = document order). It
+deliberately does *not* insert `UIInteraction` — that stays transient. For
+hover/press **visuals**, bind fields to the built-in interaction controller
+pages — see [UI Controllers](/docs/guides/ui-controllers/).
+
+## Drag & drop
+
+Add `Draggable` to an `Interactable` node and the drag system handles the rest:
+press, move past the threshold, and the entity follows the pointer — nudging
+the `UINode` absolute insets when it has one (so the position survives the next
+layout pass), else translating the `Transform`.
+
+| `Draggable` field | Default | Description |
+|---|---|---|
+| `enabled` | `true` | Master switch. |
+| `dragThreshold` | `5` | Screen px of travel before the drag starts (keeps clicks clickable). |
+| `lockX` / `lockY` | `false` | Freeze an axis (a horizontal-only slider card). |
+| `constraintMin` / `constraintMax` | `null` | World-space clamp corners, or `null` for unbounded. |
+
+While dragging, the transient `DragState` component carries the live geometry
+(all world-space):
+
+| `DragState` field | Description |
+|---|---|
+| `isDragging` | Past the threshold and still held. |
+| `startWorldPos` | Entity position when the press landed. |
+| `currentWorldPos` | Entity position now. |
+| `deltaWorld` | Movement since last frame. |
+| `totalDeltaWorld` | Movement since the drag started. |
+| `pointerStartWorld` | Pointer position when the press landed. |
+
+The system emits `drag_start` / `drag_move` / `drag_end` on the bus. A
+drag-a-card-to-a-slot flow is those three events plus a drop test:
+
+```typescript
+import {
+  defineSystem, addStartupSystem, GetWorld, Res, UIEvents,
+  spawnUIEntity, Draggable, DragState, UIPositionType, px,
+} from 'esengine';
+
+const buildCard = defineSystem([GetWorld(), Res(UIEvents)], (world, events) => {
+  const card = spawnUIEntity({
+    world,
+    node: { width: px(90), height: px(120), position: UIPositionType.Absolute },
+    visual: { color: { r: 0.85, g: 0.75, b: 0.4, a: 1 } },
+  });
+  world.insert(card, Draggable, { dragThreshold: 4 });
+
+  events.on(card, 'drag_end', () => {
+    const state = world.get(card, DragState);
+    // Drop test: snap into the slot if released over it, else return to hand.
+    if (overDropSlot(state.currentWorldPos)) { /* snap the card in */ }
+  });
+});
+addStartupSystem(buildCard);
+```
+
+<Aside type="note">
+  When several draggables overlap under the pointer, the system picks the one
+  with the highest render layer, breaking ties by hierarchy depth — the card on
+  top is the one you grab.
+</Aside>
+
+## Focus & keyboard
+
+Keyboard accessibility is **on by default**: `focusPlugin` ships inside
+`uiPlugin`, and every widget factory adds a `Focusable` (via
+`makeWidgetInteractable`). The `FocusManager` resource tracks the single
+focused entity; `Focusable.isFocused` mirrors it per entity, and `focus` /
+`blur` events fire on every move.
+
+| Interaction | Behavior |
+|---|---|
+| Click a focusable | Focuses it. |
+| Click empty space / press `Escape` | Clears focus. |
+| `Tab` / `Shift+Tab` | Cycles the focus ring — sorted by `tabIndex` (ties in discovery order), skipping disabled `Interactable`s and anything hidden by `display: none` up its tree. |
+| `Enter` / `Space` on the focused control | Emits `click` — activates buttons, toggles, dropdowns. Text inputs keep these keys for editing. |
+| Open `UIDialog` | **Focus trap**: while a modal dialog is open, only focusables inside it participate in the Tab ring (the scrim already blocks pointer focus outside). |
+| Focused dropdown | `ArrowDown` / `ArrowUp` step the selection (popup open or closed, the native `<select>` convention); `Enter` confirms, `Escape` dismisses an open popup. |
+
+```typescript
+import { defineSystem, Res, FocusManager } from 'esengine';
+
+const focusDebug = defineSystem([Res(FocusManager)], (focus) => {
+  if (focus.focusedEntity !== null) { /* draw a focus ring, play a tick… */ }
+});
+```
+
+<Aside type="note">
+  Gamepad navigation is not built into the focus system — the ring is driven by
+  `Tab` / `Enter` / `Space` / `Escape` and the arrow keys. For gamepad menus,
+  drive selection yourself from an [input map](/docs/guides/input/) and call
+  widget state directly.
+</Aside>
+
+## Manual picking
+
+When game code needs its own picking — a custom cursor, tooltips over arbitrary
+UI, an editor tool — the hit-test helpers are exported. They talk to the C++
+core, so they take the wasm module and registry:
+
+```typescript
+import { uiPickWorld, UICameraInfo, Res, GetWorld, defineSystem } from 'esengine';
+
+const tooltip = defineSystem([GetWorld(), Res(UICameraInfo)], (world, camera) => {
+  if (!camera.valid) return;
+  const hit = uiPickWorld(
+    module, registry,                          // app.wasmModule / world.getCppRegistry()
+    camera.worldMouseX, camera.worldMouseY,    // cursor already projected to world
+  );
+  if (hit !== null) { /* show tooltip for `hit` */ }
+});
+```
+
+| Helper | Returns | Use |
+|---|---|---|
+| `uiHitTestWorld(module, registry, x, y, …)` | Topmost **interactable** entity or `null` | The runtime raycast — same rules the interaction system uses. |
+| `uiPickWorld(module, registry, x, y)` | Topmost UI entity or `null` | Editor-style pick, ignores `Interactable`. |
+| `uiPickAllWorld(module, registry, x, y)` | All UI entities under the point, most specific first | Pick-through menus, debug overlays. |
+| `screenToUiWorld(camera, glX, glY)` | `{ x, y }` world point | Project a GL-oriented screen point through the UI camera. |
+| `uiWorldToScreen(camera, x, y)` | `{ x, y }` screen point | The inverse — place DOM/screen effects over a UI node. |
+
+For the common case you rarely need these: `UICameraInfo.worldMouseX/Y` is the
+cursor already in world space, and `input.isPointerOverUI()` answers "is the
+pointer on UI at all".
+
+## UI input vs game input
+
+Raw platform events pass through the `InputRouter` before they reach the
+`Input` resource — a chain of responsibility with three tiers:
+
+1. **Editor** — viewport tools (only in the editor host).
+2. **UI** — text inputs and other UI internals that must claim raw events.
+3. **Game** — implicit: whatever no upstream tier consumed lands in the `Input`
+   resource your systems poll.
+
+A handler (`InputHandler`) implements any of `onKeyDown`, `onKeyUp`,
+`onPointerMove`, `onPointerDown`, `onPointerUp`, `onWheel`, and the touch
+callbacks, each receiving the current `Modifiers` (`shift` / `ctrl` / `alt` /
+`meta`); returning `true` **consumes** the event — it never updates `Input` and
+never reaches later tiers. Register with `inputRouter.setUIHandler(handler)` /
+`setEditorHandler(handler)`; each returns an unregister thunk, and each tier
+holds a single handler.
+
+In a game you normally never touch the router: pointer-over-UI arbitration is
+already handled at the polling level — hit UI sets `input.pointerOverUI`, and
+gameplay guards with `isPointerOverUI()`. Reach for a router handler only when
+a system must claim *raw* events before the `Input` resource sees them at all
+(a modal that swallows Escape, a minigame capturing all keys).
+
+## Best practices
+
+- **Read, never write, `UIInteraction`** — it is engine-owned per-frame state;
+  drive logic from it or from `UIEvents`.
+- **Prefer the bus for widgets, the query for grids** — `events.on(entity,
+  'click', …)` reads best per widget; a `Query(Interactable, UIInteraction)`
+  scales to boards of uniform tiles.
+- **Guard world clicks with `input.isPointerOverUI()`** so UI clicks don't leak
+  into gameplay.
+- **Use `makeWidgetInteractable` for custom widgets** — you get hit-testing and
+  keyboard reachability in one call, consistent with the built-ins.
+- **Keep `dragThreshold` non-zero** on anything that is also clickable, or
+  every click risks becoming a 0-px drag.
+- **Set `tabIndex` sparingly** — document order is usually the right Tab order;
+  reserve explicit indices for jumps.
+
+## See also
+
+- [UI](/docs/guides/ui/) — the component model overview.
+- [UI Components](/docs/guides/ui-components/) — widget factories with events pre-wired.
+- [UI Controllers](/docs/guides/ui-controllers/) — hover/press **visual** states driven by the interaction controller.
+- [UI Binding](/docs/guides/ui-binding/) — two-way widget-value binding over `change` events.
+- [Input](/docs/guides/input/) — the `Input` resource, input maps, and gestures below the UI layer.

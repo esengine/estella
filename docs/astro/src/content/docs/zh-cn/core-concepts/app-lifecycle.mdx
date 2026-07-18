@@ -1,0 +1,352 @@
+---
+title: 应用设置与生命周期
+description: Estella 的 App 如何启动、默认安装哪些插件、它的公开接口、生命周期事件、子系统可观测性、侧模块与热重载。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Estella 里的一切都跑在一个 **`App`** 之中——它是持有[世界](/docs/zh-cn/core-concepts/ecs/)、
+资源、系统调度与帧循环的容器。编辑器的播放模式、导出的 Web/桌面游戏、微信小游戏、
+以及无头(headless)权威服务器,构建的都是*同一个* `App` 类;不同的只是组装它的工厂。
+本页是这些工厂与应用运行时接口的参考手册。
+
+<Aside type="note">
+  在编辑器驱动的项目里你几乎不用亲手构造 `App`——导出的运行时会替你完成。
+  当你要把引擎嵌入自己的宿主页面、运行无头服务器、编写插件、或想在运行时拿到
+  生命周期与健康信号时,再来读这一页。
+</Aside>
+
+## `createWebApp(module, options)`
+
+面向浏览器(或 Electron)游戏的"全家桶"入口。它接收已实例化的引擎 wasm 模块
+(`ESEngineModule`),初始化渲染器,并安装完整插件栈:
+
+```typescript
+import { createWebApp } from 'esengine';
+
+const app = createWebApp(module, {
+  wasmBaseUrl: '/engine',        // where physics.wasm / spine42.wasm live
+  colorSpace: 'linear',
+  getViewportSize: () => ({ width: innerWidth, height: innerHeight }),
+});
+await app.run();
+```
+
+### `CreateWebAppOptions`
+
+所有字段都是可选的。`CreateWebAppOptions` 在 `WebAppOptions` 之上(两者都可从
+`esengine` 导入)多了一个 `wasmBaseUrl`:
+
+| 选项 | 类型 | 默认 | 含义 |
+|---|---|---|---|
+| `wasmBaseUrl` | `string` | — | [侧模块](#侧模块)产物(`physics.wasm`、`spine38.js`/`.wasm`……)的服务基址——通常就是 `esengine.wasm` 所在目录。设置后(且未显式给出 `sideModules`)会自动构建一个 fetch 传输的 `SideModuleHost`。 |
+| `sideModules` | `SideModuleHost` | 由 `wasmBaseUrl` 构建,否则无 | 该 realm 的可选原生模块获取器。内联模块的 realm(Playable、微信)直接传 host 而不是 URL。 |
+| `plugins` | `Plugin[]` | `[]` | 额外插件,追加在默认集合**之后**。 |
+| `getViewportSize` | `() => { width, height }` | — | 视口尺寸回调,供相机系统使用(也是 WebGPU 初始化尺寸;缺省时为 `800×600`)。 |
+| `glContextHandle` | `number` | — | 预注册的 WebGL2 上下文句柄;不传则模块通过 `initRenderer()` 自建上下文。 |
+| `backend` | `'webgl2' \| 'webgpu'` | `'webgl2'` | `'webgpu'` 走注入设备路径——宿主必须先取得 `GPUDevice` 并在实例化前作为模块工厂的 `preinitializedWebGPUDevice` 传入。 |
+| `canvasSelector` | `string` | `'#canvas'` | WebGPU 交换链画布的 CSS 选择器(必须已在 DOM 中)。WebGL 忽略它。 |
+| `colorSpace` | `'gamma' \| 'linear'` | `'gamma'` | 项目色彩空间。`'linear'` 在线性光下渲染(采样时 sRGB 解码、线性混合、最终 blit 显式编码)。必须**在创建应用时**声明——着色器按它编译。 |
+| `ySortLayers` | `number` | `0` | 渲染层位掩码(bit 0–31):层内按世界 Y 排序(俯视遮挡)。 |
+| `screenFit` | `ScreenScalingData` | 关(`scaleMode: -1`) | 项目相机适配:把设计分辨率 letterbox 进实际宽高比。仅当 `scaleMode` 为真实模式(≥ 0)时安装;`SCREEN_FIT_OFF`(-1)保持旧行为(有 Canvas 用 Canvas 适配,否则用原始 orthoSize)。 |
+
+### 它安装什么
+
+`createWebApp` 先接线核心(面向渲染器的)插件,再装完整内容栈,顺序如下:
+
+1. **核心**:`corePlugin`(渲染 facade)、相机插件、`assetPlugin`、
+   `prefabsPlugin`、`inputPlugin`、`sceneManagerPlugin`——外加一个新的
+   `RenderPipeline`。
+2. **UI**:`uiPlugins`——组合好的 UI 管线(布局、文本、文本输入、遮罩、
+   渲染排序、交互、拖拽、焦点、安全区)。
+3. **基础内容**:`timerPlugin`、`lifecyclePlugin()`、`animationPlugin`、
+   `audioPlugin`、`videoPlugin`、`particlePlugin`、`trailPlugin`、
+   `mesh2dPlugin`、`tilemapPlugin`、`postProcessPlugin`、`timelinePlugin`、
+   `perceptionPlugin`、`fsmPlugin`、`btPlugin`、`navPlugin`、
+   `replicationPlugin`。
+4. **Spine**:一个 `SpinePlugin` 实例(按需从 `app.sideModules` 拉取对应版本
+   的 wasm 运行时——场景不用 Spine 就什么也不加载)。
+5. **你的 `plugins`**,按给出顺序。
+
+物理**不在**默认集合里:`PhysicsPlugin` 需要物理 wasm 模块。发行运行时会在项目
+声明了物理、或场景含有物理组件时,自动从侧模块 host 获取 `'physics'` 并安装插件;
+手动组装时请自己构造 `PhysicsPlugin`(它和 `loadPhysicsModule` 都从 `esengine`
+导出;完整 API 在 `esengine/physics` 子路径上)。
+
+## 无头应用
+
+`createHeadlessApp(module, options)` 构建一个**只有完整模拟栈、没有任何呈现**的
+应用——没有渲染器、没有渲染管线、没有输入设备、没有 UI。这就是权威服务器的形态
+(同一个 wasm 模块、同一份玩法代码、同一个固定步循环),也适用于 worker 和测试:
+
+```typescript
+import { createHeadlessApp, runHeadless } from 'esengine';
+
+const app = createHeadlessApp(module, { plugins: [gameplayPlugin] });
+const stop = runHeadless(app, { fps: 60 });
+// … later
+stop();
+```
+
+`HeadlessAppOptions` 只有两个字段,均可选:
+
+| 选项 | 类型 | 含义 |
+|---|---|---|
+| `plugins` | `Plugin[]` | 你的玩法插件,追加在基础集合之后。 |
+| `sideModules` | `SideModuleHost` | 可选原生模块获取器(服务器上的物理)。 |
+
+包含:`assetPlugin`、`prefabsPlugin`、`sceneManagerPlugin`、`timerPlugin`、
+`lifecyclePlugin()`、`audioPlugin`(无音频设备的宿主上静音),以及游戏 AI /
+复制集合(`perceptionPlugin`、`fsmPlugin`、`btPlugin`、`navPlugin`、
+`replicationPlugin`)。
+
+不包含——一切*为了被看见*而存在的东西:`corePlugin`(它接线的渲染 facade 只在
+`initRenderer()` 之后才存在)、UI、粒子、tilemap 渲染、后处理、时间轴、Spine、
+输入。
+
+`runHeadless(app, { fps? })` 用挂钟 `setInterval` 驱动应用(服务器上没有
+`requestAnimationFrame`),默认 60 fps。delta 是实测的,所以固定步累加器能在
+定时器抖动下保持模拟节奏精确;慢的异步 tick 不会重入堆积。它返回一个停止函数。
+你也可以用 `app.tick(dt)` 手动驱动。
+
+<Aside type="caution">
+  `createHeadlessApp` 和 `runHeadless` 是 `@beta`:无头资产方案(不带纹理的
+  玩法数据)仍在收敛,这些工厂的选项可能变化。
+</Aside>
+
+## 插件模型
+
+插件就是一个在应用上注册系统与资源的普通对象:
+
+```typescript
+import type { App, Plugin } from 'esengine';
+import { defineResource, defineSystem, Res } from 'esengine';
+
+const Score = defineResource({ value: 0 }, 'Score');
+const scoreSystem = defineSystem([Res(Score)], (score) => { /* … */ });
+
+export const scorePlugin: Plugin = {
+  name: 'score',
+  build(app: App) {
+    app.insertResource(Score, { value: 0 });
+    app.addSystem(scoreSystem);
+  },
+};
+```
+
+| 成员 | 类型 | 含义 |
+|---|---|---|
+| `name` | `string?` | 可选但推荐:具名插件会自动注册进[子系统注册表](#子系统可观测性),且 `build()` 里添加的系统继承该名字用于存活性归因。 |
+| `dependencies` | `PluginDependency[]?` | 前置条件,每项是插件**名**(`string`)或**资源定义**。缺失时 `addPlugin` 抛错;`addPlugins` 还会用名字边为整批排序。 |
+| `before` / `after` | `string[]?` | 相对其他插件名的软排序提示,在 `addPlugins` 批量安装时生效。 |
+| `build(app)` | 必需 | 注册系统、资源与事件。`addPlugin` 时立即执行。 |
+| `finish(app)` | 可选 | 在**所有**插件 build 完、应用首次 tick/run 时执行一次——用于需要完整集合的接线。 |
+| `cleanup(app?)` | 可选 | `app.quit()` 时按安装逆序执行。 |
+
+`PluginDependency = string | ResourceDef<any>`——名字断言安装顺序;资源定义
+断言该资源已存在。
+
+安装:`app.addPlugin(plugin)`(按实例幂等——同一对象加两次是 no-op),或
+`app.addPlugins([...])`——后者按 `dependencies` / `before` / `after` 对整批做
+拓扑排序,遇环抛错。若 `build()` 抛错,插件会被回滚,失败以 `error` 条目的形式
+留在子系统注册表里可见。
+
+**`flushPendingSystems(app)`**——模块级的 `addSystem` / `addStartupSystem` /
+`defineBehavior` 调用(在 import 时、任何插件之外发生)排队在环境上下文里,而
+不是某个具体应用上。工厂对应的运行时会替你把队列灌进应用;当你手动搭一个裸
+`App` 又想要这些模块级注册时,自己调用 `flushPendingSystems`。
+
+## `App` 的接口
+
+面向用户导出的成员,分组如下:
+
+### 世界、资源、模块
+
+| 成员 | 含义 |
+|---|---|
+| `app.world` | ECS `World`——实体、组件、查询。 |
+| `app.insertResource(def, value)` / `app.getResource(def)` / `app.hasResource(def)` | 系统经 `Res(...)` 读取的资源存储。对从未插入过的资源,`getResource` 会安装并返回其定义的默认值——用 `hasResource` 区分。 |
+| `app.wasmModule` | 已连接的 `ESEngineModule`,`connectCpp` 之前为 `null`。 |
+| `app.pipeline` | `RenderPipeline`,无头应用里为 `null`。 |
+| `app.subsystems` | 该应用专属的 [`SubsystemRegistry`](#子系统可观测性)。 |
+| `app.sideModules` | 该 realm 的 [`SideModuleHost`](#侧模块),或 `null`(没有它的无头/测试应用)。 |
+| `app.getPlugin(Ctor)` | 已安装的某个类插件实例(若有)。 |
+
+### 系统与事件
+
+| 成员 | 含义 |
+|---|---|
+| `app.addSystem(sys)` | 注册到 `Schedule.Update`。 |
+| `app.addStartupSystem(sys)` | 注册到 `Schedule.Startup`(只跑一次,在首帧各调度之前)。 |
+| `app.addSystemToSchedule(schedule, sys, { runBefore?, runAfter?, runIf? })` | 任意调度,带排序边和运行条件。 |
+| `app.addSystemSet(set)` / `app.addSystemSetToSchedule(schedule, set)` | 注册整个 `SystemSet`;成员继承集合的 `runIf` 与排序,其他系统可用集合名对其排序。 |
+| `app.removeSystem(systemId)` | 按系统定义的 `_id` symbol 移除。 |
+| `app.addEvent(eventDef)` | 注册事件通道(双缓冲;每帧交换)。 |
+
+### 帧循环
+
+| 成员 | 含义 |
+|---|---|
+| `app.run()` | 启动 `requestAnimationFrame` 循环。 |
+| `app.tick(delta)` | 恰好推进一帧(秒)——无头与测试宿主的驱动方式。 |
+| `app.quit({ keepRenderer? })` | 停止、按逆序执行插件 `cleanup`、销毁所有实体、拆掉渲染器(`keepRenderer` 时跳过,热重载用)。 |
+| `app.setFixedTimestep(s)` / `app.getFixedTimestep()` | `FixedUpdate` 节奏。默认 `1/60`。 |
+| `app.setMaxDeltaTime(s)` | 单帧 delta 的钳制上限。默认 `0.25`。 |
+| `app.setMaxFixedSteps(n)` | 每帧固定步追赶的上限。默认 `8`。此外还有时间预算封顶追赶,过重的模拟会退化为慢动作而不是卡死。 |
+| `app.setPaused(v)` / `app.isPaused()` | 用户暂停。暂停期间只有 `Schedule.Last` 运行。 |
+| `app.stepFrame()` | 在暂停时排入恰好一整帧(编辑器"步进")。 |
+| `app.setPlaySpeed(x)` / `app.getPlaySpeed()` | 时间缩放,钳制在 `0.1`–`4.0`。默认 `1.0`。 |
+| `app.setTargetFrameRate(fps)` / `app.getTargetFrameRate()` | 帧率上限;`0`(默认)= 不封顶(vsync)。 |
+
+一帧之内调度的运行顺序是:`First` → 固定三件套(`FixedPreUpdate` /
+`FixedUpdate` / `FixedPostUpdate`,由累加器决定跑零到多次)→ `PreUpdate` →
+`Update` → `PostUpdate` → `Last`。`Startup` 系统在首帧之前冲刷。
+
+### 错误、物理、统计
+
+| 成员 | 含义 |
+|---|---|
+| `app.onError(fn)` | 观察任何系统抛错(`(error, systemName)`)。 |
+| `app.onSystemError(fn)` | 逐次抛错决策:返回 `'continue'` 或 `'pause'`(暂停本帧余下部分)。 |
+| `app.onWasmError(fn)` | 观察跨 wasm 桥的错误。 |
+| `app.waitForPhysics()` / `app.isPhysicsReady` | 等待 / 查询异步的物理 wasm 初始化(没装 `PhysicsPlugin` 时为 no-op / `false`)。 |
+| `app.enableStats()` | 开启计时采集。 |
+| `app.getSystemTimings()` / `app.getPhaseTimings()` / `app.getFrameScopes()` | 本帧的逐系统 / 逐调度 / 子帧 CPU 计时(统计关闭时为 `null`)。 |
+| `app.measureFrameScope(name, fn)` | 把 `fn` 作为具名子帧作用域计时(统计关闭时只花一次分支的 no-op)。 |
+| `app.getEntityCount()` | 存活实体数。 |
+
+## 生命周期事件
+
+`lifecyclePlugin(options?)`(两个工厂都默认安装)发布 **`Lifecycle`** 资源——
+一个跟踪页面可见性/焦点、并能自动暂停游戏的 `LifecycleManager`:
+
+```typescript
+import { Lifecycle } from 'esengine';
+
+const lifecycle = app.getResource(Lifecycle);
+const off = lifecycle.on((event) => {
+  if (event === 'pause') saveGame();
+});
+```
+
+| 成员 | 类型 | 含义 |
+|---|---|---|
+| `visible` | `boolean` | 当前页面/应用可见性。 |
+| `focused` | `boolean` | 窗口焦点(会跟踪;变化不发事件)。 |
+| `autoPause` | `boolean` | 页面隐藏时是否暂停应用。默认 `true`;运行时可写,初值来自 `lifecyclePlugin({ autoPause })`。 |
+| `on(listener)` / `off(listener)` | — | 订阅事件;`on` 返回退订函数。 |
+
+`LifecycleEvent` 是 `'show' | 'hide' | 'pause' | 'resume'`,`LifecycleListener`
+是 `(event: LifecycleEvent) => void`。语义如下:
+
+- **`hide` / `show`** 在每次可见性变化时触发(浏览器的 `visibilitychange`;
+  微信上的 `wx.onHide` / `wx.onShow`)。
+- **`pause`** 只在生命周期真的暂停了应用时触发:页面隐藏、`autoPause` 开着、
+  且应用并非已暂停。**`resume`** 只在生命周期解除*它自己*的暂停时触发——手动
+  `app.setPaused(true)` 绝不会被页面重新可见而覆盖。
+- 无头宿主(Node、worker)没有可见性信号;资源仍然存在,保持 `visible`。
+
+## 子系统可观测性
+
+每个应用都在 `app.subsystems` 挂着一个 **`SubsystemRegistry`**,回答"哪些引擎
+模块已加载、就绪、在推进、或出错了"。具名插件自动注册;异步插件(物理)自己
+驱动 `initializing → ready`/`error` 的转移。
+
+```typescript
+for (const s of app.subsystems.getStatuses()) {
+  console.log(s.id, s.phase, s.activity, s.lastError ?? '');
+}
+```
+
+- **`SubsystemPhase`**——记录的生命周期:`'registered'` → `'initializing'` →
+  `'ready'`,`'error'` 为终态。
+- **`SubsystemActivity`**——存活性,*读取时*由看门狗心跳推导(每次系统运行会
+  "喂"其所属插件):`'stepping'`(400 ms 内有心跳)、`'idle'`(就绪但心跳过期
+  ——例如编辑态被冻结的物理)、`'inactive'`(从未有过心跳;存活性未知)。
+  加载 ≠ 运行——这正是编辑器状态 UI 展示的区分。
+- **`SubsystemStatus`**——每个子系统一条,按安装顺序:`id`、`displayName`、
+  `phase`、`activity`、`detail`、`lastError`(后续转移后仍保留)、`dependsOn`
+  (声明的插件名依赖,用于级联上下文)、`phaseAgeMs`。
+- **`SubsystemEvent`**——一次记录下的转移(`id`、`phase`、`detail?`、`atMs`、
+  `seq`);`recentEvents(limit?)` 返回保留的尾部(上限 128 条)。
+- `subscribe(fn)` 在相位转移时通知(不逐心跳),返回退订函数。
+
+注册表是按应用(按 realm)的——编辑器的编辑与播放 realm 各自独立上报。
+
+## 侧模块
+
+可选的原生子系统以**独立 wasm 模块**按需加载,让基础引擎下载体积保持小:物理
+(Box2D)、逐版本的 Spine 运行时、Basis Universal 纹理转码器、软件视频解码器。
+每个都是一对 emscripten 产物——`<file>.js` 胶水加 `<file>.wasm`——统一经由
+`SideModuleHost` 获取;各 realm 之间只有*传输方式*不同。
+
+**`SIDE_MODULES`** 是 id 到产物映射的单一权威源:
+
+| `SideModuleId` | 产物 | 内容 |
+|---|---|---|
+| `'physics'` | `physics.js` / `.wasm` | Box2D 物理。 |
+| `'spine:3.8'` / `'spine:4.1'` / `'spine:4.2'` | `spine38` / `spine41` / `spine42` 的 `.js`/`.wasm` | 每个骨骼格式版本一份 Spine 运行时。 |
+| `'basis'` | `basis.js` / `.wasm` | Basis Universal KTX2 转码器(压缩纹理)。 |
+| `'videodec'` | `videodec.js` / `.wasm` | MPEG-1 软件视频解码器。 |
+
+`SPINE_VERSIONS` 是只读列表 `['3.8', '4.1', '4.2']`,`spineModuleId(version)`
+构造对应的 id。
+
+host 用 `acquire(id)` 应答,返回已实例化模块的 promise(按 id 缓存,失败也以
+`null` 缓存,缺失的产物不会被反复重新拉取)。内置传输:
+
+- **`createFetchSideModuleHost(baseUrl)`**——从基址 fetch 胶水与 wasm
+  (`wasmBaseUrl` 构建的就是它);编辑器、Web 与桌面使用。
+- **`createEmbeddedSideModuleHost(...)`**——模块以 base64 内联(Playable 广告)。
+- **`createWeChatSideModuleHost(...)`**——微信的预编译模块工厂。
+
+你通常永远不用自己调 `acquire`——设置好 `app.sideModules`(经 `wasmBaseUrl`
+或 `sideModules`),Spine 插件和物理安装会在需要时从中拉取。
+
+<Aside type="note">
+  主 `esengine` barrel 恰好镜像了物理/Spine 的**接线**层——`PhysicsPlugin`、
+  `PhysicsEvents`、`Physics`、`loadPhysicsModule`、`SpinePlugin`、
+  `SpineEvents`、`Spine`——宿主无需子路径导入即可注册这些插件。完整 API 在
+  `esengine/physics` 与 `esengine/spine` 子路径上。见[物理](/docs/zh-cn/guides/physics/)
+  与 [Spine](/docs/zh-cn/guides/spine/)。
+</Aside>
+
+## 热重载
+
+当你在编辑器播放时修改项目代码,编辑器会先尝试**保状态热替换**,失败才退回
+整体重载。它通过 **`probeRegistrations(register)`** 在隔离的探针上下文里重新
+import 你的 bundle,返回一个 `ProbedRegistrations`:
+
+- `fingerprint`——bundle 声明的用户组件**模式**摘要(形状,不含值)。指纹不变
+  → 保留存活的 `World`,只原位替换系统函数体;变了 → 整体重载。
+- `pending`——bundle 排队的系统,喂给 `App.hotSwapSystems`(若有用户系统被
+  增、删或改名,替换会被拒绝——同样强制整体重载)。
+
+你的代码需要遵守的:**组件身份按名字稳定**。重新 import 后再次运行的
+`defineComponent('Health', …)` 解析到*同一个*组件身份,因此重新导入的系统的
+查询能命中存活的存储。相应地,给组件或 behavior 改名是结构性变更(整体重载 +
+该数据的状态丢失),且重载后每实体的 `start` 钩子会再次运行——请把它写成幂等
+的初始化(见[脚本](/docs/zh-cn/guides/scripting/))。
+
+## 最佳实践
+
+- **优先用工厂。**`createWebApp` / `createHeadlessApp` 编码了受支持的插件顺序;
+  手搓 `App.new()` 加插件列表是引擎嵌入方的事。
+- **给插件起名。**一个 `name` 零成本却买来可观测性:子系统注册表条目、插件系统
+  的存活性归因、可用的依赖报错。
+- **前置声明 `colorSpace` 和 `backend`。**两者都在创建时固化(着色器编译、设备
+  注入)——不能在存活应用上切换。
+- **别和生命周期自动暂停较劲。**用 `lifecyclePlugin({ autoPause: false })`(或
+  `lifecycle.autoPause = false`)关掉它,而不是在监听器里解除暂停;manager 只会
+  解除它自己造成的暂停。
+- **"X 加载了吗?"走 `app.subsystems`。**它区分*已加载*与*在运行*(`phase` 与
+  `activity`),并保留最后一次错误——比探测资源更靠谱。
+
+## 另请参阅
+
+- [插件与资源](/docs/zh-cn/core-concepts/plugins-resources/)——用 `Res(...)`
+  触达子系统 API。
+- [系统](/docs/zh-cn/core-concepts/systems/)——调度与系统参数。
+- [构建与导出](/docs/zh-cn/guides/build-export/)——侧模块产物在各目标如何发布。
+- [物理](/docs/zh-cn/guides/physics/)与 [Spine](/docs/zh-cn/guides/spine/)——
+  侧模块背后的两个子路径 API。

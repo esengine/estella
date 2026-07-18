@@ -1,0 +1,220 @@
+---
+title: 主题
+description: ThemeTokens 设计令牌模型——语义化颜色/文本角色、暗色/亮色调色板、switchTheme 实时换肤、项目级覆盖,以及如何让自定义控件正确接入主题。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+控件层从不硬编码颜色。每个内建控件都从**设计令牌(design tokens)**解析默认值
+——一套*语义角色*调色板(`surface`、`control`、`primary`、`text`……)加一份字号
+标尺——于是外观在一处定义,同一份控件代码在暗色或亮色调色板下都能正确渲染,
+整套 UI 换一组令牌即可整体换肤。
+
+这由三层协作实现:
+
+1. **`ThemeTokens`** —— 令牌模型:颜色角色 + 字号标尺,以及内建的
+   `DARK_TOKENS` / `LIGHT_TOKENS` 两套令牌。
+2. **`ThemeStyle`** —— 一个组件,记录实体的颜色来自*哪个角色*,让已构建的控件
+   能重新解析。
+3. **`switchTheme`** —— 实时切换:设置活动令牌*并且*重新着色世界里每个带
+   `ThemeStyle` 标记的实体。
+
+## 令牌模型 —— `ThemeTokens`
+
+```typescript
+interface ThemeTokens {
+  colors: ThemeColors;  // semantic color roles
+  type: ThemeType;      // font-size scale
+}
+```
+
+### 颜色角色(`ThemeColors`)
+
+全部角色按显示顺序列出(这也是运行时列表 `THEME_COLOR_ROLES`——主题编辑器或
+配置校验器迭代的那个数组):
+
+| 角色 | 用途 |
+|---|---|
+| `surface` | 对话框 / 面板背景。 |
+| `surfaceElevated` | 抬升表面——弹出层 / 下拉列表背景。 |
+| `control` | 交互控件的静止填充(按钮、选项)。 |
+| `controlHover` | 悬停时的控件填充。 |
+| `controlActive` | 按下时的控件填充。 |
+| `track` | 滑杆 / 进度条轨道。 |
+| `primary` | 强调色——滑杆填充、进度填充、选中项。 |
+| `primaryHover` | 悬停时的强调色。 |
+| `primaryActive` | 按下时的强调色。 |
+| `onPrimary` | 画在 `primary` *之上*的内容/手柄(例如滑杆拇指)。 |
+| `text` | `surface` / `control` 上的默认前景(标签文本 / 图标)。 |
+| `backdrop` | 对话框背后的模态遮罩。 |
+
+### 字号标尺(`ThemeType`)
+
+以 px 计的字号,亮暗两套主题共用:
+
+| 档位 | 默认值 | 用于 |
+|---|---|---|
+| `label` | `14` | 控件 / 标签文本(按钮、选项)。 |
+| `body` | `15` | 正文 / 默认文本。 |
+| `title` | `20` | 标题(对话框标题)。 |
+
+### 内建令牌集
+
+- **`DARK_TOKENS`** —— 内建默认值。
+- **`LIGHT_TOKENS`** —— 同一套角色,亮色表面配深色文字。
+
+用 `getTheme()`(或简写 `themeColors()` / `themeType()`)读取活动令牌集,用
+`setTheme(tokens)` 替换——但注意,单独的 `setTheme` 只影响*之后*构建的控件;
+要实时切换请用下文的 [`switchTheme`](#实时换肤--switchtheme)。
+
+## 控件如何消费令牌
+
+控件工厂在**构建时**解析令牌:`createButton` 读取 `themeColors().control` /
+`controlHover` / `controlActive` 作为状态页颜色,读 `themeColors().text` +
+`themeType().label` 作为标签样式;`createSlider` 用 `track` / `primary` /
+`onPrimary` 填轨道、填充与手柄;其余同理。解析出的值被烘焙进普通组件
+(`UIVisual`、`Text`、`$interaction` 颜色 gear)——不存在逐帧的主题查询。
+
+正因为值是烘焙的,每个工厂*还会*给它着色过的实体打上 **`ThemeStyle`** 组件,
+记录每个颜色来自哪个角色:
+
+| `ThemeStyle` 字段 | 记录驱动……的角色 |
+|---|---|
+| `visual` | ……该实体 `UIVisual.color` 的角色。 |
+| `text` | ……该实体 `Text.color` 的角色。 |
+| `states` | ……每个 `$interaction` 颜色 gear 页(页名 → 角色),例如按钮的 `{ normal: 'control', hover: 'controlHover', … }`。 |
+| `input` | ……`TextInput` 的 `background` / `text` / `placeholder` 颜色。 |
+
+`markThemed(world, entity, style)` 负责插入标记。角色标记是创作数据——会**随
+prefab 与场景持久化**,所以编辑器摆放的控件与代码构建的控件换肤行为完全一致。
+
+## 实时换肤 —— `switchTheme`
+
+`switchTheme(world, tokens)` 设置活动令牌**并**调用
+`applyThemeToWorld(world)`:遍历每个带 `ThemeStyle` 标记的实体,把它的角色绑定
+——`UIVisual.color`、`Text.color`、`TextInput` 各颜色,以及每个 `$interaction`
+颜色 gear 页——对照新调色板重新解析:
+
+```typescript
+import { switchTheme, getTheme, DARK_TOKENS, LIGHT_TOKENS } from 'esengine';
+
+// e.g. from a settings toggle:
+switchTheme(world, getTheme() === DARK_TOKENS ? LIGHT_TOKENS : DARK_TOKENS);
+```
+
+值得了解的语义:
+
+- **保留 alpha** —— 只有色相被重新着色。压暗的 `disabled` 状态保住它的透明度,
+  你设置过的半透明也能在切换后幸存。
+- **prefab 里创作的颜色同样会重解析**:从 prefab 实例化的控件带着烘焙颜色*和*
+  `ThemeStyle` 标记,所以 `applyThemeToWorld` 对它的重新着色与现场构建的控件
+  一模一样。
+- *没有* `ThemeStyle` 标记的实体不受影响——显式颜色永远是你的(见
+  [逐控件覆盖](#逐控件覆盖-vs-令牌))。
+
+## 项目级主题
+
+*基础*外观通常不用你调 `switchTheme`——由项目声明。编辑器的
+**项目设置 → UI** 会往项目清单(`project.esproject`)的 `features.ui` 下写两个
+字段:
+
+| 设置项 | 清单字段 | 含义 |
+|---|---|---|
+| 主题 | `features.ui.theme` | `'light'`,或缺省表示默认暗色。 |
+| 主题颜色 | `features.ui.colors` | 局部换肤:颜色角色 → `#rrggbb[aa]` 十六进制。只有已知角色(`THEME_COLOR_ROLES` 列表)且十六进制合法才会持久化;缺省的角色继承基础主题。 |
+
+两个共享函数把这些设置送达每个运行时:
+
+- **`parseThemeOverrides(colors)`** —— 把 JSON 十六进制映射转换为
+  `ThemeOverrides`(未知角色与畸形十六进制被丢弃)。
+- **`resolveThemeTokens(base, overrides?)`** —— 把基础主题名
+  (`'dark' | 'light'`)与局部覆盖合并成有效的 `ThemeTokens`,于是只覆盖
+  `primary` 的项目在继承其余角色的同时重染强调色。
+
+```typescript
+import { resolveThemeTokens, parseThemeOverrides, switchTheme } from 'esengine';
+
+const overrides = parseThemeOverrides({ primary: '#e5484d' });
+switchTheme(world, resolveThemeTokens('dark', overrides));
+```
+
+端到端的流程:**编辑器**在编辑视口里实时预览有效主题(它对编辑世界执行的正是
+`switchTheme(world, resolveThemeTokens(...))`——设置面板所见即所得,逐角色的
+取色器以继承的基础值为占位显示)。**导出**时,主题与颜色被烘焙进出货的游戏
+配置,每个运行时先启动场景、再应用
+`switchTheme(world, resolveThemeTokens(theme, overrides))`——prefab 烘焙的是
+暗色值,加载后的这次切换正是重解析所有 `ThemeStyle` 标记的那一步。
+
+<Aside type="note">
+  暗色用*缺省*表达:清单里只持久化 `'light'` 与非空的颜色覆盖。没有
+  `features.ui` 块的项目按原样出货默认的 `DARK_TOKENS`。
+</Aside>
+
+## 逐控件覆盖 vs 令牌
+
+每个工厂都允许传入显式颜色——而这么做会让该字段**退出主题管理**。规则是一致
+的:走主题默认值的字段获得 `ThemeStyle` 标记并在换肤时重解析;调用方提供的颜色
+*没有*标记,永远归你。
+
+- `createButton({ states: {...} })` —— 自定义状态颜色不换肤;省略 `states` 则
+  获得 `themeButtonStates()`(标准的 `control` 角色状态),会换肤。
+- `createButton({ text: { color } })` —— 显式标签颜色跳过 `text` 角色标记;
+  省略 `color`,标签就跟随主题。
+- `createSlider({ trackVisual / fillVisual / handleVisual })` —— 逐部件同理。
+
+凡是应当跟随暗色/亮色的都优先用令牌;显式颜色留给真正固定的品牌色(红色的
+"录制"圆点在两套主题下都保持红色)。
+
+## 让自定义控件接入主题
+
+想让你自己的组合表现得像内建控件,就照工厂的做法来:构建时从
+`themeColors()` / `themeType()` 解析,然后用 `markThemed` 给每个实体标上你用过
+的角色。
+
+```typescript
+import type { World, Entity } from 'esengine';
+import { spawnUIEntity, markThemed, themeColors, themeType, px } from 'esengine';
+
+function createBadge(world: World, parent: Entity, label: string): Entity {
+  const c = themeColors();
+
+  const badge = spawnUIEntity({
+    world, parent,
+    node: { width: px(64), height: px(24) },
+    visual: { color: c.primary },
+  });
+  markThemed(world, badge, { visual: 'primary' });
+
+  const text = spawnUIEntity({
+    world, parent: badge,
+    text: { content: label, color: c.onPrimary, fontSize: themeType().label },
+  });
+  markThemed(world, text, { text: 'onPrimary' });
+
+  return badge;
+}
+```
+
+现在 `switchTheme` 会把这个徽标与其他一切一起重染。带 `$interaction` 颜色 gear
+的交互控件则改为标记页→角色映射:
+`markThemed(world, entity, { states: { normal: 'control', hover: 'controlHover', pressed: 'controlActive' } })`。
+
+## 最佳实践
+
+- **用角色,别用颜色。** 伸手拿 `themeColors().primary` 而非字面量——并用
+  `markThemed` 打标,让它在换肤后依然成立。
+- **在项目设置里声明基础主题**,别写在代码里——编辑器预览与所有导出目标就此
+  达成一致。
+- **用覆盖重染品牌色**:在 `features.ui.colors` 里覆盖 `primary`(加
+  `primaryHover` / `primaryActive`)即可零代码地为所有控件换强调色。
+- **只有刻意的常量才退出主题。** 传显式颜色即是承诺该元素*不*跟随主题——确认
+  这正是你的本意。
+- **切换用 `switchTheme`,不要裸 `setTheme`。** 裸 `setTheme` 只影响之后构建的
+  控件;`switchTheme` 还会重新着色屏幕上已有的东西。
+
+## 参见
+
+- [UI](/docs/zh-cn/guides/ui/) —— 令牌所着色的组件模型。
+- [UI 控件](/docs/zh-cn/guides/ui-components/) —— 消费令牌的控件工厂。
+- [UI 控制器](/docs/zh-cn/guides/ui-controllers/) —— 主题状态色所依附的 `$interaction` gear。
+- [数据绑定](/docs/zh-cn/guides/ui-binding/) —— 把响应式值写进组件字段。

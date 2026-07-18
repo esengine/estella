@@ -89,6 +89,40 @@ Re-slicing the grid moves every frame consistently — frames reference grid
 cells, not pixel rectangles. Frames that fall outside the current grid are
 flagged red in the strip.
 
+### Clips from code
+
+The `.esanim` document is plain data, so a clip can also be built at runtime:
+`createAnimClip` starts a sheet-sliced clip, you append `{ cell }` frames,
+`parseAnimClipData` resolves it into a runtime `SpriteAnimClip`, and
+`registerClip` makes the name available to every `SpriteAnimator`:
+
+```typescript
+import {
+  defineSystem, Res, Assets, SpriteAnimation,
+  createAnimClip, parseAnimClipData,
+} from 'esengine';
+
+const registerRun = defineSystem([Res(Assets), Res(SpriteAnimation)], async (assets, sprites) => {
+  const tex = await assets.loadTexture('textures/run-sheet.png');
+
+  // A 32×32 grid over the sheet; frames reference grid cells (row-major).
+  const data = createAnimClip('textures/run-sheet.png', 32, 32, tex.width, tex.height);
+  data.fps = 10;
+  for (let cell = 0; cell < 6; cell++) data.frames.push({ cell });
+
+  const handles = new Map([['textures/run-sheet.png', tex.handle]]);
+  sprites.registerClip(parseAnimClipData('run', data, handles));
+  // Any SpriteAnimator can now set clip = 'run'.
+});
+```
+
+| Helper | Description |
+|---|---|
+| `createAnimClip(texture, cellWidth, cellHeight, pageWidth, pageHeight)` | A fresh sheet-sliced `AnimClipAssetData` (fps `12`, `loop: true`, margin/spacing `0`, no frames yet). |
+| `parseAnimClipData(name, data, textureHandles)` | Resolve asset data into a runtime `SpriteAnimClip` — each cell frame gets its texture handle and UV window. |
+| `parseAnimClipAsset(json)` / `serializeAnimClip(data)` | Parse / write the `.esanim` JSON document (the pair round-trips). |
+| `animClipCellRect(sheet, cell)` / `animClipCellUv(sheet, cell)` | Pixel rect / UV window of a grid cell — what a `Sprite` shows for that frame. |
+
 ### Driving clips from a state machine — no code
 
 The [FSM/BT built-ins](/docs/guides/ai/) drive flipbooks as data. An action's
@@ -177,6 +211,41 @@ tween.cancelAll(entity);    // stop everything on an entity
 `TweenHandle` has `.then(next)`, `.bezier(...)`, `.pause()`, `.resume()`, and
 `.cancel()`.
 
+### Composition handles
+
+`tween.parallel` returns a `TweenGroup` and `tween.sequence` a `TweenSequence` —
+parent-level handles over their members. Both expose `state` (a `TweenState`),
+`pause()` / `resume()` / `cancel()` that fan out to every member, and
+`onComplete(cb)`:
+
+```typescript
+const popX = tween.to(e, TweenTarget.ScaleX, 1, 1.3, 0.2);
+const popY = tween.to(e, TweenTarget.ScaleY, 1, 1.3, 0.2);
+tween.parallel([popX, popY]).onComplete(() => spawnSparkles());
+
+tween.sequence([
+  () => tween.to(e, TweenTarget.PositionY, 0, 60, 0.3),
+  () => tween.delay(0.2),
+  () => tween.to(e, TweenTarget.PositionY, 60, 0, 0.3),
+]).onComplete(() => landDust());
+```
+
+Always create groups and sequences **through the `Tween` resource** — the
+resource registers them with its internal poller (`TweenCompositionManager`),
+which is what fires `onComplete` and advances a sequence to its next factory. A
+hand-constructed `new TweenGroup(...)` is never polled.
+
+`tween.value(...)` and `tween.delay(...)` return a `ValueTweenHandle` — the same
+control surface (`state`, `.pause()` / `.resume()` / `.cancel()`, `.bezier(...)`)
+plus `.then(next)`, which chains another value tween *or* anything
+pausable/resumable (a group, a sequence). `TweenHandle.then` likewise accepts a
+`ValueTweenHandle`, so property tweens and value tweens mix freely in one chain.
+
+Reach for the shorthand helpers (`tween.parallel` / `tween.sequence` /
+`tween.delay` / handle `.then`) first; the classes are what those calls hand
+back — you only name `TweenGroup` / `TweenSequence` / `ValueTweenHandle` when
+storing a handle to pause, cancel, or observe the composition later.
+
 ## Animator state machine
 
 For character animation, an **animator controller** holds states, transitions, and
@@ -201,7 +270,7 @@ const drive = defineSystem([Query(Animator), Res(AnimatorController)], (q, anim)
 | `Animator` field | Type | Default | Description |
 |---|---|---|---|
 | `controller` | string | `''` | Registered controller name. |
-| `currentState` | string | `''` | Active state (seeded from the controller's initial state). |
+| `currentState` | string | `''` | Active state, as a `/`-separated path for nested machines (seeded from the controller's initial state). |
 | `enabled` | boolean | `true` | Disable to freeze the state machine. |
 
 | `AnimatorController` method | Description |
@@ -214,6 +283,129 @@ const drive = defineSystem([Query(Animator), Res(AnimatorController)], (q, anim)
 
 The controller can drive both sprite **and** [Spine](/docs/guides/spine/)
 animations, so one state machine handles a whole character.
+
+Parameters come in three types (`AnimatorParamType`): `'float'`, `'bool'`, and
+`'trigger'`. Conditions compare them with `gt` / `lt` / `eq` / `neq` (numeric,
+with a `value`), `true` / `false` (bool), or `trigger` (fires once and is
+consumed). There is no separate int type — drive whole numbers through a float
+parameter and `eq` / `neq`.
+
+### Blend trees
+
+A state can carry a 1D **blend** instead of a single clip: a float parameter
+selects between `AnimatorBlendThreshold` stops. Because the sprite channel plays
+one clip at a time, this is a *selection* by threshold — the stop with the
+greatest `value` at or below the parameter wins (below all stops, the first one
+plays) — not a weighted pose blend. Each threshold is
+`{ value, clip, speed?, loop? }`; per-threshold `speed` / `loop` override the
+state's own. The selection re-evaluates every frame, so a rising `speed`
+parameter walks idle→walk→run with no transitions:
+
+```typescript
+import { defineSystem, Res, AnimatorController, type AnimatorControllerDef } from 'esengine';
+
+const movement: AnimatorControllerDef = {
+  parameters: [{ name: 'speed', type: 'float', default: 0 }],
+  initialState: 'move',
+  states: [{
+    name: 'move',
+    blend: {
+      parameter: 'speed',
+      thresholds: [
+        { value: 0,   clip: 'idle' },
+        { value: 0.5, clip: 'walk' },
+        { value: 4,   clip: 'run', speed: 1.2 },
+      ],
+    },
+    transitions: [],
+  }],
+};
+
+const setup = defineSystem([Res(AnimatorController)], (anim) => {
+  anim.registerController('movement', movement);
+});
+```
+
+The pure helper `selectBlendClip(blend, value)` returns the threshold a value
+selects — handy for tooling or tests.
+
+For skeletal characters, a state can instead carry a `spine` motion
+(`AnimatorSpineMotion`, `{ animation, loop? }`): on entry the controller sets
+that [Spine](/docs/guides/spine/) animation (`loop` defaults `true`) and leaves
+track playback and mixing to the Spine runtime — it never touches
+`SpriteAnimator`. States are exclusive: exactly one of `clip`, `blend`, `spine`,
+or `stateMachine`.
+
+### Sub-state machines
+
+A state carrying a `stateMachine` (`AnimatorSubMachine`) is a **container**: it
+plays no motion of its own. On entry the machine descends into the sub-machine's
+`initialState`; the container's own `transitions` are the *exit edges*,
+evaluated from every leaf inside it. A sub-machine can declare its own
+`anyStateTransitions`, checked from all of its sub-states. `Animator.currentState`
+holds the full `/`-separated path (`STATE_PATH_SEP`), e.g. `locomotion/run`:
+
+```typescript
+import { defineSystem, Res, AnimatorController, type AnimatorControllerDef } from 'esengine';
+
+const player: AnimatorControllerDef = {
+  parameters: [
+    { name: 'speed', type: 'float', default: 0 },
+    { name: 'jump', type: 'trigger' },
+  ],
+  initialState: 'locomotion',
+  states: [
+    {
+      name: 'locomotion',                    // container: no motion of its own
+      stateMachine: {
+        initialState: 'idle',
+        states: [
+          { name: 'idle', clip: 'idle', transitions: [
+            { to: 'run', conditions: [{ param: 'speed', op: 'gt', value: 0.1 }] },
+          ] },
+          { name: 'run', clip: 'run', transitions: [
+            { to: 'idle', conditions: [{ param: 'speed', op: 'lt', value: 0.1 }] },
+          ] },
+        ],
+      },
+      // Exit edges — leave the whole machine from idle OR run.
+      transitions: [{ to: 'jump', conditions: [{ param: 'jump', op: 'trigger' }] }],
+    },
+    { name: 'jump', clip: 'jump', loop: false, transitions: [
+      { to: 'locomotion', conditions: [], hasExitTime: true },   // back in at idle
+    ] },
+  ],
+};
+
+const setup = defineSystem([Res(AnimatorController)], (anim) => {
+  anim.registerController('player', player);
+});
+```
+
+Entering `locomotion` lands on `locomotion/idle`; the jump trigger exits from
+either leaf; when the one-shot jump clip ends, `hasExitTime` re-enters the
+container at its initial state. Transition priority, highest first: top-level
+any-state → each enclosing machine's any-state (outermost in) → the leaf's own
+transitions → container exit edges (innermost out).
+
+The path machinery is exposed as pure functions (an `AnimatorScope` is the shape
+shared by the top-level controller and every sub-machine):
+
+```typescript
+import { enterStatePath, leafStateOf, evaluateAnimatorPath } from 'esengine';
+
+enterStatePath(player, 'locomotion');       // ['locomotion', 'idle']
+leafStateOf(player, 'locomotion/run')?.clip; // 'run'
+evaluateAnimatorPath(player, 'locomotion/idle', { speed: 3 }, new Set());
+// → { nextPath: 'locomotion/run', consumedTriggers: [] }
+```
+
+| Helper | Description |
+|---|---|
+| `enterStatePath(scope, name)` | Descend from a state to its concrete leaf; returns the path segments. |
+| `leafStateOf(def, path)` | The motion-bearing leaf state of a path, or `null`. |
+| `evaluateAnimatorPath(def, path, params, triggers, clipFinished?)` | One pure evaluation step over a path → `{ nextPath, consumedTriggers }`. |
+| `STATE_PATH_SEP` | The path separator, `'/'`. |
 
 ## Choosing the right tool
 

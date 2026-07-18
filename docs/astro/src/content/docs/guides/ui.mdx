@@ -1,6 +1,6 @@
 ---
 title: UI
-description: The complete UI reference — the flexbox component model (UINode/FlexContainer), text, visuals, widgets, and interaction handling.
+description: The UI system overview — the flexbox component model, a pause-menu quickstart, how layout/visuals/interaction/widgets fit together, and a map of the UI guides.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -10,19 +10,22 @@ interface from UI components — visually in the editor or in code — and handl
 interaction from your systems. There is **no `RectTransform`**: `UINode` is real
 flexbox, sized with `px` / `percent` / `auto` plus `Absolute` insets.
 
+This page is the overview: the component model, a quickstart, and a map of the
+detailed UI guides. Deep reference for each area lives in its own chapter.
+
 ## The components
 
-| Component | Role |
-|---|---|
-| `UINode` | The layout box; holds the per-item flex fields (size, grow/shrink, margin, inset). |
-| `FlexContainer` | Lays a node's children out with flexbox (direction, justify, align, gap, padding). |
-| `Text` | Text via an SDF glyph atlas (content, font, color, align, stroke, shadow, rich text). |
-| `UIVisual` | The fill — solid color, texture, 9-slice, tiled, or filled. |
-| `UIMask` | Clips its children. |
-| `Interactable` | Marks a node hit-testable so it can be hovered/clicked. |
-| `UIInteraction` | Engine-written per-frame pointer state (read-only for your logic). |
+| Component | Role | Guide |
+|---|---|---|
+| `UINode` | The layout box; holds the per-item flex fields (size, grow/shrink, margin, inset). | [UI Layout](/docs/guides/ui-layout/) |
+| `FlexContainer` | Lays a node's children out with flexbox (direction, justify, align, gap, padding). | [UI Layout](/docs/guides/ui-layout/) |
+| `Text` | Text via a dynamic glyph atlas (content, font, color, align, stroke, shadow, rich text). | [UI Text](/docs/guides/ui-text/) |
+| `UIVisual` | The fill — solid color, texture, 9-slice, tiled, or filled. | below |
+| `UIMask` | Clips its children. | below |
+| `Interactable` | Marks a node hit-testable so it can be hovered/clicked. | [UI Interaction](/docs/guides/ui-interaction/) |
+| `UIInteraction` | Engine-written per-frame pointer state (read-only for your logic). | [UI Interaction](/docs/guides/ui-interaction/) |
 
-## Build a UI in code
+## Quickstart: a pause menu
 
 A complete pause menu — a centered column panel with a title and a button — built
 once from a **startup system**:
@@ -70,84 +73,37 @@ addStartupSystem(buildPauseMenu);
 ```
 
 `spawnUIEntity({ world, parent?, node?, visual?, text? })` returns the entity; pass
-`parent` to nest. Sizes use the dimension helpers `px`, `percent`, `auto`. The other
-widget factories work the same way: `createToggle`, `createSlider`, `createProgress`,
-`createDialog`, `createDropdown`.
+`parent` to nest. Sizes use the dimension helpers `px`, `percent`, `auto` — all
+in **design pixels** (see [UI Layout](/docs/guides/ui-layout/#units-design-pixels)).
+The other widget factories work the same way: `createToggle`, `createSlider`,
+`createProgress`, `createDialog`, `createDropdown` — see
+[UI Components](/docs/guides/ui-components/).
 
-<Aside type="tip">
-  In the editor you build the same tree visually: add `UINode` entities, nest them,
-  and add `FlexContainer` / `Text` / `UIVisual` / `Interactable` in the inspector.
-</Aside>
+## How the pieces fit
 
-## `UINode` — the layout box
+Each layer builds on the one before it:
 
-Per-item sizing and placement live here (dimensions are built with `px()` /
-`percent()` / `auto()`).
+1. **Layout** — `UINode` boxes, solved by the flexbox engine; `FlexContainer`
+   arranges children, `Absolute` insets place overlays.
+   → [UI Layout](/docs/guides/ui-layout/)
+2. **Visuals & text** — `UIVisual` fills the box, `UIMask` clips, `Text` draws
+   crisp glyphs. → [UI Text](/docs/guides/ui-text/)
+3. **Interaction** — `Interactable` makes a box hit-testable; the engine writes
+   pointer state into `UIInteraction` and emits bubbling `UIEvents`; drag & drop
+   and keyboard focus sit on top. → [UI Interaction](/docs/guides/ui-interaction/)
+4. **Widgets** — factories (`createButton`, `createSlider`, …) compose the three
+   layers into ready-made controls; `createListView` adds virtualized lists.
+   → [UI Components](/docs/guides/ui-components/), [UI Lists](/docs/guides/ui-lists/)
+5. **Controllers** — a named "page" state per UI root with per-page field
+   bindings (tabs, button states, show/hide) — no code.
+   → [UI Controllers](/docs/guides/ui-controllers/)
+6. **Theme & binding** — design tokens skin every widget (live-switchable), and
+   reactive signals keep UI in sync with game state.
+   → [UI Theme](/docs/guides/ui-theme/), [UI Binding](/docs/guides/ui-binding/)
 
-| Property | Type | Default | Description |
-|---|---|---|---|
-| `position` | `UIPositionType` | `Relative` | `Relative` (in flow) or `Absolute` (placed by inset). |
-| `width` / `height` | Dimension | `auto` | Box size; `auto` = content-/flex-driven. |
-| `minWidth` / `minHeight` | Dimension | `auto` | Lower size bounds. |
-| `maxWidth` / `maxHeight` | Dimension | `auto` | Upper size bounds. |
-| `flexGrow` | number | `0` | Share of free space to absorb. |
-| `flexShrink` | number | `1` | Shrink factor when space is tight. |
-| `flexBasis` | Dimension | `auto` | Base size before grow/shrink. |
-| `alignSelf` | `AlignSelf` | `Auto` | Per-item cross-axis alignment override. |
-| `marginLeft/Top/Right/Bottom` | Dimension | `0` | Outer spacing. |
-| `insetLeft/Top/Right/Bottom` | Dimension | `auto` | Edge offsets when `Absolute`. |
+### `UIVisual` and `UIMask`
 
-## `FlexContainer` — layout
-
-Add a `FlexContainer` to a node to lay out its children. The enums mirror CSS.
-
-| Property | Type | Default | Description |
-|---|---|---|---|
-| `direction` | `FlexDirection` | `Row` | `Row` / `Column` / `RowReverse` / `ColumnReverse`. |
-| `wrap` | `FlexWrap` | `NoWrap` | `NoWrap` / `Wrap`. |
-| `justifyContent` | `JustifyContent` | `Start` | Main-axis distribution (`Start`…`SpaceEvenly`). |
-| `alignItems` | `AlignItems` | `Stretch` | Cross-axis alignment (`Start` / `Center` / `End` / `Stretch`). |
-| `alignContent` | `AlignContent` | `Start` | Wrapped-line distribution. |
-| `gap` | Vec2 | `{0, 0}` | Space between children (x = column gap, y = row gap). |
-| `padding` | Padding | `{0,0,0,0}` | Inner spacing (`left/top/right/bottom`). |
-
-## `Text`
-
-Text draws from a dynamic glyph atlas with **two pipelines**, chosen per Text by
-`renderMode`:
-
-- **`Bitmap`** — glyphs rasterize at the **effective on-screen pixel size**
-  (device pixels × the canvas design-resolution fit) with Canvas-native
-  antialiasing and font hinting, and blit 1:1 — DOM-crisp at any window size.
-- **`Sdf`** — each glyph rasterizes once into a signed-distance field and the
-  shader lays a **1px screen-space coverage ramp** on the edge (the
-  msdfgen/TextMeshPro technique), so text stays crisp under **dynamic** scaling
-  — animated zoom, scale tweens, world-space labels.
-- **`Auto`** (default) — bitmap while the entity itself is unscaled (the canvas
-  fit is already compensated in the bitmap), SDF the moment the entity scales.
-  DOM-crisp static UI *and* zoom-stable animated text, no configuration.
-
-| Property | Type | Default | Description |
-|---|---|---|---|
-| `content` | string | `''` | The string to display. |
-| `fontFamily` | string | `'Arial'` | Font family. |
-| `fontSize` | number | `24` | Size in pixels. |
-| `color` | Color | `{1,1,1,1}` | Text color. |
-| `align` | `TextAlign` | `Left` | Horizontal alignment. |
-| `verticalAlign` | `TextVerticalAlign` | `Top` | Vertical alignment. |
-| `wordWrap` | boolean | `true` | Wrap at the box width. |
-| `overflow` | `TextOverflow` | `Visible` | Overflow handling. |
-| `lineHeight` | number | — | Line spacing multiplier. |
-| `bold` / `italic` | boolean | `false` | Font style. |
-| `strokeColor` / `strokeWidth` | Color / number | — | Outline. |
-| `shadowColor` / `shadowBlur` / `shadowOffsetX` / `shadowOffsetY` | — | Drop shadow. |
-| `richText` | boolean | `false` | Parse inline rich-text markup. |
-| `renderMode` | `TextRenderMode` | `Auto` | Glyph pipeline: `Auto` / `Bitmap` / `Sdf` (see above). |
-| `enabled` | boolean | `true` | Render toggle (the editor's eye uses it too). |
-
-## `UIVisual` — the fill
-
-`UIVisual` draws the node's background. `visualType` selects the mode:
+`UIVisual` draws the node's background; `visualType` selects the mode:
 
 | `UIVisualType` | Uses | Description |
 |---|---|---|
@@ -156,49 +112,50 @@ Text draws from a dynamic glyph atlas with **two pipelines**, chosen per Text by
 | `Image` | `texture`, `uvOffset`, `uvScale` | Textured quad / sprite region. |
 | `NineSlice` | `sliceBorder` | Scalable panel with fixed corners. |
 | `Tiled` | `tileSize` | Texture repeated across the box. |
-| `Filled` | `fillAmount`, `fillMethod`, `fillOrigin` | Cropped fill (health/progress bars). |
+| `Filled` | `fillAmount`, `fillMethod`, `fillOrigin` | Cropped fill (health/progress bars, cooldown rings). |
 
-## Handling interaction
+`UIVisual.enabled` hides this entity's visual only; `UINode.display = None`
+removes the node **and its whole subtree** from layout, rendering, and
+hit-testing. Add `UIMask` to a node to clip its children to the box.
 
-`createButton` gives you `onClick` directly. For custom widgets, the hit-test system
-writes per-frame pointer state into `UIInteraction` on any entity with an
-`Interactable`. It is **read-only** — query it, never mutate it:
+## Editor or code
 
-```typescript
-import { defineSystem, Query, Interactable, UIInteraction } from 'esengine';
+Both author the **same components** — there is no separate editor format:
 
-const onTiles = defineSystem([Query(Interactable, UIInteraction)], (q) => {
-  for (const [entity, _gate, state] of q) {
-    if (state.justReleased) { /* this node was clicked */ }
-  }
-});
-```
+- **Editor** — *Create… → UI* drops widget prefabs (Button, Toggle, Slider,
+  Dialog, …); nest by dragging, edit every field in Details, place with the
+  per-axis anchor picker, and preview against the project's design resolution
+  and device presets. See [The Editor](/docs/guides/editor/).
+- **Code** — `spawnUIEntity` + the widget factories, from a startup system as
+  above. Anything the editor writes, code can write too.
 
-| `UIInteraction` field | Description |
+## Where to go next
+
+| You want to… | Open |
 |---|---|
-| `hovered` | The pointer is over the node. |
-| `pressed` | The pointer is held down on the node. |
-| `justPressed` | Became pressed this frame. |
-| `justReleased` | Released this frame (a click). |
-
-For bubbling events — `click`, `hover_enter`, `change`, `submit`, `drag` up the
-parent chain — read the `UIEvents` resource (the UI event bus).
+| Size and place boxes — `px`/`percent`/`auto`, flexbox, absolute insets, anchors | [UI Layout](/docs/guides/ui-layout/) |
+| Draw text — fonts, SDF/bitmap crispness, wrapping, rich text | [UI Text](/docs/guides/ui-text/) |
+| React to pointer & keyboard — clicks, `UIEvents`, drag & drop, focus | [UI Interaction](/docs/guides/ui-interaction/) |
+| Use ready-made controls — button, toggle, slider, dialog, dropdown, input | [UI Components](/docs/guides/ui-components/) |
+| Show scrolling data — virtualized lists and grids | [UI Lists](/docs/guides/ui-lists/) |
+| Skin everything — design tokens, project theme, live switching | [UI Theme](/docs/guides/ui-theme/) |
+| Keep UI in sync with game state — signals, `bind`, two-way widget binding | [UI Binding](/docs/guides/ui-binding/) |
+| Share state across elements — tabs, radio groups, page-driven visuals | [UI Controllers](/docs/guides/ui-controllers/) |
 
 ## Best practices
 
 - **Flex, not absolute** — lay out with `FlexContainer` + `flexGrow`; reserve
   `Absolute` insets for overlays and badges.
-- **Size with `percent` / `auto`** for resolution independence; hard `px` only where
-  a fixed size is intended.
+- **Size with `percent` / `auto`** for resolution independence; hard `px` only
+  where a fixed size is intended.
 - **Drive logic from `UIInteraction` or `UIEvents`**, never by mutating them.
-- **Reuse the widget factories** (`createButton`, `createSlider`, …) for consistent
-  state visuals instead of wiring hover/press by hand.
+- **Reuse the widget factories** for consistent state visuals instead of wiring
+  hover/press by hand.
 - **9-slice panels** (`NineSlice`) keep borders crisp at any size.
 
 ## See also
 
-- [UI Components](/docs/guides/ui-components/) — the built-in widget factories.
-- [UI Controllers](/docs/guides/ui-controllers/) — shared "page" state + declarative per-page field bindings (tabs, button states, show/hide).
 - [Input](/docs/guides/input/) — raw keyboard/mouse/touch below the UI layer.
 - [Localization](/docs/guides/localization/) — bind `Text.content` to translated keys.
 - [Animation](/docs/guides/animation/) — tween UI color/position for juice.
+- [The Editor](/docs/guides/editor/) — visual authoring, prefabs, anchor picker.

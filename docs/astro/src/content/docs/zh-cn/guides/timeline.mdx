@@ -80,13 +80,94 @@ const control = defineSystem([Query(TimelinePlayer), Res(Timeline)], (q, timelin
 
 时间轴是一组每帧一起求值的轨道:
 
-| 轨道 | 驱动 |
+| 轨道 | `TrackType` | 驱动 |
+|---|---|---|
+| 属性 | `Property` | 组件字段关键帧——位置 / 旋转 / 缩放及任意数值点路径。 |
+| 精灵帧 | `AnimFrames` | 随时间切换精灵表帧。 |
+| 精灵剪辑 | `SpriteAnim` | 在某时刻启动一个命名 `anim-clip`。 |
+| 音频 | `Audio` | 在关键帧触发一次性声音。 |
+| 激活 | `Activation` | 按区间开关实体。 |
+| Spine | `Spine` | 把 Spine 动画作为片段播放。 |
+| 标记 | `Marker` | 命名时间标记。 |
+| 自定义事件 | `CustomEvent` | 带 payload 的命名事件,供你自己的系统消费。 |
+
+## 用代码构建时间轴
+
+`.estimeline` 文档就是普通数据——用 `TimelineAsset` 类型加上 `TrackType` /
+`InterpType` / `WrapMode` 常量,可以完全在代码里构建。用
+`registerTimelineAsset(path, asset)` 注册后,任何 `timeline` 指向同一路径的
+`TimelinePlayer` 都会像播放编辑器资产一样播放它:
+
+```typescript
+import {
+  defineSystem, Commands, registerTimelineAsset, TimelinePlayer,
+  TrackType, InterpType, WrapMode, type TimelineAsset,
+} from 'esengine';
+
+const slideIn: TimelineAsset = {
+  version: '1.1',
+  type: 'timeline',
+  duration: 2,
+  wrapMode: WrapMode.Once,
+  tracks: [{
+    type: TrackType.Property,
+    name: 'Slide in',
+    childPath: '',                       // '' = the player entity itself
+    component: 'Transform',
+    channels: [{
+      property: 'position.x',
+      keyframes: [
+        { time: 0, value: -200, inTangent: 0, outTangent: 0, interpolation: InterpType.EaseOut },
+        { time: 2, value: 0, inTangent: 0, outTangent: 0 },
+      ],
+    }],
+  }],
+};
+
+const attach = defineSystem([Commands()], (cmds) => {
+  registerTimelineAsset('code/slide-in', slideIn);
+  cmds.spawn().insert(TimelinePlayer, {
+    timeline: 'code/slide-in',
+    playing: true,
+    wrapMode: 'once',
+  });
+});
+```
+
+`Keyframe` 是 `{ time, value, inTangent, outTangent, interpolation? }`。以某
+关键帧*起始*的分段用该关键帧的 `interpolation`:`Hermite`(默认——切线驱动曲线)、
+`Linear`、`Step`、`EaseIn`、`EaseOut` 或 `EaseInOut`。属性轨道按 `childPath`
+解析目标实体(子实体名以 `/` 分隔;空 = 播放器实体本身),把通道的点路径字段写到
+命名组件上。
+
+### 循环模式
+
+播放采用**播放器组件**的 `wrapMode` 字符串;数值型 `WrapMode` 常量用在资产和纯求值
+API 里。映射与行为:
+
+| `WrapMode` | 播放器字符串 | 越过终点后的行为 |
+|---|---|---|
+| `WrapMode.Once`(`0`) | `'once'` | 停在 `duration`,停止,闩上 `finished`。 |
+| `WrapMode.Loop`(`1`) | `'loop'` | 回绕(`time % duration`)。 |
+| `WrapMode.PingPong`(`2`) | `'pingPong'` | 每周期先正放再倒放。 |
+
+`applyWrapMode(time, duration, mode)` 就是这个纯映射——对绝对时钟时间返回
+`{ time, stopped }`。
+
+### 采样与序列化
+
+求值器是纯 TypeScript,播放与编辑器 scrub 共用——你也可以自己调用:
+
+| 函数 | 说明 |
 |---|---|
-| Transform | 位置 / 旋转 / 缩放关键帧(hermite / linear / step)。 |
-| 精灵帧 | 随时间切换精灵表帧。 |
-| 音频 | 在关键帧触发一次性声音。 |
-| 激活 | 开关实体。 |
-| Spine | 把 Spine 动画作为片段播放。 |
+| `sampleTimelineInWorld(asset, time, world, rootEntity, opts?)` | 在 `time` 求值所有属性轨道并把结果写进 world(即 scrub 操作)。 |
+| `sampleTimeline(asset, time, rootEntity, deps, opts?)` | 同上,但注入 `SampleDeps`(world / 组件查找 / 子实体解析)——用于测试和工具。 |
+| `evaluateChannel(channel, time)` | 单个属性通道在 `time` 的值;端点截断。 |
+| `serializeTimelineAsset(asset)` | 资产转为可 JSON 化对象(`.estimeline` 文档形状)。 |
+| `serializeTimelineToJson(asset, indent?)` | 美化打印的 `.estimeline` JSON 字符串(indent 默认 `2`)。 |
+
+采样只覆盖属性轨道;事件型轨道(音频、标记、自定义事件)在播放中按边沿检测触发,
+采样不会触发它们。
 
 ## 最佳实践
 

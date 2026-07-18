@@ -75,6 +75,29 @@ node build-tools/cli.js build -t playable
 侧模块(`physics-wechat`、`spine-wechat`,压缩纹理用 `basis-wechat`)——见
 [微信小游戏](/docs/zh-cn/guides/wechat/)。
 
+## 侧模块
+
+可选的引擎特性以独立的 WebAssembly **侧模块**发布——每个模块是一对 emscripten
+产物:`<file>.js` 胶水加 `<file>.wasm`——按需加载,让基础引擎保持小体积:
+
+| 模块 | 产物 | 何时加载 |
+|---|---|---|
+| 物理(Box2D) | `physics.js` / `physics.wasm` | 项目声明了物理,或场景使用了物理组件。 |
+| Spine | `spine38` / `spine41` / `spine42` 的 `.js`/`.wasm` | 场景使用了对应格式版本的 Spine 骨骼。 |
+| Basis 转码器 | `basis.js` / `basis.wasm` | 构建里发布了 KTX2 压缩纹理。 |
+| 视频解码器 | `videodec.js` / `videodec.wasm` | wasm 视频路径解码片段时。 |
+
+- **Web / 桌面** —— 产物作为零散文件放在 `esengine.wasm` 旁;运行时经 fetch
+  侧模块 host 从 `wasmBaseUrl`(引擎自身加载自的目录)拉取。
+- **Playable** —— 不允许任何外部请求,导出器把模块以 base64 内联进单个 HTML
+  文件;启动代码(`initPlayableRuntime`)拿到的是内嵌侧模块 host 而非 URL。
+- **微信** —— 侧模块打包为微信预编译的模块工厂(这也是每个特性都需要上文
+  `*-wechat` 运行时构建的原因)。
+
+编辑器自己的播放模式也经由同一个发行运行时启动(`initPlayRealmRuntime`),从
+编辑器 origin 拉取侧模块——所以"玩到的即发布的"同样覆盖这些模块。运行时 API 见
+[应用设置与生命周期](/docs/zh-cn/core-concepts/app-lifecycle/#侧模块)。
+
 ## 构建配置与 source map
 
 - **Development** —— 不压缩的构建;配上 source map 得到可调试的输出。

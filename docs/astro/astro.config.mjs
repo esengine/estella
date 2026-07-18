@@ -65,6 +65,9 @@ export default defineConfig({
             { label: 'Components', translations: { 'zh-CN': '组件' }, slug: 'core-concepts/components' },
             { label: 'Systems', translations: { 'zh-CN': '系统' }, slug: 'core-concepts/systems' },
             { label: 'Plugins & Resources', translations: { 'zh-CN': '插件与资源' }, slug: 'core-concepts/plugins-resources' },
+            { label: 'Transforms, Units & Coordinates', translations: { 'zh-CN': '变换、单位与坐标系' }, slug: 'core-concepts/transforms' },
+            { label: 'Screen & Design Resolution', translations: { 'zh-CN': '屏幕与设计分辨率' }, slug: 'core-concepts/screen' },
+            { label: 'App Setup & Lifecycle', translations: { 'zh-CN': '应用设置与生命周期' }, slug: 'core-concepts/app-lifecycle' },
           ],
         },
         {
@@ -82,20 +85,32 @@ export default defineConfig({
           ],
         },
         {
-          label: 'Graphics & UI',
-          translations: { 'zh-CN': '图形与 UI' },
+          label: 'Graphics',
+          translations: { 'zh-CN': '图形' },
           items: [
             { label: 'Sprites & Rendering', translations: { 'zh-CN': '精灵与渲染' }, slug: 'guides/sprites' },
             { label: 'Video', translations: { 'zh-CN': '视频' }, slug: 'guides/video' },
             { label: 'Tilemaps', translations: { 'zh-CN': '瓦片地图' }, slug: 'guides/tilemap' },
-            { label: 'UI', translations: { 'zh-CN': 'UI' }, slug: 'guides/ui' },
-            { label: 'UI Components', translations: { 'zh-CN': 'UI 控件' }, slug: 'guides/ui-components' },
-            { label: 'UI Controllers', translations: { 'zh-CN': 'UI 控制器' }, slug: 'guides/ui-controllers' },
             { label: 'Particles', translations: { 'zh-CN': '粒子' }, slug: 'guides/particle' },
             { label: 'Post-processing', translations: { 'zh-CN': '后处理' }, slug: 'guides/postprocess' },
             { label: 'Materials & Shaders', translations: { 'zh-CN': '材质与着色器' }, slug: 'guides/material' },
             { label: '2D Lighting & Shadows', translations: { 'zh-CN': '2D 光照与阴影' }, slug: 'guides/lighting' },
             { label: 'Custom Drawing', translations: { 'zh-CN': '自定义绘制' }, slug: 'guides/drawing' },
+          ],
+        },
+        {
+          label: 'UI',
+          translations: { 'zh-CN': 'UI' },
+          items: [
+            { label: 'Overview', translations: { 'zh-CN': '总览' }, slug: 'guides/ui' },
+            { label: 'Layout', translations: { 'zh-CN': '布局' }, slug: 'guides/ui-layout' },
+            { label: 'Text', translations: { 'zh-CN': '文本' }, slug: 'guides/ui-text' },
+            { label: 'Widgets', translations: { 'zh-CN': '控件' }, slug: 'guides/ui-components' },
+            { label: 'Lists & Scrolling', translations: { 'zh-CN': '列表与滚动' }, slug: 'guides/ui-lists' },
+            { label: 'Interaction', translations: { 'zh-CN': '交互' }, slug: 'guides/ui-interaction' },
+            { label: 'Theming', translations: { 'zh-CN': '主题' }, slug: 'guides/ui-theme' },
+            { label: 'Data Binding', translations: { 'zh-CN': '数据绑定' }, slug: 'guides/ui-binding' },
+            { label: 'Controllers', translations: { 'zh-CN': '控制器' }, slug: 'guides/ui-controllers' },
           ],
         },
         {
@@ -119,6 +134,7 @@ export default defineConfig({
           translations: { 'zh-CN': '工具' },
           items: [
             { label: 'Math Helpers', translations: { 'zh-CN': '数学辅助' }, slug: 'guides/math' },
+            { label: 'Profiling & Diagnostics', translations: { 'zh-CN': '性能剖析与诊断' }, slug: 'guides/profiling' },
           ],
         },
         {

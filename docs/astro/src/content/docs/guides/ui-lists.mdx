@@ -1,0 +1,507 @@
+---
+title: Lists & Scrolling
+description: Virtualized data-driven lists and grids with createListView — data sources, layout providers, entity recycling, auto-height rows — plus free-form scrolling with createScrollView, kinetic fling, and scrollbars.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Long, scrollable content in Estella is built from two factories on top of the
+[UI](/docs/guides/ui/) component model:
+
+- **`createListView`** — a **virtualized**, data-driven list or grid. Only the
+  items near the viewport are ever mounted, so a 10 000-row inventory,
+  leaderboard, or chat log stays as cheap as a 10-row one.
+- **`createScrollView`** — a clipped, scrollable panel for **arbitrary
+  content** (a settings page, a long form). No virtualization, no data source —
+  just parent your entities under it.
+
+Both compose the same primitives: a Scissor [`UIMask`](#clipping--uimask)
+viewport, a content frame translated by a [`ScrollContainer`](#the-scrolling-model),
+and wheel / drag / kinetic-fling input routed by the UI plugin.
+
+## `createListView`
+
+One call composes a data source, a layout, item recycling, scrolling, and
+clipping:
+
+```typescript
+import { createListView, uiPlugin, arrayDataSource, spawnUIEntity, px } from 'esengine';
+
+const list = createListView<Player>({
+  world, host: uiPlugin, parent,
+  viewportSize: { x: 320, y: 480 },     // the visible window, in pixels
+  data: arrayDataSource(players),        // any DataSource<T>, or a raw array
+  layout: { itemHeight: 56 },            // a column list
+  item: {
+    create: (world, parent) => spawnUIEntity({ world, parent, node: { height: px(56) } }),
+    bind: (entity, player, index) => { /* fill the row's Text / Sprite from `player` */ },
+  },
+});
+```
+
+`host` is the plugin that ticks virtualization and routes scroll input — pass
+the `uiPlugin` your app was built with (the granular `uiBehaviorPlugin` also
+satisfies it).
+
+### Options
+
+| Option | Default | Description |
+|---|---|---|
+| `world` / `host` | — | The ECS world and the ticking plugin (`uiPlugin`). Required. |
+| `parent` | root | Parent entity for the viewport. |
+| `viewportSize` | — | Pixel size of the visible window. Required — the scroll math needs it up front. |
+| `node` | sized to `viewportSize` | Extra `UINode` props for the viewport box. |
+| `background` | transparent | Viewport visual. The default is an invisible **hit-target** — it must exist so the wheel and drag land on the list. |
+| `data` | — | A `DataSource<T>`, or a raw array (wrapped in an `ArrayDataSource` — the array is **copied**, so mutate the source afterwards, not your original array). |
+| `layout` | — | Layout sugar (`itemHeight` / `itemWidth` / `columns`, below) or a full [`LayoutProvider`](#layout-providers). |
+| `item` | — | One [item template](#the-item-template), or a map of item type → template for heterogeneous rows. |
+| `direction` | from layout | Scroll axis: `'vertical'` \| `'horizontal'` \| `'both'`. Column and grid layouts default to vertical, row layouts to horizontal. |
+| `recycleBuffer` | `2` | Extra indices kept mounted on each side of the visible range. For grids, think in rows: `columns * 2` keeps two extra rows. |
+| `wheelSpeed` | `1` | Wheel delta multiplier. |
+| `dragScroll` | `true` | Pointer/touch drag scrolling with a kinetic fling. |
+| `decelerationRate` | `0.135` | Fling velocity fraction left after 1 s of coasting. |
+| `onItemBound` | — | `(entity, data, index)` called after every bind — for ad-hoc per-item tweaks. |
+
+**Layout sugar** (`ListLayoutSpec`) covers the three common shapes:
+
+| `layout` | Result |
+|---|---|
+| `{ itemHeight, spacing? }` | A vertical list — a fixed row height, or a **`(index) => number`** function for [auto-height rows](#auto-height-rows). |
+| `{ itemWidth, direction: 'row', spacing? }` | A horizontal list; items span the viewport height. |
+| `{ columns, itemSize, spacing? }` | A grid (a *TileView*); `spacing` is a `Vec2` here. |
+
+### The item template
+
+An item template is a **create / bind** pair (`ListItemTemplate<T>`):
+
+```typescript
+item: {
+  // Build ONE row entity. Runs only when the pool has no free row to reuse.
+  create: (world, parent) => spawnUIEntity({ world, parent, text: { content: '' } }),
+  // Apply data to a row. Runs on every (re)bind — keep it a pure "apply this data".
+  bind: (entity, player, index) => setRowText(world, entity, player.name),
+}
+```
+
+- `create` builds the row's entity subtree once — spawn children, insert
+  components, wire interaction here. Use `spawnUIEntity` so the row carries a
+  `UINode`.
+- `bind` fills the row from the data. It runs **every time** the row is
+  (re)used — when it scrolls in, when its data updates, and again for every
+  mounted row on each scroll step — so it must be **idempotent and cheap**.
+
+**Recycling rules.** Rows are pooled entities, not fresh spawns:
+
+- A reused row still holds **everything the previous bind wrote** — reset every
+  field you ever set (text, colors, the visibility of conditional children).
+  If a field is only set for *some* items, `bind` must also clear it for the
+  others.
+- Never spawn children or add components inside `bind` — that accumulates on
+  every reuse. Structure belongs in `create`.
+- Don't key external state by the row **entity** — the entity↔index mapping
+  changes as you scroll. Key by the data (or re-derive in `bind`).
+- Guard your writes: `bind` re-runs for all mounted rows on every scroll step,
+  so skip component writes when the value hasn't changed (an early-return
+  `if (text.content === next) return;` keeps scrolling allocation-free).
+- The list **owns each row's box**: on every bind the row's `UINode` is set to
+  `Absolute` and its inset + `width`/`height` are overwritten with the layout
+  rect. Size row *content* with children inside the row, not by writing the row
+  node itself.
+- Off-screen rows are hidden (via `setUIVisible`), not despawned; they are
+  reused or despawned with the list.
+
+**Heterogeneous rows** — pass a map of item type → template, and give the data
+source a `getItemType(index)`:
+
+```typescript
+item: {
+  header:  { create: makeHeader,  bind: bindHeader },
+  message: { create: makeMessage, bind: bindMessage },
+},
+```
+
+Every type `getItemType` returns must have a matching template. When a data
+reset changes an index's type, the old row is released and a row of the right
+template is bound in its place.
+
+<Aside type="note">
+  There is **no built-in selection model** — a row is an ordinary entity tree.
+  Make rows clickable (a `createButton` inside `create`, or an `Interactable` +
+  a `click` handler), store the selected id **in your data**, and let `bind`
+  render the selected look. State that lives in the data survives recycling by
+  construction.
+</Aside>
+
+### The handle
+
+`createListView` returns a `ListViewHandle<T>`:
+
+| Member | Description |
+|---|---|
+| `entity` | The viewport entity (the clipped window; position it in your UI tree). |
+| `content` | The scrolling content frame the rows are parented to. |
+| `data` | The `DataSource<T>` — mutate it to update the list. |
+| `refresh()` | Force a re-sync of mounted rows on the next frame (after out-of-band data changes). |
+| `scrollToIndex(i)` | Scroll so item `i` sits at the top-left of the viewport (clamped to the range). |
+| `mountedCount()` | Number of row entities currently mounted — never grows with the data; handy in tests. |
+| `scroll` / `view` | Escape hatches to the underlying `ScrollContainer` / `ListView` driver. |
+| `dispose()` | Unregister, release rows, drop scroll/data subscriptions, despawn the viewport. |
+
+## Data sources
+
+A list reads its items through the `DataSource<T>` interface:
+
+```typescript
+interface DataSource<T> {
+  getCount(): number;
+  getItem(index: number): T;
+  getItemType?(index: number): string;                       // default 'default'
+  getItemId?(index: number, item: T): string | number;       // stable identity
+  subscribe?(listener: (change: DataSourceChange) => void): () => void;
+}
+```
+
+`subscribe` is what makes the list live: on any change notification the view
+marks itself dirty and re-syncs on the next frame — you never call `refresh()`
+for changes that go through the data source.
+
+### `ArrayDataSource`
+
+The built-in array-backed source (`arrayDataSource(items)` is the shorthand
+constructor). Every mutator updates the array **and** notifies subscribers in
+one call:
+
+| Method | Change emitted | Description |
+|---|---|---|
+| `setItems(items)` | `reset` | Replace all items. |
+| `append(items)` | `insert` | Add items at the end. |
+| `insert(index, items)` | `insert` | Insert at `index` (clamped into range). |
+| `remove(index, count = 1)` | `remove` | Remove `count` items at `index`. |
+| `update(index, item)` | `update` | Replace one item. |
+| `getCount()` / `getItem(i)` | — | Reads (`getItem` throws on out-of-range). |
+| `subscribe(fn)` | — | Listen to changes; returns an unsubscribe function. |
+
+```typescript
+list.data.append([newPlayer]);        // add
+list.data.remove(3);                   // remove index 3
+list.data.update(0, updatedPlayer);    // replace one
+list.data.setItems(freshList);         // replace all
+```
+
+<Aside type="caution">
+  The constructor **copies** the array you pass in. Mutating your original array
+  afterwards changes nothing on screen — go through the mutators above. If you
+  must mutate shared state the source can't see, call `list.refresh()` (and
+  know that a measured layout won't re-measure that way — see below).
+</Aside>
+
+### Writing a custom `DataSource`
+
+Implement the interface directly when the data doesn't live in an array — a
+ring buffer, a query result, a network-paged collection:
+
+```typescript
+import type { DataSource, DataSourceChange } from 'esengine';
+
+class LogSource implements DataSource<string> {
+  private lines: string[] = [];
+  private listeners = new Set<(c: DataSourceChange) => void>();
+
+  getCount() { return this.lines.length; }
+  getItem(i: number) { return this.lines[i]; }
+  subscribe(fn: (c: DataSourceChange) => void) {
+    this.listeners.add(fn);
+    return () => this.listeners.delete(fn);
+  }
+
+  push(line: string) {
+    const at = this.lines.length;
+    this.lines.push(line);
+    for (const fn of this.listeners) fn({ type: 'insert', index: at, count: 1 });
+  }
+}
+```
+
+`getCount` + `getItem` are the required minimum; without `subscribe` the list
+still works, but you must call `refresh()` after every change.
+
+## Layout providers
+
+The `layout` option accepts a full `LayoutProvider` — the pure math object
+behind the sugar. A provider answers three questions: total content size, the
+rect of item `i`, and which index range a viewport rect can see. Three
+implementations ship:
+
+| Provider | Use when | Options |
+|---|---|---|
+| `LinearLayoutProvider` | Fixed-size rows or columns. | `itemSize: Vec2` (required), `direction: 'row' \| 'column'` (default `'column'`), `spacing` (default `0`). |
+| `GridLayoutProvider` | Fixed-size cells in N columns; scrolls vertically. | `columns` (required, min 1), `itemSize: Vec2` (required), `spacing: Vec2` (default `{0, 0}`). |
+| `MeasuredLinearLayoutProvider` | Rows whose main-axis size varies per item (chat bubbles, mixed content). | `crossSize` (required), `mainSizeOf: (index) => number` (required), `direction` (default `'column'`), `spacing` (default `0`). |
+
+```typescript
+import { createListView, GridLayoutProvider, uiPlugin } from 'esengine';
+
+createListView<Item>({
+  world, host: uiPlugin, parent,
+  viewportSize: { x: 320, y: 480 },
+  data: items,
+  layout: new GridLayoutProvider({ columns: 4, itemSize: { x: 72, y: 72 }, spacing: { x: 8, y: 8 } }),
+  item: { create: makeCell, bind: bindCell },
+});
+```
+
+The sugar specs map straight onto these: `{ itemHeight: 56 }` builds a
+`LinearLayoutProvider` with the viewport width as the cross size;
+`{ itemHeight: (i) => … }` builds a `MeasuredLinearLayoutProvider`;
+`{ columns, itemSize }` builds a `GridLayoutProvider`.
+
+**Auto-height mechanics.** `MeasuredLinearLayoutProvider` prefix-sums the item
+offsets and caches them; item lookup and visibility queries then read the
+cache. The cache rebuilds when the item count changes and whenever the list
+invalidates it — which the list does on **every data-source change** and on
+**viewport resizes** (a width-dependent measure like wrapped text re-flows).
+A rebuild calls `mainSizeOf` once for every item, so keep the measure cheap or
+memoize it per item.
+
+### Auto-height rows
+
+Pass a **function** for `itemHeight` to size each row to its content — perfect
+for a chat log where a bubble grows with its wrapped text:
+
+```typescript
+import { measureText } from 'esengine';
+
+createListView<Message>({
+  world, host: uiPlugin, parent,
+  viewportSize: { x: 360, y: 480 },
+  data: messages,
+  layout: {
+    itemHeight: (i) => measureText(messages.getItem(i).text, {
+      fontSize: 14, maxWidth: 320,
+    }).height + 16,                      // wrapped text height + vertical padding
+    spacing: 8,
+  },
+  item: { /* create / bind */ },
+});
+```
+
+`measureText(text, { fontSize, maxWidth?, fontFamily?, bold?, italic?, letterSpacing?, lineHeight? })`
+returns `{ width, lineCount, height }` measured off the **same Canvas2D metrics
+the glyph atlas draws from**, so a measured height matches what actually renders
+— no clipped or overflowing rows. `lineHeight` defaults to `fontSize * 1.2`,
+the `Text` default ratio; omit `maxWidth` for a single unwrapped line. (A
+DOM-less host falls back to an average-glyph estimate.)
+
+## How virtualization works
+
+Each frame, the host plugin ticks every registered list; a tick is a no-op
+unless something marked the list dirty (a scroll, a data change, a viewport
+resize). A dirty update:
+
+1. asks the layout provider for the **visible index range** at the current
+   scroll offset,
+2. widens it by `recycleBuffer` indices on each side,
+3. **releases** mounted rows that fell outside the range into an entity pool
+   (hidden, not despawned),
+4. **acquires** rows for indices that entered the range — from the pool when
+   one is free, else via the template's `create` — and **binds** every row in
+   the range.
+
+The result: work per frame is `O(mounted)`, and `mounted ≈ visible +
+2 × recycleBuffer` regardless of data size. `mountedCount()` exposes that
+number — assert it stays flat in tests. Data mutations are just as bounded: an
+`append` to a list scrolled far from the end binds nothing at all.
+
+**Do:**
+
+- Keep `bind` cheap, idempotent, and change-guarded — it is the per-scroll hot
+  path.
+- Route every data change through the data source (or call `refresh()`).
+- Use `getItemType` + a template map instead of one template full of `if`s.
+- For advanced pooling control (e.g. pre-warming rows to avoid a first-scroll
+  spike), the `ViewPool` primitive is public — compose your own `ListView`
+  driver with it.
+
+**Don't:**
+
+- Don't spawn/insert in `bind`, and don't assume a fresh entity — see the
+  [recycling rules](#the-item-template).
+- Don't cache entity references per data index across frames.
+- Don't drive per-row animation from `bind` — bind writes state; animate with a
+  system or tween targeting the row's components.
+- Don't give a measured list an expensive `mainSizeOf` — it runs for **all**
+  items on every data change.
+
+## Free-form scrolling — `createScrollView`
+
+For a scrollable panel of arbitrary content — no virtualization, no data
+source — use `createScrollView` and parent anything under its `content` frame:
+
+```typescript
+import { createScrollView, uiPlugin } from 'esengine';
+
+const panel = createScrollView({
+  world, host: uiPlugin, parent,
+  viewportSize: { x: 320, y: 480 },
+  contentSize:  { x: 320, y: 1200 },
+});
+// build your content under panel.content …
+panel.scrollTo({ x: 0, y: 300 });
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `world` / `host` | — | The world and the input-routing plugin (`uiPlugin`). Required. |
+| `parent` | root | Parent entity for the viewport. |
+| `viewportSize` | — | Pixel size of the visible window. Required. |
+| `contentSize` | — | Pixel size of the scrollable content frame. Required — sizes are explicit because the scroll math needs them up front. |
+| `node` / `background` | sized box / transparent hit-target | As in `createListView`. |
+| `direction` | `'vertical'` | Scroll axis: `'vertical'` \| `'horizontal'` \| `'both'`. |
+| `wheelSpeed` | `1` | Wheel delta multiplier. |
+| `dragScroll` | `true` | Drag/touch scrolling with kinetic fling. |
+| `decelerationRate` | `0.135` | Fling decay (fraction left after 1 s). |
+| `onScroll` | — | `(offset)` fired on every offset change. |
+
+**Handle** (`ScrollViewHandle`): `entity` (the clipped viewport) · `content`
+(parent your content here) · `scrollTo(offset)` · `setContentSize(size)` —
+call it after the content grows or shrinks, it resizes the frame *and* the
+scroll range · `scroll` (the underlying `ScrollContainer`) · `dispose()`.
+
+## The scrolling model
+
+Both factories drive a **`ScrollContainer`** — a pure scroll-state model with
+no input or ECS knowledge. It clamps the offset to `[0, contentSize −
+viewportSize]` per axis (a `'vertical'` container pins `x` to 0 and vice
+versa), and notifies `onScroll` listeners on any change. The factories
+subscribe to it and translate the content frame by `-offset`; the UI plugin
+feeds it input:
+
+- **Wheel** — deltas over the hovered viewport, scaled by `wheelSpeed`.
+- **Drag / touch** — with `dragScroll: true` (default), a pointer grab drags
+  the content; the platform layer funnels the primary touch into the pointer
+  stream, so touch scrolling rides the same path.
+- **Kinetic fling** — on release, the sampled velocity coasts and decays
+  exponentially: `decelerationRate` is the velocity fraction left after one
+  second (default `0.135`, the ScrollRect standard — lower stops sooner). The
+  underlying `KineticScroll` model is public too, with a rest-velocity floor
+  (`4` px/s) and an EMA sample rate (`12`/s) for custom compositions.
+
+Programmatic scrolling goes through the handle (`scrollToIndex`, `scrollTo`)
+or the container itself: `list.scroll.scrollBy({ x: 0, y: 120 })`.
+
+### Scrollbars
+
+Every attached scroll container gets an **auto-fading overlay scrollbar** per
+scrollable axis: a slim thumb appears while the offset moves, then fades out
+after ~0.8 s of stillness. Thumb length tracks the viewport/content ratio,
+it's out of flow (no layout impact), not interactable (no input surface), and
+theme-tagged with the `text` role so it re-skins on a live theme swap. The
+factories always leave scrollbars on; opting out (`showScrollbar: false`) is a
+`ScrollContainer` construction option, for manual compositions.
+
+## Clipping — `UIMask`
+
+The viewport entity of both factories carries a `UIMask` in **Scissor** mode:
+children render only inside the viewport's axis-aligned rectangle, which is
+what actually hides the off-screen part of the content frame. Scissor is a
+render-state rectangle — effectively free, but axis-aligned; a **Stencil**
+mask (`MaskMode.Stencil`) clips correctly under rotation. You can put a
+`UIMask` on any UI node the same way:
+
+```typescript
+import { UIMask, MaskMode } from 'esengine';
+
+world.insert(panel, UIMask, { enabled: true, mode: MaskMode.Scissor });
+```
+
+## A complete chat log
+
+The pieces together — a virtualized message log with measured bubble rows and
+a composer that appends to the data source (`examples/chat` in the repo is the
+full two-sided version):
+
+```typescript
+import {
+  defineSystem, addStartupSystem, GetWorld, Res, UIEvents,
+  createListView, createTextInput, uiPlugin, ArrayDataSource,
+  spawnUIEntity, measureText, px, Text, UIPositionType,
+} from 'esengine';
+import type { World, Entity } from 'esengine';
+
+interface Message { from: 'me' | 'them'; text: string; }
+
+const W = 360, PAD = 8, FONT = 14;
+const messages = new ArrayDataSource<Message>([]);
+
+const rowHeight = (i: number) =>
+  measureText(messages.getItem(i).text, { fontSize: FONT, maxWidth: W - 2 * PAD }).height + 2 * PAD;
+
+function setRowText(world: World, row: Entity, content: string): void {
+  const t = world.get(row, Text);
+  if (t.content === content) return;      // change-guard: bind is the hot path
+  t.content = content;
+  world.insert(row, Text, t);
+}
+
+const buildChat = defineSystem([GetWorld(), Res(UIEvents)], (world, events) => {
+  const list = createListView<Message>({
+    world, host: uiPlugin,
+    viewportSize: { x: W, y: 480 },
+    data: messages,
+    layout: { itemHeight: rowHeight, spacing: 6 },
+    item: {
+      create: (w, parent) => spawnUIEntity({
+        world: w, parent,
+        // The row box is owned by the list; the bubble look lives on the row itself.
+        visual: { color: { r: 0.15, g: 0.17, b: 0.22, a: 1 } },
+        text: { content: '', fontSize: FONT, wordWrap: true },
+      }),
+      bind: (row, msg) => setRowText(world, row, `${msg.from}: ${msg.text}`),
+    },
+  });
+
+  createTextInput({
+    world, events,
+    node: { position: UIPositionType.Absolute, insetLeft: px(0), insetBottom: px(0), width: px(W), height: px(32) },
+    placeholder: 'Type a message and press Enter…',
+    onSubmit: (text, entity) => {
+      if (!text.trim()) return;
+      messages.append([{ from: 'me', text }]);          // notifies the list
+      list.scrollToIndex(messages.getCount() - 1);      // keep the newest in view
+    },
+  });
+});
+
+addStartupSystem(buildChat);
+```
+
+The `append` notifies the list (dirty → re-sync next frame) **and** re-clamps
+the scroll range; `scrollToIndex` then lands on the new last row. Because the
+layout is measured, the append also invalidates the offset cache, so the new
+bubble's wrapped height is measured before anything is placed.
+
+## Best practices
+
+- **Virtualize anything data-shaped.** If the content is "N of the same thing",
+  reach for `createListView` even at modest N — you get recycling, scrolling,
+  clipping, and live data updates in one call. `createScrollView` is for
+  *heterogeneous* content.
+- **The data source is the single source of truth.** Selection, highlight,
+  badges — model them in the data and render them in `bind`; never stash list
+  state on row entities.
+- **Guard writes in `bind`.** Early-return when the value is unchanged; `bind`
+  runs for every mounted row on every scroll step.
+- **Measure once, reuse.** For auto-height rows, share one measure function
+  between `itemHeight` and the row's own text layout (same `fontSize`,
+  `maxWidth`) so the box and the glyphs always agree.
+- **Dispose what you create.** `dispose()` unregisters from the plugin,
+  releases rows, and drops subscriptions — leaking a list keeps it ticking.
+
+## See also
+
+- [UI](/docs/guides/ui/) — the component model these factories are built on.
+- [UI Components](/docs/guides/ui-components/) — the other widget factories (Button, Dialog, Text input, …).
+- [UI Layout](/docs/guides/ui-layout/) — `UINode` boxes, flexbox, and dimensions.
+- [UI Binding](/docs/guides/ui-binding/) — signals and two-way widget binding.
+- [UI Interaction](/docs/guides/ui-interaction/) — pointer events, focus, drag & drop.
+- [UI Theme](/docs/guides/ui-theme/) — the token roles the scrollbar and defaults draw from.

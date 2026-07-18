@@ -1,0 +1,259 @@
+---
+title: UI 交互
+description: UI 交互完整参考——Interactable/UIInteraction 命中测试、UIEvents 冒泡总线、拖放、键盘焦点、手动拾取辅助函数,以及 UI 如何叠在游戏输入之上。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+指针输入每帧走同一条管线:命中测试找到光标下最顶层的 `Interactable` 节点,把
+逐帧状态写进 `UIInteraction`,并在 `UIEvents` 总线上发出冒泡事件。拖拽与键盘
+焦点系统叠在其上。这一切都随默认 `uiPlugin` 一起提供——无需安装——交互系统在
+**播放模式**下运行。
+
+## 命中测试:`Interactable` + `UIInteraction`
+
+给节点加 `Interactable` 使其可被命中:
+
+| `Interactable` 字段 | 默认 | 说明 |
+|---|---|---|
+| `enabled` | `true` | 总开关——禁用的节点被命中测试、事件和 Tab 环全部跳过。 |
+| `blockRaycast` | `true` | 节点遮挡其后方的节点(也会终止其上方的事件冒泡走链)。 |
+| `raycastTarget` | `true` | 节点自身可以成为命中结果。 |
+
+每帧命中测试把指针状态写进命中实体的 `UIInteraction`。它按需创建(**transient**
+——从不手工添加、从不持久化),且**对你的逻辑只读**:查询它,绝不改它。
+
+| `UIInteraction` 字段 | 说明 |
+|---|---|
+| `hovered` | 指针悬停在节点上。 |
+| `pressed` | 主键在节点上按住。 |
+| `justPressed` | 本帧变为按下(单帧沿)。 |
+| `justReleased` | 本帧在被按下的节点上释放(单帧沿——即一次点击)。 |
+
+```typescript
+import { defineSystem, Query, Interactable, UIInteraction } from 'esengine';
+
+const onTiles = defineSystem([Query(Interactable, UIInteraction)], (q) => {
+  for (const [entity, _gate, state] of q) {
+    if (state.justReleased) { /* this node was clicked */ }
+  }
+});
+```
+
+只要有任一 UI 节点被命中,`input.isPointerOverUI()` 即为 `true`——这是防止
+点按钮同时触发世界点击的标准防线。
+
+## `UIEvents` 总线
+
+`UIEvents` 资源是带 DOM 式冒泡的发布/订阅队列。控件与交互系统发出标准事件集;
+类型空间是**开放的**——你可以发出任意字符串(ListView 就发 `'item_selected'`)。
+
+| `UIEventType` 常量 | 字符串 | 触发时机 | 冒泡 |
+|---|---|---|---|
+| `Click` | `'click'` | 在同一节点上按下并释放。键盘 Enter/Space 也会发出(仅发到 target,不冒泡)。 | 是 |
+| `Press` / `Release` | `'press'` / `'release'` | 主键在节点上按下 / 抬起。 | 是 |
+| `HoverEnter` / `HoverExit` | `'hover_enter'` / `'hover_exit'` | 命中节点发生变化。 | 否 |
+| `Focus` / `Blur` | `'focus'` / `'blur'` | 键盘焦点移动(见[焦点](#焦点与键盘))。 | 否 |
+| `Change` | `'change'` | 控件值变化(toggle、slider、dropdown……)。 | 否 |
+| `Submit` | `'submit'` | 文本输入确认(Enter)。 | 否 |
+| `DragStart` / `DragMove` / `DragEnd` | `'drag_start'` / `'drag_move'` / `'drag_end'` | 拖拽系统(见[拖放](#拖放))。 | 否 |
+| `Scroll` / `Select` / `Deselect` | `'scroll'` / `'select'` / `'deselect'` | 滚动视图与列表选择。 | 否 |
+
+冒泡事件沿父链上行,途经每个**启用的** `Interactable` 祖先;带 `blockRaycast`
+的祖先终止走链,任何处理器都可调用 `stopPropagation()`。每个 `UIEvent` 携带:
+
+| `UIEvent` 字段 | 说明 |
+|---|---|
+| `type` | 事件字符串。 |
+| `target` | 事件起源的实体。 |
+| `currentTarget` | 当前处理它的实体(冒泡期间与 `target` 不同)。 |
+| `data` | 可选负载(如 dropdown `change` 的 `{ index }`)。 |
+| `stopPropagation()` / `propagationStopped` | 终止冒泡。 |
+| `preventDefault()` / `defaultPrevented` | 请求发出方跳过默认动作。 |
+
+按实体或全局订阅——`on` 返回退订函数,实体销毁时其处理器自动清理:
+
+```typescript
+import { defineSystem, addStartupSystem, Res, UIEvents } from 'esengine';
+
+const wireMenu = defineSystem([Res(UIEvents)], (events) => {
+  events.on(buttonEntity, 'click', (e) => { /* one widget */ });
+  events.on('click', (e) => console.log('clicked', e.target)); // any entity
+});
+addStartupSystem(wireMenu);
+```
+
+系统也可以不订阅、直接读本帧队列:`events.query('click')` 非破坏性地查看待处理
+事件(交互插件在每帧开头 drain 队列)。
+
+## `makeWidgetInteractable`——为自定义控件接线
+
+所有内置控件工厂共享同一套交互装配,并导出给你的控件用:
+
+```typescript
+import { makeWidgetInteractable } from 'esengine';
+
+makeWidgetInteractable(world, myWidgetRoot, { tabIndex: 2 });
+```
+
+它插入一个阻挡射线的 `Interactable`,并(默认)加一个 `Focusable`,让控件既可
+点击**又**可键盘到达(Tab 聚焦,Enter/Space 激活)。选项:`disabled`(以
+`Interactable.enabled = false` 起步)、`focusable`(默认 `true`)、`tabIndex`
+(默认 `0` = 文档顺序)。它刻意*不*插入 `UIInteraction`——那是 transient 状态。
+悬停/按下的**视觉**状态请把字段绑到内置交互控制器的页——见
+[UI 控制器](/docs/zh-cn/guides/ui-controllers/)。
+
+## 拖放
+
+给带 `Interactable` 的节点加 `Draggable`,拖拽系统包办其余:按下、移过阈值,
+实体就跟随指针——有 `UINode` 时推它的绝对 inset(位置在下一次布局后仍然保留),
+否则平移 `Transform`。
+
+| `Draggable` 字段 | 默认 | 说明 |
+|---|---|---|
+| `enabled` | `true` | 总开关。 |
+| `dragThreshold` | `5` | 拖拽启动前需移动的屏幕像素(保住点击手感)。 |
+| `lockX` / `lockY` | `false` | 冻结某轴(仅水平拖动的卡片)。 |
+| `constraintMin` / `constraintMax` | `null` | 世界空间夹取角点,`null` 为不限制。 |
+
+拖拽期间,transient 组件 `DragState` 携带实时几何(均为世界空间):
+
+| `DragState` 字段 | 说明 |
+|---|---|
+| `isDragging` | 已过阈值且仍按住。 |
+| `startWorldPos` | 按下时的实体位置。 |
+| `currentWorldPos` | 当前实体位置。 |
+| `deltaWorld` | 距上一帧的位移。 |
+| `totalDeltaWorld` | 距拖拽开始的位移。 |
+| `pointerStartWorld` | 按下时的指针位置。 |
+
+系统在总线上发出 `drag_start` / `drag_move` / `drag_end`。拖卡入槽就是这三个
+事件加一次落点检测:
+
+```typescript
+import {
+  defineSystem, addStartupSystem, GetWorld, Res, UIEvents,
+  spawnUIEntity, Draggable, DragState, UIPositionType, px,
+} from 'esengine';
+
+const buildCard = defineSystem([GetWorld(), Res(UIEvents)], (world, events) => {
+  const card = spawnUIEntity({
+    world,
+    node: { width: px(90), height: px(120), position: UIPositionType.Absolute },
+    visual: { color: { r: 0.85, g: 0.75, b: 0.4, a: 1 } },
+  });
+  world.insert(card, Draggable, { dragThreshold: 4 });
+
+  events.on(card, 'drag_end', () => {
+    const state = world.get(card, DragState);
+    // Drop test: snap into the slot if released over it, else return to hand.
+    if (overDropSlot(state.currentWorldPos)) { /* snap the card in */ }
+  });
+});
+addStartupSystem(buildCard);
+```
+
+<Aside type="note">
+  指针下有多个 draggable 重叠时,系统选渲染层最高的那个,层相同再按层级深度
+  取胜——你抓到的永远是最上面那张卡。
+</Aside>
+
+## 焦点与键盘
+
+键盘可达性**默认开启**:`focusPlugin` 内置于 `uiPlugin`,每个控件工厂都会加
+`Focusable`(经 `makeWidgetInteractable`)。`FocusManager` 资源追踪唯一的聚焦
+实体;`Focusable.isFocused` 按实体映射它,每次移动都发 `focus` / `blur` 事件。
+
+| 交互 | 行为 |
+|---|---|
+| 点击可聚焦控件 | 聚焦它。 |
+| 点击空白处 / 按 `Escape` | 清除焦点。 |
+| `Tab` / `Shift+Tab` | 循环焦点环——按 `tabIndex` 排序(相同者按发现顺序),跳过禁用的 `Interactable` 和树上被 `display: none` 隐藏的一切。 |
+| 焦点控件上按 `Enter` / `Space` | 发出 `click`——激活按钮、开关、下拉。文本输入保留这些键用于编辑。 |
+| 打开的 `UIDialog` | **焦点陷阱**:模态对话框打开期间,只有其内部的可聚焦项参与 Tab 环(遮罩已阻挡外部的指针聚焦)。 |
+| 聚焦的下拉框 | `ArrowDown` / `ArrowUp` 步进选择(弹层开或关都行,原生 `<select>` 惯例);`Enter` 确认,`Escape` 关闭打开的弹层。 |
+
+```typescript
+import { defineSystem, Res, FocusManager } from 'esengine';
+
+const focusDebug = defineSystem([Res(FocusManager)], (focus) => {
+  if (focus.focusedEntity !== null) { /* draw a focus ring, play a tick… */ }
+});
+```
+
+<Aside type="note">
+  手柄导航未内置于焦点系统——焦点环由 `Tab` / `Enter` / `Space` / `Escape` 和
+  方向键驱动。手柄菜单请用[输入映射](/docs/zh-cn/guides/input/)自行驱动选择,
+  直接调用控件状态。
+</Aside>
+
+## 手动拾取
+
+游戏代码需要自己拾取时——自定义光标、任意 UI 上的 tooltip、编辑器工具——命中
+测试辅助函数已导出。它们与 C++ 内核对话,因此需要 wasm module 和 registry:
+
+```typescript
+import { uiPickWorld, UICameraInfo, Res, GetWorld, defineSystem } from 'esengine';
+
+const tooltip = defineSystem([GetWorld(), Res(UICameraInfo)], (world, camera) => {
+  if (!camera.valid) return;
+  const hit = uiPickWorld(
+    module, registry,                          // app.wasmModule / world.getCppRegistry()
+    camera.worldMouseX, camera.worldMouseY,    // cursor already projected to world
+  );
+  if (hit !== null) { /* show tooltip for `hit` */ }
+});
+```
+
+| 辅助函数 | 返回 | 用途 |
+|---|---|---|
+| `uiHitTestWorld(module, registry, x, y, …)` | 最顶层**可交互**实体或 `null` | 运行时射线——与交互系统同一套规则。 |
+| `uiPickWorld(module, registry, x, y)` | 最顶层 UI 实体或 `null` | 编辑器式拾取,无视 `Interactable`。 |
+| `uiPickAllWorld(module, registry, x, y)` | 该点下全部 UI 实体,最具体的在前 | 穿透式菜单、调试叠层。 |
+| `screenToUiWorld(camera, glX, glY)` | `{ x, y }` 世界点 | 把 GL 朝向的屏幕点经 UI 相机投到世界。 |
+| `uiWorldToScreen(camera, x, y)` | `{ x, y }` 屏幕点 | 逆变换——把 DOM/屏幕特效对到 UI 节点上。 |
+
+常见情形其实用不到这些:`UICameraInfo.worldMouseX/Y` 就是已投影到世界空间的
+光标,`input.isPointerOverUI()` 回答"指针是否落在 UI 上"。
+
+## UI 输入与游戏输入
+
+平台原始事件先经过 `InputRouter` 才落到 `Input` 资源——一条三层的责任链:
+
+1. **编辑器** —— 视口工具(仅编辑器宿主)。
+2. **UI** —— 文本输入等必须占有原始事件的 UI 内部机制。
+3. **游戏** —— 隐式:上游未消费的一切进入你的系统轮询的 `Input` 资源。
+
+处理器(`InputHandler`)可实现 `onKeyDown`、`onKeyUp`、`onPointerMove`、
+`onPointerDown`、`onPointerUp`、`onWheel` 及触摸回调中的任意几个,每个都收到
+当前 `Modifiers`(`shift` / `ctrl` / `alt` / `meta`);返回 `true` 即**消费**
+该事件——它不会更新 `Input`,也不会到达后续层。用
+`inputRouter.setUIHandler(handler)` / `setEditorHandler(handler)` 注册;各返回
+一个注销函数,每层只持有一个处理器。
+
+游戏里通常不用碰路由:指针在 UI 上的仲裁已在轮询层解决——命中 UI 会置
+`input.pointerOverUI`,gameplay 用 `isPointerOverUI()` 防守即可。只有当某系统
+必须在 `Input` 资源看到之前占有*原始*事件时(吞掉 Escape 的模态、捕获全部按键
+的小游戏),才装路由处理器。
+
+## 最佳实践
+
+- **只读、绝不写 `UIInteraction`**——它是引擎持有的逐帧状态;逻辑从它或
+  `UIEvents` 驱动。
+- **控件走总线,网格走查询**——单个控件用 `events.on(entity, 'click', …)` 最
+  清晰;整版同质格子用 `Query(Interactable, UIInteraction)` 更能扩展。
+- **用 `input.isPointerOverUI()` 防守世界点击**,别让 UI 点击漏进 gameplay。
+- **自定义控件用 `makeWidgetInteractable`**——一次调用同时获得命中测试与键盘
+  可达,和内置控件一致。
+- **可点击的东西保持 `dragThreshold` 非零**,否则每次点击都可能变成 0 像素的
+  拖拽。
+- **`tabIndex` 省着用**——文档顺序通常就是正确的 Tab 顺序;显式序号只留给
+  跳转。
+
+## 另请参阅
+
+- [UI](/docs/zh-cn/guides/ui/) —— 组件模型总览。
+- [UI 组件](/docs/zh-cn/guides/ui-components/) —— 事件已接好线的控件工厂。
+- [UI 控制器](/docs/zh-cn/guides/ui-controllers/) —— 由交互控制器驱动的悬停/按下**视觉**状态。
+- [UI 数据绑定](/docs/zh-cn/guides/ui-binding/) —— 基于 `change` 事件的控件值双向绑定。
+- [输入](/docs/zh-cn/guides/input/) —— UI 层之下的 `Input` 资源、输入映射与手势。

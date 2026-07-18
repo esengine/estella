@@ -20,6 +20,46 @@ const goToLevel2 = defineSystem([Res(SceneManager)], async (scenes) => {
 });
 ```
 
+## 场景过渡
+
+`switchTo` 与 `unload` 接受 `TransitionOptions`。用 `transition: 'fade'` 时,切换会经一个
+纯色遮罩分三阶段淡入淡出:遮罩在 `duration` 的前一半内渐变到不透明,**在旧场景卸载、新场景
+加载期间保持全黑**(加载慢只会延长停留,不会闪屏),再在后一半内渐变回来。被 await 的
+promise 只在淡入完成后 resolve——加载失败则 reject。过渡进行中再调 `switchTo` 会被忽略并
+打警告;`isTransitioning()` 可以查询。
+
+| 选项 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `transition` | `'none' \| 'fade'` | `'none'` | 硬切,或经 `color` 淡入淡出。 |
+| `duration` | number | `0.3` | 总淡出淡入时间(秒)——前一半出、后一半入(`RuntimeConfig.sceneTransitionDuration`)。 |
+| `color` | `Color` | 不透明黑 | 遮罩颜色(`RuntimeConfig.sceneTransitionColor`;构建配置里用十六进制字符串)。 |
+| `onStart` / `onComplete` | 回调 | – | 淡出开始时 / 淡入结束后触发。 |
+| `keepPersistent` | boolean | `true` | 让经 `SceneContext.setPersistent` 标记的实体在卸载中存活。 |
+
+`transitionTo` 是同一套机制上的一步到位便捷函数,用 `TransitionConfig` 配置
+(`type: 'fade'`、`duration`、可选 `color`)。第一个参数接受 `App`(引导代码、菜单胶水)
+或 SceneManager 资源状态——在系统里直接传 `Res(SceneManager)` 给你的值。菜单 → 关卡的流程:
+
+```typescript
+import { transitionTo, type TransitionConfig } from 'esengine';
+
+const fadeToBlack: TransitionConfig = {
+  type: 'fade',
+  duration: 0.5,
+  color: { r: 0, g: 0, b: 0, a: 1 },
+};
+
+async function onPlayClicked() {
+  await transitionTo(app, 'levels/level1', fadeToBlack);   // menu → level
+}
+```
+
+<Aside type="note">
+  以上这些都由 `sceneManagerPlugin` 提供,默认的 app 引导已经注册它:它插入 `SceneManager`
+  和 `SceneStreaming` 资源、在启动时加载初始场景,并每帧推进过渡与流送。只有从零散插件手工
+  组装 `App` 时才需要自己添加。
+</Aside>
+
 ## 叠加场景
 
 把一个场景加载到当前场景**之上**——HUD、暂停菜单、流式区域——而不卸载下面的内容。
@@ -52,6 +92,25 @@ const setupStreaming = defineSystem([Res(SceneStreaming)], (streaming) => {
 卸载:实体留在内存里、被禁用并隐藏,重进即恢复,代价是内存。单元场景就是普通的
 项目场景,按名字引用(见下)。
 
+资源之下是 `SceneStreamingController`——对 `SceneManager` 原语
+(`loadAdditive` / `unload` / `sleep` / `wake`)的纯编排;它自己不拥有任何加载。距离量到
+**单元边缘**(中心距离减去 `radius`),所以大单元在中心还很远时就开始加载。加载与卸载是
+异步的,控制器保证其安全:某单元有加载/卸载在途时绝不重复下发;如果加载完成时焦点已经离开,
+该单元会被再次丢弃而不是泄漏驻留。没有注册任何单元时,`update()` 是空操作。
+
+| `SceneStreamingController` | 说明 |
+|---|---|
+| `configure({ loadRadius, unloadRadius, policy? })` | 设置半径(`unloadRadius` 向上钳制到不小于 `loadRadius`)与出界策略——`'unload'`(默认)或 `'sleep'`。 |
+| `register(cell)` / `unregister(scene)` / `clear()` | 管理单元集合(`{ scene, x, y, radius }`)。 |
+| `setFocus(x, y)` | 直接驱动焦点(每帧调用)。 |
+| `setFocusEntity(entity)` / `getFocusEntity()` | 改为跟随一个实体——流送系统每 tick 读它的 `Transform`(仅 play 模式)。 |
+| `getActive()` | 控制器当前认为在范围内的场景名。 |
+| `update()` | 按当前焦点调和驻留单元(`sceneManagerPlugin` 每帧调用)。 |
+
+阈值数学也单独导出为纯函数
+`computeStreaming(cells, focusX, focusY, loadRadius, unloadRadius, active)`——
+适合测试或自定义调度器。
+
 ## 构建里的场景
 
 项目场景目录下的每个场景都会随导出发布,并注册为 `switchTo` 的目标。场景的**名字**是它
@@ -77,6 +136,84 @@ const setupStreaming = defineSystem([Res(SceneStreaming)], (streaming) => {
 | `isActive(name)` | 场景是否活动。 |
 | `isPaused(name)` / `isSleeping(name)` | 上述两种挂起状态。 |
 | `isTransitioning()` | `switchTo` 过渡期间为 `true`。 |
+
+## 序列化与迁移
+
+场景文件格式是公开表面:`SceneData` 是纯 JSON,编辑器和运行时读写它所用的原语都导出给
+游戏代码。你会在这些时刻用到它们:保存**活世界的快照**(比[存档 API](/docs/zh-cn/guides/save/)
+更完整的检查点)、加载玩家生成或下载的场景,或发布状态放不进普通字段的组件。
+
+`serializeScene(world, name?)` 遍历活世界,产出能经加载器往返的 `SceneData`——层级折叠进
+每个实体记录的 `parent`/`children` 字段,仅运行时的投影实体(瓦片碰撞体之类,由其系统重新
+派生)被排除。`loadSceneWithAssets(world, data, options?)` 先预加载所有被引用的资源再生成
+实体;同步的 `loadSceneData(world, data)` 不做资源解析直接生成。两者都返回序列化实体 id 到
+活实体的映射,之后可用 `findEntityByName(world, name)` 找实体:
+
+```typescript
+import { defineSystem, GetWorld, Res, Assets, serializeScene,
+         loadSceneWithAssets, findEntityByName, MissingAssetsError } from 'esengine';
+
+const checkpoint = defineSystem([GetWorld(), Res(Assets)], async (world, assets) => {
+  // Save: snapshot the live world as ordinary scene JSON.
+  const data = serializeScene(world, 'checkpoint');
+  localStorage.setItem('checkpoint', JSON.stringify(data));
+
+  // Load: preload assets, then spawn. Old saves are migrated automatically.
+  try {
+    await loadSceneWithAssets(world, JSON.parse(localStorage.getItem('checkpoint')!), {
+      assets,
+      abortOnMissingAssets: true,        // throw instead of spawning with holes
+      onMissingAssets: (missing) => {    // called once per load (list may be empty)
+        for (const m of missing) console.warn(`${m.ref}: ${m.reason}`);
+      },
+    });
+  } catch (e) {
+    if (e instanceof MissingAssetsError) { /* "content missing" UI — e.missing */ }
+  }
+
+  const player = findEntityByName(world, 'Player');
+});
+```
+
+`SceneLoadOptions`:
+
+| 选项 | 说明 |
+|---|---|
+| `assets` | `Assets` 资源;启用生成前的资源预加载(以及预制体实例展开)。 |
+| `assetBaseUrl` | 解析资源路径的基准 URL。 |
+| `onProgress` | `(loaded, total)` 预加载进度回调。 |
+| `onMissingAssets` | 用所有解析失败或加载失败的引用调用一次(`MissingAsset[]`——`ref`、可选 `type`、`reason: 'unresolved' \| 'load-failed'`)。列表为空也会触发。 |
+| `abortOnMissingAssets` | 默认 `false`——缺失资源拿到句柄 `0`,场景照常加载。`true` 时在预加载之后、任何实体生成之前抛出 `MissingAssetsError`。 |
+| `collectAssets` | 记账集合,加载把获取到的资源键加入其中,调用方(通常是场景管理器)卸载时据此释放。 |
+
+**版本化。** 场景文件带 `version`(当前 `SCENE_FORMAT_VERSION = '1.0'`)。
+`migrateSceneData(raw)` 把任何旧形态升级到当前格式:它从不改动输入(返回迁移后的深拷贝)、
+幂等、丢弃被引擎升级淘汰的组件类型,并**拒绝比引擎更新的数据**。每个加载器内部都会跑它——
+只有想检查 `migrated` / `fromVersion` 时才自己调用(比如提示重新保存升级后的文件):
+
+```typescript
+import { migrateSceneData } from 'esengine';
+
+const { data, migrated, fromVersion } = migrateSceneData(raw);
+if (migrated) console.log(`upgraded scene from format ${fromVersion}`);
+```
+
+**带外组件状态。** 完整状态放不进普通字段记录的组件——tilemap 图层的瓦片 chunk 存在 C++
+blob 里——注册一个 `SceneComponentCodec`,让通用(反)序列化器无需组件专有知识也能携带它:
+
+```typescript
+import { registerSceneComponentCodec } from 'esengine';
+
+registerSceneComponentCodec('MyVoxelChunk', {
+  exportData(entity, data) { data.chunks = myStore.serialize(entity); },
+  outOfBandFields: ['chunks'],          // stripped before the component insert
+  importData(entity, outOfBand) { myStore.restore(entity, outOfBand.chunks); },
+});
+```
+
+保存时 `exportData` 把额外状态写进记录;加载时列出的 `outOfBandFields` 在组件插入前从记录
+中剥离,插入后交给 `importData`。注册是幂等的——由拥有它的插件在启动时完成(见
+`tilemapPlugin`)。
 
 ## 最佳实践
 

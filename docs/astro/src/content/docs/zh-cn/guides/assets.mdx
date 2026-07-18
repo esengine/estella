@@ -124,21 +124,42 @@ const { failed } = await assets.preload(
 
 纹理预算默认 **64 MB**(`RuntimeConfig.textureCacheBudget`,也可在构建配置里用
 `textureCacheBudget` 设置);解码音频有自己的 **32 MB** 镜像(`audioCacheBudget`,
-见[音频指南](/docs/zh-cn/guides/audio/))。用 `setTextureBudget` 按你的游戏调纹理预算大小,
-用 `getResourceStats` 观测驻留情况:
+见[音频指南](/docs/zh-cn/guides/audio/))。
+
+## 纹理内存与预算
+
+纹理是真正要紧的预算——它们主宰 GPU 内存。引擎启动时应用
+`RuntimeConfig.textureCacheBudget`;用 `setTextureBudget` 按你的游戏调它的大小(它是
+C++ 池之上唯一面向游戏的表面——没有一个会与之漂移的平行 TS 侧预算),用
+`getResourceStats` 观测驻留:
 
 ```typescript
-import { setTextureBudget, getResourceStats } from 'esengine';
+import { setTextureBudget, getResourceStats, trimTextureCache } from 'esengine';
 
 setTextureBudget(256 * 1024 * 1024);   // 256 MB texture budget
 
-const stats = getResourceStats();
+const stats = getResourceStats();      // 引擎初始化前为 null
 // stats.textureBytes          — 常驻纹理字节数(持有 + 可逐出)
-// stats.textureBudget         — 当前预算
+// stats.textureBudget         — 当前预算(0 = 逐出关闭)
 // stats.textureEvictableCount — 等待复活或逐出的热缓存条目数
+// …还有 shaderCount / textureCount / vertexBufferCount / indexBufferCount
+//  与 cacheHits / cacheMisses
+
+const freed = trimTextureCache();      // 立即丢弃所有可逐出纹理
 ```
 
-把预算设为 `0` 会关闭热缓存——每个纹理在最后一个引用释放的瞬间就被销毁。
+这里的"GC"就是上文的 LRU:一旦 `textureBytes` 超出 `textureBudget`,C++ 池逐出最久未用的
+**无引用**纹理直到装下——持有中的纹理绝不会被动。`setTextureBudget(0)` 完全关闭热缓存
+(每个纹理在最后一个引用释放的瞬间销毁),`trimTextureCache()` 一次性释放所有可逐出条目并
+返回数量——引擎在系统内存警告时会调用它;在已知的内存尖峰之前也可以自己调。
+
+还有两个小帮手补全这个表面:`getTextureDimensions(handle)` 返回纹理的
+`{ width, height }`(首次查询后缓存在 TS 侧),`evictTextureDimensions(handle)` 丢弃那条
+缓存——资源系统在纹理真正释放时会这么做,所以只有绕过资源系统自己销毁重建纹理时才需要它。
+
+想逐帧观察这些数字(编辑器内和运行时),见[性能分析](/docs/zh-cn/guides/profiling/)。
+逐纹理的**采样/过滤**参数(像素风 nearest 还是平滑 linear)见
+[精灵指南](/docs/zh-cn/guides/sprites/)。
 
 ## 最佳实践
 

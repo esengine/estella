@@ -126,6 +126,40 @@ bindings, and multiple bindings sum (then clamp), so keyboard and gamepad coexis
 | `Keys2D(up, down, left, right)` | axis2d | Four keys → a 2D direction. |
 | `Stick('left' \| 'right', pad?)` | axis2d | A gamepad stick (up = +y, matching `Keys2D`). |
 
+### The data model
+
+Those constructors are just sugar over plain, serializable data — `Binding` is a
+tagged union, and an action is a `type` plus its binding list:
+
+```typescript
+import { type Binding, type ActionDef } from 'esengine';
+
+const jump: ActionDef = {
+  type: 'button',                          // 'button' | 'axis' | 'axis2d'
+  bindings: [
+    { kind: 'key', code: 'Space' },        // Key('Space')
+    { kind: 'gpButton', button: 0 },       // GpButton(GamepadButton.South)
+  ],
+};
+```
+
+| `Binding` kind | Fields | Constructor |
+|---|---|---|
+| `key` | `code` | `Key` |
+| `mouse` | `button` | `MouseButton` |
+| `gpButton` | `button`, `pad?` | `GpButton` |
+| `gpAxis` | `axis`, `pad?`, `scale?` | `GpAxis` |
+| `keys1d` | `neg`, `pos` | `Keys1D` |
+| `keys2d` | `up`, `down`, `left`, `right` | `Keys2D` |
+| `stick` | `stick: 'left' \| 'right'`, `pad?` | `Stick` |
+
+Because bindings are data, this one model is also the **rebind and persistence
+format**: `toJSON()` / `loadJSON()` round-trip the bindings alone (per-action
+`Binding[]`), while `toAsset()` serializes the full map — action types included —
+as an `InputMapAsset` (`{ version, actions }`), the content of an `.inputmap`
+file. `loadJSON` ignores actions the map doesn't define, so stale saved data for
+a removed action never resurrects it.
+
 ### Rebinding & persistence
 
 Bindings are plain serializable data, so a controls screen stays small:
@@ -137,6 +171,12 @@ Controls.save('controls');                // persist to platform Storage
 // on boot:
 Controls.load('controls');                // re-apply saved bindings (if any)
 ```
+
+`rebind` / `listenForBinding` take a `ListenOptions` choosing which device
+families the capture listens to: `keyboard` and `gamepad` default **on**,
+`mouse` defaults **off** — so the click that pressed the "rebind" button isn't
+itself captured. Axis sources are never captured; rebinding targets discrete
+inputs.
 
 `getBindings` / `setBindings` inspect and edit bindings programmatically, and
 `cancelListen()` aborts a pending capture (it resolves with `null`).
@@ -172,6 +212,65 @@ const gestureSystem = defineSystem([Res(Input), Res(Time)], (input, time) => {
 A tap is a touch under 0.3 s with less than 10 px of travel; a swipe needs ≥ 50 px
 at ≥ 200 px/s; pinch reports the frame-to-frame scale of a two-finger spread with
 its center point.
+
+## Input routing (layers)
+
+Before a raw platform event lands in the `Input` resource, it passes through the
+**`InputRouter`** — a chain of responsibility with three tiers:
+
+1. **Editor** — tools (gizmos, marquee drags) get first claim.
+2. **UI** — widgets and dialogs claim what falls through.
+3. **Game** — implicit: the `Input` resource itself. Gameplay only ever sees
+   events no upstream handler consumed.
+
+A handler callback returns `true` to **consume** the event — it then neither
+updates `Input` nor reaches later tiers. Returning `false` / nothing lets it fall
+through. Because consumption is per-event (not a global "editor is active" flag),
+a tool can claim exactly what it cares about: a marquee drag consumes pointer
+moves while pressed but lets the wheel scroll through to the camera; a modal
+consumes Escape but ignores the arrow keys.
+
+The engine's UI plugin already occupies the UI tier — that is what makes
+`isPointerOverUI()` and click-through prevention work. You write a handler when
+building tools or embedding the engine in a host app:
+
+```typescript
+import { inputRouter, type InputHandler } from 'esengine';
+
+const modalHandler: InputHandler = {
+  onKeyDown(code, mods) {
+    if (code === 'Escape') { closeModal(); return true; }   // consumed
+  },
+  onPointerDown(button, x, y, mods) {
+    return isInsideModal(x, y);   // claim clicks on the modal, pass the rest
+  },
+};
+
+const release = inputRouter.setUIHandler(modalHandler);
+// when the modal closes:
+release();
+```
+
+`inputRouter` is a module-level singleton; `setEditorHandler` / `setUIHandler`
+install one handler per tier and return an unregister thunk (unregistering only
+removes *your* handler, never a newer one). All `InputHandler` methods are
+optional:
+
+| `InputHandler` method | Signature |
+|---|---|
+| `onKeyDown` / `onKeyUp` | `(code, mods)` |
+| `onPointerMove` | `(x, y, mods)` |
+| `onPointerDown` | `(button, x, y, mods)` |
+| `onPointerUp` | `(button, mods)` |
+| `onWheel` | `(deltaX, deltaY, mods)` |
+| `onTouchStart` / `onTouchMove` | `(id, x, y)` |
+| `onTouchEnd` / `onTouchCancel` | `(id)` |
+
+`mods` is a **`Modifiers`** snapshot — `{ shift, ctrl, alt, meta }` — tracked by
+the router from key events (also readable any time as `inputRouter.currentMods`).
+On the key-up edge that releases a modifier, handlers still see it as held,
+matching DOM `event.shiftKey` semantics. A handler that throws is treated as not
+consuming, so a broken tool can't swallow all input.
 
 ## Reference
 

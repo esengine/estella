@@ -1,6 +1,6 @@
 ---
 title: UI Components
-description: The built-in widget factories — Button, Toggle, Slider, Progress, Dropdown, Dialog, and ListView — plus text input, drag & drop, keyboard focus, mobile safe areas, and theming.
+description: The built-in widget factories — Button, Toggle, Slider, Progress, Dropdown, Dialog, and Text input — their options, handles, and state components, plus the editor prefabs.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -13,10 +13,12 @@ always with `entity` and `dispose()`, plus imperative methods to read and drive 
 
 Interactive widgets need the world and the UI event queue — `world` from `GetWorld()`
 and `events` from `Res(UIEvents)`, exactly as in the [UI guide](/docs/guides/ui/). They
-all accept `parent?`, a `node?` ([`UINode`](/docs/guides/ui/#uinode--the-layout-box)
-layout), and visual overrides. Interactive widgets are **keyboard-reachable by
-default**: they carry a `Focusable`, so Tab reaches them, Enter/Space clicks them, and
-arrow keys drive sliders — opt out with `focusable: false`.
+all accept `parent?`, a `node?` ([`UINode`](/docs/guides/ui-layout/) layout — **default:
+fill the parent**), and visual overrides; visual defaults come from the active
+[theme](/docs/guides/ui-theme/)'s roles and re-resolve on a live theme swap.
+Interactive widgets are **keyboard-reachable by default**: they carry a `Focusable`,
+so Tab reaches them, Enter/Space clicks them, and arrow keys drive sliders — opt out
+with `focusable: false`.
 
 <Aside type="tip">
   These are a convenient starting point, not a closed set — a widget is just an entity
@@ -53,19 +55,23 @@ const btn = createButton({
 });
 ```
 
-| Option | Description |
-|---|---|
-| `text` | Label — a string or a `TextInit`. Omit for no label. |
-| `states` | Map of state name (`normal` / `hover` / `pressed` / `disabled` / `focused`) → color / sprite / scale override. Omit to use the active theme's control roles. |
-| `background` | Background visual (default: solid white). |
-| `fadeDuration` | Tween time for color/scale state changes (default `0` = snap; sprite swaps always snap). |
-| `disabled` | Start disabled. |
-| `focusable` / `tabIndex` | Keyboard reachability (default `true` / `0`). |
-| `onClick(entity)` | Click callback. |
+| Option | Default | Description |
+|---|---|---|
+| `node` | fill the parent | The button's `UINode` layout. |
+| `text` | none | Label — a string or a `TextInit`. Omit for no label. The label color/size default to the theme's `text` role and label type size. |
+| `states` | theme control roles | Map of state name (`normal` / `hover` / `pressed` / `disabled` / `focused`) → color / sprite / scale override. Custom names (e.g. `'loading'`) are allowed. |
+| `background` | solid white | Background visual (a `UIVisualInit`). |
+| `fadeDuration` | `0` (snap) | Tween time for color/scale state changes; sprite swaps always snap. |
+| `disabled` | `false` | Start disabled. |
+| `focusable` / `tabIndex` | `true` / `0` | Keyboard reachability and Tab order. |
+| `onClick(entity)` | — | Click callback (gated on the enabled state). |
 
 **Handle:** `entity`, `setDisabled(disabled)`, `dispose()`.
 
-Flip a custom state later with `setButtonState(world, handle.entity, 'loading')`.
+The theme-default states are also exported as `themeButtonStates()` — spread and
+override them instead of restating all five. Flip a custom state later with
+`setButtonState(world, handle.entity, 'loading')`; the pointer driver leaves any
+non-canonical page alone until you switch back.
 
 ## Toggle
 
@@ -86,12 +92,15 @@ const toggle = createToggle({
 toggle.setIsOn(false);      // programmatic change (fires onChange)
 ```
 
-| Option | Description |
-|---|---|
-| `interactionStates` | Frame visual states (like the button's `states`; theme defaults when omitted). |
-| `check` | The on-state indicator: `{ node?, color?, sprite? }`, shown when on (theme accent by default). |
-| `isOn` | Initial state. |
-| `onChange(isOn, entity)` | Fires on toggle. |
+| Option | Default | Description |
+|---|---|---|
+| `node` / `background` | fill the parent / solid white | Frame layout + background, as in `createButton`. |
+| `interactionStates` | theme control roles | Frame visual states (like the button's `states`). |
+| `check` | theme `primary` fill | The on-state indicator: `{ node?, color?, sprite? }`, a child shown when on. Fills the frame by default — inset it via `check.node`. |
+| `isOn` | `false` | Initial state. |
+| `disabled` | `false` | Start disabled. |
+| `focusable` / `tabIndex` | `true` / `0` | Keyboard reachability. |
+| `onChange(isOn, entity)` | — | Fires on toggle. |
 
 **Handle:** `isOn()`, `setIsOn(value)`, `setDisabled(disabled)`, `entity`, `dispose()`.
 
@@ -121,17 +130,19 @@ const slider = createSlider({
 slider.setValue(75);
 ```
 
-| Option | Description |
-|---|---|
-| `min` / `max` / `value` | Range and initial value. |
-| `step` | Quantization step (`0` = continuous). Also the keyboard nudge. |
-| `handleWidth` | Thumb width in pixels (default `12`). |
-| `disabled` / `focusable` / `tabIndex` | Interactivity + keyboard reachability. |
-| `trackVisual` / `fillVisual` / `handleVisual` | Per-part visuals. |
-| `onChange(value, entity)` | Fires on value change — from input, `setValue`, or any other writer. |
+| Option | Default | Description |
+|---|---|---|
+| `node` | fill the parent | The track's `UINode` layout. |
+| `min` / `max` | `0` / `1` | The range. |
+| `value` | `min` | Initial value (clamped and step-quantized). |
+| `step` | `0` (continuous) | Quantization step. Also the keyboard nudge. |
+| `handleWidth` | `12` | Thumb width in pixels. |
+| `disabled` / `focusable` / `tabIndex` | `false` / `true` / `0` | Interactivity + keyboard reachability. |
+| `trackVisual` / `fillVisual` / `handleVisual` | theme `track` / `primary` / `onPrimary` | Per-part visuals. |
+| `onChange(value, entity)` | — | Fires on value change — from input, `setValue`, or any other writer. |
 
-**Handle:** `getValue()`, `setValue(v)`, `dispose()`, plus `trackEntity` /
-`fillEntity` / `handleEntity`.
+**Handle:** `getValue()`, `setValue(v)`, `dispose()`, plus `entity` /
+`trackEntity` (the same entity) / `fillEntity` / `handleEntity`.
 
 <Aside type="note">
   The state lives in a **`UISlider` component** on the track entity; the behavior
@@ -143,6 +154,7 @@ slider.setValue(75);
 ## Progress
 
 `createProgress(opts)` is a non-interactive fill bar. Returns a `ProgressHandle`.
+It takes no `events` — nothing to interact with.
 
 ```typescript
 import { createProgress } from 'esengine';
@@ -160,14 +172,16 @@ bar.setValue(0.6);   // 0..1
 const ring = createProgress({ world, parent, radial: true, value: 0.75 });
 ```
 
-| Option | Description |
-|---|---|
-| `value` | Initial progress, `0..1`. |
-| `direction` | Linear fill growth: `'right'` (default), `'left'`, `'up'`, `'down'`. |
-| `radial` | Radial gauge instead of a bar — a clockwise wedge sweeping the full circle. Ignores `direction`. |
-| `background` / `fill` | Track and fill visuals. |
+| Option | Default | Description |
+|---|---|---|
+| `node` | fill the parent | The track's `UINode` layout. |
+| `value` | `0` | Initial progress, `0..1` (clamped). |
+| `direction` | `'right'` | Linear fill growth: `'right'`, `'left'`, `'up'`, `'down'`. |
+| `radial` | `false` | Radial gauge instead of a bar — a clockwise wedge sweeping the full circle. Ignores `direction`. |
+| `background` | theme `track` | Track visual (a `UIVisualInit`). |
+| `fill` | theme `primary` | The filled bar: `{ color?, sprite? }`. |
 
-**Handle:** `value()`, `setValue(v)`, `dispose()`, plus `fillEntity`.
+**Handle:** `value()`, `setValue(v)`, `dispose()`, plus `entity` / `fillEntity`.
 
 <Aside type="note">
   **One fill primitive.** A progress bar is a single [`UIVisual`](/docs/guides/ui/) in
@@ -203,18 +217,20 @@ createDropdown({
 });
 ```
 
-| Option | Description |
-|---|---|
-| `options` | The list of selectable values. |
-| `selectedIndex` | Initial selection. |
-| `optionToLabel(option, i)` | Map a non-string option to its display text. |
-| `buttonStates` | Colors for the main button (option rows use theme roles). |
-| `optionHeight` | Row height in pixels (default `32`). |
-| `disabled` / `focusable` / `tabIndex` | Interactivity + keyboard reachability. |
-| `onSelect(index, option, entity)` | Fires on selection. |
+| Option | Default | Description |
+|---|---|---|
+| `node` | fill the parent | The main button's `UINode` layout. |
+| `options` | — | The list of selectable values. Required. |
+| `selectedIndex` | `0` | Initial selection. |
+| `optionToLabel(option, i)` | `String(option)` | Map a non-string option to its display text. |
+| `buttonStates` | theme control roles | `{ normal?, hover?, pressed? }` colors for the main button (option rows use theme roles). |
+| `optionHeight` | `32` | Row height in pixels. |
+| `disabled` / `focusable` / `tabIndex` | `false` / `true` / `0` | Interactivity + keyboard reachability. |
+| `onSelect(index, option, entity)` | — | Fires on selection. |
 
 **Handle:** `getSelected()`, `getSelectedIndex()`, `setSelectedIndex(i)`,
-`open()`, `close()`, `isOpen()`, `dispose()`.
+`open()`, `close()`, `isOpen()`, `dispose()`, plus `entity` / `labelEntity`
+(the child `Text` showing the current selection).
 
 <Aside type="note">
   Labels + selection live in a **`UIDropdown` component**; the behavior system owns
@@ -247,13 +263,13 @@ dialog.open();
 dialog.close();
 ```
 
-| Option | Description |
-|---|---|
-| `backdropNode` / `backdropVisual` | The full-viewport scrim behind the panel. |
-| `panelNode` / `panelVisual` | The modal panel (default: 400×300, centered). |
-| `startHidden` | Start closed (default `true`). |
-| `closeOnEscape` / `closeOnBackdrop` | The standard dismissals — Escape, and a click on the scrim (not the panel). Both default `true`. |
-| `onOpenChange(open)` | Fires on every open/close, whoever initiated it. |
+| Option | Default | Description |
+|---|---|---|
+| `backdropNode` / `backdropVisual` | fill the parent / theme `backdrop` scrim | The full-viewport scrim behind the panel. It blocks pointer hits but is not focusable. |
+| `panelNode` / `panelVisual` | 400×300 centered / theme `surface` | The modal panel. The panel swallows clicks so only true scrim clicks dismiss. |
+| `startHidden` | `true` | Start closed. |
+| `closeOnEscape` / `closeOnBackdrop` | `true` / `true` | The standard dismissals — Escape, and a click on the scrim (not the panel). |
+| `onOpenChange(open)` | — | Fires on every open/close, whoever initiated it. |
 
 While a dialog is open it also **traps the Tab ring**: only focusables inside the
 open dialog's subtree participate (the scrim already blocks pointer focus outside).
@@ -267,120 +283,11 @@ backdrop root) / `panelEntity`.
   prefab closes on Escape / scrim clicks without any code hookup.
 </Aside>
 
-## Lists & collections
-
-For long, scrollable, **data-driven** lists — inventories, leaderboards, chat logs —
-`createListView` builds a **virtualized** list (or grid): only the items near the
-viewport are ever mounted, so a 10 000-row list stays cheap. One call composes a data
-source, a layout, item recycling, scrolling, and clipping.
-
-```typescript
-import { createListView, uiPlugin, arrayDataSource, spawnUIEntity, px } from 'esengine';
-
-const list = createListView<Player>({
-  world, host: uiPlugin, parent,
-  viewportSize: { x: 320, y: 480 },     // the visible window, in pixels
-  data: arrayDataSource(players),        // any DataSource<T>, or a raw array
-  layout: { itemHeight: 56 },            // a column list
-  item: {
-    create: (world, parent) => spawnUIEntity({ world, parent, node: { height: px(56) } }),
-    bind: (entity, player, index) => { /* fill the row's Text / Sprite from `player` */ },
-  },
-});
-```
-
-`host` is the plugin that ticks virtualization and routes scroll input — pass the
-`uiPlugin` your app was built with. `item.create` builds one row entity; `item.bind`
-fills it from the data. `bind` runs every time a row is reused for a different index,
-so keep it a pure "apply this data" function.
-
-**Layout** is a column, a row, or a grid:
-
-| `layout` | Result |
-|---|---|
-| `{ itemHeight }` | A vertical list — a fixed row height, or a **`(index) => number`** for [auto-height rows](#auto-height-rows). |
-| `{ itemWidth, direction: 'row' }` | A horizontal list. |
-| `{ columns, itemSize }` | A grid (a *TileView*). |
-
-**Updating** the list means mutating its data source — an `ArrayDataSource` notifies
-the view, which re-syncs on the next frame:
-
-```typescript
-list.data.append([newPlayer]);        // add
-list.data.remove(3);                   // remove index 3
-list.data.update(0, updatedPlayer);    // replace one
-list.data.setItems(freshList);         // replace all
-```
-
-**Handle:** `data` (mutate it to change the list) · `scrollToIndex(i)` · `refresh()` ·
-`mountedCount()` (never grows with the data — handy in tests) · `dispose()`, plus
-`scroll` and `view` as escape hatches to the underlying `ScrollContainer` / `ListView`.
-
-<Aside type="note">
-  Scrolling works out of the box: mouse wheel over the viewport, pointer **drag with
-  a kinetic fling** — the platform layer funnels the primary touch into the pointer
-  stream, so touch scrolling rides the same path — and an **auto-fading overlay
-  scrollbar** per scrollable axis (opt out with `showScrollbar: false` on the
-  ScrollContainer). Tune it with `dragScroll: false` or
-  `decelerationRate` (fling velocity left after 1s; default `0.135`, the ScrollRect
-  standard). For heterogeneous rows, pass a map of item type → template instead of one
-  `item`, and give the data source a `getItemType(i)`.
-</Aside>
-
-### Auto-height rows
-
-Pass a **function** for `itemHeight` to size each row to its content — perfect for a
-chat log where a bubble grows with its wrapped text. The list caches the measurement
-and re-flows on data or viewport changes:
-
-```typescript
-import { measureText } from 'esengine';
-
-createListView<Message>({
-  world, host: uiPlugin, parent,
-  viewportSize: { x: 360, y: 480 },
-  data: messages,
-  layout: {
-    itemHeight: (i) => measureText(messages.getItem(i).text, {
-      fontSize: 14, maxWidth: 320,
-    }).height + 16,                      // wrapped text height + vertical padding
-    spacing: 8,
-  },
-  item: { /* create / bind */ },
-});
-```
-
-`measureText(text, { fontSize, maxWidth?, bold?, italic?, letterSpacing?, lineHeight? })`
-returns `{ width, lineCount, height }` measured off the **same Canvas2D metrics the glyph
-atlas draws from**, so a measured height matches what actually renders — no more clipped
-or overflowing rows. (A DOM-less host falls back to an average-glyph estimate.)
-
-### Free-form scrolling
-
-For a scrollable panel of **arbitrary content** (a settings page, a long form) — no
-virtualization, no data source — use `createScrollView` and parent anything under its
-`content` frame:
-
-```typescript
-import { createScrollView, uiPlugin } from 'esengine';
-
-const panel = createScrollView({
-  world, host: uiPlugin, parent,
-  viewportSize: { x: 320, y: 480 },
-  contentSize:  { x: 320, y: 1200 },
-});
-// build your content under panel.content …
-panel.scrollTo({ x: 0, y: 300 });
-```
-
-Wheel, drag/touch, and the kinetic fling work exactly as in the list view; call
-`setContentSize()` after the content grows.
-
 ## Text input
 
 `createTextInput(opts)` builds an editable field — background, caret, placeholder,
 and IME plumbing included — with theme-role colors that re-resolve on a theme swap.
-Returns a `TextInputHandle` (`getValue()` / `setValue(v)` / `entity` / `dispose()`).
+Returns a `TextInputHandle`: `getValue()` / `setValue(v)` / `entity` / `dispose()`.
 
 ```typescript
 import { createTextInput } from 'esengine';
@@ -393,8 +300,25 @@ const name = createTextInput({
 });
 ```
 
+| Option | Default | Description |
+|---|---|---|
+| `node` | 220×32 | The field's `UINode` layout (the one factory that doesn't default to fill-parent). |
+| `value` / `placeholder` | `''` | Content / hint shown while empty. |
+| `maxLength` | `0` | Character cap (`0` = unlimited). |
+| `multiline` | `false` | Enter inserts a newline instead of submitting. |
+| `password` | `false` | Mask the characters. |
+| `readOnly` | `false` | Focusable but not editable. |
+| `fontSize` / `fontFamily` | theme label size / `'Arial'` | Text style. |
+| `color` / `backgroundColor` / `placeholderColor` | theme `text` / `control` / faded `text` | Color overrides — theme roles when omitted. |
+| `padding` | `6` | Inner horizontal padding in px. |
+| `renderMode` | `Auto` | Glyph pipeline for the field text — `Auto` (crisp bitmap when unscaled, SDF once scaled), always `Bitmap`, or always `Sdf`. |
+| `disabled` / `tabIndex` | `false` / `0` | Interactivity + Tab order. Text fields are always focusable — that is what they are for. |
+| `onChange(value, entity)` | — | Fires on every edit. |
+| `onSubmit(value, entity)` | — | Fires on Enter (single-line). |
+
 The factory is sugar over the `TextInput` **component** — insert that directly on any
-UI entity for full manual control:
+UI entity for full manual control (same fields as above, plus the live `focused` /
+`cursorPos` state):
 
 ```typescript
 import { spawnUIEntity, TextInput, px } from 'esengine';
@@ -406,16 +330,6 @@ events.on(field, 'change', () => { /* value edited */ });
 events.on(field, 'submit', () => save(world.get(field, TextInput).value));  // Enter
 ```
 
-| Field | Default | Description |
-|---|---|---|
-| `value` / `placeholder` | `''` | Content / hint shown while empty. |
-| `maxLength` | `0` | Character cap (`0` = unlimited). |
-| `multiline` | `false` | Enter inserts a newline instead of submitting. |
-| `password` | `false` | Mask the characters. |
-| `readOnly` | `false` | Focusable but not editable. |
-| `fontSize` / `fontFamily` | `16` / `Arial` | Text style — `color`, `placeholderColor`, `backgroundColor`, and `padding` (`6`) round out the look. |
-| `renderMode` | `Auto` | Glyph pipeline for the field text — `Auto` (crisp bitmap when unscaled, SDF once scaled), always `Bitmap`, or always `Sdf`. |
-
 Click (or Tab to) the field to focus it; **Escape** blurs, **Enter** fires
 `submit` on single-line fields. A value longer than the box **clips to it and scrolls
 horizontally** so the caret stays in view as you type.
@@ -425,87 +339,46 @@ horizontally** so the caret stays in view as you type.
   hidden native textarea for IME support) — it's inert in the editor's edit view.
 </Aside>
 
+## Lists & scrolling
+
+Virtualized data-driven lists and grids (`createListView`), free-form scrollable
+panels (`createScrollView`), data sources, layout providers, auto-height rows, and
+the kinetic-scroll / scrollbar machinery have their own chapter:
+**[Lists & Scrolling](/docs/guides/ui-lists/)**.
+
 ## Data binding
 
-Widget values are plain component fields, so the [signal](/docs/guides/ui/) layer
-binds to them directly — and `bindWidgetValue` makes it **two-way**: the signal
-drives the component, and the widget's `change` event writes back.
-
-```typescript
-import { signal, bindWidgetValue, UISlider, UIToggle } from 'esengine';
-
-const volume = signal(50);
-bindWidgetValue(world, events, slider.entity, UISlider, 'value', volume);
-const muted = signal(false);
-bindWidgetValue(world, events, toggle.entity, UIToggle, 'isOn', muted);
-
-volume.set(80);          // moves the slider
-// dragging the slider ↦ volume.get() follows
-```
-
-The signal's equality guard breaks the loop, so a round trip settles in one hop.
+Widget values are plain component fields (`UISlider.value`, `UIToggle.isOn`, …), so
+the signal layer binds to them directly — and `bindWidgetValue` makes it two-way.
+See **[UI Binding](/docs/guides/ui-binding/)**.
 
 ## Drag & drop
 
-Add `Draggable` to any interactable UI entity and pointer drags move it — its
-absolute `UINode` insets when it has one, otherwise its `Transform`:
-
-```typescript
-world.insert(entity, Draggable, { dragThreshold: 5, lockY: true });
-events.on(entity, 'drag_start', () => { /* also 'drag_move' and 'drag_end' */ });
-```
-
-`lockX` / `lockY` constrain the axis and `constraintMin` / `constraintMax` clamp
-the range; the auto-inserted `DragState` component exposes the live drag
-(`isDragging`, `deltaWorld`, `totalDeltaWorld`, …). There's no built-in
-drop-target concept — decide what the drop hit in your `drag_end` handler.
+Add `Draggable` to any interactable UI entity and pointer drags move it, with
+`drag_start` / `drag_move` / `drag_end` events and a live `DragState` component.
+Axis locks and range clamps included. See
+**[UI Interaction](/docs/guides/ui-interaction/)**.
 
 ## Keyboard focus
 
-Entities with a `Focusable` component participate in keyboard focus: **click**
-focuses, **Tab / Shift+Tab** cycles (ordered by `tabIndex` ascending, skipping
-disabled widgets, wrapping at the ends), **Enter / Space** activates the focused
-control (a synthesized `click`; text fields keep those keys for editing), sliders
-take the **arrow keys**, and **Escape** or a click on empty space clears focus.
-Widget factories add `Focusable` automatically (`focusable: false` opts out); a
-focused control shows its `focused` interaction page (theme hover color by
-default). The `FocusManager` resource exposes `focusedEntity` plus
-`focus(entity)` / `blur()` for programmatic control, and focused entities
-receive `focus` / `blur` events on the UI event bus.
+Entities with a `Focusable` participate in keyboard focus: Tab / Shift+Tab cycle
+by `tabIndex`, Enter/Space activate, sliders take the arrow keys, and a focused
+control shows its `focused` interaction page. Widget factories add `Focusable`
+automatically (`focusable: false` opts out); the `FocusManager` resource gives
+programmatic control. Details in **[UI Interaction](/docs/guides/ui-interaction/)**.
 
 ## Safe area (mobile notches)
 
 Add `SafeArea` to a full-screen, absolutely-positioned `UINode` container and its
-insets track the platform safe area — device notches, rounded corners, the WeChat
-capsule — so children laid out inside never hide under hardware. `applyTop` /
-`applyBottom` / `applyLeft` / `applyRight` (all default `true`) pick which edges
-apply.
+insets track the platform safe area — notches, rounded corners, the WeChat capsule —
+with per-edge opt-outs. See **[Screen & Resolution](/docs/core-concepts/screen/)**.
 
 ## Theming
 
-Widget colors come from a shared token set: `getTheme()` / `setTheme(tokens)`
-with roles like `surface`, `control`, `controlHover`, `primary`, `onPrimary`,
-`track`, and `backdrop` (`DARK_TOKENS` / `LIGHT_TOKENS` are built in). `setTheme`
-affects widgets constructed afterwards; **`switchTheme(world, tokens)`** also
-live-restyles everything already on screen — widgets record which theme *role*
-each color came from (a `ThemeStyle` component, carried into prefabs too), so a
-swap re-resolves hues while preserving each color's alpha.
-
-### The project theme
-
-A project declares its widget palette once, in **Project Settings → UI**: pick
-the base theme (**dark** is the default, **light** is built in), then override
-any **color role** in the **Theme Colors** group — a full color picker per
-role, with unset rows showing the inherited base value and a reset that clears
-the override. Overrides are stored in `project.esproject` as
-`features.ui.colors` (role → `#rrggbb[aa]` hex) and validated against the
-theme's role list.
-
-The resolved theme (base + overrides) applies **everywhere, identically**: the
-edit viewport previews it live as you change a setting, Play uses it, and every
-export target — web, desktop, WeChat, playable — resolves it at boot before
-re-theming widgets. Brand the accent by overriding `primary` (+ `primaryHover`
-/ `primaryActive`); `onPrimary` is the content drawn on top of it.
+Widget colors come from a shared token set with roles like `surface`, `control`,
+`primary`, and `track`; `switchTheme(world, tokens)` live-restyles everything on
+screen, and a project declares its palette once in **Project Settings → UI**.
+See **[UI Theme](/docs/guides/ui-theme/)**.
 
 ## Editor prefabs
 
@@ -520,3 +393,27 @@ drag), and an empty-canvas drop lands at the root as before. The anchor picker
 edits **per axis** and keeps the widget exactly where it was — changing the
 horizontal anchor never disturbs the vertical layout, and vice versa. See
 [The Editor](/docs/guides/editor/).
+
+## Best practices
+
+- **Prefer the state components over handle juggling.** `UIToggle.isOn`,
+  `UISlider.value`, `UIDropdown.selectedIndex` are the single source of truth —
+  write them (or bind them) and the visuals follow; the handle methods are just
+  typed sugar over the same writes.
+- **Let the theme own colors.** Omit `states` / visuals to get theme roles that
+  re-resolve on a live swap; hard-code colors only for deliberately off-theme art.
+- **Put dialog content under `panelEntity`**, never beside it — that's what makes
+  open/close a single `display` write for the whole subtree.
+- **Dispose handles you created at runtime** — `dispose()` despawns the widget's
+  entities and detaches its event subscriptions.
+- **Keep keyboard reachability on.** Only pass `focusable: false` for decorative
+  or duplicate controls; the Tab ring is your accessibility story.
+
+## See also
+
+- [UI](/docs/guides/ui/) — the component model: `UINode`, `Text`, `UIVisual`, interaction.
+- [Lists & Scrolling](/docs/guides/ui-lists/) — `createListView`, `createScrollView`, virtualization.
+- [UI Controllers](/docs/guides/ui-controllers/) — shared "page" state + declarative per-page field bindings.
+- [UI Binding](/docs/guides/ui-binding/) — signals and two-way widget binding.
+- [UI Interaction](/docs/guides/ui-interaction/) — focus, drag & drop, pointer events.
+- [UI Theme](/docs/guides/ui-theme/) — tokens, roles, live theme swaps, the project theme.

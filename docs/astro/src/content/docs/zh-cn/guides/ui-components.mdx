@@ -1,19 +1,21 @@
 ---
 title: UI 控件
-description: 内置控件工厂——Button、Toggle、Slider、Progress、Dropdown、Dialog、ListView——外加文本输入、拖放、键盘焦点、移动端安全区与主题。
+description: 内置控件工厂——Button、Toggle、Slider、Progress、Dropdown、Dialog 与文本输入——的选项、句柄与状态组件,外加编辑器预制体。
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
 控件工厂用 [UI](/docs/zh-cn/guides/ui/) 组件模型(`UINode` + `Interactable` +
-`$interaction` [控制器与属性绑定](/docs/zh-cn/guides/ui-controllers/))构建常见控件,免得你逐个手动接线。每个工厂接收一个选项对象,返回一个**句柄(handle)**——
+`$interaction` [控制器与属性绑定](/docs/zh-cn/guides/ui-controllers/))构建常见控件,
+免得你逐个手动接线。每个工厂接收一个选项对象,返回一个**句柄(handle)**——
 总是带 `entity` 和 `dispose()`,外加读取和驱动它的命令式方法。
 
-交互式控件需要 world 和 UI 事件队列——`world` 来自 `GetWorld()`,`events` 来自 `Res(UIEvents)`,
-和 [UI 指南](/docs/zh-cn/guides/ui/)里一样。它们都接受 `parent?`、一个 `node?`
-([`UINode`](/docs/zh-cn/guides/ui/#uinode--the-layout-box) 布局)和视觉覆盖。交互式控件
-**默认键盘可达**:它们自带 `Focusable`,Tab 能到达、Enter/Space 能点击、方向键能驱动滑块——
-用 `focusable: false` 退出。
+交互式控件需要 world 和 UI 事件队列——`world` 来自 `GetWorld()`,`events` 来自
+`Res(UIEvents)`,和 [UI 指南](/docs/zh-cn/guides/ui/)里一样。它们都接受 `parent?`、
+一个 `node?`([`UINode`](/docs/zh-cn/guides/ui-layout/) 布局——**默认:填满父级**)
+和视觉覆盖;视觉默认值取自当前[主题](/docs/zh-cn/guides/ui-theme/)的角色,
+主题热切换时会重新解析。交互式控件**默认键盘可达**:它们自带 `Focusable`,
+Tab 能到达、Enter/Space 能点击、方向键能驱动滑块——用 `focusable: false` 退出。
 
 <Aside type="tip">
   这些是方便的起点,而非封闭集合——一个控件不过是挂了 UI 组件的实体树,所以你能用同样方式组合
@@ -48,23 +50,26 @@ const btn = createButton({
 });
 ```
 
-| 选项 | 说明 |
-|---|---|
-| `text` | 标签——字符串或 `TextInit`。省略则无标签。 |
-| `states` | 状态名(`normal` / `hover` / `pressed` / `disabled` / `focused`)→ 颜色 / sprite / 缩放覆盖的映射。省略则用当前主题的 control 角色。 |
-| `background` | 背景视觉(默认:纯白)。 |
-| `fadeDuration` | 颜色 / 缩放状态切换的补间时长(默认 `0` = 瞬切;sprite 交换总是瞬切)。 |
-| `disabled` | 初始禁用。 |
-| `focusable` / `tabIndex` | 键盘可达性(默认 `true` / `0`)。 |
-| `onClick(entity)` | 点击回调。 |
+| 选项 | 默认 | 说明 |
+|---|---|---|
+| `node` | 填满父级 | 按钮的 `UINode` 布局。 |
+| `text` | 无 | 标签——字符串或 `TextInit`。省略则无标签。标签颜色/字号默认取主题的 `text` 角色与 label 字号。 |
+| `states` | 主题 control 角色 | 状态名(`normal` / `hover` / `pressed` / `disabled` / `focused`)→ 颜色 / 精灵 / 缩放覆盖的 map。允许自定义名(如 `'loading'`)。 |
+| `background` | 纯白 | 背景视觉(`UIVisualInit`)。 |
+| `fadeDuration` | `0`(瞬切) | 颜色/缩放状态切换的补间时长;精灵切换总是瞬切。 |
+| `disabled` | `false` | 以禁用态启动。 |
+| `focusable` / `tabIndex` | `true` / `0` | 键盘可达性与 Tab 顺序。 |
+| `onClick(entity)` | — | 点击回调(受启用态门控)。 |
 
 **句柄:** `entity`、`setDisabled(disabled)`、`dispose()`。
 
-之后可用 `setButtonState(world, handle.entity, 'loading')` 切到自定义状态。
+主题默认状态也以 `themeButtonStates()` 导出——展开再覆盖,不必五个状态全写一遍。
+之后可用 `setButtonState(world, handle.entity, 'loading')` 切到自定义状态;
+指针驱动会放过任何非规范页,直到你切回去。
 
 ## Toggle 开关
 
-`createToggle(opts)` 用一个按钮加一个开/关勾选指示器组合而成。返回 `ToggleHandle`。
+`createToggle(opts)` 由一个按钮加一个开/关指示器组合而成。返回 `ToggleHandle`。
 
 ```typescript
 import { createToggle } from 'esengine';
@@ -72,33 +77,37 @@ import { createToggle } from 'esengine';
 const toggle = createToggle({
   world, events, parent,
   interactionStates: { normal: { color: /* … */ }, hover: { /* … */ }, pressed: { /* … */ } },
-  check: { color: { r: 0.2, g: 0.8, b: 0.4, a: 1 } },   // "开"指示器
+  check: { color: { r: 0.2, g: 0.8, b: 0.4, a: 1 } },   // the "on" indicator
   isOn: true,
   onChange: (isOn, entity) => { /* … */ },
 });
 
-toggle.setIsOn(false);      // 程序化改变(触发 onChange)
+toggle.setIsOn(false);      // programmatic change (fires onChange)
 ```
 
-| 选项 | 说明 |
-|---|---|
-| `interactionStates` | 框架视觉状态(类似按钮的 `states`;省略则用主题默认)。 |
-| `check` | 开状态指示器:`{ node?, color?, sprite? }`,开时显示(默认主题强调色)。 |
-| `isOn` | 初始状态。 |
-| `onChange(isOn, entity)` | 切换时触发。 |
+| 选项 | 默认 | 说明 |
+|---|---|---|
+| `node` / `background` | 填满父级 / 纯白 | 外框布局 + 背景,同 `createButton`。 |
+| `interactionStates` | 主题 control 角色 | 外框的视觉状态(同按钮的 `states`)。 |
+| `check` | 主题 `primary` 填充 | 开启态指示器:`{ node?, color?, sprite? }`,开时显示的子实体。默认填满外框——用 `check.node` 内缩。 |
+| `isOn` | `false` | 初始状态。 |
+| `disabled` | `false` | 以禁用态启动。 |
+| `focusable` / `tabIndex` | `true` / `0` | 键盘可达性。 |
+| `onChange(isOn, entity)` | — | 切换时触发。 |
 
 **句柄:** `isOn()`、`setIsOn(value)`、`setDisabled(disabled)`、`entity`、`dispose()`。
 
 <Aside type="note">
-  状态存在 **`UIToggle` 组件**里;行为系统在点击时翻转它,并且是勾选视觉的唯一写者——
-  `setIsOn`、绑定、或编辑器 Inspector 改摆放的 prefab,都会同样地翻转指示器并触发 `change`。
+  状态活在 **`UIToggle` 组件**里;行为系统在点击时翻转它,并且是勾选视觉的唯一写入者——
+  `setIsOn`、绑定、或编辑器里已摆放预制体的 inspector,翻转指示器和发 `change` 的方式
+  完全一致。
 </Aside>
 
 ## Slider 滑块
 
 `createSlider(opts)` 构建轨道 + 填充 + 手柄。返回 `SliderHandle`。
-输入是内置的:在轨道上任意位置**拖拽**(按下即捕获,直到松开),或聚焦后用**方向键**
-(步长为 `step`,连续滑块为量程的 1%)、**Home**/**End**。
+输入内置:在轨道任意处**拖拽**(按下即捕获直到松开),或聚焦后用**方向键**
+(`step`,连续滑块为量程的 1%)、**Home**/**End**。
 
 ```typescript
 import { createSlider } from 'esengine';
@@ -112,27 +121,30 @@ const slider = createSlider({
 slider.setValue(75);
 ```
 
-| 选项 | 说明 |
-|---|---|
-| `min` / `max` / `value` | 范围与初始值。 |
-| `step` | 量化步长(`0` = 连续)。同时是键盘步进量。 |
-| `handleWidth` | 手柄宽度(像素,默认 `12`)。 |
-| `disabled` / `focusable` / `tabIndex` | 交互性与键盘可达性。 |
-| `trackVisual` / `fillVisual` / `handleVisual` | 各部件视觉。 |
-| `onChange(value, entity)` | 值改变时触发——无论来自输入、`setValue` 还是任何其他写者。 |
+| 选项 | 默认 | 说明 |
+|---|---|---|
+| `node` | 填满父级 | 轨道的 `UINode` 布局。 |
+| `min` / `max` | `0` / `1` | 量程。 |
+| `value` | `min` | 初始值(会收敛并按步长量化)。 |
+| `step` | `0`(连续) | 量化步长。同时是键盘步进量。 |
+| `handleWidth` | `12` | 手柄宽度(像素)。 |
+| `disabled` / `focusable` / `tabIndex` | `false` / `true` / `0` | 交互性 + 键盘可达性。 |
+| `trackVisual` / `fillVisual` / `handleVisual` | 主题 `track` / `primary` / `onPrimary` | 各部分视觉。 |
+| `onChange(value, entity)` | — | 值变化时触发——无论来自输入、`setValue` 还是任何其他写入者。 |
 
-**句柄:** `getValue()`、`setValue(v)`、`dispose()`,以及 `trackEntity` /
-`fillEntity` / `handleEntity`。
+**句柄:** `getValue()`、`setValue(v)`、`dispose()`,外加 `entity` /
+`trackEntity`(同一实体)/ `fillEntity` / `handleEntity`。
 
 <Aside type="note">
-  状态存在轨道实体上的 **`UISlider` 组件**里;行为系统是视觉的唯一写者。任何写
-  `UISlider.value` 的东西——指针、键盘、`setValue`、编辑器 Inspector 里改摆放的
-  prefab——都会同样地移动填充与手柄并触发 `change`。
+  状态活在轨道实体的 **`UISlider` 组件**上;行为系统是视觉的唯一写入者。任何写
+  `UISlider.value` 的东西——指针、键盘、`setValue`、编辑器里已摆放预制体的 inspector——
+  移动填充和手柄、发 `change` 的方式完全一致。
 </Aside>
 
 ## Progress 进度条
 
-`createProgress(opts)` 是一个非交互的填充条。返回 `ProgressHandle`。
+`createProgress(opts)` 是不可交互的填充条。返回 `ProgressHandle`。
+它不接 `events`——没有可交互的东西。
 
 ```typescript
 import { createProgress } from 'esengine';
@@ -146,32 +158,34 @@ const bar = createProgress({
 
 bar.setValue(0.6);   // 0..1
 
-// 径向仪表(冷却 / 环形计量)——从 12 点钟方向顺时针扫过的扇形:
+// Radial gauge (cooldown / ring meter) — a clockwise wedge from 12 o'clock:
 const ring = createProgress({ world, parent, radial: true, value: 0.75 });
 ```
 
-| 选项 | 说明 |
-|---|---|
-| `value` | 初始进度,`0..1`。 |
-| `direction` | 线性填充增长方向:`'right'`(默认)、`'left'`、`'up'`、`'down'`。 |
-| `radial` | 用径向仪表替代进度条——顺时针扫过整圆的扇形。忽略 `direction`。 |
-| `background` / `fill` | 轨道和填充视觉。 |
+| 选项 | 默认 | 说明 |
+|---|---|---|
+| `node` | 填满父级 | 轨道的 `UINode` 布局。 |
+| `value` | `0` | 初始进度,`0..1`(收敛)。 |
+| `direction` | `'right'` | 线性填充增长方向:`'right'`、`'left'`、`'up'`、`'down'`。 |
+| `radial` | `false` | 径向仪表而非条——从 12 点顺时针扫满一圈的扇形。忽略 `direction`。 |
+| `background` | 主题 `track` | 轨道视觉(`UIVisualInit`)。 |
+| `fill` | 主题 `primary` | 填充条:`{ color?, sprite? }`。 |
 
-**句柄:** `value()`、`setValue(v)`、`dispose()`,以及 `fillEntity`。
+**句柄:** `value()`、`setValue(v)`、`dispose()`,外加 `entity` / `fillEntity`。
 
 <Aside type="note">
-  **同一个填充原语。** 进度条就是一个处于 **`Filled`** 模式的
-  [`UIVisual`](/docs/guides/ui/)——与滑块填充共用同一个原语,对应 Unity 的
-  "血条 = Filled Image"。`setValue()` 写入 `fillAmount`,因此填充是渲染期裁剪、
-  **不触发每帧布局**,贴图填充会沿轴**揭示**而非拉伸。`direction` 通过共享的
-  `FILL_AXIS` 表解析为 `Filled` 的裁剪轴与锚定边,让进度条、滑块以及其他基于
-  Filled 的控件填充行为完全一致。
+  **同一个填充原语。** 进度条就是一个 **`Filled`** 模式的
+  [`UIVisual`](/docs/zh-cn/guides/ui/)——滑块的填充也构建于同一原语,对应 Unity 的
+  "血条 = Filled Image"。`setValue()` 写 `fillAmount`,所以填充是渲染期裁剪,
+  **没有逐帧布局**,精灵填充沿轴*揭示*而不是拉伸。`direction` 经共享的 `FILL_AXIS`
+  表解析为 `Filled` 的裁剪轴与锚边,因此进度条、滑块以及任何基于 Filled 的控件填充方式
+  完全一致。
 </Aside>
 
-## Dropdown 下拉
+## Dropdown 下拉框
 
-`createDropdown(opts)` 显示当前选择,并弹出一个选项行列表。它对选项类型是泛型的。返回
-`DropdownHandle<T>`。
+`createDropdown(opts)` 显示当前选中项,并打开一个选项行弹窗。对选项类型泛型。
+返回 `DropdownHandle<T>`。
 
 ```typescript
 import { createDropdown } from 'esengine';
@@ -183,40 +197,42 @@ const dd = createDropdown({
   onSelect: (index, option) => { /* … */ },
 });
 
-// 对象需要一个标签映射:
+// Objects need a label mapper:
 createDropdown({
   world, events, parent,
-  options: resolutions,                       // 例如 { w, h }[]
+  options: resolutions,                       // e.g. { w, h }[]
   optionToLabel: (r) => `${r.w}×${r.h}`,
   onSelect: (i, r) => applyResolution(r),
 });
 ```
 
-| 选项 | 说明 |
-|---|---|
-| `options` | 可选值列表。 |
-| `selectedIndex` | 初始选择。 |
-| `optionToLabel(option, i)` | 把非字符串选项映射为显示文本。 |
-| `buttonStates` | 主按钮的颜色(选项行走主题角色)。 |
-| `optionHeight` | 行高(像素,默认 `32`)。 |
-| `disabled` / `focusable` / `tabIndex` | 交互性与键盘可达性。 |
-| `onSelect(index, option, entity)` | 选择时触发。 |
+| 选项 | 默认 | 说明 |
+|---|---|---|
+| `node` | 填满父级 | 主按钮的 `UINode` 布局。 |
+| `options` | — | 可选值列表。必填。 |
+| `selectedIndex` | `0` | 初始选中。 |
+| `optionToLabel(option, i)` | `String(option)` | 把非字符串选项映射为显示文本。 |
+| `buttonStates` | 主题 control 角色 | 主按钮的 `{ normal?, hover?, pressed? }` 颜色(选项行用主题角色)。 |
+| `optionHeight` | `32` | 行高(像素)。 |
+| `disabled` / `focusable` / `tabIndex` | `false` / `true` / `0` | 交互性 + 键盘可达性。 |
+| `onSelect(index, option, entity)` | — | 选中时触发。 |
 
-**句柄:** `getSelected()`、`getSelectedIndex()`、`setSelectedIndex(i)`、`open()`、
-`close()`、`isOpen()`、`dispose()`。
+**句柄:** `getSelected()`、`getSelectedIndex()`、`setSelectedIndex(i)`、
+`open()`、`close()`、`isOpen()`、`dispose()`,外加 `entity` / `labelEntity`
+(显示当前选中项的子 `Text`)。
 
 <Aside type="note">
-  标签与选择存在 **`UIDropdown` 组件**里;行为系统拥有弹出层(点击开合,**点击其他任意位置
-  自动关闭**)、行选择、以及键盘:开合两态方向键都能换选(打开的弹出层高亮选中行),
-  **Enter** 确认、**Escape** 取消——摆出来的 prefab 无需代码即完整可用。
-  弹出层每次打开都用新鲜的主题角色重建。
+  标签 + 选中项活在 **`UIDropdown` 组件**里;行为系统拥有弹窗(点击开合,
+  **点其他任何地方都会关闭**)、行选中和键盘:方向键在开合两态都步进选中
+  (打开的弹窗高亮选中行),**Enter** 确认、**Escape** 取消——所以预制体摆放的下拉框
+  无需代码即可完整工作。弹窗每次打开都用新的主题角色重建。
 </Aside>
 
 ## Dialog 对话框
 
-`createDialog(opts)` 是一个模态:一个挡住点击的背景加一个居中面板,打开前隐藏。返回
-`DialogHandle`。**把你的内容作为 `panelEntity` 的子实体加进去**——关闭时会在背景根上
-设置 `display: none`,整棵子树(包括你的内容)一次性退出布局、渲染和输入。
+`createDialog(opts)` 是模态框:挡点击的背板 + 居中面板,打开前隐藏。返回 `DialogHandle`。
+**把你的内容挂为 `panelEntity` 的子级**——关闭时在背板根上写 `display: none`,
+整棵子树(含你的内容)一次写入就退出布局、渲染和输入。
 
 ```typescript
 import { createDialog, spawnUIEntity } from 'esengine';
@@ -226,256 +242,151 @@ const dialog = createDialog({
   panelNode: { width: px(420), height: px(260) },
 });
 
-spawnUIEntity({ world, parent: dialog.panelEntity, text: { content: '确定吗?' } });
+spawnUIEntity({ world, parent: dialog.panelEntity, text: { content: 'Are you sure?' } });
 
 dialog.open();
-// …之后
+// …later
 dialog.close();
 ```
 
-| 选项 | 说明 |
-|---|---|
-| `backdropNode` / `backdropVisual` | 面板后方的全视口遮罩。 |
-| `panelNode` / `panelVisual` | 模态面板(默认:400×300,居中)。 |
-| `startHidden` | 初始关闭(默认 `true`)。 |
-| `closeOnEscape` / `closeOnBackdrop` | 两个标准关闭方式——Escape,以及点击遮罩(不含面板)。都默认 `true`。 |
-| `onOpenChange(open)` | 每次开/关都会触发,无论由谁发起。 |
+| 选项 | 默认 | 说明 |
+|---|---|---|
+| `backdropNode` / `backdropVisual` | 填满父级 / 主题 `backdrop` 幕布 | 面板背后的全视口幕布。它拦截指针命中但不可聚焦。 |
+| `panelNode` / `panelVisual` | 400×300 居中 / 主题 `surface` | 模态面板。面板吞掉点击,只有真正点在幕布上才触发关闭。 |
+| `startHidden` | `true` | 以关闭态启动。 |
+| `closeOnEscape` / `closeOnBackdrop` | `true` / `true` | 标准关闭方式——Escape,以及点击幕布(非面板)。 |
+| `onOpenChange(open)` | — | 每次开/关都触发,无论谁发起。 |
 
-对话框打开期间还会**捕获 Tab 环**:只有打开对话框子树内的可聚焦控件参与轮换
-(遮罩本来就挡住了外部的指针聚焦)。
+对话框打开期间还会**困住 Tab 环**:只有打开的对话框子树内的可聚焦项参与
+(幕布本就挡住了外部的指针聚焦)。
 
-**句柄:** `open()`、`close()`、`isOpen()`、`dispose()`,以及 `entity`(背景根)/ `panelEntity`。
-
-<Aside type="note">
-  关闭行为由背景根上的 **`UIDialog` 组件**数据驱动,打开状态就是根的
-  `UINode.display`——因此从编辑器 prefab 实例化的对话框无需任何代码就能响应
-  Escape / 遮罩点击。
-</Aside>
-
-## 列表与集合
-
-对于长的、可滚动的、**数据驱动**的列表——背包、排行榜、聊天记录——`createListView` 构建一个
-**虚拟化**列表(或网格):只有视口附近的条目会被挂载,所以一万行的列表也很轻。一次调用就组合了
-数据源、布局、条目回收、滚动和裁剪。
-
-```typescript
-import { createListView, uiPlugin, arrayDataSource, spawnUIEntity, px } from 'esengine';
-
-const list = createListView<Player>({
-  world, host: uiPlugin, parent,
-  viewportSize: { x: 320, y: 480 },     // 可见窗口,像素
-  data: arrayDataSource(players),        // 任意 DataSource<T>,或裸数组
-  layout: { itemHeight: 56 },            // 列表
-  item: {
-    create: (world, parent) => spawnUIEntity({ world, parent, node: { height: px(56) } }),
-    bind: (entity, player, index) => { /* 用 `player` 填这行的 Text / Sprite */ },
-  },
-});
-```
-
-`host` 是驱动虚拟化并路由滚动输入的插件——传你 app 构建时用的 `uiPlugin`。
-`item.create` 建一个行实体;`item.bind` 用数据填它。`bind` 每当一行被复用到不同索引时都会跑,
-所以把它写成纯粹的"应用这份数据"函数。
-
-**布局**是列、行或网格:
-
-| `layout` | 结果 |
-|---|---|
-| `{ itemHeight }` | 竖直列表——固定行高,或传 **`(index) => number`** 实现[自适应行高](#自适应行高)。 |
-| `{ itemWidth, direction: 'row' }` | 水平列表。 |
-| `{ columns, itemSize }` | 网格(*TileView*)。 |
-
-**更新**列表 = 改它的数据源——`ArrayDataSource` 会通知视图,视图在下一帧重新同步:
-
-```typescript
-list.data.append([newPlayer]);        // 增
-list.data.remove(3);                   // 删索引 3
-list.data.update(0, updatedPlayer);    // 改一个
-list.data.setItems(freshList);         // 全替换
-```
-
-**句柄:** `data`(改它来改列表)· `scrollToIndex(i)` · `refresh()` · `mountedCount()`
-(永远不随数据量增长——测试里好用)· `dispose()`,以及 `scroll` 和 `view` 作为通往底层
-`ScrollContainer` / `ListView` 的逃生舱。
+**句柄:** `open()`、`close()`、`isOpen()`、`dispose()`,外加 `entity`(背板根)/
+`panelEntity`。
 
 <Aside type="note">
-  滚动开箱即用:视口上的鼠标滚轮、指针**拖拽 + 惯性甩动**(平台层把主触点并入指针流,
-  触摸滚动走同一条路径),以及每个可滚动轴的**自动淡出悬浮滚动条**(ScrollContainer 传
-  `showScrollbar: false` 关闭)。可用 `dragScroll: false` 关闭,或用 `decelerationRate` 调惯性
-  (甩动 1 秒后剩余的速度比例;默认 `0.135`,ScrollRect 标准值)。异构行:用「item 类型 → 模板」
-  的映射代替单个 `item`,并给数据源一个 `getItemType(i)`。
+  关闭行为由背板根上的 **`UIDialog` 组件**数据驱动,而打开状态就是根的
+  `UINode.display`——所以从编辑器预制体实例化的对话框无需任何代码接线,
+  Escape / 点幕布即可关闭。
 </Aside>
-
-### 自适应行高
-
-给 `itemHeight` 传一个**函数**,让每行按内容自适应高度——聊天记录里气泡随换行文本增高就是
-典型场景。列表会缓存测量结果,并在数据或视口变化时重排:
-
-```typescript
-import { measureText } from 'esengine';
-
-createListView<Message>({
-  world, host: uiPlugin, parent,
-  viewportSize: { x: 360, y: 480 },
-  data: messages,
-  layout: {
-    itemHeight: (i) => measureText(messages.getItem(i).text, {
-      fontSize: 14, maxWidth: 320,
-    }).height + 16,                      // 换行文本高度 + 上下内边距
-    spacing: 8,
-  },
-  item: { /* create / bind */ },
-});
-```
-
-`measureText(text, { fontSize, maxWidth?, bold?, italic?, letterSpacing?, lineHeight? })`
-返回 `{ width, lineCount, height }`,用的是**渲染器取字形 advance 的同一套 Canvas2D 度量**,
-所以测出的高度和实际渲染一致——不再有裁剪或溢出的行(无 DOM 的环境回退到平均字宽估算)。
-
-### 自由内容滚动
-
-滚动**任意内容**的面板(设置页、长表单)——不虚拟化、无数据源——用 `createScrollView`,
-把内容挂到它的 `content` 帧下:
-
-```typescript
-import { createScrollView, uiPlugin } from 'esengine';
-
-const panel = createScrollView({
-  world, host: uiPlugin, parent,
-  viewportSize: { x: 320, y: 480 },
-  contentSize:  { x: 320, y: 1200 },
-});
-// 在 panel.content 下构建内容 …
-panel.scrollTo({ x: 0, y: 300 });
-```
-
-滚轮、拖拽/触摸和惯性甩动与列表视图完全一致;内容变大后调 `setContentSize()`。
 
 ## 文本输入
 
-`createTextInput(opts)` 构建可编辑输入框——背景、光标、占位提示和 IME 管线都齐了——
-颜色走主题角色,换主题时会重新解析。返回 `TextInputHandle`(`getValue()` /
-`setValue(v)` / `entity` / `dispose()`)。
+`createTextInput(opts)` 构建可编辑输入框——背景、光标、占位符与 IME 管线齐备——
+颜色取主题角色,主题切换时重新解析。返回 `TextInputHandle`:
+`getValue()` / `setValue(v)` / `entity` / `dispose()`。
 
 ```typescript
 import { createTextInput } from 'esengine';
 
 const name = createTextInput({
   world, events, parent,
-  placeholder: '你的名字', maxLength: 20,
-  onChange: (value) => { /* 内容被编辑 */ },
-  onSubmit: (value) => save(value),   // 回车
+  placeholder: 'Your name', maxLength: 20,
+  onChange: (value) => { /* value edited */ },
+  onSubmit: (value) => save(value),   // Enter
 });
 ```
 
-工厂是 `TextInput` **组件**之上的糖——想完全手动控制,把组件直接插到任意 UI 实体上:
+| 选项 | 默认 | 说明 |
+|---|---|---|
+| `node` | 220×32 | 输入框的 `UINode` 布局(唯一不默认填满父级的工厂)。 |
+| `value` / `placeholder` | `''` | 内容 / 为空时的提示。 |
+| `maxLength` | `0` | 字符上限(`0` = 不限)。 |
+| `multiline` | `false` | Enter 插入换行而不是提交。 |
+| `password` | `false` | 掩码显示字符。 |
+| `readOnly` | `false` | 可聚焦但不可编辑。 |
+| `fontSize` / `fontFamily` | 主题 label 字号 / `'Arial'` | 文本样式。 |
+| `color` / `backgroundColor` / `placeholderColor` | 主题 `text` / `control` / 淡化 `text` | 颜色覆盖——省略时用主题角色。 |
+| `padding` | `6` | 内部水平内边距(px)。 |
+| `renderMode` | `Auto` | 输入框文字的字形管线——`Auto`(未缩放时清晰位图,缩放后 SDF)、恒 `Bitmap`、或恒 `Sdf`。 |
+| `disabled` / `tabIndex` | `false` / `0` | 交互性 + Tab 顺序。文本框永远可聚焦——它就是干这个的。 |
+| `onChange(value, entity)` | — | 每次编辑触发。 |
+| `onSubmit(value, entity)` | — | Enter 触发(单行)。 |
+
+工厂是 `TextInput` **组件**之上的语法糖——直接把组件插到任意 UI 实体上可获得完全的
+手动控制(字段同上,外加实时的 `focused` / `cursorPos` 状态):
 
 ```typescript
 import { spawnUIEntity, TextInput, px } from 'esengine';
 
 const field = spawnUIEntity({ world, parent, node: { width: px(240), height: px(32) } });
-world.insert(field, TextInput, { placeholder: '你的名字', maxLength: 20 });
+world.insert(field, TextInput, { placeholder: 'Your name', maxLength: 20 });
 
-events.on(field, 'change', () => { /* 内容被编辑 */ });
-events.on(field, 'submit', () => save(world.get(field, TextInput).value));  // 回车
+events.on(field, 'change', () => { /* value edited */ });
+events.on(field, 'submit', () => save(world.get(field, TextInput).value));  // Enter
 ```
 
-| 字段 | 默认 | 说明 |
-|---|---|---|
-| `value` / `placeholder` | `''` | 内容 / 为空时显示的提示。 |
-| `maxLength` | `0` | 字符上限(`0` = 不限)。 |
-| `multiline` | `false` | 回车插入换行而不是提交。 |
-| `password` | `false` | 掩码显示。 |
-| `readOnly` | `false` | 可聚焦但不可编辑。 |
-| `fontSize` / `fontFamily` | `16` / `Arial` | 文字样式——`color`、`placeholderColor`、`backgroundColor` 和 `padding`(`6`)补全观感。 |
-| `renderMode` | `Auto` | 输入文本的字形管线——`Auto`(不缩放时用清晰位图、缩放后转 SDF)、始终 `Bitmap`、或始终 `Sdf`。 |
-
-点击(或 Tab 到)输入框即聚焦;**Escape** 失焦,单行输入框按**回车**触发
-`submit`。内容超出框宽时会**裁剪到框内并横向滚动**,让光标随输入始终可见。
+点击(或 Tab 到)输入框即聚焦;**Escape** 失焦,单行框 **Enter** 触发 `submit`。
+超出盒宽的内容**裁剪到盒内并横向滚动**,输入时光标始终可见。
 
 <Aside type="note">
-  文本输入只在**播放模式**运行,且需要浏览器 DOM(它驱动一个隐藏的原生
-  textarea 以支持 IME)——在编辑器编辑态下不生效。
+  文本输入只在**播放模式**运行,且需要浏览器 DOM(它驱动一个隐藏的原生 textarea
+  以支持 IME)——在编辑器的编辑视图中是惰性的。
 </Aside>
+
+## 列表与滚动
+
+虚拟化的数据驱动列表与网格(`createListView`)、自由滚动面板(`createScrollView`)、
+数据源、布局提供者、自动行高以及惯性滚动 / 滚动条机制,单独成章:
+**[列表与滚动](/docs/zh-cn/guides/ui-lists/)**。
 
 ## 数据绑定
 
-控件的值就是普通组件字段,[signal](/docs/zh-cn/guides/ui/) 层可以直接绑——
-`bindWidgetValue` 让它**双向**:signal 驱动组件,控件的 `change` 事件回写 signal。
-
-```typescript
-import { signal, bindWidgetValue, UISlider, UIToggle } from 'esengine';
-
-const volume = signal(50);
-bindWidgetValue(world, events, slider.entity, UISlider, 'value', volume);
-const muted = signal(false);
-bindWidgetValue(world, events, toggle.entity, UIToggle, 'isOn', muted);
-
-volume.set(80);          // 滑块随之移动
-// 拖动滑块 ↦ volume.get() 跟随
-```
-
-signal 的等值守卫会打断回环,一个来回一跳即收敛。
+控件值就是普通组件字段(`UISlider.value`、`UIToggle.isOn`……),信号层可直接绑定——
+`bindWidgetValue` 更把它做成双向。见 **[UI 数据绑定](/docs/zh-cn/guides/ui-binding/)**。
 
 ## 拖放
 
-给任何可交互的 UI 实体加 `Draggable`,指针拖动就能移动它——有 `UINode` 时移动
-其绝对 inset,否则移动 `Transform`:
-
-```typescript
-world.insert(entity, Draggable, { dragThreshold: 5, lockY: true });
-events.on(entity, 'drag_start', () => { /* 还有 'drag_move' 与 'drag_end' */ });
-```
-
-`lockX` / `lockY` 锁轴,`constraintMin` / `constraintMax` 钳制范围;自动插入的
-`DragState` 组件暴露实时拖动数据(`isDragging`、`deltaWorld`、`totalDeltaWorld`
-等)。没有内置的放置目标(drop target)概念——在你的 `drag_end` 处理器里自行
-判定落点。
+给任意可交互 UI 实体加 `Draggable`,指针拖拽即可移动它,附带
+`drag_start` / `drag_move` / `drag_end` 事件和实时的 `DragState` 组件。
+轴锁定与范围约束齐备。见 **[UI 交互](/docs/zh-cn/guides/ui-interaction/)**。
 
 ## 键盘焦点
 
-带 `Focusable` 组件的实体参与键盘焦点:**点击**聚焦,**Tab / Shift+Tab** 轮换
-(按 `tabIndex` 升序,跳过禁用控件,到头回绕),**Enter / Space** 激活聚焦的控件
-(合成一次 `click`;文本框保留这些键用于编辑),滑块响应**方向键**,**Escape**
-或点击空白处清除焦点。控件工厂自动添加 `Focusable`(用 `focusable: false` 退出);
-聚焦的控件显示它的 `focused` 交互页(默认主题 hover 色)。`FocusManager` 资源暴露
-`focusedEntity` 以及 `focus(entity)` / `blur()` 供编程控制,被聚焦的实体在 UI
-事件总线上收到 `focus` / `blur` 事件。
+带 `Focusable` 的实体参与键盘焦点:Tab / Shift+Tab 按 `tabIndex` 轮换,
+Enter/Space 激活,滑块接管方向键,聚焦的控件显示其 `focused` 交互页。
+控件工厂自动加 `Focusable`(`focusable: false` 退出);`FocusManager` 资源提供
+程序化控制。详见 **[UI 交互](/docs/zh-cn/guides/ui-interaction/)**。
 
 ## 安全区(移动端刘海)
 
-给一个全屏、绝对定位的 `UINode` 容器加 `SafeArea`,它的 inset 就会跟随平台
-安全区——刘海、圆角、微信胶囊——里面布局的子节点永远不会被硬件遮住。
-`applyTop` / `applyBottom` / `applyLeft` / `applyRight`(默认全 `true`)选择
-生效的边。
+给全屏、绝对定位的 `UINode` 容器加 `SafeArea`,其 inset 会跟随平台安全区——
+刘海、圆角、微信胶囊——并支持按边退出。见
+**[屏幕与分辨率](/docs/zh-cn/core-concepts/screen/)**。
 
 ## 主题
 
-控件颜色来自一套共享令牌:`getTheme()` / `setTheme(tokens)`,角色包括
-`surface`、`control`、`controlHover`、`primary`、`onPrimary`、`track`、
-`backdrop`(内置 `DARK_TOKENS` / `LIGHT_TOKENS`)。`setTheme` 影响之后构建的控件;
-**`switchTheme(world, tokens)`** 还会实时重刷屏幕上已有的一切——控件记录了每个颜色
-来自哪个主题*角色*(`ThemeStyle` 组件,也随 prefab 持久化),换主题时按角色重新
-解析色相并保留各自的 alpha。
-
-### 项目主题
-
-项目在**项目设置 → UI** 里一次性声明控件配色:先选基础主题(默认**深色**,内置
-**浅色**),再在**主题颜色**组里覆盖任意**颜色角色**——每个角色一个完整取色器,
-未设置的行显示继承的基础值,重置按钮清除覆盖。覆盖存进 `project.esproject` 的
-`features.ui.colors`(角色 → `#rrggbb[aa]` 十六进制),并按主题角色表校验。
-
-解析后的主题(基础 + 覆盖)**处处一致地生效**:改设置时编辑视口实时预览,Play
-使用它,每个导出目标——web、桌面、微信、playable——都在启动时先解析再给控件换肤。
-品牌色改 `primary`(以及 `primaryHover` / `primaryActive`)即可;`onPrimary`
-是画在它上面的内容色。
+控件颜色来自共享的 token 集,角色如 `surface`、`control`、`primary`、`track`;
+`switchTheme(world, tokens)` 实时重刷屏上一切,项目在 **Project Settings → UI**
+一次声明调色板。见 **[UI 主题](/docs/zh-cn/guides/ui-theme/)**。
 
 ## 编辑器预制体
 
-这些控件同时作为编辑器预制体提供,所以 **创建… → UI** 会把现成的 Button、Toggle、Slider、
-Dialog、TextInput 等放进场景,你再在 Details 里编辑。存在组件里的行为——滑块的拖拽/方向键、
-对话框的 Escape/遮罩关闭——摆出来的 prefab 无需代码即可用。
+同一批控件也作为编辑器预制体提供,**Create… → UI** 即可把现成的 Button、Toggle、
+Slider、Dialog、TextInput 等丢进场景,再在 Details 里编辑。活在组件里的行为——
+滑块的拖拽/按键、对话框的 Escape/幕布关闭——在摆放的预制体上无需代码即可工作。
 
-从调色板拖放会**嵌套**:放手时会父接到指针下方的布局容器里(拖动过程中虚线描边预览
-将要嵌入的父级),拖到空画布则照旧落在根上。锚点选择器**按轴**编辑且保持控件原位——
-改横向锚点绝不打扰纵向布局,反之亦然。见 [编辑器](/docs/zh-cn/guides/editor/)。
+从调色板拖放会**嵌套**:落点会认指针下的布局容器为父级(拖拽时虚线框预览将要成为的
+父级),空画布落点则照旧落在根上。锚点选择器**按轴**编辑并保持控件原位——
+改水平锚点绝不扰动垂直布局,反之亦然。见[编辑器](/docs/zh-cn/guides/editor/)。
+
+## 最佳实践
+
+- **优先状态组件而不是攥着句柄。** `UIToggle.isOn`、`UISlider.value`、
+  `UIDropdown.selectedIndex` 是唯一真相——写它们(或绑定它们),视觉自动跟上;
+  句柄方法只是同一写入的带类型语法糖。
+- **让主题拥有颜色。** 省略 `states` / 视觉即可获得随主题热切换重新解析的角色色;
+  只为刻意脱离主题的美术硬编码颜色。
+- **对话框内容放在 `panelEntity` 之下**,绝不放在旁边——这才让开/关成为整棵子树的
+  单次 `display` 写入。
+- **运行时创建的句柄要 `dispose()`**——它销毁控件实体并解除事件订阅。
+- **保持键盘可达。** 只为装饰性或重复的控件传 `focusable: false`;
+  Tab 环就是你的无障碍故事。
+
+## 另请参阅
+
+- [UI](/docs/zh-cn/guides/ui/) —— 组件模型:`UINode`、`Text`、`UIVisual` 与交互。
+- [列表与滚动](/docs/zh-cn/guides/ui-lists/) —— `createListView`、`createScrollView` 与虚拟化。
+- [UI 控制器](/docs/zh-cn/guides/ui-controllers/) —— 共享"页"状态 + 声明式每页字段绑定。
+- [UI 数据绑定](/docs/zh-cn/guides/ui-binding/) —— 信号与控件双向绑定。
+- [UI 交互](/docs/zh-cn/guides/ui-interaction/) —— 焦点、拖放、指针事件。
+- [UI 主题](/docs/zh-cn/guides/ui-theme/) —— token、角色、主题热切换与项目主题。

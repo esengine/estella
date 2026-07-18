@@ -1,0 +1,279 @@
+---
+title: 变换、单位与坐标系
+description: Transform 组件、世界单位/设计像素单位制、物理米制、Y 轴向上的坐标系、用四元数做 2D 旋转,以及父子层级。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+每个存在于世界中的实体都带有一个 `Transform`——它的位置、旋转与缩放。本页是其他指南
+的地基:Transform 各字段的含义、"世界单位"到底是什么(设计像素)、米制从哪里出现
+(物理)、Y 轴指向哪边,以及变换如何沿父子层级复合。
+
+## `Transform` 组件
+
+`Transform` 同时存储你写入的**局部(local)**值和引擎计算出的**世界(world)**值。
+局部字段相对于父实体(没有父实体时相对于世界原点);每一帧变换系统沿层级向下复合,
+把结果写进世界字段。
+
+| 属性 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `position` | Vec3 | `{0, 0, 0}` | 局部位置,单位是世界单位,相对于父实体。`z` 用于在同一排序层内细分绘制顺序。 |
+| `rotation` | Quat | `{w: 1, x: 0, y: 0, z: 0}` | 局部旋转,四元数表示(单位四元数 = 无旋转)。2D 下绕 Z 轴旋转——见 [2D 旋转](#2d-旋转)。 |
+| `scale` | Vec3 | `{1, 1, 1}` | 逐轴局部缩放(`1` = 原始尺寸;负值翻转)。 |
+| `worldPosition` | Vec3 | `{0, 0, 0}` | **只读。**最终世界空间位置,由引擎复合得出。 |
+| `worldRotation` | Quat | 单位四元数 | **只读。**最终世界空间旋转。 |
+| `worldScale` | Vec3 | `{1, 1, 1}` | **只读。**最终世界空间缩放。 |
+
+写局部字段,读世界字段。世界字段是引擎的输出——写它们不会有持久效果,因为变换系统
+每帧都会根据局部字段和父链重新计算。没有父实体的根实体,世界值等于局部值。
+
+```typescript
+import { defineSystem, Query, Mut, Transform } from 'esengine';
+
+const drift = defineSystem([Query(Mut(Transform))], (q) => {
+  for (const [entity, t] of q) {
+    t.position = { x: t.position.x + 1, y: t.position.y, z: t.position.z }; // write local
+    console.log(t.worldPosition.x);                                        // read world
+  }
+});
+```
+
+`position.x/y/z`、`rotation.z`、`scale.x/y/z` 是可动画字段([Sequencer](/docs/zh-cn/guides/timeline/)
+和[补间](/docs/zh-cn/guides/animation/#补间tween)可以打关键帧),而 `position` /
+`rotation` / `scale` 会被[网络](/docs/zh-cn/guides/networking/)的状态复制同步。
+
+<Aside type="note">
+  `LocalTransform` 和 `WorldTransform` 是**同一个组件的别名导出**——
+  `Transform === LocalTransform === WorldTransform`。局部与世界数据都在这一个统一
+  组件里;代码里用哪个名字读起来顺就用哪个。
+</Aside>
+
+<Aside type="tip">
+  编辑器的 Details 面板为了方便,把旋转显示为单个**以度为单位的 Z 角度**,但底层
+  存储的数据始终是四元数。
+</Aside>
+
+## 坐标系
+
+- **世界空间 Y 轴向上**:`+Y` 朝上,`+X` 朝右,角度 `0` 指向 `+X`,正角度逆时针
+  (`Math.atan2(dy, dx)` 可直接得到指向目标的角度)。
+- **`position.z` 是绘制顺序,不是透视**:2D 渲染先按各渲染器的排序层 `layer` 粗排;
+  同一层内用 `z` 做精细排序(俯视角深度请用
+  [y 排序层](/docs/zh-cn/guides/sprites/#绘制顺序与排序层))。它不会使精灵产生
+  透视缩放。
+- **屏幕空间 Y 轴向下**:指针坐标(`Input.mouseX/mouseY`、UI 命中测试)是从画布
+  **左上角**起算的像素,Y 向下增大。
+
+用 `CameraView` 资源在两个空间之间转换(完整 API 见
+[相机](/docs/zh-cn/guides/camera/#屏幕--世界坐标)):
+
+```typescript
+import { defineSystem, Res, CameraView, Input } from 'esengine';
+
+const pick = defineSystem([Res(CameraView), Res(Input)], (view, input) => {
+  // Screen px (Y-down, top-left origin) -> world units (Y-up). null if no camera.
+  const world = view.screenToWorld(input.mouseX, input.mouseY);
+  if (world) { /* world.x, world.y */ }
+});
+```
+
+## 单位——设计像素、世界单位与米
+
+Estella 只有**一种创作用空间单位**:设计像素。以及**一种派生单位**给物理用:米。
+
+```text
+screen px (Y-down)  ── CameraView.screenToWorld ──▶  world units = design px (Y-up)
+world / design px   ── ÷ Canvas.pixelsPerUnit (100) ──▶  physics meters (Box2D)
+```
+
+**1 世界单位 = 1 设计像素。**默认设计分辨率是 1920×1080(`Canvas.designResolution`),
+编辑器场景相机的创作默认 `orthoSize = designResolution.y / 2 = 540`——相机恰好看到
+一个设计分辨率大小的世界。实际含义:
+
+- 把纹理拖进场景会按其**像素尺寸**生成精灵(128×128 的图片在默认缩放下就是
+  128×128 个世界单位)。
+- `UINode` 的 px 尺寸在场景相机下与设计像素 **1:1** 对应。
+- 玩法代码里的距离、偏移、速度都以设计像素计(px 与 px/秒)。
+
+**物理是米制的。**`Canvas.pixelsPerUnit`(默认 `100`)是每物理**米**对应的世界像素
+数——它缩放 Box2D 世界和瓦片碰撞体。它*不是*精灵的显示缩放。需要记住的分界:
+
+| 物理接口 | 单位 |
+|---|---|
+| 碰撞体尺寸(`halfExtents`、`radius` 等) | **米**(像素 ÷ PPU) |
+| 面向求解器的方法——力、冲量、速度、`setGravity` | **米** |
+| 空间查询——`raycast`、`shapeCast*`、`overlapCircle`、`overlapAABB` | **世界像素**(自动换算) |
+| `CharacterController.velocity` / `moveCharacter` | **世界像素**/秒 |
+
+这些默认值以常量导出,需要它们的代码不必硬编码数字:
+
+```typescript
+import { DEFAULT_DESIGN_WIDTH, DEFAULT_DESIGN_HEIGHT, DEFAULT_PIXELS_PER_UNIT } from 'esengine';
+
+DEFAULT_DESIGN_WIDTH;    // 1920
+DEFAULT_DESIGN_HEIGHT;   // 1080
+DEFAULT_PIXELS_PER_UNIT; // 100
+
+const radiusMeters = 24 / DEFAULT_PIXELS_PER_UNIT; // a 24 px circle collider
+```
+
+这些常量直接读取引擎自身的 Canvas 默认值,因此不会与 C++ 数值漂移。
+
+## 2D 旋转
+
+`Transform.rotation` 是四元数 `{w, x, y, z}`。纯 2D 旋转就是绕 Z 轴的旋转,只用到
+`z` 和 `w` 两个分量:
+
+```text
+angle a (radians)  ->  { w: cos(a/2), x: 0, y: 0, z: sin(a/2) }
+```
+
+用 `quat()` 工厂函数构造——**注意参数顺序:`w` 在最前**
+(`quat(w = 1, x = 0, y = 0, z = 0)`),与单位四元数默认值一致:
+
+```typescript
+import { quat } from 'esengine';
+
+const angle = Math.PI / 4;                                   // 45° CCW
+const rot = quat(Math.cos(angle / 2), 0, 0, Math.sin(angle / 2));
+```
+
+反向读回角度,有两个等价的辅助函数,都计算 `2 * atan2(z, w)`:
+
+| 辅助函数 | 签名 | 说明 |
+|---|---|---|
+| `quaternionToAngle2D` | `(rz, rw) => number` | 由四元数的 `z`/`w` 求 Z 角度(弧度)。 |
+| `facingFromQuat` | `(z, w) => number` | 同样的数学;AI/感知模块的写法。 |
+| `normalizeAngle` | `(a) => number` | 把任意角度归一到 `(-π, π]`——用于最短转向差值。 |
+
+完整示例——炮塔跟踪光标:
+
+```typescript
+import {
+  defineSystem, defineTag, Query, Mut, Res,
+  Transform, CameraView, quat, facingFromQuat, normalizeAngle,
+} from 'esengine';
+
+const Turret = defineTag('Turret');
+
+const aim = defineSystem([Query(Mut(Transform)).with(Turret), Res(CameraView)], (q, view) => {
+  const target = view.getWorldMousePosition();
+  if (!target) return;
+  for (const [entity, t] of q) {
+    const angle = Math.atan2(
+      target.y - t.worldPosition.y,
+      target.x - t.worldPosition.x,
+    );
+    t.rotation = quat(Math.cos(angle / 2), 0, 0, Math.sin(angle / 2));
+
+    // Or, to turn gradually: read the current facing and step toward the target.
+    const facing = facingFromQuat(t.rotation.z, t.rotation.w);
+    const delta = normalizeAngle(angle - facing); // shortest signed turn
+  }
+});
+```
+
+想动画化旋转,`TweenTarget.RotationZ` 以**弧度**驱动 Z 角度(引擎每步重建四元数),
+Sequencer 给 `rotation.z` 打关键帧也是同样的语义——见
+[动画](/docs/zh-cn/guides/animation/#补间tween)。
+
+<Aside type="tip">
+  如果只需要瞄准数学而完全不碰旋转,[数学辅助](/docs/zh-cn/guides/math/)里的
+  `v2.fromAngle(angle, len)` 和 `v2.rotate(v, angle)` 可以直接产出方向向量。
+</Aside>
+
+## 父子层级
+
+实体通过 `Parent` 和 `Children` 组件构成一棵树,但你永远不要直接写这两个组件——
+用 world 的层级 API:
+
+```typescript
+import { defineSystem, addStartupSystem, GetWorld, Transform } from 'esengine';
+
+const build = defineSystem([GetWorld()], (world) => {
+  const ship = world.spawn('Ship');
+  world.insert(ship, Transform, { position: { x: 400, y: 300, z: 0 } });
+
+  const turret = world.spawn('Turret');
+  world.insert(turret, Transform, { position: { x: 0, y: 24, z: 0 } }); // 24 px above the ship
+  world.setParent(turret, ship);
+});
+addStartupSystem(build);
+```
+
+- `world.setParent(child, parent)`——把 `child` 挂到(或改挂到)`parent` 下。
+  **双侧维护**:既写子实体的 `Parent`,也更新父实体的 `Children` 列表。防环——
+  把实体挂到自己或自己的后代下会被静默忽略。
+- `world.removeParent(entity)`——脱离父实体,实体重新成为根。
+- `world.despawn(entity)`——销毁**整棵子树**,先子后父,不会留下孤儿继续渲染。
+
+读取树结构时,`Parent` 持有 `{ entity }`(父实体),`Children` 持有 `{ entities }`
+(一个 `Entity[]`)——像普通组件一样查询:
+
+```typescript
+import { defineSystem, Query, Parent, Children, Transform } from 'esengine';
+
+const followers = defineSystem([Query(Transform, Parent)], (q) => {
+  for (const [entity, t, parent] of q) { /* parent.entity */ }
+});
+```
+
+### 世界变换如何复合
+
+每一帧变换系统从各个根开始深度优先遍历。对每个实体,先按
+**translate × rotate × scale**(TRS)构建局部矩阵,再乘上父实体的世界矩阵:
+
+```text
+world = parentWorld × T(position) × R(rotation) × S(scale)
+```
+
+所以子实体的 `position` 是在父实体旋转、缩放后的坐标系里度量的:父实体旋转 90° 时,
+局部位于 `{x: 24, y: 0}` 的子实体在世界空间里出现在父实体*上方* 24 px 处。分解后的
+结果写入 `worldPosition` / `worldRotation` / `worldScale`。
+
+### 易错点
+
+- **改挂父级保留局部值。**`setParent` 不会为保持世界位姿而重算局部字段——局部为
+  `{0, 0}` 的子实体会跳到新父实体的位置。想让实体在视觉上原地不动,请在改挂前自行
+  把它的世界位置换算进新父实体的坐标系。
+- **绝不要直接插入 `Parent`。**`world.insert(entity, Parent, …)` 只写子侧链接,
+  父实体的 `Children` 列表会失去同步——而引擎的一半(布局、渲染、销毁)都在遍历
+  `Children`。永远用 `world.setParent`。
+- **兄弟顺序在移除后不稳定。**摘除一个子实体是对 `Children` 做 swap-remove,会打乱
+  剩余兄弟的次序。不要在 `Children` 顺序里编码含义;绘制顺序用 `position.z` 或
+  排序层表达。
+
+## 缩放
+
+`scale` 逐轴生效。`{2, 2, 1}` 均匀放大一倍;`{2, 1, 1}` 水平拉伸;负值镜像
+(`{-1, 1, 1}` 水平翻转——不过对精灵而言,`Sprite.flipX` 不动变换就能做到)。
+
+缩放通过 `worldScale` 沿层级向下复合:挂在 `{2, 2, 1}` 父实体下的子实体以自身缩放
+的两倍渲染,其局部 `position` 也会被父实体的缩放拉伸(局部 `{x: 10, y: 0}` 在世界
+空间落在 20 px 之外)。
+
+<Aside type="caution">
+  父实体上尽量用**均匀**缩放(x、y 相等)。非均匀的父缩放叠加子旋转会产生剪切
+  (skew)——复合矩阵不再是干净的旋转,而物理碰撞体(不受缩放影响的米制形状)也
+  将与你看到的画面不再吻合。相机缩放请用 `Camera.orthoSize`,绝不要缩放相机的
+  Transform。
+</Aside>
+
+## 最佳实践
+
+- **写局部,读世界。**把 `worldPosition` / `worldRotation` / `worldScale` 当作输出;
+  所有创作性修改都走 `position` / `rotation` / `scale`。
+- **玩法逻辑用设计像素思考**——位置、速度、距离——只在物理边界处换算
+  (碰撞体尺寸与求解器调用 ÷ `pixelsPerUnit`)。
+- **用 `world.setParent`**,不要手写 `Parent` 插入。
+- 写 Transform 的查询里**用 `Mut(...)` 包裹**,让变更检测和渲染器看到更新。
+- **`position.z` 只用于同一排序层内的先后细分**;粗粒度排序用排序层
+  (或 y 排序层)。
+
+## 另请参阅
+
+- [组件](/docs/zh-cn/core-concepts/components/)——组件如何声明与存储数据。
+- [相机](/docs/zh-cn/guides/camera/)——orthoSize、跟随与屏幕 ↔ 世界转换。
+- [精灵与渲染](/docs/zh-cn/guides/sprites/)——排序层、y 排序与绘制顺序。
+- [物理](/docs/zh-cn/guides/physics/)——单位制中以米为单位的那一侧。
+- [数学辅助](/docs/zh-cn/guides/math/)——在规范类型上做向量与旋转数学。

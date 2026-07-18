@@ -1,6 +1,6 @@
 ---
 title: 自定义绘制
-description: 超出组件的绘制——用 Draw 画即时模式图元、用 Graphics 画矢量路径、用 Mesh2D 画自定义三角网格,以及离屏渲染纹理。
+description: 超出组件的绘制——用 Draw 画即时模式图元、用 Graphics 画矢量路径、用 Mesh2D 与 Geometry API 画自定义三角网格,以及离屏渲染纹理。
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -8,6 +8,17 @@ import { Aside } from '@astrojs/starlight/components';
 大多数视觉是组件——[精灵](/docs/zh-cn/guides/sprites/)、瓦片地图、粒子。当它们
 表达不了你要的东西——调试覆盖层、程序化形状、自定义几何——引擎把绘制层直接暴露
 给你。
+
+## 该用哪个 API
+
+| API | 模型 | 适用场景 |
+|---|---|---|
+| `Draw` | **即时模式**,全局——命令自动合批、每帧清空。 | 调试覆盖层、gizmo、任何每帧从头重画的东西。 |
+| `Graphics` | **保留式**路径记录器——构建一次,`flush()` 时经 `Draw` 回放。 | 带路径/贝塞尔/圆弧的矢量形状,不想每帧重新细分。 |
+| `ShapeRenderer` / `Mesh2D` | **组件**——带排序层、材质、编辑器 gizmo 的实体。 | 属于场景的形状/网格(见[精灵](/docs/zh-cn/guides/sprites/))。 |
+
+经验法则:视觉属于*场景*(参与排序、保存、可检视)就做成组件;属于*某一帧*
+(调试、类 HUD 覆盖、程序化效果)就在回调里画。
 
 ## 绘制回调
 
@@ -43,6 +54,7 @@ registerDrawCallback('debug-overlay', (elapsed) => {
 | `circle(center, radius, color, filled?, segments?)` / `circleOutline(…)` | 一个圆(默认 `32` 段)。 |
 | `texture(pos, size, textureHandle, tint?)` | 一个贴图四边形。 |
 | `textureRotated(pos, size, rotation, textureHandle, tint?)` | 同上,带旋转(弧度)。 |
+| `drawMesh(geometry, shader, transform)` / `drawMeshWithMaterial(geometry, material, transform?)` | 按句柄绘制自定义网格(见下面的 `Geometry` API)。 |
 | `setLayer(layer)` / `setDepth(depth)` | 后续命令的排序。 |
 | `setBlendMode(mode)` / `setDepthTest(on)` | 后续命令的混合 / 深度状态。 |
 | `getDrawCallCount()` / `getPrimitiveCount()` | 本帧统计。 |
@@ -93,12 +105,90 @@ cmds.spawn()
 `Meshes2D` 资源——`setGeometry(entity, geometry)` 重新上传(索引在引擎侧校验),
 另有 `getGeometry` / `clearGeometry`。只改 `geometry` 字段本身不会被变更检测。
 
+## 自定义几何:`Geometry` API
+
+`Mesh2D` 是*组件*路径,`Geometry` 则是*即时*路径:它上传一个索引顶点缓冲,交回
+一个**句柄**由你自己绘制——配上[材质](/docs/zh-cn/guides/material/)用
+`Draw.drawMeshWithMaterial(geometry, material, transform?)`(或配原始着色器用
+`Draw.drawMesh(geometry, shader, transform)`)。
+
+```typescript
+import { Geometry, Draw, Material, registerDrawCallback } from 'esengine';
+
+const quad = Geometry.createQuad(120, 120);                  // 1 单位 ≙ 1 设计像素
+const mat = Material.create({ shader });                     // 一个 compileShader 材质
+
+registerDrawCallback('custom-mesh', () => {
+  Draw.drawMeshWithMaterial(quad, mat);                      // 单位矩阵变换
+});
+```
+
+### `GeometryOptions`
+
+| 字段 | 默认 | 说明 |
+|---|---|---|
+| `vertices` | — | 交错的顶点数据,一个 `Float32Array`(每次上传上限 64K 个 float)。 |
+| `layout` | — | `VertexAttributeDescriptor[]`——按缓冲顺序、每个属性一个 `{ name, type }`。 |
+| `indices` | — | `Uint16Array` 或 `Uint32Array` 三角形列表(每次上传上限 16K 个索引)。 |
+| `dynamic` | `false` | 为 `updateVertices` 的频繁更新分配。 |
+
+`DataType` 命名每个属性的形状:`Float`、`Float2`、`Float3`、`Float4`、`Int`、
+`Int2`、`Int3`、`Int4`。
+
+### 方法与辅助函数
+
+| 方法 | 作用 |
+|---|---|
+| `create(options)` | 上传网格;返回 `GeometryHandle`(失败或数据超限时抛错)。 |
+| `updateVertices(handle, vertices, offset?)` | 重写 `dynamic` 几何的顶点数据(offset 单位 float)。 |
+| `release(handle)` / `isValid(handle)` | 释放 / 探测句柄。 |
+| `createQuad(width?, height?)` | 居中四边形(默认 1×1),布局为 `a_position` + `a_texCoord`。 |
+| `createCircle(radius?, segments?)` | 三角扇圆形(默认 1、32),同一布局。 |
+| `createPolygon(points)` | 由 `{x, y}` 点扇形三角化的多边形,UV 取自包围盒。 |
+
+辅助网格都用双属性 `Float2` 位置 + `Float2` UV 布局,可直接配只写片元的
+`.esshader` 材质。
+
 ## 离屏目标:`RenderTexture`
 
-进阶用法——小地图、头像、镜面——`RenderTexture.create({ width, height })` 分配
-一个离屏目标;把绘制命令包在 `RenderTexture.begin(rt, viewProjection)` / `end()`
-之间即渲染进去,用完 `release(rt)`。这是低层接口(view-projection 矩阵由你提供)
-——细节见 TypeScript API 参考。
+小地图、头像、镜面——以及[位图缓存](/docs/zh-cn/guides/sprites/)的底层——
+`RenderTexture` 分配一个离屏渲染目标。把绘制命令包在 `begin`/`end` 之间即渲染
+进去;得到的 `textureId` 是普通纹理句柄,哪里都能用(`Sprite.texture`、
+`Draw.texture`、材质纹理参数):
+
+```typescript
+import { RenderTexture, Draw } from 'esengine';
+
+const rt = RenderTexture.create({ width: 256, height: 256, filter: 'linear' });
+
+RenderTexture.begin(rt, viewProjection);   // 你提供的正交 view-projection
+Draw.circle({ x: 0, y: 0 }, 80, { r: 1, g: 0.5, b: 0, a: 1 });
+RenderTexture.end();
+
+sprite.texture = rt.textureId;
+```
+
+### `RenderTextureOptions`
+
+| 字段 | 默认 | 说明 |
+|---|---|---|
+| `width` / `height` | — | 目标像素尺寸(必填)。 |
+| `depth` | `true` | 附加深度缓冲——纯 2D 合成可关掉省内存。 |
+| `filter` | `'nearest'` | 结果被绘制时的采样过滤:`'nearest'` 或 `'linear'`。 |
+
+### 方法
+
+| 方法 | 作用 |
+|---|---|
+| `create(options)` | 分配目标;返回带 `textureId`、`width`、`height` 的句柄。 |
+| `begin(rt, viewProjection)` | 把后续绘制重定向进目标(矩阵由你提供)。 |
+| `end()` | 结束离屏渲染,回到屏幕。 |
+| `resize(rt, width, height)` | 释放并重建——返回**新**句柄(`textureId` 会变)。 |
+| `getDepthTexture(rt)` | 以可采样纹理句柄取深度附件。 |
+| `release(rt)` | 释放目标及其纹理。 |
+
+这是低层接口:它不会替你渲染场景——只是把你在 `begin`/`end` 之间画的东西,
+在你构建的 view-projection 矩阵下重定向到目标。
 
 ## 参见
 

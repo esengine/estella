@@ -171,6 +171,83 @@ Settings**: `Compress` and `Bitrate` control the cook's WAV → MP3 transcode
 pass through untouched. MP3 has a small encoder delay — turn `Compress` off on
 clips that must loop seamlessly.
 
+## Under the facade
+
+`Audio` is a facade over three exported classes the Web Audio backend assembles —
+`AudioMixer`, `AudioBus`, and `AudioPool`. You rarely construct them inside a
+game (on the WeChat backend they don't exist at all, which is why the bus APIs
+degrade to no-ops there), but they're public for two real jobs: **custom buses
+beyond the built-in four**, and **standalone audio pipelines** — an audition
+tool, a custom `PlatformAudioBackend`, tests — built on your own `AudioContext`.
+
+Custom buses need no class at all — the facade covers them:
+
+```typescript
+audio.ensureBus('ambience');                 // create under master (idempotent)
+audio.ensureBus('footsteps', 'sfx');         // or under an existing bus
+audio.setBusVolume('ambience', 0.5);
+audio.playSFX('assets/wind.ogg', { bus: 'ambience' });   // or AudioSource.bus
+```
+
+`ensureBus(name, parent?)` creates the bus if it's missing (under `parent`,
+defaulting to `master`) and returns `false` on backends without a mixer graph;
+every by-name facade call (`setBusVolume`, `muteBus`, `setBusEffects`,
+`setBusDucking`) then reaches it.
+
+### `AudioBus`
+
+One mixer strip: `input → [effect inserts…] → duck → gain(volume) → parent`.
+Sources and child buses connect to `input`; `node` is the **output** gain — what
+volume/mute act on and where parents (or an `AnalyserNode` for a VU meter) tap.
+The duck stage is a separate gain, so sidechain ducking never fights the user's
+volume setting. Constructed with an `AudioBusConfig`:
+
+| `AudioBusConfig` | Type | Default | Description |
+|---|---|---|---|
+| `name` | string | – | Bus name. |
+| `volume` | number | `1` | Initial volume, clamped 0..1. |
+| `muted` | boolean | `false` | Start muted. |
+| `parent` | string | `'master'` | Parent bus name (consumed by `AudioMixer.createBus`). |
+
+| Member | Description |
+|---|---|
+| `input` / `node` | Entry `GainNode` / output `GainNode` (analyser taps connect from `node`). |
+| `volume` | 0..1; changes are smoothed over ~15 ms so they never click. |
+| `muted` | Ramps the output to 0 and back without losing `volume`. |
+| `effects` / `setEffects(defs)` | Read / idempotently replace the DSP insert chain (`BusEffectDef[]`). |
+| `duckTo(level, timeConstant)` | Ramp the duck stage toward `level` (the mixer's ducking drives this). |
+| `connect(dest)` / `addChild(bus)` | Wire the output into a parent bus or a raw `AudioNode`. |
+
+### `AudioMixer`
+
+Owns the bus tree. Constructing one builds `master → { music, sfx, ui, voice }`
+wired to `context.destination`, with volumes from `AudioMixerConfig`
+(`masterVolume` / `musicVolume` / `sfxVolume` / `uiVolume` / `voiceVolume` —
+music defaults to `0.8`, the rest to `1`):
+
+```typescript
+import { AudioMixer } from 'esengine';
+
+const mixer = new AudioMixer(new AudioContext(), { musicVolume: 0.6 });
+const ambience = mixer.createBus({ name: 'ambience' });   // under master
+```
+
+| Method | Description |
+|---|---|
+| `master` / `music` / `sfx` / `ui` / `voice` | The built-in buses, as readonly fields. |
+| `getBus(name)` / `busNames()` | Look up a bus / list every name (creation order, `master` first). |
+| `createBus(config)` | Create and wire a bus under `config.parent` (default `master`). |
+| `setDucking(target, rule \| null)` / `getDucking(target)` | Install or clear a sidechain `BusDuckRule` (`trigger`, `amount`, `attack`, `release`, `threshold`). |
+| `updateDucking()` | Per-frame: measure each trigger's RMS and ramp its target's duck stage (the audio system calls this for the engine's mixer). |
+
+### `AudioPool`
+
+The voice pool behind one-shots: pre-built `gain → panner` node pairs
+(`PooledAudioNode`) that are `acquire()`d per play and `release()`d when the
+sound ends, growing past the initial 16 on demand; `activeCount` and `capacity`
+report usage. Reach for it when you build custom playback on your own
+`AudioContext` and want to avoid per-play node churn.
+
 ## Spatial audio
 
 Set `AudioSource.spatial = true` and give your listener entity (usually the camera
@@ -203,6 +280,28 @@ const setupSpatial = defineSystem([Commands()], (cmds) => {
 
 `AudioListener` has a single field, `enabled` (default `true`) — keep exactly one
 enabled listener in the scene.
+
+Estella's spatial pipeline is honest 2D: each frame, the audio system takes the
+source's and the listener's world positions, computes the distance, and drives
+the playing handle with `volume × attenuation` plus an **x-axis stereo pan**
+(`(sourceX − listenerX) / maxDistance`, clamped to ±1). There is no HRTF,
+doppler, or occlusion. A spatial source playing with no enabled listener warns
+once and measures from the world origin.
+
+The curve math is exported as pure functions for tools and tests —
+`calculateAttenuation(distance, config)` with a `SpatialAudioConfig`
+(`model`, `refDistance`, `maxDistance`, `rolloff` — the system fills it from
+`AudioSource.minDistance`/`maxDistance`/`rolloff`), and
+`calculatePanning(sourceX, sourceY, listenerX, listenerY, maxDistance)`:
+
+```typescript
+import { calculateAttenuation, calculatePanning, AttenuationModel } from 'esengine';
+
+const gain = calculateAttenuation(250, {
+  model: AttenuationModel.Inverse, refDistance: 100, maxDistance: 1000, rolloff: 1,
+});                                                  // 0.4 — refDistance / distance
+const pan = calculatePanning(600, 0, 0, 0, 1000);    // 0.6 — to the right
+```
 
 ## Best practices
 
