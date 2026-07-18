@@ -369,6 +369,9 @@ export function TilemapPainter() {
             title={`#${id}`}
             onPointerDown={(e) => {
               e.preventDefault();
+              // Picking a tile IS a brush action — leave the terrain tool so the
+              // atlas (kept visible for context) never dead-ends.
+              if (tool === 'terrain') setTool('brush');
               dragAnchor.current = { c: col, r: row };
               setSel({ c0: col, r0: row, c1: col, r1: row });
             }}
@@ -561,8 +564,9 @@ export function TilemapPainter() {
           )}
         </div>
       )}
-      {tool !== 'terrain' && (
-        <div className="tp-tilesets">
+      {/* Tileset tabs stay in every tool — the terrain list below is the ACTIVE
+          tileset's, so switching tilesets is legitimate mid-terrain-paint. */}
+      <div className="tp-tilesets">
           {tilesets.map((ts, i) => (
             <span
               key={ts.path}
@@ -599,9 +603,8 @@ export function TilemapPainter() {
               </div>
             )}
           </div>
-        </div>
-      )}
-      {tool === 'terrain' ? (
+      </div>
+      {tool === 'terrain' && (
         <div className="tp-terrains">
           {(asset?.terrains ?? []).length === 0 ? (
             <div className="tp-warn">
@@ -647,9 +650,10 @@ export function TilemapPainter() {
             ))
           )}
         </div>
-      ) : (
-        <>
-          {texUrl && (
+      )}
+      {/* The atlas palette stays in every tool — hiding it in terrain mode read
+          as "my tiles are gone"; picking a tile here switches back to the brush. */}
+      {texUrl && (
             <div className="tp-palbar">
               {/* Active-brush preview lives with the palette it's picked from + the zoom it
                   scales with — always visible (the tools row above no longer steals it). */}
@@ -696,8 +700,6 @@ export function TilemapPainter() {
               </div>
             )}
           </div>
-        </>
-      )}
     </div>
   );
 }
