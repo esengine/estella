@@ -58,6 +58,11 @@ export class AudioPool {
             node.source.disconnect();
             node.source = null;
         }
+        // The panner is re-connected to a bus on every play; without disconnecting
+        // it here, reusing this pooled node on a DIFFERENT bus leaves the old
+        // panner→bus edge live, so the sound feeds both buses (doubled + wrong
+        // volume/ducking). WebAudio dedups same-target connects, not different ones.
+        node.panner.disconnect();
         node.inUse = false;
         this.activeCount_--;
     }

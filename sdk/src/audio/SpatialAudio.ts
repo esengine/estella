@@ -56,5 +56,6 @@ export function calculatePanning(
     maxDistance: number
 ): number {
     const dx = sourceX - listenerX;
-    return Math.max(-1, Math.min(1, dx / maxDistance));
+    // Guard maxDistance: 0 would yield NaN, which StereoPannerNode.pan throws on.
+    return Math.max(-1, Math.min(1, dx / Math.max(maxDistance, 1e-3)));
 }
