@@ -1,0 +1,6 @@
+info face="tiny" size=8
+common lineHeight=8 base=8 scaleW=16 scaleH=8 pages=1
+page id=0 file="tinyfont.png"
+chars count=2
+char id=65 x=0 y=0 width=8 height=8 xoffset=0 yoffset=0 xadvance=8 page=0
+char id=66 x=8 y=0 width=8 height=8 xoffset=0 yoffset=0 xadvance=8 page=0

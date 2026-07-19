@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 #include "TextPlugin.hpp"
+#include "../BatchBuilder.hpp"
 #include "../RenderContext.hpp"
 #include "../RenderFrame.hpp"
 #include "../Texture.hpp"
@@ -41,6 +42,80 @@ u32 TextPlugin::decodeUtf8(const char* data, u16 length, u16& pos) {
     return b0;
 }
 
+void TextPlugin::rebuildLayout(const text::BitmapFont& font, const ecs::BitmapText& bt,
+                               f32 texW, f32 texH, TextLayoutCache& cache) {
+    cache.vertices.clear();
+    cache.indices.clear();
+
+    auto metrics = font.measureText(bt.text, bt.fontSize, bt.spacing);
+    cache.width = metrics.width;
+    cache.height = metrics.height;
+
+    const f32 fs = bt.fontSize;
+    const f32 spacing = bt.spacing;
+    const f32 fontBase = font.getBase();
+    const char* textData = bt.text.c_str();
+    const u16 textLen = static_cast<u16>(bt.text.size());
+
+    f32 totalWidth = 0;
+    if (bt.align != ecs::TextAlign::Left) {
+        u32 prevChar = 0;
+        for (u16 j = 0; j < textLen; ++j) {
+            u32 charCode = decodeUtf8(textData, textLen, j);
+            auto* glyph = font.getGlyph(charCode);
+            if (!glyph) continue;
+            if (prevChar) {
+                totalWidth += font.getKerning(prevChar, charCode) * fs;
+            }
+            totalWidth += (glyph->xAdvance + spacing) * fs;
+            prevChar = charCode;
+        }
+    }
+
+    f32 cursorX = 0;
+    if (bt.align == ecs::TextAlign::Center) {
+        cursorX = -totalWidth * 0.5f;
+    } else if (bt.align == ecs::TextAlign::Right) {
+        cursorX = -totalWidth;
+    }
+
+    u32 prevChar = 0;
+    for (u16 j = 0; j < textLen; ++j) {
+        u32 charCode = decodeUtf8(textData, textLen, j);
+        auto* glyph = font.getGlyph(charCode);
+        if (!glyph) continue;
+
+        if (prevChar) {
+            cursorX += font.getKerning(prevChar, charCode) * fs;
+        }
+
+        if (glyph->width > 0 && glyph->height > 0) {
+            f32 halfW = glyph->width * fs * 0.5f;
+            f32 halfH = glyph->height * fs * 0.5f;
+            f32 cx = cursorX + (glyph->xOffset + glyph->width * 0.5f) * fs;
+            f32 cy = (fontBase - glyph->yOffset - glyph->height * 0.5f) * fs;
+
+            // Glyph rows are top-down in the atlas, so v is flipped (top at vMin).
+            f32 uMin = glyph->x / texW;
+            f32 uMax = (glyph->x + glyph->width) / texW;
+            f32 vTop = glyph->y / texH;
+            f32 vBottom = (glyph->y + glyph->height) / texH;
+
+            u32 baseVertex = static_cast<u32>(cache.vertices.size());
+            cache.vertices.push_back({ {cx - halfW, cy - halfH}, 0, {uMin, vBottom} });
+            cache.vertices.push_back({ {cx + halfW, cy - halfH}, 0, {uMax, vBottom} });
+            cache.vertices.push_back({ {cx + halfW, cy + halfH}, 0, {uMax, vTop} });
+            cache.vertices.push_back({ {cx - halfW, cy + halfH}, 0, {uMin, vTop} });
+            for (u32 i = 0; i < 6; ++i) {
+                cache.indices.push_back(baseVertex + BATCH_QUAD_INDICES[i]);
+            }
+        }
+
+        cursorX += (glyph->xAdvance + spacing) * fs;
+        prevChar = charCode;
+    }
+}
+
 void TextPlugin::collect(RenderCollectContext& collect_ctx) {
     auto& registry = collect_ctx.registry;
     auto& frustum = collect_ctx.frustum;
@@ -61,104 +136,66 @@ void TextPlugin::collect(RenderCollectContext& collect_ctx) {
         auto* tex = ctx.resources.getTexture(font->getTexture());
         if (!tex) continue;
 
+        f32 texW = static_cast<f32>(font->getTexWidth());
+        f32 texH = static_cast<f32>(font->getTexHeight());
+        if (texW == 0 || texH == 0) continue;
+
+        auto& cache = layout_cache_[entity];
+        if (cache.text != bt.text || cache.font_id != bt.font.id()
+            || cache.font_size != bt.fontSize || cache.spacing != bt.spacing
+            || cache.align != static_cast<u8>(bt.align)) {
+            rebuildLayout(*font, bt, texW, texH, cache);
+            cache.text = bt.text;
+            cache.font_id = bt.font.id();
+            cache.font_size = bt.fontSize;
+            cache.spacing = bt.spacing;
+            cache.align = static_cast<u8>(bt.align);
+        }
+        if (cache.indices.empty()) continue;
+
         auto& transform = textView.get<ecs::Transform>(entity);
         glm::vec3 position = parallaxedWorldPosition(transform, bt.parallax, collect_ctx.camera);
-        const auto& scale = transform.worldScale;
+        const f32 s = transform.worldScale.x;
 
-        auto textMetrics = font->measureText(bt.text, bt.fontSize, bt.spacing);
         glm::vec3 halfExtents = glm::vec3(
-            textMetrics.width * scale.x * 0.5f,
-            textMetrics.height * scale.y * 0.5f,
+            cache.width * s * 0.5f,
+            cache.height * transform.worldScale.y * 0.5f,
             0.0f
         );
         if (!frustum.intersectsAABB(position, halfExtents)) {
             continue;
         }
 
-        u32 textureId = tex->getId();
-        f32 texW = static_cast<f32>(font->getTexWidth());
-        f32 texH = static_cast<f32>(font->getTexHeight());
-        if (texW == 0 || texH == 0) continue;
-
-        f32 fontScale = bt.fontSize * scale.x;
-        f32 spacing = bt.spacing;
-        f32 fontBase = font->getBase();
-
-        f32 totalWidth = 0;
-        if (bt.align != ecs::TextAlign::Left) {
-            u32 prevChar = 0;
-            const char* textData = bt.text.c_str();
-            u16 textLen = static_cast<u16>(bt.text.size());
-            for (u16 j = 0; j < textLen; ++j) {
-                u32 charCode = decodeUtf8(textData, textLen, j);
-                auto* glyph = font->getGlyph(charCode);
-                if (!glyph) continue;
-                if (prevChar) {
-                    totalWidth += font->getKerning(prevChar, charCode) * fontScale;
-                }
-                totalWidth += (glyph->xAdvance + spacing) * fontScale;
-                prevChar = charCode;
-            }
+        u32 packedColor = packColor(bt.color);
+        scratch_.clear();
+        scratch_.reserve(cache.vertices.size());
+        for (const BatchVertex& v : cache.vertices) {
+            scratch_.push_back({
+                { position.x + v.position.x * s, position.y + v.position.y * s },
+                packedColor, v.texCoord });
         }
 
-        f32 alignOffset = 0;
-        if (bt.align == ecs::TextAlign::Center) {
-            alignOffset = -totalWidth * 0.5f;
-        } else if (bt.align == ecs::TextAlign::Right) {
-            alignOffset = -totalWidth;
-        }
+        appendIndexedBatch(buffers, draw_list, clips,
+            scratch_.data(), static_cast<u32>(scratch_.size()),
+            cache.indices.data(), static_cast<u32>(cache.indices.size()),
+            BatchDrawKey{
+                .stage = ctx.current_stage,
+                .layer = bt.layer,
+                .shaderId = batch_shader_id_,
+                .blend = BlendMode::Normal,
+                .textureId = tex->getId(),
+                .depth = position.z,
+                .y = position.y,
+                .entity = entity,
+                .type = RenderType::Text,
+            });
+    }
 
-        f32 cursorX = position.x + alignOffset;
-        f32 baseY = position.y;
-
-        const char* textData = bt.text.c_str();
-        u16 textLen = static_cast<u16>(bt.text.size());
-        u32 prevChar = 0;
-
-        // Constant across every glyph of this text entity — build the draw key once.
-        BatchDrawKey key{
-            .stage = ctx.current_stage,
-            .layer = bt.layer,
-            .shaderId = batch_shader_id_,
-            .blend = BlendMode::Normal,
-            .textureId = textureId,
-            .depth = position.z,
-            .y = position.y,
-            .entity = entity,
-            .type = RenderType::Text,
-        };
-        constexpr glm::vec2 CENTERED_PIVOT{0.5f, 0.5f};
-
-        for (u16 j = 0; j < textLen; ++j) {
-            u32 charCode = decodeUtf8(textData, textLen, j);
-            auto* glyph = font->getGlyph(charCode);
-            if (!glyph) continue;
-
-            if (prevChar) {
-                cursorX += font->getKerning(prevChar, charCode) * fontScale;
-            }
-
-            if (glyph->width > 0 && glyph->height > 0) {
-                f32 glyphW = glyph->width * fontScale;
-                f32 glyphH = glyph->height * fontScale;
-
-                f32 posX = cursorX + (glyph->xOffset + glyph->width * 0.5f) * fontScale;
-                f32 posY = baseY + (fontBase - glyph->yOffset - glyph->height * 0.5f) * fontScale;
-
-                f32 uvY = glyph->y / texH;
-                f32 uvH = glyph->height / texH;
-                glm::vec2 uvOffset(glyph->x / texW, uvY + uvH);
-                glm::vec2 uvScale(glyph->width / texW, -uvH);
-
-                // A glyph is an unrotated centered quad; the base emitter packs the
-                // BATCH_QUAD_TEX_COORDS (0,0)->(1,1) exactly as the glyph UVs expect.
-                emitQuad(buffers, draw_list, clips,
-                    glm::vec2(posX, posY), glm::vec2(glyphW, glyphH), CENTERED_PIVOT,
-                    0.0f, uvOffset, uvScale, bt.color, key);
-            }
-
-            cursorX += (glyph->xAdvance + spacing) * fontScale;
-            prevChar = charCode;
+    for (auto it = layout_cache_.begin(); it != layout_cache_.end(); ) {
+        if (!registry.valid(it->first) || !registry.has<ecs::BitmapText>(it->first)) {
+            it = layout_cache_.erase(it);
+        } else {
+            ++it;
         }
     }
 }

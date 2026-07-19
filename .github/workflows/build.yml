@@ -255,6 +255,13 @@ jobs:
           ESTELLA_VERIFY_W=256 ESTELLA_VERIFY_H=256 ESTELLA_VERIFY_STEPS=2 \
           'ESTELLA_VERIFY_MOVE={"component":"Camera","to":[48,-16],"steps":3}' \
           'ESTELLA_VERIFY_EXPECT=[{"x":0.30,"y":0.40,"rgb":[255,0,0]},{"x":0.10,"y":0.40,"rgb":[0,0,0],"tol":20},{"x":0.50,"y":0.40,"rgb":[0,255,0]}]'
+        # BitmapText's first pixel coverage: a 2-glyph synthetic .fnt atlas
+        # (red A, green B) pins glyph layout, atlas UV orientation and the
+        # one-DrawCommand-per-text path.
+        run_scene bitmaptext \
+          ESTELLA_VERIFY_SCENE=/scenes/bitmaptext.esscene \
+          ESTELLA_VERIFY_W=256 ESTELLA_VERIFY_H=256 ESTELLA_VERIFY_STEPS=3 \
+          'ESTELLA_VERIFY_EXPECT=[{"x":0.40,"y":0.5,"rgb":[255,0,0],"tol":20},{"x":0.60,"y":0.5,"rgb":[0,255,0],"tol":20},{"x":0.5,"y":0.15,"rgb":[0,0,0],"tol":20}]'
         run_scene ui-mask \
           ESTELLA_VERIFY_SCENE=/scenes/ui-list-mask.esscene \
           ESTELLA_VERIFY_MANIFEST=/scenes/ui-list-mask.textures.json \
