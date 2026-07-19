@@ -96,14 +96,6 @@ void buildChunksFromFlat(TilemapSystem::LayerData& layer,
 
 }  // namespace
 
-void TilemapSystem::markAllChunksDirty(Entity entity) {
-    auto* layer = getLayerDataMut(entity);
-    if (!layer) return;
-    for (auto& [coord, chunk] : layer->chunks) {
-        chunk.revision = ++layer->edit_revision;
-    }
-}
-
 void TilemapSystem::initLayer(Entity entity, u32 width, u32 height,
                                f32 tileWidth, f32 tileHeight) {
     LayerData layer;

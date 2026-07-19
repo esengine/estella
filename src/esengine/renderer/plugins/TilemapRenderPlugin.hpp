@@ -26,6 +26,9 @@ public:
 private:
     // Per-tileset-slot geometry for one chunk. A multi-tileset layer splits a
     // chunk's tiles across slots (one texture each) so each becomes its own batch.
+    // Vertices are layer-local and untinted: origin, parallax offset and tint are
+    // applied when merging into the frame's batch, so moving, tinting or
+    // parallax-scrolling a layer never invalidates the cache.
     struct SlotMesh {
         std::vector<BatchVertex> vertices;
         std::vector<u32> indices;
@@ -61,7 +64,6 @@ private:
 
     void rebuildChunk(const tilemap::TilemapSystem::LayerData& layer,
                       const tilemap::ChunkData& chunk, tilemap::ChunkCoord coord,
-                      f32 originX, f32 originY, u32 packedColor,
                       const std::vector<tilemap::TilesetSlot>& slots,
                       const std::vector<ResolvedSlot>& resolved,
                       Entity entity, ChunkCache& cache);

@@ -175,8 +175,6 @@ public:
     void worldToTile(Entity entity, f32 wx, f32 wy,
                      f32 originX, f32 originY, i32& outTx, i32& outTy) const;
 
-    void markAllChunksDirty(Entity entity);
-
     using LayerMap = std::unordered_map<Entity, LayerData>;
     const LayerMap& allLayers() const { return layers_; }
 

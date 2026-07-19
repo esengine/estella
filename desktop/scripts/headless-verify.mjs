@@ -145,6 +145,30 @@ app.whenReady().then(async () => {
     // carrying a TrailRenderer along a world-space path, one frame per sample, so
     // the trail system records points — motion a static scene can't express.
     // Requires play mode (ESTELLA_VERIFY_PLAY=1) for the trail update to run.
+    // ESTELLA_VERIFY_MOVE = {"component":"TilemapLayer","to":[x,y],"steps":N}:
+    // after the scene settles, teleport the first entity carrying the named
+    // component to a world position and step N frames — proves render paths
+    // that cache geometry still track a moving entity (e.g. tilemap origin).
+    if (process.env.ESTELLA_VERIFY_MOVE) {
+      const move = JSON.parse(process.env.ESTELLA_VERIFY_MOVE);
+      await exec(`(async () => {
+        const cfg = ${JSON.stringify(move)};
+        const api = window.__estellaHeadless.api;
+        const flat = [];
+        const walk = (nodes) => { for (const n of nodes) { flat.push(n.id); if (n.children) walk(n.children); } };
+        walk(api.getSceneTree());
+        const want = cfg.component.replace(/\\s+/g, '');
+        let target = null;
+        for (const id of flat) {
+          const e = api.getEntity(id);
+          if (e && e.components && e.components.some((c) => c.replace(/\\s+/g, '') === want)) { target = id; break; }
+        }
+        if (target == null) throw new Error('no ' + cfg.component + ' entity in scene');
+        await api.step(2, 1 / 60);
+        api.setEntityXY(target, cfg.to[0], cfg.to[1]);
+        await api.step(cfg.steps ?? 2, 1 / 60);
+      })()`);
+    }
     if (process.env.ESTELLA_VERIFY_TRAIL) {
       const trail = JSON.parse(process.env.ESTELLA_VERIFY_TRAIL);
       await exec(`(async () => {

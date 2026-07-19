@@ -245,6 +245,16 @@ jobs:
           ESTELLA_VERIFY_MANIFEST=/scenes/tilemap-gidobj.textures.json \
           ESTELLA_VERIFY_W=256 ESTELLA_VERIFY_H=256 ESTELLA_VERIFY_STEPS=10 \
           'ESTELLA_VERIFY_EXPECT=[{"x":0.5,"y":0.5,"rgb":[0,255,0],"tol":40},{"x":0.5,"y":0.12,"rgb":[0,0,0],"tol":30}]'
+        # Parallax on a cached-chunk tilemap: the camera moves while the layer
+        # model is untouched, so only the per-frame origin/parallax merge (not a
+        # revision-bump rebuild) can place the tiles — guards against baking
+        # camera-dependent offsets into the chunk cache.
+        run_scene tilemap-parallax \
+          ESTELLA_VERIFY_SCENE=/scenes/tilemap-parallax.esscene \
+          ESTELLA_VERIFY_MANIFEST=/scenes/tilemap-flip.textures.json \
+          ESTELLA_VERIFY_W=256 ESTELLA_VERIFY_H=256 ESTELLA_VERIFY_STEPS=2 \
+          'ESTELLA_VERIFY_MOVE={"component":"Camera","to":[48,-16],"steps":3}' \
+          'ESTELLA_VERIFY_EXPECT=[{"x":0.30,"y":0.40,"rgb":[255,0,0]},{"x":0.10,"y":0.40,"rgb":[0,0,0],"tol":20},{"x":0.50,"y":0.40,"rgb":[0,255,0]}]'
         run_scene ui-mask \
           ESTELLA_VERIFY_SCENE=/scenes/ui-list-mask.esscene \
           ESTELLA_VERIFY_MANIFEST=/scenes/ui-list-mask.textures.json \

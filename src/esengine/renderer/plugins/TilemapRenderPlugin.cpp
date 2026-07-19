@@ -20,7 +20,6 @@ void TilemapRenderPlugin::init(RenderFrameContext& ctx) {
 void TilemapRenderPlugin::rebuildChunk(
     const tilemap::TilemapSystem::LayerData& layer,
     const tilemap::ChunkData& chunk, tilemap::ChunkCoord coord,
-    f32 originX, f32 originY, u32 packedColor,
     const std::vector<tilemap::TilesetSlot>& slots,
     const std::vector<ResolvedSlot>& resolved,
     Entity entity, ChunkCache& cache
@@ -74,8 +73,8 @@ void TilemapRenderPlugin::rebuildChunk(
 
             f32 worldX, worldY;
             if (layer.grid_type == tilemap::GridType::Isometric) {
-                worldX = originX + static_cast<f32>(tx - ty) * hw;
-                worldY = originY - static_cast<f32>(tx + ty) * hh;
+                worldX = static_cast<f32>(tx - ty) * hw;
+                worldY = -static_cast<f32>(tx + ty) * hh;
             } else if (layer.grid_type == tilemap::GridType::StaggeredIsometric
                     || layer.grid_type == tilemap::GridType::Hexagonal) {
                 // Staggered/hex share one layout: the stagger axis advances by
@@ -90,19 +89,19 @@ void TilemapRenderPlugin::rebuildChunk(
                 if (layer.hex_stagger_axis_x) {
                     f32 colW = (layer.tile_width + side) * 0.5f;
                     bool staggered = ((tx & 1) != 0) != layer.hex_stagger_index_even;
-                    worldX = originX + static_cast<f32>(tx) * colW + hw;
-                    worldY = originY - static_cast<f32>(ty) * layer.tile_height
+                    worldX = static_cast<f32>(tx) * colW + hw;
+                    worldY = -static_cast<f32>(ty) * layer.tile_height
                              - (staggered ? hh : 0.0f) - hh;
                 } else {
                     f32 rowH = (layer.tile_height + side) * 0.5f;
                     bool staggered = ((ty & 1) != 0) != layer.hex_stagger_index_even;
-                    worldX = originX + static_cast<f32>(tx) * layer.tile_width
+                    worldX = static_cast<f32>(tx) * layer.tile_width
                              + (staggered ? hw : 0.0f) + hw;
-                    worldY = originY - static_cast<f32>(ty) * rowH - hh;
+                    worldY = -static_cast<f32>(ty) * rowH - hh;
                 }
             } else {
-                worldX = originX + static_cast<f32>(tx) * layer.tile_width + hw;
-                worldY = originY - static_cast<f32>(ty) * layer.tile_height - hh;
+                worldX = static_cast<f32>(tx) * layer.tile_width + hw;
+                worldY = -static_cast<f32>(ty) * layer.tile_height - hh;
             }
 
             // Base tile UV rect (GL v increases upward, so vBottom < vTop),
@@ -128,10 +127,10 @@ void TilemapRenderPlugin::rebuildChunk(
 
             SlotMesh& mesh = cache.slots[slotIndex];
             u32 baseVertex = static_cast<u32>(mesh.vertices.size());
-            mesh.vertices.push_back({ {worldX - hw, worldY - hh}, packedColor, {bl.x, bl.y} });
-            mesh.vertices.push_back({ {worldX + hw, worldY - hh}, packedColor, {br.x, br.y} });
-            mesh.vertices.push_back({ {worldX + hw, worldY + hh}, packedColor, {tr.x, tr.y} });
-            mesh.vertices.push_back({ {worldX - hw, worldY + hh}, packedColor, {tl.x, tl.y} });
+            mesh.vertices.push_back({ {worldX - hw, worldY - hh}, 0, {bl.x, bl.y} });
+            mesh.vertices.push_back({ {worldX + hw, worldY - hh}, 0, {br.x, br.y} });
+            mesh.vertices.push_back({ {worldX + hw, worldY + hh}, 0, {tr.x, tr.y} });
+            mesh.vertices.push_back({ {worldX - hw, worldY + hh}, 0, {tl.x, tl.y} });
 
             for (u32 i = 0; i < 6; ++i) {
                 mesh.indices.push_back(baseVertex + BATCH_QUAD_INDICES[i]);
@@ -276,7 +275,6 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
                     || (cache.has_animated_tiles && layer.anim_revision != cache.built_anim_revision)
                     || cache.slots.size() != slots.size()) {
                     rebuildChunk(layer, chunkData, coord,
-                                adjOriginX, adjOriginY, packedColor,
                                 slots, resolved, entity, cache);
                     cache.built_revision = chunkData.revision;
                     cache.built_anim_revision = layer.anim_revision;
@@ -286,8 +284,11 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
                     const SlotMesh& mesh = cache.slots[si];
                     if (mesh.indices.empty()) continue;
                     u32 baseVertex = static_cast<u32>(slotVertices[si].size());
-                    slotVertices[si].insert(slotVertices[si].end(),
-                                            mesh.vertices.begin(), mesh.vertices.end());
+                    for (const BatchVertex& v : mesh.vertices) {
+                        slotVertices[si].push_back({
+                            { v.position.x + adjOriginX, v.position.y + adjOriginY },
+                            packedColor, v.texCoord });
+                    }
                     for (u32 idx : mesh.indices) {
                         slotIndices[si].push_back(baseVertex + idx);
                     }
