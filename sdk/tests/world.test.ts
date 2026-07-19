@@ -79,6 +79,23 @@ describe('World', () => {
             expect(world.findEntityByName('Same')).toBe(e2);
         });
 
+        it('keeps a duplicate-named survivor findable when the other leaves', () => {
+            const e1 = world.spawn('Enemy');
+            const e2 = world.spawn('Enemy');
+            world.despawn(e2); // removing the last-registered duplicate must not orphan e1
+            expect(world.findEntityByName('Enemy')).toBe(e1);
+            world.despawn(e1);
+            expect(world.findEntityByName('Enemy')).toBeNull();
+        });
+
+        it('renaming one duplicate leaves the other resolvable', () => {
+            const e1 = world.spawn('Enemy');
+            const e2 = world.spawn('Enemy');
+            world.set(e1, Name, { value: 'Boss' }); // must not drop e2's "Enemy" mapping
+            expect(world.findEntityByName('Enemy')).toBe(e2);
+            expect(world.findEntityByName('Boss')).toBe(e1);
+        });
+
         it('should spawn multiple entities', () => {
             const e1 = world.spawn();
             const e2 = world.spawn();

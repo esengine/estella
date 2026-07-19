@@ -258,7 +258,13 @@ export class World {
         // valid (the query cache no longer honors the global structural version).
         for (const cppName of this.builtin_.deleteFromEntitySets(entity)) {
             const def = getComponent(cppName);
-            if (def) this.queries_.markComponentDirty(def._id);
+            if (def) {
+                // Record the removal (no-op unless a Removed query tracks it) so
+                // Removed(BuiltinComp) fires on despawn, not only on explicit
+                // remove() — matching the script-component path below.
+                this.changes_.recordRemoved(def, entity);
+                this.queries_.markComponentDirty(def._id);
+            }
         }
         this.queries_.markComponentDirty(Parent._id);
         this.queries_.markComponentDirty(Children._id);
