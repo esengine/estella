@@ -18,6 +18,7 @@ export class ParticlePlugin implements Plugin {
     private readonly gradients_ = new Map<number, Gradient>();
     /** Entity → authored size-over-life curve (out-of-band; baked to the C++ LUT). */
     private readonly sizeCurves_ = new Map<number, Curve>();
+    private offDespawn_: (() => void) | null = null;
 
     build(app: App): void {
         const module = app.wasmModule as ESEngineModule;
@@ -30,7 +31,7 @@ export class ParticlePlugin implements Plugin {
         const gradients = this.gradients_;
         const sizeCurves = this.sizeCurves_;
 
-        app.world.onDespawn((entity) => {
+        this.offDespawn_ = app.world.onDespawn((entity) => {
             if (gradients.delete(entity)) api.setColorLut(entity, null);
             if (sizeCurves.delete(entity)) api.setSizeLut(entity, null);
         });
@@ -66,6 +67,13 @@ export class ParticlePlugin implements Plugin {
             },
             { name: 'ParticleSystem' }
         ), { runIf: fxPreviewOrPlayMode });
+    }
+
+    cleanup(): void {
+        this.offDespawn_?.();
+        this.offDespawn_ = null;
+        this.gradients_.clear();
+        this.sizeCurves_.clear();
     }
 }
 

@@ -89,6 +89,7 @@ export const Meshes2D = defineResource<Mesh2DAPI>(null!, 'Meshes2D');
 
 export class Mesh2DPlugin implements Plugin {
     name = 'mesh2d';
+    private offDespawn_: (() => void) | null = null;
 
     build(app: App): void {
         const module = app.wasmModule as ESEngineModule;
@@ -96,7 +97,7 @@ export class Mesh2DPlugin implements Plugin {
         const api = new Mesh2DAPI(module, registry);
         app.insertResource(Meshes2D, api);
 
-        app.world.onDespawn((entity: Entity) => {
+        this.offDespawn_ = app.world.onDespawn((entity: Entity) => {
             if (api.getGeometry(entity)) api.clearGeometry(entity);
         });
 
@@ -118,6 +119,11 @@ export class Mesh2DPlugin implements Plugin {
                 if (g) data.geometry = g;
             },
         });
+    }
+
+    cleanup(): void {
+        this.offDespawn_?.();
+        this.offDespawn_ = null;
     }
 }
 
