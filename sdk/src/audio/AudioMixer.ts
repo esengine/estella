@@ -98,7 +98,10 @@ export class AudioMixer {
         if (!targetBus) return false;
         const existing = this.ducks_.get(target);
         if (existing) {
-            existing.analyser.disconnect();
+            // The tap is trigger.node → analyser (INCOMING to the analyser), so
+            // disconnect it from the trigger; analyser.disconnect() drops the
+            // analyser's outputs (none) and leaks the tap on every re-apply.
+            this.buses_.get(existing.rule.trigger)?.node.disconnect(existing.analyser);
             this.ducks_.delete(target);
             targetBus.duckTo(1, existing.rule.release ?? 0.4);
         }

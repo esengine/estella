@@ -50,6 +50,10 @@ export class AudioAPI {
     private bgmHandle_: AudioHandle | null = null;
     private bgmVolume_ = 1.0;
     private readonly fadeAnimIds_ = new Set<number>();
+    // Handles mid fade-out. A cancelled fade RAF never reaches its handle.stop(),
+    // so a rapid crossfade would orphan the outgoing track (playing forever) —
+    // {@link cancelFades_} stops these when it tears the animations down.
+    private readonly fadingOut_ = new Set<AudioHandle>();
     private disposed_ = false;
     private assetResolver_: ((url: string) => ArrayBuffer | null) | null = null;
     private refResolver_: ((ref: string) => string) | null = null;
@@ -301,10 +305,7 @@ export class AudioAPI {
         crossFade?: number;
     }): void {
         const play = (buffer: AudioBufferHandle) => {
-            for (const id of this.fadeAnimIds_) {
-                cancelAnimationFrame(id);
-            }
-            this.fadeAnimIds_.clear();
+            this.cancelFades_();
 
             const targetVolume = config?.volume ?? 1.0;
             const oldVolume = this.bgmVolume_;
@@ -345,10 +346,7 @@ export class AudioAPI {
     }
 
     stopAll(): void {
-        for (const id of this.fadeAnimIds_) {
-            cancelAnimationFrame(id);
-        }
-        this.fadeAnimIds_.clear();
+        this.cancelFades_();
         if (this.bgmHandle_) {
             this.bgmHandle_.stop();
             this.bgmHandle_ = null;
@@ -357,10 +355,7 @@ export class AudioAPI {
 
     stopBGM(fadeOut?: number): void {
         if (!this.bgmHandle_) return;
-        for (const id of this.fadeAnimIds_) {
-            cancelAnimationFrame(id);
-        }
-        this.fadeAnimIds_.clear();
+        this.cancelFades_();
         if (fadeOut && fadeOut > 0) {
             const handle = this.bgmHandle_;
             this.bgmHandle_ = null;
@@ -487,10 +482,7 @@ export class AudioAPI {
 
     dispose(): void {
         this.disposed_ = true;
-        for (const id of this.fadeAnimIds_) {
-            cancelAnimationFrame(id);
-        }
-        this.fadeAnimIds_.clear();
+        this.cancelFades_();
         if (this.bgmHandle_) {
             this.bgmHandle_.stop();
             this.bgmHandle_ = null;
@@ -523,7 +515,17 @@ export class AudioAPI {
         this.fadeAnimIds_.add(animId);
     }
 
+    /** Cancel every in-flight fade AND stop the tracks that were fading out — a
+     *  cancelled fade RAF would otherwise never reach their `stop()`. */
+    private cancelFades_(): void {
+        for (const id of this.fadeAnimIds_) cancelAnimationFrame(id);
+        this.fadeAnimIds_.clear();
+        for (const h of this.fadingOut_) h.stop();
+        this.fadingOut_.clear();
+    }
+
     private fadeOut_(handle: AudioHandle, duration: number, startVolume: number): void {
+        this.fadingOut_.add(handle);
         const startTime = performance.now();
         let animId = 0;
         const tick = () => {
@@ -536,6 +538,7 @@ export class AudioAPI {
             } else {
                 handle.stop();
                 this.fadeAnimIds_.delete(animId);
+                this.fadingOut_.delete(handle);
             }
         };
         animId = requestAnimationFrame(tick);

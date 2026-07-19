@@ -138,11 +138,13 @@ describe('AudioMixer ducking', () => {
         expect(musicDuck.gain.setTargetAtTime).toHaveBeenLastCalledWith(1, 0, 0.4);
     });
 
-    it('clearing the rule disconnects the tap and restores the duck stage', () => {
+    it('clearing the rule disconnects the tap from the trigger and restores the duck stage', () => {
         mixer.setDucking('music', { trigger: 'voice', amount: 0.3 });
         const analyser = ctx.createAnalyser.mock.results[0].value;
         mixer.setDucking('music', null);
-        expect(analyser.disconnect).toHaveBeenCalled();
+        // The tap is trigger.node → analyser, so it must be torn down from the
+        // trigger node (analyser.disconnect() would drop nothing and leak the tap).
+        expect(mixer.voice.node.disconnect).toHaveBeenCalledWith(analyser);
         expect(mixer.getDucking('music')).toBeNull();
     });
 });
