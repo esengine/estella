@@ -1,87 +1,96 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { createStore } from 'zustand/vanilla';
-import { TransactionManager } from 'esengine';
 
 /**
- * Editor undo/redo, built on the engine's {@link TransactionManager}.
+ * Editor undo/redo. One user gesture (a field edit, a drag, a future add/delete)
+ * = one entry. Mutations are applied live through `EngineHost`; the gesture's
+ * owner captures before/after and calls {@link record} so the pair becomes
+ * undoable without re-running the forward closure. Panels subscribe for
+ * undo/redo availability.
  *
- * One user gesture (a field edit, a drag, a future add/delete) = one entry.
- * Mutations are applied live through `EngineHost`; the gesture's owner captures
- * before/after and calls {@link record} so the pair becomes undoable without
- * re-running the forward closure. Panels subscribe for undo/redo availability.
+ * The scene AND every AssetDocument editor share one history (one Ctrl+Z), so
+ * entries carry a document identity: `doc` is null for scene entries and the
+ * owning AssetDocument's docId otherwise. That identity is what lets a document
+ * purge ONLY its own stale steps when its file is replaced or closed
+ * ({@link purgeDoc}), and lets a scene switch keep asset-doc steps alive
+ * ({@link clearScene}) — asset snapshots reference no scene entities.
  */
 const HISTORY_LIMIT = 200;
 
+interface HistoryOp {
+  forward(): void;
+  reverse(): void;
+}
+
+interface HistoryEntry {
+  /** Unique per edit — drives saved-point dirty tracking (see isDirty). */
+  id: number;
+  label: string;
+  /** Owning document: null = the scene, else an AssetDocument docId. */
+  doc: string | null;
+  ops: HistoryOp[];
+}
+
 export class EditorHistoryImpl {
-  private readonly tm = new TransactionManager({ historyLimit: HISTORY_LIMIT });
+  private readonly undoStack: HistoryEntry[] = [];
+  private readonly redoStack: HistoryEntry[] = [];
+  private seq = 0;
   private readonly store = createStore<{ version: number }>(() => ({ version: 0 }));
 
-  // Dirty tracking. `version` bumps on every op (drives subscriptions) but is
-  // monotonic, so it can't tell "back at the saved state". Instead each committed
-  // edit gets a unique id pushed onto a mirror of the undo stack; `savedHead` is the
-  // head id at the last save. dirty ⇔ head id ≠ savedHead — so undoing back to the
-  // saved point clears the star (UE semantics), and a fresh edit at the same depth
-  // does NOT (its id is new). Capped to the TM history limit so it can't grow
-  // unbounded; an evicted saved point just stays dirty (you can't reach it anyway).
-  private undoIds: number[] = [];
-  private redoIds: number[] = [];
-  private seq = 0;
+  // Dirty is scene-scoped: dirty ⇔ newest SCENE entry id ≠ the id at the last
+  // save. Ids (not depth) make undo-back-to-save clean while a fresh edit at
+  // the same depth stays dirty (UE semantics). Asset-doc entries don't count —
+  // each AssetDocument tracks its own `_dirty` for the DirtyRegistry.
   private savedHead: number | null = null;
 
-  private head(): number | null {
-    return this.undoIds.length ? this.undoIds[this.undoIds.length - 1] : null;
-  }
-  private pushEdit() {
-    this.undoIds.push(++this.seq);
-    if (this.undoIds.length > HISTORY_LIMIT) this.undoIds.shift();
-    this.redoIds.length = 0;
+  private sceneHead(): number | null {
+    for (let i = this.undoStack.length - 1; i >= 0; i--) {
+      if (this.undoStack[i].doc === null) return this.undoStack[i].id;
+    }
+    return null;
   }
 
   // While a group is open, record/run/batch append here instead of committing —
-  // the whole gesture lands as ONE transaction when the group closes.
-  private groupOps: Array<{ forward: () => void; reverse: () => void }> | null = null;
+  // the whole gesture lands as ONE entry when the group closes.
+  private groupOps: HistoryOp[] | null = null;
+
+  private commit(label: string, ops: HistoryOp[], doc: string | null): void {
+    if (ops.length === 0) return;
+    this.undoStack.push({ id: ++this.seq, label, doc, ops });
+    if (this.undoStack.length > HISTORY_LIMIT) this.undoStack.shift();
+    this.redoStack.length = 0;
+    this.bump();
+  }
 
   /** Register an already-applied mutation as one undo step (forward NOT run). */
-  record(label: string, forward: () => void, reverse: () => void) {
+  record(label: string, forward: () => void, reverse: () => void, doc: string | null = null) {
     if (this.groupOps) {
       this.groupOps.push({ forward, reverse });
       return;
     }
-    const tx = this.tm.begin(label);
-    tx.addDeferred({ forward, reverse });
-    this.tm.commit(tx);
-    this.pushEdit();
-    this.bump();
+    this.commit(label, [{ forward, reverse }], doc);
   }
 
   /** Apply a not-yet-applied mutation and record it (forward runs now). */
-  run(label: string, forward: () => void, reverse: () => void) {
+  run(label: string, forward: () => void, reverse: () => void, doc: string | null = null) {
     if (this.groupOps) {
       forward();
       this.groupOps.push({ forward, reverse });
       return;
     }
-    const tx = this.tm.begin(label);
-    tx.add({ forward, reverse });
-    this.tm.commit(tx);
-    this.pushEdit();
-    this.bump();
+    forward();
+    this.commit(label, [{ forward, reverse }], doc);
   }
 
   /** Register several already-applied mutations as ONE undo step (e.g. a
    *  multi-selection add/remove). No-op on an empty op list. */
-  batch(label: string, ops: ReadonlyArray<{ forward: () => void; reverse: () => void }>) {
+  batch(label: string, ops: ReadonlyArray<HistoryOp>, doc: string | null = null) {
     if (this.groupOps) {
       this.groupOps.push(...ops);
       return;
     }
-    if (ops.length === 0) return;
-    const tx = this.tm.begin(label);
-    for (const op of ops) tx.addDeferred(op);
-    this.tm.commit(tx);
-    this.pushEdit();
-    this.bump();
+    this.commit(label, [...ops], doc);
   }
 
   /**
@@ -92,7 +101,7 @@ export class EditorHistoryImpl {
    */
   group<T>(label: string, fn: () => T): T {
     if (this.groupOps) return fn();
-    const ops: Array<{ forward: () => void; reverse: () => void }> = [];
+    const ops: HistoryOp[] = [];
     this.groupOps = ops;
     try {
       return fn();
@@ -102,48 +111,103 @@ export class EditorHistoryImpl {
     }
   }
 
-  undo() {
-    if (this.tm.undo()) {
-      const id = this.undoIds.pop();
-      if (id !== undefined) this.redoIds.push(id);
-      this.bump();
+  // Ops run per-direction under try/catch — one broken closure must not wedge
+  // the rest of the entry (matches the engine TransactionManager this replaced).
+  private static apply(entry: HistoryEntry, dir: 'undo' | 'redo'): void {
+    if (dir === 'undo') {
+      // LIFO so ops can depend on the state left by earlier ops in the entry.
+      for (let i = entry.ops.length - 1; i >= 0; i--) {
+        try {
+          entry.ops[i].reverse();
+        } catch (e) {
+          console.warn(`[history] undo op ${i} of "${entry.label}" threw`, e);
+        }
+      }
+    } else {
+      for (let i = 0; i < entry.ops.length; i++) {
+        try {
+          entry.ops[i].forward();
+        } catch (e) {
+          console.warn(`[history] redo op ${i} of "${entry.label}" threw`, e);
+        }
+      }
     }
+  }
+
+  undo() {
+    const entry = this.undoStack.pop();
+    if (!entry) return;
+    EditorHistoryImpl.apply(entry, 'undo');
+    this.redoStack.push(entry);
+    this.bump();
   }
   redo() {
-    if (this.tm.redo()) {
-      const id = this.redoIds.pop();
-      if (id !== undefined) this.undoIds.push(id);
-      this.bump();
-    }
+    const entry = this.redoStack.pop();
+    if (!entry) return;
+    EditorHistoryImpl.apply(entry, 'redo');
+    this.undoStack.push(entry);
+    this.bump();
   }
   canUndo() {
-    return this.tm.canUndo();
+    return this.undoStack.length > 0;
   }
   canRedo() {
-    return this.tm.canRedo();
+    return this.redoStack.length > 0;
   }
   undoLabel(): string | null {
-    return this.tm.peekUndo()?.label ?? null;
+    return this.undoStack.length ? this.undoStack[this.undoStack.length - 1].label : null;
   }
   redoLabel(): string | null {
-    return this.tm.peekRedo()?.label ?? null;
+    return this.redoStack.length ? this.redoStack[this.redoStack.length - 1].label : null;
   }
+
+  /** Drop every entry (all documents) — project switch / hard reset. */
   clear() {
-    this.tm.clear();
-    // A cleared history is the new clean baseline (scene load / new scene).
-    this.undoIds.length = 0;
-    this.redoIds.length = 0;
+    this.undoStack.length = 0;
+    this.redoStack.length = 0;
     this.savedHead = null;
     this.bump();
   }
 
-  /** Mark the current state as saved — the dirty star clears until the next edit. */
-  markSaved() {
-    this.savedHead = this.head();
+  /**
+   * Drop the SCENE's entries and reset its clean baseline (scene load / new
+   * scene). Asset-doc entries survive: their snapshot closures reference only
+   * their document, and wiping them would orphan those documents' unsaved edits.
+   */
+  clearScene() {
+    this.purge(null);
+    this.savedHead = null;
     this.bump();
   }
-  /** True when the document has unsaved edits relative to the last save / load. */
-  isDirty = (): boolean => this.head() !== this.savedHead;
+
+  /**
+   * Drop one document's entries from both stacks — called when that document
+   * opens another file or closes, so a later Ctrl+Z can't replay its stale
+   * snapshots into whatever the document shows next.
+   */
+  purgeDoc(doc: string) {
+    if (this.purge(doc)) this.bump();
+  }
+
+  private purge(doc: string | null): boolean {
+    const keep = (e: HistoryEntry) => e.doc !== doc;
+    const nextUndo = this.undoStack.filter(keep);
+    const nextRedo = this.redoStack.filter(keep);
+    const changed = nextUndo.length !== this.undoStack.length || nextRedo.length !== this.redoStack.length;
+    this.undoStack.length = 0;
+    this.undoStack.push(...nextUndo);
+    this.redoStack.length = 0;
+    this.redoStack.push(...nextRedo);
+    return changed;
+  }
+
+  /** Mark the current state as saved — the dirty star clears until the next edit. */
+  markSaved() {
+    this.savedHead = this.sceneHead();
+    this.bump();
+  }
+  /** True when the SCENE has unsaved edits relative to the last save / load. */
+  isDirty = (): boolean => this.sceneHead() !== this.savedHead;
 
   private bump() {
     this.store.setState((s) => ({ version: s.version + 1 }));

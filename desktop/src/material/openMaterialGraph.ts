@@ -11,6 +11,7 @@
 import { compileMaterialGraph, newMaterialGraph, type MaterialGraph } from 'esengine';
 import { MaterialGraphDocument } from './MaterialGraphDocument';
 import { ProjectStore } from '@/project/ProjectStore';
+import { confirmDiscardDoc } from '@/project/discardGuard';
 import { dockApi } from '@/layout/dockApi';
 import { baseName } from '@/project/assetMeta';
 import { Toasts } from '@/store/Toasts';
@@ -20,6 +21,12 @@ const shaderPathOf = (graphPath: string) => graphPath.replace(/\.esmatgraph$/, '
 
 /** Open an existing `.esmatgraph` into the Material Graph editor and reveal the panel. */
 export async function openMaterialGraph(path: string): Promise<void> {
+  // Already-open file: just front the panel — a reload would clobber unsaved edits.
+  if (MaterialGraphDocument.isOpen && MaterialGraphDocument.filePath === path) {
+    dockApi.openDocument('materialgraph', 'materialgraph', t('mat.panelTitle'));
+    return;
+  }
+  if (!(await confirmDiscardDoc(MaterialGraphDocument.dirty, t('discard.openAsset', { name: baseName(path) })))) return;
   try {
     const text = await window.estella.fs.read(path);
     MaterialGraphDocument.openJson(JSON.parse(text), path);

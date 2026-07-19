@@ -77,4 +77,4 @@ export class TimelineDocumentImpl extends AssetDocument<TimelineAsset> {
 }
 
 /** The app's default timeline document (the one the Sequencer panel drives). */
-export const TimelineDocument = new TimelineDocumentImpl();
+export const TimelineDocument = new TimelineDocumentImpl('timeline');

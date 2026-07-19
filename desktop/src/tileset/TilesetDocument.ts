@@ -40,4 +40,4 @@ export class TilesetDocumentImpl extends AssetDocument<TilesetAsset> {
 }
 
 /** The app's default tileset document (the one the Tileset editor panel drives). */
-export const TilesetDocument = new TilesetDocumentImpl();
+export const TilesetDocument = new TilesetDocumentImpl('tileset');

@@ -424,13 +424,14 @@ class ProjectStoreImpl {
       this.lastAssetResult = result; // narrowed to the handle maps the resolver reads
     }
 
-    // A scene is a session document: replacing it clears the editor history +
-    // selection so undo closures can't reference the previous scene's entities
-    // selection. The Reconciler bulk path then builds the World
+    // A scene is a session document: replacing it clears the SCENE's history
+    // entries + selection so undo closures can't reference the previous scene's
+    // entities (open asset editors keep theirs — their snapshots reference no
+    // scene state). The Reconciler bulk path then builds the World
     // from the resolved scene and adopts the raw scene (with @uuid: refs + any
     // components/fields/invisible entities the World drops) as the source of
     // truth. The World is a lossy projection; the model is what save() serializes.
-    EditorHistory.clear();
+    EditorHistory.clearScene();
     useSelection.getState().select(null);
     // Incremental recreate (duplicate / undo / play-stop) re-resolves @uuid:→handle
     // from the same preload result — for all types, not just textures. Spine
@@ -489,7 +490,7 @@ class ProjectStoreImpl {
     if (!st) return;
     const blank = this.blankScene();
     await this.buildAssetRegistry(); // keep the uuid→path registry current for new refs
-    EditorHistory.clear();
+    EditorHistory.clearScene();
     useSelection.getState().select(null);
     Reconciler.setAssetResolver((ref) => this.handleForRef(ref));
     Reconciler.setRefPathResolver((ref) => this.resolveRef(ref));

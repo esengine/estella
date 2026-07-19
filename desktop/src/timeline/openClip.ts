@@ -18,9 +18,18 @@ import { useSelection } from '@/store/selectionStore';
 import { dockApi } from '@/layout/dockApi';
 import { Toasts } from '@/store/Toasts';
 import { ProjectStore } from '@/project/ProjectStore';
+import { confirmDiscardDoc } from '@/project/discardGuard';
 import { baseName } from '@/project/assetMeta';
 
 export async function openAnimationClip(path: string): Promise<void> {
+  // Already-open file: front the Sequencer and rebind the preview root — a
+  // reload would clobber unsaved edits.
+  if (TimelineDocument.isOpen && TimelineDocument.filePath === path) {
+    TimelineDocument.setRootEntity(useSelection.getState().selectedId);
+    dockApi.revealAndExpand('sequencer');
+    return;
+  }
+  if (!(await confirmDiscardDoc(TimelineDocument.dirty, t('discard.openAsset', { name: baseName(path) })))) return;
   try {
     const text = await window.estella.fs.read(path);
     const asset = parseAnimationClip(JSON.parse(text));

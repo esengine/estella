@@ -10,6 +10,7 @@
 import { createTileset as createTilesetAsset, serializeTileset } from 'esengine';
 import { TilesetDocument } from './TilesetDocument';
 import { ProjectStore } from '@/project/ProjectStore';
+import { confirmDiscardDoc } from '@/project/discardGuard';
 import { dockApi } from '@/layout/dockApi';
 import { baseName } from '@/project/assetMeta';
 import { Toasts } from '@/store/Toasts';
@@ -17,6 +18,12 @@ import { t } from '@/i18n';
 
 /** Open an existing .estileset into the Tileset editor and reveal the panel. */
 export async function openTileset(path: string): Promise<void> {
+  // Already-open file: just front the panel — a reload would clobber unsaved edits.
+  if (TilesetDocument.isOpen && TilesetDocument.filePath === path) {
+    dockApi.openDocument('tileset', 'tileset', t('tile.panelTileset'));
+    return;
+  }
+  if (!(await confirmDiscardDoc(TilesetDocument.dirty, t('discard.openAsset', { name: baseName(path) })))) return;
   try {
     const text = await window.estella.fs.read(path);
     TilesetDocument.openJson(JSON.parse(text), path);

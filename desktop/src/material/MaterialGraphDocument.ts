@@ -22,4 +22,4 @@ class MaterialGraphDocumentImpl extends AssetDocument<MaterialGraph> {
   }
 }
 
-export const MaterialGraphDocument = new MaterialGraphDocumentImpl();
+export const MaterialGraphDocument = new MaterialGraphDocumentImpl('materialgraph');

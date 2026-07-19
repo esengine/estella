@@ -53,4 +53,4 @@ class MaterialDocumentImpl extends AssetDocument<MaterialAssetData> {
   }
 }
 
-export const MaterialDocument = new MaterialDocumentImpl();
+export const MaterialDocument = new MaterialDocumentImpl('material');

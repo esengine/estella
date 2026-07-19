@@ -22,7 +22,6 @@ import {
 } from 'esengine';
 import { FsmGraphDocument } from '@/fsm/FsmGraphDocument';
 import { t } from '@/i18n';
-import { EditorHistory } from '@/engine/EditorHistory';
 import { NodeGraphCanvas, type CanvasNode } from '@/components/NodeGraphCanvas';
 import { Select } from '@/components/Select';
 import { DirtyDot } from '@/components/DirtyDot';
@@ -111,7 +110,7 @@ export function StateMachineEditor() {
             onMoveNodeEnd={() => {
               const after = FsmGraphDocument.asset;
               const before = dragBefore.current;
-              if (after && before) EditorHistory.record('Move state', () => FsmGraphDocument.replaceAsset(after), () => FsmGraphDocument.replaceAsset(before));
+              if (after && before) FsmGraphDocument.recordEdit('Move state', before, after);
             }}
             onConnect={(from, to) => FsmGraphDocument.edit('Add transition', d => Object.assign(d, addTransition(d, from, to)))}
             onDeleteNode={id => { FsmGraphDocument.edit('Delete state', d => Object.assign(d, removeState(d, id))); setSelState(null); }}

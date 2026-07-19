@@ -29,7 +29,6 @@ import {
 import { t } from '@/i18n';
 import { MaterialGraphDocument } from '@/material/MaterialGraphDocument';
 import { saveMaterialGraph } from '@/material/openMaterialGraph';
-import { EditorHistory } from '@/engine/EditorHistory';
 import { ColorControl } from '@/components/ColorControl';
 import { DirtyDot } from '@/components/DirtyDot';
 import { NumField } from '@/components/NumField';
@@ -170,7 +169,7 @@ export function MaterialGraphEditor() {
       onMoveNodeEnd={() => {
         const after = MaterialGraphDocument.asset;
         const before = dragBefore.current;
-        if (after && before) EditorHistory.record('Move node', () => MaterialGraphDocument.replaceAsset(after), () => MaterialGraphDocument.replaceAsset(before));
+        if (after && before) MaterialGraphDocument.recordEdit('Move node', before, after);
       }}
       onConnect={(from, to, _fromPort, toPort) =>
         MaterialGraphDocument.edit('Connect', (d) => Object.assign(d, connect(d, from, to, toPort)))}

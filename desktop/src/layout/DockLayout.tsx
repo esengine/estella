@@ -12,6 +12,7 @@ import {
 import { ChevronDown, X, SquareArrowOutUpRight } from 'lucide-react';
 import { DirtyDot } from '@/components/DirtyDot';
 import { panelDirtySource } from '@/layout/panelDirty';
+import { confirmDiscardDoc } from '@/project/discardGuard';
 import { Outliner } from '@/panels/Outliner';
 import { Viewport } from '@/panels/Viewport';
 import { Details } from '@/panels/Details';
@@ -220,7 +221,13 @@ function EstellaTab(props: IDockviewPanelHeaderProps) {
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => {
           e.stopPropagation();
-          props.api.close();
+          void (async () => {
+            if (source.isDirty()) {
+              if (!(await confirmDiscardDoc(true, t('discard.closeTab', { title })))) return;
+              source.discard?.();
+            }
+            props.api.close();
+          })();
         }}
       >
         <X size={12} strokeWidth={2} />

@@ -37,6 +37,8 @@ export const commonMessages = defineMessages({
     'discard.closeProject': { en: 'Closing the project will discard them', zh: '关闭项目将丢弃这些更改' },
     'discard.openProject': { en: 'Opening another project will discard them', zh: '打开其他项目将丢弃这些更改' },
     'discard.openScene': { en: 'Opening {name} will discard them', zh: '打开 {name} 将丢弃这些更改' },
+    'discard.openAsset': { en: 'Opening {name} will discard them', zh: '打开 {name} 将丢弃这些更改' },
+    'discard.closeTab': { en: 'Closing {title} will discard them', zh: '关闭 {title} 将丢弃这些更改' },
     'discard.reloadChanged': {
         en: '“{name}” changed on disk. Reloading discards your unsaved edits',
         zh: '“{name}”在磁盘上已被修改。重新加载将丢弃未保存的编辑',

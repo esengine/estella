@@ -36,4 +36,4 @@ export class AnimClipDocumentImpl extends AssetDocument<AnimClipAssetData> {
 }
 
 /** The app's default flipbook document (the one the Flipbook editor panel drives). */
-export const AnimClipDocument = new AnimClipDocumentImpl();
+export const AnimClipDocument = new AnimClipDocumentImpl('flipbook');

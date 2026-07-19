@@ -22,4 +22,4 @@ class BtDocumentImpl extends AssetDocument<BtDefinition> {
   }
 }
 
-export const BtDocument = new BtDocumentImpl();
+export const BtDocument = new BtDocumentImpl('bt');

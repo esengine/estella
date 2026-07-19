@@ -19,7 +19,6 @@ import {
 } from 'esengine';
 import { BtDocument } from '@/bt/BtDocument';
 import { t } from '@/i18n';
-import { EditorHistory } from '@/engine/EditorHistory';
 import { NodeGraphCanvas, type CanvasNode, type MenuItem } from '@/components/NodeGraphCanvas';
 import { Select } from '@/components/Select';
 import { DirtyDot } from '@/components/DirtyDot';
@@ -119,7 +118,7 @@ export function BtTreeEditor() {
             onMoveNodeEnd={() => {
               const after = BtDocument.asset;
               const before = dragBefore.current;
-              if (after && before) EditorHistory.record('Move node', () => BtDocument.replaceAsset(after), () => BtDocument.replaceAsset(before));
+              if (after && before) BtDocument.recordEdit('Move node', before, after);
             }}
             onConnect={(from, to) => BtDocument.edit('Reparent', d => Object.assign(d, reparentBtNode(d, to, from)))}
             onDeleteNode={id => { if (def.root.id !== id) { BtDocument.edit('Delete node', d => Object.assign(d, removeBtNode(d, id))); setSelected(null); } }}

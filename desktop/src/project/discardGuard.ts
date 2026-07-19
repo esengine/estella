@@ -22,6 +22,21 @@ import { t } from '@/i18n';
  */
 export async function confirmDiscard(what = t('discard.default')): Promise<boolean> {
   if (!DirtyRegistry.isDirty()) return true;
+  return ask(what);
+}
+
+/**
+ * Per-document variant: guards ONE editor document (an asset editor about to
+ * load another file, a dock tab about to close) — the aggregate registry would
+ * wrongly trip on OTHER dirty documents the action doesn't touch. The caller
+ * passes that document's dirty state.
+ */
+export async function confirmDiscardDoc(dirty: boolean, what = t('discard.default')): Promise<boolean> {
+  if (!dirty) return true;
+  return ask(what);
+}
+
+function ask(what: string): Promise<boolean> {
   return confirm({
     title: t('discard.title'),
     body: t('discard.body', { what }),

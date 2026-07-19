@@ -57,7 +57,7 @@ export const SceneLoader = {
     await loadEditorSpine(app, raw, map as Map<number, number>, (ref) =>
       ref.startsWith(UUID_PREFIX) ? (uuidToUrl.get(ref.slice(UUID_PREFIX.length)) ?? ref) : ref,
     );
-    EditorHistory.clear();
+    EditorHistory.clearScene();
     SceneModel.adopt(raw, map as Map<number, number>);
     return map.size;
   },

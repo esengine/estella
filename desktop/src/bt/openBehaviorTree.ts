@@ -8,12 +8,19 @@
 import { emptyBt, ensureBtIds, type BtDefinition } from 'esengine';
 import { BtDocument } from './BtDocument';
 import { ProjectStore } from '@/project/ProjectStore';
+import { confirmDiscardDoc } from '@/project/discardGuard';
 import { dockApi } from '@/layout/dockApi';
 import { baseName } from '@/project/assetMeta';
 import { Toasts } from '@/store/Toasts';
 import { t } from '@/i18n';
 
 export async function openBehaviorTree(path: string): Promise<void> {
+  // Already-open file: just front the panel — a reload would clobber unsaved edits.
+  if (BtDocument.isOpen && BtDocument.filePath === path) {
+    dockApi.openDocument('behaviortree', 'behaviortree', t('bt.tabTitle'));
+    return;
+  }
+  if (!(await confirmDiscardDoc(BtDocument.dirty, t('discard.openAsset', { name: baseName(path) })))) return;
   try {
     const text = await window.estella.fs.read(path);
     // Hand-written trees may lack editor ids; assign before editing.

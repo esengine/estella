@@ -9,6 +9,7 @@
 import { createAnimClip, serializeAnimClip } from 'esengine';
 import { AnimClipDocument } from './AnimClipDocument';
 import { ProjectStore } from '@/project/ProjectStore';
+import { confirmDiscardDoc } from '@/project/discardGuard';
 import { dockApi } from '@/layout/dockApi';
 import { baseName } from '@/project/assetMeta';
 import { Toasts } from '@/store/Toasts';
@@ -16,6 +17,12 @@ import { t } from '@/i18n';
 
 /** Open an existing .esanim into the Flipbook editor and reveal the panel. */
 export async function openFlipbook(path: string): Promise<void> {
+  // Already-open file: just front the panel — a reload would clobber unsaved edits.
+  if (AnimClipDocument.isOpen && AnimClipDocument.filePath === path) {
+    dockApi.openDocument('flipbook', 'flipbook', t('fb.panelTitle'));
+    return;
+  }
+  if (!(await confirmDiscardDoc(AnimClipDocument.dirty, t('discard.openAsset', { name: baseName(path) })))) return;
   try {
     const text = await window.estella.fs.read(path);
     AnimClipDocument.openJson(JSON.parse(text), path);

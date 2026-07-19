@@ -10,6 +10,7 @@
 import { emptyFsm } from 'esengine';
 import { FsmGraphDocument } from './FsmGraphDocument';
 import { ProjectStore } from '@/project/ProjectStore';
+import { confirmDiscardDoc } from '@/project/discardGuard';
 import { dockApi } from '@/layout/dockApi';
 import { baseName } from '@/project/assetMeta';
 import { Toasts } from '@/store/Toasts';
@@ -17,6 +18,12 @@ import { t } from '@/i18n';
 
 /** Open an existing `.esfsm` into the state-machine editor and reveal the panel. */
 export async function openStateMachine(path: string): Promise<void> {
+  // Already-open file: just front the panel — a reload would clobber unsaved edits.
+  if (FsmGraphDocument.isOpen && FsmGraphDocument.filePath === path) {
+    dockApi.openDocument('statemachine', 'statemachine', t('fsm.tabTitle'));
+    return;
+  }
+  if (!(await confirmDiscardDoc(FsmGraphDocument.dirty, t('discard.openAsset', { name: baseName(path) })))) return;
   try {
     const text = await window.estella.fs.read(path);
     FsmGraphDocument.openJson(JSON.parse(text), path);

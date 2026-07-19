@@ -16,7 +16,7 @@ describe('AssetDocument (generic reactive + undoable base)', () => {
   let doc: TestDoc;
   beforeEach(() => {
     EditorHistory.clear();
-    doc = new TestDoc();
+    doc = new TestDoc('test');
   });
 
   it('opens clean and tracks dirty on edit', () => {

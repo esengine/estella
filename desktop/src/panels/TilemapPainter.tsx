@@ -9,7 +9,7 @@
  *          the Viewport (this panel drives the active tool + stamp via the paint store).
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import {
   Brush, Eraser, Square, Circle, Slash, PaintBucket, BoxSelect, Pipette,
   FlipHorizontal, FlipVertical, RotateCw, Mountain, Plus, X, MousePointer2, Dices,
@@ -26,8 +26,9 @@ import { MOD_LABEL } from '@/commands/keybinding';
 import { usePanelWindow } from '@/components/PanelWindow';
 import { buildStampGhost } from '@/tools/tileStampGhost';
 import { colsFor, rowsFor, TERRAIN_COLORS } from '@/tools/tileMath';
-import { loadTilesetAsset } from '@/tileset/loadTileset';
+import { loadTilesetForPalette } from '@/tileset/loadTileset';
 import { openTileset } from '@/tileset/openTileset';
+import { TilesetDocument } from '@/tileset/TilesetDocument';
 import { useTilesetView } from '@/tileset/tilesetView';
 import { createTilemapFromTileset } from '@/tilemap/createTilemap';
 import { layerTilesetRefs } from '@/tilemap/layerTilesetModel';
@@ -118,6 +119,11 @@ export function TilemapPainter() {
     if (typeof localStorage !== 'undefined') localStorage.setItem(stampLibraryKey(projectRoot), serializeStampLibrary(next));
   };
 
+  // Tileset-editor edits (collision/terrain/animation, possibly unsaved) must reach
+  // the palette: reload whenever the shared TilesetDocument bumps, and read through
+  // loadTilesetForPalette so the open file resolves to the LIVE document.
+  const tilesetDocRev = useSyncExternalStore(TilesetDocument.subscribe, TilesetDocument.getRevision);
+
   // Selecting a TilemapLayer loads ALL its referenced .estileset(s) into the palette,
   // each assigned its firstId (matching resolveTilesetModel's running sum), so the tab
   // bar can switch between them and painted cells encode to the right global gid.
@@ -131,7 +137,7 @@ export function TilemapPainter() {
       let firstId = 1;
       for (const path of paths) {
         try {
-          const a = await loadTilesetAsset(path);
+          const a = await loadTilesetForPalette(path);
           entries.push({ path, asset: a, firstId });
           let count = a.tileCount ?? 0;
           if (count <= 0) {
@@ -145,7 +151,7 @@ export function TilemapPainter() {
       if (alive) setTilesets(entries);
     })();
     return () => { alive = false; };
-  }, [selectedId, setTilesets, reloadKey]);
+  }, [selectedId, setTilesets, reloadKey, tilesetDocRev]);
 
   // A tile selection (the select-tool marquee) is layer-scoped: drop it when the active
   // layer changes so a stale marquee can't drive copy/cut/delete on the wrong layer.
@@ -157,12 +163,12 @@ export function TilemapPainter() {
     if (!tilesetPath) { setAsset(null); setTilesetAsset(null); return; }
     void (async () => {
       try {
-        const a = await loadTilesetAsset(tilesetPath);
+        const a = await loadTilesetForPalette(tilesetPath);
         if (alive) { setAsset(a); setTilesetAsset(a); }
       } catch { if (alive) { setAsset(null); setTilesetAsset(null); } }
     })();
     return () => { alive = false; };
-  }, [tilesetPath, setTilesetAsset]);
+  }, [tilesetPath, setTilesetAsset, tilesetDocRev]);
 
   const texUrl = asset ? `estella://project/${ProjectStore.assetInfo(asset.texture)?.path ?? ''}` : null;
   const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);

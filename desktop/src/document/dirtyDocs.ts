@@ -23,8 +23,8 @@ import { MaterialGraphDocument } from '@/material/MaterialGraphDocument';
 import { saveMaterialGraph } from '@/material/openMaterialGraph';
 import type { AssetDocument } from './AssetDocument';
 
-// The scene: EditorHistory-tracked (asset-doc edits record there too, so this can
-// over-report — a redundant scene save is harmless; a missed one is not).
+// The scene: EditorHistory-tracked (scene-scoped — doc-tagged asset entries on
+// the shared stack don't count; each asset document reports itself below).
 DirtyRegistry.register({
   id: 'scene',
   isDirty: () => EditorHistory.isDirty(),

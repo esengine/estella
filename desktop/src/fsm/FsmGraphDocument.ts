@@ -23,4 +23,4 @@ class FsmGraphDocumentImpl extends AssetDocument<FsmDefinition> {
   }
 }
 
-export const FsmGraphDocument = new FsmGraphDocumentImpl();
+export const FsmGraphDocument = new FsmGraphDocumentImpl('fsm');

@@ -25,7 +25,6 @@ import { TimelineDocument } from './TimelineDocument';
 import { upsertKeyframe } from './timelineView';
 import { useSequencerStore } from '@/store/sequencerStore';
 import { SceneCommands } from '@/engine/SceneCommands';
-import { EditorHistory } from '@/engine/EditorHistory';
 import type { EntityId, InspectorFieldType, InspectorFieldValue } from '@/types';
 
 const clone = <T>(v: T): T =>
@@ -121,11 +120,7 @@ class TimelineRecorderImpl {
     this.burstBefore = null;
     const after = TimelineDocument.asset;
     if (!before || !after) return;
-    EditorHistory.record(
-      'Record Keyframes',
-      () => TimelineDocument.replaceAsset(after),
-      () => TimelineDocument.replaceAsset(before),
-    );
+    TimelineDocument.recordEdit('Record Keyframes', before, after);
   }
 }
 

@@ -16,15 +16,19 @@ import { TimelineDocument } from '@/timeline/TimelineDocument';
 export interface DirtySource {
   subscribe(cb: () => void): () => void;
   isDirty(): boolean;
+  /** Close the underlying document, dropping its unsaved edits — the dock tab X
+   *  calls this after the user confirms the discard, so the dirty state (and the
+   *  document's undo steps) don't linger invisibly behind a closed tab. */
+  discard?(): void;
 }
 
 const SOURCES: Record<string, DirtySource> = {
-  statemachine: { subscribe: FsmGraphDocument.subscribe, isDirty: () => FsmGraphDocument.dirty },
-  behaviortree: { subscribe: BtDocument.subscribe, isDirty: () => BtDocument.dirty },
-  materialgraph: { subscribe: MaterialGraphDocument.subscribe, isDirty: () => MaterialGraphDocument.dirty },
-  tileset: { subscribe: TilesetDocument.subscribe, isDirty: () => TilesetDocument.dirty },
-  flipbook: { subscribe: AnimClipDocument.subscribe, isDirty: () => AnimClipDocument.dirty },
-  sequencer: { subscribe: TimelineDocument.subscribe, isDirty: () => TimelineDocument.dirty },
+  statemachine: { subscribe: FsmGraphDocument.subscribe, isDirty: () => FsmGraphDocument.dirty, discard: () => FsmGraphDocument.close() },
+  behaviortree: { subscribe: BtDocument.subscribe, isDirty: () => BtDocument.dirty, discard: () => BtDocument.close() },
+  materialgraph: { subscribe: MaterialGraphDocument.subscribe, isDirty: () => MaterialGraphDocument.dirty, discard: () => MaterialGraphDocument.close() },
+  tileset: { subscribe: TilesetDocument.subscribe, isDirty: () => TilesetDocument.dirty, discard: () => TilesetDocument.close() },
+  flipbook: { subscribe: AnimClipDocument.subscribe, isDirty: () => AnimClipDocument.dirty, discard: () => AnimClipDocument.close() },
+  sequencer: { subscribe: TimelineDocument.subscribe, isDirty: () => TimelineDocument.dirty, discard: () => TimelineDocument.close() },
 };
 
 const NONE: DirtySource = { subscribe: () => () => {}, isDirty: () => false };
