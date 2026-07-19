@@ -246,7 +246,9 @@ function parseAssetProperties(properties: Record<string, unknown>): Record<strin
             uniforms[key] = value;
         } else if (typeof value === 'object' && value !== null) {
             const obj = value as Record<string, number>;
-            if ('a' in obj) uniforms[key] = { x: obj.r ?? 0, y: obj.g ?? 0, z: obj.b ?? 0, w: obj.a ?? 0 };
+            // Any {r,g,b[,a]} is a color → vec4 (alpha defaults to opaque). Keying on
+            // 'a' alone silently dropped an alpha-less {r,g,b}.
+            if ('r' in obj) uniforms[key] = { x: obj.r ?? 0, y: obj.g ?? 0, z: obj.b ?? 0, w: obj.a ?? 1 };
             else if ('w' in obj) uniforms[key] = { x: obj.x ?? 0, y: obj.y ?? 0, z: obj.z ?? 0, w: obj.w ?? 0 };
             else if ('z' in obj) uniforms[key] = { x: obj.x ?? 0, y: obj.y ?? 0, z: obj.z ?? 0 };
             else if ('y' in obj) uniforms[key] = { x: obj.x ?? 0, y: obj.y ?? 0 };
