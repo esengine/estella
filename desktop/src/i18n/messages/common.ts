@@ -44,4 +44,16 @@ export const commonMessages = defineMessages({
         zh: '“{name}”在磁盘上已被修改。重新加载将丢弃未保存的编辑',
     },
     'toast.reloadedFromDisk': { en: 'Reloaded {name} from disk', zh: '已从磁盘重新加载 {name}' },
+
+    // — Global error surface (store/errorSurface.ts) —
+    'err.uncaught': { en: 'Unexpected error: {message}', zh: '意外错误：{message}' },
+
+    // — Crash-recovery prompt (document/Autosave.ts) —
+    'autosave.recoverTitle': { en: 'Recover unsaved changes', zh: '恢复未保存的更改' },
+    'autosave.recoverBody': {
+        en: 'Found {count} autosaved document(s) newer than their saved files, from a session that ended unexpectedly. Restore them?',
+        zh: '发现 {count} 个自动保存的文档比已保存文件更新，来自一次意外结束的会话。要恢复它们吗？',
+    },
+    'autosave.recoverConfirm': { en: 'Restore', zh: '恢复' },
+    'autosave.recovered': { en: 'Recovered {count} unsaved document(s)', zh: '已恢复 {count} 个未保存的文档' },
 });

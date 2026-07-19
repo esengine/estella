@@ -247,6 +247,7 @@ class PerfMonitorImpl {
     cancelAnimationFrame(this.raf);
     this.obs?.disconnect();
     this.obs = null;
+    this.last = 0; // a later restart treats the next frame as the first (no stale dt)
   }
 
   setEnabled(on: boolean): void { this.enabled = on; this.patch({ enabled: on }); }

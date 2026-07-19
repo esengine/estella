@@ -156,6 +156,21 @@ const api = {
       return () => ipcRenderer.removeListener('project:fsChanged', listener);
     },
   },
+  // Crash-recovery snapshots under `.esengine/autosave/`. The renderer's autosave
+  // loop mirrors dirty documents here; on open, `list` surfaces the ones newer
+  // than their saved file so the restore prompt can offer them.
+  autosave: {
+    /** Mirror the current dirty documents into the autosave dir, dropping stale ones. */
+    sync: (entries: { rel: string; contents: string }[]): Promise<void> =>
+      ipcRenderer.invoke('autosave:sync', entries),
+    /** Snapshots newer than (or without) their on-disk file — recovery candidates. */
+    list: (): Promise<{ rel: string; snapshotMtimeMs: number; fileMtimeMs: number | null }[]> =>
+      ipcRenderer.invoke('autosave:list'),
+    /** Copy the named snapshots over their real files, then clear the autosave dir. */
+    restore: (rels: string[]): Promise<void> => ipcRenderer.invoke('autosave:restore', rels),
+    /** Discard every snapshot. */
+    clear: (): Promise<void> => ipcRenderer.invoke('autosave:clear'),
+  },
   // OS shell integration.
   shell: {
     /** Reveal a project-relative file/folder in Finder / Explorer. */

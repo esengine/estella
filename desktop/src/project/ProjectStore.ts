@@ -29,6 +29,7 @@ import type { AssetType } from '@/types';
 import { resolveLayout, orientationFromDesignResolution, resolveOrientation, cameraScaleModeValue, WORKSPACE_DIR, PROJECT_MANIFEST_FILE, type OpenedProject, type ProjectFeatures, type ProjectLayout, type ProjectPackaging, type WorkspaceState, type DesignResolution, type ScreenOrientation, type CameraScaleMode } from './format';
 import { useEditorMode } from '@/store/editorModeStore';
 import { PlayRealms } from '@/engine/PlayRealm';
+import type { DocSnapshot } from '@/document/DirtyRegistry';
 
 /** Pad/truncate collision-layer names to the 16 Box2D filter bits (layer 0 = Default). */
 function normalizeLayers(layers?: string[]): string[] {
@@ -1589,6 +1590,17 @@ class ProjectStoreImpl {
       (ref) => this.loadPrefabAsset(ref),
     );
     return { ...model, name: this.state?.name ?? model.name, entities };
+  }
+
+  /**
+   * The open scene as a crash-recovery snapshot: its real target path + the exact
+   * bytes {@link save} would write, WITHOUT persisting or marking saved. Null for
+   * an untitled scene (no `currentScene` path to recover into).
+   */
+  async snapshotScene(): Promise<DocSnapshot | null> {
+    const st = this.state;
+    if (!st?.currentScene) return null;
+    return { path: st.currentScene, contents: JSON.stringify(await this.serializeCurrent(), null, 2) + '\n' };
   }
 
   private async writeScene(relPath: string, data: SceneData): Promise<void> {

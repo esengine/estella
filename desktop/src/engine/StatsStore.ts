@@ -112,6 +112,17 @@ class StatsStoreImpl {
     requestAnimationFrame(loop);
   }
 
+  /**
+   * Stop the sampling loop (returning to the launcher — otherwise it polls wasm
+   * every 333ms forever). Idempotent; {@link start} resumes with a fresh window
+   * (a new Viewport mount restarts it).
+   */
+  stop() {
+    this.running = false;
+    this.frames = 0;
+    this.windowStart = 0;
+  }
+
   /** Report the viewport cursor world position (rounded; ignores no-op moves). */
   setCursor(x: number, y: number) {
     const cx = Math.round(x);

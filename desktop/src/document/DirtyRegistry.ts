@@ -13,6 +13,13 @@
  * while mounted.
  */
 
+/** A dirty document's serialized recovery snapshot: its real on-disk target path
+ *  (project-relative) plus the exact bytes a save would write. */
+export interface DocSnapshot {
+  path: string;
+  contents: string;
+}
+
 export interface DirtyDocument {
   /** Stable id; re-registering the same id replaces the previous entry. */
   id: string;
@@ -21,6 +28,13 @@ export interface DirtyDocument {
   save(): Promise<void>;
   /** Change feed, so the aggregate dirty state can push to the quit guard. */
   subscribe?(fn: () => void): () => void;
+  /**
+   * Serialize the current model exactly as {@link save} would, WITHOUT persisting
+   * or marking the document clean — the autosave source. Returns null when there
+   * is nothing to snapshot (e.g. an untitled document with no target path).
+   * Documents that omit this simply don't participate in crash recovery.
+   */
+  snapshot?(): Promise<DocSnapshot | null>;
 }
 
 class DirtyRegistryImpl {
@@ -54,6 +68,25 @@ class DirtyRegistryImpl {
     for (const { doc } of [...this.docs.values()]) {
       if (doc.isDirty()) await doc.save();
     }
+  }
+
+  /**
+   * Snapshot every dirty document that supports it, WITHOUT saving/marking any
+   * clean — the autosave feed. A snapshot() that returns null (or throws — a
+   * failing one must not abort the others) is skipped; a snapshot is not a save.
+   */
+  async snapshotAll(): Promise<DocSnapshot[]> {
+    const out: DocSnapshot[] = [];
+    for (const { doc } of [...this.docs.values()]) {
+      if (!doc.isDirty() || !doc.snapshot) continue;
+      try {
+        const snap = await doc.snapshot();
+        if (snap) out.push(snap);
+      } catch (e) {
+        console.warn(`[autosave] snapshot of "${doc.id}" failed`, e);
+      }
+    }
+    return out;
   }
 
   /** Notify subscribers that some document's dirty state may have changed —

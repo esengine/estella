@@ -37,6 +37,11 @@ import { TimelineRecorder } from '@/timeline/TimelineRecorder';
 import { ControllerRecorder } from '@/controller/ControllerRecorder';
 import { ProjectStore } from '@/project/ProjectStore';
 import { DirtyRegistry } from '@/document/DirtyRegistry';
+import { Autosave } from '@/document/Autosave';
+import { StatsStore } from '@/engine/StatsStore';
+import { PerfMonitor } from '@/engine/PerfMonitor';
+import { installGlobalErrorHandlers } from '@/store/errorSurface';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { dockApi } from '@/layout/dockApi';
 import { forEachEditorWindow } from '@/layout/editorWindows';
 import { Toasts } from '@/store/Toasts';
@@ -114,6 +119,10 @@ export function App() {
     const unsubEngine = EngineHost.subscribe(apply);
     return () => { unsubMode(); unsubEngine(); };
   }, []);
+
+  // Route otherwise-silent renderer faults (rejected promises, uncaught errors)
+  // into the Output Log + a rate-limited toast — LogStore only patches console.*.
+  useEffect(() => installGlobalErrorHandlers(), []);
 
   // Wire the edit-mode live previews (timeline document → World, selected
   // flipbook → World) and record-mode auto-key once.
@@ -200,10 +209,17 @@ export function App() {
   useEffect(() => {
     if (showLauncher) {
       // Back on the launcher there is no project — release the primary play
-      // realm (a warm one still holds the closed project's bundle + wasm).
+      // realm (a warm one still holds the closed project's bundle + wasm) and
+      // stop the per-frame telemetry loops that would otherwise poll wasm forever
+      // (the Viewport that started them has unmounted).
       PlayRealms.resetPrimary();
+      StatsStore.stop();
+      PerfMonitor.stop();
+      Autosave.stop();
       return;
     }
+    // A project just opened: run the crash-recovery snapshotter.
+    Autosave.start();
     LoadGate.begin([
       { key: 'engine', label: t('load.engine') },
       { key: 'playRealm', label: t('load.playRealm') },
@@ -222,6 +238,9 @@ export function App() {
       // attached, so the realm can boot its engine now (no scene, off-screen).
       .then(() => (cancelled ? undefined : PlayRealms.prewarm()))
       .then(() => { if (!cancelled) LoadGate.done('playRealm'); })
+      // Scene is loaded + overlay clearing: offer to restore any autosave newer
+      // than its saved file (a prior session crashed with unsaved edits).
+      .then(() => { if (!cancelled) void Autosave.recover(); })
       .finally(() => clearTimeout(safety));
     return () => { cancelled = true; clearTimeout(safety); LoadGate.close(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -230,18 +249,21 @@ export function App() {
   const settingsOpen = useEditorStore((s) => s.settingsOpen);
   const tilemapPickerOpen = useEditorStore((s) => s.tilemapPickerOpen);
   const paletteOpen = useEditorStore((s) => s.paletteOpen);
-  if (showLauncher) return <Launcher />;
+  if (showLauncher) return <ErrorBoundary label="launcher"><Launcher /></ErrorBoundary>;
 
+  // Each chrome region gets its own ErrorBoundary so one throwing region (e.g.
+  // the StatusBar consuming live engine data every 333ms) shows a recoverable
+  // card instead of white-screening the whole editor.
   return (
     <div className="shell">
-      <Perf id="menubar"><MenuBar /></Perf>
-      <Perf id="toolbar"><Toolbar /></Perf>
+      <ErrorBoundary label="menubar"><Perf id="menubar"><MenuBar /></Perf></ErrorBoundary>
+      <ErrorBoundary label="toolbar"><Perf id="toolbar"><Toolbar /></Perf></ErrorBoundary>
       <main className="shell__workspace">
-        <Perf id="activitybar"><ActivityBar /></Perf>
+        <ErrorBoundary label="activitybar"><Perf id="activitybar"><ActivityBar /></Perf></ErrorBoundary>
         <DockLayout />
       </main>
-      <Perf id="statusbar"><StatusBar /></Perf>
-      <Perf id="contentdrawer"><ContentDrawer /></Perf>
+      <ErrorBoundary label="statusbar"><Perf id="statusbar"><StatusBar /></Perf></ErrorBoundary>
+      <ErrorBoundary label="contentdrawer"><Perf id="contentdrawer"><ContentDrawer /></Perf></ErrorBoundary>
       <PerfRealmBridge />
       {buildOpen && <BuildDialog />}
       {settingsOpen && <SettingsDialog />}

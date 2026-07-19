@@ -22,6 +22,7 @@ import {
   resolveInRoot,
   META_EXT,
 } from './projectFs';
+import { syncAutosave, listAutosave, restoreAutosave, clearAutosave, type AutosaveEntry } from './autosave';
 import { listRecents, addRecent, removeRecent, listTemplates, createFromTemplate } from './launcher';
 import { buildProjectScripts } from './buildScripts';
 import { extractProjectSchemas } from './extractSchemas';
@@ -606,6 +607,11 @@ ipcMain.handle('fs:trash', async (_e, relPath: string) => {
 ipcMain.handle('fs:restoreTrashed', (_e, relPath: string, token: string) =>
   restoreTrashed(requireRoot(), relPath, token),
 );
+// Crash-recovery snapshots under `.esengine/autosave/` (see electron/autosave.ts).
+ipcMain.handle('autosave:sync', (_e, entries: AutosaveEntry[]) => syncAutosave(requireRoot(), entries));
+ipcMain.handle('autosave:list', () => listAutosave(requireRoot()));
+ipcMain.handle('autosave:restore', (_e, rels: string[]) => restoreAutosave(requireRoot(), rels));
+ipcMain.handle('autosave:clear', () => clearAutosave(requireRoot()));
 // Reveal a file/folder in the OS file manager (Finder / Explorer).
 ipcMain.handle('shell:showItem', (_e, relPath: string) => {
   shell.showItemInFolder(resolveInRoot(requireRoot(), relPath));
