@@ -8,6 +8,7 @@
  *          (JSON strings and ArrayBuffer frames) natively, and a port queues
  *          messages until the other end attaches, so wiring order is free.
  */
+import { Emitter } from '../emitter';
 import type { NetTransport } from './NetChannel';
 
 /** The minimal MessagePort surface (structural — works for window and worker
@@ -21,8 +22,7 @@ export interface MessagePortLike {
 }
 
 export class MessagePortTransport implements NetTransport {
-    onMessage: ((data: string | ArrayBuffer) => void) | null = null;
-
+    private events_ = new Emitter<{ message: [data: string | ArrayBuffer] }>();
     private readonly port_: MessagePortLike;
 
     constructor(port: MessagePortLike | MessagePort) {
@@ -31,9 +31,13 @@ export class MessagePortTransport implements NetTransport {
         this.port_.onmessage = (e) => {
             const d = e.data;
             if (typeof d === 'string' || d instanceof ArrayBuffer) {
-                this.onMessage?.(d);
+                this.events_.emit('message', d);
             }
         };
+    }
+
+    on(event: 'message', handler: (data: string | ArrayBuffer) => void): () => void {
+        return this.events_.on(event, handler);
     }
 
     send(data: string | ArrayBuffer): void {

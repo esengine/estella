@@ -111,7 +111,7 @@ export class LifecyclePlugin implements Plugin {
         const platformType = getPlatformType();
 
         if (platformType === 'wechat') {
-            setupWeChatLifecycle_(manager, app);
+            this.cleanupFn_ = setupWeChatLifecycle_(manager, app);
         } else if (typeof document !== 'undefined' && typeof window !== 'undefined') {
             this.cleanupFn_ = setupWebLifecycle_(manager, app);
         }
@@ -175,12 +175,12 @@ function setupWebLifecycle_(manager: LifecycleManager, app: AppLike): () => void
 // WeChat Platform
 // =============================================================================
 
-function setupWeChatLifecycle_(manager: LifecycleManager, app: AppLike): void {
+function setupWeChatLifecycle_(manager: LifecycleManager, app: AppLike): (() => void) | null {
     let pausedByLifecycle = false;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const wx = (globalThis as any).wx;
-    if (!wx) return;
+    if (!wx) return null;
 
     const onShow = (): void => {
         manager.setVisible_(true);
@@ -202,4 +202,10 @@ function setupWeChatLifecycle_(manager: LifecycleManager, app: AppLike): void {
 
     wx.onShow(onShow);
     wx.onHide(onHide);
+
+    return (): void => {
+        wx.offShow?.(onShow);
+        wx.offHide?.(onHide);
+        manager.removeAllListeners();
+    };
 }

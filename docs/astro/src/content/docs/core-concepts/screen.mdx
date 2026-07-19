@@ -210,18 +210,17 @@ construct it, feed it sizes, and it derives orientation and fires callbacks.
 | `height` | number | `0` | Last reported screen height in px. |
 | `dpr` | number | `1` | Device pixel ratio. |
 | `orientation` | `ScreenOrientation` | `Portrait` | `Landscape` when `width > height`, else `Portrait`. |
-| `onResize` | `((w, h) => void) \| null` | `null` | Called on every `update()`. |
-| `onOrientationChange` | `((o) => void) \| null` | `null` | Called when the derived orientation flips (never on the first `update()`). |
-| `update(width, height, dpr = 1)` | method | — | Feed the current size; recomputes orientation and fires the callbacks. |
+| `on(event, fn)` | method | — | Subscribe to `'resize'` (every `update()`) or `'orientationchange'` (when the derived orientation flips; never on the first `update()`). Returns an unsubscribe function. |
+| `update(width, height, dpr = 1)` | method | — | Feed the current size; recomputes orientation and fires the listeners. |
 
 ```typescript
 import { ScreenInfo, ScreenOrientation } from 'esengine';
 
 const screen = new ScreenInfo();
-screen.onResize = (w, h) => { /* re-position off-canvas HUD, etc. */ };
-screen.onOrientationChange = (o) => {
+screen.on('resize', (w, h) => { /* re-position off-canvas HUD, etc. */ });
+screen.on('orientationchange', (o) => {
   if (o === ScreenOrientation.Portrait) { /* show the "rotate device" hint */ }
-};
+});
 
 const feed = () =>
   screen.update(window.innerWidth, window.innerHeight, window.devicePixelRatio);

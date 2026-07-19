@@ -14,6 +14,11 @@ import { Timeline, TimelineAPI } from './TimelineControl';
 import { resolveChildEntity } from './TimelineRuntime';
 import { advanceTimelineTS, applyPlayerFlags, latchPlayerFinish } from './TimelineDrive';
 import type { SampleDeps } from './TimelineEvaluator';
+import {
+    setActiveTimelineAssetRegistry,
+    getTimelineTextureHandle,
+    type TimelineAssetRegistry,
+} from './TimelineAssetRegistry';
 import type { Entity } from '../types';
 
 export { setNestedProperty } from './TimelineRuntime';
@@ -43,30 +48,12 @@ export const TimelinePlayer = defineComponent<TimelinePlayerData>('TimelinePlaye
     },
 });
 
-let activeTimelinePlugin: TimelinePlugin | null = null;
-
-export function registerTimelineAsset(path: string, asset: TimelineAsset): void {
-    activeTimelinePlugin?.registerAsset(path, asset);
-}
-
-export function getTimelineAsset(path: string): TimelineAsset | undefined {
-    return activeTimelinePlugin?.getAsset(path);
-}
-
-export function registerTimelineTextureHandles(path: string, handles: Map<string, number>): void {
-    activeTimelinePlugin?.registerTextureHandles(path, handles);
-}
-
-export function getTimelineTextureHandle(timelinePath: string, textureUuid: string): number {
-    return activeTimelinePlugin?.getTextureHandle(timelinePath, textureUuid) ?? 0;
-}
-
 interface AnimFramesState {
     tracks: AnimFramesTrack[];
     lastFrameIndices: number[];
 }
 
-export class TimelinePlugin implements Plugin {
+export class TimelinePlugin implements Plugin, TimelineAssetRegistry {
     name = 'timeline';
 
     private loadedAssets_ = new Map<string, TimelineAsset>();
@@ -90,7 +77,7 @@ export class TimelinePlugin implements Plugin {
     }
 
     build(app: App): void {
-        activeTimelinePlugin = this;
+        setActiveTimelineAssetRegistry(this);
         const world = app.world;
 
         // The api's play/pause/stop write through to the component flags (the
@@ -167,7 +154,7 @@ export class TimelinePlugin implements Plugin {
         this.animFramesStates_.clear();
         this.loadedAssets_.clear();
         this.textureHandles_.clear();
-        activeTimelinePlugin = null;
+        setActiveTimelineAssetRegistry(null);
     }
 
     private ensureAnimFrames(entity: Entity, asset: TimelineAsset): void {

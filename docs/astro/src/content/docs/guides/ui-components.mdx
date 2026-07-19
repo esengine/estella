@@ -89,7 +89,7 @@ const toggle = createToggle({
   onChange: (isOn, entity) => { /* … */ },
 });
 
-toggle.setIsOn(false);      // programmatic change (fires onChange)
+toggle.setValue(false);     // programmatic change (fires onChange)
 ```
 
 | Option | Default | Description |
@@ -102,11 +102,11 @@ toggle.setIsOn(false);      // programmatic change (fires onChange)
 | `focusable` / `tabIndex` | `true` / `0` | Keyboard reachability. |
 | `onChange(isOn, entity)` | — | Fires on toggle. |
 
-**Handle:** `isOn()`, `setIsOn(value)`, `setDisabled(disabled)`, `entity`, `dispose()`.
+**Handle:** `getValue()`, `setValue(value)`, `setDisabled(disabled)`, `entity`, `dispose()`.
 
 <Aside type="note">
   State lives in a **`UIToggle` component**; the behavior system flips it on click
-  and is the single writer of the check visual — `setIsOn`, a binding, or the
+  and is the single writer of the check visual — `setValue`, a binding, or the
   editor inspector on a placed prefab all flip the indicator and fire `change`
   identically.
 </Aside>
@@ -181,7 +181,7 @@ const ring = createProgress({ world, parent, radial: true, value: 0.75 });
 | `background` | theme `track` | Track visual (a `UIVisualInit`). |
 | `fill` | theme `primary` | The filled bar: `{ color?, sprite? }`. |
 
-**Handle:** `value()`, `setValue(v)`, `dispose()`, plus `entity` / `fillEntity`.
+**Handle:** `getValue()`, `setValue(v)`, `dispose()`, plus `entity` / `fillEntity`.
 
 <Aside type="note">
   **One fill primitive.** A progress bar is a single [`UIVisual`](/docs/guides/ui/) in

@@ -82,7 +82,7 @@ const toggle = createToggle({
   onChange: (isOn, entity) => { /* … */ },
 });
 
-toggle.setIsOn(false);      // programmatic change (fires onChange)
+toggle.setValue(false);     // programmatic change (fires onChange)
 ```
 
 | 选项 | 默认 | 说明 |
@@ -95,11 +95,11 @@ toggle.setIsOn(false);      // programmatic change (fires onChange)
 | `focusable` / `tabIndex` | `true` / `0` | 键盘可达性。 |
 | `onChange(isOn, entity)` | — | 切换时触发。 |
 
-**句柄:** `isOn()`、`setIsOn(value)`、`setDisabled(disabled)`、`entity`、`dispose()`。
+**句柄:** `getValue()`、`setValue(value)`、`setDisabled(disabled)`、`entity`、`dispose()`。
 
 <Aside type="note">
   状态活在 **`UIToggle` 组件**里;行为系统在点击时翻转它,并且是勾选视觉的唯一写入者——
-  `setIsOn`、绑定、或编辑器里已摆放预制体的 inspector,翻转指示器和发 `change` 的方式
+  `setValue`、绑定、或编辑器里已摆放预制体的 inspector,翻转指示器和发 `change` 的方式
   完全一致。
 </Aside>
 
@@ -171,7 +171,7 @@ const ring = createProgress({ world, parent, radial: true, value: 0.75 });
 | `background` | 主题 `track` | 轨道视觉(`UIVisualInit`)。 |
 | `fill` | 主题 `primary` | 填充条:`{ color?, sprite? }`。 |
 
-**句柄:** `value()`、`setValue(v)`、`dispose()`,外加 `entity` / `fillEntity`。
+**句柄:** `getValue()`、`setValue(v)`、`dispose()`,外加 `entity` / `fillEntity`。
 
 <Aside type="note">
   **同一个填充原语。** 进度条就是一个 **`Filled`** 模式的

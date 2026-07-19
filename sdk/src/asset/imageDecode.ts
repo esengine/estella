@@ -10,7 +10,7 @@
  *          NEVER `UNPACK_FLIP_Y_WEBGL`, which Chromium/ANGLE silently ignore for
  *          `ImageBitmap` sources (uploads every texture upside-down otherwise).
  */
-import { platformCreateCanvas } from '../platform';
+import { platformCreateCanvas } from '../platform/base';
 
 /**
  * Canonical `createImageBitmap` options. premultiply + colorspace conversion are

@@ -9,6 +9,7 @@
  *          pumps them, which is how delivery order, latency and packet
  *          interleaving are simulated.
  */
+import { Emitter } from '../emitter';
 import type { NetTransport } from './NetChannel';
 
 export interface MemoryTransportOptions {
@@ -17,8 +18,7 @@ export interface MemoryTransportOptions {
 }
 
 export class MemoryTransport implements NetTransport {
-    onMessage: ((data: string | ArrayBuffer) => void) | null = null;
-
+    private events_ = new Emitter<{ message: [data: string | ArrayBuffer] }>();
     private peer_: MemoryTransport | null = null;
     private readonly manualFlush_: boolean;
     private outbox_: (string | ArrayBuffer)[] = [];
@@ -32,12 +32,16 @@ export class MemoryTransport implements NetTransport {
         return this.outbox_.length;
     }
 
+    on(event: 'message', handler: (data: string | ArrayBuffer) => void): () => void {
+        return this.events_.on(event, handler);
+    }
+
     send(data: string | ArrayBuffer): void {
         if (!this.peer_) return;
         if (this.manualFlush_) {
             this.outbox_.push(data);
         } else {
-            this.peer_.onMessage?.(data);
+            this.peer_.events_.emit('message', data);
         }
     }
 
@@ -47,7 +51,7 @@ export class MemoryTransport implements NetTransport {
         let n = 0;
         while (this.outbox_.length > 0 && n < limit) {
             const frame = this.outbox_.shift()!;
-            this.peer_.onMessage?.(frame);
+            this.peer_.events_.emit('message', frame);
             n++;
         }
     }

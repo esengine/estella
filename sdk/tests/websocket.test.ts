@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, vi } from 'vitest';
-import { GameSocket, type GameSocketOptions } from '../src/net/GameSocket';
+import { GameSocket } from '../src/net/GameSocket';
 
 describe('GameSocket', () => {
     it('should create instance with url', () => {
@@ -10,22 +10,18 @@ describe('GameSocket', () => {
         expect(socket.readyState).toBe('closed');
     });
 
-    it('should register callbacks', () => {
+    it('on() registers handlers and returns an unsubscribe', () => {
         const socket = new GameSocket({ url: 'ws://test' });
         const onOpen = vi.fn();
         const onMessage = vi.fn();
-        const onClose = vi.fn();
-        const onError = vi.fn();
 
-        socket.onOpen = onOpen;
-        socket.onMessage = onMessage;
-        socket.onClose = onClose;
-        socket.onError = onError;
+        const offOpen = socket.on('open', onOpen);
+        const offMessage = socket.on('message', onMessage);
 
-        expect(socket.onOpen).toBe(onOpen);
-        expect(socket.onMessage).toBe(onMessage);
-        expect(socket.onClose).toBe(onClose);
-        expect(socket.onError).toBe(onError);
+        expect(typeof offOpen).toBe('function');
+        expect(typeof offMessage).toBe('function');
+        offOpen();
+        offMessage();
     });
 
     it('should have send and close methods', () => {

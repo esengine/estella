@@ -16,7 +16,12 @@ export {
 } from './NetChannel';
 export { MemoryTransport, createMemoryTransportPair } from './MemoryTransport';
 export { MessagePortTransport, type MessagePortLike } from './MessagePortTransport';
-export type { PlatformSocket, PlatformSocketOptions, PlatformSocketReadyState } from '../platform/types';
+export type {
+    PlatformSocket,
+    PlatformSocketEvents,
+    PlatformSocketOptions,
+    PlatformSocketReadyState,
+} from '../platform/types';
 export * from './replication';
 
 import { GameSocket, type GameSocketOptions } from './GameSocket';

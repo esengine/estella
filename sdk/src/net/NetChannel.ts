@@ -6,13 +6,14 @@
  *          GameSocket / WeChatSocket only move string|ArrayBuffer frames; this
  *          is the single channel that gives them typed events (`on`/`send`) and
  *          RPC (`handle`/`request`) with a small JSON envelope. Transport-
- *          agnostic — anything that can `send` and surface `onMessage` works.
+ *          agnostic — anything that can `send` and surface `message` events works.
  */
 
 /** The minimal socket surface NetChannel drives (GameSocket / WeChatSocket fit). */
 export interface NetTransport {
     send(data: string | ArrayBuffer): void;
-    onMessage: ((data: string | ArrayBuffer) => void) | null;
+    /** Subscribe to incoming frames. Returns an unsubscribe function. */
+    on(event: 'message', handler: (data: string | ArrayBuffer) => void): () => void;
 }
 
 export type MessageHandler<T = unknown> = (payload: T) => void;
@@ -36,9 +37,10 @@ interface Pending {
 }
 
 /**
- * Typed messaging over a {@link NetTransport}. Claims the transport's
- * `onMessage` (it is the message router). Events are fire-and-forget; requests
- * await a matching response by id (or reject on timeout / remote error).
+ * Typed messaging over a {@link NetTransport}. Subscribes to the transport's
+ * `message` events (it is the message router). Events are fire-and-forget;
+ * requests await a matching response by id (or reject on timeout / remote
+ * error).
  *
  * Two planes share the one transport: string frames carry the JSON control
  * envelope; binary frames carry a 1-byte channel id + payload for high-rate
@@ -52,12 +54,13 @@ export class NetChannel {
     private readonly binaryHandlers = new Map<number, BinaryHandler>();
     private readonly pending = new Map<number, Pending>();
     private readonly defaultTimeout: number;
+    private readonly offMessage_: () => void;
     private nextId = 1;
 
     constructor(transport: NetTransport, opts: NetChannelOptions = {}) {
         this.transport = transport;
         this.defaultTimeout = opts.requestTimeoutMs ?? 10000;
-        transport.onMessage = (data) => this.handleIncoming_(data);
+        this.offMessage_ = transport.on('message', (data) => this.handleIncoming_(data));
     }
 
     /** Subscribe to a typed event. Returns an unsubscribe function. */
@@ -124,6 +127,7 @@ export class NetChannel {
 
     /** Reject all in-flight requests and drop handlers (call on disconnect). */
     dispose(reason = 'net channel closed'): void {
+        this.offMessage_();
         for (const [, p] of this.pending) {
             if (p.timer) clearTimeout(p.timer);
             p.reject(new Error(reason));

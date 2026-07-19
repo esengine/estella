@@ -6,7 +6,7 @@
  *
  * The component IS the state (`isOn` + the check-indicator entity ref); the
  * system flips it on click and is the single writer of the check visual. Any
- * writer — the pointer, `setIsOn`, a binding, the editor inspector — shows
+ * writer — the pointer, `setValue`, a binding, the editor inspector — shows
  * the indicator and fires `change` identically, so a prefab-placed toggle
  * works without code.
  */

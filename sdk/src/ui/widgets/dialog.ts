@@ -9,7 +9,7 @@ import { UINode, UIDisplay, type UINodeData } from '../core/ui-node';
 import { px, percent } from '../core/dimension';
 import { themeColors } from '../theme/tokens';
 import { markThemed } from '../theme/theme-style';
-import { UIDialog, isDialogOpen, setDialogOpen } from '../behavior/dialog';
+import { UIDialog, isDialogOpen, openDialog, closeDialog } from '../behavior/dialog';
 import type { UIEventQueue } from '../core/events';
 
 export interface DialogOptions {
@@ -107,8 +107,8 @@ export function createDialog(opts: DialogOptions): DialogHandle {
         entity: backdrop,
         panelEntity: panel,
         isOpen: () => isDialogOpen(world, backdrop),
-        open: () => setDialogOpen(world, events, backdrop, true),
-        close: () => setDialogOpen(world, events, backdrop, false),
+        open: () => openDialog(world, events, backdrop),
+        close: () => closeDialog(world, events, backdrop),
         dispose: () => {
             offChange?.();
             if (world.valid(backdrop)) world.despawn(backdrop);

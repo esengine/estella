@@ -27,7 +27,9 @@ vi.mock('../src/resourceManager', () => ({
     evictTextureDimensions: vi.fn(),
 }));
 
-vi.mock('../src/platform', () => ({
+// TextureLoader/imageDecode import the concrete base module (cycle-free); the
+// rest go through the barrel — mock both ids with one factory.
+const platformFactory = vi.hoisted(() => () => ({
     platformCreateCanvas: () => ({
         width: 256, height: 256,
         getContext: () => ({
@@ -46,6 +48,8 @@ vi.mock('../src/platform', () => ({
     platformReadTextFile: vi.fn(),
     platformFileExists: vi.fn(),
 }));
+vi.mock('../src/platform', platformFactory);
+vi.mock('../src/platform/base', platformFactory);
 
 const mockModule = {
     _malloc: vi.fn(() => 0),

@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { AssetLoader, LoadContext, TimelineResult } from '../AssetLoader';
 import { parseTimelineAsset, extractTimelineAssetPaths } from '../../timeline/TimelineLoader';
-import { registerTimelineAsset, registerTimelineTextureHandles } from '../../timeline/TimelinePlugin';
+import { registerTimelineAsset, registerTimelineTextureHandles } from '../../timeline/TimelineAssetRegistry';
 import { log } from '../../logger';
 
 export class TimelineAssetLoader implements AssetLoader<TimelineResult> {

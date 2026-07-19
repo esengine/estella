@@ -93,17 +93,25 @@ export interface PlatformSocketOptions {
     protocols?: string | string[];
 }
 
+/** Event payloads for {@link PlatformSocket.on}. */
+export interface PlatformSocketEvents {
+    open: [];
+    message: [data: string | ArrayBuffer];
+    close: [code: number, reason: string];
+    error: [error: unknown];
+}
+
 /**
  * The platform-neutral socket surface (GameSocket / WeChatSocket / a Node ws
- * wrapper all fit): callback-based, queues sends until open, moves
- * string|ArrayBuffer frames.
+ * wrapper all fit): multicast `on(event, fn)` → unsubscribe, queues sends
+ * until open, moves string|ArrayBuffer frames.
  */
 export interface PlatformSocket {
     readyState: PlatformSocketReadyState;
-    onOpen: (() => void) | null;
-    onMessage: ((data: string | ArrayBuffer) => void) | null;
-    onClose: ((code: number, reason: string) => void) | null;
-    onError: ((error: unknown) => void) | null;
+    on<K extends keyof PlatformSocketEvents>(
+        event: K,
+        handler: (...args: PlatformSocketEvents[K]) => void,
+    ): () => void;
     connect(): void;
     send(data: string | ArrayBuffer): void;
     close(code?: number, reason?: string): void;

@@ -76,7 +76,7 @@ describe('MemoryTransport manual flush', () => {
     it('holds frames until flushed, delivers in send order with a limit', () => {
         const [ta, tb] = MemoryTransport.pair({ manualFlush: true });
         const got: string[] = [];
-        tb.onMessage = (d) => got.push(d as string);
+        tb.on('message', (d) => got.push(d as string));
         ta.send('1'); ta.send('2'); ta.send('3');
         expect(got).toEqual([]);
         expect(ta.pendingCount).toBe(3);
@@ -89,7 +89,7 @@ describe('MemoryTransport manual flush', () => {
     it('dropPending simulates packet loss', () => {
         const [ta, tb] = MemoryTransport.pair({ manualFlush: true });
         const got: string[] = [];
-        tb.onMessage = (d) => got.push(d as string);
+        tb.on('message', (d) => got.push(d as string));
         ta.send('lost');
         ta.dropPending();
         ta.flush();

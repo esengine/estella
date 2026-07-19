@@ -16,14 +16,14 @@ import { createSocket } from 'esengine';
 
 const socket = createSocket({ url: 'wss://example.com/game' });
 
-socket.onOpen = () => {
+socket.on('open', () => {
   socket.send(JSON.stringify({ type: 'join', room: 'lobby' }));
-};
-socket.onMessage = (data) => {
+});
+socket.on('message', (data) => {
   const msg = JSON.parse(data as string);   // a message from the server
-};
-socket.onClose = (code, reason) => { /* reconnect? */ };
-socket.onError = (err) => { /* … */ };
+});
+socket.on('close', (code, reason) => { /* reconnect? */ });
+socket.on('error', (err) => { /* … */ });
 
 socket.connect();
 ```
@@ -34,7 +34,7 @@ socket.connect();
 | `send(data)` | 发送 `string` 或 `ArrayBuffer`;`open` 之前发送的数据会排队并在连接时冲刷。 |
 | `close(code?, reason?)` | 断开连接。 |
 | `readyState` | `'connecting' \| 'open' \| 'closing' \| 'closed'`。 |
-| `onOpen` / `onMessage` / `onClose` / `onError` | 生命周期回调。 |
+| `on(event, fn)` | 订阅 `'open'` / `'message'` / `'close'` / `'error'`;返回退订函数。 |
 
 ## 类型化消息与 RPC —— `NetChannel`
 
@@ -180,7 +180,7 @@ clientNet.client.sendInput({ move: { x: 1, y: 0 } });  // pawn 立刻动
 
 ## 最佳实践
 
-- 超出简单套接字的场景**用 `NetChannel`**——按类型路由和 RPC 胜过一个巨大的 `onMessage` switch。
+- 超出简单套接字的场景**用 `NetChannel`**——按类型路由和 RPC 胜过一个巨大的 `'message'` 处理器 switch。
 - **设置 RPC 超时**,让丢失的回复 reject 而不是永远挂起。
 - **把收到的状态推入组件**(用 `Commands`),让玩法留在 ECS。
 - **连接前排队是自动的**——`connect()` 之后就能立即 `send`。

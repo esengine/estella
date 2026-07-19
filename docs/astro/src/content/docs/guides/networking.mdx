@@ -17,14 +17,14 @@ import { createSocket } from 'esengine';
 
 const socket = createSocket({ url: 'wss://example.com/game' });
 
-socket.onOpen = () => {
+socket.on('open', () => {
   socket.send(JSON.stringify({ type: 'join', room: 'lobby' }));
-};
-socket.onMessage = (data) => {
+});
+socket.on('message', (data) => {
   const msg = JSON.parse(data as string);   // a message from the server
-};
-socket.onClose = (code, reason) => { /* reconnect? */ };
-socket.onError = (err) => { /* … */ };
+});
+socket.on('close', (code, reason) => { /* reconnect? */ });
+socket.on('error', (err) => { /* … */ });
 
 socket.connect();
 ```
@@ -35,7 +35,7 @@ socket.connect();
 | `send(data)` | Send a `string` or `ArrayBuffer`; data sent before `open` is queued and flushed on connect. |
 | `close(code?, reason?)` | Disconnect. |
 | `readyState` | `'connecting' \| 'open' \| 'closing' \| 'closed'`. |
-| `onOpen` / `onMessage` / `onClose` / `onError` | Lifecycle callbacks. |
+| `on(event, fn)` | Subscribe to `'open'` / `'message'` / `'close'` / `'error'`; returns an unsubscribe function. |
 
 ## Typed messages & RPC — `NetChannel`
 
@@ -197,7 +197,7 @@ never re-sends snap back. Owned entities bypass snapshot interpolation.
 ## Best practices
 
 - **Use `NetChannel`** for anything beyond a trivial socket — routed types and RPC
-  beat a giant `onMessage` switch.
+  beat a giant `'message'` handler switch.
 - **Set an RPC timeout** so a lost reply rejects instead of hanging forever.
 - **Push received state into components** via `Commands` so gameplay stays in ECS.
 - **Queue-before-open is automatic** — you can `send` right after `connect()`.

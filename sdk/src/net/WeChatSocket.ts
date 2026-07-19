@@ -4,7 +4,8 @@
  * @file    WeChatSocket.ts
  * @brief   Raw wx.connectSocket wrapper behind the platform socket seam.
  */
-import type { PlatformSocket } from '../platform/types';
+import { Emitter } from '../emitter';
+import type { PlatformSocket, PlatformSocketEvents } from '../platform/types';
 import type { GameSocketOptions, SocketReadyState } from './GameSocket';
 
 export class WeChatSocket implements PlatformSocket {
@@ -12,17 +13,20 @@ export class WeChatSocket implements PlatformSocket {
     private protocols_?: string | string[];
     private task_: any = null;
     private sendQueue_: (string | ArrayBuffer)[] = [];
+    private events_ = new Emitter<PlatformSocketEvents>();
 
     readyState: SocketReadyState = 'closed';
-
-    onOpen: (() => void) | null = null;
-    onMessage: ((data: string | ArrayBuffer) => void) | null = null;
-    onClose: ((code: number, reason: string) => void) | null = null;
-    onError: ((error: unknown) => void) | null = null;
 
     constructor(options: GameSocketOptions) {
         this.url_ = options.url;
         this.protocols_ = options.protocols;
+    }
+
+    on<K extends keyof PlatformSocketEvents>(
+        event: K,
+        handler: (...args: PlatformSocketEvents[K]) => void,
+    ): () => void {
+        return this.events_.on(event, handler);
     }
 
     connect(): void {
@@ -30,7 +34,7 @@ export class WeChatSocket implements PlatformSocket {
 
         const wx = (globalThis as any).wx;
         if (!wx?.connectSocket) {
-            this.onError?.('wx.connectSocket not available');
+            this.events_.emit('error', 'wx.connectSocket not available');
             return;
         }
 
@@ -47,21 +51,21 @@ export class WeChatSocket implements PlatformSocket {
                 this.task_.send({ data: msg });
             }
             this.sendQueue_ = [];
-            this.onOpen?.();
+            this.events_.emit('open');
         });
 
         this.task_.onMessage((res: { data: string | ArrayBuffer }) => {
-            this.onMessage?.(res.data);
+            this.events_.emit('message', res.data);
         });
 
         this.task_.onClose((res: { code: number; reason: string }) => {
             this.readyState = 'closed';
             this.task_ = null;
-            this.onClose?.(res.code, res.reason);
+            this.events_.emit('close', res.code, res.reason);
         });
 
         this.task_.onError((err: unknown) => {
-            this.onError?.(err);
+            this.events_.emit('error', err);
         });
     }
 

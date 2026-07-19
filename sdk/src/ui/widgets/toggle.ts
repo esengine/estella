@@ -49,8 +49,8 @@ export interface ToggleOptions {
 
 export interface ToggleHandle {
     readonly entity: Entity;
-    isOn(): boolean;
-    setIsOn(value: boolean): void;
+    getValue(): boolean;
+    setValue(value: boolean): void;
     setDisabled(disabled: boolean): void;
     dispose(): void;
 }
@@ -59,7 +59,7 @@ export interface ToggleHandle {
  * Compose a Toggle from a Button (interaction + visual states) plus a
  * separate child entity driven by `isOn` for the check-mark visual.
  * State + flipping live in the {@link UIToggle} component and its behavior
- * system — click, `setIsOn`, a binding, or the editor inspector all flip the
+ * system — click, `setValue`, a binding, or the editor inspector all flip the
  * indicator and emit `change` identically.
  */
 export function createToggle(opts: ToggleOptions): ToggleHandle {
@@ -104,8 +104,8 @@ export function createToggle(opts: ToggleOptions): ToggleHandle {
 
     return {
         entity: button,
-        isOn: () => (world.get(button, UIToggle) as UIToggleData).isOn,
-        setIsOn: (value: boolean) => {
+        getValue: () => (world.get(button, UIToggle) as UIToggleData).isOn,
+        setValue: (value: boolean) => {
             const d = world.get(button, UIToggle) as UIToggleData;
             if (d.isOn === value) return;
             d.isOn = value;

@@ -133,7 +133,7 @@ describe('bindWidgetValue', () => {
         const muted = signal(true);
         bindWidgetValue(
             world as unknown as World, events, toggle.entity, UIToggle, 'isOn', muted);
-        expect(toggle.isOn()).toBe(true);
+        expect(toggle.getValue()).toBe(true);
         tick();
 
         // Up: a click flips the component; change writes the signal.

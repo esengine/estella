@@ -1,8 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+import { Emitter } from './emitter';
+
 export enum ScreenOrientation {
     Portrait = 'portrait',
     Landscape = 'landscape',
+}
+
+/** Event payloads for {@link ScreenInfo.on}. */
+export interface ScreenInfoEvents {
+    resize: [width: number, height: number];
+    orientationchange: [orientation: ScreenOrientation];
 }
 
 export class ScreenInfo {
@@ -11,10 +19,15 @@ export class ScreenInfo {
     dpr = 1;
     orientation: ScreenOrientation = ScreenOrientation.Portrait;
 
-    onOrientationChange: ((orientation: ScreenOrientation) => void) | null = null;
-    onResize: ((width: number, height: number) => void) | null = null;
-
+    private events_ = new Emitter<ScreenInfoEvents>();
     private initialized_ = false;
+
+    on<K extends keyof ScreenInfoEvents>(
+        event: K,
+        handler: (...args: ScreenInfoEvents[K]) => void,
+    ): () => void {
+        return this.events_.on(event, handler);
+    }
 
     update(width: number, height: number, dpr: number = 1): void {
         const newOrientation = width > height ? ScreenOrientation.Landscape : ScreenOrientation.Portrait;
@@ -26,10 +39,10 @@ export class ScreenInfo {
         this.orientation = newOrientation;
         this.initialized_ = true;
 
-        this.onResize?.(width, height);
+        this.events_.emit('resize', width, height);
 
         if (orientationChanged) {
-            this.onOrientationChange?.(this.orientation);
+            this.events_.emit('orientationchange', this.orientation);
         }
     }
 }

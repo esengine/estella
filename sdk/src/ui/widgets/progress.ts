@@ -34,7 +34,7 @@ export interface ProgressOptions {
 export interface ProgressHandle {
     readonly entity: Entity;
     readonly fillEntity: Entity;
-    value(): number;
+    getValue(): number;
     setValue(v: number): void;
     dispose(): void;
 }
@@ -90,7 +90,7 @@ export function createProgress(opts: ProgressOptions): ProgressHandle {
     return {
         entity: track,
         fillEntity: fill,
-        value: () => value,
+        getValue: () => value,
         setValue,
         dispose: () => {
             if (world.valid(track)) world.despawn(track);

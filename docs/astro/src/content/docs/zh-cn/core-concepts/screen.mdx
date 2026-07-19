@@ -186,18 +186,17 @@ UI 在一个世界空间矩形(`uiLayoutRect`)内布局,对场景相机而言,�
 | `height` | number | `0` | 最后上报的屏幕高度,像素。 |
 | `dpr` | number | `1` | 设备像素比。 |
 | `orientation` | `ScreenOrientation` | `Portrait` | `width > height` 时为 `Landscape`,否则 `Portrait`。 |
-| `onResize` | `((w, h) => void) \| null` | `null` | 每次 `update()` 都调用。 |
-| `onOrientationChange` | `((o) => void) \| null` | `null` | 推导出的方向翻转时调用(首次 `update()` 从不触发)。 |
-| `update(width, height, dpr = 1)` | 方法 | — | 喂入当前尺寸;重算方向并触发回调。 |
+| `on(event, fn)` | method | — | 订阅 `'resize'`(每次 `update()`)或 `'orientationchange'`(推导出的方向翻转时;首次 `update()` 从不触发)。返回退订函数。 |
+| `update(width, height, dpr = 1)` | 方法 | — | 喂入当前尺寸;重算方向并触发监听器。 |
 
 ```typescript
 import { ScreenInfo, ScreenOrientation } from 'esengine';
 
 const screen = new ScreenInfo();
-screen.onResize = (w, h) => { /* re-position off-canvas HUD, etc. */ };
-screen.onOrientationChange = (o) => {
+screen.on('resize', (w, h) => { /* re-position off-canvas HUD, etc. */ });
+screen.on('orientationchange', (o) => {
   if (o === ScreenOrientation.Portrait) { /* show the "rotate device" hint */ }
-};
+});
 
 const feed = () =>
   screen.update(window.innerWidth, window.innerHeight, window.devicePixelRatio);

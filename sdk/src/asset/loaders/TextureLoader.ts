@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { AssetLoader, LoadContext, TextureResult } from '../AssetLoader';
 import { linearColorSpace } from '../../env';
-import { platformCreateCanvas, platformCreateImage } from '../../platform';
+import { platformCreateCanvas, platformCreateImage } from '../../platform/base';
 import { decodeImageBitmap } from '../imageDecode';
 import { requireResourceManager } from '../../resourceManager';
 import type { ESEngineModule } from '../../wasm';

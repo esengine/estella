@@ -281,7 +281,7 @@ describe('createToggle', () => {
             interactionStates: { normal: {}, hover: {}, pressed: {} },
             isOn: true,
         });
-        expect(on.isOn()).toBe(true);
+        expect(on.getValue()).toBe(true);
         expect((world.get(on.entity, UIToggle) as { isOn: boolean }).isOn).toBe(true);
     });
 
@@ -297,13 +297,13 @@ describe('createToggle', () => {
         tick(); // initial paint — no change event
 
         events.emit(toggle.entity, UIEventType.Click);
-        expect(toggle.isOn()).toBe(true);
+        expect(toggle.getValue()).toBe(true);
 
         tick();
         expect(onChange).toHaveBeenCalledWith(true, toggle.entity);
     });
 
-    it('setIsOn writes the component; the system emits one change per transition', () => {
+    it('setValue writes the component; the system emits one change per transition', () => {
         const onChange = vi.fn();
         const toggle = createToggle({
             world: world as unknown as World,
@@ -313,14 +313,14 @@ describe('createToggle', () => {
         });
         tick();
 
-        toggle.setIsOn(true);
+        toggle.setValue(true);
         tick();
         expect(onChange).toHaveBeenCalledTimes(1);
 
-        toggle.setIsOn(true); // no-op
+        toggle.setValue(true); // no-op
         tick();
         expect(onChange).toHaveBeenCalledTimes(1);
-        expect(toggle.isOn()).toBe(true);
+        expect(toggle.getValue()).toBe(true);
     });
 
     it('ignores clicks while disabled', () => {
@@ -332,7 +332,7 @@ describe('createToggle', () => {
         });
         tick();
         events.emit(toggle.entity, UIEventType.Click);
-        expect(toggle.isOn()).toBe(false);
+        expect(toggle.getValue()).toBe(false);
     });
 
     it('dispose despawns the root entity', () => {
@@ -360,13 +360,13 @@ describe('createProgress', () => {
             world: world as unknown as World,
             value: 1.5,
         });
-        expect(p.value()).toBe(1);
+        expect(p.getValue()).toBe(1);
 
         const q = createProgress({
             world: world as unknown as World,
             value: -0.2,
         });
-        expect(q.value()).toBe(0);
+        expect(q.getValue()).toBe(0);
     });
 
     it('setValue writes fillAmount (default "right" = Filled from the left)', () => {

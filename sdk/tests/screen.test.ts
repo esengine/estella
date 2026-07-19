@@ -24,10 +24,10 @@ describe('ScreenInfo', () => {
         expect(screen.dpr).toBe(2);
     });
 
-    it('should fire orientation change callback', () => {
+    it('should fire orientation change listeners', () => {
         const screen = new ScreenInfo();
         const onChange = vi.fn();
-        screen.onOrientationChange = onChange;
+        screen.on('orientationchange', onChange);
 
         screen.update(750, 1334, 2);
         expect(onChange).not.toHaveBeenCalled();
@@ -41,19 +41,23 @@ describe('ScreenInfo', () => {
         const onChange = vi.fn();
 
         screen.update(800, 600, 1);
-        screen.onOrientationChange = onChange;
+        screen.on('orientationchange', onChange);
 
         screen.update(1024, 768, 1);
         expect(onChange).not.toHaveBeenCalled();
     });
 
-    it('should fire resize callback', () => {
+    it('should fire resize listeners until unsubscribed', () => {
         const screen = new ScreenInfo();
         const onResize = vi.fn();
-        screen.onResize = onResize;
+        const off = screen.on('resize', onResize);
 
         screen.update(800, 600, 1);
         expect(onResize).toHaveBeenCalledWith(800, 600);
+
+        off();
+        screen.update(1024, 768, 1);
+        expect(onResize).toHaveBeenCalledTimes(1);
     });
 
     it('should treat square as portrait', () => {

@@ -29,19 +29,23 @@ const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Server-side end of one accepted `ws` connection as a NetTransport. */
 function wsServerTransport(conn: WsSocket): NetTransport {
-    const t: NetTransport = {
-        onMessage: null,
-        send: (d) => conn.send(d),
-    };
+    const handlers = new Set<(d: string | ArrayBuffer) => void>();
     conn.on('message', (data, isBinary) => {
-        if (isBinary) {
-            const buf = data as Buffer;
-            t.onMessage?.(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer);
-        } else {
-            t.onMessage?.(data.toString());
-        }
+        const frame = isBinary
+            ? (() => {
+                const buf = data as Buffer;
+                return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
+            })()
+            : data.toString();
+        for (const h of [...handlers]) h(frame);
     });
-    return t;
+    return {
+        send: (d) => conn.send(d),
+        on: (_event, handler) => {
+            handlers.add(handler);
+            return () => handlers.delete(handler);
+        },
+    };
 }
 
 describe.skipIf(!HAS_WASM)('replication e2e over real WebSocket', () => {

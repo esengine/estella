@@ -3,23 +3,36 @@
 import { describe, it, expect, vi } from 'vitest';
 import { NetChannel, type NetTransport } from '../src/net/NetChannel';
 
-/** A pair of in-memory transports wired to each other (a.send → b.onMessage). */
-function loopback(): [NetTransport, NetTransport] {
-    const a: NetTransport = { onMessage: null, send: (d) => { b.onMessage?.(d); } };
-    const b: NetTransport = { onMessage: null, send: (d) => { a.onMessage?.(d); } };
+type Frame = string | ArrayBuffer;
+
+function stubTransport(sendTo?: (d: Frame) => void): NetTransport & {
+    handlers: Set<(d: Frame) => void>;
+    receive(d: Frame): void;
+} {
+    const handlers = new Set<(d: Frame) => void>();
+    return {
+        handlers,
+        send: (d: Frame) => sendTo?.(d),
+        on: (_event, handler) => {
+            handlers.add(handler);
+            return () => handlers.delete(handler);
+        },
+        receive: (d: Frame) => { for (const h of [...handlers]) h(d); },
+    };
+}
+
+/** A pair of in-memory transports wired to each other (a.send → b's handlers). */
+function loopback(): [ReturnType<typeof stubTransport>, ReturnType<typeof stubTransport>] {
+    const a = stubTransport((d) => b.receive(d));
+    const b = stubTransport((d) => a.receive(d));
     return [a, b];
 }
 
 /** A transport that captures sent frames and lets the test inject incoming ones. */
-function spyTransport(): NetTransport & { sent: string[]; receive(s: string | ArrayBuffer): void } {
+function spyTransport(): ReturnType<typeof stubTransport> & { sent: string[] } {
     const sent: string[] = [];
-    const t: any = {
-        onMessage: null,
-        sent,
-        send: (d: string | ArrayBuffer) => { if (typeof d === 'string') sent.push(d); },
-        receive: (s: string | ArrayBuffer) => t.onMessage?.(s),
-    };
-    return t;
+    const t = stubTransport((d) => { if (typeof d === 'string') sent.push(d); });
+    return Object.assign(t, { sent });
 }
 
 describe('NetChannel events', () => {

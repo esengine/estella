@@ -4,7 +4,13 @@
  * @file    GameSocket.ts
  * @brief   Raw browser-WebSocket wrapper behind the platform socket seam.
  */
-import type { PlatformSocket, PlatformSocketOptions, PlatformSocketReadyState } from '../platform/types';
+import { Emitter } from '../emitter';
+import type {
+    PlatformSocket,
+    PlatformSocketEvents,
+    PlatformSocketOptions,
+    PlatformSocketReadyState,
+} from '../platform/types';
 
 export type SocketReadyState = PlatformSocketReadyState;
 
@@ -15,17 +21,20 @@ export class GameSocket implements PlatformSocket {
     private protocols_?: string | string[];
     private ws_: WebSocket | null = null;
     private sendQueue_: (string | ArrayBuffer)[] = [];
+    private events_ = new Emitter<PlatformSocketEvents>();
 
     readyState: SocketReadyState = 'closed';
-
-    onOpen: (() => void) | null = null;
-    onMessage: ((data: string | ArrayBuffer) => void) | null = null;
-    onClose: ((code: number, reason: string) => void) | null = null;
-    onError: ((error: unknown) => void) | null = null;
 
     constructor(options: GameSocketOptions) {
         this.url_ = options.url;
         this.protocols_ = options.protocols;
+    }
+
+    on<K extends keyof PlatformSocketEvents>(
+        event: K,
+        handler: (...args: PlatformSocketEvents[K]) => void,
+    ): () => void {
+        return this.events_.on(event, handler);
     }
 
     connect(): void {
@@ -43,25 +52,25 @@ export class GameSocket implements PlatformSocket {
                     this.ws_!.send(msg);
                 }
                 this.sendQueue_ = [];
-                this.onOpen?.();
+                this.events_.emit('open');
             };
 
             this.ws_.onmessage = (e) => {
-                this.onMessage?.(e.data);
+                this.events_.emit('message', e.data);
             };
 
             this.ws_.onclose = (e) => {
                 this.readyState = 'closed';
                 this.ws_ = null;
-                this.onClose?.(e.code, e.reason);
+                this.events_.emit('close', e.code, e.reason);
             };
 
             this.ws_.onerror = (e) => {
-                this.onError?.(e);
+                this.events_.emit('error', e);
             };
         } catch (e) {
             this.readyState = 'closed';
-            this.onError?.(e);
+            this.events_.emit('error', e);
         }
     }
 

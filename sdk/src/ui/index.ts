@@ -116,7 +116,8 @@ export { UIBehaviorPlugin, uiBehaviorPlugin } from './behavior/plugin';
 export {
     UIDialog,
     isDialogOpen,
-    setDialogOpen,
+    openDialog,
+    closeDialog,
     createDialogSystem,
     type UIDialogData,
 } from './behavior/dialog';

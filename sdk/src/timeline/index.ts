@@ -79,8 +79,12 @@ export {
     timelinePlugin,
     TimelinePlayer,
     type TimelinePlayerData,
+} from './TimelinePlugin';
+
+export {
     registerTimelineAsset,
     getTimelineAsset,
     registerTimelineTextureHandles,
     getTimelineTextureHandle,
-} from './TimelinePlugin';
+    type TimelineAssetRegistry,
+} from './TimelineAssetRegistry';

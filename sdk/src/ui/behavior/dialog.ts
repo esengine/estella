@@ -39,8 +39,17 @@ export function isDialogOpen(world: World, root: Entity): boolean {
     return (world.get(root, UINode) as UINodeData).display !== UIDisplay.None;
 }
 
-/** Show/hide the dialog subtree and emit `change` with the new open state. */
-export function setDialogOpen(
+/** Show the dialog subtree and emit `change` with the new open state. */
+export function openDialog(world: World, events: UIEventQueue, root: Entity): void {
+    setOpen_(world, events, root, true);
+}
+
+/** Hide the dialog subtree and emit `change` with the new open state. */
+export function closeDialog(world: World, events: UIEventQueue, root: Entity): void {
+    setOpen_(world, events, root, false);
+}
+
+function setOpen_(
     world: World, events: UIEventQueue, root: Entity, open: boolean,
 ): void {
     if (!world.has(root, UINode) || isDialogOpen(world, root) === open) return;
@@ -63,7 +72,7 @@ export function createDialogSystem(world: World, events: UIEventQueue): SystemDe
                 && (world.get(e, UIInteraction) as UIInteractionData).justPressed;
 
             if ((d.closeOnEscape && escape) || scrimClicked) {
-                setDialogOpen(world, events, e, false);
+                closeDialog(world, events, e);
             }
         }
     }, { name: 'UIDialogSystem' });

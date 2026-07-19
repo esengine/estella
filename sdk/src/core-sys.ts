@@ -75,7 +75,7 @@ export { pointInHitArea, type HitAreaShape } from './hitArea';
 // Screen
 // =============================================================================
 
-export { ScreenInfo, ScreenOrientation } from './screen';
+export { ScreenInfo, ScreenOrientation, type ScreenInfoEvents } from './screen';
 
 // =============================================================================
 // Network
@@ -87,8 +87,8 @@ export {
     MessagePortTransport, type MessagePortLike,
     type GameSocketOptions, type SocketReadyState, type NetTransport,
     type NetChannelOptions, type MessageHandler, type RequestHandler,
-    type BinaryHandler, type PlatformSocket, type PlatformSocketOptions,
-    type PlatformSocketReadyState,
+    type BinaryHandler, type PlatformSocket, type PlatformSocketEvents,
+    type PlatformSocketOptions, type PlatformSocketReadyState,
 } from './net';
 
 export {
@@ -183,6 +183,8 @@ export {
     TimerRes,
     timerPlugin,
 } from './timer';
+
+export { velocityPlugin, velocitySystem } from './velocity';
 
 // =============================================================================
 // Lifecycle
