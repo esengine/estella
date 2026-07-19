@@ -329,10 +329,13 @@ export function ContentBrowser() {
   });
   useEffect(() => localStorage.setItem(TILE_KEY, String(tileSize)), [tileSize]);
 
-  // Reset navigation + selection when the open project changes.
+  // Reset navigation + selection + search/filter when the open project changes —
+  // project A's query/type-filter must not carry into project B's browser.
   useEffect(() => {
     reset();
     selectAsset(null);
+    setQuery('');
+    setFilters(new Set());
   }, [project?.name, reset, selectAsset]);
   // Selection doesn't survive a folder change.
   useEffect(() => selectAsset(null), [cwd, selectAsset]);

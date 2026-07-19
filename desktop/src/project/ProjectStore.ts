@@ -29,6 +29,9 @@ import type { AssetType } from '@/types';
 import { resolveLayout, orientationFromDesignResolution, resolveOrientation, cameraScaleModeValue, WORKSPACE_DIR, PROJECT_MANIFEST_FILE, type OpenedProject, type ProjectFeatures, type ProjectLayout, type ProjectPackaging, type WorkspaceState, type DesignResolution, type ScreenOrientation, type CameraScaleMode } from './format';
 import { useEditorMode } from '@/store/editorModeStore';
 import { PlayRealms } from '@/engine/PlayRealm';
+import { PlayInspect } from '@/engine/PlayInspect';
+import { useEditorStore } from '@/store/editorStore';
+import { resetFsWatch } from './fsWatch';
 import type { DocSnapshot } from '@/document/DirtyRegistry';
 
 /** Pad/truncate collision-layer names to the 16 Box2D filter bits (layer 0 = Default). */
@@ -204,6 +207,10 @@ class ProjectStoreImpl {
   private readonly assetLoadFailures = new Map<string, string>();
   /** Guards the off-critical-path asset revalidation after a cache-first boot. */
   private revalidating = false;
+  /** Bumped on every project open ({@link adopt}); a revalidation captures it and
+   *  bails after its await if it changed, so a slow scan for project A can never
+   *  clobber project B's registry when the user switches within the scan window. */
+  private projectGeneration = 0;
   /** The latest scene preload result; the Reconciler resolver reads handles from
    *  it for entities recreated incrementally (duplicate / undo / play-stop). */
   private lastAssetResult: PreloadResult | null = null;
@@ -348,6 +355,23 @@ class ProjectStoreImpl {
   }
 
   private adopt(opened: OpenedProject) {
+    // If a play session is live, tear it down before swapping projects. The App
+    // play-effect keys off `isPlaying`, which opening a project never changes, so
+    // without this the editor stays "Running" on a realm we're about to reset and
+    // PlayInspect keeps polling the destroyed realm. Stop the poll BEFORE the
+    // reset; flipping isPlaying lets the effect finish the teardown (dock tabs).
+    const es = useEditorStore.getState();
+    if (es.isPlaying || es.isPaused) {
+      PlayInspect.stop();
+      es.setInspectWorld('editor');
+      es.stop();
+    }
+    // A new project supersedes any in-flight revalidation of the old one (its
+    // late populateRegistry must not clobber this project's registry).
+    this.projectGeneration++;
+    this.revalidating = false;
+    // Drop any file-watch burst still queued for the previous project.
+    resetFsWatch();
     // A play realm warmed for the PREVIOUS project holds its bundle + assets;
     // cold-reset so the next prewarm/Play stages this project.
     PlayRealms.resetPrimary();
@@ -652,10 +676,12 @@ class ProjectStoreImpl {
    *  common case is zero changes → a pure no-op). */
   private async revalidateAssets(): Promise<void> {
     if (this.revalidating) return;
+    const gen = this.projectGeneration;
     this.revalidating = true;
     try {
       const entries = await this.scanAssetsReporting();
       if (!entries) return;
+      if (gen !== this.projectGeneration) return; // switched projects mid-scan — don't clobber the new one
       const fresh = new Map<string, string>();
       for (const e of entries) fresh.set(e.path, e.uuid.toLowerCase());
       const changed: string[] = [];
@@ -666,7 +692,8 @@ class ProjectStoreImpl {
       this.populateRegistry(entries);
       this.hotSyncChangedPaths(changed);
     } finally {
-      this.revalidating = false;
+      // A superseded scan must not clear the flag the new project's scan now owns.
+      if (gen === this.projectGeneration) this.revalidating = false;
     }
   }
 

@@ -211,7 +211,10 @@ export class PlayRealmInstance {
   destroy(): void {
     this.warm = false; // force stop() down the cold teardown path (release wasm + GL)
     this.stop();
-    window.removeEventListener('message', this.onMessage);
+    // Unbind from the window the listener was actually added to (msgWin — the
+    // popout window when the viewport is popped out), not the global window.
+    try { this.msgWin?.removeEventListener('message', this.onMessage); } catch { /* window may be closed */ }
+    this.msgWin = null;
     this.detach();
     this.iframe = null;
   }

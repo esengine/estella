@@ -147,6 +147,13 @@ export function Outliner() {
     [],
   );
 
+  // A scene swap resets the model ('reset' event). This panel is a persistent dock
+  // panel (it doesn't remount), so re-arm the one-time auto-expand/select below —
+  // otherwise the NEW scene renders fully collapsed with nothing selected.
+  useEffect(() => SceneModel.subscribe((ev) => {
+    if (ev.kind === 'reset') initRef.current = false;
+  }), []);
+
   // First time entities appear: expand groups + folders, select the first entity.
   useEffect(() => {
     if (initRef.current || sceneCount === 0) return;

@@ -108,3 +108,14 @@ export function initFsWatch(): void {
     }
   });
 }
+
+/** Drop pending debounced work + accumulated paths. Call on project switch so a
+ *  burst captured for the old project can't flush against the new one. */
+export function resetFsWatch(): void {
+  for (const t of [debounce, schemaDebounce, scriptsDebounce, sceneDebounce]) {
+    if (t) clearTimeout(t);
+  }
+  debounce = schemaDebounce = scriptsDebounce = sceneDebounce = null;
+  pendingPaths = new Set();
+  sawOverflow = false;
+}
