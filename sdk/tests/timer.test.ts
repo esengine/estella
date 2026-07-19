@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { TimerManager } from '../src/timer';
 
 describe('TimerManager', () => {
@@ -144,6 +144,54 @@ describe('TimerManager', () => {
             manager.timeScale = 0;
             manager.tick(10.0);
             expect(fired).toBe(false);
+        });
+    });
+
+    describe('tick reentrancy and callback errors', () => {
+        it('does not advance a timer created inside a callback by the current tick', () => {
+            let innerFired = false;
+            manager.delay(0.5, () => {
+                manager.delay(0.5, () => { innerFired = true; });
+            });
+
+            manager.tick(0.5);
+            expect(innerFired).toBe(false);
+
+            manager.tick(0.5);
+            expect(innerFired).toBe(true);
+        });
+
+        it('fires a self-rescheduling delay(0) exactly once per tick', () => {
+            let count = 0;
+            const reschedule = () => {
+                count++;
+                if (count < 100) manager.delay(0, reschedule);
+            };
+            manager.delay(0, reschedule);
+
+            manager.tick(1 / 60);
+            expect(count).toBe(1);
+
+            manager.tick(1 / 60);
+            expect(count).toBe(2);
+        });
+
+        it('removes a throwing one-shot and still fires later timers', () => {
+            const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+            let throwCount = 0;
+            let otherFired = 0;
+            manager.delay(0.1, () => { throwCount++; throw new Error('boom'); });
+            manager.delay(0.1, () => { otherFired++; });
+
+            expect(() => manager.tick(0.2)).not.toThrow();
+            expect(throwCount).toBe(1);
+            expect(otherFired).toBe(1);
+            expect(errorSpy).toHaveBeenCalled();
+
+            manager.tick(0.2);
+            expect(throwCount).toBe(1);
+            expect(manager.activeCount).toBe(0);
+            errorSpy.mockRestore();
         });
     });
 

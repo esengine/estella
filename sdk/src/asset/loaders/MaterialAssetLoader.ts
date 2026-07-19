@@ -4,6 +4,7 @@ import type { AssetLoader, LoadContext, MaterialResult } from '../AssetLoader';
 import type { MaterialAssetData, ShaderHandle } from '../../material';
 import { Material } from '../../material';
 import { AsyncCache } from '../AsyncCache';
+import { log } from '../../logger';
 
 export class MaterialAssetLoader implements AssetLoader<MaterialResult> {
     readonly type = 'material';
@@ -55,8 +56,9 @@ export class MaterialAssetLoader implements AssetLoader<MaterialResult> {
             try {
                 const tex = await ctx.loadTexture(texPath);
                 Material.setUniform(handle, name, Material.tex(tex.handle));
-            } catch {
+            } catch (e) {
                 // Missing texture: leave the param unbound (it samples whatever is at the unit).
+                log.warn('asset', `Material ${matPath}: failed to load texture '${texPath}' for param '${name}'`, e);
             }
         }
     }

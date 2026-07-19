@@ -6,6 +6,7 @@ import { Res } from '../resource';
 import { Time, type TimeData } from '../resource';
 import { fxPreviewOrPlayMode } from '../env';
 import type { ESEngineModule, CppRegistry } from '../wasm';
+import { TrailRenderer } from '../component';
 import { Trail, TrailAPI } from './TrailAPI';
 
 export class TrailPlugin implements Plugin {
@@ -16,6 +17,12 @@ export class TrailPlugin implements Plugin {
         const registry = app.world.getCppRegistry() as CppRegistry;
         const api = new TrailAPI(module, registry);
         app.insertResource(Trail, api);
+
+        // Trail history lives in a C++ side table keyed by entity, not in the
+        // component — drop it on despawn or the recorded points leak.
+        app.world.onDespawn((entity) => {
+            if (app.world.has(entity, TrailRenderer)) api.clear(entity);
+        });
 
         // Trail point recording is gameplay — frozen in editor edit mode, runs in
         // play mode / standalone runtime (matches particles/animation/physics).

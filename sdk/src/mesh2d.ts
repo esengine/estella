@@ -96,6 +96,10 @@ export class Mesh2DPlugin implements Plugin {
         const api = new Mesh2DAPI(module, registry);
         app.insertResource(Meshes2D, api);
 
+        app.world.onDespawn((entity: Entity) => {
+            if (api.getGeometry(entity)) api.clearGeometry(entity);
+        });
+
         // The geometry payload is authored in the component data but isn't a C++
         // field — carry it out-of-band and upload it through the validated entry
         // point on load (the same pattern as particle gradients / tilemap chunks).

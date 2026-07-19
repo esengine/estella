@@ -10,6 +10,7 @@ import { defineSystem } from './system';
 import { Schedule } from './system';
 import { Time } from './resource';
 import { playModeOnly } from './env';
+import { log } from './logger';
 import type { Plugin } from './app';
 
 // =============================================================================
@@ -172,14 +173,23 @@ export class TimerManager {
         const scaledDt = dt * this.timeScale_;
         const toRemove: number[] = [];
 
-        for (const [id, entry] of this.timers_) {
-            if (entry.paused) continue;
+        // Snapshot ids: Map iterators see mid-iteration insertions, so a timer
+        // created inside a callback would receive this tick's dt (and a
+        // self-rescheduling delay(0) would loop forever within one tick).
+        const ids = [...this.timers_.keys()];
+        for (const id of ids) {
+            const entry = this.timers_.get(id);
+            if (!entry || entry.paused) continue;
 
             entry.elapsed += scaledDt;
 
             if (entry.elapsed >= entry.delay) {
                 if (!entry.handle) entry.handle = new TimerHandle(this, id);
-                entry.callback(entry.handle);
+                try {
+                    entry.callback(entry.handle);
+                } catch (e) {
+                    log.error('timer', `Timer callback error (id=${id})`, e);
+                }
                 entry.repeatCount++;
 
                 if (entry.repeat) {

@@ -58,7 +58,7 @@ export const RenderTexture = {
     },
 
     resize(rt: RenderTextureHandle, width: number, height: number): RenderTextureHandle {
-        Renderer.releaseRenderTarget(rt._handle);
+        RenderTexture.release(rt);
         return RenderTexture.create({ width, height, depth: rt._depth, filter: rt._filter });
     },
 

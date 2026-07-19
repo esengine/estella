@@ -32,24 +32,38 @@ import type { UIEventQueue } from './core/events';
 import type { ListView } from './collection/list-view';
 import type { ScrollContainer } from './collection/scroll-container';
 
+// Build order is dependency-ordered (not execution order): layout first (it
+// owns the layout resources), then interaction before behavior so the shared
+// UIEvents resource exists when behavior reads it at build.
+const SUB_PLUGINS: Plugin[] = [
+    uiLayoutPlugin,
+    uiMaskPlugin,
+    safeAreaPlugin,
+    textPlugin,
+    uiInteractionPlugin,
+    uiBehaviorPlugin,
+    uiControllerPlugin,
+    dragPlugin,
+    focusPlugin,
+    textInputPlugin,
+    uiRenderOrderPlugin,
+];
+
 export class UIPlugin implements Plugin {
     name = 'ui';
 
     build(app: App): void {
-        // Build order is dependency-ordered (not execution order): layout first
-        // (it owns the layout resources), then interaction before behavior so
-        // the shared UIEvents resource exists when behavior reads it at build.
-        uiLayoutPlugin.build(app);
-        uiMaskPlugin.build(app);
-        safeAreaPlugin.build(app);
-        textPlugin.build(app);
-        uiInteractionPlugin.build(app);
-        uiBehaviorPlugin.build(app);
-        uiControllerPlugin.build(app);
-        dragPlugin.build(app);
-        focusPlugin.build(app);
-        textInputPlugin.build(app);
-        uiRenderOrderPlugin.build(app);
+        for (const plugin of SUB_PLUGINS) {
+            plugin.build(app);
+        }
+    }
+
+    // App.quit only reaches *installed* plugins — the composed sub-plugins'
+    // cleanups are unreachable unless forwarded here.
+    cleanup(app?: App): void {
+        for (let i = SUB_PLUGINS.length - 1; i >= 0; i--) {
+            SUB_PLUGINS[i].cleanup?.(app);
+        }
     }
 
     /** Shared UI event bus (delegates to the behavior layer). */

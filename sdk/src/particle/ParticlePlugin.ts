@@ -29,6 +29,12 @@ export class ParticlePlugin implements Plugin {
         // C++ field — carry it out-of-band and bake it into the sim's LUT on load.
         const gradients = this.gradients_;
         const sizeCurves = this.sizeCurves_;
+
+        app.world.onDespawn((entity) => {
+            if (gradients.delete(entity)) api.setColorLut(entity, null);
+            if (sizeCurves.delete(entity)) api.setSizeLut(entity, null);
+        });
+
         registerSceneComponentCodec('ParticleEmitter', {
             outOfBandFields: ['colorGradient', 'sizeCurve'],
             importData: (entity, outOfBand) => {

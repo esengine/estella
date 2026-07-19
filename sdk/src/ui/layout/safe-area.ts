@@ -84,6 +84,15 @@ export class SafeAreaPlugin implements Plugin {
     name = PluginName.SafeArea;
     dependencies = [PluginName.UILayout];
 
+    private onResize_: (() => void) | null = null;
+
+    cleanup(): void {
+        if (this.onResize_ && typeof window !== 'undefined') {
+            window.removeEventListener('resize', this.onResize_);
+        }
+        this.onResize_ = null;
+    }
+
     build(app: App): void {
         registerComponent('SafeArea', SafeArea);
 
@@ -100,10 +109,11 @@ export class SafeAreaPlugin implements Plugin {
                 dirty = true;
             });
         } else if (typeof window !== 'undefined') {
-            window.addEventListener('resize', () => {
+            this.onResize_ = () => {
                 cachedInsets = getSafeAreaInsets();
                 dirty = true;
-            });
+            };
+            window.addEventListener('resize', this.onResize_);
         }
 
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 vi.mock('../src/renderer', () => ({
     Renderer: {
@@ -15,6 +15,8 @@ vi.mock('../src/renderer', () => ({
 
 import { RenderTexture } from '../src/renderTexture';
 import { Renderer } from '../src/renderer';
+import { initResourceManager, shutdownResourceManager } from '../src/resourceManager';
+import type { CppResourceManager } from '../src/wasm';
 
 describe('RenderTexture', () => {
     beforeEach(() => {
@@ -138,6 +140,42 @@ describe('RenderTexture', () => {
             const rt = { _handle: 1, textureId: 100, texture: 0, width: 64, height: 64, _depth: true, _filter: 'nearest' as const };
             RenderTexture.resize(rt, 128, 128);
             expect(Renderer.createRenderTarget).toHaveBeenCalledWith(128, 128, 1);
+        });
+    });
+
+    describe('resize with a live resource manager', () => {
+        let registerExternalTexture: ReturnType<typeof vi.fn>;
+        let releaseTexture: ReturnType<typeof vi.fn>;
+
+        beforeEach(() => {
+            let nextTexture = 700;
+            registerExternalTexture = vi.fn(() => nextTexture++);
+            releaseTexture = vi.fn();
+            initResourceManager({
+                registerExternalTexture,
+                releaseTexture,
+                getTextureDimensions: vi.fn(),
+            } as unknown as CppResourceManager);
+        });
+
+        afterEach(() => {
+            shutdownResourceManager();
+        });
+
+        it('releases the old texture-table entry on resize', () => {
+            const rt = RenderTexture.create({ width: 64, height: 64 });
+            expect(rt.texture).toBe(700);
+
+            RenderTexture.resize(rt, 128, 128);
+            expect(releaseTexture).toHaveBeenCalledWith(700);
+        });
+
+        it('returns a fresh texture handle after resize', () => {
+            const rt = RenderTexture.create({ width: 64, height: 64 });
+            const resized = RenderTexture.resize(rt, 128, 128);
+
+            expect(resized.texture).toBe(701);
+            expect(registerExternalTexture).toHaveBeenCalledTimes(2);
         });
     });
 
