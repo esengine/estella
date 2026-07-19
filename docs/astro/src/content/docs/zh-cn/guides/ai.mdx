@@ -530,3 +530,9 @@ export const setupNavGrid = defineSystem([Res(Nav)], (nav) => {
 两个敌人的 `StateMachineAgent.fsm` 和 `BehaviorTreeAgent.bt` 分别指向 `enemy.esfsm` /
 `enemy.esbt`——在编辑器里编排,由引擎加载。感知、FSM/BT 的 tick、以及跟随导航全是内置的,
 所以唯一的游戏代码就是上面的共享叶子加上那张一次性的网格。
+
+## 参见
+
+- [脚本](/docs/zh-cn/guides/scripting/) —— 行为是声明式系统;叶子就是普通函数。
+- [动画](/docs/zh-cn/guides/animation/) —— 用状态机驱动精灵动画。
+- [场景](/docs/zh-cn/guides/scene/) —— `.esfsm` / `.esbt` 资产随场景加载与序列化。
