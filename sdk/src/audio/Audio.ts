@@ -43,6 +43,7 @@ export class AudioAPI {
     private readonly backend_: PlatformAudioBackend;
     private readonly mixer_: AudioMixer | null;
     private readonly bufferCache_ = new Map<string, BufferEntry>();
+    private readonly loadingBuffers_ = new Map<string, Promise<void>>();
     /** refCount==0 urls in eviction order (oldest first); access re-appends. */
     private readonly evictOrder_ = new Set<string>();
     private residentBytes_ = 0;
@@ -225,8 +226,21 @@ export class AudioAPI {
      *  double `has()` check absorbs a concurrent load racing to insert first. */
     private async ensureBuffer_(url: string, load: () => Promise<AudioBufferHandle>): Promise<void> {
         if (this.bufferCache_.has(url)) return;
-        const buffer = await load();
-        if (!this.bufferCache_.has(url)) this.insertEntry_(url, buffer);
+        // De-dupe concurrent loads of the same url — without this, two preloads
+        // (esp. the loadBufferFromData path, which has no backend-side dedup)
+        // both decode and orphan one AudioBuffer.
+        const inFlight = this.loadingBuffers_.get(url);
+        if (inFlight) return inFlight;
+        const promise = (async () => {
+            const buffer = await load();
+            if (!this.bufferCache_.has(url)) this.insertEntry_(url, buffer);
+        })();
+        this.loadingBuffers_.set(url, promise);
+        try {
+            await promise;
+        } finally {
+            this.loadingBuffers_.delete(url);
+        }
     }
 
     async preload(url: string): Promise<void> {

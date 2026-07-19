@@ -40,6 +40,7 @@ function createMockBackend(): PlatformAudioBackend {
         initialize: vi.fn().mockResolvedValue(undefined),
         ensureResumed: vi.fn().mockResolvedValue(undefined),
         loadBuffer: vi.fn().mockResolvedValue({ id: 1, duration: 2.0 }),
+        loadBufferFromData: vi.fn().mockResolvedValue({ id: 2, duration: 1.0 }),
         unloadBuffer: vi.fn(),
         play: vi.fn().mockReturnValue(createMockHandle()),
         suspend: vi.fn(),
@@ -90,6 +91,16 @@ describe('AudioAPI', () => {
             await audio.preload('sfx.mp3');
             await audio.preload('sfx.mp3');
             expect(backend.loadBuffer).toHaveBeenCalledTimes(1);
+        });
+
+        it('de-dupes CONCURRENT loads of the same url (one decode, no orphan)', async () => {
+            const data = new ArrayBuffer(8);
+            // Both start before either resolves — without in-flight dedup both decode.
+            await Promise.all([
+                audio.preloadFromData('wind.mp3', data),
+                audio.preloadFromData('wind.mp3', data),
+            ]);
+            expect(backend.loadBufferFromData).toHaveBeenCalledTimes(1);
         });
 
         it('prefixes relative urls with baseUrl (legacy prefix path)', async () => {
