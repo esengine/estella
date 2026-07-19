@@ -11,6 +11,7 @@ import { Trail, TrailAPI } from './TrailAPI';
 
 export class TrailPlugin implements Plugin {
     name = 'trail';
+    private offDespawn_: (() => void) | null = null;
 
     build(app: App): void {
         const module = app.wasmModule as ESEngineModule;
@@ -20,7 +21,7 @@ export class TrailPlugin implements Plugin {
 
         // Trail history lives in a C++ side table keyed by entity, not in the
         // component — drop it on despawn or the recorded points leak.
-        app.world.onDespawn((entity) => {
+        this.offDespawn_ = app.world.onDespawn((entity) => {
             if (app.world.has(entity, TrailRenderer)) api.clear(entity);
         });
 
@@ -35,6 +36,11 @@ export class TrailPlugin implements Plugin {
             },
             { name: 'TrailSystem' }
         ), { runIf: fxPreviewOrPlayMode });
+    }
+
+    cleanup(): void {
+        this.offDespawn_?.();
+        this.offDespawn_ = null;
     }
 }
 

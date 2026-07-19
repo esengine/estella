@@ -59,6 +59,7 @@ export class TimelinePlugin implements Plugin, TimelineAssetRegistry {
     private loadedAssets_ = new Map<string, TimelineAsset>();
     private textureHandles_ = new Map<string, Map<string, number>>();
     private animFramesStates_ = new Map<number, AnimFramesState>();
+    private offDespawn_: (() => void) | null = null;
 
     registerAsset(path: string, asset: TimelineAsset): void {
         this.loadedAssets_.set(path, asset);
@@ -96,7 +97,7 @@ export class TimelinePlugin implements Plugin, TimelineAssetRegistry {
             reset: entity => setFlags(entity, false, true),
         }));
 
-        world.onDespawn((entity: Entity) => {
+        this.offDespawn_ = world.onDespawn((entity: Entity) => {
             app.getResource(Timeline).removeState(entity);
             this.animFramesStates_.delete(entity);
         });
@@ -151,6 +152,8 @@ export class TimelinePlugin implements Plugin, TimelineAssetRegistry {
     }
 
     cleanup(): void {
+        this.offDespawn_?.();
+        this.offDespawn_ = null;
         this.animFramesStates_.clear();
         this.loadedAssets_.clear();
         this.textureHandles_.clear();

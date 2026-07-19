@@ -19,6 +19,7 @@ import { SystemLabel } from '../systemLabels';
 
 export class AnimationPlugin implements Plugin {
     name = 'animation';
+    private offDespawn_: (() => void) | null = null;
 
     build(app: App): void {
         const module = app.wasmModule as ESEngineModule;
@@ -31,7 +32,7 @@ export class AnimationPlugin implements Plugin {
         app.insertResource(AnimatorController, animator);
         const world = app.world;
 
-        world.onDespawn((entity: Entity) => {
+        this.offDespawn_ = world.onDespawn((entity: Entity) => {
             tween.cancelAll(entity);
             anim.removeEntityListeners(entity);
             animator.removeEntity(entity);
@@ -62,6 +63,13 @@ export class AnimationPlugin implements Plugin {
             },
             { name: 'SpriteAnimatorSystem' }
         ), { runAfter: [SystemLabel.Tween, SystemLabel.Animator], runIf: playModeOnly });
+    }
+
+    cleanup(): void {
+        // Drop the despawn subscription so a warm re-Play with a reused world
+        // doesn't stack a second (stale) closure.
+        this.offDespawn_?.();
+        this.offDespawn_ = null;
     }
 }
 

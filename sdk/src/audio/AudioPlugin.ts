@@ -27,6 +27,7 @@ export class AudioPlugin implements Plugin {
     private playedEntities_: Set<number> | null = null;
     private audio_: AudioAPI | null = null;
     private offMemoryWarning_: (() => void) | null = null;
+    private offDespawn_: (() => void) | null = null;
 
     constructor(config: AudioPluginConfig = {}) {
         this.config_ = config;
@@ -63,7 +64,7 @@ export class AudioPlugin implements Plugin {
         const playedEntities = new Set<number>();
         this.playedEntities_ = playedEntities;
 
-        app.world.onDespawn((entity: Entity) => {
+        this.offDespawn_ = app.world.onDespawn((entity: Entity) => {
             const handle = activeSourceHandles.get(entity);
             if (handle) {
                 handle.stop();
@@ -200,6 +201,8 @@ export class AudioPlugin implements Plugin {
     cleanup(): void {
         this.offMemoryWarning_?.();
         this.offMemoryWarning_ = null;
+        this.offDespawn_?.();
+        this.offDespawn_ = null;
         this.stopAllSources();
         this.audio_?.dispose();
         this.audio_ = null;
