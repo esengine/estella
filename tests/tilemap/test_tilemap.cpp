@@ -387,4 +387,14 @@ TEST_CASE("tilemap_animation_revision_separation") {
     sys.advanceAnimations(E(0), 150.0f);  // crosses the 100ms boundary → frame 0→1
     CHECK(sys.getLayerData(E(0))->anim_revision == 1);
     CHECK(sys.getLayerData(E(0))->anim_table_revision == 1);
+
+    // A tileset swap clears the whole table (setTileAnimation only inserts): the
+    // animations go away and it's a TABLE change so chunks re-evaluate to static.
+    sys.clearTileAnimations(E(0));
+    CHECK(sys.getLayerData(E(0))->tile_animations.empty());
+    CHECK(sys.getLayerData(E(0))->anim_table_revision == 2);
+    CHECK(sys.resolveAnimatedTile(E(0), 10) == 10); // no longer remapped to a frame
+    // Clearing an already-empty table is a no-op (no spurious revision bump).
+    sys.clearTileAnimations(E(0));
+    CHECK(sys.getLayerData(E(0))->anim_table_revision == 2);
 }

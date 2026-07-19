@@ -89,6 +89,7 @@ public:
 
     void setTileAnimation(Entity entity, u16 tileId,
                           const AnimFrame* frames, u32 frameCount);
+    void clearTileAnimations(Entity entity);
     void advanceAnimations(Entity entity, f32 dtMs);
     u16 resolveAnimatedTile(Entity entity, u16 tileId) const;
 

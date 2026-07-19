@@ -317,6 +317,12 @@ void tilemap_setTileAnimation(u32 entity, u32 tileId,
                                      frames.data(), frameCount);
 }
 
+void tilemap_clearTileAnimations(u32 entity) {
+    auto e = Entity::fromRaw(entity);
+    if (e == INVALID_ENTITY || !getTilemapSystem().hasLayer(e)) return;
+    getTilemapSystem().clearTileAnimations(e);
+}
+
 void tilemap_advanceAnimations(u32 entity, f32 dtMs) {
     auto e = Entity::fromRaw(entity);
     if (e == INVALID_ENTITY) return;
@@ -409,6 +415,7 @@ EMSCRIPTEN_BINDINGS(esengine_tilemap) {
     emscripten::function("tilemap_setChunkTiles", &esengine::tilemap_setChunkTiles);
 
     emscripten::function("tilemap_setTileAnimation", &esengine::tilemap_setTileAnimation);
+    emscripten::function("tilemap_clearTileAnimations", &esengine::tilemap_clearTileAnimations);
     emscripten::function("tilemap_advanceAnimations", &esengine::tilemap_advanceAnimations);
     emscripten::function("tilemap_setTileProperty", &esengine::tilemap_setTileProperty);
     emscripten::function("tilemap_getTileProperty", &esengine::tilemap_getTileProperty);

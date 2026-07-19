@@ -246,6 +246,15 @@ void TilemapSystem::setTileAnimation(Entity entity, u16 tileId,
     layer->anim_table_revision++;  // the table changed — every chunk re-evaluates once
 }
 
+void TilemapSystem::clearTileAnimations(Entity entity) {
+    auto* layer = getLayerDataMut(entity);
+    if (!layer || layer->tile_animations.empty()) return;
+    // A tileset swap re-adds only the new set's animations; without this, stale
+    // ids from the old tileset keep animating (setTileAnimation only inserts).
+    layer->tile_animations.clear();
+    layer->anim_table_revision++;
+}
+
 namespace {
 /// Index of the frame an animation shows at `elapsedMs` (looped).
 u32 frameIndexAt(const TileAnimation& anim, f32 elapsedMs) {

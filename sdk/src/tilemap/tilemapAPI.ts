@@ -27,6 +27,7 @@ interface TilemapModule {
 
     tilemap_setTileAnimation(entity: number, tileId: number,
                               framesPtr: number, frameCount: number): void;
+    tilemap_clearTileAnimations(entity: number): void;
     tilemap_advanceAnimations(entity: number, dtMs: number): void;
     tilemap_setTileProperty(entity: number, tileId: number,
                              key: string, value: string): void;
@@ -168,6 +169,11 @@ export const TilemapAPI = {
             new Uint32Array(m.HEAPU8.buffer, ptr, buf.length).set(buf);
             m.tilemap_setTileAnimation(entity, tileId, ptr, frames.length);
         });
+    },
+
+    /** Drop every tile animation on the layer (a tileset swap re-adds the new set's). */
+    clearTileAnimations(entity: number): void {
+        module_?.tilemap_clearTileAnimations(entity);
     },
 
     advanceAnimations(entity: number, dtMs: number): void {

@@ -299,15 +299,25 @@ export class TilemapPlugin implements Plugin {
                         if (resolvedList.length === refs.length) {
                             const model = resolveTilesetModel(resolvedList);
                             TilemapAPI.setTilesets(entity, model.slots);
+                            // A re-resolve (tileset swap) replaces the whole table —
+                            // clear the old animations/collision first, then set the
+                            // new ones unconditionally, or stale ids from the previous
+                            // tileset keep animating / generating colliders.
+                            TilemapAPI.clearTileAnimations(entity);
                             for (const [tileId, frames] of model.animations) {
                                 TilemapAPI.setTileAnimation(entity, tileId, frames);
                                 animatedLayers.add(entity);
                             }
+                            if (model.animations.size === 0) animatedLayers.delete(entity);
                             if (model.collidableTileIds.length > 0) {
                                 nativeCollisionIds.set(entity, model.collidableTileIds);
+                            } else {
+                                nativeCollisionIds.delete(entity);
                             }
                             if (model.tileShapes.size > 0) {
                                 nativeTileShapes.set(entity, model.tileShapes);
+                            } else {
+                                nativeTileShapes.delete(entity);
                             }
                             liveResolved.add(entity);
                         }
