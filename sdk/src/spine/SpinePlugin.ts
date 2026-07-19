@@ -55,6 +55,7 @@ export class SpinePlugin implements Plugin {
     private spineManager_: SpineManager | null;
     private app_: App | null = null;
     private despawnUnsub_: (() => void) | null = null;
+    private submitWired_ = false;
 
     /** Pass an explicit manager for headless/tests; otherwise the plugin builds
      *  one in {@link build} from the app's {@link App.sideModules} host (the realm
@@ -72,12 +73,20 @@ export class SpinePlugin implements Plugin {
         if (this.app_) {
             const app = this.app_;
             app.insertResource(Spine, manager);
-            const pipeline = app.pipeline;
-            pipeline?.addPreFlushCallback((registry) => {
-                manager.submitMeshes(registry._cpp);
-            });
+            this.wireSubmit_(app);
             this.wireAnimatorDriver_(app);
         }
+    }
+
+    // Register the mesh-submit callback exactly once — it reads this.spineManager_
+    // live, so build and a later setSpineManager (a manager swap) share one
+    // callback instead of stacking a second that double-submits every frame.
+    private wireSubmit_(app: App): void {
+        if (this.submitWired_) return;
+        this.submitWired_ = true;
+        app.pipeline?.addPreFlushCallback((registry) => {
+            this.spineManager_?.submitMeshes(registry._cpp);
+        });
     }
 
     build(app: App): void {
@@ -124,11 +133,7 @@ export class SpinePlugin implements Plugin {
         app.addSystemToSchedule(Schedule.PreUpdate, spineUpdateSystem);
 
         if (this.spineManager_) {
-            const manager = this.spineManager_;
-            const pipeline = app.pipeline;
-            pipeline?.addPreFlushCallback((registry) => {
-                manager.submitMeshes(registry._cpp);
-            });
+            this.wireSubmit_(app);
         }
     }
 
@@ -158,6 +163,7 @@ export class SpinePlugin implements Plugin {
         this.despawnUnsub_ = null;
         this.spineManager_?.dispose();
         this.app_ = null;
+        this.submitWired_ = false; // a fresh build (new pipeline) re-registers the submit
     }
 
     private collectAndPublishEvents_(app: App): void {
