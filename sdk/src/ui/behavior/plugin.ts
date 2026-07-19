@@ -15,7 +15,7 @@ import { ListView, ListViewRegistry } from '../collection/list-view';
 import { ScrollContainer, ScrollContainerRegistry } from '../collection/scroll-container';
 import { KineticScroll } from '../collection/kinetic-scroll';
 import { UIInteraction, type UIInteractionData } from '../input/interactable';
-import { getEntityDepth } from '../util/helpers';
+import { getEntityDepth, walkParentChain } from '../util/helpers';
 import { UIDialog, createDialogSystem } from './dialog';
 import { UISlider, createSliderSystem } from './slider';
 import { UIToggle, createToggleSystem } from './toggle';
@@ -147,27 +147,49 @@ export class UIBehaviorPlugin implements Plugin {
         };
         app.world.onDespawn((entity) => dynamics.delete(entity));
 
+        // The hit-test flags only the single topmost interactable as hovered, so
+        // a wheel/drag over an interactive list row (a button, etc.) leaves the
+        // enclosing viewport un-hovered. Resolve the scroll target from the
+        // hovered hit by walking up (self-inclusive) to the nearest attached
+        // container; the first container found is the innermost, preserving
+        // nested-list arbitration. `dragOnly` keeps the drag path to drag-scroll
+        // containers.
+        const hoveredScrollTarget = (dragOnly: boolean): Entity | null => {
+            let hovered: Entity | null = null;
+            let hoveredDepth = -1;
+            for (const entity of world.getEntitiesWithComponents([UIInteraction])) {
+                const ui = world.get(entity, UIInteraction) as UIInteractionData;
+                if (!ui.hovered) continue;
+                const depth = getEntityDepth(world, entity);
+                if (depth > hoveredDepth) {
+                    hoveredDepth = depth;
+                    hovered = entity;
+                }
+            }
+            if (hovered === null) return null;
+            const eligible = (e: Entity): boolean => {
+                const c = scrollContainers.get(e);
+                return !!c && (!dragOnly || c.getDragScroll());
+            };
+            if (eligible(hovered)) return hovered;
+            let found: Entity | null = null;
+            walkParentChain(world, hovered, (ancestor) => {
+                if (eligible(ancestor)) {
+                    found = ancestor;
+                    return true;
+                }
+                return false;
+            });
+            return found;
+        };
+
         app.addSystemToSchedule(
             Schedule.Update,
             defineSystem([Res(Input)], (input: InputState) => {
                 const dx = input.scrollDeltaX;
                 const dy = input.scrollDeltaY;
                 if (dx === 0 && dy === 0) return;
-                // Deepest hovered container wins (same arbitration as drag
-                // scrolling) — a wheel over a nested list must not scroll its
-                // ancestor too.
-                let best: Entity | null = null;
-                let bestDepth = -1;
-                for (const [entity] of scrollContainers.entries()) {
-                    if (!world.has(entity as Entity, UIInteraction)) continue;
-                    const ui = world.get(entity as Entity, UIInteraction) as UIInteractionData;
-                    if (!ui.hovered) continue;
-                    const depth = getEntityDepth(world, entity as Entity);
-                    if (depth > bestDepth) {
-                        bestDepth = depth;
-                        best = entity as Entity;
-                    }
-                }
+                const best = hoveredScrollTarget(false);
                 if (best !== null) {
                     const container = scrollContainers.get(best)!;
                     dynamics.get(best)?.stop(); // wheel takes over from a fling
@@ -192,22 +214,11 @@ export class UIBehaviorPlugin implements Plugin {
                 if (!camera.valid) return;
                 const worldMouse = { x: camera.worldMouseX, y: camera.worldMouseY };
 
-                // Press over a hovered container arms the drag; deepest hovered
-                // wins so a nested list scrolls itself, not its ancestor.
+                // Press over a hovered container (or an interactive child of one)
+                // arms the drag; the nearest container wins so a nested list
+                // scrolls itself, not its ancestor.
                 if (input.isMouseButtonPressed(0)) {
-                    let best: Entity | null = null;
-                    let bestDepth = -1;
-                    for (const [entity, container] of scrollContainers.entries()) {
-                        if (!container.getDragScroll()) continue;
-                        if (!world.has(entity as Entity, UIInteraction)) continue;
-                        const ui = world.get(entity as Entity, UIInteraction) as UIInteractionData;
-                        if (!ui.hovered) continue;
-                        const depth = getEntityDepth(world, entity as Entity);
-                        if (depth > bestDepth) {
-                            bestDepth = depth;
-                            best = entity as Entity;
-                        }
-                    }
+                    const best = hoveredScrollTarget(true);
                     if (best !== null) {
                         const container = scrollContainers.get(best)!;
                         dynamicsFor(best, container).stop();
