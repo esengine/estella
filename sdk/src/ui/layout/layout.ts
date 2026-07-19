@@ -5,8 +5,8 @@
  * @brief   Layout concept — the Yoga-backed layout driver.
  *
  * Owns the PreUpdate `UILayoutSystem` (drives the C++ Yoga pass via
- * `uiLayout_update` + `transform_update`) plus the PostUpdate late/final
- * passes that re-solve after scroll/list mutations. Co-located with the
+ * `uiLayout_update` + `transform_update`) plus the PostUpdate late pass
+ * that re-solves after scroll/list mutations. Co-located with the
  * `flex`/`safe-area` schemas in this module.
  */
 import type { App, Plugin } from '../../app';
@@ -69,16 +69,13 @@ export class UILayoutPlugin implements Plugin {
             { name: 'UILayoutSystem' }
         ));
 
+        // No transform pass after the late layout: nothing between PostUpdate and
+        // render reads world transforms (UIRenderOrder walks hierarchy only), and
+        // the renderer's ensureTransformsUpdated composes worlds before collect.
         app.addSystemToSchedule(Schedule.PostUpdate, defineSystem(
             [Res(UICameraInfo)],
             layoutOnlyFn,
             { name: 'UILayoutLateSystem' }
-        ), { runBefore: [SystemLabel.UIRenderOrder] });
-
-        app.addSystemToSchedule(Schedule.PostUpdate, defineSystem(
-            [],
-            () => { module.transform_update(registry); },
-            { name: 'UITransformFinalSystem' }
         ), { runAfter: [SystemLabel.ListView], runBefore: [SystemLabel.UIRenderOrder] });
     }
 }
