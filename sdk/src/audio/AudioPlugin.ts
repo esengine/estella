@@ -132,6 +132,10 @@ export class AudioPlugin implements Plugin {
                                 activeSourceHandles.set(id, handle);
                                 playedEntities.add(id);
                             } else {
+                                // playOnAwake is a one-shot at spawn; mark it done even
+                                // on a miss, or this re-looks-up and re-warns every frame
+                                // forever. (Preload the clip before spawning.)
+                                playedEntities.add(id);
                                 log.warn(
                                     'audio',
                                     `playOnAwake: clip "${source.clip}" not preloaded`,
