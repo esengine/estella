@@ -14,6 +14,94 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-07-19
+
+A hardening pass. No new pillars this time — instead a systematic, subsystem-by-
+subsystem audit files the sharp edges off the runtime: audio buses, Spine, the
+timeline, physics, tilemaps, the ECS core and the editor each shed a cluster of
+lifecycle, teardown and correctness bugs that had survived releases. The one new
+capability is a rendering one — **tilesets with padded atlases now sample
+cleanly** — and the docs, examples and guides are trued up to match the fixed
+behavior.
+
+### Added
+
+- **Tileset margin & spacing are honored end to end.** The `.estileset` / Tiled
+  importer already parsed a tileset's `margin` (border before the first tile)
+  and `spacing` (gap between tiles), but the runtime UV path was pure grid math,
+  so any atlas with padding sampled an offset region and bled toward the
+  neighbouring tile. Both values now carry all the way through to the per-slot UV
+  offset/step (and the `setTilesets` slot table gains optional `margin` /
+  `spacing`), so each cell samples its own texels; a gapless atlas is unchanged.
+
+### Fixed
+
+- **Physics.** The character controller's `skinWidth`, `maxSlides`, `snapLength`
+  and `slideOnCeiling` were dead at runtime — the native mover hardcoded its
+  iteration and ignored them; all four are now wired through, so skin margin,
+  slide count, stair/slope floor-snap and ceiling-stop behave as their inspector
+  tooltips promise. Kinematic bodies now carry riders standing on them, disabled
+  bodies and re-parented joints behave, and a parented body's transform sync
+  preserves scale.
+- **Audio.** Ducking and BGM crossfades tear down cleanly, pooled nodes no longer
+  cross-route or NaN the panner, a volume blend fades to each param's neutral and
+  honors the global weight, concurrent preloads of one URL decode exactly once,
+  and WeChat `stop()` is idempotent.
+- **Spine.** Re-loading a Spine entity frees the old instance and skeleton, the
+  plugin submits meshes once even after a manager swap, tint resets when cleared
+  (mix duration is per-asset), and listeners are cleaned by entity rather than
+  instance id.
+- **Timeline & animation.** A looping timeline no longer double-fires events at
+  the loop seam, keyframes default missing tangents to `0`, and tween
+  composition completes while sprite animation keeps pace.
+- **Tilemap.** Tile-collision queries honor the cell's flip flags, the animation
+  clock uses a double accumulator (no drift on long runs), a tileset swap clears
+  stale animations and collision, visible-chunk culling is orientation-aware,
+  isometric `worldToTile` rounds to the containing tile, and a destroyed layer
+  stops ticking.
+- **Rendering & particles.** A rounded-rect's corner radius scales with the
+  transform, looping particle sheets cycle instead of freezing on the last
+  frame, `play()` before an emitter's first update isn't dropped, and
+  `maxParticles` is clamped so bad data can't OOM.
+- **Scenes, assets & materials.** A load cancelled by a concurrent unload can't
+  orphan entities (it rejects with the new `SceneLoadCancelled`), scene unload
+  releases materials through Assets and a reload restores a slept scene,
+  materials release their bound textures on unload, scene serialization detaches
+  from live world storage, an alpha-less `{r,g,b}` material color survives,
+  resource defaults stop aliasing across worlds, and texture metadata survives an
+  evictable release.
+- **Core, plugins & networking.** `world.set` adds a missing builtin through the
+  full insert path, `Removed` fires on despawn and duplicate names can't corrupt
+  the name index, plugins retire their `onDespawn` subscriptions on cleanup, the
+  gesture detector releases per-touch state on touch end, `createPolygon` guards
+  a degenerate axis span against NaN UVs, locale plural forms are validated as
+  strings at load, `playOnAwake` stops re-warning an un-preloaded clip every
+  frame, prefab diffs keep entity refs in prefab-local id space, and netcode
+  interpolation is frame-rate independent (a replication client's disconnect
+  retires its subscription and state).
+- **Editor.** Material-graph node params edit by their own key instead of a
+  hardcoded `value`, editor state resets on a project/scene switch, and
+  multi-select edits keep per-entity data in a single undo step.
+
+### Performance
+
+- Render batches dedupe redundant program + blend binds on a pipeline switch and
+  pin a draw's unused sampler slots to white.
+- The editor gets O(1) entity lookup, a gated pivot and cached ref-counts, and
+  on-canvas handle drags suspend re-render (cancelling cleanly).
+- The volume post-process rebuilds only when its effect set changes, query
+  iteration precomputes its dependency ids, and timeline activation writes a
+  component only when it flips.
+
+### Documentation
+
+- The guides are trued up to the fixed behavior: the character-controller tuning
+  fields, tileset margin/spacing on `setTilesets`, and `SceneLoadCancelled` are
+  now documented (en + 简体中文).
+- The Editor guide and quick-start onboarding are refreshed, every guide that
+  lacked them gains "See also" cross-links, and the custom-bus audio example is
+  corrected (`playSFX` takes no bus option).
+
 ## [0.27.0] - 2026-07-18
 
 The manual catches up with the engine, and the API learns to read one way.
