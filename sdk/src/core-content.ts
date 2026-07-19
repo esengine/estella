@@ -120,6 +120,7 @@ export {
 export {
     SceneManager,
     SceneManagerState,
+    SceneLoadCancelled,
     wrapSceneSystem,
     type SceneConfig,
     type SceneContext,

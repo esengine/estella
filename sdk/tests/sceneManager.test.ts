@@ -66,7 +66,7 @@ vi.mock('../src/defaults', () => ({
     },
 }));
 
-import { SceneManagerState, wrapSceneSystem } from '../src/sceneManager';
+import { SceneManagerState, SceneLoadCancelled, wrapSceneSystem } from '../src/sceneManager';
 import { SceneOwner, Sprite, SpineAnimation, BitmapText } from '../src/component';
 import { loadSceneWithAssets } from '../src/scene';
 import { registerDrawCallback, unregisterDrawCallback } from '../src/customDraw';
@@ -616,6 +616,31 @@ describe('SceneManager', () => {
             await manager.load('level1');
             expect(manager.getSceneStatus('level1')).toBe('running');
             expect(manager.isPaused('level1')).toBe(false);
+        });
+    });
+
+    describe('load/unload race (load token)', () => {
+        it('a load cancelled by a concurrent unload rejects and orphans nothing', async () => {
+            let resolveAssets!: () => void;
+            vi.mocked(loadSceneWithAssets).mockImplementationOnce(async () => {
+                await new Promise<void>((res) => { resolveAssets = res; });
+                app._entities.set(1, new Map()); // the real loader spawns this into the world
+                return new Map([[100, 1]]);
+            });
+
+            manager.register({ name: 'level1', data: makeSceneData() });
+            const loadP = manager.load('level1');
+            await new Promise((r) => setTimeout(r, 0)); // park at the pending asset load
+
+            await manager.unload('level1');   // race: unload while assets are in flight
+            resolveAssets();                  // now the assets finish
+
+            await expect(loadP).rejects.toThrow(SceneLoadCancelled);
+            expect(manager.getActive()).not.toBe('level1');
+            expect(manager.getSceneStatus('level1')).toBeNull();
+            // The entity spawned after the unload is despawned, not left orphaned.
+            expect(app.world.despawn).toHaveBeenCalledWith(1);
+            expect(app._entities.has(1)).toBe(false);
         });
     });
 

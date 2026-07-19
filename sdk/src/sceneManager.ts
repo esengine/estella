@@ -164,6 +164,19 @@ class SceneContextImpl implements SceneContext {
 // Scene Manager State
 // =============================================================================
 
+/**
+ * Thrown by a `load()` whose scene slot was replaced — by a concurrent `unload()`
+ * or a superseding load — while its assets were still loading. The load despawns
+ * anything it had spawned and rejects with this instead of committing a
+ * half-loaded scene, so a `load()`/`unload()` race can't orphan entities.
+ */
+export class SceneLoadCancelled extends Error {
+    constructor(name: string) {
+        super(`Scene load for "${name}" was cancelled (the scene was unloaded mid-load)`);
+        this.name = 'SceneLoadCancelled';
+    }
+}
+
 export class SceneManagerState {
     private readonly app_: App;
     private readonly configs_ = new Map<string, SceneConfig>();
@@ -313,6 +326,11 @@ export class SceneManagerState {
 
             await this.loadSceneData_(instance, name, config, sceneData, onProgress);
 
+            // A user setup() can await; an unload during it invalidates this load.
+            // loadSceneData_ already despawned any spawned entities on its own token
+            // check, so abort before committing status/activeScene to a dead scene.
+            if (this.scenes_.get(name) !== instance) throw new SceneLoadCancelled(name);
+
             instance.status = 'running';
             this.activeScene_ = name;
             this.loadOrder_.push(name);
@@ -398,8 +416,13 @@ export class SceneManagerState {
             if (this.app_.world.valid(entity)) this.app_.world.despawn(entity);
         }
         instance.entities.clear();
-        this.scenes_.delete(name);
-        this.contexts_.delete(name);
+        // Only clear the registry slots if they still point at THIS instance — a
+        // concurrent unload+reload may already own them, and clobbering the newer
+        // load would corrupt it. (A cancelled load's unload already cleared them.)
+        if (this.scenes_.get(name) === instance) {
+            this.scenes_.delete(name);
+            this.contexts_.delete(name);
+        }
     }
 
     async unload(name: string, options?: TransitionOptions): Promise<void> {
@@ -503,6 +526,17 @@ export class SceneManagerState {
                 this.app_.world, sceneData, loadOptions
             );
 
+            // Load token: if a concurrent unload (or a superseding load) replaced
+            // this scene slot while our assets were in flight, the entities we just
+            // spawned would orphan in the world under a scene that no longer exists.
+            // Despawn them and abort instead of committing to a dead scene.
+            if (this.scenes_.get(name) !== instance) {
+                for (const entity of entityMap.values()) {
+                    if (this.app_.world.valid(entity)) this.app_.world.despawn(entity);
+                }
+                throw new SceneLoadCancelled(name);
+            }
+
             for (const entity of entityMap.values()) {
                 instance.entities.add(entity);
                 this.app_.world.insert(entity, SceneOwner, {
@@ -511,6 +545,10 @@ export class SceneManagerState {
                 });
             }
         }
+
+        // Same token check for the data-less path (systems/setup only) and to fail
+        // cleanly before setup() dereferences a context an unload already dropped.
+        if (this.scenes_.get(name) !== instance) throw new SceneLoadCancelled(name);
 
         if (config.systems) {
             for (const { schedule, system } of config.systems) {
