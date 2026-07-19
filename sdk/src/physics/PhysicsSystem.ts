@@ -460,6 +460,10 @@ export function applyPhysicsTransforms(
             const tPtr = getTransformPtr(entityId);
             if (tPtr) {
                 const fi = tPtr >> 2;
+                // Physics owns position + rotation only; scale (fi+7..9 local,
+                // fi+17..19 world) is left untouched, matching the batch path —
+                // clobbering it to 1 shrank a scaled dynamic body the moment any
+                // physics body gained a Parent (which routes all bodies here).
                 engF32[fi]      = localX;
                 engF32[fi + 1]  = localY;
                 engF32[fi + 2]  = 0;
@@ -467,9 +471,6 @@ export function applyPhysicsTransforms(
                 engF32[fi + 4]  = 0;
                 engF32[fi + 5]  = sinH;
                 engF32[fi + 6]  = cosH;
-                engF32[fi + 7]  = 1;
-                engF32[fi + 8]  = 1;
-                engF32[fi + 9]  = 1;
                 engF32[fi + 10] = localX;
                 engF32[fi + 11] = localY;
                 engF32[fi + 12] = 0;
@@ -477,9 +478,6 @@ export function applyPhysicsTransforms(
                 engF32[fi + 14] = 0;
                 engF32[fi + 15] = sinH;
                 engF32[fi + 16] = cosH;
-                engF32[fi + 17] = 1;
-                engF32[fi + 18] = 1;
-                engF32[fi + 19] = 1;
                 continue;
             }
         }
