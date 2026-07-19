@@ -261,4 +261,34 @@ describe('ResourceStorage', () => {
             expect(storage.get(Config)).toEqual({ debug: true });
         });
     });
+
+    describe('default isolation', () => {
+        it('does not alias the shared default across two storages', () => {
+            const Shared = defineResource({ score: 0, tags: [] as string[] }, 'IsoConfig');
+            const a = new ResourceStorage();
+            const b = new ResourceStorage();
+
+            const va = a.get(Shared);
+            va.score = 42;
+            va.tags.push('x');
+
+            const vb = b.get(Shared);
+            expect(vb.score).toBe(0);
+            expect(vb.tags).toEqual([]);
+        });
+
+        it('materialising a default never mutates the ResourceDef itself', () => {
+            const Shared = defineResource({ n: 0 }, 'IsoConfig2');
+            new ResourceStorage().get(Shared).n = 7;
+            expect(Shared._default.n).toBe(0);
+        });
+
+        it('a class-instance default keeps its prototype and methods (not cloned to a bare object)', () => {
+            class Svc { hits = 0; ping(): number { return ++this.hits; } }
+            const Service = defineResource(new Svc(), 'IsoService');
+            const got = new ResourceStorage().get(Service);
+            expect(got).toBeInstanceOf(Svc);
+            expect(got.ping()).toBe(1); // method survived; a plain-object clone would throw
+        });
+    });
 });

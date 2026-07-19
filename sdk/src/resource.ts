@@ -5,6 +5,8 @@
  * @brief   Resource system for global singleton data
  */
 
+import { deepClone } from './deepClone';
+
 // =============================================================================
 // Resource Definition
 // =============================================================================
@@ -102,7 +104,9 @@ export class ResourceStorage {
 
     get<T>(resource: ResourceDef<T>): T {
         if (!this.resources_.has(resource._id)) {
-            this.resources_.set(resource._id, resource._default);
+            // Clone so each storage owns its default; mutating it never leaks
+            // into the shared ResourceDef or a sibling world.
+            this.resources_.set(resource._id, deepClone(resource._default));
         }
         return this.resources_.get(resource._id) as T;
     }

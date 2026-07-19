@@ -6,6 +6,7 @@
  */
 
 import { Entity, Vec2, Vec3, Color, Quat } from './types';
+import { deepClone } from './deepClone';
 import { COMPONENT_META, type AssetFieldMeta, type SpineFieldMeta } from './component.generated';
 // C++-backed component data shapes, generated from the ES_COMPONENT structs (single
 // source — a TS field can no longer drift from C++). Re-exported below so the public
@@ -167,20 +168,6 @@ export interface ComponentDef<T> {
     /** Runtime-only: omitted from scene serialization. See {@link ComponentMetadata.transient}. */
     readonly transient: boolean;
     create(data?: Partial<T>): T;
-}
-
-function deepClone<T>(value: T): T {
-    if (value === null || typeof value !== 'object') {
-        return value;
-    }
-    if (Array.isArray(value)) {
-        return value.map(deepClone) as T;
-    }
-    const result: Record<string, unknown> = {};
-    for (const key in value) {
-        result[key] = deepClone((value as Record<string, unknown>)[key]);
-    }
-    return result as T;
 }
 
 function classifyKeys(obj: object): { flatKeys: string[]; objectKeys: string[]; arrayKeys: string[] } | null {
