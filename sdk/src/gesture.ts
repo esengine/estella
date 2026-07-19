@@ -115,6 +115,7 @@ export class GestureDetector {
             }
 
             this.tracks_.delete(id);
+            this.lastPositions_.delete(id);
         }
     }
 
