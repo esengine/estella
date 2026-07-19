@@ -216,18 +216,22 @@ const Texture* ResourceManager::getTexture(TextureHandle handle) const {
 }
 
 void ResourceManager::releaseTexture(TextureHandle handle) {
-    if (handle.isValid()) {
-        if (textures_.getRefCount(handle) == 1) {
-            textureMetadata_.erase(handle.id());
-            for (auto it = guidToTexture_.begin(); it != guidToTexture_.end(); ) {
-                if (it->second == handle) {
-                    it = guidToTexture_.erase(it);
-                } else {
-                    ++it;
-                }
+    if (!handle.isValid()) return;
+    const bool lastRef = textures_.getRefCount(handle) == 1;
+    textures_.release(handle.id());
+    // Drop the sidecar metadata + GUID mapping only when the texture is TRULY gone.
+    // Under an eviction budget the last release keeps it resident and revivable
+    // (findByPath + addRef re-holds the SAME handle), so erasing here would strand
+    // a revived texture without its nine-slice metadata / GUID lookup.
+    if (lastRef && !textures_.isEvictable(handle)) {
+        textureMetadata_.erase(handle.id());
+        for (auto it = guidToTexture_.begin(); it != guidToTexture_.end(); ) {
+            if (it->second == handle) {
+                it = guidToTexture_.erase(it);
+            } else {
+                ++it;
             }
         }
-        textures_.release(handle.id());
     }
 }
 
