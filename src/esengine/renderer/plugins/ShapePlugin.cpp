@@ -60,8 +60,13 @@ void ShapePlugin::collect(RenderCollectContext& collect_ctx) {
         f32 cosA = std::cos(angle);
         f32 sinA = std::sin(angle);
 
-        glm::vec2 halfSize = shape.size * glm::vec2(scale) * 0.5f;
+        glm::vec2 scale2 = glm::vec2(scale);
+        glm::vec2 halfSize = shape.size * scale2 * 0.5f;
         glm::vec2 pos(position);
+        // The corner radius must scale with the box, or a scaled rounded-rect keeps
+        // its absolute radius and the rounding looks proportionally tighter. Average
+        // the two axes for a uniform-scale approximation (exact when scale is uniform).
+        f32 cornerScale = 0.5f * (std::abs(scale2.x) + std::abs(scale2.y));
 
         glm::vec2 localCorners[4] = {
             {-halfSize.x, -halfSize.y},
@@ -93,7 +98,7 @@ void ShapePlugin::collect(RenderCollectContext& collect_ctx) {
             verts[v].shapeType = static_cast<f32>(shape.shapeType);
             verts[v].halfW = halfSize.x;
             verts[v].halfH = halfSize.y;
-            verts[v].cornerRadius = shape.cornerRadius;
+            verts[v].cornerRadius = shape.cornerRadius * cornerScale;
         }
 
         BatchDrawKey key{
