@@ -291,6 +291,8 @@ void GLDevice::setBlendEnabled(bool enabled) {
 }
 
 void GLDevice::setBlendMode(BlendMode mode) {
+    if (mode == current_blend_) return;
+    current_blend_ = mode;
     switch (mode) {
     case BlendMode::Normal:
         glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
@@ -473,7 +475,9 @@ void GLDevice::deleteProgram(ShaderHandle program) {
 }
 
 void GLDevice::useProgram(ShaderHandle program) {
+    if (program == current_program_) return;
     glUseProgram(static_cast<GLuint>(program));
+    current_program_ = program;
 }
 
 i32 GLDevice::getUniformLocation(ShaderHandle program, const char* name) {
@@ -801,6 +805,8 @@ void GLDevice::setStencilReference(i32 ref) {
 void GLDevice::invalidatePipelineCache() {
     current_pipeline_ = PipelineHandle::Invalid;
     current_stencil_mode_ = GfxStencilMode::Off;
+    current_program_ = ShaderHandle::Invalid;
+    current_blend_ = static_cast<BlendMode>(0xFF);
 }
 
 // =============================================================================

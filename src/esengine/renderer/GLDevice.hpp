@@ -165,6 +165,13 @@ private:
     std::vector<PipelineDesc> pipelines_;
     PipelineHandle current_pipeline_ = PipelineHandle::Invalid;
     GfxStencilMode current_stencil_mode_ = GfxStencilMode::Off;
+    // Redundant-state caches for setPipeline: the program and blend func are only
+    // ever set through useProgram / setBlendMode, so caching the last value lets a
+    // pipeline switch that shares them skip the (FFI-crossing) GL call. Reset in
+    // invalidatePipelineCache. 0xFF is an out-of-range BlendMode sentinel so the
+    // first real set always issues (init sets the GL blend directly, not via here).
+    ShaderHandle current_program_ = ShaderHandle::Invalid;
+    BlendMode current_blend_ = static_cast<BlendMode>(0xFF);
 
     // Redundant-state caches for the two per-draw hot paths. glActiveTexture is
     // the only site that moves the active unit, so active_texture_unit_ is
