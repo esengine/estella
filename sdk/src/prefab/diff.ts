@@ -8,6 +8,23 @@ import type {
     PrefabOverride,
     ProcessedEntity,
 } from './types';
+import { getComponent } from '../component';
+
+/**
+ * An entity-typed field on an instance holds a numeric runtime id; the source
+ * prefab stores the prefab-local string id. Translate the runtime id back to its
+ * prefab-local id (inverse of {@link remapComponentEntityRefs}) so an UNCHANGED
+ * intra-instance ref diffs equal — otherwise every such field produces a spurious
+ * override carrying a session-specific number that dangles on save+reload. A ref
+ * that points outside the instance (unmapped) stays numeric, best-effort.
+ */
+function normalizeEntityRef(value: unknown, runtimeToPrefabId: Map<number, PrefabEntityId>): unknown {
+    if (typeof value === 'number') {
+        const prefabId = runtimeToPrefabId.get(value);
+        if (prefabId !== undefined) return prefabId;
+    }
+    return value;
+}
 
 export interface DiffOptions {
     /**
@@ -63,6 +80,11 @@ export function diffAgainstSource(
     const instanceByPrefabId = new Map<PrefabEntityId, ProcessedEntity>();
     for (const e of instance) instanceByPrefabId.set(e.prefabEntityId, e);
 
+    // Runtime entity id → its prefab-local id, so entity-ref fields can be diffed
+    // in the prefab's own id space instead of against volatile runtime numbers.
+    const runtimeToPrefabId = new Map<number, PrefabEntityId>();
+    for (const e of instance) runtimeToPrefabId.set(e.id, e.prefabEntityId);
+
     const ignoredMeta = new Set(options?.ignoreMetadataKeys ?? []);
     const ignoredNames = new Set(options?.ignoreEntityNames ?? []);
     const eps = options?.floatEpsilon ?? 0;
@@ -95,7 +117,7 @@ export function diffAgainstSource(
         }
 
         diffMetadata(src.metadata, instEntity.metadata, ignoredMeta, instEntity.prefabEntityId, overrides);
-        diffComponents(src.components, instEntity.components, instEntity.prefabEntityId, eps, overrides);
+        diffComponents(src.components, instEntity.components, instEntity.prefabEntityId, eps, overrides, runtimeToPrefabId);
     }
 
     for (const [id] of sourceById) {
@@ -135,6 +157,7 @@ function diffComponents(
     entityId: PrefabEntityId,
     eps: number,
     out: PrefabOverride[],
+    runtimeToPrefabId: Map<number, PrefabEntityId>,
 ): void {
     const srcByType = new Map<string, ComponentData>();
     for (const c of srcComps) srcByType.set(c.type, c);
@@ -161,13 +184,18 @@ function diffComponents(
         // Per-property diff keeps override list small and human-readable,
         // and lets Inspector "revert this field" work without dragging the
         // whole component along.
+        const entityFields = new Set(getComponent(type)?.entityFields ?? []);
         const keys = new Set<string>([
             ...Object.keys(srcComp.data),
             ...Object.keys(instComp.data),
         ]);
         for (const key of keys) {
             const a = srcComp.data[key];
-            const b = instComp.data[key];
+            // Entity refs diff (and store) in prefab-local id space so an
+            // unchanged sibling ref isn't logged as a dangling numeric override.
+            const b = entityFields.has(key)
+                ? normalizeEntityRef(instComp.data[key], runtimeToPrefabId)
+                : instComp.data[key];
             if (!deepEqual(a, b, eps)) {
                 out.push({
                     prefabEntityId: entityId,

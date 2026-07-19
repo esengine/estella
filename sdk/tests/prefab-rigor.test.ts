@@ -28,6 +28,7 @@ import {
     bucketOverridesByEntity,
 } from '../src/prefab/index';
 import type { FlattenContext } from '../src/prefab/index';
+import { defineComponent } from '../src/component';
 
 function uuidPrefab(): PrefabData {
     return {
@@ -643,6 +644,69 @@ describe('migration visible to callers', () => {
         expect(migrated).toBe(true);
         expect(fromVersion).toBe('1.0');
         expect(toVersion).toBe(PREFAB_FORMAT_VERSION);
+    });
+});
+
+describe('diffAgainstSource — entity-ref fields', () => {
+    // The real case is a USER component with a SCALAR entity ref (a script that
+    // targets another entity); builtins only have Children.entities (an ARRAY the
+    // structural parent/children path owns). Registered per-test — the setup
+    // clears user components between tests.
+    const FOLLOW_META = { entityFields: ['target'] };
+
+    function squad(): PrefabData {
+        return {
+            version: PREFAB_FORMAT_VERSION,
+            name: 'Squad',
+            rootEntityId: 'leader',
+            entities: [
+                { prefabEntityId: 'leader', name: 'Leader', parent: null, children: ['ally', 'follower'], components: [], visible: true },
+                { prefabEntityId: 'ally', name: 'Ally', parent: 'leader', children: [], components: [], visible: true },
+                {
+                    prefabEntityId: 'follower', name: 'Follower', parent: 'leader', children: [],
+                    components: [{ type: 'FollowTarget', data: { target: 'leader' } }], visible: true,
+                },
+            ],
+        };
+    }
+
+    // Runtime ids assigned in entity order: leader=0, ally=1, follower=2.
+    function instance(prefab: PrefabData, followerTarget: number): ProcessedEntity[] {
+        let n = 0;
+        return prefab.entities.map((e) => ({
+            id: n++,
+            prefabEntityId: e.prefabEntityId,
+            name: e.name,
+            parent: null,
+            children: [],
+            components: e.components.map((c) => ({
+                type: c.type,
+                data: c.type === 'FollowTarget' ? { target: followerTarget } : { ...c.data },
+            })),
+            visible: e.visible,
+        }));
+    }
+
+    it('an unchanged sibling ref produces no override (runtime id normalises to its prefab-local id)', () => {
+        defineComponent('FollowTarget', { target: 0 }, FOLLOW_META);
+        const prefab = squad();
+        // follower.target = 0 = leader's runtime id → normalises to 'leader' === source.
+        const { overrides } = diffAgainstSource(prefab, instance(prefab, 0));
+        expect(overrides).toEqual([]);
+    });
+
+    it('a re-pointed ref stores the prefab-local id, not the volatile runtime number', () => {
+        defineComponent('FollowTarget', { target: 0 }, FOLLOW_META);
+        const prefab = squad();
+        // follower.target = 1 = ally's runtime id → a genuine re-point.
+        const { overrides } = diffAgainstSource(prefab, instance(prefab, 1));
+        expect(overrides).toContainEqual({
+            prefabEntityId: 'follower',
+            type: 'property',
+            componentType: 'FollowTarget',
+            propertyName: 'target',
+            value: 'ally', // prefab-local id — survives remapComponentEntityRefs on reload
+        });
     });
 });
 
