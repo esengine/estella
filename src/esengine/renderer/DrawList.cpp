@@ -100,7 +100,8 @@ void DrawList::finalize(TransientBufferPool& pool) {
 }
 
 void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
-                       MaterialStore& materials, FrameCapture* capture) {
+                       MaterialStore& materials, u32 white_texture_id,
+                       FrameCapture* capture) {
     PipelineDesc lastDesc{};
     PipelineHandle lastHandle = PipelineHandle::Invalid;
 
@@ -149,11 +150,14 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
         }
         // The batch shader declares 8 samplers, and WebGL2 invalidates a draw if any
         // referenced sampler unit lacks a complete texture — even units the per-vertex
-        // branch never samples. For the Batch layout, fill the unused slots with slot 0's
-        // (always-valid) texture; other layouts bind only the samplers they declare.
+        // branch never samples. For the Batch layout, fill the unused slots with a
+        // STABLE white texture: those units then stay pinned across draws, so the
+        // per-slot bind cache makes them no-ops and only slot 0 rebinds per texture
+        // change (filling with this draw's own tex re-pointed all 8 units each time).
+        // Other layouts bind only the samplers they declare.
         if (cmd.layout_id == LayoutId::Batch) {
             for (u8 slot = 0; slot < MAX_CMD_TEXTURE_SLOTS; ++slot) {
-                u32 tex = (slot < cmd.texture_count) ? cmd.texture_ids[slot] : cmd.texture_ids[0];
+                u32 tex = (slot < cmd.texture_count) ? cmd.texture_ids[slot] : white_texture_id;
                 device.bindTexture(slot, TextureHandle{tex});
             }
         } else {

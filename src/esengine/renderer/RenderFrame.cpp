@@ -293,7 +293,7 @@ void RenderFrame::flush() {
     {
         ES_PROFILE_SCOPE("render.submit");
         gpu_timer_.begin(device_);
-        draw_list_.execute(device_, pool_, context_.materials(), &frame_capture_);
+        draw_list_.execute(device_, pool_, context_.materials(), context_.getWhiteTextureId(), &frame_capture_);
         gpu_timer_.end(device_);
     }
     FrameProfiler::get().gpuScope("submit", gpu_timer_.lastMs());
@@ -407,7 +407,7 @@ void RenderFrame::replayToDrawCall(i32 stopAtDrawCall) {
 
     context_.updateFrameConstants(view_projection_);
     context_.lights().uploadAndBind();
-    draw_list_.execute(device_, pool_, context_.materials(), &frame_capture_);
+    draw_list_.execute(device_, pool_, context_.materials(), context_.getWhiteTextureId(), &frame_capture_);
 
     // Leave scissor disabled for whatever renders next; invalidate so the next
     // setPipeline re-applies its full state (stencil included).
@@ -461,7 +461,7 @@ void RenderFrame::renderToTarget(ecs::Registry& registry, const glm::mat4& viewP
     pool_.upload();
     context_.updateFrameConstants(viewProjection);
     context_.lights().uploadAndBind();
-    draw_list_.execute(device_, pool_, context_.materials(), &frame_capture_);
+    draw_list_.execute(device_, pool_, context_.materials(), context_.getWhiteTextureId(), &frame_capture_);
     frame_capture_.endCapture();
 
     rt->unbind();

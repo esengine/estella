@@ -29,8 +29,12 @@ public:
     // (scissor, stencil ref, textures) is applied directly. Per-frame constants come from
     // the FrameConstants UBO bound by RenderContext; per-material constants from each
     // command's material UBO, bound here via MaterialStore::bindForDraw.
+    // white_texture_id fills a Batch draw's unused sampler slots — a STABLE texture
+    // so those slots stay pinned across draws and the bind cache dedups them
+    // (filling with the draw's own tex re-pointed all 8 units on every tex change).
     void execute(GfxDevice& device, TransientBufferPool& buffers,
-                 MaterialStore& materials, FrameCapture* capture = nullptr);
+                 MaterialStore& materials, u32 white_texture_id = 0,
+                 FrameCapture* capture = nullptr);
 
     u32 commandCount() const { return static_cast<u32>(commands_.size()); }
     u32 mergedDrawCallCount() const { return merged_draw_calls_; }
