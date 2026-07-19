@@ -104,20 +104,29 @@ export function applyTimelineEvent(
             break;
         }
         case TimelineEventType.ActivationSet: {
+            // ActivationSet fires every frame the track is evaluated; only WRITE a
+            // component when its `enabled` actually flips, or change-detection is
+            // dirtied (and the reconciler re-projects) 60×/s for a steady value.
             const active = intParam !== 0;
             if (world.has(entity, SpineAnimation)) {
                 const current = world.get(entity, SpineAnimation);
-                current.enabled = active;
-                world.set(entity, SpineAnimation, current);
+                if (current.enabled !== active) {
+                    current.enabled = active;
+                    world.set(entity, SpineAnimation, current);
+                }
             }
             if (world.has(entity, SpriteAnimator)) {
                 const current = world.get(entity, SpriteAnimator);
-                world.insert(entity, SpriteAnimator, { ...current, enabled: active });
+                if (current.enabled !== active) {
+                    world.insert(entity, SpriteAnimator, { ...current, enabled: active });
+                }
             }
             const Sprite = getComponent('Sprite');
             if (Sprite && world.has(entity, Sprite)) {
                 const current = world.get(entity, Sprite);
-                world.set(entity, Sprite, { ...current, enabled: active });
+                if (current.enabled !== active) {
+                    world.set(entity, Sprite, { ...current, enabled: active });
+                }
             }
             break;
         }
