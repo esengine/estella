@@ -33,7 +33,11 @@ void ParticleSystem::update(ecs::Registry& registry, f32 dt) {
         if (it == states_.end()) {
             auto [insertIt, _] = states_.emplace(
                 entity,
-                EmitterState(static_cast<u32>(emitter.maxParticles))
+                // Clamp defensively: maxParticles is inspector-constrained (min=1)
+                // but a script, scene file, or replicated value bypasses that — a
+                // negative cast to u32 (or a multi-billion count) would resize the
+                // pool into a bad_alloc.
+                EmitterState(static_cast<u32>(std::clamp(emitter.maxParticles, 0, 1'000'000)))
             );
             it = insertIt;
             if (emitter.playOnStart) {
