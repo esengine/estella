@@ -56,7 +56,10 @@ export class TilemapAssetLoader implements AssetLoader<TilemapResult> {
                     + 'path and is imported into the project.', e);
             }
             const rows = ts.columns > 0 ? Math.max(1, Math.ceil(ts.tileCount / ts.columns)) : 1;
-            tilesets.push({ textureHandle, columns: ts.columns, rows, firstId: ts.firstGid });
+            tilesets.push({
+                textureHandle, columns: ts.columns, rows, firstId: ts.firstGid,
+                margin: ts.margin ?? 0, spacing: ts.spacing ?? 0,
+            });
         }
 
         registerTilemapSource(path, {
@@ -117,7 +120,8 @@ export class TilemapAssetLoader implements AssetLoader<TilemapResult> {
         }));
         const grid = packCollectionGrid(tiles, mapData.tileWidth, mapData.tileHeight);
         const tex = await ctx.createTextureFromPixels(grid.width, grid.height, grid.pixels, true);
-        return { textureHandle: tex.handle, columns: grid.columns, rows: grid.rows, firstId: ts.firstGid };
+        // A folded image-collection atlas is packed gapless, so no margin/spacing.
+        return { textureHandle: tex.handle, columns: grid.columns, rows: grid.rows, firstId: ts.firstGid, margin: 0, spacing: 0 };
     }
 
     unload(_asset: TilemapResult): void {

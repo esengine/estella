@@ -76,6 +76,9 @@ export interface TiledTilesetData {
     tileHeight: number;
     columns: number;
     tileCount: number;
+    /** Atlas border before the first tile, and gap between tiles (px, Tiled). */
+    margin?: number;
+    spacing?: number;
     /** Image-collection tileset (Tiled "collection of images"): one image per
      *  tile, no top-level `image`. The loader folds these into ONE grid atlas
      *  at load time, so the renderer never sees the difference. Local ids may
@@ -302,6 +305,8 @@ export function parseTmjJson(json: Record<string, unknown>): TiledMapData | null
                 tileHeight: (ts.tileheight as number) ?? tileHeight,
                 columns: (ts.columns as number) ?? 1,
                 tileCount: (ts.tilecount as number) ?? 0,
+                margin: (ts.margin as number) ?? 0,
+                spacing: (ts.spacing as number) ?? 0,
                 ...(collectionTiles?.length ? { collectionTiles } : {}),
             });
         }

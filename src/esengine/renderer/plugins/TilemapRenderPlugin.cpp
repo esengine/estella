@@ -104,12 +104,15 @@ void TilemapRenderPlugin::rebuildChunk(
                 worldY = -static_cast<f32>(ty) * layer.tile_height - hh;
             }
 
-            // Base tile UV rect (GL v increases upward, so vBottom < vTop),
-            // inset half a texel per edge so samples stay inside this tile.
-            f32 uMin = static_cast<f32>(tileCol) * uvTileW + resolved[slotIndex].insetU;
-            f32 uMax = uMin + uvTileW - 2.0f * resolved[slotIndex].insetU;
-            f32 vBottom = 1.0f - static_cast<f32>(tileRow + 1) * uvTileH + resolved[slotIndex].insetV;
-            f32 vTop = vBottom + uvTileH - 2.0f * resolved[slotIndex].insetV;
+            // Base tile UV rect (GL v increases upward, so vBottom < vTop), with
+            // the atlas margin + spacing folded into offset/step so a Tiled tileset
+            // with gaps samples the right cell; inset half a texel per edge so
+            // samples stay inside this tile.
+            const ResolvedSlot& rs = resolved[slotIndex];
+            f32 uMin = rs.uvOffsetX + static_cast<f32>(tileCol) * rs.uvStepX + rs.insetU;
+            f32 uMax = uMin + uvTileW - 2.0f * rs.insetU;
+            f32 vBottom = 1.0f - rs.uvOffsetY - static_cast<f32>(tileRow) * rs.uvStepY - uvTileH + rs.insetV;
+            f32 vTop = vBottom + uvTileH - 2.0f * rs.insetV;
 
             // Map a corner's normalized (s,t) in {0,1}^2 to its texture UV, applying
             // the tile flip flags. Tiled order — diagonal (transpose) first, then H,
@@ -218,6 +221,12 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
             resolved[i].glTexId = tex->getId();
             resolved[i].uvW = layer.tile_width / tw;
             resolved[i].uvH = layer.tile_height / th;
+            f32 margin = static_cast<f32>(slots[i].margin);
+            f32 spacing = static_cast<f32>(slots[i].spacing);
+            resolved[i].uvOffsetX = margin / tw;
+            resolved[i].uvOffsetY = margin / th;
+            resolved[i].uvStepX = (layer.tile_width + spacing) / tw;
+            resolved[i].uvStepY = (layer.tile_height + spacing) / th;
             resolved[i].insetU = 0.5f / tw;
             resolved[i].insetV = 0.5f / th;
             anySlotValid = true;

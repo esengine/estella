@@ -53,6 +53,14 @@ private:
         u32 glTexId = 0;
         f32 uvW = 0.0f;
         f32 uvH = 0.0f;
+        // Atlas margin (border before the first tile) and per-tile step
+        // (tileSize + spacing), in UV units. For a gapless atlas offset=0 and
+        // step==uvW/uvH; a Tiled tileset with margin/spacing shifts each cell so
+        // it samples its own texels instead of the adjacent tile's.
+        f32 uvOffsetX = 0.0f;
+        f32 uvStepX = 0.0f;
+        f32 uvOffsetY = 0.0f;
+        f32 uvStepY = 0.0f;
         // Half a texel in UV space. Tile-corner UVs are inset by this so
         // interpolated samples never cross into the neighboring atlas tile —
         // the classic packed-atlas seam fix, for both linear and nearest

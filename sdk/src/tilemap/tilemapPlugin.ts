@@ -454,7 +454,10 @@ export class TilemapPlugin implements Plugin {
                             // child's TilemapLayer component like any painted layer.
                             const slots = cached.tilesets
                                 .filter(t => t.textureHandle)
-                                .map(t => ({ firstId: t.firstId, textureHandle: t.textureHandle, columns: t.columns }));
+                                .map(t => ({
+                                    firstId: t.firstId, textureHandle: t.textureHandle, columns: t.columns,
+                                    margin: t.margin, spacing: t.spacing,
+                                }));
                             if (slots.length > 0) {
                                 TilemapAPI.setTilesets(child, slots);
                             } else if (cached.tilesets.length > 0) {

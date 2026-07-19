@@ -21,6 +21,8 @@ struct TilesetSlot {
     uint16_t first_id = 1;        // global tile-id at which this tileset begins (Tiled firstgid)
     uint32_t texture_handle = 0;  // resource::TextureHandle id
     uint32_t columns = 1;         // tiles per row in the tileset texture
+    uint32_t margin = 0;          // atlas border in px before the first tile (Tiled margin)
+    uint32_t spacing = 0;         // gap in px between adjacent tiles (Tiled spacing)
 };
 
 /**

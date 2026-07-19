@@ -27,6 +27,9 @@ export interface LoadedTilemapTileset {
      *  UV cell size (1/columns × 1/rows) for tile (GID) objects. */
     rows: number;
     firstId: number;   // global tile-id at which this tileset begins (Tiled firstgid)
+    /** Atlas border before the first tile, and gap between tiles (px, Tiled). */
+    margin: number;
+    spacing: number;
 }
 
 export interface LoadedTilemapSource {

@@ -173,7 +173,7 @@ describe('image-collection tilesets fold into a grid atlas', () => {
         await loader.load('maps/level.tmj', ctx);
         expect(uploads).toEqual([{ width: 4, height: 2 }]); // ONE folded 2x1 page
         const src = getTilemapSource('maps/level.tmj')!;
-        expect(src.tilesets[0]).toEqual({ textureHandle: 77, columns: 2, rows: 1, firstId: 5 });
+        expect(src.tilesets[0]).toEqual({ textureHandle: 77, columns: 2, rows: 1, firstId: 5, margin: 0, spacing: 0 });
     });
 
     it('a collection tile off the map grid fails loud with the fix', async () => {
@@ -1036,6 +1036,7 @@ describe('parseTmjJson — group layers, infinite chunks, external tilesets', ()
         expect(result.tilesets[0]).toEqual({
             name: 'terrain', image: 'textures/terrain.png', firstGid: 1,
             tileWidth: 16, tileHeight: 16, columns: 8, tileCount: 64,
+            margin: 0, spacing: 0,
         });
         expect(result.collisionTileIds).toEqual([3]);
         expect(result.tileAnimations.get(4)).toEqual([

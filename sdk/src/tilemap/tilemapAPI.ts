@@ -114,14 +114,17 @@ export const TilemapAPI = {
     },
 
     /** Replace the layer's multi-tileset table. Empty array reverts to single-tileset. */
-    setTilesets(entity: number, slots: { firstId: number; textureHandle: number; columns: number }[]): void {
+    setTilesets(entity: number, slots: { firstId: number; textureHandle: number; columns: number; margin?: number; spacing?: number }[]): void {
         const m = module_;
         if (!m) return;
-        const packed = new Uint32Array(slots.length * 3);
+        const STRIDE = 5;
+        const packed = new Uint32Array(slots.length * STRIDE);
         for (let i = 0; i < slots.length; i++) {
-            packed[i * 3] = slots[i].firstId;
-            packed[i * 3 + 1] = slots[i].textureHandle;
-            packed[i * 3 + 2] = slots[i].columns;
+            packed[i * STRIDE] = slots[i].firstId;
+            packed[i * STRIDE + 1] = slots[i].textureHandle;
+            packed[i * STRIDE + 2] = slots[i].columns;
+            packed[i * STRIDE + 3] = slots[i].margin ?? 0;
+            packed[i * STRIDE + 4] = slots[i].spacing ?? 0;
         }
         withMalloc(m, packed.byteLength, ptr => {
             new Uint32Array(m.HEAPU8.buffer, ptr, packed.length).set(packed);

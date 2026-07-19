@@ -87,15 +87,17 @@ void tilemap_setTiles(u32 entity, uintptr_t tilesPtr, u32 count) {
 void tilemap_setTilesets(u32 entity, uintptr_t dataPtr, u32 count) {
     auto e = Entity::fromRaw(entity);
     if (e == INVALID_ENTITY || !getTilemapSystem().hasLayer(e)) return;
-    const auto* d = count ? boundarySpan<u32>(dataPtr, static_cast<u64>(count) * 3, "tilemap_setTilesets") : nullptr;
+    const auto* d = count ? boundarySpan<u32>(dataPtr, static_cast<u64>(count) * 5, "tilemap_setTilesets") : nullptr;
     if (count && !d) return;
     std::vector<tilemap::TilesetSlot> slots;
     slots.reserve(count);
     for (u32 i = 0; i < count; ++i) {
         tilemap::TilesetSlot slot;
-        slot.first_id = static_cast<u16>(d[i * 3 + 0]);
-        slot.texture_handle = d[i * 3 + 1];
-        slot.columns = d[i * 3 + 2];
+        slot.first_id = static_cast<u16>(d[i * 5 + 0]);
+        slot.texture_handle = d[i * 5 + 1];
+        slot.columns = d[i * 5 + 2];
+        slot.margin = d[i * 5 + 3];
+        slot.spacing = d[i * 5 + 4];
         slots.push_back(slot);
     }
     getTilemapSystem().setTilesets(e, std::move(slots));

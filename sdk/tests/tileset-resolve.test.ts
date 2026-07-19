@@ -21,7 +21,7 @@ describe('resolveTilesetModel', () => {
             }),
         };
         const m = resolveTilesetModel([rt]);
-        expect(m.slots).toEqual([{ firstId: 1, textureHandle: 100, columns: 4 }]);
+        expect(m.slots).toEqual([{ firstId: 1, textureHandle: 100, columns: 4, margin: 0, spacing: 0 }]);
         // box tiles greedy-merge (collidableTileIds); polygon tiles carry their own shape.
         expect(m.collidableTileIds).toEqual([2]);
         expect(m.tileShapes.get(7)?.shape).toEqual({ type: 'polygon', points: [[0, 1], [1, 1], [0, 0]] }); // normalized
@@ -40,11 +40,20 @@ describe('resolveTilesetModel', () => {
         const m = resolveTilesetModel([a, b]);
         // tileset B starts at firstId 1 + 8 = 9
         expect(m.slots).toEqual([
-            { firstId: 1, textureHandle: 100, columns: 4 },
-            { firstId: 9, textureHandle: 200, columns: 4 },
+            { firstId: 1, textureHandle: 100, columns: 4, margin: 0, spacing: 0 },
+            { firstId: 9, textureHandle: 200, columns: 4, margin: 0, spacing: 0 },
         ]);
         // A local 2 → global 2; B locals 1,2 → globals 9,10
         expect(m.collidableTileIds).toEqual([2, 9, 10]);
+    });
+
+    it('carries the tileset margin/spacing into the render slot', () => {
+        const rt: ResolvedTileset = {
+            textureHandle: 100,
+            asset: tileset({ columns: 4, tileCount: 8, margin: 4, spacing: 8 }),
+        };
+        const m = resolveTilesetModel([rt]);
+        expect(m.slots).toEqual([{ firstId: 1, textureHandle: 100, columns: 4, margin: 4, spacing: 8 }]);
     });
 
     it('animations re-key both the tile and its frames to global ids', () => {
