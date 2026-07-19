@@ -205,10 +205,10 @@ export function MaterialGraphEditor() {
               <div className="mg-param" key={pf.key} style={{ height: ROW_H }} onPointerDown={(e) => e.stopPropagation()}>
                 <span className="mg-row-label">{pf.label}</span>
                 {pf.kind === 'color' && (
-                  <ColorControl value={rgbaToHex((n.params?.value as number[]) ?? [1, 1, 1, 1])} onChange={(hex) => setNodeParam(n.id, 'value', hexToRgba(hex))} />
+                  <ColorControl value={rgbaToHex((n.params?.[pf.key] as number[]) ?? [1, 1, 1, 1])} onChange={(hex) => setNodeParam(n.id, pf.key, hexToRgba(hex))} />
                 )}
                 {pf.kind === 'float' && (
-                  <NumField value={typeof n.params?.value === 'number' ? n.params.value : 0} onCommit={(v) => setNodeParam(n.id, 'value', v)} />
+                  <NumField value={typeof n.params?.[pf.key] === 'number' ? (n.params?.[pf.key] as number) : 0} onCommit={(v) => setNodeParam(n.id, pf.key, v)} />
                 )}
                 {pf.kind === 'texture' && (
                   <span className="mg-texname">{String(n.params?.name ?? '')}</span>
