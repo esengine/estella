@@ -234,6 +234,7 @@ export {
     ArrayDataSource,
     arrayDataSource,
     type DataSource,
+    type DataSourceChange,
     LinearLayoutProvider,
     MeasuredLinearLayoutProvider,
     GridLayoutProvider,

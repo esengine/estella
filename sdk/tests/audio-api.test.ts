@@ -204,6 +204,57 @@ describe('AudioAPI', () => {
         });
     });
 
+    describe('volume getters', () => {
+        it('reads back the master volume set through the API', () => {
+            audio.setMasterVolume(0.4);
+            expect(audio.getMasterVolume()).toBe(0.4);
+        });
+
+        it('reads back per-category volumes', () => {
+            audio.setMusicVolume(0.3);
+            audio.setSFXVolume(0.7);
+            audio.setUIVolume(0.6);
+            expect(audio.getMusicVolume()).toBe(0.3);
+            expect(audio.getSFXVolume()).toBe(0.7);
+            expect(audio.getUIVolume()).toBe(0.6);
+        });
+
+        it('reads back a named bus volume', () => {
+            audio.setBusVolume('sfx', 0.25);
+            expect(audio.getBusVolume('sfx')).toBe(0.25);
+        });
+
+        it('reports unity volume for an unknown bus', () => {
+            (mixer.getBus as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
+            expect(audio.getBusVolume('nope')).toBe(1);
+        });
+
+        it('reports unity volume and unmuted without a mixer', () => {
+            const bare = new AudioAPI(createMockBackend(), null);
+            expect(bare.getMasterVolume()).toBe(1);
+            expect(bare.getMusicVolume()).toBe(1);
+            expect(bare.getSFXVolume()).toBe(1);
+            expect(bare.getUIVolume()).toBe(1);
+            expect(bare.getBusVolume('sfx')).toBe(1);
+            expect(bare.isBusMuted('sfx')).toBe(false);
+        });
+    });
+
+    describe('isBusMuted', () => {
+        it('reflects muteBus state', () => {
+            expect(audio.isBusMuted('sfx')).toBe(false);
+            audio.muteBus('sfx', true);
+            expect(audio.isBusMuted('sfx')).toBe(true);
+            audio.muteBus('sfx', false);
+            expect(audio.isBusMuted('sfx')).toBe(false);
+        });
+
+        it('reports unmuted for an unknown bus', () => {
+            (mixer.getBus as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
+            expect(audio.isBusMuted('nope')).toBe(false);
+        });
+    });
+
     describe('muteBus', () => {
         it('should mute specified bus', () => {
             audio.muteBus('sfx', true);

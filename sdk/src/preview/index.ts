@@ -5,4 +5,4 @@
  * @brief   Preview module exports
  */
 
-export { PreviewPlugin } from './PreviewPlugin';
+export { PreviewPlugin, previewPlugin } from './PreviewPlugin';

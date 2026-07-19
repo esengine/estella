@@ -122,7 +122,8 @@ function nonNeg(v: unknown, fallback: number): number {
 }
 
 /** Parse arbitrary JSON into a normalized {@link AnimClipAssetData} (tolerant of missing fields). */
-export function parseAnimClipAsset(raw: any): AnimClipAssetData {
+export function parseAnimClipAsset(rawJson: unknown): AnimClipAssetData {
+    const raw = rawJson as Record<string, any> | null | undefined;
     let sheet: AnimClipSheetData | undefined;
     const rs = raw?.sheet;
     if (rs && typeof rs.texture === 'string' && rs.texture) {

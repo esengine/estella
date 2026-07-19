@@ -62,6 +62,7 @@ export type { CameraExtents, CanvasScale, WorldRect } from './camera/uiLayoutRec
 export {
     Draw,
     BlendMode,
+    shutdownDrawAPI,
     type DrawAPI,
 } from './draw';
 
@@ -78,6 +79,7 @@ export {
     type ShaderHandle,
     type MaterialHandle,
     type MaterialOptions,
+    type MaterialData,
     type MaterialAssetData,
     type UniformValue,
     type TextureRef,

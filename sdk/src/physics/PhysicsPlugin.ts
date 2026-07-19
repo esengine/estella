@@ -162,3 +162,9 @@ export class PhysicsPlugin implements Plugin {
         this.module_ = null;
     }
 }
+
+export function physicsPlugin(
+    wasmUrl: string, config: PhysicsPluginConfig = {}, factory?: PhysicsModuleFactory,
+): PhysicsPlugin {
+    return new PhysicsPlugin(wasmUrl, config, factory);
+}

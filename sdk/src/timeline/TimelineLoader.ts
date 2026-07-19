@@ -135,7 +135,8 @@ function parseTrack(raw: any): Track {
     }
 }
 
-export function parseTimelineAsset(raw: any): TimelineAsset {
+export function parseTimelineAsset(rawJson: unknown): TimelineAsset {
+    const raw = (rawJson ?? {}) as Record<string, any>;
     migrateAsset(raw);
 
     return {

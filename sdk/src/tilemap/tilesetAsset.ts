@@ -177,7 +177,8 @@ function normalizeCollision(raw: any): TilesetCollision | undefined {
 }
 
 /** Parse arbitrary JSON into a normalized {@link TilesetAsset} (tolerant of missing fields). */
-export function parseTileset(raw: any): TilesetAsset {
+export function parseTileset(rawJson: unknown): TilesetAsset {
+    const raw = rawJson as Record<string, any> | null | undefined;
     const tiles: Record<number, TilesetTile> = {};
     const rawTiles = (raw && typeof raw.tiles === 'object' && raw.tiles) || {};
     for (const key of Object.keys(rawTiles)) {
@@ -241,7 +242,7 @@ export function parseTileset(raw: any): TilesetAsset {
         columns: posInt(raw?.columns, 1),
         margin: nonNeg(raw?.margin, 0),
         spacing: nonNeg(raw?.spacing, 0),
-        tileCount: Number.isInteger(raw?.tileCount) ? raw.tileCount : undefined,
+        tileCount: Number.isInteger(raw?.tileCount) ? raw?.tileCount : undefined,
         tiles,
         ...(terrains.length > 0 ? { terrains } : {}),
     };

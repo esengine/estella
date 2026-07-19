@@ -13,6 +13,7 @@
 
 export {
     PhysicsPlugin,
+    physicsPlugin,
     PhysicsEvents,
     PhysicsAPI,
     Physics,

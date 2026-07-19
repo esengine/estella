@@ -216,7 +216,7 @@ export {
 // Preview
 // =============================================================================
 
-export { PreviewPlugin } from './preview';
+export { PreviewPlugin, previewPlugin } from './preview';
 
 // =============================================================================
 // Animation
@@ -295,6 +295,7 @@ export {
 export {
     Audio,
     AudioAPI,
+    type AudioBufferStats,
     AudioPlugin,
     audioPlugin,
     AudioSource,

@@ -46,6 +46,10 @@ const SPINE_TYPE_MAP: Record<number, SpineEventType | null> = {
     5: 'event',
 };
 
+export function spinePlugin(manager?: SpineManager): SpinePlugin {
+    return new SpinePlugin(manager);
+}
+
 export class SpinePlugin implements Plugin {
     name = 'spine';
     private spineManager_: SpineManager | null;

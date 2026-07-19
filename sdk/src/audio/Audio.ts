@@ -395,6 +395,33 @@ export class AudioAPI {
         }
     }
 
+    /** Mixerless backends (WeChat/Null) report unity volume and unmuted —
+     *  the read-side mirror of the volume setters' silent no-op there. */
+    getMasterVolume(): number {
+        return this.mixer_?.master.volume ?? 1;
+    }
+
+    getMusicVolume(): number {
+        return this.mixer_?.music.volume ?? 1;
+    }
+
+    getSFXVolume(): number {
+        return this.mixer_?.sfx.volume ?? 1;
+    }
+
+    getUIVolume(): number {
+        return this.mixer_?.ui.volume ?? 1;
+    }
+
+    /** Unity (1) for an unknown bus or a mixerless backend. */
+    getBusVolume(busName: string): number {
+        return this.mixer_?.getBus(busName)?.volume ?? 1;
+    }
+
+    isBusMuted(busName: string): boolean {
+        return this.mixer_?.getBus(busName)?.muted ?? false;
+    }
+
     muteBus(busName: string, muted: boolean): void {
         const bus = this.mixer_?.getBus(busName);
         if (bus) {

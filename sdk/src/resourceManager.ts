@@ -37,7 +37,6 @@ export function initResourceManager(rm: CppResourceManager, module?: ESEngineMod
     dimsCache_.clear();
 }
 
-/** @internal Wired by the engine plugins — not part of the public API. */
 export function shutdownResourceManager(): void {
     bridge.disconnect();
     rm_ = null;

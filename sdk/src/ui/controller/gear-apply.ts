@@ -37,7 +37,7 @@ import { UIGear, type GearValue, type UIGearData } from './ui-gear';
 // ─── Pure field/value helpers ───────────────────────────────────────────────
 
 /** Read the value at a dot-path (returns undefined if the path doesn't resolve). */
-export function readFieldPath(data: Record<string, any>, path: string): unknown {
+export function readFieldPath(data: Record<string, unknown>, path: string): unknown {
     const parts = path.split('.');
     let cur: any = data;
     for (const p of parts) {
@@ -52,7 +52,7 @@ export function readFieldPath(data: Record<string, any>, path: string): unknown 
  * shared authored value never becomes aliased across entities. Returns false
  * (writes nothing) when the path doesn't resolve to an existing leaf.
  */
-export function writeFieldPath(data: Record<string, any>, path: string, value: unknown): boolean {
+export function writeFieldPath(data: Record<string, unknown>, path: string, value: unknown): boolean {
     const parts = path.split('.');
     let cur: any = data;
     for (let i = 0; i < parts.length - 1; i++) {

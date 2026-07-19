@@ -24,6 +24,10 @@ const PREVIEW_SCENE = '__preview__';
 // PreviewPlugin
 // =============================================================================
 
+export function previewPlugin(sceneUrl: string, baseUrl?: string): PreviewPlugin {
+    return new PreviewPlugin(sceneUrl, baseUrl);
+}
+
 export class PreviewPlugin implements Plugin {
     name = 'preview';
     private sceneUrl_: string;

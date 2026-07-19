@@ -45,7 +45,8 @@ function flipbookToClip(raw: any): TimelineAsset {
  * Discriminates by shape: a `tracks` array is the rich multi-track clip; a `frames`
  * array is the legacy flipbook.
  */
-export function parseAnimationClip(raw: any): TimelineAsset {
+export function parseAnimationClip(rawJson: unknown): TimelineAsset {
+    const raw = rawJson as { tracks?: unknown; frames?: unknown } | null | undefined;
     if (raw && Array.isArray(raw.tracks)) return parseTimelineAsset(raw);
     if (raw && Array.isArray(raw.frames)) return flipbookToClip(raw);
     return parseTimelineAsset(raw ?? {});

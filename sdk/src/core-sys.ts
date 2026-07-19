@@ -146,6 +146,7 @@ export {
 
 export {
     GLDebug,
+    shutdownGLDebugAPI,
 } from './glDebug';
 
 // =============================================================================
@@ -242,6 +243,7 @@ export {
 export {
     requireResourceManager,
     getResourceManager,
+    shutdownResourceManager,
     evictTextureDimensions,
 } from './resourceManager';
 

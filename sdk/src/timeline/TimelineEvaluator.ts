@@ -22,8 +22,9 @@
 
 import { TrackType, InterpType, WrapMode, type TimelineAsset, type PropertyChannel } from './TimelineTypes';
 import { setNestedProperty, resolveChildEntity } from './TimelineRuntime';
-import { getComponent } from '../component';
+import { getComponent, type AnyComponentDef } from '../component';
 import type { Entity } from '../types';
+import type { World } from '../world';
 
 // ---------------------------------------------------------------------------
 // Core math — 1:1 port of TimelineSystem.cpp (keep in lock-step)
@@ -145,14 +146,14 @@ function applyField(data: any, component: string, property: string, value: numbe
 
 /** Minimal world surface the sampler needs (component get/set by definition). */
 export interface SampleWorld {
-    has(entity: Entity, def: any): boolean;
-    get(entity: Entity, def: any): any;
-    set(entity: Entity, def: any, data: any): void;
+    has(entity: Entity, def: AnyComponentDef): boolean;
+    get(entity: Entity, def: AnyComponentDef): Record<string, unknown>;
+    set(entity: Entity, def: AnyComponentDef, data: Record<string, unknown>): void;
 }
 
 export interface SampleDeps {
     world: SampleWorld;
-    getComponent: (name: string) => any;
+    getComponent: (name: string) => AnyComponentDef | undefined;
     resolveChild: (root: Entity, childPath: string) => Entity | null;
 }
 
@@ -197,7 +198,7 @@ export function sampleTimeline(
  * into {@link sampleTimeline} directly.
  */
 export function sampleTimelineInWorld(
-    asset: TimelineAsset, time: number, world: SampleWorld & any, rootEntity: Entity, opts?: SampleOptions,
+    asset: TimelineAsset, time: number, world: SampleWorld & Pick<World, 'tryGet'>, rootEntity: Entity, opts?: SampleOptions,
 ): void {
     sampleTimeline(asset, time, rootEntity, {
         world,

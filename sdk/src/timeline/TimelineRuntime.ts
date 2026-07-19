@@ -4,6 +4,7 @@ import { getComponent, SpineAnimation } from '../component';
 import { SpriteAnimator } from '../animation/SpriteAnimator';
 import type { AudioAPI } from '../audio/Audio';
 import type { Entity } from '../types';
+import type { World } from '../world';
 
 /**
  * Shared timeline runtime helpers. The timeline is a
@@ -33,7 +34,7 @@ export function setNestedProperty(obj: Record<string, any>, path: string, value:
     return true;
 }
 
-export function resolveChildEntity(world: any, rootEntity: Entity, childPath: string): Entity | null {
+export function resolveChildEntity(world: Pick<World, 'tryGet'>, rootEntity: Entity, childPath: string): Entity | null {
     if (!childPath) return rootEntity;
 
     const Children = getComponent('Children');

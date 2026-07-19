@@ -32,6 +32,7 @@ const ENTRIES = {
     'physics': 'src/physics/index.ts',
     'spine': 'src/spine/index.ts',
     'wasm': 'src/wasm.ts',
+    'wechat': 'src/index.wechat.ts',
 };
 
 const mode = process.argv[2];

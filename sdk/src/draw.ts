@@ -48,7 +48,6 @@ export function initDrawAPI(wasmModule: ESEngineModule): void {
     uniformsPtr = module._malloc(UNIFORMS_BUFFER_SIZE * 4);
 }
 
-/** @internal Wired by the engine plugins — not part of the public API. */
 export function shutdownDrawAPI(): void {
     if (module) {
         if (viewProjectionPtr) {

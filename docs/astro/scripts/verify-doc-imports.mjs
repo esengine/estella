@@ -71,7 +71,7 @@ function mdxFiles(dir) {
 const exports = sdkExports();
 // [^{}] keeps the match inside ONE brace pair, so it can't run across a
 // neighbouring `import {…} from '@astrojs/...'` into an unrelated block.
-const importRe = /import\s*\{([^{}]*)\}\s*from\s*'esengine'/g;
+const importRe = /import\s+(?:type\s+)?\{([^{}]*)\}\s*from\s*'esengine'/g;
 const used = new Map(); // symbol -> Set(files)
 
 for (const f of mdxFiles(DOCS)) {
