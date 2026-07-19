@@ -71,6 +71,13 @@ private:
     tilemap::TilemapSystem* tilemap_system_ = nullptr;
     u32 batch_shader_id_ = 0;
     LayerChunkMap layer_caches_;
+
+    // Per-frame scratch reused across layers/frames so collect allocates nothing
+    // in the steady state.
+    std::vector<tilemap::TilesetSlot> single_slot_scratch_;
+    std::vector<ResolvedSlot> resolved_scratch_;
+    std::vector<std::vector<BatchVertex>> slot_vertices_scratch_;
+    std::vector<std::vector<u32>> slot_indices_scratch_;
 };
 
 }  // namespace esengine

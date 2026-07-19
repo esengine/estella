@@ -582,7 +582,8 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
     // Gather non-ambient lights, then (if over the UBO's cap) keep the most intense — the
     // brightest contribute most, and an explicit importance cull beats silently dropping
     // whichever happened to come last in iteration order. Ambient lights sum without a cap.
-    std::vector<GpuLight2D> collected;
+    std::vector<GpuLight2D>& collected = light_scratch_;
+    collected.clear();
 
     // A light's Transform need is type-dependent: Ambient (a flat scene-wide term) and
     // Directional (parallel rays; direction is intrinsic) have no spatial anchor and work

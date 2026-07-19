@@ -6,6 +6,7 @@
 #include "RenderItem.hpp"
 #include "RenderTarget.hpp"
 #include "RenderContext.hpp"
+#include "LightConstants.hpp"
 #include "RenderTypePlugin.hpp"
 #ifdef ES_ENABLE_POSTPROCESS
 #include "PostProcessPipeline.hpp"
@@ -23,6 +24,7 @@
 #include <string>
 #include <memory>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace esengine {
 
@@ -276,6 +278,15 @@ private:
     void collectLights(ecs::Registry& registry);
     u32 initBatchShader();
     u32 compileBatchVariant(const std::vector<std::string>& features);
+
+    std::vector<GpuLight2D> light_scratch_;  // reused across frames; collectLights only
+
+    // processMasks scratch, reused across cameras/frames.
+    std::vector<Entity> mask_scissor_scratch_;
+    std::vector<Entity> mask_stencil_scratch_;
+    std::vector<Entity> mask_root_scratch_;
+    std::unordered_set<u32> mask_set_scratch_;
+    std::unordered_set<u32> stencil_set_scratch_;
 };
 
 }  // namespace esengine

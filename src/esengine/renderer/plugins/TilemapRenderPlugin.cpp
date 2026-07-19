@@ -192,17 +192,21 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
 
         // The layer's tileset slot list: the multi-tileset table when present
         // (Tiled imports), else a single slot from the painted/synthetic tileset.
-        std::vector<tilemap::TilesetSlot> slots;
+        const std::vector<tilemap::TilesetSlot>* slotsPtr;
         if (!layer.tilesets.empty()) {
-            slots = layer.tilesets;
+            slotsPtr = &layer.tilesets;
         } else {
             if (!singleTileset.isValid() || singleColumns == 0) continue;
-            slots.push_back(tilemap::TilesetSlot{ 1, singleTileset.id(), singleColumns });
+            single_slot_scratch_.clear();
+            single_slot_scratch_.push_back(tilemap::TilesetSlot{ 1, singleTileset.id(), singleColumns });
+            slotsPtr = &single_slot_scratch_;
         }
+        const std::vector<tilemap::TilesetSlot>& slots = *slotsPtr;
 
         // Resolve each slot's texture + UV scale (tile size / texture size). Kept
         // parallel to `slots`; a slot whose texture is missing renders nothing.
-        std::vector<ResolvedSlot> resolved(slots.size());
+        resolved_scratch_.assign(slots.size(), ResolvedSlot{});
+        std::vector<ResolvedSlot>& resolved = resolved_scratch_;
         bool anySlotValid = false;
         for (usize i = 0; i < slots.size(); ++i) {
             auto* tex = ctx.resources.getTexture(resource::TextureHandle(slots[i].texture_handle));
@@ -259,8 +263,16 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
         auto& chunkCaches = layer_caches_[entity];
 
         // Per-slot merged geometry for this layer (one draw call per slot/texture).
-        std::vector<std::vector<BatchVertex>> slotVertices(slots.size());
-        std::vector<std::vector<u32>> slotIndices(slots.size());
+        if (slot_vertices_scratch_.size() < slots.size()) {
+            slot_vertices_scratch_.resize(slots.size());
+            slot_indices_scratch_.resize(slots.size());
+        }
+        for (usize si = 0; si < slots.size(); ++si) {
+            slot_vertices_scratch_[si].clear();
+            slot_indices_scratch_[si].clear();
+        }
+        std::vector<std::vector<BatchVertex>>& slotVertices = slot_vertices_scratch_;
+        std::vector<std::vector<u32>>& slotIndices = slot_indices_scratch_;
 
         for (i32 cy = minCY; cy < maxCY; ++cy) {
             for (i32 cx = minCX; cx < maxCX; ++cx) {

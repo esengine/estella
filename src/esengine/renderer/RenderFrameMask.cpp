@@ -195,10 +195,14 @@ void RenderFrame::processMasks(ecs::Registry& registry, i32 vpX, i32 vpY, i32 vp
     clearAllStencilMasks();
 
     auto maskView = registry.view<ecs::UIMask>();
-    std::vector<Entity> scissorMasks;
-    std::vector<Entity> stencilMasks;
-    std::unordered_set<u32> maskSet;
-    std::unordered_set<u32> stencilSet;
+    std::vector<Entity>& scissorMasks = mask_scissor_scratch_;
+    std::vector<Entity>& stencilMasks = mask_stencil_scratch_;
+    std::unordered_set<u32>& maskSet = mask_set_scratch_;
+    std::unordered_set<u32>& stencilSet = stencil_set_scratch_;
+    scissorMasks.clear();
+    stencilMasks.clear();
+    maskSet.clear();
+    stencilSet.clear();
 
     for (auto entity : maskView) {
         const auto& mask = registry.get<ecs::UIMask>(entity);
@@ -215,7 +219,8 @@ void RenderFrame::processMasks(ecs::Registry& registry, i32 vpX, i32 vpY, i32 vp
     if (scissorMasks.empty() && stencilMasks.empty()) return;
 
     if (!scissorMasks.empty()) {
-        std::vector<Entity> rootScissors;
+        std::vector<Entity>& rootScissors = mask_root_scratch_;
+        rootScissors.clear();
         for (auto entity : scissorMasks) {
             if (!hasAncestorScissorMask(registry, entity, maskSet)) {
                 rootScissors.push_back(entity);
@@ -233,7 +238,8 @@ void RenderFrame::processMasks(ecs::Registry& registry, i32 vpX, i32 vpY, i32 vp
         device_.clearStencil(0);
 #endif
 
-        std::vector<Entity> rootStencils;
+        std::vector<Entity>& rootStencils = mask_root_scratch_;
+        rootStencils.clear();
         for (auto entity : stencilMasks) {
             if (!hasAncestorStencilMask(registry, entity, stencilSet)) {
                 rootStencils.push_back(entity);
