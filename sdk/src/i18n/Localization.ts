@@ -174,7 +174,17 @@ export function parseLocaleTable(text: string, path: string): LocaleTableAsset {
     }
     for (const [key, entry] of Object.entries(table.entries)) {
         if (typeof entry === 'string') continue;
-        if (typeof entry === 'object' && entry !== null && typeof (entry as PluralForms).other === 'string') continue;
+        if (typeof entry === 'object' && entry !== null && typeof (entry as PluralForms).other === 'string') {
+            // Every PROVIDED plural form must be a string template too, not just
+            // `other` — a non-string form (e.g. a stray number) passes here but
+            // throws later in interpolate when that category is selected.
+            let bad: string | null = null;
+            for (const [cat, v] of Object.entries(entry as unknown as Record<string, unknown>)) {
+                if (typeof v !== 'string') { bad = cat; break; }
+            }
+            if (bad === null) continue;
+            throw new Error(`${path}: entry '${key}' plural form '${bad}' must be a string`);
+        }
         throw new Error(`${path}: entry '${key}' must be a string or plural forms with an 'other' catch-all`);
     }
     return { version: LOCALE_TABLE_VERSION, locale: table.locale, entries: table.entries };

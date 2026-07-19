@@ -6,6 +6,7 @@ import {
     interpolate,
     selectPluralForm,
     defaultPluralSelector,
+    parseLocaleTable,
     type PluralSelector,
 } from '../src/i18n/Localization';
 
@@ -95,5 +96,26 @@ describe('LocalizationAPI', () => {
         expect(loc.availableLocales()).toEqual(['en', 'zh']);
         loc.setPluralSelector('en', () => 'other');
         expect(loc.t('apples', { count: 1 })).toBe('1 apples'); // selector forces other
+    });
+});
+
+describe('parseLocaleTable plural-form validation', () => {
+    const wrap = (entries: unknown) =>
+        JSON.stringify({ locale: 'en', entries });
+
+    it('accepts string entries and all-string plural forms', () => {
+        const t = parseLocaleTable(wrap({ a: 'x', b: { one: '{count} apple', other: '{count} apples' } }), 'p');
+        expect(t.locale).toBe('en');
+    });
+
+    it('rejects a non-string plural form (would throw later in interpolate)', () => {
+        // `other` is a valid string, but `one` is a number — must be caught at load.
+        expect(() => parseLocaleTable(wrap({ a: { one: 42, other: 'ok' } }), 'p'))
+            .toThrow(/plural form 'one' must be a string/);
+    });
+
+    it('still rejects plural forms missing the `other` catch-all', () => {
+        expect(() => parseLocaleTable(wrap({ a: { one: 'x' } }), 'p'))
+            .toThrow(/must be a string or plural forms/);
     });
 });
