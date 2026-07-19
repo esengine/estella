@@ -76,4 +76,30 @@ describe('SceneModel (JSON-first source of truth)', () => {
         expect(SceneModel.current).toBeNull();
         expect(SceneModel.sourceFor(100)).toBeUndefined();
     });
+
+    it('entityBySource (O(1) index) stays in lockstep with the entities array across mutations', () => {
+        SceneModel.adopt(fixture(), new Map([[1, 100], [2, 200]]));
+        // The index must mirror the array exactly (same object references) and miss nothing.
+        const agrees = () =>
+            SceneModel.current!.entities.every((e) => SceneModel.entityBySource(e.id) === e)
+            && SceneModel.entityBySource(99999) === undefined;
+        const scan = (id: number) => SceneModel.current?.entities.find((e) => e.id === id);
+
+        expect(agrees()).toBe(true);
+
+        const added = SceneModel.addEntity('New', [], 1);
+        expect(SceneModel.entityBySource(added)).toBe(scan(added));
+        expect(agrees()).toBe(true);
+
+        const removed = SceneModel.removeEntityBySource(1);
+        expect(SceneModel.entityBySource(1)).toBeUndefined();
+        expect(agrees()).toBe(true);
+
+        SceneModel.restoreEntity(removed!);
+        expect(SceneModel.entityBySource(1)).toBe(scan(1));
+        expect(agrees()).toBe(true);
+
+        SceneModel.clear();
+        expect(SceneModel.entityBySource(1)).toBeUndefined();
+    });
 });

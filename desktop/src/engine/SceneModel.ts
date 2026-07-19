@@ -68,6 +68,10 @@ export interface PrefabInstanceTag {
  */
 export class SceneModelImpl {
   private data: SceneData | null = null;
+  /** source id → entity record, kept in lockstep with `data.entities` so
+   *  {@link entityBySource} (a hot path — folder resolution, drag, spawn,
+   *  outliner) is O(1) instead of a linear scan that compounds to O(N²). */
+  private entityIndex_ = new Map<number, SceneEntity>();
   /** runtime World entity → source entity id (Reconciler-maintained). */
   private readonly runtimeToSource = new Map<EntityId, number>();
   /** source entity id → runtime World entity (absent for unknown/unspawned). */
@@ -107,6 +111,7 @@ export class SceneModelImpl {
     this.runtimeToSource.clear();
     this.sourceToRuntime.clear();
     this.prefabTags.clear();
+    this.entityIndex_ = new Map(loaded.entities.map((e) => [e.id, e]));
     let maxId = 0;
     for (const e of loaded.entities) if (e.id > maxId) maxId = e.id;
     this.nextSourceId = maxId + 1;
@@ -122,6 +127,7 @@ export class SceneModelImpl {
     this.runtimeToSource.clear();
     this.sourceToRuntime.clear();
     this.prefabTags.clear();
+    this.entityIndex_.clear();
     this.nextSourceId = 1;
     this.emit({ kind: 'reset' });
   }
@@ -202,9 +208,11 @@ export class SceneModelImpl {
   addEntity(name: string, components: SceneComponent[], parent: number | null = null): number {
     const id = this.nextSourceId++;
     if (this.data) {
-      this.data.entities.push({ id, name, parent, children: [], components });
+      const entity = { id, name, parent, children: [], components };
+      this.data.entities.push(entity);
+      this.entityIndex_.set(id, entity);
       if (parent != null) {
-        const p = this.data.entities.find((e) => e.id === parent);
+        const p = this.entityBySource(parent);
         if (p && !p.children.includes(id)) p.children.push(id);
       }
     }
@@ -223,8 +231,9 @@ export class SceneModelImpl {
     const idx = this.data.entities.findIndex((e) => e.id === sourceId);
     if (idx < 0) return undefined;
     const [removed] = this.data.entities.splice(idx, 1);
+    this.entityIndex_.delete(sourceId);
     if (removed.parent != null) {
-      const p = this.data.entities.find((e) => e.id === removed.parent);
+      const p = this.entityBySource(removed.parent);
       if (p) p.children = p.children.filter((c) => c !== sourceId);
     }
     this.prefabTags.delete(sourceId);
@@ -240,8 +249,9 @@ export class SceneModelImpl {
   restoreEntity(entity: SceneEntity): void {
     if (!this.data) return;
     this.data.entities.push(entity);
+    this.entityIndex_.set(entity.id, entity);
     if (entity.parent != null) {
-      const p = this.data.entities.find((e) => e.id === entity.parent);
+      const p = this.entityBySource(entity.parent);
       if (p && !p.children.includes(entity.id)) p.children.push(entity.id);
     }
     this.emit({ kind: 'entityAdded', sourceId: entity.id });
@@ -258,12 +268,12 @@ export class SceneModelImpl {
     if (child.parent === parent) return;
 
     if (child.parent != null) {
-      const old = this.data.entities.find((e) => e.id === child.parent);
+      const old = this.entityBySource(child.parent);
       if (old) old.children = old.children.filter((c) => c !== sourceId);
     }
     child.parent = parent;
     if (parent != null) {
-      const np = this.data.entities.find((e) => e.id === parent);
+      const np = this.entityBySource(parent);
       if (np && !np.children.includes(sourceId)) np.children.push(sourceId);
     }
     this.emit({ kind: 'parentChanged', sourceId });
@@ -423,9 +433,9 @@ export class SceneModelImpl {
     return this.data ? (JSON.parse(JSON.stringify(this.data)) as SceneData) : null;
   }
 
-  /** The source entity record for a source id. */
+  /** The source entity record for a source id (O(1) via {@link entityIndex_}). */
   entityBySource(sourceId: number): SceneEntity | undefined {
-    return this.data?.entities.find((e) => e.id === sourceId);
+    return this.entityIndex_.get(sourceId);
   }
 
   /** Every source entity record (live references, read-only by convention). */
@@ -476,6 +486,7 @@ export class SceneModelImpl {
     for (const e of entities) {
       if (e.id >= this.nextSourceId) this.nextSourceId = e.id + 1;
       this.data.entities.push(e);
+      this.entityIndex_.set(e.id, e);
     }
     // Attach batch roots (parent outside the batch) to their parent's children.
     for (const e of entities) {

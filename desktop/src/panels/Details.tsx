@@ -339,6 +339,7 @@ export function SliderControl({
   max,
   step,
   unit,
+  mixed,
   onBegin,
   onEnd,
   onChange,
@@ -348,12 +349,15 @@ export function SliderControl({
   max: number;
   step?: number;
   unit?: string;
+  mixed?: boolean;
   onChange: (n: number) => void;
 }) {
   const track = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
   const span = max - min;
-  const pct = span > 0 ? Math.max(0, Math.min(1, (value - min) / span)) : 0;
+  // A mixed multi-selection has no single value to point the fill/thumb at; show
+  // an empty track (and `—` in the field) until a drag commits one value to all.
+  const pct = mixed ? 0 : span > 0 ? Math.max(0, Math.min(1, (value - min) / span)) : 0;
   const setFromX = (clientX: number) => {
     const el = track.current;
     if (!el) return;
@@ -390,7 +394,7 @@ export function SliderControl({
         <span className="thumb" style={{ left: `${pct * 100}%` }} />
       </div>
       <span className="snum">
-        <NumField value={value} suffix={unit} onBegin={onBegin} onEnd={onEnd} onCommit={onChange} />
+        <NumField value={value} suffix={unit} mixed={mixed} onBegin={onBegin} onEnd={onEnd} onCommit={onChange} />
       </span>
     </>
   );
@@ -1092,6 +1096,7 @@ function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp
             max={field.max}
             step={field.step}
             unit={field.unit}
+            mixed={mixed}
             onBegin={begin}
             onEnd={end}
             onChange={apply}
@@ -2463,9 +2468,10 @@ function GenericAssetInspector({ path }: { path: string }) {
       img.onload = () => alive && setDims(`${img.naturalWidth} × ${img.naturalHeight}`);
       img.src = `estella://project/${path}`;
     }
-    // Same collector as Find Usages (disk graph + unsaved scene), so the count
-    // always matches what the dialog lists.
-    void findAssetUsages(path)
+    // Same collector as Find Usages, but off the cached asset index (this fires
+    // on every selection — a full disk walk per click just for a badge is waste);
+    // fsWatch keeps the cache fresh, and the dialog itself stays authoritative.
+    void findAssetUsages(path, { preferCache: true })
       .then((u) => alive && setRefCount(u.length))
       .catch(() => {});
     return () => {

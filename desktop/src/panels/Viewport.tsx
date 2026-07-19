@@ -1067,10 +1067,14 @@ export function Viewport() {
 
       // The transform gizmo sits at the selection pivot (centroid or active-entity
       // pivot per pivotMode), rotated to the active entity's axes in local space.
-      // Only for the move/rotate/scale tools — select shows just the outline.
-      const pivotWorld = ready && selIds.length ? selectionPivot(selIds) : null;
+      // Only for the move/rotate/scale tools — select shows just the outline. Gate
+      // the compute on the same condition as the draw so a big marquee selection
+      // under the (default) Select tool doesn't run O(selection) wasm queries/frame
+      // for a pivot that's never drawn.
+      const drawPivot = ready && showG && toolMode !== 'select' && selIds.length > 0;
+      const pivotWorld = drawPivot ? selectionPivot(selIds) : null;
       const pivot = pivotWorld ? ViewportController.worldToClient(pivotWorld.x, pivotWorld.y) : null;
-      if (pivot && showG && toolMode !== 'select') {
+      if (pivot) {
         const angDeg = (gizmoScreenAngleRad(selIds) * 180) / Math.PI;
         g.style.transform = `translate(${pivot.x}px, ${pivot.y}px) rotate(${angDeg}deg)`;
         g.style.opacity = '1';
