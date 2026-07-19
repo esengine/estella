@@ -268,10 +268,15 @@ export const Geometry = {
             maxY = Math.max(maxY, p.y);
         }
 
+        // A polygon that is degenerate on an axis (all points share an x or y)
+        // has a zero span there; guard the divide so UVs stay finite (0) instead
+        // of NaN/Inf poisoning the vertex buffer for any textured use.
+        const spanX = maxX - minX;
+        const spanY = maxY - minY;
         const vertices: number[] = [];
         for (const p of points) {
-            const u = (p.x - minX) / (maxX - minX);
-            const v = (p.y - minY) / (maxY - minY);
+            const u = spanX > 0 ? (p.x - minX) / spanX : 0;
+            const v = spanY > 0 ? (p.y - minY) / spanY : 0;
             vertices.push(p.x, p.y, u, v);
         }
 
