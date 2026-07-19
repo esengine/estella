@@ -177,10 +177,17 @@ assets in place:
 
 **Import** by dragging files in from Finder / Explorer, or via Import…. Each asset gets
 a `.meta` sidecar the first time it's seen. Per-asset context actions include Rename,
-Duplicate, Copy Path, Copy Reference, Show in Explorer, and Delete. Rename, move,
-and duplicate each post a toast with an **Undo** action; Delete asks for
-confirmation and moves the files to the OS trash. The folder tree is fully
-keyboard-driven — arrows walk and collapse/expand, Enter opens a folder.
+Duplicate, Copy Path, Copy Reference, **Find Usages**, Show in Explorer, and Delete.
+Rename, move, and duplicate each post a toast with an **Undo** action — and renaming or
+moving an asset rewrites its references in every open document, so nothing dangles.
+**Delete** first lists every scene, prefab, and asset that references the file (so you
+know exactly what breaks), then moves it to the OS trash — still recoverable with Undo.
+The folder tree is fully keyboard-driven — arrows walk and collapse/expand, Enter opens
+a folder.
+
+**Find Usages** — right-click an asset, or click the reference count in the Inspector's
+asset details — lists everywhere a texture, material, prefab, or scene is referenced,
+across the on-disk dependency graph *and* the unsaved open scene.
 
 ## Play-in-editor
 
@@ -194,6 +201,16 @@ The **Play** controls in the toolbar run your game:
 
 Because play uses an isolated realm — the same runtime that ships your game — what you
 see in play is what a player gets.
+
+## Autosave & recovery
+
+The editor periodically snapshots your **unsaved** documents — only when there are
+unsaved changes and no Play session is running — so a crash or power loss never costs
+more than the last few moments of work. A snapshot is kept in your project's workspace
+folder and never counts as a real save. The next time you open the project, if a
+snapshot is newer than the file on disk, the editor offers to **restore** it; saving the
+document supersedes its snapshot. This sits alongside the crash minidump and the
+automatic reload if the GPU render process is lost.
 
 ## Specialized editors
 
@@ -270,8 +287,12 @@ Settings → Keyboard Shortcuts.
 | Nudge selection (×10 with Shift) | Arrow keys |
 | Frame Selected | `F` |
 | Play / toggle · Stop | `F5` · `Esc` |
+| Command Palette | `mod + shift + P` |
 | Content Drawer | `Ctrl + Space` |
 | Project Settings | `mod + ,` |
+
+The **Command Palette** (`mod + shift + P`) fuzzy-searches every runnable command —
+the fastest way to reach any action without hunting through menus.
 
 Beyond the command shortcuts, the editor is keyboard-navigable throughout: menus
 and context menus move with the arrow keys (plus type-ahead, Home/End, and `→` /
@@ -285,3 +306,10 @@ focus is always shown with a visible focus ring.
   capture the viewport) over an MCP server — a developer/automation surface driven from
   scripts, separate from the visual editor above.
 </Aside>
+
+## See also
+
+- [Scenes](/docs/guides/scene/) — what a `.esscene` holds and how it loads.
+- [Scripting](/docs/guides/scripting/) — project components appear in the inspector automatically.
+- [Prefabs](/docs/guides/prefab/) — reusable entity templates with per-instance overrides.
+- [Building & Exporting](/docs/guides/build-export/) — ship the project to web, WeChat, or a playable ad.
