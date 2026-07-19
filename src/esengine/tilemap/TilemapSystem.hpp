@@ -147,10 +147,15 @@ public:
 
         std::unordered_map<u16, TileAnimation> tile_animations;
         f32 elapsed_ms = 0;
-        // Bumped only when some animation's CURRENT frame changes (or the
-        // animation table itself does) — animated chunk meshes rebuild on this,
-        // not every frame.
+        // Bumped only when some animation's CURRENT frame flips — ANIMATED chunk
+        // meshes rebuild on this, not every frame.
         u32 anim_revision = 0;
+        // Bumped when the animation TABLE changes (a tile gains/loses an
+        // animation). This forces EVERY chunk to re-evaluate once, so a chunk that
+        // was all-static picks up a tile that just became animated — the
+        // anim_revision check above is gated on has_animated_tiles and would miss
+        // that false→true transition.
+        u32 anim_table_revision = 0;
 
         std::unordered_map<u16, std::unordered_map<std::string, std::string>> tile_properties;
     };

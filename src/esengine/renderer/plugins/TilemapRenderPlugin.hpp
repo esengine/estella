@@ -43,6 +43,9 @@ private:
         // Animation-frame revision this cache was built at; an animated chunk
         // rebuilds when a visible frame flips, not every frame.
         u32 built_anim_revision = 0;
+        // Animation-TABLE revision this cache was built at; every chunk rebuilds
+        // once when the table changes so a static chunk can become animated.
+        u32 built_anim_table_revision = 0;
     };
 
     // A layer slot with its texture resolved for the current frame.

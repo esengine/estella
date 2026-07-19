@@ -329,3 +329,27 @@ TEST_CASE("tilemap_hex_tile_to_world") {
         CHECK_EQ(ty, 0);
     }
 }
+
+TEST_CASE("tilemap_animation_revision_separation") {
+    // The render cache must distinguish a TABLE change (a tile GAINS an animation
+    // → every chunk re-evaluates once, so an all-static chunk can become animated)
+    // from a per-frame FLIP (only already-animated chunks rebuild). A single
+    // conflated revision let a static chunk miss a tile that just became animated.
+    TilemapSystem sys;
+    sys.initLayer(E(0), 8, 8, 32.0f, 32.0f);
+
+    REQUIRE(sys.getLayerData(E(0)) != nullptr);
+    CHECK(sys.getLayerData(E(0))->anim_table_revision == 0);
+    CHECK(sys.getLayerData(E(0))->anim_revision == 0);
+
+    // Adding an animation is a TABLE change: anim_table_revision bumps, anim_revision does not.
+    AnimFrame frames[2] = {{10, 100}, {11, 100}};  // two 100ms frames
+    sys.setTileAnimation(E(0), 10, frames, 2);
+    CHECK(sys.getLayerData(E(0))->anim_table_revision == 1);
+    CHECK(sys.getLayerData(E(0))->anim_revision == 0);
+
+    // Advancing past a frame boundary is a FLIP: anim_revision bumps, the table revision holds.
+    sys.advanceAnimations(E(0), 150.0f);  // crosses the 100ms boundary → frame 0→1
+    CHECK(sys.getLayerData(E(0))->anim_revision == 1);
+    CHECK(sys.getLayerData(E(0))->anim_table_revision == 1);
+}

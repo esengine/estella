@@ -243,7 +243,7 @@ void TilemapSystem::setTileAnimation(Entity entity, u16 tileId,
     }
     if (anim.total_duration_ms == 0) return;
     layer->tile_animations[tileId] = std::move(anim);
-    layer->anim_revision++;  // the frame table changed — cached meshes are stale
+    layer->anim_table_revision++;  // the table changed — every chunk re-evaluates once
 }
 
 namespace {
