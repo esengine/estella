@@ -266,7 +266,7 @@ export function Outliner() {
         const sel = [...useSelection.getState().selectedIds];
         if (sel.length) {
           e.preventDefault();
-          sel.forEach((i) => SceneCommands.deleteEntity(i));
+          SceneCommands.deleteEntities(sel);
           select(null);
         }
         break;
@@ -435,7 +435,7 @@ export function Outliner() {
     dragIds.current = null;
     setDrop(null);
     if (!ids) return;
-    for (const child of ids) if (child !== target) SceneCommands.setParent(child, target);
+    SceneCommands.reparentEntities(ids, target);
   };
   const moveToFolder = (path: string | null) => {
     const ids = dragIds.current;
@@ -537,8 +537,8 @@ export function Outliner() {
         label: t('out.duplicate'),
         shortcut: formatKeybinding('mod+d'),
         onClick: () => {
-          const d = SceneCommands.duplicateEntity(id);
-          if (d != null) select(d);
+          const dups = SceneCommands.duplicateEntities(selectionOrTarget(id));
+          if (dups.length > 0) useSelection.getState().selectMany(dups, dups[dups.length - 1]);
         },
       },
       { label: t('out.createPrefab'), onClick: () => void ProjectStore.createPrefabFromEntity(id) },
@@ -546,7 +546,7 @@ export function Outliner() {
         label: t('ui.delete'),
         shortcut: formatKeybinding('delete'),
         onClick: () => {
-          selectionOrTarget(id).forEach((i) => SceneCommands.deleteEntity(i));
+          SceneCommands.deleteEntities(selectionOrTarget(id));
           select(null);
         },
       },
@@ -556,7 +556,7 @@ export function Outliner() {
       { sep: true },
       { label: t('out.newFolderFromSelection'), onClick: () => newFolder('', selectionOrTarget(id)) },
       { label: t('out.moveToRoot'), onClick: () => SceneCommands.moveToFolder(selectionOrTarget(id), null) },
-      { label: t('out.unparent'), onClick: () => selectionOrTarget(id).forEach((i) => SceneCommands.setParent(i, null)) },
+      { label: t('out.unparent'), onClick: () => SceneCommands.reparentEntities(selectionOrTarget(id), null) },
       { sep: true },
       { label: t('out.addEntity'), onClick: addEntity },
       { label: t('out.createTemplate'), onClick: () => setCreateFor({ parent: id }) },

@@ -81,9 +81,11 @@ export interface PlayPayload {
 }
 
 /** A live inspect snapshot: a shallow entity tree (Outliner) + the selected entity's
- *  full data (Details). The reply payload of a `query { kind: 'snapshot' }`. */
+ *  full data (Details). The reply payload of a `query { kind: 'snapshot' }`.
+ *  `tree` is null for a detail-only sample (`withTree: false`) — the editor polls
+ *  the selected entity faster than the O(entities) tree. */
 export interface PlaySnapshot {
-  tree: SceneData;
+  tree: SceneData | null;
   selected: SceneData['entities'][number] | null;
 }
 
@@ -116,7 +118,8 @@ export type PlayOutbound =
   | { type: 'estella:play:warm' }
   | { type: 'estella:play:setPaused'; paused: boolean }
   | { type: 'estella:play:reload' }
-  | { type: 'estella:play:query'; kind: PlayQueryKind; reqId: number; selectedId?: number | null }
+  // `withTree: false` = detail-only snapshot (skip the O(entities) tree walk).
+  | { type: 'estella:play:query'; kind: PlayQueryKind; reqId: number; selectedId?: number | null; withTree?: boolean }
   | { type: 'estella:play:setField'; entityId: number; comp: string; key: string; value: unknown };
 
 /** realm → editor. Discriminated by `type`. */

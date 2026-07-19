@@ -28,6 +28,7 @@ import { assetTypeOf } from '@/project/assetMeta';
 import type { AssetType } from '@/types';
 import { resolveLayout, orientationFromDesignResolution, resolveOrientation, cameraScaleModeValue, WORKSPACE_DIR, PROJECT_MANIFEST_FILE, type OpenedProject, type ProjectFeatures, type ProjectLayout, type ProjectPackaging, type WorkspaceState, type DesignResolution, type ScreenOrientation, type CameraScaleMode } from './format';
 import { useEditorMode } from '@/store/editorModeStore';
+import { PlayRealms } from '@/engine/PlayRealm';
 
 /** Pad/truncate collision-layer names to the 16 Box2D filter bits (layer 0 = Default). */
 function normalizeLayers(layers?: string[]): string[] {
@@ -346,6 +347,9 @@ class ProjectStoreImpl {
   }
 
   private adopt(opened: OpenedProject) {
+    // A play realm warmed for the PREVIOUS project holds its bundle + assets;
+    // cold-reset so the next prewarm/Play stages this project.
+    PlayRealms.resetPrimary();
     this.store.setState({
       project: {
         root: opened.root,

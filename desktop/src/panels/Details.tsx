@@ -63,6 +63,7 @@ import { ProjectStore } from '@/project/ProjectStore';
 import { confirmDiscard } from '@/project/discardGuard';
 import { t } from '@/i18n';
 import { MaterialDocument } from '@/material/MaterialDocument';
+import { DirtyRegistry } from '@/document/DirtyRegistry';
 import {
   isMaterialAsset,
   resolveMaterialContext,
@@ -2464,14 +2465,16 @@ function GenericAssetInspector({ path }: { path: string }) {
   const write: FieldWrite = (key, _t, value) => {
     setImporter((cur) => (cur ? applyImporterEdit(cur, key, value as InspectorFieldValue) : cur));
     setDirty(true);
+    DirtyRegistry.bump();
   };
 
   const save = async () => {
     try {
       const meta = JSON.parse(await window.estella.fs.read(path + '.meta'));
-      meta.importer = importer;
+      meta.importer = importerRef.current;
       await window.estella.fs.write(path + '.meta', JSON.stringify(meta, null, 2) + '\n');
       setDirty(false);
+      DirtyRegistry.bump();
       await ProjectStore.refreshAssets();
       // Push filter/wrap to the live gl handle so the edit viewport updates now
       // (no scene reload); a no-op for types/assets without a live texture.
@@ -2481,6 +2484,25 @@ function GenericAssetInspector({ path }: { path: string }) {
       Toasts.push(t('det.importSaveFailed', { error: String(e) }), 'error');
     }
   };
+
+  // Unsaved import-settings edits join the aggregate dirty state while this
+  // inspector is mounted (quit-save writes them; deselecting still discards, as
+  // before). Latest-refs so the registered closures never go stale.
+  const dirtyRef = useRef(dirty);
+  dirtyRef.current = dirty;
+  const importerRef = useRef(importer);
+  importerRef.current = importer;
+  const saveRef = useRef(save);
+  saveRef.current = save;
+  useEffect(
+    () =>
+      DirtyRegistry.register({
+        id: `importer:${path}`,
+        isDirty: () => dirtyRef.current,
+        save: () => saveRef.current(),
+      }),
+    [path],
+  );
 
   return (
     <div className="insp">

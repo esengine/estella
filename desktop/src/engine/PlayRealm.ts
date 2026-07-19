@@ -138,7 +138,16 @@ export class PlayRealmInstance {
     // scene directly (the host does a warm rebuild: no second wasm instantiate, no
     // iframe/bundle reload). Single-player primary only; anything else cold-boots.
     if (this.warm && this.id === 0 && !this.netPorts) {
-      bootProfiler.mark('warm re-Play (engine kept alive)');
+      // The bundle on disk is only rebuilt by preparePlayRealm (cold path) and by
+      // fsWatch WHILE playing — so code edited between Stop and re-Play would replay
+      // stale. Rebuild first (incremental esbuild, ~100ms); the host re-imports the
+      // bundle cache-busted. Best-effort: a build failure keeps the last-good bundle.
+      try {
+        await window.estella?.project?.buildScripts?.();
+      } catch {
+        /* keep the last-good bundle — builtin-only projects have none to rebuild */
+      }
+      bootProfiler.mark('warm re-Play (rebuild scripts + engine kept alive)');
       this.postInit();
       return;
     }
@@ -186,6 +195,15 @@ export class PlayRealmInstance {
     }
     this.warm = false;
     this.set({ playing: false, ready: false, error: null });
+  }
+
+  /** Drop the staged realm but keep the iframe + listener (reusable): cold
+   *  teardown so the NEXT prewarm/Play stages the current project. Call when the
+   *  open project changes — a warm realm still holds the previous project's
+   *  bundle + wasm + assets and would silently play the wrong project. */
+  reset(): void {
+    this.warm = false;
+    this.stop();
   }
 
   /** Full teardown for a session-scoped (client) realm: stop + drop the iframe
@@ -239,14 +257,16 @@ export class PlayRealmInstance {
 
   /** A live inspect snapshot: a SHALLOW tree of the running World (cheap to ship
    *  even for thousands of entities) plus the FULL data of `selectedId` for the
-   *  Details panel. Null if not ready. */
-  snapshot(selectedId: number | null): Promise<PlaySnapshot | null> {
+   *  Details panel. `opts.tree: false` samples the selected entity only (the
+   *  realm skips its O(entities) tree walk; `tree` comes back null). Null if not
+   *  ready. */
+  snapshot(selectedId: number | null, opts?: { tree?: boolean }): Promise<PlaySnapshot | null> {
     if (!this.iframe?.contentWindow || !this.store.getState().ready) return Promise.resolve(null);
     const reqId = ++this.reqSeq;
     return new Promise((resolve) => {
       const done = (data: unknown) => resolve((data as PlaySnapshot) ?? null);
       this.pending.set(reqId, done);
-      this.post({ type: 'estella:play:query', kind: 'snapshot', reqId, selectedId });
+      this.post({ type: 'estella:play:query', kind: 'snapshot', reqId, selectedId, withTree: opts?.tree !== false });
       setTimeout(() => {
         if (this.pending.delete(reqId)) resolve(null);
       }, 2000);
@@ -399,6 +419,12 @@ class PlayRealmsManager {
    *  load. Resolves when warm (or on timeout). Best-effort. */
   prewarm(): Promise<void> {
     return this.primary.prewarm();
+  }
+
+  /** Cold-reset the primary realm on a project switch / return to launcher, so a
+   *  realm warmed for project A never serves project B (see {@link PlayRealmInstance.reset}). */
+  resetPrimary(): void {
+    this.primary.reset();
   }
 
   async startSession(payload: PlayPayload, players = 1): Promise<void> {

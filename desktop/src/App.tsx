@@ -8,6 +8,7 @@ import { DockLayout } from '@/layout/DockLayout';
 import { ActivityBar } from '@/layout/ActivityBar';
 import { ContentDrawer } from '@/layout/ContentDrawer';
 import '@/engine/EditorSession'; // side effect: constructs defaultSession → wires the editor engine
+import '@/document/dirtyDocs'; // side effect: registers scene + asset docs on the DirtyRegistry
 import { Launcher } from '@/launcher/Launcher';
 import { Toaster } from '@/components/Toaster';
 import { ConfirmHost } from '@/components/ConfirmHost';
@@ -34,7 +35,7 @@ import { FlipbookViewportPreview } from '@/engine/FlipbookViewportPreview';
 import { TimelineRecorder } from '@/timeline/TimelineRecorder';
 import { ControllerRecorder } from '@/controller/ControllerRecorder';
 import { ProjectStore } from '@/project/ProjectStore';
-import { EditorHistory } from '@/engine/EditorHistory';
+import { DirtyRegistry } from '@/document/DirtyRegistry';
 import { dockApi } from '@/layout/dockApi';
 import { forEachEditorWindow } from '@/layout/editorWindows';
 import { Toasts } from '@/store/Toasts';
@@ -123,20 +124,16 @@ export function App() {
   }, []);
 
   // Mirror unsaved-changes state to main for the window-close quit guard, and run
-  // the save when main requests a save-before-quit.
+  // the save when main requests a save-before-quit. Both speak the DirtyRegistry
+  // aggregate, so a dirty tileset/flipbook/graph editor prompts and saves like a
+  // dirty scene (not just EditorHistory).
   useEffect(() => {
     const bridge = window.estella?.app;
     if (!bridge) return;
-    const push = () => bridge.setDirty(EditorHistory.isDirty());
+    const push = () => bridge.setDirty(DirtyRegistry.isDirty());
     push();
-    const unsub = EditorHistory.subscribe(push);
-    bridge.onSaveBeforeQuit(async () => {
-      try {
-        await ProjectStore.save();
-      } catch {
-        await ProjectStore.saveAsViaDialog();
-      }
-    });
+    const unsub = DirtyRegistry.subscribe(push);
+    bridge.onSaveBeforeQuit(() => DirtyRegistry.saveAll());
     return unsub;
   }, []);
 
@@ -200,7 +197,12 @@ export function App() {
   // the editor and the FIRST Play are both smooth. Everything heavy is warmed up
   // front; the overlay clears when every task is done.
   useEffect(() => {
-    if (showLauncher) return;
+    if (showLauncher) {
+      // Back on the launcher there is no project — release the primary play
+      // realm (a warm one still holds the closed project's bundle + wasm).
+      PlayRealms.resetPrimary();
+      return;
+    }
     LoadGate.begin([
       { key: 'engine', label: t('load.engine') },
       { key: 'playRealm', label: t('load.playRealm') },

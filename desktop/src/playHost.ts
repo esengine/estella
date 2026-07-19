@@ -36,7 +36,7 @@ function inspectableTypes(world: App['world'], entity: number): string[] {
   });
 }
 
-function liveSnapshot(world: App['world'], selectedId: number | null): { tree: SceneData; selected: LiveEntity | null } {
+function liveSnapshot(world: App['world'], selectedId: number | null, withTree: boolean): { tree: SceneData | null; selected: LiveEntity | null } {
   const nameDef = getComponent('Name');
   const parentDef = getComponent('Parent');
   const all = world.getAllEntities();
@@ -54,15 +54,19 @@ function liveSnapshot(world: App['world'], selectedId: number | null): { tree: S
   const nameOf = (e: number): string =>
     (nameDef ? (world.tryGet(e as never, nameDef) as { value?: string } | null)?.value : undefined) ?? `Entity_${e}`;
 
-  const tree = {
-    version: '1.0',
-    name: 'live',
-    entities: all.map((e): LiveEntity => {
-      const id = e as never as number;
-      // Component TYPES only — no data decode (the Outliner reads kind from types).
-      return { id, name: nameOf(id), parent: parentOf.get(id) ?? null, children: childrenOf.get(id) ?? [], components: inspectableTypes(world, id).map((type) => ({ type, data: {} })) } as LiveEntity;
-    }),
-  } as unknown as SceneData;
+  // The tree walk is O(entities) — a detail-only sample (withTree false) skips it
+  // so the editor can poll the selected entity faster than the tree.
+  const tree = withTree
+    ? ({
+        version: '1.0',
+        name: 'live',
+        entities: all.map((e): LiveEntity => {
+          const id = e as never as number;
+          // Component TYPES only — no data decode (the Outliner reads kind from types).
+          return { id, name: nameOf(id), parent: parentOf.get(id) ?? null, children: childrenOf.get(id) ?? [], components: inspectableTypes(world, id).map((type) => ({ type, data: {} })) } as LiveEntity;
+        }),
+      } as unknown as SceneData)
+    : null;
 
   let selected: LiveEntity | null = null;
   if (selectedId != null) {
@@ -469,7 +473,7 @@ window.addEventListener('message', (e: MessageEvent) => {
     case 'estella:play:query':
       // Live introspection for the editor's "Game" inspect mode (the Details panel).
       if (data.kind === 'snapshot') {
-        const reply = app ? liveSnapshot(app.world, data.selectedId ?? null) : null;
+        const reply = app ? liveSnapshot(app.world, data.selectedId ?? null, data.withTree !== false) : null;
         post({ type: 'estella:play:reply', reqId: data.reqId, data: reply });
       } else if (data.kind === 'stats') {
         // Per-phase + per-system timing + render counters — the running game's

@@ -38,8 +38,16 @@ export class EditorHistoryImpl {
     this.redoIds.length = 0;
   }
 
+  // While a group is open, record/run/batch append here instead of committing —
+  // the whole gesture lands as ONE transaction when the group closes.
+  private groupOps: Array<{ forward: () => void; reverse: () => void }> | null = null;
+
   /** Register an already-applied mutation as one undo step (forward NOT run). */
   record(label: string, forward: () => void, reverse: () => void) {
+    if (this.groupOps) {
+      this.groupOps.push({ forward, reverse });
+      return;
+    }
     const tx = this.tm.begin(label);
     tx.addDeferred({ forward, reverse });
     this.tm.commit(tx);
@@ -49,6 +57,11 @@ export class EditorHistoryImpl {
 
   /** Apply a not-yet-applied mutation and record it (forward runs now). */
   run(label: string, forward: () => void, reverse: () => void) {
+    if (this.groupOps) {
+      forward();
+      this.groupOps.push({ forward, reverse });
+      return;
+    }
     const tx = this.tm.begin(label);
     tx.add({ forward, reverse });
     this.tm.commit(tx);
@@ -59,12 +72,34 @@ export class EditorHistoryImpl {
   /** Register several already-applied mutations as ONE undo step (e.g. a
    *  multi-selection add/remove). No-op on an empty op list. */
   batch(label: string, ops: ReadonlyArray<{ forward: () => void; reverse: () => void }>) {
+    if (this.groupOps) {
+      this.groupOps.push(...ops);
+      return;
+    }
     if (ops.length === 0) return;
     const tx = this.tm.begin(label);
     for (const op of ops) tx.addDeferred(op);
     this.tm.commit(tx);
     this.pushEdit();
     this.bump();
+  }
+
+  /**
+   * Run `fn` and collapse every step it records into ONE undo step labeled
+   * `label` — the door for multi-selection gestures (delete/duplicate/reparent
+   * the whole selection) built from per-entity commands that each record.
+   * A nested group folds into the outer one (the outer gesture owns the step).
+   */
+  group<T>(label: string, fn: () => T): T {
+    if (this.groupOps) return fn();
+    const ops: Array<{ forward: () => void; reverse: () => void }> = [];
+    this.groupOps = ops;
+    try {
+      return fn();
+    } finally {
+      this.groupOps = null;
+      this.batch(label, ops);
+    }
   }
 
   undo() {

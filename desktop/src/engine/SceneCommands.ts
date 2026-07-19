@@ -606,6 +606,42 @@ export class SceneCommandsImpl {
     );
   }
 
+  /** Delete a whole selection as ONE undo step (one gesture, however many roots). */
+  deleteEntities(ids: readonly EntityId[]): void {
+    if (ids.length === 0) return;
+    if (ids.length === 1) return this.deleteEntity(ids[0]);
+    this.history.group(`Delete ${ids.length} Entities`, () => {
+      for (const id of ids) this.deleteEntity(id);
+    });
+  }
+
+  /** Duplicate a whole selection as ONE undo step. Returns the new source ids. */
+  duplicateEntities(ids: readonly EntityId[]): EntityId[] {
+    if (ids.length === 0) return [];
+    if (ids.length === 1) {
+      const d = this.duplicateEntity(ids[0]);
+      return d != null ? [d] : [];
+    }
+    const out: EntityId[] = [];
+    this.history.group(`Duplicate ${ids.length} Entities`, () => {
+      for (const id of ids) {
+        const d = this.duplicateEntity(id);
+        if (d != null) out.push(d);
+      }
+    });
+    return out;
+  }
+
+  /** Re-parent a whole drag selection as ONE undo step (per-id rules of {@link setParent}). */
+  reparentEntities(ids: readonly EntityId[], parent: EntityId | null): void {
+    const movable = ids.filter((id) => id !== parent);
+    if (movable.length === 0) return;
+    if (movable.length === 1) return this.setParent(movable[0], parent);
+    this.history.group(`Reparent ${movable.length} Entities`, () => {
+      for (const id of movable) this.setParent(id, parent);
+    });
+  }
+
   /** Duplicate an entity (offset slightly, as a sibling). Returns the new source id. */
   duplicateEntity(sourceId: EntityId): EntityId | null {
     const src = this.model.entityBySource(sourceId);
@@ -654,10 +690,10 @@ export class SceneCommandsImpl {
     return payload.length;
   }
 
-  /** Copy the entities, then delete them (one delete step per selected root). */
+  /** Copy the entities, then delete them (the delete is one undo step). */
   cutEntities(ids: readonly EntityId[]): number {
     const n = this.copyEntities(ids);
-    if (n > 0) for (const id of ids) this.deleteEntity(id);
+    if (n > 0) this.deleteEntities(ids);
     return n;
   }
 

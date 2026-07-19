@@ -35,6 +35,7 @@ export const commonMessages = defineMessages({
     'discard.default': { en: 'They will be lost', zh: '它们将会丢失' },
     'discard.newScene': { en: 'Creating a new scene will discard them', zh: '新建场景将丢弃这些更改' },
     'discard.closeProject': { en: 'Closing the project will discard them', zh: '关闭项目将丢弃这些更改' },
+    'discard.openProject': { en: 'Opening another project will discard them', zh: '打开其他项目将丢弃这些更改' },
     'discard.openScene': { en: 'Opening {name} will discard them', zh: '打开 {name} 将丢弃这些更改' },
     'discard.reloadChanged': {
         en: '“{name}” changed on disk. Reloading discards your unsaved edits',

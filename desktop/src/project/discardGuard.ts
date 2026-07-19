@@ -2,13 +2,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  discardGuard.ts
- * @brief The single unsaved-changes gate. Any action that would discard the
- *        current scene (new / open / close / switch) calls this first, so the
- *        prompt logic lives in one place and reflects the REAL dirty state
- *        (EditorHistory.isDirty), not the old `canUndo` proxy that stayed true
- *        after a save and false-warned.
+ * @brief The single unsaved-changes gate. Any action that would discard open
+ *        documents (new / open / close / switch) calls this first, so the
+ *        prompt logic lives in one place and reflects the REAL dirty state —
+ *        the DirtyRegistry aggregate (scene + every open asset editor), not
+ *        just the scene's EditorHistory.
  */
-import { EditorHistory } from '@/engine/EditorHistory';
+import { DirtyRegistry } from '@/document/DirtyRegistry';
 import { confirm } from '@/components/confirm';
 import { t } from '@/i18n';
 
@@ -21,7 +21,7 @@ import { t } from '@/i18n';
  * `if (!(await confirmDiscard(...))) return;`.
  */
 export async function confirmDiscard(what = t('discard.default')): Promise<boolean> {
-  if (!EditorHistory.isDirty()) return true;
+  if (!DirtyRegistry.isDirty()) return true;
   return confirm({
     title: t('discard.title'),
     body: t('discard.body', { what }),

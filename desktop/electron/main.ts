@@ -430,36 +430,37 @@ function createWindow() {
   if (shotOut) void runScreenshot(win, shotOut);
   if (mcpMode()) void startMcpEndpoint(() => win);
 
-  // Unsaved-changes quit guard: prompt before closing a window with a dirty scene.
-  // `sceneDirty` is pushed from the renderer (app:dirty); `quitting` lets the chosen
-  // action close past this handler.
+  // Unsaved-changes quit guard: prompt before closing a window with dirty
+  // documents (scene or asset editors — the renderer pushes the aggregate via
+  // app:dirty); `quitting` lets the chosen action close past this handler.
   win.on('close', (e) => {
     // Screenshot / automation mode discards unsaved changes silently — a shot run
     // dirties the scene (it creates/edits entities), and a blocking save prompt on
     // app.quit() would hang the headless run waiting for a click.
-    if (process.env.ESTELLA_SHOT || quitting || !sceneDirty || !win) return;
+    if (process.env.ESTELLA_SHOT || quitting || !editorDirty || !win) return;
     e.preventDefault();
     const choice = dialog.showMessageBoxSync(win, {
       type: 'warning',
-      buttons: ['Save', "Don't Save", 'Cancel'],
+      buttons: ['Save All', "Don't Save", 'Cancel'],
       defaultId: 0,
       cancelId: 2,
       message: 'Save changes before closing?',
-      detail: 'Your scene has unsaved changes that will be lost otherwise.',
+      detail: 'The scene or an open asset editor has unsaved changes that will be lost otherwise.',
     });
     if (choice === 2) return; // Cancel → keep the window open
     if (choice === 1) { quitting = true; win.destroy(); return; } // Don't Save
-    // Save → ask the renderer to write the scene, then close when it confirms.
+    // Save All → ask the renderer to save every dirty document, then close when it confirms.
     ipcMain.once('app:quitConfirmed', () => { quitting = true; win?.destroy(); });
     win.webContents.send('app:saveBeforeQuit');
   });
 }
 
-// The renderer's current unsaved-changes state, mirrored for the close guard above.
-let sceneDirty = false;
+// The renderer's current unsaved-changes state (the DirtyRegistry aggregate:
+// scene + asset editors), mirrored for the close guard above.
+let editorDirty = false;
 // Set once the user has chosen to close (Save/Don't Save), so win.destroy() is allowed through.
 let quitting = false;
-ipcMain.on('app:dirty', (_e, dirty: boolean) => { sceneDirty = !!dirty; });
+ipcMain.on('app:dirty', (_e, dirty: boolean) => { editorDirty = !!dirty; });
 
 // — Minimal IPC surface (expanded as the editor grows) —
 ipcMain.handle('app:version', () => app.getVersion());

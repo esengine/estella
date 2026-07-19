@@ -48,7 +48,10 @@ commands.register({
   label: t('cmd.project.open'),
   category: t('cat.file'),
   keybinding: 'mod+o',
-  run: () => void ProjectStore.openViaDialog().then((ok) => ok && sel().select(null)),
+  run: async () => {
+    if (!(await confirmDiscard(t('discard.openProject')))) return;
+    void ProjectStore.openViaDialog().then((ok) => ok && sel().select(null));
+  },
 });
 commands.register({
   id: 'project.save',
@@ -140,12 +143,10 @@ commands.register({
   label: t('cmd.entity.duplicate'),
   category: t('cat.entity'),
   keybinding: 'mod+d',
-  isEnabled: () => sel().selectedId != null,
+  isEnabled: () => sel().selectedIds.size > 0,
   run: () => {
-    const id = sel().selectedId;
-    if (id == null) return;
-    const dup = SceneCommands.duplicateEntity(id);
-    if (dup != null) sel().select(dup);
+    const dups = SceneCommands.duplicateEntities([...sel().selectedIds]);
+    if (dups.length > 0) sel().selectMany(dups, dups[dups.length - 1]);
   },
 });
 commands.register({
@@ -155,7 +156,7 @@ commands.register({
   keybinding: ['delete', 'backspace'],
   isEnabled: () => sel().selectedIds.size > 0,
   // Despawn self-heals the selection (SelectionStore) — no manual deselect.
-  run: () => [...sel().selectedIds].forEach((id) => SceneCommands.deleteEntity(id)),
+  run: () => SceneCommands.deleteEntities([...sel().selectedIds]),
 });
 commands.register({
   id: 'entity.copy',
