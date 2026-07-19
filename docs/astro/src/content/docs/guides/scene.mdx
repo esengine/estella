@@ -32,6 +32,12 @@ ramps back over the second half. The awaited promise resolves only after the
 fade-in completes — and rejects if the load failed. A `switchTo` issued while a
 transition is in flight is ignored with a warning; `isTransitioning()` tells you.
 
+If a load is superseded before it commits — an `unload`, or another load of the
+same scene, races ahead of it — the pending promise rejects with a
+`SceneLoadCancelled` error rather than committing a half-loaded scene. It is a
+race signal, not a real failure, so branch on it in your `catch` (e.g. ignore it)
+instead of surfacing it as a load error.
+
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `transition` | `'none' \| 'fade'` | `'none'` | Hard cut, or fade through `color`. |

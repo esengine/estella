@@ -335,14 +335,18 @@ const drive = defineSystem([Query(Mut(CharacterController))], (q) => {
 | `velocity` | Vec2 | `{0, 0}` | 期望速度(世界像素/秒,每步设置)。 |
 | `up` | Vec2 | `{0, 1}` | 用于地面/天花板分类的上方向。 |
 | `floorMaxAngle` | number | `0.785` | 相对 `up` 的最大可行走坡度,弧度(45°)。 |
+| `skinWidth` | number | `1` | 与表面保持的间隙(像素),避免贴壁抖动。 |
+| `maxSlides` | number | `4` | 每次移动的最大脱离滑动迭代次数(下限为 1)。 |
+| `snapLength` | number | `0` | 向下探测长度(像素),把角色吸附在下行的台阶/斜坡上;`0` 表示关闭。上升时跳过,所以跳跃仍能离地。 |
+| `slideOnCeiling` | boolean | `true` | 为 `false` 时,撞到天花板会取消向上速度,而不是沿其滑动。 |
 | `maskBits` | number | `0xFFFF` | 阻挡角色的层。 |
 | `isOnFloor` / `isOnWall` / `isOnCeiling` | boolean | — | **输出**:这次移动碰到了什么。 |
 | `floorNormal` | Vec2 | — | **输出**:最后接触地面的法线。 |
 | `realVelocity` | Vec2 | — | **输出**:碰撞后的实际位移 / dt。 |
 
-<Aside type="note">`maxSlides`、`skinWidth`、`snapLength`、`slideOnCeiling` 仍保留在组件上,
-供独立的 `moveAndSlide` 解析器(`esengine/physics`)使用;实际控制器用的原生 mover 自带迭代与
-间隙处理,会忽略它们。斜坡/台阶的地面吸附(`snapLength`)是 mover 计划中的补充。</Aside>
+<Aside type="note">`skinWidth`、`maxSlides`、`snapLength`、`slideOnCeiling` 由运行时原生 mover
+**以及**独立的 `moveAndSlide` 解析器(`esengine/physics`)共同遵循,两条路径行为一致。默认值适合
+普通角色;最常见的微调是给 `snapLength` 一个较小值(几个像素),让角色贴住下行的台阶和斜坡。</Aside>
 
 ## 调试绘制
 

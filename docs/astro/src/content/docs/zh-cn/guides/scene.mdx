@@ -28,6 +28,10 @@ const goToLevel2 = defineSystem([Res(SceneManager)], async (scenes) => {
 promise 只在淡入完成后 resolve——加载失败则 reject。过渡进行中再调 `switchTo` 会被忽略并
 打警告;`isTransitioning()` 可以查询。
 
+如果一次加载在提交前被抢占——`unload`,或对同一场景的另一次加载抢先完成——待定的 promise
+会以 `SceneLoadCancelled` 错误 reject,而不会提交一个只加载了一半的场景。它是竞态信号,不是
+真正的失败,所以请在 `catch` 里对它单独分支处理(例如直接忽略),而不要当成加载错误上报。
+
 | 选项 | 类型 | 默认 | 说明 |
 |---|---|---|---|
 | `transition` | `'none' \| 'fade'` | `'none'` | 硬切,或经 `color` 淡入淡出。 |

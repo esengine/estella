@@ -159,9 +159,15 @@ One layer can draw from several tilesets. Give it a slot table — each slot map
 ```typescript
 tilemap.setTilesets(layer, [
   { firstId: 1,   textureHandle: grassTex, columns: 8 },
-  { firstId: 256, textureHandle: propsTex, columns: 8 },
+  { firstId: 256, textureHandle: propsTex, columns: 8, margin: 4, spacing: 8 },
 ]);
 ```
+
+Optional `margin` (border before the first tile) and `spacing` (gap between tiles),
+both in pixels, describe atlases that pad their cells — each tile then samples its
+own texels instead of bleeding toward its neighbour. They default to `0`, so a
+gapless atlas needs neither; the Tiled/`.estileset` importer fills them in
+automatically from the tileset's own margin/spacing.
 
 ## Tile animation
 

@@ -145,9 +145,13 @@ tilemap.worldToTile(layer, wx, wy, 0, 0);           // → { x, y }
 ```typescript
 tilemap.setTilesets(layer, [
   { firstId: 1,   textureHandle: grassTex, columns: 8 },
-  { firstId: 256, textureHandle: propsTex, columns: 8 },
+  { firstId: 256, textureHandle: propsTex, columns: 8, margin: 4, spacing: 8 },
 ]);
 ```
+
+可选的 `margin`(第一个 tile 前的边距)和 `spacing`(tile 之间的间隙)以像素为单位,用于描述
+单元之间留白的图集——这样每个 tile 只采样自己的纹素,不会渗到相邻 tile。两者默认为 `0`,所以
+无间隙图集无需设置;Tiled / `.estileset` 导入器会自动从图集自身的 margin/spacing 填入。
 
 ## 瓦片动画
 
