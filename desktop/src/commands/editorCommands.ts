@@ -357,6 +357,13 @@ commands.register({
   keybinding: 'mod+,',
   run: () => editor().setSettingsOpen(true),
 });
+commands.register({
+  id: 'palette.open',
+  label: t('cmd.palette.open'),
+  category: t('cat.editor'),
+  keybinding: 'mod+shift+p',
+  run: () => editor().setPaletteOpen(true),
+});
 
 // — Play —
 commands.register({

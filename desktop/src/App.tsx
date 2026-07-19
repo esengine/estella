@@ -19,6 +19,7 @@ import { PerfRealmBridge } from '@/components/PerfRealmBridge';
 import { BuildDialog } from '@/components/BuildDialog';
 import { SettingsDialog } from '@/components/SettingsDialog';
 import { TilemapPickerDialog } from '@/components/TilemapPickerDialog';
+import { CommandPalette } from '@/components/CommandPalette';
 import { useEditorStore } from '@/store/editorStore';
 import { commands } from '@/commands';
 import { handleTilePaintKey } from '@/tools/tileMode';
@@ -228,6 +229,7 @@ export function App() {
   const buildOpen = useEditorStore((s) => s.buildOpen);
   const settingsOpen = useEditorStore((s) => s.settingsOpen);
   const tilemapPickerOpen = useEditorStore((s) => s.tilemapPickerOpen);
+  const paletteOpen = useEditorStore((s) => s.paletteOpen);
   if (showLauncher) return <Launcher />;
 
   return (
@@ -244,6 +246,7 @@ export function App() {
       {buildOpen && <BuildDialog />}
       {settingsOpen && <SettingsDialog />}
       {tilemapPickerOpen && <TilemapPickerDialog />}
+      {paletteOpen && <CommandPalette onClose={() => useEditorStore.getState().setPaletteOpen(false)} />}
       <Toaster />
       <ConfirmHost />
       <LoadingScreen />

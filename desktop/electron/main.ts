@@ -16,6 +16,8 @@ import {
   mkdirInRoot,
   duplicateInRoot,
   statInRoot,
+  snapshotForTrash,
+  restoreTrashed,
   saveWorkspace,
   resolveInRoot,
   META_EXT,
@@ -590,13 +592,20 @@ ipcMain.handle('fs:mkdir', (_e, relPath: string) => mkdirInRoot(requireRoot(), r
 ipcMain.handle('fs:duplicate', (_e, relPath: string) => duplicateInRoot(requireRoot(), relPath));
 ipcMain.handle('fs:stat', (_e, relPath: string) => statInRoot(requireRoot(), relPath));
 // Delete to the OS trash (recoverable, not an unrecoverable rm) — the asset's
-// `.meta` sidecar goes with it so no orphan stays in the registry.
+// `.meta` sidecar goes with it so no orphan stays in the registry. A pre-trash
+// snapshot backs the renderer's Undo toast; the returned token restores it.
 ipcMain.handle('fs:trash', async (_e, relPath: string) => {
-  const abs = resolveInRoot(requireRoot(), relPath);
+  const root = requireRoot();
+  const token = await snapshotForTrash(root, relPath);
+  const abs = resolveInRoot(root, relPath);
   await shell.trashItem(abs);
   const meta = abs + META_EXT;
   if (existsSync(meta)) await shell.trashItem(meta);
+  return token;
 });
+ipcMain.handle('fs:restoreTrashed', (_e, relPath: string, token: string) =>
+  restoreTrashed(requireRoot(), relPath, token),
+);
 // Reveal a file/folder in the OS file manager (Finder / Explorer).
 ipcMain.handle('shell:showItem', (_e, relPath: string) => {
   shell.showItemInFolder(resolveInRoot(requireRoot(), relPath));

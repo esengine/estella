@@ -91,6 +91,10 @@ interface EditorState {
   settingsOpen: boolean;
   setSettingsOpen: (open: boolean) => void;
 
+  // Command palette (Ctrl/Cmd+Shift+P) — run any registry command by name.
+  paletteOpen: boolean;
+  setPaletteOpen: (open: boolean) => void;
+
   // "New Tilemap" tileset chooser (Entity → New Tilemap): picks the .estileset
   // palette for a fresh map, then createTilemapFromTileset does the rest.
   tilemapPickerOpen: boolean;
@@ -163,6 +167,9 @@ export const useEditorStore = create<EditorState>((set) => ({
 
   settingsOpen: false,
   setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
+
+  paletteOpen: false,
+  setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
 
   tilemapPickerOpen: false,
   setTilemapPickerOpen: (tilemapPickerOpen) => set({ tilemapPickerOpen }),

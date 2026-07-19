@@ -95,14 +95,22 @@ export const contentMessages = defineMessages({
         en: 'Delete “{name}”? It will be moved to the trash.',
         zh: '确定删除“{name}”？它将被移入回收站。',
     },
-    'cb.deleteRefWarnOne': {
-        en: 'It is referenced by {count} asset ({names}); those references will break.',
-        zh: '它被 {count} 个资产引用（{names}）；这些引用将会失效。',
+    'cb.deleteRefListOne': {
+        en: 'It is referenced by {count} document; that reference will break:',
+        zh: '它被 {count} 个文档引用；该引用将会失效：',
     },
-    'cb.deleteRefWarnMany': {
-        en: 'It is referenced by {count} assets ({names}); those references will break.',
-        zh: '它被 {count} 个资产引用（{names}）；这些引用将会失效。',
+    'cb.deleteRefListMany': {
+        en: 'It is referenced by {count} documents; those references will break:',
+        zh: '它被 {count} 个文档引用；这些引用将会失效：',
     },
+    'cb.usagesMore': { en: '…and {count} more', zh: '……以及另外 {count} 个' },
+    'cb.deletedName': { en: 'Deleted “{name}”', zh: '已删除“{name}”' },
+    'cb.menuFindUsages': { en: 'Find Usages', zh: '查找引用' },
+    'cb.findUsagesTitle': { en: 'Usages of “{name}”', zh: '“{name}”的引用' },
+    'cb.findUsagesScanning': { en: 'Scanning…', zh: '正在扫描……' },
+    'cb.noUsages': { en: 'Nothing references this asset.', zh: '没有内容引用此资产。' },
+    'cb.unsavedScene': { en: 'Untitled scene', zh: '未命名场景' },
+    'cb.unsavedMark': { en: 'unsaved', zh: '未保存' },
     'cb.movedTo': { en: 'Moved “{name}” to {dest}', zh: '已将“{name}”移动到 {dest}' },
     'cb.projectRoot': { en: 'the project root', zh: '项目根目录' },
     'cb.moveFailed': { en: 'Move failed: {error}', zh: '移动失败：{error}' },

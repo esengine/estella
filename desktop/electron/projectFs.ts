@@ -8,9 +8,10 @@
  * refused, so a compromised/buggy renderer can't read or write arbitrary files.
  * See RC12 §E7.
  */
-import { readFile, writeFile, readdir, mkdir, rename, cp, stat } from 'node:fs/promises';
+import { readFile, writeFile, readdir, mkdir, rename, cp, stat, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
   PROJECT_MANIFEST_FILE,
@@ -180,6 +181,42 @@ export async function duplicateInRoot(root: string, relPath: string): Promise<st
     }
   }
   return toRel(root, to);
+}
+
+// Pre-trash snapshots for the delete-undo toast. shell.trashItem has no restore
+// API, so undo rewrites the file from a copy taken just before the trash — the
+// `.meta` travels along, so the uuid (and every `@uuid:` ref to it) survives.
+const TRASH_HOLDING_DIR = path.join(tmpdir(), 'estella-trash-undo');
+const TOKEN_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+/** Copy a file/folder (+ sidecar) into the holding dir; returns a restore token. */
+export async function snapshotForTrash(root: string, relPath: string): Promise<string> {
+  const abs = resolveInRoot(root, relPath);
+  if (!existsSync(abs)) throw new Error(`"${relPath}" does not exist`);
+  const token = randomUUID();
+  const dir = path.join(TRASH_HOLDING_DIR, token);
+  await mkdir(dir, { recursive: true });
+  await cp(abs, path.join(dir, 'item'), { recursive: true });
+  const meta = abs + META_EXT;
+  if (existsSync(meta)) await cp(meta, path.join(dir, 'item' + META_EXT));
+  return token;
+}
+
+/** Undo a trash: rewrite `relPath` (+ `.meta`) from its pre-trash snapshot.
+ *  Refuses if the path has been re-taken in the meantime. */
+export async function restoreTrashed(root: string, relPath: string, token: string): Promise<void> {
+  // The token names a directory — reject anything that isn't a plain uuid.
+  if (!TOKEN_SHAPE.test(token)) throw new Error('invalid restore token');
+  const dir = path.join(TRASH_HOLDING_DIR, token);
+  const item = path.join(dir, 'item');
+  if (!existsSync(item)) throw new Error('nothing to restore (snapshot expired)');
+  const abs = resolveInRoot(root, relPath);
+  if (existsSync(abs)) throw new Error(`"${relPath}" already exists`);
+  await mkdir(path.dirname(abs), { recursive: true });
+  await cp(item, abs, { recursive: true });
+  const meta = item + META_EXT;
+  if (existsSync(meta)) await cp(meta, abs + META_EXT);
+  await rm(dir, { recursive: true, force: true });
 }
 
 /** Size + modified time for the asset tooltip / inspector metadata. */

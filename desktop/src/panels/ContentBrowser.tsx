@@ -12,9 +12,11 @@ import { Segmented } from '@/components/Segmented';
 import { ProjectStore } from '@/project/ProjectStore';
 import { Toasts } from '@/store/Toasts';
 import { useSelection } from '@/store/selectionStore';
-import { IMAGE_RE, assetTypeOf as assetType, TYPE_CODE } from '@/project/assetMeta';
+import { IMAGE_RE, assetTypeOf as assetType, baseName, TYPE_CODE } from '@/project/assetMeta';
 import { ASSET_OPEN } from '@/project/assetOpen';
-import { referencingPaths } from '@/project/assetRefs';
+import { syncAssetPaths } from '@/project/assetPathSync';
+import { findAssetUsages, type AssetUsage } from '@/project/assetUsages';
+import { FindUsagesDialog } from '@/components/FindUsagesDialog';
 import { parseAssetQuery, filterAndSortAssets, type AssetSort } from '@/project/assetFilter';
 import { createTilesetFromTexture } from '@/tileset/openTileset';
 import { createFlipbookFromTexture } from '@/flipbook/openFlipbook';
@@ -433,6 +435,7 @@ export function ContentBrowser() {
   const undoMove = async (from: string, to: string) => {
     try {
       await window.estella.fs.rename(from, to);
+      syncAssetPaths(from, to);
       refreshFs();
       selectAsset(to);
     } catch (e) {
@@ -452,6 +455,7 @@ export function ContentBrowser() {
     const dest = join(parentOf(path), name);
     try {
       await window.estella.fs.rename(path, dest);
+      syncAssetPaths(path, dest);
       refreshFs();
       selectAsset(dest);
       Toasts.push(t('cb.renamedTo', { name }), 'info', 6000, { label: t('cb.undo'), run: () => void undoMove(dest, path) });
@@ -483,33 +487,39 @@ export function ContentBrowser() {
   };
 
   // Delete = themed confirm (Enter confirms, Esc cancels) → trash. The dialog
-  // body warns when scenes/prefabs reference the asset (those refs would break).
-  const [confirmDel, setConfirmDel] = useState<{ path: string; name: string; warn: string } | null>(null);
+  // body lists WHICH scenes/prefabs reference the asset (disk dep graph + the
+  // unsaved in-memory scene — a ref added since the last save would break too).
+  const [confirmDel, setConfirmDel] = useState<{ path: string; name: string; usages: AssetUsage[] } | null>(null);
+  const [usagesPath, setUsagesPath] = useState<string | null>(null);
   const remove = async (path: string, name: string) => {
-    let warn = '';
+    let usages: AssetUsage[] = [];
     try {
-      const scan = await window.estella.project.scanAssets();
-      const refs = referencingPaths(scan.index, path);
-      if (refs.length) {
-        const names = refs.slice(0, 3).map((p) => p.split('/').pop()).join(', ');
-        warn = `\n\n${t(refs.length > 1 ? 'cb.deleteRefWarnMany' : 'cb.deleteRefWarnOne', {
-          count: refs.length,
-          names: names + (refs.length > 3 ? ', …' : ''),
-        })}`;
-      }
+      usages = await findAssetUsages(path);
     } catch {
       // Best-effort: if the scan fails, confirm without the reference warning.
     }
-    setConfirmDel({ path, name, warn });
+    setConfirmDel({ path, name, usages });
   };
   const doRemove = async () => {
     const target = confirmDel;
     setConfirmDel(null);
     if (!target) return;
     try {
-      await window.estella.fs.trash(target.path);
+      const token = await window.estella.fs.trash(target.path);
       refreshFs();
       if (selected === target.path) selectAsset(null);
+      Toasts.push(t('cb.deletedName', { name: target.name }), 'info', 6000, {
+        label: t('cb.undo'),
+        run: async () => {
+          try {
+            await window.estella.fs.restoreTrashed(target.path, token);
+            refreshFs();
+            selectAsset(target.path);
+          } catch (e) {
+            Toasts.push(t('cb.undoFailed', { error: errMsg(e) }), 'error');
+          }
+        },
+      });
     } catch (e) {
       Toasts.push(t('cb.deleteFailed', { error: errMsg(e) }), 'error');
     }
@@ -754,6 +764,7 @@ export function ContentBrowser() {
     if (dest === srcPath || srcPath === folderPath || folderPath.startsWith(`${srcPath}/`)) return;
     try {
       await window.estella.fs.rename(srcPath, dest);
+      syncAssetPaths(srcPath, dest);
       refreshFs();
       if (selected === srcPath) selectAsset(dest);
       Toasts.push(t('cb.movedTo', { name, dest: folderPath || t('cb.projectRoot') }), 'info', 6000, {
@@ -908,6 +919,7 @@ export function ContentBrowser() {
       { sep: true },
       { label: t('cb.menuCopyPath'), onClick: () => copy(path, t('cb.copiedPath')) },
       ...(ref ? [{ label: t('cb.menuCopyReference'), onClick: () => copy(ref, t('cb.copiedReference')) }] : []),
+      ...(entry.isDir ? [] : [{ label: t('cb.menuFindUsages'), onClick: () => setUsagesPath(path) }]),
       { label: t('cb.menuShowInExplorer'), onClick: () => void showInExplorer(path) },
       { sep: true },
       { label: t('ui.delete'), danger: true, onClick: () => void remove(path, entry.name) },
@@ -1191,12 +1203,36 @@ export function ContentBrowser() {
 
       {!ctx && tip.card}
       {ctx && <ContextMenu x={ctx.x} y={ctx.y} items={ctxItems} onClose={() => setCtx(null)} />}
+      {usagesPath && <FindUsagesDialog path={usagesPath} onClose={() => setUsagesPath(null)} />}
       {confirmDel && (
         <ConfirmDialog
           title={t('cb.deleteTitle')}
           danger
           confirmLabel={t('ui.delete')}
-          body={t('cb.deleteBody', { name: confirmDel.name }) + confirmDel.warn}
+          body={
+            <>
+              {t('cb.deleteBody', { name: confirmDel.name })}
+              {confirmDel.usages.length > 0 && (
+                <>
+                  {'\n\n' +
+                    t(confirmDel.usages.length > 1 ? 'cb.deleteRefListMany' : 'cb.deleteRefListOne', {
+                      count: confirmDel.usages.length,
+                    })}
+                  <ul className="cb-usages">
+                    {confirmDel.usages.slice(0, 8).map((u) => (
+                      <li key={u.path ?? ' unsaved'}>
+                        <span className="n">{u.path ? baseName(u.path) : t('cb.unsavedScene')}</span>
+                        {u.path && <span className="p">{u.path}</span>}
+                        {u.unsaved && <span className="u">{t('cb.unsavedMark')}</span>}
+                      </li>
+                    ))}
+                  </ul>
+                  {confirmDel.usages.length > 8 &&
+                    t('cb.usagesMore', { count: confirmDel.usages.length - 8 })}
+                </>
+              )}
+            </>
+          }
           onConfirm={() => void doRemove()}
           onCancel={() => setConfirmDel(null)}
         />

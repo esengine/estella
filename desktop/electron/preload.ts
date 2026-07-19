@@ -135,8 +135,13 @@ const api = {
     mkdir: (relPath: string): Promise<void> => ipcRenderer.invoke('fs:mkdir', relPath),
     /** Duplicate a file/folder next to itself (new uuid); returns the new path. */
     duplicate: (relPath: string): Promise<string> => ipcRenderer.invoke('fs:duplicate', relPath),
-    /** Delete to the OS trash (recoverable), sidecar included. */
-    trash: (relPath: string): Promise<void> => ipcRenderer.invoke('fs:trash', relPath),
+    /** Delete to the OS trash (recoverable), sidecar included. Returns a token
+     *  that `restoreTrashed` accepts to undo the delete. */
+    trash: (relPath: string): Promise<string> => ipcRenderer.invoke('fs:trash', relPath),
+    /** Undo a trash: rewrite the file/folder (+ `.meta`, uuid intact) from the
+     *  pre-trash snapshot named by `token`. */
+    restoreTrashed: (relPath: string, token: string): Promise<void> =>
+      ipcRenderer.invoke('fs:restoreTrashed', relPath, token),
     /** Size + modified time (for the asset tooltip / inspector metadata). */
     stat: (relPath: string): Promise<{ size: number; mtimeMs: number; isDir: boolean }> =>
       ipcRenderer.invoke('fs:stat', relPath),

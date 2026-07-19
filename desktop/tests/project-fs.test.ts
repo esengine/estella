@@ -18,6 +18,8 @@ import {
   mkdirInRoot,
   duplicateInRoot,
   statInRoot,
+  snapshotForTrash,
+  restoreTrashed,
 } from '../electron/projectFs';
 import { isIgnoredPath } from '../electron/projectWatcher';
 import { importAssets, createAsset } from '../electron/importAssets';
@@ -167,6 +169,51 @@ describe('duplicateInRoot', () => {
     expect(rel).toBe('assets/pack copy');
     expect(read('assets/pack copy/a.png')).toBe('A');
     expect(JSON.parse(read('assets/pack copy/a.png.meta')).uuid).not.toBe('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb');
+  });
+});
+
+describe('trash undo (snapshotForTrash / restoreTrashed)', () => {
+  const rmAt = (rel: string) => rmSync(path.join(root, rel), { force: true, recursive: true });
+
+  it('restores a deleted file + .meta with the SAME uuid (refs stay valid)', async () => {
+    const token = await snapshotForTrash(root, 'assets/hero.png');
+    rmAt('assets/hero.png'); // stands in for shell.trashItem
+    rmAt('assets/hero.png.meta');
+    await restoreTrashed(root, 'assets/hero.png', token);
+    expect(read('assets/hero.png')).toBe('PNG');
+    expect(JSON.parse(read('assets/hero.png.meta')).uuid).toBe('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
+  });
+
+  it('restores a folder recursively, sidecars included', async () => {
+    mkdirSync(path.join(root, 'assets', 'pack'));
+    writeFileSync(path.join(root, 'assets', 'pack', 'a.png'), 'A');
+    writeFileSync(path.join(root, 'assets', 'pack', 'a.png.meta'), meta('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'));
+    const token = await snapshotForTrash(root, 'assets/pack');
+    rmAt('assets/pack');
+    await restoreTrashed(root, 'assets/pack', token);
+    expect(read('assets/pack/a.png')).toBe('A');
+    expect(JSON.parse(read('assets/pack/a.png.meta')).uuid).toBe('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb');
+  });
+
+  it('refuses to clobber a path re-taken since the delete', async () => {
+    const token = await snapshotForTrash(root, 'assets/hero.png');
+    // The path was re-taken (e.g. a new import with the same name).
+    await expect(restoreTrashed(root, 'assets/hero.png', token)).rejects.toThrow(/already exists/);
+    expect(read('assets/hero.png')).toBe('PNG'); // untouched
+  });
+
+  it('a snapshot restores only once; malformed tokens are rejected', async () => {
+    const token = await snapshotForTrash(root, 'assets/hero.png');
+    rmAt('assets/hero.png');
+    rmAt('assets/hero.png.meta');
+    await restoreTrashed(root, 'assets/hero.png', token);
+    rmAt('assets/hero.png');
+    await expect(restoreTrashed(root, 'assets/hero.png', token)).rejects.toThrow(/nothing to restore/);
+    await expect(restoreTrashed(root, 'assets/hero.png', '../../etc')).rejects.toThrow(/invalid restore token/);
+  });
+
+  it('snapshotting a missing path fails up front (no empty undo)', async () => {
+    await expect(snapshotForTrash(root, 'assets/ghost.png')).rejects.toThrow(/does not exist/);
   });
 });
 

@@ -136,6 +136,25 @@
 .cb-mr { display: flex; align-items: center; height: 26px; font-size: var(--fs-sm); }
 .cb-mr .k { width: 76px; color: var(--text-mute); flex-shrink: 0; }
 .cb-mr .v { color: var(--text-dim); font-family: var(--mono); font-size: var(--fs-xs); }
+/* Clickable meta row (the References count → Find Usages). */
+.cb-mr-link { width: 100%; padding: 0; background: none; border: none; text-align: left; cursor: pointer; border-radius: var(--r-xs); }
+.cb-mr-link:hover .v { color: var(--acc-hi); text-decoration: underline; }
+
+/* Referencing-document list in the delete confirm. */
+.cb-usages { list-style: none; margin: 8px 0 0; padding: 6px 8px; display: flex; flex-direction: column; gap: 3px; max-height: 168px; overflow-y: auto; background: var(--srf-3); border: 1px solid var(--border-line); border-radius: var(--r-sm); }
+.cb-usages li { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.cb-usages .n { color: var(--text); font-size: var(--fs-sm); flex-shrink: 0; }
+.cb-usages .p { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-mute); font-family: var(--mono); font-size: var(--fs-2xs); }
+.cb-usages .u { flex-shrink: 0; color: var(--warn); font-size: var(--fs-2xs); }
+
+/* Find Usages dialog rows. */
+.fu-list { display: flex; flex-direction: column; gap: 3px; }
+.fu-row { display: flex; align-items: center; gap: 9px; padding: 7px 10px; background: var(--srf-3); border: 1px solid transparent; border-radius: var(--r-md); color: var(--text-dim); cursor: pointer; text-align: left; font: inherit; min-width: 0; }
+.fu-row:hover { color: var(--text); border-color: var(--acc); background: var(--srf-2); }
+.fu-row svg { flex-shrink: 0; color: var(--text-mute); }
+.fu-name { flex-shrink: 0; font-weight: 600; font-size: var(--fs-sm); }
+.fu-path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-2xs); color: var(--text-mute); font-family: var(--mono); text-align: right; }
+.fu-unsaved { flex-shrink: 0; color: var(--warn); font-size: var(--fs-2xs); }
 .cb-act { padding: 11px 13px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 7px; }
 .cb-act button { height: 30px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-size: var(--fs-sm); border-radius: var(--r-sm); transition: background var(--t-fast); }
 /* Outlined like .cb-add — the accent fill stays reserved for Play. */

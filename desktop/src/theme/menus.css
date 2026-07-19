@@ -105,6 +105,15 @@
 .ac-item .ak { font-size: var(--fs-2xs); color: var(--text-mute); opacity: 0; }
 .ac-item.sel .ak { opacity: 1; }
 
+/* ── Command palette (rides the .ac picker chrome) ── */
+.ac.cp { width: 520px; }
+.cp-item { padding: 5px 10px; }
+.cp-item .an { font-size: var(--fs-sm); }
+.cp-cat { color: var(--text-mute); font-weight: 400; }
+.cp-kb { margin-left: auto; flex-shrink: 0; font-size: var(--fs-2xs); color: var(--text-mute); font-family: var(--mono); }
+.cp-item.is-disabled { opacity: 0.45; cursor: default; }
+.cp-item.is-disabled:hover { background: none; }
+
 /* ════════════════════════ Modal dialog ════════════════════════ */
 .modal-backdrop {
   position: fixed;

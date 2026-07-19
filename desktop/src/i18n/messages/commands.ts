@@ -56,6 +56,9 @@ export const commandMessages = defineMessages({
 
     // — Editor / play / build —
     'cmd.settings.open': { en: 'Settings…', zh: '设置…' },
+    'cmd.palette.open': { en: 'Command Palette…', zh: '命令面板…' },
+    'palette.placeholder': { en: 'Run a command…', zh: '运行命令…' },
+    'palette.noMatch': { en: 'No matching commands', zh: '没有匹配的命令' },
     'cmd.play.toggle': { en: 'Play', zh: '运行' },
     'cmd.play.stop': { en: 'Stop', zh: '停止' },
     'cmd.build.scripts': { en: 'Build Project Scripts', zh: '构建项目脚本' },

@@ -58,9 +58,10 @@ import { modelAddableComponentEntries, subscribeSchemas, getSchemaRevision, pret
 import * as imap from '@/project/inputMapDoc';
 import * as ldoc from '@/project/localeTableDoc';
 import { buildImporterComponent, applyImporterEdit } from '@/project/assetImporter';
-import { referencingPaths } from '@/project/assetRefs';
+import { findAssetUsages } from '@/project/assetUsages';
+import { FindUsagesDialog } from '@/components/FindUsagesDialog';
 import { ProjectStore } from '@/project/ProjectStore';
-import { confirmDiscard } from '@/project/discardGuard';
+import { confirmDiscard, confirmDiscardDoc } from '@/project/discardGuard';
 import { t } from '@/i18n';
 import { MaterialDocument } from '@/material/MaterialDocument';
 import { DirtyRegistry } from '@/document/DirtyRegistry';
@@ -1834,17 +1835,24 @@ function MaterialAssetInspector({ path }: { path: string }) {
   // the running handle the scene's sprites use (0 when it's not in the current scene).
   useEffect(() => {
     let alive = true;
-    void window.estella.fs
-      .read(path)
-      .then((text) => {
-        if (!alive) return;
-        MaterialDocument.openJson(JSON.parse(text), path);
+    void (async () => {
+      // Selection round-trip back to the file already open (possibly dirty —
+      // the cleanup below kept it): rebind the handle, never reload from disk.
+      if (MaterialDocument.isOpen && MaterialDocument.filePath === path) {
         MaterialDocument.setLiveHandle(ProjectStore.materialHandle(path));
-      })
-      .catch(() => {});
+        return;
+      }
+      if (!(await confirmDiscardDoc(MaterialDocument.dirty, t('discard.openAsset', { name: baseName(path) }))) || !alive) return;
+      const text = await window.estella.fs.read(path);
+      if (!alive) return;
+      MaterialDocument.openJson(JSON.parse(text), path);
+      MaterialDocument.setLiveHandle(ProjectStore.materialHandle(path));
+    })().catch(() => {});
     return () => {
       alive = false;
-      MaterialDocument.close();
+      // A dirty document stays open on select-away so the DirtyRegistry guards
+      // still see the unsaved edits (closing here would discard them silently).
+      if (!MaterialDocument.dirty) MaterialDocument.close();
     };
   }, [path]);
 
@@ -2424,6 +2432,7 @@ function GenericAssetInspector({ path }: { path: string }) {
   const [dims, setDims] = useState<string | null>(null);
   const [refCount, setRefCount] = useState<number | null>(null);
   const [collapsed, setCollapsed] = useState(false);
+  const [usagesOpen, setUsagesOpen] = useState(false);
 
   // Load the `.meta` importer block on (re)selection.
   useEffect(() => {
@@ -2451,9 +2460,10 @@ function GenericAssetInspector({ path }: { path: string }) {
       img.onload = () => alive && setDims(`${img.naturalWidth} × ${img.naturalHeight}`);
       img.src = `estella://project/${path}`;
     }
-    void window.estella.project
-      .scanAssets()
-      .then((r) => alive && setRefCount(referencingPaths(r.index, path).length))
+    // Same collector as Find Usages (disk graph + unsaved scene), so the count
+    // always matches what the dialog lists.
+    void findAssetUsages(path)
+      .then((u) => alive && setRefCount(u.length))
       .catch(() => {});
     return () => {
       alive = false;
@@ -2580,9 +2590,21 @@ function GenericAssetInspector({ path }: { path: string }) {
           {stat && <MetaRow k={t('det.metaSize')} v={formatBytes(stat.size)} />}
           {stat && <MetaRow k={t('det.metaModified')} v={new Date(stat.mtimeMs).toLocaleString()} />}
           {assetRef && <MetaRow k={t('det.metaUuid')} v={assetRef} mono />}
-          {refCount != null && <MetaRow k={t('det.metaReferences')} v={String(refCount)} />}
+          {refCount != null && (
+            // The count opens Find Usages — the number alone answers nothing.
+            <button
+              type="button"
+              className="cb-mr cb-mr-link"
+              title={t('det.findUsagesTip')}
+              onClick={() => setUsagesOpen(true)}
+            >
+              <span className="k">{t('det.metaReferences')}</span>
+              <span className="v" style={{ fontFamily: 'inherit' }}>{refCount}</span>
+            </button>
+          )}
         </div>
       </div>
+      {usagesOpen && <FindUsagesDialog path={path} onClose={() => setUsagesOpen(false)} />}
 
       <div className="cb-act">
         {type === 'scene' && (

@@ -174,6 +174,7 @@ export const detailsMessages = defineMessages({
     'det.metaModified': { en: 'Modified', zh: '修改时间' },
     'det.metaUuid': { en: 'UUID', zh: 'UUID' },
     'det.metaReferences': { en: 'References', zh: '引用' },
+    'det.findUsagesTip': { en: 'Show what references this asset', zh: '查看哪些内容引用了此资产' },
     'det.openScene': { en: 'Open Scene', zh: '打开场景' },
     'det.copyPath': { en: 'Copy Path', zh: '复制路径' },
     'det.copiedPath': { en: 'Copied path', zh: '已复制路径' },
