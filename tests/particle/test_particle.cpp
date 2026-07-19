@@ -166,6 +166,40 @@ TEST_CASE("system_particles_die_after_lifetime") {
     CHECK_EQ(system.totalAliveParticles(), 0u);
 }
 
+TEST_CASE("system_sprite_sheet_loops_instead_of_freezing") {
+    // A looping sprite sheet must wrap back toward frame 0 after a full pass. A
+    // pre-clamp regression made `frame % totalFrames` an identity, freezing every
+    // particle on the last frame (index totalFrames-1) forever after one cycle.
+    ecs::Registry registry;
+    ParticleSystem system;
+
+    Entity e = registry.create();
+    registry.emplace<ecs::Transform>(e);
+    auto& emitter = registry.emplace<ecs::ParticleEmitter>(e);
+    emitter.rate = 500.0f;
+    emitter.lifetimeMin = 100.0f;
+    emitter.lifetimeMax = 100.0f;
+    emitter.maxParticles = 1000;
+    emitter.enabled = true;
+    emitter.playOnStart = true;
+    emitter.looping = false;
+    emitter.duration = 0.02f;      // one short burst, then emission stops
+    emitter.spriteColumns = 4;     // 4 frames total
+    emitter.spriteRows = 1;
+    emitter.spriteFPS = 1.0f;      // one 4-frame cycle every 4 s
+
+    system.update(registry, 0.02f);   // spawn the burst (age ~0.02 s → frame 0)
+    CHECK(system.totalAliveParticles() > 0u);
+
+    system.update(registry, 4.1f);    // age ~4.12 s → past a full cycle, wrapped
+    u32 checked = 0;
+    system.forEachParticle(e, [&](const Particle& p) {
+        CHECK(p.sprite_frame < 3);    // 3 = last frame; the bug froze here
+        checked++;
+    });
+    CHECK(checked > 0u);
+}
+
 TEST_CASE("system_non_looping_stops_after_duration") {
     ecs::Registry registry;
     ParticleSystem system;

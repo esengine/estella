@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 
 namespace esengine::particle {
 
@@ -202,7 +203,19 @@ void ParticleSystem::emitParticles(const ecs::ParticleEmitter& emitter,
         bool isWorldSpace = emitter.simulationSpace ==
                             static_cast<i32>(ecs::SimulationSpace::World);
         if (isWorldSpace) {
-            p->position = emitterPos + offset;
+            // Rotate the spawn footprint by the emitter angle so the emission
+            // shape agrees with the (already-rotated) velocity below; otherwise a
+            // rotated world-space cone/box spawns along its unrotated axis while
+            // the flow points elsewhere. `offset` itself stays unrotated — the
+            // Circle aim reads it and gets the same rotation applied once, below.
+            glm::vec2 worldOffset = offset;
+            if (std::abs(emitterAngle) > 0.001f) {
+                f32 cosA = std::cos(emitterAngle);
+                f32 sinA = std::sin(emitterAngle);
+                worldOffset = glm::vec2(offset.x * cosA - offset.y * sinA,
+                                        offset.x * sinA + offset.y * cosA);
+            }
+            p->position = emitterPos + worldOffset;
         } else {
             p->position = offset;
         }
@@ -308,11 +321,15 @@ void ParticleSystem::updateParticles(const ecs::ParticleEmitter& emitter,
 
         if (totalFrames > 1 && emitter.spriteFPS > 0.0f) {
             f32 frameDuration = 1.0f / emitter.spriteFPS;
-            u16 frame = static_cast<u16>(std::min(p.age / frameDuration, static_cast<f32>(totalFrames - 1)));
+            f32 rawFrame = p.age / frameDuration;
+            // Compute the wrap on the float (fmod) so a looping sheet actually
+            // cycles: clamping to [0,totalFrames-1] first would make the modulo an
+            // identity and freeze every particle on the last frame after one pass.
+            u16 frame;
             if (emitter.spriteLoop) {
-                frame = frame % static_cast<u16>(totalFrames);
+                frame = static_cast<u16>(std::fmod(rawFrame, static_cast<f32>(totalFrames)));
             } else {
-                frame = std::min(frame, static_cast<u16>(totalFrames - 1));
+                frame = static_cast<u16>(std::min(rawFrame, static_cast<f32>(totalFrames - 1)));
             }
             p.sprite_frame = frame;
         }
