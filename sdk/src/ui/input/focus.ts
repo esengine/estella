@@ -65,6 +65,11 @@ export class FocusPlugin implements Plugin {
             (input: InputState, events: UIEventQueue) => {
                 if (focusManager.focusedEntity !== null && !world.valid(focusManager.focusedEntity)) {
                     focusManager.focusedEntity = null;
+                } else if (focusManager.focusedEntity !== null && hiddenInTree(focusManager.focusedEntity)) {
+                    // A focused control hidden out from under us (e.g. a dialog closed
+                    // by its own Confirm button) must lose focus, or a later Enter/Space
+                    // would re-fire Click on the now-invisible control.
+                    clearFocus();
                 }
 
                 const focusableEntities = world.getEntitiesWithComponents([Focusable]);
