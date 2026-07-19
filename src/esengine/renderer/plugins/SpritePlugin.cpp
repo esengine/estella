@@ -158,6 +158,27 @@ void SpritePlugin::emitTiledQuads(
     i32 tilesY = static_cast<i32>(std::ceil(absSize.y / step.y));
     i32 tilesX = static_cast<i32>(std::ceil(absSize.x / step.x));
 
+    // A huge size with a tiny tile step (bad data or a typo in the inspector)
+    // would otherwise emit billions of quads and freeze the frame. Degrade to a
+    // single stretched quad past a generous cap.
+    constexpr i64 kMaxTiledQuads = 16384;
+    if (static_cast<i64>(tilesX) * static_cast<i64>(tilesY) > kMaxTiledQuads) {
+        BatchVertex verts[4];
+        if (hasRotation) {
+            verts[0] = { rotatePoint(position, baseX, baseY, cosA, sinA), pc, { uvOffset.x, uvOffset.y } };
+            verts[1] = { rotatePoint(position, baseX + absSize.x, baseY, cosA, sinA), pc, { uvOffset.x + uvScale.x, uvOffset.y } };
+            verts[2] = { rotatePoint(position, baseX + absSize.x, baseY + absSize.y, cosA, sinA), pc, { uvOffset.x + uvScale.x, uvOffset.y + uvScale.y } };
+            verts[3] = { rotatePoint(position, baseX, baseY + absSize.y, cosA, sinA), pc, { uvOffset.x, uvOffset.y + uvScale.y } };
+        } else {
+            verts[0] = { { baseX, baseY }, pc, { uvOffset.x, uvOffset.y } };
+            verts[1] = { { baseX + absSize.x, baseY }, pc, { uvOffset.x + uvScale.x, uvOffset.y } };
+            verts[2] = { { baseX + absSize.x, baseY + absSize.y }, pc, { uvOffset.x + uvScale.x, uvOffset.y + uvScale.y } };
+            verts[3] = { { baseX, baseY + absSize.y }, pc, { uvOffset.x, uvOffset.y + uvScale.y } };
+        }
+        appendQuad(buffers, draw_list, clips, verts, key);
+        return;
+    }
+
     for (i32 iy = 0; iy < tilesY; ++iy) {
         f32 ty = static_cast<f32>(iy) * step.y;
         f32 th = glm::min(tileSize.y, absSize.y - ty);

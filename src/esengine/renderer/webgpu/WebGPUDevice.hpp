@@ -193,7 +193,7 @@ private:
     struct PipelineRec {
         PipelineDesc desc;
         /// Lazily built per pass shape: [ds * kColorVariantCount + color].
-        WGPURenderPipeline variants[kDsVariantCount * kColorVariantCount] = {};
+        WGPURenderPipeline variants[static_cast<u32>(kDsVariantCount) * static_cast<u32>(kColorVariantCount)] = {};
     };
     struct FramebufferRec {
         u32 color0 = 0;        ///< TextureHandle id of the color attachment.
