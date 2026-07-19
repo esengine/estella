@@ -10,6 +10,13 @@ export interface EffectUniformDef {
     max: number;
     step: number;
     defaultValue: number;
+    /**
+     * The "effect does nothing" value a partial-weight volume blend fades toward.
+     * 0 for additive/intensity params (default); 1 for MULTIPLICATIVE params
+     * (contrast, saturation, zoom) — blending those from 0 crushes the image to
+     * black / extreme distortion at a volume's soft edge.
+     */
+    neutralValue?: number;
 }
 
 /** A texture parameter (LUT, mask): the sampler uniform it binds to. */
@@ -107,8 +114,8 @@ registerEffect({
     factory: () => postProcessEffects.createColorGrade(),
     uniforms: [
         { name: 'u_exposure', label: 'Exposure', min: -3, max: 3, step: 0.05, defaultValue: 0 },
-        { name: 'u_contrast', label: 'Contrast', min: 0, max: 2, step: 0.01, defaultValue: 1 },
-        { name: 'u_saturation', label: 'Saturation', min: 0, max: 2, step: 0.01, defaultValue: 1 },
+        { name: 'u_contrast', label: 'Contrast', min: 0, max: 2, step: 0.01, defaultValue: 1, neutralValue: 1 },
+        { name: 'u_saturation', label: 'Saturation', min: 0, max: 2, step: 0.01, defaultValue: 1, neutralValue: 1 },
         { name: 'u_temperature', label: 'Temperature', min: -1, max: 1, step: 0.01, defaultValue: 0 },
         { name: 'u_tint', label: 'Tint', min: -1, max: 1, step: 0.01, defaultValue: 0 },
     ],
@@ -147,7 +154,7 @@ registerEffect({
     factory: () => postProcessEffects.createLensDistortion(),
     uniforms: [
         { name: 'u_strength', label: 'Strength', min: -1, max: 1, step: 0.01, defaultValue: 0 },
-        { name: 'u_zoom', label: 'Zoom', min: 0.5, max: 2, step: 0.01, defaultValue: 1 },
+        { name: 'u_zoom', label: 'Zoom', min: 0.5, max: 2, step: 0.01, defaultValue: 1, neutralValue: 1 },
     ],
 });
 

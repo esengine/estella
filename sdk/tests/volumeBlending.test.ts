@@ -75,6 +75,14 @@ describe('volumeBlending', () => {
             expect(factor).toBe(1);
         });
 
+        it('honors a global volume\'s weight (not always 1)', () => {
+            const volume = {
+                effects: [], isGlobal: true, shape: 'box' as const,
+                size: { x: 5, y: 5 }, priority: 0, weight: 0.5, blendDistance: 0,
+            };
+            expect(computeVolumeFactor(volume, baseTransform, 100, 100)).toBeCloseTo(0.5, 5);
+        });
+
         it('returns weight when point is inside box volume', () => {
             const volume = {
                 effects: [],
@@ -187,6 +195,26 @@ describe('volumeBlending', () => {
             const blur = result.get('blur')!;
             expect(blur.enabled).toBe(true);
             expect(blur.uniforms.get('u_intensity')).toBe(5);
+        });
+
+        it('blends a multiplicative param from its neutral (1), an intensity param from 0', () => {
+            const result = blendVolumeEffects([
+                {
+                    data: {
+                        effects: [
+                            { type: 'colorGrade', enabled: true, uniforms: { u_contrast: 2 } },
+                            { type: 'blur', enabled: true, uniforms: { u_intensity: 4 } },
+                        ],
+                        isGlobal: true, shape: 'box', size: { x: 5, y: 5 },
+                        priority: 0, weight: 1, blendDistance: 0,
+                    },
+                    factor: 0.25, // partially active (a soft volume edge)
+                },
+            ]);
+            // contrast neutral is 1: 1 + (2-1)*0.25 = 1.25 (NOT 2*0.25 = 0.5, which crushes to grey).
+            expect(result.get('colorGrade')!.uniforms.get('u_contrast')).toBeCloseTo(1.25, 5);
+            // intensity neutral is 0: 0 + (4-0)*0.25 = 1 (unchanged fade-from-off behavior).
+            expect(result.get('blur')!.uniforms.get('u_intensity')).toBeCloseTo(1, 5);
         });
 
         it('higher priority volume overrides lower priority', () => {

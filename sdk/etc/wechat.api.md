@@ -2361,6 +2361,7 @@ label: string
 max: number
 min: number
 name: string
+neutralValue: number | undefined
 step: number
 ```
 

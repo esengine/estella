@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { PostProcessVolumeData } from '../component';
+import { getEffectDef } from './effects';
 
 export interface VolumeTransform {
     x: number;
@@ -48,7 +49,7 @@ export function computeVolumeFactor(
     px: number, py: number
 ): number {
     if (volume.isGlobal) {
-        return 1;
+        return volume.weight; // honor the global's weight, like local volumes below
     }
 
     let dist: number;
@@ -88,9 +89,14 @@ export function blendVolumeEffects(
 
             const existing = result.get(effect.type);
             if (!existing) {
+                // Blend from each param's neutral ("effect does nothing") value, not
+                // from 0 — else a multiplicative param (contrast/saturation/zoom,
+                // neutral 1) fades to 0 (black / extreme distortion) at the edge.
+                const def = getEffectDef(effect.type);
                 const uniforms = new Map<string, number>();
                 for (const [key, value] of Object.entries(effect.uniforms)) {
-                    uniforms.set(key, value * factor);
+                    const neutral = def?.uniforms.find((u) => u.name === key)?.neutralValue ?? 0;
+                    uniforms.set(key, neutral + (value - neutral) * factor);
                 }
                 const textures = new Map<string, string>();
                 if (effect.textures) {
