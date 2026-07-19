@@ -240,14 +240,34 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
         f32 adjOriginX = originX + parallaxOffsetX;
         f32 adjOriginY = originY + parallaxOffsetY;
 
+        // Visible chunk window. A chunk's screen position is only cx*CHUNK*tw /
+        // cy*CHUNK*th for an orthogonal grid; iso couples cx and cy, and
+        // staggered/hex advance by half a tile — so the orthogonal linear formula
+        // dropped on-screen chunks when an iso/hex map was scrolled. Invert the
+        // real tile placement instead: map the camera rect's four corners to tile
+        // coords with the orientation-aware worldToTile, take their bounding box,
+        // and grow it to whole chunks. worldToTile is affine for iso (a rect maps
+        // to a parallelogram, whose corner bbox contains it) and box-approximate
+        // for stagger/hex — a one-tile margin absorbs the half-tile shift and any
+        // tile whose center is off-screen while its body still overlaps.
         i32 chunkSize = static_cast<i32>(tilemap::CHUNK_SIZE);
-        f32 chunkWorldW = static_cast<f32>(chunkSize) * layer.tile_width;
-        f32 chunkWorldH = static_cast<f32>(chunkSize) * layer.tile_height;
+        i32 cornerTx[4], cornerTy[4];
+        tilemap_system_->worldToTile(entity, cam.left,  cam.top,    adjOriginX, adjOriginY, cornerTx[0], cornerTy[0]);
+        tilemap_system_->worldToTile(entity, cam.right, cam.top,    adjOriginX, adjOriginY, cornerTx[1], cornerTy[1]);
+        tilemap_system_->worldToTile(entity, cam.left,  cam.bottom, adjOriginX, adjOriginY, cornerTx[2], cornerTy[2]);
+        tilemap_system_->worldToTile(entity, cam.right, cam.bottom, adjOriginX, adjOriginY, cornerTx[3], cornerTy[3]);
+        i32 minTx = cornerTx[0], maxTx = cornerTx[0];
+        i32 minTy = cornerTy[0], maxTy = cornerTy[0];
+        for (int i = 1; i < 4; ++i) {
+            minTx = std::min(minTx, cornerTx[i]); maxTx = std::max(maxTx, cornerTx[i]);
+            minTy = std::min(minTy, cornerTy[i]); maxTy = std::max(maxTy, cornerTy[i]);
+        }
+        minTx -= 1; minTy -= 1; maxTx += 1; maxTy += 1;
 
-        i32 minCX = static_cast<i32>(std::floor((cam.left - adjOriginX) / chunkWorldW));
-        i32 minCY = static_cast<i32>(std::floor((adjOriginY - cam.top) / chunkWorldH));
-        i32 maxCX = static_cast<i32>(std::ceil((cam.right - adjOriginX) / chunkWorldW));
-        i32 maxCY = static_cast<i32>(std::ceil((adjOriginY - cam.bottom) / chunkWorldH));
+        i32 minCX = static_cast<i32>(std::floor(static_cast<f32>(minTx) / static_cast<f32>(chunkSize)));
+        i32 minCY = static_cast<i32>(std::floor(static_cast<f32>(minTy) / static_cast<f32>(chunkSize)));
+        i32 maxCX = static_cast<i32>(std::floor(static_cast<f32>(maxTx) / static_cast<f32>(chunkSize))) + 1;
+        i32 maxCY = static_cast<i32>(std::floor(static_cast<f32>(maxTy) / static_cast<f32>(chunkSize))) + 1;
 
         if (!layer.infinite) {
             i32 chunksX = static_cast<i32>((layer.width + tilemap::CHUNK_SIZE - 1) / tilemap::CHUNK_SIZE);
