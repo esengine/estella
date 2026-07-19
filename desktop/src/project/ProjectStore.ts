@@ -571,15 +571,23 @@ class ProjectStoreImpl {
     }
   }
 
-  /** Rebuild the uuid↔path registry + Assets resolvers from an index's entries. */
+  /** Rebuild the uuid↔path registry + Assets resolvers from an index's entries,
+   *  dropping ALL caches — a full rescan (project open) can invalidate anything. */
   private populateRegistry(entries: readonly AssetEntryLite[]): void {
+    this.prefabCache.clear();
+    this.hotLoadStarted.clear();
+    this.assetLoadFailures.clear();
+    this.rebuildLookups(entries);
+  }
+
+  /** Rebuild only the (cheap, in-memory) uuid↔path lookup maps + Assets resolvers
+   *  from an index's entries. Leaves the disk-loaded prefab cache and live-load
+   *  bookkeeping alone — the incremental path invalidates those selectively. */
+  private rebuildLookups(entries: readonly AssetEntryLite[]): void {
     this.uuidToPath.clear();
     this.pathToUuid.clear();
     this.uuidToImporter.clear();
     this.uuidToType.clear();
-    this.prefabCache.clear();
-    this.hotLoadStarted.clear();
-    this.assetLoadFailures.clear();
     for (const e of entries) {
       const uuid = e.uuid.toLowerCase();
       this.uuidToPath.set(uuid, e.path);
@@ -596,6 +604,47 @@ class ProjectStoreImpl {
       // settings the runtime applies (was runtime-only, so edit ≠ play before).
       assets.setTextureImportSettingsResolver((ref) => this.textureImportFor(ref));
     }
+  }
+
+  /**
+   * Fold the fs watcher's precise changed paths into the registry incrementally
+   * (the watcher path — {@link fsWatch}), instead of a full O(files) rescan on
+   * every disk touch. The main process updates the cached index per-path and tells
+   * us whether it had to fall back to a full scan (directory move / bulk / no
+   * cache); on incremental success we rebuild only the lookup maps and invalidate
+   * only the changed prefabs. A full-scan fallback repopulates wholesale (a
+   * structural change can invalidate any cache), and is logged so it's never silent.
+   */
+  async applyDiskChanges(paths: readonly string[]): Promise<void> {
+    if (!this.state) return;
+    const result = await window.estella.project.scanAssetsIncremental([...paths]).catch(() => null);
+    if (!result) {
+      // IPC failed (e.g. project closing) — a full rescan is the safe recovery.
+      await this.buildAssetRegistry();
+      return;
+    }
+    if (result.fullRescan) {
+      console.info(`[assets] full rescan: ${result.reason ?? 'unspecified'}`);
+      this.populateRegistry(result.index.entries);
+      return;
+    }
+    this.applyIncrementalRegistry(result.index.entries, paths);
+  }
+
+  /** Apply an incrementally-updated index to the renderer registry: rebuild the
+   *  lookup maps, but evict from the prefab cache ONLY the changed/removed prefab
+   *  paths — a scene save must not drop every loaded `.esprefab`. */
+  private applyIncrementalRegistry(entries: readonly AssetEntryLite[], changedPaths: readonly string[]): void {
+    const changed = new Set(changedPaths.map((p) => p.replace(/\\/g, '/').replace(/\.meta$/, '')));
+    const kept = new Set(entries.map((e) => e.path));
+    // Resolve each cached prefab's path via the CURRENT (pre-rebuild) map, so this
+    // must run before rebuildLookups.
+    for (const ref of [...this.prefabCache.keys()]) {
+      const uuid = refUuid(ref);
+      const p = uuid !== null ? this.uuidToPath.get(uuid) : undefined;
+      if (!p || changed.has(p) || !kept.has(p)) this.prefabCache.delete(ref);
+    }
+    this.rebuildLookups(entries);
   }
 
   /** Off-critical-path authoritative scan after a cache-first boot: repopulate +

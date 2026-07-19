@@ -4,7 +4,7 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type { OpenedProject, WorkspaceState, DirEntry, RecentEntry, TemplateEntry } from '../src/project/format';
 import type { BuildScriptsResult } from './buildScripts';
 import type { ExtractSchemasResult } from './extractSchemas';
-import type { ScanAssetsResult, AssetIndex } from './assetDb';
+import type { ScanAssetsResult, AssetIndex, IncrementalScanResult } from './assetDb';
 import type { CookResult } from './cookAssets';
 import type { ExportGameResult } from './exportGame';
 import type { PlayRealmResult } from './buildPlayRealm';
@@ -87,6 +87,10 @@ const api = {
     /** The cached asset index (assets.json) without a tree walk, or null — the fast
      *  boot registry, revalidated by a full scanAssets off the critical path. */
     cachedAssetIndex: (): Promise<AssetIndex | null> => ipcRenderer.invoke('project:cachedAssetIndex'),
+    /** Fold the watcher's precise changed paths into the cached index incrementally
+     *  (no full tree walk); `fullRescan` marks a fallback to a full scan. */
+    scanAssetsIncremental: (paths: string[]): Promise<IncrementalScanResult> =>
+      ipcRenderer.invoke('project:scanAssetsIncremental', paths),
     /** Cook reachable assets for shipping → staged files + runtime manifest in `outDir`. */
     cookAssets: (outDir?: string): Promise<CookResult> => ipcRenderer.invoke('project:cookAssets', outDir),
     /** Export a runnable web build (play==ship) → self-contained `outDir` (default dist-game/). */

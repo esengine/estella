@@ -34,6 +34,12 @@ let debounce: ReturnType<typeof setTimeout> | null = null;
 let schemaDebounce: ReturnType<typeof setTimeout> | null = null;
 let scriptsDebounce: ReturnType<typeof setTimeout> | null = null;
 let sceneDebounce: ReturnType<typeof setTimeout> | null = null;
+// Coalesce the changed paths across the debounce window (not just the last
+// burst): the incremental registry update needs EVERY changed path, or a change
+// two bursts back would be silently dropped. An empty burst (watcher overflow —
+// filename unknown) forces a full rescan for the window.
+let pendingPaths = new Set<string>();
+let sawOverflow = false;
 
 // A project source module under src/ — a change here can alter a project
 // component's field schema, so the inspector must re-extract (esbuild, ~100ms).
@@ -62,15 +68,21 @@ export function initFsWatch(): void {
   if (inited || !window.estella?.fs?.onChange) return;
   inited = true;
   window.estella.fs.onChange((paths) => {
-    // Coalesce back-to-back bursts; one scan + one bump per quiet window.
+    // Coalesce back-to-back bursts; one incremental update + one bump per quiet
+    // window. Accumulate the precise paths so none is lost across bursts.
+    if (paths.length === 0) sawOverflow = true;
+    else for (const p of paths) pendingPaths.add(p);
     if (debounce) clearTimeout(debounce);
     debounce = setTimeout(() => {
-      void ProjectStore.refreshAssets().then(() => {
+      const batch = sawOverflow ? [] : [...pendingPaths];
+      pendingPaths = new Set();
+      sawOverflow = false;
+      void ProjectStore.applyDiskChanges(batch).then(() => {
         // With the registry fresh, drop stale caches for the changed files and
         // reload + re-project whatever the open scene still references — an
         // externally rewritten texture/tilemap must not keep rendering old bytes
         // (or fragments of whichever texture inherited its evicted handle).
-        ProjectStore.hotSyncChangedPaths(paths);
+        ProjectStore.hotSyncChangedPaths(batch);
       });
       fsRefresh.bump();
     }, 60);

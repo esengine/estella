@@ -430,6 +430,12 @@ function startJointAxisDrag(rt: number, type: JointGizmoType, e: ReactPointerEve
 const GIZMO_SVG = 180;
 const gizmoViewBox = `${-GIZMO_SVG / 2} ${-GIZMO_SVG / 2} ${GIZMO_SVG} ${GIZMO_SVG}`;
 
+// Above this many selected entities the per-entity outline (one wasm rect query +
+// one styled DOM div each, every rAF tick) collapses to a single merged bounding
+// box — a marquee over a large tilemap or particle scene used to select thousands
+// and thrash layout at N divs/frame. Below it the per-entity path is untouched.
+const SELECTION_OUTLINE_MERGE_THRESHOLD = 200;
+
 function GizmoOverlay({ tool, active }: { tool: ToolMode; active: GizmoAxis | null }) {
   const L = GIZMO.axisLen;
   const B = GIZMO.boxSize;
@@ -746,6 +752,8 @@ export function Viewport() {
   const designLabelRef = useRef<HTMLDivElement>(null);
   // One outline div per selected entity, keyed by source id and positioned by the rAF.
   const selRefs = useRef(new Map<number, HTMLDivElement | null>());
+  // The single merged-selection box shown instead, above the merge threshold.
+  const mergedSelRef = useRef<HTMLDivElement>(null);
   const marqueeRef = useRef<HTMLDivElement>(null);
   const tileSelRef = useRef<HTMLDivElement>(null);
   const tilePreviewRef = useRef<HTMLDivElement>(null);
@@ -927,20 +935,53 @@ export function Viewport() {
       const showG = useEditorStore.getState().showGizmos;
       const toolMode = useEditorStore.getState().tool;
 
-      // Per-entity selection outlines (one div per selected source id).
-      const selIds: number[] = [];
-      for (const [sid, el] of selRefs.current) {
-        selIds.push(sid);
-        if (!el) continue;
-        const rt = ready ? SceneModel.runtimeFor(sid) : undefined;
-        const rect = rt != null ? ViewportController.getEntityScreenRect(rt) : null;
-        if (rect) {
-          el.style.transform = `translate(${rect.x}px, ${rect.y}px)`;
-          el.style.width = `${rect.w}px`;
-          el.style.height = `${rect.h}px`;
-          el.style.opacity = '1';
-        } else {
-          el.style.opacity = '0';
+      // Selection outlines. Below the merge threshold: one div per selected source
+      // id (crisp per-entity boxes). Above it: a single merged bounding box in one
+      // query pass + one div (the per-entity divs aren't rendered). `selIds` reads
+      // the selection store directly so the gizmo/pivot code below stays correct in
+      // both branches (above the threshold selRefs is empty).
+      const selIds = [...useSelection.getState().selectedIds];
+      const merged = mergedSelRef.current;
+      if (selIds.length > SELECTION_OUTLINE_MERGE_THRESHOLD) {
+        let minX = Infinity;
+        let minY = Infinity;
+        let maxX = -Infinity;
+        let maxY = -Infinity;
+        if (ready) {
+          for (const sid of selIds) {
+            const rt = SceneModel.runtimeFor(sid);
+            const rect = rt != null ? ViewportController.getEntityScreenRect(rt) : null;
+            if (!rect) continue;
+            minX = Math.min(minX, rect.x);
+            minY = Math.min(minY, rect.y);
+            maxX = Math.max(maxX, rect.x + rect.w);
+            maxY = Math.max(maxY, rect.y + rect.h);
+          }
+        }
+        if (merged) {
+          if (Number.isFinite(minX)) {
+            merged.style.transform = `translate(${minX}px, ${minY}px)`;
+            merged.style.width = `${maxX - minX}px`;
+            merged.style.height = `${maxY - minY}px`;
+            merged.style.opacity = '1';
+          } else {
+            merged.style.opacity = '0';
+          }
+        }
+      } else {
+        if (merged) merged.style.opacity = '0';
+        for (const [sid, el] of selRefs.current) {
+          if (!el) continue;
+          const rt = ready ? SceneModel.runtimeFor(sid) : undefined;
+          const rect = rt != null ? ViewportController.getEntityScreenRect(rt) : null;
+          if (rect) {
+            el.style.transform = `translate(${rect.x}px, ${rect.y}px)`;
+            el.style.width = `${rect.w}px`;
+            el.style.height = `${rect.h}px`;
+            el.style.opacity = '1';
+          } else {
+            el.style.opacity = '0';
+          }
         }
       }
 
@@ -2233,18 +2274,22 @@ export function Viewport() {
         </div>
       )}
 
-      {/* One outline per selected entity (rAF-positioned); primary gets the accent. */}
-      {selList.map((id) => (
-        <div
-          key={id}
-          ref={(el) => {
-            if (el) selRefs.current.set(id, el);
-            else selRefs.current.delete(id);
-          }}
-          className={`viewport__selection${id === primaryId ? ' primary' : ''}`}
-          aria-hidden="true"
-        />
-      ))}
+      {/* One outline per selected entity (rAF-positioned); primary gets the accent.
+          Above the merge threshold these collapse to the single merged box below. */}
+      {selList.length <= SELECTION_OUTLINE_MERGE_THRESHOLD &&
+        selList.map((id) => (
+          <div
+            key={id}
+            ref={(el) => {
+              if (el) selRefs.current.set(id, el);
+              else selRefs.current.delete(id);
+            }}
+            className={`viewport__selection${id === primaryId ? ' primary' : ''}`}
+            aria-hidden="true"
+          />
+        ))}
+      {/* The merged selection box (shown only above the threshold; rAF-positioned). */}
+      <div ref={mergedSelRef} className="viewport__selection" style={{ opacity: 0 }} aria-hidden="true" />
       <div ref={marqueeRef} className="viewport__marquee" aria-hidden="true" />
       <div ref={tileSelRef} className="viewport__tilesel" aria-hidden="true" />
       <div ref={tilePreviewRef} className="viewport__tilepreview" aria-hidden="true" />

@@ -7,6 +7,7 @@ import { EngineHost } from './EngineHost';
 import { PerfMonitor } from './PerfMonitor';
 import { SceneModel, SceneModelImpl, type ModelEvent } from './SceneModel';
 import { assetFieldType, spineSlotType, componentByName, componentDefaults, componentEntityFields, isRenderComponent, componentEnable, readonlyFieldsFor, type AnyComp, type WorldT } from './schema';
+import { EntityRefIndex } from './EntityRefIndex';
 
 /**
  * Projects the model into the World.
@@ -92,6 +93,9 @@ export class ReconcilerImpl {
   private resolveAsset: AssetResolver = UNRESOLVED;
   private resolveRefPath: RefPathResolver = UNRESOLVED_PATH;
   private touchAsset: AssetTouchListener | null = null;
+  /** referenced source id → the components pointing at it, so a spawn re-projects
+   *  its referrers in O(referrers) instead of scanning the whole model. */
+  private readonly refIndex = new EntityRefIndex();
 
   constructor(private readonly model: SceneModelImpl) {}
 
@@ -195,15 +199,18 @@ export class ReconcilerImpl {
   private onEvent(ev: ModelEvent): void {
     switch (ev.kind) {
       case 'reset':
-        return; // bulk path already built the World
+        // Bulk path already built the World; only the reverse index rebuilds here.
+        return this.rebuildRefIndex();
       case 'entityAdded':
         return this.spawnEntity(ev.sourceId);
       case 'entityRemoved':
         return this.despawnEntity(ev.sourceId);
       case 'componentAdded':
       case 'componentChanged':
+        this.reindexComponent(ev.sourceId, ev.type);
         return this.projectComponent(ev.sourceId, ev.type);
       case 'componentRemoved':
+        this.refIndex.setReferrer(ev.sourceId, ev.type, []);
         return this.removeComponent(ev.sourceId, ev.type);
       case 'parentChanged':
         return this.projectParent(ev.sourceId);
@@ -251,18 +258,16 @@ export class ReconcilerImpl {
       const list = Array.isArray(refs) ? refs.filter((r): r is string => typeof r === 'string' && r !== '') : [];
       if (list.length > 0) TilemapLiveSync.setLayerTilesets(rt, list);
     }
-    // …and re-project any spawned component whose entity-reference fields point at
-    // THIS entity — undo-of-delete can restore a joint's connected body after the
-    // joint itself, the same ordering the child re-link above repairs for the
-    // hierarchy. Without this, that component's World copy keeps a dead runtime id.
-    for (const other of this.model.allSourceEntities()) {
-      if (other.id === sourceId || this.model.runtimeFor(other.id) == null) continue;
-      for (const comp of other.components) {
-        const refs = componentEntityFields(componentByName(comp.type));
-        if (refs.some((f) => (comp.data as Record<string, unknown>)[f] === sourceId)) {
-          this.projectComponent(other.id, comp.type);
-        }
-      }
+    // Index this entity's own entity-ref edges (so a sibling spawned later finds
+    // it), then re-project any ALREADY-SPAWNED component whose entity-ref field
+    // points at THIS entity — undo-of-delete can restore a joint's connected body
+    // after the joint itself, the same ordering the child re-link above repairs
+    // for the hierarchy. Without this, that component's World copy keeps a dead
+    // runtime id. The reverse index makes this O(referrers), not a full-model scan.
+    for (const comp of entity.components) this.indexComponent(sourceId, comp);
+    for (const { entity: refEntity, comp } of this.refIndex.referrersOf(sourceId)) {
+      if (refEntity === sourceId || this.model.runtimeFor(refEntity) == null) continue;
+      this.projectComponent(refEntity, comp);
     }
   }
 
@@ -271,6 +276,37 @@ export class ReconcilerImpl {
     const rt = this.model.runtimeFor(sourceId);
     if (world && rt != null && world.valid(rt)) world.despawn(rt);
     this.model.unbindRuntime(sourceId);
+    this.refIndex.removeEntity(sourceId);
+  }
+
+  // ── Reverse entity-ref index ──────────────────────────────────────────────
+
+  /** Rebuild the reverse index from the whole model (bulk load / clear). */
+  private rebuildRefIndex(): void {
+    this.refIndex.clear();
+    for (const e of this.model.allSourceEntities()) {
+      for (const comp of e.components) this.indexComponent(e.id, comp);
+    }
+  }
+
+  /** Refresh the index edges for one component from its current model data. */
+  private reindexComponent(sourceId: number, type: string): void {
+    const comp = this.model.entityBySource(sourceId)?.components.find((c) => c.type === type);
+    if (comp) this.indexComponent(sourceId, comp);
+    else this.refIndex.setReferrer(sourceId, type, []);
+  }
+
+  /** Record (or clear) one component's entity-ref edges in the reverse index. */
+  private indexComponent(sourceId: number, comp: { type: string; data: unknown }): void {
+    const fields = componentEntityFields(componentByName(comp.type));
+    if (fields.length === 0) return;
+    const data = comp.data as Record<string, unknown>;
+    const refs: number[] = [];
+    for (const f of fields) {
+      const v = data[f];
+      if (typeof v === 'number') refs.push(v);
+    }
+    this.refIndex.setReferrer(sourceId, comp.type, refs);
   }
 
   private projectComponent(sourceId: number, type: string): void {

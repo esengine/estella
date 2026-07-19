@@ -16,9 +16,10 @@
  * main.ts. The `.meta` files carry the authored `type`, so this needs no
  * extension→type table — it reads the type each meta already declares.
  */
-import { readFile, writeFile, mkdir, readdir } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, readdir, stat } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { META_EXT, isContentDir, isContentFile } from './contentPolicy';
+import { META_EXT, isContentDir, isContentFile, isNonContentPath } from './contentPolicy';
 import { adoptOrphan } from './assetMeta';
 // The runtime's tileset-path resolver (a dependency-free leaf) — shared so the dep scan
 // discovers a tilemap's tileset images the same way the loader will later request them.
@@ -205,6 +206,92 @@ async function mapLimit<T, R>(
 const SCAN_IO_CONCURRENCY = 48;
 
 /**
+ * Build the dependency edges for `targets` (default: every ref-carrying entry),
+ * resolving refs against the FULL `entries` set. Any JSON asset can reference
+ * others by uuid or by path (project-relative, or relative to the referencing
+ * document); only strings naming a real asset create edges — no false positives.
+ * Returns a partial deps map (`uuid → sorted ref uuids`, edge-bearing only) so the
+ * incremental path can recompute just the touched assets and merge over the rest.
+ */
+async function computeDeps(
+  root: string,
+  entries: readonly AssetEntry[],
+  targets?: readonly AssetEntry[],
+): Promise<{ deps: Record<string, string[]>; warnings: string[] }> {
+  const byPath = new Map(entries.map((e) => [e.path, e]));
+  const uuids = new Set(entries.map((e) => e.uuid));
+  const refEntries = (targets ?? entries).filter(
+    (e) => JSON_REF_TYPES.has(e.type) || getEditorType(e.path) === 'spine-atlas',
+  );
+  type DepResult = { uuid: string; refs: string[] } | { warning: string };
+  const depResults = await mapLimit(refEntries, SCAN_IO_CONCURRENCY, async (entry): Promise<DepResult> => {
+    // A spine `.atlas` is a TEXT manifest (not JSON): its page image names are
+    // texture deps — the same edge the SpineAssetLoader walks at runtime. Scan it
+    // apart from the JSON path so the cook embeds those textures (else the atlas
+    // ships but its .png is culled and the playable 404s it).
+    const isSpineAtlas = getEditorType(entry.path) === 'spine-atlas';
+    try {
+      const refs = new Set<string>();
+      if (isSpineAtlas) {
+        const content = await readFile(path.join(root, entry.path), 'utf8');
+        for (const page of parseSpineAtlasPages(content)) {
+          const dep = byPath.get(normalizeRefPath(resolveRelativePath(entry.path, page)));
+          if (dep) refs.add(dep.uuid);
+        }
+      } else {
+        const json = JSON.parse(await readFile(path.join(root, entry.path), 'utf8'));
+        collectRefs(json, refs, (ref) => {
+          if (ref.includes('://')) return null;
+          const direct = byPath.get(normalizeRefPath(ref));
+          if (direct) return direct.uuid;
+          // Fall back to a path RELATIVE to the referencing document, resolved the way
+          // the runtime loads it (collapsing ./ and ../) — so a Tiled tileset image
+          // "../textures/tileset.png" or a material's sibling "x.esshader" resolves to
+          // the same asset the loader will request. (The old join left "../" uncollapsed,
+          // so tilemap tileset images never linked and the cook culled them → the
+          // single-file playable 404'd them.)
+          const rel = byPath.get(normalizeRefPath(resolveRelativePath(entry.path, ref)));
+          return rel?.uuid ?? null;
+        }, (id) => uuids.has(id));
+      }
+      refs.delete(entry.uuid);
+      return { uuid: entry.uuid, refs: [...refs].sort() };
+    } catch (err) {
+      return { warning: `${entry.path}: ${err instanceof Error ? err.message : String(err)}` };
+    }
+  });
+  const deps: Record<string, string[]> = {};
+  const warnings: string[] = [];
+  for (const r of depResults) {
+    if ('warning' in r) warnings.push(r.warning);
+    else if (r.refs.length > 0) deps[r.uuid] = r.refs;
+  }
+  return { deps, warnings };
+}
+
+/**
+ * Write `.esengine/cache/assets.json` only when its bytes actually change. The
+ * watcher can't tell our cache write from a real edit, so an unconditional write
+ * would make every refresh re-trigger itself (scan → write → fsChanged → scan …).
+ * Returns the artifact path.
+ */
+async function writeIndexIfChanged(root: string, index: AssetIndex): Promise<string> {
+  const outputPath = path.join(root, CACHE_DIR, OUTPUT);
+  const text = JSON.stringify(index, null, 2) + '\n';
+  let previous: string | null = null;
+  try {
+    previous = await readFile(outputPath, 'utf8');
+  } catch {
+    previous = null;
+  }
+  if (previous !== text) {
+    await mkdir(path.dirname(outputPath), { recursive: true });
+    await writeFile(outputPath, text);
+  }
+  return outputPath;
+}
+
+/**
  * Read the cached asset index (assets.json) WITHOUT walking the tree. The boot
  * path uses this to build the registry immediately — the full O(files) scan
  * (~1.5s cold on an 800-file project, dominated by per-file disk reads) then
@@ -284,81 +371,14 @@ export async function scanAssetDatabase(
   t.walk = performance.now() - tWalk;
 
   const tDeps = performance.now();
-  // Dependency graph: any JSON asset can reference others — by uuid or by path
-  // (project-relative like a scene's "assets/materials/x.esmaterial", or
-  // relative to the referencing document's own directory like a material's
-  // "shader": "x.esshader"). Path refs resolve against the index, so only
-  // strings naming a real asset create edges — no false positives.
-  const byPath = new Map(entries.map((e) => [e.path, e]));
-  const uuids = new Set(entries.map((e) => e.uuid));
-  const deps: Record<string, string[]> = {};
-  // Only JSON-ref assets + spine atlases carry edges; read those (the cost) in
-  // parallel and assemble in order so warnings/deps stay deterministic.
-  const refEntries = entries.filter((e) => JSON_REF_TYPES.has(e.type) || getEditorType(e.path) === 'spine-atlas');
-  type DepResult = { uuid: string; refs: string[] } | { warning: string };
-  const depResults = await mapLimit(refEntries, SCAN_IO_CONCURRENCY, async (entry): Promise<DepResult> => {
-    // A spine `.atlas` is a TEXT manifest (not JSON): its page image names are
-    // texture deps — the same edge the SpineAssetLoader walks at runtime. Scan it
-    // apart from the JSON path so the cook embeds those textures (else the atlas
-    // ships but its .png is culled and the playable 404s it).
-    const isSpineAtlas = getEditorType(entry.path) === 'spine-atlas';
-    try {
-      const refs = new Set<string>();
-      if (isSpineAtlas) {
-        const content = await readFile(path.join(root, entry.path), 'utf8');
-        for (const page of parseSpineAtlasPages(content)) {
-          const dep = byPath.get(normalizeRefPath(resolveRelativePath(entry.path, page)));
-          if (dep) refs.add(dep.uuid);
-        }
-      } else {
-        const json = JSON.parse(await readFile(path.join(root, entry.path), 'utf8'));
-        collectRefs(json, refs, (ref) => {
-          if (ref.includes('://')) return null;
-          const direct = byPath.get(normalizeRefPath(ref));
-          if (direct) return direct.uuid;
-          // Fall back to a path RELATIVE to the referencing document, resolved the way
-          // the runtime loads it (collapsing ./ and ../) — so a Tiled tileset image
-          // "../textures/tileset.png" or a material's sibling "x.esshader" resolves to
-          // the same asset the loader will request. (The old join left "../" uncollapsed,
-          // so tilemap tileset images never linked and the cook culled them → the
-          // single-file playable 404'd them.)
-          const rel = byPath.get(normalizeRefPath(resolveRelativePath(entry.path, ref)));
-          return rel?.uuid ?? null;
-        }, (id) => uuids.has(id));
-      }
-      refs.delete(entry.uuid);
-      return { uuid: entry.uuid, refs: [...refs].sort() };
-    } catch (err) {
-      return { warning: `${entry.path}: ${err instanceof Error ? err.message : String(err)}` };
-    }
-  });
-  for (const r of depResults) {
-    if ('warning' in r) warnings.push(r.warning);
-    else if (r.refs.length > 0) deps[r.uuid] = r.refs;
-  }
+  const { deps, warnings: depWarnings } = await computeDeps(root, entries);
+  warnings.push(...depWarnings);
 
   t.deps = performance.now() - tDeps;
   const index: AssetIndex = { version: '1.0', entries, deps };
 
   const tWrite = performance.now();
-  let outputPath: string | null = null;
-  if (opts?.write !== false) {
-    outputPath = path.join(root, CACHE_DIR, OUTPUT);
-    const text = JSON.stringify(index, null, 2) + '\n';
-    // Write-if-changed: the watcher can't tell our cache write from a real
-    // change, so an unconditional write would make every refresh re-trigger
-    // itself (scan → write → fsChanged → scan …). Unchanged index ⇒ no write.
-    let previous: string | null = null;
-    try {
-      previous = await readFile(outputPath, 'utf8');
-    } catch {
-      previous = null;
-    }
-    if (previous !== text) {
-      await mkdir(path.dirname(outputPath), { recursive: true });
-      await writeFile(outputPath, text);
-    }
-  }
+  const outputPath = opts?.write !== false ? await writeIndexIfChanged(root, index) : null;
 
   t.write = performance.now() - tWrite;
   const round1 = (n: number): number => Math.round(n * 10) / 10;
@@ -372,4 +392,127 @@ export async function scanAssetDatabase(
   );
 
   return { ok: true, outputPath, index, warnings, adopted, timingMs };
+}
+
+/** Above this many changed paths a full rescan is cheaper/safer than per-path
+ *  work — a bulk edit (git checkout, a dropped asset folder) rather than a save. */
+export const INCREMENTAL_PATH_LIMIT = 100;
+
+/** A {@link ScanAssetsResult} plus whether the incremental path fell back to a
+ *  full rescan (and why) — so the caller can log it and pick its cache strategy. */
+export type IncrementalScanResult = ScanAssetsResult & { fullRescan: boolean; reason?: string };
+
+/**
+ * Incrementally update a previous {@link AssetIndex} for exactly the `changed`
+ * paths the watcher delivered, instead of re-walking the whole tree (the full
+ * scan is ~1.5s cold, dominated by reading EVERY `.meta`). The result is what a
+ * full {@link scanAssetDatabase} of the same on-disk state would produce —
+ * identical `entries` AND `deps` — so Find Usages, delete warnings and the cook
+ * see the same graph.
+ *
+ * Falls back to a full rescan (returning `fullRescan: true` + a `reason`, never
+ * silently) for what a per-path update can't cover: an empty change set (watcher
+ * overflow, filename unknown), a bulk change above {@link INCREMENTAL_PATH_LIMIT},
+ * or a directory create/rename/move (the file moves under it aren't in `changed`).
+ */
+export async function updateAssetIndex(
+  root: string,
+  prev: AssetIndex,
+  changed: readonly string[],
+  opts?: { write?: boolean },
+): Promise<IncrementalScanResult> {
+  const full = async (reason: string): Promise<IncrementalScanResult> => ({
+    ...(await scanAssetDatabase(root, opts)),
+    fullRescan: true,
+    reason,
+  });
+
+  if (changed.length === 0) return full('watcher overflow (no paths)');
+  if (changed.length > INCREMENTAL_PATH_LIMIT) return full(`bulk change (${changed.length} paths)`);
+
+  // The content paths touched (strip `.meta` pairing; dedup — a texture edit fires
+  // both foo.png and foo.png.meta). Skip plumbing paths + the editor-managed cover.
+  const contentPaths = new Set<string>();
+  for (const raw of changed) {
+    const rel = raw.replace(/\\/g, '/');
+    if (isNonContentPath(rel)) continue;
+    const abs = path.join(root, rel);
+    let st: Awaited<ReturnType<typeof stat>> | null;
+    try { st = await stat(abs); } catch { st = null; }
+    if (st?.isDirectory()) return full(`directory changed (${rel})`);
+    const content = rel.endsWith(META_EXT) ? rel.slice(0, -META_EXT.length) : rel;
+    if (content === '' || content === 'thumbnail.png') continue;
+    // A vanished path that WAS a directory holding assets → its removed children
+    // aren't in `changed`, so only a full walk stays consistent.
+    if (!st && prev.entries.some((e) => e.path.startsWith(`${content}/`))) {
+      return full(`directory removed (${content})`);
+    }
+    contentPaths.add(content);
+  }
+  if (contentPaths.size === 0) {
+    return { ok: true, outputPath: null, index: prev, warnings: [], adopted: [], fullRescan: false };
+  }
+
+  const byPath = new Map(prev.entries.map((e) => [e.path, e] as const));
+  const adopted: string[] = [];
+  let setChanged = false; // an add/remove/uuid/type change — path resolution is global
+
+  for (const content of contentPaths) {
+    const abs = path.join(root, content);
+    const before = byPath.get(content);
+    // Reprocess the content path's CURRENT disk state — this one branch covers a
+    // content edit, a `.meta` edit, orphan adoption, and deletion (the same states
+    // a full scan resolves per file).
+    if (!existsSync(abs)) {
+      if (before) { byPath.delete(content); setChanged = true; }
+      continue;
+    }
+    if (!existsSync(abs + META_EXT)) {
+      // Orphan content with no sidecar: a full scan would mint one this pass
+      // (unknown extensions are left alone). Mirror that so it enters the index now.
+      if ((await adoptOrphan(abs)) === 'adopted') adopted.push(content);
+      else { if (before) { byPath.delete(content); setChanged = true; } continue; }
+    }
+    let meta: { uuid?: unknown; type?: unknown; importer?: unknown };
+    try {
+      meta = JSON.parse(await readFile(abs + META_EXT, 'utf8'));
+    } catch {
+      continue; // unreadable/partial .meta — a later event will settle it
+    }
+    if (typeof meta.uuid !== 'string' || typeof meta.type !== 'string') continue;
+    const entry: AssetEntry = {
+      uuid: meta.uuid.toLowerCase(),
+      path: content,
+      type: meta.type,
+      importer: (meta.importer as Record<string, unknown>) ?? {},
+    };
+    if (!before || before.uuid !== entry.uuid || before.type !== entry.type) setChanged = true;
+    byPath.set(content, entry);
+  }
+
+  const entries = [...byPath.values()].sort((a, b) => a.path.localeCompare(b.path));
+
+  // Deps: when the entry SET changed, path + bare-uuid resolution is global, so
+  // recompute the whole graph from the new entries (still bounded to ref-carrying
+  // assets — far fewer than every `.meta`). When only existing assets' CONTENT
+  // changed, other assets' edges can't have moved: patch just the touched
+  // ref-assets over the previous graph.
+  let deps: Record<string, string[]>;
+  const warnings: string[] = [];
+  if (setChanged) {
+    const r = await computeDeps(root, entries);
+    deps = r.deps;
+    warnings.push(...r.warnings);
+  } else {
+    deps = { ...prev.deps };
+    const touched = entries.filter((e) => contentPaths.has(e.path));
+    for (const e of touched) delete deps[e.uuid]; // clear stale before recompute
+    const r = await computeDeps(root, entries, touched);
+    Object.assign(deps, r.deps);
+    warnings.push(...r.warnings);
+  }
+
+  const index: AssetIndex = { version: '1.0', entries, deps };
+  const outputPath = opts?.write !== false ? await writeIndexIfChanged(root, index) : null;
+  return { ok: true, outputPath, index, warnings, adopted, fullRescan: false };
 }

@@ -26,7 +26,7 @@ import { syncAutosave, listAutosave, restoreAutosave, clearAutosave, type Autosa
 import { listRecents, addRecent, removeRecent, listTemplates, createFromTemplate } from './launcher';
 import { buildProjectScripts } from './buildScripts';
 import { extractProjectSchemas } from './extractSchemas';
-import { scanAssetDatabase, readCachedAssetIndex } from './assetDb';
+import { scanAssetDatabase, readCachedAssetIndex, updateAssetIndex } from './assetDb';
 import { cookAssets } from './cookAssets';
 import { startProjectWatch, stopProjectWatch } from './projectWatcher';
 import { importAssets, createAsset, IMPORT_EXTENSIONS } from './importAssets';
@@ -649,6 +649,16 @@ ipcMain.handle('project:scanAssets', async () => scanAssetDatabase(requireRoot()
 // Fast boot path: the cached index without a tree walk (renderer revalidates via
 // scanAssets off the critical path). See ProjectStore.buildAssetRegistry.
 ipcMain.handle('project:cachedAssetIndex', async () => readCachedAssetIndex(requireRoot()));
+// Live sync: incrementally fold the watcher's precise changed paths into the
+// cached index instead of a full O(files) rescan on every disk touch. Falls back
+// to a full scan (fullRescan: true) when there's no cache yet or the change can't
+// be handled per-path (directory move / bulk). See ProjectStore.applyDiskChanges.
+ipcMain.handle('project:scanAssetsIncremental', async (_e, paths: string[]) => {
+  const root = requireRoot();
+  const prev = await readCachedAssetIndex(root);
+  if (!prev) return { ...(await scanAssetDatabase(root)), fullRescan: true, reason: 'no cached index' };
+  return updateAssetIndex(root, prev, paths);
+});
 
 // Cook the project's assets for shipping: from the entry scene, walk the
 // dependency graph to the reachable assets, stage them into `outDir`, and emit
