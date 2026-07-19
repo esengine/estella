@@ -21,6 +21,7 @@ function makeController() {
         setAtlasPageTexture: vi.fn(),
         createInstance: vi.fn(() => nextInst++),
         destroyInstance: vi.fn(),
+        removeAllListeners: vi.fn(),
         unloadSkeleton: vi.fn(),
     } as unknown as SpineModuleController & Record<string, ReturnType<typeof vi.fn>>;
 }

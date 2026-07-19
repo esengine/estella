@@ -259,6 +259,7 @@ export class ModuleBackend {
         const info = this.entities_.get(entity);
         if (!info) return;
         this.controller_.destroyInstance(info.instanceId);
+        this.controller_.removeAllListeners(entity); // keyed by entity, not instanceId
         this.releaseSkeleton_(info);
         this.entities_.delete(entity);
         this.disabledEntities_.delete(entity);

@@ -135,7 +135,10 @@ export class SpineModuleController {
 
     destroyInstance(instanceId: number): void {
         this.api_.destroyInstance(instanceId);
-        this.listeners_.delete(instanceId as Entity);
+        // Listeners are keyed by ENTITY, not instanceId — the entity-removal path
+        // clears them via removeAllListeners(entity). Deleting by instanceId here
+        // was a no-op at best and could evict a different entity's listeners when
+        // an instanceId happened to equal an entity id.
     }
 
     // =========================================================================
