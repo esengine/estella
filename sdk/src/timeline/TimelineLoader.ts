@@ -67,7 +67,14 @@ function parseTrack(raw: any): Track {
                 component: raw.component ?? '',
                 channels: (raw.channels ?? []).map((ch: any) => ({
                     property: ch.property,
-                    keyframes: ch.keyframes ?? [],
+                    // Default missing tangents to 0: a hand-authored keyframe without
+                    // them hits the Hermite evaluator path where `undefined * dt` is
+                    // NaN, poisoning the animated field.
+                    keyframes: (ch.keyframes ?? []).map((kf: any) => ({
+                        ...kf,
+                        inTangent: kf.inTangent ?? 0,
+                        outTangent: kf.outTangent ?? 0,
+                    })),
                 })),
             } as PropertyTrack;
 
