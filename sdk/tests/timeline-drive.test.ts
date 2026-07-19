@@ -14,6 +14,7 @@ import { TimelineEventType } from '../src/timeline/TimelineRuntime';
 import { TimelineAPI } from '../src/timeline/TimelineControl';
 import { WrapMode, TrackType, InterpType, type TimelineAsset } from '../src/timeline/TimelineTypes';
 import type { SampleDeps } from '../src/timeline/TimelineEvaluator';
+import type { AudioAPI } from '../src/audio/Audio';
 
 const ROOT = 1 as const;
 const resolveRoot = (root: number, childPath: string) => (childPath ? null : root);
@@ -61,6 +62,37 @@ describe('detectTimelineEvents (1:1 with C++ evaluateEventTracks)', () => {
         ]);
         s.prevTime = 0.6; s.time = 0.9; // 0.5 already passed
         expect(detectTimelineEvents(asset, s, resolveRoot, ROOT)).toEqual([]);
+    });
+
+    it('audio: a loop-seam event fires via the split wrap segments, not the empty single span', () => {
+        const asset: TimelineAsset = {
+            version: '1.1', type: 'timeline', duration: 5, wrapMode: WrapMode.Loop,
+            tracks: [{ type: TrackType.Audio, name: 'SFX', childPath: '', events: [{ time: 0.05, clip: 'step', volume: 1 }] }],
+        };
+        const s = createTimelineState(WrapMode.Loop);
+        s.prevTime = 4.9; s.time = 0.1; // a frame that wrapped 4.9 → 5.1 → 0.1
+        // (prevTime, time] = (4.9, 0.1] is empty — the pre-fix single span misses the seam event.
+        expect(detectTimelineEvents(asset, s, resolveRoot, ROOT)).toEqual([]);
+        // The two seam segments advanceTimelineTS passes on a wrap DO cross t=0.05:
+        expect(detectTimelineEvents(asset, s, resolveRoot, ROOT, [[4.9, 5], [0, 0.1]])).toEqual([
+            { kind: TimelineEventType.AudioPlay, entity: ROOT, intParam: 0, floatParam: 1, str: 'step' },
+        ]);
+    });
+
+    it('advanceTimelineTS: a looping clip keeps firing a near-start event every loop', () => {
+        const asset: TimelineAsset = {
+            version: '1.1', type: 'timeline', duration: 1, wrapMode: WrapMode.Loop,
+            tracks: [{ type: TrackType.Audio, name: 'SFX', childPath: '', events: [{ time: 0.05, clip: 'step', volume: 1 }] }],
+        };
+        const s = createTimelineState(WrapMode.Loop);
+        s.playing = true;
+        const deps: SampleDeps = { world: {} as SampleDeps['world'], getComponent: () => undefined, resolveChild: resolveRoot };
+        const plays: string[] = [];
+        const audio = { playSFX: (clip: string) => { plays.push(clip); } } as unknown as AudioAPI;
+        // 0.9s/frame: f1 0→0.9 crosses 0.05; f2 0.9→1.8→wrap→0.8 crosses 0.05 on the SEAM.
+        advanceTimelineTS(asset, ROOT, s, 0.9, { deps, audio });
+        advanceTimelineTS(asset, ROOT, s, 0.9, { deps, audio });
+        expect(plays).toEqual(['step', 'step']); // fired on BOTH loops (2nd is the wrap seam)
     });
 
     it('spriteAnim: fires once when startTime is crossed', () => {

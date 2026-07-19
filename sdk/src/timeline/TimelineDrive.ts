@@ -49,9 +49,14 @@ export interface FiredEvent {
 export function detectTimelineEvents(
     asset: TimelineAsset, state: TimelineState,
     resolveChild: (root: Entity, childPath: string) => Entity | null, root: Entity,
+    // Monotone edge-detection interval(s). Defaults to the single (prevTime, time]
+    // span; on a loop wrap the caller passes the two seam segments so a trigger
+    // near the loop boundary still fires (one interval is empty when time < prevTime).
+    // Level tracks (Spine, Activation) read `state.time` directly and ignore this.
+    segments: ReadonlyArray<readonly [number, number]> = [[state.prevTime, state.time]],
 ): FiredEvent[] {
     const out: FiredEvent[] = [];
-    const { time, prevTime } = state;
+    const { time } = state;
 
     for (let i = 0; i < asset.tracks.length; i++) {
         const track = asset.tracks[i];
@@ -80,15 +85,20 @@ export function detectTimelineEvents(
                 break;
             }
             case TrackType.SpriteAnim: {
-                if (prevTime <= track.startTime && time >= track.startTime && time > prevTime) {
-                    out.push({ kind: TimelineEventType.SpriteAnimPlay, entity: target, intParam: 0, floatParam: 0, str: track.clip });
+                for (const [from, to] of segments) {
+                    if (to > from && from <= track.startTime && track.startTime <= to) {
+                        out.push({ kind: TimelineEventType.SpriteAnimPlay, entity: target, intParam: 0, floatParam: 0, str: track.clip });
+                        break; // fire at most once across the seam segments
+                    }
                 }
                 break;
             }
             case TrackType.Audio: {
-                for (const e of track.events) {
-                    if (e.time > prevTime && e.time <= time) {
-                        out.push({ kind: TimelineEventType.AudioPlay, entity: target, intParam: 0, floatParam: e.volume, str: e.clip });
+                for (const [from, to] of segments) {
+                    for (const e of track.events) {
+                        if (e.time > from && e.time <= to) {
+                            out.push({ kind: TimelineEventType.AudioPlay, entity: target, intParam: 0, floatParam: e.volume, str: e.clip });
+                        }
                     }
                 }
                 break;
@@ -185,7 +195,15 @@ export function advanceTimelineTS(
     sampleTimeline(asset, state.time, root, ctx.deps, ctx.sampleOpts);
     ctx.onPropertyApplied?.(root, asset);
 
-    for (const e of detectTimelineEvents(asset, state, ctx.deps.resolveChild, root)) {
+    // On a loop wrap the playhead ran prevTime → duration → 0 → time; split edge
+    // detection across both seam segments so triggers near the loop boundary keep
+    // firing each loop (the plain (prevTime, time] span is empty when time < prevTime).
+    const segments: ReadonlyArray<readonly [number, number]> =
+        state.wrapMode === WrapMode.Loop && advanced >= asset.duration && asset.duration > 0
+            ? [[state.prevTime, asset.duration], [0, state.time]]
+            : [[state.prevTime, state.time]];
+
+    for (const e of detectTimelineEvents(asset, state, ctx.deps.resolveChild, root, segments)) {
         applyTimelineEvent(ctx.deps.world, ctx.audio ?? null, e.kind, e.entity, e.intParam, e.floatParam, e.str);
     }
 
