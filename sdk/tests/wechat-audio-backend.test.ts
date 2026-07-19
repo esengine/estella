@@ -62,6 +62,17 @@ describe('WeChatAudioBackend', () => {
         });
     });
 
+    describe('stop', () => {
+        it('is idempotent — never destroys the InnerAudioContext twice', async () => {
+            const handle = await backend.loadBuffer('audio/sfx.mp3');
+            const audioHandle = backend.play(handle, {});
+            const ctx = (globalThis as any).wx.createInnerAudioContext.mock.results.at(-1).value;
+            audioHandle.stop();
+            audioHandle.stop(); // double stop (or a stop after the sound ended on its own)
+            expect(ctx.destroy).toHaveBeenCalledTimes(1);
+        });
+    });
+
     describe('play', () => {
         it('should create InnerAudioContext and configure it', async () => {
             const handle = await backend.loadBuffer('audio/sfx.mp3');

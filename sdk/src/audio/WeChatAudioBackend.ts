@@ -12,6 +12,7 @@ class WeChatAudioHandle implements AudioHandle {
 
     private ctx_: WechatMinigame.InnerAudioContext;
     private contexts_: Map<number, WechatMinigame.InnerAudioContext>;
+    private done_ = false;
 
     constructor(id: number, ctx: WechatMinigame.InnerAudioContext, contexts: Map<number, WechatMinigame.InnerAudioContext>) {
         this.id = id;
@@ -19,10 +20,23 @@ class WeChatAudioHandle implements AudioHandle {
         this.contexts_ = contexts;
     }
 
-    stop(): void {
-        this.ctx_.stop();
+    // Guarded so stop() after a natural end (or a double stop()) can't destroy the
+    // InnerAudioContext twice — the second destroy() throws on-device.
+    private dispose_(alsoStop: boolean): void {
+        if (this.done_) return;
+        this.done_ = true;
+        if (alsoStop) this.ctx_.stop();
         this.ctx_.destroy();
         this.contexts_.delete(this.id);
+    }
+
+    stop(): void {
+        this.dispose_(true);
+    }
+
+    /** @internal The context ended on its own — dispose without a redundant stop(). */
+    onNaturalEnd(): void {
+        this.dispose_(false);
     }
 
     pause(): void {
@@ -125,10 +139,7 @@ export class WeChatAudioBackend implements PlatformAudioBackend {
         const handle = new WeChatAudioHandle(handleId, ctx, this.contexts_);
         ctx.onEnded(() => {
             handle.onEnd?.();
-            if (!ctx.loop) {
-                ctx.destroy();
-                this.contexts_.delete(handleId);
-            }
+            if (!ctx.loop) handle.onNaturalEnd(); // guarded dispose (a later stop() is a no-op)
         });
         ctx.onError((res) => {
             log.error('audio', `Playback error for "${url}"`, res.errMsg);
