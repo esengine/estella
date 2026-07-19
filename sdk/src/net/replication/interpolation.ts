@@ -13,6 +13,12 @@
  */
 import type { FieldShape } from './codec';
 
+// Render-clock soft-sync decay, per server tick. Chosen so that at ~1 tick/frame
+// (a 60 fps client on a 60 Hz sim) one frame bends ~10% toward the target; the
+// exponential form keeps that jitter tolerance frame-rate-independent (a 120 fps
+// client applies half as much twice, not twice as much).
+const RENDER_SYNC_RATE = -Math.log(0.9); // ≈ 0.10536
+
 interface Sample {
     tick: number;
     value: unknown;
@@ -160,8 +166,11 @@ export class InterpolationState {
             this.renderTime_ = target;
         } else {
             this.renderTime_ += deltaTicks;
-            // Soft-sync toward the target so late/early bursts bend the clock.
-            this.renderTime_ += (target - this.renderTime_) * 0.1;
+            // Soft-sync toward the target so late/early bursts bend the clock —
+            // exponential in deltaTicks so the pull-per-frame doesn't scale with the
+            // client's frame rate (a fixed 0.1 per advance() made 120 fps sync 2× harder).
+            const k = 1 - Math.exp(-Math.max(deltaTicks, 0) * RENDER_SYNC_RATE);
+            this.renderTime_ += (target - this.renderTime_) * k;
             // Never extrapolate past the newest data; never fall further than
             // one extra delay behind.
             const max = this.newestTick;
