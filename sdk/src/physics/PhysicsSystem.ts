@@ -872,6 +872,15 @@ export function registerPhysicsSystem(
 
                 collectEvents(module, ppu, events);
                 capturePhysicsPoses(module, snaps);
+
+                // Membership decides batch-vs-parented writeback; a runtime
+                // reparent of a live body would otherwise stay on the batch path
+                // and get its world pose written as a local one. Refreshed per
+                // fixed step, so a reparent takes effect on the next physics tick.
+                for (const entity of trackedEntities) {
+                    if (world.has(entity, Parent)) parentedBodies.add(entity);
+                    else parentedBodies.delete(entity);
+                }
             },
             { name: 'PhysicsStepSystem' }
         ),
