@@ -951,7 +951,7 @@ export class Assets {
             return;
         }
         const loader = this.loaders_.get(type);
-        loader?.unload(entry);
+        loader?.unload(entry, this.getLoadContext_());
         cache.delete(path);
         this.genericRefCounts_.delete(key);
     }
@@ -1219,6 +1219,9 @@ export class Assets {
                     return self.loadTextureRaw(path);
                 }
                 return self.loadTexture(path);
+            },
+            releaseTexture(path: string): void {
+                self.releaseTexture(path);
             },
             async loadText(path: string): Promise<string> {
                 return self.backend.fetchText(self.backend.resolveUrl(path));

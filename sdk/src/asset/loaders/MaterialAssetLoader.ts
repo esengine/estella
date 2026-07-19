@@ -28,8 +28,13 @@ export class MaterialAssetLoader implements AssetLoader<MaterialResult> {
             const parentPath = resolveRelativePath(path, data.instanceOf);
             const parent = await this.load(parentPath, ctx);
             const handle = Material.createFromAsset(data, 0, parent.handle);
-            await this.applyTextureProps(handle, data, path, ctx);
-            return { handle, shaderHandle: parent.shaderHandle };
+            const texturePaths = await this.applyTextureProps(handle, data, path, ctx);
+            return {
+                handle,
+                shaderHandle: parent.shaderHandle,
+                texturePaths: [...(parent.texturePaths ?? []), ...texturePaths],
+                parentHandle: parent.handle,
+            };
         }
 
         // Enabled static switches select the shader permutation (compiled once per switch-set).
@@ -37,33 +42,41 @@ export class MaterialAssetLoader implements AssetLoader<MaterialResult> {
         const shaderPath = resolveRelativePath(path, data.shader);
         const shaderHandle = await this.loadShader(shaderPath, features, ctx);
         const handle = Material.createFromAsset(data, shaderHandle);
-        await this.applyTextureProps(handle, data, path, ctx);
+        const texturePaths = await this.applyTextureProps(handle, data, path, ctx);
 
-        return { handle, shaderHandle };
+        return { handle, shaderHandle, texturePaths };
     }
 
     // A texture param is a string property (an asset ref); scalar/vector params are
-    // numbers/objects (handled by createFromAsset). Load each texture and bind it to its param.
+    // numbers/objects (handled by createFromAsset). Load each texture, bind it to its
+    // param, and return the refs so unload can release them (they hold a texture ref).
     private async applyTextureProps(
         handle: number,
         data: MaterialAssetData,
         matPath: string,
         ctx: LoadContext,
-    ): Promise<void> {
+    ): Promise<string[]> {
+        const bound: string[] = [];
         for (const [name, value] of Object.entries(data.properties)) {
             if (typeof value !== 'string') continue;
             const texPath = resolveRelativePath(matPath, value);
             try {
                 const tex = await ctx.loadTexture(texPath);
                 Material.setUniform(handle, name, Material.tex(tex.handle));
+                bound.push(texPath); // recorded only on success — matches the refcount taken
             } catch (e) {
                 // Missing texture: leave the param unbound (it samples whatever is at the unit).
                 log.warn('asset', `Material ${matPath}: failed to load texture '${texPath}' for param '${name}'`, e);
             }
         }
+        return bound;
     }
 
-    unload(asset: MaterialResult): void {
+    unload(asset: MaterialResult, ctx: LoadContext): void {
+        if (asset.texturePaths) {
+            for (const texPath of asset.texturePaths) ctx.releaseTexture(texPath);
+        }
+        if (asset.parentHandle !== undefined) Material.release(asset.parentHandle);
         Material.release(asset.handle);
     }
 

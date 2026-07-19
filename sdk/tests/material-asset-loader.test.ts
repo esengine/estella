@@ -62,3 +62,40 @@ describe('MaterialAssetLoader texture failure', () => {
         warnSpy.mockRestore();
     });
 });
+
+describe('MaterialAssetLoader texture release on unload', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        (Material.createFromAsset as ReturnType<typeof vi.fn>).mockReturnValue(11);
+        (Material.compileShader as ReturnType<typeof vi.fn>).mockReturnValue(7);
+    });
+
+    function makeCtxWithTexture() {
+        const materialJson = JSON.stringify({
+            type: 'material', shader: 'fx.esshader', properties: { mainTex: TEX_REF },
+        });
+        const releaseTexture = vi.fn();
+        const ctx = {
+            catalog: { getBuildPath: (p: string) => p },
+            loadText: vi.fn(async (p: string) => (p.endsWith('.esmaterial') ? materialJson : '// shader src')),
+            loadTexture: vi.fn(async () => ({ handle: 42 })),
+            releaseTexture,
+        } as unknown as LoadContext;
+        return { ctx, releaseTexture };
+    }
+
+    it('records bound texture refs and releases them on unload (no VRAM leak)', async () => {
+        const loader = new MaterialAssetLoader();
+        const { ctx, releaseTexture } = makeCtxWithTexture();
+
+        const result = await loader.load(MAT_PATH, ctx);
+        // The bound texture is recorded so unload can balance its loadTexture ref;
+        // the scene's texture set never sees a material-internal texture.
+        expect(result.texturePaths).toEqual(['assets/materials/missing.png']);
+        expect(Material.setUniform).toHaveBeenCalled();
+
+        loader.unload(result, ctx);
+        expect(releaseTexture).toHaveBeenCalledWith('assets/materials/missing.png');
+        expect(Material.release).toHaveBeenCalledWith(11);
+    });
+});

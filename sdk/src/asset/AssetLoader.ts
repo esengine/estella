@@ -23,6 +23,11 @@ export interface SpineLoadResult {
 export interface MaterialResult {
     handle: number;
     shaderHandle: number;
+    /** Texture refs this material bound; released on unload to balance the
+     *  loadTexture that bound them (they aren't in the scene's texture set). */
+    texturePaths?: string[];
+    /** Parent material handle for an `instanceOf` material, released on unload. */
+    parentHandle?: number;
 }
 
 export interface FontResult {
@@ -74,6 +79,9 @@ export interface LoadContext {
     catalog: Catalog;
     resourceManager: CppResourceManager;
     loadTexture(path: string, flipY?: boolean): Promise<TextureResult>;
+    /** Release a texture obtained via {@link loadTexture} (balances the refcount).
+     *  Handles both flip variants, so the same ref that was loaded releases it. */
+    releaseTexture(path: string): void;
     loadText(path: string): Promise<string>;
     loadBinary(path: string): Promise<ArrayBuffer>;
     /**
@@ -115,7 +123,9 @@ export interface AssetLoader<T> {
     readonly type: string;
     readonly extensions: string[];
     load(path: string, ctx: LoadContext): Promise<T>;
-    unload(asset: T): void;
+    /** Free the loaded asset. `ctx` gives loaders that pulled sub-assets during
+     *  load (e.g. a material's bound textures) a channel to release them. */
+    unload(asset: T, ctx: LoadContext): void;
     /**
      * Sever any residency identity the loader's subsystem keeps for `path`
      * (hot reload: the source bytes changed, so a warm-cache entry must never
