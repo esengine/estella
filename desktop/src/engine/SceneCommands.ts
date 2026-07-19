@@ -92,12 +92,26 @@ export function toModelValue(
     case 'string':
       return String(value);
     case 'vec2': {
+      // Only finite axes are written; a NaN slot means "keep this entity's own
+      // value" so a single-axis edit fanned across a multi-selection never
+      // clobbers the untouched axes of the non-primary entities.
       const [x, y] = value as [number, number];
-      return { ...(cur[key] as object), x, y };
+      const base = cur[key] as { x: number; y: number };
+      return {
+        ...base,
+        ...(Number.isFinite(x) ? { x } : {}),
+        ...(Number.isFinite(y) ? { y } : {}),
+      };
     }
     case 'vec3': {
       const [x, y, z] = value as [number, number, number];
-      return { ...(cur[key] as object), x, y, z };
+      const base = cur[key] as { x: number; y: number; z: number };
+      return {
+        ...base,
+        ...(Number.isFinite(x) ? { x } : {}),
+        ...(Number.isFinite(y) ? { y } : {}),
+        ...(Number.isFinite(z) ? { z } : {}),
+      };
     }
     case 'vec2list':
       // A whole Vec2[] replacement (polygon vertices / chain points) — normalized to
@@ -642,32 +656,32 @@ export class SceneCommandsImpl {
     });
   }
 
-  /** Duplicate an entity (offset slightly, as a sibling). Returns the new source id. */
+  /** Duplicate an entity WITH its subtree (offset slightly, as a sibling). Returns the new root source id. */
   duplicateEntity(sourceId: EntityId): EntityId | null {
     const src = this.model.entityBySource(sourceId);
     if (!src) return null;
-    // Clone the SOURCE record (preserves unknown components/fields + @uuid: refs
-    // the World projection can't carry), with the standard paste offset.
-    const components = structuredClone(src.components) as SceneComponent[];
-    const pos = (components.find((c) => c.type === 'Transform')?.data as
-      | { position?: { x: number; y: number } }
-      | undefined)?.position;
-    if (pos) {
-      pos.x += 24;
-      pos.y -= 24;
+    // Duplicate the whole subtree, re-keyed to fresh ids — the same deep path as
+    // copy+paste (remap preserves unknown components/fields + @uuid: refs and
+    // rewrites intra-subtree entity refs). A shallow clone silently drops children.
+    const payload: SceneEntity[] = [];
+    for (const sid of this.model.collectSubtree(sourceId)) {
+      const e = this.model.entityBySource(sid);
+      if (e) payload.push(e);
     }
-    const newSourceId = this.model.addEntity(src.name, components, src.parent ?? null);
-    let record: SceneEntity | undefined;
+    const { entities, rootIds } = remapClipboardEntities(
+      payload,
+      () => this.model.allocateSourceId(),
+      src.parent ?? null,
+      { x: 24, y: -24 },
+    );
+    const apply = (): void => this.model.insertSubtree(entities);
+    apply();
     this.history.record(
       `Duplicate ${src.name || 'Entity'}`,
-      () => {
-        if (record) this.model.restoreEntity(record);
-      },
-      () => {
-        record = this.model.removeEntityBySource(newSourceId);
-      },
+      apply,
+      () => { for (const e of entities) this.model.removeEntityBySource((e as { id: EntityId }).id); },
     );
-    return newSourceId;
+    return rootIds[0] ?? null;
   }
 
   /**
@@ -999,6 +1013,16 @@ export class SceneCommandsImpl {
       this.model.setEntityOrder(beforeOrder);
       this.model.setFolder(sourceId, beforeFolder);
       this.model.setParent(sourceId, beforeParent);
+    });
+  }
+
+  /** Drag-reorder a whole selection as ONE undo step (per-id rules of {@link reorderEntity}). */
+  reorderEntities(ids: readonly EntityId[], targetId: EntityId, before: boolean): void {
+    const movable = ids.filter((id) => id !== targetId);
+    if (movable.length === 0) return;
+    if (movable.length === 1) return this.reorderEntity(movable[0], targetId, before);
+    this.history.group(`Reorder ${movable.length} Entities`, () => {
+      for (const id of movable) this.reorderEntity(id, targetId, before);
     });
   }
 

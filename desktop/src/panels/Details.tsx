@@ -188,7 +188,10 @@ export function VecControl({
           onBegin={onBegin}
           onEnd={onEnd}
           onCommit={(v) => {
-            const next = value.slice();
+            // Write ONLY the edited axis — NaN on the others tells the model write
+            // to keep each (possibly multi-selected) entity's own value there,
+            // instead of stamping the primary's whole vector onto the selection.
+            const next = value.map(() => NaN);
             next[i] = v;
             onChange(next);
           }}

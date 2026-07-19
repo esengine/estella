@@ -109,4 +109,42 @@ describe('multi-selection batching', () => {
     expect(model.entityBySource(1)).toBeDefined();
     expect(model.entityBySource(2)).toBeDefined();
   });
+
+  it('duplicateEntity deep-copies the subtree — children come along (not just the root)', () => {
+    const dup = cmds.duplicateEntity(3); // 3 has child 4
+    expect(dup).not.toBeNull();
+    const root = model.entityBySource(dup!);
+    expect(root?.children.length).toBe(1); // the cloned child, NOT dropped
+    const childSrc = root!.children[0];
+    expect(childSrc).not.toBe(4);              // a fresh source id
+    expect(model.entityBySource(childSrc)?.parent).toBe(dup);
+    // Undo/redo carry the whole subtree.
+    expect(undoDepth(history)).toBe(1);
+    history.undo();
+    expect(model.entityBySource(dup!)).toBeUndefined();
+    expect(model.entityBySource(childSrc)).toBeUndefined();
+    history.redo();
+    expect(model.entityBySource(dup!)?.children.length).toBe(1);
+  });
+
+  it('reorderEntities batches a multi-drag into one undo step', () => {
+    cmds.reorderEntities([1, 2], 3, false); // both move after 3 → real order change
+    expect(undoDepth(history)).toBe(1);
+    expect(history.undoLabel()).toBe('Reorder 2 Entities');
+  });
+
+  it('a single-axis edit fanned across a multi-selection keeps each entity\'s own other axes', () => {
+    // Give 1 and 2 distinct Y (their own values on the axis we will NOT touch).
+    cmds.setField(1, 'Transform', 'position', 'vec3', [0, 10, 0]);
+    cmds.setField(2, 'Transform', 'position', 'vec3', [0, 20, 0]);
+    // Edit only X across both — NaN on Y/Z is the "keep own value" sentinel the
+    // Inspector's VecControl emits for the untouched axes.
+    cmds.beginGesture('Edit position');
+    for (const e of [1, 2]) cmds.setField(e, 'Transform', 'position', 'vec3', [42, NaN, NaN]);
+    cmds.endGesture();
+    const pos = (id: number) =>
+      model.entityBySource(id)!.components.find((c) => c.type === 'Transform')!.data.position as { x: number; y: number };
+    expect(pos(1)).toMatchObject({ x: 42, y: 10 }); // kept its own Y
+    expect(pos(2)).toMatchObject({ x: 42, y: 20 }); // kept its own Y (not clobbered to 10)
+  });
 });

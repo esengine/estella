@@ -477,7 +477,7 @@ export function Outliner() {
     dragIds.current = null;
     if (ids) {
       const ordered = pos === 'before' ? ids : [...ids].reverse();
-      for (const id of ordered) if (id !== item.id) SceneCommands.reorderEntity(id, item.id, pos === 'before');
+      SceneCommands.reorderEntities(ordered, item.id, pos === 'before');
     }
   };
 
