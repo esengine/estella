@@ -49,10 +49,31 @@ function applyTextures(
     }
 }
 
+type ResolvedEffects = Map<string, { enabled: boolean; uniforms: Map<string, number>; textures: Map<string, string> }>;
+
+// Per-stack signature of the last-applied effect set, so an unchanged frame can
+// skip the whole wasm-boundary rebuild. Keyed by the stack object (auto-cleared
+// when the stack is destroyed/GC'd).
+const lastEffectSig = new WeakMap<object, string>();
+
+/** Stable string of the enabled effects (type + uniforms + textures). */
+function effectsSignature(effects: ResolvedEffects): string {
+    let sig = '';
+    for (const [type, data] of effects) {
+        if (!data.enabled) continue;
+        sig += type + ':';
+        for (const [k, v] of data.uniforms) sig += k + '=' + v + ';';
+        sig += '|';
+        for (const [k, ref] of data.textures) sig += k + '=' + ref + ';';
+        sig += '#';
+    }
+    return sig;
+}
+
 function applyBlendedEffects(
     api: PostProcessAPI,
     camera: Entity,
-    effects: Map<string, { enabled: boolean; uniforms: Map<string, number>; textures: Map<string, string> }>,
+    effects: ResolvedEffects,
 ): void {
     if (effects.size === 0) {
         const existing = api.volumeStacks.get(camera);
@@ -69,6 +90,13 @@ function applyBlendedEffects(
         stack = api.createStack();
         api.volumeStacks.set(camera, stack);
     }
+
+    // The rebuild below re-uploads the whole pass list + uniforms across the wasm
+    // boundary; skip it when the resolved effect set is identical to last frame
+    // (a static scene, or a fixed-weight global volume, never changes it).
+    const sig = effectsSignature(effects);
+    if (lastEffectSig.get(stack) === sig) return;
+    lastEffectSig.set(stack, sig);
 
     stack.clearPasses();
 
