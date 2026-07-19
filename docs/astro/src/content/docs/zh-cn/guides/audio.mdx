@@ -174,7 +174,8 @@ audio.setBusDucking('music', null);  // 移除
 audio.ensureBus('ambience');                 // create under master (idempotent)
 audio.ensureBus('footsteps', 'sfx');         // or under an existing bus
 audio.setBusVolume('ambience', 0.5);
-audio.playSFX('assets/wind.ogg', { bus: 'ambience' });   // or AudioSource.bus
+// playSFX 始终走 'sfx' 总线;playTrack(或实体的 AudioSource.bus)才能选总线。
+audio.playTrack('assets/wind.ogg', { bus: 'ambience' });
 ```
 
 `ensureBus(name, parent?)` 在总线缺失时创建它(挂在 `parent` 下,默认 `master`),

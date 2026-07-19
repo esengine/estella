@@ -186,7 +186,8 @@ Custom buses need no class at all — the facade covers them:
 audio.ensureBus('ambience');                 // create under master (idempotent)
 audio.ensureBus('footsteps', 'sfx');         // or under an existing bus
 audio.setBusVolume('ambience', 0.5);
-audio.playSFX('assets/wind.ogg', { bus: 'ambience' });   // or AudioSource.bus
+// playSFX is always on the 'sfx' bus; playTrack (or an entity's AudioSource.bus) picks one.
+audio.playTrack('assets/wind.ogg', { bus: 'ambience' });
 ```
 
 `ensureBus(name, parent?)` creates the bus if it's missing (under `parent`,
