@@ -114,6 +114,7 @@ export interface ReplicationClientOptions {
 export class ReplicationClient {
     private readonly world_: World;
     private readonly netIds_ = new NetIds();
+    private offDespawn_: (() => void) | null = null;
     private channel_: NetChannel | null = null;
     private table_: ReplicationTable | null = null;
     private connectionId_ = 0;
@@ -138,7 +139,7 @@ export class ReplicationClient {
         const delay = options.interpolationDelayTicks ?? 2;
         this.interp_ = delay > 0 ? new InterpolationState(delay) : null;
         this.prediction_ = options.prediction ?? null;
-        world.onDespawn((e) => this.netIds_.unregisterEntity(e));
+        this.offDespawn_ = world.onDespawn((e) => this.netIds_.unregisterEntity(e));
     }
 
     get table(): ReplicationTable {
@@ -239,6 +240,17 @@ export class ReplicationClient {
         this.channel_?.dispose();
         this.channel_ = null;
         this.connectionId_ = 0;
+        // Retire the despawn subscription and all accumulated state — otherwise
+        // every Play→Stop / reconnect cycle leaks a closure that keeps this dead
+        // client alive (and mutating it on future despawns), plus stale queues.
+        this.offDespawn_?.();
+        this.offDespawn_ = null;
+        this.netIds_.clear();
+        this.authority_.clear();
+        this.pendingFrames_.length = 0;
+        this.pendingSpawns_.length = 0;
+        this.pendingDespawns_.length = 0;
+        this.pendingInputs_.length = 0;
     }
 
     /** Send an input command (typically the InputMap's evaluated action values,
