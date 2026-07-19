@@ -11,6 +11,7 @@
 #include "ParticleEasing.hpp"
 
 #include <unordered_map>
+#include <unordered_set>
 #include <functional>
 #include <random>
 #include <array>
@@ -71,6 +72,9 @@ private:
     glm::vec2 randomShapeOffset(const ecs::ParticleEmitter& emitter);
 
     std::unordered_map<Entity, EmitterState> states_;
+    // A play() that arrives before the emitter's first update (its state isn't
+    // created yet) is remembered here and applied on state creation, not dropped.
+    std::unordered_set<Entity> pending_play_;
     std::unordered_map<Entity, ColorLut> colorLuts_;
     std::unordered_map<Entity, SizeLut> sizeLuts_;
     std::mt19937 rng_;

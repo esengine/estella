@@ -142,6 +142,46 @@ TEST_CASE("system_emitter_spawns_particles") {
     CHECK(system.totalAliveParticles() > 0u);
 }
 
+TEST_CASE("system_play_before_first_update_is_not_dropped") {
+    // Emitter state is created lazily on the first update. A play() that fires
+    // before that (playOnStart=false + an immediate script trigger) must be
+    // remembered, not lost — otherwise the emitter stays off forever.
+    ecs::Registry registry;
+    ParticleSystem system;
+
+    Entity e = registry.create();
+    registry.emplace<ecs::Transform>(e);
+    auto& emitter = registry.emplace<ecs::ParticleEmitter>(e);
+    emitter.rate = 100.0f;
+    emitter.lifetimeMin = 1.0f;
+    emitter.lifetimeMax = 1.0f;
+    emitter.maxParticles = 1000;
+    emitter.enabled = true;
+    emitter.playOnStart = false; // won't auto-play
+
+    system.play(e);              // before any update — state doesn't exist yet
+    system.update(registry, 0.1f);
+    CHECK(system.totalAliveParticles() > 0u);
+}
+
+TEST_CASE("system_no_play_stays_idle_when_playOnStart_false") {
+    ecs::Registry registry;
+    ParticleSystem system;
+
+    Entity e = registry.create();
+    registry.emplace<ecs::Transform>(e);
+    auto& emitter = registry.emplace<ecs::ParticleEmitter>(e);
+    emitter.rate = 100.0f;
+    emitter.lifetimeMin = 1.0f;
+    emitter.lifetimeMax = 1.0f;
+    emitter.maxParticles = 1000;
+    emitter.enabled = true;
+    emitter.playOnStart = false;
+
+    system.update(registry, 0.1f); // no play() → nothing emits
+    CHECK_EQ(system.totalAliveParticles(), 0u);
+}
+
 TEST_CASE("system_particles_die_after_lifetime") {
     ecs::Registry registry;
     ParticleSystem system;

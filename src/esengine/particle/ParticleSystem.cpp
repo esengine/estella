@@ -16,6 +16,7 @@ void ParticleSystem::update(ecs::Registry& registry, f32 dt) {
     if (!destroyConn_.isConnected()) {
         destroyConn_ = registry.onDestroyScoped([this](Entity entity) {
             states_.erase(entity);
+            pending_play_.erase(entity);
             colorLuts_.erase(entity);
             sizeLuts_.erase(entity);
         });
@@ -43,6 +44,12 @@ void ParticleSystem::update(ecs::Registry& registry, f32 dt) {
             it = insertIt;
             if (emitter.playOnStart) {
                 it->second.playing = true;
+            }
+            // Apply a play() that arrived before this first update (playOnStart=false
+            // + an immediate trigger) instead of dropping it.
+            if (pending_play_.erase(entity) > 0) {
+                it->second.playing = true;
+                it->second.elapsed_time = 0.0f;
             }
         }
 
@@ -93,10 +100,15 @@ void ParticleSystem::play(Entity entity) {
     if (it != states_.end()) {
         it->second.playing = true;
         it->second.elapsed_time = 0.0f;
+    } else {
+        // State is created lazily on the first update; remember the trigger so it
+        // isn't lost when play() runs before this emitter's first update.
+        pending_play_.insert(entity);
     }
 }
 
 void ParticleSystem::stop(Entity entity) {
+    pending_play_.erase(entity);
     auto it = states_.find(entity);
     if (it != states_.end()) {
         it->second.playing = false;
@@ -104,6 +116,7 @@ void ParticleSystem::stop(Entity entity) {
 }
 
 void ParticleSystem::reset(Entity entity) {
+    pending_play_.erase(entity);
     auto it = states_.find(entity);
     if (it != states_.end()) {
         it->second.pool.clear();
