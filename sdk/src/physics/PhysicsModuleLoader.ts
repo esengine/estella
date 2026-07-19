@@ -49,6 +49,7 @@ export interface PhysicsWasmModule {
     _physics_step(dt: number): void;
 
     _physics_setBodyTransform(entityId: number, x: number, y: number, angle: number): void;
+    _physics_setBodyTargetTransform(entityId: number, x: number, y: number, angle: number, dt: number): void;
     _physics_getDynamicBodyCount(): number;
     _physics_getDynamicBodyTransforms(): number;
 

@@ -469,6 +469,7 @@ _physics_raycast: (originX: number, originY: number, dirX: number, dirY: number,
 _physics_setAngularVelocity: (entityId: number, omega: number) => void
 _physics_setAwake: (entityId: number, awake: number) => void
 _physics_setBodyEnabled: (entityId: number, enabled: number) => void
+_physics_setBodyTargetTransform: (entityId: number, x: number, y: number, angle: number, dt: number) => void
 _physics_setBodyTransform: (entityId: number, x: number, y: number, angle: number) => void
 _physics_setDistanceJointLength: (entityId: number, length: number) => void
 _physics_setDistanceJointLimits: (entityId: number, minLength: number, maxLength: number) => void

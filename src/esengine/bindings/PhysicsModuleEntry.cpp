@@ -218,6 +218,20 @@ void physics_setBodyTransform(uint32_t entityId, float x, float y, float angle) 
     b2Body_SetTransform(it->second, {x, y}, b2MakeRot(angle));
 }
 
+// Drive a kinematic body toward a target pose over `dt`, deriving its
+// linear+angular velocity from the delta (unlike setBodyTransform, which
+// teleports with zero velocity). The velocity is what the contact solver uses
+// to carry/push resting dynamic bodies — a moving platform is dead without it.
+EMSCRIPTEN_KEEPALIVE
+void physics_setBodyTargetTransform(uint32_t entityId, float x, float y, float angle, float dt) {
+    auto it = g_ctx.entityToBody.find(entityId);
+    if (it == g_ctx.entityToBody.end()) return;
+    if (!b2Body_IsValid(it->second)) return;
+
+    b2Transform target = { {x, y}, b2MakeRot(angle) };
+    b2Body_SetTargetTransform(it->second, target, dt, true);
+}
+
 EMSCRIPTEN_KEEPALIVE
 int physics_getDynamicBodyCount() {
     return static_cast<int>(g_ctx.dynamicBodyEntities.size());
@@ -230,6 +244,10 @@ uintptr_t physics_getDynamicBodyTransforms() {
     for (uint32_t entityId : g_ctx.dynamicBodyEntities) {
         auto it = g_ctx.entityToBody.find(entityId);
         if (it == g_ctx.entityToBody.end() || !b2Body_IsValid(it->second)) continue;
+        // A disabled body is frozen; skip it so the readback doesn't stamp its
+        // stale pose back over a Transform the game is hand-animating while
+        // physics is off (RigidBody.enabled = false).
+        if (!b2Body_IsEnabled(it->second)) continue;
 
         b2Vec2 pos = b2Body_GetPosition(it->second);
         float angle = b2Rot_GetAngle(b2Body_GetRotation(it->second));

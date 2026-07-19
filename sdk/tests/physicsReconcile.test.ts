@@ -12,7 +12,7 @@ import { createMockModule } from './mocks/wasm';
 import {
     BoxCollider, CircleCollider, CapsuleCollider, RevoluteJoint,
 } from '../src/physics/PhysicsComponents';
-import { colliderSignature, jointChangedOrGone } from '../src/physics/PhysicsSystem';
+import { colliderSignature, jointChangedOrGone, jointPartnerGone } from '../src/physics/PhysicsSystem';
 
 function testWorld(): World {
     const mod = createMockModule();
@@ -62,5 +62,31 @@ describe('jointChangedOrGone', () => {
         // isChangedSince(currentTick) is false (it was last touched this tick),
         // so a present, unedited joint is left intact.
         expect(jointChangedOrGone(world, e, world.getWorldTick())).toBe(false);
+    });
+});
+
+describe('jointPartnerGone', () => {
+    it('is false while the connected partner is still tracked', () => {
+        const world = testWorld();
+        const owner = world.spawn();
+        const partner = world.spawn();
+        world.insert(owner, RevoluteJoint, { connectedEntity: partner } as never);
+        expect(jointPartnerGone(world, owner, new Set([owner, partner]))).toBe(false);
+    });
+
+    it('is true once the connected partner drops out of the tracked set (despawn)', () => {
+        const world = testWorld();
+        const owner = world.spawn();
+        const partner = world.spawn();
+        world.insert(owner, RevoluteJoint, { connectedEntity: partner } as never);
+        // Partner despawned → no longer tracked; the joint (auto-destroyed by
+        // Box2D) must be re-established, not left silently dead forever.
+        expect(jointPartnerGone(world, owner, new Set([owner]))).toBe(true);
+    });
+
+    it('is false when there is no joint component (that is jointChangedOrGone\'s job)', () => {
+        const world = testWorld();
+        const e = world.spawn();
+        expect(jointPartnerGone(world, e, new Set([e]))).toBe(false);
     });
 });

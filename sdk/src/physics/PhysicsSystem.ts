@@ -648,6 +648,24 @@ export function jointChangedOrGone(world: App['world'], entity: Entity, sinceTic
 }
 
 /**
+ * For a tracked joint entity: whether its connected partner body is no longer
+ * tracked (despawned, or its RigidBody removed). Box2D auto-destroys a joint
+ * when either connected body dies, but the owner keeps its unchanged joint
+ * component and stays in `trackedJoints` — so without re-establishing it here the
+ * joint is silently dead forever, even after the partner respawns.
+ * @internal
+ */
+export function jointPartnerGone(world: App['world'], entity: Entity, trackedEntities: Set<Entity>): boolean {
+    for (const J of JOINT_TYPES) {
+        if (world.has(entity, J)) {
+            const connected = (world.get(entity, J) as { connectedEntity: number }).connectedEntity as Entity;
+            return !trackedEntities.has(connected);
+        }
+    }
+    return false;
+}
+
+/**
  * Wire the per-frame physics system into the app. Owns tracked-entity
  * / tracked-joint / parented sets via the enclosing closure so the
  * plugin doesn't need to thread them through.
@@ -842,7 +860,8 @@ export function registerPhysicsSystem(
                 // Destroy joints whose definition changed or whose component was
                 // removed; createPendingJoints re-adds present+enabled ones.
                 for (const entity of [...trackedJoints]) {
-                    if (jointChangedOrGone(world, entity, lastEntitySyncTick)) {
+                    if (jointChangedOrGone(world, entity, lastEntitySyncTick)
+                        || jointPartnerGone(world, entity, trackedEntities)) {
                         module._physics_destroyJoint(entity);
                         trackedJoints.delete(entity);
                     }
@@ -856,13 +875,17 @@ export function registerPhysicsSystem(
 
                 // Kinematic bodies are driven by their Transform (changed via gameplay,
                 // not tracked as a physics edit) — push every step, even when the
-                // reconcile above was skipped.
+                // reconcile above was skipped. Drive them toward the target over the
+                // fixed step so Box2D derives their velocity from the delta: that
+                // velocity is what carries/pushes resting dynamic bodies (a plain
+                // teleport reports zero velocity, so platforms wouldn't move riders).
                 for (const entity of kinematicEntities) {
                     const wt = world.get(entity, Transform) as TransformData;
-                    module._physics_setBodyTransform(
+                    module._physics_setBodyTargetTransform(
                         entity,
                         wt.worldPosition.x * invPpu, wt.worldPosition.y * invPpu,
                         quatToAngleZ(wt.worldRotation),
+                        fixedDt,
                     );
                 }
 
