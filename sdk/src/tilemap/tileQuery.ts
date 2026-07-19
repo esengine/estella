@@ -13,7 +13,8 @@
  * collision data) returns null/false rather than throwing.
  */
 import { TilemapAPI } from './tilemapAPI';
-import { tileIdOf } from './tileBits';
+import { tileIdOf, tileFlagsOf } from './tileBits';
+import { oneWayNormalWorld } from './tiledLoader';
 import type { ResolvedTileCollision } from './tilesetResolve';
 import type { Entity } from '../types';
 
@@ -35,6 +36,40 @@ export function _bindTileCollisionLookup(
 const PLAIN_BOX: ResolvedTileCollision = { shape: { type: 'box' } };
 
 /**
+ * Reorient a resolved tile collision by the cell's flip flags — the query twin of
+ * the spawn path ({@link oneWayNormalWorld} + polygonLocalVerts), so a gameplay
+ * query of a flipped collidable tile agrees with the collider physics actually
+ * spawns. A box is flip-symmetric, so only polygon / circle geometry and a
+ * one-way normal are transformed; the shared table entry is never mutated.
+ */
+function flipTileCollision(
+    rc: ResolvedTileCollision, flipH: boolean, flipV: boolean, flipD: boolean,
+): ResolvedTileCollision {
+    // Normalized ([0,1], x-right / y-down) point flip, mirroring polygonLocalVerts.
+    const flipPt = (sx: number, syDown: number): [number, number] => {
+        let s = sx;
+        let t = 1 - syDown; // to y-up
+        if (flipV) t = 1 - t;
+        if (flipH) s = 1 - s;
+        if (flipD) { const tmp = s; s = t; t = tmp; }
+        return [s, 1 - t]; // back to y-down
+    };
+    let shape = rc.shape;
+    if (shape.type === 'polygon') {
+        shape = { type: 'polygon', points: shape.points.map(([x, y]) => flipPt(x, y)) };
+    } else if (shape.type === 'circle') {
+        const [cx, cy] = flipPt(shape.cx, shape.cy);
+        shape = { type: 'circle', cx, cy, r: shape.r };
+    }
+    const out: ResolvedTileCollision = { ...rc, shape };
+    if (rc.oneWay) {
+        const n = oneWayNormalWorld(rc.oneWay.nx, rc.oneWay.ny, flipH, flipV, flipD);
+        out.oneWay = { nx: n.x + 0, ny: n.y + 0 }; // +0 normalizes a negated -0 to +0
+    }
+    return out;
+}
+
+/**
  * The resolved collision of the tile at grid cell (x, y) on `layer` — a plain
  * solid box, a rich shape (polygon / circle / one-way / sensor / material), or
  * null when the cell is empty or its tile has no collision.
@@ -42,10 +77,16 @@ const PLAIN_BOX: ResolvedTileCollision = { shape: { type: 'box' } };
 export function tileCollisionAt(layer: Entity | number, x: number, y: number): ResolvedTileCollision | null {
     const table = lookup_?.(layer as number);
     if (!table) return null;
-    const id = tileIdOf(TilemapAPI.getTile(layer as Entity, x, y));
+    const raw = TilemapAPI.getTile(layer as Entity, x, y);
+    const id = tileIdOf(raw);
     if (id === 0) return null;
-    if (table.boxIds.has(id)) return PLAIN_BOX;
-    return table.shapes.get(id) ?? null;
+    if (table.boxIds.has(id)) return PLAIN_BOX; // a box is flip-symmetric
+    const rc = table.shapes.get(id);
+    if (!rc) return null;
+    // Apply the cell's flips so the queried shape / one-way normal matches the
+    // collider the spawn path builds for the same flipped tile.
+    const f = tileFlagsOf(raw);
+    return (f.flipH || f.flipV || f.flipD) ? flipTileCollision(rc, f.flipH, f.flipV, f.flipD) : rc;
 }
 
 /**
