@@ -209,6 +209,11 @@ export class TilemapPlugin implements Plugin {
                         nativeTileShapes.delete(entity);
                         tilesetRefs.delete(entity);
                         liveResolved.delete(entity);
+                        // Without these, a destroyed animated layer stays in the
+                        // per-frame tick set (advanceAnimations on a dead layer,
+                        // and a wrong one after id reuse) and leaks its query table.
+                        animatedLayers.delete(entity);
+                        this.queryTableCache_.delete(entity);
                         const colliders = collisionEntities.get(entity);
                         if (colliders) {
                             for (const e of colliders) world.despawn(e);
