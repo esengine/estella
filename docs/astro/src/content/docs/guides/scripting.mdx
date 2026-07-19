@@ -191,6 +191,28 @@ const arm = defineSystem([Res(TimerRes)], (timers) => {
 Timers advance in play mode only — in the editor's edit mode they hold, like the
 rest of game time.
 
+## Constant motion: the Velocity component
+
+For "just keep moving" motion — projectiles, drifting debris, spinners — attach the
+builtin `Velocity` component instead of writing a movement system. The engine
+integrates it into `Transform` every update in play mode:
+
+```typescript
+import { Velocity } from 'esengine';
+
+world.spawn()
+  .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+  .insert(Sprite, { texture: bulletTex })
+  .insert(Velocity, {
+    linear: { x: 240, y: 0, z: 0 },          // units per second
+    angular: { x: 0, y: 0, z: Math.PI },     // radians per second (z = 2D spin)
+  });
+```
+
+Entities with a `RigidBody` are skipped — the physics solver owns their transform,
+so the two never fight over one entity. `Velocity` is also replication-aware: its
+fields are replicated, so networked clients can dead-reckon between snapshots.
+
 ## How it fits together
 
 A behavior is not a special case — it compiles to exactly one `defineComponent` plus

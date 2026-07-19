@@ -178,6 +178,26 @@ const arm = defineSystem([Res(TimerRes)], (timers) => {
 
 计时器只在播放模式推进——编辑器编辑态下与其余游戏时间一样保持不动。
 
+## 匀速运动:Velocity 组件
+
+对"就是一直动"的运动——子弹、漂移的碎片、旋转体——直接挂内置的 `Velocity` 组件,
+不必手写移动系统。引擎在播放模式下每次 update 把它积分进 `Transform`:
+
+```typescript
+import { Velocity } from 'esengine';
+
+world.spawn()
+  .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+  .insert(Sprite, { texture: bulletTex })
+  .insert(Velocity, {
+    linear: { x: 240, y: 0, z: 0 },          // 单位/秒
+    angular: { x: 0, y: 0, z: Math.PI },     // 弧度/秒(z = 2D 自转)
+  });
+```
+
+带 `RigidBody` 的实体会被跳过——物理求解器拥有它们的变换,两者永远不会争抢同一个实体。
+`Velocity` 也是复制感知的:它的字段参与网络复制,联网客户端可以在快照之间做航位推算。
+
 ## 它如何组合
 
 一个 behavior 并不是特例——它编译成恰好一个 `defineComponent` 加一个 `defineSystem`。当你的逻辑

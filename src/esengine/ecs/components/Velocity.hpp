@@ -28,10 +28,12 @@ namespace esengine::ecs {
 // =============================================================================
 
 /**
- * @brief Velocity component for physics simulation
+ * @brief Velocity component for simple kinematic motion
  *
- * @details Stores linear and angular velocity for movement and rotation.
- *          Used by physics systems to update Transform components.
+ * @details Stores linear and angular velocity. The SDK's VelocitySystem
+ *          integrates it into Transform every Update in play mode; entities
+ *          owned by the physics solver (RigidBody) are skipped so the two
+ *          never double-move an entity.
  *
  * @note Angular velocity is in radians per second around each axis.
  */
