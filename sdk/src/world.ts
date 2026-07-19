@@ -394,6 +394,14 @@ export class World {
 
     set<C extends AnyComponentDef>(entity: Entity, component: C, data: ComponentData<C>): void {
         if (isBuiltinComponent(component)) {
+            // `set` is insert-or-replace: adding a builtin the entity LACKS must run
+            // the full structural bookkeeping (entity set + query dirty + recordAdded),
+            // or the C++ side holds it while queries / has() (entity-set fast path)
+            // never see it. Route the new case through insert.
+            if (this.builtin_.hasCpp && !this.has(entity, component)) {
+                this.insert(entity, component, data as Partial<ComponentData<C>>);
+                return;
+            }
             if (this.builtin_.hasCpp) {
                 try {
                     const defaults = component._default as Record<string, unknown>;
