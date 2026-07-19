@@ -223,6 +223,7 @@ type: "animFrames"
 ## AnimationPlugin — class
 ```
 build: (app: App) => void
+cleanup: () => void
 name: string
 static new (): AnimationPlugin
 static prototype: AnimationPlugin
@@ -6826,6 +6827,7 @@ static prototype: TrailAPI
 ## TrailPlugin — class
 ```
 build: (app: App) => void
+cleanup: () => void
 name: string
 static new (): TrailPlugin
 static prototype: TrailPlugin
@@ -7572,7 +7574,7 @@ get: <C extends AnyComponentDef>(entity: Entity, component: C) => ComponentData<
 getAllEntities: () => Entity[]
 getComponentTypes: (entity: Entity) => string[]
 getCppRegistry: () => CppRegistry | null
-getEntitiesWithComponents: (components: AnyComponentDef[], withFilters?: AnyComponentDef[], withoutFilters?: AnyComponentDef[], precomputedKey?: string, filter?: QueryFilter) => Entity[]
+getEntitiesWithComponents: (components: AnyComponentDef[], withFilters?: AnyComponentDef[], withoutFilters?: AnyComponentDef[], precomputedKey?: string, filter?: QueryFilter, precomputedDepIds?: symbol[]) => Entity[]
 getQueryCacheStats: () => QueryCacheStats
 getRemovedEntitiesSince: (component: AnyComponentDef, sinceTick: number) => Entity[]
 getWasmModule: () => ESEngineModule | null

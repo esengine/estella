@@ -679,6 +679,7 @@ export class World {
         withoutFilters: AnyComponentDef[] = [],
         precomputedKey?: string,
         filter?: QueryFilter,
+        precomputedDepIds?: symbol[],
     ): Entity[] {
         if (
             components.length === 0 && withFilters.length === 0 &&
@@ -688,9 +689,16 @@ export class World {
         }
 
         const cacheKey = precomputedKey ?? computeQueryCacheKey(components, withFilters, withoutFilters);
-        const depIds = this.collectComponentIds_(components, withFilters, withoutFilters);
-        if (filter) {
-            for (const c of filter.deps) depIds.push(c._id);
+        // The dep-id set is static per query; QueryInstance precomputes it (incl.
+        // filter deps) so cache-hit iteration allocates nothing here.
+        let depIds: symbol[];
+        if (precomputedDepIds) {
+            depIds = precomputedDepIds;
+        } else {
+            depIds = this.collectComponentIds_(components, withFilters, withoutFilters);
+            if (filter) {
+                for (const c of filter.deps) depIds.push(c._id);
+            }
         }
 
         return this.queries_.getOrCompute(cacheKey, depIds, () => {

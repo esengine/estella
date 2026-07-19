@@ -285,6 +285,9 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
     private readonly result_: unknown[];
     private readonly mutData_: Array<{ component: AnyComponentDef; data: Record<string, unknown> }>;
     private readonly cacheKey_: string;
+    // Static cache-dependency ids (required + with + without + filter deps),
+    // precomputed like cacheKey_ so per-call query iteration allocates no array.
+    private readonly depIds_: symbol[];
     private lastRunTick_: number;
     private readonly getters_: Array<((entity: Entity) => unknown) | null>;
     private readonly mutSetters_: Array<((entity: Entity, data: unknown) => void) | null>;
@@ -315,6 +318,15 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
             descriptor._without,
             descriptor._filter ? serializeFilter(descriptor._filter) : undefined,
         );
+        // Same set the cache validity check reads; order is irrelevant (it maps
+        // each id to its version). Must match what getEntitiesWithComponents would
+        // otherwise build per call.
+        this.depIds_ = [
+            ...this.allRequired_.map(c => c._id),
+            ...descriptor._with.map(c => c._id),
+            ...descriptor._without.map(c => c._id),
+            ...(this.compiledFilter_?.deps.map(c => c._id) ?? []),
+        ];
         this.getters_ = this.actualComponents_.map(comp => world.resolveGetter(comp));
         this.mutSetters_ = descriptor._mutIndices.map(idx =>
             world.resolveSetter(this.actualComponents_[idx])
@@ -357,6 +369,7 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
             this.descriptor_._without,
             this.cacheKey_,
             this.compiledFilter_ ?? undefined,
+            this.depIds_,
         );
         const compCount = actualComponents.length;
         const hasMut = _mutIndices.length > 0;
@@ -453,6 +466,7 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
             this.descriptor_._without,
             this.cacheKey_,
             this.compiledFilter_ ?? undefined,
+            this.depIds_,
         );
         const compCount = this.actualComponents_.length;
         const hasMut = _mutIndices.length > 0;
