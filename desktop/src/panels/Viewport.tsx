@@ -63,6 +63,30 @@ const toInput = (e: ReactPointerEvent): PointerInput => ({
 // (emitter/light), the collider's pixelsPerUnit for physics-meter radii. Measures from
 // the entity's world origin unless the shape has its own center (collider offset) —
 // callers pass `centerOverride` so the drag measures from where the shape is drawn.
+// The shared lifecycle for every on-canvas handle drag (radius / size / collider
+// point / UI resize / cone angle / joint anchor+axis). It coalesces the per-move
+// field writes into ONE undo step and — like the transform gizmo — suspends the
+// SceneStore so the panels don't fully re-render on every pointermove. pointerup
+// commits; pointercancel (pen/touch/OS gesture takeover) aborts and snaps back —
+// without it the move listener would leak and the field would chase a released
+// cursor, then land a stray undo step on the next edit.
+function runHandleDrag(win: Window, label: string, onMove: (ev: PointerEvent) => void): void {
+  const tx = SceneCommands.transaction(label);
+  SceneStore.suspend();
+  const finish = (commit: boolean) => {
+    win.removeEventListener('pointermove', onMove);
+    win.removeEventListener('pointerup', up);
+    win.removeEventListener('pointercancel', cancel);
+    if (commit) tx.commit(); else tx.abort();
+    SceneStore.resume();
+  };
+  const up = () => finish(true);
+  const cancel = () => finish(false);
+  win.addEventListener('pointermove', onMove);
+  win.addEventListener('pointerup', up);
+  win.addEventListener('pointercancel', cancel);
+}
+
 function startRadiusHandleDrag(
   rt: number, component: string, field: string, ppu: number, e: ReactPointerEvent,
   centerOverride?: { x: number; y: number } | null,
@@ -72,21 +96,12 @@ function startRadiusHandleDrag(
   const center = centerOverride ?? ViewportController.getEntityWorldXY(rt);
   if (src == null || !center) return;
   e.stopPropagation();
-  const win = eventWindow(e);
-  SceneCommands.beginGesture(`${component} radius`);
-  const onMove = (ev: PointerEvent) => {
+  runHandleDrag(eventWindow(e), `${component} radius`, (ev) => {
     const w = ViewportController.canvasToWorld(ev.clientX, ev.clientY);
     if (!w) return;
     const r = Math.max(0, Math.hypot(w.x - center.x, w.y - center.y) / (ppu || 1));
     SceneCommands.setField(src, component, field, 'number', r);
-  };
-  const onUp = () => {
-    SceneCommands.endGesture();
-    win.removeEventListener('pointermove', onMove);
-    win.removeEventListener('pointerup', onUp);
-  };
-  win.addEventListener('pointermove', onMove);
-  win.addEventListener('pointerup', onUp);
+  });
 }
 
 // Drag a box corner handle → a vec2 size field. Same channel as the radius drag; the
@@ -105,9 +120,7 @@ function startSizeHandleDrag(
   e.stopPropagation();
   const rot = ViewportController.getEntityWorldAngleRad(rt);
   const cos = Math.cos(rot), sin = Math.sin(rot);
-  const win = eventWindow(e);
-  SceneCommands.beginGesture(`${component} size`);
-  const onMove = (ev: PointerEvent) => {
+  runHandleDrag(eventWindow(e), `${component} size`, (ev) => {
     const w = ViewportController.canvasToWorld(ev.clientX, ev.clientY);
     if (!w) return;
     const dx = w.x - center.x, dy = w.y - center.y;
@@ -115,14 +128,7 @@ function startSizeHandleDrag(
     const ly = -dx * sin + dy * cos;
     const k = (fullSize ? 2 : 1) / (ppu || 1);
     SceneCommands.setField(src, component, field, 'vec2', [Math.abs(lx) * k, Math.abs(ly) * k]);
-  };
-  const onUp = () => {
-    SceneCommands.endGesture();
-    win.removeEventListener('pointermove', onMove);
-    win.removeEventListener('pointerup', onUp);
-  };
-  win.addEventListener('pointermove', onMove);
-  win.addEventListener('pointerup', onUp);
+  });
 }
 
 // Drag a collider point handle → a Vec2 field (box/circle/capsule offset, segment
@@ -147,9 +153,7 @@ function startColliderPointDrag(
   const base = target.index == null
     ? null
     : (((SceneModel.entityBySource(src)?.components.find((c) => c.type === target.comp)?.data as Record<string, unknown> | undefined)?.[target.key]) as Array<{ x: number; y: number }> | undefined) ?? null;
-  const win = eventWindow(e);
-  SceneCommands.beginGesture('Edit Collider');
-  const onMove = (ev: PointerEvent) => {
+  runHandleDrag(eventWindow(e), 'Edit Collider', (ev) => {
     const w = ViewportController.canvasToWorld(ev.clientX, ev.clientY);
     if (!w) return;
     const dx = w.x - origin.x, dy = w.y - origin.y;
@@ -161,14 +165,7 @@ function startColliderPointDrag(
       SceneCommands.setVertexArray(src, target.comp, target.key,
         base.map((p, i) => (i === target.index ? { x: lx, y: ly } : { x: p.x, y: p.y })));
     }
-  };
-  const onUp = () => {
-    SceneCommands.endGesture();
-    win.removeEventListener('pointermove', onMove);
-    win.removeEventListener('pointerup', onUp);
-  };
-  win.addEventListener('pointermove', onMove);
-  win.addEventListener('pointerup', onUp);
+  });
 }
 
 // Native pointerdown on a pooled collider point handle → the drag above. The target field
@@ -297,9 +294,7 @@ function startUiResizeDrag(rt: number, edge: UiEdge, e: ReactPointerEvent): void
   const fy = { size: uiDim(src, 'height'), nearInset: uiDim(src, 'insetBottom'), farInset: uiDim(src, 'insetTop') };
   const parentW = 2 * pobb.hw, parentH = 2 * pobb.hh;
 
-  const win = eventWindow(e);
-  SceneCommands.beginGesture('Resize UI');
-  const onMove = (ev: PointerEvent) => {
+  runHandleDrag(eventWindow(e), 'Resize UI', (ev) => {
     const wp = ViewportController.canvasToWorld(ev.clientX, ev.clientY);
     if (!wp) return;
     if (sides.x && fx.size && fx.nearInset && fx.farInset) {
@@ -316,14 +311,7 @@ function startUiResizeDrag(rt: number, edge: UiEdge, e: ReactPointerEvent): void
         side: sides.y, edgeDeltaWorld, ppu: 1, parentExtentWorld: parentH,
       }));
     }
-  };
-  const onUp = () => {
-    SceneCommands.endGesture();
-    win.removeEventListener('pointermove', onMove);
-    win.removeEventListener('pointerup', onUp);
-  };
-  win.addEventListener('pointermove', onMove);
-  win.addEventListener('pointerup', onUp);
+  });
 }
 
 // Drag a cone's edge handle → its spread angle (ParticleEmitter.shapeAngle, degrees).
@@ -336,9 +324,7 @@ function startAngleHandleDrag(rt: number, e: ReactPointerEvent): void {
   e.stopPropagation();
   const rot = ViewportController.getEntityWorldAngleRad(rt);
   const cos = Math.cos(rot), sin = Math.sin(rot);
-  const win = eventWindow(e);
-  SceneCommands.beginGesture('Cone angle');
-  const onMove = (ev: PointerEvent) => {
+  runHandleDrag(eventWindow(e), 'Cone angle', (ev) => {
     const w = ViewportController.canvasToWorld(ev.clientX, ev.clientY);
     if (!w) return;
     const dx = w.x - center.x, dy = w.y - center.y;
@@ -346,14 +332,7 @@ function startAngleHandleDrag(rt: number, e: ReactPointerEvent): void {
     const ly = -dx * sin + dy * cos;
     const halfDeg = Math.abs(Math.atan2(lx, ly)) * (180 / Math.PI);
     SceneCommands.setField(src, 'ParticleEmitter', 'shapeAngle', 'number', Math.min(180, halfDeg * 2));
-  };
-  const onUp = () => {
-    SceneCommands.endGesture();
-    win.removeEventListener('pointermove', onMove);
-    win.removeEventListener('pointerup', onUp);
-  };
-  win.addEventListener('pointermove', onMove);
-  win.addEventListener('pointerup', onUp);
+  });
 }
 
 // Drag a joint anchor dot → its anchorA/anchorB vec2 (world px in the owning body's
@@ -368,22 +347,13 @@ function startJointAnchorDrag(rt: number, type: JointGizmoType, end: 'a' | 'b', 
   if (src == null || !frame) return;
   e.stopPropagation();
   const cos = Math.cos(frame.rot), sin = Math.sin(frame.rot);
-  const win = eventWindow(e);
-  SceneCommands.beginGesture(`${type} anchor`);
-  const onMove = (ev: PointerEvent) => {
+  runHandleDrag(eventWindow(e), `${type} anchor`, (ev) => {
     const w = ViewportController.canvasToWorld(ev.clientX, ev.clientY);
     if (!w) return;
     const dx = w.x - frame.x, dy = w.y - frame.y;
     SceneCommands.setField(src, type, end === 'a' ? 'anchorA' : 'anchorB', 'vec2',
       [Math.round(dx * cos + dy * sin), Math.round(-dx * sin + dy * cos)]);
-  };
-  const onUp = () => {
-    SceneCommands.endGesture();
-    win.removeEventListener('pointermove', onMove);
-    win.removeEventListener('pointerup', onUp);
-  };
-  win.addEventListener('pointermove', onMove);
-  win.addEventListener('pointerup', onUp);
+  });
 }
 
 // Drag the prismatic/wheel axis tip → the slide direction. The axis lives in the
@@ -396,9 +366,7 @@ function startJointAxisDrag(rt: number, type: JointGizmoType, e: ReactPointerEve
   if (src == null || !frame) return;
   e.stopPropagation();
   const cos = Math.cos(frame.rot), sin = Math.sin(frame.rot);
-  const win = eventWindow(e);
-  SceneCommands.beginGesture(`${type} axis`);
-  const onMove = (ev: PointerEvent) => {
+  runHandleDrag(eventWindow(e), `${type} axis`, (ev) => {
     const w = ViewportController.canvasToWorld(ev.clientX, ev.clientY);
     if (!w) return;
     const dx = w.x - frame.x, dy = w.y - frame.y;
@@ -408,14 +376,7 @@ function startJointAxisDrag(rt: number, type: JointGizmoType, e: ReactPointerEve
     if (len < 1e-3) return; // a degenerate direction at the anchor itself — keep the last one
     const r3 = (v: number) => Math.round((v / len) * 1000) / 1000;
     SceneCommands.setField(src, type, 'axis', 'vec2', [r3(lx), r3(ly)]);
-  };
-  const onUp = () => {
-    SceneCommands.endGesture();
-    win.removeEventListener('pointermove', onMove);
-    win.removeEventListener('pointerup', onUp);
-  };
-  win.addEventListener('pointermove', onMove);
-  win.addEventListener('pointerup', onUp);
+  });
 }
 
 // The interactive transform gizmo, drawn from the origin (= the selection pivot, the
