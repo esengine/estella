@@ -50,6 +50,11 @@ export class ModuleBackend {
         isBinary: boolean,
         assetKey?: string,
     ): boolean {
+        // Re-loading a live entity (rapid editor ref edits, runtime asset swap)
+        // must free the old instance + skeleton refcount first, or replacing its
+        // EntityInfo below leaks the native instance and pins the shared skeleton.
+        if (this.entities_.has(entity)) this.removeEntity(entity);
+
         let skelHandle: number;
         const shared = assetKey !== undefined ? this.skeletons_.get(assetKey) : undefined;
         if (shared) {

@@ -54,6 +54,31 @@ describe('ModuleBackend skeleton dedup (S4-A)', () => {
         expect(c.unloadSkeleton).toHaveBeenCalledTimes(1); // now released
     });
 
+    it('re-loading a live entity onto a different skeleton frees the old instance + skeleton', () => {
+        const c = makeController();
+        const b = new ModuleBackend(c as never);
+        load(b, 1, 'hero');
+        expect(c.createInstance).toHaveBeenCalledTimes(1);
+
+        load(b, 1, 'villain'); // asset swap on the SAME entity
+        expect(c.destroyInstance).toHaveBeenCalledTimes(1); // old 'hero' instance freed
+        expect(c.unloadSkeleton).toHaveBeenCalledTimes(1);  // 'hero' refcount hit 0 → unloaded
+        expect(c.createInstance).toHaveBeenCalledTimes(2);  // fresh 'villain' instance
+        expect(c.loadSkeleton).toHaveBeenCalledTimes(2);
+    });
+
+    it('re-loading the same shared skeleton keeps it loaded (net-zero refcount), swaps the instance', () => {
+        const c = makeController();
+        const b = new ModuleBackend(c as never);
+        load(b, 1, 'hero');
+        load(b, 2, 'hero');
+        load(b, 1, 'hero'); // re-load entity 1 onto the same shared skeleton
+        expect(c.destroyInstance).toHaveBeenCalledTimes(1); // entity 1's old instance
+        expect(c.unloadSkeleton).not.toHaveBeenCalled();    // entity 2 still holds 'hero'
+        expect(c.createInstance).toHaveBeenCalledTimes(3);
+        expect(c.loadSkeleton).toHaveBeenCalledTimes(1);    // still one skeletonData
+    });
+
     it('loads a fresh skeleton per entity when no asset key is given (legacy)', () => {
         const c = makeController();
         const b = new ModuleBackend(c as never);
