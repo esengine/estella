@@ -147,7 +147,7 @@ public:
         u32 edit_revision = 0;
 
         std::unordered_map<u16, TileAnimation> tile_animations;
-        f32 elapsed_ms = 0;
+        f64 elapsed_ms = 0;  // f64: an f32 accumulator stalls (dt < ULP) after ~day-scale uptime
         // Bumped only when some animation's CURRENT frame flips — ANIMATED chunk
         // meshes rebuild on this, not every frame.
         u32 anim_revision = 0;

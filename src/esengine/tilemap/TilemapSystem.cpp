@@ -257,8 +257,8 @@ void TilemapSystem::clearTileAnimations(Entity entity) {
 
 namespace {
 /// Index of the frame an animation shows at `elapsedMs` (looped).
-u32 frameIndexAt(const TileAnimation& anim, f32 elapsedMs) {
-    u32 t = static_cast<u32>(std::fmod(elapsedMs, static_cast<f32>(anim.total_duration_ms)));
+u32 frameIndexAt(const TileAnimation& anim, f64 elapsedMs) {
+    u32 t = static_cast<u32>(std::fmod(elapsedMs, static_cast<f64>(anim.total_duration_ms)));
     u32 acc = 0;
     for (u32 i = 0; i < anim.frames.size(); ++i) {
         acc += anim.frames[i].duration_ms;
@@ -271,8 +271,8 @@ u32 frameIndexAt(const TileAnimation& anim, f32 elapsedMs) {
 void TilemapSystem::advanceAnimations(Entity entity, f32 dtMs) {
     auto* layer = getLayerDataMut(entity);
     if (!layer || layer->tile_animations.empty()) return;
-    const f32 prev = layer->elapsed_ms;
-    layer->elapsed_ms += dtMs;
+    const f64 prev = layer->elapsed_ms;
+    layer->elapsed_ms += static_cast<f64>(dtMs);
     // Bump the revision only when some animation's visible frame actually
     // flipped — the renderer rebuilds animated chunks on this stamp instead of
     // every frame, so slow animations cost re-meshing only at their frame rate.
