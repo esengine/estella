@@ -91,17 +91,30 @@ export class ValueTweenManager {
             }
         }
 
+        // Reap entries that finished on a PRIOR frame — deferring the sweep to the
+        // NEXT update keeps a just-completed entry queryable for the rest of THIS
+        // frame, so the composition manager (polled after this in TweenAPI.update)
+        // observes Completed instead of a same-frame-deleted → Cancelled.
+        for (const [id, entry] of this.entries_) {
+            if (entry.state === TweenState.Completed || entry.state === TweenState.Cancelled) {
+                this.entries_.delete(id);
+            }
+        }
+
         for (const entry of this.entries_.values()) {
             if (entry.state !== TweenState.Running) continue;
 
+            // Per-entry step, NOT the shared `dt` — writing `dt` here would advance
+            // every later entry in this loop by one delay's leftover, not the frame.
+            let step = dt;
             if (entry.delay > 0) {
-                entry.delay -= dt;
+                entry.delay -= step;
                 if (entry.delay > 0) continue;
-                dt = -entry.delay;
+                step = -entry.delay;
                 entry.delay = 0;
             }
 
-            entry.elapsed += dt;
+            entry.elapsed += step;
             const t = Math.min(entry.elapsed / entry.duration, 1);
             const easedT = applyEasing(entry.easing, t, entry.bezierPoints ?? undefined);
             entry.callback(entry.from + (entry.to - entry.from) * easedT);
@@ -127,15 +140,6 @@ export class ValueTweenManager {
                 if (entry.sequenceNextExternal) {
                     entry.sequenceNextExternal.resume();
                 }
-            }
-        }
-
-        for (const [id, entry] of this.entries_) {
-            if (
-                entry.state === TweenState.Completed ||
-                entry.state === TweenState.Cancelled
-            ) {
-                this.entries_.delete(id);
             }
         }
     }

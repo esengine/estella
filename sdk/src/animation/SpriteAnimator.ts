@@ -40,7 +40,10 @@ export interface SpriteAnimClip {
 }
 
 export function shouldFireEvent(eventFrame: number, prevFrame: number, newFrame: number, totalFrames: number, loop: boolean): boolean {
-    if (prevFrame === newFrame && eventFrame === newFrame) return true;
+    // Frame-0 initial apply only. Without the `=== 0`, the completion clamp
+    // (currentFrame overflows → clamped to last, so prev === new === last) re-fires
+    // the last frame's event a second time.
+    if (prevFrame === newFrame && eventFrame === newFrame && newFrame === 0) return true;
     if (newFrame > prevFrame) {
         return eventFrame > prevFrame && eventFrame <= newFrame;
     }
@@ -163,8 +166,12 @@ export class SpriteAnimationAPI {
                 animator.frameTimer = 0;
             }
 
-            const currentFrame = clip.frames[animator.currentFrame];
-            const frameDuration = currentFrame?.duration ?? 1.0 / (clip.fps * animator.speed);
+            // Speed scales EVERY frame's duration (not just the fps fallback), and
+            // is guarded: 0/negative would otherwise freeze (Infinity) or run the
+            // timer backward.
+            const speed = Math.max(animator.speed, 1e-4);
+            const durationOf = (i: number): number =>
+                (clip.frames[i]?.duration ?? 1.0 / clip.fps) / speed;
 
             const needsInitialApply = animator.frameTimer === 0 && animator.currentFrame === 0;
             const prevFrame = animator.currentFrame;
@@ -172,10 +179,15 @@ export class SpriteAnimationAPI {
             animator.frameTimer += deltaTime;
 
             let frameChanged = needsInitialApply;
-            if (animator.frameTimer >= frameDuration) {
+            // Advance as MANY frames as elapsed — a fast clip (fps·speed > host fps)
+            // or a lag spike can cross several in one update; a single `if` would
+            // play in slow motion and let frameTimer grow unbounded. Capped at ~one
+            // full loop so a huge dt can't spin forever.
+            let guard = clip.frames.length + 1;
+            let frameDuration = durationOf(animator.currentFrame);
+            while (animator.playing && animator.frameTimer >= frameDuration && guard-- > 0) {
                 animator.frameTimer -= frameDuration;
                 animator.currentFrame++;
-
                 if (animator.currentFrame >= clip.frames.length) {
                     if (animator.loop && clip.loop) {
                         animator.currentFrame = 0;
@@ -185,8 +197,8 @@ export class SpriteAnimationAPI {
                         animator.finished = true;
                     }
                 }
-
                 frameChanged = true;
+                frameDuration = durationOf(animator.currentFrame);
             }
 
             if (frameChanged) {
@@ -197,9 +209,15 @@ export class SpriteAnimationAPI {
                 const frame = clip.frames[animator.currentFrame];
                 const sprite = world.get(entity, Sprite) as SpriteData;
                 sprite.texture = frame.texture;
+                // Copy (don't alias the clip's frame objects), and RESET to the full
+                // texture when a frame carries no sub-rect — else a plain frame after
+                // a sheet-cell frame renders through the stale cell window.
                 if (frame.uvOffset) {
-                    sprite.uvOffset = frame.uvOffset;
-                    sprite.uvScale = frame.uvScale!;
+                    sprite.uvOffset = { x: frame.uvOffset.x, y: frame.uvOffset.y };
+                    sprite.uvScale = frame.uvScale ? { x: frame.uvScale.x, y: frame.uvScale.y } : { x: 1, y: 1 };
+                } else {
+                    sprite.uvOffset = { x: 0, y: 0 };
+                    sprite.uvScale = { x: 1, y: 1 };
                 }
                 world.insert(entity, Sprite, sprite);
             }

@@ -143,7 +143,9 @@ function cubicBezier(t: number, p1x: number, p1y: number, p2x: number, p2y: numb
         const ix = 1 - x;
         const cx = 3 * p1x * ix * ix * x + 3 * p2x * ix * x * x + x * x * x - t;
         if (Math.abs(cx) < BEZIER_EPSILON) break;
-        const dx = 3 * p1x * (1 - 2 * x) * (1 - x)
+        // dX/dx of 3·p1x·(1-x)²·x + 3·p2x·(1-x)·x² + x³. The first term derivative
+        // is 3·p1x·(1-x)·(1-3x) — the (1-3x) factor, not (1-2x).
+        const dx = 3 * p1x * (1 - 3 * x) * (1 - x)
                  + 6 * p2x * x * (1 - x)
                  - 3 * p2x * x * x
                  + 3 * x * x;

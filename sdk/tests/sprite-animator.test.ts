@@ -178,6 +178,33 @@ describe('SpriteAnimator', () => {
             expect(sprite.texture).toBe(10);
         });
 
+        it('advances MULTIPLE frames when one dt spans several (no slow-motion)', () => {
+            const entity = world.spawn();
+            world.insert(entity, Sprite, { texture: 10 });
+            world.insert(entity, SpriteAnimator, { clip: 'walk' });
+
+            // fps=10 → 0.1s/frame; 0.25s spans 2.5 frames → reach frame 2 (30), not 1 (20).
+            anim.update(world, 0.25);
+
+            expect((world.get(entity, Sprite) as SpriteData).texture).toBe(30);
+        });
+
+        it('scales an EXPLICIT frame duration by animator.speed', () => {
+            anim.registerClip({
+                name: 'timed', fps: 10, loop: true,
+                frames: [{ texture: 1, duration: 0.1 }, { texture: 2, duration: 0.1 }],
+            });
+            const entity = world.spawn();
+            world.insert(entity, Sprite, { texture: 1 });
+            world.insert(entity, SpriteAnimator, { clip: 'timed', speed: 2 });
+
+            // speed 2 halves the 0.1s frame → 0.06s advances one frame (speed was
+            // previously ignored for explicit durations).
+            anim.update(world, 0.06);
+
+            expect((world.get(entity, Sprite) as SpriteData).texture).toBe(2);
+        });
+
         it('should loop back to first frame', () => {
             const entity = world.spawn();
             world.insert(entity, Sprite, { texture: 10 });

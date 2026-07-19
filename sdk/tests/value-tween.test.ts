@@ -10,6 +10,7 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { ValueTweenManager, ValueTweenHandle } from '../src/animation/ValueTween';
+import { TweenGroup } from '../src/animation/TweenGroup';
 import { TweenState, LoopMode } from '../src/animation/TweenTypes';
 import type { ESEngineModule, CppRegistry } from '../src/wasm';
 
@@ -31,15 +32,34 @@ describe('ValueTweenManager progression', () => {
     expect(seen).toEqual([25, 50]);
   });
 
-  it('delivers the end value on completion, then evicts the entry that same update', () => {
+  it('delivers the end value, then stays queryable as Completed until the NEXT update', () => {
     const m = makeManager();
     let last = -1;
     const id = m.create(10, 30, 1, (v) => { last = v; });
     m.update(1);
     expect(last).toBe(30);
-    // Completed entries are swept at the end of the update — the state is no
-    // longer queryable, so a missing entry reports Cancelled.
+    // Sweep is deferred one frame: a just-completed entry stays queryable as
+    // Completed for the rest of this frame so a composition polling afterwards
+    // observes Completed (not a same-frame-deleted → Cancelled). It's reaped at
+    // the start of the next update.
+    expect(m.getState(id)).toBe(TweenState.Completed);
+    m.update(0.016);
     expect(m.getState(id)).toBe(TweenState.Cancelled);
+  });
+
+  it('a parallel group of value tweens completes (not stuck as Cancelled)', () => {
+    const m = makeManager();
+    const id = m.create(0, 1, 1, () => {});
+    // How a composition observes a member: a Completable reading the live state.
+    const member = { get state() { return m.getState(id); }, pause() {}, resume() {}, cancel() {} };
+    let done = false;
+    const group = new TweenGroup([member]);
+    group.onComplete(() => { done = true; });
+    // TweenAPI.update order: value manager advances/completes first, THEN the
+    // composition polls. The completed member must read Completed, not Cancelled.
+    m.update(1);
+    expect(group.checkComplete()).toBe(true);
+    expect(done).toBe(true);
   });
 
   it('holds during the delay, then applies the leftover dt once it elapses', () => {
