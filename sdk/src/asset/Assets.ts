@@ -923,6 +923,19 @@ export class Assets {
         this.releaseTyped('prefab', ref);
     }
 
+    /**
+     * Release a material obtained via {@link loadMaterial}, addressed by its
+     * handle (materials are tracked by handle, not ref, in the scene manager).
+     * Routes through the shared refcount + cache path so a material shared by
+     * two scenes survives until its last owner releases it, and the cache never
+     * hands the next load a destroyed handle. Destroying the handle directly
+     * (bypassing this) would strand a dead handle in the material cache.
+     */
+    releaseMaterial(handle: number): void {
+        const path = this.pathForHandle('material', handle);
+        if (path !== null) this.releaseTyped('material', path);
+    }
+
     private releaseTyped(type: string, ref: string): void {
         const path = this.resolveLoadPath_(ref);
         const cache = this.genericCache_.get(type);

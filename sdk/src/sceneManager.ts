@@ -275,6 +275,12 @@ export class SceneManagerState {
             if (existing.status === 'loading') {
                 return this.loadPromises_.get(name)!;
             }
+            // Re-loading a scene that was slept/paused must run the full restore
+            // (remove Disabled, replay savedEnabled, re-enable post-process); a
+            // bare status flip would strand its entities disabled and leave
+            // wake()/resume() a permanent no-op.
+            if (existing.status === 'sleeping') this.wake(name);
+            else if (existing.status === 'paused') this.resume(name);
             existing.status = 'running';
             this.activeScene_ = name;
             return this.contexts_.get(name)!;
@@ -533,7 +539,11 @@ export class SceneManagerState {
 
         if (instance.loadedMaterials) {
             for (const handle of instance.loadedMaterials) {
-                Material.release(handle);
+                // Release through Assets so the material's refcount + path cache
+                // stay coherent; a bare Material.release strands the destroyed
+                // handle in the cache for the next scene that reuses the material.
+                if (assetsRes) assetsRes.releaseMaterial(handle);
+                else Material.release(handle);
             }
         }
 

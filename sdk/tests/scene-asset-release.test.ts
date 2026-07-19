@@ -26,6 +26,7 @@ vi.mock('../src/material', () => ({
 
 import { SceneManagerState } from '../src/sceneManager';
 import { Assets } from '../src/asset';
+import { Material } from '../src/material';
 
 function createMockApp(assets?: unknown) {
     const entities = new Map<number, Map<symbol, unknown>>();
@@ -108,6 +109,36 @@ describe('Scene unload releases all tracked asset categories', () => {
         expect(releaseLog.animClip).toEqual(['anim/walk.json']);
         expect(releaseLog.timeline).toEqual(['timeline/intro.json']);
         expect(releaseLog.tilemap).toEqual(['maps/level1.tmx']);
+    });
+
+    it('releases tracked materials through Assets by handle, not a bare Material.release', async () => {
+        vi.mocked(Material.release).mockClear();
+        const releasedHandles: number[] = [];
+        const assetsStub = {
+            releaseTexture: vi.fn(), releaseFont: vi.fn(), releaseAudio: vi.fn(),
+            releaseAnimClip: vi.fn(), releaseTimeline: vi.fn(), releaseTilemap: vi.fn(),
+            releaseMaterial: (h: number) => { releasedHandles.push(h); },
+        };
+
+        const app = createMockApp(assetsStub);
+        const manager = new SceneManagerState(app as never);
+        manager.register({
+            name: 'level1',
+            data: { version: '1.0', name: 'level1', entities: [] },
+        });
+        await manager.load('level1');
+
+        const instance = (manager as unknown as {
+            scenes_: Map<string, { loadedMaterials: Set<number> }>;
+        }).scenes_.get('level1')!;
+        instance.loadedMaterials = new Set([11, 22]);
+
+        await manager.unload('level1');
+
+        // Routed through Assets so the material refcount + path cache stay
+        // coherent; destroying the handle directly would strand it in the cache.
+        expect(releasedHandles).toEqual(expect.arrayContaining([11, 22]));
+        expect(Material.release).not.toHaveBeenCalled();
     });
 
     it('handles missing Assets resource gracefully (no throw)', async () => {

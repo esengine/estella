@@ -588,6 +588,35 @@ describe('SceneManager', () => {
             manager.wake('level1');
             expect(mockStack.setAllPassesEnabled).toHaveBeenCalledWith(true);
         });
+
+        it('load() on a sleeping scene wakes it (restores enabled, clears sleeping)', async () => {
+            const entityMap = new Map([[100, 1]]);
+            vi.mocked(loadSceneWithAssets).mockResolvedValueOnce(entityMap);
+            setupEntityWithComponents(1);
+
+            manager.register({ name: 'level1', data: makeSceneData() });
+            await manager.load('level1');
+            manager.sleep('level1');
+            expect(manager.isSleeping('level1')).toBe(true);
+
+            // Re-loading a slept scene must run the full wake restore, not a bare
+            // status flip that would strand its entities Disabled forever.
+            await manager.load('level1');
+            expect(manager.getSceneStatus('level1')).toBe('running');
+            expect(manager.isSleeping('level1')).toBe(false);
+            expect(app._entities.get(1)!.get(Sprite).enabled).toBe(true);
+        });
+
+        it('load() on a paused scene resumes it (clears paused)', async () => {
+            manager.register({ name: 'level1', data: makeSceneData() });
+            await manager.load('level1');
+            manager.pause('level1');
+            expect(manager.isPaused('level1')).toBe(true);
+
+            await manager.load('level1');
+            expect(manager.getSceneStatus('level1')).toBe('running');
+            expect(manager.isPaused('level1')).toBe(false);
+        });
     });
 
     // =========================================================================
