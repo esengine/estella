@@ -16,6 +16,7 @@ import {
     migrateSceneData,
     SCENE_FORMAT_VERSION,
     registerSceneComponentCodec,
+    serializeEntityComponents,
     getComponentAssetFields,
     getComponentAssetFieldDescriptors,
     getComponentSpineFieldDescriptor,
@@ -61,6 +62,25 @@ describe('Scene', () => {
         world = new World();
         world.connectCpp(module.getRegistry(), module);
         initResourceManager(module.getResourceManager());
+    });
+
+    describe('serialize detaches from live storage', () => {
+        it('clones script-component data so the snapshot does not alias the world', () => {
+            const Stats = defineComponent('SerStats', { hp: 10, tags: [] as string[] });
+            const e = world.spawn();
+            world.insert(e, Stats, { hp: 10, tags: ['a'] });
+
+            const snapshot = serializeEntityComponents(world, e);
+            const snap = snapshot.find((c) => c.type === 'SerStats')!.data as { hp: number; tags: string[] };
+
+            // Mutate the LIVE component — a detached snapshot must not change.
+            const live = world.get(e, Stats) as { hp: number; tags: string[] };
+            live.hp = 99;
+            live.tags.push('b');
+
+            expect(snap.hp).toBe(10);
+            expect(snap.tags).toEqual(['a']);
+        });
     });
 
     // =========================================================================

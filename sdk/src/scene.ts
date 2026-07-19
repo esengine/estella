@@ -8,6 +8,7 @@
 import { World } from './world';
 import { Entity, INVALID_ENTITY } from './types';
 import { getComponent, Name, Camera, RuntimeOnly } from './component';
+import { deepClone } from './deepClone';
 import { discoverSceneAssets } from './asset/discoverAssets';
 import { requireResourceManager } from './resourceManager';
 import { validateComponentData, formatValidationErrors, assetFieldNames } from './validation';
@@ -585,7 +586,10 @@ export function serializeEntityComponents(world: World, entity: Entity): SceneCo
         if (comp.transient) continue;
         const data = world.tryGet(entity, comp);
         if (data === null) continue;
-        const payload = data as Record<string, unknown>;
+        // tryGet returns a fresh object for builtins (convertFromWasm) but the LIVE
+        // stored object for script components — clone the latter so the snapshot
+        // doesn't alias running-world state (and exportData below can't mutate it).
+        const payload = (comp._builtin ? data : deepClone(data)) as Record<string, unknown>;
         // Components with out-of-band state (e.g. TilemapLayer chunks) fold
         // it into the record via their registered codec.
         sceneComponentCodecs.get(typeName)?.exportData?.(entityNum, payload);
