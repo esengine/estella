@@ -409,10 +409,16 @@ void TilemapSystem::worldToTile(Entity entity, f32 wx, f32 wy,
 
     switch (layer->grid_type) {
         case GridType::Isometric: {
+            // Isometric tiles are center-anchored (tileToWorld/renderer place the
+            // center at ((tx-ty)*tw/2, -(tx+ty)*th/2)), so this linear map sends a
+            // tile's diamond to the unit square centered on (tx,ty). Recovering the
+            // containing tile is therefore round-to-nearest, not floor — floor
+            // splits each diamond at its center and mis-attributes the upper half
+            // to the (tx-1,ty-1) neighbor.
             f32 ftx = lx / tw + ly / th;
             f32 fty = ly / th - lx / tw;
-            outTx = static_cast<i32>(std::floor(ftx));
-            outTy = static_cast<i32>(std::floor(fty));
+            outTx = static_cast<i32>(std::floor(ftx + 0.5f));
+            outTy = static_cast<i32>(std::floor(fty + 0.5f));
             break;
         }
         case GridType::StaggeredIsometric:

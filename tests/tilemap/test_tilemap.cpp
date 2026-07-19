@@ -330,6 +330,41 @@ TEST_CASE("tilemap_hex_tile_to_world") {
     }
 }
 
+TEST_CASE("tilemap_iso_world_to_tile") {
+    // Isometric tiles are center-anchored, so recovering the containing tile is
+    // round-to-nearest. floor split each diamond at its center and mis-attributed
+    // the upper half to the (tx-1, ty-1) neighbor. tw = th = 16, so tile (2,3)'s
+    // center is ((2-3)*8, -(2+3)*8) = (-8, -40).
+    TilemapSystem sys;
+    sys.initLayer(E(0), 8, 8, 16.0f, 16.0f);
+    sys.setGridType(E(0), GridType::Isometric);
+
+    i32 tx = -1, ty = -1;
+
+    SUBCASE("exact tile center round-trips") {
+        f32 cx = 0, cy = 0;
+        sys.tileToWorld(E(0), 2, 3, 0, 0, cx, cy);
+        CHECK_EQ(cx, doctest::Approx(-8.0f));
+        CHECK_EQ(cy, doctest::Approx(-40.0f));
+        sys.worldToTile(E(0), cx, cy, 0, 0, tx, ty);
+        CHECK_EQ(tx, 2);
+        CHECK_EQ(ty, 3);
+    }
+
+    SUBCASE("upper half of a diamond stays in its own tile (floor regressed here)") {
+        // 4px above the center is still inside (2,3)'s diamond; floor returned (1,2).
+        sys.worldToTile(E(0), -8.0f, -36.0f, 0, 0, tx, ty);
+        CHECK_EQ(tx, 2);
+        CHECK_EQ(ty, 3);
+    }
+
+    SUBCASE("lower half of a diamond stays in its own tile") {
+        sys.worldToTile(E(0), -8.0f, -44.0f, 0, 0, tx, ty);
+        CHECK_EQ(tx, 2);
+        CHECK_EQ(ty, 3);
+    }
+}
+
 TEST_CASE("tilemap_animation_revision_separation") {
     // The render cache must distinguish a TABLE change (a tile GAINS an animation
     // → every chunk re-evaluates once, so an all-static chunk can become animated)
