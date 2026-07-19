@@ -9,7 +9,7 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { defineComponent, clearUserComponents } from '../src/component';
-import { applySpineEntities } from '../src/spine/loadSpineScene';
+import { applySpineEntities, spineEntityProps } from '../src/spine/loadSpineScene';
 import type { SceneData } from '../src/scene';
 import type { Entity } from '../src/types';
 
@@ -72,5 +72,15 @@ describe('applySpineEntities routes every version to the SpineManager (S3)', () 
             }]]),
         });
         expect(manager.loadEntity).not.toHaveBeenCalled();
+    });
+});
+
+describe('spineEntityProps color default', () => {
+    it('defaults a missing color to opaque white so clearing resets the tint', () => {
+        expect(spineEntityProps({}).color).toEqual({ r: 1, g: 1, b: 1, a: 1 });
+        expect(spineEntityProps({ color: null }).color).toEqual({ r: 1, g: 1, b: 1, a: 1 });
+    });
+    it('passes a set color through', () => {
+        expect(spineEntityProps({ color: { r: 1, g: 0, b: 0, a: 1 } }).color).toEqual({ r: 1, g: 0, b: 0, a: 1 });
     });
 });

@@ -47,7 +47,10 @@ export function spineEntityProps(d: Record<string, unknown>): {
     layer: num(d.layer, 0),
     timeScale: num(d.timeScale, 1),
     playing: d.playing !== false,
-    color: color && typeof color === 'object' ? (color as { r: number; g: number; b: number; a: number }) : undefined,
+    // Default to opaque white (spine's no-tint identity) rather than undefined, so
+    // CLEARING the color field resets the native skeleton tint instead of leaving
+    // the last-applied color stuck (setEntityProps only writes a defined color).
+    color: color && typeof color === 'object' ? (color as { r: number; g: number; b: number; a: number }) : { r: 1, g: 1, b: 1, a: 1 },
   };
 }
 

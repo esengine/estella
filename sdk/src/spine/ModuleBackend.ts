@@ -131,6 +131,10 @@ export class ModuleBackend {
         return this.controller_.getSkins(info.instanceId);
     }
 
+    // NOTE: mix durations live on the skeleton's AnimationStateData (C++ takes a
+    // skeletonHandle), so these apply to EVERY entity sharing this asset, not just
+    // `entity`. Crossfade timing is an asset-level property here — pass an entity
+    // only to resolve which asset. (True per-instance mix would need a C++ change.)
     setDefaultMix(entity: Entity, duration: number): void {
         const info = this.entities_.get(entity);
         if (info) this.controller_.setDefaultMix(info.skelHandle, duration);
