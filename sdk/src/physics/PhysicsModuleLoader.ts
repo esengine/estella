@@ -162,7 +162,8 @@ export interface PhysicsWasmModule {
 
     _physics_moveCharacter(px: number, py: number, c1x: number, c1y: number, c2x: number, c2y: number,
         radius: number, velX: number, velY: number, dt: number, upX: number, upY: number, floorCos: number,
-        maskBits: number, selfEntity: number): number;
+        maskBits: number, selfEntity: number,
+        skinWidth: number, maxSlides: number, snapLength: number, slideOnCeiling: number): number;
     _physics_getMoveCharacterBuffer(): number;
 
     _physics_overlapAABB(minX: number, minY: number, maxX: number, maxY: number, maskBits: number): number;

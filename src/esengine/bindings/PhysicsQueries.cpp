@@ -73,6 +73,28 @@ static bool moverPlaneCallback(b2ShapeId shapeId, const b2PlaneResult* pr, void*
     return true;
 }
 
+// Floor-snap down-probe: tracks the closest floor-classified hit (excluding self).
+// Returns 1.0 for every hit so the cast evaluates all shapes; the closest floor is
+// kept manually rather than via cast clipping (a nearer wall must not hide a floor).
+static float g_snapClosest = 1.0f;
+static b2Vec2 g_snapNormal = {0.0f, 0.0f};
+static bool g_snapHit = false;
+static b2Vec2 g_snapUp = {0.0f, 1.0f};
+static float g_snapFloorCos = 0.0f;
+
+static float snapCastCallback(b2ShapeId shapeId, b2Vec2 point, b2Vec2 normal, float fraction, void* context) {
+    (void)point;
+    (void)context;
+    if (entityFromShape(shapeId) == g_moverSelfEntity) return 1.0f;
+    float d = normal.x * g_snapUp.x + normal.y * g_snapUp.y;
+    if (d >= g_snapFloorCos && fraction < g_snapClosest) {
+        g_snapClosest = fraction;
+        g_snapNormal = normal;
+        g_snapHit = true;
+    }
+    return 1.0f;
+}
+
 extern "C" {
 
 EMSCRIPTEN_KEEPALIVE
@@ -203,7 +225,8 @@ int physics_overlapAABB(float minX, float minY, float maxX, float maxY, uint32_t
 EMSCRIPTEN_KEEPALIVE
 int physics_moveCharacter(float px, float py, float c1x, float c1y, float c2x, float c2y, float radius,
                           float velX, float velY, float dt, float upX, float upY, float floorCos,
-                          uint32_t maskBits, uint32_t selfEntity) {
+                          uint32_t maskBits, uint32_t selfEntity,
+                          float skinWidth, int maxSlides, float snapLength, int slideOnCeiling) {
     if (!b2World_IsValid(g_ctx.worldId)) return 0;
     g_moverSelfEntity = selfEntity;
 
@@ -214,13 +237,18 @@ int physics_moveCharacter(float px, float py, float c1x, float c1y, float c2x, f
     b2QueryFilter filter = b2DefaultQueryFilter();
     filter.maskBits = static_cast<uint64_t>(maskBits);
 
+    // skinWidth keeps the capsule a small margin off surfaces (less jitter, no
+    // visual overlap) — a slightly larger collision radius does exactly that.
+    float moverRadius = radius + (skinWidth > 0.0f ? skinWidth : 0.0f);
+    int slides = maxSlides > 0 ? maxSlides : 1;
+
     const float tolerance = 0.001f;
-    for (int iteration = 0; iteration < 5; ++iteration) {
+    for (int iteration = 0; iteration < slides; ++iteration) {
         g_moverPlaneCount = 0;
         b2Capsule mover;
         mover.center1 = {pos.x + c1x, pos.y + c1y};
         mover.center2 = {pos.x + c2x, pos.y + c2y};
-        mover.radius = radius;
+        mover.radius = moverRadius;
         b2World_CollideMover(g_ctx.worldId, &mover, filter, moverPlaneCallback, nullptr);
         b2PlaneSolverResult result = b2SolvePlanes(b2Sub(target, pos), g_moverPlanes, g_moverPlaneCount);
         pos = b2Add(pos, result.translation);
@@ -239,6 +267,38 @@ int physics_moveCharacter(float px, float py, float c1x, float c1y, float c2x, f
         if (d >= floorCos) { onFloor = true; fnx = n.x; fny = n.y; }
         else if (d <= -floorCos) { onCeiling = true; }
         else { onWall = true; }
+    }
+
+    // slideOnCeiling=false: a ceiling hit cancels the upward velocity instead of
+    // sliding along it, so the character drops straight back down.
+    if (onCeiling && slideOnCeiling == 0) {
+        float vUp = newVel.x * upX + newVel.y * upY;
+        if (vUp > 0.0f) { newVel.x -= vUp * upX; newVel.y -= vUp * upY; }
+    }
+
+    // Floor snap: when not rising and not already grounded, probe down up to
+    // snapLength and stick to a floor within reach, so the character stays glued to
+    // descending stairs/slopes instead of launching off each ledge.
+    if (snapLength > 0.0f && !onFloor) {
+        float vUp = newVel.x * upX + newVel.y * upY;
+        if (vUp <= 0.01f) {
+            g_snapClosest = 1.0f;
+            g_snapHit = false;
+            g_snapUp = up;
+            g_snapFloorCos = floorCos;
+            b2Vec2 pts[2] = { {pos.x + c1x, pos.y + c1y}, {pos.x + c2x, pos.y + c2y} };
+            b2ShapeProxy proxy = b2MakeProxy(pts, 2, moverRadius);
+            b2Vec2 down = {-upX * snapLength, -upY * snapLength};
+            b2World_CastShape(g_ctx.worldId, &proxy, down, filter, snapCastCallback, nullptr);
+            if (g_snapHit) {
+                pos = b2Add(pos, {down.x * g_snapClosest, down.y * g_snapClosest});
+                onFloor = true;
+                fnx = g_snapNormal.x;
+                fny = g_snapNormal.y;
+                float vn = newVel.x * g_snapNormal.x + newVel.y * g_snapNormal.y;
+                if (vn < 0.0f) { newVel.x -= vn * g_snapNormal.x; newVel.y -= vn * g_snapNormal.y; }
+            }
+        }
     }
 
     g_moverBuffer[0] = pos.x - px;

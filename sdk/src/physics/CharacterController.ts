@@ -311,7 +311,9 @@ export function registerCharacterControllerSystem(app: App): void {
                     const r = physics.moveCharacter(
                         transform.position, mover.c1, mover.c2, mover.radius,
                         cc.velocity, dt, cc.up, Math.cos(cc.floorMaxAngle),
-                        cc.maskBits, entity, ppu,
+                        cc.maskBits, entity,
+                        cc.skinWidth, cc.maxSlides, cc.snapLength, cc.slideOnCeiling,
+                        ppu,
                     );
                     if (!r) continue;
 

@@ -263,7 +263,9 @@ export class PhysicsAPI {
     moveCharacter(
         pos: Vec2, c1: Vec2, c2: Vec2, radius: number,
         velocity: Vec2, dt: number, up: Vec2, floorCos: number,
-        maskBits: number, self: Entity, ppu = this.ppu_,
+        maskBits: number, self: Entity,
+        skinWidth = 0, maxSlides = 5, snapLength = 0, slideOnCeiling = true,
+        ppu = this.ppu_,
     ): MoverResult | null {
         const invPpu = 1 / ppu;
         const ok = this.module_._physics_moveCharacter(
@@ -271,6 +273,7 @@ export class PhysicsAPI {
             c1.x * invPpu, c1.y * invPpu, c2.x * invPpu, c2.y * invPpu, radius * invPpu,
             velocity.x * invPpu, velocity.y * invPpu, dt,
             up.x, up.y, floorCos, maskBits, self >>> 0,
+            skinWidth * invPpu, maxSlides, snapLength * invPpu, slideOnCeiling ? 1 : 0,
         );
         if (!ok) return null;
         const base = this.module_._physics_getMoveCharacterBuffer() >> 2;
