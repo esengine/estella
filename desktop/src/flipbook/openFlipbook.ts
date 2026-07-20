@@ -8,6 +8,7 @@
 
 import { createAnimClip, serializeAnimClip } from 'esengine';
 import { AnimClipDocument } from './AnimClipDocument';
+import { useSelection } from '@/store/selectionStore';
 import { ProjectStore } from '@/project/ProjectStore';
 import { confirmDiscardDoc } from '@/project/discardGuard';
 import { dockApi } from '@/layout/dockApi';
@@ -20,6 +21,7 @@ export async function openFlipbook(path: string): Promise<void> {
   // Already-open file: just front the panel — a reload would clobber unsaved edits.
   if (AnimClipDocument.isOpen && AnimClipDocument.filePath === path) {
     dockApi.openDocument('flipbook', 'flipbook', t('fb.panelTitle'));
+    useSelection.getState().selectAsset(path);
     return;
   }
   if (!(await confirmDiscardDoc(AnimClipDocument.dirty, t('discard.openAsset', { name: baseName(path) })))) return;
@@ -27,6 +29,7 @@ export async function openFlipbook(path: string): Promise<void> {
     const text = await window.estella.fs.read(path);
     AnimClipDocument.openJson(JSON.parse(text), path);
     dockApi.openDocument('flipbook', 'flipbook', t('fb.panelTitle'));
+    useSelection.getState().selectAsset(path);
   } catch (e) {
     Toasts.push(t('fb.toast.openFailed', { error: String(e) }), 'error');
   }

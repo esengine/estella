@@ -164,15 +164,6 @@ export function FlipbookEditor() {
             <span className="fb-sep" />
           </>
         )}
-        <GridField label={t('fb.field.fps')} value={fps} min={1} onCommit={(n) => AnimClipCommands.setFps(n)} />
-        <label className="fb-field fb-loop">
-          <input
-            type="checkbox" checked={asset.loop ?? true}
-            onChange={(e) => AnimClipCommands.setLoop(e.target.checked)}
-          />
-          <span>{t('fb.loop')}</span>
-        </label>
-        <span className="fb-sep" />
         <label className="fb-field">
           <span>{t('fb.field.zoom')}</span>
           <input type="range" min={1} max={8} step={1} value={zoom}

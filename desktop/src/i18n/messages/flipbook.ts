@@ -26,6 +26,9 @@ export const flipbookMessages = defineMessages({
     'fb.field.zoom': { en: 'Zoom', zh: '缩放' },
     'fb.loop': { en: 'Loop', zh: '循环' },
     'fb.frameCount': { en: '{count} frames', zh: '{count} 帧' },
+    'fb.animClip': { en: 'Animation Clip', zh: '动画剪辑' },
+    'fb.insp.animation': { en: 'Animation', zh: '动画' },
+    'fb.insp.sheet': { en: 'Sprite Sheet', zh: '精灵表' },
     'fb.save': { en: 'Save', zh: '保存' },
 
     // — Sheet canvas —

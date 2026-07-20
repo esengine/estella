@@ -74,6 +74,8 @@ import {
   renderMaterialThumbnail,
   type MaterialContext,
 } from '@/material/materialInspectorModel';
+import { AnimClipDocument } from '@/flipbook/AnimClipDocument';
+import { buildAnimClipComponents, makeAnimClipWrite } from '@/flipbook/animClipInspectorModel';
 import { ColorControl, rgbaToHex8 } from '@/components/ColorControl';
 import { IconButton } from '@/components/IconButton';
 import { ContextMenu } from '@/components/Menu';
@@ -2394,6 +2396,9 @@ function AssetInspector({ path }: { path: string }) {
   if (isMaterialAsset(path)) {
     return <MaterialAssetInspector path={path} />;
   }
+  if (type === 'animclip') {
+    return <AnimClipAssetInspector path={path} />;
+  }
   if (type === 'inputmap') {
     return <InputMapAssetInspector path={path} />;
   }
@@ -2401,6 +2406,58 @@ function AssetInspector({ path }: { path: string }) {
     return <LocaleTableAssetInspector path={path} />;
   }
   return <GenericAssetInspector path={path} />;
+}
+
+// The .esanim inspector: the open flipbook's fps/loop (+ sheet grid) rendered
+// through the same ComponentSection engine as entities and materials. Passive —
+// the Flipbook panel owns the AnimClipDocument lifecycle, so this only reflects it
+// when the selected clip IS the open one, else falls back to import settings.
+function AnimClipAssetInspector({ path }: { path: string }) {
+  useSyncExternalStore(AnimClipDocument.subscribe, AnimClipDocument.getRevision);
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const toggle = (name: string) =>
+    setCollapsed((s) => {
+      const n = new Set(s);
+      n.has(name) ? n.delete(name) : n.add(name);
+      return n;
+    });
+
+  const asset = AnimClipDocument.asset;
+  const loaded = !!asset && AnimClipDocument.filePath === path;
+  if (!loaded || !asset) return <GenericAssetInspector path={path} />;
+
+  const components = buildAnimClipComponents(asset);
+  const write = makeAnimClipWrite();
+  const dirty = AnimClipDocument.dirty;
+
+  return (
+    <div className="insp">
+      <div className="ent-head">
+        <div className="ent-row1">
+          <div className="ent-name">{baseName(path)}</div>
+        </div>
+        <div className="ent-meta">
+          <span className="pill">
+            <span className="pk">{t('fb.animClip')}</span>
+            {t('fb.frameCount', { count: asset.frames.length })}
+          </span>
+          {dirty && <span className="pill">{t('det.unsaved')}</span>}
+        </div>
+      </div>
+      <div className="insp-body">
+        {components.map((comp) => (
+          <ComponentSection
+            key={comp.name}
+            entities={[]}
+            comp={comp}
+            collapsed={collapsed.has(comp.name)}
+            onToggle={() => toggle(comp.name)}
+            write={write}
+          />
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function formatBytes(n: number): string {
