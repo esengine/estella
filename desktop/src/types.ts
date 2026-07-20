@@ -149,6 +149,22 @@ export interface InspectorComponent {
   notice?: string;
 }
 
+/**
+ * A generic inspection source an editor pushes so its own sub-object selection
+ * (an open timeline's clip settings, a track, a tileset slice…) renders in the
+ * one shared Details inspector — no bespoke property panel. Consulted as a
+ * FALLBACK: an entity/asset/folder selection always wins over it.
+ * `subscribe`/`getRevision` drive a live re-render on the source's own edits;
+ * `build` yields the components and `write` routes edits back to the source doc.
+ */
+export interface InspectSource {
+  title: string;
+  subscribe: (onChange: () => void) => () => void;
+  getRevision: () => number;
+  build: () => InspectorComponent[];
+  write: (key: string, type: InspectorFieldType, value: number | boolean | string | number[] | GradientValue | CurveValue | DimensionValue) => void;
+}
+
 export type AssetType =
   | 'folder'
   | 'scene'

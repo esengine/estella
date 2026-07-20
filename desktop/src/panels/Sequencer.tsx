@@ -22,6 +22,7 @@ import { animatableFieldsFor } from '@/engine/schema';
 import { TimelineDocument } from '@/timeline/TimelineDocument';
 import { createAnimationClip } from '@/timeline/openClip';
 import { TimelineCommands } from '@/timeline/TimelineCommands';
+import { buildTimelineComponents, makeTimelineWrite } from '@/timeline/timelineInspectorModel';
 import { useSequencerStore } from '@/store/sequencerStore';
 import { useSelection } from '@/store/selectionStore';
 import { SceneModel } from '@/engine/SceneModel';
@@ -108,6 +109,27 @@ export function Sequencer() {
   // Re-read the document on every revision bump (open / edit / close).
   useSyncExternalStore(TimelineDocument.subscribe, TimelineDocument.getRevision);
   const asset = TimelineDocument.asset;
+
+  // Push the open timeline's clip settings (duration / fps / wrap) into the ONE
+  // shared Details inspector via the generic inspection-source channel — a
+  // fallback, so an entity/asset selection still wins. Cleared on close/unmount.
+  const timelineOpen = !!asset;
+  const timelinePath = TimelineDocument.meta.filePath;
+  useEffect(() => {
+    const sel = useSelection.getState();
+    if (timelineOpen) {
+      sel.setInspectSource({
+        title: timelinePath?.split('/').pop() ?? t('seq.timelineClip'),
+        subscribe: TimelineDocument.subscribe,
+        getRevision: TimelineDocument.getRevision,
+        build: () => buildTimelineComponents(TimelineDocument.asset!, TimelineDocument.meta.fps),
+        write: makeTimelineWrite(),
+      });
+    } else {
+      sel.setInspectSource(null);
+    }
+    return () => { useSelection.getState().setInspectSource(null); };
+  }, [timelineOpen, timelinePath]);
 
   if (!asset) return <div className="seq"><EmptyState /></div>;
 

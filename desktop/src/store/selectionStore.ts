@@ -3,7 +3,7 @@
 import { create } from 'zustand';
 import { SceneModel, SceneModelImpl } from '@/engine/SceneModel';
 import { PerfMonitor } from '@/engine/PerfMonitor';
-import type { EntityId } from '@/types';
+import type { EntityId, InspectSource } from '@/types';
 
 /**
  * Entity selection — model-anchored.
@@ -36,6 +36,14 @@ interface SelectionState {
   selectMany: (ids: EntityId[], primary: EntityId) => void;
   /** Select an asset (or clear with null); clears any entity selection. */
   selectAsset: (path: string | null) => void;
+  /**
+   * An editor-context inspection source (the open timeline's clip settings, a
+   * track…), shown in Details as a FALLBACK when nothing else is selected — it
+   * never overrides an entity/asset/folder. The owning editor sets it on open
+   * and clears it (null) on close/unmount.
+   */
+  inspectSource: InspectSource | null;
+  setInspectSource: (src: InspectSource | null) => void;
   /** Remove one id from the selection (despawn self-healing). */
   dropId: (id: EntityId) => void;
 }
@@ -54,6 +62,8 @@ export function createSelectionStore(model: SceneModelImpl) {
     selectedId: null,
     selectedIds: new Set<EntityId>(),
     selectedAsset: null,
+    inspectSource: null,
+    setInspectSource: (inspectSource) => set({ inspectSource }),
 
     // 'select' zone captures the synchronous subscriber work a selection triggers.
     select: (selectedId) =>

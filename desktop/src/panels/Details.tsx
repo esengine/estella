@@ -85,7 +85,7 @@ import { SearchField } from '@/components/SearchField';
 import { Select } from '@/components/Select';
 import { Segmented, type SegmentedOption } from '@/components/Segmented';
 import { AddComponentMenu } from '@/components/AddComponentMenu';
-import type { InspectorComponent, InspectorField, InspectorFieldValue, EntityId, NodeKind, EnumOption, AssetType, GradientValue, GradientStop, CurveValue, CurveKey, DimensionValue } from '@/types';
+import type { InspectorComponent, InspectorField, InspectorFieldValue, EntityId, NodeKind, EnumOption, AssetType, GradientValue, GradientStop, CurveValue, CurveKey, DimensionValue, InspectSource } from '@/types';
 
 const AXES = ['x', 'y', 'z'];
 
@@ -2733,6 +2733,43 @@ function FolderInspector({ path }: { path: string }) {
   );
 }
 
+// A generic editor-pushed inspection source (an open timeline's clip settings,
+// a track, a slice…) rendered through the same ComponentSection engine as
+// entities and materials. Lives on the source's own subscribe/getRevision;
+// edits route through source.write. The one shared inspector, no bespoke panel.
+function SourceInspector({ source }: { source: InspectSource }) {
+  useSyncExternalStore(source.subscribe, source.getRevision);
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const toggle = (name: string) =>
+    setCollapsed((s) => {
+      const n = new Set(s);
+      n.has(name) ? n.delete(name) : n.add(name);
+      return n;
+    });
+  const components = source.build();
+  return (
+    <div className="insp">
+      <div className="ent-head">
+        <div className="ent-row1">
+          <div className="ent-name">{source.title}</div>
+        </div>
+      </div>
+      <div className="insp-body">
+        {components.map((comp) => (
+          <ComponentSection
+            key={comp.name}
+            entities={[]}
+            comp={comp}
+            collapsed={collapsed.has(comp.name)}
+            onToggle={() => toggle(comp.name)}
+            write={source.write}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // Dispatcher: the live game inspector during PIE, the edit inspector otherwise.
 export function Details() {
   const inspectWorld = useEditorStore((s) => s.inspectWorld);
@@ -2747,6 +2784,7 @@ function EditorDetails() {
   const selectedId = useSelection((s) => s.selectedId);
   const selectedIds = useSelection((s) => s.selectedIds);
   const selectedAsset = useSelection((s) => s.selectedAsset);
+  const inspectSource = useSelection((s) => s.inspectSource);
   const selectedFolder = useOutliner((s) => s.selectedFolder);
   const ready = engine.status === 'ready' && selectedId != null;
 
@@ -2803,6 +2841,12 @@ function EditorDetails() {
   // A selected outliner folder (no entity/asset selected) shows the folder view.
   if (selectedFolder != null && selectedId == null) {
     return <FolderInspector path={selectedFolder} />;
+  }
+
+  // Editor-context inspection source (e.g. the open timeline's clip settings) is
+  // the fallback — shown only when nothing else is selected, never overriding one.
+  if (selectedId == null && inspectSource) {
+    return <SourceInspector source={inspectSource} />;
   }
 
   if (!entity || selectedId == null) {
