@@ -83,6 +83,27 @@
 .pbtn.on { color: var(--acc); }
 .pbody { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; }
 
+/* Shared dirty-aware Save button for asset-editor toolbars (components/SaveButton.tsx).
+   Outlined, not filled — the accent fill is reserved for Play (one primary action
+   per screen); Save stays prominent through the accent stroke/text. */
+.save-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: transparent;
+  color: var(--star-hi);
+  border: 1px solid var(--star-line);
+  border-radius: var(--r-sm);
+  padding: 4px 9px;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  transition: background var(--t-fast);
+}
+.save-btn:not(:disabled):hover { background: var(--star-dim); }
+.save-btn:not(:disabled):active { background: var(--star-soft); }
+.save-btn:disabled { opacity: 0.45; cursor: default; }
+
 /* — Icon button (components/IconButton.tsx): the canonical square glyph button.
      `.pbtn` above and the per-panel `.cb-ico`/`.filt-btn`/`.modal__x`/`.set-x`/
      `.tbtn` classes are the same recipe at 22/24/28px — they fold into this as

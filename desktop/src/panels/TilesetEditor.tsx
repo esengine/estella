@@ -18,7 +18,7 @@ import {
   useEffect, useRef, useState, useSyncExternalStore,
   type CSSProperties, type MouseEvent as ReactMouseEvent,
 } from 'react';
-import { Save, Plus, Trash2, X, ArrowUp } from 'lucide-react';
+import { Plus, Trash2, X, ArrowUp } from 'lucide-react';
 import {
   TB_N, TB_E, TB_S, TB_W, TB_NE, TB_SE, TB_SW, TB_NW,
   type TilesetAsset, type TilesetAnimFrame,
@@ -26,8 +26,8 @@ import {
 import { Segmented } from '@/components/Segmented';
 import { Select } from '@/components/Select';
 import { usePanelWindow } from '@/components/PanelWindow';
-import { DirtyDot } from '@/components/DirtyDot';
 import { GridField } from '@/components/GridField';
+import { SaveButton } from '@/components/SaveButton';
 import { TilesetDocument } from '@/tileset/TilesetDocument';
 import { TilesetCommands, type TileCollisionMods } from '@/tileset/TilesetCommands';
 import { useTilesetView } from '@/tileset/tilesetView';
@@ -567,9 +567,7 @@ export function TilesetEditor() {
         <span className="ts-stat">
           {cols}×{rows}{mode === 'collision' ? ` · ${t('tile.solidCount', { count: solidCount })}` : ''}
         </span>
-        <button type="button" className="ts-save" onClick={() => void TilesetCommands.save()} disabled={!meta.dirty}>
-          <Save size={13} /> {t('tile.save')}{meta.dirty && <DirtyDot />}
-        </button>
+        <SaveButton dirty={meta.dirty} onSave={() => void TilesetCommands.save()} />
       </div>
 
       {mode === 'animation' && (

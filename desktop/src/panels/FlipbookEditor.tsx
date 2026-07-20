@@ -13,13 +13,14 @@ import {
   useEffect, useRef, useState, useSyncExternalStore,
   type CSSProperties, type DragEvent,
 } from 'react';
-import { Save, Trash2, X } from 'lucide-react';
+import { Trash2, X } from 'lucide-react';
 import {
   animClipSheetCols, animClipSheetRows,
   type AnimClipFrameData, type AnimClipSheetData,
 } from 'esengine';
-import { DirtyDot } from '@/components/DirtyDot';
 import { GridField } from '@/components/GridField';
+import { Transport } from '@/components/Transport';
+import { SaveButton } from '@/components/SaveButton';
 import { AnimClipDocument } from '@/flipbook/AnimClipDocument';
 import { AnimClipCommands } from '@/flipbook/AnimClipCommands';
 import { ProjectStore } from '@/project/ProjectStore';
@@ -45,37 +46,6 @@ function cellThumbStyle(
   };
 }
 
-/** Loops the frame strip with per-frame durations (1/fps when a frame has none). */
-function FlipbookPreview(props: {
-  frames: AnimClipFrameData[];
-  fps: number;
-  thumb: (f: AnimClipFrameData) => CSSProperties;
-}) {
-  const { frames, fps, thumb } = props;
-  const [i, setI] = useState(0);
-  useEffect(() => {
-    setI(0);
-    if (frames.length < 2) return;
-    const durMs = (j: number) => Math.max(16, (frames[j].duration ?? 1 / fps) * 1000);
-    let idx = 0;
-    let live = true;
-    let h: ReturnType<typeof setTimeout>;
-    const tick = () => {
-      if (!live) return;
-      idx = (idx + 1) % frames.length;
-      setI(idx);
-      h = setTimeout(tick, durMs(idx));
-    };
-    h = setTimeout(tick, durMs(0));
-    return () => {
-      live = false;
-      clearTimeout(h);
-    };
-  }, [frames, fps]);
-  if (frames.length === 0) return null;
-  return <span className="fb-thumb fb-preview" style={thumb(frames[Math.min(i, frames.length - 1)])} title={t('fb.preview')} />;
-}
-
 export function FlipbookEditor() {
   useSyncExternalStore(AnimClipDocument.subscribe, AnimClipDocument.getRevision);
   const asset = AnimClipDocument.asset;
@@ -92,6 +62,35 @@ export function FlipbookEditor() {
   strokeRef.current = stroke;
   const [dragFrame, setDragFrame] = useState<number | null>(null);
 
+  const [playing, setPlaying] = useState(false);
+  const [frameIdx, setFrameIdx] = useState(0);
+  const frameIdxRef = useRef(frameIdx);
+  frameIdxRef.current = frameIdx;
+
+  const playFrames = asset?.frames;
+  const playFps = asset?.fps ?? 12;
+  // Keep the playhead inside the (possibly shrunk) frame list.
+  useEffect(() => {
+    const n = playFrames?.length ?? 0;
+    setFrameIdx((i) => (n === 0 ? 0 : Math.min(i, n - 1)));
+  }, [playFrames?.length]);
+  // Transport-driven preview: advance by each frame's own duration, always looping
+  // (the asset's loop mode governs runtime playback, not this editor preview).
+  useEffect(() => {
+    if (!playing || !playFrames || playFrames.length < 2) return;
+    const durMs = (j: number) => Math.max(16, (playFrames[j].duration ?? 1 / playFps) * 1000);
+    let live = true;
+    let h: ReturnType<typeof setTimeout>;
+    const tick = () => {
+      if (!live) return;
+      const next = (frameIdxRef.current + 1) % playFrames.length;
+      setFrameIdx(next);
+      h = setTimeout(tick, durMs(next));
+    };
+    h = setTimeout(tick, durMs(frameIdxRef.current));
+    return () => { live = false; clearTimeout(h); };
+  }, [playing, playFrames, playFps]);
+
   if (!asset) {
     return (
       <div className="fb-empty">
@@ -106,16 +105,18 @@ export function FlipbookEditor() {
   const rows = sheet ? animClipSheetRows(sheet) : 0;
   const cellCount = cols * rows;
 
-  const thumbFor = (f: AnimClipFrameData): CSSProperties => {
+  const thumbFor = (f: AnimClipFrameData, size = THUMB): CSSProperties => {
     if (sheet && texUrl && f.cell !== undefined) {
-      return cellThumbStyle(texUrl, sheet, cols, Math.min(f.cell, Math.max(0, cellCount - 1)), THUMB);
+      return cellThumbStyle(texUrl, sheet, cols, Math.min(f.cell, Math.max(0, cellCount - 1)), size);
     }
     // Legacy per-texture frame: show the whole referenced image.
     const fi = f.texture ? ProjectStore.assetInfo(f.texture) : null;
     return fi
-      ? { width: THUMB, height: THUMB, backgroundImage: `url(estella://project/${fi.path})`, backgroundSize: 'contain' }
-      : { width: THUMB, height: THUMB };
+      ? { width: size, height: size, backgroundImage: `url(estella://project/${fi.path})`, backgroundSize: 'contain' }
+      : { width: size, height: size };
   };
+
+  const curFrame = Math.min(frameIdx, Math.max(0, asset.frames.length - 1));
 
   const commitStroke = () => {
     const s = strokeRef.current;
@@ -181,19 +182,34 @@ export function FlipbookEditor() {
         <span className="fb-stat">
           {sheet ? `${cols}×${rows} · ` : ''}{t('fb.frameCount', { count: asset.frames.length })}
         </span>
-        <button type="button" className="fb-save" onClick={() => void AnimClipCommands.save()} disabled={!meta.dirty}>
-          <Save size={13} /> {t('fb.save')}{meta.dirty && <DirtyDot />}
-        </button>
+        <SaveButton dirty={meta.dirty} onSave={() => void AnimClipCommands.save()} />
       </div>
 
+      {asset.frames.length > 0 && (
+        <div className="fb-playbar">
+          <span className="fb-thumb fb-playbar__img" style={thumbFor(asset.frames[curFrame], 64)} title={t('fb.preview')} />
+          <Transport
+            playing={playing}
+            onPlayPause={() => setPlaying((p) => !p)}
+            onJumpStart={() => { setPlaying(false); setFrameIdx(0); }}
+            onJumpEnd={() => { setPlaying(false); setFrameIdx(asset.frames.length - 1); }}
+            onStepBack={() => { setPlaying(false); setFrameIdx((i) => (i - 1 + asset.frames.length) % asset.frames.length); }}
+            onStepForward={() => { setPlaying(false); setFrameIdx((i) => (i + 1) % asset.frames.length); }}
+            stepBackTitle={t('fb.prevFrame')}
+            stepForwardTitle={t('fb.nextFrame')}
+            frame={curFrame}
+            frameCount={asset.frames.length}
+          />
+        </div>
+      )}
+
       <div className="fb-frames">
-        <FlipbookPreview frames={asset.frames} fps={fps} thumb={thumbFor} />
         {asset.frames.map((f, i) => {
           const invalid = f.cell !== undefined && f.cell >= cellCount;
           return (
             <span
               key={`${i}-${f.cell ?? f.texture}`}
-              className={'fb-frame' + (invalid ? ' is-invalid' : '') + (dragFrame === i ? ' is-dragging' : '')}
+              className={'fb-frame' + (invalid ? ' is-invalid' : '') + (dragFrame === i ? ' is-dragging' : '') + (i === curFrame ? ' is-current' : '')}
               draggable
               onDragStart={(e: DragEvent) => { e.dataTransfer.setData('text/plain', String(i)); setDragFrame(i); }}
               onDragEnd={() => setDragFrame(null)}
@@ -206,7 +222,11 @@ export function FlipbookEditor() {
               }}
               title={invalid ? t('fb.frame.invalidTip', { cell: f.cell ?? 0 }) : undefined}
             >
-              <span className="fb-thumb" style={thumbFor(f)} />
+              <span
+                className="fb-thumb fb-frame__thumb" style={thumbFor(f)}
+                title={t('fb.frame.scrubTip')}
+                onClick={() => { setPlaying(false); setFrameIdx(i); }}
+              />
               <input
                 key={`${i}-${f.duration ?? ''}`}
                 className="fb-dur"

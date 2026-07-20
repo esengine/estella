@@ -1,0 +1,21 @@
+/* =============================================================================
+   Shared playback transport (components/Transport.tsx). Mirrors the original
+   Sequencer bar styling so adoption is pixel-identical; everything derives from
+   tokens.css. Jump/step/loop buttons reuse the shared IconButton.
+   ========================================================================== */
+
+.transport { display: inline-flex; align-items: center; gap: 3px; }
+
+.transport__play {
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 24px; min-width: 34px; padding: 0 5px;
+  border: 0; border-radius: var(--r-md);
+  background: var(--raised); color: var(--text); cursor: pointer;
+  transition: background var(--t-fast) var(--e-out);
+}
+.transport__play:hover { background: var(--srf-5); }
+
+.transport__div { width: 1px; height: 16px; background: var(--border); margin: 0 4px; }
+
+.transport__frame { color: var(--text-dim); font-family: var(--mono); font-size: var(--fs-xs); white-space: nowrap; }
+.transport__frame strong { color: var(--text); }

@@ -14,8 +14,7 @@
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
-  Circle, ChevronFirst, ChevronLast, ChevronLeft, ChevronRight,
-  Play, Pause, Repeat, Magnet, Plus, ChevronDown, Eye, EyeOff, Diamond, Film, Link2, Save, Trash2, Settings2,
+  Circle, Magnet, Plus, ChevronDown, Eye, EyeOff, Diamond, Film, Link2, Trash2, Settings2,
 } from 'lucide-react';
 import { evaluateChannel, InterpType, WrapMode } from 'esengine';
 import { t } from '@/i18n';
@@ -28,9 +27,10 @@ import { useSelection } from '@/store/selectionStore';
 import { SceneModel } from '@/engine/SceneModel';
 import { ContextMenu, type MenuItem } from '@/components/Menu';
 import { eventWindow } from '@/components/PanelWindow';
-import { DirtyDot } from '@/components/DirtyDot';
 import { IconButton } from '@/components/IconButton';
 import { NumField } from '@/components/NumField';
+import { Transport } from '@/components/Transport';
+import { SaveButton } from '@/components/SaveButton';
 import { SequencerCurve } from '@/panels/SequencerCurve';
 import {
   buildTimelineRows, visibleRows, frameCount, timeToPct, pctToTime, findChannel, muteKey,
@@ -371,28 +371,20 @@ function SequencerBody() {
           <Circle size={12} fill="currentColor" />
         </button>
         <span className="seq-div" />
-        <IconButton size="md" title={t('seq.jumpStart')} onClick={() => setTime(0)}><ChevronFirst size={15} /></IconButton>
-        <IconButton size="md" title={t('seq.prevKeyframe')} onClick={() => jumpKey(-1)}><ChevronLeft size={15} /></IconButton>
-        <button
-          type="button"
-          className="seq-btn seq-btn--play"
-          title={t('seq.playPause')}
-          onClick={() => useSequencerStore.getState().togglePlay()}
-        >
-          {playing ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
-        </button>
-        <IconButton size="md" title={t('seq.nextKeyframe')} onClick={() => jumpKey(1)}><ChevronRight size={15} /></IconButton>
-        <IconButton size="md" title={t('seq.jumpEnd')} onClick={() => setTime(duration)}><ChevronLast size={15} /></IconButton>
-        <IconButton
-          size="md"
-          active={loop}
-          title={t('seq.wrap.loop')}
-          onClick={() => useSequencerStore.getState().toggleLoop()}
-        >
-          <Repeat size={14} />
-        </IconButton>
-        <span className="seq-div" />
-        <span className="seq-frame">{t('seq.frameWord')} <strong>{frame}</strong> / {totalFrames}</span>
+        <Transport
+          playing={playing}
+          onPlayPause={() => useSequencerStore.getState().togglePlay()}
+          onJumpStart={() => setTime(0)}
+          onJumpEnd={() => setTime(duration)}
+          onStepBack={() => jumpKey(-1)}
+          onStepForward={() => jumpKey(1)}
+          stepBackTitle={t('seq.prevKeyframe')}
+          stepForwardTitle={t('seq.nextKeyframe')}
+          loop={loop}
+          onToggleLoop={() => useSequencerStore.getState().toggleLoop()}
+          frame={frame}
+          frameCount={totalFrames}
+        />
         <span className="seq-spacer" />
         <div className="seq-tabs">
           <button type="button" className={`seq-tab${view === 'sheet' ? ' active' : ''}`} onClick={() => useSequencerStore.getState().setView('sheet')}>{t('seq.tabSheet')}</button>
@@ -422,14 +414,7 @@ function SequencerBody() {
         >
           <Plus size={14} /><span>{t('seq.trackBtn')}</span>
         </button>
-        <button
-          type="button"
-          className={`seq-btn seq-btn--text${TimelineDocument.meta.dirty ? ' on' : ''}`}
-          title={t('seq.saveTitle')}
-          onClick={() => void TimelineCommands.save()}
-        >
-          <Save size={14} /><span>{t('seq.save')}{TimelineDocument.meta.dirty && <DirtyDot />}</span>
-        </button>
+        <SaveButton dirty={TimelineDocument.meta.dirty} onSave={() => void TimelineCommands.save()} title={t('seq.saveTitle')} />
       </div>
 
       {/* body: track list + timeline */}

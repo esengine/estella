@@ -44,25 +44,6 @@
 .ts-grow { flex: 1 1 auto; }
 .ts-stat { color: var(--text-faint); font-variant-numeric: tabular-nums; }
 
-/* Outlined, not filled — the accent fill is reserved for Play (one primary
-   action per screen); Save stays prominent through the accent stroke/text. */
-.ts-save {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  background: transparent;
-  color: var(--star-hi);
-  border: 1px solid var(--star-line);
-  border-radius: var(--r-sm);
-  padding: 4px 9px;
-  cursor: pointer;
-  font: inherit;
-  font-weight: 600;
-  transition: background var(--t-fast);
-}
-.ts-save:not(:disabled):hover { background: var(--star-dim); }
-.ts-save:not(:disabled):active { background: var(--star-soft); }
-.ts-save:disabled { opacity: 0.45; cursor: default; }
 
 .ts-canvas {
   flex: 1 1 auto;

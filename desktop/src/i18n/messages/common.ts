@@ -15,6 +15,7 @@ export const commonMessages = defineMessages({
     'ui.rename': { en: 'Rename', zh: '重命名' },
     'ui.search': { en: 'Search', zh: '搜索' },
     'ui.reset': { en: 'Reset', zh: '重置' },
+    'ui.save': { en: 'Save', zh: '保存' },
     'ui.untitled': { en: 'untitled', zh: '未命名' },
     'ui.download': { en: 'Download', zh: '下载' },
     'ui.reloadNow': { en: 'Reload now', zh: '立即重新加载' },
@@ -56,4 +57,13 @@ export const commonMessages = defineMessages({
     },
     'autosave.recoverConfirm': { en: 'Restore', zh: '恢复' },
     'autosave.recovered': { en: 'Recovered {count} unsaved document(s)', zh: '已恢复 {count} 个未保存的文档' },
+
+    // — Shared playback transport (components/Transport.tsx) —
+    'transport.jumpStart': { en: 'Jump to start', zh: '跳到开头' },
+    'transport.jumpEnd': { en: 'Jump to end', zh: '跳到结尾' },
+    'transport.stepBack': { en: 'Previous', zh: '上一步' },
+    'transport.stepForward': { en: 'Next', zh: '下一步' },
+    'transport.playPause': { en: 'Play / pause (Space)', zh: '播放 / 暂停（空格）' },
+    'transport.loop': { en: 'Loop', zh: '循环' },
+    'transport.frameWord': { en: 'Frame', zh: '帧' },
 });

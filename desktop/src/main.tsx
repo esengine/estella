@@ -23,6 +23,7 @@ import './theme/log.css';
 import './theme/viewport.css';
 import './theme/content.css';
 import './theme/sequencer.css';
+import './theme/transport.css';
 import './theme/profiler.css';
 import './theme/tileset.css';
 import './theme/flipbook.css';

@@ -33,8 +33,11 @@ export const flipbookMessages = defineMessages({
     'fb.texNotFound': { en: 'Sheet texture not found: {ref}', zh: '未找到精灵表纹理：{ref}' },
     'fb.refEmpty': { en: '(empty)', zh: '（空）' },
 
-    // — Frame strip —
+    // — Playback + frame strip —
     'fb.preview': { en: 'Looping preview', zh: '循环预览' },
+    'fb.prevFrame': { en: 'Previous frame', zh: '上一帧' },
+    'fb.nextFrame': { en: 'Next frame', zh: '下一帧' },
+    'fb.frame.scrubTip': { en: 'Go to this frame', zh: '跳到此帧' },
     'fb.addFrames': { en: 'Click sheet cells to add frames', zh: '点击精灵表格子以添加帧' },
     'fb.appendFrames': { en: 'Click cells to append · drag frames to reorder', zh: '点击格子追加 · 拖动帧以重排' },
     'fb.frame.durTip': { en: 'Frame duration in ms (empty = 1000 / FPS)', zh: '帧时长（毫秒，留空 = 1000 / 帧率）' },
