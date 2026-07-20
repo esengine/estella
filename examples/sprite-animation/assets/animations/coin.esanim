@@ -1,0 +1,41 @@
+{
+  "version": "1.2",
+  "type": "animation-clip",
+  "fps": 12,
+  "loop": true,
+  "sheet": {
+    "texture": "@uuid:25e16a82-b500-46c3-8276-36d5f4a0eb15",
+    "cellWidth": 64,
+    "cellHeight": 64,
+    "margin": 0,
+    "spacing": 0,
+    "pageWidth": 512,
+    "pageHeight": 64
+  },
+  "frames": [
+    {
+      "cell": 0
+    },
+    {
+      "cell": 1
+    },
+    {
+      "cell": 2
+    },
+    {
+      "cell": 3
+    },
+    {
+      "cell": 4
+    },
+    {
+      "cell": 5
+    },
+    {
+      "cell": 6
+    },
+    {
+      "cell": 7
+    }
+  ]
+}

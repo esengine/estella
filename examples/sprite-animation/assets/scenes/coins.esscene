@@ -1,0 +1,179 @@
+{
+  "version": "1.0",
+  "name": "Coins",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": { "position": { "x": 0, "y": 0, "z": 10 } }
+        },
+        {
+          "type": "Camera",
+          "data": { "projectionType": 1, "orthoSize": 300, "isActive": true, "priority": 0 }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "Backdrop",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": { "position": { "x": 0, "y": 0, "z": -5 } }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": { "x": 820, "y": 620 },
+            "color": { "r": 0.11, "g": 0.13, "b": 0.19, "a": 1 },
+            "layer": 0
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 2,
+      "name": "Coin L",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": { "position": { "x": -280, "y": 0, "z": 0 } }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": { "x": 100, "y": 100 },
+            "texture": "assets/textures/coin.png",
+            "uvOffset": { "x": 0, "y": 0 },
+            "uvScale": { "x": 0.125, "y": 1 },
+            "layer": 5
+          }
+        },
+        {
+          "type": "SpriteAnimator",
+          "data": { "clip": "assets/animations/coin.esanim", "speed": 0.8 }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 3,
+      "name": "Coin ML",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": { "position": { "x": -145, "y": 0, "z": 0 } }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": { "x": 130, "y": 130 },
+            "texture": "assets/textures/coin.png",
+            "uvOffset": { "x": 0, "y": 0 },
+            "uvScale": { "x": 0.125, "y": 1 },
+            "layer": 5
+          }
+        },
+        {
+          "type": "SpriteAnimator",
+          "data": { "clip": "assets/animations/coin.esanim", "speed": 1.1 }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 4,
+      "name": "Coin Hero",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": { "position": { "x": 0, "y": 0, "z": 0 } }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": { "x": 164, "y": 164 },
+            "texture": "assets/textures/coin.png",
+            "uvOffset": { "x": 0, "y": 0 },
+            "uvScale": { "x": 0.125, "y": 1 },
+            "layer": 6
+          }
+        },
+        {
+          "type": "SpriteAnimator",
+          "data": { "clip": "assets/animations/coin.esanim", "speed": 1 }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 5,
+      "name": "Coin MR",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": { "position": { "x": 145, "y": 0, "z": 0 } }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": { "x": 130, "y": 130 },
+            "texture": "assets/textures/coin.png",
+            "uvOffset": { "x": 0, "y": 0 },
+            "uvScale": { "x": 0.125, "y": 1 },
+            "layer": 5
+          }
+        },
+        {
+          "type": "SpriteAnimator",
+          "data": { "clip": "assets/animations/coin.esanim", "speed": 1.25 }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 6,
+      "name": "Coin R",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": { "position": { "x": 280, "y": 0, "z": 0 } }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": { "x": 100, "y": 100 },
+            "texture": "assets/textures/coin.png",
+            "uvOffset": { "x": 0, "y": 0 },
+            "uvScale": { "x": 0.125, "y": 1 },
+            "layer": 5
+          }
+        },
+        {
+          "type": "SpriteAnimator",
+          "data": { "clip": "assets/animations/coin.esanim", "speed": 0.65 }
+        }
+      ],
+      "visible": true
+    }
+  ]
+}
