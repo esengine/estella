@@ -15,7 +15,7 @@ import { COMPONENT_META, type AssetFieldMeta, type SpineFieldMeta } from './comp
 import type {
     TransformData, SpriteData, ShapeRendererData, Light2DData, ShadowCaster2DData,
     CanvasData, VelocityData, ParentData, ChildrenData, SpineAnimationData,
-    TilemapLayerData, BitmapTextData, TrailRendererData,
+    TilemapLayerData, BitmapTextData, TrailRendererData, ParticleForceFieldData,
     CameraData as CameraDataCpp, ParticleEmitterData as ParticleEmitterDataCpp,
     Mesh2DData as Mesh2DDataCpp,
 } from './component.generated';
@@ -24,7 +24,7 @@ import type {
 // C++ enum and the editor dropdowns derive from the same values. ScaleMode's
 // canonical values come from CanvasScaleMode (only its Cocos-compat aliases
 // ShowAll/NoBorder are TS-side).
-import { ProjectionType, ClearFlags, EmitterShape, SimulationSpace, SubEmitterTrigger, Light2DType, CanvasScaleMode, ShapeType, ParticleEasing } from './wasm.generated';
+import { ProjectionType, ClearFlags, EmitterShape, SimulationSpace, SubEmitterTrigger, ForceFieldType, Light2DType, CanvasScaleMode, ShapeType, ParticleEasing } from './wasm.generated';
 import { BlendMode } from './blend';
 import { getDefaultContext } from './context';
 import type {
@@ -560,7 +560,7 @@ export function ensureBuiltinComponentsRegistered(): void {
 // EmitterShape, SimulationSpace, Light2DType and ShapeType are re-exported from the
 // generated module; their values and the editor dropdowns built from them now have
 // one source.
-export { ProjectionType, ClearFlags, EmitterShape, SimulationSpace, SubEmitterTrigger, Light2DType, ShapeType };
+export { ProjectionType, ClearFlags, EmitterShape, SimulationSpace, SubEmitterTrigger, ForceFieldType, Light2DType, ShapeType };
 
 // Canonical values single-sourced from the C++ CanvasScaleMode enum (generated);
 // ShowAll/NoBorder are Cocos-compat aliases with no C++ member.
@@ -586,7 +586,7 @@ export type ScaleMode = (typeof ScaleMode)[keyof typeof ScaleMode];
 export type {
     TransformData, SpriteData, ShapeRendererData, Light2DData, ShadowCaster2DData,
     CanvasData, VelocityData, ParentData, ChildrenData, SpineAnimationData,
-    TilemapLayerData, BitmapTextData, TrailRendererData,
+    TilemapLayerData, BitmapTextData, TrailRendererData, ParticleForceFieldData,
 };
 
 export type LocalTransformData = TransformData;
@@ -734,6 +734,12 @@ export const Mesh2D = defineBuiltin<Mesh2DData>('Mesh2D',
 // rendered as a ribbon by TrailPlugin; nothing crosses as a component field.
 export const TrailRenderer = defineBuiltin<TrailRendererData>('TrailRenderer',
     metaDefaults<TrailRendererData>('TrailRenderer')
+);
+
+// Particle force field. A scene-placed zone (wind, attractor, vortex, drag) that the
+// C++ ParticleSystem folds into every nearby world-space particle's integration.
+export const ParticleForceField = defineBuiltin<ParticleForceFieldData>('ParticleForceField',
+    metaDefaults<ParticleForceFieldData>('ParticleForceField')
 );
 
 export const TilemapLayer = defineBuiltin<TilemapLayerData>('TilemapLayer',

@@ -753,6 +753,50 @@ export function createParticleEmitterData(): ParticleEmitterPtrData {
     };
 }
 
+export interface ParticleForceFieldPtrData {
+    type: number;
+    strength: number;
+    radius: number;
+    direction: Vec2;
+    falloff: boolean;
+    enabled: boolean;
+}
+
+export function fillParticleForceField(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, out: ParticleForceFieldPtrData,
+): void {
+    out.type = u32[ptr >> 2] | 0;
+    out.strength = f32[(ptr + 4) >> 2];
+    out.radius = f32[(ptr + 8) >> 2];
+    const direction_ = out.direction; direction_.x = f32[(ptr + 12) >> 2]; direction_.y = f32[((ptr + 12) >> 2) + 1];
+    out.falloff = u8[ptr + 20] !== 0;
+    out.enabled = u8[ptr + 21] !== 0;
+}
+
+export function writeParticleForceField(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, data: ParticleForceFieldPtrData,
+): void {
+    u32[ptr >> 2] = data.type | 0;
+    f32[(ptr + 4) >> 2] = data.strength;
+    f32[(ptr + 8) >> 2] = data.radius;
+    f32[(ptr + 12) >> 2] = data.direction.x; f32[((ptr + 12) >> 2) + 1] = data.direction.y;
+    u8[ptr + 20] = data.falloff ? 1 : 0;
+    u8[ptr + 21] = data.enabled ? 1 : 0;
+}
+
+export function createParticleForceFieldData(): ParticleForceFieldPtrData {
+    return {
+        type: 0,
+        strength: 0,
+        radius: 0,
+        direction: { x: 0, y: 0 },
+        falloff: false,
+        enabled: false,
+    };
+}
+
 export interface RigidBodyPtrData {
     bodyType: number;
     gravityScale: number;
@@ -1479,6 +1523,7 @@ export const PTR_ACCESSORS: Record<string, PtrAccessor<any>> = {
     Light2D: { fill: fillLight2D, write: writeLight2D, create: createLight2DData },
     Mesh2D: { fill: fillMesh2D, write: writeMesh2D, create: createMesh2DData },
     ParticleEmitter: { fill: fillParticleEmitter, write: writeParticleEmitter, create: createParticleEmitterData },
+    ParticleForceField: { fill: fillParticleForceField, write: writeParticleForceField, create: createParticleForceFieldData },
     RigidBody: { fill: fillRigidBody, write: writeRigidBody, create: createRigidBodyData },
     SegmentCollider: { fill: fillSegmentCollider, write: writeSegmentCollider, create: createSegmentColliderData },
     ShadowCaster2D: { fill: fillShadowCaster2D, write: writeShadowCaster2D, create: createShadowCaster2DData },

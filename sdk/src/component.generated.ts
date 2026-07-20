@@ -15,7 +15,7 @@ import type { Dimension, Padding } from './wasm.generated';
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '12610f4b7cc99ebc';
+export const ABI_LAYOUT_HASH = '1ea8bcc5e5a72cc7';
 
 export interface AssetFieldMeta {
     field: string;
@@ -403,6 +403,27 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             trailWidth: { min: 0, category: "Trail" },
             trailPoints: { min: 2, max: 12, step: 1, category: "Trail" },
             trailMinDistance: { min: 0, category: "Trail" },
+        },
+    },
+    ParticleForceField: {
+        defaults: {
+            type: 0,
+            strength: 200,
+            radius: 0,
+            direction: { x: 1, y: 0 },
+            falloff: true,
+            enabled: true,
+        },
+        assetFields: [],
+        entityFields: [],
+        colorFields: [],
+        animatableFields: [],
+        fields: {
+            type: { enum: [{ label: 'Directional', value: 0 }, { label: 'Point', value: 1 }, { label: 'Vortex', value: 2 }, { label: 'Drag', value: 3 }], category: "Field" },
+            strength: { category: "Field" },
+            radius: { min: 0, category: "Field" },
+            direction: { category: "Field" },
+            falloff: { category: "Field" },
         },
     },
     RigidBody: {
@@ -898,6 +919,15 @@ export interface ParticleEmitterData {
     trailWidth: number;
     trailPoints: number;
     trailMinDistance: number;
+}
+
+export interface ParticleForceFieldData {
+    type: number;
+    strength: number;
+    radius: number;
+    direction: Vec2;
+    falloff: boolean;
+    enabled: boolean;
 }
 
 export interface RigidBodyData {

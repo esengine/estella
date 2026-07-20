@@ -23,6 +23,27 @@ void ParticleSystem::update(ecs::Registry& registry, f32 dt) {
         });
     }
 
+    // Flatten the active force fields once so the per-particle loop touches no
+    // components. Fields are world objects, applied to world-space particles.
+    force_fields_.clear();
+    auto ffView = registry.view<ecs::Transform, ecs::ParticleForceField>();
+    for (auto ffEntity : ffView) {
+        const auto& ff = ffView.get<ecs::ParticleForceField>(ffEntity);
+        if (!ff.enabled || ff.strength == 0.0f) continue;
+        auto& ffTransform = ffView.get<ecs::Transform>(ffEntity);
+        ffTransform.ensureDecomposed();
+        f32 dl = std::sqrt(ff.direction.x * ff.direction.x + ff.direction.y * ff.direction.y);
+        ForceFieldInstance inst;
+        inst.type = ff.type;
+        inst.position = glm::vec2(ffTransform.worldPosition.x, ffTransform.worldPosition.y);
+        inst.direction = dl > 1e-6f ? ff.direction / dl : glm::vec2(1.0f, 0.0f);
+        inst.strength = ff.strength;
+        inst.radius = ff.radius;
+        inst.radiusSq = ff.radius * ff.radius;
+        inst.falloff = ff.falloff;
+        force_fields_.push_back(inst);
+    }
+
     auto view = registry.view<ecs::Transform, ecs::ParticleEmitter>();
     for (auto entity : view) {
         const auto& emitter = view.get<ecs::ParticleEmitter>(entity);
@@ -375,6 +396,39 @@ static f32 sampleSizeLut(const SizeLut& lut, f32 t) {
     return math::lerp(lut[i], lut[j], f - static_cast<f32>(i));
 }
 
+// Fold one force field into a world-space particle's velocity.
+static void applyForceField(const ForceFieldInstance& ff, Particle& p, f32 dt) {
+    glm::vec2 toField = ff.position - p.position;  // field ← particle
+    f32 distSq = toField.x * toField.x + toField.y * toField.y;
+    f32 factor = 1.0f;
+    if (ff.radius > 0.0f) {
+        if (distSq > ff.radiusSq) return;  // outside the zone
+        if (ff.falloff) factor = 1.0f - std::sqrt(distSq) / ff.radius;
+    }
+    switch (static_cast<ecs::ForceFieldType>(ff.type)) {
+        case ecs::ForceFieldType::Directional:
+            p.velocity += ff.direction * (ff.strength * factor * dt);
+            break;
+        case ecs::ForceFieldType::Point: {
+            f32 d = std::sqrt(distSq);
+            if (d > 1e-4f) p.velocity += (toField / d) * (ff.strength * factor * dt);
+            break;
+        }
+        case ecs::ForceFieldType::Vortex: {
+            f32 d = std::sqrt(distSq);
+            if (d > 1e-4f) {
+                glm::vec2 radial = -toField / d;      // field → particle
+                glm::vec2 perp(-radial.y, radial.x);  // tangent (CCW swirl)
+                p.velocity += perp * (ff.strength * factor * dt);
+            }
+            break;
+        }
+        case ecs::ForceFieldType::Drag:
+            p.velocity *= (1.0f - std::min(ff.strength * factor * dt, 1.0f));
+            break;
+    }
+}
+
 void ParticleSystem::updateParticles(const ecs::ParticleEmitter& emitter,
                                       EmitterState& state, f32 dt,
                                       const ColorLut* colorLut, const SizeLut* sizeLut,
@@ -424,6 +478,9 @@ void ParticleSystem::updateParticles(const ecs::ParticleEmitter& emitter,
         f32 t = p.age / p.lifetime;
 
         p.velocity += emitter.gravity * dt;
+        if (isWorldSpace && !force_fields_.empty()) {
+            for (const auto& ff : force_fields_) applyForceField(ff, p, dt);
+        }
         if (emitter.damping > 0.0f) {
             p.velocity *= (1.0f - emitter.damping * dt);
         }

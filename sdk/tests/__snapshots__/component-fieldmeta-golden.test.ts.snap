@@ -505,6 +505,42 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
       "min": 0,
     },
   },
+  "ParticleForceField": {
+    "direction": {
+      "category": "Field",
+    },
+    "falloff": {
+      "category": "Field",
+    },
+    "radius": {
+      "category": "Field",
+      "min": 0,
+    },
+    "strength": {
+      "category": "Field",
+    },
+    "type": {
+      "category": "Field",
+      "enum": [
+        {
+          "label": "Directional",
+          "value": 0,
+        },
+        {
+          "label": "Point",
+          "value": 1,
+        },
+        {
+          "label": "Vortex",
+          "value": 2,
+        },
+        {
+          "label": "Drag",
+          "value": 3,
+        },
+      ],
+    },
+  },
   "ShadowCaster2D": {
     "size": {
       "min": 0,

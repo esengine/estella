@@ -519,6 +519,89 @@ TEST_CASE("system_trail_slot_reuse_starts_empty") {
     }
 }
 
+// A still emitter (no initial speed, no gravity) — only a force field can move its
+// particles, so any velocity proves the field was applied.
+static Entity makeStillEmitter(ecs::Registry& registry) {
+    Entity e = registry.create();
+    registry.emplace<ecs::Transform>(e);
+    auto& emitter = registry.emplace<ecs::ParticleEmitter>(e);
+    emitter.rate = 1000.0f;
+    emitter.lifetimeMin = emitter.lifetimeMax = 10.0f;
+    emitter.maxParticles = 50;
+    emitter.speedMin = emitter.speedMax = 0.0f;
+    emitter.gravity = glm::vec2(0.0f);
+    emitter.shape = static_cast<i32>(ecs::EmitterShape::Point);
+    emitter.playOnStart = true;
+    return e;
+}
+
+TEST_CASE("system_force_field_directional_pushes_particles") {
+    ecs::Registry registry;
+    ParticleSystem system;
+
+    Entity field = registry.create();
+    registry.emplace<ecs::Transform>(field);
+    auto& ff = registry.emplace<ecs::ParticleForceField>(field);
+    ff.type = static_cast<i32>(ecs::ForceFieldType::Directional);
+    ff.strength = 500.0f;
+    ff.direction = glm::vec2(1.0f, 0.0f);  // rightward wind, unbounded
+
+    Entity e = makeStillEmitter(registry);
+    system.update(registry, 0.05f);
+
+    bool pushedRight = false;
+    system.forEachParticle(e, [&](const Particle& p) {
+        if (p.velocity.x > 1.0f && std::abs(p.velocity.y) < 0.5f) pushedRight = true;
+    });
+    CHECK(pushedRight);
+}
+
+TEST_CASE("system_force_field_point_attracts_toward_it") {
+    ecs::Registry registry;
+    ParticleSystem system;
+
+    Entity field = registry.create();
+    auto& ft = registry.emplace<ecs::Transform>(field);
+    // No transform system runs in this harness, so seed the world position directly
+    // (the sim reads worldPosition, which is otherwise computed from the matrix).
+    ft.worldPosition = glm::vec3(400.0f, 0.0f, 0.0f);  // to the right of the origin
+    auto& ff = registry.emplace<ecs::ParticleForceField>(field);
+    ff.type = static_cast<i32>(ecs::ForceFieldType::Point);
+    ff.strength = 300.0f;  // positive = attract
+
+    Entity e = makeStillEmitter(registry);  // particles spawn at the origin
+    system.update(registry, 0.05f);
+
+    bool pulledRight = false;
+    system.forEachParticle(e, [&](const Particle& p) {
+        if (p.velocity.x > 1.0f) pulledRight = true;  // toward the field at +x
+    });
+    CHECK(pulledRight);
+}
+
+TEST_CASE("system_force_field_radius_excludes_distant_particles") {
+    ecs::Registry registry;
+    ParticleSystem system;
+
+    Entity field = registry.create();
+    auto& ft = registry.emplace<ecs::Transform>(field);
+    ft.worldPosition = glm::vec3(5000.0f, 0.0f, 0.0f);  // far away (seeded directly)
+    auto& ff = registry.emplace<ecs::ParticleForceField>(field);
+    ff.type = static_cast<i32>(ecs::ForceFieldType::Directional);
+    ff.strength = 500.0f;
+    ff.direction = glm::vec2(1.0f, 0.0f);
+    ff.radius = 100.0f;  // small zone the origin particles are outside of
+
+    Entity e = makeStillEmitter(registry);
+    system.update(registry, 0.05f);
+
+    bool anyMoved = false;
+    system.forEachParticle(e, [&](const Particle& p) {
+        if (glm::length(p.velocity) > 0.01f) anyMoved = true;
+    });
+    CHECK_FALSE(anyMoved);  // out of range → untouched
+}
+
 TEST_CASE("system_size_interpolation") {
     ecs::Registry registry;
     ParticleSystem system;

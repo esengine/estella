@@ -7,6 +7,7 @@
 #include "../ecs/Registry.hpp"
 #include "../ecs/components/Transform.hpp"
 #include "../ecs/components/ParticleEmitter.hpp"
+#include "../ecs/components/ParticleForceField.hpp"
 #include "Particle.hpp"
 #include "ParticleEasing.hpp"
 
@@ -29,6 +30,18 @@ using SizeLut = std::array<f32, kColorLutSize>;
 // less). Bounds the per-emitter history buffer; the component's trailPoints picks
 // how many of these to actually keep.
 inline constexpr int kMaxTrailPoints = 12;
+
+// A scene force field flattened to what the per-particle inner loop needs, gathered
+// once per update() so the hot loop touches no components.
+struct ForceFieldInstance {
+    i32 type = 0;
+    glm::vec2 position{0.0f};
+    glm::vec2 direction{1.0f, 0.0f};  // pre-normalized (Directional only)
+    f32 strength = 0.0f;
+    f32 radius = 0.0f;                 // 0 = unbounded
+    f32 radiusSq = 0.0f;
+    bool falloff = true;
+};
 
 struct EmitterState {
     ParticlePool pool;
@@ -113,6 +126,9 @@ private:
     std::unordered_map<Entity, SizeLut> sizeLuts_;
     std::mt19937 rng_;
     std::vector<u32> dead_particle_indices_;
+    // Active scene force fields, rebuilt each update() and applied to world-space
+    // particles during integration.
+    std::vector<ForceFieldInstance> force_fields_;
     // RAII: auto-unregisters from the registry's onDestroy when this system is
     // destroyed, so a torn-down system never leaves a dangling `this` behind.
     Connection destroyConn_;

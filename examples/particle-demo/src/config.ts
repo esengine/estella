@@ -1,8 +1,8 @@
 import {
-    EmitterShape, BlendMode, ParticleEasing, SubEmitterTrigger,
-    Transform, ParticleEmitter,
+    EmitterShape, BlendMode, ParticleEasing, SubEmitterTrigger, ForceFieldType,
+    Transform, ParticleEmitter, ParticleForceField,
 } from 'esengine';
-import type { ParticleEmitterData, CommandsInstance } from 'esengine';
+import type { ParticleEmitterData, ParticleForceFieldData, CommandsInstance } from 'esengine';
 import { ShowcaseEmitter } from './components';
 
 // A showcase is a named set of emitters placed relative to the screen center.
@@ -16,12 +16,20 @@ export interface EmitterSpec {
     // particles fire the child's burst on the configured trigger).
     sub?: boolean;
 }
+// A force field placed in the scene, affecting every emitter's world-space particles.
+export interface FieldSpec {
+    x: number;
+    y: number;
+    data: Partial<ParticleForceFieldData>;
+}
 export interface Showcase {
     name: string;
     emitters: EmitterSpec[];
     // Optional sub-emitter template: spawned once, its entity injected as the
     // `subEmitter` of every emitter flagged `sub: true`.
     child?: EmitterSpec;
+    // Optional force fields placed in the scene alongside the emitters.
+    fields?: FieldSpec[];
 }
 
 export const SHOWCASES: Showcase[] = [
@@ -181,6 +189,23 @@ export const SHOWCASES: Showcase[] = [
                 trailEnabled: true, trailWidth: 12, trailPoints: 8, trailMinDistance: 5 } },
         ],
     },
+    {
+        // Shows off Force Fields: a Vortex swirls the sparks into a spiral while a
+        // gentle Point pull keeps them from flinging out of frame.
+        name: 'Vortex Galaxy',
+        fields: [
+            { x: 0, y: 0, data: { type: ForceFieldType.Vortex, strength: 520, radius: 340, falloff: true } },
+            { x: 0, y: 0, data: { type: ForceFieldType.Point, strength: 55, radius: 340, falloff: true } },
+        ],
+        emitters: [
+            { x: 0, y: 0, data: {
+                rate: 90, maxParticles: 500, lifetimeMin: 2.4, lifetimeMax: 3.6,
+                shape: EmitterShape.Circle, shapeRadius: 40, speedMin: 30, speedMax: 90,
+                startSizeMin: 4, startSizeMax: 8, endSizeMin: 1, endSizeMax: 2,
+                sizeEasing: ParticleEasing.EaseOut,
+                startColor: { r: 0.7, g: 0.85, b: 1, a: 1 }, endColor: { r: 0.8, g: 0.4, b: 1, a: 0 } } },
+        ],
+    },
 ];
 
 export const SHOWCASE_COUNT = SHOWCASES.length;
@@ -215,6 +240,16 @@ export function spawnShowcase(cmds: CommandsInstance, index: number, texture: nu
             .insert(ParticleEmitter, { layer: 5, texture, ...c.data })
             .insert(ShowcaseEmitter, {})
             .id();
+    }
+
+    // Scene force fields (tagged for the same group despawn on switch).
+    if (showcase.fields) {
+        for (const f of showcase.fields) {
+            cmds.spawn()
+                .insert(Transform, { position: { x: f.x, y: f.y, z: 0 } })
+                .insert(ParticleForceField, { ...f.data })
+                .insert(ShowcaseEmitter, {});
+        }
     }
 
     for (const emitter of showcase.emitters) {

@@ -351,6 +351,38 @@ CPU 上生成,走和 `TrailRenderer` 相同的三角带 batch 路径 —— 无�
 拖尾是可选项,因为它比普通粒子贵:每粒子一小段位置历史(受 `trailPoints` 限制)+ 每帧
 ribbon 几何。`trailPoints` 保持适中(`6`–`8` 足够),重拖尾特效请调低 `maxParticles`。
 
+## 力场
+
+[噪声](#噪声与湍流)模块是烘进单个发射器的自带湍流,而**力场**是你放进场景的*外部*影响:
+它是自己的实体、带 `ParticleForceField` 组件,作用于范围内**每个**发射器的世界空间粒子。
+阵风、黑洞、漩涡、静止的空气团 —— 放一个进去,整个场景的粒子都会响应。
+
+```typescript
+import { ParticleForceField, ForceFieldType } from 'esengine';
+
+cmds.spawn()
+  .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+  .insert(ParticleForceField, {
+    type: ForceFieldType.Vortex,
+    strength: 450,   // 加速度(px/s²);Point 场取负值即从吸引变排斥
+    radius: 320,     // 0 = 影响整个场景;> 0 = 只影响范围内的粒子
+    falloff: true,   // 在半径边缘把力衰减到 0
+  });
+```
+
+| 类型 | 效果 |
+|---|---|
+| `Directional` | 沿 `direction` 的恒定推力 —— 风、上升气流、水流。 |
+| `Point` | 朝力场吸引(`strength > 0`)或排斥(`strength < 0`)—— 引力井、爆炸。 |
+| `Vortex` | 绕力场切向旋绕 —— 漩涡、龙卷、星系。 |
+| `Drag` | 在区域内阻尼速度 —— 减速粒子的静止空气/水团。 |
+
+力场是纯 CPU:模拟每帧收集活跃力场,和重力一样折进同一套速度积分,无新子系统。`Directional`
+用它的 `direction`;`Point`/`Vortex`/`Drag` 从力场→粒子向量推导方向,忽略它。
+
+两个注意:力场只作用于**世界空间**粒子(`Local` 发射器的粒子随发射器移动、忽略力场);
+`strength: 0` 或 `enabled: false` 直接跳过该力场。
+
 ## 模拟空间
 
 | 取值 | 粒子跟随发射器吗? | 用于 |

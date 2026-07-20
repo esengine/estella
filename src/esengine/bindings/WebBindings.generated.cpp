@@ -21,6 +21,7 @@
 #include "../ecs/components/Light2D.hpp"
 #include "../ecs/components/Mesh2D.hpp"
 #include "../ecs/components/ParticleEmitter.hpp"
+#include "../ecs/components/ParticleForceField.hpp"
 #include "../ecs/components/RigidBody.hpp"
 #include "../ecs/components/ShadowCaster2D.hpp"
 #include "../ecs/components/ShapeRenderer.hpp"
@@ -139,6 +140,12 @@ EMSCRIPTEN_BINDINGS(esengine_enums) {
     enum_<esengine::ecs::FlexWrap>("FlexWrap")
         .value("NoWrap", esengine::ecs::FlexWrap::NoWrap)
         .value("Wrap", esengine::ecs::FlexWrap::Wrap);
+
+    enum_<esengine::ecs::ForceFieldType>("ForceFieldType")
+        .value("Directional", esengine::ecs::ForceFieldType::Directional)
+        .value("Point", esengine::ecs::ForceFieldType::Point)
+        .value("Vortex", esengine::ecs::ForceFieldType::Vortex)
+        .value("Drag", esengine::ecs::ForceFieldType::Drag);
 
     enum_<esengine::ecs::JustifyContent>("JustifyContent")
         .value("Start", esengine::ecs::JustifyContent::Start)
@@ -1124,6 +1131,14 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("trailPoints", &ParticleEmitterJS::trailPoints)
         .field("trailMinDistance", &ParticleEmitterJS::trailMinDistance);
 
+    value_object<esengine::ecs::ParticleForceField>("ParticleForceField")
+        .field("type", &esengine::ecs::ParticleForceField::type)
+        .field("strength", &esengine::ecs::ParticleForceField::strength)
+        .field("radius", &esengine::ecs::ParticleForceField::radius)
+        .field("direction", &esengine::ecs::ParticleForceField::direction)
+        .field("falloff", &esengine::ecs::ParticleForceField::falloff)
+        .field("enabled", &esengine::ecs::ParticleForceField::enabled);
+
     value_object<RigidBodyJS>("RigidBody")
         .field("bodyType", &RigidBodyJS::bodyType)
         .field("gravityScale", &RigidBodyJS::gravityScale)
@@ -1563,6 +1578,27 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             r.remove<esengine::ecs::ParticleEmitter>(entity);
         }))
 
+        // ParticleForceField
+        .function("hasParticleForceField", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::ParticleForceField>(static_cast<Entity>(e));
+        }))
+        .function("getParticleForceField", optional_override([](Registry& r, u32 e) -> esengine::ecs::ParticleForceField& {
+            auto entity = static_cast<Entity>(e);
+            static esengine::ecs::ParticleForceField s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::ParticleForceField>(entity)) return s_dummy;
+            return r.get<esengine::ecs::ParticleForceField>(entity);
+        }), allow_raw_pointers())
+        .function("addParticleForceField", optional_override([](Registry& r, u32 e, const esengine::ecs::ParticleForceField& c) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::ParticleForceField>(entity, c);
+        }))
+        .function("removeParticleForceField", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::ParticleForceField>(entity)) return;
+            r.remove<esengine::ecs::ParticleForceField>(entity);
+        }))
+
         // RigidBody
         .function("hasRigidBody", optional_override([](Registry& r, u32 e) {
             return r.has<esengine::ecs::RigidBody>(static_cast<Entity>(e));
@@ -1881,6 +1917,7 @@ emscripten::val esengineGetBuiltinComponentNames() {
     arr.set(i++, val(std::string("Mesh2D")));
     arr.set(i++, val(std::string("Parent")));
     arr.set(i++, val(std::string("ParticleEmitter")));
+    arr.set(i++, val(std::string("ParticleForceField")));
     arr.set(i++, val(std::string("RigidBody")));
     arr.set(i++, val(std::string("SegmentCollider")));
     arr.set(i++, val(std::string("ShadowCaster2D")));
@@ -2040,6 +2077,12 @@ static_assert(offsetof(esengine::ecs::ParticleEmitter, trailEnabled) == 224, "AB
 static_assert(offsetof(esengine::ecs::ParticleEmitter, trailWidth) == 228, "ABI offset drift: esengine::ecs::ParticleEmitter.trailWidth (EHT expected 228)");
 static_assert(offsetof(esengine::ecs::ParticleEmitter, trailPoints) == 232, "ABI offset drift: esengine::ecs::ParticleEmitter.trailPoints (EHT expected 232)");
 static_assert(offsetof(esengine::ecs::ParticleEmitter, trailMinDistance) == 236, "ABI offset drift: esengine::ecs::ParticleEmitter.trailMinDistance (EHT expected 236)");
+static_assert(offsetof(esengine::ecs::ParticleForceField, type) == 0, "ABI offset drift: esengine::ecs::ParticleForceField.type (EHT expected 0)");
+static_assert(offsetof(esengine::ecs::ParticleForceField, strength) == 4, "ABI offset drift: esengine::ecs::ParticleForceField.strength (EHT expected 4)");
+static_assert(offsetof(esengine::ecs::ParticleForceField, radius) == 8, "ABI offset drift: esengine::ecs::ParticleForceField.radius (EHT expected 8)");
+static_assert(offsetof(esengine::ecs::ParticleForceField, direction) == 12, "ABI offset drift: esengine::ecs::ParticleForceField.direction (EHT expected 12)");
+static_assert(offsetof(esengine::ecs::ParticleForceField, falloff) == 20, "ABI offset drift: esengine::ecs::ParticleForceField.falloff (EHT expected 20)");
+static_assert(offsetof(esengine::ecs::ParticleForceField, enabled) == 21, "ABI offset drift: esengine::ecs::ParticleForceField.enabled (EHT expected 21)");
 static_assert(offsetof(esengine::ecs::RigidBody, bodyType) == 0, "ABI offset drift: esengine::ecs::RigidBody.bodyType (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::RigidBody, gravityScale) == 4, "ABI offset drift: esengine::ecs::RigidBody.gravityScale (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::RigidBody, linearDamping) == 8, "ABI offset drift: esengine::ecs::RigidBody.linearDamping (EHT expected 8)");
@@ -2153,7 +2196,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "12610f4b7cc99ebc";
+static const char* kEsAbiLayoutHash = "1ea8bcc5e5a72cc7";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

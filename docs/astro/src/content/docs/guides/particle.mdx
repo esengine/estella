@@ -379,6 +379,43 @@ history per particle (bounded by `trailPoints`) plus ribbon geometry each frame.
 `trailPoints` modest (`6`–`8` is plenty) and lower `maxParticles` for heavy trailed
 effects.
 
+## Force fields
+
+Where the [Noise](#noise--turbulence) module is a per-emitter turbulence baked into
+one emitter, a **force field** is an *external* influence you place in the scene: it's
+its own entity with a `ParticleForceField` component, and it acts on the world-space
+particles of **every** emitter within range. Wind gusts, black holes, whirlpools,
+pockets of still air — drop one in and the whole scene's particles respond.
+
+```typescript
+import { ParticleForceField, ForceFieldType } from 'esengine';
+
+cmds.spawn()
+  .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
+  .insert(ParticleForceField, {
+    type: ForceFieldType.Vortex,
+    strength: 450,   // acceleration (px/s²); negative flips a Point field to a repeller
+    radius: 320,     // 0 = affects the whole scene; > 0 = only particles within range
+    falloff: true,   // fade the force to 0 at the radius edge
+  });
+```
+
+| Type | Effect |
+|---|---|
+| `Directional` | A constant push along `direction` — wind, updrafts, a current. |
+| `Point` | Pull toward the field (`strength > 0`) or push away (`strength < 0`) — gravity wells, explosions. |
+| `Vortex` | Swirl tangentially around the field — whirlpools, tornadoes, galaxies. |
+| `Drag` | Damp velocity inside the zone — a pocket of still air or water that slows particles. |
+
+Fields are pure-CPU: the sim gathers the active ones each frame and folds them into the
+same velocity integration as gravity, so there is no new subsystem. A `Directional`
+field uses its `direction`; `Point`/`Vortex`/`Drag` derive their direction from the
+field→particle vector and ignore it.
+
+Two caveats: fields act on **world-space** particles only (a `Local` emitter's particles
+move with their emitter and ignore fields), and `strength: 0` or `enabled: false` skips
+a field entirely.
+
 ## Simulation space
 
 | Value | Particles follow the emitter? | Use for |

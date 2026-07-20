@@ -87,6 +87,13 @@ export enum FlexWrap {
     Wrap = 1,
 }
 
+export enum ForceFieldType {
+    Directional = 0,
+    Point = 1,
+    Vortex = 2,
+    Drag = 3,
+}
+
 export enum JustifyContent {
     Start = 0,
     Center = 1,
@@ -369,6 +376,15 @@ export interface ParticleEmitter {
     trailMinDistance: number;
 }
 
+export interface ParticleForceField {
+    type: number;
+    strength: number;
+    radius: number;
+    direction: Vec2;
+    falloff: boolean;
+    enabled: boolean;
+}
+
 export interface RigidBody {
     bodyType: number;
     gravityScale: number;
@@ -596,6 +612,10 @@ export interface Registry {
     getParticleEmitter(entity: Entity): ParticleEmitter;
     addParticleEmitter(entity: Entity, component: ParticleEmitter): void;
     removeParticleEmitter(entity: Entity): void;
+    hasParticleForceField(entity: Entity): boolean;
+    getParticleForceField(entity: Entity): ParticleForceField;
+    addParticleForceField(entity: Entity, component: ParticleForceField): void;
+    removeParticleForceField(entity: Entity): void;
     hasRigidBody(entity: Entity): boolean;
     getRigidBody(entity: Entity): RigidBody;
     addRigidBody(entity: Entity, component: RigidBody): void;
@@ -679,6 +699,7 @@ export interface ESEngineModule {
     Mesh2D: new () => Mesh2D;
     Parent: new () => Parent;
     ParticleEmitter: new () => ParticleEmitter;
+    ParticleForceField: new () => ParticleForceField;
     RigidBody: new () => RigidBody;
     SegmentCollider: new () => SegmentCollider;
     ShadowCaster2D: new () => ShadowCaster2D;

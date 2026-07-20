@@ -1,0 +1,64 @@
+{
+  "version": "1.0",
+  "name": "ParticleForceField",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 10 } } },
+        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 300, "isActive": true, "priority": 0 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "Vortex",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 0 } } },
+        { "type": "ParticleForceField", "data": {
+          "type": 2,
+          "strength": 520,
+          "radius": 340,
+          "falloff": true
+        }}
+      ],
+      "visible": true
+    },
+    {
+      "id": 2,
+      "name": "Sparks",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 0 } } },
+        { "type": "ParticleEmitter", "data": {
+          "rate": 90,
+          "maxParticles": 500,
+          "lifetimeMin": 2.4,
+          "lifetimeMax": 3.6,
+          "shape": 1,
+          "shapeRadius": 40,
+          "speedMin": 30,
+          "speedMax": 90,
+          "startSizeMin": 5,
+          "startSizeMax": 9,
+          "endSizeMin": 2,
+          "endSizeMax": 3,
+          "sizeEasing": 2,
+          "startColor": { "r": 0.7, "g": 0.85, "b": 1, "a": 1 },
+          "endColor": { "r": 0.8, "g": 0.4, "b": 1, "a": 0 },
+          "simulationSpace": 0,
+          "looping": true,
+          "playOnStart": true,
+          "texture": "@uuid:24cb4e0f-7c75-4df4-9a4d-58480ee405c0"
+        }}
+      ],
+      "visible": true
+    }
+  ]
+}

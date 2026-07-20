@@ -204,6 +204,17 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'trailMinDistance', type: 'f32', offset: 236 },
         ],
     },
+    ParticleForceField: {
+        ptrFn: 'getParticleForceFieldPtr',
+        fields: [
+            { name: 'type', type: 'i32', offset: 0 },
+            { name: 'strength', type: 'f32', offset: 4 },
+            { name: 'radius', type: 'f32', offset: 8 },
+            { name: 'direction', type: 'vec2', offset: 12 },
+            { name: 'falloff', type: 'bool', offset: 20 },
+            { name: 'enabled', type: 'bool', offset: 21 },
+        ],
+    },
     RigidBody: {
         ptrFn: 'getRigidBodyPtr',
         fields: [

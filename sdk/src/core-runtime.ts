@@ -134,6 +134,9 @@ export {
     SubEmitterTrigger,
     ParticleEasing,
     type ParticleEmitterData,
+    ParticleForceField,
+    ForceFieldType,
+    type ParticleForceFieldData,
     PostProcessVolume,
     type PostProcessVolumeData,
 } from './component';
