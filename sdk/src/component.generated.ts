@@ -15,7 +15,7 @@ import type { Dimension, Padding } from './wasm.generated';
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '5577bd3e60fc7bd7';
+export const ABI_LAYOUT_HASH = '12610f4b7cc99ebc';
 
 export interface AssetFieldMeta {
     field: string;
@@ -341,6 +341,10 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             subEmitterChance: 1,
             subEmitterInheritVelocity: 0,
             subEmitter: 0,
+            trailEnabled: false,
+            trailWidth: 8,
+            trailPoints: 6,
+            trailMinDistance: 6,
         },
         assetFields: [{ field: 'texture', type: 'texture' as AssetFieldType }, { field: 'material', type: 'material' as AssetFieldType }],
         entityFields: ['subEmitter'],
@@ -395,6 +399,10 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             subEmitterChance: { min: 0, max: 1, category: "SubEmitter" },
             subEmitterInheritVelocity: { min: 0, max: 1, category: "SubEmitter" },
             subEmitter: { category: "SubEmitter" },
+            trailEnabled: { category: "Trail" },
+            trailWidth: { min: 0, category: "Trail" },
+            trailPoints: { min: 2, max: 12, step: 1, category: "Trail" },
+            trailMinDistance: { min: 0, category: "Trail" },
         },
     },
     RigidBody: {
@@ -886,6 +894,10 @@ export interface ParticleEmitterData {
     subEmitterChance: number;
     subEmitterInheritVelocity: number;
     subEmitter: Entity;
+    trailEnabled: boolean;
+    trailWidth: number;
+    trailPoints: number;
+    trailMinDistance: number;
 }
 
 export interface RigidBodyData {

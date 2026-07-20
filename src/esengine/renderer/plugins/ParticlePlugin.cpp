@@ -14,6 +14,7 @@
 #include "../../particle/ParticleSystem.hpp"
 #include "../../particle/Particle.hpp"
 
+#include <algorithm>
 #include <cmath>
 
 namespace esengine {
@@ -162,6 +163,86 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
         // The stream's static unit-quad indices (offset 0) drawn once per particle,
         // with the instance slice based at instByteOffset.
         pushBatchDraw(draw_list, clips, instByteOffset, 0, 0, 6, key);
+
+        // --- Per-particle trails --------------------------------------------------
+        // Each live particle drags a tapering ribbon along its recorded path. Built on
+        // the CPU and streamed through the Batch face (triangle strip), exactly like the
+        // standalone TrailRenderer — no new GPU path. Off unless the emitter opts in.
+        if (emitter.trailEnabled && emitter.trailWidth > 0.0f &&
+            state->trail_count.size() == state->pool.particles().size()) {
+            BatchDrawKey trailKey{
+                .stage = ctx.current_stage,
+                .layer = emitter.layer,
+                .shaderId = ctx.batch_shader_id,
+                .blend = blendMode,
+                .textureId = ctx.white_texture_id,
+                .depth = emitterWorldPos.z,
+                .y = emitterWorldPos.y,
+                .entity = entity,
+                .type = RenderType::Trail,
+            };
+            const int keep = std::min(std::max(emitter.trailPoints, 2), particle::kMaxTrailPoints);
+            const auto& particles = state->pool.particles();
+            auto toWorld = [&](glm::vec2 pos) -> glm::vec2 {
+                if (!isLocalSpace) return pos;
+                glm::vec2 rel = pos * emitterScale;
+                if (std::abs(emitterAngle) > 0.001f)
+                    return glm::vec2(emitterWorldPos) +
+                           glm::vec2(rel.x * cosA - rel.y * sinA, rel.x * sinA + rel.y * cosA);
+                return glm::vec2(emitterWorldPos) + rel;
+            };
+
+            for (std::size_t idx = 0; idx < particles.size(); ++idx) {
+                const particle::Particle& p = particles[idx];
+                if (!p.alive || state->trail_count[idx] == 0) continue;
+                const glm::vec2* ring = &state->trail_pos[idx * particle::kMaxTrailPoints];
+
+                // Centerline: recorded points (oldest→newest) then the live head.
+                trail_center_.clear();
+                int m = std::min<int>(state->trail_count[idx], keep);
+                for (int k = 0; k < m; ++k) trail_center_.push_back(toWorld(ring[k]));
+                glm::vec2 head = toWorld(p.position);
+                glm::vec2 dHead = head - trail_center_.back();
+                if (glm::dot(dHead, dHead) > 1e-4f) trail_center_.push_back(head);
+                const int n = static_cast<int>(trail_center_.size());
+                if (n < 2) continue;
+
+                // 2 verts per point: t runs 0 at the faded zero-width tail (oldest) → 1
+                // at the full-width head carrying the particle's current colour.
+                trail_verts_.clear();
+                glm::vec2 lastTangent(1.0f, 0.0f);
+                for (int j = 0; j < n; ++j) {
+                    const glm::vec2& a = trail_center_[j == 0 ? 0 : j - 1];
+                    const glm::vec2& b = trail_center_[j + 1 == n ? j : j + 1];
+                    glm::vec2 seg = b - a;
+                    f32 len = std::sqrt(seg.x * seg.x + seg.y * seg.y);
+                    glm::vec2 tangent = len > 1e-6f ? seg / len : lastTangent;
+                    lastTangent = tangent;
+                    glm::vec2 perp(-tangent.y, tangent.x);
+
+                    f32 t = static_cast<f32>(j) / static_cast<f32>(n - 1);
+                    f32 halfW = 0.5f * emitter.trailWidth * t;
+                    glm::vec4 col = p.color;
+                    col.a *= t;
+                    u32 packed = packColor(col);
+
+                    trail_verts_.push_back({trail_center_[j] + perp * halfW, packed, glm::vec2(1.0f - t, 0.0f)});
+                    trail_verts_.push_back({trail_center_[j] - perp * halfW, packed, glm::vec2(1.0f - t, 1.0f)});
+                }
+
+                trail_indices_.clear();
+                for (int j = 0; j + 1 < n; ++j) {
+                    u32 l0 = static_cast<u32>(j) * 2, r0 = l0 + 1, l1 = l0 + 2, r1 = l0 + 3;
+                    trail_indices_.push_back(l0); trail_indices_.push_back(r0); trail_indices_.push_back(r1);
+                    trail_indices_.push_back(l0); trail_indices_.push_back(r1); trail_indices_.push_back(l1);
+                }
+
+                appendIndexedBatch(buffers, draw_list, clips,
+                                   trail_verts_.data(), static_cast<u32>(trail_verts_.size()),
+                                   trail_indices_.data(), static_cast<u32>(trail_indices_.size()),
+                                   trailKey);
+            }
+        }
     }
 }
 

@@ -186,6 +186,17 @@ const spawnEmbers = defineSystem([Commands()], (cmds) => {
 
 见下文[子发射器](#子发射器-1)。
 
+### 拖尾 (Trail)
+
+| 属性 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `trailEnabled` | boolean | `false` | 每个粒子拖一条渐细的 ribbon。关 = 不记录历史。 |
+| `trailWidth` | number | `8` | ribbon 头部宽度;向尾部收细到一点。 |
+| `trailPoints` | number | `6` | 历史点数(2..12)—— 越长越平滑但越贵。 |
+| `trailMinDistance` | number | `6` | 记录新拖尾点前粒子须移动的最小世界距离。 |
+
+见下文[逐粒子拖尾](#逐粒子拖尾)。
+
 ## 发射器形状
 
 `EmitterShape` 设定生成区域与初始方向:
@@ -315,6 +326,30 @@ cmds.spawn()
 
 在编辑器里,`subEmitter` 是一个实体选择器 —— 拖入场景中任意发射器实体即可;引用会在
 场景加载时自动重映射。
+
+## 逐粒子拖尾
+
+打开 `trailEnabled`,每个粒子都会沿最近的运动轨迹拖出一条渐细的 ribbon —— 彗星火花、
+曳光弹、旋绕的魔法尾迹。这和独立的 [`TrailRenderer`](/zh-cn/guides/trail/) *不同*:后者
+给单个实体拖尾,而这里(可达数千个)每个粒子都有自己的尾迹。
+
+```typescript
+.insert(ParticleEmitter, {
+  rate: 40, speedMin: 220, speedMax: 420, lifetimeMin: 0.7, lifetimeMax: 1.2,
+  startColor: { r: 0.6, g: 0.9, b: 1, a: 1 }, endColor: { r: 0.2, g: 0.4, b: 1, a: 0 },
+  trailEnabled: true,
+  trailWidth: 10,        // 粒子处的 ribbon 宽度,向后收细到一点
+  trailPoints: 8,        // 保留多少轨迹点(2..12)
+  trailMinDistance: 5,   // 每移动 5 个世界单位记录一个点
+});
+```
+
+ribbon 头部取粒子**当前颜色**,沿长度渐隐到透明,所以拖尾自动继承你的随生命颜色。它在
+CPU 上生成,走和 `TrailRenderer` 相同的三角带 batch 路径 —— 无特殊 GPU 路径 —— 因此
+和其他 2D 可渲染物一样排序混合。
+
+拖尾是可选项,因为它比普通粒子贵:每粒子一小段位置历史(受 `trailPoints` 限制)+ 每帧
+ribbon 几何。`trailPoints` 保持适中(`6`–`8` 足够),重拖尾特效请调低 `maxParticles`。
 
 ## 模拟空间
 

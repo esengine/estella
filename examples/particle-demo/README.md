@@ -1,6 +1,6 @@
 # Particle Effects
 
-A gallery of the engine's `ParticleEmitter`. Page through eight composed effects
+A gallery of the engine's `ParticleEmitter`. Page through nine composed effects
 with on-screen buttons, and click empty space to throw fireworks.
 
 ## Controls
@@ -18,8 +18,9 @@ with on-screen buttons, and click empty space to throw fireworks.
 `Snowfall` (a wide, slow drift) · `Sparkles` (a twinkling field) ·
 `Bursting Rockets` (**sub-emitter** — rockets that explode into a shell burst on
 death) · `Turbulent Smoke` (curl-**noise** flow — smoke that rolls, embers that
-weave). Each mixes shape, velocity, colour/size-over-life, gravity, spin, blend
-mode, and now noise and sub-emitters — see `src/config.ts`.
+weave) · `Comet Trails` (per-particle **trail** — sparks that drag fading ribbons).
+Each mixes shape, velocity, colour/size-over-life, gravity, spin, blend mode, and
+now noise, sub-emitters and trails — see `src/config.ts`.
 
 ## How it works
 
@@ -54,7 +55,7 @@ assets/
   textures/particle.png   # soft radial particle sprite
 src/
   main.ts                 # registers the systems
-  config.ts               # the eight showcases, the firework, spawnShowcase()
+  config.ts               # the nine showcases, the firework, spawnShowcase()
   components.ts           # tags (buttons, TexHolder, ShowcaseEmitter) + Burst
   state.ts                # the current showcase index
   systems/

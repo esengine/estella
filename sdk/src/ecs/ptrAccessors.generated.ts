@@ -571,6 +571,10 @@ export interface ParticleEmitterPtrData {
     subEmitterChance: number;
     subEmitterInheritVelocity: number;
     subEmitter: number;
+    trailEnabled: boolean;
+    trailWidth: number;
+    trailPoints: number;
+    trailMinDistance: number;
 }
 
 export function fillParticleEmitter(
@@ -626,6 +630,10 @@ export function fillParticleEmitter(
     out.subEmitterChance = f32[(ptr + 212) >> 2];
     out.subEmitterInheritVelocity = f32[(ptr + 216) >> 2];
     out.subEmitter = u32[(ptr + 220) >> 2];
+    out.trailEnabled = u8[ptr + 224] !== 0;
+    out.trailWidth = f32[(ptr + 228) >> 2];
+    out.trailPoints = u32[(ptr + 232) >> 2] | 0;
+    out.trailMinDistance = f32[(ptr + 236) >> 2];
 }
 
 export function writeParticleEmitter(
@@ -681,6 +689,10 @@ export function writeParticleEmitter(
     f32[(ptr + 212) >> 2] = data.subEmitterChance;
     f32[(ptr + 216) >> 2] = data.subEmitterInheritVelocity;
     u32[(ptr + 220) >> 2] = data.subEmitter;
+    u8[ptr + 224] = data.trailEnabled ? 1 : 0;
+    f32[(ptr + 228) >> 2] = data.trailWidth;
+    u32[(ptr + 232) >> 2] = data.trailPoints | 0;
+    f32[(ptr + 236) >> 2] = data.trailMinDistance;
 }
 
 export function createParticleEmitterData(): ParticleEmitterPtrData {
@@ -734,6 +746,10 @@ export function createParticleEmitterData(): ParticleEmitterPtrData {
         subEmitterChance: 0,
         subEmitterInheritVelocity: 0,
         subEmitter: 0,
+        trailEnabled: false,
+        trailWidth: 0,
+        trailPoints: 0,
+        trailMinDistance: 0,
     };
 }
 

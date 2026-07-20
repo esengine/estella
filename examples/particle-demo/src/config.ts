@@ -166,6 +166,21 @@ export const SHOWCASES: Showcase[] = [
                 noiseStrength: 220, noiseFrequency: 0.012, noiseScrollSpeed: 0.6, noiseOctaves: 3 } },
         ],
     },
+    {
+        // Shows off the per-particle Trail module: each spark drags a fading comet
+        // ribbon along its arc — the streak inherits the particle's colour.
+        name: 'Comet Trails',
+        emitters: [
+            { x: 0, y: -40, data: {
+                rate: 44, maxParticles: 130, lifetimeMin: 0.9, lifetimeMax: 1.5,
+                shape: EmitterShape.Circle, shapeRadius: 8, speedMin: 240, speedMax: 470,
+                startSizeMin: 8, startSizeMax: 12, endSizeMin: 2, endSizeMax: 4,
+                sizeEasing: ParticleEasing.EaseOut,
+                startColor: { r: 0.6, g: 0.9, b: 1, a: 1 }, endColor: { r: 0.5, g: 0.3, b: 1, a: 0 },
+                gravity: { x: 0, y: -150 },
+                trailEnabled: true, trailWidth: 12, trailPoints: 8, trailMinDistance: 5 } },
+        ],
+    },
 ];
 
 export const SHOWCASE_COUNT = SHOWCASES.length;

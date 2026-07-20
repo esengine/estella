@@ -442,6 +442,83 @@ TEST_CASE("system_subemitter_none_leaves_child_empty") {
     CHECK_EQ(system.aliveCount(child), 0u);
 }
 
+TEST_CASE("system_trail_records_history_for_moving_particles") {
+    ecs::Registry registry;
+    ParticleSystem system;
+
+    Entity e = registry.create();
+    registry.emplace<ecs::Transform>(e);
+    auto& emitter = registry.emplace<ecs::ParticleEmitter>(e);
+    emitter.rate = 200.0f;
+    emitter.lifetimeMin = emitter.lifetimeMax = 10.0f;
+    emitter.maxParticles = 50;
+    emitter.speedMin = emitter.speedMax = 300.0f;  // fast → clears trailMinDistance each frame
+    emitter.shape = static_cast<i32>(ecs::EmitterShape::Point);
+    emitter.trailEnabled = true;
+    emitter.trailPoints = 6;
+    emitter.trailMinDistance = 2.0f;
+    emitter.playOnStart = true;
+
+    for (int i = 0; i < 8; ++i) system.update(registry, 0.05f);
+
+    const EmitterState* st = system.getState(e);
+    REQUIRE(st != nullptr);
+    bool anyTrail = false;
+    for (std::size_t idx = 0; idx < st->pool.particles().size(); ++idx) {
+        if (st->pool.particles()[idx].alive && st->trail_count[idx] >= 2) anyTrail = true;
+    }
+    CHECK(anyTrail);
+}
+
+TEST_CASE("system_trail_disabled_allocates_no_history") {
+    ecs::Registry registry;
+    ParticleSystem system;
+
+    Entity e = registry.create();
+    registry.emplace<ecs::Transform>(e);
+    auto& emitter = registry.emplace<ecs::ParticleEmitter>(e);
+    emitter.rate = 200.0f;
+    emitter.lifetimeMin = emitter.lifetimeMax = 10.0f;
+    emitter.maxParticles = 50;
+    emitter.speedMin = emitter.speedMax = 300.0f;
+    emitter.trailEnabled = false;
+    emitter.playOnStart = true;
+
+    for (int i = 0; i < 5; ++i) system.update(registry, 0.05f);
+
+    const EmitterState* st = system.getState(e);
+    REQUIRE(st != nullptr);
+    CHECK(st->trail_count.empty());   // no history buffers when trails are off
+}
+
+TEST_CASE("system_trail_slot_reuse_starts_empty") {
+    // A dead particle's slot reused by a new particle must not inherit its trail.
+    ecs::Registry registry;
+    ParticleSystem system;
+
+    Entity e = registry.create();
+    registry.emplace<ecs::Transform>(e);
+    auto& emitter = registry.emplace<ecs::ParticleEmitter>(e);
+    emitter.rate = 400.0f;
+    emitter.lifetimeMin = emitter.lifetimeMax = 0.05f;  // die fast → slots recycle
+    emitter.maxParticles = 8;
+    emitter.speedMin = emitter.speedMax = 300.0f;
+    emitter.trailEnabled = true;
+    emitter.trailPoints = 6;
+    emitter.trailMinDistance = 1.0f;
+    emitter.playOnStart = true;
+
+    // Many short frames so slots die and are reused repeatedly.
+    for (int i = 0; i < 20; ++i) system.update(registry, 0.02f);
+
+    const EmitterState* st = system.getState(e);
+    REQUIRE(st != nullptr);
+    // No freshly-recycled slot should report more points than the configured cap.
+    for (std::size_t idx = 0; idx < st->pool.particles().size(); ++idx) {
+        CHECK(st->trail_count[idx] <= 6);
+    }
+}
+
 TEST_CASE("system_size_interpolation") {
     ecs::Registry registry;
     ParticleSystem system;

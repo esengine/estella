@@ -56,6 +56,15 @@ void ParticleSystem::update(ecs::Registry& registry, f32 dt) {
 
         auto& state = it->second;
 
+        // Size the per-particle trail history the first time this emitter uses
+        // trails (kept free when they're off). Sized before emission so a spawn
+        // this frame can reset its slot.
+        if (emitter.trailEnabled && state.trail_count.size() != state.pool.capacity()) {
+            state.trail_count.assign(state.pool.capacity(), 0);
+            state.trail_pos.assign(static_cast<std::size_t>(state.pool.capacity()) * kMaxTrailPoints,
+                                   glm::vec2(0.0f));
+        }
+
         if (state.first_update && emitter.playOnStart) {
             state.playing = true;
             state.first_update = false;
@@ -236,6 +245,13 @@ void ParticleSystem::emitInto(const ecs::ParticleEmitter& emitter, EmitterState&
             break;
         }
 
+        // A reused pool slot must start with an empty trail, not the dead
+        // particle's history.
+        if (emitter.trailEnabled && !state.trail_count.empty()) {
+            auto idx = static_cast<std::size_t>(p - state.pool.particles().data());
+            if (idx < state.trail_count.size()) state.trail_count[idx] = 0;
+        }
+
         p->lifetime = randomRange(emitter.lifetimeMin, emitter.lifetimeMax);
         p->age = 0.0f;
 
@@ -384,6 +400,10 @@ void ParticleSystem::updateParticles(const ecs::ParticleEmitter& emitter,
     glm::vec2 noiseScroll(emitter.noiseScrollSpeed * state.noise_time *
                           emitter.noiseFrequency);
 
+    bool trailOn = emitter.trailEnabled && !state.trail_count.empty();
+    int trailKeep = std::clamp(emitter.trailPoints, 2, kMaxTrailPoints);
+    f32 trailMinDistSq = emitter.trailMinDistance * emitter.trailMinDistance;
+
     dead_particle_indices_.clear();
 
     state.pool.forEachAlive([&](Particle& p) {
@@ -413,6 +433,27 @@ void ParticleSystem::updateParticles(const ecs::ParticleEmitter& emitter,
             glm::vec2 sample = p.position * emitter.noiseFrequency + noiseScroll;
             p.position += noise::curl(sample, emitter.noiseOctaves) *
                           emitter.noiseStrength * dt;
+        }
+
+        // Record the settled position into this particle's trail ring (oldest→newest),
+        // gated by trailMinDistance so a slow particle doesn't pile up coincident points.
+        if (trailOn) {
+            auto idx = static_cast<std::size_t>(&p - state.pool.particles().data());
+            u8& cnt = state.trail_count[idx];
+            glm::vec2* ring = &state.trail_pos[idx * kMaxTrailPoints];
+            bool record = cnt == 0;
+            if (!record) {
+                glm::vec2 d = p.position - ring[cnt - 1];
+                record = glm::dot(d, d) >= trailMinDistSq;
+            }
+            if (record) {
+                if (cnt < trailKeep) {
+                    ring[cnt++] = p.position;
+                } else {
+                    for (int k = 1; k < trailKeep; ++k) ring[k - 1] = ring[k];
+                    ring[trailKeep - 1] = p.position;
+                }
+            }
         }
 
         p.rotation += p.angular_velocity * dt;

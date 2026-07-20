@@ -501,6 +501,10 @@ struct ParticleEmitterJS {
     f32 subEmitterChance;
     f32 subEmitterInheritVelocity;
     u32 subEmitter;
+    bool trailEnabled;
+    f32 trailWidth;
+    i32 trailPoints;
+    f32 trailMinDistance;
 };
 
 esengine::ecs::ParticleEmitter particleemitterFromJS(const ParticleEmitterJS& js) {
@@ -554,6 +558,10 @@ esengine::ecs::ParticleEmitter particleemitterFromJS(const ParticleEmitterJS& js
     c.subEmitterChance = js.subEmitterChance;
     c.subEmitterInheritVelocity = js.subEmitterInheritVelocity;
     c.subEmitter = js.subEmitter;
+    c.trailEnabled = js.trailEnabled;
+    c.trailWidth = js.trailWidth;
+    c.trailPoints = js.trailPoints;
+    c.trailMinDistance = js.trailMinDistance;
     return c;
 }
 
@@ -608,6 +616,10 @@ ParticleEmitterJS particleemitterToJS(const esengine::ecs::ParticleEmitter& c) {
     js.subEmitterChance = c.subEmitterChance;
     js.subEmitterInheritVelocity = c.subEmitterInheritVelocity;
     js.subEmitter = c.subEmitter;
+    js.trailEnabled = c.trailEnabled;
+    js.trailWidth = c.trailWidth;
+    js.trailPoints = c.trailPoints;
+    js.trailMinDistance = c.trailMinDistance;
     return js;
 }
 
@@ -1106,7 +1118,11 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("subEmitterTrigger", &ParticleEmitterJS::subEmitterTrigger)
         .field("subEmitterChance", &ParticleEmitterJS::subEmitterChance)
         .field("subEmitterInheritVelocity", &ParticleEmitterJS::subEmitterInheritVelocity)
-        .field("subEmitter", &ParticleEmitterJS::subEmitter);
+        .field("subEmitter", &ParticleEmitterJS::subEmitter)
+        .field("trailEnabled", &ParticleEmitterJS::trailEnabled)
+        .field("trailWidth", &ParticleEmitterJS::trailWidth)
+        .field("trailPoints", &ParticleEmitterJS::trailPoints)
+        .field("trailMinDistance", &ParticleEmitterJS::trailMinDistance);
 
     value_object<RigidBodyJS>("RigidBody")
         .field("bodyType", &RigidBodyJS::bodyType)
@@ -2020,6 +2036,10 @@ static_assert(offsetof(esengine::ecs::ParticleEmitter, subEmitterTrigger) == 208
 static_assert(offsetof(esengine::ecs::ParticleEmitter, subEmitterChance) == 212, "ABI offset drift: esengine::ecs::ParticleEmitter.subEmitterChance (EHT expected 212)");
 static_assert(offsetof(esengine::ecs::ParticleEmitter, subEmitterInheritVelocity) == 216, "ABI offset drift: esengine::ecs::ParticleEmitter.subEmitterInheritVelocity (EHT expected 216)");
 static_assert(offsetof(esengine::ecs::ParticleEmitter, subEmitter) == 220, "ABI offset drift: esengine::ecs::ParticleEmitter.subEmitter (EHT expected 220)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, trailEnabled) == 224, "ABI offset drift: esengine::ecs::ParticleEmitter.trailEnabled (EHT expected 224)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, trailWidth) == 228, "ABI offset drift: esengine::ecs::ParticleEmitter.trailWidth (EHT expected 228)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, trailPoints) == 232, "ABI offset drift: esengine::ecs::ParticleEmitter.trailPoints (EHT expected 232)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, trailMinDistance) == 236, "ABI offset drift: esengine::ecs::ParticleEmitter.trailMinDistance (EHT expected 236)");
 static_assert(offsetof(esengine::ecs::RigidBody, bodyType) == 0, "ABI offset drift: esengine::ecs::RigidBody.bodyType (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::RigidBody, gravityScale) == 4, "ABI offset drift: esengine::ecs::RigidBody.gravityScale (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::RigidBody, linearDamping) == 8, "ABI offset drift: esengine::ecs::RigidBody.linearDamping (EHT expected 8)");
@@ -2133,7 +2153,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "5577bd3e60fc7bd7";
+static const char* kEsAbiLayoutHash = "12610f4b7cc99ebc";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

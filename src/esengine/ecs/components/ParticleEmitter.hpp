@@ -217,6 +217,23 @@ struct ParticleEmitter {
     ES_PROPERTY(entity_ref, category=SubEmitter)
     u32 subEmitter{0};
 
+    // Per-particle trail — each particle drags a tapering ribbon along its recent
+    // path (comet tails, sparks, magic streaks). The ribbon reuses the same
+    // triangle-strip batch path as the standalone TrailRenderer; its head takes the
+    // particle's current colour and `trailWidth`, fading to a transparent point at
+    // the tail. Off by default (no history is recorded when disabled).
+    ES_PROPERTY(category=Trail)
+    bool trailEnabled{false};
+
+    ES_PROPERTY(min=0, category=Trail)
+    f32 trailWidth{8.0f};
+
+    ES_PROPERTY(min=2, max=12, step=1, category=Trail)
+    i32 trailPoints{6};
+
+    ES_PROPERTY(min=0, category=Trail)
+    f32 trailMinDistance{6.0f};
+
     ParticleEmitter() = default;
 };
 

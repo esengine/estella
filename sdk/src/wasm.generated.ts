@@ -363,6 +363,10 @@ export interface ParticleEmitter {
     subEmitterChance: number;
     subEmitterInheritVelocity: number;
     subEmitter: number;
+    trailEnabled: boolean;
+    trailWidth: number;
+    trailPoints: number;
+    trailMinDistance: number;
 }
 
 export interface RigidBody {

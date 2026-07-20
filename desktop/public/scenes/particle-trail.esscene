@@ -1,0 +1,53 @@
+{
+  "version": "1.0",
+  "name": "ParticleTrail",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 10 } } },
+        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 300, "isActive": true, "priority": 0 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "Comets",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 0 } } },
+        { "type": "ParticleEmitter", "data": {
+          "rate": 60,
+          "maxParticles": 120,
+          "lifetimeMin": 1.2,
+          "lifetimeMax": 1.6,
+          "shape": 0,
+          "speedMin": 260,
+          "speedMax": 320,
+          "angleSpreadMin": 0,
+          "angleSpreadMax": 360,
+          "startSizeMin": 10,
+          "startSizeMax": 12,
+          "endSizeMin": 3,
+          "endSizeMax": 4,
+          "sizeEasing": 2,
+          "startColor": { "r": 0.6, "g": 0.9, "b": 1, "a": 1 },
+          "endColor": { "r": 0.4, "g": 0.3, "b": 1, "a": 0 },
+          "simulationSpace": 0,
+          "looping": true,
+          "playOnStart": true,
+          "trailEnabled": true,
+          "trailWidth": 14,
+          "trailPoints": 8,
+          "trailMinDistance": 4,
+          "texture": "@uuid:24cb4e0f-7c75-4df4-9a4d-58480ee405c0"
+        }}
+      ],
+      "visible": true
+    }
+  ]
+}

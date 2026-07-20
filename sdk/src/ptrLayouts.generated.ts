@@ -198,6 +198,10 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'subEmitterChance', type: 'f32', offset: 212 },
             { name: 'subEmitterInheritVelocity', type: 'f32', offset: 216 },
             { name: 'subEmitter', type: 'u32', offset: 220 },
+            { name: 'trailEnabled', type: 'bool', offset: 224 },
+            { name: 'trailWidth', type: 'f32', offset: 228 },
+            { name: 'trailPoints', type: 'i32', offset: 232 },
+            { name: 'trailMinDistance', type: 'f32', offset: 236 },
         ],
     },
     RigidBody: {

@@ -25,6 +25,11 @@ using ColorLut = std::array<glm::vec4, kColorLutSize>;
 // Size-over-life: a scalar multiplier curve × the particle's start size.
 using SizeLut = std::array<f32, kColorLutSize>;
 
+// Hard cap on a per-particle trail's recorded points (the ribbon has one segment
+// less). Bounds the per-emitter history buffer; the component's trailPoints picks
+// how many of these to actually keep.
+inline constexpr int kMaxTrailPoints = 12;
+
 struct EmitterState {
     ParticlePool pool;
     f32 emission_accumulator = 0.0f;
@@ -35,6 +40,13 @@ struct EmitterState {
     f32 noise_time = 0.0f;
     bool playing = false;
     bool first_update = true;
+
+    // Per-particle trail history, keyed by pool index and only sized once an emitter
+    // enables trails (free otherwise). trail_pos is a flat [capacity × kMaxTrailPoints]
+    // ring of raw particle-space positions (oldest→newest); trail_count is how many
+    // slots each particle has filled.
+    std::vector<glm::vec2> trail_pos;
+    std::vector<u8> trail_count;
 
     explicit EmitterState(u32 capacity) : pool(capacity) {}
 };

@@ -487,6 +487,23 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
     "texture": {
       "category": "Texture",
     },
+    "trailEnabled": {
+      "category": "Trail",
+    },
+    "trailMinDistance": {
+      "category": "Trail",
+      "min": 0,
+    },
+    "trailPoints": {
+      "category": "Trail",
+      "max": 12,
+      "min": 2,
+      "step": 1,
+    },
+    "trailWidth": {
+      "category": "Trail",
+      "min": 0,
+    },
   },
   "ShadowCaster2D": {
     "size": {

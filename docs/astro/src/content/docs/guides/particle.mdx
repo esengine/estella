@@ -195,6 +195,17 @@ See [Noise & turbulence](#noise--turbulence-1) below.
 
 See [Sub-emitters](#sub-emitters) below.
 
+### Trail
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `trailEnabled` | boolean | `false` | Drag a tapering ribbon behind each particle. Off = no history recorded. |
+| `trailWidth` | number | `8` | Ribbon width at the head; tapers to a point at the tail. |
+| `trailPoints` | number | `6` | History length in points (2..12) — longer = smoother, costlier streaks. |
+| `trailMinDistance` | number | `6` | Min world distance a particle must move before a new trail point is recorded. |
+
+See [Per-particle trails](#per-particle-trails) below.
+
 ## Emitter shapes
 
 `EmitterShape` sets the spawn region and initial direction:
@@ -338,6 +349,35 @@ cmds.spawn()
 
 In the editor, `subEmitter` is an entity picker — drop in any emitter entity from
 the scene; the reference is remapped automatically when the scene loads.
+
+## Per-particle trails
+
+Turn on `trailEnabled` and every particle drags a tapering ribbon along its recent
+path — comet sparks, tracer rounds, swirling magic streaks. This is *distinct* from
+the standalone [`TrailRenderer`](/guides/trail/), which trails a single entity; here
+each of the (up to thousands of) particles gets its own streak.
+
+```typescript
+.insert(ParticleEmitter, {
+  rate: 40, speedMin: 220, speedMax: 420, lifetimeMin: 0.7, lifetimeMax: 1.2,
+  startColor: { r: 0.6, g: 0.9, b: 1, a: 1 }, endColor: { r: 0.2, g: 0.4, b: 1, a: 0 },
+  trailEnabled: true,
+  trailWidth: 10,        // ribbon width at the particle, tapering to a point behind
+  trailPoints: 8,        // how many path points to keep (2..12)
+  trailMinDistance: 5,   // record a point every 5 world units of movement
+});
+```
+
+The ribbon takes the particle's **current colour** at the head and fades to
+transparent along its length, so trails inherit your colour-over-life automatically.
+It's built on the CPU and streamed through the same triangle-strip batch path as
+`TrailRenderer` — no special GPU path — so it sorts and blends like every other 2D
+renderable.
+
+Trails are opt-in because they cost more than plain particles: a short position
+history per particle (bounded by `trailPoints`) plus ribbon geometry each frame. Keep
+`trailPoints` modest (`6`–`8` is plenty) and lower `maxParticles` for heavy trailed
+effects.
 
 ## Simulation space
 
