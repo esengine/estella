@@ -24,7 +24,7 @@ import type {
 // C++ enum and the editor dropdowns derive from the same values. ScaleMode's
 // canonical values come from CanvasScaleMode (only its Cocos-compat aliases
 // ShowAll/NoBorder are TS-side).
-import { ProjectionType, ClearFlags, EmitterShape, SimulationSpace, Light2DType, CanvasScaleMode, ShapeType, ParticleEasing } from './wasm.generated';
+import { ProjectionType, ClearFlags, EmitterShape, SimulationSpace, SubEmitterTrigger, Light2DType, CanvasScaleMode, ShapeType, ParticleEasing } from './wasm.generated';
 import { BlendMode } from './blend';
 import { getDefaultContext } from './context';
 import type {
@@ -560,7 +560,7 @@ export function ensureBuiltinComponentsRegistered(): void {
 // EmitterShape, SimulationSpace, Light2DType and ShapeType are re-exported from the
 // generated module; their values and the editor dropdowns built from them now have
 // one source.
-export { ProjectionType, ClearFlags, EmitterShape, SimulationSpace, Light2DType, ShapeType };
+export { ProjectionType, ClearFlags, EmitterShape, SimulationSpace, SubEmitterTrigger, Light2DType, ShapeType };
 
 // Canonical values single-sourced from the C++ CanvasScaleMode enum (generated);
 // ShowAll/NoBorder are Cocos-compat aliases with no C++ member.

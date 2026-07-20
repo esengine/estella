@@ -115,6 +115,17 @@ const spawnEmbers = defineSystem([Commands()], (cmds) => {
 | `gravity` | Vec2 | `{0, 0}` | 施加到每个粒子的恒定加速度。 |
 | `damping` | number | `0` | 每秒速度阻尼(`0` = 无)。 |
 
+### 噪声与湍流 (Noise & turbulence)
+
+| 属性 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `noiseStrength` | number | `0` | 湍流推动粒子的峰值流速(px/s)。`0` = 关闭该模块。 |
+| `noiseFrequency` | number | `0.01` | 场的空间尺度 —— 越大漩涡越紧、越繁密。 |
+| `noiseScrollSpeed` | number | `0` | 场随时间漂移的速度(`0` = 静止场)。 |
+| `noiseOctaves` | number | `1` | 分形细节层数。`1` = 平滑流动;越多越细碎的湍流。 |
+
+见下文[噪声与湍流](#噪声与湍流-1)。
+
 ### 随生命的尺寸 (Size over life)
 
 | 属性 | 类型 | 默认 | 说明 |
@@ -163,6 +174,17 @@ const spawnEmbers = defineSystem([Commands()], (cmds) => {
 | `material` | asset | 无 | 可选的自定义材质/着色器。 |
 | `simulationSpace` | `SimulationSpace` | `World` | `World` 或 `Local`(见[下](#模拟空间))。 |
 | `enabled` | boolean | `true` | 关掉即冻结并隐藏,而不移除组件。 |
+
+### 子发射器 (Sub-emitter)
+
+| 属性 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `subEmitter` | entity | 无 | 粒子触发时发射的子发射器实体。`0`/未设 = 关闭。 |
+| `subEmitterTrigger` | `SubEmitterTrigger` | `Death` | 在每个粒子的 `Death`(死亡)或 `Birth`(出生)时触发。 |
+| `subEmitterChance` | number | `1` | 触发粒子发射子爆发的概率(0..1)。 |
+| `subEmitterInheritVelocity` | number | `0` | 传给子爆发的父粒子速度比例。 |
+
+见下文[子发射器](#子发射器-1)。
 
 ## 发射器形状
 
@@ -224,6 +246,75 @@ const recolor = defineSystem([Res(Particle)], (particles) => {
   spriteColumns: 4, spriteRows: 4, spriteFPS: 24, spriteLoop: false,
 });
 ```
+
+## 噪声与湍流
+
+直线运动的粒子显得机械。噪声模块在速度和重力之上叠加一层 **curl 噪声流场**,
+让粒子沿着平滑、旋绕的气流游走 —— 卷曲的烟、飘动的火星、漂移的魔法。
+
+这个流场是*无散度*的(它是噪声势场的旋度),意味着粒子不会像原始随机抖动那样
+挤成一团或散出空洞 —— 运动始终均匀而自然。它是纯 CPU 数学,在每个平台
+(含微信)上逐字节一致,并且当 `noiseStrength` 为 `0` 时完全零开销。
+
+```typescript
+.insert(ParticleEmitter, {
+  // …发射、生命周期、颜色…
+  noiseStrength: 120,     // 气流推力有多强(px/s)
+  noiseFrequency: 0.01,   // 越小越是宽缓的漩涡;越大越是细密的涡流
+  noiseScrollSpeed: 0.5,  // 让场漂移,使流动持续演化
+  noiseOctaves: 2,        // 1 = 平滑;越多越细碎的湍流
+});
+```
+
+调参建议:
+
+- **`noiseStrength`** 是主旋钮 —— 从粒子 `speed` 的一小部分起调,逐步加大到游走感明显。
+- **`noiseFrequency`** 决定漩涡大小。上升的烟喜欢小值(`~0.005`);火花四溅的迸发喜欢大值(`~0.03`)。
+- **`noiseScrollSpeed` > 0** 能让看似静止的烟柱保持缓慢的活气;设 `0` 则是粒子穿流而过的固定场。
+- **`noiseOctaves`** 以开销换细节 —— `1`–`2` 已覆盖多数特效。
+
+## 子发射器
+
+子发射器让一个发射器在粒子所在位置生成*另一个*发射器的爆发 —— 经典的升空后爆炸的
+烟花弹、拖着烟雾的火箭、裂成火星的火花。无需逐帧代码:你连好一个引用,模拟就会在
+选定事件上触发爆发。
+
+子发射器是一个**当作模板用的普通 `ParticleEmitter` 实体** —— 设 `rate: 0` 和
+`playOnStart: false`,它就不会自己发射,只在父级触发时爆发。它的 `burstCount`
+决定每次子爆发生成多少粒子。把父级的 `subEmitter` 指向那个子实体:
+
+```typescript
+import { SubEmitterTrigger } from 'esengine';
+
+// 爆发模板 —— 一个只在被触发时才发射的普通发射器。
+const shell = cmds.spawn()
+  .insert(Transform, {})
+  .insert(ParticleEmitter, {
+    rate: 0, playOnStart: false, burstCount: 44,   // 每次爆发 44 颗火星
+    lifetimeMin: 0.6, lifetimeMax: 1.1, speedMin: 160, speedMax: 340,
+    startColor: { r: 1, g: 0.85, b: 0.35, a: 1 }, endColor: { r: 1, g: 0.3, b: 0.1, a: 0 },
+    gravity: { x: 0, y: -150 },
+  }).id();
+
+// 火箭 —— 每个粒子死亡时,在该处触发爆发。
+cmds.spawn()
+  .insert(Transform, { position: { x: 0, y: -230, z: 0 } })
+  .insert(ParticleEmitter, {
+    rate: 2.5, lifetimeMin: 1.4, lifetimeMax: 1.8, speedMin: 560, speedMax: 660,
+    angleSpreadMin: 84, angleSpreadMax: 96,
+    subEmitter: shell,
+    subEmitterTrigger: SubEmitterTrigger.Death,   // 或 Birth
+    subEmitterInheritVelocity: 0.15,              // 让火星带上一点火箭的运动
+  });
+```
+
+- **`subEmitterTrigger`** —— `Death` 在每个父粒子消亡时触发(炮弹爆炸、碎片);
+  `Birth` 在每个粒子出生时触发(沿着一道粒子流持续洒下子爆发)。
+- **`subEmitterChance`** —— 设为小于 `1`,只让部分粒子触发子级,稀释过密的效果。
+- **`subEmitterInheritVelocity`** —— 把父粒子速度的一部分带进爆发,让火星*随着*火箭飞,而不只是四散。
+
+在编辑器里,`subEmitter` 是一个实体选择器 —— 拖入场景中任意发射器实体即可;引用会在
+场景加载时自动重映射。
 
 ## 模拟空间
 

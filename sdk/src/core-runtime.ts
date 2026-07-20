@@ -131,6 +131,7 @@ export {
     ParticleEmitter,
     EmitterShape,
     SimulationSpace,
+    SubEmitterTrigger,
     ParticleEasing,
     type ParticleEmitterData,
     PostProcessVolume,

@@ -553,6 +553,10 @@ export interface ParticleEmitterPtrData {
     angularVelocityMax: number;
     gravity: Vec2;
     damping: number;
+    noiseStrength: number;
+    noiseFrequency: number;
+    noiseScrollSpeed: number;
+    noiseOctaves: number;
     texture: number;
     spriteColumns: number;
     spriteRows: number;
@@ -563,6 +567,10 @@ export interface ParticleEmitterPtrData {
     material: number;
     simulationSpace: number;
     enabled: boolean;
+    subEmitterTrigger: number;
+    subEmitterChance: number;
+    subEmitterInheritVelocity: number;
+    subEmitter: number;
 }
 
 export function fillParticleEmitter(
@@ -600,16 +608,24 @@ export function fillParticleEmitter(
     out.angularVelocityMax = f32[(ptr + 136) >> 2];
     const gravity_ = out.gravity; gravity_.x = f32[(ptr + 140) >> 2]; gravity_.y = f32[((ptr + 140) >> 2) + 1];
     out.damping = f32[(ptr + 148) >> 2];
-    out.texture = u32[(ptr + 152) >> 2];
-    out.spriteColumns = u32[(ptr + 156) >> 2] | 0;
-    out.spriteRows = u32[(ptr + 160) >> 2] | 0;
-    out.spriteFPS = f32[(ptr + 164) >> 2];
-    out.spriteLoop = u8[ptr + 168] !== 0;
-    out.blendMode = u32[(ptr + 172) >> 2] | 0;
-    out.layer = u32[(ptr + 176) >> 2] | 0;
-    out.material = u32[(ptr + 180) >> 2];
-    out.simulationSpace = u32[(ptr + 184) >> 2] | 0;
-    out.enabled = u8[ptr + 188] !== 0;
+    out.noiseStrength = f32[(ptr + 152) >> 2];
+    out.noiseFrequency = f32[(ptr + 156) >> 2];
+    out.noiseScrollSpeed = f32[(ptr + 160) >> 2];
+    out.noiseOctaves = u32[(ptr + 164) >> 2] | 0;
+    out.texture = u32[(ptr + 168) >> 2];
+    out.spriteColumns = u32[(ptr + 172) >> 2] | 0;
+    out.spriteRows = u32[(ptr + 176) >> 2] | 0;
+    out.spriteFPS = f32[(ptr + 180) >> 2];
+    out.spriteLoop = u8[ptr + 184] !== 0;
+    out.blendMode = u32[(ptr + 188) >> 2] | 0;
+    out.layer = u32[(ptr + 192) >> 2] | 0;
+    out.material = u32[(ptr + 196) >> 2];
+    out.simulationSpace = u32[(ptr + 200) >> 2] | 0;
+    out.enabled = u8[ptr + 204] !== 0;
+    out.subEmitterTrigger = u32[(ptr + 208) >> 2] | 0;
+    out.subEmitterChance = f32[(ptr + 212) >> 2];
+    out.subEmitterInheritVelocity = f32[(ptr + 216) >> 2];
+    out.subEmitter = u32[(ptr + 220) >> 2];
 }
 
 export function writeParticleEmitter(
@@ -647,16 +663,24 @@ export function writeParticleEmitter(
     f32[(ptr + 136) >> 2] = data.angularVelocityMax;
     f32[(ptr + 140) >> 2] = data.gravity.x; f32[((ptr + 140) >> 2) + 1] = data.gravity.y;
     f32[(ptr + 148) >> 2] = data.damping;
-    u32[(ptr + 152) >> 2] = data.texture;
-    u32[(ptr + 156) >> 2] = data.spriteColumns | 0;
-    u32[(ptr + 160) >> 2] = data.spriteRows | 0;
-    f32[(ptr + 164) >> 2] = data.spriteFPS;
-    u8[ptr + 168] = data.spriteLoop ? 1 : 0;
-    u32[(ptr + 172) >> 2] = data.blendMode | 0;
-    u32[(ptr + 176) >> 2] = data.layer | 0;
-    u32[(ptr + 180) >> 2] = data.material;
-    u32[(ptr + 184) >> 2] = data.simulationSpace | 0;
-    u8[ptr + 188] = data.enabled ? 1 : 0;
+    f32[(ptr + 152) >> 2] = data.noiseStrength;
+    f32[(ptr + 156) >> 2] = data.noiseFrequency;
+    f32[(ptr + 160) >> 2] = data.noiseScrollSpeed;
+    u32[(ptr + 164) >> 2] = data.noiseOctaves | 0;
+    u32[(ptr + 168) >> 2] = data.texture;
+    u32[(ptr + 172) >> 2] = data.spriteColumns | 0;
+    u32[(ptr + 176) >> 2] = data.spriteRows | 0;
+    f32[(ptr + 180) >> 2] = data.spriteFPS;
+    u8[ptr + 184] = data.spriteLoop ? 1 : 0;
+    u32[(ptr + 188) >> 2] = data.blendMode | 0;
+    u32[(ptr + 192) >> 2] = data.layer | 0;
+    u32[(ptr + 196) >> 2] = data.material;
+    u32[(ptr + 200) >> 2] = data.simulationSpace | 0;
+    u8[ptr + 204] = data.enabled ? 1 : 0;
+    u32[(ptr + 208) >> 2] = data.subEmitterTrigger | 0;
+    f32[(ptr + 212) >> 2] = data.subEmitterChance;
+    f32[(ptr + 216) >> 2] = data.subEmitterInheritVelocity;
+    u32[(ptr + 220) >> 2] = data.subEmitter;
 }
 
 export function createParticleEmitterData(): ParticleEmitterPtrData {
@@ -692,6 +716,10 @@ export function createParticleEmitterData(): ParticleEmitterPtrData {
         angularVelocityMax: 0,
         gravity: { x: 0, y: 0 },
         damping: 0,
+        noiseStrength: 0,
+        noiseFrequency: 0,
+        noiseScrollSpeed: 0,
+        noiseOctaves: 0,
         texture: 0,
         spriteColumns: 0,
         spriteRows: 0,
@@ -702,6 +730,10 @@ export function createParticleEmitterData(): ParticleEmitterPtrData {
         material: 0,
         simulationSpace: 0,
         enabled: false,
+        subEmitterTrigger: 0,
+        subEmitterChance: 0,
+        subEmitterInheritVelocity: 0,
+        subEmitter: 0,
     };
 }
 

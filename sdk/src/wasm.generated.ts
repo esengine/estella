@@ -131,6 +131,11 @@ export enum SimulationSpace {
     Local = 1,
 }
 
+export enum SubEmitterTrigger {
+    Death = 0,
+    Birth = 1,
+}
+
 export enum TextAlign {
     Left = 0,
     Center = 1,
@@ -340,6 +345,10 @@ export interface ParticleEmitter {
     angularVelocityMax: number;
     gravity: Vec2;
     damping: number;
+    noiseStrength: number;
+    noiseFrequency: number;
+    noiseScrollSpeed: number;
+    noiseOctaves: number;
     texture: number;
     spriteColumns: number;
     spriteRows: number;
@@ -350,6 +359,10 @@ export interface ParticleEmitter {
     material: number;
     simulationSpace: number;
     enabled: boolean;
+    subEmitterTrigger: number;
+    subEmitterChance: number;
+    subEmitterInheritVelocity: number;
+    subEmitter: number;
 }
 
 export interface RigidBody {

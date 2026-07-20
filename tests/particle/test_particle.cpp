@@ -309,6 +309,139 @@ TEST_CASE("system_gravity_affects_velocity") {
     CHECK(hasDownwardVelocity);
 }
 
+TEST_CASE("system_noise_off_leaves_ballistic_motion_untouched") {
+    // With noiseStrength 0 the field is never sampled: a zero-velocity, zero-gravity
+    // particle must stay exactly where it spawned, proving the module is truly inert
+    // when off (no accidental jitter).
+    ecs::Registry registry;
+    ParticleSystem system;
+
+    Entity e = registry.create();
+    registry.emplace<ecs::Transform>(e);
+    auto& emitter = registry.emplace<ecs::ParticleEmitter>(e);
+    emitter.rate = 1000.0f;
+    emitter.lifetimeMin = emitter.lifetimeMax = 10.0f;
+    emitter.maxParticles = 100;
+    emitter.speedMin = emitter.speedMax = 0.0f;
+    emitter.gravity = glm::vec2(0.0f, 0.0f);
+    emitter.shape = static_cast<i32>(ecs::EmitterShape::Point);
+    emitter.noiseStrength = 0.0f;
+    emitter.enabled = true;
+    emitter.playOnStart = true;
+
+    system.update(registry, 0.01f);  // spawn at the origin
+    for (int i = 0; i < 10; ++i) system.update(registry, 0.05f);
+
+    bool allStill = true;
+    system.forEachParticle(e, [&](const Particle& p) {
+        if (glm::length(p.position) > 1e-4f) allStill = false;
+    });
+    CHECK(allStill);
+}
+
+TEST_CASE("system_noise_advects_otherwise_static_particles") {
+    // Zero velocity + zero gravity: the ONLY thing that can move a particle is the
+    // noise flow field, so any displacement proves the curl advection is wired in.
+    ecs::Registry registry;
+    ParticleSystem system;
+
+    Entity e = registry.create();
+    registry.emplace<ecs::Transform>(e);
+    auto& emitter = registry.emplace<ecs::ParticleEmitter>(e);
+    emitter.rate = 1000.0f;
+    emitter.lifetimeMin = emitter.lifetimeMax = 10.0f;
+    emitter.maxParticles = 200;
+    emitter.speedMin = emitter.speedMax = 0.0f;
+    emitter.gravity = glm::vec2(0.0f, 0.0f);
+    // Spread the spawn across the field so particles sample varied, non-zero curl.
+    emitter.shape = static_cast<i32>(ecs::EmitterShape::Rectangle);
+    emitter.shapeSize = glm::vec2(800.0f, 800.0f);
+    emitter.noiseStrength = 500.0f;
+    emitter.noiseFrequency = 0.01f;
+    emitter.noiseOctaves = 2;
+    emitter.enabled = true;
+    emitter.playOnStart = true;
+
+    system.update(registry, 0.01f);  // spawn spread across the rectangle
+
+    std::vector<glm::vec2> spawnPos;
+    system.forEachParticle(e, [&](const Particle& p) { spawnPos.push_back(p.position); });
+
+    for (int i = 0; i < 20; ++i) system.update(registry, 0.05f);
+
+    // At least one particle must have drifted well beyond its spawn footprint.
+    bool anyMoved = false;
+    std::size_t idx = 0;
+    system.forEachParticle(e, [&](const Particle& p) {
+        if (idx < spawnPos.size() && glm::length(p.position - spawnPos[idx]) > 5.0f) {
+            anyMoved = true;
+        }
+        ++idx;
+    });
+    CHECK(anyMoved);
+}
+
+// Build a child "template" emitter that only fires when a sub-emitter triggers it
+// (rate 0, no play-on-start), plus a parent wired to it. Returns {parent, child}.
+static std::pair<Entity, Entity> makeSubEmitterPair(ecs::Registry& registry,
+                                                    ecs::SubEmitterTrigger trigger,
+                                                    f32 parentLifetime) {
+    Entity child = registry.create();
+    registry.emplace<ecs::Transform>(child);
+    auto& childEmitter = registry.emplace<ecs::ParticleEmitter>(child);
+    childEmitter.rate = 0.0f;
+    childEmitter.playOnStart = false;
+    childEmitter.burstCount = 8;
+    childEmitter.lifetimeMin = childEmitter.lifetimeMax = 5.0f;
+    childEmitter.maxParticles = 400;
+
+    Entity parent = registry.create();
+    registry.emplace<ecs::Transform>(parent);
+    auto& parentEmitter = registry.emplace<ecs::ParticleEmitter>(parent);
+    parentEmitter.rate = 80.0f;
+    parentEmitter.lifetimeMin = parentEmitter.lifetimeMax = parentLifetime;
+    parentEmitter.maxParticles = 60;
+    parentEmitter.speedMin = parentEmitter.speedMax = 0.0f;
+    parentEmitter.playOnStart = true;
+    parentEmitter.subEmitter = child.id();
+    parentEmitter.subEmitterTrigger = static_cast<i32>(trigger);
+    return {parent, child};
+}
+
+TEST_CASE("system_subemitter_death_fires_child_burst") {
+    ecs::Registry registry;
+    ParticleSystem system;
+    auto [parent, child] = makeSubEmitterPair(registry, ecs::SubEmitterTrigger::Death, 0.05f);
+
+    system.update(registry, 0.02f);           // spawn parents; none have died yet
+    CHECK_EQ(system.aliveCount(child), 0u);
+
+    system.update(registry, 0.1f);            // parents age past 0.05 s → die → child bursts
+    CHECK(system.aliveCount(child) > 0u);
+}
+
+TEST_CASE("system_subemitter_birth_fires_child_burst") {
+    ecs::Registry registry;
+    ParticleSystem system;
+    // Long-lived parents so nothing dies — only births drive the child.
+    auto [parent, child] = makeSubEmitterPair(registry, ecs::SubEmitterTrigger::Birth, 5.0f);
+
+    system.update(registry, 0.1f);            // parents are born → child bursts on each birth
+    CHECK(system.aliveCount(child) > 0u);
+}
+
+TEST_CASE("system_subemitter_none_leaves_child_empty") {
+    ecs::Registry registry;
+    ParticleSystem system;
+    auto [parent, child] = makeSubEmitterPair(registry, ecs::SubEmitterTrigger::Death, 0.05f);
+    // Detach the sub-emitter: the child must never receive a burst.
+    registry.get<ecs::ParticleEmitter>(parent).subEmitter = 0;
+
+    system.update(registry, 0.02f);
+    system.update(registry, 0.2f);
+    CHECK_EQ(system.aliveCount(child), 0u);
+}
+
 TEST_CASE("system_size_interpolation") {
     ecs::Registry registry;
     ParticleSystem system;

@@ -34,6 +34,15 @@ enum class SimulationSpace : i32 {
     Local = 1,
 };
 
+// When a sub-emitter fires the referenced child emitter's burst: as each parent
+// particle is born, or as it dies. (Collision joins this list once particle
+// collision lands.)
+ES_ENUM()
+enum class SubEmitterTrigger : i32 {
+    Death = 0,
+    Birth = 1,
+};
+
 ES_COMPONENT()
 struct ParticleEmitter {
     // Emission
@@ -138,6 +147,21 @@ struct ParticleEmitter {
     ES_PROPERTY(min=0, category=Velocity)
     f32 damping{0.0f};
 
+    // Noise / Turbulence — a divergence-free curl-noise flow field advects each
+    // particle, layered on top of velocity/gravity. Strength 0 disables it (no
+    // field is sampled), so the module is free when unused.
+    ES_PROPERTY(min=0, category=Noise)
+    f32 noiseStrength{0.0f};
+
+    ES_PROPERTY(min=0, category=Noise)
+    f32 noiseFrequency{0.01f};
+
+    ES_PROPERTY(category=Noise)
+    f32 noiseScrollSpeed{0.0f};
+
+    ES_PROPERTY(min=1, max=8, step=1, category=Noise)
+    i32 noiseOctaves{1};
+
     // Texture
     ES_PROPERTY(asset = texture, category=Texture)
     resource::TextureHandle texture;
@@ -172,6 +196,26 @@ struct ParticleEmitter {
     // State
     ES_PROPERTY()
     bool enabled{true};
+
+    // Sub-emitter — on each parent particle's birth or death, fire the referenced
+    // child emitter's burst at that particle's position. The child is an ordinary
+    // ParticleEmitter entity used as a template (typically rate=0, playOnStart=false
+    // so it only emits when triggered); its burstCount sets the sub-burst size.
+    // `subEmitter` is the child entity's raw id (0 = none). It is stored as u32
+    // rather than Entity so the pointer layout keeps a heap accessor (Entity is
+    // truncated out of the layout); the entity_ref tag still drives the editor
+    // picker and the scene/prefab editor→runtime id remapping.
+    ES_PROPERTY(enum=SubEmitterTrigger, category=SubEmitter)
+    i32 subEmitterTrigger{static_cast<i32>(SubEmitterTrigger::Death)};
+
+    ES_PROPERTY(min=0, max=1, category=SubEmitter)
+    f32 subEmitterChance{1.0f};
+
+    ES_PROPERTY(min=0, max=1, category=SubEmitter)
+    f32 subEmitterInheritVelocity{0.0f};
+
+    ES_PROPERTY(entity_ref, category=SubEmitter)
+    u32 subEmitter{0};
 
     ParticleEmitter() = default;
 };

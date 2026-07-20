@@ -322,6 +322,23 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
       "min": 1,
       "step": 1,
     },
+    "noiseFrequency": {
+      "category": "Noise",
+      "min": 0,
+    },
+    "noiseOctaves": {
+      "category": "Noise",
+      "max": 8,
+      "min": 1,
+      "step": 1,
+    },
+    "noiseScrollSpeed": {
+      "category": "Noise",
+    },
+    "noiseStrength": {
+      "category": "Noise",
+      "min": 0,
+    },
     "playOnStart": {
       "category": "Emission",
     },
@@ -440,6 +457,32 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
     "startSizeMin": {
       "category": "Size",
       "min": 0,
+    },
+    "subEmitter": {
+      "category": "SubEmitter",
+    },
+    "subEmitterChance": {
+      "category": "SubEmitter",
+      "max": 1,
+      "min": 0,
+    },
+    "subEmitterInheritVelocity": {
+      "category": "SubEmitter",
+      "max": 1,
+      "min": 0,
+    },
+    "subEmitterTrigger": {
+      "category": "SubEmitter",
+      "enum": [
+        {
+          "label": "Death",
+          "value": 0,
+        },
+        {
+          "label": "Birth",
+          "value": 1,
+        },
+      ],
     },
     "texture": {
       "category": "Texture",

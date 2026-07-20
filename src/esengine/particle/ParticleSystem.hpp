@@ -30,6 +30,9 @@ struct EmitterState {
     f32 emission_accumulator = 0.0f;
     f32 elapsed_time = 0.0f;
     f32 burst_timer = 0.0f;
+    // Monotonic clock for the noise field's scroll — advances every update
+    // regardless of play/stop so the turbulence never snaps when emission pauses.
+    f32 noise_time = 0.0f;
     bool playing = false;
     bool first_update = true;
 
@@ -65,11 +68,30 @@ private:
                        const ecs::Transform& transform,
                        EmitterState& state, u32 count);
 
+    // Shared spawn core: seed `count` particles into `state` from `emitter`'s config,
+    // originating at world `emitterPos`/`emitterAngle`, adding `velocityBias` to each
+    // (used by sub-emitter bursts to inherit the parent particle's motion).
+    // `allowBirthTrigger` records Birth events for a nested sub-emitter; false for a
+    // sub-burst's own spawn so a drain can't re-enter the request buffer it's reading.
+    void emitInto(const ecs::ParticleEmitter& emitter, EmitterState& state,
+                  glm::vec2 emitterPos, f32 emitterAngle, bool isWorldSpace,
+                  glm::vec2 velocityBias, u32 count, bool allowBirthTrigger);
+
+    // Fire the referenced child emitter's burst at each pending sub-emit request.
+    void drainSubEmitters(ecs::Registry& registry, Entity child,
+                          f32 inheritVelocity, f32 chance);
+
     void updateParticles(const ecs::ParticleEmitter& emitter, EmitterState& state, f32 dt,
-                         const ColorLut* colorLut, const SizeLut* sizeLut);
+                         const ColorLut* colorLut, const SizeLut* sizeLut,
+                         glm::vec2 emitterPos, f32 emitterAngle, bool isWorldSpace);
     f32 randomRange(f32 min, f32 max);
     glm::vec2 randomDirection(f32 angleMin, f32 angleMax);
     glm::vec2 randomShapeOffset(const ecs::ParticleEmitter& emitter);
+
+    // A parent particle's birth/death position + velocity, queued during a parent's
+    // update and drained into its child sub-emitter right after.
+    struct SubEmitRequest { glm::vec2 position; glm::vec2 velocity; };
+    std::vector<SubEmitRequest> subemit_requests_;
 
     std::unordered_map<Entity, EmitterState> states_;
     // A play() that arrives before the emitter's first update (its state isn't

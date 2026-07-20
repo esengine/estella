@@ -15,7 +15,7 @@ import type { Dimension, Padding } from './wasm.generated';
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '4e0613ea05e766a3';
+export const ABI_LAYOUT_HASH = '5577bd3e60fc7bd7';
 
 export interface AssetFieldMeta {
     field: string;
@@ -323,6 +323,10 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             angularVelocityMax: 0,
             gravity: { x: 0, y: 0 },
             damping: 0,
+            noiseStrength: 0,
+            noiseFrequency: 0.01,
+            noiseScrollSpeed: 0,
+            noiseOctaves: 1,
             texture: 0,
             spriteColumns: 1,
             spriteRows: 1,
@@ -333,9 +337,13 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             material: 0,
             simulationSpace: 0,
             enabled: true,
+            subEmitterTrigger: 0,
+            subEmitterChance: 1,
+            subEmitterInheritVelocity: 0,
+            subEmitter: 0,
         },
         assetFields: [{ field: 'texture', type: 'texture' as AssetFieldType }, { field: 'material', type: 'material' as AssetFieldType }],
-        entityFields: [],
+        entityFields: ['subEmitter'],
         colorFields: ['startColor', 'endColor'],
         animatableFields: [],
         fields: {
@@ -370,6 +378,10 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             angularVelocityMax: { category: "Rotation" },
             gravity: { category: "Velocity" },
             damping: { min: 0, category: "Velocity" },
+            noiseStrength: { min: 0, category: "Noise" },
+            noiseFrequency: { min: 0, category: "Noise" },
+            noiseScrollSpeed: { category: "Noise" },
+            noiseOctaves: { min: 1, max: 8, step: 1, category: "Noise" },
             texture: { category: "Texture" },
             spriteColumns: { min: 1, step: 1, category: "Texture" },
             spriteRows: { min: 1, step: 1, category: "Texture" },
@@ -379,6 +391,10 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             layer: { step: 1, category: "Rendering", enumSource: "sortingLayers" },
             material: { category: "Rendering" },
             simulationSpace: { enum: [{ label: 'World', value: 0 }, { label: 'Local', value: 1 }], category: "Rendering" },
+            subEmitterTrigger: { enum: [{ label: 'Death', value: 0 }, { label: 'Birth', value: 1 }], category: "SubEmitter" },
+            subEmitterChance: { min: 0, max: 1, category: "SubEmitter" },
+            subEmitterInheritVelocity: { min: 0, max: 1, category: "SubEmitter" },
+            subEmitter: { category: "SubEmitter" },
         },
     },
     RigidBody: {
@@ -852,6 +868,10 @@ export interface ParticleEmitterData {
     angularVelocityMax: number;
     gravity: Vec2;
     damping: number;
+    noiseStrength: number;
+    noiseFrequency: number;
+    noiseScrollSpeed: number;
+    noiseOctaves: number;
     texture: number;
     spriteColumns: number;
     spriteRows: number;
@@ -862,6 +882,10 @@ export interface ParticleEmitterData {
     material: number;
     simulationSpace: number;
     enabled: boolean;
+    subEmitterTrigger: number;
+    subEmitterChance: number;
+    subEmitterInheritVelocity: number;
+    subEmitter: Entity;
 }
 
 export interface RigidBodyData {

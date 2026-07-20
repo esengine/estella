@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 #include "ParticleSystem.hpp"
+#include "ParticleNoise.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -87,11 +88,27 @@ void ParticleSystem::update(ecs::Registry& registry, f32 dt) {
             }
         }
 
+        glm::vec2 emitterPos(transform.worldPosition.x, transform.worldPosition.y);
+        f32 emitterAngle = 0.0f;
+        if (transform.worldRotation.w != 1.0f || transform.worldRotation.z != 0.0f) {
+            emitterAngle = 2.0f * std::atan2(transform.worldRotation.z,
+                                             transform.worldRotation.w);
+        }
+        bool isWorldSpace = emitter.simulationSpace ==
+                            static_cast<i32>(ecs::SimulationSpace::World);
+
         auto lutIt = colorLuts_.find(entity);
         auto sizeIt = sizeLuts_.find(entity);
         updateParticles(emitter, state, dt,
                         lutIt != colorLuts_.end() ? &lutIt->second : nullptr,
-                        sizeIt != sizeLuts_.end() ? &sizeIt->second : nullptr);
+                        sizeIt != sizeLuts_.end() ? &sizeIt->second : nullptr,
+                        emitterPos, emitterAngle, isWorldSpace);
+
+        // Fire the child sub-emitter's burst at every birth/death queued this frame.
+        if (emitter.subEmitter != 0 && !subemit_requests_.empty()) {
+            drainSubEmitters(registry, Entity::fromRaw(emitter.subEmitter),
+                             emitter.subEmitterInheritVelocity, emitter.subEmitterChance);
+        }
     }
 }
 
@@ -181,6 +198,11 @@ const EmitterState* ParticleSystem::getState(Entity entity) const {
     return it != states_.end() ? &it->second : nullptr;
 }
 
+// Rotate a 2D vector by a precomputed cos/sin.
+static inline glm::vec2 rotate2(glm::vec2 v, f32 cosA, f32 sinA) {
+    return glm::vec2(v.x * cosA - v.y * sinA, v.x * sinA + v.y * cosA);
+}
+
 void ParticleSystem::emitParticles(const ecs::ParticleEmitter& emitter,
                                     const ecs::Transform& transform,
                                     EmitterState& state, u32 count) {
@@ -190,6 +212,23 @@ void ParticleSystem::emitParticles(const ecs::ParticleEmitter& emitter,
         emitterAngle = 2.0f * std::atan2(transform.worldRotation.z,
                                            transform.worldRotation.w);
     }
+    bool isWorldSpace = emitter.simulationSpace ==
+                        static_cast<i32>(ecs::SimulationSpace::World);
+    emitInto(emitter, state, emitterPos, emitterAngle, isWorldSpace, glm::vec2(0.0f), count,
+             /*allowBirthTrigger=*/true);
+}
+
+void ParticleSystem::emitInto(const ecs::ParticleEmitter& emitter, EmitterState& state,
+                              glm::vec2 emitterPos, f32 emitterAngle, bool isWorldSpace,
+                              glm::vec2 velocityBias, u32 count, bool allowBirthTrigger) {
+    // Record each spawned particle for a Birth-triggered sub-emitter (in world
+    // space, since a sub-burst is a world event).
+    bool recordBirth = allowBirthTrigger &&
+                       emitter.subEmitter != 0 &&
+                       emitter.subEmitterTrigger ==
+                           static_cast<i32>(ecs::SubEmitterTrigger::Birth);
+    f32 cosA = std::cos(emitterAngle);
+    f32 sinA = std::sin(emitterAngle);
 
     for (u32 i = 0; i < count; ++i) {
         Particle* p = state.pool.allocate();
@@ -213,22 +252,13 @@ void ParticleSystem::emitParticles(const ecs::ParticleEmitter& emitter,
                                            emitter.angularVelocityMax);
 
         glm::vec2 offset = randomShapeOffset(emitter);
-        bool isWorldSpace = emitter.simulationSpace ==
-                            static_cast<i32>(ecs::SimulationSpace::World);
         if (isWorldSpace) {
             // Rotate the spawn footprint by the emitter angle so the emission
             // shape agrees with the (already-rotated) velocity below; otherwise a
             // rotated world-space cone/box spawns along its unrotated axis while
             // the flow points elsewhere. `offset` itself stays unrotated — the
             // Circle aim reads it and gets the same rotation applied once, below.
-            glm::vec2 worldOffset = offset;
-            if (std::abs(emitterAngle) > 0.001f) {
-                f32 cosA = std::cos(emitterAngle);
-                f32 sinA = std::sin(emitterAngle);
-                worldOffset = glm::vec2(offset.x * cosA - offset.y * sinA,
-                                        offset.x * sinA + offset.y * cosA);
-            }
-            p->position = emitterPos + worldOffset;
+            p->position = emitterPos + rotate2(offset, cosA, sinA);
         } else {
             p->position = offset;
         }
@@ -262,15 +292,54 @@ void ParticleSystem::emitParticles(const ecs::ParticleEmitter& emitter,
                 dir = randomDirection(emitter.angleSpreadMin, emitter.angleSpreadMax);
                 break;
         }
-        if (isWorldSpace && std::abs(emitterAngle) > 0.001f) {
-            f32 cosA = std::cos(emitterAngle);
-            f32 sinA = std::sin(emitterAngle);
-            dir = glm::vec2(dir.x * cosA - dir.y * sinA,
-                            dir.x * sinA + dir.y * cosA);
+        if (isWorldSpace) {
+            dir = rotate2(dir, cosA, sinA);
         }
-        p->velocity = dir * speed;
+        p->velocity = dir * speed + velocityBias;
 
         p->sprite_frame = 0;
+
+        if (recordBirth) {
+            glm::vec2 worldPos = isWorldSpace ? p->position
+                                              : emitterPos + rotate2(p->position, cosA, sinA);
+            glm::vec2 worldVel = isWorldSpace ? p->velocity : rotate2(p->velocity, cosA, sinA);
+            subemit_requests_.push_back({worldPos, worldVel});
+        }
+    }
+}
+
+void ParticleSystem::drainSubEmitters(ecs::Registry& registry, Entity child,
+                                      f32 inheritVelocity, f32 chance) {
+    // Take ownership of the queue up front: emitInto below spawns into the child
+    // with allowBirthTrigger=false, so it never re-enters this buffer, but swapping
+    // also leaves the member clean if the child reference is stale.
+    std::vector<SubEmitRequest> requests;
+    requests.swap(subemit_requests_);
+
+    if (!registry.valid(child) || !registry.has<ecs::ParticleEmitter>(child)) {
+        return;  // a deleted/retargeted child just drops its bursts
+    }
+    const auto& childEmitter = registry.get<ecs::ParticleEmitter>(child);
+
+    // The child's own state may not exist yet (it's created lazily when the main
+    // loop reaches it); make it on demand so a burst is never lost.
+    auto it = states_.find(child);
+    if (it == states_.end()) {
+        auto [insertIt, _] = states_.emplace(
+            child, EmitterState(static_cast<u32>(std::clamp(childEmitter.maxParticles, 0, 1'000'000))));
+        it = insertIt;
+    }
+    EmitterState& childState = it->second;
+
+    // The child's burstCount sizes each sub-burst (fall back to 1 so a misconfigured
+    // template still shows something).
+    u32 count = childEmitter.burstCount > 0 ? static_cast<u32>(childEmitter.burstCount) : 1;
+    for (const auto& req : requests) {
+        if (chance < 1.0f && randomRange(0.0f, 1.0f) >= chance) {
+            continue;
+        }
+        emitInto(childEmitter, childState, req.position, 0.0f, /*isWorldSpace=*/true,
+                 req.velocity * inheritVelocity, count, /*allowBirthTrigger=*/false);
     }
 }
 
@@ -292,10 +361,28 @@ static f32 sampleSizeLut(const SizeLut& lut, f32 t) {
 
 void ParticleSystem::updateParticles(const ecs::ParticleEmitter& emitter,
                                       EmitterState& state, f32 dt,
-                                      const ColorLut* colorLut, const SizeLut* sizeLut) {
+                                      const ColorLut* colorLut, const SizeLut* sizeLut,
+                                      glm::vec2 emitterPos, f32 emitterAngle,
+                                      bool isWorldSpace) {
     auto sizeEasing = static_cast<EasingType>(emitter.sizeEasing);
     auto colorEasing = static_cast<EasingType>(emitter.colorEasing);
     i32 totalFrames = emitter.spriteColumns * emitter.spriteRows;
+
+    // Record dying particles for a Death-triggered sub-emitter (world space — a
+    // sub-burst is a world event). cos/sin convert a local-space death to world.
+    bool recordDeath = emitter.subEmitter != 0 &&
+                       emitter.subEmitterTrigger ==
+                           static_cast<i32>(ecs::SubEmitterTrigger::Death);
+    f32 cosA = std::cos(emitterAngle);
+    f32 sinA = std::sin(emitterAngle);
+
+    // Noise/Turbulence: a curl-noise flow field advected onto position. Strength 0
+    // samples nothing (the whole module is free when unused). The scroll offset
+    // drifts the field over a monotonic clock so pausing emission never snaps it.
+    state.noise_time += dt;
+    bool noiseOn = emitter.noiseStrength > 0.0f && emitter.noiseFrequency > 0.0f;
+    glm::vec2 noiseScroll(emitter.noiseScrollSpeed * state.noise_time *
+                          emitter.noiseFrequency);
 
     dead_particle_indices_.clear();
 
@@ -303,6 +390,12 @@ void ParticleSystem::updateParticles(const ecs::ParticleEmitter& emitter,
         p.age += dt;
 
         if (p.age >= p.lifetime) {
+            if (recordDeath) {
+                glm::vec2 worldPos = isWorldSpace ? p.position
+                                                  : emitterPos + rotate2(p.position, cosA, sinA);
+                glm::vec2 worldVel = isWorldSpace ? p.velocity : rotate2(p.velocity, cosA, sinA);
+                subemit_requests_.push_back({worldPos, worldVel});
+            }
             u32 idx = static_cast<u32>(&p - &state.pool.particles()[0]);
             dead_particle_indices_.push_back(idx);
             return;
@@ -315,6 +408,12 @@ void ParticleSystem::updateParticles(const ecs::ParticleEmitter& emitter,
             p.velocity *= (1.0f - emitter.damping * dt);
         }
         p.position += p.velocity * dt;
+
+        if (noiseOn) {
+            glm::vec2 sample = p.position * emitter.noiseFrequency + noiseScroll;
+            p.position += noise::curl(sample, emitter.noiseOctaves) *
+                          emitter.noiseStrength * dt;
+        }
 
         p.rotation += p.angular_velocity * dt;
 

@@ -1,5 +1,5 @@
 import {
-    EmitterShape, BlendMode, ParticleEasing,
+    EmitterShape, BlendMode, ParticleEasing, SubEmitterTrigger,
     Transform, ParticleEmitter,
 } from 'esengine';
 import type { ParticleEmitterData, CommandsInstance } from 'esengine';
@@ -12,10 +12,16 @@ export interface EmitterSpec {
     x: number;
     y: number;
     data: Partial<ParticleEmitterData>;
+    // Wire this emitter's `subEmitter` to the showcase's `child` template (so its
+    // particles fire the child's burst on the configured trigger).
+    sub?: boolean;
 }
 export interface Showcase {
     name: string;
     emitters: EmitterSpec[];
+    // Optional sub-emitter template: spawned once, its entity injected as the
+    // `subEmitter` of every emitter flagged `sub: true`.
+    child?: EmitterSpec;
 }
 
 export const SHOWCASES: Showcase[] = [
@@ -116,6 +122,50 @@ export const SHOWCASES: Showcase[] = [
                 angularVelocityMin: -90, angularVelocityMax: 90 } },
         ],
     },
+    {
+        // Shows off the Sub-emitter module: rockets rise and, on death near their
+        // apex, fire the `child` template's burst at that spot — a shell explosion
+        // without a line of imperative spawn code.
+        name: 'Bursting Rockets',
+        child: { x: 0, y: 0, data: {
+            rate: 0, playOnStart: false, burstCount: 44, maxParticles: 1000,
+            lifetimeMin: 0.6, lifetimeMax: 1.1, shape: EmitterShape.Point,
+            speedMin: 160, speedMax: 340, startSizeMin: 5, startSizeMax: 9,
+            endSizeMin: 0, endSizeMax: 0, sizeEasing: ParticleEasing.EaseOut,
+            startColor: { r: 1, g: 0.85, b: 0.35, a: 1 }, endColor: { r: 1, g: 0.3, b: 0.08, a: 0 },
+            gravity: { x: 0, y: -150 }, damping: 0.4 } },
+        emitters: [
+            { x: 0, y: -230, sub: true, data: {
+                rate: 2.5, maxParticles: 40, lifetimeMin: 1.4, lifetimeMax: 1.8,
+                shape: EmitterShape.Point, speedMin: 560, speedMax: 660,
+                angleSpreadMin: 84, angleSpreadMax: 96, startSizeMin: 8, startSizeMax: 12,
+                endSizeMin: 5, endSizeMax: 7, startColor: { r: 1, g: 0.95, b: 0.75, a: 1 },
+                endColor: { r: 1, g: 0.6, b: 0.25, a: 0.7 }, gravity: { x: 0, y: -230 },
+                subEmitterTrigger: SubEmitterTrigger.Death, subEmitterInheritVelocity: 0.15 } },
+        ],
+    },
+    {
+        // Shows off the Noise/Turbulence module: a curl-noise flow field makes the
+        // smoke roll and the embers weave instead of drifting in straight lines.
+        name: 'Turbulent Smoke',
+        emitters: [
+            { x: 0, y: -220, data: {
+                rate: 60, maxParticles: 380, lifetimeMin: 2.5, lifetimeMax: 4.0,
+                shape: EmitterShape.Circle, shapeRadius: 24, speedMin: 40, speedMax: 80,
+                angleSpreadMin: 80, angleSpreadMax: 100, startSizeMin: 30, startSizeMax: 50,
+                endSizeMin: 120, endSizeMax: 180, sizeEasing: ParticleEasing.EaseOut,
+                startColor: { r: 0.55, g: 0.6, b: 0.7, a: 0.5 }, endColor: { r: 0.2, g: 0.22, b: 0.3, a: 0 },
+                gravity: { x: 0, y: 30 }, damping: 0.2, blendMode: BlendMode.Normal,
+                noiseStrength: 140, noiseFrequency: 0.006, noiseScrollSpeed: 0.4, noiseOctaves: 2 } },
+            { x: 0, y: -220, data: {
+                rate: 34, maxParticles: 200, lifetimeMin: 1.8, lifetimeMax: 3.0,
+                shape: EmitterShape.Circle, shapeRadius: 16, speedMin: 60, speedMax: 120,
+                angleSpreadMin: 78, angleSpreadMax: 102, startSizeMin: 4, startSizeMax: 8,
+                endSizeMin: 0, endSizeMax: 0, startColor: { r: 1, g: 0.7, b: 0.3, a: 1 },
+                endColor: { r: 1, g: 0.3, b: 0.1, a: 0 }, gravity: { x: 0, y: 20 },
+                noiseStrength: 220, noiseFrequency: 0.012, noiseScrollSpeed: 0.6, noiseOctaves: 3 } },
+        ],
+    },
 ];
 
 export const SHOWCASE_COUNT = SHOWCASES.length;
@@ -137,10 +187,27 @@ export const BURST: Partial<ParticleEmitterData> = {
 // `layer: 5` keeps particles above the backdrop; `texture` is the handle read
 // from the scene's TexHolder sprite.
 export function spawnShowcase(cmds: CommandsInstance, index: number, texture: number): void {
-    for (const emitter of SHOWCASES[index].emitters) {
+    const showcase = SHOWCASES[index];
+
+    // Spawn the sub-emitter template first (if any) so its live entity id can be
+    // handed to the emitters that trigger it. It's tagged like the rest, so a
+    // showcase switch despawns it too.
+    let childId = 0;
+    if (showcase.child) {
+        const c = showcase.child;
+        childId = cmds.spawn()
+            .insert(Transform, { position: { x: c.x, y: c.y, z: 0 } })
+            .insert(ParticleEmitter, { layer: 5, texture, ...c.data })
+            .insert(ShowcaseEmitter, {})
+            .id();
+    }
+
+    for (const emitter of showcase.emitters) {
+        const data: Partial<ParticleEmitterData> = { layer: 5, texture, ...emitter.data };
+        if (emitter.sub && childId) data.subEmitter = childId;
         cmds.spawn()
             .insert(Transform, { position: { x: emitter.x, y: emitter.y, z: 0 } })
-            .insert(ParticleEmitter, { layer: 5, texture, ...emitter.data })
+            .insert(ParticleEmitter, data)
             .insert(ShowcaseEmitter, {});
     }
 }

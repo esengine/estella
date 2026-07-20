@@ -124,6 +124,17 @@ Where particles spawn and their initial direction. See [Emitter shapes](#emitter
 | `gravity` | Vec2 | `{0, 0}` | Constant acceleration applied to every particle. |
 | `damping` | number | `0` | Velocity drag per second (`0` = none). |
 
+### Noise & turbulence
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `noiseStrength` | number | `0` | Peak flow speed (px/s) the turbulence pushes particles at. `0` = module off. |
+| `noiseFrequency` | number | `0.01` | Spatial scale of the field — larger = tighter, busier swirls. |
+| `noiseScrollSpeed` | number | `0` | How fast the field drifts over time (`0` = a static field). |
+| `noiseOctaves` | number | `1` | Fractal detail layers. `1` = smooth flow; more = finer turbulence. |
+
+See [Noise & turbulence](#noise--turbulence-1) below.
+
 ### Size over life
 
 | Property | Type | Default | Description |
@@ -172,6 +183,17 @@ Where particles spawn and their initial direction. See [Emitter shapes](#emitter
 | `material` | asset | none | Optional custom material/shader. |
 | `simulationSpace` | `SimulationSpace` | `World` | `World` or `Local` (see [below](#simulation-space)). |
 | `enabled` | boolean | `true` | Disable to freeze and hide without removing the component. |
+
+### Sub-emitter
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `subEmitter` | entity | none | Child emitter entity fired when a particle triggers. `0`/unset = off. |
+| `subEmitterTrigger` | `SubEmitterTrigger` | `Death` | Fire on each particle's `Death` or `Birth`. |
+| `subEmitterChance` | number | `1` | Probability (0..1) a triggering particle fires the child. |
+| `subEmitterInheritVelocity` | number | `0` | Fraction of the parent particle's velocity passed to the sub-burst. |
+
+See [Sub-emitters](#sub-emitters) below.
 
 ## Emitter shapes
 
@@ -237,6 +259,85 @@ over each particle's life:
   spriteColumns: 4, spriteRows: 4, spriteFPS: 24, spriteLoop: false,
 });
 ```
+
+## Noise & turbulence
+
+Straight-line particles look mechanical. The noise module layers a **curl-noise
+flow field** on top of velocity and gravity, so particles wander along smooth,
+swirling currents — smoke that curls, embers that flutter, magic that drifts.
+
+The field is *divergence-free* (it's the curl of a noise potential), which means
+particles never bunch into clumps or thin out into gaps the way a raw random jitter
+would — the motion stays even and organic. It's pure CPU math, identical on every
+platform (WeChat included), and completely free when `noiseStrength` is `0`.
+
+```typescript
+.insert(ParticleEmitter, {
+  // …emission, lifetime, color…
+  noiseStrength: 120,     // how hard the current pushes (px/s)
+  noiseFrequency: 0.01,   // smaller = broad, lazy swirls; larger = tight eddies
+  noiseScrollSpeed: 0.5,  // let the field drift so the flow keeps evolving
+  noiseOctaves: 2,        // 1 = smooth; more = finer, busier turbulence
+});
+```
+
+Tuning tips:
+
+- **`noiseStrength`** is the headline dial — start around a fraction of your
+  particles' `speed` and push up until the wander reads.
+- **`noiseFrequency`** sets the swirl size. Rising smoke likes small values
+  (`~0.005`); sparky, chaotic bursts like larger ones (`~0.03`).
+- **`noiseScrollSpeed` > 0** keeps a slow, static-looking plume alive; leave it `0`
+  for a fixed field that particles simply flow through.
+- **`noiseOctaves`** trades cost for detail — `1`–`2` covers most effects.
+
+## Sub-emitters
+
+A sub-emitter lets one emitter spawn *another* emitter's burst at a particle's
+position — the classic firework shell that rises and explodes, a rocket trailing
+smoke puffs, a spark that splits into embers. No per-frame code: you wire a
+reference and the sim fires the burst on the chosen event.
+
+The child is an **ordinary `ParticleEmitter` entity used as a template** — set
+`rate: 0` and `playOnStart: false` so it never emits on its own; it only fires when
+the parent triggers it. Its `burstCount` sets how many particles each sub-burst
+spawns. Point the parent's `subEmitter` at that child entity:
+
+```typescript
+import { SubEmitterTrigger } from 'esengine';
+
+// The burst template — a normal emitter that only fires when triggered.
+const shell = cmds.spawn()
+  .insert(Transform, {})
+  .insert(ParticleEmitter, {
+    rate: 0, playOnStart: false, burstCount: 44,   // 44 sparks per burst
+    lifetimeMin: 0.6, lifetimeMax: 1.1, speedMin: 160, speedMax: 340,
+    startColor: { r: 1, g: 0.85, b: 0.35, a: 1 }, endColor: { r: 1, g: 0.3, b: 0.1, a: 0 },
+    gravity: { x: 0, y: -150 },
+  }).id();
+
+// The rocket — on each particle's death, fire the shell burst at that spot.
+cmds.spawn()
+  .insert(Transform, { position: { x: 0, y: -230, z: 0 } })
+  .insert(ParticleEmitter, {
+    rate: 2.5, lifetimeMin: 1.4, lifetimeMax: 1.8, speedMin: 560, speedMax: 660,
+    angleSpreadMin: 84, angleSpreadMax: 96,
+    subEmitter: shell,
+    subEmitterTrigger: SubEmitterTrigger.Death,   // or Birth
+    subEmitterInheritVelocity: 0.15,              // carry a little of the rocket's motion
+  });
+```
+
+- **`subEmitterTrigger`** — `Death` fires as each parent particle expires (shell
+  explosions, debris); `Birth` fires as each is born (a continuous shower of
+  sub-bursts along a stream).
+- **`subEmitterChance`** — set below `1` so only some particles fire the child,
+  thinning out a dense effect.
+- **`subEmitterInheritVelocity`** — pass a fraction of the parent particle's
+  velocity into the burst so the sparks fly *with* the rocket, not just outward.
+
+In the editor, `subEmitter` is an entity picker — drop in any emitter entity from
+the scene; the reference is remapped automatically when the scene loads.
 
 ## Simulation space
 
