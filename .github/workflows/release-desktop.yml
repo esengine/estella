@@ -10,6 +10,10 @@ on:
   # burning a tag.
   workflow_dispatch:
 
+# Read by default; the two jobs that touch the release raise it to contents:write.
+permissions:
+  contents: read
+
 jobs:
   # The single writer that creates the draft release. electron-builder's GitHub
   # publisher creates a draft lazily when none exists, so parallel platform
@@ -20,10 +24,11 @@ jobs:
   draft:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # The release body is the tag's own section of CHANGELOG.md (the release
       # commit lands the section before the tag, so it is always present here).
@@ -48,39 +53,30 @@ jobs:
   engine:
     name: Build engine (wasm)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
 
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
+      - uses: ./.github/actions/setup
 
       - name: Setup Emscripten
-        uses: mymindstorm/setup-emsdk@v14
+        uses: mymindstorm/setup-emsdk@v16
         with:
           version: 5.0.0
 
       - name: Setup ccache
-        uses: hendrikmuhs/ccache-action@v1.2.20
+        uses: hendrikmuhs/ccache-action@v1.2.23
         with:
           key: ${{ runner.os }}-emscripten
           max-size: 500M
-
-      - name: Install dependencies
-        run: pnpm install
 
       - name: Build engine and sync to desktop
         run: node build-tools/cli.js build -t all
 
       - name: Upload engine artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: engine-wasm
           path: |
@@ -106,25 +102,17 @@ jobs:
           - windows-latest
 
     runs-on: ${{ matrix.platform }}
+    timeout-minutes: 40
     permissions:
       contents: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
-      - name: Install dependencies
-        run: pnpm install
+      - uses: ./.github/actions/setup
 
       - name: Download engine artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: engine-wasm
           path: desktop/public
@@ -137,9 +125,23 @@ jobs:
 
       - name: Package and publish desktop app
         if: github.event_name == 'push'
-        run: pnpm --filter ./desktop exec electron-builder --publish always
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # electron-builder's GitHub publisher dedups assets on re-upload, so the
+        # whole command is idempotent — retry it to ride out GitHub API 5xx
+        # blips (a 503 on GET /releases has failed an otherwise-finished build
+        # mid-upload). Backs off 30s, 60s between attempts.
+        run: |
+          for attempt in 1 2 3; do
+            if pnpm --filter ./desktop exec electron-builder --publish always; then
+              exit 0
+            fi
+            echo "::warning::electron-builder publish attempt $attempt failed"
+            [ "$attempt" -lt 3 ] && sleep "$((attempt * 30))"
+          done
+          echo "::error::electron-builder publish failed after 3 attempts"
+          exit 1
 
       - name: Package desktop app (dry run, no publish)
         if: github.event_name != 'push'
@@ -147,7 +149,7 @@ jobs:
 
       - name: Upload installer artifact (dry run)
         if: github.event_name != 'push'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: installer-${{ matrix.platform }}
           path: |

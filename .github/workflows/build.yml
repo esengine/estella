@@ -13,39 +13,45 @@ concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: true
 
+# Least privilege: this workflow only reads the repo and moves artifacts (the
+# artifact API runs on its own runtime token, not contents). Nothing here writes
+# to the repo, so the default read-all token is narrowed to contents:read.
+permissions:
+  contents: read
+
 jobs:
   build-emscripten:
     name: Web (Emscripten) + C++ tests
     runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    # Single source of truth for the C++ doctest harnesses: the build-target
+    # list and the run loop both derive from CPP_TESTS, so a new harness can no
+    # longer be compiled-but-never-run (the two hand-kept lists had drifted).
+    env:
+      CPP_TESTS: >-
+        test_ecs test_events test_particle test_tilemap test_sparse_set
+        test_resource_pool test_shader_variant test_log_format test_registry_safety
+        test_shader_device test_draw_params test_texture_fb test_buffer_device
+        test_compressed_format test_batch_builder test_boundary_span test_webgpu_device
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
       with:
         submodules: recursive
 
-    - uses: pnpm/action-setup@v4
-      with:
-        version: 10
-
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '24'
-        cache: 'pnpm'
+    - uses: ./.github/actions/setup
 
     - name: Setup Emscripten
-      uses: mymindstorm/setup-emsdk@v14
+      uses: mymindstorm/setup-emsdk@v16
       with:
         version: 5.0.0
 
     - name: Setup ccache
-      uses: hendrikmuhs/ccache-action@v1.2.20
+      uses: hendrikmuhs/ccache-action@v1.2.23
       with:
         key: ${{ runner.os }}-emscripten
         max-size: 500M
-
-    - name: Install dependencies
-      run: pnpm install
 
     - name: Build Web target
       run: node build-tools/cli.js build -t web --no-sync
@@ -67,20 +73,13 @@ jobs:
     - name: Build C++ test harnesses
       run: |
         emcmake cmake -S . -B build/wasm/web-tests -DCMAKE_BUILD_TYPE=Release -DES_BUILD_WEB=ON -DES_BUILD_TESTS=ON
-        cmake --build build/wasm/web-tests -j "$(nproc)" --target \
-          test_ecs test_events test_particle test_tilemap test_sparse_set \
-          test_resource_pool test_shader_variant test_log_format test_registry_safety \
-          test_shader_device test_draw_params test_texture_fb test_buffer_device \
-          test_compressed_format test_batch_builder test_boundary_span test_webgpu_device \
-          webgpu_engine_bringup
+        # webgpu_engine_bringup is compiled (a link-time smoke) but not run below.
+        cmake --build build/wasm/web-tests -j "$(nproc)" --target $CPP_TESTS webgpu_engine_bringup
 
     # The root package.json is ESM, so the emscripten-emitted .js must run as .cjs.
     - name: Run C++ test harnesses
       run: |
-        for t in test_ecs test_events test_particle test_tilemap test_sparse_set \
-                 test_resource_pool test_shader_variant test_log_format test_registry_safety \
-                 test_shader_device test_draw_params test_texture_fb test_buffer_device \
-                 test_compressed_format test_batch_builder test_boundary_span test_webgpu_device; do
+        for t in $CPP_TESTS; do
           cp "build/wasm/web-tests/bin/$t.js" "build/wasm/web-tests/bin/$t.cjs"
           echo "=== $t"
           node "build/wasm/web-tests/bin/$t.cjs"
@@ -93,7 +92,7 @@ jobs:
       run: node build-tools/cli.js build -t all --no-sync
 
     - name: Upload web wasm artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: wasm-web
         path: build/wasm/web/
@@ -102,28 +101,18 @@ jobs:
   test:
     name: Tests (SDK + Desktop)
     runs-on: ubuntu-latest
+    timeout-minutes: 25
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
 
-    - uses: pnpm/action-setup@v4
-      with:
-        version: 10
-
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '24'
-        cache: 'pnpm'
+    - uses: ./.github/actions/setup
 
     - name: Check GL boundary (no gl* outside GLDevice)
       run: node tools/check-gl-boundary.mjs
 
     - name: Check render-command boundary (DrawCommands built only by BatchBuilder)
       run: node tools/check-draw-command-boundary.mjs
-
-    - name: Install dependencies
-      run: pnpm install
 
     # Filtered so the SDK is checked by ITS OWN pinned TypeScript (the workspace
     # carries two majors — desktop is on 6.x); a bare root `pnpm exec tsc`
@@ -155,28 +144,18 @@ jobs:
     name: Render verify (headless)
     runs-on: ubuntu-latest
     needs: build-emscripten
+    timeout-minutes: 40
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
 
-    - uses: pnpm/action-setup@v4
-      with:
-        version: 10
-
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '24'
-        cache: 'pnpm'
+    - uses: ./.github/actions/setup
 
     - name: Download web wasm artifact
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         name: wasm-web
         path: build/wasm/web/
-
-    - name: Install dependencies
-      run: pnpm install
 
     - name: Build SDK
       run: pnpm --filter ./sdk build
