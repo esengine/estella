@@ -383,6 +383,32 @@ cmds.spawn()
 两个注意:力场只作用于**世界空间**粒子(`Local` 发射器的粒子随发射器移动、忽略力场);
 `strength: 0` 或 `enabled: false` 直接跳过该力场。
 
+## 地面碰撞
+
+打开 `collisionEnabled`,粒子就会在世界高度 `collisionFloor` 处的水平**地面平面**上弹跳
+—— 雨点砸地、火花在表面上溅跳、雪花落定。纯 CPU 碰撞,不依赖物理。
+
+```typescript
+.insert(ParticleEmitter, {
+  rate: 60, speedMin: 200, speedMax: 400, shape: EmitterShape.Cone, shapeAngle: 50,
+  gravity: { x: 0, y: -500 },
+  collisionEnabled: true,
+  collisionFloor: -200,        // 粒子落到的世界 Y
+  collisionBounce: 0.5,        // 0 = 立即停住,1 = 完全弹性
+  collisionFriction: 0.2,      // 每次弹跳损失的水平速度
+  collisionLifetimeLoss: 0.1,  // 每次弹跳烧掉的生命比例(落定时渐隐)
+});
+```
+
+当世界空间粒子落到 `collisionFloor` 以下,它被拉回平面、竖直速度按 `collisionBounce`
+反射缩放;`collisionFriction` 削掉水平速度,`collisionLifetimeLoss` 加速其衰老,让溅
+射渐隐而不是永远蹦跳。
+
+<Aside type="note">
+  这是单一水平地面 —— 最常见的情形(一条地平线)。对任意几何体和瓦片地图的碰撞走物理
+  世界,是另一条可选路径。和力场一样,地面碰撞只作用于**世界空间**粒子。
+</Aside>
+
 ## 模拟空间
 
 | 取值 | 粒子跟随发射器吗? | 用于 |

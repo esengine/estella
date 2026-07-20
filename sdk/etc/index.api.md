@@ -5,7 +5,7 @@ Symbols: 1265 stable · 17 beta · 0 deprecated
 
 ## ABI_LAYOUT_HASH — const
 ```
-"1ea8bcc5e5a72cc7"
+"56d27a450a1ab9c6"
 ```
 
 ## ANCHOR_AXES — const
@@ -4051,6 +4051,11 @@ angularVelocityMin: number
 blendMode: number
 burstCount: number
 burstInterval: number
+collisionBounce: number
+collisionEnabled: boolean
+collisionFloor: number
+collisionFriction: number
+collisionLifetimeLoss: number
 colorEasing: number
 colorGradient: { stops: { t: number; color: Color; }[]; }
 damping: number

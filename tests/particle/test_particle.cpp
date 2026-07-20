@@ -602,6 +602,73 @@ TEST_CASE("system_force_field_radius_excludes_distant_particles") {
     CHECK_FALSE(anyMoved);  // out of range → untouched
 }
 
+// A downward-falling emitter at the origin with a floor below it. `collision`
+// toggles the floor plane on/off.
+static Entity makeFallingEmitter(ecs::Registry& registry, bool collision) {
+    Entity e = registry.create();
+    registry.emplace<ecs::Transform>(e);
+    auto& emitter = registry.emplace<ecs::ParticleEmitter>(e);
+    emitter.rate = 500.0f;
+    emitter.lifetimeMin = emitter.lifetimeMax = 10.0f;
+    emitter.maxParticles = 30;
+    emitter.speedMin = emitter.speedMax = 0.0f;
+    emitter.shape = static_cast<i32>(ecs::EmitterShape::Point);  // spawn at (0,0)
+    emitter.gravity = glm::vec2(0.0f, -600.0f);                  // fall down
+    emitter.collisionEnabled = collision;
+    emitter.collisionFloor = -100.0f;
+    emitter.collisionBounce = 0.6f;
+    emitter.playOnStart = true;
+    return e;
+}
+
+TEST_CASE("system_collision_floor_keeps_particles_above") {
+    ecs::Registry registry;
+    ParticleSystem system;
+    Entity e = makeFallingEmitter(registry, /*collision=*/true);
+
+    system.update(registry, 0.02f);
+    for (int i = 0; i < 30; ++i) system.update(registry, 0.05f);
+
+    bool anyFarBelow = false;
+    system.forEachParticle(e, [&](const Particle& p) {
+        if (p.position.y < -160.0f) anyFarBelow = true;  // floor is at -100
+    });
+    CHECK_FALSE(anyFarBelow);
+}
+
+TEST_CASE("system_collision_disabled_particles_fall_through_floor") {
+    ecs::Registry registry;
+    ParticleSystem system;
+    Entity e = makeFallingEmitter(registry, /*collision=*/false);
+
+    system.update(registry, 0.02f);
+    for (int i = 0; i < 30; ++i) system.update(registry, 0.05f);
+
+    bool anyFarBelow = false;
+    system.forEachParticle(e, [&](const Particle& p) {
+        if (p.position.y < -400.0f) anyFarBelow = true;  // no floor → falls well past -100
+    });
+    CHECK(anyFarBelow);
+}
+
+TEST_CASE("system_collision_bounce_gives_upward_velocity") {
+    ecs::Registry registry;
+    ParticleSystem system;
+    Entity e = makeFallingEmitter(registry, /*collision=*/true);
+
+    // The small synchronized pool oscillates in phase, so sample every frame and
+    // catch the upward leg of a bounce whenever it occurs.
+    system.update(registry, 0.02f);
+    bool bouncedUp = false;
+    for (int i = 0; i < 40 && !bouncedUp; ++i) {
+        system.update(registry, 0.03f);
+        system.forEachParticle(e, [&](const Particle& p) {
+            if (p.velocity.y > 1.0f) bouncedUp = true;  // reflected up off the floor
+        });
+    }
+    CHECK(bouncedUp);
+}
+
 TEST_CASE("system_size_interpolation") {
     ecs::Registry registry;
     ParticleSystem system;

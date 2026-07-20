@@ -1,0 +1,54 @@
+{
+  "version": "1.0",
+  "name": "ParticleCollision",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 10 } } },
+        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 300, "isActive": true, "priority": 0 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "BouncingSparks",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 120, "z": 0 } } },
+        { "type": "ParticleEmitter", "data": {
+          "rate": 80,
+          "maxParticles": 400,
+          "lifetimeMin": 1.8,
+          "lifetimeMax": 2.6,
+          "shape": 3,
+          "shapeRadius": 10,
+          "shapeAngle": 60,
+          "speedMin": 220,
+          "speedMax": 420,
+          "startSizeMin": 6,
+          "startSizeMax": 10,
+          "endSizeMin": 3,
+          "endSizeMax": 5,
+          "startColor": { "r": 1, "g": 0.9, "b": 0.4, "a": 1 },
+          "endColor": { "r": 1, "g": 0.4, "b": 0.1, "a": 0.5 },
+          "gravity": { "x": 0, "y": -520 },
+          "simulationSpace": 0,
+          "looping": true,
+          "playOnStart": true,
+          "collisionEnabled": true,
+          "collisionFloor": -200,
+          "collisionBounce": 0.55,
+          "collisionFriction": 0.2,
+          "collisionLifetimeLoss": 0.08,
+          "texture": "@uuid:24cb4e0f-7c75-4df4-9a4d-58480ee405c0"
+        }}
+      ],
+      "visible": true
+    }
+  ]
+}

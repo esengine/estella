@@ -575,6 +575,11 @@ export interface ParticleEmitterPtrData {
     trailWidth: number;
     trailPoints: number;
     trailMinDistance: number;
+    collisionEnabled: boolean;
+    collisionFloor: number;
+    collisionBounce: number;
+    collisionFriction: number;
+    collisionLifetimeLoss: number;
 }
 
 export function fillParticleEmitter(
@@ -634,6 +639,11 @@ export function fillParticleEmitter(
     out.trailWidth = f32[(ptr + 228) >> 2];
     out.trailPoints = u32[(ptr + 232) >> 2] | 0;
     out.trailMinDistance = f32[(ptr + 236) >> 2];
+    out.collisionEnabled = u8[ptr + 240] !== 0;
+    out.collisionFloor = f32[(ptr + 244) >> 2];
+    out.collisionBounce = f32[(ptr + 248) >> 2];
+    out.collisionFriction = f32[(ptr + 252) >> 2];
+    out.collisionLifetimeLoss = f32[(ptr + 256) >> 2];
 }
 
 export function writeParticleEmitter(
@@ -693,6 +703,11 @@ export function writeParticleEmitter(
     f32[(ptr + 228) >> 2] = data.trailWidth;
     u32[(ptr + 232) >> 2] = data.trailPoints | 0;
     f32[(ptr + 236) >> 2] = data.trailMinDistance;
+    u8[ptr + 240] = data.collisionEnabled ? 1 : 0;
+    f32[(ptr + 244) >> 2] = data.collisionFloor;
+    f32[(ptr + 248) >> 2] = data.collisionBounce;
+    f32[(ptr + 252) >> 2] = data.collisionFriction;
+    f32[(ptr + 256) >> 2] = data.collisionLifetimeLoss;
 }
 
 export function createParticleEmitterData(): ParticleEmitterPtrData {
@@ -750,6 +765,11 @@ export function createParticleEmitterData(): ParticleEmitterPtrData {
         trailWidth: 0,
         trailPoints: 0,
         trailMinDistance: 0,
+        collisionEnabled: false,
+        collisionFloor: 0,
+        collisionBounce: 0,
+        collisionFriction: 0,
+        collisionLifetimeLoss: 0,
     };
 }
 

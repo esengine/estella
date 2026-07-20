@@ -458,6 +458,8 @@ void ParticleSystem::updateParticles(const ecs::ParticleEmitter& emitter,
     int trailKeep = std::clamp(emitter.trailPoints, 2, kMaxTrailPoints);
     f32 trailMinDistSq = emitter.trailMinDistance * emitter.trailMinDistance;
 
+    bool collisionOn = emitter.collisionEnabled && isWorldSpace;
+
     dead_particle_indices_.clear();
 
     state.pool.forEachAlive([&](Particle& p) {
@@ -490,6 +492,19 @@ void ParticleSystem::updateParticles(const ecs::ParticleEmitter& emitter,
             glm::vec2 sample = p.position * emitter.noiseFrequency + noiseScroll;
             p.position += noise::curl(sample, emitter.noiseOctaves) *
                           emitter.noiseStrength * dt;
+        }
+
+        // Floor collision: a particle that has fallen through the floor plane while
+        // moving down is snapped back and bounced, losing tangential speed to friction
+        // and (optionally) some life. Done before the trail records so the streak
+        // follows the bounce.
+        if (collisionOn && p.position.y < emitter.collisionFloor && p.velocity.y < 0.0f) {
+            p.position.y = emitter.collisionFloor;
+            p.velocity.y = -p.velocity.y * emitter.collisionBounce;
+            p.velocity.x *= (1.0f - emitter.collisionFriction);
+            if (emitter.collisionLifetimeLoss > 0.0f) {
+                p.age += emitter.collisionLifetimeLoss * p.lifetime;
+            }
         }
 
         // Record the settled position into this particle's trail ring (oldest→newest),

@@ -416,6 +416,36 @@ Two caveats: fields act on **world-space** particles only (a `Local` emitter's p
 move with their emitter and ignore fields), and `strength: 0` or `enabled: false` skips
 a field entirely.
 
+## Floor collision
+
+Turn on `collisionEnabled` and particles bounce off a horizontal **floor plane** at
+world height `collisionFloor` — rain splashing on the ground, sparks skittering across
+a surface, snow settling. It's self-contained CPU collision with no physics dependency.
+
+```typescript
+.insert(ParticleEmitter, {
+  rate: 60, speedMin: 200, speedMax: 400, shape: EmitterShape.Cone, shapeAngle: 50,
+  gravity: { x: 0, y: -500 },
+  collisionEnabled: true,
+  collisionFloor: -200,        // world Y the particles land on
+  collisionBounce: 0.5,        // 0 = stop dead, 1 = fully elastic
+  collisionFriction: 0.2,      // horizontal speed shed per bounce
+  collisionLifetimeLoss: 0.1,  // fraction of life burned per bounce (fade as they settle)
+});
+```
+
+When a world-space particle falls below `collisionFloor`, it's snapped back to the
+plane and its vertical velocity is reflected and scaled by `collisionBounce`;
+`collisionFriction` bleeds off horizontal speed and `collisionLifetimeLoss` ages it so
+splashes fade out instead of skittering forever.
+
+<Aside type="note">
+  This is a single horizontal floor — the common case (a ground line). Collision
+  against arbitrary geometry and tilemaps goes through the physics world and is a
+  separate, opt-in path. Like force fields, floor collision applies to **world-space**
+  particles only.
+</Aside>
+
 ## Simulation space
 
 | Value | Particles follow the emitter? | Use for |

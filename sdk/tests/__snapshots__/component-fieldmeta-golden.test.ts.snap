@@ -251,6 +251,27 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
       "category": "Emission",
       "min": 0,
     },
+    "collisionBounce": {
+      "category": "Collision",
+      "max": 1,
+      "min": 0,
+    },
+    "collisionEnabled": {
+      "category": "Collision",
+    },
+    "collisionFloor": {
+      "category": "Collision",
+    },
+    "collisionFriction": {
+      "category": "Collision",
+      "max": 1,
+      "min": 0,
+    },
+    "collisionLifetimeLoss": {
+      "category": "Collision",
+      "max": 1,
+      "min": 0,
+    },
     "colorEasing": {
       "category": "Color",
       "enum": [

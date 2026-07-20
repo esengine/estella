@@ -374,6 +374,11 @@ export interface ParticleEmitter {
     trailWidth: number;
     trailPoints: number;
     trailMinDistance: number;
+    collisionEnabled: boolean;
+    collisionFloor: number;
+    collisionBounce: number;
+    collisionFriction: number;
+    collisionLifetimeLoss: number;
 }
 
 export interface ParticleForceField {

@@ -234,6 +234,30 @@ struct ParticleEmitter {
     ES_PROPERTY(min=0, category=Trail)
     f32 trailMinDistance{6.0f};
 
+    // Collision (Phase 1: a horizontal floor plane) — world-space particles that fall
+    // below `collisionFloor` (world Y) bounce off it. Self-contained CPU collision, no
+    // physics dependency: rain splashing on the ground, sparks skittering on a floor,
+    // snow settling. Off by default.
+    ES_PROPERTY(category=Collision)
+    bool collisionEnabled{false};
+
+    ES_PROPERTY(category=Collision)
+    f32 collisionFloor{0.0f};
+
+    // Restitution: 0 = particles stop dead on the floor, 1 = a full elastic bounce.
+    ES_PROPERTY(min=0, max=1, category=Collision)
+    f32 collisionBounce{0.5f};
+
+    // Tangential friction applied on each bounce (0 = frictionless slide, 1 = stop
+    // horizontal motion).
+    ES_PROPERTY(min=0, max=1, category=Collision)
+    f32 collisionFriction{0.1f};
+
+    // Fraction of a particle's remaining life burned on each bounce (0 = none, 1 =
+    // dies on first contact) — fades splashes/sparks out as they settle.
+    ES_PROPERTY(min=0, max=1, category=Collision)
+    f32 collisionLifetimeLoss{0.0f};
+
     ParticleEmitter() = default;
 };
 

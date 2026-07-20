@@ -206,6 +206,21 @@ export const SHOWCASES: Showcase[] = [
                 startColor: { r: 0.7, g: 0.85, b: 1, a: 1 }, endColor: { r: 0.8, g: 0.4, b: 1, a: 0 } } },
         ],
     },
+    {
+        // Shows off Floor collision: a fountain of sparks arcs up, falls, and bounces
+        // and skitters along a floor plane, fading as they settle.
+        name: 'Bouncing Sparks',
+        emitters: [
+            { x: 0, y: 120, data: {
+                rate: 55, maxParticles: 260, lifetimeMin: 1.8, lifetimeMax: 2.6,
+                shape: EmitterShape.Cone, shapeRadius: 10, shapeAngle: 60, speedMin: 220, speedMax: 420,
+                startSizeMin: 6, startSizeMax: 10, endSizeMin: 3, endSizeMax: 5,
+                startColor: { r: 1, g: 0.9, b: 0.4, a: 1 }, endColor: { r: 1, g: 0.4, b: 0.1, a: 0.5 },
+                gravity: { x: 0, y: -520 },
+                collisionEnabled: true, collisionFloor: -200, collisionBounce: 0.55,
+                collisionFriction: 0.2, collisionLifetimeLoss: 0.1 } },
+        ],
+    },
 ];
 
 export const SHOWCASE_COUNT = SHOWCASES.length;

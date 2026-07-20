@@ -4053,6 +4053,11 @@ angularVelocityMin: number
 blendMode: number
 burstCount: number
 burstInterval: number
+collisionBounce: number
+collisionEnabled: boolean
+collisionFloor: number
+collisionFriction: number
+collisionLifetimeLoss: number
 colorEasing: number
 colorGradient: { stops: { t: number; color: Color; }[]; }
 damping: number

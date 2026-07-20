@@ -15,7 +15,7 @@ import type { Dimension, Padding } from './wasm.generated';
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '1ea8bcc5e5a72cc7';
+export const ABI_LAYOUT_HASH = '56d27a450a1ab9c6';
 
 export interface AssetFieldMeta {
     field: string;
@@ -345,6 +345,11 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             trailWidth: 8,
             trailPoints: 6,
             trailMinDistance: 6,
+            collisionEnabled: false,
+            collisionFloor: 0,
+            collisionBounce: 0.5,
+            collisionFriction: 0.1,
+            collisionLifetimeLoss: 0,
         },
         assetFields: [{ field: 'texture', type: 'texture' as AssetFieldType }, { field: 'material', type: 'material' as AssetFieldType }],
         entityFields: ['subEmitter'],
@@ -403,6 +408,11 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             trailWidth: { min: 0, category: "Trail" },
             trailPoints: { min: 2, max: 12, step: 1, category: "Trail" },
             trailMinDistance: { min: 0, category: "Trail" },
+            collisionEnabled: { category: "Collision" },
+            collisionFloor: { category: "Collision" },
+            collisionBounce: { min: 0, max: 1, category: "Collision" },
+            collisionFriction: { min: 0, max: 1, category: "Collision" },
+            collisionLifetimeLoss: { min: 0, max: 1, category: "Collision" },
         },
     },
     ParticleForceField: {
@@ -919,6 +929,11 @@ export interface ParticleEmitterData {
     trailWidth: number;
     trailPoints: number;
     trailMinDistance: number;
+    collisionEnabled: boolean;
+    collisionFloor: number;
+    collisionBounce: number;
+    collisionFriction: number;
+    collisionLifetimeLoss: number;
 }
 
 export interface ParticleForceFieldData {

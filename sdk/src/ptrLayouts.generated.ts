@@ -202,6 +202,11 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'trailWidth', type: 'f32', offset: 228 },
             { name: 'trailPoints', type: 'i32', offset: 232 },
             { name: 'trailMinDistance', type: 'f32', offset: 236 },
+            { name: 'collisionEnabled', type: 'bool', offset: 240 },
+            { name: 'collisionFloor', type: 'f32', offset: 244 },
+            { name: 'collisionBounce', type: 'f32', offset: 248 },
+            { name: 'collisionFriction', type: 'f32', offset: 252 },
+            { name: 'collisionLifetimeLoss', type: 'f32', offset: 256 },
         ],
     },
     ParticleForceField: {
