@@ -12,7 +12,7 @@ import { log } from '../logger';
 // .esanim File Format
 // =============================================================================
 
-export const ANIM_CLIP_FORMAT_VERSION = '1.2';
+export const ANIM_CLIP_FORMAT_VERSION = '1.3';
 
 /**
  * Sprite-sheet slicing grid. When present, frames may reference grid cells
@@ -46,6 +46,17 @@ export interface AnimClipFrameData {
     };
 }
 
+/**
+ * A frame event: as the playhead crosses `frame`, the runtime fires `name`
+ * (with optional `data`) to any listener. Added in format 1.3; the runtime
+ * (SpriteAnimator) always supported events, only the format/editor did not.
+ */
+export interface AnimClipEventData {
+    frame: number;
+    name: string;
+    data?: unknown;
+}
+
 export interface AnimClipAssetData {
     version: string;
     type: 'animation-clip';
@@ -53,6 +64,7 @@ export interface AnimClipAssetData {
     loop?: boolean;
     sheet?: AnimClipSheetData;
     frames: AnimClipFrameData[];
+    events?: AnimClipEventData[];
 }
 
 // =============================================================================
@@ -157,6 +169,13 @@ export function parseAnimClipAsset(rawJson: unknown): AnimClipAssetData {
             frames.push(frame);
         }
     }
+    const events: AnimClipEventData[] = [];
+    for (const e of Array.isArray(raw?.events) ? raw.events : []) {
+        if (e && typeof e.name === 'string' && e.name
+            && typeof e.frame === 'number' && Number.isInteger(e.frame) && e.frame >= 0) {
+            events.push({ frame: e.frame, name: e.name, ...(e.data !== undefined ? { data: e.data } : {}) });
+        }
+    }
     return {
         version: typeof raw?.version === 'string' ? raw.version : ANIM_CLIP_FORMAT_VERSION,
         type: 'animation-clip',
@@ -164,6 +183,7 @@ export function parseAnimClipAsset(rawJson: unknown): AnimClipAssetData {
         loop: typeof raw?.loop === 'boolean' ? raw.loop : true,
         ...(sheet ? { sheet } : {}),
         frames,
+        ...(events.length ? { events } : {}),
     };
 }
 
@@ -176,6 +196,7 @@ export function serializeAnimClip(asset: AnimClipAssetData): Record<string, unkn
         loop: asset.loop ?? true,
         ...(asset.sheet ? { sheet: { ...asset.sheet } } : {}),
         frames: asset.frames.map(f => ({ ...f })),
+        ...(asset.events && asset.events.length ? { events: asset.events.map(e => ({ ...e })) } : {}),
     };
 }
 
@@ -242,6 +263,7 @@ export function parseAnimClipData(
         name: clipPath,
         fps: data.fps ?? DEFAULT_FPS,
         loop: data.loop ?? true,
+        ...(data.events?.length ? { events: data.events.map(e => ({ frame: e.frame, name: e.name, data: e.data })) } : {}),
         frames: data.frames.map(f => {
             if (sheet && f.cell !== undefined) {
                 if (f.cell >= cellCount) {

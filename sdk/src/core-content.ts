@@ -283,6 +283,7 @@ export {
     type AnimClipAssetData,
     type AnimClipFrameData,
     type AnimClipSheetData,
+    type AnimClipEventData,
     TweenGroup,
     TweenSequence,
     type Completable,

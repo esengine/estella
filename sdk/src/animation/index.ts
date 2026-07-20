@@ -96,4 +96,5 @@ export {
     type AnimClipAssetData,
     type AnimClipFrameData,
     type AnimClipSheetData,
+    type AnimClipEventData,
 } from './AnimClipLoader';
