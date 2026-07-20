@@ -91,6 +91,37 @@ export const AnimClipCommands = {
     });
   },
 
+  /** Add a frame event at @p frame (kept sorted by frame). */
+  addEvent(frame: number, name: string): void {
+    AnimClipDocument.edit('Add Event', (a) => {
+      if (!a.events) a.events = [];
+      a.events.push({ frame: Math.max(0, Math.floor(frame)), name });
+      a.events.sort((x, y) => x.frame - y.frame);
+    });
+  },
+
+  removeEvent(index: number): void {
+    AnimClipDocument.edit('Remove Event', (a) => {
+      if (a.events && index >= 0 && index < a.events.length) a.events.splice(index, 1);
+    });
+  },
+
+  setEventFrame(index: number, frame: number): void {
+    AnimClipDocument.edit('Move Event', (a) => {
+      const e = a.events?.[index];
+      if (!e) return;
+      e.frame = Math.max(0, Math.floor(frame));
+      a.events!.sort((x, y) => x.frame - y.frame);
+    });
+  },
+
+  setEventName(index: number, name: string): void {
+    AnimClipDocument.edit('Rename Event', (a) => {
+      const e = a.events?.[index];
+      if (e && name) e.name = name;
+    });
+  },
+
   /** Persist the open flipbook to its file. */
   async save(): Promise<void> {
     const asset = AnimClipDocument.asset;

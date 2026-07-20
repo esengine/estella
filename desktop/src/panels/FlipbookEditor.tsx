@@ -13,7 +13,7 @@ import {
   useEffect, useRef, useState, useSyncExternalStore,
   type CSSProperties, type DragEvent,
 } from 'react';
-import { Trash2, X } from 'lucide-react';
+import { Plus, Trash2, X } from 'lucide-react';
 import {
   animClipSheetCols, animClipSheetRows,
   type AnimClipFrameData, type AnimClipSheetData,
@@ -252,6 +252,7 @@ export function FlipbookEditor() {
               }}
               title={invalid ? t('fb.frame.invalidTip', { cell: f.cell ?? 0 }) : undefined}
             >
+              {asset.events?.some((e) => e.frame === i) && <span className="fb-frame__evt" title={t('fb.event.onFrame')} />}
               <span
                 className="fb-thumb fb-frame__thumb" style={thumbFor(f)}
                 title={t('fb.frame.scrubTip')}
@@ -294,6 +295,46 @@ export function FlipbookEditor() {
           </button>
         )}
       </div>
+
+      {asset.frames.length > 0 && (
+        <div className="fb-events">
+          <span className="fb-events__head">
+            <span>{t('fb.events')}</span>
+            <button
+              type="button"
+              className="fb-events__add"
+              title={t('fb.addEvent')}
+              onClick={() => AnimClipCommands.addEvent(curFrame, t('fb.event.default'))}
+            >
+              <Plus size={12} /> {t('fb.addEvent')}
+            </button>
+          </span>
+          {(asset.events ?? []).map((ev, i) => (
+            <span key={i} className="fb-event">
+              <button
+                type="button"
+                className="fb-event__frame"
+                title={t('fb.event.onFrame')}
+                onClick={() => { setPlaying(false); setFrameIdx(Math.min(ev.frame, asset.frames.length - 1)); }}
+              >
+                {ev.frame}
+              </button>
+              <input
+                key={`${i}-${ev.name}`}
+                className="fb-event__name"
+                defaultValue={ev.name}
+                spellCheck={false}
+                onBlur={(e) => AnimClipCommands.setEventName(i, e.target.value.trim())}
+                onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+              />
+              <button type="button" className="fb-event__x" title={t('fb.event.remove')} onClick={() => AnimClipCommands.removeEvent(i)}>
+                <X size={10} strokeWidth={2.2} />
+              </button>
+            </span>
+          ))}
+          {(asset.events?.length ?? 0) === 0 && <span className="fb-hint">{t('fb.events.empty')}</span>}
+        </div>
+      )}
 
       {sheet && (
         <div className="fb-canvas" onPointerUp={commitStroke} onPointerLeave={commitStroke}>

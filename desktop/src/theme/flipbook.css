@@ -91,6 +91,91 @@
 }
 .fb-frame.is-current { border-color: var(--acc-hi); }
 .fb-frame__thumb { cursor: pointer; }
+.fb-frame { position: relative; }
+.fb-frame__evt {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--acc-hi);
+  box-shadow: 0 0 0 1px var(--srf-2);
+  z-index: 1;
+}
+
+/* Animation events bar: chips of {frame → name}, one per frame event. */
+.fb-events {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line);
+  background: var(--srf-2);
+  flex: 0 0 auto;
+  min-height: 32px;
+}
+.fb-events__head { display: inline-flex; align-items: center; gap: 8px; color: var(--text-dim); font-size: var(--fs-xs); }
+.fb-events__add {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 22px;
+  padding: 0 7px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--srf-3);
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: var(--fs-xs);
+}
+.fb-events__add:hover { background: var(--raised); color: var(--text); }
+.fb-event {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--srf-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 2px 4px 2px 2px;
+}
+.fb-event__frame {
+  min-width: 20px;
+  height: 18px;
+  padding: 0 5px;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: var(--srf-4);
+  color: var(--acc-hi);
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  cursor: pointer;
+}
+.fb-event__frame:hover { background: var(--srf-5); }
+.fb-event__name {
+  width: 92px;
+  height: 18px;
+  background: var(--inset);
+  border: 1px solid var(--line);
+  border-radius: var(--r-xs);
+  color: var(--text);
+  font-size: var(--fs-xs);
+  padding: 0 4px;
+}
+.fb-event__x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+.fb-event__x:hover { color: var(--error-hi); background: var(--srf-4); }
 
 /* Transport-driven preview stage: a checkerboard view with the current frame
    (onion-skin ghosts behind it) over a control bar (shared <Transport> + onion). */

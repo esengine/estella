@@ -1,5 +1,5 @@
 {
-  "version": "1.2",
+  "version": "1.3",
   "type": "animation-clip",
   "fps": 12,
   "loop": true,
@@ -37,5 +37,10 @@
     {
       "cell": 7
     }
+  ],
+  "events": [
+    { "frame": 0, "name": "flip" },
+    { "frame": 3, "name": "edge" },
+    { "frame": 6, "name": "chime" }
   ]
 }
