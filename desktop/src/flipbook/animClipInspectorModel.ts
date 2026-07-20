@@ -23,7 +23,17 @@ export function buildAnimClipComponents(asset: AnimClipAssetData): InspectorComp
       label: t('fb.insp.animation'),
       fields: [
         { key: 'fps', label: t('fb.field.fps'), type: 'number', value: asset.fps ?? DEFAULT_FPS, min: 1, max: 240, step: 1, defaultValue: DEFAULT_FPS },
-        { key: 'loop', label: t('fb.loop'), type: 'bool', value: asset.loop ?? true, defaultValue: true },
+        {
+          key: 'loop',
+          label: t('fb.field.loopMode'),
+          type: 'enum',
+          value: (asset.loop ?? true) ? 1 : 0,
+          options: [
+            { label: t('fb.loopMode.once'), value: 0 },
+            { label: t('fb.loopMode.loop'), value: 1 },
+          ],
+          defaultValue: 1,
+        },
       ],
     },
   ];
@@ -51,7 +61,7 @@ export function makeAnimClipWrite() {
         AnimClipCommands.setFps(value as number);
         break;
       case 'loop':
-        AnimClipCommands.setLoop(value as boolean);
+        AnimClipCommands.setLoop(value === 1 || value === true);
         break;
       case 'cellWidth':
       case 'cellHeight':

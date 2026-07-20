@@ -29,6 +29,12 @@ export const flipbookMessages = defineMessages({
     'fb.animClip': { en: 'Animation Clip', zh: '动画剪辑' },
     'fb.insp.animation': { en: 'Animation', zh: '动画' },
     'fb.insp.sheet': { en: 'Sprite Sheet', zh: '精灵表' },
+    'fb.field.loopMode': { en: 'Loop Mode', zh: '循环模式' },
+    'fb.loopMode.once': { en: "Don't loop", zh: '不循环' },
+    'fb.loopMode.loop': { en: 'Loop', zh: '循环' },
+    'fb.onion': { en: 'Onion skin', zh: '洋葱皮' },
+    'fb.onionFrames': { en: 'Frames', zh: '帧数' },
+    'fb.onionTip': { en: 'Ghost the nearest frames behind the current one (while paused)', zh: '暂停时在当前帧后叠印相邻帧,便于对位' },
     'fb.save': { en: 'Save', zh: '保存' },
 
     // — Sheet canvas —

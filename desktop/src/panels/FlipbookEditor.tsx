@@ -66,6 +66,8 @@ export function FlipbookEditor() {
   const [frameIdx, setFrameIdx] = useState(0);
   const frameIdxRef = useRef(frameIdx);
   frameIdxRef.current = frameIdx;
+  const [onion, setOnion] = useState(true);
+  const [onionFrames, setOnionFrames] = useState(1);
 
   const playFrames = asset?.frames;
   const playFps = asset?.fps ?? 12;
@@ -117,6 +119,19 @@ export function FlipbookEditor() {
   };
 
   const curFrame = Math.min(frameIdx, Math.max(0, asset.frames.length - 1));
+
+  // Onion skin: ghost the nearest frames behind the current one, fading with
+  // distance. Only while paused — during playback the trail is just noise.
+  const STAGE = 152;
+  const onionGhosts: { i: number; dir: number; op: number }[] = [];
+  if (onion && !playing && asset.frames.length > 1) {
+    const n = asset.frames.length;
+    const depth = Math.min(onionFrames, n - 1);
+    for (let d = 1; d <= depth; d++) {
+      onionGhosts.push({ i: (curFrame - d + n) % n, dir: -1, op: 0.5 / (d + 0.4) });
+      onionGhosts.push({ i: (curFrame + d) % n, dir: 1, op: 0.5 / (d + 0.4) });
+    }
+  }
 
   const commitStroke = () => {
     const s = strokeRef.current;
@@ -177,20 +192,44 @@ export function FlipbookEditor() {
       </div>
 
       {asset.frames.length > 0 && (
-        <div className="fb-playbar">
-          <span className="fb-thumb fb-playbar__img" style={thumbFor(asset.frames[curFrame], 64)} title={t('fb.preview')} />
-          <Transport
-            playing={playing}
-            onPlayPause={() => setPlaying((p) => !p)}
-            onJumpStart={() => { setPlaying(false); setFrameIdx(0); }}
-            onJumpEnd={() => { setPlaying(false); setFrameIdx(asset.frames.length - 1); }}
-            onStepBack={() => { setPlaying(false); setFrameIdx((i) => (i - 1 + asset.frames.length) % asset.frames.length); }}
-            onStepForward={() => { setPlaying(false); setFrameIdx((i) => (i + 1) % asset.frames.length); }}
-            stepBackTitle={t('fb.prevFrame')}
-            stepForwardTitle={t('fb.nextFrame')}
-            frame={curFrame}
-            frameCount={asset.frames.length}
-          />
+        <div className="fb-pv">
+          <div className="fb-pv__view">
+            {onionGhosts.map((g) => (
+              <span
+                key={`${g.dir}-${g.i}`}
+                className={`fb-thumb fb-pv__ghost fb-pv__ghost--${g.dir < 0 ? 'prev' : 'next'}`}
+                style={{ ...thumbFor(asset.frames[g.i], STAGE), opacity: g.op }}
+              />
+            ))}
+            <span className="fb-thumb fb-pv__cur" style={thumbFor(asset.frames[curFrame], STAGE)} title={t('fb.preview')} />
+          </div>
+          <div className="fb-pv__bar">
+            <Transport
+              playing={playing}
+              onPlayPause={() => setPlaying((p) => !p)}
+              onJumpStart={() => { setPlaying(false); setFrameIdx(0); }}
+              onJumpEnd={() => { setPlaying(false); setFrameIdx(asset.frames.length - 1); }}
+              onStepBack={() => { setPlaying(false); setFrameIdx((i) => (i - 1 + asset.frames.length) % asset.frames.length); }}
+              onStepForward={() => { setPlaying(false); setFrameIdx((i) => (i + 1) % asset.frames.length); }}
+              stepBackTitle={t('fb.prevFrame')}
+              stepForwardTitle={t('fb.nextFrame')}
+              frame={curFrame}
+              frameCount={asset.frames.length}
+            />
+            <span className="fb-grow" />
+            <label className="fb-field fb-onion" title={t('fb.onionTip')}>
+              <input type="checkbox" checked={onion} onChange={(e) => setOnion(e.target.checked)} />
+              <span>{t('fb.onion')}</span>
+            </label>
+            {onion && (
+              <GridField
+                label={t('fb.onionFrames')}
+                value={onionFrames}
+                min={1}
+                onCommit={(n) => setOnionFrames(Math.max(1, Math.min(5, Math.round(n))))}
+              />
+            )}
+          </div>
         </div>
       )}
 

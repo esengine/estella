@@ -92,21 +92,41 @@
 .fb-frame.is-current { border-color: var(--acc-hi); }
 .fb-frame__thumb { cursor: pointer; }
 
-/* Transport-driven preview bar (shared <Transport> + current-frame thumbnail). */
-.fb-playbar {
+/* Transport-driven preview stage: a checkerboard view with the current frame
+   (onion-skin ghosts behind it) over a control bar (shared <Transport> + onion). */
+.fb-pv {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 10px;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
   border-bottom: 1px solid var(--line);
-  background: var(--elevated);
+  background: var(--srf-2);
   flex: 0 0 auto;
 }
-.fb-playbar__img {
-  flex: 0 0 auto;
-  border: 1px solid var(--star-line);
+.fb-pv__view {
+  position: relative;
+  height: 172px;
+  border-radius: var(--r-sm);
+  overflow: hidden;
   background-color: var(--inset);
+  background-image:
+    linear-gradient(45deg, var(--srf-3) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--srf-3) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--srf-3) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--srf-3) 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
 }
+.fb-pv__cur,
+.fb-pv__ghost {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+.fb-pv__ghost { pointer-events: none; }
+.fb-pv__bar { display: flex; align-items: center; gap: 8px; }
+.fb-onion { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
 .fb-dur {
   width: 40px;
   background: var(--inset);
