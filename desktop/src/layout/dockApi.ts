@@ -62,6 +62,11 @@ export const dockApi = {
   set(next: DockviewApi | null) {
     api = next;
   },
+  /** The id of the active (focused) dock panel, or null. Drives context-aware
+   *  Save: Ctrl+S targets the asset editor you're looking at, else the scene. */
+  activePanelId(): string | null {
+    return api?.activePanel?.id ?? null;
+  },
   /** Bring a docked panel to the front of its group (no-op if absent). */
   reveal(id: string) {
     api?.getPanel(id)?.api.setActive();

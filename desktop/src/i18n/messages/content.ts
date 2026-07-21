@@ -22,6 +22,8 @@ export const contentMessages = defineMessages({
     'cb.listView': { en: 'List view', zh: '列表视图' },
     'cb.importAssets': { en: 'Import assets', zh: '导入资产' },
     'cb.import': { en: 'Import', zh: '导入' },
+    'cb.newAsset': { en: 'New', zh: '新建' },
+    'cb.newAssetTip': { en: 'Create a new asset in this folder', zh: '在当前文件夹新建资产' },
     'cb.thumbSize': { en: 'Thumbnail size', zh: '缩略图大小' },
 
     // — Type filter chips —

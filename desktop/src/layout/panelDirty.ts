@@ -17,6 +17,9 @@ import { TimelineDocument } from '@/timeline/TimelineDocument';
 export interface DirtySource {
   subscribe(cb: () => void): () => void;
   isDirty(): boolean;
+  /** The panel's DirtyRegistry document id — lets context-aware Save (Ctrl+S) route
+   *  to this editor's document instead of the scene. Absent for panels with no doc. */
+  docId?: string;
   /** Close the underlying document, dropping its unsaved edits — the dock tab X
    *  calls this after the user confirms the discard, so the dirty state (and the
    *  document's undo steps) don't linger invisibly behind a closed tab. */
@@ -24,13 +27,13 @@ export interface DirtySource {
 }
 
 const SOURCES: Record<string, DirtySource> = {
-  statemachine: { subscribe: FsmGraphDocument.subscribe, isDirty: () => FsmGraphDocument.dirty, discard: () => FsmGraphDocument.close() },
-  animatorcontroller: { subscribe: AnimatorGraphDocument.subscribe, isDirty: () => AnimatorGraphDocument.dirty, discard: () => AnimatorGraphDocument.close() },
-  behaviortree: { subscribe: BtDocument.subscribe, isDirty: () => BtDocument.dirty, discard: () => BtDocument.close() },
-  materialgraph: { subscribe: MaterialGraphDocument.subscribe, isDirty: () => MaterialGraphDocument.dirty, discard: () => MaterialGraphDocument.close() },
-  tileset: { subscribe: TilesetDocument.subscribe, isDirty: () => TilesetDocument.dirty, discard: () => TilesetDocument.close() },
-  flipbook: { subscribe: AnimClipDocument.subscribe, isDirty: () => AnimClipDocument.dirty, discard: () => AnimClipDocument.close() },
-  sequencer: { subscribe: TimelineDocument.subscribe, isDirty: () => TimelineDocument.dirty, discard: () => TimelineDocument.close() },
+  statemachine: { docId: 'fsm', subscribe: FsmGraphDocument.subscribe, isDirty: () => FsmGraphDocument.dirty, discard: () => FsmGraphDocument.close() },
+  animatorcontroller: { docId: 'animator', subscribe: AnimatorGraphDocument.subscribe, isDirty: () => AnimatorGraphDocument.dirty, discard: () => AnimatorGraphDocument.close() },
+  behaviortree: { docId: 'bt', subscribe: BtDocument.subscribe, isDirty: () => BtDocument.dirty, discard: () => BtDocument.close() },
+  materialgraph: { docId: 'materialgraph', subscribe: MaterialGraphDocument.subscribe, isDirty: () => MaterialGraphDocument.dirty, discard: () => MaterialGraphDocument.close() },
+  tileset: { docId: 'tileset', subscribe: TilesetDocument.subscribe, isDirty: () => TilesetDocument.dirty, discard: () => TilesetDocument.close() },
+  flipbook: { docId: 'flipbook', subscribe: AnimClipDocument.subscribe, isDirty: () => AnimClipDocument.dirty, discard: () => AnimClipDocument.close() },
+  sequencer: { docId: 'timeline', subscribe: TimelineDocument.subscribe, isDirty: () => TimelineDocument.dirty, discard: () => TimelineDocument.close() },
 };
 
 const NONE: DirtySource = { subscribe: () => () => {}, isDirty: () => false };

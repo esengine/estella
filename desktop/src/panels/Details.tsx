@@ -2999,6 +2999,15 @@ function EditorDetails() {
               className="ent-name"
               defaultValue={entity.name}
               spellCheck={false}
+              onKeyDown={(e) => {
+                // Match the Outliner rename: Enter commits (blur → onBlur writes),
+                // Escape reverts to the current name and blurs without committing.
+                if (e.key === 'Enter') e.currentTarget.blur();
+                else if (e.key === 'Escape') {
+                  e.currentTarget.value = entity.name;
+                  e.currentTarget.blur();
+                }
+              }}
               onBlur={(e) => SceneCommands.renameEntity(selectedId, e.target.value)}
             />
           )}

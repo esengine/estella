@@ -17,6 +17,7 @@ import { AnimClipCommands } from '@/flipbook/AnimClipCommands';
 import { TimelineDocument } from '@/timeline/TimelineDocument';
 import { TimelineCommands } from '@/timeline/TimelineCommands';
 import { FsmGraphDocument } from '@/fsm/FsmGraphDocument';
+import { AnimatorGraphDocument } from '@/animator/AnimatorGraphDocument';
 import { BtDocument } from '@/bt/BtDocument';
 import { MaterialDocument } from '@/material/MaterialDocument';
 import { MaterialGraphDocument } from '@/material/MaterialGraphDocument';
@@ -64,6 +65,7 @@ function jsonDoc<T>(id: string, doc: AssetDocument<T>): void {
 
 jsonDoc('bt', BtDocument);
 jsonDoc('fsm', FsmGraphDocument);
+jsonDoc('animator', AnimatorGraphDocument);
 jsonDoc('material', MaterialDocument);
 
 // Documents with a richer save (custom serializer / compiled sibling output)

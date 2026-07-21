@@ -374,8 +374,8 @@ export function Outliner() {
     }
   };
 
-  const addEntity = () => {
-    const id = SceneCommands.addEntity();
+  const addEntity = (parent: EntityId | null = null) => {
+    const id = SceneCommands.addEntity(parent);
     if (id != null) select(id);
   };
   // Create a ready-made entity from a source (no add-component dance). Where it
@@ -449,6 +449,15 @@ export function Outliner() {
       const rect = e.currentTarget.getBoundingClientRect();
       const rel = (e.clientY - rect.top) / rect.height;
       pos = item.kind === 'folder' ? (rel < 0.33 ? 'before' : rel > 0.66 ? 'after' : 'on') : rel < 0.5 ? 'before' : 'after';
+    }
+    // Reject an entity reparent onto itself or a descendant — reparentEntities would
+    // silently no-op, so don't flash a positive drop cue. (before/after reorders,
+    // which don't reparent, stay valid.)
+    if (dragIds.current && item.kind === 'entity' && pos === 'on'
+        && !SceneCommands.canReparent(dragIds.current, item.id)) {
+      e.dataTransfer.dropEffect = 'none';
+      if (drop) setDrop(null);
+      return;
     }
     if (drop?.key !== item.key || drop?.pos !== pos) setDrop({ key: item.key, pos });
   };
@@ -535,7 +544,7 @@ export function Outliner() {
     if (!ctx.item) {
       // Empty-space (scene) menu.
       return [
-        { label: t('out.addEntity'), onClick: addEntity },
+        { label: t('out.addEntity'), onClick: () => addEntity(null) },
         { label: t('out.createTemplate'), onClick: () => setCreateFor({ parent: null }) },
         { label: t('out.newFolder'), onClick: () => newFolder('', null) },
         { sep: true },
@@ -590,8 +599,10 @@ export function Outliner() {
       { label: t('out.moveToRoot'), onClick: () => SceneCommands.moveToFolder(selectionOrTarget(id), null) },
       { label: t('out.unparent'), onClick: () => SceneCommands.reparentEntities(selectionOrTarget(id), null) },
       { sep: true },
-      { label: t('out.addEntity'), onClick: addEntity },
-      { label: t('out.createTemplate'), onClick: () => setCreateFor({ parent: id }) },
+      // On an entity, both "add" actions parent to it (predictable), unlike the
+      // old "Add Entity" which jumped to root.
+      { label: t('out.addChild'), onClick: () => addEntity(id) },
+      { label: t('out.createChild'), onClick: () => setCreateFor({ parent: id }) },
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ctx]);
@@ -689,7 +700,7 @@ export function Outliner() {
             <button type="button" className="pbtn" title={t('out.newFolderTip')} onClick={() => newFolder('', null)}>
               <FolderPlus size={15} strokeWidth={2} />
             </button>
-            <button type="button" className="pbtn" title={t('out.addEntityTip')} onClick={addEntity}>
+            <button type="button" className="pbtn" title={t('out.addEntityTip')} onClick={() => setCreateFor({ parent: null })}>
               <Plus size={15} strokeWidth={2} />
             </button>
           </div>

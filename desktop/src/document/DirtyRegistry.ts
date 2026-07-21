@@ -62,6 +62,15 @@ class DirtyRegistryImpl {
     return false;
   }
 
+  /** Save ONE registered document by id if it's dirty; returns whether it saved.
+   *  Powers context-aware Save (the active asset editor), vs saveAll (quit). */
+  async saveDoc(id: string): Promise<boolean> {
+    const entry = this.docs.get(id);
+    if (!entry || !entry.doc.isDirty()) return false;
+    await entry.doc.save();
+    return true;
+  }
+
   /** Save every dirty document (sequentially; a failure aborts and rethrows so
    *  the caller never reports a clean quit over lost edits). */
   async saveAll(): Promise<void> {

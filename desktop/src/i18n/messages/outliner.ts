@@ -20,7 +20,7 @@ export const outlinerMessages = defineMessages({
     'out.sortName': { en: 'Name', zh: '名称' },
     'out.sortType': { en: 'Type', zh: '类型' },
     'out.newFolderTip': { en: 'New folder', zh: '新建文件夹' },
-    'out.addEntityTip': { en: 'Add entity', zh: '添加实体' },
+    'out.addEntityTip': { en: 'Create entity…', zh: '创建实体…' },
 
     // — Column header strip + show/hide-columns menu —
     'out.columnsTip': { en: 'Right-click to show/hide columns', zh: '右键点击以显示/隐藏列' },
@@ -39,6 +39,8 @@ export const outlinerMessages = defineMessages({
     // — Context menus (empty space / folder / entity) —
     'out.addEntity': { en: 'Add Entity', zh: '添加实体' },
     'out.createTemplate': { en: 'Create…', zh: '创建…' },
+    'out.addChild': { en: 'Add Child', zh: '添加子实体' },
+    'out.createChild': { en: 'Create Child…', zh: '创建子实体…' },
     'out.newFolder': { en: 'New Folder', zh: '新建文件夹' },
     'out.expandAll': { en: 'Expand All', zh: '全部展开' },
     'out.collapseAll': { en: 'Collapse All', zh: '全部折叠' },

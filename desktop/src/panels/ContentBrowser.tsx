@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { ChevronRight, LayoutGrid, List, Import, FolderOpen, FolderPlus, ArrowLeft, ArrowRight, ArrowUp, ArrowDownUp, Play, EyeOff } from 'lucide-react';
+import { ChevronRight, LayoutGrid, List, Import, FolderOpen, FolderPlus, ArrowLeft, ArrowRight, ArrowUp, ArrowDownUp, Play, EyeOff, Plus } from 'lucide-react';
 import { AssetIcon, assetTint } from '@/components/icons';
 import { IconButton } from '@/components/IconButton';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
@@ -449,13 +449,21 @@ export function ContentBrowser() {
 
   const commitRename = async (path: string, raw: string) => {
     setRenaming(null);
-    const name = raw.trim();
+    let name = raw.trim();
     const cur = path.slice(path.lastIndexOf('/') + 1);
     if (!name || name === cur) return;
     if (/[\\/]/.test(name)) {
       Toasts.push(t('cb.nameNoSlashes'), 'error');
       return;
     }
+    // Preserve a FILE's extension if the user dropped it (e.g. Ctrl+A + retype):
+    // assetType() drives the icon AND double-click open and is extension-based, so
+    // an extensionless file would go inert. Folders have no extension to keep.
+    const isDir = entries.find((e) => e.name === cur)?.isDir ?? false;
+    const dot = cur.lastIndexOf('.');
+    const ext = !isDir && dot > 0 ? cur.slice(dot) : '';
+    if (ext && !name.toLowerCase().endsWith(ext.toLowerCase())) name += ext;
+    if (name === cur) return;
     const dest = join(parentOf(path), name);
     try {
       await window.estella.fs.rename(path, dest);
@@ -1008,6 +1016,20 @@ export function ContentBrowser() {
             <IconButton size="lg" variant="outline" title={t('cb.menuNewFolder')} onClick={() => void newFolder()}>
               <FolderPlus size={13} strokeWidth={1.9} />
             </IconButton>
+            {/* Discoverable create entry point — opens the same menu as right-click
+                empty space, so making an asset isn't a hidden right-click-only action. */}
+            <button
+              type="button"
+              className="cb-add"
+              title={t('cb.newAssetTip')}
+              onClick={(e) => {
+                const r = e.currentTarget.getBoundingClientRect();
+                tip.close();
+                setCtx({ x: r.left, y: r.bottom + 4, target: null });
+              }}
+            >
+              <Plus size={13} strokeWidth={1.9} /> {t('cb.newAsset')}
+            </button>
             <button type="button" className="cb-add" title={t('cb.importAssets')} onClick={() => void importAssets()}>
               <Import size={13} strokeWidth={1.9} /> {t('cb.import')}
             </button>

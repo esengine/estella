@@ -18,6 +18,8 @@ import { hasEntityClipboard } from '@/engine/entityClipboard';
 import { ViewportController } from '@/engine/ViewportController';
 import { applyFxPreview } from '@/engine/fxPreview';
 import { dockApi } from '@/layout/dockApi';
+import { panelDirtySource } from '@/layout/panelDirty';
+import { DirtyRegistry } from '@/document/DirtyRegistry';
 import { EDITOR_MODES } from '@/mode/editorModes';
 import { activeMode } from '@/mode/activeMode';
 import { useEditorMode } from '@/store/editorModeStore';
@@ -58,13 +60,25 @@ commands.register({
   label: t('cmd.project.save'),
   category: t('cat.file'),
   keybinding: 'mod+s',
-  // Enabled while there are unsaved edits, or the scene is untitled (Save → Save As
-  // to give it a path on disk for the first time).
+  // Context-aware "save what you're looking at": if an asset editor panel is active,
+  // Ctrl+S targets THAT document (else it was a scene-only no-op or, worse, it saved
+  // the scene instead). Otherwise save the scene — enabled while it has unsaved edits
+  // or is untitled (Save → Save As to give it a path the first time).
   isEnabled: () => {
     const p = ProjectStore.getSnapshot();
-    return !!p && (EditorHistory.isDirty() || !p.currentScene);
+    if (!p) return false;
+    const active = panelDirtySource(dockApi.activePanelId() ?? '');
+    if (active.docId) return active.isDirty();
+    return EditorHistory.isDirty() || !p.currentScene;
   },
-  run: () => void ProjectStore.save().catch(() => ProjectStore.saveAsViaDialog()),
+  run: () => {
+    const active = panelDirtySource(dockApi.activePanelId() ?? '');
+    if (active.docId) {
+      void DirtyRegistry.saveDoc(active.docId);
+      return;
+    }
+    void ProjectStore.save().catch(() => ProjectStore.saveAsViaDialog());
+  },
 });
 commands.register({
   id: 'project.saveAs',

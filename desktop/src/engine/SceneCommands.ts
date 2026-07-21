@@ -209,6 +209,15 @@ export class SceneCommandsImpl {
     return c ? (c.data as Record<string, unknown>)[key] : undefined;
   }
 
+  /** Whether re-parenting every id in `ids` under `target` is valid — false when
+   *  `target` is one of them or a descendant of one (which {@link reparentEntities}
+   *  silently drops). The Outliner drag-over calls this to REJECT an invalid drop
+   *  (no move cursor, no drop indicator) instead of signalling a phantom success. */
+  canReparent(ids: readonly EntityId[], target: EntityId | null): boolean {
+    if (target == null) return true;
+    return !ids.some((id) => id === target || this.isModelAncestor(target, id));
+  }
+
   // True if walking up from `nodeSrc` reaches `ancestorSrc` — rejects re-parenting
   // an entity under its own descendant (a cycle). Reads the model hierarchy.
   private isModelAncestor(nodeSrc: number, ancestorSrc: number): boolean {
@@ -599,11 +608,11 @@ export class SceneCommandsImpl {
   // — Undoable entity lifecycle (model ops; the Reconciler re-spawns/-despawns) —
 
   /** Spawn a new empty entity (with a Transform). Returns its source id. */
-  addEntity(): EntityId | null {
+  addEntity(parent: EntityId | null = null): EntityId | null {
     if (!this.model.current) return null;
     const sourceId = this.model.addEntity('Entity', [
       { type: 'Transform', data: structuredClone(DEFAULT_TRANSFORM) } as SceneComponent,
-    ]);
+    ], parent);
     let record: SceneEntity | undefined;
     this.history.record(
       'Add Entity',
