@@ -981,6 +981,23 @@ class ProjectStoreImpl {
   }
 
   /**
+   * Enter Prefab Mode on the SOURCE of a prefab instance (Outliner / Inspector
+   * "Edit Prefab" — Unity's open-from-instance, the common workflow of editing a
+   * prefab you spotted in the scene). Resolves any entity of the instance to its
+   * prefab asset and routes to {@link openPrefab}, which owns the unsaved-changes
+   * guard + flat-only refusal. No-op if the entity isn't a prefab instance or its
+   * asset can't be resolved.
+   */
+  async editPrefabOfInstance(id: number): Promise<void> {
+    const tag = SceneModel.prefabTag(id);
+    const ref = tag?.prefab ?? (tag ? SceneModel.prefabTag(tag.instanceRoot)?.prefab : undefined);
+    if (!ref) return;
+    const info = this.assetInfo(ref);
+    if (!info) return;
+    await this.openPrefab(info.path);
+  }
+
+  /**
    * Revert a prefab instance to the prefab (Details "Revert"): re-sync the whole
    * instance to the asset, discarding all overrides, keeping its placement. Works on
    * any entity of the instance (resolves to the instance root). Implemented by

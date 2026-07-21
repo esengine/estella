@@ -26,6 +26,7 @@ import {
   Save,
   Search,
   Square,
+  SquarePen,
   Trash2,
   Upload,
   Volume2,
@@ -2933,6 +2934,13 @@ function EditorDetails() {
             </span>
             <span className="pn">{prefabName}</span>
             <span className="pacts">
+              <button
+                type="button"
+                title={t('det.prefabEditTip')}
+                onClick={() => void ProjectStore.editPrefabOfInstance(selectedId)}
+              >
+                <SquarePen size={12} strokeWidth={1.9} /> {t('det.prefabEdit')}
+              </button>
               <button
                 type="button"
                 title={t('det.prefabSelectTip')}

@@ -94,6 +94,7 @@ function prefabInstanceItems(id: number): MenuItem[] {
   if (!ref) return [];
   return [
     { sep: true },
+    { label: t('out.prefabEdit'), onClick: () => void ProjectStore.editPrefabOfInstance(id) },
     {
       label: t('out.prefabSelectSource'),
       onClick: () => {

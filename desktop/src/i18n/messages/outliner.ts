@@ -47,6 +47,7 @@ export const outlinerMessages = defineMessages({
     'out.deleteFolder': { en: 'Delete Folder', zh: '删除文件夹' },
     'out.duplicate': { en: 'Duplicate', zh: '创建副本' },
     'out.createPrefab': { en: 'Create Prefab', zh: '创建预制体' },
+    'out.prefabEdit': { en: 'Edit Prefab', zh: '编辑预制体' },
     'out.prefabSelectSource': { en: 'Select Prefab Source', zh: '选中预制体源' },
     'out.prefabApply': { en: 'Apply to Prefab', zh: '应用到预制体' },
     'out.prefabRevert': { en: 'Revert to Prefab', zh: '还原为预制体' },
