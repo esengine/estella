@@ -55,7 +55,7 @@ import { InspectorClipboard } from '@/engine/inspectorClipboard';
 import { SceneCommands, toModelValue } from '@/engine/SceneCommands';
 import { ENTITY_SOURCES, createFromSource } from '@/engine/entitySources';
 import { PlayInspect } from '@/engine/PlayInspect';
-import { DimensionUnit, AnchorAxis, detectAnchorAxes, UIPositionType, parseLocaleTable, EasingType } from 'esengine';
+import { DimensionUnit, AnchorAxis, detectAnchorAxes, UIPositionType, parseLocaleTable, EasingType, INVALID_ENTITY } from 'esengine';
 import type { SceneData, InputMapAsset, ActionType, Binding, LocaleTableAsset, PluralCategory, GearValue, GearTween } from 'esengine';
 import { modelAddableComponentEntries, subscribeSchemas, getSchemaRevision, prettyLabel, hexToRgba, dynamicEnumOptions, boxGroupsFor, isRequiredEmpty, type BoxGroupDef } from '@/engine/schema';
 import * as imap from '@/project/inputMapDoc';
@@ -259,6 +259,82 @@ export function EnumControl({
               >
                 <span className="dd-opt-label">{prettyLabel(o.label)}</span>
                 {o.value === value && !mixed && <Check size={12} strokeWidth={2.4} />}
+              </button>
+            ))}
+            {filtered.length === 0 && <div className="empty-line empty-line--sm">{t('det.noMatch')}</div>}
+          </div>
+        </Popover>
+      )}
+    </span>
+  );
+}
+
+/** True when an entity-ref source id means "unset" (nothing bound). Both engine
+ *  invalid sentinels count; INVALID_ENTITY is 0, which is also why source id 0 is
+ *  never offered as a target (a ref to it is indistinguishable from "unset"). */
+const isUnsetEntity = (v: number): boolean => v === INVALID_ENTITY || v === 0xffffffff;
+
+// A reference to ANOTHER scene entity (e.g. a joint's connectedBody): a picker of
+// the scene's entities by name, storing the target's SOURCE id. Was a raw number
+// input before. "None" writes the unset sentinel; the current target shows by name.
+export function EntityControl({
+  value,
+  mixed,
+  onBegin,
+  onEnd,
+  onChange,
+}: ControlGesture & { value: number; mixed?: boolean; onChange: (v: number) => void }) {
+  const pop = usePopover();
+  const trigger = useRef<HTMLButtonElement>(null);
+  const [q, setQ] = useState('');
+  // The scene's entities (source id + name) — rebuilt each open so it's current.
+  // Source id 0 (== INVALID_ENTITY) is excluded: a ref to it can't be told apart
+  // from "unset", so it isn't a bindable target.
+  const options = useMemo(
+    () => (SceneModel.current?.entities ?? [])
+      .filter((e) => e.id !== INVALID_ENTITY)
+      .map((e) => ({ id: e.id, name: e.name || `#${e.id}` })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [pop.isOpen],
+  );
+  const cur = options.find((o) => o.id === value);
+  const label = mixed ? '—' : isUnsetEntity(value) ? t('det.entityNone') : cur?.name ?? `#${value}`;
+  const ql = q.trim().toLowerCase();
+  const filtered = ql ? options.filter((o) => o.name.toLowerCase().includes(ql)) : options;
+  const close = () => {
+    pop.close();
+    onEnd?.();
+  };
+  const toggle = () => {
+    if (pop.isOpen) return close();
+    setQ('');
+    onBegin?.();
+    pop.open(trigger.current);
+  };
+  const pick = (id: number) => {
+    onChange(id);
+    close();
+  };
+  return (
+    <span className="field dropdown">
+      <button ref={trigger} type="button" className="dd-trigger" onMouseDown={(e) => e.stopPropagation()} onClick={toggle}>
+        <span className={`dd-val${mixed || isUnsetEntity(value) ? ' dd-none' : ''}`}>{mixed ? '—' : label}</span>
+        <ChevronDown size={12} strokeWidth={2} />
+      </button>
+      {pop.anchor && (
+        <Popover anchor={pop.anchor} width={Math.max(pop.anchor.width, 160)} onClose={close}>
+          {options.length > 8 && (
+            <SearchField flush className="dd-search" iconSize={12} autoFocus placeholder={t('ui.search')} value={q} onChange={setQ} />
+          )}
+          <div className="dd-list">
+            <button type="button" className={`dd-opt${isUnsetEntity(value) && !mixed ? ' on' : ''}`} onClick={() => pick(INVALID_ENTITY)}>
+              <span className="dd-opt-label dd-none">{t('det.entityNone')}</span>
+              {isUnsetEntity(value) && !mixed && <Check size={12} strokeWidth={2.4} />}
+            </button>
+            {filtered.map((o) => (
+              <button key={o.id} type="button" className={`dd-opt${o.id === value && !mixed ? ' on' : ''}`} onClick={() => pick(o.id)}>
+                <span className="dd-opt-label">{o.name}</span>
+                {o.id === value && !mixed && <Check size={12} strokeWidth={2.4} />}
               </button>
             ))}
             {filtered.length === 0 && <div className="empty-line empty-line--sm">{t('det.noMatch')}</div>}
@@ -1146,6 +1222,9 @@ function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp
           onChange={apply}
         />
       );
+      break;
+    case 'entity':
+      control = <EntityControl value={field.value as number} mixed={mixed} onBegin={begin} onEnd={end} onChange={apply} />;
       break;
     case 'color':
       control = <ColorControl value={field.value as string} onBegin={begin} onEnd={end} onChange={apply} />;

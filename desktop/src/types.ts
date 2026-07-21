@@ -42,7 +42,8 @@ export type InspectorFieldType =
   | 'gradient' // a color-over-life gradient ({ stops: [...] })
   | 'curve' // a scalar over-life curve ({ keys: [...] })
   | 'dimension' // a CSS-style length ({ value, unit }) — UINode box/inset fields
-  | 'asset'; // a texture/material/font/... ref (@uuid: string, or 0 for none)
+  | 'asset' // a texture/material/font/... ref (@uuid: string, or 0 for none)
+  | 'entity'; // a reference to another scene entity (source id, or 0/INVALID for none)
 
 /** A dropdown option for an `enum` field: the label shown, the int stored. */
 export interface EnumOption {

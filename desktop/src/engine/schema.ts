@@ -508,6 +508,10 @@ function fieldFor(
     // flag a perfectly-loaded asset red. 0/other stays the empty sentinel.
     const v = typeof value === 'string' ? value : typeof value === 'number' ? value : 0;
     field = { key, label: prettyLabel(key), type: 'asset', value: v, assetType: at };
+  } else if (componentEntityFields(componentByName(compType)).includes(key)) {
+    // An entity-reference field (e.g. a joint's connectedBody): a scene-entity
+    // picker, not a raw number. The value is a source id (0 / INVALID = unset).
+    field = { key, label: prettyLabel(key), type: 'entity', value: typeof value === 'number' ? value : 0 };
   } else if (meta?.gradient) {
     const g = value && typeof value === 'object' && Array.isArray((value as GradientValue).stops) ? (value as GradientValue) : { stops: [] };
     field = { key, label: prettyLabel(key), type: 'gradient', value: g };

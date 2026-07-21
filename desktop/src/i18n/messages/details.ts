@@ -200,6 +200,7 @@ export const detailsMessages = defineMessages({
     'det.editing': { en: 'Editing', zh: '编辑中' },
     'det.editingShared': { en: '{count} entities · shared components', zh: '{count} 个实体 · 共同组件' },
     'det.id': { en: 'ID', zh: 'ID' },
+    'det.entityNone': { en: 'None', zh: '无' },
     'det.prefabEdit': { en: 'Edit', zh: '编辑' },
     'det.prefabEditTip': { en: 'Open this prefab in Prefab Mode', zh: '在预制体模式中打开此预制体' },
     'det.staleOverrides': {

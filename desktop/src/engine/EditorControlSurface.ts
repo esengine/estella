@@ -88,7 +88,9 @@ export function coerceFieldValue(
   switch (declared) {
     case 'number':
     case 'enum':
-    case 'flags': {
+    case 'flags':
+    case 'entity': {
+      // 'entity' is a source-id reference to another entity — a plain number.
       const n = Number(value);
       return Number.isFinite(n) ? n : fail('a number');
     }
