@@ -14,6 +14,91 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-07-21
+
+Prefabs grow up. What was a flat, copy-on-instantiate mechanism becomes a real
+**prefab system with a stable identity model and a full editor workflow**: every
+node in a prefab carries a hierarchical address, so instances track their source
+through renames and restructures, and the editor gains the whole round-trip —
+Prefab Mode, variants, apply/revert with a change preview, unpack, and
+per-instance reference binding. Two more pillars land alongside it: an
+**animation-controller editor** (the new `.esanimator` asset) with shared-Inspector
+clip tooling, and four **advanced particle modules** — noise, sub-emitters, trails
+and force fields — all pure-CPU, so they run byte-identically everywhere, WeChat
+included.
+
+### Added
+
+- **Prefab identity model.** Every entity in a prefab now carries a hierarchical
+  stable address (`slot` / `localId`) instead of a positional index, so an
+  instance tracks its source entity across renames, re-parenting and structural
+  edits. Deleting a node in a prefab cascades to every instance; adding one
+  projects into them. A single strict validator (`validatePrefab`) guards the
+  format and is enforced in CI.
+- **Prefab Mode.** Double-click a `.esprefab` to open and edit its *structure* in
+  the editor — reusing the Outliner, Inspector and Viewport — and save it back in
+  place. You can enter Prefab Mode from an instance in the scene, and the
+  return-flow drops you back where you came from.
+- **Prefab variants.** Create a variant from an instance, then edit the variant's
+  own structure in Prefab Mode with base-tracked saves; variant and nested-prefab
+  resolution share one code path.
+- **Apply / revert with a change preview.** Applying an instance's overrides back
+  to its prefab first shows a diff of exactly what will change. Instances that have
+  drifted from their prefab (stale overrides) are surfaced with a one-click
+  clean-up.
+- **Unpack Prefab** detaches an instance from its prefab, baking its current state
+  into plain scene entities.
+- **Prefab instances in the Outliner.** Instances read with a warm tint and a
+  right-click menu (Select source / Apply / Revert), so a prefab instance is
+  visually and functionally distinct from a plain subtree.
+- **ExposeRef — per-instance reference binding.** A prefab that references an entity
+  *outside* itself now leaves that reference unbound; each instance binds it in the
+  Inspector, where entity-reference fields (builtin **and** project-component
+  fields) render as a scene-entity picker. An unbound slot reads muted.
+- **Animation-controller editor** (the new **`.esanimator`** asset). An
+  `AnimatorController` graph — states, transitions, conditions and parameters —
+  authored in a dedicated editor that mirrors the FSM graph model; the payload is
+  the runtime def, with no compile step.
+- **Frame events in clips.** `.esanim` v1.3 persists an optional `events[]`
+  (`{frame, name, data?}`), and the Flipbook editor gains an events bar and
+  frame-strip markers to author them (backward-compatible — 1.2 clips still load).
+- **Clip preview stage.** The Flipbook editor replaces its static thumbnail with a
+  checkerboard preview: the current frame over onion-skin ghosts of its neighbours
+  (toggle + depth in the transport), plus a Loop Mode dropdown.
+- **Shared-Inspector inspection channel.** An editor can push a sub-object
+  selection — a Sequencer keyframe's value + interpolation, or a timeline's
+  duration/fps/wrap — into the one shared Details panel, so keyframe and clip
+  properties edit through the same `ComponentSection` engine as entities and
+  materials. A shared Transport + Save button unify the animation editors.
+- **Advanced particle modules** — all pure-CPU, byte-identical on every platform
+  (WeChat included) and free when unused:
+  - **Noise / Turbulence** — a divergence-free curl-noise flow field advects each
+    particle (`noiseStrength`, `noiseFrequency`, `noiseScrollSpeed`,
+    `noiseOctaves`).
+  - **Sub-emitter** — fire a referenced child emitter's burst at a particle's birth
+    or death (shell explosions, trailing puffs).
+  - **Trail** — a per-particle ribbon that follows a particle's motion.
+  - **Force Field** — directional / radial forces that push particles through a
+    region.
+  - **Floor collision** (Collision phase 1) — particles bounce off a floor plane.
+
+### Changed
+
+- **`.esprefab` is now format v2** (hierarchical identity). Projects migrate forward
+  automatically on open, and a repo-wide **Resave All Prefabs** command plus a
+  format gate keep a project's prefabs on the current version. Within the `0.x`
+  line older projects continue to open; forward compatibility (an older engine
+  opening a v2 prefab) is not guaranteed.
+- Creating a prefab from an entity that references outside itself now asks to
+  **expose** those references — they are left unbound for instances to rebind —
+  rather than simply clearing them. Same clearing behavior, framed for the new
+  ExposeRef workflow.
+
+### Fixed
+
+- The `sprite-animation` example's spritesheet demo is corrected, and its textures
+  reference through stable `@uuid` refs.
+
 ## [0.28.0] - 2026-07-19
 
 A hardening pass. No new pillars this time — instead a systematic, subsystem-by-
