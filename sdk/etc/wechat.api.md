@@ -8466,7 +8466,7 @@ DragPlugin
 
 ## extractPrefab — function
 ```
-(entities: readonly ExtractEntity[], rootId: number, name: string, makeId?: () => PrefabEntityId): PrefabData
+(entities: readonly ExtractEntity[], rootId: number, name: string, makeId?: (sourceId: number) => PrefabEntityId): PrefabData
 ```
 
 ## facingFromQuat — function

@@ -12,6 +12,7 @@ import '@/document/dirtyDocs'; // side effect: registers scene + asset docs on t
 import { Launcher } from '@/launcher/Launcher';
 import { Toaster } from '@/components/Toaster';
 import { ConfirmHost } from '@/components/ConfirmHost';
+import { PrefabModeBanner } from '@/components/PrefabModeBanner';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { LoadGate } from '@/store/loadGate';
 import { Perf } from '@/components/Perf';
@@ -258,6 +259,7 @@ export function App() {
     <div className="shell">
       <ErrorBoundary label="menubar"><Perf id="menubar"><MenuBar /></Perf></ErrorBoundary>
       <ErrorBoundary label="toolbar"><Perf id="toolbar"><Toolbar /></Perf></ErrorBoundary>
+      <ErrorBoundary label="prefab-banner"><PrefabModeBanner /></ErrorBoundary>
       <main className="shell__workspace">
         <ErrorBoundary label="activitybar"><Perf id="activitybar"><ActivityBar /></Perf></ErrorBoundary>
         <DockLayout />

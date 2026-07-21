@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { createStore } from 'zustand/vanilla';
-import { getComponent, getEditorType, Assets, migratePrefabData, extractPrefab, collectExternalEntityRefs, collapseInstance, applyDeltaToSource, setTextureParams, TextureFilter, TextureWrap, Renderer, RETIRED_COMPONENT_TYPES, parseThemeOverrides } from 'esengine';
+import { getComponent, getEditorType, Assets, migratePrefabData, extractPrefab, flattenPrefab, collectExternalEntityRefs, collapseInstance, applyDeltaToSource, setTextureParams, TextureFilter, TextureWrap, Renderer, RETIRED_COMPONENT_TYPES, parseThemeOverrides } from 'esengine';
 import { readTextureImportSettings } from './assetImporter';
 import type { SceneData, PrefabData, ExtractEntity, ProcessedEntity, PhysicsPluginConfig, AudioProjectConfig, AssetsData, ThemeOverrides } from 'esengine';
 import { EngineHost } from '@/engine/EngineHost';
@@ -141,6 +141,9 @@ interface ProjectState {
   designResolution?: DesignResolution;
   /** The scene currently loaded into the world (project-relative path). */
   currentScene: string | null;
+  /** When editing a PREFAB asset in place (Prefab Mode) rather than a scene:
+   *  the prefab's display name + path, for the banner. `currentScene` is null. */
+  prefabEdit?: { name: string; path: string } | null;
 }
 
 /**
@@ -201,6 +204,18 @@ class ProjectStoreImpl {
   private readonly uuidToType = new Map<string, string>();
   /** ref → loaded `.esprefab` (PrefabData), for scene load-expand / save-collapse. */
   private readonly prefabCache = new Map<string, PrefabData>();
+  /** Active Prefab Mode session, or null. Holds the id-preservation map
+   *  (source id → prefabEntityId) so save-back keeps each entity's identity, plus
+   *  the scene to return to on exit. The reactive `prefabEdit` in ProjectState is
+   *  the lightweight UI mirror. */
+  private prefabSession: {
+    ref: string;
+    path: string;
+    name: string;
+    rootSource: number;
+    idBySource: Map<number, string>;
+    returnScene: string | null;
+  } | null = null;
   /** Cold refs already handed to a live load this registry generation — the touch
    *  listener fires on every projection of a still-cold ref, so without this a
    *  failing asset would re-fetch forever (and a slow one would double-load). */
@@ -481,7 +496,9 @@ class ProjectStoreImpl {
     // Edit-world live theme: re-resolve ThemeStyle-tagged widgets against the
     // project's effective theme, matching what a shipped runtime boots with.
     applyWidgetTheme(this.uiTheme(), this.uiThemeOverrides());
-    this.store.setState({ project: { ...st, currentScene: rel } });
+    // Loading a scene always leaves Prefab Mode (if it was active).
+    this.prefabSession = null;
+    this.store.setState({ project: { ...st, currentScene: rel, prefabEdit: null } });
     this.knownSceneText = text;
     this.knownScenePath = rel;
   }
@@ -526,7 +543,8 @@ class ProjectStoreImpl {
     installSpineSync(this.spineTransport());
     Reconciler.adopt(blank, blank); // no @uuid: refs → resolved === raw
     EngineHost.syncEditorViewToScene();
-    this.store.setState({ project: { ...st, currentScene: null } });
+    this.prefabSession = null;
+    this.store.setState({ project: { ...st, currentScene: null, prefabEdit: null } });
   }
 
   /**
@@ -1767,6 +1785,117 @@ class ProjectStoreImpl {
     Toasts.push(t('proj.openedScene', { name: relPath.split('/').pop() ?? relPath }), 'info', 1600);
   }
 
+  /**
+   * Open a `.esprefab` in PREFAB MODE — edit the prefab's own entity tree in the
+   * same outliner / inspector / viewport used for scenes. The asset is flattened
+   * into ordinary entities (each remembered by its prefabEntityId so save-back
+   * preserves identity), the current scene is swapped out, and a banner offers
+   * "Back to Scene". Only FLAT prefabs for now — a nested/variant prefab would
+   * un-nest on save, so those are refused. The caller guards unsaved changes.
+   */
+  async openPrefab(path: string): Promise<void> {
+    const st = this.state;
+    if (!st) return;
+    const leaf = path.split('/').pop() ?? path;
+    if (!(await confirmDiscard(t('discard.openPrefab', { name: leaf })))) return;
+    const uuid = this.pathToUuid.get(path);
+    const ref = uuid ? UUID_PREFIX + uuid : null;
+    const prefab = ref ? await this.loadPrefabAsset(ref) : null;
+    if (!ref || !prefab) {
+      Toasts.push(t('proj.prefabLoadFailed', { name: leaf }), 'error');
+      return;
+    }
+    if (prefab.basePrefab || prefab.entities.some((e) => e.nestedPrefab)) {
+      Toasts.push(t('proj.prefabModeNested'), 'warn');
+      return;
+    }
+
+    // Flatten the asset into ordinary entities; remember each entity's stable id.
+    let nid = 0;
+    const { entities, rootId } = flattenPrefab(prefab, [], { allocateId: () => nid++, loadPrefab: () => null });
+    const idBySource = new Map(entities.map((e) => [e.id, e.prefabEntityId]));
+    const sceneData = {
+      version: '1.0',
+      name: prefab.name,
+      entities: entities.map((e) => ({
+        id: e.id, name: e.name, parent: e.parent, children: e.children,
+        components: e.components, visible: e.visible,
+      })),
+    } as unknown as SceneData;
+
+    await this.adoptDocument(sceneData);
+    this.prefabSession = { ref, path, name: prefab.name, rootSource: rootId, idBySource, returnScene: st.currentScene };
+    this.store.setState({ project: { ...st, currentScene: null, prefabEdit: { name: prefab.name, path } } });
+    Toasts.push(t('proj.openedPrefab', { name: prefab.name }), 'info', 1600);
+  }
+
+  /**
+   * Adopt an in-memory SceneData into the editor (preload assets → build the World
+   * → adopt as the model), mirroring {@link loadCurrentScene}'s tail. No file read
+   * or prefab-tag handling — the caller owns those. Used by Prefab Mode.
+   */
+  private async adoptDocument(raw: SceneData): Promise<void> {
+    const assets = EngineHost.getResource(Assets);
+    let resolved: SceneData = raw;
+    if (assets) {
+      const result = await assets.preloadSceneAssets(raw);
+      resolved = JSON.parse(JSON.stringify(raw)) as SceneData;
+      assets.resolveSceneAssetPaths(resolved, result);
+      this.lastAssetResult = result;
+    }
+    EditorHistory.clearScene();
+    useSelection.getState().select(null);
+    Reconciler.setAssetResolver((ref) => this.handleForRef(ref));
+    Reconciler.setRefPathResolver((ref) => this.resolveRef(ref));
+    Reconciler.setAssetTouchListener((ref, slot) => this.hotLoadAsset(ref, slot));
+    installSpineSync(this.spineTransport());
+    Reconciler.adopt(raw, resolved);
+    EngineHost.syncEditorViewToScene();
+    applyWidgetTheme(this.uiTheme(), this.uiThemeOverrides());
+  }
+
+  /**
+   * Save the prefab being edited in Prefab Mode back to its `.esprefab`, PRESERVING
+   * each entity's prefabEntityId (so existing instances' overrides still resolve)
+   * and minting uuids only for entities added during the session.
+   */
+  async savePrefab(): Promise<void> {
+    const pe = this.prefabSession;
+    if (!pe) return;
+    const model = SceneModel.serialize();
+    if (!model) return;
+    const idBySource = new Map(pe.idBySource);
+    for (const e of model.entities) if (!idBySource.has(e.id)) idBySource.set(e.id, crypto.randomUUID());
+    const prefab = extractPrefab(
+      model.entities as unknown as ExtractEntity[],
+      pe.rootSource,
+      pe.name,
+      (srcId) => idBySource.get(srcId) ?? crypto.randomUUID(),
+    );
+    try {
+      await window.estella.fs.write(pe.path, JSON.stringify(prefab, null, 2) + '\n');
+    } catch {
+      Toasts.push(t('proj.applyWriteFailed', { name: pe.path.split('/').pop() ?? pe.path }), 'error');
+      return;
+    }
+    this.prefabCache.set(pe.ref, prefab);
+    this.prefabSession = { ...pe, idBySource };
+    EditorHistory.markSaved();
+    Toasts.push(t('proj.savedPrefab', { name: pe.name }), 'success');
+  }
+
+  /** Leave Prefab Mode and return to the scene that was open (or a blank one). */
+  async exitPrefabMode(): Promise<void> {
+    if (!this.prefabSession) return;
+    if (!(await confirmDiscard(t('discard.exitPrefab')))) return;
+    const back = this.prefabSession.returnScene;
+    this.prefabSession = null;
+    const st = this.state;
+    if (st) this.store.setState({ project: { ...st, prefabEdit: null } });
+    if (back) await this.openScene(back);
+    else await this.newScene();
+  }
+
   /** True if the changed paths include the open scene document. */
   isOpenScenePath(paths: readonly string[]): boolean {
     const cur = this.state?.currentScene;
@@ -1819,6 +1948,7 @@ class ProjectStoreImpl {
    * editor's engine never loaded. The old lossy overwrite-block is gone.
    */
   async save(): Promise<void> {
+    if (this.prefabSession) { await this.savePrefab(); return; }
     const st = this.state;
     if (!st || !st.currentScene) throw new Error('no scene to save');
     await this.writeScene(st.currentScene, await this.serializeCurrent());

@@ -160,6 +160,18 @@
 .apply-diff .ad-ent { color: var(--text); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .apply-diff .ad-detail { color: var(--text-dim); font-family: var(--mono); font-size: var(--fs-2xs); margin-left: auto; flex-shrink: 0; }
 
+/* ── Prefab Mode banner (shell bar while editing a .esprefab in place) ── */
+.prefab-mode-bar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 12px; flex-shrink: 0;
+  background: var(--info-warm-soft); border-bottom: 1px solid var(--info-warm-line);
+  color: var(--text); font-size: var(--fs-sm);
+}
+.prefab-mode-bar .pmb-icon { color: var(--info-warm); display: grid; place-items: center; }
+.prefab-mode-bar .pmb-label { color: var(--text-dim); }
+.prefab-mode-bar .pmb-name { font-weight: 600; color: var(--info-warm); }
+.prefab-mode-bar .pmb-actions { margin-left: auto; display: flex; gap: 6px; }
+
 /* ── New Tilemap tileset chooser ── */
 .tmpick { display: flex; flex-direction: column; gap: 10px; }
 .tmpick__hint { font-size: var(--fs-sm); color: var(--text-mute); }

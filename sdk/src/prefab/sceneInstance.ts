@@ -436,15 +436,16 @@ export function extractPrefab(
     entities: readonly ExtractEntity[],
     rootId: number,
     name: string,
-    makeId: () => PrefabEntityId = () => crypto.randomUUID(),
+    makeId: (sourceId: number) => PrefabEntityId = () => crypto.randomUUID(),
 ): PrefabData {
-    // Root first so it reads first in the file. Ids are minted by `makeId`
+    // Root first so it reads first in the file. Ids come from `makeId(sourceId)`
     // (UUIDs by default) so a newly authored prefab's entity identities are
-    // globally unique — two prefabs, or two instantiations of one, never share
-    // a `prefabEntityId` and so never collide when nested (see PREFAB_ADDRESS_SEP).
+    // globally unique. Passing the source id lets a caller PRESERVE existing ids
+    // (Prefab Mode's save-back keeps each entity's prefabEntityId so instances'
+    // overrides survive) while still minting for newly-added entities.
     const ordered = [...entities].sort((a, b) => (a.id === rootId ? -1 : b.id === rootId ? 1 : 0));
     const idMap = new Map<number, string>();
-    ordered.forEach((e) => idMap.set(e.id, makeId()));
+    ordered.forEach((e) => idMap.set(e.id, makeId(e.id)));
     const inSubtree = (sid: number | null): boolean => sid != null && idMap.has(sid);
 
     const prefabEntities: PrefabEntityData[] = ordered.map((e) => ({

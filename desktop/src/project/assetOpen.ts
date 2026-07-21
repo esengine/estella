@@ -27,6 +27,7 @@ export const ASSET_OPEN: Partial<Record<AssetType, (path: string, name: string) 
     if (!(await confirmDiscard(t('discard.openScene', { name })))) return;
     void ProjectStore.openScene(path);
   },
+  prefab: (path) => void ProjectStore.openPrefab(path),
   audio: (path) => toggleAudioPreview(path),
   animation: (path) => void openAnimationClip(path),
   animclip: (path) => void openFlipbook(path),
