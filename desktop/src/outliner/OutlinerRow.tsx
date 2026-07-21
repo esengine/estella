@@ -44,8 +44,10 @@ export interface OutlinerRowProps {
   renaming?: boolean;
   /** Active drop indicator: `on` (full row) or a between-rows insertion line. */
   dropPos?: 'before' | 'on' | 'after';
-  /** Prefab-instance member — warm icon tint (entity rows only). */
-  prefab?: boolean;
+  /** Prefab-instance role (entity rows): `root` = the instance's top entity
+   *  (warm name + icon), `member` = an entity inside the prefab (warm icon tint).
+   *  Absent = not part of a prefab instance. */
+  prefabRole?: 'root' | 'member';
   /** When false, the twist is hidden + non-interactive (the always-expanded live-game tree). */
   collapsible?: boolean;
   /** Trailing columns to render after the name (the column registry). */
@@ -68,7 +70,7 @@ export interface OutlinerRowProps {
 // re-renders only the rows whose props actually changed (the old/new selected
 // row), not the whole visible window — provided the parent passes stable handlers.
 function OutlinerRowInner(props: OutlinerRowProps) {
-  const { item, selected, renaming, dropPos, prefab, columns, columnCtx } = props;
+  const { item, selected, renaming, dropPos, prefabRole, columns, columnCtx } = props;
   const isFolder = item.kind === 'folder';
   const { depth, hasChildren, expanded } = item;
 
@@ -88,7 +90,8 @@ function OutlinerRowInner(props: OutlinerRowProps) {
         `${expanded ? ' open' : ''}` +
         `${visible ? '' : ' hidden'}` +
         `${locked ? ' locked' : ''}` +
-        `${prefab ? ' prefab' : ''}` +
+        `${prefabRole ? ' prefab' : ''}` +
+        `${prefabRole === 'root' ? ' prefab-root' : ''}` +
         `${isFolder ? ' folder' : ''}` +
         `${dropPos === 'on' ? ' drop' : ''}` +
         `${dropPos === 'before' ? ' drop-before' : ''}` +

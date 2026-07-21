@@ -85,6 +85,27 @@ function GameTree() {
   );
 }
 
+/** Right-click prefab-instance actions (Select Source / Apply / Revert), or [] if
+ *  the entity isn't a prefab instance — the Outliner twin of the Inspector's
+ *  prefab-bar, backed by the same ProjectStore methods. */
+function prefabInstanceItems(id: number): MenuItem[] {
+  const tag = SceneModel.prefabTag(id);
+  const ref = tag?.prefab ?? (tag ? SceneModel.prefabTag(tag.instanceRoot)?.prefab : undefined);
+  if (!ref) return [];
+  return [
+    { sep: true },
+    {
+      label: t('out.prefabSelectSource'),
+      onClick: () => {
+        const info = ProjectStore.assetInfo(ref);
+        if (info) useSelection.getState().selectAsset(info.path);
+      },
+    },
+    { label: t('out.prefabApply'), onClick: () => void ProjectStore.applyPrefabInstance(id) },
+    { label: t('out.prefabRevert'), onClick: () => void ProjectStore.revertPrefabInstance(id) },
+  ];
+}
+
 export function Outliner() {
   const engine = useSyncExternalStore(EngineHost.subscribe, EngineHost.getSnapshot);
   const structRev = useSyncExternalStore(SceneStore.subscribe, SceneStore.getStructureRevision);
@@ -549,6 +570,7 @@ export function Outliner() {
         },
       },
       { label: t('out.createPrefab'), onClick: () => void ProjectStore.createPrefabFromEntity(id) },
+      ...prefabInstanceItems(id),
       {
         label: t('ui.delete'),
         shortcut: formatKeybinding('delete'),
@@ -604,7 +626,15 @@ export function Outliner() {
       highlight={highlight}
       renaming={renaming === it.key}
       dropPos={drop?.key === it.key ? drop.pos : undefined}
-      prefab={it.kind === 'entity' && SceneModel.prefabTag(it.id) != null}
+      prefabRole={
+        it.kind === 'entity'
+          ? SceneModel.isInstanceRoot(it.id)
+            ? 'root'
+            : SceneModel.prefabTag(it.id) != null
+              ? 'member'
+              : undefined
+          : undefined
+      }
       columns={activeColumns}
       columnCtx={columnCtx}
       draggable

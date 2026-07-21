@@ -63,6 +63,11 @@
 .row.sel .ricon { color: rgba(255, 255, 255, 0.92); }
 .row.prefab .ricon { color: var(--info-warm); }
 .row.sel.prefab .ricon { color: var(--on-accent); }
+/* Prefab-instance ROOT — the name carries the warm "prefab identity" colour + a
+   touch more weight so an instance reads at a glance; its members keep only the
+   warm icon tint. On selection the name reverts to the readable on-accent colour. */
+.row.prefab-root .rname { color: var(--info-warm); font-weight: 500; }
+.row.sel.prefab-root .rname { color: var(--on-accent); }
 .row .rname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row .rname mark { background: var(--acc-soft); color: inherit; border-radius: 2px; padding: 0 1px; }
 .row.sel .rname mark { background: rgba(255, 255, 255, 0.28); }

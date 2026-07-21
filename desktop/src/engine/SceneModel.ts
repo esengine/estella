@@ -473,6 +473,12 @@ export class SceneModelImpl {
     return this.prefabTags.get(sourceId);
   }
 
+  /** True if this entity is the ROOT of a prefab instance — the `prefab` ref is
+   *  set only on the root, so members carry a tag but no ref (see PrefabInstance). */
+  isInstanceRoot(sourceId: number): boolean {
+    return this.prefabTags.get(sourceId)?.prefab != null;
+  }
+
   /**
    * Insert a pre-formed, self-consistent subtree of entities (e.g. an expanded
    * prefab instance) whose ids are already allocated (via {@link allocateSourceId}).
