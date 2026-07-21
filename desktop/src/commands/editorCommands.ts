@@ -348,6 +348,27 @@ commands.register({
   isChecked: () => editor().snapping,
   run: () => editor().toggleSnapping(),
 });
+commands.register({
+  id: 'view.toggleMinimap',
+  label: t('cmd.view.toggleMinimap'),
+  category: t('cat.view'),
+  isChecked: () => editor().showMinimap,
+  run: () => editor().toggleMinimap(),
+});
+commands.register({
+  id: 'view.toggleStats',
+  label: t('cmd.view.toggleStats'),
+  category: t('cat.view'),
+  isChecked: () => editor().showStats,
+  run: () => editor().toggleStats(),
+});
+commands.register({
+  id: 'view.toggleCoords',
+  label: t('cmd.view.toggleCoords'),
+  category: t('cat.view'),
+  isChecked: () => editor().showCoords,
+  run: () => editor().toggleCoords(),
+});
 
 // — Editor —
 commands.register({

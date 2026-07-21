@@ -12,6 +12,7 @@ import { LAYOUT_KEY } from '@/layout/DockLayout';
 import { useEditorStore } from '@/store/editorStore';
 import { ProjectStore } from '@/project/ProjectStore';
 import { EditorHistory } from '@/engine/EditorHistory';
+import { PerfMonitor } from '@/engine/PerfMonitor';
 import { Toasts } from '@/store/Toasts';
 import { MenuItems, handleMenuListKey, type MenuItem } from '@/components/Menu';
 import { commands, formatKeybinding } from '@/commands';
@@ -133,6 +134,11 @@ export function MenuBar() {
         cmdItem('view.toggleColliders'),
         cmdItem('view.toggleTileCollision'),
         cmdItem('view.togglePreviewFx'),
+        { sep: true },
+        cmdItem('view.toggleMinimap'),
+        cmdItem('view.toggleStats'),
+        cmdItem('view.toggleCoords'),
+        { label: t('vp.flag.perf'), checked: PerfMonitor.getSnapshot().visible, onClick: () => PerfMonitor.toggleOverlay() },
         { sep: true },
         cmdItem('view.toggleCoordSpace'),
         cmdItem('view.togglePivotMode'),

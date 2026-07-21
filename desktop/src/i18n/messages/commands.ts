@@ -54,6 +54,9 @@ export const commandMessages = defineMessages({
     'cmd.view.toggleCoordSpace': { en: 'Local Axes', zh: '局部坐标轴' },
     'cmd.view.togglePivotMode': { en: 'Pivot (vs Center)', zh: '轴心（而非中心）' },
     'cmd.view.toggleSnapping': { en: 'Snapping', zh: '吸附' },
+    'cmd.view.toggleMinimap': { en: 'Minimap', zh: '小地图' },
+    'cmd.view.toggleStats': { en: 'Stats HUD', zh: '统计信息' },
+    'cmd.view.toggleCoords': { en: 'Coordinates HUD', zh: '坐标信息' },
 
     // — Editor / play / build —
     'cmd.settings.open': { en: 'Settings…', zh: '设置…' },

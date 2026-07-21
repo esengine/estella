@@ -75,6 +75,7 @@ export const viewportMessages = defineMessages({
 
     // — View controls —
     'vp.frameSelected': { en: 'Frame Selected', zh: '聚焦所选' },
+    'vp.minimap': { en: 'Minimap · click or drag to navigate', zh: '小地图 · 点击或拖动以导航' },
     'vp.coordSpaceTitle': {
         en: "Gizmo axes: World / Local (the active object's own axes)",
         zh: 'Gizmo 坐标轴：世界 / 局部（活动对象自身的坐标轴）',

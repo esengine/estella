@@ -46,6 +46,12 @@ interface EditorState {
   showTileCollision: boolean;
   /** Simulate particle emitters live in edit mode (authoring preview). */
   previewFx: boolean;
+  /** Corner performance HUD (FPS / frame time / entity count). Off by default — opt-in. */
+  showStats: boolean;
+  /** Bottom-left cursor / selection / zoom / tool-hint readout. Off by default. */
+  showCoords: boolean;
+  /** Bottom-right scene minimap overview. On by default; toggle to reclaim the corner. */
+  showMinimap: boolean;
   snapping: boolean;
   // Grid-snap increment (world units) applied to Move while `snapping` is on. The
   // viewport snap dropdown picks from a fixed set (16 / 32 / 64); "off" flips
@@ -71,6 +77,9 @@ interface EditorState {
   toggleColliders: () => void;
   toggleTileCollision: () => void;
   togglePreviewFx: () => void;
+  toggleStats: () => void;
+  toggleCoords: () => void;
+  toggleMinimap: () => void;
   toggleSnapping: () => void;
   setSnapStep: (step: number) => void;
   setSnapAngle: (deg: number) => void;
@@ -138,6 +147,9 @@ export const useEditorStore = create<EditorState>((set) => ({
   showColliders: true,
   showTileCollision: true,
   previewFx: true,
+  showStats: false,
+  showCoords: false,
+  showMinimap: true,
   snapping: false,
   snapStep: 32,
   snapAngle: 15,
@@ -153,6 +165,9 @@ export const useEditorStore = create<EditorState>((set) => ({
   toggleColliders: () => set((s) => ({ showColliders: !s.showColliders })),
   toggleTileCollision: () => set((s) => ({ showTileCollision: !s.showTileCollision })),
   togglePreviewFx: () => set((s) => ({ previewFx: !s.previewFx })),
+  toggleStats: () => set((s) => ({ showStats: !s.showStats })),
+  toggleCoords: () => set((s) => ({ showCoords: !s.showCoords })),
+  toggleMinimap: () => set((s) => ({ showMinimap: !s.showMinimap })),
   toggleSnapping: () => set((s) => ({ snapping: !s.snapping })),
   setSnapStep: (snapStep) => set({ snapStep, snapping: true }),
   setSnapAngle: (snapAngle) => set({ snapAngle }),

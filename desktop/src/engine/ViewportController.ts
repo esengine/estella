@@ -6,7 +6,7 @@ import {
   ParticleEmitter, OneWayPlatform,
   RevoluteJoint, DistanceJoint, PrismaticJoint, WeldJoint, WheelJoint, MotorJoint,
   UINode, UICameraInfo, screenToUiWorld, uiWorldToScreen, uiPickAllWorld, type UICameraData,
-  TilemapLayer, TilemapAPI, decodeTilemapChunks, tileCollisionOutlines,
+  TilemapLayer, TilemapAPI, decodeTilemapChunks, CHUNK_SIZE, tileCollisionOutlines,
   tileCellCenter, tileCellOutline, isNonOrthogonal,
   readColliderShapes, colliderShapeOutline, shapeCenter,
   type TilesetModel, type TileCollisionPiece, type TileGridParams,
@@ -128,6 +128,15 @@ export interface ColliderGizmo {
   radiusHandle: { x: number; y: number } | null;
   points: ColliderPointHandle[];
 }
+
+/** World AABB union of the scene's content — the extent the minimap fits into. */
+export interface MinimapBounds { minX: number; minY: number; maxX: number; maxY: number; }
+/** One schematic box in the minimap: an entity's world AABB + a coarse kind for colour. */
+export interface MinimapBox { x0: number; y0: number; x1: number; y1: number; kind: 'sprite' | 'tile' | 'icon'; }
+
+// Above this many boxes the minimap stops collecting (bounds still cover everything
+// collected) — a schematic overview needs the layout, not thousands of rects/rebuild.
+const MINIMAP_BOX_CAP = 800;
 
 // Picking and screen<->world conversions for the viewport, all routed through
 // the engine's own camera matrices (no projection assumptions).
@@ -430,6 +439,87 @@ export const ViewportController = {
     const aspect = panel && panel.height > 0 ? panel.width / panel.height : 1;
     const halfH = Math.max(desHalfH, aspect > 0 ? desHalfW / aspect : desHalfW) * 1.1;
     view.orthoSize = clamp(halfH, 8, 40000);
+  },
+
+  /** World center + half-extents of the editor camera's visible rect — the minimap's
+   *  camera indicator. Half-height = orthoSize; half-width = orthoSize × panel aspect. */
+  editorViewRect(): { cx: number; cy: number; halfW: number; halfH: number } | null {
+    const view = editorView();
+    const canvas = EngineHost.canvas;
+    if (!view) return null;
+    const aspect = canvas && canvas.height > 0 ? canvas.width / canvas.height : 1;
+    return { cx: view.x, cy: view.y, halfW: view.orthoSize * aspect, halfH: view.orthoSize };
+  },
+
+  /** Recenter the editor view on a world point (minimap click / drag navigation). Leaves
+   *  zoom untouched — the minimap moves the camera, it doesn't reframe. */
+  centerViewOn(wx: number, wy: number): void {
+    const view = editorView();
+    if (!view) return;
+    view.x = wx;
+    view.y = wy;
+  },
+
+  /** World AABB of a painted tilemap layer from its chunk-grid bounds (cheap — chunk
+   *  granularity, no per-tile scan). Tiles extend +x / −y from the layer origin, matching
+   *  tileCollisionOutlines. Null for an empty / unsized layer. */
+  tilemapWorldAABB(rt: EntityId): { x0: number; y0: number; x1: number; y1: number } | null {
+    const world = EngineHost.world;
+    if (!world || !world.has(rt, TilemapLayer) || !world.has(rt, Transform)) return null;
+    const layer = world.get(rt, TilemapLayer) as { cellSize: { x: number; y: number } };
+    const tw = layer.cellSize.x, th = layer.cellSize.y;
+    if (!(tw > 0) || !(th > 0)) return null;
+    const chunks = decodeTilemapChunks(TilemapAPI.exportChunks(rt) || '');
+    if (chunks.length === 0) return null;
+    let cMinX = Infinity, cMinY = Infinity, cMaxX = -Infinity, cMaxY = -Infinity;
+    for (const c of chunks) {
+      cMinX = Math.min(cMinX, c.x); cMinY = Math.min(cMinY, c.y);
+      cMaxX = Math.max(cMaxX, c.x); cMaxY = Math.max(cMaxY, c.y);
+    }
+    const t = world.get(rt, Transform);
+    const ox = t.worldPosition.x, oy = t.worldPosition.y;
+    return {
+      x0: ox + cMinX * CHUNK_SIZE * tw,
+      x1: ox + (cMaxX + 1) * CHUNK_SIZE * tw,
+      y0: oy - (cMaxY + 1) * CHUNK_SIZE * th, // bottom (larger cellY = lower world y)
+      y1: oy - cMinY * CHUNK_SIZE * th,       // top
+    };
+  },
+
+  /** Schematic overview of the scene for the viewport minimap: every entity's world AABB
+   *  (a coarse kind for colour) and their union bounds. Sprites use their rendered box,
+   *  tilemaps their painted extent, everything else an icon box — the same bounds Frame
+   *  reads. Cheap enough to recompute on structural / data change; the minimap projects
+   *  these into its panel and the rAF overlays the live camera rect. UI nodes are
+   *  screen-space, so they're excluded. */
+  minimapBoxes(): { bounds: MinimapBounds | null; boxes: MinimapBox[] } {
+    const world = EngineHost.world;
+    const boxes: MinimapBox[] = [];
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    const add = (x0: number, y0: number, x1: number, y1: number, kind: MinimapBox['kind']) => {
+      if (boxes.length < MINIMAP_BOX_CAP) boxes.push({ x0, y0, x1, y1, kind });
+      minX = Math.min(minX, x0); minY = Math.min(minY, y0);
+      maxX = Math.max(maxX, x1); maxY = Math.max(maxY, y1);
+    };
+    if (world) {
+      for (const e of world.getAllEntities()) {
+        if (!world.valid(e) || !world.has(e, Transform) || world.has(e, UINode)) continue;
+        if (world.has(e, TilemapLayer)) {
+          const tb = this.tilemapWorldAABB(e);
+          if (tb) { add(tb.x0, tb.y0, tb.x1, tb.y1, 'tile'); continue; }
+        }
+        const b = this.entityBounds(e);
+        if (!b) continue;
+        let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+        for (const [wx, wy] of obbCorners(b)) {
+          x0 = Math.min(x0, wx); y0 = Math.min(y0, wy);
+          x1 = Math.max(x1, wx); y1 = Math.max(y1, wy);
+        }
+        add(x0, y0, x1, y1, world.has(e, Sprite) ? 'sprite' : 'icon');
+      }
+    }
+    const bounds = Number.isFinite(minX) ? { minX, minY, maxX, maxY } : null;
+    return { bounds, boxes };
   },
 
   /** Ids of the scene's camera entities — the camera-gizmo set (structural). */

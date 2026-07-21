@@ -697,7 +697,7 @@ body.thumb-capture .viewport > :not(.viewport__stage):not(.viewport__play) {
    never collides with the play flag. */
 .viewport__tileflag {
   position: absolute;
-  top: 10px;
+  top: 46px; /* clear the docked scene toolbar (38px) */
   left: 50%;
   transform: translateX(-50%);
   z-index: 3;

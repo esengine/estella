@@ -18,8 +18,6 @@
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-2);
 }
-.ov-tl { top: 10px; left: 10px; }
-.ov-tr { top: 10px; right: 10px; }
 .ovbtn {
   height: 26px;
   padding: 0 8px;
@@ -41,6 +39,11 @@
 .ovbtn.open .cv { transform: rotate(180deg); }
 .ov-tool { width: 30px; height: 30px; padding: 0; justify-content: center; position: relative; }
 .ov-tool.active { color: var(--on-accent); background: var(--acc); }
+/* Display-flag toggles read softer than a selected tool: an accent glyph on a faint
+   accent wash when on, a muted glyph when off — "what's shown" vs. the palette's
+   strong "which tool is active" fill. */
+.ov-toggle.active { color: var(--acc); background: color-mix(in srgb, var(--acc) 15%, transparent); }
+.ov-toggle.active:hover { color: var(--acc); background: color-mix(in srgb, var(--acc) 24%, transparent); }
 .ov-tool kbd {
   position: absolute;
   bottom: -2px;
@@ -56,6 +59,59 @@
 }
 .ov-tool:hover kbd { opacity: 1; }
 .ov-divider { width: 1px; height: 16px; background: var(--border-line); margin: 0 3px; }
+
+/* Docked scene toolbar: a full-width strip pinned to the top of the viewport,
+   directly below the panel tabs. Opaque on the raised surface (the same token as
+   the tab strip) so it reads as one header block over the canvas — view menus +
+   display controls on the left, quick display toggles pinned right. Tool selection
+   lives in the floating .ov-left palette over the canvas, not here. */
+.viewport__toolbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 8;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  background: var(--srf-3);
+  border-bottom: 1px solid var(--border-line);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+}
+.viewport__tb-group { display: flex; align-items: center; gap: 1px; min-width: 0; }
+/* The left group yields first when the dock narrows; the right toggles stay put. */
+.viewport__toolbar > .viewport__tb-group:first-child { flex: 0 1 auto; overflow: hidden; }
+.viewport__tb-group--right { margin-left: auto; flex: none; gap: 6px; }
+/* Segmented "well" grouping the display-flag toggles as one cohesive control,
+   set apart from the 2D status chip beside it. */
+.ov-seg {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 2px;
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  border-radius: var(--r-md);
+}
+.ov-seg .ov-tool { width: 28px; height: 26px; }
+/* Static mode indicator — the engine is 2D-only, so this reads, it doesn't toggle. */
+.vp-mode-chip {
+  font-family: var(--mono);
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--on-accent);
+  background: var(--acc);
+  padding: 3px 6px;
+  border-radius: var(--r-sm);
+  user-select: none;
+}
+
+/* Floating tool palette (vertical) over the canvas' top-left corner — the Q/W/E/R
+   selection + transform tools, always visible without crowding the top bar. */
+.ov-left { top: 48px; left: 10px; }
+.ov-cluster--v { flex-direction: column; gap: 1px; }
 
 /* overlay dropdown (view-menu / snap): the shared <Popover> shell in a glass
    variant (backdrop blur over the live viewport), holding UE-style check/radio
@@ -128,10 +184,10 @@
 /* Design-resolution readout pinned to the frame's top-left corner (rAF-positioned). */
 .viewport__design-label { position: absolute; top: 0; left: 0; z-index: 6; pointer-events: none; padding: 1px 5px; font-size: var(--fs-2xs); font-variant-numeric: tabular-nums; color: var(--on-accent); background: var(--acc); border-radius: var(--r-sm); white-space: nowrap; }
 
-/* perf widget (bottom-right) */
+/* perf widget (top-right, below the docked toolbar — the bottom-right is the minimap) */
 .vp-perf {
   position: absolute;
-  bottom: 10px;
+  top: 48px;
   right: 10px;
   z-index: 4;
   min-width: 128px;
@@ -151,6 +207,32 @@
 .vp-perf .pr .v { color: var(--text); }
 .vp-perf .pr.h .v { color: var(--text); font-size: var(--fs-md); }
 .vp-perf .ps { height: 1px; background: var(--border-line); margin: 5px -9px; }
+
+/* Bottom-right scene minimap: a schematic overview the whole scene fits into. Boxes
+   are entity world AABBs (coloured by kind); the accent rect tracks the editor camera.
+   Click / drag inside recenters the camera. */
+.viewport__minimap {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  z-index: 4;
+  padding: 4px;
+  background: rgba(var(--glass-rgb), 0.72);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  border: 1px solid var(--border-line);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-2);
+  line-height: 0;
+}
+.viewport__minimap svg { display: block; cursor: crosshair; border-radius: var(--r-sm); background: rgba(0, 0, 0, 0.25); }
+/* Wireframe outlines (matching the reference's schematic look) — reads clean even when
+   a big background sprite spans the level; tilemaps get a faint filled region. */
+.viewport__minimap .mm-box { fill: none; stroke-width: 1; }
+.viewport__minimap .mm-sprite { stroke: var(--text-dim); opacity: 0.85; }
+.viewport__minimap .mm-tile { fill: color-mix(in srgb, var(--acc) 16%, transparent); stroke: color-mix(in srgb, var(--acc) 45%, transparent); opacity: 0.9; }
+.viewport__minimap .mm-icon { stroke: var(--text-mute); opacity: 0.45; }
+.viewport__minimap .mm-cam { fill: color-mix(in srgb, var(--acc) 10%, transparent); stroke: var(--acc); stroke-width: 1.5; }
 
 /* coord readout (bottom-left) */
 .vp-coord {
@@ -220,7 +302,10 @@
 .viewport--play .viewport__light-gizmo,
 .viewport--play .viewport__collider-gizmo,
 .viewport--play .viewport__tilecol-gizmo,
-.viewport--play .viewport__particle-gizmo {
+.viewport--play .viewport__particle-gizmo,
+.viewport--play .viewport__toolbar,
+.viewport--play .viewport__minimap,
+.viewport--play .ov-left {
   display: none;
 }
 

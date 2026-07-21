@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { memo, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { PointerEvent as ReactPointerEvent, DragEvent as ReactDragEvent, ReactNode } from 'react';
 import {
-  MousePointer2, Move, RotateCw, Scale3d, Grid3x3, Eye, Frame,
-  Camera, Check, ChevronDown, Loader2, TriangleAlert, Lightbulb, Sparkles, Globe, Crosshair, Smartphone, Monitor, type LucideIcon,
+  MousePointer2, Move, RotateCw, Scale3d, Grid3x3, Frame,
+  Camera, Check, ChevronDown, Loader2, TriangleAlert, Lightbulb, Sparkles, Globe, Crosshair, Smartphone, Monitor, Magnet, Axis3d, Hexagon, type LucideIcon,
 } from 'lucide-react';
 import { t } from '@/i18n';
 import { useEditorStore } from '@/store/editorStore';
@@ -20,7 +20,7 @@ import { commands } from '@/commands';
 import { MOD_LABEL } from '@/commands/keybinding';
 import { EngineHost } from '@/engine/EngineHost';
 import { PlayRealm } from '@/engine/PlayRealm';
-import { ViewportController, type JointGizmoType, type ColliderPointHandle } from '@/engine/ViewportController';
+import { ViewportController, type JointGizmoType, type ColliderPointHandle, type MinimapBounds, type MinimapBox } from '@/engine/ViewportController';
 import { ProjectStore } from '@/project/ProjectStore';
 import { createFromSource, sourceById, SOURCE_DND_MIME } from '@/engine/entitySources';
 import { resizeUINodeAxis, type ResizeSide, type AxisResizeWrites } from '@/engine/uiResize';
@@ -487,17 +487,20 @@ function OvTool({
   kbd,
   active,
   onClick,
+  toggle,
 }: {
   icon: LucideIcon;
   label: string;
   kbd?: string;
   active?: boolean;
   onClick: () => void;
+  /** A display-flag toggle (soft accent "on") rather than a tool selection (strong fill). */
+  toggle?: boolean;
 }) {
   return (
     <button
       type="button"
-      className={`ovbtn ov-tool${active ? ' active' : ''}`}
+      className={`ovbtn ov-tool${toggle ? ' ov-toggle' : ''}${active ? ' active' : ''}`}
       title={label}
       aria-label={label}
       aria-pressed={active}
@@ -593,8 +596,12 @@ function HudCursor() {
 // The corner HUD (perf + coordinates). Owns the StatsStore subscription so the
 // slow stats updates re-render ONLY this leaf — not the whole, gizmo-heavy
 // Viewport.
-function ViewportHud({ ready, selCount, zoomPct, tool, paintHint }: {
+function ViewportHud({ ready, showStats, showCoords, selCount, zoomPct, tool, paintHint }: {
   ready: boolean;
+  /** Corner FPS/frame/entity HUD — opt-in (off by default). */
+  showStats: boolean;
+  /** Bottom-left cursor/selection/hint readout — opt-in (off by default). */
+  showCoords: boolean;
   selCount: number;
   zoomPct: number;
   tool: ToolMode;
@@ -604,7 +611,7 @@ function ViewportHud({ ready, selCount, zoomPct, tool, paintHint }: {
   const stats = useSyncExternalStore(StatsStore.subscribe, StatsStore.getSnapshot);
   return (
     <>
-      {ready && (
+      {ready && showStats && (
         <div className="vp-perf" aria-hidden="true">
           <div className="pr h">
             <span className="k">FPS</span>
@@ -621,16 +628,100 @@ function ViewportHud({ ready, selCount, zoomPct, tool, paintHint }: {
           </div>
         </div>
       )}
-      <div className="vp-coord">
-        <div className="ro">
-          <HudCursor />
-          {t('vp.hud.sel')} <strong>{selCount}</strong> · {zoomPct}%
+      {showCoords && (
+        <div className="vp-coord">
+          <div className="ro">
+            <HudCursor />
+            {t('vp.hud.sel')} <strong>{selCount}</strong> · {zoomPct}%
+          </div>
+          <div className="hint">{paintHint ?? TOOL_HINT[tool]}</div>
         </div>
-        <div className="hint">{paintHint ?? TOOL_HINT[tool]}</div>
-      </div>
+      )}
     </>
   );
 }
+
+// Bottom-right scene minimap: a schematic overview (one rect per entity) the whole
+// scene fits into, with the editor camera's world rect overlaid each frame. Click /
+// drag recenters the camera — fast navigation of large levels. React.memo'd so it only
+// rebuilds its rects when the (memoized) box set changes, not on every Viewport render.
+const MINIMAP_W = 200;
+const MINIMAP_H = 128;
+const MINIMAP_PAD = 8;
+
+const ViewportMinimap = memo(function ViewportMinimap({ data }: { data: { bounds: MinimapBounds | null; boxes: MinimapBox[] } }) {
+  const win = usePanelWindow();
+  const camRef = useRef<SVGRectElement>(null);
+  // Fit the world bounds into the panel (preserve aspect, letterbox). Recomputed only
+  // when the bounds change; the projection below closes over it.
+  const fit = useMemo(() => {
+    const b = data.bounds;
+    if (!b) return null;
+    const worldW = Math.max(b.maxX - b.minX, 1e-3);
+    const worldH = Math.max(b.maxY - b.minY, 1e-3);
+    const scale = Math.min((MINIMAP_W - 2 * MINIMAP_PAD) / worldW, (MINIMAP_H - 2 * MINIMAP_PAD) / worldH);
+    return { b, scale, offX: (MINIMAP_W - worldW * scale) / 2, offY: (MINIMAP_H - worldH * scale) / 2 };
+  }, [data.bounds]);
+
+  // Overlay the editor camera's world rect on the minimap every frame (it tracks
+  // pan/zoom). Its own tiny rAF keeps this off the gizmo-heavy main viewport tick.
+  useEffect(() => {
+    if (!fit) return;
+    let raf = 0;
+    const tick = () => {
+      raf = requestAnimationFrame(tick);
+      const rect = camRef.current;
+      if (!rect) return;
+      const v = ViewportController.editorViewRect();
+      if (!v) { rect.style.opacity = '0'; return; }
+      rect.setAttribute('x', String(fit.offX + (v.cx - v.halfW - fit.b.minX) * fit.scale));
+      rect.setAttribute('y', String(fit.offY + (fit.b.maxY - (v.cy + v.halfH)) * fit.scale));
+      rect.setAttribute('width', String(Math.max(2, v.halfW * 2 * fit.scale)));
+      rect.setAttribute('height', String(Math.max(2, v.halfH * 2 * fit.scale)));
+      rect.style.opacity = '1';
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [fit, win]);
+
+  // Minimap px → world, then recenter the camera there (click + drag, zoom untouched).
+  const navTo = (e: ReactPointerEvent) => {
+    if (!fit) return;
+    const r = (e.currentTarget as SVGSVGElement).getBoundingClientRect();
+    ViewportController.centerViewOn(
+      fit.b.minX + (e.clientX - r.left - fit.offX) / fit.scale,
+      fit.b.maxY - (e.clientY - r.top - fit.offY) / fit.scale,
+    );
+  };
+
+  if (!fit || data.boxes.length === 0) return null;
+  return (
+    <div className="viewport__minimap" title={t('vp.minimap')}>
+      <svg
+        width={MINIMAP_W}
+        height={MINIMAP_H}
+        onPointerDown={(e) => {
+          if (e.button !== 0) return;
+          (e.currentTarget as SVGSVGElement).setPointerCapture(e.pointerId);
+          navTo(e);
+        }}
+        onPointerMove={(e) => { if (e.buttons & 1) navTo(e); }}
+      >
+        {data.boxes.map((bx, i) => (
+          <rect
+            key={i}
+            className={`mm-box mm-${bx.kind}`}
+            x={fit.offX + (bx.x0 - fit.b.minX) * fit.scale}
+            y={fit.offY + (fit.b.maxY - bx.y1) * fit.scale}
+            width={Math.max(1, (bx.x1 - bx.x0) * fit.scale)}
+            height={Math.max(1, (bx.y1 - bx.y0) * fit.scale)}
+          />
+        ))}
+        <rect ref={camRef} className="mm-cam" />
+      </svg>
+    </div>
+  );
+});
 
 export function Viewport() {
   // The window this viewport currently lives in — main, or its own OS window once
@@ -644,6 +735,9 @@ export function Viewport() {
   const showColliders = useEditorStore((s) => s.showColliders);
   const showTileCollision = useEditorStore((s) => s.showTileCollision);
   const previewFx = useEditorStore((s) => s.previewFx);
+  const showStats = useEditorStore((s) => s.showStats);
+  const showCoords = useEditorStore((s) => s.showCoords);
+  const showMinimap = useEditorStore((s) => s.showMinimap);
   const activeGizmoAxis = useEditorStore((s) => s.activeGizmoAxis);
   const coordSpace = useEditorStore((s) => s.coordSpace);
   const pivotMode = useEditorStore((s) => s.pivotMode);
@@ -816,6 +910,12 @@ export function Viewport() {
   const particleIds = useMemo(
     () => (engine.status === 'ready' ? ViewportController.particleEmitterIds() : []),
     [structRev, engine.status],
+  );
+  // Minimap overview boxes + scene bounds — recomputed on structural / data change (the
+  // camera rect updates live inside the minimap). dataRev catches entity moves on commit.
+  const minimap = useMemo(
+    () => (engine.status === 'ready' ? ViewportController.minimapBoxes() : { bounds: null, boxes: [] }),
+    [structRev, dataRev, engine.status],
   );
 
   // Mount the live engine canvas into the stage; it survives panel re-docking.
@@ -1052,7 +1152,7 @@ export function Viewport() {
           const dlabel = designLabelRef.current;
           if (dlabel) {
             dlabel.textContent = `${ci.designResolution.x} × ${ci.designResolution.y}`;
-            // Top clamp clears the .ov-tl floating toolbar (top:10 + ~34px tall).
+            // Top clamp (48) clears the docked scene toolbar (38px) at the viewport top.
             const lx = Math.min(Math.max(des.x + 4, 4), Math.max(dsvg.clientWidth - dlabel.offsetWidth - 4, 4));
             const ly = Math.min(Math.max(des.y + 4, 48), Math.max(dsvg.clientHeight - dlabel.offsetHeight - 4, 48));
             dlabel.style.transform = `translate(${lx}px, ${ly}px)`;
@@ -1812,19 +1912,11 @@ export function Viewport() {
 
   return (
     <div className={`viewport${isPlaying ? ' viewport--play' : ''}`}>
-      {/* Top-left: view menus (UE5 layout) — Show Flags dropdown + Frame. */}
-      <div className="ov ov-tl">
-        <div className="ov-cluster">
-          <OvDropdown icon={Eye} label={t('vp.show')} title={t('vp.showFlags')}>
-            <div className="ovmenu-lbl">{t('vp.showFlags')}</div>
-            <DdCheck on={showGrid} label={t('vp.flag.grid')} onClick={() => commands.run('view.toggleGrid')} />
-            <DdCheck on={showGizmos} label={t('vp.flag.gizmos')} onClick={() => commands.run('view.toggleGizmos')} />
-            <DdCheck on={showColliders} label={t('vp.flag.colliders')} onClick={() => commands.run('view.toggleColliders')} />
-            <DdCheck on={showTileCollision} label={t('vp.flag.tileCollision')} onClick={() => commands.run('view.toggleTileCollision')} />
-            <DdCheck on={previewFx} label={t('vp.flag.previewFx')} onClick={() => commands.run('view.togglePreviewFx')} />
-            <DdCheck on={perfVisible} label={t('vp.flag.perf')} onClick={() => PerfMonitor.toggleOverlay()} />
-          </OvDropdown>
-          <span className="ov-divider" />
+      {/* Docked scene toolbar under the panel tabs — view menus + display controls
+          on the left, quick display toggles pinned right. Tool selection lives in the
+          floating palette over the canvas (.ov-left). */}
+      <div className="viewport__toolbar">
+        <div className="viewport__tb-group">
           <OvTool icon={Frame} label={`${t('vp.frameSelected')}  (F)`} kbd="F" onClick={() => commands.run('view.frameSelected')} />
           <span className="ov-divider" />
           <button
@@ -1911,30 +2003,12 @@ export function Viewport() {
             <div className="ovmenu-lbl">{t('vp.overlay')}</div>
             <DdCheck on={showSafeArea} label={t('vp.safeArea')} onClick={() => useEditorMode.getState().toggleSafeArea()} />
           </OvDropdown>
-        </div>
-      </div>
-
-      {/* Top-right: transform tools (UE5 moved gizmo tools here) + Snap. */}
-      <div className="ov ov-tr">
-        <div className="ov-cluster">
-          {TOOLS.map((t) => (
-            <OvTool
-              key={t.mode}
-              icon={t.icon}
-              label={`${t.label}  (${t.key})`}
-              kbd={t.key}
-              active={tool === t.mode}
-              onClick={() => commands.run(`tool.${t.mode}`)}
-            />
-          ))}
           <span className="ov-divider" />
           <OvDropdown
-            icon={Grid3x3}
+            icon={Magnet}
             label={<span className="val">{snapping ? snapStep : t('vp.snapOff')}</span>}
             title={t('vp.gridSnap')}
           >
-            <div className="ovmenu-lbl">{t('vp.gridDisplay')}</div>
-            <DdCheck on={showGrid} label={t('vp.flag.grid')} onClick={() => commands.run('view.toggleGrid')} />
             <div className="ovmenu-lbl">{t('vp.gridSnapSection')}</div>
             <DdRadio on={!snapping} label={t('vp.snapOff')} onClick={() => useEditorStore.setState({ snapping: false })} />
             <div className="ovmenu-lbl">{t('vp.snapMove')}</div>
@@ -1965,6 +2039,32 @@ export function Viewport() {
               />
             ))}
           </OvDropdown>
+        </div>
+
+        <div className="viewport__tb-group viewport__tb-group--right">
+          <span className="vp-mode-chip">2D</span>
+          <div className="ov-seg">
+            <OvTool toggle icon={Grid3x3} label={t('vp.flag.grid')} active={showGrid} onClick={() => commands.run('view.toggleGrid')} />
+            <OvTool toggle icon={Axis3d} label={t('vp.flag.gizmos')} active={showGizmos} onClick={() => commands.run('view.toggleGizmos')} />
+            <OvTool toggle icon={Hexagon} label={t('vp.flag.colliders')} active={showColliders} onClick={() => commands.run('view.toggleColliders')} />
+            <OvTool toggle icon={Sparkles} label={t('vp.flag.previewFx')} active={previewFx} onClick={() => commands.run('view.togglePreviewFx')} />
+          </div>
+        </div>
+      </div>
+
+      {/* Floating tool palette over the canvas — selection + transform (Q/W/E/R). */}
+      <div className="ov ov-left">
+        <div className="ov-cluster ov-cluster--v">
+          {TOOLS.map((tl) => (
+            <OvTool
+              key={tl.mode}
+              icon={tl.icon}
+              label={`${tl.label}  (${tl.key})`}
+              kbd={tl.key}
+              active={tool === tl.mode}
+              onClick={() => commands.run(`tool.${tl.mode}`)}
+            />
+          ))}
         </div>
       </div>
 
@@ -2317,11 +2417,14 @@ export function Viewport() {
 
       <ViewportHud
         ready={engine.status === 'ready'}
+        showStats={showStats}
+        showCoords={showCoords}
         selCount={selCount}
         zoomPct={zoomPct}
         tool={tool}
         paintHint={inTilePaint && paintTool ? TILE_HINT[paintTool] : null}
       />
+      {engine.status === 'ready' && showMinimap && <ViewportMinimap data={minimap} />}
       {perfVisible && <Perf id="viewport.perfhud"><PerfOverlay /></Perf>}
 
       {mode.id !== 'scene' && (

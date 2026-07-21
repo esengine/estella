@@ -5,17 +5,9 @@ import {
   Save,
   Undo2,
   Redo2,
-  MousePointer2,
-  Move,
-  RotateCw,
-  Scale3d,
-  Magnet,
-  Grid3x3,
-  Sparkles,
   Play,
   Pause,
   Square as Stop,
-  Eye,
   Hammer,
   Monitor,
   AppWindow,
@@ -27,15 +19,13 @@ import { IconButton } from '@/components/IconButton';
 import { ContextMenu } from '@/components/Menu';
 import { EditorHistory } from '@/engine/EditorHistory';
 import { commands, formatKeybinding } from '@/commands';
-import type { ToolMode } from '@/types';
 import { t } from '@/i18n';
 
-const TOOLS: { mode: ToolMode; icon: LucideIcon; label: string }[] = [
-  { mode: 'select', icon: MousePointer2, label: t('layout.tool.select') },
-  { mode: 'move', icon: Move, label: t('layout.tool.move') },
-  { mode: 'rotate', icon: RotateCw, label: t('layout.tool.rotate') },
-  { mode: 'scale', icon: Scale3d, label: t('layout.tool.scale') },
-];
+// The global toolbar is GLOBAL-only: Save · Undo/Redo · Play · Build. Everything
+// scoped to the scene view (the transform tools, snap/grid/fx toggles, gizmos)
+// lives in the viewport's own chrome — the floating tool palette and the docked
+// scene toolbar — so it travels with the viewport when it pops out to its own OS
+// window, and no control is duplicated in two bars that can drift out of sync.
 
 /** Shortcut-hint suffix for a command's tooltip, derived from its keybinding. */
 function hint(id: string): string {
@@ -64,15 +54,14 @@ function TBtn({
 }
 
 export function Toolbar() {
-  // Reactive display state (tool / toggles / play); actions dispatch through the
+  // Reactive display state (play target/players); actions dispatch through the
   // command registry so menu, toolbar, and keyboard share one implementation.
   const playTarget = useEditorStore((s) => s.playTarget);
   const setPlayTarget = useEditorStore((s) => s.setPlayTarget);
   const playPlayers = useEditorStore((s) => s.playPlayers);
   const setPlayPlayers = useEditorStore((s) => s.setPlayPlayers);
   const [modeMenu, setModeMenu] = useState<{ x: number; y: number } | null>(null);
-  const { tool, snapping, showGrid, showGizmos, previewFx, isPlaying, isPaused, togglePause, stop } =
-    useEditorStore();
+  const { isPlaying, isPaused, togglePause, stop } = useEditorStore();
 
   // Re-render on history changes to refresh undo/redo enabled state + labels.
   useSyncExternalStore(EditorHistory.subscribe, EditorHistory.getVersion);
@@ -104,28 +93,6 @@ export function Toolbar() {
           disabled={!commands.isEnabled('edit.redo')}
           onClick={() => commands.run('edit.redo')}
         />
-      </div>
-
-      <span className="tdiv" />
-
-      <div className="tgroup" role="radiogroup" aria-label={t('layout.transformTool')}>
-        {TOOLS.map((tb) => (
-          <TBtn
-            key={tb.mode}
-            icon={tb.icon}
-            label={`${tb.label}${hint(`tool.${tb.mode}`)}`}
-            active={tool === tb.mode}
-            onClick={() => commands.run(`tool.${tb.mode}`)}
-          />
-        ))}
-      </div>
-
-      <span className="tdiv" />
-
-      <div className="tgroup">
-        <TBtn icon={Magnet} label={t('cmd.view.toggleSnapping')} active={snapping} onClick={() => commands.run('view.toggleSnapping')} />
-        <TBtn icon={Grid3x3} label={t('cmd.view.toggleGrid')} active={showGrid} onClick={() => commands.run('view.toggleGrid')} />
-        <TBtn icon={Sparkles} label={t('cmd.view.togglePreviewFx')} active={previewFx} onClick={() => commands.run('view.togglePreviewFx')} />
       </div>
 
       <span className="tspacer" />
@@ -183,7 +150,6 @@ export function Toolbar() {
       <span className="tspacer" />
 
       <div className="tgroup">
-        <TBtn icon={Eye} label={t('cmd.view.toggleGizmos')} active={showGizmos} onClick={() => commands.run('view.toggleGizmos')} />
         <button type="button" className="tbtn" title={t('layout.buildScriptsTooltip')} onClick={() => commands.run('build.scripts')}>
           <Hammer size={15} strokeWidth={1.85} />
           <span className="lbl">{t('layout.build')}</span>
