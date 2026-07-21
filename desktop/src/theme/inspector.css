@@ -48,6 +48,15 @@
 .prefab-bar button { display: inline-flex; align-items: center; gap: 3px; font-size: var(--fs-2xs); color: var(--acc-hi); padding: 2px 6px; border-radius: var(--r-xs); transition: background var(--t-fast); }
 .prefab-bar button:hover { background: var(--acc-soft-2); }
 
+/* Stale-override warning: instance overrides the loader dropped because they no
+   longer match the prefab. Amber, sits just under the prefab bar; the button
+   saves (persisting the already-dropped state so the file is clean). */
+.prefab-conflicts { display: flex; align-items: center; gap: 7px; margin-top: 5px; padding: 5px 8px; background: color-mix(in srgb, var(--warn) 12%, transparent); border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent); border-radius: var(--r-sm); font-size: var(--fs-xs); }
+.prefab-conflicts .pc-icon { color: var(--warn); flex-shrink: 0; display: grid; place-items: center; }
+.prefab-conflicts .pc-text { color: var(--text); flex: 1; }
+.prefab-conflicts .pc-fix { flex-shrink: 0; font-size: var(--fs-2xs); font-weight: 600; color: var(--warn); padding: 2px 8px; border-radius: var(--r-xs); border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent); transition: background var(--t-fast); }
+.prefab-conflicts .pc-fix:hover { background: color-mix(in srgb, var(--warn) 18%, transparent); }
+
 /* component / category */
 .comp { border-bottom: 1px solid var(--border); }
 .comp-head { display: flex; align-items: center; gap: 7px; height: 30px; padding: 0 8px 0 0; background: var(--srf-3); cursor: pointer; position: relative; user-select: none; transition: background var(--t-fast); }

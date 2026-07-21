@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode } from 'react';
 import {
+  AlertTriangle,
   Box,
   Camera,
   Check,
@@ -40,6 +41,7 @@ import { Toasts } from '@/store/Toasts';
 import { baseName, assetTypeOf, IMAGE_RE } from '@/project/assetMeta';
 import { revealAsset } from '@/project/assetReveal';
 import { useSelection } from '@/store/selectionStore';
+import { usePrefabConflicts } from '@/store/prefabConflicts';
 import { useEditorStore } from '@/store/editorStore';
 import { useControllerStore } from '@/store/controllerStore';
 import { isGeared, controllerCurrentPage, readModelField, readGearBindings } from '@/controller/controllerModel';
@@ -2787,6 +2789,7 @@ function EditorDetails() {
   const selectedAsset = useSelection((s) => s.selectedAsset);
   const inspectSource = useSelection((s) => s.inspectSource);
   const selectedFolder = useOutliner((s) => s.selectedFolder);
+  const conflictsByInstance = usePrefabConflicts((s) => s.byInstance);
   const ready = engine.status === 'ready' && selectedId != null;
 
   // Selection targets, primary (the active id) first. Edits fan out across all.
@@ -2878,6 +2881,10 @@ function EditorDetails() {
     ? prefabTag.prefab ?? SceneModel.prefabTag(prefabTag.instanceRoot)?.prefab
     : undefined;
   const prefabName = prefabRef ? ProjectStore.assetInfo(prefabRef)?.name ?? null : null;
+  // Stale overrides the loader dropped from THIS instance on load (keyed by root).
+  const staleOverrides = prefabTag
+    ? conflictsByInstance.get(prefabTag.instanceRoot) ?? []
+    : [];
 
   return (
     <div className="insp">
@@ -2966,6 +2973,15 @@ function EditorDetails() {
                 <RotateCcw size={12} strokeWidth={1.9} /> {t('det.prefabRevert')}
               </button>
             </span>
+          </div>
+        )}
+        {staleOverrides.length > 0 && !multi && (
+          <div className="prefab-conflicts" title={staleOverrides.map((s) => s.reason).join('\n')}>
+            <span className="pc-icon"><AlertTriangle size={13} strokeWidth={1.9} /></span>
+            <span className="pc-text">{t('det.staleOverrides', { count: staleOverrides.length })}</span>
+            <button type="button" className="pc-fix" title={t('det.staleRepairTip')} onClick={() => void ProjectStore.save()}>
+              {t('det.staleRepair')}
+            </button>
           </div>
         )}
       </div>

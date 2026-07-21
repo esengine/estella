@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { createStore } from 'zustand/vanilla';
-import { getComponent, getEditorType, Assets, migratePrefabData, extractPrefab, flattenPrefab, collectExternalEntityRefs, collapseInstance, applyDeltaToSource, buildVariant, setTextureParams, TextureFilter, TextureWrap, Renderer, RETIRED_COMPONENT_TYPES, parseThemeOverrides } from 'esengine';
+import { getComponent, getEditorType, Assets, migratePrefabData, extractPrefab, flattenPrefab, collectExternalEntityRefs, collapseInstance, applyDeltaToSource, buildVariant, validateOverrides, setTextureParams, TextureFilter, TextureWrap, Renderer, RETIRED_COMPONENT_TYPES, parseThemeOverrides } from 'esengine';
 import { readTextureImportSettings } from './assetImporter';
-import type { SceneData, PrefabData, ExtractEntity, ProcessedEntity, PhysicsPluginConfig, AudioProjectConfig, AssetsData, ThemeOverrides } from 'esengine';
+import type { SceneData, PrefabData, ExtractEntity, ProcessedEntity, PhysicsPluginConfig, AudioProjectConfig, AssetsData, ThemeOverrides, StaleOverride, PrefabOverride } from 'esengine';
 import { EngineHost } from '@/engine/EngineHost';
 import { applyWidgetTheme } from '@/engine/widgetTheme';
 import { bootProfiler } from '@/engine/bootProfiler';
@@ -22,6 +22,7 @@ import { setAssetRefProblemResolver } from '@/engine/EditorControlSurface';
 import { installSpineSync, type SpineTransport } from '@/engine/spineSync';
 import { SceneStore } from '@/engine/SceneStore';
 import { useSelection } from '@/store/selectionStore';
+import { usePrefabConflicts } from '@/store/prefabConflicts';
 import { Toasts } from '@/store/Toasts';
 import { confirmDiscard } from './discardGuard';
 import { confirm } from '@/components/confirm';
@@ -510,6 +511,9 @@ class ProjectStoreImpl {
     // Edit-world live theme: re-resolve ThemeStyle-tagged widgets against the
     // project's effective theme, matching what a shipped runtime boots with.
     applyWidgetTheme(this.uiTheme(), this.uiThemeOverrides());
+    // Surface any instance overrides the loader just dropped (they point at prefab
+    // structure that no longer exists) — otherwise the customization loss is silent.
+    this.detectPrefabConflicts(raw);
     // Loading a scene always leaves Prefab Mode (if it was active).
     this.prefabSession = null;
     this.store.setState({ project: { ...st, currentScene: rel, prefabEdit: null } });
@@ -557,6 +561,7 @@ class ProjectStoreImpl {
     installSpineSync(this.spineTransport());
     Reconciler.adopt(blank, blank); // no @uuid: refs → resolved === raw
     EngineHost.syncEditorViewToScene();
+    usePrefabConflicts.getState().clear();
     this.prefabSession = null;
     this.store.setState({ project: { ...st, currentScene: null, prefabEdit: null } });
   }
@@ -951,6 +956,37 @@ class ProjectStoreImpl {
    *  Installed on the scene-load + instantiate paths so a variant / nested
    *  instance resolves its base the same way in both. */
   private prefabResolverSync = (ref: string): PrefabData | null => this.prefabCache.get(ref) ?? null;
+
+  /**
+   * Scan a raw scene's prefab-instance entries for STALE overrides — ones that
+   * target an entity / component the prefab no longer has. The loader silently
+   * drops them (the customization vanishes with no trace), so record them per
+   * instance root ({@link usePrefabConflicts}) for the Inspector to surface. Only
+   * FLAT bases are checked: validateOverrides is structural, so a variant / nested
+   * base (whose inherited entities live in ITS base) would false-positive.
+   */
+  private detectPrefabConflicts(raw: SceneData): void {
+    const byInstance = new Map<number, StaleOverride[]>();
+    for (const e of raw.entities as unknown[]) {
+      const entry = e as { id?: number; prefab?: string; overrides?: PrefabOverride[] };
+      if (typeof entry.prefab !== 'string' || !entry.overrides?.length || typeof entry.id !== 'number') continue;
+      const base = this.prefabCache.get(entry.prefab);
+      if (!base || base.basePrefab || base.entities.some((be) => be.nestedPrefab)) continue;
+      const { stale } = validateOverrides(base, { instanceOverrides: entry.overrides });
+      if (stale.length > 0) byInstance.set(entry.id, stale);
+    }
+    usePrefabConflicts.getState().setAll(byInstance);
+    const total = usePrefabConflicts.getState().total;
+    if (total > 0) {
+      console.warn(
+        `[prefab] ${total} stale override(s) on ${byInstance.size} instance(s) reference prefab ` +
+        `structure that no longer exists — dropped on load. Select an affected instance to review, ` +
+        `or save to persist the cleanup.`,
+      );
+      Toasts.push(t('proj.staleOverrides', { overrides: total, instances: byInstance.size }), 'warn', 4500);
+    }
+  }
+
 
   /**
    * Instantiate a `.esprefab` (by project-relative path) into the open scene
@@ -2012,6 +2048,7 @@ class ProjectStoreImpl {
     }
     EditorHistory.clearScene();
     useSelection.getState().select(null);
+    usePrefabConflicts.getState().clear(); // a prefab document has no scene instances
     Reconciler.setAssetResolver((ref) => this.handleForRef(ref));
     Reconciler.setRefPathResolver((ref) => this.resolveRef(ref));
     Reconciler.setAssetTouchListener((ref, slot) => this.hotLoadAsset(ref, slot));
@@ -2151,6 +2188,9 @@ class ProjectStoreImpl {
     await this.writeScene(st.currentScene, await this.serializeCurrent());
     await this.persistLastScene(st.currentScene);
     EditorHistory.markSaved();
+    // The written scene is collapsed from the clean model — the stale overrides
+    // the loader dropped are gone from the file now, so the warnings can clear.
+    usePrefabConflicts.getState().clear();
     Toasts.push(t('proj.savedScene', { name: st.currentScene.split('/').pop() ?? st.currentScene }), 'success');
     void this.captureThumbnail();
   }
@@ -2161,6 +2201,7 @@ class ProjectStoreImpl {
     await this.writeScene(relPath, await this.serializeCurrent());
     await this.persistLastScene(relPath);
     EditorHistory.markSaved();
+    usePrefabConflicts.getState().clear();
     Toasts.push(t('proj.savedScene', { name: relPath.split('/').pop() ?? relPath }), 'success');
     void this.captureThumbnail();
   }

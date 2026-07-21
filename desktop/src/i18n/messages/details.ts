@@ -202,6 +202,15 @@ export const detailsMessages = defineMessages({
     'det.id': { en: 'ID', zh: 'ID' },
     'det.prefabEdit': { en: 'Edit', zh: '编辑' },
     'det.prefabEditTip': { en: 'Open this prefab in Prefab Mode', zh: '在预制体模式中打开此预制体' },
+    'det.staleOverrides': {
+        en: '{count} override(s) no longer match the prefab — dropped',
+        zh: '{count} 处覆盖已与预制体不符，已被丢弃',
+    },
+    'det.staleRepair': { en: 'Repair', zh: '修复' },
+    'det.staleRepairTip': {
+        en: 'Save the scene to remove these stale overrides from the file',
+        zh: '保存场景以从文件中移除这些失效覆盖',
+    },
     'det.prefabSelect': { en: 'Select', zh: '选择' },
     'det.prefabSelectTip': { en: 'Select the prefab asset in the Content Browser', zh: '在内容浏览器中选中该预制体资产' },
     'det.prefabApply': { en: 'Apply', zh: '应用' },
