@@ -232,13 +232,16 @@ describe('Prefab scene loading (PF1)', () => {
     });
 
     // ── extractPrefab: live subtree → a new prefab asset (the authoring path). ──
-    it('extractPrefab builds a PrefabData from a subtree (root first, string ids, detached, deep-cloned)', () => {
+    it('extractPrefab builds a PrefabData from a subtree (root first, minted ids, detached, deep-cloned)', () => {
         const subtree: ExtractEntity[] = [
             { id: 10, name: 'Turret', parent: 5 /* external scene parent */, children: [11, 12], components: [{ type: 'Transform', data: { position: { x: 3, y: 4, z: 0 } } }], visible: true },
             { id: 11, name: 'Barrel', parent: 10, children: [], components: [{ type: 'Sprite', data: {} }], visible: true },
             { id: 12, name: 'Scope', parent: 10, children: [], components: [], visible: false },
         ];
-        const prefab = extractPrefab(subtree, 10, 'Turret');
+        // Inject a deterministic id generator so the test can pin identity; the
+        // editor uses the default (crypto.randomUUID) for globally-unique ids.
+        let n = 0;
+        const prefab = extractPrefab(subtree, 10, 'Turret', () => String(n++));
 
         expect(prefab.name).toBe('Turret');
         expect(prefab.rootEntityId).toBe('0');
@@ -254,6 +257,21 @@ describe('Prefab scene loading (PF1)', () => {
         // Components are deep-cloned — mutating the source doesn't leak in.
         (subtree[0].components[0].data.position as { x: number }).x = 999;
         expect((root.components[0].data.position as { x: number }).x).toBe(3);
+    });
+
+    it('extractPrefab mints a fresh UUID per entity by default (globally-unique identity)', () => {
+        const subtree: ExtractEntity[] = [
+            { id: 10, name: 'Turret', parent: null, children: [11], components: [], visible: true },
+            { id: 11, name: 'Barrel', parent: 10, children: [], components: [], visible: true },
+        ];
+        const prefab = extractPrefab(subtree, 10, 'Turret');
+        const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        for (const e of prefab.entities) expect(e.prefabEntityId).toMatch(UUID);
+        expect(prefab.rootEntityId).toBe(prefab.entities[0].prefabEntityId);
+        // Two extractions never share an id (the old String(i) counter would).
+        const other = extractPrefab(subtree, 10, 'Turret');
+        const ids = new Set([...prefab.entities, ...other.entities].map((e) => e.prefabEntityId));
+        expect(ids.size).toBe(4);
     });
 
     it('extract → flatten round-trips: a created prefab instantiates back to the same entities', () => {

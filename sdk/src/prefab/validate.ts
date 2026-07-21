@@ -6,6 +6,7 @@ import type {
     PrefabEntityId,
     PrefabOverride,
 } from './types';
+import { PREFAB_ADDRESS_SEP } from './types';
 
 export interface StaleOverride {
     override: PrefabOverride;
@@ -25,6 +26,18 @@ export interface ValidateResult {
      * diagnostic the editor can surface before flatten.
      */
     orphanedChildren: PrefabEntityId[];
+    /**
+     * Entity ids that appear on more than one entry. Identity must be unique
+     * within a prefab or overrides/diff address the wrong target; the editor
+     * must never mint a colliding id (it uses UUIDs).
+     */
+    duplicateIds: PrefabEntityId[];
+    /**
+     * Entity ids containing the reserved address separator (`/`). Flatten
+     * composes `slot/localId` addresses with it, so an authored id must not
+     * contain it — flatten rejects these hard; this is the soft pre-check.
+     */
+    invalidIds: PrefabEntityId[];
 }
 
 /**
@@ -47,9 +60,17 @@ export function validateOverrides(
 ): ValidateResult {
     const stale: StaleOverride[] = [];
     const orphanedChildren: PrefabEntityId[] = [];
+    const duplicateIds: PrefabEntityId[] = [];
+    const invalidIds: PrefabEntityId[] = [];
 
     const byId = new Map<PrefabEntityId, PrefabEntityData>();
-    for (const e of prefab.entities) byId.set(e.prefabEntityId, e);
+    const seenIds = new Set<PrefabEntityId>();
+    for (const e of prefab.entities) {
+        if (e.prefabEntityId.includes(PREFAB_ADDRESS_SEP)) invalidIds.push(e.prefabEntityId);
+        if (seenIds.has(e.prefabEntityId)) duplicateIds.push(e.prefabEntityId);
+        else seenIds.add(e.prefabEntityId);
+        byId.set(e.prefabEntityId, e);
+    }
 
     for (const e of prefab.entities) {
         for (const childId of e.children) {
@@ -105,7 +126,7 @@ export function validateOverrides(
         }
     }
 
-    return { stale, orphanedChildren };
+    return { stale, orphanedChildren, duplicateIds, invalidIds };
 }
 
 function reasonForOverride(

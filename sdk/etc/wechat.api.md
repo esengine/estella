@@ -7416,6 +7416,8 @@ number | Vec2 | Vec3 | Vec4 | number[] | TextureRef
 
 ## ValidateResult — interface
 ```
+duplicateIds: string[]
+invalidIds: string[]
 orphanedChildren: string[]
 stale: StaleOverride[]
 ```
@@ -8059,12 +8061,12 @@ BtPlugin
 
 ## collapseEntry — function
 ```
-(prefab: PrefabData, prefabRef: string, expanded: readonly ProcessedEntity[], rootId: number, sceneParent: number | null): PrefabInstanceEntry
+(prefab: PrefabData, prefabRef: string, expanded: readonly ProcessedEntity[], rootId: number, sceneParent: number | null, loadPrefab?: SyncPrefabResolver): PrefabInstanceEntry
 ```
 
 ## collapseInstance — function
 ```
-(prefab: PrefabData, prefabRef: string, expanded: readonly ProcessedEntity[]): PrefabInstanceDelta
+(prefab: PrefabData, prefabRef: string, expanded: readonly ProcessedEntity[], loadPrefab?: SyncPrefabResolver): PrefabInstanceDelta
 ```
 
 ## collectNestedPrefabPaths — function
@@ -8419,7 +8421,7 @@ DragPlugin
 
 ## extractPrefab — function
 ```
-(entities: readonly ExtractEntity[], rootId: number, name: string): PrefabData
+(entities: readonly ExtractEntity[], rootId: number, name: string, makeId?: () => PrefabEntityId): PrefabData
 ```
 
 ## facingFromQuat — function

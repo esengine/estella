@@ -110,5 +110,9 @@ export function widgetToPrefab(build: (world: World) => Entity, name: string): P
             visible: true,
         };
     });
-    return extractPrefab(entities, root, name);
+    // Deterministic sequential ids ('0','1',…) — these prefabs are committed
+    // codegen output, so their identities must be byte-stable across runs (a
+    // UUID default would drift the generated `.esprefab` files every build).
+    let n = 0;
+    return extractPrefab(entities, root, name, () => String(n++));
 }

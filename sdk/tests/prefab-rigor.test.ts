@@ -26,9 +26,48 @@ import {
 import {
     flattenPrefab,
     bucketOverridesByEntity,
+    expandInstance,
+    collapseInstance,
 } from '../src/prefab/index';
-import type { FlattenContext } from '../src/prefab/index';
+import type { FlattenContext, PrefabInstanceDelta } from '../src/prefab/index';
 import { defineComponent } from '../src/component';
+
+// ─── Shared fixtures for hierarchical-address / structural-deletion suites ───
+
+/** A tiny 2-entity prefab: root '0' + child '1' (ids two prefabs will reuse). */
+function leafPrefab(name: string): PrefabData {
+    return {
+        version: PREFAB_FORMAT_VERSION,
+        name,
+        rootEntityId: '0',
+        entities: [
+            { prefabEntityId: '0', name: `${name}Root`, parent: null, children: ['1'], components: [{ type: 'Transform', data: { x: 0 } }], visible: true },
+            { prefabEntityId: '1', name: `${name}Child`, parent: '0', children: [], components: [], visible: true },
+        ],
+    };
+}
+
+/** An outer prefab mounting `slots` as nested-prefab children under its root. */
+function shipWithSlots(slots: Array<{ id: string; path: string }>): PrefabData {
+    return {
+        version: PREFAB_FORMAT_VERSION,
+        name: 'Ship',
+        rootEntityId: 'ship',
+        entities: [
+            { prefabEntityId: 'ship', name: 'Ship', parent: null, children: slots.map((s) => s.id), components: [], visible: true },
+            ...slots.map((s) => ({
+                prefabEntityId: s.id, name: `Slot_${s.id}`, parent: 'ship', children: [], components: [], visible: true,
+                nestedPrefab: { prefabPath: s.path, overrides: [] },
+            })),
+        ],
+    };
+}
+
+function ctxWith(prefabs: Record<string, PrefabData>): FlattenContext {
+    let n = 0;
+    return { allocateId: () => n++, loadPrefab: (p) => prefabs[p] ?? null, visited: new Set() };
+}
+const loaderFor = (prefabs: Record<string, PrefabData>) => (p: string) => prefabs[p] ?? null;
 
 function uuidPrefab(): PrefabData {
     return {
@@ -707,6 +746,154 @@ describe('diffAgainstSource — entity-ref fields', () => {
             propertyName: 'target',
             value: 'ally', // prefab-local id — survives remapComponentEntityRefs on reload
         });
+    });
+});
+
+// ─── Hierarchical addressing (nested identity, sibling repeats) ────────────
+
+describe('hierarchical addressing', () => {
+    it('mounts the SAME prefab in two sibling slots — distinct composed addresses, no throw', () => {
+        const turret = leafPrefab('Turret');
+        const ship = shipWithSlots([{ id: 'a', path: 'turret' }, { id: 'b', path: 'turret' }]);
+        const { entities } = flattenPrefab(ship, [], ctxWith({ turret }));
+        const ids = entities.map((e) => e.prefabEntityId);
+        // Each slot namespaces the turret's local ids by the slot it mounted through.
+        expect(ids).toEqual(expect.arrayContaining(['ship', 'a/0', 'a/1', 'b/0', 'b/1']));
+        // No duplicate stable ids across the whole flattened set (the old global
+        // `visited` set forbade this repeat entirely).
+        expect(new Set(ids).size).toBe(ids.length);
+    });
+
+    it('two DIFFERENT nested prefabs that both use "0"/"1" do not collide', () => {
+        const engine = leafPrefab('Engine');
+        const wing = leafPrefab('Wing');
+        const ship = shipWithSlots([{ id: 'e', path: 'engine' }, { id: 'w', path: 'wing' }]);
+        const { entities } = flattenPrefab(ship, [], ctxWith({ engine, wing }));
+        const ids = entities.map((e) => e.prefabEntityId);
+        expect(new Set(ids).size).toBe(ids.length);
+        expect(ids).toEqual(expect.arrayContaining(['e/0', 'e/1', 'w/0', 'w/1']));
+    });
+
+    it('still detects a genuine self-cycle (a prefab nesting itself)', () => {
+        const self: PrefabData = {
+            version: PREFAB_FORMAT_VERSION, name: 'Self', rootEntityId: '0',
+            entities: [
+                { prefabEntityId: '0', name: 'Root', parent: null, children: ['1'], components: [], visible: true },
+                { prefabEntityId: '1', name: 'Slot', parent: '0', children: [], components: [], visible: true, nestedPrefab: { prefabPath: 'self', overrides: [] } },
+            ],
+        };
+        expect(() => flattenPrefab(self, [], ctxWith({ self }))).toThrow(/Circular reference/);
+    });
+
+    it('rejects an authored id containing the reserved address separator', () => {
+        const bad: PrefabData = {
+            version: PREFAB_FORMAT_VERSION, name: 'Bad', rootEntityId: 'a/b',
+            entities: [{ prefabEntityId: 'a/b', name: 'X', parent: null, children: [], components: [], visible: true }],
+        };
+        expect(() => flattenPrefab(bad, [], freshCtx())).toThrow(/reserved separator/);
+    });
+});
+
+// ─── Nested-instance delta round-trip (override on a nested entity) ─────────
+
+describe('nested-instance delta', () => {
+    it('routes an override onto a nested entity and round-trips it through collapse', () => {
+        const turret = leafPrefab('Turret');
+        const ship = shipWithSlots([{ id: 'a', path: 'turret' }]);
+        const load = loaderFor({ turret });
+        const delta: PrefabInstanceDelta = {
+            prefab: '@uuid:ship',
+            overrides: [{ prefabEntityId: 'a/1', type: 'name', value: 'CustomChild' }],
+            added: [],
+            removed: [],
+        };
+        let nid = 0;
+        const { entities } = expandInstance(ship, delta, () => nid++, load);
+        // The composed-address override was routed down into the nested flatten.
+        expect(entities.find((e) => e.prefabEntityId === 'a/1')?.name).toBe('CustomChild');
+
+        const back = collapseInstance(ship, '@uuid:ship', entities, load);
+        expect(back.overrides).toContainEqual({ prefabEntityId: 'a/1', type: 'name', value: 'CustomChild' });
+        expect(back.added).toEqual([]);
+        expect(back.removed).toEqual([]);
+    });
+});
+
+// ─── Structural deletion: subtree cascade + minimal recording ──────────────
+
+describe('structural deletion', () => {
+    /** root → mid → leaf (a flat 3-generation prefab). */
+    function chainPrefab(): PrefabData {
+        return {
+            version: PREFAB_FORMAT_VERSION, name: 'Chain', rootEntityId: 'root',
+            entities: [
+                { prefabEntityId: 'root', name: 'Root', parent: null, children: ['mid'], components: [], visible: true },
+                { prefabEntityId: 'mid', name: 'Mid', parent: 'root', children: ['leaf'], components: [], visible: true },
+                { prefabEntityId: 'leaf', name: 'Leaf', parent: 'mid', children: [], components: [], visible: true },
+            ],
+        };
+    }
+
+    it('removing a parent drops its whole subtree; collapse records only the subtree root', () => {
+        const prefab = chainPrefab();
+        const delta: PrefabInstanceDelta = { prefab: '@uuid:chain', overrides: [], added: [], removed: ['mid'] };
+        let nid = 0;
+        const { entities } = expandInstance(prefab, delta, () => nid++);
+        const ids = entities.map((e) => e.prefabEntityId);
+        expect(ids).toEqual(['root']); // mid + its descendant leaf both gone
+        // Collapse: both mid and leaf are absent from the instance, but only the
+        // subtree root `mid` is recorded (leaf's parent is itself removed).
+        const back = collapseInstance(prefab, '@uuid:chain', entities);
+        expect(back.removed).toEqual(['mid']);
+    });
+
+    it('a leaf deletion still records just the leaf', () => {
+        const prefab = chainPrefab();
+        const delta: PrefabInstanceDelta = { prefab: '@uuid:chain', overrides: [], added: [], removed: ['leaf'] };
+        let nid = 0;
+        const { entities } = expandInstance(prefab, delta, () => nid++);
+        expect(entities.map((e) => e.prefabEntityId).sort()).toEqual(['mid', 'root']);
+        const back = collapseInstance(prefab, '@uuid:chain', entities);
+        expect(back.removed).toEqual(['leaf']);
+    });
+
+    it('cascades across a nested boundary (remove the nested root)', () => {
+        const turret = leafPrefab('Turret');
+        const ship = shipWithSlots([{ id: 'a', path: 'turret' }]);
+        const load = loaderFor({ turret });
+        const delta: PrefabInstanceDelta = { prefab: '@uuid:ship', overrides: [], added: [], removed: ['a/0'] };
+        let nid = 0;
+        const { entities } = expandInstance(ship, delta, () => nid++, load);
+        const ids = entities.map((e) => e.prefabEntityId);
+        expect(ids).not.toContain('a/0');
+        expect(ids).not.toContain('a/1'); // nested child cascaded away
+        expect(ids).toContain('ship');
+        const back = collapseInstance(ship, '@uuid:ship', entities, load);
+        expect(back.removed).toEqual(['a/0']);
+    });
+});
+
+// ─── validateOverrides: identity checks ────────────────────────────────────
+
+describe('validateOverrides identity', () => {
+    it('flags duplicate ids and ids containing the reserved separator', () => {
+        const prefab: PrefabData = {
+            version: PREFAB_FORMAT_VERSION, name: 'Dup', rootEntityId: 'root',
+            entities: [
+                { prefabEntityId: 'root', name: 'Root', parent: null, children: [], components: [], visible: true },
+                { prefabEntityId: 'root', name: 'Dupe', parent: null, children: [], components: [], visible: true },
+                { prefabEntityId: 'a/b', name: 'Bad', parent: null, children: [], components: [], visible: true },
+            ],
+        };
+        const { duplicateIds, invalidIds } = validateOverrides(prefab);
+        expect(duplicateIds).toEqual(['root']);
+        expect(invalidIds).toEqual(['a/b']);
+    });
+
+    it('is clean for a well-formed prefab', () => {
+        const { duplicateIds, invalidIds } = validateOverrides(uuidPrefab());
+        expect(duplicateIds).toEqual([]);
+        expect(invalidIds).toEqual([]);
     });
 });
 

@@ -27,7 +27,8 @@
  */
 
 import { flattenPrefab } from './flatten';
-import { diffAgainstSource } from './diff';
+import { diffEntities } from './diff';
+import type { DiffBaselineEntity } from './diff';
 import { cloneComponents } from './clone';
 import { getComponent } from '../component';
 import { PREFAB_FORMAT_VERSION } from './migrate';
@@ -94,7 +95,10 @@ export function expandInstance(
         loadPrefab,
     });
 
-    const removed = new Set(delta.removed);
+    // `removed` records the ROOTS of deleted subtrees; expand the transitive
+    // closure over the flattened tree so deleting a parent drops its whole
+    // subtree (no orphaned, parent-less entities survive).
+    const removed = removedClosure(entities, delta.removed);
     const kept = entities.filter((e) => !removed.has(e.prefabEntityId));
 
     // prefabEntityId → runtime id, for both kept prefab entities and added ones.
@@ -134,6 +138,36 @@ export function rebuildChildren(entities: ProcessedEntity[]): void {
 }
 
 /**
+ * The full set of stable ids to drop for a `removed` list of subtree roots:
+ * each root plus every descendant, walked over the flattened entities' parent
+ * links (in composed-address space, so it cascades through nested boundaries).
+ */
+function removedClosure(
+    entities: readonly ProcessedEntity[],
+    removedRoots: readonly PrefabEntityId[],
+): Set<PrefabEntityId> {
+    const addrById = new Map(entities.map((e) => [e.id, e.prefabEntityId]));
+    const childrenByAddr = new Map<PrefabEntityId, PrefabEntityId[]>();
+    for (const e of entities) {
+        if (e.parent == null) continue;
+        const parentAddr = addrById.get(e.parent);
+        if (parentAddr === undefined) continue;
+        const list = childrenByAddr.get(parentAddr);
+        if (list) list.push(e.prefabEntityId);
+        else childrenByAddr.set(parentAddr, [e.prefabEntityId]);
+    }
+    const closure = new Set<PrefabEntityId>();
+    const queue = [...removedRoots];
+    while (queue.length > 0) {
+        const cur = queue.shift()!;
+        if (closure.has(cur)) continue;
+        closure.add(cur);
+        for (const child of childrenByAddr.get(cur) ?? []) queue.push(child);
+    }
+    return closure;
+}
+
+/**
  * Collapse expanded instance entities back to a delta. `diffAgainstSource`
  * yields the override list + the structural buckets (`untracked` → added,
  * `orphanedSourceIds` → removed), with added parents recorded by stable id.
@@ -142,8 +176,10 @@ export function collapseInstance(
     prefab: PrefabData,
     prefabRef: string,
     expanded: readonly ProcessedEntity[],
+    loadPrefab: SyncPrefabResolver = NO_NESTED,
 ): PrefabInstanceDelta {
-    const { overrides, untracked, orphanedSourceIds } = diffAgainstSource(prefab, expanded);
+    const { entities: baseline, parentOf } = collapseBaseline(prefab, loadPrefab);
+    const { overrides, untracked, orphanedSourceIds } = diffEntities(baseline, expanded);
     const byId = new Map(expanded.map((e) => [e.id, e]));
     const added: AddedEntity[] = untracked.map((u) => ({
         prefabEntityId: u.prefabEntityId,
@@ -152,7 +188,42 @@ export function collapseInstance(
         visible: u.visible,
         parentId: u.parent != null ? (byId.get(u.parent)?.prefabEntityId ?? null) : null,
     }));
-    return { prefab: prefabRef, overrides, added, removed: orphanedSourceIds };
+    // Record only the ROOTS of removed subtrees (a deleted entity whose baseline
+    // parent is still present); expand recomputes the descendant closure.
+    const removedSet = new Set(orphanedSourceIds);
+    const removed = orphanedSourceIds.filter((id) => {
+        const p = parentOf.get(id);
+        return p == null || !removedSet.has(p);
+    });
+    return { prefab: prefabRef, overrides, added, removed };
+}
+
+/**
+ * The pristine baseline to diff a collapsed instance against, plus each baseline
+ * entity's parent (in stable-id space) for subtree-root minimisation. A FLAT
+ * prefab's own `entities` list already IS that baseline (entity refs in
+ * prefab-local id space); a nested prefab is flattened so its children exist in
+ * composed-address space — `loadPrefab` resolves the nested refs synchronously,
+ * so callers with nested prefabs must preload them.
+ */
+function collapseBaseline(
+    prefab: PrefabData,
+    loadPrefab: SyncPrefabResolver,
+): { entities: DiffBaselineEntity[]; parentOf: Map<PrefabEntityId, PrefabEntityId | null> } {
+    const hasNested = !!prefab.basePrefab || prefab.entities.some((e) => e.nestedPrefab);
+    if (!hasNested) {
+        const parentOf = new Map<PrefabEntityId, PrefabEntityId | null>();
+        for (const e of prefab.entities) parentOf.set(e.prefabEntityId, e.parent);
+        return { entities: prefab.entities, parentOf };
+    }
+    let nid = 0;
+    const flat = flattenPrefab(prefab, [], { allocateId: () => nid++, loadPrefab }).entities;
+    const addrById = new Map(flat.map((e) => [e.id, e.prefabEntityId]));
+    const parentOf = new Map<PrefabEntityId, PrefabEntityId | null>();
+    for (const e of flat) {
+        parentOf.set(e.prefabEntityId, e.parent != null ? (addrById.get(e.parent) ?? null) : null);
+    }
+    return { entities: flat, parentOf };
 }
 
 // ── Scene-entry boundary ────────────────────────────────────────────────────
@@ -195,8 +266,9 @@ export function collapseEntry(
     expanded: readonly ProcessedEntity[],
     rootId: number,
     sceneParent: number | null,
+    loadPrefab: SyncPrefabResolver = NO_NESTED,
 ): PrefabInstanceEntry {
-    return { id: rootId, parent: sceneParent, ...collapseInstance(prefab, prefabRef, expanded) };
+    return { id: rootId, parent: sceneParent, ...collapseInstance(prefab, prefabRef, expanded, loadPrefab) };
 }
 
 // ── Authoring: live entities → a new prefab asset ───────────────────────────
@@ -246,11 +318,15 @@ export function extractPrefab(
     entities: readonly ExtractEntity[],
     rootId: number,
     name: string,
+    makeId: () => PrefabEntityId = () => crypto.randomUUID(),
 ): PrefabData {
-    // Root first so it gets a deterministic id and reads first in the file.
+    // Root first so it reads first in the file. Ids are minted by `makeId`
+    // (UUIDs by default) so a newly authored prefab's entity identities are
+    // globally unique — two prefabs, or two instantiations of one, never share
+    // a `prefabEntityId` and so never collide when nested (see PREFAB_ADDRESS_SEP).
     const ordered = [...entities].sort((a, b) => (a.id === rootId ? -1 : b.id === rootId ? 1 : 0));
     const idMap = new Map<number, string>();
-    ordered.forEach((e, i) => idMap.set(e.id, String(i)));
+    ordered.forEach((e) => idMap.set(e.id, makeId()));
     const inSubtree = (sid: number | null): boolean => sid != null && idMap.has(sid);
 
     const prefabEntities: PrefabEntityData[] = ordered.map((e) => ({

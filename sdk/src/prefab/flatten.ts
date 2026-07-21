@@ -9,11 +9,17 @@ import type {
     FlattenContext,
     FlattenResult,
 } from './types';
+import { PREFAB_ADDRESS_SEP } from './types';
 import { cloneComponents, cloneMetadata } from './clone';
 import { remapComponentEntityRefs } from './entityRef';
 import { applyOverrides, bucketOverridesByEntity } from './override';
 
 const MAX_PREFAB_NESTING_DEPTH = 10;
+
+/** Prefix a nested entity's stable id with the slot it was mounted through. */
+function joinAddress(slotId: PrefabEntityId, localId: PrefabEntityId): PrefabEntityId {
+    return `${slotId}${PREFAB_ADDRESS_SEP}${localId}`;
+}
 
 export function flattenPrefab(
     prefab: PrefabData,
@@ -65,16 +71,40 @@ export function flattenPrefab(
                 );
             }
 
-            // Once a prefab path is on the chain it stays on — cheaper than
-            // tracking a per-DFS-branch stack and matches the behaviour the
-            // test suite pins. A legitimate need for sibling repeats is best
-            // expressed with distinct prefab files.
+            // Route overrides that address entities INSIDE this slot down into the
+            // nested flatten. Instance deltas target nested entities by their
+            // composed address (`slot/localId`); strip the slot prefix so they
+            // apply in the nested prefab's own id space, and layer them after the
+            // slot's authored overrides. This is what makes an instance override
+            // on a nested entity survive the collapse→expand round trip.
+            const slotPrefix = pe.prefabEntityId + PREFAB_ADDRESS_SEP;
+            const routed = overrides
+                .filter(o => o.prefabEntityId.startsWith(slotPrefix))
+                .map(o => ({ ...o, prefabEntityId: o.prefabEntityId.slice(slotPrefix.length) }));
+            const nestedOverrides = routed.length
+                ? [...pe.nestedPrefab.overrides, ...routed]
+                : pe.nestedPrefab.overrides;
+
+            // DFS ancestor stack: a path counts as "visited" only while it is an
+            // ancestor of the entity being flattened, so a genuine cycle still
+            // throws but the SAME prefab may be mounted in several sibling slots
+            // (e.g. four turrets on one ship). Pop once the branch returns.
             visited.add(nestedPath);
             const nested = flattenPrefab(
                 nestedPrefab,
-                pe.nestedPrefab.overrides,
+                nestedOverrides,
                 { ...ctx, visited, depth: depth + 1 },
             );
+            visited.delete(nestedPath);
+
+            // Namespace the nested subtree's stable ids by this slot so two
+            // instantiations of the same prefab — or two prefabs reusing the same
+            // local ids — never collide in the flattened set. Runtime `id`,
+            // component data, and entity refs are untouched; only the identity
+            // string used for diff/override/tag addressing is composed.
+            for (const ne of nested.entities) {
+                ne.prefabEntityId = joinAddress(pe.prefabEntityId, ne.prefabEntityId);
+            }
 
             idMapping.set(pe.prefabEntityId, nested.rootId);
 
@@ -169,11 +199,13 @@ function flattenVariant(
     const variantOverrides = variant.overrides ?? [];
     const combinedOverrides = [...variantOverrides, ...instanceOverrides];
 
-    return flattenPrefab(
+    const result = flattenPrefab(
         merged,
         combinedOverrides,
         { ...ctx, visited, depth: depth + 1 },
     );
+    visited.delete(basePath); // pop the ancestor stack (see nested branch)
+    return result;
 }
 
 function resolveVariantChain(
@@ -204,7 +236,9 @@ function resolveVariantChain(
     const resolvedBase = base.basePrefab
         ? resolveVariantChain(base, ctx, depth + 1, visited)
         : base;
-    return mergeVariantEntities(resolvedBase, variant);
+    const merged = mergeVariantEntities(resolvedBase, variant);
+    visited.delete(basePath); // pop after the chain is merged (DFS stack)
+    return merged;
 }
 
 function mergeVariantEntities(base: PrefabData, variant: PrefabData): PrefabData {
@@ -302,6 +336,15 @@ function validateParentChildConsistency(prefab: PrefabData): void {
     for (const e of prefab.entities) byId.set(e.prefabEntityId, e);
 
     for (const e of prefab.entities) {
+        // The address separator is reserved so flatten can compose `slot/localId`
+        // paths unambiguously — an authored id must never contain it.
+        if (e.prefabEntityId.includes(PREFAB_ADDRESS_SEP)) {
+            throw new Error(
+                `Prefab "${prefab.name}" entity id "${e.prefabEntityId}" contains the ` +
+                `reserved separator "${PREFAB_ADDRESS_SEP}". Authored prefab entity ids ` +
+                `must not contain it.`,
+            );
+        }
         if (e.parent !== null) {
             const parent = byId.get(e.parent);
             if (!parent) {

@@ -3,7 +3,6 @@
 import type {
     ComponentData,
     PrefabData,
-    PrefabEntityData,
     PrefabEntityId,
     PrefabOverride,
     ProcessedEntity,
@@ -74,16 +73,55 @@ export function diffAgainstSource(
     untracked: ProcessedEntity[];
     orphanedSourceIds: PrefabEntityId[];
 } {
-    const sourceById = new Map<PrefabEntityId, PrefabEntityData>();
-    for (const e of source.entities) sourceById.set(e.prefabEntityId, e);
+    // A flat prefab's own `entities` list IS its pristine baseline (entity-ref
+    // fields already in prefab-local id space). Nested prefabs must diff against
+    // a flattened baseline instead — {@link diffEntities} — since their children
+    // are not present in `source.entities`.
+    return diffEntities(source.entities, instance, options);
+}
+
+/** The subset of an entity {@link diffEntities} reads. `PrefabEntityData` (raw
+ *  source, string entity-refs, no `id`) and `ProcessedEntity` (flattened
+ *  baseline / instance, numeric entity-refs + `id`) both satisfy it. */
+export interface DiffBaselineEntity {
+    prefabEntityId: PrefabEntityId;
+    name: string;
+    visible: boolean;
+    components: ComponentData[];
+    metadata?: Record<string, unknown>;
+    /** Runtime id — present on flattened baselines so their entity-ref fields
+     *  normalise to stable-id space; absent on raw source entities. */
+    id?: number;
+}
+
+/**
+ * Diff an `instance` against a `baseline` (both keyed by the stable
+ * `prefabEntityId` — a composed `slot/localId` address once nesting is
+ * involved). Entity-ref component fields are normalised on BOTH sides to their
+ * own runtime-id→stable-id space, so an unchanged cross-reference diffs equal
+ * regardless of which side carries volatile runtime numbers.
+ */
+export function diffEntities(
+    baseline: readonly DiffBaselineEntity[],
+    instance: readonly ProcessedEntity[],
+    options?: DiffOptions,
+): {
+    overrides: PrefabOverride[];
+    untracked: ProcessedEntity[];
+    orphanedSourceIds: PrefabEntityId[];
+} {
+    const baselineById = new Map<PrefabEntityId, DiffBaselineEntity>();
+    for (const e of baseline) baselineById.set(e.prefabEntityId, e);
 
     const instanceByPrefabId = new Map<PrefabEntityId, ProcessedEntity>();
     for (const e of instance) instanceByPrefabId.set(e.prefabEntityId, e);
 
-    // Runtime entity id → its prefab-local id, so entity-ref fields can be diffed
-    // in the prefab's own id space instead of against volatile runtime numbers.
-    const runtimeToPrefabId = new Map<number, PrefabEntityId>();
-    for (const e of instance) runtimeToPrefabId.set(e.id, e.prefabEntityId);
+    // Each side's runtime id → its stable id, so entity-ref fields diff in
+    // stable-id space instead of against volatile runtime numbers.
+    const baseRefMap = new Map<number, PrefabEntityId>();
+    for (const e of baseline) if (e.id !== undefined) baseRefMap.set(e.id, e.prefabEntityId);
+    const instRefMap = new Map<number, PrefabEntityId>();
+    for (const e of instance) instRefMap.set(e.id, e.prefabEntityId);
 
     const ignoredMeta = new Set(options?.ignoreMetadataKeys ?? []);
     const ignoredNames = new Set(options?.ignoreEntityNames ?? []);
@@ -95,20 +133,20 @@ export function diffAgainstSource(
 
     for (const instEntity of instance) {
         if (ignoredNames.has(instEntity.name)) continue;
-        const src = sourceById.get(instEntity.prefabEntityId);
-        if (!src) {
+        const base = baselineById.get(instEntity.prefabEntityId);
+        if (!base) {
             untracked.push(instEntity);
             continue;
         }
 
-        if (instEntity.name !== src.name) {
+        if (instEntity.name !== base.name) {
             overrides.push({
                 prefabEntityId: instEntity.prefabEntityId,
                 type: 'name',
                 value: instEntity.name,
             });
         }
-        if (instEntity.visible !== src.visible) {
+        if (instEntity.visible !== base.visible) {
             overrides.push({
                 prefabEntityId: instEntity.prefabEntityId,
                 type: 'visibility',
@@ -116,11 +154,11 @@ export function diffAgainstSource(
             });
         }
 
-        diffMetadata(src.metadata, instEntity.metadata, ignoredMeta, instEntity.prefabEntityId, overrides);
-        diffComponents(src.components, instEntity.components, instEntity.prefabEntityId, eps, overrides, runtimeToPrefabId);
+        diffMetadata(base.metadata, instEntity.metadata, ignoredMeta, instEntity.prefabEntityId, overrides);
+        diffComponents(base.components, instEntity.components, instEntity.prefabEntityId, eps, overrides, baseRefMap, instRefMap);
     }
 
-    for (const [id] of sourceById) {
+    for (const [id] of baselineById) {
         if (!instanceByPrefabId.has(id)) orphanedSourceIds.push(id);
     }
 
@@ -152,27 +190,28 @@ function diffMetadata(
 }
 
 function diffComponents(
-    srcComps: readonly ComponentData[],
+    baseComps: readonly ComponentData[],
     instComps: readonly ComponentData[],
     entityId: PrefabEntityId,
     eps: number,
     out: PrefabOverride[],
-    runtimeToPrefabId: Map<number, PrefabEntityId>,
+    baseRefMap: Map<number, PrefabEntityId>,
+    instRefMap: Map<number, PrefabEntityId>,
 ): void {
-    const srcByType = new Map<string, ComponentData>();
-    for (const c of srcComps) srcByType.set(c.type, c);
+    const baseByType = new Map<string, ComponentData>();
+    for (const c of baseComps) baseByType.set(c.type, c);
     const instByType = new Map<string, ComponentData>();
     for (const c of instComps) instByType.set(c.type, c);
 
-    for (const [type, srcComp] of srcByType) {
+    for (const [type] of baseByType) {
         if (!instByType.has(type)) {
             out.push({ prefabEntityId: entityId, type: 'component_removed', componentType: type });
         }
     }
 
     for (const [type, instComp] of instByType) {
-        const srcComp = srcByType.get(type);
-        if (!srcComp) {
+        const baseComp = baseByType.get(type);
+        if (!baseComp) {
             out.push({
                 prefabEntityId: entityId,
                 type: 'component_added',
@@ -186,15 +225,18 @@ function diffComponents(
         // whole component along.
         const entityFields = new Set(getComponent(type)?.entityFields ?? []);
         const keys = new Set<string>([
-            ...Object.keys(srcComp.data),
+            ...Object.keys(baseComp.data),
             ...Object.keys(instComp.data),
         ]);
         for (const key of keys) {
-            const a = srcComp.data[key];
-            // Entity refs diff (and store) in prefab-local id space so an
-            // unchanged sibling ref isn't logged as a dangling numeric override.
+            // Entity refs diff (and store) in stable-id space so an unchanged
+            // cross-reference isn't logged as a dangling numeric override — both
+            // sides normalise through their own runtime-id→stable-id map.
+            const a = entityFields.has(key)
+                ? normalizeEntityRef(baseComp.data[key], baseRefMap)
+                : baseComp.data[key];
             const b = entityFields.has(key)
-                ? normalizeEntityRef(instComp.data[key], runtimeToPrefabId)
+                ? normalizeEntityRef(instComp.data[key], instRefMap)
                 : instComp.data[key];
             if (!deepEqual(a, b, eps)) {
                 out.push({

@@ -16,6 +16,18 @@ export interface ComponentData {
  */
 export type PrefabEntityId = string;
 
+/**
+ * Reserved separator that composes a flattened entity's HIERARCHICAL address.
+ *
+ * A nested prefab's entities are namespaced by the slot they were mounted
+ * through, so `flattenPrefab` yields `slotId/…/localId` for anything reached
+ * across a nesting boundary (top-level entities keep their bare id). This makes
+ * the stable `prefabEntityId` on a flattened `ProcessedEntity` globally unique
+ * within one instance — even when the same prefab is mounted in several sibling
+ * slots. Authored `prefabEntityId`s must not contain this character.
+ */
+export const PREFAB_ADDRESS_SEP = '/';
+
 export interface PrefabData {
     version: string;
     name: string;
