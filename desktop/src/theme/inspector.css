@@ -222,6 +222,8 @@
 .dd-trigger { width: 100%; height: 100%; display: flex; align-items: center; gap: 4px; padding: 0 4px 0 7px; background: none; border: none; color: var(--text); font-size: var(--fs-sm); cursor: pointer; min-width: 0; }
 .dd-val { flex: 1; min-width: 0; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dd-val.mixed { color: var(--text-mute); }
+/* An unbound entity-ref picker (or its "None" option) reads as empty — muted. */
+.dd-val.dd-none, .dd-opt-label.dd-none { color: var(--text-mute); font-style: italic; }
 .dd-trigger > svg { color: var(--text-mute); flex-shrink: 0; }
 .dd-trigger:hover > svg { color: var(--text-dim); }
 

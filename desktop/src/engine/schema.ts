@@ -71,6 +71,13 @@ export function componentEntityFields(def: AnyComp | undefined): readonly string
   return (def as unknown as { entityFields?: readonly string[] } | undefined)?.entityFields ?? [];
 }
 
+/** Entity-ref fields for any component — the builtin registry OR, for a project
+ *  component, its extracted schema. Drives the inspector's entity picker. */
+export function entityFieldsOf(compType: string): readonly string[] {
+  const def = componentByName(compType);
+  return def ? componentEntityFields(def) : (userSchema(compType)?.entityFields ?? []);
+}
+
 // Add-Component picker categories, in display order (the picker is grouped by
 // category). Editor-side presentation policy — the engine has no category metadata
 // today, so builtins are mapped/heuristic'd here; user/script components are
@@ -210,6 +217,8 @@ export interface UserComponentSchema {
   colorKeys: string[];
   /** Asset-ref fields (e.g. `[{field:'texture', type:'texture'}]`). */
   assetFields?: Array<{ field: string; type: string }>;
+  /** Entity-reference fields (source-id-valued) — rendered as an entity picker. */
+  entityFields?: string[];
   /** Keyframeable field paths (Sequencer tracks). */
   animatableFields?: string[];
   /** Per-field editor metadata (enum + numeric range/unit), keyed by field name. */
@@ -508,9 +517,9 @@ function fieldFor(
     // flag a perfectly-loaded asset red. 0/other stays the empty sentinel.
     const v = typeof value === 'string' ? value : typeof value === 'number' ? value : 0;
     field = { key, label: prettyLabel(key), type: 'asset', value: v, assetType: at };
-  } else if (componentEntityFields(componentByName(compType)).includes(key)) {
-    // An entity-reference field (e.g. a joint's connectedBody): a scene-entity
-    // picker, not a raw number. The value is a source id (0 / INVALID = unset).
+  } else if (entityFieldsOf(compType).includes(key)) {
+    // An entity-reference field (a joint's connectedEntity, or a project
+    // component's): a scene-entity picker, not a raw number. Value = source id.
     field = { key, label: prettyLabel(key), type: 'entity', value: typeof value === 'number' ? value : 0 };
   } else if (meta?.gradient) {
     const g = value && typeof value === 'object' && Array.isArray((value as GradientValue).stops) ? (value as GradientValue) : { stops: [] };
