@@ -1,10 +1,10 @@
 {
-    "version": "1.0",
+    "version": "2",
     "name": "EnemyBullet",
-    "rootEntityId": 0,
+    "rootEntityId": "0",
     "entities": [
         {
-            "prefabEntityId": 0,
+            "prefabEntityId": "0",
             "name": "EnemyBullet",
             "parent": null,
             "children": [],
@@ -17,7 +17,10 @@
                     "type": "Sprite",
                     "data": {
                         "texture": "@uuid:97a221a6-85bd-49e7-9af5-2880960fecda",
-                        "size": { "x": 8, "y": 30 }
+                        "size": {
+                            "x": 8,
+                            "y": 30
+                        }
                     }
                 },
                 {

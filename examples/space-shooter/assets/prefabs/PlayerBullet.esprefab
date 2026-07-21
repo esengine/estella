@@ -1,10 +1,10 @@
 {
-    "version": "1.0",
+    "version": "2",
     "name": "PlayerBullet",
-    "rootEntityId": 0,
+    "rootEntityId": "0",
     "entities": [
         {
-            "prefabEntityId": 0,
+            "prefabEntityId": "0",
             "name": "PlayerBullet",
             "parent": null,
             "children": [],
@@ -17,7 +17,10 @@
                     "type": "Sprite",
                     "data": {
                         "texture": "@uuid:c643c566-1859-460a-8029-4568951787f8",
-                        "size": { "x": 8, "y": 40 }
+                        "size": {
+                            "x": 8,
+                            "y": 40
+                        }
                     }
                 },
                 {

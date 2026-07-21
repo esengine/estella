@@ -1,10 +1,10 @@
 {
-    "version": "1.0",
+    "version": "2",
     "name": "EnemyB",
-    "rootEntityId": 0,
+    "rootEntityId": "0",
     "entities": [
         {
-            "prefabEntityId": 0,
+            "prefabEntityId": "0",
             "name": "EnemyB",
             "parent": null,
             "children": [],
@@ -17,7 +17,10 @@
                     "type": "Sprite",
                     "data": {
                         "texture": "@uuid:d429cf7d-d52c-42eb-823e-9b775b6249b6",
-                        "size": { "x": 58, "y": 47 }
+                        "size": {
+                            "x": 58,
+                            "y": 47
+                        }
                     }
                 },
                 {

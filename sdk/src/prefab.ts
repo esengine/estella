@@ -3,7 +3,7 @@
 import type { World } from './world';
 import type { Entity } from './types';
 import type { Assets } from './asset/Assets';
-import { loadSceneWithAssets, type SceneData } from './scene';
+import { loadSceneWithAssets, SCENE_FORMAT_VERSION, type SceneData } from './scene';
 import {
     flattenPrefab,
     preloadNestedPrefabs,
@@ -88,7 +88,9 @@ export async function instantiatePrefab(
     );
 
     const sceneData: SceneData = {
-        version: normalized.version,
+        // The produced value is a SCENE, so it carries the scene format version —
+        // not the prefab's format version (which `normalized` just migrated).
+        version: SCENE_FORMAT_VERSION,
         name: normalized.name,
         entities: processed.map(e => ({
             id: e.id,

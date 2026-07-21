@@ -1172,6 +1172,37 @@ class ProjectStoreImpl {
     await this.buildAssetRegistry();
   }
 
+  /**
+   * Re-save every project `.esprefab` in the current format — the bulk "Resave
+   * All Prefabs" upgrade. Each prefab is run through `migratePrefabData` (which
+   * upgrades legacy numeric ids AND a merely-stale version) and only rewritten
+   * when it actually changed. Instances re-derive from the upgraded assets on
+   * next load. Reports how many were upgraded.
+   */
+  async resaveAllPrefabs(): Promise<void> {
+    const paths = [...this.pathToUuid.keys()].filter((p) => p.endsWith('.esprefab'));
+    if (paths.length === 0) {
+      Toasts.push(t('proj.resaveNone'), 'info');
+      return;
+    }
+    let upgraded = 0;
+    let failed = 0;
+    for (const path of paths) {
+      try {
+        const { data, migrated } = migratePrefabData(JSON.parse(await window.estella.fs.read(path)));
+        if (!migrated) continue;
+        await window.estella.fs.write(path, JSON.stringify(data, null, 2) + '\n');
+        upgraded++;
+      } catch (err) {
+        console.warn('[project] resave prefab failed', path, err);
+        failed++;
+      }
+    }
+    this.prefabCache.clear(); // rewritten assets must reload fresh
+    if (failed > 0) Toasts.push(t('proj.resaveFailed', { upgraded, failed }), 'error');
+    else Toasts.push(t('proj.resaveDone', { count: upgraded }), 'success');
+  }
+
   /** A tracked asset's portable `@uuid:` ref for a project-relative path (Copy
    *  Reference), or null if the path isn't an indexed asset. */
   assetRef(path: string): string | null {

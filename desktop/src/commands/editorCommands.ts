@@ -394,3 +394,12 @@ commands.register({
       .then(() => Toasts.push(t('toast.builtScripts'), 'success'))
       .catch(() => Toasts.push(t('toast.buildFailed'), 'error')),
 });
+
+// — Assets —
+commands.register({
+  id: 'project.resavePrefabs',
+  label: t('cmd.project.resavePrefabs'),
+  category: t('cat.file'),
+  isEnabled: () => !!ProjectStore.getSnapshot(),
+  run: () => void ProjectStore.resaveAllPrefabs(),
+});

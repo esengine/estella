@@ -41,7 +41,10 @@ export function migratePrefabData(raw: unknown): MigrationResult {
     }
 
     const fromVersion = typeof obj['version'] === 'string' ? obj['version'] : '1.0';
-    const isLegacy = needsMigration(obj);
+    // Upgrade when ids are legacy-numeric OR the declared version is simply stale
+    // (a file authored as an old version but already string-id'd must still bump
+    // to current, so "re-save" truly lands on the latest format).
+    const isLegacy = needsMigration(obj) || fromVersion !== PREFAB_FORMAT_VERSION;
 
     if (!isLegacy) {
         return {

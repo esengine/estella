@@ -159,6 +159,21 @@ describe('migratePrefabData', () => {
         expect(data).toBe(current);
     });
 
+    it('upgrades a stale-version file even when its ids are already strings', () => {
+        const staleButStringIds = {
+            version: '1.0',
+            name: 'Stale',
+            rootEntityId: '0',
+            entities: [{ prefabEntityId: '0', name: 'R', parent: null, children: [], components: [], visible: true }],
+        };
+        const { data, migrated, toVersion } = migratePrefabData(staleButStringIds);
+        expect(migrated).toBe(true);
+        expect(toVersion).toBe(PREFAB_FORMAT_VERSION);
+        expect(data.version).toBe(PREFAB_FORMAT_VERSION);
+        expect(data.rootEntityId).toBe('0'); // string ids preserved, not re-numbered
+        expect(data.entities[0].prefabEntityId).toBe('0');
+    });
+
     it('round-trips through JSON without drift', () => {
         const original = uuidPrefab();
         const serialized = JSON.stringify(original);

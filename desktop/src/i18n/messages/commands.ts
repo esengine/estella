@@ -17,6 +17,7 @@ export const commandMessages = defineMessages({
     'cmd.project.saveAs': { en: 'Save Scene As…', zh: '场景另存为…' },
     'cmd.project.export': { en: 'Build…', zh: '构建…' },
     'cmd.project.close': { en: 'Close Project', zh: '关闭项目' },
+    'cmd.project.resavePrefabs': { en: 'Resave All Prefabs', zh: '重新保存所有预制体' },
 
     // — Edit / history —
     'cmd.edit.undo': { en: 'Undo', zh: '撤销' },
