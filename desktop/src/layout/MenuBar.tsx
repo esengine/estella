@@ -248,7 +248,13 @@ export function MenuBar() {
       {project ? (
         <div className="menubar-title">
           <strong>{project.name}</strong>
-          {project.currentScene ? (
+          {project.prefabEdit ? (
+            <>
+              <span className="sep">/</span>
+              <span className="mono">{project.prefabEdit.name}</span>
+              <span className="prefab-crumb-tag">{t('proj.prefabBadge')}</span>
+            </>
+          ) : project.currentScene ? (
             <>
               <span className="sep">/</span>
               <span className="mono">{project.currentScene.split('/').pop()}</span>

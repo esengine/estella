@@ -9,6 +9,7 @@ import { applyWidgetTheme } from '@/engine/widgetTheme';
 import { bootProfiler } from '@/engine/bootProfiler';
 import { SceneModel } from '@/engine/SceneModel';
 import { Reconciler } from '@/engine/Reconciler';
+import { ViewportController } from '@/engine/ViewportController';
 import { blankInputMap } from './inputMapDoc';
 import { EditorHistory } from '@/engine/EditorHistory';
 import { expandScenePrefabs, collapseScenePrefabs } from '@/engine/PrefabInstance';
@@ -142,8 +143,9 @@ interface ProjectState {
   /** The scene currently loaded into the world (project-relative path). */
   currentScene: string | null;
   /** When editing a PREFAB asset in place (Prefab Mode) rather than a scene:
-   *  the prefab's display name + path, for the banner. `currentScene` is null. */
-  prefabEdit?: { name: string; path: string } | null;
+   *  the prefab's display name + path, plus the leaf name of the scene "Back to
+   *  Scene" returns to (for the banner breadcrumb). `currentScene` is null. */
+  prefabEdit?: { name: string; path: string; returnScene: string | null } | null;
 }
 
 /**
@@ -215,6 +217,9 @@ class ProjectStoreImpl {
     rootSource: number;
     idBySource: Map<number, string>;
     returnScene: string | null;
+    /** Editor camera at enter, restored on exit so "Back to Scene" returns the
+     *  user to the exact view they left instead of reframing to the scene camera. */
+    returnView: { x: number; y: number; orthoSize: number } | null;
   } | null = null;
   /** Cold refs already handed to a live load this registry generation — the touch
    *  listener fires on every projection of a still-cold ref, so without this a
@@ -1777,12 +1782,14 @@ class ProjectStoreImpl {
    * Open a different scene file as the editor document (Content Browser
    * double-click). Persists it as the last-opened scene and reloads the world
    * (which clears history + selection — the caller guards unsaved changes).
+   * `quiet` suppresses the "Opened" toast so a caller that owns its own feedback
+   * (exitPrefabMode's "Returned to …") isn't double-noted.
    */
-  async openScene(relPath: string): Promise<void> {
+  async openScene(relPath: string, opts?: { quiet?: boolean }): Promise<void> {
     if (!this.state) return;
     await this.persistLastScene(relPath);
     await this.loadCurrentScene();
-    Toasts.push(t('proj.openedScene', { name: relPath.split('/').pop() ?? relPath }), 'info', 1600);
+    if (!opts?.quiet) Toasts.push(t('proj.openedScene', { name: relPath.split('/').pop() ?? relPath }), 'info', 1600);
   }
 
   /**
@@ -1810,6 +1817,12 @@ class ProjectStoreImpl {
       return;
     }
 
+    // The scene to return to + the view to restore on exit. Opening a prefab
+    // from WITHIN Prefab Mode keeps the ORIGINAL home scene/view (an existing
+    // session's — its currentScene is null), so "Back" always lands in the scene.
+    const returnScene = this.prefabSession?.returnScene ?? st.currentScene;
+    const returnView = this.prefabSession?.returnView ?? EngineHost.editorViewState();
+
     // Flatten the asset into ordinary entities; remember each entity's stable id.
     let nid = 0;
     const { entities, rootId } = flattenPrefab(prefab, [], { allocateId: () => nid++, loadPrefab: () => null });
@@ -1824,8 +1837,15 @@ class ProjectStoreImpl {
     } as unknown as SceneData;
 
     await this.adoptDocument(sceneData);
-    this.prefabSession = { ref, path, name: prefab.name, rootSource: rootId, idBySource, returnScene: st.currentScene };
-    this.store.setState({ project: { ...st, currentScene: null, prefabEdit: { name: prefab.name, path } } });
+    // A prefab carries no camera, so syncEditorViewToScene left the scene's view —
+    // the prefab could sit off-screen if the user had panned away. Frame its
+    // content so it's centered and readable on enter (matches Godot/Unity).
+    // frameSelection skips entities without visual bounds and no-ops if none have.
+    const world = EngineHost.world;
+    if (world) ViewportController.frameSelection([...world.getAllEntities()]);
+    const returnLeaf = returnScene ? (returnScene.split('/').pop() ?? returnScene) : null;
+    this.prefabSession = { ref, path, name: prefab.name, rootSource: rootId, idBySource, returnScene, returnView };
+    this.store.setState({ project: { ...st, currentScene: null, prefabEdit: { name: prefab.name, path, returnScene: returnLeaf } } });
     Toasts.push(t('proj.openedPrefab', { name: prefab.name }), 'info', 1600);
   }
 
@@ -1884,16 +1904,24 @@ class ProjectStoreImpl {
     Toasts.push(t('proj.savedPrefab', { name: pe.name }), 'success');
   }
 
-  /** Leave Prefab Mode and return to the scene that was open (or a blank one). */
+  /** Leave Prefab Mode and return to the scene that was open (or a blank one),
+   *  restoring the editor view the user left it at. */
   async exitPrefabMode(): Promise<void> {
     if (!this.prefabSession) return;
     if (!(await confirmDiscard(t('discard.exitPrefab')))) return;
-    const back = this.prefabSession.returnScene;
+    const { returnScene: back, returnView } = this.prefabSession;
     this.prefabSession = null;
     const st = this.state;
     if (st) this.store.setState({ project: { ...st, prefabEdit: null } });
-    if (back) await this.openScene(back);
-    else await this.newScene();
+    if (back) {
+      await this.openScene(back, { quiet: true });
+      // Reframe to where the user was before entering (openScene reseeds the view
+      // from the scene camera; this puts their pan/zoom back).
+      if (returnView) EngineHost.setEditorView(returnView);
+      Toasts.push(t('proj.returnedScene', { name: back.split('/').pop() ?? back }), 'info', 1600);
+    } else {
+      await this.newScene();
+    }
   }
 
   /** True if the changed paths include the open scene document. */

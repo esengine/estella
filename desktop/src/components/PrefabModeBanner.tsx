@@ -16,6 +16,7 @@ export function PrefabModeBanner() {
   const project = useSyncExternalStore(ProjectStore.subscribe, ProjectStore.getSnapshot);
   const pe = project?.prefabEdit;
   if (!pe) return null;
+  const back = pe.returnScene ? t('proj.prefabModeBackTo', { name: pe.returnScene }) : t('proj.prefabModeBack');
   return (
     <div className="prefab-mode-bar">
       <span className="pmb-icon"><Package size={14} strokeWidth={1.9} /></span>
@@ -26,7 +27,7 @@ export function PrefabModeBanner() {
           <Save size={13} strokeWidth={1.9} /> {t('proj.prefabModeSave')}
         </Button>
         <Button onClick={() => void ProjectStore.exitPrefabMode()}>
-          <ArrowLeft size={13} strokeWidth={1.9} /> {t('proj.prefabModeBack')}
+          <ArrowLeft size={13} strokeWidth={1.9} /> {back}
         </Button>
       </span>
     </div>

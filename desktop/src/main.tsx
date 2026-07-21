@@ -172,6 +172,8 @@ if (new URLSearchParams(location.search).has('automation')) {
     logs: (tail = 50) => LogStore.getSnapshot().slice(-tail),
     togglePerfOverlay: () => PerfMonitor.toggleOverlay(),
     captureThumbnail: () => ProjectStore.captureThumbnail(),
+    /** The editor camera center + zoom (framing assertions in shot tests). */
+    editorView: () => EngineHost.editorViewState(),
     surface: EditorControlSurface,
     /** Live world position of a SOURCE entity (engine-composed, Yoga-fresh for
      *  UI nodes) — lets a drag-automation shot assert a move stuck or was

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { useEffect } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import { MenuBar } from '@/layout/MenuBar';
 import { Toolbar } from '@/layout/Toolbar';
 import { StatusBar } from '@/layout/StatusBar';
@@ -246,6 +246,9 @@ export function App() {
     return () => { cancelled = true; clearTimeout(safety); LoadGate.close(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showLauncher]);
+  // Prefab Mode tints the whole workspace so it's unmistakable you're editing a
+  // prefab asset, not the scene (the banner names it; this frames the viewport).
+  const inPrefabMode = useSyncExternalStore(ProjectStore.subscribe, () => !!ProjectStore.getSnapshot()?.prefabEdit);
   const buildOpen = useEditorStore((s) => s.buildOpen);
   const settingsOpen = useEditorStore((s) => s.settingsOpen);
   const tilemapPickerOpen = useEditorStore((s) => s.tilemapPickerOpen);
@@ -256,7 +259,7 @@ export function App() {
   // the StatusBar consuming live engine data every 333ms) shows a recoverable
   // card instead of white-screening the whole editor.
   return (
-    <div className="shell">
+    <div className={inPrefabMode ? 'shell shell--prefab' : 'shell'}>
       <ErrorBoundary label="menubar"><Perf id="menubar"><MenuBar /></Perf></ErrorBoundary>
       <ErrorBoundary label="toolbar"><Perf id="toolbar"><Toolbar /></Perf></ErrorBoundary>
       <ErrorBoundary label="prefab-banner"><PrefabModeBanner /></ErrorBoundary>

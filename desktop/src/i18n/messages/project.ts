@@ -122,7 +122,9 @@ export const projectMessages = defineMessages({
     'proj.prefabModeNested': { en: 'Nested / variant prefabs can\'t be edited in place yet', zh: '暂不支持原位编辑嵌套 / 变体预制体' },
     'proj.prefabModeBanner': { en: 'Editing Prefab', zh: '正在编辑预制体' },
     'proj.prefabModeBack': { en: 'Back to Scene', zh: '返回场景' },
+    'proj.prefabModeBackTo': { en: 'Back to {name}', zh: '返回 {name}' },
     'proj.prefabModeSave': { en: 'Save Prefab', zh: '保存预制体' },
+    'proj.prefabBadge': { en: 'Prefab', zh: '预制体' },
     'proj.resaveNone': { en: 'No prefabs to re-save', zh: '没有可重新保存的预制体' },
     'proj.resaveDone': { en: 'Re-saved {count} prefab(s) to the current format', zh: '已将 {count} 个预制体重新保存为当前格式' },
     'proj.resaveFailed': { en: 'Re-saved {upgraded}, {failed} failed', zh: '已重新保存 {upgraded} 个，{failed} 个失败' },
@@ -141,6 +143,7 @@ export const projectMessages = defineMessages({
     'proj.includedInExport': { en: 'Included in export: {name}', zh: '已包含在导出中：{name}' },
     'proj.saveExclusionFailed': { en: 'Failed to save export exclusion', zh: '保存导出排除项失败' },
     'proj.openedScene': { en: 'Opened {name}', zh: '已打开 {name}' },
+    'proj.returnedScene': { en: 'Returned to {name}', zh: '已返回 {name}' },
     'proj.savedScene': { en: 'Saved {name}', zh: '已保存 {name}' },
 
     // — Play realm (Game panel overlay fallbacks) —

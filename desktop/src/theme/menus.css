@@ -172,6 +172,22 @@
 .prefab-mode-bar .pmb-name { font-weight: 600; color: var(--info-warm); }
 .prefab-mode-bar .pmb-actions { margin-left: auto; display: flex; gap: 6px; }
 
+/* Title-bar crumb tag: a small "Prefab" chip next to the prefab name so the
+   window title reads as a prefab document, not an unnamed scene. */
+.menubar-title .prefab-crumb-tag {
+  font-size: var(--fs-2xs); font-weight: 600; letter-spacing: 0.02em;
+  color: var(--info-warm); background: var(--info-warm-soft);
+  border: 1px solid var(--info-warm-line); border-radius: 4px;
+  padding: 0 5px; line-height: 15px;
+}
+
+/* Prefab Mode frames the workspace in the same warm accent as the banner, so the
+   viewport itself reads as "editing a prefab" at a glance. Inset so it never
+   overlaps panel scrollbars. */
+.shell--prefab .shell__workspace {
+  box-shadow: inset 0 0 0 1px var(--info-warm-line);
+}
+
 /* ── New Tilemap tileset chooser ── */
 .tmpick { display: flex; flex-direction: column; gap: 10px; }
 .tmpick__hint { font-size: var(--fs-sm); color: var(--text-mute); }

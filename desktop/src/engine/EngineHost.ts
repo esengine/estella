@@ -301,6 +301,24 @@ class EngineHostImpl {
     view.active = !this.playing_;
   }
 
+  /** The editor camera's current center + ortho half-height, or null pre-boot.
+   *  Prefab Mode saves this on enter so exit can return the user to the exact
+   *  scene view they left (syncEditorViewToScene would otherwise reframe). */
+  editorViewState(): { x: number; y: number; orthoSize: number } | null {
+    const view = this.getResource(EditorView);
+    return view ? { x: view.x, y: view.y, orthoSize: view.orthoSize } : null;
+  }
+
+  /** Restore the editor camera to a saved center + zoom (the inverse read of
+   *  {@link editorViewState}). No-op pre-boot. */
+  setEditorView(v: { x: number; y: number; orthoSize: number }): void {
+    const view = this.getResource(EditorView);
+    if (!view) return;
+    view.x = v.x;
+    view.y = v.y;
+    view.orthoSize = v.orthoSize;
+  }
+
   /**
    * Drive the editor reference grid from the editor's Show-Flags + Snap state.
    * The renderer only paints when the EditorView is active (edit mode), so this
