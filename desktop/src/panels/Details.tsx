@@ -2833,6 +2833,11 @@ function EditorDetails() {
     return out;
   }, [components, query]);
 
+  // An explicit sub-object inspection source (a keyframe, a track…) overrides the
+  // entity/asset inspector; a non-override source is the fallback further below.
+  if (inspectSource?.override) {
+    return <SourceInspector source={inspectSource} />;
+  }
   // Unified inspector: an asset selection (mutually exclusive with entities)
   // renders the asset view in this same panel.
   if (selectedAsset) {

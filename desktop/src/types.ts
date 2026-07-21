@@ -163,6 +163,12 @@ export interface InspectSource {
   getRevision: () => number;
   build: () => InspectorComponent[];
   write: (key: string, type: InspectorFieldType, value: number | boolean | string | number[] | GradientValue | CurveValue | DimensionValue) => void;
+  /**
+   * When true this is an explicit sub-object selection (a keyframe, a track) and
+   * OVERRIDES the entity/asset inspector. Default (false) is a fallback — shown
+   * only when nothing else is selected (an open document's clip-level settings).
+   */
+  override?: boolean;
 }
 
 export type AssetType =

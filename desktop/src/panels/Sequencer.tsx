@@ -23,6 +23,7 @@ import { TimelineDocument } from '@/timeline/TimelineDocument';
 import { createAnimationClip } from '@/timeline/openClip';
 import { TimelineCommands } from '@/timeline/TimelineCommands';
 import { buildTimelineComponents, makeTimelineWrite } from '@/timeline/timelineInspectorModel';
+import { buildKeyframeComponents, makeKeyframeWrite, keyframeExists } from '@/timeline/keyframeInspectorModel';
 import { useSequencerStore } from '@/store/sequencerStore';
 import { useSelection } from '@/store/selectionStore';
 import { SceneModel } from '@/engine/SceneModel';
@@ -109,15 +110,27 @@ export function Sequencer() {
   // Re-read the document on every revision bump (open / edit / close).
   useSyncExternalStore(TimelineDocument.subscribe, TimelineDocument.getRevision);
   const asset = TimelineDocument.asset;
+  const selectedKey = useSequencerStore((s) => s.selectedKey);
 
-  // Push the open timeline's clip settings (duration / fps / wrap) into the ONE
-  // shared Details inspector via the generic inspection-source channel — a
-  // fallback, so an entity/asset selection still wins. Cleared on close/unmount.
+  // Feed the shared Details inspector via the generic inspection-source channel:
+  // a SELECTED KEYFRAME (value/interp) overrides the entity inspector; otherwise
+  // the open timeline's clip settings (duration/fps/wrap) show as a fallback (so
+  // an entity/asset selection still wins). Cleared on close / unmount.
   const timelineOpen = !!asset;
   const timelinePath = TimelineDocument.meta.filePath;
+  const keyframeSel = timelineOpen && selectedKey && keyframeExists(asset, selectedKey) ? selectedKey : null;
   useEffect(() => {
     const sel = useSelection.getState();
-    if (timelineOpen) {
+    if (keyframeSel) {
+      sel.setInspectSource({
+        title: t('seq.insp.keyframe'),
+        override: true,
+        subscribe: TimelineDocument.subscribe,
+        getRevision: TimelineDocument.getRevision,
+        build: () => buildKeyframeComponents(TimelineDocument.asset!, keyframeSel),
+        write: makeKeyframeWrite(keyframeSel),
+      });
+    } else if (timelineOpen) {
       sel.setInspectSource({
         title: timelinePath?.split('/').pop() ?? t('seq.timelineClip'),
         subscribe: TimelineDocument.subscribe,
@@ -129,7 +142,7 @@ export function Sequencer() {
       sel.setInspectSource(null);
     }
     return () => { useSelection.getState().setInspectSource(null); };
-  }, [timelineOpen, timelinePath]);
+  }, [timelineOpen, timelinePath, keyframeSel]);
 
   if (!asset) return <div className="seq"><EmptyState /></div>;
 
