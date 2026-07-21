@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import {
     Animator,
     AnimatorControllerAPI,
+    registerAnimatorController,
+    getRegisteredAnimatorController,
+    clearAnimatorControllerStore,
     evaluateAnimatorTransitions,
     resolveParams,
     selectBlendClip,
@@ -12,6 +15,8 @@ import {
     type AnimatorData,
 } from '../src/animation/Animator';
 import { SpriteAnimator, type SpriteAnimatorData } from '../src/animation/SpriteAnimator';
+import { AnimatorControllerAssetLoader } from '../src/asset/loaders/AnimatorControllerAssetLoader';
+import type { LoadContext } from '../src/asset/AssetLoader';
 
 function heroController(): AnimatorControllerDef {
     return {
@@ -359,5 +364,71 @@ describe('AnimatorControllerAPI.update', () => {
 
         ctrl.setFloat(E, 'speed', 1); ctrl.update(world);
         expect((world.get(E, SpriteAnimator) as SpriteAnimatorData).clip).toBe('idle');
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Runtime load-by-path: the .esanimator loader + global store + API fallback.
+// Closes the gap where a controller was editable but a Play-time Animator whose
+// `controller` is an asset path resolved to nothing and silently did nothing.
+// ---------------------------------------------------------------------------
+
+describe('AnimatorController runtime load-by-path', () => {
+    const E = 1;
+    const PATH = 'assets/animations/player.esanimator';
+
+    beforeEach(() => clearAnimatorControllerStore());
+
+    it('the global store round-trips and clears', () => {
+        expect(getRegisteredAnimatorController(PATH)).toBeUndefined();
+        registerAnimatorController(PATH, heroController());
+        expect(getRegisteredAnimatorController(PATH)?.initialState).toBe('idle');
+        clearAnimatorControllerStore();
+        expect(getRegisteredAnimatorController(PATH)).toBeUndefined();
+    });
+
+    it('getController falls back to the path store when the name is not code-registered', () => {
+        const ctrl = new AnimatorControllerAPI();
+        expect(ctrl.getController(PATH)).toBeUndefined();
+        registerAnimatorController(PATH, heroController());
+        expect(ctrl.getController(PATH)?.initialState).toBe('idle');
+    });
+
+    it('update() drives an Animator whose controller is ONLY in the path store', () => {
+        const ctrl = new AnimatorControllerAPI(); // nothing registered by name
+        registerAnimatorController(PATH, heroController());
+        const world = makeWorld();
+        world.insert(E, Animator, { controller: PATH, currentState: '', enabled: true } as AnimatorData);
+        world.insert(E, SpriteAnimator, spriteData());
+
+        ctrl.update(world); // seeds from the path-loaded controller
+        expect((world.get(E, Animator) as AnimatorData).currentState).toBe('idle');
+        expect((world.get(E, SpriteAnimator) as SpriteAnimatorData).clip).toBe('idle_clip');
+
+        ctrl.setFloat(E, 'speed', 5); ctrl.update(world);
+        expect((world.get(E, SpriteAnimator) as SpriteAnimatorData).clip).toBe('run_clip');
+    });
+
+    it('a code-registered name wins over a path store entry of the same key', () => {
+        const ctrl = new AnimatorControllerAPI();
+        ctrl.registerController(PATH, { ...heroController(), initialState: 'run' });
+        registerAnimatorController(PATH, heroController()); // initialState 'idle'
+        expect(ctrl.getController(PATH)?.initialState).toBe('run'); // code path wins
+    });
+
+    it('the .esanimator loader parses the payload and registers it under its path', async () => {
+        const loader = new AnimatorControllerAssetLoader();
+        expect(loader.type).toBe('animatorcontroller');
+        expect(loader.extensions).toEqual(['.esanimator']);
+
+        const payload = JSON.stringify(heroController());
+        const ctx = {
+            catalog: { getBuildPath: (p: string) => p },
+            loadText: async () => payload,
+        } as unknown as LoadContext;
+
+        const result = await loader.load(PATH, ctx);
+        expect(result.controllerId).toBe(PATH);
+        expect(getRegisteredAnimatorController(PATH)?.initialState).toBe('idle');
     });
 });

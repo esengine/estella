@@ -1,13 +1,46 @@
 {
   "parameters": [
-    { "name": "Speed", "type": "float" },
-    { "name": "Jump", "type": "trigger" }
-  ],
-  "states": [
-    { "name": "Idle", "x": 120, "y": 130, "clip": "assets/animations/idle.esanim", "loop": true, "transitions": [ { "to": "Run", "conditions": [ { "param": "Speed", "op": "gt", "value": 0.1 } ] } ] },
-    { "name": "Run", "x": 380, "y": 130, "clip": "assets/animations/walk.esanim", "loop": true, "transitions": [ { "to": "Idle", "conditions": [ { "param": "Speed", "op": "lt", "value": 0.1 } ] } ] },
-    { "name": "Jump", "x": 250, "y": 320, "transitions": [ { "to": "Idle", "hasExitTime": true, "conditions": [] } ] }
+    { "name": "speed", "type": "float", "default": 0 },
+    { "name": "hop", "type": "trigger" }
   ],
   "initialState": "Idle",
-  "anyStateTransitions": [ { "to": "Jump", "conditions": [ { "param": "Jump", "op": "trigger" } ] } ]
+  "states": [
+    {
+      "name": "Idle",
+      "x": 140,
+      "y": 140,
+      "clip": "assets/animations/idle.esanim",
+      "loop": true,
+      "transitions": [
+        { "to": "Move", "conditions": [ { "param": "speed", "op": "gt", "value": 20 } ] },
+        { "to": "Hop", "conditions": [ { "param": "hop", "op": "trigger" } ] }
+      ]
+    },
+    {
+      "name": "Move",
+      "x": 420,
+      "y": 140,
+      "blend": {
+        "parameter": "speed",
+        "thresholds": [
+          { "value": 0, "clip": "assets/animations/walk.esanim", "speed": 1.0 },
+          { "value": 150, "clip": "assets/animations/walk.esanim", "speed": 1.9 }
+        ]
+      },
+      "transitions": [
+        { "to": "Idle", "conditions": [ { "param": "speed", "op": "lt", "value": 15 } ] },
+        { "to": "Hop", "conditions": [ { "param": "hop", "op": "trigger" } ] }
+      ]
+    },
+    {
+      "name": "Hop",
+      "x": 280,
+      "y": 340,
+      "clip": "hop",
+      "loop": false,
+      "transitions": [
+        { "to": "Idle", "hasExitTime": true, "conditions": [] }
+      ]
+    }
+  ]
 }

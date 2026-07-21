@@ -850,6 +850,8 @@ class ProjectStoreImpl {
         return assets.loadStateMachine(path);
       case 'behaviortree':
         return assets.loadBehaviorTree(path);
+      case 'animatorcontroller':
+        return assets.loadAnimatorController(path);
       default:
         return Promise.reject(new Error(`no live loader for asset slot type "${fieldType}"`));
     }

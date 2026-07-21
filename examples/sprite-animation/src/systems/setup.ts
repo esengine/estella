@@ -1,64 +1,18 @@
 import {
     defineSystem, Res,
-    AnimatorController, AnimatorControllerAPI, type AnimatorControllerDef,
     SpriteAnimation, SpriteAnimationAPI,
 } from 'esengine';
-import {
-    CLIP_IDLE, CLIP_WALK, CLIP_HOP, CONTROLLER,
-    MOVE_ENTER, MOVE_EXIT, RUN_BLEND_AT,
-} from '../config';
+import { CLIP_IDLE, CLIP_WALK, CLIP_HOP } from '../config';
 import { footsteps } from '../components';
 
-// The character's state machine (Unity Animator model): a float `speed`
-// parameter drives Idle↔Move, Move is a 1D blend that re-selects its clip as
-// `speed` crosses a threshold (same walk clip, faster playback = run), and a
-// `hop` trigger fires a non-looping clip whose end (exit time) auto-returns
-// to Idle. The scene's Animator component references this by name.
-const alienController: AnimatorControllerDef = {
-    parameters: [
-        { name: 'speed', type: 'float', default: 0 },
-        { name: 'hop', type: 'trigger' },
-    ],
-    initialState: 'Idle',
-    states: [
-        {
-            name: 'Idle',
-            clip: CLIP_IDLE,
-            transitions: [
-                { to: 'Move', conditions: [{ param: 'speed', op: 'gt', value: MOVE_ENTER }] },
-                { to: 'Hop', conditions: [{ param: 'hop', op: 'trigger' }] },
-            ],
-        },
-        {
-            name: 'Move',
-            blend: {
-                parameter: 'speed',
-                thresholds: [
-                    { value: 0, clip: CLIP_WALK, speed: 1.0 },
-                    { value: RUN_BLEND_AT, clip: CLIP_WALK, speed: 1.9 },
-                ],
-            },
-            transitions: [
-                { to: 'Idle', conditions: [{ param: 'speed', op: 'lt', value: MOVE_EXIT }] },
-                { to: 'Hop', conditions: [{ param: 'hop', op: 'trigger' }] },
-            ],
-        },
-        {
-            name: 'Hop',
-            clip: CLIP_HOP,
-            loop: false,
-            // No conditions + exit time = advance when the clip finishes.
-            transitions: [{ to: 'Idle', conditions: [], hasExitTime: true }],
-        },
-    ],
-};
-
-// One-time wiring that needs no assets: the controller (pure data) and the
-// footstep listener (inert until events are attached below).
+// The character's state machine (Idle↔Move 1D blend + a `hop` trigger) is
+// authored in the editor and lives on disk as `player.esanimator`; the scene's
+// Animator references it BY PATH, and the runtime asset loader registers it
+// before the first tick — so there is no code-registered controller here. This
+// system only wires the footstep listener (inert until events attach below).
 export const setupSystem = defineSystem(
-    [Res(AnimatorController), Res(SpriteAnimation)],
-    (ctrl: AnimatorControllerAPI, anim: SpriteAnimationAPI) => {
-        ctrl.registerController(CONTROLLER, alienController);
+    [Res(SpriteAnimation)],
+    (anim: SpriteAnimationAPI) => {
         anim.onEventGlobal((event) => {
             if (event.name === 'footstep') footsteps.pending++;
         });

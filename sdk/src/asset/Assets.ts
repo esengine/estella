@@ -8,7 +8,7 @@ import type {
     AssetLoader, LoadContext, TextureResult, SpineResult,
     MaterialResult, FontResult, AudioResult, AnimClipResult,
     TilemapResult, TilesetResult, TimelineResult, PrefabResult,
-    LocaleResult, FsmResult, BtResult,
+    LocaleResult, FsmResult, BtResult, AnimatorControllerResult,
 } from './AssetLoader';
 import { AsyncCache } from './AsyncCache';
 import type { ESEngineModule } from '../wasm';
@@ -26,6 +26,7 @@ import { TilesetAssetLoader } from './loaders/TilesetAssetLoader';
 import { TimelineAssetLoader } from './loaders/TimelineAssetLoader';
 import { PrefabAssetLoader } from './loaders/PrefabAssetLoader';
 import { FsmAssetLoader } from './loaders/FsmAssetLoader';
+import { AnimatorControllerAssetLoader } from './loaders/AnimatorControllerAssetLoader';
 import { BtAssetLoader } from './loaders/BtAssetLoader';
 import { LocaleAssetLoader } from './loaders/LocaleAssetLoader';
 import type { SpineModuleController } from '../spine/SpineController';
@@ -370,6 +371,12 @@ export class Assets {
         return this.loadTyped('behaviortree', ref);
     }
 
+    /** Load a `.esanimator` controller into the shared animator store, keyed by
+     *  its asset path — the ref an Animator's `controller` field resolves. */
+    async loadAnimatorController(ref: string): Promise<AnimatorControllerResult> {
+        return this.loadTyped('animatorcontroller', ref);
+    }
+
     async loadPrefab(ref: string): Promise<PrefabResult> {
         return this.loadTyped('prefab', ref);
     }
@@ -711,6 +718,7 @@ export class Assets {
         const timelinePaths = discovered.byType.get('timeline') ?? new Set<string>();
         const fsmPaths = discovered.byType.get('statemachine') ?? new Set<string>();
         const btPaths = discovered.byType.get('behaviortree') ?? new Set<string>();
+        const animatorPaths = discovered.byType.get('animatorcontroller') ?? new Set<string>();
         const spinePairs = discovered.spines;
 
         const textureHandles = new Map<string, number>();
@@ -787,6 +795,7 @@ export class Assets {
         // fsm/bt is that path resolves once the scene finishes preloading.
         pushFireAndForget(fsmPaths, p => this.loadTyped('statemachine', p), 'statemachine');
         pushFireAndForget(btPaths, p => this.loadTyped('behaviortree', p), 'behaviortree');
+        pushFireAndForget(animatorPaths, p => this.loadTyped('animatorcontroller', p), 'animatorcontroller');
 
         const totalCount = tasks.length;
         onProgress?.(0, totalCount);
@@ -1176,6 +1185,7 @@ export class Assets {
         this.register(new TimelineAssetLoader());
         this.register(new PrefabAssetLoader());
         this.register(new FsmAssetLoader());
+        this.register(new AnimatorControllerAssetLoader());
         this.register(new BtAssetLoader());
         this.register(new LocaleAssetLoader());
     }

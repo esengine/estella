@@ -59,6 +59,10 @@ export interface FsmResult {
     fsmId: string;
 }
 
+export interface AnimatorControllerResult {
+    controllerId: string;
+}
+
 export interface LocaleResult {
     /** The locale the table's entries were merged into. */
     locale: string;

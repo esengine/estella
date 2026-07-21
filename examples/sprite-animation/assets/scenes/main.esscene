@@ -101,7 +101,7 @@
         {
           "type": "Animator",
           "data": {
-            "controller": "alien"
+            "controller": "assets/animations/player.esanimator"
           }
         },
         {

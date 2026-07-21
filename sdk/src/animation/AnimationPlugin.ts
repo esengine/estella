@@ -14,6 +14,8 @@ import type { ESEngineModule, CppRegistry } from '../wasm';
 import { Tween, TweenAPI } from './Tween';
 import { SpriteAnimation, SpriteAnimationAPI } from './SpriteAnimator';
 import { AnimatorController, AnimatorControllerAPI } from './Animator';
+import { Assets } from '../asset/AssetPlugin';
+import { resolveAssetKey } from '../asset/resolveAssetKey';
 import { playModeOnly } from '../env';
 import { SystemLabel } from '../systemLabels';
 
@@ -46,12 +48,19 @@ export class AnimationPlugin implements Plugin {
             { name: 'TweenSystem' }
         ), { runIf: playModeOnly });
 
+        // Resolve a `.esanimator` controller ref to the load path its loader keyed
+        // the store with (an `estella://…` URL in the play realm), matching the FSM
+        // plugin — without it, an Animator referencing a controller BY PATH resolves
+        // to nothing at runtime and silently never seeds a state.
+        const resolveKey = (ref: string): string =>
+            resolveAssetKey(app.hasResource(Assets) ? app.getResource(Assets) : null, ref);
+
         // The state machine runs before the sprite animator so a transition's
         // clip switch applies the same frame it fires.
         app.addSystemToSchedule(Schedule.Update, defineSystem(
             [Res(AnimatorController)],
             (ctrl: AnimatorControllerAPI) => {
-                ctrl.update(world);
+                ctrl.update(world, resolveKey);
             },
             { name: 'AnimatorSystem' }
         ), { runAfter: [SystemLabel.Tween], runIf: playModeOnly });

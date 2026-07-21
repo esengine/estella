@@ -18,6 +18,7 @@
 
 import { defineComponent, type ComponentDef } from '../component';
 import { defineResource } from '../resource';
+import { isUuidRef } from '../asset/AssetRegistry';
 import type { Entity } from '../types';
 import type { World } from '../world';
 import { SpriteAnimator, type SpriteAnimatorData } from './SpriteAnimator';
@@ -351,7 +352,44 @@ export const Animator: ComponentDef<AnimatorData> = defineComponent('Animator', 
     controller: '',
     currentState: '',
     enabled: true,
+}, {
+    assetFields: [{ field: 'controller', type: 'animatorcontroller' }],
+    // Preload a `.esanimator` path (or an editor-serialized uuid ref) with the
+    // scene so the controller is registered before the first tick. A plain
+    // `registerController` name (code path) is left alone — this callback is the
+    // discovery authority; the assetField above only drives the editor picker.
+    discoverAssets: data => {
+        const c = data.controller;
+        return typeof c === 'string' && (c.endsWith('.esanimator') || isUuidRef(c))
+            ? [{ type: 'animatorcontroller', path: c }]
+            : [];
+    },
 });
+
+/**
+ * Global controller store keyed by `.esanimator` asset path — the runtime twin of
+ * the per-App {@link AnimatorControllerAPI.registerController} name registry. The
+ * asset loader registers a disk controller here (the App resource isn't reachable
+ * from a `LoadContext`), and {@link AnimatorControllerAPI} falls back to it when an
+ * Animator's `controller` is a path rather than a code-registered name. Mirrors the
+ * FSM store in {@link file://./ai/fsm/StateMachineAgent.ts}.
+ */
+const animatorControllerStore = new Map<string, AnimatorControllerDef>();
+
+/** Register a controller under `key` (an asset path); the loader and any code
+ *  path that keys by path share this store. */
+export function registerAnimatorController(key: string, def: AnimatorControllerDef): void {
+    animatorControllerStore.set(key, def);
+}
+
+export function getRegisteredAnimatorController(key: string): AnimatorControllerDef | undefined {
+    return animatorControllerStore.get(key);
+}
+
+/** Drop all path-registered controllers (tests / hot-reload). */
+export function clearAnimatorControllerStore(): void {
+    animatorControllerStore.clear();
+}
 
 // =============================================================================
 // AnimatorController — per-App registry + parameters + driving system
@@ -386,7 +424,9 @@ export class AnimatorControllerAPI {
     }
 
     getController(name: string): AnimatorControllerDef | undefined {
-        return this.controllers.get(name);
+        // A code-registered name wins; otherwise fall back to a controller the
+        // asset loader registered under its `.esanimator` path.
+        return this.controllers.get(name) ?? getRegisteredAnimatorController(name);
     }
 
     clearControllers(): void {
@@ -439,13 +479,19 @@ export class AnimatorControllerAPI {
 
     // -- per-frame system -----------------------------------------------------
 
-    update(world: World): void {
+    update(world: World, resolveKey?: (ref: string) => string): void {
         const entities = world.getEntitiesWithComponents([Animator]);
         for (const entity of entities) {
             const a = world.get(entity, Animator) as AnimatorData;
             if (!a.enabled) continue;
 
-            const def = this.controllers.get(a.controller);
+            // A code-registered NAME wins; otherwise the controller was loaded from
+            // a `.esanimator` asset and lives in the path store under its RESOLVED
+            // load path (e.g. `estella://…` in the play realm). Resolve the ref the
+            // same way the loader keyed it before falling back to the raw ref.
+            const def = this.controllers.get(a.controller)
+                ?? getRegisteredAnimatorController(resolveKey ? resolveKey(a.controller) : a.controller)
+                ?? getRegisteredAnimatorController(a.controller);
             if (!def || def.states.length === 0) continue;
 
             // Seed / repair the active state path. The path descends into a
