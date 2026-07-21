@@ -2198,6 +2198,14 @@ class ProjectStoreImpl {
   /** Write the current world to a project-relative path (explicit, no lossy guard). */
   async saveAs(relPath: string): Promise<void> {
     if (!this.state) throw new Error('no project open');
+    // In Prefab Mode the world holds a flattened PREFAB tree, not a scene —
+    // writing it as a `.esscene` would emit a bogus scene AND repoint
+    // `lastOpenedScene` at it. Save-As isn't a prefab operation; refuse it and
+    // point the user at Save Prefab / Back. (save() already routes to savePrefab.)
+    if (this.prefabSession) {
+      Toasts.push(t('proj.saveAsInPrefabMode'), 'warn');
+      return;
+    }
     await this.writeScene(relPath, await this.serializeCurrent());
     await this.persistLastScene(relPath);
     EditorHistory.markSaved();
@@ -2253,6 +2261,10 @@ class ProjectStoreImpl {
   async saveAsViaDialog(): Promise<string | null> {
     const st = this.state;
     if (!st || !window.estella.project.saveSceneDialog) return null;
+    if (this.prefabSession) {
+      Toasts.push(t('proj.saveAsInPrefabMode'), 'warn');
+      return null;
+    }
     const rel = await window.estella.project.saveSceneDialog(
       st.currentScene ?? `${st.layout.scenes}/scene.esscene`,
     );

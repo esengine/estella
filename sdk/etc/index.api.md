@@ -4748,7 +4748,7 @@ componentType: string | undefined
 metadataKey: string | undefined
 prefabEntityId: string
 propertyName: string | undefined
-type: "property" | "component_added" | "component_replaced" | "component_removed" | "name" | "visibility" | "metadata_set" | "metadata_removed"
+type: "property" | "component_added" | "component_replaced" | "component_removed" | "name" | "visibility" | "parent" | "metadata_set" | "metadata_removed"
 value: unknown
 ```
 

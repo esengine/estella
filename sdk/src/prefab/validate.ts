@@ -155,6 +155,9 @@ function reasonForOverride(
         case 'metadata_set':
         case 'name':
         case 'visibility':
+        case 'parent':
+            // A re-parent's target-existence is a topology concern the strict
+            // validator's parent/child passes cover; nothing entity-local is stale.
             return null;
     }
 }
@@ -357,6 +360,10 @@ function overrideShapeError(o: PrefabOverride): string | null {
             return typeof o.value === 'string' ? null : 'name value must be a string';
         case 'visibility':
             return typeof o.value === 'boolean' ? null : 'visibility value must be a boolean';
+        case 'parent':
+            return typeof o.value === 'string' || o.value === null
+                ? null
+                : 'parent value must be a stable entity id or null';
         case 'metadata_set':
         case 'metadata_removed':
             return typeof o.metadataKey === 'string' ? null : 'missing metadataKey';

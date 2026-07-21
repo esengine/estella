@@ -34,6 +34,8 @@ function overrideLabel(o: PrefabOverride): string {
       return t('proj.applyDiffName');
     case 'visibility':
       return t('proj.applyDiffVisibility');
+    case 'parent':
+      return t('proj.applyDiffReparent');
     default:
       return o.type;
   }
@@ -98,7 +100,10 @@ export function previewApply(
   delta: ApplyDelta,
   nameOf: (id: PrefabEntityId) => string,
 ): Promise<boolean> {
-  const structural = delta.added.length + delta.removed.length;
+  // A re-parent rewrites the shared prefab's topology — count it structural so
+  // the confirm reads as destructive, like add/remove.
+  const structural =
+    delta.added.length + delta.removed.length + delta.overrides.filter((o) => o.type === 'parent').length;
   return confirm({
     title: t('proj.applyPreviewTitle'),
     confirmLabel: t('proj.applyLabel'),

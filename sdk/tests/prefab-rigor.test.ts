@@ -28,6 +28,8 @@ import {
     bucketOverridesByEntity,
     expandInstance,
     collapseInstance,
+    rebuildChildren,
+    applyDeltaToSource,
 } from '../src/prefab/index';
 import type { FlattenContext, PrefabInstanceDelta } from '../src/prefab/index';
 import { defineComponent } from '../src/component';
@@ -413,13 +415,17 @@ describe('parent/children consistency', () => {
 
 describe('diffAgainstSource', () => {
     function cloneForInstance(prefab: PrefabData): ProcessedEntity[] {
-        let n = 0;
-        return prefab.entities.map(e => {
+        // Runtime ids in entity order; carry the source's parent topology so the
+        // diff isolates the field under test (a null-parent fixture would now
+        // spuriously trip the structural re-parent diff).
+        const idByPid = new Map<string, number>();
+        prefab.entities.forEach((e, i) => idByPid.set(e.prefabEntityId, i));
+        return prefab.entities.map((e, i) => {
             const out: ProcessedEntity = {
-                id: n++,
+                id: i,
                 prefabEntityId: e.prefabEntityId,
                 name: e.name,
-                parent: null,
+                parent: e.parent != null ? (idByPid.get(e.parent) ?? null) : null,
                 children: [],
                 components: e.components.map(c => ({
                     type: c.type,
@@ -724,14 +730,16 @@ describe('diffAgainstSource — entity-ref fields', () => {
         };
     }
 
-    // Runtime ids assigned in entity order: leader=0, ally=1, follower=2.
+    // Runtime ids assigned in entity order: leader=0, ally=1, follower=2. Parents
+    // mirror the source topology so only the ref field under test can diff.
     function instance(prefab: PrefabData, followerTarget: number): ProcessedEntity[] {
-        let n = 0;
-        return prefab.entities.map((e) => ({
-            id: n++,
+        const idByPid = new Map<string, number>();
+        prefab.entities.forEach((e, i) => idByPid.set(e.prefabEntityId, i));
+        return prefab.entities.map((e, i) => ({
+            id: i,
             prefabEntityId: e.prefabEntityId,
             name: e.name,
-            parent: null,
+            parent: e.parent != null ? (idByPid.get(e.parent) ?? null) : null,
             children: [],
             components: e.components.map((c) => ({
                 type: c.type,
@@ -885,6 +893,132 @@ describe('structural deletion', () => {
         expect(ids).toContain('ship');
         const back = collapseInstance(ship, '@uuid:ship', entities, load);
         expect(back.removed).toEqual(['a/0']);
+    });
+});
+
+// ─── structural re-parenting (parent override) ─────────────────────────────
+
+describe('structural re-parenting', () => {
+    /** root → mid → leaf (a flat 3-generation prefab). */
+    function chainPrefab(): PrefabData {
+        return {
+            version: PREFAB_FORMAT_VERSION, name: 'Chain', rootEntityId: 'root',
+            entities: [
+                { prefabEntityId: 'root', name: 'Root', parent: null, children: ['mid'], components: [], visible: true },
+                { prefabEntityId: 'mid', name: 'Mid', parent: 'root', children: ['leaf'], components: [], visible: true },
+                { prefabEntityId: 'leaf', name: 'Leaf', parent: 'mid', children: [], components: [], visible: true },
+            ],
+        };
+    }
+
+    /** Expand a baseline instance, mutate it, then collapse it back to a delta. */
+    function roundTrip(prefab: PrefabData, mutate: (e: ProcessedEntity[]) => void): PrefabInstanceDelta {
+        let nid = 0;
+        const { entities } = expandInstance(prefab, { prefab: '@uuid:chain', overrides: [], added: [], removed: [] }, () => nid++);
+        mutate(entities);
+        rebuildChildren(entities);
+        return collapseInstance(prefab, '@uuid:chain', entities);
+    }
+
+    it('a pure re-parent collapses to a parent override and expands back faithfully', () => {
+        const prefab = chainPrefab();
+        // Drag leaf out from under mid, up to root.
+        const delta = roundTrip(prefab, (es) => {
+            const root = es.find((e) => e.prefabEntityId === 'root')!;
+            es.find((e) => e.prefabEntityId === 'leaf')!.parent = root.id;
+        });
+        expect(delta.overrides).toContainEqual({ prefabEntityId: 'leaf', type: 'parent', value: 'root' });
+        expect(delta.removed).toEqual([]);
+        expect(delta.added).toEqual([]);
+
+        // Re-expand: leaf is now a child of root, not mid.
+        let nid = 0;
+        const { entities } = expandInstance(prefab, delta, () => nid++);
+        const byAddr = new Map(entities.map((e) => [e.prefabEntityId, e]));
+        const leaf = byAddr.get('leaf')!;
+        expect(leaf.parent).toBe(byAddr.get('root')!.id);
+        expect(byAddr.get('mid')!.children).not.toContain(leaf.id);
+        expect(byAddr.get('root')!.children).toContain(leaf.id);
+    });
+
+    it('re-parenting OUT of a doomed subtree keeps the moved entity (no data loss)', () => {
+        const prefab = chainPrefab();
+        // Move leaf up to root, THEN delete mid — leaf must survive.
+        const delta: PrefabInstanceDelta = {
+            prefab: '@uuid:chain',
+            overrides: [{ prefabEntityId: 'leaf', type: 'parent', value: 'root' }],
+            added: [],
+            removed: ['mid'],
+        };
+        let nid = 0;
+        const { entities } = expandInstance(prefab, delta, () => nid++);
+        const ids = entities.map((e) => e.prefabEntityId).sort();
+        expect(ids).toEqual(['leaf', 'root']); // mid gone, leaf kept under root
+        const byAddr = new Map(entities.map((e) => [e.prefabEntityId, e]));
+        expect(byAddr.get('leaf')!.parent).toBe(byAddr.get('root')!.id);
+    });
+
+    it('applyDeltaToSource bakes a re-parent into the prefab topology', () => {
+        const prefab = chainPrefab();
+        const baked = applyDeltaToSource(prefab, {
+            overrides: [{ prefabEntityId: 'leaf', type: 'parent', value: 'root' }],
+            added: [],
+            removed: [],
+        });
+        const byId = new Map(baked.entities.map((e) => [e.prefabEntityId, e]));
+        expect(byId.get('leaf')!.parent).toBe('root');
+        expect(byId.get('root')!.children).toContain('leaf');
+        expect(byId.get('mid')!.children).not.toContain('leaf');
+    });
+
+    it('a re-parent that would create a cycle is refused by applyDeltaToSource', () => {
+        const prefab = chainPrefab();
+        // Try to make root a child of leaf (its own descendant) — must be a no-op.
+        const baked = applyDeltaToSource(prefab, {
+            overrides: [{ prefabEntityId: 'root', type: 'parent', value: 'leaf' }],
+            added: [],
+            removed: [],
+        });
+        const byId = new Map(baked.entities.map((e) => [e.prefabEntityId, e]));
+        expect(byId.get('root')!.parent).toBe(null); // unchanged
+    });
+});
+
+// ─── added-entity integrity (clone + uniqueness) ───────────────────────────
+
+describe('added-entity integrity', () => {
+    function rootWithAdd(): { prefab: PrefabData; delta: PrefabInstanceDelta } {
+        const prefab: PrefabData = {
+            version: PREFAB_FORMAT_VERSION, name: 'R', rootEntityId: 'root',
+            entities: [{ prefabEntityId: 'root', name: 'Root', parent: null, children: [], components: [], visible: true }],
+        };
+        const delta: PrefabInstanceDelta = {
+            prefab: '@uuid:r', overrides: [], removed: [],
+            added: [{ prefabEntityId: 'x', name: 'X', parentId: null, visible: true, components: [{ type: 'Transform', data: { x: 1 } }] }],
+        };
+        return { prefab, delta };
+    }
+
+    it('added components are cloned per expansion (no aliasing into the stored delta)', () => {
+        const { prefab, delta } = rootWithAdd();
+        let a = 0;
+        const A = expandInstance(prefab, delta, () => a++);
+        let b = 100;
+        const B = expandInstance(prefab, delta, () => b++);
+        // Mutate expansion A's added component; B and the delta must be untouched.
+        (A.entities.find((e) => e.prefabEntityId === 'x')!.components[0].data as { x: number }).x = 999;
+        expect((B.entities.find((e) => e.prefabEntityId === 'x')!.components[0].data as { x: number }).x).toBe(1);
+        expect((delta.added[0].components[0].data as { x: number }).x).toBe(1);
+    });
+
+    it('applyDeltaToSource skips an added id that already exists (no duplicate identity)', () => {
+        const { prefab } = rootWithAdd();
+        const baked = applyDeltaToSource(prefab, {
+            overrides: [], removed: [],
+            // 'root' already exists in the source — must not be duplicated.
+            added: [{ prefabEntityId: 'root', name: 'Dupe', parentId: null, visible: true, components: [] }],
+        });
+        expect(baked.entities.filter((e) => e.prefabEntityId === 'root')).toHaveLength(1);
     });
 });
 

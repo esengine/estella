@@ -92,6 +92,23 @@ export interface DiffBaselineEntity {
     /** Runtime id — present on flattened baselines so their entity-ref fields
      *  normalise to stable-id space; absent on raw source entities. */
     id?: number;
+    /** Parent for structural (re-parent) diffing. A raw source entity carries a
+     *  stable `PrefabEntityId` string; a flattened baseline carries the runtime
+     *  number (normalised through the baseline's own id map). `undefined` means a
+     *  caller didn't supply it — parent diffing is then skipped for that entity. */
+    parent?: PrefabEntityId | number | null;
+}
+
+/** Translate a parent link to stable-id space. Strings are already stable (raw
+ *  source); numbers map through the side's runtime→stable map (a target outside
+ *  the instance is unmapped → null). */
+function toStableParent(
+    parent: PrefabEntityId | number | null | undefined,
+    refMap: Map<number, PrefabEntityId>,
+): PrefabEntityId | null {
+    if (parent === null || parent === undefined) return null;
+    if (typeof parent === 'string') return parent;
+    return refMap.get(parent) ?? null;
 }
 
 /**
@@ -152,6 +169,23 @@ export function diffEntities(
                 type: 'visibility',
                 value: instEntity.visible,
             });
+        }
+
+        // Structural re-parent: compare both parents in stable-id space. Skip when
+        // the baseline didn't carry a parent (legacy caller). The instance root's
+        // parent points OUTSIDE the instance (unmapped → null) and the prefab root's
+        // baseline parent is null, so the root never diffs — its attach point is the
+        // instance entry's own `parent`, not a prefab override.
+        if (base.parent !== undefined) {
+            const baseParent = toStableParent(base.parent, baseRefMap);
+            const instParent = toStableParent(instEntity.parent, instRefMap);
+            if (baseParent !== instParent) {
+                overrides.push({
+                    prefabEntityId: instEntity.prefabEntityId,
+                    type: 'parent',
+                    value: instParent,
+                });
+            }
         }
 
         diffMetadata(base.metadata, instEntity.metadata, ignoredMeta, instEntity.prefabEntityId, overrides);

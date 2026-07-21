@@ -97,8 +97,15 @@ export function expandInstance(
         loadPrefab,
     });
 
+    // Structural re-parent overrides move a prefab-origin entity BEFORE the
+    // removed-closure runs, so an entity re-parented OUT of a doomed subtree
+    // survives the cascade (and a pure re-parent actually takes effect). This
+    // pass sees only prefab entities; a re-parent whose target is an ADDED entity
+    // is left in place here and resolved in the second pass below.
+    applyParentOverrides(entities, delta.overrides, rootId, false);
+
     // `removed` records the ROOTS of deleted subtrees; expand the transitive
-    // closure over the flattened tree so deleting a parent drops its whole
+    // closure over the (re-parented) tree so deleting a parent drops its whole
     // subtree (no orphaned, parent-less entities survive).
     const removed = removedClosure(entities, delta.removed);
     const kept = entities.filter((e) => !removed.has(e.prefabEntityId));
@@ -117,7 +124,7 @@ export function expandInstance(
             name: a.name,
             parent: rootId,
             children: [],
-            components: a.components,
+            components: cloneComponents(a.components),
             visible: a.visible,
         };
     });
@@ -126,8 +133,46 @@ export function expandInstance(
     });
 
     const all = [...kept, ...added];
+    // Second pass over the full id space (kept + added), so a re-parent onto an
+    // added entity resolves and any still-unresolved target falls back to root.
+    applyParentOverrides(all, delta.overrides, rootId, true);
     rebuildChildren(all);
     return { entities: all, rootId };
+}
+
+/**
+ * Apply structural `parent` overrides to flattened entities in place. Each moves
+ * a prefab-origin entity under the runtime id of its new stable parent (`value`),
+ * or under `rootId` when `value` is null. The instance root is never re-parented.
+ * When `fallbackToRoot` is false a target absent from `entities` leaves the entity
+ * where it is (a two-phase caller resolves added-entity targets in a later pass);
+ * when true, a missing target falls back to `rootId`.
+ */
+function applyParentOverrides(
+    entities: ProcessedEntity[],
+    overrides: readonly PrefabOverride[],
+    rootId: number,
+    fallbackToRoot: boolean,
+): void {
+    const idByPrefabId = new Map<PrefabEntityId, number>();
+    const byPrefabId = new Map<PrefabEntityId, ProcessedEntity>();
+    for (const e of entities) {
+        idByPrefabId.set(e.prefabEntityId, e.id);
+        byPrefabId.set(e.prefabEntityId, e);
+    }
+    for (const o of overrides) {
+        if (o.type !== 'parent') continue;
+        const e = byPrefabId.get(o.prefabEntityId);
+        if (!e || e.id === rootId) continue; // never re-parent the instance root
+        const target = o.value == null ? null : String(o.value);
+        if (target === null) {
+            e.parent = rootId;
+            continue;
+        }
+        const np = idByPrefabId.get(target);
+        if (np !== undefined) e.parent = np;
+        else if (fallbackToRoot) e.parent = rootId;
+    }
 }
 
 /** Rebuild every entity's `children` array from its `parent` link (consistency). */
@@ -296,8 +341,34 @@ export function applyDeltaToSource(source: PrefabData, delta: SourceDelta): Pref
     // 1. Property / component / name / visibility / metadata overrides.
     let next = applyOverridesToSource(source, delta.overrides);
 
-    // 2. Removed: drop each removed subtree root + descendants (never the root),
-    //    and unlink them from any parent's children list.
+    // 2. Re-parent overrides, BEFORE the removed-closure so an entity moved out
+    //    of a doomed subtree survives (mirrors expandInstance). Targets among the
+    //    source entities are re-linked; a target that is only an `added` entity is
+    //    left in place (added is appended below and is a niche Apply case).
+    const parentOverrides = delta.overrides.filter((o) => o.type === 'parent');
+    if (parentOverrides.length > 0) {
+        const entities = next.entities.map((e) => ({ ...e, children: [...e.children] }));
+        const byId = new Map<PrefabEntityId, PrefabEntityData>();
+        for (const e of entities) byId.set(e.prefabEntityId, e);
+        for (const o of parentOverrides) {
+            const e = byId.get(o.prefabEntityId);
+            if (!e || e.prefabEntityId === next.rootEntityId) continue;
+            const newParent = o.value == null ? next.rootEntityId : String(o.value);
+            const np = byId.get(newParent);
+            if (!np || newParent === e.prefabEntityId) continue;
+            if (isAncestor(byId, e.prefabEntityId, newParent)) continue; // would cycle
+            if (e.parent != null) {
+                const op = byId.get(e.parent);
+                if (op) op.children = op.children.filter((c) => c !== e.prefabEntityId);
+            }
+            e.parent = newParent;
+            if (!np.children.includes(e.prefabEntityId)) np.children.push(e.prefabEntityId);
+        }
+        next = { ...next, entities };
+    }
+
+    // 3. Removed: drop each removed subtree root + descendants (never the root),
+    //    and unlink them from any parent's children list. Runs AFTER re-parenting.
     if (delta.removed.length > 0) {
         const childrenOf = new Map<PrefabEntityId, PrefabEntityId[]>();
         for (const e of next.entities) childrenOf.set(e.prefabEntityId, e.children);
@@ -319,12 +390,16 @@ export function applyDeltaToSource(source: PrefabData, delta: SourceDelta): Pref
         }
     }
 
-    // 3. Added: append new entities and link each under its parent (root default).
+    // 4. Added: append new entities and link each under its parent (root default).
     if (delta.added.length > 0) {
         const entities: PrefabEntityData[] = next.entities.map((e) => ({ ...e, children: [...e.children] }));
         const byId = new Map<PrefabEntityId, PrefabEntityData>();
         for (const e of entities) byId.set(e.prefabEntityId, e);
         for (const a of delta.added) {
+            // Identity must stay unique: an added id that already exists in the
+            // source (e.g. a delta applied twice without re-diffing) would mint a
+            // duplicate that mis-addresses every future override. Skip it.
+            if (byId.has(a.prefabEntityId)) continue;
             const entity: PrefabEntityData = {
                 prefabEntityId: a.prefabEntityId,
                 name: a.name,
@@ -344,6 +419,23 @@ export function applyDeltaToSource(source: PrefabData, delta: SourceDelta): Pref
     }
 
     return next;
+}
+
+/** Walk `node`'s parent chain in a stable-id entity map; true if `ancestor` is on
+ *  it (so re-parenting `ancestor` under `node` would create a cycle). */
+function isAncestor(
+    byId: Map<PrefabEntityId, PrefabEntityData>,
+    ancestor: PrefabEntityId,
+    node: PrefabEntityId,
+): boolean {
+    let cur: PrefabEntityId | null = node;
+    const seen = new Set<PrefabEntityId>();
+    while (cur != null && !seen.has(cur)) {
+        if (cur === ancestor) return true;
+        seen.add(cur);
+        cur = byId.get(cur)?.parent ?? null;
+    }
+    return false;
 }
 
 /**

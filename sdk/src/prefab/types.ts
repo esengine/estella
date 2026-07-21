@@ -72,6 +72,14 @@ export interface NestedPrefabRef {
  *                         Requires: componentType, propertyName, value.
  * - `name`              — change the entity's name. Requires: value (string).
  * - `visibility`        — change the entity's visibility. Requires: value (boolean).
+ * - `parent`            — re-parent a prefab-origin entity within the instance.
+ *                         Requires: value = the new parent's stable
+ *                         `PrefabEntityId`, or `null` for "under the instance
+ *                         root". Structural: applied by `expandInstance` /
+ *                         `applyDeltaToSource` (which own the id space), not by
+ *                         `applyOverrides`. The instance root is never re-parented
+ *                         this way — its attach point is the instance entry's own
+ *                         `parent`.
  * - `component_added`   — add a component **only if not already present**
  *                         (idempotent insert). Requires: componentData.
  *                         Use this for variants that want to *augment* the
@@ -97,6 +105,7 @@ export interface PrefabOverride {
         | 'component_removed'
         | 'name'
         | 'visibility'
+        | 'parent'
         | 'metadata_set'
         | 'metadata_removed';
     componentType?: string;
