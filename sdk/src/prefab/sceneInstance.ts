@@ -32,6 +32,7 @@ import type { DiffBaselineEntity } from './diff';
 import { cloneComponents } from './clone';
 import { applyOverridesToSource } from './override';
 import { getComponent } from '../component';
+import { INVALID_ENTITY } from '../types';
 import { PREFAB_FORMAT_VERSION } from './migrate';
 import type {
     PrefabData,
@@ -368,7 +369,11 @@ export interface ExtractEntity {
  * Component fields that REFERENCE another entity (declared via the component's
  * `entityFields` metadata) are remapped to prefab-local ids when the target is
  * inside the subtree; instantiation maps them back (see remapComponentEntityRefs).
- * A reference pointing outside the subtree is left numeric and will dangle.
+ * A reference pointing OUTSIDE the subtree cannot be expressed in the prefab, so
+ * it is CLEARED (set to `INVALID_ENTITY`) rather than left as a runtime number
+ * that would dangle onto an unrelated entity when the prefab is instantiated
+ * elsewhere. Call {@link collectExternalEntityRefs} first to warn the user which
+ * refs will be dropped.
  */
 /** Capture-side twin of remapComponentEntityRefs: runtime id → prefab-local id. */
 function captureEntityRefs(
@@ -380,12 +385,51 @@ function captureEntityRefs(
         if (!def || def.entityFields.length === 0) continue;
         for (const field of def.entityFields) {
             const value = comp.data[field];
-            if (typeof value === 'number' && idMap.has(value)) {
-                comp.data[field] = idMap.get(value)!;
+            if (typeof value !== 'number') continue;
+            if (idMap.has(value)) {
+                comp.data[field] = idMap.get(value)!; // in-subtree → stable prefab-local id
+            } else if (value !== INVALID_ENTITY) {
+                comp.data[field] = INVALID_ENTITY; // external → cleared (never dangle)
             }
         }
     }
     return components;
+}
+
+/** An entity-ref field pointing OUTSIDE the extracted subtree. */
+export interface ExternalEntityRef {
+    /** Source id of the entity holding the reference. */
+    entityId: number;
+    componentType: string;
+    /** The entity-typed field name on that component. */
+    field: string;
+    /** The out-of-subtree runtime id it currently points at. */
+    target: number;
+}
+
+/**
+ * List the entity-ref fields in a subtree that point OUTSIDE it — the refs that
+ * {@link extractPrefab} will clear. The editor calls this before "Create Prefab"
+ * to warn the user (or let them cancel) rather than silently dropping links.
+ */
+export function collectExternalEntityRefs(
+    entities: readonly ExtractEntity[],
+): ExternalEntityRef[] {
+    const inSubtree = new Set(entities.map((e) => e.id));
+    const out: ExternalEntityRef[] = [];
+    for (const e of entities) {
+        for (const comp of e.components) {
+            const def = getComponent(comp.type);
+            if (!def || def.entityFields.length === 0) continue;
+            for (const field of def.entityFields) {
+                const v = comp.data[field];
+                if (typeof v === 'number' && v !== INVALID_ENTITY && !inSubtree.has(v)) {
+                    out.push({ entityId: e.id, componentType: comp.type, field, target: v });
+                }
+            }
+        }
+    }
+    return out;
 }
 
 export function extractPrefab(

@@ -39,6 +39,7 @@ export {
     rebuildChildren,
     extractPrefab,
     applyDeltaToSource,
+    collectExternalEntityRefs,
 } from './sceneInstance';
 export type {
     AddedEntity,
@@ -47,4 +48,5 @@ export type {
     SyncPrefabResolver,
     ExtractEntity,
     SourceDelta,
+    ExternalEntityRef,
 } from './sceneInstance';

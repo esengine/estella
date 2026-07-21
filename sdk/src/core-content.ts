@@ -183,6 +183,7 @@ export {
     rebuildChildren,
     extractPrefab,
     applyDeltaToSource,
+    collectExternalEntityRefs,
     type PrefabEntityId,
     type ProcessedEntity,
     type FlattenContext,
@@ -201,6 +202,7 @@ export {
     type SyncPrefabResolver,
     type ExtractEntity,
     type SourceDelta,
+    type ExternalEntityRef,
 } from './prefab/index';
 
 export { Prefabs, PrefabServer, PrefabsPlugin, prefabsPlugin } from './prefabServer';

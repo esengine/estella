@@ -15,7 +15,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { World } from '../src/world';
 import { createMockModule } from './mocks/wasm';
-import { defineBuiltin } from '../src/component';
+import { defineBuiltin, defineComponent } from '../src/component';
+import { INVALID_ENTITY } from '../src/types';
 import {
     loadSceneData,
     loadSceneWithAssets,
@@ -31,6 +32,7 @@ import {
     expandEntry,
     collapseEntry,
     extractPrefab,
+    collectExternalEntityRefs,
     type PrefabData,
     type PrefabInstanceDelta,
     type PrefabInstanceEntry,
@@ -285,6 +287,32 @@ describe('Prefab scene loading (PF1)', () => {
         expect(entities).toHaveLength(2);
         expect(entities.find((e) => e.id === rootId)!.name).toBe('Turret');
         expect(entities.find((e) => e.name === 'Barrel')!.parent).toBe(rootId);
+    });
+
+    // ── External entity refs: cleared on extract (never dangle), reportable. ──
+    it('extractPrefab remaps in-subtree entity refs and clears external ones', () => {
+        defineComponent('Chaser', { target: 0 }, { entityFields: ['target'] });
+        const subtree: ExtractEntity[] = [
+            // root chases the in-subtree child; child chases an external scene entity (99).
+            { id: 10, name: 'Root', parent: null, children: [11], components: [{ type: 'Chaser', data: { target: 11 } }], visible: true },
+            { id: 11, name: 'Child', parent: 10, children: [], components: [{ type: 'Chaser', data: { target: 99 } }], visible: true },
+        ];
+        const prefab = extractPrefab(subtree, 10, 'Squad', (() => { let n = 0; return () => String(n++); })());
+        const root = prefab.entities.find((e) => e.name === 'Root')!;
+        const child = prefab.entities.find((e) => e.name === 'Child')!;
+        // In-subtree ref → the child's prefab-local id ('1'); external ref → cleared.
+        expect(root.components[0].data.target).toBe('1');
+        expect(child.components[0].data.target).toBe(INVALID_ENTITY);
+    });
+
+    it('collectExternalEntityRefs reports only out-of-subtree refs', () => {
+        defineComponent('Chaser', { target: 0 }, { entityFields: ['target'] });
+        const subtree: ExtractEntity[] = [
+            { id: 10, name: 'Root', parent: null, children: [11], components: [{ type: 'Chaser', data: { target: 11 } }], visible: true },
+            { id: 11, name: 'Child', parent: 10, children: [], components: [{ type: 'Chaser', data: { target: 99 } }], visible: true },
+        ];
+        const external = collectExternalEntityRefs(subtree);
+        expect(external).toEqual([{ entityId: 11, componentType: 'Chaser', field: 'target', target: 99 }]);
     });
 
     it('loadSceneData (sync) skips prefab entries without throwing', () => {

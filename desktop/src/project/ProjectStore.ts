@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { createStore } from 'zustand/vanilla';
-import { getComponent, getEditorType, Assets, migratePrefabData, extractPrefab, collapseInstance, applyDeltaToSource, setTextureParams, TextureFilter, TextureWrap, Renderer, RETIRED_COMPONENT_TYPES, parseThemeOverrides } from 'esengine';
+import { getComponent, getEditorType, Assets, migratePrefabData, extractPrefab, collectExternalEntityRefs, collapseInstance, applyDeltaToSource, setTextureParams, TextureFilter, TextureWrap, Renderer, RETIRED_COMPONENT_TYPES, parseThemeOverrides } from 'esengine';
 import { readTextureImportSettings } from './assetImporter';
 import type { SceneData, PrefabData, ExtractEntity, ProcessedEntity, PhysicsPluginConfig, AudioProjectConfig, AssetsData, ThemeOverrides } from 'esengine';
 import { EngineHost } from '@/engine/EngineHost';
@@ -1125,6 +1125,19 @@ class ProjectStoreImpl {
       .filter((e): e is NonNullable<typeof e> => !!e) as unknown as ExtractEntity[];
 
     const name = root.name?.trim() || 'Prefab';
+
+    // Refs into entities outside this selection can't live in a standalone prefab;
+    // extractPrefab clears them. Warn before dropping the links.
+    const external = collectExternalEntityRefs(entities);
+    if (external.length > 0) {
+      const ok = await confirm({
+        title: t('proj.prefabExternalRefsTitle'),
+        body: t('proj.prefabExternalRefsBody', { count: external.length }),
+        confirmLabel: t('proj.prefabExternalRefsConfirm'),
+      });
+      if (!ok) return null;
+    }
+
     const prefab = extractPrefab(entities, rootSourceId, name);
 
     // A filesystem-safe leaf, deduped against existing assets.
