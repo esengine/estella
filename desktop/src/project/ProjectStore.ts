@@ -144,8 +144,9 @@ interface ProjectState {
   currentScene: string | null;
   /** When editing a PREFAB asset in place (Prefab Mode) rather than a scene:
    *  the prefab's display name + path, plus the leaf name of the scene "Back to
-   *  Scene" returns to (for the banner breadcrumb). `currentScene` is null. */
-  prefabEdit?: { name: string; path: string; returnScene: string | null } | null;
+   *  Scene" returns to (for the banner breadcrumb) and whether it's a VARIANT
+   *  (a different badge / banner). `currentScene` is null. */
+  prefabEdit?: { name: string; path: string; returnScene: string | null; isVariant: boolean } | null;
 }
 
 /**
@@ -220,6 +221,11 @@ class ProjectStoreImpl {
     /** Editor camera at enter, restored on exit so "Back to Scene" returns the
      *  user to the exact view they left instead of reframing to the scene camera. */
     returnView: { x: number; y: number; orthoSize: number } | null;
+    /** When editing a VARIANT: its base asset + ref. Save collapses the edited
+     *  tree against this base into a variant delta (preserving basePrefab), rather
+     *  than extracting a flat prefab. Null for an ordinary (flat) prefab. */
+    base: PrefabData | null;
+    baseRef: string | null;
   } | null = null;
   /** Cold refs already handed to a live load this registry generation — the touch
    *  listener fires on every projection of a still-cold ref, so without this a
@@ -1916,8 +1922,11 @@ class ProjectStoreImpl {
    * same outliner / inspector / viewport used for scenes. The asset is flattened
    * into ordinary entities (each remembered by its prefabEntityId so save-back
    * preserves identity), the current scene is swapped out, and a banner offers
-   * "Back to Scene". Only FLAT prefabs for now — a nested/variant prefab would
-   * un-nest on save, so those are refused. The caller guards unsaved changes.
+   * "Back to Scene". A FLAT prefab extracts back to a flat asset on save; a
+   * VARIANT of a flat base is editable too (save collapses the edits against the
+   * base into a variant delta, preserving basePrefab). Nested prefabs — and
+   * variants of a nested / variant base — are still refused (re-nesting on save
+   * is unsolved). The caller guards unsaved changes.
    */
   async openPrefab(path: string): Promise<void> {
     const st = this.state;
@@ -1931,9 +1940,20 @@ class ProjectStoreImpl {
       Toasts.push(t('proj.prefabLoadFailed', { name: leaf }), 'error');
       return;
     }
-    if (prefab.basePrefab || prefab.entities.some((e) => e.nestedPrefab)) {
+    // Nested prefabs can't be edited in place (re-nesting on save is unsolved).
+    if (prefab.entities.some((e) => e.nestedPrefab)) {
       Toasts.push(t('proj.prefabModeNested'), 'warn');
       return;
+    }
+    // A VARIANT is editable when its base is FLAT (so save can collapse against a
+    // simple baseline). A variant-of-variant / variant-of-nested base is refused.
+    let base: PrefabData | null = null;
+    if (prefab.basePrefab) {
+      base = await this.loadPrefabAsset(prefab.basePrefab);
+      if (!base || base.basePrefab || base.entities.some((e) => e.nestedPrefab)) {
+        Toasts.push(t('proj.prefabModeNested'), 'warn');
+        return;
+      }
     }
 
     // The scene to return to + the view to restore on exit. Opening a prefab
@@ -1943,8 +1963,10 @@ class ProjectStoreImpl {
     const returnView = this.prefabSession?.returnView ?? EngineHost.editorViewState();
 
     // Flatten the asset into ordinary entities; remember each entity's stable id.
+    // A variant resolves its base through the warm-cache resolver (loadPrefabAsset
+    // above warmed it), yielding base entities + the variant's own overrides/adds.
     let nid = 0;
-    const { entities, rootId } = flattenPrefab(prefab, [], { allocateId: () => nid++, loadPrefab: () => null });
+    const { entities, rootId } = flattenPrefab(prefab, [], { allocateId: () => nid++, loadPrefab: this.prefabResolverSync });
     const idBySource = new Map(entities.map((e) => [e.id, e.prefabEntityId]));
     const sceneData = {
       version: '1.0',
@@ -1959,12 +1981,18 @@ class ProjectStoreImpl {
     // A prefab carries no camera, so syncEditorViewToScene left the scene's view —
     // the prefab could sit off-screen if the user had panned away. Frame its
     // content so it's centered and readable on enter (matches Godot/Unity).
-    // frameSelection skips entities without visual bounds and no-ops if none have.
-    const world = EngineHost.world;
-    if (world) ViewportController.frameSelection([...world.getAllEntities()]);
+    // Deferred two frames: frameSelection reads composed WORLD transforms, which
+    // read (0,0) until the first engine tick — so a variant whose root carries a
+    // position override would otherwise frame at the origin and sit off-screen.
+    const frameContent = (): void => {
+      const world = EngineHost.world;
+      if (world) ViewportController.frameSelection([...world.getAllEntities()]);
+    };
+    requestAnimationFrame(() => requestAnimationFrame(frameContent));
     const returnLeaf = returnScene ? (returnScene.split('/').pop() ?? returnScene) : null;
-    this.prefabSession = { ref, path, name: prefab.name, rootSource: rootId, idBySource, returnScene, returnView };
-    this.store.setState({ project: { ...st, currentScene: null, prefabEdit: { name: prefab.name, path, returnScene: returnLeaf } } });
+    const baseRef = prefab.basePrefab ?? null;
+    this.prefabSession = { ref, path, name: prefab.name, rootSource: rootId, idBySource, returnScene, returnView, base, baseRef };
+    this.store.setState({ project: { ...st, currentScene: null, prefabEdit: { name: prefab.name, path, returnScene: returnLeaf, isVariant: !!baseRef } } });
     Toasts.push(t('proj.openedPrefab', { name: prefab.name }), 'info', 1600);
   }
 
@@ -1996,7 +2024,9 @@ class ProjectStoreImpl {
   /**
    * Save the prefab being edited in Prefab Mode back to its `.esprefab`, PRESERVING
    * each entity's prefabEntityId (so existing instances' overrides still resolve)
-   * and minting uuids only for entities added during the session.
+   * and minting uuids only for entities added during the session. A VARIANT session
+   * instead collapses the edited tree against its base into a variant delta
+   * (keeping basePrefab), so editing a variant stays base-tracked.
    */
   async savePrefab(): Promise<void> {
     const pe = this.prefabSession;
@@ -2005,12 +2035,32 @@ class ProjectStoreImpl {
     if (!model) return;
     const idBySource = new Map(pe.idBySource);
     for (const e of model.entities) if (!idBySource.has(e.id)) idBySource.set(e.id, crypto.randomUUID());
-    const prefab = extractPrefab(
-      model.entities as unknown as ExtractEntity[],
-      pe.rootSource,
-      pe.name,
-      (srcId) => idBySource.get(srcId) ?? crypto.randomUUID(),
-    );
+
+    let prefab: PrefabData;
+    if (pe.base && pe.baseRef) {
+      // VARIANT: diff the edited tree against the flat base → the variant's own
+      // overrides + additions, then rebuild the variant (basePrefab preserved).
+      const processed: ProcessedEntity[] = model.entities.map((e) => ({
+        id: e.id,
+        prefabEntityId: idBySource.get(e.id) ?? crypto.randomUUID(),
+        name: e.name,
+        parent: e.parent,
+        children: e.children ?? [],
+        components: e.components as ProcessedEntity['components'],
+        visible: (e as { visible?: boolean }).visible ?? true,
+      }));
+      const delta = collapseInstance(pe.base, pe.baseRef, processed, this.prefabResolverSync);
+      const overrides = delta.overrides.filter((o) => o.type !== 'metadata_set' && o.type !== 'metadata_removed');
+      if (delta.removed.length > 0) Toasts.push(t('proj.variantNoRemove', { count: delta.removed.length }), 'warn');
+      prefab = buildVariant(pe.base, pe.baseRef, pe.name, { overrides, added: delta.added });
+    } else {
+      prefab = extractPrefab(
+        model.entities as unknown as ExtractEntity[],
+        pe.rootSource,
+        pe.name,
+        (srcId) => idBySource.get(srcId) ?? crypto.randomUUID(),
+      );
+    }
     try {
       await window.estella.fs.write(pe.path, JSON.stringify(prefab, null, 2) + '\n');
     } catch {

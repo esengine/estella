@@ -121,6 +121,7 @@ export const projectMessages = defineMessages({
     'proj.savedPrefab': { en: 'Saved prefab {name}', zh: '已保存预制体 {name}' },
     'proj.prefabModeNested': { en: 'Nested / variant prefabs can\'t be edited in place yet', zh: '暂不支持原位编辑嵌套 / 变体预制体' },
     'proj.prefabModeBanner': { en: 'Editing Prefab', zh: '正在编辑预制体' },
+    'proj.prefabModeVariantBanner': { en: 'Editing Variant', zh: '正在编辑变体' },
     'proj.prefabModeBack': { en: 'Back to Scene', zh: '返回场景' },
     'proj.prefabModeBackTo': { en: 'Back to {name}', zh: '返回 {name}' },
     'proj.prefabModeSave': { en: 'Save Prefab', zh: '保存预制体' },

@@ -17,10 +17,11 @@ export function PrefabModeBanner() {
   const pe = project?.prefabEdit;
   if (!pe) return null;
   const back = pe.returnScene ? t('proj.prefabModeBackTo', { name: pe.returnScene }) : t('proj.prefabModeBack');
+  const label = pe.isVariant ? t('proj.prefabModeVariantBanner') : t('proj.prefabModeBanner');
   return (
     <div className="prefab-mode-bar">
       <span className="pmb-icon"><Package size={14} strokeWidth={1.9} /></span>
-      <span className="pmb-label">{t('proj.prefabModeBanner')}</span>
+      <span className="pmb-label">{label}</span>
       <span className="pmb-name">{pe.name}</span>
       <span className="pmb-actions">
         <Button variant="primary" onClick={() => void ProjectStore.save()}>
