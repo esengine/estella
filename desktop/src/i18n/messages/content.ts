@@ -66,6 +66,7 @@ export const contentMessages = defineMessages({
     'cb.menuNewMaterial': { en: 'New Material', zh: '新建材质' },
     'cb.menuNewMaterialGraph': { en: 'New Material Graph', zh: '新建材质图' },
     'cb.menuNewStateMachine': { en: 'New State Machine', zh: '新建状态机' },
+    'cb.menuNewAnimatorController': { en: 'New Animation Controller', zh: '新建动画控制器' },
     'cb.menuNewBehaviorTree': { en: 'New Behavior Tree', zh: '新建行为树' },
     'cb.menuShowInExplorer': { en: 'Show in Explorer', zh: '在资源管理器中显示' },
     'cb.menuOpen': { en: 'Open', zh: '打开' },

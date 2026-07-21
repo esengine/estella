@@ -26,6 +26,7 @@ import { BUILTIN_SHADER_TEMPLATES } from 'esengine';
 import { createMaterial, createMaterialInstance } from '@/material/openMaterial';
 import { createMaterialGraph } from '@/material/openMaterialGraph';
 import { createStateMachine } from '@/fsm/openStateMachine';
+import { createAnimatorController } from '@/animator/openAnimatorController';
 import { onAssetReveal } from '@/project/assetReveal';
 import { createBehaviorTree } from '@/bt/openBehaviorTree';
 import { createAnimationClip } from '@/timeline/openClip';
@@ -875,6 +876,7 @@ export function ContentBrowser() {
         },
         { label: t('cb.menuNewMaterialGraph'), onClick: () => void createMaterialGraph(cwd) },
         { label: t('cb.menuNewStateMachine'), onClick: () => void createStateMachine(cwd) },
+        { label: t('cb.menuNewAnimatorController'), onClick: () => void createAnimatorController(cwd) },
         { label: t('cb.menuNewBehaviorTree'), onClick: () => void createBehaviorTree(cwd) },
         { sep: true },
         { label: t('cb.menuShowInExplorer'), onClick: () => void showInExplorer(cwd) },

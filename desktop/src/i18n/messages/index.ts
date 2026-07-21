@@ -37,6 +37,7 @@ import { mixerMessages } from './mixer';
 import { materialMessages } from './material';
 import { projectMessages } from './project';
 import { controllerMessages } from './controllers';
+import { animatorMessages } from './animator';
 
 /** Every per-area module, for the uniqueness guard in i18n.test.ts. */
 export const messageModules = {
@@ -59,6 +60,7 @@ export const messageModules = {
     material: materialMessages,
     project: projectMessages,
     controllers: controllerMessages,
+    animator: animatorMessages,
 } as const;
 
 export const editorMessages = {
@@ -81,4 +83,5 @@ export const editorMessages = {
     ...materialMessages,
     ...projectMessages,
     ...controllerMessages,
+    ...animatorMessages,
 } as const;

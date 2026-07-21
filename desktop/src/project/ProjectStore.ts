@@ -118,6 +118,7 @@ function metaTypeToSlot(metaType: string | undefined): string | null {
     case 'tilemap': return 'tilemap';
     case 'tileset': return 'tileset';
     case 'statemachine': return 'statemachine';
+    case 'animatorcontroller': return 'animatorcontroller';
     case 'behaviortree': return 'behaviortree';
     default: return null;
   }

@@ -28,6 +28,7 @@ import { UIWidgetsPanel } from '@/panels/UIWidgetsPanel';
 import { ControllersPanel } from '@/panels/ControllersPanel';
 import { MaterialGraphEditor } from '@/panels/MaterialGraphEditor';
 import { StateMachineEditor } from '@/panels/StateMachineEditor';
+import { AnimatorEditor } from '@/panels/AnimatorEditor';
 import { BtTreeEditor } from '@/panels/BtTreeEditor';
 import { ProfilerPanel } from '@/panels/ProfilerPanel';
 import { Perf } from '@/components/Perf';
@@ -63,6 +64,7 @@ const components: Record<string, FC<IDockviewPanelProps>> = {
   controllers: (p) => panel('controllers', p.api, <ControllersPanel />),
   materialgraph: (p) => panel('materialgraph', p.api, <MaterialGraphEditor />),
   statemachine: (p) => panel('statemachine', p.api, <StateMachineEditor />),
+  animatorcontroller: (p) => panel('animatorcontroller', p.api, <AnimatorEditor />),
   behaviortree: (p) => panel('behaviortree', p.api, <BtTreeEditor />),
   // Profiler skips the Perf wrapper (it must not profile its own render).
   profiler: (p) => (
@@ -169,6 +171,7 @@ const PANEL_TITLES: Record<string, () => string> = {
   controllers: () => t('panel.controllers'),
   materialgraph: () => t('mat.panelTitle'),
   statemachine: () => t('fsm.tabTitle'),
+  animatorcontroller: () => t('anim.tabTitle'),
   behaviortree: () => t('bt.tabTitle'),
 };
 

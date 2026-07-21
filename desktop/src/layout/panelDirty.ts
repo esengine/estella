@@ -7,6 +7,7 @@
  *          an AssetDocument singleton (uniform subscribe + dirty).
  */
 import { FsmGraphDocument } from '@/fsm/FsmGraphDocument';
+import { AnimatorGraphDocument } from '@/animator/AnimatorGraphDocument';
 import { BtDocument } from '@/bt/BtDocument';
 import { MaterialGraphDocument } from '@/material/MaterialGraphDocument';
 import { TilesetDocument } from '@/tileset/TilesetDocument';
@@ -24,6 +25,7 @@ export interface DirtySource {
 
 const SOURCES: Record<string, DirtySource> = {
   statemachine: { subscribe: FsmGraphDocument.subscribe, isDirty: () => FsmGraphDocument.dirty, discard: () => FsmGraphDocument.close() },
+  animatorcontroller: { subscribe: AnimatorGraphDocument.subscribe, isDirty: () => AnimatorGraphDocument.dirty, discard: () => AnimatorGraphDocument.close() },
   behaviortree: { subscribe: BtDocument.subscribe, isDirty: () => BtDocument.dirty, discard: () => BtDocument.close() },
   materialgraph: { subscribe: MaterialGraphDocument.subscribe, isDirty: () => MaterialGraphDocument.dirty, discard: () => MaterialGraphDocument.close() },
   tileset: { subscribe: TilesetDocument.subscribe, isDirty: () => TilesetDocument.dirty, discard: () => TilesetDocument.close() },

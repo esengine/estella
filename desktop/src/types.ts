@@ -189,6 +189,7 @@ export type AssetType =
   | 'tilemap'
   | 'inputmap'
   | 'statemachine'
+  | 'animatorcontroller'
   | 'behaviortree'
   | 'locale'
   | 'file';
