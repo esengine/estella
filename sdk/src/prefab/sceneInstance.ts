@@ -30,6 +30,7 @@ import { flattenPrefab } from './flatten';
 import { diffEntities } from './diff';
 import type { DiffBaselineEntity } from './diff';
 import { cloneComponents } from './clone';
+import { applyOverridesToSource } from './override';
 import { getComponent } from '../component';
 import { PREFAB_FORMAT_VERSION } from './migrate';
 import type {
@@ -269,6 +270,79 @@ export function collapseEntry(
     loadPrefab: SyncPrefabResolver = NO_NESTED,
 ): PrefabInstanceEntry {
     return { id: rootId, parent: sceneParent, ...collapseInstance(prefab, prefabRef, expanded, loadPrefab) };
+}
+
+// ── Apply-to-Prefab: fold a whole instance delta back into the asset ─────────
+
+/** The structural + property parts of a delta applied by {@link applyDeltaToSource}. */
+export interface SourceDelta {
+    overrides: readonly PrefabOverride[];
+    added: readonly AddedEntity[];
+    removed: readonly PrefabEntityId[];
+}
+
+/**
+ * Bake a complete instance delta into a prefab's source — the STRUCTURAL
+ * "Apply to Prefab". `applyOverridesToSource` only folds property/component/
+ * name/visibility/metadata edits; this also inserts `added` entities (linked
+ * under their parent) and deletes `removed` subtree roots and their descendants
+ * (never the prefab root), so an instance's structural changes truly enter the
+ * asset. Pure: `source` is not mutated. Nested-scoped ids (composed `slot/…`
+ * addresses) that don't exist on this source are skipped — structural apply
+ * targets the top-level asset.
+ */
+export function applyDeltaToSource(source: PrefabData, delta: SourceDelta): PrefabData {
+    // 1. Property / component / name / visibility / metadata overrides.
+    let next = applyOverridesToSource(source, delta.overrides);
+
+    // 2. Removed: drop each removed subtree root + descendants (never the root),
+    //    and unlink them from any parent's children list.
+    if (delta.removed.length > 0) {
+        const childrenOf = new Map<PrefabEntityId, PrefabEntityId[]>();
+        for (const e of next.entities) childrenOf.set(e.prefabEntityId, e.children);
+        const remove = new Set<PrefabEntityId>();
+        const queue = delta.removed.filter((id) => id !== next.rootEntityId);
+        while (queue.length > 0) {
+            const cur = queue.shift()!;
+            if (remove.has(cur)) continue;
+            remove.add(cur);
+            for (const c of childrenOf.get(cur) ?? []) queue.push(c);
+        }
+        if (remove.size > 0) {
+            next = {
+                ...next,
+                entities: next.entities
+                    .filter((e) => !remove.has(e.prefabEntityId))
+                    .map((e) => ({ ...e, children: e.children.filter((c) => !remove.has(c)) })),
+            };
+        }
+    }
+
+    // 3. Added: append new entities and link each under its parent (root default).
+    if (delta.added.length > 0) {
+        const entities: PrefabEntityData[] = next.entities.map((e) => ({ ...e, children: [...e.children] }));
+        const byId = new Map<PrefabEntityId, PrefabEntityData>();
+        for (const e of entities) byId.set(e.prefabEntityId, e);
+        for (const a of delta.added) {
+            const entity: PrefabEntityData = {
+                prefabEntityId: a.prefabEntityId,
+                name: a.name,
+                parent: a.parentId ?? next.rootEntityId,
+                children: [],
+                components: cloneComponents([...a.components]),
+                visible: a.visible,
+            };
+            entities.push(entity);
+            byId.set(a.prefabEntityId, entity);
+        }
+        for (const a of delta.added) {
+            const parent = byId.get(a.parentId ?? next.rootEntityId);
+            if (parent && !parent.children.includes(a.prefabEntityId)) parent.children.push(a.prefabEntityId);
+        }
+        next = { ...next, entities };
+    }
+
+    return next;
 }
 
 // ── Authoring: live entities → a new prefab asset ───────────────────────────

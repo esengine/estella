@@ -10,6 +10,8 @@ import { describe, it, expect } from 'vitest';
 // re-exports undefined (the bundled dist resolves them fine). Types are erased, so
 // they can still come from the barrel.
 import { applyOverridesToSource } from '../src/prefab/override';
+import { applyDeltaToSource } from '../src/prefab/sceneInstance';
+import type { AddedEntity } from '../src/prefab/sceneInstance';
 import type { PrefabData, PrefabOverride } from '../src/prefab';
 
 function basePrefab(): PrefabData {
@@ -88,5 +90,87 @@ describe('applyOverridesToSource', () => {
             { prefabEntityId: 'ghost', type: 'name', value: 'X' },
         ]);
         expect(next).toEqual(basePrefab());
+    });
+});
+
+// ── Structural Apply: overrides + added + removed folded into the source ─────
+
+/** root '0' → mid '1' → leaf '2' (a 3-generation prefab). */
+function chainPrefab(): PrefabData {
+    return {
+        version: '2', name: 'Chain', rootEntityId: '0',
+        entities: [
+            { prefabEntityId: '0', name: 'Root', parent: null, children: ['1'], visible: true, components: [] },
+            { prefabEntityId: '1', name: 'Mid', parent: '0', children: ['2'], visible: true, components: [] },
+            { prefabEntityId: '2', name: 'Leaf', parent: '1', children: [], visible: true, components: [] },
+        ],
+    };
+}
+
+describe('applyDeltaToSource (structural Apply)', () => {
+    const noDelta = { overrides: [], added: [], removed: [] };
+
+    it('folds overrides just like applyOverridesToSource', () => {
+        const next = applyDeltaToSource(basePrefab(), {
+            ...noDelta,
+            overrides: [{ prefabEntityId: '1', type: 'property', componentType: 'Sprite', propertyName: 'color', value: 'red' }],
+        });
+        expect((next.entities.find((e) => e.prefabEntityId === '1')!.components[0].data as { color: string }).color).toBe('red');
+    });
+
+    it('removes a subtree root and its descendants, unlinking from the parent', () => {
+        const next = applyDeltaToSource(chainPrefab(), { ...noDelta, removed: ['1'] });
+        expect(next.entities.map((e) => e.prefabEntityId)).toEqual(['0']); // mid + leaf gone
+        expect(next.entities[0].children).toEqual([]); // root no longer lists mid
+    });
+
+    it('removes only a leaf when the leaf is the removed root', () => {
+        const next = applyDeltaToSource(chainPrefab(), { ...noDelta, removed: ['2'] });
+        expect(next.entities.map((e) => e.prefabEntityId)).toEqual(['0', '1']);
+        expect(next.entities.find((e) => e.prefabEntityId === '1')!.children).toEqual([]);
+    });
+
+    it('never removes the prefab root even if asked', () => {
+        const next = applyDeltaToSource(chainPrefab(), { ...noDelta, removed: ['0'] });
+        expect(next.entities.some((e) => e.prefabEntityId === '0')).toBe(true);
+    });
+
+    it('inserts an added entity linked under its parent', () => {
+        const added: AddedEntity[] = [
+            { prefabEntityId: 'new1', name: 'Muzzle', components: [{ type: 'Sprite', data: { texture: 'm.png' } }], visible: true, parentId: '1' },
+        ];
+        const next = applyDeltaToSource(basePrefab(), { ...noDelta, added });
+        const created = next.entities.find((e) => e.prefabEntityId === 'new1')!;
+        expect(created.parent).toBe('1');
+        expect(next.entities.find((e) => e.prefabEntityId === '1')!.children).toContain('new1');
+        expect((created.components[0].data as { texture: string }).texture).toBe('m.png');
+    });
+
+    it('attaches an added entity with null parentId under the root', () => {
+        const added: AddedEntity[] = [
+            { prefabEntityId: 'top', name: 'Top', components: [], visible: true, parentId: null },
+        ];
+        const next = applyDeltaToSource(basePrefab(), { ...noDelta, added });
+        expect(next.entities.find((e) => e.prefabEntityId === 'top')!.parent).toBe('0');
+        expect(next.entities.find((e) => e.prefabEntityId === '0')!.children).toContain('top');
+    });
+
+    it('combines overrides + added + removed in one pass', () => {
+        const next = applyDeltaToSource(chainPrefab(), {
+            overrides: [{ prefabEntityId: '0', type: 'name', value: 'Boss' }],
+            added: [{ prefabEntityId: 'gun', name: 'Gun', components: [], visible: true, parentId: '0' }],
+            removed: ['1'],
+        });
+        expect(next.entities.find((e) => e.prefabEntityId === '0')!.name).toBe('Boss');
+        expect(next.entities.some((e) => e.prefabEntityId === 'gun')).toBe(true);
+        expect(next.entities.some((e) => e.prefabEntityId === '1')).toBe(false); // mid removed
+        expect(next.entities.find((e) => e.prefabEntityId === '0')!.children).toEqual(['gun']); // mid unlinked, gun linked
+    });
+
+    it('is pure — the input source is not mutated', () => {
+        const src = chainPrefab();
+        applyDeltaToSource(src, { overrides: [], added: [{ prefabEntityId: 'x', name: 'X', components: [], visible: true, parentId: '0' }], removed: ['2'] });
+        expect(src.entities.map((e) => e.prefabEntityId)).toEqual(['0', '1', '2']);
+        expect(src.entities[0].children).toEqual(['1']);
     });
 });

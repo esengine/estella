@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { createStore } from 'zustand/vanilla';
-import { getComponent, getEditorType, Assets, migratePrefabData, extractPrefab, diffAgainstSource, applyOverridesToSource, setTextureParams, TextureFilter, TextureWrap, Renderer, RETIRED_COMPONENT_TYPES, parseThemeOverrides } from 'esengine';
+import { getComponent, getEditorType, Assets, migratePrefabData, extractPrefab, collapseInstance, applyDeltaToSource, setTextureParams, TextureFilter, TextureWrap, Renderer, RETIRED_COMPONENT_TYPES, parseThemeOverrides } from 'esengine';
 import { readTextureImportSettings } from './assetImporter';
 import type { SceneData, PrefabData, ExtractEntity, ProcessedEntity, PhysicsPluginConfig, AudioProjectConfig, AssetsData, ThemeOverrides } from 'esengine';
 import { EngineHost } from '@/engine/EngineHost';
@@ -23,6 +23,7 @@ import { SceneStore } from '@/engine/SceneStore';
 import { useSelection } from '@/store/selectionStore';
 import { Toasts } from '@/store/Toasts';
 import { confirmDiscard } from './discardGuard';
+import { confirm } from '@/components/confirm';
 import { t } from '@/i18n';
 import { assetTypeOf } from '@/project/assetMeta';
 import type { AssetType } from '@/types';
@@ -986,13 +987,14 @@ class ProjectStoreImpl {
    * re-syncs to that base so its overrides clear. Works on any entity of the
    * instance (resolves to the root). Returns the fresh root's source id, or null.
    *
-   * Scope: property / name / visibility / component overrides on existing prefab
-   * entities (the same set `diffAgainstSource` reports). Metadata diffs are dropped
-   * — the editor model doesn't track per-instance metadata, so they're never a real
-   * override, and baking them would strip the prefab's own metadata. Structural
-   * edits (entities the instance added/removed) and live propagation to *other*
-   * in-scene instances are not applied here; those siblings re-derive from the new
-   * base on next load.
+   * Scope: property / name / visibility / component overrides PLUS structural
+   * edits — entities the instance added or removed are folded into the asset via
+   * `applyDeltaToSource` (structural changes prompt a confirm first, since they
+   * rewrite the shared prefab for every instance). Metadata diffs are dropped —
+   * the editor model doesn't track per-instance metadata, so they're never a real
+   * override, and baking them would strip the prefab's own metadata. Live
+   * propagation to *other* in-scene instances still isn't immediate; those
+   * siblings re-derive from the new base on next load.
    */
   async applyPrefabInstance(sourceId: number): Promise<number | null> {
     const tag = SceneModel.prefabTag(sourceId);
@@ -1026,32 +1028,57 @@ class ProjectStoreImpl {
     }
     if (processed.length === 0) return null;
 
-    const overrides = diffAgainstSource(oldPrefab, processed).overrides
+    // The full delta against the asset: property overrides + structural edits.
+    const delta = collapseInstance(oldPrefab, ref, processed);
+    const overrides = delta.overrides
       .filter((o) => o.type !== 'metadata_set' && o.type !== 'metadata_removed');
-    if (overrides.length === 0) {
+    const { added, removed } = delta;
+    const structural = added.length + removed.length;
+    if (overrides.length === 0 && structural === 0) {
       Toasts.push(t('proj.noOverrides'), 'info');
       return instanceRoot;
     }
-    const newPrefab = applyOverridesToSource(oldPrefab, overrides);
+
+    const name = info.path.split('/').pop() ?? info.path;
+
+    // Structural edits rewrite the shared asset for EVERY instance — confirm first.
+    if (structural > 0) {
+      const ok = await confirm({
+        title: t('proj.applyStructuralTitle'),
+        body: t('proj.applyStructuralBody', {
+          name, overrides: overrides.length, added: added.length, removed: removed.length,
+        }),
+        confirmLabel: t('proj.applyLabel'),
+        danger: true,
+      });
+      if (!ok) return instanceRoot;
+    }
+
+    const newPrefab = applyDeltaToSource(oldPrefab, { overrides, added, removed });
 
     try {
       await window.estella.fs.write(info.path, JSON.stringify(newPrefab, null, 2) + '\n');
     } catch (err) {
-      Toasts.push(t('proj.applyWriteFailed', { name: info.path.split('/').pop() ?? info.path }), 'error');
+      Toasts.push(t('proj.applyWriteFailed', { name }), 'error');
       return null;
     }
     this.prefabCache.set(ref, newPrefab);
 
-    // Re-sync this instance to the updated base so its (now-applied) overrides
+    // Re-sync this instance to the updated base so its (now-applied) edits
     // clear — reuses the proven delete + re-instantiate path.
     const newRoot = await this.revertPrefabInstance(instanceRoot);
-    Toasts.push(
-      t(overrides.length === 1 ? 'proj.appliedOverride' : 'proj.appliedOverrides', {
-        count: overrides.length,
-        name: info.path.split('/').pop() ?? info.path,
-      }),
-      'success',
-    );
+    if (structural > 0) {
+      Toasts.push(t('proj.appliedStructural', {
+        name, overrides: overrides.length, added: added.length, removed: removed.length,
+      }), 'success');
+    } else {
+      Toasts.push(
+        t(overrides.length === 1 ? 'proj.appliedOverride' : 'proj.appliedOverrides', {
+          count: overrides.length, name,
+        }),
+        'success',
+      );
+    }
     return newRoot;
   }
 
