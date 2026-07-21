@@ -4,7 +4,8 @@ import type { SceneData, PrefabData, ControllerState, UIControllerData, GearBind
 import { TilemapAPI, TilemapLiveSync, UIPositionType, DimensionUnit, AnchorAxis, writeFieldPath, type AnchorPreset } from 'esengine';
 import type { EntityId, InspectorFieldType, InspectorFieldValue } from '@/types';
 import { EditorHistory, EditorHistoryImpl } from './EditorHistory';
-import { SceneModel, SceneModelImpl } from './SceneModel';
+import { SceneModel, SceneModelImpl, type PrefabInstanceTag } from './SceneModel';
+import { SceneStore } from './SceneStore';
 import { ViewportController } from './ViewportController';
 import { expandInstance } from './PrefabInstance';
 import { setEntityClipboard, getEntityClipboard, remapClipboardEntities } from './entityClipboard';
@@ -818,6 +819,35 @@ export class SceneCommandsImpl {
   /** Plain, user-owned entities from a template prefab — {@link create} with no prefab link. */
   createFromTemplate(prefab: PrefabData, parent: EntityId | null): EntityId | null {
     return this.create(prefab, { parent });
+  }
+
+  /**
+   * Unpack a prefab instance — detach the whole instance subtree from its prefab
+   * so its entities become ordinary, user-owned ones: they no longer collapse to
+   * an instance entry on save and lose their prefab affordances. Works on any
+   * entity of the instance (resolves to the root). Undoable — undo re-links every
+   * entity. Tag changes don't emit a model event (bulk load must not re-render
+   * per tag), so the closures poke the structure revision explicitly.
+   */
+  unpackPrefabInstance(sourceId: EntityId): void {
+    const instanceRoot = this.model.prefabTag(sourceId)?.instanceRoot ?? sourceId;
+    if (!this.model.prefabTag(instanceRoot)) return; // not a prefab instance
+    const saved: Array<[EntityId, PrefabInstanceTag]> = [];
+    for (const id of this.model.collectSubtree(instanceRoot)) {
+      const tag = this.model.prefabTag(id);
+      if (tag) saved.push([id as EntityId, tag]);
+    }
+    if (saved.length === 0) return;
+    const unlink = (): void => {
+      for (const [id] of saved) this.model.setPrefabTag(id, undefined);
+      SceneStore.pokeStructure();
+    };
+    const relink = (): void => {
+      for (const [id, tag] of saved) this.model.setPrefabTag(id, tag);
+      SceneStore.pokeStructure();
+    };
+    unlink();
+    this.history.record('Unpack Prefab', unlink, relink);
   }
 
   /** The scene's Canvas entity (UI layout root), or null — the default parent for new UI. */

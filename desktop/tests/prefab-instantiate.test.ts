@@ -90,6 +90,30 @@ describe.skipIf(!HAS_WASM)('SceneCommands.instantiatePrefab (headless World)', (
     expect(S.model.prefabTag(rootId!)?.prefab).toBe(REF);
   });
 
+  it('unpacks a prefab instance — clears the subtree tags, undo re-links, redo unpacks', () => {
+    const rootId = S.commands.instantiatePrefab(turretPrefab(), REF, null)!;
+    const barrel = S.model.current!.entities.find((e) => e.name === 'Barrel')!;
+    expect(S.model.prefabTag(rootId)).toBeTruthy();
+    expect(S.model.prefabTag(barrel.id)).toBeTruthy();
+
+    // Unpack from ANY entity of the instance (the barrel resolves to the root).
+    S.commands.unpackPrefabInstance(barrel.id);
+    expect(S.model.prefabTag(rootId)).toBeUndefined();
+    expect(S.model.prefabTag(barrel.id)).toBeUndefined();
+    // The entities themselves survive — they are just plain, user-owned now.
+    expect(S.model.current!.entities).toHaveLength(2);
+
+    // Undo re-links every entity to its prefab origin.
+    S.history.undo();
+    expect(S.model.prefabTag(rootId)).toMatchObject({ instanceRoot: rootId, prefab: REF });
+    expect(S.model.prefabTag(barrel.id)).toMatchObject({ instanceRoot: rootId, prefabId: 'barrel' });
+
+    // Redo unpacks again.
+    S.history.redo();
+    expect(S.model.prefabTag(rootId)).toBeUndefined();
+    expect(S.model.prefabTag(barrel.id)).toBeUndefined();
+  });
+
   it('instantiates under a parent entity', () => {
     const parent = S.commands.addEntity()!;
     const rootId = S.commands.instantiatePrefab(turretPrefab(), REF, parent)!;

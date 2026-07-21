@@ -50,6 +50,7 @@ export const outlinerMessages = defineMessages({
     'out.prefabSelectSource': { en: 'Select Prefab Source', zh: '选中预制体源' },
     'out.prefabApply': { en: 'Apply to Prefab', zh: '应用到预制体' },
     'out.prefabRevert': { en: 'Revert to Prefab', zh: '还原为预制体' },
+    'out.prefabUnpack': { en: 'Unpack Prefab', zh: '解包预制体' },
     'out.hide': { en: 'Hide', zh: '隐藏' },
     'out.show': { en: 'Show', zh: '显示' },
     'out.lock': { en: 'Lock', zh: '锁定' },

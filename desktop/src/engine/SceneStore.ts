@@ -77,6 +77,11 @@ export class SceneStoreImpl {
    *  skeleton finished loading, so the inspector's animation/skin options
    *  exist now) — bump the data revision so panels re-read. */
   poke = (): void => this.bump(false);
+
+  /** Editor-transient tree state changed WITHOUT a model event (e.g. prefab
+   *  instance tags added/removed by Unpack) — bump the structure revision so the
+   *  Outliner + Details re-read their prefab affordances. */
+  pokeStructure = (): void => this.bump(true);
 }
 
 /** A change affects the tree (shape / name / kind / add-menu), not just a field value. */
