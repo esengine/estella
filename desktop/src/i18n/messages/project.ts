@@ -130,6 +130,8 @@ export const projectMessages = defineMessages({
     'proj.resaveFailed': { en: 'Re-saved {upgraded}, {failed} failed', zh: '已重新保存 {upgraded} 个，{failed} 个失败' },
     'proj.prefabCreateFailed': { en: 'Failed to create prefab: {name}', zh: '创建预制体失败：{name}' },
     'proj.prefabCreated': { en: 'Created prefab: {name}', zh: '已创建预制体：{name}' },
+    'proj.variantCreated': { en: 'Created variant {name}', zh: '已创建变体 {name}' },
+    'proj.variantNoRemove': { en: "Variant can't remove base entities — {count} removal(s) dropped", zh: '变体无法删除基础实体——已忽略 {count} 处删除' },
     'proj.saveSortingLayersFailed': { en: 'Failed to save sorting layers', zh: '保存排序层失败' },
     'proj.saveDesignResolutionFailed': { en: 'Failed to save design resolution', zh: '保存设计分辨率失败' },
     'proj.savePackagingFailed': { en: 'Failed to save packaging settings', zh: '保存打包设置失败' },

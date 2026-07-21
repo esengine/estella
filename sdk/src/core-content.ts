@@ -183,6 +183,7 @@ export {
     rebuildChildren,
     extractPrefab,
     applyDeltaToSource,
+    buildVariant,
     collectExternalEntityRefs,
     type PrefabEntityId,
     type ProcessedEntity,

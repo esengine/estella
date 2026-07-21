@@ -104,6 +104,7 @@ function prefabInstanceItems(id: number): MenuItem[] {
     },
     { label: t('out.prefabApply'), onClick: () => void ProjectStore.applyPrefabInstance(id) },
     { label: t('out.prefabRevert'), onClick: () => void ProjectStore.revertPrefabInstance(id) },
+    { label: t('out.prefabCreateVariant'), onClick: () => void ProjectStore.createVariantFromInstance(id) },
     { label: t('out.prefabUnpack'), onClick: () => SceneCommands.unpackPrefabInstance(id) },
   ];
 }

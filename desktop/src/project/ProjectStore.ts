@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { createStore } from 'zustand/vanilla';
-import { getComponent, getEditorType, Assets, migratePrefabData, extractPrefab, flattenPrefab, collectExternalEntityRefs, collapseInstance, applyDeltaToSource, setTextureParams, TextureFilter, TextureWrap, Renderer, RETIRED_COMPONENT_TYPES, parseThemeOverrides } from 'esengine';
+import { getComponent, getEditorType, Assets, migratePrefabData, extractPrefab, flattenPrefab, collectExternalEntityRefs, collapseInstance, applyDeltaToSource, buildVariant, setTextureParams, TextureFilter, TextureWrap, Renderer, RETIRED_COMPONENT_TYPES, parseThemeOverrides } from 'esengine';
 import { readTextureImportSettings } from './assetImporter';
 import type { SceneData, PrefabData, ExtractEntity, ProcessedEntity, PhysicsPluginConfig, AudioProjectConfig, AssetsData, ThemeOverrides } from 'esengine';
 import { EngineHost } from '@/engine/EngineHost';
@@ -265,6 +265,9 @@ class ProjectStoreImpl {
     // Diagnostics ask the registry whether a model-healthy asset ref actually
     // names a real, loadable asset (dead refs draw white boxes in silence).
     setAssetRefProblemResolver((ref) => this.assetRefProblem(ref));
+    // Instantiating a variant / nested prefab resolves its base through the same
+    // warm-cache reader the scene-load path uses (one resolution truth).
+    SceneCommands.setPrefabResolver(this.prefabResolverSync);
   }
 
   /** Read accessor so existing `this.state` reads stay unchanged after the move. */
@@ -904,7 +907,9 @@ class ProjectStoreImpl {
   }
 
   /** Load a `.esprefab` asset (PrefabData) by ref, cached. The scene load-expand
-   *  / save-collapse path resolves prefab instances through this. */
+   *  / save-collapse path resolves prefab instances through this. Warms the
+   *  prefab's base (variant) + nested refs into the cache too, so the SYNChronous
+   *  flatten resolver ({@link prefabResolverSync}) can resolve them. */
   private async loadPrefabAsset(ref: string): Promise<PrefabData | null> {
     if (!ref.startsWith(UUID_PREFIX)) return null;
     const cached = this.prefabCache.get(ref);
@@ -913,13 +918,33 @@ class ProjectStoreImpl {
     if (!path) return null;
     try {
       const prefab = migratePrefabData(JSON.parse(await window.estella.fs.read(path))).data as PrefabData;
+      // Cache BEFORE warming deps so a variant/nested ref CYCLE terminates (the
+      // second visit hits the cache and returns instead of re-fetching forever).
       this.prefabCache.set(ref, prefab);
+      await this.warmPrefabDeps(prefab);
       return prefab;
     } catch (err) {
       console.warn('[project] prefab load failed', path, err);
       return null;
     }
   }
+
+  /** Recursively load a prefab's base (variant `basePrefab`) + every entity's
+   *  `nestedPrefab` ref into the cache. flattenPrefab resolves those SYNChronously
+   *  during expansion, so they must already be resident. */
+  private async warmPrefabDeps(prefab: PrefabData): Promise<void> {
+    if (prefab.basePrefab) await this.loadPrefabAsset(prefab.basePrefab);
+    for (const e of prefab.entities) {
+      const nested = e.nestedPrefab?.prefabPath;
+      if (nested) await this.loadPrefabAsset(nested);
+    }
+  }
+
+  /** Synchronous prefab resolver for flattenPrefab's variant / nested expansion —
+   *  a cache read (the async {@link loadPrefabAsset} pre-warms every dependency).
+   *  Installed on the scene-load + instantiate paths so a variant / nested
+   *  instance resolves its base the same way in both. */
+  private prefabResolverSync = (ref: string): PrefabData | null => this.prefabCache.get(ref) ?? null;
 
   /**
    * Instantiate a `.esprefab` (by project-relative path) into the open scene
@@ -1070,7 +1095,7 @@ class ProjectStoreImpl {
     if (processed.length === 0) return null;
 
     // The full delta against the asset: property overrides + structural edits.
-    const delta = collapseInstance(oldPrefab, ref, processed);
+    const delta = collapseInstance(oldPrefab, ref, processed, this.prefabResolverSync);
     const overrides = delta.overrides
       .filter((o) => o.type !== 'metadata_set' && o.type !== 'metadata_removed');
     const { added, removed } = delta;
@@ -1116,6 +1141,83 @@ class ProjectStoreImpl {
         'success',
       );
     }
+    return newRoot;
+  }
+
+  /**
+   * Create a prefab VARIANT from a prefab instance (Outliner "Create Variant" —
+   * Unity's "Create Prefab Variant"): write a new `.esprefab` that inherits the
+   * instance's prefab and bakes the instance's current overrides + added entities
+   * as the variant's own authored state, then re-link the scene instance to the
+   * new variant (so its edits now live in the variant, tracked against the base).
+   * Works on any entity of the instance. Returns the re-linked root's source id.
+   *
+   * Removals aren't representable in a variant (it extends its base — see
+   * {@link buildVariant}); if the instance deleted base entities, those drops are
+   * reported and skipped. Structural/undo caveats match Apply/Revert (the written
+   * asset persists; the re-link is two undo steps).
+   */
+  async createVariantFromInstance(sourceId: number): Promise<number | null> {
+    const tag = SceneModel.prefabTag(sourceId);
+    const instanceRoot = tag?.instanceRoot ?? sourceId;
+    const ref = SceneModel.prefabTag(instanceRoot)?.prefab;
+    if (!ref) return null;
+    const info = this.assetInfo(ref);
+    if (!info) return null;
+    const base = await this.loadPrefabAsset(ref);
+    if (!base) {
+      Toasts.push(t('proj.prefabLoadFailed', { name: info.path.split('/').pop() ?? info.path }), 'error');
+      return null;
+    }
+
+    // The instance's live subtree → its delta vs the current prefab (same shape
+    // Apply uses). Metadata diffs aren't real overrides (not modelled per-instance).
+    const processed: ProcessedEntity[] = [];
+    for (const id of SceneModel.collectSubtree(instanceRoot)) {
+      const e = SceneModel.entityBySource(id);
+      const et = SceneModel.prefabTag(id);
+      if (!e || !et) continue;
+      processed.push({
+        id,
+        prefabEntityId: et.prefabId,
+        name: e.name,
+        parent: e.parent,
+        children: e.children ?? [],
+        components: e.components as ProcessedEntity['components'],
+        visible: (e as { visible?: boolean }).visible ?? true,
+      });
+    }
+    if (processed.length === 0) return null;
+
+    const delta = collapseInstance(base, ref, processed, this.prefabResolverSync);
+    const overrides = delta.overrides.filter((o) => o.type !== 'metadata_set' && o.type !== 'metadata_removed');
+    if (delta.removed.length > 0) {
+      Toasts.push(t('proj.variantNoRemove', { count: delta.removed.length }), 'warn');
+    }
+
+    // Write the variant beside its base, name derived from the base file.
+    const baseLeaf = (info.path.split('/').pop() ?? base.name).replace(/\.esprefab$/i, '');
+    const variantName = `${baseLeaf} Variant`;
+    const dir = info.path.includes('/') ? info.path.slice(0, info.path.lastIndexOf('/')) : '';
+    const variant = buildVariant(base, ref, variantName, { overrides, added: delta.added });
+    let newPath: string;
+    try {
+      newPath = await window.estella.project.createAsset(dir, `${variantName}.esprefab`, JSON.stringify(variant, null, 2) + '\n', 'prefab');
+    } catch (err) {
+      Toasts.push(t('proj.prefabCreateFailed', { name: variantName }), 'error');
+      return null;
+    }
+    await this.refreshAssets(); // register the new asset so instantiate can resolve it
+
+    // Re-link the scene instance to the variant, preserving its placement (the
+    // proven delete + re-instantiate path — the variant flattens to the same tree).
+    const root = SceneModel.entityBySource(instanceRoot);
+    const parent = root?.parent ?? null;
+    const tf = root?.components.find((c) => c.type === 'Transform')?.data as { position?: { x: number; y: number } } | undefined;
+    const position = tf?.position ? { x: tf.position.x, y: tf.position.y } : undefined;
+    SceneCommands.deleteEntity(instanceRoot);
+    const newRoot = await this.instantiatePrefabFromPath(newPath, parent, position);
+    Toasts.push(t('proj.variantCreated', { name: variantName }), 'success');
     return newRoot;
   }
 

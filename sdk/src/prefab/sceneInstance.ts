@@ -346,6 +346,48 @@ export function applyDeltaToSource(source: PrefabData, delta: SourceDelta): Pref
     return next;
 }
 
+/**
+ * Build a prefab VARIANT that inherits `baseRef` and bakes an instance delta as
+ * the variant's own authored state — the authoring inverse of instantiating a
+ * variant, and the sibling of {@link applyDeltaToSource} (which bakes INTO the
+ * base instead of layering a new variant on top). Property / component / name /
+ * visibility overrides become the variant's `overrides`; entities the instance
+ * ADDED become variant `entities` (appended onto the base by
+ * `mergeVariantEntities`, which links them into their parent's children on
+ * flatten). The variant's rootEntityId mirrors the base — variants EXTEND their
+ * base, they never relocate the root.
+ *
+ * A variant cannot DELETE a base entity (merge only replaces / appends), so
+ * `delta.removed` is not representable and is ignored here; a caller that must
+ * surface dropped removals should inspect it first. Pure: neither `base` nor
+ * `delta` is mutated.
+ */
+export function buildVariant(
+    base: PrefabData,
+    baseRef: string,
+    name: string,
+    delta: { overrides: readonly PrefabOverride[]; added: readonly AddedEntity[] },
+): PrefabData {
+    const entities: PrefabEntityData[] = delta.added.map((a) => ({
+        prefabEntityId: a.prefabEntityId,
+        name: a.name,
+        // Additions attach to a base entity (or another addition); parentId=null
+        // means "under the instance root", which for a variant is the base root.
+        parent: a.parentId ?? base.rootEntityId,
+        children: [],
+        components: cloneComponents([...a.components]),
+        visible: a.visible,
+    }));
+    return {
+        version: base.version,
+        name,
+        rootEntityId: base.rootEntityId,
+        basePrefab: baseRef,
+        entities,
+        ...(delta.overrides.length ? { overrides: delta.overrides.map((o) => ({ ...o })) } : {}),
+    };
+}
+
 // ── Authoring: live entities → a new prefab asset ───────────────────────────
 
 /** A scene/model entity subtree, as fed to {@link extractPrefab} (id-keyed). */

@@ -49,6 +49,33 @@ export interface InstanceTag {
 
 type LoadPrefab = (ref: string) => Promise<PrefabData | null>;
 
+/**
+ * A LOCAL prefab snapshot for one whole-scene expand/collapse pass: `warm(ref)`
+ * loads a prefab plus its transitive variant bases / nested refs into an owned
+ * map; `resolve(ref)` reads that map SYNChronously (what flattenPrefab needs for
+ * variant / nested expansion). The map is local — NOT the shared ProjectStore
+ * cache — so a concurrent asset revalidation that clears that cache mid-pass
+ * can't pull a variant's base out from under an in-flight flatten.
+ */
+function prefabSnapshot(loadPrefab: LoadPrefab): {
+  warm: (ref: string) => Promise<void>;
+  resolve: (ref: string) => PrefabData | null;
+} {
+  const map = new Map<string, PrefabData>();
+  const warm = async (ref: string): Promise<void> => {
+    if (map.has(ref)) return;
+    const p = await loadPrefab(ref);
+    if (!p) return;
+    map.set(ref, p);
+    if (p.basePrefab) await warm(p.basePrefab);
+    for (const e of p.entities) {
+      const nested = e.nestedPrefab?.prefabPath;
+      if (nested) await warm(nested);
+    }
+  };
+  return { warm, resolve: (ref) => map.get(ref) ?? null };
+}
+
 /** A prefab-instance entry as it appears in a scene file (carries a `prefab` ref). */
 function isPrefabEntry(e: unknown): e is PrefabInstanceEntry {
   return !!e && typeof e === 'object' && typeof (e as { prefab?: unknown }).prefab === 'string';
@@ -77,6 +104,7 @@ export async function expandScenePrefabs(
   loadPrefab: LoadPrefab,
   allocateId: () => number,
 ): Promise<{ scene: SceneData; tags: Array<{ id: number; tag: InstanceTag }> }> {
+  const snap = prefabSnapshot(loadPrefab);
   const out: SceneEntity[] = [];
   const tags: Array<{ id: number; tag: InstanceTag }> = [];
   for (const raw of scene.entities as unknown[]) {
@@ -84,9 +112,11 @@ export async function expandScenePrefabs(
       out.push(raw as SceneEntity);
       continue;
     }
-    const prefab = await loadPrefab(raw.prefab);
+    await snap.warm(raw.prefab); // load the instance prefab + all its deps into the local snapshot
+    const prefab = snap.resolve(raw.prefab);
     if (!prefab) continue; // unresolved prefab — skip (caller warns)
-    const { entities, rootId } = expandEntry(prefab, raw, allocateId);
+    // expandEntry resolves variant bases / nested refs SYNChronously from the snapshot.
+    const { entities, rootId } = expandEntry(prefab, raw, allocateId, snap.resolve);
     for (const pe of entities) {
       const se = toSceneEntity(pe);
       // The instance entry carries the outliner folder of its root (editor-only,
@@ -115,6 +145,7 @@ export async function collapseScenePrefabs(
   tagOf: (id: number) => InstanceTag | undefined,
   loadPrefab: LoadPrefab,
 ): Promise<SceneEntity[]> {
+  const snap = prefabSnapshot(loadPrefab);
   const groups = new Map<number, SceneEntity[]>();
   const out: SceneEntity[] = [];
   for (const e of entities) {
@@ -130,13 +161,16 @@ export async function collapseScenePrefabs(
   for (const [rootId, group] of groups) {
     const rootTag = tagOf(rootId);
     const root = group.find((e) => e.id === rootId);
-    const prefab = rootTag?.prefab ? await loadPrefab(rootTag.prefab) : null;
+    if (rootTag?.prefab) await snap.warm(rootTag.prefab);
+    const prefab = rootTag?.prefab ? snap.resolve(rootTag.prefab) : null;
     if (!rootTag?.prefab || !prefab || !root) {
       out.push(...group); // not a resolvable instance — keep raw (lossless)
       continue;
     }
     const processed = group.map((e) => toProcessed(e, tagOf(e.id)!.prefabId));
-    const entry = collapseEntry(prefab, rootTag.prefab, processed, rootId, root.parent ?? null) as unknown as SceneEntity;
+    // collapseEntry re-flattens the prefab for its baseline; the resolver expands
+    // a variant base / nested refs so a variant instance round-trips on save.
+    const entry = collapseEntry(prefab, rootTag.prefab, processed, rootId, root.parent ?? null, snap.resolve) as unknown as SceneEntity;
     // Carry the instance root's outliner folder onto the collapsed entry (lossless).
     const folder = (root as { folder?: string }).folder;
     if (folder) (entry as { folder?: string }).folder = folder;

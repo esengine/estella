@@ -39,6 +39,7 @@ export {
     rebuildChildren,
     extractPrefab,
     applyDeltaToSource,
+    buildVariant,
     collectExternalEntityRefs,
 } from './sceneInstance';
 export type {

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import type { SceneData, PrefabData, ControllerState, UIControllerData, GearBinding, GearTween, UIGearData } from 'esengine';
+import type { SceneData, PrefabData, ControllerState, UIControllerData, GearBinding, GearTween, UIGearData, SyncPrefabResolver } from 'esengine';
 import { TilemapAPI, TilemapLiveSync, UIPositionType, DimensionUnit, AnchorAxis, writeFieldPath, type AnchorPreset } from 'esengine';
 import type { EntityId, InspectorFieldType, InspectorFieldValue } from '@/types';
 import { EditorHistory, EditorHistoryImpl } from './EditorHistory';
@@ -171,6 +171,17 @@ export class SceneCommandsImpl {
     private readonly model: SceneModelImpl,
     private readonly history: EditorHistoryImpl,
   ) {}
+
+  /** Resolves a prefab ref → PrefabData SYNChronously for variant / nested
+   *  expansion when instantiating (ProjectStore installs a warm-cache reader).
+   *  Default no-op = flat prefabs only, matching the pre-plumbing behaviour. */
+  private prefabResolver: SyncPrefabResolver = () => null;
+
+  /** Install the synchronous prefab resolver used by {@link create} so an
+   *  instantiated variant / nested prefab resolves its base like the load path. */
+  setPrefabResolver(fn: SyncPrefabResolver): void {
+    this.prefabResolver = fn;
+  }
 
   /** Register a field-edit hook; returns the unsubscribe. */
   addEditHook(fn: EditHook): () => void {
@@ -753,6 +764,7 @@ export class SceneCommandsImpl {
       prefab,
       { prefab: ref, overrides: [], added: [], removed: [] },
       () => this.model.allocateSourceId(),
+      this.prefabResolver,
     );
     const root = entities.find((e) => e.id === rootId);
     if (!root) return null;

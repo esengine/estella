@@ -10,7 +10,8 @@ import { describe, it, expect } from 'vitest';
 // re-exports undefined (the bundled dist resolves them fine). Types are erased, so
 // they can still come from the barrel.
 import { applyOverridesToSource } from '../src/prefab/override';
-import { applyDeltaToSource } from '../src/prefab/sceneInstance';
+import { applyDeltaToSource, buildVariant } from '../src/prefab/sceneInstance';
+import { flattenPrefab } from '../src/prefab/flatten';
 import type { AddedEntity } from '../src/prefab/sceneInstance';
 import type { PrefabData, PrefabOverride } from '../src/prefab';
 
@@ -172,5 +173,72 @@ describe('applyDeltaToSource (structural Apply)', () => {
         applyDeltaToSource(src, { overrides: [], added: [{ prefabEntityId: 'x', name: 'X', components: [], visible: true, parentId: '0' }], removed: ['2'] });
         expect(src.entities.map((e) => e.prefabEntityId)).toEqual(['0', '1', '2']);
         expect(src.entities[0].children).toEqual(['1']);
+    });
+});
+
+// ── buildVariant: an instance delta → a base-tracked variant PrefabData ──────
+
+describe('buildVariant', () => {
+    const BASE_REF = '@uuid:base';
+    /** Flatten a variant, resolving its base ref through a fixed loader. */
+    function flatten(variant: PrefabData, base: PrefabData) {
+        let n = 0;
+        return flattenPrefab(variant, [], {
+            allocateId: () => n++,
+            loadPrefab: (ref) => (ref === BASE_REF ? base : null),
+        }).entities;
+    }
+
+    it('inherits the base + mirrors its rootEntityId, carrying overrides', () => {
+        const base = basePrefab();
+        const overrides: PrefabOverride[] = [
+            { prefabEntityId: '1', type: 'property', componentType: 'Sprite', propertyName: 'color', value: 'red' },
+        ];
+        const v = buildVariant(base, BASE_REF, 'Enemy Variant', { overrides, added: [] });
+        expect(v.basePrefab).toBe(BASE_REF);
+        expect(v.rootEntityId).toBe(base.rootEntityId);
+        expect(v.name).toBe('Enemy Variant');
+        expect(v.overrides).toEqual(overrides);
+        expect(v.entities).toEqual([]);
+        // The base is untouched (pure).
+        expect(base.entities[1].components[0].data).toEqual({ texture: 'a.png', color: 'white' });
+    });
+
+    it('flattens to the base with the variant overrides applied', () => {
+        const base = basePrefab();
+        const v = buildVariant(base, BASE_REF, 'V', {
+            overrides: [{ prefabEntityId: '1', type: 'property', componentType: 'Sprite', propertyName: 'color', value: 'red' }],
+            added: [],
+        });
+        const flat = flatten(v, base);
+        const body = flat.find((e) => e.name === 'Body')!;
+        expect((body.components.find((c) => c.type === 'Sprite')!.data as { color: string }).color).toBe('red');
+    });
+
+    it('appends added entities as variant entities, linked under their parent', () => {
+        const base = basePrefab();
+        const added: AddedEntity[] = [
+            { prefabEntityId: 'x', name: 'Extra', components: [{ type: 'Marker', data: {} }], visible: true, parentId: '0' },
+        ];
+        const v = buildVariant(base, BASE_REF, 'V', { overrides: [], added });
+        expect(v.entities).toEqual([
+            { prefabEntityId: 'x', name: 'Extra', parent: '0', children: [], components: [{ type: 'Marker', data: {} }], visible: true },
+        ]);
+        // The addition survives flatten and attaches under the (runtime) root.
+        const flat = flatten(v, base);
+        const root = flat.find((e) => e.parent === null)!;
+        const extra = flat.find((e) => e.name === 'Extra')!;
+        expect(extra).toBeDefined();
+        expect(extra.parent).toBe(root.id);
+    });
+
+    it('maps a null parentId to the base root, and drops the overrides key when empty', () => {
+        const base = basePrefab();
+        const v = buildVariant(base, BASE_REF, 'V', {
+            overrides: [],
+            added: [{ prefabEntityId: 'y', name: 'Loose', components: [], visible: true, parentId: null }],
+        });
+        expect(v.entities[0].parent).toBe(base.rootEntityId);
+        expect('overrides' in v).toBe(false);
     });
 });
