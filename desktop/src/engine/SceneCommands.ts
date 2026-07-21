@@ -114,6 +114,19 @@ export function toModelValue(
         ...(Number.isFinite(z) ? { z } : {}),
       };
     }
+    case 'vec4': {
+      // Merge onto the base (order-preserving, so a vec4 stays x-first and never
+      // reads back as a quaternion). NaN axes are left untouched, as for vec2/vec3.
+      const [x, y, z, w] = value as [number, number, number, number];
+      const base = cur[key] as { x: number; y: number; z: number; w: number };
+      return {
+        ...base,
+        ...(Number.isFinite(x) ? { x } : {}),
+        ...(Number.isFinite(y) ? { y } : {}),
+        ...(Number.isFinite(z) ? { z } : {}),
+        ...(Number.isFinite(w) ? { w } : {}),
+      };
+    }
     case 'vec2list':
       // A whole Vec2[] replacement (polygon vertices / chain points) — normalized to
       // plain {x,y} so a dragged vertex writes clean data; coalesced to one undo step.

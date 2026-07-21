@@ -106,18 +106,20 @@ export function coerceFieldValue(
     case 'asset':
       return typeof value === 'string' ? value : String(value);
     case 'vec2':
-    case 'vec3': {
-      const n = declared === 'vec2' ? 2 : 3;
+    case 'vec3':
+    case 'vec4': {
+      const n = declared === 'vec2' ? 2 : declared === 'vec3' ? 3 : 4;
       let v: unknown = value;
       if (typeof v === 'string') v = parseJsonText(v);
       if (v !== null && typeof v === 'object' && !Array.isArray(v)) {
         const o = v as Record<string, unknown>;
-        v = n === 2 ? [o.x, o.y] : [o.x, o.y, o.z];
+        v = n === 2 ? [o.x, o.y] : n === 3 ? [o.x, o.y, o.z] : [o.x, o.y, o.z, o.w];
       }
       if (!Array.isArray(v) || v.length < n || v.slice(0, n).some((c) => typeof c !== 'number' || !Number.isFinite(c))) {
-        return fail(`${n} numbers (e.g. ${n === 2 ? '[16, 16]' : '[0, 0, 0]'})`);
+        const example = n === 2 ? '[16, 16]' : n === 3 ? '[0, 0, 0]' : '[0, 0, 1, 1]';
+        return fail(`${n} numbers (e.g. ${example})`);
       }
-      return (n === 2 ? [v[0], v[1]] : [v[0], v[1], v[2]]) as InspectorFieldValue;
+      return v.slice(0, n) as InspectorFieldValue;
     }
     case 'color': {
       let v: unknown = value;

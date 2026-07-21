@@ -90,7 +90,7 @@ import { Segmented, type SegmentedOption } from '@/components/Segmented';
 import { AddComponentMenu } from '@/components/AddComponentMenu';
 import type { InspectorComponent, InspectorField, InspectorFieldValue, EntityId, NodeKind, EnumOption, AssetType, GradientValue, GradientStop, CurveValue, CurveKey, DimensionValue, InspectSource } from '@/types';
 
-const AXES = ['x', 'y', 'z'];
+const AXES = ['x', 'y', 'z', 'w'];
 
 // Field-value equality for the "modified" (override) mark. Vectors compare
 // element-wise; numbers tolerate float drift so a no-op edit doesn't read as one.
@@ -1191,6 +1191,7 @@ function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp
       break;
     case 'vec2':
     case 'vec3':
+    case 'vec4':
       control = <VecControl value={field.value as number[]} mixed={mixed} onBegin={begin} onEnd={end} onChange={apply} />;
       break;
     case 'dimension':

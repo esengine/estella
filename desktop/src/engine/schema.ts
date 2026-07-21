@@ -13,8 +13,10 @@ type SceneEntityLike = SceneData['entities'][number];
 // infers an editable control per field from its live value shape.
 //
 // Note: PTR_LAYOUTS (the C++ heap layout) is intentionally NOT used for fields —
-// it can diverge from the JS data shape that world.get/set operate on (e.g.
-// Camera packs a vec4 `viewport` where the JS data exposes viewportX/Y/W/H).
+// it can diverge from the JS data shape that world.get/set operate on. A field's
+// control is inferred from its live value shape; the one ambiguity is {x,y,z,w},
+// which is a rotation quaternion OR a vec4 (Camera `viewport`, a 9-slice border) —
+// see isQuaternion.
 
 export type WorldT = App['world'];
 /**
@@ -162,6 +164,17 @@ export const angleZToQuat = (deg: number) => {
   return { x: 0, y: 0, z: Math.sin(h), w: Math.cos(h) };
 };
 
+// A rotation quaternion and a vec4 (Camera viewport rect, a 9-slice border) share the
+// exact {x,y,z,w} shape, so value-shape alone can't tell them apart — the engine's only
+// quaternions are the Transform rotation and its derived world mirror. Those are surfaced
+// as a Z angle; every other 4-component field is four editable numbers. The named set is
+// authoritative; a w-first layout (the engine's quaternion order, vs. a vec4's x-first)
+// also reads as a quaternion, so a user component's rotation quat renders as an angle
+// without a genuine vec4 (which is x-first) ever mis-rendering as a bogus rotation.
+const QUAT_FIELDS = new Set(['rotation', 'worldRotation']);
+const isQuaternion = (key: string, o: Record<string, number>): boolean =>
+  QUAT_FIELDS.has(key) || Object.keys(o)[0] === 'w';
+
 const chan = (n: number) =>
   Math.max(0, Math.min(255, Math.round(n * 255)))
     .toString(16)
@@ -190,8 +203,11 @@ export function inferField(key: string, v: unknown, isColor: boolean): Inspector
   if (typeof v === 'string') return { key, label, type: 'string', value: v };
   if (v && typeof v === 'object') {
     const o = v as Record<string, number>;
-    if ('w' in o && 'z' in o && 'x' in o)
-      return { key, label, type: 'angle', value: quatToAngleZ(o as { z: number; w: number }) };
+    if ('w' in o && 'z' in o && 'x' in o) {
+      return isQuaternion(key, o)
+        ? { key, label, type: 'angle', value: quatToAngleZ(o as { z: number; w: number }) }
+        : { key, label, type: 'vec4', value: [o.x, o.y ?? 0, o.z, o.w] };
+    }
     if ('z' in o && 'x' in o && 'y' in o) return { key, label, type: 'vec3', value: [o.x, o.y, o.z] };
     if ('x' in o && 'y' in o) return { key, label, type: 'vec2', value: [o.x, o.y] };
     // CSS-length shape ({ value, unit }) — the UINode Dimension (width/height/inset/margin).

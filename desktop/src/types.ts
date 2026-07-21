@@ -33,6 +33,7 @@ export type InspectorFieldType =
   | 'string'
   | 'vec2'
   | 'vec3'
+  | 'vec4' // four editable numbers (Camera viewport rect, a 9-slice border) — NOT a rotation quaternion (see 'angle')
   | 'vec2list' // a whole Vec2[] written at once (polygon vertices / chain points) — viewport vertex drag
   | 'angle' // 2D rotation: a quaternion shown/edited as Z degrees
   | 'color'
@@ -83,6 +84,7 @@ export type InspectorFieldValue =
   | string
   | [number, number]
   | [number, number, number]
+  | [number, number, number, number]
   | GradientValue
   | CurveValue
   | DimensionValue;
