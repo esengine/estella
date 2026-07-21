@@ -24,6 +24,7 @@ import { useSelection } from '@/store/selectionStore';
 import { Toasts } from '@/store/Toasts';
 import { confirmDiscard } from './discardGuard';
 import { confirm } from '@/components/confirm';
+import { previewApply } from './applyPreview';
 import { t } from '@/i18n';
 import { assetTypeOf } from '@/project/assetMeta';
 import type { AssetType } from '@/types';
@@ -1041,18 +1042,14 @@ class ProjectStoreImpl {
 
     const name = info.path.split('/').pop() ?? info.path;
 
-    // Structural edits rewrite the shared asset for EVERY instance — confirm first.
-    if (structural > 0) {
-      const ok = await confirm({
-        title: t('proj.applyStructuralTitle'),
-        body: t('proj.applyStructuralBody', {
-          name, overrides: overrides.length, added: added.length, removed: removed.length,
-        }),
-        confirmLabel: t('proj.applyLabel'),
-        danger: true,
-      });
-      if (!ok) return instanceRoot;
-    }
+    // Apply rewrites the SHARED prefab for every instance — show an itemized diff
+    // preview and let the user confirm before committing. Names resolve from the
+    // live instance, else the prefab base (for removed entities), else the id.
+    const nameByPrefabId = new Map(processed.map((e) => [e.prefabEntityId, e.name]));
+    const nameOf = (id: string): string =>
+      nameByPrefabId.get(id) ?? oldPrefab.entities.find((e) => e.prefabEntityId === id)?.name ?? id;
+    const ok = await previewApply(name, { overrides, added, removed }, nameOf);
+    if (!ok) return instanceRoot;
 
     const newPrefab = applyDeltaToSource(oldPrefab, { overrides, added, removed });
 

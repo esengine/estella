@@ -11,10 +11,12 @@
  *          contract). Concurrent requests queue; dialogs show one at a time.
  */
 import { createStore } from 'zustand/vanilla';
+import type { ReactNode } from 'react';
 
 export interface ConfirmOptions {
   title: string;
-  body: string;
+  /** Plain text, or rich content (e.g. an itemized diff preview). */
+  body: ReactNode;
   confirmLabel?: string;
   /** Destructive action — the confirm button wears the error fill. */
   danger?: boolean;

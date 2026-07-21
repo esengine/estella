@@ -141,6 +141,25 @@
 /* ConfirmDialog body — pre-line keeps multi-paragraph warnings readable */
 .confirm-body { white-space: pre-line; font-size: var(--fs-sm); color: var(--text-dim); line-height: 1.55; }
 
+/* ── Apply-to-Prefab change preview (itemized diff inside the confirm body) ── */
+.apply-diff .ad-lead { margin: 0 0 8px; font-size: var(--fs-sm); color: var(--text-dim); line-height: 1.5; }
+.apply-diff .ad-list {
+  list-style: none; margin: 0; padding: 0;
+  max-height: 240px; overflow-y: auto;
+  border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--inset);
+}
+.apply-diff .ad-item {
+  display: flex; align-items: baseline; gap: 8px;
+  padding: 4px 10px 4px 8px; border-left: 2px solid transparent;
+  font-size: var(--fs-sm);
+}
+.apply-diff .ad-item + .ad-item { border-top: 1px solid var(--line-soft); }
+.apply-diff .ad-edit { border-left-color: var(--warn); }
+.apply-diff .ad-add { border-left-color: var(--create); }
+.apply-diff .ad-remove { border-left-color: var(--error); }
+.apply-diff .ad-ent { color: var(--text); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.apply-diff .ad-detail { color: var(--text-dim); font-family: var(--mono); font-size: var(--fs-2xs); margin-left: auto; flex-shrink: 0; }
+
 /* ── New Tilemap tileset chooser ── */
 .tmpick { display: flex; flex-direction: column; gap: 10px; }
 .tmpick__hint { font-size: var(--fs-sm); color: var(--text-mute); }
