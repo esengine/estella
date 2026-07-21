@@ -870,6 +870,31 @@ describe('hierarchical addressing', () => {
     });
 });
 
+// ─── flatten order-independence (outer child on a later nested slot) ───────
+
+describe('flatten order-independence', () => {
+    it('an outer entity parented to a LATER nested slot still resolves (not detached)', () => {
+        const turret = leafPrefab('Turret');
+        const prefab: PrefabData = {
+            version: PREFAB_FORMAT_VERSION, name: 'Ship', rootEntityId: 'ship',
+            entities: [
+                { prefabEntityId: 'ship', name: 'Ship', parent: null, children: ['slot'], components: [], visible: true },
+                // 'badge' is parented to the slot but appears BEFORE it in the array,
+                // so the main loop can't resolve the slot's (not-yet-flattened) id.
+                { prefabEntityId: 'badge', name: 'Badge', parent: 'slot', children: [], components: [], visible: true },
+                { prefabEntityId: 'slot', name: 'Slot', parent: 'ship', children: ['badge'], components: [], visible: true,
+                  nestedPrefab: { prefabPath: 'turret', overrides: [] } },
+            ],
+        };
+        const { entities } = flattenPrefab(prefab, [], ctxWith({ turret }));
+        const byAddr = new Map(entities.map((e) => [e.prefabEntityId, e]));
+        const badge = byAddr.get('badge')!;
+        const slotRoot = byAddr.get('slot/0')!; // the nested turret's root = the slot's runtime id
+        expect(badge.parent).toBe(slotRoot.id); // healed, not null
+        expect(slotRoot.children).toContain(badge.id);
+    });
+});
+
 // ─── Nested-instance delta round-trip (override on a nested entity) ─────────
 
 describe('nested-instance delta', () => {

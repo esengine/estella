@@ -20,6 +20,8 @@ interface PrefabConflictState {
   setAll: (byInstance: Map<number, StaleOverride[]>) => void;
   /** Forget one instance's conflicts (after it's repaired / its subtree removed). */
   clearInstance: (rootId: number) => void;
+  /** Restore one instance's conflicts (undo of the removal that cleared them). */
+  setInstance: (rootId: number, overrides: StaleOverride[]) => void;
   clear: () => void;
 }
 
@@ -38,6 +40,13 @@ export const usePrefabConflicts = create<PrefabConflictState>((set) => ({
       if (!s.byInstance.has(rootId)) return s;
       const byInstance = new Map(s.byInstance);
       byInstance.delete(rootId);
+      return { byInstance, total: countAll(byInstance) };
+    }),
+  setInstance: (rootId, overrides) =>
+    set((s) => {
+      if (overrides.length === 0) return s;
+      const byInstance = new Map(s.byInstance);
+      byInstance.set(rootId, overrides);
       return { byInstance, total: countAll(byInstance) };
     }),
   clear: () => set({ byInstance: new Map(), total: 0 }),

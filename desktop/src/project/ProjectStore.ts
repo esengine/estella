@@ -222,6 +222,9 @@ class ProjectStoreImpl {
     /** Editor camera at enter, restored on exit so "Back to Scene" returns the
      *  user to the exact view they left instead of reframing to the scene camera. */
     returnView: { x: number; y: number; orthoSize: number } | null;
+    /** Scene entity selected at enter (the instance you came from) — re-selected on
+     *  exit. Scene entity ids are stable across the reload, so this survives it. */
+    returnSelection: number | null;
     /** When editing a VARIANT: its base asset + ref. Save collapses the edited
      *  tree against this base into a variant delta (preserving basePrefab), rather
      *  than extracting a flat prefab. Null for an ordinary (flat) prefab. */
@@ -2006,6 +2009,9 @@ class ProjectStoreImpl {
     // session's — its currentScene is null), so "Back" always lands in the scene.
     const returnScene = this.prefabSession?.returnScene ?? st.currentScene;
     const returnView = this.prefabSession?.returnView ?? EngineHost.editorViewState();
+    // The instance we entered from — captured before adopt clears selection, so
+    // "Back to Scene" re-selects it (Unity/Godot behaviour).
+    const returnSelection = this.prefabSession?.returnSelection ?? useSelection.getState().selectedId ?? null;
 
     // Flatten the asset into ordinary entities; remember each entity's stable id.
     // A variant resolves its base through the warm-cache resolver (loadPrefabAsset
@@ -2036,7 +2042,7 @@ class ProjectStoreImpl {
     requestAnimationFrame(() => requestAnimationFrame(frameContent));
     const returnLeaf = returnScene ? (returnScene.split('/').pop() ?? returnScene) : null;
     const baseRef = prefab.basePrefab ?? null;
-    this.prefabSession = { ref, path, name: prefab.name, rootSource: rootId, idBySource, returnScene, returnView, base, baseRef };
+    this.prefabSession = { ref, path, name: prefab.name, rootSource: rootId, idBySource, returnScene, returnView, returnSelection, base, baseRef };
     this.store.setState({ project: { ...st, currentScene: null, prefabEdit: { name: prefab.name, path, returnScene: returnLeaf, isVariant: !!baseRef } } });
     Toasts.push(t('proj.openedPrefab', { name: prefab.name }), 'info', 1600);
   }
@@ -2136,7 +2142,7 @@ class ProjectStoreImpl {
   async exitPrefabMode(): Promise<void> {
     if (!this.prefabSession) return;
     if (!(await confirmDiscard(t('discard.exitPrefab')))) return;
-    const { returnScene: back, returnView } = this.prefabSession;
+    const { returnScene: back, returnView, returnSelection } = this.prefabSession;
     this.prefabSession = null;
     const st = this.state;
     if (st) this.store.setState({ project: { ...st, prefabEdit: null } });
@@ -2149,6 +2155,10 @@ class ProjectStoreImpl {
         // Reframe to where the user was before entering (openScene reseeds the view
         // from the scene camera; this puts their pan/zoom back).
         if (returnView) EngineHost.setEditorView(returnView);
+        // Re-select the instance we came from — its scene id survived the reload.
+        if (returnSelection != null && SceneModel.current?.entities.some((e) => e.id === returnSelection)) {
+          useSelection.getState().select(returnSelection);
+        }
         Toasts.push(t('proj.returnedScene', { name: back.split('/').pop() ?? back }), 'info', 1600);
       } catch {
         await this.newScene();

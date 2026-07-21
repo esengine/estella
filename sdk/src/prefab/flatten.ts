@@ -153,6 +153,32 @@ export function flattenPrefab(
         );
     }
 
+    // Second pass: heal top-level parent/child links now that idMapping is
+    // complete. A nested SLOT's runtime id is only known after its own flatten, so
+    // an entity parented to a slot that appears LATER in a non-tree-ordered
+    // `entities` array resolved to null (and dropped from the slot's children) in
+    // the loop above. Re-resolve every top-level link so flatten is order-independent;
+    // for a tree-ordered file every link already matches and this is a no-op.
+    const byRuntimeId = new Map(result.map((e) => [e.id, e]));
+    for (const pe of prefab.entities) {
+        if (pe.prefabEntityId === prefab.rootEntityId) continue;
+        const childId = idMapping.get(pe.prefabEntityId);
+        if (childId === undefined) continue;
+        const entity = byRuntimeId.get(childId);
+        if (!entity) continue;
+        const wantParent = pe.parent !== null ? (idMapping.get(pe.parent) ?? null) : null;
+        if (entity.parent === wantParent) continue;
+        if (entity.parent != null) {
+            const old = byRuntimeId.get(entity.parent);
+            if (old) old.children = old.children.filter((c) => c !== childId);
+        }
+        entity.parent = wantParent;
+        if (wantParent != null) {
+            const np = byRuntimeId.get(wantParent);
+            if (np && !np.children.includes(childId)) np.children.push(childId);
+        }
+    }
+
     return { entities: result, rootId };
 }
 

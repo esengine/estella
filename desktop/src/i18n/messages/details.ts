@@ -201,6 +201,8 @@ export const detailsMessages = defineMessages({
     'det.editingShared': { en: '{count} entities · shared components', zh: '{count} 个实体 · 共同组件' },
     'det.id': { en: 'ID', zh: 'ID' },
     'det.entityNone': { en: 'None', zh: '无' },
+    'det.entityMissing': { en: '#{id} (missing)', zh: '#{id}（已丢失）' },
+    'det.entityMissingTip': { en: 'The referenced entity no longer exists — pick a new target or clear it.', zh: '引用的实体已不存在——请重新选择目标或清除。' },
     'det.prefabEdit': { en: 'Edit', zh: '编辑' },
     'det.prefabEditTip': { en: 'Open this prefab in Prefab Mode', zh: '在预制体模式中打开此预制体' },
     'det.staleOverrides': {

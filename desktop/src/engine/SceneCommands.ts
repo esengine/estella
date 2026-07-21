@@ -6,6 +6,7 @@ import type { EntityId, InspectorFieldType, InspectorFieldValue } from '@/types'
 import { EditorHistory, EditorHistoryImpl } from './EditorHistory';
 import { SceneModel, SceneModelImpl, type PrefabInstanceTag } from './SceneModel';
 import { SceneStore } from './SceneStore';
+import { usePrefabConflicts } from '@/store/prefabConflicts';
 import { ViewportController } from './ViewportController';
 import { expandInstance } from './PrefabInstance';
 import { setEntityClipboard, getEntityClipboard, remapClipboardEntities } from './entityClipboard';
@@ -863,12 +864,18 @@ export class SceneCommandsImpl {
       if (tag) saved.push([id as EntityId, tag]);
     }
     if (saved.length === 0) return;
+    // A load-time stale-override diagnostic keyed by this instance root is moot once
+    // the subtree is no longer an instance; clear it (and its count) on unpack, and
+    // restore it on undo so the badge tracks the tree state accurately.
+    const conflicts = usePrefabConflicts.getState().byInstance.get(instanceRoot);
     const unlink = (): void => {
       for (const [id] of saved) this.model.setPrefabTag(id, undefined);
+      usePrefabConflicts.getState().clearInstance(instanceRoot);
       SceneStore.pokeStructure();
     };
     const relink = (): void => {
       for (const [id, tag] of saved) this.model.setPrefabTag(id, tag);
+      if (conflicts) usePrefabConflicts.getState().setInstance(instanceRoot, conflicts);
       SceneStore.pokeStructure();
     };
     unlink();

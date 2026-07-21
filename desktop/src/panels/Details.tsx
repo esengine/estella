@@ -288,6 +288,9 @@ export function EntityControl({
   const pop = usePopover();
   const trigger = useRef<HTMLButtonElement>(null);
   const [q, setQ] = useState('');
+  // Track scene-model changes so the trigger label reflects a bound target's
+  // CURRENT name (rename elsewhere) — not just a stale snapshot from the last open.
+  useSyncExternalStore(SceneStore.subscribe, SceneStore.getRevision);
   // The scene's entities (source id + name) — rebuilt each open so it's current.
   // Source id 0 (== INVALID_ENTITY) is excluded: a ref to it can't be told apart
   // from "unset", so it isn't a bindable target.
@@ -298,8 +301,17 @@ export function EntityControl({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [pop.isOpen],
   );
-  const cur = options.find((o) => o.id === value);
-  const label = mixed ? '—' : isUnsetEntity(value) ? t('det.entityNone') : cur?.name ?? `#${value}`;
+  // Resolve the bound target against the LIVE model each render, so a rename shows
+  // immediately and a ref to a since-deleted entity reads as missing (not a bare #id).
+  const cur = (SceneModel.current?.entities ?? []).find((e) => e.id === value && !isUnsetEntity(e.id));
+  const isDangling = !mixed && !isUnsetEntity(value) && !cur;
+  const label = mixed
+    ? '—'
+    : isUnsetEntity(value)
+      ? t('det.entityNone')
+      : cur
+        ? cur.name || `#${cur.id}`
+        : t('det.entityMissing', { id: value });
   const ql = q.trim().toLowerCase();
   const filtered = ql ? options.filter((o) => o.name.toLowerCase().includes(ql)) : options;
   const close = () => {
@@ -318,8 +330,9 @@ export function EntityControl({
   };
   return (
     <span className="field dropdown">
-      <button ref={trigger} type="button" className="dd-trigger" onMouseDown={(e) => e.stopPropagation()} onClick={toggle}>
-        <span className={`dd-val${mixed || isUnsetEntity(value) ? ' dd-none' : ''}`}>{mixed ? '—' : label}</span>
+      <button ref={trigger} type="button" className="dd-trigger" onMouseDown={(e) => e.stopPropagation()} onClick={toggle}
+        title={isDangling ? t('det.entityMissingTip') : undefined}>
+        <span className={`dd-val${mixed || isUnsetEntity(value) || isDangling ? ' dd-none' : ''}`}>{mixed ? '—' : label}</span>
         <ChevronDown size={12} strokeWidth={2} />
       </button>
       {pop.anchor && (
