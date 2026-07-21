@@ -129,6 +129,9 @@ jobs:
     - name: Type-check Examples
       run: node build-tools/cli.js check-examples
 
+    - name: Validate prefab assets
+      run: node build-tools/cli.js validate-prefabs
+
     - name: Run SDK tests
       run: pnpm --filter ./sdk exec vitest run
 

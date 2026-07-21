@@ -17,6 +17,7 @@ import { startWatch } from './tasks/watch.js';
 import { BuildManifest } from './manifest.js';
 import { handleBuildError } from './utils/errorHelp.js';
 import { checkExamples } from './tasks/check-examples.js';
+import { validatePrefabs } from './tasks/validate-prefabs.js';
 
 program
     .name('esengine-build')
@@ -209,6 +210,16 @@ program
         logger.header('Check Examples');
         const startTime = Date.now();
         await checkExamples(config.paths.root);
+        logger.printTime(startTime);
+    });
+
+program
+    .command('validate-prefabs')
+    .description('Run the unified prefab validator over every shipped .esprefab')
+    .action(async () => {
+        logger.header('Validate Prefabs');
+        const startTime = Date.now();
+        await validatePrefabs(config.paths.root);
         logger.printTime(startTime);
     });
 

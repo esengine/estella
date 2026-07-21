@@ -22,8 +22,14 @@ export { migratePrefabData, PREFAB_FORMAT_VERSION } from './migrate';
 export type { MigrationResult } from './migrate';
 export { diffAgainstSource } from './diff';
 export type { DiffOptions } from './diff';
-export { validateOverrides } from './validate';
-export type { ValidateResult, StaleOverride } from './validate';
+export { validateOverrides, validatePrefab } from './validate';
+export type {
+    ValidateResult,
+    StaleOverride,
+    PrefabDiagnostic,
+    PrefabDiagnosticSeverity,
+    ValidatePrefabOptions,
+} from './validate';
 
 export {
     expandInstance,
