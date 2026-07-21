@@ -59,6 +59,8 @@ const ASSET_TYPE_REGISTRY: readonly AssetTypeEntry[] = [
     { extensions: ['eslocale'], contentType: 'json', editorType: 'json', addressableType: 'json', wechatPackInclude: true, hasTransitiveDeps: false },
     // State machine (registerFsm / FsmAssetLoader) — data-driven FSM definition.
     { extensions: ['esfsm'], contentType: 'json', editorType: 'json', addressableType: 'json', wechatPackInclude: true, hasTransitiveDeps: false },
+    // Animation controller (AnimatorControllerDef) — data-driven sprite-anim state machine.
+    { extensions: ['esanimator'], contentType: 'json', editorType: 'json', addressableType: 'json', wechatPackInclude: true, hasTransitiveDeps: false },
     // Behavior tree (registerBt / BtAssetLoader) — data-driven BT definition.
     { extensions: ['esbt'], contentType: 'json', editorType: 'json', addressableType: 'json', wechatPackInclude: true, hasTransitiveDeps: false },
 ];
@@ -95,6 +97,7 @@ const MIME_MAP: Record<string, string> = {
     estimeline: 'application/json',
     eslocale: 'application/json',
     esfsm: 'application/json',
+    esanimator: 'application/json',
     esbt: 'application/json',
     bmfont: 'application/json',
     fnt: 'text/plain',

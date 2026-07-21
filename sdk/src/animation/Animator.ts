@@ -117,6 +117,9 @@ export interface AnimatorState {
     speed?: number;
     loop?: boolean;
     transitions: AnimatorTransition[];
+    /** Editor-only canvas position; the interpreter ignores it. */
+    x?: number;
+    y?: number;
 }
 
 export interface AnimatorControllerDef {

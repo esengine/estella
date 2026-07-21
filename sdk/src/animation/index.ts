@@ -70,6 +70,26 @@ export {
 } from './Animator';
 
 export {
+    emptyAnimatorController,
+    animatorEdges,
+    addState as addAnimatorState,
+    removeState as removeAnimatorState,
+    moveState as moveAnimatorState,
+    renameState as renameAnimatorState,
+    setInitial as setAnimatorInitial,
+    setStateClip as setAnimatorStateClip,
+    setStateProps as setAnimatorStateProps,
+    addTransition as addAnimatorTransition,
+    removeTransition as removeAnimatorTransition,
+    updateTransition as updateAnimatorTransition,
+    setConditions as setAnimatorConditions,
+    addParam as addAnimatorParam,
+    removeParam as removeAnimatorParam,
+    updateParam as updateAnimatorParam,
+    type AnimatorEdge,
+} from './animatorGraph';
+
+export {
     AnimationPlugin,
     animationPlugin,
 } from './AnimationPlugin';
