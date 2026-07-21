@@ -1929,6 +1929,13 @@ class ProjectStoreImpl {
    * an untitled scene (no `currentScene` path to recover into).
    */
   async snapshotScene(): Promise<DocSnapshot | null> {
+    // Prefab Mode holds a prefab tree, not a scene (currentScene is null) — snapshot
+    // the prefab to its own path so a crash mid-edit is recoverable, not silently lost.
+    if (this.prefabSession) {
+      const built = this.buildSessionPrefab(this.prefabSession);
+      if (!built) return null;
+      return { path: this.prefabSession.path, contents: JSON.stringify(built.prefab, null, 2) + '\n' };
+    }
     const st = this.state;
     if (!st?.currentScene) return null;
     return { path: st.currentScene, contents: JSON.stringify(await this.serializeCurrent(), null, 2) + '\n' };
@@ -2067,15 +2074,18 @@ class ProjectStoreImpl {
    * instead collapses the edited tree against its base into a variant delta
    * (keeping basePrefab), so editing a variant stays base-tracked.
    */
-  async savePrefab(): Promise<void> {
-    const pe = this.prefabSession;
-    if (!pe) return;
+  /** Serialize the live Prefab-Mode tree to a {@link PrefabData} without touching
+   *  UI or store state — shared by {@link savePrefab} and the crash snapshot.
+   *  `removedCount` is the number of base entities a variant edit dropped (a
+   *  variant cannot delete a base entity), for the caller to surface. */
+  private buildSessionPrefab(
+    pe: NonNullable<typeof this.prefabSession>,
+  ): { prefab: PrefabData; idBySource: Map<number, string>; removedCount: number } | null {
     const model = SceneModel.serialize();
-    if (!model) return;
+    if (!model) return null;
     const idBySource = new Map(pe.idBySource);
     for (const e of model.entities) if (!idBySource.has(e.id)) idBySource.set(e.id, crypto.randomUUID());
 
-    let prefab: PrefabData;
     if (pe.base && pe.baseRef) {
       // VARIANT: diff the edited tree against the flat base → the variant's own
       // overrides + additions, then rebuild the variant (basePrefab preserved).
@@ -2090,16 +2100,25 @@ class ProjectStoreImpl {
       }));
       const delta = collapseInstance(pe.base, pe.baseRef, processed, this.prefabResolverSync);
       const overrides = delta.overrides.filter((o) => o.type !== 'metadata_set' && o.type !== 'metadata_removed');
-      if (delta.removed.length > 0) Toasts.push(t('proj.variantNoRemove', { count: delta.removed.length }), 'warn');
-      prefab = buildVariant(pe.base, pe.baseRef, pe.name, { overrides, added: delta.added });
-    } else {
-      prefab = extractPrefab(
-        model.entities as unknown as ExtractEntity[],
-        pe.rootSource,
-        pe.name,
-        (srcId) => idBySource.get(srcId) ?? crypto.randomUUID(),
-      );
+      const prefab = buildVariant(pe.base, pe.baseRef, pe.name, { overrides, added: delta.added });
+      return { prefab, idBySource, removedCount: delta.removed.length };
     }
+    const prefab = extractPrefab(
+      model.entities as unknown as ExtractEntity[],
+      pe.rootSource,
+      pe.name,
+      (srcId) => idBySource.get(srcId) ?? crypto.randomUUID(),
+    );
+    return { prefab, idBySource, removedCount: 0 };
+  }
+
+  async savePrefab(): Promise<void> {
+    const pe = this.prefabSession;
+    if (!pe) return;
+    const built = this.buildSessionPrefab(pe);
+    if (!built) return;
+    const { prefab, idBySource, removedCount } = built;
+    if (removedCount > 0) Toasts.push(t('proj.variantNoRemove', { count: removedCount }), 'warn');
     try {
       await window.estella.fs.write(pe.path, JSON.stringify(prefab, null, 2) + '\n');
     } catch {
@@ -2122,11 +2141,19 @@ class ProjectStoreImpl {
     const st = this.state;
     if (st) this.store.setState({ project: { ...st, prefabEdit: null } });
     if (back) {
-      await this.openScene(back, { quiet: true });
-      // Reframe to where the user was before entering (openScene reseeds the view
-      // from the scene camera; this puts their pan/zoom back).
-      if (returnView) EngineHost.setEditorView(returnView);
-      Toasts.push(t('proj.returnedScene', { name: back.split('/').pop() ?? back }), 'info', 1600);
+      try {
+        // The return scene may have been deleted or renamed while we edited the
+        // prefab; an unguarded load would reject and strand the editor showing the
+        // prefab tree with prefabSession already cleared. Fall back to a blank scene.
+        await this.openScene(back, { quiet: true });
+        // Reframe to where the user was before entering (openScene reseeds the view
+        // from the scene camera; this puts their pan/zoom back).
+        if (returnView) EngineHost.setEditorView(returnView);
+        Toasts.push(t('proj.returnedScene', { name: back.split('/').pop() ?? back }), 'info', 1600);
+      } catch {
+        await this.newScene();
+        Toasts.push(t('proj.returnSceneGone', { name: back.split('/').pop() ?? back }), 'warn');
+      }
     } else {
       await this.newScene();
     }

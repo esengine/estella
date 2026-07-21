@@ -772,6 +772,59 @@ describe('diffAgainstSource — entity-ref fields', () => {
     });
 });
 
+// ─── entity-ref integrity (dangling clear, external-binding no-bake) ───────
+
+describe('entity-ref integrity', () => {
+    const REF_META = { entityFields: ['target'] };
+
+    it('a dangling string entity-ref clears to INVALID_ENTITY on flatten (not a raw string)', () => {
+        defineComponent('RefHolder', { target: 0 }, REF_META);
+        const prefab: PrefabData = {
+            version: PREFAB_FORMAT_VERSION, name: 'R', rootEntityId: 'root',
+            entities: [
+                // `target: 'ghost'` references an id that isn't in the prefab.
+                { prefabEntityId: 'root', name: 'Root', parent: null, children: [], visible: true,
+                  components: [{ type: 'RefHolder', data: { target: 'ghost' } }] },
+            ],
+        };
+        let n = 0;
+        const { entities } = flattenPrefab(prefab, [], { allocateId: () => n++, loadPrefab: () => null });
+        const val = (entities[0].components[0].data as { target: unknown }).target;
+        expect(val).toBe(0); // INVALID_ENTITY — never a leaked string
+    });
+
+    it('applyDeltaToSource bakes an intra-prefab ref (string) but drops an external binding (number)', () => {
+        defineComponent('RefHolder', { target: 0 }, REF_META);
+        const source: PrefabData = {
+            version: PREFAB_FORMAT_VERSION, name: 'R', rootEntityId: 'root',
+            entities: [
+                { prefabEntityId: 'root', name: 'Root', parent: null, children: ['child'], visible: true, components: [] },
+                { prefabEntityId: 'child', name: 'Child', parent: 'root', children: [], visible: true,
+                  components: [{ type: 'RefHolder', data: { target: 0 } }] },
+            ],
+        };
+        const baked = applyDeltaToSource(source, {
+            overrides: [
+                // Intra-prefab ref → stable string id → SHOULD bake into the asset.
+                { prefabEntityId: 'child', type: 'property', componentType: 'RefHolder', propertyName: 'target', value: 'root' },
+            ],
+            added: [], removed: [],
+        });
+        const childData = (id: string, p: PrefabData) =>
+            (p.entities.find((e) => e.prefabEntityId === id)!.components[0].data as { target: unknown }).target;
+        expect(childData('child', baked)).toBe('root'); // intra-prefab ref baked
+
+        const bakedExternal = applyDeltaToSource(source, {
+            overrides: [
+                // External binding (a raw scene id) → per-instance → MUST NOT bake.
+                { prefabEntityId: 'child', type: 'property', componentType: 'RefHolder', propertyName: 'target', value: 4242 },
+            ],
+            added: [], removed: [],
+        });
+        expect(childData('child', bakedExternal)).toBe(0); // unchanged — scene id not leaked into the asset
+    });
+});
+
 // ─── Hierarchical addressing (nested identity, sibling repeats) ────────────
 
 describe('hierarchical addressing', () => {

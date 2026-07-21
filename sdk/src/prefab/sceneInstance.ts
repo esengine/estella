@@ -338,14 +338,22 @@ export interface SourceDelta {
  * targets the top-level asset.
  */
 export function applyDeltaToSource(source: PrefabData, delta: SourceDelta): PrefabData {
+    // An entity-ref field bound to something OUTSIDE the instance (an ExposeRef
+    // slot bound to a scene entity) collapses to a `property` override whose value
+    // is a raw runtime id — the diff leaves cross-instance refs numeric, while an
+    // intra-prefab ref normalises to a stable string id. That binding is per-INSTANCE
+    // state; baking it would hard-code one instance's scene id into the SHARED
+    // prefab. Drop those overrides here so Apply never leaks a scene id into the asset.
+    const overrides = delta.overrides.filter((o) => !isExternalEntityRefOverride(o));
+
     // 1. Property / component / name / visibility / metadata overrides.
-    let next = applyOverridesToSource(source, delta.overrides);
+    let next = applyOverridesToSource(source, overrides);
 
     // 2. Re-parent overrides, BEFORE the removed-closure so an entity moved out
     //    of a doomed subtree survives (mirrors expandInstance). Targets among the
     //    source entities are re-linked; a target that is only an `added` entity is
     //    left in place (added is appended below and is a niche Apply case).
-    const parentOverrides = delta.overrides.filter((o) => o.type === 'parent');
+    const parentOverrides = overrides.filter((o) => o.type === 'parent');
     if (parentOverrides.length > 0) {
         const entities = next.entities.map((e) => ({ ...e, children: [...e.children] }));
         const byId = new Map<PrefabEntityId, PrefabEntityData>();
@@ -419,6 +427,16 @@ export function applyDeltaToSource(source: PrefabData, delta: SourceDelta): Pref
     }
 
     return next;
+}
+
+/** True for a `property` override on an entity-ref field whose value is a raw
+ *  runtime id — an ExposeRef binding to something outside the instance. Such a
+ *  binding is per-instance and must not be baked into the shared prefab source. */
+function isExternalEntityRefOverride(o: PrefabOverride): boolean {
+    if (o.type !== 'property' || !o.componentType || o.propertyName === undefined) return false;
+    const def = getComponent(o.componentType);
+    if (!def || !def.entityFields.includes(o.propertyName)) return false;
+    return typeof o.value === 'number' && o.value !== INVALID_ENTITY;
 }
 
 /** Walk `node`'s parent chain in a stable-id entity map; true if `ancestor` is on

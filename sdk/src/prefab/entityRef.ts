@@ -24,9 +24,12 @@ export function remapComponentEntityRefs(
             const value = comp.data[field];
             if (typeof value === 'string') {
                 const mapped = idMapping.get(value);
-                if (mapped !== undefined) {
-                    comp.data[field] = mapped;
-                }
+                // An unresolved string is a DANGLING prefab-local ref (its target
+                // was deleted, or a stale Apply left it behind). Clear it to
+                // INVALID_ENTITY rather than leaking a string into a field the
+                // runtime/World reads as a numeric entity id (an ABI/type fault on
+                // spawn). Mirrors captureEntityRefs, which clears external refs.
+                comp.data[field] = mapped !== undefined ? mapped : INVALID_ENTITY;
             } else if (typeof value === 'number' && value !== INVALID_ENTITY) {
                 // Already a numeric id; if a caller authored components with
                 // numeric refs, fall back to numeric→numeric mapping for
