@@ -567,15 +567,57 @@ function fieldFor(
  * overrides; an entity with no prefab base just compares against the default.
  */
 // Fields that only apply to some states of the SAME component — hidden from the
-// inspector when inert so the panel shows just the controls that matter. Currently
-// the tilemap stagger/hex fields, gated on the layer's orientation (an orthogonal or
-// isometric map has no stagger; only hexagonal reads the side length).
+// inspector when inert so the panel shows just the controls that matter, gated on a
+// sibling discriminator field's live value. Each rule hides ONLY a field that is
+// definitively meaningless in the current state (never one that merely defaults),
+// so switching the discriminator back brings the field (and its stored value) right
+// back. `data` here is the effective view (stored values over registered defaults),
+// so a discriminator omitted from the stored data still resolves.
 function isConditionallyHidden(compType: string, key: string, data: Record<string, unknown>): boolean {
-  if (compType !== 'TilemapLayer') return false;
-  const orientation = Number(data.orientation) || 0;
-  if (key === 'hexSideLength') return !isHexOrientation(orientation);
-  if (key === 'staggerAxis' || key === 'staggerIndex') return !usesStagger(orientation);
-  return false;
+  switch (compType) {
+    case 'TilemapLayer': {
+      const orientation = Number(data.orientation) || 0;
+      if (key === 'hexSideLength') return !isHexOrientation(orientation);
+      if (key === 'staggerAxis' || key === 'staggerIndex') return !usesStagger(orientation);
+      return false;
+    }
+    case 'Camera': {
+      // projectionType: Perspective = 0, Orthographic = 1.
+      const ortho = Number(data.projectionType) === 1;
+      if (key === 'fov') return ortho;            // an ortho projection has no field of view
+      if (key === 'orthoSize') return !ortho;     // ortho-only half-height
+      if (key === 'pixelPerfect') return !ortho;  // pixel snap is an ortho pixel-art concern
+      return false;
+    }
+    case 'Light2D': {
+      // type: Point = 0, Directional = 1, Ambient = 2, Spot = 3.
+      const type = Number(data.type) || 0;
+      if (key === 'radius') return type === 1 || type === 2;    // Point / Spot reach only
+      if (key === 'direction') return type === 0 || type === 2; // Directional / Spot aim only
+      if (key === 'innerAngle' || key === 'outerAngle') return type !== 3; // Spot cone only
+      if (key === 'shadowDistance') return type !== 1;          // Directional shadow only
+      if (key === 'shadowSoftness') return type === 2;          // Ambient casts no shadow
+      return false;
+    }
+    case 'ParticleEmitter': {
+      // shape: Point = 0, Circle = 1, Rectangle = 2, Cone = 3 (Circle & Cone use the
+      // radius; Rectangle the size; Cone the angle — see the emitter shape gizmo).
+      const shape = Number(data.shape) || 0;
+      if (key === 'shapeRadius') return shape === 0 || shape === 2;
+      if (key === 'shapeSize') return shape !== 2;
+      if (key === 'shapeAngle') return shape !== 3;
+      // A disabled trail / floor collision hides its whole tuning block.
+      if (key === 'trailWidth' || key === 'trailPoints' || key === 'trailMinDistance') {
+        return data.trailEnabled === false;
+      }
+      if (key === 'collisionFloor' || key === 'collisionBounce' || key === 'collisionFriction' || key === 'collisionLifetimeLoss') {
+        return data.collisionEnabled === false;
+      }
+      return false;
+    }
+    default:
+      return false;
+  }
 }
 
 export function inspectorFields(
@@ -589,10 +631,14 @@ export function inspectorFields(
   const defaults = def ? componentDefaults(def) : schema?.default;
   // Field order: the registered / schema defaults; else the stored data's keys.
   const keys = defaults ? Object.keys(defaults) : Object.keys(data);
+  // Effective values (stored data over registered defaults) — a conditional-visibility
+  // discriminator (projection / light type / emitter shape) may be omitted from the
+  // stored `data` when it equals its default, so resolve against defaults here.
+  const eff = defaults ? { ...defaults, ...data } : data;
   const fields: InspectorField[] = [];
   for (const key of keys) {
     if (DERIVED_FIELDS.has(key)) continue;
-    if (isConditionallyHidden(compType, key, data)) continue;
+    if (isConditionallyHidden(compType, key, eff)) continue;
     const value = key in data ? data[key] : defaults?.[key];
     const f = fieldFor(compType, key, value, colorKeys.has(key));
     if (!f) continue;

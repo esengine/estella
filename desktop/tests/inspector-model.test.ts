@@ -192,7 +192,8 @@ describe('Unknown-component inspector (schemas.json consumer)', () => {
             name: 'Cam',
             parent: null,
             children: [],
-            components: [{ type: 'Camera', data: { fov: 60 } }],
+            // Perspective, so fov is a live field (an ortho camera hides it).
+            components: [{ type: 'Camera', data: { projectionType: 0, fov: 60 } }],
           },
         ],
       } as unknown as SceneData,
@@ -485,7 +486,8 @@ describe('Multi-selection inspector (D6)', () => {
 describe('Advanced fields (D5)', () => {
   it('flags rarely-edited builtin fields as advanced, leaving primaries plain', () => {
     const S = EditorSession.create();
-    S.model.adopt(sceneWithCamera({ fov: 60, nearPlane: 0.1 }), new Map([[1, 1]]));
+    // Perspective, so fov is a live (primary, non-advanced) field to probe.
+    S.model.adopt(sceneWithCamera({ projectionType: 0, fov: 60, nearPlane: 0.1 }), new Map([[1, 1]]));
     const cam = S.query.readInspector(1).find((c) => c.name === 'Camera')!;
     expect(cam.fields.find((f) => f.key === 'fov')!.advanced).toBeFalsy();
     expect(cam.fields.find((f) => f.key === 'nearPlane')!.advanced).toBe(true);
@@ -719,9 +721,10 @@ describe('Reset-to-default + override base (D3)', () => {
     const orthoSize = cam.fields.find((f) => f.key === 'orthoSize')!;
     expect(orthoSize.value).toBe(800);
     expect(orthoSize.defaultValue).toBe(540); // an override: value ≠ default
-    // A field left untouched reads value === default (not modified).
-    const fov = cam.fields.find((f) => f.key === 'fov')!;
-    expect(fov.value).toBe(fov.defaultValue);
+    // A field left untouched reads value === default (not modified). (clearFlags,
+    // not fov — an ortho camera hides fov, so it isn't in the field list here.)
+    const clearFlags = cam.fields.find((f) => f.key === 'clearFlags')!;
+    expect(clearFlags.value).toBe(clearFlags.defaultValue);
   });
 
   it('resetting a field to its defaultValue restores the default', () => {
@@ -745,9 +748,10 @@ describe('Reset-to-default + override base (D3)', () => {
     const orthoSize = cam.fields.find((f) => f.key === 'orthoSize')!;
     expect(orthoSize.value).toBe(800);
     expect(orthoSize.defaultValue).toBe(300); // prefab base wins over the 540 class default
-    // A field the prefab base omits falls back to the class default.
-    const fov = cam.fields.find((f) => f.key === 'fov')!;
-    expect(fov.defaultValue).toBe(60);
+    // A field the prefab base omits falls back to the class default. (clearFlags,
+    // not fov — an ortho camera hides fov, so it isn't in the field list here.)
+    const clearFlags = cam.fields.find((f) => f.key === 'clearFlags')!;
+    expect(clearFlags.defaultValue).toBe(3);
   });
 
   it('without a registered resolver, a tagged instance just uses the class default', () => {
