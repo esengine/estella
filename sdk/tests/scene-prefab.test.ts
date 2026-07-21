@@ -37,6 +37,7 @@ import {
     type PrefabInstanceDelta,
     type PrefabInstanceEntry,
     type ExtractEntity,
+    type ProcessedEntity,
 } from '../src/prefab/index';
 
 defineBuiltin('Transform', {
@@ -313,6 +314,35 @@ describe('Prefab scene loading (PF1)', () => {
         ];
         const external = collectExternalEntityRefs(subtree);
         expect(external).toEqual([{ entityId: 11, componentType: 'Chaser', field: 'target', target: 99 }]);
+    });
+
+    // ExposeRef: a prefab leaves an external ref UNBOUND, and an instance binds it
+    // to a scene entity outside the instance. That binding must survive save (collapse)
+    // + load (expand) as a plain override carrying the target's stable scene id.
+    it('an instance binding of an exposed entity-ref to an external scene entity round-trips', () => {
+        defineComponent('Chaser', { target: 0 }, { entityFields: ['target'] });
+        const base: PrefabData = {
+            version: '2', name: 'Linker', rootEntityId: '0',
+            entities: [
+                { prefabEntityId: '0', name: 'Linker', parent: null, children: [], visible: true,
+                  components: [{ type: 'Chaser', data: { target: INVALID_ENTITY } }] },
+            ],
+        };
+        // The live instance has its exposed ref bound to scene entity 99 (outside the instance).
+        const instance: ProcessedEntity[] = [
+            { id: 5, prefabEntityId: '0', name: 'Linker', parent: null, children: [], visible: true,
+              components: [{ type: 'Chaser', data: { target: 99 } }] },
+        ];
+        const delta = collapseInstance(base, '@uuid:linker', instance);
+        // Captured verbatim — a raw scene id, NOT normalised to a prefab-local id.
+        expect(delta.overrides).toEqual([
+            { prefabEntityId: '0', type: 'property', componentType: 'Chaser', propertyName: 'target', value: 99 },
+        ]);
+        // Expand restores the binding — the instance still points at scene entity 99.
+        let n = 100;
+        const { entities } = expandInstance(base, delta, () => n++);
+        const linker = entities.find((e) => e.prefabEntityId === '0')!;
+        expect((linker.components.find((c) => c.type === 'Chaser')!.data as { target: number }).target).toBe(99);
     });
 
     it('loadSceneData (sync) skips prefab entries without throwing', () => {
