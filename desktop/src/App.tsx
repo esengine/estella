@@ -172,6 +172,13 @@ export function App() {
   const isPaused = useEditorStore((s) => s.isPaused);
   useEffect(() => {
     if (isPlaying) {
+      // Prefab Mode holds a prefab tree, not a playable scene (no camera → a black
+      // frame). Refuse Play here so it can't start from the button, F5 or a command.
+      if (ProjectStore.getSnapshot()?.prefabEdit) {
+        Toasts.push(t('layout.toast.noPlayInPrefab'), 'warn');
+        useEditorStore.getState().stop();
+        return;
+      }
       const payload = ProjectStore.playPayload();
       if (!payload) {
         Toasts.push(t('layout.toast.openSceneFirst'), 'error');

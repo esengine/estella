@@ -91,4 +91,5 @@ export const layoutMessages = defineMessages({
 
     // — App shell toasts —
     'layout.toast.openSceneFirst': { en: 'Open a scene before playing', zh: '请先打开场景再运行' },
+    'layout.toast.noPlayInPrefab': { en: 'Exit Prefab Mode before playing — a prefab has no scene to run.', zh: '请先退出预制体编辑再运行——预制体没有可运行的场景。' },
 });

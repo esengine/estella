@@ -18,6 +18,7 @@ import { useEditorStore } from '@/store/editorStore';
 import { IconButton } from '@/components/IconButton';
 import { ContextMenu } from '@/components/Menu';
 import { EditorHistory } from '@/engine/EditorHistory';
+import { ProjectStore } from '@/project/ProjectStore';
 import { commands, formatKeybinding } from '@/commands';
 import { t } from '@/i18n';
 
@@ -63,6 +64,12 @@ export function Toolbar() {
   const [modeMenu, setModeMenu] = useState<{ x: number; y: number } | null>(null);
   const { isPlaying, isPaused, togglePause, stop } = useEditorStore();
 
+  // Play is unavailable in Prefab Mode — a prefab has no scene to run.
+  const inPrefabMode = useSyncExternalStore(
+    ProjectStore.subscribe,
+    () => !!ProjectStore.getSnapshot()?.prefabEdit,
+  );
+
   // Re-render on history changes to refresh undo/redo enabled state + labels.
   useSyncExternalStore(EditorHistory.subscribe, EditorHistory.getVersion);
   const undoLabel = EditorHistory.undoLabel();
@@ -102,7 +109,14 @@ export function Toolbar() {
         <button
           type="button"
           className="play-main"
-          title={isPlaying ? t('layout.restart') : `${t('cmd.play.toggle')}${hint('play.toggle')}`}
+          disabled={inPrefabMode}
+          title={
+            inPrefabMode
+              ? t('layout.toast.noPlayInPrefab')
+              : isPlaying
+                ? t('layout.restart')
+                : `${t('cmd.play.toggle')}${hint('play.toggle')}`
+          }
           onClick={() => commands.run('play.toggle')}
         >
           <Play size={15} strokeWidth={1.9} fill="currentColor" />

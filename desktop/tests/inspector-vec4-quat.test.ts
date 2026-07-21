@@ -7,7 +7,7 @@
  *        (atan2(z=1, w=1)·2 = 90°).
  */
 import { describe, it, expect } from 'vitest';
-import { inferField, inspectorFields } from '@/engine/schema';
+import { inferField, inspectorFields, angleZToQuat } from '@/engine/schema';
 
 describe('quaternion vs vec4 inference', () => {
   it('a rotation quaternion (w-first) reads as an angle', () => {
@@ -30,6 +30,14 @@ describe('quaternion vs vec4 inference', () => {
     expect(viewport).toBeDefined();
     expect(viewport!.type).toBe('vec4');
     expect(viewport!.value).toEqual([0, 0, 1, 1]);
+  });
+
+  it('a user quaternion stays an angle after an angle EDIT (angleZToQuat is w-first)', () => {
+    // Editing the angle rewrites the field via angleZToQuat; if it emitted x-first,
+    // the next inference would mis-classify the field as a vec4 and drop the control.
+    const edited = angleZToQuat(45);
+    expect(Object.keys(edited)[0]).toBe('w'); // w-first layout preserved
+    expect(inferField('orient', edited, false)!.type).toBe('angle');
   });
 
   it("end-to-end: the Transform's rotation stays an angle", () => {

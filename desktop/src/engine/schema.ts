@@ -161,7 +161,11 @@ const quatToAngleZ = (q: { z: number; w: number }) =>
   Math.round(Math.atan2(q.z, q.w) * 2 * RAD2DEG * 100) / 100;
 export const angleZToQuat = (deg: number) => {
   const h = (deg * DEG2RAD) / 2;
-  return { x: 0, y: 0, z: Math.sin(h), w: Math.cos(h) };
+  // w-FIRST key order on purpose: the quaternion discriminator treats a w-first
+  // layout as a rotation, so a USER component's quaternion field (not named
+  // rotation/worldRotation) keeps its angle control after an edit instead of
+  // flipping to four vec4 boxes. The engine reads x/y/z/w by name — order is free.
+  return { w: Math.cos(h), x: 0, y: 0, z: Math.sin(h) };
 };
 
 // A rotation quaternion and a vec4 (Camera viewport rect, a 9-slice border) share the
