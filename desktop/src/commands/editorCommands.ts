@@ -217,7 +217,10 @@ commands.register({
   id: 'entity.deselect',
   label: t('cmd.entity.deselect'),
   category: t('cat.entity'),
-  isEnabled: () => sel().selectedId != null,
+  keybinding: 'escape',
+  // Escape clears the selection — but not while playing, where Escape stops Play
+  // (play.stop shares the binding; guarding here lets forEvent fall through to it).
+  isEnabled: () => !editor().isPlaying && sel().selectedId != null,
   run: () => sel().select(null),
 });
 

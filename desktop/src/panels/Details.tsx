@@ -102,6 +102,18 @@ function fieldEqual(a: InspectorFieldValue, b: InspectorFieldValue): boolean {
   return a === b;
 }
 
+/** The union of components addable to ANY entity in a multi-selection — a component
+ *  is offered if at least one selected entity lacks it (Add applies per-entity). */
+function unionAddableComponents(ids: readonly number[]): ReturnType<typeof modelAddableComponentEntries> {
+  const byName = new Map<string, ReturnType<typeof modelAddableComponentEntries>[number]>();
+  for (const id of ids) {
+    const e = SceneModel.entityBySource(id);
+    if (!e) continue;
+    for (const entry of modelAddableComponentEntries(e)) if (!byName.has(entry.name)) byName.set(entry.name, entry);
+  }
+  return [...byName.values()].sort((a, b) => a.label.localeCompare(b.label));
+}
+
 /** Whether a field differs from its reset target (prefab base, else class default). */
 function isModified(f: InspectorField): boolean {
   return f.defaultValue !== undefined && !fieldEqual(f.value, f.defaultValue);
@@ -3167,7 +3179,10 @@ function EditorDetails() {
       )}
       {addOpen && modelEntity && (
         <AddComponentMenu
-          entries={modelAddableComponentEntries(modelEntity)}
+          // Multi-select: offer any component addable to AT LEAST ONE selected entity
+          // (the union), since Add applies to every entity that lacks it. Using only
+          // the primary's addable set hid components the primary already had.
+          entries={multi ? unionAddableComponents(ids) : modelAddableComponentEntries(modelEntity)}
           onAdd={(name) => SceneCommands.addComponentMany(ids, name)}
           onClose={() => setAddOpen(false)}
         />
