@@ -19,6 +19,7 @@ import {
 import { ProjectStore } from '@/project/ProjectStore';
 import { EngineHost } from '@/engine/EngineHost';
 import { Select } from '@/components/Select';
+import { EmptyState } from '@/components/EmptyState';
 import { t } from '@/i18n';
 
 /** The always-present mixer tree; custom buses append after these. */
@@ -209,7 +210,7 @@ function BusStrip(props: { strip: StripModel; all: StripModel[]; config: AudioPr
 export function AudioMixerPanel() {
   const project = useSyncExternalStore(ProjectStore.subscribe, ProjectStore.getSnapshot);
   if (!project) {
-    return <div className="mix-empty">{t('mix.noProject')}</div>;
+    return <EmptyState icon={Volume2} title={t('mix.noProjectTitle')} hint={t('mix.noProject')} />;
   }
   const config = ProjectStore.audioFeature();
   const strips = stripsOf(config);

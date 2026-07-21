@@ -14,10 +14,12 @@ export const controllerMessages = defineMessages({
     en: 'Record: edits write into the active controller’s current page (un-geared fields gear themselves)',
     zh: '录制：编辑写入活动控制器的当前页（未绑定的字段会自动绑定）',
   },
+  'ctrl.emptyNoSelTitle': { en: 'No UI selected', zh: '未选择 UI' },
   'ctrl.emptyNoSelection': {
     en: 'Select a UI entity to author its controllers.',
     zh: '选择一个 UI 实体来编辑它的控制器。',
   },
+  'ctrl.emptyNotUiTitle': { en: 'Not a UI element', zh: '非 UI 元素' },
   'ctrl.emptyNotUi': {
     en: 'The selected entity is not a UI element (no Canvas / UINode).',
     zh: '所选实体不是 UI 元素（没有 Canvas / UINode）。',

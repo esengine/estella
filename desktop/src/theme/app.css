@@ -162,6 +162,33 @@
   max-width: 220px;
 }
 
+/* The shared panel empty state (see components/EmptyState.tsx): a dashed-chip icon,
+   a title, an optional hint. Used wherever a panel has no content — no selection,
+   no project, an empty list — so every empty panel reads the same. */
+.empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 100%;
+  padding: 40px 24px;
+  text-align: center;
+  color: var(--text-mute);
+}
+.empty-state__icon {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  color: var(--text-mute);
+  border: 1px dashed var(--border-line);
+  border-radius: var(--r-lg);
+}
+.empty-state__title { font-size: var(--fs-md); color: var(--text-dim); font-weight: 600; }
+.empty-state__hint { font-size: var(--fs-sm); line-height: 1.5; max-width: 260px; }
+
 /* -------------------------------------------------------------- viewport --- */
 .viewport {
   position: relative;

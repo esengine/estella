@@ -7,6 +7,7 @@ import { defineMessages } from './types';
 
 export const mixerMessages = defineMessages({
     'mix.panelTitle': { en: 'Audio Mixer', zh: '音频混音器' },
+    'mix.noProjectTitle': { en: 'No project open', zh: '未打开项目' },
     'mix.noProject': { en: 'Open a project to edit its mixer.', zh: '打开项目后编辑其混音器。' },
     'mix.mute': { en: 'Mute', zh: '静音' },
     'mix.addBus': { en: 'Add Bus', zh: '添加总线' },

@@ -81,6 +81,7 @@ import { AnimClipDocument } from '@/flipbook/AnimClipDocument';
 import { buildAnimClipComponents, makeAnimClipWrite } from '@/flipbook/animClipInspectorModel';
 import { ColorControl, rgbaToHex8 } from '@/components/ColorControl';
 import { IconButton } from '@/components/IconButton';
+import { EmptyState } from '@/components/EmptyState';
 import { ContextMenu } from '@/components/Menu';
 import { NumField, useScrub, fmt, type ControlGesture } from '@/components/NumField';
 import { Popover, usePopover } from '@/components/Popover';
@@ -2941,13 +2942,7 @@ function EditorDetails() {
   if (!entity || selectedId == null) {
     return (
       <div className="insp">
-        <div className="insp-empty">
-          <div className="ei">
-            <Box size={22} strokeWidth={1.4} />
-          </div>
-          <div className="et">{t('det.noSelection')}</div>
-          <div className="es">{t('det.noSelectionHint')}</div>
-        </div>
+        <EmptyState icon={Box} title={t('det.noSelection')} hint={t('det.noSelectionHint')} />
       </div>
     );
   }

@@ -20,6 +20,7 @@ import { useControllerStore } from '@/store/controllerStore';
 import { SceneStore } from '@/engine/SceneStore';
 import { SceneModel } from '@/engine/SceneModel';
 import { SceneCommands } from '@/engine/SceneCommands';
+import { EmptyState } from '@/components/EmptyState';
 import { resolveControllers, readGearBindings, type ResolvedController } from '@/controller/controllerModel';
 import { t } from '@/i18n';
 import type { EntityId } from '@/types';
@@ -47,10 +48,10 @@ export function ControllersPanel() {
   }, [controllers, activeController, setActiveController]);
 
   if (selectedId == null || !entity) {
-    return <div className="ctrl-empty">{t('ctrl.emptyNoSelection')}</div>;
+    return <EmptyState icon={MousePointerClick} title={t('ctrl.emptyNoSelTitle')} hint={t('ctrl.emptyNoSelection')} />;
   }
   if (!isUi) {
-    return <div className="ctrl-empty">{t('ctrl.emptyNotUi')}</div>;
+    return <EmptyState icon={MousePointerClick} title={t('ctrl.emptyNotUiTitle')} hint={t('ctrl.emptyNotUi')} />;
   }
 
   const addController = () => {

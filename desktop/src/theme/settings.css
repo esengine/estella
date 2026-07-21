@@ -213,10 +213,6 @@
   color: var(--text);
   font-size: var(--fs-sm);
 }
-.mix-empty {
-  display: flex; align-items: center; justify-content: center;
-  height: 100%; color: var(--text-dim);
-}
 .mix-strips {
   display: flex;
   align-items: flex-start;

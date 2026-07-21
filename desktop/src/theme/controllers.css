@@ -3,7 +3,6 @@
 
 /* Controllers panel (ControllersPanel): author UIController pages + record mode. */
 .ctrl-panel { padding: 8px; display: flex; flex-direction: column; gap: 8px; height: 100%; overflow-y: auto; }
-.ctrl-empty { padding: 16px 12px; font-size: var(--fs-2xs); color: var(--text-dim); line-height: 1.5; text-align: center; }
 .ctrl-hint { font-size: var(--fs-2xs); color: var(--text-dim); line-height: 1.4; padding: 0 2px; }
 
 .ctrl-head { display: flex; align-items: center; justify-content: space-between; }
