@@ -94,8 +94,6 @@ export function MenuBar() {
         cmdItem('project.save'),
         cmdItem('project.saveAs'),
         { sep: true },
-        cmdItem('project.export'),
-        { sep: true },
         cmdItem('project.close'),
       ],
     },
@@ -148,6 +146,8 @@ export function MenuBar() {
     {
       title: t('menu.build'),
       items: [
+        cmdItem('project.export'),
+        { sep: true },
         cmdItem('build.scripts'),
         {
           label: t('menu.extractSchemas'),
@@ -189,6 +189,12 @@ export function MenuBar() {
               Toasts.push(t('toast.upToDate'), 'success');
             }
           }),
+        },
+        { sep: true },
+        cmdItem('palette.open'),
+        {
+          label: t('menu.keyboardShortcuts'),
+          onClick: () => useEditorStore.getState().openSettings('shortcuts'),
         },
         { sep: true },
         {

@@ -106,7 +106,8 @@ commands.register({
 commands.register({
   id: 'project.export',
   label: t('cmd.project.export'),
-  category: t('cat.file'),
+  category: t('cat.build'),
+  keybinding: 'mod+shift+b',
   isEnabled: () => !!ProjectStore.getSnapshot(),
   run: () => editor().setBuildOpen(true),
 });

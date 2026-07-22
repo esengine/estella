@@ -100,6 +100,9 @@ interface EditorState {
   // Settings window (the registry-driven preferences dialog).
   settingsOpen: boolean;
   setSettingsOpen: (open: boolean) => void;
+  /** Section to open Settings on (e.g. 'shortcuts' from Help); null = the first. */
+  settingsSection: string | null;
+  openSettings: (section?: string | null) => void;
 
   // Command palette (Ctrl/Cmd+Shift+P) — run any registry command by name.
   paletteOpen: boolean;
@@ -193,6 +196,8 @@ export const useEditorStore = create<EditorState>((set) => ({
 
   settingsOpen: false,
   setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
+  settingsSection: null,
+  openSettings: (section = null) => set({ settingsOpen: true, settingsSection: section }),
 
   paletteOpen: false,
   setPaletteOpen: (paletteOpen) => set({ paletteOpen }),

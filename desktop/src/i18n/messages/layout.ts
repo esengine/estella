@@ -49,8 +49,8 @@ export const layoutMessages = defineMessages({
     'layout.playInWindow': { en: 'Play In New Window', zh: '在新窗口中运行' },
     'layout.singlePlayer': { en: 'Single Player', zh: '单人' },
     'layout.playersListenServer': { en: '{n} Players (Listen Server)', zh: '{n} 名玩家（监听服务器）' },
-    'layout.build': { en: 'Build', zh: '构建' },
-    'layout.buildScriptsTooltip': { en: 'Build project scripts', zh: '构建项目脚本' },
+    'layout.build': { en: 'Compile', zh: '编译' },
+    'layout.buildScriptsTooltip': { en: 'Compile project scripts (type-check + bundle)', zh: '编译项目脚本（类型检查 + 打包）' },
 
     // — Status bar —
     'layout.contentDrawer': { en: 'Content Drawer', zh: '内容抽屉' },

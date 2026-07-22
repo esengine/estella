@@ -15,7 +15,7 @@ export const commandMessages = defineMessages({
     'cmd.project.open': { en: 'Open Project…', zh: '打开项目…' },
     'cmd.project.save': { en: 'Save Scene', zh: '保存场景' },
     'cmd.project.saveAs': { en: 'Save Scene As…', zh: '场景另存为…' },
-    'cmd.project.export': { en: 'Build…', zh: '构建…' },
+    'cmd.project.export': { en: 'Package Project…', zh: '打包项目…' },
     'cmd.project.close': { en: 'Close Project', zh: '关闭项目' },
     'cmd.project.resavePrefabs': { en: 'Resave All Prefabs', zh: '重新保存所有预制体' },
 
@@ -66,7 +66,7 @@ export const commandMessages = defineMessages({
     'cmd.play.toggle': { en: 'Play', zh: '运行' },
     'cmd.play.stop': { en: 'Stop', zh: '停止' },
     'cmd.play.pause': { en: 'Pause / Resume', zh: '暂停 / 继续' },
-    'cmd.build.scripts': { en: 'Build Project Scripts', zh: '构建项目脚本' },
+    'cmd.build.scripts': { en: 'Compile Scripts', zh: '编译脚本' },
 
     // — Command categories (menus, shortcuts page grouping) —
     'cat.file': { en: 'File', zh: '文件' },

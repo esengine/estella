@@ -352,7 +352,11 @@ export function SettingsDialog() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const sections = settingsRegistry.allSections();
-  const [active, setActive] = useState(() => sections[0]?.id ?? '');
+  // Open on the requested section (e.g. Help → Keyboard Shortcuts), else the first.
+  const [active, setActive] = useState(() => {
+    const want = useEditorStore.getState().settingsSection;
+    return (want && sections.some((s) => s.id === want) ? want : sections[0]?.id) ?? '';
+  });
 
   // Subscribe so rows reflect live changes of bound (editorStore) settings too.
   useEditorStore((s) => `${s.showGrid}|${s.showGizmos}|${s.snapping}|${s.snapStep}`);

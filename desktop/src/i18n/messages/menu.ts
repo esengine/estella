@@ -26,6 +26,7 @@ export const menuMessages = defineMessages({
     },
     'menu.checkUpdates': { en: 'Check for Updates…', zh: '检查更新…' },
     'menu.openLogs': { en: 'Open Log Folder', zh: '打开日志文件夹' },
+    'menu.keyboardShortcuts': { en: 'Keyboard Shortcuts', zh: '键盘快捷键' },
 
     'toast.extractedSchemas': { en: 'Extracted component schemas', zh: '组件 Schema 已提取' },
     'toast.extractFailed': { en: 'Extract failed', zh: '提取失败' },
