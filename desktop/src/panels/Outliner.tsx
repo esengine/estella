@@ -303,6 +303,15 @@ export function Outliner() {
         }
         break;
       }
+      case 'Escape': {
+        // Clear a folder selection here — the global entity.deselect command is
+        // gated on an ENTITY selection, so it never reaches a folder-only one.
+        if (useOutliner.getState().selectedFolder != null) {
+          e.stopPropagation();
+          useOutliner.getState().selectFolder(null);
+        }
+        break;
+      }
       default: {
         if (e.key.length !== 1 || e.key === ' ' || e.ctrlKey || e.metaKey || e.altKey) break;
         // The focused tree owns printable keys (jump-to-name), like the arrows —
@@ -320,9 +329,10 @@ export function Outliner() {
     if (item.kind === 'folder') {
       // Selecting a folder is mutually exclusive with the entity selection: the
       // folder gets the blue selection, entities clear, Details shows the folder.
+      // Expand/collapse is the twist's job (like the entity rows and the Content
+      // Browser tree) — clicking the row shouldn't also toggle it.
       useOutliner.getState().selectFolder(item.path);
       useSelection.getState().select(null);
-      toggleExpanded(item.key);
       return;
     }
     useOutliner.getState().selectFolder(null); // an entity selection clears the folder one
@@ -744,6 +754,9 @@ export function Outliner() {
             <VirtualTree
               className="pbody"
               tabIndex={0}
+              role="tree"
+              aria-label={t('out.tree')}
+              aria-multiselectable
               items={items}
               rowHeight={ROW_H}
               getKey={(it) => it.key}

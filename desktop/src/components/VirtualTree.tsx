@@ -84,7 +84,9 @@ export function VirtualTree<T>({
         onScroll?.(e);
       }}
     >
-      <div style={{ height: total * rowHeight, position: 'relative' }}>
+      {/* Virtualization sizer — presentational so it doesn't sit between a
+          role="tree" container and its role="treeitem" rows. */}
+      <div role="presentation" style={{ height: total * rowHeight, position: 'relative' }}>
         {items.slice(start, end).map((item, i) => {
           const index = start + i;
           return (

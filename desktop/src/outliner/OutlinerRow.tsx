@@ -98,6 +98,10 @@ function OutlinerRowInner(props: OutlinerRowProps) {
         `${dropPos === 'after' ? ' drop-after' : ''}`
       }
       style={{ paddingLeft: depth * 14 }}
+      role="treeitem"
+      aria-selected={selected}
+      aria-expanded={hasChildren ? expanded : undefined}
+      aria-level={depth + 1}
       draggable={props.draggable && !renaming}
       onClick={(e) => props.onClick(item, e)}
       onContextMenu={props.onContextMenu ? (e) => props.onContextMenu!(e, item) : undefined}
