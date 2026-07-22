@@ -224,6 +224,11 @@ function FolderNode({
   onSelect,
   folderDrop,
   dropPath,
+  onContext,
+  renaming,
+  onRename,
+  onCommitRename,
+  onCancelRename,
 }: {
   path: string;
   name: string;
@@ -234,6 +239,13 @@ function FolderNode({
     folderPath: string,
   ) => Pick<React.HTMLAttributes<HTMLDivElement>, 'onDragEnter' | 'onDragOver' | 'onDragLeave' | 'onDrop'>;
   dropPath?: string | null;
+  /** Right-click a folder row → the shared folder context menu (Open/Rename/Delete…). */
+  onContext?: (path: string, name: string, ev: React.MouseEvent) => void;
+  /** The path currently being inline-renamed (shows the editor in that row). */
+  renaming?: string | null;
+  onRename?: (path: string) => void; // F2 → start renaming this folder
+  onCommitRename?: (path: string, value: string) => void;
+  onCancelRename?: () => void;
 }) {
   const [open, setOpen] = useState(depth === 0);
   const children = useDir(open ? path : null).entries;
@@ -247,6 +259,14 @@ function FolderNode({
       case ' ':
         e.preventDefault();
         onSelect(path);
+        break;
+      case 'F2':
+        // Rename in the tree, matching the grid — the root (depth 0 = project) has
+        // no real folder path to rename.
+        if (depth > 0 && onRename) {
+          e.preventDefault();
+          onRename(path);
+        }
         break;
       case 'ArrowRight':
         e.preventDefault();
@@ -284,6 +304,7 @@ function FolderNode({
         tabIndex={0}
         onKeyDown={onRowKey}
         onClick={() => onSelect(path)}
+        onContextMenu={depth > 0 && onContext ? (ev) => onContext(path, name, ev) : undefined}
         {...(folderDrop ? folderDrop(path) : null)}
       >
         <span
@@ -298,10 +319,15 @@ function FolderNode({
         <span className="ti">
           <AssetIcon type="folder" size={14} />
         </span>
-        <span className="tn">{name}</span>
+        {renaming === path && onCommitRename && onCancelRename ? (
+          <RenameInput name={name} onCommit={(v) => onCommitRename(path, v)} onCancel={onCancelRename} />
+        ) : (
+          <span className="tn">{name}</span>
+        )}
       </div>
       {open && subdirs.map((d) => (
-        <FolderNode key={d.name} path={join(path, d.name)} name={d.name} depth={depth + 1} cwd={cwd} onSelect={onSelect} folderDrop={folderDrop} dropPath={dropPath} />
+        <FolderNode key={d.name} path={join(path, d.name)} name={d.name} depth={depth + 1} cwd={cwd} onSelect={onSelect} folderDrop={folderDrop} dropPath={dropPath}
+          onContext={onContext} renaming={renaming} onRename={onRename} onCommitRename={onCommitRename} onCancelRename={onCancelRename} />
       ))}
     </>
   );
@@ -312,8 +338,16 @@ export function ContentBrowser() {
   const { cwd, go, back, forward, up, reset, canBack, canForward, canUp } = useNav();
   const [query, setQuery] = useState('');
   // A right-click menu: on an item (target set) or on empty space (target null).
-  const [ctx, setCtx] = useState<{ x: number; y: number; target: { path: string; entry: DirEntry } | null } | null>(null);
+  const [ctx, setCtx] = useState<{ x: number; y: number; target: { path: string; entry: DirEntry; inTree?: boolean } | null } | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
+  // A folder can appear in BOTH the tree and the grid (cwd = its parent). Track
+  // which surface owns the rename so only ONE editor mounts — two RenameInputs on
+  // the same path fight for focus and immediately commit each other closed.
+  const [renameInTree, setRenameInTree] = useState(false);
+  const startRename = (path: string, inTree = false) => {
+    setRenameInTree(inTree);
+    setRenaming(path);
+  };
   // The tile being dragged dims so the source of the move reads at a glance.
   const [dragPath, setDragPath] = useState<string | null>(null);
   const [filters, setFilters] = useState<Set<AssetType>>(new Set());
@@ -619,7 +653,7 @@ export function ContentBrowser() {
       case 'F2': {
         if (idx >= 0 && selected) {
           e.preventDefault();
-          setRenaming(selected);
+          startRename(selected);
         }
         break;
       }
@@ -670,7 +704,7 @@ export function ContentBrowser() {
       await window.estella.fs.mkdir(path);
       refreshFs();
       selectAsset(path);
-      setRenaming(path); // drop straight into rename, like UE5
+      startRename(path); // drop straight into rename, like UE5
     } catch (e) {
       Toasts.push(t('cb.newFolderFailed', { error: errMsg(e) }), 'error');
     }
@@ -681,7 +715,7 @@ export function ContentBrowser() {
       const path = await ProjectStore.createSceneFile(cwd);
       refreshFs();
       selectAsset(path);
-      setRenaming(path); // drop into rename, like New Folder
+      startRename(path); // drop into rename, like New Folder
     } catch (e) {
       Toasts.push(t('cb.newSceneFailed', { error: errMsg(e) }), 'error');
     }
@@ -692,7 +726,7 @@ export function ContentBrowser() {
       const path = await ProjectStore.createInputMapFile(cwd);
       refreshFs();
       selectAsset(path); // unified inspector opens the input-map editor
-      setRenaming(path);
+      startRename(path);
     } catch (e) {
       Toasts.push(t('cb.newInputMapFailed', { error: errMsg(e) }), 'error');
     }
@@ -703,7 +737,7 @@ export function ContentBrowser() {
       const path = await ProjectStore.createLocaleTableFile(cwd);
       refreshFs();
       selectAsset(path);
-      setRenaming(path);
+      startRename(path);
     } catch (e) {
       Toasts.push(t('cb.newLocaleTableFailed', { error: errMsg(e) }), 'error');
     }
@@ -969,7 +1003,7 @@ export function ContentBrowser() {
       ...(isMaterial
         ? [{ label: t('cb.menuCreateMaterialInstance'), onClick: () => void createMaterialInstance(path) }]
         : []),
-      { label: t('ui.rename'), onClick: () => setRenaming(path) },
+      { label: t('ui.rename'), onClick: () => startRename(path, !!ctx?.target?.inTree) },
       { label: t('cb.menuDuplicate'), onClick: () => void duplicate(path) },
       { sep: true },
       { label: t('cb.menuCopyPath'), onClick: () => copy(path, t('cb.copiedPath')) },
@@ -999,7 +1033,14 @@ export function ContentBrowser() {
           </div>
           <div className="cb-src-body" role="tree" aria-label={t('cb.folders')}>
             <div className="cb-sec">{t('cb.folders')}</div>
-            <FolderNode path="" name={project.name} depth={0} cwd={cwd} onSelect={go} folderDrop={folderDrop} dropPath={dropFolder} />
+            <FolderNode path="" name={project.name} depth={0} cwd={cwd} onSelect={go} folderDrop={folderDrop} dropPath={dropFolder}
+              onContext={(p, n, ev) => {
+                ev.preventDefault();
+                ev.stopPropagation();
+                setCtx({ x: ev.clientX, y: ev.clientY, target: { path: p, entry: { name: n, isDir: true }, inTree: true } });
+              }}
+              renaming={renameInTree ? renaming : null} onRename={(p) => startRename(p, true)}
+              onCommitRename={(p, v) => void commitRename(p, v)} onCancelRename={() => setRenaming(null)} />
           </div>
         </div>
 
@@ -1177,7 +1218,7 @@ export function ContentBrowser() {
                         className="nm"
                         style={it.isDir ? undefined : ({ ['--tc' as string]: assetTint(type) } as React.CSSProperties)}
                       >
-                        {renaming === path ? (
+                        {renaming === path && !renameInTree ? (
                           <RenameInput
                             name={it.name}
                             onCommit={(v) => void commitRename(path, v)}
@@ -1221,7 +1262,7 @@ export function ContentBrowser() {
                     >
                       <span className="ln">
                         <AssetIcon type={type} size={15} />
-                        {renaming === path ? (
+                        {renaming === path && !renameInTree ? (
                           <RenameInput
                             name={it.name}
                             onCommit={(v) => void commitRename(path, v)}
