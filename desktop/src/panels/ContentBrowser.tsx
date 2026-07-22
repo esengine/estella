@@ -323,7 +323,10 @@ export function ContentBrowser() {
   // Asset selection lives in the shared store (unified inspector): selecting an
   // asset drives the Details panel + clears any entity selection.
   const selected = useSelection((s) => s.selectedAsset);
+  const selectedAssets = useSelection((s) => s.selectedAssets);
   const selectAsset = useSelection((s) => s.selectAsset);
+  const toggleAsset = useSelection((s) => s.toggleAsset);
+  const selectAssets = useSelection((s) => s.selectAssets);
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const [tileSize, setTileSize] = useState<number>(() => {
     const v = Number(localStorage.getItem(TILE_KEY));
@@ -502,40 +505,52 @@ export function ContentBrowser() {
   // Delete = themed confirm (Enter confirms, Esc cancels) → trash. The dialog
   // body lists WHICH scenes/prefabs reference the asset (disk dep graph + the
   // unsaved in-memory scene — a ref added since the last save would break too).
-  const [confirmDel, setConfirmDel] = useState<{ path: string; name: string; usages: AssetUsage[] } | null>(null);
+  const [confirmDel, setConfirmDel] = useState<{ paths: string[]; names: string[]; usages: AssetUsage[] } | null>(null);
   const [usagesPath, setUsagesPath] = useState<string | null>(null);
-  const remove = async (path: string, name: string) => {
-    let usages: AssetUsage[] = [];
-    try {
-      usages = await findAssetUsages(path);
-    } catch {
-      // Best-effort: if the scan fails, confirm without the reference warning.
+  // Confirm deletion of one OR many assets (multi-select) behind a SINGLE dialog —
+  // aggregating each one's references so nothing gets deleted out from under a scene.
+  const remove = async (paths: string[]) => {
+    if (paths.length === 0) return;
+    const usages: AssetUsage[] = [];
+    for (const p of paths) {
+      try {
+        usages.push(...(await findAssetUsages(p)));
+      } catch {
+        // Best-effort: if the scan fails, confirm without that asset's warning.
+      }
     }
-    setConfirmDel({ path, name, usages });
+    setConfirmDel({ paths, names: paths.map((p) => baseName(p)), usages });
   };
   const doRemove = async () => {
     const target = confirmDel;
     setConfirmDel(null);
     if (!target) return;
-    try {
-      const token = await window.estella.fs.trash(target.path);
-      refreshFs();
-      if (selected === target.path) selectAsset(null);
-      Toasts.push(t('cb.deletedName', { name: target.name }), 'info', 6000, {
-        label: t('cb.undo'),
-        run: async () => {
+    // Trash each; remember (path, token) pairs so one Undo restores the whole batch.
+    const trashed: { path: string; token: string }[] = [];
+    for (const path of target.paths) {
+      try {
+        trashed.push({ path, token: await window.estella.fs.trash(path) });
+      } catch (e) {
+        Toasts.push(t('cb.deleteFailed', { error: errMsg(e) }), 'error');
+      }
+    }
+    refreshFs();
+    selectAsset(null);
+    if (trashed.length === 0) return;
+    const msg = trashed.length === 1 ? t('cb.deletedName', { name: target.names[0] }) : t('cb.deletedCount', { count: trashed.length });
+    Toasts.push(msg, 'info', 6000, {
+      label: t('cb.undo'),
+      run: async () => {
+        for (const { path, token } of trashed) {
           try {
-            await window.estella.fs.restoreTrashed(target.path, token);
-            refreshFs();
-            selectAsset(target.path);
+            await window.estella.fs.restoreTrashed(path, token);
           } catch (e) {
             Toasts.push(t('cb.undoFailed', { error: errMsg(e) }), 'error');
           }
-        },
-      });
-    } catch (e) {
-      Toasts.push(t('cb.deleteFailed', { error: errMsg(e) }), 'error');
-    }
+        }
+        refreshFs();
+      },
+    });
   };
 
   // Keyboard, scoped to the focused item area (it carries tabIndex, so clicking a
@@ -556,10 +571,12 @@ export function ContentBrowser() {
     const el = e.target as HTMLElement;
     if (el.tagName === 'INPUT' || renaming != null) return; // typing / inline rename
     const idx = items.findIndex((it) => it.path === selected);
-    const focusIndex = (i: number) => {
+    const focusIndex = (i: number, extend = false) => {
       const it = items[Math.max(0, Math.min(items.length - 1, i))];
       if (!it) return;
-      selectAsset(it.path);
+      // Shift+arrow grows the multi-selection to the new item; plain arrow replaces.
+      if (extend) selectAssets([...new Set([...selectedAssets, it.path])], it.path);
+      else selectAsset(it.path);
       requestAnimationFrame(() => {
         scrollRef.current
           ?.querySelector(`[data-path="${CSS.escape(it.path)}"]`)
@@ -576,7 +593,7 @@ export function ContentBrowser() {
         const rowStep = view === 'grid' ? gridColumns() : 1;
         const step =
           e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowDown' ? rowStep : -rowStep;
-        focusIndex(idx < 0 ? 0 : idx + step);
+        focusIndex(idx < 0 ? 0 : idx + step, e.shiftKey);
         break;
       }
       case 'Home': {
@@ -610,8 +627,19 @@ export function ContentBrowser() {
       case 'Backspace': {
         e.preventDefault();
         e.stopPropagation();
-        const it = items[idx];
-        if (it) void remove(it.path, it.name);
+        // Delete the whole multi-selection at once (one confirm), else the focused item.
+        const paths = selectedAssets.size > 0 ? [...selectedAssets] : items[idx] ? [items[idx].path] : [];
+        if (paths.length) void remove(paths);
+        break;
+      }
+      case 'a':
+      case 'A': {
+        if (e.ctrlKey || e.metaKey) {
+          e.preventDefault();
+          e.stopPropagation(); // select all IN the browser, not the scene's entities
+          const paths = items.map((it) => it.path);
+          if (paths.length) selectAssets(paths, paths[paths.length - 1]);
+        }
         break;
       }
       case 'd':
@@ -851,7 +879,20 @@ export function ContentBrowser() {
       clearDropState();
       setDragPath(null);
     },
-    onClick: () => selectAsset(path),
+    // Ctrl/Cmd toggles one item; Shift ranges from the primary; plain replaces —
+    // the Outliner's multi-select gestures, so batch file ops are possible.
+    onClick: (ev: React.MouseEvent) => {
+      if (ev.ctrlKey || ev.metaKey) return toggleAsset(path);
+      if (ev.shiftKey && selected) {
+        const a = items.findIndex((it) => it.path === selected);
+        const b = items.findIndex((it) => it.path === path);
+        if (a >= 0 && b >= 0) {
+          const [lo, hi] = a < b ? [a, b] : [b, a];
+          return selectAssets(items.slice(lo, hi + 1).map((it) => it.path), path);
+        }
+      }
+      selectAsset(path);
+    },
     onDoubleClick: () => onOpen(path, e.isDir, e.name),
     // Suppress the hover card while any inline rename is active.
     ...(renaming ? null : tip.bind({ path, entry: e })),
@@ -936,7 +977,7 @@ export function ContentBrowser() {
       ...(entry.isDir ? [] : [{ label: t('cb.menuFindUsages'), onClick: () => setUsagesPath(path) }]),
       { label: t('cb.menuShowInExplorer'), onClick: () => void showInExplorer(path) },
       { sep: true },
-      { label: t('ui.delete'), danger: true, onClick: () => void remove(path, entry.name) },
+      { label: t('ui.delete'), danger: true, onClick: () => void remove(selectedAssets.has(path) && selectedAssets.size > 1 ? [...selectedAssets] : [path]) },
     ];
   })();
 
@@ -1108,7 +1149,7 @@ export function ContentBrowser() {
                     <div
                       key={path}
                       data-path={path}
-                      className={`asset${it.isDir ? ' folder' : ''}${selected === path ? ' sel' : ''}${it.isDir && dropFolder === path ? ' is-drop' : ''}${dragPath === path ? ' is-dragging' : ''}`}
+                      className={`asset${it.isDir ? ' folder' : ''}${selectedAssets.has(path) ? ' sel' : ''}${it.isDir && dropFolder === path ? ' is-drop' : ''}${dragPath === path ? ' is-dragging' : ''}`}
                       // Files drag onto inspector asset fields / the viewport (assign / instantiate);
                       // folders are drop targets that move the dragged asset into them.
                       {...bindItem(path, it)}
@@ -1174,7 +1215,7 @@ export function ContentBrowser() {
                     <div
                       key={path}
                       data-path={path}
-                      className={`lr${selected === path ? ' sel' : ''}${it.isDir && dropFolder === path ? ' is-drop' : ''}${dragPath === path ? ' is-dragging' : ''}`}
+                      className={`lr${selectedAssets.has(path) ? ' sel' : ''}${it.isDir && dropFolder === path ? ' is-drop' : ''}${dragPath === path ? ' is-dragging' : ''}`}
                       {...bindItem(path, it)}
                       {...(it.isDir ? folderDrop(path) : null)}
                     >
@@ -1234,7 +1275,9 @@ export function ContentBrowser() {
           confirmLabel={t('ui.delete')}
           body={
             <>
-              {t('cb.deleteBody', { name: confirmDel.name })}
+              {confirmDel.paths.length === 1
+                ? t('cb.deleteBody', { name: confirmDel.names[0] })
+                : t('cb.deleteBodyMany', { count: confirmDel.paths.length })}
               {confirmDel.usages.length > 0 && (
                 <>
                   {'\n\n' +

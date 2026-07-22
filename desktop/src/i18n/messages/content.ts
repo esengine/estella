@@ -100,6 +100,10 @@ export const contentMessages = defineMessages({
         en: 'Delete “{name}”? It will be moved to the trash.',
         zh: '确定删除“{name}”？它将被移入回收站。',
     },
+    'cb.deleteBodyMany': {
+        en: 'Delete {count} items? They will be moved to the trash.',
+        zh: '确定删除 {count} 项？它们将被移入回收站。',
+    },
     'cb.deleteRefListOne': {
         en: 'It is referenced by {count} document; that reference will break:',
         zh: '它被 {count} 个文档引用；该引用将会失效：',
@@ -110,6 +114,7 @@ export const contentMessages = defineMessages({
     },
     'cb.usagesMore': { en: '…and {count} more', zh: '……以及另外 {count} 个' },
     'cb.deletedName': { en: 'Deleted “{name}”', zh: '已删除“{name}”' },
+    'cb.deletedCount': { en: 'Deleted {count} items', zh: '已删除 {count} 项' },
     'cb.menuFindUsages': { en: 'Find Usages', zh: '查找引用' },
     'cb.findUsagesTitle': { en: 'Usages of “{name}”', zh: '“{name}”的引用' },
     'cb.findUsagesScanning': { en: 'Scanning…', zh: '正在扫描……' },
