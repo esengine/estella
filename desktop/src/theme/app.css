@@ -707,7 +707,11 @@ body.thumb-capture .viewport > :not(.viewport__stage):not(.viewport__play) {
   top: 10px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 3;
+  /* Above the play-in-viewport overlay (.viewport__play, z-index 6) — otherwise
+     the opaque running-game iframe hides the pill and a PAUSED game reads as a
+     hang. Non-interactive so it never eats a click meant for the game. */
+  z-index: 7;
+  pointer-events: none;
   font-size: var(--fs-xs);
   font-weight: 600;
   letter-spacing: 0.1em;
