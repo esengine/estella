@@ -211,6 +211,9 @@ export const tileMessages = defineMessages({
     'tile.anim.addFrames': { en: 'Click atlas tiles to add frames', zh: '点击图集瓦片以添加帧' },
     'tile.anim.appendFrames': { en: 'Click atlas tiles to append frames', zh: '点击图集瓦片以追加帧' },
     'tile.anim.clear': { en: 'Clear animation', zh: '清除动画' },
+    'tile.anim.reorderTip': { en: '#{tile} · drag to reorder', zh: '#{tile} · 拖动可重排' },
+    'tile.anim.setAll': { en: 'All', zh: '统一' },
+    'tile.anim.setAllTip': { en: 'Set every frame to one duration (uniform speed)', zh: '把所有帧设为同一时长（统一速度）' },
     'tile.preview': { en: 'Preview', zh: '预览' },
 
     // — New-Tilemap picker dialog —

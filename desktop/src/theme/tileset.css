@@ -447,6 +447,10 @@
 .ts-ahint { color: var(--text-faint); font-size: var(--fs-xs); }
 .ts-astat { font-family: var(--mono); color: var(--text-dim); font-size: var(--fs-xs); }
 .ts-frame { display: inline-flex; align-items: center; gap: 3px; background: var(--srf-3); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 2px; }
+.ts-frame.drop { border-color: var(--acc); box-shadow: -2px 0 0 var(--acc); }
+.ts-fgrab { cursor: grab; }
+.ts-fgrab:active { cursor: grabbing; }
+.ts-fall { display: inline-flex; align-items: center; gap: 4px; color: var(--text-faint); font-size: var(--fs-2xs); }
 .ts-fthumb { width: 26px; height: 26px; border-radius: var(--r-xs); background-color: var(--srf-0); image-rendering: pixelated; flex: none; }
 .ts-apreview { width: 32px; height: 32px; border: 1px solid var(--star-line); }
 .ts-fdur { width: 44px; background: var(--inset); border: 1px solid var(--line); border-radius: var(--r-xs); color: var(--text); padding: 1px 3px; font-family: var(--mono); font-size: var(--fs-2xs); }

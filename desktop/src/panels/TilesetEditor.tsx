@@ -554,6 +554,18 @@ export function TilesetEditor() {
   const setFrames = (frames: TilesetAnimFrame[]) => {
     if (animTile != null) TilesetCommands.setTileAnimation(animTile, frames);
   };
+  // Drag a frame thumbnail to reorder the sequence (append-only authoring otherwise meant
+  // deleting and re-adding to fix the order).
+  const frameDragFrom = useRef<number | null>(null);
+  const [frameDropIdx, setFrameDropIdx] = useState<number | null>(null);
+  const moveFrame = (from: number, to: number) => {
+    if (from === to) return;
+    const next = [...animFrames];
+    const [m] = next.splice(from, 1);
+    next.splice(to, 0, m);
+    setFrames(next);
+  };
+  const setAllDurations = (ms: number) => setFrames(animFrames.map((g) => ({ ...g, durationMs: ms })));
   /** Atlas crop for a tile id at thumbnail size (shared with the painter palette). */
   const THUMB = 26;
   const atlas: TileAtlas | null = texUrl && natural
@@ -818,8 +830,25 @@ export function TilesetEditor() {
               <span className="ts-astat">#{animTile}</span>
               <span className="ts-sep" />
               {animFrames.map((f, i) => (
-                <span key={`${i}-${f.tile}`} className="ts-frame">
-                  <span className="ts-fthumb" style={thumb(f.tile)} title={`#${f.tile}`} />
+                <span
+                  key={`${i}-${f.tile}`}
+                  className={'ts-frame' + (frameDropIdx === i ? ' drop' : '')}
+                  onDragOver={(e) => { if (frameDragFrom.current == null) return; e.preventDefault(); setFrameDropIdx(i); }}
+                  onDragLeave={() => setFrameDropIdx((d) => (d === i ? null : d))}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setFrameDropIdx(null);
+                    const from = frameDragFrom.current;
+                    frameDragFrom.current = null;
+                    if (from != null && from !== i) moveFrame(from, i);
+                  }}
+                >
+                  <span
+                    className="ts-fthumb ts-fgrab" style={thumb(f.tile)} title={t('tile.anim.reorderTip', { tile: f.tile })}
+                    draggable
+                    onDragStart={(e) => { frameDragFrom.current = i; e.dataTransfer.effectAllowed = 'move'; }}
+                    onDragEnd={() => { frameDragFrom.current = null; setFrameDropIdx(null); }}
+                  />
                   <input
                     key={`${animTile}-${i}-${f.durationMs}`}
                     className="ts-fdur"
@@ -847,6 +876,21 @@ export function TilesetEditor() {
                 {animFrames.length === 0 ? t('tile.anim.addFrames') : t('tile.anim.appendFrames')}
               </span>
               <span className="ts-grow" />
+              {animFrames.length > 1 && (
+                // Set every frame to one duration — a uniform-speed loop without editing each.
+                <label className="ts-fall" title={t('tile.anim.setAllTip')}>
+                  <span>{t('tile.anim.setAll')}</span>
+                  <input
+                    className="ts-fdur" type="text" inputMode="numeric" spellCheck={false} placeholder="ms"
+                    onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                    onBlur={(e) => {
+                      const n = parseInt(e.target.value, 10);
+                      if (Number.isFinite(n) && n > 0) setAllDurations(n);
+                      e.target.value = '';
+                    }}
+                  />
+                </label>
+              )}
               {animFrames.length > 0 && (
                 <button type="button" className="ts-trm" title={t('tile.anim.clear')} onClick={() => setFrames([])}>
                   <Trash2 size={13} />
