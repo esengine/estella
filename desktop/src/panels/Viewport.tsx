@@ -728,6 +728,7 @@ export function Viewport() {
   // popped out. Drives resize re-binding and any window-scoped listeners below.
   const win = usePanelWindow();
   const isPlaying = useEditorStore((s) => s.isPlaying);
+  const isPaused = useEditorStore((s) => s.isPaused);
   const playTarget = useEditorStore((s) => s.playTarget);
   const tool = useEditorStore((s) => s.tool);
   const showGrid = useEditorStore((s) => s.showGrid);
@@ -2462,7 +2463,11 @@ export function Viewport() {
           {inTilePaint && paintTool ? ` · ${TILE_TOOL_LABEL[paintTool]}` : ''}
         </div>
       )}
-      {isPlaying && <div className="viewport__playflag">{t('vp.playFlag')}</div>}
+      {isPlaying && (
+        <div className={`viewport__playflag${isPaused ? ' paused' : ''}`}>
+          {isPaused ? t('vp.pausedFlag') : t('vp.playFlag')}
+        </div>
+      )}
     </div>
   );
 }

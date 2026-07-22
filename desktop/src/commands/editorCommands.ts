@@ -434,6 +434,16 @@ commands.register({
   isEnabled: () => editor().isPlaying,
   run: () => editor().stop(),
 });
+commands.register({
+  id: 'play.pause',
+  label: t('cmd.play.pause'),
+  category: t('cat.play'),
+  keybinding: 'f6',
+  // Only while playing — and as a command it reaches the palette and popped-out
+  // windows, where the toolbar Pause button doesn't exist.
+  isEnabled: () => editor().isPlaying,
+  run: () => editor().togglePause(),
+});
 
 // — Build —
 commands.register({

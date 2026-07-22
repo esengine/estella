@@ -65,6 +65,7 @@ export const commandMessages = defineMessages({
     'palette.noMatch': { en: 'No matching commands', zh: '没有匹配的命令' },
     'cmd.play.toggle': { en: 'Play', zh: '运行' },
     'cmd.play.stop': { en: 'Stop', zh: '停止' },
+    'cmd.play.pause': { en: 'Pause / Resume', zh: '暂停 / 继续' },
     'cmd.build.scripts': { en: 'Build Project Scripts', zh: '构建项目脚本' },
 
     // — Command categories (menus, shortcuts page grouping) —

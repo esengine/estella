@@ -718,6 +718,13 @@ body.thumb-capture .viewport > :not(.viewport__stage):not(.viewport__play) {
   border-radius: 999px;
   box-shadow: var(--run-glow);
 }
+/* Paused reads amber, not the green "running" accent, so a frozen game doesn't
+   look like a hang. */
+.viewport__playflag.paused {
+  color: #e0a83e;
+  border-color: rgba(224, 168, 62, 0.5);
+  box-shadow: none;
+}
 
 /* Tile-paint mode badge — mirrors the play flag but in the tile-editing accent, so
    "you are painting tiles (Q/Esc to leave)" reads at a glance. Edit-mode only, so it
