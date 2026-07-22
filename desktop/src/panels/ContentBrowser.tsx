@@ -20,20 +20,17 @@ import { findAssetUsages, type AssetUsage } from '@/project/assetUsages';
 import { FindUsagesDialog } from '@/components/FindUsagesDialog';
 import { NewTilesetDialog } from '@/components/NewTilesetDialog';
 import { parseAssetQuery, filterAndSortAssets, type AssetSort } from '@/project/assetFilter';
+// Create-FROM-a-source-asset actions (context menu); the "New blank asset" list
+// lives in the NEW_ASSET_TYPES registry.
 import { createTilesetFromTexture } from '@/tileset/openTileset';
 import { createFlipbookFromTexture } from '@/flipbook/openFlipbook';
 import { createAnimatedSpriteFromClip } from '@/flipbook/createAnimatedSprite';
 import { createTilemapFromTileset } from '@/tilemap/createTilemap';
-import { BUILTIN_SHADER_TEMPLATES } from 'esengine';
-import { createMaterial, createMaterialInstance, createShaderAsset } from '@/material/openMaterial';
-import { createMaterialGraph } from '@/material/openMaterialGraph';
-import { createStateMachine } from '@/fsm/openStateMachine';
-import { createAnimatorController } from '@/animator/openAnimatorController';
+import { createMaterialInstance } from '@/material/openMaterial';
+import { NEW_ASSET_TYPES, type CreateAsset } from '@/project/newAssetTypes';
 import { onAssetReveal } from '@/project/assetReveal';
-import { createBehaviorTree } from '@/bt/openBehaviorTree';
-import { createAnimationClip } from '@/timeline/openClip';
 import { fsRefresh } from '@/project/fsWatch';
-import { t } from '@/i18n';
+import { t, type MsgKey } from '@/i18n';
 import type { DirEntry } from '@/project/format';
 import type { AssetType } from '@/types';
 
@@ -712,38 +709,27 @@ export function ContentBrowser() {
     }
   };
 
-  const newScene = async () => {
+  // Run a NEW_ASSET_TYPES creator. A returned path is a blank-file asset with no
+  // editor of its own → reveal it + drop into rename (like New Folder); void means
+  // the creator opened its own editor and refreshed/toasted itself.
+  const runNew = async (create: CreateAsset, errorKey?: MsgKey) => {
     try {
-      const path = await ProjectStore.createSceneFile(cwd);
-      refreshFs();
-      selectAsset(path);
-      setQuery(""); setFilters(new Set()); startRename(path); // drop into rename, like New Folder
+      const path = await create(cwd);
+      if (typeof path === 'string') {
+        refreshFs();
+        selectAsset(path);
+        setQuery(""); setFilters(new Set()); startRename(path);
+      }
     } catch (e) {
-      Toasts.push(t('cb.newSceneFailed', { error: errMsg(e) }), 'error');
+      if (errorKey) Toasts.push(t(errorKey, { error: errMsg(e) }), 'error');
     }
   };
 
-  const newInputMap = async () => {
-    try {
-      const path = await ProjectStore.createInputMapFile(cwd);
-      refreshFs();
-      selectAsset(path); // unified inspector opens the input-map editor
-      setQuery(""); setFilters(new Set()); startRename(path);
-    } catch (e) {
-      Toasts.push(t('cb.newInputMapFailed', { error: errMsg(e) }), 'error');
-    }
-  };
-
-  const newLocaleTable = async () => {
-    try {
-      const path = await ProjectStore.createLocaleTableFile(cwd);
-      refreshFs();
-      selectAsset(path);
-      setQuery(""); setFilters(new Set()); startRename(path);
-    } catch (e) {
-      Toasts.push(t('cb.newLocaleTableFailed', { error: errMsg(e) }), 'error');
-    }
-  };
+  const newAssetItems: MenuItem[] = NEW_ASSET_TYPES.map((a) =>
+    a.templates
+      ? { label: t(a.labelKey), children: a.templates().map((tpl) => ({ label: tpl.label, onClick: () => void runNew(tpl.create) })) }
+      : { label: t(a.labelKey), onClick: () => void runNew(a.create!, a.errorKey) },
+  );
 
   const showInExplorer = async (path: string) => {
     try {
@@ -987,28 +973,7 @@ export function ContentBrowser() {
         { label: t('cb.menuImport'), icon: <Import size={14} />, onClick: () => void importAssets() },
         { label: t('cb.menuNewFolder'), icon: <FolderPlus size={14} />, onClick: () => void newFolder() },
         { sep: true },
-        { label: t('cb.menuNewScene'), onClick: () => void newScene() },
-        { label: t('cb.menuNewAnimation'), onClick: () => void createAnimationClip(cwd) },
-        { label: t('cb.menuNewInputMap'), onClick: () => void newInputMap() },
-        { label: t('cb.menuNewLocaleTable'), onClick: () => void newLocaleTable() },
-        {
-          label: t('cb.menuNewMaterial'),
-          children: BUILTIN_SHADER_TEMPLATES.map((tpl) => ({
-            label: tpl.label,
-            onClick: () => void createMaterial(cwd, tpl.id),
-          })),
-        },
-        { label: t('cb.menuNewMaterialGraph'), onClick: () => void createMaterialGraph(cwd) },
-        {
-          label: t('cb.menuNewShader'),
-          children: BUILTIN_SHADER_TEMPLATES.map((tpl) => ({
-            label: tpl.label,
-            onClick: () => void createShaderAsset(cwd, tpl.id),
-          })),
-        },
-        { label: t('cb.menuNewStateMachine'), onClick: () => void createStateMachine(cwd) },
-        { label: t('cb.menuNewAnimatorController'), onClick: () => void createAnimatorController(cwd) },
-        { label: t('cb.menuNewBehaviorTree'), onClick: () => void createBehaviorTree(cwd) },
+        ...newAssetItems,
         { sep: true },
         { label: t('cb.menuShowInExplorer'), onClick: () => void showInExplorer(cwd) },
       ];
