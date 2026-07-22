@@ -9,7 +9,7 @@ export type AddressableAssetType =
 export type EditorAssetType =
     | 'texture' | 'material' | 'shader' | 'spine-atlas' | 'spine-skeleton'
     | 'bitmap-font' | 'prefab' | 'json' | 'audio' | 'video' | 'scene' | 'anim-clip'
-    | 'tilemap' | 'timeline'
+    | 'tilemap' | 'tileset' | 'timeline'
     | 'unknown';
 
 export type AssetBuildTransform = (content: string, context: unknown) => string;
@@ -54,6 +54,10 @@ const ASSET_TYPE_REGISTRY: readonly AssetTypeEntry[] = [
     { extensions: ['esscene'], contentType: 'json', editorType: 'scene', addressableType: null, wechatPackInclude: false, hasTransitiveDeps: false },
     { extensions: ['esanim'], contentType: 'json', editorType: 'anim-clip', addressableType: null, wechatPackInclude: true, hasTransitiveDeps: true },
     { extensions: ['tmj'], contentType: 'json', editorType: 'tilemap', addressableType: 'json', wechatPackInclude: true, hasTransitiveDeps: true },
+    // Tileset palette (TilesetAssetLoader). Fs-read as JSON at runtime — so it
+    // needs the WeChat pack whitelist — and it references an atlas texture by
+    // @uuid (transitive dep).
+    { extensions: ['estileset'], contentType: 'json', editorType: 'tileset', addressableType: 'json', wechatPackInclude: true, hasTransitiveDeps: true },
     { extensions: ['estimeline'], contentType: 'json', editorType: 'timeline', addressableType: 'json', wechatPackInclude: true, hasTransitiveDeps: true },
     // Locale string table (LocaleAssetLoader → Localization.addCatalog) — one locale per file.
     { extensions: ['eslocale'], contentType: 'json', editorType: 'json', addressableType: 'json', wechatPackInclude: true, hasTransitiveDeps: false },
@@ -95,6 +99,7 @@ const MIME_MAP: Record<string, string> = {
     esprefab: 'application/json',
     esanim: 'application/json',
     estimeline: 'application/json',
+    estileset: 'application/json',
     eslocale: 'application/json',
     esfsm: 'application/json',
     esanimator: 'application/json',

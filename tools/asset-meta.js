@@ -27,6 +27,7 @@ import { readdir, stat, readFile, writeFile, access } from 'node:fs/promises';
 import { join, extname, basename, relative, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { parseArgs } from 'node:util';
+import { EXT_TO_TYPE } from './assetMetaTable.js';
 
 const META_VERSION = '2.0';
 
@@ -42,47 +43,8 @@ const SKIP_FILES = new Set([
     '.gitkeep', '.gitignore', '.gitattributes',
 ]);
 
-// Extension → asset type mapping.
-// Extensions are matched case-insensitively; dot included.
-const EXT_TO_TYPE = Object.freeze({
-    // Textures
-    '.png': 'texture',
-    '.jpg': 'texture',
-    '.jpeg': 'texture',
-    '.webp': 'texture',
-    '.bmp': 'texture',
-    // Audio
-    '.wav': 'audio',
-    '.mp3': 'audio',
-    '.ogg': 'audio',
-    '.aac': 'audio',
-    '.flac': 'audio',
-    '.m4a': 'audio',
-    '.webm': 'audio',
-    // Engine data
-    '.esprefab': 'prefab',
-    '.esscene': 'scene',
-    '.esshader': 'shader',
-    '.esmaterial': 'material',
-    '.esmat': 'material',
-    '.estl': 'timeline',
-    '.esanim': 'animation',
-    '.esanimclip': 'animation',
-    // Fonts
-    '.fnt': 'bitmapFont',
-    '.bmfont': 'bitmapFont',
-    '.ttf': 'font',
-    '.otf': 'font',
-    '.woff': 'font',
-    '.woff2': 'font',
-    // Tilemap
-    '.tmx': 'tilemap',
-    '.tmj': 'tilemap',
-    '.estileset': 'tileset',
-    // Spine (skel / atlas — .png pair handled by the texture entry)
-    '.skel': 'spine',
-    '.atlas': 'spine',
-});
+// Extension → `.meta` type is single-sourced in ./assetMetaTable.js (shared
+// with the editor's mint door, desktop/electron/assetMeta.ts).
 
 /**
  * Default `importer` settings per type. Shapes match the examples/ meta

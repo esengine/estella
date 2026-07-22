@@ -6,38 +6,24 @@
  *        orphan-adoption pass — mints through here, so the uuid/version/type/
  *        importer shape can never diverge between doors.
  *
- *        The ext→type table mirrors the canonical CLI `tools/asset-meta.js`
- *        (meta `type` vocabulary, NOT the SDK's EditorAssetType spellings);
- *        kept in sync by hand — a stable lookup table, and keeping this
- *        desktop-contained avoids reaching into the root tools/.
+ *        The ext→type vocabulary is single-sourced in `tools/assetMetaTable.js`,
+ *        shared verbatim with the CLI `tools/asset-meta.js`, so the two mint
+ *        doors can never disagree on a file's `.meta` type.
  */
 import { writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
-import path from 'node:path';
 import { META_EXT } from './contentPolicy';
 import { importerDefaults } from '../src/project/assetImporter';
+import { EXT_TO_TYPE, metaTypeForExt } from '../../tools/assetMetaTable.js';
 
 export const META_VERSION = '2.0';
 
-/** Import/adoption ext → `.meta` type (the meta vocabulary the scan reads). */
-export const EXT_TO_TYPE: Record<string, string> = {
-  '.png': 'texture', '.jpg': 'texture', '.jpeg': 'texture', '.webp': 'texture', '.bmp': 'texture',
-  '.ktx2': 'texture',
-  '.wav': 'audio', '.mp3': 'audio', '.ogg': 'audio', '.aac': 'audio', '.flac': 'audio', '.m4a': 'audio', '.webm': 'audio',
-  '.mp4': 'video', '.m4v': 'video', '.mov': 'video',
-  '.esprefab': 'prefab', '.esscene': 'scene', '.esshader': 'shader', '.esmaterial': 'material', '.esmat': 'material',
-  '.esanim': 'animclip', '.esanimclip': 'animclip', '.estimeline': 'animation',
-  '.estileset': 'tileset', '.esfsm': 'statemachine', '.esbt': 'behaviortree', '.eslocale': 'locale',
-  '.fnt': 'bitmapFont', '.bmfont': 'bitmapFont', '.ttf': 'font', '.otf': 'font', '.woff': 'font', '.woff2': 'font',
-  '.tmx': 'tilemap', '.tmj': 'tilemap',
-  '.skel': 'spine', '.atlas': 'spine',
-  '.inputmap': 'inputmap',
-};
+export { EXT_TO_TYPE };
 
 /** The meta `type` for a file name/path, or null for unknown extensions. */
 export function metaTypeFor(file: string): string | null {
-  return EXT_TO_TYPE[path.extname(file).toLowerCase()] ?? null;
+  return metaTypeForExt(file);
 }
 
 /** A fresh `.meta` document for an asset of `type`. */

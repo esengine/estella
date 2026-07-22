@@ -2328,7 +2328,7 @@ undefineMaterial: (materialId: number) => void
 ```
 | 'texture' | 'material' | 'shader' | 'spine-atlas' | 'spine-skeleton'
     | 'bitmap-font' | 'prefab' | 'json' | 'audio' | 'video' | 'scene' | 'anim-clip'
-    | 'tilemap' | 'timeline'
+    | 'tilemap' | 'tileset' | 'timeline'
     | 'unknown'
 ```
 
