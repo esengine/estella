@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { ChevronRight, LayoutGrid, List, Import, FolderOpen, FolderPlus, ArrowLeft, ArrowRight, ArrowUp, ArrowDownUp, Play, EyeOff, Plus } from 'lucide-react';
+import { ChevronRight, LayoutGrid, List, Import, FolderOpen, Folder, FolderPlus, ArrowLeft, ArrowRight, ArrowUp, ArrowDownUp, Play, EyeOff, Plus, Search } from 'lucide-react';
 import { AssetIcon, assetTint } from '@/components/icons';
+import { EmptyState } from '@/components/EmptyState';
 import { IconButton } from '@/components/IconButton';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { SearchField } from '@/components/SearchField';
@@ -942,10 +943,7 @@ export function ContentBrowser() {
   if (!project) {
     return (
       <div className="panel">
-        <div className="empty">
-          <FolderOpen size={24} strokeWidth={1.4} />
-          <p>{t('cb.openProjectPrompt')}</p>
-        </div>
+        <EmptyState icon={FolderOpen} title={t('cb.noProjectTitle')} hint={t('cb.openProjectPrompt')} />
       </div>
     );
   }
@@ -1085,7 +1083,13 @@ export function ContentBrowser() {
               setCtx({ x: e.clientX, y: e.clientY, target: null });
             }}
           >
-            {view === 'grid' ? (
+            {!listLoading && items.length === 0 ? (
+              q ? (
+                <EmptyState icon={Search} title={t('cb.noMatch')} />
+              ) : (
+                <EmptyState icon={Folder} title={t('cb.emptyFolderTitle')} hint={t('cb.emptyFolder')} />
+              )
+            ) : view === 'grid' ? (
               <div className="cb-grid" style={{ ['--tile' as string]: `${tileSize}px` } as React.CSSProperties}>
                 {listLoading &&
                   Array.from({ length: 8 }, (_, i) => (
@@ -1145,11 +1149,6 @@ export function ContentBrowser() {
                     </div>
                   );
                 })}
-                {!listLoading && items.length === 0 && (
-                  <div className="empty-line cb-empty" style={{ gridColumn: '1 / -1' }}>
-                    {q ? t('cb.noMatch') : t('cb.emptyFolder')}
-                  </div>
-                )}
               </div>
             ) : (
               <div className="cb-list">
@@ -1201,9 +1200,6 @@ export function ContentBrowser() {
                     </div>
                   );
                 })}
-                {!listLoading && items.length === 0 && (
-                  <div className="empty-line cb-empty">{q ? t('cb.noMatch') : t('cb.emptyFolder')}</div>
-                )}
               </div>
             )}
           </div>

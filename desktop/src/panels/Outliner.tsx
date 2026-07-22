@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { Search, Plus, FolderPlus, ArrowDownUp } from 'lucide-react';
+import { Search, Plus, FolderPlus, ArrowDownUp, Boxes } from 'lucide-react';
 import { SearchField } from '@/components/SearchField';
+import { EmptyState } from '@/components/EmptyState';
 import { useEditorStore } from '@/store/editorStore';
 import { useSelection } from '@/store/selectionStore';
 import { EngineHost } from '@/engine/EngineHost';
@@ -723,18 +724,21 @@ export function Outliner() {
           )}
           {sceneCount === 0 ? (
             <div className="pbody" onDragOver={onBodyDragOver} onDrop={onBodyDrop} onContextMenu={onBodyContextMenu}>
-              <div className="empty">
-                <Search size={22} strokeWidth={1.4} />
-                <p>{engine.status === 'ready' ? t('out.emptyScene') : t('out.waitingEngine')}</p>
-                {engine.status === 'ready' && <small>{t('out.emptyHint')}</small>}
-              </div>
+              <EmptyState
+                icon={Boxes}
+                title={engine.status === 'ready' ? t('out.emptyScene') : t('out.waitingEngine')}
+                hint={engine.status === 'ready' ? t('out.emptyHint') : undefined}
+              >
+                {engine.status === 'ready' && (
+                  <button type="button" className="empty-state__action" onClick={() => setCreateFor({ parent: null })}>
+                    <Plus size={14} /> {t('out.addEntity')}
+                  </button>
+                )}
+              </EmptyState>
             </div>
           ) : items.length === 0 ? (
             <div className="pbody" onDragOver={onBodyDragOver} onDrop={onBodyDrop} onContextMenu={onBodyContextMenu}>
-              <div className="empty">
-                <Search size={22} strokeWidth={1.4} />
-                <p>{t('out.noMatch', { query })}</p>
-              </div>
+              <EmptyState icon={Search} title={t('out.noMatch', { query })} />
             </div>
           ) : (
             <VirtualTree

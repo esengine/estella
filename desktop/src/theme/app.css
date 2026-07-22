@@ -188,6 +188,25 @@
 }
 .empty-state__title { font-size: var(--fs-md); color: var(--text-dim); font-weight: 600; }
 .empty-state__hint { font-size: var(--fs-sm); line-height: 1.5; max-width: 260px; }
+/* An optional primary action inside the empty state (e.g. "Add Entity" / "New
+   animation") — outlined accent, matching the Save button's restraint (the accent
+   fill stays reserved for Play). */
+.empty-state__action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  padding: 5px 12px;
+  font: inherit;
+  font-weight: 600;
+  color: var(--acc-hi);
+  background: transparent;
+  border: 1px solid var(--acc);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: background var(--t-fast), color var(--t-fast);
+}
+.empty-state__action:hover { background: var(--srf-4); color: var(--acc-hi); }
 
 /* -------------------------------------------------------------- viewport --- */
 .viewport {

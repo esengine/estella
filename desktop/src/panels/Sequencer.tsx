@@ -28,6 +28,7 @@ import { useSequencerStore } from '@/store/sequencerStore';
 import { useSelection } from '@/store/selectionStore';
 import { SceneModel } from '@/engine/SceneModel';
 import { ContextMenu, type MenuItem } from '@/components/Menu';
+import { EmptyState } from '@/components/EmptyState';
 import { eventWindow } from '@/components/PanelWindow';
 import { IconButton } from '@/components/IconButton';
 import { NumField } from '@/components/NumField';
@@ -88,24 +89,6 @@ function buildAddTrackItems(asset: { tracks: unknown } | null, rootSourceId: num
   return items;
 }
 
-function EmptyState() {
-  return (
-    <div className="seq-empty">
-      <Film size={30} strokeWidth={1.3} />
-      <div className="seq-empty__title">{t('seq.empty.title')}</div>
-      <div className="seq-empty__hint">{t('seq.empty.hint')}</div>
-      <button type="button" className="seq-btn seq-btn--text on" onClick={() => void createAnimationClip('')}>
-        <Plus size={14} /><span>{t('seq.empty.new')}</span>
-      </button>
-      <ol className="seq-empty__steps">
-        <li>{t('seq.empty.step1')}</li>
-        <li>{t('seq.empty.step2')}</li>
-        <li>{t('seq.empty.step3')}</li>
-      </ol>
-    </div>
-  );
-}
-
 export function Sequencer() {
   // Re-read the document on every revision bump (open / edit / close).
   useSyncExternalStore(TimelineDocument.subscribe, TimelineDocument.getRevision);
@@ -144,7 +127,22 @@ export function Sequencer() {
     return () => { useSelection.getState().setInspectSource(null); };
   }, [timelineOpen, timelinePath, keyframeSel]);
 
-  if (!asset) return <div className="seq"><EmptyState /></div>;
+  if (!asset) {
+    return (
+      <div className="seq">
+        <EmptyState icon={Film} title={t('seq.empty.title')} hint={t('seq.empty.hint')}>
+          <button type="button" className="empty-state__action" onClick={() => void createAnimationClip('')}>
+            <Plus size={14} /> {t('seq.empty.new')}
+          </button>
+          <ol className="seq-empty__steps">
+            <li>{t('seq.empty.step1')}</li>
+            <li>{t('seq.empty.step2')}</li>
+            <li>{t('seq.empty.step3')}</li>
+          </ol>
+        </EmptyState>
+      </div>
+    );
+  }
 
   return <SequencerBody />;
 }

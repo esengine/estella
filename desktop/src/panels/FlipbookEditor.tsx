@@ -13,11 +13,12 @@ import {
   useEffect, useRef, useState, useSyncExternalStore,
   type CSSProperties, type DragEvent,
 } from 'react';
-import { Plus, Trash2, X } from 'lucide-react';
+import { Plus, Trash2, X, Film } from 'lucide-react';
 import {
   animClipSheetCols, animClipSheetRows,
   type AnimClipFrameData, type AnimClipSheetData,
 } from 'esengine';
+import { EmptyState } from '@/components/EmptyState';
 import { GridField } from '@/components/GridField';
 import { Transport } from '@/components/Transport';
 import { SaveButton } from '@/components/SaveButton';
@@ -94,12 +95,7 @@ export function FlipbookEditor() {
   }, [playing, playFrames, playFps]);
 
   if (!asset) {
-    return (
-      <div className="fb-empty">
-        <p>{t('fb.noOpen')}</p>
-        <p className="fb-hint">{t('fb.noOpenHint')}</p>
-      </div>
-    );
+    return <EmptyState icon={Film} title={t('fb.noOpen')} hint={t('fb.noOpenHint')} />;
   }
 
   const fps = asset.fps ?? 12;
