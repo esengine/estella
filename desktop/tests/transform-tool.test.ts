@@ -120,16 +120,26 @@ describe('entity pick → select + move', () => {
     expect([...useSelection.getState().selectedIds].sort()).toEqual([7, 9]);
   });
 
-  it('Alt-drag duplicates and moves the copy', () => {
+  it('Alt-drag duplicates on the first move and moves the copy', () => {
     h.pick.entity = 7;
     h.pos.set(7, { x: 100, y: 100 });
     const t = TRANSFORM_TOOLS.move;
     t.onPointerDown(ev(100, 100, { alt: true }), ctx);
+    expect(h.calls.dup).toEqual([]); // deferred — no clone until the drag actually moves
+    t.onPointerMove(ev(140, 100), ctx); // past the slop → clone NOW, retarget onto the copy
     expect(h.calls.dup).toEqual([107]); // copy id = original + 100 (mock)
     expect(useSelection.getState().selectedId).toBe(107);
-    t.onPointerMove(ev(140, 100), ctx);
     t.onPointerUp(ev(140, 100), ctx);
     expect(h.calls.setXY.at(-1)).toEqual([107, 140, 100]); // copy tracks the cursor from the original's start
+  });
+
+  it('a bare Alt-click leaves no duplicate (no drag past the slop)', () => {
+    h.pick.entity = 7;
+    h.pos.set(7, { x: 100, y: 100 });
+    const t = TRANSFORM_TOOLS.move;
+    t.onPointerDown(ev(100, 100, { alt: true }), ctx);
+    t.onPointerUp(ev(100, 100), ctx); // released in place — never a drag
+    expect(h.calls.dup).toEqual([]); // the old bug stacked a copy on the original here
   });
 
   it('repeated clicks at the same spot cycle through the overlapping stack', () => {

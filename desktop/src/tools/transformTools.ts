@@ -26,6 +26,7 @@ import {
   type GizmoAxis,
   type GizmoMode,
   type Pt,
+  GIZMO,
   hitTestGizmo,
   constrainLocalDelta,
   groupPivot,
@@ -246,7 +247,10 @@ function beginDrag(
     pivotClient,
     downWorld,
     startAngle: Math.atan2(cur.y - pivotClient.y, cur.x - pivotClient.x),
-    startDist: Math.max(1, Math.hypot(cur.x - pivotClient.x, cur.y - pivotClient.y)),
+    // The grab point's screen distance from the pivot. Scale is now delta-based off
+    // this (not a ratio), so it needs no floor and can't blow up when you grab near
+    // the pivot (the center box / an entity's body).
+    startDist: Math.hypot(cur.x - pivotClient.x, cur.y - pivotClient.y),
     angleRad,
     targets,
   };
@@ -274,7 +278,12 @@ function applyRotate(d: Drag, cur: Pt): void {
   // Screen y is down, so a clockwise screen drag is a negative world rotation.
   let worldDeltaDeg = (-(ang - d.startAngle) * 180) / Math.PI;
   const ed = useEditorStore.getState();
-  if (ed.snapping) worldDeltaDeg = snapTo(worldDeltaDeg, ed.snapAngle);
+  if (ed.snapping) {
+    // Snap the primary's RESULTING absolute angle to the grid, then apply that delta
+    // to all (like move-snap) — so a 7°-rotated object lands on 15/30/45, not 22/37.
+    const r0 = d.targets[0].start.rotDeg;
+    worldDeltaDeg = snapTo(r0 + worldDeltaDeg, ed.snapAngle) - r0;
+  }
   const rad = (worldDeltaDeg * Math.PI) / 180;
   for (const t of d.targets) {
     const np = rotateAround({ x: t.start.x, y: t.start.y }, d.pivotWorld, rad);
@@ -284,14 +293,25 @@ function applyRotate(d: Drag, cur: Pt): void {
 }
 
 function applyScale(d: Drag, cur: Pt): void {
-  const f = Math.hypot(cur.x - d.pivotClient.x, cur.y - d.pivotClient.y) / d.startDist;
+  const curDist = Math.hypot(cur.x - d.pivotClient.x, cur.y - d.pivotClient.y);
+  // Delta-based, referenced to the gizmo's on-screen length — f is exactly 1 at the
+  // grab point and moves linearly with the drag, so grabbing the center box or an
+  // entity's body (down point near the pivot) can't produce a runaway factor the way
+  // the old curDist/startDist ratio did off a ~1px baseline.
+  const f = 1 + (curDist - d.startDist) / GIZMO.axisLen;
   const ed = useEditorStore.getState();
   let fx = d.axis === 'y' ? 1 : f;
   let fy = d.axis === 'x' ? 1 : f;
   if (ed.snapping) {
-    if (d.axis !== 'y') fx = Math.max(0.01, snapTo(fx, ed.snapScale));
-    if (d.axis !== 'x') fy = Math.max(0.01, snapTo(fy, ed.snapScale));
+    // Snap the primary's RESULTING absolute scale to the grid, then back out the
+    // factor (like move-snap) — so a scaled object lands on 0.1 increments.
+    const s0 = d.targets[0].start;
+    if (d.axis !== 'y' && s0.sx) fx = snapTo(s0.sx * fx, ed.snapScale) / s0.sx;
+    if (d.axis !== 'x' && s0.sy) fy = snapTo(s0.sy * fy, ed.snapScale) / s0.sy;
   }
+  // Floor the factor so a drag through the pivot can't collapse or mirror the object.
+  fx = Math.max(0.01, fx);
+  fy = Math.max(0.01, fy);
   for (const t of d.targets) {
     const np = scaleAround({ x: t.start.x, y: t.start.y }, d.pivotWorld, fx, fy);
     SceneCommands.setEntityXY(t.sourceId, np.x, np.y);
@@ -331,6 +351,9 @@ function makeTransformTool(mode: ToolMode): EditorTool {
   let marquee: MarqueeState | null = null;
   let pendingClick: { downX: number; downY: number; stack: EntityId[] } | null = null;
   let cycle: CycleState | null = null;
+  // Ids to Alt-duplicate on the FIRST real drag movement — deferred from pointer-down
+  // so a bare Alt-click never leaves a copy stacked on the original.
+  let altPending: readonly EntityId[] | null = null;
   // The select tool shares the move drag (click selects, drag moves) but shows no
   // transform gizmo; move/rotate/scale do. kind === the tool's transform.
   const kind: Kind = mode === 'rotate' ? 'rotate' : mode === 'scale' ? 'scale' : 'move';
@@ -380,16 +403,11 @@ function makeTransformTool(mode: ToolMode): EditorTool {
         pendingClick = { downX: p.clientX, downY: p.clientY, stack };
         const ids = [...useSelection.getState().selectedIds];
 
-        let targets: Target[];
-        let pivotWorld: Pt | null;
-        if (p.alt) {
-          const dup = altDuplicateTargets(ids);
-          targets = dup.targets;
-          pivotWorld = dup.pivot;
-        } else {
-          targets = captureTargets(ids);
-          pivotWorld = selectionPivot(ids);
-        }
+        // Drag the originals for now; an Alt-drag defers its clone to the first real
+        // move (onPointerMove), so a bare Alt-click leaves nothing behind.
+        const targets = captureTargets(ids);
+        const pivotWorld = selectionPivot(ids);
+        altPending = p.alt ? ids : null;
         if (!targets.length || !pivotWorld) return false;
         const pc = ViewportController.worldToClient(pivotWorld.x, pivotWorld.y) ?? cur;
         drag = beginDrag(kind, 'xy', targets, pivotWorld, pc, p, cur);
@@ -408,6 +426,13 @@ function makeTransformTool(mode: ToolMode): EditorTool {
       // A press that travels past the slop is a drag, not a click — disarm the
       // click-through cycle so releasing won't advance the selection.
       if (pendingClick && (Math.abs(p.clientX - pendingClick.downX) > CLICK_SLOP || Math.abs(p.clientY - pendingClick.downY) > CLICK_SLOP)) {
+        // Past the slop: this is a drag, not a click. If it's a deferred Alt-drag,
+        // clone NOW and retarget the drag onto the fresh copies (the originals stay).
+        if (altPending && drag) {
+          const dup = altDuplicateTargets(altPending);
+          if (dup.targets.length) drag.targets = dup.targets;
+        }
+        altPending = null;
         pendingClick = null;
         cycle = null;
       }
@@ -438,6 +463,7 @@ function makeTransformTool(mode: ToolMode): EditorTool {
 
     onPointerUp(p, ctx) {
       ctx.release(p.pointerId);
+      altPending = null; // a bare Alt-click never cloned — nothing to keep
       if (drag) {
         drag.tx.commit();
         SceneStore.resume();
@@ -491,6 +517,7 @@ function makeTransformTool(mode: ToolMode): EditorTool {
       marquee = null;
       pendingClick = null;
       cycle = null;
+      altPending = null;
     },
   };
 }
