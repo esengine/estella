@@ -8,8 +8,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { WindowControls } from '@/layout/WindowControls';
 import { DirtyDot } from '@/components/DirtyDot';
-import { resetLayout } from '@/layout/DockLayout';
-import { confirmDiscard } from '@/project/discardGuard';
 import { ProjectStore } from '@/project/ProjectStore';
 import { EditorHistory } from '@/engine/EditorHistory';
 import { MenuItems, handleMenuListKey, type MenuItem } from '@/components/Menu';
@@ -153,8 +151,9 @@ export function MenuBar() {
       title: t('menu.window'),
       items: [
         // Reset only the dock layout — rebuild in place (keeps scene/engine/undo),
-        // guarded so a wedged dirty asset-editor tab can't vanish unwarned.
-        { label: t('menu.resetLayout'), onClick: () => void confirmDiscard(t('discard.resetLayout')).then((ok) => ok && resetLayout()) },
+        // guarded so a wedged dirty asset-editor tab can't vanish unwarned. A real
+        // command, so it's in the palette + rebindable.
+        cmdItem('view.resetLayout'),
         { sep: true },
         // Same destination as File ▸ Close Project — run the guarded command so
         // leaving a project can't silently drop unsaved scene + asset edits.

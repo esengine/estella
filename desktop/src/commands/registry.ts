@@ -9,7 +9,7 @@
  *          domain stores the UI already subscribes to.
  */
 import type { Command, Keybinding } from './types';
-import { chordMatches } from './keybinding';
+import { chordMatches, normalizeChord } from './keybinding';
 import { PerfMonitor } from '@/engine/PerfMonitor';
 
 const OVERRIDE_KEY = 'estella.keybindings';
@@ -53,6 +53,23 @@ class CommandRegistry {
 
   hasOverride(id: string): boolean {
     return this.overrides.has(id);
+  }
+
+  /** Other commands whose effective binding matches `chord` (canonical compare),
+   *  excluding `exceptId` — for rebind conflict warnings. Note some overlaps are
+   *  intentional (context-gated keys like Escape = Stop / Deselect), so callers
+   *  warn rather than block. */
+  conflictsFor(chord: string, exceptId?: string): string[] {
+    const target = normalizeChord(chord);
+    const out: string[] = [];
+    for (const c of this.map.values()) {
+      if (c.id === exceptId) continue;
+      const kb = this.keybindingFor(c.id);
+      if (!kb) continue;
+      const list = Array.isArray(kb) ? kb : [kb];
+      if (list.some((k) => normalizeChord(k) === target)) out.push(c.id);
+    }
+    return out;
   }
 
   /** Rebind a command. Setting it back to the default clears the override. */

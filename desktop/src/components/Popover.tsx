@@ -13,6 +13,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { usePanelWindow } from '@/components/PanelWindow';
+import { overlayGuard } from '@/components/overlayGuard';
 
 export function Popover({
   anchor,
@@ -38,6 +39,13 @@ export function Popover({
   // Who had focus when the popover opened (usually the trigger) — keyboard focus
   // returns there on close, unless the dismissal itself focused another control.
   const opener = useRef<HTMLElement | null>(doc.activeElement as HTMLElement | null);
+
+  // While open, the popover owns the keyboard — suppress global scene shortcuts
+  // so Delete/Ctrl+Z don't bubble past an open dropdown/picker to the scene.
+  useEffect(() => {
+    overlayGuard.open();
+    return () => overlayGuard.close();
+  }, []);
 
   useEffect(
     () => () => {

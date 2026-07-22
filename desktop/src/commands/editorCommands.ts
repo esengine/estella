@@ -19,6 +19,7 @@ import { ViewportController } from '@/engine/ViewportController';
 import { PerfMonitor } from '@/engine/PerfMonitor';
 import { applyFxPreview } from '@/engine/fxPreview';
 import { dockApi } from '@/layout/dockApi';
+import { resetLayout } from '@/layout/DockLayout';
 import { panelDirtySource } from '@/layout/panelDirty';
 import { DirtyRegistry } from '@/document/DirtyRegistry';
 import { MaterialDocument } from '@/material/MaterialDocument';
@@ -335,6 +336,14 @@ commands.register({
   keybinding: 'f11',
   isChecked: () => dockApi.isMaximized(),
   run: () => dockApi.toggleMaximizePanel('viewport'),
+});
+commands.register({
+  id: 'view.resetLayout',
+  label: t('menu.resetLayout'),
+  category: t('cat.view'),
+  // Rebuild the default dock arrangement in place (keeps scene/engine/undo). A real
+  // command so it reaches the palette + is rebindable, not a one-off menu handler.
+  run: () => void confirmDiscard(t('discard.resetLayout')).then((ok) => ok && resetLayout()),
 });
 commands.register({
   id: 'view.toggleGrid',

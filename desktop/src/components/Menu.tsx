@@ -11,6 +11,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 're
 import { createPortal } from 'react-dom';
 import { Check, ChevronRight } from 'lucide-react';
 import { usePanelWindow } from '@/components/PanelWindow';
+import { overlayGuard } from '@/components/overlayGuard';
 
 export type MenuItem =
   | { sep: true }
@@ -135,6 +136,13 @@ export function ContextMenu({
   // Who had focus when the menu opened (captured at first render, before the
   // seed-focus effect steals it) — keyboard focus returns there on close.
   const opener = useRef<HTMLElement | null>(doc.activeElement as HTMLElement | null);
+
+  // While the menu is open it owns the keyboard: the global shortcut handler
+  // must not run scene commands (Delete/Ctrl+Z/F5) against the scene behind it.
+  useEffect(() => {
+    overlayGuard.open();
+    return () => overlayGuard.close();
+  }, []);
 
   // Restore focus to the opener — unless the dismissal itself moved focus
   // somewhere real (outside-press on another control must keep that focus).

@@ -2,9 +2,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  ConfirmDialog.tsx — a themed yes/no confirm built on Modal, replacing
- *        native window.confirm (blocking, unthemed, no keyboard contract). The
- *        confirm button takes focus so Enter confirms; Escape/backdrop cancel
- *        via Modal. `danger` puts the error fill on the confirm action.
+ *        native window.confirm (blocking, unthemed, no keyboard contract). A safe
+ *        dialog focuses Confirm (Enter proceeds); a `danger` dialog focuses Cancel
+ *        instead, so a reflexive Enter on "Discard unsaved changes?" can't destroy
+ *        anything. Escape/backdrop cancel via Modal. `danger` also puts the error
+ *        fill on the confirm action.
  */
 import { useEffect, useRef, type ReactNode } from 'react';
 import { t } from '@/i18n';
@@ -30,9 +32,14 @@ export function ConfirmDialog({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
-  // Runs after Modal's dialogFocus (child effects first), so this wins.
-  const btn = useRef<HTMLButtonElement>(null);
-  useEffect(() => btn.current?.focus(), []);
+  // Runs after Modal's dialogFocus (child effects first), so this wins. A
+  // destructive dialog seeds focus on Cancel (Enter = the safe choice); a safe or
+  // info dialog seeds Confirm (Enter = proceed).
+  const confirmBtn = useRef<HTMLButtonElement>(null);
+  const cancelBtn = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    (danger && !info ? cancelBtn : confirmBtn).current?.focus();
+  }, [danger, info]);
 
   return (
     <Modal
@@ -41,8 +48,8 @@ export function ConfirmDialog({
       width={420}
       footer={
         <>
-          {!info && <Button onClick={onCancel}>{t('ui.cancel')}</Button>}
-          <Button ref={btn} variant={danger ? 'danger' : 'primary'} onClick={onConfirm}>
+          {!info && <Button ref={cancelBtn} onClick={onCancel}>{t('ui.cancel')}</Button>}
+          <Button ref={confirmBtn} variant={danger ? 'danger' : 'primary'} onClick={onConfirm}>
             {confirmLabel}
           </Button>
         </>

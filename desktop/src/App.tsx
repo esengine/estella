@@ -23,6 +23,7 @@ import { TilemapPickerDialog } from '@/components/TilemapPickerDialog';
 import { CommandPalette } from '@/components/CommandPalette';
 import { useEditorStore } from '@/store/editorStore';
 import { ConfirmService } from '@/components/confirm';
+import { overlayGuard } from '@/components/overlayGuard';
 import { commands } from '@/commands';
 import { handleTilePaintKey } from '@/tools/tileMode';
 import { suggestedMode } from '@/mode/activeMode';
@@ -70,6 +71,10 @@ export function App() {
       if (ui.settingsOpen || ui.paletteOpen || ui.buildOpen || ui.tilemapPickerOpen || ConfirmService.getSnapshot().length > 0) {
         return;
       }
+      // A floating context menu / popover / field dropdown owns the keyboard while
+      // open — don't let global shortcuts (Delete, Ctrl+Z, F5, Ctrl+D) run against
+      // the scene behind it (the overlay handles its own Escape/nav keys).
+      if (overlayGuard.active) return;
       // Ctrl+Space summons the Content Drawer — works even from a field.
       if ((e.ctrlKey || e.metaKey) && e.code === 'Space') {
         e.preventDefault();

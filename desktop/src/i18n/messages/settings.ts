@@ -19,6 +19,10 @@ export const settingsMessages = defineMessages({
     'set.pressKeys': { en: 'Press keys…', zh: '请按键…' },
     'set.unbound': { en: 'Unbound', zh: '未绑定' },
     'set.rebindHint': { en: 'Click to rebind', zh: '点击重新绑定' },
+    'set.rebindConflict': {
+        en: '{keys} is also bound to “{cmd}” — one may shadow the other',
+        zh: '{keys} 也绑定了“{cmd}”——两者可能相互覆盖',
+    },
     'set.layerN': { en: 'Layer {i}', zh: '层 {i}' },
 
     // — Nav categories —

@@ -16,6 +16,8 @@ import { useEditorStore } from '@/store/editorStore';
 import { useSettings } from '@/store/settingsStore';
 import { settingsRegistry } from '@/settings/registry';
 import { eventToChord, formatKeybinding } from '@/commands/keybinding';
+import { commands } from '@/commands';
+import { Toasts } from '@/store/Toasts';
 import { useDialogFocus } from '@/components/dialogFocus';
 import { IconButton } from '@/components/IconButton';
 import { SearchField } from '@/components/SearchField';
@@ -114,8 +116,19 @@ function KeybindCapture({ setting }: { setting: KeybindingSetting }) {
         return;
       }
       if (['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) return; // wait for the real key
-      setValue(setting.id, eventToChord(e));
+      const chord = eventToChord(e);
+      setValue(setting.id, chord);
       setCapturing(false);
+      // Warn (don't block) if the chord already drives another command — some
+      // overlaps are intentional (context-gated keys), but a SILENT shadow is the
+      // real bug, so name the clash and let the user decide.
+      const clash = commands.conflictsFor(chord, setting.commandId);
+      if (clash.length) {
+        Toasts.push(
+          t('set.rebindConflict', { keys: formatKeybinding(chord), cmd: commands.get(clash[0])?.label ?? clash[0] }),
+          'warn',
+        );
+      }
     };
     // Capture phase + stopPropagation so neither commands nor the dialog Esc fire.
     window.addEventListener('keydown', onKey, true);
