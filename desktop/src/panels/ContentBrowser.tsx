@@ -704,7 +704,7 @@ export function ContentBrowser() {
       await window.estella.fs.mkdir(path);
       refreshFs();
       selectAsset(path);
-      startRename(path); // drop straight into rename, like UE5
+      setQuery(""); setFilters(new Set()); startRename(path); // drop straight into rename, like UE5
     } catch (e) {
       Toasts.push(t('cb.newFolderFailed', { error: errMsg(e) }), 'error');
     }
@@ -715,7 +715,7 @@ export function ContentBrowser() {
       const path = await ProjectStore.createSceneFile(cwd);
       refreshFs();
       selectAsset(path);
-      startRename(path); // drop into rename, like New Folder
+      setQuery(""); setFilters(new Set()); startRename(path); // drop into rename, like New Folder
     } catch (e) {
       Toasts.push(t('cb.newSceneFailed', { error: errMsg(e) }), 'error');
     }
@@ -726,7 +726,7 @@ export function ContentBrowser() {
       const path = await ProjectStore.createInputMapFile(cwd);
       refreshFs();
       selectAsset(path); // unified inspector opens the input-map editor
-      startRename(path);
+      setQuery(""); setFilters(new Set()); startRename(path);
     } catch (e) {
       Toasts.push(t('cb.newInputMapFailed', { error: errMsg(e) }), 'error');
     }
@@ -737,7 +737,7 @@ export function ContentBrowser() {
       const path = await ProjectStore.createLocaleTableFile(cwd);
       refreshFs();
       selectAsset(path);
-      startRename(path);
+      setQuery(""); setFilters(new Set()); startRename(path);
     } catch (e) {
       Toasts.push(t('cb.newLocaleTableFailed', { error: errMsg(e) }), 'error');
     }

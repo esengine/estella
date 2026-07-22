@@ -407,6 +407,9 @@ export function Outliner() {
     for (let i = 2; existing.has(path); i++) path = joinFolder(parent, `New Folder ${i}`);
     SceneCommands.createFolder(path);
     if (into?.length) SceneCommands.moveToFolder(into, path);
+    // Clear an active search so the new folder (and its rename box) isn't filtered
+    // out — otherwise "New Folder" appears to do nothing.
+    setQuery('');
     useOutliner.getState().expand([folderKey(path)]);
     setRenaming(folderKey(path));
   };
