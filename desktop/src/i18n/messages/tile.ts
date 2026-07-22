@@ -160,6 +160,11 @@ export const tileMessages = defineMessages({
         en: 'Click to add a vertex · drag a vertex to move · click it to delete · takes effect at ≥3 points',
         zh: '点击添加顶点 · 拖动顶点移动 · 点击顶点删除 · ≥3 个顶点时生效',
     },
+    'tile.ce.title': { en: 'Collision circle · #{id}', zh: '碰撞圆形 · #{id}' },
+    'tile.ce.hint': {
+        en: 'Drag the centre to move · drag the edge handle to resize',
+        zh: '拖动圆心移动 · 拖动边缘手柄调整半径',
+    },
 
     // — Tileset editor: terrain authoring —
     'tile.zone.member': { en: 'Tile belongs to this terrain', zh: '瓦片属于此地形' },

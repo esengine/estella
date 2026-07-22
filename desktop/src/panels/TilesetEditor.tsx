@@ -16,7 +16,7 @@
 
 import {
   useEffect, useRef, useState, useSyncExternalStore,
-  type CSSProperties, type MouseEvent as ReactMouseEvent,
+  type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { Plus, Trash2, X, ArrowUp } from 'lucide-react';
 import {
@@ -167,6 +167,100 @@ function PolygonEditor(props: {
   );
 }
 
+/** A focused per-tile circle-collision editor: drag the centre dot or the radius handle on
+ *  a magnified tile (live preview, one undo step on release). Modifiers (one-way / sensor /
+ *  material) are preserved across the edit, and Clear removes the shape. Mirrors the
+ *  {@link PolygonEditor} gesture so the two shapes fine-tune the same way. */
+function CircleEditor(props: {
+  asset: TilesetAsset; texUrl: string; natural: { w: number; h: number };
+  tileId: number; cols: number; onClose: () => void;
+}) {
+  const { asset, texUrl, natural, tileId, cols, onClose } = props;
+  const win = usePanelWindow();
+  const { tileWidth: tw, tileHeight: th, margin: mg, spacing: sp } = asset;
+  const col = (tileId - 1) % cols;
+  const row = Math.floor((tileId - 1) / cols);
+  const tileX = mg + col * (tw + sp);
+  const tileY = mg + row * (th + sp);
+  const SIZE = 260;
+  const sx = SIZE / tw;
+  const sy = SIZE / th;
+  const existing = asset.tiles[tileId]?.collision;
+  // Keep the shape's modifiers so a resize doesn't drop a one-way / sensor / material.
+  const mods: TileCollisionMods = existing
+    ? { oneWay: existing.oneWay, sensor: existing.sensor, density: existing.density, friction: existing.friction, restitution: existing.restitution }
+    : {};
+  const [c, setC] = useState(() => existing?.type === 'circle'
+    ? { cx: existing.cx, cy: existing.cy, r: existing.r }
+    : { cx: tw / 2, cy: th / 2, r: Math.min(tw, th) / 2 });
+  const cRef = useRef(c);
+  cRef.current = c;
+  const stageRef = useRef<HTMLDivElement>(null);
+  const drag = useRef<'center' | 'radius' | null>(null);
+
+  const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
+  const round1 = (n: number) => Math.round(n * 10) / 10;
+  const at = (clientX: number, clientY: number): [number, number] => {
+    const r = stageRef.current!.getBoundingClientRect();
+    return [((clientX - r.left) / r.width) * tw, ((clientY - r.top) / r.height) * th];
+  };
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    win.addEventListener('keydown', onKey);
+    return () => win.removeEventListener('keydown', onKey);
+  }, [onClose, win]);
+
+  const start = (kind: 'center' | 'radius') => (e: ReactPointerEvent) => {
+    e.stopPropagation();
+    drag.current = kind;
+    try { (e.target as Element).setPointerCapture(e.pointerId); } catch { /* capture is optional */ }
+  };
+  const move = (e: ReactPointerEvent) => {
+    if (!drag.current) return;
+    const [px, py] = at(e.clientX, e.clientY);
+    if (drag.current === 'center') setC((s) => ({ ...s, cx: round1(clamp(px, 0, tw)), cy: round1(clamp(py, 0, th)) }));
+    else setC((s) => ({ ...s, r: round1(clamp(Math.hypot(px - cRef.current.cx, py - cRef.current.cy), 0.5, Math.max(tw, th))) }));
+  };
+  const end = (e: ReactPointerEvent) => {
+    if (!drag.current) return;
+    drag.current = null;
+    try { (e.target as Element).releasePointerCapture(e.pointerId); } catch { /* not captured */ }
+    TilesetCommands.setTileCircle(tileId, cRef.current.cx, cRef.current.cy, cRef.current.r, mods);
+  };
+  const HR = Math.max(1.4, tw * 0.07);
+
+  return (
+    <div className="ts-pe-backdrop" onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="ts-pe">
+        <div className="ts-pe-head">
+          <span>{t('tile.ce.title', { id: tileId })}</span>
+          <span className="ts-grow" />
+          <button type="button" onClick={() => { TilesetCommands.setTileCircle(tileId, 0, 0, 0); onClose(); }}>{t('tile.pe.clear')}</button>
+          <button type="button" onClick={onClose}>{t('tile.done')}</button>
+        </div>
+        <div
+          ref={stageRef}
+          className="ts-pe-stage"
+          style={{
+            width: SIZE, height: SIZE,
+            backgroundImage: `url(${texUrl})`,
+            backgroundPosition: `-${tileX * sx}px -${tileY * sy}px`,
+            backgroundSize: `${natural.w * sx}px ${natural.h * sy}px`,
+          }}
+        >
+          <svg className="ts-pe-svg" viewBox={`0 0 ${tw} ${th}`} width={SIZE} height={SIZE}>
+            <circle className="ts-pe-poly" cx={c.cx} cy={c.cy} r={c.r} style={{ vectorEffect: 'non-scaling-stroke' }} />
+            <circle className="ts-pe-pt" cx={c.cx + c.r} cy={c.cy} r={HR} onPointerDown={start('radius')} onPointerMove={move} onPointerUp={end} />
+            <circle className="ts-pe-pt" cx={c.cx} cy={c.cy} r={HR} onPointerDown={start('center')} onPointerMove={move} onPointerUp={end} />
+          </svg>
+        </div>
+        <div className="ts-pe-hint">{t('tile.ce.hint')}</div>
+      </div>
+    </div>
+  );
+}
+
 /** Key/value entry row for the tile-properties bar; commits on ＋ or Enter. */
 function AddPropRow({ onAdd }: { onAdd: (k: string, v: string) => void }) {
   const [k, setK] = useState('');
@@ -223,6 +317,7 @@ export function TilesetEditor() {
   const [propTile, setPropTile] = useState<number | null>(null);
   const [shape, setShape] = useState<'box' | 'polygon' | 'circle'>('box');
   const [polyTile, setPolyTile] = useState<number | null>(null);
+  const [circleTile, setCircleTile] = useState<number | null>(null);
   // In polygon mode, an active preset stamps that canned slope/half-tile on click;
   // null = freeform (click opens the vertex editor). See slopePresets.
   const [activePreset, setActivePreset] = useState<SlopePreset | null>(null);
@@ -431,7 +526,10 @@ export function TilesetEditor() {
               title={t('tile.cell.circleTip', { id })}
               onPointerDown={(e) => {
                 e.preventDefault();
-                setStampDrag({ ids: new Set([id]), on: !circleOf(id), kind: 'circle' });
+                // A circled tile opens the focused editor (drag centre/radius); an empty
+                // one stamps a fitted disc, still drag-paintable across cells.
+                if (circleOf(id)) setCircleTile(id);
+                else setStampDrag({ ids: new Set([id]), on: true, kind: 'circle' });
               }}
               onPointerEnter={() => growStampDrag(id)}
             >
@@ -911,6 +1009,13 @@ export function TilesetEditor() {
         <PolygonEditor
           asset={asset} texUrl={texUrl} natural={natural} tileId={polyTile} cols={cols}
           onClose={() => setPolyTile(null)}
+        />
+      )}
+
+      {mode === 'collision' && shape === 'circle' && circleTile != null && texUrl && natural && (
+        <CircleEditor
+          asset={asset} texUrl={texUrl} natural={natural} tileId={circleTile} cols={cols}
+          onClose={() => setCircleTile(null)}
         />
       )}
     </div>
