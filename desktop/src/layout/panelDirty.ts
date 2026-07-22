@@ -26,14 +26,31 @@ export interface DirtySource {
   discard?(): void;
 }
 
+/** The reactive shape every AssetDocument singleton shares — enough to build a
+ *  DirtySource. Structural (not the AssetDocument<T> class) so the generic asset
+ *  type doesn't have to be erased at each call site. */
+interface DirtyDoc {
+  readonly docId: string;
+  subscribe(fn: () => void): () => void;
+  readonly dirty: boolean;
+}
+
+// Derive subscribe/isDirty/docId from the document itself — only `discard` (the
+// subclass `close()`) is per-entry. In particular docId is READ from the document
+// rather than re-typed here, so a panel's Ctrl+S can never route to the wrong
+// document id by a copy-paste drift.
+function docSource(doc: DirtyDoc, discard: () => void): DirtySource {
+  return { docId: doc.docId, subscribe: doc.subscribe, isDirty: () => doc.dirty, discard };
+}
+
 const SOURCES: Record<string, DirtySource> = {
-  statemachine: { docId: 'fsm', subscribe: FsmGraphDocument.subscribe, isDirty: () => FsmGraphDocument.dirty, discard: () => FsmGraphDocument.close() },
-  animatorcontroller: { docId: 'animator', subscribe: AnimatorGraphDocument.subscribe, isDirty: () => AnimatorGraphDocument.dirty, discard: () => AnimatorGraphDocument.close() },
-  behaviortree: { docId: 'bt', subscribe: BtDocument.subscribe, isDirty: () => BtDocument.dirty, discard: () => BtDocument.close() },
-  materialgraph: { docId: 'materialgraph', subscribe: MaterialGraphDocument.subscribe, isDirty: () => MaterialGraphDocument.dirty, discard: () => MaterialGraphDocument.close() },
-  tileset: { docId: 'tileset', subscribe: TilesetDocument.subscribe, isDirty: () => TilesetDocument.dirty, discard: () => TilesetDocument.close() },
-  flipbook: { docId: 'flipbook', subscribe: AnimClipDocument.subscribe, isDirty: () => AnimClipDocument.dirty, discard: () => AnimClipDocument.close() },
-  sequencer: { docId: 'timeline', subscribe: TimelineDocument.subscribe, isDirty: () => TimelineDocument.dirty, discard: () => TimelineDocument.close() },
+  statemachine: docSource(FsmGraphDocument, () => FsmGraphDocument.close()),
+  animatorcontroller: docSource(AnimatorGraphDocument, () => AnimatorGraphDocument.close()),
+  behaviortree: docSource(BtDocument, () => BtDocument.close()),
+  materialgraph: docSource(MaterialGraphDocument, () => MaterialGraphDocument.close()),
+  tileset: docSource(TilesetDocument, () => TilesetDocument.close()),
+  flipbook: docSource(AnimClipDocument, () => AnimClipDocument.close()),
+  sequencer: docSource(TimelineDocument, () => TimelineDocument.close()),
 };
 
 const NONE: DirtySource = { subscribe: () => () => {}, isDirty: () => false };
