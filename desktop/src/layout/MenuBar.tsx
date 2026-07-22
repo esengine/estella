@@ -8,7 +8,8 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { WindowControls } from '@/layout/WindowControls';
 import { DirtyDot } from '@/components/DirtyDot';
-import { LAYOUT_KEY } from '@/layout/DockLayout';
+import { resetLayout } from '@/layout/DockLayout';
+import { confirmDiscard } from '@/project/discardGuard';
 import { useEditorStore } from '@/store/editorStore';
 import { ProjectStore } from '@/project/ProjectStore';
 import { EditorHistory } from '@/engine/EditorHistory';
@@ -60,7 +61,6 @@ export function MenuBar() {
       checked: commands.isChecked(id),
     };
   };
-  const openLauncher = () => useEditorStore.getState().openLauncher();
 
   // Close the open menu on an outside click or Escape (Escape hands focus back
   // to the menu's own button so keyboard flow continues at the menubar).
@@ -163,9 +163,13 @@ export function MenuBar() {
     {
       title: t('menu.window'),
       items: [
-        { label: t('menu.resetLayout'), onClick: () => { localStorage.removeItem(LAYOUT_KEY); location.reload(); } },
+        // Reset only the dock layout — rebuild in place (keeps scene/engine/undo),
+        // guarded so a wedged dirty asset-editor tab can't vanish unwarned.
+        { label: t('menu.resetLayout'), onClick: () => void confirmDiscard(t('discard.resetLayout')).then((ok) => ok && resetLayout()) },
         { sep: true },
-        { label: t('menu.backToLauncher'), onClick: openLauncher },
+        // Same destination as File ▸ Close Project — run the guarded command so
+        // leaving a project can't silently drop unsaved scene + asset edits.
+        { label: t('menu.backToLauncher'), onClick: () => commands.run('project.close') },
       ],
     },
     {

@@ -88,6 +88,25 @@ const components: Record<string, FC<IDockviewPanelProps>> = {
 // matching UE/Unity. The Content Drawer (Ctrl+Space) is a separate overlay.
 export const LAYOUT_KEY = 'estella.editor.layout.v6';
 
+// The live dockview api, held for the Window ▸ Reset Layout command. Set on ready.
+let liveApi: DockviewReadyEvent['api'] | null = null;
+
+/**
+ * Rebuild the default dock arrangement in place — the same clear+rebuild the
+ * ready handler runs when a saved layout fails to parse, so it's a proven-safe
+ * path. Rebuilding beats a `location.reload()`: it resets ONLY the layout,
+ * keeping the open scene, engine, and undo history intact (a full reload would
+ * discard unsaved work and reboot the engine).
+ */
+export function resetLayout() {
+  const api = liveApi;
+  if (!api) return;
+  api.clear();
+  buildDefaultLayout(api);
+  ensureBottomTabs(api);
+  api.getPanel('content')?.api.setActive();
+}
+
 function buildDefaultLayout(api: DockviewReadyEvent['api']) {
   // Viewport is the anchor; the right column stacks Outliner over Details.
   api.addPanel({ id: 'viewport', component: 'viewport', title: t('layout.panel.viewport') });
@@ -282,6 +301,7 @@ export function DockLayout() {
   const onReady = (event: DockviewReadyEvent) => {
     const { api } = event;
     dockApi.set(api); // expose to the activity bar (reveal/focus panels)
+    liveApi = api; // expose to Window ▸ Reset Layout
 
     // Every popout group (a manual pop-out AND one dockview reopens while restoring a
     // saved layout) is registered here: re-theme its window (dockview copies only the

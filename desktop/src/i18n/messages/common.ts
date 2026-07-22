@@ -38,6 +38,7 @@ export const commonMessages = defineMessages({
     'discard.closeProject': { en: 'Closing the project will discard them', zh: '关闭项目将丢弃这些更改' },
     'discard.openProject': { en: 'Opening another project will discard them', zh: '打开其他项目将丢弃这些更改' },
     'discard.openScene': { en: 'Opening {name} will discard them', zh: '打开 {name} 将丢弃这些更改' },
+    'discard.resetLayout': { en: 'Resetting the layout will discard them', zh: '重置布局将丢弃这些更改' },
     'discard.openPrefab': { en: 'Editing prefab {name} will discard them', zh: '编辑预制体 {name} 将丢弃这些更改' },
     'discard.exitPrefab': { en: 'Leaving prefab mode will discard them', zh: '退出预制体编辑将丢弃这些更改' },
     'discard.openAsset': { en: 'Opening {name} will discard them', zh: '打开 {name} 将丢弃这些更改' },

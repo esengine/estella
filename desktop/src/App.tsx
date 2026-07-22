@@ -22,6 +22,7 @@ import { SettingsDialog } from '@/components/SettingsDialog';
 import { TilemapPickerDialog } from '@/components/TilemapPickerDialog';
 import { CommandPalette } from '@/components/CommandPalette';
 import { useEditorStore } from '@/store/editorStore';
+import { ConfirmService } from '@/components/confirm';
 import { commands } from '@/commands';
 import { handleTilePaintKey } from '@/tools/tileMode';
 import { suggestedMode } from '@/mode/activeMode';
@@ -61,6 +62,14 @@ export function App() {
   // (main + each popped-out panel) so shortcuts fire whichever one has focus.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // A modal / confirm dialog owns the keyboard while open. Don't let global
+      // shortcuts (Delete, Ctrl+Z, Ctrl+D, F5…) reach the scene behind it — worst
+      // case they'd mutate the very scene a "Discard unsaved changes?" dialog is
+      // protecting. Each dialog runs its own key handling (Escape to close, etc.).
+      const ui = useEditorStore.getState();
+      if (ui.settingsOpen || ui.paletteOpen || ui.buildOpen || ui.tilemapPickerOpen || ConfirmService.getSnapshot().length > 0) {
+        return;
+      }
       // Ctrl+Space summons the Content Drawer — works even from a field.
       if ((e.ctrlKey || e.metaKey) && e.code === 'Space') {
         e.preventDefault();
