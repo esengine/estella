@@ -467,6 +467,13 @@ function SequencerBody() {
                 onContext={(e, ref) => setRowCtx({ x: e.clientX, y: e.clientY, ref })}
               />
             ))}
+            {/* A blank track list otherwise reads as a dead end — the empty-state
+                card is already gone once a document is open. */}
+            {rows.length === 0 && (
+              <div className="empty-line" style={{ padding: '16px 12px', textAlign: 'center' }}>
+                {root != null ? t('seq.noTracksHint') : t('seq.bindFirstHint')}
+              </div>
+            )}
           </div>
         </div>
 

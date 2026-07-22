@@ -49,6 +49,8 @@ export const sequencerMessages = defineMessages({
 
     // — track tree + lanes —
     'seq.tracksHead': { en: 'Tracks', zh: '轨道' },
+    'seq.noTracksHint': { en: 'No tracks yet — click “+ Add track” to animate a property.', zh: '暂无轨道——点击"+添加轨道"来为某个属性制作动画。' },
+    'seq.bindFirstHint': { en: 'Select an entity in the viewport to animate it.', zh: '在视口中选中一个实体即可为其制作动画。' },
     'seq.rootEntity': { en: 'Root entity', zh: '根实体' },
     'seq.keyAtPlayhead': { en: 'Key at playhead', zh: '在播放头处打关键帧' },
     'seq.muteTrack': { en: 'Mute track', zh: '禁用轨道' },
