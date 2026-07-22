@@ -2102,7 +2102,7 @@ export function Viewport() {
         ref={stageRef}
         className="viewport__stage"
         data-engine="esengine.wasm"
-        style={spacePan ? { cursor: 'grab' } : undefined}
+        style={spacePan ? { cursor: 'grab' } : inTilePaint ? { cursor: 'crosshair' } : undefined}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}

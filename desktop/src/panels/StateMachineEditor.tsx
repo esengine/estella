@@ -13,7 +13,7 @@
  *          transition trigger·condition·guard. The canvas interaction is the
  *          generic component shared with the behavior-tree editor.
  */
-import { useRef, useState, useSyncExternalStore } from 'react';
+import { useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Plus, Trash2, Save } from 'lucide-react';
 import {
   fsmEdges, addState, removeState, moveState, renameState, setStateHook, setInitial,
@@ -205,6 +205,21 @@ function TransitionInspector({ def, edgeId }: { def: FsmDefinition; edgeId: stri
     const next = { key: g?.key ?? '', op: g?.op ?? '==', value: g?.value, ...gp };
     patch({ guard: next.key ? next : undefined });
   };
+  // Suggest blackboard keys already used by this FSM's guards, so a re-used key is
+  // typed consistently (a typo'd guard key silently never fires).
+  const guardKeys = useMemo(() => {
+    const keys = new Set<string>();
+    for (const s of def.states) {
+      for (const tt of s.transitions ?? []) {
+        const guards = Array.isArray(tt.guard) ? tt.guard : tt.guard ? [tt.guard] : [];
+        for (const x of guards) {
+          const k = (x as { key?: unknown }).key;
+          if (typeof k === 'string' && k) keys.add(k);
+        }
+      }
+    }
+    return [...keys].map((k) => ({ value: k }));
+  }, [def]);
   return (
     <div>
       <div className="ng-insp-title">{t('fsm.inspTransitionTitle')}</div>
@@ -226,8 +241,10 @@ function TransitionInspector({ def, edgeId }: { def: FsmDefinition; edgeId: stri
       </label>
       <div className="ng-insp-sub">{t('fsm.guardSub')}</div>
       <div className="ng-row">
-        <input className="ng-input" style={{ flex: 1 }} defaultValue={g?.key ?? ''} key={`gk-${edgeId}`} placeholder={t('fsm.phKey')}
-          onBlur={(e) => patchGuard({ key: e.target.value.trim() })} />
+        <div style={{ flex: 1 }}>
+          <SuggestInput items={guardKeys} defaultValue={g?.key ?? ''} key={`gk-${edgeId}`} placeholder={t('fsm.phKey')}
+            onCommit={(v) => patchGuard({ key: v.trim() })} />
+        </div>
         <Select
           ariaLabel={t('fsm.guardOp')}
           style={{ width: 62 }}
