@@ -14,6 +14,87 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.30.0] - 2026-07-21
+
+The editor grows up. Where 0.29 was about the prefab system, this release is
+about the **editor itself** — a top-to-bottom pass over how it feels to use.
+Selection, transforms, play mode, the data panels, the asset editors and the
+global chrome were all audited against Unity, Unreal and Godot and rebuilt for
+correctness, consistency and keyboard/accessibility parity. Nothing here changes
+the SDK API, the project/asset formats or the WASM ABI — your projects open
+unchanged; the editor around them is sharper.
+
+### Added
+
+- **Maximize On Play + focus mode.** An opt-in "Maximize Viewport on Play" (in
+  the play dropdown) hands the whole workspace to the running game, restored on
+  Stop; **F11** toggles a focused viewport any time. The live canvas is only
+  hidden behind the maximized group, never remounted, so the engine keeps
+  running.
+- **Content Browser multi-select + batch operations.** Ctrl/Shift-select ranges,
+  Ctrl+A, batch delete behind one confirmation with a single undo, and
+  multi-asset drag into folders. The Sources folder tree gains a right-click
+  context menu and inline (F2) rename.
+- **A viewport mode chip** you can click to open a mode's companion tools, and
+  **sticky mode pins** — an explicit Scene/UI/Tilemap lock that ordinary clicks
+  no longer clear, so you can paint tiles or lay out UI while selecting other
+  things.
+- **One shared empty state** across every panel (Outliner, Content Browser,
+  Sequencer, the graph editors…), each with a real call-to-action.
+- **Runtime `.esanimator` loading by path**, so animation controllers resolve at
+  runtime the same way other assets do.
+
+### Changed
+
+- **Calmer play-mode chrome.** The centered "● PLAY" pill that covered the game
+  is gone — running now reads as a soft accent ring around the viewport (amber +
+  dimmed frame when paused, so a frozen frame never looks like a hang). The
+  primary transport is a real **Play↔Stop** toggle (Restart moved to a side
+  button), and Pause swaps to a resume glyph.
+- **Selecting a node no longer restructures your workspace** — it switches the
+  mode's tools/overlays but never flings docked panels open over what you were
+  doing. Opening a mode's panels is now an explicit gesture.
+- **Unified node-graph editors** (State Machine, Behavior Tree, Material,
+  Animator) — shared framing/fit-to-content, Add affordance, and empty states.
+- **Consistent inspector controls** — every dropdown runs on one
+  keyboard-navigable, ARIA-correct listbox; vector fields show mixed values
+  per-axis; number fields honor each field's step/range.
+- **More actions reachable as commands** — Restart, the performance overlay,
+  Reset Layout, and the Help menu items are now real, rebindable commands in the
+  Command Palette; Build/Compile/Package are disambiguated.
+
+### Fixed
+
+- **Scale gizmo no longer explodes near the pivot.** Scaling is delta-based off
+  the gizmo's on-screen size instead of a distance ratio, so grabbing the center
+  box or an entity's body can't produce a runaway factor. Rotate and scale
+  snapping now snap to an absolute grid (15°/30°, 0.1 increments), and Alt-drag
+  clones only once you actually drag — a bare Alt-click no longer stacks a copy.
+- **The zoom % readout is honest**, derived from the real view scale so it stays
+  correct through Frame Selected, the minimap and device presets.
+- **Several data-loss paths sealed.** Delete/Backspace can no longer fall through
+  from the Tileset/Flipbook editors — or past an open context menu, popover or
+  dialog — to silently delete the scene entity behind them. Destructive confirm
+  dialogs focus Cancel, so a reflexive Enter can't discard or delete. Escape now
+  truly cancels a mixed-selection field edit instead of overwriting other
+  entities; multi-select Add Component unions correctly.
+- **Rebinding a shortcut warns on conflicts** instead of silently shadowing
+  another command; global shortcuts are suppressed while a modal or transient
+  overlay owns the keyboard.
+- **Broad keyboard / focus / ARIA repairs** across the Outliner, Content Browser
+  and inspector; context-menu and popover focus returns to its opener; the
+  Content Browser footer and the inspector's property filter now do what they
+  say.
+- **Prefab robustness.** Apply/flatten no longer leak dangling or external entity
+  references, re-parenting is a first-class override, and flatten is
+  order-independent; Play is disabled in Prefab Mode (a prefab has no scene to
+  run).
+- **Post-processing survives a warm re-play.** Stopping and playing a scene with
+  a Post Process Volume no longer black-screens on the second run: the shutdown
+  path kept the render pipeline's own post-process object registered so the lazy
+  re-init reuses it, instead of orphaning it behind a duplicate the renderer
+  never drew through (which dropped the mandatory linear→sRGB encode).
+
 ## [0.29.0] - 2026-07-21
 
 Prefabs grow up. What was a flat, copy-on-instantiate mechanism becomes a real
@@ -1282,7 +1363,10 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.27.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.30.0...HEAD
+[0.30.0]: https://github.com/esengine/estella/compare/v0.29.0...v0.30.0
+[0.29.0]: https://github.com/esengine/estella/compare/v0.28.0...v0.29.0
+[0.28.0]: https://github.com/esengine/estella/compare/v0.27.0...v0.28.0
 [0.27.0]: https://github.com/esengine/estella/compare/v0.26.0...v0.27.0
 [0.23.0]: https://github.com/esengine/estella/compare/v0.22.0...v0.23.0
 [0.22.0]: https://github.com/esengine/estella/compare/v0.21.0...v0.22.0
