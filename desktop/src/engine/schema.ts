@@ -216,6 +216,10 @@ export function inferField(key: string, v: unknown, isColor: boolean): Inspector
     if ('x' in o && 'y' in o) return { key, label, type: 'vec2', value: [o.x, o.y] };
     // CSS-length shape ({ value, unit }) — the UINode Dimension (width/height/inset/margin).
     if ('value' in o && 'unit' in o) return { key, label, type: 'dimension', value: { value: o.value, unit: o.unit } };
+    // Four-edge box ({ left, top, right, bottom }) — FlexContainer / TextInput padding.
+    if ('left' in o && 'top' in o && 'right' in o && 'bottom' in o) {
+      return { key, label, type: 'sides', value: [o.left, o.top, o.right, o.bottom] };
+    }
   }
   return null; // unknown shape — not editable here
 }

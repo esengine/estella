@@ -359,8 +359,10 @@ function createWindow() {
   if (!isMac) Menu.setApplicationMenu(null);
 
   win = new BrowserWindow({
-    width: 1480,
-    height: 920,
+    // Automation (screenshot capture of tall panels) can enlarge the window via env;
+    // unset in normal use, so the default size is unchanged. Mirrors ESTELLA_MCP_W/H.
+    width: Number(process.env.ESTELLA_WIN_W) || 1480,
+    height: Number(process.env.ESTELLA_WIN_H) || 920,
     minWidth: 1080,
     minHeight: 680,
     title: 'Estella Editor',

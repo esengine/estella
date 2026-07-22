@@ -4,6 +4,10 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'reac
 import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode } from 'react';
 import {
   AlertTriangle,
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
+  ArrowUp,
   Box,
   Camera,
   Check,
@@ -55,7 +59,7 @@ import { InspectorClipboard } from '@/engine/inspectorClipboard';
 import { SceneCommands, toModelValue } from '@/engine/SceneCommands';
 import { ENTITY_SOURCES, createFromSource } from '@/engine/entitySources';
 import { PlayInspect } from '@/engine/PlayInspect';
-import { DimensionUnit, AnchorAxis, detectAnchorAxes, UIPositionType, parseLocaleTable, EasingType, INVALID_ENTITY } from 'esengine';
+import { DimensionUnit, AnchorAxis, detectAnchorAxes, UIPositionType, FlexDirection, FlexWrap, JustifyContent, AlignItems, parseLocaleTable, EasingType, INVALID_ENTITY } from 'esengine';
 import type { SceneData, InputMapAsset, ActionType, Binding, LocaleTableAsset, PluralCategory, GearValue, GearTween } from 'esengine';
 import { modelAddableComponentEntries, subscribeSchemas, getSchemaRevision, prettyLabel, hexToRgba, dynamicEnumOptions, boxGroupsFor, isRequiredEmpty, type BoxGroupDef } from '@/engine/schema';
 import * as imap from '@/project/inputMapDoc';
@@ -239,6 +243,41 @@ export function VecControl({
             // to keep each (possibly multi-selected) entity's own value there,
             // instead of stamping the primary's whole vector onto the selection.
             const next = value.map(() => NaN);
+            next[i] = v;
+            onChange(next);
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+// A four-edge box ({ left, top, right, bottom }) as four labelled wells — the padding
+// analog of VecControl. Edges are L·T·R·B; each edit writes ONLY its edge (NaN on the
+// others) so a single-edge change fanned across a multi-selection keeps the untouched
+// edges of the non-primary entities (see toModelValue 'sides').
+const SIDE_EDGES = ['l', 't', 'r', 'b'] as const;
+export function SidesControl({
+  value,
+  mixed,
+  onBegin,
+  onEnd,
+  onCancel,
+  onChange,
+}: ControlGesture & { value: number[]; mixed?: boolean; onChange: (v: number[]) => void }) {
+  return (
+    <div className="vec sides">
+      {SIDE_EDGES.map((edge, i) => (
+        <VecField
+          key={edge}
+          axis={edge}
+          value={value[i] ?? 0}
+          mixed={mixed}
+          onBegin={onBegin}
+          onEnd={onEnd}
+          onCancel={onCancel}
+          onCommit={(v) => {
+            const next = [NaN, NaN, NaN, NaN];
             next[i] = v;
             onChange(next);
           }}
@@ -1287,6 +1326,9 @@ function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp
     case 'dimension':
       control = <DimControl value={field.value as DimensionValue} mixed={mixed} onBegin={begin} onEnd={end} onChange={apply} />;
       break;
+    case 'sides':
+      control = <SidesControl value={field.value as number[]} mixed={mixed} onBegin={begin} onEnd={end} onCancel={cancel} onChange={apply} />;
+      break;
     case 'bool':
       control = <BoolControl value={field.value as boolean} mixed={mixed} onBegin={begin} onEnd={end} onChange={apply} />;
       break;
@@ -1706,6 +1748,134 @@ function UILayoutControl({ entities, comp }: { entities: EntityId[]; comp: Inspe
         />
       </div>
       {absolute ? <AnchorPicker entities={entities} comp={comp} /> : <FlowLayoutControls entities={entities} comp={comp} />}
+    </div>
+  );
+}
+
+// The FlexContainer "auto-layout" widget — direction, a 3×3 alignment grid, main-axis
+// distribution and a cross-axis stretch toggle, in place of five stacked enum dropdowns.
+// The grid's axes swap with the flow direction so the highlighted cell always reads as
+// where the children actually pack (the Figma model). Gap + padding stay as normal
+// fields below (padding via the reflected 'sides' control).
+const FLEX_DIR_OPTS: SegmentedOption<string>[] = [
+  { value: String(FlexDirection.Row), icon: <ArrowRight size={12} strokeWidth={2.2} />, title: t('det.flexRow') },
+  { value: String(FlexDirection.Column), icon: <ArrowDown size={12} strokeWidth={2.2} />, title: t('det.flexColumn') },
+  { value: String(FlexDirection.RowReverse), icon: <ArrowLeft size={12} strokeWidth={2.2} />, title: t('det.flexRowReverse') },
+  { value: String(FlexDirection.ColumnReverse), icon: <ArrowUp size={12} strokeWidth={2.2} />, title: t('det.flexColumnReverse') },
+];
+const FLEX_DISTRIBUTE_OPTS: SegmentedOption<string>[] = [
+  { value: 'packed', label: t('det.flexPacked') },
+  { value: String(JustifyContent.SpaceBetween), label: t('det.flexBetween') },
+  { value: String(JustifyContent.SpaceAround), label: t('det.flexAround') },
+  { value: String(JustifyContent.SpaceEvenly), label: t('det.flexEvenly') },
+];
+const FLEX_MAIN_LABEL = [t('det.flexMainStart'), t('det.flexMainCenter'), t('det.flexMainEnd')];
+const FLEX_CROSS_LABEL = [t('det.flexCrossStart'), t('det.flexCrossCenter'), t('det.flexCrossEnd')];
+// Fields the widget owns, so the generic field flow skips them — gap, padding and the
+// wrap-only alignContent stay as normal rows below (padding via the 'sides' control).
+const FLEX_WIDGET_OWNED_FIELDS: ReadonlySet<string> = new Set(['direction', 'justifyContent', 'alignItems', 'wrap']);
+// Place the cell's dot at its spatial position (col → left/centre/right, row →
+// top/middle/bottom) so the grid previews where children land, Figma-style.
+const FLEX_JUSTIFY_CSS = ['flex-start', 'center', 'flex-end'];
+
+function FlexLayoutControl({ entities, comp }: { entities: EntityId[]; comp: InspectorComponent }) {
+  const field = (key: string) => comp.fields.find((f) => f.key === key);
+  const fieldNum = (key: string, dflt: number) => {
+    const f = field(key);
+    return f && f.mixed !== true ? Number(f.value) : dflt;
+  };
+  const dir = fieldNum('direction', FlexDirection.Row);
+  const justify = fieldNum('justifyContent', JustifyContent.Start);
+  const align = fieldNum('alignItems', AlignItems.Stretch);
+  const wrap = fieldNum('wrap', FlexWrap.NoWrap);
+  const horizontal = dir === FlexDirection.Row || dir === FlexDirection.RowReverse;
+
+  const write = (label: string, edits: Array<[string, number]>) => {
+    SceneCommands.beginGesture(label);
+    for (const id of entities) for (const [k, v] of edits) SceneCommands.setField(id, 'FlexContainer', k, 'enum', v);
+    SceneCommands.endGesture();
+  };
+
+  // 3×3 grid cell (col c, row r), c/r ∈ {0 Start, 1 Centre, 2 End}. The MAIN axis is
+  // columns when the flow is horizontal, rows when vertical — so a click packs the
+  // children where the cell sits. Space-mode justify has no single active cell.
+  const packed = justify <= JustifyContent.End;
+  const activeMain = packed ? justify : null;
+  const activeCross = align <= AlignItems.End ? align : null; // Stretch → no single lane
+  const cell = (c: number, r: number) => {
+    const main = horizontal ? c : r;
+    const cross = horizontal ? r : c;
+    return { main, cross, on: activeMain === main && activeCross === cross };
+  };
+  const distributeValue = justify >= JustifyContent.SpaceBetween ? String(justify) : 'packed';
+  const stretched = align === AlignItems.Stretch;
+
+  return (
+    <div className="flex-block">
+      <div className="flex-row">
+        <span className="flex-lbl">{t('det.flexDirection')}</span>
+        <Segmented
+          grow
+          ariaLabel={t('det.flexDirectionAria')}
+          value={field('direction')?.mixed ? '' : String(dir)}
+          options={FLEX_DIR_OPTS}
+          onChange={(v) => write('Flex Direction', [['direction', Number(v)]])}
+        />
+      </div>
+      <div className="flex-row flex-align-row">
+        <span className="flex-lbl">{t('det.flexAlign')}</span>
+        <div className="flex-grid" role="group" aria-label={t('det.flexAlignGridAria')}>
+          {[0, 1, 2].map((r) =>
+            [0, 1, 2].map((c) => {
+              const st = cell(c, r);
+              return (
+                <button
+                  key={`${c}-${r}`}
+                  type="button"
+                  className={`flex-cell${st.on ? ' on' : ''}${packed ? '' : ' dim'}`}
+                  style={{ justifyContent: FLEX_JUSTIFY_CSS[c], alignItems: FLEX_JUSTIFY_CSS[r] }}
+                  title={t('det.flexAlignCell', { main: FLEX_MAIN_LABEL[st.main], cross: FLEX_CROSS_LABEL[st.cross] })}
+                  aria-pressed={st.on}
+                  onClick={() => write('Flex Align', [['justifyContent', st.main], ['alignItems', st.cross]])}
+                >
+                  <i />
+                </button>
+              );
+            }),
+          )}
+        </div>
+        <button
+          type="button"
+          className={`flex-toggle${stretched ? ' on' : ''}`}
+          title={t('det.flexStretchAria')}
+          aria-pressed={stretched}
+          onClick={() => write('Flex Stretch', [['alignItems', stretched ? AlignItems.Center : AlignItems.Stretch]])}
+        >
+          {t('det.flexStretch')}
+        </button>
+      </div>
+      <div className="flex-row">
+        <span className="flex-lbl">{t('det.flexDistribute')}</span>
+        <Segmented
+          grow
+          ariaLabel={t('det.flexDistributeAria')}
+          value={distributeValue}
+          options={FLEX_DISTRIBUTE_OPTS}
+          onChange={(val) => write('Flex Distribute', [['justifyContent', val === 'packed' ? JustifyContent.Start : Number(val)]])}
+        />
+      </div>
+      <div className="flex-row">
+        <span className="flex-lbl">{t('det.flexWrap')}</span>
+        <button
+          type="button"
+          className={`flex-toggle${wrap === FlexWrap.Wrap ? ' on' : ''}`}
+          title={t('det.flexWrapAria')}
+          aria-pressed={wrap === FlexWrap.Wrap}
+          onClick={() => write('Flex Wrap', [['wrap', wrap === FlexWrap.Wrap ? FlexWrap.NoWrap : FlexWrap.Wrap]])}
+        >
+          {t('det.flexWrap')}
+        </button>
+      </div>
     </div>
   );
 }
@@ -3205,16 +3375,20 @@ function EditorDetails() {
             extra={
               comp.name === 'UINode'
                 ? <UILayoutControl entities={ids} comp={comp} />
-                : COMP_COLLIDER_SHAPE[comp.name]
-                  ? <ColliderShapeControl entities={ids} current={comp.name} />
-                  : undefined
+                : comp.name === 'FlexContainer'
+                  ? <FlexLayoutControl entities={ids} comp={comp} />
+                  : COMP_COLLIDER_SHAPE[comp.name]
+                    ? <ColliderShapeControl entities={ids} current={comp.name} />
+                    : undefined
             }
             hideFields={
               comp.name === 'UINode'
                 ? uiLayoutOwnedFields(
                     Number(comp.fields.find((f) => f.key === 'position')?.value ?? 0) === UIPositionType.Absolute,
                   )
-                : undefined
+                : comp.name === 'FlexContainer'
+                  ? FLEX_WIDGET_OWNED_FIELDS
+                  : undefined
             }
           />
         ))}

@@ -128,6 +128,20 @@ export function toModelValue(
         ...(Number.isFinite(w) ? { w } : {}),
       };
     }
+    case 'sides': {
+      // A four-edge box ({ left, top, right, bottom }). Merged onto the base like a vec —
+      // a NaN edge means "keep this entity's own value" so a single-edge edit fanned
+      // across a multi-selection never clobbers the untouched edges.
+      const [l, t, r, b] = value as [number, number, number, number];
+      const base = cur[key] as { left: number; top: number; right: number; bottom: number };
+      return {
+        ...base,
+        ...(Number.isFinite(l) ? { left: l } : {}),
+        ...(Number.isFinite(t) ? { top: t } : {}),
+        ...(Number.isFinite(r) ? { right: r } : {}),
+        ...(Number.isFinite(b) ? { bottom: b } : {}),
+      };
+    }
     case 'vec2list':
       // A whole Vec2[] replacement (polygon vertices / chain points) — normalized to
       // plain {x,y} so a dragged vertex writes clean data; coalesced to one undo step.

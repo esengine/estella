@@ -126,6 +126,27 @@
 .box-side.modified .box-side-k { color: var(--warn); }
 .box-side.mixed .box-side-k { color: var(--text-mute); }
 
+/* FlexContainer auto-layout widget: a labelled direction switch, a 3×3 alignment grid
+   whose dot sits where children pack, a main-axis Distribute control and a cross-axis
+   Stretch toggle — a compact visual stand-in for five stacked enum dropdowns. */
+.flex-block { padding: 7px 8px 9px; display: flex; flex-direction: column; gap: 9px; }
+.flex-row { display: flex; align-items: center; gap: 9px; }
+.flex-lbl { font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: .5px; color: var(--text-mute); flex-shrink: 0; width: 56px; }
+.flex-row .seg { flex: 1; min-width: 0; }
+.flex-align-row { align-items: stretch; }
+.flex-grid { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); gap: 2px; width: 66px; height: 66px; flex-shrink: 0; padding: 3px; background: var(--inset); border: 1px solid var(--border); border-radius: var(--r-sm); }
+.flex-cell { display: flex; padding: 3px; border-radius: 2px; background: none; border: none; cursor: pointer; transition: background var(--t-fast); }
+.flex-cell i { width: 4px; height: 4px; border-radius: 1px; background: var(--text-mute); font-style: normal; transition: background var(--t-fast), transform var(--t-fast); }
+.flex-cell:hover { background: var(--srf-4); }
+.flex-cell:hover i { background: var(--text-dim); }
+.flex-cell.on { background: var(--acc-soft); }
+.flex-cell.on i { background: var(--acc); transform: scale(1.6); }
+.flex-cell.dim i { opacity: .4; }
+.flex-toggle { flex: 1; min-height: 24px; display: flex; align-items: center; justify-content: center; padding: 0 10px; font-size: var(--fs-2xs); border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--inset); color: var(--text-dim); cursor: pointer; transition: border-color var(--t-fast), background var(--t-fast), color var(--t-fast); }
+.flex-align-row .flex-toggle { flex: 0 0 44px; }
+.flex-toggle:hover { border-color: var(--acc); color: var(--text); }
+.flex-toggle.on { background: var(--acc); border-color: var(--acc); color: var(--on-accent); }
+
 /* property rows (label col + value col, reset on right) */
 .prop { display: grid; grid-template-columns: 38% 1fr 18px; align-items: center; gap: 4px; min-height: var(--h-prop); padding: 1px 0; position: relative; }
 .prop-label { font-size: var(--fs-sm); color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-left: 2px; }
@@ -166,6 +187,8 @@
 .ax.y { background: var(--ax-y); }
 .ax.z { background: var(--ax-z); }
 .ax.w, .ax.h { background: var(--srf-5); color: var(--text-dim); }
+/* Edge-labelled wells (SidesControl: padding L·T·R·B) — neutral, like w/h. */
+.ax.l, .ax.t, .ax.r, .ax.b { background: var(--srf-5); color: var(--text-dim); }
 .vfield input { width: 100%; min-width: 0; background: none; border: none; outline: none; padding: 0 5px; font-size: var(--fs-xs); color: var(--text); font-family: var(--mono); }
 
 .sw { position: relative; width: 28px; height: 18px; border-radius: var(--r-xs); border: 1px solid var(--border-line); flex-shrink: 0; cursor: pointer; overflow: hidden; padding: 0;

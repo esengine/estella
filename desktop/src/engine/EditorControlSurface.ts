@@ -135,6 +135,19 @@ export function coerceFieldValue(
       }
       return fail('a "#rrggbbaa" hex string or { r, g, b, a } with 0..1 channels');
     }
+    case 'sides': {
+      // A four-edge box — accept [left, top, right, bottom] or { left, top, right, bottom }.
+      let v: unknown = value;
+      if (typeof v === 'string') v = parseJsonText(v);
+      if (v !== null && typeof v === 'object' && !Array.isArray(v)) {
+        const o = v as Record<string, unknown>;
+        v = [o.left, o.top, o.right, o.bottom];
+      }
+      if (!Array.isArray(v) || v.length < 4 || v.slice(0, 4).some((c) => typeof c !== 'number' || !Number.isFinite(c))) {
+        return fail('4 numbers (e.g. [8, 8, 8, 8]) or { left, top, right, bottom }');
+      }
+      return v.slice(0, 4) as InspectorFieldValue;
+    }
     case 'gradient':
     case 'curve':
     case 'dimension': {

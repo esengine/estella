@@ -43,6 +43,7 @@ export type InspectorFieldType =
   | 'gradient' // a color-over-life gradient ({ stops: [...] })
   | 'curve' // a scalar over-life curve ({ keys: [...] })
   | 'dimension' // a CSS-style length ({ value, unit }) — UINode box/inset fields
+  | 'sides' // a four-edge box ({ left, top, right, bottom }) — FlexContainer/TextInput padding
   | 'asset' // a texture/material/font/... ref (@uuid: string, or 0 for none)
   | 'entity'; // a reference to another scene entity (source id, or 0/INVALID for none)
 
