@@ -30,8 +30,11 @@ import {
   RotateCcw,
   Save,
   Search,
+  Sparkles,
   Square,
   SquarePen,
+  StretchHorizontal,
+  StretchVertical,
   Trash2,
   Upload,
   Volume2,
@@ -60,7 +63,7 @@ import { SceneCommands, toModelValue } from '@/engine/SceneCommands';
 import { ENTITY_SOURCES, createFromSource } from '@/engine/entitySources';
 import { PlayInspect } from '@/engine/PlayInspect';
 import { DimensionUnit, AnchorAxis, detectAnchorAxes, UIPositionType, FlexDirection, FlexWrap, JustifyContent, AlignItems, parseLocaleTable, EasingType, INVALID_ENTITY } from 'esengine';
-import type { SceneData, InputMapAsset, ActionType, Binding, LocaleTableAsset, PluralCategory, GearValue, GearTween } from 'esengine';
+import type { SceneData, InputMapAsset, ActionType, Binding, LocaleTableAsset, PluralCategory, GearValue, GearTween, MaterialAssetData } from 'esengine';
 import { modelAddableComponentEntries, subscribeSchemas, getSchemaRevision, prettyLabel, hexToRgba, dynamicEnumOptions, boxGroupsFor, isRequiredEmpty, type BoxGroupDef } from '@/engine/schema';
 import * as imap from '@/project/inputMapDoc';
 import * as ldoc from '@/project/localeTableDoc';
@@ -79,6 +82,8 @@ import {
   makeMaterialWrite,
   projectMaterialToHandle,
   renderMaterialThumbnail,
+  shaderProjectPathOf,
+  shaderRelRef,
   type MaterialContext,
 } from '@/material/materialInspectorModel';
 import { AnimClipDocument } from '@/flipbook/AnimClipDocument';
@@ -1552,33 +1557,10 @@ const ANCHOR_V = { [AnchorAxis.Start]: t('det.anchorTop'), [AnchorAxis.Center]: 
 const anchorTitle = (h: AnchorAxis, v: AnchorAxis) =>
   h === AnchorAxis.Stretch && v === AnchorAxis.Stretch ? t('det.anchorStretch') : `${ANCHOR_V[v]} · ${ANCHOR_H[h]}`;
 
-// The widget rect (in a 24×24 cell viewBox) a preset draws: a small rounded box for
-// a pinned corner/edge/centre, stretched along a Stretch axis, filling the frame
-// when both axes stretch — the element shown inside its parent (the cell).
-function anchorWidgetRect(h: AnchorAxis, v: AnchorAxis) {
-  const axis = (mode: AnchorAxis, crossStretch: boolean) => {
-    if (mode === AnchorAxis.Stretch) return { p: 3.5, s: 17 };
-    const s = crossStretch ? 6 : 9; // a thin bar's cross-section vs a box's side
-    const c = mode === AnchorAxis.Start ? 7 : mode === AnchorAxis.End ? 17 : 12;
-    return { p: c - s / 2, s };
-  };
-  const hx = axis(h, v === AnchorAxis.Stretch);
-  const vy = axis(v, h === AnchorAxis.Stretch);
-  return { x: hx.p, y: vy.p, w: hx.s, h: vy.s };
-}
-
-const H_ANCHOR_OPTS = [
-  { value: String(AnchorAxis.Start), label: t('det.anchorLeft') },
-  { value: String(AnchorAxis.Center), label: t('det.anchorCenter') },
-  { value: String(AnchorAxis.End), label: t('det.anchorRight') },
-  { value: String(AnchorAxis.Stretch), label: t('det.anchorStretch') },
-];
-const V_ANCHOR_OPTS = [
-  { value: String(AnchorAxis.Start), label: t('det.anchorTop') },
-  { value: String(AnchorAxis.Center), label: t('det.anchorMiddle') },
-  { value: String(AnchorAxis.End), label: t('det.anchorBottom') },
-  { value: String(AnchorAxis.Stretch), label: t('det.anchorStretch') },
-];
+// Point-anchor labels for the 3×3 grid cells (columns Left/Centre/Right, rows Top/
+// Middle/Bottom) — the cell's tooltip reads "row · column", e.g. "Top · Left".
+const ANCHOR_H_LABEL = [t('det.anchorLeft'), t('det.anchorCenter'), t('det.anchorRight')];
+const ANCHOR_V_LABEL = [t('det.anchorTop'), t('det.anchorMiddle'), t('det.anchorBottom')];
 
 const POSITION_MODE_OPTS = [
   { value: String(UIPositionType.Relative), label: t('det.inLayout') },
@@ -1603,10 +1585,10 @@ function uiLayoutOwnedFields(absolute: boolean): ReadonlySet<string> {
   return new Set(absolute ? [...base, 'flexGrow', 'flexShrink', 'flexBasis'] : [...base, 'insetLeft', 'insetRight', 'insetTop', 'insetBottom']);
 }
 
-/** The anchor 9-preset picker for an ABSOLUTE UINode: a live preview + two labelled
- *  Horizontal/Vertical pickers (Left/Center/Right/Stretch × Top/Middle/Bottom/Stretch).
- *  Each axis is an independent choice, written alone so the other axis keeps its
- *  state, read back per-axis via detectAnchorAxes. */
+/** The anchor picker for an ABSOLUTE UINode: a clickable 3×3 grid for the nine point
+ *  anchors (Left/Centre/Right × Top/Middle/Bottom) plus a Stretch toggle per axis. Each
+ *  axis is written alone (setUINodeAnchor) so the other keeps its state, read back
+ *  per-axis via detectAnchorAxes — a hand-tuned axis simply lights no cell. */
 function AnchorPicker({ entities, comp }: { entities: EntityId[]; comp: InspectorComponent }) {
   const dim = (key: string) => {
     const v = comp.fields.find((f) => f.key === key)?.value as { value: number; unit: number } | undefined;
@@ -1624,41 +1606,47 @@ function AnchorPicker({ entities, comp }: { entities: EntityId[]; comp: Inspecto
   // shows (and keeps) the clean one; writing an axis touches ONLY that axis.
   const axes = detectAnchorAxes(node);
   const clean = axes.h !== null && axes.v !== null;
-  const r = anchorWidgetRect(axes.h ?? AnchorAxis.Center, axes.v ?? AnchorAxis.Center);
+  const hStretch = axes.h === AnchorAxis.Stretch;
+  const vStretch = axes.v === AnchorAxis.Stretch;
+  // The lit grid cell — only when BOTH axes pin to a point (a Stretch or hand-tuned
+  // axis leaves no single cell; the Stretch toggles carry that state instead).
+  const activeCell = axes.h !== null && axes.h <= AnchorAxis.End && axes.v !== null && axes.v <= AnchorAxis.End
+    ? { c: axes.h, r: axes.v }
+    : null;
+  const setAnchor = (patch: { h?: number; v?: number }) => SceneCommands.setUINodeAnchor(entities, patch);
   return (
     <>
       <div className="anchor-head">
         <span className="anchor-t">{t('det.anchor')}</span>
         <em className="anchor-cur">{clean ? anchorTitle(axes.h!, axes.v!) : t('det.anchorCustom')}</em>
       </div>
-      <div className="anchor-body">
-        <div className={`anchor-preview${clean ? '' : ' custom'}`} aria-hidden="true">
-          <svg viewBox="0 0 24 24">
-            <rect className="anchor-frame" x="2.5" y="2.5" width="19" height="19" rx="3" ry="3" />
-            <rect className="anchor-widget" x={r.x} y={r.y} width={r.w} height={r.h} rx="2" ry="2" />
-          </svg>
-        </div>
-        <div className="anchor-axes">
-          <label className="anchor-axis">
-            <span>{t('det.horizontal')}</span>
-            <Segmented
-              grow
-              ariaLabel={t('det.horizontalAnchorAria')}
-              value={axes.h !== null ? String(axes.h) : ''}
-              options={H_ANCHOR_OPTS}
-              onChange={(val) => SceneCommands.setUINodeAnchor(entities, { h: Number(val) })}
-            />
-          </label>
-          <label className="anchor-axis">
-            <span>{t('det.vertical')}</span>
-            <Segmented
-              grow
-              ariaLabel={t('det.verticalAnchorAria')}
-              value={axes.v !== null ? String(axes.v) : ''}
-              options={V_ANCHOR_OPTS}
-              onChange={(val) => SceneCommands.setUINodeAnchor(entities, { v: Number(val) })}
-            />
-          </label>
+      <div className="anchor-grid-row">
+        <AlignGrid
+          active={activeCell}
+          dim={hStretch || vStretch}
+          ariaLabel={t('det.anchor')}
+          cellTitle={(c, r) => `${ANCHOR_V_LABEL[r]} · ${ANCHOR_H_LABEL[c]}`}
+          onPick={(c, r) => setAnchor({ h: c, v: r })}
+        />
+        <div className="anchor-stretch">
+          <button
+            type="button"
+            className={`mini-toggle${hStretch ? ' on' : ''}`}
+            title={t('det.anchorStretchH')}
+            aria-pressed={hStretch}
+            onClick={() => setAnchor({ h: hStretch ? AnchorAxis.Start : AnchorAxis.Stretch })}
+          >
+            <StretchHorizontal size={13} strokeWidth={1.9} />
+          </button>
+          <button
+            type="button"
+            className={`mini-toggle${vStretch ? ' on' : ''}`}
+            title={t('det.anchorStretchV')}
+            aria-pressed={vStretch}
+            onClick={() => setAnchor({ v: vStretch ? AnchorAxis.Start : AnchorAxis.Stretch })}
+          >
+            <StretchVertical size={13} strokeWidth={1.9} />
+          </button>
         </div>
       </div>
     </>
@@ -1775,8 +1763,43 @@ const FLEX_CROSS_LABEL = [t('det.flexCrossStart'), t('det.flexCrossCenter'), t('
 // wrap-only alignContent stay as normal rows below (padding via the 'sides' control).
 const FLEX_WIDGET_OWNED_FIELDS: ReadonlySet<string> = new Set(['direction', 'justifyContent', 'alignItems', 'wrap']);
 // Place the cell's dot at its spatial position (col → left/centre/right, row →
-// top/middle/bottom) so the grid previews where children land, Figma-style.
-const FLEX_JUSTIFY_CSS = ['flex-start', 'center', 'flex-end'];
+// top/middle/bottom) so the grid previews where content lands, Figma-style.
+const ALIGN_CELL_CSS = ['flex-start', 'center', 'flex-end'];
+
+// The shared 3×3 alignment picker — one idiom for choosing a 2-D position across the
+// editor (UINode anchor + FlexContainer justify×align). The caller maps grid columns
+// (c) / rows (r) to its own axes; `active` lights the current cell, `dim` fades the
+// grid when another control (a Stretch/Distribute mode) owns an axis.
+function AlignGrid({ active, dim, onPick, cellTitle, ariaLabel }: {
+  active: { c: number; r: number } | null;
+  dim?: boolean;
+  onPick: (c: number, r: number) => void;
+  cellTitle: (c: number, r: number) => string;
+  ariaLabel: string;
+}) {
+  return (
+    <div className="align-grid" role="group" aria-label={ariaLabel}>
+      {[0, 1, 2].map((r) =>
+        [0, 1, 2].map((c) => {
+          const on = active?.c === c && active?.r === r;
+          return (
+            <button
+              key={`${c}-${r}`}
+              type="button"
+              className={`align-cell${on ? ' on' : ''}${dim ? ' dim' : ''}`}
+              style={{ justifyContent: ALIGN_CELL_CSS[c], alignItems: ALIGN_CELL_CSS[r] }}
+              title={cellTitle(c, r)}
+              aria-pressed={on}
+              onClick={() => onPick(c, r)}
+            >
+              <i />
+            </button>
+          );
+        }),
+      )}
+    </div>
+  );
+}
 
 function FlexLayoutControl({ entities, comp }: { entities: EntityId[]; comp: InspectorComponent }) {
   const field = (key: string) => comp.fields.find((f) => f.key === key);
@@ -1802,11 +1825,13 @@ function FlexLayoutControl({ entities, comp }: { entities: EntityId[]; comp: Ins
   const packed = justify <= JustifyContent.End;
   const activeMain = packed ? justify : null;
   const activeCross = align <= AlignItems.End ? align : null; // Stretch → no single lane
-  const cell = (c: number, r: number) => {
-    const main = horizontal ? c : r;
-    const cross = horizontal ? r : c;
-    return { main, cross, on: activeMain === main && activeCross === cross };
-  };
+  // Map a grid cell (c, r) to flex axes: the MAIN axis is columns when the flow is
+  // horizontal, rows when vertical — so a click packs the children where the cell sits.
+  const cellAxes = (c: number, r: number) => ({ main: horizontal ? c : r, cross: horizontal ? r : c });
+  // The lit cell: only when both axes are packed to a single lane (Start/Centre/End).
+  const activeCell = activeMain !== null && activeCross !== null
+    ? { c: horizontal ? activeMain : activeCross, r: horizontal ? activeCross : activeMain }
+    : null;
   const distributeValue = justify >= JustifyContent.SpaceBetween ? String(justify) : 'packed';
   const stretched = align === AlignItems.Stretch;
 
@@ -1824,29 +1849,22 @@ function FlexLayoutControl({ entities, comp }: { entities: EntityId[]; comp: Ins
       </div>
       <div className="flex-row flex-align-row">
         <span className="flex-lbl">{t('det.flexAlign')}</span>
-        <div className="flex-grid" role="group" aria-label={t('det.flexAlignGridAria')}>
-          {[0, 1, 2].map((r) =>
-            [0, 1, 2].map((c) => {
-              const st = cell(c, r);
-              return (
-                <button
-                  key={`${c}-${r}`}
-                  type="button"
-                  className={`flex-cell${st.on ? ' on' : ''}${packed ? '' : ' dim'}`}
-                  style={{ justifyContent: FLEX_JUSTIFY_CSS[c], alignItems: FLEX_JUSTIFY_CSS[r] }}
-                  title={t('det.flexAlignCell', { main: FLEX_MAIN_LABEL[st.main], cross: FLEX_CROSS_LABEL[st.cross] })}
-                  aria-pressed={st.on}
-                  onClick={() => write('Flex Align', [['justifyContent', st.main], ['alignItems', st.cross]])}
-                >
-                  <i />
-                </button>
-              );
-            }),
-          )}
-        </div>
+        <AlignGrid
+          active={activeCell}
+          dim={!packed}
+          ariaLabel={t('det.flexAlignGridAria')}
+          cellTitle={(c, r) => {
+            const a = cellAxes(c, r);
+            return t('det.flexAlignCell', { main: FLEX_MAIN_LABEL[a.main], cross: FLEX_CROSS_LABEL[a.cross] });
+          }}
+          onPick={(c, r) => {
+            const a = cellAxes(c, r);
+            write('Flex Align', [['justifyContent', a.main], ['alignItems', a.cross]]);
+          }}
+        />
         <button
           type="button"
-          className={`flex-toggle${stretched ? ' on' : ''}`}
+          className={`mini-toggle${stretched ? ' on' : ''}`}
           title={t('det.flexStretchAria')}
           aria-pressed={stretched}
           onClick={() => write('Flex Stretch', [['alignItems', stretched ? AlignItems.Center : AlignItems.Stretch]])}
@@ -1868,7 +1886,7 @@ function FlexLayoutControl({ entities, comp }: { entities: EntityId[]; comp: Ins
         <span className="flex-lbl">{t('det.flexWrap')}</span>
         <button
           type="button"
-          className={`flex-toggle${wrap === FlexWrap.Wrap ? ' on' : ''}`}
+          className={`mini-toggle${wrap === FlexWrap.Wrap ? ' on' : ''}`}
           title={t('det.flexWrapAria')}
           aria-pressed={wrap === FlexWrap.Wrap}
           onClick={() => write('Flex Wrap', [['wrap', wrap === FlexWrap.Wrap ? FlexWrap.NoWrap : FlexWrap.Wrap]])}
@@ -2175,6 +2193,81 @@ function GameDetails() {
   );
 }
 
+// The bound shader, surfaced at the top of the material inspector so the material↔shader link is
+// visible (it used to be an invisible convention) and switchable — pick another `.esshader` to
+// change the effect, or point several materials at one shader to share it. A material instance
+// inherits its shader from the parent, so it shows a notice instead of a picker. The stored ref
+// stays a material-relative path (unchanged on-disk contract); this bridges it to the @uuid-based
+// asset picker and reflects the new parameter surface via the shader-keyed effect in the inspector.
+function MaterialShaderSection({
+  asset,
+  filePath,
+  isInstance,
+  collapsed,
+  onToggle,
+}: {
+  asset: MaterialAssetData;
+  filePath: string;
+  isInstance: boolean;
+  collapsed: boolean;
+  onToggle: () => void;
+}) {
+  const shaderPath = shaderProjectPathOf(filePath, asset.shader);
+  const info = shaderPath ? ProjectStore.assetInfo(shaderPath) : null;
+  const missing = !isInstance && !!asset.shader && !info;
+
+  const pick = (ref: string | number) => {
+    const picked = typeof ref === 'string' ? ProjectStore.assetInfo(ref) : null;
+    if (!picked) return; // clearing / unresolved is a no-op — a base material must keep a shader
+    const rel = shaderRelRef(filePath, picked.path);
+    MaterialDocument.edit('Set shader', (d) => {
+      if (d.shader === rel) return;
+      d.shader = rel;
+      // Parameters and the switch permutation belong to the old shader — start the new one clean.
+      d.properties = {};
+      delete d.switches;
+    });
+  };
+
+  return (
+    <section className={`comp${collapsed ? '' : ' open'}`}>
+      <header className="comp-head" onClick={onToggle}>
+        <span className="comp-arrow">
+          <ChevronRight size={9} strokeWidth={3} />
+        </span>
+        <span className="comp-chk on">
+          <Check size={9} strokeWidth={3.2} />
+        </span>
+        <span className="comp-icon">
+          <Sparkles size={13} strokeWidth={1.9} />
+        </span>
+        <span className="comp-name">{t('mat.shader')}</span>
+      </header>
+      <div className="comp-body">
+        <div className="cinner">
+          {isInstance ? (
+            <div className="comp-notice">{t('mat.shaderInherited')}</div>
+          ) : (
+            <>
+              {missing && <div className="comp-notice">{t('mat.shaderMissing', { ref: asset.shader })}</div>}
+              <div className="comp-fields">
+                <div className="prop">
+                  <span className="prop-label" title={t('mat.shaderTip')}>
+                    {t('mat.shader')}
+                  </span>
+                  <div className="prop-value">
+                    <AssetControl value={shaderPath} assetType="shader" onChange={pick} />
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 // Material view of the unified inspector — a `.esmaterial` selected in the content browser is
 // edited right here, by the same ComponentSection/FieldRow machinery as an entity's components
 // (Parameters + Render State), driven by the shader's reflection. There is no bespoke material
@@ -2298,6 +2391,13 @@ function MaterialAssetInspector({ path }: { path: string }) {
           : t('det.notInScene')}
       </div>
       <div className="insp-body">
+        <MaterialShaderSection
+          asset={asset}
+          filePath={path}
+          isInstance={isInstance}
+          collapsed={collapsed.has('Shader')}
+          onToggle={() => toggle('Shader')}
+        />
         {components.map((comp) => (
           <ComponentSection
             key={comp.name}
