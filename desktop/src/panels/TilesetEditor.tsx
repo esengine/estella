@@ -527,7 +527,21 @@ export function TilesetEditor() {
   const solidCount = Object.values(asset.tiles).filter((t) => t.collision).length;
 
   return (
-    <div className="ts-editor">
+    <div
+      className="ts-editor"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        // A field owns its own typing/backspace.
+        const el = e.target as HTMLElement;
+        if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable) return;
+        // Consume Delete/Backspace so they can't fall through to the global
+        // entity-delete and silently wipe the scene selection behind this panel.
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      }}
+    >
       <div className="ts-toolbar">
         <GridField label={t('tile.field.tileW')} value={tw} min={1} onCommit={(n) => editGrid({ tileWidth: n })} />
         <GridField label={t('tile.field.tileH')} value={th} min={1} onCommit={(n) => editGrid({ tileHeight: n })} />

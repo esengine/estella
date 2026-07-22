@@ -164,7 +164,23 @@ export function FlipbookEditor() {
   }
 
   return (
-    <div className="fb-editor">
+    <div
+      className="fb-editor"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        // A field owns its own typing/backspace.
+        const el = e.target as HTMLElement;
+        if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable) return;
+        // This editor OWNS Delete/Backspace — remove the current frame, and never let
+        // the key fall through to the global entity-delete and wipe the scene
+        // selection sitting behind the panel.
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+          e.preventDefault();
+          e.stopPropagation();
+          if (asset.frames.length) AnimClipCommands.removeFrame(curFrame);
+        }
+      }}
+    >
       <div className="fb-toolbar">
         {sheet && (
           <>
