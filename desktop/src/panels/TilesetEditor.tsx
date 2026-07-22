@@ -18,7 +18,7 @@ import {
   useEffect, useRef, useState, useSyncExternalStore,
   type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent,
 } from 'react';
-import { Plus, Trash2, X, ArrowUp } from 'lucide-react';
+import { Plus, Trash2, X, ArrowUp, ArrowDown, ArrowLeft, ArrowRight } from 'lucide-react';
 import {
   TB_N, TB_E, TB_S, TB_W, TB_NE, TB_SE, TB_SW, TB_NW,
   type TilesetAsset, type TilesetAnimFrame,
@@ -37,6 +37,14 @@ import { colsFor, rowsFor, TERRAIN_COLORS } from '@/tools/tileMath';
 import { AnimPreview, tileThumbStyle, type TileAtlas } from '@/tools/tileThumb';
 import { SLOPE_PRESETS, presetPointsPx, type SlopePreset } from '@/tileset/slopePresets';
 import { t } from '@/i18n';
+
+// One-way platform normals (physics/world convention, y-up): the solid side tiles pass
+// through from the opposite side. `up` = solid-top (the classic jump-through platform).
+const ONE_WAY_NORMALS = {
+  up: { nx: 0, ny: 1 }, down: { nx: 0, ny: -1 }, left: { nx: -1, ny: 0 }, right: { nx: 1, ny: 0 },
+} as const;
+type OneWayDir = keyof typeof ONE_WAY_NORMALS;
+const ONE_WAY_ICON: Record<OneWayDir, typeof ArrowUp> = { up: ArrowUp, down: ArrowDown, left: ArrowLeft, right: ArrowRight };
 
 // Peering zones in the cell's 3×3 grid; center (membership) is handled separately.
 const ZONES: { gx: number; gy: number; bit: number; corner: boolean; dir: string }[] = [
@@ -324,6 +332,7 @@ export function TilesetEditor() {
   // Collision brush modifiers, orthogonal to the shape: while set, painted/stamped
   // collision carries a solid-top one-way normal, sensor flag, and/or a material override.
   const [oneWayOn, setOneWayOn] = useState(false);
+  const [oneWayDir, setOneWayDir] = useState<OneWayDir>('up');
   const [sensorOn, setSensorOn] = useState(false);
   const [frictionStr, setFrictionStr] = useState('');
   const [restitutionStr, setRestitutionStr] = useState('');
@@ -390,7 +399,7 @@ export function TilesetEditor() {
   };
   const brushMods = ((): TileCollisionMods => {
     const m: TileCollisionMods = {};
-    if (oneWayOn) m.oneWay = { nx: 0, ny: 1 };
+    if (oneWayOn) m.oneWay = ONE_WAY_NORMALS[oneWayDir];
     if (sensorOn) m.sensor = true;
     const fr = numOrU(frictionStr); if (fr !== undefined) m.friction = fr;
     const re = numOrU(restitutionStr); if (re !== undefined) m.restitution = re;
@@ -919,8 +928,30 @@ export function TilesetEditor() {
             aria-pressed={oneWayOn}
             onClick={() => setOneWayOn((v) => !v)}
           >
-            <ArrowUp size={13} /> {t('tile.oneWay')}
+            {(() => { const I = ONE_WAY_ICON[oneWayDir]; return <I size={13} />; })()} {t('tile.oneWay')}
           </button>
+          {oneWayOn && (
+            // Which side is solid — a jump-through platform is `up`; ceilings/side gates
+            // need the others. The painted normal follows this choice.
+            <span className="ts-oneway-dirs">
+              {(['up', 'down', 'left', 'right'] as OneWayDir[]).map((d) => {
+                const I = ONE_WAY_ICON[d];
+                return (
+                  <button
+                    key={d}
+                    type="button"
+                    className={'ts-oneway-dir' + (oneWayDir === d ? ' is-active' : '')}
+                    title={t(`tile.oneWay.${d}` as const)}
+                    aria-label={t(`tile.oneWay.${d}` as const)}
+                    aria-pressed={oneWayDir === d}
+                    onClick={() => setOneWayDir(d)}
+                  >
+                    <I size={12} />
+                  </button>
+                );
+              })}
+            </span>
+          )}
           <button
             type="button"
             className={'ts-oneway' + (sensorOn ? ' is-active' : '')}
