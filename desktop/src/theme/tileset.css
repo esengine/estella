@@ -416,7 +416,8 @@
 }
 .ts-pe-svg { position: absolute; left: 0; top: 0; pointer-events: none; }
 .ts-pe-poly { fill: color-mix(in srgb, var(--gizmo-tile) 30%, transparent); stroke: var(--gizmo-tile); stroke-width: 0.5; }
-.ts-pe-pt { fill: #fff; stroke: var(--gizmo-tile); stroke-width: 0.5; pointer-events: auto; cursor: pointer; }
+.ts-pe-pt { fill: #fff; stroke: var(--gizmo-tile); stroke-width: 0.5; pointer-events: auto; cursor: grab; touch-action: none; }
+.ts-pe-pt:active { cursor: grabbing; }
 .ts-pe-pt:hover { fill: var(--error-hi); }
 .ts-pe-hint { color: var(--text-faint); font-size: var(--fs-xs); text-align: center; }
 

@@ -157,8 +157,8 @@ export const tileMessages = defineMessages({
     'tile.pe.title': { en: 'Collision polygon · #{id}', zh: '碰撞多边形 · #{id}' },
     'tile.pe.clear': { en: 'Clear', zh: '清除' },
     'tile.pe.hint': {
-        en: 'Click to add a vertex · click a vertex to delete · takes effect at ≥3 points',
-        zh: '点击添加顶点 · 点击顶点以删除 · ≥3 个顶点时生效',
+        en: 'Click to add a vertex · drag a vertex to move · click it to delete · takes effect at ≥3 points',
+        zh: '点击添加顶点 · 拖动顶点移动 · 点击顶点删除 · ≥3 个顶点时生效',
     },
 
     // — Tileset editor: terrain authoring —

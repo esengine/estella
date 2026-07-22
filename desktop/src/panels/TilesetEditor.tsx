@@ -80,15 +80,24 @@ function PolygonEditor(props: {
   const [pts, setPts] = useState<[number, number][]>(
     existing?.type === 'polygon' ? existing.points.map((p) => [p[0], p[1]] as [number, number]) : [],
   );
+  const ptsRef = useRef(pts);
+  ptsRef.current = pts;
+  const stageRef = useRef<HTMLDivElement>(null);
+  // A vertex drag: which point, and whether it actually moved (so a plain click still
+  // deletes it). Live-updates local state during the drag, commits ONE undo on release.
+  const vdrag = useRef<{ i: number; moved: boolean } | null>(null);
 
   const commit = (next: [number, number][]) => { setPts(next); TilesetCommands.setTilePolygon(tileId, next); };
 
-  const addPoint = (e: ReactMouseEvent) => {
-    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const px = Math.round(((e.clientX - r.left) / r.width) * tw);
-    const py = Math.round(((e.clientY - r.top) / r.height) * th);
-    commit([...pts, [Math.max(0, Math.min(tw, px)), Math.max(0, Math.min(th, py))]]);
+  /** Tile-space (0..tw, 0..th) point under the pointer, clamped to the tile. */
+  const pointAt = (clientX: number, clientY: number): [number, number] => {
+    const r = stageRef.current!.getBoundingClientRect();
+    const px = Math.round(((clientX - r.left) / r.width) * tw);
+    const py = Math.round(((clientY - r.top) / r.height) * th);
+    return [Math.max(0, Math.min(tw, px)), Math.max(0, Math.min(th, py))];
   };
+
+  const addPoint = (e: ReactMouseEvent) => { commit([...pts, pointAt(e.clientX, e.clientY)]); };
 
   // Escape closes, like every other transient surface.
   useEffect(() => {
@@ -109,6 +118,7 @@ function PolygonEditor(props: {
           <button type="button" onClick={onClose}>{t('tile.done')}</button>
         </div>
         <div
+          ref={stageRef}
           className="ts-pe-stage"
           style={{
             width: SIZE, height: SIZE,
@@ -125,7 +135,28 @@ function PolygonEditor(props: {
             {pts.map((p, i) => (
               <circle
                 key={i} cx={p[0]} cy={p[1]} r={Math.max(1.2, tw * 0.06)} className="ts-pe-pt"
-                onClick={(e) => { e.stopPropagation(); commit(pts.filter((_, j) => j !== i)); }}
+                // Drag to move the vertex (live), click (no move) to remove it.
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  vdrag.current = { i, moved: false };
+                  try { (e.target as Element).setPointerCapture(e.pointerId); } catch { /* capture is optional */ }
+                }}
+                onPointerMove={(e) => {
+                  const d = vdrag.current;
+                  if (!d || d.i !== i) return;
+                  d.moved = true;
+                  const np = pointAt(e.clientX, e.clientY);
+                  setPts((cur) => cur.map((q, j) => (j === i ? np : q)));
+                }}
+                onPointerUp={(e) => {
+                  const d = vdrag.current;
+                  vdrag.current = null;
+                  try { (e.target as Element).releasePointerCapture(e.pointerId); } catch { /* not captured */ }
+                  if (!d) return;
+                  if (d.moved) TilesetCommands.setTilePolygon(tileId, ptsRef.current);
+                  else commit(ptsRef.current.filter((_, j) => j !== i));
+                }}
+                onClick={(e) => e.stopPropagation()}
               />
             ))}
           </svg>
