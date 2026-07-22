@@ -14,7 +14,7 @@
  *          carrying an AND-list of typed parameter conditions + an exit-time flag.
  */
 import { useRef, useState, useSyncExternalStore } from 'react';
-import { Plus, Trash2, X } from 'lucide-react';
+import { Plus, Trash2, X, Film } from 'lucide-react';
 import {
   animatorEdges,
   addAnimatorState, removeAnimatorState, moveAnimatorState, renameAnimatorState, setAnimatorInitial,
@@ -26,7 +26,8 @@ import {
 } from 'esengine';
 import { AnimatorGraphDocument } from '@/animator/AnimatorGraphDocument';
 import { t } from '@/i18n';
-import { NodeGraphCanvas, type CanvasNode } from '@/components/NodeGraphCanvas';
+import { NodeGraphCanvas, type CanvasNode, type NodeGraphCanvasApi } from '@/components/NodeGraphCanvas';
+import { EmptyState } from '@/components/EmptyState';
 import { Select } from '@/components/Select';
 import { SaveButton } from '@/components/SaveButton';
 
@@ -70,9 +71,18 @@ export function AnimatorEditor() {
   const [selState, setSelState] = useState<string | null>(null);
   const [selEdge, setSelEdge] = useState<string | null>(null);
   const dragBefore = useRef<AnimatorControllerDef | null>(null);
+  const canvas = useRef<NodeGraphCanvasApi>(null);
 
   if (!def || !filePath) {
-    return <div className="panel ng-placeholder"><p>{t('ng.openHintPre')}<code>.esanimator</code>{t('ng.openHintPost')}</p></div>;
+    return (
+      <div className="panel">
+        <EmptyState
+          icon={Film}
+          title={t('ng.animatorEmpty')}
+          hint={<>{t('ng.openHintPre')}<code>.esanimator</code>{t('ng.openHintPost')}</>}
+        />
+      </div>
+    );
   }
 
   const nodes: AnimatorCanvasNode[] = def.states.map((s) => ({ ...s, id: s.name }));
@@ -81,7 +91,10 @@ export function AnimatorEditor() {
 
   const addStateAt = () => {
     const name = uniqueName(def, 'State');
-    AnimatorGraphDocument.edit('Add state', (d) => Object.assign(d, addAnimatorState(d, name, 200, 120)));
+    // View-centre drop + per-state cascade (see StateMachineEditor).
+    const c = canvas.current?.centerWorld() ?? { x: 200, y: 120 };
+    const k = (def.states.length % 6) * 26;
+    AnimatorGraphDocument.edit('Add state', (d) => Object.assign(d, addAnimatorState(d, name, Math.round(c.x - NODE_W / 2 + k), Math.round(c.y - NODE_H / 2 + k))));
     setSelState(name);
     setSelEdge(null);
   };
@@ -108,6 +121,7 @@ export function AnimatorEditor() {
       <div className="ng-editor-body">
         <div style={{ flex: 1, minWidth: 0 }}>
           <NodeGraphCanvas<AnimatorCanvasNode, AnimatorEdge>
+            apiRef={canvas}
             nodes={nodes}
             edges={edges}
             selectedNode={selState}

@@ -14,7 +14,7 @@
  *          generic component shared with the behavior-tree editor.
  */
 import { useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Workflow } from 'lucide-react';
 import {
   fsmEdges, addState, removeState, moveState, renameState, setStateHook, setInitial,
   addTransition, removeTransition, updateTransition, actionRefName, actionRefArg,
@@ -22,7 +22,8 @@ import {
 } from 'esengine';
 import { FsmGraphDocument } from '@/fsm/FsmGraphDocument';
 import { t } from '@/i18n';
-import { NodeGraphCanvas, type CanvasNode } from '@/components/NodeGraphCanvas';
+import { NodeGraphCanvas, type CanvasNode, type NodeGraphCanvasApi } from '@/components/NodeGraphCanvas';
+import { EmptyState } from '@/components/EmptyState';
 import { Select } from '@/components/Select';
 import { SaveButton } from '@/components/SaveButton';
 import { SuggestInput } from '@/components/SuggestInput';
@@ -59,9 +60,18 @@ export function StateMachineEditor() {
   const [selState, setSelState] = useState<string | null>(null);
   const [selEdge, setSelEdge] = useState<string | null>(null);
   const dragBefore = useRef<FsmDefinition | null>(null);
+  const canvas = useRef<NodeGraphCanvasApi>(null);
 
   if (!def || !filePath) {
-    return <div className="panel ng-placeholder"><p>{t('ng.openHintPre')}<code>.esfsm</code>{t('ng.openHintPost')}</p></div>;
+    return (
+      <div className="panel">
+        <EmptyState
+          icon={Workflow}
+          title={t('ng.fsmEmpty')}
+          hint={<>{t('ng.openHintPre')}<code>.esfsm</code>{t('ng.openHintPost')}</>}
+        />
+      </div>
+    );
   }
 
   const nodes: FsmCanvasNode[] = def.states.map(s => ({ ...s, id: s.name }));
@@ -70,7 +80,12 @@ export function StateMachineEditor() {
 
   const addStateAt = () => {
     const name = uniqueName(def, 'State');
-    FsmGraphDocument.edit('Add state', d => Object.assign(d, addState(d, name, 200, 120)));
+    // Drop the new state at the current view centre (not a hardcoded world coord
+    // that's off-screen after panning), with a small per-state cascade so repeated
+    // clicks don't stack every state on the same spot.
+    const c = canvas.current?.centerWorld() ?? { x: 200, y: 120 };
+    const k = (def.states.length % 6) * 26;
+    FsmGraphDocument.edit('Add state', d => Object.assign(d, addState(d, name, Math.round(c.x - NODE_W / 2 + k), Math.round(c.y - NODE_H / 2 + k))));
     setSelState(name);
     setSelEdge(null);
   };
@@ -97,6 +112,7 @@ export function StateMachineEditor() {
       <div className="ng-editor-body">
         <div style={{ flex: 1, minWidth: 0 }}>
           <NodeGraphCanvas<FsmCanvasNode, FsmEdge>
+            apiRef={canvas}
             nodes={nodes}
             edges={edges}
             selectedNode={selState}

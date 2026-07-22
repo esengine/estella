@@ -50,6 +50,13 @@ export interface CanvasPort {
  *  the canvas context menu without owning the viewport math). */
 export interface NodeGraphCanvasApi {
   openMenuAt(screenX: number, screenY: number): void;
+  /** Frame all nodes (zoom-to-fit with padding) — bound to F and auto-run on open. */
+  fitToContent(): void;
+  /** Reset pan to origin at 100% zoom — bound to 0 / Home. */
+  resetView(): void;
+  /** World coord at the canvas centre — where a toolbar "Add" should drop a node
+   *  so it lands on-screen (not at a hardcoded off-screen coord). */
+  centerWorld(): { x: number; y: number };
 }
 
 export interface ContextTarget {
@@ -155,6 +162,9 @@ export function NodeGraphCanvas<N extends CanvasNode, E extends CanvasEdge>(prop
       const p = toCanvas(screenX, screenY);
       setMenu({ screenX, screenY, target: { kind: 'canvas', x: p.x, y: p.y } });
     },
+    fitToContent,
+    resetView,
+    centerWorld,
   }));
 
   // Screen point → world coord (inverse of the viewport transform).
@@ -172,6 +182,43 @@ export function NodeGraphCanvas<N extends CanvasNode, E extends CanvasEdge>(prop
     }
     return null;
   };
+
+  // World-coord bounding box over all nodes (null when empty).
+  const contentBounds = () => {
+    if (nodes.length === 0) return null;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const n of nodes) {
+      const s = nodeSize(n);
+      minX = Math.min(minX, nx(n)); minY = Math.min(minY, ny(n));
+      maxX = Math.max(maxX, nx(n) + s.width); maxY = Math.max(maxY, ny(n) + s.height);
+    }
+    return { minX, minY, maxX, maxY };
+  };
+  // Frame all nodes centred, with padding, zoom clamped to a sane range.
+  const fitToContent = () => {
+    const el = canvasRef.current, b = contentBounds();
+    if (!el || !b) return setVp({ x: 0, y: 0, zoom: 1 });
+    const r = el.getBoundingClientRect(), pad = 60;
+    const cw = Math.max(1, b.maxX - b.minX), ch = Math.max(1, b.maxY - b.minY);
+    const zoom = Math.min(1.5, Math.max(0.25, Math.min((r.width - pad * 2) / cw, (r.height - pad * 2) / ch)));
+    setVp({ x: (r.width - cw * zoom) / 2 - b.minX * zoom, y: (r.height - ch * zoom) / 2 - b.minY * zoom, zoom });
+  };
+  const resetView = () => setVp({ x: 0, y: 0, zoom: 1 });
+  const centerWorld = () => {
+    const el = canvasRef.current;
+    if (!el) return { x: 0, y: 0 };
+    const r = el.getBoundingClientRect();
+    return toCanvas(r.left + r.width / 2, r.top + r.height / 2);
+  };
+  // Auto-frame the graph the first time nodes are present (opening an editor whose
+  // nodes were authored far from origin otherwise shows a blank canvas).
+  const didFit = useRef(false);
+  useEffect(() => {
+    if (didFit.current || nodes.length === 0) return;
+    didFit.current = true;
+    fitToContent();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodes.length]);
 
   useEffect(() => {
     const onMove = (e: PointerEvent) => {
@@ -286,6 +333,18 @@ export function NodeGraphCanvas<N extends CanvasNode, E extends CanvasEdge>(prop
       e.stopPropagation(); // the canvas owns Delete — never the scene's entity delete
       if (selectedNode) onDeleteNode(selectedNode);
       else if (selectedEdge) onDeleteEdge(selectedEdge);
+      return;
+    }
+    if (e.key === 'f' || e.key === 'F') {
+      e.preventDefault();
+      e.stopPropagation();
+      fitToContent(); // frame all nodes
+      return;
+    }
+    if (e.key === '0' || e.key === 'Home') {
+      e.preventDefault();
+      e.stopPropagation();
+      resetView(); // 100% at origin
       return;
     }
     const dir = KEY_DIR[e.key];

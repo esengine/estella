@@ -11,7 +11,7 @@
  *          drag-to-connect reparents a node under the drop target.
  */
 import { useRef, useState, useSyncExternalStore } from 'react';
-import { Trash2 } from 'lucide-react';
+import { Plus, Trash2, Network } from 'lucide-react';
 import {
   btNodes, btEdges, addBtChild, addBtOrphan, removeBtNode, moveBtNode, setBtNodeField, reparentBtNode,
   canHaveChildren, maxChildren,
@@ -19,7 +19,8 @@ import {
 } from 'esengine';
 import { BtDocument } from '@/bt/BtDocument';
 import { t } from '@/i18n';
-import { NodeGraphCanvas, type CanvasNode, type MenuItem } from '@/components/NodeGraphCanvas';
+import { NodeGraphCanvas, type CanvasNode, type MenuItem, type NodeGraphCanvasApi } from '@/components/NodeGraphCanvas';
+import { EmptyState } from '@/components/EmptyState';
 import { Select } from '@/components/Select';
 import { SaveButton } from '@/components/SaveButton';
 import { SuggestInput } from '@/components/SuggestInput';
@@ -64,9 +65,18 @@ export function BtTreeEditor() {
   const [selected, setSelected] = useState<string | null>(null);
   const [addType, setAddType] = useState<BtNodeType>('action');
   const dragBefore = useRef<BtDefinition | null>(null);
+  const canvas = useRef<NodeGraphCanvasApi>(null);
 
   if (!def || !filePath) {
-    return <div className="panel ng-placeholder"><p>{t('ng.openHintPre')}<code>.esbt</code>{t('ng.openHintPost')}</p></div>;
+    return (
+      <div className="panel">
+        <EmptyState
+          icon={Network}
+          title={t('ng.btEmpty')}
+          hint={<>{t('ng.openHintPre')}<code>.esbt</code>{t('ng.openHintPost')}</>}
+        />
+      </div>
+    );
   }
 
   const nodes = btNodes(def).filter((n): n is BtCanvasNode => !!n.id);
@@ -86,6 +96,10 @@ export function BtTreeEditor() {
 
   const toolbar = (
     <>
+      <button type="button" className="ng-btn" title={t('bt.addNodeTip')}
+        onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); canvas.current?.openMenuAt(r.left, r.bottom + 2); }}>
+        <Plus size={13} strokeWidth={2} /> {t('bt.addNode')}
+      </button>
       <span className="ng-doc-title">{filePath.split('/').pop()}</span>
       <span style={{ flex: 1 }} />
       {selected && def.root.id !== selected && (
@@ -103,6 +117,7 @@ export function BtTreeEditor() {
       <div className="ng-editor-body">
         <div style={{ flex: 1, minWidth: 0 }}>
           <NodeGraphCanvas<BtCanvasNode, BtEdge>
+            apiRef={canvas}
             nodes={nodes}
             edges={edges}
             selectedNode={selected}

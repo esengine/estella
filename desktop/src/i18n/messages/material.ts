@@ -10,6 +10,7 @@ export const materialMessages = defineMessages({
     'mat.panelTitle': { en: 'Material Graph', zh: '材质图' },
     'mat.openHintPrefix': { en: 'Open a ', zh: '从内容浏览器打开 ' },
     'mat.openHintSuffix': { en: ' from the Content Browser to edit it.', zh: ' 文件进行编辑。' },
+    'mat.graphEmpty': { en: 'No material graph open', zh: '未打开材质图' },
     'mat.add': { en: 'Add', zh: '添加' },
     'mat.addNode': { en: 'Add node', zh: '添加节点' },
     'mat.deleteNode': { en: 'Delete node', zh: '删除节点' },

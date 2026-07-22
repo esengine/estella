@@ -14,7 +14,7 @@
  *          them like any edge.
  */
 import { useRef, useState, useSyncExternalStore } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Waypoints } from 'lucide-react';
 import {
   NODE_SPECS,
   addNode,
@@ -30,6 +30,7 @@ import { t } from '@/i18n';
 import { MaterialGraphDocument } from '@/material/MaterialGraphDocument';
 import { saveMaterialGraph } from '@/material/openMaterialGraph';
 import { ColorControl } from '@/components/ColorControl';
+import { EmptyState } from '@/components/EmptyState';
 import { SaveButton } from '@/components/SaveButton';
 import { NumField } from '@/components/NumField';
 import {
@@ -88,7 +89,15 @@ export function MaterialGraphEditor() {
   const canvas = useRef<NodeGraphCanvasApi>(null);
 
   if (!graph || !filePath) {
-    return <div className="panel ng-placeholder"><p>{t('mat.openHintPrefix')}<code>.esmatgraph</code>{t('mat.openHintSuffix')}</p></div>;
+    return (
+      <div className="panel">
+        <EmptyState
+          icon={Waypoints}
+          title={t('mat.graphEmpty')}
+          hint={<>{t('mat.openHintPrefix')}<code>.esmatgraph</code>{t('mat.openHintSuffix')}</>}
+        />
+      </div>
+    );
   }
 
   const nodes = graph.nodes as MatCanvasNode[];

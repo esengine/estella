@@ -11,6 +11,10 @@ export const nodegraphMessages = defineMessages({
     // markup survives translation (pre + <code>.ext</code> + post).
     'ng.openHintPre': { en: 'Open a ', zh: '从内容浏览器打开 ' },
     'ng.openHintPost': { en: ' from the Content Browser to edit it.', zh: ' 文件进行编辑。' },
+    // Empty-panel titles (shared shared-graph editors); the hint reuses ng.openHint* above.
+    'ng.fsmEmpty': { en: 'No state machine open', zh: '未打开状态机' },
+    'ng.btEmpty': { en: 'No behavior tree open', zh: '未打开行为树' },
+    'ng.animatorEmpty': { en: 'No animation controller open', zh: '未打开动画控制器' },
     'ng.save': { en: 'Save', zh: '保存' },
     'ng.deleteSelected': { en: 'Delete selected', zh: '删除所选' },
     'ng.name': { en: 'Name', zh: '名称' },
@@ -84,6 +88,8 @@ export const nodegraphMessages = defineMessages({
     'bt.unnamed': { en: '(unnamed)', zh: '（未命名）' },
     'bt.deleteNode': { en: 'Delete node', zh: '删除节点' },
     'bt.menuAdd': { en: 'Add {type}', zh: '添加{type}' },
+    'bt.addNode': { en: 'Node', zh: '节点' },
+    'bt.addNodeTip': { en: 'Add a node', zh: '添加节点' },
     'bt.menuAddChild': { en: 'Add child: {type}', zh: '添加子节点：{type}' },
     'bt.emptyHint': {
         en: 'Drag from a node\'s handle to another to set parent → child.',
