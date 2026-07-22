@@ -11,7 +11,7 @@
  * UI. (REARCH_ENTITY_CREATION E2.)
  */
 import type { LucideIcon } from 'lucide-react';
-import { CircleDot, LayoutPanelTop, ToggleLeft, SlidersHorizontal, List, ChevronDown, SquareMousePointer, RectangleHorizontal, Box, Type, Image as ImageIcon, SquareDashed, ScrollText, AppWindow, TextCursorInput } from 'lucide-react';
+import { CircleDot, LayoutPanelTop, ToggleLeft, SlidersHorizontal, List, ChevronDown, SquareMousePointer, RectangleHorizontal, Box, Type, Image as ImageIcon, SquareDashed, ScrollText, AppWindow, TextCursorInput, Grid3x3 } from 'lucide-react';
 import { BUILTIN_UI_PREFABS, BUILTIN_UI_WIDGET_NAMES, PREFAB_FORMAT_VERSION, getUserComponents, applyThemeToWorld, type PrefabData } from 'esengine';
 import type { EntityId } from '@/types';
 import { componentByName, componentDefaults, prettyLabel, componentCategory } from './schema';
@@ -36,8 +36,13 @@ export interface EntitySource {
   category: string;
   icon: LucideIcon;
   keywords?: string[];
-  /** Expand into a prefab to instantiate. Sync today; may be async (E3 asset sources). */
-  build(ctx: CreateContext): PrefabData | Promise<PrefabData>;
+  /** Expand into a prefab to instantiate. Sync today; may be async (E3 asset sources).
+   *  Omitted only for an {@link action} source (it opens a dialog instead of building). */
+  build?(ctx: CreateContext): PrefabData | Promise<PrefabData>;
+  /** An action source runs this on pick INSTEAD of building — e.g. a Tilemap opens the
+   *  tileset/orientation picker, since it can't be spawned without an asset choice. Keeps
+   *  the Create picker the single entry point for every entity, dialog-driven ones included. */
+  action?(): void;
   placement?: PlacementRule;
   /** A prefab-linked source tags the subtree with this ref (instance = a delta). */
   linkPrefabRef?: (ctx: CreateContext) => string | undefined;
@@ -244,6 +249,19 @@ function anchorSources(): EntitySource[] {
 export const ENTITY_SOURCES: EntitySource[] = [
   presetSource('empty', 'Empty', 'Basic', CircleDot, ['Transform']),
   ...anchorSources(),
+  // Tilemap is asset-driven (it needs a tileset + orientation), so it can't build
+  // synchronously like an anchor — picking it opens the New-Tilemap dialog. Listed here
+  // anyway so the Create picker stays the one place every entity is born.
+  {
+    id: 'tilemap',
+    label: 'Tilemap',
+    category: 'Rendering',
+    icon: Grid3x3,
+    keywords: ['tile', 'map', 'tileset', 'grid', 'level'],
+    // Lazy import: the commands registry pulls in a large graph that would cycle back
+    // through this module at init; the action only runs on pick, long after load.
+    action: () => { void import('@/commands').then((m) => m.commands.run('tilemap.new')); },
+  },
   {
     id: 'canvas',
     label: 'Canvas',
@@ -322,9 +340,12 @@ function resolvePlacement(rule: PlacementRule | undefined, ctx: CreateContext): 
  * new root's source id; the caller handles selection.
  */
 export async function createFromSource(source: EntitySource, ctx: CreateContext): Promise<EntityId | null> {
+  // An action source (e.g. Tilemap) opens its own dialog instead of building a prefab;
+  // creation happens there, so there is no id to return here.
+  if (source.action) { source.action(); return null; }
   let prefab: PrefabData;
   try {
-    prefab = await source.build(ctx);
+    prefab = await source.build!(ctx);
   } catch {
     return null; // build aborted (e.g. a prefab asset failed to load; it surfaced its own error)
   }

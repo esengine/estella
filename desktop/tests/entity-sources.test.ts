@@ -42,6 +42,8 @@ describe('entitySources registry (Create-entity E2)', () => {
 
   it('build() yields a well-formed prefab whose root entity is present', async () => {
     for (const s of ENTITY_SOURCES) {
+      // Action sources (e.g. Tilemap) open a dialog instead of building — nothing to check.
+      if (!s.build) { expect(s.action).toBeTypeOf('function'); continue; }
       const p = await s.build(ctx);
       expect(p.rootEntityId).toBeDefined();
       expect(p.entities.length).toBeGreaterThan(0);
