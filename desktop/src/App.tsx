@@ -48,6 +48,10 @@ import { forEachEditorWindow } from '@/layout/editorWindows';
 import { Toasts } from '@/store/Toasts';
 import { t } from '@/i18n';
 
+// Commands that fire even while a text field is focused — Save must work mid-edit;
+// everything else (typing, native Cmd+Z/backspace) stays with the field.
+const FIELD_SAFE_COMMANDS = new Set(['project.save', 'project.saveAs']);
+
 // The editor shell: fixed menu + toolbar on top, dockable workspace in the
 // middle, status strip at the bottom.
 export function App() {
@@ -67,6 +71,15 @@ export function App() {
       // it — correct across popouts, unlike the main window's document.activeElement.
       const el = e.target as HTMLElement | null;
       if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) {
+        // A field owns typing + native text undo/backspace — but Save must still
+        // work while editing a value. Fire only the field-safe chords, committing
+        // the field first (blur → onBlur writes) so Save reads the new value.
+        const cmd = commands.forEvent(e);
+        if (cmd && FIELD_SAFE_COMMANDS.has(cmd.id)) {
+          e.preventDefault();
+          el.blur();
+          cmd.run();
+        }
         return;
       }
       // Tile-editing context claims its keys first (single dispatch → no double-fire

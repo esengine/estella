@@ -20,6 +20,7 @@ import { applyFxPreview } from '@/engine/fxPreview';
 import { dockApi } from '@/layout/dockApi';
 import { panelDirtySource } from '@/layout/panelDirty';
 import { DirtyRegistry } from '@/document/DirtyRegistry';
+import { MaterialDocument } from '@/material/MaterialDocument';
 import { isTilePaintMode, exitTilePaint } from '@/tools/tileMode';
 import { EDITOR_MODES } from '@/mode/editorModes';
 import { activeMode } from '@/mode/activeMode';
@@ -71,14 +72,24 @@ commands.register({
   isEnabled: () => {
     const p = ProjectStore.getSnapshot();
     if (!p) return false;
-    const active = panelDirtySource(dockApi.activePanelId() ?? '');
+    const activeId = dockApi.activePanelId() ?? '';
+    const active = panelDirtySource(activeId);
     if (active.docId) return active.isDirty();
+    // A material edits in the Details panel (no docId of its own).
+    if (activeId === 'details' && MaterialDocument.isOpen) return MaterialDocument.dirty;
     return EditorHistory.isDirty() || !p.currentScene;
   },
   run: () => {
-    const active = panelDirtySource(dockApi.activePanelId() ?? '');
+    const activeId = dockApi.activePanelId() ?? '';
+    const active = panelDirtySource(activeId);
     if (active.docId) {
       void DirtyRegistry.saveDoc(active.docId);
+      return;
+    }
+    // Shared-Inspector editors have no dock docId: a material being edited in the
+    // Details panel saves ITSELF on Cmd+S, not the scene.
+    if (activeId === 'details' && MaterialDocument.isOpen) {
+      void DirtyRegistry.saveDoc('material');
       return;
     }
     void ProjectStore.save().catch(() => ProjectStore.saveAsViaDialog());
