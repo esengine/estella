@@ -14,7 +14,7 @@
  *          carrying an AND-list of typed parameter conditions + an exit-time flag.
  */
 import { useRef, useState, useSyncExternalStore } from 'react';
-import { Plus, Trash2, Save, X } from 'lucide-react';
+import { Plus, Trash2, X } from 'lucide-react';
 import {
   animatorEdges,
   addAnimatorState, removeAnimatorState, moveAnimatorState, renameAnimatorState, setAnimatorInitial,
@@ -28,7 +28,7 @@ import { AnimatorGraphDocument } from '@/animator/AnimatorGraphDocument';
 import { t } from '@/i18n';
 import { NodeGraphCanvas, type CanvasNode } from '@/components/NodeGraphCanvas';
 import { Select } from '@/components/Select';
-import { DirtyDot } from '@/components/DirtyDot';
+import { SaveButton } from '@/components/SaveButton';
 
 type AnimatorCanvasNode = AnimatorState & CanvasNode;
 
@@ -97,9 +97,9 @@ export function AnimatorEditor() {
     <>
       <button type="button" className="ng-btn" onClick={addStateAt} title={t('anim.addStateTip')}><Plus size={13} strokeWidth={2} /> {t('anim.stateBtn')}</button>
       {(selState || selEdge) && <button type="button" className="ng-btn" title={t('ng.deleteSelected')} onClick={deleteSelected}><Trash2 size={13} strokeWidth={1.9} /></button>}
-      <span className="ng-doc-title">{filePath.split('/').pop()}{dirty && <DirtyDot />}</span>
+      <span className="ng-doc-title">{filePath.split('/').pop()}</span>
       <span style={{ flex: 1 }} />
-      <button type="button" className="ng-btn primary" disabled={!dirty} onClick={save}><Save size={13} strokeWidth={1.9} /> {t('ng.save')}</button>
+      <SaveButton dirty={dirty} onSave={save} label={t('ng.save')} />
     </>
   );
 

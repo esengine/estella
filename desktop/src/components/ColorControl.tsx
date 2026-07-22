@@ -74,10 +74,11 @@ function useDragTrack(onMove: (x: number, y: number) => void) {
 
 export function ColorControl({
   value,
+  mixed,
   onBegin,
   onEnd,
   onChange,
-}: ControlGesture & { value: string; onChange: (v: string) => void }) {
+}: ControlGesture & { value: string; mixed?: boolean; onChange: (v: string) => void }) {
   const pop = usePopover();
   const sw = useRef<HTMLButtonElement>(null);
   const { r, g, b, a } = hexToRgba(value);
@@ -143,10 +144,17 @@ export function ColorControl({
   return (
     <>
       <button ref={sw} type="button" className="sw" onMouseDown={(e) => e.stopPropagation()} onClick={open}>
-        <span className="sw-fill" style={{ background: rgbCss(r, g, b), opacity: a }} />
+        {/* Multi-select with differing colors: a striped swatch + "—" hex, so a nudge
+            doesn't silently overwrite every entity with the first one's color. */}
+        <span
+          className="sw-fill"
+          style={mixed
+            ? { background: 'repeating-linear-gradient(45deg,#5a5a5a 0 5px,#3a3a3a 5px 10px)' }
+            : { background: rgbCss(r, g, b), opacity: a }}
+        />
       </button>
       <span className="field">
-        <input value={editing ? text : value} spellCheck={false} onFocus={focusHex} onBlur={blurHex} onChange={(e) => typeHex(e.target.value)} />
+        <input value={editing ? text : mixed ? '' : value} placeholder={mixed ? '—' : undefined} spellCheck={false} onFocus={focusHex} onBlur={blurHex} onChange={(e) => typeHex(e.target.value)} />
       </span>
       {pop.anchor && (
         <Popover anchor={pop.anchor} width={200} onClose={close}>

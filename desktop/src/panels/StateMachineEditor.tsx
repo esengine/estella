@@ -14,7 +14,7 @@
  *          generic component shared with the behavior-tree editor.
  */
 import { useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { Plus, Trash2, Save } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import {
   fsmEdges, addState, removeState, moveState, renameState, setStateHook, setInitial,
   addTransition, removeTransition, updateTransition, actionRefName, actionRefArg,
@@ -24,7 +24,7 @@ import { FsmGraphDocument } from '@/fsm/FsmGraphDocument';
 import { t } from '@/i18n';
 import { NodeGraphCanvas, type CanvasNode } from '@/components/NodeGraphCanvas';
 import { Select } from '@/components/Select';
-import { DirtyDot } from '@/components/DirtyDot';
+import { SaveButton } from '@/components/SaveButton';
 import { SuggestInput } from '@/components/SuggestInput';
 import { aiActionItems, aiConditionItems } from '@/components/aiSuggest';
 
@@ -86,9 +86,9 @@ export function StateMachineEditor() {
     <>
       <button type="button" className="ng-btn" onClick={addStateAt} title={t('fsm.addStateTip')}><Plus size={13} strokeWidth={2} /> {t('fsm.stateBtn')}</button>
       {(selState || selEdge) && <button type="button" className="ng-btn" title={t('ng.deleteSelected')} onClick={deleteSelected}><Trash2 size={13} strokeWidth={1.9} /></button>}
-      <span className="ng-doc-title">{filePath.split('/').pop()}{dirty && <DirtyDot />}</span>
+      <span className="ng-doc-title">{filePath.split('/').pop()}</span>
       <span style={{ flex: 1 }} />
-      <button type="button" className="ng-btn primary" disabled={!dirty} onClick={save}><Save size={13} strokeWidth={1.9} /> {t('ng.save')}</button>
+      <SaveButton dirty={dirty} onSave={save} label={t('ng.save')} />
     </>
   );
 

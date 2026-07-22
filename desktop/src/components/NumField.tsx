@@ -82,6 +82,7 @@ export function NumField({
 }: ControlGesture & { value: number; suffix?: string; mixed?: boolean; empty?: boolean; placeholder?: string; onCommit: (n: number) => void }) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState('');
+  const startValue = useRef(value); // pre-edit value, for Escape-revert
   return (
     <span className="field">
       <input
@@ -89,6 +90,7 @@ export function NumField({
         placeholder={mixed ? '—' : empty ? placeholder : undefined}
         spellCheck={false}
         onFocus={() => {
+          startValue.current = value;
           setText(empty ? '' : fmt(value));
           setEditing(true);
           onBegin?.();
@@ -96,6 +98,24 @@ export function NumField({
         onBlur={() => {
           setEditing(false);
           onEnd?.();
+        }}
+        onKeyDown={(e) => {
+          // Arrow = ±step (Shift finer ÷10, Alt coarser ×10 — the useScrub modifiers);
+          // Enter commits (blur → onEnd); Escape reverts the live-committed edit.
+          if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+            e.preventDefault();
+            const step = e.shiftKey ? 0.1 : e.altKey ? 10 : 1;
+            const cur = Number.isFinite(parseFloat(text)) ? parseFloat(text) : value;
+            const next = Math.round((cur + (e.key === 'ArrowUp' ? step : -step)) * 1000) / 1000;
+            setText(fmt(next));
+            onCommit(next);
+          } else if (e.key === 'Enter') {
+            e.currentTarget.blur();
+          } else if (e.key === 'Escape') {
+            onCommit(startValue.current); // undo the live edits this session made
+            setText(fmt(startValue.current));
+            e.currentTarget.blur();
+          }
         }}
         onChange={(e) => {
           setText(e.target.value);

@@ -11,7 +11,7 @@
  *          drag-to-connect reparents a node under the drop target.
  */
 import { useRef, useState, useSyncExternalStore } from 'react';
-import { Trash2, Save } from 'lucide-react';
+import { Trash2 } from 'lucide-react';
 import {
   btNodes, btEdges, addBtChild, addBtOrphan, removeBtNode, moveBtNode, setBtNodeField, reparentBtNode,
   canHaveChildren, maxChildren,
@@ -21,7 +21,7 @@ import { BtDocument } from '@/bt/BtDocument';
 import { t } from '@/i18n';
 import { NodeGraphCanvas, type CanvasNode, type MenuItem } from '@/components/NodeGraphCanvas';
 import { Select } from '@/components/Select';
-import { DirtyDot } from '@/components/DirtyDot';
+import { SaveButton } from '@/components/SaveButton';
 import { SuggestInput } from '@/components/SuggestInput';
 import { aiActionItems, aiConditionItems } from '@/components/aiSuggest';
 
@@ -86,7 +86,7 @@ export function BtTreeEditor() {
 
   const toolbar = (
     <>
-      <span className="ng-doc-title">{filePath.split('/').pop()}{dirty && <DirtyDot />}</span>
+      <span className="ng-doc-title">{filePath.split('/').pop()}</span>
       <span style={{ flex: 1 }} />
       {selected && def.root.id !== selected && (
         <button type="button" className="ng-btn" title={t('bt.deleteNode')}
@@ -94,9 +94,7 @@ export function BtTreeEditor() {
           <Trash2 size={13} strokeWidth={1.9} />
         </button>
       )}
-      <button type="button" className="ng-btn primary" disabled={!dirty} onClick={save}>
-        <Save size={13} strokeWidth={1.9} /> {t('ng.save')}
-      </button>
+      <SaveButton dirty={dirty} onSave={save} label={t('ng.save')} />
     </>
   );
 

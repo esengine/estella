@@ -14,7 +14,7 @@
  *          them like any edge.
  */
 import { useRef, useState, useSyncExternalStore } from 'react';
-import { Save, Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import {
   NODE_SPECS,
   addNode,
@@ -30,7 +30,7 @@ import { t } from '@/i18n';
 import { MaterialGraphDocument } from '@/material/MaterialGraphDocument';
 import { saveMaterialGraph } from '@/material/openMaterialGraph';
 import { ColorControl } from '@/components/ColorControl';
-import { DirtyDot } from '@/components/DirtyDot';
+import { SaveButton } from '@/components/SaveButton';
 import { NumField } from '@/components/NumField';
 import {
   NodeGraphCanvas,
@@ -130,11 +130,9 @@ export function MaterialGraphEditor() {
           <Trash2 size={13} strokeWidth={1.9} />
         </button>
       )}
-      <span className="ng-doc-title">{filePath.split('/').pop()}{dirty && <DirtyDot />}</span>
+      <span className="ng-doc-title">{filePath.split('/').pop()}</span>
       <span style={{ flex: 1 }} />
-      <button type="button" className="ng-btn primary" disabled={!dirty} onClick={() => void saveMaterialGraph(filePath, graph)}>
-        <Save size={13} strokeWidth={1.9} /> {t('mat.save')}
-      </button>
+      <SaveButton dirty={dirty} onSave={() => void saveMaterialGraph(filePath, graph)} label={t('mat.save')} />
     </>
   );
 

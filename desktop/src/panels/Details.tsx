@@ -160,6 +160,7 @@ function VecField({
   const scrub = useScrub(value, onCommit, { onBegin, onEnd });
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState('');
+  const startValue = useRef(value);
   return (
     <span className="vfield">
       <i className={`ax ${axis}`} {...scrub}>
@@ -170,6 +171,7 @@ function VecField({
         placeholder={mixed ? '—' : undefined}
         spellCheck={false}
         onFocus={() => {
+          startValue.current = value;
           setText(fmt(value));
           setEditing(true);
           onBegin?.();
@@ -177,6 +179,23 @@ function VecField({
         onBlur={() => {
           setEditing(false);
           onEnd?.();
+        }}
+        onKeyDown={(e) => {
+          // Arrow = ±step (Shift ÷10, Alt ×10); Enter commits; Escape reverts.
+          if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+            e.preventDefault();
+            const step = e.shiftKey ? 0.1 : e.altKey ? 10 : 1;
+            const cur = Number.isFinite(parseFloat(text)) ? parseFloat(text) : value;
+            const next = Math.round((cur + (e.key === 'ArrowUp' ? step : -step)) * 1000) / 1000;
+            setText(fmt(next));
+            onCommit(next);
+          } else if (e.key === 'Enter') {
+            e.currentTarget.blur();
+          } else if (e.key === 'Escape') {
+            onCommit(startValue.current);
+            setText(fmt(startValue.current));
+            e.currentTarget.blur();
+          }
         }}
         onChange={(e) => {
           setText(e.target.value);
@@ -840,6 +859,7 @@ const isImageAsset = (t: AssetType): boolean => t === 'texture' || t === 'sprite
 export function AssetControl({
   value,
   assetType,
+  mixed,
   readOnly,
   onBegin,
   onEnd,
@@ -847,6 +867,7 @@ export function AssetControl({
 }: ControlGesture & {
   value: string | number;
   assetType?: string;
+  mixed?: boolean;
   /** Display-only (the live "Game" inspector): asset identity is not live-tunable
    *  — a picked ref would land in a World slot that holds a realm-local handle. */
   readOnly?: boolean;
@@ -921,13 +942,14 @@ export function AssetControl({
         onClick={() => info && revealAsset(info.path)}
       >
         <span className="th">
-          {assetType === 'texture' && info ? (
+          {!mixed && assetType === 'texture' && info ? (
             <img src={`estella://project/${info.path}`} alt="" draggable={false} />
           ) : (
             <Box size={11} strokeWidth={1.7} />
           )}
         </span>
-        <span className="an">{info ? info.name : t('det.none')}</span>
+        {/* Multi-select disagreement: "—", not the first entity's asset. */}
+        <span className={`an${mixed ? ' dd-none' : ''}`}>{mixed ? '—' : info ? info.name : t('det.none')}</span>
       </button>
       {!readOnly && (
         <button type="button" className="pk" title={t('det.pickAsset')} onMouseDown={(e) => e.stopPropagation()} onClick={openPick}>
@@ -1254,7 +1276,7 @@ function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp
       control = <EntityControl value={field.value as number} mixed={mixed} onBegin={begin} onEnd={end} onChange={apply} />;
       break;
     case 'color':
-      control = <ColorControl value={field.value as string} onBegin={begin} onEnd={end} onChange={apply} />;
+      control = <ColorControl value={field.value as string} mixed={mixed} onBegin={begin} onEnd={end} onChange={apply} />;
       break;
     case 'gradient':
       control = <GradientControl value={field.value as GradientValue} onBegin={begin} onEnd={end} onChange={apply} />;
@@ -1267,6 +1289,7 @@ function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp
         <AssetControl
           value={field.value as string | number}
           assetType={field.assetType}
+          mixed={mixed}
           readOnly={!!write}
           onBegin={begin}
           onEnd={end}
@@ -1352,6 +1375,12 @@ function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp
               icon: <ClipboardPaste size={13} strokeWidth={1.9} />,
               disabled: pasteValue == null,
               onClick: doPaste,
+            },
+            {
+              label: t('det.resetToDefault'),
+              icon: <RotateCcw size={13} strokeWidth={1.9} />,
+              disabled: !modified,
+              onClick: reset,
             },
           ]}
         />
