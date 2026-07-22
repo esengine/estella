@@ -10,9 +10,45 @@
 
 #include <yoga/Yoga.h>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace esengine::ecs {
+
+// Retained Yoga node cache: one YGNode per UI entity, kept alive across frames.
+// A stable UI tree reuses its allocations instead of YGNodeNew/FreeRecursive
+// every solve; entities that leave the tree are reaped. The hierarchy + style
+// are still rebuilt each frame here (Stage 1) — dirty-gating that avoids the
+// rebuild/solve when nothing changed is layered on top separately.
+struct LayoutCache {
+    std::unordered_map<Entity, YGNodeRef> nodes;
+
+    ~LayoutCache() {
+        for (auto& [entity, node] : nodes) YGNodeFree(node);
+    }
+
+    YGNodeRef getOrCreate(Entity entity) {
+        auto it = nodes.find(entity);
+        if (it != nodes.end()) return it->second;
+        YGNodeRef node = YGNodeNew();
+        nodes.emplace(entity, node);
+        return node;
+    }
+
+    // Free the YGNodes of entities no longer in the tree. YGNodeFree disconnects
+    // each from its owner/children, so order is irrelevant (live nodes hold only
+    // live children after the pass, so none point at a reaped node).
+    void reap(const std::unordered_set<Entity>& live) {
+        for (auto it = nodes.begin(); it != nodes.end();) {
+            if (live.find(it->first) == live.end()) {
+                YGNodeFree(it->second);
+                it = nodes.erase(it);
+            } else {
+                ++it;
+            }
+        }
+    }
+};
 
 namespace {
 
@@ -183,7 +219,7 @@ void applyUINodeStyle(Registry& registry, Entity entity, YGNodeRef yg) {
 // Lay out the UINode subtree rooted at tree index `rootIdx` in one Yoga solve.
 // `availW/H` + `parentPivot*` describe the available box the root sits in.
 void layoutUINodeSubtree(
-    Registry& registry, UITree& tree, i32 rootIdx,
+    Registry& registry, UITree& tree, LayoutCache& cache, i32 rootIdx,
     f32 availW, f32 availH, f32 parentPivotX, f32 parentPivotY
 ) {
     i32 begin = rootIdx;
@@ -191,10 +227,14 @@ void layoutUINodeSubtree(
 
     std::vector<YGNodeRef> yg(static_cast<usize>(end - begin), nullptr);
     std::unordered_map<Entity, i32> slotOf;  // entity → local slot index
+    // Reuse the retained YGNode per entity. layoutUpdate orphaned the whole
+    // forest first, so every node here is childless + owner-less; resetting it
+    // to Yoga defaults makes reuse identical to a fresh YGNodeNew.
     for (i32 k = begin; k < end; ++k) {
         Entity e = tree.nodes_[k].entity;
         if (!registry.has<UINode>(e)) continue;  // tree is homogeneously UINode
-        YGNodeRef node = YGNodeNew();
+        YGNodeRef node = cache.getOrCreate(e);
+        YGNodeReset(node);
         applyUINodeStyle(registry, e, node);
         yg[static_cast<usize>(k - begin)] = node;
         slotOf[e] = k - begin;
@@ -270,7 +310,8 @@ void layoutUINodeSubtree(
         tree.nodes_[k].flags &= ~(LAYOUT_DIRTY | HAS_DIRTY_CHILD);
     }
 
-    YGNodeFreeRecursive(rootYG);
+    // Retained nodes are not freed here — layoutUpdate reaps entities that left
+    // the tree and the LayoutCache frees the rest on teardown.
 }
 
 // Resolve display:none hierarchically over the DFS-ordered tree: a node with
@@ -293,7 +334,7 @@ void propagateHiddenInTree(Registry& registry, UITree& tree) {
     }
 }
 
-void unifiedLayoutPass(Registry& registry, UITree& tree, const LayoutRect& cameraRect) {
+void unifiedLayoutPass(Registry& registry, UITree& tree, LayoutCache& cache, const LayoutRect& cameraRect) {
     for (i32 i = 0; i < static_cast<i32>(tree.nodes_.size()); ) {
         auto& node = tree.nodes_[i];
 
@@ -309,7 +350,7 @@ void unifiedLayoutPass(Registry& registry, UITree& tree, const LayoutRect& camer
         if (!parentIsUINode) {
             f32 availW = cameraRect.right - cameraRect.left;
             f32 availH = cameraRect.top - cameraRect.bottom;
-            layoutUINodeSubtree(registry, tree, i, availW, availH, 0.5f, 0.5f);
+            layoutUINodeSubtree(registry, tree, cache, i, availW, availH, 0.5f, 0.5f);
         }
         i += node.subtree_size;
     }
@@ -325,11 +366,34 @@ void UISystem::layoutUpdate(
     Registry& registry,
     f32 camLeft, f32 camBottom, f32 camRight, f32 camTop
 ) {
+    if (!layoutCache_) layoutCache_ = std::make_unique<LayoutCache>();
     tree.rebuild(registry);
+
+    // Orphan the entire retained forest up front. Each subtree then rebuilds its
+    // own hierarchy from childless nodes, so an entity that moved between Canvas
+    // roots since last frame is never still owned by its old parent on re-insert.
+    for (auto& node : tree.nodes_) {
+        if (registry.has<UINode>(node.entity)) {
+            YGNodeRemoveAllChildren(layoutCache_->getOrCreate(node.entity));
+        }
+    }
+
     propagateHiddenInTree(registry, tree);
     LayoutRect cameraRect{ camLeft, camBottom, camRight, camTop };
-    unifiedLayoutPass(registry, tree, cameraRect);
+    unifiedLayoutPass(registry, tree, *layoutCache_, cameraRect);
+
+    // Reap YGNodes whose entity left the tree this frame.
+    std::unordered_set<Entity> live;
+    live.reserve(tree.nodes_.size());
+    for (auto& node : tree.nodes_) live.insert(node.entity);
+    layoutCache_->reap(live);
 }
+
+// Out-of-line so LayoutCache is complete here (it holds Yoga types kept out of
+// the header). Defaulted — the unique_ptr frees the cache, whose destructor
+// frees the retained YGNodes.
+UISystem::UISystem() = default;
+UISystem::~UISystem() = default;
 
 void UISystem::treeMarkStructureDirty() {
     tree.structure_dirty_ = true;

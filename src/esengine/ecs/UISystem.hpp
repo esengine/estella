@@ -17,9 +17,15 @@
 #include "Registry.hpp"
 #include "UITree.hpp"
 
+#include <memory>
 #include <vector>
 
 namespace esengine::ecs {
+
+// Retained Yoga node cache — persists YGNodes across frames so a stable UI tree
+// is not reallocated every solve. Defined in UILayoutSystem.cpp (holds Yoga
+// types, kept out of this header).
+struct LayoutCache;
 
 /**
  * @brief Result of the most recent hit-test pass
@@ -44,8 +50,8 @@ struct UIHitTestResult {
  */
 class UISystem {
 public:
-    UISystem() = default;
-    ~UISystem() = default;
+    UISystem();
+    ~UISystem();  // out-of-line: layoutCache_ holds an incomplete LayoutCache here.
 
     UISystem(const UISystem&) = delete;
     UISystem& operator=(const UISystem&) = delete;
@@ -54,6 +60,7 @@ public:
 
     UITree tree;
     UIHitTestResult hitResult;
+    std::unique_ptr<LayoutCache> layoutCache_;
 
     // ---- Layout pass (defined in UILayoutSystem.cpp) ----
 
