@@ -26,12 +26,9 @@ import { ConfirmService } from '@/components/confirm';
 import { overlayGuard } from '@/components/overlayGuard';
 import { commands } from '@/commands';
 import { handleTilePaintKey } from '@/tools/tileMode';
-import { suggestedMode } from '@/mode/activeMode';
 import { useEditorMode } from '@/store/editorModeStore';
 import { uiPreviewAspect } from '@/mode/resolutionPresets';
 import { EngineHost } from '@/engine/EngineHost';
-import type { EditorModeId } from '@/mode/editorModes';
-import { useSelection } from '@/store/selectionStore';
 import { PlayRealms } from '@/engine/PlayRealm';
 import { PlayInspect } from '@/engine/PlayInspect';
 import { TimelinePreview } from '@/engine/TimelinePreview';
@@ -114,20 +111,11 @@ export function App() {
     });
   }, []);
 
-  // A plain selection switches the editing mode (its tools + viewport overlays are
-  // derived live from activeMode()) but must NOT restructure the workspace — clicking
-  // to inspect a node should never fling docked panels open over what you were doing.
-  // Opening a mode's companion panels (the Tilemap painter, UI widgets…) is an
-  // EXPLICIT gesture now: click the mode chip in the viewport, the activity-bar mode
-  // button, or run the mode command. Entering a new mode still drops a stale pin.
-  useEffect(() => {
-    let prevMode: EditorModeId | null = null;
-    return useSelection.subscribe(() => {
-      const mode = suggestedMode();
-      if (mode.id !== prevMode) useEditorMode.getState().clearPin();
-      prevMode = mode.id;
-    });
-  }, []);
+  // Note: a plain selection no longer touches the editing mode's docks or pin. The
+  // mode's tools + overlays are derived live from activeMode() (pin ?? selection), so
+  // selecting a node updates the SUGGESTED mode with zero side effects; a PINNED mode
+  // stays a deliberate lock until you re-toggle it from the activity bar / mode chip.
+  // (Opening a mode's companion panels is likewise explicit — the mode command.)
 
   // Feed the UI-mode device selection into the editor UI layout: a chosen device preset
   // lays UI out at its aspect (previewing adaptation), 'design' keeps the design box. Re-sync

@@ -260,7 +260,15 @@ for (const m of EDITOR_MODES) {
     category: t('cat.tools'),
     isChecked: () => activeMode().id === m.id,
     run: () => {
-      useEditorMode.getState().setMode(m.id);
+      const modeStore = useEditorMode.getState();
+      // The pin is a sticky mode LOCK that ordinary clicks never clear (so you can
+      // paint tiles / lay out UI while selecting other things). Re-invoking the mode
+      // you've already pinned toggles it OFF — back to following the selection.
+      if (modeStore.pinned === m.id) {
+        modeStore.clearPin();
+        return;
+      }
+      modeStore.setMode(m.id);
       for (const p of m.panels ?? []) {
         dockApi.openSidePanel(p.id, p.component, p.title, p.side ?? 'left', p.width ?? 300);
       }
