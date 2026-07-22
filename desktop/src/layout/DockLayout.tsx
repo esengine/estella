@@ -182,6 +182,13 @@ function retitleRestoredPanels(api: DockviewReadyEvent['api']) {
   }
 }
 
+// The essential editing panels have no reopen path (only the nuke-everything Reset
+// Layout), and the Viewport is the structural anchor other panels dock against — so
+// closing any is a dead-end. They stay open; resize or collapse-to-header for space.
+// The dockable extras (sequencer/profiler/mixer) keep their X — the activity bar
+// re-adds them.
+const NON_CLOSABLE_PANELS = new Set(['viewport', 'outliner', 'details', 'content', 'log']);
+
 // Custom tab content: title + the shared dirty dot (asset editors) + a close
 // button that only shows on hover / on the active tab, so the strip stays calm.
 function EstellaTab(props: IDockviewPanelHeaderProps) {
@@ -216,25 +223,27 @@ function EstellaTab(props: IDockviewPanelHeaderProps) {
           <SquareArrowOutUpRight size={11} strokeWidth={2} />
         </button>
       )}
-      <button
-        type="button"
-        className="tab-x"
-        title={t('ui.close')}
-        aria-label={t('layout.closeTab', { title })}
-        onPointerDown={(e) => e.stopPropagation()}
-        onClick={(e) => {
-          e.stopPropagation();
-          void (async () => {
-            if (source.isDirty()) {
-              if (!(await confirmDiscardDoc(true, t('discard.closeTab', { title })))) return;
-              source.discard?.();
-            }
-            props.api.close();
-          })();
-        }}
-      >
-        <X size={12} strokeWidth={2} />
-      </button>
+      {!NON_CLOSABLE_PANELS.has(props.api.id) && (
+        <button
+          type="button"
+          className="tab-x"
+          title={t('ui.close')}
+          aria-label={t('layout.closeTab', { title })}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            void (async () => {
+              if (source.isDirty()) {
+                if (!(await confirmDiscardDoc(true, t('discard.closeTab', { title })))) return;
+                source.discard?.();
+              }
+              props.api.close();
+            })();
+          }}
+        >
+          <X size={12} strokeWidth={2} />
+        </button>
+      )}
     </div>
   );
 }

@@ -20,6 +20,7 @@ import { applyFxPreview } from '@/engine/fxPreview';
 import { dockApi } from '@/layout/dockApi';
 import { panelDirtySource } from '@/layout/panelDirty';
 import { DirtyRegistry } from '@/document/DirtyRegistry';
+import { isTilePaintMode, exitTilePaint } from '@/tools/tileMode';
 import { EDITOR_MODES } from '@/mode/editorModes';
 import { activeMode } from '@/mode/activeMode';
 import { useEditorMode } from '@/store/editorModeStore';
@@ -31,7 +32,10 @@ import type { ToolMode } from '@/types';
 
 const editor = () => useEditorStore.getState();
 const sel = () => useSelection.getState();
-const tool = (mode: ToolMode) => () => editor().setTool(mode);
+// Selecting a transform tool while tile-painting must LEAVE paint mode (else the
+// paint tool keeps owning the stroke and the palette button reads as a no-op).
+// exitTilePaint sets the transform tool as it exits, so both paths agree.
+const tool = (mode: ToolMode) => () => (isTilePaintMode() ? exitTilePaint(mode) : editor().setTool(mode));
 
 // — File / project —
 commands.register({
