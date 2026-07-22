@@ -401,6 +401,16 @@ export function applyPhysicsTransforms(
     const engineMod = app.world.getWasmModule();
     const hasParented = parentedBodies.size > 0;
 
+    // Change-tracking boundary (deliberate). Both write paths below sync Transform
+    // through a raw C++ / ptr fast path and do NOT record a Changed() tick — the one
+    // intentional exception to the unified write surface (Mut / set / insert / remove /
+    // Commands all record via world.*). Physics rewrites every dynamic body's transform
+    // every fixed step, so firing Changed(Transform) here would flood the changed-set
+    // with ~every moving body and make Changed(Transform) useless as a "gameplay wrote
+    // this" signal; the batched C++ path also can't record without an O(count) JS loop.
+    // To react to physics-driven motion, use the per-step moved set (snaps.cur), not
+    // Changed(Transform).
+
     // Batched fast path: build [u32 entity, f32 x, y, angle] (meters) interpolated.
     if (!hasParented && engineMod?.registry_batchSyncPhysicsTransforms) {
         withMalloc(engineMod, count * PHYSICS_BODY_BYTES, engineBuf => {
