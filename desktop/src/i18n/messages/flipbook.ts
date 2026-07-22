@@ -25,6 +25,7 @@ export const flipbookMessages = defineMessages({
     'fb.field.fps': { en: 'FPS', zh: '帧率' },
     'fb.field.zoom': { en: 'Zoom', zh: '缩放' },
     'fb.loop': { en: 'Loop', zh: '循环' },
+    'fb.fps': { en: 'FPS', zh: '帧率' },
     'fb.frameCount': { en: '{count} frames', zh: '{count} 帧' },
     'fb.animClip': { en: 'Animation Clip', zh: '动画剪辑' },
     'fb.insp.animation': { en: 'Animation', zh: '动画' },

@@ -217,6 +217,13 @@ export function FlipbookEditor() {
               frameCount={asset.frames.length}
             />
             <span className="fb-grow" />
+            {/* fps + loop live here too, not only in the Details inspector (which
+                vanishes the moment you select an entity). */}
+            <GridField label={t('fb.fps')} value={fps} min={1} onCommit={(n) => AnimClipCommands.setFps(n)} />
+            <label className="fb-field" title={t('fb.loop')}>
+              <input type="checkbox" checked={asset.loop ?? true} onChange={(e) => AnimClipCommands.setLoop(e.target.checked)} />
+              <span>{t('fb.loop')}</span>
+            </label>
             <label className="fb-field fb-onion" title={t('fb.onionTip')}>
               <input type="checkbox" checked={onion} onChange={(e) => setOnion(e.target.checked)} />
               <span>{t('fb.onion')}</span>

@@ -161,7 +161,7 @@ export const detailsMessages = defineMessages({
     // — Generic asset inspector (import settings + metadata) —
     'det.importSettings': { en: 'Import Settings', zh: '导入设置' },
     'det.saveImportTip': { en: 'Save import settings', zh: '保存导入设置' },
-    'det.importSaved': { en: 'Import settings saved', zh: '导入设置已保存' },
+    'det.importSaved': { en: 'Import settings saved — size / compression apply on the next build', zh: '导入设置已保存——尺寸 / 压缩在下次构建时生效' },
     'det.importSaveFailed': { en: 'Failed to save import settings: {error}', zh: '保存导入设置失败：{error}' },
     'det.noImportSettings': { en: 'This asset type has no import settings.', zh: '此资产类型没有导入设置。' },
     'det.audioSeekTip': { en: 'Click to seek', zh: '点击跳转播放位置' },

@@ -377,6 +377,24 @@ export const ViewportController = {
     view.orthoSize = Math.max(8, Math.min(40000, view.orthoSize * factor));
   },
 
+  /** Zoom about the cursor: the world point under (clientX, clientY) stays put, so
+   *  you zoom INTO what you're looking at (Figma/Blender/Godot). Analytic — no
+   *  post-zoom re-project (the engine camera only updates next frame): for an ortho
+   *  camera the world offset from center scales with orthoSize, so the new center is
+   *  `view + (W − view)·(1 − factor)`. */
+  zoomAtClient(clientX: number, clientY: number, factor: number): void {
+    const view = editorView();
+    if (!view) return;
+    const w = this.canvasToWorld(clientX, clientY); // current matrices — read BEFORE zoom
+    const next = Math.max(8, Math.min(40000, view.orthoSize * factor));
+    const applied = next / view.orthoSize; // clamped factor
+    view.orthoSize = next;
+    if (w) {
+      view.x += (w.x - view.x) * (1 - applied);
+      view.y += (w.y - view.y) * (1 - applied);
+    }
+  },
+
   /**
    * Frame a set of entities: center the editor view on their union bounds and zoom
    * to fit (with padding). Empty / single-point selections keep the current zoom and

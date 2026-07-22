@@ -980,7 +980,7 @@ export function Viewport() {
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       const orthoFactor = e.deltaY > 0 ? 1.1 : 1 / 1.1; // larger orthoSize = zoom out
-      ViewportController.zoomBy(orthoFactor);
+      ViewportController.zoomAtClient(e.clientX, e.clientY, orthoFactor); // zoom toward the cursor
       setZoomPct((z) => Math.max(10, Math.min(800, Math.round(z / orthoFactor))));
     };
     stage.addEventListener('wheel', onWheel, { passive: false });
