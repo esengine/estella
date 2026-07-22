@@ -29,6 +29,7 @@ import { confirm } from '@/components/confirm';
 import { previewApply } from './applyPreview';
 import { t } from '@/i18n';
 import { assetTypeOf } from '@/project/assetMeta';
+import { ASSET_SLOTS, metaTypeToSlot } from '@/project/assetSlots';
 import type { AssetType } from '@/types';
 import { resolveLayout, orientationFromDesignResolution, resolveOrientation, cameraScaleModeValue, WORKSPACE_DIR, PROJECT_MANIFEST_FILE, type OpenedProject, type ProjectFeatures, type ProjectLayout, type ProjectPackaging, type WorkspaceState, type DesignResolution, type ScreenOrientation, type CameraScaleMode } from './format';
 import { useEditorMode } from '@/store/editorModeStore';
@@ -105,27 +106,6 @@ interface PreloadResult {
   textureHandles: Map<string, number>;
   materialHandles: Map<string, number>;
   fontHandles: Map<string, number>;
-}
-
-/** `.meta` type vocabulary → component asset-slot type (what the hot loader
- *  dispatches on). Null for types no component slot references (scene, shader,
- *  spine — spine has its own live sync; prefabs expand at load). */
-function metaTypeToSlot(metaType: string | undefined): string | null {
-  switch (metaType) {
-    case 'texture': return 'texture';
-    case 'material': return 'material';
-    case 'font': case 'bitmapFont': return 'font';
-    case 'audio': return 'audio';
-    case 'video': return 'video';
-    case 'animclip': return 'anim-clip';
-    case 'animation': return 'timeline';
-    case 'tilemap': return 'tilemap';
-    case 'tileset': return 'tileset';
-    case 'statemachine': return 'statemachine';
-    case 'animatorcontroller': return 'animatorcontroller';
-    case 'behaviortree': return 'behaviortree';
-    default: return null;
-  }
 }
 
 interface ProjectState {
@@ -825,39 +805,15 @@ class ProjectStoreImpl {
       });
   }
 
-  /** Load `ref` with the loader its slot type names — the same loaders the
+  /** Load `ref` through the loader its slot type names — the same loaders the
    *  scene-open preload dispatches to (one loading truth, two trigger times). */
   private loadForSlot(assets: AssetsData, fieldType: string, ref: string, path: string): Promise<unknown> {
-    switch (fieldType) {
-      case 'texture':
-        return assets.loadTexture(ref); // ref, not path: importer settings key off the original ref
-      case 'material':
-        return assets.loadMaterial(ref).then((r) => this.recordHandle('material', path, r.handle));
-      case 'font':
-        return assets.loadFont(ref).then((r) => this.recordHandle('font', path, r.handle));
-      case 'audio':
-        return assets.loadAudio(ref);
-      case 'video':
-        // Video streams at runtime (the video system, play-mode only) — there is
-        // no edit-mode handle to preload. The ref is valid; nothing to load here.
-        return Promise.resolve();
-      case 'anim-clip':
-        return assets.loadAnimClip(ref); // raw ref: the loader aliases it for component lookups
-      case 'tilemap':
-        return assets.loadTilemap(path);
-      case 'tileset':
-        return assets.loadTileset(path);
-      case 'timeline':
-        return assets.loadTimeline(path);
-      case 'statemachine':
-        return assets.loadStateMachine(path);
-      case 'behaviortree':
-        return assets.loadBehaviorTree(path);
-      case 'animatorcontroller':
-        return assets.loadAnimatorController(path);
-      default:
-        return Promise.reject(new Error(`no live loader for asset slot type "${fieldType}"`));
-    }
+    const def = ASSET_SLOTS[fieldType];
+    if (!def) return Promise.reject(new Error(`no live loader for asset slot type "${fieldType}"`));
+    const loaded = def.load(assets, ref, path);
+    if (!def.record) return loaded;
+    const kind = def.record;
+    return loaded.then((r) => this.recordHandle(kind, path, (r as { handle: number }).handle));
   }
 
   /** Record a hot-loaded material/font handle where the incremental resolver
