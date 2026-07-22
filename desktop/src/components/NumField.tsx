@@ -15,9 +15,13 @@ export const fmt = (n: number) => String(Math.round(n * 1000) / 1000);
 
 // Each control reports gesture boundaries (onBegin/onEnd) so one focus→blur, one
 // click, or one drag-scrub becomes a single undo step; onCommit applies live.
+// onCancel aborts the open gesture — restoring EACH entity's own pre-edit value
+// (not the primary's) and recording no undo step — so Escape truly cancels even
+// on a mixed multi-selection.
 export interface ControlGesture {
   onBegin?: () => void;
   onEnd?: () => void;
+  onCancel?: () => void;
 }
 
 export interface ScrubOpts extends ControlGesture {
@@ -78,6 +82,7 @@ export function NumField({
   placeholder,
   onBegin,
   onEnd,
+  onCancel,
   onCommit,
 }: ControlGesture & { value: number; suffix?: string; mixed?: boolean; empty?: boolean; placeholder?: string; onCommit: (n: number) => void }) {
   const [editing, setEditing] = useState(false);
@@ -112,7 +117,11 @@ export function NumField({
           } else if (e.key === 'Enter') {
             e.currentTarget.blur();
           } else if (e.key === 'Escape') {
-            onCommit(startValue.current); // undo the live edits this session made
+            // Cancel: abort the gesture so each (possibly multi-selected) entity
+            // snaps back to its OWN pre-edit value. Falling back to broadcasting
+            // the primary's startValue would clobber the rest of a mixed selection.
+            if (onCancel) onCancel();
+            else onCommit(startValue.current);
             setText(fmt(startValue.current));
             e.currentTarget.blur();
           }

@@ -155,6 +155,7 @@ function VecField({
   mixed,
   onBegin,
   onEnd,
+  onCancel,
   onCommit,
 }: ControlGesture & { axis: string; value: number; mixed?: boolean; onCommit: (n: number) => void }) {
   const scrub = useScrub(value, onCommit, { onBegin, onEnd });
@@ -192,7 +193,10 @@ function VecField({
           } else if (e.key === 'Enter') {
             e.currentTarget.blur();
           } else if (e.key === 'Escape') {
-            onCommit(startValue.current);
+            // Cancel via the gesture layer so each entity in a mixed selection
+            // reverts to its OWN value, not the primary's (see NumField).
+            if (onCancel) onCancel();
+            else onCommit(startValue.current);
             setText(fmt(startValue.current));
             e.currentTarget.blur();
           }
@@ -212,6 +216,7 @@ export function VecControl({
   mixed,
   onBegin,
   onEnd,
+  onCancel,
   onChange,
 }: ControlGesture & { value: number[]; mixed?: boolean; onChange: (v: number[]) => void }) {
   return (
@@ -224,6 +229,7 @@ export function VecControl({
           mixed={mixed}
           onBegin={onBegin}
           onEnd={onEnd}
+          onCancel={onCancel}
           onCommit={(v) => {
             // Write ONLY the edited axis — NaN on the others tells the model write
             // to keep each (possibly multi-selected) entity's own value there,
@@ -443,8 +449,12 @@ function FlagsControl({
           <div className="dd-list">
             {bits.map((o) => {
               const on = !mixed && (value & o.value) === o.value;
+              // From a MIXED selection the checkboxes all read empty, so a click sets
+              // exactly that bit for everyone (unify → concrete, like BoolControl).
+              // XORing the primary's mask instead would silently stamp its OTHER bits
+              // onto the rest of the selection.
               return (
-                <button key={o.value} type="button" className="dd-opt" onClick={() => onChange(value ^ o.value)}>
+                <button key={o.value} type="button" className="dd-opt" onClick={() => onChange(mixed ? o.value : value ^ o.value)}>
                   <span className={`fchk${on ? ' on' : ''}`}>{on && <Check size={10} strokeWidth={3.2} />}</span>
                   <span className="dd-opt-label">{prettyLabel(o.label)}</span>
                 </button>
@@ -609,10 +619,12 @@ function StringControl({
   mixed,
   onBegin,
   onEnd,
+  onCancel,
   onChange,
 }: ControlGesture & { value: string; mixed?: boolean; onChange: (v: string) => void }) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState('');
+  const startValue = useRef(value); // pre-edit value, for Escape-revert
   return (
     <span className="field">
       <input
@@ -620,6 +632,7 @@ function StringControl({
         placeholder={mixed ? '—' : undefined}
         spellCheck={false}
         onFocus={() => {
+          startValue.current = value;
           setText(value);
           setEditing(true);
           onBegin?.();
@@ -627,6 +640,18 @@ function StringControl({
         onBlur={() => {
           setEditing(false);
           onEnd?.();
+        }}
+        onKeyDown={(e) => {
+          // Enter commits (blur → onEnd); Escape cancels — matching NumField so
+          // text fields aren't the lone control with no revert path.
+          if (e.key === 'Enter') {
+            e.currentTarget.blur();
+          } else if (e.key === 'Escape') {
+            if (onCancel) onCancel();
+            else onChange(startValue.current);
+            setText(startValue.current);
+            e.currentTarget.blur();
+          }
         }}
         onChange={(e) => {
           setText(e.target.value);
@@ -1022,7 +1047,10 @@ function fieldWriter(entities: EntityId[], comp: string, field: InspectorField, 
   };
   const begin = () => (write ? undefined : SceneCommands.beginGesture(`Edit ${field.label}`));
   const end = () => (write ? undefined : SceneCommands.endGesture());
-  return { apply, begin, end };
+  // Escape: abort the gesture so each entity reverts to its own captured value.
+  // Asset-editor writes (no scene gesture) have nothing to abort.
+  const cancel = () => (write ? undefined : SceneCommands.abortGesture());
+  return { apply, begin, end, cancel };
 }
 
 // Curated page-change easings for the gear popover, name → EasingType value.
@@ -1169,7 +1197,7 @@ function useGearDot(entities: EntityId[], comp: string, key: string, write?: Fie
 
 function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp: string; field: InspectorField; write?: FieldWrite }) {
   const mixed = field.mixed === true;
-  const { apply, begin, end } = fieldWriter(entities, comp, field, write);
+  const { apply, begin, end, cancel } = fieldWriter(entities, comp, field, write);
   const gearDot = useGearDot(entities, comp, field.key, write);
 
   // Plain numbers + angles scrub from the label; vectors from their axis tabs; a
@@ -1231,16 +1259,16 @@ function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp
             onChange={apply}
           />
         ) : (
-          <NumField value={field.value as number} suffix={field.unit} mixed={mixed} onBegin={begin} onEnd={end} onCommit={apply} />
+          <NumField value={field.value as number} suffix={field.unit} mixed={mixed} onBegin={begin} onEnd={end} onCancel={cancel} onCommit={apply} />
         );
       break;
     case 'angle':
-      control = <NumField value={field.value as number} suffix="°" mixed={mixed} onBegin={begin} onEnd={end} onCommit={apply} />;
+      control = <NumField value={field.value as number} suffix="°" mixed={mixed} onBegin={begin} onEnd={end} onCancel={cancel} onCommit={apply} />;
       break;
     case 'vec2':
     case 'vec3':
     case 'vec4':
-      control = <VecControl value={field.value as number[]} mixed={mixed} onBegin={begin} onEnd={end} onChange={apply} />;
+      control = <VecControl value={field.value as number[]} mixed={mixed} onBegin={begin} onEnd={end} onCancel={cancel} onChange={apply} />;
       break;
     case 'dimension':
       control = <DimControl value={field.value as DimensionValue} mixed={mixed} onBegin={begin} onEnd={end} onChange={apply} />;
@@ -1298,7 +1326,7 @@ function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp
       );
       break;
     default:
-      control = <StringControl value={String(field.value)} mixed={mixed} onBegin={begin} onEnd={end} onChange={apply} />;
+      control = <StringControl value={String(field.value)} mixed={mixed} onBegin={begin} onEnd={end} onCancel={cancel} onChange={apply} />;
   }
 
   const modified = !mixed && isModified(field);
