@@ -1259,11 +1259,11 @@ function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp
             onChange={apply}
           />
         ) : (
-          <NumField value={field.value as number} suffix={field.unit} mixed={mixed} onBegin={begin} onEnd={end} onCancel={cancel} onCommit={apply} />
+          <NumField value={field.value as number} suffix={field.unit} mixed={mixed} step={field.step} min={field.min} max={field.max} onBegin={begin} onEnd={end} onCancel={cancel} onCommit={apply} />
         );
       break;
     case 'angle':
-      control = <NumField value={field.value as number} suffix="°" mixed={mixed} onBegin={begin} onEnd={end} onCancel={cancel} onCommit={apply} />;
+      control = <NumField value={field.value as number} suffix="°" mixed={mixed} step={field.step} onBegin={begin} onEnd={end} onCancel={cancel} onCommit={apply} />;
       break;
     case 'vec2':
     case 'vec3':

@@ -80,11 +80,14 @@ export function NumField({
   mixed,
   empty,
   placeholder,
+  step,
+  min,
+  max,
   onBegin,
   onEnd,
   onCancel,
   onCommit,
-}: ControlGesture & { value: number; suffix?: string; mixed?: boolean; empty?: boolean; placeholder?: string; onCommit: (n: number) => void }) {
+}: ControlGesture & { value: number; suffix?: string; mixed?: boolean; empty?: boolean; placeholder?: string; step?: number; min?: number; max?: number; onCommit: (n: number) => void }) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState('');
   const startValue = useRef(value); // pre-edit value, for Escape-revert
@@ -109,9 +112,15 @@ export function NumField({
           // Enter commits (blur → onEnd); Escape reverts the live-committed edit.
           if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
             e.preventDefault();
-            const step = e.shiftKey ? 0.1 : e.altKey ? 10 : 1;
+            // Nudge by the field's own step (Shift ÷10 finer, Alt ×10 coarser) so a
+            // bounded field (e.g. a 0..1 opacity with step 0.01) nudges usefully
+            // instead of jumping by a hardcoded 1; clamp to the field's range.
+            const base = step ?? 1;
+            const delta = e.shiftKey ? base / 10 : e.altKey ? base * 10 : base;
             const cur = Number.isFinite(parseFloat(text)) ? parseFloat(text) : value;
-            const next = Math.round((cur + (e.key === 'ArrowUp' ? step : -step)) * 1000) / 1000;
+            let next = Math.round((cur + (e.key === 'ArrowUp' ? delta : -delta)) * 1000) / 1000;
+            if (min != null) next = Math.max(min, next);
+            if (max != null) next = Math.min(max, next);
             setText(fmt(next));
             onCommit(next);
           } else if (e.key === 'Enter') {
