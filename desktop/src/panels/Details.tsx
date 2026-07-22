@@ -53,6 +53,7 @@ import { useSelection } from '@/store/selectionStore';
 import { usePrefabConflicts } from '@/store/prefabConflicts';
 import { useEditorStore } from '@/store/editorStore';
 import { useControllerStore } from '@/store/controllerStore';
+import { useInspectorCollapse, isSectionCollapsed } from '@/store/inspectorCollapse';
 import { isGeared, controllerCurrentPage, readModelField, readGearBindings, resolveControllers } from '@/controller/controllerModel';
 import { useOutliner } from '@/outliner/OutlinerController';
 import { isFolderUnder, folderName } from '@/outliner/folders';
@@ -64,7 +65,7 @@ import { InspectorClipboard } from '@/engine/inspectorClipboard';
 import { SceneCommands, toModelValue } from '@/engine/SceneCommands';
 import { ENTITY_SOURCES, createFromSource } from '@/engine/entitySources';
 import { PlayInspect } from '@/engine/PlayInspect';
-import { DimensionUnit, AnchorAxis, detectAnchorAxes, UIPositionType, FlexDirection, FlexWrap, JustifyContent, AlignItems, INTERACTION_CONTROLLER, INTERACTION_PAGES, parseLocaleTable, EasingType, INVALID_ENTITY } from 'esengine';
+import { DimensionUnit, AnchorAxis, detectAnchorAxes, UIPositionType, FlexDirection, FlexWrap, JustifyContent, AlignItems, INTERACTION_CONTROLLER, INTERACTION_PAGES, parseLocaleTable, EasingType, BUILTIN_SHADER_TEMPLATES, INVALID_ENTITY } from 'esengine';
 import type { SceneData, InputMapAsset, ActionType, Binding, LocaleTableAsset, PluralCategory, GearValue, GearTween, MaterialAssetData } from 'esengine';
 import { modelAddableComponentEntries, subscribeSchemas, getSchemaRevision, prettyLabel, hexToRgba, dynamicEnumOptions, boxGroupsFor, isRequiredEmpty, type BoxGroupDef } from '@/engine/schema';
 import * as imap from '@/project/inputMapDoc';
@@ -86,8 +87,10 @@ import {
   renderMaterialThumbnail,
   shaderProjectPathOf,
   shaderRelRef,
+  BUILTIN_SHADER_PREFIX,
   type MaterialContext,
 } from '@/material/materialInspectorModel';
+import { convertShaderToUnique } from '@/material/openMaterial';
 import { AnimClipDocument } from '@/flipbook/AnimClipDocument';
 import { buildAnimClipComponents, makeAnimClipWrite } from '@/flipbook/animClipInspectorModel';
 import { ColorControl, rgbaToHex8 } from '@/components/ColorControl';
@@ -1908,6 +1911,9 @@ function FlexLayoutControl({ entities, comp }: { entities: EntityId[]; comp: Ins
 // ancestor, so a geared leaf still shows (and switches) the root's controllers.
 function ControllersInline({ entityId }: { entityId: EntityId }) {
   useSyncExternalStore(SceneStore.subscribe, SceneStore.getRevision);
+  const collapseExplicit = useInspectorCollapse((s) => s.explicit);
+  const toggleCollapse = useInspectorCollapse((s) => s.toggle);
+  const collapsed = isSectionCollapsed(collapseExplicit, '__controllers');
   const activeController = useControllerStore((s) => s.activeController);
   const setActiveController = useControllerStore((s) => s.setActiveController);
   const recording = useControllerStore((s) => s.recording);
@@ -1940,14 +1946,22 @@ function ControllersInline({ entityId }: { entityId: EntityId }) {
 
   return (
     <div className="ctrl-inline">
-      <div className="ctrl-head">
+      <div
+        className="ctrl-head ctrl-fold"
+        role="button"
+        tabIndex={0}
+        onClick={() => toggleCollapse('__controllers')}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleCollapse('__controllers'); } }}
+      >
+        <span className="ctrl-caret">{collapsed ? <ChevronRight size={12} strokeWidth={2.4} /> : <ChevronDown size={12} strokeWidth={2.4} />}</span>
         <span className="ctrl-title">{t('ctrl.title')}</span>
-        <button type="button" className={`ctrl-rec${recording ? ' on' : ''}`} title={t('ctrl.recordTitle')} onClick={toggleRecording}>
+        <button type="button" className={`ctrl-rec${recording ? ' on' : ''}`} title={t('ctrl.recordTitle')} onClick={(e) => { e.stopPropagation(); toggleRecording(); }}>
           <Circle size={9} fill="currentColor" />
           {t('ctrl.record')}
         </button>
       </div>
 
+      {!collapsed && (<>
       {controllers.length === 0 && <div className="ctrl-hint">{t('ctrl.hintAdd')}</div>}
 
       {controllers.length > 0 && (
@@ -2011,6 +2025,7 @@ function ControllersInline({ entityId }: { entityId: EntityId }) {
         <button type="button" className="ctrl-btn sm" title={t('ctrl.addController')} onClick={addController}><Plus size={12} /></button>
         <button type="button" className="ctrl-btn sm" title={t('ctrl.addInteraction')} disabled={hasInteraction} onClick={addInteraction}><MousePointerClick size={12} /></button>
       </div>
+      </>)}
     </div>
   );
 }
@@ -2255,14 +2270,10 @@ function ComponentSection({
 // (no add/remove/rename of the running game) — just live value debugging.
 function GameDetails() {
   const { selectedEntity, selection } = useSyncExternalStore(PlayInspect.subscribe, PlayInspect.getSnapshot);
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const toggle = (name: string) =>
-    setCollapsed((s) => {
-      const n = new Set(s);
-      if (n.has(name)) n.delete(name);
-      else n.add(name);
-      return n;
-    });
+  // Persisted, shared collapse — a folded section stays folded across selections and
+  // restarts (chrome components default folded via the store's policy).
+  const collapseMap = useInspectorCollapse((s) => s.explicit);
+  const toggle = useInspectorCollapse((s) => s.toggle);
 
   // The shallow tree snapshot strips component data; Details reads the selected
   // entity's FULL data, fetched alongside the tree. Wrap it as a one-entity
@@ -2295,7 +2306,7 @@ function GameDetails() {
                 key={comp.name}
                 entities={[selection]}
                 comp={comp}
-                collapsed={collapsed.has(comp.name)}
+                collapsed={isSectionCollapsed(collapseMap, comp.name)}
                 onToggle={() => toggle(comp.name)}
                 action={textBoxAction(comp, selection)}
                 write={(key, type, value) =>
@@ -2329,17 +2340,34 @@ function MaterialShaderSection({
   collapsed: boolean;
   onToggle: () => void;
 }) {
-  const shaderPath = shaderProjectPathOf(filePath, asset.shader);
+  const isBuiltin = asset.shader.startsWith(BUILTIN_SHADER_PREFIX);
+  const shaderPath = isBuiltin ? '' : shaderProjectPathOf(filePath, asset.shader);
   const info = shaderPath ? ProjectStore.assetInfo(shaderPath) : null;
-  const missing = !isInstance && !!asset.shader && !info;
+  const missing = !isInstance && !isBuiltin && !!asset.shader && !info;
 
-  const pick = (ref: string | number) => {
-    const picked = typeof ref === 'string' ? ProjectStore.assetInfo(ref) : null;
-    if (!picked) return; // clearing / unresolved is a no-op — a base material must keep a shader
-    const rel = shaderRelRef(filePath, picked.path);
+  // The picker offers built-in templates + every project `.esshader`. An option's value encodes
+  // which kind it is, so onPick can spell the stored ref: a `builtin:<id>` share-by-reference, or a
+  // path relative to the material. Pointing several materials at one file here = sharing a shader.
+  const options: { value: string; label: string }[] = [
+    ...BUILTIN_SHADER_TEMPLATES.map((tpl) => ({ value: BUILTIN_SHADER_PREFIX + tpl.id, label: t('mat.shaderBuiltin', { name: tpl.label }) })),
+    ...ProjectStore.listAssets('shader').map((a) => ({ value: `file:${a.path}`, label: a.name })),
+  ];
+  const current = isBuiltin ? asset.shader : `file:${shaderPath}`;
+  // Keep the current selection visible even when it isn't a listed option (a renamed / missing file).
+  if (asset.shader && !options.some((o) => o.value === current)) {
+    options.unshift({ value: current, label: info?.name ?? baseName(asset.shader) });
+  }
+
+  const onPick = (v: string) => {
+    const ref = v.startsWith(BUILTIN_SHADER_PREFIX)
+      ? v
+      : v.startsWith('file:')
+        ? shaderRelRef(filePath, v.slice('file:'.length))
+        : null;
+    if (ref == null) return;
     MaterialDocument.edit('Set shader', (d) => {
-      if (d.shader === rel) return;
-      d.shader = rel;
+      if (d.shader === ref) return;
+      d.shader = ref;
       // Parameters and the switch permutation belong to the old shader — start the new one clean.
       d.properties = {};
       delete d.switches;
@@ -2373,10 +2401,22 @@ function MaterialShaderSection({
                     {t('mat.shader')}
                   </span>
                   <div className="prop-value">
-                    <AssetControl value={shaderPath} assetType="shader" onChange={pick} />
+                    <span className="field dropdown">
+                      <Select variant="field" value={current} options={options} ariaLabel="shader" onChange={onPick} />
+                    </span>
                   </div>
                 </div>
               </div>
+              {isBuiltin && (
+                <button
+                  type="button"
+                  className="comp-action"
+                  title={t('mat.convertToUniqueTip')}
+                  onClick={() => void convertShaderToUnique(filePath, asset.shader.slice(BUILTIN_SHADER_PREFIX.length))}
+                >
+                  {t('mat.convertToUnique')}
+                </button>
+              )}
             </>
           )}
         </div>
@@ -2393,13 +2433,8 @@ function MaterialShaderSection({
 function MaterialAssetInspector({ path }: { path: string }) {
   const revision = useSyncExternalStore(MaterialDocument.subscribe, MaterialDocument.getRevision);
   const [ctx, setCtx] = useState<MaterialContext | null>(null);
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const toggle = (name: string) =>
-    setCollapsed((s) => {
-      const n = new Set(s);
-      n.has(name) ? n.delete(name) : n.add(name);
-      return n;
-    });
+  const collapseMap = useInspectorCollapse((s) => s.explicit);
+  const toggle = useInspectorCollapse((s) => s.toggle);
 
   // Load the selected material into the singleton document when the selection changes, and bind
   // the running handle the scene's sprites use (0 when it's not in the current scene).
@@ -2512,7 +2547,7 @@ function MaterialAssetInspector({ path }: { path: string }) {
           asset={asset}
           filePath={path}
           isInstance={isInstance}
-          collapsed={collapsed.has('Shader')}
+          collapsed={isSectionCollapsed(collapseMap, 'Shader')}
           onToggle={() => toggle('Shader')}
         />
         {components.map((comp) => (
@@ -2520,7 +2555,7 @@ function MaterialAssetInspector({ path }: { path: string }) {
             key={comp.name}
             entities={[]}
             comp={comp}
-            collapsed={collapsed.has(comp.name)}
+            collapsed={isSectionCollapsed(collapseMap, comp.name)}
             onToggle={() => toggle(comp.name)}
             write={write}
           />
@@ -2981,13 +3016,8 @@ function AssetInspector({ path }: { path: string }) {
 // when the selected clip IS the open one, else falls back to import settings.
 function AnimClipAssetInspector({ path }: { path: string }) {
   useSyncExternalStore(AnimClipDocument.subscribe, AnimClipDocument.getRevision);
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const toggle = (name: string) =>
-    setCollapsed((s) => {
-      const n = new Set(s);
-      n.has(name) ? n.delete(name) : n.add(name);
-      return n;
-    });
+  const collapseMap = useInspectorCollapse((s) => s.explicit);
+  const toggle = useInspectorCollapse((s) => s.toggle);
 
   const asset = AnimClipDocument.asset;
   const loaded = !!asset && AnimClipDocument.filePath === path;
@@ -3017,7 +3047,7 @@ function AnimClipAssetInspector({ path }: { path: string }) {
             key={comp.name}
             entities={[]}
             comp={comp}
-            collapsed={collapsed.has(comp.name)}
+            collapsed={isSectionCollapsed(collapseMap, comp.name)}
             onToggle={() => toggle(comp.name)}
             write={write}
           />
@@ -3306,13 +3336,8 @@ function FolderInspector({ path }: { path: string }) {
 // edits route through source.write. The one shared inspector, no bespoke panel.
 function SourceInspector({ source }: { source: InspectSource }) {
   useSyncExternalStore(source.subscribe, source.getRevision);
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const toggle = (name: string) =>
-    setCollapsed((s) => {
-      const n = new Set(s);
-      n.has(name) ? n.delete(name) : n.add(name);
-      return n;
-    });
+  const collapseMap = useInspectorCollapse((s) => s.explicit);
+  const toggle = useInspectorCollapse((s) => s.toggle);
   const components = source.build();
   return (
     <div className="insp">
@@ -3327,7 +3352,7 @@ function SourceInspector({ source }: { source: InspectSource }) {
             key={comp.name}
             entities={[]}
             comp={comp}
-            collapsed={collapsed.has(comp.name)}
+            collapsed={isSectionCollapsed(collapseMap, comp.name)}
             onToggle={() => toggle(comp.name)}
             write={source.write}
           />
@@ -3364,16 +3389,11 @@ function EditorDetails() {
   const multi = ids.length > 1;
 
   const [query, setQuery] = useState('');
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const collapseMap = useInspectorCollapse((s) => s.explicit);
+  const toggle = useInspectorCollapse((s) => s.toggle);
   const [compMenu, setCompMenu] = useState<{ x: number; y: number; comp: string } | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [filtOn, setFiltOn] = useState(false);
-  const toggle = (name: string) =>
-    setCollapsed((prev) => {
-      const next = new Set(prev);
-      next.has(name) ? next.delete(name) : next.add(name);
-      return next;
-    });
 
   const entity = useMemo(
     () => (ready ? SceneQuery.readEntity(selectedId!) : null),
@@ -3588,7 +3608,7 @@ function EditorDetails() {
             key={comp.name}
             entities={ids}
             comp={comp}
-            collapsed={collapsed.has(comp.name)}
+            collapsed={isSectionCollapsed(collapseMap, comp.name)}
             onToggle={() => toggle(comp.name)}
             onMore={(e, name) => setCompMenu({ x: e.clientX, y: e.clientY, comp: name })}
             action={uiNodeCanvasAction(ids, comp)}

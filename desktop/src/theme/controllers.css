@@ -8,6 +8,11 @@
    the fields so choosing a page + gearing a field happen in one place. Reuses every
    .ctrl-* class from the panel; this is only the containing card. */
 .ctrl-inline { display: flex; flex-direction: column; gap: 8px; padding: 8px; margin-bottom: 8px; background: var(--srf-2); border: 1px solid var(--border); border-radius: var(--r-sm); }
+/* Foldable header: caret + title on the left, record pinned right. */
+.ctrl-fold { justify-content: flex-start; gap: 5px; cursor: pointer; user-select: none; }
+.ctrl-fold .ctrl-rec { margin-left: auto; }
+.ctrl-caret { display: inline-flex; align-items: center; color: var(--text-dim); }
+.ctrl-fold:hover .ctrl-title { color: var(--text); }
 .ctrl-hint { font-size: var(--fs-2xs); color: var(--text-dim); line-height: 1.4; padding: 0 2px; }
 
 .ctrl-head { display: flex; align-items: center; justify-content: space-between; }
