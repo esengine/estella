@@ -25,7 +25,7 @@ import { createFlipbookFromTexture } from '@/flipbook/openFlipbook';
 import { createAnimatedSpriteFromClip } from '@/flipbook/createAnimatedSprite';
 import { createTilemapFromTileset } from '@/tilemap/createTilemap';
 import { BUILTIN_SHADER_TEMPLATES } from 'esengine';
-import { createMaterial, createMaterialInstance } from '@/material/openMaterial';
+import { createMaterial, createMaterialInstance, createShaderAsset } from '@/material/openMaterial';
 import { createMaterialGraph } from '@/material/openMaterialGraph';
 import { createStateMachine } from '@/fsm/openStateMachine';
 import { createAnimatorController } from '@/animator/openAnimatorController';
@@ -999,6 +999,13 @@ export function ContentBrowser() {
           })),
         },
         { label: t('cb.menuNewMaterialGraph'), onClick: () => void createMaterialGraph(cwd) },
+        {
+          label: t('cb.menuNewShader'),
+          children: BUILTIN_SHADER_TEMPLATES.map((tpl) => ({
+            label: tpl.label,
+            onClick: () => void createShaderAsset(cwd, tpl.id),
+          })),
+        },
         { label: t('cb.menuNewStateMachine'), onClick: () => void createStateMachine(cwd) },
         { label: t('cb.menuNewAnimatorController'), onClick: () => void createAnimatorController(cwd) },
         { label: t('cb.menuNewBehaviorTree'), onClick: () => void createBehaviorTree(cwd) },

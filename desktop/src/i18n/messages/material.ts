@@ -35,8 +35,28 @@ export const materialMessages = defineMessages({
     'mat.created': { en: 'Created material: {name}', zh: '已创建材质：{name}' },
     'mat.createInstanceFailed': { en: 'Failed to create material instance: {error}', zh: '创建材质实例失败：{error}' },
     'mat.createdInstance': { en: 'Created material instance: {name}', zh: '已创建材质实例：{name}' },
+    'mat.convertFailed': { en: 'Failed to convert shader: {error}', zh: '转换着色器失败：{error}' },
+    'mat.convertedShader': { en: 'Extracted shader: {name}', zh: '已提取着色器：{name}' },
+    'mat.createShaderFailed': { en: 'Failed to create shader: {error}', zh: '创建着色器失败：{error}' },
+    'mat.createdShader': { en: 'Created shader: {name}', zh: '已创建着色器：{name}' },
 
     // — Material inspector sections + render state (material/materialInspectorModel.ts) —
+    'mat.shader': { en: 'Shader', zh: '着色器' },
+    'mat.shaderTip': {
+        en: 'The shader that defines this material’s parameters and how it renders. Pick another to switch effects, or share one shader across several materials.',
+        zh: '定义此材质参数与渲染方式的着色器。选择其他着色器可切换效果，也可让多个材质共用同一个着色器。',
+    },
+    'mat.shaderInherited': { en: 'Shader inherited from the parent material.', zh: '着色器继承自父材质。' },
+    'mat.shaderMissing': {
+        en: 'Shader “{ref}” not found — it may have been renamed or moved. Pick it again below.',
+        zh: '未找到着色器“{ref}”——它可能已被重命名或移动。请在下方重新选择。',
+    },
+    'mat.shaderBuiltin': { en: 'Built-in · {name}', zh: '内置 · {name}' },
+    'mat.convertToUnique': { en: 'Convert to Unique Shader', zh: '转为独立着色器' },
+    'mat.convertToUniqueTip': {
+        en: 'Copy this built-in shader into an editable .esshader file beside the material, so you can hand-edit its source.',
+        zh: '把这个内置着色器复制成材质旁的可编辑 .esshader 文件，以便手动编辑其源码。',
+    },
     'mat.parameters': { en: 'Parameters', zh: '参数' },
     'mat.renderState': { en: 'Render State', zh: '渲染状态' },
     'mat.blendMode': { en: 'Blend Mode', zh: '混合模式' },

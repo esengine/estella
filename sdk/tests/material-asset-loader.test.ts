@@ -99,3 +99,38 @@ describe('MaterialAssetLoader texture release on unload', () => {
         expect(Material.release).toHaveBeenCalledWith(11);
     });
 });
+
+describe('MaterialAssetLoader built-in shader ref', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        (Material.createFromAsset as ReturnType<typeof vi.fn>).mockReturnValue(11);
+        (Material.compileShader as ReturnType<typeof vi.fn>).mockReturnValue(7);
+    });
+
+    function ctxFor(shader: string): LoadContext {
+        const materialJson = JSON.stringify({ type: 'material', shader, properties: {} });
+        return {
+            catalog: { getBuildPath: (p: string) => p },
+            // Only the material is ever read — a built-in shader has no file.
+            loadText: vi.fn(async () => materialJson),
+            loadTexture: vi.fn(),
+        } as unknown as LoadContext;
+    }
+
+    it('compiles a `builtin:<id>` shader from its in-code template, reading no shader file', async () => {
+        const loader = new MaterialAssetLoader();
+        const ctx = ctxFor('builtin:sprite-unlit');
+
+        const result = await loader.load(MAT_PATH, ctx);
+
+        expect(result.shaderHandle).toBe(7);
+        expect(ctx.loadText).toHaveBeenCalledTimes(1); // the material, never a shader file
+        const compiledSrc = (Material.compileShader as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+        expect(compiledSrc).toContain('#pragma shader "Sprite Unlit"');
+    });
+
+    it('throws on an unknown built-in shader id', async () => {
+        const loader = new MaterialAssetLoader();
+        await expect(loader.load(MAT_PATH, ctxFor('builtin:does-not-exist'))).rejects.toThrow(/Unknown built-in shader/);
+    });
+});

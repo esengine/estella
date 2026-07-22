@@ -122,7 +122,8 @@ function rewriteMaterialRefs(
   const json = JSON.parse(Buffer.from(bytes).toString('utf8')) as Record<string, unknown>;
   const dir = matPath.includes('/') ? matPath.slice(0, matPath.lastIndexOf('/')) : '';
   const rewrite = (ref: unknown): unknown => {
-    if (typeof ref !== 'string' || ref.startsWith('@uuid:') || ref.includes('://')) return ref;
+    // `builtin:<id>` shaders compile from in-code templates (no file); pass through like @uuid/URLs.
+    if (typeof ref !== 'string' || ref.startsWith('@uuid:') || ref.startsWith('builtin:') || ref.includes('://')) return ref;
     const norm = ref.replace(/^\.\//, '').replace(/^\//, '');
     if (byPath.has(norm)) return ref;  // already a logical project path
     const joined = dir ? `${dir}/${norm}` : norm;

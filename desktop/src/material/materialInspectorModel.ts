@@ -12,7 +12,7 @@
  *          handle for the live viewport preview. The engine stays the single source of the
  *          std140 layout; this is the editor view of the declarations.
  */
-import { BlendMode, CullMode, Material, type MaterialAssetData, type UniformValue } from 'esengine';
+import { BlendMode, CullMode, Material, builtinShaderTemplate, type MaterialAssetData, type UniformValue } from 'esengine';
 import type { InspectorComponent, InspectorField, InspectorFieldType, EnumOption, GradientValue, CurveValue, DimensionValue } from '@/types';
 import { t } from '@/i18n';
 import { MaterialDocument } from './MaterialDocument';
@@ -30,6 +30,10 @@ const CULL_OPTIONS: EnumOption[] = [
   { label: t('mat.cullBack'), value: CullMode.Back },
   { label: t('mat.cullFront'), value: CullMode.Front },
 ];
+
+/** A material's `shader` ref that names a stock template (compiled from in-code source, no file),
+ *  e.g. `builtin:sprite-unlit`. Mirrors the SDK loader's own literal. */
+export const BUILTIN_SHADER_PREFIX = 'builtin:';
 
 const ARITY: Record<string, number> = { float: 1, int: 1, vec2: 2, vec3: 3, vec4: 4, color: 4 };
 const VEC_KEYS = ['x', 'y', 'z', 'w'] as const;
@@ -84,6 +88,47 @@ export function isMaterialAsset(path: string): boolean {
   return /\.(esmaterial|esmat)$/i.test(path);
 }
 
+/** Collapse `.`/`..` segments in a project-relative path. */
+function normalizeProjectPath(p: string): string {
+  const out: string[] = [];
+  for (const seg of p.split('/')) {
+    if (seg === '' || seg === '.') continue;
+    if (seg === '..') out.pop();
+    else out.push(seg);
+  }
+  return out.join('/');
+}
+
+/**
+ * A material's stored `shader` ref → the referenced shader's project path — what the inspector's
+ * asset picker displays and resolves. `/`-rooted refs are project-absolute (cook's spelling for a
+ * cross-folder ref); everything else is relative to the material's own directory. Returns '' when
+ * no shader is bound (a material instance, which inherits its shader from the parent).
+ */
+export function shaderProjectPathOf(matPath: string, shaderRef: string | undefined): string {
+  if (!shaderRef) return '';
+  if (shaderRef.startsWith('/')) return normalizeProjectPath(shaderRef.slice(1));
+  const dir = matPath.includes('/') ? matPath.slice(0, matPath.lastIndexOf('/') + 1) : '';
+  return normalizeProjectPath(dir + shaderRef);
+}
+
+/**
+ * The inverse: a picked shader's project path → the ref stored in the material, spelled relative
+ * to the material's directory. Same-folder shaders get a bare `name.esshader` (exactly what New
+ * Material writes, and the always-safe spelling); a different folder yields a `../`-relative path.
+ */
+export function shaderRelRef(matPath: string, shaderProjPath: string): string {
+  const matDir = matPath.includes('/') ? matPath.slice(0, matPath.lastIndexOf('/')) : '';
+  const shDir = shaderProjPath.includes('/') ? shaderProjPath.slice(0, shaderProjPath.lastIndexOf('/')) : '';
+  const name = shaderProjPath.slice(shaderProjPath.lastIndexOf('/') + 1);
+  if (shDir === matDir) return name;
+  const from = matDir ? matDir.split('/') : [];
+  const to = shDir ? shDir.split('/') : [];
+  let i = 0;
+  while (i < from.length && i < to.length && from[i] === to[i]) i++;
+  return [...from.slice(i).map(() => '..'), ...to.slice(i), name].join('/');
+}
+
 export interface MaterialContext {
   reflection: ShaderReflection;
   /** Resolved parameter values inherited from the parent chain (empty for a base material). */
@@ -125,11 +170,17 @@ export async function resolveMaterialContext(
 
   const root = chain[chain.length - 1];
   let shaderSource: string | null = null;
-  if (root?.asset.shader) {
-    try {
-      shaderSource = await window.estella.fs.read(resolveRef(root.asset.shader, dirOf(root.path)));
-    } catch {
-      shaderSource = null;
+  const rootShader = root?.asset.shader;
+  if (rootShader) {
+    if (rootShader.startsWith(BUILTIN_SHADER_PREFIX)) {
+      // A stock shader reflects from its in-code template source — no file to read.
+      shaderSource = builtinShaderTemplate(rootShader.slice(BUILTIN_SHADER_PREFIX.length))?.source ?? null;
+    } else {
+      try {
+        shaderSource = await window.estella.fs.read(resolveRef(rootShader, dirOf(root.path)));
+      } catch {
+        shaderSource = null;
+      }
     }
   }
 

@@ -192,6 +192,7 @@ export type AssetType =
   | 'prefab'
   | 'material'
   | 'materialgraph'
+  | 'shader'
   | 'script'
   | 'animation'
   | 'animclip'

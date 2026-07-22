@@ -13,7 +13,7 @@
  */
 import {
   Folder, Film, Image, FileImage, PersonStanding, Music,
-  Component, Blend, FileCode2, Clapperboard, Grid3x3, File, Workflow, Gamepad2, GitBranch, ListTree, Languages, Images, Video, Waypoints,
+  Component, Blend, FileCode2, Clapperboard, Grid3x3, File, Workflow, Gamepad2, GitBranch, ListTree, Languages, Images, Video, Waypoints, Sparkles,
   type LucideIcon,
 } from 'lucide-react';
 import type { AssetType } from '@/types';
@@ -43,6 +43,9 @@ export const ASSET_TYPES: Record<AssetType, AssetTypeDef> = {
   // .esmat is tolerated as a legacy alias (cf. electron/importAssets.ts).
   material: { extensions: ['esmaterial', 'esmat'], badge: 'MAT', icon: Blend, tint: '#c0917a' },
   materialgraph: { extensions: ['esmatgraph'], badge: 'MGR', icon: Workflow, tint: '#c0917a' },
+  // A `.esshader` is the fragment-shader source (with #pragma param declarations) a material
+  // references; recognizable here so it never reads as a mystery "file" next to its material.
+  shader: { extensions: ['esshader'], badge: 'SHD', icon: Sparkles, tint: '#c9a26a' },
   script: { extensions: ['ts', 'js'], badge: 'TS', icon: FileCode2, tint: '#93a3bf' },
   // Two animation documents, two editors: .estimeline is the Sequencer's
   // multi-track timeline; .esanim is the sprite flipbook (Flipbook editor).
