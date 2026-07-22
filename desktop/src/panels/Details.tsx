@@ -18,7 +18,9 @@ import {
   Cog,
   Component as ComponentIcon,
   Copy,
+  CornerLeftUp,
   ClipboardPaste,
+  MousePointerClick,
   Filter,
   Hexagon,
   FolderOpen,
@@ -51,7 +53,7 @@ import { useSelection } from '@/store/selectionStore';
 import { usePrefabConflicts } from '@/store/prefabConflicts';
 import { useEditorStore } from '@/store/editorStore';
 import { useControllerStore } from '@/store/controllerStore';
-import { isGeared, controllerCurrentPage, readModelField, readGearBindings } from '@/controller/controllerModel';
+import { isGeared, controllerCurrentPage, readModelField, readGearBindings, resolveControllers } from '@/controller/controllerModel';
 import { useOutliner } from '@/outliner/OutlinerController';
 import { isFolderUnder, folderName } from '@/outliner/folders';
 import { EngineHost } from '@/engine/EngineHost';
@@ -62,7 +64,7 @@ import { InspectorClipboard } from '@/engine/inspectorClipboard';
 import { SceneCommands, toModelValue } from '@/engine/SceneCommands';
 import { ENTITY_SOURCES, createFromSource } from '@/engine/entitySources';
 import { PlayInspect } from '@/engine/PlayInspect';
-import { DimensionUnit, AnchorAxis, detectAnchorAxes, UIPositionType, FlexDirection, FlexWrap, JustifyContent, AlignItems, parseLocaleTable, EasingType, INVALID_ENTITY } from 'esengine';
+import { DimensionUnit, AnchorAxis, detectAnchorAxes, UIPositionType, FlexDirection, FlexWrap, JustifyContent, AlignItems, INTERACTION_CONTROLLER, INTERACTION_PAGES, parseLocaleTable, EasingType, INVALID_ENTITY } from 'esengine';
 import type { SceneData, InputMapAsset, ActionType, Binding, LocaleTableAsset, PluralCategory, GearValue, GearTween, MaterialAssetData } from 'esengine';
 import { modelAddableComponentEntries, subscribeSchemas, getSchemaRevision, prettyLabel, hexToRgba, dynamicEnumOptions, boxGroupsFor, isRequiredEmpty, type BoxGroupDef } from '@/engine/schema';
 import * as imap from '@/project/inputMapDoc';
@@ -1898,6 +1900,121 @@ function FlexLayoutControl({ entities, comp }: { entities: EntityId[]; comp: Ins
   );
 }
 
+// The inline Controllers strip — the panel's per-node authoring brought into the
+// inspector so choosing a state page and gearing a field happen in ONE place (no
+// cross-panel dance). Reuses the exact model readers + SceneCommands the Controllers
+// panel uses; clicking a page chip switches the page (live edit-mode preview) AND arms
+// that controller as the active one the field gear dots bind to. Resolves self →
+// ancestor, so a geared leaf still shows (and switches) the root's controllers.
+function ControllersInline({ entityId }: { entityId: EntityId }) {
+  useSyncExternalStore(SceneStore.subscribe, SceneStore.getRevision);
+  const activeController = useControllerStore((s) => s.activeController);
+  const setActiveController = useControllerStore((s) => s.setActiveController);
+  const recording = useControllerStore((s) => s.recording);
+  const toggleRecording = useControllerStore((s) => s.toggleRecording);
+  const [newCtrl, setNewCtrl] = useState('');
+
+  const controllers = resolveControllers(entityId);
+  const gears = readGearBindings(entityId);
+
+  // Default the active controller to the first one resolvable here (matches the panel).
+  useEffect(() => {
+    if (controllers.length === 0) return;
+    if (!activeController || !controllers.some((c) => c.ctrl.name === activeController)) {
+      setActiveController(controllers[0]!.ctrl.name);
+    }
+  }, [controllers, activeController, setActiveController]);
+
+  const hasInteraction = controllers.some((c) => c.ctrl.name === INTERACTION_CONTROLLER);
+  const addController = () => {
+    const name = newCtrl.trim();
+    if (!name) return;
+    SceneCommands.addController(entityId, name);
+    setActiveController(name);
+    setNewCtrl('');
+  };
+  const addInteraction = () => {
+    SceneCommands.addController(entityId, INTERACTION_CONTROLLER, [...INTERACTION_PAGES]);
+    setActiveController(INTERACTION_CONTROLLER);
+  };
+
+  return (
+    <div className="ctrl-inline">
+      <div className="ctrl-head">
+        <span className="ctrl-title">{t('ctrl.title')}</span>
+        <button type="button" className={`ctrl-rec${recording ? ' on' : ''}`} title={t('ctrl.recordTitle')} onClick={toggleRecording}>
+          <Circle size={9} fill="currentColor" />
+          {t('ctrl.record')}
+        </button>
+      </div>
+
+      {controllers.length === 0 && <div className="ctrl-hint">{t('ctrl.hintAdd')}</div>}
+
+      {controllers.length > 0 && (
+        <div className="ctrl-list">
+          {controllers.map((rc) => (
+            <div
+              key={`${rc.owner}:${rc.ctrl.name}`}
+              className={`ctrl-row${rc.ctrl.name === activeController ? ' active' : ''}`}
+              onClick={() => setActiveController(rc.ctrl.name)}
+            >
+              <div className="ctrl-row-head">
+                <span className="ctrl-name">{rc.ctrl.name}</span>
+                {rc.inherited && (
+                  <span className="ctrl-owner" title={t('ctrl.inheritedFrom')}><CornerLeftUp size={10} />{rc.ownerName}</span>
+                )}
+                {rc.ctrl.name === activeController && <span className="ctrl-badge">{t('ctrl.active')}</span>}
+              </div>
+              <div className="ctrl-chips">
+                {rc.ctrl.pages.map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    className={`ctrl-chip${p === rc.ctrl.current ? ' on' : ''}`}
+                    title={t('ctrl.chipHint')}
+                    onClick={(e) => { e.stopPropagation(); setActiveController(rc.ctrl.name); SceneCommands.setControllerPage(rc.owner, rc.ctrl.name, p); }}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {gears.length > 0 && (
+        <div className="ctrl-gears">
+          <div className="ctrl-gears-title">{t('ctrl.gearsTitle')}</div>
+          {gears.map((b) => (
+            <div key={`${b.controller}:${b.component}.${b.property}`} className="ctrl-gear-row">
+              <span className="ctrl-gear-field">{b.component}.{b.property}</span>
+              <span className="ctrl-gear-meta">
+                ← {b.controller} · {Object.keys(b.pages).length}{t('ctrl.gearPagesSuffix')}{b.tween ? ` · ${b.tween.duration}s` : ''}
+              </span>
+              <button type="button" className="ctrl-del" title={t('ctrl.gearUnbind')} onClick={() => SceneCommands.removeGearBinding(entityId, b.controller, b.component, b.property)}>
+                <X size={11} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="ctrl-add">
+        <input
+          className="ctrl-input sm"
+          placeholder={t('ctrl.newController')}
+          value={newCtrl}
+          onChange={(e) => setNewCtrl(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') addController(); }}
+        />
+        <button type="button" className="ctrl-btn sm" title={t('ctrl.addController')} onClick={addController}><Plus size={12} /></button>
+        <button type="button" className="ctrl-btn sm" title={t('ctrl.addInteraction')} disabled={hasInteraction} onClick={addInteraction}><MousePointerClick size={12} /></button>
+      </div>
+    </div>
+  );
+}
+
 // One side of a box-model group: a lettered edge (L/R/T/B) + its Dimension well.
 // It commits through `fieldWriter` — the same door as FieldRow — so undo, mixed,
 // and reset behave identically; right-click keeps the per-field Copy/Paste/Reset.
@@ -3463,6 +3580,9 @@ function EditorDetails() {
       </div>
 
       <div className="insp-body">
+        {ids.length === 1 && visible.some((c) => c.name === 'UINode' || c.name === 'Canvas') && (
+          <ControllersInline entityId={ids[0]!} />
+        )}
         {visible.map((comp) => (
           <ComponentSection
             key={comp.name}

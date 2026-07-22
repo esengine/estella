@@ -3,6 +3,11 @@
 
 /* Controllers panel (ControllersPanel): author UIController pages + record mode. */
 .ctrl-panel { padding: 8px; display: flex; flex-direction: column; gap: 8px; height: 100%; overflow-y: auto; }
+
+/* Inline Controllers strip (Details inspector) — the same authoring surfaced beside
+   the fields so choosing a page + gearing a field happen in one place. Reuses every
+   .ctrl-* class from the panel; this is only the containing card. */
+.ctrl-inline { display: flex; flex-direction: column; gap: 8px; padding: 8px; margin-bottom: 8px; background: var(--srf-2); border: 1px solid var(--border); border-radius: var(--r-sm); }
 .ctrl-hint { font-size: var(--fs-2xs); color: var(--text-dim); line-height: 1.4; padding: 0 2px; }
 
 .ctrl-head { display: flex; align-items: center; justify-content: space-between; }
