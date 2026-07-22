@@ -68,6 +68,78 @@ const WANG_CORNERS: { i: number; dir: string }[] = [
   { i: 3, dir: t('tile.dir.southWest') },
 ];
 
+/** The material modifiers carried on a tile's collision shape. */
+type TileCollision = NonNullable<TilesetAsset['tiles'][number]['collision']>;
+const modsOf = (c: TileCollision | undefined): TileCollisionMods =>
+  c ? { oneWay: c.oneWay, sensor: c.sensor, density: c.density, friction: c.friction, restitution: c.restitution } : {};
+const oneWayDirOf = (m: TileCollisionMods): OneWayDir =>
+  m.oneWay ? (m.oneWay.ny > 0 ? 'up' : m.oneWay.ny < 0 ? 'down' : m.oneWay.nx < 0 ? 'left' : 'right') : 'up';
+
+/**
+ * Per-tile collision MATERIAL — one-way / sensor / friction / bounce / density — shown
+ * INSIDE a shape editor so an existing tile's material is read + editable, not merely
+ * brush-applied at paint time (the old write-only modifiers). Shared by the circle +
+ * polygon editors; `onChange` re-commits the tile's shape with the new mods (one undo).
+ */
+function TileMaterialFields({ mods, onChange }: { mods: TileCollisionMods; onChange: (m: TileCollisionMods) => void }) {
+  const dir = oneWayDirOf(mods);
+  const setNum = (key: 'friction' | 'restitution' | 'density', s: string) => {
+    const n = Number(s);
+    const next = { ...mods };
+    if (s.trim() !== '' && Number.isFinite(n)) next[key] = n; else delete next[key];
+    onChange(next);
+  };
+  const numField = (key: 'friction' | 'restitution' | 'density', label: string, ph: string) => (
+    <label className="ts-modnum">
+      <span>{label}</span>
+      <input
+        key={`${key}-${mods[key] ?? ''}`}
+        type="text" inputMode="decimal" spellCheck={false} placeholder={ph}
+        defaultValue={mods[key] === undefined ? '' : String(mods[key])}
+        onBlur={(e) => setNum(key, e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+      />
+    </label>
+  );
+  return (
+    <div className="ts-pe-mods">
+      <button
+        type="button" className={'ts-oneway' + (mods.oneWay ? ' is-active' : '')}
+        title={t('tile.oneWayTip')} aria-pressed={!!mods.oneWay}
+        onClick={() => onChange({ ...mods, oneWay: mods.oneWay ? undefined : ONE_WAY_NORMALS.up })}
+      >
+        {(() => { const I = ONE_WAY_ICON[dir]; return <I size={13} />; })()} {t('tile.oneWay')}
+      </button>
+      {mods.oneWay && (
+        <span className="ts-oneway-dirs">
+          {(['up', 'down', 'left', 'right'] as OneWayDir[]).map((d) => {
+            const I = ONE_WAY_ICON[d];
+            return (
+              <button
+                key={d} type="button" className={'ts-oneway-dir' + (dir === d ? ' is-active' : '')}
+                title={t(`tile.oneWay.${d}` as const)} aria-label={t(`tile.oneWay.${d}` as const)} aria-pressed={dir === d}
+                onClick={() => onChange({ ...mods, oneWay: ONE_WAY_NORMALS[d] })}
+              >
+                <I size={12} />
+              </button>
+            );
+          })}
+        </span>
+      )}
+      <button
+        type="button" className={'ts-oneway' + (mods.sensor ? ' is-active' : '')}
+        title={t('tile.sensorTip')} aria-pressed={!!mods.sensor}
+        onClick={() => onChange({ ...mods, sensor: mods.sensor ? undefined : true })}
+      >
+        {t('tile.sensor')}
+      </button>
+      {numField('friction', t('tile.friction'), '0.3')}
+      {numField('restitution', t('tile.restitution'), '0')}
+      {numField('density', t('tile.density'), '1')}
+    </div>
+  );
+}
+
 /** A focused per-tile collision-polygon editor: a magnified tile + click-to-add /
  *  click-a-point-to-remove vertices, committed live (≥3 points) as undo steps. */
 function PolygonEditor(props: {
@@ -94,8 +166,13 @@ function PolygonEditor(props: {
   // A vertex drag: which point, and whether it actually moved (so a plain click still
   // deletes it). Live-updates local state during the drag, commits ONE undo on release.
   const vdrag = useRef<{ i: number; moved: boolean } | null>(null);
+  // The tile's collision material, kept across vertex edits (a bare setTilePolygon would
+  // otherwise drop a one-way / sensor / material every time you touch a point).
+  const [mods, setMods] = useState<TileCollisionMods>(() => modsOf(existing));
+  const modsRef = useRef(mods);
+  modsRef.current = mods;
 
-  const commit = (next: [number, number][]) => { setPts(next); TilesetCommands.setTilePolygon(tileId, next); };
+  const commit = (next: [number, number][]) => { setPts(next); TilesetCommands.setTilePolygon(tileId, next, modsRef.current); };
 
   /** Tile-space (0..tw, 0..th) point under the pointer, clamped to the tile. */
   const pointAt = (clientX: number, clientY: number): [number, number] => {
@@ -161,7 +238,7 @@ function PolygonEditor(props: {
                   vdrag.current = null;
                   try { (e.target as Element).releasePointerCapture(e.pointerId); } catch { /* not captured */ }
                   if (!d) return;
-                  if (d.moved) TilesetCommands.setTilePolygon(tileId, ptsRef.current);
+                  if (d.moved) TilesetCommands.setTilePolygon(tileId, ptsRef.current, modsRef.current);
                   else commit(ptsRef.current.filter((_, j) => j !== i));
                 }}
                 onClick={(e) => e.stopPropagation()}
@@ -169,6 +246,7 @@ function PolygonEditor(props: {
             ))}
           </svg>
         </div>
+        <TileMaterialFields mods={mods} onChange={(m) => { setMods(m); TilesetCommands.setTilePolygon(tileId, ptsRef.current, m); }} />
         <div className="ts-pe-hint">{t('tile.pe.hint')}</div>
       </div>
     </div>
@@ -194,10 +272,10 @@ function CircleEditor(props: {
   const sx = SIZE / tw;
   const sy = SIZE / th;
   const existing = asset.tiles[tileId]?.collision;
-  // Keep the shape's modifiers so a resize doesn't drop a one-way / sensor / material.
-  const mods: TileCollisionMods = existing
-    ? { oneWay: existing.oneWay, sensor: existing.sensor, density: existing.density, friction: existing.friction, restitution: existing.restitution }
-    : {};
+  // Keep + edit the shape's modifiers so a resize/material edit is one round-trip.
+  const [mods, setMods] = useState<TileCollisionMods>(() => modsOf(existing));
+  const modsRef = useRef(mods);
+  modsRef.current = mods;
   const [c, setC] = useState(() => existing?.type === 'circle'
     ? { cx: existing.cx, cy: existing.cy, r: existing.r }
     : { cx: tw / 2, cy: th / 2, r: Math.min(tw, th) / 2 });
@@ -234,7 +312,7 @@ function CircleEditor(props: {
     if (!drag.current) return;
     drag.current = null;
     try { (e.target as Element).releasePointerCapture(e.pointerId); } catch { /* not captured */ }
-    TilesetCommands.setTileCircle(tileId, cRef.current.cx, cRef.current.cy, cRef.current.r, mods);
+    TilesetCommands.setTileCircle(tileId, cRef.current.cx, cRef.current.cy, cRef.current.r, modsRef.current);
   };
   const HR = Math.max(1.4, tw * 0.07);
 
@@ -263,6 +341,7 @@ function CircleEditor(props: {
             <circle className="ts-pe-pt" cx={c.cx} cy={c.cy} r={HR} onPointerDown={start('center')} onPointerMove={move} onPointerUp={end} />
           </svg>
         </div>
+        <TileMaterialFields mods={mods} onChange={(m) => { setMods(m); TilesetCommands.setTileCircle(tileId, cRef.current.cx, cRef.current.cy, cRef.current.r, m); }} />
         <div className="ts-pe-hint">{t('tile.ce.hint')}</div>
       </div>
     </div>

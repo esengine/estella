@@ -430,6 +430,8 @@
 .ts-pe-pt:active { cursor: grabbing; }
 .ts-pe-pt:hover { fill: var(--error-hi); }
 .ts-pe-hint { color: var(--text-faint); font-size: var(--fs-xs); text-align: center; }
+/* Per-tile material row inside a shape editor (one-way / sensor / friction / bounce / density). */
+.ts-pe-mods { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; justify-content: center; padding: 2px 4px; }
 
 /* Animation mode: the frame strip under the toolbar + atlas cell markers. */
 .ts-anims {
