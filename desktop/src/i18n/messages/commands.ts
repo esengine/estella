@@ -49,6 +49,7 @@ export const commandMessages = defineMessages({
     'cmd.view.toggleGrid': { en: 'Show Grid', zh: '显示网格' },
     'cmd.view.toggleGizmos': { en: 'Show Gizmos', zh: '显示 Gizmo' },
     'cmd.view.togglePreviewFx': { en: 'Preview FX', zh: '预览特效' },
+    'cmd.view.togglePerf': { en: 'Performance Overlay', zh: '性能叠加层' },
     'cmd.view.toggleColliders': { en: 'Show Physics Gizmos', zh: '显示物理 Gizmo' },
     'cmd.view.toggleTileCollision': { en: 'Show Tile Collision', zh: '显示瓦片碰撞' },
     'cmd.view.toggleCoordSpace': { en: 'Local Axes', zh: '局部坐标轴' },
@@ -66,6 +67,7 @@ export const commandMessages = defineMessages({
     'cmd.play.toggle': { en: 'Play', zh: '运行' },
     'cmd.play.stop': { en: 'Stop', zh: '停止' },
     'cmd.play.pause': { en: 'Pause / Resume', zh: '暂停 / 继续' },
+    'cmd.play.restart': { en: 'Restart', zh: '重新运行' },
     'cmd.build.scripts': { en: 'Compile Scripts', zh: '编译脚本' },
 
     // — Command categories (menus, shortcuts page grouping) —

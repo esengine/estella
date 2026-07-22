@@ -16,6 +16,7 @@ import { SceneCommands } from '@/engine/SceneCommands';
 import { SceneModel } from '@/engine/SceneModel';
 import { hasEntityClipboard } from '@/engine/entityClipboard';
 import { ViewportController } from '@/engine/ViewportController';
+import { PerfMonitor } from '@/engine/PerfMonitor';
 import { applyFxPreview } from '@/engine/fxPreview';
 import { dockApi } from '@/layout/dockApi';
 import { panelDirtySource } from '@/layout/panelDirty';
@@ -347,6 +348,13 @@ commands.register({
   },
 });
 commands.register({
+  id: 'view.togglePerf',
+  label: t('cmd.view.togglePerf'),
+  category: t('cat.view'),
+  isChecked: () => PerfMonitor.getSnapshot().visible,
+  run: () => PerfMonitor.toggleOverlay(),
+});
+commands.register({
   id: 'view.toggleColliders',
   label: t('cmd.view.toggleColliders'),
   category: t('cat.view'),
@@ -444,6 +452,16 @@ commands.register({
   // windows, where the toolbar Pause button doesn't exist.
   isEnabled: () => editor().isPlaying,
   run: () => editor().togglePause(),
+});
+commands.register({
+  id: 'play.restart',
+  label: t('cmd.play.restart'),
+  category: t('cat.play'),
+  // The playing toolbar button reads "Restart" but had no shortcut; F5 stops
+  // (play.toggle). Give Restart its own key so button and keyboard agree.
+  keybinding: 'shift+f5',
+  isEnabled: () => editor().isPlaying,
+  run: () => editor().restart(),
 });
 
 // — Build —
