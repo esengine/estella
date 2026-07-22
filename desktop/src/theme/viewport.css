@@ -309,6 +309,32 @@
   display: none;
 }
 
+/* "This viewport is live" reads as a soft accent ring around the frame — not a
+   pill over the game. Non-interactive, above the play iframe (z 7, matching the old
+   pill) so it frames the running game without eating clicks. */
+.viewport--play::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  pointer-events: none;
+  border-radius: inherit;
+  box-shadow:
+    inset 0 0 0 2px var(--run),
+    inset 0 0 22px -2px color-mix(in srgb, var(--run) 45%, transparent);
+}
+/* Paused: the ring turns amber and the frozen game dims, so a still frame reads as
+   deliberately paused (the centered PAUSED chip carries the word) — never a hang. */
+.viewport--paused::after {
+  box-shadow:
+    inset 0 0 0 2px #e0a83e,
+    inset 0 0 22px -2px rgba(224, 168, 62, 0.4);
+}
+.viewport--paused .viewport__play-host {
+  filter: brightness(0.55) saturate(0.85);
+  transition: filter var(--t-fast);
+}
+
 /* Game view (isolated play realm iframe) — REARCH_EDITOR_REALM Phase R. */
 .game-panel { position: relative; width: 100%; height: 100%; background: var(--srf-1); overflow: hidden; }
 .game-panel__host { position: absolute; inset: 0; }

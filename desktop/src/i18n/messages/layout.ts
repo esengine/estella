@@ -43,6 +43,8 @@ export const layoutMessages = defineMessages({
     'layout.tool.scale': { en: 'Scale', zh: '缩放' },
     'layout.restart': { en: 'Restart', zh: '重新运行' },
     'layout.pause': { en: 'Pause', zh: '暂停' },
+    'layout.resume': { en: 'Resume', zh: '继续' },
+    'layout.maximizeOnPlay': { en: 'Maximize Viewport on Play', zh: '运行时最大化视口' },
     'layout.playInViewportTooltip': { en: 'Play in Viewport', zh: '在视口中运行' },
     'layout.playInWindowTooltip': { en: 'Play in New Window', zh: '在新窗口中运行' },
     'layout.playInViewport': { en: 'Play In Viewport', zh: '在视口中运行' },
@@ -55,6 +57,7 @@ export const layoutMessages = defineMessages({
     // — Status bar —
     'layout.contentDrawer': { en: 'Content Drawer', zh: '内容抽屉' },
     'layout.status.running': { en: 'Running', zh: '运行中' },
+    'layout.status.paused': { en: 'Paused', zh: '已暂停' },
     'layout.status.editMode': { en: 'Edit Mode', zh: '编辑模式' },
     'layout.status.selected': { en: '{count} selected', zh: '已选中 {count} 个' },
     'layout.status.noSelection': { en: 'No selection', zh: '未选中' },

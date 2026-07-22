@@ -335,8 +335,15 @@ export function DockLayout() {
     ensureBottomTabs(api);
     api.getPanel('content')?.api.setActive();
 
+    // Never restore into a maximized state — "Maximize On Play" / F11 focus is a
+    // transient view, so a reload always lands on the real editing layout.
+    if (api.hasMaximizedGroup()) api.exitMaximizedGroup();
+
     // Persist the dock arrangement so it survives reloads — a real editor habit.
+    // Skip while maximized (play/focus): that view is transient and must not
+    // overwrite the user's real dock arrangement.
     api.onDidLayoutChange(() => {
+      if (api.hasMaximizedGroup()) return;
       localStorage.setItem(LAYOUT_KEY, JSON.stringify(api.toJSON()));
     });
   };

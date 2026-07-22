@@ -26,6 +26,11 @@ interface EditorState {
   // single realm; N>1 = a listen-server realm + N-1 client realms, replicated).
   playPlayers: number;
   setPlayPlayers: (n: number) => void;
+  // Maximize the viewport/game group when Play starts (Unity's "Maximize On Play"),
+  // restored on Stop. Off by default so the live-inspect-while-playing workflow
+  // (tweaking entities in the Outliner/Details) keeps its panels. Persisted.
+  maximizeOnPlay: boolean;
+  setMaximizeOnPlay: (v: boolean) => void;
   // Which world the Outliner/Details inspect: the edit scene or the live game
   // (UE5 world picker). Auto-flips to 'game' on Play, 'editor' on Stop.
   inspectWorld: 'editor' | 'game';
@@ -145,6 +150,12 @@ export const useEditorStore = create<EditorState>((set) => ({
   setPlayPlayers: (playPlayers) => {
     if (typeof localStorage !== 'undefined') localStorage.setItem('estella.playPlayers', String(playPlayers));
     set({ playPlayers });
+  },
+  maximizeOnPlay:
+    typeof localStorage !== 'undefined' && localStorage.getItem('estella.maximizeOnPlay') === '1',
+  setMaximizeOnPlay: (maximizeOnPlay) => {
+    if (typeof localStorage !== 'undefined') localStorage.setItem('estella.maximizeOnPlay', maximizeOnPlay ? '1' : '0');
+    set({ maximizeOnPlay });
   },
   inspectWorld: 'editor',
   setInspectWorld: (inspectWorld) => set({ inspectWorld }),

@@ -766,7 +766,15 @@ body.thumb-capture .viewport > :not(.viewport__stage):not(.viewport__play) {
   border: 1px solid color-mix(in srgb, var(--gizmo-tile) 50%, transparent);
   padding: 4px 12px;
   border-radius: 999px;
-  pointer-events: none;
+  /* A button now: click the chip to open the mode's companion panels (the Tilemap
+     painter / UI widgets) — the contextual counterpart to the activity-bar mode
+     buttons, so a plain selection never has to fling those panels open itself. */
+  cursor: pointer;
+  transition: background var(--t-fast), border-color var(--t-fast);
+}
+.viewport__tileflag:hover {
+  background: color-mix(in srgb, var(--gizmo-tile) 22%, rgba(var(--glass-rgb), 0.85));
+  border-color: color-mix(in srgb, var(--gizmo-tile) 75%, transparent);
 }
 
 /* Squeezed viewport: the centered flags would slide under the top toolbars —

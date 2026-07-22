@@ -325,6 +325,18 @@ commands.register({
   },
 });
 commands.register({
+  id: 'view.focusViewport',
+  label: t('cmd.view.focusViewport'),
+  category: t('cat.view'),
+  // Maximize the viewport/game group to fill the workspace (hiding the surrounding
+  // docks), or restore — a focus toggle usable any time, and the manual counterpart
+  // to "Maximize On Play". Native dockview maximize: the viewport canvas is only
+  // hidden-behind, never remounted, so the engine keeps running.
+  keybinding: 'f11',
+  isChecked: () => dockApi.isMaximized(),
+  run: () => dockApi.toggleMaximizePanel('viewport'),
+});
+commands.register({
   id: 'view.toggleGrid',
   label: t('cmd.view.toggleGrid'),
   category: t('cat.view'),
@@ -434,6 +446,10 @@ commands.register({
   label: t('cmd.play.toggle'),
   category: t('cat.play'),
   keybinding: 'f5',
+  // A prefab has no scene to run — disable Play (F5 / palette / menu) in Prefab Mode
+  // so it can't flip on for a frame and immediately self-revert. Stopping is always
+  // allowed (isPlaying), so a stuck session can never be trapped.
+  isEnabled: () => editor().isPlaying || !ProjectStore.getSnapshot()?.prefabEdit,
   run: () => editor().togglePlay(),
 });
 commands.register({

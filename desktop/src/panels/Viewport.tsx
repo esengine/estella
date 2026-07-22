@@ -1940,7 +1940,7 @@ export function Viewport() {
   };
 
   return (
-    <div className={`viewport${isPlaying ? ' viewport--play' : ''}`}>
+    <div className={`viewport${playInViewport ? ' viewport--play' : ''}${playInViewport && isPaused ? ' viewport--paused' : ''}`}>
       {/* Docked scene toolbar under the panel tabs — view menus + display controls
           on the left, quick display toggles pinned right. Tool selection lives in the
           floating palette over the canvas (.ov-left). */}
@@ -2457,16 +2457,22 @@ export function Viewport() {
       {engine.status === 'ready' && showMinimap && <ViewportMinimap data={minimap} />}
       {perfVisible && <Perf id="viewport.perfhud"><PerfOverlay /></Perf>}
 
-      {mode.id !== 'scene' && (
-        <div className="viewport__tileflag">
+      {mode.id !== 'scene' && !isPlaying && (
+        <button
+          type="button"
+          className="viewport__tileflag"
+          title={t('vp.openModePanels', { mode: mode.label })}
+          onClick={() => commands.run(`mode.${mode.id}`)}
+        >
           ◧ {mode.label}
           {inTilePaint && paintTool ? ` · ${TILE_TOOL_LABEL[paintTool]}` : ''}
-        </div>
+        </button>
       )}
-      {isPlaying && (
-        <div className={`viewport__playflag${isPaused ? ' paused' : ''}`}>
-          {isPaused ? t('vp.pausedFlag') : t('vp.playFlag')}
-        </div>
+      {/* Playing-in-viewport is shown by the accent ring around the frame (see
+          .viewport--play in CSS) — no pill over the game. A PAUSED game is the one
+          state that needs a label: a frozen frame must not read as a hang. */}
+      {playInViewport && isPaused && (
+        <div className="viewport__playflag paused">{t('vp.pausedFlag')}</div>
       )}
     </div>
   );

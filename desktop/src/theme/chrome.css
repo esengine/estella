@@ -147,6 +147,7 @@
 .sitem.mono { font-family: var(--mono); }
 .sdot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-mute); }
 .sdot.live { background: var(--play); }
+.sdot.paused { background: var(--warn); }
 .smute { color: var(--text-mute); }
 /* Keep the status strip (with the Content-Drawer toggle) above the drawer/scrim. */
 .status { position: relative; z-index: calc(var(--z-drawer) + 3); }

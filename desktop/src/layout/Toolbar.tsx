@@ -8,6 +8,7 @@ import {
   Play,
   Pause,
   Square as Stop,
+  RotateCcw,
   Hammer,
   Monitor,
   AppWindow,
@@ -61,8 +62,10 @@ export function Toolbar() {
   const setPlayTarget = useEditorStore((s) => s.setPlayTarget);
   const playPlayers = useEditorStore((s) => s.playPlayers);
   const setPlayPlayers = useEditorStore((s) => s.setPlayPlayers);
+  const maximizeOnPlay = useEditorStore((s) => s.maximizeOnPlay);
+  const setMaximizeOnPlay = useEditorStore((s) => s.setMaximizeOnPlay);
   const [modeMenu, setModeMenu] = useState<{ x: number; y: number } | null>(null);
-  const { isPlaying, isPaused, togglePause, stop } = useEditorStore();
+  const { isPlaying, isPaused, togglePause } = useEditorStore();
 
   // Play is unavailable in Prefab Mode — a prefab has no scene to run.
   const inPrefabMode = useSyncExternalStore(
@@ -104,7 +107,9 @@ export function Toolbar() {
 
       <span className="tspacer" />
 
-      {/* Play controls sit dead-center — the focal action. */}
+      {/* Play controls sit dead-center — the focal action. The primary button is a
+          Play↔Stop toggle (the muscle-memory action), so hitting it while playing
+          stops — never a surprise cold Restart. Restart + Pause are side buttons. */}
       <div className={`play-wrap${isPlaying ? ' playing' : ''}${isPaused ? ' paused' : ''}`}>
         <button
           type="button"
@@ -114,19 +119,31 @@ export function Toolbar() {
             inPrefabMode
               ? t('layout.toast.noPlayInPrefab')
               : isPlaying
-                ? `${t('layout.restart')}${hint('play.restart')}`
+                ? `${t('cmd.play.stop')}${hint('play.stop')}`
                 : `${t('cmd.play.toggle')}${hint('play.toggle')}`
           }
-          onClick={() => commands.run(isPlaying ? 'play.restart' : 'play.toggle')}
+          onClick={() => commands.run(isPlaying ? 'play.stop' : 'play.toggle')}
         >
-          <Play size={15} strokeWidth={1.9} fill="currentColor" />
-          {isPlaying ? t('layout.restart') : t('cmd.play.toggle')}
+          {isPlaying ? <Stop size={13} strokeWidth={1.9} fill="currentColor" /> : <Play size={15} strokeWidth={1.9} fill="currentColor" />}
+          {isPlaying ? t('cmd.play.stop') : t('cmd.play.toggle')}
         </button>
-        <button type="button" className="play-side" title={t('layout.pause')} disabled={!isPlaying} onClick={togglePause}>
-          <Pause size={14} strokeWidth={1.9} fill="currentColor" />
+        <button
+          type="button"
+          className="play-side"
+          title={isPaused ? `${t('layout.resume')}${hint('play.pause')}` : `${t('layout.pause')}${hint('play.pause')}`}
+          disabled={!isPlaying}
+          onClick={togglePause}
+        >
+          {isPaused ? <Play size={13} strokeWidth={1.9} fill="currentColor" /> : <Pause size={14} strokeWidth={1.9} fill="currentColor" />}
         </button>
-        <button type="button" className="play-side" title={t('cmd.play.stop')} disabled={!isPlaying} onClick={stop}>
-          <Stop size={12} strokeWidth={1.9} fill="currentColor" />
+        <button
+          type="button"
+          className="play-side"
+          title={`${t('layout.restart')}${hint('play.restart')}`}
+          disabled={!isPlaying}
+          onClick={() => commands.run('play.restart')}
+        >
+          <RotateCcw size={13} strokeWidth={2} />
         </button>
         <button
           type="button"
@@ -150,6 +167,10 @@ export function Toolbar() {
           items={[
             { label: t('layout.playInViewport'), checked: playTarget === 'viewport', onClick: () => setPlayTarget('viewport') },
             { label: t('layout.playInWindow'), checked: playTarget === 'window', onClick: () => setPlayTarget('window') },
+            { sep: true },
+            // Unity-style "Maximize On Play": hand the whole workspace to the game
+            // while it runs, restoring the docks on Stop.
+            { label: t('layout.maximizeOnPlay'), checked: maximizeOnPlay, onClick: () => setMaximizeOnPlay(!maximizeOnPlay) },
             { sep: true },
             // Multiplayer preview: 1 = plain play; N>1 boots a listen-server realm
             // (player 1) + N-1 client realms wired by in-editor replication.

@@ -46,6 +46,7 @@ export const commandMessages = defineMessages({
 
     // — View —
     'cmd.view.frameSelected': { en: 'Frame Selected', zh: '聚焦所选' },
+    'cmd.view.focusViewport': { en: 'Maximize Viewport', zh: '最大化视口' },
     'cmd.view.toggleGrid': { en: 'Show Grid', zh: '显示网格' },
     'cmd.view.toggleGizmos': { en: 'Show Gizmos', zh: '显示 Gizmo' },
     'cmd.view.togglePreviewFx': { en: 'Preview FX', zh: '预览特效' },

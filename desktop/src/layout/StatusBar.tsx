@@ -61,6 +61,7 @@ function CursorReadout() {
 // world position) reads in the mono face. Anchors the Content Drawer.
 export function StatusBar() {
   const isPlaying = useEditorStore((s) => s.isPlaying);
+  const isPaused = useEditorStore((s) => s.isPaused);
   const contentDrawer = useEditorStore((s) => s.contentDrawer);
   const toggleContentDrawer = useEditorStore((s) => s.toggleContentDrawer);
   const selectedIds = useSelection((s) => s.selectedIds);
@@ -78,8 +79,8 @@ export function StatusBar() {
           {t('layout.contentDrawer')}
         </button>
         <span className="sitem">
-          <span className={`sdot${isPlaying ? ' live' : ''}`} />
-          {isPlaying ? t('layout.status.running') : t('layout.status.editMode')}
+          <span className={`sdot${isPlaying ? (isPaused ? ' paused' : ' live') : ''}`} />
+          {isPlaying ? (isPaused ? t('layout.status.paused') : t('layout.status.running')) : t('layout.status.editMode')}
         </span>
         <Perf id="statusbar.mods"><SubsystemIndicator /></Perf>
         <span className="sitem">

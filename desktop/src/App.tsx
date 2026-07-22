@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { useEffect, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { MenuBar } from '@/layout/MenuBar';
 import { Toolbar } from '@/layout/Toolbar';
 import { StatusBar } from '@/layout/StatusBar';
@@ -109,21 +109,17 @@ export function App() {
     });
   }, []);
 
-  // Reveal a mode's companion panels when the selection enters that mode (only on the
-  // transition INTO one, so moving within a mode doesn't keep yanking focus). This
-  // generalizes the old tilemap-painter auto-open: "select a tilemap → here's how you
-  // paint it" is now one instance of "enter a mode → here are its panels". A selection
-  // that implies a new mode also drops a stale explicit pin.
+  // A plain selection switches the editing mode (its tools + viewport overlays are
+  // derived live from activeMode()) but must NOT restructure the workspace — clicking
+  // to inspect a node should never fling docked panels open over what you were doing.
+  // Opening a mode's companion panels (the Tilemap painter, UI widgets…) is an
+  // EXPLICIT gesture now: click the mode chip in the viewport, the activity-bar mode
+  // button, or run the mode command. Entering a new mode still drops a stale pin.
   useEffect(() => {
     let prevMode: EditorModeId | null = null;
     return useSelection.subscribe(() => {
       const mode = suggestedMode();
-      if (mode.id !== prevMode) {
-        useEditorMode.getState().clearPin();
-        for (const p of mode.panels ?? []) {
-          dockApi.openSidePanel(p.id, p.component, p.title, p.side ?? 'left', p.width ?? 300);
-        }
-      }
+      if (mode.id !== prevMode) useEditorMode.getState().clearPin();
       prevMode = mode.id;
     });
   }, []);
@@ -192,6 +188,9 @@ export function App() {
   // EditorControlSurface.setRunMode + step for deterministic capture.)
   const isPlaying = useEditorStore((s) => s.isPlaying);
   const isPaused = useEditorStore((s) => s.isPaused);
+  // Tracks a maximize we triggered from "Maximize On Play" so Stop only restores the
+  // layout WE collapsed — a manual F11 focus the user chose is left as they left it.
+  const autoMaximized = useRef(false);
   useEffect(() => {
     if (isPlaying) {
       // Prefab Mode holds a prefab tree, not a playable scene (no camera → a black
@@ -215,10 +214,22 @@ export function App() {
       if (useEditorStore.getState().playTarget === 'window') dockApi.openGame();
       // Client players each get their own Game tab beside player 1.
       if (players > 1) dockApi.openGameClients(PlayRealms.clients.map((c) => c.id));
+      // Maximize On Play: give the game the whole workspace (the Game tab lives in
+      // the viewport group, so maximizing it covers both targets). Deferred a frame
+      // so the just-added Game panel is settled. Native maximize only hides the
+      // siblings — the viewport's live canvas is never remounted.
+      if (useEditorStore.getState().maximizeOnPlay) {
+        autoMaximized.current = true;
+        requestAnimationFrame(() => dockApi.maximizePanel('viewport'));
+      }
     } else {
       PlayRealms.stopSession();
       PlayInspect.stop();
       useEditorStore.getState().setInspectWorld('editor');
+      if (autoMaximized.current) {
+        dockApi.exitMaximized();
+        autoMaximized.current = false;
+      }
       dockApi.closeGame();
       dockApi.closeGameClients();
       // Not on mount/launcher — there is no project to stage yet.

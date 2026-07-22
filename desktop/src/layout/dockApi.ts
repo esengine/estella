@@ -177,6 +177,31 @@ export const dockApi = {
       p.api.close();
     }
   },
+
+  /** True while some dock group is maximized (the whole stage fills the workspace). */
+  isMaximized(): boolean {
+    return !!api?.hasMaximizedGroup();
+  },
+  /**
+   * Maximize a panel's group to fill the workspace — dockview's native maximize,
+   * which only HIDES the sibling groups (it does not remove/recreate any panel),
+   * so the Viewport's live WebGL canvas survives untouched. Powers "Maximize On
+   * Play" and the F11 focus toggle. No-op if the panel is popped out (a separate
+   * OS window owns its own size). */
+  maximizePanel(id: string) {
+    const panel = api?.getPanel(id);
+    if (api && panel && panel.api.location.type === 'grid') api.maximizeGroup(panel);
+  },
+  /** Restore from any maximized group (Stop / exit focus). */
+  exitMaximized() {
+    if (api?.hasMaximizedGroup()) api.exitMaximizedGroup();
+  },
+  /** Toggle a panel's group maximized/restored — the F11 focus command. */
+  toggleMaximizePanel(id: string) {
+    if (!api) return;
+    if (api.hasMaximizedGroup()) api.exitMaximizedGroup();
+    else this.maximizePanel(id);
+  },
   /** Collapse a panel's group to its header / expand it back (click-to-toggle). */
   toggleCollapse(id: string, axis: 'width' | 'height') {
     const panel = api?.getPanel(id);
