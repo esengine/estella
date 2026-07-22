@@ -42,8 +42,16 @@ bool postprocess_init(u32 width, u32 height) {
 
 void postprocess_shutdown() {
     if (g_postProcessPipeline) {
+        // Tear down the passes/FBOs/blit shader, but KEEP the service registered.
+        // The pipeline is owned by RenderFrame (registered as a bare-pointer service
+        // and the very object RenderFrame::begin renders through). Unregistering it
+        // here orphaned it on a warm re-play: `postprocess_init` then saw no service,
+        // built a *separate* owned duplicate, and RenderFrame kept using its own —
+        // now permanently un-initialized — pipeline, so `usePostProcess` went false
+        // and a linear-space scene rendered without the mandatory linear→sRGB encode
+        // (i.e. black). Leaving it registered lets the lazy re-init (_applyForCamera →
+        // init → resize) restore the SAME pipeline RenderFrame draws with.
         g_postProcessPipeline->shutdown();
-        ctx().services().removeService<PostProcessPipeline>();
     }
 }
 
