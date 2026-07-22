@@ -21,6 +21,7 @@ export function ConfirmHost() {
       body={cur.body}
       confirmLabel={cur.confirmLabel ?? t('ui.ok')}
       danger={cur.danger}
+      info={cur.info}
       onConfirm={() => ConfirmService.settle(cur.id, true)}
       onCancel={() => ConfirmService.settle(cur.id, false)}
     />

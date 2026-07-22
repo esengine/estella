@@ -80,6 +80,7 @@ export const commandMessages = defineMessages({
     'cat.play': { en: 'Play', zh: '运行' },
     'cat.build': { en: 'Build', zh: '构建' },
     'cat.general': { en: 'General', zh: '通用' },
+    'cat.help': { en: 'Help', zh: '帮助' },
 
     // — Editor modes (viewport toolbar) + their companion panels —
     'mode.scene': { en: 'Scene', zh: '场景' },

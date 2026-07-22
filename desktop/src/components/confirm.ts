@@ -20,6 +20,8 @@ export interface ConfirmOptions {
   confirmLabel?: string;
   /** Destructive action — the confirm button wears the error fill. */
   danger?: boolean;
+  /** Acknowledge-only (About, notices): a single OK button, no Cancel. */
+  info?: boolean;
 }
 
 export interface PendingConfirm extends ConfirmOptions {

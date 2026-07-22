@@ -16,6 +16,7 @@ export function ConfirmDialog({
   body,
   confirmLabel = t('ui.ok'),
   danger,
+  info,
   onConfirm,
   onCancel,
 }: {
@@ -24,6 +25,8 @@ export function ConfirmDialog({
   confirmLabel?: string;
   /** Destructive action — the confirm button wears the error fill. */
   danger?: boolean;
+  /** Acknowledge-only — a single OK button, no Cancel. */
+  info?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }) {
@@ -38,7 +41,7 @@ export function ConfirmDialog({
       width={420}
       footer={
         <>
-          <Button onClick={onCancel}>{t('ui.cancel')}</Button>
+          {!info && <Button onClick={onCancel}>{t('ui.cancel')}</Button>}
           <Button ref={btn} variant={danger ? 'danger' : 'primary'} onClick={onConfirm}>
             {confirmLabel}
           </Button>

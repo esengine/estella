@@ -10,10 +10,8 @@ import { WindowControls } from '@/layout/WindowControls';
 import { DirtyDot } from '@/components/DirtyDot';
 import { resetLayout } from '@/layout/DockLayout';
 import { confirmDiscard } from '@/project/discardGuard';
-import { useEditorStore } from '@/store/editorStore';
 import { ProjectStore } from '@/project/ProjectStore';
 import { EditorHistory } from '@/engine/EditorHistory';
-import { Toasts } from '@/store/Toasts';
 import { MenuItems, handleMenuListKey, type MenuItem } from '@/components/Menu';
 import { commands, formatKeybinding } from '@/commands';
 import { t } from '@/i18n';
@@ -148,15 +146,7 @@ export function MenuBar() {
         cmdItem('project.export'),
         { sep: true },
         cmdItem('build.scripts'),
-        {
-          label: t('menu.extractSchemas'),
-          // refreshUserSchemas extracts AND reloads into the editor (so the
-          // inspector updates), unlike a bare extract that only writes the file.
-          onClick: () => void ProjectStore.refreshUserSchemas()
-            .then(() => Toasts.push(t('toast.extractedSchemas'), 'success'))
-            .catch(() => Toasts.push(t('toast.extractFailed'), 'error')),
-          disabled: !project,
-        },
+        cmdItem('project.extractSchemas'),
       ],
     },
     {
@@ -174,36 +164,13 @@ export function MenuBar() {
     {
       title: t('menu.help'),
       items: [
-        {
-          label: t('menu.about'),
-          onClick: () => void window.estella?.getVersion?.()
-            .then((v) => window.alert(`Estella Editor${v ? ' · ' + v : ''}\n${t('menu.aboutTagline')}`))
-            .catch(() => window.alert('Estella Editor')),
-        },
-        {
-          label: t('menu.checkUpdates'),
-          onClick: () => void window.estella?.app?.checkUpdates?.().then((release) => {
-            if (release) {
-              Toasts.push(t('toast.updateAvailable', { version: release.version }), 'info', 0, {
-                label: t('ui.download'),
-                run: () => window.open(release.url),
-              });
-            } else {
-              Toasts.push(t('toast.upToDate'), 'success');
-            }
-          }),
-        },
+        cmdItem('help.about'),
+        cmdItem('help.checkUpdates'),
         { sep: true },
         cmdItem('palette.open'),
-        {
-          label: t('menu.keyboardShortcuts'),
-          onClick: () => useEditorStore.getState().openSettings('shortcuts'),
-        },
+        cmdItem('help.shortcuts'),
         { sep: true },
-        {
-          label: t('menu.openLogs'),
-          onClick: () => void window.estella?.app?.openLogs?.(),
-        },
+        cmdItem('help.openLogs'),
       ],
     },
   ];

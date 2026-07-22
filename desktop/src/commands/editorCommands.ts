@@ -29,6 +29,7 @@ import { useEditorMode } from '@/store/editorModeStore';
 import { useEditorStore } from '@/store/editorStore';
 import { useSelection } from '@/store/selectionStore';
 import { Toasts } from '@/store/Toasts';
+import { confirm } from '@/components/confirm';
 import { t } from '@/i18n';
 import type { ToolMode } from '@/types';
 
@@ -484,4 +485,52 @@ commands.register({
   category: t('cat.file'),
   isEnabled: () => !!ProjectStore.getSnapshot(),
   run: () => void ProjectStore.resaveAllPrefabs(),
+});
+commands.register({
+  id: 'project.extractSchemas',
+  label: t('menu.extractSchemas'),
+  category: t('cat.file'),
+  isEnabled: () => !!ProjectStore.getSnapshot(),
+  // Extracts user component schemas AND reloads them into the editor.
+  run: () => void ProjectStore.refreshUserSchemas()
+    .then(() => Toasts.push(t('toast.extractedSchemas'), 'success'))
+    .catch(() => Toasts.push(t('toast.extractFailed'), 'error')),
+});
+
+// — Help — (registered so they reach the Command Palette + rebinding, not just the menu)
+commands.register({
+  id: 'help.about',
+  label: t('menu.about'),
+  category: t('cat.help'),
+  // A themed acknowledge dialog, not window.alert (blocking + unthemed).
+  run: () => void window.estella?.getVersion?.()
+    .then((v) => confirm({ title: t('menu.about'), info: true, body: `Estella Editor${v ? ` · ${v}` : ''}\n${t('menu.aboutTagline')}` }))
+    .catch(() => void confirm({ title: t('menu.about'), info: true, body: 'Estella Editor' })),
+});
+commands.register({
+  id: 'help.checkUpdates',
+  label: t('menu.checkUpdates'),
+  category: t('cat.help'),
+  run: () => void window.estella?.app?.checkUpdates?.().then((release) => {
+    if (release) {
+      Toasts.push(t('toast.updateAvailable', { version: release.version }), 'info', 0, {
+        label: t('ui.download'),
+        run: () => window.open(release.url),
+      });
+    } else {
+      Toasts.push(t('toast.upToDate'), 'success');
+    }
+  }),
+});
+commands.register({
+  id: 'help.openLogs',
+  label: t('menu.openLogs'),
+  category: t('cat.help'),
+  run: () => void window.estella?.app?.openLogs?.(),
+});
+commands.register({
+  id: 'help.shortcuts',
+  label: t('menu.keyboardShortcuts'),
+  category: t('cat.help'),
+  run: () => editor().openSettings('shortcuts'),
 });
