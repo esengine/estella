@@ -19,7 +19,6 @@ import { SpinePlugin } from './spine/SpinePlugin';
 import type { App } from './app';
 import { Assets as AssetsClass } from './asset/Assets';
 import { Assets as AssetsResource } from './asset/AssetPlugin';
-import { initBuiltinAssetFields } from './asset/AssetFieldRegistry';
 import { transcoderFromModule, type BasisWasmModule } from './asset/basisTranscoder';
 import type { TextureImportSettings } from './asset/loaders/TextureLoader';
 import { SceneManager, type SceneConfig } from './sceneManager';
@@ -84,7 +83,6 @@ function ensureRuntimeAssets(
         if (runtimeImportSettings.has(existing)) return existing;
     }
 
-    initBuiltinAssetFields();
     const assets = AssetsClass.create({
         backend: source.backend,
         module,

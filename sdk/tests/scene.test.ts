@@ -25,10 +25,7 @@ import {
 } from '../src/scene';
 import type { Entity } from '../src/types';
 import { discoverSceneAssets } from '../src/asset/discoverAssets';
-import { getAssetFields, initBuiltinAssetFields } from '../src/asset/AssetFieldRegistry';
 import { initResourceManager, shutdownResourceManager } from '../src/resourceManager';
-
-initBuiltinAssetFields();
 
 const Transform = defineBuiltin('Transform', {
     position: { x: 0, y: 0, z: 0 },
@@ -657,7 +654,7 @@ describe('Scene', () => {
                 (sceneData: SceneData, result: { textureHandles: Map<string, number>; materialHandles: Map<string, number>; fontHandles: Map<string, number> }) => {
                     for (const entity of sceneData.entities) {
                         for (const comp of entity.components) {
-                            const fields = getAssetFields(comp.type) as { field: string; type: string }[];
+                            const fields = getComponentAssetFieldDescriptors(comp.type);
                             for (const { field, type } of fields) {
                                 const value = comp.data[field];
                                 if (typeof value !== 'string' || !value) continue;

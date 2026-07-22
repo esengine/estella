@@ -32,9 +32,3 @@ export {
 export { type AssetLoader, type LoadContext, type TextureResult, type TextureResult as TextureInfo, type SpineResult, type SpineLoadResult, type MaterialResult, type FontResult, type AudioResult, type LocaleResult } from './AssetLoader';
 export { TextureLoader, type TextureImportSettings, type TextureImportSettingsResolver } from './loaders/TextureLoader';
 export { SceneHandle } from './SceneHandle';
-export {
-    registerAssetFields, registerCompoundAssetFields,
-    getAssetFields, getCompoundAssetFields,
-    initBuiltinAssetFields,
-    type AssetFieldType, type AssetFieldDescriptor, type CompoundFieldDescriptor,
-} from './AssetFieldRegistry';

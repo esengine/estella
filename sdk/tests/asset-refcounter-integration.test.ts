@@ -13,7 +13,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { defineComponent, clearUserComponents } from '../src/component';
 import { Assets } from '../src/asset/Assets';
 import { AssetRefCounter } from '../src/asset/AssetRefCounter';
-import { registerAssetFields, clearAssetFieldRegistry } from '../src/asset/AssetFieldRegistry';
 import type { Backend } from '../src/asset/Backend';
 import type { SceneData } from '../src/scene';
 import type { SceneAssetResult } from '../src/asset/Assets';
@@ -61,20 +60,21 @@ function emptyResult(): SceneAssetResult {
 
 beforeEach(() => {
     clearUserComponents();
-    clearAssetFieldRegistry();
+    // resolveSceneAssetPaths reads the asset fields declared on the component
+    // def itself (the single source) — no separate registry.
     defineComponent(SPRITE, {
         texture: '',
         material: '',
         color: { r: 1, g: 1, b: 1, a: 1 },
+    }, {
+        assetFields: [
+            { field: 'texture',  type: 'texture' },
+            { field: 'material', type: 'material' },
+        ],
     });
-    defineComponent(LABEL, { font: '', text: '' });
-    // resolveSceneAssetPaths pulls fields from this registry, not from
-    // defineComponent metadata.
-    registerAssetFields(SPRITE, [
-        { field: 'texture',  type: 'texture' },
-        { field: 'material', type: 'material' },
-    ]);
-    registerAssetFields(LABEL, [{ field: 'font', type: 'font' }]);
+    defineComponent(LABEL, { font: '', text: '' }, {
+        assetFields: [{ field: 'font', type: 'font' }],
+    });
 });
 
 describe('Assets.resolveSceneAssetPaths → AssetRefCounter', () => {

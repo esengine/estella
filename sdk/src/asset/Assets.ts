@@ -30,8 +30,8 @@ import { AnimatorControllerAssetLoader } from './loaders/AnimatorControllerAsset
 import { BtAssetLoader } from './loaders/BtAssetLoader';
 import { LocaleAssetLoader } from './loaders/LocaleAssetLoader';
 import type { SpineModuleController } from '../spine/SpineController';
-import { getAssetFields } from './AssetFieldRegistry';
 import { getComponentDefaults } from '../component';
+import { getComponentAssetFieldDescriptors } from '../scene';
 import { discoverSceneAssets } from './discoverAssets';
 import { fetchDecodePixels } from './imageDecode';
 import type { SceneData } from '../scene';
@@ -814,7 +814,11 @@ export class Assets {
 
         for (const entity of sceneData.entities) {
             for (const comp of entity.components) {
-                const fields = getAssetFields(comp.type);
+                // Single source: the component def's declared asset fields.
+                // Handle write-back always keys off assetFields (the direct
+                // texture/material/font members), even for components whose
+                // discovery is driven by a discoverAssets callback instead.
+                const fields = getComponentAssetFieldDescriptors(comp.type);
                 for (const { field, type } of fields) {
                     const ref = comp.data[field];
                     if (typeof ref !== 'string' || !ref) continue;

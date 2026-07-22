@@ -5,7 +5,6 @@ import { defineResource } from '../resource';
 import { Assets as AssetsClass } from './Assets';
 import { HttpBackend } from './Backend';
 import { transcoderFromModule, type BasisWasmModule } from './basisTranscoder';
-import { initBuiltinAssetFields } from './AssetFieldRegistry';
 import { AssetRefCounter } from './AssetRefCounter';
 import { Audio, type AudioAPI } from '../audio/Audio';
 import { SpriteAnimation, type SpriteAnimationAPI } from '../animation/SpriteAnimator';
@@ -28,8 +27,6 @@ export class AssetPlugin implements Plugin {
             log.warn('asset', 'AssetPlugin: No WASM module available');
             return;
         }
-
-        initBuiltinAssetFields();
 
         const assets = AssetsClass.create({
             backend: new HttpBackend({ baseUrl: '' }),
