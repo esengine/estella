@@ -341,6 +341,14 @@ export async function createFromSource(source: EntitySource, ctx: CreateContext)
     position: ctx.position,
     linkPrefabRef: source.linkPrefabRef?.(ctx),
   });
+  // A UI widget's on-screen spot is layout-owned (a flow node collapses to the Canvas
+  // corner, tiny and easy to miss), so `create`'s Transform.position is a no-op for it.
+  // Lift it out of flow through ONE placement path shared by the palette click and the
+  // viewport drop: dropped at a point → land there; clicked with no point → centre it.
+  if (id != null && source.placement === 'under-canvas') {
+    if (ctx.position) SceneCommands.placeUINodeAtWorld(id, ctx.position.x, ctx.position.y);
+    else SceneCommands.centerUINodeInCanvas(id);
+  }
   if (id != null) source.afterCreate?.(ctx, id);
   // Built-in widget prefabs bake the default dark palette; re-resolve the fresh
   // ThemeStyle tags against the ACTIVE tokens so a themed project's palette drops

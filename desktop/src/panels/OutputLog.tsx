@@ -14,6 +14,7 @@ import { LogStore, type LogLevel, type LogEntry } from '@/store/LogStore';
 import { ContextMenu, type MenuItem } from '@/components/Menu';
 import { usePanelWindow } from '@/components/PanelWindow';
 import { SearchField } from '@/components/SearchField';
+import { IconButton } from '@/components/IconButton';
 import { Toasts } from '@/store/Toasts';
 import { t } from '@/i18n';
 
@@ -234,9 +235,8 @@ export function OutputLog() {
           <Chip id="error" label={t('log.errors')} count={counts.error} />
         </div>
         <SearchField className="log-search" iconSize={12} placeholder={t('log.filterPlaceholder')} value={query} onChange={setQuery} />
-        <button
-          type="button"
-          className={`pbtn${hidden.size > 0 ? ' on' : ''}`}
+        <IconButton
+          active={hidden.size > 0}
           title={t('log.categories')}
           onClick={(e) => {
             const r = e.currentTarget.getBoundingClientRect();
@@ -244,21 +244,20 @@ export function OutputLog() {
           }}
         >
           <ListFilter size={14} strokeWidth={1.85} />
-        </button>
-        <button
-          type="button"
-          className={`pbtn${showTime ? ' on' : ''}`}
+        </IconButton>
+        <IconButton
+          active={showTime}
           title={t('log.showTimestamps')}
           onClick={() => setShowTime((s) => !s)}
         >
           <Clock size={14} strokeWidth={1.85} />
-        </button>
-        <button type="button" className="pbtn" title={t('log.scrollToBottom')} onClick={scrollToBottom}>
+        </IconButton>
+        <IconButton title={t('log.scrollToBottom')} onClick={scrollToBottom}>
           <ArrowDownToLine size={14} strokeWidth={1.85} />
-        </button>
-        <button type="button" className="pbtn" title={t('log.clearLog')} onClick={() => LogStore.clear()}>
+        </IconButton>
+        <IconButton title={t('log.clearLog')} onClick={() => LogStore.clear()}>
           <Trash2 size={14} strokeWidth={1.85} />
-        </button>
+        </IconButton>
       </div>
 
       <div ref={bodyRef} className="log-body" onScroll={onScroll} onContextMenu={onContextMenu}>

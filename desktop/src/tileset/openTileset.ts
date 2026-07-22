@@ -33,8 +33,18 @@ export async function openTileset(path: string): Promise<void> {
   }
 }
 
-/** Create a .estileset next to a texture (referencing it), then open it. */
-export async function createTilesetFromTexture(texturePath: string): Promise<void> {
+/** The tile grid a new .estileset is sliced with (from NewTilesetDialog). */
+export interface TilesetGridInit {
+  tileWidth: number;
+  tileHeight: number;
+  margin: number;
+  spacing: number;
+  columns: number;
+}
+
+/** Create a .estileset next to a texture (referencing it), then open it. `grid` is the
+ *  slice chosen in the New-Tileset dialog; omitted falls back to a plain 16×16 grid. */
+export async function createTilesetFromTexture(texturePath: string, grid?: TilesetGridInit): Promise<void> {
   const ref = ProjectStore.assetRef(texturePath);
   if (!ref) {
     Toasts.push(t('tile.toast.texUntracked'), 'error');
@@ -45,7 +55,10 @@ export async function createTilesetFromTexture(texturePath: string): Promise<voi
   let rel = `${dir}${base}.estileset`;
   for (let n = 1; ProjectStore.assetRef(rel); n++) rel = `${dir}${base}-${n}.estileset`;
 
-  const asset = createTilesetAsset(ref, 16, 16, 1);
+  const g = grid ?? { tileWidth: 16, tileHeight: 16, margin: 0, spacing: 0, columns: 1 };
+  const asset = createTilesetAsset(ref, g.tileWidth, g.tileHeight, g.columns);
+  asset.margin = g.margin;
+  asset.spacing = g.spacing;
   const uuid = crypto.randomUUID();
   try {
     await window.estella.fs.write(rel, JSON.stringify(serializeTileset(asset), null, 2) + '\n');

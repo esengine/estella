@@ -2,6 +2,23 @@
 /* SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team */
 /* The .estileset editor panel (docs/REARCH_TILEMAP.md T2). */
 
+/* — New-tileset dialog: image + live grid overlay + slice fields. — */
+.nts { display: flex; flex-direction: column; gap: 12px; align-items: center; }
+.nts-preview {
+  position: relative;
+  max-width: 100%;
+  background: var(--srf-0) repeating-conic-gradient(var(--srf-2) 0 25%, transparent 0 50%) 0 0 / 16px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+}
+.nts-img { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+.nts-grid { position: absolute; inset: 0; pointer-events: none; }
+.nts-grid rect { fill: none; stroke: var(--star); stroke-opacity: 0.85; stroke-width: 1; }
+.nts-fields { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; width: 100%; }
+.nts-stat { font-size: var(--fs-sm); color: var(--text-dim); font-variant-numeric: tabular-nums; text-align: center; }
+.nts-warn { color: var(--warn, var(--star)); }
+
 .ts-editor {
   display: flex;
   flex-direction: column;

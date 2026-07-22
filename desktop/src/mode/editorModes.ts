@@ -29,6 +29,10 @@ export interface ModePanel {
   title: string;
   side?: 'left' | 'right';
   width?: number;
+  /** Dock as a TAB in another mode-panel's group (by id) instead of its own column —
+   *  keeps a companion (e.g. Controllers) one click away without eating a second column
+   *  of viewport width. Falls back to `side` if that panel isn't open. */
+  tabWith?: string;
 }
 
 export interface EditorModeDef {
@@ -61,7 +65,10 @@ const uiMode: EditorModeDef = {
   toolset: 'transform',
   panels: [
     { id: 'ui-widgets', component: 'uiWidgets', title: t('panel.uiWidgets'), side: 'left', width: 240 },
-    { id: 'controllers', component: 'controllers', title: t('panel.controllers'), side: 'left', width: 260 },
+    // The Controllers panel is node-scoped and reached occasionally — tab it behind the
+    // widget palette (one left column, two tabs) so entering UI mode doesn't eat a second
+    // column of the viewport you're laying out in.
+    { id: 'controllers', component: 'controllers', title: t('panel.controllers'), tabWith: 'ui-widgets', side: 'left', width: 240 },
   ],
   overlays: { designFrame: true, safeArea: true, letterbox: true },
   suggestFor: (s) => s.hasComponent('Canvas') || s.hasComponent('UINode'),

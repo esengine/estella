@@ -40,9 +40,6 @@
 .log-row.error .ls { color: var(--error); }
 .log-row .lm { color: var(--text-dim); }
 
-/* Active state for the header toggles (categories / timestamps). */
-.pbtn.on { color: var(--acc-hi); background: var(--srf-4); }
-
 /* Category filter popover (built on the .ctx context-menu shell). */
 .log-cats { max-height: 340px; overflow-y: auto; min-width: 184px; }
 .log-cats .lc-head { display: flex; gap: 6px; padding: 2px 4px 4px; }

@@ -54,11 +54,14 @@ export const tileMessages = defineMessages({
     'tile.tilesetGid': { en: '{path}  (gid {gid}+)', zh: '{path}（gid {gid}+）' },
     'tile.addTileset': { en: 'Add tileset', zh: '添加瓦片集' },
     'tile.removeTileset': { en: 'Remove tileset', zh: '移除瓦片集' },
+    'tile.removeTilesetTitle': { en: 'Remove tileset?', zh: '移除瓦片集？' },
+    'tile.removeTilesetBody': {
+      en: '{count} painted tile(s) use "{name}" and will be erased. Tiles from other tilesets are preserved.',
+      zh: '有 {count} 个已绘制的瓦片使用“{name}”，将被清除。其他瓦片集的瓦片会保留。',
+    },
     'tile.noTilesetsToAdd': { en: 'No tilesets to add', zh: '没有可添加的瓦片集' },
 
-    // — Painter palette + zoom bar —
-    'tile.zoomIn': { en: 'Zoom in', zh: '放大' },
-    'tile.zoomOut': { en: 'Zoom out', zh: '缩小' },
+    // — Painter palette + zoom bar (− / % / + / fit use the shared ui.zoom* labels) —
     'tile.fitWidth': { en: 'Fit width', zh: '适配宽度' },
     'tile.paletteAria': { en: 'Tile palette', zh: '瓦片调色板' },
     'tile.noPalette': {
@@ -88,7 +91,15 @@ export const tileMessages = defineMessages({
     'tile.field.tileH': { en: 'Tile H', zh: '瓦片高' },
     'tile.field.margin': { en: 'Margin', zh: '边距' },
     'tile.field.spacing': { en: 'Spacing', zh: '间距' },
-    'tile.field.zoom': { en: 'Zoom', zh: '缩放' },
+    // — New-tileset dialog (pick the grid instead of a blind 16×16) —
+    'tile.newTilesetTitle': { en: 'New tileset — slice the grid', zh: '新建瓦片集 — 切分网格' },
+    'tile.newTilesetCreate': { en: 'Create tileset', zh: '创建瓦片集' },
+    'tile.newTilesetLoading': { en: 'Loading image…', zh: '正在加载图片…' },
+    'tile.newTilesetCount': { en: '{cols} × {rows}  ·  {count} tiles', zh: '{cols} × {rows}  ·  {count} 个瓦片' },
+    'tile.newTilesetUneven': {
+      en: '  ⚠ the sheet isn’t evenly divided — the last row/column is clipped',
+      zh: '  ⚠ 图集未被整除 — 最后一行/列会被截断',
+    },
     'tile.mode.aria': { en: 'Edit mode', zh: '编辑模式' },
     'tile.mode.collision': { en: 'Collision', zh: '碰撞' },
     'tile.mode.terrain': { en: 'Terrain', zh: '地形' },

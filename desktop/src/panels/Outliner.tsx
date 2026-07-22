@@ -25,6 +25,7 @@ import type { EntityId } from '@/types';
 import { createFromSource, type EntitySource } from '@/engine/entitySources';
 import { CreatePopover } from '@/components/CreatePopover';
 import { Segmented } from '@/components/Segmented';
+import { IconButton } from '@/components/IconButton';
 
 // Must match .row height in outliner.css — the fixed row size the virtual list windows by.
 const ROW_H = 24;
@@ -700,9 +701,8 @@ export function Outliner() {
         <>
           <div className="phead">
             <SearchField placeholder={t('out.searchPlaceholder')} value={query} onChange={setQuery} />
-            <button
-              type="button"
-              className={`pbtn${sortMode !== 'manual' ? ' on' : ''}`}
+            <IconButton
+              active={sortMode !== 'manual'}
               title={t('out.sortLabel', { mode: SORT_MODE_LABEL[sortMode] })}
               onClick={(e) => {
                 const r = e.currentTarget.getBoundingClientRect();
@@ -710,13 +710,13 @@ export function Outliner() {
               }}
             >
               <ArrowDownUp size={14} strokeWidth={2} />
-            </button>
-            <button type="button" className="pbtn" title={t('out.newFolderTip')} onClick={() => newFolder('', null)}>
+            </IconButton>
+            <IconButton title={t('out.newFolderTip')} onClick={() => newFolder('', null)}>
               <FolderPlus size={15} strokeWidth={2} />
-            </button>
-            <button type="button" className="pbtn" title={t('out.addEntityTip')} onClick={() => setCreateFor({ parent: null })}>
+            </IconButton>
+            <IconButton title={t('out.addEntityTip')} onClick={() => setCreateFor({ parent: null })}>
               <Plus size={15} strokeWidth={2} />
-            </button>
+            </IconButton>
           </div>
           {sceneCount > 0 && (
             <div

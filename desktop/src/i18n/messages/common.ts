@@ -20,6 +20,9 @@ export const commonMessages = defineMessages({
     'ui.download': { en: 'Download', zh: '下载' },
     'ui.reloadNow': { en: 'Reload now', zh: '立即重新加载' },
     'ui.dismiss': { en: 'Dismiss', zh: '关闭' },
+    'ui.zoomIn': { en: 'Zoom in', zh: '放大' },
+    'ui.zoomOut': { en: 'Zoom out', zh: '缩小' },
+    'ui.zoomFit': { en: 'Fit to view', zh: '适配视图' },
 
     // — Panel crash fallback (components/ErrorBoundary.tsx) —
     'ui.crashTitle': { en: '{label} hit an error', zh: '{label} 出错了' },

@@ -15,6 +15,8 @@ import { useSelection } from '@/store/selectionStore';
 const UI_SOURCES = ENTITY_SOURCES.filter((s) => s.category === 'UI');
 
 export function UIWidgetsPanel() {
+  // A clicked widget passes no drop point, so createFromSource centres it in the Canvas
+  // (the shared UI-placement path also handles the viewport drop's drop-point landing).
   const add = (s: EntitySource) => {
     void createFromSource(s, { parent: null }).then((id) => {
       if (id != null) useSelection.getState().select(id);

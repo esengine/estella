@@ -67,20 +67,7 @@
   padding: 0 8px;
   border-bottom: 1px solid var(--border);
 }
-.pbtn {
-  width: 24px;
-  height: 24px;
-  display: grid;
-  place-items: center;
-  color: var(--text-mute);
-  border-radius: var(--r-sm);
-  flex-shrink: 0;
-  transition: color var(--t-fast), background var(--t-fast);
-}
-.pbtn:hover { color: var(--text); background: var(--srf-4); }
-.pbtn:active { background: var(--srf-5); }
-.pbtn:disabled { opacity: 0.4; cursor: default; }
-.pbtn.on { color: var(--acc); }
+/* (.pbtn retired — panel-header glyph buttons now use <IconButton>, .icon-btn below.) */
 .pbody { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; }
 
 /* Shared dirty-aware Save button for asset-editor toolbars (components/SaveButton.tsx).
@@ -129,6 +116,11 @@
 .icon-btn--outline { border: 1px solid var(--border-line); background: var(--srf-3); color: var(--text-dim); }
 .icon-btn--outline:hover:not(:disabled) { color: var(--text); border-color: var(--text-mute); background: var(--srf-4); }
 .icon-btn--outline.on { border-color: var(--acc); }
+
+/* — Zoom stepper (components/ZoomControl.tsx): − / % / + / fit for any magnified
+     fixed-size surface (tilemap palette, tileset atlas). — */
+.zoomctl { display: inline-flex; align-items: center; gap: 2px; flex: 0 0 auto; }
+.zoomctl-pct { min-width: 42px; text-align: center; color: var(--text-faint); font-variant-numeric: tabular-nums; font-size: var(--fs-xs); }
 
 /* — Input well (components/NumField.tsx + the inspector's dropdown trigger):
      a bordered inset the actual control sits in, focus ring on the well. — */

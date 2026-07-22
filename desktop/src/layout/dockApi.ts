@@ -135,6 +135,19 @@ export const dockApi = {
     }
     api.getPanel(id)?.api.setActive();
   },
+  /** Open a panel as a TAB within another panel's group (e.g. a mode companion behind the
+   *  widget palette), so it doesn't claim its own column. Falls back to a side column when
+   *  the reference panel isn't open. Does not steal focus — the reference tab stays active. */
+  openTabbedPanel(id: string, component: string, title: string, referenceId: string, fallbackDir: 'left' | 'right' = 'left', width = 300) {
+    if (!api) return;
+    const ref = api.getPanel(referenceId);
+    if (!ref) { this.openSidePanel(id, component, title, fallbackDir, width); return; }
+    if (!api.getPanel(id)) {
+      api.addPanel({ id, component, title, position: { referencePanel: referenceId, direction: 'within' } });
+    }
+    // Keep the reference tab (the primary companion) foremost so the mode opens showing it.
+    ref.api.setActive();
+  },
   /** Open (or reveal) the Game view as a tab beside the Viewport — used on Play. */
   openGame() {
     if (!api) return;

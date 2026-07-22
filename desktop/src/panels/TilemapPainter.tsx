@@ -13,9 +13,9 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import {
   Brush, Eraser, Square, Circle, Slash, PaintBucket, BoxSelect, Pipette,
   FlipHorizontal, FlipVertical, RotateCw, Mountain, Plus, X, MousePointer2, Dices,
-  ZoomIn, ZoomOut, Maximize2, Eye, EyeOff, Lock, Unlock, Bookmark,
+  Eye, EyeOff, Lock, Unlock, Bookmark,
 } from 'lucide-react';
-import { encodeTile, type TilesetAsset, type TileStamp } from 'esengine';
+import { encodeTile, TilemapAPI, type TilesetAsset, type TileStamp } from 'esengine';
 import { useTilemapPaint, type PaintTool, type PaletteTileset, type AtlasInfo } from '@/store/tilemapPaintStore';
 import { useSelection } from '@/store/selectionStore';
 import { SceneModel } from '@/engine/SceneModel';
@@ -23,7 +23,7 @@ import { SceneCommands } from '@/engine/SceneCommands';
 import { ProjectStore } from '@/project/ProjectStore';
 import { TILE_TOOL_KEY, exitTilePaint } from '@/tools/tileMode';
 import { MOD_LABEL } from '@/commands/keybinding';
-import { usePanelWindow } from '@/components/PanelWindow';
+import { usePopover, Popover } from '@/components/Popover';
 import { buildStampGhost } from '@/tools/tileStampGhost';
 import { colsFor, rowsFor, TERRAIN_COLORS } from '@/tools/tileMath';
 import { loadTilesetForPalette } from '@/tileset/loadTileset';
@@ -32,9 +32,12 @@ import { TilesetDocument } from '@/tileset/TilesetDocument';
 import { useTilesetView } from '@/tileset/tilesetView';
 import { createTilemapFromTileset } from '@/tilemap/createTilemap';
 import { layerTilesetRefs } from '@/tilemap/layerTilesetModel';
+import { planTilesetRemovalFromBlob } from '@/tilemap/tilesetRemoval';
+import { confirm } from '@/components/confirm';
 import { AnimPreview, tileThumbStyle, type TileAtlas } from '@/tools/tileThumb';
 import { parseStampLibrary, serializeStampLibrary, stampLibraryKey, addStamp, removeStampAt, type SavedStamp } from '@/tools/stampLibrary';
 import { IconButton } from '@/components/IconButton';
+import { ZoomControl } from '@/components/ZoomControl';
 import { ContextMenu } from '@/components/Menu';
 import { t } from '@/i18n';
 
@@ -96,14 +99,13 @@ export function TilemapPainter() {
     setTilesets, setActiveTileset, setTilesetAsset, setStamp, setBrushTile, setTool, setTerrainSet, setWangColor,
     setActiveAtlas, flipH, flipV, rotateCW, randomBrush, toggleRandomBrush,
   } = useTilemapPaint();
-  const win = usePanelWindow();
   const selectedId = useSelection((s) => s.selectedId);
   const hasTilemap = selectedId != null
     && !!SceneModel.entityBySource(selectedId)?.components.some((c) => c.type === 'TilemapLayer');
   // Bumped after add/remove tileset: the layer's `tilesetAssets` changed but selectedId
   // did not, so the palette-load effect below wouldn't otherwise re-read the new list.
   const [reloadKey, setReloadKey] = useState(0);
-  const [addOpen, setAddOpen] = useState(false);
+  const addPop = usePopover();
   const [layerCtx, setLayerCtx] = useState<{ x: number; y: number; id: number } | null>(null);
   const [renamingLayer, setRenamingLayer] = useState<number | null>(null);
   const layerDragFrom = useRef<number | null>(null);
@@ -216,23 +218,6 @@ export function TilemapPainter() {
     const pal = paletteRef.current;
     if (pal && natural && natural.w > 0) setZoom(clamp((pal.clientWidth - 16) / natural.w, 0.25, 8));
   };
-
-  // Dismiss the add-tileset menu on any outside click (the menu + its opener stop
-  // their own pointerdown so those don't self-close it) — and on Escape, like
-  // every other transient surface.
-  useEffect(() => {
-    if (!addOpen) return;
-    const close = () => setAddOpen(false);
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setAddOpen(false);
-    };
-    win.addEventListener('pointerdown', close);
-    win.addEventListener('keydown', onKey);
-    return () => {
-      win.removeEventListener('pointerdown', close);
-      win.removeEventListener('keydown', onKey);
-    };
-  }, [addOpen, win]);
 
   // Re-render the layer strip on any model change (add/remove/rename/hide/lock).
   const [, bumpModel] = useState(0);
@@ -351,16 +336,35 @@ export function TilemapPainter() {
   const addTileset = (ref: string) => {
     if (selectedId == null) return;
     SceneCommands.setLayerTilesets(selectedId, [...layerTilesetRefs(selectedId), ref]);
-    setAddOpen(false);
+    addPop.close();
     setReloadKey((k) => k + 1);
   };
-  const removeTilesetAt = (i: number) => {
+  // Removing a tileset shifts every LATER tileset's global id range (firstId is a running
+  // sum over list order), so painted cells must be remapped in the same undo step or they
+  // silently corrupt. Cells of the removed tileset are erased — confirm when that loses work.
+  const removeTilesetAt = async (i: number) => {
     if (selectedId == null) return;
-    SceneCommands.setLayerTilesets(selectedId, layerTilesetRefs(selectedId).filter((_, j) => j !== i));
+    const newRefs = layerTilesetRefs(selectedId).filter((_, j) => j !== i);
+    const base = tilesets[i]?.firstId ?? 1;
+    const span = i + 1 < tilesets.length ? tilesets[i + 1].firstId - base : Infinity;
+    const rt = SceneModel.runtimeFor(selectedId);
+    const blob = rt != null ? TilemapAPI.exportChunks(rt) : '';
+    const { edits, cleared } = planTilesetRemovalFromBlob(blob, base, span);
+    if (cleared > 0) {
+      const name = tilesets[i]?.path.split(/[\\/]/).pop()?.replace(/\.estileset$/, '') ?? '';
+      const ok = await confirm({
+        title: t('tile.removeTilesetTitle'),
+        body: t('tile.removeTilesetBody', { count: cleared, name }),
+        confirmLabel: t('tile.removeTileset'),
+        danger: true,
+      });
+      if (!ok) return;
+    }
+    SceneCommands.removeLayerTileset(selectedId, newRefs, edits);
     setReloadKey((k) => k + 1);
   };
   // The project's .estileset assets not already on this layer (populated on open).
-  const addable = addOpen
+  const addable = addPop.isOpen
     ? ProjectStore.listAssets('tileset').filter((a) => !layerTilesetRefs(selectedId).includes(a.ref))
     : [];
 
@@ -599,28 +603,34 @@ export function TilemapPainter() {
                 {ts.path.split(/[\\/]/).pop()?.replace(/\.estileset$/, '') ?? t('tile.tilesetN', { n: i + 1 })}
               </button>
               {tilesets.length > 1 && (
-                <button type="button" className="tp-tsx" title={t('tile.removeTileset')} onClick={() => removeTilesetAt(i)}>
+                <button type="button" className="tp-tsx" title={t('tile.removeTileset')} onClick={() => void removeTilesetAt(i)}>
                   <X size={11} />
                 </button>
               )}
             </span>
           ))}
-          <div className="tp-tsadd-wrap" onPointerDown={(e) => e.stopPropagation()}>
-            <button type="button" className="tp-tsadd" title={t('tile.addTileset')} onClick={() => setAddOpen((o) => !o)}>
+          <div className="tp-tsadd-wrap">
+            <button
+              type="button" className="tp-tsadd" title={t('tile.addTileset')}
+              aria-haspopup="menu" aria-expanded={addPop.isOpen}
+              onClick={(e) => (addPop.isOpen ? addPop.close() : addPop.open(e.currentTarget))}
+            >
               <Plus size={13} />
             </button>
-            {addOpen && (
-              <div className="tp-tsmenu">
-                {addable.length === 0 ? (
-                  <div className="empty-line empty-line--sm">{t('tile.noTilesetsToAdd')}</div>
-                ) : (
-                  addable.map((a) => (
-                    <button key={a.ref} type="button" className="tp-tsmenu-item" onClick={() => addTileset(a.ref)}>
-                      {a.name.replace(/\.estileset$/, '')}
-                    </button>
-                  ))
-                )}
-              </div>
+            {addPop.isOpen && addPop.anchor && (
+              <Popover anchor={addPop.anchor} width="auto" onClose={addPop.close}>
+                <div className="tp-tsmenu-list" role="menu">
+                  {addable.length === 0 ? (
+                    <div className="empty-line empty-line--sm">{t('tile.noTilesetsToAdd')}</div>
+                  ) : (
+                    addable.map((a) => (
+                      <button key={a.ref} type="button" role="menuitem" className="tp-tsmenu-item" onClick={() => addTileset(a.ref)}>
+                        {a.name.replace(/\.estileset$/, '')}
+                      </button>
+                    ))
+                  )}
+                </div>
+              </Popover>
             )}
           </div>
       </div>
@@ -685,16 +695,7 @@ export function TilemapPainter() {
                 {stamp.w}×{stamp.h}
               </span>
               <span className="tp-grow" />
-              <button type="button" className="tp-zbtn" title={t('tile.zoomOut')} onClick={() => setZoom((z) => clamp(z / 1.25, 0.25, 8))}>
-                <ZoomOut size={13} />
-              </button>
-              <span className="tp-zpct">{Math.round(zoom * 100)}%</span>
-              <button type="button" className="tp-zbtn" title={t('tile.zoomIn')} onClick={() => setZoom((z) => clamp(z * 1.25, 0.25, 8))}>
-                <ZoomIn size={13} />
-              </button>
-              <button type="button" className="tp-zbtn" title={t('tile.fitWidth')} onClick={fitZoom}>
-                <Maximize2 size={13} />
-              </button>
+              <ZoomControl zoom={zoom} onZoom={setZoom} onFit={fitZoom} fitTitle={t('tile.fitWidth')} />
             </div>
           )}
           <div

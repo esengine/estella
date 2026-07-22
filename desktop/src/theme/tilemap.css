@@ -290,19 +290,13 @@
   cursor: pointer;
 }
 .tp-tsadd:hover { color: var(--text); border-color: var(--star); }
-.tp-tsmenu {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  z-index: 20;
+/* Item list inside the shared Popover shell (which supplies bg/border/shadow/clamp). */
+.tp-tsmenu-list {
+  display: flex;
+  flex-direction: column;
   min-width: 140px;
   max-height: 240px;
   overflow-y: auto;
-  padding: 4px;
-  background: var(--srf-2);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
 }
 .tp-tsmenu-item {
   display: block;

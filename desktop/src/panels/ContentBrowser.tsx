@@ -18,6 +18,7 @@ import { ASSET_OPEN } from '@/project/assetOpen';
 import { syncAssetPaths } from '@/project/assetPathSync';
 import { findAssetUsages, type AssetUsage } from '@/project/assetUsages';
 import { FindUsagesDialog } from '@/components/FindUsagesDialog';
+import { NewTilesetDialog } from '@/components/NewTilesetDialog';
 import { parseAssetQuery, filterAndSortAssets, type AssetSort } from '@/project/assetFilter';
 import { createTilesetFromTexture } from '@/tileset/openTileset';
 import { createFlipbookFromTexture } from '@/flipbook/openFlipbook';
@@ -541,6 +542,7 @@ export function ContentBrowser() {
   // unsaved in-memory scene — a ref added since the last save would break too).
   const [confirmDel, setConfirmDel] = useState<{ paths: string[]; names: string[]; usages: AssetUsage[] } | null>(null);
   const [usagesPath, setUsagesPath] = useState<string | null>(null);
+  const [newTilesetFor, setNewTilesetFor] = useState<string | null>(null);
   // Confirm deletion of one OR many assets (multi-select) behind a SINGLE dialog —
   // aggregating each one's references so nothing gets deleted out from under a scene.
   const remove = async (paths: string[]) => {
@@ -1029,7 +1031,7 @@ export function ContentBrowser() {
       ...(isTexture
         ? [
             { label: t('cb.menuCreateSpriteAnim'), onClick: () => void createFlipbookFromTexture(path) },
-            { label: t('cb.menuCreateTileset'), onClick: () => void createTilesetFromTexture(path) },
+            { label: t('cb.menuCreateTileset'), onClick: () => setNewTilesetFor(path) },
           ]
         : []),
       ...(isTileset
@@ -1350,6 +1352,13 @@ export function ContentBrowser() {
       {!ctx && tip.card}
       {ctx && <ContextMenu x={ctx.x} y={ctx.y} items={ctxItems} onClose={() => setCtx(null)} />}
       {usagesPath && <FindUsagesDialog path={usagesPath} onClose={() => setUsagesPath(null)} />}
+      {newTilesetFor && (
+        <NewTilesetDialog
+          textureUrl={`estella://project/${newTilesetFor}`}
+          onCancel={() => setNewTilesetFor(null)}
+          onConfirm={(grid) => { void createTilesetFromTexture(newTilesetFor, grid); setNewTilesetFor(null); }}
+        />
+      )}
       {confirmDel && (
         <ConfirmDialog
           title={t('cb.deleteTitle')}

@@ -270,7 +270,11 @@ for (const m of EDITOR_MODES) {
       }
       modeStore.setMode(m.id);
       for (const p of m.panels ?? []) {
-        dockApi.openSidePanel(p.id, p.component, p.title, p.side ?? 'left', p.width ?? 300);
+        if (p.tabWith) {
+          dockApi.openTabbedPanel(p.id, p.component, p.title, p.tabWith, p.side ?? 'left', p.width ?? 300);
+        } else {
+          dockApi.openSidePanel(p.id, p.component, p.title, p.side ?? 'left', p.width ?? 300);
+        }
       }
       // A mode with a design frame (UI) is entered to work against the authored screen;
       // the free editor camera never adopts the design aspect, so frame it on entry so

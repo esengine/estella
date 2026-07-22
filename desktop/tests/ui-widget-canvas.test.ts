@@ -16,6 +16,10 @@ vi.mock('@/engine/SceneCommands', () => ({
       rec.calls.push({ name: prefab.name, parent: opts.parent });
       return 100 + rec.calls.length; // a fresh id per create
     },
+    // The shared UI-placement step (centre on click / at the drop point) runs after
+    // create; this test only asserts Canvas hosting, so stub it out.
+    centerUINodeInCanvas: () => {},
+    placeUINodeAtWorld: () => {},
   },
 }));
 

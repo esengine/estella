@@ -448,6 +448,46 @@ export class SceneCommandsImpl {
   }
 
   /**
+   * Centre a freshly-added UINode in its Canvas, out of the flow. A flow (Relative) widget
+   * lands wherever its parent's layout puts it — for a plain Canvas that's the corner, tiny
+   * and easy to miss ("I added a button and nothing happened"). Flipping to Absolute + a
+   * centre anchor drops it in the middle where the user is looking (the Unity/Figma "add UI
+   * at the centre" default), draggable from there. Reuses {@link setUINodeAnchor} (auto
+   * margins centre without needing a resolved layout box, so it's relayout-timing safe).
+   * A no-op for a non-UINode (e.g. adding the Canvas itself).
+   */
+  centerUINodeInCanvas(sourceId: EntityId): void {
+    if (this.modelFieldValue(sourceId, 'UINode', 'position') === undefined) return;
+    this.setUINodeAnchor([sourceId], { h: AnchorAxis.Center, v: AnchorAxis.Center });
+  }
+
+  /**
+   * Drop a freshly-added UINode at a world point (its top-left), out of the flow — the
+   * viewport-drop sibling of {@link centerUINodeInCanvas}, so a dragged widget lands under
+   * the cursor instead of collapsing to the Canvas corner. Only needs the PARENT's resolved
+   * box (available — the Canvas is already laid out), not the new node's, so it's
+   * relayout-timing safe. Falls back to centring when the parent has no live box. One undo
+   * step; a no-op for a non-UINode.
+   */
+  placeUINodeAtWorld(sourceId: EntityId, worldX: number, worldY: number): void {
+    if (this.modelFieldValue(sourceId, 'UINode', 'position') === undefined) return;
+    const parentSrc = this.model.entityBySource(sourceId)?.parent;
+    const parentRt = parentSrc != null ? this.model.runtimeFor(parentSrc) : undefined;
+    const parent = parentRt !== undefined ? ViewportController.uiEntityWorldOBB(parentRt) : null;
+    if (!parent) { this.centerUINodeInCanvas(sourceId); return; }
+    // Layout space is y-down: insetLeft from the parent's left edge, insetTop from its top.
+    const left = Math.round(worldX - (parent.cx - parent.hw));
+    const top = Math.round((parent.cy + parent.hh) - worldY);
+    this.beginGesture('Place Widget');
+    this.setField(sourceId, 'UINode', 'position', 'enum', UIPositionType.Absolute);
+    this.setField(sourceId, 'UINode', 'insetLeft', 'dimension', { value: left, unit: DimensionUnit.Px });
+    this.setField(sourceId, 'UINode', 'insetTop', 'dimension', { value: top, unit: DimensionUnit.Px });
+    this.setField(sourceId, 'UINode', 'insetRight', 'dimension', { value: 0, unit: DimensionUnit.Auto });
+    this.setField(sourceId, 'UINode', 'insetBottom', 'dimension', { value: 0, unit: DimensionUnit.Auto });
+    this.endGesture();
+  }
+
+  /**
    * A UINode's on-screen position is LAYOUT-owned: Yoga writes the resolved
    * placement into `Transform.position` on every relayout, so a Transform write
    * only holds until the next UI edit, then snaps back. Viewport moves edit the
@@ -1384,6 +1424,20 @@ export class SceneCommandsImpl {
     };
     apply(next);
     this.history.record('Set Tilesets', () => apply(next), () => apply(cur));
+  }
+
+  /**
+   * Remove a tileset from a layer, remapping already-painted cells so surviving tiles keep
+   * their identity: `edits` (from {@link planTilesetRemoval}) clear the removed tileset's
+   * cells and shift later tilesets' ids down to the new firstId layout, and `newRefs` drops
+   * the tileset from the list — ALL as one undo step. Without the remap, dropping a non-last
+   * tileset would silently corrupt every later tileset's painted tiles.
+   */
+  removeLayerTileset(sourceId: EntityId, newRefs: string[], edits: TilePaint[]): void {
+    this.history.group('Remove Tileset', () => {
+      if (edits.length > 0) this.paintTiles(sourceId, edits);
+      this.setLayerTilesets(sourceId, newRefs);
+    });
   }
 
   // Shared commit: snapshot the post-edit blob, write it to the model (the truth

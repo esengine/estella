@@ -25,6 +25,7 @@ import {
 } from 'esengine';
 import { Segmented } from '@/components/Segmented';
 import { Select } from '@/components/Select';
+import { ZoomControl } from '@/components/ZoomControl';
 import { usePanelWindow } from '@/components/PanelWindow';
 import { GridField } from '@/components/GridField';
 import { SaveButton } from '@/components/SaveButton';
@@ -175,6 +176,16 @@ export function TilesetEditor() {
 
   const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
   const [zoom, setZoom] = useState(2);
+  // Fit the whole atlas into the scroll viewport (both axes) — lets a large sheet be
+  // seen at once, which the old 1×-floor range slider couldn't do.
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const fitZoom = () => {
+    const c = canvasRef.current;
+    if (!c || !natural || natural.w <= 0 || natural.h <= 0) return;
+    const pad = 24;
+    const z = Math.min((c.clientWidth - pad) / natural.w, (c.clientHeight - pad) / natural.h);
+    setZoom(Math.max(0.1, Math.min(8, z)));
+  };
   const mode = useTilesetView((s) => s.mode);
   const setMode = useTilesetView((s) => s.setMode);
   const [animTile, setAnimTile] = useState<number | null>(null);
@@ -572,11 +583,7 @@ export function TilesetEditor() {
           />
         )}
         <span className="ts-sep" />
-        <label className="ts-field">
-          <span>{t('tile.field.zoom')}</span>
-          <input type="range" min={1} max={8} step={1} value={zoom}
-            onChange={(e) => setZoom(Number(e.target.value))} />
-        </label>
+        <ZoomControl zoom={zoom} min={0.1} onZoom={setZoom} onFit={fitZoom} />
         <span className="ts-grow" />
         <span className="ts-stat">
           {cols}×{rows}{mode === 'collision' ? ` · ${t('tile.solidCount', { count: solidCount })}` : ''}
@@ -851,6 +858,7 @@ export function TilesetEditor() {
       )}
 
       <div
+        ref={canvasRef}
         className={'ts-canvas' + (mode === 'terrain' ? ' is-terrain' : '')}
         onPointerUp={commitDrag} onPointerLeave={commitDrag}
       >

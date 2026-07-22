@@ -23,7 +23,6 @@ export const flipbookMessages = defineMessages({
     'fb.field.margin': { en: 'Margin', zh: '边距' },
     'fb.field.spacing': { en: 'Spacing', zh: '间距' },
     'fb.field.fps': { en: 'FPS', zh: '帧率' },
-    'fb.field.zoom': { en: 'Zoom', zh: '缩放' },
     'fb.loop': { en: 'Loop', zh: '循环' },
     'fb.fps': { en: 'FPS', zh: '帧率' },
     'fb.frameCount': { en: '{count} frames', zh: '{count} 帧' },

@@ -20,6 +20,7 @@ import {
 } from 'esengine';
 import { EmptyState } from '@/components/EmptyState';
 import { GridField } from '@/components/GridField';
+import { ZoomControl } from '@/components/ZoomControl';
 import { Transport } from '@/components/Transport';
 import { SaveButton } from '@/components/SaveButton';
 import { AnimClipDocument } from '@/flipbook/AnimClipDocument';
@@ -57,6 +58,15 @@ export function FlipbookEditor() {
   const texUrl = info ? `estella://project/${info.path}` : null;
 
   const [zoom, setZoom] = useState(2);
+  // Fit the whole sheet page into the scroll viewport (both axes).
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const fitZoom = () => {
+    const c = canvasRef.current;
+    if (!c || !sheet || sheet.pageWidth <= 0 || sheet.pageHeight <= 0) return;
+    const pad = 24;
+    const z = Math.min((c.clientWidth - pad) / sheet.pageWidth, (c.clientHeight - pad) / sheet.pageHeight);
+    setZoom(Math.max(0.1, Math.min(8, z)));
+  };
   // Live append stroke: ordered cells picked in one pointer gesture, one undo step.
   const [stroke, setStroke] = useState<number[] | null>(null);
   const strokeRef = useRef(stroke);
@@ -191,11 +201,7 @@ export function FlipbookEditor() {
             <span className="fb-sep" />
           </>
         )}
-        <label className="fb-field">
-          <span>{t('fb.field.zoom')}</span>
-          <input type="range" min={1} max={8} step={1} value={zoom}
-            onChange={(e) => setZoom(Number(e.target.value))} />
-        </label>
+        <ZoomControl zoom={zoom} min={0.1} onZoom={setZoom} onFit={fitZoom} />
         <span className="fb-grow" />
         <span className="fb-stat">
           {sheet ? `${cols}×${rows} · ` : ''}{t('fb.frameCount', { count: asset.frames.length })}
@@ -356,7 +362,7 @@ export function FlipbookEditor() {
       )}
 
       {sheet && (
-        <div className="fb-canvas" onPointerUp={commitStroke} onPointerLeave={commitStroke}>
+        <div ref={canvasRef} className="fb-canvas" onPointerUp={commitStroke} onPointerLeave={commitStroke}>
           {!texUrl ? (
             <div className="fb-warn">{t('fb.texNotFound', { ref: String(sheet.texture) || t('fb.refEmpty') })}</div>
           ) : (
