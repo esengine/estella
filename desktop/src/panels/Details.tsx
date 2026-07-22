@@ -214,11 +214,12 @@ function VecField({
 export function VecControl({
   value,
   mixed,
+  mixedAxes,
   onBegin,
   onEnd,
   onCancel,
   onChange,
-}: ControlGesture & { value: number[]; mixed?: boolean; onChange: (v: number[]) => void }) {
+}: ControlGesture & { value: number[]; mixed?: boolean; mixedAxes?: boolean[]; onChange: (v: number[]) => void }) {
   return (
     <div className="vec">
       {value.map((n, i) => (
@@ -226,7 +227,9 @@ export function VecControl({
           key={i}
           axis={AXES[i]}
           value={n}
-          mixed={mixed}
+          // Per-axis mixed when the merge computed it (only the disagreeing axes
+          // read `—`); else fall back to the whole-field flag.
+          mixed={mixedAxes ? mixedAxes[i] : mixed}
           onBegin={onBegin}
           onEnd={onEnd}
           onCancel={onCancel}
@@ -1268,7 +1271,7 @@ function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp
     case 'vec2':
     case 'vec3':
     case 'vec4':
-      control = <VecControl value={field.value as number[]} mixed={mixed} onBegin={begin} onEnd={end} onCancel={cancel} onChange={apply} />;
+      control = <VecControl value={field.value as number[]} mixed={mixed} mixedAxes={field.mixedAxes} onBegin={begin} onEnd={end} onCancel={cancel} onChange={apply} />;
       break;
     case 'dimension':
       control = <DimControl value={field.value as DimensionValue} mixed={mixed} onBegin={begin} onEnd={end} onChange={apply} />;

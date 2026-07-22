@@ -125,8 +125,24 @@ export function buildMultiInspector(
       ? { ...enableBase, mixed: !datas.every((d) => (componentEnable(name, d)?.value ?? enableBase.value) === enableBase.value) }
       : undefined;
     const fields = inspectorFields(name, datas[0], baseOf?.(name)).filter((f) => f.key !== enable?.key);
+    // A vector axis reads from either the raw {x,y,z,w} object or an array form.
+    const VKEYS = ['x', 'y', 'z', 'w'] as const;
+    const axisOf = (raw: unknown, i: number): unknown =>
+      Array.isArray(raw) ? raw[i] : raw && typeof raw === 'object' ? (raw as Record<string, unknown>)[VKEYS[i]] : undefined;
     for (const f of fields) {
-      if (!datas.every((d) => deepEqual(d[f.key], datas[0][f.key]))) f.mixed = true;
+      if (Array.isArray(f.value)) {
+        // Per-axis mixed for vectors: flag only the axes that actually disagree so
+        // shared axes still read their value (multi-select Transform shows X when
+        // only Y differs, instead of blanking all three). The raw component data
+        // stores vectors as {x,y,z} objects, so compare axis-wise, not deepEqual.
+        const axes = f.value.map((_, i) => {
+          const p = axisOf(datas[0][f.key], i);
+          return !datas.every((d) => deepEqual(axisOf(d[f.key], i), p));
+        });
+        if (axes.some(Boolean)) { f.mixed = true; f.mixedAxes = axes; }
+      } else if (!datas.every((d) => deepEqual(d[f.key], datas[0][f.key]))) {
+        f.mixed = true;
+      }
     }
     out.push({ name, label, fields, enable, notice: componentNotice(name, primary) ?? undefined });
   }

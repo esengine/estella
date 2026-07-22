@@ -130,6 +130,12 @@ export interface InspectorField {
    * holds the primary entity's value (shown muted); an edit fans out to all.
    */
   mixed?: boolean;
+  /**
+   * Multi-selection, vector fields only: which axes actually disagree. Lets the
+   * inspector show `—` on just the differing axis (Y) while a shared axis (X)
+   * still shows its value, instead of masking the whole vector.
+   */
+  mixedAxes?: boolean[];
 }
 
 export interface InspectorComponent {
