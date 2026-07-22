@@ -360,6 +360,41 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
         return true;
     }
 
+    /**
+     * Write buffered Mut() data back to storage for one entity and record a
+     * Changed tick for each mutated component. This is the single write-back path
+     * shared by the iterator and forEach — keeping the three former copies from
+     * drifting apart.
+     *
+     * Builtin (wasm-backed) components write through a direct ptr / embind setter
+     * that pokes component storage without going through world.set(), so the
+     * change must be recorded here explicitly to keep Changed()/Added() detection
+     * consistent with script components and with world.set(). recordChanged()
+     * self-gates on whether any query is actually tracking the component, so on
+     * the hot path with nothing listening this is a Set.has() + return.
+     */
+    private writeMutBack_(entity: Entity): void {
+        const world = this.world_;
+        if (!world.valid(entity)) return;
+        const mutData = this.mutData_;
+        const mutSetters = this.mutSetters_;
+        const mutIsBuiltin = this.mutIsBuiltin_;
+        for (let i = 0; i < mutData.length; i++) {
+            const mut = mutData[i];
+            if (mutIsBuiltin[i]) {
+                const setter = mutSetters[i];
+                if (setter) {
+                    setter(entity, mut.data);
+                    world.markChanged(entity, mut.component);
+                } else {
+                    world.set(entity, mut.component, mut.data);
+                }
+            } else {
+                world.markChanged(entity, mut.component);
+            }
+        }
+    }
+
     [Symbol.iterator](): Iterator<QueryResult<C>> {
         const { _mutIndices } = this.descriptor_;
         const actualComponents = this.actualComponents_;
@@ -377,7 +412,6 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
         const result = this.result_;
         const mutData = this.mutData_;
         const mutCount = mutData.length;
-        const mutSetters = this.mutSetters_;
         const world = this.world_;
         const getters = this.getters_;
         const self = this;
@@ -387,20 +421,7 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
         let started = false;
         let done = false;
 
-        const mutIsBuiltin = this.mutIsBuiltin_;
-        const writeMut = () => {
-            if (!world.valid(prevEntity!)) return;
-            for (let i = 0; i < mutCount; i++) {
-                const mut = mutData[i];
-                if (mutIsBuiltin[i]) {
-                    const setter = mutSetters[i];
-                    if (setter) setter(prevEntity!, mut.data);
-                    else world.set(prevEntity!, mut.component, mut.data);
-                } else {
-                    world.markChanged(prevEntity!, mut.component);
-                }
-            }
-        };
+        const writeMut = () => { self.writeMutBack_(prevEntity!); };
 
         const finalize = () => {
             if (done) return;
@@ -474,7 +495,6 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
         const result = this.result_;
         const mutData = this.mutData_;
         const mutCount = mutData.length;
-        const mutSetters = this.mutSetters_;
         const world = this.world_;
         const getters = this.getters_;
         const actualComponents = this.actualComponents_;
@@ -485,17 +505,8 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
             const entity = entities[idx];
             if (hasChangeFilters && !this.passesChangeFilters_(entity)) continue;
 
-            if (prevEntity !== null && hasMut && world.valid(prevEntity)) {
-                for (let i = 0; i < mutCount; i++) {
-                    const mut = mutData[i];
-                    if (this.mutIsBuiltin_[i]) {
-                        const setter = mutSetters[i];
-                        if (setter) setter(prevEntity, mut.data);
-                        else world.set(prevEntity, mut.component, mut.data);
-                    } else {
-                        world.markChanged(prevEntity, mut.component);
-                    }
-                }
+            if (prevEntity !== null && hasMut) {
+                this.writeMutBack_(prevEntity);
             }
 
             result[0] = entity;
@@ -523,17 +534,8 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
             }
         }
 
-        if (prevEntity !== null && hasMut && world.valid(prevEntity)) {
-            for (let i = 0; i < mutCount; i++) {
-                const mut = mutData[i];
-                if (this.mutIsBuiltin_[i]) {
-                    const setter = mutSetters[i];
-                    if (setter) setter(prevEntity, mut.data);
-                    else world.set(prevEntity, mut.component, mut.data);
-                } else {
-                    world.markChanged(prevEntity, mut.component);
-                }
-            }
+        if (prevEntity !== null && hasMut) {
+            this.writeMutBack_(prevEntity);
         }
         world.endIteration();
     }
