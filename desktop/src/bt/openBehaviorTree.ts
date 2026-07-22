@@ -2,52 +2,27 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    openBehaviorTree.ts
- * @brief   Open / create a `.esbt` (the visual behavior tree, AI3). A `.esbt` IS
- *          the runtime BtDefinition, so there is no compile step — Save writes JSON.
+ * @brief   Open / create a `.esbt` (the visual behavior tree, AI3).
  */
 import { emptyBt, ensureBtIds, type BtDefinition } from 'esengine';
 import { BtDocument } from './BtDocument';
-import { ProjectStore } from '@/project/ProjectStore';
-import { confirmDiscardDoc } from '@/project/discardGuard';
-import { dockApi } from '@/layout/dockApi';
-import { baseName } from '@/project/assetMeta';
-import { Toasts } from '@/store/Toasts';
-import { t } from '@/i18n';
+import { type GraphAssetKind, openGraphAsset, createGraphAsset } from '@/document/openGraphAsset';
 
-export async function openBehaviorTree(path: string): Promise<void> {
-  // Already-open file: just front the panel — a reload would clobber unsaved edits.
-  if (BtDocument.isOpen && BtDocument.filePath === path) {
-    dockApi.openDocument('behaviortree', 'behaviortree', t('bt.tabTitle'));
-    return;
-  }
-  if (!(await confirmDiscardDoc(BtDocument.dirty, t('discard.openAsset', { name: baseName(path) })))) return;
-  try {
-    const text = await window.estella.fs.read(path);
-    // Hand-written trees may lack editor ids; assign before editing.
-    BtDocument.openJson(ensureBtIds(JSON.parse(text) as BtDefinition), path);
-    dockApi.openDocument('behaviortree', 'behaviortree', t('bt.tabTitle'));
-  } catch (e) {
-    Toasts.push(t('bt.toastOpenFailed', { error: String(e) }), 'error');
-  }
-}
+const BT: GraphAssetKind = {
+  document: BtDocument,
+  panelId: 'behaviortree',
+  titleKey: 'bt.tabTitle',
+  ext: 'esbt',
+  defaultName: 'NewBehaviorTree',
+  metaType: 'behaviortree',
+  emptyDef: emptyBt,
+  // Hand-written trees may lack editor ids; assign before editing.
+  parse: (json) => ensureBtIds(json as BtDefinition),
+  toast: { openFailed: 'bt.toastOpenFailed', createFailed: 'bt.toastCreateFailed', created: 'bt.toastCreated' },
+};
 
-export async function createBehaviorTree(dir: string): Promise<void> {
-  const folder = dir ? (dir.endsWith('/') ? dir : `${dir}/`) : '';
-  let rel = `${folder}NewBehaviorTree.esbt`;
-  for (let n = 1; ProjectStore.assetRef(rel); n++) rel = `${folder}NewBehaviorTree-${n}.esbt`;
+/** Open an existing `.esbt` into the behavior-tree editor and reveal the panel. */
+export const openBehaviorTree = (path: string): Promise<void> => openGraphAsset(BT, path);
 
-  const def = emptyBt();
-  try {
-    await window.estella.fs.write(rel, JSON.stringify(def, null, 2) + '\n');
-    await window.estella.fs.write(
-      rel + '.meta',
-      JSON.stringify({ uuid: crypto.randomUUID(), version: '1.0', type: 'behaviortree', importer: { autoMigrate: true } }, null, 2) + '\n',
-    );
-  } catch (e) {
-    Toasts.push(t('bt.toastCreateFailed', { error: String(e) }), 'error');
-    return;
-  }
-  await ProjectStore.refreshAssets();
-  Toasts.push(t('bt.toastCreated', { name: baseName(rel) }), 'info');
-  await openBehaviorTree(rel);
-}
+/** Create a new `.esbt` (+ .meta) in @p dir, then open it. */
+export const createBehaviorTree = (dir: string): Promise<void> => createGraphAsset(BT, dir);
