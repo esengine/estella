@@ -832,23 +832,51 @@ export function ContentBrowser() {
   // Move an asset into a folder (drag onto a folder tile / tree node). Rename moves
   // the `.meta` sidecar too, so uuid refs survive; rejects no-op and self/descendant
   // moves. Refs are uuid-based, so nothing referencing the asset breaks.
-  const moveAssetToFolder = async (srcPath: string, folderPath: string) => {
+  // Move one asset into a folder (no toast / refresh — the callers own those, so a
+  // batch move renames every file before one combined refresh + undo toast).
+  const doMoveAsset = async (srcPath: string, folderPath: string): Promise<string | null> => {
     const name = srcPath.split('/').pop();
-    if (!name) return;
+    if (!name) return null;
     const dest = join(folderPath, name);
-    if (dest === srcPath || srcPath === folderPath || folderPath.startsWith(`${srcPath}/`)) return;
+    if (dest === srcPath || srcPath === folderPath || folderPath.startsWith(`${srcPath}/`)) return null;
     try {
       await window.estella.fs.rename(srcPath, dest);
       syncAssetPaths(srcPath, dest);
-      refreshFs();
       if (selected === srcPath) selectAsset(dest);
-      Toasts.push(t('cb.movedTo', { name, dest: folderPath || t('cb.projectRoot') }), 'info', 6000, {
-        label: t('cb.undo'),
-        run: () => void undoMove(dest, srcPath),
-      });
+      return dest;
     } catch (e) {
       Toasts.push(t('cb.moveFailed', { error: errMsg(e) }), 'error');
+      return null;
     }
+  };
+
+  const moveAssetToFolder = async (srcPath: string, folderPath: string) => {
+    const dest = await doMoveAsset(srcPath, folderPath);
+    if (!dest) return;
+    refreshFs();
+    Toasts.push(t('cb.movedTo', { name: srcPath.split('/').pop() ?? srcPath, dest: folderPath || t('cb.projectRoot') }), 'info', 6000, {
+      label: t('cb.undo'),
+      run: () => void undoMove(dest, srcPath),
+    });
+  };
+
+  // Drag a multi-selection into a folder: move each, then ONE combined undo toast
+  // (reverses every move) — so a batch move is one calm, undoable operation.
+  const moveAssetsToFolder = async (srcPaths: string[], folderPath: string) => {
+    if (srcPaths.length <= 1) return moveAssetToFolder(srcPaths[0], folderPath);
+    const moved: { src: string; dest: string }[] = [];
+    for (const src of srcPaths) {
+      const dest = await doMoveAsset(src, folderPath);
+      if (dest) moved.push({ src, dest });
+    }
+    if (!moved.length) return;
+    refreshFs();
+    Toasts.push(t('cb.movedCount', { count: moved.length, dest: folderPath || t('cb.projectRoot') }), 'info', 6000, {
+      label: t('cb.undo'),
+      run: () => void (async () => {
+        for (const m of moved) await undoMove(m.dest, m.src);
+      })(),
+    });
   };
 
   // Drop-target props for a folder (tile, list row or tree node): accept internal
@@ -877,11 +905,13 @@ export function ContentBrowser() {
     },
     onDrop: (e: React.DragEvent) => {
       clearDropState();
+      const multi = e.dataTransfer.getData('application/x-estella-assets');
       const src = e.dataTransfer.getData('application/x-estella-asset');
-      if (!src) return;
+      const paths: string[] = multi ? JSON.parse(multi) : src ? [src] : [];
+      if (!paths.length) return;
       e.preventDefault();
       e.stopPropagation();
-      void moveAssetToFolder(src, folderPath);
+      void moveAssetsToFolder(paths, folderPath);
     },
   });
 
@@ -902,9 +932,17 @@ export function ContentBrowser() {
     draggable: !e.isDir && renaming !== path,
     onDragStart: (ev: React.DragEvent) => {
       tip.close();
-      ev.dataTransfer.effectAllowed = 'copy';
+      // copyMove: dropping into a folder MOVES; dropping into the scene / inspector
+      // COPIES (instantiate / assign a ref) — so both cursors read correctly.
+      ev.dataTransfer.effectAllowed = 'copyMove';
       ev.dataTransfer.setData('application/x-estella-asset', path);
       ev.dataTransfer.setData('text/plain', path);
+      // Grabbing one of several selected assets drags the whole selection. Only the
+      // folder-move reads this plural payload; single-asset consumers (assign a ref,
+      // instantiate) keep reading the singular one above.
+      if (selectedAssets.has(path) && selectedAssets.size > 1) {
+        ev.dataTransfer.setData('application/x-estella-assets', JSON.stringify([...selectedAssets]));
+      }
       setDragPath(path);
     },
     // A cancelled drag (Escape / dropped outside a target) fires no drop —
@@ -1288,7 +1326,10 @@ export function ContentBrowser() {
 
           <div className="cb-foot">
             <span>
-              {t(selected ? 'cb.footItemsSelected' : 'cb.footItems', { count: items.length })}
+              {t(selectedAssets.size > 0 ? 'cb.footItemsSelected' : 'cb.footItems', {
+                count: items.length,
+                sel: selectedAssets.size,
+              })}
             </span>
             <span className="sp" />
             {view === 'grid' && (

@@ -195,7 +195,7 @@ export const detailsMessages = defineMessages({
         en: 'Select an entity in the scene, or an asset in the Content Browser.',
         zh: '在场景中选择一个实体，或在内容浏览器中选择一个资产。',
     },
-    'det.filterProps': { en: 'Filter properties', zh: '过滤属性' },
+    'det.filterProps': { en: 'Show overridden only', zh: '只显示已修改的属性' },
     'det.entitiesSelected': { en: '{count} entities selected', zh: '已选择 {count} 个实体' },
     'det.editing': { en: 'Editing', zh: '编辑中' },
     'det.editingShared': { en: '{count} entities · shared components', zh: '{count} 个实体 · 共同组件' },

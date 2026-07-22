@@ -2997,22 +2997,31 @@ function EditorDetails() {
     [ready, ids, revision],
   );
 
-  // Inspector search: keep components whose name matches (all fields), or that
-  // have any matching field (only the matches) — the Details filter behaviour.
+  // Inspector search + override filter. Search keeps components whose name matches
+  // (all fields) or that have a matching field (only the matches); the Filter toggle
+  // then narrows to overridden fields only — components with a value that differs
+  // from its default, keeping just those fields (Unity's "show overridden" mode).
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return components;
-    const out: InspectorComponent[] = [];
-    for (const c of components) {
-      if (c.label.toLowerCase().includes(q)) {
-        out.push(c);
-        continue;
+    let out = components;
+    if (q) {
+      out = [];
+      for (const c of components) {
+        if (c.label.toLowerCase().includes(q)) {
+          out.push(c);
+          continue;
+        }
+        const fields = c.fields.filter((f) => f.label.toLowerCase().includes(q));
+        if (fields.length) out.push({ ...c, fields });
       }
-      const fields = c.fields.filter((f) => f.label.toLowerCase().includes(q));
-      if (fields.length) out.push({ ...c, fields });
+    }
+    if (filtOn) {
+      out = out
+        .map((c) => ({ ...c, fields: c.fields.filter(isModified) }))
+        .filter((c) => c.fields.length > 0);
     }
     return out;
-  }, [components, query]);
+  }, [components, query, filtOn]);
 
   // An explicit sub-object inspection source (a keyframe, a track…) overrides the
   // entity/asset inspector; a non-override source is the fallback further below.
@@ -3091,7 +3100,17 @@ function EditorDetails() {
                   e.currentTarget.blur();
                 }
               }}
-              onBlur={(e) => SceneCommands.renameEntity(selectedId, e.target.value)}
+              onBlur={(e) => {
+                // Trim, reject empty, and skip a no-op — clicking the name and
+                // clicking away must not blank it or log an empty undo step
+                // (matches the Outliner + Content Browser rename guards).
+                const next = e.target.value.trim();
+                if (!next || next === entity.name) {
+                  e.target.value = entity.name;
+                  return;
+                }
+                SceneCommands.renameEntity(selectedId, next);
+              }}
             />
           )}
         </div>

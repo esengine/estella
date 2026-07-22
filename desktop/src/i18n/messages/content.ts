@@ -50,7 +50,7 @@ export const contentMessages = defineMessages({
     'cb.startupScene': { en: 'Startup scene', zh: '启动场景' },
     'cb.excludedFromExport': { en: 'Excluded from export', zh: '已从导出中排除' },
     'cb.footItems': { en: '{count} items', zh: '{count} 项' },
-    'cb.footItemsSelected': { en: '{count} items · 1 selected', zh: '{count} 项 · 已选中 1 个' },
+    'cb.footItemsSelected': { en: '{count} items · {sel} selected', zh: '{count} 项 · 已选中 {sel} 个' },
 
     // — Hover-card rows (labels; `cb.type` above is reused as a row label) —
     'cb.tipFolder': { en: 'Folder', zh: '文件夹' },
@@ -122,6 +122,7 @@ export const contentMessages = defineMessages({
     'cb.unsavedScene': { en: 'Untitled scene', zh: '未命名场景' },
     'cb.unsavedMark': { en: 'unsaved', zh: '未保存' },
     'cb.movedTo': { en: 'Moved “{name}” to {dest}', zh: '已将“{name}”移动到 {dest}' },
+    'cb.movedCount': { en: 'Moved {count} items to {dest}', zh: '已移动 {count} 项到 {dest}' },
     'cb.projectRoot': { en: 'the project root', zh: '项目根目录' },
     'cb.moveFailed': { en: 'Move failed: {error}', zh: '移动失败：{error}' },
     'cb.newFolderFailed': { en: 'New folder failed: {error}', zh: '新建文件夹失败：{error}' },
