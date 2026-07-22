@@ -701,8 +701,9 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
 
 namespace esengine {
 
-void uiLayout_update(ecs::Registry& registry, f32 camLeft, f32 camBottom, f32 camRight, f32 camTop) {
-    ctx().require<ecs::UISystem>().layoutUpdate(registry, camLeft, camBottom, camRight, camTop);
+void uiLayout_update(ecs::Registry& registry, f32 camLeft, f32 camBottom, f32 camRight, f32 camTop,
+                     bool propertyDirty) {
+    ctx().require<ecs::UISystem>().layoutUpdate(registry, camLeft, camBottom, camRight, camTop, propertyDirty);
 }
 
 void uiHitTest_update(ecs::Registry& registry, f32 mouseWorldX, f32 mouseWorldY,

@@ -574,9 +574,14 @@ describe.skipIf(!HAS_WASM)('UI Components (WASM integration)', () => {
 
             expect(nodeW(registry, child)).toBeCloseTo(400, 0);
 
-            const n = registry.getUINode(child);
-            n.width = pct(100);
-            registry.addUINode(child, n);
+            // Update the width through the World (the runtime mutation door): a raw
+            // registry.addUINode poke bypasses change-tracking, which the layout
+            // pass now consults to skip a solve on a fully static frame.
+            world.insert(child, UINode, node({
+                position: 1,
+                insetLeft: px(0), insetTop: px(0),
+                width: pct(100), height: pct(100),
+            }));
 
             await app.tick(1 / 60);
 

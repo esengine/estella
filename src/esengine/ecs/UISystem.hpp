@@ -64,9 +64,14 @@ public:
 
     // ---- Layout pass (defined in UILayoutSystem.cpp) ----
 
-    /** @brief Rebuild layout tree and apply layout to all dirty nodes */
+    /** @brief Rebuild layout tree and apply layout to all dirty nodes.
+     *  @param tsPropertyDirty  Set by the TS driver when any UINode/FlexContainer
+     *         changed since the last pass (via change-tracking). Combined with the
+     *         C++-detected structure/camera/animation signals to skip the whole
+     *         rebuild+solve on a fully static frame. */
     void layoutUpdate(Registry& registry,
-                      f32 camLeft, f32 camBottom, f32 camRight, f32 camTop);
+                      f32 camLeft, f32 camBottom, f32 camRight, f32 camTop,
+                      bool tsPropertyDirty);
 
     /** @brief Mark the tree structure as dirty (forces full rebuild next update) */
     void treeMarkStructureDirty();
@@ -102,6 +107,14 @@ public:
 
 private:
     std::vector<Entity> pickResults_;
+
+    // ---- Layout skip-when-clean gate (see layoutUpdate) ----
+    // Snapshot of the last solved frame; a pass whose inputs match all of these
+    // (and no tween activity) reuses the retained YGNodes and computed output.
+    u64 lastSig_{0};
+    f32 lastCamL_{0}, lastCamB_{0}, lastCamR_{0}, lastCamT_{0};
+    bool lastAnimActive_{false};
+    bool layoutPrimed_{false};  // force a solve on the very first pass
 };
 
 }  // namespace esengine::ecs

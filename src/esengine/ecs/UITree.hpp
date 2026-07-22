@@ -26,6 +26,11 @@ struct UITree {
 
     std::vector<Node> nodes_;
     bool structure_dirty_{true};
+    // FNV-1a hash of the (entity, parent) pairs in DFS order — a compact
+    // fingerprint of the tree's shape. It changes on any spawn/despawn/reparent,
+    // sibling reorder, or UINode/Canvas add-remove, so the layout gate can detect
+    // structural change without a reliable per-write dirty producer.
+    u64 structure_sig_{0};
 
     void rebuild(Registry& reg) {
         nodes_.clear();
@@ -34,6 +39,13 @@ struct UITree {
             buildDFS(reg, entity, INVALID_ENTITY, 0);
         });
         structure_dirty_ = false;
+
+        u64 h = 1469598103934665603ULL;  // FNV-1a offset basis
+        for (const auto& n : nodes_) {
+            h = (h ^ n.entity.id()) * 1099511628211ULL;
+            h = (h ^ n.parent.id()) * 1099511628211ULL;
+        }
+        structure_sig_ = h;
     }
 
     void rebuildIfDirty(Registry& reg) {

@@ -334,6 +334,19 @@ void propagateHiddenInTree(Registry& registry, UITree& tree) {
     }
 }
 
+// A tween drives Transform fields directly in C++ (TweenSystem), invisible to the
+// TS change-tracking that feeds tsPropertyDirty. Scan the UINode anim_override_
+// bits so the gate keeps solving while any tween is active — and, via the caller's
+// lastAnimActive_, once more on the frame a tween ends (override already cleared)
+// so layout reclaims the position it had ceded.
+bool anyUIAnimActive(Registry& registry) {
+    bool active = false;
+    registry.eachLive<UINode>([&](Entity, UINode& n) {
+        if (n.anim_override_ != 0) active = true;
+    });
+    return active;
+}
+
 void unifiedLayoutPass(Registry& registry, UITree& tree, LayoutCache& cache, const LayoutRect& cameraRect) {
     for (i32 i = 0; i < static_cast<i32>(tree.nodes_.size()); ) {
         auto& node = tree.nodes_[i];
@@ -364,10 +377,35 @@ void unifiedLayoutPass(Registry& registry, UITree& tree, LayoutCache& cache, con
 
 void UISystem::layoutUpdate(
     Registry& registry,
-    f32 camLeft, f32 camBottom, f32 camRight, f32 camTop
+    f32 camLeft, f32 camBottom, f32 camRight, f32 camTop,
+    bool tsPropertyDirty
 ) {
     if (!layoutCache_) layoutCache_ = std::make_unique<LayoutCache>();
+
+    // Rebuild the DFS node list every pass: it is O(N) pointer-walking (no Yoga)
+    // and yields the structure signature that detects spawn/despawn/reparent —
+    // the reliable structural signal we don't otherwise have. The expensive part
+    // (orphan + propagateHidden + Yoga solve + reap) is what the gate below skips.
     tree.rebuild(registry);
+
+    bool animNow = anyUIAnimActive(registry);
+    bool sigChanged = tree.structure_sig_ != lastSig_;
+    bool rectChanged = camLeft != lastCamL_ || camBottom != lastCamB_
+                    || camRight != lastCamR_ || camTop != lastCamT_;
+    bool wasAnimActive = lastAnimActive_;
+
+    lastSig_ = tree.structure_sig_;
+    lastCamL_ = camLeft; lastCamB_ = camBottom; lastCamR_ = camRight; lastCamT_ = camTop;
+    lastAnimActive_ = animNow;
+
+    // A fully static frame — no structural, camera, property, or tween change since
+    // the last solve — leaves the retained YGNodes and every UINode's computed
+    // output valid, so the whole solve is safely skipped. `wasAnimActive` forces
+    // one more solve on the frame a tween just ended (see anyUIAnimActive).
+    bool dirty = !layoutPrimed_ || sigChanged || rectChanged || tsPropertyDirty
+              || animNow || wasAnimActive;
+    layoutPrimed_ = true;
+    if (!dirty) return;
 
     // Orphan the entire retained forest up front. Each subtree then rebuilds its
     // own hierarchy from childless nodes, so an entity that moved between Canvas

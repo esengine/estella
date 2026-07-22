@@ -11,6 +11,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { App } from '../src/app';
 import { UINode, type UINodeData } from '../src/ui/core/ui-node';
+import { FlexContainer, type FlexContainerData } from '../src/ui/layout/flex';
 import { Canvas } from '../src/component';
 import { UICameraInfo } from '../src/ui/core/ui-camera-info';
 import { uiLayoutPlugin } from '../src/ui/layout/layout';
@@ -60,6 +61,15 @@ function makeTransform(x = 0, y = 0) {
         rotation: { x: 0, y: 0, z: 0, w: 1 },
         scale: { x: 1, y: 1, z: 1 },
     };
+}
+
+/** A complete FlexContainer value-object (embind requires every member present). */
+function flex(over: Partial<FlexContainerData> = {}): FlexContainerData {
+    return {
+        direction: 0, wrap: 0, justifyContent: 0, alignItems: 3, alignContent: 0,
+        gap: { x: 0, y: 0 }, padding: { left: 0, top: 0, right: 0, bottom: 0 },
+        ...over,
+    } as FlexContainerData;
 }
 
 function makeSprite(w = 100, h = 100) {
@@ -289,6 +299,78 @@ describe.skipIf(!HAS_WASM)('UI Layout via App.tick() (WASM integration)', () => 
         const t = registry.getTransform(child);
         expect(t.position.x).toBeCloseTo(50, 1);
         expect(t.position.y).toBeCloseTo(75, 1);
+
+        disposeApp(app, registry);
+    });
+
+    // The skip-when-clean gate keys the solve off a structure signature + camera
+    // rect + a TS-supplied property-dirty flag (UINode/FlexContainer change) + a
+    // tween-activity scan. These assert the two failure modes that gate can have:
+    // a bare field edit (no structural change) must still re-solve, and a clean
+    // frame must leave the computed output intact.
+    it('gate: a property edit with no structural change still re-solves', async () => {
+        const { app, registry } = createEditorApp();
+        const world = app.world;
+
+        const root = world.spawn();
+        world.insert(root, Canvas, {});
+        world.insert(root, UINode, fillNode());
+        world.insert(root, Transform, makeTransform());
+
+        const child = world.spawn();
+        world.setParent(child, root);
+        world.insert(child, UINode, sizedNode(100, 50));
+        world.insert(child, Transform, makeTransform());
+
+        setCanvasRect(app, -400, -300, 400, 300);
+        await app.tick(1 / 60);
+        expect(nodeW(registry, child)).toBeCloseTo(100, 0);
+
+        // Same entity set (identical structure signature) — only the width field
+        // changes. A gate that trusted structure alone would wrongly skip here.
+        // (insert is the in-place update door for a builtin the entity already has;
+        // set is emplace-only for existing builtins.)
+        world.insert(child, UINode, sizedNode(240, 50));
+        await app.tick(1 / 60);
+        expect(nodeW(registry, child)).toBeCloseTo(240, 0);
+
+        // Nothing changed this frame → the retained output must be preserved.
+        await app.tick(1 / 60);
+        expect(nodeW(registry, child)).toBeCloseTo(240, 0);
+
+        disposeApp(app, registry);
+    });
+
+    it('gate: a FlexContainer edit repositions children without a structural change', async () => {
+        const { app, registry } = createEditorApp();
+        const world = app.world;
+
+        const root = world.spawn();
+        world.insert(root, Canvas, {});
+        world.insert(root, UINode, fillNode());
+        world.insert(root, FlexContainer, flex({ direction: 1 })); // Column
+        world.insert(root, Transform, makeTransform());
+
+        const a = world.spawn();
+        world.setParent(a, root);
+        world.insert(a, UINode, sizedNode(100, 50));
+        world.insert(a, Transform, makeTransform());
+
+        const b = world.spawn();
+        world.setParent(b, root);
+        world.insert(b, UINode, sizedNode(100, 50));
+        world.insert(b, Transform, makeTransform());
+
+        setCanvasRect(app, -400, -300, 400, 300);
+        await app.tick(1 / 60);
+        const startY = registry.getTransform(b).position.y;
+
+        // justify-content Start → End packs the column to the bottom: 'b' moves.
+        world.insert(root, FlexContainer, flex({ direction: 1, justifyContent: 2 }));
+        await app.tick(1 / 60);
+        const endY = registry.getTransform(b).position.y;
+
+        expect(Math.abs(endY - startY)).toBeGreaterThan(1);
 
         disposeApp(app, registry);
     });
