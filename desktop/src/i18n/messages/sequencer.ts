@@ -9,8 +9,8 @@ export const sequencerMessages = defineMessages({
     // — empty state —
     'seq.empty.title': { en: 'No animation open', zh: '未打开动画' },
     'seq.empty.hint': {
-        en: 'Create a new animation, or double-click an existing .esanim in the Content Browser.',
-        zh: '新建一个动画，或在内容浏览器中双击已有的 .esanim 文件。',
+        en: 'Create a new animation, or double-click an existing .estimeline in the Content Browser.',
+        zh: '新建一个动画，或在内容浏览器中双击已有的 .estimeline 文件。',
     },
     'seq.empty.new': { en: 'New animation', zh: '新建动画' },
     'seq.empty.step1': {

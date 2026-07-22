@@ -133,6 +133,8 @@ export function NodeGraphCanvas<N extends CanvasNode, E extends CanvasEdge>(prop
   // world coords inside a transformed container, so there are no scrollbars.
   const [vp, setVp] = useState({ x: 0, y: 0, zoom: 1 });
   const pan = useRef<{ sx: number; sy: number; vx: number; vy: number } | null>(null);
+  const spaceHeld = useRef(false);
+  const [spacePan, setSpacePan] = useState(false); // Space+drag pan for trackpad users
 
   const openMenu = (e: ReactMouseEvent, target: ContextTarget) => {
     if (!menuItems) return;
@@ -230,6 +232,28 @@ export function NodeGraphCanvas<N extends CanvasNode, E extends CanvasEdge>(prop
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodes, vp, win]);
+
+  // Space = pan-drag mode (no middle button needed — the trackpad/laptop path).
+  useEffect(() => {
+    const typing = (el: EventTarget | null): boolean => {
+      const n = el as HTMLElement | null;
+      return !!n && (n.tagName === 'INPUT' || n.tagName === 'TEXTAREA' || n.isContentEditable);
+    };
+    const down = (e: KeyboardEvent) => {
+      if (e.code !== 'Space' || e.repeat || typing(e.target)) return;
+      spaceHeld.current = true;
+      setSpacePan(true);
+    };
+    const up = (e: KeyboardEvent) => {
+      if (e.code === 'Space') { spaceHeld.current = false; setSpacePan(false); }
+    };
+    win.addEventListener('keydown', down);
+    win.addEventListener('keyup', up);
+    return () => {
+      win.removeEventListener('keydown', down);
+      win.removeEventListener('keyup', up);
+    };
+  }, [win]);
 
   // Keyboard, scoped to the focused canvas (the canvas div carries tabIndex, so
   // clicking a node lands focus here) — a window listener would make two open
@@ -335,9 +359,10 @@ export function NodeGraphCanvas<N extends CanvasNode, E extends CanvasEdge>(prop
   return (
     <div className="panel ng-root" onKeyDown={onKeyDown}>
       {toolbar && <div className="ng-bar">{toolbar}</div>}
-      <div className="ng-canvas" tabIndex={0} style={{ backgroundSize: `${20 * vp.zoom}px ${20 * vp.zoom}px`, backgroundPosition: `${vp.x}px ${vp.y}px` }} ref={canvasRef}
+      <div className="ng-canvas" tabIndex={0} style={{ backgroundSize: `${20 * vp.zoom}px ${20 * vp.zoom}px`, backgroundPosition: `${vp.x}px ${vp.y}px`, ...(spacePan ? { cursor: 'grab' } : null) }} ref={canvasRef}
         onPointerDown={e => {
-          if (e.button === 1) { e.preventDefault(); pan.current = { sx: e.clientX, sy: e.clientY, vx: vp.x, vy: vp.y }; return; }
+          // Middle-drag, or Space+left-drag (trackpad), pans; a plain left-click deselects.
+          if (e.button === 1 || (e.button === 0 && spaceHeld.current)) { e.preventDefault(); pan.current = { sx: e.clientX, sy: e.clientY, vx: vp.x, vy: vp.y }; return; }
           onSelectNode(null); onSelectEdge(null);
         }}
         onWheel={e => {

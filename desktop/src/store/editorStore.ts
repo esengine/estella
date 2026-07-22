@@ -18,6 +18,7 @@ interface EditorState {
   togglePlay: () => void;
   togglePause: () => void;
   stop: () => void;
+  restart: () => void;
   // Where Play runs: in the Viewport (UE5 PIE, default) or a separate Game tab.
   playTarget: 'viewport' | 'window';
   setPlayTarget: (t: 'viewport' | 'window') => void;
@@ -120,6 +121,13 @@ export const useEditorStore = create<EditorState>((set) => ({
     set((s) => ({ isPlaying: !s.isPlaying, isPaused: false })),
   togglePause: () => set((s) => ({ isPaused: !s.isPaused })),
   stop: () => set({ isPlaying: false, isPaused: false }),
+  // A real restart: end the running session, then re-enter Play next frame so the
+  // play effect sees a false→true transition and boots a FRESH game (warm re-play
+  // is fast). The button labelled "Restart" used to just stop.
+  restart: () => {
+    set({ isPlaying: false, isPaused: false });
+    requestAnimationFrame(() => set({ isPlaying: true, isPaused: false }));
+  },
   // Guarded: this store is imported in pure-node tests where localStorage is absent.
   playTarget:
     (typeof localStorage !== 'undefined'
@@ -148,7 +156,10 @@ export const useEditorStore = create<EditorState>((set) => ({
   showTileCollision: true,
   previewFx: true,
   showStats: false,
-  showCoords: false,
+  // On by default: this strip carries the active-tool hint line (Alt-duplicate,
+  // brush flip/rotate, eyedropper…) + the cursor world coord / tile-cell readout —
+  // the editor's cheapest self-teaching surface. FPS/entity stats stay opt-in.
+  showCoords: true,
   showMinimap: true,
   snapping: false,
   snapStep: 32,

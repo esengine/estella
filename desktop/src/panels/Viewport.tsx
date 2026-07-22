@@ -823,8 +823,11 @@ export function Viewport() {
   // whose shaped-cell paths (grid + selection + gesture + hover) replace the square
   // engine grid and the axis-aligned div ghost, which only fit an orthogonal grid.
   const tileGridRef = useRef<SVGSVGElement | null>(null);
-  // Camera pan (middle/right drag) is built-in navigation, separate from tools.
+  // Camera pan (middle/right drag, or Space+left drag for trackpad users) is
+  // built-in navigation, separate from tools.
   const panRef = useRef<{ px: number; py: number } | null>(null);
+  const spaceHeld = useRef(false);
+  const [spacePan, setSpacePan] = useState(false); // drives the grab cursor
   // The tool that owns the in-progress left-button stroke (move/up route to it).
   const activeToolRef = useRef<EditorTool | null>(null);
   // Host services handed to tools during a stroke; stable across renders.
@@ -1735,12 +1738,37 @@ export function Viewport() {
     return () => win.removeEventListener('keydown', onKey, true);
   }, [toolCtx, win]);
 
+  // Space-held = pan-drag mode (the trackpad/laptop pan gesture; no middle button
+  // needed). Ignored while typing so a Space in a field doesn't arm it.
+  useEffect(() => {
+    const typing = (el: EventTarget | null): boolean => {
+      const n = el as HTMLElement | null;
+      return !!n && (n.tagName === 'INPUT' || n.tagName === 'TEXTAREA' || n.isContentEditable);
+    };
+    const down = (e: KeyboardEvent) => {
+      if (e.code !== 'Space' || e.repeat || typing(e.target)) return;
+      spaceHeld.current = true;
+      setSpacePan(true);
+    };
+    const up = (e: KeyboardEvent) => {
+      if (e.code !== 'Space') return;
+      spaceHeld.current = false;
+      setSpacePan(false);
+    };
+    win.addEventListener('keydown', down);
+    win.addEventListener('keyup', up);
+    return () => {
+      win.removeEventListener('keydown', down);
+      win.removeEventListener('keyup', up);
+    };
+  }, [win]);
+
   const onPointerDown = (e: ReactPointerEvent) => {
     if (engine.status !== 'ready') return;
 
-    // Middle / right drag = pan the view (camera navigation, always available
-    // regardless of the active tool).
-    if (e.button === 1 || e.button === 2) {
+    // Middle / right drag, or Space + left drag = pan the view (camera navigation,
+    // always available regardless of the active tool; Space-drag is the trackpad path).
+    if (e.button === 1 || e.button === 2 || (e.button === 0 && spaceHeld.current)) {
       e.preventDefault();
       panRef.current = { px: e.clientX, py: e.clientY };
       stageRef.current?.setPointerCapture(e.pointerId);
@@ -2073,6 +2101,7 @@ export function Viewport() {
         ref={stageRef}
         className="viewport__stage"
         data-engine="esengine.wasm"
+        style={spacePan ? { cursor: 'grab' } : undefined}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}

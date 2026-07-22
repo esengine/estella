@@ -117,7 +117,7 @@ export function Toolbar() {
                 ? t('layout.restart')
                 : `${t('cmd.play.toggle')}${hint('play.toggle')}`
           }
-          onClick={() => commands.run('play.toggle')}
+          onClick={() => (isPlaying ? useEditorStore.getState().restart() : commands.run('play.toggle'))}
         >
           <Play size={15} strokeWidth={1.9} fill="currentColor" />
           {isPlaying ? t('layout.restart') : t('cmd.play.toggle')}
