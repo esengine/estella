@@ -85,6 +85,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { ContextMenu } from '@/components/Menu';
 import { NumField, useScrub, fmt, type ControlGesture } from '@/components/NumField';
 import { Popover, usePopover } from '@/components/Popover';
+import { useListbox } from '@/components/useListbox';
 import { SearchField } from '@/components/SearchField';
 import { Select } from '@/components/Select';
 import { Segmented, type SegmentedOption } from '@/components/Segmented';
@@ -266,8 +267,10 @@ export function EnumControl({
   const searchable = options.length > 8;
   const ql = q.trim().toLowerCase();
   const filtered = ql ? options.filter((o) => prettyLabel(o.label).toLowerCase().includes(ql)) : options;
+  const { triggerProps, listProps } = useListbox(pop.isOpen, { seedFocus: !searchable });
   const close = () => {
     pop.close();
+    trigger.current?.focus();
     onEnd?.();
   };
   const toggle = () => {
@@ -278,7 +281,7 @@ export function EnumControl({
   };
   return (
     <span className="field dropdown">
-      <button ref={trigger} type="button" className="dd-trigger" onMouseDown={(e) => e.stopPropagation()} onClick={toggle}>
+      <button ref={trigger} type="button" className="dd-trigger" {...triggerProps} onMouseDown={(e) => e.stopPropagation()} onClick={toggle}>
         <span className={`dd-val${mixed ? ' mixed' : ''}`}>{mixed ? '—' : label}</span>
         <ChevronDown size={12} strokeWidth={2} />
       </button>
@@ -287,11 +290,13 @@ export function EnumControl({
           {searchable && (
             <SearchField flush className="dd-search" iconSize={12} autoFocus placeholder={t('ui.search')} value={q} onChange={setQ} />
           )}
-          <div className="dd-list">
+          <div className="dd-list" {...listProps}>
             {filtered.map((o) => (
               <button
                 key={o.value}
                 type="button"
+                role="option"
+                aria-selected={o.value === value && !mixed}
                 className={`dd-opt${o.value === value && !mixed ? ' on' : ''}`}
                 onClick={() => {
                   onChange(o.value);
@@ -354,8 +359,10 @@ export function EntityControl({
         : t('det.entityMissing', { id: value });
   const ql = q.trim().toLowerCase();
   const filtered = ql ? options.filter((o) => o.name.toLowerCase().includes(ql)) : options;
+  const { triggerProps, listProps } = useListbox(pop.isOpen, { seedFocus: options.length <= 8 });
   const close = () => {
     pop.close();
+    trigger.current?.focus();
     onEnd?.();
   };
   const toggle = () => {
@@ -370,7 +377,7 @@ export function EntityControl({
   };
   return (
     <span className="field dropdown">
-      <button ref={trigger} type="button" className="dd-trigger" onMouseDown={(e) => e.stopPropagation()} onClick={toggle}
+      <button ref={trigger} type="button" className="dd-trigger" {...triggerProps} onMouseDown={(e) => e.stopPropagation()} onClick={toggle}
         title={isDangling ? t('det.entityMissingTip') : undefined}>
         <span className={`dd-val${mixed || isUnsetEntity(value) || isDangling ? ' dd-none' : ''}`}>{mixed ? '—' : label}</span>
         <ChevronDown size={12} strokeWidth={2} />
@@ -380,13 +387,13 @@ export function EntityControl({
           {options.length > 8 && (
             <SearchField flush className="dd-search" iconSize={12} autoFocus placeholder={t('ui.search')} value={q} onChange={setQ} />
           )}
-          <div className="dd-list">
-            <button type="button" className={`dd-opt${isUnsetEntity(value) && !mixed ? ' on' : ''}`} onClick={() => pick(INVALID_ENTITY)}>
+          <div className="dd-list" {...listProps}>
+            <button type="button" role="option" aria-selected={isUnsetEntity(value) && !mixed} className={`dd-opt${isUnsetEntity(value) && !mixed ? ' on' : ''}`} onClick={() => pick(INVALID_ENTITY)}>
               <span className="dd-opt-label dd-none">{t('det.entityNone')}</span>
               {isUnsetEntity(value) && !mixed && <Check size={12} strokeWidth={2.4} />}
             </button>
             {filtered.map((o) => (
-              <button key={o.id} type="button" className={`dd-opt${o.id === value && !mixed ? ' on' : ''}`} onClick={() => pick(o.id)}>
+              <button key={o.id} type="button" role="option" aria-selected={o.id === value && !mixed} className={`dd-opt${o.id === value && !mixed ? ' on' : ''}`} onClick={() => pick(o.id)}>
                 <span className="dd-opt-label">{o.name}</span>
                 {o.id === value && !mixed && <Check size={12} strokeWidth={2.4} />}
               </button>
@@ -422,8 +429,10 @@ function FlagsControl({
       : active.length === bits.length && bits.length >= 4
         ? t('det.everything')
         : active.map((o) => prettyLabel(o.label)).join(' | ');
+  const { triggerProps, listProps } = useListbox(pop.isOpen, { multi: true });
   const close = () => {
     pop.close();
+    trigger.current?.focus();
     onEnd?.();
   };
   const toggle = () => {
@@ -433,7 +442,7 @@ function FlagsControl({
   };
   return (
     <span className="field dropdown">
-      <button ref={trigger} type="button" className="dd-trigger" onMouseDown={(e) => e.stopPropagation()} onClick={toggle}>
+      <button ref={trigger} type="button" className="dd-trigger" {...triggerProps} onMouseDown={(e) => e.stopPropagation()} onClick={toggle}>
         <span className={`dd-val${mixed ? ' mixed' : ''}`}>{summary}</span>
         <ChevronDown size={12} strokeWidth={2} />
       </button>
@@ -449,7 +458,7 @@ function FlagsControl({
               </button>
             </div>
           )}
-          <div className="dd-list">
+          <div className="dd-list" {...listProps}>
             {bits.map((o) => {
               const on = !mixed && (value & o.value) === o.value;
               // From a MIXED selection the checkboxes all read empty, so a click sets
@@ -457,7 +466,7 @@ function FlagsControl({
               // XORing the primary's mask instead would silently stamp its OTHER bits
               // onto the rest of the selection.
               return (
-                <button key={o.value} type="button" className="dd-opt" onClick={() => onChange(mixed ? o.value : value ^ o.value)}>
+                <button key={o.value} type="button" role="option" aria-selected={on} className="dd-opt" onClick={() => onChange(mixed ? o.value : value ^ o.value)}>
                   <span className={`fchk${on ? ' on' : ''}`}>{on && <Check size={10} strokeWidth={3.2} />}</span>
                   <span className="dd-opt-label">{prettyLabel(o.label)}</span>
                 </button>
@@ -555,7 +564,9 @@ export function BoolControl({
   return (
     <span
       className={`toggle${value ? ' on' : ''}${mixed ? ' mixed' : ''}`}
-      role="switch"
+      // `switch` has no tri-state — use `checkbox` when the multi-selection is
+      // mixed so aria-checked="mixed" is valid (matches the component enable box).
+      role={mixed ? 'checkbox' : 'switch'}
       aria-checked={mixed ? 'mixed' : value}
       tabIndex={0}
       onClick={commit}
@@ -970,7 +981,7 @@ export function AssetControl({
         onClick={() => info && revealAsset(info.path)}
       >
         <span className="th">
-          {!mixed && assetType === 'texture' && info ? (
+          {!mixed && isImageAsset(assetType as AssetType) && info ? (
             <img src={`estella://project/${info.path}`} alt="" draggable={false} />
           ) : (
             <Box size={11} strokeWidth={1.7} />

@@ -12,9 +12,10 @@
  *          like Details' EnumControl). List styling reuses the `.dd-*` popover
  *          vocabulary.
  */
-import { useEffect, useRef, type CSSProperties } from 'react';
+import { useRef, type CSSProperties } from 'react';
 import { ChevronDown, Check } from 'lucide-react';
 import { Popover, usePopover } from './Popover';
+import { useListbox } from './useListbox';
 
 export interface SelectOption<T extends string> {
   value: T;
@@ -41,7 +42,7 @@ export function Select<T extends string>({
 }) {
   const pop = usePopover();
   const trigger = useRef<HTMLButtonElement>(null);
-  const listRef = useRef<HTMLDivElement>(null);
+  const { triggerProps, listProps } = useListbox(pop.isOpen);
   const cur = options.find((o) => o.value === value);
 
   const close = () => {
@@ -51,29 +52,6 @@ export function Select<T extends string>({
   const toggle = () => {
     if (pop.isOpen) close();
     else pop.open(trigger.current);
-  };
-
-  // Seed focus on the current option so arrow keys work immediately.
-  useEffect(() => {
-    if (!pop.isOpen) return;
-    const raf = requestAnimationFrame(() => {
-      const list = listRef.current;
-      const target =
-        list?.querySelector<HTMLButtonElement>('.dd-opt.on') ??
-        list?.querySelector<HTMLButtonElement>('.dd-opt');
-      target?.focus();
-    });
-    return () => cancelAnimationFrame(raf);
-  }, [pop.isOpen]);
-
-  const onListKey = (e: React.KeyboardEvent) => {
-    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
-    e.preventDefault();
-    const items = [...(listRef.current?.querySelectorAll<HTMLButtonElement>('.dd-opt') ?? [])];
-    if (!items.length) return;
-    const i = items.indexOf(document.activeElement as HTMLButtonElement);
-    const next = e.key === 'ArrowDown' ? Math.min(items.length - 1, i + 1) : Math.max(0, i - 1);
-    items[next]?.focus();
   };
 
   const triggerClass =
@@ -87,8 +65,7 @@ export function Select<T extends string>({
         className={triggerClass}
         style={style}
         aria-label={ariaLabel}
-        aria-haspopup="listbox"
-        aria-expanded={pop.isOpen}
+        {...triggerProps}
         onMouseDown={(e) => e.stopPropagation()}
         onClick={toggle}
       >
@@ -97,7 +74,7 @@ export function Select<T extends string>({
       </button>
       {pop.anchor && (
         <Popover anchor={pop.anchor} width={Math.max(pop.anchor.width, 120)} onClose={close}>
-          <div className="dd-list" role="listbox" ref={listRef} onKeyDown={onListKey}>
+          <div className="dd-list" {...listProps}>
             {options.map((o) => (
               <button
                 key={o.value}
