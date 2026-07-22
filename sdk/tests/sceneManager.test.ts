@@ -270,6 +270,13 @@ describe('SceneManager', () => {
             expect(app.world.despawn).not.toHaveBeenCalledWith(1);
             // Entity 2 should be despawned (not persistent)
             expect(app.world.despawn).toHaveBeenCalledWith(2);
+
+            // The surviving persistent entity is promoted to global (scene ''),
+            // so scene-gated consumers (e.g. the camera render filter) keep it
+            // active instead of orphaning it to the now-unloaded scene.
+            const owner1 = app._entities.get(1)!.get(SceneOwner);
+            expect(owner1.persistent).toBe(true);
+            expect(owner1.scene).toBe('');
         });
 
         it('unload() with keepPersistent=false despawns all entities', async () => {

@@ -447,7 +447,19 @@ export class SceneManagerState {
             if (keepPersistent && this.app_.world.valid(entity) &&
                 this.app_.world.has(entity, SceneOwner)) {
                 const data = this.app_.world.get(entity, SceneOwner);
-                if (data.persistent) continue;
+                if (data.persistent) {
+                    // A persistent entity outlives its origin scene, so it is now
+                    // global. Clear the owning-scene tag — otherwise every
+                    // scene-gated consumer (the camera render filter, system/draw
+                    // gating) still sees it owned by a scene that no longer exists
+                    // and orphans it (a persistent camera would stop rendering).
+                    // scene === '' is the existing "always active" rule.
+                    if (data.scene !== '') {
+                        data.scene = '';
+                        this.app_.world.insert(entity, SceneOwner, data);
+                    }
+                    continue;
+                }
             }
             if (this.app_.world.valid(entity)) {
                 this.app_.world.despawn(entity);
