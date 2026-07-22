@@ -306,13 +306,9 @@ currentState: string
 enabled: boolean
 ```
 
-## AnimatorEdge — interface
+## AnimatorEdge — type
 ```
-from: string
-id: string
-index: number
-to: string
-transition: AnimatorTransition
+GraphEdge<AnimatorTransition>
 ```
 
 ## AnimatorEvalResult — interface
@@ -2728,13 +2724,9 @@ initial: string
 states: FsmState[]
 ```
 
-## FsmEdge — interface
+## FsmEdge — type
 ```
-from: string
-id: string
-index: number
-to: string
-transition: FsmTransition
+GraphEdge<FsmTransition>
 ```
 
 ## FsmPlugin — class
