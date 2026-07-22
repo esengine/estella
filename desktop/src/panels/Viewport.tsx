@@ -837,6 +837,8 @@ export function Viewport() {
     release: (id) => stageRef.current?.releasePointerCapture(id),
   }), []);
   const [zoomPct, setZoomPct] = useState(100);
+  // Last-published zoom %, so the rAF only re-renders the HUD when it actually changes.
+  const zoomPctRef = useRef(100);
   const engine = useSyncExternalStore(EngineHost.subscribe, EngineHost.getSnapshot);
   const realm = useSyncExternalStore(PlayRealm.subscribe, PlayRealm.getSnapshot);
   // Selector snapshot: re-renders only when the Perf overlay is toggled, not on
@@ -981,7 +983,8 @@ export function Viewport() {
       e.preventDefault();
       const orthoFactor = e.deltaY > 0 ? 1.1 : 1 / 1.1; // larger orthoSize = zoom out
       ViewportController.zoomAtClient(e.clientX, e.clientY, orthoFactor); // zoom toward the cursor
-      setZoomPct((z) => Math.max(10, Math.min(800, Math.round(z / orthoFactor))));
+      // The zoom % readout is reconciled from the real view scale in the rAF below —
+      // no manual counter to drift out of sync with Frame Selected / minimap / presets.
     };
     stage.addEventListener('wheel', onWheel, { passive: false });
     return () => stage.removeEventListener('wheel', onWheel);
@@ -999,6 +1002,21 @@ export function Viewport() {
       const ready = EngineHost.getSnapshot().status === 'ready';
       const showG = useEditorStore.getState().showGizmos;
       const toolMode = useEditorStore.getState().tool;
+
+      // Keep the zoom % readout honest: derive it from the ACTUAL world→screen scale
+      // (pixels per world unit ×100). Frame Selected, the minimap, and device presets
+      // all change orthoSize without any wheel event, so a tracked counter drifts.
+      if (ready) {
+        const a = ViewportController.worldToClient(0, 0);
+        const b = ViewportController.worldToClient(1, 0);
+        if (a && b) {
+          const pct = Math.max(1, Math.round(Math.hypot(b.x - a.x, b.y - a.y) * 100));
+          if (pct !== zoomPctRef.current) {
+            zoomPctRef.current = pct;
+            setZoomPct(pct);
+          }
+        }
+      }
 
       // Selection outlines. Below the merge threshold: one div per selected source
       // id (crisp per-entity boxes). Above it: a single merged bounding box in one
