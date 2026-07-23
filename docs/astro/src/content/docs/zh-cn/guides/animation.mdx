@@ -15,6 +15,10 @@ Estella 有三套动画系统,各司其职:
 
 ## 精灵动画
 
+![翻页书编辑器——4 帧行走片段,带逐帧时长与实时预览](../../../../assets/guides/zh/flipbook.png)
+
+*翻页书编辑器:一个 4 帧行走片段、逐帧时长,以及带 FPS / 循环 / 洋葱皮的实时预览。*
+
 `SpriteAnimator` 组件播放命名的精灵表片段(作为 `anim-clip` 资源编辑)。通过 `Mut` 查询
 写组件来切换片段:
 
@@ -232,6 +236,10 @@ tween.sequence([
 组合时,才需要点名 `TweenGroup` / `TweenSequence` / `ValueTweenHandle`。
 
 ## 动画状态机
+
+![动画控制器编辑器——Idle / Move / Hop 状态,带条件与参数面板](../../../../assets/guides/zh/animator-graph.png)
+
+*动画控制器:状态(Idle / Move / Hop)、带条件的转移(`speed>20`、`hop` 触发器),以及驱动它们的**参数**面板。*
 
 角色动画用一个**动画控制器**:它持有状态、转移和由命名**参数**驱动的 1D 混合树。在编辑器
 里编辑它(或用代码注册),给实体加一个指明控制器名的 `Animator` 组件,然后每帧通过

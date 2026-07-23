@@ -51,6 +51,10 @@ physics.applyImpulse(e, { x: 0, y: jumpPx / ppu });   // px/s → m/s
 
 ## 刚体与碰撞体
 
+![编辑器视口里的碰撞体 gizmo——选中的 Ground 轮廓加墙体与斜坡](../../../../assets/guides/zh/physics-collider.png)
+
+*视口里的碰撞体 gizmo:选中的 **Ground** 的盒形轮廓(琥珀色),以及墙体与斜坡。用视口的物理显示开关切换。*
+
 加一个 `RigidBody` 再加一个碰撞体形状。**碰撞体尺寸以米计,不是像素**——把像素尺寸除以你的
 每单位像素数(见[单位](#单位))。从一个取 `Commands()` 的系统里生成:
 

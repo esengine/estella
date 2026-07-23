@@ -259,6 +259,10 @@ only replans when the target actually moves or `repathInterval` elapses. Read
 
 ## State machines
 
+![The FSM editor — Patrol and Chase states linked by guarded transitions](../../../assets/guides/en/ai-fsm.png)
+
+*The state-machine editor: states (Patrol / Chase) linked by guarded transitions (`?seesPlayer`, `?lostPlayer`).*
+
 A state machine is a set of **states** connected by guarded **transitions**. Exactly
 one state is active; each tick, its outgoing transitions are checked in order and the
 first enabled one is taken. Attach a `StateMachineAgent` and point it at a graph:
@@ -318,6 +322,10 @@ Guards compare a blackboard key with `==`, `!=`, `<`, `<=`, `>`, `>=`, `truthy`,
 `falsy` — e.g. `{ key: 'health', op: '<', value: 20 }`.
 
 ## Behavior trees
+
+![The behavior-tree editor — a Selector over a Sequence and a fallback action](../../../assets/guides/en/ai-bt.png)
+
+*The behavior-tree editor: a **Selector** root over a **Sequence** (Condition `seesPlayer` → Action `chase`) with a fallback `patrol` action.*
 
 A behavior tree ticks from its **root** every frame and returns a `Status`. Composite
 nodes control flow; decorators transform one child's result; leaves are your

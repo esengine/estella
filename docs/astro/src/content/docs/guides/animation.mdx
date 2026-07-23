@@ -16,6 +16,10 @@ element while a sprite loops.
 
 ## Sprite animation
 
+![The flipbook editor — a 4-frame walk clip with per-frame timing and a live preview](../../../assets/guides/en/flipbook.png)
+
+*The flipbook editor: a 4-frame walk clip, per-frame durations, and a live preview with FPS / loop / onion-skin.*
+
 The `SpriteAnimator` component plays named sprite-sheet clips (authored as
 `anim-clip` assets). Switch clips by writing the component through a `Mut` query:
 
@@ -247,6 +251,10 @@ back — you only name `TweenGroup` / `TweenSequence` / `ValueTweenHandle` when
 storing a handle to pause, cancel, or observe the composition later.
 
 ## Animator state machine
+
+![The animator editor — Idle / Move / Hop states with conditions and a parameters panel](../../../assets/guides/en/animator-graph.png)
+
+*The animator: states (Idle / Move / Hop), transitions with conditions (`speed>20`, the `hop` trigger), and the **Parameters** panel that drives them.*
 
 For character animation, an **animator controller** holds states, transitions, and
 1D blend trees driven by named **parameters**. Author it in the editor (or

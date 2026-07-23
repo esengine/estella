@@ -237,6 +237,10 @@ stopNavAgent(world, entity);
 
 ## 状态机
 
+![状态机编辑器——Patrol 与 Chase 状态由带守卫的转移连接](../../../../assets/guides/zh/ai-fsm.png)
+
+*状态机编辑器:状态(Patrol / Chase)由带守卫的转移(`?seesPlayer`、`?lostPlayer`)连接。*
+
 状态机是一组由带守卫的**转移**连接起来的**状态**。任一时刻恰好一个状态处于激活;每个 tick,
 它的出边按顺序被检查,第一条满足条件的被采用。加一个 `StateMachineAgent` 并指向一个图:
 
@@ -293,6 +297,10 @@ registerFsm('guard', {
 `{ key: 'health', op: '<', value: 20 }`。
 
 ## 行为树
+
+![行为树编辑器——Selector 之下是 Sequence 与一个兜底动作](../../../../assets/guides/zh/ai-bt.png)
+
+*行为树编辑器:**Selector** 根之下是一个 **Sequence**(Condition `seesPlayer` → Action `chase`),外加兜底的 `patrol` 动作。*
 
 行为树每帧从**根**开始 tick 并返回一个 `Status`。组合节点控制流程;装饰器变换其唯一子节点的
 结果;叶子是你注册的动作和条件。加一个 `BehaviorTreeAgent`:
