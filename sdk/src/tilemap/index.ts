@@ -18,7 +18,8 @@ export {
 export { tileCollisionOutlines, type TileCollisionPiece } from './tileCollisionOutline';
 export {
     COLLISION_PALETTE_REF, COLLISION_BRUSHES, isCollisionPaletteRef, buildCollisionPaletteModel,
-    type CollisionBrush,
+    parseCollisionMaterial, collisionRefWithMaterial,
+    type CollisionBrush, type CollisionMaterial,
 } from './collisionPalette';
 export {
     tileCellCenter, tileCellOutline, isNonOrthogonal, usesStagger, isHexOrientation, TileOrientation,

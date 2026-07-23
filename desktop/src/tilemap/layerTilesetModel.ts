@@ -9,7 +9,7 @@
  *          world; the editor re-resolves independently for a picture).
  */
 import {
-  resolveTilesetModel, isCollisionPaletteRef, buildCollisionPaletteModel,
+  resolveTilesetModel, isCollisionPaletteRef, buildCollisionPaletteModel, parseCollisionMaterial,
   type TilesetModel, type ResolvedTileset,
 } from 'esengine';
 import { SceneModel } from '@/engine/SceneModel';
@@ -49,7 +49,7 @@ export async function loadLayerTilesetModel(refs: string[]): Promise<TilesetMode
   // A collision (obstacle) layer paints from the fixed built-in palette, not an
   // `.estileset` — resolve it to the SAME model the runtime installs, so the overlay
   // draws exactly the colliders that will spawn.
-  if (isCollisionPaletteRef(refs)) return buildCollisionPaletteModel();
+  if (isCollisionPaletteRef(refs)) return buildCollisionPaletteModel(parseCollisionMaterial(refs));
 
   const list: ResolvedTileset[] = [];
   for (const ref of refs) {

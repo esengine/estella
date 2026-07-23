@@ -565,7 +565,7 @@ export function TilemapPainter() {
           <Dices size={15} />
         </IconButton>
       </div>
-      {collisionLayer && <CollisionBrushPalette />}
+      {collisionLayer && selectedId != null && <CollisionBrushPalette sourceId={selectedId} />}
       {tool !== 'terrain' && !collisionLayer && (
         <div className="tp-stamps">
           <IconButton size="sm" title={t('tile.saveStamp')} onClick={() => updateStamps(addStamp(savedStamps, stamp))}>

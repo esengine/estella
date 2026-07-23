@@ -11,7 +11,7 @@ import { Tilemap } from './components';
 import { registerSceneComponentCodec } from '../scene';
 import { getTilemapSource, getResolvedTileset, type LoadedTilemapSource } from './tilesetCache';
 import { resolveTilesetModel } from './tilesetResolve';
-import { isCollisionPaletteRef, buildCollisionPaletteModel } from './collisionPalette';
+import { isCollisionPaletteRef, buildCollisionPaletteModel, parseCollisionMaterial } from './collisionPalette';
 import { _bindTileCollisionLookup, type LayerCollisionTable } from './tileQuery';
 import type { ResolvedTileCollision } from './tilesetResolve';
 import {
@@ -283,7 +283,7 @@ export class TilemapPlugin implements Plugin {
                     // and no atlas load — so the same spawn + overlay path handles it as any
                     // painted collision. The gate above passed because refs is non-empty.
                     if (refs && refs.length > 0 && isCollisionPaletteRef(refs) && !liveResolved.has(entity)) {
-                        const model = buildCollisionPaletteModel();
+                        const model = buildCollisionPaletteModel(parseCollisionMaterial(refs));
                         if (model.collidableTileIds.length > 0) nativeCollisionIds.set(entity, model.collidableTileIds);
                         else nativeCollisionIds.delete(entity);
                         if (model.tileShapes.size > 0) nativeTileShapes.set(entity, model.tileShapes);

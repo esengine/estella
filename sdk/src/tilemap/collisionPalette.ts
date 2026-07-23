@@ -23,12 +23,53 @@
 import type { ResolvedTileCollision, TilesetModel } from './tilesetResolve';
 
 /** The sentinel tileset ref that turns a TilemapLayer into a collision (obstacle) layer.
- *  Mirrors the `builtin:<id>` shader convention — resolved in code, never a project asset. */
+ *  Mirrors the `builtin:<id>` shader convention — resolved in code, never a project asset.
+ *  A per-layer physics material rides as a query string: `builtin:collision?friction=0.1`. */
 export const COLLISION_PALETTE_REF = 'builtin:collision';
+
+/** A collision layer's whole-layer physics material (absent = engine default). */
+export interface CollisionMaterial {
+    friction?: number;
+    restitution?: number;
+    density?: number;
+}
+
+/** True for a collision ref — the bare sentinel OR a material-carrying `...?friction=…`. */
+function isCollisionRef(r: string): boolean {
+    return r === COLLISION_PALETTE_REF || r.startsWith(COLLISION_PALETTE_REF + '?');
+}
 
 /** True when a layer's tileset ref list is the built-in collision palette. */
 export function isCollisionPaletteRef(refs: readonly string[]): boolean {
-    return refs.some((r) => r === COLLISION_PALETTE_REF);
+    return refs.some(isCollisionRef);
+}
+
+/** The per-layer material encoded in a collision ref list, if any (else engine defaults). */
+export function parseCollisionMaterial(refs: readonly string[]): CollisionMaterial {
+    const ref = refs.find(isCollisionRef) ?? '';
+    const q = ref.indexOf('?');
+    if (q < 0) return {};
+    const out: CollisionMaterial = {};
+    for (const pair of ref.slice(q + 1).split('&')) {
+        const eq = pair.indexOf('=');
+        if (eq < 0) continue;
+        const key = pair.slice(0, eq);
+        const val = Number(pair.slice(eq + 1));
+        if (!Number.isFinite(val)) continue;
+        if (key === 'friction') out.friction = val;
+        else if (key === 'restitution') out.restitution = val;
+        else if (key === 'density') out.density = val;
+    }
+    return out;
+}
+
+/** Build a collision ref carrying a per-layer material (the bare sentinel when empty). */
+export function collisionRefWithMaterial(material: CollisionMaterial): string {
+    const parts: string[] = [];
+    if (material.friction !== undefined) parts.push(`friction=${material.friction}`);
+    if (material.restitution !== undefined) parts.push(`restitution=${material.restitution}`);
+    if (material.density !== undefined) parts.push(`density=${material.density}`);
+    return parts.length > 0 ? `${COLLISION_PALETTE_REF}?${parts.join('&')}` : COLLISION_PALETTE_REF;
 }
 
 /**
@@ -74,12 +115,19 @@ function isPlainBox(c: ResolvedTileCollision): boolean {
  * the plain solid box (greedy-merged), `tileShapes` the richer brushes (slopes / halves /
  * one-way / sensor), one collider each.
  */
-export function buildCollisionPaletteModel(): TilesetModel {
+export function buildCollisionPaletteModel(material?: CollisionMaterial): TilesetModel {
+    // A per-layer material folds onto every brush's collision. With a material set, even the
+    // plain solid box carries it (density/friction/restitution) — so it stops being a "plain
+    // box", leaves the greedy-merge set, and spawns one collider per cell (the material is
+    // whole-layer, correctness over the merge optimization; the default path still merges).
+    const mat = material && (material.friction !== undefined || material.restitution !== undefined
+        || material.density !== undefined) ? material : undefined;
     const collidableTileIds: number[] = [];
     const tileShapes = new Map<number, ResolvedTileCollision>();
     for (const b of COLLISION_BRUSHES) {
-        if (isPlainBox(b.collision)) collidableTileIds.push(b.id);
-        else tileShapes.set(b.id, b.collision);
+        const rc: ResolvedTileCollision = mat ? { ...b.collision, ...mat } : b.collision;
+        if (isPlainBox(rc)) collidableTileIds.push(b.id);
+        else tileShapes.set(b.id, rc);
     }
     collidableTileIds.sort((a, b) => a - b);
     return { slots: [], animations: new Map(), collidableTileIds, tileShapes };

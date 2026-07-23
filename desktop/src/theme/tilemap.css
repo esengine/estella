@@ -386,3 +386,30 @@
 }
 .cp-brush svg { color: var(--text); }
 .cp-brush-label { font-size: var(--fs-xs); text-align: center; line-height: 1.1; }
+/* Whole-layer physics material (friction / bounce) for a collision layer. */
+.cp-mat {
+  display: flex;
+  gap: 8px;
+  padding-top: 8px;
+  margin-top: 4px;
+  border-top: 1px solid var(--line);
+}
+.cp-mat-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1 1 0;
+  font-size: var(--fs-2xs);
+  color: var(--text-faint);
+}
+.cp-mat-field input {
+  width: 100%;
+  height: 22px;
+  padding: 0 6px;
+  background: var(--srf-2);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--text);
+  font-size: var(--fs-xs);
+}
+.cp-mat-field input:focus { border-color: var(--acc); outline: none; }
