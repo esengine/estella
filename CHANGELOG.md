@@ -14,6 +14,69 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.31.0] - 2026-07-22
+
+Authoring a game on top of your art. Where 0.30 sharpened the editor itself,
+this release is about **building playable levels over a single background image**
+— paint collision, drop gameplay markers and trigger areas as real entities, and
+edit every collider shape by hand, all without a tileset. The other half is a
+pass over the **inspector and UI authoring**: progressive disclosure, a visual
+flex-layout editor, an anchor grid, and shaders you can finally see, share and
+switch. No project/asset format or WASM ABI break — your projects open unchanged.
+
+### Added
+
+- **Collision (obstacle) layers.** A tilemap layer that references the built-in
+  `builtin:collision` palette instead of an `.estileset`: paint solid / slope /
+  half / one-way / sensor cells straight over any background (e.g. one big
+  image) and they spawn static colliders at Play, shown live by the tile-
+  collision overlay. It renders nothing and reuses the whole tile→collision seam
+  (chunk store, paint tools, greedy box merge, one-way/sensor). Each layer can
+  carry its own **physics material**.
+- **Markers + Trigger Areas — native object placement.** The modern "object
+  layer": place gameplay objects as real ECS entities, not a parallel object-
+  group structure. `Marker` is a named point (spawn / waypoint / location) you
+  can `Query(Marker)` and filter by `type`, with a custom **key→value property
+  map**; "Trigger Area" is a Create preset (Transform + static RigidBody + sensor
+  BoxCollider + Marker) that reuses the unified collider gizmo for shaping. Both
+  serialize, edit in the Inspector, and are query-able — no C++/ABI change.
+- **`.tmj` object groups converge onto real entities.** Imported Tiled point
+  objects become queryable Markers, shape objects become Trigger Areas, and every
+  object-group shape now rides one edit-visible region path instead of a
+  `.tmj`-only structure.
+- **Hand-editable collider shapes.** Drag a circle's centre + radius, drag
+  polygon vertices, pick the one-way direction (no longer always up), and set the
+  per-tile collision material — all inside the shape editors. An always-on
+  collision overlay and Marker pin gizmos keep it visible while you work.
+- **Shareable shaders.** `.esshader` is now a first-class asset type (SHD badge),
+  not an auto-spawned mystery file. The material inspector's Shader section picks
+  from built-in templates + every project `.esshader`; switching re-reflects the
+  parameter surface, and several materials can point at one shared shader.
+- **A modernized inspector.** Progressive disclosure collapses noise by default;
+  a visual flex-layout section with editable padding, a clickable 3×3 anchor grid
+  (shared with the flex widget), and an inline Controllers strip bring UI
+  authoring inline.
+- **Multi-selection align + distribute tools**, **Tilemap in the Create-entity
+  picker**, and **animation-frame reordering with a set-uniform-duration action.**
+
+### Fixed
+
+- **Render targets no longer trip a GL feedback loop.** A target's own texture
+  could stay bound to a sampler while it was drawn into — undefined per the GL
+  spec, and a per-frame `GL_INVALID_OPERATION` on some drivers (it fired every
+  frame in the render-texture example). The device now detaches a target's
+  attachments from every sampler slot when the target is bound.
+- **A persistent entity that outlives a scene unload is promoted to global**
+  instead of being dropped with the scene.
+- **`Mut()` write-back records `Changed` for builtin components**, so change-
+  detection queries see edits made through a mutable handle.
+
+### Performance
+
+- **Retained Yoga node tree.** The UI layout keeps its `YGNode`s across frames
+  instead of rebuilding them, and skips the layout solve entirely on a fully
+  static frame.
+
 ## [0.30.0] - 2026-07-21
 
 The editor grows up. Where 0.29 was about the prefab system, this release is
