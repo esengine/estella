@@ -230,6 +230,10 @@ const onHit = defineSystem([Res(PhysicsEvents)], (events) => {
 
 ## 关节
 
+![各关节类型及其约束——Revolute、Distance、Prismatic、Weld、Wheel、Motor](../../../../assets/guides/physics-joints.svg)
+
+*每种关节约束什么:**Revolute** 铰链(绕销钉转动)、**Distance** 弹簧/连杆、**Prismatic** 滑轨(单轴滑动)、刚性 **Weld** 焊接、**Wheel** 车轮(悬挂 + 自由旋转),以及 **Motor** 马达(驱向目标速度)。*
+
 连接两个刚体。加一个关节**组件**(`RevoluteJoint`、`DistanceJoint`、`PrismaticJoint`、
 `WeldJoint`、`WheelJoint`、`MotorJoint`),或命令式创建一个并驱动它的马达 / 限位:
 

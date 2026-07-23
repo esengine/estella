@@ -242,6 +242,10 @@ const onHit = defineSystem([Res(PhysicsEvents)], (events) => {
 
 ## Joints
 
+![The joint types and what each constrains — Revolute, Distance, Prismatic, Weld, Wheel, Motor](../../../assets/guides/physics-joints.svg)
+
+*What each joint constrains: a **Revolute** hinge (rotate about a pin), a **Distance** spring/rod, a **Prismatic** slider (one axis), a rigid **Weld**, a **Wheel** (suspension + free spin), and a **Motor** (driven toward a target velocity).*
+
 Connect two bodies. Add a joint **component** (`RevoluteJoint`, `DistanceJoint`,
 `PrismaticJoint`, `WeldJoint`, `WheelJoint`, `MotorJoint`), or create one imperatively
 and drive its motor / limits:
