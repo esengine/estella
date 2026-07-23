@@ -304,6 +304,10 @@ parameter and `eq` / `neq`.
 
 ### Blend trees
 
+![A 1D blend on speed selecting idle / walk / run by threshold](../../../assets/guides/blend-tree.svg)
+
+*A 1D blend: a float parameter picks the clip whose threshold is the highest one at or below it — here `idle` / `walk` / `run` as `speed` rises, with no transitions between them.*
+
 A state can carry a 1D **blend** instead of a single clip: a float parameter
 selects between `AnimatorBlendThreshold` stops. Because the sprite channel plays
 one clip at a time, this is a *selection* by threshold — the stop with the

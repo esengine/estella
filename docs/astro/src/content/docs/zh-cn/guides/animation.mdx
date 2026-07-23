@@ -286,6 +286,10 @@ const drive = defineSystem([Query(Animator), Res(AnimatorController)], (q, anim)
 
 ### 混合树
 
+![一维 blend 按 speed 阈值在 idle / walk / run 之间选择](../../../../assets/guides/blend-tree.svg)
+
+*一维 blend:float 参数挑出「阈值 ≤ 它」中最高的那个片段——这里随 `speed` 上升在 `idle` / `walk` / `run` 之间切换,彼此不做过渡。*
+
 状态可以携带一个 1D **blend** 来代替单个片段:由一个 float 参数在
 `AnimatorBlendThreshold` 档位之间做选择。因为精灵通道一次只播一个片段,这里的混合是
 按阈值的*选择*——`value` 不超过参数值的档位中取最大者(低于所有档位时播第一个)——
