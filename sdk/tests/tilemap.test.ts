@@ -1482,6 +1482,33 @@ describe('loadTiledMap — collision integration', () => {
             expect(spawnObjectRegion(world, obj({ shape: 'point' }), world.spawn(), 100, true)).toBeNull();
             expect(spawnObjectRegion(world, obj({ shape: 'rect', gid: 5 }), world.spawn(), 100, true)).toBeNull();
         });
+
+        it('shares ONE shape→collider decision with generateObjectCollision (the runtime path)', () => {
+            // The same object, projected by the region path (parented, sensor-capable) and by
+            // the legacy runtime collider path (world-placed), must yield the SAME collider
+            // geometry + local placement — both now route through attachObjectShape, so they
+            // can never silently re-diverge. generateObjectCollision at origin 0 == the
+            // region's parent-local space; sensor=false makes the region collider solid too.
+            const shapes: Partial<Record<string, unknown>>[] = [
+                { shape: 'rect', width: 40, height: 20 },
+                { shape: 'ellipse', width: 80, height: 40 },
+                { shape: 'polygon', vertices: [0, 0, 30, 0, 30, 30] },
+                { shape: 'polyline', vertices: [0, 0, 10, 0, 10, 10] },
+            ];
+            for (const s of shapes) {
+                const o = obj({ ...s, x: 0, y: 0, rotation: 0 });
+                const rw = createMockWorld();
+                const region = spawnObjectRegion(rw, o, rw.spawn(), 100, false)!;
+                const lw = createMockWorld();
+                const legacy = generateObjectCollision(
+                    lw, [{ name: 'g', visible: true, properties: new Map(), objects: [o] } as never], 0, 0, 100,
+                )[0];
+                for (const C of [BoxCollider, CircleCollider, PolygonCollider, ChainCollider]) {
+                    expect(rw.get(region, C)).toEqual(lw.get(legacy, C));
+                }
+                expect(rw.get(region, Transform).position).toEqual(lw.get(legacy, Transform).position);
+            }
+        });
     });
 
     it('should generate tile collision from collisionTileIds option', () => {
