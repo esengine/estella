@@ -217,6 +217,26 @@ async function runScreenshot(w: BrowserWindow, out: string): Promise<void> {
       }
     }
 
+    // Force the viewport GPU backend (ESTELLA_SHOT_BACKEND=webgl2|webgpu) — the
+    // backend is fixed at engine instantiation from the persisted setting, so seed
+    // it and reload before the project boots (mirrors the locale seed above). Lets
+    // a shot verify the WebGPU backend renders the same frame as WebGL2.
+    const backend = process.env.ESTELLA_SHOT_BACKEND;
+    if (backend) {
+      const changed = await exec(`(() => {
+        const k = 'estella.settings';
+        const v = JSON.parse(localStorage.getItem(k) || '{}');
+        if (v['renderer.backend'] === ${JSON.stringify(backend)}) return false;
+        v['renderer.backend'] = ${JSON.stringify(backend)};
+        localStorage.setItem(k, JSON.stringify(v));
+        return true;
+      })()`);
+      if (changed) {
+        w.webContents.reload();
+        await waitFor('!!window.__estellaEditor', 'automation hook (after backend reload)');
+      }
+    }
+
     const project = process.env.ESTELLA_SHOT_PROJECT;
     const scene = process.env.ESTELLA_SHOT_SCENE;
     if (project) {
