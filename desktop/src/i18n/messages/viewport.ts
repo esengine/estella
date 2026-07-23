@@ -73,6 +73,16 @@ export const viewportMessages = defineMessages({
     'vp.flag.previewFx': { en: 'Preview FX', zh: '预览特效' },
     'vp.flag.perf': { en: 'Perf', zh: '性能' },
 
+    // — Align + distribute (multi-selection) —
+    'vp.align.left': { en: 'Align left edges', zh: '左对齐' },
+    'vp.align.hcenter': { en: 'Align horizontal centers', zh: '水平居中对齐' },
+    'vp.align.right': { en: 'Align right edges', zh: '右对齐' },
+    'vp.align.top': { en: 'Align top edges', zh: '顶对齐' },
+    'vp.align.vmiddle': { en: 'Align vertical centers', zh: '垂直居中对齐' },
+    'vp.align.bottom': { en: 'Align bottom edges', zh: '底对齐' },
+    'vp.align.distributeH': { en: 'Distribute horizontal spacing', zh: '水平等距分布' },
+    'vp.align.distributeV': { en: 'Distribute vertical spacing', zh: '垂直等距分布' },
+
     // — View controls —
     'vp.frameSelected': { en: 'Frame Selected', zh: '聚焦所选' },
     'vp.minimap': { en: 'Minimap · click or drag to navigate', zh: '小地图 · 点击或拖动以导航' },

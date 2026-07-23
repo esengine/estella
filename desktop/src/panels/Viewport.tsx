@@ -5,6 +5,9 @@ import type { PointerEvent as ReactPointerEvent, DragEvent as ReactDragEvent, Re
 import {
   MousePointer2, Move, RotateCw, Scale3d, Grid3x3, Frame,
   Camera, Check, ChevronDown, Loader2, TriangleAlert, Lightbulb, Sparkles, Globe, Crosshair, Smartphone, Monitor, Magnet, Axis3d, Hexagon, type LucideIcon,
+  AlignStartVertical, AlignCenterVertical, AlignEndVertical,
+  AlignStartHorizontal, AlignCenterHorizontal, AlignEndHorizontal,
+  AlignHorizontalDistributeCenter, AlignVerticalDistributeCenter,
 } from 'lucide-react';
 import { t } from '@/i18n';
 import { useEditorStore } from '@/store/editorStore';
@@ -15,6 +18,7 @@ import { activeMode, activeModeOverlays } from '@/mode/activeMode';
 import { useEditorMode } from '@/store/editorModeStore';
 import { RESOLUTION_PRESETS, RESOLUTION_PRESET_BY_ID, DESIGN_RESOLUTION_PRESETS, deviceDims } from '@/mode/resolutionPresets';
 import { buildStampGhost } from '@/tools/tileStampGhost';
+import { alignSelection, distributeSelection } from '@/tools/alignTools';
 import { TilemapAPI, tileIdOf, isNonOrthogonal, UINode, DimensionUnit, computeEffectiveOrthoSize, type TileCollisionPiece, type TilesetModel } from 'esengine';
 import { commands } from '@/commands';
 import { MOD_LABEL } from '@/commands/keybinding';
@@ -2087,6 +2091,27 @@ export function Viewport() {
             ))}
           </OvDropdown>
         </div>
+
+        {/* Align + distribute — contextual, appears once 2+ entities are selected.
+            Every button lands through SceneCommands.setEntityXY (one undo step). */}
+        {selCount >= 2 && (
+          <div className="viewport__tb-group">
+            <OvTool icon={AlignStartVertical} label={t('vp.align.left')} onClick={() => alignSelection('left')} />
+            <OvTool icon={AlignCenterVertical} label={t('vp.align.hcenter')} onClick={() => alignSelection('hcenter')} />
+            <OvTool icon={AlignEndVertical} label={t('vp.align.right')} onClick={() => alignSelection('right')} />
+            <span className="ov-divider" />
+            <OvTool icon={AlignStartHorizontal} label={t('vp.align.top')} onClick={() => alignSelection('top')} />
+            <OvTool icon={AlignCenterHorizontal} label={t('vp.align.vmiddle')} onClick={() => alignSelection('vmiddle')} />
+            <OvTool icon={AlignEndHorizontal} label={t('vp.align.bottom')} onClick={() => alignSelection('bottom')} />
+            {selCount >= 3 && (
+              <>
+                <span className="ov-divider" />
+                <OvTool icon={AlignHorizontalDistributeCenter} label={t('vp.align.distributeH')} onClick={() => distributeSelection('h')} />
+                <OvTool icon={AlignVerticalDistributeCenter} label={t('vp.align.distributeV')} onClick={() => distributeSelection('v')} />
+              </>
+            )}
+          </div>
+        )}
 
         <div className="viewport__tb-group viewport__tb-group--right">
           <span className="vp-mode-chip">2D</span>

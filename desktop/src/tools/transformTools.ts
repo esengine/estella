@@ -92,7 +92,7 @@ function readTarget(sourceId: EntityId): Target | null {
  * carries its subtree, so transforming the descendant too would apply the
  * gesture twice (once directly, once through the parent).
  */
-function pruneDescendants(ids: readonly EntityId[]): EntityId[] {
+export function pruneDescendants(ids: readonly EntityId[]): EntityId[] {
   const set = new Set(ids);
   return ids.filter((id) => {
     for (let p = SceneModel.entityBySource(id)?.parent; p != null; p = SceneModel.entityBySource(p)?.parent) {
@@ -106,14 +106,14 @@ function pruneDescendants(ids: readonly EntityId[]): EntityId[] {
  *  gesture has nothing to write (Absolute nodes move via inset edits instead —
  *  see SceneCommands.setEntityXY). Rotation/scale are NOT layout-owned, so this
  *  only gates `move`. */
-function isFlowUINode(sourceId: EntityId): boolean {
+export function isFlowUINode(sourceId: EntityId): boolean {
   const pos = SceneQuery.getFieldValue(sourceId, 'UINode', 'position');
   return pos != null && Number(pos) === 0;
 }
 
 /** A UINode with no Canvas ancestor (the UI layout root) — it has no layout box, so
  *  it can't be positioned at all until it's placed under a Canvas. */
-function isOrphanUINode(sourceId: EntityId): boolean {
+export function isOrphanUINode(sourceId: EntityId): boolean {
   const e = SceneModel.entityBySource(sourceId);
   if (!e || !e.components.some((c) => c.type === 'UINode')) return false;
   for (let p = e.parent; p != null; p = SceneModel.entityBySource(p)?.parent ?? null) {
