@@ -11,8 +11,8 @@
  *        Builtin scenes run as-is; project custom-script bundles are a follow-up
  *        (shared with the play realm's import-map work).
  */
-import { createWebApp, setEditorMode, setPlayMode, initPlayRealmRuntime, atlasCatalogFields, parseThemeOverrides } from 'esengine';
-import type { CatalogData, CookedAtlasInfo, ESEngineModule, SceneData } from 'esengine';
+import { createWebApp, setEditorMode, setPlayMode, initPlayRealmRuntime, atlasCatalogFields, parseThemeOverrides, Assets } from 'esengine';
+import type { CatalogData, CookedAtlasInfo, ESEngineModule, SceneData, AddressableManifest } from 'esengine';
 
 interface GameConfig {
   entryScene: string;
@@ -29,6 +29,9 @@ interface GameConfig {
   uiTheme?: 'light';
   /** Project theme color overrides (role → #rrggbbaa hex). */
   uiThemeColors?: Record<string, string>;
+  /** Hot-update delivery: the CDN root `remote`-group assets resolve against +
+   *  the storage key an applied update persists under (both optional). */
+  hotUpdate?: { remoteRoot?: string; persistUpdateKey?: string };
 }
 interface CookedManifest {
   entries: { uuid: string; path: string; sourcePath?: string; type: string; atlas?: CookedAtlasInfo }[];
@@ -59,6 +62,11 @@ async function boot(): Promise<void> {
 
   const cfg = (await (await fetch('./game.config.json')).json()) as GameConfig;
   const manifest = (await (await fetch('./assets.manifest.json')).json()) as CookedManifest;
+  // Addressable manifest (v2.0): powers Assets.loadGroup + hot-update. Optional —
+  // a legacy build without it degrades to eager-only (the flat manifest above).
+  const addressable = await fetch('./asset-manifest.json')
+    .then((r) => (r.ok ? (r.json() as Promise<AddressableManifest>) : null))
+    .catch(() => null);
   const sceneData = (await (await fetch(`./${cfg.entryScene}`)).json()) as SceneData;
   const assetManifest: Record<string, string> = {};
   // Logical → staged resolution for PATH-style refs, twice over: `pathMap` for
@@ -127,6 +135,15 @@ async function boot(): Promise<void> {
         gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, rgba);
         return { width: w, height: h, rgba };
       },
+      /** Drive a hot update against a served (CDN) manifest: fetch + diff + apply.
+       *  Rebinding the visuals is the game's job (via Assets.onInvalidate); a
+       *  driver settles frames after this before re-capturing. */
+      async applyRemoteUpdate(manifestUrl: string, remoteRoot?: string): Promise<{ changed: number }> {
+        const assets = app.getResource(Assets);
+        const plan = await assets.checkForUpdate({ manifestUrl, remoteRoot });
+        await assets.applyUpdate();
+        return { changed: plan.changedAssets.length };
+      },
     };
   }
   // physics.wasm sits next to esengine.wasm; the runtime loads it when the scene
@@ -149,6 +166,9 @@ async function boot(): Promise<void> {
     assetManifest,
     assetPathMap: pathMap,
     catalogData: catalog,
+    manifest: addressable,
+    remoteRoot: cfg.hotUpdate?.remoteRoot,
+    persistUpdateKey: cfg.hotUpdate?.persistUpdateKey,
     wasmBaseUrl: wasmBase.replace(/\/$/, ''),
     uiTheme: cfg.uiTheme,
     uiThemeOverrides: parseThemeOverrides(cfg.uiThemeColors),

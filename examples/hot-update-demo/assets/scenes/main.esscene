@@ -1,0 +1,29 @@
+{
+  "version": "1.0",
+  "name": "Main",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 10 } } },
+        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 300, "isActive": true, "priority": 0 } }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "Display",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 4000, "y": 4000 }, "color": { "r": 1, "g": 1, "b": 1, "a": 1 } } },
+        { "type": "HotDisplay", "data": {} }
+      ]
+    }
+  ]
+}

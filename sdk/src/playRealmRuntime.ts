@@ -60,6 +60,10 @@ export interface PlayRealmRuntimeConfig {
      */
     catalogData?: CatalogData | null;
     manifest?: AddressableManifest | null;
+    /** CDN root `remote`-group assets resolve against — turns on hot-update delivery. */
+    remoteRoot?: string;
+    /** Storage key an applied hot-update persists under; boot restores it if present. */
+    persistUpdateKey?: string;
     /** Base URL the engine side-modules (physics.wasm, …) are served from — same
      *  dir as esengine.wasm. When set, the realm can load physics on demand. */
     wasmBaseUrl?: string;
@@ -178,6 +182,9 @@ export async function initPlayRealmRuntime(config: PlayRealmRuntimeConfig): Prom
         app,
         module,
         source,
+        manifest: config.manifest,
+        remoteRoot: config.remoteRoot,
+        persistUpdateKey: config.persistUpdateKey,
         catalog: config.catalogData ? Catalog.fromJson(config.catalogData) : undefined,
         scenes: [
             { name: entryName, data: sceneData },

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { AddressableAssetType } from '../assetTypes';
+import { contentHashOf } from './contentHash';
 
 export type { AddressableAssetType };
 
@@ -38,7 +39,36 @@ export interface AddressableManifestGroup {
 
 export interface AddressableManifest {
     version: '2.0';
+    /**
+     * Build content revision — a stable hash over every asset's `contentHash`
+     * (see {@link deriveManifestRevision}). Two builds share a revision iff they
+     * ship byte-identical content under the same addressable keys, so a
+     * changed / added / removed asset flips it. It is the fast gate for "is there
+     * an update?"; the per-asset `contentHash` diff stays authoritative on WHAT
+     * changed. Optional — absent on legacy manifests, where the diff falls back
+     * to comparing contentHashes (or build paths) directly.
+     */
+    revision?: string;
     groups: Record<string, AddressableManifestGroup>;
+}
+
+/**
+ * Stable content revision of a manifest: XXH64 over every asset's sorted
+ * `<group>\t<key>\t<contentHash>` line. Deterministic and order-independent, so
+ * two cooks of identical content produce the same string and any content / set
+ * change flips it. A BUILD-TIME helper (rides {@link contentHashOf}'s
+ * `TextEncoder`); the runtime reads the emitted `revision` field and never
+ * recomputes it.
+ */
+export function deriveManifestRevision(manifest: AddressableManifest): string {
+    const lines: string[] = [];
+    for (const [groupName, group] of Object.entries(manifest.groups)) {
+        for (const [key, asset] of Object.entries(group.assets)) {
+            lines.push(`${groupName}\t${key}\t${asset.contentHash ?? ''}`);
+        }
+    }
+    lines.sort();
+    return contentHashOf(lines.join('\n'));
 }
 
 /**
@@ -119,6 +149,24 @@ export class ManifestModel {
             out.push(...Object.values(g.assets));
         }
         return out;
+    }
+
+    /** Every asset carrying its owning group name and record key — the iteration
+     *  the hot-update diff walks (allAssets() drops both). */
+    entries(): Array<{ group: string; key: string; asset: AddressableManifestAsset }> {
+        const out: Array<{ group: string; key: string; asset: AddressableManifestAsset }> = [];
+        for (const [group, g] of Object.entries(this.manifest.groups)) {
+            for (const [key, asset] of Object.entries(g.assets)) {
+                out.push({ group, key, asset });
+            }
+        }
+        return out;
+    }
+
+    /** The manifest's build content revision (see {@link deriveManifestRevision}),
+     *  or null on a legacy manifest that predates the field. */
+    revision(): string | null {
+        return this.manifest.revision ?? null;
     }
 
     /** Assets carrying `label` across all groups, deduped by path. */

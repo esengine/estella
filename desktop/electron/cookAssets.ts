@@ -35,6 +35,11 @@ const MANIFEST = 'assets.manifest.json';
  * simply ignores these extra fields (it maps uuid→path); the AddressableManifest
  * and content-addressed naming are what read them.
  */
+/** How an addressable group is delivered — the typed mode the folder convention
+ *  ({@link groupOf}) assigns and the AddressableManifest carries. `local` ships in
+ *  the main package; `lazy` in an on-demand subpackage; `remote` on a CDN (hot-update). */
+export type GroupDelivery = 'local' | 'lazy' | 'remote';
+
 export interface CookManifestEntry extends AssetEntry {
   /** XXH64 (16 hex) of the exact bytes staged — the asset's physical identity. */
   contentHash: string;
@@ -58,6 +63,10 @@ export interface CookManifestEntry extends AssetEntry {
    * layout read it.
    */
   group: string;
+  /** How `group` is delivered (folder convention). Absent ⇒ `local`. The
+   *  AddressableManifest maps it to bundleMode; the WeChat subpackage layout and
+   *  the CDN / hot-update path both read it. */
+  groupMode?: GroupDelivery;
   /**
    * Present when this texture was packed into an atlas page: `path` then points
    * at the PAGE file (URL-level redirect for free) and this records where the
@@ -94,6 +103,40 @@ const SUBPACKAGE_RE = /^subpackages\/([^/]+)\//;
 export function subpackageOf(projectRelPath: string): string | null {
   const m = SUBPACKAGE_RE.exec(projectRelPath.replace(/\\/g, '/'));
   return m ? m[1] : null;
+}
+
+const REMOTE_RE = /^remote\/([^/]+)\//;
+/**
+ * Folder-convention remote-group detection: an asset under `remote/<name>/…`
+ * belongs to CDN-delivered group `<name>` — shipped to a remote origin, NOT the
+ * package, and fetched on demand / hot-updated. Null for package assets. Parallel
+ * to {@link subpackageOf}; the two are mutually exclusive by folder.
+ */
+export function remoteGroupOf(projectRelPath: string): string | null {
+  const m = REMOTE_RE.exec(projectRelPath.replace(/\\/g, '/'));
+  return m ? m[1] : null;
+}
+
+/**
+ * The addressable group + delivery an asset's folder assigns it — the single
+ * source of truth cook staging, the export layout, and the manifest all derive
+ * from. `subpackages/<name>/` → lazy `<name>`; `remote/<name>/` → remote `<name>`;
+ * anything else → local `main`.
+ */
+export function groupOf(projectRelPath: string): { name: string; delivery: GroupDelivery } {
+  const sub = subpackageOf(projectRelPath);
+  if (sub) return { name: sub, delivery: 'lazy' };
+  const rem = remoteGroupOf(projectRelPath);
+  if (rem) return { name: rem, delivery: 'remote' };
+  return { name: 'main', delivery: 'local' };
+}
+
+/** Content-addressed base dir for a group's delivery: main → `assets`,
+ *  lazy → `subpackages/<name>/assets`, remote → `remote/<name>/assets`. */
+function caBaseFor(name: string, delivery: GroupDelivery): string {
+  if (delivery === 'lazy') return `subpackages/${name}/assets`;
+  if (delivery === 'remote') return `remote/${name}/assets`;
+  return 'assets';
 }
 
 /** Targets the UASTC KTX2 the cook emits can transcode to at runtime. */
@@ -233,7 +276,9 @@ export async function cookAssets(
   // shared dep that lives outside subpackages/ resolves to group 'main' below, so
   // it lands in the always-present main package, not duplicated per subpackage.
   for (const e of index.entries) {
-    if (subpackageOf(e.path)) seed(e.uuid);
+    // …and remote CDN / hot-update assets (remote/<name>/): never scene-
+    // referenced, but must be cooked + staged for upload to the CDN root.
+    if (subpackageOf(e.path) || remoteGroupOf(e.path)) seed(e.uuid);
   }
   // Force-include locale string tables: translations load by code / plugin
   // option (a scene never references them — Text carries KEYS, not paths), so
@@ -322,8 +367,8 @@ export async function cookAssets(
           compressedFormats = COMPRESSED_TARGETS;
         }
         const pageHash = contentHashHex(pageBytes);
-        const group = subpackageOf(`${dir}/`) ?? 'main';
-        const caBase = group === 'main' ? 'assets' : `subpackages/${group}/assets`;
+        const { name: group, delivery } = groupOf(`${dir}/`);
+        const caBase = caBaseFor(group, delivery);
         const pageOutRel = contentAddressed
           ? `${caBase}/${pageHash}${pageExt}`
           : `${dir}.page${n}${pageExt}`;
@@ -354,6 +399,7 @@ export async function cookAssets(
     // page's (hash/size of the bytes actually served for this ref).
     const framePlan = atlasPlan.get(entry.path);
     if (framePlan) {
+      const fg = groupOf(entry.path);
       manifestEntries.push({
         uuid: entry.uuid,
         path: framePlan.pageOutRel,
@@ -362,7 +408,8 @@ export async function cookAssets(
         importer: entry.importer,
         contentHash: framePlan.pageHash,
         size: framePlan.pageSize,
-        group: subpackageOf(entry.path) ?? 'main',
+        group: fg.name,
+        groupMode: fg.delivery,
         ...(framePlan.compressedFormats ? { compressedFormats: framePlan.compressedFormats } : {}),
         atlas: {
           page: framePlan.page,
@@ -460,9 +507,9 @@ export async function cookAssets(
       // Group by folder convention. Lazy-subpackage assets must stay under their
       // subpackage root (subpackages/<name>/…) so the root maps to a WeChat
       // subPackage — including the content-addressed layout (root/assets/<hash>).
-      const group = subpackageOf(entry.path) ?? 'main';
+      const { name: group, delivery } = groupOf(entry.path);
       const useCA = contentAddressed && entry.type !== 'scene';
-      const caBase = group === 'main' ? 'assets' : `subpackages/${group}/assets`;
+      const caBase = caBaseFor(group, delivery);
       const outRel = useCA ? `${caBase}/${hash}${ext}` : swapExt(entry.path, ext);
       const dst = path.join(absOut, outRel);
       if (!staged.has(outRel)) {
@@ -479,6 +526,7 @@ export async function cookAssets(
         contentHash: hash,
         size: data.byteLength,
         group,
+        groupMode: delivery,
         ...(compressedFormats ? { compressedFormats } : {}),
       });
       // The video's audio track ships as its own manifest entry addressed as
@@ -504,6 +552,7 @@ export async function cookAssets(
           contentHash: audioHash,
           size: videoAudio.byteLength,
           group,
+          groupMode: delivery,
         });
       }
     } catch (err) {

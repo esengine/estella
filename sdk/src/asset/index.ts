@@ -8,15 +8,17 @@ export {
     type BundleMode,
     BUNDLE_MODES,
     normalizeBundleMode,
+    deriveManifestRevision,
     ManifestModel,
 } from './AddressableManifest';
+export { diffManifests, type UpdatePlan, type AssetChange } from './hotUpdate';
 export { xxh64, contentHashHex, contentHashOf } from './contentHash';
 export { AsyncCache } from './AsyncCache';
 export { Assets, AssetPlugin, assetPlugin, type AssetsData } from './AssetPlugin';
 export { decodeImageBitmap, decodeImagePixels, imageBitmapOptions, type DecodedPixels } from './imageDecode';
 export { AssetRefCounter, type AssetRefInfo } from './AssetRefCounter';
 
-export { Assets as AssetsImpl, type AssetsOptions, type AssetBundle, type SceneAssetResult, type MissingAsset } from './Assets';
+export { Assets as AssetsImpl, type AssetsOptions, type AssetBundle, type SceneAssetResult, type MissingAsset, type CheckForUpdateOptions, type InvalidateListener } from './Assets';
 export { type Backend, HttpBackend, EmbeddedBackend, type HttpBackendOptions } from './Backend';
 export { Catalog, atlasCatalogFields, type CatalogData, type CatalogEntry, type AtlasFrameInfo, type CookedAtlasInfo } from './Catalog';
 export {

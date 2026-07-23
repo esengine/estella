@@ -1,0 +1,10 @@
+{
+  "formatVersion": "1",
+  "name": "Hot Update Demo",
+  "description": "Loads a texture from a `remote` (CDN) group and hot-swaps it live — no re-ship.",
+  "tag": "Advanced",
+  "version": "0.1.0",
+  "defaultScene": "assets/scenes/main.esscene",
+  "designResolution": { "width": 800, "height": 600 },
+  "spineVersion": "none"
+}

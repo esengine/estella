@@ -140,6 +140,21 @@ export function platformOnMemoryWarning(callback: () => void): () => void {
     return p.onMemoryWarning ? p.onMemoryWarning(callback) : () => {};
 }
 
+/** Read a persisted string by key (adapter storage: localStorage on web,
+ *  `wx.getStorageSync` on WeChat). Returns null when the key is absent OR the
+ *  platform is uninitialized (tests) — callers treat both as "nothing stored". */
+export function platformGetStorageItem(key: string): string | null {
+    if (!isPlatformInitialized()) return null;
+    return getPlatform().getStorageItem(key);
+}
+
+/** Persist a string by key through the adapter's storage. No-op when the platform
+ *  is uninitialized (tests), so persistence is a safe best-effort everywhere. */
+export function platformSetStorageItem(key: string, value: string): void {
+    if (!isPlatformInitialized()) return;
+    getPlatform().setStorageItem(key, value);
+}
+
 export function platformDevicePixelRatio(): number {
     if (currentPlatform) {
         return currentPlatform.devicePixelRatio();

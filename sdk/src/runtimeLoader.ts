@@ -393,6 +393,13 @@ export interface RuntimeInitConfig {
      * existed before initRuntime, which the runtime instance replaces.
      */
     manifest?: AddressableManifest | ManifestModel | null;
+    /** CDN root that `remote`-group assets resolve against ({@link Assets.setRemoteRoot}) —
+     *  enables hot-update delivery from a remote origin. */
+    remoteRoot?: string;
+    /** Storage key an applied hot-update persists the manifest under. When set,
+     *  initRuntime restores any manifest a prior run persisted there — a returning
+     *  player boots on the updated content ({@link Assets.restorePersistedUpdate}). */
+    persistUpdateKey?: string;
     /**
      * Logical-path → build-path catalog for cooked builds (content-addressed
      * staging renames physical files): loaders route their inner text refs (a
@@ -434,6 +441,10 @@ export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
     // return the existing instance).
     const assets = ensureRuntimeAssets(app, config.module, config.source, config.catalog);
     if (config.manifest) assets.setManifest(config.manifest);
+    if (config.remoteRoot) assets.setRemoteRoot(config.remoteRoot);
+    // A persisted update (from a prior applyUpdate) supersedes the shipped manifest
+    // + root, so a returning player boots straight onto the already-updated content.
+    if (config.persistUpdateKey) assets.restorePersistedUpdate(config.persistUpdateKey);
 
     if (config.audioConfig && app.hasResource(Audio)) {
         applyAudioProjectConfig(app.getResource(Audio), config.audioConfig);

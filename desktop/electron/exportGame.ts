@@ -25,6 +25,7 @@ import { writeFile, mkdir, cp, readdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { cookAssets } from './cookAssets';
+import { buildAddressableManifest } from './addressableManifest';
 import { IMPORT_MAP_JSON, IMPORT_MAP_CSP_HASH } from './buildPlayRealm';
 import { exportWeChat } from './exportWeChat';
 import { exportPlayable } from './exportPlayable';
@@ -306,6 +307,10 @@ export async function exportGame(opts: {
   uiTheme?: 'light';
   /** Project theme color overrides (role → #rrggbbaa hex) — the host parses them. */
   uiThemeColors?: Record<string, string>;
+  /** Hot-update delivery baked into game.config.json: the CDN root `remote`-group
+   *  assets resolve against + the storage key an applied update persists under.
+   *  The addressable `asset-manifest.json` this export always emits enables it. */
+  hotUpdate?: { remoteRoot?: string; persistUpdateKey?: string };
 }): Promise<ExportGameResult> {
   const platform = opts.platform ?? 'web';
   const title = opts.title ?? 'Game';
@@ -391,6 +396,12 @@ export async function exportGame(opts: {
   warnings.push(...cook.warnings);
   progress({ phase: 'Cooking assets', detail: `${cook.included.length} reachable` });
 
+  // Also emit the AddressableManifest (v2.0) beside the flat one — the SAME
+  // model every target now shares, so `loadGroup` / remote-group / hot-update
+  // work on web + desktop too (not just mini-games). Additive: the eager boot
+  // still reads the flat manifest; this powers on-demand + hot-update delivery.
+  await writeFile(path.join(payloadDir, 'asset-manifest.json'), await buildAddressableManifest(payloadDir));
+
   try {
     // 2. Game host — esengine EXTERNAL (resolved by the index.html import map),
     //    so the shipped game shares one SDK with the project bundle and runs
@@ -435,6 +446,7 @@ export async function exportGame(opts: {
         ...(opts.screenFit && opts.screenFit.scaleMode >= 0 ? { screenFit: opts.screenFit } : {}),
         ...(opts.uiTheme === 'light' ? { uiTheme: opts.uiTheme } : {}),
         ...(opts.uiThemeColors && Object.keys(opts.uiThemeColors).length > 0 ? { uiThemeColors: opts.uiThemeColors } : {}),
+        ...(opts.hotUpdate ? { hotUpdate: opts.hotUpdate } : {}),
       },
       null, 2,
     ) + '\n',

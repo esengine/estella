@@ -2,8 +2,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { Backend } from './Backend';
 import { Catalog, type AtlasFrameInfo } from './Catalog';
-import { ManifestModel, type AddressableManifest } from './AddressableManifest';
-import { platformLoadSubpackage } from '../platform';
+import { ManifestModel, normalizeBundleMode, type AddressableManifest } from './AddressableManifest';
+import { diffManifests, type UpdatePlan, type AssetChange } from './hotUpdate';
+import { platformLoadSubpackage, platformGetStorageItem, platformSetStorageItem } from '../platform';
 import type {
     AssetLoader, LoadContext, TextureResult, SpineResult,
     MaterialResult, FontResult, AudioResult, AnimClipResult,
@@ -42,6 +43,23 @@ import { log } from '../logger';
 
 /** Callback fired when `Assets.invalidate(ref)` actually dropped cache entries. */
 export type InvalidateListener = (ref: string) => void;
+
+/** Input to {@link Assets.checkForUpdate}. */
+export interface CheckForUpdateOptions {
+    /** Url of the candidate (remote) manifest JSON — diffed against the active one. */
+    manifestUrl: string;
+    /** CDN root the candidate's `remote`-group assets are served from; remembered
+     *  and applied by {@link Assets.applyUpdate}. Defaults to the current root. */
+    remoteRoot?: string;
+}
+
+/** The manifest + root staged by checkForUpdate, awaiting applyUpdate. */
+interface PendingUpdate {
+    plan: UpdatePlan;
+    model: ManifestModel;
+    manifestJson: AddressableManifest;
+    remoteRoot: string | null;
+}
 
 /**
  * Default upper bound on concurrent loads inside preloadSceneAssets.
@@ -158,6 +176,13 @@ export class Assets {
 
     private module_: ESEngineModule;
     private manifestModel_: ManifestModel | null = null;
+    /** CDN root that `remote`-group assets resolve against; see {@link setRemoteRoot}. */
+    private remoteRoot_?: string;
+    /** The update staged by {@link checkForUpdate}, consumed by {@link applyUpdate}. */
+    private pendingUpdate_: PendingUpdate | null = null;
+    /** Storage key {@link applyUpdate} persists the active manifest under; set by
+     *  {@link restorePersistedUpdate}. Null → persistence off. */
+    private persistKey_: string | null = null;
     private getAudio_: () => import('../audio/Audio').AudioAPI | null;
     private getSpriteAnimation_: () => import('../animation/SpriteAnimator').SpriteAnimationAPI | null;
     private getLocalization_: () => import('../i18n/Localization').LocalizationAPI | null;
@@ -474,9 +499,10 @@ export class Assets {
             return bundle;
         }
 
+        const mode = model.bundleMode(groupName);
         // A lazy group is an on-demand subpackage — download it before loading its
         // assets (no-op on platforms without a subpackage concept, e.g. web).
-        if (model.bundleMode(groupName) === 'lazy') {
+        if (mode === 'lazy') {
             await platformLoadSubpackage(groupName);
         }
 
@@ -487,7 +513,12 @@ export class Assets {
              .catch(() => { onProgress?.(++loadedCount, totalCount); });
 
         for (const asset of model.assetsInGroup(groupName)) {
-            const path = this.resolveLoadPath_(asset.path);
+            // A remote group's assets live on the CDN, not in the package: resolve
+            // to the absolute `<remoteRoot>/<contentHash>.<ext>` url (the backend
+            // passes absolute urls through). Local / lazy assets resolve normally.
+            const path = mode === 'remote'
+                ? this.remoteUrlFor_(asset.path)
+                : this.resolveLoadPath_(asset.path);
             const task = this.groupLoadTask_(path, asset.type, bundle);
             if (task) promises.push(track(task));
         }
@@ -530,6 +561,136 @@ export class Assets {
                 // out from under a live entity.
                 default: break;
             }
+        }
+    }
+
+    // =========================================================================
+    // Hot Update (content-addressed remote delivery)
+    // =========================================================================
+
+    /** The CDN / remote root that `remote`-group assets resolve against. */
+    get remoteRoot(): string | undefined { return this.remoteRoot_; }
+
+    /** Point `remote`-group resolution at a CDN root: their content-addressed
+     *  paths then fetch from `<root>/<path>`. A trailing slash is trimmed;
+     *  `undefined` clears it (same-origin fallback). */
+    setRemoteRoot(url: string | undefined): void {
+        this.remoteRoot_ = url ? url.replace(/\/+$/, '') : undefined;
+    }
+
+    /** Absolute url of a `remote`-group asset. An already-absolute manifest path
+     *  (a fully-qualified CDN url) passes through; otherwise it joins the remote
+     *  root. With no root set the path returns as-is (same-origin fallback). */
+    private remoteUrlFor_(path: string): string {
+        if (/^[a-z][a-z0-9+.-]*:\/\//i.test(path)) return path;
+        if (!this.remoteRoot_) return path;
+        return `${this.remoteRoot_}/${path.replace(/^\/+/, '')}`;
+    }
+
+    /**
+     * Fetch a candidate manifest and diff it against the active one WITHOUT
+     * applying anything — the "is there an update, and how big?" query. The
+     * returned plan (changed assets + byte total) is what a UI shows before
+     * asking the player to download; the candidate is staged for {@link applyUpdate}.
+     *
+     * Diffing is by content hash (see {@link diffManifests}); because assets are
+     * content-addressed, a changed asset is a brand-new url, so applying can never
+     * overwrite or corrupt a cached file.
+     */
+    async checkForUpdate(options: CheckForUpdateOptions): Promise<UpdatePlan> {
+        const text = await this.backend.fetchText(this.backend.resolveUrl(options.manifestUrl));
+        const json = JSON.parse(text) as AddressableManifest;
+        const model = ManifestModel.fromJson(json);
+        const plan = diffManifests(this.manifestModel_, model);
+        const remoteRoot = options.remoteRoot ?? this.remoteRoot_ ?? null;
+        this.pendingUpdate_ = { plan, model, manifestJson: json, remoteRoot };
+        return plan;
+    }
+
+    /**
+     * Apply the update staged by the last {@link checkForUpdate}: point remote
+     * resolution at its root, make its manifest active, download the changed
+     * (content-addressed) assets from the CDN with progress, notify live handles
+     * bound to a changed asset to rebind (via the `onInvalidate` channel), and
+     * persist the manifest so a returning player boots on it. No-op with nothing
+     * staged.
+     */
+    async applyUpdate(onProgress?: (loaded: number, total: number) => void): Promise<void> {
+        const pending = this.pendingUpdate_;
+        if (!pending) {
+            log.warn('asset', 'applyUpdate() called with no pending update — call checkForUpdate first');
+            onProgress?.(0, 0);
+            return;
+        }
+        // Swap FIRST so changed assets resolve to their new remote urls, then warm
+        // them. Content addressing makes the download purely additive to the cache.
+        if (pending.remoteRoot != null) this.setRemoteRoot(pending.remoteRoot);
+        this.setManifest(pending.model);
+
+        const changed = pending.plan.changedAssets;
+        let done = 0;
+        onProgress?.(0, changed.length);
+        const tasks = changed.map((c) => async (): Promise<void> => {
+            try {
+                await this.downloadChangedAsset_(c);
+            } catch (e) {
+                log.warn('asset', `applyUpdate: failed to fetch ${c.path}`, e);
+            }
+        });
+        await runWithConcurrency(tasks, DEFAULT_PRELOAD_CONCURRENCY, () => {
+            onProgress?.(++done, changed.length);
+        });
+
+        // Rebind: tell renderers holding a stale handle for a changed asset to
+        // re-resolve it against the now-active manifest → the freshly-warmed
+        // content. Old, differently-keyed handles orphan and release by refcount.
+        for (const c of changed) this.fireInvalidate_(c.key);
+
+        this.persistActiveManifest_(pending.manifestJson);
+        this.pendingUpdate_ = null;
+    }
+
+    /** Warm one changed asset from its group's delivery source (remote → CDN url,
+     *  else the normal resolved path) through its typed loader. */
+    private downloadChangedAsset_(c: AssetChange): Promise<unknown> {
+        const group = this.manifestModel_?.group(c.group);
+        const remote = group != null && normalizeBundleMode(group.bundleMode) === 'remote';
+        const path = remote ? this.remoteUrlFor_(c.path) : this.resolveLoadPath_(c.path);
+        const load = this.typedLoadFor_(path, c.type);
+        return load ? load() : Promise.resolve();
+    }
+
+    /**
+     * Remember a storage key under which {@link applyUpdate} persists the active
+     * manifest, and immediately restore any manifest a prior run persisted there —
+     * so a returning player boots straight onto the updated content, even offline.
+     * Returns true if a persisted manifest was found and made active. Call at
+     * boot, before the first scene loads.
+     */
+    restorePersistedUpdate(key: string): boolean {
+        this.persistKey_ = key;
+        const raw = platformGetStorageItem(key);
+        if (!raw) return false;
+        try {
+            const parsed = JSON.parse(raw) as { manifest: AddressableManifest; remoteRoot?: string | null };
+            if (parsed.remoteRoot) this.setRemoteRoot(parsed.remoteRoot);
+            this.setManifest(parsed.manifest);
+            return true;
+        } catch (e) {
+            log.warn('asset', 'failed to restore persisted manifest', e);
+            return false;
+        }
+    }
+
+    private persistActiveManifest_(json: AddressableManifest): void {
+        if (!this.persistKey_) return;
+        try {
+            platformSetStorageItem(
+                this.persistKey_,
+                JSON.stringify({ manifest: json, remoteRoot: this.remoteRoot_ ?? null }),
+            );
+        } catch (e) {
+            log.warn('asset', 'failed to persist updated manifest', e);
         }
     }
 
@@ -1023,17 +1184,22 @@ export class Assets {
             if (p === path) this.handleToPath_.delete(key);
         }
 
-        if (hit) {
-            for (const listener of this.invalidateListeners_) {
-                try {
-                    listener(ref);
-                } catch (e) {
-                    log.warn('asset', 'onInvalidate listener threw', e);
-                }
-            }
-        }
+        if (hit) this.fireInvalidate_(ref);
 
         return hit;
+    }
+
+    /** Fire every onInvalidate listener with `ref`, isolating throws. Shared by
+     *  {@link invalidate} (cache drop) and {@link applyUpdate} (rebind to updated
+     *  content), so both notify subscribers through one path. */
+    private fireInvalidate_(ref: string): void {
+        for (const listener of this.invalidateListeners_) {
+            try {
+                listener(ref);
+            } catch (e) {
+                log.warn('asset', 'onInvalidate listener threw', e);
+            }
+        }
     }
 
     /**

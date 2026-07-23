@@ -29,10 +29,11 @@
  *        own path. Pure Node (esbuild + fs) — IPC wiring is in main.ts.
  */
 import { loadEsbuild } from './esbuildRuntime';
-import { writeFile, mkdir, cp, readFile, rename, stat, rm } from 'node:fs/promises';
+import { writeFile, mkdir, cp, readFile, rename, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { cookAssets } from './cookAssets';
+import { buildAddressableManifest } from './addressableManifest';
 import type { ExportScene } from './exportGame';
 import type { OnExportProgress } from './exportProgress';
 import { esengineAlias } from './esengineResolve';
@@ -54,20 +55,10 @@ export interface ExportMiniGameResult {
 interface CookManifest {
   entries: {
     uuid: string; path: string; sourcePath?: string; type: string;
-    contentHash?: string; size?: number; group?: string;
+    contentHash?: string; size?: number; group?: string; groupMode?: string;
     atlas?: { page: number; frame: { x: number; y: number; width: number; height: number }; pageWidth: number; pageHeight: number };
   }[];
 }
-
-// Editor asset type → AddressableAssetType (sdk/src/assetTypes.ts). The mini-game
-// path resolver ignores type (keys by uuid → path); this only feeds the Catalog,
-// so an unmapped type degrading to 'binary' is harmless.
-const ADDRESSABLE_TYPE: Record<string, string> = {
-  texture: 'texture', material: 'material', audio: 'audio', 'bitmap-font': 'bitmap-font',
-  prefab: 'prefab', spine: 'spine',
-  scene: 'json', 'anim-clip': 'json', tilemap: 'json', timeline: 'json', json: 'json', shader: 'text',
-};
-const addrType = (editorType: string): string => ADDRESSABLE_TYPE[editorType] ?? 'binary';
 
 const UUID_PREFIX = '@uuid:';
 
@@ -87,7 +78,9 @@ function stripUuidRefs(v: unknown): unknown {
 /** Distinct lazy subpackage groups present in the cook, as vendor subPackage roots. */
 function subPackagesOf(entries: CookManifest['entries'], subpackageDir: string): Array<{ name: string; root: string }> {
   const names = new Set<string>();
-  for (const e of entries) if (e.group && e.group !== 'main') names.add(e.group);
+  // Remote (CDN / hot-update) groups are NOT WeChat 分包 — they're fetched from a
+  // remote origin, not packed as a subPackage root.
+  for (const e of entries) if (e.group && e.group !== 'main' && e.groupMode !== 'remote') names.add(e.group);
   return [...names].map((name) => ({ name, root: `${subpackageDir}/${name}` }));
 }
 
@@ -149,53 +142,6 @@ async function scanSideModules(
     else errors.push(`scene needs "${id}" but ${file}.js is not in the mini-game wasm dir — build it with \`node build-tools/cli.js build -t ${WECHAT_MODULE_BUILD_TARGET[id] ?? id}\` and re-export.`);
   }
   return present;
-}
-
-/** Read the web cook's flat manifest → AddressableManifest the runtime reads.
- *  Carries the cook's `contentHash` (XXH64) + `size` through so the runtime can
- *  dedupe by content and treat `<hash>.<ext>` as a permanently-cacheable CDN URL;
- *  falls back to stat() for size only if a legacy cook omitted it. */
-async function buildAddressableManifest(absOut: string): Promise<string> {
-  const cook = JSON.parse(await readFile(path.join(absOut, 'assets.manifest.json'), 'utf8')) as CookManifest;
-  type Entry = {
-    path: string; address?: string; type: string; size: number; labels: string[]; contentHash?: string;
-    metadata?: { atlasPage?: number; atlasFrame?: { x: number; y: number; width: number; height: number }; atlasPageWidth?: number; atlasPageHeight?: number };
-  };
-  type Group = { bundleMode: string; labels: string[]; assets: Record<string, Entry> };
-  // One group per cook group: 'main' is local (eager); every other is a lazy
-  // subpackage. bundleMode here is the typed wire value the SDK's normalizeBundleMode
-  // reads ('local' | 'lazy').
-  const groups: Record<string, Group> = {};
-  for (const e of cook.entries) {
-    let size = e.size ?? 0;
-    if (e.size == null) { try { size = (await stat(path.join(absOut, e.path))).size; } catch { /* missing file → 0 */ } }
-    const groupName = e.group ?? 'main';
-    const group = (groups[groupName] ??= {
-      bundleMode: groupName === 'main' ? 'local' : 'lazy', labels: [], assets: {},
-    });
-    const entry: Entry = { path: e.path, type: addrType(e.type), size, labels: [] };
-    if (e.contentHash) entry.contentHash = e.contentHash;
-    // The logical source path rides as the asset's address: path-style refs
-    // resolve through it (ManifestModel indexes addresses; the runtime builds
-    // its logical→staged catalog from them). Only meaningful when staging
-    // renamed the file (content addressing / texture encoding).
-    if (e.sourcePath && e.sourcePath !== e.path) entry.address = e.sourcePath;
-    // Atlas frame → manifest metadata; the runtime derives uv from it and
-    // registers the frame under its uuid/address catalog keys.
-    if (e.atlas) {
-      entry.metadata = {
-        atlasPage: e.atlas.page,
-        atlasFrame: e.atlas.frame,
-        atlasPageWidth: e.atlas.pageWidth,
-        atlasPageHeight: e.atlas.pageHeight,
-      };
-    }
-    group.assets[e.uuid.toLowerCase()] = entry;
-  }
-  // Always emit a main group so the runtime's main package exists even if every
-  // asset happened to land in a subpackage.
-  groups.main ??= { bundleMode: 'local', labels: [], assets: {} };
-  return JSON.stringify({ version: '2.0', groups }, null, 2) + '\n';
 }
 
 /**

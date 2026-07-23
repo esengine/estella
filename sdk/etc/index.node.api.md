@@ -61,6 +61,7 @@ _filterType: "added"
 ## AddressableManifest — interface
 ```
 groups: Record<string, AddressableManifestGroup>
+revision: string | undefined
 version: "2.0"
 ```
 
@@ -3610,11 +3611,13 @@ assetPathsInGroup: (name: string) => string[]
 assetsByLabel: (label: string) => AddressableManifestAsset[]
 assetsInGroup: (name: string) => AddressableManifestAsset[]
 bundleMode: (name: string) => BundleMode
+entries: () => Array<{ group: string; key: string; asset: AddressableManifestAsset; }>
 findAsset: (pathOrAddress: string) => AddressableManifestAsset | null
 group: (name: string) => AddressableManifestGroup | null
 groupNames: () => string[]
 groupsByMode: (mode: BundleMode) => string[]
 resolvePath: (ref: string, normalize?: (ref: string) => string) => string
+revision: () => string | null
 static empty: () => ManifestModel
 static fromJson: (manifest: AddressableManifest) => ManifestModel
 static new (manifest: AddressableManifest): ManifestModel
