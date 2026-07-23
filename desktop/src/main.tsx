@@ -153,15 +153,22 @@ if (new URLSearchParams(location.search).has('automation')) {
     liveMarkers: () => {
       const w = EngineHost.world;
       const md = getComponent('Marker');
-      const rb = getComponent('RigidBody');
       if (!w || !md) return [];
+      const colliders = ['BoxCollider', 'CircleCollider', 'PolygonCollider', 'ChainCollider']
+        .map((n) => getComponent(n)).filter((c): c is NonNullable<typeof c> => !!c);
       return w.getEntitiesWithComponents([md]).map((rt) => {
         const m = w.get(rt, md) as { type?: string; properties?: Record<string, string> };
+        // A point Marker has no collider (sensor: null); a region has one — sensor=true is a
+        // Trigger Area, sensor=false is solid geometry (a `collision`-group wall).
+        let sensor: boolean | null = null;
+        for (const cd of colliders) {
+          if (w.has(rt, cd)) { sensor = !!(w.get(rt, cd) as { isSensor?: boolean }).isSensor; break; }
+        }
         return {
           rt,
           type: typeof m?.type === 'string' ? m.type : null,
           properties: m?.properties ?? {},
-          isTrigger: !!(rb && w.has(rt, rb)), // a Trigger Area carries a RigidBody + sensor collider
+          sensor,
           src: SceneModel.sourceFor(rt) ?? null,
         };
       });

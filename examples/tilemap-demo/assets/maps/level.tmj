@@ -10,8 +10,8 @@
  "height": 18,
  "tilewidth": 18,
  "tileheight": 18,
- "nextlayerid": 7,
- "nextobjectid": 6,
+ "nextlayerid": 8,
+ "nextobjectid": 7,
  "tilesets": [
   {
    "firstgid": 1,
@@ -2472,6 +2472,19 @@
    "objects":[
     {"id":4,"name":"door-a","type":"door","point":false,"x":200,"y":90,"width":36,"height":54,"rotation":0,"visible":true,"properties":[{"name":"target","type":"string","value":"level2"}]},
     {"id":5,"name":"heal-zone","type":"zone","ellipse":true,"x":330,"y":170,"width":72,"height":56,"rotation":0,"visible":true,"properties":[]}
+   ],
+   "opacity":1,
+   "type":"objectgroup",
+   "visible":true,
+   "x":0,
+   "y":0
+  },
+  {
+   "draworder":"topdown",
+   "id":7,
+   "name":"collision",
+   "objects":[
+    {"id":6,"name":"wall","type":"wall","point":false,"x":470,"y":55,"width":22,"height":118,"rotation":0,"visible":true,"properties":[]}
    ],
    "opacity":1,
    "type":"objectgroup",

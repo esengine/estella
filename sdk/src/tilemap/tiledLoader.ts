@@ -779,31 +779,34 @@ function objectPropsRecord(obj: TiledObjectData): Record<string, string> {
 }
 
 /**
- * @brief Project ONE Tiled SHAPE object (rect / ellipse / polygon) into a real Trigger-Area
- *        entity — the same shape a hand-authored Trigger Area preset builds: Transform +
- *        Marker{type,properties} + static RigidBody + a SENSOR collider matching the shape.
+ * @brief Project ONE Tiled SHAPE object (rect / ellipse / polygon / polyline) into a real
+ *        REGION entity — the same shape a hand-authored Trigger Area preset builds:
+ *        Transform + Marker{type,properties} + static RigidBody + a collider matching the
+ *        shape. `sensor` picks the flavour: a non-collision group's regions are SENSORS
+ *        (trigger zones), a `collision` group's regions are SOLID geometry (walls/floors) —
+ *        one derivation for both, so every shape object becomes a queryable, gizmo-visible
+ *        entity instead of an invisible play-only collider or unqueried `objectGroups` data.
  *
- * The converged target for imported object-group regions: instead of living only inside
- * `getTilemapSource().objectGroups`, a region becomes a parented, RuntimeOnly (re-derived,
- * never serialized) entity so it's `Query(Marker)`-able and shows the collider gizmo in the
- * editor — exactly like a hand-placed Trigger Area. LOCAL coords (the tilemap parent carries
- * the origin), mirroring the tile-object sprites; geometry is metres (÷ ppu) like
- * {@link generateObjectCollision}. Point / polyline / gid objects project elsewhere → null.
+ * LOCAL coords (the tilemap parent carries the origin), mirroring the tile-object sprites;
+ * geometry is metres (÷ ppu) like {@link generateObjectCollision}. rect → Box, ellipse →
+ * Circle, polygon ≤8 verts → Polygon (>8 → bounding-box Box), polyline → open Chain.
+ * Point / gid objects project elsewhere (Marker / Sprite) → null.
  */
-export function spawnObjectTriggerArea(
+export function spawnObjectRegion(
     world: World,
     obj: TiledObjectData,
     parent: Entity,
     pixelsPerUnit: number,
+    sensor: boolean,
 ): Entity | null {
-    if (obj.shape !== 'rect' && obj.shape !== 'ellipse' && obj.shape !== 'polygon') return null;
+    if (obj.gid !== undefined || obj.shape === 'point') return null;
     const rad = obj.rotation * DEG_TO_RAD;
     const cos = Math.cos(rad);
     const sin = Math.sin(rad);
     // Local shape centre (parent = tilemap origin) — generateObjectCollision's spawnAt with
     // origin 0; Tiled rotates clockwise about the object anchor (y-down), realized as -rot z.
     const spawnAt = (lx: number, ly: number): Entity => {
-        const e = world.spawn(obj.name || `Trigger_${obj.id}`);
+        const e = world.spawn(obj.name || `Region_${obj.id}`);
         const position = { x: obj.x + lx * cos - ly * sin, y: -(obj.y + lx * sin + ly * cos), z: 0 };
         if (rad !== 0) {
             const half = -rad * 0.5;
@@ -821,27 +824,36 @@ export function spawnObjectTriggerArea(
         const e = spawnAt(obj.width * 0.5, obj.height * 0.5);
         world.insert(e, BoxCollider, {
             halfExtents: { x: obj.width * 0.5 / pixelsPerUnit, y: obj.height * 0.5 / pixelsPerUnit },
-            isSensor: true,
+            isSensor: sensor,
         });
         return e;
     }
     if (obj.shape === 'ellipse') {
         const e = spawnAt(obj.width * 0.5, obj.height * 0.5);
-        world.insert(e, CircleCollider, { radius: (obj.width + obj.height) * 0.25 / pixelsPerUnit, isSensor: true });
+        world.insert(e, CircleCollider, { radius: (obj.width + obj.height) * 0.25 / pixelsPerUnit, isSensor: sensor });
         return e;
     }
-    // polygon (needs ≥ 3 points = 6 flat coords)
-    if (!obj.vertices || obj.vertices.length < 6) return null;
+    // polygon / polyline — local vertices flip Tiled's y-down into the body's y-up space.
+    if (!obj.vertices || obj.vertices.length < 4) return null;
     const local: { x: number; y: number }[] = [];
     for (let i = 0; i < obj.vertices.length; i += 2) {
         local.push({ x: obj.vertices[i] / pixelsPerUnit, y: (0 - obj.vertices[i + 1]) / pixelsPerUnit });
     }
-    if (local.length <= 8) {
+    if (obj.shape === 'polyline') {
+        // An open chain is solid geometry only (ChainCollider has no sensor mode) — a
+        // trigger region wants a closed area, so a sensor-group polyline is skipped.
+        if (sensor) return null;
         const e = spawnAt(0, 0);
-        world.insert(e, PolygonCollider, { vertices: local, isSensor: true });
+        world.insert(e, ChainCollider, { points: local, isLoop: false });
         return e;
     }
-    // > 8 verts: Box2D's cap — a bounding-box sensor (predictably shaped, never truncated).
+    if (local.length < 3) return null; // a polygon needs at least a triangle
+    if (local.length <= 8) {
+        const e = spawnAt(0, 0);
+        world.insert(e, PolygonCollider, { vertices: local, isSensor: sensor });
+        return e;
+    }
+    // > 8 verts: Box2D's cap — a bounding-box region (predictably shaped, never truncated).
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (let i = 0; i < obj.vertices.length; i += 2) {
         const vx = obj.vertices[i], vy = obj.vertices[i + 1];
@@ -851,7 +863,7 @@ export function spawnObjectTriggerArea(
     const e = spawnAt((minX + maxX) * 0.5, (minY + maxY) * 0.5);
     world.insert(e, BoxCollider, {
         halfExtents: { x: (maxX - minX) * 0.5 / pixelsPerUnit, y: (maxY - minY) * 0.5 / pixelsPerUnit },
-        isSensor: true,
+        isSensor: sensor,
     });
     return e;
 }

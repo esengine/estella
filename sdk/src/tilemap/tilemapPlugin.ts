@@ -16,7 +16,7 @@ import { _bindTileCollisionLookup, type LayerCollisionTable } from './tileQuery'
 import type { ResolvedTileCollision } from './tilesetResolve';
 import {
     generateLayerCollision, generateLayerTileShapes, generateChunkCollision, generateChunkTileShapes,
-    generateObjectCollision, spawnObjectTriggerArea, isCollisionObjectGroup, decodeTiledGid,
+    spawnObjectRegion, isCollisionObjectGroup, decodeTiledGid,
 } from './tiledLoader';
 import { decodeTilemapChunks } from './chunkCodec';
 import { Assets } from '../asset/AssetPlugin';
@@ -511,18 +511,19 @@ export class TilemapPlugin implements Plugin {
                         // rotation-invariant). Pixel-verified against Tiled's rendering.
                         for (const group of cached.objectGroups ?? []) {
                             if (group.visible === false) continue;
-                            // A `collision` group's shapes are SOLID geometry (walls/floors) —
-                            // the play-mode collider path handles them; a non-collision group's
-                            // shapes are trigger REGIONS → Trigger-Area entities below.
+                            // A `collision` group's shapes are SOLID geometry (walls/floors);
+                            // every other group's shapes are trigger REGIONS (sensors). Both
+                            // derive through the SAME region path below — edit+play visible.
                             const isCollision = isCollisionObjectGroup(group);
                             for (const obj of group.objects) {
                                 if (obj.visible === false) continue;
                                 // Non-tile objects converge to real, parented, RuntimeOnly
                                 // entities (re-derived from the .tmj each load, like the
                                 // tile-object sprites), so imported and hand-authored objects
-                                // share ONE `Query(Marker)` surface: a POINT → a Marker (spawn
-                                // point / waypoint); a rect/ellipse/polygon in a non-collision
-                                // group → a Trigger Area (Marker + sensor collider, gizmo-visible).
+                                // share ONE `Query(Marker)` surface + collider gizmo: a POINT →
+                                // a Marker (spawn point / waypoint); a rect/ellipse/polygon/
+                                // polyline → a Region (Marker + collider, sensor unless the
+                                // group is `collision`, in which case solid geometry).
                                 if (obj.gid === undefined) {
                                     if (obj.shape === 'point') {
                                         // Carry the Tiled object's custom properties (stringified) so
@@ -535,9 +536,9 @@ export class TilemapPlugin implements Plugin {
                                         world.insert(markerChild, RuntimeOnly, {});
                                         world.setParent(markerChild, entity);
                                         children.push(markerChild);
-                                    } else if (!isCollision) {
-                                        const trigger = spawnObjectTriggerArea(world, obj, entity, pixelsPerUnit);
-                                        if (trigger != null) children.push(trigger);
+                                    } else {
+                                        const region = spawnObjectRegion(world, obj, entity, pixelsPerUnit, !isCollision);
+                                        if (region != null) children.push(region);
                                     }
                                     continue;
                                 }
@@ -590,15 +591,15 @@ export class TilemapPlugin implements Plugin {
                         this.sourceDerivedFrom_.set(entity, cached);
                     }
 
+                    // Object-group colliders (solid + sensor) are derived as RuntimeOnly region
+                    // entities above (edit+play, gizmo-visible); only TILE collision spawns
+                    // here, play-mode only.
                     const hasTileCollision = !!(cached.collisionTileIds && cached.collisionTileIds.length > 0);
                     const hasTileShapes = !!(cached.tileShapes && cached.tileShapes.size > 0);
-                    const collisionGroups = cached.objectGroups
-                        ? cached.objectGroups.filter(isCollisionObjectGroup)
-                        : [];
                     if (
                         playMode
                         && !collisionEntities.has(entity)
-                        && (hasTileCollision || hasTileShapes || collisionGroups.length > 0)
+                        && (hasTileCollision || hasTileShapes)
                     ) {
                         const tf = world.tryGet(entity, Transform) as
                             { position: { x: number; y: number } } | null;
@@ -645,14 +646,6 @@ export class TilemapPlugin implements Plugin {
                                     ));
                                 }
                             }
-                        }
-                        // Tiled OBJECT layers marked as collision spawn static colliders
-                        // alongside the tile-derived ones — same origin, same play-mode
-                        // lifecycle (dropped on stop, regenerated next Play).
-                        if (collisionGroups.length > 0) {
-                            spawned.push(...generateObjectCollision(
-                                world, collisionGroups, ox, oy, pixelsPerUnit,
-                            ));
                         }
                         collisionEntities.set(entity, spawned);
                     }

@@ -15,7 +15,7 @@ import {
 } from '../src/tilemap/tilesetCache';
 import {
     loadTiledMap, parseTmjJson, parseTmjWithExternals, resolveRelativePath, loadTiledCollisionObjects,
-    generateLayerCollision, generateObjectCollision, spawnObjectTriggerArea, isCollisionObjectGroup, decodeTiledGid,
+    generateLayerCollision, generateObjectCollision, spawnObjectRegion, isCollisionObjectGroup, decodeTiledGid,
     packCollectionGrid,
     type TiledObjectData, type TiledObjectGroupData,
 } from '../src/tilemap/tiledLoader';
@@ -25,7 +25,7 @@ import type { TilesetAsset } from '../src/tilemap/tilesetAsset';
 import { mergeCollisionTiles } from '../src/tilemap/collisionMerge';
 import { TilemapAssetLoader } from '../src/asset/loaders/TilemapAssetLoader';
 import type { LoadContext } from '../src/asset/AssetLoader';
-import { BodyType, RigidBody, BoxCollider, CircleCollider, PolygonCollider } from '../src/physics/PhysicsComponents';
+import { BodyType, RigidBody, BoxCollider, CircleCollider, PolygonCollider, ChainCollider } from '../src/physics/PhysicsComponents';
 import { clearUserComponents, Transform, Marker } from '../src/component';
 import type { World } from '../src/world';
 import type { Entity } from '../src/types';
@@ -1436,7 +1436,7 @@ describe('loadTiledMap — collision integration', () => {
         expect(entities).toHaveLength(1);
     });
 
-    describe('spawnObjectTriggerArea (object → Trigger Area convergence)', () => {
+    describe('spawnObjectRegion (object → Trigger-Area / solid-region convergence)', () => {
         const obj = (over: Partial<Record<string, unknown>>) => ({
             id: 7, name: 'gate', type: 'door', visible: true, rotation: 0,
             x: 100, y: 50, width: 40, height: 20, vertices: null,
@@ -1444,10 +1444,10 @@ describe('loadTiledMap — collision integration', () => {
             ...over,
         }) as never;
 
-        it('rect → parented Marker + static body + SENSOR box (metres), custom props carried', () => {
+        it('rect (sensor) → parented Marker + static body + SENSOR box (metres), props carried', () => {
             const world = createMockWorld();
             const parent = world.spawn();
-            const e = spawnObjectTriggerArea(world, obj({ shape: 'rect' }), parent, 100);
+            const e = spawnObjectRegion(world, obj({ shape: 'rect' }), parent, 100, true);
             expect(e).not.toBeNull();
             expect(world.get(e!, Marker)).toEqual({ type: 'door', properties: { event: 'open' } });
             expect(world.get(e!, RigidBody).bodyType).toBe(0); // Static
@@ -1458,20 +1458,29 @@ describe('loadTiledMap — collision integration', () => {
             expect(world.setParent).toHaveBeenCalledWith(e, parent);
         });
 
-        it('ellipse → SENSOR circle on the mean semi-axis', () => {
+        it('sensor=false → the SAME shape as a SOLID collider (collision-group geometry)', () => {
             const world = createMockWorld();
-            const e = spawnObjectTriggerArea(world, obj({ shape: 'ellipse', width: 80, height: 40 }), world.spawn(), 100);
-            const c = world.get(e!, CircleCollider);
-            expect(c.isSensor).toBe(true);
-            expect(c.radius).toBeCloseTo((80 + 40) * 0.25 / 100);
+            const e = spawnObjectRegion(world, obj({ shape: 'rect' }), world.spawn(), 100, false);
+            expect(world.get(e!, BoxCollider).isSensor).toBe(false);
+            expect(world.get(e!, RigidBody).bodyType).toBe(0);
         });
 
-        it('polygon (≤8 pts) → SENSOR polygon; point/polyline → null (projected elsewhere)', () => {
+        it('ellipse → circle on the mean semi-axis; polyline → open chain', () => {
             const world = createMockWorld();
-            const poly = spawnObjectTriggerArea(world, obj({ shape: 'polygon', vertices: [0, 0, 30, 0, 30, 30] }), world.spawn(), 100);
-            expect(world.get(poly!, PolygonCollider).isSensor).toBe(true);
-            expect(spawnObjectTriggerArea(world, obj({ shape: 'point' }), world.spawn(), 100)).toBeNull();
-            expect(spawnObjectTriggerArea(world, obj({ shape: 'polyline', vertices: [0, 0, 10, 10] }), world.spawn(), 100)).toBeNull();
+            const c = world.get(spawnObjectRegion(world, obj({ shape: 'ellipse', width: 80, height: 40 }), world.spawn(), 100, true)!, CircleCollider);
+            expect(c.isSensor).toBe(true);
+            expect(c.radius).toBeCloseTo((80 + 40) * 0.25 / 100);
+            const chain = world.get(spawnObjectRegion(world, obj({ shape: 'polyline', vertices: [0, 0, 10, 0, 10, 10] }), world.spawn(), 100, false)!, ChainCollider);
+            expect(chain.isLoop).toBe(false);
+            // A sensor-group polyline is skipped (open chains have no sensor mode).
+            expect(spawnObjectRegion(world, obj({ shape: 'polyline', vertices: [0, 0, 10, 10] }), world.spawn(), 100, true)).toBeNull();
+        });
+
+        it('polygon (≤8 pts) → polygon; point / gid → null (projected elsewhere)', () => {
+            const world = createMockWorld();
+            expect(world.get(spawnObjectRegion(world, obj({ shape: 'polygon', vertices: [0, 0, 30, 0, 30, 30] }), world.spawn(), 100, true)!, PolygonCollider).isSensor).toBe(true);
+            expect(spawnObjectRegion(world, obj({ shape: 'point' }), world.spawn(), 100, true)).toBeNull();
+            expect(spawnObjectRegion(world, obj({ shape: 'rect', gid: 5 }), world.spawn(), 100, true)).toBeNull();
         });
     });
 
