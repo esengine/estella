@@ -39,6 +39,7 @@ import { fetchDecodePixels } from './imageDecode';
 import type { SceneData } from '../scene';
 import { SceneHandle, type ReleaseCallback } from './SceneHandle';
 import type { AssetRegistry } from './AssetRegistry';
+import { UUID_REF_PREFIX } from './AssetRegistry';
 import type { AssetRefCounter } from './AssetRefCounter';
 import { log } from '../logger';
 
@@ -532,12 +533,7 @@ export class Assets {
              .catch(() => { onProgress?.(++loadedCount, totalCount); });
 
         for (const asset of model.assetsInGroup(groupName)) {
-            // A remote group's assets live on the CDN, not in the package: resolve
-            // to the absolute `<remoteRoot>/<contentHash>.<ext>` url (the backend
-            // passes absolute urls through). Local / lazy assets resolve normally.
-            const path = mode === 'remote'
-                ? this.remoteUrlFor_(asset.path)
-                : this.resolveLoadPath_(asset.path);
+            const path = this.manifestAssetUrl_(asset.path, mode === 'remote');
             const task = this.groupLoadTask_(path, asset.type, bundle);
             if (task) promises.push(track(task));
         }
@@ -604,6 +600,17 @@ export class Assets {
         if (/^[a-z][a-z0-9+.-]*:\/\//i.test(path)) return path;
         if (!root) return path;
         return `${root.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
+    }
+
+    /** The load url for a manifest asset. A `remote`-group asset resolves to its
+     *  `<root>/<path>` CDN url when a root is set; every other case (local / lazy
+     *  group, or a remote group with no CDN root — same-origin realms like editor
+     *  Play) resolves through the normal resolver + Catalog. The single remote/local
+     *  routing rule shared by {@link loadGroup} and {@link fetchAndVerify_}, so a
+     *  loadGroup'd asset and the same asset reached by a scene `@uuid` ref (via
+     *  {@link resolveLoadPath_} → {@link remoteAssetPath_}) never resolve two ways. */
+    private manifestAssetUrl_(path: string, isRemote: boolean, root: string | undefined = this.remoteRoot_): string {
+        return isRemote && root ? this.remoteUrlFor_(path, root) : this.resolveLoadPath_(path);
     }
 
     /**
@@ -691,7 +698,7 @@ export class Assets {
     ): Promise<AssetDownloadFailure['reason'] | null> {
         const group = model.group(c.group);
         const remote = group != null && normalizeBundleMode(group.bundleMode) === 'remote';
-        const path = remote ? this.remoteUrlFor_(c.path, root) : this.resolveLoadPath_(c.path);
+        const path = this.manifestAssetUrl_(c.path, remote, root);
         try {
             const url = this.backend.resolveUrl(path);
             const buf = await this.backend.fetchBinary(url);
@@ -1399,7 +1406,9 @@ export class Assets {
         if (!this.remoteRoot_) return null;
         const model = this.manifestModel_;
         if (!model) return null;
-        const key = ref.startsWith('@uuid:') ? ref.slice(6).toLowerCase() : ref;
+        const key = ref.startsWith(UUID_REF_PREFIX)
+            ? ref.slice(UUID_REF_PREFIX.length).toLowerCase()
+            : ref;
         const path = model.remoteAssetPath(key) ?? model.remoteAssetPath(ref);
         return path != null ? this.remoteUrlFor_(path) : null;
     }
