@@ -32,10 +32,11 @@ Nothing is ever overwritten, so a cache can never go stale.
 - **`assets/scenes/main.esscene`** — the Display sprite references the texture by
   an ordinary `@uuid`. The asset lives in a `remote` group, so the runtime routes
   that `@uuid` to the CDN automatically — the scene author does nothing special.
-- **`src/systems/hotUpdate.ts`** — subscribes to `Assets.onInvalidate`, so when an
-  update lands the changed asset is reloaded (now resolved to the CDN) and the
-  sprite follows. (A game can also `Assets.loadGroup(name)` to pull a whole remote
-  group on demand — the DLC pattern.)
+- **No game code.** `src/main.ts` is empty. When an update is applied the runtime's
+  built-in rebinder reloads the changed asset (now resolved to the CDN) and swaps
+  it into the live sprite, so the picture changes on screen on its own. (A game can
+  still call `Assets.loadGroup(name)` to pull a whole remote group on demand — the
+  DLC pattern — or `Assets.onInvalidate` for custom rebinding.)
 - **The update** — call `Assets.checkForUpdate({ manifestUrl, remoteRoot })` to
   diff the CDN's manifest against the running one, then `Assets.applyUpdate()` to
   download the changed assets and swap the manifest. Existing handles bound to a

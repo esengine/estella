@@ -30,6 +30,7 @@ import { Localization, matchLocale } from './i18n/Localization';
 import { LocalizationPlugin } from './i18n/LocalizationPlugin';
 import { platformLanguage } from './platform';
 import { flushPendingSystems } from './app';
+import { installHotUpdateRebind } from './hotUpdateRebind';
 import { requireResourceManager } from './resourceManager';
 import { log } from './logger';
 import { type RuntimeAssetSource, type TextureParams } from './runtimeAssets';
@@ -445,6 +446,9 @@ export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
     // A persisted update (from a prior applyUpdate) supersedes the shipped manifest
     // + root, so a returning player boots straight onto the already-updated content.
     if (config.persistUpdateKey) assets.restorePersistedUpdate(config.persistUpdateKey);
+    // Built-in rebinder: on a hot update, swap the changed texture into live
+    // sprites/meshes automatically — a scene @uuid ref updates with no game code.
+    installHotUpdateRebind(app, assets);
 
     if (config.audioConfig && app.hasResource(Audio)) {
         applyAudioProjectConfig(app.getResource(Audio), config.audioConfig);

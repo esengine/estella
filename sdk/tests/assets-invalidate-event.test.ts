@@ -53,7 +53,9 @@ describe('Assets.onInvalidate', () => {
 
         const hit = assets.invalidate('tex/hot.png');
         expect(hit).toBe(true);
-        expect(listener).toHaveBeenCalledWith('tex/hot.png');
+        // Fires with the original ref + the pre-drop texture handle (0 here — the
+        // seeded entry is the unflipped variant; the rebinder reads flip=true).
+        expect(listener).toHaveBeenCalledWith('tex/hot.png', expect.any(Number));
     });
 
     it('unsubscribe function prevents further notifications', () => {
@@ -122,8 +124,8 @@ describe('Assets.onInvalidate', () => {
         assets.onInvalidate(c);
 
         assets.invalidate('tex/a.png');
-        expect(a).toHaveBeenCalledWith('tex/a.png');
-        expect(b).toHaveBeenCalledWith('tex/a.png');
-        expect(c).toHaveBeenCalledWith('tex/a.png');
+        expect(a).toHaveBeenCalledWith('tex/a.png', expect.any(Number));
+        expect(b).toHaveBeenCalledWith('tex/a.png', expect.any(Number));
+        expect(c).toHaveBeenCalledWith('tex/a.png', expect.any(Number));
     });
 });

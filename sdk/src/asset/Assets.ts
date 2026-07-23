@@ -42,8 +42,10 @@ import type { AssetRegistry } from './AssetRegistry';
 import type { AssetRefCounter } from './AssetRefCounter';
 import { log } from '../logger';
 
-/** Callback fired when `Assets.invalidate(ref)` actually dropped cache entries. */
-export type InvalidateListener = (ref: string) => void;
+/** Callback fired when `Assets.invalidate(ref)` actually dropped cache entries.
+ *  `oldTextureHandle` is the texture handle that was bound before the drop (0 when
+ *  none / not a texture) — the built-in rebinder swaps it to the reloaded handle. */
+export type InvalidateListener = (ref: string, oldTextureHandle?: number) => void;
 
 /** Input to {@link Assets.checkForUpdate}. */
 export interface CheckForUpdateOptions {
@@ -663,12 +665,18 @@ export class Assets {
             return { ok: false, updated: 0, failed };
         }
 
-        // Phase 2 — commit atomically: swap root + manifest, rebind, persist. Renderers
-        // holding a stale handle for a changed asset re-resolve against the now-active
-        // manifest (the freshly-fetched content); old handles orphan + release by refcount.
+        // Phase 2 — commit atomically. Capture the texture handle bound to each
+        // changed asset BEFORE the swap (it resolves to the OLD path), then swap
+        // root + manifest and notify with that handle so the built-in rebinder
+        // swaps it to the freshly-fetched content in live components.
+        const oldHandles = new Map<string, number>();
+        for (const c of changed) {
+            const tex = this.getTexture(c.key);
+            if (tex) oldHandles.set(c.key, tex.handle);
+        }
         if (pending.remoteRoot != null) this.setRemoteRoot(pending.remoteRoot);
         this.setManifest(pending.model);
-        for (const c of changed) this.fireInvalidate_(c.key);
+        for (const c of changed) this.fireInvalidate_(c.key, oldHandles.get(c.key) ?? 0);
         this.persistActiveManifest_(pending.manifestJson);
         this.pendingUpdate_ = null;
         return { ok: true, updated: changed.length, failed: [] };
@@ -1185,6 +1193,9 @@ export class Assets {
      */
     invalidate(ref: string): boolean {
         const path = this.resolveRef(ref) ?? ref;
+        // The texture handle bound to this path, captured BEFORE the caches drop
+        // it, so a rebind listener can swap it in live components (hot update).
+        const oldTextureHandle = this.textureCache_.get(this.textureCacheKey_(path, true))?.handle ?? 0;
         let hit = false;
 
         // Textures: cache_key has a flip flag suffix, so check both. The C++
@@ -1219,18 +1230,18 @@ export class Assets {
             if (p === path) this.handleToPath_.delete(key);
         }
 
-        if (hit) this.fireInvalidate_(ref);
+        if (hit) this.fireInvalidate_(ref, oldTextureHandle);
 
         return hit;
     }
 
-    /** Fire every onInvalidate listener with `ref`, isolating throws. Shared by
-     *  {@link invalidate} (cache drop) and {@link applyUpdate} (rebind to updated
-     *  content), so both notify subscribers through one path. */
-    private fireInvalidate_(ref: string): void {
+    /** Fire every onInvalidate listener with `ref` (and the pre-drop texture
+     *  handle, when known, so a rebinder can swap it in live components). Isolates
+     *  throws. Shared by {@link invalidate} and {@link applyUpdate}. */
+    private fireInvalidate_(ref: string, oldTextureHandle = 0): void {
         for (const listener of this.invalidateListeners_) {
             try {
-                listener(ref);
+                listener(ref, oldTextureHandle);
             } catch (e) {
                 log.warn('asset', 'onInvalidate listener threw', e);
             }
