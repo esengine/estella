@@ -172,11 +172,12 @@ jobs:
       working-directory: desktop
       run: pnpm exec vite build
 
-    # Twin coverage guard: every fixture .esshader must carry its WGSL twin
-    # (hand-written, generated, or switch-skipped) — a twin-less shader is
-    # WebGPU-dead by design and gen-shader-twins --check exits 1 on it.
+    # Twin coverage guard: every fixture AND example .esshader must carry its
+    # WGSL twin (hand-written, generated, or switch-skipped) — a twin-less shader
+    # is WebGPU-dead by design and gen-shader-twins --check exits 1 on it. Covers
+    # examples/ too so a shipped user shader can never regress to WebGL-only.
     - name: Check shader twins
-      run: node tools/gen-shader-twins.mjs --check $(find desktop/public/scenes -name '*.esshader')
+      run: node tools/gen-shader-twins.mjs --check $(find desktop/public/scenes examples -name '*.esshader')
 
     # Pipeline smoke: strip a fixture's twins into a temp copy and require the
     # vendored converters (glslang wasm + naga WASI wasm) to produce one —
