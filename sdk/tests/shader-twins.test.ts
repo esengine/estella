@@ -79,3 +79,37 @@ describe('embedded .esshader structure', () => {
         }
     }
 });
+
+// The staleness contract behind cook-time + editor twin (re)generation: a
+// generated twin stores a hash of the authored GLSL, so `needsTwin` is true when
+// the twin is missing OR the GLSL changed under it (stale) — but not when only
+// the generated twin body changed. This is what makes "GLSL is the single source,
+// WGSL is a derivative" hold — the derivative provably tracks the source.
+const gen = (await import('../../tools/gen-shader-twins.mjs')) as unknown as {
+    needsTwin(s: string): boolean;
+    sourceHash(s: string): string;
+};
+describe('gen-shader-twins needsTwin / sourceHash (staleness)', () => {
+    const glsl = '#pragma shader "T"\n#pragma fragment\nvoid main() { }\n#pragma end\n';
+    const twin = (hash: string | null) =>
+        `${glsl}\n#pragma fragment wgsl full\n` +
+        (hash ? `// source-hash: ${hash}\n` : '') +
+        '@fragment fn fs_main() { }\n#pragma end\n';
+
+    it('no twin → needs one', () => expect(gen.needsTwin(glsl)).toBe(true));
+    it('fresh generated twin (matching hash) → up to date', () =>
+        expect(gen.needsTwin(twin(gen.sourceHash(glsl)))).toBe(false));
+    it('stale generated twin (wrong hash) → needs regen', () =>
+        expect(gen.needsTwin(twin('deadbeefdeadbeef'))).toBe(true));
+    it('generated twin with no stored hash → needs regen (legacy)', () =>
+        expect(gen.needsTwin(twin(null))).toBe(true));
+    it('hand-authored (non-full) twin → left alone', () =>
+        expect(gen.needsTwin(`${glsl}\n#pragma fragment wgsl\n@fragment fn fs_main() { }\n#pragma end\n`)).toBe(false));
+    it('#pragma switch shader → never auto-generated', () =>
+        expect(gen.needsTwin(`${glsl}#pragma switch FOO default(off)\n`)).toBe(false));
+    it('editing only the twin body does not stale it; editing the GLSL does', () => {
+        const fresh = twin(gen.sourceHash(glsl));
+        expect(gen.needsTwin(fresh.replace('fs_main', 'fs_main_x'))).toBe(false);
+        expect(gen.needsTwin(fresh.replace('void main() { }', 'void main() { discard; }'))).toBe(true);
+    });
+});

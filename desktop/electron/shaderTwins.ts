@@ -42,6 +42,9 @@ async function findEsshaders(dir: string, out: string[] = []): Promise<string[]>
 }
 
 interface TwinGenerator {
+    /** True when the shader has no twin, or a generated twin whose stored
+     *  source-hash no longer matches its GLSL (stale). Pure + cheap (no engine). */
+    needsTwin(source: string): boolean;
     loadTwinModule(): Promise<{ esshader_cookInfo(source: string, features: string): unknown }>;
     processFile(
         module: unknown,
@@ -67,15 +70,11 @@ export async function ensureProjectShaderTwins(
     const result = { generated: [] as string[], failed: [] as string[], skipped: [] as string[] };
 
     const files = await findEsshaders(root);
-    const needy: string[] = [];
-    for (const f of files) {
-        const src = await readFile(f, 'utf8').catch(() => '');
-        if (src.includes('#pragma fragment wgsl')) continue; // already has a twin
-        if (src.includes('#pragma switch')) { result.skipped.push(f); continue; }
-        needy.push(f);
-    }
-    if (needy.length === 0) return result;
+    if (files.length === 0) return result;
 
+    // Import the generator up front — cheap (pure JS; the engine + converter wasm
+    // load only in loadTwinModule below) — so its needsTwin decides which shaders
+    // are missing OR stale (a twin whose source-hash no longer matches its GLSL).
     let gen: TwinGenerator;
     try {
         const url = pathToFileURL(path.join(repoRoot, 'tools', 'gen-shader-twins.mjs')).href;
@@ -84,6 +83,13 @@ export async function ensureProjectShaderTwins(
         console.warn('[shader-twins] generator unavailable — skipping', err);
         return result;
     }
+
+    const needy: string[] = [];
+    for (const f of files) {
+        const src = await readFile(f, 'utf8').catch(() => '');
+        if (gen.needsTwin(src)) needy.push(f);
+    }
+    if (needy.length === 0) return result;
 
     const module = await gen.loadTwinModule();
     for (const f of needy) {
