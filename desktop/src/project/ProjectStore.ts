@@ -3,7 +3,7 @@
 import { createStore } from 'zustand/vanilla';
 import { getComponent, getEditorType, Assets, migratePrefabData, extractPrefab, flattenPrefab, collectExternalEntityRefs, collapseInstance, applyDeltaToSource, buildVariant, validateOverrides, setTextureParams, TextureFilter, TextureWrap, Renderer, RETIRED_COMPONENT_TYPES, parseThemeOverrides } from 'esengine';
 import { readTextureImportSettings } from './assetImporter';
-import type { SceneData, PrefabData, ExtractEntity, ProcessedEntity, PhysicsPluginConfig, AudioProjectConfig, AssetsData, ThemeOverrides, StaleOverride, PrefabOverride } from 'esengine';
+import type { SceneData, PrefabData, ExtractEntity, ProcessedEntity, PhysicsPluginConfig, AudioProjectConfig, AssetsData, ThemeOverrides, StaleOverride, PrefabOverride, AddressableManifest } from 'esengine';
 import { EngineHost } from '@/engine/EngineHost';
 import { applyWidgetTheme } from '@/engine/widgetTheme';
 import { bootProfiler } from '@/engine/bootProfiler';
@@ -1359,9 +1359,45 @@ class ProjectStoreImpl {
    * the lossless refs, not resolved handles — plus a uuid→url manifest the realm
    * fetches over `estella://`. Null if no scene is loaded.
    */
+  /**
+   * Build the AddressableManifest for Play so `Assets.loadGroup` (remote / lazy
+   * groups) works in the editor realm exactly as in a shipped build. The folder
+   * convention mirrors the cook's `groupOf` (cookAssets.ts — the canonical
+   * source): `remote/<name>/` → remote group, `subpackages/<name>/` → lazy, else
+   * `main`/local. Types are inferred from the extension (the realm resolves each
+   * asset's url through the same uuid/path channel); `size` is 0 (unknown before a
+   * cook, and unused by loadGroup).
+   */
+  private buildPlayManifest(): AddressableManifest {
+    const typeOfExt = (path: string): string => {
+      const ext = path.slice(path.lastIndexOf('.')).toLowerCase();
+      if (['.png', '.jpg', '.jpeg', '.webp', '.ktx2', '.bmp', '.gif'].includes(ext)) return 'texture';
+      if (ext === '.esmaterial') return 'material';
+      if (['.wav', '.mp3', '.ogg', '.m4a'].includes(ext)) return 'audio';
+      if (ext === '.esprefab') return 'prefab';
+      if (ext === '.esshader') return 'text';
+      if (['.esscene', '.esanim', '.estilemap', '.estileset', '.estimeline', '.json', '.eslocale'].includes(ext)) return 'json';
+      return 'binary';
+    };
+    type Asset = { path: string; type: string; size: number; labels: string[] };
+    const groups: Record<string, { bundleMode: string; labels: string[]; assets: Record<string, Asset> }> = {};
+    for (const [uuid, raw] of this.uuidToPath) {
+      const path = raw.replace(/\\/g, '/');
+      const sub = /^subpackages\/([^/]+)\//.exec(path);
+      const rem = /^remote\/([^/]+)\//.exec(path);
+      const name = sub?.[1] ?? rem?.[1] ?? 'main';
+      const mode = sub ? 'lazy' : rem ? 'remote' : 'local';
+      const g = (groups[name] ??= { bundleMode: mode, labels: [], assets: {} });
+      g.assets[uuid.toLowerCase()] = { path, type: typeOfExt(path), size: 0, labels: [] };
+    }
+    groups.main ??= { bundleMode: 'local', labels: [], assets: {} };
+    return { version: '2.0', groups } as unknown as AddressableManifest;
+  }
+
   playPayload(): {
     sceneData: SceneData;
     assetManifest: Record<string, string>;
+    manifest: AddressableManifest;
     entrySceneName?: string;
     extraScenes?: Array<{ name: string; path: string }>;
     physicsEnabled?: boolean;
@@ -1426,7 +1462,7 @@ class ProjectStoreImpl {
     const uiTheme = this.uiTheme();
     const uiThemeOverrides = this.uiThemeOverrides();
     return {
-      sceneData, assetManifest, physicsEnabled: f.enabled, physicsConfig,
+      sceneData, assetManifest, manifest: this.buildPlayManifest(), physicsEnabled: f.enabled, physicsConfig,
       ...(currentScene ? { entrySceneName: exportSceneName(currentScene) } : {}),
       ...(extraScenes.length > 0 ? { extraScenes } : {}),
       ...(audioConfig.buses ? { audioConfig } : {}),

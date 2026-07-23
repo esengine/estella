@@ -11,7 +11,7 @@
  *          import of an editor module here would break the realm bundle. Type-only
  *          imports are erased before resolution and are safe.
  */
-import type { SceneData, PhysicsPluginConfig, AudioProjectConfig, ThemeOverrides } from 'esengine';
+import type { SceneData, PhysicsPluginConfig, AudioProjectConfig, ThemeOverrides, AddressableManifest } from 'esengine';
 
 /**
  * Editor↔realm message-contract version. The realm reports it in `hello`; the editor
@@ -53,6 +53,9 @@ export interface PlayNetConfig {
 export interface PlayPayload {
   sceneData: SceneData;
   assetManifest: Record<string, string>;
+  /** AddressableManifest (groups + bundle modes) so `Assets.loadGroup` — remote /
+   *  lazy groups — works in Play exactly as in a shipped build. */
+  manifest?: AddressableManifest;
   /** Export name of the entry scene (scenes-dir-relative, sans extension), so
    *  switchTo back to it works exactly as in a shipped build. Absent = '__play'. */
   entrySceneName?: string;

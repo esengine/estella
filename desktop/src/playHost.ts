@@ -208,6 +208,10 @@ async function buildAppAndRun(msg: InitMessage): Promise<void> {
     canvas,
     sceneData: msg.sceneData,
     assetManifest: msg.assetManifest,
+    // Addressable manifest → Assets.loadGroup works in the realm (remote / lazy
+    // groups) just like a shipped build. Remote assets resolve same-origin
+    // estella:// via assetBaseUrl, so no remoteRoot is set here.
+    manifest: msg.manifest,
     // Play == ship: the entry keeps its export name and every sibling scene
     // registers lazily by path, so runtime switchTo works like a shipped build.
     entrySceneName: msg.entrySceneName,
