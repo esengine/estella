@@ -20,13 +20,16 @@ import { spawnUIEntity } from '../core/compose';
 import { px } from '../core/dimension';
 import { SdfTextRenderer } from './text-renderer';
 import { measureWidth } from './layout';
-import { textFieldDisplay, type TextFieldDisplay } from './text-input-view';
+import { textFieldDisplay, maskedPrefix, fieldSelection, type TextFieldDisplay } from './text-input-view';
 import { CURSOR_BLINK_INTERVAL } from '../util/constants';
 import { SystemLabel, PluginName } from '../../systemLabels';
 import { log } from '../../logger';
 
 /** Masking bullet for password fields. */
 const PASSWORD_CHAR = '●';
+
+/** Selection-highlight fill (a translucent accent drawn behind the text). */
+const SELECTION_COLOR = { r: 0.30, g: 0.55, b: 1.0, a: 0.35 };
 
 export class TextInputPlugin implements Plugin {
     name = PluginName.TextInput;
@@ -61,7 +64,7 @@ export class TextInputPlugin implements Plugin {
         // per-entity Canvas2D rasterization / texture upload. `measureRenderer`
         // owns an atlas used only to position the caret (measureWidth); its glyph
         // advances match the child Text's atlas (same font config).
-        const childrenOf = new Map<Entity, { text: Entity; caret: Entity }>();
+        const childrenOf = new Map<Entity, { sel: Entity; text: Entity; caret: Entity }>();
         let measureRenderer: SdfTextRenderer | null = null;
         const ensureMeasure = (): SdfTextRenderer => {
             if (!measureRenderer) measureRenderer = new SdfTextRenderer(module);
@@ -132,24 +135,11 @@ export class TextInputPlugin implements Plugin {
                 return;
             }
 
-            let newPos = ti.cursorPos;
-            if (e.key === 'ArrowLeft') {
-                newPos = Math.max(0, ti.cursorPos - 1);
-            } else if (e.key === 'ArrowRight') {
-                newPos = Math.min(ti.value.length, ti.cursorPos + 1);
-            } else if (e.key === 'Home') {
-                newPos = 0;
-            } else if (e.key === 'End') {
-                newPos = ti.value.length;
-            }
-
-            if (newPos !== ti.cursorPos) {
-                ti.cursorPos = newPos;
-                textarea.selectionStart = newPos;
-                textarea.selectionEnd = newPos;
-                ti.dirty = true;
-                resetCursorBlink();
-            }
+            // Caret movement + selection (arrows, Home/End, Shift-select, Ctrl-A)
+            // are handled natively by the focused textarea — the render loop
+            // mirrors its selection each frame — so nothing to intercept here.
+            // A keystroke that moves the caret should re-show it solid.
+            resetCursorBlink();
         };
 
         const onBlur = () => {
@@ -179,6 +169,7 @@ export class TextInputPlugin implements Plugin {
             textarea.removeEventListener('blur', onBlur);
             textarea.remove();
             for (const ch of childrenOf.values()) {
+                if (world.valid(ch.sel)) world.despawn(ch.sel);
                 if (world.valid(ch.text)) world.despawn(ch.text);
                 if (world.valid(ch.caret)) world.despawn(ch.caret);
             }
@@ -293,6 +284,7 @@ export class TextInputPlugin implements Plugin {
                 // Reap the child entities of removed inputs.
                 for (const [e, ch] of childrenOf) {
                     if (!world.valid(e) || !world.has(e, TextInput)) {
+                        if (world.valid(ch.sel)) world.despawn(ch.sel);
                         if (world.valid(ch.text)) world.despawn(ch.text);
                         if (world.valid(ch.caret)) world.despawn(ch.caret);
                         childrenOf.delete(e);
@@ -307,23 +299,47 @@ export class TextInputPlugin implements Plugin {
 
                     ensureBackground(entity, ti);
                     const ch = ensureChildren(entity, ti);
-                    // Fold an active IME composition into the shown text: while
-                    // composing, the hidden textarea holds the preedit at the caret,
-                    // so a focused field renders that live instead of the (not-yet-
-                    // committed) component value — otherwise the composed string is
-                    // invisible until it commits.
-                    const editing = composing && focused === entity;
+                    // While focused, the hidden textarea is the single source of
+                    // truth for editing — caret moves, native Shift/Ctrl-A
+                    // selection, and the live IME preedit all land there — so a
+                    // focused field renders the textarea's value + selection; a
+                    // blurred field renders its committed component value.
+                    const editing = focused === entity;
                     const val = editing ? textarea.value : ti.value;
-                    const caret = editing ? (textarea.selectionStart ?? val.length) : ti.cursorPos;
-                    const disp = textFieldDisplay(val, caret, ti.password, ti.placeholder, PASSWORD_CHAR);
+                    const len = val.length;
+                    const sel = editing
+                        ? fieldSelection(
+                            textarea.selectionStart ?? len,
+                            textarea.selectionEnd ?? len,
+                            textarea.selectionDirection === 'backward',
+                            len)
+                        : { lo: 0, hi: 0, caret: Math.max(0, Math.min(ti.cursorPos, len)), hasRange: false };
+                    // Keep the component caret in step so a blur/refocus restores it.
+                    if (editing && ti.cursorPos !== sel.caret) ti.cursorPos = sel.caret;
+
+                    const disp = textFieldDisplay(val, ti.password, ti.placeholder, PASSWORD_CHAR);
+                    const atlas = ensureMeasure().atlas;
+                    const measure = (i: number): number =>
+                        measureWidth(maskedPrefix(val, i, ti.password, PASSWORD_CHAR), atlas, ti.fontFamily, ti.fontSize, 0);
+                    const caretRaw = measure(sel.caret);
                     // Single-line fields scroll horizontally to keep the caret in view;
                     // multiline wraps within the box and clips (no h-scroll).
                     const innerW = Math.max(0, w - 2 * ti.padding);
-                    const caretRaw = measureWidth(disp.beforeCaret, ensureMeasure().atlas, ti.fontFamily, ti.fontSize, 0);
                     const scrollX = ti.multiline ? 0 : Math.max(0, caretRaw - innerW);
 
+                    // Selection highlight (single-line only): a quad spanning the
+                    // masked range, drawn behind the text. A multiline selection
+                    // spans lines and is left to a later pass.
+                    const showSel = sel.hasRange && !ti.multiline;
+                    const selLo = showSel ? measure(sel.lo) : 0;
+                    const selHi = showSel ? measure(sel.hi) : 0;
+                    syncSelChild(ch.sel, ti, h, showSel, ti.padding + selLo - scrollX, selHi - selLo);
+
                     syncTextChild(ch.text, ti, disp, innerW, scrollX);
-                    syncCaretChild(ch.caret, ti, h, ti.padding + caretRaw - scrollX);
+                    // The blinking caret hides while a range is selected (the
+                    // highlight stands in), matching a native field.
+                    syncCaretChild(ch.caret, ti, h, ti.padding + caretRaw - scrollX,
+                        ti.focused && cursorVisible && !sel.hasRange);
                 }
             },
             { name: 'TextInputRenderSystem' }
@@ -356,10 +372,16 @@ export class TextInputPlugin implements Plugin {
             }
         }
 
-        function ensureChildren(entity: Entity, ti: TextInputData): { text: Entity; caret: Entity } {
+        function ensureChildren(entity: Entity, ti: TextInputData): { sel: Entity; text: Entity; caret: Entity } {
             const existing = childrenOf.get(entity);
-            if (existing && world.valid(existing.text) && world.valid(existing.caret)) return existing;
+            if (existing && world.valid(existing.sel) && world.valid(existing.text) && world.valid(existing.caret)) return existing;
             const pad = px(ti.padding);
+            // Spawn order is the tree-DFS render order: highlight (behind) < text < caret.
+            const sel = spawnUIEntity({
+                world, parent: entity,
+                node: { position: UIPositionType.Absolute, width: px(0), height: px(ti.fontSize), insetLeft: pad, insetTop: px(0) },
+                visual: { visualType: UIVisualType.SolidColor, color: { ...SELECTION_COLOR }, enabled: false },
+            });
             const text = spawnUIEntity({
                 world, parent: entity,
                 // Left-anchored by insetLeft (scrolled by the render loop) with an
@@ -377,9 +399,28 @@ export class TextInputPlugin implements Plugin {
                 node: { position: UIPositionType.Absolute, width: px(2), height: px(ti.fontSize), insetLeft: px(ti.padding), insetTop: px(0) },
                 visual: { visualType: UIVisualType.SolidColor, color: ti.color, enabled: false },
             });
-            const ch = { text, caret };
+            const ch = { sel, text, caret };
             childrenOf.set(entity, ch);
             return ch;
+        }
+
+        function syncSelChild(selEntity: Entity, ti: TextInputData, boxH: number, show: boolean, x: number, width: number): void {
+            const w = Math.max(0, width);
+            const top = Math.max(0, (boxH - ti.fontSize) / 2);
+            const node = world.get(selEntity, UINode) as UINodeData;
+            if (node.insetLeft.value !== x || node.insetTop.value !== top || node.width.value !== w || node.height.value !== ti.fontSize) {
+                node.insetLeft = px(x);
+                node.insetTop = px(top);
+                node.width = px(w);
+                node.height = px(ti.fontSize);
+                world.insert(selEntity, UINode, node);
+            }
+            const v = world.get(selEntity, UIVisual) as UIVisualData;
+            const on = show && w > 0;
+            if (v.enabled !== on) {
+                v.enabled = on;
+                world.insert(selEntity, UIVisual, v);
+            }
         }
 
         function syncTextChild(textEntity: Entity, ti: TextInputData, disp: TextFieldDisplay, innerW: number, scrollX: number): void {
@@ -408,7 +449,7 @@ export class TextInputPlugin implements Plugin {
             }
         }
 
-        function syncCaretChild(caretEntity: Entity, ti: TextInputData, boxH: number, caretX: number): void {
+        function syncCaretChild(caretEntity: Entity, ti: TextInputData, boxH: number, caretX: number, show: boolean): void {
             const caretTop = Math.max(0, (boxH - ti.fontSize) / 2);
             const node = world.get(caretEntity, UINode) as UINodeData;
             if (node.insetLeft.value !== caretX || node.insetTop.value !== caretTop || node.height.value !== ti.fontSize) {
@@ -418,7 +459,6 @@ export class TextInputPlugin implements Plugin {
                 world.insert(caretEntity, UINode, node);
             }
             const v = world.get(caretEntity, UIVisual) as UIVisualData;
-            const show = ti.focused && cursorVisible;
             if (v.enabled !== show || v.color.r !== ti.color.r || v.color.g !== ti.color.g || v.color.b !== ti.color.b) {
                 v.enabled = show;
                 v.color = { ...ti.color };

@@ -340,6 +340,13 @@ Click (or Tab to) the field to focus it; **Escape** blurs, **Enter** fires
 `submit` on single-line fields. A value longer than the box **clips to it and scrolls
 horizontally** so the caret stays in view as you type.
 
+Editing is backed by a hidden native `<textarea>`, so caret movement and
+**selection come for free**: arrows / Home / End move the caret, **Shift +
+arrows** (or **Ctrl/⌘ + A**) select a range — drawn as a highlight behind the
+text — and the platform clipboard (cut / copy / paste) works. The field mirrors
+that native selection each frame, so it always matches what a native input would
+do.
+
 **IME / CJK input** works: the field drives a hidden native `<textarea>`, so a
 Chinese/Japanese/Korean composition renders **live in the field** (the preedit
 string shows at the caret as you type) and only fires `change` once the
