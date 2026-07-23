@@ -198,6 +198,25 @@ async function runScreenshot(w: BrowserWindow, out: string): Promise<void> {
       throw new Error('automation hook never attached');
     }
 
+    // Force the editor UI language (ESTELLA_SHOT_LOCALE=en|zh-CN) for
+    // language-matched documentation shots. The locale is fixed at module load
+    // from the persisted setting, so seed it and reload before anything opens.
+    const locale = process.env.ESTELLA_SHOT_LOCALE;
+    if (locale) {
+      const changed = await exec(`(() => {
+        const k = 'estella.settings';
+        const v = JSON.parse(localStorage.getItem(k) || '{}');
+        if (v['appearance.language'] === ${JSON.stringify(locale)}) return false;
+        v['appearance.language'] = ${JSON.stringify(locale)};
+        localStorage.setItem(k, JSON.stringify(v));
+        return true;
+      })()`);
+      if (changed) {
+        w.webContents.reload();
+        await waitFor('!!window.__estellaEditor', 'automation hook (after locale reload)');
+      }
+    }
+
     const project = process.env.ESTELLA_SHOT_PROJECT;
     const scene = process.env.ESTELLA_SHOT_SCENE;
     if (project) {
@@ -342,7 +361,32 @@ async function runScreenshot(w: BrowserWindow, out: string): Promise<void> {
       }
     }
     await settleFrames(12); // was sleep(2500) — let the engine loop spin up + fully paint the WebGL viewport
-    const img = await w.webContents.capturePage();
+    let img = await w.webContents.capturePage();
+    // Crop to a single element (ESTELLA_SHOT_CROP=<css selector>, +ESTELLA_SHOT_CROP_PAD
+    // px of breathing room) for panel-focused doc shots. The scale is derived from the
+    // captured image vs the viewport, so it is correct at any devicePixelRatio.
+    const cropSel = process.env.ESTELLA_SHOT_CROP;
+    if (cropSel) {
+      const view = (await exec(`(() => {
+        const el = document.querySelector(${JSON.stringify(cropSel)});
+        if (!el) return null;
+        const r = el.getBoundingClientRect();
+        return { x: r.left, y: r.top, w: r.width, h: r.height, iw: window.innerWidth, ih: window.innerHeight };
+      })()`)) as { x: number; y: number; w: number; h: number; iw: number; ih: number } | null;
+      if (view) {
+        const size = img.getSize();
+        const sx = size.width / view.iw, sy = size.height / view.ih;
+        const pad = Number(process.env.ESTELLA_SHOT_CROP_PAD ?? '0');
+        img = img.crop({
+          x: Math.max(0, Math.round((view.x - pad) * sx)),
+          y: Math.max(0, Math.round((view.y - pad) * sy)),
+          width: Math.round((view.w + pad * 2) * sx),
+          height: Math.round((view.h + pad * 2) * sy),
+        });
+      } else {
+        console.warn('[screenshot] crop selector not found:', cropSel);
+      }
+    }
     await writeFile(out, img.toPNG());
     console.log('[screenshot] wrote', out);
   } catch (e) {
