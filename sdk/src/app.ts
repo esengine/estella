@@ -1031,23 +1031,35 @@ export class App {
 // Web App Factory
 // =============================================================================
 
+/**
+ * How the host provides the render surface the C++ renderer binds to — the single
+ * seam every platform's renderer init flows through:
+ *   - `gl-context`: an emscripten-registered WebGL2 context handle (web/desktop/WeChat).
+ *   - `webgpu`: the host acquired a GPUDevice (navigator.gpu) and passed it as the
+ *     module factory's `preinitializedWebGPUDevice` before instantiation; the engine
+ *     owns the swapchain, resolving the canvas via `canvasSelector` (default '#canvas',
+ *     via document.querySelector — so the canvas must be in the DOM).
+ *   - `default`: the module resolves its own surface (module.initRenderer()).
+ *
+ * NATIVE (embedded Dawn on iOS/Android) will provide its WebGPU device the same
+ * `preinitializedWebGPUDevice` way, but bound to a native surface (CAMetalLayer /
+ * ANativeWindow) rather than a DOM canvas — it uses `{ kind: 'webgpu' }` with
+ * `canvasSelector` omitted, and the C++/glue native-surface resolution lands with
+ * the native shell.
+ */
+export type RenderSurfaceSource =
+    | { readonly kind: 'gl-context'; readonly handle: number }
+    | { readonly kind: 'webgpu'; readonly canvasSelector?: string }
+    | { readonly kind: 'default' };
+
 export interface WebAppOptions {
     getViewportSize?: () => { width: number; height: number };
-    glContextHandle?: number;
     /**
-     * Render backend. 'webgpu' boots the injected-device path: the host must
-     * have acquired a GPUDevice (navigator.gpu) and passed it as the module
-     * factory's `preinitializedWebGPUDevice` before instantiation — the engine
-     * then owns the canvas swapchain, so no glContextHandle applies.
-     * Default: WebGL2.
+     * How the host provides the render surface (WebGL2 context handle / WebGPU
+     * device + swapchain / headless default). See {@link RenderSurfaceSource}.
+     * Omitted ⇒ `{ kind: 'default' }` (module.initRenderer resolves its own).
      */
-    backend?: 'webgl2' | 'webgpu';
-    /**
-     * CSS selector of the canvas for the WebGPU swapchain. The WebGPU glue
-     * resolves it with document.querySelector, so the canvas must be IN the
-     * DOM and reachable by this selector. Default '#canvas'.
-     */
-    canvasSelector?: string;
+    renderSurface?: RenderSurfaceSource;
     plugins?: Plugin[];
     /** The realm's optional-native-module acquirer; set before plugins build so
      *  SpinePlugin (and later physics) can pull from it. See {@link App.sideModules}. */
@@ -1091,17 +1103,23 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
     setLinearColorSpace(options?.colorSpace === 'linear');
     module.renderer_setColorSpace?.(options?.colorSpace === 'linear' ? 1 : 0);
 
-    if (options?.backend === 'webgpu') {
-        const size = options.getViewportSize?.() ?? { width: 800, height: 600 };
-        if (!module.initRendererWebGPU(options.canvasSelector ?? '#canvas', size.width, size.height)) {
-            throw new Error(
-                'WebGPU renderer initialization failed — the module needs a ' +
-                'preinitializedWebGPUDevice and a WebGPU-enabled engine build.');
+    const surface: RenderSurfaceSource = options?.renderSurface ?? { kind: 'default' };
+    switch (surface.kind) {
+        case 'webgpu': {
+            const size = options?.getViewportSize?.() ?? { width: 800, height: 600 };
+            if (!module.initRendererWebGPU(surface.canvasSelector ?? '#canvas', size.width, size.height)) {
+                throw new Error(
+                    'WebGPU renderer initialization failed — the module needs a ' +
+                    'preinitializedWebGPUDevice and a WebGPU-enabled engine build.');
+            }
+            break;
         }
-    } else if (options?.glContextHandle) {
-        module.initRendererWithContext(options.glContextHandle);
-    } else {
-        module.initRenderer();
+        case 'gl-context':
+            module.initRendererWithContext(surface.handle);
+            break;
+        case 'default':
+            module.initRenderer();
+            break;
     }
     // Always applied (not only when set): the renderer outlives the App on realm
     // reloads, so a fresh App must reset a prior session's y-sort state too.

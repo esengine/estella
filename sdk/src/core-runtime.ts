@@ -360,6 +360,7 @@ export {
     type Plugin,
     type PluginDependency,
     type WebAppOptions,
+    type RenderSurfaceSource,
 } from './app';
 
 // =============================================================================

@@ -76,7 +76,7 @@ async function boot(): Promise<void> {
   const glHandle = module.GL.registerContext(gl, { majorVersion: 2, minorVersion: 0, enableExtensionsByDefault: true });
 
   const app = createWebApp(module, {
-    glContextHandle: glHandle,
+    renderSurface: { kind: 'gl-context', handle: glHandle },
     // Older exports predate the color-space global; treat it as optional.
     colorSpace: typeof __GAME_COLORSPACE__ !== 'undefined' ? __GAME_COLORSPACE__ : undefined,
     // Present only when the project opts into a camera fit; optional otherwise.

@@ -15,7 +15,7 @@ import {
   setEditorMode,
   setPlayMode,
 } from 'esengine';
-import type { App, ESEngineModule, ResourceDef, SubsystemStatus, SceneData } from 'esengine';
+import type { App, ESEngineModule, ResourceDef, SubsystemStatus, SceneData, RenderSurfaceSource } from 'esengine';
 import { SpinePlugin } from 'esengine/spine';
 import type { SpineManager } from 'esengine/spine';
 import { SceneLoader } from './SceneLoader';
@@ -609,11 +609,14 @@ class EngineHostImpl {
       });
     }
 
+    // WebGPU hands the engine the whole canvas swapchain via the injected device
+    // (canvas resolved by selector); WebGL2 binds the context we registered above.
+    const renderSurface: RenderSurfaceSource = backend === 'webgpu'
+      ? { kind: 'webgpu', canvasSelector: `#${canvas.id}` }
+      : { kind: 'gl-context', handle: glHandle! };
     const app = await bootProfiler.phase('createWebApp', () => createWebApp(module, {
-      backend,
+      renderSurface,
       colorSpace: opts.colorSpace,
-      canvasSelector: `#${canvas.id}`,
-      glContextHandle: glHandle,
       getViewportSize: () => ({ width: canvas.width, height: canvas.height }),
       // The per-version spine side modules are served next to esengine.wasm
       // (same /wasm/ dir as locateFile above), so the web spine provider can

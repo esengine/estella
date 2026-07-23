@@ -188,7 +188,7 @@ function jsonMap(json: string | undefined): Record<string, number> {
 async function buildAppAndRun(msg: InitMessage): Promise<void> {
   const module = engineModule!;
   app = createWebApp(module, {
-    glContextHandle: glHandle,
+    renderSurface: { kind: 'gl-context', handle: glHandle },
     ySortLayers: msg.ySortLayers,
     colorSpace: msg.colorSpace,
     screenFit: msg.screenFit,

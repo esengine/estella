@@ -118,7 +118,7 @@ async function boot(): Promise<void> {
   const glHandle = module.GL.registerContext(gl, { majorVersion: 2, minorVersion: 0, enableExtensionsByDefault: true });
 
   const app = createWebApp(module, {
-    glContextHandle: glHandle,
+    renderSurface: { kind: 'gl-context', handle: glHandle },
     ySortLayers: cfg.ySortLayers,
     colorSpace: cfg.colorSpace,
     screenFit: cfg.screenFit,

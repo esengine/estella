@@ -148,7 +148,7 @@ export async function initWeChatRuntime(config: WeChatRuntimeConfig): Promise<vo
     });
 
     const app = createWebApp(module, {
-        glContextHandle: glHandle,
+        renderSurface: { kind: 'gl-context', handle: glHandle },
         ySortLayers: config.ySortLayers,
         colorSpace: config.colorSpace,
         screenFit: config.screenFit,
