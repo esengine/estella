@@ -10,7 +10,7 @@
  *        the caret / preedit / selection render paths.
  */
 import { describe, it, expect } from 'vitest';
-import { textFieldDisplay, maskedPrefix, fieldSelection } from '../src/ui/text/text-input-view';
+import { textFieldDisplay, maskedPrefix, fieldSelection, nearestCaretIndex } from '../src/ui/text/text-input-view';
 
 const BULLET = '●';
 
@@ -76,5 +76,29 @@ describe('fieldSelection', () => {
 
     it('a full select-all spans the whole value (Ctrl-A)', () => {
         expect(fieldSelection(0, 8, false, 8)).toEqual({ lo: 0, hi: 8, caret: 8, hasRange: true });
+    });
+});
+
+describe('nearestCaretIndex', () => {
+    // Prefix widths for a 4-char field where each char is 10px wide.
+    const widths = [0, 10, 20, 30, 40];
+
+    it('snaps a click to the nearest character boundary', () => {
+        expect(nearestCaretIndex(widths, 0)).toBe(0);
+        expect(nearestCaretIndex(widths, 12)).toBe(1);   // closest to 10
+        expect(nearestCaretIndex(widths, 16)).toBe(2);   // closest to 20
+        expect(nearestCaretIndex(widths, 40)).toBe(4);
+    });
+
+    it('clamps a click past the end to the last boundary', () => {
+        expect(nearestCaretIndex(widths, 999)).toBe(4);
+    });
+
+    it('clamps a click before the start to 0', () => {
+        expect(nearestCaretIndex(widths, -50)).toBe(0);
+    });
+
+    it('returns 0 for an empty field', () => {
+        expect(nearestCaretIndex([0], 25)).toBe(0);
     });
 });

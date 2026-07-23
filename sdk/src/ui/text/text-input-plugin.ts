@@ -10,8 +10,10 @@ import { UIVisual, UIVisualType } from '../core/ui-visual';
 import type { UIVisualData } from '../core/ui-visual';
 import { UIMask, MaskMode } from '../core/ui-mask';
 import { Text, TextAlign, TextVerticalAlign, type TextData } from '../core/text';
-import { Interactable } from '../input/interactable';
+import { Interactable, UIInteraction, type UIInteractionData } from '../input/interactable';
 import { Focusable, FocusManager, FocusManagerState } from '../input/focusable';
+import { UICameraInfo, type UICameraData } from '../core/ui-camera-info';
+import { Transform, type TransformData } from '../../component';
 import { UIEvents, UIEventQueue } from '../core/events';
 import { Res } from '../../resource';
 import { playModeOnly } from '../../env';
@@ -20,7 +22,7 @@ import { spawnUIEntity } from '../core/compose';
 import { px } from '../core/dimension';
 import { SdfTextRenderer } from './text-renderer';
 import { measureWidth } from './layout';
-import { textFieldDisplay, maskedPrefix, fieldSelection, type TextFieldDisplay } from './text-input-view';
+import { textFieldDisplay, maskedPrefix, fieldSelection, nearestCaretIndex, type TextFieldDisplay } from './text-input-view';
 import { CURSOR_BLINK_INTERVAL } from '../util/constants';
 import { SystemLabel, PluginName } from '../../systemLabels';
 import { log } from '../../logger';
@@ -65,6 +67,9 @@ export class TextInputPlugin implements Plugin {
         // owns an atlas used only to position the caret (measureWidth); its glyph
         // advances match the child Text's atlas (same font config).
         const childrenOf = new Map<Entity, { sel: Entity; text: Entity; caret: Entity }>();
+        // The render system's horizontal scroll per field, read by click-to-caret
+        // (Update) to map a pointer x back to a character index under the scroll.
+        const scrollXOf = new Map<Entity, number>();
         let measureRenderer: SdfTextRenderer | null = null;
         const ensureMeasure = (): SdfTextRenderer => {
             if (!measureRenderer) measureRenderer = new SdfTextRenderer(module);
@@ -198,6 +203,34 @@ export class TextInputPlugin implements Plugin {
             resetCursorBlink();
         }
 
+        // Map the current pointer to a caret index inside `entity` (single-line):
+        // pointer world-x → the field's local text space (undo the box center,
+        // padding and horizontal scroll) → nearest character boundary. null when
+        // it can't be resolved (no camera / multiline / zero-width).
+        function caretIndexFromPointer(entity: Entity): number | null {
+            const cam = app.getResource(UICameraInfo) as UICameraData | undefined;
+            if (!cam || !cam.valid) return null;
+            if (!world.has(entity, Transform) || !world.has(entity, UINode)) return null;
+            const ti = world.get(entity, TextInput) as TextInputData;
+            if (ti.multiline) return null;
+            const width = getUINodeWidth(entity);
+            if (width <= 0) return null;
+            // The layout centers the box on its Transform (pivot 0.5), so the left
+            // edge is half a width to the left; text starts `padding` in, scrolled.
+            const tr = world.get(entity, Transform) as TransformData;
+            const fieldLeft = tr.worldPosition.x - width / 2;
+            const scrollX = scrollXOf.get(entity) ?? 0;
+            const textX = cam.worldMouseX - fieldLeft - ti.padding + scrollX;
+            // Focused ⇒ the textarea is the source of truth for the value.
+            const val = textarea.value;
+            const atlas = ensureMeasure().atlas;
+            const prefixes: number[] = [];
+            for (let i = 0; i <= val.length; i++) {
+                prefixes.push(measureWidth(maskedPrefix(val, i, ti.password, PASSWORD_CHAR), atlas, ti.fontFamily, ti.fontSize, 0));
+            }
+            return nearestCaretIndex(prefixes, textX);
+        }
+
         function activateTextarea(entity: Entity): void {
             const ti = world.get(entity, TextInput) as TextInputData;
             if (ti.readOnly) return;
@@ -255,6 +288,25 @@ export class TextInputPlugin implements Plugin {
                     }
 
                     prevFocusedTextInput = currentFocused;
+                }
+
+                // Click-to-caret: a pointer press inside the focused field moves
+                // the caret to the character boundary nearest the pointer (runs
+                // after the focus change above, so it overrides the restored caret
+                // on the same click that focused the field).
+                if (currentFocused !== null && world.has(currentFocused, UIInteraction)) {
+                    const inter = world.get(currentFocused, UIInteraction) as UIInteractionData;
+                    if (inter.justPressed) {
+                        const idx = caretIndexFromPointer(currentFocused);
+                        if (idx !== null) {
+                            textarea.selectionStart = idx;
+                            textarea.selectionEnd = idx;
+                            const ti = world.get(currentFocused, TextInput) as TextInputData;
+                            ti.cursorPos = idx;
+                            ti.dirty = true;
+                            resetCursorBlink();
+                        }
+                    }
                 }
             },
             { name: 'TextInputFocusSystem' }
@@ -326,6 +378,7 @@ export class TextInputPlugin implements Plugin {
                     // multiline wraps within the box and clips (no h-scroll).
                     const innerW = Math.max(0, w - 2 * ti.padding);
                     const scrollX = ti.multiline ? 0 : Math.max(0, caretRaw - innerW);
+                    scrollXOf.set(entity, scrollX);
 
                     // Selection highlight (single-line only): a quad spanning the
                     // masked range, drawn behind the text. A multiline selection
