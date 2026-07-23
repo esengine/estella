@@ -42,6 +42,7 @@ export type InspectorFieldType =
   | 'flags' // an int bitmask, shown as a multi-select of its bits
   | 'gradient' // a color-over-life gradient ({ stops: [...] })
   | 'curve' // a scalar over-life curve ({ keys: [...] })
+  | 'map' // an arbitrary key→value string map (Marker.properties) — Tiled-style custom props
   | 'dimension' // a CSS-style length ({ value, unit }) — UINode box/inset fields
   | 'sides' // a four-edge box ({ left, top, right, bottom }) — FlexContainer/TextInput padding
   | 'asset' // a texture/material/font/... ref (@uuid: string, or 0 for none)
@@ -79,6 +80,9 @@ export interface DimensionValue {
   unit: number;
 }
 
+/** A `map` field's value — an arbitrary key→value string map (Marker custom properties). */
+export type MapValue = Record<string, string>;
+
 export type InspectorFieldValue =
   | number
   | boolean
@@ -88,7 +92,8 @@ export type InspectorFieldValue =
   | [number, number, number, number]
   | GradientValue
   | CurveValue
-  | DimensionValue;
+  | DimensionValue
+  | MapValue;
 
 export interface InspectorField {
   /** key in the component data object */
@@ -172,7 +177,7 @@ export interface InspectSource {
   subscribe: (onChange: () => void) => () => void;
   getRevision: () => number;
   build: () => InspectorComponent[];
-  write: (key: string, type: InspectorFieldType, value: number | boolean | string | number[] | GradientValue | CurveValue | DimensionValue) => void;
+  write: (key: string, type: InspectorFieldType, value: number | boolean | string | number[] | GradientValue | CurveValue | DimensionValue | MapValue) => void;
   /**
    * When true this is an explicit sub-object selection (a keyframe, a track) and
    * OVERRIDES the entity/asset inspector. Default (false) is a fallback — shown

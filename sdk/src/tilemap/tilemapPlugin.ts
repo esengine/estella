@@ -523,9 +523,13 @@ export class TilemapPlugin implements Plugin {
                                 // colliders — not projected here.
                                 if (obj.gid === undefined) {
                                     if (obj.shape === 'point') {
+                                        // Carry the Tiled object's custom properties (stringified) so
+                                        // imported markers hold the same per-object data as hand-authored.
+                                        const props: Record<string, string> = {};
+                                        for (const [k, v] of obj.properties) props[k] = String(v);
                                         const markerChild = world.spawn(obj.name || `Marker_${obj.id}`);
                                         world.insert(markerChild, Transform, { position: { x: obj.x, y: -obj.y, z: 0 } });
-                                        world.insert(markerChild, Marker, { type: obj.type || '' });
+                                        world.insert(markerChild, Marker, { type: obj.type || '', properties: props });
                                         world.insert(markerChild, RuntimeOnly, {});
                                         world.setParent(markerChild, entity);
                                         children.push(markerChild);

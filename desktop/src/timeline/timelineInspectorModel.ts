@@ -12,7 +12,7 @@
  */
 import type { TimelineAsset } from 'esengine';
 import { WrapMode } from 'esengine';
-import type { InspectorComponent, InspectorFieldType, GradientValue, CurveValue, DimensionValue } from '@/types';
+import type { InspectorComponent, InspectorFieldType, GradientValue, CurveValue, DimensionValue, MapValue } from '@/types';
 import { TimelineCommands } from './TimelineCommands';
 import { TimelineDocument } from './TimelineDocument';
 import { t } from '@/i18n';
@@ -43,7 +43,7 @@ export function buildTimelineComponents(asset: TimelineAsset, fps: number): Insp
 
 /** A FieldWrite routing timeline clip-setting edits to the document/commands. */
 export function makeTimelineWrite() {
-  return (key: string, _type: InspectorFieldType, value: number | boolean | string | number[] | GradientValue | CurveValue | DimensionValue): void => {
+  return (key: string, _type: InspectorFieldType, value: number | boolean | string | number[] | GradientValue | CurveValue | DimensionValue | MapValue): void => {
     switch (key) {
       case 'duration':
         TimelineCommands.setDuration(value as number);

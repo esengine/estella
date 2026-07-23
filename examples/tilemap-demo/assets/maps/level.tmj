@@ -2455,7 +2455,7 @@
    "id":5,
    "name":"spawns",
    "objects":[
-    {"id":1,"name":"player-spawn","type":"spawn","point":true,"x":90,"y":150,"width":0,"height":0,"rotation":0,"visible":true,"properties":[]},
+    {"id":1,"name":"player-spawn","type":"spawn","point":true,"x":90,"y":150,"width":0,"height":0,"rotation":0,"visible":true,"properties":[{"name":"team","type":"string","value":"blue"},{"name":"facing","type":"string","value":"right"}]},
     {"id":2,"name":"enemy-spawn","type":"enemy","point":true,"x":400,"y":110,"width":0,"height":0,"rotation":0,"visible":true,"properties":[]},
     {"id":3,"name":"checkpoint","type":"checkpoint","point":true,"x":260,"y":250,"width":0,"height":0,"rotation":0,"visible":true,"properties":[]}
    ],

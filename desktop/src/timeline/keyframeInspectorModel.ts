@@ -11,7 +11,7 @@
  *          TimelineCommands (one undo step each).
  */
 import { InterpType, type TimelineAsset } from 'esengine';
-import type { InspectorComponent, InspectorFieldType, GradientValue, CurveValue, DimensionValue } from '@/types';
+import type { InspectorComponent, InspectorFieldType, GradientValue, CurveValue, DimensionValue, MapValue } from '@/types';
 import { buildTimelineRows, findChannel, type ChannelRef } from './timelineView';
 import { TimelineCommands } from './TimelineCommands';
 import { TimelineDocument } from './TimelineDocument';
@@ -61,7 +61,7 @@ export function buildKeyframeComponents(asset: TimelineAsset, selectedKey: strin
 }
 
 export function makeKeyframeWrite(selectedKey: string) {
-  return (key: string, _type: InspectorFieldType, value: number | boolean | string | number[] | GradientValue | CurveValue | DimensionValue): void => {
+  return (key: string, _type: InspectorFieldType, value: number | boolean | string | number[] | GradientValue | CurveValue | DimensionValue | MapValue): void => {
     const asset = TimelineDocument.asset;
     if (!asset) return;
     const r = resolve(asset, selectedKey);

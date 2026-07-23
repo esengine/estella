@@ -152,7 +152,7 @@ if (new URLSearchParams(location.search).has('automation')) {
      *  derived projection (`src == null`) — verifies object-group → Marker convergence. */
     liveMarkers: () => ViewportController.markerIds().map((rt) => {
       const g = ViewportController.getMarkerGizmo(rt);
-      return { rt, type: g?.type ?? null, src: SceneModel.sourceFor(rt) ?? null };
+      return { rt, type: g?.type ?? null, properties: g?.properties ?? {}, src: SceneModel.sourceFor(rt) ?? null };
     }),
     /** Probe a layer's resolved tile-collision overlay — the SAME pieces the viewport
      *  draws + Play spawns. Returns null if nothing resolves; else piece counts by kind.

@@ -63,6 +63,11 @@ export interface FieldMeta {
     gradient?: boolean;
     /** Render as a scalar over-life curve editor (the field value is `{ keys: [...] }`). */
     curve?: boolean;
+    /** Render as a key→value string map editor (the field value is `Record<string,string>`)
+     *  — arbitrary user properties (e.g. a Marker's gameplay data), like Tiled's custom
+     *  properties. Value-shape inference can't tell a property map from any other object,
+     *  so a field must opt in here. */
+    map?: boolean;
     /**
      * Render as a bitmask whose bit LABELS are resolved by the editor (e.g. named
      * collision layers from project settings) rather than fixed here. `bits` is the
@@ -840,6 +845,9 @@ export interface MarkerData {
      *  waypoint, pickup, door, trigger …). Free-form: the game defines the vocabulary.
      *  `Query(Marker)` then filters by `type`. */
     type: string;
+    /** Arbitrary per-marker gameplay data (team, targetScene, event, …), like Tiled's
+     *  custom object properties. Imported `.tmj` object properties land here too. */
+    properties: Record<string, string>;
 }
 
 /**
@@ -849,7 +857,11 @@ export interface MarkerData {
  * parallel "object layer" structure — so it serializes, shows in the Inspector, and is
  * `Query`-able like any component. The converged target for imported `.tmj` object groups.
  */
-export const Marker = defineComponent<MarkerData>('Marker', { type: '' });
+export const Marker = defineComponent<MarkerData>('Marker', { type: '', properties: {} }, {
+    // `properties` is an arbitrary string→string map — opt into the map editor (value-shape
+    // inference would otherwise drop it as an unknown object).
+    fields: { properties: { map: true } },
+});
 
 export interface PostProcessVolumeData {
     effects: {

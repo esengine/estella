@@ -10,7 +10,7 @@
  *          inspector, no bespoke property panel.
  */
 import type { AnimClipAssetData } from 'esengine';
-import type { InspectorComponent, InspectorFieldType, GradientValue, CurveValue, DimensionValue } from '@/types';
+import type { InspectorComponent, InspectorFieldType, GradientValue, CurveValue, DimensionValue, MapValue } from '@/types';
 import { AnimClipCommands } from './AnimClipCommands';
 import { t } from '@/i18n';
 
@@ -55,7 +55,7 @@ export function buildAnimClipComponents(asset: AnimClipAssetData): InspectorComp
 
 /** A FieldWrite routing inspector edits to the open AnimClipDocument via AnimClipCommands. */
 export function makeAnimClipWrite() {
-  return (key: string, _type: InspectorFieldType, value: number | boolean | string | number[] | GradientValue | CurveValue | DimensionValue): void => {
+  return (key: string, _type: InspectorFieldType, value: number | boolean | string | number[] | GradientValue | CurveValue | DimensionValue | MapValue): void => {
     switch (key) {
       case 'fps':
         AnimClipCommands.setFps(value as number);

@@ -155,6 +155,10 @@ export function toModelValue(
     case 'curve':
     case 'dimension':
       return value; // a structural object ({ stops/keys: [...] }, { value, unit }) — stored as-is
+    case 'map':
+      // An arbitrary string→string map (Marker custom properties) — cloned so the stored
+      // object doesn't alias the editor's working copy.
+      return { ...(value as Record<string, string>) };
     default:
       return value;
   }

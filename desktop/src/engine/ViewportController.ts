@@ -663,13 +663,17 @@ export const ViewportController = {
 
   /** Screen-space position of a Marker's pin (its Transform world position → canvas px),
    *  and its `type` label, or null when off-camera/removed. */
-  getMarkerGizmo(id: EntityId): { cx: number; cy: number; type: string } | null {
+  getMarkerGizmo(id: EntityId): { cx: number; cy: number; type: string; properties: Record<string, string> } | null {
     const world = EngineHost.world;
     if (!world || !world.valid(id) || !world.has(id, Marker) || !world.has(id, Transform)) return null;
     const t = world.get(id, Transform);
-    const m = world.get(id, Marker) as { type?: string };
+    const m = world.get(id, Marker) as { type?: string; properties?: Record<string, string> };
     const p = this.worldToClient(t.worldPosition.x, t.worldPosition.y);
-    return p ? { cx: p.x, cy: p.y, type: typeof m.type === 'string' ? m.type : '' } : null;
+    return p ? {
+      cx: p.x, cy: p.y,
+      type: typeof m.type === 'string' ? m.type : '',
+      properties: m.properties && typeof m.properties === 'object' ? m.properties : {},
+    } : null;
   },
 
   /** Ids of entities carrying ANY collider (box/circle/capsule/segment/polygon/chain) —

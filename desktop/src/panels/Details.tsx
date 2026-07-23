@@ -104,7 +104,7 @@ import { SearchField } from '@/components/SearchField';
 import { Select } from '@/components/Select';
 import { Segmented, type SegmentedOption } from '@/components/Segmented';
 import { AddComponentMenu } from '@/components/AddComponentMenu';
-import type { InspectorComponent, InspectorField, InspectorFieldValue, EntityId, NodeKind, EnumOption, AssetType, GradientValue, GradientStop, CurveValue, CurveKey, DimensionValue, InspectSource } from '@/types';
+import type { InspectorComponent, InspectorField, InspectorFieldValue, EntityId, NodeKind, EnumOption, AssetType, GradientValue, GradientStop, CurveValue, CurveKey, DimensionValue, MapValue, InspectSource } from '@/types';
 
 const AXES = ['x', 'y', 'z', 'w'];
 
@@ -754,6 +754,60 @@ function sampleStops(stops: GradientStop[], t: number): GradientStop['color'] {
   return { ...last.color };
 }
 
+// A key→value string-map editor (Marker.properties): one row per pair (editable key +
+// value + delete), plus an add button. Arbitrary Tiled-style custom properties. Each edit
+// rebuilds the whole map through the standard field write door (one undo step per change).
+function MapControl({
+  value,
+  onBegin,
+  onEnd,
+  onChange,
+}: ControlGesture & { value: MapValue; onChange: (v: MapValue) => void }) {
+  const entries = Object.entries(value);
+  const commit = (next: MapValue) => { onBegin?.(); onChange(next); onEnd?.(); };
+  const rename = (oldKey: string, raw: string) => {
+    const newKey = raw.trim();
+    // No-op on unchanged / blank / colliding keys (the input reverts on re-render).
+    if (newKey === oldKey || newKey === '' || newKey in value) return;
+    const next: MapValue = {};
+    for (const [k, v] of Object.entries(value)) next[k === oldKey ? newKey : k] = v;
+    commit(next);
+  };
+  const setVal = (k: string, v: string) => { if (value[k] !== v) commit({ ...value, [k]: v }); };
+  const remove = (k: string) => { const next = { ...value }; delete next[k]; commit(next); };
+  const add = () => {
+    let key = 'key';
+    for (let n = 2; key in value; n++) key = `key${n}`;
+    commit({ ...value, [key]: '' });
+  };
+  const blurOnEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') e.currentTarget.blur();
+    if (e.key === 'Escape') { e.currentTarget.value = e.currentTarget.defaultValue; e.currentTarget.blur(); }
+  };
+  return (
+    <div className="map-field">
+      {entries.map(([k, v]) => (
+        <div key={k} className="map-row">
+          <input
+            className="map-key" defaultValue={k} aria-label={t('det.mapKey')} placeholder={t('det.mapKey')}
+            onKeyDown={blurOnEnter} onBlur={(e) => rename(k, e.target.value)}
+          />
+          <input
+            className="map-val" defaultValue={v} aria-label={t('det.mapValue')} placeholder={t('det.mapValue')}
+            onKeyDown={blurOnEnter} onBlur={(e) => setVal(k, e.target.value)}
+          />
+          <button type="button" className="map-del" title={t('det.mapRemove')} onClick={() => remove(k)}>
+            <X size={12} />
+          </button>
+        </div>
+      ))}
+      <button type="button" className="map-add" onClick={add}>
+        <Plus size={12} /> {t('det.mapAdd')}
+      </button>
+    </div>
+  );
+}
+
 // A color-over-life gradient editor: a preview bar with draggable stops; click the
 // bar to add a stop, select one to edit its color (the themed picker) or delete it.
 // Empty ⇒ the particle falls back to start/end + easing (the runtime bake skips it).
@@ -1090,7 +1144,7 @@ export function AssetControl({
 
 // A field write override (the live "Game" inspector routes edits to the realm
 // instead of the undoable SceneCommands path). When set, gestures are no-ops.
-type FieldWrite = (key: string, type: InspectorField['type'], value: number | boolean | string | number[] | GradientValue | CurveValue | DimensionValue) => void;
+type FieldWrite = (key: string, type: InspectorField['type'], value: number | boolean | string | number[] | GradientValue | CurveValue | DimensionValue | MapValue) => void;
 
 // The write primitives for one field, shared by FieldRow and the compound
 // BoxSidesControl so both commit through the identical door: an edit fans out to
@@ -1099,7 +1153,7 @@ type FieldWrite = (key: string, type: InspectorField['type'], value: number | bo
 // instead, where gestures are no-ops.
 function fieldWriter(entities: EntityId[], comp: string, field: InspectorField, write?: FieldWrite) {
   const ranged = field.min != null || field.max != null;
-  const apply = (value: number | boolean | string | number[] | GradientValue | CurveValue | DimensionValue) => {
+  const apply = (value: number | boolean | string | number[] | GradientValue | CurveValue | DimensionValue | MapValue) => {
     let v = value;
     if (ranged && typeof v === 'number') {
       if (field.min != null) v = Math.max(field.min, v);
@@ -1377,6 +1431,9 @@ function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp
       break;
     case 'curve':
       control = <CurveControl value={field.value as CurveValue} onBegin={begin} onEnd={end} onChange={apply} />;
+      break;
+    case 'map':
+      control = <MapControl value={field.value as MapValue} onBegin={begin} onEnd={end} onChange={apply} />;
       break;
     case 'asset':
       control = (

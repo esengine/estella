@@ -2523,6 +2523,7 @@ enumSource: string | undefined
 flags: readonly { label: string; value: number; }[] | undefined
 gradient: boolean | undefined
 label: string | undefined
+map: boolean | undefined
 max: number | undefined
 min: number | undefined
 slider: boolean | undefined
@@ -3620,6 +3621,7 @@ ComponentDef<MarkerData>
 
 ## MarkerData — interface
 ```
+properties: Record<string, string>
 type: string
 ```
 

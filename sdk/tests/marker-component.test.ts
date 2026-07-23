@@ -27,30 +27,31 @@ function makeWorld(): World {
 }
 
 describe('Marker component', () => {
-    it('is a registered component with a string `type` default', () => {
+    it('is a registered component with `type` + `properties` defaults', () => {
         expect(Marker._name).toBe('Marker');
-        expect(Marker._default).toEqual({ type: '' });
+        expect(Marker._default).toEqual({ type: '', properties: {} });
     });
 
-    it('serializes into the scene and round-trips its `type`', () => {
+    it('serializes into the scene and round-trips `type` + `properties`', () => {
         const world = makeWorld();
         const e = world.spawn('SpawnPoint');
         world.insert(e, Transform, { position: { x: 3, y: 4, z: 0 } });
-        world.insert(e, Marker, { type: 'player-spawn' });
+        world.insert(e, Marker, { type: 'player-spawn', properties: { team: 'red', delay: '2' } });
 
         const scene = serializeScene(world, 'test');
         const ent = scene.entities.find((n) => n.name === 'SpawnPoint')!;
         const marker = ent.components.find((c) => c.type === 'Marker');
         expect(marker).toBeTruthy();
         expect((marker!.data as { type: string }).type).toBe('player-spawn');
+        expect((marker!.data as { properties: Record<string, string> }).properties).toEqual({ team: 'red', delay: '2' });
     });
 
     it('is query-able by its component id (distinct entities found)', () => {
         const world = makeWorld();
         const a = world.spawn('A');
-        world.insert(a, Marker, { type: 'door' });
+        world.insert(a, Marker, { type: 'door', properties: {} });
         const b = world.spawn('B');
-        world.insert(b, Marker, { type: 'pickup' });
+        world.insert(b, Marker, { type: 'pickup', properties: {} });
         world.spawn('C'); // no marker
 
         const found = world.getEntitiesWithComponents([Marker]);

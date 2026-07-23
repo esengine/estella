@@ -257,6 +257,8 @@ export interface UserFieldMeta {
   bitmask?: { bits?: number; source?: string };
   gradient?: boolean;
   curve?: boolean;
+  /** Render as a key→value string map editor (arbitrary custom properties). */
+  map?: boolean;
   min?: number;
   max?: number;
   step?: number;
@@ -399,6 +401,7 @@ export function fieldMetaFor(compType: string, key: string): UserFieldMeta | nul
       bitmask: fromDef.bitmask,
       gradient: fromDef.gradient,
       curve: fromDef.curve,
+      map: fromDef.map,
       min: fromDef.min,
       max: fromDef.max,
       step: fromDef.step,
@@ -551,6 +554,13 @@ function fieldFor(
   } else if (meta?.curve) {
     const c = value && typeof value === 'object' && Array.isArray((value as CurveValue).keys) ? (value as CurveValue) : { keys: [] };
     field = { key, label: prettyLabel(key), type: 'curve', value: c };
+  } else if (meta?.map) {
+    // Arbitrary string→string map (Marker.properties). Normalize every value to a string
+    // so the editor never chokes on a stray non-string import.
+    const raw = value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+    const m: Record<string, string> = {};
+    for (const k of Object.keys(raw)) m[k] = String(raw[k]);
+    field = { key, label: prettyLabel(key), type: 'map', value: m };
   } else if (meta?.bitmask) {
     field = { key, label: prettyLabel(key), type: 'flags', value: Number(value) || 0, options: bitmaskOptions(meta.bitmask) };
   } else if (meta?.flags && meta.flags.length) {

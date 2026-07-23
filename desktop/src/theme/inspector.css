@@ -396,3 +396,44 @@
   font-size: var(--fs-2xs);
   font-variant-numeric: tabular-nums;
 }
+
+/* Map (key→value) field editor — Marker custom properties. One row per pair. */
+.map-field { display: flex; flex-direction: column; gap: 4px; width: 100%; }
+.map-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto; gap: 4px; align-items: center; }
+.map-key,
+.map-val {
+  min-width: 0;
+  height: 22px;
+  padding: 0 6px;
+  background: var(--srf-3);
+  border: 1px solid var(--border-line);
+  border-radius: var(--r-xs);
+  color: var(--text);
+  font-size: var(--fs-xs);
+}
+.map-key { color: var(--text-dim); }
+.map-key:focus,
+.map-val:focus { border-color: var(--acc); box-shadow: 0 0 0 2px var(--acc-soft); outline: none; }
+.map-del {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  color: var(--text-faint);
+  border-radius: var(--r-xs);
+  transition: color var(--t-fast), background var(--t-fast);
+}
+.map-del:hover { color: var(--danger, #e5484d); background: var(--srf-4); }
+.map-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  padding: 3px 7px;
+  font-size: var(--fs-2xs);
+  color: var(--acc-hi);
+  border: 1px dashed var(--border-line);
+  border-radius: var(--r-xs);
+  transition: border-color var(--t-fast), background var(--t-fast);
+}
+.map-add:hover { border-color: var(--acc); background: var(--acc-soft); }
