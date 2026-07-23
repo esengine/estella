@@ -20,6 +20,10 @@ UI 布局里的每个 `px` 都是**设计像素**——项目设计分辨率(Pro
 
 ## 维度:`px`、`percent`、`auto`
 
+![px 是固定尺寸,percent 是父项的比例,auto 由内容决定](../../../../assets/guides/ui-units.svg)
+
+*三种长度单位:`px` 是固定的设计像素尺寸,`percent` 是父项对应轴的比例,`auto` 收缩到内容大小(或被容器拉伸)。*
+
 每个长度字段都是一个 `Dimension`——`{ value, unit }`——用三个助手构造:
 
 ```typescript
@@ -98,6 +102,10 @@ flex 容器沿一条**主轴**(由 `direction` 决定)排布子项,**交叉轴**
 
 ![FlexDirection 的四个值:Row、RowReverse、Column、ColumnReverse](../../../../assets/guides/flex-direction.svg)
 
+![同样四个盒子在编辑器里的真实渲染——一个 Row 容器和一个 Column 容器](../../../../assets/guides/flex-live.png)
+
+*同样四个盒子在编辑器里的真实渲染——一个 `Row` 容器、一个 `Column` 容器。上面的示意图不是近似:引擎画出来就是这样。*
+
 **`justifyContent`** —— 子项沿**主轴**如何排布,以及多出来的空间如何分配:
 
 ![JustifyContent 的六个值:Start、Center、End、SpaceBetween、SpaceAround、SpaceEvenly](../../../../assets/guides/flex-justify.svg)
@@ -125,6 +133,10 @@ world.insert(panel, FlexContainer, {
 ```
 
 ## 绝对定位
+
+![Relative 节点参与排布、与兄弟共享空间;Absolute 节点由内偏移钉住、忽略兄弟](../../../../assets/guides/ui-position.svg)
+
+*`Relative` 节点参与排布、与兄弟共享空间;`Absolute` 节点被抬出排布流、由内偏移(inset)钉住,浮在其余内容之上。*
 
 `position: Absolute` 使节点脱离 flex 流;四个内偏移相对父项的盒子放置它,与 CSS
 `left/top/right/bottom` 完全一致:
@@ -167,6 +179,10 @@ const panel = spawnUIEntity({
 ```
 
 ## 代码里的锚点预设
+
+![九个点锚排成 3×3 网格(四角、边中点、中心),外加每轴的 Stretch](../../../../assets/guides/ui-anchor.svg)
+
+*锚点选择器的九个点锚——各自把盒子钉到父项的某个角、边中点或正中心——外加每轴一个 **Stretch**,让盒子沿该轴铺满。*
 
 编辑器的锚点选择器——以及代码里的同一套 API——是一组**写入上述盒字段的快捷方式**。
 锚点*不是*存储的状态:`position`/内偏移/外边距字段始终是唯一权威源,因此预设与实际

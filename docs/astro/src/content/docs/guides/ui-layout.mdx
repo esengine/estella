@@ -25,6 +25,10 @@ interface. See [Screen & Resolution](/docs/core-concepts/screen/) and
 
 ## Dimensions: `px`, `percent`, `auto`
 
+![px is a fixed size, percent is a fraction of the parent, auto is content-sized](../../../assets/guides/ui-units.svg)
+
+*The three length units: `px` is a fixed design-pixel size, `percent` is a fraction of the parent's axis, and `auto` shrinks to content (or is stretched by the container).*
+
 Every length field is a `Dimension` — `{ value, unit }` — built with three
 helpers:
 
@@ -109,6 +113,10 @@ CSS-flexbox namesake — the engine runs Yoga, so if you know flexbox, you know 
 
 ![The four FlexDirection values: Row, RowReverse, Column, ColumnReverse](../../../assets/guides/flex-direction.svg)
 
+![The same four boxes laid out live in the editor as a Row and as a Column](../../../assets/guides/flex-live.png)
+
+*The same four boxes rendered live in the editor — a `Row` container and a `Column` one. The diagrams here aren't an approximation: they're exactly what the engine draws.*
+
 **`justifyContent`** — how children pack along the **main axis**, and how any leftover
 space is shared out:
 
@@ -138,6 +146,10 @@ world.insert(panel, FlexContainer, {
 ```
 
 ## Absolute positioning
+
+![Relative nodes flow and share space; an Absolute node is pinned by insets and ignores its siblings](../../../assets/guides/ui-position.svg)
+
+*`Relative` nodes flow in the layout and share the space with their siblings; an `Absolute` node is lifted out of the flow and pinned by its insets, floating over the rest.*
 
 `position: Absolute` takes a node out of the flex flow; the four insets place
 it against the parent's box, exactly like CSS `left/top/right/bottom`:
@@ -186,6 +198,10 @@ const panel = spawnUIEntity({
 ```
 
 ## Anchor presets in code
+
+![The nine point anchors in a 3×3 grid (corners, edge midpoints, centre), plus per-axis Stretch](../../../assets/guides/ui-anchor.svg)
+
+*The anchor picker's nine point anchors — each pins the box to a corner, an edge midpoint, or the centre of its parent — plus a per-axis **Stretch** that makes the box fill that axis.*
 
 The editor's anchor picker — and the same API in code — is a set of **shortcuts
 that write the box fields above**. An anchor is *not* stored state: the
