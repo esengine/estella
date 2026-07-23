@@ -103,6 +103,9 @@ export function BuildDialog() {
   const [phase, setPhase] = useState<Phase>('idle');
   const [result, setResult] = useState<Result | null>(null);
   const [log, setLog] = useState<string[]>([]);
+  // Active build profile's CDN root (asset-groups.json) — where remote-group
+  // assets are fetched from for hot update. Written on blur.
+  const [cdnRoot, setCdnRoot] = useState(() => ProjectStore.activeProfileRemoteRoot());
 
   const def = PLATFORMS.find((p) => p.id === platform)!;
   const running = phase === 'running';
@@ -275,6 +278,18 @@ export function BuildDialog() {
           <input type="checkbox" checked={compressAudio} onChange={(e) => setCompressAudio(e.target.checked)} />
           {t('build.compressAudio')}
         </label>
+
+        <div className="build__row">
+          <span className="build__label" title={t('build.cdnRootTip')}>{t('build.cdnRoot')}</span>
+          <input
+            value={cdnRoot}
+            spellCheck={false}
+            placeholder="https://cdn…"
+            title={t('build.cdnRootTip')}
+            onChange={(e) => setCdnRoot(e.target.value)}
+            onBlur={() => void ProjectStore.setActiveProfileRemoteRoot(cdnRoot.trim())}
+          />
+        </div>
 
         {def.prereq && (
           <div className="build__prereq">

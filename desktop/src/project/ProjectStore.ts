@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { createStore } from 'zustand/vanilla';
-import { getComponent, getEditorType, Assets, migratePrefabData, extractPrefab, flattenPrefab, collectExternalEntityRefs, collapseInstance, applyDeltaToSource, buildVariant, validateOverrides, setTextureParams, TextureFilter, TextureWrap, Renderer, RETIRED_COMPONENT_TYPES, parseThemeOverrides, resolveAssetGroup } from 'esengine';
+import { getComponent, getEditorType, Assets, migratePrefabData, extractPrefab, flattenPrefab, collectExternalEntityRefs, collapseInstance, applyDeltaToSource, buildVariant, validateOverrides, setTextureParams, TextureFilter, TextureWrap, Renderer, RETIRED_COMPONENT_TYPES, parseThemeOverrides, resolveAssetGroup, folderGroupMode, withFolderGroup, withActiveRemoteRoot } from 'esengine';
 import { readTextureImportSettings } from './assetImporter';
-import type { SceneData, PrefabData, ExtractEntity, ProcessedEntity, PhysicsPluginConfig, AudioProjectConfig, AssetsData, ThemeOverrides, StaleOverride, PrefabOverride, AddressableManifest, AssetGroupsConfig } from 'esengine';
+import type { SceneData, PrefabData, ExtractEntity, ProcessedEntity, PhysicsPluginConfig, AudioProjectConfig, AssetsData, ThemeOverrides, StaleOverride, PrefabOverride, AddressableManifest, AssetGroupsConfig, AssetGroupMode } from 'esengine';
 import { EngineHost } from '@/engine/EngineHost';
 import { applyWidgetTheme } from '@/engine/widgetTheme';
 import { bootProfiler } from '@/engine/bootProfiler';
@@ -1722,6 +1722,47 @@ class ProjectStoreImpl {
     } catch (e) {
       Toasts.push(t('proj.savePackagingFailed'), 'error');
       console.error('[project] setPackaging write failed', e);
+    }
+  }
+
+  // ── Asset delivery groups (.esengine/asset-groups.json) ──────────────────────
+
+  /** The delivery mode configured for `folder` — `local` when unconfigured. The
+   *  Content Browser menu-check / folder-badge source. */
+  folderDeliveryMode(folder: string): AssetGroupMode {
+    return folderGroupMode(this.assetGroupsConfig, folder);
+  }
+
+  /** The active build profile's CDN root ('' when unset) — the Build dialog field. */
+  activeProfileRemoteRoot(): string {
+    const cfg = this.assetGroupsConfig;
+    const active = cfg?.activeProfile;
+    return (active ? cfg?.profiles?.[active]?.remoteRoot : '') ?? '';
+  }
+
+  /** Mark a folder as a delivery group (`subpackage` / `remote`) or clear it back
+   *  to `local`, writing `.esengine/asset-groups.json`. Cook and the Play realm
+   *  both read this through the shared resolveAssetGroup, so it takes effect on
+   *  the next cook / Play. */
+  async setFolderDeliveryMode(folder: string, mode: AssetGroupMode): Promise<void> {
+    await this.writeAssetGroups(withFolderGroup(this.assetGroupsConfig, folder, mode));
+  }
+
+  /** Set the active build profile's CDN root (empty → remote groups load same-origin). */
+  async setActiveProfileRemoteRoot(remoteRoot: string): Promise<void> {
+    await this.writeAssetGroups(withActiveRemoteRoot(this.assetGroupsConfig, remoteRoot));
+  }
+
+  private async writeAssetGroups(cfg: AssetGroupsConfig): Promise<void> {
+    this.assetGroupsConfig = cfg;
+    // Re-emit so the Content Browser badge / menu check reflect the change live.
+    const st = this.state;
+    if (st) this.store.setState({ project: { ...st } });
+    try {
+      await window.estella.fs.write(`${WORKSPACE_DIR}/asset-groups.json`, JSON.stringify(cfg, null, 2) + '\n');
+    } catch (e) {
+      Toasts.push(t('proj.saveAssetGroupsFailed'), 'error');
+      console.error('[project] asset-groups write failed', e);
     }
   }
 

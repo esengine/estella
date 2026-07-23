@@ -83,6 +83,13 @@ export const projectMessages = defineMessages({
         zh: 'Playable 仅打包启动场景——一个有体积上限的单文件。',
     },
 
+    // — Asset delivery (CDN / hot-update) —
+    'build.cdnRoot': { en: 'CDN root (hot-update)', zh: 'CDN 地址（热更）' },
+    'build.cdnRootTip': {
+      en: 'Base URL that remote-group assets are fetched from for this build profile. Empty → remote groups load from the game origin. Mark folders remote in the Content Browser (right-click → Delivery).',
+      zh: '当前构建 profile 下远端组资产的拉取根地址。留空则从游戏同源加载。在内容浏览器右键文件夹 → 交付方式 里把文件夹标为远端。',
+    },
+
     // — Run / progress / result —
     'build.package': { en: 'Package', zh: '打包' },
     'build.packaging': { en: 'Packaging…', zh: '打包中…' },
@@ -146,6 +153,7 @@ export const projectMessages = defineMessages({
     'proj.saveSortingLayersFailed': { en: 'Failed to save sorting layers', zh: '保存排序层失败' },
     'proj.saveDesignResolutionFailed': { en: 'Failed to save design resolution', zh: '保存设计分辨率失败' },
     'proj.savePackagingFailed': { en: 'Failed to save packaging settings', zh: '保存打包设置失败' },
+    'proj.saveAssetGroupsFailed': { en: 'Failed to save asset delivery config', zh: '保存资产交付配置失败' },
     'proj.savePlatformFailed': { en: 'Failed to save platform settings', zh: '保存平台设置失败' },
     'proj.savePhysicsFailed': { en: 'Failed to save physics setting', zh: '保存物理设置失败' },
     'proj.saveAudioFailed': { en: 'Failed to save audio setting', zh: '保存音频设置失败' },

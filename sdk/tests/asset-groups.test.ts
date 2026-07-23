@@ -5,6 +5,9 @@ import {
     resolveAssetGroup,
     activeRemoteRoot,
     modeToDelivery,
+    folderGroupMode,
+    withFolderGroup,
+    withActiveRemoteRoot,
     type AssetGroupsConfig,
 } from '../src/asset/assetGroups';
 
@@ -60,6 +63,63 @@ describe('resolveAssetGroup — legacy folder-name convention (fallback / back-c
         const cfg: AssetGroupsConfig = { version: '1.0', groups: { pack: { folder: 'remote/cdn', mode: 'subpackage' } } };
         // The path is under remote/cdn/, but the config re-declares it a subpackage.
         expect(resolveAssetGroup('remote/cdn/a.png', cfg)).toEqual({ name: 'pack', delivery: 'lazy' });
+    });
+});
+
+describe('withFolderGroup / folderGroupMode — the editor authoring mutation', () => {
+    it('adds a remote group for an ordinarily-named folder', () => {
+        const cfg = withFolderGroup(null, 'assets/cdn', 'remote');
+        expect(cfg.groups).toEqual({ cdn: { folder: 'assets/cdn', mode: 'remote' } });
+        expect(folderGroupMode(cfg, 'assets/cdn')).toBe('remote');
+    });
+
+    it('local removes the folder\'s group', () => {
+        const withGroup = withFolderGroup(null, 'assets/cdn', 'subpackage');
+        const cleared = withFolderGroup(withGroup, 'assets/cdn', 'local');
+        expect(cleared.groups).toEqual({});
+        expect(folderGroupMode(cleared, 'assets/cdn')).toBe('local');
+    });
+
+    it('re-marking a folder replaces its mode, not duplicates it', () => {
+        let cfg = withFolderGroup(null, 'assets/cdn', 'remote');
+        cfg = withFolderGroup(cfg, 'assets/cdn', 'subpackage');
+        expect(Object.keys(cfg.groups ?? {})).toHaveLength(1);
+        expect(folderGroupMode(cfg, 'assets/cdn')).toBe('subpackage');
+    });
+
+    it('dedupes the group name when two folders share a last segment', () => {
+        let cfg = withFolderGroup(null, 'assets/a/cdn', 'remote');
+        cfg = withFolderGroup(cfg, 'assets/b/cdn', 'remote');
+        expect(Object.keys(cfg.groups ?? {}).sort()).toEqual(['cdn', 'cdn2']);
+        expect(folderGroupMode(cfg, 'assets/b/cdn')).toBe('remote');
+    });
+
+    it('folderGroupMode is per-folder (a parent group does not count for a child)', () => {
+        const cfg = withFolderGroup(null, 'assets/dlc', 'remote');
+        expect(folderGroupMode(cfg, 'assets/dlc')).toBe('remote');
+        expect(folderGroupMode(cfg, 'assets/dlc/hd')).toBe('local'); // not directly configured
+    });
+
+    it('preserves profiles when editing groups', () => {
+        const base: AssetGroupsConfig = { version: '1.0', activeProfile: 'dev', profiles: { dev: { remoteRoot: 'u' } } };
+        const cfg = withFolderGroup(base, 'assets/cdn', 'remote');
+        expect(cfg.profiles).toEqual({ dev: { remoteRoot: 'u' } });
+        expect(cfg.activeProfile).toBe('dev');
+    });
+});
+
+describe('withActiveRemoteRoot', () => {
+    it('sets the active profile CDN root, creating a dev profile by default', () => {
+        const cfg = withActiveRemoteRoot(null, 'https://cdn.x');
+        expect(cfg.activeProfile).toBe('dev');
+        expect(activeRemoteRoot(cfg)).toBe('https://cdn.x');
+    });
+
+    it('updates the existing active profile and preserves groups', () => {
+        const base = withFolderGroup(null, 'assets/cdn', 'remote');
+        const cfg = withActiveRemoteRoot({ ...base, activeProfile: 'prod', profiles: { prod: {} } }, 'https://p');
+        expect(activeRemoteRoot(cfg)).toBe('https://p');
+        expect(cfg.groups).toEqual({ cdn: { folder: 'assets/cdn', mode: 'remote' } });
     });
 });
 

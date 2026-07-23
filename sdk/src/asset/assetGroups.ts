@@ -104,3 +104,54 @@ export function activeRemoteRoot(config: AssetGroupsConfig | null | undefined): 
     const root = config?.profiles?.[active]?.remoteRoot;
     return root && root.trim() !== '' ? root.replace(/\/+$/, '') : undefined;
 }
+
+const normFolder = (folder: string): string => folder.replace(/\\/g, '/').replace(/\/+$/, '');
+
+/** The delivery mode a config assigns to `folder` directly — `local` when the
+ *  folder has no group of its own (parent-folder groups don't count here; this is
+ *  the per-folder authoring state, for a menu check / badge). */
+export function folderGroupMode(config: AssetGroupsConfig | null | undefined, folder: string): AssetGroupMode {
+    const norm = normFolder(folder);
+    for (const def of Object.values(config?.groups ?? {})) {
+        if (normFolder(def.folder) === norm) return def.mode;
+    }
+    return 'local';
+}
+
+/**
+ * A copy of `config` with `folder` assigned delivery `mode` — the pure authoring
+ * mutation the editor writes to `.esengine/asset-groups.json`. `local` removes any
+ * group for the folder; otherwise the group name is the folder's last path segment
+ * (deduped against existing names).
+ */
+export function withFolderGroup(
+    config: AssetGroupsConfig | null | undefined,
+    folder: string,
+    mode: AssetGroupMode,
+): AssetGroupsConfig {
+    const norm = normFolder(folder);
+    const groups: Record<string, AssetGroupDef> = { ...(config?.groups ?? {}) };
+    for (const [name, def] of Object.entries(groups)) {
+        if (normFolder(def.folder) === norm) delete groups[name];
+    }
+    if (norm !== '' && mode !== 'local') {
+        const base = norm.split('/').pop() || 'group';
+        let name = base;
+        let i = 2;
+        while (groups[name]) name = `${base}${i++}`;
+        groups[name] = { folder: norm, mode };
+    }
+    return { version: '1.0', ...config, groups };
+}
+
+/** A copy of `config` with the active build profile's CDN root set (creating the
+ *  profile — default `dev` — and making it active). Pure. */
+export function withActiveRemoteRoot(
+    config: AssetGroupsConfig | null | undefined,
+    remoteRoot: string,
+): AssetGroupsConfig {
+    const active = config?.activeProfile ?? 'dev';
+    const profiles: Record<string, BuildProfile> = { ...(config?.profiles ?? {}) };
+    profiles[active] = { ...profiles[active], remoteRoot };
+    return { version: '1.0', ...config, activeProfile: active, profiles };
+}

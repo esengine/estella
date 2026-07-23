@@ -1015,6 +1015,18 @@ export function ContentBrowser() {
       ...(isMaterial
         ? [{ label: t('cb.menuCreateMaterialInstance'), onClick: () => void createMaterialInstance(path) }]
         : []),
+      // A folder's delivery mode (local / subpackage / remote-CDN) — writes
+      // .esengine/asset-groups.json; the cook + Play realm read it via one resolver.
+      ...(entry.isDir
+        ? [{
+            label: t('cb.delivery'),
+            children: (['local', 'subpackage', 'remote'] as const).map((m) => ({
+              label: m === 'local' ? t('cb.deliveryLocal') : m === 'subpackage' ? t('cb.deliverySubpackage') : t('cb.deliveryRemote'),
+              checked: ProjectStore.folderDeliveryMode(path) === m,
+              onClick: () => void ProjectStore.setFolderDeliveryMode(path, m),
+            })),
+          }]
+        : []),
       { label: t('ui.rename'), onClick: () => startRename(path, !!ctx?.target?.inTree) },
       { label: t('cb.menuDuplicate'), onClick: () => void duplicate(path) },
       { sep: true },
@@ -1198,6 +1210,7 @@ export function ContentBrowser() {
                   const path = it.path;
                   const type: AssetType = it.isDir ? 'folder' : assetType(it.name);
                   const isImg = !it.isDir && IMAGE_RE.test(it.name);
+                  const deliv = it.isDir ? ProjectStore.folderDeliveryMode(path) : 'local';
                   return (
                     <div
                       key={path}
@@ -1215,6 +1228,15 @@ export function ContentBrowser() {
                           <AssetIcon type={type} size={30} />
                         )}
                         {!it.isDir && TYPE_CODE[type] && <span className="badge">{TYPE_CODE[type]}</span>}
+                        {deliv !== 'local' && (
+                          <span
+                            className="badge"
+                            style={{ background: deliv === 'remote' ? '#2f6df6' : '#8a5cf6', color: '#fff' }}
+                            title={deliv === 'remote' ? t('cb.deliveryRemote') : t('cb.deliverySubpackage')}
+                          >
+                            {deliv === 'remote' ? t('cb.badgeRemote') : t('cb.badgeSubpackage')}
+                          </span>
+                        )}
                         {path === project?.defaultScene && (
                           <span className="badge start" title={t('cb.startupScene')}>
                             <Play size={9} strokeWidth={2.5} />
