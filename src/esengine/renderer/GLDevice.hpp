@@ -162,6 +162,11 @@ private:
     // redundant per-draw binds (every gl* call is a WASM→JS FFI crossing).
     void bindTextureForEdit(u32 id);
 
+    // Detach a texture from every sampler slot it lingers in, keeping the sampler
+    // cache coherent. Used by beginRenderPass to break feedback loops: a render
+    // target's own attachment must not stay bound to a sampler while it is drawn to.
+    void evictSamplerBinding(u32 textureId);
+
     std::vector<PipelineDesc> pipelines_;
     PipelineHandle current_pipeline_ = PipelineHandle::Invalid;
     GfxStencilMode current_stencil_mode_ = GfxStencilMode::Off;
@@ -206,6 +211,16 @@ private:
     };
     std::unordered_map<u32, BufferMeta> buffer_meta_;
     std::unordered_map<u32, GfxPixelFormat> texture_formats_;
+
+    // The textures a framebuffer owns (color + depth/stencil attachment ids),
+    // recorded at createFramebuffer. beginRenderPass consults this to detach the
+    // target's own attachments from any sampler slot before drawing into it — the
+    // GL feedback-loop guard. 0 = no such attachment.
+    struct FramebufferTextures {
+        u32 color = 0;
+        u32 depthStencil = 0;
+    };
+    std::unordered_map<u32, FramebufferTextures> framebuffer_textures_;
 
     // Completed readbacks parked until taken: GL reads synchronously at request
     // time, so the async contract resolves on the caller's first poll.

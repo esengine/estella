@@ -856,6 +856,19 @@ void GLDevice::bindTextureForEdit(u32 id) {
     if (active_texture_unit_ < kTextureSlots) bound_texture_[active_texture_unit_] = id;
 }
 
+void GLDevice::evictSamplerBinding(u32 textureId) {
+    if (textureId == 0) return;
+    for (u32 slot = 0; slot < kTextureSlots; ++slot) {
+        if (bound_texture_[slot] != textureId) continue;
+        if (active_texture_unit_ != slot) {
+            glActiveTexture(GL_TEXTURE0 + slot);
+            active_texture_unit_ = slot;
+        }
+        glBindTexture(GL_TEXTURE_2D, 0);
+        bound_texture_[slot] = 0;
+    }
+}
+
 TextureHandle GLDevice::createTexture(const TextureDesc& desc, const void* pixels) {
     GLuint id = 0;
     glGenTextures(1, &id);
@@ -964,12 +977,14 @@ FramebufferHandle GLDevice::createFramebuffer(const FramebufferDesc& desc) {
         glDeleteFramebuffers(1, &id);
         return FramebufferHandle::Default;
     }
+    framebuffer_textures_[id] = {static_cast<u32>(desc.color0), static_cast<u32>(desc.depthStencil)};
     return FramebufferHandle{id};
 }
 
 void GLDevice::deleteFramebuffer(FramebufferHandle framebuffer) {
     GLuint id = static_cast<GLuint>(framebuffer);
     if (id != 0) glDeleteFramebuffers(1, &id);
+    framebuffer_textures_.erase(id);
 }
 
 void GLDevice::clearStencil(i32 value) {
@@ -978,7 +993,23 @@ void GLDevice::clearStencil(i32 value) {
 }
 
 void GLDevice::beginRenderPass(const RenderPassDesc& desc) {
-    glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(desc.target));
+    const GLuint target = static_cast<GLuint>(desc.target);
+    glBindFramebuffer(GL_FRAMEBUFFER, target);
+
+    // Feedback-loop guard: a render target's own attachment must not remain bound to
+    // a sampler unit while the target is drawn into — GL leaves that undefined and
+    // some drivers raise GL_INVALID_OPERATION ("feedback loop"). This bites when a
+    // pass samples a render texture to composite it on screen and the NEXT frame
+    // draws back into that same texture (e.g. a live minimap). Detach it up front;
+    // the default framebuffer (0) owns no texture, so skip it.
+    if (target != 0) {
+        auto it = framebuffer_textures_.find(target);
+        if (it != framebuffer_textures_.end()) {
+            evictSamplerBinding(it->second.color);
+            evictSamplerBinding(it->second.depthStencil);
+        }
+    }
+
     if (!desc.clearColor && !desc.clearDepth && !desc.clearStencil) return;
 
     // Load-op values ride the pass — no sticky device clear state to drift.
