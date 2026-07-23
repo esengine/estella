@@ -80,6 +80,9 @@ export const buildSystem = defineSystem(
                     content: line,
                     fontSize: 20,
                     richText: true,
+                    // Single-line legend rows: no wrap so inline <img> runs render
+                    // (wrapping is text-only for now).
+                    wordWrap: false,
                     align: TextAlign.Left,
                     verticalAlign: TextVerticalAlign.Middle,
                     color: { r: 0.9, g: 0.9, b: 0.92, a: 1 },

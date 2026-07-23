@@ -30,12 +30,14 @@ slots — `PreviewSlot`, `ComposerRow`, `ShowcaseSlot`. The startup `BuildSystem
 The field text is plain (you see the literal `<b>…</b>` tags); the preview is
 what those tags *mean*.
 
-## Note on `<img>`
+## Inline images
 
-Inline images (`<img src="…" width=N height=N/>`) **parse** into an
-`ImageSegment` but the built-in text renderer does not draw them yet, so this
-demo leaves `<img>` out of the legend. Compose an icon next to text with flexbox
-instead. See the [Text guide](../../docs/astro/src/content/docs/guides/ui-text.mdx).
+The last legend row flows an **icon inline with the text** —
+`HP <img src="assets/textures/heart.png" width=26 height=26 valign=middle/> 100`.
+`<img>` runs are placed by the same rich-text layout as the glyphs and drawn as
+child image quads (`valign` anchors them on the line; `width`/`height`/`scale`
+size them; `tint` recolors). Inline images render on **non-wrapped** rich text —
+wrapping is text-only for now, so give an image-bearing `Text` `wordWrap: false`.
 
 ## Run
 

@@ -15,7 +15,7 @@
  */
 import type { GlyphAtlas } from './glyph-atlas';
 import { TEXT_VERTEX_FLOATS } from './submit';
-import { parseRichText, type TextSegment } from './rich-text-parser';
+import { parseRichText, type TextSegment, type ImageSegment, type RichTextRun } from './rich-text-parser';
 import { UI_TEXT_BOLD, UI_TEXT_ITALIC } from './text-transform';
 
 export interface TextLayoutOptions {
@@ -38,8 +38,22 @@ export interface LaidGlyph {
     color?: RGBA;
 }
 
+/** One placed inline `<img>` run: a box in the same local space as glyphs
+ *  (y-up; (x,y) is the bottom-left corner). `src` is the image reference the
+ *  renderer resolves to a texture; `tint` recolors it (null = untinted). */
+export interface LaidImage {
+    src: string;
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    tint: RGBA | null;
+}
+
 export interface TextLayout {
     glyphs: LaidGlyph[];
+    /** Inline `<img>` placements (rich text only). Undefined/empty = none. */
+    images?: LaidImage[];
     /** Total pen advance (display px). */
     width: number;
     /** Line height (display px). */
@@ -246,12 +260,13 @@ export function layoutText(
     const richOpts = { fontSizePx: opts.fontSizePx, letterSpacing: opts.letterSpacing, color: baseColor };
 
     // Word-wrap before stacking; explicit \n still hard-breaks. Rich lines wrap
-    // at the styled-run level so a token measures with its own size/style.
+    // at the styled-run level so a token measures with its own size/style. Inline
+    // images survive the no-wrap path; wrapping is text-only (images drop) for now.
     const lineLayouts = opts.rich
         ? rawLines
-              .map(l => parseRichText(l).filter((r): r is TextSegment => r.type === 'text'))
+              .map(l => parseRichText(l))
               .flatMap(runs => (wrap
-                  ? wrapRichRuns(runs, atlas, fontFamily, opts.fontSizePx, style, opts.maxWidth!, opts.letterSpacing ?? 0)
+                  ? wrapRichRuns(runs.filter((r): r is TextSegment => r.type === 'text'), atlas, fontFamily, opts.fontSizePx, style, opts.maxWidth!, opts.letterSpacing ?? 0)
                   : [runs]))
               .map(runs => layoutRichRuns(runs, atlas, fontFamily, richOpts, style))
         : (wrap
@@ -267,6 +282,7 @@ export function layoutText(
         : (opts.maxWidth && opts.maxWidth > 0) ? opts.maxWidth
         : contentWidth;
     const glyphs: LaidGlyph[] = [];
+    const images: LaidImage[] = [];
 
     for (let i = 0; i < lineLayouts.length; i++) {
         const ll = lineLayouts[i];
@@ -277,17 +293,20 @@ export function layoutText(
         for (const g of ll.glyphs) {
             glyphs.push({ ...g, x0: g.x0 + dx, x1: g.x1 + dx, y0: g.y0 + dy, y1: g.y1 + dy });
         }
+        if (ll.images) {
+            for (const im of ll.images) images.push({ ...im, x: im.x + dx, y: im.y + dy });
+        }
     }
 
-    return { glyphs, width: contentWidth, lineHeight: lines.length * lineHeight };
+    return { glyphs, images, width: contentWidth, lineHeight: lines.length * lineHeight };
 }
 
 /**
- * Lay out a single line of rich text: `<b>`, `<i>`,
- * `<color=#rrggbb[aa]>`, `<font size=N>` runs (parsed by parseRichText) become
- * glyphs carrying per-run color + size + bold/italic style. Image runs (`<img>`)
- * are skipped for now. Each run scales by its own fontSize / atlas.renderSize;
- * all runs share the baseline (y = 0). Pure → unit-testable.
+ * Lay out a single line of rich text: `<b>`, `<i>`, `<color=#rrggbb[aa]>`,
+ * `<font size=N>` runs (parsed by parseRichText) become glyphs carrying per-run
+ * color + size + bold/italic style, and `<img>` runs become inline image boxes.
+ * Each run scales by its own fontSize / atlas.renderSize; all share the baseline
+ * (y = 0). Pure → unit-testable.
  */
 export function layoutRichLine(
     content: string,
@@ -296,9 +315,7 @@ export function layoutRichLine(
     opts: RichTextLayoutOptions,
     baseStyle = 0,
 ): TextLayout {
-    return layoutRichRuns(
-        parseRichText(content).filter((r): r is TextSegment => r.type === 'text'),
-        atlas, fontFamily, opts, baseStyle);
+    return layoutRichRuns(parseRichText(content), atlas, fontFamily, opts, baseStyle);
 }
 
 /** Measure a styled run's advance width (mirrors layoutRichRuns' pen math). */
@@ -391,13 +408,37 @@ export function wrapRichRuns(
     return lines.length ? lines : [[]];
 }
 
+/** Place an `<img>` run's box on the pen. y-up local space, baseline at y = 0;
+ *  `valign` picks the vertical anchor (ascent ≈ size×0.8, descent ≈ size×0.2),
+ *  `offsetX/Y` nudge it, `scale` sizes it. The pen advances by the scaled width. */
+function placeImage(img: ImageSegment, penX: number, fontSizePx: number): LaidImage {
+    const w = img.width * img.scale;
+    const h = img.height * img.scale;
+    const ascent = fontSizePx * 0.8;
+    const descent = fontSizePx * 0.2;
+    let yBottom: number;
+    switch (img.valign) {
+        case 'top': yBottom = ascent - h; break;
+        case 'bottom': yBottom = -descent; break;
+        case 'middle': yBottom = (ascent - descent) / 2 - h / 2; break;
+        default: yBottom = 0; break; // baseline
+    }
+    return {
+        src: img.src,
+        x: penX + img.offsetX,
+        y: yBottom + img.offsetY,
+        w, h,
+        tint: img.tint ? [img.tint.r, img.tint.g, img.tint.b, img.tint.a] : null,
+    };
+}
+
 /**
- * Lay out a single rich line from its styled runs: each run carries per-run
- * color + size + bold/italic; all runs share the baseline (y = 0). Image runs
- * never reach here (callers filter to TextSegments). Pure → unit-testable.
+ * Lay out a single rich line from its runs: text runs carry per-run color +
+ * size + bold/italic; `<img>` runs place an inline image box that advances the
+ * pen by its width. All share the baseline (y = 0). Pure → unit-testable.
  */
 export function layoutRichRuns(
-    runs: TextSegment[],
+    runs: RichTextRun[],
     atlas: GlyphAtlas,
     fontFamily: string,
     opts: RichTextLayoutOptions,
@@ -405,10 +446,18 @@ export function layoutRichRuns(
 ): TextLayout {
     const spacing = opts.letterSpacing ?? 0;
     const glyphs: LaidGlyph[] = [];
+    const images: LaidImage[] = [];
     let penX = 0;
     let lineHeight = opts.fontSizePx;
 
     for (const run of runs) {
+        if (run.type === 'image') {
+            const placed = placeImage(run, penX, opts.fontSizePx);
+            images.push(placed);
+            if (placed.h > lineHeight) lineHeight = placed.h;
+            penX += run.width * run.scale;
+            continue;
+        }
         const runSize = run.fontSize ?? opts.fontSizePx;
         const pixelSize = atlas.pixelSizeFor(runSize);
         const scale = runSize / pixelSize;
@@ -436,5 +485,5 @@ export function layoutRichRuns(
         }
     }
 
-    return { glyphs, width: penX, lineHeight };
+    return { glyphs, images, width: penX, lineHeight };
 }

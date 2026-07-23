@@ -66,3 +66,54 @@ describe('REARCH_GUI P1.4: rich text layout', () => {
         expect(vertices[6]).toBe(0);            // b
     });
 });
+
+describe('rich text layout — inline images', () => {
+    it('places an <img> on the pen after the preceding text and advances by its width', () => {
+        const atlas = makeAtlas([]);
+        // Each glyph advances 11 * (24/48) = 5.5px; "AB" ⇒ pen at 11 before the image.
+        const layout = layoutRichLine(
+            'AB<img src="heart" width=16 height=16/>C',
+            atlas, 'Arial', { fontSizePx: 24, color: [1, 1, 1, 1] });
+        expect(layout.images).toHaveLength(1);
+        const img = layout.images![0];
+        expect(img.src).toBe('heart');
+        expect(img.w).toBe(16);
+        expect(img.h).toBe(16);
+        expect(img.x).toBeCloseTo(11, 5);
+        expect(img.y).toBeCloseTo(0, 5); // baseline valign ⇒ bottom on the baseline
+        // The trailing "C" glyph starts after the 16px image (pen = 11 + 16 = 27).
+        expect(layout.glyphs[layout.glyphs.length - 1].x0).toBeGreaterThan(27 - 1);
+    });
+
+    it('scales the box and applies tint + offset', () => {
+        const atlas = makeAtlas([]);
+        const layout = layoutRichLine(
+            '<img src="coin" width=10 height=10 scale=2 offsetX=3 offsetY=-4 tint=#ff8000/>',
+            atlas, 'Arial', { fontSizePx: 24, color: [1, 1, 1, 1] });
+        const img = layout.images![0];
+        expect(img.w).toBe(20);
+        expect(img.h).toBe(20);
+        expect(img.x).toBeCloseTo(3, 5);   // penX 0 + offsetX 3
+        expect(img.y).toBeCloseTo(-4, 5);  // baseline 0 + offsetY -4
+        expect(img.tint).not.toBeNull();
+        expect(img.tint![0]).toBeCloseTo(1, 2);       // r = ff
+        expect(img.tint![2]).toBeCloseTo(0, 2);       // b = 00
+    });
+
+    it('valign top/baseline/bottom order the box vertically', () => {
+        const atlas = makeAtlas([]);
+        const mk = (v: string) => layoutRichLine(`<img src="x" width=16 height=16${v}/>`, atlas, 'Arial', { fontSizePx: 24, color: [1, 1, 1, 1] }).images![0].y;
+        const top = mk(' valign=top');
+        const base = mk('');           // baseline: bottom on y = 0
+        const bottom = mk(' valign=bottom');
+        expect(base).toBeCloseTo(0, 5);
+        expect(top).toBeGreaterThan(base);    // y-up: top anchor raises the box
+        expect(bottom).toBeLessThan(base);    // bottom anchor drops it below the baseline
+    });
+
+    it('plain rich text yields an empty images array', () => {
+        const atlas = makeAtlas([]);
+        const layout = layoutRichLine('<b>hi</b>', atlas, 'Arial', { fontSizePx: 24, color: [1, 1, 1, 1] });
+        expect(layout.images).toEqual([]);
+    });
+});

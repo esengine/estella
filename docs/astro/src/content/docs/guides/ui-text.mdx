@@ -133,7 +133,7 @@ known tag renders literally (so a stray `<` cannot eat your text).
 | `<i>…</i>` | Italic run. |
 | `<color=#RRGGBB>…</color>` | Colored run; `#RRGGBBAA` adds alpha. |
 | `<font size=32>…</font>` | Run at another font size (`size="32"` also parses); the shared baseline is kept. |
-| `<img src="…" width=24 height=24 />` | Inline image segment — parsed today, **not yet rendered** (see below). |
+| `<img src="…" width=24 height=24 />` | Inline image — an icon flowed in with the text (see [below](#inline-images)). |
 
 ```typescript
 import { defineSystem, addStartupSystem, GetWorld, spawnUIEntity, px } from 'esengine';
@@ -156,12 +156,21 @@ The parser is exported as `parseRichText(input)`, returning `RichTextRun[]` — 
 `TextSegment` (`text`, `bold`, `italic`, `color`, `fontSize`) or `ImageSegment`
 per run — if you want to drive a custom pipeline from the same markup.
 
-<Aside type="caution">
-  `<img src="…" width=N height=N valign=baseline|middle|top|bottom offsetX=N
-  offsetY=N scale=N tint=#RRGGBB />` parses into an `ImageSegment` (the tag must
-  be self-closing and needs `src`), but the built-in text renderer currently
-  **skips image runs** — inline sprites in text do not draw yet. Compose an
-  image next to the text with flexbox instead.
+## Inline images
+
+`<img src="…" width=N height=N valign=baseline|middle|top|bottom offsetX=N
+offsetY=N scale=N tint=#RRGGBB />` (self-closing, `src` required) flows an image
+inline with the text. The same rich-text layout that places the glyphs places
+the image box — `valign` anchors it on the line, `width`/`height`/`scale` size
+it, `offsetX/Y` nudge it, `tint` recolors it — and it renders as a child image
+quad under the `Text`. `src` resolves through `Assets.loadTexture`, so it is a
+project-relative texture path.
+
+<Aside type="note">
+  Inline images render on **non-wrapped** rich text (give the `Text`
+  `wordWrap: false`); a wrapped rich `Text` lays out its text only and drops
+  image runs for now. Inline images also need the `Text` to have a `UINode`
+  box — they don't draw on a boxless world-space label.
 </Aside>
 
 ## Measuring text

@@ -20,6 +20,7 @@ import { uiLayoutPlugin } from './layout/layout';
 import { uiMaskPlugin } from './render/mask';
 import { safeAreaPlugin } from './layout/safe-area';
 import { textPlugin } from './text/plugin';
+import { inlineImagePlugin } from './text/inline-image-plugin';
 import { uiInteractionPlugin } from './input/interaction';
 import { uiBehaviorPlugin } from './behavior/plugin';
 import { uiControllerPlugin } from './controller/plugin';
@@ -40,6 +41,7 @@ const SUB_PLUGINS: Plugin[] = [
     uiMaskPlugin,
     safeAreaPlugin,
     textPlugin,
+    inlineImagePlugin,
     uiInteractionPlugin,
     uiBehaviorPlugin,
     uiControllerPlugin,
