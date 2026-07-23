@@ -10,6 +10,84 @@ many times (enemies, pickups, bullets). Instantiate one at runtime through the
 `Prefabs` resource. The prefab asset stays the single source of truth; instances can
 layer their own values on top.
 
+## Authoring in the editor
+
+You build a prefab visually, then spawn it from code. Everything in this section happens
+in the editor; the runtime API follows below.
+
+### Create a prefab
+
+Right-click an entity in the **World Outliner → Create Prefab**. The editor extracts that
+entity and its whole subtree into `assets/prefabs/<Name>.esprefab` (named after the entity)
+and leaves your scene untouched — the originals stay put; they aren't swapped for an
+instance. To place instances, drag the `.esprefab` from the Content Browser into the scene,
+or spawn it from the **Create → Prefabs** category.
+
+<Aside type="note">
+  If the subtree references entities *outside* the selection, the editor asks first
+  (*"Expose external references?"*). Those refs are left **unbound** in the prefab, and each
+  instance can bind them to a scene entity in the Inspector.
+</Aside>
+
+### Edit a prefab — Prefab Mode
+
+Double-click a `.esprefab` (or, from an instance, **Edit Prefab**) to enter **Prefab Mode**:
+the prefab opens as its own editable entity tree in the same viewport / Outliner / Details,
+framed in a warm accent under an **Editing Prefab** banner. Add, remove, rename, reparent,
+and tune components exactly as in a scene, then **Save Prefab** — every instance in every
+scene picks up the change. **Back to Scene** returns you where you were.
+
+Not yet supported in Prefab Mode: editing a **nested** prefab in place, or a variant whose
+base isn't flat. Play and *Save As* are disabled while you're editing a prefab.
+
+![The editor in Prefab Mode, editing a Coin prefab in isolation](../../../assets/guides/en/prefab-mode.png)
+
+*Prefab Mode: the **Editing Prefab** banner with **Save Prefab** / **Back to scene**, the prefab opened as its own entity tree — every instance updates when you save.*
+
+### Instances & overrides
+
+Drop an instance into a scene and it stays linked to its source. Change a field on the
+instance and it becomes an **override** — a per-instance value layered on top of the prefab.
+The editor marks overrides so you always know what's local:
+
+- the instance's **root name is tinted warm** in the Outliner;
+- an overridden field shows a **reset arrow** (↺ *Reset to default*) and its component gets
+  an **amber dot**;
+- an Inspector filter narrows the Details panel to **only overridden fields**.
+
+Reset a single field with its ↺ button and the value falls back to the prefab's.
+
+### Apply · Revert · Unpack · Variant
+
+Right-click an instance in the Outliner (or use the Inspector's prefab bar) for the identity
+actions:
+
+| Action | What it does |
+|---|---|
+| **Edit Prefab** | Open the source in Prefab Mode. |
+| **Select Prefab Source** | Reveal the `.esprefab` in the Content Browser. |
+| **Apply to Prefab** | Push this instance's overrides **back to the source** — updating the base for *every* instance. |
+| **Revert to Prefab** | Discard this instance's overrides and re-sync it to the source. |
+| **Create Variant** | Save a new `.esprefab` that inherits the base and bakes in this instance's overrides (a prefab of a prefab). |
+| **Unpack Prefab** | Detach the subtree — its entities become ordinary scene entities and lose every prefab link. Undoable. |
+
+**Apply** is the one action that rewrites the shared asset, so it always previews an
+**itemized diff** first (*"Apply changes to prefab?"*) — edits in amber, additions in green,
+removals in red, with structural changes flagged as destructive.
+
+<Aside type="caution">
+  Deleting a `.esprefab` does **not** delete its instances. The editor warns which documents
+  reference it and moves the file to the trash (recoverable with Undo), but any surviving
+  instances become unresolvable and are dropped the next time their scene loads. Reach for
+  **Unpack** first if you want to keep the entities.
+</Aside>
+
+<Aside type="tip">
+  If you rename or remove components that some instance overrode, those overrides no longer
+  match the prefab and are dropped on scene load (with a toast). The Inspector flags the
+  affected instance and offers a **Repair** — saving the scene persists the cleaned-up state.
+</Aside>
+
 ## Spawn a prefab
 
 `instantiate` loads the prefab and spawns it. It's async and returns the spawned

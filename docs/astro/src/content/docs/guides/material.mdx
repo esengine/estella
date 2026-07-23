@@ -23,18 +23,57 @@ You rarely start from a blank file. The Content Browser's **New Material** subme
 creates a material from a built-in template — the same list ships in code as
 `BUILTIN_SHADER_TEMPLATES`:
 
-| Template | What it does |
-|---|---|
-| **Unlit** | Texture × vertex color × `u_tint`. The plain default. |
-| **Lit** | Lit by the scene's 2D lights; `u_tint` + optional `u_normalMap`. |
-| **Hit Flash** | Blends toward `u_flashColor` by `u_flash` — drive it from code for damage blinks. |
-| **Outline** | Colored silhouette outline (`u_outlineColor`, `u_outlineWidth` in texels). |
-| **Dissolve** | Noise burn-away with a glowing edge (`u_progress` 0→1). |
-| **Pixelate** | Quantizes UVs to a `u_pixels` grid. |
-| **UV Scroll** | Scrolls the texture by `u_scrollSpeed` × time. |
+| Template | `builtin:` id | What it does |
+|---|---|---|
+| **Unlit** | `sprite-unlit` | Texture × vertex color × `u_tint`. The plain default. |
+| **Lit** | `sprite-lit` | Lit by the scene's 2D lights; `u_tint` + optional `u_normalMap`. |
+| **Hit Flash** | `sprite-hit-flash` | Blends toward `u_flashColor` by `u_flash` — drive it from code for damage blinks. |
+| **Outline** | `sprite-outline` | Colored silhouette outline (`u_outlineColor`, `u_outlineWidth` in texels). |
+| **Dissolve** | `sprite-dissolve` | Noise burn-away with a glowing edge (`u_progress` 0→1). |
+| **Pixelate** | `sprite-pixelate` | Quantizes UVs to a `u_pixels` grid. |
+| **UV Scroll** | `sprite-uv-scroll` | Scrolls the texture by `u_scrollSpeed` × time. |
 
-Each template is an ordinary `.esshader` created next to the material — open it and
-edit; nothing about it is special.
+A new material **references** its template by id — it stores `shader: "builtin:sprite-unlit"`
+and writes **no shader file** to disk. The engine compiles the built-in from in-code source
+(the runtime loader, the cook step, and the editor all resolve `builtin:<id>` the same way),
+so a fresh material draws immediately with nothing extra to manage. A real `.esshader` only
+lands on disk when you **convert** the material to a unique shader (below) or **create a
+shader** yourself.
+
+## Choosing & sharing shaders in the editor
+
+Select a material in the Content Browser and the Details panel opens its inspector with a
+**Shader** section at the top, above the parameters. The **Shader** dropdown lists every
+built-in template (as *Built-in · Unlit*, *Built-in · Lit*, …) alongside every `.esshader`
+in your project — pick one to rebind the material.
+
+![The material inspector's Shader section and parameter list](../../../assets/guides/en/material-shader.png)
+
+*The material inspector: the **Shader** section with its picker (here `dissolve.esshader`), above the **Parameters** reflected from that shader's `#pragma param`s.*
+
+Switching re-runs shader reflection: the parameter list below rebuilds from the new shader's
+`#pragma param`s, so the inspector always matches the bound shader. Because the old shader's
+parameters no longer apply, **switching clears the material's parameter values** — re-tune
+them for the new effect.
+
+- **Share one shader across materials.** An `.esshader` is a first-class asset (badge
+  **SHD**). Point several materials at the *same* `.esshader` file and they share one
+  compiled shader — edit the source once and every material that references it updates. That
+  is why the picker lists your project shaders next to the built-ins.
+- **Convert to Unique Shader.** While a material still references a `builtin:` template, the
+  section shows a **Convert to Unique Shader** button. It copies the built-in's source into
+  an editable `<material>.esshader` beside the material and re-points the material at it —
+  your parameter values carry over. Reach for it the moment you want to hand-edit a built-in
+  effect.
+- **New Shader.** To author a shader from scratch, use the Content Browser's **New Shader**
+  entry (a submenu — pick a built-in template to start from). It writes a standalone
+  `.esshader` you can then select from any material's Shader dropdown.
+
+<Aside type="note">
+  A material stores its shader as a path **relative to the material** (or a `builtin:` id),
+  not a `@uuid`. If a referenced `.esshader` is renamed or moved out from under it, the
+  Shader section flags the ref as missing and you re-pick it there.
+</Aside>
 
 ## The `.esshader` format
 

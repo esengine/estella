@@ -36,6 +36,10 @@ renaming a file doesn't break references.
 
 ## The workspace
 
+![The Estella editor with a platformer scene — viewport, World Outliner, Details, and Content Browser](../../../assets/guides/en/editor-overview.png)
+
+*The default workspace: the viewport in the centre, the World Outliner and Details on the right, the Content Browser along the bottom, and the Play controls up top.*
+
 The default layout, from the outside in:
 
 - **Activity Bar** — the far-left icon rail: the **editing mode** (Scene / UI / Tilemap), side panels, and project settings.
@@ -87,6 +91,12 @@ Dragging a handle transforms the whole selection as one, about a shared pivot, a
 each drag is a single undo step. **Alt-drag** a selection to duplicate it and drag the
 copies. Nudge the selection with the **arrow keys** (one grid step; hold **Shift** for
 ×10).
+
+**Align & distribute** — select two or more entities and a strip of alignment buttons
+appears in the viewport overlay: align **left / centre / right** edges and **top / middle /
+bottom** edges. With three or more selected, two **distribute** buttons even out horizontal
+or vertical spacing. Each is a single undo step and works across every entity kind (sprites,
+UI nodes, gizmo-only entities alike).
 
 **Snapping** — toggle snapping from the viewport's Snap dropdown and set the grid step,
 rotation angle, and scale increment.
@@ -163,9 +173,35 @@ tooltips come straight from the component definition. Add components, edit value
 they're written back to the scene live. Fields enforce their constraints as you edit: a
 **required** field is flagged when left empty, a numeric field is clamped to its
 declared range on write, and dropping an asset onto a slot is rejected unless its type
-matches. Details also serves as the **asset inspector**:
-select an asset in the Content Browser to edit its import settings or, for a material,
-its parameters.
+matches.
+
+Each component is a **collapsible section**, and the panel remembers what you fold —
+across reselects *and* editor restarts — so an inspector stays as tidy as you leave it.
+Rarely-touched "chrome" (a widget's `Focusable` and `ThemeStyle` tags) starts folded.
+
+Where a visual control beats a row of raw numbers, Details shows a **purpose-built
+widget** — most of them for UI nodes:
+
+- an **anchor** control for absolutely-positioned `UINode`s: a clickable **3×3 grid** for
+  the nine point anchors (Left / Centre / Right × Top / Middle / Bottom) plus a **Stretch**
+  toggle per axis;
+- a **flex** (auto-layout) widget for `FlexContainer`s: **Direction** (row / column and
+  their reverses), a **3×3 alignment grid** that sets main- and cross-axis alignment in one
+  click, main-axis **Distribute** (Packed / Between / Around / Evenly), and **Wrap** /
+  **Stretch** toggles — with **padding** edited as a four-edge `sides` control;
+- an inline **Controllers** strip that pulls per-node state authoring into the inspector:
+  pick a state page and *gear* a field to bind it, all without leaving the panel (see
+  [UI controllers](/docs/guides/ui-controllers/));
+- for a **material**, a **Shader** picker to swap the bound shader — a built-in template or
+  a project `.esshader` — see
+  [Materials & Shaders](/docs/guides/material/#choosing--sharing-shaders-in-the-editor).
+
+![The Details panel showing the anchor grid and layout controls for a UI node](../../../assets/guides/en/inspector-flex.png)
+
+*A UI node's inspector: the **In Layout / Absolute** toggle, the clickable **3×3 anchor grid** (with per-axis Stretch), and `Display: Flex` — visual controls in place of raw numbers.*
+
+Details also serves as the **asset inspector**: select an asset in the Content Browser to
+edit its import settings or, for a material, its parameters.
 
 ## The Content Browser
 
@@ -173,7 +209,7 @@ The Content Browser is your project's asset explorer. Its **create** menu makes 
 assets in place:
 
 - New Scene, New Animation, New Input Map, New Material, New Material Graph,
-  New State Machine, New Behavior Tree, New Folder.
+  **New Shader**, New State Machine, New Behavior Tree, New Folder.
 - Context actions per asset type: **Create Tileset** (from a texture), **Create
   Tilemap** (from a tileset), **Create Material Instance** (from a material).
 
@@ -231,11 +267,15 @@ Double-click an asset in the Content Browser to open its editor in a document ta
   palette selects with the arrow keys (`Shift` grows a multi-tile stamp), and maps can
   be **orthogonal, isometric, staggered, or hexagonal**. See
   [Tilemaps](/docs/guides/tilemap/).
-- **Tileset editor** — author per-tile **collision** (box / circle / polygon, slope
-  presets, one-way / sensor / material modifiers), **terrain** sets for autotiling
-  (edge/corner peering or multi-color **corner Wang**), per-tile **probability**
-  weights and properties, and **animated tiles** (frame sequences with per-frame
-  durations and a live preview).
+- **Tileset editor** — author per-tile **collision** (box, circle, polygon, slope
+  presets; one-way / sensor / material modifiers) with **direct-manipulation** shape
+  editors on a magnified tile: drag a circle's **centre or radius**, **click-add / drag /
+  click-delete** a polygon's **vertices**, and pick a **one-way** platform's solid side
+  (top / bottom / left / right) — resizing keeps the sensor / material / density modifiers.
+  Also **terrain** sets for autotiling (edge/corner peering or multi-color **corner
+  Wang**), per-tile **probability** weights and properties, and **animated tiles** — drag
+  frame thumbnails to **reorder**, or set the whole loop to **one uniform duration**, with
+  a live preview.
 - **State Machine** (`.esfsm`) and **Behavior Tree** (`.esbt`) editors — visual graphs
   for AI. See [Gameplay AI](/docs/guides/ai/).
 - **Material Graph** (`.esmatgraph`) — a node editor that compiles to a shader. See

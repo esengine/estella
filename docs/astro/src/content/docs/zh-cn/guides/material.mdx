@@ -19,17 +19,47 @@ std140 uniform 块,于是 CPU 能按名字设置、并安全地送到 GPU。一�
 你很少需要从空白文件开始。内容浏览器的 **New Material** 子菜单从内置模板创建材质——
 同一份清单在代码里是 `BUILTIN_SHADER_TEMPLATES`:
 
-| 模板 | 作用 |
-|---|---|
-| **Unlit** | 纹理 × 顶点色 × `u_tint`,普通默认。 |
-| **Lit** | 被场景 2D 灯光照亮;`u_tint` + 可选 `u_normalMap`。 |
-| **Hit Flash** | 按 `u_flash` 混向 `u_flashColor`——代码里驱动它做受击闪白。 |
-| **Outline** | 彩色剪影描边(`u_outlineColor`、`u_outlineWidth`,单位纹素)。 |
-| **Dissolve** | 噪声烧蚀 + 发光边缘(`u_progress` 0→1)。 |
-| **Pixelate** | UV 量化到 `u_pixels` 网格。 |
-| **UV Scroll** | 按 `u_scrollSpeed` × 时间滚动纹理。 |
+| 模板 | `builtin:` id | 作用 |
+|---|---|---|
+| **Unlit** | `sprite-unlit` | 纹理 × 顶点色 × `u_tint`,普通默认。 |
+| **Lit** | `sprite-lit` | 被场景 2D 灯光照亮;`u_tint` + 可选 `u_normalMap`。 |
+| **Hit Flash** | `sprite-hit-flash` | 按 `u_flash` 混向 `u_flashColor`——代码里驱动它做受击闪白。 |
+| **Outline** | `sprite-outline` | 彩色剪影描边(`u_outlineColor`、`u_outlineWidth`,单位纹素)。 |
+| **Dissolve** | `sprite-dissolve` | 噪声烧蚀 + 发光边缘(`u_progress` 0→1)。 |
+| **Pixelate** | `sprite-pixelate` | UV 量化到 `u_pixels` 网格。 |
+| **UV Scroll** | `sprite-uv-scroll` | 按 `u_scrollSpeed` × 时间滚动纹理。 |
 
-每个模板就是生成在材质旁边的普通 `.esshader`——直接打开改,没有任何特殊之处。
+新建材质是**按 id 引用**其模板的——它存的是 `shader: "builtin:sprite-unlit"`,并**不会**在磁盘上
+写出 shader 文件。引擎从内置源码编译该模板(运行时加载器、cook 步骤、编辑器三处以同样方式解析
+`builtin:<id>`),所以新材质立即就能绘制,无需额外管理。只有当你把材质**转为独立着色器**(见下文)
+或自己**新建着色器**时,才会有真正的 `.esshader` 落到磁盘上。
+
+## 在编辑器里选取与共享着色器
+
+在内容浏览器里选中一个材质,Details 面板会打开它的检视器,顶部(参数上方)是一个 **Shader** 区。
+**Shader** 下拉框列出每个内置模板(显示为 *Built-in · Unlit*、*Built-in · Lit* ……)以及项目里
+每个 `.esshader`——选一个即可给材质重新绑定着色器。
+
+![材质检视器的 Shader 区与参数列表](../../../../assets/guides/zh/material-shader.png)
+
+*材质检视器:**Shader** 区及其选择器(这里是 `dissolve.esshader`),下方是从该着色器 `#pragma param` 反射出的**参数**。*
+
+切换会重跑着色器反射:下方的参数列表按新着色器的 `#pragma param` 重建,所以检视器始终与当前绑定的
+着色器一致。由于旧着色器的参数不再适用,**切换会清空材质的参数值**——请为新效果重新调参。
+
+- **在多个材质间共享一个着色器。** `.esshader` 是一等资源(徽标 **SHD**)。让多个材质指向*同一个*
+  `.esshader` 文件,它们就共享同一份编译后的着色器——改一次源码,所有引用它的材质一起更新。这正是
+  选择器把项目着色器和内置模板并列的意义。
+- **Convert to Unique Shader(转为独立着色器)。** 当材质还引用着 `builtin:` 模板时,该区会显示一个
+  **Convert to Unique Shader** 按钮。它把内置源码复制成材质旁边一个可编辑的 `<material>.esshader`,
+  并把材质重新指向它——参数值会保留。想手改内置效果时就用它。
+- **New Shader(新建着色器)。** 想从零写着色器,用内容浏览器的 **New Shader** 入口(一个子菜单——
+  选一个内置模板作为起点)。它会写出一个独立的 `.esshader`,之后可在任意材质的 Shader 下拉框里选中。
+
+<Aside type="note">
+  材质把着色器存为**相对于材质自身**的路径(或一个 `builtin:` id),而不是 `@uuid`。若被引用的
+  `.esshader` 被改名或移走,Shader 区会把该引用标记为缺失,你在那里重新选一次即可。
+</Aside>
 
 ## `.esshader` 格式
 
