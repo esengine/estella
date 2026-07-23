@@ -340,9 +340,14 @@ Click (or Tab to) the field to focus it; **Escape** blurs, **Enter** fires
 `submit` on single-line fields. A value longer than the box **clips to it and scrolls
 horizontally** so the caret stays in view as you type.
 
+**IME / CJK input** works: the field drives a hidden native `<textarea>`, so a
+Chinese/Japanese/Korean composition renders **live in the field** (the preedit
+string shows at the caret as you type) and only fires `change` once the
+composition commits — the same behavior as a native input.
+
 <Aside type="note">
-  Text input runs in **play mode only** and needs a browser DOM (it drives a
-  hidden native textarea for IME support) — it's inert in the editor's edit view.
+  Text input runs in **play mode only** and needs a browser DOM (the hidden
+  native textarea) — it's inert in the editor's edit view.
 </Aside>
 
 ## Lists & scrolling

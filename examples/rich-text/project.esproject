@@ -1,0 +1,25 @@
+{
+  "formatVersion": "1",
+  "name": "Rich Text",
+  "description": "A live rich-text playground — type markup (and 中文 via IME) into a TextInput and see it render with bold, italic, color and font-size runs.",
+  "tag": "UI",
+  "version": "0.1.0",
+  "defaultScene": "assets/scenes/main.esscene",
+  "designResolution": {
+    "width": 800,
+    "height": 600
+  },
+  "spineVersion": "none",
+  "packaging": {
+    "platform": "playable",
+    "config": "shipping",
+    "sourceMaps": false,
+    "openFolder": true,
+    "compressTextures": false,
+    "atlasTextures": false,
+    "compressAudio": false,
+    "outDir": {
+      "playable": "dist-playable"
+    }
+  }
+}

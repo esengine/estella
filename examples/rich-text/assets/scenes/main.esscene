@@ -1,0 +1,173 @@
+{
+  "version": "1.0",
+  "name": "Main",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 10 } } },
+        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 300, "isActive": true, "priority": 0 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "Canvas",
+      "parent": null,
+      "children": [2],
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "Canvas", "data": { "designResolution": { "x": 800, "y": 600 }, "scaleMode": 2 } },
+        { "type": "UINode", "data": {} }
+      ],
+      "visible": true
+    },
+    {
+      "id": 2,
+      "name": "Panel",
+      "parent": 1,
+      "children": [3, 4, 5, 6, 7, 8],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": { "value": 20, "unit": 0 },
+            "insetTop": { "value": 20, "unit": 0 },
+            "insetRight": { "value": 20, "unit": 0 },
+            "insetBottom": { "value": 20, "unit": 0 }
+          }
+        },
+        {
+          "type": "FlexContainer",
+          "data": {
+            "direction": 1,
+            "justifyContent": 0,
+            "alignItems": 3,
+            "gap": { "x": 0, "y": 12 },
+            "padding": { "left": 20, "top": 20, "right": 20, "bottom": 20 }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": { "visualType": 1, "color": { "r": 0.12, "g": 0.12, "b": 0.14, "a": 1 }, "enabled": true }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 3,
+      "name": "Title",
+      "parent": 2,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "height": { "value": 30, "unit": 0 } } },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Rich Text + Input Playground",
+            "fontSize": 22,
+            "bold": true,
+            "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+            "align": 0,
+            "verticalAlign": 1
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 4,
+      "name": "PreviewSlot",
+      "parent": 2,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "height": { "value": 180, "unit": 0 } } },
+        {
+          "type": "UIVisual",
+          "data": { "visualType": 1, "color": { "r": 0.08, "g": 0.09, "b": 0.12, "a": 1 }, "enabled": true }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 5,
+      "name": "Hint",
+      "parent": 2,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "height": { "value": 22, "unit": 0 } } },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Edit the markup below — the preview updates live. Type 中文 to test IME.",
+            "fontSize": 14,
+            "color": { "r": 0.65, "g": 0.66, "b": 0.7, "a": 1 },
+            "align": 0,
+            "verticalAlign": 1
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 6,
+      "name": "ComposerRow",
+      "parent": 2,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "height": { "value": 38, "unit": 0 } } },
+        {
+          "type": "FlexContainer",
+          "data": { "direction": 0, "justifyContent": 0, "alignItems": 1, "gap": { "x": 10, "y": 0 } }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 7,
+      "name": "ShowcaseTitle",
+      "parent": 2,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "height": { "value": 26, "unit": 0 } } },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Supported tags",
+            "fontSize": 16,
+            "bold": true,
+            "color": { "r": 0.85, "g": 0.86, "b": 0.9, "a": 1 },
+            "align": 0,
+            "verticalAlign": 1
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 8,
+      "name": "ShowcaseSlot",
+      "parent": 2,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "height": { "value": 170, "unit": 0 } } },
+        {
+          "type": "FlexContainer",
+          "data": { "direction": 1, "justifyContent": 0, "alignItems": 3, "gap": { "x": 0, "y": 6 } }
+        }
+      ],
+      "visible": true
+    }
+  ]
+}

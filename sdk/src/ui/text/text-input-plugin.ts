@@ -20,6 +20,7 @@ import { spawnUIEntity } from '../core/compose';
 import { px } from '../core/dimension';
 import { SdfTextRenderer } from './text-renderer';
 import { measureWidth } from './layout';
+import { textFieldDisplay, type TextFieldDisplay } from './text-input-view';
 import { CURSOR_BLINK_INTERVAL } from '../util/constants';
 import { SystemLabel, PluginName } from '../../systemLabels';
 import { log } from '../../logger';
@@ -93,6 +94,19 @@ export class TextInputPlugin implements Plugin {
 
         const onCompositionStart = () => {
             composing = true;
+            resetCursorBlink();
+        };
+
+        // While composing, the browser holds the preedit inside the textarea
+        // value with the caret after it. The render loop reads that live (see
+        // below), so no state is copied here — this only keeps the caret solid
+        // and the field marked dirty as the preedit changes each keystroke.
+        const onCompositionUpdate = () => {
+            const focused = getFocusedTextInput();
+            if (focused !== null) {
+                (world.get(focused, TextInput) as TextInputData).dirty = true;
+            }
+            resetCursorBlink();
         };
 
         const onCompositionEnd = () => {
@@ -151,6 +165,7 @@ export class TextInputPlugin implements Plugin {
 
         textarea.addEventListener('input', onInput);
         textarea.addEventListener('compositionstart', onCompositionStart);
+        textarea.addEventListener('compositionupdate', onCompositionUpdate);
         textarea.addEventListener('compositionend', onCompositionEnd);
         textarea.addEventListener('keydown', onKeyDown);
         textarea.addEventListener('blur', onBlur);
@@ -158,6 +173,7 @@ export class TextInputPlugin implements Plugin {
         this.cleanupListeners_ = () => {
             textarea.removeEventListener('input', onInput);
             textarea.removeEventListener('compositionstart', onCompositionStart);
+            textarea.removeEventListener('compositionupdate', onCompositionUpdate);
             textarea.removeEventListener('compositionend', onCompositionEnd);
             textarea.removeEventListener('keydown', onKeyDown);
             textarea.removeEventListener('blur', onBlur);
@@ -291,27 +307,27 @@ export class TextInputPlugin implements Plugin {
 
                     ensureBackground(entity, ti);
                     const ch = ensureChildren(entity, ti);
+                    // Fold an active IME composition into the shown text: while
+                    // composing, the hidden textarea holds the preedit at the caret,
+                    // so a focused field renders that live instead of the (not-yet-
+                    // committed) component value — otherwise the composed string is
+                    // invisible until it commits.
+                    const editing = composing && focused === entity;
+                    const val = editing ? textarea.value : ti.value;
+                    const caret = editing ? (textarea.selectionStart ?? val.length) : ti.cursorPos;
+                    const disp = textFieldDisplay(val, caret, ti.password, ti.placeholder, PASSWORD_CHAR);
                     // Single-line fields scroll horizontally to keep the caret in view;
                     // multiline wraps within the box and clips (no h-scroll).
                     const innerW = Math.max(0, w - 2 * ti.padding);
-                    const caretText = ti.password
-                        ? PASSWORD_CHAR.repeat(ti.cursorPos)
-                        : ti.value.substring(0, ti.cursorPos);
-                    const caretRaw = measureWidth(caretText, ensureMeasure().atlas, ti.fontFamily, ti.fontSize, 0);
+                    const caretRaw = measureWidth(disp.beforeCaret, ensureMeasure().atlas, ti.fontFamily, ti.fontSize, 0);
                     const scrollX = ti.multiline ? 0 : Math.max(0, caretRaw - innerW);
 
-                    syncTextChild(ch.text, ti, innerW, scrollX);
+                    syncTextChild(ch.text, ti, disp, innerW, scrollX);
                     syncCaretChild(ch.caret, ti, h, ti.padding + caretRaw - scrollX);
                 }
             },
             { name: 'TextInputRenderSystem' }
         ));
-
-        /** Visible string: placeholder when empty, bullets when password. */
-        const displayString = (ti: TextInputData): string =>
-            ti.value.length === 0 ? ti.placeholder
-                : ti.password ? PASSWORD_CHAR.repeat(ti.value.length)
-                    : ti.value;
 
         function ensureBackground(entity: Entity, ti: TextInputData): void {
             // Clip the editable text + caret to the field box: a long value scrolls
@@ -366,10 +382,10 @@ export class TextInputPlugin implements Plugin {
             return ch;
         }
 
-        function syncTextChild(textEntity: Entity, ti: TextInputData, innerW: number, scrollX: number): void {
+        function syncTextChild(textEntity: Entity, ti: TextInputData, disp: TextFieldDisplay, innerW: number, scrollX: number): void {
             const t = world.get(textEntity, Text) as TextData;
-            const show = displayString(ti);
-            const col = ti.value.length === 0 ? ti.placeholderColor : ti.color;
+            const show = disp.text;
+            const col = disp.isPlaceholder ? ti.placeholderColor : ti.color;
             if (t.content !== show || t.fontFamily !== ti.fontFamily || t.fontSize !== ti.fontSize
                 || t.wordWrap !== ti.multiline || t.renderMode !== ti.renderMode
                 || t.color.r !== col.r || t.color.g !== col.g || t.color.b !== col.b || t.color.a !== col.a) {
