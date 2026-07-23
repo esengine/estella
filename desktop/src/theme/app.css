@@ -415,6 +415,37 @@ body.thumb-capture .viewport > :not(.viewport__stage):not(.viewport__play) {
 .viewport__light-hit:hover .viewport__light-icon {
   transform: scale(1.2);
 }
+/* Marker pin — a point-object's always-on icon; the pin TIP (bottom-centre) sits on the
+   entity position, and the icon is the select-to-identify click target. */
+.viewport__marker-gizmo {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 2;
+  pointer-events: none;
+  will-change: transform;
+  color: var(--acc);
+}
+.viewport__marker-hit {
+  position: absolute;
+  left: 0;
+  top: 0;
+  margin: -22px 0 0 -11px;
+  width: 22px;
+  height: 24px;
+  display: grid;
+  place-items: end center;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.viewport__marker-icon {
+  display: block;
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.85));
+  transition: transform var(--t-fast);
+}
+.viewport__marker-hit:hover .viewport__marker-icon {
+  transform: scale(1.2);
+}
 .viewport__light-svg {
   position: absolute;
   left: 0;

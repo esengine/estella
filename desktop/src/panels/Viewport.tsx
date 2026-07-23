@@ -4,7 +4,7 @@ import { memo, useEffect, useMemo, useRef, useState, useSyncExternalStore } from
 import type { PointerEvent as ReactPointerEvent, DragEvent as ReactDragEvent, ReactNode } from 'react';
 import {
   MousePointer2, Move, RotateCw, Scale3d, Grid3x3, Frame,
-  Camera, Check, ChevronDown, Loader2, TriangleAlert, Lightbulb, Sparkles, Globe, Crosshair, Smartphone, Monitor, Magnet, Axis3d, Hexagon, type LucideIcon,
+  Camera, Check, ChevronDown, Loader2, TriangleAlert, Lightbulb, Sparkles, Globe, Crosshair, Smartphone, Monitor, Magnet, Axis3d, Hexagon, MapPin, type LucideIcon,
   AlignStartVertical, AlignCenterVertical, AlignEndVertical,
   AlignStartHorizontal, AlignCenterHorizontal, AlignEndHorizontal,
   AlignHorizontalDistributeCenter, AlignVerticalDistributeCenter,
@@ -19,7 +19,7 @@ import { useEditorMode } from '@/store/editorModeStore';
 import { RESOLUTION_PRESETS, RESOLUTION_PRESET_BY_ID, DESIGN_RESOLUTION_PRESETS, deviceDims } from '@/mode/resolutionPresets';
 import { buildStampGhost } from '@/tools/tileStampGhost';
 import { alignSelection, distributeSelection } from '@/tools/alignTools';
-import { TilemapAPI, tileIdOf, isNonOrthogonal, UINode, DimensionUnit, computeEffectiveOrthoSize, type TileCollisionPiece, type TilesetModel } from 'esengine';
+import { TilemapAPI, tileIdOf, isNonOrthogonal, isCollisionPaletteRef, buildCollisionPaletteModel, UINode, DimensionUnit, computeEffectiveOrthoSize, type TileCollisionPiece, type TilesetModel } from 'esengine';
 import { commands } from '@/commands';
 import { MOD_LABEL } from '@/commands/keybinding';
 import { EngineHost } from '@/engine/EngineHost';
@@ -865,6 +865,14 @@ export function Viewport() {
     () => (engine.status === 'ready' ? ViewportController.light2DIds() : []),
     [structRev, engine.status],
   );
+  // Marker (point-object) entities render nothing — draw each as an always-on pin at its
+  // position (click to select), so spawn points / waypoints / triggers are visible without
+  // being selected. Same per-frame rAF + structural id set as the camera/light gizmos.
+  const markerRefs = useRef(new Map<number, HTMLDivElement | null>());
+  const markerIds = useMemo(
+    () => (engine.status === 'ready' ? ViewportController.markerIds() : []),
+    [structRev, engine.status],
+  );
   // Physics colliders aren't drawn by the renderer — outline each (box polygon /
   // circle) as a gizmo so you can see/tune collider shapes without entering Play.
   const colliderRefs = useRef(new Map<number, SVGSVGElement | null>());
@@ -882,29 +890,55 @@ export function Viewport() {
   const tileColModelRef = useRef<{ key: string; model: TilesetModel | null }>({ key: '', model: null });
   useEffect(() => {
     const clear = () => { tileColPiecesRef.current = []; };
-    if (engine.status !== 'ready' || !showTileCollision || !tilemapSelected || primaryId == null) {
+    if (engine.status !== 'ready' || !showTileCollision) {
       clear();
       tileColModelRef.current = { key: '', model: null };
       return;
     }
-    const refs = layerTilesetRefs(primaryId);
-    const key = refs.join('|');
-    const build = () => {
-      const model = tileColModelRef.current.model;
-      tileColPiecesRef.current = model ? ViewportController.tilemapColliderOutlines(primaryId, model) : [];
+    // Collision (obstacle) layers ALWAYS contribute their outlines — the overlay IS their
+    // content (they render nothing), so they stay visible unselected. They all share the
+    // single built-in palette model (no per-layer disk load). A selected NON-collision
+    // tilemap additionally shows its per-tile collision as a debug aid (selected-only).
+    const collisionIds: number[] = [];
+    for (const id of SceneModel.entityOrder()) {
+      const e = SceneModel.entityBySource(id);
+      if (e?.components.some((c) => c.type === 'TilemapLayer') && isCollisionPaletteRef(layerTilesetRefs(id))) {
+        collisionIds.push(id);
+      }
+    }
+    const paletteModel = collisionIds.length > 0 ? buildCollisionPaletteModel() : null;
+    const selId = tilemapSelected && primaryId != null && !collisionIds.includes(primaryId) ? primaryId : null;
+
+    const rebuild = () => {
+      const pieces: TileCollisionPiece[] = [];
+      if (paletteModel) {
+        for (const id of collisionIds) pieces.push(...ViewportController.tilemapColliderOutlines(id, paletteModel));
+      }
+      if (selId != null && tileColModelRef.current.model) {
+        pieces.push(...ViewportController.tilemapColliderOutlines(selId, tileColModelRef.current.model));
+      }
+      tileColPiecesRef.current = pieces;
     };
-    // Same tileset list as last time → reuse the cached model, just re-read the tiles.
-    if (tileColModelRef.current.key === key && tileColModelRef.current.model) { build(); return; }
-    // Tileset refs changed (or first show): reload the model, then build once it lands.
+
+    // Collision layers render immediately (sync). A selected .estileset tilemap may need an
+    // async model load; show the collision layers now and fold it in once its model lands.
+    if (selId == null) {
+      tileColModelRef.current = { key: '', model: null };
+      rebuild();
+      return;
+    }
+    const refs = layerTilesetRefs(selId);
+    const key = refs.join('|');
+    if (tileColModelRef.current.key === key && tileColModelRef.current.model) { rebuild(); return; }
     let alive = true;
-    clear();
+    rebuild(); // collision layers appear at once; the selected layer joins on model load
     void loadLayerTilesetModel(refs).then((model) => {
       if (!alive) return;
       tileColModelRef.current = { key, model };
-      build();
+      rebuild();
     });
     return () => { alive = false; };
-  }, [engine.status, showTileCollision, tilemapSelected, primaryId, dataRev]);
+  }, [engine.status, showTileCollision, tilemapSelected, primaryId, dataRev, structRev]);
 
   // Scene-authored joints are equally invisible — draw each as an anchor link (plus
   // axis/velocity direction). Keyed by entity + joint type; same physics show flag.
@@ -1669,6 +1703,19 @@ export function Viewport() {
         }
       }
 
+      // Marker pins — position each at its entity's world point (or hide it when the
+      // marker is off-camera/removed). Same edit-mode + gizmos-on gate as the other icons.
+      for (const [mid, wrap] of markerRefs.current) {
+        if (!wrap) continue;
+        const mg = camsOn ? ViewportController.getMarkerGizmo(mid) : null;
+        if (mg) {
+          wrap.style.visibility = 'visible';
+          wrap.style.transform = `translate(${mg.cx}px, ${mg.cy}px)`;
+        } else {
+          wrap.style.visibility = 'hidden'; // an invisible pin must not swallow clicks
+        }
+      }
+
       // Particle-emitter gizmos — a clickable icon at the emitter + its spawn-shape
       // outline (cone wedge / circle / box / point), so an otherwise-invisible emitter
       // is placeable and aimable in edit mode. Same edit-mode + gizmos-on gate.
@@ -2214,6 +2261,34 @@ export function Viewport() {
                 onPointerDown={(e) => startRadiusHandleDrag(id, 'Light2D', 'radius', 1, e)}
               />
             </svg>
+          </div>
+        );
+      })}
+
+      {markerIds.map((id) => {
+        const src = SceneModel.sourceFor(id);
+        const name = src != null ? SceneModel.entityBySource(src)?.name : undefined;
+        return (
+          <div
+            key={id}
+            ref={(el) => {
+              if (el) markerRefs.current.set(id, el);
+              else markerRefs.current.delete(id);
+            }}
+            className="viewport__marker-gizmo"
+          >
+            <span
+              className="viewport__marker-hit"
+              role="button"
+              title={name}
+              onPointerDown={(e) => {
+                if (e.button !== 0 || src == null) return;
+                e.stopPropagation();
+                useSelection.getState().select(src);
+              }}
+            >
+              <MapPin className="viewport__marker-icon" size={16} strokeWidth={2} />
+            </span>
           </div>
         );
       })}

@@ -6,6 +6,7 @@ import {
   ParticleEmitter, OneWayPlatform,
   RevoluteJoint, DistanceJoint, PrismaticJoint, WeldJoint, WheelJoint, MotorJoint,
   UINode, UICameraInfo, screenToUiWorld, uiWorldToScreen, uiPickAllWorld, type UICameraData,
+  Marker,
   TilemapLayer, TilemapAPI, decodeTilemapChunks, CHUNK_SIZE, tileCollisionOutlines,
   tileCellCenter, tileCellOutline, isNonOrthogonal,
   readColliderShapes, colliderShapeOutline, shapeCenter,
@@ -646,6 +647,29 @@ export const ViewportController = {
       ? this.worldToClient(t.worldPosition.x, t.worldPosition.y + l.radius)
       : null;
     return { cx: center.x, cy: center.y, kind: l.type, color, radiusPx, sdx, sdy, coneHalf, on, handle: handle ?? null };
+  },
+
+  /** Ids of the scene's Marker (point-object) entities — the marker-pin gizmo set. A
+   *  Marker renders nothing, so it's drawn as an always-on pin at its position. */
+  markerIds(): EntityId[] {
+    const world = EngineHost.world;
+    if (!world) return [];
+    const out: EntityId[] = [];
+    for (const e of world.getAllEntities()) {
+      if (world.has(e, Marker) && world.has(e, Transform)) out.push(e);
+    }
+    return out;
+  },
+
+  /** Screen-space position of a Marker's pin (its Transform world position → canvas px),
+   *  and its `type` label, or null when off-camera/removed. */
+  getMarkerGizmo(id: EntityId): { cx: number; cy: number; type: string } | null {
+    const world = EngineHost.world;
+    if (!world || !world.valid(id) || !world.has(id, Marker) || !world.has(id, Transform)) return null;
+    const t = world.get(id, Transform);
+    const m = world.get(id, Marker) as { type?: string };
+    const p = this.worldToClient(t.worldPosition.x, t.worldPosition.y);
+    return p ? { cx: p.x, cy: p.y, type: typeof m.type === 'string' ? m.type : '' } : null;
   },
 
   /** Ids of entities carrying ANY collider (box/circle/capsule/segment/polygon/chain) —

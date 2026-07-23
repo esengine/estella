@@ -303,6 +303,7 @@
 .viewport--play .viewport__collider-gizmo,
 .viewport--play .viewport__tilecol-gizmo,
 .viewport--play .viewport__particle-gizmo,
+.viewport--play .viewport__marker-gizmo,
 .viewport--play .viewport__toolbar,
 .viewport--play .viewport__minimap,
 .viewport--play .ov-left {
