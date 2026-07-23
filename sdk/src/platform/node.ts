@@ -11,7 +11,10 @@
  *
  * @beta   Pre-1.0: the node/headless host is young; the adapter surface may change.
  */
-import { readFile as fsReadFile, access } from 'node:fs/promises';
+import { readFile as fsReadFile, access, mkdir, writeFile, rename } from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { createHash } from 'node:crypto';
 import type {
     PlatformAdapter,
     PlatformRequestOptions,
@@ -161,6 +164,38 @@ class NodePlatformAdapter implements PlatformAdapter {
         for (const k of [...this.storage_.keys()]) {
             if (k.startsWith(prefix)) this.storage_.delete(k);
         }
+    }
+
+    // Content-addressed disk cache (hot-update offline store). Dir defaults to the
+    // OS temp dir; override with ESENGINE_CACHE_DIR. The key is a content-addressed
+    // url — an immutable name — so the filename is just its sha256 (filesystem-safe,
+    // collision-resistant).
+    private cacheDir_(): string {
+        return process.env.ESENGINE_CACHE_DIR ?? join(tmpdir(), 'esengine-cache');
+    }
+
+    private cacheFile_(key: string): string {
+        return join(this.cacheDir_(), createHash('sha256').update(key).digest('hex'));
+    }
+
+    async readCacheFile(key: string): Promise<ArrayBuffer | null> {
+        try {
+            const buf = await fsReadFile(this.cacheFile_(key));
+            return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
+        } catch {
+            return null; // ENOENT ⇒ not cached
+        }
+    }
+
+    async writeCacheFile(key: string, bytes: ArrayBuffer): Promise<void> {
+        const dir = this.cacheDir_();
+        await mkdir(dir, { recursive: true });
+        // Write to a temp file then rename: a crash mid-write must never leave a
+        // truncated file that a later content-addressed read would trust as complete.
+        const file = this.cacheFile_(key);
+        const tmp = `${file}.${process.pid}.tmp`;
+        await writeFile(tmp, new Uint8Array(bytes));
+        await rename(tmp, file);
     }
 }
 

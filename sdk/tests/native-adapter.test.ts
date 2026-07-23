@@ -19,6 +19,7 @@ import type { InputEventCallbacks } from '../src/platform/types';
 
 function makeBridge() {
     const store = new Map<string, string>();
+    const cacheStore = new Map<string, ArrayBuffer>();
     const files = new Map<string, ArrayBuffer>([
         ['data/config.json', new TextEncoder().encode('{"a":1}').buffer as ArrayBuffer],
     ]);
@@ -36,6 +37,8 @@ function makeBridge() {
         setStorageItem: (k, v) => { store.set(k, v); },
         removeStorageItem: (k) => { store.delete(k); },
         storageKeys: () => [...store.keys()],
+        readCacheFile: async (k) => cacheStore.get(k) ?? null,
+        writeCacheFile: async (k, b) => { cacheStore.set(k, b); },
         registerInput: (l) => {
             listeners.push(l);
             return () => {
@@ -47,7 +50,7 @@ function makeBridge() {
         now: () => 12345,
         language: () => 'zh_CN',
     };
-    return { bridge, store, files, listeners };
+    return { bridge, store, cacheStore, files, listeners };
 }
 
 function makeInputCallbacks(): InputEventCallbacks {
@@ -158,6 +161,22 @@ describe('NativePlatformAdapter (mock bridge)', () => {
     it('fails loud on the offscreen DOM surfaces (native uses loadImagePixels)', () => {
         expect(() => adapter.createCanvas(1, 1)).toThrow(/native/);
         expect(() => adapter.createImage()).toThrow(/native/);
+    });
+
+    it('round-trips the offline content cache through the bridge', async () => {
+        expect(await adapter.readCacheFile('https://cdn/a.png')).toBeNull();
+        await adapter.writeCacheFile('https://cdn/a.png', new Uint8Array([1, 2, 3]).buffer);
+        const got = await adapter.readCacheFile('https://cdn/a.png');
+        expect(new Uint8Array(got!)).toEqual(new Uint8Array([1, 2, 3]));
+    });
+
+    it('degrades to no-cache when the bridge omits cache methods', async () => {
+        const bare = makeBridge().bridge as Partial<NativeBridge>;
+        delete bare.readCacheFile;
+        delete bare.writeCacheFile;
+        const a = new NativePlatformAdapter(bare as NativeBridge);
+        expect(await a.readCacheFile('x')).toBeNull();
+        await expect(a.writeCacheFile('x', new ArrayBuffer(1))).resolves.toBeUndefined();
     });
 });
 

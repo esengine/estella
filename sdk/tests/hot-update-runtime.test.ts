@@ -29,14 +29,18 @@ vi.mock('../src/resourceManager', () => ({
     evictTextureDimensions: vi.fn(),
 }));
 
-// In-memory platform storage so persistence round-trips in the test.
+// In-memory platform storage + content cache so persistence and the offline
+// disk-cache write round-trip in the test.
 vi.mock('../src/platform', () => {
     const store = new Map<string, string>();
+    const cache = new Map<string, ArrayBuffer>();
     return {
         platformLoadSubpackage: vi.fn(() => Promise.resolve()),
         platformGetStorageItem: (k: string) => store.get(k) ?? null,
         platformSetStorageItem: (k: string, v: string) => { store.set(k, v); },
+        platformWriteCacheFile: vi.fn((k: string, b: ArrayBuffer) => { cache.set(k, b); return Promise.resolve(); }),
         __store: store,
+        __cache: cache,
     };
 });
 
@@ -135,6 +139,11 @@ describe('Assets.checkForUpdate / applyUpdate', () => {
         expect(assets.remoteRoot).toBe('https://cdn/v2');
         // The changed asset was downloaded + verified from the NEW cdn root.
         expect(backend.fetchBinary).toHaveBeenCalledWith(`https://cdn/v2/assets/${REMOTE_HASH}.png`);
+        // …and its verified bytes were written to the offline disk cache, keyed by
+        // the immutable cdn url — so a later boot loads them without the CDN.
+        const platform = await import('../src/platform');
+        expect((platform as unknown as { __cache: Map<string, ArrayBuffer> })
+            .__cache.get(`https://cdn/v2/assets/${REMOTE_HASH}.png`)?.byteLength).toBe(8);
         // A renderer bound to the changed asset's stable key is told to rebind.
         expect(rebinds).toEqual(['uuid-1']);
         expect(progress[0]).toEqual([0, 1]);

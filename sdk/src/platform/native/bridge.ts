@@ -74,6 +74,13 @@ export interface NativeBridge {
     removeStorageItem(key: string): void;
     storageKeys(): string[];
 
+    /** Persistent content-addressed byte cache (hot-update offline store): the shell
+     *  writes verified downloaded assets to disk and reads them back. Optional — a
+     *  shell without on-disk caching omits both, and hot-updated assets simply refetch
+     *  from the CDN. See {@link PlatformAdapter.readCacheFile}. */
+    readCacheFile?(key: string): Promise<ArrayBuffer | null>;
+    writeCacheFile?(key: string, bytes: ArrayBuffer): Promise<void>;
+
     /** Register the engine's input sink; returns an unsubscribe. */
     registerInput(listener: NativeInputListener): () => void;
 

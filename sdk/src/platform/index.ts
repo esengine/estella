@@ -39,6 +39,8 @@ export {
     platformNow,
     platformCreateAudioBackend,
     platformLoadSubpackage,
+    platformReadCacheFile,
+    platformWriteCacheFile,
     platformOnMemoryWarning,
     platformGetStorageItem,
     platformSetStorageItem,

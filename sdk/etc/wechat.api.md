@@ -4443,10 +4443,12 @@ name: "web" | "wechat" | "douyin" | "node" | "native"
 now: () => number
 onMemoryWarning: ((callback: () => void) => () => void) | undefined
 pollGamepads: (() => GamepadSnapshot[]) | undefined
+readCacheFile: ((key: string) => Promise<ArrayBuffer | null>) | undefined
 readFile: (path: string) => Promise<ArrayBuffer>
 readTextFile: (path: string) => Promise<string>
 removeStorageItem: (key: string) => void
 setStorageItem: (key: string, value: string) => void
+writeCacheFile: ((key: string, bytes: ArrayBuffer) => Promise<void>) | undefined
 ```
 
 ## PlatformAudioBackend — interface

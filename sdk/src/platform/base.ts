@@ -144,6 +144,35 @@ export function platformLoadSubpackage(name: string): Promise<void> {
     return p.loadSubpackage ? p.loadSubpackage(name) : Promise.resolve();
 }
 
+/** Read a content-addressed asset from the persistent cache (hot-update's offline
+ *  store). Returns null on a miss, when the platform has no cache (web), when the
+ *  platform is uninitialized (tests), OR on any read error — every case means "not
+ *  cached, fetch normally", so cache failures never break loading. */
+export async function platformReadCacheFile(key: string): Promise<ArrayBuffer | null> {
+    if (!isPlatformInitialized()) return null;
+    const p = getPlatform();
+    if (!p.readCacheFile) return null;
+    try {
+        return await p.readCacheFile(key);
+    } catch {
+        return null;
+    }
+}
+
+/** Persist a content-addressed asset to the cache. No-op when the platform has no
+ *  cache (web) or is uninitialized (tests); swallows write errors (best-effort — a
+ *  failed cache write must not fail the update). */
+export async function platformWriteCacheFile(key: string, bytes: ArrayBuffer): Promise<void> {
+    if (!isPlatformInitialized()) return;
+    const p = getPlatform();
+    if (!p.writeCacheFile) return;
+    try {
+        await p.writeCacheFile(key, bytes);
+    } catch {
+        // best-effort cache; ignore
+    }
+}
+
 /** Subscribe to OS memory-pressure warnings (wx.onMemoryWarning on WeChat).
  *  Returns an unsubscribe. On platforms without a pressure signal the callback
  *  simply never fires. Tolerates an uninitialized platform (tests). */

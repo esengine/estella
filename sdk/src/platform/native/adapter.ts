@@ -169,6 +169,17 @@ export class NativePlatformAdapter implements PlatformAdapter {
         }
     }
 
+    // Content-addressed disk cache — delegates to the shell's on-disk store when it
+    // provides one, else behaves as "no cache" (miss / no-op), so hot-update degrades
+    // to plain CDN refetch on a shell without caching.
+    async readCacheFile(key: string): Promise<ArrayBuffer | null> {
+        return this.bridge_.readCacheFile ? this.bridge_.readCacheFile(key) : null;
+    }
+
+    async writeCacheFile(key: string, bytes: ArrayBuffer): Promise<void> {
+        if (this.bridge_.writeCacheFile) await this.bridge_.writeCacheFile(key, bytes);
+    }
+
     // createSocket / createVideoBackend / pollGamepads / loadSubpackage /
     // onMemoryWarning are optional and deferred to the shell.
 }

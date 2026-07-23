@@ -5,7 +5,7 @@ import { Catalog, type AtlasFrameInfo } from './Catalog';
 import { ManifestModel, normalizeBundleMode, type AddressableManifest } from './AddressableManifest';
 import { diffManifests, type UpdatePlan, type AssetChange } from './hotUpdate';
 import { contentHashHex } from './contentHash';
-import { platformLoadSubpackage, platformGetStorageItem, platformSetStorageItem } from '../platform';
+import { platformLoadSubpackage, platformGetStorageItem, platformSetStorageItem, platformWriteCacheFile } from '../platform';
 import type {
     AssetLoader, LoadContext, TextureResult, SpineResult,
     MaterialResult, FontResult, AudioResult, AnimClipResult,
@@ -693,10 +693,16 @@ export class Assets {
         const remote = group != null && normalizeBundleMode(group.bundleMode) === 'remote';
         const path = remote ? this.remoteUrlFor_(c.path, root) : this.resolveLoadPath_(c.path);
         try {
-            const buf = await this.backend.fetchBinary(this.backend.resolveUrl(path));
+            const url = this.backend.resolveUrl(path);
+            const buf = await this.backend.fetchBinary(url);
             if (c.contentHash && contentHashHex(new Uint8Array(buf)) !== c.contentHash) {
                 return 'integrity';
             }
+            // Persist the verified, content-addressed bytes to the disk cache (keyed by
+            // the immutable CDN url) so they load offline on the next boot and skip the
+            // CDN. Best-effort (no-op on platforms without a cache, e.g. web); a failed
+            // write never fails the update.
+            if (remote) await platformWriteCacheFile(url, buf);
             return null;
         } catch {
             return 'fetch';

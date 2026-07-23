@@ -282,6 +282,21 @@ export interface PlatformAdapter {
      *  concept (web) omit it and lazy groups load directly from their URLs. */
     loadSubpackage?(name: string): Promise<void>;
 
+    /**
+     * Persistent content-addressed byte cache — the offline/disk primitive behind
+     * hot-update. `key` is an immutable content-addressed url (the asset's `<hash>.<ext>`
+     * CDN url), so an entry NEVER goes stale and needs no invalidation. Hot-update
+     * writes each verified downloaded asset here; the http backend reads it first so
+     * updated assets stay available offline and skip the CDN roundtrip.
+     *
+     * Optional — a platform with no local storage (web relies on the browser HTTP
+     * cache) omits BOTH; then `platformReadCacheFile` returns null (a miss → normal
+     * fetch) and `platformWriteCacheFile` is a no-op. Node (fs) and native (the shell's
+     * on-disk store) implement them; WeChat may later back them with `wx` user storage.
+     */
+    readCacheFile?(key: string): Promise<ArrayBuffer | null>;
+    writeCacheFile?(key: string, bytes: ArrayBuffer): Promise<void>;
+
     /** Open a socket connection. Web → WebSocket, WeChat → wx.connectSocket,
      *  Node → a ws wrapper. Optional — platforms without networking (playable
      *  ads) omit it and `createSocket()` fails loud. */

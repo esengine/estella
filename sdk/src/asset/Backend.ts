@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { platformFetch, platformReadFile, platformReadTextFile } from '../platform';
+import { platformFetch, platformReadFile, platformReadTextFile, platformReadCacheFile } from '../platform';
 
 export interface Backend {
     fetchBinary(path: string): Promise<ArrayBuffer>;
@@ -22,6 +22,15 @@ export class HttpBackend implements Backend {
 
     async fetchBinary(path: string): Promise<ArrayBuffer> {
         const url = this.resolveUrl(path);
+        // Content cache: hot-update wrote its verified, content-addressed (immutable)
+        // assets to the platform's disk store keyed by this url; serve them first so
+        // updated assets load offline and skip the CDN roundtrip. Only remote (http(s))
+        // urls are cache-eligible — local / same-origin paths are already local, and
+        // nothing else is ever written, so a miss just falls through to a normal fetch.
+        if (/^https?:\/\//i.test(url)) {
+            const cached = await platformReadCacheFile(url);
+            if (cached) return cached;
+        }
         const response = await platformFetch(url);
         if (!response.ok) {
             throw new Error(`Failed to fetch '${path}': ${response.status} ${response.statusText}`);
