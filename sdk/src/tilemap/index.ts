@@ -17,6 +17,10 @@ export {
 } from './tiledLoader';
 export { tileCollisionOutlines, type TileCollisionPiece } from './tileCollisionOutline';
 export {
+    COLLISION_PALETTE_REF, COLLISION_BRUSHES, isCollisionPaletteRef, buildCollisionPaletteModel,
+    type CollisionBrush,
+} from './collisionPalette';
+export {
     tileCellCenter, tileCellOutline, isNonOrthogonal, usesStagger, isHexOrientation, TileOrientation,
     type TileGridParams, type Vec2Like,
 } from './tileGeometry';

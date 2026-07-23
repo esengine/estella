@@ -351,3 +351,38 @@
   color: var(--text-faint);
 }
 .tp-hint { font-size: var(--fs-xs); max-width: 280px; }
+
+/* Collision-layer palette — the fixed obstacle brushes, in place of a texture atlas. */
+.cp-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  overflow-y: auto;
+}
+.cp-hint { font-size: var(--fs-xs); color: var(--text-faint); line-height: 1.4; }
+.cp-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.cp-brush {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 8px 4px;
+  background: var(--srf-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+.cp-brush:hover { background: var(--srf-4); color: var(--text); }
+.cp-brush.is-active {
+  border-color: var(--acc);
+  background: color-mix(in srgb, var(--acc) 16%, var(--srf-2));
+  color: var(--text);
+}
+.cp-brush svg { color: var(--text); }
+.cp-brush-label { font-size: var(--fs-xs); text-align: center; line-height: 1.1; }

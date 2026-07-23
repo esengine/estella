@@ -11,6 +11,7 @@ import { Tilemap } from './components';
 import { registerSceneComponentCodec } from '../scene';
 import { getTilemapSource, getResolvedTileset, type LoadedTilemapSource } from './tilesetCache';
 import { resolveTilesetModel } from './tilesetResolve';
+import { isCollisionPaletteRef, buildCollisionPaletteModel } from './collisionPalette';
 import { _bindTileCollisionLookup, type LayerCollisionTable } from './tileQuery';
 import type { ResolvedTileCollision } from './tilesetResolve';
 import {
@@ -276,11 +277,25 @@ export class TilemapPlugin implements Plugin {
                         appliedGrid.set(entity, gridKey);
                     }
 
+                    // Collision (obstacle) layer: the sentinel `builtin:collision` ref means
+                    // this layer paints from the fixed collision palette, not an `.estileset`.
+                    // Install its collision model directly — NO render slots (nothing draws)
+                    // and no atlas load — so the same spawn + overlay path handles it as any
+                    // painted collision. The gate above passed because refs is non-empty.
+                    if (refs && refs.length > 0 && isCollisionPaletteRef(refs) && !liveResolved.has(entity)) {
+                        const model = buildCollisionPaletteModel();
+                        if (model.collidableTileIds.length > 0) nativeCollisionIds.set(entity, model.collidableTileIds);
+                        else nativeCollisionIds.delete(entity);
+                        if (model.tileShapes.size > 0) nativeTileShapes.set(entity, model.tileShapes);
+                        else nativeTileShapes.delete(entity);
+                        liveResolved.add(entity);
+                    }
+
                     // Live tileset(s): when ALL the layer's `.estileset` refs have loaded,
                     // derive its multi-slot render table + animations + collision LIVE (once
                     // per load) — replacing copied columns + the baked collidableTileIds. The
                     // whole list must resolve together so firstId ranges are contiguous.
-                    if (refs && refs.length > 0 && !liveResolved.has(entity)) {
+                    else if (refs && refs.length > 0 && !liveResolved.has(entity)) {
                         const resolvedList = [];
                         for (const ref of refs) {
                             const key = resolveAssetKey(assets, ref);

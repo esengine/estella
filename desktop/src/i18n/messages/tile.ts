@@ -143,6 +143,14 @@ export const tileMessages = defineMessages({
     'tile.slope.halfTop': { en: 'Half (top)', zh: '半砖（上）' },
     'tile.slope.halfLeft': { en: 'Half (left)', zh: '半砖（左）' },
     'tile.slope.halfRight': { en: 'Half (right)', zh: '半砖（右）' },
+    'tile.collision.title': { en: 'Collision brushes', zh: '碰撞笔刷' },
+    'tile.collision.solid': { en: 'Solid', zh: '实心' },
+    'tile.collision.oneWay': { en: 'One-way ↑', zh: '单向 ↑' },
+    'tile.collision.sensor': { en: 'Trigger', zh: '触发器' },
+    'tile.collision.hint': {
+        en: 'Paint obstacle cells over your background — solid, slope, one-way, or trigger.',
+        zh: '在背景上刷障碍格——实心、斜坡、单向或触发器。',
+    },
     'tile.solidCount': { en: '{count} solid', zh: '{count} 个实心' },
     'tile.save': { en: 'Save', zh: '保存' },
     'tile.done': { en: 'Done', zh: '完成' },
@@ -242,6 +250,10 @@ export const tileMessages = defineMessages({
     'tile.toast.created': {
         en: 'Created tilemap — pick a brush to paint in the viewport',
         zh: '已创建瓦片地图——选择笔刷即可在视口中绘制',
+    },
+    'tile.toast.collisionCreated': {
+        en: 'Created collision layer — paint obstacle cells over your background',
+        zh: '已创建碰撞层——在背景上刷障碍格',
     },
     'tile.toast.untracked': { en: 'Tileset is not tracked by the project', zh: '瓦片集未被项目跟踪' },
     'tile.toast.readFailed': { en: 'Failed to read tileset: {error}', zh: '读取瓦片集失败：{error}' },

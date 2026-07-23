@@ -49,7 +49,8 @@ import { Particle, getComponent } from 'esengine';
 import { applyFxPreview, initFxPreviewEditRestart } from './engine/fxPreview';
 import { commands } from './commands/registry';
 import { ENTITY_SOURCES, sourceById, createFromSource, type TileGridConfig } from './engine/entitySources';
-import { createTilemapFromTileset } from './tilemap/createTilemap';
+import { createTilemapFromTileset, createCollisionLayer } from './tilemap/createTilemap';
+import { layerTilesetRefs, loadLayerTilesetModel } from './tilemap/layerTilesetModel';
 import { SceneCommands } from './engine/SceneCommands';
 import { useTilemapPaint } from './store/tilemapPaintStore';
 import { ViewportController } from './engine/ViewportController';
@@ -140,9 +141,28 @@ if (new URLSearchParams(location.search).has('automation')) {
     /** Create a TilemapLayer from an .estileset with an optional grid layout
      *  (orientation/stagger/hex) — drives the New-Tilemap flow headlessly. */
     createTilemap: (tilesetPath: string, grid?: TileGridConfig) => createTilemapFromTileset(tilesetPath, grid),
+    /** Create a collision (obstacle) layer and return its selected source id — drives the
+     *  obstacle-grid flow headlessly (no tileset needed). */
+    createCollisionLayer: async () => { await createCollisionLayer(); return useSelection.getState().selectedId; },
     /** Paint tiles into a TilemapLayer SOURCE entity (one undo step) — for shot tests. */
     paintTiles: (sourceId: number, edits: { x: number; y: number; tileId: number }[]) =>
       SceneCommands.paintTiles(sourceId, edits),
+    /** Probe a layer's resolved tile-collision overlay — the SAME pieces the viewport
+     *  draws + Play spawns. Returns null if nothing resolves; else piece counts by kind.
+     *  Verifies the collision-layer pipeline end-to-end (refs → palette model → outlines). */
+    probeTileCollision: async (sourceId: number) => {
+      const refs = layerTilesetRefs(sourceId);
+      const model = await loadLayerTilesetModel(refs);
+      if (!model) return null;
+      const pieces = ViewportController.tilemapColliderOutlines(sourceId, model);
+      return {
+        refs,
+        total: pieces.length,
+        sensors: pieces.filter((p) => p.sensor).length,
+        oneWay: pieces.filter((p) => p.oneWay).length,
+        polygons: pieces.filter((p) => p.polylines.length > 0 && !p.sensor && !p.oneWay).length,
+      };
+    },
     /** Drive the tilemap paint store (tool / terrain set / wang color) — for shot tests. */
     setTilePaint: (patch: { tool?: unknown; terrainSet?: number; wangColor?: number }) => {
       const s = useTilemapPaint.getState();

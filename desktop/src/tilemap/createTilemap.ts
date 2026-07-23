@@ -9,8 +9,8 @@
  *          undoable 'Set Tilesets' step so redo re-pushes) and opens the painter. The
  *          tileset stays the reusable asset the map references (Unity/Godot model).
  */
-import { parseTileset } from 'esengine';
-import { Grid3x3 } from 'lucide-react';
+import { parseTileset, COLLISION_PALETTE_REF } from 'esengine';
+import { Grid3x3, Shapes } from 'lucide-react';
 import { createFromSource, tilemapPrefab, type EntitySource, type TileGridConfig } from '@/engine/entitySources';
 import { useSelection } from '@/store/selectionStore';
 import { useTilemapPaint } from '@/store/tilemapPaintStore';
@@ -65,4 +65,30 @@ export async function createTilemapFromTileset(tilesetPath: string, grid?: TileG
   await createFromSource(
     tilesetSource(tilesetPath, tilesetRef, asset.tileWidth, asset.tileHeight, grid), { parent: null },
   );
+}
+
+/**
+ * Create a COLLISION (obstacle) layer — a TilemapLayer that paints from the built-in
+ * collision palette ({@link COLLISION_PALETTE_REF}) instead of an `.estileset`. It renders
+ * nothing (no atlas); you paint solid / slope / one-way / sensor cells over a background
+ * image and they become static colliders at Play, shown live via the tile-collision
+ * overlay. Same create pipeline as a tileset map — the sentinel ref just routes the runtime
+ * to the fixed palette. Seeds a 32px grid (editable in the Inspector).
+ */
+export async function createCollisionLayer(): Promise<void> {
+  await createFromSource({
+    id: 'collision-layer',
+    label: 'Collision Layer',
+    category: '2D',
+    icon: Shapes,
+    build: () => tilemapPrefab('Collision', { x: 32, y: 32 }, COLLISION_PALETTE_REF),
+    afterCreate: (_ctx, rootId) => {
+      useSelection.getState().select(rootId);
+      // Start on the solid brush (palette gid 1) with the brush tool, painter open.
+      useTilemapPaint.getState().setBrushTile(1);
+      useTilemapPaint.getState().setTool('brush');
+      dockApi.openSidePanel('tilemap', 'tilemap', t('panel.tilemap'), 'left', 300);
+      Toasts.push(t('tile.toast.collisionCreated'), 'info');
+    },
+  }, { parent: null });
 }

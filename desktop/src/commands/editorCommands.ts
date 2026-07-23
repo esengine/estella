@@ -172,6 +172,16 @@ commands.register({
   },
 });
 commands.register({
+  id: 'tilemap.newCollisionLayer',
+  label: t('cmd.tilemap.newCollisionLayer'),
+  category: t('cat.entity'),
+  isEnabled: () => !!ProjectStore.getSnapshot(),
+  // An obstacle grid over any background: a TilemapLayer painting the built-in collision
+  // palette (no tileset). Lazy import — createTilemap pulls a large graph (dockApi/stores)
+  // that would cycle back through the command registry at module init.
+  run: () => { void import('@/tilemap/createTilemap').then((m) => m.createCollisionLayer()); },
+});
+commands.register({
   id: 'entity.duplicate',
   label: t('cmd.entity.duplicate'),
   category: t('cat.entity'),

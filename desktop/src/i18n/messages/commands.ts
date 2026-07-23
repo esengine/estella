@@ -27,6 +27,7 @@ export const commandMessages = defineMessages({
     // — Entity —
     'cmd.entity.add': { en: 'Add Entity', zh: '添加实体' },
     'cmd.tilemap.new': { en: 'New Tilemap', zh: '新建瓦片地图' },
+    'cmd.tilemap.newCollisionLayer': { en: 'New Collision Layer', zh: '新建碰撞层' },
     'cmd.entity.duplicate': { en: 'Duplicate', zh: '创建副本' },
     'cmd.entity.delete': { en: 'Delete', zh: '删除' },
     'cmd.entity.copy': { en: 'Copy', zh: '复制' },

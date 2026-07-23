@@ -8,7 +8,10 @@
  *          `TilemapPlugin`'s private per-entity map (the plugin resolves for the running
  *          world; the editor re-resolves independently for a picture).
  */
-import { resolveTilesetModel, type TilesetModel, type ResolvedTileset } from 'esengine';
+import {
+  resolveTilesetModel, isCollisionPaletteRef, buildCollisionPaletteModel,
+  type TilesetModel, type ResolvedTileset,
+} from 'esengine';
 import { SceneModel } from '@/engine/SceneModel';
 import { ProjectStore } from '@/project/ProjectStore';
 import { loadTilesetAsset } from '@/tileset/loadTileset';
@@ -43,6 +46,11 @@ function imageHeight(url: string): Promise<number> {
  * (firstId 1) never touch the network. Returns null when nothing resolves.
  */
 export async function loadLayerTilesetModel(refs: string[]): Promise<TilesetModel | null> {
+  // A collision (obstacle) layer paints from the fixed built-in palette, not an
+  // `.estileset` — resolve it to the SAME model the runtime installs, so the overlay
+  // draws exactly the colliders that will spawn.
+  if (isCollisionPaletteRef(refs)) return buildCollisionPaletteModel();
+
   const list: ResolvedTileset[] = [];
   for (const ref of refs) {
     const path = ProjectStore.assetInfo(ref)?.path;

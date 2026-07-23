@@ -15,7 +15,7 @@ import {
   FlipHorizontal, FlipVertical, RotateCw, Mountain, Plus, X, MousePointer2, Dices,
   Eye, EyeOff, Lock, Unlock, Bookmark,
 } from 'lucide-react';
-import { encodeTile, TilemapAPI, type TilesetAsset, type TileStamp } from 'esengine';
+import { encodeTile, TilemapAPI, isCollisionPaletteRef, type TilesetAsset, type TileStamp } from 'esengine';
 import { useTilemapPaint, type PaintTool, type PaletteTileset, type AtlasInfo } from '@/store/tilemapPaintStore';
 import { useSelection } from '@/store/selectionStore';
 import { SceneModel } from '@/engine/SceneModel';
@@ -32,6 +32,7 @@ import { TilesetDocument } from '@/tileset/TilesetDocument';
 import { useTilesetView } from '@/tileset/tilesetView';
 import { createTilemapFromTileset } from '@/tilemap/createTilemap';
 import { layerTilesetRefs } from '@/tilemap/layerTilesetModel';
+import { CollisionBrushPalette } from '@/panels/CollisionBrushPalette';
 import { planTilesetRemovalFromBlob } from '@/tilemap/tilesetRemoval';
 import { confirm } from '@/components/confirm';
 import { AnimPreview, tileThumbStyle, type TileAtlas } from '@/tools/tileThumb';
@@ -102,6 +103,9 @@ export function TilemapPainter() {
   const selectedId = useSelection((s) => s.selectedId);
   const hasTilemap = selectedId != null
     && !!SceneModel.entityBySource(selectedId)?.components.some((c) => c.type === 'TilemapLayer');
+  // A collision (obstacle) layer references the built-in collision palette, not an
+  // `.estileset` — the palette below swaps the texture atlas for the fixed brush set.
+  const collisionLayer = selectedId != null && isCollisionPaletteRef(layerTilesetRefs(selectedId));
   // Bumped after add/remove tileset: the layer's `tilesetAssets` changed but selectedId
   // did not, so the palette-load effect below wouldn't otherwise re-read the new list.
   const [reloadKey, setReloadKey] = useState(0);
@@ -561,7 +565,8 @@ export function TilemapPainter() {
           <Dices size={15} />
         </IconButton>
       </div>
-      {tool !== 'terrain' && (
+      {collisionLayer && <CollisionBrushPalette />}
+      {tool !== 'terrain' && !collisionLayer && (
         <div className="tp-stamps">
           <IconButton size="sm" title={t('tile.saveStamp')} onClick={() => updateStamps(addStamp(savedStamps, stamp))}>
             <Bookmark size={13} />
@@ -589,8 +594,9 @@ export function TilemapPainter() {
         </div>
       )}
       {/* Tileset tabs stay in every tool — the terrain list below is the ACTIVE
-          tileset's, so switching tilesets is legitimate mid-terrain-paint. */}
-      <div className="tp-tilesets">
+          tileset's, so switching tilesets is legitimate mid-terrain-paint. A collision
+          layer has no `.estileset` tabs (it paints the built-in palette above). */}
+      {!collisionLayer && <div className="tp-tilesets">
           {tilesets.map((ts, i) => (
             <span
               key={ts.path}
@@ -633,8 +639,8 @@ export function TilemapPainter() {
               </Popover>
             )}
           </div>
-      </div>
-      {tool === 'terrain' && (
+      </div>}
+      {tool === 'terrain' && !collisionLayer && (
         <div className="tp-terrains">
           {(asset?.terrains ?? []).length === 0 ? (
             <div className="tp-warn">
@@ -685,8 +691,9 @@ export function TilemapPainter() {
         </div>
       )}
       {/* The atlas palette stays in every tool — hiding it in terrain mode read
-          as "my tiles are gone"; picking a tile here switches back to the brush. */}
-      {texUrl && (
+          as "my tiles are gone"; picking a tile here switches back to the brush. A
+          collision layer replaced it with the brush palette above. */}
+      {!collisionLayer && texUrl && (
             <div className="tp-palbar">
               {/* Active-brush preview lives with the palette it's picked from + the zoom it
                   scales with — always visible (the tools row above no longer steals it). */}
@@ -698,6 +705,7 @@ export function TilemapPainter() {
               <ZoomControl zoom={zoom} onZoom={setZoom} onFit={fitZoom} fitTitle={t('tile.fitWidth')} />
             </div>
           )}
+          {!collisionLayer && (
           <div
             className="tp-palette"
             ref={paletteRef}
@@ -725,6 +733,7 @@ export function TilemapPainter() {
               </div>
             )}
           </div>
+          )}
     </div>
   );
 }

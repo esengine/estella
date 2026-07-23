@@ -112,6 +112,7 @@ export function MenuBar() {
       items: [
         cmdItem('entity.add'),
         cmdItem('tilemap.new'),
+        cmdItem('tilemap.newCollisionLayer'),
         { sep: true },
         cmdItem('entity.duplicate'),
         cmdItem('entity.delete'),
