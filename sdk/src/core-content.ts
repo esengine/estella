@@ -73,6 +73,7 @@ export {
     folderGroupMode,
     withFolderGroup,
     withActiveRemoteRoot,
+    ASSET_GROUP_MODES,
     type AssetGroupMode,
     type AssetGroupDef,
     type BuildProfile,

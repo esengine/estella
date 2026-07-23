@@ -16,9 +16,13 @@
  */
 import type { BundleMode } from './AddressableManifest';
 
-/** User-facing delivery mode for a group. `subpackage` maps to the manifest's
- *  `lazy` bundle mode; `local`/`remote` map to themselves. */
-export type AssetGroupMode = 'local' | 'subpackage' | 'remote';
+/** The user-facing delivery modes for a group, as a runtime list so callers
+ *  (the editor's Delivery menu / badges) enumerate them from one source instead
+ *  of hand-repeating the members. `subpackage` maps to the manifest's `lazy`
+ *  bundle mode; `local`/`remote` map to themselves. */
+export const ASSET_GROUP_MODES = ['local', 'subpackage', 'remote'] as const;
+
+export type AssetGroupMode = typeof ASSET_GROUP_MODES[number];
 
 /** One authored group: every asset under `folder` (recursively) joins it. */
 export interface AssetGroupDef {

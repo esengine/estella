@@ -28,6 +28,7 @@ import { createAnimatedSpriteFromClip } from '@/flipbook/createAnimatedSprite';
 import { createTilemapFromTileset } from '@/tilemap/createTilemap';
 import { createMaterialInstance } from '@/material/openMaterial';
 import { NEW_ASSET_TYPES, type CreateAsset } from '@/project/newAssetTypes';
+import { ASSET_GROUP_MODES, type AssetGroupMode } from 'esengine';
 import { onAssetReveal } from '@/project/assetReveal';
 import { fsRefresh } from '@/project/fsWatch';
 import { t, type MsgKey } from '@/i18n';
@@ -39,6 +40,16 @@ const TILE_MAX = 152;
 const TILE_KEY = 'estella.content.tileSize';
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
+// Per-delivery-mode presentation (menu label + corner badge; `local` has none).
+// Keyed by AssetGroupMode so adding a mode to the SDK's ASSET_GROUP_MODES forces
+// a matching entry here — the vocabulary is single-sourced in the SDK, only its
+// editor-side presentation lives here.
+const DELIVERY_MODE_META: Record<AssetGroupMode, { labelKey: MsgKey; badge?: { color: string; textKey: MsgKey } }> = {
+  local: { labelKey: 'cb.deliveryLocal' },
+  subpackage: { labelKey: 'cb.deliverySubpackage', badge: { color: '#8a5cf6', textKey: 'cb.badgeSubpackage' } },
+  remote: { labelKey: 'cb.deliveryRemote', badge: { color: '#2f6df6', textKey: 'cb.badgeRemote' } },
+};
 
 // Lazily read a project-relative directory (or [] when null / no project / error),
 // re-reading whenever the path changes or an fs mutation bumps fsRefresh.
@@ -1020,8 +1031,8 @@ export function ContentBrowser() {
       ...(entry.isDir
         ? [{
             label: t('cb.delivery'),
-            children: (['local', 'subpackage', 'remote'] as const).map((m) => ({
-              label: m === 'local' ? t('cb.deliveryLocal') : m === 'subpackage' ? t('cb.deliverySubpackage') : t('cb.deliveryRemote'),
+            children: ASSET_GROUP_MODES.map((m) => ({
+              label: t(DELIVERY_MODE_META[m].labelKey),
               checked: ProjectStore.folderDeliveryMode(path) === m,
               onClick: () => void ProjectStore.setFolderDeliveryMode(path, m),
             })),
@@ -1228,13 +1239,13 @@ export function ContentBrowser() {
                           <AssetIcon type={type} size={30} />
                         )}
                         {!it.isDir && TYPE_CODE[type] && <span className="badge">{TYPE_CODE[type]}</span>}
-                        {deliv !== 'local' && (
+                        {DELIVERY_MODE_META[deliv].badge && (
                           <span
                             className="badge"
-                            style={{ background: deliv === 'remote' ? '#2f6df6' : '#8a5cf6', color: '#fff' }}
-                            title={deliv === 'remote' ? t('cb.deliveryRemote') : t('cb.deliverySubpackage')}
+                            style={{ background: DELIVERY_MODE_META[deliv].badge!.color, color: '#fff' }}
+                            title={t(DELIVERY_MODE_META[deliv].labelKey)}
                           >
-                            {deliv === 'remote' ? t('cb.badgeRemote') : t('cb.badgeSubpackage')}
+                            {t(DELIVERY_MODE_META[deliv].badge!.textKey)}
                           </span>
                         )}
                         {path === project?.defaultScene && (
