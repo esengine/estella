@@ -138,11 +138,11 @@ async function boot(): Promise<void> {
       /** Drive a hot update against a served (CDN) manifest: fetch + diff + apply.
        *  Rebinding the visuals is the game's job (via Assets.onInvalidate); a
        *  driver settles frames after this before re-capturing. */
-      async applyRemoteUpdate(manifestUrl: string, remoteRoot?: string): Promise<{ changed: number }> {
+      async applyRemoteUpdate(manifestUrl: string, remoteRoot?: string): Promise<{ changed: number; applied: boolean; failed: number }> {
         const assets = app.getResource(Assets);
         const plan = await assets.checkForUpdate({ manifestUrl, remoteRoot });
-        await assets.applyUpdate();
-        return { changed: plan.changedAssets.length };
+        const result = await assets.applyUpdate();
+        return { changed: plan.changedAssets.length, applied: result.ok, failed: result.failed.length };
       },
     };
   }

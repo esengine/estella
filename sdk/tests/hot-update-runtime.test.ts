@@ -5,6 +5,11 @@ import { Assets } from '../src/asset/Assets';
 import { Catalog } from '../src/asset/Catalog';
 import type { AddressableManifest } from '../src/asset/AddressableManifest';
 import type { Backend } from '../src/asset/Backend';
+import { contentHashHex } from '../src/asset/contentHash';
+
+// The bytes backendServing.fetchBinary returns (8 zero bytes) → the content hash a
+// candidate manifest must claim for the integrity check to pass.
+const REMOTE_HASH = contentHashHex(new Uint8Array(8));
 
 const mockModule = {
     _malloc: vi.fn(() => 0),
@@ -112,28 +117,61 @@ describe('Assets.checkForUpdate / applyUpdate', () => {
         expect(assets.remoteRoot).toBe('https://cdn/v1');
     });
 
-    it('applyUpdate swaps the manifest+root, downloads changed assets, and notifies listeners', async () => {
-        const assets = createAssets(backendServing(cdnManifest('zzzz', 'rev-2')));
+    it('applyUpdate downloads+verifies, then atomically swaps manifest+root and notifies', async () => {
+        const backend = backendServing(cdnManifest(REMOTE_HASH, 'rev-2'));
+        const assets = createAssets(backend);
         assets.setManifest(cdnManifest('aaaa', 'rev-1'));
         assets.setRemoteRoot('https://cdn/v1');
-        const spy = vi.spyOn(assets, 'loadTexture')
-            .mockResolvedValue({ handle: 2, width: 1, height: 1 } as any);
         const rebinds: string[] = [];
         assets.onInvalidate((ref) => rebinds.push(ref));
 
         await assets.checkForUpdate({ manifestUrl: 'asset-manifest.json', remoteRoot: 'https://cdn/v2' });
         const progress: [number, number][] = [];
-        await assets.applyUpdate((loaded, total) => progress.push([loaded, total]));
+        const result = await assets.applyUpdate((loaded, total) => progress.push([loaded, total]));
 
+        expect(result).toEqual({ ok: true, updated: 1, failed: [] });
         // Manifest + root are now the update's.
         expect(assets.getManifest()?.revision()).toBe('rev-2');
         expect(assets.remoteRoot).toBe('https://cdn/v2');
-        // The changed asset was fetched from the NEW cdn root.
-        expect(spy).toHaveBeenCalledWith('https://cdn/v2/assets/zzzz.png');
+        // The changed asset was downloaded + verified from the NEW cdn root.
+        expect(backend.fetchBinary).toHaveBeenCalledWith(`https://cdn/v2/assets/${REMOTE_HASH}.png`);
         // A renderer bound to the changed asset's stable key is told to rebind.
         expect(rebinds).toEqual(['uuid-1']);
         expect(progress[0]).toEqual([0, 1]);
         expect(progress[progress.length - 1]).toEqual([1, 1]);
+    });
+
+    it('applyUpdate rolls back (manifest unchanged, no rebind) on an integrity mismatch', async () => {
+        // The candidate manifest claims a hash the served bytes do not match.
+        const assets = createAssets(backendServing(cdnManifest('deadbeefdeadbeef', 'rev-2')));
+        assets.setManifest(cdnManifest('aaaa', 'rev-1'));
+        assets.setRemoteRoot('https://cdn/v1');
+        const rebinds: string[] = [];
+        assets.onInvalidate((ref) => rebinds.push(ref));
+
+        await assets.checkForUpdate({ manifestUrl: 'asset-manifest.json', remoteRoot: 'https://cdn/v2' });
+        const result = await assets.applyUpdate();
+
+        expect(result.ok).toBe(false);
+        expect(result.failed).toEqual([{ path: 'assets/deadbeefdeadbeef.png', reason: 'integrity' }]);
+        // Rolled back: the old manifest + root stay active and nobody rebound.
+        expect(assets.getManifest()?.revision()).toBe('rev-1');
+        expect(assets.remoteRoot).toBe('https://cdn/v1');
+        expect(rebinds).toEqual([]);
+    });
+
+    it('applyUpdate rolls back when a download fails', async () => {
+        const backend = backendServing(cdnManifest(REMOTE_HASH, 'rev-2'));
+        (backend.fetchBinary as any).mockRejectedValue(new Error('network'));
+        const assets = createAssets(backend);
+        assets.setManifest(cdnManifest('aaaa', 'rev-1'));
+
+        await assets.checkForUpdate({ manifestUrl: 'asset-manifest.json', remoteRoot: 'https://cdn/v2' });
+        const result = await assets.applyUpdate();
+
+        expect(result.ok).toBe(false);
+        expect(result.failed[0].reason).toBe('fetch');
+        expect(assets.getManifest()?.revision()).toBe('rev-1'); // unchanged
     });
 
     it('applyUpdate is a no-op without a prior checkForUpdate', async () => {
@@ -148,11 +186,10 @@ describe('Assets.checkForUpdate / applyUpdate', () => {
 
 describe('Assets.restorePersistedUpdate', () => {
     it('persists an applied update and restores it into a fresh Assets', async () => {
-        const backend = backendServing(cdnManifest('zzzz', 'rev-2'));
+        const backend = backendServing(cdnManifest(REMOTE_HASH, 'rev-2'));
         const first = createAssets(backend);
         first.setManifest(cdnManifest('aaaa', 'rev-1'));
         first.setRemoteRoot('https://cdn/v1');
-        vi.spyOn(first, 'loadTexture').mockResolvedValue({ handle: 1, width: 1, height: 1 } as any);
 
         // Arm persistence (nothing stored yet → false), then update.
         expect(first.restorePersistedUpdate('hotupdate:demo')).toBe(false);

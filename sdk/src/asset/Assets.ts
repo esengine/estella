@@ -4,6 +4,7 @@ import type { Backend } from './Backend';
 import { Catalog, type AtlasFrameInfo } from './Catalog';
 import { ManifestModel, normalizeBundleMode, type AddressableManifest } from './AddressableManifest';
 import { diffManifests, type UpdatePlan, type AssetChange } from './hotUpdate';
+import { contentHashHex } from './contentHash';
 import { platformLoadSubpackage, platformGetStorageItem, platformSetStorageItem } from '../platform';
 import type {
     AssetLoader, LoadContext, TextureResult, SpineResult,
@@ -51,6 +52,22 @@ export interface CheckForUpdateOptions {
     /** CDN root the candidate's `remote`-group assets are served from; remembered
      *  and applied by {@link Assets.applyUpdate}. Defaults to the current root. */
     remoteRoot?: string;
+}
+
+/** One asset {@link Assets.applyUpdate} could not deliver: `fetch` (download
+ *  failed) or `integrity` (bytes' content hash ≠ the manifest's). */
+export interface AssetDownloadFailure {
+    path: string;
+    reason: 'fetch' | 'integrity';
+}
+
+/** Outcome of {@link Assets.applyUpdate} — atomic: `ok` only when every changed
+ *  asset downloaded + verified and the manifest was swapped. On failure nothing
+ *  is applied (`updated: 0`) and `failed` lists why (rollback). */
+export interface ApplyUpdateResult {
+    ok: boolean;
+    updated: number;
+    failed: AssetDownloadFailure[];
 }
 
 /** The manifest + root staged by checkForUpdate, awaiting applyUpdate. */
@@ -578,13 +595,13 @@ export class Assets {
         this.remoteRoot_ = url ? url.replace(/\/+$/, '') : undefined;
     }
 
-    /** Absolute url of a `remote`-group asset. An already-absolute manifest path
-     *  (a fully-qualified CDN url) passes through; otherwise it joins the remote
-     *  root. With no root set the path returns as-is (same-origin fallback). */
-    private remoteUrlFor_(path: string): string {
+    /** Absolute url of a `remote`-group asset against `root` (default the active
+     *  remote root). An already-absolute manifest path (a fully-qualified CDN url)
+     *  passes through; with no root the path returns as-is (same-origin fallback). */
+    private remoteUrlFor_(path: string, root: string | undefined = this.remoteRoot_): string {
         if (/^[a-z][a-z0-9+.-]*:\/\//i.test(path)) return path;
-        if (!this.remoteRoot_) return path;
-        return `${this.remoteRoot_}/${path.replace(/^\/+/, '')}`;
+        if (!root) return path;
+        return `${root.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
     }
 
     /**
@@ -608,56 +625,74 @@ export class Assets {
     }
 
     /**
-     * Apply the update staged by the last {@link checkForUpdate}: point remote
-     * resolution at its root, make its manifest active, download the changed
-     * (content-addressed) assets from the CDN with progress, notify live handles
-     * bound to a changed asset to rebind (via the `onInvalidate` channel), and
-     * persist the manifest so a returning player boots on it. No-op with nothing
-     * staged.
+     * Apply the update staged by the last {@link checkForUpdate}, ATOMICALLY.
+     * Phase 1 downloads AND integrity-verifies every changed (content-addressed)
+     * asset — bytes are hashed and checked against the manifest's `contentHash`,
+     * so a corrupted / tampered CDN response is caught. Only if ALL succeed does
+     * phase 2 commit: swap the active manifest + root, rebind live handles (via
+     * `onInvalidate`), and persist. If any asset fails to download or fails its
+     * hash check, NOTHING is swapped — the old manifest stays active (rollback)
+     * and the failures are returned. No-op with nothing staged.
      */
-    async applyUpdate(onProgress?: (loaded: number, total: number) => void): Promise<void> {
+    async applyUpdate(onProgress?: (loaded: number, total: number) => void): Promise<ApplyUpdateResult> {
         const pending = this.pendingUpdate_;
         if (!pending) {
             log.warn('asset', 'applyUpdate() called with no pending update — call checkForUpdate first');
             onProgress?.(0, 0);
-            return;
+            return { ok: false, updated: 0, failed: [] };
         }
-        // Swap FIRST so changed assets resolve to their new remote urls, then warm
-        // them. Content addressing makes the download purely additive to the cache.
-        if (pending.remoteRoot != null) this.setRemoteRoot(pending.remoteRoot);
-        this.setManifest(pending.model);
-
         const changed = pending.plan.changedAssets;
+        const root = pending.remoteRoot ?? undefined;
+
+        // Phase 1 — download + verify EVERY changed asset WITHOUT touching the
+        // active manifest. Content-addressed, so these are brand-new urls (nothing
+        // is overwritten); any failure here leaves the old manifest active = rollback.
+        const failed: AssetDownloadFailure[] = [];
         let done = 0;
         onProgress?.(0, changed.length);
         const tasks = changed.map((c) => async (): Promise<void> => {
-            try {
-                await this.downloadChangedAsset_(c);
-            } catch (e) {
-                log.warn('asset', `applyUpdate: failed to fetch ${c.path}`, e);
-            }
+            const reason = await this.fetchAndVerify_(c, pending.model, root);
+            if (reason) failed.push({ path: c.path, reason });
         });
         await runWithConcurrency(tasks, DEFAULT_PRELOAD_CONCURRENCY, () => {
             onProgress?.(++done, changed.length);
         });
 
-        // Rebind: tell renderers holding a stale handle for a changed asset to
-        // re-resolve it against the now-active manifest → the freshly-warmed
-        // content. Old, differently-keyed handles orphan and release by refcount.
-        for (const c of changed) this.fireInvalidate_(c.key);
+        if (failed.length > 0) {
+            log.warn('asset', `applyUpdate: ${failed.length}/${changed.length} asset(s) failed — update rolled back (manifest unchanged)`);
+            return { ok: false, updated: 0, failed };
+        }
 
+        // Phase 2 — commit atomically: swap root + manifest, rebind, persist. Renderers
+        // holding a stale handle for a changed asset re-resolve against the now-active
+        // manifest (the freshly-fetched content); old handles orphan + release by refcount.
+        if (pending.remoteRoot != null) this.setRemoteRoot(pending.remoteRoot);
+        this.setManifest(pending.model);
+        for (const c of changed) this.fireInvalidate_(c.key);
         this.persistActiveManifest_(pending.manifestJson);
         this.pendingUpdate_ = null;
+        return { ok: true, updated: changed.length, failed: [] };
     }
 
-    /** Warm one changed asset from its group's delivery source (remote → CDN url,
-     *  else the normal resolved path) through its typed loader. */
-    private downloadChangedAsset_(c: AssetChange): Promise<unknown> {
-        const group = this.manifestModel_?.group(c.group);
+    /** Download one changed asset's bytes from its delivery source (remote → CDN
+     *  url against `root`, else the normal resolved path) and verify the content
+     *  hash. Null on success, else the failure reason. Uses the PENDING manifest +
+     *  root — phase 1 runs before the swap. */
+    private async fetchAndVerify_(
+        c: AssetChange, model: ManifestModel, root: string | undefined,
+    ): Promise<AssetDownloadFailure['reason'] | null> {
+        const group = model.group(c.group);
         const remote = group != null && normalizeBundleMode(group.bundleMode) === 'remote';
-        const path = remote ? this.remoteUrlFor_(c.path) : this.resolveLoadPath_(c.path);
-        const load = this.typedLoadFor_(path, c.type);
-        return load ? load() : Promise.resolve();
+        const path = remote ? this.remoteUrlFor_(c.path, root) : this.resolveLoadPath_(c.path);
+        try {
+            const buf = await this.backend.fetchBinary(this.backend.resolveUrl(path));
+            if (c.contentHash && contentHashHex(new Uint8Array(buf)) !== c.contentHash) {
+                return 'integrity';
+            }
+            return null;
+        } catch {
+            return 'fetch';
+        }
     }
 
     /**
