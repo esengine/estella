@@ -350,7 +350,9 @@ always matches what a native input would do.
 **IME / CJK input** works: the field drives a hidden native `<textarea>`, so a
 Chinese/Japanese/Korean composition renders **live in the field** (the preedit
 string shows at the caret as you type) and only fires `change` once the
-composition commits — the same behavior as a native input.
+composition commits — the same behavior as a native input. The textarea tracks
+the caret's on-screen position, so the OS **candidate window pops up at the
+caret**, not in a screen corner.
 
 A **`multiline`** field (Enter inserts a newline) stacks its lines from the top;
 the caret position, click-to-place and within-line selection track the

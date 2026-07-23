@@ -12,7 +12,7 @@
 import { describe, it, expect } from 'vitest';
 import {
     textFieldDisplay, maskedPrefix, fieldSelection, nearestCaretIndex,
-    splitLines, caretLineCol, lineSelections,
+    splitLines, caretLineCol, lineSelections, imeAnchorCss,
 } from '../src/ui/text/text-input-view';
 
 const BULLET = '●';
@@ -165,5 +165,28 @@ describe('lineSelections', () => {
 
     it('an empty selection yields no spans', () => {
         expect(lineSelections('abc', 2, 2)).toEqual([]);
+    });
+});
+
+describe('imeAnchorCss', () => {
+    it('flips GL bottom-up device px into top-down CSS px (dpr 1)', () => {
+        // screenH 600, a point 100px up from the bottom → 500px down from the top.
+        expect(imeAnchorCss(200, 100, 600, 1)).toEqual({ left: 200, top: 500 });
+    });
+
+    it('divides by the device pixel ratio', () => {
+        expect(imeAnchorCss(400, 200, 1200, 2)).toEqual({ left: 200, top: 500 });
+    });
+
+    it('is the exact inverse of the hit-test mapping (mouseX*dpr, screenH − mouseY*dpr)', () => {
+        const cssX = 137, cssY = 88, screenH = 600, dpr = 1.5;
+        const glX = cssX * dpr, glY = screenH - cssY * dpr;
+        const back = imeAnchorCss(glX, glY, screenH, dpr);
+        expect(back.left).toBeCloseTo(cssX, 6);
+        expect(back.top).toBeCloseTo(cssY, 6);
+    });
+
+    it('guards a zero dpr', () => {
+        expect(imeAnchorCss(200, 100, 600, 0)).toEqual({ left: 200, top: 500 });
     });
 });

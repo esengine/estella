@@ -24,8 +24,10 @@ import { SdfTextRenderer } from './text-renderer';
 import { measureWidth } from './layout';
 import {
     textFieldDisplay, maskedPrefix, fieldSelection, nearestCaretIndex,
-    splitLines, caretLineCol, lineSelections, type TextFieldDisplay,
+    splitLines, caretLineCol, lineSelections, imeAnchorCss, type TextFieldDisplay,
 } from './text-input-view';
+import { uiWorldToScreen } from '../util/ui-pick';
+import { platformDevicePixelRatio } from '../../platform';
 import { CURSOR_BLINK_INTERVAL, TEXT_INPUT_LINE_HEIGHT_RATIO } from '../util/constants';
 import { SystemLabel, PluginName } from '../../systemLabels';
 import { log } from '../../logger';
@@ -275,6 +277,33 @@ export class TextInputPlugin implements Plugin {
             textarea.blur();
         }
 
+        /** Park the hidden textarea off-screen (no field focused). */
+        function parkTextarea(): void {
+            if (textarea.style.left !== '-9999px') {
+                textarea.style.left = '-9999px';
+                textarea.style.top = '-9999px';
+            }
+        }
+
+        /** Move the hidden textarea onto the caret's on-screen position so the OS
+         *  IME candidate window pops just under the caret, not at the screen
+         *  corner. `caretBottom` is the caret's bottom edge in field-local px
+         *  (y-down from the box top). */
+        function positionTextareaAtCaret(entity: Entity, caretX: number, caretBottom: number): void {
+            const cam = app.getResource(UICameraInfo) as UICameraData | undefined;
+            if (!cam || !cam.valid || !world.has(entity, Transform)) return;
+            const tr = world.get(entity, Transform) as TransformData;
+            const w = getUINodeWidth(entity);
+            const h = getUINodeHeight(entity);
+            // Box is centered on its Transform (pivot 0.5): left/top edges from it.
+            const worldX = (tr.worldPosition.x - w / 2) + caretX;
+            const worldY = (tr.worldPosition.y + h / 2) - caretBottom; // world y-up
+            const scr = uiWorldToScreen(cam, worldX, worldY);
+            const css = imeAnchorCss(scr.x, scr.y, cam.screenH, platformDevicePixelRatio());
+            textarea.style.left = Math.round(css.left) + 'px';
+            textarea.style.top = Math.round(css.top) + 'px';
+        }
+
         function resetCursorBlink(): void {
             cursorVisible = true;
             cursorTimer = 0;
@@ -349,6 +378,8 @@ export class TextInputPlugin implements Plugin {
                         cursorTimer -= CURSOR_BLINK_INTERVAL;
                         cursorVisible = !cursorVisible;
                     }
+                } else {
+                    parkTextarea();
                 }
 
                 // Reap the child entities of removed inputs.
@@ -435,6 +466,13 @@ export class TextInputPlugin implements Plugin {
                     syncTextChild(ch.text, ti, disp, innerW, scrollX);
                     // The blinking caret hides while a highlight is drawn.
                     syncCaretChild(ch.caret, ti, caretX, caretTop, ti.focused && cursorVisible && !sshow);
+
+                    // Anchor the hidden textarea at the caret so the IME candidate
+                    // window pops there. Not while composing — moving it mid-
+                    // composition would yank an open candidate window.
+                    if (editing && !composing) {
+                        positionTextareaAtCaret(entity, caretX, caretTop + ti.fontSize);
+                    }
                 }
             },
             { name: 'TextInputRenderSystem' }
@@ -571,12 +609,18 @@ function createHiddenTextarea(): HTMLTextAreaElement | null {
     }
     const textarea = document.createElement('textarea');
     textarea.style.position = 'fixed';
+    // Parked off-screen until a field focuses, then moved to the caret so the IME
+    // candidate window anchors there (see positionTextareaAtCaret). Invisible and
+    // click-through so the on-screen textarea never shows or steals a pointer.
     textarea.style.left = '-9999px';
     textarea.style.top = '-9999px';
     textarea.style.width = '1px';
     textarea.style.height = '1px';
     textarea.style.opacity = '0';
     textarea.style.zIndex = '-1';
+    textarea.style.pointerEvents = 'none';
+    textarea.style.border = '0';
+    textarea.style.padding = '0';
     textarea.autocomplete = 'off';
     textarea.setAttribute('autocorrect', 'off');
     textarea.setAttribute('autocapitalize', 'off');

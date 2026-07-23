@@ -88,6 +88,16 @@ export function nearestCaretIndex(prefixWidths: readonly number[], x: number): n
     return best;
 }
 
+/** Convert an on-screen point — device px, GL bottom-up, the space the UI
+ *  hit-test / camera use — into CSS pixels (top-down) for positioning the hidden
+ *  IME `<textarea>` so the OS candidate window anchors at the caret instead of
+ *  the screen corner. Inverse of the hit-test's `mouseX*dpr`, `screenH −
+ *  mouseY*dpr`. Pure. */
+export function imeAnchorCss(screenX: number, screenY: number, screenH: number, dpr: number): { left: number; top: number } {
+    const d = dpr > 0 ? dpr : 1;
+    return { left: screenX / d, top: (screenH - screenY) / d };
+}
+
 /** A visual line of a multiline value: its text (no trailing `\n`) and the
  *  index in the full value where it starts. */
 export interface VisualLine {
