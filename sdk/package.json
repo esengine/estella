@@ -8,7 +8,8 @@
     "./dist/index.js",
     "./dist/index.wechat.js",
     "./dist/index.wechat.cjs.js",
-    "./dist/index.node.js"
+    "./dist/index.node.js",
+    "./dist/index.native.js"
   ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -27,6 +28,10 @@
     "./node": {
       "import": "./dist/index.node.js",
       "types": "./dist/index.node.d.ts"
+    },
+    "./native": {
+      "import": "./dist/index.native.js",
+      "types": "./dist/index.native.d.ts"
     },
     "./spine": {
       "import": "./dist/spine/index.js",

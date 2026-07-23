@@ -15,7 +15,7 @@
  *            handle (WebAppOptions), not through this adapter. Out of scope here.
  *
  * @beta   Pre-1.0: the native host is unshipped; this contract will change as the
- *         shell (boot spike → full host) lands. Internal — not a public export yet.
+ *         shell (boot spike → full host) lands. Public via the `esengine/native` entry.
  */
 
 import type { ImageLoadResult, PlatformRequestOptions } from '../types';

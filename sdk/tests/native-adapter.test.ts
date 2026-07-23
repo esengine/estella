@@ -237,3 +237,23 @@ describe('node adapter surfaces (fail loud, no render host)', () => {
         await expect(nodeAdapter.loadImagePixels('x.png')).rejects.toThrow();
     });
 });
+
+describe('esengine/native entry', () => {
+    it('re-exports the native surface + the core SDK', async () => {
+        const native = await import('../src/index.native');
+        expect(typeof native.installNativePlatform).toBe('function');
+        expect(typeof native.NativePlatformAdapter).toBe('function');
+        // Core + webAppFactory are re-exported so a shell imports everything from here.
+        expect(typeof native.createWebApp).toBe('function');
+        expect(typeof native.createHeadlessApp).toBe('function');
+        expect(typeof native.App).toBe('function');
+    });
+
+    it('installNativePlatform from the entry activates the native platform', async () => {
+        const native = await import('../src/index.native');
+        native.installNativePlatform(makeBridge().bridge);
+        const { getPlatformType, isNative } = await import('../src/platform');
+        expect(getPlatformType()).toBe('native');
+        expect(isNative()).toBe(true);
+    });
+});

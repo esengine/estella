@@ -29,6 +29,7 @@ const ts = createRequire(join(SDK, '/'))('typescript');
 const ENTRIES = {
     'index': 'src/index.ts',
     'index.node': 'src/index.node.ts',
+    'index.native': 'src/index.native.ts',
     'physics': 'src/physics/index.ts',
     'spine': 'src/spine/index.ts',
     'wasm': 'src/wasm.ts',

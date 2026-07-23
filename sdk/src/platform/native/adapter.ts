@@ -11,8 +11,7 @@
  *          canvas/image methods fail loud rather than pretend.
  *
  * @beta   Pre-1.0: unshipped native host; the adapter surface will change with the
- *         shell. Internal — reachable via relative import (tests today, an
- *         `esengine/native` bundle entry when the shell lands).
+ *         shell. Public via the `esengine/native` entry.
  */
 
 import type {
