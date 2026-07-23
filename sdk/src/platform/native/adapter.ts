@@ -24,9 +24,8 @@ import type {
     PlatformCanvas,
     PlatformImage,
 } from '../types';
-import type { PlatformAudioBackend } from '../../audio/PlatformAudioBackend';
-import { NullAudioBackend } from '../../audio/NullAudioBackend';
 import { setPlatform } from '../base';
+import { createPrimaryPointer } from '../primaryPointer';
 import type { NativeBridge, NativeInputListener } from './bridge';
 
 export class NativePlatformAdapter implements PlatformAdapter {
@@ -106,33 +105,12 @@ export class NativePlatformAdapter implements PlatformAdapter {
 
     bindInputEvents(callbacks: InputEventCallbacks): void {
         this.inputCleanup_?.();
-        let primaryTouchId: number | null = null;
+        const pointer = createPrimaryPointer(callbacks);
         const listener: NativeInputListener = {
-            onTouchStart: (id, x, y) => {
-                callbacks.onTouchStart?.(id, x, y);
-                if (primaryTouchId === null) {
-                    primaryTouchId = id;
-                    callbacks.onPointerDown(0, x, y);
-                }
-            },
-            onTouchMove: (id, x, y) => {
-                callbacks.onTouchMove?.(id, x, y);
-                if (id === primaryTouchId) callbacks.onPointerMove(x, y);
-            },
-            onTouchEnd: (id) => {
-                callbacks.onTouchEnd?.(id);
-                if (id === primaryTouchId) {
-                    primaryTouchId = null;
-                    callbacks.onPointerUp(0);
-                }
-            },
-            onTouchCancel: (id) => {
-                callbacks.onTouchCancel?.(id);
-                if (id === primaryTouchId) {
-                    primaryTouchId = null;
-                    callbacks.onPointerUp(0);
-                }
-            },
+            onTouchStart: (id, x, y) => pointer.start(id, x, y),
+            onTouchMove: (id, x, y) => pointer.move(id, x, y),
+            onTouchEnd: (id) => pointer.end(id),
+            onTouchCancel: (id) => pointer.cancel(id),
             onKeyDown: (code) => callbacks.onKeyDown(code),
             onKeyUp: (code) => callbacks.onKeyUp(code),
         };
@@ -144,11 +122,9 @@ export class NativePlatformAdapter implements PlatformAdapter {
         this.inputCleanup_ = null;
     }
 
-    // Audio ships with the shell; a silent backend keeps sound-playing gameplay
-    // code running unchanged until then (same choice as the Node host).
-    createAudioBackend(): PlatformAudioBackend {
-        return new NullAudioBackend();
-    }
+    // No createAudioBackend: audio ships with the shell, so the adapter omits it
+    // and the audio system falls back to the silent Null backend (like the Node
+    // host and the optional video backend) until the shell provides one.
 
     getStorageItem(key: string): string | null {
         return this.bridge_.getStorageItem(key);

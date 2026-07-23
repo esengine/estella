@@ -22,7 +22,7 @@ import { ScreenScaling, DEFAULT_SCREEN_SCALING, SCREEN_FIT_OFF } from './ScreenS
 import { CameraDirector, createDirectorState, resolveMainPOV } from './CameraDirector';
 import { RenderPipeline } from '../renderPipeline';
 import { Renderer } from '../renderer';
-import { platformNow } from '../platform';
+import { platformNow, platformDevicePixelRatio } from '../platform';
 import { SceneManager } from '../sceneManager';
 import { ortho, perspective, invertViewZ, multiply, IDENTITY } from '../math/mat4';
 
@@ -446,7 +446,7 @@ export function cameraPlugin(
             app.insertResource(CameraDirector, createDirectorState());
 
             const viewport = getViewportSize ?? (() => {
-                const dpr = typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1;
+                const dpr = platformDevicePixelRatio();
                 return {
                     width: window.innerWidth * dpr,
                     height: window.innerHeight * dpr,

@@ -3,7 +3,7 @@
 import { defineResource } from './resource';
 import { defineSystem, Schedule } from './system';
 import type { App, Plugin } from './app';
-import { getPlatform } from './platform';
+import { getPlatform, platformUnbindInputEvents } from './platform';
 import type { GamepadSnapshot } from './platform/types';
 import { inputRouter } from './inputRouter';
 
@@ -371,10 +371,7 @@ export class InputPlugin implements Plugin {
     }
 
     cleanup(): void {
-        const platform = getPlatform() as any;
-        if (typeof platform.unbindInputEvents === 'function') {
-            platform.unbindInputEvents();
-        }
+        platformUnbindInputEvents();
     }
 }
 

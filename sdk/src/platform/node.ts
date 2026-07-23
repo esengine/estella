@@ -27,8 +27,6 @@ import type {
     PlatformSocket,
     PlatformSocketOptions,
 } from './types';
-import type { PlatformAudioBackend } from '../audio/PlatformAudioBackend';
-import { NullAudioBackend } from '../audio/NullAudioBackend';
 import { GameSocket } from '../net/GameSocket';
 
 function isUrl(path: string): boolean {
@@ -133,10 +131,6 @@ class NodePlatformAdapter implements PlatformAdapter {
 
     bindInputEvents(_callbacks: InputEventCallbacks): void {
         // No local input device — player input arrives over the network.
-    }
-
-    createAudioBackend(): PlatformAudioBackend {
-        return new NullAudioBackend();
     }
 
     createSocket(options: PlatformSocketOptions): PlatformSocket {

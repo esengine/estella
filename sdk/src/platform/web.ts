@@ -23,6 +23,7 @@ import type { PlatformAudioBackend } from '../audio/PlatformAudioBackend';
 import { WebVideoBackend } from '../video/WebVideoBackend';
 import type { PlatformVideoBackend } from '../video/PlatformVideoBackend';
 import { GameSocket } from '../net/GameSocket';
+import { createPrimaryPointer } from './primaryPointer';
 
 const WHEEL_LINE_HEIGHT = 16;
 
@@ -159,7 +160,7 @@ class WebPlatformAdapter implements PlatformAdapter {
         const onMouseUp = (e: Event) => {
             callbacks.onPointerUp((e as MouseEvent).button);
         };
-        let primaryTouchId: number | null = null;
+        const pointer = createPrimaryPointer(callbacks);
 
         const onTouchStart = (e: Event) => {
             e.preventDefault();
@@ -167,13 +168,7 @@ class WebPlatformAdapter implements PlatformAdapter {
             const rect = (el as HTMLElement).getBoundingClientRect();
             for (let i = 0; i < te.changedTouches.length; i++) {
                 const touch = te.changedTouches[i];
-                const x = touch.clientX - rect.left;
-                const y = touch.clientY - rect.top;
-                callbacks.onTouchStart?.(touch.identifier, x, y);
-                if (primaryTouchId === null) {
-                    primaryTouchId = touch.identifier;
-                    callbacks.onPointerDown(0, x, y);
-                }
+                pointer.start(touch.identifier, touch.clientX - rect.left, touch.clientY - rect.top);
             }
         };
         const onTouchMove = (e: Event) => {
@@ -182,35 +177,20 @@ class WebPlatformAdapter implements PlatformAdapter {
             const rect = (el as HTMLElement).getBoundingClientRect();
             for (let i = 0; i < te.changedTouches.length; i++) {
                 const touch = te.changedTouches[i];
-                const x = touch.clientX - rect.left;
-                const y = touch.clientY - rect.top;
-                callbacks.onTouchMove?.(touch.identifier, x, y);
-                if (touch.identifier === primaryTouchId) {
-                    callbacks.onPointerMove(x, y);
-                }
+                pointer.move(touch.identifier, touch.clientX - rect.left, touch.clientY - rect.top);
             }
         };
         const onTouchEnd = (e: Event) => {
             e.preventDefault();
             const te = e as TouchEvent;
             for (let i = 0; i < te.changedTouches.length; i++) {
-                const touch = te.changedTouches[i];
-                callbacks.onTouchEnd?.(touch.identifier);
-                if (touch.identifier === primaryTouchId) {
-                    primaryTouchId = null;
-                    callbacks.onPointerUp(0);
-                }
+                pointer.end(te.changedTouches[i].identifier);
             }
         };
         const onTouchCancel = (e: Event) => {
             const te = e as TouchEvent;
             for (let i = 0; i < te.changedTouches.length; i++) {
-                const touch = te.changedTouches[i];
-                callbacks.onTouchCancel?.(touch.identifier);
-                if (touch.identifier === primaryTouchId) {
-                    primaryTouchId = null;
-                    callbacks.onPointerUp(0);
-                }
+                pointer.cancel(te.changedTouches[i].identifier);
             }
         };
         const onWheel = (e: Event) => {

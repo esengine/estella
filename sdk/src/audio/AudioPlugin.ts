@@ -7,7 +7,7 @@ import { Res, Time, type TimeData } from '../resource';
 import { Audio, AudioAPI } from './Audio';
 import { AudioSource, AudioListener, type AudioSourceData, type AudioListenerData } from './AudioComponents';
 import { WorldTransform, type WorldTransformData } from '../component';
-import { getPlatform, platformOnMemoryWarning } from '../platform/base';
+import { platformCreateAudioBackend, platformOnMemoryWarning } from '../platform/base';
 import { calculateAttenuation, calculatePanning, type SpatialAudioConfig, AttenuationModel } from './SpatialAudio';
 import type { AudioHandle } from './PlatformAudioBackend';
 import { isEditor, isPlayMode } from '../env';
@@ -34,7 +34,7 @@ export class AudioPlugin implements Plugin {
     }
 
     build(app: App): void {
-        const backend = getPlatform().createAudioBackend();
+        const backend = platformCreateAudioBackend();
         const config = this.config_;
 
         backend.initialize({ initialPoolSize: config.initialPoolSize }).catch(err => {

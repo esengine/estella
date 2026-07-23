@@ -115,6 +115,10 @@ export interface MiniGameGlobal {
     offTouchStart(cb: (res: MiniGameTouchEvent) => void): void;
     offTouchMove(cb: (res: MiniGameTouchEvent) => void): void;
     offTouchEnd(cb: (res: MiniGameTouchEvent) => void): void;
+    // Optional: a cancelled gesture (system interruption). Present on WeChat/Douyin;
+    // guarded so a host without it still binds start/move/end.
+    onTouchCancel?(cb: (res: MiniGameTouchEvent) => void): void;
+    offTouchCancel?(cb: (res: MiniGameTouchEvent) => void): void;
 
     onKeyDown?(cb: (res: MiniGameKeyEvent) => void): void;
     onKeyUp?(cb: (res: MiniGameKeyEvent) => void): void;

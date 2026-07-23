@@ -261,12 +261,20 @@ export interface PlatformAdapter {
 
     bindInputEvents(callbacks: InputEventCallbacks, target?: unknown): void;
 
+    /** Tear down the listeners {@link bindInputEvents} registered. Optional — a
+     *  headless host that never binds input (node) omits it. */
+    unbindInputEvents?(): void;
+
     /** Poll connected gamepads for this frame. Optional — platforms without
      *  gamepad support (WeChat, headless) omit it and the input plugin skips
      *  gamepad polling entirely. */
     pollGamepads?(): GamepadSnapshot[];
 
-    createAudioBackend(): import('../audio/PlatformAudioBackend').PlatformAudioBackend;
+    /** Create the platform audio backend (WebAudio on web, the mini-game audio API
+     *  on WeChat). Optional — a host with no audio device (headless node, the
+     *  unshipped native shell) omits it and the audio system falls back to the
+     *  silent Null backend, exactly like {@link createVideoBackend}. */
+    createAudioBackend?(): import('../audio/PlatformAudioBackend').PlatformAudioBackend;
 
     /** Create the platform video backend: HTMLVideoElement on web, the wasm
      *  software decoder (videodec side module) on WeChat. The choice is a static

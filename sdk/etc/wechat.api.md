@@ -4426,7 +4426,7 @@ _physics_updateBodyProperties: (entityId: number, bodyType: number, gravityScale
 ```
 bindInputEvents: (callbacks: InputEventCallbacks, target?: unknown) => void
 clearStorage: (prefix: string) => void
-createAudioBackend: () => PlatformAudioBackend
+createAudioBackend: (() => PlatformAudioBackend) | undefined
 createCanvas: (width: number, height: number) => PlatformCanvas
 createImage: () => PlatformImage
 createSocket: ((options: PlatformSocketOptions) => PlatformSocket) | undefined
@@ -4448,6 +4448,7 @@ readFile: (path: string) => Promise<ArrayBuffer>
 readTextFile: (path: string) => Promise<string>
 removeStorageItem: (key: string) => void
 setStorageItem: (key: string, value: string) => void
+unbindInputEvents: (() => void) | undefined
 writeCacheFile: ((key: string, bytes: ArrayBuffer) => Promise<void>) | undefined
 ```
 

@@ -6,6 +6,8 @@
  */
 
 import type { PlatformAdapter } from './types';
+import type { PlatformAudioBackend } from '../audio/PlatformAudioBackend';
+import { NullAudioBackend } from '../audio/NullAudioBackend';
 
 // =============================================================================
 // Platform Instance (set by entry point)
@@ -132,8 +134,18 @@ export function platformNow(): number {
     return getPlatform().now();
 }
 
-export function platformCreateAudioBackend(): import('../audio/PlatformAudioBackend').PlatformAudioBackend {
-    return getPlatform().createAudioBackend();
+/** Tear down input listeners the adapter bound. No-op on a host that never bound
+ *  input (headless node) or before a platform is set (tests). */
+export function platformUnbindInputEvents(): void {
+    if (!isPlatformInitialized()) return;
+    getPlatform().unbindInputEvents?.();
+}
+
+/** The platform audio backend, or the silent Null backend when the host has no
+ *  audio device (headless node, the native shell before audio lands) — the single
+ *  place the "no real backend" default is decided, mirroring the video backend. */
+export function platformCreateAudioBackend(): PlatformAudioBackend {
+    return getPlatform().createAudioBackend?.() ?? new NullAudioBackend();
 }
 
 /** Download an on-demand subpackage by name (resolves immediately on platforms

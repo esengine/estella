@@ -37,6 +37,7 @@ export {
     platformCreateCanvas,
     platformCreateImage,
     platformNow,
+    platformUnbindInputEvents,
     platformCreateAudioBackend,
     platformLoadSubpackage,
     platformReadCacheFile,

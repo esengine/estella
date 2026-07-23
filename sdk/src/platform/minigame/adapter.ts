@@ -28,7 +28,8 @@ import type { PlatformAudioBackend } from '../../audio/PlatformAudioBackend';
 import type { PlatformVideoBackend, VideoBackendContext } from '../../video/PlatformVideoBackend';
 import { toBuildPath } from '../../assetTypes';
 import { log } from '../../logger';
-import type { MiniGameGlobal, MiniGameProfile, MiniGameFileSystemManager } from './api';
+import type { MiniGameGlobal, MiniGameProfile, MiniGameFileSystemManager, MiniGameTouchEvent } from './api';
+import { createPrimaryPointer } from '../primaryPointer';
 import { mgReadFileSync, mgReadTextFileSync, mgFileExistsSync } from './fs';
 import { mgLoadImagePixels } from './image';
 import { mgFetch } from './fetch';
@@ -142,38 +143,25 @@ export class MiniGamePlatformAdapter implements PlatformAdapter {
             g.onKeyUp?.(onKeyUp);
         }
 
-        let primaryTouchId: number | null = null;
+        const pointer = createPrimaryPointer(callbacks);
 
-        const onTouchStart = (res: { changedTouches: { identifier: number; clientX: number; clientY: number }[] }) => {
-            for (const touch of res.changedTouches) {
-                callbacks.onTouchStart?.(touch.identifier, touch.clientX, touch.clientY);
-                if (primaryTouchId === null) {
-                    primaryTouchId = touch.identifier;
-                    callbacks.onPointerDown(0, touch.clientX, touch.clientY);
-                }
-            }
+        const onTouchStart = (res: MiniGameTouchEvent) => {
+            for (const touch of res.changedTouches) pointer.start(touch.identifier, touch.clientX, touch.clientY);
         };
-        const onTouchMove = (res: { changedTouches: { identifier: number; clientX: number; clientY: number }[] }) => {
-            for (const touch of res.changedTouches) {
-                callbacks.onTouchMove?.(touch.identifier, touch.clientX, touch.clientY);
-                if (touch.identifier === primaryTouchId) {
-                    callbacks.onPointerMove(touch.clientX, touch.clientY);
-                }
-            }
+        const onTouchMove = (res: MiniGameTouchEvent) => {
+            for (const touch of res.changedTouches) pointer.move(touch.identifier, touch.clientX, touch.clientY);
         };
-        const onTouchEnd = (res: { changedTouches: { identifier: number; clientX: number; clientY: number }[] }) => {
-            for (const touch of res.changedTouches) {
-                callbacks.onTouchEnd?.(touch.identifier);
-                if (touch.identifier === primaryTouchId) {
-                    primaryTouchId = null;
-                    callbacks.onPointerUp(0);
-                }
-            }
+        const onTouchEnd = (res: MiniGameTouchEvent) => {
+            for (const touch of res.changedTouches) pointer.end(touch.identifier);
+        };
+        const onTouchCancel = (res: MiniGameTouchEvent) => {
+            for (const touch of res.changedTouches) pointer.cancel(touch.identifier);
         };
 
         g.onTouchStart(onTouchStart);
         g.onTouchMove(onTouchMove);
         g.onTouchEnd(onTouchEnd);
+        g.onTouchCancel?.(onTouchCancel);
 
         this.inputCleanup_ = () => {
             if (hasKeyboard) {
@@ -183,6 +171,7 @@ export class MiniGamePlatformAdapter implements PlatformAdapter {
             g.offTouchStart(onTouchStart);
             g.offTouchMove(onTouchMove);
             g.offTouchEnd(onTouchEnd);
+            g.offTouchCancel?.(onTouchCancel);
         };
     }
 
