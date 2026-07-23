@@ -88,6 +88,30 @@ CSS 属性一一对应:
   `gap` 和 `padding` 是普通数字(设计像素),不是 `Dimension`。
 </Aside>
 
+### flex 如何排布子项
+
+flex 容器沿一条**主轴**(由 `direction` 决定)排布子项,**交叉轴**与之垂直。`justifyContent`
+沿主轴分配子项,`alignItems` 沿交叉轴对齐它们,`wrap` 让放不下的一行溢出到下一行。下面每个
+枚举值都与它的 CSS flexbox 同名值完全一致——引擎底层跑的就是 Yoga,你会 flexbox 就会这个。
+
+**`direction`** —— 主轴,以及子项流动的顺序:
+
+![FlexDirection 的四个值:Row、RowReverse、Column、ColumnReverse](../../../../assets/guides/flex-direction.svg)
+
+**`justifyContent`** —— 子项沿**主轴**如何排布,以及多出来的空间如何分配:
+
+![JustifyContent 的六个值:Start、Center、End、SpaceBetween、SpaceAround、SpaceEvenly](../../../../assets/guides/flex-justify.svg)
+
+**`alignItems`** —— 子项沿**交叉轴**如何对齐。`Stretch`(默认)只拉伸交叉轴尺寸为 `auto` 的子项;
+有固定尺寸的子项保持不变:
+
+![AlignItems 的四个值:Start、Center、End、Stretch](../../../../assets/guides/flex-align.svg)
+
+**`wrap`** —— 当子项在主轴上放不下时,`NoWrap` 通过 `flexShrink` 把它们压缩进一行;`Wrap` 保持
+其尺寸、把溢出流到新行(这些行再由 `alignContent` 分配):
+
+![FlexWrap 的两个值:NoWrap 压进一行,Wrap 流到新行](../../../../assets/guides/flex-wrap.svg)
+
 ```typescript
 import { FlexContainer, FlexDirection, JustifyContent, AlignItems } from 'esengine';
 

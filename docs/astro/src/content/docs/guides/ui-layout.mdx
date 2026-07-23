@@ -97,6 +97,34 @@ CSS flexbox — each field maps 1:1 to a CSS property:
   `gap` and `padding` are plain numbers (design px), not `Dimension`s.
 </Aside>
 
+### How flex arranges children
+
+A flex container lays its children out along a **main axis** (chosen by `direction`),
+with the **cross axis** perpendicular to it. `justifyContent` distributes children
+along the main axis, `alignItems` lines them up across the cross axis, and `wrap` lets
+an over-full line spill onto the next. Every enum value below is exactly its
+CSS-flexbox namesake — the engine runs Yoga, so if you know flexbox, you know this.
+
+**`direction`** — the main axis, and the order children flow in:
+
+![The four FlexDirection values: Row, RowReverse, Column, ColumnReverse](../../../assets/guides/flex-direction.svg)
+
+**`justifyContent`** — how children pack along the **main axis**, and how any leftover
+space is shared out:
+
+![The six JustifyContent values: Start, Center, End, SpaceBetween, SpaceAround, SpaceEvenly](../../../assets/guides/flex-justify.svg)
+
+**`alignItems`** — how children line up across the **cross axis**. `Stretch` (the
+default) grows only the items whose cross-size is `auto`; items with a fixed size keep it:
+
+![The four AlignItems values: Start, Center, End, Stretch](../../../assets/guides/flex-align.svg)
+
+**`wrap`** — when the children don't fit the main axis, `NoWrap` shrinks them onto one
+line (via `flexShrink`); `Wrap` keeps their size and flows the overflow onto new lines
+(those lines are then distributed by `alignContent`):
+
+![The two FlexWrap values: NoWrap shrinks to one line, Wrap flows to new lines](../../../assets/guides/flex-wrap.svg)
+
 ```typescript
 import { FlexContainer, FlexDirection, JustifyContent, AlignItems } from 'esengine';
 
