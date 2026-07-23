@@ -143,6 +143,11 @@ setTextureParams(tex.handle, TextureFilter.Nearest, TextureFilter.Nearest,
 缩小/放大过滤分开,环绕逐轴设置。`tileSize` 平铺和 UV 滚动效果要无缝,靠的就是
 `Repeat`。
 
+![各环绕模式对 0–1 之外 UV 的采样:Repeat 平铺纹理,Clamp to edge 拉伸边缘像素,Mirror 每隔一块翻转](../../../../assets/guides/texture-wrap.png)
+
+*各环绕模式如何处理 0–1 之外的 UV(中间那块 = 纹理本身):**Repeat** 平铺,**Clamp to edge**
+拉伸边缘像素,**Mirror** 每隔一块镜像翻转。*
+
 <Aside type="tip">
   对像素画来说 `TextureFilter.Nearest` 只解决一半问题:它让**纹素**锐利,但相机
   停在小数位置时精灵仍会落在屏幕像素之间,移动时闪烁。把它和相机的

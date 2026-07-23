@@ -159,6 +159,12 @@ setTextureParams(tex.handle, TextureFilter.Nearest, TextureFilter.Nearest,
 surface — separate minification/magnification filters and per-axis wrap. `Repeat`
 is what makes `tileSize` tiling and UV-scroll effects seamless.
 
+![How each wrap mode samples UVs outside 0–1: Repeat tiles the texture, Clamp to edge extends the border pixel, Mirror flips every other tile](../../../assets/guides/texture-wrap.png)
+
+*What each wrap mode does with UVs outside the 0–1 range (centre tile = the
+texture): **Repeat** tiles it, **Clamp to edge** stretches the border pixel, and
+**Mirror** flips every other copy.*
+
 <Aside type="tip">
   For pixel art, `TextureFilter.Nearest` is half the story: it keeps **texels**
   crisp, but a camera at a fractional position still lands sprites between screen
