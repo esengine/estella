@@ -29,7 +29,7 @@
       "id": 2,
       "name": "Panel",
       "parent": 1,
-      "children": [3, 4, 5, 6, 7, 8],
+      "children": [3, 4, 5, 6, 9, 10, 7, 8],
       "components": [
         { "type": "Transform", "data": {} },
         {
@@ -48,7 +48,7 @@
             "direction": 1,
             "justifyContent": 0,
             "alignItems": 3,
-            "gap": { "x": 0, "y": 12 },
+            "gap": { "x": 0, "y": 8 },
             "padding": { "left": 20, "top": 20, "right": 20, "bottom": 20 }
           }
         },
@@ -66,17 +66,10 @@
       "children": [],
       "components": [
         { "type": "Transform", "data": {} },
-        { "type": "UINode", "data": { "height": { "value": 30, "unit": 0 } } },
+        { "type": "UINode", "data": { "height": { "value": 28, "unit": 0 } } },
         {
           "type": "Text",
-          "data": {
-            "content": "Rich Text + Input Playground",
-            "fontSize": 22,
-            "bold": true,
-            "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
-            "align": 0,
-            "verticalAlign": 1
-          }
+          "data": { "content": "Rich Text + Input Playground", "fontSize": 22, "bold": true, "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "align": 0, "verticalAlign": 1 }
         }
       ],
       "visible": true
@@ -88,11 +81,8 @@
       "children": [],
       "components": [
         { "type": "Transform", "data": {} },
-        { "type": "UINode", "data": { "height": { "value": 180, "unit": 0 } } },
-        {
-          "type": "UIVisual",
-          "data": { "visualType": 1, "color": { "r": 0.08, "g": 0.09, "b": 0.12, "a": 1 }, "enabled": true }
-        }
+        { "type": "UINode", "data": { "height": { "value": 148, "unit": 0 } } },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0.08, "g": 0.09, "b": 0.12, "a": 1 }, "enabled": true } }
       ],
       "visible": true
     },
@@ -103,16 +93,10 @@
       "children": [],
       "components": [
         { "type": "Transform", "data": {} },
-        { "type": "UINode", "data": { "height": { "value": 22, "unit": 0 } } },
+        { "type": "UINode", "data": { "height": { "value": 20, "unit": 0 } } },
         {
           "type": "Text",
-          "data": {
-            "content": "Edit the markup below — the preview updates live. Type 中文 to test IME.",
-            "fontSize": 14,
-            "color": { "r": 0.65, "g": 0.66, "b": 0.7, "a": 1 },
-            "align": 0,
-            "verticalAlign": 1
-          }
+          "data": { "content": "Edit the markup below — the preview updates live. Type 中文 to test IME.", "fontSize": 14, "color": { "r": 0.65, "g": 0.66, "b": 0.7, "a": 1 }, "align": 0, "verticalAlign": 1 }
         }
       ],
       "visible": true
@@ -124,11 +108,34 @@
       "children": [],
       "components": [
         { "type": "Transform", "data": {} },
-        { "type": "UINode", "data": { "height": { "value": 38, "unit": 0 } } },
+        { "type": "UINode", "data": { "height": { "value": 36, "unit": 0 } } },
+        { "type": "FlexContainer", "data": { "direction": 0, "justifyContent": 0, "alignItems": 1, "gap": { "x": 10, "y": 0 } } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 9,
+      "name": "MultilineLabel",
+      "parent": 2,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "height": { "value": 20, "unit": 0 } } },
         {
-          "type": "FlexContainer",
-          "data": { "direction": 0, "justifyContent": 0, "alignItems": 1, "gap": { "x": 10, "y": 0 } }
+          "type": "Text",
+          "data": { "content": "Multiline field — Enter inserts a newline; click or arrow across lines:", "fontSize": 14, "color": { "r": 0.65, "g": 0.66, "b": 0.7, "a": 1 }, "align": 0, "verticalAlign": 1 }
         }
+      ],
+      "visible": true
+    },
+    {
+      "id": 10,
+      "name": "MultilineSlot",
+      "parent": 2,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "height": { "value": 76, "unit": 0 } } }
       ],
       "visible": true
     },
@@ -139,17 +146,10 @@
       "children": [],
       "components": [
         { "type": "Transform", "data": {} },
-        { "type": "UINode", "data": { "height": { "value": 26, "unit": 0 } } },
+        { "type": "UINode", "data": { "height": { "value": 24, "unit": 0 } } },
         {
           "type": "Text",
-          "data": {
-            "content": "Supported tags",
-            "fontSize": 16,
-            "bold": true,
-            "color": { "r": 0.85, "g": 0.86, "b": 0.9, "a": 1 },
-            "align": 0,
-            "verticalAlign": 1
-          }
+          "data": { "content": "Supported tags", "fontSize": 16, "bold": true, "color": { "r": 0.85, "g": 0.86, "b": 0.9, "a": 1 }, "align": 0, "verticalAlign": 1 }
         }
       ],
       "visible": true
@@ -161,11 +161,8 @@
       "children": [],
       "components": [
         { "type": "Transform", "data": {} },
-        { "type": "UINode", "data": { "height": { "value": 170, "unit": 0 } } },
-        {
-          "type": "FlexContainer",
-          "data": { "direction": 1, "justifyContent": 0, "alignItems": 3, "gap": { "x": 0, "y": 6 } }
-        }
+        { "type": "UINode", "data": { "height": { "value": 104, "unit": 0 } } },
+        { "type": "FlexContainer", "data": { "direction": 1, "justifyContent": 0, "alignItems": 3, "gap": { "x": 0, "y": 6 } } }
       ],
       "visible": true
     }

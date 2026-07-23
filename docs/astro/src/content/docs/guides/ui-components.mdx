@@ -352,6 +352,11 @@ Chinese/Japanese/Korean composition renders **live in the field** (the preedit
 string shows at the caret as you type) and only fires `change` once the
 composition commits — the same behavior as a native input.
 
+A **`multiline`** field (Enter inserts a newline) stacks its lines from the top;
+the caret position, click-to-place and within-line selection track the
+`\n`-broken lines (soft word-wrap is not modeled — lines break on explicit
+newlines).
+
 <Aside type="note">
   Text input runs in **play mode only** and needs a browser DOM (the hidden
   native textarea) — it's inert in the editor's edit view.

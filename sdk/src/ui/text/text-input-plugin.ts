@@ -22,8 +22,11 @@ import { spawnUIEntity } from '../core/compose';
 import { px } from '../core/dimension';
 import { SdfTextRenderer } from './text-renderer';
 import { measureWidth } from './layout';
-import { textFieldDisplay, maskedPrefix, fieldSelection, nearestCaretIndex, type TextFieldDisplay } from './text-input-view';
-import { CURSOR_BLINK_INTERVAL } from '../util/constants';
+import {
+    textFieldDisplay, maskedPrefix, fieldSelection, nearestCaretIndex,
+    splitLines, caretLineCol, lineSelections, type TextFieldDisplay,
+} from './text-input-view';
+import { CURSOR_BLINK_INTERVAL, TEXT_INPUT_LINE_HEIGHT_RATIO } from '../util/constants';
 import { SystemLabel, PluginName } from '../../systemLabels';
 import { log } from '../../logger';
 
@@ -203,30 +206,45 @@ export class TextInputPlugin implements Plugin {
             resetCursorBlink();
         }
 
-        // Map the current pointer to a caret index inside `entity` (single-line):
-        // pointer world-x → the field's local text space (undo the box center,
-        // padding and horizontal scroll) → nearest character boundary. null when
-        // it can't be resolved (no camera / multiline / zero-width).
+        // Map the current pointer to a caret index inside `entity`: pointer
+        // world-x → the field's local text space (undo the box center, padding and
+        // horizontal scroll) → nearest character boundary. Multiline also maps the
+        // pointer world-y to a \n-broken line first. null when it can't be resolved
+        // (no camera / no box).
         function caretIndexFromPointer(entity: Entity): number | null {
             const cam = app.getResource(UICameraInfo) as UICameraData | undefined;
             if (!cam || !cam.valid) return null;
             if (!world.has(entity, Transform) || !world.has(entity, UINode)) return null;
             const ti = world.get(entity, TextInput) as TextInputData;
-            if (ti.multiline) return null;
             const width = getUINodeWidth(entity);
             if (width <= 0) return null;
-            // The layout centers the box on its Transform (pivot 0.5), so the left
-            // edge is half a width to the left; text starts `padding` in, scrolled.
+            // The layout centers the box on its Transform (pivot 0.5): left edge is
+            // half a width to the left, top edge half a height above (world y-up).
             const tr = world.get(entity, Transform) as TransformData;
             const fieldLeft = tr.worldPosition.x - width / 2;
+            const val = textarea.value; // focused ⇒ the textarea is the value source
+            const atlas = ensureMeasure().atlas;
+            const mw = (s: string): number => measureWidth(s, atlas, ti.fontFamily, ti.fontSize, 0);
+
+            if (ti.multiline) {
+                const height = getUINodeHeight(entity);
+                const lineH = ti.fontSize * TEXT_INPUT_LINE_HEIGHT_RATIO;
+                const fieldTop = tr.worldPosition.y + height / 2;
+                const localY = fieldTop - cam.worldMouseY; // y-down from the box top
+                const lines = splitLines(val);
+                const li = Math.max(0, Math.min(Math.floor(localY / lineH), lines.length - 1));
+                const line = lines[li];
+                const textX = cam.worldMouseX - fieldLeft - ti.padding;
+                const prefixes: number[] = [];
+                for (let i = 0; i <= line.text.length; i++) prefixes.push(mw(line.text.slice(0, i)));
+                return line.start + nearestCaretIndex(prefixes, textX);
+            }
+
             const scrollX = scrollXOf.get(entity) ?? 0;
             const textX = cam.worldMouseX - fieldLeft - ti.padding + scrollX;
-            // Focused ⇒ the textarea is the source of truth for the value.
-            const val = textarea.value;
-            const atlas = ensureMeasure().atlas;
             const prefixes: number[] = [];
             for (let i = 0; i <= val.length; i++) {
-                prefixes.push(measureWidth(maskedPrefix(val, i, ti.password, PASSWORD_CHAR), atlas, ti.fontFamily, ti.fontSize, 0));
+                prefixes.push(mw(maskedPrefix(val, i, ti.password, PASSWORD_CHAR)));
             }
             return nearestCaretIndex(prefixes, textX);
         }
@@ -371,28 +389,52 @@ export class TextInputPlugin implements Plugin {
 
                     const disp = textFieldDisplay(val, ti.password, ti.placeholder, PASSWORD_CHAR);
                     const atlas = ensureMeasure().atlas;
-                    const measure = (i: number): number =>
-                        measureWidth(maskedPrefix(val, i, ti.password, PASSWORD_CHAR), atlas, ti.fontFamily, ti.fontSize, 0);
-                    const caretRaw = measure(sel.caret);
-                    // Single-line fields scroll horizontally to keep the caret in view;
-                    // multiline wraps within the box and clips (no h-scroll).
+                    const mw = (s: string): number => measureWidth(s, atlas, ti.fontFamily, ti.fontSize, 0);
                     const innerW = Math.max(0, w - 2 * ti.padding);
-                    const scrollX = ti.multiline ? 0 : Math.max(0, caretRaw - innerW);
+                    const vCenter = Math.max(0, (h - ti.fontSize) / 2);
+
+                    // caret + a single highlight rect, placed the same way for both
+                    // field kinds: single-line scrolls horizontally and centers
+                    // vertically; multiline stacks lines from the top (no h-scroll)
+                    // and positions the caret on its \n-broken line. A selection that
+                    // spans multiple visual lines shows the caret only for now.
+                    let caretX: number, caretTop: number, scrollX: number;
+                    let sshow = false, sx = 0, stop = 0, sw = 0;
+                    if (ti.multiline) {
+                        const lineH = ti.fontSize * TEXT_INPUT_LINE_HEIGHT_RATIO;
+                        scrollX = 0;
+                        const lc = caretLineCol(val, sel.caret);
+                        caretX = ti.padding + mw(val.slice(lc.lineStart, sel.caret));
+                        caretTop = lc.line * lineH;
+                        // Highlight a selection that stays on one visual line; a
+                        // multi-line range shows the caret only for now.
+                        const rows = sel.hasRange ? lineSelections(val, sel.lo, sel.hi) : [];
+                        if (rows.length === 1) {
+                            const line = splitLines(val)[rows[0].line];
+                            sx = ti.padding + mw(line.text.slice(0, rows[0].from));
+                            sw = mw(line.text.slice(rows[0].from, rows[0].to));
+                            stop = rows[0].line * lineH;
+                            sshow = true;
+                        }
+                    } else {
+                        const caretRaw = mw(maskedPrefix(val, sel.caret, ti.password, PASSWORD_CHAR));
+                        scrollX = Math.max(0, caretRaw - innerW);
+                        caretX = ti.padding + caretRaw - scrollX;
+                        caretTop = vCenter;
+                        if (sel.hasRange) {
+                            const lo = mw(maskedPrefix(val, sel.lo, ti.password, PASSWORD_CHAR));
+                            sx = ti.padding + lo - scrollX;
+                            sw = mw(maskedPrefix(val, sel.hi, ti.password, PASSWORD_CHAR)) - lo;
+                            stop = vCenter;
+                            sshow = true;
+                        }
+                    }
                     scrollXOf.set(entity, scrollX);
 
-                    // Selection highlight (single-line only): a quad spanning the
-                    // masked range, drawn behind the text. A multiline selection
-                    // spans lines and is left to a later pass.
-                    const showSel = sel.hasRange && !ti.multiline;
-                    const selLo = showSel ? measure(sel.lo) : 0;
-                    const selHi = showSel ? measure(sel.hi) : 0;
-                    syncSelChild(ch.sel, ti, h, showSel, ti.padding + selLo - scrollX, selHi - selLo);
-
+                    syncSelChild(ch.sel, ti, sshow, sx, stop, sw);
                     syncTextChild(ch.text, ti, disp, innerW, scrollX);
-                    // The blinking caret hides while a range is selected (the
-                    // highlight stands in), matching a native field.
-                    syncCaretChild(ch.caret, ti, h, ti.padding + caretRaw - scrollX,
-                        ti.focused && cursorVisible && !sel.hasRange);
+                    // The blinking caret hides while a highlight is drawn.
+                    syncCaretChild(ch.caret, ti, caretX, caretTop, ti.focused && cursorVisible && !sshow);
                 }
             },
             { name: 'TextInputRenderSystem' }
@@ -457,9 +499,8 @@ export class TextInputPlugin implements Plugin {
             return ch;
         }
 
-        function syncSelChild(selEntity: Entity, ti: TextInputData, boxH: number, show: boolean, x: number, width: number): void {
+        function syncSelChild(selEntity: Entity, ti: TextInputData, show: boolean, x: number, top: number, width: number): void {
             const w = Math.max(0, width);
-            const top = Math.max(0, (boxH - ti.fontSize) / 2);
             const node = world.get(selEntity, UINode) as UINodeData;
             if (node.insetLeft.value !== x || node.insetTop.value !== top || node.width.value !== w || node.height.value !== ti.fontSize) {
                 node.insetLeft = px(x);
@@ -480,13 +521,17 @@ export class TextInputPlugin implements Plugin {
             const t = world.get(textEntity, Text) as TextData;
             const show = disp.text;
             const col = disp.isPlaceholder ? ti.placeholderColor : ti.color;
+            // Multiline stacks lines from the top so caret line math lines up;
+            // single-line centers the one line in the box.
+            const vAlign = ti.multiline ? TextVerticalAlign.Top : TextVerticalAlign.Middle;
             if (t.content !== show || t.fontFamily !== ti.fontFamily || t.fontSize !== ti.fontSize
-                || t.wordWrap !== ti.multiline || t.renderMode !== ti.renderMode
+                || t.wordWrap !== ti.multiline || t.renderMode !== ti.renderMode || t.verticalAlign !== vAlign
                 || t.color.r !== col.r || t.color.g !== col.g || t.color.b !== col.b || t.color.a !== col.a) {
                 t.content = show;
                 t.fontFamily = ti.fontFamily;
                 t.fontSize = ti.fontSize;
                 t.wordWrap = ti.multiline;
+                t.verticalAlign = vAlign;
                 t.renderMode = ti.renderMode;
                 t.color = { ...col };
                 world.insert(textEntity, Text, t);
@@ -502,8 +547,7 @@ export class TextInputPlugin implements Plugin {
             }
         }
 
-        function syncCaretChild(caretEntity: Entity, ti: TextInputData, boxH: number, caretX: number, show: boolean): void {
-            const caretTop = Math.max(0, (boxH - ti.fontSize) / 2);
+        function syncCaretChild(caretEntity: Entity, ti: TextInputData, caretX: number, caretTop: number, show: boolean): void {
             const node = world.get(caretEntity, UINode) as UINodeData;
             if (node.insetLeft.value !== caretX || node.insetTop.value !== caretTop || node.height.value !== ti.fontSize) {
                 node.insetLeft = px(caretX);

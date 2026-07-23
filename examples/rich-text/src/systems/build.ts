@@ -23,7 +23,8 @@ export const buildSystem = defineSystem(
         const previewSlot = world.findEntityByName('PreviewSlot');
         const composerRow = world.findEntityByName('ComposerRow');
         const showcaseSlot = world.findEntityByName('ShowcaseSlot');
-        if (previewSlot === null || composerRow === null || showcaseSlot === null) return;
+        const multilineSlot = world.findEntityByName('MultilineSlot');
+        if (previewSlot === null || composerRow === null || showcaseSlot === null || multilineSlot === null) return;
         state.built = true;
 
         const c = themeColors();
@@ -68,6 +69,16 @@ export const buildSystem = defineSystem(
                 state.input?.setValue(SEED_MARKUP);
                 setPreview(world, preview, SEED_MARKUP);
             },
+        });
+
+        // A multiline field: Enter inserts a newline, and the caret / click /
+        // selection track across the \n-broken lines.
+        createTextInput({
+            world, events, parent: multilineSlot,
+            node: { position: UIPositionType.Absolute, insetLeft: px(0), insetRight: px(0), insetTop: px(0), insetBottom: px(0) },
+            value: 'first line\nsecond line — click here\nthird line',
+            multiline: true,
+            fontSize: 15,
         });
 
         // Static legend: each supported tag rendered next to nothing but itself,

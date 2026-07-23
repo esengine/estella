@@ -10,7 +10,10 @@
  *        the caret / preedit / selection render paths.
  */
 import { describe, it, expect } from 'vitest';
-import { textFieldDisplay, maskedPrefix, fieldSelection, nearestCaretIndex } from '../src/ui/text/text-input-view';
+import {
+    textFieldDisplay, maskedPrefix, fieldSelection, nearestCaretIndex,
+    splitLines, caretLineCol, lineSelections,
+} from '../src/ui/text/text-input-view';
 
 const BULLET = '●';
 
@@ -100,5 +103,67 @@ describe('nearestCaretIndex', () => {
 
     it('returns 0 for an empty field', () => {
         expect(nearestCaretIndex([0], 25)).toBe(0);
+    });
+});
+
+describe('splitLines', () => {
+    it('returns one line for a value with no newline', () => {
+        expect(splitLines('hello')).toEqual([{ text: 'hello', start: 0 }]);
+    });
+
+    it('splits on \\n and records start indices', () => {
+        expect(splitLines('ab\ncd\ne')).toEqual([
+            { text: 'ab', start: 0 },
+            { text: 'cd', start: 3 },
+            { text: 'e', start: 6 },
+        ]);
+    });
+
+    it('keeps empty lines (a trailing newline yields a trailing empty line)', () => {
+        expect(splitLines('a\n')).toEqual([
+            { text: 'a', start: 0 },
+            { text: '', start: 2 },
+        ]);
+    });
+});
+
+describe('caretLineCol', () => {
+    it('locates the caret on a single line', () => {
+        expect(caretLineCol('hello', 3)).toEqual({ line: 0, col: 3, lineStart: 0 });
+    });
+
+    it('locates the caret on the second line', () => {
+        expect(caretLineCol('ab\ncd', 4)).toEqual({ line: 1, col: 1, lineStart: 3 });
+    });
+
+    it('the end of a line (before its newline) stays on that line', () => {
+        expect(caretLineCol('ab\ncd', 2)).toEqual({ line: 0, col: 2, lineStart: 0 });
+    });
+
+    it('the start of the next line (after the newline) is column 0 there', () => {
+        expect(caretLineCol('ab\ncd', 3)).toEqual({ line: 1, col: 0, lineStart: 3 });
+    });
+});
+
+describe('lineSelections', () => {
+    it('a within-line selection is one span', () => {
+        expect(lineSelections('hello', 1, 4)).toEqual([{ line: 0, from: 1, to: 4 }]);
+    });
+
+    it('a multi-line selection spans each line it covers', () => {
+        // "ab\ncd\nef", select from index 1 ('b') through index 7 ('f').
+        expect(lineSelections('ab\ncd\nef', 1, 7)).toEqual([
+            { line: 0, from: 1, to: 2 }, // "b"
+            { line: 1, from: 0, to: 2 }, // "cd"
+            { line: 2, from: 0, to: 1 }, // "e"
+        ]);
+    });
+
+    it('orders the endpoints and clamps', () => {
+        expect(lineSelections('abc', 5, -2)).toEqual([{ line: 0, from: 0, to: 3 }]);
+    });
+
+    it('an empty selection yields no spans', () => {
+        expect(lineSelections('abc', 2, 2)).toEqual([]);
     });
 });

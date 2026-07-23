@@ -87,3 +87,58 @@ export function nearestCaretIndex(prefixWidths: readonly number[], x: number): n
     }
     return best;
 }
+
+/** A visual line of a multiline value: its text (no trailing `\n`) and the
+ *  index in the full value where it starts. */
+export interface VisualLine {
+    text: string;
+    start: number;
+}
+
+/** Split a value into its hard-broken (`\n`) visual lines with their start
+ *  indices. Always at least one line. Pure. (Soft word-wrap is not modeled —
+ *  the multiline field breaks on explicit newlines.) */
+export function splitLines(value: string): VisualLine[] {
+    const lines: VisualLine[] = [];
+    let start = 0;
+    for (;;) {
+        const nl = value.indexOf('\n', start);
+        if (nl < 0) { lines.push({ text: value.slice(start), start }); break; }
+        lines.push({ text: value.slice(start, nl), start });
+        start = nl + 1;
+    }
+    return lines;
+}
+
+/** Locate a caret index as a (line, column) in the `\n`-broken value. `column`
+ *  is the offset within the line's text; `lineStart` is the line's start index
+ *  so `value.slice(lineStart, caret)` is the prefix whose width places the
+ *  caret on that line. Pure. */
+export function caretLineCol(value: string, caret: number): { line: number; col: number; lineStart: number } {
+    const c = Math.max(0, Math.min(caret, value.length));
+    const lines = splitLines(value);
+    for (let i = 0; i < lines.length; i++) {
+        const end = lines[i].start + lines[i].text.length;
+        if (c <= end) return { line: i, col: c - lines[i].start, lineStart: lines[i].start };
+    }
+    const last = lines[lines.length - 1];
+    return { line: lines.length - 1, col: last.text.length, lineStart: last.start };
+}
+
+/** Per-line column span of a selection `[lo, hi]` over the `\n`-broken value:
+ *  one entry per visual line that has selected text, giving the column range to
+ *  highlight on that line. Used to draw one highlight rect per line. Pure. */
+export function lineSelections(value: string, lo: number, hi: number): Array<{ line: number; from: number; to: number }> {
+    const a = Math.max(0, Math.min(Math.min(lo, hi), value.length));
+    const b = Math.max(0, Math.min(Math.max(lo, hi), value.length));
+    const out: Array<{ line: number; from: number; to: number }> = [];
+    const lines = splitLines(value);
+    for (let i = 0; i < lines.length; i++) {
+        const ls = lines[i].start;
+        const le = ls + lines[i].text.length;
+        const from = Math.max(a, ls);
+        const to = Math.min(b, le);
+        if (to > from) out.push({ line: i, from: from - ls, to: to - ls });
+    }
+    return out;
+}
