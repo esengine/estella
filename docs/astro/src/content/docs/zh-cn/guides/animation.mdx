@@ -174,6 +174,10 @@ const animate = defineSystem([Res(Tween)], (tween) => {
 `EaseInOut*`)、`EaseOutBounce`、`Step` 和 `CubicBezier`——自定义贝塞尔用句柄的
 `.bezier(p1x, p1y, p2x, p2y)`。
 
+![每种 EasingType 从 0 到 1 的曲线](../../../../assets/guides/tween-easings.svg)
+
+*每条缓动曲线(进度 `t` 从左到右,缓动后的值从下到上)——这就是引擎的精确曲线。`Back` 和 `Elastic` 会冲出 0–1 区间;`Step` 一直保持到末尾才跳变。*
+
 ### 序列与控制
 
 返回的 `TweenHandle` 可链式串接并控制播放:

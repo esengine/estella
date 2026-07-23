@@ -185,6 +185,10 @@ const animate = defineSystem([Res(Tween)], (tween) => {
 (`EaseIn*` / `EaseOut*` / `EaseInOut*`), `EaseOutBounce`, `Step`, and `CubicBezier`
 — use a custom bezier with the handle's `.bezier(p1x, p1y, p2x, p2y)`.
 
+![Every EasingType plotted as a curve from 0 to 1](../../../assets/guides/tween-easings.svg)
+
+*Each easing plotted (progress `t` left→right, eased value bottom→top) — these are the engine's exact curves. `Back` and `Elastic` overshoot past the 0–1 band; `Step` holds until the end.*
+
 ### Sequencing & control
 
 The returned `TweenHandle` chains and controls playback:
