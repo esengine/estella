@@ -120,6 +120,10 @@ are in meters.
 
 ## Collision filtering
 
+![Project Settings → Physics — collision layer names and the collision matrix](../../../assets/guides/en/collision-matrix.png)
+
+*Project Settings → Physics: name your 16 collision layers, then toggle which pairs collide in the matrix (alongside the solver tuning below).*
+
 `categoryBits` (what layer a body is on) and `maskBits` (what it collides with) are
 16-bit filters. Two bodies collide only if each one's category is in the other's mask:
 

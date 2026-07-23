@@ -112,6 +112,10 @@ const spawnBall = defineSystem([Commands()], (cmds) => {
 
 ## 碰撞过滤
 
+![项目设置 → 物理——碰撞层名字与碰撞矩阵](../../../../assets/guides/zh/collision-matrix.png)
+
+*项目设置 → 物理:给 16 个碰撞层命名,再在矩阵里切换哪些层两两相撞(下方还有求解器调参)。*
+
 `categoryBits`(刚体在哪一层)和 `maskBits`(它与什么碰撞)是 16 位过滤器。仅当彼此的 category
 都在对方的 mask 里,两个刚体才碰撞:
 

@@ -76,6 +76,10 @@ const jump = defineSystem([Query(Mut(CharacterController)), Res(Input)], (player
 
 ## 输入动作(`InputMap`)
 
+![输入映射编辑器——命名动作及其键盘与手柄绑定](../../../../assets/guides/zh/input-map.png)
+
+*输入映射编辑器:命名动作(Move / Jump / Fire),每个都能挂任意多个键盘、鼠标、手柄绑定。*
+
 写死的按键检查会把设备细节散落进玩法代码。**输入映射**给每个动作起一次名——
 键盘 / 鼠标 / 手柄绑定随便挂多少个——玩法按名字查询动作:
 

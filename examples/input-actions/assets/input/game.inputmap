@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "actions": {
+    "Move": {
+      "type": "axis2d",
+      "bindings": [
+        { "kind": "keys2d", "up": "KeyW", "down": "KeyS", "left": "KeyA", "right": "KeyD" },
+        { "kind": "stick", "stick": "left" }
+      ]
+    },
+    "Jump": {
+      "type": "button",
+      "bindings": [
+        { "kind": "key", "code": "Space" },
+        { "kind": "gpButton", "button": 0 }
+      ]
+    },
+    "Fire": {
+      "type": "button",
+      "bindings": [
+        { "kind": "mouse", "button": 0 },
+        { "kind": "gpButton", "button": 2 }
+      ]
+    },
+    "Aim": {
+      "type": "axis2d",
+      "bindings": [
+        { "kind": "stick", "stick": "right" }
+      ]
+    }
+  }
+}
