@@ -100,6 +100,8 @@ const zoomIn = defineSystem([Res(Tween)], (tween) => {
 给相机加一个 `FollowTarget` 并指向一个实体。跟随是帧率无关的阻尼移动,带一个死区,所以相机
 平滑漂移并忽略细小移动:
 
+![相机把目标保持在离视图中心固定的 offset;目标在死区圆内自由漫游,一旦离开相机就阻尼跟上](../../../../assets/guides/camera-follow.svg)
+
 ```typescript
 import { defineSystem, Query, Commands, Camera, FollowTarget } from 'esengine';
 

@@ -110,6 +110,8 @@ Add a `FollowTarget` to the camera and point it at an entity. The follow is a
 frame-rate-independent damped move with a dead zone, so the camera drifts smoothly
 and ignores tiny movements:
 
+![The camera holds the target at a fixed offset from the view centre; the target roams free inside a deadzone circle and the camera eases after it once it leaves](../../../assets/guides/camera-follow.svg)
+
 ```typescript
 import { defineSystem, Query, Commands, Camera, FollowTarget } from 'esengine';
 

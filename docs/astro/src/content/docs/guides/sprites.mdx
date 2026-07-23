@@ -133,6 +133,11 @@ front of it — no manual `layer` or z juggling.
 
 How a texture is sampled is set **per texture handle**, not per sprite:
 
+![The same 16×16 texture magnified: Nearest keeps hard pixel edges, Linear blends them into a smooth gradient](../../../assets/guides/texture-filter.png)
+
+*The same tiny texture magnified ~15×. **Nearest** keeps texel edges hard (pixel
+art); **Linear** interpolates between texels for a smooth look (the default).*
+
 | Enum | Values | Meaning |
 |---|---|---|
 | `TextureFilter` | `Nearest`, `Linear` | Nearest = hard texel edges (pixel art); Linear = smooth interpolation (default). |
