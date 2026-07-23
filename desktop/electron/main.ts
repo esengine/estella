@@ -35,6 +35,7 @@ import { loopbackServer, closeAllLoopbackServers } from './loopbackServer';
 import { httpContentType } from './mimeTypes';
 import { buildPlayRealm } from './buildPlayRealm';
 import { ensureSdkTypes } from './syncSdkTypes';
+import { ensureProjectShaderTwins } from './shaderTwins';
 import { installCrashCapture, logsDir } from './resilience';
 import { mcpMode, startMcpEndpoint } from './mcpEndpoint';
 import { checkForUpdate } from './updateCheck';
@@ -575,6 +576,22 @@ async function adoptRoot(root: string): Promise<string | undefined> {
   }
 }
 
+// A GLSL-only project shader can't render on WebGPU; generate its WGSL twin on
+// open (idempotent — a project whose shaders already carry twins costs only a
+// directory walk). Never throws: a converter miss must not block opening. Dev
+// only — the vendored converters aren't staged into a packaged app yet, where
+// shipped shaders are expected to carry the CI-enforced committed twins.
+const REPO_ROOT = path.join(__dirname, '..', '..');
+async function ensureTwinsForOpen(root: string): Promise<void> {
+  if (app.isPackaged) return;
+  try {
+    const r = await ensureProjectShaderTwins(root, REPO_ROOT);
+    if (r.generated.length) console.log(`[shader-twins] generated ${r.generated.length} WGSL twin(s) on open`);
+  } catch (err) {
+    console.warn('[shader-twins] ensure failed', err);
+  }
+}
+
 ipcMain.handle('project:openDialog', async () => {
   if (!win) return null;
   const res = await dialog.showOpenDialog(win, {
@@ -583,11 +600,13 @@ ipcMain.handle('project:openDialog', async () => {
   });
   if (res.canceled || res.filePaths.length === 0) return null;
   const opened = await openProject(res.filePaths[0]);
+  await ensureTwinsForOpen(opened.root);
   return { ...opened, stagingError: await adoptRoot(opened.root) };
 });
 
 ipcMain.handle('project:open', async (_e, root: string) => {
   const opened = await openProject(root);
+  await ensureTwinsForOpen(opened.root);
   return { ...opened, stagingError: await adoptRoot(opened.root) };
 });
 

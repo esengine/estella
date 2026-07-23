@@ -271,7 +271,14 @@ function stripGeneratedTwins(source) {
   return source.replace(/\n?#pragma (?:vertex|fragment) wgsl full\n[\s\S]*?#pragma end\n?/g, '\n');
 }
 
-async function processFile(module, file, opts) {
+/** Load the engine wasm module (esshader_cookInfo) the twin pipeline assembles
+ *  through — shared by the CLI and the editor's on-open generation. */
+export async function loadTwinModule() {
+  const { default: createModule } = await import(pathToFileURL(WASM_GLUE).href);
+  return createModule();
+}
+
+export async function processFile(module, file, opts) {
   let source = await readFile(file, 'utf8');
   const hadGenerated = /#pragma (?:vertex|fragment) wgsl full/.test(source);
   if (opts.force && hadGenerated) source = stripGeneratedTwins(source);
@@ -318,8 +325,7 @@ async function main() {
     process.exit(2);
   }
 
-  const { default: createModule } = await import(pathToFileURL(WASM_GLUE).href);
-  const module = await createModule();
+  const module = await loadTwinModule();
 
   let pending = 0;
   let failed = 0;
@@ -338,4 +344,8 @@ async function main() {
   process.exitCode = failed > 0 || pending > 0 ? 1 : 0;
 }
 
-await main();
+// Run as a CLI only when invoked directly (`node tools/gen-shader-twins.mjs …`);
+// stays importable as a module (the editor's on-open twin generation).
+if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
+  await main();
+}
