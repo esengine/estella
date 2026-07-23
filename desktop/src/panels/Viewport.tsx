@@ -869,9 +869,13 @@ export function Viewport() {
   // position (click to select), so spawn points / waypoints / triggers are visible without
   // being selected. Same per-frame rAF + structural id set as the camera/light gizmos.
   const markerRefs = useRef(new Map<number, HTMLDivElement | null>());
+  // Markers can be MODEL entities (hand-placed → structRev) OR RuntimeOnly children a
+  // Tilemap source derives from a `.tmj` point object (world-only → no structRev bump).
+  // markerIds() rescans the live world, so also re-run on dataRev to catch the derived
+  // set once the async source load + derive lands.
   const markerIds = useMemo(
     () => (engine.status === 'ready' ? ViewportController.markerIds() : []),
-    [structRev, engine.status],
+    [structRev, dataRev, engine.status],
   );
   // Physics colliders aren't drawn by the renderer — outline each (box polygon /
   // circle) as a gizmo so you can see/tune collider shapes without entering Play.

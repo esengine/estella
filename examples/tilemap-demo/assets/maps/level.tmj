@@ -10,8 +10,8 @@
  "height": 18,
  "tilewidth": 18,
  "tileheight": 18,
- "nextlayerid": 5,
- "nextobjectid": 1,
+ "nextlayerid": 6,
+ "nextobjectid": 4,
  "tilesets": [
   {
    "firstgid": 1,
@@ -2449,6 +2449,21 @@
     0,
     0
    ]
+  },
+  {
+   "draworder":"topdown",
+   "id":5,
+   "name":"spawns",
+   "objects":[
+    {"id":1,"name":"player-spawn","type":"spawn","point":true,"x":90,"y":150,"width":0,"height":0,"rotation":0,"visible":true,"properties":[]},
+    {"id":2,"name":"enemy-spawn","type":"enemy","point":true,"x":400,"y":110,"width":0,"height":0,"rotation":0,"visible":true,"properties":[]},
+    {"id":3,"name":"checkpoint","type":"checkpoint","point":true,"x":260,"y":250,"width":0,"height":0,"rotation":0,"visible":true,"properties":[]}
+   ],
+   "opacity":1,
+   "type":"objectgroup",
+   "visible":true,
+   "x":0,
+   "y":0
   }
  ]
 }

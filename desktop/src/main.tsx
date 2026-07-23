@@ -147,6 +147,13 @@ if (new URLSearchParams(location.search).has('automation')) {
     /** Paint tiles into a TilemapLayer SOURCE entity (one undo step) — for shot tests. */
     paintTiles: (sourceId: number, edits: { x: number; y: number; tileId: number }[]) =>
       SceneCommands.paintTiles(sourceId, edits),
+    /** All LIVE Marker entities (hand-placed model entities AND `.tmj`-derived RuntimeOnly
+     *  children), each with its `type` + whether it's a model entity (`src != null`) or a
+     *  derived projection (`src == null`) — verifies object-group → Marker convergence. */
+    liveMarkers: () => ViewportController.markerIds().map((rt) => {
+      const g = ViewportController.getMarkerGizmo(rt);
+      return { rt, type: g?.type ?? null, src: SceneModel.sourceFor(rt) ?? null };
+    }),
     /** Probe a layer's resolved tile-collision overlay — the SAME pieces the viewport
      *  draws + Play spawns. Returns null if nothing resolves; else piece counts by kind.
      *  Verifies the collision-layer pipeline end-to-end (refs → palette model → outlines). */

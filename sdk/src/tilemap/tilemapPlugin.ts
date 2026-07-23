@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { App, Plugin } from '../app';
 import type { ESEngineModule } from '../wasm';
-import { Transform, TilemapLayer, Sprite, Canvas, RuntimeOnly, type TilemapLayerData } from '../component';
+import { Transform, TilemapLayer, Sprite, Canvas, RuntimeOnly, Marker, type TilemapLayerData } from '../component';
 import { Schedule } from '../system';
 import type { SystemDef } from '../system';
 import { initTilemapAPI, shutdownTilemapAPI, TilemapAPI } from './tilemapAPI';
@@ -512,7 +512,26 @@ export class TilemapPlugin implements Plugin {
                         for (const group of cached.objectGroups ?? []) {
                             if (group.visible === false) continue;
                             for (const obj of group.objects) {
-                                if (obj.gid === undefined || obj.visible === false) continue;
+                                if (obj.visible === false) continue;
+                                // Non-tile objects: a POINT converges to a real Marker entity
+                                // (spawn point / waypoint), so imported and hand-authored
+                                // markers share ONE `Query(Marker)` surface. World-only
+                                // (re-derived from the .tmj each load, like the tile-object
+                                // sprites), parented so its local position is the object's map
+                                // offset (Tiled anchors the point at x,y, y-down; world Y up).
+                                // Other shapes (rect/ellipse/polygon) stay collision-group
+                                // colliders — not projected here.
+                                if (obj.gid === undefined) {
+                                    if (obj.shape === 'point') {
+                                        const markerChild = world.spawn(obj.name || `Marker_${obj.id}`);
+                                        world.insert(markerChild, Transform, { position: { x: obj.x, y: -obj.y, z: 0 } });
+                                        world.insert(markerChild, Marker, { type: obj.type || '' });
+                                        world.insert(markerChild, RuntimeOnly, {});
+                                        world.setParent(markerChild, entity);
+                                        children.push(markerChild);
+                                    }
+                                    continue;
+                                }
                                 const dec = decodeTiledGid(obj.gid);
                                 // Resolve the tileset by global id (largest firstId <= id).
                                 let ts: (typeof cached.tilesets)[number] | undefined;
