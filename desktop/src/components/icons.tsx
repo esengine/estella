@@ -17,6 +17,7 @@ import {
   Box,
   Hexagon,
   Link2,
+  MapPin,
   type LucideIcon,
 } from 'lucide-react';
 import type { NodeKind, AssetType } from '@/types';
@@ -62,6 +63,7 @@ const COMPONENT_ICON: Record<string, LucideIcon> = {
   Canvas: LayoutPanelTop,
   SpineAnimation: PersonStanding,
   RigidBody: Box,
+  Marker: MapPin,
 };
 
 export function componentGlyph(name: string): LucideIcon {

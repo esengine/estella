@@ -11,7 +11,7 @@
  * UI. (REARCH_ENTITY_CREATION E2.)
  */
 import type { LucideIcon } from 'lucide-react';
-import { CircleDot, LayoutPanelTop, ToggleLeft, SlidersHorizontal, List, ChevronDown, SquareMousePointer, RectangleHorizontal, Box, Type, Image as ImageIcon, SquareDashed, ScrollText, AppWindow, TextCursorInput, Grid3x3 } from 'lucide-react';
+import { CircleDot, LayoutPanelTop, ToggleLeft, SlidersHorizontal, List, ChevronDown, SquareMousePointer, RectangleHorizontal, Box, Type, Image as ImageIcon, SquareDashed, ScrollText, AppWindow, TextCursorInput, Grid3x3, MapPin, Scan } from 'lucide-react';
 import { BUILTIN_UI_PREFABS, BUILTIN_UI_WIDGET_NAMES, PREFAB_FORMAT_VERSION, getUserComponents, applyThemeToWorld, type PrefabData } from 'esengine';
 import type { EntityId } from '@/types';
 import { componentByName, componentDefaults, prettyLabel, componentCategory } from './schema';
@@ -262,6 +262,14 @@ export const ENTITY_SOURCES: EntitySource[] = [
     // through this module at init; the action only runs on pick, long after load.
     action: () => { void import('@/commands').then((m) => m.commands.run('tilemap.new')); },
   },
+  // Object primitives — placed as real entities over any scene/background (the modern
+  // "object layer"): a Marker is a named point (spawn / waypoint / location, queried via
+  // `Query(Marker)`); a Trigger Area is a static SENSOR region (Transform + RigidBody +
+  // BoxCollider{isSensor} + Marker) that reuses the unified collider gizmo for shaping.
+  presetSource('marker', 'Marker', 'Common', MapPin,
+    ['Transform', ['Marker', { type: '' }]]),
+  presetSource('trigger-area', 'Trigger Area', 'Physics', Scan,
+    [['Transform', {}], ['RigidBody', { bodyType: 0 }], ['BoxCollider', { isSensor: true }], ['Marker', { type: '' }]]),
   {
     id: 'canvas',
     label: 'Canvas',
@@ -297,7 +305,9 @@ export const ENTITY_SOURCES: EntitySource[] = [
  * — the dynamic half of "cover all cases" (REARCH ENTITY_CREATION E4).
  */
 export function userComponentSources(): EntitySource[] {
-  return [...getUserComponents().keys()].map((name) => ({
+  // `Marker` is an engine component but ships a CURATED Create preset above (with its own
+  // icon + category), so drop it from the generic user-component list to avoid a duplicate.
+  return [...getUserComponents().keys()].filter((name) => name !== 'Marker').map((name) => ({
     id: `component:${name}`,
     label: prettyLabel(name),
     category: 'Scripts',

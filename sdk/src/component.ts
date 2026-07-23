@@ -835,6 +835,22 @@ export const SceneOwner = defineComponent<SceneOwnerData>('SceneOwner', {
     persistent: false,
 });
 
+export interface MarkerData {
+    /** Gameplay identity — the game queries markers of a given kind (spawn point,
+     *  waypoint, pickup, door, trigger …). Free-form: the game defines the vocabulary.
+     *  `Query(Marker)` then filters by `type`. */
+    type: string;
+}
+
+/**
+ * A named point/region of gameplay interest, placed in the editor as a real entity.
+ * On its own (Transform + Marker) it's a spawn point / waypoint / location marker; add a
+ * sensor collider (the Trigger Area preset) and it's a trigger zone. Pure ECS — no
+ * parallel "object layer" structure — so it serializes, shows in the Inspector, and is
+ * `Query`-able like any component. The converged target for imported `.tmj` object groups.
+ */
+export const Marker = defineComponent<MarkerData>('Marker', { type: '' });
+
 export interface PostProcessVolumeData {
     effects: {
         type: string;
