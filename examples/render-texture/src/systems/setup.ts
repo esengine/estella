@@ -57,10 +57,10 @@ export const setupSystem = defineSystem(
         }
 
         // The minimap quad, pinned to the view's top-right corner (the scene
-        // camera is static at the origin, so world units == design pixels).
-        // flipY compensates for GL framebuffer orientation: a RenderTexture's
-        // row 0 is the target's BOTTOM, while an image texture's row 0 is its
-        // top — sampling one with regular sprite UVs shows it upside down.
+        // camera is static at the origin, so world units == design pixels). The
+        // RenderTexture reads as an ordinary texture: uploaded images are flipped
+        // to the engine's y-up sampling convention on upload, and a render target
+        // is already y-up, so drawing world-up into it displays upright — no flip.
         cmds.spawn('Minimap')
             .insert(Transform, {
                 position: {
@@ -72,7 +72,6 @@ export const setupSystem = defineSystem(
             .insert(Sprite, {
                 size: { x: MINIMAP_DISPLAY.w, y: MINIMAP_DISPLAY.h },
                 color: { r: 1, g: 1, b: 1, a: 1 },
-                flipY: true,
                 layer: MINIMAP_LAYER,
             })
             .insert(Minimap);
