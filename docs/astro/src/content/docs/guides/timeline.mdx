@@ -95,6 +95,24 @@ A timeline is a set of tracks evaluated together each frame:
 | Marker | `Marker` | Named time markers. |
 | Custom event | `CustomEvent` | Named events with a payload, for your own systems. |
 
+## Author in the Sequencer
+
+Double-click an `.estimeline` (or open the timeline of a selected entity) to author
+it in the **Sequencer** — the editor for keyframe animation. The **dope sheet** lays
+every track and its keys along a shared, scrubbable playhead; add tracks, drag keys,
+then **Save**.
+
+![The Sequencer dope sheet — tracks and keyframes for a cutscene timeline](../../../assets/guides/en/seq-dopesheet.png)
+
+*The dope sheet: one row per track (here a Transform's `position.x` / `position.y` plus two letterbox activation tracks), keyframes as diamonds, a scrubbable playhead, and the transport up top.*
+
+Switch to the **Curves** tab to shape the interpolation between keys — drag the value
+curves and their tangent handles for eases the dope sheet can't express:
+
+![The Sequencer curve editor — value curves with tangent handles](../../../assets/guides/en/seq-curves.png)
+
+*The curve editor: each keyframed channel becomes an editable curve (here `position.x` easing in, `position.y` bobbing), with per-key tangent handles.*
+
 ## Timelines from code
 
 An `.estimeline` document is plain data — the `TimelineAsset` type plus the

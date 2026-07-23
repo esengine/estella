@@ -76,6 +76,20 @@ same fields afterwards. The viewport follows the layer: the grid overlay,
 brush ghost, hover/selection highlights, and every paint tool work on the
 diamond or hex grid exactly as they do on squares.
 
+![The New Tilemap dialog — orientation picker and tileset list](../../../assets/guides/en/tilemap-new.png)
+
+*The **New Tilemap** dialog picks the orientation and the tileset up front.*
+
+The same map painted on a hexagonal and a staggered grid:
+
+![A hexagonal tilemap in the viewport](../../../assets/guides/en/orient-hex.png)
+
+*Hexagonal — the grid, brush ghost, and every tool follow the hex layout.*
+
+![A staggered-isometric tilemap in the viewport](../../../assets/guides/en/orient-staggered.png)
+
+*Staggered isometric — alternate rows shift by half a cell.*
+
 | `TilemapLayer` field | Values | Description |
 |---|---|---|
 | `orientation` | Orthogonal / Isometric / Staggered / Hexagonal | Grid layout of the layer. |
@@ -187,6 +201,10 @@ tiles carry a ▶ mark in the atlas. The frames are saved into the `.estileset`,
 every layer that uses the tileset plays them automatically — in the editor viewport
 and at runtime, no code required.
 
+![The Tileset editor in Animation mode — a tile's frame strip with per-frame durations](../../../assets/guides/en/tileset-animation.png)
+
+*Animation mode: pick a tile (here #34), click atlas tiles to append frames, and set each frame's duration in ms. The strip loops as a live preview.*
+
 For procedural layers, `setTileAnimation` does the same from code — the plugin
 advances it every frame:
 
@@ -208,6 +226,10 @@ tilemap.setChunkTiles(layer, chunkX, chunkY, tiles, 32, 32);
 ```
 
 ## Terrain autotiling
+
+![The Tileset editor in Terrain mode — a corner-Wang set with Grass / Sand / Water colors](../../../assets/guides/en/tileset-terrain.png)
+
+*Terrain mode with a **corner-Wang** set: define terrain colors (Grass / Sand / Water), then paint each tile's corners — the `T` brush later resolves the right tile from the neighbours.*
 
 Terrains make the `T` brush paint *meaning* instead of specific tiles — you say
 "grass here" and the resolver picks the tile whose edges match the neighbors.
@@ -237,6 +259,10 @@ blended-island corner-Wang demo ships in `examples/`.
 The engine's first-class tileset asset is **`.estileset`** — it references an atlas
 texture and carries per-tile collision, animation, terrain/auto-tile data, and
 custom key/value properties.
+
+![The Tileset editor in Collision mode — shape tabs, modifiers, slope presets, and collision overlays on the atlas](../../../assets/guides/en/tileset-collision.png)
+
+*The **Tileset editor**'s Collision mode: pick a shape (**Box / Polygon / Circle**), toggle **one-way / sensor** and set friction / bounce / density, drop **slope** presets — the green overlay marks each tile's collider.*
 
 Per-tile collision goes well beyond solid squares. In the tileset editor's
 **Collision** mode you author, per tile:

@@ -91,6 +91,22 @@ const control = defineSystem([Query(TimelinePlayer), Res(Timeline)], (q, timelin
 | 标记 | `Marker` | 命名时间标记。 |
 | 自定义事件 | `CustomEvent` | 带 payload 的命名事件,供你自己的系统消费。 |
 
+## 在 Sequencer 里创作
+
+双击一个 `.estimeline`(或打开选中实体的时间轴),就在 **Sequencer**(关键帧动画编辑器)里
+创作它。**摊开表(dope sheet)**把每条轨道及其关键帧沿一条共享、可拖动的播放头排开;加轨道、
+拖关键帧,然后 **Save**。
+
+![Sequencer 摊开表——一段过场时间轴的轨道与关键帧](../../../../assets/guides/zh/seq-dopesheet.png)
+
+*摊开表:一轨一行(这里是某 Transform 的 `position.x` / `position.y`,加两条黑边激活轨道),关键帧是菱形,播放头可拖动,顶部是走带控制。*
+
+切到 **Curves** 标签可塑形关键帧之间的插值——拖动值曲线及其切线手柄,做出摊开表表达不了的缓动:
+
+![Sequencer 曲线编辑器——带切线手柄的值曲线](../../../../assets/guides/zh/seq-curves.png)
+
+*曲线编辑器:每个关键帧通道变成一条可编辑曲线(这里 `position.x` 缓入、`position.y` 起伏),每个关键帧带切线手柄。*
+
 ## 用代码构建时间轴
 
 `.estimeline` 文档就是普通数据——用 `TimelineAsset` 类型加上 `TrackType` /
