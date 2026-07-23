@@ -56,7 +56,7 @@ jobs:
           cp -r docs/astro/dist/* docs/dist/docs/
           cp -r docs/api/html docs/dist/docs/api/
           cp docs/landing/index.html docs/dist/index.html
-          cp docs/landing/editor-screenshot.png docs/dist/editor-screenshot.png
+          cp docs/landing/editor-hero-c5bfd2f3.png docs/dist/editor-hero-c5bfd2f3.png
           cp docs/landing/robots.txt docs/dist/robots.txt
           cp docs/landing/og-image.png docs/dist/og-image.png
           echo 'estellaengine.com' > docs/dist/CNAME
