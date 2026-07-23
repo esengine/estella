@@ -66,6 +66,8 @@ const readCanvas = defineSystem([GetWorld()], (world) => {
 
 ## Scale modes
 
+![On a 4:3 screen, FixedWidth/Expand reveal extra world above and below the 16:9 design box, while FixedHeight/Shrink fill the height and crop the sides](../../../assets/guides/scale-modes.svg)
+
 The fit math is one pure function, exported as `computeEffectiveOrthoSize`. Given
 the design box and the actual screen aspect it produces the **effective ortho
 half-height** — half the height of the world box the camera will show, in world

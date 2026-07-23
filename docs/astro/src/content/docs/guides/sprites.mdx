@@ -94,6 +94,8 @@ layer** (`sprite.layer`) — a named layer list you define in **Project Settings
 Rendering**, so the inspector shows a dropdown of *Background*, *Default*, *Foreground*,
 etc. instead of a raw number. Lower layers draw first (behind).
 
+![Left: three sorting layers stacked so a higher layer draws in front. Right: on a Y-sorted layer a sprite lower on screen draws in front of one higher up.](../../../assets/guides/sprite-sort.svg)
+
 ```typescript
 sprite.layer = 0;   // e.g. "Background"
 sprite.layer = 2;   // e.g. "Foreground" — drawn on top

@@ -84,6 +84,8 @@ sprite.color = { r: 1, g: 1, b: 1, a: 0.5 };      // 50% 透明
 **项目设置 → 渲染**里定义的命名层列表,于是检视器显示 *Background*、*Default*、*Foreground* 等
 下拉,而不是裸数字。较低的层先画(在后面)。
 
+![左:三个排序层堆叠,更高的层画在前面。右:在 Y-排序层上,屏幕上更靠下的精灵画在更靠上的前面。](../../../../assets/guides/sprite-sort.svg)
+
 ```typescript
 sprite.layer = 0;   // 例如 "Background"
 sprite.layer = 2;   // 例如 "Foreground" —— 画在上面
