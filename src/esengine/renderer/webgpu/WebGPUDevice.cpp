@@ -136,6 +136,7 @@ void WebGPUDevice::shutdown() {
 // Surface (bring-up: a canvas is the Default framebuffer)
 // =============================================================================
 
+#if defined(__EMSCRIPTEN__)
 bool WebGPUDevice::configureSurface(const char* selector, u32 width, u32 height) {
     if (!device_ || !instance_) {
         ES_LOG_ERROR("WebGPUDevice::configureSurface: no device/instance");
@@ -156,6 +157,51 @@ bool WebGPUDevice::configureSurface(const char* selector, u32 width, u32 height)
 
     return configureSwapchain(width, height);
 }
+#endif  // __EMSCRIPTEN__
+
+#if !defined(__EMSCRIPTEN__)
+// The native (iOS/Android) surface source: the same instance + swapchain as the web
+// path, but the surface is created from a native window handle instead of a canvas
+// selector. Dawn's Metal/Android surface descriptors replace the emscripten one; the
+// host owns the CAMetalLayer / ANativeWindow lifetime. Compiled only in a native Dawn
+// build (emscripten's emdawnwebgpu has no native window source).
+bool WebGPUDevice::configureSurface(const NativeSurface& window, u32 width, u32 height) {
+    if (!device_ || !instance_) {
+        ES_LOG_ERROR("WebGPUDevice::configureSurface(native): no device/instance");
+        return false;
+    }
+    if (!window.handle) {
+        ES_LOG_ERROR("WebGPUDevice::configureSurface(native): null window handle");
+        return false;
+    }
+
+    WGPUSurfaceDescriptor sd{};
+    switch (window.kind) {
+        case NativeWindowKind::MetalLayer: {
+            WGPUSurfaceSourceMetalLayer metal{};
+            metal.chain.sType = WGPUSType_SurfaceSourceMetalLayer;
+            metal.layer = window.handle;  // CAMetalLayer*
+            sd.nextInChain = &metal.chain;
+            surface_ = wgpuInstanceCreateSurface(instance_, &sd);
+            break;
+        }
+        case NativeWindowKind::AndroidWindow: {
+            WGPUSurfaceSourceAndroidNativeWindow android{};
+            android.chain.sType = WGPUSType_SurfaceSourceAndroidNativeWindow;
+            android.window = window.handle;  // ANativeWindow*
+            sd.nextInChain = &android.chain;
+            surface_ = wgpuInstanceCreateSurface(instance_, &sd);
+            break;
+        }
+    }
+    if (!surface_) {
+        ES_LOG_ERROR("WebGPUDevice::configureSurface(native): surface creation failed");
+        return false;
+    }
+
+    return configureSwapchain(width, height);
+}
+#endif  // !__EMSCRIPTEN__
 
 bool WebGPUDevice::configureSwapchain(u32 width, u32 height) {
     // The canvas swapchain prefers BGRA on most platforms; RGBA8 is universally

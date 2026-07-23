@@ -1041,11 +1041,13 @@ export class App {
  *     via document.querySelector — so the canvas must be in the DOM).
  *   - `default`: the module resolves its own surface (module.initRenderer()).
  *
- * NATIVE (embedded Dawn on iOS/Android) will provide its WebGPU device the same
+ * NATIVE (embedded Dawn on iOS/Android) provides its WebGPU device the same
  * `preinitializedWebGPUDevice` way, but bound to a native surface (CAMetalLayer /
  * ANativeWindow) rather than a DOM canvas — it uses `{ kind: 'webgpu' }` with
- * `canvasSelector` omitted, and the C++/glue native-surface resolution lands with
- * the native shell.
+ * `canvasSelector` omitted. The C++ renderer seam for this exists:
+ * `WebGPUDevice::configureSurface(const NativeSurface&)` builds the surface from a
+ * native window handle (the counterpart of this union). What still lands with the
+ * native shell is the glue that acquires the Dawn device and calls that overload.
  */
 export type RenderSurfaceSource =
     | { readonly kind: 'gl-context'; readonly handle: number }
