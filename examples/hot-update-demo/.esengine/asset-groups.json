@@ -1,0 +1,11 @@
+{
+  "version": "1.0",
+  "groups": {
+    "cdn": { "folder": "assets/cdn", "mode": "remote" }
+  },
+  "activeProfile": "dev",
+  "profiles": {
+    "dev": { "remoteRoot": "" },
+    "prod": { "remoteRoot": "https://cdn.example.com/hot-update-demo" }
+  }
+}

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { createStore } from 'zustand/vanilla';
-import { getComponent, getEditorType, Assets, migratePrefabData, extractPrefab, flattenPrefab, collectExternalEntityRefs, collapseInstance, applyDeltaToSource, buildVariant, validateOverrides, setTextureParams, TextureFilter, TextureWrap, Renderer, RETIRED_COMPONENT_TYPES, parseThemeOverrides } from 'esengine';
+import { getComponent, getEditorType, Assets, migratePrefabData, extractPrefab, flattenPrefab, collectExternalEntityRefs, collapseInstance, applyDeltaToSource, buildVariant, validateOverrides, setTextureParams, TextureFilter, TextureWrap, Renderer, RETIRED_COMPONENT_TYPES, parseThemeOverrides, resolveAssetGroup } from 'esengine';
 import { readTextureImportSettings } from './assetImporter';
-import type { SceneData, PrefabData, ExtractEntity, ProcessedEntity, PhysicsPluginConfig, AudioProjectConfig, AssetsData, ThemeOverrides, StaleOverride, PrefabOverride, AddressableManifest } from 'esengine';
+import type { SceneData, PrefabData, ExtractEntity, ProcessedEntity, PhysicsPluginConfig, AudioProjectConfig, AssetsData, ThemeOverrides, StaleOverride, PrefabOverride, AddressableManifest, AssetGroupsConfig } from 'esengine';
 import { EngineHost } from '@/engine/EngineHost';
 import { applyWidgetTheme } from '@/engine/widgetTheme';
 import { bootProfiler } from '@/engine/bootProfiler';
@@ -332,6 +332,7 @@ class ProjectStoreImpl {
       Toasts.push(t('proj.sdkTypesFailed', { message: opened.stagingError }), 'error');
     }
     this.adopt(opened);
+    await this.loadAssetGroupsConfig();
     await window.estella.recents.add(opened.root, opened.manifest.name);
     await this.refreshUserSchemas();
     EngineHost.setSceneBootstrap(() => this.loadCurrentScene());
@@ -1359,12 +1360,28 @@ class ProjectStoreImpl {
    * the lossless refs, not resolved handles — plus a uuid→url manifest the realm
    * fetches over `estella://`. Null if no scene is loaded.
    */
+  /** The project's asset-delivery config, cached on open (see {@link loadAssetGroupsConfig}). */
+  private assetGroupsConfig: AssetGroupsConfig | null = null;
+
+  /** Cache `.esengine/asset-groups.json` so {@link buildPlayManifest} resolves
+   *  groups synchronously. Absent → null, and resolveAssetGroup falls back to the
+   *  legacy folder-name convention. */
+  private async loadAssetGroupsConfig(): Promise<void> {
+    try {
+      this.assetGroupsConfig = JSON.parse(
+        await window.estella.fs.read(`${WORKSPACE_DIR}/asset-groups.json`),
+      ) as AssetGroupsConfig;
+    } catch {
+      this.assetGroupsConfig = null;
+    }
+  }
+
   /**
    * Build the AddressableManifest for Play so `Assets.loadGroup` (remote / lazy
-   * groups) works in the editor realm exactly as in a shipped build. The folder
-   * convention mirrors the cook's `groupOf` (cookAssets.ts — the canonical
-   * source): `remote/<name>/` → remote group, `subpackages/<name>/` → lazy, else
-   * `main`/local. Types are inferred from the extension (the realm resolves each
+   * groups) works in the editor realm exactly as in a shipped build. Group
+   * membership comes from the SAME resolver the cook uses ({@link resolveAssetGroup}
+   * over the cached asset-groups config), so editor and shipped build never
+   * disagree. Types are inferred from the extension (the realm resolves each
    * asset's url through the same uuid/path channel); `size` is 0 (unknown before a
    * cook, and unused by loadGroup).
    */
@@ -1383,11 +1400,8 @@ class ProjectStoreImpl {
     const groups: Record<string, { bundleMode: string; labels: string[]; assets: Record<string, Asset> }> = {};
     for (const [uuid, raw] of this.uuidToPath) {
       const path = raw.replace(/\\/g, '/');
-      const sub = /^subpackages\/([^/]+)\//.exec(path);
-      const rem = /^remote\/([^/]+)\//.exec(path);
-      const name = sub?.[1] ?? rem?.[1] ?? 'main';
-      const mode = sub ? 'lazy' : rem ? 'remote' : 'local';
-      const g = (groups[name] ??= { bundleMode: mode, labels: [], assets: {} });
+      const { name, delivery } = resolveAssetGroup(path, this.assetGroupsConfig);
+      const g = (groups[name] ??= { bundleMode: delivery, labels: [], assets: {} });
       g.assets[uuid.toLowerCase()] = { path, type: typeOfExt(path), size: 0, labels: [] };
     }
     groups.main ??= { bundleMode: 'local', labels: [], assets: {} };

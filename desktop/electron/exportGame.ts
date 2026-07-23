@@ -24,8 +24,9 @@ import { loadEsbuild } from './esbuildRuntime';
 import { writeFile, mkdir, cp, readdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { cookAssets } from './cookAssets';
+import { cookAssets, loadAssetGroups } from './cookAssets';
 import { buildAddressableManifest } from './addressableManifest';
+import { activeRemoteRoot } from '../../sdk/src/asset/assetGroups';
 import { IMPORT_MAP_JSON, IMPORT_MAP_CSP_HASH } from './buildPlayRealm';
 import { exportWeChat } from './exportWeChat';
 import { exportPlayable } from './exportPlayable';
@@ -402,6 +403,16 @@ export async function exportGame(opts: {
   // still reads the flat manifest; this powers on-demand + hot-update delivery.
   await writeFile(path.join(payloadDir, 'asset-manifest.json'), await buildAddressableManifest(payloadDir));
 
+  // Hot-update delivery baked into game.config.json: the active build profile's
+  // CDN root (an explicit opts.hotUpdate override wins), plus a persistence key so
+  // a returning player boots on already-updated content. Only emitted when a CDN
+  // root is configured — a project with no remote groups ships nothing extra.
+  const remoteRoot = opts.hotUpdate?.remoteRoot ?? activeRemoteRoot(await loadAssetGroups(opts.root));
+  const persistUpdateKey = opts.hotUpdate?.persistUpdateKey ?? (remoteRoot ? 'esengine:hotupdate' : undefined);
+  const hotUpdate = remoteRoot || persistUpdateKey
+    ? { ...(remoteRoot ? { remoteRoot } : {}), ...(persistUpdateKey ? { persistUpdateKey } : {}) }
+    : undefined;
+
   try {
     // 2. Game host — esengine EXTERNAL (resolved by the index.html import map),
     //    so the shipped game shares one SDK with the project bundle and runs
@@ -446,7 +457,7 @@ export async function exportGame(opts: {
         ...(opts.screenFit && opts.screenFit.scaleMode >= 0 ? { screenFit: opts.screenFit } : {}),
         ...(opts.uiTheme === 'light' ? { uiTheme: opts.uiTheme } : {}),
         ...(opts.uiThemeColors && Object.keys(opts.uiThemeColors).length > 0 ? { uiThemeColors: opts.uiThemeColors } : {}),
-        ...(opts.hotUpdate ? { hotUpdate: opts.hotUpdate } : {}),
+        ...(hotUpdate ? { hotUpdate } : {}),
       },
       null, 2,
     ) + '\n',

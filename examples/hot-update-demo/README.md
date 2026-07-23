@@ -14,9 +14,21 @@ Nothing is ever overwritten, so a cache can never go stale.
 
 ### The pieces
 
-- **`remote/cdn/art.png`** — a texture in a **`remote` group**. The
-  `remote/<name>/` folder convention tells the cook this asset is delivered from
-  a CDN (bundle mode `remote`), not baked into the package.
+- **`assets/cdn/art.png`** — a texture assigned to a **`remote` group** by the
+  project's delivery config, so it's delivered from a CDN (bundle mode `remote`),
+  not baked into the package.
+- **`.esengine/asset-groups.json`** — the delivery config. `assets/cdn` is an
+  ordinarily-named folder; the config is what marks it a remote group, and build
+  profiles (`dev` / `prod`) carry the CDN root per environment:
+  ```json
+  {
+    "groups": { "cdn": { "folder": "assets/cdn", "mode": "remote" } },
+    "activeProfile": "dev",
+    "profiles": { "dev": { "remoteRoot": "" }, "prod": { "remoteRoot": "https://cdn.example.com/hot-update-demo" } }
+  }
+  ```
+  (The legacy `remote/<name>/` / `subpackages/<name>/` folder names still work as a
+  zero-config default when there is no `asset-groups.json`.)
 - **`src/systems/hotUpdate.ts`** — on start, calls `Assets.loadGroup('cdn')` to
   fetch the remote texture and stamps its handle onto the display sprite. It also
   subscribes to `Assets.onInvalidate` so that when an update lands, it reloads the

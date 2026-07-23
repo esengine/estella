@@ -48,9 +48,16 @@ describe.skipIf(!process.env.ESTELLA_HOTUPDATE_FIXTURE)('hot-update verify fixtu
     //    runtime's diff sees exactly one changed asset.
     cpSync(EXAMPLE, REDSRC, {
       recursive: true,
-      filter: (s) => !s.includes(`${path.sep}.esengine`) && !s.includes('node_modules'),
+      // Copy the project but drop generated / heavy trees. Keep the committed
+      // .esengine/asset-groups.json — it's what makes assets/cdn a remote group.
+      filter: (src) => {
+        const p = src.replace(/\\/g, '/');
+        if (p.includes('/node_modules') || p.includes('/dist')) return false;
+        const i = p.indexOf('/.esengine/');
+        return i < 0 || p.slice(i + '/.esengine/'.length).startsWith('asset-groups.json');
+      },
     });
-    writeFileSync(path.join(REDSRC, 'remote', 'cdn', 'art.png'), solidPng(64, 64, [220, 40, 40, 255]));
+    writeFileSync(path.join(REDSRC, 'assets', 'cdn', 'art.png'), solidPng(64, 64, [220, 40, 40, 255]));
     const cdn = await exportGame(opts(REDSRC, CDN));
     expect(cdn.ok, cdn.errors.join('; ')).toBe(true);
   }, 180_000);

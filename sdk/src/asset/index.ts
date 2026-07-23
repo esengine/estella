@@ -12,6 +12,16 @@ export {
     ManifestModel,
 } from './AddressableManifest';
 export { diffManifests, type UpdatePlan, type AssetChange } from './hotUpdate';
+export {
+    resolveAssetGroup,
+    activeRemoteRoot,
+    modeToDelivery,
+    type AssetGroupMode,
+    type AssetGroupDef,
+    type BuildProfile,
+    type AssetGroupsConfig,
+    type ResolvedAssetGroup,
+} from './assetGroups';
 export { xxh64, contentHashHex, contentHashOf } from './contentHash';
 export { AsyncCache } from './AsyncCache';
 export { Assets, AssetPlugin, assetPlugin, type AssetsData } from './AssetPlugin';

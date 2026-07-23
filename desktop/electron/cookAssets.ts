@@ -25,6 +25,10 @@ import { packAtlas, decodePngImage, encodePagePng, type AtlasInputImage } from '
 // no hand-mirrored copy — so the cook and the runtime agree by construction.
 import { contentHashHex } from '../../sdk/src/asset/contentHash';
 import { resolveRelativePath } from '../../sdk/src/tilemap/tiledPath';
+// Single source for the folder→delivery-group model, shared with the editor Play
+// realm (sdk/src/asset/assetGroups.ts) so cook and editor never disagree.
+import { resolveAssetGroup, type AssetGroupsConfig } from '../../sdk/src/asset/assetGroups';
+import type { BundleMode } from '../../sdk/src/asset/AddressableManifest';
 
 const MANIFEST = 'assets.manifest.json';
 
@@ -35,10 +39,10 @@ const MANIFEST = 'assets.manifest.json';
  * simply ignores these extra fields (it maps uuid→path); the AddressableManifest
  * and content-addressed naming are what read them.
  */
-/** How an addressable group is delivered — the typed mode the folder convention
- *  ({@link groupOf}) assigns and the AddressableManifest carries. `local` ships in
- *  the main package; `lazy` in an on-demand subpackage; `remote` on a CDN (hot-update). */
-export type GroupDelivery = 'local' | 'lazy' | 'remote';
+/** How an addressable group is delivered — the typed mode {@link resolveAssetGroup}
+ *  assigns and the AddressableManifest carries. Alias of the SDK's BundleMode:
+ *  `local` (main package), `lazy` (subpackage), `remote` (CDN / hot-update). */
+export type GroupDelivery = BundleMode;
 
 export interface CookManifestEntry extends AssetEntry {
   /** XXH64 (16 hex) of the exact bytes staged — the asset's physical identity. */
@@ -99,36 +103,19 @@ export function atlasDirOf(projectRelPath: string): string | null {
  * single source of truth for the grouping — cook (here), export layout, and the
  * manifest all derive from it.
  */
-const SUBPACKAGE_RE = /^subpackages\/([^/]+)\//;
-export function subpackageOf(projectRelPath: string): string | null {
-  const m = SUBPACKAGE_RE.exec(projectRelPath.replace(/\\/g, '/'));
-  return m ? m[1] : null;
-}
-
-const REMOTE_RE = /^remote\/([^/]+)\//;
 /**
- * Folder-convention remote-group detection: an asset under `remote/<name>/…`
- * belongs to CDN-delivered group `<name>` — shipped to a remote origin, NOT the
- * package, and fetched on demand / hot-updated. Null for package assets. Parallel
- * to {@link subpackageOf}; the two are mutually exclusive by folder.
+ * Load the project's asset-delivery config (`.esengine/asset-groups.json`) — the
+ * single authored source for which folders ship as remote (CDN) / subpackage
+ * groups. Absent or unparseable → null, and {@link resolveAssetGroup} falls back
+ * to the legacy `remote/`/`subpackages/` folder-name convention.
  */
-export function remoteGroupOf(projectRelPath: string): string | null {
-  const m = REMOTE_RE.exec(projectRelPath.replace(/\\/g, '/'));
-  return m ? m[1] : null;
-}
-
-/**
- * The addressable group + delivery an asset's folder assigns it — the single
- * source of truth cook staging, the export layout, and the manifest all derive
- * from. `subpackages/<name>/` → lazy `<name>`; `remote/<name>/` → remote `<name>`;
- * anything else → local `main`.
- */
-export function groupOf(projectRelPath: string): { name: string; delivery: GroupDelivery } {
-  const sub = subpackageOf(projectRelPath);
-  if (sub) return { name: sub, delivery: 'lazy' };
-  const rem = remoteGroupOf(projectRelPath);
-  if (rem) return { name: rem, delivery: 'remote' };
-  return { name: 'main', delivery: 'local' };
+export async function loadAssetGroups(root: string): Promise<AssetGroupsConfig | null> {
+  try {
+    const raw = await readFile(path.join(root, '.esengine', 'asset-groups.json'), 'utf8');
+    return JSON.parse(raw) as AssetGroupsConfig;
+  } catch {
+    return null;
+  }
 }
 
 /** Content-addressed base dir for a group's delivery: main → `assets`,
@@ -253,6 +240,8 @@ export async function cookAssets(
   const byUuid = new Map(index.entries.map((e) => [e.uuid, e]));
   const byPath = new Map(index.entries.map((e) => [e.path, e]));
   const warnings: string[] = [];
+  // Asset-delivery config: which folders are remote (CDN) / subpackage groups.
+  const groupsConfig = await loadAssetGroups(root);
 
   // Seed reachability from the entry scenes (path → uuid)…
   const reachable = new Set<string>();
@@ -276,9 +265,9 @@ export async function cookAssets(
   // shared dep that lives outside subpackages/ resolves to group 'main' below, so
   // it lands in the always-present main package, not duplicated per subpackage.
   for (const e of index.entries) {
-    // …and remote CDN / hot-update assets (remote/<name>/): never scene-
-    // referenced, but must be cooked + staged for upload to the CDN root.
-    if (subpackageOf(e.path) || remoteGroupOf(e.path)) seed(e.uuid);
+    // …and every non-local (subpackage / remote-CDN) asset: never scene-
+    // referenced, but must be cooked + staged for its group's delivery.
+    if (resolveAssetGroup(e.path, groupsConfig).delivery !== 'local') seed(e.uuid);
   }
   // Force-include locale string tables: translations load by code / plugin
   // option (a scene never references them — Text carries KEYS, not paths), so
@@ -367,7 +356,7 @@ export async function cookAssets(
           compressedFormats = COMPRESSED_TARGETS;
         }
         const pageHash = contentHashHex(pageBytes);
-        const { name: group, delivery } = groupOf(`${dir}/`);
+        const { name: group, delivery } = resolveAssetGroup(`${dir}/`, groupsConfig);
         const caBase = caBaseFor(group, delivery);
         const pageOutRel = contentAddressed
           ? `${caBase}/${pageHash}${pageExt}`
@@ -399,7 +388,7 @@ export async function cookAssets(
     // page's (hash/size of the bytes actually served for this ref).
     const framePlan = atlasPlan.get(entry.path);
     if (framePlan) {
-      const fg = groupOf(entry.path);
+      const fg = resolveAssetGroup(entry.path, groupsConfig);
       manifestEntries.push({
         uuid: entry.uuid,
         path: framePlan.pageOutRel,
@@ -507,7 +496,7 @@ export async function cookAssets(
       // Group by folder convention. Lazy-subpackage assets must stay under their
       // subpackage root (subpackages/<name>/…) so the root maps to a WeChat
       // subPackage — including the content-addressed layout (root/assets/<hash>).
-      const { name: group, delivery } = groupOf(entry.path);
+      const { name: group, delivery } = resolveAssetGroup(entry.path, groupsConfig);
       const useCA = contentAddressed && entry.type !== 'scene';
       const caBase = caBaseFor(group, delivery);
       const outRel = useCA ? `${caBase}/${hash}${ext}` : swapExt(entry.path, ext);
