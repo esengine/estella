@@ -1,6 +1,6 @@
 ---
 title: Tilemaps
-description: The complete guide to tile layers — painting in the editor, loading Tiled maps, the Tilemap/TilemapLayer components, building and editing layers in code, multi-tileset layers, animation, infinite chunked maps, and collision.
+description: The complete guide to tile layers — painting in the editor, loading Tiled maps, the Tilemap/TilemapLayer components, building and editing layers in code, multi-tileset layers, animation, infinite chunked maps, collision, and paint-over-a-background collision layers.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -293,11 +293,67 @@ one collider per tile — and the tile properties `oneway` / `sensor` /
   edit world or serialized.
 </Aside>
 
+## Collision (obstacle) layers
+
+Not every level is a tileset. When your art is a **single background image** — a
+hand-painted room, an exported illustration — you still want walls, floors, and
+slopes the player collides with. A **collision layer** paints exactly that: a
+`TilemapLayer` that draws **nothing** and instead stamps collider cells over
+whatever is behind it.
+
+A collision layer is an ordinary tile layer whose tileset reference is the sentinel
+`builtin:collision` instead of an `.estileset`. That one change routes it to a fixed
+palette of collider brushes, so it reuses the whole painting pipeline you already
+know — brush / rectangle / fill tools, chunk storage, flip, and the greedy
+box-merge — with no second system to learn. At Play the painted cells spawn static
+colliders, exactly like per-tile collision.
+
+**Create → 2D → Collision Layer** (or the *New Collision Layer* command) makes one,
+seeds a 32 px grid, and opens the painter with the collision palette instead of a
+tileset.
+
+![The collision-brush palette — Solid, ramps, half-tiles, One-way, and Trigger brushes, with per-layer friction and bounce fields](../../../assets/guides/en/collision-palette.png)
+
+*The **collision palette** replaces the tileset: pick **Solid**, a **ramp** or
+**half-tile**, **One-way ↑**, or **Trigger**, then paint over your background. The
+**Friction** and **Bounce** fields set a physics material for the whole layer.*
+
+The brushes:
+
+| Brush | Cell | Use |
+|---|---|---|
+| **Solid** | Full box | Walls, floors, ceilings. Greedy-merged into large static colliders. |
+| **Ramp ◢ / ◣** | Triangle | 45° slopes rising to the right / left. |
+| **Half** (bottom / top / left / right) | Half box | Ledges, low walls, thin floors. |
+| **One-way ↑** | Solid-top box | Jump-through platforms — solid from above, pass-through from below. Flip to reorient it (a ceiling, a wall). |
+| **Trigger** | Sensor box | A non-solid region that fires overlap events — see [Markers & Trigger Areas](/docs/guides/markers/). |
+
+Paint them like tiles; the **collision overlay** draws exactly what Play will spawn.
+Each collision layer can also carry its own **physics material** (friction / bounce /
+density), applied to every cell it spawns — set it in the Inspector.
+
+<Aside type="note">
+  Collision layers spawn their colliders **at Play**, like tile and object collision —
+  the colliders are never in the edit world or serialized as entities. The painted
+  cells themselves *are* saved, in the layer's chunk data.
+</Aside>
+
+Gameplay code reads a collision layer through the same [collision
+queries](#tilemaps-api-reference) as any painted layer — `isTileSolid`,
+`tileCollisionAt`, `tileCollisionAtWorld` — so nothing downstream needs to know the
+cells came from the built-in palette.
+
 ## Object layers
 
-Tiled **object layers** (spawn points, triggers, region shapes) load with the map.
-Query them by the map's source path with `getTilemapSource` — each group carries its
-objects with position, size, `type` (Tiled's class), `shape`, and custom `properties`:
+Tiled **object layers** (spawn points, triggers, region shapes) load with the map. The
+modern way to read them is `Query(Marker)`: on load, point objects converge into
+[**Marker**](/docs/guides/markers/) entities and shape objects into **Trigger Area**
+regions — the very same entities you author by hand — so one query reads objects
+whether they came from Tiled or the Estella editor.
+
+The raw group data is still available by the map's source path with `getTilemapSource`
+— each group carries its objects with position, size, `type` (Tiled's class), `shape`,
+and custom `properties`:
 
 ```typescript
 import { getTilemapSource } from 'esengine';
@@ -366,6 +422,8 @@ specially), and `tileCollisionAtWorld(...)` addresses in world pixels.
 
 ## See also
 
+- [Markers & Trigger Areas](/docs/guides/markers/) — place gameplay points and trigger
+  zones over your level as real, queryable entities.
 - [Physics](/docs/guides/physics/) — tile colliders participate in the physics world.
 - [Assets](/docs/guides/assets/) — loading `.tmj` maps and `.estileset` tilesets.
 - [Scenes](/docs/guides/scene/) — tilemap layers serialize with the scene.
