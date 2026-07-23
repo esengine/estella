@@ -196,6 +196,7 @@ export class ManifestModel {
 
     private keyIndex_: Map<string, AddressableManifestAsset> | null = null;
     private pathIndex_: Map<string, AddressableManifestAsset> | null = null;
+    private remoteIndex_: Map<string, string> | null = null;
 
     private indexes(): { byKey: Map<string, AddressableManifestAsset>; byPath: Map<string, AddressableManifestAsset> } {
         if (!this.keyIndex_ || !this.pathIndex_) {
@@ -232,6 +233,32 @@ export class ManifestModel {
     /** Asset by its build path. */
     assetByPath(path: string): AddressableManifestAsset | null {
         return this.indexes().byPath.get(path) ?? null;
+    }
+
+    /**
+     * Build path of a `remote`-group asset by ANY of its keys — record key (uuid),
+     * address (logical source path, bare and `/`-rooted), or build path — or null
+     * when the ref is not a remote-delivered asset. Lets a resolver route scene
+     * `@uuid` refs to remote assets through the CDN (so they hot-update with the
+     * manifest), while local / lazy assets keep their normal resolution.
+     */
+    remoteAssetPath(ref: string): string | null {
+        if (!this.remoteIndex_) {
+            const idx = new Map<string, string>();
+            for (const group of Object.values(this.manifest.groups)) {
+                if (normalizeBundleMode(group.bundleMode) !== 'remote') continue;
+                for (const [key, asset] of Object.entries(group.assets)) {
+                    idx.set(key, asset.path);
+                    idx.set(asset.path, asset.path);
+                    if (asset.address) {
+                        idx.set(asset.address, asset.path);
+                        idx.set(`/${asset.address}`, asset.path);
+                    }
+                }
+            }
+            this.remoteIndex_ = idx;
+        }
+        return this.remoteIndex_.get(ref) ?? null;
     }
 
     /**

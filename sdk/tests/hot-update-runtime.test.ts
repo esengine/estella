@@ -184,6 +184,48 @@ describe('Assets.checkForUpdate / applyUpdate', () => {
     });
 });
 
+describe('Assets.resolveLoadPath — @uuid refs to remote assets (model-2)', () => {
+    it('resolves a remote-group asset (by @uuid / uuid / address) to the CDN url when a root is set', () => {
+        const assets = createAssets(backendServing());
+        assets.setManifest(cdnManifest('aaaa', 'rev-1')); // cdn remote; uuid-1 → assets/aaaa.png, address assets/hero.png
+        assets.setRemoteRoot('https://cdn.example.com/v1');
+        expect(assets.resolveLoadPath('@uuid:uuid-1')).toBe('https://cdn.example.com/v1/assets/aaaa.png');
+        expect(assets.resolveLoadPath('uuid-1')).toBe('https://cdn.example.com/v1/assets/aaaa.png');
+        expect(assets.resolveLoadPath('assets/hero.png')).toBe('https://cdn.example.com/v1/assets/aaaa.png');
+    });
+
+    it('falls through to the normal resolver with no remote root (same-origin realms)', () => {
+        const assets = createAssets(backendServing());
+        assets.setManifest(cdnManifest('aaaa', 'rev-1'));
+        assets.setAssetRefResolver((r) => (r === '@uuid:uuid-1' ? 'estella://project/assets/hero.png' : r));
+        // No remoteRoot → the addressable manifest does not hijack resolution.
+        expect(assets.resolveLoadPath('@uuid:uuid-1')).toBe('estella://project/assets/hero.png');
+    });
+
+    it('leaves local / lazy assets to the normal resolver (only remote groups are routed)', () => {
+        const assets = createAssets(backendServing());
+        assets.setManifest({
+            version: '2.0',
+            groups: { main: { bundleMode: 'local', labels: [], assets: { 'uuid-x': { path: 'a.png', type: 'texture', size: 1, labels: [] } } } },
+        } as any);
+        assets.setRemoteRoot('https://cdn');
+        assets.setAssetRefResolver((r) => (r === '@uuid:uuid-x' ? 'a.png' : r));
+        expect(assets.resolveLoadPath('@uuid:uuid-x')).toBe('a.png');
+    });
+
+    it('after applyUpdate, an @uuid ref resolves to the NEW remote path (scene assets hot-update)', async () => {
+        const assets = createAssets(backendServing(cdnManifest(REMOTE_HASH, 'rev-2')));
+        assets.setManifest(cdnManifest('aaaa', 'rev-1'));
+        assets.setRemoteRoot('https://cdn/v1');
+        expect(assets.resolveLoadPath('@uuid:uuid-1')).toBe('https://cdn/v1/assets/aaaa.png');
+
+        await assets.checkForUpdate({ manifestUrl: 'm.json', remoteRoot: 'https://cdn/v2' });
+        expect((await assets.applyUpdate()).ok).toBe(true);
+
+        expect(assets.resolveLoadPath('@uuid:uuid-1')).toBe(`https://cdn/v2/assets/${REMOTE_HASH}.png`);
+    });
+});
+
 describe('Assets.restorePersistedUpdate', () => {
     it('persists an applied update and restores it into a fresh Assets', async () => {
         const backend = backendServing(cdnManifest(REMOTE_HASH, 'rev-2'));

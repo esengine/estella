@@ -3647,6 +3647,7 @@ findAsset: (pathOrAddress: string) => AddressableManifestAsset | null
 group: (name: string) => AddressableManifestGroup | null
 groupNames: () => string[]
 groupsByMode: (mode: BundleMode) => string[]
+remoteAssetPath: (ref: string) => string | null
 resolvePath: (ref: string, normalize?: (ref: string) => string) => string
 revision: () => string | null
 static empty: () => ManifestModel

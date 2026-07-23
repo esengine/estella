@@ -1365,8 +1365,26 @@ export class Assets {
      * time — textures silently rendered white. This helper closes that gap.
      */
     private resolveLoadPath_(ref: string): string {
+        // A `remote`-group asset (per the active addressable manifest) resolves to
+        // its CDN url — so a scene @uuid ref to a remote asset loads from, and
+        // hot-updates with, the CDN, not just loadGroup'd DLC assets. Gated on a
+        // remote root being set, so same-origin realms (editor Play, a build with
+        // no CDN) keep their normal resolver + base-prefixing untouched.
+        const remote = this.remoteAssetPath_(ref);
+        if (remote != null) return remote;
         const resolved = this.assetRefResolver_?.(ref) ?? ref;
         return this.catalog.resolve(resolved);
+    }
+
+    /** CDN url of `ref` when it names a `remote`-group asset AND a remote root is
+     *  set; null otherwise (caller falls back to the normal resolver). */
+    private remoteAssetPath_(ref: string): string | null {
+        if (!this.remoteRoot_) return null;
+        const model = this.manifestModel_;
+        if (!model) return null;
+        const key = ref.startsWith('@uuid:') ? ref.slice(6).toLowerCase() : ref;
+        const path = model.remoteAssetPath(key) ?? model.remoteAssetPath(ref);
+        return path != null ? this.remoteUrlFor_(path) : null;
     }
 
     // =========================================================================
