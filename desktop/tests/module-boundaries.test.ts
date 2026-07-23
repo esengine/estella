@@ -15,7 +15,10 @@ import { join, relative } from 'node:path';
 const SRC = join(__dirname, '..', 'src');
 
 /** Same-feature compositions: a panel and its own sub-part file. */
-const ALLOWED_SUBPARTS = new Set(['Sequencer -> SequencerCurve']);
+const ALLOWED_SUBPARTS = new Set([
+  'Sequencer -> SequencerCurve',
+  'TilemapPainter -> CollisionBrushPalette',
+]);
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
