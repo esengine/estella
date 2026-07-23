@@ -77,6 +77,10 @@ function getSafeAreaInsets(): SafeAreaInsets {
     if (isWeChat()) {
         return getWeChatSafeAreaInsets();
     }
+    // Native (no DOM) falls through to getWebSafeAreaInsets, which returns zero
+    // insets when `document` is absent — harmless. When the native shell exposes
+    // notch insets (a bridge.safeAreaInsets() seam), gate `isWeChat() || isNative()`
+    // here and read them the wechat way (non-DPR-scaled).
     return getWebSafeAreaInsets();
 }
 

@@ -111,6 +111,7 @@ export {
     isPlatformInitialized,
     isWeChat,
     isWeb,
+    isNative,
     platformFetch,
     platformReadFile,
     platformReadTextFile,
@@ -120,6 +121,9 @@ export {
     type PlatformType,
     type PlatformRequestOptions,
     type PlatformResponse,
+    type PlatformCanvas,
+    type PlatformCanvas2DContext,
+    type PlatformImage,
 } from './platform';
 
 // =============================================================================

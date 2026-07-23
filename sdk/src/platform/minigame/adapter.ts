@@ -19,6 +19,8 @@ import type {
     WasmInstantiateResult,
     InputEventCallbacks,
     ImageLoadResult,
+    PlatformCanvas,
+    PlatformImage,
     PlatformSocket,
     PlatformSocketOptions,
 } from '../types';
@@ -77,8 +79,10 @@ export class MiniGamePlatformAdapter implements PlatformAdapter {
         return this.profile_.instantiateWasm(pathOrBuffer, imports);
     }
 
-    createImage(): HTMLImageElement {
-        return this.g_.createImage() as unknown as HTMLImageElement;
+    createImage(): PlatformImage {
+        // MiniGameImage is structurally assignable to PlatformImage (crossOrigin is
+        // optional, its handlers fit the neutral optional-arg shape) — no cast.
+        return this.g_.createImage();
     }
 
     /** Download an on-demand subpackage so its files become readable. */
@@ -108,8 +112,10 @@ export class MiniGamePlatformAdapter implements PlatformAdapter {
         return () => off?.call(this.g_, listener);
     }
 
-    createCanvas(width: number, height: number): HTMLCanvasElement | OffscreenCanvas {
-        const canvas = this.g_.createCanvas() as unknown as HTMLCanvasElement;
+    createCanvas(width: number, height: number): PlatformCanvas {
+        // One honest cast: MiniGameCanvas.getContext returns `unknown`, so it is not
+        // structurally assignable to PlatformCanvas's typed 2D getContext.
+        const canvas = this.g_.createCanvas() as unknown as PlatformCanvas;
         canvas.width = width;
         canvas.height = height;
         return canvas;

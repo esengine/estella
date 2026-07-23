@@ -3,6 +3,7 @@
 import type { AssetLoader, LoadContext, TextureResult } from '../AssetLoader';
 import { linearColorSpace } from '../../env';
 import { platformCreateCanvas, platformCreateImage } from '../../platform/base';
+import type { PlatformCanvas, PlatformCanvas2DContext, PlatformImage } from '../../platform/types';
 import { decodeImageBitmap } from '../imageDecode';
 import { requireResourceManager } from '../../resourceManager';
 import type { ESEngineModule } from '../../wasm';
@@ -83,8 +84,8 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         this.transcoder_ = await this.transcoderPending_;
         return this.transcoder_;
     }
-    private canvas_: HTMLCanvasElement | OffscreenCanvas | null = null;
-    private ctx_: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null = null;
+    private canvas_: PlatformCanvas | null = null;
+    private ctx_: PlatformCanvas2DContext | null = null;
     /**
      * Optional hook that returns per-asset import settings. Invoked at
      * load-time with the ORIGINAL ref (pre-resolution), so callers can key
@@ -109,7 +110,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     setPixelDecoder(decoder: TexturePixelDecoder | null): void { this.pixelDecoder_ = decoder; }
     get pixelDecoder(): TexturePixelDecoder | null { return this.pixelDecoder_; }
 
-    private ensureCanvas_(): { canvas: HTMLCanvasElement | OffscreenCanvas; ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D } {
+    private ensureCanvas_(): { canvas: PlatformCanvas; ctx: PlatformCanvas2DContext } {
         if (this.canvas_ && this.ctx_) return { canvas: this.canvas_, ctx: this.ctx_ };
         this.canvas_ = platformCreateCanvas(256, 256);
         const ctx = this.canvas_.getContext('2d', { willReadFrequently: true });
@@ -213,7 +214,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
      * on it uploads every texture upside-down. The raw `<img>` fallback keeps the
      * flag (it works for element/pixel sources) — see {@link createTextureFromImage}.
      */
-    private loadImage(src: string, flip: boolean): Promise<HTMLImageElement | ImageBitmap> {
+    private loadImage(src: string, flip: boolean): Promise<PlatformImage | ImageBitmap> {
         return new Promise((resolve, reject) => {
             const img = platformCreateImage();
             img.crossOrigin = 'anonymous';
@@ -234,7 +235,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     }
 
     private createTextureFromImage(
-        img: HTMLImageElement | ImageBitmap, flip: boolean, settings?: TextureImportSettings,
+        img: PlatformImage | ImageBitmap, flip: boolean, settings?: TextureImportSettings,
     ): TextureResult {
         const { width, height } = img;
         const gl = this.getWebGL2Context();
@@ -257,7 +258,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
 
     private createTextureWebGL2(
         gl: WebGL2RenderingContext,
-        img: HTMLImageElement | ImageBitmap,
+        img: PlatformImage | ImageBitmap,
         width: number, height: number, flip: boolean,
         settings?: TextureImportSettings,
     ): TextureResult {
@@ -311,7 +312,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     }
 
     private createTextureFallback(
-        img: HTMLImageElement | ImageBitmap,
+        img: PlatformImage | ImageBitmap,
         width: number, height: number, flip: boolean,
         settings?: TextureImportSettings,
     ): TextureResult {

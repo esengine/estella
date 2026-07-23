@@ -73,6 +73,16 @@ export function isWeb(): boolean {
     return currentPlatform?.name === 'web';
 }
 
+/**
+ * Check if running on a native host (embedded Dawn + JS engine on iOS/Android).
+ * Native has no DOM: offscreen canvas/image throw, textures come from the
+ * pixel-decode path (loadImagePixels), and lifecycle/safe-area treat it like a
+ * headless-but-visible host rather than the web DOM branch.
+ */
+export function isNative(): boolean {
+    return currentPlatform?.name === 'native';
+}
+
 // =============================================================================
 // Convenience Functions
 // =============================================================================
@@ -107,11 +117,14 @@ export async function platformInstantiateWasm(
     return getPlatform().instantiateWasm(pathOrBuffer, imports);
 }
 
-export function platformCreateCanvas(width: number, height: number): HTMLCanvasElement | OffscreenCanvas {
+export function platformCreateCanvas(
+    width: number,
+    height: number,
+): import('./types').PlatformCanvas {
     return getPlatform().createCanvas(width, height);
 }
 
-export function platformCreateImage(): HTMLImageElement {
+export function platformCreateImage(): import('./types').PlatformImage {
     return getPlatform().createImage();
 }
 

@@ -6,16 +6,17 @@
  *          an offscreen 2D canvas → read back pixels.
  */
 
-import type { ImageLoadResult } from '../types';
+import type { ImageLoadResult, PlatformCanvas2DContext } from '../types';
 import type { MiniGameGlobal, MiniGameImage } from './api';
 
 function getOffscreenCanvas(g: MiniGameGlobal, width: number, height: number): {
-    ctx: CanvasRenderingContext2D;
+    ctx: PlatformCanvas2DContext;
 } {
     const canvas = g.createCanvas();
     canvas.width = width;
     canvas.height = height;
-    const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
+    // MiniGameCanvas.getContext returns `unknown`; assert to the neutral 2D context.
+    const ctx = canvas.getContext('2d') as PlatformCanvas2DContext;
     return { ctx };
 }
 
@@ -35,7 +36,7 @@ export function mgGetImagePixels(g: MiniGameGlobal, img: MiniGameImage): ImageLo
     const { ctx } = getOffscreenCanvas(g, width, height);
 
     ctx.clearRect(0, 0, width, height);
-    ctx.drawImage(img as unknown as CanvasImageSource, 0, 0);
+    ctx.drawImage(img, 0, 0);
     const imageData = ctx.getImageData(0, 0, width, height);
     const pixels = new Uint8Array(imageData.data.buffer);
 

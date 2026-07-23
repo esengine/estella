@@ -13,6 +13,8 @@ import type {
     InputEventCallbacks,
     GamepadSnapshot,
     ImageLoadResult,
+    PlatformCanvas,
+    PlatformImage,
     PlatformSocket,
     PlatformSocketOptions,
 } from './types';
@@ -91,7 +93,7 @@ class WebPlatformAdapter implements PlatformAdapter {
             img.src = path;
         });
         const cv = this.createCanvas(img.width, img.height);
-        const ctx = (cv as HTMLCanvasElement).getContext('2d')!;
+        const ctx = cv.getContext('2d')!;
         ctx.drawImage(img, 0, 0);
         const id = ctx.getImageData(0, 0, img.width, img.height);
         return { width: img.width, height: img.height, pixels: new Uint8Array(id.data.buffer) };
@@ -116,11 +118,11 @@ class WebPlatformAdapter implements PlatformAdapter {
             module: result.module,
         };
     }
-    createImage(): HTMLImageElement {
+    createImage(): PlatformImage {
         return new Image();
     }
 
-    createCanvas(width: number, height: number): HTMLCanvasElement | OffscreenCanvas {
+    createCanvas(width: number, height: number): PlatformCanvas {
         let canvas: HTMLCanvasElement | OffscreenCanvas;
         if (typeof OffscreenCanvas !== 'undefined') {
             canvas = new OffscreenCanvas(width, height);

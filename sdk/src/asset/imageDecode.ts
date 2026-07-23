@@ -11,6 +11,7 @@
  *          `ImageBitmap` sources (uploads every texture upside-down otherwise).
  */
 import { platformCreateCanvas } from '../platform/base';
+import type { PlatformImage } from '../platform/types';
 
 /**
  * Canonical `createImageBitmap` options. premultiply + colorspace conversion are
@@ -30,8 +31,15 @@ export function imageBitmapOptions(flip: boolean): ImageBitmapOptions {
  * (the editor/web TextureLoader). With `flip`, the result samples file-top at v=1;
  * upload it with `UNPACK_FLIP_Y_WEBGL` off (the orientation is already baked).
  */
-export function decodeImageBitmap(src: ImageBitmapSource, flip: boolean): Promise<ImageBitmap> {
-    return createImageBitmap(src, imageBitmapOptions(flip));
+export function decodeImageBitmap(
+    src: ImageBitmapSource | PlatformImage,
+    flip: boolean,
+): Promise<ImageBitmap> {
+    // The one honest DOM cast in the decode path: `createImageBitmap`'s lib.dom
+    // signature lists DOM sources only, but every host that HAS createImageBitmap
+    // (web/editor/desktop) hands us a real HTMLImageElement — PlatformImage merely
+    // erases its DOM brand. Native decodes via loadImagePixels and never reaches here.
+    return createImageBitmap(src as ImageBitmapSource, imageBitmapOptions(flip));
 }
 
 export interface DecodedPixels {
@@ -52,12 +60,9 @@ export async function decodeImagePixels(src: ImageBitmapSource): Promise<Decoded
         const canvas = platformCreateCanvas(bitmap.width, bitmap.height);
         canvas.width = bitmap.width;
         canvas.height = bitmap.height;
-        const ctx = canvas.getContext('2d', { willReadFrequently: true }) as
-            | CanvasRenderingContext2D
-            | OffscreenCanvasRenderingContext2D
-            | null;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
         if (!ctx) throw new Error('imageDecode: 2D context unavailable for pixel decode');
-        ctx.drawImage(bitmap as CanvasImageSource, 0, 0);
+        ctx.drawImage(bitmap, 0, 0);
         const data = ctx.getImageData(0, 0, bitmap.width, bitmap.height);
         return { width: bitmap.width, height: bitmap.height, pixels: new Uint8Array(data.data.buffer) };
     } finally {

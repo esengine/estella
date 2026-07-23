@@ -19,6 +19,8 @@ import type {
     WasmInstantiateResult,
     InputEventCallbacks,
     ImageLoadResult,
+    PlatformCanvas,
+    PlatformImage,
     PlatformSocket,
     PlatformSocketOptions,
 } from './types';
@@ -114,11 +116,11 @@ class NodePlatformAdapter implements PlatformAdapter {
         return { instance, module };
     }
 
-    createCanvas(_width: number, _height: number): HTMLCanvasElement {
+    createCanvas(_width: number, _height: number): PlatformCanvas {
         throw new Error('[node] no canvas on a headless host');
     }
 
-    createImage(): HTMLImageElement {
+    createImage(): PlatformImage {
         throw new Error('[node] no DOM images on a headless host');
     }
 

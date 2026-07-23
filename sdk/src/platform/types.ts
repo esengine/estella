@@ -118,11 +118,125 @@ export interface PlatformSocket {
 }
 
 // =============================================================================
+// Neutral Surfaces (DOM-free)
+// =============================================================================
+//
+// The offscreen 2D surface the engine uses for image decode and dynamic glyph
+// rasterization. These are a bounded STRUCTURAL SUBSET of the DOM
+// Canvas/OffscreenCanvas + HTMLImageElement so a real HTMLCanvasElement /
+// OffscreenCanvas / HTMLImageElement is assignable to them (web/mini-game adapters
+// need no casts), while a native host — which has no DOM — can implement the
+// PlatformAdapter contract honestly (createCanvas/createImage simply throw there;
+// native textures come from loadImagePixels, the C++ createTextureFromPixels path).
+//
+// The main RENDER surface does NOT flow through here — it enters the C++ renderer
+// via a GL context handle / preinitialized WebGPU device (see WebAppOptions), not
+// createCanvas. So the neutral canvas is 2D-only.
+
+/** RGBA readback from getImageData. The DOM `ImageData` is assignable (its extra
+ *  members are ignored structurally). */
+export interface PlatformImageData {
+    readonly data: Uint8ClampedArray;
+    readonly width: number;
+    readonly height: number;
+}
+
+/** The subset of `TextMetrics` the glyph rasterizer reads. `TextMetrics` is
+ *  assignable. */
+export interface PlatformTextMetrics {
+    readonly width: number;
+    readonly actualBoundingBoxLeft?: number;
+    readonly actualBoundingBoxRight?: number;
+    readonly actualBoundingBoxAscent?: number;
+    readonly actualBoundingBoxDescent?: number;
+}
+
+/** The `getContext('2d', …)` options actually used. */
+export interface PlatformCanvasContextAttributes {
+    willReadFrequently?: boolean;
+    alpha?: boolean;
+}
+
+/**
+ * A drawable source for `ctx.drawImage`. Typed `object` deliberately: it is the
+ * only DOM-free SUPERTYPE of lib.dom's `CanvasImageSource` union (its
+ * `SVGImageElement`/`VideoFrame` branches share no structural `{width;height}`),
+ * so the real `CanvasRenderingContext2D.drawImage(CanvasImageSource)` stays
+ * assignable to this neutral method while callers pass an `ImageBitmap` OR a
+ * `PlatformImage` with no `as unknown` cast.
+ */
+export type PlatformImageSource = object;
+
+/** Paint value for `fillStyle`. `string | object` is the DOM-free supertype of the
+ *  real `string | CanvasGradient | CanvasPattern` (callers only ever assign a color
+ *  string; the supertype is what keeps the real 2D context assignable). */
+export type PlatformCanvasPaint = string | object;
+
+/**
+ * The offscreen 2D context the engine uses: image decode (`drawImage`/
+ * `getImageData`/`clearRect`) and dynamic glyph rasterization (`font`/`measureText`/
+ * `fillText`/…). Every member is present on BOTH `CanvasRenderingContext2D` and
+ * `OffscreenCanvasRenderingContext2D` with covariance-compatible types, so both are
+ * assignable here.
+ */
+export interface PlatformCanvas2DContext {
+    // Image decode.
+    drawImage(image: PlatformImageSource, dx: number, dy: number): void;
+    getImageData(sx: number, sy: number, sw: number, sh: number): PlatformImageData;
+    clearRect(x: number, y: number, w: number, h: number): void;
+    // Glyph rasterization (ui/text/glyph-rasterizer.ts).
+    font: string;
+    textBaseline: string;
+    textAlign: string;
+    fillStyle: PlatformCanvasPaint;
+    measureText(text: string): PlatformTextMetrics;
+    fillText(text: string, x: number, y: number): void;
+}
+
+/**
+ * The offscreen 2D canvas surface. `HTMLCanvasElement` and `OffscreenCanvas` are
+ * structurally assignable: their overloaded `getContext` matches this `'2d'`
+ * overload, whose real return is assignable to {@link PlatformCanvas2DContext}.
+ */
+export interface PlatformCanvas {
+    width: number;
+    height: number;
+    getContext(
+        contextId: '2d',
+        options?: PlatformCanvasContextAttributes,
+    ): PlatformCanvas2DContext | null;
+}
+
+/**
+ * A load/error callback SINK: callers only ever ASSIGN one (`img.onload = …`); the
+ * host image invokes it. The parameter is the bottom type `never` so, by
+ * contravariance, EVERY real handler shape is assignable to it — the DOM
+ * `(ev: Event) => any`, the mini-game `() => void`, and the SDK's own
+ * `() => resolve()` — without this "neutral" type naming any DOM type (`Event`).
+ */
+export type PlatformImageEventHandler = ((ev: never) => void) | null;
+
+/**
+ * A decodable image (the offscreen `<img>` on DOM hosts). `HTMLImageElement` and a
+ * mini-game image are both structurally assignable. Native never creates one
+ * (createImage throws), so the DOM-shaped members impose nothing on native.
+ * `crossOrigin` is optional so a mini-game image (which lacks it) fits too.
+ */
+export interface PlatformImage {
+    width: number;
+    height: number;
+    src: string;
+    crossOrigin?: string | null;
+    onload: PlatformImageEventHandler;
+    onerror: PlatformImageEventHandler;
+}
+
+// =============================================================================
 // Platform Adapter Interface
 // =============================================================================
 
 export interface PlatformAdapter {
-    readonly name: 'web' | 'wechat' | 'douyin' | 'node';
+    readonly name: 'web' | 'wechat' | 'douyin' | 'node' | 'native';
 
     fetch(url: string, options?: PlatformRequestOptions): Promise<PlatformResponse>;
 
@@ -139,11 +253,11 @@ export interface PlatformAdapter {
         imports: WebAssembly.Imports
     ): Promise<WasmInstantiateResult>;
 
-    createCanvas(width: number, height: number): HTMLCanvasElement | OffscreenCanvas;
+    createCanvas(width: number, height: number): PlatformCanvas;
 
     now(): number;
 
-    createImage(): HTMLImageElement;
+    createImage(): PlatformImage;
 
     bindInputEvents(callbacks: InputEventCallbacks, target?: unknown): void;
 

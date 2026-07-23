@@ -13,6 +13,9 @@ export type {
     PlatformResponse,
     WasmInstantiateResult,
     ImageLoadResult,
+    PlatformCanvas,
+    PlatformCanvas2DContext,
+    PlatformImage,
 } from './types';
 
 // Re-export base functions
@@ -24,6 +27,7 @@ export {
     isWeChat,
     isMiniGame,
     isWeb,
+    isNative,
     platformFetch,
     platformReadFile,
     platformReadTextFile,

@@ -112,11 +112,12 @@ export class LifecyclePlugin implements Plugin {
 
         if (platformType === 'wechat') {
             this.cleanupFn_ = setupWeChatLifecycle_(manager, app);
-        } else if (typeof document !== 'undefined' && typeof window !== 'undefined') {
+        } else if (platformType !== 'native' && typeof document !== 'undefined' && typeof window !== 'undefined') {
             this.cleanupFn_ = setupWebLifecycle_(manager, app);
         }
-        // Headless hosts (node server, workers) have no visibility/focus
-        // signal — the Lifecycle resource still exists, always visible.
+        // Headless hosts (node server, workers) and native (no DOM visibility/focus
+        // signal — a bridge.onShow/onHide seam lands with the shell) keep the
+        // Lifecycle resource, always visible.
     }
 
     cleanup(): void {

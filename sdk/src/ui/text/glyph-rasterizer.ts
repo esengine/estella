@@ -13,6 +13,7 @@
  */
 import type { ESEngineModule } from '../../wasm';
 import { platformCreateCanvas } from '../../platform';
+import type { PlatformCanvas, PlatformCanvas2DContext } from '../../platform/types';
 import { sdfFromAlpha } from './sdf';
 import type { GlyphRasterizer, RasterGlyph } from './glyph-atlas';
 
@@ -74,8 +75,8 @@ export interface CanvasGlyphRasterizerOptions {
     sdf?: boolean;
 }
 
-type Canvas2D = HTMLCanvasElement | OffscreenCanvas;
-type Ctx2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+type Canvas2D = PlatformCanvas;
+type Ctx2D = PlatformCanvas2DContext;
 
 // SDF supersampling: rasterize + distance-transform at 4× the stored
 // resolution, then box-downsample — magnified glyphs stop showing the source
@@ -100,7 +101,7 @@ export class CanvasGlyphRasterizer implements GlyphRasterizer {
         const ss = this.sdf ? SDF_SUPERSAMPLE : 1;
         const dim = Math.ceil((this.renderSize * 2 + this.pad * 2) * ss);
         this.canvas = platformCreateCanvas(dim, dim);
-        this.ctx = this.canvas.getContext('2d', { willReadFrequently: true }) as Ctx2D | null;
+        this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
     }
 
     rasterize(codepoint: number, fontFamily: string, style: number, pixelSize = this.renderSize): RasterGlyph | null {
