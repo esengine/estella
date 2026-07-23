@@ -4,7 +4,7 @@ import { TilemapAPI } from './tilemapAPI';
 import type { World } from '../world';
 import type { Entity } from '../types';
 import { TilemapLayer } from './components';
-import { Transform } from '../component';
+import { Transform, Marker, RuntimeOnly } from '../component';
 
 // Matches TilemapSystem::CHUNK_SIZE on the C++ side.
 const TILEMAP_CHUNK_SIZE = 16;
@@ -769,6 +769,91 @@ export function generateObjectCollision(
         }
     }
     return entities;
+}
+
+/** A Tiled object's custom properties as a plain string→string record (Marker.properties). */
+function objectPropsRecord(obj: TiledObjectData): Record<string, string> {
+    const props: Record<string, string> = {};
+    for (const [k, v] of obj.properties) props[k] = String(v);
+    return props;
+}
+
+/**
+ * @brief Project ONE Tiled SHAPE object (rect / ellipse / polygon) into a real Trigger-Area
+ *        entity — the same shape a hand-authored Trigger Area preset builds: Transform +
+ *        Marker{type,properties} + static RigidBody + a SENSOR collider matching the shape.
+ *
+ * The converged target for imported object-group regions: instead of living only inside
+ * `getTilemapSource().objectGroups`, a region becomes a parented, RuntimeOnly (re-derived,
+ * never serialized) entity so it's `Query(Marker)`-able and shows the collider gizmo in the
+ * editor — exactly like a hand-placed Trigger Area. LOCAL coords (the tilemap parent carries
+ * the origin), mirroring the tile-object sprites; geometry is metres (÷ ppu) like
+ * {@link generateObjectCollision}. Point / polyline / gid objects project elsewhere → null.
+ */
+export function spawnObjectTriggerArea(
+    world: World,
+    obj: TiledObjectData,
+    parent: Entity,
+    pixelsPerUnit: number,
+): Entity | null {
+    if (obj.shape !== 'rect' && obj.shape !== 'ellipse' && obj.shape !== 'polygon') return null;
+    const rad = obj.rotation * DEG_TO_RAD;
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+    // Local shape centre (parent = tilemap origin) — generateObjectCollision's spawnAt with
+    // origin 0; Tiled rotates clockwise about the object anchor (y-down), realized as -rot z.
+    const spawnAt = (lx: number, ly: number): Entity => {
+        const e = world.spawn(obj.name || `Trigger_${obj.id}`);
+        const position = { x: obj.x + lx * cos - ly * sin, y: -(obj.y + lx * sin + ly * cos), z: 0 };
+        if (rad !== 0) {
+            const half = -rad * 0.5;
+            world.insert(e, Transform, { position, rotation: { w: Math.cos(half), x: 0, y: 0, z: Math.sin(half) } });
+        } else {
+            world.insert(e, Transform, { position });
+        }
+        world.insert(e, Marker, { type: obj.type || '', properties: objectPropsRecord(obj) });
+        world.insert(e, RigidBody, { bodyType: BodyType.Static });
+        world.insert(e, RuntimeOnly, {});
+        world.setParent(e, parent);
+        return e;
+    };
+    if (obj.shape === 'rect') {
+        const e = spawnAt(obj.width * 0.5, obj.height * 0.5);
+        world.insert(e, BoxCollider, {
+            halfExtents: { x: obj.width * 0.5 / pixelsPerUnit, y: obj.height * 0.5 / pixelsPerUnit },
+            isSensor: true,
+        });
+        return e;
+    }
+    if (obj.shape === 'ellipse') {
+        const e = spawnAt(obj.width * 0.5, obj.height * 0.5);
+        world.insert(e, CircleCollider, { radius: (obj.width + obj.height) * 0.25 / pixelsPerUnit, isSensor: true });
+        return e;
+    }
+    // polygon (needs ≥ 3 points = 6 flat coords)
+    if (!obj.vertices || obj.vertices.length < 6) return null;
+    const local: { x: number; y: number }[] = [];
+    for (let i = 0; i < obj.vertices.length; i += 2) {
+        local.push({ x: obj.vertices[i] / pixelsPerUnit, y: (0 - obj.vertices[i + 1]) / pixelsPerUnit });
+    }
+    if (local.length <= 8) {
+        const e = spawnAt(0, 0);
+        world.insert(e, PolygonCollider, { vertices: local, isSensor: true });
+        return e;
+    }
+    // > 8 verts: Box2D's cap — a bounding-box sensor (predictably shaped, never truncated).
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (let i = 0; i < obj.vertices.length; i += 2) {
+        const vx = obj.vertices[i], vy = obj.vertices[i + 1];
+        if (vx < minX) minX = vx; if (vx > maxX) maxX = vx;
+        if (vy < minY) minY = vy; if (vy > maxY) maxY = vy;
+    }
+    const e = spawnAt((minX + maxX) * 0.5, (minY + maxY) * 0.5);
+    world.insert(e, BoxCollider, {
+        halfExtents: { x: (maxX - minX) * 0.5 / pixelsPerUnit, y: (maxY - minY) * 0.5 / pixelsPerUnit },
+        isSensor: true,
+    });
+    return e;
 }
 
 /**

@@ -8,7 +8,7 @@ export {
     parseTmjJson, parseTmjWithExternals, loadTiledMap, loadTiledCollisionObjects,
     generateTileCollision, generateLayerCollision, generateChunkCollision,
     generateChunkPolygonCollision, generateChunkTileShapes, generateLayerTileShapes,
-    tiledObjectgroupShape, tiledCollisionMods, generateObjectCollision, isCollisionObjectGroup,
+    tiledObjectgroupShape, tiledCollisionMods, generateObjectCollision, spawnObjectTriggerArea, isCollisionObjectGroup,
     polygonLocalVerts, tileColliderShape, oneWayNormalWorld, resolveRelativePath, packCollectionGrid,
     type TiledMapData, type TiledLayerData, type TiledTilesetData,
     type TiledCollectionTile, type CollectionGridTile,

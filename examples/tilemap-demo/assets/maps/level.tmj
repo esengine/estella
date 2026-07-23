@@ -10,8 +10,8 @@
  "height": 18,
  "tilewidth": 18,
  "tileheight": 18,
- "nextlayerid": 6,
- "nextobjectid": 4,
+ "nextlayerid": 7,
+ "nextobjectid": 6,
  "tilesets": [
   {
    "firstgid": 1,
@@ -2458,6 +2458,20 @@
     {"id":1,"name":"player-spawn","type":"spawn","point":true,"x":90,"y":150,"width":0,"height":0,"rotation":0,"visible":true,"properties":[{"name":"team","type":"string","value":"blue"},{"name":"facing","type":"string","value":"right"}]},
     {"id":2,"name":"enemy-spawn","type":"enemy","point":true,"x":400,"y":110,"width":0,"height":0,"rotation":0,"visible":true,"properties":[]},
     {"id":3,"name":"checkpoint","type":"checkpoint","point":true,"x":260,"y":250,"width":0,"height":0,"rotation":0,"visible":true,"properties":[]}
+   ],
+   "opacity":1,
+   "type":"objectgroup",
+   "visible":true,
+   "x":0,
+   "y":0
+  },
+  {
+   "draworder":"topdown",
+   "id":6,
+   "name":"triggers",
+   "objects":[
+    {"id":4,"name":"door-a","type":"door","point":false,"x":200,"y":90,"width":36,"height":54,"rotation":0,"visible":true,"properties":[{"name":"target","type":"string","value":"level2"}]},
+    {"id":5,"name":"heal-zone","type":"zone","ellipse":true,"x":330,"y":170,"width":72,"height":56,"rotation":0,"visible":true,"properties":[]}
    ],
    "opacity":1,
    "type":"objectgroup",

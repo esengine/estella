@@ -150,10 +150,22 @@ if (new URLSearchParams(location.search).has('automation')) {
     /** All LIVE Marker entities (hand-placed model entities AND `.tmj`-derived RuntimeOnly
      *  children), each with its `type` + whether it's a model entity (`src != null`) or a
      *  derived projection (`src == null`) — verifies object-group → Marker convergence. */
-    liveMarkers: () => ViewportController.markerIds().map((rt) => {
-      const g = ViewportController.getMarkerGizmo(rt);
-      return { rt, type: g?.type ?? null, properties: g?.properties ?? {}, src: SceneModel.sourceFor(rt) ?? null };
-    }),
+    liveMarkers: () => {
+      const w = EngineHost.world;
+      const md = getComponent('Marker');
+      const rb = getComponent('RigidBody');
+      if (!w || !md) return [];
+      return w.getEntitiesWithComponents([md]).map((rt) => {
+        const m = w.get(rt, md) as { type?: string; properties?: Record<string, string> };
+        return {
+          rt,
+          type: typeof m?.type === 'string' ? m.type : null,
+          properties: m?.properties ?? {},
+          isTrigger: !!(rb && w.has(rt, rb)), // a Trigger Area carries a RigidBody + sensor collider
+          src: SceneModel.sourceFor(rt) ?? null,
+        };
+      });
+    },
     /** Probe a layer's resolved tile-collision overlay — the SAME pieces the viewport
      *  draws + Play spawns. Returns null if nothing resolves; else piece counts by kind.
      *  Verifies the collision-layer pipeline end-to-end (refs → palette model → outlines). */

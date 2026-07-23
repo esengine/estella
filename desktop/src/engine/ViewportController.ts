@@ -3,7 +3,7 @@
 import {
   Camera, CameraView, EditorView, Light2D, Sprite, Transform, Canvas, BoxCollider, CircleCollider,
   CapsuleCollider, SegmentCollider, PolygonCollider, ChainCollider,
-  ParticleEmitter, OneWayPlatform,
+  ParticleEmitter, OneWayPlatform, RigidBody,
   RevoluteJoint, DistanceJoint, PrismaticJoint, WeldJoint, WheelJoint, MotorJoint,
   UINode, UICameraInfo, screenToUiWorld, uiWorldToScreen, uiPickAllWorld, type UICameraData,
   Marker,
@@ -656,7 +656,10 @@ export const ViewportController = {
     if (!world) return [];
     const out: EntityId[] = [];
     for (const e of world.getAllEntities()) {
-      if (world.has(e, Marker) && world.has(e, Transform)) out.push(e);
+      // A pin is for POINT markers only — a Marker + Transform with no body of its own.
+      // A Trigger Area also carries a Marker but has a RigidBody + sensor collider (shown
+      // by the collider gizmo), so a pin on top of its outline would just be clutter.
+      if (world.has(e, Marker) && world.has(e, Transform) && !world.has(e, RigidBody)) out.push(e);
     }
     return out;
   },

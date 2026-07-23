@@ -853,6 +853,13 @@ export function Viewport() {
   // so draw each as a gizmo (icon + authored view rect). The id set updates on
   // structural change; the rAF below positions them every frame.
   const structRev = useSyncExternalStore(SceneStore.subscribe, SceneStore.getStructureRevision);
+  // Derived (RuntimeOnly) entities — the marker / trigger-area / sprite children a `.tmj`
+  // source projects — never bump the model's structure/data revision (they're not in the
+  // scene model). `worldRev` bumps whenever the live world's entity count changes (polled
+  // in the rAF), so the per-entity gizmo id lists (markers, colliders) re-enumerate to pick
+  // up or drop those derived entities as a source loads / tears down.
+  const [worldRev, setWorldRev] = useState(0);
+  const worldCountRef = useRef(-1);
   const camRefs = useRef(new Map<number, HTMLDivElement | null>());
   const camIds = useMemo(
     () => (engine.status === 'ready' ? ViewportController.cameraIds() : []),
@@ -875,14 +882,14 @@ export function Viewport() {
   // set once the async source load + derive lands.
   const markerIds = useMemo(
     () => (engine.status === 'ready' ? ViewportController.markerIds() : []),
-    [structRev, dataRev, engine.status],
+    [structRev, dataRev, worldRev, engine.status],
   );
   // Physics colliders aren't drawn by the renderer — outline each (box polygon /
   // circle) as a gizmo so you can see/tune collider shapes without entering Play.
   const colliderRefs = useRef(new Map<number, SVGSVGElement | null>());
   const colliderIds = useMemo(
     () => (engine.status === 'ready' && showColliders ? ViewportController.colliderIds() : []),
-    [structRev, engine.status, showColliders],
+    [structRev, worldRev, engine.status, showColliders],
   );
   // Tile-collision overlay: the selected TilemapLayer's per-tile collision, drawn into
   // ONE SVG (not one per tile). Its world-space outlines are (re)built into a ref by the
@@ -1044,6 +1051,14 @@ export function Viewport() {
       const ready = EngineHost.getSnapshot().status === 'ready';
       const showG = useEditorStore.getState().showGizmos;
       const toolMode = useEditorStore.getState().tool;
+
+      // Poll the world's entity count so gizmos for RuntimeOnly derived entities (a `.tmj`
+      // source's markers / trigger areas) appear once the async source load derives them —
+      // those never bump the model revisions the id lists otherwise key on.
+      if (ready) {
+        const wc = EngineHost.world?.entityCount() ?? 0;
+        if (wc !== worldCountRef.current) { worldCountRef.current = wc; setWorldRev((v) => v + 1); }
+      }
 
       // Keep the zoom % readout honest: derive it from the ACTUAL world→screen scale
       // (pixels per world unit ×100). Frame Selected, the minimap, and device presets
