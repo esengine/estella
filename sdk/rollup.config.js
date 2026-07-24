@@ -49,6 +49,16 @@ const esmBuilds = [
         treeshake,
     },
     {
+        // Single-file IIFE for embedded JS engines (QuickJS on the native host):
+        // no imports, no code-splitting — one script that installs `ESEngine` as a
+        // global the game script uses (ESEngine.createNativeWorld(globalThis), …).
+        // The native (embedded-Dawn) analog of index.wechat.cjs.js.
+        input: 'src/index.native.ts',
+        output: { file: 'dist/index.native.bundled.js', format: 'iife', name: 'ESEngine', sourcemap: false },
+        plugins: [typescript({ tsconfig: './tsconfig.json', declaration: false }), terser({ format: { comments: (_, comment) => comment.value.includes('@vite-ignore') } })],
+        treeshake,
+    },
+    {
         input: 'src/index.node.ts',
         output: { file: 'dist/index.node.js', format: 'esm', sourcemap: true },
         external: (id) => id.startsWith('node:'),

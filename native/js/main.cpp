@@ -1,37 +1,32 @@
-// Estella native JS host — a QuickJS game script drives the native C++ engine.
+// Estella native JS host — the REAL SDK, driving the native C++ engine.
 //
-// This is the arm64 sibling of the web runtime, and the architecture is
-// single-sourced end to end:
+// The game script authors through the actual esengine TS SDK (bundled to one JS
+// file, dist/index.native.bundled.js, loaded here as `ESEngine`): createNativeWorld
+// returns the same World class the web build uses, connected to the native core via
+// the generated bindings. spawn / insert / query run in QuickJS; the components land
+// in the native C++ ECS, which this host renders. No wasm — the engine is native.
 //
-//   * es_set_<Component> / es_<Component>_buffer live in the generated
-//     NativeBindings.generated.cpp, emitted by EHT (tools/eht) from the SAME
-//     reflection that emits the web embind bindings — the two surfaces can't drift.
-//   * ptraccessors_js.h is the REAL SDK sdk/src/ecs/ptrAccessors.generated.ts,
-//     transpiled to plain JS. POD components are wasm32/arm64 layout-identical, so
-//     the SDK's marshalling code writes native component memory unchanged, through
-//     a zero-copy ArrayBuffer over the native component (the es_<C>_buffer path).
-//   * The engine C++ core is the same source the web build compiles to wasm; only
-//     the game script is interpreted (QuickJS), the engine runs native/full speed.
-//
-// QuickJS interprets init()/update(dt); native C++ renders via EstellaContext ->
-// ECS Registry -> TransformSystem -> RenderFrame -> WebGPUDevice -> Dawn -> Vulkan.
-// Device gets its surface from configureSurface(NativeSurface{AndroidWindow}).
-//
-// NOTE: kGameScript below is a self-contained reference script. The product path
-// loads the real SDK bundle + the shipped game script through a NativeBridge
-// (fs/asset plumbing); that arrives with the native SDK runtime.
+// The host installs the native side of the registry contract as globals:
+//   * entity + hierarchy (hand-written here): es_createEntity / es_destroyEntity /
+//     es_setParent / es_hasParent / es_removeParent / es_hasChildren / es_getChildren
+//   * per-component (EHT-generated, esn_register): es_set_<C> / es_<C>_buffer /
+//     es_<C>_has / es_<C>_remove
+//   * resources (hand-written): es_createTexture, es_setClear
+// createNativeRegistry + NativeMemoryProvider inside the SDK bundle read these off
+// globalThis. Entity ids are the native Entity's raw u32 (round-tripped via
+// Entity::fromRaw), so hierarchy queries return ids the SDK recognises.
 
 #include <android_native_app_glue.h>
 #include <android/log.h>
 #include <android/native_window.h>
 
-#include "esn_shim.hpp"        // quickjs + the esn_* plumbing decls
-#include "ptraccessors_js.h"   // the real SDK ptrAccessors.generated.ts, as JS
+#include "esn_shim.hpp"          // quickjs + the esn_* plumbing decls (+ esn_register)
+#include "esengine_bundle.h"     // the real SDK, bundled: installs globalThis.ESEngine
 
 #include "esengine/core/EstellaContext.hpp"
 #include "esengine/core/World.hpp"
-#include "esengine/ecs/TransformSystem.hpp"
-#include "esengine/ecs/components/Sprite.hpp"  // js_useWhiteTexture touches Sprite directly
+#include "esengine/ecs/TransformSystem.hpp"          // TransformSystem + ecs::setParent
+#include "esengine/ecs/components/Hierarchy.hpp"      // Parent / Children
 #include "esengine/renderer/RenderContext.hpp"
 #include "esengine/renderer/RenderFrame.hpp"
 #include "esengine/renderer/webgpu/WebGPUDevice.hpp"
@@ -42,87 +37,38 @@
 #include <cstring>
 #include <vector>
 
-#define LOG_TAG "EstellaJS"
+#define LOG_TAG "EstellaSDK"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
 using namespace esengine;
 
-// Reference game script — composes the generated component setters the way the
-// TS SDK does, and exercises the SDK fast path (ptrAccessors over a zero-copy
-// ArrayBuffer). Replaced by the shipped bundle once the native SDK runtime lands.
+// The game script — authored entirely against the real SDK (ESEngine.*). Same API
+// the web build exposes; only the game logic is interpreted, the engine runs native.
 static const char* kGameScript = R"JS(
-function texSprite(x, y, size, tex) {
-    var e = es_createEntity();
-    es_set_Transform(e, { position: [x, y, 0] });
-    es_set_Sprite(e, { texture: tex, color: [1, 1, 1, 1], size: [size, size], enabled: true });
-    return e;
-}
-function litSprite(x, y, size) {
-    var e = es_createEntity();
-    es_set_Transform(e, { position: [x, y, 0] });
-    es_set_Sprite(e, { color: [1, 1, 1, 1], size: [size, size], lit: true, enabled: true });
-    es_useWhiteTexture(e);
-    return e;
-}
-function circle(x, y, size, r, g, b) {
-    var e = es_createEntity();
-    es_set_Transform(e, { position: [x, y, 0] });
-    es_set_ShapeRenderer(e, { shapeType: 0, color: [r, g, b, 1], size: [size, size], enabled: true });
-    return e;
-}
-// The BuiltinBridge dispatch pattern with a NATIVE memory backend: on web the
-// bridge writes via mod.HEAPF32 + a wasm ptr; here the backend hands it zero-copy
-// views over the native component (the generated es_<Component>_buffer binding)
-// and ptr 0. The dispatch (PTR_ACCESSORS[cppName].fill/write) is the REAL SDK
-// table — generic for any component, no per-type code.
-function nativeViews(cppName, e) {
-    var buf = globalThis['es_' + cppName + '_buffer'](e);
-    return { f32: new Float32Array(buf), u32: new Uint32Array(buf), u8: new Uint8Array(buf) };
-}
-function readComponent(cppName, e) {          // ~ BuiltinBridge.resolvePtrGetter
-    var acc = PTR_ACCESSORS[cppName];
-    var v = nativeViews(cppName, e);
-    var d = acc.create();
-    acc.fill(v.f32, v.u32, v.u8, 0, d);
-    return d;
-}
-function setComponent(cppName, e, data) {     // ~ BuiltinBridge.resolvePtrSetter
-    var acc = PTR_ACCESSORS[cppName];
-    var v = nativeViews(cppName, e);
-    acc.write(v.f32, v.u32, v.u8, 0, data);
-}
-function bufferSprite(x, y, size, tex, r, g, b) {
-    var e = es_createEntity();
-    es_set_Transform(e, { position: [x, y, 0] });
-    var d = readComponent('Sprite', e);       // real dispatch: fill from native
-    d.texture = tex;
-    d.color = { r: r, g: g, b: b, a: 1 };
-    d.size = { x: size, y: size };
-    setComponent('Sprite', e, d);             // real dispatch: write to native
-    return e;
-}
-var moving, orbit;
+var world, moving, orbit;
 function init() {
     es_setClear(0.07, 0.08, 0.12);
+    world = ESEngine.createNativeWorld();
     var tex = es_createTexture(2, 2, [
         255, 0, 0, 255,    0, 255, 0, 255,
         0, 0, 255, 255,    255, 255, 0, 255 ]);
-    moving = texSprite(W * 0.5, H * 0.62, S * 0.42, tex);
-    orbit  = circle(W * 0.5, H * 0.42, S * 0.26, 1.0, 0.2, 0.9);
-    var l = es_createEntity();
-    es_set_Transform(l, { position: [W * 0.32, H * 0.30, 0] });
-    es_set_Light2D(l, { type: 0, color: [1.0, 0.55, 0.15, 1], intensity: 1.6, radius: S * 0.7, enabled: true });
-    var la = es_createEntity();
-    es_set_Light2D(la, { type: 2, color: [1, 1, 1, 1], intensity: 0.25, enabled: true });
-    litSprite(W * 0.32, H * 0.30, S * 0.26);
-    bufferSprite(W * 0.68, H * 0.30, S * 0.26, tex, 0.2, 1.0, 0.5);
+    moving = world.spawn();
+    world.insert(moving, ESEngine.Transform, { position: { x: W * 0.5, y: H * 0.62, z: 0 } });
+    world.insert(moving, ESEngine.Sprite, {
+        texture: tex, color: { r: 1, g: 1, b: 1, a: 1 }, size: { x: S * 0.42, y: S * 0.42 } });
+    orbit = world.spawn();
+    world.insert(orbit, ESEngine.Transform, { position: { x: W * 0.5, y: H * 0.42, z: 0 } });
+    world.insert(orbit, ESEngine.ShapeRenderer, {
+        shapeType: 0, color: { r: 1, g: 0.2, b: 0.9, a: 1 }, size: { x: S * 0.26, y: S * 0.26 } });
 }
 var t = 0.0;
 function update(dt) {
     t += dt;
-    es_set_Transform(moving, { position: [W * 0.5 + Math.sin(t * 1.6) * S * 0.55, H * 0.62, 0] });
-    es_set_Transform(orbit,  { position: [W * 0.5 + Math.cos(t * 1.2) * S * 0.30, H * 0.42 + Math.sin(t * 1.2) * S * 0.14, 0] });
+    world.insert(moving, ESEngine.Transform, {
+        position: { x: W * 0.5 + Math.sin(t * 1.6) * S * 0.5, y: H * 0.62, z: 0 } });
+    world.insert(orbit, ESEngine.Transform, {
+        position: { x: W * 0.5 + Math.cos(t * 1.2) * S * 0.3, y: H * 0.42 + Math.sin(t * 1.2) * S * 0.14, z: 0 } });
 }
 )JS";
 
@@ -132,13 +78,11 @@ struct App {
     WGPUInstance instance = nullptr;
     WGPUAdapter adapter = nullptr;
     WGPUDevice device = nullptr;
-    WebGPUDevice* gfx = nullptr;            // owned by context after init; raw for present()
+    WebGPUDevice* gfx = nullptr;
     EstellaContext* ctx = nullptr;
     ecs::Registry* registry = nullptr;
     JSRuntime* rt = nullptr;
     JSContext* js = nullptr;
-    std::vector<Entity> entities;           // script entity id -> Entity
-    resource::TextureHandle whiteTex{};
     glm::vec4 clear{0.07f, 0.08f, 0.12f, 1.0f};
     f32 w = 0, h = 0;
     bool ready = false;
@@ -149,14 +93,15 @@ App* g_app = nullptr;
 
 }  // namespace
 
-// ---- shim the generated bindings call (declared in esn_shim.hpp) ------------
+// ---- the esn_shim plumbing the generated component bindings call ------------
 
 ecs::Registry& esn_reg() { return *g_app->registry; }
 
+// Entity ids cross the boundary as the native Entity's raw u32.
 Entity esn_entity(JSContext* ctx, JSValueConst v) {
-    int32_t id = 0;
-    JS_ToInt32(ctx, &id, v);
-    return (id >= 0 && id < (int)g_app->entities.size()) ? g_app->entities[id] : Entity{};
+    uint32_t raw = Entity::INVALID_RAW;
+    JS_ToUint32(ctx, &raw, v);
+    return Entity::fromRaw(raw);
 }
 
 bool esn_getnum(JSContext* ctx, JSValueConst obj, const char* key, double* out) {
@@ -186,28 +131,52 @@ void esn_getvec(JSContext* ctx, JSValueConst obj, const char* key, float* dst, i
     JS_FreeValue(ctx, arr);
 }
 JSValue esn_arraybuffer(JSContext* ctx, void* ptr, size_t size) {
-    // Native owns the memory (the ECS component) — no free callback, not shared.
     return JS_NewArrayBuffer(ctx, reinterpret_cast<uint8_t*>(ptr), size, nullptr, nullptr, false);
 }
 
 namespace {
 
-// Hand-written bindings for the bits reflection can't spell: entity creation,
-// clear colour, and binding a shared texture (a resource handle). These are the
-// native analog of the web ResourceManagerBindings — resources aren't reflected.
+// ---- entity + hierarchy: the base Registry surface the SDK World drives ------
+
 JSValue js_createEntity(JSContext* ctx, JSValueConst, int, JSValueConst*) {
-    g_app->entities.push_back(g_app->registry->create());
-    return JS_NewInt32(ctx, (int)g_app->entities.size() - 1);
+    return JS_NewUint32(ctx, g_app->registry->create().id());
 }
+JSValue js_destroyEntity(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
+    g_app->registry->destroy(esn_entity(ctx, argv[0]));
+    return JS_UNDEFINED;
+}
+JSValue js_setParent(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
+    ecs::setParent(*g_app->registry, esn_entity(ctx, argv[0]), esn_entity(ctx, argv[1]));
+    return JS_UNDEFINED;
+}
+JSValue js_hasParent(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
+    return JS_NewBool(ctx, g_app->registry->has<ecs::Parent>(esn_entity(ctx, argv[0])));
+}
+JSValue js_removeParent(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
+    ecs::setParent(*g_app->registry, esn_entity(ctx, argv[0]), INVALID_ENTITY);
+    return JS_UNDEFINED;
+}
+JSValue js_hasChildren(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
+    auto* c = g_app->registry->tryGet<ecs::Children>(esn_entity(ctx, argv[0]));
+    return JS_NewBool(ctx, c && !c->entities.empty());
+}
+JSValue js_getChildren(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
+    JSValue arr = JS_NewArray(ctx);
+    if (auto* c = g_app->registry->tryGet<ecs::Children>(esn_entity(ctx, argv[0]))) {
+        uint32_t i = 0;
+        for (Entity child : c->entities) {
+            JS_SetPropertyUint32(ctx, arr, i++, JS_NewUint32(ctx, child.id()));
+        }
+    }
+    return arr;
+}
+
+// ---- resources + clear (not reflected; the native ResourceManagerBindings analog) -
+
 JSValue js_setClear(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
     double r = 0, g = 0, b = 0;
     JS_ToFloat64(ctx, &r, argv[0]); JS_ToFloat64(ctx, &g, argv[1]); JS_ToFloat64(ctx, &b, argv[2]);
     g_app->clear = {(f32)r, (f32)g, (f32)b, 1.0f};
-    return JS_UNDEFINED;
-}
-JSValue js_useWhiteTexture(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
-    Entity e = esn_entity(ctx, argv[0]);
-    if (auto* s = g_app->registry->tryGet<ecs::Sprite>(e)) s->texture = g_app->whiteTex;
     return JS_UNDEFINED;
 }
 JSValue js_createTexture(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
@@ -238,6 +207,11 @@ void logJsError(JSContext* ctx, const char* where) {
     if (s) JS_FreeCString(ctx, s);
     JS_FreeValue(ctx, e);
 }
+void evalJs(App& a, const char* src, const char* name) {
+    JSValue r = JS_Eval(a.js, src, strlen(src), name, JS_EVAL_TYPE_GLOBAL);
+    if (JS_IsException(r)) logJsError(a.js, name);
+    JS_FreeValue(a.js, r);
+}
 void callJs(App& a, const char* fn, int argc, JSValue* argv) {
     JSValue global = JS_GetGlobalObject(a.js);
     JSValue f = JS_GetPropertyStr(a.js, global, fn);
@@ -250,31 +224,39 @@ void callJs(App& a, const char* fn, int argc, JSValue* argv) {
     JS_FreeValue(a.js, global);
 }
 
+void bindGlobal(App& a, JSValue global, const char* name, JSCFunction* fn, int argc) {
+    JS_SetPropertyStr(a.js, global, name, JS_NewCFunction(a.js, fn, name, argc));
+}
+
 void initJS(App& a) {
     a.rt = JS_NewRuntime();
     a.js = JS_NewContext(a.rt);
     JSValue global = JS_GetGlobalObject(a.js);
+
     JS_SetPropertyStr(a.js, global, "W", JS_NewFloat64(a.js, a.w));
     JS_SetPropertyStr(a.js, global, "H", JS_NewFloat64(a.js, a.h));
     JS_SetPropertyStr(a.js, global, "S", JS_NewFloat64(a.js, a.w < a.h ? a.w : a.h));
-    JS_SetPropertyStr(a.js, global, "es_createEntity", JS_NewCFunction(a.js, js_createEntity, "es_createEntity", 0));
-    JS_SetPropertyStr(a.js, global, "es_setClear", JS_NewCFunction(a.js, js_setClear, "es_setClear", 3));
-    JS_SetPropertyStr(a.js, global, "es_useWhiteTexture", JS_NewCFunction(a.js, js_useWhiteTexture, "es_useWhiteTexture", 1));
-    JS_SetPropertyStr(a.js, global, "es_createTexture", JS_NewCFunction(a.js, js_createTexture, "es_createTexture", 3));
-    esn_register(a.js, global);  // the EHT-generated es_set_<Component> / es_<C>_buffer
+
+    // Entity + hierarchy (base Registry surface).
+    bindGlobal(a, global, "es_createEntity", js_createEntity, 0);
+    bindGlobal(a, global, "es_destroyEntity", js_destroyEntity, 1);
+    bindGlobal(a, global, "es_setParent", js_setParent, 2);
+    bindGlobal(a, global, "es_hasParent", js_hasParent, 1);
+    bindGlobal(a, global, "es_removeParent", js_removeParent, 1);
+    bindGlobal(a, global, "es_hasChildren", js_hasChildren, 1);
+    bindGlobal(a, global, "es_getChildren", js_getChildren, 1);
+    // Resources + clear.
+    bindGlobal(a, global, "es_setClear", js_setClear, 3);
+    bindGlobal(a, global, "es_createTexture", js_createTexture, 3);
+    // Per-component bindings (EHT-generated): es_set_<C> / es_<C>_buffer / _has / _remove.
+    esn_register(a.js, global);
     JS_FreeValue(a.js, global);
 
-    // Load the REAL SDK ptrAccessors (writeSprite/fillSprite/createSpriteData, …)
-    // as globals, so the game script drives native components through actual SDK code.
-    JSValue pr = JS_Eval(a.js, kPtrAccessorsJS, strlen(kPtrAccessorsJS), "ptrAccessors.js", JS_EVAL_TYPE_GLOBAL);
-    if (JS_IsException(pr)) logJsError(a.js, "ptrAccessors eval");
-    JS_FreeValue(a.js, pr);
-
-    JSValue r = JS_Eval(a.js, kGameScript, strlen(kGameScript), "game.js", JS_EVAL_TYPE_GLOBAL);
-    if (JS_IsException(r)) logJsError(a.js, "eval");
-    JS_FreeValue(a.js, r);
+    // The real SDK bundle installs globalThis.ESEngine; then the game script runs.
+    evalJs(a, kSdkBundleJS, "esengine.native.js");
+    evalJs(a, kGameScript, "game.js");
     callJs(a, "init", 0, nullptr);
-    LOGI("game script init() ran via generated bindings — %zu entities", g_app->entities.size());
+    LOGI("game script init() ran on the real SDK World");
 }
 
 void renderScene(App& a) {
@@ -294,7 +276,7 @@ void renderScene(App& a) {
     rf.flush();
     rf.end();
     a.gfx->present();
-    if (++a.frame % 120 == 0) LOGI("JS-driven frame %llu", (unsigned long long)a.frame);
+    if (++a.frame % 120 == 0) LOGI("real-SDK frame %llu", (unsigned long long)a.frame);
 }
 
 void initEngine(App& a, ANativeWindow* window) {
@@ -324,7 +306,7 @@ void initEngine(App& a, ANativeWindow* window) {
     a.w = (f32)ANativeWindow_getWidth(window);
     a.h = (f32)ANativeWindow_getHeight(window);
     auto device = makeUnique<WebGPUDevice>(a.device, a.instance);
-    a.gfx = device.get();  // stays valid: context owns it, we only borrow for present()
+    a.gfx = device.get();
     if (!a.gfx->configureSurface(WebGPUDevice::NativeSurface{WebGPUDevice::NativeWindowKind::AndroidWindow, window},
                                  (u32)a.w, (u32)a.h)) { LOGE("configureSurface failed"); return; }
     static EstellaContext context;
@@ -334,12 +316,9 @@ void initEngine(App& a, ANativeWindow* window) {
     if (!context.init(std::move(device))) { LOGE("context.init failed"); return; }
     static ecs::Registry registry;
     a.registry = &registry;
-    const u8 white[4] = {255, 255, 255, 255};
-    a.whiteTex = context.require<resource::ResourceManager>().createTexture(
-        1, 1, ConstSpan<u8>(white, sizeof(white)), TextureFormat::RGBA8);
     initJS(a);
     a.ready = true;
-    LOGI("JS host up (%dx%d) — QuickJS game script driving native Dawn", (int)a.w, (int)a.h);
+    LOGI("real SDK up (%dx%d) — esengine World over native Dawn", (int)a.w, (int)a.h);
 }
 
 void onAppCmd(android_app* app, int32_t cmd) {

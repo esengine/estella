@@ -12,8 +12,10 @@ This directory holds two reference hosts + the build recipe:
 - **`host/`** — a pure-C++ host that renders one ECS scene (no JS). A smoke test
   for the engine core on native Dawn. Always built.
 - **`js/`** — the JS host: a QuickJS game script drives the engine through the
-  EHT-generated bindings + the real SDK `ptrAccessors`. Built when you pass
-  `--quickjs` (this is the product-shaped runtime).
+  **real esengine SDK**. The SDK is bundled to one file
+  (`dist/index.native.bundled.js`, installing `ESEngine`) and the game authors with
+  `ESEngine.createNativeWorld()` — the same `World` the web build uses. Built when
+  you pass `--quickjs` (this is the product-shaped runtime).
 
 Dawn and QuickJS are **not vendored** (multi-GB / separate project); the recipe
 fetches them, the way Dawn fetches its own deps. Nothing here is compiled by the
@@ -60,13 +62,14 @@ cmake --build "$DAWN/out-android" --target webgpu_dawn
 # C++ host only.
 node build-tools/cli.js native --dawn "$DAWN" --dawn-build "$DAWN/out-android"
 
-# + JS host: clone QuickJS-ng (core is dtoa/libregexp/libunicode/quickjs.c) and
-# pass --quickjs. The task then generates, into build-native/gen/ (never committed,
-# so nothing can drift from its source):
+# + JS host: build the SDK bundle first (produces the QuickJS-loadable
+# dist/index.native.bundled.js), clone QuickJS-ng (core is
+# dtoa/libregexp/libunicode/quickjs.c), and pass --quickjs. The task generates,
+# into build-native/gen/ (never committed, so nothing can drift from its source):
 #   * NativeBindings.generated.cpp — from the SAME reflection as the web bindings
 #     (python -m eht --native-output ... --native-only)
-#   * ptraccessors_js.h — the real SDK sdk/src/ecs/ptrAccessors.generated.ts,
-#     transpiled to JS and embedded
+#   * esengine_bundle.h — the real SDK bundle embedded as a C string
+(cd sdk && pnpm run build)
 git clone --depth 1 https://github.com/quickjs-ng/quickjs "$QJS"
 node build-tools/cli.js native --dawn "$DAWN" --dawn-build "$DAWN/out-android" --quickjs "$QJS"
 ```
@@ -93,10 +96,12 @@ Dawn with `llvm-strip`), `zipalign -f 4`, `apksigner sign`.
 
 ## Status
 
-Proven end-to-end on device (Snapdragon 8 Elite / Adreno 830, 120 fps): the full
-engine renders an ECS scene, a QuickJS game script drives it through the generated
-bindings, and the real SDK `ptrAccessors` write native component memory unchanged.
-Both hosts are now in-tree and build from the orchestrated `cli native` task
-(`js/` links a 24 MB arm64 `libestella_js_host.so`). Remaining: load the full SDK
-bundle + a `BuiltinBridge` memory backend, more system bindings, and the iOS shell
-(the Metal surface seam is already in place).
+The engine core + render path are proven on device (Snapdragon 8 Elite / Adreno
+830, 120 fps). The JS host now runs the **real SDK**: `ESEngine.createNativeWorld()`
+returns the same `World` the web build uses, connected to the native core through
+the generated registry + memory backend; the host binds the entity/hierarchy +
+component functions the SDK reads off `globalThis`. Verified on this machine: the
+arm64 host compiles + links with the SDK bundle embedded, and the bundle + game
+script run in a bare JS scope (a QuickJS stand-in). Remaining: an on-device render
+pass of the real-SDK scene, more system bindings (input / audio / assets), and the
+iOS shell (the Metal surface seam is already in place).
