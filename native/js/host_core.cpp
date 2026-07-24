@@ -1,28 +1,28 @@
-// Estella native JS host — a thin C++ shell that runs the REAL SDK. Three layers,
-// only this one is C++:
-//   1. This host (native/js/main.cpp): boots Dawn, installs the es_* native
-//      bindings as globals, feeds Android touch to JS, reads the APK, and renders.
-//   2. The SDK bundle (dist/index.native.bundled.js, embedded): the actual esengine
-//      TS SDK — createNativeApp / World / Input — installed as `ESEngine`. Not here.
-//   3. The game (assets/game.js, an APK asset loaded at runtime): developer content.
-//      It calls ESEngine.createNativeApp(__esNativeBridge) and authors the scene.
-//      NOT compiled into the host — it ships as an asset, like a real game.
-//
-// The host installs the native side of the registry contract as globals:
-//   * entity + hierarchy (hand-written here): es_createEntity / es_destroyEntity /
-//     es_setParent / es_hasParent / es_removeParent / es_hasChildren / es_getChildren
-//   * per-component (EHT-generated, esn_register): es_set_<C> / es_<C>_buffer /
-//     es_<C>_has / es_<C>_remove
-//   * resources + assets (hand-written): es_createTexture, es_setClear, es_readAsset
-// createNativeRegistry + NativeMemoryProvider inside the SDK bundle read these off
-// globalThis. Entity ids are the native Entity's raw u32 (round-tripped via
-// Entity::fromRaw), so hierarchy queries return ids the SDK recognises.
-
-#include <android_native_app_glue.h>
-#include <android/log.h>
-#include <android/input.h>
-#include <android/asset_manager.h>
-#include <android/native_window.h>
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+ * @file    host_core.cpp
+ * @brief   Implements the platform-independent JS host (see host_core.hpp).
+ * @details The host installs the native side of the registry contract as globals:
+ *          * entity + hierarchy (hand-written here): es_createEntity /
+ *            es_destroyEntity / es_setParent / es_hasParent / es_removeParent /
+ *            es_hasChildren / es_getChildren
+ *          * per-component (EHT-generated, esn_register): es_set_<C> /
+ *            es_<C>_buffer / es_<C>_has / es_<C>_remove
+ *          * resources + assets (hand-written): es_createTexture, es_setClear,
+ *            es_readAsset
+ *          createNativeRegistry + NativeMemoryProvider inside the SDK bundle read
+ *          these off globalThis. Entity ids cross as the native Entity's raw u32
+ *          (round-tripped via Entity::fromRaw), so hierarchy queries return ids
+ *          the SDK recognises.
+ *
+ * @author  ESEngine Team
+ * @date    2026
+ *
+ * @copyright Copyright (c) 2026 ESEngine Team
+ *            Licensed under the Apache License, Version 2.0.
+ */
+#include "host_core.hpp"
 
 #include "esn_shim.hpp"          // quickjs + the esn_* plumbing decls (+ esn_register)
 #include "esengine_bundle.h"     // the real SDK, bundled: installs globalThis.ESEngine
@@ -33,7 +33,6 @@
 #include "esengine/ecs/components/Hierarchy.hpp"      // Parent / Children
 #include "esengine/renderer/RenderContext.hpp"
 #include "esengine/renderer/RenderFrame.hpp"
-#include "esengine/renderer/webgpu/WebGPUDevice.hpp"
 #include "esengine/resource/ResourceManager.hpp"
 #include "esengine/resource/ShaderParser.hpp"       // linearColorSpace() — texture format at the JS boundary
 
@@ -44,6 +43,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+#include <cstdarg>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -51,15 +51,11 @@
 #include <string>
 #include <vector>
 
-#define LOG_TAG "EstellaSDK"
-#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
-#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
-
 using namespace esengine;
 
 // Host platform bootstrap — HOST code, not game. It fans host touch out to the SDK
 // listener and builds the NativeBridge from the host's es_* capabilities. The game
-// (game.js, loaded from the APK's assets/) then calls createNativeApp(__esNativeBridge).
+// (game.js, a packaged asset) then calls createNativeApp(__esNativeBridge).
 static const char* kBootstrapJS = R"JS(
 globalThis.es_onNativeTouch = function (type, id, x, y) {
     var l = globalThis.__esInputListener;
@@ -93,6 +89,7 @@ globalThis.__esNativeBridge = {
 namespace {
 
 struct App {
+    eshost::Platform* platform = nullptr;
     WGPUInstance instance = nullptr;
     WGPUAdapter adapter = nullptr;
     WGPUDevice device = nullptr;
@@ -101,7 +98,6 @@ struct App {
     ecs::Registry* registry = nullptr;
     JSRuntime* rt = nullptr;
     JSContext* js = nullptr;
-    AAssetManager* assets = nullptr;        // APK assets/ — the game + its content
     std::string cacheDir;                   // app private dir — SDK bytecode cache
     glm::vec4 clear{0.07f, 0.08f, 0.12f, 1.0f};
     f32 w = 0, h = 0;
@@ -112,7 +108,19 @@ struct App {
 
 App* g_app = nullptr;
 
+void hostLog(bool error, const char* fmt, ...) {
+    char buf[1024];
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, args);
+    va_end(args);
+    if (g_app && g_app->platform) g_app->platform->log(error, buf);
+}
+
 }  // namespace
+
+#define LOGI(...) hostLog(false, __VA_ARGS__)
+#define LOGE(...) hostLog(true, __VA_ARGS__)
 
 // ---- the esn_shim plumbing the generated component bindings call ------------
 
@@ -284,20 +292,8 @@ JSValue js_getTextureDimensions(JSContext* ctx, JSValueConst, int, JSValueConst*
     return obj;
 }
 
-// Read an APK asset (assets/<path>) fully into a buffer; empty if missing. This is
-// the native NativeBridge.readFile capability — a packaged (project-relative) file.
 std::vector<u8> readAsset(App& a, const char* path) {
-    std::vector<u8> out;
-    if (!a.assets) return out;
-    AAsset* asset = AAssetManager_open(a.assets, path, AASSET_MODE_BUFFER);
-    if (!asset) return out;
-    off_t len = AAsset_getLength(asset);
-    if (len > 0) {
-        out.resize((size_t)len);
-        AAsset_read(asset, out.data(), (size_t)len);
-    }
-    AAsset_close(asset);
-    return out;
+    return a.platform ? a.platform->readAsset(path) : std::vector<u8>{};
 }
 
 // es_readAsset(path) -> ArrayBuffer | null. Backs the bridge's readFile.
@@ -311,7 +307,7 @@ JSValue js_readAsset(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
 }
 
 // es_loadImagePixels(path) -> { width, height, pixels: ArrayBuffer(RGBA) } | null.
-// Decodes an APK image asset to top-first RGBA via stb_image — the native
+// Decodes a packaged image asset to top-first RGBA via stb_image — the native
 // NativeBridge.loadImagePixels ("Path 2": decode -> createTextureFromPixels).
 JSValue js_loadImagePixels(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
     const char* path = JS_ToCString(ctx, argv[0]);
@@ -360,25 +356,6 @@ void callJs(App& a, const char* fn, int argc, JSValue* argv) {
 void pumpJobs(App& a) {
     JSContext* c;
     while (JS_ExecutePendingJob(a.rt, &c) > 0) { /* ran a job */ }
-}
-
-// Push one Android touch to the game's es_onNativeTouch(type,id,x,y), which fans it
-// out to the NativeBridge's registered listener. type: 0 start / 1 move / 2 end / 3 cancel.
-void dispatchTouch(App& a, int type, int id, float x, float y) {
-    JSValue global = JS_GetGlobalObject(a.js);
-    JSValue fn = JS_GetPropertyStr(a.js, global, "es_onNativeTouch");
-    if (JS_IsFunction(a.js, fn)) {
-        JSValue args[4] = {
-            JS_NewInt32(a.js, type), JS_NewInt32(a.js, id),
-            JS_NewFloat64(a.js, x), JS_NewFloat64(a.js, y),
-        };
-        JSValue r = JS_Call(a.js, fn, global, 4, args);
-        if (JS_IsException(r)) logJsError(a.js, "es_onNativeTouch");
-        JS_FreeValue(a.js, r);
-        for (JSValue& v : args) JS_FreeValue(a.js, v);
-    }
-    JS_FreeValue(a.js, fn);
-    JS_FreeValue(a.js, global);
 }
 
 void bindGlobal(App& a, JSValue global, const char* name, JSCFunction* fn, int argc) {
@@ -482,8 +459,8 @@ void initJS(App& a) {
     JS_FreeValue(a.js, global);
 
     // Layers: the real SDK bundle (engine, embedded) installs ESEngine; the host
-    // bootstrap (host platform glue) installs the NativeBridge; the game (an APK
-    // asset, developer content) authors on top.
+    // bootstrap (host platform glue) installs the NativeBridge; the game (a
+    // packaged asset, developer content) authors on top.
     const double tCtx = nowMs();
     std::string bcPath = a.cacheDir.empty() ? std::string() : (a.cacheDir + "/esengine.native.bc");
     JSValue br = evalCachedScript(a, kSdkBundleJS, strlen(kSdkBundleJS), "esengine.native.js", bcPath);
@@ -492,7 +469,7 @@ void initJS(App& a) {
     const double tBundle = nowMs();
     evalJs(a, kBootstrapJS, "bootstrap.js");
     std::vector<u8> game = readAsset(a, "game.js");
-    if (game.empty()) { LOGE("game.js asset missing from the APK"); return; }
+    if (game.empty()) { LOGE("game.js asset missing from the app package"); return; }
     std::string src(reinterpret_cast<const char*>(game.data()), game.size());
     evalJs(a, src.c_str(), "game.js");
     const double tGame = nowMs();
@@ -501,11 +478,86 @@ void initJS(App& a) {
     const double tInit = nowMs();
     LOGI("boot ms — qjs ctx: %.0f | SDK bundle eval: %.0f | bootstrap+game: %.0f | init(): %.0f | total JS: %.0f",
          tCtx - t0, tBundle - tCtx, tGame - tBundle, tInit - tGame, tInit - t0);
-    LOGI("game.js (APK asset) init() ran on the real SDK App");
+    LOGI("game.js (packaged asset) init() ran on the real SDK App");
 }
 
-void renderScene(App& a) {
-    if (!a.ready || !a.surfaceReady) return;
+}  // namespace
+
+namespace eshost {
+
+bool bindSurface() {
+    App& a = *g_app;
+    u32 w = 0, h = 0;
+    a.platform->surfaceSize(w, h);
+    a.w = (f32)w;
+    a.h = (f32)h;
+    if (!a.gfx->configureSurface(a.platform->surface(), w, h)) {
+        LOGE("configureSurface failed");
+        return false;
+    }
+    a.surfaceReady = true;
+    return true;
+}
+
+void surfaceLost() {
+    if (g_app) g_app->surfaceReady = false;
+}
+
+bool booted() { return g_app && g_app->ready; }
+
+bool surfaceBound() { return g_app && g_app->surfaceReady; }
+
+bool boot(Platform& platform) {
+    static App app;
+    g_app = &app;
+    App& a = app;
+    a.platform = &platform;
+    a.cacheDir = platform.cacheDir();
+
+    const double te0 = nowMs();
+    WGPUInstanceFeatureName feats[] = {WGPUInstanceFeatureName_TimedWaitAny};
+    WGPUInstanceDescriptor idesc = {};
+    idesc.requiredFeatureCount = 1;
+    idesc.requiredFeatures = feats;
+    a.instance = wgpuCreateInstance(&idesc);
+    WGPURequestAdapterOptions opts = {};
+    opts.backendType = platform.backend();
+    auto onA = [](WGPURequestAdapterStatus s, WGPUAdapter ad, WGPUStringView, void* u, void*) {
+        if (s == WGPURequestAdapterStatus_Success) *static_cast<WGPUAdapter*>(u) = ad; };
+    WGPURequestAdapterCallbackInfo aci = {};
+    aci.mode = WGPUCallbackMode_WaitAnyOnly; aci.callback = onA; aci.userdata1 = &a.adapter;
+    WGPUFutureWaitInfo af = {wgpuInstanceRequestAdapter(a.instance, &opts, aci), 0};
+    wgpuInstanceWaitAny(a.instance, 1, &af, UINT64_MAX);
+    if (!a.adapter) { LOGE("no adapter"); return false; }
+    auto onD = [](WGPURequestDeviceStatus s, WGPUDevice d, WGPUStringView, void* u, void*) {
+        if (s == WGPURequestDeviceStatus_Success) *static_cast<WGPUDevice*>(u) = d; };
+    WGPUDeviceDescriptor dd = {};
+    WGPURequestDeviceCallbackInfo dci = {};
+    dci.mode = WGPUCallbackMode_WaitAnyOnly; dci.callback = onD; dci.userdata1 = &a.device;
+    WGPUFutureWaitInfo df = {wgpuAdapterRequestDevice(a.adapter, &dd, dci), 0};
+    wgpuInstanceWaitAny(a.instance, 1, &df, UINT64_MAX);
+    if (!a.device) { LOGE("no device"); return false; }
+
+    auto device = makeUnique<WebGPUDevice>(a.device, a.instance);
+    a.gfx = device.get();
+    if (!bindSurface()) return false;
+    static EstellaContext context;
+    a.ctx = &context;
+    context.state().viewport_width = (i32)a.w;
+    context.state().viewport_height = (i32)a.h;
+    if (!context.init(std::move(device))) { LOGE("context.init failed"); return false; }
+    static ecs::Registry registry;
+    a.registry = &registry;
+    LOGI("boot ms — Dawn instance/adapter/device + EstellaContext: %.0f", nowMs() - te0);
+    initJS(a);
+    a.ready = true;
+    LOGI("real SDK up (%dx%d) — esengine World over native Dawn", (int)a.w, (int)a.h);
+    return true;
+}
+
+void frame() {
+    if (!g_app || !g_app->ready || !g_app->surfaceReady) return;
+    App& a = *g_app;
     auto& ctx = *a.ctx;
     JSValue dt = JS_NewFloat64(a.js, 1.0 / 60.0);
     callJs(a, "update", 1, &dt);
@@ -525,125 +577,25 @@ void renderScene(App& a) {
     if (++a.frame % 120 == 0) LOGI("real-SDK frame %llu", (unsigned long long)a.frame);
 }
 
-// Bind (or re-bind) the render surface to a window. Called on first boot and again
-// on APP_CMD_INIT_WINDOW after a screen-off/on, which destroys + recreates the
-// window (configureSurface is re-entrant: it drops the old surface first).
-bool configureForWindow(App& a, ANativeWindow* window) {
-    a.w = (f32)ANativeWindow_getWidth(window);
-    a.h = (f32)ANativeWindow_getHeight(window);
-    if (!a.gfx->configureSurface(
-            WebGPUDevice::NativeSurface{WebGPUDevice::NativeWindowKind::AndroidWindow, window},
-            (u32)a.w, (u32)a.h)) {
-        LOGE("configureSurface failed");
-        return false;
+// Push one host touch to the game's es_onNativeTouch(type,id,x,y), which fans it
+// out to the NativeBridge's registered listener.
+void touch(int type, int id, float x, float y) {
+    if (!g_app || !g_app->ready) return;
+    App& a = *g_app;
+    JSValue global = JS_GetGlobalObject(a.js);
+    JSValue fn = JS_GetPropertyStr(a.js, global, "es_onNativeTouch");
+    if (JS_IsFunction(a.js, fn)) {
+        JSValue args[4] = {
+            JS_NewInt32(a.js, type), JS_NewInt32(a.js, id),
+            JS_NewFloat64(a.js, x), JS_NewFloat64(a.js, y),
+        };
+        JSValue r = JS_Call(a.js, fn, global, 4, args);
+        if (JS_IsException(r)) logJsError(a.js, "es_onNativeTouch");
+        JS_FreeValue(a.js, r);
+        for (JSValue& v : args) JS_FreeValue(a.js, v);
     }
-    a.surfaceReady = true;
-    return true;
+    JS_FreeValue(a.js, fn);
+    JS_FreeValue(a.js, global);
 }
 
-void initEngine(App& a, ANativeWindow* window) {
-    const double te0 = nowMs();
-    WGPUInstanceFeatureName feats[] = {WGPUInstanceFeatureName_TimedWaitAny};
-    WGPUInstanceDescriptor idesc = {};
-    idesc.requiredFeatureCount = 1;
-    idesc.requiredFeatures = feats;
-    a.instance = wgpuCreateInstance(&idesc);
-    WGPURequestAdapterOptions opts = {};
-    opts.backendType = WGPUBackendType_Vulkan;
-    auto onA = [](WGPURequestAdapterStatus s, WGPUAdapter ad, WGPUStringView, void* u, void*) {
-        if (s == WGPURequestAdapterStatus_Success) *static_cast<WGPUAdapter*>(u) = ad; };
-    WGPURequestAdapterCallbackInfo aci = {};
-    aci.mode = WGPUCallbackMode_WaitAnyOnly; aci.callback = onA; aci.userdata1 = &a.adapter;
-    WGPUFutureWaitInfo af = {wgpuInstanceRequestAdapter(a.instance, &opts, aci), 0};
-    wgpuInstanceWaitAny(a.instance, 1, &af, UINT64_MAX);
-    if (!a.adapter) { LOGE("no adapter"); return; }
-    auto onD = [](WGPURequestDeviceStatus s, WGPUDevice d, WGPUStringView, void* u, void*) {
-        if (s == WGPURequestDeviceStatus_Success) *static_cast<WGPUDevice*>(u) = d; };
-    WGPUDeviceDescriptor dd = {};
-    WGPURequestDeviceCallbackInfo dci = {};
-    dci.mode = WGPUCallbackMode_WaitAnyOnly; dci.callback = onD; dci.userdata1 = &a.device;
-    WGPUFutureWaitInfo df = {wgpuAdapterRequestDevice(a.adapter, &dd, dci), 0};
-    wgpuInstanceWaitAny(a.instance, 1, &df, UINT64_MAX);
-    if (!a.device) { LOGE("no device"); return; }
-
-    a.w = (f32)ANativeWindow_getWidth(window);
-    a.h = (f32)ANativeWindow_getHeight(window);
-    auto device = makeUnique<WebGPUDevice>(a.device, a.instance);
-    a.gfx = device.get();
-    if (!configureForWindow(a, window)) return;
-    static EstellaContext context;
-    a.ctx = &context;
-    context.state().viewport_width = (i32)a.w;
-    context.state().viewport_height = (i32)a.h;
-    if (!context.init(std::move(device))) { LOGE("context.init failed"); return; }
-    static ecs::Registry registry;
-    a.registry = &registry;
-    LOGI("boot ms — Dawn instance/adapter/device + EstellaContext: %.0f", nowMs() - te0);
-    initJS(a);
-    a.ready = true;
-    LOGI("real SDK up (%dx%d) — esengine World over native Dawn", (int)a.w, (int)a.h);
-}
-
-int32_t onInput(android_app* app, AInputEvent* ev) {
-    App* a = static_cast<App*>(app->userData);
-    if (!a->ready || AInputEvent_getType(ev) != AINPUT_EVENT_TYPE_MOTION) return 0;
-    const int32_t action = AMotionEvent_getAction(ev) & AMOTION_EVENT_ACTION_MASK;
-    const float x = AMotionEvent_getX(ev, 0);
-    const float y = AMotionEvent_getY(ev, 0);
-    int type;
-    switch (action) {
-        case AMOTION_EVENT_ACTION_DOWN:
-        case AMOTION_EVENT_ACTION_POINTER_DOWN: type = 0; break;
-        case AMOTION_EVENT_ACTION_MOVE:         type = 1; break;
-        case AMOTION_EVENT_ACTION_UP:
-        case AMOTION_EVENT_ACTION_POINTER_UP:   type = 2; break;
-        default:                                type = 3; break;
-    }
-    dispatchTouch(*a, type, 0, x, y);
-    return 1;
-}
-
-void onAppCmd(android_app* app, int32_t cmd) {
-    App* a = static_cast<App*>(app->userData);
-    switch (cmd) {
-        case APP_CMD_INIT_WINDOW:
-            // First time: boot the engine. Afterwards (screen-on): just rebind the
-            // new window surface — the engine + JS World stay alive.
-            if (app->window) {
-                if (!a->ready) initEngine(*a, app->window);
-                else configureForWindow(*a, app->window);
-            }
-            break;
-        case APP_CMD_TERM_WINDOW:
-            // Screen-off / backgrounded: the window is gone, stop presenting to it.
-            a->surfaceReady = false;
-            break;
-        default:
-            break;
-    }
-}
-
-}  // namespace
-
-void android_main(android_app* app) {
-    App a;
-    g_app = &a;
-    a.assets = app->activity->assetManager;   // APK assets/ (game.js + content)
-    if (app->activity->internalDataPath) a.cacheDir = app->activity->internalDataPath;
-    app->userData = &a;
-    app->onAppCmd = onAppCmd;
-    app->onInputEvent = onInput;
-    while (true) {
-        int events;
-        android_poll_source* source;
-        // Poll (0) while we can render; block (-1) when there's no surface (screen
-        // off) so we wait for the next window event instead of spinning.
-        int timeoutMs = (a.ready && a.surfaceReady) ? 0 : -1;
-        while (ALooper_pollOnce(timeoutMs, nullptr, &events, (void**)&source) >= 0) {
-            if (source) source->process(app, source);
-            if (app->destroyRequested) return;
-            timeoutMs = 0;
-        }
-        renderScene(a);
-    }
-}
+}  // namespace eshost

@@ -88,9 +88,11 @@ if(ESTELLA_QUICKJS_DIR)
     target_compile_definitions(qjs PRIVATE _GNU_SOURCE)
     target_compile_options(qjs PRIVATE -Wno-unused -Wno-sign-compare)
 
-    add_library(estella_js_host SHARED js/main.cpp "${NATIVE_BINDINGS}")
-    # js/ holds esn_shim.hpp (the generated TU includes it); the gen dir holds
-    # ptraccessors_js.h (main.cpp includes it).
+    # js/host_core.cpp is the platform-independent host; each platform adds its own
+    # glue TU (the event loop, the window, the packaged assets).
+    add_library(estella_js_host SHARED js/host_core.cpp js/main_android.cpp "${NATIVE_BINDINGS}")
+    # js/ holds esn_shim.hpp + host_core.hpp (the generated TU includes the shim);
+    # the gen dir holds ptraccessors_js.h and the embedded SDK bundle.
     target_include_directories(estella_js_host PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/js" "${ESTELLA_NATIVE_GEN_DIR}")
     target_link_libraries(estella_js_host esengine qjs native_app_glue android log)
