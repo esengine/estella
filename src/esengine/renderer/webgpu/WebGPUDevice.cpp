@@ -53,7 +53,8 @@ u8 packSamplerKey(TextureFilter minFilter, TextureFilter magFilter,
 }
 }  // namespace
 
-WebGPUDevice::WebGPUDevice(WGPUDevice device, WGPUInstance instance) : device_(device) {
+WebGPUDevice::WebGPUDevice(WGPUDevice device, WGPUInstance instance, WGPUAdapter adapter)
+    : device_(device), adapter_(adapter) {
     if (device_) {
         queue_ = wgpuDeviceGetQueue(device_);
         if (instance) {
@@ -221,9 +222,22 @@ void WebGPUDevice::present() {
 #endif  // !__EMSCRIPTEN__
 
 bool WebGPUDevice::configureSwapchain(u32 width, u32 height) {
-    // The canvas swapchain prefers BGRA on most platforms; RGBA8 is universally
-    // valid for emscripten surfaces and keeps readback simple during bring-up.
+    // RGBA8 is universally valid for emscripten surfaces and keeps readback simple.
     surface_format_ = WGPUTextureFormat_RGBA8Unorm;
+#if !defined(__EMSCRIPTEN__)
+    // A native surface may accept nothing of the sort — a CAMetalLayer offers only
+    // BGRA8Unorm, while Vulkan happens to take RGBA8 — and configuring a format the
+    // surface does not advertise leaves every getCurrentTexture in error rather
+    // than failing here. So ask, and take the surface's preferred (first) format.
+    if (adapter_) {
+        WGPUSurfaceCapabilities caps{};
+        if (wgpuSurfaceGetCapabilities(surface_, adapter_, &caps) == WGPUStatus_Success
+            && caps.formatCount > 0) {
+            surface_format_ = caps.formats[0];
+            wgpuSurfaceCapabilitiesFreeMembers(caps);
+        }
+    }
+#endif
     WGPUSurfaceConfiguration cfg{};
     cfg.device = device_;
     cfg.format = surface_format_;

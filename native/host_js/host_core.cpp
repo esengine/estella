@@ -538,7 +538,7 @@ bool boot(Platform& platform) {
     wgpuInstanceWaitAny(a.instance, 1, &df, UINT64_MAX);
     if (!a.device) { LOGE("no device"); return false; }
 
-    auto device = makeUnique<WebGPUDevice>(a.device, a.instance);
+    auto device = makeUnique<WebGPUDevice>(a.device, a.instance, a.adapter);
     a.gfx = device.get();
     if (!bindSurface()) return false;
     static EstellaContext context;

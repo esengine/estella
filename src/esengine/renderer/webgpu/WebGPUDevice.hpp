@@ -58,7 +58,10 @@ public:
      *         native shell that already built the instance to acquire the
      *         adapter/device passes it here so the surface is created on the SAME
      *         instance — native Dawn ties a surface to its creating instance. */
-    explicit WebGPUDevice(WGPUDevice device = nullptr, WGPUInstance instance = nullptr);
+    /** @param adapter Native hosts pass theirs so the swapchain can ask the surface
+     *                 which formats it supports; omitting it assumes RGBA8. */
+    explicit WebGPUDevice(WGPUDevice device = nullptr, WGPUInstance instance = nullptr,
+                          WGPUAdapter adapter = nullptr);
     ~WebGPUDevice() override;
 
     void init() override;
@@ -288,6 +291,7 @@ private:
     WGPUDevice device_ = nullptr;
     WGPUQueue queue_ = nullptr;
     WGPUInstance instance_ = nullptr;
+    WGPUAdapter adapter_ = nullptr;  ///< Native only, host-owned: surface capability queries.
     bool owns_instance_ = true;  ///< False when a native host injected its instance (don't release it).
 
     // Surface (the Default framebuffer target). The companion depth-stencil
