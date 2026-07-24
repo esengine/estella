@@ -34,6 +34,9 @@ targets:
         # -ObjC keeps the view controller / app delegate classes in the static
         # library alive; the linker would otherwise drop TUs nothing references.
         OTHER_LDFLAGS: -ObjC -lc++
+        # Xcode links the .a below as -lestella_ios, so the CMake output dir has to
+        # be on the search path — without it the link fails with "not found".
+        LIBRARY_SEARCH_PATHS: $(SRCROOT)/../../build-native-ios
         TARGETED_DEVICE_FAMILY: "1,2"
         ENABLE_BITCODE: NO
     dependencies:
