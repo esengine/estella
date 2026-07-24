@@ -52,8 +52,13 @@ public:
      *         validates the pipeline's color target format against the pass. */
     enum ColorVariant : u32 { kColorRgba8 = 0, kColorSrgb8 = 1, kColorRgba16f = 2, kColorVariantCount = 3 };
 
-    /** @brief @p device may be null for bookkeeping-only use (tests, bring-up). */
-    explicit WebGPUDevice(WGPUDevice device = nullptr);
+    /** @brief @p device may be null for bookkeeping-only use (tests, bring-up).
+     *  @param instance  The host's WGPUInstance to share. Web/emscripten passes
+     *         null and the device creates its own (the emscripten singleton). A
+     *         native shell that already built the instance to acquire the
+     *         adapter/device passes it here so the surface is created on the SAME
+     *         instance — native Dawn ties a surface to its creating instance. */
+    explicit WebGPUDevice(WGPUDevice device = nullptr, WGPUInstance instance = nullptr);
     ~WebGPUDevice() override;
 
     void init() override;
@@ -176,6 +181,12 @@ public:
     /** @brief Binds a native window as the render target; shares configureSwapchain
      *         with the web path. Native Dawn build only. */
     bool configureSurface(const NativeSurface& window, u32 width, u32 height);
+
+    /** @brief Flips the swapchain to the display. The web path relies on the
+     *         browser presenting the canvas after the frame callback; a native
+     *         host must present the surface explicitly, once per frame after
+     *         endRenderPass. No-op until a surface is configured. */
+    void present();
 #endif
     usize bufferCount() const { return buffers_.size(); }
     usize textureCount() const { return textures_.size(); }
@@ -277,6 +288,7 @@ private:
     WGPUDevice device_ = nullptr;
     WGPUQueue queue_ = nullptr;
     WGPUInstance instance_ = nullptr;
+    bool owns_instance_ = true;  ///< False when a native host injected its instance (don't release it).
 
     // Surface (the Default framebuffer target). The companion depth-stencil
     // texture mirrors the WebGL canvas's depth+stencil planes — engine stencil

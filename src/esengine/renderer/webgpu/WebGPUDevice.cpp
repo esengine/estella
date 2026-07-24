@@ -53,10 +53,16 @@ u8 packSamplerKey(TextureFilter minFilter, TextureFilter magFilter,
 }
 }  // namespace
 
-WebGPUDevice::WebGPUDevice(WGPUDevice device) : device_(device) {
+WebGPUDevice::WebGPUDevice(WGPUDevice device, WGPUInstance instance) : device_(device) {
     if (device_) {
         queue_ = wgpuDeviceGetQueue(device_);
-        instance_ = wgpuCreateInstance(nullptr);
+        if (instance) {
+            instance_ = instance;      // native shell shares its instance (surface must match it)
+            owns_instance_ = false;
+        } else {
+            instance_ = wgpuCreateInstance(nullptr);  // web/standalone: own one (emscripten singleton)
+            owns_instance_ = true;
+        }
     }
 }
 
@@ -129,7 +135,8 @@ void WebGPUDevice::shutdown() {
     if (surface_depth_view_) { wgpuTextureViewRelease(surface_depth_view_); surface_depth_view_ = nullptr; }
     if (surface_depth_texture_) { wgpuTextureRelease(surface_depth_texture_); surface_depth_texture_ = nullptr; }
     if (surface_) { wgpuSurfaceRelease(surface_); surface_ = nullptr; }
-    if (instance_) { wgpuInstanceRelease(instance_); instance_ = nullptr; }
+    if (instance_ && owns_instance_) { wgpuInstanceRelease(instance_); }
+    instance_ = nullptr;
 }
 
 // =============================================================================
@@ -201,6 +208,10 @@ bool WebGPUDevice::configureSurface(const NativeSurface& window, u32 width, u32 
 
     return configureSwapchain(width, height);
 }
+
+void WebGPUDevice::present() {
+    if (surface_) wgpuSurfacePresent(surface_);
+}
 #endif  // !__EMSCRIPTEN__
 
 bool WebGPUDevice::configureSwapchain(u32 width, u32 height) {
@@ -213,7 +224,11 @@ bool WebGPUDevice::configureSwapchain(u32 width, u32 height) {
     cfg.usage = WGPUTextureUsage_RenderAttachment;
     cfg.width = width;
     cfg.height = height;
-    cfg.alphaMode = WGPUCompositeAlphaMode_Opaque;
+    // Auto, not Opaque: let the backend pick a mode the surface advertises. A
+    // browser canvas supports Opaque, but a native Vulkan surface may not (e.g.
+    // Adreno on Android only offers Inherit/PreMultiplied) — Configure() rejects
+    // an unsupported mode outright.
+    cfg.alphaMode = WGPUCompositeAlphaMode_Auto;
     cfg.presentMode = WGPUPresentMode_Fifo;
     wgpuSurfaceConfigure(surface_, &cfg);
     surface_width_ = width;
