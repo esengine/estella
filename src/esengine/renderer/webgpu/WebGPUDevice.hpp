@@ -165,25 +165,16 @@ public:
     /** The kind of native window a non-emscripten (iOS/Android) host draws into. */
     enum class NativeWindowKind { MetalLayer, AndroidWindow };
 
-    /**
-     * A native window handle the host hands the renderer in place of a canvas
-     * selector: a `CAMetalLayer*` (MetalLayer, iOS/macOS) or an `ANativeWindow*`
-     * (AndroidWindow). This is the C++ counterpart of the TS
-     * `RenderSurfaceSource { kind: 'webgpu' }` seam — the one point where the
-     * embedded-Dawn native host (NOT a WebView) reaches the C++ renderer.
-     */
+    /** A `CAMetalLayer*` / `ANativeWindow*` for a native-C++ build; compiled out of
+     *  the wasm build, where the host injects an already-built surface instead. */
     struct NativeSurface {
         NativeWindowKind kind;
         void* handle;
     };
 
 #if !defined(__EMSCRIPTEN__)
-    /**
-     * @brief Binds a native window (CAMetalLayer / ANativeWindow) as the default
-     *        render target — the native shell's boot entry, standing in for the
-     *        canvas-selector overload. Shares configureSwapchain with the web path;
-     *        only the surface source differs. Compiled only in a native Dawn build.
-     */
+    /** @brief Binds a native window as the render target; shares configureSwapchain
+     *         with the web path. Native Dawn build only. */
     bool configureSurface(const NativeSurface& window, u32 width, u32 height);
 #endif
     usize bufferCount() const { return buffers_.size(); }
