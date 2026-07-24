@@ -219,7 +219,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   //    manifest. KTX2 textures are fine here: the scan below sees the staged
   //    .ktx2 files and ships the Basis transcoder side module with them.
   progress({ phase: 'Cooking assets' });
-  const cook = await cookAssets(opts.root, { entryScenes: scenes.map((s) => s.path), outDir: absOut, contentAddressed: opts.contentAddressed, compressTextures: opts.compressTextures, compressAudio: opts.compressAudio, atlasTextures: opts.atlasTextures, transcodeVideo: true });
+  const cook = await cookAssets(opts.root, { entryScenes: scenes.map((s) => s.path), outDir: absOut, contentAddressed: opts.contentAddressed, compressTextures: opts.compressTextures, compressAudio: opts.compressAudio, atlasTextures: opts.atlasTextures, transcodeVideo: true, platform: 'wechat' });
   warnings.push(...cook.warnings);
 
   // 1a. Restage for the vendor's code-package suffix whitelist (WeChat has no

@@ -14,6 +14,7 @@ import {
   applyImporterEdit,
   hasImporterSettings,
   readTextureImportSettings,
+  readTextureCookSettings,
 } from '../src/project/assetImporter';
 
 describe('importerDefaults (import-time .meta)', () => {
@@ -34,6 +35,32 @@ describe('importerDefaults (import-time .meta)', () => {
     expect(importerDefaults('scene')).toEqual({ autoMigrate: true });
     expect(importerDefaults('prefab')).toEqual({ autoMigrate: true });
     expect(importerDefaults('audio')).toEqual({ compress: true, bitrateKbps: 128 });
+  });
+});
+
+describe('readTextureCookSettings (per-platform resolution)', () => {
+  it('resolves defaults from the base block (no overrides)', () => {
+    expect(readTextureCookSettings(undefined)).toEqual({ compress: true, format: 'uastc', maxSize: 2048, srgb: true });
+    expect(readTextureCookSettings({ compress: false, compressFormat: 'etc1s', maxSize: 512, sRGB: false }))
+      .toEqual({ compress: false, format: 'etc1s', maxSize: 512, srgb: false });
+  });
+
+  it('an enabled platform override wins per-field, inheriting the rest', () => {
+    const imp = {
+      maxSize: 2048, compress: true, compressFormat: 'uastc',
+      overrides: { wechat: { enabled: true, maxSize: 1024, compressFormat: 'etc1s' } },
+    };
+    // WeChat: overridden maxSize + format, inherits compress + srgb.
+    expect(readTextureCookSettings(imp, 'wechat')).toEqual({ compress: true, format: 'etc1s', maxSize: 1024, srgb: true });
+    // Web: no override for that platform → the defaults.
+    expect(readTextureCookSettings(imp, 'web')).toEqual({ compress: true, format: 'uastc', maxSize: 2048, srgb: true });
+    // No platform (editor cook) → the defaults, override ignored.
+    expect(readTextureCookSettings(imp).maxSize).toBe(2048);
+  });
+
+  it('a disabled override is ignored (falls back to default)', () => {
+    const imp = { maxSize: 2048, overrides: { wechat: { enabled: false, maxSize: 256 } } };
+    expect(readTextureCookSettings(imp, 'wechat').maxSize).toBe(2048);
   });
 });
 

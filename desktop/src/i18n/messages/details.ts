@@ -191,6 +191,9 @@ export const detailsMessages = defineMessages({
 
     // — Generic asset inspector (import settings + metadata) —
     'det.importSettings': { en: 'Import Settings', zh: '导入设置' },
+    'det.platformOverrides': { en: 'Platform Overrides', zh: '平台覆盖' },
+    'det.overrideFor': { en: 'Override for {platform}', zh: '覆盖默认设置（{platform}）' },
+    'det.followsDefault': { en: 'Follows the default — edit it above in Import Settings.', zh: '跟随默认——在上方「导入设置」里编辑。' },
     'det.saveImportTip': { en: 'Save import settings', zh: '保存导入设置' },
     'det.importSaved': { en: 'Import settings saved — size / compression apply on the next build', zh: '导入设置已保存——尺寸 / 压缩在下次构建时生效' },
     'det.importSaveFailed': { en: 'Failed to save import settings: {error}', zh: '保存导入设置失败：{error}' },

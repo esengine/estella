@@ -252,6 +252,9 @@ export async function cookAssets(
     entryScenes: string[]; outDir: string;
     contentAddressed?: boolean; compressTextures?: boolean; atlasTextures?: boolean;
     compressAudio?: boolean; transcodeVideo?: boolean;
+    /** Target platform — selects each texture's per-platform Import Settings
+     *  override (Default when absent). No effect on audio/video/atlas. */
+    platform?: string;
   },
 ): Promise<CookResult> {
   const contentAddressed = opts.contentAddressed ?? false;
@@ -259,6 +262,7 @@ export async function cookAssets(
   const atlasTextures = opts.atlasTextures ?? false;
   const compressAudio = opts.compressAudio ?? false;
   const transcodeVideo = opts.transcodeVideo ?? false;
+  const platform = opts.platform;
   const { index } = await scanAssetDatabase(root, { write: false, adopt: false });
   const byUuid = new Map(index.entries.map((e) => [e.uuid, e]));
   const byPath = new Map(index.entries.map((e) => [e.path, e]));
@@ -451,7 +455,7 @@ export async function cookAssets(
       // in VRAM, the runtime transcodes per device. Hash + name reflect the ENCODED
       // bytes, so this composes with content-addressing below.
       if (textureEnc && entry.type !== 'scene' && ext.toLowerCase() === '.png') {
-        const tex = readTextureCookSettings(entry.importer);
+        const tex = readTextureCookSettings(entry.importer, platform);
         // maxSize downscale first — it applies even when a texture opts OUT of
         // compression (a huge UI sprite can ship as a smaller raw PNG).
         let rgba: Uint8Array | null = null;

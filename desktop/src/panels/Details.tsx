@@ -24,6 +24,10 @@ import {
   Filter,
   Hexagon,
   FolderOpen,
+  Globe,
+  Monitor,
+  MessageSquare,
+  Play,
   Image as ImageIcon,
   MoreHorizontal,
   Move3d,
@@ -70,7 +74,7 @@ import type { SceneData, InputMapAsset, ActionType, Binding, LocaleTableAsset, P
 import { modelAddableComponentEntries, subscribeSchemas, getSchemaRevision, prettyLabel, hexToRgba, dynamicEnumOptions, boxGroupsFor, isRequiredEmpty, type BoxGroupDef } from '@/engine/schema';
 import * as imap from '@/project/inputMapDoc';
 import * as ldoc from '@/project/localeTableDoc';
-import { buildImporterComponent, applyImporterEdit } from '@/project/assetImporter';
+import { buildImporterComponent, applyImporterEdit, readTextureCookSettings } from '@/project/assetImporter';
 import { findAssetUsages } from '@/project/assetUsages';
 import { FindUsagesDialog } from '@/components/FindUsagesDialog';
 import { ProjectStore } from '@/project/ProjectStore';
@@ -3137,6 +3141,68 @@ function MetaRow({ k, v, mono }: { k: string; v: string; mono?: boolean }) {
   );
 }
 
+// Per-platform texture Import Settings — Unity's Default + platform tabs. The
+// DEFAULT lives in the Import Settings section above; here each target can override
+// the axes that actually vary per platform for a Basis "encode once, transcode per
+// GPU" pipeline: size cap + whether/how to compress (e.g. WeChat ships smaller /
+// ETC1S). Edits write to `overrides.<platform>.*` through the same importer `write`
+// seam, so save + dirty tracking are unchanged.
+function TexturePlatformOverrides({ importer, write }: { importer: Record<string, unknown>; write: FieldWrite }) {
+  const [tab, setTab] = useState('wechat');
+  const overrides = (importer.overrides as Record<string, Record<string, unknown>> | undefined) ?? {};
+  const ov = overrides[tab] ?? {};
+  const enabled = !!ov.enabled;
+  const def = readTextureCookSettings(importer); // true default (what an unset field inherits)
+  const platLabel: Record<string, string> = {
+    web: t('build.plat.web'), desktop: t('build.plat.desktop'),
+    wechat: t('build.plat.wechat'), playable: t('build.plat.playable'),
+  };
+  const fields: InspectorField[] = [
+    {
+      key: `overrides.${tab}.maxSize`, label: 'Max Size', type: 'enum', category: '',
+      options: [256, 512, 1024, 2048, 4096, 8192].map((n) => ({ label: String(n), value: n })),
+      value: typeof ov.maxSize === 'number' ? ov.maxSize : def.maxSize, defaultValue: def.maxSize,
+    },
+    {
+      key: `overrides.${tab}.compress`, label: 'Compress', type: 'bool', category: '',
+      value: typeof ov.compress === 'boolean' ? ov.compress : def.compress, defaultValue: def.compress,
+    },
+    {
+      key: `overrides.${tab}.compressFormat`, label: 'Format', type: 'select', category: '',
+      selectOptions: ['uastc', 'etc1s'],
+      value: ov.compressFormat === 'etc1s' || ov.compressFormat === 'uastc' ? ov.compressFormat : def.format,
+      defaultValue: def.format,
+    },
+  ];
+  return (
+    <div className="tex-plat">
+      <div className="tex-plat__hd">{t('det.platformOverrides')}</div>
+      <Segmented
+        ariaLabel={t('det.platformOverrides')}
+        value={tab}
+        onChange={setTab}
+        options={[
+          { value: 'web', icon: <Globe size={13} />, title: platLabel.web },
+          { value: 'desktop', icon: <Monitor size={13} />, title: platLabel.desktop },
+          { value: 'wechat', icon: <MessageSquare size={13} />, title: platLabel.wechat },
+          { value: 'playable', icon: <Play size={13} />, title: platLabel.playable },
+        ]}
+      />
+      <label className="tex-plat__en">
+        <input type="checkbox" checked={enabled} onChange={(e) => write(`overrides.${tab}.enabled`, 'bool', e.target.checked)} />
+        {t('det.overrideFor', { platform: platLabel[tab] })}
+      </label>
+      {enabled ? (
+        <div className="tex-plat__fields">
+          {fields.map((f) => <FieldRow key={f.key} entities={[]} comp="importer" field={f} write={write} />)}
+        </div>
+      ) : (
+        <div className="tex-plat__inherit">{t('det.followsDefault')}</div>
+      )}
+    </div>
+  );
+}
+
 // The asset inspector for every type without a bespoke editor. Renders read-only
 // metadata plus, for types with an importer schema, editable Import Settings
 // (written to the `.meta` sidecar) through the shared ComponentSection engine.
@@ -3302,6 +3368,10 @@ function GenericAssetInspector({ path }: { path: string }) {
           <div className="insp-empty" style={{ padding: '14px 12px' }}>
             <div className="es">{t('det.noImportSettings')}</div>
           </div>
+        )}
+
+        {isImage && importer && !collapsed && (
+          <TexturePlatformOverrides importer={importer} write={write} />
         )}
 
         <div className="cb-meta" style={{ padding: '8px 10px 0' }}>

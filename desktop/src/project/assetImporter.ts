@@ -176,23 +176,46 @@ export function buildImporterComponent(type: string, importer: Record<string, un
   return { name: 'Import Settings', label: 'Import Settings', fields };
 }
 
+/** The subset of texture cook settings a platform may override — the axes that
+ *  actually vary per target for a Basis "encode once, transcode per GPU" pipeline:
+ *  size cap + whether/how to compress. (sRGB is intrinsic to the asset's color, not
+ *  the platform, so it is NOT overridable.) `enabled` is the inspector's per-platform
+ *  "Override for <platform>" switch — an override is only applied when it is on. */
+export interface TexturePlatformOverride {
+  enabled?: boolean;
+  maxSize?: number;
+  compress?: boolean;
+  compressFormat?: 'uastc' | 'etc1s';
+}
+
 /** Cook-facing texture settings (compression + downscale), tolerant of hand-edited
  *  `.meta` blocks. Mirrors {@link readAudioImportSettings} — the cook reads this
  *  per asset so each texture decides its own KTX2 format / opt-out / size cap,
- *  the way audio clips already do. Defaults match a fresh `.meta`. */
-export function readTextureCookSettings(importer: Record<string, unknown> | undefined): {
+ *  the way audio clips already do. When `platform` is given and that platform has
+ *  an ENABLED override in `importer.overrides`, its present fields win over the
+ *  defaults per-field (an unset field inherits the default). Defaults match a
+ *  fresh `.meta`. */
+export function readTextureCookSettings(importer: Record<string, unknown> | undefined, platform?: string): {
   compress: boolean; format: 'uastc' | 'etc1s'; maxSize: number; srgb: boolean;
 } {
   const compress = importer?.compress;
   const format = importer?.compressFormat;
   const maxSize = importer?.maxSize;
   const srgb = importer?.sRGB;
-  return {
+  const resolved = {
     compress: typeof compress === 'boolean' ? compress : true,
-    format: format === 'etc1s' ? 'etc1s' : 'uastc',
+    format: (format === 'etc1s' ? 'etc1s' : 'uastc') as 'uastc' | 'etc1s',
     maxSize: typeof maxSize === 'number' && maxSize > 0 ? maxSize : 2048,
     srgb: typeof srgb === 'boolean' ? srgb : true,
   };
+  const overrides = importer?.overrides as Record<string, TexturePlatformOverride> | undefined;
+  const ov = platform ? overrides?.[platform] : undefined;
+  if (ov?.enabled) {
+    if (typeof ov.compress === 'boolean') resolved.compress = ov.compress;
+    if (ov.compressFormat === 'etc1s' || ov.compressFormat === 'uastc') resolved.format = ov.compressFormat;
+    if (typeof ov.maxSize === 'number' && ov.maxSize > 0) resolved.maxSize = ov.maxSize;
+  }
+  return resolved;
 }
 
 /** A texture's sampler settings, in the string shape the engine's TextureLoader

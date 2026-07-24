@@ -437,3 +437,13 @@
   transition: border-color var(--t-fast), background var(--t-fast);
 }
 .map-add:hover { border-color: var(--acc); background: var(--acc-soft); }
+
+/* ── Per-platform texture Import Settings (Default + platform tabs) ────────────
+   Sits under the default Import Settings; each target overrides size/compression.
+   Reuses the shared FieldRow, so the fields match the rest of the inspector. */
+.tex-plat { display: flex; flex-direction: column; gap: 8px; padding: 10px 10px 6px; border-top: 1px solid var(--line-soft); }
+.tex-plat__hd { font-size: var(--fs-2xs); font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; color: var(--text-mute); }
+.tex-plat .seg { align-self: stretch; }
+.tex-plat__en { display: flex; align-items: center; gap: 8px; font-size: var(--fs-xs); color: var(--text-dim); cursor: pointer; }
+.tex-plat__inherit { font-size: var(--fs-2xs); color: var(--text-mute); padding: 1px 0 3px; }
+.tex-plat__fields { display: flex; flex-direction: column; }

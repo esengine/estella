@@ -277,6 +277,40 @@ describe('cookAssets (A4)', () => {
     }
   }, 30_000);
 
+  it('applies a per-platform texture override: one asset, smaller raw PNG for WeChat vs KTX2 for web', async () => {
+    const r = mkdtempSync(path.join(tmpdir(), 'estella-cook-platov-'));
+    try {
+      const TEX = '77777777-7777-4777-8777-777777777773';
+      const SC = '88888888-8888-4888-8888-888888888883';
+      const png = readFileSync(path.resolve(__dirname, '../../examples/hello-world/assets/textures/logo.png'));
+      const abs = path.join(r, 't/logo.png');
+      mkdirSync(path.dirname(abs), { recursive: true });
+      writeFileSync(abs, png);
+      // Default: compress (KTX2). WeChat override: ship a small raw PNG instead.
+      writeFileSync(`${abs}.meta`, JSON.stringify({
+        uuid: TEX, version: '2.0', type: 'texture',
+        importer: { compress: true, overrides: { wechat: { enabled: true, compress: false, maxSize: 64 } } },
+      }));
+      const sc = path.join(r, 's/main.esscene');
+      mkdirSync(path.dirname(sc), { recursive: true });
+      writeFileSync(sc, JSON.stringify({ version: '1.0', name: 's', entities: [{ id: 1, name: 'E', parent: null, children: [], components: [{ type: 'Sprite', data: { texture: `@uuid:${TEX}` } }] }] }));
+      writeFileSync(`${sc}.meta`, JSON.stringify({ uuid: SC, version: '2.0', type: 'scene', importer: {} }));
+
+      const web = await cookAssets(r, { entryScenes: ['s/main.esscene'], outDir: 'out-web', compressTextures: true, platform: 'web' });
+      const wechat = await cookAssets(r, { entryScenes: ['s/main.esscene'], outDir: 'out-wx', compressTextures: true, platform: 'wechat' });
+      const texOf = (res: Awaited<ReturnType<typeof cookAssets>>) =>
+        (JSON.parse(readFileSync(res.manifestPath!, 'utf8')) as AssetManifest).entries.find((e) => e.uuid === TEX)!;
+
+      expect(texOf(web).path).toMatch(/\.ktx2$/);        // web: default → compressed
+      const wx = texOf(wechat);
+      expect(wx.path).toMatch(/\.png$/);                 // wechat override: raw PNG…
+      const shrunk = decodePngImage('wx', readFileSync(path.join(wechat.outDir, wx.path)));
+      expect(Math.max(shrunk.width, shrunk.height)).toBeLessThanOrEqual(64); // …downscaled to its cap
+    } finally {
+      rmSync(r, { recursive: true, force: true });
+    }
+  }, 30_000);
+
   it('follows PATH refs: scene → material (project path) → shader + texture (dir-relative)', async () => {
     const r = mkdtempSync(path.join(tmpdir(), 'estella-cook-pathref-'));
     try {

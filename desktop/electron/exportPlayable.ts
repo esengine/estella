@@ -175,7 +175,10 @@ export async function exportPlayable(opts: {
 
   // 1. Cook reachable assets to a temp dir (everything ends up inlined → removed after).
   progress({ phase: 'Cooking assets' });
-  const cook = await cookAssets(opts.root, { entryScenes: [opts.entryScene], outDir: cookDir });
+  // Playable inlines everything base64 (no KTX2 transcoder), so it doesn't set
+  // compressTextures — the platform is threaded for when per-platform Import
+  // Settings (e.g. a tighter Max Size for the ad-size cap) gain a raw-downscale path.
+  const cook = await cookAssets(opts.root, { entryScenes: [opts.entryScene], outDir: cookDir, platform: 'playable' });
   warnings.push(...cook.warnings);
 
   // 2. Assets → base64 data URLs, keyed by the scene's @uuid: refs; plus a
