@@ -18,7 +18,8 @@
                 "${workspaceFolder}/third_party",
                 "${env:ESTELLA_DAWN_DIR}/include",
                 "${env:ESTELLA_DAWN_BUILD}/gen/include",
-                "${env:ESTELLA_QUICKJS_DIR}"
+                "${env:ESTELLA_QUICKJS_DIR}",
+                "${workspaceFolder}/build/native_intellisense"
             ],
             "defines": [
                 "_DEBUG",
@@ -45,7 +46,8 @@
                 "${workspaceFolder}/third_party/spine-runtimes-4.2/spine-c/spine-c/include",
                 "${workspaceFolder}/third_party/nlohmann",
                 "${workspaceFolder}/third_party/box2d/include",
-                "${workspaceFolder}/build/quickjs_headers"
+                "${workspaceFolder}/build/quickjs_headers",
+                "${workspaceFolder}/build/native_intellisense"
             ],
             "defines": [
                 "_DEBUG",
