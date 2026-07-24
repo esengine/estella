@@ -234,6 +234,17 @@ export {
     type RuntimeInitConfig,
 } from './runtimeLoader';
 
+// The packaged-realm assembly (WeChat, native) + the game.config.json contract the
+// export pipeline writes and every runtime reads.
+export {
+    loadPackagedAssetIndex,
+    indexPackagedManifest,
+    catalogFromManifest,
+    createPackagedAssetSource,
+    type PackagedAssetIndex,
+    type PackagedGameConfig,
+} from './packagedRuntime';
+
 // =============================================================================
 // Preview
 // =============================================================================

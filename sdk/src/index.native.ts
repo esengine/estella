@@ -34,8 +34,8 @@ markEngineComponentBaseline();
 export * from './core';
 export * from './webAppFactory';
 
-export { NativePlatformAdapter, installNativePlatform } from './platform/native';
-export type { NativeBridge, NativeInputListener, NativeFetchResult } from './platform/native';
+export { NativePlatformAdapter, installNativePlatform, createHostBridge, assertHostEnvironment } from './platform/native';
+export type { NativeBridge, NativeInputListener, NativeFetchResult, NativeHostBindings } from './platform/native';
 
 // Fast-path memory backend for the native core. The shell builds one over its
 // host-injected `es_<Component>_buffer` bindings and passes it to the bridge
@@ -67,11 +67,7 @@ export { createNativeApp } from './ecs/nativeRuntime';
 // the device) rather than a hand-written game script — the native sibling of the
 // WeChat runtime and the web game host.
 export { initNativeGame } from './nativeGameRuntime';
-export type { NativeGame, NativeGameConfig, NativeGameOptions } from './nativeGameRuntime';
-
-// The packaged-realm asset assembly the native and WeChat runtimes share.
-export { loadPackagedAssetIndex, indexPackagedManifest, catalogFromManifest } from './packagedRuntime';
-export type { PackagedAssetIndex } from './packagedRuntime';
+export type { NativeGame, NativeGameOptions } from './nativeGameRuntime';
 
 // ABI layout hash of the component schema this bundle was generated from — the
 // native shell compares it against the wasm build it loads (same as the editor).

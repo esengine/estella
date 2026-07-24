@@ -19,27 +19,12 @@ import type { App } from './app';
 import { initRuntime } from './runtimeLoader';
 import { createNativeApp } from './ecs/nativeRuntime';
 import type { NativeBridge } from './platform/native';
-import { FileSystemBackend } from './asset/Backend';
-import { platformReadTextFile, platformLoadImagePixels } from './platform';
-import { loadPackagedAssetIndex } from './packagedRuntime';
-import type { RuntimeAssetSource } from './runtimeAssets';
+import { platformReadTextFile } from './platform';
+import { loadPackagedAssetIndex, createPackagedAssetSource, type PackagedGameConfig } from './packagedRuntime';
 import type { SceneData } from './scene';
 import type { ThemeOverrides } from './ui';
 import { parseThemeOverrides } from './ui';
 import { log } from './logger';
-
-/** `game.config.json` — what the export bakes about the project. */
-export interface NativeGameConfig {
-    entryScene: string;
-    /** Every switchable scene (SceneManager name + cooked path); includes the entry. */
-    scenes?: Array<{ name: string; path: string }>;
-    ySortLayers?: number;
-    colorSpace?: 'gamma' | 'linear';
-    screenFit?: { designWidth: number; designHeight: number; scaleMode: number; matchWidthOrHeight: number };
-    uiTheme?: 'light';
-    uiThemeColors?: Record<string, string>;
-    hotUpdate?: { remoteRoot?: string; persistUpdateKey?: string };
-}
 
 export interface NativeGameOptions {
     /** The host's capability bridge (packaged files, image decode, input). */
@@ -55,7 +40,7 @@ export interface NativeGameOptions {
 
 export interface NativeGame {
     app: App;
-    config: NativeGameConfig;
+    config: PackagedGameConfig;
 }
 
 /**
@@ -68,15 +53,10 @@ export async function initNativeGame(options: NativeGameOptions): Promise<Native
 
     const config = JSON.parse(
         await platformReadTextFile(options.configPath ?? 'game.config.json'),
-    ) as NativeGameConfig;
+    ) as PackagedGameConfig;
 
     const index = await loadPackagedAssetIndex();
-    const source: RuntimeAssetSource = {
-        backend: new FileSystemBackend(),
-        decodePixels: (path) => platformLoadImagePixels(path),
-        resolveRef: (ref) => index.resolvePath(ref),
-        listAssetPaths: () => index.assetPaths(),
-    };
+    const source = createPackagedAssetSource(index);
 
     const scenes = config.scenes ?? [{ name: 'main', path: config.entryScene }];
     const entry = scenes.find((s) => s.path === config.entryScene) ?? scenes[0];

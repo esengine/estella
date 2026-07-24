@@ -16,7 +16,7 @@ import type { RuntimeAssetSource } from './runtimeAssets';
 import { FileSystemBackend } from './asset/Backend';
 import { applyBuildRuntimeConfig, type RuntimeBuildConfig } from './defaults';
 import { platformReadTextFile, platformInstantiateWasm, platformLoadImagePixels } from './platform';
-import { loadPackagedAssetIndex } from './packagedRuntime';
+import { loadPackagedAssetIndex, createPackagedAssetSource } from './packagedRuntime';
 import { createWeChatSideModuleHost, type WeChatSideModuleFactories } from './sideModules';
 import type { Vec2 } from './types';
 import type { SceneData } from './scene';
@@ -93,7 +93,8 @@ export interface WeChatRuntimeConfig {
 export async function initWeChatRuntime(config: WeChatRuntimeConfig): Promise<void> {
     // The packaged-realm asset assembly, shared with the native runtime: read the
     // addressable manifest off the device, index it, build the catalog.
-    const { manifest, model: manifestModel, catalog, resolvePath } = await loadPackagedAssetIndex();
+    const index = await loadPackagedAssetIndex();
+    const { model: manifestModel, catalog } = index;
 
     const canvas = wx.createCanvas();
     const info = wx.getSystemInfoSync();
@@ -135,15 +136,7 @@ export async function initWeChatRuntime(config: WeChatRuntimeConfig): Promise<vo
 
     // Canonical asset source: WeChat filesystem backend, wx image decode, manifest
     // ref resolution (bare-uuid → build path).
-    const source: RuntimeAssetSource = {
-        backend: new FileSystemBackend(),
-        decodePixels: (path) => platformLoadImagePixels(path),
-        resolveRef: resolvePath,
-        // Logical addresses where present (content-addressed packs rename the
-        // staged file), else the staged path — either keeps the extension the
-        // .eslocale discovery filters on.
-        listAssetPaths: () => manifestModel.allAssets().map((a) => a.address ?? a.path),
-    };
+    const source = createPackagedAssetSource(index);
 
     // The first scene loads eagerly (the game boots into it); every other
     // registers lazily by path — SceneManager fetches scenes/<name>.json

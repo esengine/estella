@@ -27,6 +27,7 @@ import path from 'node:path';
 import { cookAssets, loadAssetGroups } from './cookAssets';
 import { buildAddressableManifest } from './addressableManifest';
 import { activeRemoteRoot } from '../../sdk/src/asset/assetGroups';
+import type { PackagedGameConfig } from 'esengine';
 import { IMPORT_MAP_JSON, IMPORT_MAP_CSP_HASH } from './buildPlayRealm';
 import { exportWeChat } from './exportWeChat';
 import { exportPlayable } from './exportPlayable';
@@ -481,21 +482,18 @@ export async function exportGame(opts: {
   if (!nativeContent) {
     await writeFile(path.join(payloadDir, 'index.html'), indexHtml(title, platform === 'web' ? orientation : undefined));
   }
-  await writeFile(
-    path.join(payloadDir, 'game.config.json'),
-    JSON.stringify(
-      {
-        entryScene: opts.entryScene, scenes,
-        ...(opts.ySortLayers ? { ySortLayers: opts.ySortLayers } : {}),
-        ...(opts.colorSpace === 'linear' ? { colorSpace: opts.colorSpace } : {}),
-        ...(opts.screenFit && opts.screenFit.scaleMode >= 0 ? { screenFit: opts.screenFit } : {}),
-        ...(opts.uiTheme === 'light' ? { uiTheme: opts.uiTheme } : {}),
-        ...(opts.uiThemeColors && Object.keys(opts.uiThemeColors).length > 0 ? { uiThemeColors: opts.uiThemeColors } : {}),
-        ...(hotUpdate ? { hotUpdate } : {}),
-      },
-      null, 2,
-    ) + '\n',
-  );
+  // Typed against the SDK's contract, so a field the runtimes read can never be
+  // spelled differently here — the two sides share one declaration.
+  const gameConfig: PackagedGameConfig = {
+    entryScene: opts.entryScene, scenes,
+    ...(opts.ySortLayers ? { ySortLayers: opts.ySortLayers } : {}),
+    ...(opts.colorSpace === 'linear' ? { colorSpace: opts.colorSpace } : {}),
+    ...(opts.screenFit && opts.screenFit.scaleMode >= 0 ? { screenFit: opts.screenFit } : {}),
+    ...(opts.uiTheme === 'light' ? { uiTheme: opts.uiTheme } : {}),
+    ...(opts.uiThemeColors && Object.keys(opts.uiThemeColors).length > 0 ? { uiThemeColors: opts.uiThemeColors } : {}),
+    ...(hotUpdate ? { hotUpdate } : {}),
+  };
+  await writeFile(path.join(payloadDir, 'game.config.json'), JSON.stringify(gameConfig, null, 2) + '\n');
 
   // 6. Desktop: wrap the payload in a runnable Electron app.
   if (platform === 'desktop') { progress({ phase: 'Staging Electron app' }); await stageDesktopApp(absOut, title, orientation, opts.desktopAppId, opts.desktopProductName); }

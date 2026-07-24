@@ -11,3 +11,6 @@
 
 export { NativePlatformAdapter, installNativePlatform } from './adapter';
 export type { NativeBridge, NativeInputListener, NativeFetchResult } from './bridge';
+export { createHostBridge } from './hostBridge';
+export { assertHostEnvironment } from './hostEnvironment';
+export type { NativeHostBindings } from './hostBridge';

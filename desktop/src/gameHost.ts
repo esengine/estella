@@ -12,27 +12,8 @@
  *        (shared with the play realm's import-map work).
  */
 import { createWebApp, setEditorMode, setPlayMode, initPlayRealmRuntime, atlasCatalogFields, parseThemeOverrides, Assets } from 'esengine';
-import type { CatalogData, CookedAtlasInfo, ESEngineModule, SceneData, AddressableManifest } from 'esengine';
+import type { CatalogData, CookedAtlasInfo, ESEngineModule, SceneData, AddressableManifest, PackagedGameConfig } from 'esengine';
 
-interface GameConfig {
-  entryScene: string;
-  /** Every switchable scene (SceneManager name + cooked path); includes the entry. */
-  scenes?: Array<{ name: string; path: string }>;
-  /** Bitmask of render layers (0..31) that y-sort within the layer. */
-  ySortLayers?: number;
-  /** Project color space — 'linear' boots the linear-light pipeline. */
-  colorSpace?: 'gamma' | 'linear';
-  /** Project camera fit (design resolution + scale mode) — letterboxes the main camera
-   *  without a UI Canvas; absent = no fit. */
-  screenFit?: { designWidth: number; designHeight: number; scaleMode: number; matchWidthOrHeight: number };
-  /** Project widget theme; absent = dark. */
-  uiTheme?: 'light';
-  /** Project theme color overrides (role → #rrggbbaa hex). */
-  uiThemeColors?: Record<string, string>;
-  /** Hot-update delivery: the CDN root `remote`-group assets resolve against +
-   *  the storage key an applied update persists under (both optional). */
-  hotUpdate?: { remoteRoot?: string; persistUpdateKey?: string };
-}
 interface CookedManifest {
   entries: { uuid: string; path: string; sourcePath?: string; type: string; atlas?: CookedAtlasInfo }[];
 }
@@ -60,7 +41,7 @@ async function boot(): Promise<void> {
     /* no project bundle — builtin-only */
   }
 
-  const cfg = (await (await fetch('./game.config.json')).json()) as GameConfig;
+  const cfg = (await (await fetch('./game.config.json')).json()) as PackagedGameConfig;
   const manifest = (await (await fetch('./assets.manifest.json')).json()) as CookedManifest;
   // Addressable manifest (v2.0): powers Assets.loadGroup + hot-update. Optional —
   // a legacy build without it degrades to eager-only (the flat manifest above).

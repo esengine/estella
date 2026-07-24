@@ -13,9 +13,37 @@
  */
 
 import { toBuildPath } from './assetTypes';
-import { platformReadTextFile } from './platform';
+import { platformReadTextFile, platformLoadImagePixels } from './platform';
 import { ManifestModel, type AddressableManifest } from './asset/AddressableManifest';
 import { Catalog, atlasCatalogFields, type CatalogEntry } from './asset/Catalog';
+import { FileSystemBackend } from './asset/Backend';
+import type { RuntimeAssetSource } from './runtimeAssets';
+
+/**
+ * `game.config.json` — what an export bakes about the project, and the contract
+ * between the export pipeline that writes it and every runtime that reads it.
+ * One declaration so the two sides cannot drift.
+ */
+export interface PackagedGameConfig {
+    /** Project-relative path of the scene the game boots into. */
+    entryScene: string;
+    /** Every switchable scene (SceneManager name + cooked path); includes the entry. */
+    scenes?: Array<{ name: string; path: string }>;
+    /** Bitmask of render layers (0..31) that y-sort within the layer. */
+    ySortLayers?: number;
+    /** Project color space — 'linear' boots the linear-light pipeline. */
+    colorSpace?: 'gamma' | 'linear';
+    /** Project camera fit (design resolution + scale mode) — letterboxes the main
+     *  camera without a UI Canvas; absent = no fit. */
+    screenFit?: { designWidth: number; designHeight: number; scaleMode: number; matchWidthOrHeight: number };
+    /** Project widget theme; absent = dark. */
+    uiTheme?: 'light';
+    /** Project theme color overrides (role → #rrggbbaa hex). */
+    uiThemeColors?: Record<string, string>;
+    /** Hot-update delivery: the CDN root `remote`-group assets resolve against +
+     *  the storage key an applied update persists under (both optional). */
+    hotUpdate?: { remoteRoot?: string; persistUpdateKey?: string };
+}
 
 /** The packaged realm's resolved asset index — manifest, catalog, resolution. */
 export interface PackagedAssetIndex {
@@ -74,6 +102,23 @@ export function indexPackagedManifest(manifest: AddressableManifest): PackagedAs
         model,
         catalog: catalogFromManifest(manifest),
         resolvePath: (ref) => model.resolvePath(ref, toBuildPath),
-        assetPaths: () => model.allAssets().map((a) => a.path),
+        // The logical address where there is one (content-addressed packs rename
+        // the staged file), else the staged path — either keeps the extension
+        // .eslocale discovery filters on.
+        assetPaths: () => model.allAssets().map((a) => a.address ?? a.path),
+    };
+}
+
+/**
+ * The asset source a packaged realm runs on: files off the device, the platform's
+ * image decode, and manifest-driven ref resolution. Identical for every packaged
+ * realm — the platform layer is what differs, and it is already abstracted.
+ */
+export function createPackagedAssetSource(index: PackagedAssetIndex): RuntimeAssetSource {
+    return {
+        backend: new FileSystemBackend(),
+        decodePixels: (path) => platformLoadImagePixels(path),
+        resolveRef: index.resolvePath,
+        listAssetPaths: index.assetPaths,
     };
 }
