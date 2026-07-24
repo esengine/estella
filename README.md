@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src=".github/logo.png" width="120" alt="Estella logo" />
+
 # Estella
 
 **A fast 2D game engine powered by WebAssembly and ECS**
