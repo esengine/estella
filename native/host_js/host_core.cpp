@@ -53,9 +53,10 @@
 
 using namespace esengine;
 
-// Host platform bootstrap — HOST code, not game. It fans host touch out to the SDK
-// listener and builds the NativeBridge from the host's es_* capabilities. The game
-// (game.js, a packaged asset) then calls createNativeApp(__esNativeBridge).
+// Host platform bootstrap — HOST code, not game. The bridge itself is assembled
+// by the SDK (createHostBridge) from the es_* primitives below: it is typed there
+// against the interface it must satisfy, so this stays the few things only a JS
+// string here can do — the TextDecoder shim and the default boot entry points.
 static const char* kBootstrapJS = R"JS(
 // The platform layer decodes packaged JSON through TextDecoder; QuickJS has none,
 // so route it to the host's UTF-8 decoder. Only utf-8 is meaningful here.
@@ -63,33 +64,10 @@ globalThis.TextDecoder = function TextDecoder() {};
 globalThis.TextDecoder.prototype.decode = function (buf) {
     return buf == null ? '' : es_utf8Decode(buf);
 };
-globalThis.es_onNativeTouch = function (type, id, x, y) {
-    var l = globalThis.__esInputListener;
-    if (!l) return;
-    if (type === 0) l.onTouchStart(id, x, y);
-    else if (type === 1) l.onTouchMove(id, x, y);
-    else if (type === 2) l.onTouchEnd(id);
-    else l.onTouchCancel(id);
-};
-globalThis.__esNativeBridge = {
-    readFile: function (path) {
-        var b = es_readAsset(path);
-        return b ? Promise.resolve(b) : Promise.reject(new Error('asset not found: ' + path));
-    },
-    fileExists: function (path) { return Promise.resolve(es_readAsset(path) != null); },
-    fetch: function () { return Promise.resolve({ ok: false, status: 404 }); },
-    loadImagePixels: function (path) {
-        var r = es_loadImagePixels(path);
-        return r ? Promise.resolve({ width: r.width, height: r.height, pixels: new Uint8Array(r.pixels) })
-                 : Promise.reject(new Error('image decode failed: ' + path));
-    },
-    getStorageItem: function () { return null; },
-    setStorageItem: function () {},
-    removeStorageItem: function () {},
-    storageKeys: function () { return []; },
-    registerInput: function (l) { globalThis.__esInputListener = l; return function () { globalThis.__esInputListener = null; }; },
-    devicePixelRatio: function () { return 1; },
-};
+
+// The bridge over the host's es_* bindings; it also installs es_onNativeTouch,
+// the entry point the host calls per touch.
+globalThis.__esNativeBridge = ESEngine.createHostBridge(globalThis);
 
 // Default boot: run an EXPORTED project — game.config.json, the manifests, the
 // cooked assets and the scenes, all read off the device. A packaged game.js (the
@@ -417,6 +395,63 @@ JSValue js_performanceNow(JSContext* ctx, JSValueConst, int, JSValueConst*) {
     return JS_NewFloat64(ctx, nowMs());
 }
 
+// The host's writable store, under Platform::cacheDir(). Backs both the
+// hot-update offline cache and (through it) key-value storage. Keys are
+// content hashes or plain names; anything else is refused rather than escaping
+// the directory.
+std::string cachePathFor(const char* key) {
+    if (!key || !*key || g_app->cacheDir.empty()) return {};
+    for (const char* c = key; *c; ++c) {
+        const bool ok = (*c >= 'a' && *c <= 'z') || (*c >= 'A' && *c <= 'Z')
+                        || (*c >= '0' && *c <= '9') || *c == '.' || *c == '_' || *c == '-';
+        if (!ok) return {};
+    }
+    return g_app->cacheDir + "/" + key;
+}
+
+// es_readCacheFile(key) -> ArrayBuffer | null.
+JSValue js_readCacheFile(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
+    const char* key = JS_ToCString(ctx, argv[0]);
+    const std::string path = cachePathFor(key);
+    if (key) JS_FreeCString(ctx, key);
+    if (path.empty()) return JS_NULL;
+    FILE* f = fopen(path.c_str(), "rb");
+    if (!f) return JS_NULL;
+    fseek(f, 0, SEEK_END);
+    const long size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    std::vector<u8> bytes(size > 0 ? (size_t)size : 0);
+    if (!bytes.empty() && fread(bytes.data(), 1, bytes.size(), f) != bytes.size()) bytes.clear();
+    fclose(f);
+    if (bytes.empty()) return JS_NULL;
+    return JS_NewArrayBufferCopy(ctx, bytes.data(), bytes.size());
+}
+
+// es_writeCacheFile(key, ArrayBuffer | TypedArray | string) -> bool. A string is
+// written as UTF-8, so script-side JSON needs no TextEncoder.
+JSValue js_writeCacheFile(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
+    if (argc < 2) return JS_FALSE;
+    const char* key = JS_ToCString(ctx, argv[0]);
+    const std::string path = cachePathFor(key);
+    if (key) JS_FreeCString(ctx, key);
+    if (path.empty()) return JS_FALSE;
+    std::vector<u8> bytes;
+    if (JS_IsString(argv[1])) {
+        size_t len = 0;
+        if (const char* text = JS_ToCStringLen(ctx, &len, argv[1])) {
+            bytes.assign(text, text + len);
+            JS_FreeCString(ctx, text);
+        }
+    } else {
+        readByteSource(ctx, argv[1], bytes);
+    }
+    FILE* f = fopen(path.c_str(), "wb");
+    if (!f) return JS_FALSE;
+    const bool ok = bytes.empty() || fwrite(bytes.data(), 1, bytes.size(), f) == bytes.size();
+    fclose(f);
+    return ok ? JS_TRUE : JS_FALSE;
+}
+
 // es_utf8Decode(ArrayBuffer | TypedArray) -> string. Backs the TextDecoder the
 // platform layer uses to read packaged JSON (manifests, scenes); QuickJS parses
 // UTF-8 natively, so this beats decoding byte-by-byte in script.
@@ -595,6 +630,8 @@ void initJS(App& a) {
     JS_SetPropertyStr(a.js, perf, "now", JS_NewCFunction(a.js, js_performanceNow, "now", 0));
     JS_SetPropertyStr(a.js, global, "performance", perf);
     bindGlobal(a, global, "es_utf8Decode", js_utf8Decode, 1);
+    bindGlobal(a, global, "es_readCacheFile", js_readCacheFile, 1);
+    bindGlobal(a, global, "es_writeCacheFile", js_writeCacheFile, 2);
 
     // Entity + hierarchy (base Registry surface).
     bindGlobal(a, global, "es_createEntity", js_createEntity, 0);
