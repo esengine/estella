@@ -22,6 +22,7 @@ This directory holds two reference hosts + the build recipe:
     `eshost::Platform`.
   - `js/main_android.cpp` — NativeActivity, APK assets, Vulkan, the ALooper loop.
   - `js/main_ios.mm` — a CAMetalLayer view, bundle assets, Metal, CADisplayLink.
+- **`android/`** — the APK manifests (`host/`, `js/`), packaged by `--package`.
 - **`ios/`** — the Xcode app shell (xcodegen) that signs and packages the iOS
   build. It is only an entry point; the app lives in the static library.
 
@@ -87,10 +88,21 @@ Paths may also come from `ESTELLA_DAWN_DIR` / `ESTELLA_DAWN_BUILD` /
 `ESTELLA_QUICKJS_DIR`. Outputs: `build-native/libestella_host.so`, and with
 `--quickjs`, `build-native/libestella_js_host.so`.
 
-Package the APK by hand (no gradle): `aapt2 link` the matching manifest
-(`host/` or `js/AndroidManifest.xml`), inject
-`lib/arm64-v8a/{libestella*_host.so,libwebgpu_dawn.so,libc++_shared.so}` (strip
-Dawn with `llvm-strip`), `zipalign -f 4`, `apksigner sign`.
+**Package a signed APK** by adding `--package` — the Android counterpart of what
+Xcode does for `native/ios`, and still no gradle (a NativeActivity has no Java):
+
+```sh
+node build-tools/cli.js native --dawn "$DAWN" --dawn-build "$DAWN/out-android" \
+  --quickjs "$QJS" --package            # --host cpp for the smoke-test APK
+adb install -r build-native/estella-js-host.apk
+```
+
+It runs `aapt2 link` over `native/android/<host>/AndroidManifest.xml`, stages
+`lib/arm64-v8a/{libestella*_host.so,libwebgpu_dawn.so,libc++_shared.so}` (Dawn
+stripped with the NDK's `llvm-strip`), packs the game and its content into
+`assets/` where the host's `readAsset()` looks, then `zipalign -f 4` and
+`apksigner sign`. Signing uses the Android debug keystore — created on first use —
+unless you pass `--keystore`.
 
 ## Build (iOS arm64)
 

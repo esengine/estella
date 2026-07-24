@@ -9,35 +9,13 @@
 // --dawn / --dawn-build or ESTELLA_DAWN_DIR / ESTELLA_DAWN_BUILD.
 
 import path from 'path';
-import { existsSync, readdirSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { mkdir } from 'fs/promises';
 import config from '../build.config.js';
 import * as logger from '../utils/logger.js';
 import { runCommand, getCpuCount, resolvePython } from '../utils/emscripten.js';
-
-function androidSdk() {
-    const sdk = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT;
-    if (sdk && existsSync(sdk)) return sdk;
-    // Android Studio's default install location.
-    const dflt = path.join(process.env.LOCALAPPDATA || process.env.HOME || '', 'Android', 'Sdk');
-    return existsSync(dflt) ? dflt : null;
-}
-
-function newest(dir) {
-    if (!existsSync(dir)) return null;
-    const entries = readdirSync(dir).sort();
-    return entries.length ? path.join(dir, entries[entries.length - 1]) : null;
-}
-
-// Prefer the NDK-bundled CMake (>= 3.22, ships ninja) over whatever is on PATH —
-// CMake 4.x rejects the pre-3.5 minimums in some transitive deps.
-function sdkCmake(sdk) {
-    const cmakeRoot = newest(path.join(sdk, 'cmake'));
-    if (!cmakeRoot) return { cmake: 'cmake', ninja: null };
-    const bin = path.join(cmakeRoot, 'bin');
-    const exe = process.platform === 'win32' ? '.exe' : '';
-    return { cmake: path.join(bin, 'cmake' + exe), ninja: path.join(bin, 'ninja' + exe) };
-}
+import { requireSdk, requireNdk, sdkCmake } from '../utils/android.js';
+import { packageNativeApk } from './nativePackage.js';
 
 // Generate the native (QuickJS) ECS bindings from the SAME reflection source EHT
 // uses for the web embind bindings — so the two surfaces can never drift. Written
@@ -114,10 +92,8 @@ async function buildAndroidHost(options) {
     const { abi = 'arm64-v8a', platform = 'android-33' } = options;
     const rootDir = config.paths.root;
 
-    const sdk = androidSdk();
-    if (!sdk) throw new Error('Android SDK not found. Set ANDROID_HOME (install via Android Studio).');
-    const ndk = newest(path.join(sdk, 'ndk'));
-    if (!ndk) throw new Error(`No NDK under ${sdk}/ndk. Install one via Android Studio's SDK Manager.`);
+    const sdk = requireSdk();
+    const ndk = requireNdk(sdk);
     const toolchain = path.join(ndk, 'build', 'cmake', 'android.toolchain.cmake');
 
     const { dawnDir, dawnBuild } = dawnPaths(options);
@@ -161,6 +137,13 @@ async function buildAndroidHost(options) {
     logger.success(`Native host: ${path.join('build-native', 'libestella_host.so')}`);
     if (quickjs) {
         logger.success(`JS host:     ${path.join('build-native', 'libestella_js_host.so')}`);
+    }
+
+    if (options.package) {
+        await packageNativeApk({
+            host: options.host || (quickjs ? 'js' : 'cpp'),
+            dawnBuild, abi, platform, keystore: options.keystore,
+        });
     }
 }
 
