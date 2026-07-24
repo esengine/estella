@@ -12,6 +12,20 @@ from .generators import (
 )
 
 
+def _emit_native(components, enums, args) -> None:
+    """Emit the opt-in native (QuickJS) bindings from the parsed reflection —
+    the native sibling of WebBindings.generated.cpp, one reflection source."""
+    only = None
+    if args.native_components:
+        only = {n.strip() for n in args.native_components.split(',') if n.strip()}
+    args.native_output.parent.mkdir(parents=True, exist_ok=True)
+    print(f"Generating: {args.native_output}")
+    native_gen = NativeBindingsGenerator(
+        components, enums, shim_header=args.native_shim, only=only,
+    )
+    args.native_output.write_text(native_gen.generate(), encoding='utf-8')
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description='EHT - ESEngine Header Tool')
     parser.add_argument('--input', '-i', type=Path, nargs='+',
@@ -32,6 +46,12 @@ def main() -> int:
                         help='Comma-separated component names to emit (default: all)')
     parser.add_argument('--native-shim', type=str, default='esn_shim.hpp',
                         help='Shim header the generated native TU includes')
+    # With --native-output, emit ONLY the native bindings and skip the embind /
+    # editor / TS generation. A native build just needs NativeBindings.generated.cpp;
+    # this keeps that invocation single-purpose and from touching the committed
+    # web/editor/TS *.generated.* files at all (no throwaway output dirs needed).
+    parser.add_argument('--native-only', action='store_true',
+                        help='With --native-output: emit only the native bindings')
     args = parser.parse_args()
 
     print("EHT - ESEngine Header Tool")
@@ -68,6 +88,17 @@ def main() -> int:
         print("Warning: No components found!")
         return 1
 
+    # ── Native-only fast path ──
+    # A native build needs just NativeBindings.generated.cpp, from the same
+    # reflection — so skip all embind/editor/TS work and touch no committed files.
+    if args.native_only:
+        if args.native_output is None:
+            print("[FAIL] --native-only requires --native-output.")
+            return 1
+        _emit_native(cpp_parser.components, cpp_parser.enums, args)
+        print("[OK] Done (native bindings only)!")
+        return 0
+
     # ── Boundary ABI: single source of truth ──
     # Compute pointer layouts and the ABI hash first; both the C++ bindings and
     # the TS metadata embed the same hash so connect() can verify they match.
@@ -96,16 +127,7 @@ def main() -> int:
 
     # ── Native QuickJS Bindings (opt-in) ──
     if args.native_output is not None:
-        only = None
-        if args.native_components:
-            only = {n.strip() for n in args.native_components.split(',') if n.strip()}
-        args.native_output.parent.mkdir(parents=True, exist_ok=True)
-        print(f"Generating: {args.native_output}")
-        native_gen = NativeBindingsGenerator(
-            cpp_parser.components, cpp_parser.enums,
-            shim_header=args.native_shim, only=only,
-        )
-        args.native_output.write_text(native_gen.generate(), encoding='utf-8')
+        _emit_native(cpp_parser.components, cpp_parser.enums, args)
 
     # Resolve the TS source directory robustly. Callers historically pass either
     # the package root (`sdk`) or the source dir (`sdk/src`); detect which by

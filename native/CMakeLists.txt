@@ -63,3 +63,36 @@ target_link_libraries(esengine PUBLIC glm yogacore webgpu_dawn)
 add_library(estella_host SHARED host/main.cpp)
 target_link_libraries(estella_host esengine native_app_glue android log)
 set_target_properties(estella_host PROPERTIES LINK_FLAGS "-u ANativeActivity_onCreate")
+
+# JS host (opt-in): a QuickJS game script drives the engine through the
+# EHT-generated bindings + the real SDK ptrAccessors. Built only when QuickJS is
+# provided; the `node build-tools/cli.js native --quickjs <dir>` orchestration
+# fetches QuickJS, generates NativeBindings.generated.cpp (single reflection
+# source) and ptraccessors_js.h into ESTELLA_NATIVE_GEN_DIR, then configures this.
+if(ESTELLA_QUICKJS_DIR)
+    if(NOT ESTELLA_NATIVE_GEN_DIR)
+        set(ESTELLA_NATIVE_GEN_DIR "${CMAKE_BINARY_DIR}/gen")
+    endif()
+    set(NATIVE_BINDINGS "${ESTELLA_NATIVE_GEN_DIR}/NativeBindings.generated.cpp")
+    if(NOT EXISTS "${NATIVE_BINDINGS}")
+        message(FATAL_ERROR "ESTELLA_QUICKJS_DIR set but ${NATIVE_BINDINGS} is missing. "
+            "Generate it (and ptraccessors_js.h) via `cli native --quickjs`, which runs "
+            "`python -m eht --native-output ... --native-only`.")
+    endif()
+
+    # QuickJS-ng interpreter — core is just these four C files.
+    add_library(qjs STATIC
+        "${ESTELLA_QUICKJS_DIR}/quickjs.c" "${ESTELLA_QUICKJS_DIR}/libregexp.c"
+        "${ESTELLA_QUICKJS_DIR}/libunicode.c" "${ESTELLA_QUICKJS_DIR}/dtoa.c")
+    target_include_directories(qjs PUBLIC "${ESTELLA_QUICKJS_DIR}")
+    target_compile_definitions(qjs PRIVATE _GNU_SOURCE)
+    target_compile_options(qjs PRIVATE -Wno-unused -Wno-sign-compare)
+
+    add_library(estella_js_host SHARED js/main.cpp "${NATIVE_BINDINGS}")
+    # js/ holds esn_shim.hpp (the generated TU includes it); the gen dir holds
+    # ptraccessors_js.h (main.cpp includes it).
+    target_include_directories(estella_js_host PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/js" "${ESTELLA_NATIVE_GEN_DIR}")
+    target_link_libraries(estella_js_host esengine qjs native_app_glue android log)
+    set_target_properties(estella_js_host PROPERTIES LINK_FLAGS "-u ANativeActivity_onCreate")
+endif()

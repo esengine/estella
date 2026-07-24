@@ -7,10 +7,17 @@ Vulkan on Android) — a real native app, **not a WebView**. Game scripts run on
 embedded JS engine ([QuickJS-ng](https://github.com/quickjs-ng/quickjs)); the
 engine runs native (full speed), so only the game script is interpreted.
 
-This directory is the reference host + build recipe. Dawn and QuickJS are **not
-vendored** (multi-GB); the recipe fetches them, the way Dawn fetches its own deps.
-Nothing here is compiled by the web/emscripten build or CI — it is inert until you
-run the native build below.
+This directory holds two reference hosts + the build recipe:
+
+- **`host/`** — a pure-C++ host that renders one ECS scene (no JS). A smoke test
+  for the engine core on native Dawn. Always built.
+- **`js/`** — the JS host: a QuickJS game script drives the engine through the
+  EHT-generated bindings + the real SDK `ptrAccessors`. Built when you pass
+  `--quickjs` (this is the product-shaped runtime).
+
+Dawn and QuickJS are **not vendored** (multi-GB / separate project); the recipe
+fetches them, the way Dawn fetches its own deps. Nothing here is compiled by the
+web/emscripten build or CI — it is inert until you run the native build below.
 
 ## Why this works (the architecture, proven on device)
 
@@ -28,9 +35,12 @@ the tree:
 ## Build (Android arm64)
 
 Toolchain: Android SDK + NDK r28 (`android.toolchain.cmake`), SDK CMake ≥ 3.22.
+`cli native` locates the SDK / NDK / CMake automatically (`ANDROID_HOME`, or
+Android Studio's default install) and drives `native/CMakeLists.txt`.
+
+**One-time: build Dawn for arm64** (Vulkan). Multi-GB; kept out of the tree.
 
 ```sh
-# 1) Fetch Dawn and build libwebgpu_dawn.so for arm64 (Vulkan).
 git clone --depth 1 https://github.com/google/dawn "$DAWN"
 python "$DAWN/tools/fetch_dawn_dependencies.py" --shallow   # NOT depot_tools
 cmake -S "$DAWN" -B "$DAWN/out-android" -G Ninja \
@@ -42,26 +52,33 @@ cmake -S "$DAWN" -B "$DAWN/out-android" -G Ninja \
   -DDAWN_BUILD_PROTOBUF=OFF -DTINT_BUILD_IR_BINARY=OFF \
   -DDAWN_BUILD_MONOLITHIC_LIBRARY=SHARED -DDAWN_FETCH_DEPENDENCIES=OFF
 cmake --build "$DAWN/out-android" --target webgpu_dawn
-
-# 2) (JS host only) Fetch QuickJS-ng — core is dtoa/libregexp/libunicode/quickjs.c.
-git clone --depth 1 https://github.com/quickjs-ng/quickjs "$QJS"
-
-# 3) (JS host only) Generate the native bindings from the same reflection source.
-python -m eht -i src/esengine/ecs/components \
-  --native-output "$BUILD/NativeBindings.generated.cpp" \
-  --native-components Transform,Sprite,ShapeRenderer,Light2D
-
-# 4) Build the host (see CMakeLists.txt in this dir).
-cmake -S native -B "$BUILD" -G Ninja \
-  -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake" \
-  -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-33 -DANDROID_STL=c++_shared \
-  -DESTELLA_DAWN_DIR="$DAWN" -DESTELLA_DAWN_BUILD="$DAWN/out-android"
-cmake --build "$BUILD"
 ```
 
-Package the APK by hand (no gradle): `aapt2 link` a manifest, inject
-`lib/arm64-v8a/{libhost.so,libwebgpu_dawn.so,libc++_shared.so}` (strip Dawn with
-`llvm-strip`), `zipalign -f 4`, `apksigner sign`.
+**Build the hosts** through the orchestrated task:
+
+```sh
+# C++ host only.
+node build-tools/cli.js native --dawn "$DAWN" --dawn-build "$DAWN/out-android"
+
+# + JS host: clone QuickJS-ng (core is dtoa/libregexp/libunicode/quickjs.c) and
+# pass --quickjs. The task then generates, into build-native/gen/ (never committed,
+# so nothing can drift from its source):
+#   * NativeBindings.generated.cpp — from the SAME reflection as the web bindings
+#     (python -m eht --native-output ... --native-only)
+#   * ptraccessors_js.h — the real SDK sdk/src/ecs/ptrAccessors.generated.ts,
+#     transpiled to JS and embedded
+git clone --depth 1 https://github.com/quickjs-ng/quickjs "$QJS"
+node build-tools/cli.js native --dawn "$DAWN" --dawn-build "$DAWN/out-android" --quickjs "$QJS"
+```
+
+Paths may also come from `ESTELLA_DAWN_DIR` / `ESTELLA_DAWN_BUILD` /
+`ESTELLA_QUICKJS_DIR`. Outputs: `build-native/libestella_host.so`, and with
+`--quickjs`, `build-native/libestella_js_host.so`.
+
+Package the APK by hand (no gradle): `aapt2 link` the matching manifest
+(`host/` or `js/AndroidManifest.xml`), inject
+`lib/arm64-v8a/{libestella*_host.so,libwebgpu_dawn.so,libc++_shared.so}` (strip
+Dawn with `llvm-strip`), `zipalign -f 4`, `apksigner sign`.
 
 ## Gotchas (all resolved; each cost a build)
 
@@ -79,5 +96,7 @@ Package the APK by hand (no gradle): `aapt2 link` a manifest, inject
 Proven end-to-end on device (Snapdragon 8 Elite / Adreno 830, 120 fps): the full
 engine renders an ECS scene, a QuickJS game script drives it through the generated
 bindings, and the real SDK `ptrAccessors` write native component memory unchanged.
-Remaining: load the full SDK bundle + a `BuiltinBridge` memory backend, more
-system bindings, and the iOS shell (the Metal surface seam is already in place).
+Both hosts are now in-tree and build from the orchestrated `cli native` task
+(`js/` links a 24 MB arm64 `libestella_js_host.so`). Remaining: load the full SDK
+bundle + a `BuiltinBridge` memory backend, more system bindings, and the iOS shell
+(the Metal surface seam is already in place).

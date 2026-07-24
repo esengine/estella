@@ -162,6 +162,7 @@ program
     .description('Build the native (embedded-Dawn) host for Android arm64')
     .option('--dawn <dir>', 'Dawn source dir (or ESTELLA_DAWN_DIR); see native/README.md')
     .option('--dawn-build <dir>', 'Dawn arm64 build dir (or ESTELLA_DAWN_BUILD)')
+    .option('--quickjs <dir>', 'QuickJS-ng source dir (or ESTELLA_QUICKJS_DIR); also builds the JS host')
     .option('--abi <abi>', 'Android ABI', 'arm64-v8a')
     .option('--platform <platform>', 'Android platform', 'android-33')
     .option('-v, --verbose', 'Verbose output', false)
@@ -171,6 +172,7 @@ program
             await buildNative({
                 dawn: options.dawn,
                 dawnBuild: options.dawnBuild,
+                quickjs: options.quickjs,
                 abi: options.abi,
                 platform: options.platform,
             });
