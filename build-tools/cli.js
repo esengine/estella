@@ -11,6 +11,7 @@ import * as logger from './utils/logger.js';
 import { checkEnvironment } from './utils/emscripten.js';
 import { runEht } from './tasks/eht.js';
 import { buildWasm, buildWasmParallel, cleanWasm } from './tasks/wasm.js';
+import { buildNative } from './tasks/native.js';
 import { buildSdk, cleanSdk } from './tasks/sdk.js';
 import { syncToDesktop } from './tasks/sync.js';
 import { startWatch } from './tasks/watch.js';
@@ -153,6 +154,29 @@ program
             await runEht({ noCache: !options.cache });
         } catch (err) {
             handleBuildError(err, { verbose: options.verbose });
+        }
+    });
+
+program
+    .command('native')
+    .description('Build the native (embedded-Dawn) host for Android arm64')
+    .option('--dawn <dir>', 'Dawn source dir (or ESTELLA_DAWN_DIR); see native/README.md')
+    .option('--dawn-build <dir>', 'Dawn arm64 build dir (or ESTELLA_DAWN_BUILD)')
+    .option('--abi <abi>', 'Android ABI', 'arm64-v8a')
+    .option('--platform <platform>', 'Android platform', 'android-33')
+    .option('-v, --verbose', 'Verbose output', false)
+    .action(async (options) => {
+        logger.setVerbose(options.verbose);
+        try {
+            await buildNative({
+                dawn: options.dawn,
+                dawnBuild: options.dawnBuild,
+                abi: options.abi,
+                platform: options.platform,
+            });
+        } catch (err) {
+            logger.error(err.message);
+            process.exit(1);
         }
     });
 

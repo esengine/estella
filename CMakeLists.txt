@@ -44,76 +44,12 @@ add_subdirectory(third_party)
 # ESEngine Library
 # =============================================================================
 
-set(ESENGINE_SOURCES
-    src/esengine/core/EstellaContext.cpp
-    src/esengine/core/Log.cpp
-    src/esengine/resource/ResourceManager.cpp
-    src/esengine/resource/ShaderParser.cpp
-    src/esengine/renderer/RenderContext.cpp
-    src/esengine/renderer/Shader.cpp
-    src/esengine/renderer/DrawParams.cpp
-    src/esengine/renderer/Buffer.cpp
-    src/esengine/renderer/Texture.cpp
-    src/esengine/renderer/Framebuffer.cpp
-    src/esengine/renderer/RenderFrame.cpp
-    src/esengine/renderer/RenderFrameMask.cpp
-    src/esengine/renderer/RenderFrameSubmit.cpp
-    src/esengine/renderer/FrameCapture.cpp
-    src/esengine/renderer/RenderTarget.cpp
-    src/esengine/renderer/ImmediateDraw.cpp
-    src/esengine/renderer/CustomGeometry.cpp
-    src/esengine/renderer/GLDevice.cpp
-    src/esengine/renderer/TransientBufferPool.cpp
-    src/esengine/renderer/DrawList.cpp
-    src/esengine/renderer/BatchBuilder.cpp
-    src/esengine/renderer/MaterialStore.cpp
-    src/esengine/renderer/LightStore.cpp
-    src/esengine/renderer/plugins/BatchPlugin.cpp
-    src/esengine/renderer/plugins/SpritePlugin.cpp
-    src/esengine/renderer/plugins/UIElementPlugin.cpp
-    src/esengine/renderer/plugins/TextPlugin.cpp
-    src/esengine/renderer/plugins/ShapePlugin.cpp
-    src/esengine/renderer/plugins/MeshPlugin.cpp
-    src/esengine/renderer/plugins/TrailPlugin.cpp
-    src/esengine/trail/TrailSystem.cpp
-    src/esengine/platform/PathResolver.cpp
-    src/esengine/animation/TweenSystem.cpp
-    src/esengine/ecs/UILayoutSystem.cpp
-    src/esengine/ecs/UISystem.cpp
-)
-
-if(ES_ENABLE_POSTPROCESS)
-    list(APPEND ESENGINE_SOURCES
-        src/esengine/renderer/PostProcessPipeline.cpp
-    )
-endif()
-
-if(ES_ENABLE_WEBGPU)
-    list(APPEND ESENGINE_SOURCES
-        src/esengine/renderer/webgpu/WebGPUDevice.cpp
-    )
-endif()
-
-if(ES_ENABLE_TILEMAP)
-    list(APPEND ESENGINE_SOURCES
-        src/esengine/renderer/plugins/TilemapRenderPlugin.cpp
-        src/esengine/tilemap/TilemapSystem.cpp
-    )
-endif()
-
-if(ES_ENABLE_PARTICLES)
-    list(APPEND ESENGINE_SOURCES
-        src/esengine/renderer/plugins/ParticlePlugin.cpp
-        src/esengine/particle/Particle.cpp
-        src/esengine/particle/ParticleSystem.cpp
-    )
-endif()
-
-
-    list(APPEND ESENGINE_SOURCES
-        src/esengine/text/BitmapFont.cpp
-        src/esengine/text/SdfGenerator.cpp
-    )
+# The engine source list lives in one place — cmake/ESEngineSources.cmake — shared
+# with the native build (native/CMakeLists.txt) so the two never drift. It appends
+# the sources the ES_* options select (GLDevice is web/WeChat only; text is under
+# ES_ENABLE_BITMAP_TEXT).
+set(ESENGINE_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
+include(ESEngineSources)
 
 
 set(ESENGINE_HEADERS
