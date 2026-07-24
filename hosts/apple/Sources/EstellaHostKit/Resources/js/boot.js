@@ -67,6 +67,35 @@
       return p;
     },
 
+    // Probe: run the REAL engine's WebGPU render init (+ one frame) against the logging
+    // WebGPU proxy (webgpu-probe.js). Captures the exact WebGPU JS call sequence the
+    // emdawnwebgpu glue drives on JSC (the native-Dawn-backend spec) and proves the engine
+    // accepts a host-injected JS device outside a browser. Renders nothing.
+    probeRenderInit: async function (w, h) {
+      var m = requireModule();
+      globalThis.__installWebGPUProbe();
+      m.preinitializedWebGPUDevice = globalThis.__wgpuProbeDevice;
+      try {
+        app = SDK.createWebApp(m, {
+          renderSurface: { kind: 'webgpu', surface: { from: 'canvas', selector: '#canvas' } },
+          getViewportSize: function () { return { width: w, height: h }; },
+        });
+        __print('[probe] createWebApp OK - WebGPU renderer initialized on JSC via injected JS device');
+      } catch (e) {
+        __print('[probe] init stopped at: ' + (e && e.message || e));
+        return 'init-partial';
+      }
+      try {
+        this.spawnDemo(200);
+        for (var i = 0; i < 5; i++) await app.tick(1 / 60);
+        __print('[probe] 5 frames OK');
+        return 'ok';
+      } catch (e) {
+        __print('[probe] frame stopped at: ' + (e && e.message || e));
+        return 'frame-partial';
+      }
+    },
+
     // Headless frame-budget bench — ports bench/nojit-frame-bench.mjs into embedded JSC so
     // the Swift host reproduces the 5000-entity 60fps result end to end. Returns a Promise
     // resolving to the timing summary.

@@ -13,7 +13,7 @@ public struct BenchResult {
 /// files come from the bundle; the built engine assets are produced by
 /// Scripts/build-js-assets.sh (gitignore'd) and default to the same bundle directory.
 public struct EngineAssets {
-    public var prelude: URL, engineGlue: URL, sdkBundle: URL, boot: URL, wasm: URL
+    public var prelude: URL, engineGlue: URL, sdkBundle: URL, boot: URL, probe: URL, wasm: URL
 
     /// Resolve every asset from `EstellaHostKit`'s resource bundle (subdirectory `js`).
     public static func bundled() throws -> EngineAssets {
@@ -25,7 +25,7 @@ public struct EngineAssets {
         }
         return EngineAssets(prelude: try u("prelude", "js"), engineGlue: try u("esengine_native", "js"),
                             sdkBundle: try u("estella-sdk.iife", "js"), boot: try u("boot", "js"),
-                            wasm: try u("esengine_native", "wasm"))
+                            probe: try u("webgpu-probe", "js"), wasm: try u("esengine_native", "wasm"))
     }
 }
 
@@ -45,7 +45,8 @@ public final class EngineHost {
     /// Evaluate all glue, instantiate the engine wasm, and install the native platform.
     public func boot(assets: EngineAssets) throws {
         for (url, label) in [(assets.prelude, "prelude.js"), (assets.engineGlue, "esengine_native.js"),
-                             (assets.sdkBundle, "estella-sdk.iife.js"), (assets.boot, "boot.js")] {
+                             (assets.sdkBundle, "estella-sdk.iife.js"), (assets.probe, "webgpu-probe.js"),
+                             (assets.boot, "boot.js")] {
             let src = try String(contentsOf: url, encoding: .utf8)
             rt.evaluate(src, name: label)
         }
@@ -69,6 +70,15 @@ public final class EngineHost {
         func b(_ k: String) -> Bool { r.objectForKeyedSubscript(k)?.toBool() ?? false }
         return BenchResult(entities: entities, frames: frames, median: d("median"), p95: d("p95"),
                            min: d("min"), mean: d("mean"), pass60: b("pass60"), pass30: b("pass30"))
+    }
+
+    /// Run the real engine's WebGPU render init (+ one frame) against the logging WebGPU proxy
+    /// and return its status. The captured `[wgpu] …` lines are the native-Dawn-backend spec.
+    @discardableResult
+    public func probeRenderInit(width: Int = 960, height: Int = 640) throws -> String {
+        guard let boot = estellaBoot else { throw HostError.bootFailure("not booted") }
+        let promise = boot.invokeMethod("probeRenderInit", withArguments: [width, height])!
+        return try rt.await(promise, timeout: 60).toString()
     }
 
     /// Bring up the rendered path: ask the provider for injected device/surface handles, then

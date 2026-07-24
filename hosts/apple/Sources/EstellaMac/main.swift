@@ -22,7 +22,18 @@ do {
 
 let args = Set(CommandLine.arguments.dropFirst())
 
-if args.contains("--window") {
+if args.contains("--probe-render") {
+    // Drive the real engine's WebGPU render init against the logging proxy to capture the
+    // exact WebGPU JS call sequence (the native-Dawn-backend spec) — REARCH_NATIVE.md §3.3.2.
+    print("Estella macOS host — WebGPU bridge probe (captures the engine's WebGPU call surface).")
+    do {
+        let status = try engine.probeRenderInit()
+        print("  probe status: \(status)")
+    } catch {
+        FileHandle.standardError.write(Data("probe failed: \(error)\n".utf8))
+        exit(1)
+    }
+} else if args.contains("--window") {
     let app = NSApplication.shared
     app.setActivationPolicy(.regular)
     let delegate = AppDelegate(engine: engine, bridge: bridgeHost)
