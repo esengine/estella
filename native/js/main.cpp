@@ -38,7 +38,10 @@
 
 #include <glm/gtc/matrix_transform.hpp>
 
+#include <cstdint>
+#include <cstdio>
 #include <cstring>
+#include <ctime>
 #include <string>
 #include <vector>
 
@@ -89,6 +92,7 @@ struct App {
     JSRuntime* rt = nullptr;
     JSContext* js = nullptr;
     AAssetManager* assets = nullptr;        // APK assets/ — the game + its content
+    std::string cacheDir;                   // app private dir — SDK bytecode cache
     glm::vec4 clear{0.07f, 0.08f, 0.12f, 1.0f};
     f32 w = 0, h = 0;
     bool ready = false;         // engine + JS booted once
@@ -287,7 +291,73 @@ void bindGlobal(App& a, JSValue global, const char* name, JSCFunction* fn, int a
     JS_SetPropertyStr(a.js, global, name, JS_NewCFunction(a.js, fn, name, argc));
 }
 
+double nowMs() {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ts.tv_sec * 1000.0 + ts.tv_nsec / 1e6;
+}
+
+// FNV-1a of the bundle — a changed SDK invalidates its bytecode cache.
+uint64_t hashBytes(const char* p, size_t n) {
+    uint64_t h = 1469598103934665603ull;
+    for (size_t i = 0; i < n; i++) { h ^= (uint8_t)p[i]; h *= 1099511628211ull; }
+    return h;
+}
+
+// Evaluate a global script, reusing a cached bytecode compile. QuickJS is an
+// interpreter: parsing the ~700 KB SDK bundle costs ~8 s every launch. So compile
+// once (JS_WriteObject the bytecode, tagged with the bundle hash), and on later
+// launches JS_ReadObject it — skipping the parse. The same QuickJS build writes and
+// reads it, so the format always matches; the hash guards against a stale bundle,
+// and a bad read just recompiles. Cache file: [8-byte hash][bytecode].
+JSValue evalCachedScript(App& a, const char* src, size_t srcLen, const char* filename,
+                         const std::string& cachePath) {
+    const uint64_t want = hashBytes(src, srcLen);
+
+    if (!cachePath.empty()) {
+        FILE* f = fopen(cachePath.c_str(), "rb");
+        if (f) {
+            uint64_t got = 0;
+            std::vector<u8> bc;
+            if (fread(&got, sizeof(got), 1, f) == 1 && got == want) {
+                fseek(f, 0, SEEK_END);
+                long sz = ftell(f);
+                fseek(f, (long)sizeof(got), SEEK_SET);
+                if (sz > (long)sizeof(got)) {
+                    bc.resize((size_t)sz - sizeof(got));
+                    if (fread(bc.data(), 1, bc.size(), f) != bc.size()) bc.clear();
+                }
+            }
+            fclose(f);
+            if (!bc.empty()) {
+                JSValue obj = JS_ReadObject(a.js, bc.data(), bc.size(), JS_READ_OBJ_BYTECODE);
+                if (!JS_IsException(obj)) {
+                    LOGI("SDK bundle: loaded from bytecode cache");
+                    return JS_EvalFunction(a.js, obj);
+                }
+                JSValue e = JS_GetException(a.js); JS_FreeValue(a.js, e);  // stale/corrupt -> recompile
+            }
+        }
+    }
+
+    // Parse once (slow), cache the bytecode, run.
+    JSValue fn = JS_Eval(a.js, src, srcLen, filename, JS_EVAL_TYPE_GLOBAL | JS_EVAL_FLAG_COMPILE_ONLY);
+    if (JS_IsException(fn)) return fn;
+    if (!cachePath.empty()) {
+        size_t bcLen = 0;
+        uint8_t* bc = JS_WriteObject(a.js, &bcLen, fn, JS_WRITE_OBJ_BYTECODE);
+        if (bc) {
+            FILE* f = fopen(cachePath.c_str(), "wb");
+            if (f) { fwrite(&want, sizeof(want), 1, f); fwrite(bc, 1, bcLen, f); fclose(f); }
+            js_free(a.js, bc);
+            LOGI("SDK bundle: compiled + cached bytecode (%zu bytes)", bcLen);
+        }
+    }
+    return JS_EvalFunction(a.js, fn);   // consumes fn
+}
+
 void initJS(App& a) {
+    const double t0 = nowMs();
     a.rt = JS_NewRuntime();
     a.js = JS_NewContext(a.rt);
     JSValue global = JS_GetGlobalObject(a.js);
@@ -315,14 +385,23 @@ void initJS(App& a) {
     // Layers: the real SDK bundle (engine, embedded) installs ESEngine; the host
     // bootstrap (host platform glue) installs the NativeBridge; the game (an APK
     // asset, developer content) authors on top.
-    evalJs(a, kSdkBundleJS, "esengine.native.js");
+    const double tCtx = nowMs();
+    std::string bcPath = a.cacheDir.empty() ? std::string() : (a.cacheDir + "/esengine.native.bc");
+    JSValue br = evalCachedScript(a, kSdkBundleJS, strlen(kSdkBundleJS), "esengine.native.js", bcPath);
+    if (JS_IsException(br)) logJsError(a.js, "SDK bundle");
+    JS_FreeValue(a.js, br);
+    const double tBundle = nowMs();
     evalJs(a, kBootstrapJS, "bootstrap.js");
     std::vector<u8> game = readAsset(a, "game.js");
     if (game.empty()) { LOGE("game.js asset missing from the APK"); return; }
     std::string src(reinterpret_cast<const char*>(game.data()), game.size());
     evalJs(a, src.c_str(), "game.js");
+    const double tGame = nowMs();
     callJs(a, "init", 0, nullptr);
     pumpJobs(a);
+    const double tInit = nowMs();
+    LOGI("boot ms — qjs ctx: %.0f | SDK bundle eval: %.0f | bootstrap+game: %.0f | init(): %.0f | total JS: %.0f",
+         tCtx - t0, tBundle - tCtx, tGame - tBundle, tInit - tGame, tInit - t0);
     LOGI("game.js (APK asset) init() ran on the real SDK App");
 }
 
@@ -364,6 +443,7 @@ bool configureForWindow(App& a, ANativeWindow* window) {
 }
 
 void initEngine(App& a, ANativeWindow* window) {
+    const double te0 = nowMs();
     WGPUInstanceFeatureName feats[] = {WGPUInstanceFeatureName_TimedWaitAny};
     WGPUInstanceDescriptor idesc = {};
     idesc.requiredFeatureCount = 1;
@@ -399,6 +479,7 @@ void initEngine(App& a, ANativeWindow* window) {
     if (!context.init(std::move(device))) { LOGE("context.init failed"); return; }
     static ecs::Registry registry;
     a.registry = &registry;
+    LOGI("boot ms — Dawn instance/adapter/device + EstellaContext: %.0f", nowMs() - te0);
     initJS(a);
     a.ready = true;
     LOGI("real SDK up (%dx%d) — esengine World over native Dawn", (int)a.w, (int)a.h);
@@ -449,6 +530,7 @@ void android_main(android_app* app) {
     App a;
     g_app = &a;
     a.assets = app->activity->assetManager;   // APK assets/ (game.js + content)
+    if (app->activity->internalDataPath) a.cacheDir = app->activity->internalDataPath;
     app->userData = &a;
     app->onAppCmd = onAppCmd;
     app->onInputEvent = onInput;
