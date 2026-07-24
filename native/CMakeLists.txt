@@ -1,7 +1,9 @@
 # Estella native host — the engine C++ core compiled arm64 + linked against an
 # embedded Dawn. Requires a Dawn checkout + arm64 build (see README.md):
 #   -DESTELLA_DAWN_DIR=<dawn source>  -DESTELLA_DAWN_BUILD=<dawn arm64 build dir>
-# Invoke through the NDK toolchain file. NOT part of the web/emscripten build.
+# Android: invoke through the NDK toolchain file (Vulkan Dawn, shared library host).
+# iOS:     -DCMAKE_SYSTEM_NAME=iOS (Metal Dawn, static library linked by a thin app).
+# NOT part of the web/emscripten build.
 cmake_minimum_required(VERSION 3.22)
 project(estella_native_host C CXX)
 
@@ -12,14 +14,39 @@ if(NOT ESTELLA_DAWN_DIR OR NOT ESTELLA_DAWN_BUILD)
     message(FATAL_ERROR "Set ESTELLA_DAWN_DIR (Dawn source) and ESTELLA_DAWN_BUILD (Dawn arm64 build). See native/README.md.")
 endif()
 
+if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    set(ESTELLA_IOS ON)
+elseif(NOT ANDROID)
+    message(FATAL_ERROR "Unsupported platform: configure with the NDK toolchain (Android) or -DCMAKE_SYSTEM_NAME=iOS.")
+endif()
+
 set(REPO "${CMAKE_CURRENT_SOURCE_DIR}/..")
 set(SRC "${REPO}/src")
 set(TP "${REPO}/third_party")
 
-# Prebuilt monolithic Dawn (libwebgpu_dawn.so).
-add_library(webgpu_dawn SHARED IMPORTED)
-set_target_properties(webgpu_dawn PROPERTIES
-    IMPORTED_LOCATION "${ESTELLA_DAWN_BUILD}/src/dawn/native/libwebgpu_dawn.so")
+# Prebuilt monolithic Dawn: a shared library on Android, a static one on iOS (where
+# the app embeds everything). Override ESTELLA_DAWN_LIB if your build lays it out
+# elsewhere.
+if(ESTELLA_IOS)
+    if(NOT ESTELLA_DAWN_LIB)
+        set(ESTELLA_DAWN_LIB "${ESTELLA_DAWN_BUILD}/src/dawn/native/libwebgpu_dawn.a")
+    endif()
+    add_library(webgpu_dawn STATIC IMPORTED)
+else()
+    if(NOT ESTELLA_DAWN_LIB)
+        set(ESTELLA_DAWN_LIB "${ESTELLA_DAWN_BUILD}/src/dawn/native/libwebgpu_dawn.so")
+    endif()
+    add_library(webgpu_dawn SHARED IMPORTED)
+endif()
+if(NOT EXISTS "${ESTELLA_DAWN_LIB}")
+    message(FATAL_ERROR "Dawn library not found: ${ESTELLA_DAWN_LIB}. Build Dawn for this platform (see native/README.md) or pass -DESTELLA_DAWN_LIB=<path>.")
+endif()
+set_target_properties(webgpu_dawn PROPERTIES IMPORTED_LOCATION "${ESTELLA_DAWN_LIB}")
+if(ESTELLA_IOS)
+    # Dawn's Metal backend pulls these in; a static Dawn does not carry them along.
+    set_target_properties(webgpu_dawn PROPERTIES
+        INTERFACE_LINK_LIBRARIES "-framework Metal;-framework QuartzCore;-framework Foundation;-framework IOSurface;-framework CoreGraphics")
+endif()
 
 # glm + yoga (the engine's non-emscripten third-party deps).
 add_library(glm INTERFACE)
@@ -31,10 +58,12 @@ add_library(yogacore STATIC ${YOGA_SOURCES})
 target_include_directories(yogacore PUBLIC "${TP}")
 target_compile_options(yogacore PRIVATE -Wno-unused-parameter)
 
-add_library(native_app_glue STATIC
-    "${ANDROID_NDK}/sources/android/native_app_glue/android_native_app_glue.c")
-target_include_directories(native_app_glue PUBLIC
-    "${ANDROID_NDK}/sources/android/native_app_glue")
+if(ANDROID)
+    add_library(native_app_glue STATIC
+        "${ANDROID_NDK}/sources/android/native_app_glue/android_native_app_glue.c")
+    target_include_directories(native_app_glue PUBLIC
+        "${ANDROID_NDK}/sources/android/native_app_glue")
+endif()
 
 # The engine core, native arm64. The source list is the SAME single-source file the
 # web build uses (cmake/ESEngineSources.cmake) — selecting the WebGPU backend and
@@ -60,9 +89,11 @@ target_link_libraries(esengine PUBLIC glm yogacore webgpu_dawn)
 
 # Reference host: boots EstellaContext with an injected WebGPUDevice over the
 # NativeActivity's ANativeWindow and renders one ECS scene. See host/main.cpp.
-add_library(estella_host SHARED host/main.cpp)
-target_link_libraries(estella_host esengine native_app_glue android log)
-set_target_properties(estella_host PROPERTIES LINK_FLAGS "-u ANativeActivity_onCreate")
+if(ANDROID)
+    add_library(estella_host SHARED host/main.cpp)
+    target_link_libraries(estella_host esengine native_app_glue android log)
+    set_target_properties(estella_host PROPERTIES LINK_FLAGS "-u ANativeActivity_onCreate")
+endif()
 
 # JS host (opt-in): a QuickJS game script drives the engine through the
 # EHT-generated bindings + the real SDK ptrAccessors. Built only when QuickJS is
@@ -90,11 +121,26 @@ if(ESTELLA_QUICKJS_DIR)
 
     # js/host_core.cpp is the platform-independent host; each platform adds its own
     # glue TU (the event loop, the window, the packaged assets).
-    add_library(estella_js_host SHARED js/host_core.cpp js/main_android.cpp "${NATIVE_BINDINGS}")
+    if(ESTELLA_IOS)
+        # Static: the thin Xcode app (native/ios) links this plus the libraries
+        # below. -ObjC on the app keeps the Obj-C classes in main_ios.mm alive.
+        add_library(estella_js_host STATIC js/host_core.cpp js/main_ios.mm "${NATIVE_BINDINGS}")
+        target_link_libraries(estella_js_host esengine qjs
+            "-framework UIKit" "-framework QuartzCore" "-framework Foundation")
+        # Merge host + engine + deps + Dawn into ONE archive, so the Xcode app is a
+        # thin shell that links a single library at a fixed path (native/ios).
+        add_custom_command(TARGET estella_js_host POST_BUILD
+            COMMAND libtool -static -o "${CMAKE_BINARY_DIR}/libestella_ios.a"
+                    $<TARGET_FILE:estella_js_host> $<TARGET_FILE:esengine>
+                    $<TARGET_FILE:qjs> $<TARGET_FILE:yogacore> "${ESTELLA_DAWN_LIB}"
+            COMMENT "Merging the iOS host, engine and Dawn into libestella_ios.a")
+    else()
+        add_library(estella_js_host SHARED js/host_core.cpp js/main_android.cpp "${NATIVE_BINDINGS}")
+        target_link_libraries(estella_js_host esengine qjs native_app_glue android log)
+        set_target_properties(estella_js_host PROPERTIES LINK_FLAGS "-u ANativeActivity_onCreate")
+    endif()
     # js/ holds esn_shim.hpp + host_core.hpp (the generated TU includes the shim);
     # the gen dir holds ptraccessors_js.h and the embedded SDK bundle.
     target_include_directories(estella_js_host PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/js" "${ESTELLA_NATIVE_GEN_DIR}")
-    target_link_libraries(estella_js_host esengine qjs native_app_glue android log)
-    set_target_properties(estella_js_host PROPERTIES LINK_FLAGS "-u ANativeActivity_onCreate")
 endif()

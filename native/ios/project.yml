@@ -1,0 +1,47 @@
+# The iOS app shell: signing + packaging around libestella_ios.a, which
+# `node build-tools/cli.js native --target ios --dawn ... --quickjs ...` produces
+# in build-native-ios/ (host + engine + QuickJS + Dawn, merged).
+#
+#   brew install xcodegen && cd native/ios && xcodegen && open EstellaiOS.xcodeproj
+#
+# Then pick your Team under Signing & Capabilities and Run on a device. The game
+# (game.js) and its content ship as bundle resources, the way the APK ships them
+# under assets/ — the host reads both through the same project-relative paths.
+name: EstellaiOS
+
+options:
+  bundleIdPrefix: com.estella
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+
+targets:
+  EstellaiOS:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+      - path: ../js/game.js
+        buildPhase: resources
+        type: file
+      - path: ../js/logo.png
+        buildPhase: resources
+        type: file
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.estella.EstellaiOS
+        INFOPLIST_FILE: App/Info.plist
+        # -ObjC keeps the view controller / app delegate classes in the static
+        # library alive; the linker would otherwise drop TUs nothing references.
+        OTHER_LDFLAGS: -ObjC -lc++
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ENABLE_BITCODE: NO
+    dependencies:
+      - framework: ../../build-native-ios/libestella_ios.a
+        embed: false
+      - sdk: UIKit.framework
+      - sdk: Metal.framework
+      - sdk: QuartzCore.framework
+      - sdk: IOSurface.framework
+      - sdk: CoreGraphics.framework
+      - sdk: Foundation.framework

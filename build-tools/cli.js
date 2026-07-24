@@ -159,22 +159,26 @@ program
 
 program
     .command('native')
-    .description('Build the native (embedded-Dawn) host for Android arm64')
+    .description('Build the native (embedded-Dawn) host for Android or iOS arm64')
+    .option('--target <target>', 'android or ios', 'android')
     .option('--dawn <dir>', 'Dawn source dir (or ESTELLA_DAWN_DIR); see native/README.md')
-    .option('--dawn-build <dir>', 'Dawn arm64 build dir (or ESTELLA_DAWN_BUILD)')
+    .option('--dawn-build <dir>', 'Dawn arm64 build dir for this target (or ESTELLA_DAWN_BUILD)')
     .option('--quickjs <dir>', 'QuickJS-ng source dir (or ESTELLA_QUICKJS_DIR); also builds the JS host')
     .option('--abi <abi>', 'Android ABI', 'arm64-v8a')
     .option('--platform <platform>', 'Android platform', 'android-33')
+    .option('--ios-min <version>', 'iOS deployment target', '17.0')
     .option('-v, --verbose', 'Verbose output', false)
     .action(async (options) => {
         logger.setVerbose(options.verbose);
         try {
             await buildNative({
+                target: options.target,
                 dawn: options.dawn,
                 dawnBuild: options.dawnBuild,
                 quickjs: options.quickjs,
                 abi: options.abi,
                 platform: options.platform,
+                iosMin: options.iosMin,
             });
         } catch (err) {
             logger.error(err.message);

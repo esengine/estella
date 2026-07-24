@@ -10,12 +10,20 @@ engine runs native (full speed), so only the game script is interpreted.
 This directory holds two reference hosts + the build recipe:
 
 - **`host/`** — a pure-C++ host that renders one ECS scene (no JS). A smoke test
-  for the engine core on native Dawn. Always built.
+  for the engine core on native Dawn. Android only; always built there.
 - **`js/`** — the JS host: a QuickJS game script drives the engine through the
   **real esengine SDK**. The SDK is bundled to one file
   (`dist/index.native.bundled.js`, installing `ESEngine`) and the game authors with
   `ESEngine.createNativeWorld()` — the same `World` the web build uses. Built when
-  you pass `--quickjs` (this is the product-shaped runtime).
+  you pass `--quickjs` (this is the product-shaped runtime). It is one host with a
+  platform seam, not one per OS:
+  - `js/host_core.{hpp,cpp}` — Dawn bring-up, the `es_*` bindings, the SDK bundle
+    and the frame. Platform-independent; everything that differs sits behind
+    `eshost::Platform`.
+  - `js/main_android.cpp` — NativeActivity, APK assets, Vulkan, the ALooper loop.
+  - `js/main_ios.mm` — a CAMetalLayer view, bundle assets, Metal, CADisplayLink.
+- **`ios/`** — the Xcode app shell (xcodegen) that signs and packages the iOS
+  build. It is only an entry point; the app lives in the static library.
 
 Dawn and QuickJS are **not vendored** (multi-GB / separate project); the recipe
 fetches them, the way Dawn fetches its own deps. Nothing here is compiled by the
@@ -33,6 +41,7 @@ the tree:
 | GL / text gates | `EstellaContext` under `ES_PLATFORM_WEB` / `ES_ENABLE_BITMAP_TEXT` | native drops the WebGL entry + optional bitmap text |
 | Bindings | `python -m eht --native-output` | `es_set_<C>` / `es_<C>_buffer` from the same reflection as the web embind bindings |
 | Data marshalling | `sdk/src/ecs/ptrAccessors.generated.ts` | POD components are wasm32/arm64 layout-identical → the generated accessors write native component memory unchanged (via a zero-copy `ArrayBuffer`) |
+| Host platform | `eshost::Platform` (`js/host_core.hpp`) | packaged assets, cache dir, backend, window surface + size, log — the only things the two OS glue files answer differently |
 
 ## Build (Android arm64)
 
@@ -83,6 +92,44 @@ Package the APK by hand (no gradle): `aapt2 link` the matching manifest
 `lib/arm64-v8a/{libestella*_host.so,libwebgpu_dawn.so,libc++_shared.so}` (strip
 Dawn with `llvm-strip`), `zipalign -f 4`, `apksigner sign`.
 
+## Build (iOS arm64)
+
+Toolchain: Xcode (the Command Line Tools alone have no iPhoneOS SDK — `cli native`
+falls back to `/Applications/Xcode.app` automatically), CMake ≥ 3.22, Ninja, and
+[xcodegen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`).
+
+**One-time: build Dawn for iOS arm64** (Metal, *static* — an app embeds it):
+
+```sh
+cmake -S "$DAWN" -B "$DAWN/out-ios" -G Ninja \
+  -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_ARCHITECTURES=arm64 \
+  -DCMAKE_OSX_DEPLOYMENT_TARGET=17.0 -DCMAKE_OSX_SYSROOT=iphoneos \
+  -DDAWN_ENABLE_METAL=ON -DDAWN_ENABLE_VULKAN=OFF -DDAWN_ENABLE_D3D12=OFF \
+  -DDAWN_ENABLE_NULL=OFF -DDAWN_ENABLE_OPENGLES=OFF -DDAWN_ENABLE_DESKTOP_GL=OFF \
+  -DDAWN_BUILD_SAMPLES=OFF -DDAWN_BUILD_TESTS=OFF -DTINT_BUILD_TESTS=OFF \
+  -DDAWN_BUILD_PROTOBUF=OFF -DTINT_BUILD_IR_BINARY=OFF \
+  -DDAWN_BUILD_MONOLITHIC_LIBRARY=STATIC -DDAWN_FETCH_DEPENDENCIES=OFF
+cmake --build "$DAWN/out-ios" --target webgpu_dawn
+```
+
+**Build the host, then run it from Xcode.** There is no pure-C++ reference host on
+iOS — the app *is* the JS host, so `--quickjs` is required:
+
+```sh
+(cd sdk && pnpm run build)
+node build-tools/cli.js native --target ios \
+  --dawn "$DAWN" --dawn-build "$DAWN/out-ios" --quickjs "$QJS"
+
+cd native/ios && xcodegen && open EstellaiOS.xcodeproj
+```
+
+Then pick your Team under *Signing & Capabilities*, select your device and Run.
+The CMake build merges host + engine + QuickJS + Dawn into one archive
+(`build-native-ios/libestella_ios.a`), so the Xcode project is a signing and
+packaging shell: `App/main.m` calls `EstellaRunApp()`, and the game (`js/game.js`,
+`js/logo.png`) ships as bundle resources — the same project-relative paths the APK
+serves from `assets/`.
+
 ## Gotchas (all resolved; each cost a build)
 
 1. Dawn cross-compile wants a host `protoc` — `-DDAWN_BUILD_PROTOBUF=OFF`.
@@ -96,8 +143,13 @@ Dawn with `llvm-strip`), `zipalign -f 4`, `apksigner sign`.
 
 ## Status
 
-The engine core + render path are proven on device (Snapdragon 8 Elite / Adreno
-830, 120 fps). The JS host runs the **real SDK**: `ESEngine.createNativeApp()`
+**Android** is proven on device (Snapdragon 8 Elite / Adreno 830, 120 fps).
+**iOS** has its glue, its CMake target and its app shell, and compiles for
+arm64 — but it has not run on a device yet; it needs a Dawn-for-iOS build and
+your signing.
+
+The engine core + render path are proven on device. The JS host runs the **real
+SDK**: `ESEngine.createNativeApp()`
 returns the same `App` + `World` the web build uses, connected to the native core
 through the generated registry + memory backend; the host binds the entity /
 hierarchy / component functions the SDK reads off `globalThis`, plus the input and

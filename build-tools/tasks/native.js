@@ -2,10 +2,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 //
 // The native (embedded-Dawn) host build — the arm64 sibling of the emscripten
-// wasm build. It drives native/CMakeLists.txt through the NDK toolchain, sharing
-// cmake/ESEngineSources.cmake with the web build so the engine source list never
-// drifts. Dawn is fetched + built separately (see native/README.md); pass its
-// paths via --dawn / --dawn-build or ESTELLA_DAWN_DIR / ESTELLA_DAWN_BUILD.
+// wasm build. It drives native/CMakeLists.txt: through the NDK toolchain for
+// Android, through the iOS SDK for iPhone. Both share cmake/ESEngineSources.cmake
+// with the web build so the engine source list never drifts. Dawn is fetched +
+// built separately, per platform (see native/README.md); pass its paths via
+// --dawn / --dawn-build or ESTELLA_DAWN_DIR / ESTELLA_DAWN_BUILD.
 
 import path from 'path';
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'fs';
@@ -78,7 +79,38 @@ async function generateSdkBundle(rootDir, genDir) {
     return headerPath;
 }
 
-export async function buildNative(options = {}) {
+// Both generated artifacts go in the build tree; nothing committed can drift from
+// the reflection / SDK source.
+async function prepareGenerated(rootDir, buildDir, quickjs) {
+    if (!existsSync(quickjs)) {
+        throw new Error(`QuickJS source dir not found: ${quickjs}. Clone `
+            + 'https://github.com/quickjs-ng/quickjs (see native/README.md).');
+    }
+    const genDir = path.join(buildDir, 'gen');
+    await mkdir(genDir, { recursive: true });
+    const python = await resolvePython() ?? 'python3';
+    logger.step('Generating native ECS bindings (EHT, single reflection source)...');
+    await generateNativeBindings(rootDir, genDir, python);
+    logger.step('Embedding the real SDK bundle (dist/index.native.bundled.js)...');
+    await generateSdkBundle(rootDir, genDir);
+    return genDir;
+}
+
+function dawnPaths(options) {
+    const dawnDir = options.dawn || process.env.ESTELLA_DAWN_DIR;
+    const dawnBuild = options.dawnBuild || process.env.ESTELLA_DAWN_BUILD;
+    if (!dawnDir || !dawnBuild) {
+        throw new Error('Dawn not configured. Pass --dawn <src> --dawn-build <arm64 build>, or set '
+            + 'ESTELLA_DAWN_DIR / ESTELLA_DAWN_BUILD. Build Dawn per native/README.md.');
+    }
+    return { dawnDir, dawnBuild };
+}
+
+// CMake parses backslashes in -D string values as escapes (F:\estella -> \e), so
+// hand it forward-slash paths (valid on Windows too).
+const fwd = (p) => p.replace(/\\/g, '/');
+
+async function buildAndroidHost(options) {
     const { abi = 'arm64-v8a', platform = 'android-33' } = options;
     const rootDir = config.paths.root;
 
@@ -88,12 +120,7 @@ export async function buildNative(options = {}) {
     if (!ndk) throw new Error(`No NDK under ${sdk}/ndk. Install one via Android Studio's SDK Manager.`);
     const toolchain = path.join(ndk, 'build', 'cmake', 'android.toolchain.cmake');
 
-    const dawnDir = options.dawn || process.env.ESTELLA_DAWN_DIR;
-    const dawnBuild = options.dawnBuild || process.env.ESTELLA_DAWN_BUILD;
-    if (!dawnDir || !dawnBuild) {
-        throw new Error('Dawn not configured. Pass --dawn <src> --dawn-build <arm64 build>, or set '
-            + 'ESTELLA_DAWN_DIR / ESTELLA_DAWN_BUILD. Build Dawn per native/README.md.');
-    }
+    const { dawnDir, dawnBuild } = dawnPaths(options);
 
     const { cmake, ninja } = sdkCmake(sdk);
     const buildDir = path.join(rootDir, 'build-native');
@@ -101,23 +128,9 @@ export async function buildNative(options = {}) {
 
     // JS host (opt-in): pass --quickjs <dir> (or ESTELLA_QUICKJS_DIR) to also build
     // the QuickJS host — a game script driving the engine through the generated
-    // bindings + the real SDK ptrAccessors. Both generated artifacts go in the
-    // build tree; nothing committed can drift from the reflection / SDK source.
+    // bindings + the real SDK ptrAccessors.
     const quickjs = options.quickjs || process.env.ESTELLA_QUICKJS_DIR;
-    let genDir = null;
-    if (quickjs) {
-        if (!existsSync(quickjs)) {
-            throw new Error(`QuickJS source dir not found: ${quickjs}. Clone `
-                + 'https://github.com/quickjs-ng/quickjs (see native/README.md).');
-        }
-        genDir = path.join(buildDir, 'gen');
-        await mkdir(genDir, { recursive: true });
-        const python = await resolvePython() ?? 'python3';
-        logger.step('Generating native ECS bindings (EHT, single reflection source)...');
-        await generateNativeBindings(rootDir, genDir, python);
-        logger.step('Embedding the real SDK bundle (dist/index.native.bundled.js)...');
-        await generateSdkBundle(rootDir, genDir);
-    }
+    const genDir = quickjs ? await prepareGenerated(rootDir, buildDir, quickjs) : null;
 
     logger.step(`Configuring native host (${abi}, ${platform})...`);
     const configureArgs = [
@@ -138,9 +151,6 @@ export async function buildNative(options = {}) {
     ];
     if (ninja) configureArgs.push(`-DCMAKE_MAKE_PROGRAM=${ninja}`);
     if (quickjs) {
-        // CMake parses backslashes in -D string values as escapes (F:\estella -> \e),
-        // so hand it forward-slash paths (valid on Windows too).
-        const fwd = (p) => p.replace(/\\/g, '/');
         configureArgs.push(`-DESTELLA_QUICKJS_DIR=${fwd(quickjs)}`, `-DESTELLA_NATIVE_GEN_DIR=${fwd(genDir)}`);
     }
     await runCommand(cmake, configureArgs, { cwd: rootDir });
@@ -152,4 +162,70 @@ export async function buildNative(options = {}) {
     if (quickjs) {
         logger.success(`JS host:     ${path.join('build-native', 'libestella_js_host.so')}`);
     }
+}
+
+// Xcode ships the iPhoneOS SDK; the Command Line Tools alone do not. Point the
+// toolchain at Xcode when the active developer dir can't produce one, so a machine
+// left on `xcode-select -s /Library/Developer/CommandLineTools` still builds.
+async function iosDeveloperDir() {
+    const probe = await runCommand('xcrun', ['--sdk', 'iphoneos', '--show-sdk-path'], { silent: true })
+        .catch(() => null);
+    if (probe?.stdout?.trim()) return null;
+    const xcode = '/Applications/Xcode.app/Contents/Developer';
+    if (!existsSync(xcode)) {
+        throw new Error('No iPhoneOS SDK. Install Xcode (the Command Line Tools alone cannot build for iOS).');
+    }
+    return xcode;
+}
+
+async function buildIosHost(options) {
+    if (process.platform !== 'darwin') throw new Error('The iOS host builds on macOS only.');
+    const rootDir = config.paths.root;
+    const { dawnDir, dawnBuild } = dawnPaths(options);
+
+    // Unlike Android there is no pure-C++ reference host for iOS: the app IS the
+    // JS host, so QuickJS is required rather than opt-in.
+    const quickjs = options.quickjs || process.env.ESTELLA_QUICKJS_DIR;
+    if (!quickjs) {
+        throw new Error('The iOS host needs QuickJS: pass --quickjs <dir> (or set ESTELLA_QUICKJS_DIR).');
+    }
+
+    const developerDir = await iosDeveloperDir();
+    const env = developerDir ? { DEVELOPER_DIR: developerDir } : undefined;
+    if (developerDir) logger.info(`Using DEVELOPER_DIR=${developerDir} (the active one has no iPhoneOS SDK)`);
+
+    const buildDir = path.join(rootDir, 'build-native-ios');
+    await mkdir(buildDir, { recursive: true });
+    const genDir = await prepareGenerated(rootDir, buildDir, quickjs);
+
+    const deploymentTarget = options.iosMin || '17.0';
+    logger.step(`Configuring iOS host (arm64, iOS ${deploymentTarget})...`);
+    await runCommand('cmake', [
+        '-S', path.join(rootDir, 'native'),
+        '-B', buildDir,
+        '-G', 'Ninja',
+        '-DCMAKE_SYSTEM_NAME=iOS',
+        '-DCMAKE_OSX_ARCHITECTURES=arm64',
+        `-DCMAKE_OSX_DEPLOYMENT_TARGET=${deploymentTarget}`,
+        '-DCMAKE_OSX_SYSROOT=iphoneos',
+        '-DCMAKE_BUILD_TYPE=Release',
+        '-DCMAKE_EXPORT_COMPILE_COMMANDS=ON',
+        `-DESTELLA_DAWN_DIR=${fwd(dawnDir)}`,
+        `-DESTELLA_DAWN_BUILD=${fwd(dawnBuild)}`,
+        `-DESTELLA_QUICKJS_DIR=${fwd(quickjs)}`,
+        `-DESTELLA_NATIVE_GEN_DIR=${fwd(genDir)}`,
+    ], { cwd: rootDir, env });
+
+    logger.step('Building iOS host...');
+    await runCommand('cmake', ['--build', buildDir, '-j', String(getCpuCount())], { cwd: rootDir, env });
+
+    logger.success(`iOS host: ${path.join('build-native-ios', 'libestella_js_host.a')}`);
+    logger.info('Next: cd native/ios && xcodegen && open EstellaiOS.xcodeproj — pick your Team, then Run.');
+}
+
+export async function buildNative(options = {}) {
+    const target = (options.target || 'android').toLowerCase();
+    if (target === 'ios') return buildIosHost(options);
+    if (target !== 'android') throw new Error(`Unknown --target ${target} (expected android or ios).`);
+    return buildAndroidHost(options);
 }
