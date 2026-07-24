@@ -30,6 +30,7 @@ if args.contains("--wgpu-bridge-test") {
         let ctx = try WgpuContext()
         let bridge = WgpuBridge(runtime: runtime, context: ctx)
         print("  \(bridge.selfTest())")
+        print("  \(bridge.renderFrameSelfTest())")
     } catch {
         FileHandle.standardError.write(Data("bridge test failed: \(error)\n".utf8))
         exit(1)

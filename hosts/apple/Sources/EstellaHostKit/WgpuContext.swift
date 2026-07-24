@@ -146,6 +146,52 @@ public final class WgpuContext {
 }
 
 public extension WgpuContext {
+    /// Copy a texture's top-left pixel back to the CPU (RGBA8). Used to validate that a render
+    /// path — direct or through the WgpuBridge — produced the expected GPU output.
+    func readbackFirstPixel(of texture: OpaquePointer, width: Int, height: Int) -> (UInt8, UInt8, UInt8, UInt8)? {
+        let bytesPerRow = ((width * 4 + 255) / 256) * 256
+        var bufDesc = WGPUBufferDescriptor()
+        bufDesc.usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_MapRead
+        bufDesc.size = UInt64(bytesPerRow * height)
+        guard let buf = wgpuDeviceCreateBuffer(device, &bufDesc),
+              let enc = wgpuDeviceCreateCommandEncoder(device, nil) else { return nil }
+        defer { wgpuBufferRelease(buf) }
+        var src = WGPUTexelCopyTextureInfo()
+        src.texture = texture
+        src.origin = WGPUOrigin3D(x: 0, y: 0, z: 0)
+        src.aspect = WGPUTextureAspect_All
+        var dst = WGPUTexelCopyBufferInfo()
+        dst.buffer = buf
+        dst.layout.bytesPerRow = UInt32(bytesPerRow)
+        dst.layout.rowsPerImage = UInt32(height)
+        var ext = WGPUExtent3D(width: UInt32(width), height: UInt32(height), depthOrArrayLayers: 1)
+        wgpuCommandEncoderCopyTextureToBuffer(enc, &src, &dst, &ext)
+        guard let cmd = wgpuCommandEncoderFinish(enc, nil) else { return nil }
+        withUnsafePointer(to: cmd) { wgpuQueueSubmit(queue, 1, $0) }
+        wgpuCommandBufferRelease(cmd)
+        wgpuCommandEncoderRelease(enc)
+
+        final class MapBox { var done = false; var ok = false }
+        let mbox = MapBox()
+        let mboxPtr = Unmanaged.passRetained(mbox).toOpaque()
+        defer { Unmanaged<MapBox>.fromOpaque(mboxPtr).release() }
+        var mcb = WGPUBufferMapCallbackInfo()
+        mcb.mode = WGPUCallbackMode_AllowProcessEvents
+        mcb.userdata1 = mboxPtr
+        mcb.callback = { status, _, ud1, _ in
+            let b = Unmanaged<MapBox>.fromOpaque(ud1!).takeUnretainedValue()
+            b.ok = (status == WGPUMapAsyncStatus_Success); b.done = true
+        }
+        _ = wgpuBufferMapAsync(buf, WGPUMapMode_Read, 0, Int(bufDesc.size), mcb)
+        var spins = 0
+        while !mbox.done && spins < 100000 { wgpuInstanceProcessEvents(instance); spins += 1 }
+        guard mbox.ok, let raw = wgpuBufferGetMappedRange(buf, 0, Int(bufDesc.size)) else { return nil }
+        let p = raw.assumingMemoryBound(to: UInt8.self)
+        let pixel = (p[0], p[1], p[2], p[3])
+        wgpuBufferUnmap(buf)
+        return pixel
+    }
+
     /// Clear an offscreen RGBA8 texture to `clear` and read the top-left pixel back — proves
     /// the full render + submit + readback path on the real GPU, headlessly (no window).
     /// Returns the pixel as (r,g,b,a) bytes.
