@@ -37,17 +37,21 @@ struct IOSPlatform final : eshost::Platform {
     CAMetalLayer* layer = nil;
 
     // A file shipped inside the .app bundle — the packaged-asset analog of the
-    // APK's assets/. Paths are project-relative ("game.js", "logo.png"), so they
-    // resolve the same way on both platforms.
+    // APK's assets/. Paths are project-relative ("game.config.json", "logo.png"),
+    // so a game reads the same paths on both platforms. An exported project lives
+    // under Content/ (a folder reference, which keeps its subdirectories); the
+    // bundle root is the fallback, where the built-in demo's files sit.
     std::vector<u8> readAsset(const char* path) override {
-        std::vector<u8> out;
         NSString* rel = [NSString stringWithUTF8String:path];
-        NSString* full = [[[NSBundle mainBundle] resourcePath] stringByAppendingPathComponent:rel];
-        NSData* data = [NSData dataWithContentsOfFile:full];
-        if (!data) return out;
-        out.resize(data.length);
-        memcpy(out.data(), data.bytes, data.length);
-        return out;
+        NSString* root = [[NSBundle mainBundle] resourcePath];
+        for (NSString* base : @[[root stringByAppendingPathComponent:@"Content"], root]) {
+            NSData* data = [NSData dataWithContentsOfFile:[base stringByAppendingPathComponent:rel]];
+            if (!data) continue;
+            std::vector<u8> out(data.length);
+            memcpy(out.data(), data.bytes, data.length);
+            return out;
+        }
+        return {};
     }
 
     std::string cacheDir() override {

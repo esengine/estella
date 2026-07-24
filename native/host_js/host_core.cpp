@@ -57,6 +57,12 @@ using namespace esengine;
 // listener and builds the NativeBridge from the host's es_* capabilities. The game
 // (game.js, a packaged asset) then calls createNativeApp(__esNativeBridge).
 static const char* kBootstrapJS = R"JS(
+// The platform layer decodes packaged JSON through TextDecoder; QuickJS has none,
+// so route it to the host's UTF-8 decoder. Only utf-8 is meaningful here.
+globalThis.TextDecoder = function TextDecoder() {};
+globalThis.TextDecoder.prototype.decode = function (buf) {
+    return buf == null ? '' : es_utf8Decode(buf);
+};
 globalThis.es_onNativeTouch = function (type, id, x, y) {
     var l = globalThis.__esInputListener;
     if (!l) return;
@@ -83,6 +89,21 @@ globalThis.__esNativeBridge = {
     storageKeys: function () { return []; },
     registerInput: function (l) { globalThis.__esInputListener = l; return function () { globalThis.__esInputListener = null; }; },
     devicePixelRatio: function () { return 1; },
+};
+
+// Default boot: run an EXPORTED project — game.config.json, the manifests, the
+// cooked assets and the scenes, all read off the device. A packaged game.js (the
+// hand-written-script path) replaces these two functions instead.
+globalThis.__esGame = null;
+globalThis.init = function () {
+    ESEngine.initNativeGame({ bridge: globalThis.__esNativeBridge, scope: globalThis, width: W, height: H })
+        .then(function (game) { globalThis.__esGame = game; })
+        .catch(function (e) {
+            console.error('exported game failed to boot:', e && e.message ? e.message : e);
+        });
+};
+globalThis.update = function (dt) {
+    if (globalThis.__esGame) globalThis.__esGame.app.tick(dt);
 };
 )JS";
 
@@ -396,6 +417,27 @@ JSValue js_performanceNow(JSContext* ctx, JSValueConst, int, JSValueConst*) {
     return JS_NewFloat64(ctx, nowMs());
 }
 
+// es_utf8Decode(ArrayBuffer | TypedArray) -> string. Backs the TextDecoder the
+// platform layer uses to read packaged JSON (manifests, scenes); QuickJS parses
+// UTF-8 natively, so this beats decoding byte-by-byte in script.
+JSValue js_utf8Decode(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
+    if (argc < 1) return JS_NewString(ctx, "");
+    size_t size = 0;
+    if (uint8_t* raw = JS_GetArrayBuffer(ctx, &size, argv[0])) {
+        return JS_NewStringLen(ctx, reinterpret_cast<const char*>(raw), size);
+    }
+    JS_FreeValue(ctx, JS_GetException(ctx));   // not an ArrayBuffer — try a view
+    size_t offset = 0, length = 0, bytesPerEl = 0;
+    JSValue ab = JS_GetTypedArrayBuffer(ctx, argv[0], &offset, &length, &bytesPerEl);
+    if (JS_IsException(ab)) { JS_FreeValue(ctx, JS_GetException(ctx)); return JS_NewString(ctx, ""); }
+    uint8_t* base = JS_GetArrayBuffer(ctx, &size, ab);
+    JSValue out = (base && offset + length <= size)
+        ? JS_NewStringLen(ctx, reinterpret_cast<const char*>(base + offset), length)
+        : JS_NewString(ctx, "");
+    JS_FreeValue(ctx, ab);
+    return out;
+}
+
 void logJsError(JSContext* ctx, const char* where) {
     JSValue e = JS_GetException(ctx);
     const char* s = JS_ToCString(ctx, e);
@@ -552,6 +594,7 @@ void initJS(App& a) {
     JSValue perf = JS_NewObject(a.js);
     JS_SetPropertyStr(a.js, perf, "now", JS_NewCFunction(a.js, js_performanceNow, "now", 0));
     JS_SetPropertyStr(a.js, global, "performance", perf);
+    bindGlobal(a, global, "es_utf8Decode", js_utf8Decode, 1);
 
     // Entity + hierarchy (base Registry surface).
     bindGlobal(a, global, "es_createEntity", js_createEntity, 0);
@@ -584,17 +627,32 @@ void initJS(App& a) {
     JS_FreeValue(a.js, br);
     const double tBundle = nowMs();
     evalJs(a, kBootstrapJS, "bootstrap.js");
-    std::vector<u8> game = readAsset(a, "game.js");
-    if (game.empty()) { LOGE("game.js asset missing from the app package"); return; }
-    std::string src(reinterpret_cast<const char*>(game.data()), game.size());
-    evalJs(a, src.c_str(), "game.js");
+    // An exported project (game.config.json + manifests + cooked assets) boots
+    // through the bootstrap's default init/update. Its own scripts must register
+    // their components BEFORE the scene loads. Without that config the package is
+    // a hand-written game.js, which replaces init/update outright.
+    const bool exported = !readAsset(a, "game.config.json").empty();
+    if (exported) {
+        std::vector<u8> scripts = readAsset(a, "scripts.js");
+        if (!scripts.empty()) {
+            evalJs(a, std::string(reinterpret_cast<const char*>(scripts.data()), scripts.size()).c_str(),
+                   "scripts.js");
+        }
+    } else {
+        std::vector<u8> game = readAsset(a, "game.js");
+        if (game.empty()) {
+            LOGE("nothing to run: the package has neither game.config.json (an export) nor game.js");
+            return;
+        }
+        evalJs(a, std::string(reinterpret_cast<const char*>(game.data()), game.size()).c_str(), "game.js");
+    }
     const double tGame = nowMs();
     callJs(a, "init", 0, nullptr);
     pumpJs(a);
     const double tInit = nowMs();
     LOGI("boot ms — qjs ctx: %.0f | SDK bundle eval: %.0f | bootstrap+game: %.0f | init(): %.0f | total JS: %.0f",
          tCtx - t0, tBundle - tCtx, tGame - tBundle, tInit - tGame, tInit - t0);
-    LOGI("game.js (packaged asset) init() ran on the real SDK App");
+    LOGI("%s init() ran on the real SDK App", exported ? "exported project" : "game.js");
 }
 
 }  // namespace
