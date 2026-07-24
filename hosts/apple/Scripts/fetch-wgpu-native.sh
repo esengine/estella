@@ -1,35 +1,36 @@
 #!/usr/bin/env bash
-# Fetch the prebuilt native WebGPU implementation (wgpu-native) the host bridge links
-# against — the native GPU side of the Fork A render bridge (REARCH_NATIVE.md §3.3.2).
-# The binary is large (~40MB unpacked), so it is gitignore'd and reproduced here rather
-# than committed. wgpu-native exposes the standard webgpu.h C API over Metal.
+# Fetch the prebuilt native WebGPU (wgpu-native) the host bridge links against — the native
+# GPU side of the Fork A render bridge (REARCH_NATIVE.md §3.3.2). Per-platform device slices
+# (macOS + iOS), each into its own vendor dir; the Cwgpu module links the right one by
+# platform. Binaries are large + gitignore'd, reproduced here rather than committed.
 #
-# Note: this is the HOST bridge's native WebGPU. It is independent of the wasm engine's
-# emdawnwebgpu (they meet only at the JS-method level); Fork B's "one Dawn" unification
-# is a separate, later concern.
+# wgpu-native exposes the standard webgpu.h C API over Metal; it is the HOST bridge's native
+# WebGPU, independent of the wasm engine's emdawnwebgpu (Fork B's "one Dawn" is a later concern).
 set -euo pipefail
 
 VERSION="v29.0.1.1"
-ASSET="wgpu-macos-aarch64-release.zip"
-DEST="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/vendor/wgpu-native"
-URL="https://github.com/gfx-rs/wgpu-native/releases/download/${VERSION}/${ASSET}"
+BASE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+FORCE="${1:-}"
 
-if [ -f "$DEST/lib/libwgpu_native.a" ] && [ "${1:-}" != "--force" ]; then
-    echo "wgpu-native already present at $DEST (pass --force to refetch)"
-    exit 0
-fi
+fetch() {   # <asset> <dest-subdir>
+    local asset="$1" dest="$BASE/vendor/$2"
+    if [ -f "$dest/lib/libwgpu_native.a" ] && [ "$FORCE" != "--force" ]; then
+        echo "== $2 already present (pass --force to refetch)"; return
+    fi
+    echo "==> fetching $asset -> vendor/$2"
+    mkdir -p "$dest"
+    local tmp; tmp="$(mktemp -t wgpu.XXXXXX.zip)"
+    curl -sSL --max-time 180 -o "$tmp" \
+        "https://github.com/gfx-rs/wgpu-native/releases/download/${VERSION}/${asset}"
+    unzip -o -q "$tmp" -d "$dest"; rm -f "$tmp"
+}
 
-echo "==> fetching wgpu-native $VERSION ($ASSET)"
-mkdir -p "$DEST"
-TMP="$(mktemp -t wgpu.XXXXXX.zip)"
-curl -sSL --max-time 180 -o "$TMP" "$URL"
-unzip -o -q "$TMP" -d "$DEST"
-rm -f "$TMP"
+fetch "wgpu-macos-aarch64-release.zip" "wgpu-native-macos"
+fetch "wgpu-ios-aarch64-release.zip"   "wgpu-native-ios"
 
-# Expose the headers to the Cwgpu SwiftPM module (its include/ is auto-searched).
-LINK="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/Sources/Cwgpu/include/webgpu"
-ln -sfn ../../../vendor/wgpu-native/include/webgpu "$LINK"
+# Headers are identical across slices; expose one set to the Cwgpu module (its include/ is
+# auto-searched).
+ln -sfn ../../../vendor/wgpu-native-macos/include/webgpu "$BASE/Sources/Cwgpu/include/webgpu"
 
 echo "==> done:"
-ls -lh "$DEST/lib/"*.a "$DEST/lib/"*.dylib "$DEST/include/webgpu/webgpu.h"
-echo "    header symlink: $LINK -> $(readlink "$LINK")"
+ls -lh "$BASE/vendor/wgpu-native-macos/lib/libwgpu_native.a" "$BASE/vendor/wgpu-native-ios/lib/libwgpu_native.a"

@@ -1,5 +1,6 @@
 # SwiftPM build products
 .build/
+.build-ios/
 *.xcodeproj
 .swiftpm/
 

@@ -1,0 +1,32 @@
+# xcodegen spec for the Estella iOS app. Regenerate the .xcodeproj with:
+#   brew install xcodegen && cd hosts/apple/ios && xcodegen
+# Then open EstellaiOS.xcodeproj in Xcode, pick your signing team, and run on your device.
+name: EstellaiOS
+options:
+  bundleIdPrefix: com.estella
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+packages:
+  EstellaHostKit:
+    path: ..            # the SwiftPM package at hosts/apple/
+targets:
+  EstellaiOS:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - Sources
+    dependencies:
+      - package: EstellaHostKit
+        product: EstellaHostKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.estella.ios
+        GENERATE_INFOPLIST_FILE: YES
+        MARKETING_VERSION: "0.1"
+        CURRENT_PROJECT_VERSION: "1"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SWIFT_VERSION: "5.9"
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES

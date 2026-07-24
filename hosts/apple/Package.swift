@@ -6,7 +6,7 @@ import PackageDescription
 let package = Package(
     name: "EstellaAppleHost",
     // macOS 14+ / iOS 17+ gives us the unified CADisplayLink and modern Metal.
-    platforms: [.macOS(.v14)],
+    platforms: [.macOS(.v14), .iOS(.v17)],
     products: [
         // Platform-neutral shell core, shared by every Apple front end.
         .library(name: "EstellaHostKit", targets: ["EstellaHostKit"]),
@@ -21,13 +21,14 @@ let package = Package(
             // Headers reach the module via Sources/Cwgpu/include/webgpu -> vendor symlink
             // (created by Scripts/fetch-wgpu-native.sh), so include/ auto-search resolves them.
             linkerSettings: [
-                // Link the static archive by path (forces static; no runtime rpath).
-                .unsafeFlags(["vendor/wgpu-native/lib/libwgpu_native.a"]),
+                // Link the platform's static archive by path (forces static; no runtime rpath).
+                .unsafeFlags(["vendor/wgpu-native-macos/lib/libwgpu_native.a"], .when(platforms: [.macOS])),
+                .unsafeFlags(["vendor/wgpu-native-ios/lib/libwgpu_native.a"], .when(platforms: [.iOS])),
                 .linkedFramework("Metal"),
                 .linkedFramework("QuartzCore"),
-                .linkedFramework("IOKit"),
-                .linkedFramework("IOSurface"),
                 .linkedFramework("CoreFoundation"),
+                .linkedFramework("IOKit", .when(platforms: [.macOS])),      // macOS-only
+                .linkedFramework("IOSurface", .when(platforms: [.macOS])),  // macOS-only
             ]
         ),
         .target(

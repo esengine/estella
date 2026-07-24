@@ -78,18 +78,38 @@ is in place and waiting on that provider.
 
 ## Build & run
 
+Shared prep (both platforms):
+
 ```bash
 # 1. Build the engine (produces build-web + the web wasm).
 node build-tools/cli.js build -t web
-
-# 2. Produce the three JS/wasm assets this host loads (gitignore'd, ABI-tied).
+# 2. Produce the JS/wasm assets this host loads into JSC (gitignore'd, ABI-tied).
 hosts/apple/Scripts/build-js-assets.sh
-
-# 3. Build + run the shell.
-cd hosts/apple
-swift build
-swift run EstellaMac            # headless frame bench
-swift run EstellaMac --window   # Metal window (render path reserved)
+# 3. Fetch the native WebGPU (wgpu-native) device slices for macOS + iOS (gitignore'd).
+hosts/apple/Scripts/fetch-wgpu-native.sh
 ```
 
-Requires an active emsdk (`em++` on `PATH`) for step 2 and `desktop/node_modules` (esbuild).
+macOS:
+
+```bash
+cd hosts/apple
+swift run EstellaMac              # headless frame bench (5000 entities @ 60fps)
+swift run EstellaMac --engine-native  # real engine drives native wgpu-native (readback-verified)
+swift run EstellaMac --window     # the engine renders on-screen to a Metal window
+```
+
+iOS (on your iPhone):
+
+```bash
+brew install xcodegen            # once
+cd hosts/apple/ios
+xcodegen                         # regenerate EstellaiOS.xcodeproj from project.yml
+open EstellaiOS.xcodeproj        # in Xcode: pick your signing Team, select your device, Run
+```
+
+The iOS app (`ios/`) reuses `EstellaHostKit` unchanged; only the window + touch layer is UIKit
+(`GameViewController`). The shared core compiles for iOS arm64; the final link + on-device run
+happen in your Xcode (which must have the iOS platform component installed).
+
+Requires an active emsdk (`em++` on `PATH`) for step 2, `desktop/node_modules` (esbuild) for
+step 2, and network for step 3.
