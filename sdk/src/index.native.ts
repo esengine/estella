@@ -53,6 +53,10 @@ export { createNativeRegistry } from './ecs/nativeRegistry';
 // running the actual SDK (spawn/insert/query authoring) against native C++ ECS.
 export { createNativeWorld } from './ecs/nativeRuntime';
 
+// Boot a native App: the same App + the native platform (input via the host's
+// NativeBridge) + native ECS. The system-binding layer (Stage B) over the World.
+export { createNativeApp } from './ecs/nativeRuntime';
+
 // ABI layout hash of the component schema this bundle was generated from — the
 // native shell compares it against the wasm build it loads (same as the editor).
 export { ABI_LAYOUT_HASH } from './component.generated';
