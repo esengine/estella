@@ -1,0 +1,11 @@
+# SwiftPM build products
+.build/
+*.xcodeproj
+.swiftpm/
+
+# Built engine assets — produced by Scripts/build-js-assets.sh from the wasm build.
+# They track the current engine ABI, so they are local products, never committed
+# (mirrors sdk/dist + *.wasm being gitignore'd at the repo root).
+Sources/EstellaHostKit/Resources/js/esengine_native.js
+Sources/EstellaHostKit/Resources/js/esengine_native.wasm
+Sources/EstellaHostKit/Resources/js/estella-sdk.iife.js
