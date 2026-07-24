@@ -57,11 +57,20 @@ if (plan.hasUpdate) {
 }
 ```
 
-`manifestUrl` / `remoteRoot` come from `window.__estellaHotUpdate` if a host sets
-it; otherwise the demo probes a same-origin `asset-manifest.json`. In editor Play
-there is no newer build to fetch, so the console honestly reports **已是最新版本** —
-the real swap is exercised by the render verify below (and in a shipped build
-pointed at a CDN that has newer content).
+The candidate manifest defaults to a **checked-in local update channel** —
+`updates/v2-manifest.json` + `updates/art-v2.png` — so the content swap is live in
+editor Play with no CDN: press Play, watch the boot auto-check report **发现新版本 ·
+1 个文件 · 208 B**, press **下载并更新**, and the background sprite turns from green
+to red (`applyUpdate` downloads the v2 texture, verifies its `contentHash`, and the
+built-in rebinder swaps it in). `v2-manifest.json` is a full manifest that mirrors
+the running one with only the `cdn` texture bumped, so the diff is exactly one
+changed asset.
+
+The channel lives **outside `assets/`**, so a cooked build never bundles it: the
+same URL 404s and a shipped build honestly reports **已是最新版本**. A real
+deployment sets `window.__estellaHotUpdate` to point at its CDN instead — and the
+render verify below exercises that path against a genuinely cooked,
+content-addressed CDN update.
 
 ## How it works — content addressing
 

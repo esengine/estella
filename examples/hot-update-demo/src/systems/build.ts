@@ -72,9 +72,10 @@ export const buildSystem = defineSystem(
                     state.message = '发现新版本';
                 }
             } catch {
-                // No candidate manifest reachable (e.g. editor Play): honestly "up to date".
+                // No candidate manifest reachable (e.g. a shipped build with no CDN
+                // configured, where updates/ was never bundled): honestly up to date.
                 state.phase = 'up-to-date';
-                state.message = '已是最新版本（当前为本地内容）';
+                state.message = '已是最新版本';
             }
         }
 

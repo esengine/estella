@@ -1,0 +1,32 @@
+{
+  "version": "2.0",
+  "revision": "v2-red",
+  "groups": {
+    "main": {
+      "bundleMode": "local",
+      "labels": [],
+      "assets": {
+        "a1b2c3d4-0001-4001-8001-000000000001": { "path": "assets/scenes/main.esscene", "type": "json", "size": 0, "labels": [] }
+      }
+    },
+    "cdn": {
+      "bundleMode": "remote",
+      "labels": [],
+      "assets": {
+        "a1b2c3d4-0002-4002-8002-000000000002": { "path": "updates/art-v2.png", "type": "texture", "size": 208, "labels": [], "contentHash": "cd75478792888fb1" }
+      }
+    },
+    "pack": {
+      "bundleMode": "remote",
+      "labels": [],
+      "assets": {
+        "a1b2c3d4-0003-4003-8003-000000000000": { "path": "assets/pack/tile0.png", "type": "texture", "size": 0, "labels": [] },
+        "a1b2c3d4-0003-4003-8003-000000000001": { "path": "assets/pack/tile1.png", "type": "texture", "size": 0, "labels": [] },
+        "a1b2c3d4-0003-4003-8003-000000000002": { "path": "assets/pack/tile2.png", "type": "texture", "size": 0, "labels": [] },
+        "a1b2c3d4-0003-4003-8003-000000000003": { "path": "assets/pack/tile3.png", "type": "texture", "size": 0, "labels": [] },
+        "a1b2c3d4-0003-4003-8003-000000000004": { "path": "assets/pack/tile4.png", "type": "texture", "size": 0, "labels": [] },
+        "a1b2c3d4-0003-4003-8003-000000000005": { "path": "assets/pack/tile5.png", "type": "texture", "size": 0, "labels": [] }
+      }
+    }
+  }
+}

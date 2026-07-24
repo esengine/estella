@@ -20,10 +20,19 @@ export const PACK_TILES: readonly string[] = [
 
 /**
  * Where "Check for update" looks for a candidate manifest. A shipped build (or a
- * host) can point this at a CDN by setting `window.__estellaHotUpdate` before the
- * game boots; otherwise we probe a same-origin `asset-manifest.json` and treat a
- * miss as "already up to date" (the editor Play case — there is no newer build to
- * fetch, so the update flow honestly reports it).
+ * host) can point this at a real CDN by setting `window.__estellaHotUpdate` before
+ * the game boots.
+ *
+ * The default is a **checked-in local update channel** — `updates/v2-manifest.json`
+ * plus `updates/art-v2.png`, a full manifest that mirrors the running one with the
+ * `cdn` texture bumped to a red "v2". It lives OUTSIDE `assets/`, so:
+ *   - in editor Play the whole project root is served over `estella://`, so the
+ *     manifest resolves → checkForUpdate finds one changed asset → you can download
+ *     and apply a genuine content swap, live, without a CDN;
+ *   - a cooked/shipped build never bundles `updates/`, so the same URL 404s and the
+ *     console honestly reports "已是最新版本" (a real deployment would point
+ *     `__estellaHotUpdate` at its CDN instead).
+ * One config, correct in both realms — no realm sniffing.
  */
 export interface HotUpdateEndpoint {
     manifestUrl: string;
@@ -31,11 +40,19 @@ export interface HotUpdateEndpoint {
 }
 
 export function hotUpdateEndpoint(): HotUpdateEndpoint {
-    const w = globalThis as unknown as { __estellaHotUpdate?: Partial<HotUpdateEndpoint> };
+    const w = globalThis as unknown as {
+        __estellaHotUpdate?: Partial<HotUpdateEndpoint>;
+        location?: { origin?: string };
+    };
     const cfg = w.__estellaHotUpdate ?? {};
+    // checkForUpdate/applyUpdate fetch through the raw backend (no asset-base
+    // prefixing), so the manifest + its assets must be addressed absolutely. The
+    // page origin IS the project root in editor Play (estella://project) and the
+    // deploy root in a shipped build, so both realms resolve correctly from it.
+    const origin = w.location?.origin ?? '';
     return {
-        manifestUrl: cfg.manifestUrl ?? 'asset-manifest.json',
-        remoteRoot: cfg.remoteRoot ?? '',
+        manifestUrl: cfg.manifestUrl ?? `${origin}/updates/v2-manifest.json`,
+        remoteRoot: cfg.remoteRoot ?? origin,
     };
 }
 
