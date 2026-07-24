@@ -22,7 +22,24 @@ do {
 
 let args = Set(CommandLine.arguments.dropFirst())
 
-if args.contains("--probe-render") {
+if args.contains("--wgpu-selftest") {
+    // Native WebGPU (wgpu-native) bring-up: prove the vendored lib + Swift binding create a
+    // real GPU device from Swift (the native half of the §3.3.2 render bridge).
+    print("Estella macOS host — native WebGPU (wgpu-native) self-test.")
+    do {
+        let ctx = try WgpuContext()
+        print("  device OK — \(ctx.adapterDescription())")
+        // Clear an offscreen target to a known color and read it back — real GPU pixels.
+        let px = try ctx.offscreenClearReadback(width: 16, height: 16, clear: (0.2, 0.4, 0.8, 1.0))
+        let expected = (UInt8(0.2 * 255 + 0.5), UInt8(0.4 * 255 + 0.5), UInt8(0.8 * 255 + 0.5), UInt8(255))
+        let ok = px == expected
+        print("  clear+readback: got rgba\(px) expected ~\(expected) -> \(ok ? "PASS" : "MISMATCH")")
+        if !ok { exit(2) }
+    } catch {
+        FileHandle.standardError.write(Data("wgpu self-test failed: \(error)\n".utf8))
+        exit(1)
+    }
+} else if args.contains("--probe-render") {
     // Drive the real engine's WebGPU render init against the logging proxy to capture the
     // exact WebGPU JS call sequence (the native-Dawn-backend spec) — REARCH_NATIVE.md §3.3.2.
     print("Estella macOS host — WebGPU bridge probe (captures the engine's WebGPU call surface).")

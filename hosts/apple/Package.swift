@@ -14,9 +14,26 @@ let package = Package(
         .executable(name: "EstellaMac", targets: ["EstellaMac"]),
     ],
     targets: [
+        // Vendored native WebGPU (wgpu-native) — the native GPU backing the host bridge
+        // (REARCH_NATIVE.md §3.3.2). Binary fetched by Scripts/fetch-wgpu-native.sh.
+        .target(
+            name: "Cwgpu",
+            // Headers reach the module via Sources/Cwgpu/include/webgpu -> vendor symlink
+            // (created by Scripts/fetch-wgpu-native.sh), so include/ auto-search resolves them.
+            linkerSettings: [
+                // Link the static archive by path (forces static; no runtime rpath).
+                .unsafeFlags(["vendor/wgpu-native/lib/libwgpu_native.a"]),
+                .linkedFramework("Metal"),
+                .linkedFramework("QuartzCore"),
+                .linkedFramework("IOKit"),
+                .linkedFramework("IOSurface"),
+                .linkedFramework("CoreFoundation"),
+            ]
+        ),
         .target(
             name: "EstellaHostKit",
-            // prelude.js / boot.js are committed; the built engine assets
+            dependencies: ["Cwgpu"],
+            // prelude.js / boot.js / webgpu-probe.js are committed; the built engine assets
             // (esengine_native.{js,wasm}, estella-sdk.iife.js) are dropped in by
             // Scripts/build-js-assets.sh and are .gitignore'd.
             resources: [.copy("Resources/js")]

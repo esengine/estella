@@ -1,0 +1,4 @@
+module Cwgpu {
+    header "shim.h"
+    export *
+}
