@@ -11,14 +11,18 @@
 #include "EstellaContext.hpp"
 #include "Log.hpp"
 
-#include "../renderer/GLDevice.hpp"
+#ifdef ES_PLATFORM_WEB
+#include "../renderer/GLDevice.hpp"  // WebGL2 backend — web platform only
+#endif
 #include "../renderer/RenderContext.hpp"
 #include "../renderer/RenderFrame.hpp"
 #include "../renderer/ImmediateDraw.hpp"
 #include "../renderer/CustomGeometry.hpp"
 #include "../renderer/plugins/SpritePlugin.hpp"
 #include "../renderer/plugins/UIElementPlugin.hpp"
+#ifdef ES_ENABLE_BITMAP_TEXT
 #include "../renderer/plugins/TextPlugin.hpp"
+#endif
 #include "../renderer/plugins/ShapePlugin.hpp"
 #include "../renderer/plugins/MeshPlugin.hpp"
 #ifdef ES_ENABLE_PARTICLES
@@ -72,6 +76,10 @@ EstellaContext::~EstellaContext() {
     }
 }
 
+#ifdef ES_PLATFORM_WEB
+// The WebGL2 entry: takes an emscripten context handle and drives the GLDevice
+// backend. A native build has no WebGL — it enters through init(Unique<GfxDevice>)
+// with an injected WebGPUDevice instead, so this overload compiles out entirely.
 bool EstellaContext::init(int webglContextHandle) {
     if (state_.initialized) {
         ES_LOG_WARN("EstellaContext already initialized");
@@ -80,18 +88,17 @@ bool EstellaContext::init(int webglContextHandle) {
 
     state_.webgl_context = webglContextHandle;
 
-#ifdef ES_PLATFORM_WEB
     EMSCRIPTEN_RESULT result = emscripten_webgl_make_context_current(
         static_cast<EMSCRIPTEN_WEBGL_CONTEXT_HANDLE>(webglContextHandle));
     if (result != EMSCRIPTEN_RESULT_SUCCESS) {
         ES_LOG_ERROR("Failed to make WebGL context current: {}", result);
         return false;
     }
-#endif
 
     initSubsystems(makeUnique<GLDevice>());
     return true;
 }
+#endif  // ES_PLATFORM_WEB
 
 bool EstellaContext::init(Unique<GfxDevice> device) {
     if (state_.initialized) {
@@ -150,7 +157,9 @@ void EstellaContext::initSubsystems(Unique<GfxDevice> gfxDevice) {
     auto renderFrame = makeUnique<RenderFrame>(*gfxDevicePtr, *rc, *rm);
     renderFrame->addPlugin(std::make_unique<SpritePlugin>());
     renderFrame->addPlugin(std::make_unique<UIElementPlugin>());
+#ifdef ES_ENABLE_BITMAP_TEXT
     renderFrame->addPlugin(std::make_unique<TextPlugin>());
+#endif
     renderFrame->addPlugin(std::make_unique<ShapePlugin>());
     renderFrame->addPlugin(std::make_unique<MeshPlugin>());
     {
