@@ -23,7 +23,18 @@ do {
 
 let args = Set(CommandLine.arguments.dropFirst())
 
-if args.contains("--wgpu-selftest") {
+if args.contains("--wgpu-bridge-test") {
+    // Slice 4a: prove the JS WebGPU shim -> Swift -> wgpu-native marshalling on the real GPU.
+    print("Estella macOS host — WebGPU JS bridge marshalling test.")
+    do {
+        let ctx = try WgpuContext()
+        let bridge = WgpuBridge(runtime: runtime, context: ctx)
+        print("  \(bridge.selfTest())")
+    } catch {
+        FileHandle.standardError.write(Data("bridge test failed: \(error)\n".utf8))
+        exit(1)
+    }
+} else if args.contains("--wgpu-selftest") {
     // Native WebGPU (wgpu-native) bring-up: prove the vendored lib + Swift binding create a
     // real GPU device from Swift (the native half of the §3.3.2 render bridge).
     print("Estella macOS host — native WebGPU (wgpu-native) self-test.")
