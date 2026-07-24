@@ -157,6 +157,29 @@ packaging shell: `App/main.m` calls `EstellaRunApp()`, and the game (`host_js/ga
 `host_js/logo.png`) ships as bundle resources — the same project-relative paths the APK
 serves from `assets/`.
 
+## Shipping a project (Stage C)
+
+The demo above is a hand-written `game.js`. A real game comes out of the editor:
+**Package Project → Mobile** (or `exportGame({ platform: 'native' })`) writes the
+cooked assets, both manifests, the scenes and `game.config.json` — content only,
+since the engine, the SDK and the game runtime all ship inside the app binary.
+Pass that directory to the build and it becomes the app's content:
+
+```sh
+# Android: it becomes the APK's assets/
+node build-tools/cli.js native --dawn "$DAWN" --dawn-build "$DAWN/out-android" \
+  --quickjs "$QJS" --package --content dist-native
+
+# iOS: it stages into native/ios/Content (a folder reference), then rebuild in Xcode
+node build-tools/cli.js native --target ios --dawn "$DAWN" \
+  --dawn-build "$DAWN/out-ios" --quickjs "$QJS" --content dist-native
+```
+
+The host decides which it is from what it finds: `game.config.json` boots the
+exported project through `ESEngine.initNativeGame`, otherwise `game.js` runs. A
+project's own scripts (`defineComponent` / `defineSystem`) bundle to `scripts.js`
+and evaluate before the scene loads, bound to the host's SDK instance.
+
 ## Gotchas (all resolved; each cost a build)
 
 1. Dawn cross-compile wants a host `protoc` — `-DDAWN_BUILD_PROTOBUF=OFF`.
@@ -178,8 +201,9 @@ serves from `assets/`.
 **Android** is proven on device (Snapdragon 8 Elite / Adreno 830, 120 fps).
 **iOS** runs: the demo renders in the simulator at a steady 60 fps — the clear
 colour, a ShapeRenderer and `logo.png` loaded through the real `Assets.loadTexture`
-pipeline — booting in ~20 ms off the bytecode cache. Not yet run on a physical
-device, which needs your signing.
+pipeline — booting in ~20 ms off the bytecode cache. An **exported project** runs
+too: the camera-follow example's scene loads from its cooked content and renders.
+Not yet run on a physical device, which needs your signing.
 
 The engine core + render path are proven on device. The JS host runs the **real
 SDK**: `ESEngine.createNativeApp()`
