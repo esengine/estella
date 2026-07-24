@@ -15,13 +15,326 @@
     },
     {
       "id": 1,
-      "name": "Display",
+      "name": "HeroDisplay",
       "parent": null,
       "children": [],
       "visible": true,
       "components": [
         { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 0 } } },
-        { "type": "Sprite", "data": { "size": { "x": 4000, "y": 4000 }, "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "texture": "@uuid:a1b2c3d4-0002-4002-8002-000000000002" } }
+        { "type": "Sprite", "data": { "size": { "x": 2000, "y": 2000 }, "color": { "r": 1, "g": 1, "b": 1, "a": 1 }, "texture": "@uuid:a1b2c3d4-0002-4002-8002-000000000002" } }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Canvas",
+      "parent": null,
+      "children": [3, 6, 20],
+      "visible": true,
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "Canvas", "data": { "designResolution": { "x": 800, "y": 600 }, "scaleMode": 2 } },
+        { "type": "UINode", "data": {} }
+      ]
+    },
+
+    {
+      "id": 3,
+      "name": "TopBar",
+      "parent": 2,
+      "children": [4, 5],
+      "visible": true,
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "insetLeft": { "value": 16, "unit": 0 }, "insetRight": { "value": 16, "unit": 0 }, "insetTop": { "value": 14, "unit": 0 }, "height": { "value": 56, "unit": 0 } } },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0.11, "g": 0.12, "b": 0.15, "a": 0.9 }, "enabled": true } }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Title",
+      "parent": 3,
+      "children": [],
+      "visible": true,
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "insetLeft": { "value": 20, "unit": 0 }, "insetTop": { "value": 0, "unit": 0 }, "insetBottom": { "value": 0, "unit": 0 }, "width": { "value": 460, "unit": 0 } } },
+        { "type": "Text", "data": { "content": "热更新中心 · Hot-Update Center", "fontSize": 22, "bold": true, "color": { "r": 0.93, "g": 0.95, "b": 0.98, "a": 1 }, "align": 0, "verticalAlign": 1 } }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "VersionLabel",
+      "parent": 3,
+      "children": [],
+      "visible": true,
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "insetRight": { "value": 20, "unit": 0 }, "insetTop": { "value": 0, "unit": 0 }, "insetBottom": { "value": 0, "unit": 0 }, "width": { "value": 240, "unit": 0 } } },
+        { "type": "Text", "data": { "content": "远程内容 · CDN", "fontSize": 13, "color": { "r": 0.6, "g": 0.64, "b": 0.72, "a": 1 }, "align": 2, "verticalAlign": 1 } }
+      ]
+    },
+
+    {
+      "id": 6,
+      "name": "Strip",
+      "parent": 2,
+      "children": [7, 8, 10, 12, 14, 16, 18],
+      "visible": true,
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "insetLeft": { "value": 16, "unit": 0 }, "insetRight": { "value": 16, "unit": 0 }, "insetTop": { "value": 84, "unit": 0 }, "height": { "value": 118, "unit": 0 } } },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0.11, "g": 0.12, "b": 0.15, "a": 0.9 }, "enabled": true } }
+      ]
+    },
+    {
+      "id": 7,
+      "name": "StripLabel",
+      "parent": 6,
+      "children": [],
+      "visible": true,
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "insetLeft": { "value": 20, "unit": 0 }, "insetRight": { "value": 20, "unit": 0 }, "insetTop": { "value": 10, "unit": 0 }, "height": { "value": 20, "unit": 0 } } },
+        { "type": "Text", "data": { "content": "可选资源包 (DLC) · 点击「下载资源包」按需拉取远程内容", "fontSize": 13, "color": { "r": 0.6, "g": 0.64, "b": 0.72, "a": 1 }, "align": 0, "verticalAlign": 1 } }
+      ]
+    },
+    {
+      "id": 8,
+      "name": "Tile0",
+      "parent": 6,
+      "children": [9],
+      "visible": true,
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "insetLeft": { "value": 20, "unit": 0 }, "insetTop": { "value": 38, "unit": 0 }, "width": { "value": 64, "unit": 0 }, "height": { "value": 64, "unit": 0 } } },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0.2, "g": 0.22, "b": 0.27, "a": 1 }, "enabled": true } }
+      ]
+    },
+    {
+      "id": 9,
+      "name": "TileMark0",
+      "parent": 8,
+      "children": [],
+      "visible": true,
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "insetLeft": { "value": 0, "unit": 0 }, "insetTop": { "value": 0, "unit": 0 }, "insetRight": { "value": 0, "unit": 0 }, "insetBottom": { "value": 0, "unit": 0 } } },
+        { "type": "Text", "data": { "content": "?", "fontSize": 22, "color": { "r": 0.6, "g": 0.64, "b": 0.72, "a": 1 }, "align": 1, "verticalAlign": 1 } }
+      ]
+    },
+    {
+      "id": 10,
+      "name": "Tile1",
+      "parent": 6,
+      "children": [11],
+      "visible": true,
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "insetLeft": { "value": 104, "unit": 0 }, "insetTop": { "value": 38, "unit": 0 }, "width": { "value": 64, "unit": 0 }, "height": { "value": 64, "unit": 0 } } },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0.2, "g": 0.22, "b": 0.27, "a": 1 }, "enabled": true } }
+      ]
+    },
+    {
+      "id": 11,
+      "name": "TileMark1",
+      "parent": 10,
+      "children": [],
+      "visible": true,
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "insetLeft": { "value": 0, "unit": 0 }, "insetTop": { "value": 0, "unit": 0 }, "insetRight": { "value": 0, "unit": 0 }, "insetBottom": { "value": 0, "unit": 0 } } },
+        { "type": "Text", "data": { "content": "?", "fontSize": 22, "color": { "r": 0.6, "g": 0.64, "b": 0.72, "a": 1 }, "align": 1, "verticalAlign": 1 } }
+      ]
+    },
+    {
+      "id": 12,
+      "name": "Tile2",
+      "parent": 6,
+      "children": [13],
+      "visible": true,
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "insetLeft": { "value": 188, "unit": 0 }, "insetTop": { "value": 38, "unit": 0 }, "width": { "value": 64, "unit": 0 }, "height": { "value": 64, "unit": 0 } } },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0.2, "g": 0.22, "b": 0.27, "a": 1 }, "enabled": true } }
+      ]
+    },
+    {
+      "id": 13,
+      "name": "TileMark2",
+      "parent": 12,
+      "children": [],
+      "visible": true,
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "insetLeft": { "value": 0, "unit": 0 }, "insetTop": { "value": 0, "unit": 0 }, "insetRight": { "value": 0, "unit": 0 }, "insetBottom": { "value": 0, "unit": 0 } } },
+        { "type": "Text", "data": { "content": "?", "fontSize": 22, "color": { "r": 0.6, "g": 0.64, "b": 0.72, "a": 1 }, "align": 1, "verticalAlign": 1 } }
+      ]
+    },
+    {
+      "id": 14,
+      "name": "Tile3",
+      "parent": 6,
+      "children": [15],
+      "visible": true,
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "insetLeft": { "value": 272, "unit": 0 }, "insetTop": { "value": 38, "unit": 0 }, "width": { "value": 64, "unit": 0 }, "height": { "value": 64, "unit": 0 } } },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0.2, "g": 0.22, "b": 0.27, "a": 1 }, "enabled": true } }
+      ]
+    },
+    {
+      "id": 15,
+      "name": "TileMark3",
+      "parent": 14,
+      "children": [],
+      "visible": true,
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "insetLeft": { "value": 0, "unit": 0 }, "insetTop": { "value": 0, "unit": 0 }, "insetRight": { "value": 0, "unit": 0 }, "insetBottom": { "value": 0, "unit": 0 } } },
+        { "type": "Text", "data": { "content": "?", "fontSize": 22, "color": { "r": 0.6, "g": 0.64, "b": 0.72, "a": 1 }, "align": 1, "verticalAlign": 1 } }
+      ]
+    },
+    {
+      "id": 16,
+      "name": "Tile4",
+      "parent": 6,
+      "children": [17],
+      "visible": true,
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "insetLeft": { "value": 356, "unit": 0 }, "insetTop": { "value": 38, "unit": 0 }, "width": { "value": 64, "unit": 0 }, "height": { "value": 64, "unit": 0 } } },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0.2, "g": 0.22, "b": 0.27, "a": 1 }, "enabled": true } }
+      ]
+    },
+    {
+      "id": 17,
+      "name": "TileMark4",
+      "parent": 16,
+      "children": [],
+      "visible": true,
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "insetLeft": { "value": 0, "unit": 0 }, "insetTop": { "value": 0, "unit": 0 }, "insetRight": { "value": 0, "unit": 0 }, "insetBottom": { "value": 0, "unit": 0 } } },
+        { "type": "Text", "data": { "content": "?", "fontSize": 22, "color": { "r": 0.6, "g": 0.64, "b": 0.72, "a": 1 }, "align": 1, "verticalAlign": 1 } }
+      ]
+    },
+    {
+      "id": 18,
+      "name": "Tile5",
+      "parent": 6,
+      "children": [19],
+      "visible": true,
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "insetLeft": { "value": 440, "unit": 0 }, "insetTop": { "value": 38, "unit": 0 }, "width": { "value": 64, "unit": 0 }, "height": { "value": 64, "unit": 0 } } },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0.2, "g": 0.22, "b": 0.27, "a": 1 }, "enabled": true } }
+      ]
+    },
+    {
+      "id": 19,
+      "name": "TileMark5",
+      "parent": 18,
+      "children": [],
+      "visible": true,
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "insetLeft": { "value": 0, "unit": 0 }, "insetTop": { "value": 0, "unit": 0 }, "insetRight": { "value": 0, "unit": 0 }, "insetBottom": { "value": 0, "unit": 0 } } },
+        { "type": "Text", "data": { "content": "?", "fontSize": 22, "color": { "r": 0.6, "g": 0.64, "b": 0.72, "a": 1 }, "align": 1, "verticalAlign": 1 } }
+      ]
+    },
+
+    {
+      "id": 20,
+      "name": "Console",
+      "parent": 2,
+      "children": [21, 22, 23, 25, 26, 27],
+      "visible": true,
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "insetLeft": { "value": 16, "unit": 0 }, "insetRight": { "value": 16, "unit": 0 }, "insetBottom": { "value": 16, "unit": 0 }, "height": { "value": 196, "unit": 0 } } },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0.11, "g": 0.12, "b": 0.15, "a": 0.96 }, "enabled": true } }
+      ]
+    },
+    {
+      "id": 21,
+      "name": "StatusLabel",
+      "parent": 20,
+      "children": [],
+      "visible": true,
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "insetLeft": { "value": 22, "unit": 0 }, "insetRight": { "value": 22, "unit": 0 }, "insetTop": { "value": 18, "unit": 0 }, "height": { "value": 28, "unit": 0 } } },
+        { "type": "Text", "data": { "content": "就绪", "fontSize": 20, "bold": true, "color": { "r": 0.93, "g": 0.95, "b": 0.98, "a": 1 }, "align": 0, "verticalAlign": 1 } }
+      ]
+    },
+    {
+      "id": 22,
+      "name": "PlanLabel",
+      "parent": 20,
+      "children": [],
+      "visible": true,
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "insetLeft": { "value": 22, "unit": 0 }, "insetRight": { "value": 22, "unit": 0 }, "insetTop": { "value": 50, "unit": 0 }, "height": { "value": 20, "unit": 0 } } },
+        { "type": "Text", "data": { "content": "点击「检查更新」比对远程内容，或「下载资源包」按需拉取", "fontSize": 13, "color": { "r": 0.6, "g": 0.64, "b": 0.72, "a": 1 }, "align": 0, "verticalAlign": 1 } }
+      ]
+    },
+    {
+      "id": 23,
+      "name": "ProgressTrack",
+      "parent": 20,
+      "children": [24],
+      "visible": true,
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "insetLeft": { "value": 22, "unit": 0 }, "insetRight": { "value": 92, "unit": 0 }, "insetTop": { "value": 88, "unit": 0 }, "height": { "value": 16, "unit": 0 } } },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0.24, "g": 0.26, "b": 0.31, "a": 1 }, "enabled": true } }
+      ]
+    },
+    {
+      "id": 24,
+      "name": "ProgressFill",
+      "parent": 23,
+      "children": [],
+      "visible": true,
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "insetLeft": { "value": 0, "unit": 0 }, "insetTop": { "value": 0, "unit": 0 }, "insetRight": { "value": 0, "unit": 0 }, "insetBottom": { "value": 0, "unit": 0 } } },
+        { "type": "UIVisual", "data": { "visualType": 5, "color": { "r": 0.29, "g": 0.56, "b": 0.95, "a": 1 }, "fillMethod": 0, "fillOrigin": 0, "fillAmount": 0, "enabled": true } }
+      ]
+    },
+    {
+      "id": 25,
+      "name": "PctLabel",
+      "parent": 20,
+      "children": [],
+      "visible": true,
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "insetRight": { "value": 22, "unit": 0 }, "insetTop": { "value": 84, "unit": 0 }, "width": { "value": 62, "unit": 0 }, "height": { "value": 24, "unit": 0 } } },
+        { "type": "Text", "data": { "content": "0%", "fontSize": 14, "color": { "r": 0.6, "g": 0.64, "b": 0.72, "a": 1 }, "align": 2, "verticalAlign": 1 } }
+      ]
+    },
+    {
+      "id": 26,
+      "name": "DlcSlot",
+      "parent": 20,
+      "children": [],
+      "visible": true,
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "insetLeft": { "value": 22, "unit": 0 }, "insetBottom": { "value": 18, "unit": 0 }, "width": { "value": 210, "unit": 0 }, "height": { "value": 42, "unit": 0 } } }
+      ]
+    },
+    {
+      "id": 27,
+      "name": "PrimarySlot",
+      "parent": 20,
+      "children": [],
+      "visible": true,
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "UINode", "data": { "position": 1, "insetRight": { "value": 22, "unit": 0 }, "insetBottom": { "value": 18, "unit": 0 }, "width": { "value": 210, "unit": 0 }, "height": { "value": 42, "unit": 0 } } }
       ]
     }
   ]

@@ -1,67 +1,105 @@
 # Hot Update Demo
 
-Ship a game, then change its art **on a CDN** and have running clients pick up the
-new bytes — no re-download of the package, no store re-submission. This example
-shows the whole loop on a single sprite.
+Ship a game, then change its content **on a CDN** and have running clients pick up
+the new bytes — no re-download of the package, no store re-submission. This example
+turns that whole loop into an interactive **hot-update center**: a status line, a
+plan summary, a real download **progress bar**, and two buttons, all built from the
+engine's own UI widgets driving the engine's own `Assets` hot-update API.
 
-## How it works
+The screen has three parts, all authored in `assets/scenes/main.esscene`:
+
+- a full-screen **remote content** sprite (green) — a `remote`-group texture the
+  hot update swaps;
+- a **DLC tile strip** — six placeholders you fill on demand;
+- an **update console** — status, plan, progress bar, and the `下载资源包` /
+  `检查更新` buttons.
+
+`src/` is behavior only: `systems/build.ts` resolves the scene widgets and wires
+the buttons to the API; `systems/update.ts` mirrors state onto the widgets each
+frame. The layout lives in the scene — the code never builds UI.
+
+## The two flows
+
+### 1. On-demand download (the DLC pattern) — watch it download
+
+`assets/pack/` is a `remote` group the scene does **not** reference, so nothing
+loads it at boot. Press **下载资源包** and the game calls:
+
+```ts
+await assets.loadGroup('pack', (loaded, total) => {
+  progress.setValue(loaded / total);        // real per-file progress
+});
+```
+
+The progress bar fills as the six tiles arrive, then each is bound into its slot:
+
+```ts
+const tex = await assets.loadTexture('assets/pack/tile0.png'); // path ref, resolved via the group
+tile.texture = tex.handle;
+```
+
+This flow is fully interactive in editor Play — click Play, press the button, and
+watch the bar fill and the tiles reveal.
+
+### 2. Content hot-update — swap shipped content
+
+Press **检查更新** and the game diffs a candidate manifest against the running one:
+
+```ts
+const plan = await assets.checkForUpdate({ manifestUrl, remoteRoot });
+// plan.changedAssets, plan.totalBytes, plan.fromRevision → plan.toRevision
+if (plan.hasUpdate) {
+  const result = await assets.applyUpdate((loaded, total) => {
+    progress.setValue(loaded / total);      // download + integrity-verify progress
+  });
+  // result.ok → the remote sprite hot-swaps on screen (built-in rebinder);
+  // on any failure NOTHING is applied — the update rolls back atomically.
+}
+```
+
+`manifestUrl` / `remoteRoot` come from `window.__estellaHotUpdate` if a host sets
+it; otherwise the demo probes a same-origin `asset-manifest.json`. In editor Play
+there is no newer build to fetch, so the console honestly reports **已是最新版本** —
+the real swap is exercised by the render verify below (and in a shipped build
+pointed at a CDN that has newer content).
+
+## How it works — content addressing
 
 Estella assets are **content-addressed**: a cooked asset ships as
 `<contentHash>.<ext>`, an immutable, permanently-cacheable URL. Change a byte →
-new hash → new URL. A hot update is therefore just: *fetch the new manifest,
-diff it, download the assets whose hash changed, swap the active manifest.*
-Nothing is ever overwritten, so a cache can never go stale.
+new hash → new URL. A hot update is therefore just: *fetch the new manifest, diff
+it by `contentHash`, download the assets whose hash changed, swap the active
+manifest.* Nothing is ever overwritten, so a cache can never go stale, and
+`applyUpdate` verifies every downloaded file's hash before committing.
 
-### The pieces
+The delivery config is `.esengine/asset-groups.json`: `assets/cdn` and
+`assets/pack` are ordinarily-named folders the config marks as `remote` groups,
+and build profiles (`dev` / `prod`) carry the CDN root per environment:
 
-- **`assets/cdn/art.png`** — a texture assigned to a **`remote` group** by the
-  project's delivery config, so it's delivered from a CDN (bundle mode `remote`),
-  not baked into the package.
-- **`.esengine/asset-groups.json`** — the delivery config. `assets/cdn` is an
-  ordinarily-named folder; the config is what marks it a remote group, and build
-  profiles (`dev` / `prod`) carry the CDN root per environment:
-  ```json
-  {
-    "groups": { "cdn": { "folder": "assets/cdn", "mode": "remote" } },
-    "activeProfile": "dev",
-    "profiles": { "dev": { "remoteRoot": "" }, "prod": { "remoteRoot": "https://cdn.example.com/hot-update-demo" } }
-  }
-  ```
-  (The legacy `remote/<name>/` / `subpackages/<name>/` folder names still work as a
-  zero-config default when there is no `asset-groups.json`.)
-- **`assets/scenes/main.esscene`** — the Display sprite references the texture by
-  an ordinary `@uuid`. The asset lives in a `remote` group, so the runtime routes
-  that `@uuid` to the CDN automatically — the scene author does nothing special.
-- **No game code.** `src/main.ts` is empty. When an update is applied the runtime's
-  built-in rebinder reloads the changed asset (now resolved to the CDN) and swaps
-  it into the live sprite, so the picture changes on screen on its own. (A game can
-  still call `Assets.loadGroup(name)` to pull a whole remote group on demand — the
-  DLC pattern — or `Assets.onInvalidate` for custom rebinding.)
-- **The update** — call `Assets.checkForUpdate({ manifestUrl, remoteRoot })` to
-  diff the CDN's manifest against the running one, then `Assets.applyUpdate()` to
-  download the changed assets and swap the manifest. Existing handles bound to a
-  changed asset are told to rebind. `Assets.restorePersistedUpdate(key)` at boot
-  makes a returning player start on the already-updated content, even offline.
-
-```ts
-const plan = await assets.checkForUpdate({
-  manifestUrl: 'https://cdn.example.com/asset-manifest.json',
-  remoteRoot:  'https://cdn.example.com',
-});
-if (plan.hasUpdate) await assets.applyUpdate();
+```json
+{
+  "groups": {
+    "cdn":  { "folder": "assets/cdn",  "mode": "remote" },
+    "pack": { "folder": "assets/pack", "mode": "remote" }
+  },
+  "activeProfile": "dev",
+  "profiles": { "dev": { "remoteRoot": "" }, "prod": { "remoteRoot": "https://cdn.example.com/hot-update-demo" } }
+}
 ```
 
-The whole path is content-addressed and platform-uniform: the same
-`asset-manifest.json` + `loadGroup` + hot-update work on web, desktop, and
-mini-games.
+The scene references the `cdn` texture by an ordinary `@uuid`; because it lives in
+a `remote` group the runtime routes it to the CDN automatically, and the built-in
+rebinder swaps the live sprite when an update is applied — the swap needs zero
+game code. The whole path is platform-uniform: the same manifest + `loadGroup` +
+hot-update work on web, desktop, and mini-games.
 
 ## Verify it
 
-The engine ships an automated render check that proves the loop end-to-end —
-cooks the game (green art), cooks a CDN update (red art), boots the shipped
-runtime, asserts it draws **green**, drives the update, and asserts it draws
-**red**:
+The engine ships an automated render check that proves the content-swap loop
+end-to-end — cooks the game (green art), cooks a CDN update (red art), boots the
+shipped runtime, asserts it draws **green**, drives the update, and asserts it
+draws **red**:
 
 ```
-pnpm --filter @estella/editor verify:render:hotupdate
+cd desktop && npm run verify:render:hotupdate
 ```
