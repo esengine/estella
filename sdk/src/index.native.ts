@@ -49,6 +49,10 @@ export type { MemoryProvider, ComponentHeap, NativeComponentBufferFn } from './e
 // _remove bindings; pass to BuiltinBridge.connect as the cppRegistry.
 export { createNativeRegistry } from './ecs/nativeRegistry';
 
+// Boot the real SDK ECS World over the native core — the host's entry point for
+// running the actual SDK (spawn/insert/query authoring) against native C++ ECS.
+export { createNativeWorld } from './ecs/nativeRuntime';
+
 // ABI layout hash of the component schema this bundle was generated from — the
 // native shell compares it against the wasm build it loads (same as the editor).
 export { ABI_LAYOUT_HASH } from './component.generated';

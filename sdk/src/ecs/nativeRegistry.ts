@@ -29,16 +29,51 @@ function views(buf: ArrayBuffer): [Float32Array, Uint32Array, Uint8Array] {
     return [new Float32Array(buf), new Uint32Array(buf), new Uint8Array(buf)];
 }
 
+/** Invoke a host-provided global by name (throws a clear error if the host did not
+ *  bind it — these are part of the native registry contract, not optional). */
+function hostCall(scope: Record<string, unknown>, name: string, args: unknown[]): unknown {
+    const fn = scope[name];
+    if (typeof fn !== 'function') {
+        throw new Error(`native host binding "${name}" is missing`);
+    }
+    return (fn as (...a: unknown[]) => unknown)(...args);
+}
+
+/** Present a JS array as the embind VectorEntity interface World.getChildren
+ *  returns (size()/get(i)/delete()), so despawn iterates it the same on both
+ *  backends. Native memory is JS-owned here, so delete() is a no-op. */
+function vectorEntity(arr: readonly Entity[]): { size(): number; get(i: number): Entity; delete(): void } {
+    return { size: () => arr.length, get: (i: number) => arr[i], delete: () => { /* nothing to free */ } };
+}
+
 /**
- * Build a CppRegistry over the host's native component bindings. `scope` holds the
- * generated `es_<Component>_buffer` / `_has` / `_remove` globals (the QuickJS
- * global object on a device; a plain object in tests). Only components whose three
- * bindings are present get methods, so a host that binds a subset still connects.
+ * Build the full CppRegistry over the host's native bindings — entity lifecycle +
+ * hierarchy (es_createEntity / es_destroyEntity / es_setParent / …) plus, per
+ * component, the generated es_<Component>_buffer / _has / _remove. `scope` holds
+ * those globals (the QuickJS global object on a device; a plain object in tests).
+ * Only components whose three bindings are present get component methods, so a host
+ * that binds a subset still connects.
  */
 export function createNativeRegistry(
     scope: Record<string, unknown> = globalThis as unknown as Record<string, unknown>,
 ): CppRegistry {
     const reg: Record<string, unknown> = {};
+
+    // Entity lifecycle + hierarchy — the base Registry surface World drives (spawn,
+    // despawn, parent/child). These are not per-component; the host binds them by
+    // hand (the native siblings of the embind Registry's entity ops).
+    reg.create = (): Entity => hostCall(scope, 'es_createEntity', []) as Entity;
+    reg.destroy = (e: Entity): void => { hostCall(scope, 'es_destroyEntity', [e]); };
+    reg.hasParent = (e: Entity): boolean => !!hostCall(scope, 'es_hasParent', [e]);
+    reg.setParent = (child: Entity, parent: Entity): void => {
+        hostCall(scope, 'es_setParent', [child, parent]);
+    };
+    reg.removeParent = (e: Entity): void => { hostCall(scope, 'es_removeParent', [e]); };
+    reg.hasChildren = (e: Entity): boolean => !!hostCall(scope, 'es_hasChildren', [e]);
+    reg.getChildren = (e: Entity) => ({
+        entities: vectorEntity((hostCall(scope, 'es_getChildren', [e]) as Entity[] | undefined) ?? []),
+    });
+    reg.delete = (): void => {};
 
     for (const cppName of Object.keys(PTR_ACCESSORS)) {
         const accessor = PTR_ACCESSORS[cppName];
