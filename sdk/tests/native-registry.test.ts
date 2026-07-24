@@ -1,0 +1,111 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+ * @file    native-registry.test.ts
+ * @brief   The native component registry (embind-Registry sibling). A mock host
+ *          scope backs es_<C>_buffer/_has/_remove with JS ArrayBuffers + a Set,
+ *          so the full SDK component API (BuiltinBridge.insert/get/has/remove +
+ *          the fast path) runs on the native backend end-to-end, headless, no
+ *          device — proving Stage A: one SDK, native core.
+ */
+import { describe, expect, it } from 'vitest';
+import { BuiltinBridge } from '../src/ecs/BuiltinBridge';
+import { createNativeRegistry } from '../src/ecs/nativeRegistry';
+import { NativeMemoryProvider } from '../src/ecs/memoryProvider';
+import { PTR_ACCESSORS } from '../src/ecs/ptrAccessors.generated';
+import { Sprite } from '../src/component';
+
+/**
+ * A fake native host: each component's storage is an entity->ArrayBuffer map, with
+ * the three generated bindings the SDK expects. es_<C>_buffer getOrEmplaces (mirrors
+ * the native binding); _has / _remove complete the lifecycle.
+ */
+function mockNativeScope(byteSize = 256): Record<string, unknown> {
+    const scope: Record<string, unknown> = {};
+    for (const cppName of Object.keys(PTR_ACCESSORS)) {
+        const store = new Map<number, ArrayBuffer>();
+        scope[`es_${cppName}_buffer`] = (e: number) => {
+            let b = store.get(e);
+            if (!b) { b = new ArrayBuffer(byteSize); store.set(e, b); }
+            return b;
+        };
+        scope[`es_${cppName}_has`] = (e: number) => store.has(e);
+        scope[`es_${cppName}_remove`] = (e: number) => { store.delete(e); };
+    }
+    return scope;
+}
+
+describe('createNativeRegistry', () => {
+    it('round-trips a component through add / has / get / remove (embind shape)', () => {
+        const reg = createNativeRegistry(mockNativeScope()) as unknown as Record<string, Function>;
+
+        expect(reg.hasSprite(1)).toBe(false);
+        // add takes a full component (the SDK always merges defaults first). Start
+        // from the generated defaults, then restate color in embind {x,y,z,w} shape.
+        const data = PTR_ACCESSORS.Sprite.create() as Record<string, any>;
+        data.color = { x: 0.5, y: 0.25, z: 0.125, w: 1 };
+        data.size = { x: 12, y: 34 };
+        data.lit = true;
+        reg.addSprite(1, data);
+        expect(reg.hasSprite(1)).toBe(true);
+
+        const got = reg.getSprite(1) as Record<string, any>;
+        // get returns embind shape ({x,y,z,w}) for the SDK boundary.
+        expect(got.color.x).toBeCloseTo(0.5);
+        expect(got.color.y).toBeCloseTo(0.25);
+        expect(got.color.z).toBeCloseTo(0.125);
+        expect(got.size).toMatchObject({ x: 12, y: 34 });
+        expect(got.lit).toBe(true);
+
+        reg.removeSprite(1);
+        expect(reg.hasSprite(1)).toBe(false);
+    });
+
+    it('drives the real SDK BuiltinBridge lifecycle on the native backend', () => {
+        const scope = mockNativeScope();
+        const reg = createNativeRegistry(scope);
+        const bridge = new BuiltinBridge();
+        // No wasm module — the native memory backend + registry stand in for it.
+        bridge.connect(reg, undefined, { memory: new NativeMemoryProvider(scope) });
+
+        const e = 42;
+        expect(bridge.has(e, Sprite)).toBe(false);
+
+        // insert() speaks the SDK {r,g,b,a} color shape; convertForWasm + the
+        // registry's convertFromWasm bridge it to native memory and back.
+        const { isNew } = bridge.insert(e, Sprite, {
+            color: { r: 0.5, g: 0.25, b: 0.125, a: 1 },
+            size: { x: 20, y: 40 },
+            lit: true,
+        });
+        expect(isNew).toBe(true);
+        expect(bridge.has(e, Sprite)).toBe(true);
+
+        const sprite = bridge.get(e, Sprite) as { color: any; size: any; lit: boolean };
+        expect(sprite.color.r).toBeCloseTo(0.5);
+        expect(sprite.color.g).toBeCloseTo(0.25);
+        expect(sprite.color.b).toBeCloseTo(0.125);
+        expect(sprite.color.a).toBeCloseTo(1);
+        expect(sprite.size).toMatchObject({ x: 20, y: 40 });
+        expect(sprite.lit).toBe(true);
+    });
+
+    it('get never creates a component (has stays false)', () => {
+        const scope = mockNativeScope();
+        const reg = createNativeRegistry(scope) as unknown as Record<string, Function>;
+        reg.getSprite(9);                       // read a missing component
+        expect(reg.hasSprite(9)).toBe(false);   // must not have emplaced it
+    });
+
+    it('skips components whose host bindings are absent', () => {
+        // Only Sprite is bound; other components must not get registry methods.
+        const scope: Record<string, unknown> = {
+            es_Sprite_buffer: (_e: number) => new ArrayBuffer(256),
+            es_Sprite_has: (_e: number) => false,
+            es_Sprite_remove: (_e: number) => {},
+        };
+        const reg = createNativeRegistry(scope) as unknown as Record<string, unknown>;
+        expect(typeof reg.addSprite).toBe('function');
+        expect(reg.addTransform).toBeUndefined();
+    });
+});

@@ -73,11 +73,26 @@ class NativeBindingsGenerator:
         # Fast path: es_<Component>_buffer(entityId) -> a zero-copy ArrayBuffer over
         # the native component, which the shared generated ptrAccessors write. Same
         # POD layout as wasm32, so ptrAccessors.generated.ts works unchanged.
+        # getOrEmplace so a first write (component add) also creates the component.
         out.append(f'static JSValue es_{comp.name}_buffer(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {{')
         out.append('    if (argc < 1) return JS_UNDEFINED;')
         out.append('    esengine::Entity e = esn_entity(ctx, argv[0]);')
         out.append(f'    auto& c = esn_reg().getOrEmplace<{full}>(e);')
         out.append(f'    return esn_arraybuffer(ctx, &c, sizeof({full}));')
+        out.append('}')
+        # Lifecycle: the native siblings of the embind Registry's has/remove. With
+        # the buffer (getOrEmplace = add) + ptrAccessors (fields), these complete the
+        # component API the SDK's BuiltinBridge drives (getBuiltinMethods).
+        out.append(f'static JSValue es_{comp.name}_has(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {{')
+        out.append('    if (argc < 1) return JS_UNDEFINED;')
+        out.append('    esengine::Entity e = esn_entity(ctx, argv[0]);')
+        out.append(f'    return JS_NewBool(ctx, esn_reg().has<{full}>(e));')
+        out.append('}')
+        out.append(f'static JSValue es_{comp.name}_remove(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {{')
+        out.append('    if (argc < 1) return JS_UNDEFINED;')
+        out.append('    esengine::Entity e = esn_entity(ctx, argv[0]);')
+        out.append(f'    if (esn_reg().has<{full}>(e)) esn_reg().remove<{full}>(e);')
+        out.append('    return JS_UNDEFINED;')
         out.append('}')
         out.append('')
         return out
@@ -109,10 +124,16 @@ class NativeBindingsGenerator:
         for comp in components:
             setter = f'es_set_{comp.name}'
             buffer = f'es_{comp.name}_buffer'
+            has = f'es_{comp.name}_has'
+            remove = f'es_{comp.name}_remove'
             lines.append(f'    JS_SetPropertyStr(ctx, global, "{setter}", '
                          f'JS_NewCFunction(ctx, {setter}, "{setter}", 2));')
             lines.append(f'    JS_SetPropertyStr(ctx, global, "{buffer}", '
                          f'JS_NewCFunction(ctx, {buffer}, "{buffer}", 1));')
+            lines.append(f'    JS_SetPropertyStr(ctx, global, "{has}", '
+                         f'JS_NewCFunction(ctx, {has}, "{has}", 1));')
+            lines.append(f'    JS_SetPropertyStr(ctx, global, "{remove}", '
+                         f'JS_NewCFunction(ctx, {remove}, "{remove}", 1));')
         lines.append('}')
         lines.append('')
         return '\n'.join(lines)

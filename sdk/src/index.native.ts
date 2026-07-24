@@ -44,6 +44,11 @@ export type { NativeBridge, NativeInputListener, NativeFetchResult } from './pla
 export { NativeMemoryProvider } from './ecs/memoryProvider';
 export type { MemoryProvider, ComponentHeap, NativeComponentBufferFn } from './ecs/memoryProvider';
 
+// The native component registry — the embind-Registry sibling the SDK's bridge
+// drives (add/get/has/remove). Built over the host's es_<Component>_buffer/_has/
+// _remove bindings; pass to BuiltinBridge.connect as the cppRegistry.
+export { createNativeRegistry } from './ecs/nativeRegistry';
+
 // ABI layout hash of the component schema this bundle was generated from — the
 // native shell compares it against the wasm build it loads (same as the editor).
 export { ABI_LAYOUT_HASH } from './component.generated';
