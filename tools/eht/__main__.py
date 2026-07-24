@@ -8,7 +8,7 @@ from .parser import CppParser
 from .abi import compute_abi_hash
 from .generators import (
     EmbindGenerator, TypeScriptGenerator, MetadataGenerator,
-    PtrLayoutGenerator, EditorAPIGenerator,
+    PtrLayoutGenerator, EditorAPIGenerator, NativeBindingsGenerator,
 )
 
 
@@ -23,6 +23,15 @@ def main() -> int:
     parser.add_argument('--ts-output', type=Path, default=Path('sdk'),
                         help='Output directory for TypeScript')
     parser.add_argument('--verbose', '-v', action='store_true')
+    # Opt-in native (QuickJS) bindings. Off by default so the standard EHT run and
+    # its committed *.generated.* files are unchanged; a native build passes this
+    # to emit NativeBindings.generated.cpp into its build tree from the same source.
+    parser.add_argument('--native-output', type=Path, default=None,
+                        help='Also emit native QuickJS bindings to this .cpp path')
+    parser.add_argument('--native-components', type=str, default=None,
+                        help='Comma-separated component names to emit (default: all)')
+    parser.add_argument('--native-shim', type=str, default='esn_shim.hpp',
+                        help='Shim header the generated native TU includes')
     args = parser.parse_args()
 
     print("EHT - ESEngine Header Tool")
@@ -84,6 +93,19 @@ def main() -> int:
         abi_hash=abi_hash,
     )
     embind_path.write_text(embind_gen.generate(), encoding='utf-8')
+
+    # ── Native QuickJS Bindings (opt-in) ──
+    if args.native_output is not None:
+        only = None
+        if args.native_components:
+            only = {n.strip() for n in args.native_components.split(',') if n.strip()}
+        args.native_output.parent.mkdir(parents=True, exist_ok=True)
+        print(f"Generating: {args.native_output}")
+        native_gen = NativeBindingsGenerator(
+            cpp_parser.components, cpp_parser.enums,
+            shim_header=args.native_shim, only=only,
+        )
+        args.native_output.write_text(native_gen.generate(), encoding='utf-8')
 
     # Resolve the TS source directory robustly. Callers historically pass either
     # the package root (`sdk`) or the source dir (`sdk/src`); detect which by

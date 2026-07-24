@@ -5,8 +5,9 @@ from .typescript import TypeScriptGenerator
 from .metadata import MetadataGenerator
 from .ptr_layout import PtrLayoutGenerator
 from .editor_api import EditorAPIGenerator
+from .native_bindings import NativeBindingsGenerator
 
 __all__ = [
     'EmbindGenerator', 'TypeScriptGenerator', 'MetadataGenerator',
-    'PtrLayoutGenerator', 'EditorAPIGenerator',
+    'PtrLayoutGenerator', 'EditorAPIGenerator', 'NativeBindingsGenerator',
 ]
