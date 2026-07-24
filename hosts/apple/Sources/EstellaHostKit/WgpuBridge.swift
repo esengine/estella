@@ -102,6 +102,11 @@ public final class WgpuBridge {
         method("createTexture") { [weak self] in self!.createTexture($0) }
         method("createCommandEncoder") { [weak self] in self!.createCommandEncoder($0) }
         method("createQuerySet") { [weak self] in self!.createQuerySet($0) }
+        method("createSampler") { [weak self] in self!.createSampler($0) }
+        method("createBindGroupLayout") { [weak self] in self!.createBindGroupLayout($0) }
+        method("createPipelineLayout") { [weak self] in self!.createPipelineLayout($0) }
+        method("createBindGroup") { [weak self] in self!.createBindGroup($0) }
+        method("createRenderPipeline") { [weak self] in self!.createRenderPipeline($0) }
 
         return device
     }
@@ -215,7 +220,7 @@ public final class WgpuBridge {
         guard let tex = wgpuDeviceCreateTexture(ctx.device, &d) else { return JSValue(nullIn: rt.context) }
         let createView: @convention(block) (JSValue?) -> JSValue = { [weak self] _ in
             guard let self, let view = wgpuTextureCreateView(tex, nil) else { return JSValue(nullIn: self!.rt.context) }
-            return self.wrap(view, [:])
+            return self.wrap(view, ["_kind": "view"])
         }
         return wrap(tex, ["createView": createView])
     }
@@ -275,7 +280,53 @@ public final class WgpuBridge {
         }
         guard let pass else { return JSValue(nullIn: rt.context) }
         let end: @convention(block) () -> Void = { wgpuRenderPassEncoderEnd(pass); wgpuRenderPassEncoderRelease(pass) }
-        return wrap(pass, ["end": end])
+        let setPipeline: @convention(block) (JSValue) -> Void = { [weak self] p in
+            wgpuRenderPassEncoderSetPipeline(pass, self?.nativeHandle(of: p))
+        }
+        let setBindGroup: @convention(block) (JSValue, JSValue, JSValue) -> Void = { [weak self] idx, grp, offs in
+            guard let self else { return }
+            if offs.isArray {
+                let n = Int(offs.objectForKeyedSubscript("length").toInt32())
+                var arr = [UInt32](); for i in 0..<n { arr.append(self.u32(offs.atIndex(i))) }
+                arr.withUnsafeBufferPointer { wgpuRenderPassEncoderSetBindGroup(pass, self.u32(idx), self.nativeHandle(of: grp), n, $0.baseAddress) }
+            } else {
+                wgpuRenderPassEncoderSetBindGroup(pass, self.u32(idx), self.nativeHandle(of: grp), 0, nil)
+            }
+        }
+        let setVertexBuffer: @convention(block) (JSValue, JSValue, JSValue, JSValue) -> Void = { [weak self] slot, buf, off, size in
+            guard let self else { return }
+            wgpuRenderPassEncoderSetVertexBuffer(pass, self.u32(slot), self.nativeHandle(of: buf),
+                                                 self.u64(off), size.isUndefined ? UInt64.max : self.u64(size))
+        }
+        let setIndexBuffer: @convention(block) (JSValue, JSValue, JSValue, JSValue) -> Void = { [weak self] buf, fmt, off, size in
+            guard let self else { return }
+            wgpuRenderPassEncoderSetIndexBuffer(pass, self.nativeHandle(of: buf), self.indexFormat(fmt.toString()),
+                                                self.u64(off), size.isUndefined ? UInt64.max : self.u64(size))
+        }
+        let draw: @convention(block) (JSValue, JSValue, JSValue, JSValue) -> Void = { [weak self] vc, ic, fv, fi in
+            guard let self else { return }
+            wgpuRenderPassEncoderDraw(pass, self.u32(vc), ic.isUndefined ? 1 : self.u32(ic), self.u32(fv), self.u32(fi))
+        }
+        let drawIndexed: @convention(block) (JSValue, JSValue, JSValue, JSValue, JSValue) -> Void = { [weak self] ic, inst, fi, bv, fin in
+            guard let self else { return }
+            wgpuRenderPassEncoderDrawIndexed(pass, self.u32(ic), inst.isUndefined ? 1 : self.u32(inst),
+                                             self.u32(fi), Int32(bitPattern: self.u32(bv)), self.u32(fin))
+        }
+        let setViewport: @convention(block) (JSValue, JSValue, JSValue, JSValue, JSValue, JSValue) -> Void = { [weak self] x, y, w, h, mn, mx in
+            guard let self else { return }
+            wgpuRenderPassEncoderSetViewport(pass, Float(self.f64(x)), Float(self.f64(y)), Float(self.f64(w)),
+                                             Float(self.f64(h)), Float(self.f64(mn)), Float(self.f64(mx)))
+        }
+        let setScissorRect: @convention(block) (JSValue, JSValue, JSValue, JSValue) -> Void = { [weak self] x, y, w, h in
+            guard let self else { return }
+            wgpuRenderPassEncoderSetScissorRect(pass, self.u32(x), self.u32(y), self.u32(w), self.u32(h))
+        }
+        return wrap(pass, [
+            "end": end, "setPipeline": setPipeline, "setBindGroup": setBindGroup,
+            "setVertexBuffer": setVertexBuffer, "setIndexBuffer": setIndexBuffer,
+            "draw": draw, "drawIndexed": drawIndexed,
+            "setViewport": setViewport, "setScissorRect": setScissorRect,
+        ])
     }
 
     private func queueSubmit(_ cmds: JSValue) {
@@ -346,6 +397,314 @@ public final class WgpuBridge {
         return wrap(qs, [:])
     }
 
+    // MARK: - draw-path enum marshalling (WebGPU string enums -> wgpu-native)
+
+    private func vertexFormat(_ s: String?) -> WGPUVertexFormat {
+        switch s {
+        case "float32": return WGPUVertexFormat_Float32
+        case "float32x2": return WGPUVertexFormat_Float32x2
+        case "float32x3": return WGPUVertexFormat_Float32x3
+        case "float32x4": return WGPUVertexFormat_Float32x4
+        case "uint32": return WGPUVertexFormat_Uint32
+        case "uint32x2": return WGPUVertexFormat_Uint32x2
+        case "uint32x4": return WGPUVertexFormat_Uint32x4
+        case "uint8x4": return WGPUVertexFormat_Uint8x4
+        case "unorm8x4": return WGPUVertexFormat_Unorm8x4
+        case "sint32": return WGPUVertexFormat_Sint32
+        default: return WGPUVertexFormat_Float32x2
+        }
+    }
+    private func blendFactor(_ s: String?) -> WGPUBlendFactor {
+        switch s {
+        case "zero": return WGPUBlendFactor_Zero
+        case "one": return WGPUBlendFactor_One
+        case "src": return WGPUBlendFactor_Src
+        case "one-minus-src": return WGPUBlendFactor_OneMinusSrc
+        case "src-alpha": return WGPUBlendFactor_SrcAlpha
+        case "one-minus-src-alpha": return WGPUBlendFactor_OneMinusSrcAlpha
+        case "dst": return WGPUBlendFactor_Dst
+        case "one-minus-dst": return WGPUBlendFactor_OneMinusDst
+        case "dst-alpha": return WGPUBlendFactor_DstAlpha
+        case "one-minus-dst-alpha": return WGPUBlendFactor_OneMinusDstAlpha
+        default: return WGPUBlendFactor_One
+        }
+    }
+    private func blendOp(_ s: String?) -> WGPUBlendOperation {
+        switch s {
+        case "subtract": return WGPUBlendOperation_Subtract
+        case "reverse-subtract": return WGPUBlendOperation_ReverseSubtract
+        case "min": return WGPUBlendOperation_Min
+        case "max": return WGPUBlendOperation_Max
+        default: return WGPUBlendOperation_Add
+        }
+    }
+    private func topology(_ s: String?) -> WGPUPrimitiveTopology {
+        switch s {
+        case "point-list": return WGPUPrimitiveTopology_PointList
+        case "line-list": return WGPUPrimitiveTopology_LineList
+        case "line-strip": return WGPUPrimitiveTopology_LineStrip
+        case "triangle-strip": return WGPUPrimitiveTopology_TriangleStrip
+        default: return WGPUPrimitiveTopology_TriangleList
+        }
+    }
+    private func cullMode(_ s: String?) -> WGPUCullMode {
+        switch s { case "front": return WGPUCullMode_Front; case "back": return WGPUCullMode_Back; default: return WGPUCullMode_None }
+    }
+    private func frontFace(_ s: String?) -> WGPUFrontFace {
+        s == "cw" ? WGPUFrontFace_CW : WGPUFrontFace_CCW
+    }
+    private func stepMode(_ s: String?) -> WGPUVertexStepMode {
+        s == "instance" ? WGPUVertexStepMode_Instance : WGPUVertexStepMode_Vertex
+    }
+    private func compareFunc(_ s: String?) -> WGPUCompareFunction {
+        switch s {
+        case "never": return WGPUCompareFunction_Never
+        case "less": return WGPUCompareFunction_Less
+        case "equal": return WGPUCompareFunction_Equal
+        case "less-equal": return WGPUCompareFunction_LessEqual
+        case "greater": return WGPUCompareFunction_Greater
+        case "not-equal": return WGPUCompareFunction_NotEqual
+        case "greater-equal": return WGPUCompareFunction_GreaterEqual
+        case "always": return WGPUCompareFunction_Always
+        default: return WGPUCompareFunction_Always
+        }
+    }
+    private func indexFormat(_ s: String?) -> WGPUIndexFormat {
+        s == "uint32" ? WGPUIndexFormat_Uint32 : WGPUIndexFormat_Uint16
+    }
+    private func filterMode(_ s: String?) -> WGPUFilterMode { s == "linear" ? WGPUFilterMode_Linear : WGPUFilterMode_Nearest }
+    private func mipmapFilter(_ s: String?) -> WGPUMipmapFilterMode { s == "linear" ? WGPUMipmapFilterMode_Linear : WGPUMipmapFilterMode_Nearest }
+    private func addressMode(_ s: String?) -> WGPUAddressMode {
+        switch s { case "repeat": return WGPUAddressMode_Repeat; case "mirror-repeat": return WGPUAddressMode_MirrorRepeat; default: return WGPUAddressMode_ClampToEdge }
+    }
+    private func optionalBool(_ v: JSValue?) -> WGPUOptionalBool {
+        guard let v, v.isBoolean else { return WGPUOptionalBool_Undefined }
+        return v.toBool() ? WGPUOptionalBool_True : WGPUOptionalBool_False
+    }
+    private func blendComponent(_ v: JSValue?) -> WGPUBlendComponent {
+        var c = WGPUBlendComponent()
+        c.operation = blendOp(v?.objectForKeyedSubscript("operation")?.toString())
+        c.srcFactor = blendFactor(v?.objectForKeyedSubscript("srcFactor")?.toString())
+        c.dstFactor = blendFactor(v?.objectForKeyedSubscript("dstFactor")?.toString())
+        return c
+    }
+    private func stencilFace(_ v: JSValue?) -> WGPUStencilFaceState {
+        var s = WGPUStencilFaceState()
+        s.compare = compareFunc(v?.objectForKeyedSubscript("compare")?.toString())
+        return s
+    }
+
+    // MARK: - samplers / layouts / bind groups / render pipeline
+
+    private func createSampler(_ desc: JSValue) -> JSValue {
+        var d = WGPUSamplerDescriptor()
+        d.addressModeU = addressMode(desc.objectForKeyedSubscript("addressModeU")?.toString())
+        d.addressModeV = addressMode(desc.objectForKeyedSubscript("addressModeV")?.toString())
+        d.addressModeW = addressMode(desc.objectForKeyedSubscript("addressModeW")?.toString())
+        d.magFilter = filterMode(desc.objectForKeyedSubscript("magFilter")?.toString())
+        d.minFilter = filterMode(desc.objectForKeyedSubscript("minFilter")?.toString())
+        d.mipmapFilter = mipmapFilter(desc.objectForKeyedSubscript("mipmapFilter")?.toString())
+        d.lodMinClamp = Float(f64(desc.objectForKeyedSubscript("lodMinClamp")))
+        let lodMax = desc.objectForKeyedSubscript("lodMaxClamp")
+        d.lodMaxClamp = (lodMax?.isNumber == true) ? Float(f64(lodMax)) : 32
+        d.maxAnisotropy = 1
+        guard let s = wgpuDeviceCreateSampler(ctx.device, &d) else { return JSValue(nullIn: rt.context) }
+        return wrap(s, ["_kind": "sampler"])
+    }
+
+    private func createBindGroupLayout(_ desc: JSValue) -> JSValue {
+        let arena = Arena()
+        let entriesJS = desc.objectForKeyedSubscript("entries")!
+        let n = Int(entriesJS.objectForKeyedSubscript("length").toInt32())
+        var entries = [WGPUBindGroupLayoutEntry]()
+        for i in 0..<n {
+            let e = entriesJS.atIndex(i)!
+            var le = WGPUBindGroupLayoutEntry()
+            le.binding = u32(e.objectForKeyedSubscript("binding"))
+            le.visibility = WGPUShaderStage(u64(e.objectForKeyedSubscript("visibility")))
+            if let b = e.objectForKeyedSubscript("buffer"), !b.isUndefined, !b.isNull {
+                le.buffer.type = bufferBindingType(b.objectForKeyedSubscript("type")?.toString())
+                le.buffer.hasDynamicOffset = bool(b.objectForKeyedSubscript("hasDynamicOffset")) ? 1 : 0
+                le.buffer.minBindingSize = u64(b.objectForKeyedSubscript("minBindingSize"))
+            } else if let s = e.objectForKeyedSubscript("sampler"), !s.isUndefined, !s.isNull {
+                le.sampler.type = samplerBindingType(s.objectForKeyedSubscript("type")?.toString())
+            } else if let t = e.objectForKeyedSubscript("texture"), !t.isUndefined, !t.isNull {
+                le.texture.sampleType = textureSampleType(t.objectForKeyedSubscript("sampleType")?.toString())
+                le.texture.viewDimension = WGPUTextureViewDimension_2D
+            }
+            entries.append(le)
+        }
+        var d = WGPUBindGroupLayoutDescriptor()
+        d.entryCount = entries.count
+        d.entries = arena.array(entries)
+        guard let l = wgpuDeviceCreateBindGroupLayout(ctx.device, &d) else { return JSValue(nullIn: rt.context) }
+        return wrap(l, [:])
+    }
+
+    private func createPipelineLayout(_ desc: JSValue) -> JSValue {
+        let arena = Arena()
+        let bglsJS = desc.objectForKeyedSubscript("bindGroupLayouts")!
+        let n = Int(bglsJS.objectForKeyedSubscript("length").toInt32())
+        var bgls = [WGPUBindGroupLayout?]()
+        for i in 0..<n { bgls.append(nativeHandle(of: bglsJS.atIndex(i))) }
+        var d = WGPUPipelineLayoutDescriptor()
+        d.bindGroupLayoutCount = bgls.count
+        d.bindGroupLayouts = arena.array(bgls)
+        guard let l = wgpuDeviceCreatePipelineLayout(ctx.device, &d) else { return JSValue(nullIn: rt.context) }
+        return wrap(l, [:])
+    }
+
+    private func createBindGroup(_ desc: JSValue) -> JSValue {
+        let arena = Arena()
+        var d = WGPUBindGroupDescriptor()
+        d.layout = nativeHandle(of: desc.objectForKeyedSubscript("layout"))
+        let entriesJS = desc.objectForKeyedSubscript("entries")!
+        let n = Int(entriesJS.objectForKeyedSubscript("length").toInt32())
+        var entries = [WGPUBindGroupEntry]()
+        for i in 0..<n {
+            let e = entriesJS.atIndex(i)!
+            var be = WGPUBindGroupEntry()
+            be.binding = u32(e.objectForKeyedSubscript("binding"))
+            // resource is { buffer, offset?, size? } | a sampler | a textureView wrapper
+            // (wrappers are tagged with _kind so we pick the right WGPUBindGroupEntry slot).
+            if let res {
+                let kind = res.objectForKeyedSubscript("_kind")?.toString()
+                if kind == "sampler" {
+                    be.sampler = nativeHandle(of: res)
+                } else if kind == "view" {
+                    be.textureView = nativeHandle(of: res)
+                } else if let buf = res.objectForKeyedSubscript("buffer"), buf.isObject {
+                    be.buffer = nativeHandle(of: buf)
+                    be.offset = u64(res.objectForKeyedSubscript("offset"))
+                    let sz = res.objectForKeyedSubscript("size")
+                    be.size = (sz?.isNumber == true) ? u64(sz) : UInt64.max
+                }
+            }
+            entries.append(be)
+        }
+        d.entryCount = entries.count
+        d.entries = arena.array(entries)
+        guard let g = wgpuDeviceCreateBindGroup(ctx.device, &d) else { return JSValue(nullIn: rt.context) }
+        return wrap(g, [:])
+    }
+
+    private func createRenderPipeline(_ desc: JSValue) -> JSValue {
+        let arena = Arena()
+
+        var vertex = WGPUVertexState()
+        let vs = desc.objectForKeyedSubscript("vertex")!
+        vertex.module = nativeHandle(of: vs.objectForKeyedSubscript("module"))
+        vertex.entryPoint = arena.stringView(vs.objectForKeyedSubscript("entryPoint")?.toString() ?? "vs")
+        if let buffersJS = vs.objectForKeyedSubscript("buffers"), buffersJS.isArray {
+            let bn = Int(buffersJS.objectForKeyedSubscript("length").toInt32())
+            var bufLayouts = [WGPUVertexBufferLayout]()
+            for i in 0..<bn {
+                let b = buffersJS.atIndex(i)!
+                var bl = WGPUVertexBufferLayout()
+                bl.stepMode = stepMode(b.objectForKeyedSubscript("stepMode")?.toString())
+                bl.arrayStride = u64(b.objectForKeyedSubscript("arrayStride"))
+                let attrsJS = b.objectForKeyedSubscript("attributes")!
+                let an = Int(attrsJS.objectForKeyedSubscript("length").toInt32())
+                var attrs = [WGPUVertexAttribute]()
+                for j in 0..<an {
+                    let a = attrsJS.atIndex(j)!
+                    var at = WGPUVertexAttribute()
+                    at.format = vertexFormat(a.objectForKeyedSubscript("format")?.toString())
+                    at.offset = u64(a.objectForKeyedSubscript("offset"))
+                    at.shaderLocation = u32(a.objectForKeyedSubscript("shaderLocation"))
+                    attrs.append(at)
+                }
+                bl.attributeCount = attrs.count
+                bl.attributes = arena.array(attrs)
+                bufLayouts.append(bl)
+            }
+            vertex.bufferCount = bufLayouts.count
+            vertex.buffers = arena.array(bufLayouts)
+        }
+
+        var fragment = WGPUFragmentState()
+        var hasFragment = false
+        if let fs = desc.objectForKeyedSubscript("fragment"), fs.isObject {
+            hasFragment = true
+            fragment.module = nativeHandle(of: fs.objectForKeyedSubscript("module"))
+            fragment.entryPoint = arena.stringView(fs.objectForKeyedSubscript("entryPoint")?.toString() ?? "fs")
+            let targetsJS = fs.objectForKeyedSubscript("targets")!
+            let tn = Int(targetsJS.objectForKeyedSubscript("length").toInt32())
+            var targets = [WGPUColorTargetState]()
+            for i in 0..<tn {
+                let t = targetsJS.atIndex(i)!
+                var ct = WGPUColorTargetState()
+                var fmt = texFormat(t.objectForKeyedSubscript("format")?.toString() ?? "rgba8unorm")
+                if ctx.hasSurface, fmt == WGPUTextureFormat_RGBA8Unorm { fmt = surfaceColorFormat }
+                ct.format = fmt
+                let wm = u64(t.objectForKeyedSubscript("writeMask"))
+                ct.writeMask = WGPUColorWriteMask(wm == 0 ? 0xF : wm)
+                if let bl = t.objectForKeyedSubscript("blend"), bl.isObject {
+                    var blend = WGPUBlendState()
+                    blend.color = blendComponent(bl.objectForKeyedSubscript("color"))
+                    blend.alpha = blendComponent(bl.objectForKeyedSubscript("alpha"))
+                    ct.blend = arena.single(blend)
+                }
+                targets.append(ct)
+            }
+            fragment.targetCount = targets.count
+            fragment.targets = arena.array(targets)
+        }
+
+        var primitive = WGPUPrimitiveState()
+        if let p = desc.objectForKeyedSubscript("primitive"), p.isObject {
+            primitive.topology = topology(p.objectForKeyedSubscript("topology")?.toString())
+            primitive.frontFace = frontFace(p.objectForKeyedSubscript("frontFace")?.toString())
+            primitive.cullMode = cullMode(p.objectForKeyedSubscript("cullMode")?.toString())
+        } else {
+            primitive.topology = WGPUPrimitiveTopology_TriangleList
+        }
+
+        var multisample = WGPUMultisampleState()
+        multisample.count = max(1, u32(desc.objectForKeyedSubscript("multisample")?.objectForKeyedSubscript("count")))
+        multisample.mask = 0xFFFFFFFF
+
+        var depthStencilPtr: UnsafePointer<WGPUDepthStencilState>?
+        if let ds = desc.objectForKeyedSubscript("depthStencil"), ds.isObject {
+            var dss = WGPUDepthStencilState()
+            dss.format = texFormat(ds.objectForKeyedSubscript("format")?.toString() ?? "depth24plus-stencil8")
+            dss.depthWriteEnabled = optionalBool(ds.objectForKeyedSubscript("depthWriteEnabled"))
+            dss.depthCompare = compareFunc(ds.objectForKeyedSubscript("depthCompare")?.toString())
+            dss.stencilFront = stencilFace(ds.objectForKeyedSubscript("stencilFront"))
+            dss.stencilBack = stencilFace(ds.objectForKeyedSubscript("stencilBack"))
+            dss.stencilReadMask = u32(ds.objectForKeyedSubscript("stencilReadMask"))
+            dss.stencilWriteMask = u32(ds.objectForKeyedSubscript("stencilWriteMask"))
+            depthStencilPtr = arena.single(dss)
+        }
+
+        var d = WGPURenderPipelineDescriptor()
+        d.layout = nativeHandle(of: desc.objectForKeyedSubscript("layout"))
+        d.vertex = vertex
+        d.primitive = primitive
+        d.multisample = multisample
+        d.depthStencil = depthStencilPtr
+        if hasFragment { d.fragment = arena.single(fragment) }
+
+        guard let pipeline = wgpuDeviceCreateRenderPipeline(ctx.device, &d) else { return JSValue(nullIn: rt.context) }
+        let getBindGroupLayout: @convention(block) (JSValue) -> JSValue = { [weak self] idx in
+            guard let self, let bgl = wgpuRenderPipelineGetBindGroupLayout(pipeline, self.u32(idx)) else {
+                return JSValue(nullIn: self!.rt.context)
+            }
+            return self.wrap(bgl, [:])
+        }
+        return wrap(pipeline, ["getBindGroupLayout": getBindGroupLayout])
+    }
+
+    private func bufferBindingType(_ s: String?) -> WGPUBufferBindingType {
+        switch s { case "storage": return WGPUBufferBindingType_Storage; case "read-only-storage": return WGPUBufferBindingType_ReadOnlyStorage; default: return WGPUBufferBindingType_Uniform }
+    }
+    private func samplerBindingType(_ s: String?) -> WGPUSamplerBindingType {
+        switch s { case "non-filtering": return WGPUSamplerBindingType_NonFiltering; case "comparison": return WGPUSamplerBindingType_Comparison; default: return WGPUSamplerBindingType_Filtering }
+    }
+    private func textureSampleType(_ s: String?) -> WGPUTextureSampleType {
+        switch s { case "unfilterable-float": return WGPUTextureSampleType_UnfilterableFloat; case "depth": return WGPUTextureSampleType_Depth; default: return WGPUTextureSampleType_Float }
+    }
+
     // MARK: - canvas context (the engine's swapchain surface)
 
     private func makeContextObject() -> JSValue {
@@ -388,7 +747,7 @@ public final class WgpuBridge {
         guard let t = target else { return JSValue(nullIn: rt.context) }
         let createView: @convention(block) (JSValue?) -> JSValue = { [weak self] _ in
             guard let self, let v = wgpuTextureCreateView(t, nil) else { return JSValue(nullIn: self!.rt.context) }
-            return self.wrap(v, [:])
+            return self.wrap(v, ["_kind": "view"])
         }
         return wrap(t, ["createView": createView])
     }
@@ -483,4 +842,33 @@ public final class WgpuBridge {
         let expected = (UInt8(51), UInt8(102), UInt8(204), UInt8(255))
         return "clear frame THROUGH bridge -> rgba\(px) expected ~\(expected) -> \(px == expected ? "PASS" : "MISMATCH")"
     }
+}
+
+/// Holds C memory alive across a single wgpu create* call so nested descriptor arrays / strings
+/// (vertex buffers -> attributes, fragment targets -> blend, entryPoints) stay valid until the
+/// call copies them; freed on deinit right after.
+private final class Arena {
+    private var allocs: [UnsafeMutableRawPointer] = []
+    func array<T>(_ items: [T]) -> UnsafePointer<T>? {
+        guard !items.isEmpty else { return nil }
+        let p = UnsafeMutablePointer<T>.allocate(capacity: items.count)
+        items.withUnsafeBufferPointer { p.initialize(from: $0.baseAddress!, count: items.count) }
+        allocs.append(UnsafeMutableRawPointer(p))
+        return UnsafePointer(p)
+    }
+    func single<T>(_ item: T) -> UnsafePointer<T> {
+        let p = UnsafeMutablePointer<T>.allocate(capacity: 1)
+        p.initialize(to: item)
+        allocs.append(UnsafeMutableRawPointer(p))
+        return UnsafePointer(p)
+    }
+    func stringView(_ s: String) -> WGPUStringView {
+        let bytes = Array(s.utf8)
+        let p = UnsafeMutablePointer<CChar>.allocate(capacity: bytes.count + 1)
+        for (i, b) in bytes.enumerated() { p[i] = CChar(bitPattern: b) }
+        p[bytes.count] = 0
+        allocs.append(UnsafeMutableRawPointer(p))
+        return WGPUStringView(data: p, length: bytes.count)
+    }
+    deinit { for a in allocs { a.deallocate() } }
 }
