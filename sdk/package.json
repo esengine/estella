@@ -1,6 +1,6 @@
 {
   "name": "esengine",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "private": true,
   "type": "module",
   "description": "Estella SDK - A fast 2D game engine for Web and WeChat MiniGames",

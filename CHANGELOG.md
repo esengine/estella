@@ -14,6 +14,62 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.32.0] - 2026-07-23
+
+Reaching further. Where 0.31 was about authoring gameplay over your art, this
+release extends **where an Estella game runs and how it ships its content**: a
+foundation for a true native mobile host (embedded Dawn + a JS engine, not a
+WebView), content-addressed hot-update with CDN / subpackage asset delivery,
+custom GLSL shaders that now run on the WebGPU backend with zero author effort,
+and a modern text-input stack (multiline, IME, rich text). Underneath is a pass
+that single-sources a set of platform, asset and shader declarations. No
+project/asset format or WASM ABI break — your projects open unchanged.
+
+### Added
+
+- **Native platform foundation** (pre-1.0; the host itself is unshipped). A
+  DOM-free `PlatformAdapter` and an injected `NativeBridge` let the same engine
+  wasm + TS SDK run on an embedded Dawn (WebGPU) + JS-engine host on iOS/Android
+  — a real native app, not a WebView — through the new `esengine/native` entry.
+  The C++ renderer gained a native window surface seam
+  (`WebGPUDevice::configureSurface(NativeSurface)`) so a host can hand it a
+  `CAMetalLayer` / `ANativeWindow`, the C++ counterpart of the TS
+  `RenderSurfaceSource { kind: 'webgpu' }`. A headless no-JIT frame benchmark
+  proxies the iOS interpreter constraint, so the form factor is measurable
+  without a device.
+- **Content-addressed hot-update + asset delivery.** A shipped game can update
+  its assets without a rebuild: every asset URL is its content hash (immutable,
+  cacheable), an update is a manifest diff, and applying one is atomic with
+  download-integrity verification and rollback — scene `@uuid` refs to remote
+  assets rebind transparently. Assets group by folder into **local / subpackage /
+  remote (CDN)** delivery from one `.esengine/asset-groups.json`, authored in a
+  new editor GUI with per-build CDN profiles and an offline on-disk content cache.
+- **Custom shaders on WebGPU.** A `.esshader` authored in GLSL now runs on the
+  WebGPU backend with no manual step: the editor generates its WGSL twin from the
+  GLSL when the project opens (GLSL stays the single source; the WGSL twin is a
+  generated derivative), regenerates it when the GLSL changes (a stored
+  source-hash detects staleness), and CI enforces twin coverage and freshness.
+- **Modern text input.** `TextInput` gains multiline caret / selection / click
+  across `\n`-broken lines, live IME preedit with the candidate window anchored
+  at the caret, and inline `<img>` runs in rich text — a hidden textarea is the
+  single editing source of truth.
+
+### Changed
+
+- **Single-sourced platform, asset and shader declarations.** The platform
+  adapters now share one primary-pointer synthesis (and the mini-game adapter
+  finally releases the pointer on touch-cancel), one capability-surface shape
+  (audio and video backends are optional and default to a silent Null;
+  `unbindInputEvents` is declared rather than `as any`-reached) and one
+  device-pixel-ratio facade; the asset delivery-mode vocabulary is exported once
+  and the editor derives its menu and badges from it; remote-vs-local asset URL
+  routing resolves one way; and the Tiled object shape→collider decision is one
+  function shared by the runtime and scene paths.
+
+### Fixed
+
+- Render-texture minimap example rendered upside-down.
+
 ## [0.31.0] - 2026-07-22
 
 Authoring a game on top of your art. Where 0.30 sharpened the editor itself,
@@ -1426,7 +1482,9 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.30.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.32.0...HEAD
+[0.32.0]: https://github.com/esengine/estella/compare/v0.31.0...v0.32.0
+[0.31.0]: https://github.com/esengine/estella/compare/v0.30.0...v0.31.0
 [0.30.0]: https://github.com/esengine/estella/compare/v0.29.0...v0.30.0
 [0.29.0]: https://github.com/esengine/estella/compare/v0.28.0...v0.29.0
 [0.28.0]: https://github.com/esengine/estella/compare/v0.27.0...v0.28.0
