@@ -13,7 +13,12 @@
                 "${workspaceFolder}/third_party/spine-runtimes-4.2/spine-c/spine-c/include",
                 "${workspaceFolder}/third_party/nlohmann",
                 "${workspaceFolder}/third_party/box2d/include",
-                "${workspaceFolder}/build/quickjs_headers"
+                "${workspaceFolder}/build/quickjs_headers",
+                "${workspaceFolder}/native/js",
+                "${workspaceFolder}/third_party",
+                "${env:ESTELLA_DAWN_DIR}/include",
+                "${env:ESTELLA_DAWN_BUILD}/gen/include",
+                "${env:ESTELLA_QUICKJS_DIR}"
             ],
             "defines": [
                 "_DEBUG",
@@ -24,7 +29,8 @@
             ],
             "cStandard": "c17",
             "cppStandard": "c++20",
-            "intelliSenseMode": "macos-clang-arm64"
+            "intelliSenseMode": "macos-clang-arm64",
+            "compilerPath": "/usr/bin/clang++"
         },
         {
             "name": "Win32",
@@ -80,7 +86,16 @@
             "includePath": [
                 "${workspaceFolder}/src",
                 "${workspaceFolder}/native/js",
-                "${workspaceFolder}/build-native/gen"
+                "${workspaceFolder}/third_party",
+                "${workspaceFolder}/third_party/glm",
+                "${workspaceFolder}/third_party/stb",
+                "${env:ESTELLA_DAWN_DIR}/include",
+                "${env:ESTELLA_DAWN_BUILD}/gen/include",
+                "${env:EMSDK}/upstream/emscripten/cache/ports/emdawnwebgpu/emdawnwebgpu_pkg/webgpu/include",
+                "${env:ESTELLA_QUICKJS_DIR}",
+                "${workspaceFolder}/build/quickjs_headers",
+                "${workspaceFolder}/build-native/gen",
+                "${workspaceFolder}/build/native_intellisense"
             ],
             "defines": [
                 "ES_ENABLE_WEBGPU"
@@ -88,7 +103,33 @@
             "cStandard": "c17",
             "cppStandard": "c++20",
             "intelliSenseMode": "linux-clang-arm64",
-            "compileCommands": "${workspaceFolder}/build-native/compile_commands.json"
+            "compileCommands": "${workspaceFolder}/build-native/compile_commands.json",
+            "compilerPath": "/usr/bin/clang++"
+        },
+        {
+            "name": "Native Host (iOS)",
+            "includePath": [
+                "${workspaceFolder}/src",
+                "${workspaceFolder}/native/js",
+                "${workspaceFolder}/third_party",
+                "${workspaceFolder}/third_party/glm",
+                "${workspaceFolder}/third_party/stb",
+                "${env:ESTELLA_DAWN_DIR}/include",
+                "${env:ESTELLA_DAWN_BUILD}/gen/include",
+                "${env:EMSDK}/upstream/emscripten/cache/ports/emdawnwebgpu/emdawnwebgpu_pkg/webgpu/include",
+                "${env:ESTELLA_QUICKJS_DIR}",
+                "${workspaceFolder}/build/quickjs_headers",
+                "${workspaceFolder}/build-native-ios/gen",
+                "${workspaceFolder}/build/native_intellisense"
+            ],
+            "defines": [
+                "ES_ENABLE_WEBGPU"
+            ],
+            "cStandard": "c17",
+            "cppStandard": "c++20",
+            "intelliSenseMode": "macos-clang-arm64",
+            "compileCommands": "${workspaceFolder}/build-native-ios/compile_commands.json",
+            "compilerPath": "/usr/bin/clang++"
         }
     ],
     "version": 4
