@@ -26,7 +26,8 @@ set(TP "${REPO}/third_party")
 
 # Prebuilt monolithic Dawn: a shared library on Android, a static one on iOS (where
 # the app embeds everything). Override ESTELLA_DAWN_LIB if your build lays it out
-# elsewhere.
+# elsewhere. A device build and a simulator build are different target triples, so
+# each needs its own Dawn — see ESTELLA_IOS_SIMULATOR below.
 if(ESTELLA_IOS)
     if(NOT ESTELLA_DAWN_LIB)
         set(ESTELLA_DAWN_LIB "${ESTELLA_DAWN_BUILD}/src/dawn/native/libwebgpu_dawn.a")

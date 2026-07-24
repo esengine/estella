@@ -10,7 +10,7 @@
 
 import path from 'path';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
-import { mkdir } from 'fs/promises';
+import { mkdir, rm } from 'fs/promises';
 import config from '../build.config.js';
 import * as logger from '../utils/logger.js';
 import { runCommand, getCpuCount, resolvePython } from '../utils/emscripten.js';
@@ -161,10 +161,34 @@ async function iosDeveloperDir() {
     return xcode;
 }
 
+// A device build and a simulator build are different target triples, so their
+// objects can never link together. The app links an .xcframework instead, and
+// Xcode picks the slice matching whatever you selected in the toolbar.
+const IOS_SLICES = {
+    device: { dir: 'build-native-ios', sysroot: 'iphoneos', label: 'device' },
+    simulator: { dir: 'build-native-ios-sim', sysroot: 'iphonesimulator', label: 'simulator' },
+};
+const XCFRAMEWORK = path.join('build-native-ios', 'Estella.xcframework');
+
+// Rebuild the xcframework from whichever slices exist. A device-only framework is
+// valid — Xcode then simply has nothing to offer a simulator target.
+async function assembleXcframework(rootDir, env) {
+    const libs = [];
+    for (const slice of Object.values(IOS_SLICES)) {
+        const lib = path.join(rootDir, slice.dir, 'libestella_ios.a');
+        if (existsSync(lib)) libs.push('-library', lib);
+    }
+    const out = path.join(rootDir, XCFRAMEWORK);
+    await rm(out, { recursive: true, force: true });
+    await runCommand('xcodebuild', ['-create-xcframework', ...libs, '-output', out], { cwd: rootDir, env, silent: true });
+    logger.success(`iOS framework: ${XCFRAMEWORK} (${libs.length / 2} slice${libs.length === 2 ? '' : 's'})`);
+}
+
 async function buildIosHost(options) {
     if (process.platform !== 'darwin') throw new Error('The iOS host builds on macOS only.');
     const rootDir = config.paths.root;
     const { dawnDir, dawnBuild } = dawnPaths(options);
+    const slice = options.simulator ? IOS_SLICES.simulator : IOS_SLICES.device;
 
     // Unlike Android there is no pure-C++ reference host for iOS: the app IS the
     // JS host, so QuickJS is required rather than opt-in.
@@ -177,12 +201,12 @@ async function buildIosHost(options) {
     const env = developerDir ? { DEVELOPER_DIR: developerDir } : undefined;
     if (developerDir) logger.info(`Using DEVELOPER_DIR=${developerDir} (the active one has no iPhoneOS SDK)`);
 
-    const buildDir = path.join(rootDir, 'build-native-ios');
+    const buildDir = path.join(rootDir, slice.dir);
     await mkdir(buildDir, { recursive: true });
     const genDir = await prepareGenerated(rootDir, buildDir, quickjs);
 
     const deploymentTarget = options.iosMin || '17.0';
-    logger.step(`Configuring iOS host (arm64, iOS ${deploymentTarget})...`);
+    logger.step(`Configuring iOS host (arm64 ${slice.label}, iOS ${deploymentTarget})...`);
     await runCommand('cmake', [
         '-S', path.join(rootDir, 'native'),
         '-B', buildDir,
@@ -190,7 +214,7 @@ async function buildIosHost(options) {
         '-DCMAKE_SYSTEM_NAME=iOS',
         '-DCMAKE_OSX_ARCHITECTURES=arm64',
         `-DCMAKE_OSX_DEPLOYMENT_TARGET=${deploymentTarget}`,
-        '-DCMAKE_OSX_SYSROOT=iphoneos',
+        `-DCMAKE_OSX_SYSROOT=${slice.sysroot}`,
         '-DCMAKE_BUILD_TYPE=Release',
         '-DCMAKE_EXPORT_COMPILE_COMMANDS=ON',
         `-DESTELLA_DAWN_DIR=${fwd(dawnDir)}`,
@@ -199,10 +223,11 @@ async function buildIosHost(options) {
         `-DESTELLA_NATIVE_GEN_DIR=${fwd(genDir)}`,
     ], { cwd: rootDir, env });
 
-    logger.step('Building iOS host...');
+    logger.step(`Building iOS host (${slice.label})...`);
     await runCommand('cmake', ['--build', buildDir, '-j', String(getCpuCount())], { cwd: rootDir, env });
 
-    logger.success(`iOS host: ${path.join('build-native-ios', 'libestella_js_host.a')}`);
+    logger.success(`iOS host: ${path.join(slice.dir, 'libestella_ios.a')}`);
+    await assembleXcframework(rootDir, env);
     logger.info('Next: cd native/ios && xcodegen && open EstellaiOS.xcodeproj — pick your Team, then Run.');
 }
 

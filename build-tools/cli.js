@@ -167,6 +167,7 @@ program
     .option('--abi <abi>', 'Android ABI', 'arm64-v8a')
     .option('--platform <platform>', 'Android platform', 'android-33')
     .option('--ios-min <version>', 'iOS deployment target', '17.0')
+    .option('--simulator', 'iOS: build the simulator slice (needs a simulator Dawn)', false)
     .option('--package', 'Android: also package a signed APK (aapt2 + zipalign + apksigner)', false)
     .option('--host <host>', 'Android --package: js (QuickJS host) or cpp (smoke test)')
     .option('--keystore <path>', 'Android --package: signing keystore (default: the debug one)')
@@ -182,6 +183,7 @@ program
                 abi: options.abi,
                 platform: options.platform,
                 iosMin: options.iosMin,
+                simulator: options.simulator,
                 package: options.package,
                 host: options.host,
                 keystore: options.keystore,

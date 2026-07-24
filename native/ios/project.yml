@@ -34,13 +34,18 @@ targets:
         # -ObjC keeps the view controller / app delegate classes in the static
         # library alive; the linker would otherwise drop TUs nothing references.
         OTHER_LDFLAGS: -ObjC -lc++
-        # Xcode links the .a below as -lestella_ios, so the CMake output dir has to
-        # be on the search path — without it the link fails with "not found".
-        LIBRARY_SEARCH_PATHS: $(SRCROOT)/../../build-native-ios
         TARGETED_DEVICE_FAMILY: "1,2"
         ENABLE_BITCODE: NO
+        # arm64 only, devices and simulator alike: the CMake build and Dawn are
+        # both arm64: a Release simulator build would otherwise also want x86_64,
+        # which no slice provides. (An Intel-Mac simulator needs its own Dawn.)
+        ARCHS: arm64
     dependencies:
-      - framework: ../../build-native-ios/libestella_ios.a
+      # An .xcframework, not a bare .a: device and simulator are different target
+      # triples whose objects cannot link together, and Xcode picks the slice that
+      # matches whatever the toolbar is pointed at. Build the simulator slice with
+      # `cli native --target ios --simulator`.
+      - framework: ../../build-native-ios/Estella.xcframework
         embed: false
       - sdk: UIKit.framework
       - sdk: Metal.framework

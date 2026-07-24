@@ -137,6 +137,19 @@ node build-tools/cli.js native --target ios \
 cd native/ios && xcodegen && open EstellaiOS.xcodeproj
 ```
 
+**To run in the simulator** — a different target triple, so it needs its own Dawn
+and its own slice (`-DCMAKE_OSX_SYSROOT=iphonesimulator` on the Dawn command
+above, into `$DAWN/out-ios-sim`):
+
+```sh
+node build-tools/cli.js native --target ios --simulator \
+  --dawn "$DAWN" --dawn-build "$DAWN/out-ios-sim" --quickjs "$QJS"
+```
+
+Both slices land in `build-native-ios/Estella.xcframework`, which is what the app
+links — Xcode picks the one matching the toolbar. arm64 only, so an Intel Mac's
+simulator would need a third Dawn.
+
 Then pick your Team under *Signing & Capabilities*, select your device and Run.
 The CMake build merges host + engine + QuickJS + Dawn into one archive
 (`build-native-ios/libestella_ios.a`), so the Xcode project is a signing and
@@ -163,10 +176,10 @@ serves from `assets/`.
 ## Status
 
 **Android** is proven on device (Snapdragon 8 Elite / Adreno 830, 120 fps).
-**iOS** builds end to end: Dawn for iOS, the engine, QuickJS and the host all
-compile for arm64, merge into `libestella_ios.a`, and link into a 12 MB iOS
-executable with no unresolved symbols. It has not *run* on a device yet — that
-needs your signing.
+**iOS** runs: the demo renders in the simulator at a steady 60 fps — the clear
+colour, a ShapeRenderer and `logo.png` loaded through the real `Assets.loadTexture`
+pipeline — booting in ~20 ms off the bytecode cache. Not yet run on a physical
+device, which needs your signing.
 
 The engine core + render path are proven on device. The JS host runs the **real
 SDK**: `ESEngine.createNativeApp()`
