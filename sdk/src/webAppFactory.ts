@@ -57,7 +57,9 @@ export interface HeadlessAppOptions {
 // (silent on hosts without a device) and replication. Presentation plugins
 // (particles, tilemap render, post-process, timeline, UI, spine) stay out —
 // they exist to be seen.
-const headlessBasePlugins = (): Plugin[] => [
+/** The simulation stack with no presentation — shared by the headless and
+ *  native factories, so neither drifts into its own plugin list. */
+export const headlessBasePlugins = (): Plugin[] => [
     timerPlugin, velocityPlugin, lifecyclePlugin, audioPlugin,
     perceptionPlugin, fsmPlugin, btPlugin, navPlugin, replicationPlugin,
 ];

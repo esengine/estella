@@ -13,6 +13,9 @@
 import { App } from '../app';
 import { World } from '../world';
 import { inputPlugin } from '../input';
+import { prefabsPlugin } from '../prefabServer';
+import { sceneManagerPlugin } from '../scenePlugin';
+import { headlessBasePlugins } from '../webAppFactory';
 import { ensureBuiltinComponentsRegistered } from '../component';
 import { installNativePlatform, type NativeBridge } from '../platform/native';
 import { createNativeRegistry } from './nativeRegistry';
@@ -69,8 +72,16 @@ export function createNativeApp(
     app.connectCpp(createNativeRegistry(scope), undefined, {
         memory: new NativeMemoryProvider(scope),
     });
-    app.addPlugin(inputPlugin);
+    // The same stack a headless app runs — scenes, prefabs, timers, gameplay AI —
+    // plus input. No renderer: the native C++ core owns drawing and reads the ECS
+    // this app authors. assetPlugin is the one exception: it wires the wasm heap,
+    // so installNativeAssets below builds the equivalent over the native RM.
+    // Assets first: prefabs and scene loading declare it as a required resource.
     installNativeAssets(app, scope);
+    app.addPlugin(inputPlugin);
+    app.addPlugin(prefabsPlugin);
+    app.addPlugin(sceneManagerPlugin);
+    app.addPlugins(headlessBasePlugins());
     return app;
 }
 
