@@ -37,6 +37,13 @@ export * from './webAppFactory';
 export { NativePlatformAdapter, installNativePlatform } from './platform/native';
 export type { NativeBridge, NativeInputListener, NativeFetchResult } from './platform/native';
 
+// Fast-path memory backend for the native core. The shell builds one over its
+// host-injected `es_<Component>_buffer` bindings and passes it to the bridge
+// (BuiltinBridge.connect's `memory` option), so the real SDK component API reads
+// and writes native ECS memory through the same generated ptrAccessors as web.
+export { NativeMemoryProvider } from './ecs/memoryProvider';
+export type { MemoryProvider, ComponentHeap, NativeComponentBufferFn } from './ecs/memoryProvider';
+
 // ABI layout hash of the component schema this bundle was generated from — the
 // native shell compares it against the wasm build it loads (same as the editor).
 export { ABI_LAYOUT_HASH } from './component.generated';

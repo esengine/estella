@@ -12,8 +12,11 @@ import { validateComponentData, formatValidationErrors, assetFieldNames } from '
 import { handleWasmError } from '../wasmError';
 import { installAbortGuard, throwIfModuleAborted, isModuleAborted, WasmModuleAborted } from '../moduleHealth';
 import { COMPONENT_META, ABI_LAYOUT_HASH } from '../component.generated';
-import { PTR_LAYOUTS } from '../ptrLayouts.generated';
 import { PTR_ACCESSORS } from './ptrAccessors.generated';
+import {
+    type MemoryProvider, type ComponentHeap,
+    WasmMemoryProvider, resolveWasmPtrFn,
+} from './memoryProvider';
 
 // =============================================================================
 // Color conversion helpers
@@ -262,6 +265,14 @@ export interface BridgeConnectOptions {
      * partial mock registries used in unit tests working unchanged.
      */
     readonly strict?: boolean;
+
+    /**
+     * Fast-path memory backend. Omit on web/emscripten: `connect` derives a
+     * {@link WasmMemoryProvider} from `module`. The native (embedded-Dawn) runtime
+     * injects a {@link NativeMemoryProvider} here — there is no wasm module, so the
+     * bridge reaches components through the host's `es_<Component>_buffer` bindings.
+     */
+    readonly memory?: MemoryProvider;
 }
 
 const METHOD_PREFIXES = ['add', 'get', 'has', 'remove'] as const;
@@ -301,6 +312,7 @@ function formatBridgeDiagnostic(v: BridgeVerification): string {
 export class BuiltinBridge {
     private cppRegistry_: CppRegistry | null = null;
     private module_: ESEngineModule | null = null;
+    private memory_: MemoryProvider | null = null;
     private builtinMethodCache_ = new Map<string, BuiltinMethods>();
     private builtinEntitySets_ = new Map<string, Set<Entity>>();
 
@@ -324,6 +336,11 @@ export class BuiltinBridge {
     ): void {
         this.cppRegistry_ = cppRegistry;
         this.module_ = module ?? null;
+        // Web derives a wasm-HEAP backend from the module; the native runtime
+        // injects its own (es_<Component>_buffer). No module and no override => no
+        // fast path (resolvePtr* return null), exactly as before.
+        this.memory_ = options.memory
+            ?? (module ? new WasmMemoryProvider(module, cppRegistry) : null);
         this.builtinMethodCache_.clear();
         this.builtinEntitySets_.clear();
 
@@ -343,6 +360,7 @@ export class BuiltinBridge {
         if (verification.abiMismatch || (options.strict && !verification.ok)) {
             this.cppRegistry_ = null;
             this.module_ = null;
+            this.memory_ = null;
             this.builtinMethodCache_.clear();
             throw new Error(formatBridgeDiagnostic(verification));
         }
@@ -351,6 +369,7 @@ export class BuiltinBridge {
     disconnect(): void {
         this.cppRegistry_ = null;
         this.module_ = null;
+        this.memory_ = null;
         this.builtinMethodCache_.clear();
         this.builtinEntitySets_.clear();
     }
@@ -603,27 +622,25 @@ export class BuiltinBridge {
         this.builtinEntitySets_.get(component._cppName)?.delete(entity);
     }
 
+    /**
+     * The wasm-exported pointer function for `cppName` — `(entity) => byte offset
+     * of that entity's component in the wasm heap`. Web/emscripten only (there is
+     * no such numeric address on native); the fast path itself goes through the
+     * {@link MemoryProvider}, so this is a lower-level convenience.
+     */
     resolvePtrFn(cppName: string): ((entity: Entity) => number) | null {
-        const layout = PTR_LAYOUTS[cppName];
-        if (!layout) return null;
-        const mod = this.module_ as Record<string, unknown> | null;
-        if (!mod) return null;
-        const fn = mod[layout.ptrFn] as ((r: CppRegistry, e: number) => number) | undefined;
-        if (!fn) return null;
-        const reg = this.cppRegistry_!;
-        return (e: Entity) => fn(reg, e);
+        return resolveWasmPtrFn(this.module_, this.cppRegistry_, cppName);
     }
 
     resolvePtrSetter(cppName: string): ((entity: Entity, data: unknown) => void) | null {
         const accessor = PTR_ACCESSORS[cppName];
         if (!accessor) return null;
-        const getPtrFn = this.resolvePtrFn(cppName);
-        if (!getPtrFn) return null;
-        const mod = this.module_!;
+        const resolveHeap = this.memory_?.resolveComponentHeap(cppName);
+        if (!resolveHeap) return null;
+        const heap: ComponentHeap = SCRATCH_HEAP();
         return (e: Entity, data: unknown) => {
-            const ptr = getPtrFn(e);
-            if (!ptr) return;
-            accessor.write(mod.HEAPF32, mod.HEAPU32, mod.HEAPU8, ptr, data);
+            if (!resolveHeap(e, heap)) return;
+            accessor.write(heap.f32, heap.u32, heap.u8, heap.ptr, data);
         };
     }
 
@@ -634,15 +651,23 @@ export class BuiltinBridge {
     resolvePtrGetter(cppName: string): ((entity: Entity) => unknown) | null {
         const accessor = PTR_ACCESSORS[cppName];
         if (!accessor) return null;
-        const getPtrFn = this.resolvePtrFn(cppName);
-        if (!getPtrFn) return null;
-        const mod = this.module_!;
+        const resolveHeap = this.memory_?.resolveComponentHeap(cppName);
+        if (!resolveHeap) return null;
+        const heap: ComponentHeap = SCRATCH_HEAP();
         const cached = accessor.create();
         return (e: Entity) => {
-            const ptr = getPtrFn(e);
-            if (!ptr) return null;
-            accessor.fill(mod.HEAPF32, mod.HEAPU32, mod.HEAPU8, ptr, cached);
+            if (!resolveHeap(e, heap)) return null;
+            accessor.fill(heap.f32, heap.u32, heap.u8, heap.ptr, cached);
             return cached;
         };
     }
 }
+
+// A fresh reusable ComponentHeap for one resolver. Its views are overwritten on
+// every successful resolve, so the empty initial arrays are never observed.
+function SCRATCH_HEAP(): ComponentHeap {
+    return { f32: EMPTY_F32, u32: EMPTY_U32, u8: EMPTY_U8, ptr: 0 };
+}
+const EMPTY_F32 = new Float32Array(0);
+const EMPTY_U32 = new Uint32Array(0);
+const EMPTY_U8 = new Uint8Array(0);
