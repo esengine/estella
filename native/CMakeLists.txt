@@ -88,9 +88,9 @@ target_compile_definitions(esengine PUBLIC ES_ENABLE_WEBGPU)  # NOT ES_PLATFORM_
 target_link_libraries(esengine PUBLIC glm yogacore webgpu_dawn)
 
 # Reference host: boots EstellaContext with an injected WebGPUDevice over the
-# NativeActivity's ANativeWindow and renders one ECS scene. See host/main.cpp.
+# NativeActivity's ANativeWindow and renders one ECS scene. See host_cpp/main.cpp.
 if(ANDROID)
-    add_library(estella_host SHARED host/main.cpp)
+    add_library(estella_host SHARED host_cpp/main.cpp)
     target_link_libraries(estella_host esengine native_app_glue android log)
     set_target_properties(estella_host PROPERTIES LINK_FLAGS "-u ANativeActivity_onCreate")
 endif()
@@ -119,12 +119,12 @@ if(ESTELLA_QUICKJS_DIR)
     target_compile_definitions(qjs PRIVATE _GNU_SOURCE)
     target_compile_options(qjs PRIVATE -Wno-unused -Wno-sign-compare)
 
-    # js/host_core.cpp is the platform-independent host; each platform adds its own
+    # host_js/host_core.cpp is the platform-independent host; each platform adds its own
     # glue TU (the event loop, the window, the packaged assets).
     if(ESTELLA_IOS)
         # Static: the thin Xcode app (native/ios) links this plus the libraries
         # below. -ObjC on the app keeps the Obj-C classes in main_ios.mm alive.
-        add_library(estella_js_host STATIC js/host_core.cpp js/main_ios.mm "${NATIVE_BINDINGS}")
+        add_library(estella_js_host STATIC host_js/host_core.cpp host_js/main_ios.mm "${NATIVE_BINDINGS}")
         target_link_libraries(estella_js_host esengine qjs
             "-framework UIKit" "-framework QuartzCore" "-framework Foundation")
         # Merge host + engine + deps + Dawn into ONE archive, so the Xcode app is a
@@ -135,12 +135,12 @@ if(ESTELLA_QUICKJS_DIR)
                     $<TARGET_FILE:qjs> $<TARGET_FILE:yogacore> "${ESTELLA_DAWN_LIB}"
             COMMENT "Merging the iOS host, engine and Dawn into libestella_ios.a")
     else()
-        add_library(estella_js_host SHARED js/host_core.cpp js/main_android.cpp "${NATIVE_BINDINGS}")
+        add_library(estella_js_host SHARED host_js/host_core.cpp host_js/main_android.cpp "${NATIVE_BINDINGS}")
         target_link_libraries(estella_js_host esengine qjs native_app_glue android log)
         set_target_properties(estella_js_host PROPERTIES LINK_FLAGS "-u ANativeActivity_onCreate")
     endif()
-    # js/ holds esn_shim.hpp + host_core.hpp (the generated TU includes the shim);
+    # host_js/ holds esn_shim.hpp + host_core.hpp (the generated TU includes the shim);
     # the gen dir holds ptraccessors_js.h and the embedded SDK bundle.
     target_include_directories(estella_js_host PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/js" "${ESTELLA_NATIVE_GEN_DIR}")
+        "${CMAKE_CURRENT_SOURCE_DIR}/host_js" "${ESTELLA_NATIVE_GEN_DIR}")
 endif()

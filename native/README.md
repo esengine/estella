@@ -9,20 +9,20 @@ engine runs native (full speed), so only the game script is interpreted.
 
 This directory holds two reference hosts + the build recipe:
 
-- **`host/`** — a pure-C++ host that renders one ECS scene (no JS). A smoke test
+- **`host_cpp/`** — a pure-C++ host that renders one ECS scene (no JS). A smoke test
   for the engine core on native Dawn. Android only; always built there.
-- **`js/`** — the JS host: a QuickJS game script drives the engine through the
+- **`host_js/`** — the JS host: a QuickJS game script drives the engine through the
   **real esengine SDK**. The SDK is bundled to one file
   (`dist/index.native.bundled.js`, installing `ESEngine`) and the game authors with
   `ESEngine.createNativeWorld()` — the same `World` the web build uses. Built when
   you pass `--quickjs` (this is the product-shaped runtime). It is one host with a
   platform seam, not one per OS:
-  - `js/host_core.{hpp,cpp}` — Dawn bring-up, the `es_*` bindings, the SDK bundle
+  - `host_js/host_core.{hpp,cpp}` — Dawn bring-up, the `es_*` bindings, the SDK bundle
     and the frame. Platform-independent; everything that differs sits behind
     `eshost::Platform`.
-  - `js/main_android.cpp` — NativeActivity, APK assets, Vulkan, the ALooper loop.
-  - `js/main_ios.mm` — a CAMetalLayer view, bundle assets, Metal, CADisplayLink.
-- **`android/`** — the APK manifests (`host/`, `js/`), packaged by `--package`.
+  - `host_js/main_android.cpp` — NativeActivity, APK assets, Vulkan, the ALooper loop.
+  - `host_js/main_ios.mm` — a CAMetalLayer view, bundle assets, Metal, CADisplayLink.
+- **`android/`** — the APK manifests (`host_cpp/`, `host_js/`), packaged by `--package`.
 - **`ios/`** — the Xcode app shell (xcodegen) that signs and packages the iOS
   build. It is only an entry point; the app lives in the static library.
 
@@ -42,7 +42,7 @@ the tree:
 | GL / text gates | `EstellaContext` under `ES_PLATFORM_WEB` / `ES_ENABLE_BITMAP_TEXT` | native drops the WebGL entry + optional bitmap text |
 | Bindings | `python -m eht --native-output` | `es_set_<C>` / `es_<C>_buffer` from the same reflection as the web embind bindings |
 | Data marshalling | `sdk/src/ecs/ptrAccessors.generated.ts` | POD components are wasm32/arm64 layout-identical → the generated accessors write native component memory unchanged (via a zero-copy `ArrayBuffer`) |
-| Host platform | `eshost::Platform` (`js/host_core.hpp`) | packaged assets, cache dir, backend, window surface + size, log — the only things the two OS glue files answer differently |
+| Host platform | `eshost::Platform` (`host_js/host_core.hpp`) | packaged assets, cache dir, backend, window surface + size, log — the only things the two OS glue files answer differently |
 
 ## Build (Android arm64)
 
@@ -97,7 +97,7 @@ node build-tools/cli.js native --dawn "$DAWN" --dawn-build "$DAWN/out-android" \
 adb install -r build-native/estella-js-host.apk
 ```
 
-It runs `aapt2 link` over `native/android/<host>/AndroidManifest.xml`, stages
+It runs `aapt2 link` over `native/android/host_{js,cpp}/AndroidManifest.xml`, stages
 `lib/arm64-v8a/{libestella*_host.so,libwebgpu_dawn.so,libc++_shared.so}` (Dawn
 stripped with the NDK's `llvm-strip`), packs the game and its content into
 `assets/` where the host's `readAsset()` looks, then `zipalign -f 4` and
@@ -140,8 +140,8 @@ cd native/ios && xcodegen && open EstellaiOS.xcodeproj
 Then pick your Team under *Signing & Capabilities*, select your device and Run.
 The CMake build merges host + engine + QuickJS + Dawn into one archive
 (`build-native-ios/libestella_ios.a`), so the Xcode project is a signing and
-packaging shell: `App/main.m` calls `EstellaRunApp()`, and the game (`js/game.js`,
-`js/logo.png`) ships as bundle resources — the same project-relative paths the APK
+packaging shell: `App/main.m` calls `EstellaRunApp()`, and the game (`host_js/game.js`,
+`host_js/logo.png`) ships as bundle resources — the same project-relative paths the APK
 serves from `assets/`.
 
 ## Gotchas (all resolved; each cost a build)

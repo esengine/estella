@@ -14,7 +14,7 @@
                 "${workspaceFolder}/third_party/nlohmann",
                 "${workspaceFolder}/third_party/box2d/include",
                 "${workspaceFolder}/build/quickjs_headers",
-                "${workspaceFolder}/native/js",
+                "${workspaceFolder}/native/host_js",
                 "${workspaceFolder}/third_party",
                 "${env:ESTELLA_DAWN_DIR}/include",
                 "${env:ESTELLA_DAWN_BUILD}/gen/include",
@@ -87,7 +87,7 @@
             "name": "Native Host (Android)",
             "includePath": [
                 "${workspaceFolder}/src",
-                "${workspaceFolder}/native/js",
+                "${workspaceFolder}/native/host_js",
                 "${workspaceFolder}/third_party",
                 "${workspaceFolder}/third_party/glm",
                 "${workspaceFolder}/third_party/stb",
@@ -112,7 +112,7 @@
             "name": "Native Host (iOS)",
             "includePath": [
                 "${workspaceFolder}/src",
-                "${workspaceFolder}/native/js",
+                "${workspaceFolder}/native/host_js",
                 "${workspaceFolder}/third_party",
                 "${workspaceFolder}/third_party/glm",
                 "${workspaceFolder}/third_party/stb",

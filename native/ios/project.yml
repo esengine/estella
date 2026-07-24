@@ -21,10 +21,10 @@ targets:
     platform: iOS
     sources:
       - path: App
-      - path: ../js/game.js
+      - path: ../host_js/game.js
         buildPhase: resources
         type: file
-      - path: ../js/logo.png
+      - path: ../host_js/logo.png
         buildPhase: resources
         type: file
     settings:

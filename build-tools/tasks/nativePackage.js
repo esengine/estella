@@ -17,14 +17,14 @@ import { requireSdk, requireNdk, buildTool, platformJar, ndkTool, ndkLibcxxShare
 const HOSTS = {
     // The product-shaped runtime: the QuickJS host + the SDK + a game asset.
     js: {
-        manifest: 'js',
+        manifest: 'host_js',
         library: 'libestella_js_host.so',
         assets: ['game.js', 'logo.png'],
         apk: 'estella-js-host.apk',
     },
     // The pure-C++ smoke test: one ECS scene, no JS, no assets.
     cpp: {
-        manifest: 'host',
+        manifest: 'host_cpp',
         library: 'libestella_host.so',
         assets: [],
         apk: 'estella-host.apk',
@@ -94,7 +94,7 @@ export async function packageNativeApk(options = {}) {
         assetsDir = path.join(staging, 'assets');
         await mkdir(assetsDir, { recursive: true });
         for (const asset of host.assets) {
-            await copyFile(path.join(rootDir, 'native', 'js', asset), path.join(assetsDir, asset));
+            await copyFile(path.join(rootDir, 'native', 'host_js', asset), path.join(assetsDir, asset));
         }
     }
 
