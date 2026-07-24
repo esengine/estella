@@ -129,6 +129,10 @@ export async function buildNative(options = {}) {
         `-DANDROID_PLATFORM=${platform}`,
         '-DANDROID_STL=c++_shared',
         '-DCMAKE_BUILD_TYPE=Release',
+        // Emit build-native/compile_commands.json so editor IntelliSense (the
+        // "Native Host" c_cpp_properties config) resolves the NDK / Dawn / QuickJS
+        // includes for native/js without hardcoding any machine paths.
+        '-DCMAKE_EXPORT_COMPILE_COMMANDS=ON',
         `-DESTELLA_DAWN_DIR=${dawnDir}`,
         `-DESTELLA_DAWN_BUILD=${dawnBuild}`,
     ];

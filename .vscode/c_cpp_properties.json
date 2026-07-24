@@ -74,6 +74,21 @@
             "cppStandard": "c++20",
             "intelliSenseMode": "clang-x64",
             "compileCommands": "${workspaceFolder}/build-web/compile_commands.json"
+        },
+        {
+            "name": "Native Host (Android)",
+            "includePath": [
+                "${workspaceFolder}/src",
+                "${workspaceFolder}/native/js",
+                "${workspaceFolder}/build-native/gen"
+            ],
+            "defines": [
+                "ES_ENABLE_WEBGPU"
+            ],
+            "cStandard": "c17",
+            "cppStandard": "c++20",
+            "intelliSenseMode": "linux-clang-arm64",
+            "compileCommands": "${workspaceFolder}/build-native/compile_commands.json"
         }
     ],
     "version": 4
