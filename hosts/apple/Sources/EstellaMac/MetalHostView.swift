@@ -9,15 +9,17 @@ import EstellaHostKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let engine: EngineHost
     private let bridge: NativeBridgeHost
+    private let runtime: JSRuntime
     private var window: NSWindow?
     private var view: MetalHostView?
     private var displayLink: CADisplayLink?
-    private var wgpu: WgpuContext?
-    private var frameIndex = 0
+    private var wgpuBridge: WgpuBridge?
+    private var pendingStart: (() -> Void)?   // engine init, deferred to the first live frame
 
-    init(engine: EngineHost, bridge: NativeBridgeHost) {
+    init(engine: EngineHost, bridge: NativeBridgeHost, runtime: JSRuntime) {
         self.engine = engine
         self.bridge = bridge
+        self.runtime = runtime
     }
 
     func applicationDidFinishLaunching(_ note: Notification) {
@@ -39,17 +41,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         v.metalLayer.drawableSize = CGSize(width: frame.width * scale, height: frame.height * scale)
 
         let pxW = Int(frame.width * scale), pxH = Int(frame.height * scale)
-        // Native WebGPU (wgpu-native) drives the window directly: bind the CAMetalLayer as the
-        // surface and clear it each frame — real GPU pixels on screen (slice 3). The
-        // engine-driven path (slice 4) replaces the clear with the engine's WebGPU commands.
-        do {
-            let ctx = try WgpuContext()
-            ctx.configureSurface(metalLayer: Unmanaged.passUnretained(v.metalLayer).toOpaque(),
-                                 width: pxW, height: pxH)
-            self.wgpu = ctx
-            print("wgpu surface configured (\(pxW)x\(pxH)) — \(ctx.adapterDescription())")
-        } catch {
-            print("wgpu surface bring-up failed: \(error)")
+        // The REAL engine renders to the window. Defer the engine's renderer init to the first
+        // live frame: createWebApp acquires the surface's current texture, which a CAMetalLayer
+        // only vends once the window is on-screen and the run loop is pumping.
+        pendingStart = { [weak self] in
+            guard let self else { return }
+            do {
+                let ctx = try WgpuContext()
+                ctx.createSurfaceOnly(metalLayer: Unmanaged.passUnretained(v.metalLayer).toOpaque())
+                let wb = WgpuBridge(runtime: self.runtime, context: ctx)
+                wb.installGlobals(targetWidth: pxW, targetHeight: pxH)
+                try self.engine.renderNative(deviceObject: wb.makeDevice(), width: pxW, height: pxH)
+                self.engine.spawnDemo(200)
+                self.wgpuBridge = wb
+                print("engine renderer up on the window (\(pxW)x\(pxH)) — \(ctx.adapterDescription())")
+            } catch {
+                print("engine-on-window bring-up failed: \(error)")
+            }
         }
 
         // macOS 14+ CADisplayLink — the same driver the iOS front end will use.
@@ -59,12 +67,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func frameTick() {
-        frameIndex += 1
-        let t = Double(frameIndex) * 0.02
-        // Gentle hue cycle so the native-GPU frame visibly animates.
-        wgpu?.presentClear((r: 0.5 + 0.5 * sin(t),
-                            g: 0.5 + 0.5 * sin(t + 2.094),
-                            b: 0.5 + 0.5 * sin(t + 4.188), a: 1.0))
+        if let start = pendingStart { pendingStart = nil; start() }   // first live frame
+        try? engine.tick(1.0 / 60.0)
+        wgpuBridge?.present()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ app: NSApplication) -> Bool { true }
@@ -86,11 +91,10 @@ final class MetalHostView: NSView {
     required init?(coder: NSCoder) { fatalError("init(coder:) unused") }
 
     override func makeBackingLayer() -> CALayer {
-        let layer = CAMetalLayer()
-        layer.device = MTLCreateSystemDefaultDevice()
-        layer.pixelFormat = .bgra8Unorm
-        layer.framebufferOnly = true
-        return layer
+        // wgpu-native owns the layer's Metal device / pixelFormat / drawableSize (set in
+        // wgpuSurfaceConfigure). Pre-setting a *different* MTLDevice blocks drawable creation,
+        // so hand it a bare layer.
+        return CAMetalLayer()
     }
 
     // Top-left origin so pushed touch coordinates match the NativeInputListener contract.

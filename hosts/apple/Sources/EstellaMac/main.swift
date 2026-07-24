@@ -89,7 +89,7 @@ if args.contains("--engine-native") {
 } else if args.contains("--window") {
     let app = NSApplication.shared
     app.setActivationPolicy(.regular)
-    let delegate = AppDelegate(engine: engine, bridge: bridgeHost)
+    let delegate = AppDelegate(engine: engine, bridge: bridgeHost, runtime: runtime)
     app.delegate = delegate
     app.run()
 } else {

@@ -13,3 +13,4 @@ Sources/EstellaHostKit/Resources/js/estella-sdk.iife.js
 # Vendored prebuilt native WebGPU (wgpu-native) — fetched by Scripts/fetch-wgpu-native.sh
 vendor/
 Sources/Cwgpu/include/webgpu
+*.app

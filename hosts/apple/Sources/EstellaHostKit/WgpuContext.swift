@@ -33,27 +33,49 @@ public final class WgpuContext {
 
     /// Wrap a CAMetalLayer as the WebGPU surface and (re)configure the swapchain. `metalLayer`
     /// is the CAMetalLayer object pointer (Unmanaged.passUnretained(...).toOpaque()).
-    public func configureSurface(metalLayer: UnsafeMutableRawPointer, width: Int, height: Int) {
-        if surface == nil {
-            var metal = WGPUSurfaceSourceMetalLayer()
-            metal.chain.sType = WGPUSType_SurfaceSourceMetalLayer
-            metal.layer = metalLayer
-            withUnsafeMutablePointer(to: &metal) { mptr in
-                var desc = WGPUSurfaceDescriptor()
-                desc.nextInChain = UnsafeMutableRawPointer(mptr).assumingMemoryBound(to: WGPUChainedStruct.self)
-                surface = wgpuInstanceCreateSurface(instance, &desc)
-            }
+    public var hasSurface: Bool { surface != nil }
+
+    /// Create the WGPUSurface from a CAMetalLayer (no swapchain config yet).
+    public func createSurfaceOnly(metalLayer: UnsafeMutableRawPointer) {
+        if surface != nil { return }
+        var metal = WGPUSurfaceSourceMetalLayer()
+        metal.chain.sType = WGPUSType_SurfaceSourceMetalLayer
+        metal.layer = metalLayer
+        withUnsafeMutablePointer(to: &metal) { mptr in
+            var desc = WGPUSurfaceDescriptor()
+            desc.nextInChain = UnsafeMutableRawPointer(mptr).assumingMemoryBound(to: WGPUChainedStruct.self)
+            surface = wgpuInstanceCreateSurface(instance, &desc)
         }
+    }
+
+    /// (Re)configure the swapchain — the engine's renderer drives this with its own format/size.
+    public func configureSurfaceFormat(_ format: WGPUTextureFormat, width: Int, height: Int) {
         guard let surface else { return }
+        surfaceFormat = format
         var cfg = WGPUSurfaceConfiguration()
         cfg.device = device
-        cfg.format = surfaceFormat
+        cfg.format = format
         cfg.usage = WGPUTextureUsage_RenderAttachment
         cfg.width = UInt32(width)
         cfg.height = UInt32(height)
         cfg.alphaMode = WGPUCompositeAlphaMode_Auto
         cfg.presentMode = WGPUPresentMode_Fifo
         wgpuSurfaceConfigure(surface, &cfg)
+    }
+
+    /// The surface's current backbuffer texture (for the engine to render into), or nil.
+    public func currentSurfaceTexture() -> OpaquePointer? {
+        guard let surface else { return nil }
+        var st = WGPUSurfaceTexture()
+        wgpuSurfaceGetCurrentTexture(surface, &st)
+        return st.texture   // non-null only once the CAMetalLayer can vend a drawable
+    }
+
+    public func presentSurface() { if let surface { _ = wgpuSurfacePresent(surface) } }
+
+    public func configureSurface(metalLayer: UnsafeMutableRawPointer, width: Int, height: Int) {
+        createSurfaceOnly(metalLayer: metalLayer)
+        configureSurfaceFormat(surfaceFormat, width: width, height: height)
     }
 
     /// Acquire the surface's current frame, clear it, submit and present — an on-screen frame

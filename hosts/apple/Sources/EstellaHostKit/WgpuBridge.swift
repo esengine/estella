@@ -20,10 +20,16 @@ public final class WgpuBridge {
     private let ctx: WgpuContext
     private var handles: [UInt32: OpaquePointer] = [:]
     private var nextId: UInt32 = 1
-    private var offscreenTarget: OpaquePointer?   // headless "surface" texture (readback validation)
+    private var offscreenTarget: OpaquePointer?   // offscreen render target (headless / no-drawable fallback)
+    private var acquiredSurfaceTexture: OpaquePointer?  // this frame's surface backbuffer (until present)
+    private var presentableThisFrame = false      // did this frame render to the real surface?
     private var targetW = 0, targetH = 0
     private var lastClear: (r: Double, g: Double, b: Double, a: Double) = (0, 0, 0, 0)
     public var lastClearColor: (r: Double, g: Double, b: Double, a: Double) { lastClear }
+    // Native Metal surfaces only support BGRA8Unorm; the engine requests RGBA8Unorm. We
+    // substitute here and rewrite draw-pipeline color targets to match. Shader-output
+    // semantics are format-neutral, so colors are unaffected.
+    private var surfaceColorFormat = WGPUTextureFormat_RGBA8Unorm
 
     public init(runtime: JSRuntime, context: WgpuContext) {
         self.rt = runtime
@@ -202,7 +208,8 @@ public final class WgpuBridge {
         d.usage = WGPUTextureUsage(u64(desc.objectForKeyedSubscript("usage")))
         d.dimension = WGPUTextureDimension_2D
         d.size = extent3D(desc.objectForKeyedSubscript("size"))
-        d.format = texFormat(desc.objectForKeyedSubscript("format")?.toString() ?? "rgba8unorm")
+        let fmtStr = desc.objectForKeyedSubscript("format")?.toString() ?? "rgba8unorm"
+        d.format = texFormat(fmtStr)
         d.mipLevelCount = max(1, u32(desc.objectForKeyedSubscript("mipLevelCount")))
         d.sampleCount = max(1, u32(desc.objectForKeyedSubscript("sampleCount")))
         guard let tex = wgpuDeviceCreateTexture(ctx.device, &d) else { return JSValue(nullIn: rt.context) }
@@ -343,7 +350,13 @@ public final class WgpuBridge {
 
     private func makeContextObject() -> JSValue {
         let context = JSValue(newObjectIn: rt.context)!
-        let configure: @convention(block) (JSValue) -> Void = { _ in /* headless: target sized in installGlobals */ }
+        let configure: @convention(block) (JSValue) -> Void = { [weak self] _ in
+            // On a real surface, use the Metal-supported BGRA8Unorm (not the engine's RGBA8Unorm
+            // request, which wgpu-native rejects). Remember it so draw pipelines target it too.
+            guard let self, self.ctx.hasSurface else { return }
+            self.surfaceColorFormat = WGPUTextureFormat_BGRA8Unorm
+            self.ctx.configureSurfaceFormat(WGPUTextureFormat_BGRA8Unorm, width: self.targetW, height: self.targetH)
+        }
         let getCurrentTexture: @convention(block) () -> JSValue = { [weak self] in
             self?.currentTexture() ?? JSValue(nullIn: self!.rt.context)
         }
@@ -355,22 +368,51 @@ public final class WgpuBridge {
     }
 
     private func currentTexture() -> JSValue {
-        if offscreenTarget == nil {
-            var d = WGPUTextureDescriptor()
-            d.usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_CopySrc
-            d.dimension = WGPUTextureDimension_2D
-            d.size = WGPUExtent3D(width: UInt32(targetW), height: UInt32(targetH), depthOrArrayLayers: 1)
-            d.format = WGPUTextureFormat_RGBA8Unorm
-            d.mipLevelCount = 1
-            d.sampleCount = 1
-            offscreenTarget = wgpuDeviceCreateTexture(ctx.device, &d)
+        // On-screen: the surface backbuffer when the CAMetalLayer can vend a drawable; if it
+        // can't yet (window not composited), fall back to an offscreen target so engine init
+        // never fails. Headless: always the offscreen target. On a real device the surface is
+        // available from the first frame, so this renders on-screen.
+        // WebGPU: getCurrentTexture returns the SAME backbuffer until present. Re-acquiring the
+        // surface before present is a validation error ("already acquired"), so cache per frame.
+        let target: OpaquePointer?
+        if let cached = acquiredSurfaceTexture {
+            target = cached
+        } else if ctx.hasSurface, let surfaceTex = ctx.currentSurfaceTexture() {
+            acquiredSurfaceTexture = surfaceTex
+            presentableThisFrame = true
+            target = surfaceTex
+        } else {
+            presentableThisFrame = false
+            target = fallbackTarget()
         }
-        guard let t = offscreenTarget else { return JSValue(nullIn: rt.context) }
+        guard let t = target else { return JSValue(nullIn: rt.context) }
         let createView: @convention(block) (JSValue?) -> JSValue = { [weak self] _ in
             guard let self, let v = wgpuTextureCreateView(t, nil) else { return JSValue(nullIn: self!.rt.context) }
             return self.wrap(v, [:])
         }
         return wrap(t, ["createView": createView])
+    }
+
+    private func fallbackTarget() -> OpaquePointer? {
+        if offscreenTarget == nil {
+            var d = WGPUTextureDescriptor()
+            d.usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_CopySrc
+            d.dimension = WGPUTextureDimension_2D
+            d.size = WGPUExtent3D(width: UInt32(max(1, targetW)), height: UInt32(max(1, targetH)), depthOrArrayLayers: 1)
+            d.format = ctx.hasSurface ? surfaceColorFormat : WGPUTextureFormat_RGBA8Unorm
+            d.mipLevelCount = 1
+            d.sampleCount = 1
+            offscreenTarget = wgpuDeviceCreateTexture(ctx.device, &d)
+        }
+        return offscreenTarget
+    }
+
+    /// Present the surface backbuffer (call after the engine's tick); no-op if this frame
+    /// rendered to the offscreen fallback (no drawable was available).
+    public func present() {
+        if presentableThisFrame { ctx.presentSurface() }
+        presentableThisFrame = false
+        acquiredSurfaceTexture = nil   // next frame re-acquires
     }
 
     // MARK: - self-test (slice 4a): the mechanism, end to end on the real GPU
