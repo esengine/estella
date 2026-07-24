@@ -9,6 +9,7 @@ import EstellaHostKit
 //   JSC_useJIT=0 swift run EstellaMac  ... under the iOS no-JIT constraint
 //   swift run EstellaMac --window     open a Metal window (render path is the N2 seam)
 
+setvbuf(stdout, nil, _IONBF, 0)   // unbuffered so logs survive a killed --window run
 let runtime = JSRuntime()
 let bridgeHost = NativeBridgeHost(runtime: runtime, assetRoot: Bundle.main.bundleURL)
 let engine = EngineHost(runtime: runtime, bridge: bridgeHost)

@@ -11,6 +11,9 @@ public final class WgpuContext {
     public let device: WGPUDevice
     public let queue: WGPUQueue
 
+    private var surface: WGPUSurface?
+    private var surfaceFormat = WGPUTextureFormat_BGRA8Unorm
+
     public init() throws {
         guard let inst = wgpuCreateInstance(nil) else { throw HostError.bootFailure("wgpuCreateInstance failed") }
         instance = inst
@@ -21,10 +24,71 @@ public final class WgpuContext {
     }
 
     deinit {
+        if let surface { wgpuSurfaceRelease(surface) }
         wgpuQueueRelease(queue)
         wgpuDeviceRelease(device)
         wgpuAdapterRelease(adapter)
         wgpuInstanceRelease(instance)
+    }
+
+    /// Wrap a CAMetalLayer as the WebGPU surface and (re)configure the swapchain. `metalLayer`
+    /// is the CAMetalLayer object pointer (Unmanaged.passUnretained(...).toOpaque()).
+    public func configureSurface(metalLayer: UnsafeMutableRawPointer, width: Int, height: Int) {
+        if surface == nil {
+            var metal = WGPUSurfaceSourceMetalLayer()
+            metal.chain.sType = WGPUSType_SurfaceSourceMetalLayer
+            metal.layer = metalLayer
+            withUnsafeMutablePointer(to: &metal) { mptr in
+                var desc = WGPUSurfaceDescriptor()
+                desc.nextInChain = UnsafeMutableRawPointer(mptr).assumingMemoryBound(to: WGPUChainedStruct.self)
+                surface = wgpuInstanceCreateSurface(instance, &desc)
+            }
+        }
+        guard let surface else { return }
+        var cfg = WGPUSurfaceConfiguration()
+        cfg.device = device
+        cfg.format = surfaceFormat
+        cfg.usage = WGPUTextureUsage_RenderAttachment
+        cfg.width = UInt32(width)
+        cfg.height = UInt32(height)
+        cfg.alphaMode = WGPUCompositeAlphaMode_Auto
+        cfg.presentMode = WGPUPresentMode_Fifo
+        wgpuSurfaceConfigure(surface, &cfg)
+    }
+
+    /// Acquire the surface's current frame, clear it, submit and present — an on-screen frame
+    /// through the real native GPU. The engine-driven path (slice 4) will replace the clear
+    /// with the engine's WebGPU command stream.
+    public func presentClear(_ c: (r: Double, g: Double, b: Double, a: Double)) {
+        guard let surface else { return }
+        var st = WGPUSurfaceTexture()
+        wgpuSurfaceGetCurrentTexture(surface, &st)
+        guard st.status == WGPUSurfaceGetCurrentTextureStatus_SuccessOptimal
+                || st.status == WGPUSurfaceGetCurrentTextureStatus_SuccessSuboptimal,
+              let tex = st.texture, let view = wgpuTextureCreateView(tex, nil),
+              let enc = wgpuDeviceCreateCommandEncoder(device, nil) else { return }
+        var color = WGPURenderPassColorAttachment()
+        color.view = view
+        color.depthSlice = WGPU_DEPTH_SLICE_UNDEFINED
+        color.loadOp = WGPULoadOp_Clear
+        color.storeOp = WGPUStoreOp_Store
+        color.clearValue = WGPUColor(r: c.r, g: c.g, b: c.b, a: c.a)
+        withUnsafePointer(to: &color) { colorPtr in
+            var pass = WGPURenderPassDescriptor()
+            pass.colorAttachmentCount = 1
+            pass.colorAttachments = colorPtr
+            let rp = wgpuCommandEncoderBeginRenderPass(enc, &pass)
+            wgpuRenderPassEncoderEnd(rp)
+            wgpuRenderPassEncoderRelease(rp)
+        }
+        if let cmd = wgpuCommandEncoderFinish(enc, nil) {
+            withUnsafePointer(to: cmd) { wgpuQueueSubmit(queue, 1, $0) }
+            wgpuCommandBufferRelease(cmd)
+        }
+        _ = wgpuSurfacePresent(surface)
+        wgpuCommandEncoderRelease(enc)
+        wgpuTextureViewRelease(view)
+        wgpuTextureRelease(tex)
     }
 
     /// Human-readable adapter identity (proves the native GPU is live).

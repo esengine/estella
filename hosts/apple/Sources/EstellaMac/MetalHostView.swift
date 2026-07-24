@@ -12,6 +12,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var window: NSWindow?
     private var view: MetalHostView?
     private var displayLink: CADisplayLink?
+    private var wgpu: WgpuContext?
+    private var frameIndex = 0
 
     init(engine: EngineHost, bridge: NativeBridgeHost) {
         self.engine = engine
@@ -37,12 +39,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         v.metalLayer.drawableSize = CGSize(width: frame.width * scale, height: frame.height * scale)
 
         let pxW = Int(frame.width * scale), pxH = Int(frame.height * scale)
+        // Native WebGPU (wgpu-native) drives the window directly: bind the CAMetalLayer as the
+        // surface and clear it each frame — real GPU pixels on screen (slice 3). The
+        // engine-driven path (slice 4) replaces the clear with the engine's WebGPU commands.
         do {
-            try engine.startRendered(provider: DawnGPUProvider(), layer: v.metalLayer, width: pxW, height: pxH)
+            let ctx = try WgpuContext()
+            ctx.configureSurface(metalLayer: Unmanaged.passUnretained(v.metalLayer).toOpaque(),
+                                 width: pxW, height: pxH)
+            self.wgpu = ctx
+            print("wgpu surface configured (\(pxW)x\(pxH)) — \(ctx.adapterDescription())")
         } catch {
-            print("rendering reserved (\(error))\n  -> window ticks headlessly until the native Dawn provider (N2) lands.")
+            print("wgpu surface bring-up failed: \(error)")
         }
-        engine.spawnDemo(2000)
 
         // macOS 14+ CADisplayLink — the same driver the iOS front end will use.
         let link = v.displayLink(target: self, selector: #selector(frameTick))
@@ -51,7 +59,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func frameTick() {
-        try? engine.tick(1.0 / 60.0)
+        frameIndex += 1
+        let t = Double(frameIndex) * 0.02
+        // Gentle hue cycle so the native-GPU frame visibly animates.
+        wgpu?.presentClear((r: 0.5 + 0.5 * sin(t),
+                            g: 0.5 + 0.5 * sin(t + 2.094),
+                            b: 0.5 + 0.5 * sin(t + 4.188), a: 1.0))
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ app: NSApplication) -> Bool { true }
