@@ -98,7 +98,9 @@ Toolchain: Xcode (the Command Line Tools alone have no iPhoneOS SDK — `cli nat
 falls back to `/Applications/Xcode.app` automatically), CMake ≥ 3.22, Ninja, and
 [xcodegen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`).
 
-**One-time: build Dawn for iOS arm64** (Metal, *static* — an app embeds it):
+**One-time: build Dawn for iOS arm64** (Metal, *static* — an app embeds it). Same
+checkout as the Android build; only the output dir differs. ~5 min, 744 targets,
+a 19 MB `libwebgpu_dawn.a`:
 
 ```sh
 cmake -S "$DAWN" -B "$DAWN/out-ios" -G Ninja \
@@ -140,13 +142,19 @@ serves from `assets/`.
 5. `configureSwapchain` must use `CompositeAlphaMode::Auto`, not `Opaque` — a
    native Vulkan surface (Adreno) rejects Opaque outright.
 6. MIUI blocks `adb install` on a locked screen — unlock + allow USB install.
+7. Xcode ships the iPhoneOS **SDK** without the device **platform** components, so
+   the CMake build works while `xcodebuild` rejects every iOS destination
+   ("iOS X.Y is not installed"). Install it under *Xcode → Settings → Components*.
+   Without it you can still verify the link by hand:
+   `xcrun --sdk iphoneos clang -arch arm64 -mios-version-min=17.0 native/ios/App/main.m build-native-ios/libestella_ios.a -ObjC -lc++ -framework UIKit -framework Metal -framework QuartzCore -framework Foundation -framework IOSurface -framework CoreGraphics -o /tmp/EstellaiOS`
 
 ## Status
 
 **Android** is proven on device (Snapdragon 8 Elite / Adreno 830, 120 fps).
-**iOS** has its glue, its CMake target and its app shell, and compiles for
-arm64 — but it has not run on a device yet; it needs a Dawn-for-iOS build and
-your signing.
+**iOS** builds end to end: Dawn for iOS, the engine, QuickJS and the host all
+compile for arm64, merge into `libestella_ios.a`, and link into a 12 MB iOS
+executable with no unresolved symbols. It has not *run* on a device yet — that
+needs your signing.
 
 The engine core + render path are proven on device. The JS host runs the **real
 SDK**: `ESEngine.createNativeApp()`
