@@ -12,13 +12,14 @@
  *        per-asset optimization. Texture compression / Max Size / audio bitrate are
  *        authored per asset in the Inspector's Import Settings; the build only
  *        chooses whether to HONOR those settings (`assetCompression: 'auto'`) or
- *        skip them for fast iteration (`'skip'`). All four targets are live.
+ *        skip them for fast iteration (`'skip'`). Every target is live.
  */
 import { useState, useSyncExternalStore, type ReactNode } from 'react';
 import {
   Loader2, FolderOpen, CheckCircle2, AlertCircle, Boxes, Info, Copy, ExternalLink, Play,
-  Globe, Monitor, MessageSquare, ChevronRight,
+  Globe, Monitor, MessageSquare, ChevronRight, Smartphone,
 } from 'lucide-react';
+import type { ExportPlatform } from '@/project/format';
 import { Modal } from '@/components/Modal';
 import { Segmented } from '@/components/Segmented';
 import { Button } from '@/components/Button';
@@ -28,7 +29,7 @@ import { t } from '@/i18n';
 
 type Phase = 'idle' | 'running' | 'done' | 'error';
 type Config = 'development' | 'shipping';
-type Platform = 'web' | 'desktop' | 'wechat' | 'playable';
+type Platform = ExportPlatform;
 type AssetCompression = 'auto' | 'skip';
 
 interface Result {
@@ -88,6 +89,13 @@ const PLATFORMS: PlatformDef[] = [
     defaultOut: 'dist-playable', sourceMaps: false, httpPreview: true,
     prereq: t('build.prereq.playable'),
     next: () => t('build.next.playable'),
+  },
+  {
+    id: 'native', label: t('build.plat.native'), ready: true, icon: <Smartphone size={17} />,
+    blurb: t('build.blurb.native'),
+    defaultOut: 'dist-native', sourceMaps: false,
+    prereq: t('build.prereq.native'),
+    next: (o) => t('build.next.native', { out: o }),
   },
 ];
 

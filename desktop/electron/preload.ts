@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
-import type { OpenedProject, WorkspaceState, DirEntry, RecentEntry, TemplateEntry } from '../src/project/format';
+import type { OpenedProject, WorkspaceState, DirEntry, RecentEntry, TemplateEntry, ExportPlatform } from '../src/project/format';
 import type { BuildScriptsResult } from './buildScripts';
 import type { ExtractSchemasResult } from './extractSchemas';
 import type { ScanAssetsResult, AssetIndex, IncrementalScanResult } from './assetDb';
@@ -94,7 +94,7 @@ const api = {
     /** Cook reachable assets for shipping → staged files + runtime manifest in `outDir`. */
     cookAssets: (outDir?: string): Promise<CookResult> => ipcRenderer.invoke('project:cookAssets', outDir),
     /** Export a runnable web build (play==ship) → self-contained `outDir` (default dist-game/). */
-    exportGame: (opts?: { outDir?: string; minify?: boolean; sourcemap?: boolean; platform?: 'web' | 'desktop' | 'wechat' | 'playable'; compressTextures?: boolean; compressAudio?: boolean; atlasTextures?: boolean }): Promise<ExportGameResult> =>
+    exportGame: (opts?: { outDir?: string; minify?: boolean; sourcemap?: boolean; platform?: ExportPlatform; compressTextures?: boolean; compressAudio?: boolean; atlasTextures?: boolean }): Promise<ExportGameResult> =>
       ipcRenderer.invoke('project:exportGame', opts),
     /** Serve a built export dir (web / playable) over loopback http and open it in the
      *  default browser — the build's real deployment surface, so no file:// origin

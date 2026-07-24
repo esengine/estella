@@ -13,6 +13,7 @@ export const projectMessages = defineMessages({
     'build.plat.desktop': { en: 'Desktop', zh: '桌面' },
     'build.plat.wechat': { en: 'WeChat', zh: '微信小游戏' },
     'build.plat.playable': { en: 'Playable', zh: 'Playable' },
+    'build.plat.native': { en: 'Mobile', zh: '移动原生' },
     'build.comingSoon': { en: 'Coming soon', zh: '即将推出' },
     'build.soon': { en: 'soon', zh: '即将' },
     'build.blurb.web': {
@@ -28,6 +29,10 @@ export const projectMessages = defineMessages({
         en: 'Single-file HTML playable ad — everything inlined, no requests.',
         zh: '单文件 HTML 试玩广告——所有内容内联，无网络请求。',
     },
+    'build.blurb.native': {
+        en: 'Content for the native iOS / Android app — a real app, not a WebView.',
+        zh: '原生 iOS / Android 应用的内容——真正的原生应用，而非 WebView。',
+    },
     'build.prereq.wechat': {
         en: 'Requires the WeChat runtime — run: node build-tools/cli.js build -t wechat',
         zh: '需要微信运行时——请运行：node build-tools/cli.js build -t wechat',
@@ -35,6 +40,10 @@ export const projectMessages = defineMessages({
     'build.prereq.playable': {
         en: 'Requires the single-file runtime — run: node build-tools/cli.js build -t playable',
         zh: '需要单文件运行时——请运行：node build-tools/cli.js build -t playable',
+    },
+    'build.prereq.native': {
+        en: 'Needs the native host — see native/README.md (embedded Dawn + QuickJS).',
+        zh: '需要原生宿主——见 native/README.md（内嵌 Dawn + QuickJS）。',
     },
     'build.next.web': {
         en: "Preview over http below, or upload {out}/ to any static host. (A web build needs an http origin — opening index.html directly won't stream the wasm.)",
@@ -51,6 +60,11 @@ export const projectMessages = defineMessages({
     'build.next.playable': {
         en: 'Preview over http below (its real surface is an ad-network iframe). Note: a full engine usually exceeds ad-network size limits.',
         zh: '在下方通过 http 预览（其真实运行环境是广告网络的 iframe）。注意：完整引擎通常会超出广告网络的体积限制。',
+    },
+
+    'build.next.native': {
+        en: 'Package it into the app: node build-tools/cli.js native --package --content {out} (Android), or point the Xcode project at {out} (iOS).',
+        zh: '将其打进应用：node build-tools/cli.js native --package --content {out}（Android），或让 Xcode 工程指向 {out}（iOS）。',
     },
 
     // — Options —

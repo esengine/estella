@@ -19,7 +19,7 @@
  *
  *        Pure Node (esbuild + fs) — IPC wiring is in main.ts.
  */
-import type { BuildOptions } from 'esbuild';
+import type { BuildOptions, Plugin } from 'esbuild';
 import { loadEsbuild } from './esbuildRuntime';
 import { writeFile, mkdir, cp, readdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -34,7 +34,8 @@ import type { OnExportProgress } from './exportProgress';
 import { ESENGINE_EXTERNAL } from './esengineResolve';
 import { orientationCss, orientationOverlayHtml, orientationLockScript, type ScreenOrientation } from './orientationHtml';
 
-export type ExportPlatform = 'web' | 'desktop' | 'wechat' | 'playable';
+import type { ExportPlatform } from '../src/project/format';
+export type { ExportPlatform };
 
 /** A switchable scene the export ships: SceneManager name + project-relative path. */
 export interface ExportScene {
@@ -125,6 +126,22 @@ function indexHtml(title: string, orientation?: ScreenOrientation): string {
 }
 
 /** A filesystem-safe slug for the app id / package name. */
+/** Resolve every `esengine` import to the host's global SDK. A native build has
+ *  no module loader and no second copy of the SDK: the engine bundle the host
+ *  already evaluated installs `globalThis.ESEngine`, and the project's scripts
+ *  must bind to THAT instance or their components land in a rival registry. */
+function esengineGlobalPlugin(): Plugin {
+  return {
+    name: 'esengine-global',
+    setup(build) {
+      build.onResolve({ filter: /^esengine(\/.*)?$/ }, (args) => ({ path: args.path, namespace: 'esengine-global' }));
+      build.onLoad({ filter: /.*/, namespace: 'esengine-global' }, () => ({
+        contents: 'module.exports = globalThis.ESEngine;', loader: 'js',
+      }));
+    },
+  };
+}
+
 function slugify(title: string): string {
   return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'game';
 }
@@ -375,6 +392,10 @@ export async function exportGame(opts: {
   const absOut = path.isAbsolute(opts.outDir) ? opts.outDir : path.join(opts.root, opts.outDir);
   // Desktop nests the web build under app/; the Electron shell sits beside it.
   const payloadDir = platform === 'desktop' ? path.join(absOut, 'app') : absOut;
+  // The native app carries the runtime in its binary (engine core + SDK bundle),
+  // so its export is CONTENT: cooked assets, manifests, scenes, config — no host
+  // page, no SDK/wasm tree, and project scripts as a plain script the host evals.
+  const nativeContent = platform === 'native';
   const warnings: string[] = [];
   const errors: string[] = [];
   await mkdir(payloadDir, { recursive: true });
@@ -417,15 +438,24 @@ export async function exportGame(opts: {
     // 2. Game host — esengine EXTERNAL (resolved by the index.html import map),
     //    so the shipped game shares one SDK with the project bundle and runs
     //    custom systems (same shape as the play realm).
-    progress({ phase: 'Bundling game host' });
     const { build } = await loadEsbuild();
-    const host = await build({ ...common, entryPoints: [opts.gameHostEntry], outfile: path.join(payloadDir, 'game.js') });
-    errors.push(...host.errors.map((e) => e.text));
-    // 3. Project bundle (defineComponent/defineSystem) → scripts.mjs, esengine external.
+    if (!nativeContent) {
+      progress({ phase: 'Bundling game host' });
+      const host = await build({ ...common, entryPoints: [opts.gameHostEntry], outfile: path.join(payloadDir, 'game.js') });
+      errors.push(...host.errors.map((e) => e.text));
+    }
+    // 3. Project bundle (defineComponent/defineSystem). ESM + esengine external on
+    //    the web (the import map resolves it); on native an IIFE the host evals,
+    //    where `esengine` is the globalThis.ESEngine the host installed.
     const scriptsAbs = opts.scriptsEntry ? path.join(opts.root, opts.scriptsEntry) : null;
     if (scriptsAbs && existsSync(scriptsAbs)) {
       progress({ phase: 'Bundling project scripts' });
-      const proj = await build({ ...common, entryPoints: [scriptsAbs], outfile: path.join(payloadDir, 'scripts.mjs') });
+      const proj = nativeContent
+        ? await build({
+          ...common, format: 'iife', external: [], plugins: [esengineGlobalPlugin()],
+          entryPoints: [scriptsAbs], outfile: path.join(payloadDir, 'scripts.js'),
+        })
+        : await build({ ...common, entryPoints: [scriptsAbs], outfile: path.join(payloadDir, 'scripts.mjs') });
       errors.push(...proj.errors.map((e) => e.text));
     }
   } catch (err) {
@@ -437,16 +467,20 @@ export async function exportGame(opts: {
   // 4. SDK (import-map target) + wasm runtime. The import map and the game
   //    host reference both unconditionally — a missing tree is not a degraded
   //    export but a package that cannot boot, so it fails the export.
-  progress({ phase: 'Copying SDK + runtime' });
-  if (existsSync(opts.sdkDistDir)) await cp(opts.sdkDistDir, path.join(payloadDir, 'sdk'), { recursive: true });
-  else errors.push(`sdk dist not found: ${opts.sdkDistDir}`);
-  if (existsSync(opts.wasmDir)) await cp(opts.wasmDir, path.join(payloadDir, 'wasm'), { recursive: true });
-  else errors.push(`wasm runtime dir not found: ${opts.wasmDir}`);
+  if (!nativeContent) {
+    progress({ phase: 'Copying SDK + runtime' });
+    if (existsSync(opts.sdkDistDir)) await cp(opts.sdkDistDir, path.join(payloadDir, 'sdk'), { recursive: true });
+    else errors.push(`sdk dist not found: ${opts.sdkDistDir}`);
+    if (existsSync(opts.wasmDir)) await cp(opts.wasmDir, path.join(payloadDir, 'wasm'), { recursive: true });
+    else errors.push(`wasm runtime dir not found: ${opts.wasmDir}`);
+  }
 
   // 5. Host page + entry-scene config. Web pins orientation (rotate-to-fit overlay);
   //    desktop omits it — the Electron shell sizes its own window to the orientation.
   progress({ phase: 'Writing host page' });
-  await writeFile(path.join(payloadDir, 'index.html'), indexHtml(title, platform === 'web' ? orientation : undefined));
+  if (!nativeContent) {
+    await writeFile(path.join(payloadDir, 'index.html'), indexHtml(title, platform === 'web' ? orientation : undefined));
+  }
   await writeFile(
     path.join(payloadDir, 'game.config.json'),
     JSON.stringify(

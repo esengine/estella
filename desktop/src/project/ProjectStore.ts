@@ -31,7 +31,7 @@ import { t } from '@/i18n';
 import { assetTypeOf } from '@/project/assetMeta';
 import { ASSET_SLOTS, metaTypeToSlot } from '@/project/assetSlots';
 import type { AssetType } from '@/types';
-import { resolveLayout, orientationFromDesignResolution, resolveOrientation, cameraScaleModeValue, WORKSPACE_DIR, PROJECT_MANIFEST_FILE, type OpenedProject, type ProjectFeatures, type ProjectLayout, type ProjectPackaging, type WorkspaceState, type DesignResolution, type ScreenOrientation, type CameraScaleMode } from './format';
+import { resolveLayout, orientationFromDesignResolution, resolveOrientation, cameraScaleModeValue, WORKSPACE_DIR, PROJECT_MANIFEST_FILE, type OpenedProject, type ProjectFeatures, type ProjectLayout, type ProjectPackaging, type WorkspaceState, type DesignResolution, type ScreenOrientation, type CameraScaleMode, type ExportPlatform } from './format';
 import { useEditorMode } from '@/store/editorModeStore';
 import { PlayRealms } from '@/engine/PlayRealm';
 import { PlayInspect } from '@/engine/PlayInspect';
@@ -2338,7 +2338,7 @@ class ProjectStoreImpl {
    * (default `dist-game/`). Returns the bridge result so the Build dialog can
    * render status/log; null if no project is open.
    */
-  async exportGame(opts?: { outDir?: string; minify?: boolean; sourcemap?: boolean; platform?: 'web' | 'desktop' | 'wechat' | 'playable'; compressTextures?: boolean; compressAudio?: boolean; atlasTextures?: boolean }) {
+  async exportGame(opts?: { outDir?: string; minify?: boolean; sourcemap?: boolean; platform?: ExportPlatform; compressTextures?: boolean; compressAudio?: boolean; atlasTextures?: boolean }) {
     if (!this.state) return null;
     return window.estella.project.exportGame(opts);
   }

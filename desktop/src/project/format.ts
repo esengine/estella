@@ -123,11 +123,15 @@ export type CameraScaleMode = 'none' | 'fixed-width' | 'fixed-height' | 'expand'
 export interface WeChatPackaging { appid?: string; }
 export interface DesktopPackaging { appId?: string; productName?: string; }
 
+/** Every export target. The single source: the electron export pipeline, the IPC
+ *  surface and the build dialog all name their platforms from here. */
+export type ExportPlatform = 'web' | 'desktop' | 'wechat' | 'playable' | 'native';
+
 /** Persisted Package Project settings (UE's ProjectPackagingSettings analog) —
  *  committed with the project so the build dialog restores the last target/config
  *  and the export reads per-platform config. */
 export interface ProjectPackaging {
-  platform?: 'web' | 'desktop' | 'wechat' | 'playable';
+  platform?: ExportPlatform;
   config?: 'development' | 'shipping';
   sourceMaps?: boolean;
   openFolder?: boolean;
@@ -157,7 +161,7 @@ export interface ProjectPackaging {
    *  always ships regardless. */
   excludeScenes?: string[];
   /** Per-platform output-dir overrides (else the per-platform default). */
-  outDir?: Partial<Record<'web' | 'desktop' | 'wechat' | 'playable', string>>;
+  outDir?: Partial<Record<ExportPlatform, string>>;
   /** Per-platform packaging config (appid, app id, …). */
   platforms?: { wechat?: WeChatPackaging; desktop?: DesktopPackaging };
 }

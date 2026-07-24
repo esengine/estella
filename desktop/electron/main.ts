@@ -39,7 +39,7 @@ import { ensureProjectShaderTwins } from './shaderTwins';
 import { installCrashCapture, logsDir } from './resilience';
 import { mcpMode, startMcpEndpoint } from './mcpEndpoint';
 import { checkForUpdate } from './updateCheck';
-import { resolveLayout, resolveScripts, resolveOrientation, resolveScreenFit } from '../src/project/format';
+import { resolveLayout, resolveScripts, resolveOrientation, resolveScreenFit, type ExportPlatform } from '../src/project/format';
 import type { WorkspaceState } from '../src/project/format';
 
 // Enable WebGPU in the renderer so the viewport's WebGPU backend (Settings →
@@ -758,7 +758,7 @@ ipcMain.handle('project:cookAssets', async (_e, outDir?: string) => {
 // Export a runnable web build (play == ship): cook + game host + wasm + index.html.
 ipcMain.handle(
   'project:exportGame',
-  async (e, opts?: { outDir?: string; minify?: boolean; sourcemap?: boolean; platform?: 'web' | 'desktop' | 'wechat' | 'playable'; compressTextures?: boolean; compressAudio?: boolean; atlasTextures?: boolean }) => {
+  async (e, opts?: { outDir?: string; minify?: boolean; sourcemap?: boolean; platform?: ExportPlatform; compressTextures?: boolean; compressAudio?: boolean; atlasTextures?: boolean }) => {
     const root = requireRoot();
     const manifest = await readManifest(root);
     const entryScene = manifest.defaultScene;
