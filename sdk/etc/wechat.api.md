@@ -3478,7 +3478,7 @@ mouse: boolean | undefined
 ## LoadRuntimeSceneOptions — interface
 ```
 app: App
-module: ESEngineModule
+module: ESEngineModule | null
 physicsConfig: PhysicsPluginConfig | undefined
 physicsEnabled: boolean | undefined
 physicsModule: PhysicsWasmModule | null | undefined
@@ -5368,7 +5368,7 @@ audioConfig: AudioProjectConfig | undefined
 catalog: Catalog | undefined
 firstScene: string
 manifest: AddressableManifest | ManifestModel | null | undefined
-module: ESEngineModule
+module: ESEngineModule | null
 persistUpdateKey: string | undefined
 physicsConfig: PhysicsPluginConfig | undefined
 physicsEnabled: boolean | undefined

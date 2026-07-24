@@ -62,7 +62,7 @@ export type TranscoderProvider = () => Promise<BasisTranscoder | null>;
 /** The opaque C++ registry handle SpineManager.loadEntity expects (app.world.getCppRegistry()). */
 type CppRegistry = Parameters<SpineManager['loadEntity']>[4];
 
-interface SpineAssetInfo {
+export interface SpineAssetInfo {
     version: SpineVersion | null;
     skelData: Uint8Array | string;
     atlasText: string;

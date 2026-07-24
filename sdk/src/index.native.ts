@@ -63,6 +63,16 @@ export { createNativeWorld } from './ecs/nativeRuntime';
 // NativeBridge) + native ECS. The system-binding layer (Stage B) over the World.
 export { createNativeApp } from './ecs/nativeRuntime';
 
+// Boot an EXPORTED project (cooked assets + scenes + game.config.json read off
+// the device) rather than a hand-written game script — the native sibling of the
+// WeChat runtime and the web game host.
+export { initNativeGame } from './nativeGameRuntime';
+export type { NativeGame, NativeGameConfig, NativeGameOptions } from './nativeGameRuntime';
+
+// The packaged-realm asset assembly the native and WeChat runtimes share.
+export { loadPackagedAssetIndex, indexPackagedManifest, catalogFromManifest } from './packagedRuntime';
+export type { PackagedAssetIndex } from './packagedRuntime';
+
 // ABI layout hash of the component schema this bundle was generated from — the
 // native shell compares it against the wasm build it loads (same as the editor).
 export { ABI_LAYOUT_HASH } from './component.generated';

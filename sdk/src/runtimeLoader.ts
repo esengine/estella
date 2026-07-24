@@ -34,7 +34,7 @@ import { installHotUpdateRebind } from './hotUpdateRebind';
 import { requireResourceManager } from './resourceManager';
 import { log } from './logger';
 import { type RuntimeAssetSource, type TextureParams } from './runtimeAssets';
-import { loadSpineAssets, applySpineEntities } from './spine/loadSpineScene';
+import { loadSpineAssets, applySpineEntities, type SpineAssetInfo } from './spine/loadSpineScene';
 import type { AddressableManifest, ManifestModel } from './asset/AddressableManifest';
 import type { Catalog } from './asset/Catalog';
 
@@ -77,7 +77,7 @@ const runtimeImportSettings = new WeakMap<AssetsClass, Record<string, TextureImp
  * neither and applied no atlas-frame indirection).
  */
 function ensureRuntimeAssets(
-    app: App, module: ESEngineModule, source: RuntimeAssetSource, catalog?: Catalog,
+    app: App, module: ESEngineModule | null, source: RuntimeAssetSource, catalog?: Catalog,
 ): AssetsClass {
     if (app.hasResource(AssetsResource)) {
         const existing = app.getResource(AssetsResource);
@@ -162,7 +162,9 @@ function applyTextureMetadata(
 
 export interface LoadRuntimeSceneOptions {
     app: App;
-    module: ESEngineModule;
+    /** The wasm module, or null on a native host — the engine core is arm64 there,
+     *  so there is no Module to reach through. */
+    module: ESEngineModule | null;
     sceneData: SceneData;
     source: RuntimeAssetSource;
     spineModule?: SpineWasmModule | null;
@@ -259,12 +261,18 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
 
     // KTX2 atlas pages transcode through the realm's basis module, acquired the
     // same lazy way the TextureLoader's provider does (AssetPlugin).
-    const spineAssetInfo = await loadSpineAssets(module, source, spineManager, discovered.spines, async () => {
-        const host = app.sideModules;
-        if (!host) return null;
-        const mod = await host.acquire('basis');
-        return mod ? transcoderFromModule(mod as unknown as BasisWasmModule) : null;
-    });
+    // Spine rides the wasm side-module host, which a native host does not have.
+    if (!module && discovered.spines.length > 0) {
+        log.warn('scene', `${discovered.spines.length} spine asset(s) skipped — this realm has no wasm module`);
+    }
+    const spineAssetInfo = module
+        ? await loadSpineAssets(module, source, spineManager, discovered.spines, async () => {
+            const host = app.sideModules;
+            if (!host) return null;
+            const mod = await host.acquire('basis');
+            return mod ? transcoderFromModule(mod as unknown as BasisWasmModule) : null;
+        })
+        : new Map<string, SpineAssetInfo>();
 
     // Self-gating: install physics when the project declares it OR the scene uses
     // it, so no runtime entry can forget to wire it. The module comes from the
@@ -341,8 +349,10 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
     }
 
     const cppRegistry = app.world.getCppRegistry();
-    if (cppRegistry) {
-        (module as ESEngineModule).transform_update(cppRegistry);
+    // Fold the loaded transforms into world matrices once, before the first frame.
+    // Native hosts run their own TransformSystem each frame instead.
+    if (cppRegistry && module) {
+        module.transform_update(cppRegistry);
     }
 
     if (spineManager && cppRegistry) {
@@ -385,7 +395,8 @@ export function createRuntimeSceneConfig(
 
 export interface RuntimeInitConfig {
     app: App;
-    module: ESEngineModule;
+    /** The wasm module, or null on a native host (see LoadRuntimeSceneOptions). */
+    module: ESEngineModule | null;
     source: RuntimeAssetSource;
     /**
      * Addressable manifest for the app's Assets, enabling `Assets.loadGroup`
