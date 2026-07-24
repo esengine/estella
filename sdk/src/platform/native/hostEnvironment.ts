@@ -15,6 +15,8 @@
  *          missing global is named at the seam instead.
  */
 
+import { assertNativeBindings } from '../../ecs/nativeBindings';
+
 /** A host global the SDK requires, and what breaks without it. */
 interface RequiredGlobal {
     name: string;
@@ -32,7 +34,8 @@ const REQUIRED: RequiredGlobal[] = [
 ];
 
 /**
- * Verify the host installed everything the SDK needs, before anything uses it.
+ * Verify the host installed the JS globals the SDK needs, before anything uses
+ * them. {@link assertNativeHost} checks this plus the es_* bindings.
  *
  * @throws naming the first missing global and what it is needed for.
  */
@@ -51,4 +54,17 @@ export function assertHostEnvironment(
             + 'A native host must supply the browser globals its JS engine lacks.',
         );
     }
+}
+
+/**
+ * The whole native host contract, checked at once: the JS environment a bare
+ * engine lacks, and the es_* bindings the shell provides. Call it as the first
+ * thing after evaluating the SDK — a shell that is missing something learns it
+ * here, by name, rather than from a failure somewhere downstream.
+ */
+export function assertNativeHost(
+    scope: Record<string, unknown> = globalThis as unknown as Record<string, unknown>,
+): void {
+    assertHostEnvironment(scope);
+    assertNativeBindings(scope);
 }

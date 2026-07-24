@@ -7,7 +7,8 @@
  *        what is missing, not fail later somewhere unrelated.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { createHostBridge, assertHostEnvironment } from '../src/platform/native';
+import { createHostBridge, assertHostEnvironment, assertNativeHost } from '../src/platform/native';
+import { REGISTRY_BINDINGS, RESOURCE_BINDINGS, PLATFORM_BINDINGS } from '../src/ecs/nativeBindings';
 
 /** The globals a real host installs (console, timers, clock, decoder). */
 function hostGlobals(): Record<string, unknown> {
@@ -106,5 +107,36 @@ describe('createHostBridge', () => {
         expect(bridge.getStorageItem('seen')).toBe('yes');
         bridge.setStorageItem('x', '1');
         expect(native.get('x')).toBe('1');
+    });
+});
+
+describe('assertNativeHost', () => {
+    /** Everything a complete shell binds. */
+    function fullHost(): Record<string, unknown> {
+        const scope = hostGlobals();
+        for (const name of [
+            ...Object.values(REGISTRY_BINDINGS),
+            ...Object.values(RESOURCE_BINDINGS),
+            ...Object.values(PLATFORM_BINDINGS),
+        ]) scope[name] = () => undefined;
+        return scope;
+    }
+
+    it('passes on a complete host', () => {
+        expect(() => assertNativeHost(fullHost())).not.toThrow();
+    });
+
+    it('lists every missing binding at once, not just the first', () => {
+        const scope = fullHost();
+        delete scope[REGISTRY_BINDINGS.setParent];
+        delete scope[RESOURCE_BINDINGS.createTexture];
+        expect(() => assertNativeHost(scope)).toThrow(/es_setParent/);
+        expect(() => assertNativeHost(scope)).toThrow(/es_createTexture/);
+    });
+
+    it('checks the JS environment before the bindings', () => {
+        const scope = fullHost();
+        delete scope.TextDecoder;
+        expect(() => assertNativeHost(scope)).toThrow(/TextDecoder/);
     });
 });

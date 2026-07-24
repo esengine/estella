@@ -65,6 +65,10 @@ globalThis.TextDecoder.prototype.decode = function (buf) {
     return buf == null ? '' : es_utf8Decode(buf);
 };
 
+// The whole host contract in one check — the JS globals a bare engine lacks and
+// the es_* bindings this shell binds — so a gap is named here, not downstream.
+ESEngine.assertNativeHost(globalThis);
+
 // The bridge over the host's es_* bindings; it also installs es_onNativeTouch,
 // the entry point the host calls per touch.
 globalThis.__esNativeBridge = ESEngine.createHostBridge(globalThis);

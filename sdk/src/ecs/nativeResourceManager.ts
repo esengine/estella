@@ -15,6 +15,7 @@
 // method when present, so web (embind, no such method) stays byte-identical.
 
 import type { CppResourceManager } from '../wasm';
+import { RESOURCE_BINDINGS } from './nativeBindings';
 
 /** Invoke a host-provided global by name; throws if the host did not bind it
  *  (these are part of the native ResourceManager contract). */
@@ -57,7 +58,7 @@ export function createNativeResourceManager(
         createTextureFromBytes: (
             width, height, pixels, format, flipY, filterMode, wrapMode,
         ): number =>
-            hostCall(scope, 'es_createTexture',
+            hostCall(scope, RESOURCE_BINDINGS.createTexture,
                 [width, height, pixels, format, flipY, filterMode, wrapMode]) as number,
 
         updateTextureSubregionFromBytes: (handle, x, y, width, height, pixels): void => {
@@ -65,11 +66,11 @@ export function createNativeResourceManager(
         },
 
         releaseTexture: (handle): void => {
-            hostCallOpt(scope, 'es_releaseTexture', [handle]);
+            hostCallOpt(scope, RESOURCE_BINDINGS.releaseTexture, [handle]);
         },
 
         getTextureDimensions: (handle): { width: number; height: number } | null =>
-            (hostCallOpt(scope, 'es_getTextureDimensions', [handle]) as
+            (hostCallOpt(scope, RESOURCE_BINDINGS.getTextureDimensions, [handle]) as
                 { width: number; height: number } | null | undefined) ?? null,
 
         // The engine applies RuntimeConfig.textureCacheBudget at startup; forward it

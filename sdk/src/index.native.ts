@@ -34,7 +34,7 @@ markEngineComponentBaseline();
 export * from './core';
 export * from './webAppFactory';
 
-export { NativePlatformAdapter, installNativePlatform, createHostBridge, assertHostEnvironment } from './platform/native';
+export { NativePlatformAdapter, installNativePlatform, createHostBridge, assertHostEnvironment, assertNativeHost } from './platform/native';
 export type { NativeBridge, NativeInputListener, NativeFetchResult, NativeHostBindings } from './platform/native';
 
 // Fast-path memory backend for the native core. The shell builds one over its
@@ -48,6 +48,9 @@ export type { MemoryProvider, ComponentHeap, NativeComponentBufferFn } from './e
 // drives (add/get/has/remove). Built over the host's es_<Component>_buffer/_has/
 // _remove bindings; pass to BuiltinBridge.connect as the cppRegistry.
 export { createNativeRegistry } from './ecs/nativeRegistry';
+
+// The es_* names a host binds, declared once and checked at boot.
+export { REGISTRY_BINDINGS, RESOURCE_BINDINGS, PLATFORM_BINDINGS, assertNativeBindings } from './ecs/nativeBindings';
 
 // The native ResourceManager — the embind-ResourceManager sibling the SDK's asset
 // pipeline drives (createTexture / releaseTexture / dims). Built over the host's

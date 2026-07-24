@@ -17,6 +17,7 @@
 import type { CppRegistry } from '../wasm';
 import type { Entity } from '../types';
 import { PTR_ACCESSORS } from './ptrAccessors.generated';
+import { REGISTRY_BINDINGS } from './nativeBindings';
 import { COMPONENT_META } from '../component.generated';
 import { convertForWasm, convertFromWasm } from './BuiltinBridge';
 
@@ -62,16 +63,16 @@ export function createNativeRegistry(
     // Entity lifecycle + hierarchy — the base Registry surface World drives (spawn,
     // despawn, parent/child). These are not per-component; the host binds them by
     // hand (the native siblings of the embind Registry's entity ops).
-    reg.create = (): Entity => hostCall(scope, 'es_createEntity', []) as Entity;
-    reg.destroy = (e: Entity): void => { hostCall(scope, 'es_destroyEntity', [e]); };
-    reg.hasParent = (e: Entity): boolean => !!hostCall(scope, 'es_hasParent', [e]);
+    reg.create = (): Entity => hostCall(scope, REGISTRY_BINDINGS.createEntity, []) as Entity;
+    reg.destroy = (e: Entity): void => { hostCall(scope, REGISTRY_BINDINGS.destroyEntity, [e]); };
+    reg.hasParent = (e: Entity): boolean => !!hostCall(scope, REGISTRY_BINDINGS.hasParent, [e]);
     reg.setParent = (child: Entity, parent: Entity): void => {
-        hostCall(scope, 'es_setParent', [child, parent]);
+        hostCall(scope, REGISTRY_BINDINGS.setParent, [child, parent]);
     };
-    reg.removeParent = (e: Entity): void => { hostCall(scope, 'es_removeParent', [e]); };
-    reg.hasChildren = (e: Entity): boolean => !!hostCall(scope, 'es_hasChildren', [e]);
+    reg.removeParent = (e: Entity): void => { hostCall(scope, REGISTRY_BINDINGS.removeParent, [e]); };
+    reg.hasChildren = (e: Entity): boolean => !!hostCall(scope, REGISTRY_BINDINGS.hasChildren, [e]);
     reg.getChildren = (e: Entity) => ({
-        entities: vectorEntity((hostCall(scope, 'es_getChildren', [e]) as Entity[] | undefined) ?? []),
+        entities: vectorEntity((hostCall(scope, REGISTRY_BINDINGS.getChildren, [e]) as Entity[] | undefined) ?? []),
     });
     reg.delete = (): void => {};
 

@@ -1,0 +1,64 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+ * @file    nativeBindings.ts
+ * @brief   The names a native host binds on the JS global, declared once.
+ * @details Half of this contract is generated — `es_set_<C>` / `es_<C>_buffer`
+ *          and friends come out of the same reflection pass that emits the web
+ *          bindings, so neither side can misspell them. The hand-written half
+ *          (entities, hierarchy, textures, the platform primitives) had no such
+ *          guarantee: the host spelled each name in C++, the SDK spelled it again
+ *          in a string literal at the call site, and a mismatch surfaced whenever
+ *          that particular call first ran.
+ *
+ *          These constants are the one spelling. The call sites read them, and
+ *          {@link assertNativeBindings} checks the whole set at boot.
+ */
+
+/** Entity + hierarchy — the base Registry surface the SDK's World drives. */
+export const REGISTRY_BINDINGS = {
+    createEntity: 'es_createEntity',
+    destroyEntity: 'es_destroyEntity',
+    setParent: 'es_setParent',
+    hasParent: 'es_hasParent',
+    removeParent: 'es_removeParent',
+    hasChildren: 'es_hasChildren',
+    getChildren: 'es_getChildren',
+} as const;
+
+/** The native ResourceManager surface the asset pipeline uploads through. */
+export const RESOURCE_BINDINGS = {
+    createTexture: 'es_createTexture',
+    releaseTexture: 'es_releaseTexture',
+    getTextureDimensions: 'es_getTextureDimensions',
+} as const;
+
+/** Platform primitives the SDK's bridge and file reading are built on. */
+export const PLATFORM_BINDINGS = {
+    readAsset: 'es_readAsset',
+    loadImagePixels: 'es_loadImagePixels',
+    utf8Decode: 'es_utf8Decode',
+} as const;
+
+/**
+ * Verify a host bound everything before anything calls it.
+ *
+ * @throws listing every missing binding at once — a host that is halfway through
+ *         implementing the contract learns all of what is left, not the first
+ *         name some code path happened to reach.
+ */
+export function assertNativeBindings(
+    scope: Record<string, unknown> = globalThis as unknown as Record<string, unknown>,
+): void {
+    const missing = [
+        ...Object.values(REGISTRY_BINDINGS),
+        ...Object.values(RESOURCE_BINDINGS),
+        ...Object.values(PLATFORM_BINDINGS),
+    ].filter((name) => typeof scope[name] !== 'function');
+    if (missing.length > 0) {
+        throw new Error(
+            `[native] the host has not bound: ${missing.join(', ')} — see NativeHostBindings `
+            + 'and the es_* contract in nativeBindings.ts',
+        );
+    }
+}
