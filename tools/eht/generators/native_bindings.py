@@ -59,6 +59,7 @@ class NativeBindingsGenerator:
 
     def _component(self, comp: Component) -> List[str]:
         full = f'{comp.namespace}::{comp.name}' if comp.namespace else comp.name
+        # Per-field setter: es_set_<Component>(entityId, obj).
         out = [f'static JSValue es_set_{comp.name}(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {{',
                '    if (argc < 2) return JS_UNDEFINED;',
                '    esengine::Entity e = esn_entity(ctx, argv[0]);',
@@ -68,6 +69,15 @@ class NativeBindingsGenerator:
         for prop in comp.properties:
             out.append(self._field(prop))
         out.append('    return JS_UNDEFINED;')
+        out.append('}')
+        # Fast path: es_<Component>_buffer(entityId) -> a zero-copy ArrayBuffer over
+        # the native component, which the shared generated ptrAccessors write. Same
+        # POD layout as wasm32, so ptrAccessors.generated.ts works unchanged.
+        out.append(f'static JSValue es_{comp.name}_buffer(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {{')
+        out.append('    if (argc < 1) return JS_UNDEFINED;')
+        out.append('    esengine::Entity e = esn_entity(ctx, argv[0]);')
+        out.append(f'    auto& c = esn_reg().getOrEmplace<{full}>(e);')
+        out.append(f'    return esn_arraybuffer(ctx, &c, sizeof({full}));')
         out.append('}')
         out.append('')
         return out
@@ -97,9 +107,12 @@ class NativeBindingsGenerator:
             lines.extend(self._component(comp))
         lines.append('void esn_register(JSContext* ctx, JSValue global) {')
         for comp in components:
-            fn = f'es_set_{comp.name}'
-            lines.append(f'    JS_SetPropertyStr(ctx, global, "{fn}", '
-                         f'JS_NewCFunction(ctx, {fn}, "{fn}", 2));')
+            setter = f'es_set_{comp.name}'
+            buffer = f'es_{comp.name}_buffer'
+            lines.append(f'    JS_SetPropertyStr(ctx, global, "{setter}", '
+                         f'JS_NewCFunction(ctx, {setter}, "{setter}", 2));')
+            lines.append(f'    JS_SetPropertyStr(ctx, global, "{buffer}", '
+                         f'JS_NewCFunction(ctx, {buffer}, "{buffer}", 1));')
         lines.append('}')
         lines.append('')
         return '\n'.join(lines)
