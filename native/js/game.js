@@ -1,5 +1,6 @@
-// Demo game — pure game logic, loaded at runtime from the APK's assets/ (NOT
-// compiled into the C++ host). It authors through the real SDK exactly like a web
+// Demo game — pure game logic, loaded at runtime as a packaged asset (the APK's
+// assets/ on Android, the app bundle on iOS; NOT compiled into the C++ host).
+// It authors through the real SDK exactly like a web
 // game: ESEngine.createNativeApp + world.spawn/insert + the Input and Assets
 // resources. The host provides `ESEngine` (SDK bundle), the `es_*` globals, the
 // frame constants W/H/S, and the platform bridge `__esNativeBridge`.
@@ -46,7 +47,7 @@ function init() {
 function update(dt) {
     t += dt;
     app.tick(dt);                      // run the App loop (host pumps its async jobs)
-    // Follow the touch once there's been one (Android touch is top-left origin; the
+    // Follow the touch once there's been one (host touch is top-left origin; the
     // world is y-up). Before any touch, the logo sits centered.
     var p = input.getMousePosition();
     if (p.x !== 0 || p.y !== 0) {
