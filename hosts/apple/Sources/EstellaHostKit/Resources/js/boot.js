@@ -45,6 +45,20 @@
       return true;
     },
 
+    // Native render: inject the WgpuBridge device object and create the app in WebGPU canvas
+    // mode. The host has already installed navigator.gpu + document (backed by the bridge), so
+    // the engine's renderer drives native wgpu-native through the bridge (REARCH_NATIVE.md
+    // §3.3.2, slice 4c).
+    renderNative: function (deviceObj, w, h) {
+      var m = requireModule();
+      m.preinitializedWebGPUDevice = deviceObj;
+      app = SDK.createWebApp(m, {
+        renderSurface: { kind: 'webgpu', surface: { from: 'canvas', selector: '#canvas' } },
+        getViewportSize: function () { return { width: w, height: h }; },
+      });
+      return true;
+    },
+
     // Populate a demo scene of moving sprites.
     spawnDemo: function (n) {
       var world = app.world;

@@ -23,7 +23,30 @@ do {
 
 let args = Set(CommandLine.arguments.dropFirst())
 
-if args.contains("--wgpu-bridge-test") {
+if args.contains("--engine-native") {
+    // Slice 4c: the REAL engine renders a frame through the WgpuBridge onto native wgpu-native,
+    // verified headlessly by reading the target back (no window needed).
+    print("Estella macOS host — real engine driving native wgpu-native (headless).")
+    do {
+        let ctx = try WgpuContext()
+        let bridge = WgpuBridge(runtime: runtime, context: ctx)
+        let W = 64, H = 64
+        bridge.installGlobals(targetWidth: W, targetHeight: H)
+        try engine.renderNative(deviceObject: bridge.makeDevice(), width: W, height: H)
+        try engine.tick(1.0 / 60.0)
+        if let px = bridge.readbackTarget() {
+            let c = bridge.lastClearColor
+            let exp = (UInt8(c.r * 255 + 0.5), UInt8(c.g * 255 + 0.5), UInt8(c.b * 255 + 0.5), UInt8(c.a * 255 + 0.5))
+            let ok = px == exp
+            print("  engine frame -> target rgba\(px); engine's clearValue -> ~\(exp) -> \(ok ? "MATCH (engine drove native GPU!)" : "diff")")
+        } else {
+            print("  no target readback (engine did not acquire the current texture)")
+        }
+    } catch {
+        FileHandle.standardError.write(Data("engine-native render failed: \(error)\n".utf8))
+        exit(1)
+    }
+} else if args.contains("--wgpu-bridge-test") {
     // Slice 4a: prove the JS WebGPU shim -> Swift -> wgpu-native marshalling on the real GPU.
     print("Estella macOS host — WebGPU JS bridge marshalling test.")
     do {

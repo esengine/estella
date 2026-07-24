@@ -94,6 +94,13 @@ public final class EngineHost {
         _ = estellaBoot?.invokeMethod("spawnDemo", withArguments: [n])
     }
 
+    /// Create the app in WebGPU canvas mode with the given bridge device object injected — the
+    /// engine's renderer then drives native wgpu-native through the bridge.
+    public func renderNative(deviceObject: JSValue, width: Int, height: Int) throws {
+        guard let boot = estellaBoot else { throw HostError.bootFailure("not booted") }
+        _ = boot.invokeMethod("renderNative", withArguments: [deviceObject, width, height])
+    }
+
     /// Advance one frame (pumps until the tick Promise settles).
     public func tick(_ dt: Double) throws {
         guard let boot = estellaBoot else { throw HostError.bootFailure("not booted") }
