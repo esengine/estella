@@ -5,6 +5,7 @@
             "includePath": [
                 "${workspaceFolder}/src",
                 "${workspaceFolder}/include",
+                "${env:EMSDK}/upstream/emscripten/cache/ports/emdawnwebgpu/emdawnwebgpu_pkg/webgpu/include",
                 "${workspaceFolder}/third_party/glm",
                 "${workspaceFolder}/third_party/glfw/include",
                 "${workspaceFolder}/third_party/glad/include",
@@ -18,6 +19,7 @@
                 "_DEBUG",
                 "ES_PLATFORM_NATIVE",
                 "ES_PLATFORM_MACOS",
+                "ES_ENABLE_WEBGPU",
                 "ES_DEBUG"
             ],
             "cStandard": "c17",
@@ -29,6 +31,7 @@
             "includePath": [
                 "${workspaceFolder}/src",
                 "${workspaceFolder}/include",
+                "${env:EMSDK}/upstream/emscripten/cache/ports/emdawnwebgpu/emdawnwebgpu_pkg/webgpu/include",
                 "${workspaceFolder}/third_party/glm",
                 "${workspaceFolder}/third_party/glfw/include",
                 "${workspaceFolder}/third_party/glad/include",
@@ -42,6 +45,7 @@
                 "_DEBUG",
                 "ES_PLATFORM_NATIVE",
                 "ES_PLATFORM_WINDOWS",
+                "ES_ENABLE_WEBGPU",
                 "ES_DEBUG",
                 "ES_SCRIPTING_ENABLED"
             ],
@@ -54,6 +58,7 @@
             "includePath": [
                 "${workspaceFolder}/src",
                 "${workspaceFolder}/include",
+                "${env:EMSDK}/upstream/emscripten/cache/ports/emdawnwebgpu/emdawnwebgpu_pkg/webgpu/include",
                 "${workspaceFolder}/third_party/glm",
                 "${workspaceFolder}/third_party/stb",
                 "${workspaceFolder}/third_party/spine-runtimes-4.2/spine-c/spine-c/include",
@@ -62,6 +67,7 @@
             ],
             "defines": [
                 "ES_PLATFORM_WEB",
+                "ES_ENABLE_WEBGPU",
                 "__EMSCRIPTEN__"
             ],
             "cStandard": "c17",
