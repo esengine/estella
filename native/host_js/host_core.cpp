@@ -88,6 +88,15 @@ globalThis.__esNativeBridge = {
 
 namespace {
 
+// A pending setTimeout / setInterval callback. QuickJS is only the language: the
+// timers, like console, are the host's job.
+struct Timer {
+    int64_t id;
+    double due;        ///< nowMs() deadline.
+    double interval;   ///< Repeat period; 0 for a one-shot.
+    JSValue fn;
+};
+
 struct App {
     eshost::Platform* platform = nullptr;
     WGPUInstance instance = nullptr;
@@ -99,6 +108,8 @@ struct App {
     JSRuntime* rt = nullptr;
     JSContext* js = nullptr;
     std::string cacheDir;                   // app private dir — SDK bytecode cache
+    std::vector<Timer> timers;
+    int64_t next_timer_id = 1;
     glm::vec4 clear{0.07f, 0.08f, 0.12f, 1.0f};
     f32 w = 0, h = 0;
     bool ready = false;         // engine + JS booted once
@@ -107,6 +118,8 @@ struct App {
 };
 
 App* g_app = nullptr;
+
+double nowMs();
 
 void hostLog(bool error, const char* fmt, ...) {
     char buf[1024];
@@ -327,6 +340,62 @@ JSValue js_loadImagePixels(JSContext* ctx, JSValueConst, int, JSValueConst* argv
     return obj;
 }
 
+// console.* — QuickJS ships no console at all, so without this a game script's
+// first console.log is a ReferenceError and every rejected promise is silent.
+JSValue jsConsoleWrite(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv, bool error) {
+    std::string line;
+    for (int i = 0; i < argc; ++i) {
+        const char* s = JS_ToCString(ctx, argv[i]);
+        if (!s) continue;
+        if (!line.empty()) line += ' ';
+        line += s;
+        JS_FreeCString(ctx, s);
+    }
+    hostLog(error, "%s", line.c_str());
+    return JS_UNDEFINED;
+}
+JSValue js_consoleLog(JSContext* ctx, JSValueConst t, int argc, JSValueConst* argv) {
+    return jsConsoleWrite(ctx, t, argc, argv, false);
+}
+JSValue js_consoleError(JSContext* ctx, JSValueConst t, int argc, JSValueConst* argv) {
+    return jsConsoleWrite(ctx, t, argc, argv, true);
+}
+
+JSValue jsAddTimer(JSContext* ctx, int argc, JSValueConst* argv, bool repeat) {
+    if (argc < 1 || !JS_IsFunction(ctx, argv[0])) return JS_NewInt64(ctx, 0);
+    double delay = 0;
+    if (argc > 1) JS_ToFloat64(ctx, &delay, argv[1]);
+    if (!(delay >= 0)) delay = 0;                      // also catches NaN
+    App& a = *g_app;
+    const int64_t id = a.next_timer_id++;
+    // A zero-delay interval would fire forever within one pump; clamp as browsers do.
+    a.timers.push_back(Timer{id, nowMs() + delay, repeat ? (delay > 1 ? delay : 1) : 0,
+                             JS_DupValue(ctx, argv[0])});
+    return JS_NewInt64(ctx, id);
+}
+JSValue js_setTimeout(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
+    return jsAddTimer(ctx, argc, argv, false);
+}
+JSValue js_setInterval(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
+    return jsAddTimer(ctx, argc, argv, true);
+}
+JSValue js_clearTimer(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
+    int64_t id = 0;
+    if (argc > 0) JS_ToInt64(ctx, &id, argv[0]);
+    App& a = *g_app;
+    for (auto it = a.timers.begin(); it != a.timers.end(); ++it) {
+        if (it->id != id) continue;
+        JS_FreeValue(a.js, it->fn);
+        a.timers.erase(it);
+        break;
+    }
+    return JS_UNDEFINED;
+}
+
+JSValue js_performanceNow(JSContext* ctx, JSValueConst, int, JSValueConst*) {
+    return JS_NewFloat64(ctx, nowMs());
+}
+
 void logJsError(JSContext* ctx, const char* where) {
     JSValue e = JS_GetException(ctx);
     const char* s = JS_ToCString(ctx, e);
@@ -356,6 +425,33 @@ void callJs(App& a, const char* fn, int argc, JSValue* argv) {
 void pumpJobs(App& a) {
     JSContext* c;
     while (JS_ExecutePendingJob(a.rt, &c) > 0) { /* ran a job */ }
+}
+
+// Fire the timers that came due. Callbacks may add or clear timers, so they run
+// off a snapshot rather than while iterating.
+void pumpTimers(App& a) {
+    const double now = nowMs();
+    std::vector<Timer> due;
+    for (auto it = a.timers.begin(); it != a.timers.end();) {
+        if (it->due > now) { ++it; continue; }
+        due.push_back(*it);
+        if (it->interval > 0) { it->due = now + it->interval; ++it; }
+        else it = a.timers.erase(it);
+    }
+    for (Timer& t : due) {
+        JSValue r = JS_Call(a.js, t.fn, JS_UNDEFINED, 0, nullptr);
+        if (JS_IsException(r)) logJsError(a.js, "timer callback");
+        JS_FreeValue(a.js, r);
+        if (t.interval <= 0) JS_FreeValue(a.js, t.fn);   // the erased entry's reference
+    }
+}
+
+/// One turn of the host's event loop: microtasks, then timers, then whatever
+/// microtasks those timers queued.
+void pumpJs(App& a) {
+    pumpJobs(a);
+    pumpTimers(a);
+    pumpJobs(a);
 }
 
 void bindGlobal(App& a, JSValue global, const char* name, JSCFunction* fn, int argc) {
@@ -437,6 +533,26 @@ void initJS(App& a) {
     JS_SetPropertyStr(a.js, global, "H", JS_NewFloat64(a.js, a.h));
     JS_SetPropertyStr(a.js, global, "S", JS_NewFloat64(a.js, a.w < a.h ? a.w : a.h));
 
+    // The host environment the SDK expects but QuickJS (a language, not a runtime)
+    // does not provide: console, timers and a monotonic clock. Without them a
+    // rejected promise is silent and the asset cache's setTimeout throws.
+    JSValue console = JS_NewObject(a.js);
+    for (const char* name : {"log", "info", "debug", "trace"}) {
+        JS_SetPropertyStr(a.js, console, name, JS_NewCFunction(a.js, js_consoleLog, name, 1));
+    }
+    for (const char* name : {"warn", "error"}) {
+        JS_SetPropertyStr(a.js, console, name, JS_NewCFunction(a.js, js_consoleError, name, 1));
+    }
+    JS_SetPropertyStr(a.js, global, "console", console);
+
+    bindGlobal(a, global, "setTimeout", js_setTimeout, 2);
+    bindGlobal(a, global, "setInterval", js_setInterval, 2);
+    bindGlobal(a, global, "clearTimeout", js_clearTimer, 1);
+    bindGlobal(a, global, "clearInterval", js_clearTimer, 1);
+    JSValue perf = JS_NewObject(a.js);
+    JS_SetPropertyStr(a.js, perf, "now", JS_NewCFunction(a.js, js_performanceNow, "now", 0));
+    JS_SetPropertyStr(a.js, global, "performance", perf);
+
     // Entity + hierarchy (base Registry surface).
     bindGlobal(a, global, "es_createEntity", js_createEntity, 0);
     bindGlobal(a, global, "es_destroyEntity", js_destroyEntity, 1);
@@ -474,7 +590,7 @@ void initJS(App& a) {
     evalJs(a, src.c_str(), "game.js");
     const double tGame = nowMs();
     callJs(a, "init", 0, nullptr);
-    pumpJobs(a);
+    pumpJs(a);
     const double tInit = nowMs();
     LOGI("boot ms — qjs ctx: %.0f | SDK bundle eval: %.0f | bootstrap+game: %.0f | init(): %.0f | total JS: %.0f",
          tCtx - t0, tBundle - tCtx, tGame - tBundle, tInit - tGame, tInit - t0);
@@ -562,7 +678,7 @@ void frame() {
     JSValue dt = JS_NewFloat64(a.js, 1.0 / 60.0);
     callJs(a, "update", 1, &dt);
     JS_FreeValue(a.js, dt);
-    pumpJobs(a);   // run the App tick's async systems
+    pumpJs(a);   // run the App tick's async systems and any timers they set
 
     ctx.require<RenderContext>().setFrameTime((f32)a.frame / 60.0f, (u32)a.w, (u32)a.h);
     World world{*a.registry, ctx.services(), 1.0f / 60.0f};

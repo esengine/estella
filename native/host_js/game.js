@@ -36,6 +36,8 @@ function init() {
         world.insert(follower, ESEngine.Sprite, {
             texture: result.handle, color: { r: 1, g: 1, b: 1, a: 1 },
             size: { x: S * 0.28, y: S * 0.28 } });
+    }, function (err) {
+        console.error('logo.png failed to load:', err && err.message ? err.message : err);
     });
 
     orbit = world.spawn();
