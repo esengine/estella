@@ -340,12 +340,36 @@ bool initRendererWebGPU(const std::string& canvasSelector, u32 width, u32 height
         return false;
     }
     auto device = makeUnique<WebGPUDevice>(raw);
-    if (!device->configureSurface(canvasSelector.c_str(), width, height)) {
-        ES_LOG_ERROR("initRendererWebGPU: surface configuration failed for '{}'", canvasSelector);
+
+    // Two surface origins (REARCH_NATIVE.md §3.3): a non-empty selector is the web/DOM
+    // path (emdawnwebgpu resolves it); an empty selector is the native wasm-on-JSC path,
+    // where the DOM-less host registered an already-built WGPUSurface as
+    // Module.preinitializedWebGPUSurface and we adopt that handle — the device-injection
+    // contract's surface twin, never touching the DOM.
+    bool surfaceOk;
+    if (canvasSelector.empty()) {
+        auto injected = reinterpret_cast<WGPUSurface>(static_cast<uintptr_t>(EM_ASM_INT({
+            return Module['preinitializedWebGPUSurface'] || 0;
+        })));
+        if (!injected) {
+            ES_LOG_ERROR("initRendererWebGPU: injected-surface mode but no "
+                         "Module.preinitializedWebGPUSurface — the native host must register "
+                         "a WGPUSurface built from its CAMetalLayer/ANativeWindow");
+            return false;
+        }
+        surfaceOk = device->adoptSurface(injected, width, height);
+    } else {
+        surfaceOk = device->configureSurface(canvasSelector.c_str(), width, height);
+    }
+    if (!surfaceOk) {
+        ES_LOG_ERROR("initRendererWebGPU: surface configuration failed ({})",
+                     canvasSelector.empty() ? "injected" : canvasSelector.c_str());
         return false;
     }
 
-    ES_LOG_INFO("WebGPU device injected for '{}' ({}x{})", canvasSelector, width, height);
+    ES_LOG_INFO("WebGPU device injected, surface = {} ({}x{})",
+                canvasSelector.empty() ? "native (injected)" : canvasSelector.c_str(),
+                width, height);
     ES_LOG_INFO("Estella runtime provenance {}", kEstellaBuildProvenance);
 
     g_activeContext = &legacyCtx().context();

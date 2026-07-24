@@ -5,7 +5,8 @@
  * @brief   ESEngine SDK — native entry point (embedded Dawn + JS engine on
  *          iOS/Android; NOT a WebView). The same engine wasm + TS SDK runs on a
  *          host JavaScriptCore / V8 / Hermes; the C++ renderer binds to a native
- *          WebGPU surface via `{ kind: 'webgpu' }` (see RenderSurfaceSource).
+ *          WebGPU surface via `{ kind: 'webgpu', surface: { from: 'injected' } }`
+ *          (see RenderSurfaceSource).
  *
  *          Unlike the web/node/wechat entries, this one does NOT auto-install a
  *          platform: there is no platform until the native shell injects its
@@ -15,7 +16,7 @@
  *            installNativePlatform(bridge);   // shell provides fs/fetch/input/…
  *            const module = await instantiateEngineWasm(bridge);   // shell-owned
  *            const app = createWebApp(module, {
- *              renderSurface: { kind: 'webgpu' },   // Dawn device set on the module factory
+ *              renderSurface: { kind: 'webgpu', surface: { from: 'injected' } },
  *            });
  *
  * @beta   Pre-1.0: the native host is unshipped; this entry's shape (and the

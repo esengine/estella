@@ -203,6 +203,23 @@ bool WebGPUDevice::configureSurface(const NativeSurface& window, u32 width, u32 
 }
 #endif  // !__EMSCRIPTEN__
 
+bool WebGPUDevice::adoptSurface(WGPUSurface existing, u32 width, u32 height) {
+    if (!device_) {
+        ES_LOG_ERROR("WebGPUDevice::adoptSurface: no device");
+        return false;
+    }
+    if (!existing) {
+        ES_LOG_ERROR("WebGPUDevice::adoptSurface: null surface handle");
+        return false;
+    }
+    // The host owns the surface's lifetime; take our own reference so ~WebGPUDevice's
+    // release is balanced and never over-releases the host's handle.
+    wgpuSurfaceAddRef(existing);
+    if (surface_) wgpuSurfaceRelease(surface_);
+    surface_ = existing;
+    return configureSwapchain(width, height);
+}
+
 bool WebGPUDevice::configureSwapchain(u32 width, u32 height) {
     // The canvas swapchain prefers BGRA on most platforms; RGBA8 is universally
     // valid for emscripten surfaces and keeps readback simple during bring-up.

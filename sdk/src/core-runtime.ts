@@ -361,6 +361,7 @@ export {
     type PluginDependency,
     type WebAppOptions,
     type RenderSurfaceSource,
+    type WebGPUSurfaceSource,
 } from './app';
 
 // =============================================================================

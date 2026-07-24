@@ -612,7 +612,7 @@ class EngineHostImpl {
     // WebGPU hands the engine the whole canvas swapchain via the injected device
     // (canvas resolved by selector); WebGL2 binds the context we registered above.
     const renderSurface: RenderSurfaceSource = backend === 'webgpu'
-      ? { kind: 'webgpu', canvasSelector: `#${canvas.id}` }
+      ? { kind: 'webgpu', surface: { from: 'canvas', selector: `#${canvas.id}` } }
       : { kind: 'gl-context', handle: glHandle! };
     const app = await bootProfiler.phase('createWebApp', () => createWebApp(module, {
       renderSurface,

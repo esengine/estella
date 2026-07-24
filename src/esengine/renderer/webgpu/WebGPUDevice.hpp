@@ -177,6 +177,17 @@ public:
      *         with the web path. Native Dawn build only. */
     bool configureSurface(const NativeSurface& window, u32 width, u32 height);
 #endif
+
+    /**
+     * @brief Adopts a WGPUSurface the host already built and owns, then configures the
+     *        swapchain onto it. Fork A (wasm-on-JSC, no DOM): the native shell creates
+     *        the surface from a CAMetalLayer / ANativeWindow via native Dawn and hands
+     *        over the handle. Build-target-neutral — the injected-surface counterpart to
+     *        the selector / NativeSurface overloads. We take our own reference; the host
+     *        keeps the surface alive independently. REARCH_NATIVE.md §3.3 (Fork A).
+     */
+    bool adoptSurface(WGPUSurface existing, u32 width, u32 height);
+
     usize bufferCount() const { return buffers_.size(); }
     usize textureCount() const { return textures_.size(); }
     usize layoutCount() const { return layouts_.size(); }

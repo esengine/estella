@@ -1035,20 +1035,31 @@ export class App {
  * How the host provides the render surface the C++ renderer binds to — the single
  * seam every platform's renderer init flows through:
  *   - `gl-context`: an emscripten-registered WebGL2 context handle (web/desktop/WeChat).
- *   - `webgpu`: the host acquired a GPUDevice (navigator.gpu) and passed it as the
- *     module factory's `preinitializedWebGPUDevice` before instantiation; the engine
- *     owns the swapchain, resolving the canvas via `canvasSelector` (default '#canvas',
- *     via document.querySelector — so the canvas must be in the DOM).
+ *   - `webgpu`: the host acquired a GPUDevice and passed it as the module factory's
+ *     `preinitializedWebGPUDevice` before instantiation; the engine owns the swapchain.
+ *     {@link WebGPUSurfaceSource} makes the surface origin explicit — a DOM canvas
+ *     selector (web) or a host-injected native surface (wasm-on-JSC, no DOM).
  *   - `default`: the module resolves its own surface (module.initRenderer()).
- *
- * Native (wasm-on-JSC, no DOM): the host injects the device AND an already-built
- * CAMetalLayer/ANativeWindow surface, so `{ kind: 'webgpu' }` omits `canvasSelector`
- * and must not reach the '#canvas' fallback.
  */
 export type RenderSurfaceSource =
     | { readonly kind: 'gl-context'; readonly handle: number }
-    | { readonly kind: 'webgpu'; readonly canvasSelector?: string }
+    | { readonly kind: 'webgpu'; readonly surface: WebGPUSurfaceSource }
     | { readonly kind: 'default' };
+
+/**
+ * Where the WebGPU swapchain surface comes from — an explicit discriminated union, not
+ * an optional selector, so a DOM-less native host can never silently fall through to a
+ * canvas query. Closes the Fork A / Fork B straddle (REARCH_NATIVE.md §3.3).
+ */
+export type WebGPUSurfaceSource =
+    /** Web/DOM: emdawnwebgpu resolves this HTML canvas selector (e.g. '#canvas'). */
+    | { readonly from: 'canvas'; readonly selector: string }
+    /**
+     * Native (wasm-on-JSC, no DOM): the host built a WGPUSurface from a CAMetalLayer /
+     * ANativeWindow via native Dawn and registered it as the module factory's
+     * `preinitializedWebGPUSurface`; the engine adopts that handle, never the DOM.
+     */
+    | { readonly from: 'injected' };
 
 export interface WebAppOptions {
     getViewportSize?: () => { width: number; height: number };
@@ -1105,7 +1116,11 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
     switch (surface.kind) {
         case 'webgpu': {
             const size = options?.getViewportSize?.() ?? { width: 800, height: 600 };
-            if (!module.initRendererWebGPU(surface.canvasSelector ?? '#canvas', size.width, size.height)) {
+            // Canvas mode passes the selector; injected mode passes '' — the C++ side
+            // reads an empty selector as "adopt Module.preinitializedWebGPUSurface" and
+            // never queries the DOM (REARCH_NATIVE.md §3.3, Fork A).
+            const selector = surface.surface.from === 'canvas' ? surface.surface.selector : '';
+            if (!module.initRendererWebGPU(selector, size.width, size.height)) {
                 throw new Error(
                     'WebGPU renderer initialization failed — the module needs a ' +
                     'preinitializedWebGPUDevice and a WebGPU-enabled engine build.');
