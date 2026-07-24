@@ -136,11 +136,21 @@ export interface ProjectPackaging {
    *  derived from the design resolution's aspect (see {@link resolveOrientation}) —
    *  so a landscape design ships landscape with zero config. */
   orientation?: ScreenOrientation;
-  /** Cook PNGs to GPU-ready KTX2 (Basis Universal). */
+  /**
+   * How the build treats asset optimization. `'auto'` (default) honors each
+   * asset's per-asset Import Settings — textures compress to KTX2 / downscale to
+   * their Max Size, WAV → MP3, `<name>.atlas/` folders pack — so what ships is
+   * authored on the asset, not toggled here. `'skip'` ships everything raw for
+   * fast iteration (Unity's "Asset Import Overrides"). The build derives the cook
+   * flags below from this; the per-ASSET decisions live in the Inspector.
+   */
+  assetCompression?: 'auto' | 'skip';
+  /** @deprecated Superseded by {@link assetCompression}. Kept so older projects
+   *  still parse; the dialog no longer writes these. */
   compressTextures?: boolean;
-  /** Cook WAV sources to MP3 (per-asset Import Settings can override). */
+  /** @deprecated see {@link assetCompression}. */
   compressAudio?: boolean;
-  /** Pack `<name>.atlas/` folders into atlas pages at cook time. */
+  /** @deprecated see {@link assetCompression}. */
   atlasTextures?: boolean;
   /** Project-relative scene paths NOT shipped as switchable scenes (dev/test
    *  scenes). Everything else under the scenes dir exports; the startup scene

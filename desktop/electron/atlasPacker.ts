@@ -161,9 +161,53 @@ export function decodePngImage(key: string, png: Uint8Array): AtlasInputImage {
     return { key, width: decoded.width, height: decoded.height, rgba: new Uint8Array(decoded.data) };
 }
 
+/** Encode raw RGBA8 (row 0 = top) to PNG bytes. */
+export function encodeRgbaPng(width: number, height: number, rgba: Uint8Array): Uint8Array {
+    const png = new PNG({ width, height });
+    Buffer.from(rgba).copy(png.data);
+    return new Uint8Array(PNG.sync.write(png));
+}
+
 /** Encode a composed page back to PNG bytes. */
 export function encodePagePng(page: AtlasPage): Uint8Array {
-    const png = new PNG({ width: page.width, height: page.height });
-    Buffer.from(page.rgba).copy(png.data);
-    return new Uint8Array(PNG.sync.write(png));
+    return encodeRgbaPng(page.width, page.height, page.rgba);
+}
+
+/**
+ * Box-filter downscale so max(width, height) ≤ `maxDim`. Returns the input
+ * unchanged when already within the cap. Averages in premultiplied-alpha space
+ * (color weighted by coverage) so transparent pixels don't bleed dark fringes
+ * into the shrunk result. Pure + deterministic — composes with content-addressed
+ * staging exactly like the packer.
+ */
+export function downscaleRgba(img: AtlasInputImage, maxDim: number): AtlasInputImage {
+    const longest = Math.max(img.width, img.height);
+    if (!(maxDim > 0) || longest <= maxDim) return img;
+    const scale = maxDim / longest;
+    const nw = Math.max(1, Math.round(img.width * scale));
+    const nh = Math.max(1, Math.round(img.height * scale));
+    const out = new Uint8Array(nw * nh * 4);
+    for (let y = 0; y < nh; y++) {
+        const sy0 = Math.floor((y * img.height) / nh);
+        const sy1 = Math.max(sy0 + 1, Math.floor(((y + 1) * img.height) / nh));
+        for (let x = 0; x < nw; x++) {
+            const sx0 = Math.floor((x * img.width) / nw);
+            const sx1 = Math.max(sx0 + 1, Math.floor(((x + 1) * img.width) / nw));
+            let r = 0, g = 0, b = 0, a = 0, n = 0;
+            for (let sy = sy0; sy < sy1; sy++) {
+                for (let sx = sx0; sx < sx1; sx++) {
+                    const i = (sy * img.width + sx) * 4;
+                    const al = img.rgba[i + 3];
+                    r += img.rgba[i] * al; g += img.rgba[i + 1] * al; b += img.rgba[i + 2] * al;
+                    a += al; n++;
+                }
+            }
+            const o = (y * nw + x) * 4;
+            out[o] = a > 0 ? Math.round(r / a) : 0;
+            out[o + 1] = a > 0 ? Math.round(g / a) : 0;
+            out[o + 2] = a > 0 ? Math.round(b / a) : 0;
+            out[o + 3] = Math.round(a / n);
+        }
+    }
+    return { key: img.key, width: nw, height: nh, rgba: out };
 }

@@ -10,6 +10,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { cookAssets } from '../electron/cookAssets';
+import { decodePngImage } from '../electron/atlasPacker';
 import { contentHashHex } from '../../sdk/src/asset/contentHash';
 
 interface AssetManifest {
@@ -216,6 +217,61 @@ describe('cookAssets (A4)', () => {
       const bytes = readFileSync(path.join(res.outDir, tex.path));
       const magic = [0xab, 0x4b, 0x54, 0x58, 0x20, 0x32, 0x30, 0xbb, 0x0d, 0x0a, 0x1a, 0x0a];
       expect(magic.every((b, i) => bytes[i] === b)).toBe(true);
+    } finally {
+      rmSync(r, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it('honors per-texture compress=false: ships the raw PNG even when the build compresses', async () => {
+    const r = mkdtempSync(path.join(tmpdir(), 'estella-cook-texopt-'));
+    try {
+      const TEX = '77777777-7777-4777-8777-777777777771';
+      const SC = '88888888-8888-4888-8888-888888888881';
+      const png = readFileSync(path.resolve(__dirname, '../../examples/hello-world/assets/textures/logo.png'));
+      const abs = path.join(r, 't/logo.png');
+      mkdirSync(path.dirname(abs), { recursive: true });
+      writeFileSync(abs, png);
+      // Per-asset opt-out — the same switch audio clips already have.
+      writeFileSync(`${abs}.meta`, JSON.stringify({ uuid: TEX, version: '2.0', type: 'texture', importer: { compress: false } }));
+      const sc = path.join(r, 's/main.esscene');
+      mkdirSync(path.dirname(sc), { recursive: true });
+      writeFileSync(sc, JSON.stringify({ version: '1.0', name: 's', entities: [{ id: 1, name: 'E', parent: null, children: [], components: [{ type: 'Sprite', data: { texture: `@uuid:${TEX}` } }] }] }));
+      writeFileSync(`${sc}.meta`, JSON.stringify({ uuid: SC, version: '2.0', type: 'scene', importer: {} }));
+
+      const res = await cookAssets(r, { entryScenes: ['s/main.esscene'], outDir: 'out', compressTextures: true });
+      const m = JSON.parse(readFileSync(res.manifestPath!, 'utf8')) as AssetManifest;
+      const tex = m.entries.find((e) => e.uuid === TEX)!;
+      expect(tex.path).toMatch(/\.png$/);          // NOT .ktx2 — the asset opted out
+      expect(tex.compressedFormats).toBeUndefined();
+    } finally {
+      rmSync(r, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it('downscales a texture to its Max Size at cook (longest side capped)', async () => {
+    const r = mkdtempSync(path.join(tmpdir(), 'estella-cook-maxsize-'));
+    try {
+      const TEX = '77777777-7777-4777-8777-777777777772';
+      const SC = '88888888-8888-4888-8888-888888888882';
+      const png = readFileSync(path.resolve(__dirname, '../../examples/hello-world/assets/textures/logo.png'));
+      const src = decodePngImage('src', png);
+      expect(Math.max(src.width, src.height)).toBeGreaterThan(64); // fixture is larger than the cap
+      const abs = path.join(r, 't/logo.png');
+      mkdirSync(path.dirname(abs), { recursive: true });
+      writeFileSync(abs, png);
+      // maxSize + compress:false → ships a SHRUNK PNG we can measure directly.
+      writeFileSync(`${abs}.meta`, JSON.stringify({ uuid: TEX, version: '2.0', type: 'texture', importer: { compress: false, maxSize: 64 } }));
+      const sc = path.join(r, 's/main.esscene');
+      mkdirSync(path.dirname(sc), { recursive: true });
+      writeFileSync(sc, JSON.stringify({ version: '1.0', name: 's', entities: [{ id: 1, name: 'E', parent: null, children: [], components: [{ type: 'Sprite', data: { texture: `@uuid:${TEX}` } }] }] }));
+      writeFileSync(`${sc}.meta`, JSON.stringify({ uuid: SC, version: '2.0', type: 'scene', importer: {} }));
+
+      const res = await cookAssets(r, { entryScenes: ['s/main.esscene'], outDir: 'out', compressTextures: true });
+      const m = JSON.parse(readFileSync(res.manifestPath!, 'utf8')) as AssetManifest;
+      const tex = m.entries.find((e) => e.uuid === TEX)!;
+      const shrunk = decodePngImage('out', readFileSync(path.join(res.outDir, tex.path)));
+      expect(Math.max(shrunk.width, shrunk.height)).toBeLessThanOrEqual(64);
+      expect(Math.max(shrunk.width, shrunk.height)).toBeGreaterThan(32); // scaled to fit, not over-shrunk
     } finally {
       rmSync(r, { recursive: true, force: true });
     }

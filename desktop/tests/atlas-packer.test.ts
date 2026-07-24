@@ -4,7 +4,7 @@
  * @file  Atlas packer — deterministic shelf packing + page composition.
  */
 import { describe, it, expect } from 'vitest';
-import { packAtlas, decodePngImage, encodePagePng, type AtlasInputImage } from '../electron/atlasPacker';
+import { packAtlas, decodePngImage, encodePagePng, encodeRgbaPng, downscaleRgba, type AtlasInputImage } from '../electron/atlasPacker';
 
 function solid(key: string, width: number, height: number, rgba: [number, number, number, number]): AtlasInputImage {
   const data = new Uint8Array(width * height * 4);
@@ -94,5 +94,41 @@ describe('packAtlas', () => {
     expect(back.width).toBe(pages[0].width);
     expect(back.height).toBe(pages[0].height);
     expect([...back.rgba]).toEqual([...pages[0].rgba]);
+  });
+});
+
+describe('downscaleRgba (Max Size cook cap)', () => {
+  it('returns the input untouched when within the cap', () => {
+    const img = solid('a', 64, 64, [1, 2, 3, 255]);
+    expect(downscaleRgba(img, 2048)).toBe(img);       // same reference — no work
+    expect(downscaleRgba(img, 64)).toBe(img);          // exactly at cap
+  });
+
+  it('shrinks so the longest side ≤ cap, keeping aspect + solid color', () => {
+    const out = downscaleRgba(solid('a', 128, 32, [200, 100, 50, 255]), 32);
+    expect(out.width).toBe(32);   // 128 → 32
+    expect(out.height).toBe(8);   // 32 → 8 (aspect preserved)
+    expect(out.rgba).toHaveLength(32 * 8 * 4);
+    // A solid image downscales to the same solid color everywhere.
+    for (let i = 0; i < out.width * out.height; i++) {
+      expect([...out.rgba.subarray(i * 4, i * 4 + 4)]).toEqual([200, 100, 50, 255]);
+    }
+  });
+
+  it('averages color in premultiplied space (transparent pixels do not bleed)', () => {
+    // 2×1: opaque red + fully-transparent — the shrunk pixel keeps red's hue,
+    // with alpha averaged to half. (Naive averaging would darken toward black.)
+    const img: AtlasInputImage = { key: 'k', width: 2, height: 1, rgba: new Uint8Array([255, 0, 0, 255, 0, 0, 0, 0]) };
+    const out = downscaleRgba(img, 1);
+    expect(out.width).toBe(1);
+    expect(out.height).toBe(1);
+    expect([...out.rgba]).toEqual([255, 0, 0, 128]);
+  });
+
+  it('encodeRgbaPng round-trips raw pixels', () => {
+    const rgba = new Uint8Array([9, 8, 7, 255, 6, 5, 4, 255]);
+    const back = decodePngImage('p', encodeRgbaPng(2, 1, rgba));
+    expect(back.width).toBe(2);
+    expect([...back.rgba]).toEqual([...rgba]);
   });
 });

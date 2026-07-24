@@ -210,7 +210,9 @@
 .build { display: flex; flex-direction: column; gap: 12px; }
 .build__label { font-size: var(--fs-2xs); font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; color: var(--text-mute); }
 .build__platforms { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-.build__plat { position: relative; height: 54px; display: grid; place-items: center; font-size: var(--fs-sm); color: var(--text-dim); background: var(--srf-3); border: 1px solid var(--border-line); border-radius: var(--r-md); transition: color var(--t-fast), background var(--t-fast), border-color var(--t-fast); }
+.build__plat { position: relative; height: 58px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; font-size: var(--fs-xs); color: var(--text-dim); background: var(--srf-3); border: 1px solid var(--border-line); border-radius: var(--r-md); transition: color var(--t-fast), background var(--t-fast), border-color var(--t-fast); }
+.build__plat svg { opacity: 0.92; }
+.build__plat-name { line-height: 1; }
 .build__plat:not(:disabled):hover { color: var(--text); border-color: var(--text-mute); }
 .build__plat.on { color: var(--on-accent); background: var(--acc); border-color: var(--acc); }
 .build__plat:disabled { opacity: 0.5; }
@@ -225,6 +227,7 @@
 .build__summary strong { color: var(--text-dim); font-family: var(--mono); }
 /* Scenes in build — the exporter's scene set (startup pinned, exclusions live). */
 .build__scenes { display: flex; flex-direction: column; gap: 2px; max-height: 148px; overflow-y: auto; padding: 6px 8px; background: var(--srf-3); border: 1px solid var(--border-line); border-radius: var(--r-sm); }
+.build__scenes-list { display: flex; flex-direction: column; gap: 2px; max-height: 150px; overflow-y: auto; margin: -2px 0; }
 .build__scenes-head { font-size: var(--fs-2xs); font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; color: var(--text-mute); padding-bottom: 3px; }
 .build__scene { display: flex; align-items: center; gap: 6px; height: 24px; }
 .build__scene-start { display: grid; place-items: center; width: 20px; height: 20px; border-radius: var(--r-xs); color: transparent; background: none; }
@@ -254,3 +257,25 @@
 .build__loglabel { font-size: var(--fs-2xs); font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; color: var(--text-mute); }
 .build__copy { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 18px; color: var(--text-mute); background: none; border: none; border-radius: var(--r-xs); cursor: pointer; transition: color var(--t-fast), background var(--t-fast); }
 .build__copy:hover { color: var(--text); background: var(--srf-4); }
+
+/* Grouped sections (target / build / scenes) — give the dialog visual hierarchy
+   instead of one flat column. */
+.build__group { background: var(--srf-3); border: 1px solid var(--border-line); border-radius: var(--r-md); overflow: hidden; }
+.build__group-head { display: flex; align-items: center; gap: 8px; padding: 7px 11px; border-bottom: 1px solid var(--line-soft); }
+.build__group-title { font-size: var(--fs-2xs); font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; color: var(--text-dim); }
+.build__group-count { margin-left: auto; font-family: var(--mono); font-size: var(--fs-2xs); color: var(--text-mute); }
+.build__group-body { padding: 10px 11px; display: flex; flex-direction: column; gap: 10px; }
+.build__group-body .build__row { gap: 10px; }
+.build__group-body .build__label { width: 74px; }
+.build__tip { font-size: var(--fs-2xs); color: var(--text-mute); line-height: 1.45; margin-top: -3px; }
+
+/* Progressive disclosure: advanced (hot-update CDN / source maps / open folder). */
+.build__adv { display: flex; align-items: center; gap: 6px; font-size: var(--fs-xs); color: var(--text-dim); background: none; border: none; cursor: pointer; padding: 2px 0; }
+.build__adv:hover { color: var(--text); }
+.build__adv .chev { display: inline-flex; transition: transform var(--t-fast); color: var(--text-mute); }
+.build__adv.open .chev { transform: rotate(90deg); }
+.build__adv-body { display: flex; flex-direction: column; gap: 10px; padding: 4px 0 2px 2px; }
+
+/* "compression lives in Import Settings" pointer + footer scene/target summary. */
+.build__hint { display: inline-flex; align-items: center; gap: 5px; font-size: var(--fs-2xs); color: var(--text-mute); }
+.build__footsum { margin-right: auto; align-self: center; font-family: var(--mono); font-size: var(--fs-2xs); color: var(--text-mute); }

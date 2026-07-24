@@ -21,7 +21,20 @@ const TEXTURE: ImporterFieldSpec[] = [
   {
     key: 'maxSize', label: 'Max Size', type: 'enum', default: 2048, category: 'Texture',
     options: powerOfTwo.map((n) => ({ label: String(n), value: n })),
-    tooltip: 'Downscale cap applied when the asset is imported/cooked (power of two).',
+    tooltip: 'Downscale cap applied at cook (power of two). A source larger than this on '
+      + 'its longest side is box-filtered down; smaller sources are untouched.',
+  },
+  {
+    key: 'compress', label: 'Compress', type: 'bool', default: true, category: 'Texture',
+    tooltip: 'GPU-compress this texture to KTX2 (Basis Universal) at cook — it stays '
+      + 'compressed in VRAM and transcodes per device. Turn OFF to ship the raw image '
+      + '(crisp UI, smooth gradients). Only applies when the build compresses assets.',
+  },
+  {
+    key: 'compressFormat', label: 'Compress Format', type: 'select', default: 'uastc',
+    category: 'Texture', advanced: true, selectOptions: ['uastc', 'etc1s'],
+    tooltip: 'UASTC — high quality, larger. ETC1S — much smaller, lower quality '
+      + '(good for photographic / low-frequency art). Only used when Compress is on.',
   },
   {
     key: 'filterMode', label: 'Filter', type: 'select', default: 'linear', category: 'Texture',
@@ -161,6 +174,25 @@ export function buildImporterComponent(type: string, importer: Record<string, un
     return { ...rest, value: (cur ?? def) as InspectorFieldValue, defaultValue: def };
   });
   return { name: 'Import Settings', label: 'Import Settings', fields };
+}
+
+/** Cook-facing texture settings (compression + downscale), tolerant of hand-edited
+ *  `.meta` blocks. Mirrors {@link readAudioImportSettings} — the cook reads this
+ *  per asset so each texture decides its own KTX2 format / opt-out / size cap,
+ *  the way audio clips already do. Defaults match a fresh `.meta`. */
+export function readTextureCookSettings(importer: Record<string, unknown> | undefined): {
+  compress: boolean; format: 'uastc' | 'etc1s'; maxSize: number; srgb: boolean;
+} {
+  const compress = importer?.compress;
+  const format = importer?.compressFormat;
+  const maxSize = importer?.maxSize;
+  const srgb = importer?.sRGB;
+  return {
+    compress: typeof compress === 'boolean' ? compress : true,
+    format: format === 'etc1s' ? 'etc1s' : 'uastc',
+    maxSize: typeof maxSize === 'number' && maxSize > 0 ? maxSize : 2048,
+    srgb: typeof srgb === 'boolean' ? srgb : true,
+  };
 }
 
 /** A texture's sampler settings, in the string shape the engine's TextureLoader

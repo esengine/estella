@@ -61,13 +61,22 @@ export const projectMessages = defineMessages({
     'build.browse': { en: 'Browse', zh: '浏览' },
     'build.openFolderWhenDone': { en: 'Open output folder when done', zh: '完成后打开输出文件夹' },
     'build.includeSourceMaps': { en: 'Include source maps', zh: '包含源码映射' },
-    'build.compressTextures': { en: 'Compress textures (PNG → KTX2)', zh: '压缩纹理（PNG → KTX2）' },
-    'build.compressAudio': { en: 'Compress audio (WAV → MP3)', zh: '压缩音频（WAV → MP3）' },
-    'build.compressAudioTip': {
-        en: 'Re-encode WAV sources to MP3 at cook. Per-asset Import Settings can opt a clip out (seamless loops) or pick a bitrate.',
-        zh: '打包时将 WAV 源重编码为 MP3。可在资产的导入设置中单独关闭（无缝循环素材）或选择码率。',
+
+    // — Section headers + asset-optimization mode (per-asset compression lives in
+    //   the Inspector's Import Settings; the build only picks honor-vs-skip) —
+    'build.secBuild': { en: 'Build', zh: '构建' },
+    'build.advanced': { en: 'Advanced', zh: '高级' },
+    'build.assetCompression': { en: 'Asset compression', zh: '资源压缩' },
+    'build.assetAuto': { en: 'By import settings', zh: '按导入设置' },
+    'build.assetSkip': { en: 'Skip all', zh: '全部跳过' },
+    'build.assetCompressionTip': {
+        en: 'By import settings — each texture and audio clip compresses per its Inspector Import Settings (KTX2 · Max Size · WAV→MP3) and .atlas folders pack. Skip all — ship everything raw for fast iteration.',
+        zh: '按导入设置——纹理与音频各自按检视面板的导入设置压缩（KTX2 · Max Size · WAV→MP3），.atlas 文件夹打包。全部跳过——一律原样输出，便于快速迭代。',
     },
-    'build.atlasTextures': { en: 'Pack .atlas folders into atlases', zh: '将 .atlas 文件夹打包为图集' },
+    'build.compressionHint': {
+        en: 'Per-asset compression lives in each asset’s Import Settings.',
+        zh: '每个资源的压缩设置在其「导入设置」里。',
+    },
 
     // — Scenes in build —
     'build.scenesHead': { en: 'Scenes in build', zh: '构建包含的场景' },
@@ -91,6 +100,7 @@ export const projectMessages = defineMessages({
     },
 
     // — Run / progress / result —
+    'build.footSummary': { en: '{count} scene(s) · {platform}', zh: '{count} 个场景 · {platform}' },
     'build.package': { en: 'Package', zh: '打包' },
     'build.packaging': { en: 'Packaging…', zh: '打包中…' },
     'build.packagingPlatform': { en: 'Packaging the {platform} build…', zh: '正在打包 {platform} 构建…' },

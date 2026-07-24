@@ -20,7 +20,11 @@
 import { writeFile, mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { scanAssetDatabase, type AssetEntry } from './assetDb';
-import { packAtlas, decodePngImage, encodePagePng, type AtlasInputImage } from './atlasPacker';
+import { packAtlas, decodePngImage, encodePagePng, encodeRgbaPng, downscaleRgba, type AtlasInputImage } from './atlasPacker';
+// Per-asset texture cook settings (compress opt-out / format / size cap), read
+// from the `.meta` `importer` block — the same registry the inspector edits, so a
+// texture's ship-time compression is authored per asset, not one global switch.
+import { readTextureCookSettings } from '../src/project/assetImporter';
 // Single-source content hash (sdk/src/asset/contentHash.ts). Imported as source —
 // no hand-mirrored copy — so the cook and the runtime agree by construction.
 import { contentHashHex } from '../../sdk/src/asset/contentHash';
@@ -126,8 +130,27 @@ function caBaseFor(name: string, delivery: GroupDelivery): string {
   return 'assets';
 }
 
-/** Targets the UASTC KTX2 the cook emits can transcode to at runtime. */
+/** Targets the KTX2 the cook emits can transcode to at runtime (UASTC + ETC1S). */
 const COMPRESSED_TARGETS = ['astc-4x4', 'etc2-rgba8', 's3tc-dxt5'];
+
+/** PNG width/height from the IHDR (big-endian u32 at byte offsets 16 / 20) —
+ *  a header peek, so the `maxSize` cap can skip decoding textures already in range. */
+function pngDimensions(png: Uint8Array): { width: number; height: number } {
+  const dv = new DataView(png.buffer, png.byteOffset, png.byteLength);
+  return { width: dv.getUint32(16), height: dv.getUint32(20) };
+}
+
+/** The slice of the vendored Basis encoder (build-tools/basis/encoder.mjs, a JS
+ *  module) the cook uses. Typed locally so the per-texture format/srgb path stays
+ *  type-checked without a hand-written `.d.ts`. */
+interface BasisEncoderModule {
+  encodePngToKtx2(png: Uint8Array, opts?: { mode?: string; srgb?: boolean }): Promise<Uint8Array>;
+  encodeToKtx2(
+    source: { type: string; data: Uint8Array; width?: number; height?: number },
+    opts?: { mode?: string; srgb?: boolean },
+  ): Promise<Uint8Array>;
+  ImageType: { PNG: string; JPG: string; RGBA: string };
+}
 
 /** Replace a path's extension (e.g. .png → .ktx2); appends if it had none. */
 function swapExt(p: string, ext: string): string {
@@ -292,10 +315,14 @@ export async function cookAssets(
   // Load the KTX2 encoder lazily (only when compressing — it pulls a ~MB wasm) and
   // by dynamic import, so the Electron-main bundle keeps it external rather than
   // inlining a module that resolves its wasm via import.meta.url.
+  // Atlas pages compress as UASTC (they aggregate many textures — no single
+  // per-asset setting applies); standalone textures use `textureEnc` directly so
+  // each honors its own format / srgb / opt-out from the importer block.
   let encodePng: ((png: Uint8Array) => Promise<Uint8Array>) | null = null;
+  let textureEnc: BasisEncoderModule | null = null;
   if (compressTextures) {
-    const enc = await import('../../build-tools/basis/encoder.mjs');
-    encodePng = (png) => enc.encodePngToKtx2(png, { mode: 'uastc' });
+    textureEnc = await import('../../build-tools/basis/encoder.mjs') as unknown as BasisEncoderModule;
+    encodePng = (png) => textureEnc!.encodePngToKtx2(png, { mode: 'uastc' });
   }
   // WAV → MP3 (LAME wasm) rides the same lazy pattern; per-asset importer
   // settings can opt a clip out (seamless loops) or pick a bitrate.
@@ -423,10 +450,32 @@ export async function cookAssets(
       // Encode raster textures (PNG) to GPU-compressed KTX2 — they stay compressed
       // in VRAM, the runtime transcodes per device. Hash + name reflect the ENCODED
       // bytes, so this composes with content-addressing below.
-      if (encodePng && entry.type !== 'scene' && ext.toLowerCase() === '.png') {
-        data = await encodePng(data);
-        ext = '.ktx2';
-        compressedFormats = COMPRESSED_TARGETS;
+      if (textureEnc && entry.type !== 'scene' && ext.toLowerCase() === '.png') {
+        const tex = readTextureCookSettings(entry.importer);
+        // maxSize downscale first — it applies even when a texture opts OUT of
+        // compression (a huge UI sprite can ship as a smaller raw PNG).
+        let rgba: Uint8Array | null = null;
+        let tw = 0, th = 0;
+        try {
+          const dims = pngDimensions(data);
+          if (tex.maxSize < Math.max(dims.width, dims.height)) {
+            const scaled = downscaleRgba(decodePngImage(entry.path, data), tex.maxSize);
+            rgba = scaled.rgba; tw = scaled.width; th = scaled.height;
+            if (!tex.compress) data = encodeRgbaPng(tw, th, rgba); // ship the shrunk PNG
+          }
+        } catch (err) {
+          warnings.push(`${entry.path}: texture resize skipped — ${err instanceof Error ? err.message : String(err)}`);
+        }
+        // Per-asset compression: KTX2 (Basis) in the texture's chosen format, or
+        // ship the raw/shrunk PNG when the asset opted out. Hash + name below
+        // reflect the ENCODED bytes, so this composes with content-addressing.
+        if (tex.compress) {
+          data = rgba
+            ? await textureEnc.encodeToKtx2({ type: textureEnc.ImageType.RGBA, data: rgba, width: tw, height: th }, { mode: tex.format, srgb: tex.srgb })
+            : await textureEnc.encodeToKtx2({ type: textureEnc.ImageType.PNG, data }, { mode: tex.format, srgb: tex.srgb });
+          ext = '.ktx2';
+          compressedFormats = COMPRESSED_TARGETS;
+        }
       }
       // WAV sources re-encode to MP3 (universal decode); other audio formats are
       // already compressed and pass through. Hash + name reflect the ENCODED bytes.

@@ -1,17 +1,24 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  BuildDialog.tsx — the UE5-style "Package Project" modal.
+ * @file  BuildDialog.tsx — the "Package Project" modal.
  *        Pick a target platform + configuration + output, hit Build, watch the
  *        cook → bundle → copy run, then reveal the output. The dialog is driven by
  *        a per-platform descriptor table ({@link PLATFORMS}): each platform supplies
- *        its blurb, default output, which options apply, any build prerequisite, and
- *        the post-build next-steps — so the UI is contextual per target (UE-style)
- *        rather than one fixed option set. All four targets (Web / Desktop / WeChat
- *        / Playable) are live.
+ *        its icon, blurb, default output, which options apply, any build prerequisite,
+ *        and the post-build next-steps — so the UI is contextual per target.
+ *
+ *        Altitude: this dialog is the *publish* layer, so it does NOT carry
+ *        per-asset optimization. Texture compression / Max Size / audio bitrate are
+ *        authored per asset in the Inspector's Import Settings; the build only
+ *        chooses whether to HONOR those settings (`assetCompression: 'auto'`) or
+ *        skip them for fast iteration (`'skip'`). All four targets are live.
  */
-import { useState, useSyncExternalStore } from 'react';
-import { Loader2, FolderOpen, CheckCircle2, AlertCircle, Boxes, Info, Copy, ExternalLink, Play } from 'lucide-react';
+import { useState, useSyncExternalStore, type ReactNode } from 'react';
+import {
+  Loader2, FolderOpen, CheckCircle2, AlertCircle, Boxes, Info, Copy, ExternalLink, Play,
+  Globe, Monitor, MessageSquare, ChevronRight,
+} from 'lucide-react';
 import { Modal } from '@/components/Modal';
 import { Segmented } from '@/components/Segmented';
 import { Button } from '@/components/Button';
@@ -22,6 +29,7 @@ import { t } from '@/i18n';
 type Phase = 'idle' | 'running' | 'done' | 'error';
 type Config = 'development' | 'shipping';
 type Platform = 'web' | 'desktop' | 'wechat' | 'playable';
+type AssetCompression = 'auto' | 'skip';
 
 interface Result {
   ok: boolean;
@@ -38,6 +46,8 @@ interface PlatformDef {
   id: Platform;
   label: string;
   ready: boolean;
+  /** Target glyph shown on the platform tile. */
+  icon: ReactNode;
   /** One-line description of the target (shown under the platform row). */
   blurb: string;
   defaultOut: string;
@@ -54,26 +64,26 @@ interface PlatformDef {
 
 const PLATFORMS: PlatformDef[] = [
   {
-    id: 'web', label: t('build.plat.web'), ready: true,
+    id: 'web', label: t('build.plat.web'), ready: true, icon: <Globe size={17} />,
     blurb: t('build.blurb.web'),
     defaultOut: 'dist-web', sourceMaps: true, httpPreview: true,
     next: (o) => t('build.next.web', { out: o }),
   },
   {
-    id: 'desktop', label: t('build.plat.desktop'), ready: true,
+    id: 'desktop', label: t('build.plat.desktop'), ready: true, icon: <Monitor size={17} />,
     blurb: t('build.blurb.desktop'),
     defaultOut: 'dist-desktop', sourceMaps: true,
     next: (o) => t('build.next.desktop', { out: o }),
   },
   {
-    id: 'wechat', label: t('build.plat.wechat'), ready: true,
+    id: 'wechat', label: t('build.plat.wechat'), ready: true, icon: <MessageSquare size={17} />,
     blurb: t('build.blurb.wechat'),
     defaultOut: 'dist-wechat', sourceMaps: false,
     prereq: t('build.prereq.wechat'),
     next: (o) => t('build.next.wechat', { out: o }),
   },
   {
-    id: 'playable', label: t('build.plat.playable'), ready: true,
+    id: 'playable', label: t('build.plat.playable'), ready: true, icon: <Play size={16} />,
     blurb: t('build.blurb.playable'),
     defaultOut: 'dist-playable', sourceMaps: false, httpPreview: true,
     prereq: t('build.prereq.playable'),
@@ -82,6 +92,19 @@ const PLATFORMS: PlatformDef[] = [
 ];
 
 const mb = (bytes: number): string => `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+
+/** A titled section box — gives the dialog visual grouping instead of a flat column. */
+function Group({ title, count, children }: { title: string; count?: string; children: ReactNode }) {
+  return (
+    <div className="build__group">
+      <div className="build__group-head">
+        <span className="build__group-title">{title}</span>
+        {count && <span className="build__group-count">{count}</span>}
+      </div>
+      <div className="build__group-body">{children}</div>
+    </div>
+  );
+}
 
 export function BuildDialog() {
   const close = () => useEditorStore.getState().setBuildOpen(false);
@@ -97,9 +120,11 @@ export function BuildDialog() {
   const [outDir, setOutDir] = useState(saved.outDir?.[initialPlatform] ?? initialDef.defaultOut);
   const [openFolder, setOpenFolder] = useState(saved.openFolder ?? true);
   const [sourceMaps, setSourceMaps] = useState(saved.sourceMaps ?? false);
-  const [compressTextures, setCompressTextures] = useState(saved.compressTextures ?? false);
-  const [atlasTextures, setAtlasTextures] = useState(saved.atlasTextures ?? false);
-  const [compressAudio, setCompressAudio] = useState(saved.compressAudio ?? false);
+  // Publish-layer optimization switch: honor each asset's Import Settings, or skip
+  // compression entirely for fast iteration. The per-asset decisions live in the
+  // Inspector; this only picks whether to apply them.
+  const [assetCompression, setAssetCompression] = useState<AssetCompression>(saved.assetCompression ?? 'auto');
+  const [advOpen, setAdvOpen] = useState(false);
   const [phase, setPhase] = useState<Phase>('idle');
   const [result, setResult] = useState<Result | null>(null);
   const [log, setLog] = useState<string[]>([]);
@@ -119,6 +144,7 @@ export function BuildDialog() {
     .filter((a) => a.type === 'scene' && (a.path.startsWith(`${scenesDir}/`) || a.path === project?.defaultScene))
     .sort((a, b) =>
       a.path === project?.defaultScene ? -1 : b.path === project?.defaultScene ? 1 : a.path.localeCompare(b.path));
+  const shippedScenes = sceneList.filter((s) => s.path === project?.defaultScene || !excludedScenes.has(s.path)).length;
 
   const pickPlatform = (p: PlatformDef) => {
     if (!p.ready) return;
@@ -139,7 +165,10 @@ export function BuildDialog() {
     setResult(null);
     setLog([]);
     // Persist the chosen settings to project.esproject (restored next time).
-    void ProjectStore.setPackaging({ platform, config, sourceMaps, openFolder, compressTextures, atlasTextures, compressAudio, outDir: { [platform]: outDir } });
+    void ProjectStore.setPackaging({ platform, config, sourceMaps, openFolder, assetCompression, outDir: { [platform]: outDir } });
+    // 'auto' → honor each asset's Import Settings (the cook then reads per-asset
+    // texture/audio compression + Max Size); 'skip' → ship everything raw.
+    const compress = assetCompression === 'auto';
     // Live build log (UE-style): each export phase streams over IPC.
     const unsub = window.estella.project?.onExportProgress?.((p) =>
       setLog((l) => [...l, p.detail ? `${p.phase} — ${p.detail}` : p.phase]),
@@ -150,9 +179,9 @@ export function BuildDialog() {
         outDir,
         minify: config === 'shipping',
         sourcemap: def.sourceMaps && sourceMaps,
-        compressTextures,
-        atlasTextures,
-        compressAudio,
+        compressTextures: compress,
+        atlasTextures: compress,
+        compressAudio: compress,
       })) as Result | null;
       if (!res) {
         setResult({ ok: false, outDir, included: 0, warnings: [], errors: [t('build.noProjectOpen')] });
@@ -190,6 +219,7 @@ export function BuildDialog() {
 
   const footer = (
     <>
+      {phase === 'idle' && <span className="build__footsum">{t('build.footSummary', { count: shippedScenes, platform: def.label })}</span>}
       <Button onClick={close} disabled={running}>
         {phase === 'done' ? t('ui.close') : t('ui.cancel')}
       </Button>
@@ -208,7 +238,7 @@ export function BuildDialog() {
   );
 
   return (
-    <Modal title={t('build.title')} onClose={running ? () => {} : close} footer={footer} width={500}>
+    <Modal title={t('build.title')} onClose={running ? () => {} : close} footer={footer} width={520}>
       <div className="build">
         <div className="build__label">{t('build.platform')}</div>
         <div className="build__platforms">
@@ -222,74 +252,12 @@ export function BuildDialog() {
               title={p.ready ? p.label : t('build.comingSoon')}
               onClick={() => pickPlatform(p)}
             >
-              {p.label}
-              {!p.ready && <span className="soon">{t('build.soon')}</span>}
+              {p.icon}
+              <span className="build__plat-name">{p.label}</span>
             </button>
           ))}
         </div>
         <div className="build__blurb">{def.blurb}</div>
-
-        <div className="build__row">
-          <span className="build__label">{t('build.configuration')}</span>
-          <Segmented
-            ariaLabel={t('build.configuration')}
-            value={config}
-            options={[
-              { value: 'development', label: t('build.development') },
-              { value: 'shipping', label: t('build.shipping') },
-            ]}
-            onChange={setConfig}
-          />
-        </div>
-
-        <div className="build__row">
-          <span className="build__label">{t('build.output')}</span>
-          <div className="build__out">
-            <input
-              value={outDir}
-              spellCheck={false}
-              onChange={(e) => setOutDir(e.target.value)}
-            />
-            <Button onClick={() => void browse()}>
-              <FolderOpen size={13} /> {t('build.browse')}
-            </Button>
-          </div>
-        </div>
-
-        <label className="build__opt">
-          <input type="checkbox" checked={openFolder} onChange={(e) => setOpenFolder(e.target.checked)} />
-          {t('build.openFolderWhenDone')}
-        </label>
-        {def.sourceMaps && (
-          <label className="build__opt">
-            <input type="checkbox" checked={sourceMaps} onChange={(e) => setSourceMaps(e.target.checked)} />
-            {t('build.includeSourceMaps')}
-          </label>
-        )}
-        <label className="build__opt">
-          <input type="checkbox" checked={compressTextures} onChange={(e) => setCompressTextures(e.target.checked)} />
-          {t('build.compressTextures')}
-        </label>
-        <label className="build__opt">
-          <input type="checkbox" checked={atlasTextures} onChange={(e) => setAtlasTextures(e.target.checked)} />
-          {t('build.atlasTextures')}
-        </label>
-        <label className="bd-check" title={t('build.compressAudioTip')}>
-          <input type="checkbox" checked={compressAudio} onChange={(e) => setCompressAudio(e.target.checked)} />
-          {t('build.compressAudio')}
-        </label>
-
-        <div className="build__row">
-          <span className="build__label" title={t('build.cdnRootTip')}>{t('build.cdnRoot')}</span>
-          <input
-            value={cdnRoot}
-            spellCheck={false}
-            placeholder="https://cdn…"
-            title={t('build.cdnRootTip')}
-            onChange={(e) => setCdnRoot(e.target.value)}
-            onBlur={() => void ProjectStore.setActiveProfileRemoteRoot(cdnRoot.trim())}
-          />
-        </div>
 
         {def.prereq && (
           <div className="build__prereq">
@@ -297,44 +265,123 @@ export function BuildDialog() {
           </div>
         )}
 
+        <Group title={t('build.secBuild')}>
+          <div className="build__row">
+            <span className="build__label">{t('build.configuration')}</span>
+            <Segmented
+              ariaLabel={t('build.configuration')}
+              value={config}
+              options={[
+                { value: 'development', label: t('build.development') },
+                { value: 'shipping', label: t('build.shipping') },
+              ]}
+              onChange={setConfig}
+            />
+          </div>
+          <div className="build__row">
+            <span className="build__label" title={t('build.assetCompressionTip')}>{t('build.assetCompression')}</span>
+            <Segmented
+              ariaLabel={t('build.assetCompression')}
+              value={assetCompression}
+              options={[
+                { value: 'auto', label: t('build.assetAuto') },
+                { value: 'skip', label: t('build.assetSkip') },
+              ]}
+              onChange={setAssetCompression}
+            />
+          </div>
+          <div className="build__hint">
+            <Info size={11} /> {t('build.compressionHint')}
+          </div>
+          <div className="build__row">
+            <span className="build__label">{t('build.output')}</span>
+            <div className="build__out">
+              <input
+                value={outDir}
+                spellCheck={false}
+                onChange={(e) => setOutDir(e.target.value)}
+              />
+              <Button onClick={() => void browse()}>
+                <FolderOpen size={13} /> {t('build.browse')}
+              </Button>
+            </div>
+          </div>
+        </Group>
+
         {/* Scenes in build — the same single source the exporters read
             (defaultScene + packaging.excludeScenes), edited in place. The
             startup scene is pinned: it boots the game, so it always ships. */}
-        <div className="build__scenes">
-          <div className="build__scenes-head">{t('build.scenesHead')}</div>
-          {sceneList.map((s) => {
-            const isEntry = s.path === project?.defaultScene;
-            const ships = isEntry || !excludedScenes.has(s.path);
-            return (
-              <div key={s.path} className={`build__scene${ships ? '' : ' is-excluded'}`}>
-                <button
-                  type="button"
-                  className={`build__scene-start${isEntry ? ' is-on' : ''}`}
-                  title={isEntry ? t('build.startupScene') : t('build.setStartupScene')}
-                  aria-label={isEntry ? t('build.startupScene') : t('build.setStartupSceneNamed', { name: s.name })}
-                  disabled={running || isEntry}
-                  onClick={() => void ProjectStore.setDefaultScene(s.path)}
-                >
-                  <Play size={11} strokeWidth={2.5} />
-                </button>
-                <label className="build__scene-row">
-                  <input
-                    type="checkbox"
-                    checked={ships}
+        <Group title={t('build.scenesHead')} count={String(sceneList.length)}>
+          <div className="build__scenes-list">
+            {sceneList.map((s) => {
+              const isEntry = s.path === project?.defaultScene;
+              const ships = isEntry || !excludedScenes.has(s.path);
+              return (
+                <div key={s.path} className={`build__scene${ships ? '' : ' is-excluded'}`}>
+                  <button
+                    type="button"
+                    className={`build__scene-start${isEntry ? ' is-on' : ''}`}
+                    title={isEntry ? t('build.startupScene') : t('build.setStartupScene')}
+                    aria-label={isEntry ? t('build.startupScene') : t('build.setStartupSceneNamed', { name: s.name })}
                     disabled={running || isEntry}
-                    onChange={(e) => void ProjectStore.setSceneExcluded(s.path, !e.target.checked)}
-                  />
-                  <span className="build__scene-name">{s.name.replace(/\.esscene$/i, '')}</span>
-                  <span className="build__scene-path mono">{s.path}</span>
-                </label>
-              </div>
-            );
-          })}
-          {sceneList.length === 0 && <div className="build__scenes-empty">{t('build.noScenes')}</div>}
-          {platform === 'playable' && sceneList.length > 1 && (
-            <div className="build__scenes-note">{t('build.playableSingleScene')}</div>
-          )}
-        </div>
+                    onClick={() => void ProjectStore.setDefaultScene(s.path)}
+                  >
+                    <Play size={11} strokeWidth={2.5} />
+                  </button>
+                  <label className="build__scene-row">
+                    <input
+                      type="checkbox"
+                      checked={ships}
+                      disabled={running || isEntry}
+                      onChange={(e) => void ProjectStore.setSceneExcluded(s.path, !e.target.checked)}
+                    />
+                    <span className="build__scene-name">{s.name.replace(/\.esscene$/i, '')}</span>
+                    <span className="build__scene-path mono">{s.path}</span>
+                  </label>
+                </div>
+              );
+            })}
+            {sceneList.length === 0 && <div className="build__scenes-empty">{t('build.noScenes')}</div>}
+            {platform === 'playable' && sceneList.length > 1 && (
+              <div className="build__scenes-note">{t('build.playableSingleScene')}</div>
+            )}
+          </div>
+        </Group>
+
+        <button
+          type="button"
+          className={`build__adv${advOpen ? ' open' : ''}`}
+          aria-expanded={advOpen}
+          onClick={() => setAdvOpen((o) => !o)}
+        >
+          <span className="chev"><ChevronRight size={13} /></span>
+          {t('build.advanced')}
+        </button>
+        {advOpen && (
+          <div className="build__adv-body">
+            <div className="build__row">
+              <span className="build__label" title={t('build.cdnRootTip')}>{t('build.cdnRoot')}</span>
+              <input
+                value={cdnRoot}
+                spellCheck={false}
+                placeholder="https://cdn…"
+                title={t('build.cdnRootTip')}
+                onChange={(e) => setCdnRoot(e.target.value)}
+                onBlur={() => void ProjectStore.setActiveProfileRemoteRoot(cdnRoot.trim())}
+              />
+            </div>
+            {def.sourceMaps && (
+              <label className="build__opt">
+                <input type="checkbox" checked={sourceMaps} onChange={(e) => setSourceMaps(e.target.checked)} />
+                {t('build.includeSourceMaps')}
+              </label>
+            )}
+            <label className="build__opt">
+              <input type="checkbox" checked={openFolder} onChange={(e) => setOpenFolder(e.target.checked)} />
+              {t('build.openFolderWhenDone')}
+            </label>
+          </div>
+        )}
 
         {phase !== 'idle' && (
           <div className={`build__status ${phase}`}>

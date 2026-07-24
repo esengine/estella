@@ -20,6 +20,8 @@ describe('importerDefaults (import-time .meta)', () => {
   it('reproduces the texture defaults (incl. nested 9-slice)', () => {
     expect(importerDefaults('texture')).toEqual({
       maxSize: 2048,
+      compress: true,
+      compressFormat: 'uastc',
       filterMode: 'linear',
       wrapMode: 'repeat',
       premultiplyAlpha: false,
