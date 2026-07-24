@@ -49,6 +49,12 @@ export type { MemoryProvider, ComponentHeap, NativeComponentBufferFn } from './e
 // _remove bindings; pass to BuiltinBridge.connect as the cppRegistry.
 export { createNativeRegistry } from './ecs/nativeRegistry';
 
+// The native ResourceManager — the embind-ResourceManager sibling the SDK's asset
+// pipeline drives (createTexture / releaseTexture / dims). Built over the host's
+// es_createTexture / es_releaseTexture / es_getTextureDimensions bindings; uploads
+// texture bytes directly (no wasm heap). createNativeApp installs one automatically.
+export { createNativeResourceManager } from './ecs/nativeResourceManager';
+
 // Boot the real SDK ECS World over the native core — the host's entry point for
 // running the actual SDK (spawn/insert/query authoring) against native C++ ECS.
 export { createNativeWorld } from './ecs/nativeRuntime';

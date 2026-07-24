@@ -1,8 +1,8 @@
 // Demo game — pure game logic, loaded at runtime from the APK's assets/ (NOT
 // compiled into the C++ host). It authors through the real SDK exactly like a web
-// game: ESEngine.createNativeApp + world.spawn/insert + the Input resource. The
-// host provides `ESEngine` (SDK bundle), the `es_*` globals, the frame constants
-// W/H/S, and the platform bridge `__esNativeBridge`.
+// game: ESEngine.createNativeApp + world.spawn/insert + the Input and Assets
+// resources. The host provides `ESEngine` (SDK bundle), the `es_*` globals, the
+// frame constants W/H/S, and the platform bridge `__esNativeBridge`.
 //
 // A sprite follows the touch; a shape orbits — proof the real App runs on device.
 
@@ -14,8 +14,9 @@ function init() {
     app.tick(0);                       // sync through finishPlugins: binds input + inserts Input
     world = app.world;
     input = app.getResource(ESEngine.Input);
+    var assets = app.getResource(ESEngine.Assets);
 
-    // Fallback 2x2 checker while the real image decodes.
+    // Fallback 2x2 checker (a tiny inline texture) while the real image loads.
     var tex = es_createTexture(2, 2, [
         255, 0, 0, 255,    0, 255, 0, 255,
         0, 0, 255, 255,    255, 255, 0, 255 ]);
@@ -25,13 +26,15 @@ function init() {
     world.insert(follower, ESEngine.Sprite, {
         texture: tex, color: { r: 1, g: 1, b: 1, a: 1 }, size: { x: S * 0.28, y: S * 0.28 } });
 
-    // Load a REAL image (logo.png) from the APK through the SDK platform
-    // (NativeBridge.loadImagePixels), decoded by the host with stb_image, and swap
-    // it onto the follower — proving the native image-decode -> texture path.
-    globalThis.__esNativeBridge.loadImagePixels('logo.png').then(function (img) {
-        var logo = es_createTexture(img.width, img.height, img.pixels);
+    // Load logo.png through the REAL SDK asset pipeline — the SAME Assets API a web
+    // game uses. Assets.loadTexture decodes the image via the platform
+    // (bridge.loadImagePixels) and uploads it through the native ResourceManager,
+    // returning a tracked handle. No hand-rolled es_createTexture: the demo now
+    // exercises the unified asset channel, not a bespoke native texture path.
+    assets.loadTexture('logo.png').then(function (result) {
         world.insert(follower, ESEngine.Sprite, {
-            texture: logo, color: { r: 1, g: 1, b: 1, a: 1 }, size: { x: S * 0.28, y: S * 0.28 } });
+            texture: result.handle, color: { r: 1, g: 1, b: 1, a: 1 },
+            size: { x: S * 0.28, y: S * 0.28 } });
     });
 
     orbit = world.spawn();

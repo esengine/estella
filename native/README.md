@@ -97,11 +97,22 @@ Dawn with `llvm-strip`), `zipalign -f 4`, `apksigner sign`.
 ## Status
 
 The engine core + render path are proven on device (Snapdragon 8 Elite / Adreno
-830, 120 fps). The JS host now runs the **real SDK**: `ESEngine.createNativeWorld()`
-returns the same `World` the web build uses, connected to the native core through
-the generated registry + memory backend; the host binds the entity/hierarchy +
-component functions the SDK reads off `globalThis`. Verified on this machine: the
-arm64 host compiles + links with the SDK bundle embedded, and the bundle + game
-script run in a bare JS scope (a QuickJS stand-in). Remaining: an on-device render
-pass of the real-SDK scene, more system bindings (input / audio / assets), and the
-iOS shell (the Metal surface seam is already in place).
+830, 120 fps). The JS host runs the **real SDK**: `ESEngine.createNativeApp()`
+returns the same `App` + `World` the web build uses, connected to the native core
+through the generated registry + memory backend; the host binds the entity /
+hierarchy / component functions the SDK reads off `globalThis`, plus the input and
+texture bindings.
+
+System bindings (Stage B) landing incrementally through the real SDK surfaces:
+
+- **Input** — host touch → the SDK's `inputPlugin` → the `Input` resource (device-verified).
+- **Assets** — `ESEngine.Assets.loadTexture(path)` runs the SAME asset pipeline the
+  web build uses: the platform decodes the image (`bridge.loadImagePixels`) and the
+  **native ResourceManager** (`createNativeResourceManager`, over the host's
+  `es_createTexture` / `es_releaseTexture` / `es_getTextureDimensions`) uploads the
+  bytes directly — no wasm heap. `game.js` now loads its logo through this channel
+  instead of a hand-rolled `es_createTexture`.
+
+Remaining: audio, lifecycle, and the cooked-asset manifest (import settings / KTX2 /
+atlases) that the editor's native-export pipeline will ship (Stage C); then the iOS
+shell (the Metal surface seam is already in place).

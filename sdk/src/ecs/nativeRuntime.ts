@@ -17,6 +17,12 @@ import { ensureBuiltinComponentsRegistered } from '../component';
 import { installNativePlatform, type NativeBridge } from '../platform/native';
 import { createNativeRegistry } from './nativeRegistry';
 import { NativeMemoryProvider } from './memoryProvider';
+import { createNativeResourceManager } from './nativeResourceManager';
+import { initResourceManager } from '../resourceManager';
+import { Assets as AssetsClass } from '../asset/Assets';
+import { Assets as AssetsResource } from '../asset/AssetPlugin';
+import { FileSystemBackend } from '../asset/Backend';
+import { platformLoadImagePixels } from '../platform';
 
 /**
  * Create a World bound to the native core. `scope` is where the host installed its
@@ -64,5 +70,35 @@ export function createNativeApp(
         memory: new NativeMemoryProvider(scope),
     });
     app.addPlugin(inputPlugin);
+    installNativeAssets(app, scope);
     return app;
+}
+
+/**
+ * Install the native asset channel — the same `Assets` class the web build uses,
+ * over the native core. The native analog of the AssetPlugin / runtimeLoader
+ * wiring: no wasm module (the {@link createNativeResourceManager} uploads texture
+ * bytes directly), a filesystem backend that reads packaged files through the
+ * host `NativeBridge`, and the pixel-decode channel (`bridge.loadImagePixels`)
+ * wechat / playable also use — so `Assets.loadTexture(path)` returns a handle the
+ * native ResourceManager tracks, replacing hand-rolled host texture creation.
+ *
+ * Kept deliberately lean (no KTX2 side-module / import-settings / ref-counter
+ * wiring yet) — those arrive with the cooked-asset manifest in the export
+ * pipeline. Same-signature loaders, so it never diverges from the web channel.
+ */
+function installNativeAssets(app: App, scope: Record<string, unknown>): void {
+    // The host's es_* texture bindings back the SDK's resource surface, so
+    // requireResourceManager() resolves for the whole asset path.
+    initResourceManager(createNativeResourceManager(scope));
+
+    const assets = AssetsClass.create({
+        backend: new FileSystemBackend(),
+        module: null,   // no wasm heap on native — the RM takes bytes directly
+    });
+    // Textures take the Path-2 pixel-decode route: the platform decodes the image
+    // to RGBA (bridge.loadImagePixels), then TextureLoader uploads through the
+    // native ResourceManager's createTextureFromBytes. `flip` is applied on upload.
+    assets.getTextureLoader().setPixelDecoder((path) => platformLoadImagePixels(path));
+    app.insertResource(AssetsResource, assets);
 }

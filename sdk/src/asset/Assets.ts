@@ -129,7 +129,9 @@ export interface AssetsOptions {
      * {@link ManifestModel}. Optional — label/path loading works without it.
      */
     manifest?: AddressableManifest | ManifestModel;
-    module: ESEngineModule;
+    /** The wasm module, or null on the native (embedded-Dawn) backend, which has
+     *  no wasm heap — its ResourceManager uploads texture bytes directly. */
+    module: ESEngineModule | null;
     /**
      * Lazy accessor for the owning app's Audio API. AudioAssetLoader
      * calls it at load time so AssetPlugin and AudioPlugin can be built
@@ -194,7 +196,7 @@ export class Assets {
     }
     private baseUrl_?: string;
 
-    private module_: ESEngineModule;
+    private module_: ESEngineModule | null;
     private manifestModel_: ManifestModel | null = null;
     /** CDN root that `remote`-group assets resolve against; see {@link setRemoteRoot}. */
     private remoteRoot_?: string;

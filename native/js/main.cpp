@@ -35,6 +35,7 @@
 #include "esengine/renderer/RenderFrame.hpp"
 #include "esengine/renderer/webgpu/WebGPUDevice.hpp"
 #include "esengine/resource/ResourceManager.hpp"
+#include "esengine/resource/ShaderParser.hpp"       // linearColorSpace() — texture format at the JS boundary
 
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -199,25 +200,88 @@ JSValue js_setClear(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
     g_app->clear = {(f32)r, (f32)g, (f32)b, 1.0f};
     return JS_UNDEFINED;
 }
-JSValue js_createTexture(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
+// Read an RGBA byte source into `out`. Fast path: a Uint8Array (what the SDK's
+// createTextureFromBytes hands us) — copy straight from its ArrayBuffer. Fallback:
+// a plain JS number array (the tiny inline checker some scripts build) — index it.
+void readByteSource(JSContext* ctx, JSValueConst v, std::vector<u8>& out) {
+    size_t byteOffset = 0, byteLen = 0, bytesPerEl = 0;
+    JSValue ab = JS_GetTypedArrayBuffer(ctx, v, &byteOffset, &byteLen, &bytesPerEl);
+    if (!JS_IsException(ab)) {
+        size_t abSize = 0;
+        uint8_t* base = JS_GetArrayBuffer(ctx, &abSize, ab);
+        if (base && byteOffset + byteLen <= abSize) {
+            out.assign(base + byteOffset, base + byteOffset + byteLen);
+        }
+        JS_FreeValue(ctx, ab);
+        return;
+    }
+    JS_FreeValue(ctx, ab);
+    JS_FreeValue(ctx, JS_GetException(ctx));   // not a typed array — clear + index it
+    uint32_t len = 0;
+    JSValue lv = JS_GetPropertyStr(ctx, v, "length");
+    JS_ToUint32(ctx, &len, lv);
+    JS_FreeValue(ctx, lv);
+    out.resize(len);
+    for (uint32_t i = 0; i < len; ++i) {
+        JSValue el = JS_GetPropertyUint32(ctx, v, i);
+        int32_t iv = 0;
+        JS_ToInt32(ctx, &iv, el);
+        out[i] = (u8)iv;
+        JS_FreeValue(ctx, el);
+    }
+}
+
+// The texture format at the JS boundary — mirrors bindings/ResourceManagerBindings
+// boundaryTextureFormat so native and web upload colour identically (format 0 = RGB8;
+// else sRGB variant under the linear pipeline, plain RGBA8 in gamma).
+TextureFormat boundaryTextureFormat(int32_t format) {
+    if (format == 0) return TextureFormat::RGB8;
+    if (resource::ShaderParser::linearColorSpace()) return TextureFormat::SRGB8A8;
+    return TextureFormat::RGBA8;
+}
+
+// es_createTexture(w, h, pixels, format?, flip?, filter?, wrap?) -> handle id.
+// Backs the native ResourceManager's createTextureFromBytes: the SDK decodes an
+// image to RGBA (loadImagePixels) and hands the bytes here — no wasm heap. filter/
+// wrap arrive with the cooked-asset import settings (Stage C); until then only the
+// default sampler is used, matching the plain rm_createTexture path.
+JSValue js_createTexture(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
     int32_t w = 0, h = 0;
     JS_ToInt32(ctx, &w, argv[0]);
     JS_ToInt32(ctx, &h, argv[1]);
-    uint32_t len = 0;
-    JSValue lv = JS_GetPropertyStr(ctx, argv[2], "length");
-    JS_ToUint32(ctx, &len, lv);
-    JS_FreeValue(ctx, lv);
-    std::vector<u8> pixels(len);
-    for (uint32_t i = 0; i < len; ++i) {
-        JSValue el = JS_GetPropertyUint32(ctx, argv[2], i);
-        int32_t v = 0;
-        JS_ToInt32(ctx, &v, el);
-        pixels[i] = (u8)v;
-        JS_FreeValue(ctx, el);
-    }
+    std::vector<u8> pixels;
+    readByteSource(ctx, argv[2], pixels);
+
+    int32_t format = 1;                     // default: colour (RGBA8 / sRGB)
+    if (argc > 3 && !JS_IsUndefined(argv[3])) JS_ToInt32(ctx, &format, argv[3]);
+    bool flip = (argc > 4 && !JS_IsUndefined(argv[4])) ? JS_ToBool(ctx, argv[4]) != 0 : false;
+
     auto handle = g_app->ctx->require<resource::ResourceManager>().createTexture(
-        (u32)w, (u32)h, ConstSpan<u8>(pixels.data(), pixels.size()), TextureFormat::RGBA8, false);
+        (u32)w, (u32)h, ConstSpan<u8>(pixels.data(), pixels.size()),
+        boundaryTextureFormat(format), flip);
     return JS_NewInt64(ctx, (int64_t)handle.id());
+}
+
+// es_releaseTexture(handle) — drop one native ResourceManager reference.
+JSValue js_releaseTexture(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
+    int64_t id = 0;
+    JS_ToInt64(ctx, &id, argv[0]);
+    g_app->ctx->require<resource::ResourceManager>().releaseTexture(
+        resource::TextureHandle((u32)id));
+    return JS_UNDEFINED;
+}
+
+// es_getTextureDimensions(handle) -> { width, height } | null.
+JSValue js_getTextureDimensions(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
+    int64_t id = 0;
+    JS_ToInt64(ctx, &id, argv[0]);
+    auto* tex = g_app->ctx->require<resource::ResourceManager>().getTexture(
+        resource::TextureHandle((u32)id));
+    if (!tex) return JS_NULL;
+    JSValue obj = JS_NewObject(ctx);
+    JS_SetPropertyStr(ctx, obj, "width", JS_NewInt32(ctx, (int32_t)tex->getWidth()));
+    JS_SetPropertyStr(ctx, obj, "height", JS_NewInt32(ctx, (int32_t)tex->getHeight()));
+    return obj;
 }
 
 // Read an APK asset (assets/<path>) fully into a buffer; empty if missing. This is
@@ -404,9 +468,13 @@ void initJS(App& a) {
     bindGlobal(a, global, "es_removeParent", js_removeParent, 1);
     bindGlobal(a, global, "es_hasChildren", js_hasChildren, 1);
     bindGlobal(a, global, "es_getChildren", js_getChildren, 1);
-    // Resources + clear + asset reads.
+    // Resources + clear + asset reads. es_createTexture / es_releaseTexture /
+    // es_getTextureDimensions are the native ResourceManager contract the SDK's
+    // createNativeResourceManager binds to (the asset pipeline's texture backend).
     bindGlobal(a, global, "es_setClear", js_setClear, 3);
     bindGlobal(a, global, "es_createTexture", js_createTexture, 3);
+    bindGlobal(a, global, "es_releaseTexture", js_releaseTexture, 1);
+    bindGlobal(a, global, "es_getTextureDimensions", js_getTextureDimensions, 1);
     bindGlobal(a, global, "es_readAsset", js_readAsset, 1);
     bindGlobal(a, global, "es_loadImagePixels", js_loadImagePixels, 1);
     // Per-component bindings (EHT-generated): es_set_<C> / es_<C>_buffer / _has / _remove.

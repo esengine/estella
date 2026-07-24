@@ -42,6 +42,16 @@ export interface CppRegistry extends GeneratedRegistry {
 export interface CppResourceManager {
     createTexture(width: number, height: number, pixels: number, pixelsLen: number, format: number, flipY: boolean): number;
     createTextureEx(width: number, height: number, pixels: number, pixelsLen: number, format: number, flipY: boolean, filterMode: number, wrapMode: number): number;
+    /**
+     * Module-free texture upload: take the RGBA bytes directly instead of a wasm
+     * heap pointer. Present ONLY on the native ResourceManager (embedded Dawn, no
+     * wasm heap to marshal into); the wasm embind object does not implement it, so
+     * the upload helpers fall through to the heap path and web stays byte-identical.
+     * `filterMode`/`wrapMode` mirror {@link createTextureEx}'s codes (optional). */
+    createTextureFromBytes?(width: number, height: number, pixels: Uint8Array, format: number, flipY: boolean, filterMode?: number, wrapMode?: number): number;
+    /** Module-free {@link updateTextureSubregion} — native byte upload for the
+     *  glyph atlas, symmetric with {@link createTextureFromBytes}. */
+    updateTextureSubregionFromBytes?(handle: number, x: number, y: number, width: number, height: number, pixels: Uint8Array): void;
     createShader(vertSrc: string, fragSrc: string): number;
     registerExternalTexture(glTextureId: number, width: number, height: number): number;
     /** Like registerExternalTexture, but with the actual GPU byte size for the

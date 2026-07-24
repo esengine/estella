@@ -239,6 +239,10 @@ describe('node adapter surfaces (fail loud, no render host)', () => {
 });
 
 describe('esengine/native entry', () => {
+    // These two transform the WHOLE native entry graph (core + webAppFactory +
+    // every re-export) on first import — several seconds cold, and slower still
+    // under the full suite's parallel load. Give them room past the 5s default so
+    // they measure re-export wiring, not machine contention.
     it('re-exports the native surface + the core SDK', async () => {
         const native = await import('../src/index.native');
         expect(typeof native.installNativePlatform).toBe('function');
@@ -247,7 +251,7 @@ describe('esengine/native entry', () => {
         expect(typeof native.createWebApp).toBe('function');
         expect(typeof native.createHeadlessApp).toBe('function');
         expect(typeof native.App).toBe('function');
-    });
+    }, 30000);
 
     it('installNativePlatform from the entry activates the native platform', async () => {
         const native = await import('../src/index.native');
@@ -255,5 +259,5 @@ describe('esengine/native entry', () => {
         const { getPlatformType, isNative } = await import('../src/platform');
         expect(getPlatformType()).toBe('native');
         expect(isNative()).toBe(true);
-    });
+    }, 30000);
 });

@@ -140,6 +140,7 @@ createLabelAtlasFont: (textureHandle: number, texWidth: number, texHeight: numbe
 createShader: (vertSrc: string, fragSrc: string) => number
 createTexture: (width: number, height: number, pixels: number, pixelsLen: number, format: number, flipY: boolean) => number
 createTextureEx: (width: number, height: number, pixels: number, pixelsLen: number, format: number, flipY: boolean, filterMode: number, wrapMode: number) => number
+createTextureFromBytes: ((width: number, height: number, pixels: Uint8Array, format: number, flipY: boolean, filterMode?: number, wrapMode?: number) => number) | undefined
 getBitmapFontRefCount: (handle: number) => number
 getResourceStats: () => { shaderCount: number; textureCount: number; vertexBufferCount: number; indexBufferCount: number; cacheHits: number; cacheMisses: number; textureBytes: number; textureBudget: number; textureEvictableCount: number; }
 getShaderRefCount: (handle: number) => number
@@ -159,6 +160,7 @@ setTextureBudget: (bytes: number) => void
 setTextureMetadata: (handle: number, left: number, right: number, top: number, bottom: number) => void
 trimTextureCache: () => number
 updateTextureSubregion: (handle: number, x: number, y: number, width: number, height: number, pixels: number, pixelsLen: number) => void
+updateTextureSubregionFromBytes: ((handle: number, x: number, y: number, width: number, height: number, pixels: Uint8Array) => void) | undefined
 ```
 
 ## ESEngineModule — interface

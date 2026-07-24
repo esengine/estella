@@ -52,9 +52,11 @@ export interface TextureParams {
 const FILTER_MODE_MAP: Record<string, number> = { 'nearest': 0, 'linear': 1 };
 const WRAP_MODE_MAP: Record<string, number> = { 'repeat': 0, 'clamp': 1, 'mirror': 2 };
 
-/** Upload decoded RGBA pixels as a GL texture; returns the engine texture handle. */
+/** Upload decoded RGBA pixels as a GL texture; returns the engine texture handle.
+ *  `module` is the wasm-heap marshalling vehicle; it may be null on the native
+ *  (embedded-Dawn) backend, whose ResourceManager takes the bytes directly. */
 export function createTextureFromPixels(
-    module: ESEngineModule,
+    module: ESEngineModule | null,
     result: { width: number; height: number; pixels: Uint8Array },
     flipY: boolean = true,
     params?: TextureParams,
@@ -62,6 +64,17 @@ export function createTextureFromPixels(
     const rm = requireResourceManager();
     // Format code 2 = sRGB-encoded color (linear pipeline); 1 = plain RGBA8.
     const format = linearColorSpace() && (params?.srgb ?? true) ? 2 : 1;
+    // Native path: no wasm heap — the ResourceManager uploads the bytes itself.
+    // The wasm embind object has no createTextureFromBytes, so web falls through
+    // to the heap path below unchanged.
+    if (rm.createTextureFromBytes) {
+        const filter = params?.filterMode ? FILTER_MODE_MAP[params.filterMode] ?? 1 : undefined;
+        const wrap = params?.wrapMode ? WRAP_MODE_MAP[params.wrapMode] ?? 1 : undefined;
+        return rm.createTextureFromBytes(result.width, result.height, result.pixels, format, flipY, filter, wrap);
+    }
+    if (!module) {
+        throw new Error('createTextureFromPixels: a wasm module is required for the heap upload path');
+    }
     return withMalloc(module, result.pixels.length, ptr => {
         module.HEAPU8.set(result.pixels, ptr);
 
@@ -81,7 +94,7 @@ export function createTextureFromPixels(
  * rect must lie inside the texture (the engine bounds-checks and no-ops if not).
  */
 export function updateTextureSubregion(
-    module: ESEngineModule,
+    module: ESEngineModule | null,
     handle: number,
     x: number,
     y: number,
@@ -91,7 +104,12 @@ export function updateTextureSubregion(
 ): void {
     if (width <= 0 || height <= 0 || pixels.length === 0) return;
     const rm = requireResourceManager();
-    if (!rm.updateTextureSubregion) return;
+    // Native byte path (no wasm heap); web embind lacks it and takes the heap path.
+    if (rm.updateTextureSubregionFromBytes) {
+        rm.updateTextureSubregionFromBytes(handle, x, y, width, height, pixels);
+        return;
+    }
+    if (!rm.updateTextureSubregion || !module) return;
     withMalloc(module, pixels.length, ptr => {
         module.HEAPU8.set(pixels, ptr);
         rm.updateTextureSubregion(handle, x, y, width, height, ptr, pixels.length);

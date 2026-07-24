@@ -12,13 +12,13 @@ export class SpineAssetLoader implements AssetLoader<SpineResult> {
     readonly type = 'spine';
     readonly extensions = ['.skel'];
 
-    private module_: ESEngineModule;
+    private module_: ESEngineModule | null;
     private spineController_: SpineModuleController | null = null;
     private loaded_ = new Set<string>();
     private virtualFSPaths_ = new Set<string>();
     private skeletonHandles_ = new Map<string, number>();
 
-    constructor(module: ESEngineModule) {
+    constructor(module: ESEngineModule | null) {
         this.module_ = module;
     }
 
@@ -119,7 +119,7 @@ export class SpineAssetLoader implements AssetLoader<SpineResult> {
 
     private writeToVirtualFS(virtualPath: string, data: string | Uint8Array): void {
         if (this.virtualFSPaths_.has(virtualPath)) return;
-        const fs = this.module_.FS;
+        const fs = this.module_?.FS;
         if (!fs) return;
 
         try {
@@ -132,7 +132,7 @@ export class SpineAssetLoader implements AssetLoader<SpineResult> {
     }
 
     private cleanupVirtualFS(): void {
-        const fs = this.module_.FS;
+        const fs = this.module_?.FS;
         if (!fs) return;
         for (const path of this.virtualFSPaths_) {
             try { fs.unlink(path); } catch { /* already removed */ }

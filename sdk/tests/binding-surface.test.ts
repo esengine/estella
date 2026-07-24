@@ -359,6 +359,12 @@ describe('WASM binding surface: embind class methods', () => {
     it('CppResourceManager mirrors class_<ResourceManager> exactly', () => {
         const cpp = parseClassRegistration(webSdkEntry, 'ResourceManager');
         const ts = parseInterfaceMethods(wasmTs, 'CppResourceManager');
+        // Native (embedded-Dawn) byte-upload methods: no wasm heap to marshal into,
+        // so they take the RGBA bytes directly and have NO embind counterpart on the
+        // web ResourceManager. Optional + native-only by construction — exempt from
+        // the web mirror the way embind's implicit `delete` is below.
+        ts.delete('createTextureFromBytes');
+        ts.delete('updateTextureSubregionFromBytes');
         expect(sorted(ts)).toEqual(sorted(cpp.keys()));
     });
 

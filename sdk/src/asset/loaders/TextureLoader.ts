@@ -58,7 +58,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     readonly type = 'texture';
     readonly extensions = ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp', '.ktx2'];
 
-    private module_: ESEngineModule;
+    private module_: ESEngineModule | null;
     /**
      * Basis transcoder for KTX2 assets. Either injected directly via
      * {@link setTranscoder} (tests / embedded realms) or acquired lazily on the
@@ -93,7 +93,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
      */
     importSettingsResolver: TextureImportSettingsResolver | null = null;
 
-    constructor(module: ESEngineModule) {
+    constructor(module: ESEngineModule | null) {
         this.module_ = module;
     }
 
@@ -135,8 +135,18 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         width: number, height: number, pixels: Uint8Array, flipY: boolean,
     ): Promise<TextureResult> {
         const rm = requireResourceManager();
-        const handle = withMalloc(this.module_, pixels.length, ptr => {
-            this.module_.HEAPU8.set(pixels, ptr);
+        // Native (no wasm heap): upload the bytes directly. Web embind lacks this
+        // method, so it takes the heap path below unchanged.
+        if (rm.createTextureFromBytes) {
+            const handle = rm.createTextureFromBytes(width, height, pixels, 1, flipY);
+            return { handle, width, height };
+        }
+        if (!this.module_) {
+            throw new Error('TextureLoader.loadFromPixels: no wasm module and no native byte-upload path');
+        }
+        const module = this.module_;
+        const handle = withMalloc(module, pixels.length, ptr => {
+            module.HEAPU8.set(pixels, ptr);
             return rm.createTexture(width, height, ptr, pixels.length, 1, flipY);
         });
         return { handle, width, height };
@@ -201,7 +211,9 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         }
         // KTX2 payloads are color, like the PNG path: linear mode wants the
         // sRGB variant of whatever compressed format the device supports.
-        const r = loadCompressedTexture(gl, this.module_, transcoder, bytes,
+        // A WebGL2 context implies a wasm module (native has neither, and threw
+        // above on the missing gl); the KTX2 path is web-only.
+        const r = loadCompressedTexture(gl, this.module_!, transcoder, bytes,
             { ...settings, srgb: linearColorSpace() });
         return { handle: r.handle, width: r.width, height: r.height };
     }
@@ -253,7 +265,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     }
 
     private getWebGL2Context(): WebGL2RenderingContext | null {
-        return findWebGL2Context(this.module_.GL);
+        return findWebGL2Context(this.module_?.GL);
     }
 
     private createTextureWebGL2(
@@ -302,7 +314,8 @@ export class TextureLoader implements AssetLoader<TextureResult> {
             throw err;
         }
 
-        const glObj = this.module_.GL;
+        // This path runs only with a live WebGL2 context, which implies a module.
+        const glObj = this.module_!.GL;
         const glTextureId = glObj.getNewId(glObj.textures);
         glObj.textures[glTextureId] = texture;
 
@@ -316,6 +329,14 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         width: number, height: number, flip: boolean,
         settings?: TextureImportSettings,
     ): TextureResult {
+        // The 2D-canvas fallback is web-only: it decodes through an offscreen
+        // canvas + wasm heap upload. Native never reaches it — it sets a
+        // pixelDecoder, so decodeAndUpload_ takes the createTextureFromPixels
+        // (byte) path before this — so require the module rather than pretend.
+        if (!this.module_) {
+            throw new Error('TextureLoader: 2D-canvas fallback needs a wasm module (native uses the pixel-decode path)');
+        }
+        const module = this.module_;
         const { canvas, ctx } = this.ensureCanvas_();
         if (canvas.width < width || canvas.height < height) {
             canvas.width = Math.max(canvas.width, nextPowerOf2(width));
@@ -332,8 +353,8 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         const rm = requireResourceManager();
         // Format 2 = sRGB color under the linear pipeline (see rm_createTexture).
         const format = linearColorSpace() && (settings?.srgb ?? true) ? 2 : 1;
-        const handle = withMalloc(this.module_, pixels.length, ptr => {
-            this.module_.HEAPU8.set(pixels, ptr);
+        const handle = withMalloc(module, pixels.length, ptr => {
+            module.HEAPU8.set(pixels, ptr);
             return rm.createTexture(width, height, ptr, pixels.length, format, flip);
         });
 
