@@ -9,6 +9,10 @@ productName: Estella Editor
 executableName: estella-editor
 directories:
   output: release
+  # App icons. The default buildResources dir (`build`) is gitignored, so the
+  # committed icons live here; electron-builder auto-detects icon.ico (Windows)
+  # and icon.png (macOS → generated .icns, Linux) from this directory.
+  buildResources: icons
 files:
   - dist/**
   # Stale example zips from the retired zip-examples task (gitignored, may

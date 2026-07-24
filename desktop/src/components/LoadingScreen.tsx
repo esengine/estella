@@ -12,8 +12,19 @@ export function LoadingScreen() {
   return (
     <div className="loadscreen" role="status" aria-live="polite">
       <div className="loadscreen__panel">
-        <svg className="loadscreen__mark" viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M12 2 L14 10 L22 12 L14 14 L12 22 L10 14 L2 12 L10 10 Z" />
+        {/* The faceted brand star — the splash's featured moment (see favicon.svg). */}
+        <svg className="loadscreen__mark" viewBox="0 0 100 100" aria-hidden="true">
+          <path d="M50 50 L42 42 L50 6 L58 42 Z" fill="#4aa6ec" />
+          <path d="M50 50 L58 42 L94 50 L58 58 Z" fill="#2f88d6" />
+          <path d="M50 50 L58 58 L50 94 L42 58 Z" fill="#1c5988" />
+          <path d="M50 50 L42 58 L6 50 L42 42 Z" fill="#2c7cc0" />
+          <g stroke="#0a1826" strokeWidth="0.7" strokeLinecap="round" opacity="0.5">
+            <line x1="50" y1="50" x2="42" y2="42" />
+            <line x1="50" y1="50" x2="58" y2="42" />
+            <line x1="50" y1="50" x2="58" y2="58" />
+            <line x1="50" y1="50" x2="42" y2="58" />
+          </g>
+          <path d="M42 42 L50 50 L58 42" fill="none" stroke="#9fd2f7" strokeWidth="0.7" opacity="0.55" />
         </svg>
         <div className="loadscreen__tasks">
           {tasks.map((task) => (

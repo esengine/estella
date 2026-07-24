@@ -383,8 +383,8 @@ export function Launcher() {
     <div className="launcher">
       <header className="launcher__bar">
         <div className="lc-brand">
-          <svg className="lc-brand__mark" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M12 2 L14 10 L22 12 L14 14 L12 22 L10 14 L2 12 L10 10 Z" />
+          <svg className="lc-brand__mark" viewBox="0 0 100 100" aria-hidden="true">
+            <path d="M50 6 L58 42 L94 50 L58 58 L50 94 L42 58 L6 50 L42 42 Z" />
           </svg>
           <div className="lc-brand__text">
             <strong>Estella</strong>

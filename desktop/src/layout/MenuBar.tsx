@@ -20,14 +20,14 @@ interface MenuDef {
 }
 
 function Mark() {
-  // The signature: a four-point starlight glyph — "Estella" = star.
+  // The signature: Estella's four-point star ("Estella" = star). The faceted brand
+  // mark, flattened to a single azure silhouette so it stays crisp at chrome scale.
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+    <svg width="16" height="16" viewBox="0 0 100 100" aria-hidden="true">
       <path
-        d="M8 0.5 L9.4 6.6 L15.5 8 L9.4 9.4 L8 15.5 L6.6 9.4 L0.5 8 L6.6 6.6 Z"
+        d="M50 6 L58 42 L94 50 L58 58 L50 94 L42 58 L6 50 L42 42 Z"
         fill="var(--star)"
       />
-      <circle cx="8" cy="8" r="1.1" fill="var(--void)" />
     </svg>
   );
 }

@@ -949,9 +949,9 @@ body.thumb-capture .viewport > :not(.viewport__stage):not(.viewport__play) {
 }
 .loadscreen__panel { display: flex; flex-direction: column; align-items: center; gap: 26px; }
 .loadscreen__mark {
-  width: 54px;
-  height: 54px;
-  fill: var(--run);
+  width: 60px;
+  height: 60px;
+  filter: drop-shadow(0 0 16px rgba(47, 136, 214, 0.5));
   animation: loadscreen-pulse 1.7s ease-in-out infinite;
 }
 .loadscreen__tasks { display: flex; flex-direction: column; gap: 11px; min-width: 200px; }
@@ -979,5 +979,5 @@ body.thumb-capture .viewport > :not(.viewport__stage):not(.viewport__play) {
   animation: none;
 }
 @keyframes loadscreen-spin { to { transform: rotate(360deg); } }
-@keyframes loadscreen-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@keyframes loadscreen-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
 @keyframes loadscreen-in { from { opacity: 0; } to { opacity: 1; } }
