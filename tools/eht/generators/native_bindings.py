@@ -50,7 +50,12 @@ class NativeBindingsGenerator:
         if ct in _FLOAT:
             return (f'    {{ double _v; if (esn_getnum(ctx, o, "{n}", &_v)) '
                     f'c.{n} = static_cast<decltype(c.{n})>(_v); }}')
-        return f'    // skip {n}: {t} (handle / entity / vector / struct — needs a resource-aware binding)'
+        if self.types.is_handle(t):
+            # A resource handle (e.g. TextureHandle): the script passes the packed
+            # id returned by a resource binding (es_createTexture); reconstruct it.
+            return (f'    {{ double _v; if (esn_getnum(ctx, o, "{n}", &_v)) '
+                    f'c.{n} = decltype(c.{n})(static_cast<esengine::u32>(static_cast<long long>(_v))); }}')
+        return f'    // skip {n}: {t} (entity / vector / struct — needs a bespoke binding)'
 
     def _component(self, comp: Component) -> List[str]:
         full = f'{comp.namespace}::{comp.name}' if comp.namespace else comp.name
@@ -75,6 +80,19 @@ class NativeBindingsGenerator:
             '',
         ]
         components = sorted(self.components, key=lambda c: c.name)
+        # Self-include each bound component's header (relative to src/), so the TU
+        # needs only the shim for the esn_* plumbing — deduped (some components
+        # share a header, e.g. the collider family).
+        seen = set()
+        for comp in components:
+            hp = comp.header_path.replace('\\', '/')
+            if hp.startswith('src/'):
+                hp = hp[len('src/'):]
+            if hp and hp not in seen:
+                seen.add(hp)
+                lines.append(f'#include "{hp}"')
+        if seen:
+            lines.append('')
         for comp in components:
             lines.extend(self._component(comp))
         lines.append('void esn_register(JSContext* ctx, JSValue global) {')
