@@ -191,9 +191,14 @@ async function stageIosContent(rootDir, contentDir) {
     const from = path.isAbsolute(contentDir) ? contentDir : path.join(rootDir, contentDir);
     if (!existsSync(from)) throw new Error(`--content dir not found: ${from}`);
     const to = path.join(rootDir, 'native', 'ios', 'Content');
+    const keep = path.join(to, '.gitkeep');
+    const keepText = existsSync(keep) ? readFileSync(keep, 'utf8') : null;
     await rm(to, { recursive: true, force: true });
     await mkdir(to, { recursive: true });
     await cp(from, to, { recursive: true });
+    // The placeholder is committed so a fresh clone has the directory xcodegen's
+    // folder reference needs; staging content must not delete it.
+    if (keepText !== null) writeFileSync(keep, keepText);
     logger.success(`iOS content: native/ios/Content ← ${path.relative(rootDir, from)}`);
 }
 
