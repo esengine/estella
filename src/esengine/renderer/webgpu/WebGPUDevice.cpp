@@ -182,6 +182,12 @@ bool WebGPUDevice::configureSurface(const NativeSurface& window, u32 width, u32 
         return false;
     }
 
+    // Re-entrant: an Android screen-off/on (or a rotation) destroys the window and
+    // hands back a new one, so drop the previous surface + depth before rebinding.
+    if (surface_depth_view_) { wgpuTextureViewRelease(surface_depth_view_); surface_depth_view_ = nullptr; }
+    if (surface_depth_texture_) { wgpuTextureRelease(surface_depth_texture_); surface_depth_texture_ = nullptr; }
+    if (surface_) { wgpuSurfaceRelease(surface_); surface_ = nullptr; }
+
     WGPUSurfaceDescriptor sd{};
     switch (window.kind) {
         case NativeWindowKind::MetalLayer: {

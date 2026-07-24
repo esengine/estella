@@ -85,7 +85,8 @@ struct App {
     JSContext* js = nullptr;
     glm::vec4 clear{0.07f, 0.08f, 0.12f, 1.0f};
     f32 w = 0, h = 0;
-    bool ready = false;
+    bool ready = false;         // engine + JS booted once
+    bool surfaceReady = false;  // a live window surface is bound (false while screen off)
     uint64_t frame = 0;
 };
 
@@ -260,7 +261,7 @@ void initJS(App& a) {
 }
 
 void renderScene(App& a) {
-    if (!a.ready) return;
+    if (!a.ready || !a.surfaceReady) return;
     auto& ctx = *a.ctx;
     JSValue dt = JS_NewFloat64(a.js, 1.0 / 60.0);
     callJs(a, "update", 1, &dt);
@@ -277,6 +278,22 @@ void renderScene(App& a) {
     rf.end();
     a.gfx->present();
     if (++a.frame % 120 == 0) LOGI("real-SDK frame %llu", (unsigned long long)a.frame);
+}
+
+// Bind (or re-bind) the render surface to a window. Called on first boot and again
+// on APP_CMD_INIT_WINDOW after a screen-off/on, which destroys + recreates the
+// window (configureSurface is re-entrant: it drops the old surface first).
+bool configureForWindow(App& a, ANativeWindow* window) {
+    a.w = (f32)ANativeWindow_getWidth(window);
+    a.h = (f32)ANativeWindow_getHeight(window);
+    if (!a.gfx->configureSurface(
+            WebGPUDevice::NativeSurface{WebGPUDevice::NativeWindowKind::AndroidWindow, window},
+            (u32)a.w, (u32)a.h)) {
+        LOGE("configureSurface failed");
+        return false;
+    }
+    a.surfaceReady = true;
+    return true;
 }
 
 void initEngine(App& a, ANativeWindow* window) {
@@ -307,8 +324,7 @@ void initEngine(App& a, ANativeWindow* window) {
     a.h = (f32)ANativeWindow_getHeight(window);
     auto device = makeUnique<WebGPUDevice>(a.device, a.instance);
     a.gfx = device.get();
-    if (!a.gfx->configureSurface(WebGPUDevice::NativeSurface{WebGPUDevice::NativeWindowKind::AndroidWindow, window},
-                                 (u32)a.w, (u32)a.h)) { LOGE("configureSurface failed"); return; }
+    if (!configureForWindow(a, window)) return;
     static EstellaContext context;
     a.ctx = &context;
     context.state().viewport_width = (i32)a.w;
@@ -323,7 +339,22 @@ void initEngine(App& a, ANativeWindow* window) {
 
 void onAppCmd(android_app* app, int32_t cmd) {
     App* a = static_cast<App*>(app->userData);
-    if (cmd == APP_CMD_INIT_WINDOW && app->window && !a->ready) initEngine(*a, app->window);
+    switch (cmd) {
+        case APP_CMD_INIT_WINDOW:
+            // First time: boot the engine. Afterwards (screen-on): just rebind the
+            // new window surface — the engine + JS World stay alive.
+            if (app->window) {
+                if (!a->ready) initEngine(*a, app->window);
+                else configureForWindow(*a, app->window);
+            }
+            break;
+        case APP_CMD_TERM_WINDOW:
+            // Screen-off / backgrounded: the window is gone, stop presenting to it.
+            a->surfaceReady = false;
+            break;
+        default:
+            break;
+    }
 }
 
 }  // namespace
@@ -336,7 +367,9 @@ void android_main(android_app* app) {
     while (true) {
         int events;
         android_poll_source* source;
-        int timeoutMs = a.ready ? 0 : -1;
+        // Poll (0) while we can render; block (-1) when there's no surface (screen
+        // off) so we wait for the next window event instead of spinning.
+        int timeoutMs = (a.ready && a.surfaceReady) ? 0 : -1;
         while (ALooper_pollOnce(timeoutMs, nullptr, &events, (void**)&source) >= 0) {
             if (source) source->process(app, source);
             if (app->destroyRequested) return;
