@@ -38,6 +38,11 @@
 
 #include <glm/gtc/matrix_transform.hpp>
 
+// stb_image for the native image-decode path (NativeBridge.loadImagePixels). The
+// engine core doesn't use stb_image, so this TU owns the implementation.
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -70,7 +75,11 @@ globalThis.__esNativeBridge = {
     },
     fileExists: function (path) { return Promise.resolve(es_readAsset(path) != null); },
     fetch: function () { return Promise.resolve({ ok: false, status: 404 }); },
-    loadImagePixels: function () { return Promise.reject(new Error('image decode not wired')); },
+    loadImagePixels: function (path) {
+        var r = es_loadImagePixels(path);
+        return r ? Promise.resolve({ width: r.width, height: r.height, pixels: new Uint8Array(r.pixels) })
+                 : Promise.reject(new Error('image decode failed: ' + path));
+    },
     getStorageItem: function () { return null; },
     setStorageItem: function () {},
     removeStorageItem: function () {},
@@ -237,6 +246,27 @@ JSValue js_readAsset(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
     return JS_NewArrayBufferCopy(ctx, bytes.data(), bytes.size());
 }
 
+// es_loadImagePixels(path) -> { width, height, pixels: ArrayBuffer(RGBA) } | null.
+// Decodes an APK image asset to top-first RGBA via stb_image — the native
+// NativeBridge.loadImagePixels ("Path 2": decode -> createTextureFromPixels).
+JSValue js_loadImagePixels(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
+    const char* path = JS_ToCString(ctx, argv[0]);
+    if (!path) return JS_NULL;
+    std::vector<u8> file = readAsset(*g_app, path);
+    JS_FreeCString(ctx, path);
+    if (file.empty()) return JS_NULL;
+    int w = 0, h = 0, ch = 0;
+    stbi_uc* px = stbi_load_from_memory(file.data(), (int)file.size(), &w, &h, &ch, 4);
+    if (!px) { LOGE("stb_image decode failed"); return JS_NULL; }
+    JSValue buf = JS_NewArrayBufferCopy(ctx, px, (size_t)w * (size_t)h * 4);
+    stbi_image_free(px);
+    JSValue obj = JS_NewObject(ctx);
+    JS_SetPropertyStr(ctx, obj, "width", JS_NewInt32(ctx, w));
+    JS_SetPropertyStr(ctx, obj, "height", JS_NewInt32(ctx, h));
+    JS_SetPropertyStr(ctx, obj, "pixels", buf);   // ArrayBuffer; the bootstrap wraps it Uint8Array
+    return obj;
+}
+
 void logJsError(JSContext* ctx, const char* where) {
     JSValue e = JS_GetException(ctx);
     const char* s = JS_ToCString(ctx, e);
@@ -378,6 +408,7 @@ void initJS(App& a) {
     bindGlobal(a, global, "es_setClear", js_setClear, 3);
     bindGlobal(a, global, "es_createTexture", js_createTexture, 3);
     bindGlobal(a, global, "es_readAsset", js_readAsset, 1);
+    bindGlobal(a, global, "es_loadImagePixels", js_loadImagePixels, 1);
     // Per-component bindings (EHT-generated): es_set_<C> / es_<C>_buffer / _has / _remove.
     esn_register(a.js, global);
     JS_FreeValue(a.js, global);
