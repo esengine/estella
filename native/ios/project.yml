@@ -27,6 +27,12 @@ targets:
       - path: ../host_js/logo.png
         buildPhase: resources
         type: file
+      # An exported project, staged by `cli native --target ios --content <dir>`.
+      # A folder reference (not a group) so cooked subdirectories keep their
+      # shape — the host reads Content/ first, the bundle root second.
+      - path: Content
+        buildPhase: resources
+        type: folder
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.estella.EstellaiOS

@@ -171,6 +171,7 @@ program
     .option('--package', 'Android: also package a signed APK (aapt2 + zipalign + apksigner)', false)
     .option('--host <host>', 'Android --package: js (QuickJS host) or cpp (smoke test)')
     .option('--keystore <path>', 'Android --package: signing keystore (default: the debug one)')
+    .option('--content <dir>', 'Ship an exported project (cli exportGame --platform native) as the app content')
     .option('-v, --verbose', 'Verbose output', false)
     .action(async (options) => {
         logger.setVerbose(options.verbose);
@@ -187,6 +188,7 @@ program
                 package: options.package,
                 host: options.host,
                 keystore: options.keystore,
+                content: options.content,
             });
         } catch (err) {
             logger.error(err.message);

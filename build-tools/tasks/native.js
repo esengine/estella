@@ -10,7 +10,7 @@
 
 import path from 'path';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
-import { mkdir, rm } from 'fs/promises';
+import { mkdir, rm, cp } from 'fs/promises';
 import config from '../build.config.js';
 import * as logger from '../utils/logger.js';
 import { runCommand, getCpuCount, resolvePython } from '../utils/emscripten.js';
@@ -142,7 +142,7 @@ async function buildAndroidHost(options) {
     if (options.package) {
         await packageNativeApk({
             host: options.host || (quickjs ? 'js' : 'cpp'),
-            dawnBuild, abi, platform, keystore: options.keystore,
+            dawnBuild, abi, platform, keystore: options.keystore, content: options.content,
         });
     }
 }
@@ -182,6 +182,19 @@ async function assembleXcframework(rootDir, env) {
     await rm(out, { recursive: true, force: true });
     await runCommand('xcodebuild', ['-create-xcframework', ...libs, '-output', out], { cwd: rootDir, env, silent: true });
     logger.success(`iOS framework: ${XCFRAMEWORK} (${libs.length / 2} slice${libs.length === 2 ? '' : 's'})`);
+}
+
+// Stage an exported project into the Xcode project's Content/ folder reference —
+// the iOS counterpart of the APK's assets/. Replaces whatever was there, so a
+// re-export never leaves an old build's files behind.
+async function stageIosContent(rootDir, contentDir) {
+    const from = path.isAbsolute(contentDir) ? contentDir : path.join(rootDir, contentDir);
+    if (!existsSync(from)) throw new Error(`--content dir not found: ${from}`);
+    const to = path.join(rootDir, 'native', 'ios', 'Content');
+    await rm(to, { recursive: true, force: true });
+    await mkdir(to, { recursive: true });
+    await cp(from, to, { recursive: true });
+    logger.success(`iOS content: native/ios/Content ← ${path.relative(rootDir, from)}`);
 }
 
 async function buildIosHost(options) {
@@ -228,6 +241,7 @@ async function buildIosHost(options) {
 
     logger.success(`iOS host: ${path.join(slice.dir, 'libestella_ios.a')}`);
     await assembleXcframework(rootDir, env);
+    if (options.content) await stageIosContent(rootDir, options.content);
     logger.info('Next: cd native/ios && xcodegen && open EstellaiOS.xcodeproj — pick your Team, then Run.');
 }
 

@@ -8,7 +8,7 @@
 
 import path from 'path';
 import { existsSync } from 'fs';
-import { mkdir, copyFile, rm } from 'fs/promises';
+import { mkdir, copyFile, cp, rm } from 'fs/promises';
 import config from '../build.config.js';
 import * as logger from '../utils/logger.js';
 import { runCommand } from '../utils/emscripten.js';
@@ -89,8 +89,17 @@ export async function packageNativeApk(options = {}) {
         '--strip-all', '-o', path.join(libDir, 'libwebgpu_dawn.so'), dawnLib,
     ]);
 
+    // assets/ is what the host's readAsset() sees. `--content <dir>` ships an
+    // exported project (cooked assets + manifests + scenes + game.config.json);
+    // without it the built-in demo assets ride along instead.
     let assetsDir = null;
-    if (host.assets.length) {
+    if (options.content) {
+        const content = path.isAbsolute(options.content) ? options.content : path.join(rootDir, options.content);
+        if (!existsSync(content)) throw new Error(`--content dir not found: ${content}`);
+        assetsDir = path.join(staging, 'assets');
+        await cp(content, assetsDir, { recursive: true });
+        logger.step(`Staging exported content from ${path.relative(rootDir, content)}...`);
+    } else if (host.assets.length) {
         assetsDir = path.join(staging, 'assets');
         await mkdir(assetsDir, { recursive: true });
         for (const asset of host.assets) {
