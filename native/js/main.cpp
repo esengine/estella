@@ -1,23 +1,27 @@
-// Estella native JS host — the REAL SDK, driving the native C++ engine.
-//
-// The game script authors through the actual esengine TS SDK (bundled to one JS
-// file, dist/index.native.bundled.js, loaded here as `ESEngine`): createNativeWorld
-// returns the same World class the web build uses, connected to the native core via
-// the generated bindings. spawn / insert / query run in QuickJS; the components land
-// in the native C++ ECS, which this host renders. No wasm — the engine is native.
+// Estella native JS host — a thin C++ shell that runs the REAL SDK. Three layers,
+// only this one is C++:
+//   1. This host (native/js/main.cpp): boots Dawn, installs the es_* native
+//      bindings as globals, feeds Android touch to JS, reads the APK, and renders.
+//   2. The SDK bundle (dist/index.native.bundled.js, embedded): the actual esengine
+//      TS SDK — createNativeApp / World / Input — installed as `ESEngine`. Not here.
+//   3. The game (assets/game.js, an APK asset loaded at runtime): developer content.
+//      It calls ESEngine.createNativeApp(__esNativeBridge) and authors the scene.
+//      NOT compiled into the host — it ships as an asset, like a real game.
 //
 // The host installs the native side of the registry contract as globals:
 //   * entity + hierarchy (hand-written here): es_createEntity / es_destroyEntity /
 //     es_setParent / es_hasParent / es_removeParent / es_hasChildren / es_getChildren
 //   * per-component (EHT-generated, esn_register): es_set_<C> / es_<C>_buffer /
 //     es_<C>_has / es_<C>_remove
-//   * resources (hand-written): es_createTexture, es_setClear
+//   * resources + assets (hand-written): es_createTexture, es_setClear, es_readAsset
 // createNativeRegistry + NativeMemoryProvider inside the SDK bundle read these off
 // globalThis. Entity ids are the native Entity's raw u32 (round-tripped via
 // Entity::fromRaw), so hierarchy queries return ids the SDK recognises.
 
 #include <android_native_app_glue.h>
 #include <android/log.h>
+#include <android/input.h>
+#include <android/asset_manager.h>
 #include <android/native_window.h>
 
 #include "esn_shim.hpp"          // quickjs + the esn_* plumbing decls (+ esn_register)
@@ -35,6 +39,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 #include <cstring>
+#include <string>
 #include <vector>
 
 #define LOG_TAG "EstellaSDK"
@@ -43,33 +48,33 @@
 
 using namespace esengine;
 
-// The game script — authored entirely against the real SDK (ESEngine.*). Same API
-// the web build exposes; only the game logic is interpreted, the engine runs native.
-static const char* kGameScript = R"JS(
-var world, moving, orbit;
-function init() {
-    es_setClear(0.07, 0.08, 0.12);
-    world = ESEngine.createNativeWorld();
-    var tex = es_createTexture(2, 2, [
-        255, 0, 0, 255,    0, 255, 0, 255,
-        0, 0, 255, 255,    255, 255, 0, 255 ]);
-    moving = world.spawn();
-    world.insert(moving, ESEngine.Transform, { position: { x: W * 0.5, y: H * 0.62, z: 0 } });
-    world.insert(moving, ESEngine.Sprite, {
-        texture: tex, color: { r: 1, g: 1, b: 1, a: 1 }, size: { x: S * 0.42, y: S * 0.42 } });
-    orbit = world.spawn();
-    world.insert(orbit, ESEngine.Transform, { position: { x: W * 0.5, y: H * 0.42, z: 0 } });
-    world.insert(orbit, ESEngine.ShapeRenderer, {
-        shapeType: 0, color: { r: 1, g: 0.2, b: 0.9, a: 1 }, size: { x: S * 0.26, y: S * 0.26 } });
-}
-var t = 0.0;
-function update(dt) {
-    t += dt;
-    world.insert(moving, ESEngine.Transform, {
-        position: { x: W * 0.5 + Math.sin(t * 1.6) * S * 0.5, y: H * 0.62, z: 0 } });
-    world.insert(orbit, ESEngine.Transform, {
-        position: { x: W * 0.5 + Math.cos(t * 1.2) * S * 0.3, y: H * 0.42 + Math.sin(t * 1.2) * S * 0.14, z: 0 } });
-}
+// Host platform bootstrap — HOST code, not game. It fans host touch out to the SDK
+// listener and builds the NativeBridge from the host's es_* capabilities. The game
+// (game.js, loaded from the APK's assets/) then calls createNativeApp(__esNativeBridge).
+static const char* kBootstrapJS = R"JS(
+globalThis.es_onNativeTouch = function (type, id, x, y) {
+    var l = globalThis.__esInputListener;
+    if (!l) return;
+    if (type === 0) l.onTouchStart(id, x, y);
+    else if (type === 1) l.onTouchMove(id, x, y);
+    else if (type === 2) l.onTouchEnd(id);
+    else l.onTouchCancel(id);
+};
+globalThis.__esNativeBridge = {
+    readFile: function (path) {
+        var b = es_readAsset(path);
+        return b ? Promise.resolve(b) : Promise.reject(new Error('asset not found: ' + path));
+    },
+    fileExists: function (path) { return Promise.resolve(es_readAsset(path) != null); },
+    fetch: function () { return Promise.resolve({ ok: false, status: 404 }); },
+    loadImagePixels: function () { return Promise.reject(new Error('image decode not wired')); },
+    getStorageItem: function () { return null; },
+    setStorageItem: function () {},
+    removeStorageItem: function () {},
+    storageKeys: function () { return []; },
+    registerInput: function (l) { globalThis.__esInputListener = l; return function () { globalThis.__esInputListener = null; }; },
+    devicePixelRatio: function () { return 1; },
+};
 )JS";
 
 namespace {
@@ -83,6 +88,7 @@ struct App {
     ecs::Registry* registry = nullptr;
     JSRuntime* rt = nullptr;
     JSContext* js = nullptr;
+    AAssetManager* assets = nullptr;        // APK assets/ — the game + its content
     glm::vec4 clear{0.07f, 0.08f, 0.12f, 1.0f};
     f32 w = 0, h = 0;
     bool ready = false;         // engine + JS booted once
@@ -201,6 +207,32 @@ JSValue js_createTexture(JSContext* ctx, JSValueConst, int, JSValueConst* argv) 
     return JS_NewInt64(ctx, (int64_t)handle.id());
 }
 
+// Read an APK asset (assets/<path>) fully into a buffer; empty if missing. This is
+// the native NativeBridge.readFile capability — a packaged (project-relative) file.
+std::vector<u8> readAsset(App& a, const char* path) {
+    std::vector<u8> out;
+    if (!a.assets) return out;
+    AAsset* asset = AAssetManager_open(a.assets, path, AASSET_MODE_BUFFER);
+    if (!asset) return out;
+    off_t len = AAsset_getLength(asset);
+    if (len > 0) {
+        out.resize((size_t)len);
+        AAsset_read(asset, out.data(), (size_t)len);
+    }
+    AAsset_close(asset);
+    return out;
+}
+
+// es_readAsset(path) -> ArrayBuffer | null. Backs the bridge's readFile.
+JSValue js_readAsset(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
+    const char* path = JS_ToCString(ctx, argv[0]);
+    if (!path) return JS_NULL;
+    std::vector<u8> bytes = readAsset(*g_app, path);
+    JS_FreeCString(ctx, path);
+    if (bytes.empty()) return JS_NULL;
+    return JS_NewArrayBufferCopy(ctx, bytes.data(), bytes.size());
+}
+
 void logJsError(JSContext* ctx, const char* where) {
     JSValue e = JS_GetException(ctx);
     const char* s = JS_ToCString(ctx, e);
@@ -225,6 +257,32 @@ void callJs(App& a, const char* fn, int argc, JSValue* argv) {
     JS_FreeValue(a.js, global);
 }
 
+// Drain QuickJS's microtask queue. app.tick() is async: its synchronous prefix
+// (finishPlugins, resource inserts) runs on call, but the systems run in jobs.
+void pumpJobs(App& a) {
+    JSContext* c;
+    while (JS_ExecutePendingJob(a.rt, &c) > 0) { /* ran a job */ }
+}
+
+// Push one Android touch to the game's es_onNativeTouch(type,id,x,y), which fans it
+// out to the NativeBridge's registered listener. type: 0 start / 1 move / 2 end / 3 cancel.
+void dispatchTouch(App& a, int type, int id, float x, float y) {
+    JSValue global = JS_GetGlobalObject(a.js);
+    JSValue fn = JS_GetPropertyStr(a.js, global, "es_onNativeTouch");
+    if (JS_IsFunction(a.js, fn)) {
+        JSValue args[4] = {
+            JS_NewInt32(a.js, type), JS_NewInt32(a.js, id),
+            JS_NewFloat64(a.js, x), JS_NewFloat64(a.js, y),
+        };
+        JSValue r = JS_Call(a.js, fn, global, 4, args);
+        if (JS_IsException(r)) logJsError(a.js, "es_onNativeTouch");
+        JS_FreeValue(a.js, r);
+        for (JSValue& v : args) JS_FreeValue(a.js, v);
+    }
+    JS_FreeValue(a.js, fn);
+    JS_FreeValue(a.js, global);
+}
+
 void bindGlobal(App& a, JSValue global, const char* name, JSCFunction* fn, int argc) {
     JS_SetPropertyStr(a.js, global, name, JS_NewCFunction(a.js, fn, name, argc));
 }
@@ -246,18 +304,26 @@ void initJS(App& a) {
     bindGlobal(a, global, "es_removeParent", js_removeParent, 1);
     bindGlobal(a, global, "es_hasChildren", js_hasChildren, 1);
     bindGlobal(a, global, "es_getChildren", js_getChildren, 1);
-    // Resources + clear.
+    // Resources + clear + asset reads.
     bindGlobal(a, global, "es_setClear", js_setClear, 3);
     bindGlobal(a, global, "es_createTexture", js_createTexture, 3);
+    bindGlobal(a, global, "es_readAsset", js_readAsset, 1);
     // Per-component bindings (EHT-generated): es_set_<C> / es_<C>_buffer / _has / _remove.
     esn_register(a.js, global);
     JS_FreeValue(a.js, global);
 
-    // The real SDK bundle installs globalThis.ESEngine; then the game script runs.
+    // Layers: the real SDK bundle (engine, embedded) installs ESEngine; the host
+    // bootstrap (host platform glue) installs the NativeBridge; the game (an APK
+    // asset, developer content) authors on top.
     evalJs(a, kSdkBundleJS, "esengine.native.js");
-    evalJs(a, kGameScript, "game.js");
+    evalJs(a, kBootstrapJS, "bootstrap.js");
+    std::vector<u8> game = readAsset(a, "game.js");
+    if (game.empty()) { LOGE("game.js asset missing from the APK"); return; }
+    std::string src(reinterpret_cast<const char*>(game.data()), game.size());
+    evalJs(a, src.c_str(), "game.js");
     callJs(a, "init", 0, nullptr);
-    LOGI("game script init() ran on the real SDK World");
+    pumpJobs(a);
+    LOGI("game.js (APK asset) init() ran on the real SDK App");
 }
 
 void renderScene(App& a) {
@@ -266,6 +332,7 @@ void renderScene(App& a) {
     JSValue dt = JS_NewFloat64(a.js, 1.0 / 60.0);
     callJs(a, "update", 1, &dt);
     JS_FreeValue(a.js, dt);
+    pumpJobs(a);   // run the App tick's async systems
 
     ctx.require<RenderContext>().setFrameTime((f32)a.frame / 60.0f, (u32)a.w, (u32)a.h);
     World world{*a.registry, ctx.services(), 1.0f / 60.0f};
@@ -337,6 +404,25 @@ void initEngine(App& a, ANativeWindow* window) {
     LOGI("real SDK up (%dx%d) — esengine World over native Dawn", (int)a.w, (int)a.h);
 }
 
+int32_t onInput(android_app* app, AInputEvent* ev) {
+    App* a = static_cast<App*>(app->userData);
+    if (!a->ready || AInputEvent_getType(ev) != AINPUT_EVENT_TYPE_MOTION) return 0;
+    const int32_t action = AMotionEvent_getAction(ev) & AMOTION_EVENT_ACTION_MASK;
+    const float x = AMotionEvent_getX(ev, 0);
+    const float y = AMotionEvent_getY(ev, 0);
+    int type;
+    switch (action) {
+        case AMOTION_EVENT_ACTION_DOWN:
+        case AMOTION_EVENT_ACTION_POINTER_DOWN: type = 0; break;
+        case AMOTION_EVENT_ACTION_MOVE:         type = 1; break;
+        case AMOTION_EVENT_ACTION_UP:
+        case AMOTION_EVENT_ACTION_POINTER_UP:   type = 2; break;
+        default:                                type = 3; break;
+    }
+    dispatchTouch(*a, type, 0, x, y);
+    return 1;
+}
+
 void onAppCmd(android_app* app, int32_t cmd) {
     App* a = static_cast<App*>(app->userData);
     switch (cmd) {
@@ -362,8 +448,10 @@ void onAppCmd(android_app* app, int32_t cmd) {
 void android_main(android_app* app) {
     App a;
     g_app = &a;
+    a.assets = app->activity->assetManager;   // APK assets/ (game.js + content)
     app->userData = &a;
     app->onAppCmd = onAppCmd;
+    app->onInputEvent = onInput;
     while (true) {
         int events;
         android_poll_source* source;
