@@ -16,7 +16,7 @@ import type { RuntimeAssetSource } from './runtimeAssets';
 import { FileSystemBackend } from './asset/Backend';
 import { applyBuildRuntimeConfig, type RuntimeBuildConfig } from './defaults';
 import { platformReadTextFile, platformInstantiateWasm, platformLoadImagePixels } from './platform';
-import { loadPackagedAssetIndex, createPackagedAssetSource } from './packagedRuntime';
+import { loadPackagedAssetIndex, createPackagedAssetSource, applyAssetRefResolvers } from './packagedRuntime';
 import { createWeChatSideModuleHost, type WeChatSideModuleFactories } from './sideModules';
 import type { Vec2 } from './types';
 import type { SceneData } from './scene';
@@ -137,6 +137,7 @@ export async function initWeChatRuntime(config: WeChatRuntimeConfig): Promise<vo
     // Canonical asset source: WeChat filesystem backend, wx image decode, manifest
     // ref resolution (bare-uuid → build path).
     const source = createPackagedAssetSource(index);
+    applyAssetRefResolvers(app, index.resolvePath);
 
     // The first scene loads eagerly (the game boots into it); every other
     // registers lazily by path — SceneManager fetches scenes/<name>.json

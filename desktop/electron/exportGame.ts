@@ -21,7 +21,7 @@
  */
 import type { BuildOptions, Plugin } from 'esbuild';
 import { loadEsbuild } from './esbuildRuntime';
-import { writeFile, mkdir, cp, readdir } from 'node:fs/promises';
+import { writeFile, mkdir, cp, readdir, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { cookAssets, loadAssetGroups } from './cookAssets';
@@ -424,6 +424,10 @@ export async function exportGame(opts: {
   // work on web + desktop too (not just mini-games). Additive: the eager boot
   // still reads the flat manifest; this powers on-demand + hot-update delivery.
   await writeFile(path.join(payloadDir, 'asset-manifest.json'), await buildAddressableManifest(payloadDir));
+  // The flat manifest is a build-time intermediate: the addressable one above is
+  // derived from it, and every runtime now reads only that. Dropping it keeps one
+  // asset model in the package — the mini-game export has always done this.
+  await rm(path.join(payloadDir, 'assets.manifest.json'), { force: true });
 
   // Hot-update delivery baked into game.config.json: the active build profile's
   // CDN root (an explicit opts.hotUpdate override wins), plus a persistence key so

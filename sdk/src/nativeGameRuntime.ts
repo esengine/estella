@@ -20,7 +20,7 @@ import { initRuntime } from './runtimeLoader';
 import { createNativeApp } from './ecs/nativeRuntime';
 import type { NativeBridge } from './platform/native';
 import { platformReadTextFile } from './platform';
-import { loadPackagedAssetIndex, createPackagedAssetSource, type PackagedGameConfig } from './packagedRuntime';
+import { loadPackagedAssetIndex, createPackagedAssetSource, applyAssetRefResolvers, type PackagedGameConfig } from './packagedRuntime';
 import type { SceneData } from './scene';
 import type { ThemeOverrides } from './ui';
 import { parseThemeOverrides } from './ui';
@@ -57,6 +57,7 @@ export async function initNativeGame(options: NativeGameOptions): Promise<Native
 
     const index = await loadPackagedAssetIndex();
     const source = createPackagedAssetSource(index);
+    applyAssetRefResolvers(app, index.resolvePath);
 
     const scenes = config.scenes ?? [{ name: 'main', path: config.entryScene }];
     const entry = scenes.find((s) => s.path === config.entryScene) ?? scenes[0];

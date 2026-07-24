@@ -59,8 +59,10 @@ describe('exportGame (native)', () => {
 
     // What the native runtime reads off the device.
     expect(existsSync(path.join(out, 'game.config.json'))).toBe(true);
-    expect(existsSync(path.join(out, 'assets.manifest.json'))).toBe(true);
     expect(existsSync(path.join(out, 'asset-manifest.json'))).toBe(true);
+    // The flat manifest is a build-time intermediate — the addressable one is the
+    // runtime contract, and it is the only one that ships.
+    expect(existsSync(path.join(out, 'assets.manifest.json'))).toBe(false);
     expect(JSON.parse(readFileSync(path.join(out, 'game.config.json'), 'utf8')).entryScene)
       .toBe('scenes/main.esscene');
 

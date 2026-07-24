@@ -29,6 +29,7 @@ import type { SceneData } from './scene';
 import type { PhysicsPluginConfig } from './physics/PhysicsPlugin';
 import type { AudioProjectConfig } from './audio/AudioProjectConfig';
 import { fetchDecodePixels } from './asset/imageDecode';
+import { applyAssetRefResolvers } from './packagedRuntime';
 import { extractUuid, UUID_REF_PREFIX } from './asset/AssetRegistry';
 
 export interface PlayRealmRuntimeConfig {
@@ -162,21 +163,7 @@ function createPlayRealmSource(
 export async function initPlayRealmRuntime(config: PlayRealmRuntimeConfig): Promise<void> {
     const { app, module, canvas, sceneData, assetManifest, assetBaseUrl } = config;
     const source = createPlayRealmSource(assetManifest, assetBaseUrl, config.assetPathMap);
-    // Audio fetches its own buffers (playSFX/playBGM take plain paths, not uuid
-    // refs) — route them through the SAME resolver as every other asset: the
-    // editor realm prefixes the project root, cooked builds hit their
-    // logical→staged map. One resolution channel, no parallel baseUrl logic.
-    if (app.hasResource(Audio)) {
-        app.getResource(Audio).setRefResolver(
-            (ref) => resolvePlayAssetRef(ref, assetManifest, assetBaseUrl, config.assetPathMap),
-        );
-    }
-    // Video source refs resolve through the same channel (see the Audio note above).
-    if (app.hasResource(VideoPlayer)) {
-        app.getResource(VideoPlayer).setRefResolver(
-            (ref) => resolvePlayAssetRef(ref, assetManifest, assetBaseUrl, config.assetPathMap),
-        );
-    }
+    applyAssetRefResolvers(app, (ref) => resolvePlayAssetRef(ref, assetManifest, assetBaseUrl, config.assetPathMap));
     const entryName = config.entrySceneName ?? '__play';
     await initRuntime({
         app,

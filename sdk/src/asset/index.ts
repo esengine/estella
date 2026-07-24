@@ -29,7 +29,7 @@ export {
 export { xxh64, contentHashHex, contentHashOf } from './contentHash';
 export { AsyncCache } from './AsyncCache';
 export { Assets, AssetPlugin, assetPlugin, type AssetsData } from './AssetPlugin';
-export { decodeImageBitmap, decodeImagePixels, imageBitmapOptions, type DecodedPixels } from './imageDecode';
+export { decodeImageBitmap, decodeImagePixels, imageBitmapOptions, type DecodedPixels, fetchDecodePixels } from './imageDecode';
 export { AssetRefCounter, type AssetRefInfo } from './AssetRefCounter';
 
 export { Assets as AssetsImpl, type AssetsOptions, type AssetBundle, type SceneAssetResult, type MissingAsset, type CheckForUpdateOptions, type ApplyUpdateResult, type AssetDownloadFailure, type InvalidateListener } from './Assets';

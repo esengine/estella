@@ -11,12 +11,12 @@
  *        Builtin scenes run as-is; project custom-script bundles are a follow-up
  *        (shared with the play realm's import-map work).
  */
-import { createWebApp, setEditorMode, setPlayMode, initPlayRealmRuntime, atlasCatalogFields, parseThemeOverrides, Assets } from 'esengine';
-import type { CatalogData, CookedAtlasInfo, ESEngineModule, SceneData, AddressableManifest, PackagedGameConfig } from 'esengine';
-
-interface CookedManifest {
-  entries: { uuid: string; path: string; sourcePath?: string; type: string; atlas?: CookedAtlasInfo }[];
-}
+import {
+  createWebApp, setEditorMode, setPlayMode, parseThemeOverrides, Assets,
+  indexPackagedManifest, createPackagedAssetSource, applyAssetRefResolvers, initRuntime,
+  HttpBackend, fetchDecodePixels,
+} from 'esengine';
+import type { ESEngineModule, SceneData, AddressableManifest, PackagedGameConfig } from 'esengine';
 
 async function boot(): Promise<void> {
   const canvas = document.getElementById('canvas') as HTMLCanvasElement;
@@ -42,39 +42,14 @@ async function boot(): Promise<void> {
   }
 
   const cfg = (await (await fetch('./game.config.json')).json()) as PackagedGameConfig;
-  const manifest = (await (await fetch('./assets.manifest.json')).json()) as CookedManifest;
-  // Addressable manifest (v2.0): powers Assets.loadGroup + hot-update. Optional —
-  // a legacy build without it degrades to eager-only (the flat manifest above).
-  const addressable = await fetch('./asset-manifest.json')
-    .then((r) => (r.ok ? (r.json() as Promise<AddressableManifest>) : null))
-    .catch(() => null);
+  // The addressable manifest is the asset index — the same one the WeChat and
+  // native runtimes read. It resolves every ref spelling to its staged path and
+  // carries the atlas metadata the catalog needs, so there is one asset model
+  // across every packaged realm rather than a flat map here and a manifest there.
+  const index = indexPackagedManifest(
+    (await (await fetch('./asset-manifest.json')).json()) as AddressableManifest,
+  );
   const sceneData = (await (await fetch(`./${cfg.entryScene}`)).json()) as SceneData;
-  const assetManifest: Record<string, string> = {};
-  // Logical → staged resolution for PATH-style refs, twice over: `pathMap` for
-  // Assets-level refs (resolved before extension sniffing, so a .png staged as
-  // .ktx2 transcodes), `catalog` buildPaths for the loaders' inner text refs
-  // (a material's shader). Both derive from the manifest's sourcePath — the
-  // asset's logical identity that content-addressed staging preserves.
-  const pathMap: Record<string, string> = {};
-  const catalog: CatalogData = { version: 1, entries: {} };
-  for (const e of manifest.entries) {
-    assetManifest[e.uuid.toLowerCase()] = `./${e.path}`;
-    const logical = e.sourcePath ?? e.path;
-    // Atlas-packed frame: its `path` already points at the PAGE file (URL-level
-    // redirect); the catalog additionally carries frame/uv so the scene loader
-    // can aim each sprite's uvOffset/uvScale at its rect — keyed by every ref
-    // spelling a scene can use, `@uuid:` included.
-    const atlasFields = e.atlas ? atlasCatalogFields(e.atlas, `./${e.path}`) : null;
-    if (atlasFields) {
-      catalog.entries[`@uuid:${e.uuid.toLowerCase()}`] = { type: e.type, buildPath: `./${e.path}`, ...atlasFields };
-    }
-    pathMap[logical] = `./${e.path}`;
-    catalog.entries[logical] = { type: e.type, buildPath: `./${e.path}`, ...(atlasFields ?? {}) };
-    // The cook writes project-absolute refs as "/<logical>" when the logical
-    // path lacks a passthrough prefix — register that spelling too.
-    pathMap[`/${logical}`] = `./${e.path}`;
-    catalog.entries[`/${logical}`] = { type: e.type, buildPath: `./${e.path}`, ...(atlasFields ?? {}) };
-  }
 
   const wasmBase = new URL('./wasm/', import.meta.url).href; // relative → mount-path agnostic
   const { default: createModule } = (await import(/* @vite-ignore */ `${wasmBase}esengine.js`)) as {
@@ -134,26 +109,32 @@ async function boot(): Promise<void> {
   // registers lazily by path, so SceneManager.switchTo('name') fetches it on
   // first use — the same registration shape the WeChat runtime uses.
   const sceneList = cfg.scenes ?? [];
-  const entryName = sceneList.find((s) => s.path === cfg.entryScene)?.name;
-  await initPlayRealmRuntime({
+  const entryName = sceneList.find((s) => s.path === cfg.entryScene)?.name ?? '__play';
+  // Cross-origin images taint a canvas, so a cooked build decodes through
+  // fetch+blob rather than the platform's Image path.
+  const source = createPackagedAssetSource(index, {
+    backend: new HttpBackend({ baseUrl: '' }),
+    decodePixels: (path) => fetchDecodePixels(path),
+  });
+  applyAssetRefResolvers(app, index.resolvePath);
+  await initRuntime({
     app,
     module,
-    canvas,
-    sceneData,
-    entrySceneName: entryName,
-    extraScenes: sceneList
-      .filter((s) => s.path !== cfg.entryScene)
-      .map((s) => ({ name: s.name, path: `./${s.path}` })),
-    assetManifest,
-    assetPathMap: pathMap,
-    catalogData: catalog,
-    manifest: addressable,
+    source,
+    manifest: index.manifest,
+    catalog: index.catalog,
     remoteRoot: cfg.hotUpdate?.remoteRoot,
     persistUpdateKey: cfg.hotUpdate?.persistUpdateKey,
-    wasmBaseUrl: wasmBase.replace(/\/$/, ''),
+    scenes: [
+      { name: entryName, data: sceneData },
+      ...sceneList.filter((s) => s.path !== cfg.entryScene).map((s) => ({ name: s.name, path: s.path })),
+    ],
+    firstScene: entryName,
+    aspectRatio: canvas.width / canvas.height,
     uiTheme: cfg.uiTheme,
     uiThemeOverrides: parseThemeOverrides(cfg.uiThemeColors),
   });
+  app.run();
 }
 
 boot().catch((err) => {

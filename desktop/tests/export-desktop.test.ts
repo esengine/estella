@@ -66,14 +66,17 @@ describe('exportGame (desktop)', () => {
 
     // Web payload nested under app/.
     const app = path.join(out, 'app');
-    for (const f of ['index.html', 'game.js', 'scripts.mjs', 'game.config.json', 'assets.manifest.json']) {
+    for (const f of ['index.html', 'game.js', 'scripts.mjs', 'game.config.json', 'asset-manifest.json']) {
       expect(existsSync(path.join(app, f))).toBe(true);
     }
     expect(existsSync(path.join(app, 'wasm', 'esengine.js'))).toBe(true);
     expect(existsSync(path.join(app, 'sdk', 'index.js'))).toBe(true);
     // Content-addressed by default: the texture ships as assets/<hash>.png.
-    const m = JSON.parse(readFileSync(path.join(app, 'assets.manifest.json'), 'utf8'));
-    const tex = m.entries.find((e: { type: string }) => e.type === 'texture');
+    const m = JSON.parse(readFileSync(path.join(app, 'asset-manifest.json'), 'utf8')) as
+      { groups: Record<string, { assets: Record<string, { type: string; path: string }> }> };
+    const tex = Object.values(m.groups)
+      .flatMap((g) => Object.values(g.assets))
+      .find((a) => a.type === 'texture')!;
     expect(tex.path).toMatch(/^assets\/[0-9a-f]{16}\.png$/);
     expect(existsSync(path.join(app, tex.path))).toBe(true);
 

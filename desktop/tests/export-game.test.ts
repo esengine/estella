@@ -53,6 +53,13 @@ beforeAll(async () => {
 
 afterAll(() => rmSync(root, { recursive: true, force: true }));
 
+
+/** Every asset in an addressable manifest, paired with its uuid key. */
+function manifestAssets(manifest: unknown): Array<[string, { type: string; path: string; address?: string; compressedFormats?: string[] }]> {
+  const groups = (manifest as { groups: Record<string, { assets: Record<string, never> }> }).groups;
+  return Object.values(groups).flatMap((g) => Object.entries(g.assets)) as never;
+}
+
 describe('exportGame', () => {
   it('produces an import-map web build (cook + host + sdk + scripts + wasm + html)', async () => {
     const res = await exportGame({
@@ -77,11 +84,13 @@ describe('exportGame', () => {
     expect(has('scripts.mjs')).toBe(true);
     expect(has('sdk/index.js')).toBe(true);
     expect(has('game.config.json')).toBe(true);
-    expect(has('assets.manifest.json')).toBe(true);
+    // The flat manifest is a build-time intermediate — only the addressable one ships.
+    expect(has('assets.manifest.json')).toBe(false);
+    expect(has('asset-manifest.json')).toBe(true);
     expect(has('scenes/main.esscene')).toBe(true);
     // Content-addressing is on by default now: the texture ships as assets/<hash>.png.
-    const m = JSON.parse(readFileSync(path.join(out, 'assets.manifest.json'), 'utf8'));
-    const tex = m.entries.find((e: { type: string }) => e.type === 'texture');
+    const m = JSON.parse(readFileSync(path.join(out, 'asset-manifest.json'), 'utf8'));
+    const tex = manifestAssets(m).find(([, a]) => a.type === 'texture')![1];
     expect(tex.path).toMatch(/^assets\/[0-9a-f]{16}\.png$/);
     expect(has(tex.path)).toBe(true);
     expect(has('wasm/esengine.js')).toBe(true);
@@ -142,8 +151,8 @@ describe('exportGame', () => {
     expect(res.ok).toBe(true);
     expect(res.errors).toEqual([]);
 
-    const manifest = JSON.parse(readFileSync(path.join(out2, 'assets.manifest.json'), 'utf8'));
-    const tex = manifest.entries.find((e: { uuid: string }) => e.uuid === TEX);
+    const manifest = JSON.parse(readFileSync(path.join(out2, 'asset-manifest.json'), 'utf8'));
+    const tex = manifestAssets(manifest).find(([uuid]) => uuid.toLowerCase() === TEX)![1];
     // The PNG was encoded to KTX2 and named by content hash; refs stay uuid-based.
     expect(tex.path).toMatch(/^assets\/[0-9a-f]{16}\.ktx2$/);
     expect(tex.compressedFormats).toEqual(['astc-4x4', 'etc2-rgba8', 's3tc-dxt5']);

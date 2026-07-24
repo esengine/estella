@@ -56,6 +56,7 @@ export async function buildAddressableManifest(absOut: string): Promise<string> 
   const flat = JSON.parse(await readFile(path.join(absOut, 'assets.manifest.json'), 'utf8')) as FlatManifest;
   type Entry = {
     path: string; address?: string; type: string; size: number; labels: string[]; contentHash?: string;
+    compressedFormats?: string[];
     metadata?: { atlasPage?: number; atlasFrame?: { x: number; y: number; width: number; height: number }; atlasPageWidth?: number; atlasPageHeight?: number };
   };
   type Group = { bundleMode: string; labels: string[]; assets: Record<string, Entry> };
@@ -69,6 +70,10 @@ export async function buildAddressableManifest(absOut: string): Promise<string> 
     });
     const entry: Entry = { path: e.path, type: addrType(e.type), size, labels: [] };
     if (e.contentHash) entry.contentHash = e.contentHash;
+    // Which GPU formats the texture was encoded for. The runtime reads this off
+    // the addressable manifest — the flat one it came from is a build-time
+    // intermediate that no longer ships.
+    if (e.compressedFormats?.length) entry.compressedFormats = e.compressedFormats;
     // The logical source path rides as the asset's address: path-style refs
     // resolve through it. Only meaningful when staging renamed the file.
     if (e.sourcePath && e.sourcePath !== e.path) entry.address = e.sourcePath;

@@ -56,6 +56,9 @@ export {
     type CatalogEntry,
     decodeImageBitmap,
     decodeImagePixels,
+    fetchDecodePixels,
+    HttpBackend,
+    type Backend,
     imageBitmapOptions,
     type DecodedPixels,
     type AddressableManifest,
@@ -241,7 +244,9 @@ export {
     indexPackagedManifest,
     catalogFromManifest,
     createPackagedAssetSource,
+    applyAssetRefResolvers,
     type PackagedAssetIndex,
+    type PackagedAssetSourceOptions,
     type PackagedGameConfig,
 } from './packagedRuntime';
 

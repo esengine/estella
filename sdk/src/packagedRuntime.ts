@@ -13,10 +13,14 @@
  */
 
 import { toBuildPath } from './assetTypes';
+import { extractUuid } from './asset/AssetRegistry';
 import { platformReadTextFile, platformLoadImagePixels } from './platform';
 import { ManifestModel, type AddressableManifest } from './asset/AddressableManifest';
 import { Catalog, atlasCatalogFields, type CatalogEntry } from './asset/Catalog';
-import { FileSystemBackend } from './asset/Backend';
+import { FileSystemBackend, type Backend } from './asset/Backend';
+import { Audio } from './audio/Audio';
+import { VideoPlayer } from './video/VideoAPI';
+import type { App } from './app';
 import type { RuntimeAssetSource } from './runtimeAssets';
 
 /**
@@ -101,7 +105,10 @@ export function indexPackagedManifest(manifest: AddressableManifest): PackagedAs
         manifest,
         model,
         catalog: catalogFromManifest(manifest),
-        resolvePath: (ref) => model.resolvePath(ref, toBuildPath),
+        // A scene spells asset refs `@uuid:<v4>`, while the manifest indexes bare
+        // uuids — strip the prefix before looking up, or every `@uuid:` ref falls
+        // through as a literal path and 404s.
+        resolvePath: (ref) => model.resolvePath(extractUuid(ref) ?? ref, toBuildPath),
         // The logical address where there is one (content-addressed packs rename
         // the staged file), else the staged path — either keeps the extension
         // .eslocale discovery filters on.
@@ -109,16 +116,41 @@ export function indexPackagedManifest(manifest: AddressableManifest): PackagedAs
     };
 }
 
+/** Transport overrides for realms that do not read bytes off a device. */
+export interface PackagedAssetSourceOptions {
+    /** Where bytes come from; the platform's packaged-file reader by default. */
+    backend?: Backend;
+    /** Image → RGBA; the platform's decode by default. A cooked web build passes
+     *  a fetch+blob decoder instead: drawing a cross-origin image into a canvas
+     *  taints it, and getImageData then throws. */
+    decodePixels?: RuntimeAssetSource['decodePixels'];
+}
+
 /**
- * The asset source a packaged realm runs on: files off the device, the platform's
- * image decode, and manifest-driven ref resolution. Identical for every packaged
- * realm — the platform layer is what differs, and it is already abstracted.
+ * The asset source a packaged realm runs on: manifest-driven ref resolution over
+ * whatever transport the realm has. One construction for every realm that ships
+ * cooked content — a mini-game, a native app, a cooked web build — so a fix to
+ * how refs or asset listings resolve reaches all three.
  */
-export function createPackagedAssetSource(index: PackagedAssetIndex): RuntimeAssetSource {
+export function createPackagedAssetSource(
+    index: PackagedAssetIndex,
+    options: PackagedAssetSourceOptions = {},
+): RuntimeAssetSource {
     return {
-        backend: new FileSystemBackend(),
-        decodePixels: (path) => platformLoadImagePixels(path),
+        backend: options.backend ?? new FileSystemBackend(),
+        decodePixels: options.decodePixels ?? ((path) => platformLoadImagePixels(path)),
         resolveRef: index.resolvePath,
         listAssetPaths: index.assetPaths,
     };
+}
+
+/**
+ * Route audio and video refs through the same resolver as every other asset.
+ * `playSFX` / a video source take plain paths rather than `@uuid:` refs, so
+ * without this they would miss the logical→staged mapping a cooked build needs —
+ * one resolution channel, not a parallel base-URL scheme per media type.
+ */
+export function applyAssetRefResolvers(app: App, resolveRef: (ref: string) => string): void {
+    if (app.hasResource(Audio)) app.getResource(Audio).setRefResolver(resolveRef);
+    if (app.hasResource(VideoPlayer)) app.getResource(VideoPlayer).setRefResolver(resolveRef);
 }
