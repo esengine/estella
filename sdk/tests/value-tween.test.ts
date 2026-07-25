@@ -12,12 +12,13 @@ import { describe, it, expect, vi } from 'vitest';
 import { ValueTweenManager, ValueTweenHandle } from '../src/animation/ValueTween';
 import { TweenGroup } from '../src/animation/TweenGroup';
 import { TweenState, LoopMode } from '../src/animation/TweenTypes';
-import type { ESEngineModule, CppRegistry } from '../src/wasm';
+import type { CppRegistry } from '../src/wasm';
+import type { AnimCore } from '../src/animation/Tween';
 
-// The manager only ever calls module._anim_getTweenState (for C++ sequences);
+// The manager only ever calls module.anim_getTweenState (for C++ sequences);
 // everything else is pure JS. A closure-controlled stub covers that one seam.
 function makeManager(cppState: () => number = () => TweenState.Running) {
-  const module = { _anim_getTweenState: vi.fn(() => cppState()) } as unknown as ESEngineModule;
+  const module = { anim_getTweenState: vi.fn(() => cppState()) } as unknown as AnimCore;
   const registry = {} as CppRegistry;
   return new ValueTweenManager(module, registry);
 }

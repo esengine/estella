@@ -34,6 +34,21 @@ async function generateNativeBindings(rootDir, genDir, python) {
     return out;
 }
 
+// The binding headers whose entry points a native host gets, and the ONE list of
+// them: the QuickJS wrappers and the TS surface the SDK calls
+// (sdk/src/ecs/nativeEngineApi.generated.ts) are both generated from these, so
+// adding a subsystem to a device is adding its header here.
+export const NATIVE_BINDING_HEADERS = [
+    'RendererBindings.hpp',
+    'UIBindings.hpp',
+    'ResourceManagerBindings.hpp',
+    'TilemapBindings.hpp',
+    'PostProcessBindings.hpp',
+    'GeometryBindings.hpp',
+    'ImmediateDrawBindings.hpp',
+    'AnimationBindings.hpp',
+];
+
 // Generate the QuickJS wrappers for the engine's binding ENTRY POINTS — the same
 // declarations embind registers on the web, so the SDK reaches the engine by the
 // same names on both platforms and nothing is bound twice by hand. The bodies are
@@ -42,13 +57,20 @@ async function generateNativeFunctionBindings(rootDir, genDir, python) {
     const out = path.join(genDir, 'NativeFunctionBindings.generated.cpp');
     // Every binding TU the native build compiles (see cmake/ESEngineSources.cmake).
     // ResourceManagerBindings is the texture surface the asset pipeline uploads
-    // through: the host used to hand-write a second copy of it.
-    const headers = ['RendererBindings.hpp', 'UIBindings.hpp', 'ResourceManagerBindings.hpp'].map(
+    // through: the host used to hand-write a second copy of it. Tilemap and
+    // post-process declarations sit behind their ES_ENABLE_* gates, which the
+    // generator carries into the wrapper, so a build without them still compiles.
+    const headers = NATIVE_BINDING_HEADERS.map(
         (h) => path.join(rootDir, 'src', 'esengine', 'bindings', h));
     await runCommand(python, [
         path.join(rootDir, 'tools', 'eht.py'),
         '--native-functions', ...headers,
         '--native-functions-output', out,
+        // The TS half is committed (the SDK compiles without running EHT), so it is
+        // refreshed here rather than left to be updated by hand: after a native
+        // build, a surface that moved shows up as a diff instead of as a call the
+        // device silently does not answer.
+        '--native-functions-ts', path.join(rootDir, 'sdk', 'src', 'ecs', 'nativeEngineApi.generated.ts'),
         '--native-shim', 'esn_shim.hpp',
     ], { cwd: rootDir });
     return out;

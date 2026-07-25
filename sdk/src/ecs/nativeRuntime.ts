@@ -16,6 +16,7 @@ import { inputPlugin } from '../input';
 import { prefabsPlugin } from '../prefabServer';
 import { sceneManagerPlugin } from '../scenePlugin';
 import { headlessBasePlugins } from '../webAppFactory';
+import { presentationBasePlugins } from '../pluginSets';
 import { ensureBuiltinComponentsRegistered } from '../component';
 import { installNativePlatform, type NativeBridge } from '../platform/native';
 import { createNativeRegistry } from './nativeRegistry';
@@ -24,7 +25,10 @@ import { createNativeResourceManager } from './nativeResourceManager';
 import { HOST_FLAGS, TEXT_BINDINGS, hasTextBindings, hasRendererBindings } from './nativeBindings';
 import { createNativeRendererBackend, nativeSurfaceSize } from './nativeRenderer';
 import { createNativeEngineApi } from './nativeEngineApi.generated';
-import { setNativeEngineApi } from './engineApi';
+import { setNativeEngineApi, engineApi } from './engineApi';
+import { createNativeHeap } from './nativeHeap';
+import { initPostProcessAPI } from '../postprocess';
+import { log } from '../logger';
 import { setRendererBackend } from '../renderer';
 import { RenderPipeline } from '../renderPipeline';
 import { cameraPlugin } from '../camera/CameraPlugin';
@@ -96,7 +100,30 @@ export function createNativeApp(
     app.addPlugin(prefabsPlugin);
     app.addPlugin(sceneManagerPlugin);
     app.addPlugins(headlessBasePlugins());
+    // The presentation stack — the same list the web factory installs. These used to
+    // be absent on a device, which is why a scene's tilemaps, particles, trails,
+    // meshes and post-process volumes did nothing there: not because the engine
+    // cannot draw them (it is the same C++) but because the plugins that drive them
+    // reached the core as `app.wasmModule`. They go through `engineApi(app)` now, and
+    // each one reports a core that compiles its subsystem out.
+    installNativePostProcess(app);
+    app.addPlugins(presentationBasePlugins());
     return app;
+}
+
+/**
+ * Post-processing needs one thing the other presentation plugins do not: the API
+ * bound to the core before the plugin builds (on the web `corePlugin` does this,
+ * and a native app does not run it). The engine's own passes then execute inside
+ * the render pipeline exactly as they do on the web.
+ */
+function installNativePostProcess(app: App): void {
+    const engine = engineApi(app);
+    if (!engine || typeof engine.postprocess_init !== 'function') {
+        log.info('postprocess', 'not available — this engine core was built without it');
+        return;
+    }
+    initPostProcessAPI(engine);
 }
 
 /**
@@ -132,7 +159,12 @@ function installNativeEngine(scope: Record<string, unknown>): void {
     // the same C++ declarations embind registers (nativeEngineApi.generated.ts).
     // With this installed, a plugin that calls uiLayout_update / uiHitTest_* /
     // uiRenderOrder_update reaches the native core without knowing it is native.
-    setNativeEngineApi(createNativeEngineApi(scope));
+    //
+    // The heap rides along: an entry point that takes a `…Ptr` needs somewhere for
+    // the caller to write the bytes, and on this core that is the host's arena
+    // (nativeHeap.ts). Together they make the two cores interchangeable for the
+    // subsystems that marshal buffers — tilemaps, particles, post-processing.
+    setNativeEngineApi({ ...createNativeEngineApi(scope), ...(createNativeHeap(scope) ?? {}) });
 }
 
 function installNativeRenderer(app: App, scope: Record<string, unknown>): void {

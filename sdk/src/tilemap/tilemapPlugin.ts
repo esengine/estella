@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { App, Plugin } from '../app';
-import type { ESEngineModule } from '../wasm';
+import { engineApi } from '../ecs/engineApi';
 import { Transform, TilemapLayer, Sprite, Canvas, RuntimeOnly, Marker, type TilemapLayerData } from '../component';
 import { Schedule } from '../system';
 import type { SystemDef } from '../system';
@@ -83,8 +83,15 @@ export class TilemapPlugin implements Plugin {
     }>();
 
     build(app: App): void {
-        const module = app.wasmModule as ESEngineModule;
-        initTilemapAPI(module);
+        // Whichever core is present (the wasm module on the web, the native host's
+        // bindings on a device). A core built without ES_ENABLE_TILEMAP answers
+        // none of these, and says so once instead of throwing on the first tile.
+        const engine = engineApi(app);
+        if (!engine || typeof engine.tilemap_initLayer !== 'function') {
+            log.warn('tilemap', 'this engine core has no tilemap support — layers will not render');
+            return;
+        }
+        initTilemapAPI(engine);
 
         // Tile chunks live in a C++ blob, not the component's field record, so
         // teach the scene (de)serializer to carry them out-of-band instead of

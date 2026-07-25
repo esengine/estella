@@ -402,6 +402,9 @@ const pooledModuleCpp = [
     'bindings/ImmediateDrawBindings.cpp',
     'bindings/PostProcessBindings.hpp',
     'bindings/PostProcessBindings.cpp',
+    'bindings/TilemapBindings.hpp',
+    'bindings/AnimationBindings.hpp',
+    'bindings/AnimationBindings.cpp',
 ].map((f) => stripComments(read(resolve(CPP, f)))).join('\n');
 
 function expectArities(label: string, tsSigs: Map<string, number>, cppSigs: Map<string, number>): void {

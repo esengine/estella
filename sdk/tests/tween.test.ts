@@ -23,19 +23,19 @@ function createMockAnimModule() {
     const registry = {} as CppRegistry;
 
     const module = {
-        _anim_createTween: vi.fn((_reg: CppRegistry, entity: number, targetProp: number,
+        anim_createTween: vi.fn((_reg: CppRegistry, entity: number, targetProp: number,
             from: number, to: number, duration: number,
             easing: number, delay: number, loopMode: number, loopCount: number) => {
             return nextTweenEntity++;
         }),
-        _anim_cancelTween: vi.fn(),
-        _anim_cancelAllTweens: vi.fn(),
-        _anim_pauseTween: vi.fn(),
-        _anim_resumeTween: vi.fn(),
-        _anim_setTweenBezier: vi.fn(),
-        _anim_setSequenceNext: vi.fn(),
-        _anim_updateTweens: vi.fn(),
-        _anim_getTweenState: vi.fn(() => TweenState.Running),
+        anim_cancelTween: vi.fn(),
+        anim_cancelAllTweens: vi.fn(),
+        anim_pauseTween: vi.fn(),
+        anim_resumeTween: vi.fn(),
+        anim_setTweenBezier: vi.fn(),
+        anim_setSequenceNext: vi.fn(),
+        anim_updateTweens: vi.fn(),
+        anim_getTweenState: vi.fn(() => TweenState.Running),
     } as unknown as ESEngineModule;
 
     return { module, registry, calls };
@@ -97,7 +97,7 @@ describe('Tween API', () => {
             const entity = 42 as Entity;
             tween.to(entity, TweenTarget.PositionX, 0, 100, 1.5);
 
-            expect(module._anim_createTween).toHaveBeenCalledWith(
+            expect(module.anim_createTween).toHaveBeenCalledWith(
                 registry, 42, TweenTarget.PositionX,
                 0, 100, 1.5,
                 EasingType.Linear, 0, LoopMode.None, 0,
@@ -109,7 +109,7 @@ describe('Tween API', () => {
                 easing: EasingType.EaseOutQuad,
             });
 
-            expect(module._anim_createTween).toHaveBeenCalledWith(
+            expect(module.anim_createTween).toHaveBeenCalledWith(
                 registry, 1, TweenTarget.ColorA,
                 1, 0, 0.5,
                 EasingType.EaseOutQuad, 0, LoopMode.None, 0,
@@ -121,7 +121,7 @@ describe('Tween API', () => {
                 delay: 0.5,
             });
 
-            expect(module._anim_createTween).toHaveBeenCalledWith(
+            expect(module.anim_createTween).toHaveBeenCalledWith(
                 registry, 1, TweenTarget.ScaleX,
                 1, 2, 1,
                 EasingType.Linear, 0.5, LoopMode.None, 0,
@@ -134,7 +134,7 @@ describe('Tween API', () => {
                 loopCount: 3,
             });
 
-            expect(module._anim_createTween).toHaveBeenCalledWith(
+            expect(module.anim_createTween).toHaveBeenCalledWith(
                 registry, 1, TweenTarget.PositionY,
                 0, 50, 2,
                 EasingType.Linear, 0, LoopMode.PingPong, 3,
@@ -153,7 +153,7 @@ describe('Tween API', () => {
 
     describe('TweenHandle', () => {
         it('should report state from WASM', () => {
-            (module._anim_getTweenState as ReturnType<typeof vi.fn>)
+            (module.anim_getTweenState as ReturnType<typeof vi.fn>)
                 .mockReturnValueOnce(TweenState.Paused);
 
             const handle = tween.to(1 as Entity, TweenTarget.PositionX, 0, 10, 1);
@@ -164,7 +164,7 @@ describe('Tween API', () => {
             const handle = tween.to(1 as Entity, TweenTarget.PositionX, 0, 10, 1);
             handle.bezier(0.25, 0.1, 0.25, 1.0);
 
-            expect(module._anim_setTweenBezier).toHaveBeenCalledWith(
+            expect(module.anim_setTweenBezier).toHaveBeenCalledWith(
                 registry, handle.entity, 0.25, 0.1, 0.25, 1.0,
             );
         });
@@ -180,7 +180,7 @@ describe('Tween API', () => {
             const h2 = tween.to(1 as Entity, TweenTarget.PositionY, 0, 20, 1);
             h1.then(h2);
 
-            expect(module._anim_setSequenceNext).toHaveBeenCalledWith(
+            expect(module.anim_setSequenceNext).toHaveBeenCalledWith(
                 registry, h1.entity, h2.entity,
             );
         });
@@ -196,21 +196,21 @@ describe('Tween API', () => {
             const handle = tween.to(1 as Entity, TweenTarget.PositionX, 0, 10, 1);
             handle.pause();
 
-            expect(module._anim_pauseTween).toHaveBeenCalledWith(registry, handle.entity);
+            expect(module.anim_pauseTween).toHaveBeenCalledWith(registry, handle.entity);
         });
 
         it('should resume a tween', () => {
             const handle = tween.to(1 as Entity, TweenTarget.PositionX, 0, 10, 1);
             handle.resume();
 
-            expect(module._anim_resumeTween).toHaveBeenCalledWith(registry, handle.entity);
+            expect(module.anim_resumeTween).toHaveBeenCalledWith(registry, handle.entity);
         });
 
         it('should cancel a tween via handle', () => {
             const handle = tween.to(1 as Entity, TweenTarget.PositionX, 0, 10, 1);
             handle.cancel();
 
-            expect(module._anim_cancelTween).toHaveBeenCalledWith(registry, handle.entity);
+            expect(module.anim_cancelTween).toHaveBeenCalledWith(registry, handle.entity);
         });
     });
 
@@ -223,20 +223,20 @@ describe('Tween API', () => {
             const handle = tween.to(1 as Entity, TweenTarget.PositionX, 0, 10, 1);
             tween.cancel(handle);
 
-            expect(module._anim_cancelTween).toHaveBeenCalledWith(registry, handle.entity);
+            expect(module.anim_cancelTween).toHaveBeenCalledWith(registry, handle.entity);
         });
 
         it('tween.cancelAll() should delegate to WASM', () => {
             const entity = 5 as Entity;
             tween.cancelAll(entity);
 
-            expect(module._anim_cancelAllTweens).toHaveBeenCalledWith(registry, 5);
+            expect(module.anim_cancelAllTweens).toHaveBeenCalledWith(registry, 5);
         });
 
         it('tween.update() should delegate to WASM', () => {
             tween.update(0.016);
 
-            expect(module._anim_updateTweens).toHaveBeenCalledWith(registry, 0.016);
+            expect(module.anim_updateTweens).toHaveBeenCalledWith(registry, 0.016);
         });
     });
 
@@ -252,14 +252,14 @@ describe('Tween API', () => {
             tween.to(1 as Entity, TweenTarget.PositionX, 0, 10, 1);
             tween2.to(2 as Entity, TweenTarget.PositionY, 0, 20, 1);
 
-            expect(module._anim_createTween).toHaveBeenCalledTimes(1);
-            expect(module2._anim_createTween).toHaveBeenCalledTimes(1);
-            expect(module._anim_createTween).toHaveBeenCalledWith(
+            expect(module.anim_createTween).toHaveBeenCalledTimes(1);
+            expect(module2.anim_createTween).toHaveBeenCalledTimes(1);
+            expect(module.anim_createTween).toHaveBeenCalledWith(
                 registry, 1, TweenTarget.PositionX,
                 0, 10, 1,
                 EasingType.Linear, 0, LoopMode.None, 0,
             );
-            expect(module2._anim_createTween).toHaveBeenCalledWith(
+            expect(module2.anim_createTween).toHaveBeenCalledWith(
                 registry2, 2, TweenTarget.PositionY,
                 0, 20, 1,
                 EasingType.Linear, 0, LoopMode.None, 0,

@@ -53,12 +53,12 @@ describe('collectSubsystems', () => {
 });
 
 describe('subsystemGapWarnings', () => {
-  const usage = new Map<Subsystem, string[]>([['tilemap', ['scenes/b.esscene', 'scenes/a.esscene']]]);
+  const usage = new Map<Subsystem, string[]>([['physics', ['scenes/b.esscene', 'scenes/a.esscene']]]);
 
   it('names the subsystem, the reason and the files', () => {
     const [warning, ...rest] = subsystemGapWarnings('android', usage);
     expect(rest).toEqual([]);
-    expect(warning).toContain('Tilemaps will not render');
+    expect(warning).toContain('Physics (Box2D) will not render');
     expect(warning).toContain('scenes/a.esscene, scenes/b.esscene');
   });
 
@@ -113,6 +113,8 @@ describe('exportGame warns about content the target cannot render', () => {
         { id: 1, components: [{ type: 'Text', data: { text: 'score' } }] },
         { id: 2, components: [{ type: 'ParticleEmitter', data: {} }] },
         { id: 3, components: [{ type: 'TilemapLayer', data: {} }] },
+        { id: 4, components: [{ type: 'RigidBody', data: {} }] },
+        { id: 5, components: [{ type: 'SpineAnimation', data: {} }] },
       ],
     }));
     writeFileSync(path.join(root, 'scenes', 'main.esscene.meta'), meta(SCN, 'scene'));
@@ -136,12 +138,16 @@ describe('exportGame warns about content the target cannot render', () => {
     expect(res.ok).toBe(true);
     const gaps = res.warnings.filter((w) => w.startsWith('android:'));
     expect(gaps).toHaveLength(2);
-    expect(gaps.join('\n')).toContain('Particles will not render');
-    expect(gaps.join('\n')).toContain('Tilemaps will not render');
+    expect(gaps.join('\n')).toContain('Physics (Box2D) will not render');
+    expect(gaps.join('\n')).toContain('Spine animation will not render');
     expect(gaps.join('\n')).toContain('scenes/main.esscene');
-    // Text renders on the native core (the host rasterizes glyphs), so the scene's
-    // label is not warned about — the gaps are what the build really cannot do.
+    // What the native core DOES compile is not warned about: text (the host
+    // rasterizes glyphs for the same atlas), tilemaps, particles and
+    // post-processing. The gaps are what the build really cannot do, not
+    // everything that happens to be optional.
     expect(gaps.join('\n')).not.toContain('Text will not render');
+    expect(gaps.join('\n')).not.toContain('Tilemaps will not render');
+    expect(gaps.join('\n')).not.toContain('Particles will not render');
   }, 60_000);
 
   it('stays quiet for a target that renders all of it', async () => {

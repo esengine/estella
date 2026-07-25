@@ -264,6 +264,7 @@ if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
         src/esengine/bindings/UIBindings.cpp
         src/esengine/bindings/ImmediateDrawBindings.cpp
         src/esengine/bindings/GeometryBindings.cpp
+        src/esengine/bindings/AnimationBindings.cpp
         ${GENERATED_WEB_BINDINGS}
         ${GENERATED_EDITOR_API}
     )

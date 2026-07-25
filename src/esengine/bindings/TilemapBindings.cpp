@@ -2,6 +2,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 #ifdef ES_ENABLE_TILEMAP
 
+#include "TilemapBindings.hpp"
+
 #include "ActiveContext.hpp"
 #include "BoundarySpan.hpp"
 #include "../tilemap/TilemapSystem.hpp"
@@ -13,7 +15,6 @@
 #include "../resource/ResourceManager.hpp"
 #include "../ecs/TransformSystem.hpp"
 
-#include <emscripten/bind.h>
 #include <cstring>
 #include <string>
 #include <utility>
@@ -394,39 +395,5 @@ uintptr_t tilemap_worldToTile(u32 entity, f32 wx, f32 wy,
 }
 
 }  // namespace esengine
-
-EMSCRIPTEN_BINDINGS(esengine_tilemap) {
-    emscripten::function("tilemap_initLayer", &esengine::tilemap_initLayer);
-    emscripten::function("tilemap_initInfinite", &esengine::tilemap_initInfinite);
-    emscripten::function("tilemap_destroyLayer", &esengine::tilemap_destroyLayer);
-    emscripten::function("tilemap_setTile", &esengine::tilemap_setTile);
-    emscripten::function("tilemap_getTile", &esengine::tilemap_getTile);
-    emscripten::function("tilemap_fillRect", &esengine::tilemap_fillRect);
-    emscripten::function("tilemap_setTiles", &esengine::tilemap_setTiles);
-    emscripten::function("tilemap_setTilesets", &esengine::tilemap_setTilesets);
-    emscripten::function("tilemap_hasLayer", &esengine::tilemap_hasLayer);
-    emscripten::function("tilemap_setRenderProps", &esengine::tilemap_setRenderProps);
-    emscripten::function("tilemap_setTint", &esengine::tilemap_setTint);
-    emscripten::function("tilemap_setVisible", &esengine::tilemap_setVisible);
-    emscripten::function("tilemap_setOriginEntity", &esengine::tilemap_setOriginEntity);
-    emscripten::function("tilemap_exportChunks", &esengine::tilemap_exportChunks);
-    emscripten::function("tilemap_importChunks", &esengine::tilemap_importChunks);
-
-
-    emscripten::function("tilemap_initInfiniteLayer", &esengine::tilemap_initInfiniteLayer);
-    emscripten::function("tilemap_setChunkTiles", &esengine::tilemap_setChunkTiles);
-
-    emscripten::function("tilemap_setTileAnimation", &esengine::tilemap_setTileAnimation);
-    emscripten::function("tilemap_clearTileAnimations", &esengine::tilemap_clearTileAnimations);
-    emscripten::function("tilemap_advanceAnimations", &esengine::tilemap_advanceAnimations);
-    emscripten::function("tilemap_setTileProperty", &esengine::tilemap_setTileProperty);
-    emscripten::function("tilemap_getTileProperty", &esengine::tilemap_getTileProperty);
-    emscripten::function("tilemap_flipTile", &esengine::tilemap_flipTile);
-    emscripten::function("tilemap_rotateTile", &esengine::tilemap_rotateTile);
-    emscripten::function("tilemap_setGridType", &esengine::tilemap_setGridType);
-    emscripten::function("tilemap_setHexParams", &esengine::tilemap_setHexParams);
-    emscripten::function("tilemap_tileToWorld", &esengine::tilemap_tileToWorld);
-    emscripten::function("tilemap_worldToTile", &esengine::tilemap_worldToTile);
-}
 
 #endif  // ES_ENABLE_TILEMAP

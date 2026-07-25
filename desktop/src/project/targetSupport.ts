@@ -76,9 +76,6 @@ export interface SubsystemGap {
 /** What the native app cannot render. ONE list: iOS and Android compile the same
  *  `native/CMakeLists.txt`, so a flag flipped there closes the gap on both. */
 const NATIVE_GAPS: readonly SubsystemGap[] = [
-    { subsystem: 'tilemap', why: 'the native build leaves out the tilemap sources (ES_ENABLE_TILEMAP)' },
-    { subsystem: 'particles', why: 'the native build leaves out the particle sources (ES_ENABLE_PARTICLES)' },
-    { subsystem: 'postprocess', why: 'the native build leaves out the post-process pipeline (ES_ENABLE_POSTPROCESS)' },
     { subsystem: 'physics', why: 'Box2D ships as an emscripten side module; the native host has no counterpart yet' },
     { subsystem: 'spine', why: 'the Spine runtime ships as an emscripten side module; the native host has no counterpart yet' },
     { subsystem: 'video', why: 'the video decoder ships as an emscripten side module; the native host has no counterpart yet' },

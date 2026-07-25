@@ -10,7 +10,8 @@
  */
 
 import type { Entity } from '../types';
-import type { ESEngineModule, CppRegistry } from '../wasm';
+import type { CppRegistry } from '../wasm';
+import type { EngineApi } from '../ecs/engineApi';
 import { defineResource } from '../resource';
 import { EasingType } from './Easing';
 import { LoopMode, TweenState, type TweenOptions } from './TweenTypes';
@@ -42,7 +43,7 @@ export { ValueTweenHandle } from './ValueTween';
  * it composes smaller setters on top of `AnimApplicator`. TweenTarget
  * is intentionally narrower — just the common property tweens that
  * have a fast C++ fast-path. Unifying the two would require
- * `_anim_createTween` on the WASM boundary to accept AnimTargetField
+ * `anim_createTween` on the WASM boundary to accept AnimTargetField
  * values directly and an extended TWEEN_TO_ANIM_FIELD map in
  * TweenSystem.cpp. That's a larger cross-layer change tracked
  * separately; for now TweenTarget is the stable subset.
@@ -73,14 +74,22 @@ export type TweenTarget = (typeof TweenTarget)[keyof typeof TweenTarget];
 // Tween Handle (fluent builder)
 // =============================================================================
 
+/**
+ * Whichever engine core drives the tweens: the wasm module on the web, the native
+ * host's bindings on a device (see ecs/engineApi.ts). Every call is optional-chained
+ * — a core built without the tween system leaves a tween inert rather than throwing,
+ * the same way particles and trails already treat an absent entry point.
+ */
+export type AnimCore = NonNullable<EngineApi>;
+
 export class TweenHandle {
-    private readonly module_: ESEngineModule;
+    private readonly module_: AnimCore;
     private readonly registry_: CppRegistry;
     private readonly valueManager_: ValueTweenManager;
     readonly entity: Entity;
 
     constructor(
-        module: ESEngineModule,
+        module: AnimCore,
         registry: CppRegistry,
         valueManager: ValueTweenManager,
         entity: Entity,
@@ -92,11 +101,12 @@ export class TweenHandle {
     }
 
     get state(): TweenState {
-        return this.module_._anim_getTweenState(this.registry_, this.entity) as TweenState;
+        return (this.module_.anim_getTweenState?.(this.registry_, this.entity)
+            ?? TweenState.Completed) as TweenState;
     }
 
     bezier(p1x: number, p1y: number, p2x: number, p2y: number): this {
-        this.module_._anim_setTweenBezier(this.registry_, this.entity, p1x, p1y, p2x, p2y);
+        this.module_.anim_setTweenBezier?.(this.registry_, this.entity, p1x, p1y, p2x, p2y);
         return this;
     }
 
@@ -105,20 +115,20 @@ export class TweenHandle {
             this.valueManager_.registerCppSequence(this.entity, next.id);
             return this;
         }
-        this.module_._anim_setSequenceNext(this.registry_, this.entity, next.entity);
+        this.module_.anim_setSequenceNext?.(this.registry_, this.entity, next.entity);
         return this;
     }
 
     pause(): void {
-        this.module_._anim_pauseTween(this.registry_, this.entity);
+        this.module_.anim_pauseTween?.(this.registry_, this.entity);
     }
 
     resume(): void {
-        this.module_._anim_resumeTween(this.registry_, this.entity);
+        this.module_.anim_resumeTween?.(this.registry_, this.entity);
     }
 
     cancel(): void {
-        this.module_._anim_cancelTween(this.registry_, this.entity);
+        this.module_.anim_cancelTween?.(this.registry_, this.entity);
     }
 }
 
@@ -127,12 +137,12 @@ export class TweenHandle {
 // =============================================================================
 
 export class TweenAPI {
-    private readonly module_: ESEngineModule;
+    private readonly module_: AnimCore;
     private readonly registry_: CppRegistry;
     private readonly valueManager_: ValueTweenManager;
     private readonly compositionManager_: TweenCompositionManager;
 
-    constructor(module: ESEngineModule, registry: CppRegistry) {
+    constructor(module: AnimCore, registry: CppRegistry) {
         this.module_ = module;
         this.registry_ = registry;
         this.valueManager_ = new ValueTweenManager(module, registry);
@@ -152,10 +162,11 @@ export class TweenAPI {
         const loop = options?.loop ?? LoopMode.None;
         const loopCount = options?.loopCount ?? 0;
 
-        const tweenEntity = this.module_._anim_createTween(
+        // No tween system in this core → an inert handle (its state reads Completed).
+        const tweenEntity = (this.module_.anim_createTween?.(
             this.registry_, entity, target, from, to, duration,
             easing, delay, loop, loopCount,
-        ) as Entity;
+        ) ?? 0) as Entity;
 
         return new TweenHandle(this.module_, this.registry_, this.valueManager_, tweenEntity);
     }
@@ -172,15 +183,15 @@ export class TweenAPI {
     }
 
     cancel(tweenHandle: TweenHandle): void {
-        this.module_._anim_cancelTween(this.registry_, tweenHandle.entity);
+        this.module_.anim_cancelTween?.(this.registry_, tweenHandle.entity);
     }
 
     cancelAll(entity: Entity): void {
-        this.module_._anim_cancelAllTweens(this.registry_, entity);
+        this.module_.anim_cancelAllTweens?.(this.registry_, entity);
     }
 
     update(deltaTime: number): void {
-        this.module_._anim_updateTweens(this.registry_, deltaTime);
+        this.module_.anim_updateTweens?.(this.registry_, deltaTime);
         this.valueManager_.update(deltaTime);
         this.compositionManager_.update();
     }

@@ -68,9 +68,9 @@ endif()
 
 # The engine core, native arm64. The source list is the SAME single-source file the
 # web build uses (cmake/ESEngineSources.cmake) — selecting the WebGPU backend and
-# dropping GL / particles / tilemap / post-process for this build. It also brings in
-# the portable binding entry points (RendererBindings.cpp), whose QuickJS wrappers
-# are generated from the same declarations embind registers.
+# dropping GL for this build. It also brings in the portable binding entry points
+# (RendererBindings.cpp and friends), whose QuickJS wrappers are generated from the
+# same declarations embind registers.
 set(ESENGINE_ROOT "${REPO}")
 list(APPEND CMAKE_MODULE_PATH "${REPO}/cmake")
 set(ES_ENABLE_WEBGPU ON)
@@ -79,6 +79,12 @@ set(ES_ENABLE_WEBGPU ON)
 # SdfGenerator so both platforms encode the field identically), and the C++
 # BitmapText path comes along with it. Neither needs freetype/msdfgen.
 set(ES_ENABLE_BITMAP_TEXT ON)
+# Tilemaps, particles and post-processing: pure engine C++ with no emscripten
+# dependency, driven from the SDK through entry points that marshal buffers. What
+# kept them off a device was the marshalling, not the code — see host/heap.hpp.
+set(ES_ENABLE_TILEMAP ON)
+set(ES_ENABLE_PARTICLES ON)
+set(ES_ENABLE_POSTPROCESS ON)
 include(ESEngineSources)
 
 add_library(esengine STATIC ${ESENGINE_SOURCES})
@@ -87,7 +93,9 @@ target_include_directories(esengine PUBLIC
     "${SRC}" "${TP}/stb"
     "${ESTELLA_DAWN_DIR}/include"                 # <webgpu/webgpu.h> forwarder
     "${ESTELLA_DAWN_BUILD}/gen/include")          # generated <dawn/webgpu.h>
-target_compile_definitions(esengine PUBLIC ES_ENABLE_WEBGPU ES_ENABLE_BITMAP_TEXT)  # NOT ES_PLATFORM_WEB
+target_compile_definitions(esengine PUBLIC   # NOT ES_PLATFORM_WEB
+    ES_ENABLE_WEBGPU ES_ENABLE_BITMAP_TEXT
+    ES_ENABLE_TILEMAP ES_ENABLE_PARTICLES ES_ENABLE_POSTPROCESS)
 target_link_libraries(esengine PUBLIC glm yogacore webgpu_dawn)
 
 # The host (opt-in): a QuickJS runtime drives the engine through the EHT-generated
@@ -136,6 +144,7 @@ if(ESTELLA_QUICKJS_DIR)
         host/Host.cpp
         host/Runtime.cpp
         host/EsnShim.cpp
+        host/bindings/HeapBindings.cpp
         host/bindings/EcsBindings.cpp
         host/bindings/RenderBindings.cpp
         host/bindings/AssetBindings.cpp

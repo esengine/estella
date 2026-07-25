@@ -33,7 +33,7 @@ export const corePlugin: Plugin = {
         initDrawAPI(module);
         initGeometryAPI(module);
         initMaterialAPI(module);
-        initPostProcessAPI(module);
+        initPostProcessAPI(module);   // the module IS the core here (see engineApi)
         initRendererAPI(module);
         initGLDebugAPI(module);
         app.insertResource(CameraView, new CameraViewAPI(app));

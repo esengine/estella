@@ -106,7 +106,7 @@ describe('C++ contract: animation tween enums (animation/TweenData.hpp)', () => 
 
     it('EasingType matches (same names + values, minus COUNT sentinel)', () => {
         // The TS easing dispatcher switches on these values; they are the wire
-        // protocol for _anim_createTween's easing byte.
+        // protocol for anim_createTween's easing byte.
         expect(sortedEntries(new Map(Object.entries(EasingType))))
             .toEqual(sortedEntries(byName(parseEnum(src, 'EasingType'))));
     });

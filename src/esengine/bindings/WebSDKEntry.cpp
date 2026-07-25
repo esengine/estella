@@ -24,8 +24,12 @@
 #include "BoundarySpan.hpp"
 #include "ImmediateDrawBindings.hpp"
 #include "GeometryBindings.hpp"
+#include "AnimationBindings.hpp"
 #ifdef ES_ENABLE_POSTPROCESS
 #include "PostProcessBindings.hpp"
+#endif
+#ifdef ES_ENABLE_TILEMAP
+#include "TilemapBindings.hpp"
 #endif
 
 #include "../ecs/UILayoutSystem.hpp"
@@ -600,6 +604,39 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("postprocess_setScreenUniformVec4", &esengine::postprocess_setScreenUniformVec4);
 #endif
 
+#ifdef ES_ENABLE_TILEMAP
+    // Tilemaps registered here with every other binding, from the same
+    // TilemapBindings.hpp declarations the native wrappers are generated from.
+    emscripten::function("tilemap_initLayer", &esengine::tilemap_initLayer);
+    emscripten::function("tilemap_initInfinite", &esengine::tilemap_initInfinite);
+    emscripten::function("tilemap_destroyLayer", &esengine::tilemap_destroyLayer);
+    emscripten::function("tilemap_setTile", &esengine::tilemap_setTile);
+    emscripten::function("tilemap_getTile", &esengine::tilemap_getTile);
+    emscripten::function("tilemap_fillRect", &esengine::tilemap_fillRect);
+    emscripten::function("tilemap_setTiles", &esengine::tilemap_setTiles);
+    emscripten::function("tilemap_setTilesets", &esengine::tilemap_setTilesets);
+    emscripten::function("tilemap_hasLayer", &esengine::tilemap_hasLayer);
+    emscripten::function("tilemap_setRenderProps", &esengine::tilemap_setRenderProps);
+    emscripten::function("tilemap_setTint", &esengine::tilemap_setTint);
+    emscripten::function("tilemap_setVisible", &esengine::tilemap_setVisible);
+    emscripten::function("tilemap_setOriginEntity", &esengine::tilemap_setOriginEntity);
+    emscripten::function("tilemap_exportChunks", &esengine::tilemap_exportChunks);
+    emscripten::function("tilemap_importChunks", &esengine::tilemap_importChunks);
+    emscripten::function("tilemap_initInfiniteLayer", &esengine::tilemap_initInfiniteLayer);
+    emscripten::function("tilemap_setChunkTiles", &esengine::tilemap_setChunkTiles);
+    emscripten::function("tilemap_setTileAnimation", &esengine::tilemap_setTileAnimation);
+    emscripten::function("tilemap_clearTileAnimations", &esengine::tilemap_clearTileAnimations);
+    emscripten::function("tilemap_advanceAnimations", &esengine::tilemap_advanceAnimations);
+    emscripten::function("tilemap_setTileProperty", &esengine::tilemap_setTileProperty);
+    emscripten::function("tilemap_getTileProperty", &esengine::tilemap_getTileProperty);
+    emscripten::function("tilemap_flipTile", &esengine::tilemap_flipTile);
+    emscripten::function("tilemap_rotateTile", &esengine::tilemap_rotateTile);
+    emscripten::function("tilemap_setGridType", &esengine::tilemap_setGridType);
+    emscripten::function("tilemap_setHexParams", &esengine::tilemap_setHexParams);
+    emscripten::function("tilemap_tileToWorld", &esengine::tilemap_tileToWorld);
+    emscripten::function("tilemap_worldToTile", &esengine::tilemap_worldToTile);
+#endif
+
     emscripten::function("renderer_init", &esengine::renderer_init);
     emscripten::function("renderer_resize", &esengine::renderer_resize);
     emscripten::function("renderer_beginFrame", &esengine::renderer_beginFrame);
@@ -717,103 +754,20 @@ EMSCRIPTEN_BINDINGS(esengine_ui_systems) {
     emscripten::function("uiTree_markAllDirty", &esengine::uiTree_markAllDirty);
     emscripten::function("transform_update", &esengine::transform_update);
     emscripten::function("transform_patchPosition", &esengine::transform_patchPosition);
+
+    // Tweens (AnimationBindings.hpp) — the same declarations the native
+    // wrappers are generated from.
+    emscripten::function("anim_createTween", &esengine::anim_createTween);
+    emscripten::function("anim_cancelTween", &esengine::anim_cancelTween);
+    emscripten::function("anim_cancelAllTweens", &esengine::anim_cancelAllTweens);
+    emscripten::function("anim_pauseTween", &esengine::anim_pauseTween);
+    emscripten::function("anim_resumeTween", &esengine::anim_resumeTween);
+    emscripten::function("anim_setTweenBezier", &esengine::anim_setTweenBezier);
+    emscripten::function("anim_setSequenceNext", &esengine::anim_setSequenceNext);
+    emscripten::function("anim_updateTweens", &esengine::anim_updateTweens);
+    emscripten::function("anim_getTweenState", &esengine::anim_getTweenState);
 }
 
-// =============================================================================
-// Animation Bindings
-// =============================================================================
-
-namespace esengine {
-
-u32 anim_createTween(ecs::Registry& registry, u32 entity, u32 targetProp,
-                     f32 from, f32 to, f32 duration,
-                     u32 easing, f32 delay,
-                     u32 loopMode, i32 loopCount) {
-    auto* sys = ctx().tryGet<animation::TweenSystem>();
-    if (!sys) {
-        return INVALID_ENTITY.id();
-    }
-    auto tweenEntity = sys->createTween(
-        registry, Entity::fromRaw(entity),
-        static_cast<animation::TweenTarget>(targetProp),
-        from, to, duration,
-        static_cast<animation::EasingType>(easing));
-
-    auto& tween = registry.get<animation::TweenData>(tweenEntity);
-    tween.delay = delay;
-    tween.loop_mode = static_cast<animation::LoopMode>(loopMode);
-    tween.loop_count = loopCount;
-    tween.loops_remaining = loopCount;
-    return tweenEntity.id();
-}
-
-void anim_cancelTween(ecs::Registry& registry, u32 tweenEntity) {
-    if (auto* sys = ctx().tryGet<animation::TweenSystem>()) {
-        sys->cancelTween(registry, Entity::fromRaw(tweenEntity));
-    }
-}
-
-void anim_cancelAllTweens(ecs::Registry& registry, u32 targetEntity) {
-    if (auto* sys = ctx().tryGet<animation::TweenSystem>()) {
-        sys->cancelAllTweens(registry, Entity::fromRaw(targetEntity));
-    }
-}
-
-void anim_pauseTween(ecs::Registry& registry, u32 tweenEntity) {
-    if (auto* sys = ctx().tryGet<animation::TweenSystem>()) {
-        sys->pauseTween(registry, Entity::fromRaw(tweenEntity));
-    }
-}
-
-void anim_resumeTween(ecs::Registry& registry, u32 tweenEntity) {
-    if (auto* sys = ctx().tryGet<animation::TweenSystem>()) {
-        sys->resumeTween(registry, Entity::fromRaw(tweenEntity));
-    }
-}
-
-void anim_setTweenBezier(ecs::Registry& registry, u32 tweenEntity,
-                          f32 p1x, f32 p1y, f32 p2x, f32 p2y) {
-    if (auto* tween = registry.tryGet<animation::TweenData>(Entity::fromRaw(tweenEntity))) {
-        tween->easing = animation::EasingType::CubicBezier;
-        tween->bezier_p1x = p1x;
-        tween->bezier_p1y = p1y;
-        tween->bezier_p2x = p2x;
-        tween->bezier_p2y = p2y;
-    }
-}
-
-void anim_setSequenceNext(ecs::Registry& registry, u32 tweenEntity, u32 nextEntity) {
-    if (auto* tween = registry.tryGet<animation::TweenData>(Entity::fromRaw(tweenEntity))) {
-        tween->sequence_next = Entity::fromRaw(nextEntity);
-    }
-}
-
-void anim_updateTweens(ecs::Registry& registry, f32 deltaTime) {
-    if (auto* sys = ctx().tryGet<animation::TweenSystem>()) {
-        sys->update(registry, deltaTime);
-    }
-}
-
-i32 anim_getTweenState(ecs::Registry& registry, u32 tweenEntity) {
-    if (auto* tween = registry.tryGet<animation::TweenData>(Entity::fromRaw(tweenEntity))) {
-        return static_cast<i32>(tween->state);
-    }
-    return static_cast<i32>(animation::TweenState::Completed);
-}
-
-}  // namespace esengine
-
-EMSCRIPTEN_BINDINGS(esengine_animation) {
-    emscripten::function("_anim_createTween", &esengine::anim_createTween);
-    emscripten::function("_anim_cancelTween", &esengine::anim_cancelTween);
-    emscripten::function("_anim_cancelAllTweens", &esengine::anim_cancelAllTweens);
-    emscripten::function("_anim_pauseTween", &esengine::anim_pauseTween);
-    emscripten::function("_anim_resumeTween", &esengine::anim_resumeTween);
-    emscripten::function("_anim_setTweenBezier", &esengine::anim_setTweenBezier);
-    emscripten::function("_anim_setSequenceNext", &esengine::anim_setSequenceNext);
-    emscripten::function("_anim_updateTweens", &esengine::anim_updateTweens);
-    emscripten::function("_anim_getTweenState", &esengine::anim_getTweenState);
-}
 
 int main() {
     return 0;

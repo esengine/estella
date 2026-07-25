@@ -58,7 +58,13 @@ export class TextInputPlugin implements Plugin {
 
         const moduleOrNull = app.wasmModule;
         if (!moduleOrNull) {
-            log.warn('ui', 'TextInputPlugin: No WASM module available');
+            // Editing needs two things this realm does not have: the module's glyph
+            // measurement and a DOM text field to take keystrokes and IME composition
+            // (a native app has neither — the OS supplies its own editing surface, and
+            // wiring that is its own piece of work). The component still renders through
+            // the shared SDF atlas, so a field shows its value; it just cannot be typed
+            // into. Stated as a fact about the realm, not as a missing dependency.
+            log.info('ui', 'TextInput: this realm has no text-editing surface — fields render, typing is off');
             return;
         }
         const module = moduleOrNull;

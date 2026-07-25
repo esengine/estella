@@ -10,7 +10,10 @@ import { defineSystem, Schedule } from '../system';
 import { Res } from '../resource';
 import { Time, type TimeData } from '../resource';
 import type { Entity } from '../types';
-import type { ESEngineModule, CppRegistry } from '../wasm';
+import type { CppRegistry } from '../wasm';
+import { engineApi } from '../ecs/engineApi';
+import { log } from '../logger';
+import type { AnimCore } from './Tween';
 import { Tween, TweenAPI } from './Tween';
 import { SpriteAnimation, SpriteAnimationAPI } from './SpriteAnimator';
 import { AnimatorController, AnimatorControllerAPI } from './Animator';
@@ -24,9 +27,15 @@ export class AnimationPlugin implements Plugin {
     private offDespawn_: (() => void) | null = null;
 
     build(app: App): void {
-        const module = app.wasmModule as ESEngineModule;
+        // Whichever core is present (see ecs/engineApi.ts). Sprite animation and the
+        // animator graph are pure TypeScript, but tweens live in the engine, so a core
+        // that compiles no tween system gets the rest of the plugin and says so.
+        const engine = engineApi(app);
         const registry = app.world.getCppRegistry() as CppRegistry;
-        const tween = new TweenAPI(module, registry);
+        if (engine && typeof engine.anim_createTween !== 'function') {
+            log.warn('animation', 'this engine core has no tween system — Tween.to() will not animate');
+        }
+        const tween = new TweenAPI(engine ?? {}, registry);
         app.insertResource(Tween, tween);
         const anim = new SpriteAnimationAPI();
         app.insertResource(SpriteAnimation, anim);

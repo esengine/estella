@@ -1,20 +1,47 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import type { ESEngineModule } from '../wasm';
 import type { Entity } from '../types';
 import type { ShaderHandle } from '../material';
+import type { EngineApi } from '../ecs/engineApi';
 import { defineResource } from '../resource';
 import { handleWasmError } from '../wasmError';
-import { CoreApiBridge } from '../CoreApiBridge';
+import { WasmBridge } from '../WasmBridge';
 import { PostProcessStack, PostProcessState } from './PostProcessStack';
 
-const bridge = new CoreApiBridge('postprocess');
-let module: ESEngineModule | null = null;
+/**
+ * The post-process entry points as a core that HAS them answers them. Named, not
+ * re-declared: the signatures come from the generated engine surface, so this
+ * cannot drift from the C++ (PostProcessBindings.hpp) that produced it.
+ */
+type PostProcessCore = Required<Pick<NonNullable<EngineApi>,
+    'postprocess_init' | 'postprocess_shutdown' | 'postprocess_resize'
+    | 'postprocess_isInitialized' | 'postprocess_begin' | 'postprocess_end'
+    | 'postprocess_clearPasses' | 'postprocess_addPass' | 'postprocess_setPassTexture'
+    | 'postprocess_setUniformFloat' | 'postprocess_setUniformVec4'
+    | 'postprocess_setBypass' | 'postprocess_setOutputViewport'
+    | 'postprocess_beginScreenCapture' | 'postprocess_endScreenCapture'
+    | 'postprocess_executeScreenPasses' | 'postprocess_addScreenPass'
+    | 'postprocess_clearScreenPasses' | 'postprocess_setScreenUniformFloat'
+    | 'postprocess_setScreenUniformVec4'>>;
 
-/** @internal Wired by the engine plugins — not part of the public API. */
-export function initPostProcessAPI(wasmModule: ESEngineModule): void {
-    bridge.connect(wasmModule);
-    module = bridge.module;
+/** Guarded view of the core: after a wasm abort a call throws instead of reaching
+ *  a dead module; a native host's bindings never abort. */
+class PostProcessBridge extends WasmBridge<NonNullable<EngineApi>> {
+    protected readonly label = 'postprocess';
+}
+
+const bridge = new PostProcessBridge();
+let module: PostProcessCore | null = null;
+
+/**
+ * @internal Wired by the engine plugins — not part of the public API.
+ * Takes whichever core is present (see ecs/engineApi.ts). A core built without
+ * ES_ENABLE_POSTPROCESS answers none of these entry points; the plugin checks that
+ * before calling, which is what makes the narrowing here sound.
+ */
+export function initPostProcessAPI(engine: NonNullable<EngineApi>): void {
+    bridge.connect(engine);
+    module = bridge.module as PostProcessCore;
 }
 
 /** @internal Wired by the engine plugins — not part of the public API. */
@@ -31,7 +58,7 @@ export function shutdownPostProcessAPI(): void {
     module = null;
 }
 
-function getModule(): ESEngineModule {
+function getModule(): PostProcessCore {
     if (!module) {
         throw new Error('PostProcess API not initialized. Call initPostProcessAPI() first.');
     }

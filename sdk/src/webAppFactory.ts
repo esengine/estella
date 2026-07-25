@@ -7,21 +7,7 @@ import { prefabsPlugin } from './prefabServer';
 import { sceneManagerPlugin } from './scenePlugin';
 import { seedEngineComponents } from './component';
 import { uiPlugins } from './uiPlugins';
-import { animationPlugin } from './animation';
-import { audioPlugin } from './audio';
-import { videoPlugin } from './video';
-import { particlePlugin } from './particle';
-import { trailPlugin } from './trail';
-import { mesh2dPlugin } from './mesh2d';
-import { tilemapPlugin } from './tilemap';
-import { postProcessPlugin } from './postprocess';
-import { timelinePlugin } from './timeline';
-import { timerPlugin } from './timer';
-import { velocityPlugin } from './velocity';
-import { lifecyclePlugin } from './lifecycle';
-import { navPlugin, fsmPlugin, btPlugin, perceptionPlugin } from './ai';
-import { eventBindingPlugin } from './eventBinding';
-import { replicationPlugin } from './net/replication';
+import { simulationBasePlugins, webBasePlugins } from './pluginSets';
 import { SpinePlugin } from './spine';
 import { createFetchSideModuleHost, type SideModuleHost } from './sideModules';
 
@@ -37,7 +23,9 @@ export interface CreateWebAppOptions extends WebAppOptions {
     wasmBaseUrl?: string;
 }
 
-const basePlugins = [timerPlugin, velocityPlugin, lifecyclePlugin, animationPlugin, audioPlugin, videoPlugin, particlePlugin, trailPlugin, mesh2dPlugin, tilemapPlugin, postProcessPlugin, timelinePlugin, perceptionPlugin, fsmPlugin, btPlugin, navPlugin, eventBindingPlugin, replicationPlugin];
+// Simulation + presentation, in build order (see pluginSets.ts — one definition,
+// so the headless and native factories cannot drift from this one).
+const basePlugins = webBasePlugins();
 
 export function createWebApp(module: ESEngineModule, options?: CreateWebAppOptions): App {
     const sideModules: SideModuleHost | undefined = options?.sideModules
@@ -54,16 +42,10 @@ export interface HeadlessAppOptions {
     sideModules?: SideModuleHost;
 }
 
-// The simulation-relevant plugin set: timers/lifecycle, gameplay AI, audio
-// (silent on hosts without a device) and replication. Presentation plugins
-// (particles, tilemap render, post-process, timeline, UI, spine) stay out —
-// they exist to be seen.
-/** The simulation stack with no presentation — shared by the headless and
- *  native factories, so neither drifts into its own plugin list. */
-export const headlessBasePlugins = (): Plugin[] => [
-    timerPlugin, velocityPlugin, lifecyclePlugin, audioPlugin,
-    perceptionPlugin, fsmPlugin, btPlugin, navPlugin, eventBindingPlugin, replicationPlugin,
-];
+/** The simulation stack with no presentation: timers/lifecycle, gameplay AI, audio
+ *  (silent on a host with no device) and replication. Presentation plugins exist to
+ *  be seen, so a headless app leaves them out — see pluginSets.ts. */
+export const headlessBasePlugins = (): Plugin[] => simulationBasePlugins();
 
 /**
  * An App with the full simulation stack and no presentation: no renderer, no

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import type { ESEngineModule, CppRegistry } from '../wasm';
+import type { CppRegistry } from '../wasm';
+import type { EngineApi } from '../ecs/engineApi';
 import type { Entity } from '../types';
 import { defineResource } from '../resource';
 
@@ -12,10 +13,11 @@ import { defineResource } from '../resource';
  * `app.getResource(Trail)` outside ECS code.
  */
 export class TrailAPI {
-    private readonly module_: ESEngineModule;
+    private readonly module_: NonNullable<EngineApi>;
     private readonly registry_: CppRegistry;
 
-    constructor(module: ESEngineModule, registry: CppRegistry) {
+    /** @param module whichever engine core is present (see ecs/engineApi.ts). */
+    constructor(module: NonNullable<EngineApi>, registry: CppRegistry) {
         this.module_ = module;
         this.registry_ = registry;
     }

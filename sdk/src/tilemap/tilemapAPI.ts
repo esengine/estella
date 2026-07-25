@@ -1,10 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import type { ESEngineModule } from '../wasm';
 import { withMalloc } from '../wasmScratch';
-import { CoreApiBridge } from '../CoreApiBridge';
+import { WasmBridge } from '../WasmBridge';
+import type { EngineApi } from '../ecs/engineApi';
 import { defineResource } from '../resource';
 
+/**
+ * The tilemap entry points as a core that HAS tilemaps answers them — the shape
+ * this file drives, spelled once. Both cores answer these names (embind on the
+ * web, EHT-generated QuickJS wrappers on a device), and both carry the heap the
+ * tile arrays cross through, so the toolkit below is core-agnostic.
+ */
 interface TilemapModule {
     tilemap_initLayer(entity: number, width: number, height: number,
                       tileWidth: number, tileHeight: number): void;
@@ -57,12 +63,22 @@ interface TilemapModule {
     _free(ptr: number): void;
 }
 
-const bridge = new CoreApiBridge('tilemap');
+/** Guarded view of the core: after a wasm abort a call throws instead of reaching
+ *  a dead module. A native host's bindings pass through the same channel and
+ *  simply never abort. */
+class TilemapBridge extends WasmBridge<NonNullable<EngineApi>> {
+    protected readonly label = 'tilemap';
+}
+
+const bridge = new TilemapBridge();
 let module_: TilemapModule | null = null;
 
-/** @internal Wired by the engine plugins — not part of the public API. */
-export function initTilemapAPI(m: ESEngineModule): void {
-    bridge.connect(m);
+/** @internal Wired by the engine plugins — not part of the public API.
+ *  Takes whichever core is present (see ecs/engineApi.ts); the plugin only calls
+ *  this once it has checked that the core compiles tilemaps, which is what makes
+ *  the narrowing below sound. */
+export function initTilemapAPI(engine: NonNullable<EngineApi>): void {
+    bridge.connect(engine);
     module_ = bridge.module as unknown as TilemapModule;
 }
 

@@ -9,7 +9,8 @@
  * `handle.state` / `handle.cancel()` etc. route to the right app.
  */
 
-import type { ESEngineModule, CppRegistry } from '../wasm';
+import type { CppRegistry } from '../wasm';
+import type { AnimCore } from './Tween';
 import type { Entity } from '../types';
 import { applyEasing, EasingType, type BezierPoints } from './Easing';
 import { LoopMode, TweenState, type TweenOptions } from './TweenTypes';
@@ -44,10 +45,10 @@ export class ValueTweenManager {
     private entries_ = new Map<number, ValueTweenEntry>();
     private nextId_ = 1;
     private cppSequences_ = new Map<number, number>();
-    private readonly module_: ESEngineModule;
+    private readonly module_: AnimCore;
     private readonly registry_: CppRegistry;
 
-    constructor(module: ESEngineModule, registry: CppRegistry) {
+    constructor(module: AnimCore, registry: CppRegistry) {
         this.module_ = module;
         this.registry_ = registry;
     }
@@ -82,7 +83,7 @@ export class ValueTweenManager {
 
     update(dt: number): void {
         for (const [cppEntity, jsTweenId] of this.cppSequences_) {
-            const cppState = this.module_._anim_getTweenState(
+            const cppState = this.module_.anim_getTweenState?.(
                 this.registry_, cppEntity as Entity,
             );
             if (cppState === TweenState.Completed) {

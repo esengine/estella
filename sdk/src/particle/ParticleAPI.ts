@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import type { ESEngineModule, CppRegistry } from '../wasm';
+import type { CppRegistry } from '../wasm';
+import type { EngineApi } from '../ecs/engineApi';
 import type { Entity } from '../types';
 import { defineResource } from '../resource';
 
@@ -13,10 +14,12 @@ import { defineResource } from '../resource';
  * grab it with `app.getResource(Particle)` outside ECS code.
  */
 export class ParticleAPI {
-    private readonly module_: ESEngineModule;
+    private readonly module_: NonNullable<EngineApi>;
     private readonly registry_: CppRegistry;
 
-    constructor(module: ESEngineModule, registry: CppRegistry) {
+    /** @param module whichever engine core is present — the wasm module on the web,
+     *  the native host's bindings on a device (see ecs/engineApi.ts). */
+    constructor(module: NonNullable<EngineApi>, registry: CppRegistry) {
         this.module_ = module;
         this.registry_ = registry;
     }
@@ -56,8 +59,10 @@ export class ParticleAPI {
         this.uploadLut(this.module_.particle_set_size_lut, entity, lut, 1);
     }
 
-    // Copy a Float32Array into the wasm heap and hand its pointer + element count
-    // (length / `stride`) to the C++ setter, then free; null/empty clears.
+    // Copy a Float32Array into the core's heap and hand its offset + element count
+    // (length / `stride`) to the C++ setter, then free; null/empty clears. The heap
+    // is wasm linear memory on the web and the host's arena on a device — the same
+    // call either way (see ecs/nativeHeap.ts).
     private uploadLut(
         fn: ((entity: number, ptr: number, count: number) => void) | undefined,
         entity: Entity,
@@ -69,12 +74,14 @@ export class ParticleAPI {
             fn(entity as number, 0, 0);
             return;
         }
-        const ptr = this.module_._malloc(lut.length * 4);
+        const { _malloc: malloc, _free: free, HEAPF32: heap } = this.module_;
+        if (!malloc || !free || !heap) return;   // a core with no heap marshals nothing
+        const ptr = malloc(lut.length * 4);
         try {
-            this.module_.HEAPF32.set(lut, ptr / 4);
+            heap.set(lut, ptr / 4);
             fn(entity as number, ptr, lut.length / stride);
         } finally {
-            this.module_._free(ptr);
+            free(ptr);
         }
     }
 }

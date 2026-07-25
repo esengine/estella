@@ -5,7 +5,8 @@ import { defineSystem, Schedule } from '../system';
 import { Res } from '../resource';
 import { Time, type TimeData } from '../resource';
 import { fxPreviewOrPlayMode } from '../env';
-import type { ESEngineModule, CppRegistry } from '../wasm';
+import type { CppRegistry } from '../wasm';
+import { engineApi } from '../ecs/engineApi';
 import { registerSceneComponentCodec } from '../scene';
 import { Particle, ParticleAPI } from './ParticleAPI';
 import { bakeGradient, type Gradient } from './gradient';
@@ -21,9 +22,13 @@ export class ParticlePlugin implements Plugin {
     private offDespawn_: (() => void) | null = null;
 
     build(app: App): void {
-        const module = app.wasmModule as ESEngineModule;
+        // Whichever core is present; a core built without ES_ENABLE_PARTICLES simply
+        // answers no particle_* entry point, which the API already tolerates.
+        // `?? {}`: an app with no engine core (a test, a pure-logic host) still gets
+        // the resource, and every call through it no-ops.
+        const engine = engineApi(app) ?? {};
         const registry = app.world.getCppRegistry() as CppRegistry;
-        const api = new ParticleAPI(module, registry);
+        const api = new ParticleAPI(engine, registry);
         app.insertResource(Particle, api);
 
         // The color gradient is authored as stops in the component data but isn't a

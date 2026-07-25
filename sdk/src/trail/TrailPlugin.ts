@@ -5,7 +5,8 @@ import { defineSystem, Schedule } from '../system';
 import { Res } from '../resource';
 import { Time, type TimeData } from '../resource';
 import { fxPreviewOrPlayMode } from '../env';
-import type { ESEngineModule, CppRegistry } from '../wasm';
+import type { CppRegistry } from '../wasm';
+import { engineApi } from '../ecs/engineApi';
 import { TrailRenderer } from '../component';
 import { Trail, TrailAPI } from './TrailAPI';
 
@@ -14,9 +15,11 @@ export class TrailPlugin implements Plugin {
     private offDespawn_: (() => void) | null = null;
 
     build(app: App): void {
-        const module = app.wasmModule as ESEngineModule;
+        // `?? {}`: an app with no engine core (a test, a pure-logic host) still gets
+        // the resource, and every call through it no-ops.
+        const engine = engineApi(app) ?? {};
         const registry = app.world.getCppRegistry() as CppRegistry;
-        const api = new TrailAPI(module, registry);
+        const api = new TrailAPI(engine, registry);
         app.insertResource(Trail, api);
 
         // Trail history lives in a C++ side table keyed by entity, not in the

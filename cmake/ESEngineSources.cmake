@@ -63,10 +63,25 @@ if(NOT ES_BUILD_WEB AND NOT ES_BUILD_WXGAME)
         # hand-written copy of these for a while, drifting from the web's; it now
         # compiles the same TU and registers the same rm_* entry points.
         ${ESENGINE_ROOT}/src/esengine/bindings/ResourceManagerBindings.cpp
+        # Custom geometry (Mesh2D) and the immediate-draw surface: portable C++ the
+        # web build compiles into its SDK target, so a device gets them too.
+        ${ESENGINE_ROOT}/src/esengine/bindings/GeometryBindings.cpp
+        ${ESENGINE_ROOT}/src/esengine/bindings/ImmediateDrawBindings.cpp
+        # Tweens: portable C++ that used to live in the emscripten entry TU.
+        ${ESENGINE_ROOT}/src/esengine/bindings/AnimationBindings.cpp
         # activeCtx()'s unset fallback. A host that installs its own context (the
         # native one does, at boot) never reaches it, but the inline accessor
         # references it, so the definition has to link.
         ${ESENGINE_ROOT}/src/esengine/bindings/EngineContext.cpp)
+    # The subsystem entry points, under the same flags that compile the subsystem.
+    # On the web these are part of the SDK target instead (SDK_BINDING_SOURCES),
+    # because that is where embind registers them; the implementation is the same TU.
+    if(ES_ENABLE_TILEMAP)
+        list(APPEND ESENGINE_SOURCES ${ESENGINE_ROOT}/src/esengine/bindings/TilemapBindings.cpp)
+    endif()
+    if(ES_ENABLE_POSTPROCESS)
+        list(APPEND ESENGINE_SOURCES ${ESENGINE_ROOT}/src/esengine/bindings/PostProcessBindings.cpp)
+    endif()
 endif()
 
 if(ES_ENABLE_WEBGPU)
