@@ -11,6 +11,9 @@ extern "C" {
 }
 
 #include "esengine/ecs/Registry.hpp"  // esengine::ecs::Registry + esengine::Entity
+#include "esengine/core/Types.hpp"    // esengine::u8
+
+#include <vector>
 
 // --- provided by the host (js/main.cpp) --------------------------------------
 esengine::ecs::Registry& esn_reg();
@@ -23,6 +26,15 @@ bool esn_getbool(JSContext* ctx, JSValueConst obj, const char* key, int* out);
 void esn_getvec(JSContext* ctx, JSValueConst obj, const char* key, float* dst, int n);
 // Wrap [ptr, ptr+size) as a zero-copy JS ArrayBuffer (native owns the memory).
 JSValue esn_arraybuffer(JSContext* ctx, void* ptr, size_t size);
+// Read a JS byte source (ArrayBuffer, typed-array view, or plain number array)
+// into `out`. Backs the generated wrappers for entry points that take a
+// `uintptr_t` buffer: on the web that is a wasm heap offset, here it is real
+// memory the wrapper owns for the duration of the call.
+void esn_bytes(JSContext* ctx, JSValueConst v, std::vector<esengine::u8>& out);
 
-// --- provided by the generated file (NativeBindings.generated.cpp) -----------
+// --- provided by the generated files -----------------------------------------
+// Components (NativeBindings.generated.cpp) and the engine's binding entry
+// points (NativeFunctionBindings.generated.cpp), from the same declarations the
+// web build registers with embind.
 void esn_register(JSContext* ctx, JSValue global);
+void esn_register_functions(JSContext* ctx, JSValue global);

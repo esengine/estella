@@ -29,7 +29,9 @@
 #endif
 #include "../trail/TrailSystem.hpp"
 
+#ifdef __EMSCRIPTEN__
 #include <emscripten/val.h>
+#endif
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -646,6 +648,7 @@ i32 registry_getCanvasEntity(ecs::Registry& registry) {
     return -1;
 }
 
+#ifdef __EMSCRIPTEN__
 emscripten::val registry_getCameraEntities(ecs::Registry& registry) {
     auto cameraView = registry.view<ecs::Camera, ecs::Transform>();
     auto result = emscripten::val::array();
@@ -671,6 +674,7 @@ emscripten::val getChildEntities(ecs::Registry& registry, u32 entity) {
     }
     return result;
 }
+#endif
 
 u32 registry_getGeneration(ecs::Registry& registry, u32 entity) {
     return Entity::fromRaw(entity).generation();

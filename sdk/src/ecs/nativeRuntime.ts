@@ -21,7 +21,7 @@ import { installNativePlatform, type NativeBridge } from '../platform/native';
 import { createNativeRegistry } from './nativeRegistry';
 import { NativeMemoryProvider } from './memoryProvider';
 import { createNativeResourceManager } from './nativeResourceManager';
-import { TEXT_BINDINGS, hasTextBindings, hasRendererBindings } from './nativeBindings';
+import { HOST_FLAGS, TEXT_BINDINGS, hasTextBindings, hasRendererBindings } from './nativeBindings';
 import { createNativeRendererBackend, nativeSurfaceSize } from './nativeRenderer';
 import { setRendererBackend } from '../renderer';
 import { RenderPipeline } from '../renderPipeline';
@@ -132,6 +132,9 @@ function installNativeRenderer(app: App, scope: Record<string, unknown>): void {
     // The viewport is read per frame, so a rotation reaches the projection without
     // anyone pushing a resize event.
     app.addPlugin(cameraPlugin(() => nativeSurfaceSize(scope)));
+    // Tell the host to stop drawing its fallback frame: from here the pipeline
+    // above opens and closes every pass, and a second one would clear over it.
+    scope[HOST_FLAGS.ownsFrame] = true;
 }
 
 /**

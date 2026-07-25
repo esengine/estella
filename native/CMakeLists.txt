@@ -68,8 +68,9 @@ endif()
 
 # The engine core, native arm64. The source list is the SAME single-source file the
 # web build uses (cmake/ESEngineSources.cmake) — selecting the WebGPU backend and
-# dropping GL / bitmap text / particles / tilemap / post-process for this build. The
-# bindings/ (emscripten embind) TUs are web-only and never listed there.
+# dropping GL / particles / tilemap / post-process for this build. It also brings in
+# the portable binding entry points (RendererBindings.cpp), whose QuickJS wrappers
+# are generated from the same declarations embind registers.
 set(ESENGINE_ROOT "${REPO}")
 list(APPEND CMAKE_MODULE_PATH "${REPO}/cmake")
 set(ES_ENABLE_WEBGPU ON)
@@ -112,6 +113,14 @@ if(ESTELLA_QUICKJS_DIR)
             "Generate it (and ptraccessors_js.h) via `cli native --quickjs`, which runs "
             "`python -m eht --native-output ... --native-only`.")
     endif()
+    # The engine's binding entry points, wrapped for QuickJS from the SAME
+    # declarations embind registers (`--native-functions`). The bodies are in the
+    # binding TUs the engine target compiles, so both platforms run one
+    # implementation and only the registration differs.
+    set(NATIVE_FN_BINDINGS "${ESTELLA_NATIVE_GEN_DIR}/NativeFunctionBindings.generated.cpp")
+    if(NOT EXISTS "${NATIVE_FN_BINDINGS}")
+        message(FATAL_ERROR "Missing ${NATIVE_FN_BINDINGS} — generate it via `cli native --quickjs`.")
+    endif()
 
     # QuickJS-ng interpreter — core is just these four C files.
     add_library(qjs STATIC
@@ -135,7 +144,7 @@ if(ESTELLA_QUICKJS_DIR)
         # below. -ObjC on the app keeps the Obj-C classes in main_ios.mm alive.
         add_library(estella_js_host STATIC host_js/host_core.cpp host_js/main_ios.mm
             host_js/native_audio.cpp host_js/ktx2_decode.cpp host_js/glyph_raster.cpp
-            "${BASIS_TRANSCODER}" "${BASIS_ZSTD}" "${NATIVE_BINDINGS}")
+            "${BASIS_TRANSCODER}" "${BASIS_ZSTD}" "${NATIVE_BINDINGS}" "${NATIVE_FN_BINDINGS}")
         # miniaudio's CoreAudio backend uses AVAudioSession (Obj-C), so its TU must
         # be Objective-C++ on Apple; it also forces MA_NO_RUNTIME_LINKING there, so
         # the audio frameworks are linked at build time (the app links the merged
@@ -158,7 +167,7 @@ if(ESTELLA_QUICKJS_DIR)
         # link libs). native_audio.cpp's Obj-C paths are __APPLE__-guarded out.
         add_library(estella_js_host SHARED host_js/host_core.cpp host_js/main_android.cpp
             host_js/native_audio.cpp host_js/ktx2_decode.cpp host_js/glyph_raster.cpp
-            "${BASIS_TRANSCODER}" "${BASIS_ZSTD}" "${NATIVE_BINDINGS}")
+            "${BASIS_TRANSCODER}" "${BASIS_ZSTD}" "${NATIVE_BINDINGS}" "${NATIVE_FN_BINDINGS}")
         target_link_libraries(estella_js_host esengine qjs native_app_glue android log)
         set_target_properties(estella_js_host PROPERTIES LINK_FLAGS "-u ANativeActivity_onCreate")
     endif()

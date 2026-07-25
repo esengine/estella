@@ -18,7 +18,7 @@
 
 import type { CppRegistry } from '../wasm';
 import type { RendererBackend, RenderStats } from '../renderer';
-import { RENDERER_BINDINGS } from './nativeBindings';
+import { RENDERER_BINDINGS, RENDERER_STATS_BINDINGS } from './nativeBindings';
 
 /** Invoke a host-provided global by name; throws if the host did not bind it
  *  (these are the frame contract — a missing one is a broken host, not a
@@ -30,8 +30,6 @@ function hostCall(scope: Record<string, unknown>, name: string, args: unknown[])
     }
     return (fn as (...a: unknown[]) => unknown)(...args);
 }
-
-const NO_STATS: RenderStats = { drawCalls: 0, triangles: 0, sprites: 0, text: 0, spine: 0, meshes: 0, culled: 0 };
 
 /**
  * Build the RendererBackend over the host's frame bindings. `scope` holds the
@@ -79,8 +77,21 @@ export function createNativeRendererBackend(
         setYSortLayers: (mask): void => {
             hostCall(scope, RENDERER_BINDINGS.setYSortLayers, [mask >>> 0]);
         },
-        getStats: (): RenderStats =>
-            (hostCall(scope, RENDERER_BINDINGS.stats, []) as RenderStats | undefined) ?? NO_STATS,
+        getStats: (): RenderStats => {
+            const read = (name: string): number => {
+                const fn = scope[name];
+                return typeof fn === 'function' ? ((fn as () => number)() ?? 0) : 0;
+            };
+            return {
+                drawCalls: read(RENDERER_STATS_BINDINGS.drawCalls),
+                triangles: read(RENDERER_STATS_BINDINGS.triangles),
+                sprites: read(RENDERER_STATS_BINDINGS.sprites),
+                text: read(RENDERER_STATS_BINDINGS.text),
+                spine: 0,   // the spine module has no native counterpart yet
+                meshes: read(RENDERER_STATS_BINDINGS.meshes),
+                culled: read(RENDERER_STATS_BINDINGS.culled),
+            };
+        },
     };
 }
 

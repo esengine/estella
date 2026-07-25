@@ -103,7 +103,12 @@ function makeHostScope() {
         es_renderer_setStage: () => {},
         es_renderer_setViewport: () => {},
         es_renderer_setYSortLayers: () => {},
-        es_renderer_stats: () => ({ drawCalls: 1, triangles: 2, sprites: 1, text: 1, spine: 0, meshes: 0, culled: 0 }),
+        es_renderer_getDrawCalls: () => 1,
+        es_renderer_getTriangles: () => 2,
+        es_renderer_getSprites: () => 1,
+        es_renderer_getText: () => 1,
+        es_renderer_getMeshes: () => 0,
+        es_renderer_getCulled: () => 0,
         es_renderer_surfaceSize: () => ({ width: 800, height: 600 }),
         es_registry_getCanvasEntity: () => canvasEntity,
         es_registry_getCameraEntities: () => cameraEntities,
@@ -169,6 +174,10 @@ describe('a frame on the native core', () => {
         calls.length = 0;   // watch one frame, with the scene in place
         await app.tick(1 / 60);
 
+        // The host is told to stop drawing its own fallback frame — both would mean
+        // its pass clearing over this one.
+        expect(scope.es_jsOwnsFrame).toBe(true);
+
         // The SDK drove a whole frame: the camera's pass opened, the scene was
         // collected, the text drew before the flush, and the pass closed. The host
         // adds only the present after this.
@@ -233,8 +242,10 @@ describe('a frame on the native core', () => {
         await app.tick(1 / 60);
 
         // No pipeline, no camera plugin — the app still runs its gameplay stack,
-        // and a host that drives its own frame keeps working.
+        // and a host that drives its own frame keeps working (it is never told
+        // otherwise).
         expect(calls).toEqual([]);
         expect(app.pipeline).toBeNull();
+        expect(scope.es_jsOwnsFrame).toBeUndefined();
     });
 });

@@ -82,8 +82,32 @@ export const RENDERER_BINDINGS = {
     setStage: 'es_renderer_setStage',
     setViewport: 'es_renderer_setViewport',
     setYSortLayers: 'es_renderer_setYSortLayers',
-    stats: 'es_renderer_stats',
+    /** Host-specific: the drawable size, which no wasm entry point has. */
     surfaceSize: 'es_renderer_surfaceSize',
+} as const;
+
+/** The per-frame counters, read one call each — the same entry points the wasm
+ *  module exposes under the same names, so the two paths report identically. */
+export const RENDERER_STATS_BINDINGS = {
+    drawCalls: 'es_renderer_getDrawCalls',
+    triangles: 'es_renderer_getTriangles',
+    sprites: 'es_renderer_getSprites',
+    text: 'es_renderer_getText',
+    meshes: 'es_renderer_getMeshes',
+    culled: 'es_renderer_getCulled',
+} as const;
+
+/**
+ * What the SDK declares back to the host, on the same global object.
+ *
+ * A host predates these bindings gracefully: it keeps a fallback frame (one
+ * full-viewport pass) for a game script that never drives one. `ownsFrame` is how
+ * it learns to stop — set once the SDK's render pipeline is installed, so the two
+ * never both draw (which would look like the SDK's frame silently vanishing, since
+ * the host's pass would clear and re-collect over it).
+ */
+export const HOST_FLAGS = {
+    ownsFrame: 'es_jsOwnsFrame',
 } as const;
 
 /** Whether the host bound the whole frame surface — the gate for the SDK driving

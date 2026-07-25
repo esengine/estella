@@ -6,9 +6,14 @@
 #include "../core/Types.hpp"
 #include <string>
 
+// The value type embind returns for array/object results. Web-only: a native
+// build compiles this same TU (see cmake/ESEngineSources.cmake) and simply does
+// not carry the entry points that return one.
+#ifdef __EMSCRIPTEN__
 namespace emscripten {
     class val;
 }
+#endif
 
 namespace esengine {
 
@@ -143,8 +148,10 @@ u32 renderer_getPreviewHeight();
 void renderer_setTextureParams(u32 textureId, i32 minFilter, i32 magFilter, i32 wrapS, i32 wrapT);
 
 i32 registry_getCanvasEntity(ecs::Registry& registry);
+#ifdef __EMSCRIPTEN__
 emscripten::val registry_getCameraEntities(ecs::Registry& registry);
 emscripten::val getChildEntities(ecs::Registry& registry, u32 entity);
+#endif
 u32 registry_getGeneration(ecs::Registry& registry, u32 entity);
 void registry_batchSyncPhysicsTransforms(ecs::Registry& registry, uintptr_t bufferPtr, int count, float ppu);
 

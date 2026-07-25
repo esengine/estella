@@ -9,7 +9,33 @@ from .abi import compute_abi_hash
 from .generators import (
     EmbindGenerator, TypeScriptGenerator, MetadataGenerator,
     PtrLayoutGenerator, EditorAPIGenerator, NativeBindingsGenerator,
+    NativeFunctionsGenerator,
 )
+
+
+def _emit_native_functions(args) -> int:
+    """Emit the opt-in QuickJS wrappers for the engine's binding entry points —
+    the same declarations embind registers, so the two cannot drift."""
+    headers = []
+    for path in args.native_functions:
+        if not path.is_file():
+            print(f"[FAIL] --native-functions: no such header: {path}")
+            return 1
+        # The generated TU includes the header the way the binding TUs do.
+        include = f'esengine/bindings/{path.name}'
+        headers.append((include, path.read_text(encoding='utf-8')))
+
+    gen = NativeFunctionsGenerator(headers, shim_header=args.native_shim)
+    content = gen.generate()
+    args.native_functions_output.parent.mkdir(parents=True, exist_ok=True)
+    print(f"Generating: {args.native_functions_output}")
+    args.native_functions_output.write_text(content, encoding='utf-8')
+    print(f"  {len(gen.emitted)} entry point(s) bound")
+    # Never a silent cap: what the wrappers cannot marshal is what still needs a
+    # hand-written binding, so say it every run.
+    for skip in gen.skipped:
+        print(f"  skipped {skip.name}: {skip.reason}")
+    return 0
 
 
 def _emit_native(components, enums, args) -> None:
@@ -52,9 +78,25 @@ def main() -> int:
     # web/editor/TS *.generated.* files at all (no throwaway output dirs needed).
     parser.add_argument('--native-only', action='store_true',
                         help='With --native-output: emit only the native bindings')
+    # Opt-in QuickJS wrappers for the engine's binding ENTRY POINTS (renderer_*,
+    # uiLayout_*, …), parsed from the bindings headers embind registers from.
+    parser.add_argument('--native-functions', type=Path, nargs='+', default=None,
+                        help='Bindings headers to emit native QuickJS wrappers for')
+    parser.add_argument('--native-functions-output', type=Path, default=None,
+                        help='Where to write the generated wrappers (.cpp)')
     args = parser.parse_args()
 
     print("EHT - ESEngine Header Tool")
+
+    # Function wrappers are parsed from declarations, not component reflection —
+    # emit them before (and independently of) the component pass.
+    if args.native_functions:
+        if args.native_functions_output is None:
+            print("[FAIL] --native-functions requires --native-functions-output.")
+            return 1
+        code = _emit_native_functions(args)
+        if code != 0 or args.native_output is None:
+            return code
 
     cpp_parser = CppParser()
     for input_dir in args.input:

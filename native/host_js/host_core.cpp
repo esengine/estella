@@ -31,6 +31,7 @@
 #include "glyph_raster.hpp"      // stb_truetype + the engine's SDF, behind es_rasterizeGlyph
 
 #include "esengine/core/EstellaContext.hpp"
+#include "esengine/bindings/ActiveContext.hpp"   // g_activeContext — the context the generated bindings act on
 #include "esengine/core/World.hpp"
 #include "esengine/ecs/TransformSystem.hpp"          // TransformSystem + ecs::setParent
 #include "esengine/ecs/components/Hierarchy.hpp"      // Parent / Children
@@ -131,10 +132,6 @@ struct App {
     f32 w = 0, h = 0;
     bool ready = false;         // engine + JS booted once
     bool surfaceReady = false;  // a live window surface is bound (false while screen off)
-    // Set for the frame whenever the SDK's render pipeline opened a pass through
-    // es_renderer_begin. The host then only presents; a game (or host) that
-    // predates those bindings still gets the fallback pass in frame().
-    bool sdkOwnsFrame = false;
     uint64_t frame = 0;
 };
 
@@ -200,6 +197,15 @@ void esn_getvec(JSContext* ctx, JSValueConst obj, const char* key, float* dst, i
     }
     JS_FreeValue(ctx, arr);
 }
+namespace { void readByteSource(JSContext* ctx, JSValueConst v, std::vector<u8>& out); }
+
+// The generated wrappers for entry points that take a `uintptr_t` buffer read
+// their bytes through this: on the web that argument is a wasm heap offset, here
+// it is memory the wrapper owns for the duration of the call.
+void esn_bytes(JSContext* ctx, JSValueConst v, std::vector<u8>& out) {
+    readByteSource(ctx, v, out);
+}
+
 JSValue esn_arraybuffer(JSContext* ctx, void* ptr, size_t size) {
     return JS_NewArrayBuffer(ctx, reinterpret_cast<uint8_t*>(ptr), size, nullptr, nullptr, false);
 }
@@ -519,143 +525,14 @@ JSValue js_submitTextBatch(JSContext* ctx, JSValueConst, int argc, JSValueConst*
     return JS_UNDEFINED;
 }
 
-// ---- the frame: es_renderer_* ------------------------------------------------
+// ---- the frame -------------------------------------------------------------
 //
-// The SDK's own render pipeline (CameraPlugin -> RenderPipeline -> Renderer) runs
-// on device through these, so which cameras exist, their viewport rects and clear
-// flags, the y-sort layers and what draws just before the flush are decided by
-// the SAME code the web build runs. Each one mirrors its web counterpart in
-// bindings/RendererBindings.cpp; the registry argument those take is implicit
-// here (a host has exactly one). What remains the host's own is the swapchain and
-// the present, in frame() below.
-
-JSValue js_renderer_resize(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
-    if (argc < 2 || !g_app || !g_app->ctx) return JS_UNDEFINED;
-    int32_t w = 0, h = 0;
-    JS_ToInt32(ctx, &w, argv[0]); JS_ToInt32(ctx, &h, argv[1]);
-    auto& ctxRef = *g_app->ctx;
-    ctxRef.state().viewport_width = (u32)w;
-    ctxRef.state().viewport_height = (u32)h;
-    ctxRef.require<RenderFrame>().resize((u32)w, (u32)h);
-    return JS_UNDEFINED;
-}
-
-JSValue js_renderer_beginFrame(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
-    if (!g_app || !g_app->ctx) return JS_UNDEFINED;
-    double elapsed = 0;
-    if (argc > 0) JS_ToFloat64(ctx, &elapsed, argv[0]);
-    auto& ctxRef = *g_app->ctx;
-    ctxRef.state().transforms_updated = false;
-    ctxRef.require<RenderContext>().setFrameTime((f32)elapsed, (u32)g_app->w, (u32)g_app->h);
-    return JS_UNDEFINED;
-}
-
-// The transform pass, once per frame: the flag mirrors the web binding's
-// ensureTransformsUpdated, so submitAll below never repeats it.
-void ensureTransformsUpdated(App& a) {
-    auto& ctxRef = *a.ctx;
-    if (ctxRef.state().transforms_updated) return;
-    World world{*a.registry, ctxRef.services(), 1.0f / 60.0f};
-    ctxRef.require<ecs::TransformSystem>().update(world);
-    ctxRef.state().transforms_updated = true;
-}
-
-JSValue js_renderer_updateTransforms(JSContext*, JSValueConst, int, JSValueConst*) {
-    if (!g_app || !g_app->ctx) return JS_UNDEFINED;
-    ensureTransformsUpdated(*g_app);
-    return JS_UNDEFINED;
-}
-
-// es_renderer_begin(viewProjection, target, clearFlags, r,g,b,a, x,y,w,h) — the
-// pass's load-op rides begin, exactly as on web: bit 0 = colour, bit 1 = depth,
-// and a zero-width region means the whole target.
-JSValue js_renderer_begin(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
-    if (argc < 11 || !g_app || !g_app->ctx) return JS_UNDEFINED;
-    std::vector<u8> matrixBytes;
-    readByteSource(ctx, argv[0], matrixBytes);
-    if (matrixBytes.size() < 16 * sizeof(f32)) return JS_UNDEFINED;
-    const f32* m = reinterpret_cast<const f32*>(matrixBytes.data());
-
-    int32_t target = 0, clearFlags = 0, clearX = 0, clearY = 0, clearW = 0, clearH = 0;
-    double r = 0, g = 0, b = 0, a = 1;
-    JS_ToInt32(ctx, &target, argv[1]);
-    JS_ToInt32(ctx, &clearFlags, argv[2]);
-    JS_ToFloat64(ctx, &r, argv[3]); JS_ToFloat64(ctx, &g, argv[4]);
-    JS_ToFloat64(ctx, &b, argv[5]); JS_ToFloat64(ctx, &a, argv[6]);
-    JS_ToInt32(ctx, &clearX, argv[7]); JS_ToInt32(ctx, &clearY, argv[8]);
-    JS_ToInt32(ctx, &clearW, argv[9]); JS_ToInt32(ctx, &clearH, argv[10]);
-
-    g_app->sdkOwnsFrame = true;
-    g_app->ctx->require<RenderFrame>().begin(
-        glm::make_mat4(m), (u32)target,
-        RenderFrame::PassClear{(clearFlags & 1) != 0, (clearFlags & 2) != 0,
-                               glm::vec4((f32)r, (f32)g, (f32)b, (f32)a),
-                               clearX, clearY, (u32)clearW, (u32)clearH});
-    return JS_UNDEFINED;
-}
-
-JSValue js_renderer_submitAll(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
-    if (argc < 5 || !g_app || !g_app->ctx) return JS_UNDEFINED;
-    int32_t skipFlags = 0, vpX = 0, vpY = 0, vpW = 0, vpH = 0;
-    JS_ToInt32(ctx, &skipFlags, argv[0]);
-    JS_ToInt32(ctx, &vpX, argv[1]); JS_ToInt32(ctx, &vpY, argv[2]);
-    JS_ToInt32(ctx, &vpW, argv[3]); JS_ToInt32(ctx, &vpH, argv[4]);
-    ensureTransformsUpdated(*g_app);
-    auto& rf = g_app->ctx->require<RenderFrame>();
-    rf.processMasks(*g_app->registry, vpX, vpY, vpW, vpH);
-    rf.collectAll(*g_app->registry, (u32)skipFlags);
-    return JS_UNDEFINED;
-}
-
-JSValue js_renderer_flush(JSContext*, JSValueConst, int, JSValueConst*) {
-    if (g_app && g_app->ctx) g_app->ctx->require<RenderFrame>().flush();
-    return JS_UNDEFINED;
-}
-
-JSValue js_renderer_end(JSContext*, JSValueConst, int, JSValueConst*) {
-    if (g_app && g_app->ctx) g_app->ctx->require<RenderFrame>().end();
-    return JS_UNDEFINED;
-}
-
-JSValue js_renderer_setStage(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
-    if (argc < 1 || !g_app || !g_app->ctx) return JS_UNDEFINED;
-    int32_t stage = 0; JS_ToInt32(ctx, &stage, argv[0]);
-    g_app->ctx->require<RenderFrame>().setStage(static_cast<RenderStage>(stage));
-    return JS_UNDEFINED;
-}
-
-JSValue js_renderer_setViewport(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
-    if (argc < 4 || !g_app || !g_app->gfx) return JS_UNDEFINED;
-    int32_t x = 0, y = 0, w = 0, h = 0;
-    JS_ToInt32(ctx, &x, argv[0]); JS_ToInt32(ctx, &y, argv[1]);
-    JS_ToInt32(ctx, &w, argv[2]); JS_ToInt32(ctx, &h, argv[3]);
-    g_app->gfx->setViewport(x, y, (u32)w, (u32)h);
-    return JS_UNDEFINED;
-}
-
-JSValue js_renderer_setYSortLayers(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
-    if (argc < 1 || !g_app || !g_app->ctx) return JS_UNDEFINED;
-    uint32_t mask = 0; JS_ToUint32(ctx, &mask, argv[0]);
-    g_app->ctx->require<RenderFrame>().setYSortLayers(mask);
-    return JS_UNDEFINED;
-}
-
-// es_renderer_stats() -> the engine's per-frame counters, which the SDK's stats
-// overlay and the editor read through Renderer.getStats().
-JSValue js_renderer_stats(JSContext* ctx, JSValueConst, int, JSValueConst*) {
-    JSValue o = JS_NewObject(ctx);
-    const RenderFrame::Stats empty{};
-    const RenderFrame::Stats& stats =
-        g_app && g_app->ctx ? g_app->ctx->require<RenderFrame>().stats() : empty;
-    JS_SetPropertyStr(ctx, o, "drawCalls", JS_NewInt32(ctx, (int32_t)stats.draw_calls));
-    JS_SetPropertyStr(ctx, o, "triangles", JS_NewInt32(ctx, (int32_t)stats.triangles));
-    JS_SetPropertyStr(ctx, o, "sprites", JS_NewInt32(ctx, (int32_t)stats.sprites));
-    JS_SetPropertyStr(ctx, o, "text", JS_NewInt32(ctx, (int32_t)stats.text));
-    JS_SetPropertyStr(ctx, o, "spine", JS_NewInt32(ctx, 0));
-    JS_SetPropertyStr(ctx, o, "meshes", JS_NewInt32(ctx, (int32_t)stats.meshes));
-    JS_SetPropertyStr(ctx, o, "culled", JS_NewInt32(ctx, (int32_t)stats.culled));
-    return o;
-}
+// The es_renderer_* entry points are GENERATED (NativeFunctionBindings.generated.cpp)
+// from the same declarations embind registers on the web, and call the same
+// binding TU — so the SDK's camera plugin and render pipeline drive a device
+// frame through one implementation. What stays here is what has no web
+// counterpart: the surface size, and the camera list (its web sibling returns an
+// emscripten::val, which does not exist natively).
 
 // es_renderer_surfaceSize() -> { width, height }: the camera plugin reads it per
 // frame, so a rotation reaches the projection without an event.
@@ -664,16 +541,6 @@ JSValue js_renderer_surfaceSize(JSContext* ctx, JSValueConst, int, JSValueConst*
     JS_SetPropertyStr(ctx, o, "width", JS_NewInt32(ctx, g_app ? (int32_t)g_app->w : 0));
     JS_SetPropertyStr(ctx, o, "height", JS_NewInt32(ctx, g_app ? (int32_t)g_app->h : 0));
     return o;
-}
-
-// The two scene queries the camera plugin makes: which entity carries the Canvas
-// (its background colour clears the frame) and which carry a Camera.
-JSValue js_registry_getCanvasEntity(JSContext* ctx, JSValueConst, int, JSValueConst*) {
-    if (!g_app || !g_app->registry) return JS_NewInt32(ctx, -1);
-    for (auto entity : g_app->registry->view<ecs::Canvas>()) {
-        return JS_NewInt32(ctx, (int32_t)entity.id());
-    }
-    return JS_NewInt32(ctx, -1);
 }
 
 JSValue js_registry_getCameraEntities(JSContext* ctx, JSValueConst, int, JSValueConst*) {
@@ -1238,22 +1105,10 @@ void initJS(App& a) {
     bindGlobal(a, global, "es_submitTextBatch", js_submitTextBatch, 9);
     bindGlobal(a, global, "es_updateTextureSubregion", js_updateTextureSubregion, 6);
     bindGlobal(a, global, "es_getTextureRenderId", js_getTextureRenderId, 1);
-    // The frame (es_renderer_* + the two scene queries): the SDK's own camera
-    // plugin and render pipeline run on these, so a native frame is decided by the
-    // same code the web build runs. The host keeps the swapchain and the present.
-    bindGlobal(a, global, "es_renderer_resize", js_renderer_resize, 2);
-    bindGlobal(a, global, "es_renderer_beginFrame", js_renderer_beginFrame, 1);
-    bindGlobal(a, global, "es_renderer_updateTransforms", js_renderer_updateTransforms, 0);
-    bindGlobal(a, global, "es_renderer_begin", js_renderer_begin, 11);
-    bindGlobal(a, global, "es_renderer_submitAll", js_renderer_submitAll, 5);
-    bindGlobal(a, global, "es_renderer_flush", js_renderer_flush, 0);
-    bindGlobal(a, global, "es_renderer_end", js_renderer_end, 0);
-    bindGlobal(a, global, "es_renderer_setStage", js_renderer_setStage, 1);
-    bindGlobal(a, global, "es_renderer_setViewport", js_renderer_setViewport, 4);
-    bindGlobal(a, global, "es_renderer_setYSortLayers", js_renderer_setYSortLayers, 1);
-    bindGlobal(a, global, "es_renderer_stats", js_renderer_stats, 0);
+    // The frame: es_renderer_* (and every other binding entry point) comes from
+    // esn_register_functions below — generated from the declarations embind
+    // registers on the web. Only what has no web counterpart is bound by hand.
     bindGlobal(a, global, "es_renderer_surfaceSize", js_renderer_surfaceSize, 0);
-    bindGlobal(a, global, "es_registry_getCanvasEntity", js_registry_getCanvasEntity, 0);
     bindGlobal(a, global, "es_registry_getCameraEntities", js_registry_getCameraEntities, 0);
     // Audio (es_audio*): bound only when a device came up, so the SDK's
     // hasAudioBindings() gates the native audio backend on real availability —
@@ -1275,6 +1130,10 @@ void initJS(App& a) {
     }
     // Per-component bindings (EHT-generated): es_set_<C> / es_<C>_buffer / _has / _remove.
     esn_register(a.js, global);
+    // The engine's binding entry points (EHT-generated from the same declarations
+    // embind registers): es_renderer_*, es_uiLayout_*, es_particle_*, … The SDK
+    // calls them by the same names its wasm path calls the module by.
+    esn_register_functions(a.js, global);
     JS_FreeValue(a.js, global);
 
     // Layers: the real SDK bundle (engine, embedded) installs ESEngine; the host
@@ -1389,6 +1248,11 @@ bool boot(Platform& platform) {
     if (!bindSurface()) return false;
     static EstellaContext context;
     a.ctx = &context;
+    // The binding entry points (the generated es_* wrappers call the same ones
+    // embind does) reach the engine through activeCtx(); install ours, exactly as
+    // the web entry does at initRenderer. Without this they would act on the
+    // fallback context and render into a different engine than the host presents.
+    g_activeContext = &context;
     context.state().viewport_width = (i32)a.w;
     context.state().viewport_height = (i32)a.h;
     if (!context.init(std::move(device))) { LOGE("context.init failed"); return false; }
@@ -1402,11 +1266,21 @@ bool boot(Platform& platform) {
     return true;
 }
 
+// Has the SDK's render pipeline taken over the frame? It declares itself through
+// `es_jsOwnsFrame` (see HOST_FLAGS in the SDK's nativeBindings) once installed.
+bool jsOwnsFrame(App& a) {
+    JSValue global = JS_GetGlobalObject(a.js);
+    JSValue v = JS_GetPropertyStr(a.js, global, "es_jsOwnsFrame");
+    const bool owns = JS_ToBool(a.js, v) != 0;
+    JS_FreeValue(a.js, v);
+    JS_FreeValue(a.js, global);
+    return owns;
+}
+
 void frame() {
     if (!g_app || !g_app->ready || !g_app->surfaceReady) return;
     App& a = *g_app;
     auto& ctx = *a.ctx;
-    a.sdkOwnsFrame = false;   // set again by es_renderer_begin if the SDK renders
     JSValue dt = JS_NewFloat64(a.js, 1.0 / 60.0);
     callJs(a, "update", 1, &dt);
     JS_FreeValue(a.js, dt);
@@ -1432,8 +1306,10 @@ void frame() {
     // left here is what only a host can do: flip the swapchain.
     //
     // A game script that predates those bindings (or a host that has not bound
-    // them) still gets a frame: fall back to one full-viewport pass.
-    if (!a.sdkOwnsFrame) {
+    // them) still gets a frame: fall back to one full-viewport pass. The SDK says
+    // which it is by declaring es_jsOwnsFrame when its pipeline is installed —
+    // both drawing would mean the host's pass clears over the SDK's.
+    if (!jsOwnsFrame(a)) {
         ctx.require<RenderContext>().setFrameTime((f32)a.frame / 60.0f, (u32)a.w, (u32)a.h);
         World world{*a.registry, ctx.services(), 1.0f / 60.0f};
         ctx.require<ecs::TransformSystem>().update(world);

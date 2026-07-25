@@ -48,6 +48,22 @@ if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
     list(APPEND ESENGINE_SOURCES ${ESENGINE_ROOT}/src/esengine/renderer/GLDevice.cpp)
 endif()
 
+# The binding ENTRY POINTS the SDK calls (renderer_begin, renderer_submitAll, …).
+# They are not web-specific: they reach the engine through activeCtx() and validate
+# JS-supplied spans through BoundarySpan, both portable. The web build compiles
+# them as part of SDK_BINDING_SOURCES (with embind registering them); a native
+# build compiles the same TU here and registers the same functions on QuickJS from
+# generated wrappers — one binding implementation, two registration layers. The
+# few entry points that return an `emscripten::val` are gated out natively.
+if(NOT ES_BUILD_WEB AND NOT ES_BUILD_WXGAME)
+    list(APPEND ESENGINE_SOURCES
+        ${ESENGINE_ROOT}/src/esengine/bindings/RendererBindings.cpp
+        # activeCtx()'s unset fallback. A host that installs its own context (the
+        # native one does, at boot) never reaches it, but the inline accessor
+        # references it, so the definition has to link.
+        ${ESENGINE_ROOT}/src/esengine/bindings/EngineContext.cpp)
+endif()
+
 if(ES_ENABLE_WEBGPU)
     list(APPEND ESENGINE_SOURCES ${ESENGINE_ROOT}/src/esengine/renderer/webgpu/WebGPUDevice.cpp)
 endif()

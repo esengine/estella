@@ -33,6 +33,23 @@ async function generateNativeBindings(rootDir, genDir, python) {
     return out;
 }
 
+// Generate the QuickJS wrappers for the engine's binding ENTRY POINTS — the same
+// declarations embind registers on the web, so the SDK reaches the engine by the
+// same names on both platforms and nothing is bound twice by hand. The bodies are
+// the binding TUs themselves, which this build compiles (see ESEngineSources).
+async function generateNativeFunctionBindings(rootDir, genDir, python) {
+    const out = path.join(genDir, 'NativeFunctionBindings.generated.cpp');
+    const headers = ['RendererBindings.hpp'].map(
+        (h) => path.join(rootDir, 'src', 'esengine', 'bindings', h));
+    await runCommand(python, [
+        path.join(rootDir, 'tools', 'eht.py'),
+        '--native-functions', ...headers,
+        '--native-functions-output', out,
+        '--native-shim', 'esn_shim.hpp',
+    ], { cwd: rootDir });
+    return out;
+}
+
 // Embed the real esengine SDK, bundled to one QuickJS-loadable file
 // (dist/index.native.bundled.js — the IIFE that installs globalThis.ESEngine).
 // The host evals it, then a game script drives it via ESEngine.createNativeWorld.
@@ -69,6 +86,8 @@ async function prepareGenerated(rootDir, buildDir, quickjs) {
     const python = await resolvePython() ?? 'python3';
     logger.step('Generating native ECS bindings (EHT, single reflection source)...');
     await generateNativeBindings(rootDir, genDir, python);
+    logger.step('Generating native entry-point bindings (EHT, same declarations as embind)...');
+    await generateNativeFunctionBindings(rootDir, genDir, python);
     logger.step('Embedding the real SDK bundle (dist/index.native.bundled.js)...');
     await generateSdkBundle(rootDir, genDir);
     return genDir;
