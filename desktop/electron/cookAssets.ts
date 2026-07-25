@@ -237,6 +237,10 @@ export interface CookResult {
   manifestPath: string | null;
   /** uuids included (reachable from the entry scenes). */
   included: string[];
+  /** The same assets as `included`, by project-relative source path — what a
+   *  caller needs to read the content it just shipped (e.g. to scan the scenes
+   *  for subsystems the target cannot render). */
+  includedPaths: string[];
   /** uuids present in the project but unreachable — culled from the build. */
   unused: string[];
   warnings: string[];
@@ -610,5 +614,6 @@ export async function cookAssets(
   );
 
   const unused = index.entries.filter((e) => !reachable.has(e.uuid)).map((e) => e.uuid);
-  return { ok: true, outDir: absOut, manifestPath, included: [...reachable], unused, warnings };
+  const includedPaths = [...reachable].map((uuid) => byUuid.get(uuid)?.path).filter((p): p is string => p !== undefined);
+  return { ok: true, outDir: absOut, manifestPath, included: [...reachable], includedPaths, unused, warnings };
 }

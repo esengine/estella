@@ -21,7 +21,7 @@
  */
 import type { BuildOptions, Plugin } from 'esbuild';
 import { loadEsbuild } from './esbuildRuntime';
-import { writeFile, mkdir, cp, readdir, rm } from 'node:fs/promises';
+import { writeFile, readFile, mkdir, cp, readdir, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { cookAssets, loadAssetGroups } from './cookAssets';
@@ -36,6 +36,7 @@ import { ESENGINE_EXTERNAL } from './esengineResolve';
 import { orientationCss, orientationOverlayHtml, orientationLockScript, type ScreenOrientation } from './orientationHtml';
 
 import type { ExportPlatform } from '../src/project/format';
+import { collectSubsystems, subsystemGapWarnings, targetGaps, type Subsystem } from '../src/project/targetSupport';
 export type { ExportPlatform };
 
 /** A switchable scene the export ships: SceneManager name + project-relative path. */
@@ -82,6 +83,38 @@ export async function discoverProjectScenes(root: string, entryScene: string, sc
     await walk('');
   }
   return scenes;
+}
+
+/**
+ * Warn about content this target cannot render. The editor authors every
+ * subsystem the engine has, but a target may compile only some of them (the
+ * native app leaves out tilemaps, particles, post-processing and text) — so an
+ * export that says nothing writes a package quietly missing half a scene.
+ *
+ * Scans the scenes and prefabs that were actually cooked, so the warning names
+ * the files responsible and a project that never authors a tilemap hears
+ * nothing about tilemaps. What each target lacks is declared once, in
+ * project/targetSupport.ts.
+ */
+async function unsupportedContentWarnings(root: string, includedPaths: string[], platform: ExportPlatform): Promise<string[]> {
+  if (targetGaps(platform).length === 0) return [];
+  const usage = new Map<Subsystem, string[]>();
+  for (const rel of includedPaths) {
+    const ext = path.extname(rel).toLowerCase();
+    if (ext !== '.esscene' && ext !== '.esprefab') continue;
+    let doc: unknown;
+    try {
+      doc = JSON.parse(await readFile(path.join(root, rel), 'utf8'));
+    } catch {
+      continue;  // unreadable/!JSON — the cook already staged (and warned about) it
+    }
+    for (const subsystem of collectSubsystems(doc)) {
+      const files = usage.get(subsystem);
+      if (files) files.push(rel);
+      else usage.set(subsystem, [rel]);
+    }
+  }
+  return subsystemGapWarnings(platform, usage);
 }
 
 export interface ExportGameResult {
@@ -417,6 +450,7 @@ export async function exportGame(opts: {
   progress({ phase: 'Cooking assets' });
   const cook = await cookAssets(opts.root, { entryScenes: scenes.map((s) => s.path), outDir: payloadDir, contentAddressed: opts.contentAddressed ?? true, compressTextures: opts.compressTextures, compressAudio: opts.compressAudio, atlasTextures: opts.atlasTextures, platform });
   warnings.push(...cook.warnings);
+  warnings.push(...await unsupportedContentWarnings(opts.root, cook.includedPaths, platform));
   progress({ phase: 'Cooking assets', detail: `${cook.included.length} reachable` });
 
   // Also emit the AddressableManifest (v2.0) beside the flat one — the SAME
