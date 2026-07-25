@@ -98,12 +98,15 @@ import { wechatProfile } from 'esengine/wechat';
 export default { ...wechatProfile, createVideoBackend: (ctx) => new SoftwareVideoBackend(ctx) };
 ```
 
-<Aside type="caution">
-  这替换的是**你自己安装的平台**的能力。内置目标在 import 时就装好了自己的 profile，
-  所以在打包对话框里选「微信小游戏」拿到的永远是原装后端——要发布改过的版本，
-  请把它定义成一个项目平台（见下）并改选它。另外展开 `wechatProfile` 不会带上
-  `initWeChatPlatform()` 装的 `WXWebAssembly` polyfill，走这条路要自己调
-  `esengine/wechat` 的 `polyfillWebAssembly()`。
+<Aside type="note">
+  **内置目标有意不开放覆盖。** 它们在 import 时就装好了自己的 profile，所以在打包
+  对话框里选「微信小游戏」拿到的永远是原装后端——一个固定、可预期的基线，也少一种
+  「构建结果与引擎测试过的不一致」的可能。替换能力正是**项目平台**的用途：定义一个
+  （见下），让它的 `runtimeProfile` 展开宿主 profile 再覆盖你要改的那项，然后改选
+  这个目标。
+
+  展开时不会带上 `initWeChatPlatform()` 装的 `WXWebAssembly` polyfill，走这条路
+  要自己调 `esengine/wechat` 的 `polyfillWebAssembly()`。
 </Aside>
 
 ## 宿主需要提供什么

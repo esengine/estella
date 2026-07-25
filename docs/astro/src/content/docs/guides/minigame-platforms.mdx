@@ -106,13 +106,16 @@ import { wechatProfile } from 'esengine/wechat';
 export default { ...wechatProfile, createVideoBackend: (ctx) => new SoftwareVideoBackend(ctx) };
 ```
 
-<Aside type="caution">
-  This replaces a capability of **a platform you install yourself**. The built-in
-  targets install their own profile on import, so selecting *WeChat* in Package
-  Project always gets the stock backends — to ship a modified one, define it as a
-  project platform (below) and select that instead. Spreading `wechatProfile`
-  also does not carry WeChat's `WXWebAssembly` polyfill, which
-  `initWeChatPlatform()` installs; call `polyfillWebAssembly()` from
+<Aside type="note">
+  **Built-in targets are deliberately not overridable.** They install their own
+  profile on import, so selecting *WeChat* in Package Project always gets the
+  stock backends — a fixed, predictable baseline, and one less way for a build to
+  differ from what the engine tests. Replacing a capability is what a project
+  platform is for: define one (below), have its `runtimeProfile` spread the host
+  profile and override what you want, and select that target instead.
+
+  The spread does not carry WeChat's `WXWebAssembly` polyfill, which
+  `initWeChatPlatform()` installs — call `polyfillWebAssembly()` from
   `esengine/wechat` yourself if you go that route.
 </Aside>
 
