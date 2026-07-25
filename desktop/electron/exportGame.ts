@@ -41,6 +41,29 @@ import { isNativePlatform, type ExportPlatform } from '../src/project/platforms'
 import { collectSubsystems, subsystemGapWarnings, targetGaps, type Subsystem } from '../src/project/targetSupport';
 export type { ExportPlatform };
 
+/**
+ * `app.config.json` — what the native packagers need to build an *application*
+ * around the content, as opposed to what the runtime needs to play it.
+ *
+ * Everything here is a property the OS owns: an installed app has one identity,
+ * one version, and one orientation, none of which the engine can change from
+ * inside. `cli native --package` turns this into an AndroidManifest; the Xcode
+ * project turns it into Info.plist keys.
+ */
+export interface NativeAppConfig {
+  /** Reverse-DNS: the Android manifest package / the iOS bundle identifier. */
+  id: string;
+  /** The name under the launcher icon. */
+  name: string;
+  /** Version as a store displays it (`versionName` / `CFBundleShortVersionString`). */
+  version: string;
+  /** Android's integer build ordinal (`versionCode`). */
+  versionCode: number;
+  /** The orientation the app locks to. A phone cannot be rotated by the engine,
+   *  so this is the only place it can be expressed. */
+  orientation: ScreenOrientation;
+}
+
 /** A switchable scene the export ships: SceneManager name + project-relative path. */
 export interface ExportScene {
   name: string;
@@ -341,6 +364,13 @@ export async function exportGame(opts: {
   desktopProductName?: string;
   /** WeChat appid (Project Settings → Packaging → WeChat). */
   wechatAppid?: string;
+  /** Reverse-DNS application id for a native target (format.ts resolveAppId).
+   *  Written into app.config.json, where the packagers read it. */
+  appId?: string;
+  /** The app's version, as a store shows it (ProjectManifest.version). */
+  appVersion?: string;
+  /** Android's build ordinal. Absent ⇒ 1. */
+  androidVersionCode?: number;
   /** A project-supplied mini-game export profile (`.esengine/platforms/<id>.mjs`),
    *  for a platform the editor does not ship. Present ⇒ the mini-game pipeline
    *  runs with it, whatever `platform` says. Loaded by the main process, which is
@@ -571,6 +601,23 @@ export async function exportGame(opts: {
     ...(hotUpdate ? { hotUpdate } : {}),
   };
   await writeFile(path.join(payloadDir, 'game.config.json'), JSON.stringify(gameConfig, null, 2) + '\n');
+
+  // A native target also needs the app's IDENTITY, and it is deliberately not in
+  // game.config.json: the runtime never reads it. Orientation, the bundle id and
+  // the version are OS-level properties of the installed application — the engine
+  // can letterbox but cannot rotate a phone — so they are declared for whoever
+  // assembles the app (`cli native --package`, and the Xcode project), the same
+  // way the mini-game export writes the vendor's game.json beside the content.
+  if (nativeContent) {
+    const appConfig: NativeAppConfig = {
+      id: opts.appId ?? 'com.estella.game',
+      name: title,
+      version: opts.appVersion ?? '1.0',
+      versionCode: opts.androidVersionCode ?? 1,
+      orientation,
+    };
+    await writeFile(path.join(payloadDir, 'app.config.json'), JSON.stringify(appConfig, null, 2) + '\n');
+  }
 
   // 6. Desktop: wrap the payload in a runnable Electron app.
   if (platform === 'desktop') { progress({ phase: 'Staging Electron app' }); await stageDesktopApp(absOut, title, orientation, opts.desktopAppId, opts.desktopProductName); }

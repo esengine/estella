@@ -9,6 +9,13 @@
 # under assets/ — the host reads both through the same project-relative paths.
 name: EstellaiOS
 
+# The app's identity — bundle id and version — comes from the exported project,
+# written here by `cli native --target ios` (which must run before xcodegen
+# anyway: this project links the xcframework it produces). Keeping it out of this
+# committed file is what lets two projects build from one checkout.
+include:
+  - app.generated.yml
+
 options:
   bundleIdPrefix: com.estella
   deploymentTarget:
@@ -29,7 +36,8 @@ targets:
         type: folder
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.estella.EstellaiOS
+        # PRODUCT_BUNDLE_IDENTIFIER / MARKETING_VERSION come from app.generated.yml.
+        # Info.plist is generated from App/Info.plist.in at the same time.
         INFOPLIST_FILE: App/Info.plist
         # -ObjC keeps the view controller / app delegate classes in the static
         # library alive; the linker would otherwise drop TUs nothing references.

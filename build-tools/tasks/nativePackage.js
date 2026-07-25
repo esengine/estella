@@ -7,16 +7,20 @@
 // its content go in as assets/, which is where the host's readAsset() looks.
 
 import path from 'path';
-import { existsSync } from 'fs';
-import { mkdir, copyFile, cp, rm } from 'fs/promises';
+import { existsSync, readFileSync } from 'fs';
+import { mkdir, copyFile, cp, rm, writeFile } from 'fs/promises';
 import config from '../build.config.js';
 import * as logger from '../utils/logger.js';
 import { runCommand } from '../utils/emscripten.js';
 import { requireSdk, requireNdk, buildTool, platformJar, ndkTool, ndkLibcxxShared, javaHome, jdkTool } from '../utils/android.js';
+import { readAppConfig, androidScreenOrientation, fillTemplate } from '../utils/nativeApp.js';
 
 const HOST_LIBRARY = 'libestella_js_host.so';
-const HOST_APK = 'estella-js-host.apk';
-const HOST_MANIFEST = 'host';
+const MANIFEST_TEMPLATE = path.join('native', 'android', 'host', 'AndroidManifest.xml.in');
+
+/** The APK is named after the app it contains, so packaging a second project does
+ *  not quietly replace the first one's file. */
+const apkName = (appId) => `${appId.split('.').pop() || 'estella'}.apk`;
 
 // A debug keystore is enough to sideload; Android Studio uses the same one. Create
 // it on first use so packaging never stops to ask for credentials.
@@ -82,29 +86,40 @@ export async function packageNativeApk(options = {}) {
     // export — cooked assets + manifests + scenes + game.config.json. A whole-
     // directory copy, so nothing here carries a file list that could drift from
     // what the export actually wrote.
-    let assetsDir = null;
-    if (options.content) {
-        const content = path.isAbsolute(options.content) ? options.content : path.join(rootDir, options.content);
-        if (!existsSync(content)) throw new Error(`--content dir not found: ${content}`);
-        assetsDir = path.join(staging, 'assets');
-        logger.step(`Staging exported content from ${path.relative(rootDir, content)}...`);
-        await cp(content, assetsDir, { recursive: true });
-    } else {
+    if (!options.content) {
         // Nothing to run: the host boots game.config.json and there is no built-in
         // fallback, by design — the packaged game takes the same path every real
         // game takes.
         throw new Error('The host needs a project to run: pass --content <dir> from '
             + "Package Project -> Android (or `exportGame({ platform: 'android' })`).");
     }
+    const content = path.isAbsolute(options.content) ? options.content : path.join(rootDir, options.content);
+    if (!existsSync(content)) throw new Error(`--content dir not found: ${content}`);
+    await cp(content, path.join(staging, 'assets'), { recursive: true });
+    logger.step(`Staging exported content from ${path.relative(rootDir, content)}...`);
+
+    // The app the content asks to be: identity, version, and the orientation the
+    // OS must lock the window to. The manifest is a template because all four vary
+    // per project — a static one is why every example installed over the last.
+    const app = readAppConfig(content, (m) => logger.warn(m));
+    const manifest = path.join(staging, 'AndroidManifest.xml');
+    await writeFile(manifest, fillTemplate(readFileSync(path.join(rootDir, MANIFEST_TEMPLATE), 'utf8'), {
+        APP_ID: app.id,
+        APP_NAME: app.name,
+        VERSION_NAME: app.version,
+        VERSION_CODE: app.versionCode,
+        SCREEN_ORIENTATION: androidScreenOrientation(app.orientation),
+    }));
+    logger.info(`App: ${app.name} (${app.id}) v${app.version} — ${app.orientation}`);
 
     const unsigned = path.join(staging, 'unsigned.apk');
-    const aligned = path.join(buildDir, HOST_APK);
+    const aligned = path.join(buildDir, apkName(app.id));
     logger.step('Linking resources (aapt2)...');
     // aapt2 produces the base APK from the manifest alone; the payload (libraries
     // and assets) is added below, where the entry names are ours to control.
     await runCommand(buildTool(sdk, 'aapt2'), [
         'link',
-        '--manifest', path.join(rootDir, 'native', 'android', HOST_MANIFEST, 'AndroidManifest.xml'),
+        '--manifest', manifest,
         '-I', platformJar(sdk, platform),
         '-o', unsigned,
     ]);

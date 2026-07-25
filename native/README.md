@@ -211,6 +211,28 @@ node build-tools/cli.js native --target ios --dawn "$DAWN" \
   --dawn-build "$DAWN/out-ios" --quickjs "$QJS" --content dist-ios
 ```
 
+An export for a native target writes a second file beside the content:
+`app.config.json` — the app's **identity**, as opposed to what the runtime needs
+to play the game. Identity, version and orientation are properties the OS owns
+(the engine can letterbox, but it cannot rotate a phone), so they are settled once
+from the project and read by whoever assembles the app:
+
+| app.config.json | Android | iOS |
+|---|---|---|
+| `id` | manifest `package` | `PRODUCT_BUNDLE_IDENTIFIER` |
+| `name` | `android:label` | `CFBundleDisplayName` |
+| `version` / `versionCode` | `versionName` / `versionCode` | `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` |
+| `orientation` | `android:screenOrientation` (`sensorLandscape` / `sensorPortrait`) | `UISupportedInterfaceOrientations` |
+
+Which is why `native/android/host/AndroidManifest.xml.in` and
+`native/ios/App/Info.plist.in` are templates: the concrete files are generated per
+project. A static manifest is why every project installed over the last one under
+one name — now two projects from one checkout are two apps on the phone, each
+locked to the orientation its design resolution implies. The application id comes
+from Project Settings → Packaging → Application ID, or is derived from the project
+name when unset (`sensorLandscape` / `sensorPortrait` rather than the hard values,
+so a phone held the other way up still works).
+
 `game.config.json` is what the host boots, through `ESEngine.initNativeGame`;
 without one it says so and stops, rather than falling back to something a real
 game never runs. A project's own scripts (`defineComponent` / `defineSystem`)

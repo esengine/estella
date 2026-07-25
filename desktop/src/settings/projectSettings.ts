@@ -300,6 +300,34 @@ settingsRegistry.register({
   },
 });
 
+// The application identifier every installable target needs. One project ships as
+// one application, so it is declared once; a target that genuinely differs
+// overrides it below. Absent ⇒ derived from the project name, so a build always
+// has something to sign — but a shipped app should say its own.
+settingsRegistry.register({
+  id: 'project.packaging.appId',
+  type: 'string', scope: 'project', section: 'packaging', group: t('set.group.application'),
+  label: t('set.project.packaging.appId'),
+  description: t('set.project.packaging.appId.desc'),
+  placeholder: 'com.studio.game', default: '',
+  bind: {
+    get: () => ProjectStore.packagingSettings().appId ?? '',
+    set: (v) => void ProjectStore.setPackaging({ appId: v || undefined }),
+  },
+});
+
+settingsRegistry.register({
+  id: 'project.packaging.android.versionCode',
+  type: 'number', scope: 'project', section: 'packaging', group: t('set.group.application'),
+  label: t('set.project.packaging.android.versionCode'),
+  description: t('set.project.packaging.android.versionCode.desc'),
+  default: 1, min: 1, step: 1,
+  bind: {
+    get: () => ProjectStore.platformPackaging().android?.versionCode ?? 1,
+    set: (v) => void ProjectStore.setPlatformPackaging('android', { versionCode: Math.max(1, Math.round(v)) }),
+  },
+});
+
 settingsRegistry.register({
   id: 'project.packaging.desktop.appId',
   type: 'string', scope: 'project', section: 'packaging', group: t('set.group.desktop'),

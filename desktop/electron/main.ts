@@ -40,7 +40,7 @@ import { installCrashCapture, logsDir } from './resilience';
 import { mcpMode, startMcpEndpoint } from './mcpEndpoint';
 import { checkForUpdate } from './updateCheck';
 import { listPlatforms, loadProjectPlatform, createProjectPlatform, type PlatformRuntimeDirs } from './platformCatalog';
-import { resolveLayout, resolveScripts, resolveOrientation, resolveScreenFit, type ExportPlatform } from '../src/project/format';
+import { resolveLayout, resolveScripts, resolveOrientation, resolveScreenFit, resolveAppId, type ExportPlatform } from '../src/project/format';
 import type { WorkspaceState } from '../src/project/format';
 
 // Enable WebGPU in the renderer so the viewport's WebGPU backend (Settings →
@@ -849,6 +849,10 @@ ipcMain.handle(
       desktopAppId: plat?.desktop?.appId,
       desktopProductName: plat?.desktop?.productName,
       wechatAppid: plat?.wechat?.appid,
+      // The app's identity, by the one rule every target resolves it with.
+      appId: opts?.platform === 'ios' ? resolveAppId(manifest, 'ios') : resolveAppId(manifest, 'android'),
+      appVersion: manifest.version,
+      androidVersionCode: plat?.android?.versionCode,
       // One project-wide orientation for every target: the explicit packaging
       // setting, else derived from the design resolution's aspect.
       orientation: resolveOrientation(manifest),

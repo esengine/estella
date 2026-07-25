@@ -124,6 +124,13 @@ export type CameraScaleMode = 'none' | 'fixed-width' | 'fixed-height' | 'expand'
 export interface WeChatPackaging { appid?: string; }
 export interface DesktopPackaging { appId?: string; productName?: string; }
 
+/** Android's slice of the app identity. `appId` is the manifest package — the
+ *  identity a store keeps forever; `versionCode` is the integer Play orders builds
+ *  by, which has no counterpart on any other target. */
+export interface AndroidPackaging { appId?: string; versionCode?: number; }
+/** iOS's slice: the bundle identifier Xcode signs against. */
+export interface IosPackaging { appId?: string; }
+
 /** A packaging target — defined in `./platforms`, where the built-in vocabulary
  *  lives, and re-exported here because the manifest is what persists it. */
 export type { ExportPlatform } from './platforms';
@@ -163,8 +170,25 @@ export interface ProjectPackaging {
   excludeScenes?: string[];
   /** Per-platform output-dir overrides (else the per-platform default). */
   outDir?: Partial<Record<ExportPlatform, string>>;
-  /** Per-platform packaging config (appid, app id, …). */
-  platforms?: { wechat?: WeChatPackaging; desktop?: DesktopPackaging };
+  /**
+   * The application identifier (reverse-DNS) every installable target needs: the
+   * Android manifest package, the iOS bundle id, the Electron appId. One project
+   * ships as one application, so it is declared once here; a target that genuinely
+   * differs overrides it below, the way a texture's Import Settings have a default
+   * and per-platform overrides.
+   *
+   * Absent ⇒ derived from the project name (see {@link resolveAppId}), so a build
+   * always has one — but a shipped app should say its own.
+   */
+  appId?: string;
+  /** Per-platform packaging config: each target's slice of the app identity, plus
+   *  whatever only it has (a WeChat appid, an Android versionCode). */
+  platforms?: {
+    wechat?: WeChatPackaging;
+    desktop?: DesktopPackaging;
+    android?: AndroidPackaging;
+    ios?: IosPackaging;
+  };
 }
 
 /** Committed project identity + config (`project.esproject`). */
@@ -371,6 +395,7 @@ export function parseManifest(raw: unknown): ProjectManifest {
     // mobile targets were one row — becomes the id this editor spells.
     if (typeof p.platform === 'string' && p.platform !== '') pkg.platform = normalizePlatform(p.platform);
     if (p.config === 'development' || p.config === 'shipping') pkg.config = p.config;
+    if (typeof p.appId === 'string' && p.appId !== '') pkg.appId = p.appId;
     if (typeof p.sourceMaps === 'boolean') pkg.sourceMaps = p.sourceMaps;
     if (typeof p.openFolder === 'boolean') pkg.openFolder = p.openFolder;
     // Project-wide orientation. `orientation` is authoritative; a project written by
@@ -412,6 +437,21 @@ export function parseManifest(raw: unknown): ProjectManifest {
         if (typeof dt.productName === 'string') d.productName = dt.productName;
         if (Object.keys(d).length > 0) platforms.desktop = d;
       }
+      const an = pl.android as Record<string, unknown> | undefined;
+      if (an && typeof an === 'object') {
+        const a: AndroidPackaging = {};
+        if (typeof an.appId === 'string') a.appId = an.appId;
+        if (typeof an.versionCode === 'number' && Number.isInteger(an.versionCode) && an.versionCode > 0) {
+          a.versionCode = an.versionCode;
+        }
+        if (Object.keys(a).length > 0) platforms.android = a;
+      }
+      const io = pl.ios as Record<string, unknown> | undefined;
+      if (io && typeof io === 'object') {
+        const i: IosPackaging = {};
+        if (typeof io.appId === 'string') i.appId = io.appId;
+        if (Object.keys(i).length > 0) platforms.ios = i;
+      }
       // Legacy playable.orientation (its only field) also migrates; the platform
       // block itself is gone (playable has no per-platform config anymore).
       const pa = pl.playable as Record<string, unknown> | undefined;
@@ -444,6 +484,35 @@ export function orientationFromDesignResolution(dr?: DesignResolution): ScreenOr
  *  read by WeChat/playable/web/desktop alike — the single source of truth. */
 export function resolveOrientation(manifest: Pick<ProjectManifest, 'packaging' | 'designResolution'>): ScreenOrientation {
   return manifest.packaging?.orientation ?? orientationFromDesignResolution(manifest.designResolution);
+}
+
+/**
+ * A reverse-DNS application id derived from the project name — the last-resort
+ * default, so a build always has one to sign. Non-alphanumerics collapse to a
+ * single dot-safe segment, and a leading digit is prefixed (a Java package
+ * segment cannot start with one, which is what Android checks).
+ */
+export function appIdFromName(name: string): string {
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '')
+    || 'game';
+  return `com.estella.${/^\d/.test(slug) ? `a${slug}` : slug}`;
+}
+
+/**
+ * The application id a target ships under: the platform's own override, else the
+ * project-wide one, else derived from the project name. One rule, so the editor's
+ * settings page, the exporter and the packagers cannot disagree about a project's
+ * identity.
+ */
+export function resolveAppId(
+  manifest: Pick<ProjectManifest, 'name' | 'packaging'>,
+  platform: 'android' | 'ios' | 'desktop',
+): string {
+  const platforms = manifest.packaging?.platforms;
+  const override = platform === 'android' ? platforms?.android?.appId
+    : platform === 'ios' ? platforms?.ios?.appId
+      : platforms?.desktop?.appId;
+  return override || manifest.packaging?.appId || appIdFromName(manifest.name);
 }
 
 /** cameraScaleMode → the engine's CanvasScaleMode value the runtime consumes

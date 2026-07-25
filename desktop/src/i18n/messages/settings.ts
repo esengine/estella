@@ -72,6 +72,7 @@ export const settingsMessages = defineMessages({
     'set.group.gravity': { en: 'Gravity', zh: '重力' },
     'set.group.collisionLayers': { en: 'Collision Layers', zh: '碰撞层' },
     'set.group.solver': { en: 'Solver', zh: '求解器' },
+    'set.group.application': { en: 'Application', zh: '应用' },
     'set.group.wechat': { en: 'WeChat', zh: '微信' },
     'set.group.desktop': { en: 'Desktop', zh: '桌面' },
 
@@ -223,10 +224,20 @@ export const settingsMessages = defineMessages({
     },
     'set.orientation.portrait': { en: 'Portrait', zh: '竖屏' },
     'set.orientation.landscape': { en: 'Landscape', zh: '横屏' },
-    'set.project.packaging.desktop.appId': { en: 'App ID', zh: 'App ID' },
+    'set.project.packaging.appId': { en: 'Application ID', zh: '应用 ID' },
+    'set.project.packaging.appId.desc': {
+        en: 'Reverse-DNS id the installed app is known by — the Android manifest package, the iOS bundle id, the desktop installer id. Empty derives one from the project name; a published app should set its own, because a store keeps it forever.',
+        zh: '已安装应用的反向域名 id——Android 的 manifest package、iOS 的 bundle id、桌面安装包的 id。留空则按项目名推导；正式发布的应用应当自己指定，因为应用商店会永久沿用它。',
+    },
+    'set.project.packaging.android.versionCode': { en: 'Android Version Code', zh: 'Android 版本号' },
+    'set.project.packaging.android.versionCode.desc': {
+        en: 'The integer Google Play orders builds by — it must increase with every upload. The version users see comes from the project version.',
+        zh: 'Google Play 用来排序构建的整数，每次上传都必须递增。用户看到的版本号来自项目版本。',
+    },
+    'set.project.packaging.desktop.appId': { en: 'Desktop App ID', zh: '桌面 App ID' },
     'set.project.packaging.desktop.appId.desc': {
-        en: 'Reverse-DNS id for the installer (electron-builder appId), e.g. com.studio.game.',
-        zh: '安装包的反向域名 id（electron-builder appId），例如 com.studio.game。',
+        en: 'Overrides the Application ID for the desktop installer only (electron-builder appId).',
+        zh: '仅为桌面安装包覆盖应用 ID（electron-builder appId）。',
     },
     'set.project.packaging.desktop.productName': { en: 'Product name', zh: '产品名称' },
     'set.project.packaging.desktop.productName.desc': {

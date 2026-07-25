@@ -16,6 +16,7 @@ import * as logger from '../utils/logger.js';
 import { runCommand, getCpuCount, resolvePython } from '../utils/emscripten.js';
 import { requireSdk, requireNdk, sdkCmake } from '../utils/android.js';
 import { packageNativeApk } from './nativePackage.js';
+import { readAppConfig, iosInterfaceOrientations, fillTemplate } from '../utils/nativeApp.js';
 
 // Generate the native (QuickJS) ECS bindings from the SAME reflection source EHT
 // uses for the web embind bindings — so the two surfaces can never drift. Written
@@ -250,6 +251,46 @@ async function stageIosContent(rootDir, contentDir) {
     // folder reference needs; staging content must not delete it.
     if (keepText !== null) writeFileSync(keep, keepText);
     logger.success(`iOS content: native/ios/Content ← ${path.relative(rootDir, from)}`);
+    return from;
+}
+
+/**
+ * Fill in the app's identity for the Xcode project: Info.plist from its committed
+ * template (name, version, and the orientations the OS may rotate among), plus the
+ * generated yml project.yml includes for the bundle id.
+ *
+ * Written on every iOS build, with defaults when no project has been staged, so
+ * xcodegen always has both files — it runs after this by construction, since the
+ * project links the xcframework this build produces.
+ */
+async function writeIosAppIdentity(rootDir, contentDir) {
+    const app = contentDir ? readAppConfig(contentDir, (m) => logger.warn(m)) : readAppConfig('', () => {});
+    const iosDir = path.join(rootDir, 'native', 'ios');
+
+    const template = readFileSync(path.join(iosDir, 'App', 'Info.plist.in'), 'utf8');
+    const orientations = iosInterfaceOrientations(app.orientation)
+        .map((o) => `\t\t<string>${o}</string>`).join('\n');
+    writeFileSync(path.join(iosDir, 'App', 'Info.plist'), fillTemplate(template, {
+        APP_NAME: app.name,
+        VERSION_NAME: app.version,
+        VERSION_CODE: app.versionCode,
+        ORIENTATIONS: orientations,
+    }), 'utf8');
+
+    // project.yml includes this; keeping the bundle id out of the committed file is
+    // what lets two projects build from one checkout without editing it.
+    writeFileSync(path.join(iosDir, 'app.generated.yml'),
+        '# Written by `cli native --target ios` from the exported project\'s app.config.json.\n'
+        + '# Included by project.yml — do not edit, and do not commit.\n'
+        + 'targets:\n'
+        + '  EstellaiOS:\n'
+        + '    settings:\n'
+        + '      base:\n'
+        + `        PRODUCT_BUNDLE_IDENTIFIER: ${app.id}\n`
+        + `        MARKETING_VERSION: "${app.version}"\n`
+        + `        CURRENT_PROJECT_VERSION: "${app.versionCode}"\n`, 'utf8');
+
+    logger.info(`App: ${app.name} (${app.id}) v${app.version} — ${app.orientation}`);
 }
 
 async function buildIosHost(options) {
@@ -296,7 +337,8 @@ async function buildIosHost(options) {
 
     logger.success(`iOS host: ${path.join(slice.dir, 'libestella_ios.a')}`);
     await assembleXcframework(rootDir, env);
-    if (options.content) await stageIosContent(rootDir, options.content);
+    const staged = options.content ? await stageIosContent(rootDir, options.content) : null;
+    await writeIosAppIdentity(rootDir, staged);
     logger.info('Next: cd native/ios && xcodegen && open EstellaiOS.xcodeproj — pick your Team, then Run.');
 }
 
