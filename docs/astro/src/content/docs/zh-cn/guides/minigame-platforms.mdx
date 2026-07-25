@@ -128,9 +128,47 @@ manifest，然后跑起 app——和微信走的是同一条序列。`initWeChat
 
 ## 打包
 
-导出管线（`exportMiniGame`）以同样的方式共享：cook → manifest → 场景变换 →
-side-module 扫描 → 打包 → 配置/入口 → 拷贝运行时。一个平台就是一个
-`MiniGameExportProfile`，描述有差异的部分：
+在项目里放一个 `.esengine/platforms/<id>.mjs`，你的平台就会出现在**打包项目**
+对话框的「项目自定义」分组里，与内置目标并列：
+
+```js
+// .esengine/platforms/acme-play.mjs
+export default {
+  id: 'acme-play',
+  label: 'ACME Play',
+  blurb: 'ACME 小游戏包。',
+  defaultOut: 'dist-acme',
+
+  emitConfigFiles(ctx) {
+    return [{
+      file: 'game.json',
+      content: JSON.stringify({
+        orientation: ctx.orientation,
+        appName: ctx.title,
+        ...(ctx.subPackages.length > 0 ? { subPackages: ctx.subPackages } : {}),
+      }, null, 2) + '\n',
+    }];
+  },
+};
+```
+
+整个文件就这些。三个事实加一个 emitter——其余全部落到「标准小游戏宿主」的默认值：
+平台中立的 SDK 入口（`index.minigame.js`）、`initMiniGameRuntime`、标准
+`WebAssembly` 引擎 glue，以及通用的 CommonJS `game.js`。剩下的一切——cook、
+manifest、场景变换、side-module 扫描、打包、运行时拷贝——与微信走的是同一条管线。
+
+`id` 只能是小写字母/数字/短横线，且不能与内置平台重名。它同时是 cook 的
+**导入设置键**，所以逐纹理的压缩覆盖可以按名字指定你的平台。
+
+<Aside type="note">
+  加载失败的 profile 会**带着错误信息列出来**，而不是被悄悄丢弃；编辑器还会探测
+  你的平台所需的引擎运行时（`wasmDir`，默认用编辑器自带的 web 运行时），所以对话框
+  在打包**之前**就告诉你缺什么，而不是打到一半才失败。
+</Aside>
+
+### 完整的 profile 字段
+
+可覆盖的全部字段，以及管线拿它做什么：
 
 | 字段 | 含义 |
 | --- | --- |
@@ -143,13 +181,12 @@ side-module 扫描 → 打包 → 配置/入口 → 拷贝运行时。一个平�
 | `nativeSuffixes` / `binRestageExts` | 打包器的后缀策略 |
 | `subpackageDir` | 懒加载分组落盘的位置 |
 | `emitConfigFiles` / `emitEntry` | 该平台的配置文件与 `game.js` |
+| `wasmDir` | 相对项目的引擎运行时目录（默认用编辑器自带的 web 运行时） |
 
-<Aside type="caution">
-  **导出侧在编辑器里，不在 SDK 里。** 要让一个平台出现在「打包项目」中，需要改引擎：
-  在 `desktop/electron/miniGameExportProfile.ts` 加 profile、在 `exportGame.ts` 加分派、
-  在构建弹窗加卡片，如果宿主需要自己的引擎构建，还要在
-  `build-tools/build.config.js` 加 wasm 目标。上面的运行时侧不需要这些——你今天就可以
-  用自己的打包脚本驱动 `initMiniGameRuntime`，发布到未内置的宿主。
+<Aside type="note">
+  profile 模块跑在编辑器的**主进程**里，而不是渲染进程——它的 emitter 是函数，
+  无法跨 IPC 传递。这也是为什么它是一个带默认导出的普通 `.mjs` 文件，
+  而不是通过某个 API 注册。
 </Aside>
 
 ## 宿主需要单独的引擎构建吗？

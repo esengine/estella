@@ -14,8 +14,36 @@ export const projectMessages = defineMessages({
     'build.plat.wechat': { en: 'WeChat', zh: '微信小游戏' },
     'build.plat.playable': { en: 'Playable', zh: 'Playable' },
     'build.plat.native': { en: 'Mobile', zh: '移动原生' },
-    'build.comingSoon': { en: 'Coming soon', zh: '即将推出' },
-    'build.soon': { en: 'soon', zh: '即将' },
+    // — Platform categories (the nav's group headings) —
+    'build.cat.general': { en: 'General', zh: '通用' },
+    'build.cat.minigame': { en: 'Mini-Games', zh: '小游戏' },
+    'build.cat.mobile': { en: 'Mobile', zh: '移动' },
+    'build.cat.custom': { en: 'Project', zh: '项目自定义' },
+    // — Runtime readiness (probed on disk, not a static hint) —
+    'build.notReady': { en: 'Engine runtime missing', zh: '缺少引擎运行时' },
+    'build.runtimeMissingIn': {
+        en: 'Engine runtime not found in {dir} (looked for {files})',
+        zh: '在 {dir} 中未找到引擎运行时（查找的文件：{files}）',
+    },
+    'build.notReadyHint': {
+        en: 'This target needs an engine runtime that is not built yet. Packaging will fail until it is.',
+        zh: '该目标需要的引擎运行时尚未构建，在此之前打包会失败。',
+    },
+    'build.copyCommand': { en: 'Copy command', zh: '复制命令' },
+    'build.copied': { en: 'Copied', zh: '已复制' },
+    'build.platformBroken': { en: 'This platform profile failed to load', zh: '该平台配置加载失败' },
+    'build.customHint': {
+        en: 'Defined by this project in .esengine/platforms/ — it rides the same mini-game pipeline as the built-in targets.',
+        zh: '由本项目在 .esengine/platforms/ 中定义，与内置目标走同一条小游戏导出管线。',
+    },
+    'build.next.custom': {
+        en: 'Package written to {out} — open it in your platform\'s devtools.',
+        zh: '包已输出到 {out} —— 用该平台的开发者工具打开。',
+    },
+    'build.noCustomPlatforms': {
+        en: 'Drop a profile in .esengine/platforms/<id>.mjs to add your own target.',
+        zh: '在 .esengine/platforms/<id>.mjs 放一个配置文件即可添加自己的目标。',
+    },
     'build.blurb.web': {
         en: 'Static, self-contained web build — host it anywhere.',
         zh: '静态、自包含的网页构建——可托管在任何地方。',
@@ -32,14 +60,6 @@ export const projectMessages = defineMessages({
     'build.blurb.native': {
         en: 'Content for the native iOS / Android app — a real app, not a WebView.',
         zh: '原生 iOS / Android 应用的内容——真正的原生应用，而非 WebView。',
-    },
-    'build.prereq.wechat': {
-        en: 'Requires the WeChat runtime — run: node build-tools/cli.js build -t wechat',
-        zh: '需要微信运行时——请运行：node build-tools/cli.js build -t wechat',
-    },
-    'build.prereq.playable': {
-        en: 'Requires the single-file runtime — run: node build-tools/cli.js build -t playable',
-        zh: '需要单文件运行时——请运行：node build-tools/cli.js build -t playable',
     },
     'build.prereq.native': {
         en: 'Needs the native host — see native/README.md (embedded Dawn + QuickJS).',
@@ -80,7 +100,7 @@ export const projectMessages = defineMessages({
     //   the Inspector's Import Settings; the build only picks honor-vs-skip) —
     'build.secBuild': { en: 'Build', zh: '构建' },
     'build.advanced': { en: 'Advanced', zh: '高级' },
-    'build.assetCompression': { en: 'Asset compression', zh: '资源压缩' },
+    'build.assetCompression': { en: 'Compression', zh: '资源压缩' },
     'build.assetAuto': { en: 'By import settings', zh: '按导入设置' },
     'build.assetSkip': { en: 'Skip all', zh: '全部跳过' },
     'build.assetCompressionTip': {
@@ -107,7 +127,7 @@ export const projectMessages = defineMessages({
     },
 
     // — Asset delivery (CDN / hot-update) —
-    'build.cdnRoot': { en: 'CDN root (hot-update)', zh: 'CDN 地址（热更）' },
+    'build.cdnRoot': { en: 'CDN root', zh: 'CDN 地址' },
     'build.cdnRootTip': {
       en: 'Base URL that remote-group assets are fetched from for this build profile. Empty → remote groups load from the game origin. Mark folders remote in the Content Browser (right-click → Delivery).',
       zh: '当前构建 profile 下远端组资产的拉取根地址。留空则从游戏同源加载。在内容浏览器右键文件夹 → 交付方式 里把文件夹标为远端。',

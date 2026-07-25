@@ -39,6 +39,7 @@ import { ensureProjectShaderTwins } from './shaderTwins';
 import { installCrashCapture, logsDir } from './resilience';
 import { mcpMode, startMcpEndpoint } from './mcpEndpoint';
 import { checkForUpdate } from './updateCheck';
+import { listPlatforms, loadProjectPlatform, type PlatformRuntimeDirs } from './platformCatalog';
 import { resolveLayout, resolveScripts, resolveOrientation, resolveScreenFit, type ExportPlatform } from '../src/project/format';
 import type { WorkspaceState } from '../src/project/format';
 
@@ -558,6 +559,19 @@ const requireRoot = (): string => {
   return projectRoot;
 };
 
+/**
+ * Engine runtime dirs — probed by the platform catalog and copied from by the
+ * exporters. Resolved in one place so "is this target ready?" and "where does
+ * its runtime come from?" can never answer differently.
+ */
+const platformRuntimeDirs = (): PlatformRuntimeDirs => ({
+  web: WEB_WASM_DIR,
+  // The -t wechat build (WXWebAssembly glue) syncs to wasm-wechat; fall back to
+  // the repo's build dir when running from source.
+  wechat: [unpacked(path.join(VITE_PUBLIC, 'wasm-wechat')), path.join(process.env.APP_ROOT!, '..', 'build', 'wasm', 'wechat')]
+    .find(existsSync) ?? unpacked(path.join(VITE_PUBLIC, 'wasm-wechat')),
+});
+
 // Adopt a freshly opened project as the active root + (re)start the fs watcher
 // so on-disk changes push to the renderer, and stage the SDK types into
 // .esengine/sdk so the project's tsconfig resolves `esengine` in the IDE.
@@ -755,6 +769,11 @@ ipcMain.handle('project:cookAssets', async (_e, outDir?: string) => {
   return cookAssets(root, { entryScenes: entry ? [entry] : [], outDir: outDir ?? 'build' });
 });
 
+// Every platform this project can package for, each with its engine runtime
+// probed on disk — so the Package dialog can say what is ready BEFORE a build
+// runs, and can list the platforms the project defines for itself.
+ipcMain.handle('project:listPlatforms', async () => listPlatforms(projectRoot, platformRuntimeDirs()));
+
 // Export a runnable web build (play == ship): cook + game host + wasm + index.html.
 ipcMain.handle(
   'project:exportGame',
@@ -764,11 +783,16 @@ ipcMain.handle(
     const entryScene = manifest.defaultScene;
     if (!entryScene) throw new Error('project has no defaultScene to export');
     const sdkDistDir = SDK_DIST;
-    const webWasm = WEB_WASM_DIR;
-    // WeChat needs the -t wechat runtime (WXWebAssembly glue); build it with
-    // `node build-tools/cli.js build -t wechat`. Absent → exportWeChat warns.
-    const wechatWasm = [unpacked(path.join(VITE_PUBLIC, 'wasm-wechat')), path.join(process.env.APP_ROOT!, '..', 'build', 'wasm', 'wechat')]
-      .find(existsSync) ?? unpacked(path.join(VITE_PUBLIC, 'wasm-wechat'));
+    const dirs = platformRuntimeDirs();
+    const webWasm = dirs.web;
+    const wechatWasm = dirs.wechat;
+    // A platform the editor does not ship: the project defines it in
+    // .esengine/platforms/<id>.mjs. Loaded HERE because the profile carries emit
+    // hooks (functions), which cannot cross IPC — the renderer only ever saw its
+    // metadata. Absent for every built-in id.
+    const projectPlatform = opts?.platform
+      ? await loadProjectPlatform(root, opts.platform, dirs)
+      : null;
     const plat = manifest.packaging?.platforms;
     const ySortLayers =
       (manifest.features?.rendering?.ySortLayers ?? []).reduce((m, i) => m | (1 << i), 0) >>> 0;
@@ -792,10 +816,12 @@ ipcMain.handle(
       playableHostEntry: path.join(HOSTS_DIR, 'playableHost.js'),
       scriptsEntry: resolveScripts(manifest).main,
       sdkDistDir,
-      wasmDir: opts?.platform === 'wechat' ? wechatWasm : webWasm,
+      // A project platform names its own runtime dir (default: the web one).
+      wasmDir: projectPlatform ? projectPlatform.wasmDir : opts?.platform === 'wechat' ? wechatWasm : webWasm,
       outDir: opts?.outDir || 'dist-game',
       title: manifest.name,
       platform: opts?.platform,
+      miniGameProfile: projectPlatform?.profile,
       desktopAppId: plat?.desktop?.appId,
       desktopProductName: plat?.desktop?.productName,
       wechatAppid: plat?.wechat?.appid,

@@ -30,6 +30,8 @@ import { activeRemoteRoot } from '../../sdk/src/asset/assetGroups';
 import type { PackagedGameConfig } from 'esengine';
 import { IMPORT_MAP_JSON, IMPORT_MAP_CSP_HASH } from './buildPlayRealm';
 import { exportWeChat } from './exportWeChat';
+import { exportMiniGame } from './exportMiniGame';
+import type { MiniGameExportProfile } from './miniGameExportProfile';
 import { exportPlayable } from './exportPlayable';
 import type { OnExportProgress } from './exportProgress';
 import { ESENGINE_EXTERNAL } from './esengineResolve';
@@ -339,6 +341,11 @@ export async function exportGame(opts: {
   desktopProductName?: string;
   /** WeChat appid (Project Settings → Packaging → WeChat). */
   wechatAppid?: string;
+  /** A project-supplied mini-game export profile (`.esengine/platforms/<id>.mjs`),
+   *  for a platform the editor does not ship. Present ⇒ the mini-game pipeline
+   *  runs with it, whatever `platform` says. Loaded by the main process, which is
+   *  where its emit hooks can be called. */
+  miniGameProfile?: MiniGameExportProfile;
   /** Project-wide screen orientation (format.ts resolveOrientation) — consumed by
    *  EVERY target: WeChat game.json, the web/playable rotate hint, the desktop
    *  window's aspect. Default landscape (the engine's 1920×1080 Canvas aspect). */
@@ -372,6 +379,36 @@ export async function exportGame(opts: {
   const orientation: ScreenOrientation = opts.orientation ?? 'landscape';
   const progress = opts.onProgress ?? (() => {});
   const scenes = await discoverProjectScenes(opts.root, opts.entryScene, opts.scenesDir, opts.excludeScenes);
+
+  // A platform the editor does not ship: the project supplied an export profile
+  // (.esengine/platforms/<id>.mjs, loaded by the main process since it carries
+  // functions). It rides the same vendor-neutral mini-game pipeline WeChat does
+  // — that pipeline taking a profile is exactly what makes this possible.
+  if (opts.miniGameProfile) {
+    return exportMiniGame(opts.miniGameProfile, {
+      root: opts.root,
+      entryScene: opts.entryScene,
+      scenes,
+      scriptsEntry: opts.scriptsEntry,
+      sdkDir: opts.sdkDistDir,
+      wasmDir: opts.wasmDir,
+      outDir: opts.outDir,
+      title,
+      appid: opts.wechatAppid,
+      orientation,
+      ySortLayers: opts.ySortLayers,
+      colorSpace: opts.colorSpace,
+      screenFit: opts.screenFit,
+      uiTheme: opts.uiTheme,
+      uiThemeColors: opts.uiThemeColors,
+      minify: opts.minify,
+      contentAddressed: opts.contentAddressed,
+      compressTextures: opts.compressTextures,
+      compressAudio: opts.compressAudio,
+      atlasTextures: opts.atlasTextures,
+      onProgress: opts.onProgress,
+    });
+  }
 
   // WeChat has no import maps + a different module/asset model → its own pipeline.
   if (platform === 'wechat') {

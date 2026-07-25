@@ -18,12 +18,28 @@ describe('parseManifest — packaging', () => {
     });
   });
 
-  it('drops invalid platform/config + non-string outDir entries', () => {
+  it('drops invalid config + non-string outDir entries', () => {
     const m = parseManifest({
       name: 'X',
-      packaging: { platform: 'switch', config: 'debug', sourceMaps: 'yes', outDir: { web: 'ok', desktop: 123 } },
+      packaging: { config: 'debug', sourceMaps: 'yes', outDir: { web: 'ok', desktop: 123 } },
     });
     expect(m.packaging).toEqual({ outDir: { web: 'ok' } });
+  });
+
+  // The platform id is OPEN: a project can define its own target in
+  // .esengine/platforms/, so the manifest parser cannot tell an unknown id from
+  // a bad one. It keeps any non-empty string and drops everything else.
+  it('keeps an unknown platform id (a project may define one) but drops non-strings', () => {
+    expect(parseManifest({ name: 'X', packaging: { platform: 'acme-play' } }).packaging?.platform).toBe('acme-play');
+    // 'native' used to be dropped by an enumeration that forgot it.
+    expect(parseManifest({ name: 'X', packaging: { platform: 'native' } }).packaging?.platform).toBe('native');
+    expect(parseManifest({ name: 'X', packaging: { platform: '' } }).packaging).toBeUndefined();
+    expect(parseManifest({ name: 'X', packaging: { platform: 7 } }).packaging).toBeUndefined();
+  });
+
+  it('keeps per-platform output dirs for project-defined platforms', () => {
+    const m = parseManifest({ name: 'X', packaging: { outDir: { 'acme-play': 'dist-acme', native: 'dist-native' } } });
+    expect(m.packaging?.outDir).toEqual({ 'acme-play': 'dist-acme', native: 'dist-native' });
   });
 
   it('parses excludeScenes, dropping non-string / empty entries', () => {

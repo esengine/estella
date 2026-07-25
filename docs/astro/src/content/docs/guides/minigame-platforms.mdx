@@ -136,9 +136,50 @@ function with WeChat's staged wasm name filled in, and nothing else.
 
 ## Packaging
 
-The export pipeline (`exportMiniGame`) is shared the same way: cook → manifest →
-scene transform → side-module scan → bundle → config/entry → runtime copy. A
-vendor is a `MiniGameExportProfile` describing what varies:
+Drop a profile in `.esengine/platforms/<id>.mjs` and your platform appears in
+**Package Project** under *Project*, beside the built-in targets:
+
+```js
+// .esengine/platforms/acme-play.mjs
+export default {
+  id: 'acme-play',
+  label: 'ACME Play',
+  blurb: 'ACME mini-game package.',
+  defaultOut: 'dist-acme',
+
+  emitConfigFiles(ctx) {
+    return [{
+      file: 'game.json',
+      content: JSON.stringify({
+        orientation: ctx.orientation,
+        appName: ctx.title,
+        ...(ctx.subPackages.length > 0 ? { subPackages: ctx.subPackages } : {}),
+      }, null, 2) + '\n',
+    }];
+  },
+};
+```
+
+That is the whole file. Three facts and one emitter — the rest defaults to a
+standard mini-game host: the vendor-neutral SDK entry (`index.minigame.js`),
+`initMiniGameRuntime`, the standard `WebAssembly` engine glue, and the generic
+CommonJS `game.js`. Everything else — cook, manifest, scene transform,
+side-module scan, bundling, runtime copy — is the same pipeline WeChat uses.
+
+The `id` must be lowercase letters/digits/dashes and must not shadow a built-in.
+It is also the cook's **Import Settings key**, so per-texture compression
+overrides can target your platform by name.
+
+<Aside type="note">
+  A profile that fails to load is listed with its error rather than dropped —
+  and the editor probes the engine runtime your platform needs (`wasmDir`,
+  default: the editor's web runtime), so the dialog says what is missing before
+  a build runs instead of failing halfway through one.
+</Aside>
+
+### The full profile
+
+Everything you can override, and what the pipeline uses it for:
 
 | Field | What it says |
 | --- | --- |
@@ -151,15 +192,13 @@ vendor is a `MiniGameExportProfile` describing what varies:
 | `nativeSuffixes` / `binRestageExts` | the packer's suffix policy |
 | `subpackageDir` | where lazy groups stage |
 | `emitConfigFiles` / `emitEntry` | the vendor's config files and `game.js` |
+| `wasmDir` | project-relative engine runtime dir (default: the editor's web runtime) |
 
-<Aside type="caution">
-  **The export side lives in the editor, not in the SDK.** Adding a vendor to
-  *Package Project* means editing the engine: a profile in
-  `desktop/electron/miniGameExportProfile.ts`, a case in `exportGame.ts`, a card
-  in the Build dialog, and a wasm target in `build-tools/build.config.js` if the
-  host needs its own engine build. The runtime side above needs none of that —
-  you can ship to an unsupported host today by driving `initMiniGameRuntime`
-  from your own packaging script.
+<Aside type="note">
+  The profile module runs in the editor's **main process**, not the renderer —
+  its emitters are functions, which cannot cross the IPC boundary. That is why
+  the file is plain `.mjs` with a default export rather than anything registered
+  through an API.
 </Aside>
 
 ## Does the host need its own engine build?

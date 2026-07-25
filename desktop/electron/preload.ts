@@ -7,6 +7,7 @@ import type { ExtractSchemasResult } from './extractSchemas';
 import type { ScanAssetsResult, AssetIndex, IncrementalScanResult } from './assetDb';
 import type { CookResult } from './cookAssets';
 import type { ExportGameResult } from './exportGame';
+import type { PlatformStatus } from './platformCatalog';
 import type { PlayRealmResult } from './buildPlayRealm';
 import type { LatestRelease } from './updateCheck';
 
@@ -93,6 +94,9 @@ const api = {
       ipcRenderer.invoke('project:scanAssetsIncremental', paths),
     /** Cook reachable assets for shipping → staged files + runtime manifest in `outDir`. */
     cookAssets: (outDir?: string): Promise<CookResult> => ipcRenderer.invoke('project:cookAssets', outDir),
+    /** The platforms this project can package for — built-ins plus any the project
+     *  defines in `.esengine/platforms/` — each with its engine runtime probed. */
+    listPlatforms: (): Promise<PlatformStatus[]> => ipcRenderer.invoke('project:listPlatforms'),
     /** Export a runnable web build (play==ship) → self-contained `outDir` (default dist-game/). */
     exportGame: (opts?: { outDir?: string; minify?: boolean; sourcemap?: boolean; platform?: ExportPlatform; compressTextures?: boolean; compressAudio?: boolean; atlasTextures?: boolean }): Promise<ExportGameResult> =>
       ipcRenderer.invoke('project:exportGame', opts),
