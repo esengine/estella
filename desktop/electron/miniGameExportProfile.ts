@@ -87,6 +87,20 @@ export interface MiniGameExportProfile {
     /** Subpackage root prefix (files stage under `<subpackageDir>/<name>/`). */
     readonly subpackageDir: string;
 
+    /**
+     * Absolute path of a module whose DEFAULT EXPORT is the runtime
+     * `MiniGameProfile` — the host global plus any capability this vendor
+     * overrides (its own video decoder, audio backend, socket, wasm loader).
+     *
+     * A vendor has two halves: this file describes PACKAGING, and that module
+     * describes the RUNTIME. The built-in WeChat entry installs its own platform
+     * on import, so it needs none; a project platform boots through
+     * `esengine/minigame`, which deliberately installs nothing until the game
+     * names a host — so the generated entry installs this one before booting.
+     * Absent ⇒ the game is expected to install a platform itself.
+     */
+    readonly runtimeProfileModule?: string;
+
     /** Emit the vendor config files (game.json + project.config.json / project.tt.json). */
     emitConfigFiles(ctx: MiniGameConfigContext): Array<{ file: string; content: string }>;
     /** Emit the MiniGame entry the host runs (game.js). */

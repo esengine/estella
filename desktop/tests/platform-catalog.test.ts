@@ -186,6 +186,50 @@ describe('loadProjectPlatform — the profile handed to exportMiniGame', () => {
     expect((await loadProjectPlatform(root, 'b', dirs()))!.defaultOut).toBe('dist-b');
   });
 
+  // A vendor has two halves: the .mjs describes packaging, a runtime module
+  // describes the host (and any capability it replaces — its own video decoder,
+  // audio backend, socket). Naming the second from the first is what joins them,
+  // and the generated entry installs it before booting.
+  it('resolves the runtime half to an absolute module path', async () => {
+    mkdirSync(path.join(root, 'src'), { recursive: true });
+    writeFileSync(path.join(root, 'src', 'acme-runtime.ts'), 'export default {};');
+    writePlatform('acme.mjs', `export default {
+      id: 'acme', label: 'ACME Play', runtimeProfile: 'src/acme-runtime.ts',
+      emitConfigFiles: () => [],
+    };`);
+
+    const loaded = await loadProjectPlatform(root, 'acme', dirs());
+    expect(loaded!.profile.runtimeProfileModule).toBe(path.join(root, 'src', 'acme-runtime.ts'));
+  });
+
+  it('leaves runtimeProfileModule undefined when the project installs its own platform', async () => {
+    writePlatform('acme.mjs', `export default { id: 'acme', label: 'A', emitConfigFiles: () => [] };`);
+    const loaded = await loadProjectPlatform(root, 'acme', dirs());
+    expect(loaded!.profile.runtimeProfileModule).toBeUndefined();
+  });
+
+  it('flags a runtime half that points nowhere, instead of shipping a broken import', async () => {
+    writePlatform('acme.mjs', `export default {
+      id: 'acme', label: 'ACME Play', runtimeProfile: 'src/missing.ts',
+      emitConfigFiles: () => [],
+    };`);
+    const acme = (await listPlatforms(root, dirs())).find((r) => r.id === 'acme');
+    expect(acme!.ready).toBe(false);
+    expect(acme!.error).toContain('runtimeProfile');
+  });
+
+  it('accepts a runtime half written without its extension', async () => {
+    mkdirSync(path.join(root, 'src'), { recursive: true });
+    writeFileSync(path.join(root, 'src', 'rt.ts'), 'export default {};');
+    writePlatform('acme.mjs', `export default {
+      id: 'acme', label: 'A', runtimeProfile: 'src/rt', emitConfigFiles: () => [],
+    };`);
+    writeFileSync(path.join(webDir, 'esengine.js'), '//');
+    const acme = (await listPlatforms(root, dirs())).find((r) => r.id === 'acme');
+    expect(acme!.error).toBeUndefined();
+    expect(acme!.ready).toBe(true);
+  });
+
   it('is null for a built-in id, so the built-in pipeline keeps it', async () => {
     expect(await loadProjectPlatform(root, 'wechat', dirs())).toBeNull();
     expect(await loadProjectPlatform(root, 'nope', dirs())).toBeNull();

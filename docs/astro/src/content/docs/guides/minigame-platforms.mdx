@@ -67,6 +67,55 @@ same way. Override one only where the host genuinely differs; the defaults are
 `MiniGameAudioBackend`, the wasm video decoder, and `MiniGameSocket`, all
 exported from `esengine/minigame` so you can wrap rather than rewrite.
 
+## Replacing one capability
+
+The optional methods are not only for host differences — they are the seam for
+replacing an implementation you don't want. Writing your own video decoding, for
+example, is one method:
+
+```ts
+import type { MiniGameProfile, PlatformVideoBackend, VideoBackendContext } from 'esengine/minigame';
+
+class SoftwareVideoBackend implements PlatformVideoBackend {
+  readonly name = 'my-software-decoder';
+  constructor(private ctx: VideoBackendContext) {}
+  createStream(url: string, options) { /* your decode → VideoStreamHandle */ }
+  dispose() {}
+}
+
+export default {
+  id: 'myvendor',
+  hostLabel: 'MyVendor',
+  get global() { return myHost; },
+  createVideoBackend: (ctx) => new SoftwareVideoBackend(ctx),
+} satisfies MiniGameProfile;
+```
+
+`VideoPlugin` asks the platform for a backend once at build; whatever you return
+is what every `VideoPlayer` in the game drives. The contract to satisfy is
+`PlatformVideoBackend` — `createStream(url, options)` returning a
+`VideoStreamHandle` whose `pump(module)` uploads the current frame to
+`textureHandle` once per frame. Audio (`PlatformAudioBackend`) and sockets
+(`PlatformSocket`) work the same way.
+
+To keep most of a host and change one thing, spread its profile:
+
+```ts
+import { wechatProfile } from 'esengine/wechat';
+
+export default { ...wechatProfile, createVideoBackend: (ctx) => new SoftwareVideoBackend(ctx) };
+```
+
+<Aside type="caution">
+  This replaces a capability of **a platform you install yourself**. The built-in
+  targets install their own profile on import, so selecting *WeChat* in Package
+  Project always gets the stock backends — to ship a modified one, define it as a
+  project platform (below) and select that instead. Spreading `wechatProfile`
+  also does not carry WeChat's `WXWebAssembly` polyfill, which
+  `initWeChatPlatform()` installs; call `polyfillWebAssembly()` from
+  `esengine/wechat` yourself if you go that route.
+</Aside>
+
 ## What the host must provide
 
 Your `global` has to satisfy `MiniGameGlobal`. Required:
@@ -166,6 +215,39 @@ standard mini-game host: the vendor-neutral SDK entry (`index.minigame.js`),
 CommonJS `game.js`. Everything else — cook, manifest, scene transform,
 side-module scan, bundling, runtime copy — is the same pipeline WeChat uses.
 
+### A vendor has two halves
+
+The file above is the **packaging** half. The **runtime** half is the
+`MiniGameProfile` from the first part of this guide — the host global, and any
+capability you replace. Point at it with `runtimeProfile` and the generated entry
+installs it before booting:
+
+```js
+// .esengine/platforms/acme-play.mjs
+export default {
+  id: 'acme-play',
+  label: 'ACME Play',
+  runtimeProfile: 'src/acme-runtime.ts',   // ← the other half
+  emitConfigFiles(ctx) { /* … */ },
+};
+```
+
+```ts
+// src/acme-runtime.ts — default-exports the runtime MiniGameProfile
+export default {
+  id: 'acme-play',
+  hostLabel: 'ACME Play',
+  get global() { return acme; },
+  createVideoBackend: (ctx) => new SoftwareVideoBackend(ctx),
+};
+```
+
+This link matters because `esengine/minigame` installs no platform until the game
+names a host. Without it the package builds cleanly and then throws on the
+device. Omit `runtimeProfile` only if your game calls `installMiniGamePlatform`
+itself; the editor checks the path exists and refuses to call the platform ready
+otherwise.
+
 The `id` must be lowercase letters/digits/dashes and must not shadow a built-in.
 It is also the cook's **Import Settings key**, so per-texture compression
 overrides can target your platform by name.
@@ -193,6 +275,7 @@ Everything you can override, and what the pipeline uses it for:
 | `subpackageDir` | where lazy groups stage |
 | `emitConfigFiles` / `emitEntry` | the vendor's config files and `game.js` |
 | `wasmDir` | project-relative engine runtime dir (default: the editor's web runtime) |
+| `runtimeProfile` | project-relative module default-exporting the runtime `MiniGameProfile` |
 
 <Aside type="note">
   The profile module runs in the editor's **main process**, not the renderer —

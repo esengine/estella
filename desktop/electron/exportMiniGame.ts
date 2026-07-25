@@ -295,10 +295,18 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   // runtime must instantiate the staged glue's .wasm twin, not guess a name.
   const engineWasmPath = `wasm/${engineGlueFile.replace(/\.js$/, '.wasm')}`;
   const themeColors = opts.uiThemeColors && Object.keys(opts.uiThemeColors).length > 0 ? opts.uiThemeColors : undefined;
+  // A vendor whose SDK entry does not install a platform on import (the
+  // family entry, esengine/minigame — it waits until the game names a host)
+  // gets its runtime profile installed here, at the top of boot(). Without
+  // this the package would build fine and then throw on the device, which is
+  // the worst place to learn that the two halves of a vendor were never joined.
+  const installsPlatform = !!profile.runtimeProfileModule;
   const entrySrc =
-    `import { ${profile.runtimeInit}${themeColors ? ', parseThemeOverrides' : ''} } from 'esengine';\n` +
+    `import { ${profile.runtimeInit}${installsPlatform ? ', installMiniGamePlatform' : ''}${themeColors ? ', parseThemeOverrides' : ''} } from 'esengine';\n` +
+    (installsPlatform ? `import __platformProfile from ${JSON.stringify(profile.runtimeProfileModule)};\n` : '') +
     (scriptsAbs && existsSync(scriptsAbs) ? `import ${JSON.stringify(scriptsAbs)};\n` : '') +
     `export function boot(engineFactory, sideModuleFactories) {\n` +
+    (installsPlatform ? `  installMiniGamePlatform(__platformProfile);\n` : '') +
     `  return ${profile.runtimeInit}({ engineFactory, engineWasmPath: ${JSON.stringify(engineWasmPath)}, sideModuleFactories, sceneNames: ${JSON.stringify(scenes.map((s) => s.name))}, firstScene: ${JSON.stringify(sceneName)}${opts.ySortLayers ? `, ySortLayers: ${opts.ySortLayers >>> 0}` : ''}${opts.colorSpace === 'linear' ? `, colorSpace: 'linear'` : ''}${opts.screenFit && opts.screenFit.scaleMode >= 0 ? `, screenFit: ${JSON.stringify(opts.screenFit)}` : ''}${opts.uiTheme === 'light' ? `, uiTheme: 'light'` : ''}${themeColors ? `, uiThemeOverrides: parseThemeOverrides(${JSON.stringify(themeColors)})` : ''} });\n` +
     `}\n`;
   progress({ phase: 'Bundling game' });

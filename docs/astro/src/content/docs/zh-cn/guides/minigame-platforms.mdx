@@ -62,6 +62,50 @@ WASM 实例化。微信走 `WXWebAssembly.instantiate(path)` 而不是标准 `We
 **确实**不同的地方覆盖；默认实现是 `MiniGameAudioBackend`、wasm 视频解码器和
 `MiniGameSocket`，它们都从 `esengine/minigame` 导出，你可以包装而不必重写。
 
+## 替换单个能力
+
+这几个可选方法不只用于「宿主有差异」——它们就是**替换你不满意的实现**的接缝。
+比如自己写一套视频软解码，只需要一个方法：
+
+```ts
+import type { MiniGameProfile, PlatformVideoBackend, VideoBackendContext } from 'esengine/minigame';
+
+class SoftwareVideoBackend implements PlatformVideoBackend {
+  readonly name = 'my-software-decoder';
+  constructor(private ctx: VideoBackendContext) {}
+  createStream(url: string, options) { /* 你的解码 → VideoStreamHandle */ }
+  dispose() {}
+}
+
+export default {
+  id: 'myvendor',
+  hostLabel: 'MyVendor',
+  get global() { return myHost; },
+  createVideoBackend: (ctx) => new SoftwareVideoBackend(ctx),
+} satisfies MiniGameProfile;
+```
+
+`VideoPlugin` 在 build 时向平台要一次后端，你返回什么，游戏里所有 `VideoPlayer`
+就驱动什么。要满足的契约是 `PlatformVideoBackend`：`createStream(url, options)`
+返回一个 `VideoStreamHandle`，它的 `pump(module)` 每帧把当前帧上传到
+`textureHandle`。音频（`PlatformAudioBackend`）和 socket（`PlatformSocket`）同理。
+
+想保留某个宿主的大部分、只换其中一件，把它的 profile 展开：
+
+```ts
+import { wechatProfile } from 'esengine/wechat';
+
+export default { ...wechatProfile, createVideoBackend: (ctx) => new SoftwareVideoBackend(ctx) };
+```
+
+<Aside type="caution">
+  这替换的是**你自己安装的平台**的能力。内置目标在 import 时就装好了自己的 profile，
+  所以在打包对话框里选「微信小游戏」拿到的永远是原装后端——要发布改过的版本，
+  请把它定义成一个项目平台（见下）并改选它。另外展开 `wechatProfile` 不会带上
+  `initWeChatPlatform()` 装的 `WXWebAssembly` polyfill，走这条路要自己调
+  `esengine/wechat` 的 `polyfillWebAssembly()`。
+</Aside>
+
 ## 宿主需要提供什么
 
 你的 `global` 需要满足 `MiniGameGlobal`。必需成员：
@@ -157,6 +201,37 @@ export default {
 `WebAssembly` 引擎 glue，以及通用的 CommonJS `game.js`。剩下的一切——cook、
 manifest、场景变换、side-module 扫描、打包、运行时拷贝——与微信走的是同一条管线。
 
+### 一个平台有两半
+
+上面这个文件是**打包**那一半。**运行时**那一半就是本指南开头的 `MiniGameProfile`
+——宿主全局对象，以及你替换掉的任何能力。用 `runtimeProfile` 指过去，生成的入口
+就会在启动前把它装上：
+
+```js
+// .esengine/platforms/acme-play.mjs
+export default {
+  id: 'acme-play',
+  label: 'ACME Play',
+  runtimeProfile: 'src/acme-runtime.ts',   // ← 另一半
+  emitConfigFiles(ctx) { /* … */ },
+};
+```
+
+```ts
+// src/acme-runtime.ts —— 默认导出运行时 MiniGameProfile
+export default {
+  id: 'acme-play',
+  hostLabel: 'ACME Play',
+  get global() { return acme; },
+  createVideoBackend: (ctx) => new SoftwareVideoBackend(ctx),
+};
+```
+
+这个连接很关键：`esengine/minigame` 在游戏指明宿主之前不装任何平台。没有它，
+包能正常构建，然后在设备上抛错。只有当你的游戏自己调用 `installMiniGamePlatform`
+时才可以省略 `runtimeProfile`；编辑器会检查这个路径是否存在，不存在就不会把该平台
+标为就绪。
+
 `id` 只能是小写字母/数字/短横线，且不能与内置平台重名。它同时是 cook 的
 **导入设置键**，所以逐纹理的压缩覆盖可以按名字指定你的平台。
 
@@ -182,6 +257,7 @@ manifest、场景变换、side-module 扫描、打包、运行时拷贝——与
 | `subpackageDir` | 懒加载分组落盘的位置 |
 | `emitConfigFiles` / `emitEntry` | 该平台的配置文件与 `game.js` |
 | `wasmDir` | 相对项目的引擎运行时目录（默认用编辑器自带的 web 运行时） |
+| `runtimeProfile` | 相对项目的模块路径，默认导出运行时 `MiniGameProfile` |
 
 <Aside type="note">
   profile 模块跑在编辑器的**主进程**里，而不是渲染进程——它的 emitter 是函数，

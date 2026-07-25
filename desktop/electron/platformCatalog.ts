@@ -144,6 +144,16 @@ export interface ProjectPlatformModule extends Partial<MiniGameExportProfile> {
   /** Engine runtime dir for this platform, relative to the project root.
    *  Absent → the editor's web runtime. */
   wasmDir?: string;
+  /**
+   * Project-relative module whose default export is the RUNTIME
+   * `MiniGameProfile`: `{ id, hostLabel, global }` plus any capability this
+   * vendor replaces — its own video decoder, audio backend, socket or wasm
+   * loader. The generated entry installs it before booting.
+   *
+   * This file is the packaging half of a vendor; that module is the runtime
+   * half. Naming it here is what joins them.
+   */
+  runtimeProfile?: string;
   emitConfigFiles(ctx: MiniGameConfigContext): Array<{ file: string; content: string }>;
 }
 
@@ -211,7 +221,13 @@ export async function loadProjectPlatform(root: string, id: string, dirs: Platfo
   for (const file of await projectPlatformFiles(root)) {
     const { mod } = await importPlatformModule(file);
     if (!mod || mod.id !== id) continue;
-    const profile = { ...MINIGAME_PROFILE_DEFAULTS, ...mod } as MiniGameExportProfile;
+    // The runtime half is resolved to an absolute path here: the generated entry
+    // is bundled with `resolveDir` at the project root, but an absolute specifier
+    // is unambiguous whatever the profile wrote.
+    const runtimeProfileModule = mod.runtimeProfile
+      ? (path.isAbsolute(mod.runtimeProfile) ? mod.runtimeProfile : path.join(root, mod.runtimeProfile))
+      : undefined;
+    const profile = { ...MINIGAME_PROFILE_DEFAULTS, ...mod, runtimeProfileModule } as MiniGameExportProfile;
     const wasmDir = mod.wasmDir
       ? (path.isAbsolute(mod.wasmDir) ? mod.wasmDir : path.join(root, mod.wasmDir))
       : dirs.web;
@@ -252,6 +268,21 @@ export async function listPlatforms(root: string | null, dirs: PlatformRuntimeDi
     const wasmDir = mod.wasmDir
       ? (path.isAbsolute(mod.wasmDir) ? mod.wasmDir : path.join(root, mod.wasmDir))
       : dirs.web;
+    // A runtime half that points nowhere is caught here rather than on a device:
+    // the export would bundle fine and then fail to resolve the import.
+    if (mod.runtimeProfile) {
+      const abs = path.isAbsolute(mod.runtimeProfile) ? mod.runtimeProfile : path.join(root, mod.runtimeProfile);
+      if (![abs, `${abs}.ts`, `${abs}.js`, `${abs}.mjs`].some(existsSync)) {
+        out.push({
+          id: mod.id,
+          source: 'project',
+          ready: false,
+          label: mod.label,
+          error: `runtimeProfile "${mod.runtimeProfile}" does not exist`,
+        });
+        continue;
+      }
+    }
     const glues = mod.engineGlueCandidates ?? MINIGAME_PROFILE_DEFAULTS.engineGlueCandidates;
     const ready = glues.some((g) => existsSync(path.join(wasmDir, g)));
     out.push({
