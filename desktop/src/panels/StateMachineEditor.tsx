@@ -17,7 +17,7 @@ import { useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Plus, Trash2, Workflow } from 'lucide-react';
 import {
   fsmEdges, addState, removeState, moveState, renameState, setStateHook, setInitial,
-  addTransition, removeTransition, updateTransition, actionRefName, actionRefArg,
+  addTransition, removeTransition, updateTransition, actionRefName, actionRefArg, actionRefParams,
   type FsmDefinition, type FsmState, type FsmEdge, type CompareOp,
 } from 'esengine';
 import { FsmGraphDocument } from '@/fsm/FsmGraphDocument';
@@ -28,6 +28,8 @@ import { Select } from '@/components/Select';
 import { SaveButton } from '@/components/SaveButton';
 import { SuggestInput } from '@/components/SuggestInput';
 import { aiActionItems, aiConditionItems } from '@/components/aiSuggest';
+import { ActionParams } from '@/ai/ParamControls';
+import { actionParams } from '@/ai/actionCatalog';
 
 type FsmCanvasNode = FsmState & CanvasNode;
 
@@ -191,15 +193,29 @@ function StateInspector({ def, state, onRename }: { def: FsmDefinition; state: F
       {HOOKS.map((h) => {
         const name = actionRefName(state[h]);
         const arg = actionRefArg(state[h]) ?? '';
+        const params = actionRefParams(state[h]);
+        // An action that declares its parameters gets real controls here, the
+        // same ones an event wire renders — one declaration, every surface.
+        // Choices that depend on a scene entity have none to resolve against in
+        // an asset editor, so those degrade to free text (see ParamControls).
+        const declared = actionParams(name).length > 0;
         return (
           <label className="ng-field" key={h}>{h}
             <SuggestInput items={actions} defaultValue={name} key={`${state.name}-${h}-${name}`}
               placeholder={t('ng.phActionName')}
-              onCommit={(v) => { if (v !== name) FsmGraphDocument.edit(`Set ${h}`, (d) => Object.assign(d, setStateHook(d, state.name, h, v, arg || undefined))); }} />
-            {name && (
+              onCommit={(v) => { if (v !== name) FsmGraphDocument.edit(`Set ${h}`, (d) => Object.assign(d, setStateHook(d, state.name, h, v))); }} />
+            {name && !declared && (
               <input className="ng-input" defaultValue={arg} key={`${state.name}-${h}-arg-${arg}`}
                 placeholder={t('ng.phActionArg')} spellCheck={false}
                 onBlur={(e) => { const v = e.target.value.trim(); if (v !== arg) FsmGraphDocument.edit(`Set ${h} argument`, (d) => Object.assign(d, setStateHook(d, state.name, h, name, v || undefined))); }} />
+            )}
+            {name && declared && (
+              <ActionParams
+                action={name}
+                params={params}
+                arg={arg || undefined}
+                onChange={(next) => FsmGraphDocument.edit(`Set ${h} parameters`, (d) => Object.assign(d, setStateHook(d, state.name, h, name, undefined, next)))}
+              />
             )}
           </label>
         );

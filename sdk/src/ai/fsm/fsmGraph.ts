@@ -11,7 +11,8 @@
  * ignores), so there is no separate editor model to compile.
  */
 
-import type { FsmDefinition, FsmState, FsmTransition } from './types';
+import type { FsmActionRef, FsmDefinition, FsmState, FsmTransition } from './types';
+import type { AiParamValue } from './registry';
 import {
     type GraphSpec, type GraphEdge,
     graphEdges, addGraphState, removeGraphState, moveGraphState, renameGraphState,
@@ -79,14 +80,24 @@ export function updateTransition(
     return updateGraphTransition(spec, def, from, index, patch);
 }
 
+/**
+ * Point a state hook at an action, with its input in either form: the canonical
+ * string (`arg`) or the action's declared parameters. A bare name stays a bare
+ * string in the data — the shorthand most hooks use — and clearing the name
+ * clears the hook.
+ */
 export function setStateHook(
     def: FsmDefinition,
     name: string,
     hook: 'onEnter' | 'onUpdate' | 'onExit',
     action: string,
     arg?: string,
+    params?: Record<string, AiParamValue>,
 ): FsmDefinition {
-    const ref = action ? (arg ? { name: action, arg } : action) : undefined;
+    const hasParams = params !== undefined && Object.keys(params).length > 0;
+    const ref: FsmActionRef | undefined = action
+        ? (hasParams ? { name: action, params } : arg ? { name: action, arg } : action)
+        : undefined;
     return {
         ...def,
         states: def.states.map(s => (s.name === name ? { ...s, [hook]: ref } : s)),

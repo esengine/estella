@@ -25,6 +25,8 @@ import { Select } from '@/components/Select';
 import { SaveButton } from '@/components/SaveButton';
 import { SuggestInput } from '@/components/SuggestInput';
 import { aiActionItems, aiConditionItems } from '@/components/aiSuggest';
+import { ActionParams } from '@/ai/ParamControls';
+import { actionParams } from '@/ai/actionCatalog';
 
 type BtCanvasNode = BtNode & CanvasNode;
 
@@ -187,14 +189,27 @@ export function BtTreeEditor() {
                   items={selNode.type === 'action' ? aiActionItems() : aiConditionItems()}
                   defaultValue={selNode.name ?? ''} key={`${selNode.id}-name`}
                   placeholder={selNode.type === 'action' ? t('ng.phActionName') : t('ng.phConditionName')}
-                  onCommit={v => patch(selNode.id, { name: v || undefined })} />
+                  // The old input belongs to the old action — switching drops both forms.
+                  onCommit={v => { if (v !== (selNode.name ?? '')) patch(selNode.id, { name: v || undefined, arg: undefined, params: undefined }); }} />
               </label>
             )}
-            {selNode.type === 'action' && (
+            {/* A leaf whose action declares parameters gets the same controls an
+                event wire renders; anything else keeps the free-text argument. */}
+            {selNode.type === 'action' && actionParams(selNode.name ?? '').length === 0 && (
               <label className="ng-field">{t('ng.actionArg')}
                 <input className="ng-input" defaultValue={selNode.arg ?? ''} key={`${selNode.id}-arg`}
                   placeholder={t('ng.phActionArg')} spellCheck={false}
                   onBlur={e => { const v = e.target.value.trim(); if (v !== (selNode.arg ?? '')) patch(selNode.id, { arg: v || undefined }); }} />
+              </label>
+            )}
+            {selNode.type === 'action' && actionParams(selNode.name ?? '').length > 0 && (
+              <label className="ng-field">{t('ng.actionArg')}
+                <ActionParams
+                  action={selNode.name ?? ''}
+                  params={selNode.params}
+                  arg={selNode.arg}
+                  onChange={next => patch(selNode.id, { params: next, arg: undefined })}
+                />
               </label>
             )}
             {selNode.type === 'repeater' && (

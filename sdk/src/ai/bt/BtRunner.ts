@@ -51,7 +51,7 @@ function tickNode<Ctx>(
         case 'action': {
             const name = node.name ?? '';
             if (!registry.hasAction(name)) return Status.Failure;
-            const r = invokeAction(registry, name, ctx, bb, { arg: node.arg });
+            const r = invokeAction(registry, name, ctx, bb, { arg: node.arg, params: node.params });
             // A void-returning (one-shot FSM-style) action completes as Success.
             return r === undefined ? Status.Success : r;
         }

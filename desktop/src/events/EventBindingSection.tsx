@@ -21,23 +21,21 @@
  */
 import { useState } from 'react';
 import { useSyncExternalStore } from 'react';
-import type { ReactNode } from 'react';
 import { ChevronDown, ChevronRight, CornerDownRight, MousePointerClick, Plus, SlidersHorizontal, X } from 'lucide-react';
 
 import { Select } from '@/components/Select';
 import { SuggestInput } from '@/components/SuggestInput';
 import { aiActionItems, aiConditionItems } from '@/components/aiSuggest';
-import { aiParamOptions } from '@/ai/paramOptions';
-import { actionParams, actionSeparator, subscribeActionCatalog, getActionCatalogRevision } from '@/ai/actionCatalog';
+import { ActionParams } from '@/ai/ParamControls';
+import { actionParams, subscribeActionCatalog, getActionCatalogRevision } from '@/ai/actionCatalog';
 import { SceneStore } from '@/engine/SceneStore';
 import { SceneCommands } from '@/engine/SceneCommands';
-import { prettyLabel } from '@/engine/schema';
 import { readEventRows, resolveTargetName, sceneEntityNames } from '@/events/eventBindingModel';
 import { useInspectorCollapse, isSectionCollapsed } from '@/store/inspectorCollapse';
 import { t } from '@/i18n';
 import type { EntityId } from '@/types';
-import { UIEventType, PhysicsEventType, parseActionArg } from 'esengine';
-import type { AiParamDef, AiParamValue, EventBindingRow } from 'esengine';
+import { UIEventType, PhysicsEventType } from 'esengine';
+import type { EventBindingRow } from 'esengine';
 
 const SECTION_KEY = '__events';
 /**
@@ -150,13 +148,7 @@ function EventRow({
   const patch = (p: Partial<EventBindingRow>) => SceneCommands.updateEventBinding(entityId, index, p);
   const enabled = row.enabled !== false;
 
-  // What the chosen action takes. A row authored before the action declared its
-  // parameters still shows them: the canonical string parses into the same
-  // record the runtime would build (registry.ts owns that projection).
-  const defs = actionParams(row.action);
-  const values: Record<string, AiParamValue> = row.params && Object.keys(row.params).length
-    ? { ...row.params }
-    : parseActionArg(row.arg, defs, actionSeparator(row.action));
+  const hasParams = actionParams(row.action).length > 0;
 
   // An authored value the built-in list doesn't know (a widget's own event, or
   // an entity renamed since) still has to be selectable — append it rather than
@@ -223,7 +215,7 @@ function EventRow({
           // The old input belongs to the old action — switching drops both forms.
           onCommit={(v) => (v.trim() === row.action ? undefined : patch({ action: v.trim(), params: undefined, arg: undefined }))}
         />
-        {defs.length === 0 && (
+        {!hasParams && (
           <input
             className="evt-arg"
             defaultValue={row.arg ?? ''}
@@ -238,27 +230,15 @@ function EventRow({
         )}
       </div>
 
-      {defs.length > 0 && (
-        <div className="evt-params">
-          {defs.map((def) => (
-            <ParamControl
-              key={def.name}
-              def={def}
-              value={values[def.name]}
-              // Options come from the entity the action RUNS on, so a row that
-              // targets a panel offers that panel's controllers, not the button's.
-              optionsEntity={targetEntity ?? entityId}
-              siblings={values}
-              onChange={(v) => {
-                const next = { ...values };
-                if (v === undefined || v === '') delete next[def.name];
-                else next[def.name] = v;
-                patch({ params: Object.keys(next).length ? next : undefined, arg: undefined });
-              }}
-            />
-          ))}
-        </div>
-      )}
+      {/* Options come from the entity the action RUNS on, so a row that targets
+          a panel offers that panel's controllers, not the button's. */}
+      <ActionParams
+        action={row.action}
+        params={row.params}
+        arg={row.arg}
+        entityId={targetEntity ?? entityId}
+        onChange={(next) => patch({ params: next, arg: undefined })}
+      />
 
       {open && (
         <div className="evt-row-more" data-row={index}>
@@ -281,84 +261,5 @@ function EventRow({
         </div>
       )}
     </div>
-  );
-}
-
-/**
- * One declared parameter, rendered by its declared type. An `optionsSource` that
- * yields nothing (no controller on the target yet) degrades to a text box rather
- * than an empty dropdown — the row stays authorable while the scene is half-built.
- */
-function ParamControl({
-  def,
-  value,
-  optionsEntity,
-  siblings,
-  onChange,
-}: {
-  def: AiParamDef;
-  value: AiParamValue | undefined;
-  optionsEntity: EntityId;
-  siblings: Readonly<Record<string, AiParamValue>>;
-  onChange: (v: AiParamValue | undefined) => void;
-}) {
-  const label = def.label ?? prettyLabel(def.name);
-  const dynamic = def.optionsSource ? aiParamOptions(def.optionsSource, { entityId: optionsEntity, params: siblings }) : null;
-  const options = dynamic ?? (def.options ? def.options.map((o) => ({ value: o.value, label: o.label })) : null);
-  const text = value === undefined ? '' : String(value);
-
-  let control: ReactNode;
-  if (def.type === 'bool') {
-    control = (
-      <input type="checkbox" checked={value === true} aria-label={label} onChange={(e) => onChange(e.target.checked)} />
-    );
-  } else if (def.type === 'number') {
-    control = (
-      <input
-        className="evt-param-input"
-        type="number"
-        defaultValue={text}
-        key={text}
-        aria-label={label}
-        min={def.min}
-        max={def.max}
-        step={def.step}
-        onBlur={(e) => onChange(e.target.value === '' ? undefined : Number(e.target.value))}
-        onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-      />
-    );
-  } else if (options && options.length) {
-    // The authored value survives even when it is no longer on offer (a renamed
-    // page), so opening the row never silently rewrites the data.
-    const opts = options.some((o) => o.value === text) || !text ? options : [...options, { value: text }];
-    control = (
-      <Select
-        value={text}
-        options={opts.map((o) => ({ value: o.value, label: o.label }))}
-        onChange={(v) => onChange(v)}
-        ariaLabel={label}
-        className="evt-param-sel"
-      />
-    );
-  } else {
-    control = (
-      <input
-        className="evt-param-input"
-        defaultValue={text}
-        key={text}
-        aria-label={label}
-        placeholder={def.tooltip}
-        spellCheck={false}
-        onBlur={(e) => onChange(e.target.value.trim() || undefined)}
-        onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-      />
-    );
-  }
-
-  return (
-    <label className="evt-param" title={def.tooltip}>
-      <span className="evt-param-label">{label}</span>
-      {control}
-    </label>
   );
 }

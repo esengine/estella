@@ -9,6 +9,8 @@
  * data embeds no code — matching `.esfsm` and the input maps.
  */
 
+import type { AiParamValue } from '../fsm/registry';
+
 export type BtNodeType =
     // composites (many children)
     | 'sequence' | 'selector' | 'parallel'
@@ -25,6 +27,8 @@ export interface BtNode {
     name?: string;
     /** Optional string argument an `action` leaf passes to its registry fn. */
     arg?: string;
+    /** The action's declared parameters by name — the other projection of `arg`. */
+    params?: Record<string, AiParamValue>;
     /** Children: many for a composite, one for a decorator. */
     children?: BtNode[];
     /** `repeater`: iterations before Success; 0 = forever. */

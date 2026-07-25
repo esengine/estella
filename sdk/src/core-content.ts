@@ -631,6 +631,7 @@ export {
     setStateHook,
     actionRefName,
     actionRefArg,
+    actionRefParams,
     type FsmActionRef,
     setInitial,
     addTransition,

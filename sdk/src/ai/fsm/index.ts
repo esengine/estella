@@ -13,7 +13,7 @@ export type {
     FsmDefinition,
     FsmActionRef,
 } from './types';
-export { actionRefName, actionRefArg } from './types';
+export { actionRefName, actionRefArg, actionRefParams } from './types';
 export { Blackboard, evalGuard, evalGuards } from './Blackboard';
 export {
     AiRegistry,

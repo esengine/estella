@@ -11,6 +11,8 @@
  * input maps stay code-free.
  */
 
+import type { AiParamValue } from './registry';
+
 export type CompareOp = '==' | '!=' | '<' | '<=' | '>' | '>=' | 'truthy' | 'falsy';
 
 /** A single blackboard comparison. `value` is unused for truthy/falsy. */
@@ -36,10 +38,12 @@ export interface FsmTransition {
 }
 
 /**
- * A hook/leaf action reference: a bare registry name, or a name plus a string
- * argument the action receives (e.g. `spriteAnim.play` with a clip ref).
+ * A hook/leaf action reference: a bare registry name, or a name plus its input.
+ * The input is either the canonical string (`spriteAnim.play` with a clip ref)
+ * or the action's declared parameters by name — the two are projections of each
+ * other, so a ref written either way runs the same (see registry.ts).
  */
-export type FsmActionRef = string | { name: string; arg?: string };
+export type FsmActionRef = string | { name: string; arg?: string; params?: Record<string, AiParamValue> };
 
 /** Registry name of an action ref ('' for none). */
 export function actionRefName(ref: FsmActionRef | undefined): string {
@@ -49,6 +53,11 @@ export function actionRefName(ref: FsmActionRef | undefined): string {
 /** Argument of an action ref, if any. */
 export function actionRefArg(ref: FsmActionRef | undefined): string | undefined {
     return typeof ref === 'object' && ref !== null ? ref.arg : undefined;
+}
+
+/** Declared parameters of an action ref, if it was authored with them. */
+export function actionRefParams(ref: FsmActionRef | undefined): Record<string, AiParamValue> | undefined {
+    return typeof ref === 'object' && ref !== null ? ref.params : undefined;
 }
 
 export interface FsmState {
