@@ -13,6 +13,8 @@
  */
 import { aiRegistry } from '../../ai/fsm/AiContext';
 import { setControllerPage } from './ui-controller';
+import { UINode } from '../core/ui-node';
+import { UIDisplay } from '../../wasm.generated';
 
 /**
  * Idempotently register the UI AI glue. `ui.setPage` takes an arg `"controller:page"`
@@ -21,6 +23,7 @@ import { setControllerPage } from './ui-controller';
  * Called when the controller plugin builds (and re-called after an aiRegistry clear).
  */
 export function ensureControllerAiRegistrations(): void {
+    ensureVisibilityAction();
     if (aiRegistry.hasAction('ui.setPage')) return;
     aiRegistry.registerAction('ui.setPage', {
         // Declaring the two halves is what turns the editor's single text box into
@@ -36,6 +39,29 @@ export function ensureControllerAiRegistrations(): void {
             const page = params?.page;
             if (typeof controller !== 'string' || typeof page !== 'string' || !controller || !page) return;
             setControllerPage(ctx.world, ctx.entity, controller, page);
+        },
+    });
+}
+
+/**
+ * Show/hide a UI subtree — the most common wire there is (a button opens a
+ * panel). It drives `UINode.display`, the CSS-box switch Yoga and the renderer
+ * both honour, NOT the `Disabled` tag: nothing in the render path reads Disabled
+ * today, so a verb built on it would look right in the inspector and change
+ * nothing on screen.
+ */
+function ensureVisibilityAction(): void {
+    if (aiRegistry.hasAction('ui.setVisible')) return;
+    aiRegistry.registerAction('ui.setVisible', {
+        params: [{ name: 'visible', type: 'bool' }],
+        run: (ctx, _bb, _arg, params) => {
+            if (!ctx.has(UINode)) return;
+            const visible = params?.visible === true;
+            const node = ctx.get(UINode);
+            const next = visible ? UIDisplay.Flex : UIDisplay.None;
+            if (node.display === next) return;
+            node.display = next;
+            ctx.set(UINode, node);
         },
     });
 }

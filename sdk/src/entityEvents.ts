@@ -21,6 +21,7 @@
  */
 import { defineResource } from './resource';
 import type { Entity } from './types';
+import type { App } from './app';
 import { log } from './logger';
 
 export interface EntityEvent<TData = unknown> {
@@ -279,3 +280,19 @@ export class EntityEventQueue {
  * queue during `build()`.
  */
 export const EntityEvents = defineResource<EntityEventQueue>(new EntityEventQueue(), 'EntityEvents');
+
+/**
+ * The app's queue, creating it on first ask. Every producer and consumer — the
+ * UI hit-test, the physics bridge, the binding dispatcher — goes through here
+ * instead of inserting its own, so plugin build order cannot decide who wins and
+ * a late plugin can never replace the queue earlier subscribers captured.
+ * Despawn cleanup is wired once, with the queue.
+ */
+export function ensureEntityEvents(app: App): EntityEventQueue {
+    if (!app.hasResource(EntityEvents)) {
+        const queue = new EntityEventQueue();
+        app.insertResource(EntityEvents, queue);
+        app.world.onDespawn((entity: Entity) => queue.removeAll(entity));
+    }
+    return app.getResource(EntityEvents) as EntityEventQueue;
+}

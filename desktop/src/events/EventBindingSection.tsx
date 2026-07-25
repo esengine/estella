@@ -36,16 +36,30 @@ import { readEventRows, resolveTargetName, sceneEntityNames } from '@/events/eve
 import { useInspectorCollapse, isSectionCollapsed } from '@/store/inspectorCollapse';
 import { t } from '@/i18n';
 import type { EntityId } from '@/types';
-import { UIEventType, parseActionArg } from 'esengine';
+import { UIEventType, PhysicsEventType, parseActionArg } from 'esengine';
 import type { AiParamDef, AiParamValue, EventBindingRow } from 'esengine';
 
 const SECTION_KEY = '__events';
-/** The type strings the built-in widgets emit — suggestions, not a closed set. */
-const BUILTIN_EVENTS: string[] = Object.values(UIEventType);
+/**
+ * The type strings the engine emits — widgets (`click`, `change`, …) and the
+ * physics bridge (`trigger_enter`, …). Suggestions, not a closed set: any string
+ * a game emits is authorable.
+ */
+const BUILTIN_EVENTS: string[] = [...Object.values(UIEventType), ...Object.values(PhysicsEventType)];
+
+/**
+ * Components that make an entity an event source. An entity with none of them
+ * emits nothing yet, so an empty Events section there would be noise — but an
+ * authored wire always shows, wherever it is.
+ */
+const EVENT_SOURCES = new Set([
+  'Interactable', 'UINode', 'Canvas',
+  'BoxCollider', 'CircleCollider', 'PolygonCollider', 'ChainCollider',
+]);
 /** Empty target = "this entity"; the sentinel keeps the Select's value a string. */
 const SELF = '';
 
-export function EventBindingSection({ entityId, interactive }: { entityId: EntityId; interactive: boolean }) {
+export function EventBindingSection({ entityId, components }: { entityId: EntityId; components: readonly string[] }) {
   useSyncExternalStore(SceneStore.subscribe, SceneStore.getRevision);
   // The project's own actions arrive with the schemas artifact, after open —
   // re-render then, so their parameter controls appear without a reselect.
@@ -56,9 +70,7 @@ export function EventBindingSection({ entityId, interactive }: { entityId: Entit
   const [expanded, setExpanded] = useState<Record<number, boolean>>({});
 
   const rows = readEventRows(entityId);
-  // Non-interactive entities don't emit anything yet, so an empty section there
-  // would be pure noise — but an authored wire always shows, wherever it is.
-  if (!interactive && rows.length === 0) return null;
+  if (rows.length === 0 && !components.some((c) => EVENT_SOURCES.has(c))) return null;
 
   const addRow = () => {
     SceneCommands.addEventBinding(entityId, { event: UIEventType.Click, action: '' });

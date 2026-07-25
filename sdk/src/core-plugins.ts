@@ -32,6 +32,10 @@ export { focusPlugin, FocusPlugin } from './ui/input/focus';
 export { safeAreaPlugin, SafeAreaPlugin } from './ui/layout/safe-area';
 
 export { PhysicsPlugin, PhysicsEvents, Physics, loadPhysicsModule } from './physics';
+// The contact event names, mirrored into the main barrel: an editor palette (or
+// game code) must be able to spell `trigger_enter` without importing the side
+// module, since the wire is authored whether or not physics is loaded.
+export { PhysicsEventType, type PhysicsContactEventData } from './physics';
 export { SpinePlugin, SpineEvents, Spine } from './spine';
 
 export { PostProcessPlugin, postProcessPlugin } from './postprocess';

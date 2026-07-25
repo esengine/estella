@@ -11,6 +11,14 @@
  * ```
  */
 
+// Contacts as entity events (the channel widgets emit into), so an authored
+// EventBinding row can wire a trigger area with no code.
+export {
+    PhysicsEventType,
+    registerPhysicsEventBridge,
+    type PhysicsContactEventData,
+} from './PhysicsEventBridge';
+
 export {
     PhysicsPlugin,
     physicsPlugin,

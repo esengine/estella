@@ -23,6 +23,7 @@ import { PhysicsRuntime } from './PhysicsRuntime';
 import { PhysicsAPI, Physics } from './Physics';
 import { registerPhysicsSystem } from './PhysicsSystem';
 import { registerCharacterControllerSystem } from './CharacterController';
+import { registerPhysicsEventBridge } from './PhysicsEventBridge';
 import {
     PhysicsEvents,
     type PhysicsPluginConfig,
@@ -137,6 +138,9 @@ export class PhysicsPlugin implements Plugin {
                 app.getResource(PhysicsRuntime).module = module;
                 app.insertResource(Physics, PhysicsAPI._fromModule(module));
                 registerCharacterControllerSystem(app);
+                // Contacts also reach the entity event channel, so a trigger area
+                // can be wired by an authored EventBinding row like a button is.
+                registerPhysicsEventBridge(app);
                 setupPhysicsDebugDraw(app, Physics, PhysicsEvents);
                 app.setFixedTimestep(this.config_.fixedTimestep);
                 // Module loaded, world initialized, systems registered.

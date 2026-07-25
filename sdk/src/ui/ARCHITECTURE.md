@@ -48,7 +48,7 @@ collection, or widgets.
 | `collection/` | Data-driven collections + view recycling | `list-view`, `scroll-container`, `view-pool`, `data-source`, `layout-provider` |
 | `text/` | SDF glyph atlas, text layout, rich text, editable text | `glyph-atlas`, `text-renderer`, `layout`, `rich-text-parser`, `text-input`, `text-input-plugin`, `text-input-view` |
 | `theme/` | Design tokens + per-entity role markers | `tokens`, `theme-style` |
-| `util/` | Cross-cutting helpers (no engine state of their own) | `helpers`, `math`, `constants`, `property-path`, `ui-pick` |
+| `util/` | Cross-cutting helpers (no engine state of their own) | `helpers`, `math`, `constants`, `ui-pick` |
 | `widgets/` | Layer-4 widget **factory functions** + their prefab capture | `button`, `toggle`, `slider`, `progress`, `dialog`, `dropdown`, `text-input`, `list-view`, `scroll-view`, `helpers`, `toPrefab`, `prefabs/` |
 
 Only two files live at the module root, and that is deliberate:

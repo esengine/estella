@@ -14,9 +14,10 @@
  */
 
 import { aiRegistry, type AiContext } from './fsm/AiContext';
-import type { AiAction, AiCondition } from './fsm/registry';
+import type { AiAction, AiCondition, AiParamValue } from './fsm/registry';
 import { TimelinePlayer } from '../timeline/TimelinePlugin';
 import { SpriteAnimator } from '../animation/SpriteAnimator';
+import { setEntityProperty } from '../propertyPath';
 
 /**
  * Register the engine's built-in actions/conditions. Idempotent (and safe after
@@ -102,6 +103,39 @@ export function ensureBuiltinAiRegistrations(): void {
         const sp = ctx.get(SpriteAnimator);
         return sp.finished && !sp.playing;
     });
+
+    // The general-purpose write, through the engine's reflection writer — the
+    // same addressing a UIGear binding and a Timeline track use ("Component" +
+    // a dot path). One verb instead of a growing family of setters, and it
+    // reaches project components as readily as builtins.
+    //
+    // `value` is parsed as JSON when it can be, so `3`, `true` and `{"r":1,...}`
+    // arrive as themselves and a bare word stays a string.
+    if (!aiRegistry.hasAction('property.set')) {
+        aiRegistry.registerAction('property.set', {
+            separator: '=',
+            params: [
+                { name: 'path', type: 'string', tooltip: 'Component.field, e.g. UIVisual.color.a' },
+                { name: 'value', type: 'string' },
+            ],
+            run: (ctx, _bb, _arg, params) => {
+                const path = typeof params?.path === 'string' ? params.path.trim() : '';
+                const raw = params?.value;
+                if (!path || raw === undefined) return;
+                setEntityProperty(ctx.world, ctx.entity, path, parseValue(raw));
+            },
+        });
+    }
+}
+
+/** A parameter's JSON reading when it has one; otherwise the value itself. */
+function parseValue(raw: AiParamValue): unknown {
+    if (typeof raw !== 'string') return raw;
+    try {
+        return JSON.parse(raw.trim());
+    } catch {
+        return raw.trim();
+    }
 }
 
 function action(name: string, fn: AiAction<AiContext>): void {

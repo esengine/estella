@@ -34,7 +34,7 @@ import { Commands, type CommandsInstance } from './commands';
 import { Res, Time, type TimeData } from './resource';
 import { playModeOnly } from './env';
 import { log } from './logger';
-import { EntityEvents, EntityEventQueue, type EntityEvent, type Unsubscribe } from './entityEvents';
+import { ensureEntityEvents, EntityEventQueue, type EntityEvent, type Unsubscribe } from './entityEvents';
 import { Blackboard } from './ai/fsm/Blackboard';
 import { aiRegistry, type AiContext } from './ai/fsm/AiContext';
 import { invokeAction, type AiParamValue } from './ai/fsm/registry';
@@ -253,14 +253,9 @@ export class EventBindingPlugin implements Plugin {
         ensureEventBindingActions();
 
         const world = app.world;
-        // The queue belongs to whoever owns the event channel (the UI interaction
-        // plugin, today). Binding works with UI absent too — a physics trigger or
-        // game code can emit — so we insert one only if nobody has.
-        if (!app.hasResource(EntityEvents)) {
-            const queue = new EntityEventQueue();
-            app.insertResource(EntityEvents, queue);
-            world.onDespawn((e: Entity) => queue.removeAll(e));
-        }
+        // The app's shared queue — binding works with UI absent too (a physics
+        // trigger or game code can emit), so it must not depend on who built first.
+        const events = ensureEntityEvents(app);
 
         // Blackboards are shared with the FSM layer when it is present, so a
         // `fsm.fire` from a click lands in the very blackboard the entity's
@@ -273,7 +268,7 @@ export class EventBindingPlugin implements Plugin {
 
         const runtime = createEventBindingRuntime({
             world,
-            events: app.getResource(EntityEvents) as EntityEventQueue,
+            events,
             blackboardOf: (entity) => {
                 const fsm = app.hasResource(AiFsm) ? app.getResource(AiFsm) : null;
                 if (fsm) return fsm.blackboard(entity);

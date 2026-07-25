@@ -1,8 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import type { World } from '../../world';
-import type { Entity } from '../../types';
-import { getComponent } from '../../component';
+/**
+ * @file    propertyPath.ts
+ * @brief   Address a component field by `"Component.dot.path"` and read/write it.
+ *
+ * The generic reflection writer: UI gears drive per-page values through it, and
+ * the `property.set` action lets authored data write any field of any component.
+ * It grew up under `ui/util/` but nothing in it is UI — it speaks the component
+ * registry — so it lives here, where a core action can reach it.
+ *
+ * NOT the same as `timeline/TimelineRuntime.setNestedProperty`, and deliberately
+ * so: the timeline's writer is numeric-only and knows about channels a plain dot
+ * path would corrupt (see TimelineEvaluator). Merging them is a real change, not
+ * a rename.
+ */
+import type { World } from './world';
+import type { Entity } from './types';
+import { getComponent } from './component';
 
 export function getNestedProperty(obj: Record<string, any>, path: string): unknown {
     const parts = path.split('.');

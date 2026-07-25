@@ -3748,10 +3748,7 @@ function EditorDetails() {
           <ControllersInline entityId={ids[0]!} />
         )}
         {ids.length === 1 && (
-          <EventBindingSection
-            entityId={ids[0]!}
-            interactive={visible.some((c) => c.name === 'Interactable' || c.name === 'UINode' || c.name === 'Canvas')}
-          />
+          <EventBindingSection entityId={ids[0]!} components={visible.map((c) => c.name)} />
         )}
         {visible.map((comp) => (
           <ComponentSection

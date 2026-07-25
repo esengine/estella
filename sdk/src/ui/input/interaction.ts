@@ -12,7 +12,8 @@ import { playModeOnly } from '../../env';
 import { Interactable } from './interactable';
 import { UIInteraction } from './interactable';
 import type { UIInteractionData } from './interactable';
-import { UIEvents, UIEventQueue, UIEventType } from '../core/events';
+import { UIEventQueue, UIEventType } from '../core/events';
+import { ensureEntityEvents } from '../../entityEvents';
 import { UICameraInfo } from '../core/ui-camera-info';
 import type { UICameraData } from '../core/ui-camera-info';
 import type { InteractableData } from './interactable';
@@ -54,12 +55,9 @@ export class UIInteractionPlugin implements Plugin {
         const world = app.world;
         const engine = engineApi(app);
         const registry = world.getCppRegistry() as CppRegistry;
-        const events = new UIEventQueue();
-        app.insertResource(UIEvents, events);
-        // Prune handlers when an entity dies. Replaces the old
-        // setEntityValidator pattern; canonical UIEventQueue has no
-        // validator hook because it's the plugin's job to wire cleanup.
-        app.world.onDespawn((e) => events.removeAll(e));
+        // The app's one entity-event queue (created on first ask, despawn cleanup
+        // included) — shared with every other producer, not owned by the UI.
+        const events = ensureEntityEvents(app);
 
         let hoveredEntity: Entity | null = null;
         let pressedEntity: Entity | null = null;

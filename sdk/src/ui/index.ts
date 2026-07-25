@@ -413,7 +413,10 @@ export { signal, derived, type Signal, type ReadonlySignal } from './binding/sig
 export { bind } from './binding/bind';
 export { bindWidgetValue } from './binding/two-way';
 
-// Property Path Utilities
+// Property Path Utilities — the engine's generic reflection writer, which UI
+// gears drive fields through. It lives in core now (nothing about it is UI, and
+// core actions like `property.set` need it); re-exported here for the UI's own
+// call sites.
 export {
     getNestedProperty,
     setNestedProperty,
@@ -421,7 +424,7 @@ export {
     getEntityProperty,
     setEntityProperty,
     type ParsedPropertyPath,
-} from './util/property-path';
+} from '../propertyPath';
 
 // Rich Text
 export {
