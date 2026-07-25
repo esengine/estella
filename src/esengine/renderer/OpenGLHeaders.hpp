@@ -17,8 +17,12 @@
 // OpenGL Headers
 // =============================================================================
 
-// Web/wasm targets OpenGL ES 3.0 (WebGL 2.0).
+// Web/wasm targets OpenGL ES 3.0 (WebGL 2.0). The GL backend (GLDevice.cpp) is
+// emscripten-only; a native build has no GLES headers, so this stays a no-op there
+// and only the constant fallbacks below are provided.
+#ifdef __EMSCRIPTEN__
 #include <GLES3/gl3.h>
+#endif
 
 // GL blend equation constants not guaranteed across all GLES3/WebGL2 headers
 #ifndef GL_FUNC_ADD

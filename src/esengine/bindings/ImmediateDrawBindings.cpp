@@ -4,7 +4,6 @@
 #include "ImmediateDrawBindings.hpp"
 #include "BoundarySpan.hpp"
 #include "ActiveContext.hpp"
-#include "../renderer/OpenGLHeaders.hpp"
 #include "../renderer/GfxDevice.hpp"
 #include "../renderer/BlendMode.hpp"
 #include "../renderer/RenderContext.hpp"

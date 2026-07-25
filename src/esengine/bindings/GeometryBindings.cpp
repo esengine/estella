@@ -4,7 +4,6 @@
 #include "GeometryBindings.hpp"
 #include "ActiveContext.hpp"
 #include "BoundarySpan.hpp"
-#include "../renderer/OpenGLHeaders.hpp"
 #include "../renderer/GfxDevice.hpp"
 #include "../renderer/CustomGeometry.hpp"
 #include "../renderer/Buffer.hpp"

@@ -4,7 +4,6 @@
 
 #include "PostProcessBindings.hpp"
 #include "ActiveContext.hpp"
-#include "../renderer/OpenGLHeaders.hpp"
 #include "../renderer/GfxDevice.hpp"
 #include "../renderer/PostProcessPipeline.hpp"
 #include "../renderer/RenderContext.hpp"
