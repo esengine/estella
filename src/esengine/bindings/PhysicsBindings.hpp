@@ -51,6 +51,13 @@ void physics_setBodyTargetTransform(uint32_t entityId, float x, float y, float a
 int physics_getDynamicBodyCount();
 // @heapreturn physics_dynamicBodyTransformsBytes()
 uintptr_t physics_getDynamicBodyTransforms();
+// Render interpolation. The module keeps the two most recent fixed-step snapshots
+// and does the lerp itself: it touches every dynamic body every frame, and that
+// loop is barred from the JS path by the no-JIT budget (docs/REARCH_NATIVE.md §3.2).
+void physics_capturePoses();
+int physics_getInterpolatedCount();
+// @heapreturn physics_interpolatedTransformsBytes()
+uintptr_t physics_getInterpolatedTransforms(float alpha);
 void physics_collectEvents();
 int physics_getCollisionEnterCount();
 // @heapreturn physics_collisionEnterBytes()
@@ -174,6 +181,7 @@ uintptr_t physics_getMoveCharacterBuffer();
 // can say how much is live: a count times an assumed stride would over-read the very
 // frame a body was disabled or a query found fewer hits than the last one.
 size_t physics_dynamicBodyTransformsBytes();
+size_t physics_interpolatedTransformsBytes();
 size_t physics_collisionEnterBytes();
 size_t physics_collisionExitBytes();
 size_t physics_sensorEnterBytes();

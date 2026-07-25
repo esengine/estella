@@ -5,25 +5,20 @@ import type { Entity } from '../src/types';
 import type { PhysicsWasmModule } from '../src/physics/PhysicsModuleLoader';
 import type { TransformData, ParentData } from '../src/component';
 import { Transform, Parent } from '../src/component';
-import {
-    capturePhysicsPoses,
-    applyPhysicsTransforms,
-    type PoseSnapshots,
-} from '../src/physics/PhysicsSystem';
+import { applyPhysicsTransforms } from '../src/physics/PhysicsSystem';
 import { createMockModule } from './mocks/wasm';
 import { World } from '../src/world';
 
-// Capture the physics buffer into snapshots, then apply with alpha = 1 — which
-// reproduces a direct post-step sync (the old `syncDynamicTransforms` behaviour).
+// Publish the module's pose buffer to Transforms. The lerp itself lives in the
+// physics module (see PhysicsModuleEntry.cpp / physics_interpolation doctests);
+// what these tests cover is the SDK half — routing that buffer to the engine.
 function sync(
     app: any,
     physMod: PhysicsWasmModule,
     ppu: number,
     parented: Set<Entity>,
 ): void {
-    const snaps: PoseSnapshots = { prev: new Map(), cur: new Map() };
-    capturePhysicsPoses(physMod, snaps);
-    applyPhysicsTransforms(app, ppu, parented, snaps, 1);
+    applyPhysicsTransforms(app, ppu, parented, physMod, 1);
 }
 
 // =============================================================================
@@ -56,10 +51,18 @@ function buildPhysicsBuffer(bodies: Array<{ entity: number; x: number; y: number
     return { buffer, HEAPF32: f32, HEAPU32: u32, ptr, count };
 }
 
+/**
+ * Stands in for the module's interpolation: the real one lerps its own snapshot
+ * pair and hands back the result, so a mock that returns a prepared buffer is the
+ * same contract with the arithmetic already settled.
+ */
 function createMockPhysicsModule(buf: ReturnType<typeof buildPhysicsBuffer>): PhysicsWasmModule {
     return {
         _physics_getDynamicBodyCount: () => buf.count,
         _physics_getDynamicBodyTransforms: () => buf.ptr,
+        _physics_capturePoses: vi.fn(),
+        _physics_getInterpolatedCount: () => buf.count,
+        _physics_getInterpolatedTransforms: () => buf.ptr,
         HEAPF32: buf.HEAPF32,
         HEAPU32: buf.HEAPU32,
         HEAPU8: new Uint8Array(buf.buffer),
@@ -276,67 +279,60 @@ describe('syncDynamicTransforms — fast path', () => {
     });
 });
 
-describe('render interpolation', () => {
+// The lerp itself is the module's (physics_getInterpolatedTransforms); its
+// semantics — midpoint, first-frame seeding, ±π short arc — are covered by the
+// physics_interpolation doctests. What the SDK owes is asking at the right alpha
+// and getting the answer to the engine without a per-body detour.
+describe('interpolation hand-off', () => {
     const PPU = 100;
 
-    it('lerps prev→cur by alpha (midpoint at 0.5)', () => {
+    it('asks the module for the pose at this frame\'s alpha', () => {
         const app = createTestApp();
         const e1 = app.world.spawn();
         app.world.insert(e1, Transform, defaultTransform());
 
-        const snaps: PoseSnapshots = { prev: new Map(), cur: new Map() };
-        // Step 1: pose A (new body → prev = cur = A).
-        capturePhysicsPoses(createMockPhysicsModule(buildPhysicsBuffer([
-            { entity: e1 as number, x: 0, y: 0, angle: 0 },
-        ])), snaps);
-        // Step 2: pose B (prev = A, cur = B).
-        capturePhysicsPoses(createMockPhysicsModule(buildPhysicsBuffer([
-            { entity: e1 as number, x: 4, y: 8, angle: 0 },
-        ])), snaps);
+        const mod = createMockPhysicsModule(buildPhysicsBuffer([
+            { entity: e1 as number, x: 2, y: 4, angle: 0 },
+        ]));
+        const spy = vi.spyOn(mod, '_physics_getInterpolatedTransforms');
 
-        applyPhysicsTransforms(app, PPU, new Set(), snaps, 0.5);
+        applyPhysicsTransforms(app, PPU, new Set(), mod, 0.5);
 
+        expect(spy).toHaveBeenCalledWith(0.5);
         const t = app.world.get(e1, Transform) as TransformData;
-        expect(t.position.x).toBeCloseTo(2 * PPU); // halfway 0→4
-        expect(t.position.y).toBeCloseTo(4 * PPU); // halfway 0→8
+        expect(t.position.x).toBeCloseTo(2 * PPU);
+        expect(t.position.y).toBeCloseTo(4 * PPU);
     });
 
-    it('does not smear a body on its first frame (prev seeded to cur)', () => {
+    it('publishes nothing when the module reports no bodies', () => {
         const app = createTestApp();
-        const e1 = app.world.spawn();
-        app.world.insert(e1, Transform, defaultTransform());
-
-        const snaps: PoseSnapshots = { prev: new Map(), cur: new Map() };
-        capturePhysicsPoses(createMockPhysicsModule(buildPhysicsBuffer([
-            { entity: e1 as number, x: 5, y: 6, angle: 0 },
-        ])), snaps);
-
-        // Even mid-step (alpha 0.5), a brand-new body sits exactly at its pose.
-        applyPhysicsTransforms(app, PPU, new Set(), snaps, 0.5);
-
-        const t = app.world.get(e1, Transform) as TransformData;
-        expect(t.position.x).toBeCloseTo(5 * PPU);
-        expect(t.position.y).toBeCloseTo(6 * PPU);
+        const mod = createMockPhysicsModule(buildPhysicsBuffer([]));
+        expect(() => applyPhysicsTransforms(app, PPU, new Set(), mod, 1)).not.toThrow();
     });
 
-    it('interpolates angle the short way across the ±π wrap', () => {
+    it('passes a shared heap straight through instead of re-marshalling it', () => {
+        // A native host compiles physics into the engine's own binary: one heap, so
+        // the module's pointer is already an engine pointer. Copying it there would
+        // be pure waste, and allocating for the copy doubly so.
         const app = createTestApp();
         const e1 = app.world.spawn();
         app.world.insert(e1, Transform, defaultTransform());
 
-        const snaps: PoseSnapshots = { prev: new Map(), cur: new Map() };
-        capturePhysicsPoses(createMockPhysicsModule(buildPhysicsBuffer([
-            { entity: e1 as number, x: 0, y: 0, angle: Math.PI - 0.1 },
-        ])), snaps);
-        capturePhysicsPoses(createMockPhysicsModule(buildPhysicsBuffer([
-            { entity: e1 as number, x: 0, y: 0, angle: -Math.PI + 0.1 },
-        ])), snaps);
+        const buf = buildPhysicsBuffer([{ entity: e1 as number, x: 1, y: 1, angle: 0 }]);
+        const sharedHeap = new Uint8Array(buf.buffer);
+        const mod = createMockPhysicsModule(buf);
+        (mod as any).HEAPU8 = sharedHeap;
 
-        applyPhysicsTransforms(app, PPU, new Set(), snaps, 0.5);
+        const batchSync = vi.fn();
+        const malloc = vi.fn();
+        const engine = app.wasmModule as any;
+        engine.registry_batchSyncPhysicsTransforms = batchSync;
+        engine.HEAPU8 = sharedHeap;
+        engine._malloc = malloc;
 
-        // Short arc from (π-0.1) to (-π+0.1) crosses π → midpoint ≈ ±π, not 0.
-        const t = app.world.get(e1, Transform) as TransformData;
-        const angle = 2 * Math.atan2(t.rotation.z, t.rotation.w);
-        expect(Math.abs(angle)).toBeCloseTo(Math.PI, 2);
+        applyPhysicsTransforms(app, PPU, new Set(), mod, 1);
+
+        expect(batchSync).toHaveBeenCalledWith(expect.anything(), buf.ptr, 1, PPU);
+        expect(malloc).not.toHaveBeenCalled();
     });
 });

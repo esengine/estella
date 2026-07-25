@@ -236,3 +236,25 @@ set(_es_safety_asan $<OR:$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:Clang>,$<CXX_C
 target_compile_options(test_registry_safety PRIVATE $<${_es_safety_asan}:-fsanitize=address>)
 target_link_options(test_registry_safety PRIVATE $<${_es_safety_asan}:-fsanitize=address>)
 add_test(NAME test_registry_safety COMMAND test_registry_safety)
+
+# Physics render interpolation. The snapshot pair and the lerp live in the physics
+# module, not the SDK: they touch every dynamic body every frame, which the no-JIT
+# budget keeps off the JS path (docs/REARCH_NATIVE.md §3.2). The whole module is
+# compiled in because its entry TU calls into the shape/joint/query ones.
+if(ES_ENABLE_BOX2D)
+    add_executable(test_physics_interpolation
+        bindings/test_physics_interpolation.cpp
+        ${CMAKE_SOURCE_DIR}/src/esengine/bindings/PhysicsModuleEntry.cpp
+        ${CMAKE_SOURCE_DIR}/src/esengine/bindings/PhysicsReadback.cpp
+        ${CMAKE_SOURCE_DIR}/src/esengine/bindings/PhysicsContext.cpp
+        ${CMAKE_SOURCE_DIR}/src/esengine/bindings/PhysicsShapes.cpp
+        ${CMAKE_SOURCE_DIR}/src/esengine/bindings/PhysicsJoints.cpp
+        ${CMAKE_SOURCE_DIR}/src/esengine/bindings/PhysicsQueries.cpp
+    )
+    target_link_libraries(test_physics_interpolation PRIVATE box2d)
+    target_include_directories(test_physics_interpolation PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/third_party/box2d/include
+    )
+    add_test(NAME test_physics_interpolation COMMAND test_physics_interpolation)
+endif()

@@ -47,6 +47,18 @@ struct PhysicsContext {
 
     std::vector<float> dynamicTransformBuffer;
 
+    // Render interpolation, kept here rather than in JS: the two most recent
+    // fixed-step poses and the lerped result, all in the same flat
+    // [entityBits, x, y, angle] layout the readback hands out. A per-body object
+    // graph on the JS side would put a 5000-iteration hot loop on the every-frame
+    // path, which the no-JIT budget forbids (docs/REARCH_NATIVE.md §3.2).
+    std::vector<float> posePrev;
+    std::vector<float> poseCur;
+    std::vector<float> poseInterpolated;
+    // Maps entity -> index into posePrev, built lazily and only when the body set
+    // changed between the two snapshots; steady state matches by position instead.
+    std::unordered_map<uint32_t, uint32_t> posePrevIndex;
+
     std::vector<float> collisionEnterBuffer;
     std::vector<float> collisionExitBuffer;
     std::vector<float> sensorEnterBuffer;
@@ -65,6 +77,10 @@ struct PhysicsContext {
         mouseJointId = b2_nullJointId;
         dynamicBodyEntities.clear();
         dynamicTransformBuffer.clear();
+        posePrev.clear();
+        poseCur.clear();
+        poseInterpolated.clear();
+        posePrevIndex.clear();
         collisionEnterBuffer.clear();
         collisionExitBuffer.clear();
         sensorEnterBuffer.clear();

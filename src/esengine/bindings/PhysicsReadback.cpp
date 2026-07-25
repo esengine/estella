@@ -36,6 +36,10 @@ EMSCRIPTEN_KEEPALIVE size_t physics_dynamicBodyTransformsBytes() {
     return floatBytes(g_ctx.dynamicTransformBuffer);
 }
 
+EMSCRIPTEN_KEEPALIVE size_t physics_interpolatedTransformsBytes() {
+    return floatBytes(g_ctx.poseInterpolated);
+}
+
 EMSCRIPTEN_KEEPALIVE size_t physics_collisionEnterBytes() {
     return floatBytes(g_ctx.collisionEnterBuffer);
 }

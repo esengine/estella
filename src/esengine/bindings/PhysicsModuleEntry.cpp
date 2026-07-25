@@ -261,6 +261,114 @@ uintptr_t physics_getDynamicBodyTransforms() {
     return reinterpret_cast<uintptr_t>(g_ctx.dynamicTransformBuffer.data());
 }
 
+// Render interpolation
+//
+// The snapshot pair and the lerp live here, not in the SDK: interpolation touches
+// every dynamic body every frame, and that is exactly the hot loop the no-JIT
+// budget keeps off the JS path (docs/REARCH_NATIVE.md §3.2). The SDK asks for the
+// finished buffer and hands it straight to the engine's batched Transform sync.
+
+/** The entity id packed into a flat pose buffer at float offset @p offset. */
+static uint32_t poseEntityAt(const std::vector<float>& buf, size_t offset) {
+    uint32_t entityId;
+    std::memcpy(&entityId, &buf[offset], sizeof(uint32_t));
+    return entityId;
+}
+
+/** Shortest-arc angle interpolation (radians), matching the SDK's own lerpAngle. */
+static float lerpAngleShortest(float a, float b, float t) {
+    constexpr float kPi = 3.14159265358979323846f;
+    constexpr float kTwoPi = 2.0f * kPi;
+    float d = std::fmod(b - a, kTwoPi);
+    if (d > kPi) d -= kTwoPi;
+    else if (d < -kPi) d += kTwoPi;
+    return a + d * t;
+}
+
+/**
+ * Promote the current snapshot to `prev` and refill it from the world. Called once
+ * per fixed step, after the step, so the pair always straddles one step.
+ */
+EMSCRIPTEN_KEEPALIVE
+void physics_capturePoses() {
+    g_ctx.posePrev.swap(g_ctx.poseCur);
+    g_ctx.poseCur.clear();
+    g_ctx.posePrevIndex.clear();
+
+    for (uint32_t entityId : g_ctx.dynamicBodyEntities) {
+        auto it = g_ctx.entityToBody.find(entityId);
+        if (it == g_ctx.entityToBody.end() || !b2Body_IsValid(it->second)) continue;
+        // Same exclusion the readback makes: a disabled body is frozen, and its
+        // stale pose must not be stamped back over a hand-animated Transform.
+        if (!b2Body_IsEnabled(it->second)) continue;
+
+        b2Vec2 pos = b2Body_GetPosition(it->second);
+        float angle = b2Rot_GetAngle(b2Body_GetRotation(it->second));
+
+        pushEntityBits(g_ctx.poseCur, entityId);
+        g_ctx.poseCur.push_back(pos.x);
+        g_ctx.poseCur.push_back(pos.y);
+        g_ctx.poseCur.push_back(angle);
+    }
+}
+
+EMSCRIPTEN_KEEPALIVE
+int physics_getInterpolatedCount() {
+    return static_cast<int>(g_ctx.poseCur.size() / 4);
+}
+
+/**
+ * Interpolate the snapshot pair by @p alpha into a flat [entityBits, x, y, angle]
+ * buffer (physics space) and return it. With alpha = 1 this reproduces a direct
+ * post-step sync.
+ */
+EMSCRIPTEN_KEEPALIVE
+uintptr_t physics_getInterpolatedTransforms(float alpha) {
+    const size_t count = g_ctx.poseCur.size();
+    g_ctx.poseInterpolated.resize(count);
+    if (count == 0) return reinterpret_cast<uintptr_t>(g_ctx.poseInterpolated.data());
+
+    // Steady state (no body created or destroyed since the last step) keeps both
+    // snapshots in the same order, so a body's previous pose sits at its own index
+    // and the whole pass is a linear walk. Only a changed body set pays for a map.
+    const bool sameLayout = g_ctx.posePrev.size() == count;
+    bool indexBuilt = false;
+
+    for (size_t o = 0; o < count; o += 4) {
+        const uint32_t entityId = poseEntityAt(g_ctx.poseCur, o);
+        const float cx = g_ctx.poseCur[o + 1];
+        const float cy = g_ctx.poseCur[o + 2];
+        const float ca = g_ctx.poseCur[o + 3];
+
+        const float* prev = nullptr;
+        if (sameLayout && poseEntityAt(g_ctx.posePrev, o) == entityId) {
+            prev = &g_ctx.posePrev[o];
+        } else if (!g_ctx.posePrev.empty()) {
+            if (!indexBuilt) {
+                for (size_t p = 0; p < g_ctx.posePrev.size(); p += 4) {
+                    g_ctx.posePrevIndex[poseEntityAt(g_ctx.posePrev, p)] = static_cast<uint32_t>(p);
+                }
+                indexBuilt = true;
+            }
+            auto it = g_ctx.posePrevIndex.find(entityId);
+            if (it != g_ctx.posePrevIndex.end()) prev = &g_ctx.posePrev[it->second];
+        }
+
+        // A body seen for the first time seeds prev = cur, so it doesn't smear in
+        // from wherever it was spawned.
+        const float px = prev ? prev[1] : cx;
+        const float py = prev ? prev[2] : cy;
+        const float pa = prev ? prev[3] : ca;
+
+        std::memcpy(&g_ctx.poseInterpolated[o], &entityId, sizeof(uint32_t));
+        g_ctx.poseInterpolated[o + 1] = px + (cx - px) * alpha;
+        g_ctx.poseInterpolated[o + 2] = py + (cy - py) * alpha;
+        g_ctx.poseInterpolated[o + 3] = lerpAngleShortest(pa, ca, alpha);
+    }
+
+    return reinterpret_cast<uintptr_t>(g_ctx.poseInterpolated.data());
+}
+
 // Collision Events
 
 EMSCRIPTEN_KEEPALIVE

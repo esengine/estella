@@ -41,6 +41,16 @@ import {
     type SensorEvent,
 } from './PhysicsTypes';
 import { withMalloc } from '../wasmScratch';
+import { engineApi, type EngineApi } from '../ecs/engineApi';
+
+/**
+ * The engine surface this file drives. `getTransformPtr` is the web module's own
+ * (it hands back a pointer into wasm memory); a native host answers the batched
+ * entry instead, which is the path every unparented body takes.
+ */
+type PhysicsEngineApi = EngineApi & {
+    getTransformPtr?(registry: unknown, entity: number): number;
+};
 
 // =============================================================================
 // Canvas pixelsPerUnit live read
@@ -339,67 +349,35 @@ const syncTransformBuf_ = {
 const PHYSICS_BODY_STRIDE = 4; // u32 entity + 3x f32 (x, y, angle)
 const PHYSICS_BODY_BYTES = PHYSICS_BODY_STRIDE * 4;
 
-/** Raw physics-space pose (meters + radians) of one body, for interpolation. */
-interface Pose { x: number; y: number; angle: number; }
-/** The two most recent fixed-step poses, keyed by entity, for render interp. */
-export interface PoseSnapshots { prev: Map<Entity, Pose>; cur: Map<Entity, Pose>; }
-
-// Shortest-arc angle interpolation (radians).
-function lerpAngle(a: number, b: number, t: number): number {
-    let d = (b - a) % (2 * Math.PI);
-    if (d > Math.PI) d -= 2 * Math.PI;
-    else if (d < -Math.PI) d += 2 * Math.PI;
-    return a + d * t;
-}
-
 /**
- * Capture post-step body poses for render interpolation: the previous `cur`
- * becomes `prev`, then `cur` is refilled from the batched read-back. A body seen
- * for the first time seeds `prev = cur`, so it doesn't smear on its first frame.
- * @internal exported for testing
- */
-export function capturePhysicsPoses(module: PhysicsWasmModule, snaps: PoseSnapshots): void {
-    const tmp = snaps.prev;
-    snaps.prev = snaps.cur;
-    snaps.cur = tmp;
-    snaps.cur.clear();
-
-    const count = module._physics_getDynamicBodyCount();
-    if (count === 0) return;
-    const baseU32 = module._physics_getDynamicBodyTransforms() >> 2;
-    const u32 = module.HEAPU32;
-    const f32 = module.HEAPF32;
-    for (let i = 0; i < count; i++) {
-        const o = baseU32 + i * PHYSICS_BODY_STRIDE;
-        const e = u32[o] as Entity;
-        const x = f32[o + 1], y = f32[o + 2], angle = f32[o + 3];
-        snaps.cur.set(e, { x, y, angle });
-        if (!snaps.prev.has(e)) snaps.prev.set(e, { x, y, angle });
-    }
-}
-
-/**
- * Write interpolated body poses into ECS Transforms: each `cur` body is lerped
- * from `prev` by `alpha` (linear position, shortest-arc angle) and applied via
- * the engine's batched sync (or a per-entity path for parented bodies). With
- * `alpha = 1` this reproduces a direct post-step sync.
+ * Write interpolated body poses into ECS Transforms. The snapshot pair and the
+ * lerp itself belong to the physics module (`physics_capturePoses` /
+ * `physics_getInterpolatedTransforms`): they run over every dynamic body every
+ * frame, and the no-JIT budget bars that loop from the JS path
+ * (docs/REARCH_NATIVE.md §3.2). What is left here is routing the finished buffer
+ * to the engine. With `alpha = 1` this reproduces a direct post-step sync.
  * @internal exported for testing
  */
 export function applyPhysicsTransforms(
     app: App,
     ppu: number,
     parentedBodies: Set<Entity>,
-    snaps: PoseSnapshots,
+    module: PhysicsWasmModule,
     alpha: number,
 ): void {
-    const cur = snaps.cur;
-    const count = cur.size;
+    const count = module._physics_getInterpolatedCount();
     if (count === 0) return;
 
     const registry = app.world.getCppRegistry();
     if (!registry) return;
-    const engineMod = app.world.getWasmModule();
+    // Through engineApi, not app.wasmModule: a device has no wasm module, so
+    // reaching for one left the batched path web-only and every body on a native
+    // host fell back to one addTransform call apiece (see ecs/engineApi.ts).
+    const engineMod = engineApi(app) as PhysicsEngineApi | null;
     const hasParented = parentedBodies.size > 0;
+
+    // Already lerped, in the module's memory: [u32 entity, f32 x, y, angle] (meters).
+    const srcPtr = module._physics_getInterpolatedTransforms(alpha);
 
     // Change-tracking boundary (deliberate). Both write paths below sync Transform
     // through a raw C++ / ptr fast path and do NOT record a Changed() tick — the one
@@ -408,42 +386,50 @@ export function applyPhysicsTransforms(
     // every fixed step, so firing Changed(Transform) here would flood the changed-set
     // with ~every moving body and make Changed(Transform) useless as a "gameplay wrote
     // this" signal; the batched C++ path also can't record without an O(count) JS loop.
-    // To react to physics-driven motion, use the per-step moved set (snaps.cur), not
+    // To react to physics-driven motion, read the module's per-step pose buffer, not
     // Changed(Transform).
 
-    // Batched fast path: build [u32 entity, f32 x, y, angle] (meters) interpolated.
-    if (!hasParented && engineMod?.registry_batchSyncPhysicsTransforms) {
-        withMalloc(engineMod, count * PHYSICS_BODY_BYTES, engineBuf => {
-            const u32 = engineMod.HEAPU32;
-            const f32 = engineMod.HEAPF32;
-            const base = engineBuf >> 2;
-            let i = 0;
-            for (const [e, c] of cur) {
-                const p = snaps.prev.get(e) ?? c;
-                const o = base + i * PHYSICS_BODY_STRIDE;
-                u32[o] = e as number;
-                f32[o + 1] = p.x + (c.x - p.x) * alpha;
-                f32[o + 2] = p.y + (c.y - p.y) * alpha;
-                f32[o + 3] = lerpAngle(p.angle, c.angle, alpha);
-                i++;
-            }
-            engineMod.registry_batchSyncPhysicsTransforms(registry, engineBuf, count, ppu);
-        });
-        return;
+    const batchSync = engineMod?.registry_batchSyncPhysicsTransforms;
+    const engineHeap = engineMod?.HEAPU8;
+    if (!hasParented && batchSync && engineHeap) {
+        // A native host compiles the physics module into the engine's own binary, so
+        // both address one heap and the module's buffer is already an engine pointer.
+        if (engineHeap.buffer === module.HEAPU8.buffer) {
+            batchSync.call(engineMod, registry, srcPtr, count, ppu);
+            return;
+        }
+        // On the web a side module owns separate memory, so it is copied across —
+        // one memcpy, not a per-body loop.
+        if (engineMod?._malloc && engineMod._free) {
+            const bytes = count * PHYSICS_BODY_BYTES;
+            withMalloc(engineMod as Required<Pick<EngineApi, '_malloc' | '_free'>>, bytes, engineBuf => {
+                engineHeap.set(module.HEAPU8.subarray(srcPtr, srcPtr + bytes), engineBuf);
+                batchSync.call(engineMod, registry, engineBuf, count, ppu);
+            });
+            return;
+        }
     }
 
-    const getTransformPtr = engineMod?.getTransformPtr
-        ? (e: Entity) => engineMod!.getTransformPtr(registry!, e as number)
+    const transformPtrFn = engineMod?.getTransformPtr;
+    const getTransformPtr = transformPtrFn
+        ? (e: Entity) => transformPtrFn.call(engineMod, registry!, e as number)
         : null;
     const engF32 = engineMod?.HEAPF32;
     const addFn = (!getTransformPtr || !engF32) ? registry.addTransform.bind(registry) : null;
     const t = syncTransformBuf_;
 
-    for (const [entityId, c] of cur) {
-        const p = snaps.prev.get(entityId) ?? c;
-        let localX = (p.x + (c.x - p.x) * alpha) * ppu;
-        let localY = (p.y + (c.y - p.y) * alpha) * ppu;
-        let localAngle = lerpAngle(p.angle, c.angle, alpha);
+    // A parented body's pose has to be expressed in its parent's space, which only
+    // the registry can answer — so these go one at a time, over the same buffer.
+    const srcU32 = module.HEAPU32;
+    const srcF32 = module.HEAPF32;
+    const srcBase = srcPtr >> 2;
+
+    for (let i = 0; i < count; i++) {
+        const o = srcBase + i * PHYSICS_BODY_STRIDE;
+        const entityId = srcU32[o] as Entity;
+        let localX = srcF32[o + 1] * ppu;
+        let localY = srcF32[o + 2] * ppu;
+        let localAngle = srcF32[o + 3];
 
         if (hasParented && parentedBodies.has(entityId)) {
             const parentData = app.world.get(entityId, Parent) as ParentData;
@@ -689,9 +675,6 @@ export function registerPhysicsSystem(
     const parentedBodies = new Set<Entity>();
     const cachedProps = new Map<Entity, CachedBodyProps>();
     let lastEntitySyncTick = -1;
-    // The two most recent fixed-step poses, for render interpolation (the
-    // PostUpdate system lerps prev→cur by Time.fixedAlpha).
-    const snaps: PoseSnapshots = { prev: new Map(), cur: new Map() };
     // Events accumulated across this frame's fixed steps; published once per frame.
     const events: EventAccum = {
         collisionEnters: [], collisionExits: [], collisionHits: [], sensorEnters: [], sensorExits: [],
@@ -725,8 +708,9 @@ export function registerPhysicsSystem(
             cachedProps.delete(entity);
             parentedBodies.delete(entity);
             kinematicEntities.delete(entity);
-            snaps.prev.delete(entity);
-            snaps.cur.delete(entity);
+            // The module's pose snapshots need no cleanup: destroying the body drops
+            // it from the dynamic set the next capture rebuilds from, and the lerp is
+            // driven by the current snapshot, so a stale `prev` entry is never read.
         }
     });
 
@@ -902,7 +886,7 @@ export function registerPhysicsSystem(
                 }
 
                 collectEvents(module, ppu, events);
-                capturePhysicsPoses(module, snaps);
+                module._physics_capturePoses();
 
                 // Membership decides batch-vs-parented writeback; a runtime
                 // reparent of a live body would otherwise stay on the batch path
@@ -941,7 +925,7 @@ export function registerPhysicsSystem(
                 events.sensorExits = [];
 
                 const ppu = readPixelsPerUnit(app);
-                applyPhysicsTransforms(app, ppu, parentedBodies, snaps, time.fixedAlpha);
+                applyPhysicsTransforms(app, ppu, parentedBodies, module, time.fixedAlpha);
             },
             { name: 'PhysicsInterpolateSystem' }
         ),

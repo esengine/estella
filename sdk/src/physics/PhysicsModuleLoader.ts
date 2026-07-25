@@ -53,6 +53,16 @@ export interface PhysicsWasmModule {
     _physics_getDynamicBodyCount(): number;
     _physics_getDynamicBodyTransforms(): number;
 
+    /**
+     * Render interpolation, done by the module. It keeps the two most recent
+     * fixed-step snapshots itself and lerps them, because that loop runs over
+     * every dynamic body every frame — the shape of work the no-JIT budget keeps
+     * off the JS path (docs/REARCH_NATIVE.md §3.2).
+     */
+    _physics_capturePoses(): void;
+    _physics_getInterpolatedCount(): number;
+    _physics_getInterpolatedTransforms(alpha: number): number;
+
     _physics_collectEvents(): void;
     _physics_getCollisionEnterCount(): number;
     _physics_getCollisionEnterBuffer(): number;
