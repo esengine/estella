@@ -8037,7 +8037,7 @@ play: (source: string, options?: VideoPlayOptions) => VideoStreamHandle
 setRefResolver: (resolver: ((ref: string) => string) | null) => void
 stop: (handle: VideoStreamHandle) => void
 stopAll: () => void
-update: (module: ESEngineModule) => void
+update: (module: ESEngineModule | null) => void
 static new (backend: PlatformVideoBackend): VideoAPI
 static prototype: VideoAPI
 ```
@@ -8093,7 +8093,7 @@ onError: ((error: unknown) => void) | undefined
 onReady: (() => void) | undefined
 pause: () => void
 play: () => void
-pump: (module: ESEngineModule) => void
+pump: (module: ESEngineModule | null) => void
 seek: (timeSeconds: number) => void
 setLoop: (loop: boolean) => void
 setMuted: (muted: boolean) => void
