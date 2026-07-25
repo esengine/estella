@@ -224,11 +224,12 @@ public:
      * @brief Creates a block-compressed texture (KTX2 → ETC2/ASTC/BC), uploading
      *        the pre-compressed blocks for mip level 0. Tracked like any texture;
      *        its residency cost is the real (compressed) byte size.
-     * @param data Compressed block data.
+     * @param data All @p mipLevels concatenated (level 0 first, block-aligned).
+     * @param mipLevels Mip levels present (1 = base only).
      * @return Handle to the texture, or invalid handle on failure.
      */
     TextureHandle createCompressedTexture(u32 width, u32 height, GfxCompressedFormat format,
-                                          ConstSpan<u8> data);
+                                          ConstSpan<u8> data, u32 mipLevels = 1);
 
     /**
      * @brief Loads a texture from file (with caching)

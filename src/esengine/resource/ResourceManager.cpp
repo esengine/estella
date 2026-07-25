@@ -193,10 +193,11 @@ TextureHandle ResourceManager::createTexture(u32 width, u32 height, ConstSpan<u8
 }
 
 TextureHandle ResourceManager::createCompressedTexture(u32 width, u32 height,
-                                                       GfxCompressedFormat format, ConstSpan<u8> data) {
+                                                       GfxCompressedFormat format, ConstSpan<u8> data,
+                                                       u32 mipLevels) {
     if (!device_) return {};
     auto texture = Texture::createCompressed(*device_, width, height, format,
-                                             std::span<const u8>(data.data(), data.size()));
+                                             std::span<const u8>(data.data(), data.size()), mipLevels);
     if (!texture) {
         ES_LOG_ERROR("Failed to create compressed texture");
         return TextureHandle();

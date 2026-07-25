@@ -58,7 +58,7 @@ public:
 
     TextureHandle createTexture(const TextureDesc& desc, const void* pixels) override;
     TextureHandle createCompressedTexture(const TextureDesc& desc, GfxCompressedFormat format,
-                                          const void* data, u32 byteLength) override;
+                                          const void* data, u32 byteLength, u32 mipLevels) override;
     TextureHandle importExternalTexture(u32 nativeId, const TextureDesc& desc) override;
     void deleteTexture(TextureHandle texture) override;
     void updateTexture(TextureHandle texture, i32 x, i32 y, u32 width, u32 height,

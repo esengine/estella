@@ -152,9 +152,13 @@ public:
      * @details The caller must first confirm the backend supports `format`
      *          (see supportsCompressedFormat) and fall back to an uncompressed
      *          createTexture otherwise. Data is uploaded as-is; no CPU-side decode.
+     * @param data All @p mipLevels concatenated, level 0 (base) first, each block-
+     *             aligned (`gfxCompressedPyramidBytes`). Level i has size
+     *             `max(1, width>>i) x max(1, height>>i)`.
+     * @param mipLevels Number of mip levels present (1 = base only).
      */
     virtual TextureHandle createCompressedTexture(const TextureDesc& desc, GfxCompressedFormat format,
-                                                  const void* data, u32 byteLength) = 0;
+                                                  const void* data, u32 byteLength, u32 mipLevels) = 0;
 
     /**
      * @brief Wraps a texture created outside the device (e.g. a JS-side WebGL upload).

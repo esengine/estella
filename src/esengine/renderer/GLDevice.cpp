@@ -894,17 +894,34 @@ TextureHandle GLDevice::createTexture(const TextureDesc& desc, const void* pixel
 }
 
 TextureHandle GLDevice::createCompressedTexture(const TextureDesc& desc, GfxCompressedFormat format,
-                                                const void* data, u32 byteLength) {
+                                                const void* data, u32 byteLength, u32 mipLevels) {
     GLuint id = 0;
     glGenTextures(1, &id);
     texture_formats_[id] = desc.format;
-
     bindTextureForEdit(id);
-    glCompressedTexImage2D(GL_TEXTURE_2D, 0, toGLCompressedFormat(format),
-                           static_cast<GLsizei>(desc.width), static_cast<GLsizei>(desc.height),
-                           0, static_cast<GLsizei>(byteLength), data);
 
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, toGLFilter(desc.minFilter));
+    // Upload each mip level from the concatenated, block-aligned pyramid.
+    const u32 levels = mipLevels ? mipLevels : 1;
+    const GfxBlockInfo bi = gfxCompressedBlockInfo(format);
+    const GLenum glFmt = toGLCompressedFormat(format);
+    const u8* ptr = static_cast<const u8*>(data);
+    const u8* end = ptr + byteLength;
+    for (u32 level = 0; level < levels; ++level) {
+        const u32 lw = (desc.width >> level) ? (desc.width >> level) : 1u;
+        const u32 lh = (desc.height >> level) ? (desc.height >> level) : 1u;
+        const u32 blocksX = (lw + bi.blockWidth - 1) / bi.blockWidth;
+        const u32 blocksY = (lh + bi.blockHeight - 1) / bi.blockHeight;
+        const u32 levelBytes = blocksX * blocksY * bi.bytesPerBlock;
+        if (ptr + levelBytes > end) break;
+        glCompressedTexImage2D(GL_TEXTURE_2D, static_cast<GLint>(level), glFmt,
+                               static_cast<GLsizei>(lw), static_cast<GLsizei>(lh),
+                               0, static_cast<GLsizei>(levelBytes), ptr);
+        ptr += levelBytes;
+    }
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, static_cast<GLint>(levels - 1));
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
+                    levels > 1 ? GL_LINEAR_MIPMAP_LINEAR : toGLFilter(desc.minFilter));
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, toGLFilter(desc.magFilter));
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, toGLWrap(desc.wrapS));
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, toGLWrap(desc.wrapT));

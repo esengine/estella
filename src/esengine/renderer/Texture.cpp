@@ -124,7 +124,8 @@ Unique<Texture> Texture::createRaw(GfxDevice& device, u32 width, u32 height, con
 }
 
 Unique<Texture> Texture::createCompressed(GfxDevice& device, u32 width, u32 height,
-                                          GfxCompressedFormat format, std::span<const u8> data) {
+                                          GfxCompressedFormat format, std::span<const u8> data,
+                                          u32 mipLevels) {
     auto texture = makeUnique<Texture>();
     texture->device_ = &device;
     texture->width_ = width;
@@ -138,9 +139,10 @@ Unique<Texture> Texture::createCompressed(GfxDevice& device, u32 width, u32 heig
     desc.magFilter = TextureFilter::Linear;
     desc.wrapS = TextureWrap::ClampToEdge;
     desc.wrapT = TextureWrap::ClampToEdge;
-    desc.mipmaps = false;
+    desc.mipmaps = mipLevels > 1;
 
-    texture->handle_ = device.createCompressedTexture(desc, format, data.data(), static_cast<u32>(data.size()));
+    texture->handle_ = device.createCompressedTexture(desc, format, data.data(),
+                                                      static_cast<u32>(data.size()), mipLevels);
     if (texture->handle_ == TextureHandle::Invalid) {
         ES_LOG_ERROR("Texture::createCompressed: failed for {}x{}", width, height);
         return nullptr;

@@ -247,7 +247,8 @@ public:
      * @param data Compressed block data for mip level 0.
      */
     static Unique<Texture> createCompressed(GfxDevice& device, u32 width, u32 height,
-                                            GfxCompressedFormat format, std::span<const u8> data);
+                                            GfxCompressedFormat format, std::span<const u8> data,
+                                            u32 mipLevels = 1);
 
     /**
      * @brief Wraps an existing GL texture ID

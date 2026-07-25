@@ -205,6 +205,44 @@ enum class GfxCompressedFormat : u8 {
     S3TC_DXT5_SRGB,    ///< GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT (extension)
 };
 
+/** @brief Block footprint of a compressed format, the single source both backends
+ *         use to size each mip level's upload. BC1/ETC2_RGB are 4x4x8B, the RGBA
+ *         block formats 4x4x16B, ASTC's block matches its name. */
+struct GfxBlockInfo {
+    u32 blockWidth;
+    u32 blockHeight;
+    u32 bytesPerBlock;
+};
+inline GfxBlockInfo gfxCompressedBlockInfo(GfxCompressedFormat fmt) {
+    switch (fmt) {
+    case GfxCompressedFormat::S3TC_DXT1:      return {4, 4, 8};   // BC1
+    case GfxCompressedFormat::ETC2_RGB8:      return {4, 4, 8};
+    case GfxCompressedFormat::ASTC_8x8:       return {8, 8, 16};
+    case GfxCompressedFormat::S3TC_DXT5:
+    case GfxCompressedFormat::S3TC_DXT5_SRGB:
+    case GfxCompressedFormat::ETC2_RGBA8:
+    case GfxCompressedFormat::ETC2_RGBA8_SRGB:
+    case GfxCompressedFormat::ASTC_4x4:
+    case GfxCompressedFormat::ASTC_4x4_SRGB:
+    default:                                  return {4, 4, 16};
+    }
+}
+
+/** @brief Total bytes of a full mip pyramid (levels 0..mipLevels-1) for a
+ *         base-size compressed texture — the block-aligned sum both the transcoder
+ *         (packing) and the device (uploading) agree on. */
+inline u32 gfxCompressedPyramidBytes(GfxCompressedFormat fmt, u32 width, u32 height, u32 mipLevels) {
+    const GfxBlockInfo bi = gfxCompressedBlockInfo(fmt);
+    u32 total = 0;
+    for (u32 level = 0; level < (mipLevels ? mipLevels : 1); ++level) {
+        const u32 lw = (width >> level) ? (width >> level) : 1u;
+        const u32 lh = (height >> level) ? (height >> level) : 1u;
+        total += ((lw + bi.blockWidth - 1) / bi.blockWidth)
+               * ((lh + bi.blockHeight - 1) / bi.blockHeight) * bi.bytesPerBlock;
+    }
+    return total;
+}
+
 // =============================================================================
 // Resource Descriptors
 // =============================================================================

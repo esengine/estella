@@ -70,17 +70,35 @@ KTX2Result transcodeKTX2(const uint8_t* bytes, size_t n, bool srgb,
         }
     }
 
+    // A compressed texture keeps the KTX2's pre-baked mip chain (basis cannot
+    // generate mips for block formats); the RGBA32 fallback uploads base only.
     // output_blocks_buf_size counts blocks (block formats) or pixels (RGBA32);
-    // block_width/height is 1 for RGBA32, so this expression covers both.
+    // block_width/height is 1 for RGBA32, so this covers both.
     const uint32_t bw = basist::basis_get_block_width(basisFmt);
     const uint32_t bh = basist::basis_get_block_height(basisFmt);
-    const uint32_t units = ((w + bw - 1) / bw) * ((h + bh - 1) / bh);
-    std::vector<uint8_t> out(static_cast<size_t>(units) * basist::basis_get_bytes_per_block_or_pixel(basisFmt));
-    if (!t.transcode_image_level(0, 0, 0, out.data(), units, basisFmt)) return fail;
+    const uint32_t bpb = basist::basis_get_bytes_per_block_or_pixel(basisFmt);
+    const uint32_t numLevels = compressed ? (t.get_levels() ? t.get_levels() : 1u) : 1u;
+
+    // Pack each level tightly, level 0 first — the layout the device unpacks.
+    std::vector<uint8_t> out;
+    uint32_t uploaded = 0;
+    for (uint32_t level = 0; level < numLevels; ++level) {
+        const uint32_t lw = (w >> level) ? (w >> level) : 1u;
+        const uint32_t lh = (h >> level) ? (h >> level) : 1u;
+        const uint32_t units = ((lw + bw - 1) / bw) * ((lh + bh - 1) / bh);
+        const size_t off = out.size();
+        out.resize(off + static_cast<size_t>(units) * bpb);
+        if (!t.transcode_image_level(level, 0, 0, out.data() + off, units, basisFmt)) {
+            out.resize(off);   // drop the partial level and stop
+            break;
+        }
+        ++uploaded;
+    }
+    if (uploaded == 0) return fail;
 
     const ConstSpan<u8> span(out.data(), out.size());
     const resource::TextureHandle handle = compressed
-        ? rm.createCompressedTexture(w, h, gfxFmt, span)
+        ? rm.createCompressedTexture(w, h, gfxFmt, span, uploaded)
         : rm.createTexture(w, h, span, srgb ? TextureFormat::SRGB8A8 : TextureFormat::RGBA8, false);
     if (!handle.isValid()) return fail;
     return KTX2Result{static_cast<int>(handle.id()), static_cast<int>(w), static_cast<int>(h)};

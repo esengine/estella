@@ -82,6 +82,7 @@ struct MockGfxDevice final : GfxDevice {
     TextureHandle lastDeletedTexture = TextureHandle::Invalid;
     GfxCompressedFormat lastCompressedFormat = GfxCompressedFormat::ETC2_RGBA8;
     u32 lastCompressedByteLength = 0;
+    u32 lastCompressedMipLevels = 0;
     FramebufferDesc lastFramebufferDesc{};
     u32 lastDrawIndexCount = 0;
     u32 lastDrawIndexByteOffset = 0;
@@ -130,11 +131,12 @@ struct MockGfxDevice final : GfxDevice {
         return createTextureFails ? TextureHandle::Invalid : TextureHandle{nextTextureId++};
     }
     TextureHandle createCompressedTexture(const TextureDesc& desc, GfxCompressedFormat format,
-                                          const void*, u32 byteLength) override {
+                                          const void*, u32 byteLength, u32 mipLevels) override {
         ++createCompressedTextureCalls;
         lastTextureDesc = desc;
         lastCompressedFormat = format;
         lastCompressedByteLength = byteLength;
+        lastCompressedMipLevels = mipLevels;
         return TextureHandle{nextTextureId++};
     }
     TextureHandle importExternalTexture(u32 nativeId, const TextureDesc& desc) override {

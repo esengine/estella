@@ -517,7 +517,7 @@ TextureHandle WebGPUDevice::createTexture(const TextureDesc& desc, const void* p
 }
 
 TextureHandle WebGPUDevice::createCompressedTexture(const TextureDesc& desc, GfxCompressedFormat format,
-                                                    const void* data, u32 byteLength) {
+                                                    const void* data, u32 byteLength, u32 mipLevels) {
     if (!device_ || !queue_) {
         ES_LOG_ERROR("WebGPUDevice::createCompressedTexture: no device");
         return TextureHandle::Invalid;
@@ -527,12 +527,13 @@ TextureHandle WebGPUDevice::createCompressedTexture(const TextureDesc& desc, Gfx
         ES_LOG_ERROR("WebGPUDevice::createCompressedTexture: unmapped format");
         return TextureHandle::Invalid;
     }
+    const u32 levels = mipLevels ? mipLevels : 1;
 
     WGPUTextureDescriptor td{};
     td.dimension = WGPUTextureDimension_2D;
     td.format = wgpuFmt;
     td.size = WGPUExtent3D{desc.width, desc.height, 1};
-    td.mipLevelCount = 1;
+    td.mipLevelCount = levels;
     td.sampleCount = 1;
     td.usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst;   // compressed = sampled, never a target
 
@@ -542,18 +543,29 @@ TextureHandle WebGPUDevice::createCompressedTexture(const TextureDesc& desc, Gfx
         return TextureHandle::Invalid;
     }
 
-    // writeTexture counts BLOCKS, not pixels: a partial edge block still counts.
-    const CompressedBlockInfo bi = compressedBlockInfo(format);
-    const u32 blocksX = (desc.width + bi.blockWidth - 1) / bi.blockWidth;
-    const u32 blocksY = (desc.height + bi.blockHeight - 1) / bi.blockHeight;
-    WGPUTexelCopyTextureInfo dst{};
-    dst.texture = texture;
-    dst.origin = WGPUOrigin3D{0, 0, 0};
-    WGPUTexelCopyBufferLayout layout{};
-    layout.bytesPerRow = blocksX * bi.bytesPerBlock;
-    layout.rowsPerImage = blocksY;
-    WGPUExtent3D extent{desc.width, desc.height, 1};
-    wgpuQueueWriteTexture(queue_, &dst, data, byteLength, &layout, &extent);
+    // Upload each mip level from the concatenated pyramid. writeTexture counts
+    // BLOCKS, not pixels (a partial edge block still counts a whole block).
+    const GfxBlockInfo bi = gfxCompressedBlockInfo(format);
+    const u8* ptr = static_cast<const u8*>(data);
+    const u8* end = ptr + byteLength;
+    for (u32 level = 0; level < levels; ++level) {
+        const u32 lw = (desc.width >> level) ? (desc.width >> level) : 1u;
+        const u32 lh = (desc.height >> level) ? (desc.height >> level) : 1u;
+        const u32 blocksX = (lw + bi.blockWidth - 1) / bi.blockWidth;
+        const u32 blocksY = (lh + bi.blockHeight - 1) / bi.blockHeight;
+        const u32 levelBytes = blocksX * blocksY * bi.bytesPerBlock;
+        if (ptr + levelBytes > end) break;   // truncated pyramid: stop cleanly
+        WGPUTexelCopyTextureInfo dst{};
+        dst.texture = texture;
+        dst.mipLevel = level;
+        dst.origin = WGPUOrigin3D{0, 0, 0};
+        WGPUTexelCopyBufferLayout layout{};
+        layout.bytesPerRow = blocksX * bi.bytesPerBlock;
+        layout.rowsPerImage = blocksY;
+        WGPUExtent3D extent{lw, lh, 1};
+        wgpuQueueWriteTexture(queue_, &dst, ptr, levelBytes, &layout, &extent);
+        ptr += levelBytes;
+    }
 
     const u32 id = next_id_++;
     textures_[id] = TextureRec{texture, wgpuTextureCreateView(texture, nullptr),
@@ -861,9 +873,10 @@ WGPUSampler WebGPUDevice::samplerFor(u8 key) {
     sd.addressModeU = toWGPUAddressMode(static_cast<TextureWrap>((key >> 2) & 3u));
     sd.addressModeV = toWGPUAddressMode(static_cast<TextureWrap>((key >> 4) & 3u));
     sd.addressModeW = WGPUAddressMode_ClampToEdge;
-    // Every texture is single-mip today (generateMipmaps pending), so the mip
-    // filter never engages; Nearest mirrors GL's non-mipmapped min filters.
-    sd.mipmapFilter = WGPUMipmapFilterMode_Nearest;
+    // Trilinear across mips when a texture has them (compressed KTX2 pyramids);
+    // with a single mip WebGPU samples level 0 unchanged, so this is harmless for
+    // the still-common single-mip textures.
+    sd.mipmapFilter = WGPUMipmapFilterMode_Linear;
     sd.lodMinClamp = 0.0f;
     sd.lodMaxClamp = 32.0f;
     sd.maxAnisotropy = 1;
