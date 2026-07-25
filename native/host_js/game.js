@@ -18,9 +18,12 @@ function init() {
     var assets = app.getResource(ESEngine.Assets);
 
     // Fallback 2x2 checker (a tiny inline texture) while the real image loads.
+    // Nearest filter + clamp (format 1, no flip, filter 0, wrap 1) so the scaled-up
+    // pixels stay crisp — the same import-settings path a cooked pixel-art texture
+    // takes, exercised on every boot.
     var tex = es_createTexture(2, 2, [
         255, 0, 0, 255,    0, 255, 0, 255,
-        0, 0, 255, 255,    255, 255, 0, 255 ]);
+        0, 0, 255, 255,    255, 255, 0, 255 ], 1, false, 0, 1);
 
     follower = world.spawn();
     world.insert(follower, ESEngine.Transform, { position: { x: W * 0.5, y: H * 0.5, z: 0 } });

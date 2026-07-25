@@ -90,7 +90,7 @@ export function createHostBridge(
 
     const storage = hostStorage(bindings);
     const audio = hostAudio(bindings, scope);
-    const lifecycle = hostVisibility(scope);
+    const lifecycle = hostLifecycle(scope);
 
     return {
         readFile: (path) => {
@@ -162,21 +162,32 @@ function hostAudio(
 }
 
 /**
- * Foreground/background: install `es_onNativeVisibility(visible)`, the entry the
- * host calls when the app backgrounds or returns (like touch), and expose it as
- * the bridge's onShow/onHide. The Lifecycle plugin subscribes and auto-pauses.
+ * The lifecycle signals the host pushes (like touch), each installed as an
+ * `es_onNative*` entry the shell calls and exposed as a subscribe/unsubscribe on
+ * the bridge: foreground/background (`es_onNativeVisibility` → onShow/onHide, the
+ * Lifecycle plugin auto-pauses) and memory pressure (`es_onNativeMemoryWarning` →
+ * onMemoryWarning, residency caches trim).
  */
-function hostVisibility(
+function hostLifecycle(
     scope: Record<string, unknown>,
-): Pick<NativeBridge, 'onShow' | 'onHide'> {
-    let show: (() => void)[] = [];
-    let hide: (() => void)[] = [];
-    scope.es_onNativeVisibility = (visible: boolean): void => {
-        for (const cb of visible ? show : hide) cb();
+): Pick<NativeBridge, 'onShow' | 'onHide' | 'onMemoryWarning'> {
+    /** A subscriber list installed behind a host push entry; returns its API. */
+    const signal = (install: (fire: () => void) => void): ((cb: () => void) => () => void) => {
+        let subs: (() => void)[] = [];
+        install(() => { for (const cb of subs) cb(); });
+        return (cb) => { subs.push(cb); return () => { subs = subs.filter((c) => c !== cb); }; };
     };
+
+    let onShow: (() => void) | undefined;
+    let onHide: (() => void) | undefined;
+    const subShow = signal((fire) => { onShow = fire; });
+    const subHide = signal((fire) => { onHide = fire; });
+    scope.es_onNativeVisibility = (visible: boolean): void => { (visible ? onShow : onHide)?.(); };
+
     return {
-        onShow: (cb) => { show.push(cb); return () => { show = show.filter((c) => c !== cb); }; },
-        onHide: (cb) => { hide.push(cb); return () => { hide = hide.filter((c) => c !== cb); }; },
+        onShow: subShow,
+        onHide: subHide,
+        onMemoryWarning: signal((fire) => { scope.es_onNativeMemoryWarning = fire; }),
     };
 }
 

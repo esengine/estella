@@ -109,6 +109,9 @@ void onAppCmd(android_app* app, int32_t cmd) {
         case APP_CMD_RESUME:
             eshost::setVisible(true);
             break;
+        case APP_CMD_LOW_MEMORY:
+            eshost::memoryWarning();     // SDK residency caches trim
+            break;
         default:
             break;
     }

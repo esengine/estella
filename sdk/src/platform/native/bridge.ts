@@ -139,4 +139,10 @@ export interface NativeBridge {
      *  stays always-visible. */
     onShow?(callback: () => void): () => void;
     onHide?(callback: () => void): () => void;
+
+    /** OS memory-pressure warning (iOS didReceiveMemoryWarning / Android
+     *  onLowMemory), pushed by the shell. Residency caches (the audio buffer cache)
+     *  subscribe via the adapter's `onMemoryWarning` to drop evictable entries.
+     *  Returns an unsubscribe. Optional. */
+    onMemoryWarning?(callback: () => void): () => void;
 }

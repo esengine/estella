@@ -83,6 +83,10 @@ void touch(int type, int id, float x, float y);
  *         where the Lifecycle plugin auto-pauses the game. No-op before boot. */
 void setVisible(bool visible);
 
+/** @brief The OS reported memory pressure; asks the SDK's residency caches to
+ *         drop evictable entries (the audio buffer cache). No-op before boot. */
+void memoryWarning();
+
 bool booted();
 
 /** Whether a surface is currently bound — false while the window is gone, which is

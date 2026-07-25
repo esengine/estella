@@ -190,6 +190,10 @@ IOSPlatform g_platform;
     [self.window makeKeyAndVisible];
     return YES;
 }
+
+- (void)applicationDidReceiveMemoryWarning:(UIApplication*)application {
+    eshost::memoryWarning();   // SDK residency caches trim (the audio buffer cache)
+}
 @end
 
 extern "C" int EstellaRunApp(int argc, char** argv) {

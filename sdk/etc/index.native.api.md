@@ -3952,6 +3952,7 @@ language: (() => string) | undefined
 loadImagePixels: (path: string) => Promise<ImageLoadResult>
 now: (() => number) | undefined
 onHide: ((callback: () => void) => () => void) | undefined
+onMemoryWarning: ((callback: () => void) => () => void) | undefined
 onShow: ((callback: () => void) => () => void) | undefined
 readCacheFile: ((key: string) => Promise<ArrayBuffer | null>) | undefined
 readFile: (path: string) => Promise<ArrayBuffer>
@@ -4053,6 +4054,7 @@ name: "native"
 now: () => number
 onAppHide: (callback: () => void) => () => void
 onAppShow: (callback: () => void) => () => void
+onMemoryWarning: (callback: () => void) => () => void
 readCacheFile: (key: string) => Promise<ArrayBuffer | null>
 readFile: (path: string) => Promise<ArrayBuffer>
 readTextFile: (path: string) => Promise<string>

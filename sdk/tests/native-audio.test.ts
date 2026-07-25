@@ -171,6 +171,20 @@ describe('createHostBridge — visibility (lifecycle)', () => {
         push(true);
         expect(show).toHaveBeenCalledTimes(1);   // detached
     });
+
+    it('routes the host memory-warning push to subscribers, and detaches', () => {
+        const scope = audioScope();
+        const bridge = createHostBridge(scope);
+        const warn = vi.fn();
+        const off = bridge.onMemoryWarning!(warn);
+
+        const push = scope.es_onNativeMemoryWarning as () => void;
+        push();
+        expect(warn).toHaveBeenCalledTimes(1);
+        off();
+        push();
+        expect(warn).toHaveBeenCalledTimes(1);
+    });
 });
 
 describe('NativePlatformAdapter — Stage C surfaces', () => {
@@ -192,6 +206,7 @@ describe('NativePlatformAdapter — Stage C surfaces', () => {
             ...(visibility ? {
                 onShow: (cb: () => void) => { shows.push(cb); return () => {}; },
                 onHide: (cb: () => void) => { hides.push(cb); return () => {}; },
+                onMemoryWarning: (cb: () => void) => { cb(); return () => {}; },
             } : {}),
         };
     }
@@ -203,12 +218,16 @@ describe('NativePlatformAdapter — Stage C surfaces', () => {
         expect(new NativePlatformAdapter(bridgeWith(undefined, true)).createAudioBackend).toBeUndefined();
     });
 
-    it('delegates onAppShow / onAppHide to the bridge, tolerating a bridge without them', () => {
+    it('delegates onAppShow / onAppHide / onMemoryWarning to the bridge, tolerating a bridge without them', () => {
         const withVisibility = new NativePlatformAdapter(bridgeWith(undefined, true));
         expect(typeof withVisibility.onAppShow(() => {})).toBe('function');
+        const warn = vi.fn();
+        withVisibility.onMemoryWarning(warn);
+        expect(warn).toHaveBeenCalledTimes(1);   // the fake bridge fires on subscribe
 
         const without = new NativePlatformAdapter(bridgeWith(undefined, false));
         expect(() => without.onAppHide(() => {})()).not.toThrow();
+        expect(() => without.onMemoryWarning(() => {})()).not.toThrow();
     });
 });
 

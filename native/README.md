@@ -220,7 +220,10 @@ System bindings landing incrementally through the real SDK surfaces:
   **native ResourceManager** (`createNativeResourceManager`, over the host's
   `es_createTexture` / `es_releaseTexture` / `es_getTextureDimensions`) uploads the
   bytes directly — no wasm heap. `game.js` now loads its logo through this channel
-  instead of a hand-rolled `es_createTexture`.
+  instead of a hand-rolled `es_createTexture`. Cooked-asset import settings (filter /
+  wrap, from a scene's `textureImporterSettings`) flow through the shared runtime
+  loader and `es_createTexture` honors them exactly as the web embind path does, so
+  pixel-art stays crisp on device.
 - **Audio** (Stage C) — `ESEngine.Audio.playSFX` / `playTrack` runs the SAME Audio API the
   web build uses. The engine is [miniaudio](https://miniaud.io) (CoreAudio on iOS,
   AAudio/OpenSL on Android): it decodes and mixes natively, so nothing per-sample runs
@@ -232,9 +235,12 @@ System bindings landing incrementally through the real SDK surfaces:
   plays (isPlaying true).
 - **Lifecycle** (Stage C) — the glue pushes foreground/background (`eshost::setVisible`) →
   the SDK's Lifecycle plugin auto-pauses the game, and the host suspends/resumes the audio
-  device natively (correct even while the JS tick is paused). Simulator-verified across a
+  device natively (correct even while the JS tick is paused). Memory pressure
+  (`eshost::memoryWarning`, iOS `didReceiveMemoryWarning` / Android `APP_CMD_LOW_MEMORY`) →
+  the SDK's residency caches trim (the audio buffer cache). Simulator-verified across a
   background/foreground cycle.
 
-Remaining: the cooked-asset import settings (sampler filter/wrap, KTX2/atlas nuances)
-the export pipeline will thread through, and hardening on a physical device (audio
-output, the background/foreground transition, Android's miniaudio AAudio path).
+Remaining: KTX2 / compressed textures (native decodes to RGBA only — no basis transcoder
+yet), networking (`bridge.fetch` is offline, so remote asset groups and hot-update do not
+resolve), and hardening on a physical device (audio output, the background/foreground
+transition, Android's miniaudio AAudio path).

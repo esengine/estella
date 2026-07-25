@@ -34,6 +34,7 @@
 #include "esengine/ecs/components/Hierarchy.hpp"      // Parent / Children
 #include "esengine/renderer/RenderContext.hpp"
 #include "esengine/renderer/RenderFrame.hpp"
+#include "esengine/renderer/Texture.hpp"           // TextureSpecification + filter/wrap for import settings
 #include "esengine/resource/ResourceManager.hpp"
 #include "esengine/resource/ShaderParser.hpp"       // linearColorSpace() — texture format at the JS boundary
 
@@ -276,9 +277,14 @@ TextureFormat boundaryTextureFormat(int32_t format) {
 
 // es_createTexture(w, h, pixels, format?, flip?, filter?, wrap?) -> handle id.
 // Backs the native ResourceManager's createTextureFromBytes: the SDK decodes an
-// image to RGBA (loadImagePixels) and hands the bytes here — no wasm heap. filter/
-// wrap arrive with the cooked-asset import settings (Stage C); until then only the
-// default sampler is used, matching the plain rm_createTexture path.
+// image to RGBA (loadImagePixels) and hands the bytes here — no wasm heap.
+//
+// filter/wrap carry the cooked-asset import settings (a scene's
+// textureImporterSettings, threaded through the shared runtime loader). Each is a
+// number or undefined; honor them exactly as the web embind rm_createTextureEx
+// does (filter 0=Nearest/else Linear; wrap 0=Repeat/1=ClampToEdge/2=MirroredRepeat)
+// so native sampling matches web — pixel art stays crisp. With neither, the plain
+// createTexture path is unchanged.
 JSValue js_createTexture(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
     int32_t w = 0, h = 0;
     JS_ToInt32(ctx, &w, argv[0]);
@@ -288,11 +294,43 @@ JSValue js_createTexture(JSContext* ctx, JSValueConst, int argc, JSValueConst* a
 
     int32_t format = 1;                     // default: colour (RGBA8 / sRGB)
     if (argc > 3 && !JS_IsUndefined(argv[3])) JS_ToInt32(ctx, &format, argv[3]);
-    bool flip = (argc > 4 && !JS_IsUndefined(argv[4])) ? JS_ToBool(ctx, argv[4]) != 0 : false;
+    const bool flip = (argc > 4 && !JS_IsUndefined(argv[4])) ? JS_ToBool(ctx, argv[4]) != 0 : false;
+    const TextureFormat fmt = boundaryTextureFormat(format);
+    auto& rm = g_app->ctx->require<resource::ResourceManager>();
 
-    auto handle = g_app->ctx->require<resource::ResourceManager>().createTexture(
-        (u32)w, (u32)h, ConstSpan<u8>(pixels.data(), pixels.size()),
-        boundaryTextureFormat(format), flip);
+    const bool hasFilter = argc > 5 && !JS_IsUndefined(argv[5]);
+    const bool hasWrap = argc > 6 && !JS_IsUndefined(argv[6]);
+    if (!hasFilter && !hasWrap) {
+        auto handle = rm.createTexture(
+            (u32)w, (u32)h, ConstSpan<u8>(pixels.data(), pixels.size()), fmt, flip);
+        return JS_NewInt64(ctx, (int64_t)handle.id());
+    }
+
+    TextureSpecification spec;
+    spec.width = (u32)w;
+    spec.height = (u32)h;
+    spec.format = fmt;
+    spec.generateMips = false;              // decoded 2D sprites, like the web Ex path
+    if (hasFilter) {
+        int32_t f = 1;
+        JS_ToInt32(ctx, &f, argv[5]);
+        spec.minFilter = (f == 0) ? TextureFilter::Nearest : TextureFilter::Linear;
+        spec.magFilter = spec.minFilter;
+    }
+    if (hasWrap) {
+        int32_t wm = 1;
+        JS_ToInt32(ctx, &wm, argv[6]);
+        const TextureWrap tw = (wm == 0) ? TextureWrap::Repeat
+                             : (wm == 2) ? TextureWrap::MirroredRepeat
+                                         : TextureWrap::ClampToEdge;
+        spec.wrapS = tw;
+        spec.wrapT = tw;
+    }
+    auto handle = rm.createTexture(spec);
+    if (auto* tex = rm.getTexture(handle); tex && !pixels.empty()) {
+        const u64 required = (u64)w * (u64)h * (fmt == TextureFormat::RGB8 ? 3 : 4);
+        if (pixels.size() >= required) tex->setDataRaw(pixels.data(), (u32)required, flip);
+    }
     return JS_NewInt64(ctx, (int64_t)handle.id());
 }
 
@@ -943,6 +981,15 @@ void setVisible(bool visible) {
     callJs(a, "es_onNativeVisibility", 1, &arg);
     JS_FreeValue(a.js, arg);
     pumpJs(a);
+}
+
+// OS memory pressure — let the SDK's residency caches drop evictable entries
+// (the audio buffer cache trims). Held buffers keep playing; only re-fetch cost
+// returns for evicted ones.
+void memoryWarning() {
+    if (!g_app || !g_app->ready) return;
+    callJs(*g_app, "es_onNativeMemoryWarning", 0, nullptr);
+    pumpJs(*g_app);
 }
 
 }  // namespace eshost

@@ -146,6 +146,12 @@ export class NativePlatformAdapter implements PlatformAdapter {
         return this.bridge_.onHide?.(callback) ?? (() => {});
     }
 
+    // OS memory pressure → residency caches (the audio buffer cache) trim. A bridge
+    // without the signal never fires.
+    onMemoryWarning(callback: () => void): () => void {
+        return this.bridge_.onMemoryWarning?.(callback) ?? (() => {});
+    }
+
     getStorageItem(key: string): string | null {
         return this.bridge_.getStorageItem(key);
     }
@@ -175,8 +181,8 @@ export class NativePlatformAdapter implements PlatformAdapter {
         if (this.bridge_.writeCacheFile) await this.bridge_.writeCacheFile(key, bytes);
     }
 
-    // createSocket / createVideoBackend / pollGamepads / loadSubpackage /
-    // onMemoryWarning are optional and deferred to the shell.
+    // createSocket / createVideoBackend / pollGamepads / loadSubpackage are
+    // optional and deferred to the shell.
 }
 
 /** Install a {@link NativePlatformAdapter} built from the host `bridge` as the
