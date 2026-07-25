@@ -7,24 +7,35 @@ Vulkan on Android) — a real native app, **not a WebView**. Game scripts run on
 embedded JS engine ([QuickJS-ng](https://github.com/quickjs-ng/quickjs)); the
 engine runs native (full speed), so only the game script is interpreted.
 
-This directory holds two reference hosts + the build recipe:
+This directory holds the host and the build recipe:
 
-- **`host_cpp/`** — a pure-C++ host that renders one ECS scene (no JS). A smoke test
-  for the engine core on native Dawn. Android only; always built there.
-- **`host_js/`** — the JS host: a QuickJS game script drives the engine through the
-  **real esengine SDK**. The SDK is bundled to one file
-  (`dist/index.native.bundled.js`, installing `ESEngine`) and the game authors with
-  `ESEngine.createNativeWorld()` — the same `World` the web build uses. Built when
-  you pass `--quickjs` (this is the product-shaped runtime). It is one host with a
-  platform seam, not one per OS:
-  - `host_js/host_core.{hpp,cpp}` — Dawn bring-up, the `es_*` bindings, the SDK bundle
-    and the frame. Platform-independent; everything that differs sits behind
-    `eshost::Platform`.
-  - `host_js/main_android.cpp` — NativeActivity, APK assets, Vulkan, the ALooper loop.
-  - `host_js/main_ios.mm` — a CAMetalLayer view, bundle assets, Metal, CADisplayLink.
-- **`android/`** — the APK manifests (`host_cpp/`, `host_js/`), packaged by `--package`.
+- **`host/`** — the app. A QuickJS runtime drives the engine through the **real
+  esengine SDK**, bundled to one file (`dist/index.native.bundled.js`, installing
+  `ESEngine`); an editor export boots on it through the same `App` and `World` the
+  web build uses. One host with a platform seam, not one per OS:
+  - `Host.{hpp,cpp}` — the contract a platform implements (`eshost::Platform`) and
+    the entry points its event loop drives: boot, the frame, lifecycle.
+  - `Runtime.{hpp,cpp}` — the QuickJS runtime and the state the host shares: the
+    environment the language does not ship (console, timers, a clock), the eval +
+    bytecode cache, and the layered boot (SDK bundle → bootstrap → project).
+  - `bootstrap.js` — the host's own JavaScript (the bridge install and the default
+    init/update), embedded at build time. A real .js file, not a C++ literal.
+  - `bindings/` — the `es_*` surface, one TU per pillar (Ecs, Render, Assets,
+    Audio, Net). Only what cannot be generated; see below.
+  - `EsnShim.cpp` + `esn_shim.hpp` — what the GENERATED bindings call: the engine
+    singletons, entity round-tripping, the JS value readers.
+  - `media/` — glyph rasterization, KTX2 transcode, the miniaudio engine.
+  - `platform/android.cpp` — NativeActivity, APK assets, Vulkan, the ALooper loop.
+  - `platform/ios.mm` — a CAMetalLayer view, bundle assets, Metal, CADisplayLink.
+- **`android/`** — the APK manifest, packaged by `--package`.
 - **`ios/`** — the Xcode app shell (xcodegen) that signs and packages the iOS
   build. It is only an entry point; the app lives in the static library.
+
+There is no built-in demo game and no second, JS-free host. What runs is an editor
+export, always: a parallel content path drifts from the one every real game takes,
+and boot already separates the layers — the engine core, Dawn and the surface are
+all up (and logged) before the first line of JS runs, so a failure names its own
+layer.
 
 Dawn and QuickJS are **not vendored** (multi-GB / separate project); the recipe
 fetches them, the way Dawn fetches its own deps. Nothing here is compiled by the
@@ -40,10 +51,29 @@ the tree:
 | Render surface | `WebGPUDevice::configureSurface(NativeSurface)` | `CAMetalLayer*` / `ANativeWindow*` → `WGPUSurface` (commit `bfc495da`) |
 | Instance / present | `WebGPUDevice(device, instance)` + `present()` | host shares its instance; flips the swapchain (native-only) |
 | GL gate | `EstellaContext` under `ES_PLATFORM_WEB` | native drops the WebGL entry |
-| Glyph source | `Platform::loadFont` + `host_js/glyph_raster.cpp` | the device has no 2D canvas: the OS names a font file, stb_truetype rasterizes, the engine's own `sdfFromAlpha` encodes |
+| Glyph source | `Platform::loadFont` + `host/media/glyph_raster.cpp` | the device has no 2D canvas: the OS names a font file, stb_truetype rasterizes, the engine's own `sdfFromAlpha` encodes |
 | Bindings | `python -m eht --native-output` | `es_set_<C>` / `es_<C>_buffer` from the same reflection as the web embind bindings |
+| Entry points | `python -m eht --native-functions` | `es_renderer_*`, `es_uiLayout_*`, `es_rm_*` — QuickJS wrappers over the SAME `bindings/*.hpp` declarations embind registers |
 | Data marshalling | `sdk/src/ecs/ptrAccessors.generated.ts` | POD components are wasm32/arm64 layout-identical → the generated accessors write native component memory unchanged (via a zero-copy `ArrayBuffer`) |
-| Host platform | `eshost::Platform` (`host_js/host_core.hpp`) | packaged assets, cache dir, backend, window surface + size, log — the only things the two OS glue files answer differently |
+| Host platform | `eshost::Platform` (`host/Host.hpp`) | packaged assets, cache dir, backend, window surface + size, log — the only things the two OS glue files answer differently |
+
+### What is hand-written, and why
+
+The `es_*` globals the SDK reads off `globalThis` are mostly GENERATED, from the
+declarations embind registers on the web — so one implementation serves both
+platforms, and both get its `BoundarySpan` validation. `native/host/bindings/`
+holds only what has no generated form:
+
+| Kept by hand | Why |
+|---|---|
+| entity + hierarchy | the web reaches the registry as an embind **class**; no binding header declares this surface |
+| KTX2 transcode, glyph rasterization | native-only — the web decodes with WebGL2 + a wasm transcoder, and rasterizes on a 2D canvas |
+| surface size, camera list, texture dimensions | their web siblings return an `emscripten::val`, which the boundary cannot marshal |
+| assets, fetch, audio, cache, UTF-8, console/timers | the host's answer to what a browser hands the web build for free. There is nothing in the engine to generate them from |
+
+Everything else — the frame, the UI layout, the whole texture surface, the text
+batch — comes from EHT. Adding an entry point to a `bindings/*.hpp` is all it
+takes for the device to have it.
 
 ## Build (Android arm64)
 
@@ -67,43 +97,46 @@ cmake -S "$DAWN" -B "$DAWN/out-android" -G Ninja \
 cmake --build "$DAWN/out-android" --target webgpu_dawn
 ```
 
-**Build the hosts** through the orchestrated task:
+**Build the host** through the orchestrated task. Build the SDK bundle first (it
+produces the QuickJS-loadable `dist/index.native.bundled.js`), clone QuickJS-ng
+(core is dtoa/libregexp/libunicode/quickjs.c), and pass `--quickjs`:
 
 ```sh
-# C++ host only.
-node build-tools/cli.js native --dawn "$DAWN" --dawn-build "$DAWN/out-android"
-
-# + JS host: build the SDK bundle first (produces the QuickJS-loadable
-# dist/index.native.bundled.js), clone QuickJS-ng (core is
-# dtoa/libregexp/libunicode/quickjs.c), and pass --quickjs. The task generates,
-# into build-native/gen/ (never committed, so nothing can drift from its source):
-#   * NativeBindings.generated.cpp — from the SAME reflection as the web bindings
-#     (python -m eht --native-output ... --native-only)
-#   * esengine_bundle.h — the real SDK bundle embedded as a C string
 (cd sdk && pnpm run build)
 git clone --depth 1 https://github.com/quickjs-ng/quickjs "$QJS"
 node build-tools/cli.js native --dawn "$DAWN" --dawn-build "$DAWN/out-android" --quickjs "$QJS"
 ```
 
+The task generates, into `build-native/gen/` (never committed, so nothing can
+drift from its source):
+
+* `NativeBindings.generated.cpp` — per-component accessors, from the SAME
+  reflection as the web bindings (`eht --native-output ... --native-only`)
+* `NativeFunctionBindings.generated.cpp` — the engine's binding entry points, from
+  the same `bindings/*.hpp` declarations embind registers (`eht --native-functions`)
+* `esengine_bundle.h` / `host_bootstrap.h` — the real SDK bundle and the host
+  bootstrap, embedded as C strings
+
 Paths may also come from `ESTELLA_DAWN_DIR` / `ESTELLA_DAWN_BUILD` /
-`ESTELLA_QUICKJS_DIR`. Outputs: `build-native/libestella_host.so`, and with
-`--quickjs`, `build-native/libestella_js_host.so`.
+`ESTELLA_QUICKJS_DIR`. Output: `build-native/libestella_js_host.so`.
 
 **Package a signed APK** by adding `--package` — the Android counterpart of what
 Xcode does for `native/ios`, and still no gradle (a NativeActivity has no Java):
 
 ```sh
 node build-tools/cli.js native --dawn "$DAWN" --dawn-build "$DAWN/out-android" \
-  --quickjs "$QJS" --package            # --host cpp for the smoke-test APK
+  --quickjs "$QJS" --package --content dist-android
 adb install -r build-native/estella-js-host.apk
 ```
 
-It runs `aapt2 link` over `native/android/host_{js,cpp}/AndroidManifest.xml`, stages
+It runs `aapt2 link` over `native/android/host/AndroidManifest.xml` to produce the
+base APK from the manifest, then adds the payload with `jar`:
 `lib/arm64-v8a/{libestella*_host.so,libwebgpu_dawn.so,libc++_shared.so}` (Dawn
-stripped with the NDK's `llvm-strip`), packs the game and its content into
-`assets/` where the host's `readAsset()` looks, then `zipalign -f 4` and
-`apksigner sign`. Signing uses the Android debug keystore — created on first use —
-unless you pass `--keystore`.
+stripped with the NDK's `llvm-strip`) and the exported project under `assets/`,
+where the host's `readAsset()` looks. Then `zipalign -f 4` and `apksigner sign`.
+Signing uses the Android debug keystore — created on first use — unless you pass
+`--keystore`. The JDK those steps need is located the way the SDK and NDK are
+(`JAVA_HOME`, or the one Android Studio bundles); `--jdk <dir>` overrides.
 
 ## Build (iOS arm64)
 
@@ -128,7 +161,7 @@ cmake --build "$DAWN/out-ios" --target webgpu_dawn
 ```
 
 **Build the host, then run it from Xcode.** There is no pure-C++ reference host on
-iOS — the app *is* the JS host, so `--quickjs` is required:
+iOS — the app *is* the host, so `--quickjs` is required:
 
 ```sh
 (cd sdk && pnpm run build)
@@ -154,32 +187,35 @@ simulator would need a third Dawn.
 Then pick your Team under *Signing & Capabilities*, select your device and Run.
 The CMake build merges host + engine + QuickJS + Dawn into one archive
 (`build-native-ios/libestella_ios.a`), so the Xcode project is a signing and
-packaging shell: `App/main.m` calls `EstellaRunApp()`, and the game (`host_js/game.js`,
-`host_js/logo.png`) ships as bundle resources — the same project-relative paths the APK
-serves from `assets/`.
+packaging shell: `App/main.m` calls `EstellaRunApp()`, and the exported project
+ships as bundle resources — the same project-relative paths the APK serves from
+`assets/`.
 
-## Shipping a project (Stage C)
+## Shipping a project
 
-The demo above is a hand-written `game.js`. A real game comes out of the editor:
-**Package Project → Mobile** (or `exportGame({ platform: 'native' })`) writes the
-cooked assets, both manifests, the scenes and `game.config.json` — content only,
-since the engine, the SDK and the game runtime all ship inside the app binary.
-Pass that directory to the build and it becomes the app's content:
+A game comes out of the editor. **Package Project → Android** (or **→ iOS**, or
+`exportGame({ platform: 'android' })`) writes the cooked assets, both manifests,
+the scenes and `game.config.json` — content only, since the engine, the SDK and
+the game runtime all ship inside the app binary. Both platforms write the SAME
+payload; what differs is the toolchain that wraps it, which is why they are two
+rows in the dialog rather than one "mobile". Pass that directory to the build and
+it becomes the app's content:
 
 ```sh
 # Android: it becomes the APK's assets/
 node build-tools/cli.js native --dawn "$DAWN" --dawn-build "$DAWN/out-android" \
-  --quickjs "$QJS" --package --content dist-native
+  --quickjs "$QJS" --package --content dist-android
 
 # iOS: it stages into native/ios/Content (a folder reference), then rebuild in Xcode
 node build-tools/cli.js native --target ios --dawn "$DAWN" \
-  --dawn-build "$DAWN/out-ios" --quickjs "$QJS" --content dist-native
+  --dawn-build "$DAWN/out-ios" --quickjs "$QJS" --content dist-ios
 ```
 
-The host decides which it is from what it finds: `game.config.json` boots the
-exported project through `ESEngine.initNativeGame`, otherwise `game.js` runs. A
-project's own scripts (`defineComponent` / `defineSystem`) bundle to `scripts.js`
-and evaluate before the scene loads, bound to the host's SDK instance.
+`game.config.json` is what the host boots, through `ESEngine.initNativeGame`;
+without one it says so and stops, rather than falling back to something a real
+game never runs. A project's own scripts (`defineComponent` / `defineSystem`)
+bundle to `scripts.js` and evaluate before the scene loads, bound to the host's
+SDK instance.
 
 ## Gotchas (all resolved; each cost a build)
 
@@ -190,7 +226,15 @@ and evaluate before the scene loads, bound to the host's SDK instance.
 4. `ALooper_pollAll` is gone in NDK 28 — use `ALooper_pollOnce`.
 5. `configureSwapchain` must use `CompositeAlphaMode::Auto`, not `Opaque` — a
    native Vulkan surface (Adreno) rejects Opaque outright.
-6. MIUI blocks `adb install` on a locked screen — unlock + allow USB install.
+6. MIUI blocks `adb install` on a locked screen — unlock + allow USB install. It
+   also blocks `adb shell input keyevent`, so a dozing screen cannot be woken from
+   the host: a screenshot then reads back all black and the frame loop is
+   legitimately stopped (the surface is gone). Unlock before you conclude anything
+   about rendering.
+7. `aapt2 link -A <dir>` on Windows writes nested asset paths with backslashes
+   (`assets/assets\scenes\x`), and a zip entry name must use forward slashes — so
+   `AAssetManager` cannot open anything in a subdirectory. The packaging step adds
+   `assets/` with `jar` instead, which writes them correctly.
 7. Xcode ships the iPhoneOS **SDK** without the device **platform** components, so
    the CMake build works while `xcodebuild` rejects every iOS destination
    ("iOS X.Y is not installed"). Install it under *Xcode → Settings → Components*.
@@ -199,32 +243,34 @@ and evaluate before the scene loads, bound to the host's SDK instance.
 
 ## Status
 
-**Android** is proven on device (Snapdragon 8 Elite / Adreno 830, 120 fps).
-**iOS** runs: the demo renders in the simulator at a steady 60 fps — the clear
-colour, a ShapeRenderer and `logo.png` loaded through the real `Assets.loadTexture`
-pipeline — booting in ~20 ms off the bytecode cache. An **exported project** runs
-too: the camera-follow example's scene loads from its cooked content and renders.
+**Android** is proven on device (Snapdragon 8 Elite / Adreno 830) running an
+**editor export**: the camera-follow example, packaged with **Package Project →
+Android** and shipped by `--package --content`, renders its world at a
+vsync-locked 120 fps and boots in ~57 ms (Dawn + EstellaContext 35 ms, then the
+SDK bundle off its bytecode cache).
+
+**iOS** runs in the simulator at a steady 60 fps, booting in ~20 ms off the
+bytecode cache; an exported project loads from its cooked content and renders.
 Not yet run on a physical device, which needs your signing.
 
-The engine core + render path are proven on device. The JS host runs the **real
-SDK**: `ESEngine.createNativeApp()`
-returns the same `App` + `World` the web build uses, connected to the native core
-through the generated registry + memory backend; the host binds the entity /
-hierarchy / component functions the SDK reads off `globalThis`, plus the input and
-texture bindings.
+The engine core + render path are proven on device. The host runs the **real
+SDK**: `ESEngine.createNativeApp()` returns the same `App` + `World` the web build
+uses, connected to the native core through the generated registry + memory
+backend; the host binds only what cannot be generated (see above), and the rest —
+the frame, the UI layout, the texture surface, the text batch — reaches the engine
+through wrappers over the same declarations embind registers.
 
 System bindings landing incrementally through the real SDK surfaces:
 
 - **Input** (Stage B) — host touch → the SDK's `inputPlugin` → the `Input` resource (device-verified).
 - **Assets** (Stage B) — `ESEngine.Assets.loadTexture(path)` runs the SAME asset pipeline the
   web build uses: the platform decodes the image (`bridge.loadImagePixels`) and the
-  **native ResourceManager** (`createNativeResourceManager`, over the host's
-  `es_createTexture` / `es_releaseTexture` / `es_getTextureDimensions`) uploads the
-  bytes directly — no wasm heap. `game.js` now loads its logo through this channel
-  instead of a hand-rolled `es_createTexture`. Cooked-asset import settings (filter /
+  **native ResourceManager** (`createNativeResourceManager`) uploads the bytes
+  directly — no wasm heap — through the engine's OWN `rm_createTextureEx`, the same
+  entry point embind exposes to the web. Cooked-asset import settings (filter /
   wrap, from a scene's `textureImporterSettings`) flow through the shared runtime
-  loader and `es_createTexture` honors them exactly as the web embind path does, so
-  pixel-art stays crisp on device.
+  loader into that one implementation, so pixel-art stays crisp on device by the
+  same code that keeps it crisp in a browser.
 - **Audio** (Stage C) — `ESEngine.Audio.playSFX` / `playTrack` runs the SAME Audio API the
   web build uses. The engine is [miniaudio](https://miniaud.io) (CoreAudio on iOS,
   AAudio/OpenSL on Android): it decodes and mixes natively, so nothing per-sample runs

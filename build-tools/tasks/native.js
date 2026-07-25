@@ -39,7 +39,10 @@ async function generateNativeBindings(rootDir, genDir, python) {
 // the binding TUs themselves, which this build compiles (see ESEngineSources).
 async function generateNativeFunctionBindings(rootDir, genDir, python) {
     const out = path.join(genDir, 'NativeFunctionBindings.generated.cpp');
-    const headers = ['RendererBindings.hpp', 'UIBindings.hpp'].map(
+    // Every binding TU the native build compiles (see cmake/ESEngineSources.cmake).
+    // ResourceManagerBindings is the texture surface the asset pipeline uploads
+    // through: the host used to hand-write a second copy of it.
+    const headers = ['RendererBindings.hpp', 'UIBindings.hpp', 'ResourceManagerBindings.hpp'].map(
         (h) => path.join(rootDir, 'src', 'esengine', 'bindings', h));
     await runCommand(python, [
         path.join(rootDir, 'tools', 'eht.py'),
@@ -74,8 +77,36 @@ async function generateSdkBundle(rootDir, genDir) {
     return headerPath;
 }
 
-// Both generated artifacts go in the build tree; nothing committed can drift from
-// the reflection / SDK source.
+// Embed the host bootstrap (native/host/bootstrap.js) the same way. It is real
+// JavaScript — the bridge install and the default init/update — so it lives as a
+// .js file that can be linted and diffed, not as a C++ string literal.
+async function generateBootstrap(rootDir, genDir) {
+    const source = path.join(rootDir, 'native', 'host', 'bootstrap.js');
+    if (!existsSync(source)) throw new Error(`Host bootstrap not found at ${source}.`);
+    const header =
+        '// native/host/bootstrap.js, embedded by `cli native` — DO NOT EDIT.\n'
+        + '#pragma once\n'
+        + 'static const char* kHostBootstrapJS = R"ESJS(\n'
+        + readFileSync(source, 'utf8')
+        + ')ESJS";\n';
+    const headerPath = path.join(genDir, 'host_bootstrap.h');
+    writeFileSync(headerPath, header, 'utf8');
+    return headerPath;
+}
+
+// Stage the QuickJS public header where the editor's C++ config looks for it
+// (`build/quickjs_headers`, in .vscode/c_cpp_properties.json). IntelliSense would
+// otherwise need ESTELLA_QUICKJS_DIR exported into the session that launched the
+// editor — a machine-specific env var, set outside the repo, that goes stale. One
+// build now makes every host TU resolve.
+async function stageEditorHeaders(rootDir, quickjs) {
+    const dest = path.join(rootDir, 'build', 'quickjs_headers');
+    await mkdir(dest, { recursive: true });
+    await cp(path.join(quickjs, 'quickjs.h'), path.join(dest, 'quickjs.h'));
+}
+
+// Every generated artifact goes in the build tree; nothing committed can drift
+// from the reflection / SDK / bootstrap source.
 async function prepareGenerated(rootDir, buildDir, quickjs) {
     if (!existsSync(quickjs)) {
         throw new Error(`QuickJS source dir not found: ${quickjs}. Clone `
@@ -90,6 +121,9 @@ async function prepareGenerated(rootDir, buildDir, quickjs) {
     await generateNativeFunctionBindings(rootDir, genDir, python);
     logger.step('Embedding the real SDK bundle (dist/index.native.bundled.js)...');
     await generateSdkBundle(rootDir, genDir);
+    logger.step('Embedding the host bootstrap (native/host/bootstrap.js)...');
+    await generateBootstrap(rootDir, genDir);
+    await stageEditorHeaders(rootDir, quickjs);
     return genDir;
 }
 
@@ -139,7 +173,7 @@ async function buildAndroidHost(options) {
         '-DCMAKE_BUILD_TYPE=Release',
         // Emit build-native/compile_commands.json so editor IntelliSense (the
         // "Native Host" c_cpp_properties config) resolves the NDK / Dawn / QuickJS
-        // includes for native/host_js without hardcoding any machine paths.
+        // includes for native/host without hardcoding any machine paths.
         '-DCMAKE_EXPORT_COMPILE_COMMANDS=ON',
         `-DESTELLA_DAWN_DIR=${dawnDir}`,
         `-DESTELLA_DAWN_BUILD=${dawnBuild}`,
@@ -153,15 +187,12 @@ async function buildAndroidHost(options) {
     logger.step('Building native host...');
     await runCommand(cmake, ['--build', buildDir, '-j', String(getCpuCount())], { cwd: rootDir });
 
-    logger.success(`Native host: ${path.join('build-native', 'libestella_host.so')}`);
-    if (quickjs) {
-        logger.success(`JS host:     ${path.join('build-native', 'libestella_js_host.so')}`);
-    }
+    logger.success(`Host: ${path.join('build-native', 'libestella_js_host.so')}`);
 
     if (options.package) {
         await packageNativeApk({
-            host: options.host || (quickjs ? 'js' : 'cpp'),
-            dawnBuild, abi, platform, keystore: options.keystore, content: options.content,
+            dawnBuild, abi, platform, keystore: options.keystore, jdk: options.jdk,
+            content: options.content,
         });
     }
 }

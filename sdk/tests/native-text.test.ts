@@ -75,22 +75,23 @@ function makeHostScope() {
     }));
     const submitSpy = vi.fn();
     const scope: Record<string, unknown> = {
-        es_createTexture: (width: number, height: number) => {
+        es_rm_createTextureEx: (width: number, height: number) => {
             const handle = nextHandle++;
             textures.set(handle, { width, height });
             return handle;
         },
-        es_releaseTexture: (handle: number) => { textures.delete(handle); },
+        es_rm_releaseTexture: (handle: number) => { textures.delete(handle); },
         es_getTextureDimensions: (handle: number) => textures.get(handle) ?? null,
         // The atlas page id: the host answers with the engine's render id for the
         // handle. A distinct number here proves the id that reaches the batch is
         // this one, not the ResourceManager handle.
-        es_getTextureRenderId: (handle: number) => handle + 100,
-        es_updateTextureSubregion: (handle: number, x: number, y: number, w: number, h: number, pixels: Uint8Array) => {
-            uploads.push({ handle, x, y, w, h, bytes: pixels.length });
+        es_rm_getTextureGLId: (handle: number) => handle + 100,
+        es_rm_updateTextureSubregion: (handle: number, x: number, y: number, w: number, h: number,
+                                       pixels: Uint8Array, pixelsLen: number) => {
+            uploads.push({ handle, x, y, w, h, bytes: pixels.length, len: pixelsLen });
         },
         es_rasterizeGlyph: rasterizeSpy,
-        es_submitTextBatch: (...args: unknown[]) => { calls.push('text'); submitSpy(...args); },
+        es_renderer_submitTextBatch: (...args: unknown[]) => { calls.push('text'); submitSpy(...args); },
         // The frame surface: the SDK's camera plugin + pipeline drive these, and
         // the order they arrive in is what the host's frame depends on.
         es_renderer_resize: () => { calls.push('resize'); },
@@ -217,18 +218,23 @@ describe('a frame on the native core', () => {
 
         // Each glyph landed in the atlas page as an 8×8 RGBA sub-region upload.
         expect(uploads).toHaveLength(2);
-        expect(uploads[0]).toMatchObject({ handle: 1, w: 8, h: 8, bytes: 8 * 8 * 4 });
+        expect(uploads[0]).toMatchObject({ handle: 1, w: 8, h: 8, bytes: 8 * 8 * 4, len: 8 * 8 * 4 });
 
         // One batch for the one page, bound by the host's render id (handle + 100),
         // carrying two quads: 4 vertices and 6 indices each.
         expect(submitSpy).toHaveBeenCalledTimes(1);
-        const [vertices, vertexCount, indices, textureId, transform, ent, , , sdf] = submitSpy.mock.calls[0];
+        // The argument list is the engine entry point's, not a host-shaped one:
+        // renderer_submitTextBatch(vertices, vertexCount, indices, indexCount,
+        // textureId, transform, entity, layer, depth, sdf).
+        const [vertices, vertexCount, indices, indexCount, textureId, transform, ent, , , sdf] =
+            submitSpy.mock.calls[0];
         expect(textureId).toBe(101);
         expect(ent).toBe(entity);
-        expect(sdf).toBe(true);
+        expect(sdf).toBe(1);
         expect(vertexCount).toBe(8);
         expect((vertices as Float32Array).length).toBe(8 * TEXT_VERTEX_FLOATS);
         expect((indices as Uint16Array).length).toBe(12);
+        expect(indexCount).toBe(12);
         expect((transform as Float32Array).length).toBe(16);
     });
 

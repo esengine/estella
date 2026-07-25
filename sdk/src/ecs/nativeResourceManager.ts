@@ -8,14 +8,21 @@
 //
 // The one wasm-specific op in the texture path — marshal RGBA into the wasm heap,
 // then call embind createTexture(ptr) — becomes createTextureFromBytes here: the
-// native core has no wasm heap, so the host uploads the JS-owned bytes directly
-// (es_createTexture). This mirrors how createNativeRegistry composes the ECS over
-// es_* host globals; the same single generated/marshalling philosophy, one more
-// backend. The upload helpers (runtimeAssets, TextureLoader) prefer this byte
-// method when present, so web (embind, no such method) stays byte-identical.
+// native core has no wasm heap, so the JS-owned bytes go straight to the same
+// engine entry point (rm_createTextureEx), whose QuickJS wrapper copies them and
+// hands the binding a real pointer. This mirrors how createNativeRegistry composes
+// the ECS over es_* host globals; the same single generated/marshalling
+// philosophy, one more backend. The upload helpers (runtimeAssets, TextureLoader)
+// prefer this byte method when present, so web (embind, no such method) stays
+// byte-identical.
 
 import type { CppResourceManager } from '../wasm';
 import { RESOURCE_BINDINGS, TEXT_BINDINGS } from './nativeBindings';
+
+/** `rm_createTextureEx` filter/wrap codes, for the case with no import settings.
+ *  They spell out what the plain `rm_createTexture` path does, so the two agree. */
+const FILTER_LINEAR = 1;
+const WRAP_CLAMP_TO_EDGE = 1;
 
 /** Invoke a host-provided global by name; throws if the host did not bind it
  *  (these are part of the native ResourceManager contract). */
@@ -39,10 +46,12 @@ function hostCallOpt(scope: Record<string, unknown>, name: string, args: unknown
  * Build the CppResourceManager over the host's native texture bindings. `scope`
  * holds the globals (the QuickJS global object on a device; a plain object in
  * tests): the host binds
- *   * es_createTexture(w, h, pixels, format, flip, filter?, wrap?) -> handle
- *   * es_releaseTexture(handle)
+ *   * es_rm_createTextureEx(w, h, pixels, len, format, flip, filter, wrap) -> handle
+ *   * es_rm_releaseTexture(handle)
  *   * es_getTextureDimensions(handle) -> { width, height } | null
- * and optionally es_updateTextureSubregion / es_setTextureBudget.
+ * and optionally es_rm_updateTextureSubregion / es_setTextureBudget. The `rm_`
+ * names are the engine's own entry points, generated for QuickJS from the same
+ * declarations embind registers — see {@link RESOURCE_BINDINGS}.
  *
  * Only the methods the native asset path actually calls are implemented; the
  * wasm-specific ones (heap-pointer createTexture, registerExternalTexture,
@@ -54,12 +63,18 @@ export function createNativeResourceManager(
     scope: Record<string, unknown> = globalThis as unknown as Record<string, unknown>,
 ): CppResourceManager {
     const rm: Partial<CppResourceManager> = {
-        // The module-free upload the SDK prefers on native (no wasm heap).
+        // The module-free upload the SDK prefers on native (no wasm heap). The
+        // engine entry point is the web's `rm_createTextureEx`: it takes a byte
+        // COUNT beside the buffer, because on the web the buffer is a heap offset.
+        // Absent import settings mean the defaults the plain `rm_createTexture`
+        // path applies — Linear filtering, ClampToEdge wrap (Texture::create's
+        // pixel overload) — so a texture with no settings uploads identically.
         createTextureFromBytes: (
             width, height, pixels, format, flipY, filterMode, wrapMode,
         ): number =>
             hostCall(scope, RESOURCE_BINDINGS.createTexture,
-                [width, height, pixels, format, flipY, filterMode, wrapMode]) as number,
+                [width, height, pixels, pixels.length, format, flipY,
+                 filterMode ?? FILTER_LINEAR, wrapMode ?? WRAP_CLAMP_TO_EDGE]) as number,
 
         // The host transcodes KTX2 (basis) and uploads the compressed blocks; it
         // returns { id, width, height } — expose it as { handle, ... }.
@@ -70,7 +85,8 @@ export function createNativeResourceManager(
         },
 
         updateTextureSubregionFromBytes: (handle, x, y, width, height, pixels): void => {
-            hostCallOpt(scope, TEXT_BINDINGS.updateTextureSubregion, [handle, x, y, width, height, pixels]);
+            hostCallOpt(scope, TEXT_BINDINGS.updateTextureSubregion,
+                [handle, x, y, width, height, pixels, pixels.length]);
         },
 
         // The id a draw command binds a texture by. Named for GL because that is

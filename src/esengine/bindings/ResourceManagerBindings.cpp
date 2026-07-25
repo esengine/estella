@@ -9,7 +9,9 @@
 #include "../core/Types.hpp"
 #include "../core/Log.hpp"
 
+#ifdef __EMSCRIPTEN__
 #include <emscripten/val.h>
+#endif
 
 namespace esengine {
 
@@ -129,6 +131,7 @@ u32 rm_trimTextureCache(resource::ResourceManager& rm) {
     return static_cast<u32>(rm.trimTextureCache());
 }
 
+#ifdef __EMSCRIPTEN__
 emscripten::val rm_getResourceStats(resource::ResourceManager& rm) {
     const auto st = rm.getStats();
     auto result = emscripten::val::object();
@@ -143,6 +146,7 @@ emscripten::val rm_getResourceStats(resource::ResourceManager& rm) {
     result.set("textureEvictableCount", static_cast<f64>(st.textureEvictableCount));
     return result;
 }
+#endif  // __EMSCRIPTEN__
 
 void rm_releaseShader(resource::ResourceManager& rm, u32 handleId) {
     rm.releaseShader(resource::ShaderHandle(handleId));
@@ -157,6 +161,7 @@ u32 rm_getTextureGLId(resource::ResourceManager& rm, u32 handleId) {
     return tex ? tex->getId() : 0;
 }
 
+#ifdef __EMSCRIPTEN__
 emscripten::val rm_getTextureDimensions(resource::ResourceManager& rm, u32 handleId) {
     auto* tex = rm.getTexture(resource::TextureHandle(handleId));
     if (!tex) {
@@ -167,6 +172,7 @@ emscripten::val rm_getTextureDimensions(resource::ResourceManager& rm, u32 handl
     result.set("height", tex->getHeight());
     return result;
 }
+#endif  // __EMSCRIPTEN__
 
 #ifdef ES_ENABLE_BITMAP_TEXT
 u32 rm_loadBitmapFont(resource::ResourceManager& rm, const std::string& fntContent,
@@ -193,6 +199,7 @@ u32 rm_getBitmapFontRefCount(resource::ResourceManager& rm, u32 handleId) {
     return rm.getBitmapFontRefCount(resource::BitmapFontHandle(handleId));
 }
 
+#ifdef __EMSCRIPTEN__
 emscripten::val rm_measureBitmapText(resource::ResourceManager& rm, u32 fontHandle,
                                       const std::string& text, f32 fontSize, f32 spacing) {
     auto* font = rm.getBitmapFont(resource::BitmapFontHandle(fontHandle));
@@ -208,7 +215,8 @@ emscripten::val rm_measureBitmapText(resource::ResourceManager& rm, u32 fontHand
     result.set("height", metrics.height);
     return result;
 }
-#endif
+#endif  // __EMSCRIPTEN__
+#endif  // ES_ENABLE_BITMAP_TEXT
 
 void rm_updateTextureSubregion(resource::ResourceManager& rm, u32 handleId,
                                 u32 x, u32 y, u32 width, u32 height,

@@ -61,6 +61,45 @@ export function platformJar(sdk, platform) {
     return jar;
 }
 
+/**
+ * The JDK the APK step runs on. Packaging needs one for `jar` and `keytool`, and
+ * apksigner needs one to launch at all — but a machine that got its JDK through
+ * Android Studio has it bundled beside the IDE with nothing exported, so none of
+ * them are on PATH. Looks where a JDK actually lives; null when there is none.
+ *
+ * @param explicit An explicitly configured JDK home (`--jdk`), which always wins.
+ */
+export function javaHome(explicit) {
+    const roots = [
+        explicit,
+        process.env.ESTELLA_JDK,
+        process.env.JAVA_HOME,
+        // Android Studio's bundled runtime (JetBrains Runtime), at its default
+        // install location per platform.
+        ...(process.platform === 'darwin'
+            ? ['/Applications/Android Studio.app/Contents/jbr/Contents/Home']
+            : process.platform === 'win32'
+                ? [
+                    path.join(process.env['ProgramFiles'] || 'C:\\Program Files', 'Android', 'Android Studio', 'jbr'),
+                    path.join(process.env['LOCALAPPDATA'] || '', 'Programs', 'Android Studio', 'jbr'),
+                ]
+                : ['/opt/android-studio/jbr', path.join(process.env.HOME || '', 'android-studio', 'jbr')]),
+    ].filter(Boolean);
+    return roots.find((root) => existsSync(path.join(root, 'bin', 'java' + exe))) ?? null;
+}
+
+/** A JDK tool (`jar`, `keytool`) from {@link javaHome}, or from PATH when a JDK is
+ *  already exported there. */
+export function jdkTool(name, explicit) {
+    const home = javaHome(explicit);
+    if (home) return path.join(home, 'bin', name + exe);
+    if (process.env.PATH?.split(path.delimiter).some((dir) => existsSync(path.join(dir, name + exe)))) {
+        return name;
+    }
+    throw new Error(`No JDK found for \`${name}\` (the APK step needs one, as does apksigner). `
+        + 'Set JAVA_HOME, or pass --jdk <dir> — Android Studio bundles one at <install>/jbr.');
+}
+
 /** The NDK's LLVM toolchain dir — its host tag is the only entry under prebuilt/. */
 function llvmPrebuilt(ndk) {
     const prebuilt = path.join(ndk, 'toolchains', 'llvm', 'prebuilt');

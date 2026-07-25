@@ -4,7 +4,7 @@
  * @file    native-assets.test.ts
  * @brief   The native asset channel (Stage B): the SAME `Assets` class + loaders
  *          the web build uses, over the native core. A mock host scope stands in
- *          for the QuickJS globals (es_createTexture / es_releaseTexture /
+ *          for the QuickJS globals (es_rm_createTextureEx / es_rm_releaseTexture /
  *          es_getTextureDimensions) and a mock NativeBridge decodes images, so
  *          `Assets.loadTexture` flows end-to-end — TextureLoader -> pixel decode ->
  *          native ResourceManager createTextureFromBytes — with no wasm module,
@@ -23,17 +23,22 @@ import type { NativeBridge } from '../src/platform/native/bridge';
 function makeTextureScope() {
     const textures = new Map<number, { width: number; height: number; pixels: Uint8Array; format: number; flip: boolean }>();
     let nextHandle = 1;
+    // The engine's own rm_createTextureEx, as its generated QuickJS wrapper binds
+    // it: a byte COUNT beside the buffer (a heap offset on the web), and explicit
+    // filter/wrap codes.
     const createSpy = vi.fn(
-        (width: number, height: number, pixels: Uint8Array, format: number, flip: boolean) => {
+        (width: number, height: number, pixels: Uint8Array, pixelsLen: number,
+         format: number, flip: boolean, filter: number, wrap: number) => {
             const handle = nextHandle++;
             textures.set(handle, { width, height, pixels, format, flip });
+            void pixelsLen; void filter; void wrap;
             return handle;
         },
     );
     const releaseSpy = vi.fn((handle: number) => { textures.delete(handle); });
     const scope: Record<string, unknown> = {
-        es_createTexture: createSpy,
-        es_releaseTexture: releaseSpy,
+        es_rm_createTextureEx: createSpy,
+        es_rm_releaseTexture: releaseSpy,
         es_getTextureDimensions: (handle: number) => {
             const t = textures.get(handle);
             return t ? { width: t.width, height: t.height } : null;
@@ -79,14 +84,16 @@ afterEach(() => {
 });
 
 describe('createNativeResourceManager', () => {
-    it('uploads bytes through es_createTexture and reads dims / releases', () => {
+    it('uploads bytes through es_rm_createTextureEx and reads dims / releases', () => {
         const { scope, createSpy, releaseSpy } = makeTextureScope();
         const rm = createNativeResourceManager(scope);
 
         const px = new Uint8Array([1, 2, 3, 4]);
         const handle = rm.createTextureFromBytes!(1, 1, px, 1, true);
         expect(handle).toBe(1);
-        expect(createSpy).toHaveBeenCalledWith(1, 1, px, 1, true, undefined, undefined);
+        // Byte count beside the buffer, and the plain path's defaults where the
+        // caller gave no import settings (filter Linear, wrap ClampToEdge).
+        expect(createSpy).toHaveBeenCalledWith(1, 1, px, px.length, 1, true, 1, 1);
         expect(rm.getTextureDimensions(handle)).toEqual({ width: 1, height: 1 });
 
         rm.releaseTexture(handle);
@@ -116,11 +123,14 @@ describe('native Assets.loadTexture', () => {
         expect(tex.width).toBe(4);
         expect(tex.height).toBe(2);
 
-        // The bytes reached es_createTexture: 4×2 RGBA, format 1 (gamma), flip=true.
+        // The bytes reached the engine entry point: 4×2 RGBA, format 1 (gamma),
+        // flip=true, and — with no import settings on this texture — the defaults
+        // the plain rm_createTexture path applies (Linear filter, ClampToEdge wrap).
         expect(createSpy).toHaveBeenCalledTimes(1);
-        const [w, h, pixels, format, flip] = createSpy.mock.calls[0];
-        expect([w, h, format, flip]).toEqual([4, 2, 1, true]);
+        const [w, h, pixels, pixelsLen, format, flip, filter, wrap] = createSpy.mock.calls[0];
+        expect([w, h, format, flip, filter, wrap]).toEqual([4, 2, 1, true, 1, 1]);
         expect((pixels as Uint8Array).length).toBe(4 * 2 * 4);
+        expect(pixelsLen).toBe(4 * 2 * 4);
 
         // A second load hits the cache — no second upload.
         const again = await assets.loadTexture('logo.png');

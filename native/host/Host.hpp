@@ -1,20 +1,24 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file    host_core.hpp
- * @brief   The platform-independent JS host: Dawn bring-up, the es_* native
- *          bindings, the SDK bundle + game boot, and the frame.
+ * @file    Host.hpp
+ * @brief   The host's public contract: the platform seam every OS answers, and
+ *          the handful of entry points its event loop drives.
  * @details Three layers run a native Estella game, and only the first is C++:
  *          1. This host — boots Dawn, installs the es_* bindings as globals,
  *             feeds host touch to JS, reads packaged assets, and renders.
  *          2. The SDK bundle (dist/index.native.bundled.js, embedded): the real
  *             esengine TS SDK — createNativeApp / World / Input — as `ESEngine`.
- *          3. The game (game.js, a packaged asset loaded at runtime): developer
- *             content. It calls ESEngine.createNativeApp(__esNativeBridge).
+ *          3. The game: an editor export (game.config.json + cooked assets +
+ *             scenes) packaged with the app, booted by bootstrap.js through
+ *             ESEngine.initNativeGame.
  *
+ *          The host itself is split by concern: Runtime.hpp owns the QuickJS
+ *          runtime and the shared state, bindings/ owns the es_* surface (one TU
+ *          per pillar), and Host.cpp owns boot, the frame and lifecycle.
  *          Everything that differs between Android and iOS lives behind
- *          {@link eshost::Platform}; the glue (js/main_android.cpp,
- *          js/main_ios.mm) implements it and owns the event loop.
+ *          {@link eshost::Platform}; the glue (platform/android.cpp,
+ *          platform/ios.mm) implements it and owns the event loop.
  *
  * @author  ESEngine Team
  * @date    2026
@@ -98,7 +102,7 @@ struct Platform {
      *
      *  This is the ONLY per-OS part of text: which file to open. Android asks its
      *  font matcher (which handles CJK fallback), iOS asks Core Text; the
-     *  rasterization and the SDF conversion are shared (see glyph_raster.hpp). */
+     *  rasterization and the SDF conversion are shared (see media/glyph_raster.hpp). */
     virtual FontFile loadFont(const std::string& family, esengine::u32 codepoint, int style) = 0;
 
     /** Perform an HTTP request off the main thread (NSURLSession / a JNI
@@ -113,8 +117,9 @@ struct Platform {
  *  queued and the JS callback runs on the next frame, on the JS thread. */
 void deliverFetch(FetchResult result);
 
-/** @brief Boots Dawn, EstellaContext, QuickJS, the SDK bundle and game.js. Call
- *         once, when a window first exists; @p platform must outlive the host.
+/** @brief Boots Dawn, EstellaContext, QuickJS, the SDK bundle and the packaged
+ *         project. Call once, when a window first exists; @p platform must
+ *         outlive the host.
  *  @return false if any stage failed (the reason is already logged). */
 bool boot(Platform& platform);
 

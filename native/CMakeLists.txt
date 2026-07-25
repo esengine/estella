@@ -75,7 +75,7 @@ set(ESENGINE_ROOT "${REPO}")
 list(APPEND CMAKE_MODULE_PATH "${REPO}/cmake")
 set(ES_ENABLE_WEBGPU ON)
 # Text is on: the SDK's `Text` draws through the shared glyph atlas (the host
-# rasterizes — see host_js/glyph_raster.cpp — and needs the engine's own
+# rasterizes — see host/media/glyph_raster.cpp — and needs the engine's own
 # SdfGenerator so both platforms encode the field identically), and the C++
 # BitmapText path comes along with it. Neither needs freetype/msdfgen.
 set(ES_ENABLE_BITMAP_TEXT ON)
@@ -90,19 +90,11 @@ target_include_directories(esengine PUBLIC
 target_compile_definitions(esengine PUBLIC ES_ENABLE_WEBGPU ES_ENABLE_BITMAP_TEXT)  # NOT ES_PLATFORM_WEB
 target_link_libraries(esengine PUBLIC glm yogacore webgpu_dawn)
 
-# Reference host: boots EstellaContext with an injected WebGPUDevice over the
-# NativeActivity's ANativeWindow and renders one ECS scene. See host_cpp/main.cpp.
-if(ANDROID)
-    add_library(estella_host SHARED host_cpp/main.cpp)
-    target_link_libraries(estella_host esengine native_app_glue android log)
-    set_target_properties(estella_host PROPERTIES LINK_FLAGS "-u ANativeActivity_onCreate")
-endif()
-
-# JS host (opt-in): a QuickJS game script drives the engine through the
-# EHT-generated bindings + the real SDK ptrAccessors. Built only when QuickJS is
-# provided; the `node build-tools/cli.js native --quickjs <dir>` orchestration
-# fetches QuickJS, generates NativeBindings.generated.cpp (single reflection
-# source) and ptraccessors_js.h into ESTELLA_NATIVE_GEN_DIR, then configures this.
+# The host (opt-in): a QuickJS runtime drives the engine through the EHT-generated
+# bindings + the real SDK. Built only when QuickJS is provided; the
+# `node build-tools/cli.js native --quickjs <dir>` orchestration fetches QuickJS,
+# generates NativeBindings.generated.cpp (single reflection source), ptraccessors_js.h,
+# the SDK bundle and bootstrap.js into ESTELLA_NATIVE_GEN_DIR, then configures this.
 if(ESTELLA_QUICKJS_DIR)
     if(NOT ESTELLA_NATIVE_GEN_DIR)
         set(ESTELLA_NATIVE_GEN_DIR "${CMAKE_BINARY_DIR}/gen")
@@ -131,25 +123,38 @@ if(ESTELLA_QUICKJS_DIR)
     target_compile_options(qjs PRIVATE -Wno-unused -Wno-sign-compare)
 
     # basis_universal transcoder (KTX2 -> ETC2/ASTC/BC), one big vendored TU behind
-    # host_js/ktx2_decode.cpp, plus basis's bundled single-file zstd decoder (KTX2
+    # host/media/ktx2_decode.cpp, plus basis's bundled single-file zstd decoder (KTX2
     # zstd supercompression). Third-party, so silence their warnings.
     set(BASIS_TRANSCODER "${TP}/basis_universal/transcoder/basisu_transcoder.cpp")
     set(BASIS_ZSTD "${TP}/basis_universal/zstd/zstddeclib.c")
     set_source_files_properties("${BASIS_TRANSCODER}" "${BASIS_ZSTD}" PROPERTIES COMPILE_OPTIONS "-w")
 
-    # host_js/host_core.cpp is the platform-independent host; each platform adds its own
-    # glue TU (the event loop, the window, the packaged assets).
+    # The host, by concern: the runtime + the es_* bindings + the frame are shared,
+    # and each platform adds its own glue TU (the event loop, the window, the
+    # packaged assets). See native/host/Host.hpp for the layering.
+    set(HOST_SOURCES
+        host/Host.cpp
+        host/Runtime.cpp
+        host/EsnShim.cpp
+        host/bindings/EcsBindings.cpp
+        host/bindings/RenderBindings.cpp
+        host/bindings/AssetBindings.cpp
+        host/bindings/AudioBindings.cpp
+        host/bindings/NetBindings.cpp
+        host/media/native_audio.cpp
+        host/media/ktx2_decode.cpp
+        host/media/glyph_raster.cpp
+        "${BASIS_TRANSCODER}" "${BASIS_ZSTD}" "${NATIVE_BINDINGS}" "${NATIVE_FN_BINDINGS}")
+
     if(ESTELLA_IOS)
         # Static: the thin Xcode app (native/ios) links this plus the libraries
-        # below. -ObjC on the app keeps the Obj-C classes in main_ios.mm alive.
-        add_library(estella_js_host STATIC host_js/host_core.cpp host_js/main_ios.mm
-            host_js/native_audio.cpp host_js/ktx2_decode.cpp host_js/glyph_raster.cpp
-            "${BASIS_TRANSCODER}" "${BASIS_ZSTD}" "${NATIVE_BINDINGS}" "${NATIVE_FN_BINDINGS}")
+        # below. -ObjC on the app keeps the Obj-C classes in platform/ios.mm alive.
+        add_library(estella_js_host STATIC ${HOST_SOURCES} host/platform/ios.mm)
         # miniaudio's CoreAudio backend uses AVAudioSession (Obj-C), so its TU must
         # be Objective-C++ on Apple; it also forces MA_NO_RUNTIME_LINKING there, so
         # the audio frameworks are linked at build time (the app links the merged
         # archive, so these also live in native/ios/project.yml).
-        set_source_files_properties(host_js/native_audio.cpp PROPERTIES
+        set_source_files_properties(host/media/native_audio.cpp PROPERTIES
             COMPILE_OPTIONS "-x;objective-c++")
         target_link_libraries(estella_js_host esengine qjs
             "-framework UIKit" "-framework QuartzCore" "-framework Foundation"
@@ -165,16 +170,16 @@ if(ESTELLA_QUICKJS_DIR)
     else()
         # Android: plain C++; miniaudio dlopens AAudio/OpenSL at runtime (no extra
         # link libs). native_audio.cpp's Obj-C paths are __APPLE__-guarded out.
-        add_library(estella_js_host SHARED host_js/host_core.cpp host_js/main_android.cpp
-            host_js/native_audio.cpp host_js/ktx2_decode.cpp host_js/glyph_raster.cpp
-            "${BASIS_TRANSCODER}" "${BASIS_ZSTD}" "${NATIVE_BINDINGS}" "${NATIVE_FN_BINDINGS}")
+        add_library(estella_js_host SHARED ${HOST_SOURCES} host/platform/android.cpp)
         target_link_libraries(estella_js_host esengine qjs native_app_glue android log)
         set_target_properties(estella_js_host PROPERTIES LINK_FLAGS "-u ANativeActivity_onCreate")
     endif()
-    # host_js/ holds esn_shim.hpp + host_core.hpp (the generated TU includes the shim);
-    # the gen dir holds ptraccessors_js.h and the embedded SDK bundle; third_party/miniaudio
-    # is the audio engine header.
+    # host/ is the include root: every host TU spells its siblings from there
+    # ("Bindings.hpp", "media/glyph_raster.hpp"), and the generated TUs include
+    # esn_shim.hpp by name. The gen dir holds ptraccessors_js.h, the embedded SDK
+    # bundle and the embedded bootstrap; third_party/miniaudio is the audio engine
+    # header.
     target_include_directories(estella_js_host PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/host_js" "${ESTELLA_NATIVE_GEN_DIR}" "${TP}/miniaudio"
+        "${CMAKE_CURRENT_SOURCE_DIR}/host" "${ESTELLA_NATIVE_GEN_DIR}" "${TP}/miniaudio"
         "${TP}/basis_universal/transcoder")
 endif()

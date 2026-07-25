@@ -204,11 +204,18 @@ export function runCommand(command, args, options = {}) {
 
         logger.debug(`Running: ${command} ${args.join(' ')}`);
 
-        const proc = spawn(command, args, {
+        // Windows runs these through cmd, which re-splits the whole line on spaces:
+        // an unquoted `C:\Program Files\...` (where the Android SDK and a bundled
+        // JDK normally live) would arrive as two arguments. Quote what needs it —
+        // only under the shell, since a direct spawn passes argv through intact.
+        const shell = process.platform === 'win32';
+        const quoted = (s) => (shell && /\s/.test(s) && !/^".*"$/.test(s) ? `"${s}"` : s);
+
+        const proc = spawn(quoted(command), args.map(quoted), {
             cwd,
             env: { ...process.env, ...env },
             stdio: silent ? 'pipe' : 'inherit',
-            shell: process.platform === 'win32',
+            shell,
         });
 
         let stdout = '';

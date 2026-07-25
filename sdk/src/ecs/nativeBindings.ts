@@ -13,6 +13,14 @@
  *
  *          These constants are the one spelling. The call sites read them, and
  *          {@link assertNativeBindings} checks the whole set at boot.
+ *
+ *          A name starting `es_rm_` or `es_renderer_` is GENERATED: the host binds
+ *          it from the same `bindings/*.hpp` declaration embind registers on the
+ *          web, so both platforms run one implementation of that entry point (and
+ *          both get its BoundarySpan validation). The rest are the host's own —
+ *          either native-only (KTX2 transcode, glyph rasterization) or a shape the
+ *          generator cannot marshal (an `emscripten::val` result). Those, and only
+ *          those, are hand-written in `native/host/bindings/`.
  */
 
 /** Entity + hierarchy — the base Registry surface the SDK's World drives. */
@@ -26,11 +34,19 @@ export const REGISTRY_BINDINGS = {
     getChildren: 'es_getChildren',
 } as const;
 
-/** The native ResourceManager surface the asset pipeline uploads through. */
+/**
+ * The native ResourceManager surface the asset pipeline uploads through.
+ *
+ * `createTexture` and `releaseTexture` are the engine's own `rm_*` entry points,
+ * generated — the same ones embind exposes as methods on the web ResourceManager,
+ * so a texture is created by one implementation on both platforms. The other two
+ * cannot be: KTX2 transcoding is native-only (the web path is WebGL2 + a wasm
+ * transcoder), and the dimensions query returns an `emscripten::val`.
+ */
 export const RESOURCE_BINDINGS = {
-    createTexture: 'es_createTexture',
+    createTexture: 'es_rm_createTextureEx',
     createTextureKTX2: 'es_createTextureKTX2',
-    releaseTexture: 'es_releaseTexture',
+    releaseTexture: 'es_rm_releaseTexture',
     getTextureDimensions: 'es_getTextureDimensions',
 } as const;
 
@@ -41,15 +57,20 @@ export const RESOURCE_BINDINGS = {
  * between those two calls — atlas, layout, batching — is the same SDK code the
  * web runs.
  *
+ * Only the glyph source is genuinely the host's: rasterization has no engine entry
+ * point to generate from, because on the web a 2D canvas does it. The other three
+ * ARE engine entry points, generated — the submit even regains the boundary
+ * validation a hand-written copy used to skip.
+ *
  * OPTIONAL, like {@link AUDIO_BINDINGS}: a host that has not bound its font stack
  * simply draws no text, rather than failing to boot. {@link hasTextBindings} is
  * the gate.
  */
 export const TEXT_BINDINGS = {
     rasterizeGlyph: 'es_rasterizeGlyph',
-    submitTextBatch: 'es_submitTextBatch',
-    updateTextureSubregion: 'es_updateTextureSubregion',
-    getTextureRenderId: 'es_getTextureRenderId',
+    submitTextBatch: 'es_renderer_submitTextBatch',
+    updateTextureSubregion: 'es_rm_updateTextureSubregion',
+    getTextureRenderId: 'es_rm_getTextureGLId',
 } as const;
 
 /** Whether a host bound the whole text surface — all-or-nothing, so a partially

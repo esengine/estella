@@ -7,9 +7,14 @@
 #include "../resource/ResourceManager.hpp"
 #include <string>
 
+// The value type embind returns for array/object results. Web-only: a native
+// build compiles this same TU (see cmake/ESEngineSources.cmake) and simply does
+// not carry the entry points that return one.
+#ifdef __EMSCRIPTEN__
 namespace emscripten {
     class val;
 }
+#endif
 
 namespace esengine {
 
@@ -31,11 +36,15 @@ void rm_setTextureBudget(resource::ResourceManager& rm, u32 bytes);
 u32 rm_acquireTextureByPath(resource::ResourceManager& rm, const std::string& path);
 bool rm_invalidateTexturePath(resource::ResourceManager& rm, const std::string& path);
 u32 rm_trimTextureCache(resource::ResourceManager& rm);
+#ifdef __EMSCRIPTEN__
 emscripten::val rm_getResourceStats(resource::ResourceManager& rm);
+#endif
 void rm_releaseShader(resource::ResourceManager& rm, u32 handleId);
 u32 rm_getShaderRefCount(resource::ResourceManager& rm, u32 handleId);
 u32 rm_getTextureGLId(resource::ResourceManager& rm, u32 handleId);
+#ifdef __EMSCRIPTEN__
 emscripten::val rm_getTextureDimensions(resource::ResourceManager& rm, u32 handleId);
+#endif
 #ifdef ES_ENABLE_BITMAP_TEXT
 u32 rm_loadBitmapFont(resource::ResourceManager& rm, const std::string& fntContent,
                        u32 textureHandle, u32 texWidth, u32 texHeight);
@@ -44,8 +53,10 @@ u32 rm_createLabelAtlasFont(resource::ResourceManager& rm, u32 textureHandle,
                               u32 charWidth, u32 charHeight);
 void rm_releaseBitmapFont(resource::ResourceManager& rm, u32 handleId);
 u32 rm_getBitmapFontRefCount(resource::ResourceManager& rm, u32 handleId);
+#ifdef __EMSCRIPTEN__
 emscripten::val rm_measureBitmapText(resource::ResourceManager& rm, u32 fontHandle,
                                       const std::string& text, f32 fontSize, f32 spacing);
+#endif
 #endif
 void rm_updateTextureSubregion(resource::ResourceManager& rm, u32 handleId,
                                 u32 x, u32 y, u32 width, u32 height,

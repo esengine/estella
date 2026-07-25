@@ -12,34 +12,21 @@ import { mkdir, copyFile, cp, rm } from 'fs/promises';
 import config from '../build.config.js';
 import * as logger from '../utils/logger.js';
 import { runCommand } from '../utils/emscripten.js';
-import { requireSdk, requireNdk, buildTool, platformJar, ndkTool, ndkLibcxxShared } from '../utils/android.js';
+import { requireSdk, requireNdk, buildTool, platformJar, ndkTool, ndkLibcxxShared, javaHome, jdkTool } from '../utils/android.js';
 
-const HOSTS = {
-    // The product-shaped runtime: the QuickJS host + the SDK + a game asset.
-    js: {
-        manifest: 'host_js',
-        library: 'libestella_js_host.so',
-        assets: ['game.js', 'logo.png'],
-        apk: 'estella-js-host.apk',
-    },
-    // The pure-C++ smoke test: one ECS scene, no JS, no assets.
-    cpp: {
-        manifest: 'host_cpp',
-        library: 'libestella_host.so',
-        assets: [],
-        apk: 'estella-host.apk',
-    },
-};
+const HOST_LIBRARY = 'libestella_js_host.so';
+const HOST_APK = 'estella-js-host.apk';
+const HOST_MANIFEST = 'host';
 
 // A debug keystore is enough to sideload; Android Studio uses the same one. Create
 // it on first use so packaging never stops to ask for credentials.
-async function debugKeystore() {
+async function debugKeystore(jdk) {
     const home = process.env.HOME || process.env.USERPROFILE || '';
     const keystore = path.join(home, '.android', 'debug.keystore');
     if (existsSync(keystore)) return keystore;
     logger.step('Creating the Android debug keystore...');
     await mkdir(path.dirname(keystore), { recursive: true });
-    await runCommand('keytool', [
+    await runCommand(jdkTool('keytool', jdk), [
         '-genkeypair', '-keystore', keystore, '-storepass', 'android', '-keypass', 'android',
         '-alias', 'androiddebugkey', '-keyalg', 'RSA', '-keysize', '2048', '-validity', '10000',
         '-dname', 'CN=Android Debug,O=Android,C=US',
@@ -49,21 +36,23 @@ async function debugKeystore() {
 
 // APKs are zips; `jar` ships with the JDK that apksigner already requires, so it
 // is the one archiver we can count on wherever packaging runs.
-async function addToApk(apk, stagingDir) {
-    await runCommand('jar', ['ufM', apk, '-C', stagingDir, 'lib']);
+//
+// It carries the ASSETS too, rather than letting `aapt2 link -A` do it: on Windows
+// aapt2 writes nested asset paths with backslashes ("assets/assets\scenes\x"), and
+// a zip entry name must use forward slashes — so AAssetManager could not open
+// anything in a subdirectory. Invisible while the packaged content was a handful
+// of flat files; every real project export has directories.
+async function addToApk(apk, stagingDir, entries, jdk) {
+    await runCommand(jdkTool('jar', jdk), ['ufM', apk, ...entries.flatMap((e) => ['-C', stagingDir, e])]);
 }
 
 export async function packageNativeApk(options = {}) {
-    const hostKey = (options.host || 'js').toLowerCase();
-    const host = HOSTS[hostKey];
-    if (!host) throw new Error(`Unknown --host ${hostKey} (expected js or cpp).`);
-
     const rootDir = config.paths.root;
     const buildDir = path.join(rootDir, 'build-native');
-    const library = path.join(buildDir, host.library);
+    const library = path.join(buildDir, HOST_LIBRARY);
     if (!existsSync(library)) {
-        throw new Error(`${host.library} not found in build-native/. Build it first: `
-            + `node build-tools/cli.js native${hostKey === 'js' ? ' --quickjs <dir>' : ''} --dawn <src> --dawn-build <build>.`);
+        throw new Error(`${HOST_LIBRARY} not found in build-native/. Build it first: `
+            + 'node build-tools/cli.js native --quickjs <dir> --dawn <src> --dawn-build <build>.');
     }
 
     const dawnBuild = options.dawnBuild || process.env.ESTELLA_DAWN_BUILD;
@@ -76,61 +65,66 @@ export async function packageNativeApk(options = {}) {
     const abi = options.abi || 'arm64-v8a';
     const platform = options.platform || 'android-33';
 
-    const staging = path.join(buildDir, `apk-${hostKey}`);
+    const staging = path.join(buildDir, 'apk');
     const libDir = path.join(staging, 'lib', abi);
     await rm(staging, { recursive: true, force: true });
     await mkdir(libDir, { recursive: true });
 
     logger.step('Staging the native libraries...');
-    await copyFile(library, path.join(libDir, host.library));
+    await copyFile(library, path.join(libDir, HOST_LIBRARY));
     await copyFile(ndkLibcxxShared(ndk), path.join(libDir, 'libc++_shared.so'));
     // Dawn carries debug info an APK does not need — it dominates the payload.
     await runCommand(ndkTool(ndk, 'llvm-strip'), [
         '--strip-all', '-o', path.join(libDir, 'libwebgpu_dawn.so'), dawnLib,
     ]);
 
-    // assets/ is what the host's readAsset() sees. `--content <dir>` ships an
-    // exported project (cooked assets + manifests + scenes + game.config.json);
-    // without it the built-in demo assets ride along instead.
+    // assets/ is what the host's readAsset() sees, and what goes in is an editor
+    // export — cooked assets + manifests + scenes + game.config.json. A whole-
+    // directory copy, so nothing here carries a file list that could drift from
+    // what the export actually wrote.
     let assetsDir = null;
     if (options.content) {
         const content = path.isAbsolute(options.content) ? options.content : path.join(rootDir, options.content);
         if (!existsSync(content)) throw new Error(`--content dir not found: ${content}`);
         assetsDir = path.join(staging, 'assets');
-        await cp(content, assetsDir, { recursive: true });
         logger.step(`Staging exported content from ${path.relative(rootDir, content)}...`);
-    } else if (host.assets.length) {
-        assetsDir = path.join(staging, 'assets');
-        await mkdir(assetsDir, { recursive: true });
-        for (const asset of host.assets) {
-            await copyFile(path.join(rootDir, 'native', 'host_js', asset), path.join(assetsDir, asset));
-        }
+        await cp(content, assetsDir, { recursive: true });
+    } else {
+        // Nothing to run: the host boots game.config.json and there is no built-in
+        // fallback, by design — the packaged game takes the same path every real
+        // game takes.
+        throw new Error('The host needs a project to run: pass --content <dir> from '
+            + "Package Project -> Android (or `exportGame({ platform: 'android' })`).");
     }
 
     const unsigned = path.join(staging, 'unsigned.apk');
-    const aligned = path.join(buildDir, host.apk);
+    const aligned = path.join(buildDir, HOST_APK);
     logger.step('Linking resources (aapt2)...');
+    // aapt2 produces the base APK from the manifest alone; the payload (libraries
+    // and assets) is added below, where the entry names are ours to control.
     await runCommand(buildTool(sdk, 'aapt2'), [
         'link',
-        '--manifest', path.join(rootDir, 'native', 'android', host.manifest, 'AndroidManifest.xml'),
+        '--manifest', path.join(rootDir, 'native', 'android', HOST_MANIFEST, 'AndroidManifest.xml'),
         '-I', platformJar(sdk, platform),
-        ...(assetsDir ? ['-A', assetsDir] : []),
         '-o', unsigned,
     ]);
 
-    logger.step('Adding the native libraries...');
-    await addToApk(unsigned, staging);
+    logger.step('Adding the native libraries and the game...');
+    await addToApk(unsigned, staging, ['lib', 'assets'], options.jdk);
 
     logger.step('Aligning + signing...');
     await rm(aligned, { force: true });
     await runCommand(buildTool(sdk, 'zipalign'), ['-f', '4', unsigned, aligned]);
-    const keystore = options.keystore || await debugKeystore();
+    const keystore = options.keystore || await debugKeystore(options.jdk);
+    // apksigner is a launcher script that finds java through JAVA_HOME; hand it the
+    // JDK we located so it works on a machine that never exported one.
+    const home = javaHome(options.jdk);
     await runCommand(buildTool(sdk, 'apksigner'), [
         'sign', '--ks', keystore,
         ...(options.keystore ? [] : ['--ks-pass', 'pass:android', '--key-pass', 'pass:android',
             '--ks-key-alias', 'androiddebugkey']),
         aligned,
-    ]);
+    ], home ? { env: { ...process.env, JAVA_HOME: home } } : undefined);
 
     logger.success(`APK: ${path.relative(rootDir, aligned)}`);
     logger.info('Install it with: adb install -r ' + path.relative(rootDir, aligned));

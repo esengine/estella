@@ -24,8 +24,8 @@
 #import <QuartzCore/CAMetalLayer.h>
 #import <CoreText/CoreText.h>
 
-#include "host_core.hpp"
-#include "glyph_raster.hpp"   // GLYPH_BOLD / GLYPH_ITALIC, for the font match
+#include "Host.hpp"
+#include "media/glyph_raster.hpp"   // GLYPH_BOLD / GLYPH_ITALIC, for the font match
 
 using esengine::u32;
 using esengine::u8;

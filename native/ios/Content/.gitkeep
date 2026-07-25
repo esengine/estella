@@ -1,4 +1,4 @@
 Exported project content lands here (cli native --target ios --content <dir>) and
 ships as a folder reference, so its subdirectories survive into the app bundle.
-Committed empty: xcodegen needs the directory to exist, and the built-in demo
-reads from the bundle root instead.
+Committed empty: xcodegen needs the directory to exist before an export has been
+staged into it.

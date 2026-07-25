@@ -24,8 +24,8 @@
 
 #include <thread>
 
-#include "host_core.hpp"
-#include "glyph_raster.hpp"   // GLYPH_BOLD / GLYPH_ITALIC, for the font match
+#include "Host.hpp"
+#include "media/glyph_raster.hpp"   // GLYPH_BOLD / GLYPH_ITALIC, for the font match
 
 #define LOG_TAG "EstellaSDK"
 
@@ -297,7 +297,7 @@ void onAppCmd(android_app* app, int32_t cmd) {
 }  // namespace
 
 void android_main(android_app* app) {
-    g_platform.assets = app->activity->assetManager;   // APK assets/ (game.js + content)
+    g_platform.assets = app->activity->assetManager;   // APK assets/ (the exported project)
     g_platform.vm = app->activity->vm;                  // for JNI HttpURLConnection (es_fetch)
     if (app->activity->internalDataPath) g_platform.cache = app->activity->internalDataPath;
     app->onAppCmd = onAppCmd;

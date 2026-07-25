@@ -16,8 +16,9 @@ platforms run the same implementation; only the registration differs.
 
 The mapping is small because the declarations are:
 
-  ``ecs::Registry&``    the host has exactly one registry, so it is implicit and
-                        consumes no JS argument
+  engine singletons     ``ecs::Registry&`` / ``resource::ResourceManager&``: the
+                        host has exactly one of each, so they are implicit and
+                        consume no JS argument (see ``_IMPLICIT_REFS``)
   scalars               u32/i32/f32/f64/bool/int/float/double
   ``uintptr_t`` ptr     a JS ArrayBuffer / typed array; the wrapper copies the
                         bytes and passes a real pointer (the same BoundarySpan
@@ -38,6 +39,21 @@ _INT_TYPES = {'i8', 'i16', 'i32', 'i64', 'u8', 'u16', 'u32', 'u64',
 _FLOAT_TYPES = {'f32', 'f64', 'float', 'double'}
 _BOOL_TYPES = {'bool'}
 _VOID = 'void'
+
+# Reference parameters the host answers for itself: it runs exactly one registry
+# and one resource manager, so these consume no JS argument and the wrapper passes
+# the shim's accessor. Everything else taken by reference is a genuine object the
+# boundary cannot marshal, and is skipped.
+_IMPLICIT_REFS = {
+    'ecs::Registry&': 'esn_reg()',
+    'resource::ResourceManager&': 'esn_rm()',
+}
+
+# How a declaration spells each of them, matched on the type's last segment.
+_IMPLICIT_SUFFIXES = {
+    'Registry': 'ecs::Registry&',
+    'ResourceManager': 'resource::ResourceManager&',
+}
 
 # `void name(args);` on one or more lines, inside the header's namespace.
 _DECL = re.compile(
@@ -150,9 +166,12 @@ def _parse_params(args: str) -> Tuple[List[Param], Optional[str]]:
         if not decl:
             continue
         parts = decl.replace('&', ' & ').split()
-        # `ecs::Registry &registry` → the host's one registry, no JS argument.
-        if parts[0].endswith('Registry') and '&' in decl:
-            params.append(Param('ecs::Registry&', parts[-1]))
+        # `ecs::Registry &registry` / `resource::ResourceManager &rm` → the host's
+        # one of each, no JS argument.
+        implicit = next((t for suffix, t in _IMPLICIT_SUFFIXES.items()
+                         if parts[0].endswith(suffix)), None) if '&' in decl else None
+        if implicit:
+            params.append(Param(implicit, parts[-1]))
             continue
         if '&' in decl or '*' in decl:
             return params, f'takes {decl}'
@@ -190,7 +209,7 @@ class NativeFunctionsGenerator:
         self.emitted: List[str] = []
 
     def _wrapper(self, fn: Function) -> List[str]:
-        js_params = [p for p in fn.params if p.cpp_type != 'ecs::Registry&']
+        js_params = [p for p in fn.params if p.cpp_type not in _IMPLICIT_REFS]
         out = [f'#ifdef {g}' for g in fn.guards]
         out.append(f'static JSValue es_{fn.name}(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {{')
         if js_params:
@@ -200,8 +219,8 @@ class NativeFunctionsGenerator:
         call_args: List[str] = []
         js_index = 0
         for param in fn.params:
-            if param.cpp_type == 'ecs::Registry&':
-                call_args.append('esn_reg()')
+            if param.cpp_type in _IMPLICIT_REFS:
+                call_args.append(_IMPLICIT_REFS[param.cpp_type])
                 continue
             local = f'a{js_index}'
             if param.cpp_type == 'uintptr_t':
@@ -249,7 +268,7 @@ class NativeFunctionsGenerator:
     def _ts_type(cpp: str) -> str:
         if cpp in _BOOL_TYPES:
             return 'boolean'
-        if cpp == 'ecs::Registry&':
+        if cpp in _IMPLICIT_REFS:
             return 'unknown'
         return 'number'
 
@@ -301,13 +320,13 @@ class NativeFunctionsGenerator:
             '        if (typeof fn !== \'function\') return;',
             '        const call = fn as (...a: unknown[]) => unknown;',
             '        api[name] = dropFirst',
-            '            ? (_registry: unknown, ...args: unknown[]) => call(...args)',
+            '            ? (_implicit: unknown, ...args: unknown[]) => call(...args)',
             '            : (...args: unknown[]) => call(...args);',
             '    };',
         ])
         for fn in functions:
-            takes_registry = any(p.cpp_type == 'ecs::Registry&' for p in fn.params)
-            lines.append(f"    bind('{fn.name}', 'es_{fn.name}', {str(takes_registry).lower()});")
+            takes_implicit = any(p.cpp_type in _IMPLICIT_REFS for p in fn.params)
+            lines.append(f"    bind('{fn.name}', 'es_{fn.name}', {str(takes_implicit).lower()});")
         lines.extend([
             '    return api as NativeEngineApi;',
             '}',
@@ -348,7 +367,7 @@ class NativeFunctionsGenerator:
 
         lines.append('void esn_register_functions(JSContext* ctx, JSValue global) {')
         for fn in sorted(functions, key=lambda f: f.name):
-            js_arity = len([p for p in fn.params if p.cpp_type != 'ecs::Registry&'])
+            js_arity = len([p for p in fn.params if p.cpp_type not in _IMPLICIT_REFS])
             lines.extend(f'#ifdef {g}' for g in fn.guards)
             lines.append(f'    JS_SetPropertyStr(ctx, global, "es_{fn.name}", '
                          f'JS_NewCFunction(ctx, es_{fn.name}, "es_{fn.name}", {js_arity}));')

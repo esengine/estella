@@ -163,15 +163,15 @@ program
     .option('--target <target>', 'android or ios', 'android')
     .option('--dawn <dir>', 'Dawn source dir (or ESTELLA_DAWN_DIR); see native/README.md')
     .option('--dawn-build <dir>', 'Dawn arm64 build dir for this target (or ESTELLA_DAWN_BUILD)')
-    .option('--quickjs <dir>', 'QuickJS-ng source dir (or ESTELLA_QUICKJS_DIR); also builds the JS host')
+    .option('--quickjs <dir>', 'QuickJS-ng source dir (or ESTELLA_QUICKJS_DIR)')
     .option('--abi <abi>', 'Android ABI', 'arm64-v8a')
     .option('--platform <platform>', 'Android platform', 'android-33')
     .option('--ios-min <version>', 'iOS deployment target', '17.0')
     .option('--simulator', 'iOS: build the simulator slice (needs a simulator Dawn)', false)
     .option('--package', 'Android: also package a signed APK (aapt2 + zipalign + apksigner)', false)
-    .option('--host <host>', 'Android --package: js (QuickJS host) or cpp (smoke test)')
     .option('--keystore <path>', 'Android --package: signing keystore (default: the debug one)')
-    .option('--content <dir>', 'Ship an exported project (cli exportGame --platform native) as the app content')
+    .option('--jdk <dir>', 'JDK home for the APK step (else JAVA_HOME, or the JDK Android Studio bundles)')
+    .option('--content <dir>', 'Ship an exported project (Package Project -> Android / iOS) as the app content')
     .option('-v, --verbose', 'Verbose output', false)
     .action(async (options) => {
         logger.setVerbose(options.verbose);
@@ -186,8 +186,8 @@ program
                 iosMin: options.iosMin,
                 simulator: options.simulator,
                 package: options.package,
-                host: options.host,
                 keystore: options.keystore,
+                jdk: options.jdk,
                 content: options.content,
             });
         } catch (err) {

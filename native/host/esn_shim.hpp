@@ -1,6 +1,6 @@
 // Runtime shim the EHT-generated native bindings call. The generator emits the
 // per-field marshalling (reflection-driven); this header declares the plumbing
-// (registry access, entity lookup, JS-value readers) that the host defines.
+// (engine singletons, entity lookup, JS-value readers) that the host defines.
 //
 // NativeBindings.generated.cpp includes this header first, then self-includes
 // each bound component's header — so the shim itself needs no component headers.
@@ -10,13 +10,18 @@ extern "C" {
 #include "quickjs.h"
 }
 
-#include "esengine/ecs/Registry.hpp"  // esengine::ecs::Registry + esengine::Entity
-#include "esengine/core/Types.hpp"    // esengine::u8
+#include "esengine/ecs/Registry.hpp"             // esengine::ecs::Registry + esengine::Entity
+#include "esengine/resource/ResourceManager.hpp" // esengine::resource::ResourceManager
+#include "esengine/core/Types.hpp"               // esengine::u8
 
 #include <vector>
 
-// --- provided by the host (js/main.cpp) --------------------------------------
+// --- provided by the host (host/Runtime.cpp) ---------------------------------
+// The engine singletons a binding declaration takes by reference: the host runs
+// exactly one of each, so the generated wrapper passes these instead of reading
+// a JS argument.
 esengine::ecs::Registry& esn_reg();
+esengine::resource::ResourceManager& esn_rm();
 esengine::Entity esn_entity(JSContext* ctx, JSValueConst v);
 // Read obj[key] as a number into *out; returns true if present & numeric.
 bool esn_getnum(JSContext* ctx, JSValueConst obj, const char* key, double* out);

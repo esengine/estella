@@ -59,6 +59,10 @@ if(NOT ES_BUILD_WEB AND NOT ES_BUILD_WXGAME)
     list(APPEND ESENGINE_SOURCES
         ${ESENGINE_ROOT}/src/esengine/bindings/RendererBindings.cpp
         ${ESENGINE_ROOT}/src/esengine/bindings/UIBindings.cpp
+        # The texture surface the asset pipeline uploads through. Native took a
+        # hand-written copy of these for a while, drifting from the web's; it now
+        # compiles the same TU and registers the same rm_* entry points.
+        ${ESENGINE_ROOT}/src/esengine/bindings/ResourceManagerBindings.cpp
         # activeCtx()'s unset fallback. A host that installs its own context (the
         # native one does, at boot) never reaches it, but the inline accessor
         # references it, so the definition has to link.

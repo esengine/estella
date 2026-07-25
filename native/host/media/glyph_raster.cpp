@@ -6,7 +6,7 @@
  */
 #include "glyph_raster.hpp"
 
-#include "host_core.hpp"
+#include "Host.hpp"
 
 #include "esengine/text/SdfGenerator.hpp"
 

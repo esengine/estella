@@ -4,8 +4,8 @@
 #
 #   brew install xcodegen && cd native/ios && xcodegen && open EstellaiOS.xcodeproj
 #
-# Then pick your Team under Signing & Capabilities and Run on a device. The game
-# (game.js) and its content ship as bundle resources, the way the APK ships them
+# Then pick your Team under Signing & Capabilities and Run on a device. An
+# exported project's content ships as bundle resources, the way the APK ships it
 # under assets/ — the host reads both through the same project-relative paths.
 name: EstellaiOS
 
@@ -21,18 +21,6 @@ targets:
     platform: iOS
     sources:
       - path: App
-      - path: ../host_js/game.js
-        buildPhase: resources
-        type: file
-      - path: ../host_js/logo.png
-        buildPhase: resources
-        type: file
-      - path: ../host_js/beep.wav
-        buildPhase: resources
-        type: file
-      - path: ../host_js/green.ktx2
-        buildPhase: resources
-        type: file
       # An exported project, staged by `cli native --target ios --content <dir>`.
       # A folder reference (not a group) so cooked subdirectories keep their
       # shape — the host reads Content/ first, the bundle root second.

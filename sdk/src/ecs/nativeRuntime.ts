@@ -166,12 +166,18 @@ function installNativeRenderer(app: App, scope: Record<string, unknown>): void {
 function installNativeUI(app: App, scope: Record<string, unknown>): void {
     if (!hasTextBindings(scope)) return;
 
+    // The engine's own renderer_submitTextBatch, generated for QuickJS: same
+    // argument list as the wasm call in ui/text/submit.ts, because it IS that
+    // call — the typed arrays stand in for the heap pointers, and the entry
+    // point's BoundarySpan check runs on the far side either way.
     const submit = scope[TEXT_BINDINGS.submitTextBatch] as (
-        vertices: Float32Array, vertexCount: number, indices: Uint16Array, textureId: number,
-        transform: Float32Array, entity: number, layer: number, depth: number, sdf: boolean,
+        vertices: Float32Array, vertexCount: number, indices: Uint16Array, indexCount: number,
+        textureId: number, transform: Float32Array, entity: number, layer: number,
+        depth: number, sdf: number,
     ) => void;
     setNativeTextSubmit((vertices, vertexCount, indices, textureId, transform, entity, layer, depth, sdf) => {
-        submit(vertices, vertexCount, indices, textureId, transform, entity, layer, depth, sdf);
+        submit(vertices, vertexCount, indices, indices.length, textureId, transform,
+               entity, layer, depth, sdf ? 1 : 0);
     });
     app.addPlugin(uiPlugin);
 }

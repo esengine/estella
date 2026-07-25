@@ -162,7 +162,7 @@ describe('assertNativeHost', () => {
         delete scope[REGISTRY_BINDINGS.setParent];
         delete scope[RESOURCE_BINDINGS.createTexture];
         expect(() => assertNativeHost(scope)).toThrow(/es_setParent/);
-        expect(() => assertNativeHost(scope)).toThrow(/es_createTexture/);
+        expect(() => assertNativeHost(scope)).toThrow(new RegExp(RESOURCE_BINDINGS.createTexture));
     });
 
     it('checks the JS environment before the bindings', () => {
