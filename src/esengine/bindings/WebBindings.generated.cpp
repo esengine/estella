@@ -2024,6 +2024,7 @@ static_assert(offsetof(esengine::ecs::FlexContainer, justifyContent) == 2, "ABI 
 static_assert(offsetof(esengine::ecs::FlexContainer, alignItems) == 3, "ABI offset drift: esengine::ecs::FlexContainer.alignItems (EHT expected 3)");
 static_assert(offsetof(esengine::ecs::FlexContainer, alignContent) == 4, "ABI offset drift: esengine::ecs::FlexContainer.alignContent (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::FlexContainer, gap) == 8, "ABI offset drift: esengine::ecs::FlexContainer.gap (EHT expected 8)");
+static_assert(offsetof(esengine::ecs::FlexContainer, padding) == 16, "ABI offset drift: esengine::ecs::FlexContainer.padding (EHT expected 16)");
 static_assert(offsetof(esengine::ecs::Interactable, enabled) == 0, "ABI offset drift: esengine::ecs::Interactable.enabled (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::Interactable, blockRaycast) == 1, "ABI offset drift: esengine::ecs::Interactable.blockRaycast (EHT expected 1)");
 static_assert(offsetof(esengine::ecs::Interactable, raycastTarget) == 2, "ABI offset drift: esengine::ecs::Interactable.raycastTarget (EHT expected 2)");
@@ -2198,9 +2199,24 @@ static_assert(offsetof(esengine::ecs::UIMask, enabled) == 0, "ABI offset drift: 
 static_assert(offsetof(esengine::ecs::UIMask, mode) == 1, "ABI offset drift: esengine::ecs::UIMask.mode (EHT expected 1)");
 static_assert(offsetof(esengine::ecs::UINode, position) == 0, "ABI offset drift: esengine::ecs::UINode.position (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::UINode, display) == 1, "ABI offset drift: esengine::ecs::UINode.display (EHT expected 1)");
+static_assert(offsetof(esengine::ecs::UINode, width) == 4, "ABI offset drift: esengine::ecs::UINode.width (EHT expected 4)");
+static_assert(offsetof(esengine::ecs::UINode, height) == 12, "ABI offset drift: esengine::ecs::UINode.height (EHT expected 12)");
+static_assert(offsetof(esengine::ecs::UINode, minWidth) == 20, "ABI offset drift: esengine::ecs::UINode.minWidth (EHT expected 20)");
+static_assert(offsetof(esengine::ecs::UINode, minHeight) == 28, "ABI offset drift: esengine::ecs::UINode.minHeight (EHT expected 28)");
+static_assert(offsetof(esengine::ecs::UINode, maxWidth) == 36, "ABI offset drift: esengine::ecs::UINode.maxWidth (EHT expected 36)");
+static_assert(offsetof(esengine::ecs::UINode, maxHeight) == 44, "ABI offset drift: esengine::ecs::UINode.maxHeight (EHT expected 44)");
 static_assert(offsetof(esengine::ecs::UINode, flexGrow) == 52, "ABI offset drift: esengine::ecs::UINode.flexGrow (EHT expected 52)");
 static_assert(offsetof(esengine::ecs::UINode, flexShrink) == 56, "ABI offset drift: esengine::ecs::UINode.flexShrink (EHT expected 56)");
+static_assert(offsetof(esengine::ecs::UINode, flexBasis) == 60, "ABI offset drift: esengine::ecs::UINode.flexBasis (EHT expected 60)");
 static_assert(offsetof(esengine::ecs::UINode, alignSelf) == 68, "ABI offset drift: esengine::ecs::UINode.alignSelf (EHT expected 68)");
+static_assert(offsetof(esengine::ecs::UINode, marginLeft) == 72, "ABI offset drift: esengine::ecs::UINode.marginLeft (EHT expected 72)");
+static_assert(offsetof(esengine::ecs::UINode, marginTop) == 80, "ABI offset drift: esengine::ecs::UINode.marginTop (EHT expected 80)");
+static_assert(offsetof(esengine::ecs::UINode, marginRight) == 88, "ABI offset drift: esengine::ecs::UINode.marginRight (EHT expected 88)");
+static_assert(offsetof(esengine::ecs::UINode, marginBottom) == 96, "ABI offset drift: esengine::ecs::UINode.marginBottom (EHT expected 96)");
+static_assert(offsetof(esengine::ecs::UINode, insetLeft) == 104, "ABI offset drift: esengine::ecs::UINode.insetLeft (EHT expected 104)");
+static_assert(offsetof(esengine::ecs::UINode, insetTop) == 112, "ABI offset drift: esengine::ecs::UINode.insetTop (EHT expected 112)");
+static_assert(offsetof(esengine::ecs::UINode, insetRight) == 120, "ABI offset drift: esengine::ecs::UINode.insetRight (EHT expected 120)");
+static_assert(offsetof(esengine::ecs::UINode, insetBottom) == 128, "ABI offset drift: esengine::ecs::UINode.insetBottom (EHT expected 128)");
 static_assert(offsetof(esengine::ecs::UIVisual, visualType) == 0, "ABI offset drift: esengine::ecs::UIVisual.visualType (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::UIVisual, texture) == 4, "ABI offset drift: esengine::ecs::UIVisual.texture (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::UIVisual, color) == 8, "ABI offset drift: esengine::ecs::UIVisual.color (EHT expected 8)");
@@ -2221,7 +2237,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "56d27a450a1ab9c6";
+static const char* kEsAbiLayoutHash = "7454a67d3890bcbc";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

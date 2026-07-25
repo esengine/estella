@@ -5,7 +5,7 @@ Symbols: 1335 stable · 17 beta · 1 deprecated
 
 ## ABI_LAYOUT_HASH — const
 ```
-"56d27a450a1ab9c6"
+"7454a67d3890bcbc"
 ```
 
 ## ANCHOR_AXES — const

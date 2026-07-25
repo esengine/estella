@@ -20,6 +20,8 @@ function init() {
     // design resolution and the clear colour, a Camera gives the projection. The
     // host no longer decides either — it presents what this camera renders.
     var stage = world.spawn();
+    world.insert(stage, ESEngine.Transform, { position: { x: W * 0.5, y: H * 0.5, z: 0 } });
+    world.insert(stage, ESEngine.UINode, {});
     world.insert(stage, ESEngine.Canvas, {
         designResolution: { x: W, y: H }, scaleMode: 2 /* Expand */,
         backgroundColor: { r: 0.07, g: 0.08, b: 0.12, a: 1 } });

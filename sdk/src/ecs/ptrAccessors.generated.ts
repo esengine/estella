@@ -344,6 +344,7 @@ export interface FlexContainerPtrData {
     alignItems: number;
     alignContent: number;
     gap: Vec2;
+    padding: { left: number; top: number; right: number; bottom: number; };
 }
 
 export function fillFlexContainer(
@@ -356,6 +357,7 @@ export function fillFlexContainer(
     out.alignItems = u8[ptr + 3];
     out.alignContent = u8[ptr + 4];
     const gap_ = out.gap; gap_.x = f32[(ptr + 8) >> 2]; gap_.y = f32[((ptr + 8) >> 2) + 1];
+    const padding_ = out.padding; padding_.left = f32[(ptr + 16) >> 2]; padding_.top = f32[(ptr + 20) >> 2]; padding_.right = f32[(ptr + 24) >> 2]; padding_.bottom = f32[(ptr + 28) >> 2];
 }
 
 export function writeFlexContainer(
@@ -368,6 +370,7 @@ export function writeFlexContainer(
     u8[ptr + 3] = data.alignItems;
     u8[ptr + 4] = data.alignContent;
     f32[(ptr + 8) >> 2] = data.gap.x; f32[((ptr + 8) >> 2) + 1] = data.gap.y;
+    f32[(ptr + 16) >> 2] = data.padding.left; f32[(ptr + 20) >> 2] = data.padding.top; f32[(ptr + 24) >> 2] = data.padding.right; f32[(ptr + 28) >> 2] = data.padding.bottom;
 }
 
 export function createFlexContainerData(): FlexContainerPtrData {
@@ -378,6 +381,7 @@ export function createFlexContainerData(): FlexContainerPtrData {
         alignItems: 0,
         alignContent: 0,
         gap: { x: 0, y: 0 },
+        padding: { left: 0, top: 0, right: 0, bottom: 0 },
     };
 }
 
@@ -1392,9 +1396,24 @@ export function createUIMaskData(): UIMaskPtrData {
 export interface UINodePtrData {
     position: number;
     display: number;
+    width: { value: number; unit: number; };
+    height: { value: number; unit: number; };
+    minWidth: { value: number; unit: number; };
+    minHeight: { value: number; unit: number; };
+    maxWidth: { value: number; unit: number; };
+    maxHeight: { value: number; unit: number; };
     flexGrow: number;
     flexShrink: number;
+    flexBasis: { value: number; unit: number; };
     alignSelf: number;
+    marginLeft: { value: number; unit: number; };
+    marginTop: { value: number; unit: number; };
+    marginRight: { value: number; unit: number; };
+    marginBottom: { value: number; unit: number; };
+    insetLeft: { value: number; unit: number; };
+    insetTop: { value: number; unit: number; };
+    insetRight: { value: number; unit: number; };
+    insetBottom: { value: number; unit: number; };
 }
 
 export function fillUINode(
@@ -1403,9 +1422,24 @@ export function fillUINode(
 ): void {
     out.position = u8[ptr];
     out.display = u8[ptr + 1];
+    const width_ = out.width; width_.value = f32[(ptr + 4) >> 2]; width_.unit = u8[ptr + 8];
+    const height_ = out.height; height_.value = f32[(ptr + 12) >> 2]; height_.unit = u8[ptr + 16];
+    const minWidth_ = out.minWidth; minWidth_.value = f32[(ptr + 20) >> 2]; minWidth_.unit = u8[ptr + 24];
+    const minHeight_ = out.minHeight; minHeight_.value = f32[(ptr + 28) >> 2]; minHeight_.unit = u8[ptr + 32];
+    const maxWidth_ = out.maxWidth; maxWidth_.value = f32[(ptr + 36) >> 2]; maxWidth_.unit = u8[ptr + 40];
+    const maxHeight_ = out.maxHeight; maxHeight_.value = f32[(ptr + 44) >> 2]; maxHeight_.unit = u8[ptr + 48];
     out.flexGrow = f32[(ptr + 52) >> 2];
     out.flexShrink = f32[(ptr + 56) >> 2];
+    const flexBasis_ = out.flexBasis; flexBasis_.value = f32[(ptr + 60) >> 2]; flexBasis_.unit = u8[ptr + 64];
     out.alignSelf = u8[ptr + 68];
+    const marginLeft_ = out.marginLeft; marginLeft_.value = f32[(ptr + 72) >> 2]; marginLeft_.unit = u8[ptr + 76];
+    const marginTop_ = out.marginTop; marginTop_.value = f32[(ptr + 80) >> 2]; marginTop_.unit = u8[ptr + 84];
+    const marginRight_ = out.marginRight; marginRight_.value = f32[(ptr + 88) >> 2]; marginRight_.unit = u8[ptr + 92];
+    const marginBottom_ = out.marginBottom; marginBottom_.value = f32[(ptr + 96) >> 2]; marginBottom_.unit = u8[ptr + 100];
+    const insetLeft_ = out.insetLeft; insetLeft_.value = f32[(ptr + 104) >> 2]; insetLeft_.unit = u8[ptr + 108];
+    const insetTop_ = out.insetTop; insetTop_.value = f32[(ptr + 112) >> 2]; insetTop_.unit = u8[ptr + 116];
+    const insetRight_ = out.insetRight; insetRight_.value = f32[(ptr + 120) >> 2]; insetRight_.unit = u8[ptr + 124];
+    const insetBottom_ = out.insetBottom; insetBottom_.value = f32[(ptr + 128) >> 2]; insetBottom_.unit = u8[ptr + 132];
 }
 
 export function writeUINode(
@@ -1414,18 +1448,48 @@ export function writeUINode(
 ): void {
     u8[ptr] = data.position;
     u8[ptr + 1] = data.display;
+    f32[(ptr + 4) >> 2] = data.width.value; u8[ptr + 8] = data.width.unit;
+    f32[(ptr + 12) >> 2] = data.height.value; u8[ptr + 16] = data.height.unit;
+    f32[(ptr + 20) >> 2] = data.minWidth.value; u8[ptr + 24] = data.minWidth.unit;
+    f32[(ptr + 28) >> 2] = data.minHeight.value; u8[ptr + 32] = data.minHeight.unit;
+    f32[(ptr + 36) >> 2] = data.maxWidth.value; u8[ptr + 40] = data.maxWidth.unit;
+    f32[(ptr + 44) >> 2] = data.maxHeight.value; u8[ptr + 48] = data.maxHeight.unit;
     f32[(ptr + 52) >> 2] = data.flexGrow;
     f32[(ptr + 56) >> 2] = data.flexShrink;
+    f32[(ptr + 60) >> 2] = data.flexBasis.value; u8[ptr + 64] = data.flexBasis.unit;
     u8[ptr + 68] = data.alignSelf;
+    f32[(ptr + 72) >> 2] = data.marginLeft.value; u8[ptr + 76] = data.marginLeft.unit;
+    f32[(ptr + 80) >> 2] = data.marginTop.value; u8[ptr + 84] = data.marginTop.unit;
+    f32[(ptr + 88) >> 2] = data.marginRight.value; u8[ptr + 92] = data.marginRight.unit;
+    f32[(ptr + 96) >> 2] = data.marginBottom.value; u8[ptr + 100] = data.marginBottom.unit;
+    f32[(ptr + 104) >> 2] = data.insetLeft.value; u8[ptr + 108] = data.insetLeft.unit;
+    f32[(ptr + 112) >> 2] = data.insetTop.value; u8[ptr + 116] = data.insetTop.unit;
+    f32[(ptr + 120) >> 2] = data.insetRight.value; u8[ptr + 124] = data.insetRight.unit;
+    f32[(ptr + 128) >> 2] = data.insetBottom.value; u8[ptr + 132] = data.insetBottom.unit;
 }
 
 export function createUINodeData(): UINodePtrData {
     return {
         position: 0,
         display: 0,
+        width: { value: 0, unit: 0 },
+        height: { value: 0, unit: 0 },
+        minWidth: { value: 0, unit: 0 },
+        minHeight: { value: 0, unit: 0 },
+        maxWidth: { value: 0, unit: 0 },
+        maxHeight: { value: 0, unit: 0 },
         flexGrow: 0,
         flexShrink: 0,
+        flexBasis: { value: 0, unit: 0 },
         alignSelf: 0,
+        marginLeft: { value: 0, unit: 0 },
+        marginTop: { value: 0, unit: 0 },
+        marginRight: { value: 0, unit: 0 },
+        marginBottom: { value: 0, unit: 0 },
+        insetLeft: { value: 0, unit: 0 },
+        insetTop: { value: 0, unit: 0 },
+        insetRight: { value: 0, unit: 0 },
+        insetBottom: { value: 0, unit: 0 },
     };
 }
 

@@ -15,7 +15,7 @@ import type { Dimension, Padding } from './wasm.generated';
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '56d27a450a1ab9c6';
+export const ABI_LAYOUT_HASH = '7454a67d3890bcbc';
 
 export interface AssetFieldMeta {
     field: string;
