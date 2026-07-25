@@ -2221,17 +2221,17 @@ HEAPF32: Float32Array<ArrayBufferLike>
 HEAPU32: Uint32Array<ArrayBufferLike>
 HEAPU8: Uint8Array<ArrayBufferLike>
 Registry: new () => CppRegistry
-_anim_cancelAllTweens: (registry: CppRegistry, targetEntity: number) => void
-_anim_cancelTween: (registry: CppRegistry, tweenEntity: number) => void
-_anim_createTween: (registry: CppRegistry, entity: number, targetProp: number, from: number, to: number, duration: number, easing: number, delay: number, loopMode: number, loopCount: number) => number
-_anim_getTweenState: (registry: CppRegistry, tweenEntity: number) => number
-_anim_pauseTween: (registry: CppRegistry, tweenEntity: number) => void
-_anim_resumeTween: (registry: CppRegistry, tweenEntity: number) => void
-_anim_setSequenceNext: (registry: CppRegistry, tweenEntity: number, nextEntity: number) => void
-_anim_setTweenBezier: (registry: CppRegistry, tweenEntity: number, p1x: number, p1y: number, p2x: number, p2y: number) => void
-_anim_updateTweens: (registry: CppRegistry, deltaTime: number) => void
 _free: (ptr: number) => void
 _malloc: (size: number) => number
+anim_cancelAllTweens: (registry: CppRegistry, targetEntity: number) => void
+anim_cancelTween: (registry: CppRegistry, tweenEntity: number) => void
+anim_createTween: (registry: CppRegistry, entity: number, targetProp: number, from: number, to: number, duration: number, easing: number, delay: number, loopMode: number, loopCount: number) => number
+anim_getTweenState: (registry: CppRegistry, tweenEntity: number) => number
+anim_pauseTween: (registry: CppRegistry, tweenEntity: number) => void
+anim_resumeTween: (registry: CppRegistry, tweenEntity: number) => void
+anim_setSequenceNext: (registry: CppRegistry, tweenEntity: number, nextEntity: number) => void
+anim_setTweenBezier: (registry: CppRegistry, tweenEntity: number, p1x: number, p1y: number, p2x: number, p2y: number) => void
+anim_updateTweens: (registry: CppRegistry, deltaTime: number) => void
 compileEsshader: (source: string, featuresCsv: string) => number
 defineMaterial: (materialId: number, shader: number, blendMode: number, flags: number) => void
 draw_begin: (matrixPtr: number) => void
@@ -7360,7 +7360,7 @@ sequence: (factories: TweenFactory[]) => TweenSequence
 to: (entity: Entity, target: TweenTarget, from: number, to: number, duration: number, options?: TweenOptions) => TweenHandle
 update: (deltaTime: number) => void
 value: (from: number, to: number, duration: number, callback: (value: number) => void, options?: TweenOptions) => ValueTweenHandle
-static new (module: ESEngineModule, registry: CppRegistry): TweenAPI
+static new (module: AnimCore, registry: CppRegistry): TweenAPI
 static prototype: TweenAPI
 ```
 
@@ -7390,7 +7390,7 @@ pause: () => void
 resume: () => void
 state: TweenState
 then: (next: TweenHandle | ValueTweenHandle) => TweenHandle
-static new (module: ESEngineModule, registry: CppRegistry, valueManager: ValueTweenManager, entity: Entity): TweenHandle
+static new (module: AnimCore, registry: CppRegistry, valueManager: ValueTweenManager, entity: Entity): TweenHandle
 static prototype: TweenHandle
 ```
 
