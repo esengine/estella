@@ -143,9 +143,11 @@ IOSPlatform g_platform;
 - (void)appBackgrounded {
     _displayLink.paused = YES;
     eshost::surfaceLost();
+    eshost::setVisible(false);   // suspend audio + auto-pause the game
 }
 
 - (void)appForegrounded {
+    eshost::setVisible(true);    // resume audio even if the surface rebind lags
     if (_booted && eshost::bindSurface()) _displayLink.paused = NO;
 }
 

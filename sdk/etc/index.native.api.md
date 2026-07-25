@@ -3943,6 +3943,7 @@ value: string
 
 ## NativeBridge — interface @beta
 ```
+audio: NativeAudioBridge | undefined
 devicePixelRatio: () => number
 fetch: (url: string, options?: PlatformRequestOptions) => Promise<NativeFetchResult>
 fileExists: (path: string) => Promise<boolean>
@@ -3950,8 +3951,8 @@ getStorageItem: (key: string) => string | null
 language: (() => string) | undefined
 loadImagePixels: (path: string) => Promise<ImageLoadResult>
 now: (() => number) | undefined
-onHide: ((callback: () => void) => void) | undefined
-onShow: ((callback: () => void) => void) | undefined
+onHide: ((callback: () => void) => () => void) | undefined
+onShow: ((callback: () => void) => () => void) | undefined
 readCacheFile: ((key: string) => Promise<ArrayBuffer | null>) | undefined
 readFile: (path: string) => Promise<ArrayBuffer>
 registerInput: (listener: NativeInputListener) => () => void
@@ -3993,6 +3994,19 @@ width: number
 
 ## NativeHostBindings — interface
 ```
+es_audioLoad: ((bytes: ArrayBuffer) => { id: number; duration: number; bytes: number; } | null) | undefined
+es_audioPause: ((voiceId: number) => void) | undefined
+es_audioPlay: ((bufferId: number, volume: number, pan: number, loop: boolean, rate: number) => number) | undefined
+es_audioResume: ((voiceId: number) => void) | undefined
+es_audioResumeAll: (() => void) | undefined
+es_audioSetLoop: ((voiceId: number, loop: boolean) => void) | undefined
+es_audioSetPan: ((voiceId: number, pan: number) => void) | undefined
+es_audioSetRate: ((voiceId: number, rate: number) => void) | undefined
+es_audioSetVolume: ((voiceId: number, volume: number) => void) | undefined
+es_audioStop: ((voiceId: number) => void) | undefined
+es_audioSuspendAll: (() => void) | undefined
+es_audioUnload: ((bufferId: number) => void) | undefined
+es_audioVoiceState: ((voiceId: number) => { playing: boolean; currentTime: number; } | null) | undefined
 es_devicePixelRatio: (() => number) | undefined
 es_getStorageItem: ((key: string) => string | null) | undefined
 es_loadImagePixels: (path: string) => { width: number; height: number; pixels: ArrayBuffer; } | null
@@ -4025,6 +4039,7 @@ static prototype: NativeMemoryProvider
 ```
 bindInputEvents: (callbacks: InputEventCallbacks) => void
 clearStorage: (prefix: string) => void
+createAudioBackend: (() => PlatformAudioBackend) | undefined
 createCanvas: (_width: number, _height: number) => PlatformCanvas
 createImage: () => PlatformImage
 devicePixelRatio: () => number
@@ -4036,6 +4051,8 @@ language: () => string
 loadImagePixels: (path: string) => Promise<ImageLoadResult>
 name: "native"
 now: () => number
+onAppHide: (callback: () => void) => () => void
+onAppShow: (callback: () => void) => () => void
 readCacheFile: (key: string) => Promise<ArrayBuffer | null>
 readFile: (path: string) => Promise<ArrayBuffer>
 readTextFile: (path: string) => Promise<string>
@@ -4615,6 +4632,8 @@ loadImagePixels: (path: string) => Promise<ImageLoadResult>
 loadSubpackage: ((name: string) => Promise<void>) | undefined
 name: "web" | "wechat" | "douyin" | "node" | "native"
 now: () => number
+onAppHide: ((callback: () => void) => () => void) | undefined
+onAppShow: ((callback: () => void) => () => void) | undefined
 onMemoryWarning: ((callback: () => void) => () => void) | undefined
 pollGamepads: (() => GamepadSnapshot[]) | undefined
 readCacheFile: ((key: string) => Promise<ArrayBuffer | null>) | undefined

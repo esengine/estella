@@ -44,6 +44,22 @@ function init() {
     world.insert(orbit, ESEngine.Transform, { position: { x: W * 0.5, y: H * 0.75, z: 0 } });
     world.insert(orbit, ESEngine.ShapeRenderer, {
         shapeType: 0, color: { r: 1, g: 0.2, b: 0.9, a: 1 }, size: { x: S * 0.12, y: S * 0.12 } });
+
+    // Stage C: a startup chime through the REAL SDK Audio API. The native audio
+    // backend decodes beep.wav and plays it in the host's miniaudio engine — the
+    // audio pillar on device, the same Audio API a web game calls.
+    var audio = ESEngine.Audio && app.getResource(ESEngine.Audio);
+    if (audio) {
+        audio.playTrack('beep.wav', { volume: 0.4 }).then(function (h) {
+            console.log('[demo] audio: ' + (h
+                ? 'playing (isPlaying=' + h.isPlaying + ', duration=' + h.duration.toFixed(2) + 's)'
+                : 'null handle — no native audio backend'));
+        }, function (e) {
+            console.error('[demo] audio failed:', e && e.message ? e.message : e);
+        });
+    } else {
+        console.log('[demo] audio: no Audio resource');
+    }
 }
 
 function update(dt) {

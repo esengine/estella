@@ -24,15 +24,28 @@ import type {
     PlatformCanvas,
     PlatformImage,
 } from '../types';
+import type { PlatformAudioBackend } from '../../audio/PlatformAudioBackend';
 import { setPlatform } from '../base';
 import { createPrimaryPointer } from '../primaryPointer';
+import { NativeAudioBackend } from '../../audio/NativeAudioBackend';
 import type { NativeBridge, NativeInputListener } from './bridge';
 
 export class NativePlatformAdapter implements PlatformAdapter {
     readonly name = 'native' as const;
     private inputCleanup_: (() => void) | null = null;
 
-    constructor(private readonly bridge_: NativeBridge) {}
+    constructor(private readonly bridge_: NativeBridge) {
+        // Only advertise audio when the host bound an engine; otherwise the base
+        // helper falls back to the silent Null backend (createAudioBackend stays
+        // undefined), exactly as on a host with no sound device.
+        if (bridge_.audio) {
+            const audio = bridge_.audio;
+            this.createAudioBackend = () => new NativeAudioBackend(audio);
+        }
+    }
+
+    /** Assigned in the constructor only when the host bound an audio engine. */
+    createAudioBackend?: () => PlatformAudioBackend;
 
     async fetch(url: string, options?: PlatformRequestOptions): Promise<PlatformResponse> {
         const r = await this.bridge_.fetch(url, options);
@@ -122,9 +135,16 @@ export class NativePlatformAdapter implements PlatformAdapter {
         this.inputCleanup_ = null;
     }
 
-    // No createAudioBackend: audio ships with the shell, so the adapter omits it
-    // and the audio system falls back to the silent Null backend (like the Node
-    // host and the optional video backend) until the shell provides one.
+    // Foreground/background: the shell has no DOM visibility event, so the
+    // Lifecycle plugin's native branch subscribes here and the host pushes the
+    // signal through the bridge. A bridge without them → the app stays visible.
+    onAppShow(callback: () => void): () => void {
+        return this.bridge_.onShow?.(callback) ?? (() => {});
+    }
+
+    onAppHide(callback: () => void): () => void {
+        return this.bridge_.onHide?.(callback) ?? (() => {});
+    }
 
     getStorageItem(key: string): string | null {
         return this.bridge_.getStorageItem(key);

@@ -41,6 +41,38 @@ export const PLATFORM_BINDINGS = {
 } as const;
 
 /**
+ * The native audio engine surface (a host with a sound device binds it). Unlike
+ * the sets above this one is OPTIONAL: a host with no audio omits every name and
+ * the audio system falls back to the silent Null backend, so it is not part of
+ * {@link assertNativeBindings}' required set — {@link hasAudioBindings} decides
+ * whether {@link NativeAudioBackend} is wired at all.
+ */
+export const AUDIO_BINDINGS = {
+    load: 'es_audioLoad',
+    unload: 'es_audioUnload',
+    play: 'es_audioPlay',
+    stop: 'es_audioStop',
+    pause: 'es_audioPause',
+    resume: 'es_audioResume',
+    setVolume: 'es_audioSetVolume',
+    setPan: 'es_audioSetPan',
+    setLoop: 'es_audioSetLoop',
+    setRate: 'es_audioSetRate',
+    voiceState: 'es_audioVoiceState',
+    suspendAll: 'es_audioSuspendAll',
+    resumeAll: 'es_audioResumeAll',
+} as const;
+
+/** Whether a host bound the whole audio surface — the gate for the native audio
+ *  backend (all-or-nothing, so a partially-implemented host stays silent rather
+ *  than half-playing). */
+export function hasAudioBindings(
+    scope: Record<string, unknown> = globalThis as unknown as Record<string, unknown>,
+): boolean {
+    return Object.values(AUDIO_BINDINGS).every((name) => typeof scope[name] === 'function');
+}
+
+/**
  * Verify a host bound everything before anything calls it.
  *
  * @throws listing every missing binding at once — a host that is halfway through

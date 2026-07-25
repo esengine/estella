@@ -18,4 +18,5 @@ export { AudioSource, AudioListener, type AudioSourceData, type AudioListenerDat
 export { AttenuationModel, calculateAttenuation, calculatePanning, type SpatialAudioConfig } from './SpatialAudio';
 export { WebAudioBackend } from './WebAudioBackend';
 export { WeChatAudioBackend } from './WeChatAudioBackend';
+export { NativeAudioBackend } from './NativeAudioBackend';
 export type { AudioHandle, AudioBufferHandle, PlayConfig, PlatformAudioBackend, AudioBackendInitOptions } from './PlatformAudioBackend';

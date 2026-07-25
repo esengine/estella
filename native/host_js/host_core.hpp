@@ -78,6 +78,11 @@ void frame();
  *         Coordinates are in surface pixels, top-left origin (as on the web). */
 void touch(int type, int id, float x, float y);
 
+/** @brief The app went to background (@p visible false) or returned to foreground.
+ *         Suspends/resumes the audio device natively and pushes the signal to JS,
+ *         where the Lifecycle plugin auto-pauses the game. No-op before boot. */
+void setVisible(bool visible);
+
 bool booted();
 
 /** Whether a surface is currently bound — false while the window is gone, which is

@@ -194,6 +194,22 @@ export function platformOnMemoryWarning(callback: () => void): () => void {
     return p.onMemoryWarning ? p.onMemoryWarning(callback) : () => {};
 }
 
+/** Subscribe to the app returning to foreground / going to background — the
+ *  native shell's push signals (no DOM visibility on native). Return an
+ *  unsubscribe; a platform without the signal never fires. Tolerates an
+ *  uninitialized platform (tests). */
+export function platformOnAppShow(callback: () => void): () => void {
+    if (!isPlatformInitialized()) return () => {};
+    const p = getPlatform();
+    return p.onAppShow ? p.onAppShow(callback) : () => {};
+}
+
+export function platformOnAppHide(callback: () => void): () => void {
+    if (!isPlatformInitialized()) return () => {};
+    const p = getPlatform();
+    return p.onAppHide ? p.onAppHide(callback) : () => {};
+}
+
 /** Read a persisted string by key (adapter storage: localStorage on web,
  *  `wx.getStorageSync` on WeChat). Returns null when the key is absent OR the
  *  platform is uninitialized (tests) — callers treat both as "nothing stored". */

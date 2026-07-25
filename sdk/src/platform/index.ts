@@ -43,6 +43,8 @@ export {
     platformReadCacheFile,
     platformWriteCacheFile,
     platformOnMemoryWarning,
+    platformOnAppShow,
+    platformOnAppHide,
     platformGetStorageItem,
     platformSetStorageItem,
     platformDevicePixelRatio,

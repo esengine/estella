@@ -50,6 +50,44 @@ export interface NativeInputListener {
 }
 
 /**
+ * The host's native audio engine, wrapped as a small object so {@link
+ * NativeAudioBackend} stays a thin adapter over it (mirroring the WeChat backend
+ * over InnerAudioContext). The engine owns decode + mixing + output natively —
+ * nothing per-sample runs in JS, which the no-JIT budget forbids. Present only
+ * when the host bound the audio primitives; a host without a sound device omits
+ * `NativeBridge.audio` and the audio system stays silent (the Null backend).
+ *
+ * A `bufferId` names a decoded clip; a `voiceId` names one playing instance of
+ * it. Both are non-negative host handles; a failed load or play returns null / -1.
+ */
+export interface NativeAudioBridge {
+    /** Decode + register a clip from its (compressed) file bytes. Returns the
+     *  buffer handle, its length in seconds and its decoded size in bytes (for the
+     *  residency budget), or null on decode failure. */
+    load(bytes: ArrayBuffer): { id: number; duration: number; bytes: number } | null;
+    unload(bufferId: number): void;
+    /** Start a voice on a loaded buffer. Returns its voice id, or -1 if the buffer
+     *  is unknown. */
+    play(bufferId: number, volume: number, pan: number, loop: boolean, rate: number): number;
+    stop(voiceId: number): void;
+    pause(voiceId: number): void;
+    resume(voiceId: number): void;
+    setVolume(voiceId: number, volume: number): void;
+    setPan(voiceId: number, pan: number): void;
+    setLoop(voiceId: number, loop: boolean): void;
+    setRate(voiceId: number, rate: number): void;
+    /** `{ playing, currentTime }` for a live voice, or null once it has ended (or
+     *  was never known) — the SDK derives isPlaying / currentTime from it. */
+    voiceState(voiceId: number): { playing: boolean; currentTime: number } | null;
+    /** Pause / resume the whole device — the app going to background and back. */
+    suspendAll(): void;
+    resumeAll(): void;
+    /** Register the sink the host notifies when a voice ends on its own (pushed,
+     *  like touch); returns an unsubscribe. */
+    onEnded(callback: (voiceId: number) => void): () => void;
+}
+
+/**
  * The host functions the native shell injects. Async where the call crosses to
  * the OS (files, network, image decode); sync where the native API is sync
  * (key-value storage). Textures take the pixel-decode path: the host decodes an
@@ -90,8 +128,15 @@ export interface NativeBridge {
     /** Host UI language ('zh-CN', 'en-US', …). Optional — falls back to 'en'. */
     language?(): string;
 
-    /** App foreground/background signals. Reserved for the native Lifecycle seam
-     *  (not wired this round). */
-    onShow?(callback: () => void): void;
-    onHide?(callback: () => void): void;
+    /** The native audio engine, when the host has a sound device. Absent → silent
+     *  Null backend. See {@link NativeAudioBridge}. */
+    audio?: NativeAudioBridge;
+
+    /** App foreground/background signals (no DOM visibility on native): the shell
+     *  pushes them, the adapter surfaces them as `onAppShow`/`onAppHide`, and the
+     *  Lifecycle plugin auto-pauses on hide. Each returns an unsubscribe. Optional —
+     *  a shell that never backgrounds (or has not wired it) omits them and the app
+     *  stays always-visible. */
+    onShow?(callback: () => void): () => void;
+    onHide?(callback: () => void): () => void;
 }

@@ -13,8 +13,9 @@
  */
 
 import { log } from '../../logger';
-import type { NativeBridge, NativeInputListener } from './bridge';
+import type { NativeAudioBridge, NativeBridge, NativeInputListener } from './bridge';
 import { assertHostEnvironment } from './hostEnvironment';
+import { hasAudioBindings } from '../../ecs/nativeBindings';
 
 /** Touch phases the host reports, matching the order it dispatches. */
 const TOUCH_START = 0;
@@ -39,6 +40,22 @@ export interface NativeHostBindings {
     es_storageKeys?(): string[];
     /** Screen scale (1 when the host reports surface pixels directly). */
     es_devicePixelRatio?(): number;
+
+    /** The native audio engine, all-or-nothing (see {@link AUDIO_BINDINGS}). A
+     *  host without a sound device binds none and stays silent. */
+    es_audioLoad?(bytes: ArrayBuffer): { id: number; duration: number; bytes: number } | null;
+    es_audioUnload?(bufferId: number): void;
+    es_audioPlay?(bufferId: number, volume: number, pan: number, loop: boolean, rate: number): number;
+    es_audioStop?(voiceId: number): void;
+    es_audioPause?(voiceId: number): void;
+    es_audioResume?(voiceId: number): void;
+    es_audioSetVolume?(voiceId: number, volume: number): void;
+    es_audioSetPan?(voiceId: number, pan: number): void;
+    es_audioSetLoop?(voiceId: number, loop: boolean): void;
+    es_audioSetRate?(voiceId: number, rate: number): void;
+    es_audioVoiceState?(voiceId: number): { playing: boolean; currentTime: number } | null;
+    es_audioSuspendAll?(): void;
+    es_audioResumeAll?(): void;
 }
 
 /**
@@ -72,6 +89,8 @@ export function createHostBridge(
     };
 
     const storage = hostStorage(bindings);
+    const audio = hostAudio(bindings, scope);
+    const lifecycle = hostVisibility(scope);
 
     return {
         readFile: (path) => {
@@ -107,6 +126,57 @@ export function createHostBridge(
             return () => { listener = null; };
         },
         devicePixelRatio: () => bindings.es_devicePixelRatio?.() ?? 1,
+        ...(audio ? { audio } : {}),
+        ...lifecycle,
+    };
+}
+
+/**
+ * Assemble the audio bridge from the host's es_audio* primitives, or undefined
+ * when the host bound none (→ silent Null backend). Also installs
+ * `es_onNativeAudioEnded`, the entry point the host calls when a voice ends on
+ * its own, fanning out to the backend that subscribed.
+ */
+function hostAudio(
+    bindings: NativeHostBindings, scope: Record<string, unknown>,
+): NativeAudioBridge | undefined {
+    if (!hasAudioBindings(scope)) return undefined;
+    let ended: ((voiceId: number) => void) | null = null;
+    scope.es_onNativeAudioEnded = (voiceId: number): void => { ended?.(voiceId); };
+    return {
+        load: (bytes) => bindings.es_audioLoad!(bytes),
+        unload: (id) => bindings.es_audioUnload!(id),
+        play: (buf, vol, pan, loop, rate) => bindings.es_audioPlay!(buf, vol, pan, loop, rate),
+        stop: (v) => bindings.es_audioStop!(v),
+        pause: (v) => bindings.es_audioPause!(v),
+        resume: (v) => bindings.es_audioResume!(v),
+        setVolume: (v, x) => bindings.es_audioSetVolume!(v, x),
+        setPan: (v, x) => bindings.es_audioSetPan!(v, x),
+        setLoop: (v, on) => bindings.es_audioSetLoop!(v, on),
+        setRate: (v, x) => bindings.es_audioSetRate!(v, x),
+        voiceState: (v) => bindings.es_audioVoiceState!(v),
+        suspendAll: () => bindings.es_audioSuspendAll!(),
+        resumeAll: () => bindings.es_audioResumeAll!(),
+        onEnded: (cb) => { ended = cb; return () => { if (ended === cb) ended = null; }; },
+    };
+}
+
+/**
+ * Foreground/background: install `es_onNativeVisibility(visible)`, the entry the
+ * host calls when the app backgrounds or returns (like touch), and expose it as
+ * the bridge's onShow/onHide. The Lifecycle plugin subscribes and auto-pauses.
+ */
+function hostVisibility(
+    scope: Record<string, unknown>,
+): Pick<NativeBridge, 'onShow' | 'onHide'> {
+    let show: (() => void)[] = [];
+    let hide: (() => void)[] = [];
+    scope.es_onNativeVisibility = (visible: boolean): void => {
+        for (const cb of visible ? show : hide) cb();
+    };
+    return {
+        onShow: (cb) => { show.push(cb); return () => { show = show.filter((c) => c !== cb); }; },
+        onHide: (cb) => { hide.push(cb); return () => { hide = hide.filter((c) => c !== cb); }; },
     };
 }
 

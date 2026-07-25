@@ -27,6 +27,9 @@ targets:
       - path: ../host_js/logo.png
         buildPhase: resources
         type: file
+      - path: ../host_js/beep.wav
+        buildPhase: resources
+        type: file
       # An exported project, staged by `cli native --target ios --content <dir>`.
       # A folder reference (not a group) so cooked subdirectories keep their
       # shape — the host reads Content/ first, the bundle root second.
@@ -59,3 +62,8 @@ targets:
       - sdk: IOSurface.framework
       - sdk: CoreGraphics.framework
       - sdk: Foundation.framework
+      # miniaudio's CoreAudio backend (native_audio.cpp), linked at build time
+      # because it forces MA_NO_RUNTIME_LINKING on Apple.
+      - sdk: AVFoundation.framework
+      - sdk: CoreAudio.framework
+      - sdk: AudioToolbox.framework

@@ -315,6 +315,13 @@ export interface PlatformAdapter {
      *  omit it. Residency caches subscribe to drop their evictable entries. */
     onMemoryWarning?(callback: () => void): () => void;
 
+    /** App foreground/background signals, for platforms with no DOM visibility
+     *  event. The native shell pushes them through its bridge; the Lifecycle
+     *  plugin subscribes and auto-pauses on hide. Web/WeChat read visibility from
+     *  their own globals (document/wx) and omit these. Each returns an unsubscribe. */
+    onAppShow?(callback: () => void): () => void;
+    onAppHide?(callback: () => void): () => void;
+
     /** The host's UI language tag ('zh-CN', 'en-US', …). WeChat reports
      *  'zh_CN'-style tags — `platformLanguage()` normalizes underscores.
      *  Optional; web falls through to navigator.language. */

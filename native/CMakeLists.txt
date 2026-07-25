@@ -125,9 +125,17 @@ if(ESTELLA_QUICKJS_DIR)
     if(ESTELLA_IOS)
         # Static: the thin Xcode app (native/ios) links this plus the libraries
         # below. -ObjC on the app keeps the Obj-C classes in main_ios.mm alive.
-        add_library(estella_js_host STATIC host_js/host_core.cpp host_js/main_ios.mm "${NATIVE_BINDINGS}")
+        add_library(estella_js_host STATIC host_js/host_core.cpp host_js/main_ios.mm
+            host_js/native_audio.cpp "${NATIVE_BINDINGS}")
+        # miniaudio's CoreAudio backend uses AVAudioSession (Obj-C), so its TU must
+        # be Objective-C++ on Apple; it also forces MA_NO_RUNTIME_LINKING there, so
+        # the audio frameworks are linked at build time (the app links the merged
+        # archive, so these also live in native/ios/project.yml).
+        set_source_files_properties(host_js/native_audio.cpp PROPERTIES
+            COMPILE_OPTIONS "-x;objective-c++")
         target_link_libraries(estella_js_host esengine qjs
-            "-framework UIKit" "-framework QuartzCore" "-framework Foundation")
+            "-framework UIKit" "-framework QuartzCore" "-framework Foundation"
+            "-framework AVFoundation" "-framework CoreAudio" "-framework AudioToolbox")
         # Merge host + engine + deps + Dawn into ONE archive, so the Xcode app is a
         # thin shell that links a single library at a fixed path (native/ios).
         add_custom_command(TARGET estella_js_host POST_BUILD
@@ -136,12 +144,16 @@ if(ESTELLA_QUICKJS_DIR)
                     $<TARGET_FILE:qjs> $<TARGET_FILE:yogacore> "${ESTELLA_DAWN_LIB}"
             COMMENT "Merging the iOS host, engine and Dawn into libestella_ios.a")
     else()
-        add_library(estella_js_host SHARED host_js/host_core.cpp host_js/main_android.cpp "${NATIVE_BINDINGS}")
+        # Android: plain C++; miniaudio dlopens AAudio/OpenSL at runtime (no extra
+        # link libs). native_audio.cpp's Obj-C paths are __APPLE__-guarded out.
+        add_library(estella_js_host SHARED host_js/host_core.cpp host_js/main_android.cpp
+            host_js/native_audio.cpp "${NATIVE_BINDINGS}")
         target_link_libraries(estella_js_host esengine qjs native_app_glue android log)
         set_target_properties(estella_js_host PROPERTIES LINK_FLAGS "-u ANativeActivity_onCreate")
     endif()
     # host_js/ holds esn_shim.hpp + host_core.hpp (the generated TU includes the shim);
-    # the gen dir holds ptraccessors_js.h and the embedded SDK bundle.
+    # the gen dir holds ptraccessors_js.h and the embedded SDK bundle; third_party/miniaudio
+    # is the audio engine header.
     target_include_directories(estella_js_host PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/host_js" "${ESTELLA_NATIVE_GEN_DIR}")
+        "${CMAKE_CURRENT_SOURCE_DIR}/host_js" "${ESTELLA_NATIVE_GEN_DIR}" "${TP}/miniaudio")
 endif()

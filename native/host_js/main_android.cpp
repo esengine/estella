@@ -103,6 +103,12 @@ void onAppCmd(android_app* app, int32_t cmd) {
             eshost::surfaceLost();
             g_platform.window = nullptr;
             break;
+        case APP_CMD_PAUSE:
+            eshost::setVisible(false);   // suspend audio + auto-pause the game
+            break;
+        case APP_CMD_RESUME:
+            eshost::setVisible(true);
+            break;
         default:
             break;
     }

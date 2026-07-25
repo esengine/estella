@@ -212,16 +212,29 @@ through the generated registry + memory backend; the host binds the entity /
 hierarchy / component functions the SDK reads off `globalThis`, plus the input and
 texture bindings.
 
-System bindings (Stage B) landing incrementally through the real SDK surfaces:
+System bindings landing incrementally through the real SDK surfaces:
 
-- **Input** — host touch → the SDK's `inputPlugin` → the `Input` resource (device-verified).
-- **Assets** — `ESEngine.Assets.loadTexture(path)` runs the SAME asset pipeline the
+- **Input** (Stage B) — host touch → the SDK's `inputPlugin` → the `Input` resource (device-verified).
+- **Assets** (Stage B) — `ESEngine.Assets.loadTexture(path)` runs the SAME asset pipeline the
   web build uses: the platform decodes the image (`bridge.loadImagePixels`) and the
   **native ResourceManager** (`createNativeResourceManager`, over the host's
   `es_createTexture` / `es_releaseTexture` / `es_getTextureDimensions`) uploads the
   bytes directly — no wasm heap. `game.js` now loads its logo through this channel
   instead of a hand-rolled `es_createTexture`.
+- **Audio** (Stage C) — `ESEngine.Audio.playSFX` / `playTrack` runs the SAME Audio API the
+  web build uses. The engine is [miniaudio](https://miniaud.io) (CoreAudio on iOS,
+  AAudio/OpenSL on Android): it decodes and mixes natively, so nothing per-sample runs
+  in JS — the no-JIT budget forbids that. `NativeAudioBackend` is a thin SDK shell over the
+  host's `es_audio*` engine (`native_audio.cpp`), mirroring the WeChat backend over
+  InnerAudioContext; `mixer` is null (per-voice volume/pan/rate/loop, no JS DSP graph).
+  The engine is playback-only (no microphone). Bound only when a device comes up, so a
+  host without one stays silent (the Null backend). Simulator-verified: a clip decodes and
+  plays (isPlaying true).
+- **Lifecycle** (Stage C) — the glue pushes foreground/background (`eshost::setVisible`) →
+  the SDK's Lifecycle plugin auto-pauses the game, and the host suspends/resumes the audio
+  device natively (correct even while the JS tick is paused). Simulator-verified across a
+  background/foreground cycle.
 
-Remaining: audio, lifecycle, and the cooked-asset manifest (import settings / KTX2 /
-atlases) that the editor's native-export pipeline will ship (Stage C); then the iOS
-shell (the Metal surface seam is already in place).
+Remaining: the cooked-asset import settings (sampler filter/wrap, KTX2/atlas nuances)
+the export pipeline will thread through, and hardening on a physical device (audio
+output, the background/foreground transition, Android's miniaudio AAudio path).

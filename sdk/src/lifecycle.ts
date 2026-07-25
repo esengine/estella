@@ -7,7 +7,7 @@
 
 import { defineResource } from './resource';
 import type { App, Plugin } from './app';
-import { getPlatformType } from './platform';
+import { getPlatformType, platformOnAppShow, platformOnAppHide } from './platform';
 import { log } from './logger';
 
 // =============================================================================
@@ -112,12 +112,14 @@ export class LifecyclePlugin implements Plugin {
 
         if (platformType === 'wechat') {
             this.cleanupFn_ = setupWeChatLifecycle_(manager, app);
-        } else if (platformType !== 'native' && typeof document !== 'undefined' && typeof window !== 'undefined') {
+        } else if (platformType === 'native') {
+            this.cleanupFn_ = setupNativeLifecycle_(manager, app);
+        } else if (typeof document !== 'undefined' && typeof window !== 'undefined') {
             this.cleanupFn_ = setupWebLifecycle_(manager, app);
         }
-        // Headless hosts (node server, workers) and native (no DOM visibility/focus
-        // signal — a bridge.onShow/onHide seam lands with the shell) keep the
-        // Lifecycle resource, always visible.
+        // Headless hosts (node server, workers) keep the Lifecycle resource and
+        // stay always-visible; a native shell that never wired the show/hide
+        // signal degrades to the same (setupNativeLifecycle_ just never fires).
     }
 
     cleanup(): void {
@@ -207,6 +209,45 @@ function setupWeChatLifecycle_(manager: LifecycleManager, app: AppLike): (() => 
     return (): void => {
         wx.offShow?.(onShow);
         wx.offHide?.(onHide);
+        manager.removeAllListeners();
+    };
+}
+
+// =============================================================================
+// Native Platform (embedded Dawn + JS engine)
+// =============================================================================
+
+/**
+ * Native has no DOM visibility event; the shell pushes foreground/background
+ * through the platform adapter (onAppShow/onAppHide, backed by the bridge). Same
+ * auto-pause contract as WeChat. The audio device is suspended by the host
+ * directly on background — correct even while the JS tick is paused — so this
+ * only drives the game tick and the lifecycle events.
+ */
+function setupNativeLifecycle_(manager: LifecycleManager, app: AppLike): () => void {
+    let pausedByLifecycle = false;
+
+    const offShow = platformOnAppShow(() => {
+        manager.setVisible_(true);
+        if (pausedByLifecycle) {
+            app.setPaused(false);
+            pausedByLifecycle = false;
+            manager.emit_('resume');
+        }
+    });
+
+    const offHide = platformOnAppHide(() => {
+        manager.setVisible_(false);
+        if (manager.autoPause && !app.isPaused()) {
+            app.setPaused(true);
+            pausedByLifecycle = true;
+            manager.emit_('pause');
+        }
+    });
+
+    return (): void => {
+        offShow();
+        offHide();
         manager.removeAllListeners();
     };
 }

@@ -4493,6 +4493,8 @@ loadImagePixels: (path: string) => Promise<ImageLoadResult>
 loadSubpackage: ((name: string) => Promise<void>) | undefined
 name: "web" | "wechat" | "douyin" | "node" | "native"
 now: () => number
+onAppHide: ((callback: () => void) => () => void) | undefined
+onAppShow: ((callback: () => void) => () => void) | undefined
 onMemoryWarning: ((callback: () => void) => () => void) | undefined
 pollGamepads: (() => GamepadSnapshot[]) | undefined
 readCacheFile: ((key: string) => Promise<ArrayBuffer | null>) | undefined
