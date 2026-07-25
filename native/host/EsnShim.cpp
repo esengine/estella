@@ -18,6 +18,9 @@
 #include "esn_shim.hpp"
 
 #include "Runtime.hpp"
+#include "heap.hpp"
+
+#include <cstring>
 
 using namespace esengine;
 
@@ -69,11 +72,51 @@ void esn_getvec(JSContext* ctx, JSValueConst obj, const char* key, float* dst, i
     JS_FreeValue(ctx, arr);
 }
 
-// The generated wrappers for entry points that take a `uintptr_t` buffer read
-// their bytes through this: on the web that argument is a wasm heap offset, here
-// it is memory the wrapper owns for the duration of the call.
 void esn_bytes(JSContext* ctx, JSValueConst v, std::vector<esengine::u8>& out) {
     eshost::readByteSource(ctx, v, out);
+}
+
+// — The heap a `uintptr_t` argument addresses. A number IS the offset (the SDK
+//   wrote through the shared ArrayBuffer); anything else is a buffer handed
+//   straight across, which we copy into the arena so the binding still receives
+//   memory inside the region BoundarySpan validates against. —
+
+uint32_t esn_argOffset(JSContext* ctx, JSValueConst v) {
+    if (JS_IsNumber(v)) {
+        uint32_t offset = 0;
+        JS_ToUint32(ctx, &offset, v);
+        return offset;
+    }
+    std::vector<esengine::u8> bytes;
+    eshost::readByteSource(ctx, v, bytes);
+    if (bytes.empty()) return 0;
+    const uint32_t offset = eshost::heapAlloc(bytes.size());
+    void* dst = eshost::heapPtr(offset, bytes.size());
+    if (!dst) return 0;
+    std::memcpy(dst, bytes.data(), bytes.size());
+    return offset;
+}
+
+void esn_argRelease(JSContext* ctx, JSValueConst v, uint32_t offset) {
+    if (JS_IsNumber(v)) return;   // the caller owns it
+    eshost::heapFree(offset);
+}
+
+uintptr_t esn_heapAddr(uint32_t offset) {
+    return reinterpret_cast<uintptr_t>(eshost::heapPtr(offset, 0));
+}
+
+uint32_t esn_publish(EsnSlot& slot, const void* src, size_t bytes) {
+    if (!src || bytes == 0) return 0;
+    if (bytes > slot.capacity) {
+        eshost::heapFree(slot.offset);
+        slot.offset = eshost::heapAlloc(bytes);
+        slot.capacity = slot.offset ? bytes : 0;
+    }
+    void* dst = eshost::heapPtr(slot.offset, bytes);
+    if (!dst) return 0;
+    std::memcpy(dst, src, bytes);
+    return slot.offset;
 }
 
 JSValue esn_arraybuffer(JSContext* ctx, void* ptr, size_t size) {

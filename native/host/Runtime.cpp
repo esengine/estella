@@ -339,7 +339,9 @@ void initRuntime(HostState& h) {
     JS_SetPropertyStr(h.js, perf, "now", JS_NewCFunction(h.js, js_performanceNow, "now", 0));
     JS_SetPropertyStr(h.js, global, "performance", perf);
 
-    // The es_* surface, one pillar at a time (see Bindings.hpp).
+    // The es_* surface, one pillar at a time (see Bindings.hpp). The heap comes
+    // first: it is what the generated entry points marshal buffers through.
+    registerHeapBindings(h, global);
     registerEcsBindings(h, global);
     registerRenderBindings(h, global);
     registerAssetBindings(h, global);

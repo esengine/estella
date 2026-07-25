@@ -20,9 +20,11 @@ The mapping is small because the declarations are:
                         host has exactly one of each, so they are implicit and
                         consume no JS argument (see ``_IMPLICIT_REFS``)
   scalars               u32/i32/f32/f64/bool/int/float/double
-  ``uintptr_t`` ptr     a JS ArrayBuffer / typed array; the wrapper copies the
-                        bytes and passes a real pointer (the same BoundarySpan
-                        validation runs inside the binding)
+  ``uintptr_t`` ptr     an offset into the host's heap arena — the same thing it is
+                        on the web, where the heap is wasm's linear memory (see
+                        native/host/heap.hpp). A JS buffer handed straight across is
+                        still accepted and copied in. Either way the binding's own
+                        BoundarySpan validation runs, now against a real region.
   returns               void / integer / float / bool
 
 Anything else — ``emscripten::val`` results, ``std::string``, typed pointers — is
@@ -38,7 +40,21 @@ _INT_TYPES = {'i8', 'i16', 'i32', 'i64', 'u8', 'u16', 'u32', 'u64',
               'int', 'int32_t', 'uint32_t', 'size_t', 'long'}
 _FLOAT_TYPES = {'f32', 'f64', 'float', 'double'}
 _BOOL_TYPES = {'bool'}
+_STRING = 'std::string'
 _VOID = 'void'
+
+# A pointer-returning entry point hands back memory the MODULE owns (a static
+# buffer, a vector's storage), which is not in the heap JS can read. The
+# declaration says how many bytes it covers and the wrapper copies them into a
+# stable heap slot, returning that offset — so the SDK reads the result exactly as
+# it reads a wasm one, and nothing about the buffer's extent is guessed:
+#
+#   // @heapreturn physics_getDynamicBodyCount() * PHYSICS_BODY_STRIDE_BYTES
+#   uintptr_t physics_getDynamicBodyTransforms();
+#
+# The expression is C++, evaluated in the generated TU right after the call — at
+# GLOBAL scope, so any engine name in it needs qualifying (`esengine::f32`).
+_HEAP_RETURN = re.compile(r'@heapreturn\s+(?P<expr>.+?)\s*$', re.MULTILINE)
 
 # Reference parameters the host answers for itself: it runs exactly one registry
 # and one resource manager, so these consume no JS argument and the wrapper passes
@@ -75,6 +91,12 @@ class Function(NamedTuple):
     # wrapper carries them verbatim, so the generated TU tracks whatever the
     # build enables instead of assuming a fixed feature set.
     guards: Tuple[str, ...] = ()
+    # The C++ byte-count expression from an `@heapreturn` annotation, for an entry
+    # point that returns module-owned memory (see _HEAP_RETURN).
+    heap_return: Optional[str] = None
+    # C entry points (`extern "C"`) are not in namespace esengine, so the wrapper
+    # calls them unqualified.
+    extern_c: bool = False
 
 
 class Skipped(NamedTuple):
@@ -141,19 +163,44 @@ def parse_header(text: str) -> Tuple[List[Function], List[Skipped]]:
                 hi = mid - 1
         return guards_per_line[lo] if guards_per_line else ()
 
+    # A header that opens `extern "C"` declares C entry points throughout (the
+    # standalone modules — physics, spine, video — are written that way), so their
+    # wrappers must call them unqualified.
+    extern_c = 'extern "C"' in body
+
     for match in _DECL.finditer(body):
         ret = _clean(match.group('ret'))
         name = match.group('name')
         if name in {'if', 'for', 'while', 'switch', 'return', 'namespace', 'class'}:
             continue
+        heap_return = _heap_return_before(body, match.start())
         params, reason = _parse_params(match.group('args'))
-        if reason is None and not _returnable(ret):
-            reason = f'returns {ret}'
+        if reason is None and not _returnable(ret, heap_return):
+            reason = (f'returns {ret}; annotate it with `@heapreturn <bytes>` if it hands '
+                      f'back module memory') if ret == 'uintptr_t' else f'returns {ret}'
         if reason is not None:
             skipped.append(Skipped(name, reason))
             continue
-        functions.append(Function(name, ret, params, guards_at(match.start())))
+        functions.append(Function(name, ret, params, guards_at(match.start()),
+                                  heap_return, extern_c))
     return functions, skipped
+
+
+def _heap_return_before(body: str, pos: int) -> Optional[str]:
+    """The `@heapreturn` expression annotating the declaration at @p pos, if any.
+
+    Read from the comment block immediately above it — the annotation belongs next
+    to the declaration it describes, not in a table somewhere else.
+    """
+    head = body[:pos].rstrip()
+    lines: List[str] = []
+    for line in reversed(head.splitlines()):
+        token = line.strip()
+        if not token.startswith('//') and not token.startswith('*') and not token.startswith('/*'):
+            break
+        lines.append(token)
+    match = _HEAP_RETURN.search('\n'.join(lines))
+    return match.group('expr').strip() if match else None
 
 
 def _parse_params(args: str) -> Tuple[List[Param], Optional[str]]:
@@ -173,6 +220,10 @@ def _parse_params(args: str) -> Tuple[List[Param], Optional[str]]:
         if implicit:
             params.append(Param(implicit, parts[-1]))
             continue
+        # `const std::string&` — a JS string, read as UTF-8 for the call's duration.
+        if parts[0] == _STRING:
+            params.append(Param(_STRING, parts[-1]))
+            continue
         if '&' in decl or '*' in decl:
             return params, f'takes {decl}'
         cpp_type = ' '.join(parts[:-1]) if len(parts) > 1 else parts[0]
@@ -184,8 +235,11 @@ def _parse_params(args: str) -> Tuple[List[Param], Optional[str]]:
     return params, None
 
 
-def _returnable(ret: str) -> bool:
-    return ret == _VOID or ret in _INT_TYPES | _FLOAT_TYPES | _BOOL_TYPES
+def _returnable(ret: str, heap_return: Optional[str] = None) -> bool:
+    if ret == 'uintptr_t':
+        # Only with an annotation saying how much memory it covers.
+        return heap_return is not None
+    return ret == _VOID or ret == _STRING or ret in _INT_TYPES | _FLOAT_TYPES | _BOOL_TYPES
 
 
 # The engine's short scalar aliases live in namespace esengine; the plain C++
@@ -217,6 +271,9 @@ class NativeFunctionsGenerator:
         out.append('    (void)argc; (void)argv;')
 
         call_args: List[str] = []
+        # (local, js argument index) per buffer argument, so a copied-in buffer is
+        # released after the call — see esn_argRelease.
+        ptr_releases: List[Tuple[str, int]] = []
         js_index = 0
         for param in fn.params:
             if param.cpp_type in _IMPLICIT_REFS:
@@ -224,12 +281,21 @@ class NativeFunctionsGenerator:
                 continue
             local = f'a{js_index}'
             if param.cpp_type == 'uintptr_t':
-                # A JS buffer: copy the bytes, then hand the binding a real pointer.
-                # Its own BoundarySpan check still runs on the other side.
-                out.append(f'    std::vector<esengine::u8> {local}_bytes;')
-                out.append(f'    esn_bytes(ctx, argv[{js_index}], {local}_bytes);')
-                out.append(f'    const uintptr_t {local} = {local}_bytes.empty() ? 0 '
-                           f': reinterpret_cast<uintptr_t>({local}_bytes.data());')
+                # A heap offset, the same as it is on the web — the host's arena
+                # plays the part of wasm's linear memory (see host/heap.hpp). A JS
+                # buffer handed straight across is copied in and released after the
+                # call. The binding's own BoundarySpan check runs either way, and
+                # now against a real region.
+                out.append(f'    const uint32_t {local}_off = esn_argOffset(ctx, argv[{js_index}]);')
+                out.append(f'    const uintptr_t {local} = esn_heapAddr({local}_off);')
+                ptr_releases.append((local, js_index))
+            elif param.cpp_type == _STRING:
+                # A JS string, owned by the wrapper for the call. An absent or
+                # non-string argument reads as empty rather than aborting the call,
+                # matching how embind coerces one.
+                out.append(f'    const char* {local}_c = JS_ToCString(ctx, argv[{js_index}]);')
+                out.append(f'    const std::string {local} = {local}_c ? {local}_c : "";')
+                out.append(f'    if ({local}_c) JS_FreeCString(ctx, {local}_c);')
             elif param.cpp_type in _BOOL_TYPES:
                 out.append(f'    const bool {local} = JS_ToBool(ctx, argv[{js_index}]) != 0;')
             elif param.cpp_type in _FLOAT_TYPES:
@@ -243,16 +309,44 @@ class NativeFunctionsGenerator:
             call_args.append(local)
             js_index += 1
 
-        call = f'esengine::{fn.name}({", ".join(call_args)})'
+        scope = '' if fn.extern_c else 'esengine::'
+        call = f'{scope}{fn.name}({", ".join(call_args)})'
+        releases = [f'    esn_argRelease(ctx, argv[{index}], {local}_off);'
+                    for local, index in ptr_releases]
         if fn.ret == _VOID:
             out.append(f'    {call};')
+            out.extend(releases)
             out.append('    return JS_UNDEFINED;')
-        elif fn.ret in _BOOL_TYPES:
-            out.append(f'    return JS_NewBool(ctx, {call});')
-        elif fn.ret in _FLOAT_TYPES:
-            out.append(f'    return JS_NewFloat64(ctx, static_cast<double>({call}));')
         else:
-            out.append(f'    return JS_NewInt64(ctx, static_cast<int64_t>({call}));')
+            # Hold the result, release the scratch, then convert — a wrapper must
+            # not leak the copy on the returning paths.
+            if fn.ret in _BOOL_TYPES:
+                out.append(f'    const bool result = {call};')
+                out.extend(releases)
+                out.append('    return JS_NewBool(ctx, result);')
+            elif fn.ret in _FLOAT_TYPES:
+                out.append(f'    const double result = static_cast<double>({call});')
+                out.extend(releases)
+                out.append('    return JS_NewFloat64(ctx, result);')
+            elif fn.ret == _STRING:
+                out.append(f'    const std::string result = {call};')
+                out.extend(releases)
+                out.append('    return JS_NewStringLen(ctx, result.data(), result.size());')
+            elif fn.ret == 'uintptr_t':
+                # Module-owned memory: copy `@heapreturn` bytes into this entry
+                # point's own heap slot and answer the offset, so the SDK reads the
+                # result the same way it reads a wasm pointer. One slot per entry
+                # point, so two consecutive readbacks cannot clobber each other.
+                out.append('    static EsnSlot slot;')
+                out.append(f'    const uintptr_t src = {call};')
+                out.append(f'    const size_t bytes = static_cast<size_t>({fn.heap_return});')
+                out.extend(releases)
+                out.append('    return JS_NewUint32(ctx, esn_publish(slot, '
+                           'reinterpret_cast<const void*>(src), bytes));')
+            else:
+                out.append(f'    const int64_t result = static_cast<int64_t>({call});')
+                out.extend(releases)
+                out.append('    return JS_NewInt64(ctx, result);')
         out.append('}')
         out.extend('#endif' for _ in fn.guards)
         out.append('')
@@ -262,12 +356,14 @@ class NativeFunctionsGenerator:
     # The same declarations, as the object a native host answers them through.
     # The SDK's plugins call these by the module's own names, so a plugin reaches
     # whichever core is present without knowing which (see ecs/engineApi.ts).
-    _TS_RETURN = {'void': 'void', 'bool': 'boolean'}
+    _TS_RETURN = {'void': 'void', 'bool': 'boolean', _STRING: 'string'}
 
     @staticmethod
     def _ts_type(cpp: str) -> str:
         if cpp in _BOOL_TYPES:
             return 'boolean'
+        if cpp == _STRING:
+            return 'string'
         if cpp in _IMPLICIT_REFS:
             return 'unknown'
         return 'number'
@@ -280,8 +376,7 @@ class NativeFunctionsGenerator:
     def generate_ts(self) -> str:
         """The native engine API: every generated entry point, callable by the
         name the wasm module exposes it under."""
-        functions = [f for f in self._functions() if not any(p.cpp_type == 'uintptr_t' for p in f.params)]
-        pointer_taking = [f.name for f in self._functions() if any(p.cpp_type == 'uintptr_t' for p in f.params)]
+        functions = self._functions()
 
         lines = [
             '// SPDX-License-Identifier: Apache-2.0',
@@ -294,9 +389,10 @@ class NativeFunctionsGenerator:
             '// and reaches whichever core is present. Generated from the SAME bindings',
             '// headers embind registers from, so the two surfaces cannot drift.',
             '//',
-            '// Every member is optional: a core answers what it compiles. Entry points that',
-            '// take a heap pointer are NOT here — those need a real backend that decides how',
-            '// bytes cross (see RendererBackend), not a name forwarded.',
+            '// Every member is optional: a core answers what it compiles. A `…Ptr`',
+            '// argument is an offset into the heap the core marshals through — wasm linear',
+            '// memory on the web, the host arena on a device — so a caller writes it the',
+            '// same way on both (see ecs/nativeHeap.ts).',
             '',
             'export interface NativeEngineApi {',
         ]
@@ -304,10 +400,6 @@ class NativeFunctionsGenerator:
             lines.append(f'    {self._ts_signature(fn)}')
         lines.append('}')
         lines.append('')
-        if pointer_taking:
-            lines.append('// Not forwarded (they take a heap pointer): '
-                         + ', '.join(sorted(pointer_taking)) + '.')
-            lines.append('')
         lines.extend([
             '/** Build the API over a host scope (the QuickJS global object; a plain object',
             ' *  in tests). A name the host did not bind simply stays absent. */',
@@ -350,6 +442,7 @@ class NativeFunctionsGenerator:
             f'#include "{self.shim_header}"',
             '',
             '#include <cstdint>',
+            '#include <string>',
             '#include <vector>',
             '',
         ]

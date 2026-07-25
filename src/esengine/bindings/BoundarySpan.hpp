@@ -31,15 +31,47 @@
 namespace esengine {
 
 namespace detail {
-inline usize boundaryHeapSize() {
-#ifdef __EMSCRIPTEN__
-    return emscripten_get_heap_size();
-#else
-    // Native builds have no single linear-memory bound; null/overflow checks still apply.
-    return SIZE_MAX;
+#ifndef __EMSCRIPTEN__
+// The bounded region a native host marshals JS buffers through (its heap arena).
+// Zero until the host registers one, and then this gate is as strict on a device
+// as it is in the sandbox.
+inline uintptr_t g_boundaryBase = 0;
+inline usize g_boundarySize = 0;
 #endif
+
+/** Whether [ptr, ptr+bytes) is inside the memory JS can legitimately address.
+ *  Reports the region it checked against, so a rejection names what it compared. */
+inline bool boundaryContains(uintptr_t ptr, u64 bytes, uintptr_t* base, u64* size) {
+#ifdef __EMSCRIPTEN__
+    // wasm: linear memory, addressed from 0.
+    *base = 0;
+    *size = static_cast<u64>(emscripten_get_heap_size());
+#else
+    *base = g_boundaryBase;
+    *size = static_cast<u64>(g_boundarySize);
+    if (*size == 0) {
+        // No host region registered: a pointer here came from C++, not from JS
+        // (or the host predates the arena). Null/overflow checks still applied.
+        return true;
+    }
+#endif
+    if (static_cast<u64>(ptr) < static_cast<u64>(*base)) return false;
+    const u64 offset = static_cast<u64>(ptr) - static_cast<u64>(*base);
+    return offset <= *size && bytes <= *size - offset;
 }
 }  // namespace detail
+
+#ifndef __EMSCRIPTEN__
+/**
+ * @brief Declare the region a native host lets JS address (its heap arena).
+ * @details Called once, when the host reserves the arena. Until then a native
+ *          build only null/overflow-checks, since there is no bound to check.
+ */
+inline void setBoundaryRegion(uintptr_t base, usize size) {
+    detail::g_boundaryBase = base;
+    detail::g_boundarySize = size;
+}
+#endif
 
 /**
  * @brief Validates a JS-supplied pointer to @p count elements of T and returns it typed.
@@ -61,13 +93,16 @@ inline const T* boundarySpan(uintptr_t ptr, u64 count, const char* what) {
                      what, static_cast<unsigned long long>(count));
         return nullptr;
     }
-    const u64 heap = static_cast<u64>(detail::boundaryHeapSize());
-    if (static_cast<u64>(ptr) > heap || bytes > heap - static_cast<u64>(ptr)) {
+    uintptr_t base = 0;
+    u64 size = 0;
+    if (!detail::boundaryContains(ptr, bytes, &base, &size)) {
         std::fprintf(stderr,
-                     "[boundary] %s: span [%llu + %llu bytes] exceeds the wasm heap (%llu); rejected\n",
+                     "[boundary] %s: span [%llu + %llu bytes] leaves the heap "
+                     "(%llu bytes at %llu); rejected\n",
                      what, static_cast<unsigned long long>(ptr),
                      static_cast<unsigned long long>(bytes),
-                     static_cast<unsigned long long>(heap));
+                     static_cast<unsigned long long>(size),
+                     static_cast<unsigned long long>(base));
         return nullptr;
     }
     return reinterpret_cast<const T*>(ptr);

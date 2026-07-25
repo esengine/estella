@@ -29,6 +29,11 @@
 
 namespace eshost {
 
+/** The linear heap bulk data crosses through — `es_heap` / `es_malloc` / `es_free`.
+ *  What makes a `…Ptr` argument mean the same thing here as it does on the web
+ *  (see heap.hpp), so an SDK subsystem module needs no native-only backend. */
+void registerHeapBindings(HostState& h, JSValue global);
+
 /** Entity + hierarchy: the base Registry surface the SDK's World drives. */
 void registerEcsBindings(HostState& h, JSValue global);
 

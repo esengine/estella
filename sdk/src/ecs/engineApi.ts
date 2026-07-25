@@ -21,14 +21,20 @@
 
 import type { App } from '../app';
 import type { NativeEngineApi } from './nativeEngineApi.generated';
+import type { NativeHeap } from './nativeHeap';
 
-/** The engine surface a plugin may call, from either core. */
-export type EngineApi = NativeEngineApi;
+/**
+ * The engine surface a plugin may call, from either core: the entry points plus
+ * the heap they marshal bulk data through. A wasm module answers both by
+ * construction; a native host answers the heap from its arena (see nativeHeap.ts),
+ * so a plugin that writes a tile array and passes an offset works on both.
+ */
+export type EngineApi = NativeEngineApi & Partial<NativeHeap>;
 
-let native_: NativeEngineApi | null = null;
+let native_: EngineApi | null = null;
 
 /** Install the native host's engine API (by the native runtime); null clears it. */
-export function setNativeEngineApi(api: NativeEngineApi | null): void {
+export function setNativeEngineApi(api: EngineApi | null): void {
     native_ = api;
 }
 
