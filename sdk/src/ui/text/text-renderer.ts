@@ -11,8 +11,10 @@
  * engine page store + submitTextBatch.
  */
 import type { ESEngineModule } from '../../wasm';
+import { platformHasGlyphRasterizer } from '../../platform';
 import { GlyphAtlas } from './glyph-atlas';
 import { CanvasGlyphRasterizer, type CanvasGlyphRasterizerOptions } from './glyph-rasterizer';
+import { NativeGlyphRasterizer } from './native-glyph-rasterizer';
 import { EngineAtlasPageStore } from './atlas-page-store';
 import { layoutText, buildGlyphVertices, type LaidGlyph, type RGBA } from './layout';
 import { submitTextBatch } from './submit';
@@ -155,10 +157,17 @@ export class SdfTextRenderer {
     private readonly sdf: boolean;
     private readonly cache_ = new Map<number, TextCacheEntry>();
 
-    constructor(private readonly module: ESEngineModule, opts: TextRendererOptions = {}) {
+    /** `module` is null on the native core (no wasm heap); the glyph source is
+     *  then the platform's own rasterizer, since there is no 2D canvas to draw
+     *  glyphs on. Everything above the rasterizer — atlas, layout, batching — is
+     *  the same code either way. */
+    constructor(private readonly module: ESEngineModule | null, opts: TextRendererOptions = {}) {
         this.sdf = opts.sdf ?? true;
+        const rasterizer = platformHasGlyphRasterizer()
+            ? new NativeGlyphRasterizer({ renderSize: opts.renderSize, padding: opts.padding, sdf: this.sdf })
+            : new CanvasGlyphRasterizer(module, opts);
         this.atlas = new GlyphAtlas(
-            new CanvasGlyphRasterizer(module, opts),
+            rasterizer,
             new EngineAtlasPageStore(module),
             { pageSize: opts.pageSize, sdf: this.sdf, dpr: opts.dpr },
         );

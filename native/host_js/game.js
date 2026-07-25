@@ -78,6 +78,16 @@ function init() {
         console.log('[demo] audio: no Audio resource');
     }
 
+    // Stage: text through the SAME `Text` component a web game authors. The host
+    // rasterizes each glyph from the OS font stack (there is no 2D canvas here)
+    // and the SDK's glyph atlas, layout and batching do the rest — including the
+    // per-codepoint font fallback that makes the CJK line resolve.
+    var label = world.spawn();
+    world.insert(label, ESEngine.Transform, { position: { x: W * 0.5, y: H * 0.62, z: 0 } });
+    world.insert(label, ESEngine.Text, {
+        content: 'Estella 原生文本', fontSize: S * 0.075, align: 1,
+        color: { r: 1, g: 0.92, b: 0.4, a: 1 } });
+
     // Stage: prove native networking — es_fetch over NSURLSession/OkHttp, TLS by
     // the OS. The async reply lands back on the JS thread via the frame loop.
     globalThis.__esNativeBridge.fetch('https://example.com').then(function (r) {

@@ -28,6 +28,7 @@
 #include "esengine_bundle.h"     // the real SDK, bundled: installs globalThis.ESEngine
 #include "native_audio.hpp"      // the miniaudio-backed engine behind es_audio*
 #include "ktx2_decode.hpp"       // basis_universal transcode behind es_createTextureKTX2
+#include "glyph_raster.hpp"      // stb_truetype + the engine's SDF, behind es_rasterizeGlyph
 
 #include "esengine/core/EstellaContext.hpp"
 #include "esengine/core/World.hpp"
@@ -387,6 +388,128 @@ JSValue js_getTextureDimensions(JSContext* ctx, JSValueConst, int, JSValueConst*
     JS_SetPropertyStr(ctx, obj, "width", JS_NewInt32(ctx, (int32_t)tex->getWidth()));
     JS_SetPropertyStr(ctx, obj, "height", JS_NewInt32(ctx, (int32_t)tex->getHeight()));
     return obj;
+}
+
+// es_getTextureRenderId(handle) -> the id a draw command binds this texture by
+// (Texture::getId(), backend-neutral). The SDK's glyph atlas passes it straight
+// to the text batch, exactly as the web path does through getTextureGLId.
+JSValue js_getTextureRenderId(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
+    int64_t id = 0;
+    JS_ToInt64(ctx, &id, argv[0]);
+    auto* tex = g_app->ctx->require<resource::ResourceManager>().getTexture(
+        resource::TextureHandle((u32)id));
+    return JS_NewInt64(ctx, tex ? (int64_t)tex->getId() : 0);
+}
+
+// es_updateTextureSubregion(handle, x, y, w, h, pixels) — upload one rect of an
+// existing texture. The dynamic glyph atlas packs glyphs into a page this way
+// instead of re-uploading the whole page per glyph.
+JSValue js_updateTextureSubregion(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
+    if (argc < 6) return JS_UNDEFINED;
+    int64_t id = 0; JS_ToInt64(ctx, &id, argv[0]);
+    int32_t x = 0, y = 0, w = 0, h = 0;
+    JS_ToInt32(ctx, &x, argv[1]); JS_ToInt32(ctx, &y, argv[2]);
+    JS_ToInt32(ctx, &w, argv[3]); JS_ToInt32(ctx, &h, argv[4]);
+    if (w <= 0 || h <= 0) return JS_UNDEFINED;
+    std::vector<u8> pixels;
+    readByteSource(ctx, argv[5], pixels);
+    if (pixels.empty()) return JS_UNDEFINED;
+    auto* tex = g_app->ctx->require<resource::ResourceManager>().getTexture(
+        resource::TextureHandle((u32)id));
+    if (!tex) return JS_UNDEFINED;
+    // updateSubRegion bounds-checks the rect and the buffer size itself.
+    tex->updateSubRegion((u32)x, (u32)y, (u32)w, (u32)h, pixels.data(), (u32)pixels.size(), /*flipY=*/false);
+    return JS_UNDEFINED;
+}
+
+// es_rasterizeGlyph({ codepoint, fontFamily, style, pixelSize, sdf, padding })
+// -> { pixels: ArrayBuffer, width, height, advance, bearingX, bearingY } | null.
+// The device's answer to the browser's 2D canvas; see glyph_raster.hpp.
+JSValue js_rasterizeGlyph(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
+    if (argc < 1 || !g_app || !g_app->platform) return JS_NULL;
+    JSValue req = argv[0];
+
+    const auto numberField = [&](const char* name, double fallback) {
+        JSValue v = JS_GetPropertyStr(ctx, req, name);
+        double out = fallback;
+        if (!JS_IsUndefined(v)) JS_ToFloat64(ctx, &out, v);
+        JS_FreeValue(ctx, v);
+        return out;
+    };
+    const auto boolField = [&](const char* name) {
+        JSValue v = JS_GetPropertyStr(ctx, req, name);
+        const bool out = JS_ToBool(ctx, v) != 0;
+        JS_FreeValue(ctx, v);
+        return out;
+    };
+
+    std::string family;
+    JSValue familyVal = JS_GetPropertyStr(ctx, req, "fontFamily");
+    if (const char* s = JS_ToCString(ctx, familyVal)) {
+        family = s;
+        JS_FreeCString(ctx, s);
+    }
+    JS_FreeValue(ctx, familyVal);
+
+    const auto glyph = eshost::rasterizeGlyph(
+        *g_app->platform,
+        (uint32_t)numberField("codepoint", 0),
+        family,
+        (int)numberField("style", 0),
+        (float)numberField("pixelSize", 48),
+        boolField("sdf"),
+        (float)numberField("padding", 6));
+    if (!glyph.ok) return JS_NULL;
+
+    JSValue o = JS_NewObject(ctx);
+    JS_SetPropertyStr(ctx, o, "pixels",
+                      glyph.rgba.empty() ? JS_NewArrayBufferCopy(ctx, nullptr, 0)
+                                         : JS_NewArrayBufferCopy(ctx, glyph.rgba.data(), glyph.rgba.size()));
+    JS_SetPropertyStr(ctx, o, "width", JS_NewInt32(ctx, glyph.width));
+    JS_SetPropertyStr(ctx, o, "height", JS_NewInt32(ctx, glyph.height));
+    JS_SetPropertyStr(ctx, o, "advance", JS_NewFloat64(ctx, glyph.advance));
+    JS_SetPropertyStr(ctx, o, "bearingX", JS_NewFloat64(ctx, glyph.bearingX));
+    JS_SetPropertyStr(ctx, o, "bearingY", JS_NewFloat64(ctx, glyph.bearingY));
+    return o;
+}
+
+// Read a typed array's elements without copying more than the view. Returns the
+// element pointer + count, or {nullptr, 0} when the value is not a typed array.
+template <typename T>
+std::pair<const T*, size_t> typedArrayView(JSContext* ctx, JSValueConst v, std::vector<u8>& storage) {
+    storage.clear();
+    readByteSource(ctx, v, storage);
+    if (storage.size() < sizeof(T)) return {nullptr, 0};
+    return {reinterpret_cast<const T*>(storage.data()), storage.size() / sizeof(T)};
+}
+
+// es_submitTextBatch(vertices, vertexCount, indices, textureId, transform,
+//                    entity, layer, depth, sdf)
+// The SDK lays glyph quads out against the atlas and hands them here — the native
+// counterpart of the web's renderer_submitTextBatch, minus the wasm heap.
+JSValue js_submitTextBatch(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
+    if (argc < 9 || !g_app || !g_app->ctx) return JS_UNDEFINED;
+    std::vector<u8> vBytes, iBytes, tBytes;
+    auto [vertices, vertexFloats] = typedArrayView<f32>(ctx, argv[0], vBytes);
+    int32_t vertexCount = 0; JS_ToInt32(ctx, &vertexCount, argv[1]);
+    auto [indices, indexCount] = typedArrayView<u16>(ctx, argv[2], iBytes);
+    int64_t textureId = 0; JS_ToInt64(ctx, &textureId, argv[3]);
+    auto [transform, transformFloats] = typedArrayView<f32>(ctx, argv[4], tBytes);
+    int64_t entity = 0; JS_ToInt64(ctx, &entity, argv[5]);
+    int32_t layer = 0; JS_ToInt32(ctx, &layer, argv[6]);
+    double depth = 0; JS_ToFloat64(ctx, &depth, argv[7]);
+    const bool sdf = JS_ToBool(ctx, argv[8]) != 0;
+
+    // The vertex format is x,y,u,v,r,g,b,a — 8 floats each; validate before the
+    // renderer trusts the spans, as the web binding's boundarySpan does.
+    if (!vertices || !indices || !transform) return JS_UNDEFINED;
+    if (vertexCount <= 0 || indexCount == 0 || transformFloats < 16) return JS_UNDEFINED;
+    if (vertexFloats < (size_t)vertexCount * 8) return JS_UNDEFINED;
+
+    g_app->ctx->require<RenderFrame>().submitTextBatch(
+        vertices, vertexCount, indices, (i32)indexCount, (u32)textureId, transform,
+        Entity::fromRaw((u32)entity), layer, (f32)depth, sdf);
+    return JS_UNDEFINED;
 }
 
 std::vector<u8> readAsset(App& a, const char* path) {
@@ -930,6 +1053,14 @@ void initJS(App& a) {
     bindGlobal(a, global, "es_getTextureDimensions", js_getTextureDimensions, 1);
     bindGlobal(a, global, "es_readAsset", js_readAsset, 1);
     bindGlobal(a, global, "es_loadImagePixels", js_loadImagePixels, 1);
+    // Text (es_rasterizeGlyph + es_submitTextBatch + the two texture calls the
+    // glyph atlas needs): the SDK's TEXT_BINDINGS, all-or-nothing. The device has
+    // no 2D canvas to rasterize on and no wasm heap to submit through; everything
+    // between those two — atlas, layout, batching — is the SDK's own code.
+    bindGlobal(a, global, "es_rasterizeGlyph", js_rasterizeGlyph, 1);
+    bindGlobal(a, global, "es_submitTextBatch", js_submitTextBatch, 9);
+    bindGlobal(a, global, "es_updateTextureSubregion", js_updateTextureSubregion, 6);
+    bindGlobal(a, global, "es_getTextureRenderId", js_getTextureRenderId, 1);
     // Audio (es_audio*): bound only when a device came up, so the SDK's
     // hasAudioBindings() gates the native audio backend on real availability —
     // a host with no sound device binds none and falls back to the Null backend.
@@ -1107,6 +1238,10 @@ void frame() {
     auto& rf = ctx.require<RenderFrame>();
     rf.begin(vp, 0, RenderFrame::PassClear{true, true, a.clear});
     rf.collectAll(*a.registry);
+    // What the SDK draws from JS — glyph quads — goes in between collecting the
+    // scene and flushing it, which is where the web pipeline runs the same
+    // callbacks. Installed by the SDK's native runtime; absent if it has no text.
+    callJs(a, "es_jsPreFlush", 0, nullptr);
     rf.flush();
     rf.end();
     a.gfx->present();

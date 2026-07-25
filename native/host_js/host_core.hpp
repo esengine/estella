@@ -58,6 +58,18 @@ struct FetchResult {
 };
 
 /**
+ * A font file the glyph rasterizer can parse. `path` identifies it (the cache
+ * key — empty means the platform found nothing), `faceIndex` selects a face
+ * inside a collection (.ttc), and `bytes` is the file, read only the first time
+ * a path is seen.
+ */
+struct FontFile {
+    std::string path;
+    std::vector<esengine::u8> bytes;
+    int faceIndex = 0;
+};
+
+/**
  * @brief The platform seam: what the host needs that Android and iOS answer
  *        differently. The glue implements it; host_core owns everything else.
  */
@@ -79,6 +91,15 @@ struct Platform {
     virtual void surfaceSize(esengine::u32& width, esengine::u32& height) = 0;
 
     virtual void log(bool error, const char* message) = 0;
+
+    /** A font for @p family that covers @p codepoint, with @p style's bold/italic
+     *  bits (see GLYPH_BOLD / GLYPH_ITALIC) applied to the match. Empty `path`
+     *  when the platform has nothing — the glyph then simply does not draw.
+     *
+     *  This is the ONLY per-OS part of text: which file to open. Android asks its
+     *  font matcher (which handles CJK fallback), iOS asks Core Text; the
+     *  rasterization and the SDF conversion are shared (see glyph_raster.hpp). */
+    virtual FontFile loadFont(const std::string& family, esengine::u32 codepoint, int style) = 0;
 
     /** Perform an HTTP request off the main thread (NSURLSession / a JNI
      *  HttpURLConnection), then hand the reply back through {@link deliverFetch}

@@ -21,6 +21,10 @@ import { installNativePlatform, type NativeBridge } from '../platform/native';
 import { createNativeRegistry } from './nativeRegistry';
 import { NativeMemoryProvider } from './memoryProvider';
 import { createNativeResourceManager } from './nativeResourceManager';
+import { HOST_ENTRIES, TEXT_BINDINGS, hasTextBindings } from './nativeBindings';
+import { RenderPipeline } from '../renderPipeline';
+import { textPlugin } from '../ui/text/plugin';
+import { setNativeTextSubmit } from '../ui/text/submit';
 import { initResourceManager } from '../resourceManager';
 import { Assets as AssetsClass } from '../asset/Assets';
 import { Assets as AssetsResource } from '../asset/AssetPlugin';
@@ -78,6 +82,7 @@ export function createNativeApp(
     // so installNativeAssets below builds the equivalent over the native RM.
     // Assets first: prefabs and scene loading declare it as a required resource.
     installNativeAssets(app, scope);
+    installNativeText(app, scope);
     app.addPlugin(inputPlugin);
     app.addPlugin(prefabsPlugin);
     app.addPlugin(sceneManagerPlugin);
@@ -98,6 +103,43 @@ export function createNativeApp(
  * wiring yet) — those arrive with the cooked-asset manifest in the export
  * pipeline. Same-signature loaders, so it never diverges from the web channel.
  */
+/**
+ * Install text — the same `TextPlugin` the web build runs, over the native core.
+ *
+ * Two things it cannot take from the web: a glyph source (the device has no 2D
+ * canvas — the host's font stack answers, through `PlatformAdapter.rasterizeGlyph`)
+ * and a way to hand the laid-out quads to the renderer (no wasm heap — the host
+ * takes the typed arrays and calls `RenderFrame::submitTextBatch` itself).
+ * Everything between, atlas through batching, is the SDK's one implementation.
+ *
+ * The plugin draws from a pre-flush callback, so the app needs a
+ * {@link RenderPipeline} to register into even though it owns no rendering; the
+ * host runs those callbacks each frame through {@link HOST_ENTRIES.preFlush},
+ * between collecting the scene and flushing it — the same point the web pipeline
+ * runs them at.
+ *
+ * Gated on the host having bound the whole text surface: one that has not simply
+ * draws no text, exactly as a host without an audio device stays silent.
+ */
+function installNativeText(app: App, scope: Record<string, unknown>): void {
+    if (!hasTextBindings(scope)) return;
+
+    const submit = scope[TEXT_BINDINGS.submitTextBatch] as (
+        vertices: Float32Array, vertexCount: number, indices: Uint16Array, textureId: number,
+        transform: Float32Array, entity: number, layer: number, depth: number, sdf: boolean,
+    ) => void;
+    setNativeTextSubmit((vertices, vertexCount, indices, textureId, transform, entity, layer, depth, sdf) => {
+        submit(vertices, vertexCount, indices, textureId, transform, entity, layer, depth, sdf);
+    });
+
+    const pipeline = new RenderPipeline();
+    app.setPipeline(pipeline);
+    app.addPlugin(textPlugin);
+    scope[HOST_ENTRIES.preFlush] = (): void => {
+        pipeline.runPreFlushCallbacks({ _cpp: app.world.getCppRegistry()! });
+    };
+}
+
 function installNativeAssets(app: App, scope: Record<string, unknown>): void {
     // The host's es_* texture bindings back the SDK's resource surface, so
     // requireResourceManager() resolves for the whole asset path.

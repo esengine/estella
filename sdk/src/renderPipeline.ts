@@ -70,6 +70,17 @@ export class RenderPipeline {
         this.preFlushCallbacks_.push(cb);
     }
 
+    /**
+     * Run what plugins registered to draw just before the frame flushes (glyph
+     * quads, today). {@link submitScene} calls this in the middle of its own
+     * sequence; a host that owns its render loop in C++ — the native one — calls
+     * it directly at the same point, between collecting the scene and flushing,
+     * so text lands in the same frame either way.
+     */
+    runPreFlushCallbacks(registry: { _cpp: CppRegistry }): void {
+        for (const cb of this.preFlushCallbacks_) cb(registry);
+    }
+
     beginFrame(elapsedSec = 0): void {
         Renderer.beginFrame(elapsedSec);
     }
@@ -105,7 +116,7 @@ export class RenderPipeline {
 
         Renderer.updateTransforms(registry);
         Renderer.submitAll(registry, 0, viewport.x, viewport.y, viewport.w, viewport.h);
-        for (const cb of this.preFlushCallbacks_) cb(registry);
+        this.runPreFlushCallbacks(registry);
         Renderer.flush();
 
         this.executeDrawCallbacks(viewProjection, _elapsed);

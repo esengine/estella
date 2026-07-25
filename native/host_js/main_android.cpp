@@ -17,12 +17,15 @@
 #include <android/log.h>
 #include <android/input.h>
 #include <android/asset_manager.h>
+#include <android/font.h>
+#include <android/font_matcher.h>
 #include <android/native_window.h>
 #include <jni.h>
 
 #include <thread>
 
 #include "host_core.hpp"
+#include "glyph_raster.hpp"   // GLYPH_BOLD / GLYPH_ITALIC, for the font match
 
 #define LOG_TAG "EstellaSDK"
 
@@ -169,6 +172,51 @@ struct AndroidPlatform final : eshost::Platform {
 
     void log(bool error, const char* message) override {
         __android_log_print(error ? ANDROID_LOG_ERROR : ANDROID_LOG_INFO, LOG_TAG, "%s", message);
+    }
+
+    // Android's own font matcher (NDK, API 29+) picks the file: it knows the
+    // installed families, applies weight/italic, and — the part worth having —
+    // falls back per codepoint, so CJK text resolves to Noto without the host
+    // hard-coding a single font path.
+    eshost::FontFile loadFont(const std::string& family, u32 codepoint, int style) override {
+        eshost::FontFile out;
+        AFontMatcher* matcher = AFontMatcher_create();
+        if (!matcher) return out;
+        AFontMatcher_setStyle(matcher, (style & eshost::GLYPH_BOLD) ? AFONT_WEIGHT_BOLD : AFONT_WEIGHT_NORMAL,
+                              (style & eshost::GLYPH_ITALIC) != 0);
+        // The matcher takes the text to cover as UTF-16; one codepoint is one unit
+        // below U+10000 and a surrogate pair above it.
+        uint16_t text[2];
+        uint32_t length = 0;
+        if (codepoint >= 0x10000) {
+            const uint32_t v = codepoint - 0x10000;
+            text[length++] = (uint16_t)(0xD800 + (v >> 10));
+            text[length++] = (uint16_t)(0xDC00 + (v & 0x3FF));
+        } else {
+            text[length++] = (uint16_t)(codepoint ? codepoint : 'A');
+        }
+        AFont* font = AFontMatcher_match(matcher, family.empty() ? "sans-serif" : family.c_str(),
+                                         text, length, nullptr);
+        AFontMatcher_destroy(matcher);
+        if (!font) return out;
+
+        if (const char* path = AFont_getFontFilePath(font)) {
+            out.path = path;
+            out.faceIndex = (int)AFont_getCollectionIndex(font);
+            if (FILE* f = fopen(path, "rb")) {
+                fseek(f, 0, SEEK_END);
+                const long size = ftell(f);
+                fseek(f, 0, SEEK_SET);
+                if (size > 0) {
+                    out.bytes.resize((size_t)size);
+                    if (fread(out.bytes.data(), 1, out.bytes.size(), f) != out.bytes.size()) out.bytes.clear();
+                }
+                fclose(f);
+            }
+        }
+        AFont_close(font);
+        if (out.bytes.empty()) out.path.clear();
+        return out;
     }
 
     // A detached JNI thread runs the request; deliverFetch is thread-safe and the

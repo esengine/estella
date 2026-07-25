@@ -18,7 +18,7 @@
  *         shell (boot spike → full host) lands. Public via the `esengine/native` entry.
  */
 
-import type { ImageLoadResult, PlatformRequestOptions } from '../types';
+import type { ImageLoadResult, PlatformGlyph, PlatformGlyphRequest, PlatformRequestOptions } from '../types';
 
 /**
  * A single fetch result from the native http stack. The adapter wraps it into a
@@ -103,6 +103,13 @@ export interface NativeBridge {
     /** Decode an image to top-first RGBA (the Path-2 / createTextureFromPixels
      *  route the play realm and WeChat also use). */
     loadImagePixels(path: string): Promise<ImageLoadResult>;
+
+    /** Rasterize one glyph — the device's answer to the 2D canvas the browser
+     *  path draws text on. Synchronous, because the dynamic glyph atlas fills
+     *  cells during the frame that needs them. Optional: a host that has not
+     *  bound its font stack omits it and `Text` draws nothing (the atlas treats
+     *  a null the same as a canvas miss). See {@link PlatformAdapter.rasterizeGlyph}. */
+    rasterizeGlyph?(request: PlatformGlyphRequest): PlatformGlyph | null;
 
     /** Persistent key-value store (NSUserDefaults / SharedPreferences). Sync,
      *  like localStorage / wx.*StorageSync. `storageKeys()` lets the adapter

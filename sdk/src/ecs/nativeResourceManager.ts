@@ -15,7 +15,7 @@
 // method when present, so web (embind, no such method) stays byte-identical.
 
 import type { CppResourceManager } from '../wasm';
-import { RESOURCE_BINDINGS } from './nativeBindings';
+import { RESOURCE_BINDINGS, TEXT_BINDINGS } from './nativeBindings';
 
 /** Invoke a host-provided global by name; throws if the host did not bind it
  *  (these are part of the native ResourceManager contract). */
@@ -45,8 +45,8 @@ function hostCallOpt(scope: Record<string, unknown>, name: string, args: unknown
  * and optionally es_updateTextureSubregion / es_setTextureBudget.
  *
  * Only the methods the native asset path actually calls are implemented; the
- * wasm/GL-specific ones (heap-pointer createTexture, registerExternalTexture,
- * GL id lookup, bitmap-font glyph upload) throw if reached, and the residency /
+ * wasm-specific ones (heap-pointer createTexture, registerExternalTexture,
+ * bitmap-font glyph upload) throw if reached, and the residency /
  * stats hooks the SDK optional-chains are simply omitted — so a texture that lost
  * its last reference re-decodes instead of reviving (correct, just not yet cached).
  */
@@ -70,8 +70,15 @@ export function createNativeResourceManager(
         },
 
         updateTextureSubregionFromBytes: (handle, x, y, width, height, pixels): void => {
-            hostCallOpt(scope, 'es_updateTextureSubregion', [handle, x, y, width, height, pixels]);
+            hostCallOpt(scope, TEXT_BINDINGS.updateTextureSubregion, [handle, x, y, width, height, pixels]);
         },
+
+        // The id a draw command binds a texture by. Named for GL because that is
+        // where it started, but the engine returns `Texture::getId()` on every
+        // backend — the glyph atlas passes it straight to the text batch. The
+        // host reads it off the same ResourceManager it created the texture in.
+        getTextureGLId: (handle): number =>
+            hostCall(scope, TEXT_BINDINGS.getTextureRenderId, [handle]) as number,
 
         releaseTexture: (handle): void => {
             hostCallOpt(scope, RESOURCE_BINDINGS.releaseTexture, [handle]);
@@ -98,7 +105,6 @@ export function createNativeResourceManager(
     rm.createTextureEx = unsupported('createTextureEx(ptr)');
     rm.registerExternalTexture = unsupported('registerExternalTexture');
     rm.registerExternalTextureSized = unsupported('registerExternalTextureSized');
-    rm.getTextureGLId = unsupported('getTextureGLId');
 
     return rm as CppResourceManager;
 }

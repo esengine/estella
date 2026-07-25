@@ -3955,6 +3955,7 @@ now: (() => number) | undefined
 onHide: ((callback: () => void) => () => void) | undefined
 onMemoryWarning: ((callback: () => void) => () => void) | undefined
 onShow: ((callback: () => void) => () => void) | undefined
+rasterizeGlyph: ((request: PlatformGlyphRequest) => PlatformGlyph | null) | undefined
 readCacheFile: ((key: string) => Promise<ArrayBuffer | null>) | undefined
 readFile: (path: string) => Promise<ArrayBuffer>
 registerInput: (listener: NativeInputListener) => () => void
@@ -4013,6 +4014,7 @@ es_devicePixelRatio: (() => number) | undefined
 es_fetch: ((request: { url: string; method?: string; headers?: Record<string, string>; body?: string | ArrayBuffer; responseType?: string; }, callback: (result: { ok: boolean; status: number; statusText: string; headers: Record<string, string>; arrayBuffer?: ArrayBuffer; text?: string; error?: string; }) => void) => void) | undefined
 es_getStorageItem: ((key: string) => string | null) | undefined
 es_loadImagePixels: (path: string) => { width: number; height: number; pixels: ArrayBuffer; } | null
+es_rasterizeGlyph: ((request: PlatformGlyphRequest) => { pixels: ArrayBuffer; width: number; height: number; advance: number; bearingX: number; bearingY: number; } | null) | undefined
 es_readAsset: (path: string) => ArrayBuffer | null
 es_readCacheFile: ((key: string) => ArrayBuffer | null) | undefined
 es_removeStorageItem: ((key: string) => void) | undefined
@@ -4057,6 +4059,7 @@ now: () => number
 onAppHide: (callback: () => void) => () => void
 onAppShow: (callback: () => void) => () => void
 onMemoryWarning: (callback: () => void) => () => void
+rasterizeGlyph: ((request: PlatformGlyphRequest) => PlatformGlyph | null) | undefined
 readCacheFile: (key: string) => Promise<ArrayBuffer | null>
 readFile: (path: string) => Promise<ArrayBuffer>
 readTextFile: (path: string) => Promise<string>
@@ -4640,6 +4643,7 @@ onAppHide: ((callback: () => void) => () => void) | undefined
 onAppShow: ((callback: () => void) => () => void) | undefined
 onMemoryWarning: ((callback: () => void) => () => void) | undefined
 pollGamepads: (() => GamepadSnapshot[]) | undefined
+rasterizeGlyph: ((request: PlatformGlyphRequest) => PlatformGlyph | null) | undefined
 readCacheFile: ((key: string) => Promise<ArrayBuffer | null>) | undefined
 readFile: (path: string) => Promise<ArrayBuffer>
 readTextFile: (path: string) => Promise<string>
@@ -5276,6 +5280,7 @@ beginScreenCapture: () => void
 endScreenCapture: () => void
 render: (params: RenderParams) => void
 renderCamera: (params: CameraRenderParams) => void
+runPreFlushCallbacks: (registry: { _cpp: CppRegistry; }) => void
 setActiveScenes: (scenes: Set<string> | null) => void
 setPostProcess: (pp: PostProcessAPI | null) => void
 submitScene: (registry: { _cpp: CppRegistry; }, viewProjection: Float32Array, viewport: Viewport, _elapsed: number) => void

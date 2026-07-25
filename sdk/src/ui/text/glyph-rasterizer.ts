@@ -85,13 +85,17 @@ const SDF_SUPERSAMPLE = 4;
 
 export class CanvasGlyphRasterizer implements GlyphRasterizer {
     readonly renderSize: number;
-    private readonly module: ESEngineModule;
+    /** The SDF conversion runs in the engine's wasm heap; without a module there
+     *  is none, and an SDF atlas simply has no glyphs (as when the build lacks
+     *  the binding). A platform with no wasm core rasterizes elsewhere entirely —
+     *  see {@link NativeGlyphRasterizer}. */
+    private readonly module: ESEngineModule | null;
     private readonly pad: number;
     private readonly sdf: boolean;
     private readonly canvas: Canvas2D;
     private readonly ctx: Ctx2D | null;
 
-    constructor(module: ESEngineModule, opts: CanvasGlyphRasterizerOptions = {}) {
+    constructor(module: ESEngineModule | null, opts: CanvasGlyphRasterizerOptions = {}) {
         this.module = module;
         this.renderSize = opts.renderSize ?? 48;
         this.pad = opts.padding ?? 6;
@@ -150,7 +154,7 @@ export class CanvasGlyphRasterizer implements GlyphRasterizer {
         // encoding matches spread = pad exactly). Bitmap: native-AA coverage as-is.
         let coverage = alpha;
         if (this.sdf) {
-            const sdf = sdfFromAlpha(this.module, alpha, wSS, hSS, pad * ss);
+            const sdf = this.module ? sdfFromAlpha(this.module, alpha, wSS, hSS, pad * ss) : null;
             if (!sdf) return null;
             coverage = downsampleBytes(sdf, wSS, hSS, ss);
         }

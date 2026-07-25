@@ -39,7 +39,8 @@ the tree:
 |---|---|---|
 | Render surface | `WebGPUDevice::configureSurface(NativeSurface)` | `CAMetalLayer*` / `ANativeWindow*` → `WGPUSurface` (commit `bfc495da`) |
 | Instance / present | `WebGPUDevice(device, instance)` + `present()` | host shares its instance; flips the swapchain (native-only) |
-| GL / text gates | `EstellaContext` under `ES_PLATFORM_WEB` / `ES_ENABLE_BITMAP_TEXT` | native drops the WebGL entry + optional bitmap text |
+| GL gate | `EstellaContext` under `ES_PLATFORM_WEB` | native drops the WebGL entry |
+| Glyph source | `Platform::loadFont` + `host_js/glyph_raster.cpp` | the device has no 2D canvas: the OS names a font file, stb_truetype rasterizes, the engine's own `sdfFromAlpha` encodes |
 | Bindings | `python -m eht --native-output` | `es_set_<C>` / `es_<C>_buffer` from the same reflection as the web embind bindings |
 | Data marshalling | `sdk/src/ecs/ptrAccessors.generated.ts` | POD components are wasm32/arm64 layout-identical → the generated accessors write native component memory unchanged (via a zero-copy `ArrayBuffer`) |
 | Host platform | `eshost::Platform` (`host_js/host_core.hpp`) | packaged assets, cache dir, backend, window surface + size, log — the only things the two OS glue files answer differently |
@@ -245,6 +246,19 @@ System bindings landing incrementally through the real SDK surfaces:
   differs per platform. Replies cross back thread-safely (`deliverFetch`) and run on the JS
   thread in the frame loop. This is what remote asset groups and hot-update need. Simulator-
   verified (an HTTPS GET returns bytes and a 200); the Android path needs a device retest.
+- **Text** (Stage C) — the same `Text` component, glyph atlas, layout and batching the web
+  build runs. Only the two ends cross the seam: the device has no 2D canvas to rasterize a
+  glyph on, so the host does it (`es_rasterizeGlyph` → `glyph_raster.cpp`: the OS names the
+  font file, stb_truetype rasterizes the outline, and the engine's OWN `text::sdfFromAlpha`
+  encodes the field, so the shared SDF shader samples identically encoded tiles on both
+  platforms); and there is no wasm heap to marshal the laid-out quads through, so the host
+  takes the typed arrays and calls `RenderFrame::submitTextBatch` itself (`es_submitTextBatch`,
+  run from `es_jsPreFlush` between collecting the scene and flushing it — where the web
+  pipeline runs the same callbacks). Picking the font file is the only per-OS part: Android's
+  `AFontMatcher` and iOS's Core Text, both of which fall back per codepoint, so CJK resolves
+  without a hard-coded path. Device-verified on Android (Latin + CJK, SDF). The C++
+  `BitmapText` path compiles natively too (`ES_ENABLE_BITMAP_TEXT` is on — nothing in
+  `src/esengine/text` needs freetype or msdfgen).
 - **KTX2 / compressed textures** — `Assets.loadTexture` on a `.ktx2` path transcodes with
   the host's vendored basis_universal (`es_createTextureKTX2` → `ktx2_decode.cpp`) to the
   best format the device supports (ASTC → ETC2 → BC, RGBA32 fallback) and uploads the
@@ -252,5 +266,11 @@ System bindings landing incrementally through the real SDK surfaces:
   4–8× less VRAM than RGBA8. The web KTX2 path (WebGL2 + wasm transcoder) is untouched.
   Simulator-verified (a 64×64 KTX2 sprite renders); base mip only for now.
 
-Remaining: mip chains for compressed textures, and hardening on a physical device (audio
-output, the background/foreground transition, Android's miniaudio audio + JNI fetch paths).
+Remaining: hardening on a physical device (audio output, the background/foreground
+transition, Android's miniaudio audio + JNI fetch paths), and the subsystems this build
+still leaves out — tilemaps, particles and post-processing (their `ES_ENABLE_*` sources),
+plus physics / Spine / video, which ship as emscripten side modules with no native
+counterpart yet. An export names them: **Package Project → Mobile** warns about any of them
+a scene uses rather than shipping a package that quietly renders half of it (the gaps are
+declared in `desktop/src/project/targetSupport.ts`, checked against this CMakeLists by
+`desktop/tests/target-support.test.ts`).

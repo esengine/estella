@@ -22,8 +22,10 @@
  */
 #import <UIKit/UIKit.h>
 #import <QuartzCore/CAMetalLayer.h>
+#import <CoreText/CoreText.h>
 
 #include "host_core.hpp"
+#include "glyph_raster.hpp"   // GLYPH_BOLD / GLYPH_ITALIC, for the font match
 
 using esengine::u32;
 using esengine::u8;
@@ -73,6 +75,64 @@ struct IOSPlatform final : eshost::Platform {
 
     void log(bool error, const char* message) override {
         NSLog(@"[Estella]%s %s", error ? " ERROR:" : "", message);
+    }
+
+    // Core Text names the file: it resolves a family (falling back to the system
+    // font when the name is unknown), and CTFontCreateForString picks a face that
+    // actually covers the codepoint — the CJK fallback, without a hard-coded path.
+    // The URL is a real file under /System/Library/Fonts, readable from the app.
+    eshost::FontFile loadFont(const std::string& family, u32 codepoint, int style) override {
+        eshost::FontFile out;
+        CTFontSymbolicTraits traits = 0;
+        if (style & eshost::GLYPH_BOLD) traits |= kCTFontTraitBold;
+        if (style & eshost::GLYPH_ITALIC) traits |= kCTFontTraitItalic;
+
+        NSString* name = family.empty() ? @"Helvetica" : [NSString stringWithUTF8String:family.c_str()];
+        CTFontRef font = CTFontCreateWithName((__bridge CFStringRef)name, 16.0, NULL);
+        if (!font) return out;
+        if (traits) {
+            if (CTFontRef styled = CTFontCreateCopyWithSymbolicTraits(font, 16.0, NULL, traits, traits)) {
+                CFRelease(font);
+                font = styled;
+            }
+        }
+
+        // Does this face have the glyph? If not, let Core Text find one that does.
+        if (codepoint) {
+            UniChar chars[2];
+            CFIndex length = 0;
+            if (codepoint >= 0x10000) {
+                const uint32_t v = codepoint - 0x10000;
+                chars[length++] = (UniChar)(0xD800 + (v >> 10));
+                chars[length++] = (UniChar)(0xDC00 + (v & 0x3FF));
+            } else {
+                chars[length++] = (UniChar)codepoint;
+            }
+            CGGlyph glyphs[2] = {0, 0};
+            if (!CTFontGetGlyphsForCharacters(font, chars, glyphs, length)) {
+                CFStringRef text = CFStringCreateWithCharacters(NULL, chars, length);
+                CTFontRef fallback = CTFontCreateForString(font, text, CFRangeMake(0, length));
+                CFRelease(text);
+                if (fallback) {
+                    CFRelease(font);
+                    font = fallback;
+                }
+            }
+        }
+
+        CFURLRef url = (CFURLRef)CTFontCopyAttribute(font, kCTFontURLAttribute);
+        CFRelease(font);
+        if (!url) return out;
+        NSString* path = [(__bridge NSURL*)url path];
+        CFRelease(url);
+        if (!path) return out;
+
+        NSData* data = [NSData dataWithContentsOfFile:path];
+        if (!data) return out;
+        out.path = std::string([path UTF8String]);
+        out.bytes.resize(data.length);
+        memcpy(out.bytes.data(), data.bytes, data.length);
+        return out;
     }
 
     // NSURLSession runs the request (TLS via the OS) on a background queue and

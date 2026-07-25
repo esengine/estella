@@ -73,11 +73,12 @@ endif()
 set(ESENGINE_ROOT "${REPO}")
 list(APPEND CMAKE_MODULE_PATH "${REPO}/cmake")
 set(ES_ENABLE_WEBGPU ON)
+# Text is on: the SDK's `Text` draws through the shared glyph atlas (the host
+# rasterizes — see host_js/glyph_raster.cpp — and needs the engine's own
+# SdfGenerator so both platforms encode the field identically), and the C++
+# BitmapText path comes along with it. Neither needs freetype/msdfgen.
+set(ES_ENABLE_BITMAP_TEXT ON)
 include(ESEngineSources)
-
-# BitmapFont is self-contained (no freetype/msdfgen) and ResourceManager references
-# it, so the WebGPU-only build (ES_ENABLE_BITMAP_TEXT off) still needs this one TU.
-list(APPEND ESENGINE_SOURCES ${SRC}/esengine/text/BitmapFont.cpp)
 
 add_library(esengine STATIC ${ESENGINE_SOURCES})
 
@@ -85,7 +86,7 @@ target_include_directories(esengine PUBLIC
     "${SRC}" "${TP}/stb"
     "${ESTELLA_DAWN_DIR}/include"                 # <webgpu/webgpu.h> forwarder
     "${ESTELLA_DAWN_BUILD}/gen/include")          # generated <dawn/webgpu.h>
-target_compile_definitions(esengine PUBLIC ES_ENABLE_WEBGPU)  # NOT ES_PLATFORM_WEB / ES_ENABLE_BITMAP_TEXT
+target_compile_definitions(esengine PUBLIC ES_ENABLE_WEBGPU ES_ENABLE_BITMAP_TEXT)  # NOT ES_PLATFORM_WEB
 target_link_libraries(esengine PUBLIC glm yogacore webgpu_dawn)
 
 # Reference host: boots EstellaContext with an injected WebGPUDevice over the
@@ -133,7 +134,8 @@ if(ESTELLA_QUICKJS_DIR)
         # Static: the thin Xcode app (native/ios) links this plus the libraries
         # below. -ObjC on the app keeps the Obj-C classes in main_ios.mm alive.
         add_library(estella_js_host STATIC host_js/host_core.cpp host_js/main_ios.mm
-            host_js/native_audio.cpp host_js/ktx2_decode.cpp "${BASIS_TRANSCODER}" "${BASIS_ZSTD}" "${NATIVE_BINDINGS}")
+            host_js/native_audio.cpp host_js/ktx2_decode.cpp host_js/glyph_raster.cpp
+            "${BASIS_TRANSCODER}" "${BASIS_ZSTD}" "${NATIVE_BINDINGS}")
         # miniaudio's CoreAudio backend uses AVAudioSession (Obj-C), so its TU must
         # be Objective-C++ on Apple; it also forces MA_NO_RUNTIME_LINKING there, so
         # the audio frameworks are linked at build time (the app links the merged
@@ -142,7 +144,8 @@ if(ESTELLA_QUICKJS_DIR)
             COMPILE_OPTIONS "-x;objective-c++")
         target_link_libraries(estella_js_host esengine qjs
             "-framework UIKit" "-framework QuartzCore" "-framework Foundation"
-            "-framework AVFoundation" "-framework CoreAudio" "-framework AudioToolbox")
+            "-framework AVFoundation" "-framework CoreAudio" "-framework AudioToolbox"
+            "-framework CoreText" "-framework CoreGraphics")
         # Merge host + engine + deps + Dawn into ONE archive, so the Xcode app is a
         # thin shell that links a single library at a fixed path (native/ios).
         add_custom_command(TARGET estella_js_host POST_BUILD
@@ -154,7 +157,8 @@ if(ESTELLA_QUICKJS_DIR)
         # Android: plain C++; miniaudio dlopens AAudio/OpenSL at runtime (no extra
         # link libs). native_audio.cpp's Obj-C paths are __APPLE__-guarded out.
         add_library(estella_js_host SHARED host_js/host_core.cpp host_js/main_android.cpp
-            host_js/native_audio.cpp host_js/ktx2_decode.cpp "${BASIS_TRANSCODER}" "${BASIS_ZSTD}" "${NATIVE_BINDINGS}")
+            host_js/native_audio.cpp host_js/ktx2_decode.cpp host_js/glyph_raster.cpp
+            "${BASIS_TRANSCODER}" "${BASIS_ZSTD}" "${NATIVE_BINDINGS}")
         target_link_libraries(estella_js_host esengine qjs native_app_glue android log)
         set_target_properties(estella_js_host PROPERTIES LINK_FLAGS "-u ANativeActivity_onCreate")
     endif()

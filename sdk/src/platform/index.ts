@@ -16,6 +16,8 @@ export type {
     PlatformCanvas,
     PlatformCanvas2DContext,
     PlatformImage,
+    PlatformGlyph,
+    PlatformGlyphRequest,
 } from './types';
 
 // Re-export base functions
@@ -36,6 +38,8 @@ export {
     platformInstantiateWasm,
     platformCreateCanvas,
     platformCreateImage,
+    platformHasGlyphRasterizer,
+    platformRasterizeGlyph,
     platformNow,
     platformUnbindInputEvents,
     platformCreateAudioBackend,

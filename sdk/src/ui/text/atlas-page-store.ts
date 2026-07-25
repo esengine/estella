@@ -17,7 +17,9 @@ export class EngineAtlasPageStore implements AtlasPageStore {
     // handle, so keep the mapping.
     private readonly handleByGlId = new Map<number, number>();
 
-    constructor(private readonly module: ESEngineModule) {}
+    /** `module` is the wasm-heap marshalling vehicle; null on the native
+     *  (embedded-Dawn) core, whose ResourceManager takes the bytes directly. */
+    constructor(private readonly module: ESEngineModule | null) {}
 
     createPage(size: number): number {
         // Blank (transparent) RGBA8 page; linear filtering keeps SDF text smooth

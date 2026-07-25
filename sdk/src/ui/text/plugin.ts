@@ -85,7 +85,9 @@ export class TextPlugin implements Plugin {
         const pipeline = app.pipeline;
         if (!pipeline) return; // logic-only host → nothing to draw
 
-        const module = app.wasmModule as ESEngineModule;
+        // Null on the native core (no wasm): the optional engine queries below
+        // simply do not answer there, and the text still lays out and submits.
+        const module = app.wasmModule as ESEngineModule | null;
         const registry = world.getCppRegistry() as CppRegistry;
 
         pipeline.addPreFlushCallback(() => {
@@ -106,7 +108,7 @@ export class TextPlugin implements Plugin {
                 // enabled === false: pre-upgrade data lacks the field → visible.
                 if (!t.content || t.enabled === false) continue;
                 // display:none anywhere up the UI tree hides this text too.
-                if (module.getUINodeHiddenInTree?.(registry, entity)) continue;
+                if (module?.getUINodeHiddenInTree?.(registry, entity)) continue;
                 seen.add(entity as number);
 
                 const tr = world.get(entity, Transform) as TransformData;
@@ -145,7 +147,7 @@ export class TextPlugin implements Plugin {
                     boxHeight = box.boxHeight;
                     if (t.wordWrap) maxWidth = box.maxWidth; // wrap only when enabled
 
-                    const order = module.ui_getRenderOrder
+                    const order = module?.ui_getRenderOrder
                         ? module.ui_getRenderOrder(registry, entity as number)
                         : -1;
                     layer = order >= 0 ? UI_BASE_LAYER + order : UI_BASE_LAYER;
@@ -200,7 +202,7 @@ export class TextPlugin implements Plugin {
     /** The two glyph pipelines, created lazily; they share layout, page store,
      *  and batch submit — only the atlas contents and shader coverage differ. */
     private rendererFor(app: App, kind: 'bitmap' | 'sdf', contentScale: number): SdfTextRenderer {
-        const module = app.wasmModule as ESEngineModule;
+        const module = app.wasmModule as ESEngineModule | null;
         if (kind === 'sdf') {
             if (!this.sdfRenderer_) {
                 this.sdfRenderer_ = new SdfTextRenderer(module, { sdf: true });

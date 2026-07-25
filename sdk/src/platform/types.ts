@@ -208,6 +208,39 @@ export interface PlatformCanvas {
 }
 
 /**
+ * A glyph to rasterize, for a platform whose text comes from the OS rather than a
+ * 2D canvas. `style` carries the atlas' bold/italic bits (1 | 2), and `sdf` +
+ * `padding` say which encoding the atlas wants — the same two the Canvas2D
+ * rasterizer implements, so both backends fill the same atlas.
+ */
+export interface PlatformGlyphRequest {
+    codepoint: number;
+    fontFamily: string;
+    style: number;
+    /** Em size to rasterize at, in px. */
+    pixelSize: number;
+    /** Signed distance field (128 = edge, `padding` px per half byte-range) vs
+     *  plain antialiased coverage. */
+    sdf: boolean;
+    /** Padding around the ink — the SDF spread — in px. */
+    padding: number;
+}
+
+/**
+ * A rasterized glyph: an upload-ready RGBA8 tile (RGB = 255, A = coverage or SDF)
+ * plus its metrics in `pixelSize` units. Structurally the atlas' `RasterGlyph`;
+ * declared here so the platform layer stays independent of ui/text.
+ */
+export interface PlatformGlyph {
+    pixels: Uint8Array;
+    width: number;
+    height: number;
+    advance: number;
+    bearingX: number;
+    bearingY: number;
+}
+
+/**
  * A load/error callback SINK: callers only ever ASSIGN one (`img.onload = …`); the
  * host image invokes it. The parameter is the bottom type `never` so, by
  * contravariance, EVERY real handler shape is assignable to it — the DOM
@@ -254,6 +287,19 @@ export interface PlatformAdapter {
     ): Promise<WasmInstantiateResult>;
 
     createCanvas(width: number, height: number): PlatformCanvas;
+
+    /**
+     * Rasterize one glyph through the OS text stack, for a platform with no 2D
+     * canvas to draw it on. Synchronous: the dynamic glyph atlas fills cells
+     * during the frame it needs them.
+     *
+     * Optional — a platform that has {@link createCanvas} omits it and the atlas
+     * uses the Canvas2D rasterizer (web, WeChat). Native implements it (the
+     * embedded-Dawn host has no DOM), and `null` means the font or the glyph was
+     * unavailable, which the atlas treats as "no cell" exactly as it does a
+     * canvas miss.
+     */
+    rasterizeGlyph?(request: PlatformGlyphRequest): PlatformGlyph | null;
 
     now(): number;
 

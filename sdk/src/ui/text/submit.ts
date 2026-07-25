@@ -14,13 +14,38 @@ import { withScratch } from '../../wasmScratch';
 export const TEXT_VERTEX_FLOATS = 8;
 
 /**
+ * The same submit, without a wasm heap to marshal through: the native host takes
+ * the typed arrays directly and calls the engine's `RenderFrame::submitTextBatch`
+ * itself. Arguments mirror {@link submitTextBatch} after the module.
+ */
+export type NativeTextBatchSubmit = (
+    vertices: Float32Array,
+    vertexCount: number,
+    indices: Uint16Array,
+    textureId: number,
+    transform: Float32Array,
+    entity: number,
+    layer: number,
+    depth: number,
+    sdf: boolean,
+) => void;
+
+let nativeSubmit_: NativeTextBatchSubmit | null = null;
+
+/** Install the native host's submit (by the native runtime); null clears it.
+ *  Only consulted when there is no wasm binding, so web is untouched. */
+export function setNativeTextSubmit(submit: NativeTextBatchSubmit | null): void {
+    nativeSubmit_ = submit;
+}
+
+/**
  * Submit a batch of glyph quads. `vertices` is `TEXT_VERTEX_FLOATS` floats per
  * vertex (x,y,u,v,r,g,b,a); `indices` reference those vertices; `transform` is a
  * column-major mat4 applied to vertex positions (pass identity if positions are
  * already world-space). No-op if the engine build lacks the binding.
  */
 export function submitTextBatch(
-    module: ESEngineModule,
+    module: ESEngineModule | null,
     vertices: Float32Array,
     indices: Uint16Array,
     textureId: number,
@@ -30,9 +55,13 @@ export function submitTextBatch(
     depth: number,
     sdf: boolean,
 ): void {
-    if (!module.renderer_submitTextBatch) return;
     const vertexCount = (vertices.length / TEXT_VERTEX_FLOATS) | 0;
     if (vertexCount <= 0 || indices.length <= 0 || transform.length < 16) return;
+    // No wasm heap (the native core): the host reads the arrays as they are.
+    if (!module?.renderer_submitTextBatch) {
+        nativeSubmit_?.(vertices, vertexCount, indices, textureId, transform, entity, layer, depth, sdf);
+        return;
+    }
 
     // Copy through HEAPU8 (the one heap view emscripten reliably exports here)
     // as raw bytes; _malloc is ≥8-byte aligned so the C++ f32/u16 reads are fine.

@@ -130,6 +130,22 @@ export function platformCreateImage(): import('./types').PlatformImage {
     return getPlatform().createImage();
 }
 
+/** Whether this platform rasterizes glyphs itself (no 2D canvas to draw them on).
+ *  The glyph atlas picks its rasterizer from this — false everywhere a canvas
+ *  exists, so web/WeChat text is untouched. Safe before a platform is set. */
+export function platformHasGlyphRasterizer(): boolean {
+    return isPlatformInitialized() && typeof getPlatform().rasterizeGlyph === 'function';
+}
+
+/** Rasterize one glyph through the platform's own text stack; null when the
+ *  platform has no rasterizer, or the font/glyph was unavailable. */
+export function platformRasterizeGlyph(
+    request: import('./types').PlatformGlyphRequest,
+): import('./types').PlatformGlyph | null {
+    if (!isPlatformInitialized()) return null;
+    return getPlatform().rasterizeGlyph?.(request) ?? null;
+}
+
 export function platformNow(): number {
     return getPlatform().now();
 }

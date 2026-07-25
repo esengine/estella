@@ -34,6 +34,44 @@ export const RESOURCE_BINDINGS = {
     getTextureDimensions: 'es_getTextureDimensions',
 } as const;
 
+/**
+ * Text rendering, which on native crosses the seam twice: the host rasterizes a
+ * glyph (it owns the font stack — there is no 2D canvas) and the host submits the
+ * laid-out quads (there is no wasm heap to marshal them through). Everything
+ * between those two calls — atlas, layout, batching — is the same SDK code the
+ * web runs.
+ *
+ * OPTIONAL, like {@link AUDIO_BINDINGS}: a host that has not bound its font stack
+ * simply draws no text, rather than failing to boot. {@link hasTextBindings} is
+ * the gate.
+ */
+export const TEXT_BINDINGS = {
+    rasterizeGlyph: 'es_rasterizeGlyph',
+    submitTextBatch: 'es_submitTextBatch',
+    updateTextureSubregion: 'es_updateTextureSubregion',
+    getTextureRenderId: 'es_getTextureRenderId',
+} as const;
+
+/** Whether a host bound the whole text surface — all-or-nothing, so a partially
+ *  implemented host draws nothing instead of half-drawing. */
+export function hasTextBindings(
+    scope: Record<string, unknown> = globalThis as unknown as Record<string, unknown>,
+): boolean {
+    return Object.values(TEXT_BINDINGS).every((name) => typeof scope[name] === 'function');
+}
+
+/**
+ * The other direction: what the HOST calls on the JS side, beyond the game's own
+ * `update`. Declared here for the same reason as the es_* names — the C++ host
+ * spells it once, the SDK installs it once.
+ */
+export const HOST_ENTRIES = {
+    /** Run the render pipeline's pre-flush callbacks (the text batches). The host
+     *  calls it between collecting the scene and flushing the frame, which is
+     *  where the web pipeline runs them too. Absent unless the SDK installed it. */
+    preFlush: 'es_jsPreFlush',
+} as const;
+
 /** Platform primitives the SDK's bridge and file reading are built on. */
 export const PLATFORM_BINDINGS = {
     readAsset: 'es_readAsset',

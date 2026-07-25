@@ -23,6 +23,8 @@ import type {
     ImageLoadResult,
     PlatformCanvas,
     PlatformImage,
+    PlatformGlyph,
+    PlatformGlyphRequest,
 } from '../types';
 import type { PlatformAudioBackend } from '../../audio/PlatformAudioBackend';
 import { setPlatform } from '../base';
@@ -42,10 +44,20 @@ export class NativePlatformAdapter implements PlatformAdapter {
             const audio = bridge_.audio;
             this.createAudioBackend = () => new NativeAudioBackend(audio);
         }
+        // Likewise for text: present only when the host bound its font stack, so
+        // `platformHasGlyphRasterizer()` answers truthfully and the glyph atlas
+        // knows whether this device can produce glyphs at all.
+        if (bridge_.rasterizeGlyph) {
+            const rasterize = bridge_.rasterizeGlyph.bind(bridge_);
+            this.rasterizeGlyph = (request) => rasterize(request);
+        }
     }
 
     /** Assigned in the constructor only when the host bound an audio engine. */
     createAudioBackend?: () => PlatformAudioBackend;
+
+    /** Assigned in the constructor only when the host bound a glyph rasterizer. */
+    rasterizeGlyph?: (request: PlatformGlyphRequest) => PlatformGlyph | null;
 
     async fetch(url: string, options?: PlatformRequestOptions): Promise<PlatformResponse> {
         const r = await this.bridge_.fetch(url, options);

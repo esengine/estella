@@ -14,7 +14,7 @@
 
 import { log } from '../../logger';
 import type { NativeAudioBridge, NativeBridge, NativeFetchResult, NativeInputListener } from './bridge';
-import type { PlatformRequestOptions } from '../types';
+import type { PlatformGlyph, PlatformGlyphRequest, PlatformRequestOptions } from '../types';
 import { assertHostEnvironment } from './hostEnvironment';
 import { hasAudioBindings } from '../../ecs/nativeBindings';
 
@@ -29,6 +29,13 @@ export interface NativeHostBindings {
     es_readAsset(path: string): ArrayBuffer | null;
     /** Decode a packaged image to top-first RGBA, or null on failure. */
     es_loadImagePixels(path: string): { width: number; height: number; pixels: ArrayBuffer } | null;
+    /** Rasterize one glyph through the OS font stack — what a 2D canvas does on
+     *  the web. Optional, all-or-nothing with the rest of {@link TEXT_BINDINGS}:
+     *  a host that has not bound its font stack draws no text. */
+    es_rasterizeGlyph?(request: PlatformGlyphRequest): {
+        pixels: ArrayBuffer; width: number; height: number;
+        advance: number; bearingX: number; bearingY: number;
+    } | null;
     /** A writable byte store (the host's cache dir). Optional: without it there
      *  is no offline hot-update cache and no persistence for storage. */
     es_readCacheFile?(key: string): ArrayBuffer | null;
@@ -132,6 +139,7 @@ export function createHostBridge(
                 })
                 : Promise.reject(new Error(`image decode failed: ${path}`));
         },
+        ...(bindings.es_rasterizeGlyph ? { rasterizeGlyph: (request) => hostGlyph(bindings, request) } : {}),
         ...storage,
         ...(bindings.es_readCacheFile && bindings.es_writeCacheFile
             ? {
@@ -149,6 +157,25 @@ export function createHostBridge(
         devicePixelRatio: () => bindings.es_devicePixelRatio?.() ?? 1,
         ...(audio ? { audio } : {}),
         ...lifecycle,
+    };
+}
+
+/**
+ * One glyph from the host's font stack, as the atlas wants it. The host answers
+ * with an ArrayBuffer (a native JS engine hands raw buffers across, as it does
+ * for decoded images); the view is the SDK's to put on, so the atlas' upload
+ * path sees the same Uint8Array it gets from a canvas.
+ */
+function hostGlyph(bindings: NativeHostBindings, request: PlatformGlyphRequest): PlatformGlyph | null {
+    const glyph = bindings.es_rasterizeGlyph!(request);
+    if (!glyph) return null;
+    return {
+        pixels: new Uint8Array(glyph.pixels),
+        width: glyph.width,
+        height: glyph.height,
+        advance: glyph.advance,
+        bearingX: glyph.bearingX,
+        bearingY: glyph.bearingY,
     };
 }
 

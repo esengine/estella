@@ -64,6 +64,8 @@ targets:
       - sdk: QuartzCore.framework
       - sdk: IOSurface.framework
       - sdk: CoreGraphics.framework
+      # Core Text names the font file the glyph rasterizer parses (main_ios.mm).
+      - sdk: CoreText.framework
       - sdk: Foundation.framework
       # miniaudio's CoreAudio backend (native_audio.cpp), linked at build time
       # because it forces MA_NO_RUNTIME_LINKING on Apple.
