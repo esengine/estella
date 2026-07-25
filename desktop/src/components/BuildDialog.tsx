@@ -49,6 +49,8 @@ interface Result {
   bytes?: number;
   warnings: string[];
   errors: string[];
+  /** iOS: the .xcodeproj the export wrote around its content. */
+  xcodeProject?: string;
 }
 
 /** Nav groupings. Order here is the order they appear. */
@@ -692,12 +694,19 @@ export function BuildDialog() {
                 <span className="build__status-line selectable">
                   <CheckCircle2 size={14} /> {t('build.packagedSummary', { count: result.included, size: result.bytes ? ` · ${mb(result.bytes)}` : '', out: result.outDir })}
                 </span>
-                <div className="build__next selectable">{def.next(result.outDir)}</div>
+                <div className="build__next selectable">
+                  {result.xcodeProject ? t('build.next.iosProject') : def.next(result.outDir)}
+                </div>
                 {result.ok && (
                   <div className="build__actions">
                     {def.httpPreview && (
                       <Button variant="primary" onClick={() => void preview()}>
                         <ExternalLink size={13} /> {t('build.previewHttp')}
+                      </Button>
+                    )}
+                    {result.xcodeProject && (
+                      <Button variant="primary" onClick={() => void window.estella.shell?.openPath?.(result.xcodeProject!)}>
+                        <ExternalLink size={13} /> {t('build.openXcode')}
                       </Button>
                     )}
                     <Button onClick={() => void window.estella.shell?.openPath?.(result.outDir)}>

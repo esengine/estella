@@ -37,6 +37,7 @@ import type { OnExportProgress } from './exportProgress';
 import { ESENGINE_EXTERNAL } from './esengineResolve';
 import { orientationCss, orientationOverlayHtml, orientationLockScript, type ScreenOrientation } from './orientationHtml';
 
+import { emitIosXcodeProject, type IosProjectSources } from './iosProject';
 import { isNativePlatform, type ExportPlatform } from '../src/project/platforms';
 import { collectSubsystems, subsystemGapWarnings, targetGaps, type Subsystem } from '../src/project/targetSupport';
 export type { ExportPlatform };
@@ -150,6 +151,9 @@ export interface ExportGameResult {
   included: number;
   warnings: string[];
   errors: string[];
+  /** iOS: the generated `.xcodeproj`, for the editor to open. Absent when the
+   *  engine is not built for iOS here (the export still carries its content). */
+  xcodeProject?: string;
 }
 
 /** The web host page. `orientation` pins the canvas to a screen orientation (rotate-
@@ -400,6 +404,9 @@ export async function exportGame(opts: {
    *  assets resolve against + the storage key an applied update persists under.
    *  The addressable `asset-manifest.json` this export always emits enables it. */
   hotUpdate?: { remoteRoot?: string; persistUpdateKey?: string };
+  /** iOS: where the prebuilt engine + app shell live, so the export can wrap
+   *  itself in an Xcode project. Omitted (or null) exports content only. */
+  iosSources?: IosProjectSources | null;
 }): Promise<ExportGameResult> {
   const platform = opts.platform ?? 'web';
   const title = opts.title ?? 'Game';
@@ -501,6 +508,8 @@ export async function exportGame(opts: {
   const nativeContent = isNativePlatform(platform);
   const warnings: string[] = [];
   const errors: string[] = [];
+  /** iOS: set once the project is written around the content (see below). */
+  let xcodeProject: string | undefined;
   await mkdir(payloadDir, { recursive: true });
   const common: BuildOptions = {
     bundle: true,
@@ -623,10 +632,30 @@ export async function exportGame(opts: {
       orientation,
     };
     await writeFile(path.join(payloadDir, 'app.config.json'), JSON.stringify(appConfig, null, 2) + '\n');
+
+    // iOS: wrap the content in a project the user can open. Needs no compiler —
+    // the engine is a prebuilt xcframework — so it belongs here rather than behind
+    // a command the user has to find and type. An install that never built the
+    // engine for iOS still exports its content, and says what is missing.
+    if (platform === 'ios') {
+      progress({ phase: 'Writing Xcode project' });
+      const sources = opts.iosSources ?? null;
+      if (sources) {
+        const projectDir = await emitIosXcodeProject(absOut, appConfig, sources);
+        xcodeProject = projectDir;
+      } else {
+        warnings.push('The engine is not built for iOS on this machine, so no Xcode project was '
+          + 'written — the content is here. Build it once with `node build-tools/cli.js '
+          + '--target ios`, then export again.');
+      }
+    }
   }
 
   // 6. Desktop: wrap the payload in a runnable Electron app.
   if (platform === 'desktop') { progress({ phase: 'Staging Electron app' }); await stageDesktopApp(absOut, title, orientation, opts.desktopAppId, opts.desktopProductName); }
 
-  return { ok: errors.length === 0, platform, outDir: absOut, included: cook.included.length, warnings, errors };
+  return {
+    ok: errors.length === 0, platform, outDir: absOut, included: cook.included.length,
+    warnings, errors, ...(xcodeProject ? { xcodeProject } : {}),
+  };
 }

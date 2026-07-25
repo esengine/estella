@@ -10,13 +10,14 @@
 
 import path from 'path';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
-import { mkdir, rm, cp } from 'fs/promises';
+import { mkdir, rm, cp, readdir } from 'fs/promises';
 import config from '../build.config.js';
 import * as logger from '../utils/logger.js';
 import { runCommand, getCpuCount, resolvePython } from '../utils/emscripten.js';
 import { requireSdk, requireNdk, sdkCmake } from '../utils/android.js';
 import { packageNativeApk } from './nativePackage.js';
 import { readAppConfig, iosInterfaceOrientations, fillTemplate } from '../utils/nativeApp.js';
+import { renderPbxproj, renderScheme } from '../utils/xcodeProject.js';
 
 // Generate the native (QuickJS) ECS bindings from the SAME reflection source EHT
 // uses for the web embind bindings — so the two surfaces can never drift. Written
@@ -334,6 +335,76 @@ async function writeIosAppIdentity(rootDir, contentDir) {
     logger.info(`App: ${app.name} (${app.id}) v${app.version} — ${app.orientation}`);
 }
 
+/** A target/product name Xcode and the shell can both carry unquoted. */
+function xcodeTargetName(appName) {
+    const cleaned = appName.replace(/[^A-Za-z0-9]+/g, '');
+    return cleaned || 'EstellaGame';
+}
+
+/**
+ * Turn an export into a self-contained Xcode project, in place — the iOS
+ * counterpart of `--package`'s APK.
+ *
+ * The export directory BECOMES the project: its cooked files stay where they are
+ * and join the resources phase directly (they land at the bundle root, which is
+ * where the host looks), with the app shell, the engine xcframework and the
+ * .xcodeproj written alongside. So "Build" in the editor hands back something to
+ * double-click — no xcodegen, no shared project in the engine checkout that a
+ * second game would overwrite.
+ */
+async function emitIosXcodeProject(rootDir, contentDir, deploymentTarget) {
+    const app = readAppConfig(contentDir, (m) => logger.warn(m));
+    const name = xcodeTargetName(app.name);
+    const frameworkName = 'Estella.xcframework';
+    const projectDir = path.join(contentDir, `${name}.xcodeproj`);
+    const appDir = path.join(contentDir, 'App');
+    const frameworkDest = path.join(contentDir, frameworkName);
+
+    // Rewritten wholesale so a re-export never inherits the last one's stale
+    // slices, plist or object graph.
+    await rm(projectDir, { recursive: true, force: true });
+    await rm(appDir, { recursive: true, force: true });
+    await rm(frameworkDest, { recursive: true, force: true });
+
+    await cp(path.join(rootDir, XCFRAMEWORK), frameworkDest, { recursive: true });
+
+    await mkdir(appDir, { recursive: true });
+    const iosDir = path.join(rootDir, 'native', 'ios');
+    await cp(path.join(iosDir, 'App', 'main.m'), path.join(appDir, 'main.m'));
+    const orientations = iosInterfaceOrientations(app.orientation)
+        .map((o) => `\t\t<string>${o}</string>`).join('\n');
+    writeFileSync(path.join(appDir, 'Info.plist'), fillTemplate(
+        readFileSync(path.join(iosDir, 'App', 'Info.plist.in'), 'utf8'),
+        { APP_NAME: app.name, VERSION_NAME: app.version, VERSION_CODE: app.versionCode, ORIENTATIONS: orientations },
+    ), 'utf8');
+
+    // Everything the export wrote, minus what this function just added. Dotfiles
+    // stay out: .DS_Store in a resources phase is a code-signing failure.
+    const skip = new Set([`${name}.xcodeproj`, 'App', frameworkName]);
+    const resources = (await readdir(contentDir, { withFileTypes: true }))
+        .filter((e) => !skip.has(e.name) && !e.name.startsWith('.'))
+        .map((e) => ({ name: e.name, isDir: e.isDirectory() }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+    await mkdir(path.join(projectDir, 'xcshareddata', 'xcschemes'), { recursive: true });
+    writeFileSync(path.join(projectDir, 'project.pbxproj'), renderPbxproj({
+        name,
+        bundleId: app.id,
+        version: app.version,
+        versionCode: app.versionCode,
+        deploymentTarget,
+        frameworkName,
+        resources,
+    }), 'utf8');
+    writeFileSync(
+        path.join(projectDir, 'xcshareddata', 'xcschemes', `${name}.xcscheme`),
+        renderScheme(name), 'utf8');
+
+    logger.success(`iOS project: ${path.join(contentDir, `${name}.xcodeproj`)}`);
+    logger.info(`App: ${app.name} (${app.id}) v${app.version} — ${app.orientation}`);
+    return { name, projectDir };
+}
+
 async function buildIosHost(options) {
     if (process.platform !== 'darwin') throw new Error('The iOS host builds on macOS only.');
     const rootDir = config.paths.root;
@@ -378,6 +449,23 @@ async function buildIosHost(options) {
 
     logger.success(`iOS host: ${path.join(slice.dir, 'libestella_ios.a')}`);
     await assembleXcframework(rootDir, env);
+
+    // --package: the export becomes a project of its own. Without it the engine's
+    // own native/ios shell is staged instead — that one is for working ON the
+    // host, where the Xcode project is checked in and the content is scratch.
+    if (options.package) {
+        if (!options.content) {
+            throw new Error('--package needs the game to package: pass --content <dir> from '
+                + 'the editor\'s iOS export.');
+        }
+        const contentDir = path.isAbsolute(options.content)
+            ? options.content : path.join(rootDir, options.content);
+        if (!existsSync(contentDir)) throw new Error(`--content dir not found: ${contentDir}`);
+        const { projectDir } = await emitIosXcodeProject(rootDir, contentDir, deploymentTarget);
+        logger.info(`Next: open ${projectDir} — pick your Team under Signing & Capabilities, then Run.`);
+        return;
+    }
+
     const staged = options.content ? await stageIosContent(rootDir, options.content) : null;
     await writeIosAppIdentity(rootDir, staged);
     logger.info('Next: cd native/ios && xcodegen && open EstellaiOS.xcodeproj — pick your Team, then Run.');

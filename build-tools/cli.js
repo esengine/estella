@@ -168,7 +168,7 @@ program
     .option('--platform <platform>', 'Android platform', 'android-33')
     .option('--ios-min <version>', 'iOS deployment target', '17.0')
     .option('--simulator', 'iOS: build the simulator slice (needs a simulator Dawn)', false)
-    .option('--package', 'Android: also package a signed APK (aapt2 + zipalign + apksigner)', false)
+    .option('--package', 'Assemble the app around --content: Android a signed APK, iOS a self-contained Xcode project', false)
     .option('--keystore <path>', 'Android --package: signing keystore (default: the debug one)')
     .option('--jdk <dir>', 'JDK home for the APK step (else JAVA_HOME, or the JDK Android Studio bundles)')
     .option('--content <dir>', 'Ship an exported project (Package Project -> Android / iOS) as the app content')

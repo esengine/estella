@@ -129,9 +129,14 @@ export const projectMessages = defineMessages({
         zh: '据此构建签名 APK：node build-tools/cli.js native --package --content {out}（一次性的 Dawn + QuickJS 准备见 native/README.md）。',
     },
     'build.next.ios': {
-        en: 'On a Mac: node build-tools/cli.js native --target ios --content {out}, then cd native/ios && xcodegen — pick your Team in Xcode and Run.',
-        zh: '在 Mac 上运行：node build-tools/cli.js native --target ios --content {out}，然后 cd native/ios && xcodegen —— 在 Xcode 中选择你的 Team 并运行。',
+        en: 'On a Mac: node build-tools/cli.js native --target ios --package --content {out} — that writes the Xcode project around this content.',
+        zh: '在 Mac 上运行：node build-tools/cli.js native --target ios --package --content {out} —— 它会围绕这份内容写出 Xcode 工程。',
     },
+    'build.next.iosProject': {
+        en: 'The Xcode project is written — open it, pick your Team under Signing & Capabilities, then Run.',
+        zh: 'Xcode 工程已写好——打开它，在 Signing & Capabilities 下选择你的 Team，然后运行。',
+    },
+    'build.openXcode': { en: 'Open in Xcode', zh: '在 Xcode 中打开' },
 
     // — Options —
     'build.configuration': { en: 'Configuration', zh: '配置' },

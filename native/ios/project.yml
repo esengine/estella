@@ -68,3 +68,11 @@ targets:
       - sdk: AVFoundation.framework
       - sdk: CoreAudio.framework
       - sdk: AudioToolbox.framework
+
+# No `schemes:` here on purpose. Without one Xcode autocreates the scheme under
+# xcuserdata, which xcodegen never overwrites — so a developer's Diagnostics
+# choices survive a regenerate. A shared scheme would be rewritten every time.
+# (Metal API Validation has to be turned off once: Dawn calls setDepthClipMode
+# unconditionally and the simulator's Metal lacks it. An EXPORTED project ships
+# its scheme as a build artifact, so that one has the setting baked in — see
+# build-tools/utils/xcodeProject.js.)

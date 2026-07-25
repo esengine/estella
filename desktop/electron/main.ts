@@ -31,6 +31,7 @@ import { cookAssets } from './cookAssets';
 import { startProjectWatch, stopProjectWatch } from './projectWatcher';
 import { importAssets, createAsset, IMPORT_EXTENSIONS } from './importAssets';
 import { exportGame } from './exportGame';
+import { iosProjectSources } from './iosProject';
 import { loopbackServer, closeAllLoopbackServers } from './loopbackServer';
 import { httpContentType } from './mimeTypes';
 import { buildPlayRealm } from './buildPlayRealm';
@@ -861,6 +862,12 @@ ipcMain.handle(
       compressTextures: opts?.compressTextures,
       compressAudio: opts?.compressAudio,
       atlasTextures: opts?.atlasTextures,
+      // iOS wraps its content in an Xcode project; these are the prebuilt pieces
+      // it needs. Null on an install where the engine was never built for iOS —
+      // the export then says so instead of writing a project that cannot link.
+      iosSources: opts?.platform === 'ios'
+        ? iosProjectSources({ resourcesPath: app.isPackaged ? process.resourcesPath : undefined, repoRoot: REPO_ROOT })
+        : null,
       onProgress: (p) => e.sender.send('project:exportProgress', p),
     });
   },
