@@ -33,6 +33,15 @@ export interface RuntimeAssetSource {
     decodePixels(path: string, flip: boolean): Promise<{ width: number; height: number; pixels: Uint8Array }>;
     resolveRef?(ref: string): string;
     /**
+     * The LOGICAL source path a ref was authored at (e.g. `assets/spine/hero.atlas`),
+     * even after a content-addressed build renamed the physical file to a hash. A
+     * loader that resolves a SIBLING by name — a Spine atlas naming its page PNG
+     * relative to itself — needs the logical directory, which `resolveRef` (a build
+     * path) has lost. Optional: a realm that stages under logical paths has nothing
+     * to recover, and a caller falls back to the resolved path.
+     */
+    resolveAddress?(ref: string): string | null;
+    /**
      * Every asset path this realm ships (logical, extension-bearing). Powers
      * content-driven discovery of assets NO scene references — locale string
      * tables (`.eslocale`), which Text binds by KEY, not path. Optional: a

@@ -57,6 +57,7 @@ spacing: number
 backend: Backend
 decodePixels: (path: string, flip: boolean) => Promise<{ width: number; height: number; pixels: Uint8Array; }>
 listAssetPaths: (() => string[]) | undefined
+resolveAddress: ((ref: string) => string | null) | undefined
 resolveRef: ((ref: string) => string) | undefined
 ```
 

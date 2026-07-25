@@ -4238,6 +4238,7 @@ Record<string, PtrLayout>
 
 ## PackagedAssetIndex — interface
 ```
+addressOf: (ref: string) => string | null
 assetPaths: () => string[]
 catalog: Catalog | undefined
 manifest: AddressableManifest
@@ -5525,6 +5526,7 @@ linearDamping: number
 backend: Backend
 decodePixels: (path: string, flip: boolean) => Promise<{ width: number; height: number; pixels: Uint8Array; }>
 listAssetPaths: (() => string[]) | undefined
+resolveAddress: ((ref: string) => string | null) | undefined
 resolveRef: ((ref: string) => string) | undefined
 ```
 

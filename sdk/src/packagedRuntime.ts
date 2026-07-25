@@ -58,6 +58,10 @@ export interface PackagedAssetIndex {
     catalog?: Catalog;
     /** Resolve any ref spelling (`@uuid:`, logical, "/"-rooted) to a staged path. */
     resolvePath(ref: string): string;
+    /** The asset's LOGICAL source path for any ref spelling (including its own staged
+     *  path), or null when unknown — recovers the authored directory a
+     *  content-addressed rename hid. */
+    addressOf(ref: string): string | null;
     /** Every staged asset path — content-driven discovery (locale tables). */
     assetPaths(): string[];
 }
@@ -109,6 +113,13 @@ export function indexPackagedManifest(manifest: AddressableManifest): PackagedAs
         // uuids — strip the prefix before looking up, or every `@uuid:` ref falls
         // through as a literal path and 404s.
         resolvePath: (ref) => model.resolvePath(extractUuid(ref) ?? ref, toBuildPath),
+        // The authored logical path behind any spelling — its uuid, its logical
+        // address, or its staged (content-addressed) path. Lets a loader recover the
+        // directory a sibling was authored in after the rename hid it.
+        addressOf: (ref) => {
+            const asset = model.assetByKey(extractUuid(ref) ?? ref) ?? model.assetByPath(ref);
+            return asset ? (asset.address ?? asset.path) : null;
+        },
         // The logical address where there is one (content-addressed packs rename
         // the staged file), else the staged path — either keeps the extension
         // .eslocale discovery filters on.
@@ -140,6 +151,7 @@ export function createPackagedAssetSource(
         backend: options.backend ?? new FileSystemBackend(),
         decodePixels: options.decodePixels ?? ((path) => platformLoadImagePixels(path)),
         resolveRef: index.resolvePath,
+        resolveAddress: index.addressOf,
         listAssetPaths: index.assetPaths,
     };
 }

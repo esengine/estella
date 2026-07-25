@@ -100,6 +100,16 @@ export function createNativeResourceManager(
             hostCallOpt(scope, RESOURCE_BINDINGS.releaseTexture, [handle]);
         },
 
+        // Register the handle under a logical path so a later load-by-path revives
+        // the same texture instead of re-decoding. The web RM does this in its
+        // loaders; the Spine loader calls it directly (not through the optional
+        // TextureLoader path), so the native RM must answer it or Spine textures
+        // fail to bind. hostCallOpt: a host that did not compile the entry point
+        // simply skips the cache registration.
+        registerTextureWithPath: (handle, path): void => {
+            hostCallOpt(scope, RESOURCE_BINDINGS.registerTextureWithPath, [handle, path]);
+        },
+
         getTextureDimensions: (handle): { width: number; height: number } | null =>
             (hostCallOpt(scope, RESOURCE_BINDINGS.getTextureDimensions, [handle]) as
                 { width: number; height: number } | null | undefined) ?? null,

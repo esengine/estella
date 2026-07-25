@@ -48,6 +48,7 @@ export const RESOURCE_BINDINGS = {
     createTexture: 'es_rm_createTextureEx',
     createTextureKTX2: 'es_createTextureKTX2',
     releaseTexture: 'es_rm_releaseTexture',
+    registerTextureWithPath: 'es_rm_registerTextureWithPath',
     getTextureDimensions: 'es_getTextureDimensions',
 } as const;
 

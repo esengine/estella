@@ -4384,6 +4384,7 @@ Record<string, PtrLayout>
 
 ## PackagedAssetIndex — interface
 ```
+addressOf: (ref: string) => string | null
 assetPaths: () => string[]
 catalog: Catalog | undefined
 manifest: AddressableManifest
@@ -5363,7 +5364,7 @@ static prototype: QueryInstance<any>
 
 ## RESOURCE_BINDINGS — const
 ```
-{ readonly createTexture: "es_rm_createTextureEx"; readonly createTextureKTX2: "es_createTextureKTX2"; readonly releaseTexture: "es_rm_releaseTexture"; readonly getTextureDimensions: "es_getTextureDimensions"; }
+{ readonly createTexture: "es_rm_createTextureEx"; readonly createTextureKTX2: "es_createTextureKTX2"; readonly releaseTexture: "es_rm_releaseTexture"; readonly registerTextureWithPath: "es_rm_registerTextureWithPath"; readonly getTextureDimensions: "es_getTextureDimensions"; }
 ```
 
 ## RETIRED_COMPONENT_TYPES — const
@@ -5681,6 +5682,7 @@ linearDamping: number
 backend: Backend
 decodePixels: (path: string, flip: boolean) => Promise<{ width: number; height: number; pixels: Uint8Array; }>
 listAssetPaths: (() => string[]) | undefined
+resolveAddress: ((ref: string) => string | null) | undefined
 resolveRef: ((ref: string) => string) | undefined
 ```
 

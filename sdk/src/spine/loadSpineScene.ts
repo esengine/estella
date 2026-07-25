@@ -110,7 +110,13 @@ export async function loadSpineAssets(
                 : null;
 
             const texNames = parseSpineAtlasPages(atlasContent);
-            const atlasDir = atlasPath.substring(0, atlasPath.lastIndexOf('/'));
+            // Pages are named relative to the atlas's AUTHORED location, not its
+            // staged one — a content-addressed build renamed the atlas to a hash
+            // under assets/, so `atlasPath`'s directory is not where the pages were.
+            // Recover the authored directory from the atlas's logical address, so
+            // `<dir>/page.png` resolves through the manifest like every other ref.
+            const atlasLogical = source.resolveAddress?.(atlasRef) ?? atlasPath;
+            const atlasDir = atlasLogical.substring(0, atlasLogical.lastIndexOf('/'));
             const rm = requireResourceManager();
             const textures = new Map<string, { glId: number; w: number; h: number }>();
 
