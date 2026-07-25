@@ -262,10 +262,21 @@ class NativeFunctionsGenerator:
         self.skipped: List[Skipped] = []
         self.emitted: List[str] = []
 
+    @staticmethod
+    def _js_name(name: str) -> str:
+        """The global the wrapper is registered under.
+
+        `es_` marks the boundary surface, so a C name that already carries it keeps
+        it — the video module's entry points are spelled `es_video_open`, and
+        `es_es_video_open` would read as a mistake on both sides of the boundary.
+        """
+        return name if name.startswith('es_') else f'es_{name}'
+
     def _wrapper(self, fn: Function) -> List[str]:
         js_params = [p for p in fn.params if p.cpp_type not in _IMPLICIT_REFS]
         out = [f'#ifdef {g}' for g in fn.guards]
-        out.append(f'static JSValue es_{fn.name}(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {{')
+        out.append(f'static JSValue {self._js_name(fn.name)}'
+                   f'(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {{')
         if js_params:
             out.append(f'    if (argc < {len(js_params)}) return JS_UNDEFINED;')
         out.append('    (void)argc; (void)argv;')
@@ -418,7 +429,8 @@ class NativeFunctionsGenerator:
         ])
         for fn in functions:
             takes_implicit = any(p.cpp_type in _IMPLICIT_REFS for p in fn.params)
-            lines.append(f"    bind('{fn.name}', 'es_{fn.name}', {str(takes_implicit).lower()});")
+            lines.append(f"    bind('{fn.name}', '{self._js_name(fn.name)}', "
+                         f"{str(takes_implicit).lower()});")
         lines.extend([
             '    return api as NativeEngineApi;',
             '}',
@@ -462,8 +474,9 @@ class NativeFunctionsGenerator:
         for fn in sorted(functions, key=lambda f: f.name):
             js_arity = len([p for p in fn.params if p.cpp_type not in _IMPLICIT_REFS])
             lines.extend(f'#ifdef {g}' for g in fn.guards)
-            lines.append(f'    JS_SetPropertyStr(ctx, global, "es_{fn.name}", '
-                         f'JS_NewCFunction(ctx, es_{fn.name}, "es_{fn.name}", {js_arity}));')
+            js = self._js_name(fn.name)
+            lines.append(f'    JS_SetPropertyStr(ctx, global, "{js}", '
+                         f'JS_NewCFunction(ctx, {js}, "{js}", {js_arity}));')
             lines.extend('#endif' for _ in fn.guards)
         lines.append('}')
         lines.append('')

@@ -51,22 +51,27 @@ void onVideoFrame(plm_t*, plm_frame_t* frame, void* user) {
 extern "C" {
 
 /**
- * Open an MPEG-PS / MPEG-1 stream. Takes ownership of `data` (allocated in this
- * module's heap via _malloc); it is freed on close — and on failure — so the
- * caller never frees it. Returns a handle >= 1, or 0 on failure.
+ * Open an MPEG-PS / MPEG-1 stream from `dataPtr` (`size` bytes in the caller's heap).
+ * The bytes are COPIED into memory this module owns, so the caller keeps and frees
+ * its own buffer: ownership must not cross the boundary, because the two sides do not
+ * necessarily share an allocator. They do in the wasm build — one emscripten heap —
+ * and they do not in a native app, where the caller writes into the host's arena
+ * (host/heap.hpp) and this module's `free` is libc's. Returns a handle >= 1, or 0.
  */
-int es_video_open(uint8_t* data, uint32_t size) {
+int es_video_open(uintptr_t dataPtr, uint32_t size) {
+    const auto* source = reinterpret_cast<const uint8_t*>(dataPtr);
+    if (!source || size == 0) return 0;
     int slot = -1;
     for (int i = 0; i < kMaxInstances; i++) {
         if (!g_instances[i].plm) { slot = i; break; }
     }
-    if (slot < 0) {
-        free(data);
-        return 0;
-    }
-    plm_t* plm = plm_create_with_memory(data, size, /* free_when_done */ TRUE);
+    if (slot < 0) return 0;
+    auto* owned = static_cast<uint8_t*>(malloc(size));
+    if (!owned) return 0;
+    memcpy(owned, source, size);
+    plm_t* plm = plm_create_with_memory(owned, size, /* free_when_done */ TRUE);
     if (!plm) {
-        free(data);
+        free(owned);
         return 0;
     }
     // Validate via the parsed sequence header, not plm_probe(): probe scans
@@ -138,11 +143,13 @@ int es_video_advance(int handle, double dt) {
 /**
  * Convert the latest decoded frame into `out` as bottom-first RGBA rows — the
  * orientation the engine's flipY-off texture upload samples upright. `outSize`
- * must be at least width*height*4. Returns 1 and clears the new-frame flag on
- * success.
+ * must be at least width*height*4. `outPtr` is an offset the caller wrote — wasm
+ * linear memory on the web, the host arena on a device — so the pixels land where
+ * the caller reads them. Returns 1 and clears the new-frame flag on success.
  */
-int es_video_frame_rgba(int handle, uint8_t* out, uint32_t outSize) {
+int es_video_frame_rgba(int handle, uintptr_t outPtr, uint32_t outSize) {
     Instance* inst = get(handle);
+    auto* out = reinterpret_cast<uint8_t*>(outPtr);
     if (!inst || !inst->frame || !out) return 0;
     const int w = plm_get_width(inst->plm);
     const int h = plm_get_height(inst->plm);

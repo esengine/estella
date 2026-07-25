@@ -109,7 +109,10 @@ class WebVideoStreamHandle implements VideoStreamHandle {
 
     // === texture pump =======================================================
 
-    pump(module: ESEngineModule): void {
+    pump(module: ESEngineModule | null): void {
+        // This backend IS the browser's <video> element, so it only ever runs on a
+        // realm that has the wasm module (it samples through its GL context).
+        if (!module) return;
         if (this.disposed_ || this.width_ <= 0 || this.height_ <= 0) return;
         if (this.video_.readyState < 2) return; // HAVE_CURRENT_DATA — a frame to sample
 

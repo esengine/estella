@@ -100,8 +100,9 @@ export class VideoPlugin implements Plugin {
                 (_time: TimeData, videoAPI: VideoAPI) => {
                     if (isEditor() && !isPlayMode()) return;
                     const world = app.world;
+                    // Null on a native core: the frame upload goes through the
+                    // ResourceManager's byte path instead of a wasm heap.
                     const module = world.getWasmModule();
-                    if (!module) return;
 
                     const entities = world.getEntitiesWithComponents([Video]);
                     live.clear();

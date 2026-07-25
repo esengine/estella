@@ -6,9 +6,10 @@
  * The editor authors every subsystem the engine has; a target does not
  * necessarily compile all of them. The native app builds a subset: the flags
  * `native/CMakeLists.txt` sets decide what `cmake/ESEngineSources.cmake` compiles
- * in, and the optional emscripten side modules (Box2D, Spine, video) have no
- * native counterpart yet. iOS and Android build from that same CMakeLists, so
- * their gaps are one list.
+ * in, and of the optional emscripten side modules Box2D and the video decoder are
+ * compiled into the host binary (there is no dynamic-linking story on a device) while
+ * the Spine runtime is not there yet. iOS and Android build from that same
+ * CMakeLists, so their gaps are one list.
  *
  * Without this, an export writes a package that is quietly missing half a
  * scene. This is the one declaration of that gap, so the export can name it
@@ -76,9 +77,7 @@ export interface SubsystemGap {
 /** What the native app cannot render. ONE list: iOS and Android compile the same
  *  `native/CMakeLists.txt`, so a flag flipped there closes the gap on both. */
 const NATIVE_GAPS: readonly SubsystemGap[] = [
-    { subsystem: 'physics', why: 'Box2D ships as an emscripten side module; the native host has no counterpart yet' },
     { subsystem: 'spine', why: 'the Spine runtime ships as an emscripten side module; the native host has no counterpart yet' },
-    { subsystem: 'video', why: 'the video decoder ships as an emscripten side module; the native host has no counterpart yet' },
 ];
 
 /**

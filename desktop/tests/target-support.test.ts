@@ -53,12 +53,12 @@ describe('collectSubsystems', () => {
 });
 
 describe('subsystemGapWarnings', () => {
-  const usage = new Map<Subsystem, string[]>([['physics', ['scenes/b.esscene', 'scenes/a.esscene']]]);
+  const usage = new Map<Subsystem, string[]>([['spine', ['scenes/b.esscene', 'scenes/a.esscene']]]);
 
   it('names the subsystem, the reason and the files', () => {
     const [warning, ...rest] = subsystemGapWarnings('android', usage);
     expect(rest).toEqual([]);
-    expect(warning).toContain('Physics (Box2D) will not render');
+    expect(warning).toContain('Spine animation will not render');
     expect(warning).toContain('scenes/a.esscene, scenes/b.esscene');
   });
 
@@ -137,17 +137,17 @@ describe('exportGame warns about content the target cannot render', () => {
     expect(res.errors).toEqual([]);
     expect(res.ok).toBe(true);
     const gaps = res.warnings.filter((w) => w.startsWith('android:'));
-    expect(gaps).toHaveLength(2);
-    expect(gaps.join('\n')).toContain('Physics (Box2D) will not render');
+    expect(gaps).toHaveLength(1);
     expect(gaps.join('\n')).toContain('Spine animation will not render');
     expect(gaps.join('\n')).toContain('scenes/main.esscene');
-    // What the native core DOES compile is not warned about: text (the host
-    // rasterizes glyphs for the same atlas), tilemaps, particles and
-    // post-processing. The gaps are what the build really cannot do, not
-    // everything that happens to be optional.
+    // What the native build DOES have is not warned about: text (the host
+    // rasterizes glyphs for the same atlas), tilemaps, particles,
+    // post-processing, and physics (Box2D compiles into the host binary). The
+    // gaps are what the build really cannot do, not everything optional.
     expect(gaps.join('\n')).not.toContain('Text will not render');
     expect(gaps.join('\n')).not.toContain('Tilemaps will not render');
     expect(gaps.join('\n')).not.toContain('Particles will not render');
+    expect(gaps.join('\n')).not.toContain('Physics (Box2D) will not render');
   }, 60_000);
 
   it('stays quiet for a target that renders all of it', async () => {

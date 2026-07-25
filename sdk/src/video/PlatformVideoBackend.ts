@@ -26,7 +26,9 @@ export interface VideoStreamHandle {
     setPlaybackRate(rate: number): void;
 
     /** Upload the current frame if a new one arrived; called once per frame. */
-    pump(module: ESEngineModule): void;
+    /** @param module the wasm engine module, or null on a core with no heap —
+     *  the texture upload takes bytes directly there. */
+    pump(module: ESEngineModule | null): void;
 
     onReady?: () => void;
     onEnded?: () => void;

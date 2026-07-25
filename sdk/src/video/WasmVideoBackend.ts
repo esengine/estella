@@ -132,8 +132,15 @@ class WasmVideoStreamHandle implements VideoStreamHandle {
             const ptr = video._malloc(data.length);
             if (!ptr) throw new Error('videodec out of memory');
             video.HEAPU8.set(data, ptr);
-            // _es_video_open owns `ptr` from here (freed on close or on failure).
-            const decoder = video._es_video_open(ptr, data.length);
+            // The decoder copies the bytes into its own memory, so this buffer is
+            // ours to release either way — ownership does not cross the boundary
+            // (the two sides share an allocator on the web and not on a device).
+            let decoder = 0;
+            try {
+                decoder = video._es_video_open(ptr, data.length);
+            } finally {
+                video._free(ptr);
+            }
             if (!decoder) {
                 throw new Error(
                     `not a decodable MPEG-1 stream (or no free decoder slot): ${url} — ` +
@@ -266,7 +273,7 @@ class WasmVideoStreamHandle implements VideoStreamHandle {
 
     // === texture pump =======================================================
 
-    pump(module: ESEngineModule): void {
+    pump(module: ESEngineModule | null): void {
         const video = this.mod_;
         if (this.disposed_ || !video) return;
 

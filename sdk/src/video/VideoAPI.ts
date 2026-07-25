@@ -57,7 +57,7 @@ export class VideoAPI {
         return resolved !== siblingRef ? resolved : undefined;
     }
 
-    update(module: ESEngineModule): void {
+    update(module: ESEngineModule | null): void {
         if (this.disposed_) return;
         for (const handle of this.handles_) {
             // One stream's decode failure (wasm abort, detached heap) must not

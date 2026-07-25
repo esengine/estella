@@ -19,7 +19,8 @@
                 "${env:ESTELLA_DAWN_DIR}/include",
                 "${env:ESTELLA_DAWN_BUILD}/gen/include",
                 "${env:ESTELLA_QUICKJS_DIR}",
-                "${workspaceFolder}/build/native_intellisense"
+                "${workspaceFolder}/build/native_intellisense",
+                "${workspaceFolder}/third_party/pl_mpeg"
             ],
             "defines": [
                 "_DEBUG",
@@ -47,7 +48,8 @@
                 "${workspaceFolder}/third_party/nlohmann",
                 "${workspaceFolder}/third_party/box2d/include",
                 "${workspaceFolder}/build/quickjs_headers",
-                "${workspaceFolder}/build/native_intellisense"
+                "${workspaceFolder}/build/native_intellisense",
+                "${workspaceFolder}/third_party/pl_mpeg"
             ],
             "defines": [
                 "_DEBUG",
@@ -71,7 +73,8 @@
                 "${workspaceFolder}/third_party/stb",
                 "${workspaceFolder}/third_party/spine-runtimes-4.2/spine-c/spine-c/include",
                 "${workspaceFolder}/third_party/nlohmann",
-                "${workspaceFolder}/third_party/box2d/include"
+                "${workspaceFolder}/third_party/box2d/include",
+                "${workspaceFolder}/third_party/pl_mpeg"
             ],
             "defines": [
                 "ES_PLATFORM_WEB",
@@ -97,10 +100,18 @@
                 "${env:ESTELLA_QUICKJS_DIR}",
                 "${workspaceFolder}/build/quickjs_headers",
                 "${workspaceFolder}/build-native/gen",
-                "${workspaceFolder}/build/native_intellisense"
+                "${workspaceFolder}/build/native_intellisense",
+                "${workspaceFolder}/third_party/box2d/include",
+                "${workspaceFolder}/third_party/pl_mpeg",
+                "${workspaceFolder}/third_party/basis_universal/transcoder",
+                "${workspaceFolder}/third_party/miniaudio"
             ],
             "defines": [
-                "ES_ENABLE_WEBGPU"
+                "ES_ENABLE_WEBGPU",
+                "ES_ENABLE_BITMAP_TEXT",
+                "ES_ENABLE_TILEMAP",
+                "ES_ENABLE_PARTICLES",
+                "ES_ENABLE_POSTPROCESS"
             ],
             "cStandard": "c17",
             "cppStandard": "c++20",
@@ -122,10 +133,18 @@
                 "${env:ESTELLA_QUICKJS_DIR}",
                 "${workspaceFolder}/build/quickjs_headers",
                 "${workspaceFolder}/build-native-ios/gen",
-                "${workspaceFolder}/build/native_intellisense"
+                "${workspaceFolder}/build/native_intellisense",
+                "${workspaceFolder}/third_party/box2d/include",
+                "${workspaceFolder}/third_party/pl_mpeg",
+                "${workspaceFolder}/third_party/basis_universal/transcoder",
+                "${workspaceFolder}/third_party/miniaudio"
             ],
             "defines": [
-                "ES_ENABLE_WEBGPU"
+                "ES_ENABLE_WEBGPU",
+                "ES_ENABLE_BITMAP_TEXT",
+                "ES_ENABLE_TILEMAP",
+                "ES_ENABLE_PARTICLES",
+                "ES_ENABLE_POSTPROCESS"
             ],
             "cStandard": "c17",
             "cppStandard": "c++20",
