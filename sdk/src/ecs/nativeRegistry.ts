@@ -27,7 +27,12 @@ type HasFn = (entity: number) => boolean;
 type RemoveFn = (entity: number) => void;
 
 function views(buf: ArrayBuffer): [Float32Array, Uint32Array, Uint8Array] {
-    return [new Float32Array(buf), new Uint32Array(buf), new Uint8Array(buf)];
+    // Float32Array/Uint32Array require a byteLength that is a multiple of 4, but a
+    // component's native struct can be any size (Interactable is 3 bytes, UIMask 2).
+    // Cover the 4-aligned prefix for the word views — every f32/u32 field is
+    // naturally aligned and fits within it — and the whole buffer for the byte view.
+    const words = Math.floor(buf.byteLength / 4);
+    return [new Float32Array(buf, 0, words), new Uint32Array(buf, 0, words), new Uint8Array(buf)];
 }
 
 /** Invoke a host-provided global by name (throws a clear error if the host did not
@@ -50,9 +55,19 @@ function hostCallOpt(scope: Record<string, unknown>, name: string, args: unknown
 
 /** Present a JS array as the embind VectorEntity interface World.getChildren
  *  returns (size()/get(i)/delete()), so despawn iterates it the same on both
- *  backends. Native memory is JS-owned here, so delete() is a no-op. */
-function vectorEntity(arr: readonly Entity[]): { size(): number; get(i: number): Entity; delete(): void } {
-    return { size: () => arr.length, get: (i: number) => arr[i], delete: () => { /* nothing to free */ } };
+ *  backends. Native memory is JS-owned here, so delete() is a no-op. Also iterable
+ *  (`for...of`): consumers like the timeline/animator child-path resolver walk the
+ *  children with a for-of and type the field as `Entity[]`, so the shim must
+ *  answer Symbol.iterator too, not only the vector methods. */
+function vectorEntity(
+    arr: readonly Entity[],
+): { size(): number; get(i: number): Entity; delete(): void; [Symbol.iterator](): Iterator<Entity> } {
+    return {
+        size: () => arr.length,
+        get: (i: number) => arr[i],
+        delete: () => { /* nothing to free */ },
+        [Symbol.iterator]: () => arr[Symbol.iterator](),
+    };
 }
 
 /**
@@ -82,6 +97,30 @@ export function createNativeRegistry(
     reg.getChildren = (e: Entity) => ({
         entities: vectorEntity((hostCall(scope, REGISTRY_BINDINGS.getChildren, [e]) as Entity[] | undefined) ?? []),
     });
+
+    // Parent/Children are hierarchy components, not POD ptr components, so they are
+    // not in PTR_ACCESSORS. The embind Registry still exposes them the component way
+    // (add/get/has/remove), and readers like the physics and hierarchy systems reach
+    // them through BuiltinBridge.getBuiltinMethods, which needs all four to exist.
+    // Present that surface here over the native entity-ops so both backends match.
+    reg.getParent = (e: Entity): { entity: Entity } => ({
+        entity: (hostCall(scope, REGISTRY_BINDINGS.getParent, [e]) as Entity),
+    });
+    reg.addParent = (child: Entity, data: { entity: Entity }): void => {
+        hostCall(scope, REGISTRY_BINDINGS.setParent, [child, data.entity]);
+    };
+    // Children is the reverse index of Parent; write it by re-parenting each listed
+    // child. Rarely called (scenes rebuild the tree with setParent), but a complete
+    // surface keeps the two registries interchangeable.
+    reg.addChildren = (parent: Entity, data: { entities: Iterable<Entity> }): void => {
+        for (const child of data.entities ?? []) {
+            hostCall(scope, REGISTRY_BINDINGS.setParent, [child, parent]);
+        }
+    };
+    reg.removeChildren = (parent: Entity): void => {
+        const kids = (hostCall(scope, REGISTRY_BINDINGS.getChildren, [parent]) as Entity[] | undefined) ?? [];
+        for (const child of kids) hostCall(scope, REGISTRY_BINDINGS.removeParent, [child]);
+    };
     reg.delete = (): void => {};
 
     // The scene queries the wasm module answers as module-level functions. There is

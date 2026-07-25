@@ -5347,7 +5347,7 @@ static prototype: QueryInstance<any>
 
 ## REGISTRY_BINDINGS — const
 ```
-{ readonly createEntity: "es_createEntity"; readonly destroyEntity: "es_destroyEntity"; readonly setParent: "es_setParent"; readonly hasParent: "es_hasParent"; readonly removeParent: "es_removeParent"; readonly hasChildren: "es_hasChildren"; readonly getChildren: "es_getChildren"; }
+{ readonly createEntity: "es_createEntity"; readonly destroyEntity: "es_destroyEntity"; readonly setParent: "es_setParent"; readonly hasParent: "es_hasParent"; readonly getParent: "es_getParent"; readonly removeParent: "es_removeParent"; readonly hasChildren: "es_hasChildren"; readonly getChildren: "es_getChildren"; }
 ```
 
 ## REPLICATION_CHANNEL — const

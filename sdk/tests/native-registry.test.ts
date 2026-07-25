@@ -97,6 +97,75 @@ describe('createNativeRegistry', () => {
         expect(reg.hasSprite(9)).toBe(false);   // must not have emplaced it
     });
 
+    it('adds a component whose native struct is not 4-byte aligned (Interactable is 3 bytes)', () => {
+        // The host returns a buffer the exact size of the component. Interactable is
+        // three bools = 3 bytes, not a multiple of 4, so building a Float32Array over
+        // the whole buffer throws "invalid length" on QuickJS. views() must cover only
+        // the 4-aligned prefix for the word views and the whole buffer for the byte view.
+        const store = new Map<number, ArrayBuffer>();
+        const scope: Record<string, unknown> = {
+            es_Interactable_buffer: (e: number) => {
+                let b = store.get(e);
+                if (!b) { b = new ArrayBuffer(3); store.set(e, b); }
+                return b;
+            },
+            es_Interactable_has: (e: number) => store.has(e),
+            es_Interactable_remove: (e: number) => { store.delete(e); },
+        };
+        const reg = createNativeRegistry(scope) as unknown as Record<string, Function>;
+        const data = PTR_ACCESSORS.Interactable.create() as Record<string, unknown>;
+        data.enabled = true; data.blockRaycast = false; data.raycastTarget = true;
+        expect(() => reg.addInteractable(1, data)).not.toThrow();
+        const got = reg.getInteractable(1) as Record<string, boolean>;
+        expect(got.enabled).toBe(true);
+        expect(got.blockRaycast).toBe(false);
+        expect(got.raycastTarget).toBe(true);
+    });
+
+    it('exposes Parent/Children the component way over the native entity-ops', () => {
+        // BuiltinBridge.getBuiltinMethods requires add/get/has/remove for the hierarchy
+        // components — the physics and hierarchy systems read them that way. The host
+        // binds only entity-ops (setParent/getParent/getChildren); the registry adapts.
+        const parents = new Map<number, number>();
+        const children = new Map<number, number[]>();
+        const scope: Record<string, unknown> = {
+            es_setParent: (c: number, p: number) => {
+                parents.set(c, p);
+                (children.get(p) ?? children.set(p, []).get(p)!).push(c);
+            },
+            es_getParent: (c: number) => parents.get(c) ?? 0,
+            es_hasParent: (c: number) => parents.has(c),
+            es_removeParent: (c: number) => { parents.delete(c); },
+            es_hasChildren: (p: number) => (children.get(p)?.length ?? 0) > 0,
+            es_getChildren: (p: number) => children.get(p) ?? [],
+        };
+        const reg = createNativeRegistry(scope) as unknown as Record<string, Function>;
+        for (const m of ['addParent', 'getParent', 'hasParent', 'removeParent',
+            'addChildren', 'getChildren', 'hasChildren', 'removeChildren']) {
+            expect(typeof reg[m]).toBe('function');
+        }
+        reg.addParent(2, { entity: 1 });
+        expect(reg.hasParent(2)).toBe(true);
+        expect((reg.getParent(2) as { entity: number }).entity).toBe(1);
+        expect(reg.hasChildren(1)).toBe(true);
+    });
+
+    it('getChildren.entities is iterable (for...of) as well as vector-shaped', () => {
+        // The timeline/animator child-path resolver walks children with a for-of and
+        // types the field `Entity[]`; the VectorEntity shim must answer Symbol.iterator
+        // too, or that for-of throws "value is not iterable" on the native backend.
+        const scope: Record<string, unknown> = {
+            es_getChildren: (_p: number) => [10, 11, 12],
+            es_hasChildren: (_p: number) => true,
+        };
+        const reg = createNativeRegistry(scope) as unknown as Record<string, Function>;
+        const kids = (reg.getChildren(1) as { entities: Iterable<number> }).entities;
+        expect([...kids]).toEqual([10, 11, 12]);
+        const seen: number[] = [];
+        for (const c of kids) seen.push(c);
+        expect(seen).toEqual([10, 11, 12]);
+    });
+
     it('skips components whose host bindings are absent', () => {
         // Only Sprite is bound; other components must not get registry methods.
         const scope: Record<string, unknown> = {

@@ -44,6 +44,10 @@ JSValue js_setParent(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
 JSValue js_hasParent(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
     return JS_NewBool(ctx, host().registry->has<ecs::Parent>(esn_entity(ctx, argv[0])));
 }
+JSValue js_getParent(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
+    auto* p = host().registry->tryGet<ecs::Parent>(esn_entity(ctx, argv[0]));
+    return JS_NewUint32(ctx, (p ? p->entity : INVALID_ENTITY).id());
+}
 JSValue js_removeParent(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
     ecs::setParent(*host().registry, esn_entity(ctx, argv[0]), INVALID_ENTITY);
     return JS_UNDEFINED;
@@ -70,6 +74,7 @@ void registerEcsBindings(HostState& h, JSValue global) {
     bindGlobal(h, global, "es_destroyEntity", js_destroyEntity, 1);
     bindGlobal(h, global, "es_setParent", js_setParent, 2);
     bindGlobal(h, global, "es_hasParent", js_hasParent, 1);
+    bindGlobal(h, global, "es_getParent", js_getParent, 1);
     bindGlobal(h, global, "es_removeParent", js_removeParent, 1);
     bindGlobal(h, global, "es_hasChildren", js_hasChildren, 1);
     bindGlobal(h, global, "es_getChildren", js_getChildren, 1);

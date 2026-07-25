@@ -29,6 +29,7 @@ export const REGISTRY_BINDINGS = {
     destroyEntity: 'es_destroyEntity',
     setParent: 'es_setParent',
     hasParent: 'es_hasParent',
+    getParent: 'es_getParent',
     removeParent: 'es_removeParent',
     hasChildren: 'es_hasChildren',
     getChildren: 'es_getChildren',
