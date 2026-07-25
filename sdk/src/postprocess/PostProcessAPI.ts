@@ -65,8 +65,14 @@ function getModule(): PostProcessCore {
     return module;
 }
 
-export function syncStackToWasm(stack: PostProcessStack): void {
-    if (!stack.isDirty) return;
+/**
+ * Push a stack's enabled passes to the engine. `force` re-pushes a stack that has
+ * not been edited — needed because the engine's pass list is torn down after every
+ * camera (see {@link PostProcessAPI._resetAfterCamera}), so "not dirty" says the
+ * stack is unchanged, NOT that the engine still holds it.
+ */
+export function syncStackToWasm(stack: PostProcessStack, force = false): void {
+    if (!force && !stack.isDirty) return;
 
     const m = getModule();
 
@@ -128,6 +134,14 @@ export class PostProcessAPI {
     /** Volume-system bookkeeping (per-App): camera → the stack it created, and shared effect shaders. */
     readonly volumeStacks = new Map<Entity, PostProcessStack>();
     readonly volumeShaders = new Map<string, ShaderHandle>();
+
+    /**
+     * Which stack the engine's pass list currently holds, or null when it holds
+     * none. Distinct from the stack's own dirty flag, which only tracks edits:
+     * every camera ends by clearing the engine's passes, so a stack that was
+     * pushed last frame and never edited must still be pushed again this frame.
+     */
+    private engineStack_: PostProcessStack | null = null;
 
     // -- per-App state (stacks / bindings / screen stack) --------------------
 
@@ -241,13 +255,15 @@ export class PostProcessAPI {
         }
 
         this.setBypass(false);
-        syncStackToWasm(stack);
+        syncStackToWasm(stack, /*force=*/this.engineStack_ !== stack);
+        this.engineStack_ = stack;
     }
 
     _resetAfterCamera(): void {
         try {
             getModule().postprocess_clearPasses();
             getModule().postprocess_setBypass(true);
+            this.engineStack_ = null;
         } catch (e) {
             handleWasmError(e, 'PostProcess._resetAfterCamera');
         }

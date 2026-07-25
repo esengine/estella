@@ -309,6 +309,34 @@ describe('PostProcess API', () => {
             pp._applyForCamera(1 as any);
             expect(mock.postprocess_setUniformVec4).toHaveBeenCalledWith('bloom', 'u_color', 1, 0.5, 0.25, 1);
         });
+
+        // Every camera ends by clearing the engine's pass list, so an unedited
+        // stack still has to be re-pushed the next frame. Trusting the stack's
+        // dirty flag alone left the engine with zero passes from frame 2 on.
+        it('re-pushes an unedited stack after the engine\'s passes were reset', () => {
+            const stack = pp.createStack();
+            stack.addPass('bloom', 42);
+            pp.bind(1 as any, stack);
+
+            pp._applyForCamera(1 as any);
+            pp._resetAfterCamera();
+            mock.postprocess_addPass.mockClear();
+
+            pp._applyForCamera(1 as any);
+            expect(mock.postprocess_addPass).toHaveBeenCalledWith('bloom', 42);
+        });
+
+        it('does not re-push an unedited stack the engine still holds', () => {
+            const stack = pp.createStack();
+            stack.addPass('bloom', 42);
+            pp.bind(1 as any, stack);
+
+            pp._applyForCamera(1 as any);
+            mock.postprocess_addPass.mockClear();
+
+            pp._applyForCamera(1 as any);
+            expect(mock.postprocess_addPass).not.toHaveBeenCalled();
+        });
     });
 
     // =========================================================================
