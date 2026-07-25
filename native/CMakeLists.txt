@@ -59,6 +59,34 @@ add_library(yogacore STATIC ${YOGA_SOURCES})
 target_include_directories(yogacore PUBLIC "${TP}")
 target_compile_options(yogacore PRIVATE -Wno-unused-parameter)
 
+# Box2D + the physics module's own TUs, compiled INTO the host. On the web physics
+# ships as a separate wasm side module (dynamic linking, its own emscripten runtime);
+# a native app has no such story and no reason for one — the same C sources link
+# straight in, and the SDK reaches them through the generated es_physics_* wrappers.
+# Vendored, so nothing extra to fetch.
+set(BOX2D_SAMPLES OFF CACHE BOOL "" FORCE)
+set(BOX2D_BENCHMARKS OFF CACHE BOOL "" FORCE)
+set(BOX2D_DOCS OFF CACHE BOOL "" FORCE)
+set(BOX2D_UNIT_TESTS OFF CACHE BOOL "" FORCE)
+set(BOX2D_VALIDATE OFF CACHE BOOL "" FORCE)   # release: no heavy internal assertions
+add_subdirectory("${TP}/box2d" "${CMAKE_BINARY_DIR}/box2d" EXCLUDE_FROM_ALL)
+
+# The engine's own MPEG-1 decoder (pl_mpeg), the same TU the web links as the
+# "videodec" side module. Header-only dependency, so nothing to fetch.
+add_library(estella_video STATIC "${SRC}/esengine/bindings/VideoModuleEntry.cpp")
+target_include_directories(estella_video PUBLIC "${SRC}" "${TP}/pl_mpeg")
+
+set(ESTELLA_PHYSICS_SOURCES
+    "${SRC}/esengine/bindings/PhysicsModuleEntry.cpp"
+    "${SRC}/esengine/bindings/PhysicsContext.cpp"
+    "${SRC}/esengine/bindings/PhysicsShapes.cpp"
+    "${SRC}/esengine/bindings/PhysicsJoints.cpp"
+    "${SRC}/esengine/bindings/PhysicsQueries.cpp"
+    "${SRC}/esengine/bindings/PhysicsReadback.cpp")
+add_library(estella_physics STATIC ${ESTELLA_PHYSICS_SOURCES})
+target_include_directories(estella_physics PUBLIC "${SRC}" "${TP}/box2d/include")
+target_link_libraries(estella_physics PUBLIC box2d)
+
 if(ANDROID)
     add_library(native_app_glue STATIC
         "${ANDROID_NDK}/sources/android/native_app_glue/android_native_app_glue.c")
@@ -165,7 +193,7 @@ if(ESTELLA_QUICKJS_DIR)
         # archive, so these also live in native/ios/project.yml).
         set_source_files_properties(host/media/native_audio.cpp PROPERTIES
             COMPILE_OPTIONS "-x;objective-c++")
-        target_link_libraries(estella_js_host esengine qjs
+        target_link_libraries(estella_js_host esengine estella_physics estella_video qjs
             "-framework UIKit" "-framework QuartzCore" "-framework Foundation"
             "-framework AVFoundation" "-framework CoreAudio" "-framework AudioToolbox"
             "-framework CoreText" "-framework CoreGraphics")
@@ -174,13 +202,15 @@ if(ESTELLA_QUICKJS_DIR)
         add_custom_command(TARGET estella_js_host POST_BUILD
             COMMAND libtool -static -o "${CMAKE_BINARY_DIR}/libestella_ios.a"
                     $<TARGET_FILE:estella_js_host> $<TARGET_FILE:esengine>
+                    $<TARGET_FILE:estella_physics> $<TARGET_FILE:box2d>
+                    $<TARGET_FILE:estella_video>
                     $<TARGET_FILE:qjs> $<TARGET_FILE:yogacore> "${ESTELLA_DAWN_LIB}"
             COMMENT "Merging the iOS host, engine and Dawn into libestella_ios.a")
     else()
         # Android: plain C++; miniaudio dlopens AAudio/OpenSL at runtime (no extra
         # link libs). native_audio.cpp's Obj-C paths are __APPLE__-guarded out.
         add_library(estella_js_host SHARED ${HOST_SOURCES} host/platform/android.cpp)
-        target_link_libraries(estella_js_host esengine qjs native_app_glue android log)
+        target_link_libraries(estella_js_host esengine estella_physics estella_video qjs native_app_glue android log)
         set_target_properties(estella_js_host PROPERTIES LINK_FLAGS "-u ANativeActivity_onCreate")
     endif()
     # host/ is the include root: every host TU spells its siblings from there

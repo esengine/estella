@@ -320,13 +320,35 @@ function expectMirrored(label: string, tsDeclared: Set<string>, cppExports: Set<
 }
 
 describe('WASM binding surface: side modules (C exports)', () => {
+    // The four TUs the SDK's own interface mirrors. PhysicsReadback.cpp is
+    // deliberately absent: its `*Bytes` helpers exist so a NATIVE wrapper can copy
+    // exactly what a getter published, and no SDK caller ever names them.
+    const PHYSICS_TUS = ['PhysicsModuleEntry.cpp', 'PhysicsShapes.cpp',
+                         'PhysicsJoints.cpp', 'PhysicsQueries.cpp'];
+
     it('PhysicsWasmModule mirrors the physics module exports exactly', () => {
         const cpp = new Set(
-            ['PhysicsModuleEntry.cpp', 'PhysicsShapes.cpp', 'PhysicsJoints.cpp', 'PhysicsQueries.cpp']
-                .flatMap((f) => [...parseKeepaliveExports(read(resolve(CPP, 'bindings', f)))]),
+            PHYSICS_TUS.flatMap((f) => [...parseKeepaliveExports(read(resolve(CPP, 'bindings', f)))]),
         );
         const ts = parseInterfaceMethods(read(resolve(SDK, 'physics/PhysicsModuleLoader.ts')), 'PhysicsWasmModule');
         expectMirrored('physics', ts, cpp);
+    });
+
+    // The native half of the same surface. A device reaches physics through QuickJS
+    // wrappers EHT generates from PhysicsBindings.hpp, so a declaration missing there
+    // is an entry point the device silently does not answer — and one that exists
+    // there but nowhere else is a wrapper that will not link.
+    it('PhysicsBindings.hpp declares exactly what the module exports', () => {
+        const header = stripComments(read(resolve(CPP, 'bindings/PhysicsBindings.hpp')));
+        const declared = new Set([...header.matchAll(/\b(physics_\w+)\s*\(/g)].map((m) => m[1]!));
+        const exported = new Set([...PHYSICS_TUS, 'PhysicsReadback.cpp']
+            .flatMap((f) => [...parseKeepaliveExports(read(resolve(CPP, 'bindings', f)))]));
+        const undeclared = [...exported].filter((n) => !declared.has(n)).sort();
+        const phantom = [...declared].filter((n) => !exported.has(n)).sort();
+        expect(undeclared, `exported but not declared in PhysicsBindings.hpp (no native wrapper): ${undeclared.join(', ')}`)
+            .toEqual([]);
+        expect(phantom, `declared in PhysicsBindings.hpp but defined nowhere: ${phantom.join(', ')}`)
+            .toEqual([]);
     });
 
     it('SpineWasmModule + its cwrap table mirror the spine module exports exactly', () => {

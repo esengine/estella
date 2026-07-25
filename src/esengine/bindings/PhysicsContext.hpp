@@ -2,7 +2,14 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 #pragma once
 
+// The module's entry points are marked KEEPALIVE so the emscripten link keeps them
+// exported. A native build compiles the same TUs into the host binary, where the
+// attribute has no meaning and the header does not exist.
+#ifdef __EMSCRIPTEN__
 #include <emscripten.h>
+#else
+#define EMSCRIPTEN_KEEPALIVE
+#endif
 
 #include <box2d/box2d.h>
 

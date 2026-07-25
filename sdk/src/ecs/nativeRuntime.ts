@@ -27,6 +27,7 @@ import { createNativeRendererBackend, nativeSurfaceSize } from './nativeRenderer
 import { createNativeEngineApi } from './nativeEngineApi.generated';
 import { setNativeEngineApi, engineApi } from './engineApi';
 import { createNativeHeap } from './nativeHeap';
+import { createNativeSideModules } from './nativeSideModules';
 import { initPostProcessAPI } from '../postprocess';
 import { log } from '../logger';
 import { setRendererBackend } from '../renderer';
@@ -87,6 +88,10 @@ export function createNativeApp(
     app.connectCpp(createNativeRegistry(scope), undefined, {
         memory: new NativeMemoryProvider(scope),
     });
+    // The optional subsystems (physics today) come from the host binary rather than
+    // a fetched wasm side module, through the same acquirer the web realms use — so
+    // the runtime's own self-gating installs them without knowing the difference.
+    app.setSideModules(createNativeSideModules(scope));
     // The same order the web app builds in (see _createWebApp): the frame first,
     // then assets, then the gameplay stack. assetPlugin is the one plugin that
     // cannot be shared as-is — it wires the wasm heap — so installNativeAssets

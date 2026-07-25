@@ -489,6 +489,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#1a1a1a}
     if(ES_ENABLE_BOX2D)
         set(ES_PHYSICS_SOURCES
             src/esengine/bindings/PhysicsModuleEntry.cpp
+            src/esengine/bindings/PhysicsReadback.cpp
             src/esengine/bindings/PhysicsContext.cpp
             src/esengine/bindings/PhysicsShapes.cpp
             src/esengine/bindings/PhysicsJoints.cpp

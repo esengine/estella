@@ -5,7 +5,11 @@ import {
 } from 'esengine';
 import { SpawnMarker } from '../components';
 
-const BODY_COUNT = 150;
+// A stress count, not a gameplay one: 5000 dynamic bodies is what makes this
+// example a measurement of the whole per-frame chain — Box2D's solver, the
+// transform readback across the boundary, and 5000 batched shape draws — on
+// whatever hardware it runs on.
+const BODY_COUNT = 5000;
 const PPU = 100;
 const GRID_LEFT = -23;
 const GRID_RIGHT = 23;

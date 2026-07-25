@@ -47,6 +47,10 @@ export const NATIVE_BINDING_HEADERS = [
     'GeometryBindings.hpp',
     'ImmediateDrawBindings.hpp',
     'AnimationBindings.hpp',
+    // Physics: a C module compiled into the host, not a wasm side module.
+    'PhysicsBindings.hpp',
+    // The engine's own MPEG-1 decoder, likewise compiled in.
+    'VideoBindings.hpp',
 ];
 
 // Generate the QuickJS wrappers for the engine's binding ENTRY POINTS — the same
