@@ -4173,6 +4173,7 @@ clearStorage: (prefix: string) => void
 createAudioBackend: (() => PlatformAudioBackend) | undefined
 createCanvas: (_width: number, _height: number) => PlatformCanvas
 createImage: () => PlatformImage
+createVideoBackend: (ctx: VideoBackendContext) => PlatformVideoBackend
 devicePixelRatio: () => number
 fetch: (url: string, options?: PlatformRequestOptions) => Promise<PlatformResponse>
 fileExists: (path: string) => Promise<boolean>

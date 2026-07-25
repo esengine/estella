@@ -517,7 +517,13 @@ export async function exportGame(opts: {
   // 1. Cook reachable assets + manifest, from EVERY shippable scene as a root
   //    (the scene files themselves are staged too).
   progress({ phase: 'Cooking assets' });
-  const cook = await cookAssets(opts.root, { entryScenes: scenes.map((s) => s.path), outDir: payloadDir, contentAddressed: opts.contentAddressed ?? true, compressTextures: opts.compressTextures, compressAudio: opts.compressAudio, atlasTextures: opts.atlasTextures, platform });
+  // Video ships as MPEG-1 `.esv` for every target whose only decoder is the
+  // pl_mpeg path — a device (native) and WeChat both play video through it, so
+  // both need the cook. Browser/Chromium targets (web, desktop) decode the source
+  // container directly and keep it. Without this a device shows a blank frame: it
+  // cannot decode an .mp4.
+  const transcodeVideo = isNativePlatform(platform) || platform === 'wechat';
+  const cook = await cookAssets(opts.root, { entryScenes: scenes.map((s) => s.path), outDir: payloadDir, contentAddressed: opts.contentAddressed ?? true, compressTextures: opts.compressTextures, compressAudio: opts.compressAudio, atlasTextures: opts.atlasTextures, transcodeVideo, platform });
   warnings.push(...cook.warnings);
   warnings.push(...await unsupportedContentWarnings(opts.root, cook.includedPaths, platform));
   progress({ phase: 'Cooking assets', detail: `${cook.included.length} reachable` });

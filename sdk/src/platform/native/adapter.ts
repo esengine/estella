@@ -27,6 +27,8 @@ import type {
     PlatformGlyphRequest,
 } from '../types';
 import type { PlatformAudioBackend } from '../../audio/PlatformAudioBackend';
+import type { PlatformVideoBackend, VideoBackendContext } from '../../video/PlatformVideoBackend';
+import { WasmVideoBackend } from '../../video/WasmVideoBackend';
 import { setPlatform } from '../base';
 import { createPrimaryPointer } from '../primaryPointer';
 import { NativeAudioBackend } from '../../audio/NativeAudioBackend';
@@ -193,8 +195,16 @@ export class NativePlatformAdapter implements PlatformAdapter {
         if (this.bridge_.writeCacheFile) await this.bridge_.writeCacheFile(key, bytes);
     }
 
-    // createSocket / createVideoBackend / pollGamepads / loadSubpackage are
-    // optional and deferred to the shell.
+    // The engine-owned software decoder, exactly as the mini-game family uses it:
+    // the videodec runtime is compiled into the device binary (a side module the
+    // host answers through es_video_*), so WasmVideoBackend acquires it off
+    // app.sideModules and plays a cooked `.esv` — a device has no other video path.
+    createVideoBackend(ctx: VideoBackendContext): PlatformVideoBackend {
+        return new WasmVideoBackend(ctx);
+    }
+
+    // createSocket / pollGamepads / loadSubpackage are optional and deferred to
+    // the shell.
 }
 
 /** Install a {@link NativePlatformAdapter} built from the host `bridge` as the
