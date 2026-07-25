@@ -43,7 +43,7 @@ for your own game.
 | **ui-layout** | UI | Flexbox-style responsive UI layout. |
 | **ui-list** | UI | A virtualized list and grid — `createListView`, live data, `scrollToIndex`. |
 | **ui-controller** | UI | Shared UI controllers + declarative per-page gears: a tab bar, an `$interaction` button, and a tweened popup. |
-| **ui-events** | UI | Visual event binding — `EventBinding` rows wire a button's `click` to a named action (`ui.setPage`), including on another entity by name. `src/main.ts` is empty. |
+| **ui-events** | UI | Visual event binding — `EventBinding` rows wire a button's `click` to a named action (`ui.setPage`), on another entity by name, and via `fsm.fire` into a `.esfsm`. `src/main.ts` is empty. |
 | **chat** | UI | A chat log — virtualized ListView + TextInput composer with two-way binding. |
 | **rich-text** | UI | A live rich-text playground — type markup (and 中文 via IME) into a TextInput and watch a `Text` render bold/italic/color/font-size runs. |
 | **enemy-ai** | AI | A state machine drives enemies to patrol, sense the player, and chase via A* navigation. |

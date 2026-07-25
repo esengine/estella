@@ -1,0 +1,25 @@
+{
+  "initial": "Idle",
+  "states": [
+    {
+      "name": "Idle",
+      "x": 80,
+      "y": 110,
+      "transitions": [
+        { "to": "Running", "trigger": "start" }
+      ]
+    },
+    {
+      "name": "Running",
+      "x": 400,
+      "y": 110,
+      "onEnter": {
+        "name": "property.set",
+        "params": {
+          "path": "Text.content",
+          "value": "The button fired a trigger; this state machine wrote the line."
+        }
+      }
+    }
+  ]
+}

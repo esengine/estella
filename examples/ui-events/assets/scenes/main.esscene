@@ -8,8 +8,25 @@
       "parent": null,
       "children": [],
       "components": [
-        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 10 } } },
-        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 300, "isActive": true, "priority": 0 } }
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 10
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 1,
+            "orthoSize": 300,
+            "isActive": true,
+            "priority": 0
+          }
+        }
       ],
       "visible": true
     },
@@ -17,16 +34,45 @@
       "id": 1,
       "name": "Canvas",
       "parent": null,
-      "children": [2, 3, 5, 7, 10],
+      "children": [
+        2,
+        3,
+        5,
+        7,
+        10,
+        11
+      ],
       "components": [
-        { "type": "Transform", "data": {} },
-        { "type": "Canvas", "data": { "designResolution": { "x": 800, "y": 600 }, "scaleMode": 2 } },
-        { "type": "UINode", "data": {} },
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "Canvas",
+          "data": {
+            "designResolution": {
+              "x": 800,
+              "y": 600
+            },
+            "scaleMode": 2
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {}
+        },
         {
           "type": "UIController",
           "data": {
             "controllers": [
-              { "name": "tabs", "pages": ["home", "settings"], "current": "home" }
+              {
+                "name": "tabs",
+                "pages": [
+                  "home",
+                  "settings"
+                ],
+                "current": "home"
+              }
             ]
           }
         }
@@ -39,16 +85,34 @@
       "parent": 1,
       "children": [],
       "components": [
-        { "type": "Transform", "data": {} },
+        {
+          "type": "Transform",
+          "data": {}
+        },
         {
           "type": "UINode",
           "data": {
             "position": 1,
-            "width": { "value": 660, "unit": 0 },
-            "height": { "value": 40, "unit": 0 },
-            "insetLeft": { "value": 50, "unit": 1 },
-            "marginLeft": { "value": -330, "unit": 0 },
-            "insetTop": { "value": 36, "unit": 0 }
+            "width": {
+              "value": 660,
+              "unit": 0
+            },
+            "height": {
+              "value": 40,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 50,
+              "unit": 1
+            },
+            "marginLeft": {
+              "value": -330,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 36,
+              "unit": 0
+            }
           }
         },
         {
@@ -56,7 +120,12 @@
           "data": {
             "content": "These buttons run actions with no game code — the wires are Events rows",
             "fontSize": 17,
-            "color": { "r": 0.9, "g": 0.92, "b": 0.96, "a": 1 },
+            "color": {
+              "r": 0.9,
+              "g": 0.92,
+              "b": 0.96,
+              "a": 1
+            },
             "align": 1,
             "verticalAlign": 1
           }
@@ -68,27 +137,75 @@
       "id": 3,
       "name": "HomeButton",
       "parent": 1,
-      "children": [4],
+      "children": [
+        4
+      ],
       "components": [
-        { "type": "Transform", "data": {} },
+        {
+          "type": "Transform",
+          "data": {}
+        },
         {
           "type": "UINode",
           "data": {
             "position": 1,
-            "width": { "value": 170, "unit": 0 },
-            "height": { "value": 44, "unit": 0 },
-            "insetLeft": { "value": 50, "unit": 1 },
-            "marginLeft": { "value": -180, "unit": 0 },
-            "insetTop": { "value": 108, "unit": 0 }
+            "width": {
+              "value": 170,
+              "unit": 0
+            },
+            "height": {
+              "value": 44,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 50,
+              "unit": 1
+            },
+            "marginLeft": {
+              "value": -180,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 108,
+              "unit": 0
+            }
           }
         },
-        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0.19, "g": 0.21, "b": 0.26, "a": 1 } } },
-        { "type": "Interactable", "data": { "enabled": true, "blockRaycast": true, "raycastTarget": true } },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "color": {
+              "r": 0.19,
+              "g": 0.21,
+              "b": 0.26,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "Interactable",
+          "data": {
+            "enabled": true,
+            "blockRaycast": true,
+            "raycastTarget": true
+          }
+        },
         {
           "type": "UIController",
           "data": {
             "controllers": [
-              { "name": "$interaction", "pages": ["normal", "hover", "pressed", "disabled", "focused"], "current": "normal" }
+              {
+                "name": "$interaction",
+                "pages": [
+                  "normal",
+                  "hover",
+                  "pressed",
+                  "disabled",
+                  "focused"
+                ],
+                "current": "normal"
+              }
             ]
           }
         },
@@ -101,11 +218,29 @@
                 "component": "UIVisual",
                 "property": "color",
                 "pages": {
-                  "normal": { "r": 0.19, "g": 0.21, "b": 0.26, "a": 1 },
-                  "hover": { "r": 0.26, "g": 0.29, "b": 0.36, "a": 1 },
-                  "pressed": { "r": 0.14, "g": 0.16, "b": 0.2, "a": 1 }
+                  "normal": {
+                    "r": 0.19,
+                    "g": 0.21,
+                    "b": 0.26,
+                    "a": 1
+                  },
+                  "hover": {
+                    "r": 0.26,
+                    "g": 0.29,
+                    "b": 0.36,
+                    "a": 1
+                  },
+                  "pressed": {
+                    "r": 0.14,
+                    "g": 0.16,
+                    "b": 0.2,
+                    "a": 1
+                  }
                 },
-                "tween": { "easing": 5, "duration": 0.12 }
+                "tween": {
+                  "easing": 5,
+                  "duration": 0.12
+                }
               }
             ]
           }
@@ -114,8 +249,17 @@
           "type": "EventBinding",
           "data": {
             "rows": [
-              { "event": "click", "action": "ui.setPage", "arg": "tabs:home" },
-              { "event": "click", "action": "ui.setPage", "arg": "badge:off", "target": "Card" }
+              {
+                "event": "click",
+                "action": "ui.setPage",
+                "arg": "tabs:home"
+              },
+              {
+                "event": "click",
+                "action": "ui.setPage",
+                "arg": "badge:off",
+                "target": "Card"
+              }
             ]
           }
         }
@@ -128,15 +272,30 @@
       "parent": 3,
       "children": [],
       "components": [
-        { "type": "Transform", "data": {} },
+        {
+          "type": "Transform",
+          "data": {}
+        },
         {
           "type": "UINode",
           "data": {
             "position": 1,
-            "insetLeft": { "value": 0, "unit": 0 },
-            "insetRight": { "value": 0, "unit": 0 },
-            "insetTop": { "value": 0, "unit": 0 },
-            "insetBottom": { "value": 0, "unit": 0 }
+            "insetLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetBottom": {
+              "value": 0,
+              "unit": 0
+            }
           }
         },
         {
@@ -144,7 +303,12 @@
           "data": {
             "content": "Home",
             "fontSize": 16,
-            "color": { "r": 0.93, "g": 0.94, "b": 0.97, "a": 1 },
+            "color": {
+              "r": 0.93,
+              "g": 0.94,
+              "b": 0.97,
+              "a": 1
+            },
             "align": 1,
             "verticalAlign": 1
           }
@@ -156,27 +320,75 @@
       "id": 5,
       "name": "SettingsButton",
       "parent": 1,
-      "children": [6],
+      "children": [
+        6
+      ],
       "components": [
-        { "type": "Transform", "data": {} },
+        {
+          "type": "Transform",
+          "data": {}
+        },
         {
           "type": "UINode",
           "data": {
             "position": 1,
-            "width": { "value": 170, "unit": 0 },
-            "height": { "value": 44, "unit": 0 },
-            "insetLeft": { "value": 50, "unit": 1 },
-            "marginLeft": { "value": 10, "unit": 0 },
-            "insetTop": { "value": 108, "unit": 0 }
+            "width": {
+              "value": 170,
+              "unit": 0
+            },
+            "height": {
+              "value": 44,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 50,
+              "unit": 1
+            },
+            "marginLeft": {
+              "value": 10,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 108,
+              "unit": 0
+            }
           }
         },
-        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0.19, "g": 0.21, "b": 0.26, "a": 1 } } },
-        { "type": "Interactable", "data": { "enabled": true, "blockRaycast": true, "raycastTarget": true } },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "color": {
+              "r": 0.19,
+              "g": 0.21,
+              "b": 0.26,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "Interactable",
+          "data": {
+            "enabled": true,
+            "blockRaycast": true,
+            "raycastTarget": true
+          }
+        },
         {
           "type": "UIController",
           "data": {
             "controllers": [
-              { "name": "$interaction", "pages": ["normal", "hover", "pressed", "disabled", "focused"], "current": "normal" }
+              {
+                "name": "$interaction",
+                "pages": [
+                  "normal",
+                  "hover",
+                  "pressed",
+                  "disabled",
+                  "focused"
+                ],
+                "current": "normal"
+              }
             ]
           }
         },
@@ -189,11 +401,29 @@
                 "component": "UIVisual",
                 "property": "color",
                 "pages": {
-                  "normal": { "r": 0.19, "g": 0.21, "b": 0.26, "a": 1 },
-                  "hover": { "r": 0.26, "g": 0.29, "b": 0.36, "a": 1 },
-                  "pressed": { "r": 0.14, "g": 0.16, "b": 0.2, "a": 1 }
+                  "normal": {
+                    "r": 0.19,
+                    "g": 0.21,
+                    "b": 0.26,
+                    "a": 1
+                  },
+                  "hover": {
+                    "r": 0.26,
+                    "g": 0.29,
+                    "b": 0.36,
+                    "a": 1
+                  },
+                  "pressed": {
+                    "r": 0.14,
+                    "g": 0.16,
+                    "b": 0.2,
+                    "a": 1
+                  }
                 },
-                "tween": { "easing": 5, "duration": 0.12 }
+                "tween": {
+                  "easing": 5,
+                  "duration": 0.12
+                }
               }
             ]
           }
@@ -202,8 +432,23 @@
           "type": "EventBinding",
           "data": {
             "rows": [
-              { "event": "click", "action": "ui.setPage", "params": { "controller": "tabs", "page": "settings" } },
-              { "event": "click", "action": "ui.setPage", "params": { "controller": "badge", "page": "on" }, "target": "Card" }
+              {
+                "event": "click",
+                "action": "ui.setPage",
+                "params": {
+                  "controller": "tabs",
+                  "page": "settings"
+                }
+              },
+              {
+                "event": "click",
+                "action": "ui.setPage",
+                "params": {
+                  "controller": "badge",
+                  "page": "on"
+                },
+                "target": "Card"
+              }
             ]
           }
         }
@@ -216,15 +461,30 @@
       "parent": 5,
       "children": [],
       "components": [
-        { "type": "Transform", "data": {} },
+        {
+          "type": "Transform",
+          "data": {}
+        },
         {
           "type": "UINode",
           "data": {
             "position": 1,
-            "insetLeft": { "value": 0, "unit": 0 },
-            "insetRight": { "value": 0, "unit": 0 },
-            "insetTop": { "value": 0, "unit": 0 },
-            "insetBottom": { "value": 0, "unit": 0 }
+            "insetLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetBottom": {
+              "value": 0,
+              "unit": 0
+            }
           }
         },
         {
@@ -232,7 +492,12 @@
           "data": {
             "content": "Settings",
             "fontSize": 16,
-            "color": { "r": 0.93, "g": 0.94, "b": 0.97, "a": 1 },
+            "color": {
+              "r": 0.93,
+              "g": 0.94,
+              "b": 0.97,
+              "a": 1
+            },
             "align": 1,
             "verticalAlign": 1
           }
@@ -244,26 +509,65 @@
       "id": 7,
       "name": "Card",
       "parent": 1,
-      "children": [8, 9],
+      "children": [
+        8,
+        9
+      ],
       "components": [
-        { "type": "Transform", "data": {} },
+        {
+          "type": "Transform",
+          "data": {}
+        },
         {
           "type": "UINode",
           "data": {
             "position": 1,
-            "width": { "value": 440, "unit": 0 },
-            "height": { "value": 230, "unit": 0 },
-            "insetLeft": { "value": 50, "unit": 1 },
-            "marginLeft": { "value": -220, "unit": 0 },
-            "insetTop": { "value": 186, "unit": 0 }
+            "width": {
+              "value": 440,
+              "unit": 0
+            },
+            "height": {
+              "value": 230,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 50,
+              "unit": 1
+            },
+            "marginLeft": {
+              "value": -220,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 186,
+              "unit": 0
+            }
           }
         },
-        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0.22, "g": 0.45, "b": 0.78, "a": 1 } } },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "color": {
+              "r": 0.22,
+              "g": 0.45,
+              "b": 0.78,
+              "a": 1
+            }
+          }
+        },
         {
           "type": "UIController",
           "data": {
             "controllers": [
-              { "name": "badge", "pages": ["off", "on"], "current": "off" }
+              {
+                "name": "badge",
+                "pages": [
+                  "off",
+                  "on"
+                ],
+                "current": "off"
+              }
             ]
           }
         },
@@ -276,10 +580,23 @@
                 "component": "UIVisual",
                 "property": "color",
                 "pages": {
-                  "home": { "r": 0.22, "g": 0.45, "b": 0.78, "a": 1 },
-                  "settings": { "r": 0.45, "g": 0.3, "b": 0.72, "a": 1 }
+                  "home": {
+                    "r": 0.22,
+                    "g": 0.45,
+                    "b": 0.78,
+                    "a": 1
+                  },
+                  "settings": {
+                    "r": 0.45,
+                    "g": 0.3,
+                    "b": 0.72,
+                    "a": 1
+                  }
                 },
-                "tween": { "easing": 5, "duration": 0.2 }
+                "tween": {
+                  "easing": 5,
+                  "duration": 0.2
+                }
               }
             ]
           }
@@ -293,15 +610,30 @@
       "parent": 7,
       "children": [],
       "components": [
-        { "type": "Transform", "data": {} },
+        {
+          "type": "Transform",
+          "data": {}
+        },
         {
           "type": "UINode",
           "data": {
             "position": 1,
-            "insetLeft": { "value": 24, "unit": 0 },
-            "insetRight": { "value": 24, "unit": 0 },
-            "insetTop": { "value": 0, "unit": 0 },
-            "insetBottom": { "value": 0, "unit": 0 }
+            "insetLeft": {
+              "value": 24,
+              "unit": 0
+            },
+            "insetRight": {
+              "value": 24,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetBottom": {
+              "value": 0,
+              "unit": 0
+            }
           }
         },
         {
@@ -310,7 +642,12 @@
             "content": "HOME — the click switched the \"tabs\" controller, and this card's colour and text are gears reading it.",
             "fontSize": 16,
             "wordWrap": true,
-            "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
             "align": 1,
             "verticalAlign": 1
           }
@@ -340,18 +677,44 @@
       "parent": 7,
       "children": [],
       "components": [
-        { "type": "Transform", "data": {} },
+        {
+          "type": "Transform",
+          "data": {}
+        },
         {
           "type": "UINode",
           "data": {
             "position": 1,
-            "width": { "value": 18, "unit": 0 },
-            "height": { "value": 18, "unit": 0 },
-            "insetRight": { "value": 14, "unit": 0 },
-            "insetTop": { "value": 14, "unit": 0 }
+            "width": {
+              "value": 18,
+              "unit": 0
+            },
+            "height": {
+              "value": 18,
+              "unit": 0
+            },
+            "insetRight": {
+              "value": 14,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 14,
+              "unit": 0
+            }
           }
         },
-        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 1, "g": 0.78, "b": 0.25, "a": 0 } } },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "color": {
+              "r": 1,
+              "g": 0.78,
+              "b": 0.25,
+              "a": 0
+            }
+          }
+        },
         {
           "type": "UIGear",
           "data": {
@@ -361,10 +724,23 @@
                 "component": "UIVisual",
                 "property": "color",
                 "pages": {
-                  "off": { "r": 1, "g": 0.78, "b": 0.25, "a": 0 },
-                  "on": { "r": 1, "g": 0.78, "b": 0.25, "a": 1 }
+                  "off": {
+                    "r": 1,
+                    "g": 0.78,
+                    "b": 0.25,
+                    "a": 0
+                  },
+                  "on": {
+                    "r": 1,
+                    "g": 0.78,
+                    "b": 0.25,
+                    "a": 1
+                  }
                 },
-                "tween": { "easing": 5, "duration": 0.2 }
+                "tween": {
+                  "easing": 5,
+                  "duration": 0.2
+                }
               }
             ]
           }
@@ -378,16 +754,34 @@
       "parent": 1,
       "children": [],
       "components": [
-        { "type": "Transform", "data": {} },
+        {
+          "type": "Transform",
+          "data": {}
+        },
         {
           "type": "UINode",
           "data": {
             "position": 1,
-            "width": { "value": 660, "unit": 0 },
-            "height": { "value": 46, "unit": 0 },
-            "insetLeft": { "value": 50, "unit": 1 },
-            "marginLeft": { "value": -330, "unit": 0 },
-            "insetTop": { "value": 448, "unit": 0 }
+            "width": {
+              "value": 660,
+              "unit": 0
+            },
+            "height": {
+              "value": 46,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 50,
+              "unit": 1
+            },
+            "marginLeft": {
+              "value": -330,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 476,
+              "unit": 0
+            }
           }
         },
         {
@@ -396,7 +790,198 @@
             "content": "src/main.ts is empty. Select a button and open Details → Events to see the wire.",
             "fontSize": 14,
             "wordWrap": true,
-            "color": { "r": 0.62, "g": 0.66, "b": 0.73, "a": 1 },
+            "color": {
+              "r": 0.62,
+              "g": 0.66,
+              "b": 0.73,
+              "a": 1
+            },
+            "align": 1,
+            "verticalAlign": 1
+          }
+        },
+        {
+          "type": "StateMachineAgent",
+          "data": {
+            "fsm": "assets/ai/director.esfsm"
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 11,
+      "name": "StartButton",
+      "parent": 1,
+      "children": [
+        12
+      ],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": {
+              "value": 190,
+              "unit": 0
+            },
+            "height": {
+              "value": 38,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 50,
+              "unit": 1
+            },
+            "marginLeft": {
+              "value": -95,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 428,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "color": {
+              "r": 0.24,
+              "g": 0.3,
+              "b": 0.28,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "Interactable",
+          "data": {
+            "enabled": true,
+            "blockRaycast": true,
+            "raycastTarget": true
+          }
+        },
+        {
+          "type": "UIController",
+          "data": {
+            "controllers": [
+              {
+                "name": "$interaction",
+                "pages": [
+                  "normal",
+                  "hover",
+                  "pressed",
+                  "disabled",
+                  "focused"
+                ],
+                "current": "normal"
+              }
+            ]
+          }
+        },
+        {
+          "type": "UIGear",
+          "data": {
+            "bindings": [
+              {
+                "controller": "$interaction",
+                "component": "UIVisual",
+                "property": "color",
+                "pages": {
+                  "normal": {
+                    "r": 0.24,
+                    "g": 0.3,
+                    "b": 0.28,
+                    "a": 1
+                  },
+                  "hover": {
+                    "r": 0.3,
+                    "g": 0.4,
+                    "b": 0.36,
+                    "a": 1
+                  },
+                  "pressed": {
+                    "r": 0.18,
+                    "g": 0.24,
+                    "b": 0.22,
+                    "a": 1
+                  }
+                },
+                "tween": {
+                  "easing": 5,
+                  "duration": 0.12
+                }
+              }
+            ]
+          }
+        },
+        {
+          "type": "EventBinding",
+          "data": {
+            "rows": [
+              {
+                "event": "click",
+                "target": "Hint",
+                "action": "fsm.fire",
+                "params": {
+                  "trigger": "start"
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 12,
+      "name": "StartLabel",
+      "parent": 11,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetBottom": {
+              "value": 0,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Start run",
+            "fontSize": 15,
+            "color": {
+              "r": 0.9,
+              "g": 0.94,
+              "b": 0.92,
+              "a": 1
+            },
             "align": 1,
             "verticalAlign": 1
           }

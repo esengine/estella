@@ -164,6 +164,13 @@ bindControllerPage(world, root, 'tab', activeTab);  // the controller follows th
 activeTab.set('shop');   // page switches, every geared element reflows
 ```
 
+**From a button, with no code** — an [event wire](/docs/guides/events/) on the button
+runs `ui.setPage` when it is clicked, targeting the entity that owns the controller:
+
+```json
+{ "event": "click", "action": "ui.setPage", "params": { "controller": "tab", "page": "shop" } }
+```
+
 **From a state machine** — the `ui.setPage` action lets a data-driven
 [FSM / behavior tree](/docs/guides/ai/) (`.esfsm` / `.esbt`) switch a page with no code.
 Its argument is `"controller:page"`:
@@ -194,3 +201,4 @@ controller state → gear presentation.
 - [UI Components](/docs/guides/ui-components/) — the widget factories.
 - [Timeline](/docs/guides/timeline/) — keyframed transitions; gears use the same field addressing.
 - [Gameplay AI](/docs/guides/ai/) — the `.esfsm` / `.esbt` that can call `ui.setPage`.
+- [Event Binding](/docs/guides/events/) — wire a click straight to `ui.setPage`, no code.
