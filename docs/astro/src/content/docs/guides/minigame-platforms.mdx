@@ -1,0 +1,170 @@
+---
+title: Mini-Game Platforms
+description: How the mini-game platform family works, and how to bring up a vendor Estella does not ship.
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+WeChat MiniGame is not a special case in Estella — it is one **profile** of a
+platform *family*. Mini-game hosts (WeChat's `wx`, Douyin's `tt`, and the rest)
+expose a near-identical API: no DOM, a packaged filesystem, subpackages, touch
+input, key-value storage. Estella implements that model **once** and describes
+each vendor as data.
+
+This guide is for bringing up a vendor Estella does not ship. If you are
+shipping to WeChat, you want [WeChat MiniGame](/guides/wechat) instead.
+
+<Aside type="caution">
+  **Pre-1.0.** The profile contract is `@beta`: it may gain fields as vendors
+  beyond WeChat are brought up against real devices.
+</Aside>
+
+## What a vendor costs
+
+A profile is **three facts and, at most, one method**:
+
+```ts
+import { installMiniGamePlatform } from 'esengine/minigame';
+
+declare const myHost: any;   // the host global, e.g. `tt`
+
+installMiniGamePlatform({
+  id: 'myvendor',
+  hostLabel: 'MyVendor',
+  get global() { return myHost; },
+});
+```
+
+That is a complete platform. Filesystem, `fetch`, canvas, image decode, touch and
+key input, storage, subpackages, memory-pressure signals, device pixel ratio and
+language all come from the normalized host global. So do **audio**
+(`createInnerAudioContext`) and **sockets** (`connectSocket`). Video uses the
+engine's own wasm MPEG-1 decoder, which is portable to every host.
+
+Read `global` through a getter, as above: the host global is ambient at runtime,
+and a getter means importing your profile in a bundler or a test never touches an
+undefined binding.
+
+### The one genuine divergence
+
+WASM instantiation. WeChat routes it through `WXWebAssembly.instantiate(path)`
+rather than the standard `WebAssembly`, so its profile overrides one method:
+
+```ts
+{
+  id: 'wechat',
+  hostLabel: 'WeChat',
+  get global() { return wx as unknown as MiniGameGlobal; },
+  instantiateWasm(pathOrBuffer, imports) { /* WXWebAssembly */ },
+}
+```
+
+If your host uses standard `WebAssembly`, omit it — the family reads the binary
+through the packaged filesystem and instantiates it.
+
+`createAudioBackend`, `createVideoBackend` and `createSocket` are optional the
+same way. Override one only where the host genuinely differs; the defaults are
+`MiniGameAudioBackend`, the wasm video decoder, and `MiniGameSocket`, all
+exported from `esengine/minigame` so you can wrap rather than rewrite.
+
+## What the host must provide
+
+Your `global` has to satisfy `MiniGameGlobal`. Required:
+
+| Member | Used for |
+| --- | --- |
+| `createCanvas()` | display surface (first call) + offscreen 2D |
+| `createImage()` | image decode |
+| `getFileSystemManager()` | `readFileSync` / `readFile` / `access` / `accessSync` / `writeFile` |
+| `request(opts)` | the `fetch` polyfill |
+| `createInnerAudioContext()` | audio playback |
+| `connectSocket(opts)` | `GameSocket` / replication |
+| `getSystemInfoSync()` | viewport size, pixel ratio, language |
+| `onTouchStart/Move/End` + `off*` | pointer input |
+| `getStorageSync` / `setStorageSync` / `removeStorageSync` / `getStorageInfoSync` | save data, hot-update bookkeeping |
+
+Optional — the adapter probes for these and degrades gracefully when a host
+lacks one: `onTouchCancel`/`offTouchCancel`, `onKeyDown`/`onKeyUp` (+ `off*`),
+`loadSubpackage`, `onMemoryWarning`/`offMemoryWarning`, `onShow`/`onHide`.
+
+<Aside type="note">
+  `isMiniGame()` reads the adapter's declared **family**, not a list of vendor
+  names — so your platform gets every mini-game code path (packaged reads,
+  subpackage groups, no-DOM branches) the moment it is installed. `isWeChat()`
+  stays false, as it should: it is a vendor check, not a capability check.
+</Aside>
+
+## Booting the game
+
+The shipped package's entry calls the family runtime:
+
+```js
+// game.js — the host runs this
+const engineFactory = require('./wasm/esengine.js');
+const bundle = require('./game-bundle.js');
+bundle.boot(engineFactory, { /* side module factories */ });
+```
+
+```ts
+// bundled with your game
+import { installMiniGamePlatform, initMiniGameRuntime } from 'esengine/minigame';
+import { myProfile } from './myProfile';
+
+export function boot(engineFactory, sideModuleFactories) {
+  installMiniGamePlatform(myProfile);
+  return initMiniGameRuntime({
+    engineFactory,
+    engineWasmPath: 'wasm/esengine.wasm',
+    sceneNames: ['Main'],
+    firstScene: 'Main',
+    sideModuleFactories,
+  });
+}
+```
+
+`initMiniGameRuntime` takes the display canvas from the adapter, registers its
+GL context with the engine module, loads the addressable manifest, and runs the
+app — the same sequence WeChat boots through. `initWeChatRuntime` is this
+function with WeChat's staged wasm name filled in, and nothing else.
+
+<Aside type="note">
+  Install the platform **before** `initMiniGameRuntime`; it throws with the fix
+  in the message if you don't. The first `createCanvas()` of the process is the
+  display surface on every mini-game host, so nothing may create a canvas before
+  the runtime does.
+</Aside>
+
+## Packaging
+
+The export pipeline (`exportMiniGame`) is shared the same way: cook → manifest →
+scene transform → side-module scan → bundle → config/entry → runtime copy. A
+vendor is a `MiniGameExportProfile` describing what varies:
+
+| Field | What it says |
+| --- | --- |
+| `id` | vendor identity — also the **Import Settings key** the cook reads per texture |
+| `sdkEntryFile` | SDK dist entry `esengine` is aliased to |
+| `runtimeInit` | the boot function the generated entry imports |
+| `engineGlueCandidates` | engine glue filenames to look for, in preference order |
+| `esTarget` | syntax floor for the bundle and the down-leveled glue |
+| `wasmBuildHint` / `sideModuleBuildTargets` | the `build -t …` names in error guidance |
+| `nativeSuffixes` / `binRestageExts` | the packer's suffix policy |
+| `subpackageDir` | where lazy groups stage |
+| `emitConfigFiles` / `emitEntry` | the vendor's config files and `game.js` |
+
+<Aside type="caution">
+  **The export side lives in the editor, not in the SDK.** Adding a vendor to
+  *Package Project* means editing the engine: a profile in
+  `desktop/electron/miniGameExportProfile.ts`, a case in `exportGame.ts`, a card
+  in the Build dialog, and a wasm target in `build-tools/build.config.js` if the
+  host needs its own engine build. The runtime side above needs none of that —
+  you can ship to an unsupported host today by driving `initMiniGameRuntime`
+  from your own packaging script.
+</Aside>
+
+## Does the host need its own engine build?
+
+Only if it cannot load the web engine's wasm. WeChat needs one (`-t wechat`,
+`ES_BUILD_WXGAME`) because of `WXWebAssembly` and because it has no WebGPU. A
+host with standard `WebAssembly` and WebGL2 can ship the web build's glue —
+`engineGlueCandidates` already falls back to `esengine.js` for exactly this case.

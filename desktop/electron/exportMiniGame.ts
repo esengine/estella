@@ -39,7 +39,7 @@ import type { OnExportProgress } from './exportProgress';
 import { esengineAlias } from './esengineResolve';
 import {
   sceneUsesPhysics, sceneUsesVideo, detectSpineVersion, detectSpineVersionJson,
-  spineModuleId, SIDE_MODULE_FILE, WECHAT_MODULE_BUILD_TARGET,
+  spineModuleId, SIDE_MODULE_FILE,
 } from './sideModuleScan';
 import type { MiniGameExportProfile, MiniGameVendor } from './miniGameExportProfile';
 
@@ -103,6 +103,7 @@ function packIncludeSuffixes(entries: CookManifest['entries'], nativeSuffixes: R
  *  is a HARD error — the package would otherwise ship silently broken (same
  *  contract as the playable exporter's collectSideModules). */
 async function scanSideModules(
+  profile: MiniGameExportProfile,
   sceneDatas: unknown[],
   cookEntries: CookManifest['entries'],
   absOut: string,
@@ -139,7 +140,7 @@ async function scanSideModules(
   for (const id of ids) {
     const file = SIDE_MODULE_FILE[id];
     if (file && existsSync(path.join(wasmDir, `${file}.js`))) present.push({ id, file });
-    else errors.push(`scene needs "${id}" but ${file}.js is not in the mini-game wasm dir — build it with \`node build-tools/cli.js build -t ${WECHAT_MODULE_BUILD_TARGET[id] ?? id}\` and re-export.`);
+    else errors.push(`scene needs "${id}" but ${file}.js is not in the ${profile.id} wasm dir — build it with \`node build-tools/cli.js build -t ${profile.sideModuleBuildTargets[id] ?? id}\` and re-export.`);
   }
   return present;
 }
@@ -198,10 +199,15 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   const engineGlueFile = profile.engineGlueCandidates
     .find((f) => existsSync(path.join(opts.wasmDir, f)));
   if (!engineGlueFile) {
+    // The optional-module targets come off the profile, so the guidance names
+    // THIS vendor's builds rather than a hardcoded WeChat pair.
+    const moduleTargets = [...new Set(Object.values(profile.sideModuleBuildTargets))];
     errors.push(
       `${profile.id} engine runtime not found in ${opts.wasmDir} — ` +
-      `build it with \`node build-tools/cli.js build -t ${profile.wasmBuildHint}\` ` +
-      '(add -t physics-wechat / -t spine-wechat if the project uses physics or Spine)',
+      `build it with \`node build-tools/cli.js build -t ${profile.wasmBuildHint}\`` +
+      (moduleTargets.length > 0
+        ? ` (optional modules build separately: ${moduleTargets.map((t) => `-t ${t}`).join(' / ')})`
+        : ''),
     );
     return { ok: false, platform: profile.id, outDir: absOut, included: 0, warnings, errors };
   }
@@ -219,7 +225,9 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   //    manifest. KTX2 textures are fine here: the scan below sees the staged
   //    .ktx2 files and ships the Basis transcoder side module with them.
   progress({ phase: 'Cooking assets' });
-  const cook = await cookAssets(opts.root, { entryScenes: scenes.map((s) => s.path), outDir: absOut, contentAddressed: opts.contentAddressed, compressTextures: opts.compressTextures, compressAudio: opts.compressAudio, atlasTextures: opts.atlasTextures, transcodeVideo: true, platform: 'wechat' });
+  // `platform: profile.id` — the cook reads each texture's per-platform Import
+  // Settings under this key, so a vendor must cook against ITS OWN overrides.
+  const cook = await cookAssets(opts.root, { entryScenes: scenes.map((s) => s.path), outDir: absOut, contentAddressed: opts.contentAddressed, compressTextures: opts.compressTextures, compressAudio: opts.compressAudio, atlasTextures: opts.atlasTextures, transcodeVideo: true, platform: profile.id });
   warnings.push(...cook.warnings);
 
   // 1a. Restage for the vendor's code-package suffix whitelist (WeChat has no
@@ -266,7 +274,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   //     the generated entry requires exactly those — the export-time half of
   //     the runtime's self-gating. A dynamically switched scene must find its
   //     modules present, so the union over ALL shipped scenes counts.
-  const sideModules = await scanSideModules([...sceneRawByName.values()], cookEntries, absOut, opts.wasmDir, errors);
+  const sideModules = await scanSideModules(profile, [...sceneRawByName.values()], cookEntries, absOut, opts.wasmDir, errors);
   const sceneRaw = sceneRawByName.get(sceneName) ?? null;
   if (!sceneRaw) errors.push(`entry scene "${opts.entryScene}" was not staged by the cook`);
 

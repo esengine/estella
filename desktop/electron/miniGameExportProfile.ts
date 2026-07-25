@@ -11,8 +11,16 @@
  *
  * Adding a vendor = one profile object, not a fork of the pipeline.
  */
+import { WECHAT_MODULE_BUILD_TARGET } from './sideModuleScan';
 
-export type MiniGameVendor = 'wechat' | 'douyin';
+/**
+ * A mini-game vendor's id. Open on purpose: the value is identity — the cook's
+ * per-platform Import Settings key, the export result's `platform`, diagnostics
+ * — and nothing in the pipeline branches on it, so a vendor the editor does not
+ * ship can still be exported by handing {@link exportMiniGame} a profile.
+ * Mirrors the SDK's `MiniGameVendor` (sdk/src/platform/minigame/api.ts).
+ */
+export type MiniGameVendor = 'wechat' | 'douyin' | (string & {});
 
 /** Vendor-neutral facts the pipeline computes, handed to the config emitter. */
 export interface MiniGameConfigContext {
@@ -46,6 +54,10 @@ export interface MiniGameExportProfile {
     readonly esTarget: 'es2017' | 'es2019' | 'es2020';
     /** Build-target name woven into "runtime not found" errors (`build -t <hint>`). */
     readonly wasmBuildHint: string;
+    /** side-module id → the `build -t <target>` that produces it for THIS vendor.
+     *  The optional modules (physics/basis/videodec/spine) are built per vendor
+     *  runtime, so the "module missing" guidance cannot be a shared constant. */
+    readonly sideModuleBuildTargets: Readonly<Record<string, string>>;
     /** Extensions the packer handles natively (no packOptions.include needed). */
     readonly nativeSuffixes: ReadonlySet<string>;
     /** Custom extensions the packer denies unless restaged to `<ext>.bin`. */
@@ -75,6 +87,7 @@ export const wechatExportProfile: MiniGameExportProfile = {
     // accepts it; es2017 down-levels those while keeping async/await.
     esTarget: 'es2017',
     wasmBuildHint: 'wechat',
+    sideModuleBuildTargets: WECHAT_MODULE_BUILD_TARGET,
     // Script + config WeChat's packer compiles itself; every OTHER staged custom
     // extension needs a packOptions.include rule (fs reads are otherwise denied).
     nativeSuffixes: new Set(['.js', '.json']),

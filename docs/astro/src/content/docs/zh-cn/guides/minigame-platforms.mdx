@@ -1,0 +1,160 @@
+---
+title: 小游戏平台
+description: 小游戏平台家族的工作方式，以及如何接入一个 Estella 未内置的平台。
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+微信小游戏在 Estella 里不是特例，它只是平台**家族**的一个 **profile**。各家小游戏宿主
+（微信的 `wx`、抖音的 `tt` 等）暴露的 API 高度相似：没有 DOM、打包式文件系统、分包、
+触摸输入、键值存储。Estella 把这套模型**只实现一次**，每个平台厂商用数据来描述。
+
+本指南面向「接入 Estella 未内置的平台」。如果你的目标是微信，请看
+[微信小游戏](/zh-cn/guides/wechat)。
+
+<Aside type="caution">
+  **1.0 之前。** profile 契约标记为 `@beta`：随着微信之外的平台在真机上跑通，它可能
+  还会增加字段。
+</Aside>
+
+## 接入一个平台的成本
+
+一个 profile 就是**三个事实，外加至多一个方法**：
+
+```ts
+import { installMiniGamePlatform } from 'esengine/minigame';
+
+declare const myHost: any;   // 宿主全局对象，例如 `tt`
+
+installMiniGamePlatform({
+  id: 'myvendor',
+  hostLabel: 'MyVendor',
+  get global() { return myHost; },
+});
+```
+
+这就是一个完整的平台。文件系统、`fetch`、canvas、图片解码、触摸与按键输入、存储、
+分包、内存告警、设备像素比、语言，全部来自归一化后的宿主全局对象。**音频**
+（`createInnerAudioContext`）和 **socket**（`connectSocket`）也一样。视频走引擎自带的
+wasm MPEG-1 解码器，对任何宿主都可移植。
+
+`global` 要像上面那样用 getter 读取：宿主全局在运行时才存在，用 getter 才能保证在打包
+工具或测试里 import 你的 profile 时不会碰到未定义的绑定。
+
+### 唯一真正的分歧
+
+WASM 实例化。微信走 `WXWebAssembly.instantiate(path)` 而不是标准 `WebAssembly`，
+所以它的 profile 覆盖了这一个方法：
+
+```ts
+{
+  id: 'wechat',
+  hostLabel: 'WeChat',
+  get global() { return wx as unknown as MiniGameGlobal; },
+  instantiateWasm(pathOrBuffer, imports) { /* WXWebAssembly */ },
+}
+```
+
+如果你的宿主用标准 `WebAssembly`，就不用写它——家族会通过打包文件系统读出二进制并
+实例化。
+
+`createAudioBackend`、`createVideoBackend`、`createSocket` 同样是可选的。只在宿主
+**确实**不同的地方覆盖；默认实现是 `MiniGameAudioBackend`、wasm 视频解码器和
+`MiniGameSocket`，它们都从 `esengine/minigame` 导出，你可以包装而不必重写。
+
+## 宿主需要提供什么
+
+你的 `global` 需要满足 `MiniGameGlobal`。必需成员：
+
+| 成员 | 用途 |
+| --- | --- |
+| `createCanvas()` | 上屏画布（第一次调用）+ 离屏 2D |
+| `createImage()` | 图片解码 |
+| `getFileSystemManager()` | `readFileSync` / `readFile` / `access` / `accessSync` / `writeFile` |
+| `request(opts)` | `fetch` polyfill |
+| `createInnerAudioContext()` | 音频播放 |
+| `connectSocket(opts)` | `GameSocket` / 状态同步 |
+| `getSystemInfoSync()` | 视口尺寸、像素比、语言 |
+| `onTouchStart/Move/End` + `off*` | 指针输入 |
+| `getStorageSync` / `setStorageSync` / `removeStorageSync` / `getStorageInfoSync` | 存档、热更新记账 |
+
+可选成员——适配器会探测，宿主缺失时优雅降级：`onTouchCancel`/`offTouchCancel`、
+`onKeyDown`/`onKeyUp`（及 `off*`）、`loadSubpackage`、
+`onMemoryWarning`/`offMemoryWarning`、`onShow`/`onHide`。
+
+<Aside type="note">
+  `isMiniGame()` 读的是适配器声明的**家族**，而不是平台名字清单——所以你的平台一装上，
+  就自动走到所有小游戏代码路径（打包读取、分包组、无 DOM 分支）。`isWeChat()` 仍然返回
+  false，这是对的：它是厂商判断，不是能力判断。
+</Aside>
+
+## 启动游戏
+
+发布包的入口调用家族 runtime：
+
+```js
+// game.js —— 宿主执行这个文件
+const engineFactory = require('./wasm/esengine.js');
+const bundle = require('./game-bundle.js');
+bundle.boot(engineFactory, { /* side module 工厂 */ });
+```
+
+```ts
+// 与游戏一起打包
+import { installMiniGamePlatform, initMiniGameRuntime } from 'esengine/minigame';
+import { myProfile } from './myProfile';
+
+export function boot(engineFactory, sideModuleFactories) {
+  installMiniGamePlatform(myProfile);
+  return initMiniGameRuntime({
+    engineFactory,
+    engineWasmPath: 'wasm/esengine.wasm',
+    sceneNames: ['Main'],
+    firstScene: 'Main',
+    sideModuleFactories,
+  });
+}
+```
+
+`initMiniGameRuntime` 从适配器取上屏画布，把它的 GL 上下文注册到引擎模块，加载可寻址
+manifest，然后跑起 app——和微信走的是同一条序列。`initWeChatRuntime` 就是这个函数
+填上微信构建产物的 wasm 文件名，没有别的。
+
+<Aside type="note">
+  必须**先**装平台再调 `initMiniGameRuntime`；漏了会抛错，错误信息里直接给出改法。
+  在所有小游戏宿主上，进程里第一次 `createCanvas()` 返回的就是上屏画布，所以在 runtime
+  之前不能有任何代码创建画布。
+</Aside>
+
+## 打包
+
+导出管线（`exportMiniGame`）以同样的方式共享：cook → manifest → 场景变换 →
+side-module 扫描 → 打包 → 配置/入口 → 拷贝运行时。一个平台就是一个
+`MiniGameExportProfile`，描述有差异的部分：
+
+| 字段 | 含义 |
+| --- | --- |
+| `id` | 平台身份——同时是 cook 逐纹理读取的**导入设置键** |
+| `sdkEntryFile` | `esengine` 被 alias 到的 SDK dist 入口 |
+| `runtimeInit` | 生成的入口所 import 的启动函数 |
+| `engineGlueCandidates` | 按优先级查找的引擎 glue 文件名 |
+| `esTarget` | 游戏包与降级后 glue 的语法下限 |
+| `wasmBuildHint` / `sideModuleBuildTargets` | 错误提示里的 `build -t …` 名字 |
+| `nativeSuffixes` / `binRestageExts` | 打包器的后缀策略 |
+| `subpackageDir` | 懒加载分组落盘的位置 |
+| `emitConfigFiles` / `emitEntry` | 该平台的配置文件与 `game.js` |
+
+<Aside type="caution">
+  **导出侧在编辑器里，不在 SDK 里。** 要让一个平台出现在「打包项目」中，需要改引擎：
+  在 `desktop/electron/miniGameExportProfile.ts` 加 profile、在 `exportGame.ts` 加分派、
+  在构建弹窗加卡片，如果宿主需要自己的引擎构建，还要在
+  `build-tools/build.config.js` 加 wasm 目标。上面的运行时侧不需要这些——你今天就可以
+  用自己的打包脚本驱动 `initMiniGameRuntime`，发布到未内置的宿主。
+</Aside>
+
+## 宿主需要单独的引擎构建吗？
+
+只有当它加载不了 web 引擎的 wasm 时才需要。微信需要（`-t wechat`，`ES_BUILD_WXGAME`），
+因为它有 `WXWebAssembly` 且没有 WebGPU。一个支持标准 `WebAssembly` 和 WebGL2 的宿主
+可以直接用 web 构建的 glue——`engineGlueCandidates` 里已经有回退到 `esengine.js` 的
+分支，正是为这种情况准备的。
