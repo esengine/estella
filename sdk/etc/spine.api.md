@@ -16,7 +16,7 @@ collectAllEvents: () => { entity: Entity; raw: RawSpineEvent; }[]
 controller: SpineModuleController
 enableEvents: (entity: Entity) => void
 entityCount: number
-extractAndSubmitMeshes: (coreModule: ESEngineModule, registry: CppRegistry) => void
+extractAndSubmitMeshes: (core: NonNullable<EngineApi>, registry: CppRegistry) => void
 getAnimations: (entity: Entity) => string[]
 getBounds: (entity: Entity) => { x: number; y: number; width: number; height: number; } | null
 getPathConstraintMix: (entity: Entity, name: string) => PathMixData | null
@@ -131,7 +131,7 @@ submitMeshes: (registry: CppRegistry) => void
 updateAnimations: (dt: number) => void
 static detectVersion: (data: Uint8Array) => SpineVersion | null
 static detectVersionJson: (json: string) => SpineVersion | null
-static new (coreModule: ESEngineModule, moduleFactories: Map<SpineVersion, SpineModuleFactory>): SpineManager
+static new (coreModule: NonNullable<EngineApi>, moduleFactories: Map<SpineVersion, SpineModuleFactory>): SpineManager
 static prototype: SpineManager
 ```
 
@@ -216,12 +216,12 @@ mixY: number
 
 ## loadSpineAssets — function
 ```
-(module: ESEngineModule, source: RuntimeAssetSource, spineManager: SpineManager | null | undefined, spinePairs: ReadonlyArray<{ skeleton: string; atlas: string; }>, transcoderProvider?: TranscoderProvider): Promise<Map<string, SpineAssetInfo>>
+(module: ESEngineModule | null, source: RuntimeAssetSource, spineManager: SpineManager | null | undefined, spinePairs: ReadonlyArray<{ skeleton: string; atlas: string; }>, transcoderProvider?: TranscoderProvider): Promise<Map<string, SpineAssetInfo>>
 ```
 
 ## loadSpineSceneEntities — function
 ```
-(opts: { module: ESEngineModule; source: RuntimeAssetSource; spineManager: SpineManager; sceneData: SceneData; entityMap: Map<number, Entity>; registry: CppRegistry; transcoderProvider?: TranscoderProvider; }): Promise<void>
+(opts: { module: ESEngineModule | null; source: RuntimeAssetSource; spineManager: SpineManager; sceneData: SceneData; entityMap: Map<number, Entity>; registry: CppRegistry; transcoderProvider?: TranscoderProvider; }): Promise<void>
 ```
 
 ## spineEntityProps — function

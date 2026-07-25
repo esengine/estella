@@ -22,7 +22,7 @@
  */
 
 import { createSideModuleHost, type SideModuleHost, type SideModule } from '../sideModules/host';
-import type { SideModuleId } from '../sideModules/registry';
+import { SPINE_VERSIONS, spineModuleId, type SideModuleId } from '../sideModules/registry';
 import { log } from '../logger';
 import { createNativeHeap, type NativeHeap } from './nativeHeap';
 
@@ -34,7 +34,44 @@ import { createNativeHeap, type NativeHeap } from './nativeHeap';
 export const NATIVE_SIDE_MODULE_PROBES: Partial<Record<SideModuleId, string>> = {
     physics: 'es_physics_init',
     videodec: 'es_video_open',
+    // One entry per Spine version the SDK can ask for; which one this host actually
+    // linked is a second question (see SPINE_VERSION_BINDING), because the three
+    // vendored runtimes export the same symbols and a binary carries exactly one.
+    'spine:4.2': 'es_spine_loadSkeleton',
+    'spine:4.1': 'es_spine_loadSkeleton',
+    'spine:3.8': 'es_spine_loadSkeleton',
 };
+
+/** The host global that reports the linked Spine runtime (38 / 41 / 42). */
+export const SPINE_VERSION_BINDING = 'es_spine_runtimeVersion';
+
+/** The id the host's own Spine runtime answers to, or null if it linked none. */
+function nativeSpineId(scope: Record<string, unknown>): SideModuleId | null {
+    const report = scope[SPINE_VERSION_BINDING];
+    if (typeof report !== 'function') return null;
+    const version = (report as () => number)();
+    const id = SPINE_VERSIONS.find((v) => v.replace('.', '') === String(version));
+    return id ? spineModuleId(id) : null;
+}
+
+/** A NUL-terminated UTF-8 string at `ptr` in the heap; empty for a null pointer,
+ *  which is what emscripten's UTF8ToString(0) answers. */
+function readUtf8(heap: NativeHeap, ptr: number): string {
+    if (!ptr) return '';
+    let end = ptr;
+    while (end < heap.HEAPU8.length && heap.HEAPU8[end] !== 0) end++;
+    return new TextDecoder().decode(heap.HEAPU8.subarray(ptr, end));
+}
+
+/** Copy `str` into the heap as NUL-terminated UTF-8; the caller frees it. */
+function writeUtf8(heap: NativeHeap, str: string): number {
+    const bytes = new TextEncoder().encode(str);
+    const ptr = heap._malloc(bytes.length + 1);
+    if (!ptr) return 0;
+    heap.HEAPU8.set(bytes, ptr);
+    heap.HEAPU8[ptr + bytes.length] = 0;
+    return ptr;
+}
 
 /**
  * The host global behind an emscripten C-export name: `_physics_step` →
@@ -53,7 +90,20 @@ function hostGlobal(exportName: string): string {
  * before passing an offset.
  */
 function nativeCModule(scope: Record<string, unknown>, heap: NativeHeap): SideModule {
-    const resolved: Record<string, unknown> = { ...heap };
+    const resolved: Record<string, unknown> = {
+        ...heap,
+        /**
+         * emscripten's `cwrap`, as a passthrough. It exists to convert JS strings to
+         * C strings and back around a raw export; the generated wrapper already takes
+         * and returns JS strings where the declaration says `const char*`, so there is
+         * nothing left to convert — the argument types are the caller's statement about
+         * a surface that already agrees with them.
+         */
+        cwrap: (ident: string): unknown => scope[hostGlobal(`_${ident}`)],
+        /** The heap's string helpers, in the same terms emscripten states them. */
+        UTF8ToString: (ptr: number): string => readUtf8(heap, ptr),
+        stringToNewUTF8: (str: string): number => writeUtf8(heap, str),
+    };
     return new Proxy(resolved, {
         get(target, prop): unknown {
             if (prop in target) return Reflect.get(target, prop);
@@ -92,6 +142,19 @@ export function createNativeSideModules(
                 `[native] "${id}" is not compiled into this host (${probe} is not bound) — `
                 + 'rebuild it with that subsystem enabled',
             );
+        }
+        // A Spine binary is one runtime. Answering the wrong version would load a
+        // skeleton with a decoder that cannot read its format, so a project authored
+        // against another release is told which one this app carries instead.
+        if (id.startsWith('spine:')) {
+            const linked = nativeSpineId(scope);
+            if (linked !== id) {
+                throw new Error(
+                    `[native] this app links Spine ${linked ? linked.slice(6) : 'none'}, and the `
+                    + `content asks for ${id.slice(6)} — rebuild with `
+                    + `-DESTELLA_SPINE_VERSION=${id.slice(6)} (a binary carries one runtime)`,
+                );
+            }
         }
         if (!heap) {
             throw new Error(

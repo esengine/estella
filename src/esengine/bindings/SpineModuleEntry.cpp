@@ -9,9 +9,21 @@
  * Core WASM handles all rendering via renderer_submitTriangles.
  *
  * Uses spine-c (pure C runtime) for minimal WASM size.
+ *
+ * The same TU compiles into the native host binary, where there is no side-module
+ * story: the entry points are declared in SpineBindings.hpp and reached through the
+ * QuickJS wrappers EHT generates from them.
  */
 
+// KEEPALIVE keeps these exported through the emscripten link; natively the attribute
+// has no meaning and the header does not exist.
+#ifdef __EMSCRIPTEN__
 #include <emscripten.h>
+#else
+#define EMSCRIPTEN_KEEPALIVE
+#endif
+
+#include "SpineBindings.hpp"
 
 #include <spine/spine.h>
 #include <spine/extension.h>
@@ -1124,8 +1136,34 @@ int spine_setSkeletonColor(int instanceId, float r, float g, float b, float a) {
     return 1;
 }
 
+// Which spine-c runtime this build linked. The three vendored runtimes export the
+// same symbols, so a binary carries exactly one and the caller has to be able to ask
+// (the web names the artifact instead — spine38.wasm / spine41 / spine42).
+EMSCRIPTEN_KEEPALIVE
+int spine_runtimeVersion() {
+#if defined(ES_SPINE_38)
+    return 38;
+#elif defined(ES_SPINE_41)
+    return 41;
+#else
+    return 42;
+#endif
+}
+
+// The live extent of the event buffer, for the readback getter above: it is this
+// module's own vector, so a caller cannot infer it from a count and a stride without
+// assuming the stride — see `@heapreturn` in SpineBindings.hpp.
+EMSCRIPTEN_KEEPALIVE
+size_t spine_eventBufferBytes() {
+    return g_ctx.eventBuffer.size() * sizeof(float);
+}
+
 } // extern "C"
 
+#ifdef __EMSCRIPTEN__
+// The module is linked as an executable, so it needs an entry point; a native build
+// links it into a host that has its own.
 int main() {
     return 0;
 }
+#endif

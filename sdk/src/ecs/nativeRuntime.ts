@@ -36,6 +36,7 @@ import { cameraPlugin } from '../camera/CameraPlugin';
 import { UICameraInfo } from '../ui/core/ui-camera-info';
 import { DEFAULT_UI_CAMERA_INFO } from '../corePlugin';
 import { uiPlugin } from '../ui/ui-plugin';
+import { SpinePlugin } from '../spine';
 import { setNativeTextSubmit } from '../ui/text/submit';
 import { initResourceManager } from '../resourceManager';
 import { Assets as AssetsClass } from '../asset/Assets';
@@ -113,6 +114,10 @@ export function createNativeApp(
     // each one reports a core that compiles its subsystem out.
     installNativePostProcess(app);
     app.addPlugins(presentationBasePlugins());
+    // Spine, like on the web, is a fresh plugin instance per App (it holds a
+    // SpineManager keyed to this app's core) and builds its runtime backends from
+    // `app.sideModules` — which on a device is the runtime compiled into the binary.
+    app.addPlugin(new SpinePlugin());
     return app;
 }
 

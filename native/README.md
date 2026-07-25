@@ -41,6 +41,22 @@ Dawn and QuickJS are **not vendored** (multi-GB / separate project); the recipe
 fetches them, the way Dawn fetches its own deps. Nothing here is compiled by the
 web/emscripten build or CI — it is inert until you run the native build below.
 
+### The optional runtimes are compiled IN, not side-loaded
+
+On the web, Box2D, the Spine runtime and the MPEG-1 decoder ship as standalone wasm
+side modules a realm fetches. A device has no dynamic-linking story and no reason for
+one, so the **same C sources** link straight into the host binary — all three are
+vendored — and the SDK reaches them through the QuickJS wrappers EHT generates from
+their binding headers. `app.sideModules` still answers them, so the runtime's own
+gating installs physics or spine exactly as it does in a browser (see
+`sdk/src/ecs/nativeSideModules.ts`).
+
+Spine is the one build-time choice: the three vendored runtimes (3.8 / 4.1 / 4.2)
+export the same symbol names, so a binary carries exactly one.
+`-DESTELLA_SPINE_VERSION=4.1` picks another; `spine_runtimeVersion()` reports what
+was linked, and content authored against a different release is told so by name
+instead of being decoded by the wrong parser.
+
 ## Why this works (the architecture, proven on device)
 
 The engine is portable by construction; the native seams are small and already in

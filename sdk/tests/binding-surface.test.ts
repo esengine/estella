@@ -94,6 +94,11 @@ function parseKeepaliveSigs(cppSource: string): Map<string, number> {
     const out = new Map<string, number>();
     const re = /EMSCRIPTEN_KEEPALIVE\b/g;
     for (let m = re.exec(src); m; m = re.exec(src)) {
+        // Not the portability fallback (`#define EMSCRIPTEN_KEEPALIVE` for a native
+        // build, where the attribute has no meaning) — that is not an export, and
+        // reading past it would attribute the next function in the file to it.
+        const lineStart = src.lastIndexOf('\n', m.index) + 1;
+        if (src.slice(lineStart, m.index).trimStart().startsWith('#define')) continue;
         const paren = src.indexOf('(', m.index);
         if (paren < 0) continue;
         const tokens = src.slice(m.index + m[0].length, paren).match(/\w+/g);
@@ -351,14 +356,42 @@ describe('WASM binding surface: side modules (C exports)', () => {
             .toEqual([]);
     });
 
+    // Exported for the NATIVE side only, so no SDK caller names them: which spine
+    // runtime a host linked (the web names the artifact instead — spine38 / 41 / 42)
+    // and how much the event buffer published, which a native wrapper needs to copy
+    // the readback into the caller's heap. See SpineBindings.hpp.
+    const SPINE_NATIVE_ONLY = new Set(['spine_runtimeVersion', 'spine_eventBufferBytes']);
+
     it('SpineWasmModule + its cwrap table mirror the spine module exports exactly', () => {
-        const cpp = parseKeepaliveExports(read(resolve(CPP, 'bindings/SpineModuleEntry.cpp')));
+        const cpp = new Set(
+            [...parseKeepaliveExports(read(resolve(CPP, 'bindings/SpineModuleEntry.cpp')))]
+                .filter((n) => !SPINE_NATIVE_ONLY.has(n)),
+        );
         const loaderTs = read(resolve(SDK, 'spine/SpineModuleLoader.ts'));
         const declared = new Set([
             ...parseInterfaceMethods(loaderTs, 'SpineWasmModule'),
             ...[...parseCwrapNames(loaderTs)].map((n) => `_${n}`),
         ]);
         expectMirrored('spine', declared, cpp);
+    });
+
+    // The native half, as for physics: a device reaches spine through wrappers EHT
+    // generates from SpineBindings.hpp, so a declaration missing there is an entry
+    // point the device does not answer, and one with no definition is a wrapper that
+    // will not link.
+    it('SpineBindings.hpp declares exactly what the module exports', () => {
+        const header = stripComments(read(resolve(CPP, 'bindings/SpineBindings.hpp')));
+        const declared = new Set([...header.matchAll(/\b(spine_\w+)\s*\(/g)].map((m) => m[1]!));
+        const exported = new Set(
+            [...parseKeepaliveExports(read(resolve(CPP, 'bindings/SpineModuleEntry.cpp')))]
+                .filter((n) => n.startsWith('spine_')),
+        );
+        const undeclared = [...exported].filter((n) => !declared.has(n)).sort();
+        const phantom = [...declared].filter((n) => !exported.has(n)).sort();
+        expect(undeclared, `exported but not declared in SpineBindings.hpp: ${undeclared.join(', ')}`)
+            .toEqual([]);
+        expect(phantom, `declared in SpineBindings.hpp but defined nowhere: ${phantom.join(', ')}`)
+            .toEqual([]);
     });
 
     it('BasisWasmModule mirrors the basis EXPORTED_FUNCTIONS list exactly', () => {

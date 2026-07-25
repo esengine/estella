@@ -74,7 +74,9 @@ export interface SpineAssetInfo {
  * its runtime version. Keyed by `skeletonRef:atlasRef` for {@link applySpineEntities}.
  */
 export async function loadSpineAssets(
-    module: ESEngineModule,
+    /** The wasm engine module, or null on a core with no heap — the atlas page upload
+     *  goes through the ResourceManager's byte path there. */
+    module: ESEngineModule | null,
     source: RuntimeAssetSource,
     spineManager: SpineManager | null | undefined,
     spinePairs: ReadonlyArray<{ skeleton: string; atlas: string }>,
@@ -202,7 +204,7 @@ export async function applySpineEntities(opts: {
  * JS runtimes, where the native virtual-FS ordering doesn't apply.
  */
 export async function loadSpineSceneEntities(opts: {
-    module: ESEngineModule;
+    module: ESEngineModule | null;
     source: RuntimeAssetSource;
     spineManager: SpineManager;
     sceneData: SceneData;

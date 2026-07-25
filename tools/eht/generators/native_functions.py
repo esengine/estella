@@ -25,11 +25,14 @@ The mapping is small because the declarations are:
                         native/host/heap.hpp). A JS buffer handed straight across is
                         still accepted and copied in. Either way the binding's own
                         BoundarySpan validation runs, now against a real region.
-  returns               void / integer / float / bool
+  strings               ``const std::string&`` / ``const char*`` in, and either out:
+                        a JS string, copied for the call. Not bulk data, so no heap
+  returns               void / integer / float / bool / string, or a pointer WITH an
+                        ``@heapreturn`` byte count
 
-Anything else — ``emscripten::val`` results, ``std::string``, typed pointers — is
-SKIPPED and reported, never silently dropped: the skip list is what tells you
-which entry points still need a hand-written binding.
+Anything else — ``emscripten::val`` results, a typed pointer, a pointer return with
+no ``@heapreturn`` — is SKIPPED and reported, never silently dropped: the skip list
+is what tells you which entry points still need a hand-written binding.
 """
 
 import re
@@ -41,6 +44,10 @@ _INT_TYPES = {'i8', 'i16', 'i32', 'i64', 'u8', 'u16', 'u32', 'u64',
 _FLOAT_TYPES = {'f32', 'f64', 'float', 'double'}
 _BOOL_TYPES = {'bool'}
 _STRING = 'std::string'
+# A C string, in or out. The module surfaces written as plain C use these where the
+# C++ ones use std::string; both cross the boundary as a JS string, and neither needs
+# the heap — a name or an animation id is not bulk data.
+_CSTR = 'char*'
 _VOID = 'void'
 
 # A pointer-returning entry point hands back memory the MODULE owns (a static
@@ -71,9 +78,12 @@ _IMPLICIT_SUFFIXES = {
     'ResourceManager': 'resource::ResourceManager&',
 }
 
-# `void name(args);` on one or more lines, inside the header's namespace.
+# `void name(args);` on one or more lines, inside the header's namespace. The return
+# type may be const-qualified and may be a pointer (`const char* spine_getLastError()`)
+# — without both, such a declaration matched nothing at all and was dropped without
+# even reaching the skip list, which is the one thing this generator must never do.
 _DECL = re.compile(
-    r'^(?P<ret>[A-Za-z_][\w:]*(?:\s*\*)?)\s+(?P<name>[A-Za-z_]\w*)\s*\((?P<args>[^;{]*)\)\s*;',
+    r'^(?P<ret>(?:const\s+)?[A-Za-z_][\w:]*(?:\s*\*)?)\s+(?P<name>[A-Za-z_]\w*)\s*\((?P<args>[^;{]*)\)\s*;',
     re.MULTILINE | re.DOTALL,
 )
 
@@ -224,6 +234,10 @@ def _parse_params(args: str) -> Tuple[List[Param], Optional[str]]:
         if parts[0] == _STRING:
             params.append(Param(_STRING, parts[-1]))
             continue
+        # `const char*` — the same, handed over as a pointer.
+        if decl.replace(' ', '').startswith('char*'):
+            params.append(Param(_CSTR, parts[-1]))
+            continue
         if '&' in decl or '*' in decl:
             return params, f'takes {decl}'
         cpp_type = ' '.join(parts[:-1]) if len(parts) > 1 else parts[0]
@@ -239,7 +253,8 @@ def _returnable(ret: str, heap_return: Optional[str] = None) -> bool:
     if ret == 'uintptr_t':
         # Only with an annotation saying how much memory it covers.
         return heap_return is not None
-    return ret == _VOID or ret == _STRING or ret in _INT_TYPES | _FLOAT_TYPES | _BOOL_TYPES
+    return (ret in (_VOID, _STRING, _CSTR)
+            or ret in _INT_TYPES | _FLOAT_TYPES | _BOOL_TYPES)
 
 
 # The engine's short scalar aliases live in namespace esengine; the plain C++
@@ -285,6 +300,8 @@ class NativeFunctionsGenerator:
         # (local, js argument index) per buffer argument, so a copied-in buffer is
         # released after the call — see esn_argRelease.
         ptr_releases: List[Tuple[str, int]] = []
+        # C-string arguments, freed after the call for the same reason.
+        cstr_frees: List[str] = []
         js_index = 0
         for param in fn.params:
             if param.cpp_type in _IMPLICIT_REFS:
@@ -300,6 +317,12 @@ class NativeFunctionsGenerator:
                 out.append(f'    const uint32_t {local}_off = esn_argOffset(ctx, argv[{js_index}]);')
                 out.append(f'    const uintptr_t {local} = esn_heapAddr({local}_off);')
                 ptr_releases.append((local, js_index))
+            elif param.cpp_type == _CSTR:
+                # Owned by the wrapper for the duration of the call. A missing or
+                # non-string argument reads as empty, matching how cwrap coerces one.
+                out.append(f'    const char* {local}_c = JS_ToCString(ctx, argv[{js_index}]);')
+                out.append(f'    const char* {local} = {local}_c ? {local}_c : "";')
+                cstr_frees.append(local)
             elif param.cpp_type == _STRING:
                 # A JS string, owned by the wrapper for the call. An absent or
                 # non-string argument reads as empty rather than aborting the call,
@@ -324,6 +347,7 @@ class NativeFunctionsGenerator:
         call = f'{scope}{fn.name}({", ".join(call_args)})'
         releases = [f'    esn_argRelease(ctx, argv[{index}], {local}_off);'
                     for local, index in ptr_releases]
+        releases += [f'    if ({local}_c) JS_FreeCString(ctx, {local}_c);' for local in cstr_frees]
         if fn.ret == _VOID:
             out.append(f'    {call};')
             out.extend(releases)
@@ -343,6 +367,13 @@ class NativeFunctionsGenerator:
                 out.append(f'    const std::string result = {call};')
                 out.extend(releases)
                 out.append('    return JS_NewStringLen(ctx, result.data(), result.size());')
+            elif fn.ret == _CSTR:
+                # The module owns the storage (a static scratch string), so the value
+                # is copied into a JS string here rather than published to the heap.
+                # A null answers as empty, which is what UTF8ToString(0) reads as.
+                out.append(f'    const char* result = {call};')
+                out.extend(releases)
+                out.append('    return JS_NewString(ctx, result ? result : "");')
             elif fn.ret == 'uintptr_t':
                 # Module-owned memory: copy `@heapreturn` bytes into this entry
                 # point's own heap slot and answer the offset, so the SDK reads the
@@ -367,13 +398,13 @@ class NativeFunctionsGenerator:
     # The same declarations, as the object a native host answers them through.
     # The SDK's plugins call these by the module's own names, so a plugin reaches
     # whichever core is present without knowing which (see ecs/engineApi.ts).
-    _TS_RETURN = {'void': 'void', 'bool': 'boolean', _STRING: 'string'}
+    _TS_RETURN = {'void': 'void', 'bool': 'boolean', _STRING: 'string', _CSTR: 'string'}
 
     @staticmethod
     def _ts_type(cpp: str) -> str:
         if cpp in _BOOL_TYPES:
             return 'boolean'
-        if cpp == _STRING:
+        if cpp in (_STRING, _CSTR):
             return 'string'
         if cpp in _IMPLICIT_REFS:
             return 'unknown'

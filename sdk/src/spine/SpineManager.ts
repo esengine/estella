@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+import type { EngineApi } from '../ecs/engineApi';
 import type { ESEngineModule, CppRegistry } from '../wasm';
 import type { Entity } from '../types';
 import type { RawSpineEvent, ConstraintList, TransformMixData, PathMixData } from './SpineController';
@@ -12,14 +13,15 @@ import { log } from '../logger';
 export type SpineVersion = '3.8' | '4.1' | '4.2';
 
 export class SpineManager {
-    private coreModule_: ESEngineModule;
+    private coreModule_: NonNullable<EngineApi>;
     private factories_: Map<SpineVersion, SpineModuleFactory>;
     private backends_: Map<SpineVersion, ModuleBackend> = new Map();
     private loadingBackends_: Map<SpineVersion, Promise<ModuleBackend | null>> = new Map();
     private entityVersions_: Map<Entity, SpineVersion> = new Map();
 
     constructor(
-        coreModule: ESEngineModule,
+        /** Whichever engine core is present (see ecs/engineApi.ts). */
+        coreModule: NonNullable<EngineApi>,
         moduleFactories: Map<SpineVersion, SpineModuleFactory>,
     ) {
         this.coreModule_ = coreModule;

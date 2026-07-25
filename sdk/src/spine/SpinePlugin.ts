@@ -9,6 +9,7 @@ import type { Entity } from '../types';
 import { SpineManager, type SpineVersion } from './SpineManager';
 import type { SpineModuleFactory, SpineWasmModule } from './SpineModuleLoader';
 import { SPINE_VERSIONS, spineModuleId } from '../sideModules';
+import { engineApi } from '../ecs/engineApi';
 import { AnimatorController } from '../animation/Animator';
 
 export type SpineEventType = 'start' | 'interrupt' | 'end' | 'complete' | 'event';
@@ -91,9 +92,11 @@ export class SpinePlugin implements Plugin {
 
     build(app: App): void {
         this.app_ = app;
-        const coreModule = app.wasmModule!;
+        // The core the mesh batches are submitted through: the wasm module on the
+        // web, the native host's bindings on a device.
+        const coreModule = engineApi(app);
 
-        if (!this.spineManager_ && app.sideModules) {
+        if (!this.spineManager_ && app.sideModules && coreModule) {
             const host = app.sideModules;
             const factories = new Map<SpineVersion, SpineModuleFactory>();
             for (const version of SPINE_VERSIONS) {

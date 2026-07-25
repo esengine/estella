@@ -56,23 +56,29 @@ describe('subsystemGapWarnings', () => {
   const usage = new Map<Subsystem, string[]>([['spine', ['scenes/b.esscene', 'scenes/a.esscene']]]);
 
   it('names the subsystem, the reason and the files', () => {
-    const [warning, ...rest] = subsystemGapWarnings('android', usage);
+    // Driven through a declared gap rather than a real one: every subsystem is
+    // supported on every target today, and the reporting still has to work for the
+    // day one is not (a flag turned off, a new platform-bound feature).
+    const declared = [{ subsystem: 'spine' as Subsystem, why: 'a made-up gap, for this test' }];
+    const [warning, ...rest] = subsystemGapWarnings('android', usage, declared);
     expect(rest).toEqual([]);
     expect(warning).toContain('Spine animation will not render');
+    expect(warning).toContain('a made-up gap, for this test');
     expect(warning).toContain('scenes/a.esscene, scenes/b.esscene');
   });
 
-  it('is silent for a target with no known gaps', () => {
-    expect(subsystemGapWarnings('web', usage)).toEqual([]);
+  it('is silent about a gap the content does not use', () => {
+    const declared = [{ subsystem: 'spine' as Subsystem, why: 'a made-up gap' }];
+    expect(subsystemGapWarnings('android', new Map(), declared)).toEqual([]);
   });
 
-  it('is silent about a gap the content does not use', () => {
-    expect(subsystemGapWarnings('ios', new Map())).toEqual([]);
+  it('says nothing at all now that every target compiles every subsystem', () => {
+    expect(subsystemGapWarnings('android', usage)).toEqual([]);
+    expect(subsystemGapWarnings('web', usage)).toEqual([]);
   });
 
   it('reports the same gaps for both native targets — they compile one CMakeLists', () => {
     expect(targetGaps('ios')).toEqual(targetGaps('android'));
-    expect(targetGaps('ios').length).toBeGreaterThan(0);
   });
 });
 
@@ -132,22 +138,16 @@ describe('exportGame warns about content the target cannot render', () => {
     outDir, platform, title: 'Game',
   });
 
-  it('names every unsupported subsystem the scene uses — and ships anyway', async () => {
+  it('warns about nothing: the native build renders everything this scene uses', async () => {
+    // The scene deliberately authors every optional subsystem — text, particles,
+    // tilemaps, physics and spine — and the native app compiles all of them now, so
+    // any warning here would be false. The reporting mechanism itself is covered
+    // above, against a declared gap.
     const res = await run('android', path.join(root, 'dist-android'));
     expect(res.errors).toEqual([]);
     expect(res.ok).toBe(true);
     const gaps = res.warnings.filter((w) => w.startsWith('android:'));
-    expect(gaps).toHaveLength(1);
-    expect(gaps.join('\n')).toContain('Spine animation will not render');
-    expect(gaps.join('\n')).toContain('scenes/main.esscene');
-    // What the native build DOES have is not warned about: text (the host
-    // rasterizes glyphs for the same atlas), tilemaps, particles,
-    // post-processing, and physics (Box2D compiles into the host binary). The
-    // gaps are what the build really cannot do, not everything optional.
-    expect(gaps.join('\n')).not.toContain('Text will not render');
-    expect(gaps.join('\n')).not.toContain('Tilemaps will not render');
-    expect(gaps.join('\n')).not.toContain('Particles will not render');
-    expect(gaps.join('\n')).not.toContain('Physics (Box2D) will not render');
+    expect(gaps).toEqual([]);
   }, 60_000);
 
   it('stays quiet for a target that renders all of it', async () => {

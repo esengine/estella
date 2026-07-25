@@ -3,13 +3,16 @@
 /**
  * @file  What a build target can render — and what it cannot.
  *
- * The editor authors every subsystem the engine has; a target does not
- * necessarily compile all of them. The native app builds a subset: the flags
- * `native/CMakeLists.txt` sets decide what `cmake/ESEngineSources.cmake` compiles
- * in, and of the optional emscripten side modules Box2D and the video decoder are
- * compiled into the host binary (there is no dynamic-linking story on a device) while
- * the Spine runtime is not there yet. iOS and Android build from that same
- * CMakeLists, so their gaps are one list.
+ * The editor authors every subsystem the engine has; a target does not necessarily
+ * compile all of them, and this is where that is declared.
+ *
+ * The native app has no gap left: the flags `native/CMakeLists.txt` sets bring in the
+ * whole engine source list, and the three optional runtimes that ship as emscripten
+ * side modules on the web (Box2D, the Spine runtime, the video decoder) are compiled
+ * into the host binary instead — a device has no dynamic-linking story to have. The
+ * table stays because that can change: turn a flag off, or add a subsystem that only
+ * one platform can host, and the entry belongs here so the export can name it rather
+ * than writing a package that is quietly missing half a scene.
  *
  * Without this, an export writes a package that is quietly missing half a
  * scene. This is the one declaration of that gap, so the export can name it
@@ -74,11 +77,11 @@ export interface SubsystemGap {
     why: string;
 }
 
-/** What the native app cannot render. ONE list: iOS and Android compile the same
- *  `native/CMakeLists.txt`, so a flag flipped there closes the gap on both. */
-const NATIVE_GAPS: readonly SubsystemGap[] = [
-    { subsystem: 'spine', why: 'the Spine runtime ships as an emscripten side module; the native host has no counterpart yet' },
-];
+/** What the native app cannot render — currently nothing. ONE list: iOS and Android
+ *  compile the same `native/CMakeLists.txt`, so a flag flipped there opens or closes
+ *  the gap on both. `desktop/tests/target-support.test.ts` reads that file and fails
+ *  when the two disagree. */
+const NATIVE_GAPS: readonly SubsystemGap[] = [];
 
 /**
  * Per-target gaps. A platform absent from this table has none *known*: only the
@@ -130,9 +133,12 @@ const MAX_NAMED_FILES = 3;
 export function subsystemGapWarnings(
     platform: ExportPlatform,
     usage: ReadonlyMap<Subsystem, readonly string[]>,
+    /** The gaps to report; defaults to this platform's declared ones. Overridable so
+     *  the reporting can be exercised while no target actually has a gap. */
+    gaps: readonly SubsystemGap[] = targetGaps(platform),
 ): string[] {
     const warnings: string[] = [];
-    for (const gap of targetGaps(platform)) {
+    for (const gap of gaps) {
         const files = usage.get(gap.subsystem);
         if (!files || files.length === 0) continue;
         const named = [...files].sort();

@@ -260,12 +260,16 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
     applyTextureMetadata(sceneData, assetResult.textureHandles, source.resolveRef ?? ((ref) => ref));
 
     // KTX2 atlas pages transcode through the realm's basis module, acquired the
-    // same lazy way the TextureLoader's provider does (AssetPlugin).
-    // Spine rides the wasm side-module host, which a native host does not have.
-    if (!module && discovered.spines.length > 0) {
-        log.warn('scene', `${discovered.spines.length} spine asset(s) skipped — this realm has no wasm module`);
+    // same lazy way the TextureLoader's provider does (AssetPlugin). Spine itself
+    // rides `app.sideModules` — a fetched wasm module on the web, the runtime
+    // compiled into the binary on a device — so what decides here is whether the
+    // realm has an acquirer at all, not whether it has a wasm engine module (the
+    // atlas upload takes bytes without one).
+    if (!app.sideModules && discovered.spines.length > 0) {
+        log.warn('scene', `${discovered.spines.length} spine asset(s) skipped — `
+            + 'this realm has no optional-module host to load a Spine runtime from');
     }
-    const spineAssetInfo = module
+    const spineAssetInfo = app.sideModules
         ? await loadSpineAssets(module, source, spineManager, discovered.spines, async () => {
             const host = app.sideModules;
             if (!host) return null;
