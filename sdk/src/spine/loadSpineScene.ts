@@ -170,6 +170,9 @@ export async function applySpineEntities(opts: {
     if (assetInfo.size === 0) return;
 
     for (const sceneEntity of sceneData.entities) {
+        // Prefab instances carry no inline components; skip them (the async loader
+        // expands prefabs before this runs).
+        if (!Array.isArray(sceneEntity.components)) continue;
         for (const comp of sceneEntity.components) {
             const spineDesc = getComponentSpineFieldDescriptor(comp.type);
             if (!spineDesc || !comp.data) continue;

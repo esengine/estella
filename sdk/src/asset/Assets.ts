@@ -1032,6 +1032,9 @@ export class Assets {
         const counter = this.refCounter_;
 
         for (const entity of sceneData.entities) {
+            // Prefab-instance entries carry no inline components (a prefab ref +
+            // overrides); their handles bind when the prefab expands, not here.
+            if (!Array.isArray(entity.components)) continue;
             for (const comp of entity.components) {
                 // Single source: the component def's declared asset fields.
                 // Handle write-back always keys off assetFields (the direct

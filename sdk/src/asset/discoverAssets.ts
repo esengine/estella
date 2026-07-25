@@ -90,6 +90,12 @@ export function discoverSceneAssets(
 
     for (const entityData of sceneData.entities) {
         if (entityData.visible === false) continue;
+        // A prefab-instance entry carries no inline `components` (it holds a prefab
+        // ref plus overrides); its assets are discovered when the prefab is expanded
+        // by loadSceneWithAssets, not from here. Skipping it also guards the loop
+        // against `components: undefined` — the discovery pass runs on the raw scene,
+        // before expansion, in the runtime and scene-manager preload paths.
+        if (!Array.isArray(entityData.components)) continue;
 
         for (const compData of entityData.components) {
             const comp = getComponent(compData.type);

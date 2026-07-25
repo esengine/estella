@@ -138,6 +138,22 @@ describe('discoverSceneAssets', () => {
         expect(getAssetPathsByType(refs, 'texture').size).toBe(0);
     });
 
+    it('skips prefab-instance entries (no inline components)', () => {
+        // The runtime and scene-manager preload paths run discovery on the raw
+        // scene, before loadSceneWithAssets expands prefabs — a prefab-instance
+        // entry carries a prefab ref + overrides but no `components` array, and
+        // iterating that undefined threw. Discovery must skip it, not crash.
+        const scene = makeScene([
+            { id: 1, name: 'coin', parent: null, prefab: 'assets/coin.esprefab',
+                overrides: {}, added: [], removed: [] } as unknown as SceneData['entities'][number],
+            { id: 2, name: 'e2', parent: null, children: [],
+                components: [{ type: SPRITE_NAME, data: { texture: 'p.png', material: '', color: { r: 1, g: 1, b: 1, a: 1 } } }] },
+        ]);
+
+        expect(() => discoverSceneAssets(scene)).not.toThrow();
+        expect(getAssetPathsByType(discoverSceneAssets(scene), 'texture')).toEqual(new Set(['p.png']));
+    });
+
     it('skips empty string values', () => {
         const scene = makeScene([{
             id: 1, name: 'e1', parent: null, children: [],

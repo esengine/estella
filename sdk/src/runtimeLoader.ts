@@ -6,7 +6,8 @@
  */
 
 import { SceneOwner } from './component';
-import { loadSceneData, updateCameraAspectRatio, type SceneData } from './scene';
+import { loadSceneData, updateCameraAspectRatio, sceneHasPrefabEntries, expandScenePrefabs, type SceneData } from './scene';
+import type { PrefabData } from './prefab/types';
 import { switchTheme, resolveThemeTokens, type ThemeOverrides } from './ui';
 import { discoverSceneAssets } from './asset/discoverAssets';
 import type { ESEngineModule } from './wasm';
@@ -228,13 +229,33 @@ export function sceneUsesPhysics(sceneData: SceneData): boolean {
 }
 
 export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promise<void> {
-    const { app, module, sceneData, source, physicsConfig, physicsEnabled, uiTheme, uiThemeOverrides, sceneName } = options;
+    const { app, module, source, physicsConfig, physicsEnabled, uiTheme, uiThemeOverrides, sceneName } = options;
 
     // The SpineManager is owned by SpinePlugin (built from the realm's
     // app.sideModules host); read it from there so every realm — play / playable /
     // wechat — loads spine assets through one manager. An explicit option still
     // wins for headless/tests.
     const spineManager = options.spineManager ?? app.getPlugin(SpinePlugin)?.spineManager ?? null;
+
+    // Expand prefab instances up front: an exported scene keeps them as a prefab
+    // ref + overrides (the cook does not flatten them), and the rest of this
+    // pipeline — discovery, preload, the synchronous loadSceneData spawn — operates
+    // on plain entities and skips a prefab entry. This is the same expansion
+    // loadSceneWithAssets runs for the editor's play realm, so a packaged game
+    // spawns prefab instances exactly as Play does (play == ship), instead of
+    // silently dropping them.
+    const runtimeAssets = ensureRuntimeAssets(app, module, source);
+    let sceneData = options.sceneData;
+    if (sceneHasPrefabEntries(sceneData)) {
+        sceneData = await expandScenePrefabs(sceneData, async (ref) => {
+            try {
+                return ((await runtimeAssets.loadPrefab(ref))?.data as PrefabData) ?? null;
+            } catch (e) {
+                log.warn('scene', `Failed to load prefab "${ref}": ${e instanceof Error ? e.message : String(e)}`);
+                return null;
+            }
+        });
+    }
 
     // Spine pairs (raw refs) for the two-phase spine load+apply below; every
     // other asset type loads through the single canonical Assets channel.
@@ -247,7 +268,7 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
     // that resolve `@uuid:` refs at runtime — e.g. the tilemap plugin — find the
     // SAME resolver the preload keyed the caches with) and persists across scene
     // loads. Spine stays a two-phase load+apply below (skipSpine).
-    const sceneAssets = ensureRuntimeAssets(app, module, source);
+    const sceneAssets = runtimeAssets;
     // Video source refs resolve through the SAME channel as every other asset
     // (the editor's play realm wires this too) — a cooked build maps the
     // authored logical ref (clip.mp4 / @uuid) to its staged .esv.
