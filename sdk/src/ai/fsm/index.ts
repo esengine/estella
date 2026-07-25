@@ -15,7 +15,19 @@ export type {
 } from './types';
 export { actionRefName, actionRefArg } from './types';
 export { Blackboard, evalGuard, evalGuards } from './Blackboard';
-export { AiRegistry, type AiAction, type AiCondition } from './registry';
+export {
+    AiRegistry,
+    invokeAction,
+    parseActionArg,
+    formatActionArg,
+    type AiAction,
+    type AiCondition,
+    type AiActionSpec,
+    type AiActionInput,
+    type AiParamDef,
+    type AiParamValue,
+    type AiParams,
+} from './registry';
 export {
     compileFsm,
     createFsmRunState,

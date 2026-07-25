@@ -22,10 +22,20 @@ import { setControllerPage } from './ui-controller';
  */
 export function ensureControllerAiRegistrations(): void {
     if (aiRegistry.hasAction('ui.setPage')) return;
-    aiRegistry.registerAction('ui.setPage', (ctx, _bb, arg) => {
-        if (!arg) return;
-        const sep = arg.indexOf(':');
-        if (sep < 0) return;
-        setControllerPage(ctx.world, ctx.entity, arg.slice(0, sep), arg.slice(sep + 1));
+    aiRegistry.registerAction('ui.setPage', {
+        // Declaring the two halves is what turns the editor's single text box into
+        // two dropdowns; the canonical `"controller:page"` string is unchanged, so
+        // every `.esfsm` already on disk keeps working (registry.ts projects
+        // between the two forms).
+        params: [
+            { name: 'controller', type: 'enum', optionsSource: 'uiController' },
+            { name: 'page', type: 'enum', optionsSource: 'uiControllerPage' },
+        ],
+        run: (ctx, _bb, _arg, params) => {
+            const controller = params?.controller;
+            const page = params?.page;
+            if (typeof controller !== 'string' || typeof page !== 'string' || !controller || !page) return;
+            setControllerPage(ctx.world, ctx.entity, controller, page);
+        },
     });
 }

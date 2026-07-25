@@ -17,6 +17,7 @@ import {
 } from '../src/eventBinding';
 import { Blackboard } from '../src/ai/fsm/Blackboard';
 import { aiRegistry } from '../src/ai/fsm/AiContext';
+import type { AiParams } from '../src/ai/fsm/registry';
 import { Children, Name, Parent } from '../src/component';
 import type { AnyComponentDef } from '../src/component';
 import type { Entity } from '../src/types';
@@ -87,7 +88,7 @@ function makeRuntime(world: TestWorld) {
 }
 
 /** Records (entity, arg) for every invocation of the test action. */
-let calls: Array<{ entity: Entity; arg?: string }> = [];
+let calls: Array<{ entity: Entity; arg?: string; params?: AiParams }> = [];
 
 beforeEach(() => {
     calls = [];
@@ -282,6 +283,40 @@ describe('dispatch', () => {
         runtime.sync();
         expect(() => events.emit(button, 'click')).not.toThrow();
         expect(calls).toHaveLength(0);
+    });
+});
+
+describe('declared parameters', () => {
+    beforeEach(() => {
+        aiRegistry.registerAction('test.pair', {
+            params: [{ name: 'left', type: 'string' }, { name: 'right', type: 'string' }],
+            run: (ctx, _bb, arg, params) => { calls.push({ entity: ctx.entity, arg, params }); },
+        });
+    });
+
+    it('a row authored as params reaches the action as params AND as the canonical string', () => {
+        const world = makeWorld();
+        const button = world.spawn('Button');
+        bind(world, button, { event: 'click', action: 'test.pair', params: { left: 'a', right: 'b' } });
+
+        const { events, runtime } = makeRuntime(world);
+        runtime.sync();
+        events.emit(button, 'click');
+
+        expect(calls[0]!.arg).toBe('a:b');
+        expect(calls[0]!.params).toEqual({ left: 'a', right: 'b' });
+    });
+
+    it('a row authored as a string (before the action declared params) still runs', () => {
+        const world = makeWorld();
+        const button = world.spawn('Button');
+        bind(world, button, { event: 'click', action: 'test.pair', arg: 'a:b' });
+
+        const { events, runtime } = makeRuntime(world);
+        runtime.sync();
+        events.emit(button, 'click');
+
+        expect(calls[0]!.params).toEqual({ left: 'a', right: 'b' });
     });
 });
 

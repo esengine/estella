@@ -103,6 +103,29 @@ describe.skipIf(!HAS_WASM)('EventBinding authoring commands', () => {
         expect(rowsOf(e)).toEqual([{ event: 'click', action: 'a' }]);
     });
 
+    // The Events section writes parameters as a record and drops the canonical
+    // string, so the two forms never disagree on disk; switching the action
+    // drops both, because the old input belonged to the old action.
+    it('writing parameters clears the canonical string', () => {
+        const e = S.commands.addEntity()!;
+        S.commands.addEventBinding(e, { event: 'click', action: 'ui.setPage', arg: 'tabs:home' });
+
+        S.commands.updateEventBinding(e, 0, { params: { controller: 'tabs', page: 'settings' }, arg: undefined });
+
+        expect(rowsOf(e)).toEqual([
+            { event: 'click', action: 'ui.setPage', params: { controller: 'tabs', page: 'settings' } },
+        ]);
+    });
+
+    it('switching the action drops the previous input entirely', () => {
+        const e = S.commands.addEntity()!;
+        S.commands.addEventBinding(e, { event: 'click', action: 'ui.setPage', params: { controller: 'tabs', page: 'home' } });
+
+        S.commands.updateEventBinding(e, 0, { action: 'fsm.fire', params: undefined, arg: undefined });
+
+        expect(rowsOf(e)).toEqual([{ event: 'click', action: 'fsm.fire' }]);
+    });
+
     it('an out-of-range patch or removal is a no-op', () => {
         const e = S.commands.addEntity()!;
         S.commands.addEventBinding(e, { event: 'click', action: 'a' });

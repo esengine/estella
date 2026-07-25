@@ -37,6 +37,7 @@ import { log } from './logger';
 import { EntityEvents, EntityEventQueue, type EntityEvent, type Unsubscribe } from './entityEvents';
 import { Blackboard } from './ai/fsm/Blackboard';
 import { aiRegistry, type AiContext } from './ai/fsm/AiContext';
+import { invokeAction, type AiParamValue } from './ai/fsm/registry';
 import { AiFsm } from './ai/fsm/FsmPlugin';
 import { ensureBuiltinAiRegistrations } from './ai/builtins';
 
@@ -57,8 +58,17 @@ export interface EventBindingRow {
     target?: string;
     /** Registered action name (`aiRegistry`), e.g. `'ui.setPage'`. */
     action: string;
-    /** The action's argument, e.g. `'tabs:settings'`. */
+    /**
+     * The action's argument in canonical string form, e.g. `'tabs:settings'`.
+     * Rows authored before the action declared its parameters keep this and
+     * still run — the registry projects between the two forms.
+     */
     arg?: string;
+    /**
+     * The action's declared parameters by name, e.g. `{controller: 'tabs', page:
+     * 'settings'}`. Present when the action declares parameters; wins over `arg`.
+     */
+    params?: Record<string, AiParamValue>;
     /** Registered condition name that must pass for the row to run. */
     guard?: string;
     /** Run at most once, then stay inert until the scene reloads. */
@@ -152,8 +162,7 @@ export function createEventBindingRuntime(host: EventBindingHost): EventBindingR
     const fired = new Set<string>();
 
     const runRow = (self: Entity, row: EventBindingRow): void => {
-        const action = aiRegistry.getAction(row.action);
-        if (!action) {
+        if (!aiRegistry.hasAction(row.action)) {
             log.warn('events', `EventBinding: unknown action "${row.action}"`);
             return;
         }
@@ -181,7 +190,9 @@ export function createEventBindingRuntime(host: EventBindingHost): EventBindingR
             }
             if (!guard(ctx, bb)) return;
         }
-        action(ctx, bb, row.arg);
+        // The same dispatch path the FSM and the behaviour tree take, so an
+        // action sees identical input whichever authored surface reached it.
+        invokeAction(aiRegistry, row.action, ctx, bb, { arg: row.arg, params: row.params });
     };
 
     const handle = (event: EntityEvent): void => {
@@ -306,28 +317,35 @@ export class EventBindingPlugin implements Plugin {
  */
 export function ensureEventBindingActions(): void {
     if (!aiRegistry.hasAction('fsm.fire')) {
-        aiRegistry.registerAction('fsm.fire', (_ctx, bb, arg) => {
-            if (arg) bb.fire(arg);
+        aiRegistry.registerAction('fsm.fire', {
+            params: [{ name: 'trigger', type: 'string' }],
+            run: (_ctx, bb, _arg, params) => {
+                const trigger = params?.trigger;
+                if (typeof trigger === 'string' && trigger) bb.fire(trigger);
+            },
         });
     }
     if (!aiRegistry.hasAction('blackboard.set')) {
-        // `key=value` — value parsed as JSON when it can be (numbers, booleans),
-        // else kept as the raw string, so both `hp=3` and `mode=hard` do the
-        // obvious thing.
-        aiRegistry.registerAction('blackboard.set', (_ctx, bb, arg) => {
-            if (!arg) return;
-            const eq = arg.indexOf('=');
-            if (eq < 0) return;
-            const key = arg.slice(0, eq).trim();
-            const raw = arg.slice(eq + 1).trim();
-            if (!key) return;
-            let value: unknown = raw;
-            try {
-                value = JSON.parse(raw);
-            } catch {
-                /* a bare word is its own value */
-            }
-            bb.set(key, value);
+        // `key=value`. The value keeps its JSON reading when it has one (`3`,
+        // `true`), so both `lives=3` and `mode=hard` do the obvious thing.
+        aiRegistry.registerAction('blackboard.set', {
+            separator: '=',
+            params: [{ name: 'key', type: 'string' }, { name: 'value', type: 'string' }],
+            run: (_ctx, bb, _arg, params) => {
+                const key = typeof params?.key === 'string' ? params.key.trim() : '';
+                if (!key) return;
+                const raw = params?.value;
+                if (raw === undefined) return;
+                let value: unknown = raw;
+                if (typeof raw === 'string') {
+                    try {
+                        value = JSON.parse(raw.trim());
+                    } catch {
+                        value = raw.trim(); // a bare word is its own value
+                    }
+                }
+                bb.set(key, value);
+            },
         });
     }
 }

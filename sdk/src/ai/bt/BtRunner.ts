@@ -14,7 +14,7 @@
  */
 
 import type { Blackboard } from '../fsm/Blackboard';
-import type { AiRegistry } from '../fsm/registry';
+import { invokeAction, type AiRegistry } from '../fsm/registry';
 import { Status } from '../status';
 import type { BtDefinition, BtNode } from './types';
 
@@ -49,9 +49,9 @@ function tickNode<Ctx>(
 ): Status {
     switch (node.type) {
         case 'action': {
-            const fn = registry.getAction(node.name ?? '');
-            if (!fn) return Status.Failure;
-            const r = fn(ctx, bb, node.arg);
+            const name = node.name ?? '';
+            if (!registry.hasAction(name)) return Status.Failure;
+            const r = invokeAction(registry, name, ctx, bb, { arg: node.arg });
             // A void-returning (one-shot FSM-style) action completes as Success.
             return r === undefined ? Status.Success : r;
         }

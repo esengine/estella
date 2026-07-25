@@ -202,8 +202,8 @@
           "type": "EventBinding",
           "data": {
             "rows": [
-              { "event": "click", "action": "ui.setPage", "arg": "tabs:settings" },
-              { "event": "click", "action": "ui.setPage", "arg": "badge:on", "target": "Card" }
+              { "event": "click", "action": "ui.setPage", "params": { "controller": "tabs", "page": "settings" } },
+              { "event": "click", "action": "ui.setPage", "params": { "controller": "badge", "page": "on" }, "target": "Card" }
             ]
           }
         }

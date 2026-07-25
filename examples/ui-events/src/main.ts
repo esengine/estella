@@ -6,6 +6,11 @@
 // Open the scene, select a button, and look at the Details panel's Events
 // section — that is the whole program.
 //
+// The two buttons are deliberately authored differently: Home's rows carry the
+// canonical string (`tabs:home`), Settings' carry named parameters. Both run the
+// same action the same way — the registry projects between the forms — so data
+// written before an action declared its parameters keeps working.
+//
 // The entry point exists because a project has one; there is nothing to put in
 // it. Wiring only needs code when it needs LOGIC, and then the row points at an
 // action name (`fsm.fire`) instead of growing branches of its own.

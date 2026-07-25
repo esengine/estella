@@ -603,6 +603,16 @@ export {
     aiRegistry,
     registerAction,
     registerCondition,
+    // The declared-parameter surface: an action says what it takes, and the
+    // projection to/from the canonical `arg` string keeps old data running.
+    invokeAction,
+    parseActionArg,
+    formatActionArg,
+    type AiParamDef,
+    type AiParamValue,
+    type AiParams,
+    type AiActionSpec,
+    type AiActionInput,
     StateMachineAgent,
     registerFsm,
     getFsm,

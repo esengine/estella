@@ -12,7 +12,7 @@
 
 import { actionRefName, actionRefArg, type FsmActionRef, type FsmDefinition, type FsmState, type FsmTransition } from './types';
 import { Blackboard, evalGuards } from './Blackboard';
-import type { AiRegistry } from './registry';
+import { invokeAction, type AiRegistry } from './registry';
 
 /** A definition indexed by state name for O(1) lookup during ticks. */
 export interface CompiledFsm {
@@ -95,5 +95,5 @@ function runAction<Ctx>(
 ): void {
     const name = actionRefName(ref);
     if (!name) return;
-    registry.getAction(name)?.(ctx, bb, actionRefArg(ref));
+    invokeAction(registry, name, ctx, bb, { arg: actionRefArg(ref) });
 }
