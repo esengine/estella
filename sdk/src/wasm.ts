@@ -49,6 +49,10 @@ export interface CppResourceManager {
      * the upload helpers fall through to the heap path and web stays byte-identical.
      * `filterMode`/`wrapMode` mirror {@link createTextureEx}'s codes (optional). */
     createTextureFromBytes?(width: number, height: number, pixels: Uint8Array, format: number, flipY: boolean, filterMode?: number, wrapMode?: number): number;
+    /** Transcode + upload a KTX2/Basis container to a device-supported compressed
+     *  format (or RGBA32). Native only (the basis transcoder lives in the host);
+     *  the web KTX2 path is WebGL2 + the wasm transcoder instead. */
+    createTextureFromKTX2?(bytes: Uint8Array, srgb: boolean): { handle: number; width: number; height: number } | null;
     /** Module-free {@link updateTextureSubregion} — native byte upload for the
      *  glyph atlas, symmetric with {@link createTextureFromBytes}. */
     updateTextureSubregionFromBytes?(handle: number, x: number, y: number, width: number, height: number, pixels: Uint8Array): void;

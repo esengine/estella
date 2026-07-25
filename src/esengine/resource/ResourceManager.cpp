@@ -192,6 +192,19 @@ TextureHandle ResourceManager::createTexture(u32 width, u32 height, ConstSpan<u8
     return textures_.add(std::move(texture), "", bytes);
 }
 
+TextureHandle ResourceManager::createCompressedTexture(u32 width, u32 height,
+                                                       GfxCompressedFormat format, ConstSpan<u8> data) {
+    if (!device_) return {};
+    auto texture = Texture::createCompressed(*device_, width, height, format,
+                                             std::span<const u8>(data.data(), data.size()));
+    if (!texture) {
+        ES_LOG_ERROR("Failed to create compressed texture");
+        return TextureHandle();
+    }
+    // Residency cost is the on-GPU compressed size, not the RGBA expansion.
+    return textures_.add(std::move(texture), "", data.size());
+}
+
 TextureHandle ResourceManager::loadTexture(const std::string& path) {
     auto cached = textures_.findByPath(path);
     if (cached.isValid()) {

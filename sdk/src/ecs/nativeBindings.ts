@@ -29,6 +29,7 @@ export const REGISTRY_BINDINGS = {
 /** The native ResourceManager surface the asset pipeline uploads through. */
 export const RESOURCE_BINDINGS = {
     createTexture: 'es_createTexture',
+    createTextureKTX2: 'es_createTextureKTX2',
     releaseTexture: 'es_releaseTexture',
     getTextureDimensions: 'es_getTextureDimensions',
 } as const;

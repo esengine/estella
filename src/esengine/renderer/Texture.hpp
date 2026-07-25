@@ -241,6 +241,15 @@ public:
                                       bool flipY = false);
 
     /**
+     * @brief Creates a block-compressed texture (KTX2 → ETC2/ASTC/BC), uploading
+     *        the pre-compressed blocks in one shot. No setDataRaw afterward —
+     *        compressed data is immutable here.
+     * @param data Compressed block data for mip level 0.
+     */
+    static Unique<Texture> createCompressed(GfxDevice& device, u32 width, u32 height,
+                                            GfxCompressedFormat format, std::span<const u8> data);
+
+    /**
      * @brief Wraps an existing GL texture ID
      * @param glTextureId The OpenGL texture ID created externally
      * @param width Texture width in pixels

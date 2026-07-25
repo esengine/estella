@@ -516,10 +516,51 @@ TextureHandle WebGPUDevice::createTexture(const TextureDesc& desc, const void* p
     return TextureHandle{id};
 }
 
-TextureHandle WebGPUDevice::createCompressedTexture(const TextureDesc&, GfxCompressedFormat,
-                                                    const void*, u32) {
-    stubOnce("createCompressedTexture");
-    return TextureHandle::Invalid;
+TextureHandle WebGPUDevice::createCompressedTexture(const TextureDesc& desc, GfxCompressedFormat format,
+                                                    const void* data, u32 byteLength) {
+    if (!device_ || !queue_) {
+        ES_LOG_ERROR("WebGPUDevice::createCompressedTexture: no device");
+        return TextureHandle::Invalid;
+    }
+    const WGPUTextureFormat wgpuFmt = toWGPUCompressedFormat(format);
+    if (wgpuFmt == WGPUTextureFormat_Undefined) {
+        ES_LOG_ERROR("WebGPUDevice::createCompressedTexture: unmapped format");
+        return TextureHandle::Invalid;
+    }
+
+    WGPUTextureDescriptor td{};
+    td.dimension = WGPUTextureDimension_2D;
+    td.format = wgpuFmt;
+    td.size = WGPUExtent3D{desc.width, desc.height, 1};
+    td.mipLevelCount = 1;
+    td.sampleCount = 1;
+    td.usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst;   // compressed = sampled, never a target
+
+    WGPUTexture texture = wgpuDeviceCreateTexture(device_, &td);
+    if (!texture) {
+        ES_LOG_ERROR("WebGPUDevice::createCompressedTexture: creation failed ({}x{})", desc.width, desc.height);
+        return TextureHandle::Invalid;
+    }
+
+    // writeTexture counts BLOCKS, not pixels: a partial edge block still counts.
+    const CompressedBlockInfo bi = compressedBlockInfo(format);
+    const u32 blocksX = (desc.width + bi.blockWidth - 1) / bi.blockWidth;
+    const u32 blocksY = (desc.height + bi.blockHeight - 1) / bi.blockHeight;
+    WGPUTexelCopyTextureInfo dst{};
+    dst.texture = texture;
+    dst.origin = WGPUOrigin3D{0, 0, 0};
+    WGPUTexelCopyBufferLayout layout{};
+    layout.bytesPerRow = blocksX * bi.bytesPerBlock;
+    layout.rowsPerImage = blocksY;
+    WGPUExtent3D extent{desc.width, desc.height, 1};
+    wgpuQueueWriteTexture(queue_, &dst, data, byteLength, &layout, &extent);
+
+    const u32 id = next_id_++;
+    textures_[id] = TextureRec{texture, wgpuTextureCreateView(texture, nullptr),
+                               desc.width, desc.height, wgpuFmt,
+                               packSamplerKey(desc.minFilter, desc.magFilter,
+                                              desc.wrapS, desc.wrapT)};
+    return TextureHandle{id};
 }
 
 TextureHandle WebGPUDevice::importExternalTexture(u32, const TextureDesc&) {
@@ -597,9 +638,13 @@ void WebGPUDevice::bindTexture(u32 slot, TextureHandle texture) {
 }
 
 bool WebGPUDevice::supportsCompressedFormat(GfxCompressedFormat format) {
-    // Real capability negotiation (adapter features) arrives with the adapter
-    // plumbing; ETC2 is core on WebGPU-with-compat targets we care about.
-    return toWGPUCompressedFormat(format) != WGPUTextureFormat_Undefined;
+    if (toWGPUCompressedFormat(format) == WGPUTextureFormat_Undefined) return false;
+    // Native: the host passes the adapter, so query it for real — and it requests
+    // exactly the supported compression families at device creation, so "adapter
+    // has" == "device can create". Without an adapter handle (the web WebGPU
+    // build) assume the ETC2 core baseline.
+    if (!adapter_) return toWGPUCompressedFormat(format) != WGPUTextureFormat_Undefined;
+    return wgpuAdapterHasFeature(adapter_, compressionFeatureFor(format)) != 0;
 }
 
 // =============================================================================

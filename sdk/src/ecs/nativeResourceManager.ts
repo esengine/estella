@@ -61,6 +61,14 @@ export function createNativeResourceManager(
             hostCall(scope, RESOURCE_BINDINGS.createTexture,
                 [width, height, pixels, format, flipY, filterMode, wrapMode]) as number,
 
+        // The host transcodes KTX2 (basis) and uploads the compressed blocks; it
+        // returns { id, width, height } — expose it as { handle, ... }.
+        createTextureFromKTX2: (bytes, srgb) => {
+            const r = hostCall(scope, RESOURCE_BINDINGS.createTextureKTX2, [bytes, srgb]) as
+                { id: number; width: number; height: number } | null;
+            return r ? { handle: r.id, width: r.width, height: r.height } : null;
+        },
+
         updateTextureSubregionFromBytes: (handle, x, y, width, height, pixels): void => {
             hostCallOpt(scope, 'es_updateTextureSubregion', [handle, x, y, width, height, pixels]);
         },

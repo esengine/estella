@@ -48,6 +48,20 @@ function init() {
     world.insert(orbit, ESEngine.ShapeRenderer, {
         shapeType: 0, color: { r: 1, g: 0.2, b: 0.9, a: 1 }, size: { x: S * 0.12, y: S * 0.12 } });
 
+    // Stage: a KTX2 compressed texture through the SAME Assets API. The host
+    // transcodes it (basis) to a device-supported format (ASTC/ETC2) and uploads
+    // the compressed blocks — no WebGL2, no wasm transcoder.
+    var ktx2Sprite = world.spawn();
+    world.insert(ktx2Sprite, ESEngine.Transform, { position: { x: W * 0.5, y: H * 0.28, z: 0 } });
+    assets.loadTexture('green.ktx2').then(function (res) {
+        world.insert(ktx2Sprite, ESEngine.Sprite, {
+            texture: res.handle, color: { r: 1, g: 1, b: 1, a: 1 },
+            size: { x: S * 0.24, y: S * 0.24 } });
+        console.log('[demo] ktx2: loaded ' + res.width + 'x' + res.height + ' handle=' + res.handle);
+    }, function (e) {
+        console.error('[demo] ktx2 failed:', e && e.message ? e.message : e);
+    });
+
     // Stage C: a startup chime through the REAL SDK Audio API. The native audio
     // backend decodes beep.wav and plays it in the host's miniaudio engine — the
     // audio pillar on device, the same Audio API a web game calls.

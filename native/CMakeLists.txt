@@ -120,13 +120,20 @@ if(ESTELLA_QUICKJS_DIR)
     target_compile_definitions(qjs PRIVATE _GNU_SOURCE)
     target_compile_options(qjs PRIVATE -Wno-unused -Wno-sign-compare)
 
+    # basis_universal transcoder (KTX2 -> ETC2/ASTC/BC), one big vendored TU behind
+    # host_js/ktx2_decode.cpp, plus basis's bundled single-file zstd decoder (KTX2
+    # zstd supercompression). Third-party, so silence their warnings.
+    set(BASIS_TRANSCODER "${TP}/basis_universal/transcoder/basisu_transcoder.cpp")
+    set(BASIS_ZSTD "${TP}/basis_universal/zstd/zstddeclib.c")
+    set_source_files_properties("${BASIS_TRANSCODER}" "${BASIS_ZSTD}" PROPERTIES COMPILE_OPTIONS "-w")
+
     # host_js/host_core.cpp is the platform-independent host; each platform adds its own
     # glue TU (the event loop, the window, the packaged assets).
     if(ESTELLA_IOS)
         # Static: the thin Xcode app (native/ios) links this plus the libraries
         # below. -ObjC on the app keeps the Obj-C classes in main_ios.mm alive.
         add_library(estella_js_host STATIC host_js/host_core.cpp host_js/main_ios.mm
-            host_js/native_audio.cpp "${NATIVE_BINDINGS}")
+            host_js/native_audio.cpp host_js/ktx2_decode.cpp "${BASIS_TRANSCODER}" "${BASIS_ZSTD}" "${NATIVE_BINDINGS}")
         # miniaudio's CoreAudio backend uses AVAudioSession (Obj-C), so its TU must
         # be Objective-C++ on Apple; it also forces MA_NO_RUNTIME_LINKING there, so
         # the audio frameworks are linked at build time (the app links the merged
@@ -147,7 +154,7 @@ if(ESTELLA_QUICKJS_DIR)
         # Android: plain C++; miniaudio dlopens AAudio/OpenSL at runtime (no extra
         # link libs). native_audio.cpp's Obj-C paths are __APPLE__-guarded out.
         add_library(estella_js_host SHARED host_js/host_core.cpp host_js/main_android.cpp
-            host_js/native_audio.cpp "${NATIVE_BINDINGS}")
+            host_js/native_audio.cpp host_js/ktx2_decode.cpp "${BASIS_TRANSCODER}" "${BASIS_ZSTD}" "${NATIVE_BINDINGS}")
         target_link_libraries(estella_js_host esengine qjs native_app_glue android log)
         set_target_properties(estella_js_host PROPERTIES LINK_FLAGS "-u ANativeActivity_onCreate")
     endif()
@@ -155,5 +162,6 @@ if(ESTELLA_QUICKJS_DIR)
     # the gen dir holds ptraccessors_js.h and the embedded SDK bundle; third_party/miniaudio
     # is the audio engine header.
     target_include_directories(estella_js_host PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/host_js" "${ESTELLA_NATIVE_GEN_DIR}" "${TP}/miniaudio")
+        "${CMAKE_CURRENT_SOURCE_DIR}/host_js" "${ESTELLA_NATIVE_GEN_DIR}" "${TP}/miniaudio"
+        "${TP}/basis_universal/transcoder")
 endif()

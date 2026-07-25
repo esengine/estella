@@ -245,7 +245,12 @@ System bindings landing incrementally through the real SDK surfaces:
   differs per platform. Replies cross back thread-safely (`deliverFetch`) and run on the JS
   thread in the frame loop. This is what remote asset groups and hot-update need. Simulator-
   verified (an HTTPS GET returns bytes and a 200); the Android path needs a device retest.
+- **KTX2 / compressed textures** — `Assets.loadTexture` on a `.ktx2` path transcodes with
+  the host's vendored basis_universal (`es_createTextureKTX2` → `ktx2_decode.cpp`) to the
+  best format the device supports (ASTC → ETC2 → BC, RGBA32 fallback) and uploads the
+  compressed blocks through the engine's now-real `WebGPUDevice::createCompressedTexture` —
+  4–8× less VRAM than RGBA8. The web KTX2 path (WebGL2 + wasm transcoder) is untouched.
+  Simulator-verified (a 64×64 KTX2 sprite renders); base mip only for now.
 
-Remaining: KTX2 / compressed textures (native decodes to RGBA only — no basis transcoder
-yet) and hardening on a physical device (audio output, the background/foreground
-transition, Android's miniaudio audio + JNI fetch paths).
+Remaining: mip chains for compressed textures, and hardening on a physical device (audio
+output, the background/foreground transition, Android's miniaudio audio + JNI fetch paths).

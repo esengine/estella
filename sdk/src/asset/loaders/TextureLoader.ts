@@ -203,6 +203,15 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         const buf = await ctx.backend.fetchBinary(ctx.catalog.getBuildPath(path));
         const bytes = new Uint8Array(buf);
         if (!isKtx2(bytes)) throw new Error(`TextureLoader: ${path} is not a KTX2 file`);
+        // Native (embedded Dawn): the ResourceManager transcodes the KTX2 with the
+        // host's basis library and uploads the compressed blocks — no WebGL2, no
+        // wasm transcoder. sRGB follows the color pipeline, like the web path below.
+        const rm = requireResourceManager();
+        if (rm.createTextureFromKTX2) {
+            const r = rm.createTextureFromKTX2(bytes, linearColorSpace());
+            if (!r) throw new Error(`TextureLoader: KTX2 transcode failed for ${path}`);
+            return { handle: r.handle, width: r.width, height: r.height };
+        }
         const gl = this.getWebGL2Context();
         if (!gl) throw new Error('TextureLoader: KTX2 textures require a WebGL2 context');
         const transcoder = await this.ensureTranscoder_();

@@ -141,6 +141,7 @@ createShader: (vertSrc: string, fragSrc: string) => number
 createTexture: (width: number, height: number, pixels: number, pixelsLen: number, format: number, flipY: boolean) => number
 createTextureEx: (width: number, height: number, pixels: number, pixelsLen: number, format: number, flipY: boolean, filterMode: number, wrapMode: number) => number
 createTextureFromBytes: ((width: number, height: number, pixels: Uint8Array, format: number, flipY: boolean, filterMode?: number, wrapMode?: number) => number) | undefined
+createTextureFromKTX2: ((bytes: Uint8Array, srgb: boolean) => { handle: number; width: number; height: number; } | null) | undefined
 getBitmapFontRefCount: (handle: number) => number
 getResourceStats: () => { shaderCount: number; textureCount: number; vertexBufferCount: number; indexBufferCount: number; cacheHits: number; cacheMisses: number; textureBytes: number; textureBudget: number; textureEvictableCount: number; }
 getShaderRefCount: (handle: number) => number

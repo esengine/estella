@@ -221,6 +221,16 @@ public:
                                  TextureFormat format, bool flipY = false);
 
     /**
+     * @brief Creates a block-compressed texture (KTX2 → ETC2/ASTC/BC), uploading
+     *        the pre-compressed blocks for mip level 0. Tracked like any texture;
+     *        its residency cost is the real (compressed) byte size.
+     * @param data Compressed block data.
+     * @return Handle to the texture, or invalid handle on failure.
+     */
+    TextureHandle createCompressedTexture(u32 width, u32 height, GfxCompressedFormat format,
+                                          ConstSpan<u8> data);
+
+    /**
      * @brief Loads a texture from file (with caching)
      * @param path Path to the image file
      * @return Handle to the texture, or invalid handle on failure

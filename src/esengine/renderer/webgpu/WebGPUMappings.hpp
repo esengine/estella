@@ -181,6 +181,44 @@ inline WGPUTextureFormat toWGPUCompressedFormat(GfxCompressedFormat fmt) {
     }
 }
 
+/** Block footprint of a compressed format: writeTexture's bytesPerRow/rowsPerImage
+ *  count blocks, not pixels. BC/ETC2 are 4x4; ASTC's block matches its name. */
+struct CompressedBlockInfo {
+    u32 blockWidth;
+    u32 blockHeight;
+    u32 bytesPerBlock;
+};
+inline CompressedBlockInfo compressedBlockInfo(GfxCompressedFormat fmt) {
+    switch (fmt) {
+    case GfxCompressedFormat::S3TC_DXT1:                              return {4, 4, 8};   // BC1
+    case GfxCompressedFormat::ETC2_RGB8:                             return {4, 4, 8};
+    case GfxCompressedFormat::ASTC_8x8:                             return {8, 8, 16};
+    case GfxCompressedFormat::S3TC_DXT5:
+    case GfxCompressedFormat::S3TC_DXT5_SRGB:                        return {4, 4, 16};  // BC3
+    case GfxCompressedFormat::ETC2_RGBA8:
+    case GfxCompressedFormat::ETC2_RGBA8_SRGB:                       return {4, 4, 16};
+    case GfxCompressedFormat::ASTC_4x4:
+    case GfxCompressedFormat::ASTC_4x4_SRGB:
+    default:                                                        return {4, 4, 16};
+    }
+}
+
+/** The device feature that gates a compressed-format family (BC / ETC2 / ASTC). */
+inline WGPUFeatureName compressionFeatureFor(GfxCompressedFormat fmt) {
+    switch (fmt) {
+    case GfxCompressedFormat::S3TC_DXT1:
+    case GfxCompressedFormat::S3TC_DXT5:
+    case GfxCompressedFormat::S3TC_DXT5_SRGB:   return WGPUFeatureName_TextureCompressionBC;
+    case GfxCompressedFormat::ASTC_4x4:
+    case GfxCompressedFormat::ASTC_8x8:
+    case GfxCompressedFormat::ASTC_4x4_SRGB:    return WGPUFeatureName_TextureCompressionASTC;
+    case GfxCompressedFormat::ETC2_RGB8:
+    case GfxCompressedFormat::ETC2_RGBA8:
+    case GfxCompressedFormat::ETC2_RGBA8_SRGB:
+    default:                                    return WGPUFeatureName_TextureCompressionETC2;
+    }
+}
+
 inline WGPUFilterMode toWGPUFilter(TextureFilter filter) {
     return filter == TextureFilter::Nearest ? WGPUFilterMode_Nearest : WGPUFilterMode_Linear;
 }

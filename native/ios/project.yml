@@ -30,6 +30,9 @@ targets:
       - path: ../host_js/beep.wav
         buildPhase: resources
         type: file
+      - path: ../host_js/green.ktx2
+        buildPhase: resources
+        type: file
       # An exported project, staged by `cli native --target ios --content <dir>`.
       # A folder reference (not a group) so cooked subdirectories keep their
       # shape — the host reads Content/ first, the bundle root second.

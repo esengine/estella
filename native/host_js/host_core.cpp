@@ -27,6 +27,7 @@
 #include "esn_shim.hpp"          // quickjs + the esn_* plumbing decls (+ esn_register)
 #include "esengine_bundle.h"     // the real SDK, bundled: installs globalThis.ESEngine
 #include "native_audio.hpp"      // the miniaudio-backed engine behind es_audio*
+#include "ktx2_decode.hpp"       // basis_universal transcode behind es_createTextureKTX2
 
 #include "esengine/core/EstellaContext.hpp"
 #include "esengine/core/World.hpp"
@@ -345,6 +346,25 @@ JSValue js_createTexture(JSContext* ctx, JSValueConst, int argc, JSValueConst* a
         if (pixels.size() >= required) tex->setDataRaw(pixels.data(), (u32)required, flip);
     }
     return JS_NewInt64(ctx, (int64_t)handle.id());
+}
+
+// es_createTextureKTX2(ArrayBuffer|TypedArray, srgb?) -> { id, width, height } | null.
+// Transcodes a KTX2/Basis container to the best device-supported compressed format
+// (or RGBA32) and uploads it — the native counterpart of the web WebGL2 path.
+JSValue js_createTextureKTX2(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
+    if (argc < 1) return JS_NULL;
+    std::vector<u8> bytes;
+    readByteSource(ctx, argv[0], bytes);
+    if (bytes.empty()) return JS_NULL;
+    const bool srgb = argc > 1 && JS_ToBool(ctx, argv[1]) != 0;
+    auto r = eshost::transcodeKTX2(bytes.data(), bytes.size(), srgb,
+                                   g_app->ctx->require<resource::ResourceManager>(), *g_app->gfx);
+    if (r.handle < 0) return JS_NULL;
+    JSValue o = JS_NewObject(ctx);
+    JS_SetPropertyStr(ctx, o, "id", JS_NewInt32(ctx, r.handle));
+    JS_SetPropertyStr(ctx, o, "width", JS_NewInt32(ctx, r.width));
+    JS_SetPropertyStr(ctx, o, "height", JS_NewInt32(ctx, r.height));
+    return o;
 }
 
 // es_releaseTexture(handle) — drop one native ResourceManager reference.
@@ -905,6 +925,7 @@ void initJS(App& a) {
     // createNativeResourceManager binds to (the asset pipeline's texture backend).
     bindGlobal(a, global, "es_setClear", js_setClear, 3);
     bindGlobal(a, global, "es_createTexture", js_createTexture, 3);
+    bindGlobal(a, global, "es_createTextureKTX2", js_createTextureKTX2, 2);
     bindGlobal(a, global, "es_releaseTexture", js_releaseTexture, 1);
     bindGlobal(a, global, "es_getTextureDimensions", js_getTextureDimensions, 1);
     bindGlobal(a, global, "es_readAsset", js_readAsset, 1);
@@ -1019,7 +1040,19 @@ bool boot(Platform& platform) {
     if (!a.adapter) { LOGE("no adapter"); return false; }
     auto onD = [](WGPURequestDeviceStatus s, WGPUDevice d, WGPUStringView, void* u, void*) {
         if (s == WGPURequestDeviceStatus_Success) *static_cast<WGPUDevice*>(u) = d; };
+    // Enable the block-compression families this adapter supports (ETC2/ASTC/BC)
+    // so the engine can create KTX2 textures; a device rejects a format it did not
+    // opt into, even when the adapter advertises it.
+    WGPUFeatureName compFeats[3];
+    size_t compCount = 0;
+    for (WGPUFeatureName f : {WGPUFeatureName_TextureCompressionETC2,
+                              WGPUFeatureName_TextureCompressionASTC,
+                              WGPUFeatureName_TextureCompressionBC}) {
+        if (wgpuAdapterHasFeature(a.adapter, f)) compFeats[compCount++] = f;
+    }
     WGPUDeviceDescriptor dd = {};
+    dd.requiredFeatureCount = compCount;
+    dd.requiredFeatures = compCount ? compFeats : nullptr;
     WGPURequestDeviceCallbackInfo dci = {};
     dci.mode = WGPUCallbackMode_WaitAnyOnly; dci.callback = onD; dci.userdata1 = &a.device;
     WGPUFutureWaitInfo df = {wgpuAdapterRequestDevice(a.adapter, &dd, dci), 0};

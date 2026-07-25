@@ -123,6 +123,31 @@ Unique<Texture> Texture::createRaw(GfxDevice& device, u32 width, u32 height, con
     return texture;
 }
 
+Unique<Texture> Texture::createCompressed(GfxDevice& device, u32 width, u32 height,
+                                          GfxCompressedFormat format, std::span<const u8> data) {
+    auto texture = makeUnique<Texture>();
+    texture->device_ = &device;
+    texture->width_ = width;
+    texture->height_ = height;
+    texture->format_ = TextureFormat::RGBA8;   // sampled as colour; the GPU format is the compressed one
+
+    TextureDesc desc;
+    desc.width = width;
+    desc.height = height;
+    desc.minFilter = TextureFilter::Linear;
+    desc.magFilter = TextureFilter::Linear;
+    desc.wrapS = TextureWrap::ClampToEdge;
+    desc.wrapT = TextureWrap::ClampToEdge;
+    desc.mipmaps = false;
+
+    texture->handle_ = device.createCompressedTexture(desc, format, data.data(), static_cast<u32>(data.size()));
+    if (texture->handle_ == TextureHandle::Invalid) {
+        ES_LOG_ERROR("Texture::createCompressed: failed for {}x{}", width, height);
+        return nullptr;
+    }
+    return texture;
+}
+
 Unique<Texture> Texture::createFromExternalId(GfxDevice& device, u32 glTextureId, u32 width, u32 height,
                                               TextureFormat format) {
     TextureDesc desc;
