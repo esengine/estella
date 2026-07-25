@@ -19,9 +19,12 @@ export type {
     MiniGameTouchEvent,
     MiniGameKeyEvent,
     MiniGameStorageInfo,
+    MiniGameInnerAudioContext,
+    MiniGameSocketTask,
 } from './api';
 
 export { MiniGamePlatformAdapter } from './adapter';
+export { installMiniGamePlatform } from './install';
 export { polyfillFetch, mgFetch } from './fetch';
 export { polyfillPerformance, polyfillTextEncoder } from './polyfills';
 export {

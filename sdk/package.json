@@ -25,6 +25,10 @@
     "./wechat": {
       "import": "./dist/index.wechat.js"
     },
+    "./minigame": {
+      "import": "./dist/index.minigame.js",
+      "types": "./dist/index.minigame.d.ts"
+    },
     "./node": {
       "import": "./dist/index.node.js",
       "types": "./dist/index.node.d.ts"

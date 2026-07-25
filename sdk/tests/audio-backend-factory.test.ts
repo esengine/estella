@@ -3,10 +3,12 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { setPlatform } from '../src/platform/base';
 import { WebAudioBackend } from '../src/audio/WebAudioBackend';
-import { WeChatAudioBackend } from '../src/audio/WeChatAudioBackend';
+import { MiniGameAudioBackend } from '../src/audio/MiniGameAudioBackend';
 import type { PlatformAdapter } from '../src/platform/types';
 
 function createMockPlatform(name: 'web' | 'wechat'): PlatformAdapter {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const host = { createInnerAudioContext: () => ({}) } as any;
     return {
         name,
         fetch: async () => ({} as any),
@@ -20,7 +22,7 @@ function createMockPlatform(name: 'web' | 'wechat'): PlatformAdapter {
         createImage: () => ({} as any),
         bindInputEvents: () => {},
         createAudioBackend: () => {
-            if (name === 'wechat') return new WeChatAudioBackend();
+            if (name === 'wechat') return new MiniGameAudioBackend(host, 'WeChat');
             return new WebAudioBackend();
         },
     };
@@ -34,11 +36,11 @@ describe('PlatformAdapter.createAudioBackend', () => {
         expect(backend).toBeInstanceOf(WebAudioBackend);
     });
 
-    it('should return WeChatAudioBackend for wechat platform', () => {
+    it('should return MiniGameAudioBackend for a mini-game platform', () => {
         const platform = createMockPlatform('wechat');
         setPlatform(platform);
         const backend = platform.createAudioBackend();
-        expect(backend).toBeInstanceOf(WeChatAudioBackend);
+        expect(backend).toBeInstanceOf(MiniGameAudioBackend);
     });
 
     it('should return backend with mixer=null for WeChat', () => {

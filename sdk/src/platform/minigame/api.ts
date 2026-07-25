@@ -90,6 +90,42 @@ export interface MiniGameStorageInfo {
     keys: string[];
 }
 
+/**
+ * A one-shot audio player. Every mini-game host exposes this shape under
+ * `createInnerAudioContext()`; WeChat's `InnerAudioContext` is structurally
+ * assignable. Modelling it here is what makes audio a FAMILY capability instead
+ * of a per-vendor backend.
+ */
+export interface MiniGameInnerAudioContext {
+    src: string;
+    loop: boolean;
+    volume: number;
+    playbackRate: number;
+    startTime: number;
+    obeyMuteSwitch: boolean;
+    readonly paused: boolean;
+    readonly currentTime: number;
+    readonly duration: number;
+    play(): void;
+    pause(): void;
+    stop(): void;
+    destroy(): void;
+    onEnded(cb: () => void): void;
+    // The host passes an error record; typed as the bottom-ish `{ errMsg: string }`
+    // supertype-by-contravariance so a vendor's richer callback stays assignable.
+    onError(cb: (res: { errMsg: string }) => void): void;
+}
+
+/** The socket task `connectSocket()` returns. WeChat's `SocketTask` fits. */
+export interface MiniGameSocketTask {
+    send(opts: { data: string | ArrayBuffer }): void;
+    close(opts: { code?: number; reason?: string }): void;
+    onOpen(cb: (res?: unknown) => void): void;
+    onMessage(cb: (res: { data: string | ArrayBuffer }) => void): void;
+    onClose(cb: (res: { code: number; reason: string }) => void): void;
+    onError(cb: (err: unknown) => void): void;
+}
+
 // =============================================================================
 // The normalized mini-game global
 // =============================================================================
@@ -105,8 +141,8 @@ export interface MiniGameGlobal {
     createImage(): MiniGameImage;
     getFileSystemManager(): MiniGameFileSystemManager;
     request(opts: MiniGameRequestOptions): void;
-    createInnerAudioContext(): unknown;
-    connectSocket(opts: { url: string; protocols?: string[] }): unknown;
+    createInnerAudioContext(): MiniGameInnerAudioContext;
+    connectSocket(opts: { url: string; protocols?: string[] }): MiniGameSocketTask;
     getSystemInfoSync(): MiniGameSystemInfo;
 
     onTouchStart(cb: (res: MiniGameTouchEvent) => void): void;
@@ -147,11 +183,24 @@ export interface MiniGameGlobal {
 // Per-vendor profile
 // =============================================================================
 
-export type MiniGameVendor = 'wechat' | 'douyin';
+/**
+ * A mini-game vendor's id. The vendors the engine ships are named for
+ * completion, but the type is OPEN: a game can describe a host the engine has
+ * never heard of and get the whole family for it. Nothing in the SDK branches on
+ * this value — it is identity (adapter name, diagnostics, logs), not behavior.
+ */
+export type MiniGameVendor = 'wechat' | 'douyin' | (string & {});
 
 /**
- * A vendor described as DATA. The family adapter reads `global` for every shared
- * capability; the methods below are the genuine per-vendor divergences.
+ * A vendor described as DATA — three facts and, at most, one method.
+ *
+ * The family adapter reads `global` for every capability the hosts share, and
+ * that is nearly all of them: audio (`createInnerAudioContext`), sockets
+ * (`connectSocket`), video (the engine's own wasm decoder) and the whole
+ * fs/fetch/canvas/input/storage surface all come from the normalized global. So
+ * the overrides below are OPTIONAL — a vendor supplies one only where it truly
+ * differs from the family. WeChat overrides exactly one (`instantiateWasm`, for
+ * WXWebAssembly); a host with standard `WebAssembly` overrides none.
  */
 export interface MiniGameProfile {
     /** Vendor identity — used for the adapter `name`, diagnostics, and logs. */
@@ -161,12 +210,16 @@ export interface MiniGameProfile {
     /** The host global (`wx` / `tt`), bound with a cast at the profile boundary. */
     readonly global: MiniGameGlobal;
 
-    /** WASM instantiation — the biggest divergence (WeChat's WXWebAssembly vs a
-     *  standard loader). Kept off `global` because the WASM entry point is not a
-     *  member of the host global on every vendor. */
-    instantiateWasm(pathOrBuffer: string | ArrayBuffer, imports: WebAssembly.Imports): Promise<WasmInstantiateResult>;
+    /** WASM instantiation, when the host does not use the standard
+     *  `WebAssembly.instantiate` (WeChat routes it through WXWebAssembly, which
+     *  takes a package path and is not a member of the host global). Omit and
+     *  the family reads the file through the adapter and instantiates it. */
+    instantiateWasm?(pathOrBuffer: string | ArrayBuffer, imports: WebAssembly.Imports): Promise<WasmInstantiateResult>;
 
-    createAudioBackend(): PlatformAudioBackend;
-    createVideoBackend(ctx: VideoBackendContext): PlatformVideoBackend;
-    createSocket(options: PlatformSocketOptions): PlatformSocket;
+    /** Omit for the family backend over `global.createInnerAudioContext()`. */
+    createAudioBackend?(): PlatformAudioBackend;
+    /** Omit for the engine's own wasm video decoder (portable to every vendor). */
+    createVideoBackend?(ctx: VideoBackendContext): PlatformVideoBackend;
+    /** Omit for the family socket over `global.connectSocket()`. */
+    createSocket?(options: PlatformSocketOptions): PlatformSocket;
 }

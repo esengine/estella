@@ -268,8 +268,33 @@ export interface PlatformImage {
 // Platform Adapter Interface
 // =============================================================================
 
+/**
+ * A platform's identity. The engine's own platforms are named here for
+ * completion; the type stays OPEN so a game can ship an adapter for a host the
+ * engine does not know about (a mini-game vendor of its own, an embedded
+ * runtime) without editing this file. Capability checks read {@link
+ * PlatformAdapter.family}, never the name, so an unknown name is never a
+ * degraded platform — only an unfamiliar one.
+ */
+export type PlatformName = 'web' | 'wechat' | 'douyin' | 'node' | 'native' | (string & {});
+
+/**
+ * A capability family several platforms belong to. Engine code that means "no
+ * DOM, packaged filesystem, subpackages" asks for the FAMILY (`isMiniGame()`),
+ * not a vendor name — so a third-party mini-game host gets the same behavior as
+ * WeChat by declaring itself here rather than by being enumerated in the SDK.
+ */
+export type PlatformFamily = 'minigame';
+
 export interface PlatformAdapter {
-    readonly name: 'web' | 'wechat' | 'douyin' | 'node' | 'native';
+    readonly name: PlatformName;
+
+    /**
+     * The capability family this platform belongs to, if any. Absent means the
+     * platform stands alone (web, node, native). Set by the mini-game family
+     * adapter — the single reason `isMiniGame()` needs no vendor list.
+     */
+    readonly family?: PlatformFamily;
 
     fetch(url: string, options?: PlatformRequestOptions): Promise<PlatformResponse>;
 
@@ -385,18 +410,8 @@ export interface PlatformAdapter {
 // Platform Detection
 // =============================================================================
 
-export type PlatformType = 'web' | 'wechat' | 'douyin';
-
-export function detectPlatform(): PlatformType {
-    // Mini-game hosts expose their API under a vendor global (`tt` = Douyin,
-    // `wx` = WeChat). Probe Douyin first — WeChat never defines `tt`.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const g = globalThis as any;
-    if (typeof g.tt !== 'undefined' && typeof g.tt.getSystemInfoSync === 'function') {
-        return 'douyin';
-    }
-    if (typeof g.wx !== 'undefined' && typeof g.wx.getSystemInfoSync === 'function') {
-        return 'wechat';
-    }
-    return 'web';
-}
+/**
+ * @deprecated Use {@link PlatformName}. Kept as an alias so existing imports
+ * keep compiling; it named a closed set that a third-party host could not join.
+ */
+export type PlatformType = PlatformName;

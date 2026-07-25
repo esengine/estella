@@ -82,7 +82,7 @@ export { ScreenInfo, ScreenOrientation, type ScreenInfoEvents } from './screen';
 // =============================================================================
 
 export {
-    GameSocket, WeChatSocket, createSocket, NetChannel,
+    GameSocket, MiniGameSocket, WeChatSocket, createSocket, NetChannel,
     MemoryTransport, createMemoryTransportPair,
     MessagePortTransport, type MessagePortLike,
     type GameSocketOptions, type SocketReadyState, type NetTransport,

@@ -60,12 +60,16 @@ export function isWeChat(): boolean {
 }
 
 /**
- * Check if running on any mini-game host (WeChat, Douyin, …) — the capability
- * family that shares the packaged-filesystem / subpackage / no-DOM model.
+ * Check if running on any mini-game host (WeChat, Douyin, a vendor the game
+ * brought itself) — the capability family that shares the packaged-filesystem /
+ * subpackage / no-DOM model.
+ *
+ * Reads the adapter's declared family, not a list of vendor names: every
+ * platform built on {@link MiniGamePlatformAdapter} answers true here, so
+ * shipping a new vendor never means editing this function.
  */
 export function isMiniGame(): boolean {
-    const name = currentPlatform?.name;
-    return name === 'wechat' || name === 'douyin';
+    return currentPlatform?.family === 'minigame';
 }
 
 /**

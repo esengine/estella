@@ -17,6 +17,6 @@ export { AudioPlugin, audioPlugin, type AudioPluginConfig } from './AudioPlugin'
 export { AudioSource, AudioListener, type AudioSourceData, type AudioListenerData } from './AudioComponents';
 export { AttenuationModel, calculateAttenuation, calculatePanning, type SpatialAudioConfig } from './SpatialAudio';
 export { WebAudioBackend } from './WebAudioBackend';
-export { WeChatAudioBackend } from './WeChatAudioBackend';
+export { MiniGameAudioBackend } from './MiniGameAudioBackend';
 export { NativeAudioBackend } from './NativeAudioBackend';
 export type { AudioHandle, AudioBufferHandle, PlayConfig, PlatformAudioBackend, AudioBackendInitOptions } from './PlatformAudioBackend';

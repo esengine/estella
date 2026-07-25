@@ -2,20 +2,18 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    index.ts
- * @brief   WeChat MiniGame platform adapter (a profile of the mini-game family).
+ * @brief   WeChat MiniGame platform (a profile of the mini-game family).
  *
- * The adapter is the shared family implementation (../minigame/adapter.ts) bound
- * to the WeChat profile (./profile.ts). This file only wires it up + installs
- * the WeChat boot polyfills, and preserves the public `wx*` helper surface.
+ * The adapter, the polyfills and the platform install are the family's
+ * (../minigame/); this file adds WeChat's one extra — the WXWebAssembly
+ * polyfill — and preserves the public `wx*` helper surface.
  */
 
 /// <reference types="minigame-api-typings" />
 
-import type { MiniGameGlobal } from '../minigame';
-import { MiniGamePlatformAdapter, polyfillFetch, polyfillPerformance, polyfillTextEncoder } from '../minigame';
+import { MiniGamePlatformAdapter, installMiniGamePlatform } from '../minigame';
 import { polyfillWebAssembly } from './wasm';
 import { wechatProfile } from './profile';
-import { log } from '../../logger';
 
 // =============================================================================
 // Adapter
@@ -30,19 +28,19 @@ export const wechatAdapter = new MiniGamePlatformAdapter(wechatProfile);
 let initialized = false;
 
 /**
- * Initialize WeChat platform polyfills.
+ * Initialize the WeChat platform (polyfills + adapter).
  * Call this at the entry point of your game (see index.wechat.ts).
  */
 export function initWeChatPlatform(): void {
     if (initialized) return;
     initialized = true;
 
-    polyfillPerformance();
-    polyfillFetch(wx as unknown as MiniGameGlobal);
+    // WeChat routes wasm through WXWebAssembly; the family install covers
+    // performance/fetch/TextEncoder, which every vendor lacks. The exported
+    // adapter instance is the one installed — the fs manager and input bindings
+    // it holds must not be split across two.
     polyfillWebAssembly();
-    polyfillTextEncoder();
-
-    log.info('wechat', 'WeChat platform initialized');
+    installMiniGamePlatform(wechatProfile, wechatAdapter);
 }
 
 // =============================================================================
@@ -50,6 +48,7 @@ export function initWeChatPlatform(): void {
 // =============================================================================
 
 export { polyfillWebAssembly };
+export { wechatProfile };
 export {
     wxReadFile,
     wxReadTextFile,

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { WeChatAudioBackend } from '../src/audio/WeChatAudioBackend';
+import { MiniGameAudioBackend } from '../src/audio/MiniGameAudioBackend';
 
 function createMockInnerAudioContext() {
     return {
@@ -26,14 +26,16 @@ function createMockInnerAudioContext() {
     };
 }
 
-describe('WeChatAudioBackend', () => {
-    let backend: WeChatAudioBackend;
+describe('MiniGameAudioBackend', () => {
+    let backend: MiniGameAudioBackend;
 
     beforeEach(() => {
-        (globalThis as any).wx = {
+        // The backend reads the host global it is HANDED — no ambient `wx`.
+        const g = {
             createInnerAudioContext: vi.fn().mockImplementation(createMockInnerAudioContext),
         };
-        backend = new WeChatAudioBackend();
+        (globalThis as any).wx = g;
+        backend = new MiniGameAudioBackend(g as any, 'WeChat');
     });
 
     it('should have name "WeChat"', () => {

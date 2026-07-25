@@ -5,6 +5,7 @@
  * @brief   Networking barrel: sockets, transports, NetChannel, replication.
  */
 export { GameSocket, type GameSocketOptions, type SocketReadyState } from './GameSocket';
+export { MiniGameSocket } from './MiniGameSocket';
 export { WeChatSocket } from './WeChatSocket';
 export {
     NetChannel,

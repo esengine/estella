@@ -34,6 +34,7 @@ const ENTRIES = {
     'spine': 'src/spine/index.ts',
     'wasm': 'src/wasm.ts',
     'wechat': 'src/index.wechat.ts',
+    'minigame': 'src/index.minigame.ts',
 };
 
 const mode = process.argv[2];

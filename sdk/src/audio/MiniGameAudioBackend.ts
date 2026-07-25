@@ -1,27 +1,38 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-/// <reference types="minigame-api-typings" />
+/**
+ * @file    MiniGameAudioBackend.ts
+ * @brief   Audio for the mini-game platform family — one player per sound over
+ *          the host's `createInnerAudioContext()`.
+ *
+ *          Written against the normalized {@link MiniGameInnerAudioContext}, not
+ *          `wx`, so every vendor of the family gets it without an implementation
+ *          of its own. There is no mixer: mini-game hosts expose finished
+ *          players, not a DSP graph, so routing labels are honored by the engine
+ *          and the graph itself is absent (`mixer` is null by contract).
+ */
 import type { AudioHandle, AudioBufferHandle, PlayConfig, PlatformAudioBackend, AudioBackendInitOptions } from './PlatformAudioBackend';
 import type { AudioMixer } from './AudioMixer';
+import type { MiniGameGlobal, MiniGameInnerAudioContext } from '../platform/minigame/api';
 import { scalar } from '../math/scalar';
 import { log } from '../logger';
 
-class WeChatAudioHandle implements AudioHandle {
+class MiniGameAudioHandle implements AudioHandle {
     readonly id: number;
     onEnd?: () => void;
 
-    private ctx_: WechatMinigame.InnerAudioContext;
-    private contexts_: Map<number, WechatMinigame.InnerAudioContext>;
+    private ctx_: MiniGameInnerAudioContext;
+    private contexts_: Map<number, MiniGameInnerAudioContext>;
     private done_ = false;
 
-    constructor(id: number, ctx: WechatMinigame.InnerAudioContext, contexts: Map<number, WechatMinigame.InnerAudioContext>) {
+    constructor(id: number, ctx: MiniGameInnerAudioContext, contexts: Map<number, MiniGameInnerAudioContext>) {
         this.id = id;
         this.ctx_ = ctx;
         this.contexts_ = contexts;
     }
 
     // Guarded so stop() after a natural end (or a double stop()) can't destroy the
-    // InnerAudioContext twice — the second destroy() throws on-device.
+    // audio context twice — the second destroy() throws on-device.
     private dispose_(alsoStop: boolean): void {
         if (this.done_) return;
         this.done_ = true;
@@ -48,8 +59,8 @@ class WeChatAudioHandle implements AudioHandle {
     }
 
     setVolume(volume: number): void {
-        // InnerAudioContext.volume is only valid in [0,1] — out-of-range writes
-        // are rejected on-device rather than clamped.
+        // The host's volume is only valid in [0,1] — out-of-range writes are
+        // rejected on-device rather than clamped.
         this.ctx_.volume = scalar.clamp01(volume);
     }
 
@@ -57,7 +68,7 @@ class WeChatAudioHandle implements AudioHandle {
 
     setPan(_pan: number): void {
         if (!this.panWarned_) {
-            log.warn('audio', 'WeChat InnerAudioContext does not support stereo panning');
+            log.warn('audio', 'mini-game audio contexts do not support stereo panning');
             this.panWarned_ = true;
         }
     }
@@ -83,12 +94,18 @@ class WeChatAudioHandle implements AudioHandle {
     }
 }
 
-export class WeChatAudioBackend implements PlatformAudioBackend {
-    readonly name = 'WeChat';
+export class MiniGameAudioBackend implements PlatformAudioBackend {
+    readonly name: string;
 
-    private contexts_ = new Map<number, WechatMinigame.InnerAudioContext>();
+    private readonly g_: MiniGameGlobal;
+    private contexts_ = new Map<number, MiniGameInnerAudioContext>();
     private urlCache_ = new Map<number, string>();
     private nextId_ = 0;
+
+    constructor(global: MiniGameGlobal, label = 'MiniGame') {
+        this.g_ = global;
+        this.name = label;
+    }
 
     get mixer(): AudioMixer | null {
         return null;
@@ -99,11 +116,11 @@ export class WeChatAudioBackend implements PlatformAudioBackend {
     }
 
     async initialize(_options?: AudioBackendInitOptions): Promise<void> {
-        // wx.createInnerAudioContext does not require global initialization
+        // createInnerAudioContext does not require global initialization
     }
 
     async ensureResumed(): Promise<void> {
-        // WeChat does not require user interaction to resume
+        // Mini-game hosts do not gate playback on a user gesture
     }
 
     async loadBuffer(url: string): Promise<AudioBufferHandle> {
@@ -126,7 +143,7 @@ export class WeChatAudioBackend implements PlatformAudioBackend {
             throw new Error(`Buffer ${buffer.id} not found`);
         }
 
-        const ctx: WechatMinigame.InnerAudioContext = wx.createInnerAudioContext();
+        const ctx = this.g_.createInnerAudioContext();
         ctx.loop = config.loop ?? false;
         ctx.volume = scalar.clamp01(config.volume ?? 1.0);
         ctx.playbackRate = config.playbackRate ?? 1.0;
@@ -136,7 +153,7 @@ export class WeChatAudioBackend implements PlatformAudioBackend {
         const handleId = ++this.nextId_;
         this.contexts_.set(handleId, ctx);
 
-        const handle = new WeChatAudioHandle(handleId, ctx, this.contexts_);
+        const handle = new MiniGameAudioHandle(handleId, ctx, this.contexts_);
         ctx.onEnded(() => {
             handle.onEnd?.();
             if (!ctx.loop) handle.onNaturalEnd(); // guarded dispose (a later stop() is a no-op)

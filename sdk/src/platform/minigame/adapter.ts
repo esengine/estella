@@ -28,14 +28,19 @@ import type { PlatformAudioBackend } from '../../audio/PlatformAudioBackend';
 import type { PlatformVideoBackend, VideoBackendContext } from '../../video/PlatformVideoBackend';
 import { toBuildPath } from '../../assetTypes';
 import { log } from '../../logger';
-import type { MiniGameGlobal, MiniGameProfile, MiniGameFileSystemManager, MiniGameTouchEvent } from './api';
+import type { MiniGameGlobal, MiniGameProfile, MiniGameCanvas, MiniGameFileSystemManager, MiniGameTouchEvent } from './api';
 import { createPrimaryPointer } from '../primaryPointer';
 import { mgReadFileSync, mgReadTextFileSync, mgFileExistsSync } from './fs';
 import { mgLoadImagePixels } from './image';
 import { mgFetch } from './fetch';
+import { MiniGameAudioBackend } from '../../audio/MiniGameAudioBackend';
+import { MiniGameSocket } from '../../net/MiniGameSocket';
+import { WasmVideoBackend } from '../../video/WasmVideoBackend';
 
 export class MiniGamePlatformAdapter implements PlatformAdapter {
     readonly name: PlatformAdapter['name'];
+    /** Every vendor built on this adapter answers `isMiniGame()` — no name list. */
+    readonly family = 'minigame' as const;
 
     private readonly profile_: MiniGameProfile;
     private readonly g_: MiniGameGlobal;
@@ -77,7 +82,12 @@ export class MiniGamePlatformAdapter implements PlatformAdapter {
         pathOrBuffer: string | ArrayBuffer,
         imports: WebAssembly.Imports,
     ): Promise<WasmInstantiateResult> {
-        return this.profile_.instantiateWasm(pathOrBuffer, imports);
+        if (this.profile_.instantiateWasm) return this.profile_.instantiateWasm(pathOrBuffer, imports);
+        // Family default: standard WebAssembly over the packaged filesystem. A
+        // path is read through the host fs first — mini-game packages ship the
+        // binary as a file, and there is no `fetch` to stream it from.
+        const bytes = typeof pathOrBuffer === 'string' ? await this.readFile(pathOrBuffer) : pathOrBuffer;
+        return WebAssembly.instantiate(bytes, imports);
     }
 
     createImage(): PlatformImage {
@@ -119,6 +129,26 @@ export class MiniGamePlatformAdapter implements PlatformAdapter {
         const canvas = this.g_.createCanvas() as unknown as PlatformCanvas;
         canvas.width = width;
         canvas.height = height;
+        return canvas;
+    }
+
+    /**
+     * The ON-SCREEN canvas, sized to the device viewport.
+     *
+     * Distinct from {@link createCanvas}, which makes offscreen 2D surfaces for
+     * image decode and glyph rasterization: on every mini-game host the FIRST
+     * `createCanvas()` of the process returns the display canvas, and the render
+     * surface is the GL context taken from it. The runtime calls this once at
+     * boot, before anything else touches createCanvas.
+     */
+    createScreenCanvas(): MiniGameCanvas {
+        const canvas = this.g_.createCanvas();
+        const info = this.g_.getSystemInfoSync();
+        const dpr = info.pixelRatio ?? 1;
+        // Left at the host's own default when the info is incomplete — a 0×0
+        // surface would be worse than the host's guess.
+        if (info.windowWidth) canvas.width = info.windowWidth * dpr;
+        if (info.windowHeight) canvas.height = info.windowHeight * dpr;
         return canvas;
     }
 
@@ -183,15 +213,19 @@ export class MiniGamePlatformAdapter implements PlatformAdapter {
     }
 
     createAudioBackend(): PlatformAudioBackend {
-        return this.profile_.createAudioBackend();
+        return this.profile_.createAudioBackend?.() ?? new MiniGameAudioBackend(this.g_, this.profile_.hostLabel);
     }
 
     createVideoBackend(ctx: VideoBackendContext): PlatformVideoBackend {
-        return this.profile_.createVideoBackend(ctx);
+        // The engine-owned wasm decoder is the family default on every vendor:
+        // host video decoders are absent on desktop clients and unreliable on
+        // phones (per-device staging, null frames, no playhead), so the
+        // deterministic single path wins even where one exists.
+        return this.profile_.createVideoBackend?.(ctx) ?? new WasmVideoBackend(ctx);
     }
 
     createSocket(options: PlatformSocketOptions): PlatformSocket {
-        return this.profile_.createSocket(options);
+        return this.profile_.createSocket?.(options) ?? new MiniGameSocket(options, this.g_);
     }
 
     getStorageItem(key: string): string | null {

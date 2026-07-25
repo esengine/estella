@@ -4,7 +4,7 @@ import typescript from '@rollup/plugin-typescript';
 import terser from '@rollup/plugin-terser';
 import dts from 'rollup-plugin-dts';
 
-const ENTRY_FILES = ['/index.ts', '/index.wechat.ts', '/index.node.ts', '/index.native.ts'];
+const ENTRY_FILES = ['/index.ts', '/index.wechat.ts', '/index.minigame.ts', '/index.node.ts', '/index.native.ts'];
 const treeshake = {
     moduleSideEffects: (id) => ENTRY_FILES.some(e => id.endsWith(e)),
 };
@@ -19,6 +19,7 @@ const esmBuilds = [
         input: {
             'index': 'src/index.ts',
             'index.wechat': 'src/index.wechat.ts',
+            'index.minigame': 'src/index.minigame.ts',
             'index.native': 'src/index.native.ts',
             'physics/index': 'src/physics/index.ts',
             'spine/index': 'src/spine/index.ts',
@@ -73,6 +74,7 @@ const dtsBuilds = [
             'index': 'src/index.ts',
             'index.node': 'src/index.node.ts',
             'index.wechat': 'src/index.wechat.ts',
+            'index.minigame': 'src/index.minigame.ts',
             'index.native': 'src/index.native.ts',
             'physics/index': 'src/physics/index.ts',
             'spine/index': 'src/spine/index.ts',

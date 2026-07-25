@@ -4,8 +4,9 @@
 // The native PlatformAdapter driven headlessly by a mock NativeBridge — proves the
 // host-bridge contract holds (fs / fetch / wasm / image-pixels / storage / input /
 // identity) with no device, plus fills the platform-layer test gap that the
-// DOM-free surface refactor uncovered (detectPlatform, mini-game canvas/image with
-// the `as unknown` casts removed, node canvas/image fail loud).
+// DOM-free surface refactor uncovered (mini-game family identity + defaults,
+// mini-game canvas/image with the `as unknown` casts removed, node canvas/image
+// fail loud).
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
     NativePlatformAdapter,
@@ -14,7 +15,6 @@ import {
     type NativeInputListener,
 } from '../src/platform/native';
 import { getPlatformType, isNative, platformLanguage } from '../src/platform';
-import { detectPlatform } from '../src/platform/types';
 import type { InputEventCallbacks } from '../src/platform/types';
 
 function makeBridge() {
@@ -180,24 +180,66 @@ describe('NativePlatformAdapter (mock bridge)', () => {
     });
 });
 
-describe('detectPlatform()', () => {
-    afterEach(() => {
-        delete (globalThis as Record<string, unknown>).tt;
-        delete (globalThis as Record<string, unknown>).wx;
+describe('mini-game family identity', () => {
+    // The point of the family: a vendor the SDK has never heard of gets every
+    // mini-game code path without being enumerated anywhere in the engine.
+    it('an unknown vendor is a mini-game, and is not WeChat', async () => {
+        const { MiniGamePlatformAdapter } = await import('../src/platform/minigame/adapter');
+        const { setPlatform, isMiniGame, isWeChat, isWeb, getPlatformType } = await import('../src/platform');
+        const profile = { id: 'myvendor', hostLabel: 'MyVendor', global: {} };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        setPlatform(new MiniGamePlatformAdapter(profile as any));
+
+        expect(isMiniGame()).toBe(true);
+        expect(isWeChat()).toBe(false);
+        expect(isWeb()).toBe(false);
+        expect(getPlatformType()).toBe('myvendor');
     });
 
-    it('is web with no vendor global', () => {
-        expect(detectPlatform()).toBe('web');
+    it('WeChat answers the family check too', async () => {
+        const { MiniGamePlatformAdapter } = await import('../src/platform/minigame/adapter');
+        const { setPlatform, isMiniGame, isWeChat } = await import('../src/platform');
+        const profile = { id: 'wechat', hostLabel: 'WeChat', global: {} };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        setPlatform(new MiniGamePlatformAdapter(profile as any));
+
+        expect(isMiniGame()).toBe(true);
+        expect(isWeChat()).toBe(true);
+    });
+});
+
+describe('mini-game family defaults', () => {
+    // A profile that overrides nothing still gets audio, sockets and video —
+    // they come off the normalized global, so they are not per-vendor work.
+    it('a profile with no overrides still has audio, socket and video backends', async () => {
+        const { MiniGamePlatformAdapter } = await import('../src/platform/minigame/adapter');
+        const { MiniGameAudioBackend } = await import('../src/audio/MiniGameAudioBackend');
+        const { MiniGameSocket } = await import('../src/net/MiniGameSocket');
+        const g = {
+            createInnerAudioContext: () => ({}),
+            connectSocket: () => ({}),
+        };
+        const profile = { id: 'myvendor', hostLabel: 'MyVendor', global: g };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const a = new MiniGamePlatformAdapter(profile as any);
+
+        expect(a.createAudioBackend()).toBeInstanceOf(MiniGameAudioBackend);
+        expect(a.createAudioBackend().name).toBe('MyVendor');
+        expect(a.createSocket({ url: 'wss://example.test' })).toBeInstanceOf(MiniGameSocket);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        expect(a.createVideoBackend({} as any)).toBeTruthy();
     });
 
-    it('is douyin when tt is present', () => {
-        (globalThis as Record<string, unknown>).tt = { getSystemInfoSync: () => ({}) };
-        expect(detectPlatform()).toBe('douyin');
-    });
+    it('falls back to standard WebAssembly when the profile omits instantiateWasm', async () => {
+        const { MiniGamePlatformAdapter } = await import('../src/platform/minigame/adapter');
+        // A minimal valid wasm module (the 8-byte header — magic + version).
+        const wasm = new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
+        const profile = { id: 'myvendor', hostLabel: 'MyVendor', global: {} };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const a = new MiniGamePlatformAdapter(profile as any);
 
-    it('is wechat when wx is present (and tt is not)', () => {
-        (globalThis as Record<string, unknown>).wx = { getSystemInfoSync: () => ({}) };
-        expect(detectPlatform()).toBe('wechat');
+        const res = await a.instantiateWasm(wasm.buffer as ArrayBuffer, {});
+        expect(res.instance).toBeInstanceOf(WebAssembly.Instance);
     });
 });
 
