@@ -65,8 +65,31 @@ function acquireCameraInfo(pool: CameraInfo[], index: number): CameraInfo {
 // Canvas / Ortho Helpers
 // =============================================================================
 
-function findCanvasData(module: ESEngineModule, registry: CppRegistry) {
-    const entity = module.registry_getCanvasEntity(registry);
+/**
+ * The two scene queries this plugin makes of the engine. On web they are module
+ * functions over the embind registry; a native registry answers them itself (it
+ * has no module to route them through — see createNativeRegistry), so ask the
+ * registry first and fall through unchanged everywhere else.
+ */
+interface SceneQueryRegistry {
+    getCanvasEntity?(): number;
+    getCameraEntities?(): number[];
+}
+
+function canvasEntityOf(module: ESEngineModule | null, registry: CppRegistry): number {
+    const own = (registry as CppRegistry & SceneQueryRegistry).getCanvasEntity;
+    if (own) return own.call(registry);
+    return module?.registry_getCanvasEntity(registry) ?? -1;
+}
+
+function cameraEntitiesOf(module: ESEngineModule | null, registry: CppRegistry): number[] {
+    const own = (registry as CppRegistry & SceneQueryRegistry).getCameraEntities;
+    if (own) return own.call(registry);
+    return module?.registry_getCameraEntities(registry) ?? [];
+}
+
+function findCanvasData(module: ESEngineModule | null, registry: CppRegistry) {
+    const entity = canvasEntityOf(module, registry);
     if (entity < 0) return null;
     return registry.getCanvas(entity);
 }
@@ -211,7 +234,7 @@ export function buildCameraInfo(
 
 /** Authored POVs of the scene's cameras (scene-filtered), no matrices built yet. */
 function collectCameraPOVs(
-    module: ESEngineModule,
+    module: ESEngineModule | null,
     registry: CppRegistry,
     width: number,
     height: number,
@@ -219,7 +242,7 @@ function collectCameraPOVs(
     activeScenes?: Set<string>,
 ): CameraPOV[] {
     if (width === 0 || height === 0) return [];
-    const cameraEntities = module.registry_getCameraEntities(registry);
+    const cameraEntities = cameraEntitiesOf(module, registry);
     if (cameraEntities.length === 0) return [];
 
     const filtered = activeScenes && world
@@ -238,7 +261,7 @@ function collectCameraPOVs(
 }
 
 export function collectCameras(
-    module: ESEngineModule,
+    module: ESEngineModule | null,
     registry: CppRegistry,
     width: number,
     height: number,
@@ -329,7 +352,7 @@ function resolveFitSource(app: App, canvas: CanvasScale | null): CanvasScale | n
 
 function resolveCameras(
     app: App,
-    module: ESEngineModule,
+    module: ESEngineModule | null,
     cppRegistry: CppRegistry,
     width: number,
     height: number,
@@ -376,7 +399,7 @@ function resolveCameras(
 
 function syncUICameraInfo(
     app: App,
-    module: ESEngineModule,
+    module: ESEngineModule | null,
     cppRegistry: CppRegistry,
     width: number,
     height: number,
@@ -424,7 +447,10 @@ export function cameraPlugin(
     return {
         name: 'camera',
         build(app: App) {
-            const module = app.wasmModule!;
+            // Null on the native core: the two engine queries this plugin makes are
+            // answered by the registry there (see canvasEntityOf / cameraEntitiesOf),
+            // and the frame itself goes through the Renderer's backend.
+            const module = app.wasmModule;
             const cppRegistry = app.world.getCppRegistry()!;
             const pipeline = app.pipeline!;
             const startTime = platformNow();
@@ -474,7 +500,7 @@ export function cameraPlugin(
                 _fn: () => {
                     const { width, height } = viewport();
                     if (width === 0 || height === 0) return;
-                    const canvasEntity = module.registry_getCanvasEntity(cppRegistry);
+                    const canvasEntity = canvasEntityOf(module, cppRegistry);
                     let clearColor: { x: number; y: number; z: number; w: number } | undefined;
                     if (canvasEntity >= 0) {
                         const canvas = cppRegistry.getCanvas(canvasEntity);

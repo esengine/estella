@@ -61,15 +61,47 @@ export function hasTextBindings(
 }
 
 /**
- * The other direction: what the HOST calls on the JS side, beyond the game's own
- * `update`. Declared here for the same reason as the es_* names — the C++ host
- * spells it once, the SDK installs it once.
+ * The frame. These are the engine calls the SDK's own render pipeline makes on
+ * web through the wasm module (`renderer_*`), bound here for a core that has no
+ * heap to marshal through — so the CAMERAS, viewports, clear flags, y-sort and
+ * pre-flush draws are decided by one implementation on both platforms, and the
+ * native host owns only its swapchain.
+ *
+ * Required as a set (a host that renders binds all of them); {@link
+ * hasRendererBindings} gates whether the SDK drives the frame at all, since a
+ * host may still own it while this lands.
  */
-export const HOST_ENTRIES = {
-    /** Run the render pipeline's pre-flush callbacks (the text batches). The host
-     *  calls it between collecting the scene and flushing the frame, which is
-     *  where the web pipeline runs them too. Absent unless the SDK installed it. */
-    preFlush: 'es_jsPreFlush',
+export const RENDERER_BINDINGS = {
+    resize: 'es_renderer_resize',
+    beginFrame: 'es_renderer_beginFrame',
+    updateTransforms: 'es_renderer_updateTransforms',
+    begin: 'es_renderer_begin',
+    submitAll: 'es_renderer_submitAll',
+    flush: 'es_renderer_flush',
+    end: 'es_renderer_end',
+    setStage: 'es_renderer_setStage',
+    setViewport: 'es_renderer_setViewport',
+    setYSortLayers: 'es_renderer_setYSortLayers',
+    stats: 'es_renderer_stats',
+    surfaceSize: 'es_renderer_surfaceSize',
+} as const;
+
+/** Whether the host bound the whole frame surface — the gate for the SDK driving
+ *  the frame (cameras and all) rather than the host hard-coding one. */
+export function hasRendererBindings(
+    scope: Record<string, unknown> = globalThis as unknown as Record<string, unknown>,
+): boolean {
+    return Object.values(RENDERER_BINDINGS).every((name) => typeof scope[name] === 'function');
+}
+
+/**
+ * Scene queries the wasm module answers as module-level functions over the
+ * registry. The native registry answers them itself (see createNativeRegistry);
+ * optional, since a host that binds neither simply has no cameras to render.
+ */
+export const SCENE_QUERY_BINDINGS = {
+    canvasEntity: 'es_registry_getCanvasEntity',
+    cameraEntities: 'es_registry_getCameraEntities',
 } as const;
 
 /** Platform primitives the SDK's bridge and file reading are built on. */

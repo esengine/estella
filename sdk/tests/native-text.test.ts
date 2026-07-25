@@ -2,23 +2,23 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    native-text.test.ts
- * @brief   Text on the native core: the SAME TextPlugin, glyph atlas and layout
- *          the web build runs, with the two things a device cannot share —
- *          a glyph source (no 2D canvas) and the batch submit (no wasm heap) —
- *          crossing to the host.
+ * @brief   A frame on the native core: the SAME camera plugin, render pipeline,
+ *          glyph atlas and layout the web build runs, over a mock host scope.
  *
- * A mock host scope stands in for the QuickJS globals, so a `Text` entity goes
- * end-to-end headless: rasterize each codepoint → pack the atlas page (created
- * through the native ResourceManager and filled by sub-region uploads) → lay the
- * glyphs out → submit one batch per page through `es_submitTextBatch`.
+ * Two things a device cannot share — a glyph source (no 2D canvas) and the
+ * batch submit (no wasm heap) — cross to the host; everything else is the SDK's
+ * one implementation. `app.tick` therefore has to produce a whole frame here:
+ * resolve the scene's camera, open the pass, collect, draw the text between
+ * collect and flush, close it. That order IS the contract with the host, which
+ * only presents afterwards.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createNativeApp } from '../src/ecs/nativeRuntime';
-import { HOST_ENTRIES } from '../src/ecs/nativeBindings';
 import { shutdownResourceManager } from '../src/resourceManager';
 import { setPlatform } from '../src/platform/base';
+import { setRendererBackend } from '../src/renderer';
 import { setNativeTextSubmit, TEXT_VERTEX_FLOATS } from '../src/ui/text/submit';
-import { Transform } from '../src/component';
+import { Camera, Canvas, Transform } from '../src/component';
 import { Text, TextRenderMode } from '../src/ui/core/text';
 import { PTR_ACCESSORS } from '../src/ecs/ptrAccessors.generated';
 import type { PlatformGlyphRequest } from '../src/platform/types';
@@ -59,6 +59,11 @@ function installMockEcs(scope: Record<string, unknown>): void {
 function makeHostScope() {
     const textures = new Map<number, { width: number; height: number }>();
     const uploads: { handle: number; x: number; y: number; w: number; h: number; bytes: number }[] = [];
+    // What the host was asked to do this frame, in order.
+    const calls: string[] = [];
+    const beginSpy = vi.fn();
+    let canvasEntity = -1;
+    let cameraEntities: number[] = [];
     let nextHandle = 1;
     const rasterizeSpy = vi.fn((request: PlatformGlyphRequest) => ({
         pixels: new Uint8Array(8 * 8 * 4).fill(255),
@@ -85,10 +90,29 @@ function makeHostScope() {
             uploads.push({ handle, x, y, w, h, bytes: pixels.length });
         },
         es_rasterizeGlyph: rasterizeSpy,
-        es_submitTextBatch: submitSpy,
+        es_submitTextBatch: (...args: unknown[]) => { calls.push('text'); submitSpy(...args); },
+        // The frame surface: the SDK's camera plugin + pipeline drive these, and
+        // the order they arrive in is what the host's frame depends on.
+        es_renderer_resize: () => { calls.push('resize'); },
+        es_renderer_beginFrame: () => { calls.push('beginFrame'); },
+        es_renderer_updateTransforms: () => { calls.push('updateTransforms'); },
+        es_renderer_begin: (...args: unknown[]) => { calls.push('begin'); beginSpy(...args); },
+        es_renderer_submitAll: () => { calls.push('submitAll'); },
+        es_renderer_flush: () => { calls.push('flush'); },
+        es_renderer_end: () => { calls.push('end'); },
+        es_renderer_setStage: () => {},
+        es_renderer_setViewport: () => {},
+        es_renderer_setYSortLayers: () => {},
+        es_renderer_stats: () => ({ drawCalls: 1, triangles: 2, sprites: 1, text: 1, spine: 0, meshes: 0, culled: 0 }),
+        es_renderer_surfaceSize: () => ({ width: 800, height: 600 }),
+        es_registry_getCanvasEntity: () => canvasEntity,
+        es_registry_getCameraEntities: () => cameraEntities,
     };
     installMockEcs(scope);
-    return { scope, uploads, rasterizeSpy, submitSpy };
+    return {
+        scope, uploads, calls, rasterizeSpy, submitSpy, beginSpy,
+        setScene: (canvas: number, cameras: number[]) => { canvasEntity = canvas; cameraEntities = cameras; },
+    };
 }
 
 /** The bridge half of the same host: the glyph rasterizer reaches the SDK through
@@ -112,27 +136,52 @@ function makeBridge(scope: Record<string, unknown>): NativeBridge {
 afterEach(() => {
     shutdownResourceManager();
     setNativeTextSubmit(null);
+    setRendererBackend(null);
     setPlatform(null as never);
 });
 
-describe('text on the native core', () => {
-    it('rasterizes through the host, fills an atlas page and submits one batch', async () => {
-        const { scope, uploads, rasterizeSpy, submitSpy } = makeHostScope();
+/** Author the scene the frame renders: a Canvas (clear colour), a Camera, and a
+ *  Text label. Returns the label, whose glyphs the assertions follow. */
+function buildScene(app: ReturnType<typeof createNativeApp>, setScene: (canvas: number, cameras: number[]) => void) {
+    const world = app.world;
+    const canvas = world.spawn();
+    world.insert(canvas, Canvas, { backgroundColor: { r: 0.1, g: 0.2, b: 0.3, a: 1 } });
+    const camera = world.spawn();
+    world.insert(camera, Transform, {});
+    world.insert(camera, Camera, { projectionType: 1, orthoSize: 300, isActive: true, clearFlags: 3 });
+    setScene(canvas, [camera]);
+
+    const label = world.spawn();
+    world.insert(label, Transform, {});
+    // Pin the SDF pipeline: Auto reads the entity's world scale, which the C++
+    // TransformSystem computes on a device and this mock leaves at zero.
+    world.insert(label, Text, { content: 'Hi', fontSize: 32, renderMode: TextRenderMode.Sdf });
+    return label;
+}
+
+describe('a frame on the native core', () => {
+    it('renders the scene through the SDK pipeline, text and all', async () => {
+        const { scope, uploads, calls, rasterizeSpy, submitSpy, beginSpy, setScene } = makeHostScope();
         const app = createNativeApp(makeBridge(scope), scope);
         await app.tick(0);
 
-        const entity = app.world.spawn();
-        app.world.insert(entity, Transform, {});
-        // Pin the SDF pipeline: Auto reads the entity's world scale, which the C++
-        // TransformSystem computes on a device and this mock leaves at zero.
-        app.world.insert(entity, Text, { content: 'Hi', fontSize: 32, renderMode: TextRenderMode.Sdf });
+        const entity = buildScene(app, setScene);
+        calls.length = 0;   // watch one frame, with the scene in place
         await app.tick(1 / 60);
 
-        // The host runs the pipeline's pre-flush callbacks itself, between
-        // collecting the scene and flushing it.
-        const preFlush = scope[HOST_ENTRIES.preFlush] as () => void;
-        expect(typeof preFlush).toBe('function');
-        preFlush();
+        // The SDK drove a whole frame: the camera's pass opened, the scene was
+        // collected, the text drew before the flush, and the pass closed. The host
+        // adds only the present after this.
+        expect(calls.filter((c) => c === 'begin' || c === 'submitAll' || c === 'text' || c === 'flush' || c === 'end'))
+            .toEqual(['begin', 'submitAll', 'text', 'flush', 'end']);
+
+        // The pass cleared to the Canvas' background colour — the scene's, not a
+        // colour the host picked.
+        const [, , clearFlags, r, g, b] = beginSpy.mock.calls[beginSpy.mock.calls.length - 1];
+        expect(clearFlags).toBe(3);
+        expect(r).toBeCloseTo(0.1, 5);   // f32 round-trip through the component
+        expect(g).toBeCloseTo(0.2, 5);
+        expect(b).toBeCloseTo(0.3, 5);
 
         // One rasterize per distinct codepoint, asking for the SDF encoding.
         expect(rasterizeSpy).toHaveBeenCalledTimes(2);
@@ -158,21 +207,34 @@ describe('text on the native core', () => {
         expect((transform as Float32Array).length).toBe(16);
     });
 
-    it('draws nothing — and boots — on a host with no font stack', async () => {
-        const { scope, submitSpy } = makeHostScope();
+    it('still renders the scene on a host with no font stack — just no text', async () => {
+        const { scope, calls, submitSpy, setScene } = makeHostScope();
         delete scope.es_rasterizeGlyph;
         const bridge = makeBridge(scope);
         delete (bridge as { rasterizeGlyph?: unknown }).rasterizeGlyph;
 
         const app = createNativeApp(bridge, scope);
         await app.tick(0);
-        const entity = app.world.spawn();
-        app.world.insert(entity, Transform, {});
-        app.world.insert(entity, Text, { content: 'Hi' });
+        buildScene(app, setScene);
         await app.tick(1 / 60);
 
-        // The plugin was never installed, so there is no pre-flush entry at all.
-        expect(scope[HOST_ENTRIES.preFlush]).toBeUndefined();
+        expect(calls).toContain('begin');
+        expect(calls).toContain('flush');
         expect(submitSpy).not.toHaveBeenCalled();
+    });
+
+    it('leaves the frame to the host when it bound no renderer', async () => {
+        const { scope, calls, setScene } = makeHostScope();
+        for (const name of Object.keys(scope).filter((n) => n.startsWith('es_renderer_'))) delete scope[name];
+
+        const app = createNativeApp(makeBridge(scope), scope);
+        await app.tick(0);
+        buildScene(app, setScene);
+        await app.tick(1 / 60);
+
+        // No pipeline, no camera plugin — the app still runs its gameplay stack,
+        // and a host that drives its own frame keeps working.
+        expect(calls).toEqual([]);
+        expect(app.pipeline).toBeNull();
     });
 });

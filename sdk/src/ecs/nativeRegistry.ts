@@ -17,7 +17,7 @@
 import type { CppRegistry } from '../wasm';
 import type { Entity } from '../types';
 import { PTR_ACCESSORS } from './ptrAccessors.generated';
-import { REGISTRY_BINDINGS } from './nativeBindings';
+import { REGISTRY_BINDINGS, SCENE_QUERY_BINDINGS } from './nativeBindings';
 import { COMPONENT_META } from '../component.generated';
 import { convertForWasm, convertFromWasm } from './BuiltinBridge';
 
@@ -37,6 +37,14 @@ function hostCall(scope: Record<string, unknown>, name: string, args: unknown[])
     if (typeof fn !== 'function') {
         throw new Error(`native host binding "${name}" is missing`);
     }
+    return (fn as (...a: unknown[]) => unknown)(...args);
+}
+
+/** Optional host global — undefined (and no call) when unbound, for the queries a
+ *  minimal host may not answer yet. */
+function hostCallOpt(scope: Record<string, unknown>, name: string, args: unknown[]): unknown {
+    const fn = scope[name];
+    if (typeof fn !== 'function') return undefined;
     return (fn as (...a: unknown[]) => unknown)(...args);
 }
 
@@ -75,6 +83,16 @@ export function createNativeRegistry(
         entities: vectorEntity((hostCall(scope, REGISTRY_BINDINGS.getChildren, [e]) as Entity[] | undefined) ?? []),
     });
     reg.delete = (): void => {};
+
+    // The scene queries the wasm module answers as module-level functions. There is
+    // no module here, so the registry answers them — the camera plugin asks the
+    // registry first and falls through to the module on web (see canvasEntityOf).
+    // Optional on the host: a host that binds neither simply has no cameras, which
+    // the plugin already treats as "nothing to render".
+    reg.getCanvasEntity = (): number =>
+        (hostCallOpt(scope, SCENE_QUERY_BINDINGS.canvasEntity, []) as number | undefined) ?? -1;
+    reg.getCameraEntities = (): number[] =>
+        (hostCallOpt(scope, SCENE_QUERY_BINDINGS.cameraEntities, []) as number[] | undefined) ?? [];
 
     for (const cppName of Object.keys(PTR_ACCESSORS)) {
         const accessor = PTR_ACCESSORS[cppName];

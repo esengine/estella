@@ -10,12 +10,24 @@
 var app, world, input, follower, orbit, t = 0.0;
 
 function init() {
-    es_setClear(0.07, 0.08, 0.12);
     app = ESEngine.createNativeApp(globalThis.__esNativeBridge, globalThis);
     app.tick(0);                       // sync through finishPlugins: binds input + inserts Input
     world = app.world;
     input = app.getResource(ESEngine.Input);
     var assets = app.getResource(ESEngine.Assets);
+
+    // The frame belongs to the SDK here, exactly as on the web: a Canvas gives the
+    // design resolution and the clear colour, a Camera gives the projection. The
+    // host no longer decides either — it presents what this camera renders.
+    var stage = world.spawn();
+    world.insert(stage, ESEngine.Canvas, {
+        designResolution: { x: W, y: H }, scaleMode: 2 /* Expand */,
+        backgroundColor: { r: 0.07, g: 0.08, b: 0.12, a: 1 } });
+
+    var camera = world.spawn();
+    world.insert(camera, ESEngine.Transform, { position: { x: W * 0.5, y: H * 0.5, z: 0 } });
+    world.insert(camera, ESEngine.Camera, {
+        projectionType: 1 /* orthographic */, orthoSize: H * 0.5, isActive: true, clearFlags: 3 });
 
     // Fallback 2x2 checker (a tiny inline texture) while the real image loads.
     // Nearest filter + clamp (format 1, no flip, filter 0, wrap 1) so the scaled-up

@@ -21,8 +21,13 @@ import { installNativePlatform, type NativeBridge } from '../platform/native';
 import { createNativeRegistry } from './nativeRegistry';
 import { NativeMemoryProvider } from './memoryProvider';
 import { createNativeResourceManager } from './nativeResourceManager';
-import { HOST_ENTRIES, TEXT_BINDINGS, hasTextBindings } from './nativeBindings';
+import { TEXT_BINDINGS, hasTextBindings, hasRendererBindings } from './nativeBindings';
+import { createNativeRendererBackend, nativeSurfaceSize } from './nativeRenderer';
+import { setRendererBackend } from '../renderer';
 import { RenderPipeline } from '../renderPipeline';
+import { cameraPlugin } from '../camera/CameraPlugin';
+import { UICameraInfo } from '../ui/core/ui-camera-info';
+import { DEFAULT_UI_CAMERA_INFO } from '../corePlugin';
 import { textPlugin } from '../ui/text/plugin';
 import { setNativeTextSubmit } from '../ui/text/submit';
 import { initResourceManager } from '../resourceManager';
@@ -76,11 +81,12 @@ export function createNativeApp(
     app.connectCpp(createNativeRegistry(scope), undefined, {
         memory: new NativeMemoryProvider(scope),
     });
-    // The same stack a headless app runs — scenes, prefabs, timers, gameplay AI —
-    // plus input. No renderer: the native C++ core owns drawing and reads the ECS
-    // this app authors. assetPlugin is the one exception: it wires the wasm heap,
-    // so installNativeAssets below builds the equivalent over the native RM.
-    // Assets first: prefabs and scene loading declare it as a required resource.
+    // The same order the web app builds in (see _createWebApp): the frame first,
+    // then assets, then the gameplay stack. assetPlugin is the one plugin that
+    // cannot be shared as-is — it wires the wasm heap — so installNativeAssets
+    // builds the equivalent over the native ResourceManager; prefabs and scene
+    // loading declare Assets as a required resource, so it precedes them.
+    installNativeRenderer(app, scope);
     installNativeAssets(app, scope);
     installNativeText(app, scope);
     app.addPlugin(inputPlugin);
@@ -104,6 +110,31 @@ export function createNativeApp(
  * pipeline. Same-signature loaders, so it never diverges from the web channel.
  */
 /**
+ * Install the frame — the same `CameraPlugin` + `RenderPipeline` the web build
+ * runs, over the native core.
+ *
+ * The native host used to write its own frame in C++: one hard-coded projection,
+ * collect, flush, present. Every decision the SDK makes about a frame — which
+ * cameras exist, their viewport rects and clear flags, the design-resolution fit,
+ * y-sort layers, which scenes are active, what draws just before the flush —
+ * either had to be written a second time in C++ or was simply absent on device.
+ *
+ * With the renderer bindings in place the frame is the SDK's one implementation
+ * on both platforms, and the host keeps only what is genuinely its own: the
+ * swapchain and the present. Gated on the host having bound the whole surface, so
+ * a host that still drives its own frame keeps working.
+ */
+function installNativeRenderer(app: App, scope: Record<string, unknown>): void {
+    if (!hasRendererBindings(scope)) return;
+    setRendererBackend(createNativeRendererBackend(scope));
+    app.setPipeline(new RenderPipeline());
+    app.insertResource(UICameraInfo, { ...DEFAULT_UI_CAMERA_INFO });
+    // The viewport is read per frame, so a rotation reaches the projection without
+    // anyone pushing a resize event.
+    app.addPlugin(cameraPlugin(() => nativeSurfaceSize(scope)));
+}
+
+/**
  * Install text — the same `TextPlugin` the web build runs, over the native core.
  *
  * Two things it cannot take from the web: a glyph source (the device has no 2D
@@ -112,11 +143,9 @@ export function createNativeApp(
  * takes the typed arrays and calls `RenderFrame::submitTextBatch` itself).
  * Everything between, atlas through batching, is the SDK's one implementation.
  *
- * The plugin draws from a pre-flush callback, so the app needs a
- * {@link RenderPipeline} to register into even though it owns no rendering; the
- * host runs those callbacks each frame through {@link HOST_ENTRIES.preFlush},
- * between collecting the scene and flushing it — the same point the web pipeline
- * runs them at.
+ * The plugin draws from the pipeline's pre-flush callback — the one
+ * {@link installNativeRenderer} installed, run between collecting the scene and
+ * flushing it, exactly where the web pipeline runs it.
  *
  * Gated on the host having bound the whole text surface: one that has not simply
  * draws no text, exactly as a host without an audio device stays silent.
@@ -131,13 +160,7 @@ function installNativeText(app: App, scope: Record<string, unknown>): void {
     setNativeTextSubmit((vertices, vertexCount, indices, textureId, transform, entity, layer, depth, sdf) => {
         submit(vertices, vertexCount, indices, textureId, transform, entity, layer, depth, sdf);
     });
-
-    const pipeline = new RenderPipeline();
-    app.setPipeline(pipeline);
     app.addPlugin(textPlugin);
-    scope[HOST_ENTRIES.preFlush] = (): void => {
-        pipeline.runPreFlushCallbacks({ _cpp: app.world.getCppRegistry()! });
-    };
 }
 
 function installNativeAssets(app: App, scope: Record<string, unknown>): void {
