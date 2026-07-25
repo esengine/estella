@@ -188,8 +188,13 @@ function with WeChat's staged wasm name filled in, and nothing else.
 
 ## Packaging
 
-Drop a profile in `.esengine/platforms/<id>.mjs` and your platform appears in
-**Package Project** under *Project*, beside the built-in targets:
+In **Package Project**, hover the *Project* group in the platform list and hit
+**+**. Give it an id and a name, and the editor writes both halves of the vendor
+— already joined — then selects the new platform so you can package it as soon as
+you have described your host.
+
+The files it writes are ordinary project files; nothing is registered anywhere
+else. This is the packaging half:
 
 ```js
 // .esengine/platforms/acme-play.mjs
@@ -220,7 +225,7 @@ side-module scan, bundling, runtime copy — is the same pipeline WeChat uses.
 
 ### A vendor has two halves
 
-The file above is the **packaging** half. The **runtime** half is the
+The file above is the **packaging** half (scaffolded for you by **+**). The **runtime** half is the
 `MiniGameProfile` from the first part of this guide — the host global, and any
 capability you replace. Point at it with `runtimeProfile` and the generated entry
 installs it before booting:

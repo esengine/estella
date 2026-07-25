@@ -221,6 +221,9 @@
 }
 .build__nav-group + .build__nav-group { margin-top: 2px; }
 .build__nav-sec {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   font-size: var(--fs-2xs);
   text-transform: uppercase;
   letter-spacing: 0.6px;
@@ -228,6 +231,23 @@
   font-weight: 700;
   padding: 10px 8px 4px;
 }
+.build__nav-sec > span { flex: 1; min-width: 0; }
+/* Scaffolding action: quiet until the group is hovered, so it does not compete
+   with the platform rows for attention. */
+.build__nav-add {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin: -2px -2px -2px 0;
+  border-radius: var(--r-xs);
+  color: var(--text-mute);
+  opacity: 0;
+  transition: opacity var(--t-fast), color var(--t-fast), background var(--t-fast);
+}
+.build__nav-group:hover .build__nav-add, .build__nav-add:focus-visible { opacity: 1; }
+.build__nav-add:hover:not(:disabled) { color: var(--text); background: var(--srf-4); }
+.build__nav-add:disabled { opacity: 0; }
 .build__nav-item {
   width: 100%;
   display: flex;

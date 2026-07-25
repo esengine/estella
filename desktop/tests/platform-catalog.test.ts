@@ -10,10 +10,10 @@
 //   2. A project can add a platform the editor never heard of, and a broken one
 //      must not take the dialog down with it.
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { listPlatforms, loadProjectPlatform, PROJECT_PLATFORM_DIR } from '../electron/platformCatalog';
+import { listPlatforms, loadProjectPlatform, createProjectPlatform, PROJECT_PLATFORM_DIR } from '../electron/platformCatalog';
 
 let root: string;
 let webDir: string;
@@ -142,6 +142,60 @@ describe('listPlatforms — platforms the project defines', () => {
   it('lists only built-ins when no project is open', async () => {
     const rows = await listPlatforms(null, dirs());
     expect(rows.every((r) => r.source === 'builtin')).toBe(true);
+  });
+});
+
+describe('createProjectPlatform — scaffolding', () => {
+  it('writes both halves, already joined, and the result is discoverable', async () => {
+    const res = await createProjectPlatform(root, 'acme-play', 'ACME Play', 'src');
+    expect(res.ok).toBe(true);
+    expect(res.packagingFile).toBe('.esengine/platforms/acme-play.mjs');
+    expect(res.runtimeFile).toBe('src/platforms/acme-play.runtime.ts');
+    // Reported with forward slashes, like every other path the dialog shows.
+    expect(res.packagingFile).not.toContain('\\');
+
+    const packaging = readFileSync(path.join(root, res.packagingFile!), 'utf8');
+    const runtime = readFileSync(path.join(root, res.runtimeFile!), 'utf8');
+    // THE JOIN: the packaging half names the runtime half.
+    expect(packaging).toContain(`runtimeProfile: 'src/platforms/acme-play.runtime.ts'`);
+    expect(runtime).toContain(`id: 'acme-play'`);
+    expect(runtime).toContain(`hostLabel: 'ACME Play'`);
+    // The overrides a vendor might want are present as guidance, commented out.
+    expect(runtime).toContain('createVideoBackend');
+    expect(runtime).toContain('instantiateWasm');
+
+    // What was scaffolded is immediately a real platform.
+    writeFileSync(path.join(webDir, 'esengine.js'), '//');
+    const rows = await listPlatforms(root, dirs());
+    const acme = rows.find((r) => r.id === 'acme-play');
+    expect(acme?.source).toBe('project');
+    expect(acme?.label).toBe('ACME Play');
+    expect(acme?.error).toBeUndefined();
+    expect(acme?.ready).toBe(true);
+
+    // And it loads into a complete export profile.
+    const loaded = await loadProjectPlatform(root, 'acme-play', dirs());
+    expect(loaded!.profile.runtimeProfileModule).toBe(path.join(root, 'src', 'platforms', 'acme-play.runtime.ts'));
+    expect(loaded!.defaultOut).toBe('dist-acme-play');
+    expect(loaded!.profile.emitConfigFiles({ title: 'T', appid: '', orientation: 'portrait', subPackages: [], includeSuffixes: [] })[0].file)
+      .toBe('game.json');
+  });
+
+  it('refuses an id that shadows a built-in or is malformed', async () => {
+    expect((await createProjectPlatform(root, 'wechat', 'Fake', 'src')).error).toContain('built-in');
+    expect((await createProjectPlatform(root, 'Bad Id', 'X', 'src')).error).toContain('lowercase');
+    expect((await createProjectPlatform(root, 'ok-id', '  ', 'src')).error).toContain('label');
+  });
+
+  it('never clobbers an existing platform, or a runtime half already written', async () => {
+    await createProjectPlatform(root, 'acme', 'ACME', 'src');
+    const runtimeAbs = path.join(root, 'src', 'platforms', 'acme.runtime.ts');
+    writeFileSync(runtimeAbs, 'export default { mine: true };');
+
+    const again = await createProjectPlatform(root, 'acme', 'ACME', 'src');
+    expect(again.ok).toBe(false);
+    expect(again.error).toContain('already exists');
+    expect(readFileSync(runtimeAbs, 'utf8')).toBe('export default { mine: true };');
   });
 });
 

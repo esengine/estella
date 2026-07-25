@@ -26,7 +26,7 @@
 import { useState, useEffect, useSyncExternalStore, type ReactNode } from 'react';
 import {
   Loader2, FolderOpen, CheckCircle2, AlertCircle, Boxes, Info, Copy, ExternalLink, Play,
-  Globe, Monitor, MessageSquare, ChevronRight, Smartphone, Package, TriangleAlert,
+  Globe, Monitor, MessageSquare, ChevronRight, Smartphone, Package, TriangleAlert, Plus,
 } from 'lucide-react';
 import type { ExportPlatform } from '@/project/format';
 import { Modal } from '@/components/Modal';
@@ -179,6 +179,12 @@ export function BuildDialog() {
   const [assetCompression, setAssetCompression] = useState<AssetCompression>(saved.assetCompression ?? 'auto');
   const [advOpen, setAdvOpen] = useState(false);
   const [copiedFix, setCopiedFix] = useState(false);
+  // The scaffolding pane: a pseudo-selection, so the nav keeps working while it shows.
+  const [creating, setCreating] = useState(false);
+  const [newId, setNewId] = useState('my-platform');
+  const [newLabel, setNewLabel] = useState('My Platform');
+  const [createErr, setCreateErr] = useState<string | null>(null);
+  const [created, setCreated] = useState<{ id: string; packaging: string; runtime: string } | null>(null);
   const [phase, setPhase] = useState<Phase>('idle');
   const [result, setResult] = useState<Result | null>(null);
   const [log, setLog] = useState<string[]>([]);
@@ -251,6 +257,46 @@ export function BuildDialog() {
     setResult(null);
     // Restore this platform's saved output, else its suggested default.
     setOutDir(saved.outDir?.[p.id] ?? p.defaultOut);
+  };
+
+  const startCreate = () => {
+    setCreating(true);
+    setCreated(null);
+    setCreateErr(null);
+  };
+
+  const createPlatform = async () => {
+    setCreateErr(null);
+    const res = await window.estella.project?.createPlatform?.(newId.trim(), newLabel.trim());
+    if (!res?.ok) {
+      setCreateErr(res?.error ?? t('build.packageFailed'));
+      return;
+    }
+    const id = newId.trim();
+    setCreated({ id, packaging: res.packagingFile!, runtime: res.runtimeFile! });
+    // Re-read the catalog so the new platform joins the nav, then select it.
+    const rows = (await window.estella.project?.listPlatforms?.()) ?? [];
+    const row = rows.find((r) => r.id === id);
+    if (row) {
+      setPlatforms((prev) => [
+        ...prev.filter((p) => p.id !== row.id),
+        {
+          id: row.id, label: row.label ?? row.id, ready: row.ready, category: 'custom', custom: true,
+          loadError: row.error, icon: <Package size={17} />, blurb: row.blurb ?? t('build.customHint'),
+          defaultOut: row.defaultOut ?? `dist-${row.id}`, sourceMaps: false,
+          prereq: prereqText(row), fixCommand: row.prereq?.command,
+          next: (o) => t('build.next.custom', { out: o }),
+        },
+      ]);
+      // Land ON the new platform rather than leaving the form up: the footer and
+      // the Package button both act on the selection, and a form that is not a
+      // selection would have them acting on the previous one.
+      setCreating(false);
+      setPlatform(row.id);
+      setOutDir(row.defaultOut ?? `dist-${row.id}`);
+      setPhase('idle');
+      setResult(null);
+    }
   };
 
   const copyFix = (cmd: string) => {
@@ -352,16 +398,30 @@ export function BuildDialog() {
             if (items.length === 0 && cat !== 'custom') return null;
             return (
               <div key={cat} className="build__nav-group">
-                <div className="build__nav-sec">{CATEGORY_LABEL[cat]}</div>
+                <div className="build__nav-sec">
+                  <span>{CATEGORY_LABEL[cat]}</span>
+                  {cat === 'custom' && (
+                    <button
+                      type="button"
+                      className="build__nav-add"
+                      title={t('build.newPlatform')}
+                      aria-label={t('build.newPlatform')}
+                      disabled={running || !project}
+                      onClick={startCreate}
+                    >
+                      <Plus size={13} />
+                    </button>
+                  )}
+                </div>
                 {items.map((p) => (
                   <button
                     key={p.id}
                     type="button"
-                    className={`build__nav-item${platform === p.id ? ' active' : ''}`}
-                    aria-current={platform === p.id}
+                    className={`build__nav-item${!creating && platform === p.id ? ' active' : ''}`}
+                    aria-current={!creating && platform === p.id}
                     disabled={running}
                     title={p.label}
-                    onClick={() => pickPlatform(p)}
+                    onClick={() => { setCreating(false); pickPlatform(p); }}
                   >
                     <span className="build__nav-icon">{p.icon}</span>
                     <span className="build__nav-label">{p.label}</span>
@@ -381,10 +441,56 @@ export function BuildDialog() {
         </nav>
 
         <div className="build__content">
+          {creating ? (
+            <>
+              <div className="build__head">
+                <span className="build__head-title">{t('build.newPlatformTitle')}</span>
+                <span className="build__blurb">{t('build.newPlatformBlurb')}</span>
+              </div>
+              <Group title={t('build.newPlatform')}>
+                <div className="build__row">
+                  <span className="build__label" title={t('build.platformIdTip')}>{t('build.platformId')}</span>
+                  <input value={newId} spellCheck={false} onChange={(e) => setNewId(e.target.value)} />
+                </div>
+                <div className="build__row">
+                  <span className="build__label">{t('build.platformLabel')}</span>
+                  <input value={newLabel} spellCheck={false} onChange={(e) => setNewLabel(e.target.value)} />
+                </div>
+                <div className="build__row">
+                  <span className="build__label" />
+                  <Button variant="primary" onClick={() => void createPlatform()}>
+                    <Plus size={13} /> {t('build.create')}
+                  </Button>
+                </div>
+              </Group>
+              {createErr && (
+                <div className="build__prereq is-error">
+                  <AlertCircle size={13} /> <span className="selectable">{createErr}</span>
+                </div>
+              )}
+            </>
+          ) : (
+          <>
           <div className="build__head">
             <span className="build__head-title">{def.label}</span>
             <span className="build__blurb">{def.blurb}</span>
           </div>
+
+          {created?.id === def.id && (
+            <div className="build__prereq">
+              <CheckCircle2 size={13} />
+              <div className="build__prereq-body">
+                <span className="selectable">
+                  {t('build.created', { packaging: created.packaging, runtime: created.runtime })}
+                </span>
+                <div className="build__fix">
+                  <Button onClick={() => void window.estella.shell?.showItem?.(created.packaging)}>
+                    <FolderOpen size={12} /> {t('build.revealFiles')}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {def.loadError && (
             <div className="build__prereq is-error">
@@ -585,6 +691,8 @@ export function BuildDialog() {
               <div className="build__warn selectable">{t('build.warnings', { count: result.warnings.length, first: result.warnings[0] })}</div>
             )}
             </div>
+          )}
+          </>
           )}
         </div>
       </div>

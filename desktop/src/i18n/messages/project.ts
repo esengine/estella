@@ -40,6 +40,24 @@ export const projectMessages = defineMessages({
         en: 'Package written to {out} — open it in your platform\'s devtools.',
         zh: '包已输出到 {out} —— 用该平台的开发者工具打开。',
     },
+    'build.newPlatform': { en: 'New platform', zh: '新建平台' },
+    'build.newPlatformTitle': { en: 'New project platform', zh: '新建项目平台' },
+    'build.newPlatformBlurb': {
+        en: 'Estella writes both halves of the vendor — the packaging profile and the runtime profile it points at — already joined. Edit them to describe your host.',
+        zh: 'Estella 会把平台的两半都写好——打包配置，以及它指向的运行时配置——并且已经连接好。之后你只需编辑它们来描述你的宿主。',
+    },
+    'build.platformId': { en: 'Id', zh: '标识' },
+    'build.platformIdTip': {
+        en: 'Lowercase letters, digits and dashes. Also the per-texture Import Settings key for this platform.',
+        zh: '小写字母、数字和短横线。它同时是该平台的逐纹理导入设置键。',
+    },
+    'build.platformLabel': { en: 'Name', zh: '名称' },
+    'build.create': { en: 'Create', zh: '创建' },
+    'build.created': {
+        en: 'Created {packaging} and {runtime}. Edit them to describe your host, then package.',
+        zh: '已创建 {packaging} 与 {runtime}。编辑它们来描述你的宿主，然后就可以打包。',
+    },
+    'build.revealFiles': { en: 'Show files', zh: '显示文件' },
     'build.noCustomPlatforms': {
         en: 'Drop a profile in .esengine/platforms/<id>.mjs to add your own target.',
         zh: '在 .esengine/platforms/<id>.mjs 放一个配置文件即可添加自己的目标。',

@@ -39,7 +39,7 @@ import { ensureProjectShaderTwins } from './shaderTwins';
 import { installCrashCapture, logsDir } from './resilience';
 import { mcpMode, startMcpEndpoint } from './mcpEndpoint';
 import { checkForUpdate } from './updateCheck';
-import { listPlatforms, loadProjectPlatform, type PlatformRuntimeDirs } from './platformCatalog';
+import { listPlatforms, loadProjectPlatform, createProjectPlatform, type PlatformRuntimeDirs } from './platformCatalog';
 import { resolveLayout, resolveScripts, resolveOrientation, resolveScreenFit, type ExportPlatform } from '../src/project/format';
 import type { WorkspaceState } from '../src/project/format';
 
@@ -773,6 +773,17 @@ ipcMain.handle('project:cookAssets', async (_e, outDir?: string) => {
 // probed on disk — so the Package dialog can say what is ready BEFORE a build
 // runs, and can list the platforms the project defines for itself.
 ipcMain.handle('project:listPlatforms', async () => listPlatforms(projectRoot, platformRuntimeDirs()));
+
+// Scaffold a project platform — both halves, already joined. The editor writes
+// them because the SHAPE of a vendor (two files linked by runtimeProfile) is the
+// part that is hard to know before you have seen one.
+ipcMain.handle('project:createPlatform', async (_e, id: string, label: string) => {
+  const root = requireRoot();
+  const manifest = await readManifest(root);
+  // The runtime half is game code, so it belongs beside the project's scripts.
+  const scriptsDir = path.dirname(resolveScripts(manifest).main ?? 'src/main.ts');
+  return createProjectPlatform(root, id, label, scriptsDir);
+});
 
 // Export a runnable web build (play == ship): cook + game host + wasm + index.html.
 ipcMain.handle(

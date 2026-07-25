@@ -7,7 +7,7 @@ import type { ExtractSchemasResult } from './extractSchemas';
 import type { ScanAssetsResult, AssetIndex, IncrementalScanResult } from './assetDb';
 import type { CookResult } from './cookAssets';
 import type { ExportGameResult } from './exportGame';
-import type { PlatformStatus } from './platformCatalog';
+import type { PlatformStatus, CreatePlatformResult } from './platformCatalog';
 import type { PlayRealmResult } from './buildPlayRealm';
 import type { LatestRelease } from './updateCheck';
 
@@ -97,6 +97,10 @@ const api = {
     /** The platforms this project can package for — built-ins plus any the project
      *  defines in `.esengine/platforms/` — each with its engine runtime probed. */
     listPlatforms: (): Promise<PlatformStatus[]> => ipcRenderer.invoke('project:listPlatforms'),
+    /** Scaffold a project platform: the packaging profile + the runtime profile it
+     *  points at, both written and already joined. */
+    createPlatform: (id: string, label: string): Promise<CreatePlatformResult> =>
+      ipcRenderer.invoke('project:createPlatform', id, label),
     /** Export a runnable web build (play==ship) → self-contained `outDir` (default dist-game/). */
     exportGame: (opts?: { outDir?: string; minify?: boolean; sourcemap?: boolean; platform?: ExportPlatform; compressTextures?: boolean; compressAudio?: boolean; atlasTextures?: boolean }): Promise<ExportGameResult> =>
       ipcRenderer.invoke('project:exportGame', opts),

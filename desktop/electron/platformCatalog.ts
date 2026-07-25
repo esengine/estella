@@ -22,7 +22,7 @@
  *        merged over MINIGAME_PROFILE_DEFAULTS, not a fork of anything.
  */
 import { existsSync } from 'node:fs';
-import { readdir } from 'node:fs/promises';
+import { readdir, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { defaultMiniGameEntry } from './miniGameExportProfile';
@@ -167,6 +167,151 @@ export interface ProjectPlatform {
 
 function platformDir(root: string): string {
   return path.join(root, PROJECT_PLATFORM_DIR);
+}
+
+// =============================================================================
+// Scaffolding
+// =============================================================================
+
+/** Where the generated runtime half goes, relative to the project root. */
+const runtimeHalfPath = (scriptsDir: string, id: string): string =>
+  path.join(scriptsDir, 'platforms', `${id}.runtime.ts`);
+
+/** The packaging half — data plus the one emitter a vendor must write. */
+function packagingTemplate(id: string, label: string, runtimeRel: string): string {
+  return `// Packaging profile for "${label}" — how Estella builds the package.
+//
+// This is one half of a platform. The other half (${runtimeRel}) describes the
+// HOST at runtime, and is where you replace a capability: your own video
+// decoder, audio backend, socket or wasm loader.
+//
+// Everything not set here defaults to a standard mini-game host, so this file
+// only carries what is genuinely yours.
+export default {
+  id: '${id}',
+  label: '${label}',
+  blurb: '${label} package.',
+  defaultOut: 'dist-${id}',
+
+  // Joins the two halves: the generated entry installs this profile before boot.
+  runtimeProfile: '${runtimeRel.split(path.sep).join('/')}',
+
+  // TODO: emit the config files your host's packer expects. The context carries
+  // the vendor-neutral facts the pipeline computed.
+  emitConfigFiles(ctx) {
+    return [
+      {
+        file: 'game.json',
+        content: JSON.stringify(
+          {
+            appName: ctx.title,
+            orientation: ctx.orientation,
+            // Lazy asset groups become the host's subpackage roots.
+            ...(ctx.subPackages.length > 0 ? { subPackages: ctx.subPackages } : {}),
+          },
+          null,
+          2,
+        ) + '\\n',
+      },
+    ];
+  },
+
+  // Uncomment if your host needs its own engine build; the default is the
+  // editor's web runtime.
+  // wasmDir: 'build/wasm/${id}',
+};
+`;
+}
+
+/** The runtime half — the host global, plus anything this vendor replaces. */
+function runtimeTemplate(id: string, label: string): string {
+  return `// Runtime profile for "${label}" — what the host is, at run time.
+//
+// Three facts are all that is required. Everything a mini-game host shares —
+// filesystem, fetch, canvas, image decode, touch/key input, storage,
+// subpackages, audio, sockets, video — comes from the global below.
+import type { MiniGameProfile } from 'esengine/minigame';
+
+// TODO: point this at your host's global API object (the wx-shaped one).
+declare const HOST_GLOBAL: unknown;
+
+const profile: MiniGameProfile = {
+  id: '${id}',
+  hostLabel: '${label}',
+
+  // Read through a getter: the host global only exists at run time, so importing
+  // this file in a bundler or a test must not touch it.
+  get global() {
+    if (typeof HOST_GLOBAL === 'undefined') {
+      throw new Error('[${id}] set \`global\` in this file to your host API object');
+    }
+    return HOST_GLOBAL as MiniGameProfile['global'];
+  },
+
+  // ---------------------------------------------------------------------------
+  // Optional overrides. Write one ONLY where your host genuinely differs, or
+  // where you want a different implementation than the engine's.
+  // ---------------------------------------------------------------------------
+
+  // Your host does not use the standard \`WebAssembly\` (WeChat, for one, routes
+  // through WXWebAssembly and takes a package path rather than bytes):
+  // instantiateWasm(pathOrBuffer, imports) { … },
+
+  // Your own video decoding, instead of the engine's wasm MPEG-1 decoder:
+  // createVideoBackend(ctx) { return new MySoftwareDecoder(ctx); },
+
+  // Your own audio or socket transport, instead of the family defaults built on
+  // the host global:
+  // createAudioBackend() { return new MyAudioBackend(); },
+  // createSocket(options) { return new MySocket(options); },
+};
+
+export default profile;
+`;
+}
+
+export interface CreatePlatformResult {
+  ok: boolean;
+  error?: string;
+  /** Project-relative paths of the two files written. */
+  packagingFile?: string;
+  runtimeFile?: string;
+}
+
+/**
+ * Scaffold a project platform: both halves, already joined.
+ *
+ * The editor writes them rather than asking the developer to create files by
+ * hand — the shape of a vendor (two files, linked by `runtimeProfile`) is
+ * exactly the thing that is hard to know before you have seen one.
+ */
+export async function createProjectPlatform(
+  root: string,
+  id: string,
+  label: string,
+  scriptsDir: string,
+): Promise<CreatePlatformResult> {
+  const bad = idProblem(id);
+  if (bad) return { ok: false, error: bad };
+  if (!label.trim()) return { ok: false, error: 'platform needs a label' };
+
+  const packagingRel = path.join(PROJECT_PLATFORM_DIR, `${id}.mjs`);
+  const runtimeRel = runtimeHalfPath(scriptsDir, id);
+  const packagingAbs = path.join(root, packagingRel);
+  const runtimeAbs = path.join(root, runtimeRel);
+
+  if (existsSync(packagingAbs)) return { ok: false, error: `${packagingRel} already exists` };
+
+  try {
+    await mkdir(path.dirname(packagingAbs), { recursive: true });
+    await mkdir(path.dirname(runtimeAbs), { recursive: true });
+    await writeFile(packagingAbs, packagingTemplate(id, label, runtimeRel), 'utf8');
+    // Never clobber a runtime half the developer already wrote.
+    if (!existsSync(runtimeAbs)) await writeFile(runtimeAbs, runtimeTemplate(id, label), 'utf8');
+    return { ok: true, packagingFile: posix(packagingRel), runtimeFile: posix(runtimeRel) };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
 }
 
 /** Ids that would collide with a built-in, or that are unsafe as a directory name. */
