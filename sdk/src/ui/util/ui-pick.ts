@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { Entity } from '../../types';
-import type { ESEngineModule, CppRegistry } from '../../wasm';
+import type { CppRegistry } from '../../wasm';
+import type { EngineApi } from '../../ecs/engineApi';
 import type { UICameraData } from '../core/ui-camera-info';
 import { screenToWorld, worldToScreen, createInvVPCache } from './math';
 
@@ -20,7 +21,7 @@ export function uiWorldToScreen(camera: UICameraData, worldX: number, worldY: nu
 }
 
 export function uiHitTestWorld(
-  module: ESEngineModule,
+  engine: EngineApi | null,
   registry: CppRegistry,
   worldX: number,
   worldY: number,
@@ -28,36 +29,37 @@ export function uiHitTestWorld(
   mousePressed = false,
   mouseReleased = false,
 ): Entity | null {
-  module.uiHitTest_update(registry, worldX, worldY, mouseDown, mousePressed, mouseReleased);
-  const hit = module.uiHitTest_getHitEntity();
+  if (!engine?.uiHitTest_update || !engine.uiHitTest_getHitEntity) return null;
+  engine.uiHitTest_update(registry, worldX, worldY, mouseDown, mousePressed, mouseReleased);
+  const hit = engine.uiHitTest_getHitEntity();
   return hit === NO_HIT ? null : hit;
 }
 
 /** Editor pick: topmost UI entity under the point, regardless of Interactable;
  *  `uiHitTestWorld` is the runtime raycast. */
 export function uiPickWorld(
-  module: ESEngineModule,
+  engine: EngineApi | null,
   registry: CppRegistry,
   worldX: number,
   worldY: number,
 ): Entity | null {
-  if (!module.uiHitTest_pick) return null;
-  const hit = module.uiHitTest_pick(registry, worldX, worldY);
+  if (!engine?.uiHitTest_pick) return null;
+  const hit = engine.uiHitTest_pick(registry, worldX, worldY);
   return hit === NO_HIT ? null : hit;
 }
 
 /** All editor-pickable UI entities under the point, most specific first. */
 export function uiPickAllWorld(
-  module: ESEngineModule,
+  engine: EngineApi | null,
   registry: CppRegistry,
   worldX: number,
   worldY: number,
 ): Entity[] {
-  if (!module.uiHitTest_pickAll || !module.uiHitTest_pickResult) return [];
-  const count = module.uiHitTest_pickAll(registry, worldX, worldY);
+  if (!engine?.uiHitTest_pickAll || !engine.uiHitTest_pickResult) return [];
+  const count = engine.uiHitTest_pickAll(registry, worldX, worldY);
   const out: Entity[] = [];
   for (let i = 0; i < count; i++) {
-    const e = module.uiHitTest_pickResult(i);
+    const e = engine.uiHitTest_pickResult(i);
     if (e !== NO_HIT) out.push(e);
   }
   return out;

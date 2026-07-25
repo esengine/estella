@@ -1,0 +1,42 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+ * @file    ecs/engineApi.ts
+ * @brief   Whichever engine core is present, by one set of names.
+ *
+ * A plugin that drives the engine — UI layout, hit testing, render order — used
+ * to reach it as `app.wasmModule.uiLayout_update(...)`, which is a statement
+ * about HOW the core is embedded, not about what the plugin wants. On a device
+ * there is no wasm module, so every such plugin was web-only by construction.
+ *
+ * `engineApi(app)` answers with the module on the web and with the native host's
+ * bindings on a device. Both spell the entry points the same way, because both
+ * come from the same C++ declarations: embind registers them for the module, and
+ * EHT generates the native side (see nativeEngineApi.generated.ts).
+ *
+ * Members are optional — a core answers what it compiles — so call sites read
+ * `api.uiLayout_update?.(…)`, which is also how they treat an engine build that
+ * left a subsystem out.
+ */
+
+import type { App } from '../app';
+import type { NativeEngineApi } from './nativeEngineApi.generated';
+
+/** The engine surface a plugin may call, from either core. */
+export type EngineApi = NativeEngineApi;
+
+let native_: NativeEngineApi | null = null;
+
+/** Install the native host's engine API (by the native runtime); null clears it. */
+export function setNativeEngineApi(api: NativeEngineApi | null): void {
+    native_ = api;
+}
+
+/**
+ * The engine entry points for this app: the wasm module when there is one, else
+ * the native host's bindings. Null only when neither exists (a pure logic host),
+ * which every call site already handles by optional-chaining its call.
+ */
+export function engineApi(app: App): EngineApi | null {
+    return (app.wasmModule as EngineApi | null) ?? native_;
+}

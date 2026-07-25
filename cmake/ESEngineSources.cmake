@@ -58,6 +58,7 @@ endif()
 if(NOT ES_BUILD_WEB AND NOT ES_BUILD_WXGAME)
     list(APPEND ESENGINE_SOURCES
         ${ESENGINE_ROOT}/src/esengine/bindings/RendererBindings.cpp
+        ${ESENGINE_ROOT}/src/esengine/bindings/UIBindings.cpp
         # activeCtx()'s unset fallback. A host that installs its own context (the
         # native one does, at boot) never reaches it, but the inline accessor
         # references it, so the definition has to link.

@@ -23,12 +23,14 @@ import { NativeMemoryProvider } from './memoryProvider';
 import { createNativeResourceManager } from './nativeResourceManager';
 import { HOST_FLAGS, TEXT_BINDINGS, hasTextBindings, hasRendererBindings } from './nativeBindings';
 import { createNativeRendererBackend, nativeSurfaceSize } from './nativeRenderer';
+import { createNativeEngineApi } from './nativeEngineApi.generated';
+import { setNativeEngineApi } from './engineApi';
 import { setRendererBackend } from '../renderer';
 import { RenderPipeline } from '../renderPipeline';
 import { cameraPlugin } from '../camera/CameraPlugin';
 import { UICameraInfo } from '../ui/core/ui-camera-info';
 import { DEFAULT_UI_CAMERA_INFO } from '../corePlugin';
-import { textPlugin } from '../ui/text/plugin';
+import { uiPlugin } from '../ui/ui-plugin';
 import { setNativeTextSubmit } from '../ui/text/submit';
 import { initResourceManager } from '../resourceManager';
 import { Assets as AssetsClass } from '../asset/Assets';
@@ -86,9 +88,10 @@ export function createNativeApp(
     // cannot be shared as-is — it wires the wasm heap — so installNativeAssets
     // builds the equivalent over the native ResourceManager; prefabs and scene
     // loading declare Assets as a required resource, so it precedes them.
+    installNativeEngine(scope);
     installNativeRenderer(app, scope);
     installNativeAssets(app, scope);
-    installNativeText(app, scope);
+    installNativeUI(app, scope);
     app.addPlugin(inputPlugin);
     app.addPlugin(prefabsPlugin);
     app.addPlugin(sceneManagerPlugin);
@@ -124,6 +127,14 @@ export function createNativeApp(
  * swapchain and the present. Gated on the host having bound the whole surface, so
  * a host that still drives its own frame keeps working.
  */
+function installNativeEngine(scope: Record<string, unknown>): void {
+    // The engine entry points, by the names the wasm module uses — generated from
+    // the same C++ declarations embind registers (nativeEngineApi.generated.ts).
+    // With this installed, a plugin that calls uiLayout_update / uiHitTest_* /
+    // uiRenderOrder_update reaches the native core without knowing it is native.
+    setNativeEngineApi(createNativeEngineApi(scope));
+}
+
 function installNativeRenderer(app: App, scope: Record<string, unknown>): void {
     if (!hasRendererBindings(scope)) return;
     setRendererBackend(createNativeRendererBackend(scope));
@@ -138,22 +149,21 @@ function installNativeRenderer(app: App, scope: Record<string, unknown>): void {
 }
 
 /**
- * Install text — the same `TextPlugin` the web build runs, over the native core.
+ * Install the UI — the same `uiPlugin` the web build runs: layout, masks, safe
+ * area, text, interaction, behavior, drag, focus and render order.
  *
- * Two things it cannot take from the web: a glyph source (the device has no 2D
- * canvas — the host's font stack answers, through `PlatformAdapter.rasterizeGlyph`)
- * and a way to hand the laid-out quads to the renderer (no wasm heap — the host
- * takes the typed arrays and calls `RenderFrame::submitTextBatch` itself).
- * Everything between, atlas through batching, is the SDK's one implementation.
+ * The plugins drive the engine through {@link engineApi}, which answers with the
+ * native host's bindings here and with the wasm module on the web, so none of
+ * them had to learn about a second core. Two things text cannot take from the
+ * web are the glyph source (the device has no 2D canvas — the host's font stack
+ * answers through `PlatformAdapter.rasterizeGlyph`) and the batch submit (no wasm
+ * heap — the host takes the typed arrays and calls `RenderFrame::submitTextBatch`
+ * itself); everything between, atlas through batching, is one implementation.
  *
- * The plugin draws from the pipeline's pre-flush callback — the one
- * {@link installNativeRenderer} installed, run between collecting the scene and
- * flushing it, exactly where the web pipeline runs it.
- *
- * Gated on the host having bound the whole text surface: one that has not simply
- * draws no text, exactly as a host without an audio device stays silent.
+ * Gated on the host having bound the text surface: one that has not draws no
+ * text, exactly as a host without an audio device stays silent.
  */
-function installNativeText(app: App, scope: Record<string, unknown>): void {
+function installNativeUI(app: App, scope: Record<string, unknown>): void {
     if (!hasTextBindings(scope)) return;
 
     const submit = scope[TEXT_BINDINGS.submitTextBatch] as (
@@ -163,7 +173,7 @@ function installNativeText(app: App, scope: Record<string, unknown>): void {
     setNativeTextSubmit((vertices, vertexCount, indices, textureId, transform, entity, layer, depth, sdf) => {
         submit(vertices, vertexCount, indices, textureId, transform, entity, layer, depth, sdf);
     });
-    app.addPlugin(textPlugin);
+    app.addPlugin(uiPlugin);
 }
 
 function installNativeAssets(app: App, scope: Record<string, unknown>): void {

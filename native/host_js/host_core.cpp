@@ -811,6 +811,14 @@ void logJsError(JSContext* ctx, const char* where) {
     const char* s = JS_ToCString(ctx, e);
     LOGE("JS error in %s: %s", where, s ? s : "?");
     if (s) JS_FreeCString(ctx, s);
+    // The stack too: a bare message ("Maximum call stack size exceeded") says
+    // nothing about which SDK path produced it, and a device is where you find out.
+    JSValue stack = JS_GetPropertyStr(ctx, e, "stack");
+    if (!JS_IsUndefined(stack) && !JS_IsException(stack)) {
+        const char* st = JS_ToCString(ctx, stack);
+        if (st) { LOGE("  stack: %s", st); JS_FreeCString(ctx, st); }
+    }
+    JS_FreeValue(ctx, stack);
     JS_FreeValue(ctx, e);
 }
 void evalJs(App& a, const char* src, const char* name) {

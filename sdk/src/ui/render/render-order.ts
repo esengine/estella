@@ -2,7 +2,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { App, Plugin } from '../../app';
 import { defineSystem, Schedule } from '../../system';
-import type { ESEngineModule, CppRegistry } from '../../wasm';
+import type { CppRegistry } from '../../wasm';
+import { engineApi } from '../../ecs/engineApi';
 import { PluginName } from '../../systemLabels';
 
 export class UIRenderOrderPlugin implements Plugin {
@@ -15,12 +16,12 @@ export class UIRenderOrderPlugin implements Plugin {
 
     build(app: App): void {
         const world = app.world;
-        const module = app.wasmModule as ESEngineModule;
+        const engine = engineApi(app);
         const registry = world.getCppRegistry() as CppRegistry;
 
         app.addSystemToSchedule(Schedule.PostUpdate, defineSystem(
             [],
-            () => { module.uiRenderOrder_update(registry); },
+            () => { engine?.uiRenderOrder_update?.(registry); },
             { name: 'UIRenderOrderSystem' }
         ));
     }

@@ -19,7 +19,8 @@ import type { InteractableData } from './interactable';
 import { screenToUiWorld, uiHitTestWorld } from '../util/ui-pick';
 import { platformDevicePixelRatio } from '../../platform';
 import { ensureComponent, walkParentChain } from '../util/helpers';
-import type { ESEngineModule, CppRegistry } from '../../wasm';
+import type { CppRegistry } from '../../wasm';
+import { engineApi } from '../../ecs/engineApi';
 import { UILayoutGeneration } from '../layout/ui-layout-generation';
 import { SystemLabel, PluginName } from '../../systemLabels';
 import type { UILayoutGenerationData } from '../layout/ui-layout-generation';
@@ -51,7 +52,7 @@ export class UIInteractionPlugin implements Plugin {
         registerComponent('Interactable', Interactable);
 
         const world = app.world;
-        const module = app.wasmModule as ESEngineModule;
+        const engine = engineApi(app);
         const registry = world.getCppRegistry() as CppRegistry;
         const events = new UIEventQueue();
         app.insertResource(UIEvents, events);
@@ -108,7 +109,7 @@ export class UIInteractionPlugin implements Plugin {
                 let hitEntity: Entity | null = hoveredEntity;
                 if (needsHitTest) {
                     hitEntity = uiHitTestWorld(
-                        module, registry,
+                        engine, registry,
                         worldMouse.x, worldMouse.y,
                         mouseDown, mousePressed, mouseReleased,
                     );

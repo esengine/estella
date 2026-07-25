@@ -110,6 +110,17 @@ function makeHostScope() {
         es_renderer_getMeshes: () => 0,
         es_renderer_getCulled: () => 0,
         es_renderer_surfaceSize: () => ({ width: 800, height: 600 }),
+        // The UI entry points, generated on a device from the same declarations
+        // embind registers; here they just record that the SDK drove them.
+        es_uiLayout_update: () => { calls.push('uiLayout'); },
+        es_transform_update: () => { calls.push('transformUpdate'); },
+        es_uiRenderOrder_update: () => { calls.push('uiRenderOrder'); },
+        es_ui_getRenderOrder: () => -1,
+        es_getUINodeHiddenInTree: () => false,
+        es_getUINodeComputedWidth: () => 0,
+        es_getUINodeComputedHeight: () => 0,
+        es_uiHitTest_update: () => {},
+        es_uiHitTest_getHitEntity: () => 0xffffffff,
         es_registry_getCanvasEntity: () => canvasEntity,
         es_registry_getCameraEntities: () => cameraEntities,
     };
@@ -173,6 +184,11 @@ describe('a frame on the native core', () => {
         const entity = buildScene(app, setScene);
         calls.length = 0;   // watch one frame, with the scene in place
         await app.tick(1 / 60);
+
+        // The UI ran: the same layout and render-order passes the web build makes,
+        // reaching the native core through the generated engine API.
+        expect(calls).toContain('uiLayout');
+        expect(calls).toContain('uiRenderOrder');
 
         // The host is told to stop drawing its own fallback frame — both would mean
         // its pass clearing over this one.
@@ -241,10 +257,10 @@ describe('a frame on the native core', () => {
         buildScene(app, setScene);
         await app.tick(1 / 60);
 
-        // No pipeline, no camera plugin — the app still runs its gameplay stack,
-        // and a host that drives its own frame keeps working (it is never told
-        // otherwise).
-        expect(calls).toEqual([]);
+        // No pipeline, no camera plugin — nothing opens or closes a pass, so a host
+        // that drives its own frame keeps working (it is never told otherwise). The
+        // UI passes still run: they belong to the simulation, not to the frame.
+        expect(calls.filter((c) => ['begin', 'submitAll', 'flush', 'end', 'text'].includes(c))).toEqual([]);
         expect(app.pipeline).toBeNull();
         expect(scope.es_jsOwnsFrame).toBeUndefined();
     });

@@ -39,7 +39,7 @@ async function generateNativeBindings(rootDir, genDir, python) {
 // the binding TUs themselves, which this build compiles (see ESEngineSources).
 async function generateNativeFunctionBindings(rootDir, genDir, python) {
     const out = path.join(genDir, 'NativeFunctionBindings.generated.cpp');
-    const headers = ['RendererBindings.hpp'].map(
+    const headers = ['RendererBindings.hpp', 'UIBindings.hpp'].map(
         (h) => path.join(rootDir, 'src', 'esengine', 'bindings', h));
     await runCommand(python, [
         path.join(rootDir, 'tools', 'eht.py'),

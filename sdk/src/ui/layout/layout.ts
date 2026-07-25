@@ -21,8 +21,8 @@ import { UICameraInfo } from '../core/ui-camera-info';
 import type { UICameraData } from '../core/ui-camera-info';
 import { UILayoutGeneration } from './ui-layout-generation';
 import type { UILayoutGenerationData } from './ui-layout-generation';
-import type { ESEngineModule } from '../../wasm';
 import type { CppRegistry } from '../../wasm';
+import { engineApi } from '../../ecs/engineApi';
 import { initUIHelpers } from '../util/helpers';
 
 export class UILayoutPlugin implements Plugin {
@@ -34,10 +34,12 @@ export class UILayoutPlugin implements Plugin {
         registerComponent('FlexContainer', FlexContainer);
 
         const world = app.world;
-        const module = app.wasmModule as ESEngineModule;
+        // The wasm module on the web, the native host's bindings on a device —
+        // the layout pass is the same either way.
+        const engine = engineApi(app);
         const registry = world.getCppRegistry() as CppRegistry;
 
-        initUIHelpers(module, registry);
+        initUIHelpers(engine, registry);
 
         const layoutGen: UILayoutGenerationData = { generation: 0 };
         app.insertResource(UILayoutGeneration, layoutGen);
@@ -66,19 +68,19 @@ export class UILayoutPlugin implements Plugin {
 
         const layoutFn = (camera: UICameraData) => {
             if (!camera.valid) return;
-            module.uiLayout_update(
+            engine?.uiLayout_update?.(
                 registry,
                 camera.worldLeft, camera.worldBottom,
                 camera.worldRight, camera.worldTop,
                 propertyDirty(),
             );
-            module.transform_update(registry);
+            engine?.transform_update?.(registry);
             layoutGen.generation++;
         };
 
         const layoutOnlyFn = (camera: UICameraData) => {
             if (!camera.valid) return;
-            module.uiLayout_update(
+            engine?.uiLayout_update?.(
                 registry,
                 camera.worldLeft, camera.worldBottom,
                 camera.worldRight, camera.worldTop,

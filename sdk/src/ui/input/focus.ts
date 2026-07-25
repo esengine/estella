@@ -19,7 +19,8 @@ import { walkParentChain } from '../util/helpers';
 import { playModeOnly } from '../../env';
 import { UIEvents, UIEventQueue, UIEventType } from '../core/events';
 import { PluginName } from '../../systemLabels';
-import type { ESEngineModule, CppRegistry } from '../../wasm';
+import type { CppRegistry } from '../../wasm';
+import { engineApi } from '../../ecs/engineApi';
 
 export class FocusPlugin implements Plugin {
     name = PluginName.Focus;
@@ -29,16 +30,16 @@ export class FocusPlugin implements Plugin {
         registerComponent('Focusable', Focusable);
 
         const world = app.world;
-        const module = app.wasmModule as ESEngineModule | undefined;
-        const registry = module ? (world.getCppRegistry() as CppRegistry) : undefined;
+        const engine = engineApi(app);
+        const registry = engine ? (world.getCppRegistry() as CppRegistry) : undefined;
         const focusManager = new FocusManagerState();
         app.insertResource(FocusManager, focusManager);
 
         // display:none removes an entity from rendering + hit-testing; the Tab
         // ring must skip it too or focus lands on invisible controls.
         const hiddenInTree = (e: Entity): boolean =>
-            !!(module?.getUINodeHiddenInTree && registry
-                && module.getUINodeHiddenInTree(registry, e));
+            !!(engine?.getUINodeHiddenInTree && registry
+                && engine.getUINodeHiddenInTree(registry, e));
 
         // An open modal traps the Tab ring: only focusables inside an open
         // UIDialog subtree participate while one is up (the scrim already

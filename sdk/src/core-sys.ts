@@ -259,6 +259,11 @@ export {
 
 export { corePlugin, DEFAULT_UI_CAMERA_INFO } from './corePlugin';
 
+// The engine entry points a plugin may call, from whichever core is present (the
+// wasm module on the web, a native host's bindings on a device) — the parameter
+// type the UI pick helpers take. @beta while the native host is unshipped.
+export type { EngineApi } from './ecs/engineApi';
+
 // =============================================================================
 // App Context
 // =============================================================================

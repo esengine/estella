@@ -1,20 +1,34 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { CoreApiBridge } from '../../CoreApiBridge';
 import { Parent } from '../../component';
 import type { ParentData, AnyComponentDef } from '../../component';
 import type { Entity } from '../../types';
 import type { World } from '../../world';
 import { UIVisual, UIVisualType } from '../core/ui-visual';
-import type { ESEngineModule, CppRegistry } from '../../wasm';
+import type { CppRegistry } from '../../wasm';
+import type { EngineApi } from '../../ecs/engineApi';
+import { WasmBridge } from '../../WasmBridge';
 
-const bridge = new CoreApiBridge('uiHelpers');
-let module_: ESEngineModule | null = null;
+/** The helpers' view of the engine, guarded: after a wasm abort a call throws
+ *  {@link WasmModuleAborted} instead of reaching a dead module. A native host's
+ *  bindings pass through the same channel and simply never abort. */
+class UIHelpersBridge extends WasmBridge<NonNullable<EngineApi>> {
+    protected readonly label = 'uiHelpers';
+}
+
+const bridge = new UIHelpersBridge();
+let engine_: EngineApi | null = null;
 let nativeRegistry_: CppRegistry | null = null;
 
-export function initUIHelpers(module: ESEngineModule, registry: CppRegistry): void {
-    bridge.connect(module);
-    module_ = bridge.module;
+/** Bind the helpers to this app's engine core (the wasm module on the web, the
+ *  native host's bindings on a device) — see ecs/engineApi.ts. */
+export function initUIHelpers(engine: EngineApi | null, registry: CppRegistry): void {
+    if (engine) {
+        bridge.connect(engine);
+        engine_ = bridge.module;
+    } else {
+        engine_ = null;
+    }
     nativeRegistry_ = registry;
 }
 
@@ -47,16 +61,16 @@ export function getEntityDepth(world: World, entity: Entity): number {
 
 /** Resolved px width of a UINode (its Yoga-computed size). 0 if unresolved. */
 export function getUINodeWidth(entity: Entity): number {
-    if (module_ && nativeRegistry_ && module_.getUINodeComputedWidth) {
-        return module_.getUINodeComputedWidth(nativeRegistry_, entity);
+    if (engine_ && nativeRegistry_ && engine_.getUINodeComputedWidth) {
+        return engine_.getUINodeComputedWidth(nativeRegistry_, entity);
     }
     return 0;
 }
 
 /** Resolved px height of a UINode. 0 if unresolved. */
 export function getUINodeHeight(entity: Entity): number {
-    if (module_ && nativeRegistry_ && module_.getUINodeComputedHeight) {
-        return module_.getUINodeComputedHeight(nativeRegistry_, entity);
+    if (engine_ && nativeRegistry_ && engine_.getUINodeComputedHeight) {
+        return engine_.getUINodeComputedHeight(nativeRegistry_, entity);
     }
     return 0;
 }

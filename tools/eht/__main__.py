@@ -31,6 +31,13 @@ def _emit_native_functions(args) -> int:
     print(f"Generating: {args.native_functions_output}")
     args.native_functions_output.write_text(content, encoding='utf-8')
     print(f"  {len(gen.emitted)} entry point(s) bound")
+    # The TS half: the same entry points as the object the SDK's plugins call, so
+    # a plugin reaches whichever core is present without knowing which. Committed
+    # (the SDK builds from source without running EHT), unlike the C++ wrappers.
+    if args.native_functions_ts is not None:
+        args.native_functions_ts.parent.mkdir(parents=True, exist_ok=True)
+        print(f"Generating: {args.native_functions_ts}")
+        args.native_functions_ts.write_text(gen.generate_ts(), encoding='utf-8')
     # Never a silent cap: what the wrappers cannot marshal is what still needs a
     # hand-written binding, so say it every run.
     for skip in gen.skipped:
@@ -84,6 +91,8 @@ def main() -> int:
                         help='Bindings headers to emit native QuickJS wrappers for')
     parser.add_argument('--native-functions-output', type=Path, default=None,
                         help='Where to write the generated wrappers (.cpp)')
+    parser.add_argument('--native-functions-ts', type=Path, default=None,
+                        help='Also write the TS-side native engine API (.ts)')
     args = parser.parse_args()
 
     print("EHT - ESEngine Header Tool")

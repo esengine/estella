@@ -392,6 +392,8 @@ const pooledModuleCpp = [
     'bindings/TilemapBindings.cpp',
     'bindings/RendererBindings.hpp',
     'bindings/RendererBindings.cpp',
+    'bindings/UIBindings.hpp',
+    'bindings/UIBindings.cpp',
     'bindings/ResourceManagerBindings.hpp',
     'bindings/ResourceManagerBindings.cpp',
     'bindings/GeometryBindings.hpp',
