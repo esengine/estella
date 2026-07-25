@@ -18,6 +18,9 @@
 #include <android/input.h>
 #include <android/asset_manager.h>
 #include <android/native_window.h>
+#include <jni.h>
+
+#include <thread>
 
 #include "host_core.hpp"
 
@@ -29,9 +32,111 @@ using esengine::WebGPUDevice;
 
 namespace {
 
+// Read a java.io.InputStream fully into `out`, reusing one byte[] buffer.
+void jniReadStream(JNIEnv* env, jobject stream, std::vector<u8>& out) {
+    if (!stream) return;
+    jclass isCls = env->GetObjectClass(stream);
+    jmethodID readM = env->GetMethodID(isCls, "read", "([B)I");
+    jbyteArray buf = env->NewByteArray(16384);
+    while (true) {
+        jint n = env->CallIntMethod(stream, readM, buf);
+        if (env->ExceptionCheck()) { env->ExceptionClear(); break; }
+        if (n <= 0) break;
+        jbyte* elems = env->GetByteArrayElements(buf, nullptr);
+        out.insert(out.end(), reinterpret_cast<u8*>(elems), reinterpret_cast<u8*>(elems) + n);
+        env->ReleaseByteArrayElements(buf, elems, JNI_ABORT);
+    }
+    jmethodID closeM = env->GetMethodID(isCls, "close", "()V");
+    env->CallVoidMethod(stream, closeM);
+    if (env->ExceptionCheck()) env->ExceptionClear();
+    env->DeleteLocalRef(buf);
+    env->DeleteLocalRef(isCls);
+}
+
+// Perform one HTTP request through java.net.HttpURLConnection (the OS owns TLS).
+// Runs on a JNI-attached background thread; fills `r`.
+void performHttp(JNIEnv* env, const eshost::FetchRequest& req, eshost::FetchResult& r) {
+    jclass urlCls = env->FindClass("java/net/URL");
+    jstring jurl = env->NewStringUTF(req.url.c_str());
+    jobject urlObj = env->NewObject(urlCls, env->GetMethodID(urlCls, "<init>", "(Ljava/lang/String;)V"), jurl);
+    env->DeleteLocalRef(jurl);
+    if (env->ExceptionCheck() || !urlObj) { env->ExceptionClear(); r.error = "invalid url"; env->DeleteLocalRef(urlCls); return; }
+
+    jobject conn = env->CallObjectMethod(urlObj, env->GetMethodID(urlCls, "openConnection", "()Ljava/net/URLConnection;"));
+    env->DeleteLocalRef(urlObj);
+    env->DeleteLocalRef(urlCls);
+    if (env->ExceptionCheck() || !conn) { env->ExceptionClear(); r.error = "openConnection failed"; return; }
+
+    jclass httpCls = env->FindClass("java/net/HttpURLConnection");
+    jstring jmethod = env->NewStringUTF(req.method.c_str());
+    env->CallVoidMethod(conn, env->GetMethodID(httpCls, "setRequestMethod", "(Ljava/lang/String;)V"), jmethod);
+    env->DeleteLocalRef(jmethod);
+    if (env->ExceptionCheck()) env->ExceptionClear();
+
+    jmethodID setPropM = env->GetMethodID(httpCls, "setRequestProperty", "(Ljava/lang/String;Ljava/lang/String;)V");
+    for (const auto& kv : req.headers) {
+        jstring k = env->NewStringUTF(kv.first.c_str());
+        jstring v = env->NewStringUTF(kv.second.c_str());
+        env->CallVoidMethod(conn, setPropM, k, v);
+        env->DeleteLocalRef(k);
+        env->DeleteLocalRef(v);
+    }
+    if (env->ExceptionCheck()) env->ExceptionClear();
+
+    if (!req.body.empty()) {
+        env->CallVoidMethod(conn, env->GetMethodID(httpCls, "setDoOutput", "(Z)V"), JNI_TRUE);
+        jobject os = env->CallObjectMethod(conn, env->GetMethodID(httpCls, "getOutputStream", "()Ljava/io/OutputStream;"));
+        if (!env->ExceptionCheck() && os) {
+            jbyteArray b = env->NewByteArray(static_cast<jsize>(req.body.size()));
+            env->SetByteArrayRegion(b, 0, static_cast<jsize>(req.body.size()), reinterpret_cast<const jbyte*>(req.body.data()));
+            jclass osCls = env->GetObjectClass(os);
+            env->CallVoidMethod(os, env->GetMethodID(osCls, "write", "([B)V"), b);
+            env->CallVoidMethod(os, env->GetMethodID(osCls, "close", "()V"));
+            env->DeleteLocalRef(b);
+            env->DeleteLocalRef(osCls);
+            env->DeleteLocalRef(os);
+        }
+        if (env->ExceptionCheck()) env->ExceptionClear();
+    }
+
+    jint code = env->CallIntMethod(conn, env->GetMethodID(httpCls, "getResponseCode", "()I"));
+    if (env->ExceptionCheck()) { env->ExceptionClear(); r.error = "no response"; env->DeleteLocalRef(httpCls); env->DeleteLocalRef(conn); return; }
+    r.status = static_cast<int>(code);
+    r.ok = code >= 200 && code < 300;
+
+    jmethodID keyM = env->GetMethodID(httpCls, "getHeaderFieldKey", "(I)Ljava/lang/String;");
+    jmethodID valM = env->GetMethodID(httpCls, "getHeaderField", "(I)Ljava/lang/String;");
+    for (int i = 0; i < 64; ++i) {
+        jstring k = static_cast<jstring>(env->CallObjectMethod(conn, keyM, i));
+        jstring v = static_cast<jstring>(env->CallObjectMethod(conn, valM, i));
+        if (!k && !v) { break; }
+        if (k && v) {
+            const char* kc = env->GetStringUTFChars(k, nullptr);
+            const char* vc = env->GetStringUTFChars(v, nullptr);
+            r.headers.emplace_back(kc ? kc : "", vc ? vc : "");
+            if (kc) env->ReleaseStringUTFChars(k, kc);
+            if (vc) env->ReleaseStringUTFChars(v, vc);
+        }
+        if (k) env->DeleteLocalRef(k);
+        if (v) env->DeleteLocalRef(v);
+    }
+
+    jobject stream = env->CallObjectMethod(conn, env->GetMethodID(httpCls,
+        r.ok ? "getInputStream" : "getErrorStream", "()Ljava/io/InputStream;"));
+    if (env->ExceptionCheck()) { env->ExceptionClear(); stream = nullptr; }
+    jniReadStream(env, stream, r.body);
+    if (stream) env->DeleteLocalRef(stream);
+
+    env->CallVoidMethod(conn, env->GetMethodID(httpCls, "disconnect", "()V"));
+    if (env->ExceptionCheck()) env->ExceptionClear();
+    env->DeleteLocalRef(httpCls);
+    env->DeleteLocalRef(conn);
+}
+
 struct AndroidPlatform final : eshost::Platform {
     AAssetManager* assets = nullptr;        // APK assets/ — the game + its content
     ANativeWindow* window = nullptr;
+    JavaVM* vm = nullptr;                    // for JNI HttpURLConnection off-thread
     std::string cache;                      // app private dir — SDK bytecode cache
 
     // Read an APK asset (assets/<path>) fully into a buffer; empty if missing.
@@ -64,6 +169,30 @@ struct AndroidPlatform final : eshost::Platform {
 
     void log(bool error, const char* message) override {
         __android_log_print(error ? ANDROID_LOG_ERROR : ANDROID_LOG_INFO, LOG_TAG, "%s", message);
+    }
+
+    // A detached JNI thread runs the request; deliverFetch is thread-safe and the
+    // JS callback runs back on the main thread in drainFetches.
+    void startFetch(const eshost::FetchRequest& req) override {
+        JavaVM* jvm = vm;
+        if (!jvm) {
+            eshost::FetchResult r; r.id = req.id; r.isText = req.wantText; r.error = "no JavaVM";
+            eshost::deliverFetch(std::move(r));
+            return;
+        }
+        std::thread([jvm, req]() {
+            eshost::FetchResult r;
+            r.id = req.id;
+            r.isText = req.wantText;
+            JNIEnv* env = nullptr;
+            if (jvm->AttachCurrentThread(&env, nullptr) == JNI_OK && env) {
+                performHttp(env, req, r);
+                jvm->DetachCurrentThread();
+            } else {
+                r.error = "jni attach failed";
+            }
+            eshost::deliverFetch(std::move(r));
+        }).detach();
     }
 };
 
@@ -121,6 +250,7 @@ void onAppCmd(android_app* app, int32_t cmd) {
 
 void android_main(android_app* app) {
     g_platform.assets = app->activity->assetManager;   // APK assets/ (game.js + content)
+    g_platform.vm = app->activity->vm;                  // for JNI HttpURLConnection (es_fetch)
     if (app->activity->internalDataPath) g_platform.cache = app->activity->internalDataPath;
     app->onAppCmd = onAppCmd;
     app->onInputEvent = onInput;

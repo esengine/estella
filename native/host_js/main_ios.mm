@@ -74,6 +74,55 @@ struct IOSPlatform final : eshost::Platform {
     void log(bool error, const char* message) override {
         NSLog(@"[Estella]%s %s", error ? " ERROR:" : "", message);
     }
+
+    // NSURLSession runs the request (TLS via the OS) on a background queue and
+    // calls its completion there; deliverFetch is thread-safe and the JS callback
+    // runs back on the main thread in drainFetches.
+    void startFetch(const eshost::FetchRequest& req) override {
+        NSURL* url = [NSURL URLWithString:[NSString stringWithUTF8String:req.url.c_str()]];
+        if (!url) {
+            eshost::FetchResult r; r.id = req.id; r.error = "invalid url";
+            eshost::deliverFetch(std::move(r));
+            return;
+        }
+        NSMutableURLRequest* request = [NSMutableURLRequest requestWithURL:url];
+        request.HTTPMethod = [NSString stringWithUTF8String:req.method.c_str()];
+        for (const auto& kv : req.headers) {
+            [request setValue:[NSString stringWithUTF8String:kv.second.c_str()]
+                forHTTPHeaderField:[NSString stringWithUTF8String:kv.first.c_str()]];
+        }
+        if (!req.body.empty()) {
+            request.HTTPBody = [NSData dataWithBytes:req.body.data() length:req.body.size()];
+        }
+        const int id = req.id;
+        const bool wantText = req.wantText;
+        NSURLSessionDataTask* task = [NSURLSession.sharedSession dataTaskWithRequest:request
+            completionHandler:^(NSData* data, NSURLResponse* response, NSError* error) {
+                eshost::FetchResult r;
+                r.id = id;
+                r.isText = wantText;
+                if (error) {
+                    r.error = error.localizedDescription.UTF8String ?: "network error";
+                    eshost::deliverFetch(std::move(r));
+                    return;
+                }
+                NSHTTPURLResponse* http = [response isKindOfClass:NSHTTPURLResponse.class]
+                    ? (NSHTTPURLResponse*)response : nil;
+                r.status = http ? (int)http.statusCode : 200;
+                r.ok = r.status >= 200 && r.status < 300;
+                r.statusText = [NSHTTPURLResponse localizedStringForStatusCode:r.status].UTF8String ?: "";
+                for (NSString* key in http.allHeaderFields) {
+                    NSString* val = [http.allHeaderFields[key] description];
+                    r.headers.emplace_back(key.UTF8String, val.UTF8String ?: "");
+                }
+                if (data.length) {
+                    const u8* bytes = (const u8*)data.bytes;
+                    r.body.assign(bytes, bytes + data.length);
+                }
+                eshost::deliverFetch(std::move(r));
+            }];
+        [task resume];
+    }
 };
 
 IOSPlatform g_platform;

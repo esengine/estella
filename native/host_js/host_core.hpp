@@ -25,12 +25,37 @@
 #pragma once
 
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "esengine/core/Types.hpp"
 #include "esengine/renderer/webgpu/WebGPUDevice.hpp"
 
 namespace eshost {
+
+/** One HTTP request the host performs off the main thread. `id` matches the
+ *  reply back to its JS callback; `wantText` selects a string vs ArrayBuffer body. */
+struct FetchRequest {
+    int id = 0;
+    std::string method;     ///< GET / POST / ...
+    std::string url;
+    std::vector<std::pair<std::string, std::string>> headers;
+    std::vector<esengine::u8> body;
+    bool wantText = false;
+};
+
+/** The reply the platform hands back via {@link deliverFetch}. A non-empty
+ *  `error` rejects the JS promise; otherwise the body is delivered per `isText`. */
+struct FetchResult {
+    int id = 0;
+    bool ok = false;
+    int status = 0;
+    std::string statusText;
+    std::vector<std::pair<std::string, std::string>> headers;
+    std::vector<esengine::u8> body;
+    bool isText = false;
+    std::string error;
+};
 
 /**
  * @brief The platform seam: what the host needs that Android and iOS answer
@@ -54,7 +79,18 @@ struct Platform {
     virtual void surfaceSize(esengine::u32& width, esengine::u32& height) = 0;
 
     virtual void log(bool error, const char* message) = 0;
+
+    /** Perform an HTTP request off the main thread (NSURLSession / a JNI
+     *  HttpURLConnection), then hand the reply back through {@link deliverFetch}
+     *  with the same `req.id`. The OS owns the TLS stack, so this is where native
+     *  networking necessarily differs between iOS and Android. */
+    virtual void startFetch(const FetchRequest& req) = 0;
 };
+
+/** Deliver an HTTP reply for a {@link Platform::startFetch}. Thread-safe: the
+ *  platform calls it from whatever thread its completion runs on; the result is
+ *  queued and the JS callback runs on the next frame, on the JS thread. */
+void deliverFetch(FetchResult result);
 
 /** @brief Boots Dawn, EstellaContext, QuickJS, the SDK bundle and game.js. Call
  *         once, when a window first exists; @p platform must outlive the host.

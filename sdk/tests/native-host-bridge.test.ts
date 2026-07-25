@@ -110,6 +110,37 @@ describe('createHostBridge', () => {
     });
 });
 
+describe('createHostBridge — fetch', () => {
+    it('is offline (404) when the host bound no es_fetch', async () => {
+        const res = await createHostBridge(hostScope()).fetch('https://x/y');
+        expect(res.ok).toBe(false);
+        expect(res.status).toBe(404);
+    });
+
+    it('wraps es_fetch, passing the request and resolving its reply', async () => {
+        let seen: unknown;
+        const scope = hostScope({
+            es_fetch: (request: unknown, cb: (r: unknown) => void) => {
+                seen = request;
+                cb({ ok: true, status: 200, statusText: 'OK', headers: { etag: 'a' },
+                     arrayBuffer: new ArrayBuffer(8) });
+            },
+        });
+        const res = await createHostBridge(scope).fetch('https://cdn/asset.ktx2', { method: 'GET' });
+        expect(seen).toMatchObject({ url: 'https://cdn/asset.ktx2', method: 'GET' });
+        expect(res).toMatchObject({ ok: true, status: 200, headers: { etag: 'a' } });
+        expect(res.arrayBuffer!.byteLength).toBe(8);
+    });
+
+    it('rejects when the host reports an error', async () => {
+        const scope = hostScope({
+            es_fetch: (_request: unknown, cb: (r: unknown) => void) =>
+                cb({ ok: false, status: 0, statusText: '', headers: {}, error: 'timeout' }),
+        });
+        await expect(createHostBridge(scope).fetch('https://x')).rejects.toThrow(/timeout/);
+    });
+});
+
 describe('assertNativeHost', () => {
     /** Everything a complete shell binds. */
     function fullHost(): Record<string, unknown> {

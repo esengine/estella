@@ -63,6 +63,15 @@ function init() {
     } else {
         console.log('[demo] audio: no Audio resource');
     }
+
+    // Stage: prove native networking — es_fetch over NSURLSession/OkHttp, TLS by
+    // the OS. The async reply lands back on the JS thread via the frame loop.
+    globalThis.__esNativeBridge.fetch('https://example.com').then(function (r) {
+        var bytes = r.arrayBuffer ? r.arrayBuffer.byteLength : (r.text ? r.text.length : 0);
+        console.log('[demo] fetch: ok=' + r.ok + ' status=' + r.status + ' bytes=' + bytes);
+    }, function (e) {
+        console.error('[demo] fetch failed:', e && e.message ? e.message : e);
+    });
 }
 
 function update(dt) {

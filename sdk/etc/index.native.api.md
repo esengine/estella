@@ -4009,6 +4009,7 @@ es_audioSuspendAll: (() => void) | undefined
 es_audioUnload: ((bufferId: number) => void) | undefined
 es_audioVoiceState: ((voiceId: number) => { playing: boolean; currentTime: number; } | null) | undefined
 es_devicePixelRatio: (() => number) | undefined
+es_fetch: ((request: { url: string; method?: string; headers?: Record<string, string>; body?: string | ArrayBuffer; responseType?: string; }, callback: (result: { ok: boolean; status: number; statusText: string; headers: Record<string, string>; arrayBuffer?: ArrayBuffer; text?: string; error?: string; }) => void) => void) | undefined
 es_getStorageItem: ((key: string) => string | null) | undefined
 es_loadImagePixels: (path: string) => { width: number; height: number; pixels: ArrayBuffer; } | null
 es_readAsset: (path: string) => ArrayBuffer | null

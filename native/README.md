@@ -239,8 +239,13 @@ System bindings landing incrementally through the real SDK surfaces:
   (`eshost::memoryWarning`, iOS `didReceiveMemoryWarning` / Android `APP_CMD_LOW_MEMORY`) →
   the SDK's residency caches trim (the audio buffer cache). Simulator-verified across a
   background/foreground cycle.
+- **Networking** — `bridge.fetch` runs a real HTTP request through `es_fetch`
+  (`Platform::startFetch`): iOS `NSURLSession`, Android a JNI `HttpURLConnection` on a
+  detached thread — the OS owns the TLS stack, so this is one seam that legitimately
+  differs per platform. Replies cross back thread-safely (`deliverFetch`) and run on the JS
+  thread in the frame loop. This is what remote asset groups and hot-update need. Simulator-
+  verified (an HTTPS GET returns bytes and a 200); the Android path needs a device retest.
 
 Remaining: KTX2 / compressed textures (native decodes to RGBA only — no basis transcoder
-yet), networking (`bridge.fetch` is offline, so remote asset groups and hot-update do not
-resolve), and hardening on a physical device (audio output, the background/foreground
-transition, Android's miniaudio AAudio path).
+yet) and hardening on a physical device (audio output, the background/foreground
+transition, Android's miniaudio audio + JNI fetch paths).

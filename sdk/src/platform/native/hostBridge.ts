@@ -13,7 +13,8 @@
  */
 
 import { log } from '../../logger';
-import type { NativeAudioBridge, NativeBridge, NativeInputListener } from './bridge';
+import type { NativeAudioBridge, NativeBridge, NativeFetchResult, NativeInputListener } from './bridge';
+import type { PlatformRequestOptions } from '../types';
 import { assertHostEnvironment } from './hostEnvironment';
 import { hasAudioBindings } from '../../ecs/nativeBindings';
 
@@ -40,6 +41,28 @@ export interface NativeHostBindings {
     es_storageKeys?(): string[];
     /** Screen scale (1 when the host reports surface pixels directly). */
     es_devicePixelRatio?(): number;
+
+    /** Perform an HTTP request off the main thread (native TLS stack), calling
+     *  back with the reply. Optional — a host without it stays offline (remote
+     *  asset groups and hot-update do not resolve). */
+    es_fetch?(
+        request: {
+            url: string;
+            method?: string;
+            headers?: Record<string, string>;
+            body?: string | ArrayBuffer;
+            responseType?: string;
+        },
+        callback: (result: {
+            ok: boolean;
+            status: number;
+            statusText: string;
+            headers: Record<string, string>;
+            arrayBuffer?: ArrayBuffer;
+            text?: string;
+            error?: string;
+        }) => void,
+    ): void;
 
     /** The native audio engine, all-or-nothing (see {@link AUDIO_BINDINGS}). A
      *  host without a sound device binds none and stays silent. */
@@ -98,9 +121,7 @@ export function createHostBridge(
             return bytes ? Promise.resolve(bytes) : Promise.reject(new Error(`asset not found: ${path}`));
         },
         fileExists: (path) => Promise.resolve(bindings.es_readAsset(path) != null),
-        // Networking is the shell's to add (NSURLSession / OkHttp); until then a
-        // packaged game is offline and remote groups simply do not resolve.
-        fetch: () => Promise.resolve({ ok: false, status: 404 }),
+        fetch: (url, options) => hostFetch(bindings, url, options),
         loadImagePixels: (path) => {
             const decoded = bindings.es_loadImagePixels(path);
             return decoded
@@ -129,6 +150,44 @@ export function createHostBridge(
         ...(audio ? { audio } : {}),
         ...lifecycle,
     };
+}
+
+/**
+ * Perform an HTTP request through the host's native stack (es_fetch), wrapping
+ * its callback in the Promise the adapter expects. A host without es_fetch is
+ * offline — a 404, exactly as before, so remote groups just fail to resolve.
+ */
+function hostFetch(
+    bindings: NativeHostBindings, url: string, options?: PlatformRequestOptions,
+): Promise<NativeFetchResult> {
+    if (typeof bindings.es_fetch !== 'function') {
+        return Promise.resolve({ ok: false, status: 404, statusText: 'no network' });
+    }
+    return new Promise((resolve, reject) => {
+        bindings.es_fetch!(
+            {
+                url,
+                method: options?.method,
+                headers: options?.headers,
+                body: options?.body,
+                responseType: options?.responseType,
+            },
+            (r) => {
+                if (r.error) {
+                    reject(new Error(r.error));
+                    return;
+                }
+                resolve({
+                    ok: r.ok,
+                    status: r.status,
+                    statusText: r.statusText,
+                    headers: r.headers,
+                    arrayBuffer: r.arrayBuffer,
+                    text: r.text,
+                });
+            },
+        );
+    });
 }
 
 /**

@@ -50,7 +50,11 @@
 #include <cstdio>
 #include <cstring>
 #include <ctime>
+#include <mutex>
+#include <queue>
 #include <string>
+#include <unordered_map>
+#include <utility>
 #include <vector>
 
 using namespace esengine;
@@ -116,6 +120,8 @@ struct App {
     std::string cacheDir;                   // app private dir — SDK bytecode cache
     std::vector<Timer> timers;
     int64_t next_timer_id = 1;
+    std::unordered_map<int, JSValue> fetchCallbacks;   // in-flight es_fetch id -> JS callback
+    int nextFetchId = 1;
     glm::vec4 clear{0.07f, 0.08f, 0.12f, 1.0f};
     f32 w = 0, h = 0;
     bool ready = false;         // engine + JS booted once
@@ -124,6 +130,13 @@ struct App {
 };
 
 App* g_app = nullptr;
+
+// HTTP replies cross back from whatever thread the platform's completion runs on.
+// The platform enqueues here (POD only, no JS); the frame loop drains it on the JS
+// thread and runs the callbacks. Kept outside App so deliverFetch (a free function
+// the glue calls) needs no App pointer and is safe before/after boot.
+std::mutex g_fetchMutex;
+std::queue<eshost::FetchResult> g_fetchQueue;
 
 double nowMs();
 
@@ -630,6 +643,118 @@ void callJs(App& a, const char* fn, int argc, JSValue* argv) {
     JS_FreeValue(a.js, global);
 }
 
+// ---- HTTP: es_fetch over the platform's native networking -------------------
+
+std::string fetchStrProp(JSContext* ctx, JSValueConst obj, const char* key, const char* dflt) {
+    JSValue v = JS_GetPropertyStr(ctx, obj, key);
+    std::string out = dflt ? dflt : "";
+    if (JS_IsString(v)) {
+        if (const char* s = JS_ToCString(ctx, v)) { out = s; JS_FreeCString(ctx, s); }
+    }
+    JS_FreeValue(ctx, v);
+    return out;
+}
+
+void readFetchHeaders(JSContext* ctx, JSValueConst obj, eshost::FetchRequest& req) {
+    JSValue h = JS_GetPropertyStr(ctx, obj, "headers");
+    if (JS_IsObject(h)) {
+        JSPropertyEnum* tab = nullptr;
+        uint32_t len = 0;
+        if (JS_GetOwnPropertyNames(ctx, &tab, &len, h, JS_GPN_STRING_MASK | JS_GPN_ENUM_ONLY) == 0) {
+            for (uint32_t i = 0; i < len; ++i) {
+                const char* key = JS_AtomToCString(ctx, tab[i].atom);
+                JSValue val = JS_GetProperty(ctx, h, tab[i].atom);
+                const char* vs = JS_ToCString(ctx, val);
+                if (key && vs) req.headers.emplace_back(key, vs);
+                if (vs) JS_FreeCString(ctx, vs);
+                if (key) JS_FreeCString(ctx, key);
+                JS_FreeValue(ctx, val);
+            }
+            JS_FreePropertyEnum(ctx, tab, len);
+        }
+    }
+    JS_FreeValue(ctx, h);
+}
+
+// es_fetch(request, callback): request = { url, method?, headers?, body?,
+// responseType? }. Runs the request off the main thread and calls back with
+// { ok, status, statusText, headers, arrayBuffer | text, error? }. The bridge
+// wraps this in a Promise. responseType 'text' returns a string; everything else
+// returns an ArrayBuffer (the bridge decodes text/json from it on demand).
+JSValue js_fetch(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
+    if (argc < 2 || !JS_IsObject(argv[0]) || !JS_IsFunction(ctx, argv[1])) return JS_UNDEFINED;
+    eshost::FetchRequest req;
+    req.id = g_app->nextFetchId++;
+    req.url = fetchStrProp(ctx, argv[0], "url", "");
+    req.method = fetchStrProp(ctx, argv[0], "method", "GET");
+    req.wantText = fetchStrProp(ctx, argv[0], "responseType", "arraybuffer") == "text";
+    readFetchHeaders(ctx, argv[0], req);
+    JSValue body = JS_GetPropertyStr(ctx, argv[0], "body");
+    if (JS_IsString(body)) {
+        size_t len = 0;
+        if (const char* s = JS_ToCStringLen(ctx, &len, body)) {
+            req.body.assign(s, s + len);
+            JS_FreeCString(ctx, s);
+        }
+    } else if (!JS_IsUndefined(body) && !JS_IsNull(body)) {
+        readByteSource(ctx, body, req.body);
+    }
+    JS_FreeValue(ctx, body);
+
+    g_app->fetchCallbacks[req.id] = JS_DupValue(ctx, argv[1]);
+    if (req.url.empty()) {
+        eshost::FetchResult err;
+        err.id = req.id;
+        err.error = "es_fetch: missing url";
+        eshost::deliverFetch(std::move(err));
+    } else {
+        g_app->platform->startFetch(req);
+    }
+    return JS_UNDEFINED;
+}
+
+JSValue makeFetchResult(App& a, const eshost::FetchResult& r) {
+    JSValue o = JS_NewObject(a.js);
+    JS_SetPropertyStr(a.js, o, "ok", JS_NewBool(a.js, r.ok));
+    JS_SetPropertyStr(a.js, o, "status", JS_NewInt32(a.js, r.status));
+    JS_SetPropertyStr(a.js, o, "statusText", JS_NewString(a.js, r.statusText.c_str()));
+    if (!r.error.empty()) JS_SetPropertyStr(a.js, o, "error", JS_NewString(a.js, r.error.c_str()));
+    JSValue h = JS_NewObject(a.js);
+    for (const auto& kv : r.headers) {
+        JS_SetPropertyStr(a.js, h, kv.first.c_str(), JS_NewString(a.js, kv.second.c_str()));
+    }
+    JS_SetPropertyStr(a.js, o, "headers", h);
+    if (r.isText) {
+        JS_SetPropertyStr(a.js, o, "text",
+            JS_NewStringLen(a.js, reinterpret_cast<const char*>(r.body.data()), r.body.size()));
+    } else {
+        JS_SetPropertyStr(a.js, o, "arrayBuffer",
+            JS_NewArrayBufferCopy(a.js, r.body.data(), r.body.size()));
+    }
+    return o;
+}
+
+// Run the JS callbacks for HTTP replies that arrived since the last frame — JS
+// thread only. deliverFetch queued them (POD) from the completion thread.
+void drainFetches(App& a) {
+    std::queue<eshost::FetchResult> done;
+    { std::lock_guard<std::mutex> lk(g_fetchMutex); done.swap(g_fetchQueue); }
+    while (!done.empty()) {
+        const eshost::FetchResult r = std::move(done.front());
+        done.pop();
+        auto it = a.fetchCallbacks.find(r.id);
+        if (it == a.fetchCallbacks.end()) continue;   // never happens, but stay safe
+        JSValue cb = it->second;
+        a.fetchCallbacks.erase(it);
+        JSValue arg = makeFetchResult(a, r);
+        JSValue ret = JS_Call(a.js, cb, JS_UNDEFINED, 1, &arg);
+        if (JS_IsException(ret)) logJsError(a.js, "es_fetch callback");
+        JS_FreeValue(a.js, ret);
+        JS_FreeValue(a.js, arg);
+        JS_FreeValue(a.js, cb);
+    }
+}
+
 // Drain QuickJS's microtask queue. app.tick() is async: its synchronous prefix
 // (finishPlugins, resource inserts) runs on call, but the systems run in jobs.
 void pumpJobs(App& a) {
@@ -765,6 +890,7 @@ void initJS(App& a) {
     bindGlobal(a, global, "es_utf8Decode", js_utf8Decode, 1);
     bindGlobal(a, global, "es_readCacheFile", js_readCacheFile, 1);
     bindGlobal(a, global, "es_writeCacheFile", js_writeCacheFile, 2);
+    bindGlobal(a, global, "es_fetch", js_fetch, 2);
 
     // Entity + hierarchy (base Registry surface).
     bindGlobal(a, global, "es_createEntity", js_createEntity, 0);
@@ -936,6 +1062,11 @@ void frame() {
         JS_FreeValue(a.js, arg);
     });
 
+    // Run the callbacks for any HTTP replies that landed since last frame, then
+    // let their .then() continuations run.
+    drainFetches(a);
+    pumpJs(a);
+
     ctx.require<RenderContext>().setFrameTime((f32)a.frame / 60.0f, (u32)a.w, (u32)a.h);
     World world{*a.registry, ctx.services(), 1.0f / 60.0f};
     ctx.require<ecs::TransformSystem>().update(world);
@@ -990,6 +1121,13 @@ void memoryWarning() {
     if (!g_app || !g_app->ready) return;
     callJs(*g_app, "es_onNativeMemoryWarning", 0, nullptr);
     pumpJs(*g_app);
+}
+
+// Thread-safe: the platform's HTTP completion (any thread) queues its reply here;
+// the frame loop drains it on the JS thread (drainFetches). No JS is touched here.
+void deliverFetch(FetchResult result) {
+    std::lock_guard<std::mutex> lk(g_fetchMutex);
+    g_fetchQueue.push(std::move(result));
 }
 
 }  // namespace eshost
