@@ -26,11 +26,12 @@ def _emit_native_functions(args) -> int:
         headers.append((include, path.read_text(encoding='utf-8')))
 
     gen = NativeFunctionsGenerator(headers, shim_header=args.native_shim)
-    content = gen.generate()
-    args.native_functions_output.parent.mkdir(parents=True, exist_ok=True)
-    print(f"Generating: {args.native_functions_output}")
-    args.native_functions_output.write_text(content, encoding='utf-8')
-    print(f"  {len(gen.emitted)} entry point(s) bound")
+    if args.native_functions_output is not None:
+        content = gen.generate()
+        args.native_functions_output.parent.mkdir(parents=True, exist_ok=True)
+        print(f"Generating: {args.native_functions_output}")
+        args.native_functions_output.write_text(content, encoding='utf-8')
+        print(f"  {len(gen.emitted)} entry point(s) bound")
     # The TS half: the same entry points as the object the SDK's plugins call, so
     # a plugin reaches whichever core is present without knowing which. Committed
     # (the SDK builds from source without running EHT), unlike the C++ wrappers.
@@ -100,8 +101,9 @@ def main() -> int:
     # Function wrappers are parsed from declarations, not component reflection —
     # emit them before (and independently of) the component pass.
     if args.native_functions:
-        if args.native_functions_output is None:
-            print("[FAIL] --native-functions requires --native-functions-output.")
+        if args.native_functions_output is None and args.native_functions_ts is None:
+            print("[FAIL] --native-functions needs --native-functions-output and/or "
+                  "--native-functions-ts.")
             return 1
         code = _emit_native_functions(args)
         if code != 0 or args.native_output is None:
