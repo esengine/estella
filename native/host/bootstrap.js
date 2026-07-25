@@ -34,6 +34,7 @@ globalThis.init = function () {
         .then(function (game) { globalThis.__esGame = game; })
         .catch(function (e) {
             console.error('exported game failed to boot:', e && e.message ? e.message : e);
+            if (e && e.stack) console.error(e.stack);
         });
 };
 globalThis.update = function (dt) {
