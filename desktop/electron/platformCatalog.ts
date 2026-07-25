@@ -21,11 +21,12 @@
  *        vendor-neutral (exportMiniGame), so a project platform is a data literal
  *        merged over MINIGAME_PROFILE_DEFAULTS, not a fork of anything.
  */
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { readdir, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { defaultMiniGameEntry } from './miniGameExportProfile';
+import { BUILTIN_PLATFORMS, type PlatformPrereq } from '../src/project/platforms';
 import type { MiniGameExportProfile, MiniGameConfigContext } from './miniGameExportProfile';
 
 /** Where a project keeps its own platform profiles. */
@@ -45,19 +46,10 @@ export interface PlatformStatus {
   /** 'builtin' rows get their label/icon/blurb from the editor's i18n; 'project'
    *  rows carry their own, since the project named them. */
   source: 'builtin' | 'project';
-  /** The engine runtime this target needs is present. */
+  /** Everything this target needs to produce an installable package is present. */
   ready: boolean;
-  /** Present when `ready` is false. STRUCTURED, not prose: the main process has
-   *  no locale, so it reports the facts and the renderer writes the sentence. */
-  prereq?: {
-    kind: 'runtime-missing';
-    /** Display path that was searched (project-relative where possible). */
-    dir: string;
-    /** Glue filenames looked for in it. */
-    looked: string[];
-    /** The build command that produces it — only when the editor ships that target. */
-    command?: string;
-  };
+  /** Present when `ready` is false. */
+  prereq?: PlatformPrereq;
   /** Project platforms only — display data lifted from the profile. */
   label?: string;
   blurb?: string;
@@ -75,8 +67,31 @@ export interface PlatformStatus {
  *  Windows `build\wasm\acme` reads worse than `build/wasm/acme`. */
 const posix = (p: string): string => p.split(path.sep).join('/');
 
+/**
+ * The Android SDK, the way `build-tools/utils/android.js` finds it. Duplicated
+ * rather than imported: build-tools is not shipped inside the packaged editor,
+ * and the two answer different questions — that module locates a tool it is
+ * about to RUN, this one reports whether the developer could run it at all.
+ */
+function androidSdkDir(): string | null {
+  const env = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT;
+  if (env && existsSync(env)) return env;
+  const dflt = path.join(process.env.LOCALAPPDATA || process.env.HOME || '', 'Android', 'Sdk');
+  return existsSync(dflt) ? dflt : null;
+}
+
+/** Whether the SDK has an NDK — the APK's `.so` payload is cross-compiled with it. */
+function hasNdk(sdk: string): boolean {
+  const dir = path.join(sdk, 'ndk');
+  try {
+    return existsSync(dir) && readdirSync(dir).length > 0;
+  } catch {
+    return false;
+  }
+}
+
 /** A built-in target's runtime dependency, as a real file probe. */
-function builtinReadiness(id: string, dirs: PlatformRuntimeDirs): { ready: boolean; prereq?: PlatformStatus['prereq'] } {
+function builtinReadiness(id: string, dirs: PlatformRuntimeDirs): { ready: boolean; prereq?: PlatformPrereq } {
   const has = (dir: string, file: string) => existsSync(path.join(dir, file));
 
   switch (id) {
@@ -99,17 +114,27 @@ function builtinReadiness(id: string, dirs: PlatformRuntimeDirs): { ready: boole
         ? { ready: true }
         : { ready: false, prereq: { kind: 'runtime-missing', dir: posix(dirs.wechat), looked: ['esengine.wxgame.js'], command: 'node build-tools/cli.js build -t wechat' } };
 
-    case 'native':
-      // The native host is a C++ build with its own toolchain — not a file the
-      // editor can stage, so this stays advisory rather than a probe.
-      return { ready: true };
+    case 'android': {
+      // The app is built from source with the NDK; there is no staged runtime to
+      // probe, so the honest question is whether this machine has the toolchain
+      // that assembles the APK.
+      const sdk = androidSdkDir();
+      if (!sdk) return { ready: false, prereq: { kind: 'toolchain-missing', tool: 'android-sdk' } };
+      return hasNdk(sdk) ? { ready: true } : { ready: false, prereq: { kind: 'toolchain-missing', tool: 'android-ndk' } };
+    }
+
+    case 'ios':
+      // Apple's toolchain is macOS-only, so this row is honest about the machine
+      // it is running on rather than pretending every editor can finish the job.
+      if (process.platform !== 'darwin') return { ready: false, prereq: { kind: 'toolchain-missing', tool: 'macos' } };
+      return existsSync('/Applications/Xcode.app')
+        ? { ready: true }
+        : { ready: false, prereq: { kind: 'toolchain-missing', tool: 'xcode' } };
 
     default:
       return { ready: true };
   }
 }
-
-const BUILTIN_IDS = ['web', 'desktop', 'wechat', 'playable', 'native'] as const;
 
 // =============================================================================
 // Project platform profiles
@@ -318,7 +343,7 @@ export async function createProjectPlatform(
 function idProblem(id: unknown): string | null {
   if (typeof id !== 'string' || id.length === 0) return 'profile has no string `id`';
   if (!/^[a-z0-9][a-z0-9-]*$/.test(id)) return `id "${id}" must be lowercase letters, digits and dashes`;
-  if ((BUILTIN_IDS as readonly string[]).includes(id)) return `id "${id}" is a built-in platform`;
+  if ((BUILTIN_PLATFORMS as readonly string[]).includes(id)) return `id "${id}" is a built-in platform`;
   return null;
 }
 
@@ -390,7 +415,7 @@ export async function loadProjectPlatform(root: string, id: string, dirs: Platfo
  * own — each with its readiness probed.
  */
 export async function listPlatforms(root: string | null, dirs: PlatformRuntimeDirs): Promise<PlatformStatus[]> {
-  const out: PlatformStatus[] = BUILTIN_IDS.map((id) => ({
+  const out: PlatformStatus[] = BUILTIN_PLATFORMS.map((id) => ({
     id,
     source: 'builtin' as const,
     ...builtinReadiness(id, dirs),

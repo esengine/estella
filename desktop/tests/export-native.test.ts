@@ -42,17 +42,17 @@ beforeAll(async () => {
   mkdirSync(path.join(root, '_wasm'), { recursive: true });
   writeFileSync(path.join(root, '_wasm', 'esengine.js'), 'export default () => {};');
 
-  out = path.join(root, 'dist-native');
+  out = path.join(root, 'dist-android');
 }, 60_000);
 
 afterAll(() => rmSync(root, { recursive: true, force: true }));
 
-describe('exportGame (native)', () => {
+describe('exportGame (native app content)', () => {
   it('ships content only — cooked assets, manifests, scene, config', async () => {
     const res = await exportGame({
       root, entryScene: 'scenes/main.esscene', gameHostEntry: GAME_HOST, scriptsEntry: 'src/main.ts',
       sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wasm'), outDir: out,
-      platform: 'native', title: 'NativeGame',
+      platform: 'android', title: 'NativeGame',
     });
     expect(res.errors).toEqual([]);
     expect(res.ok).toBe(true);

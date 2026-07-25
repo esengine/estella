@@ -31,15 +31,16 @@ describe('parseManifest — packaging', () => {
   // a bad one. It keeps any non-empty string and drops everything else.
   it('keeps an unknown platform id (a project may define one) but drops non-strings', () => {
     expect(parseManifest({ name: 'X', packaging: { platform: 'acme-play' } }).packaging?.platform).toBe('acme-play');
-    // 'native' used to be dropped by an enumeration that forgot it.
-    expect(parseManifest({ name: 'X', packaging: { platform: 'native' } }).packaging?.platform).toBe('native');
+    // An id an older editor wrote migrates to what this one spells: 'native' was
+    // one row for both mobile targets, and reopens on the one that builds anywhere.
+    expect(parseManifest({ name: 'X', packaging: { platform: 'native' } }).packaging?.platform).toBe('android');
     expect(parseManifest({ name: 'X', packaging: { platform: '' } }).packaging).toBeUndefined();
     expect(parseManifest({ name: 'X', packaging: { platform: 7 } }).packaging).toBeUndefined();
   });
 
   it('keeps per-platform output dirs for project-defined platforms', () => {
-    const m = parseManifest({ name: 'X', packaging: { outDir: { 'acme-play': 'dist-acme', native: 'dist-native' } } });
-    expect(m.packaging?.outDir).toEqual({ 'acme-play': 'dist-acme', native: 'dist-native' });
+    const m = parseManifest({ name: 'X', packaging: { outDir: { 'acme-play': 'dist-acme', android: 'dist-android' } } });
+    expect(m.packaging?.outDir).toEqual({ 'acme-play': 'dist-acme', android: 'dist-android' });
   });
 
   it('parses excludeScenes, dropping non-string / empty entries', () => {

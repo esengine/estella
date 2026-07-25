@@ -56,7 +56,7 @@ describe('subsystemGapWarnings', () => {
   const usage = new Map<Subsystem, string[]>([['tilemap', ['scenes/b.esscene', 'scenes/a.esscene']]]);
 
   it('names the subsystem, the reason and the files', () => {
-    const [warning, ...rest] = subsystemGapWarnings('native', usage);
+    const [warning, ...rest] = subsystemGapWarnings('android', usage);
     expect(rest).toEqual([]);
     expect(warning).toContain('Tilemaps will not render');
     expect(warning).toContain('scenes/a.esscene, scenes/b.esscene');
@@ -67,14 +67,19 @@ describe('subsystemGapWarnings', () => {
   });
 
   it('is silent about a gap the content does not use', () => {
-    expect(subsystemGapWarnings('native', new Map())).toEqual([]);
+    expect(subsystemGapWarnings('ios', new Map())).toEqual([]);
+  });
+
+  it('reports the same gaps for both native targets — they compile one CMakeLists', () => {
+    expect(targetGaps('ios')).toEqual(targetGaps('android'));
+    expect(targetGaps('ios').length).toBeGreaterThan(0);
   });
 });
 
 describe('the native gaps match the native build', () => {
   const cmake = readFileSync(path.join(REPO, 'native', 'CMakeLists.txt'), 'utf8');
   const enabled = new Set([...cmake.matchAll(/set\(\s*(ES_ENABLE_\w+)\s+ON\s*\)/g)].map((m) => m[1]));
-  const gaps = new Set(targetGaps('native').map((g) => g.subsystem));
+  const gaps = new Set(targetGaps('android').map((g) => g.subsystem));
 
   it.each(Object.entries(SUBSYSTEM_CMAKE_FLAG) as [Subsystem, string][])(
     '%s: a source set the native build omits is declared unsupported', (subsystem, flag) => {
@@ -119,17 +124,17 @@ describe('exportGame warns about content the target cannot render', () => {
 
   afterAll(() => rmSync(root, { recursive: true, force: true }));
 
-  const run = (platform: 'native' | 'web', outDir: string) => exportGame({
+  const run = (platform: 'android' | 'web', outDir: string) => exportGame({
     root, entryScene: 'scenes/main.esscene', gameHostEntry: GAME_HOST,
     sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wasm'),
     outDir, platform, title: 'Game',
   });
 
   it('names every unsupported subsystem the scene uses — and ships anyway', async () => {
-    const res = await run('native', path.join(root, 'dist-native'));
+    const res = await run('android', path.join(root, 'dist-android'));
     expect(res.errors).toEqual([]);
     expect(res.ok).toBe(true);
-    const gaps = res.warnings.filter((w) => w.startsWith('native:'));
+    const gaps = res.warnings.filter((w) => w.startsWith('android:'));
     expect(gaps).toHaveLength(2);
     expect(gaps.join('\n')).toContain('Particles will not render');
     expect(gaps.join('\n')).toContain('Tilemaps will not render');

@@ -19,6 +19,7 @@
  */
 
 import { parseAudioProjectConfig, THEME_COLOR_ROLES, type AudioProjectConfig } from 'esengine';
+import { normalizePlatform, type ExportPlatform } from './platforms';
 
 export const PROJECT_FORMAT_VERSION = '1';
 export const PROJECT_MANIFEST_FILE = 'project.esproject';
@@ -123,16 +124,9 @@ export type CameraScaleMode = 'none' | 'fixed-width' | 'fixed-height' | 'expand'
 export interface WeChatPackaging { appid?: string; }
 export interface DesktopPackaging { appId?: string; productName?: string; }
 
-/** Every export target. The single source: the electron export pipeline, the IPC
- *  surface and the build dialog all name their platforms from here. */
-/**
- * A packaging target. The editor's built-ins are named for completion, but the
- * type is OPEN: a project can add its own platform by dropping a profile in
- * `.esengine/platforms/<id>.mjs`, and that id flows through packaging settings,
- * the export result and the cook's per-platform Import Settings key exactly like
- * a built-in one.
- */
-export type ExportPlatform = 'web' | 'desktop' | 'wechat' | 'playable' | 'native' | (string & {});
+/** A packaging target — defined in `./platforms`, where the built-in vocabulary
+ *  lives, and re-exported here because the manifest is what persists it. */
+export type { ExportPlatform } from './platforms';
 
 /** Persisted Package Project settings (UE's ProjectPackagingSettings analog) —
  *  committed with the project so the build dialog restores the last target/config
@@ -371,9 +365,11 @@ export function parseManifest(raw: unknown): ProjectManifest {
     const p = o.packaging as Record<string, unknown>;
     const pkg: ProjectPackaging = {};
     // Any non-empty id: built-ins plus whatever platforms the project defines.
-    // (The old enumeration silently dropped 'native', so packaging for it never
-    // persisted and the dialog reopened on web.)
-    if (typeof p.platform === 'string' && p.platform !== '') pkg.platform = p.platform;
+    // (The old enumeration silently dropped unknown ids, so packaging for them
+    // never persisted and the dialog reopened on web.) `normalizePlatform` is the
+    // one migration point: an id an older editor wrote — 'native', when the two
+    // mobile targets were one row — becomes the id this editor spells.
+    if (typeof p.platform === 'string' && p.platform !== '') pkg.platform = normalizePlatform(p.platform);
     if (p.config === 'development' || p.config === 'shipping') pkg.config = p.config;
     if (typeof p.sourceMaps === 'boolean') pkg.sourceMaps = p.sourceMaps;
     if (typeof p.openFolder === 'boolean') pkg.openFolder = p.openFolder;
@@ -391,9 +387,10 @@ export function parseManifest(raw: unknown): ProjectManifest {
       const od = p.outDir as Record<string, unknown>;
       const out: NonNullable<ProjectPackaging['outDir']> = {};
       // Per-platform output dirs, keyed by whatever platform ids this project has
-      // used — built-in or its own.
+      // used — built-in or its own. A renamed built-in keeps its directory: the
+      // key migrates, the value the developer chose does not.
       for (const [k, v] of Object.entries(od)) {
-        if (typeof v === 'string' && v !== '') out[k] = v;
+        if (typeof v === 'string' && v !== '') out[normalizePlatform(k)] = v;
       }
       if (Object.keys(out).length > 0) pkg.outDir = out;
     }

@@ -14,6 +14,7 @@ import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { listPlatforms, loadProjectPlatform, createProjectPlatform, PROJECT_PLATFORM_DIR } from '../electron/platformCatalog';
+import { BUILTIN_PLATFORMS } from '../src/project/platforms';
 
 let root: string;
 let webDir: string;
@@ -119,7 +120,7 @@ describe('listPlatforms — platforms the project defines', () => {
     expect(bad!.ready).toBe(false);
     expect(bad!.error).toBeTruthy();
     // Every built-in still came through.
-    expect(rows.filter((r) => r.source === 'builtin')).toHaveLength(5);
+    expect(rows.filter((r) => r.source === 'builtin').map((r) => r.id)).toEqual([...BUILTIN_PLATFORMS]);
   });
 
   it('rejects a profile that shadows a built-in, or has no id/label/emitter', async () => {

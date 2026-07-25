@@ -13,7 +13,8 @@ export const projectMessages = defineMessages({
     'build.plat.desktop': { en: 'Desktop', zh: '桌面' },
     'build.plat.wechat': { en: 'WeChat', zh: '微信小游戏' },
     'build.plat.playable': { en: 'Playable', zh: 'Playable' },
-    'build.plat.native': { en: 'Mobile', zh: '移动原生' },
+    'build.plat.android': { en: 'Android', zh: 'Android' },
+    'build.plat.ios': { en: 'iOS', zh: 'iOS' },
     // — Platform categories (the nav's group headings) —
     'build.cat.general': { en: 'General', zh: '通用' },
     'build.cat.minigame': { en: 'Mini-Games', zh: '小游戏' },
@@ -28,6 +29,29 @@ export const projectMessages = defineMessages({
     'build.notReadyHint': {
         en: 'This target needs an engine runtime that is not built yet. Packaging will fail until it is.',
         zh: '该目标需要的引擎运行时尚未构建，在此之前打包会失败。',
+    },
+    // — Native toolchain readiness. A native target's export is app CONTENT, which
+    //   always succeeds; only assembling the installable app needs these, and that
+    //   step can run on another machine. —
+    'build.needAndroidSdk': {
+        en: 'Android SDK not found — set ANDROID_HOME, or install it with Android Studio.',
+        zh: '未找到 Android SDK——请设置 ANDROID_HOME，或通过 Android Studio 安装。',
+    },
+    'build.needAndroidNdk': {
+        en: 'No NDK in the Android SDK — install one from the SDK Manager (the app is cross-compiled with it).',
+        zh: 'Android SDK 中没有 NDK——请在 SDK Manager 中安装（应用由它交叉编译）。',
+    },
+    'build.needXcode': {
+        en: 'Xcode not found — the iOS app is built and signed by it.',
+        zh: '未找到 Xcode——iOS 应用由它构建并签名。',
+    },
+    'build.needMacos': {
+        en: 'Building the iOS app needs a Mac with Xcode — Apple ships no toolchain for this OS.',
+        zh: '构建 iOS 应用需要装有 Xcode 的 Mac——Apple 未在本系统提供工具链。',
+    },
+    'build.toolchainHint': {
+        en: 'The export still writes the app\'s content here; assembling the installable app needs this toolchain, and that step can run on another machine.',
+        zh: '导出仍会在此写出应用内容；将其装配成可安装的应用才需要该工具链，且这一步可以在另一台机器上完成。',
     },
     'build.copyCommand': { en: 'Copy command', zh: '复制命令' },
     'build.copied': { en: 'Copied', zh: '已复制' },
@@ -75,13 +99,13 @@ export const projectMessages = defineMessages({
         en: 'Single-file HTML playable ad — everything inlined, no requests.',
         zh: '单文件 HTML 试玩广告——所有内容内联，无网络请求。',
     },
-    'build.blurb.native': {
-        en: 'Content for the native iOS / Android app — a real app, not a WebView.',
-        zh: '原生 iOS / Android 应用的内容——真正的原生应用，而非 WebView。',
+    'build.blurb.android': {
+        en: 'Content for the native Android app (Vulkan) — a real APK, not a WebView.',
+        zh: '原生 Android 应用（Vulkan）的内容——真正的 APK，而非 WebView。',
     },
-    'build.prereq.native': {
-        en: 'Needs the native host — see native/README.md (embedded Dawn + QuickJS).',
-        zh: '需要原生宿主——见 native/README.md（内嵌 Dawn + QuickJS）。',
+    'build.blurb.ios': {
+        en: 'Content for the native iOS app (Metal) — packaged and signed by Xcode.',
+        zh: '原生 iOS 应用（Metal）的内容——由 Xcode 打包并签名。',
     },
     'build.next.web': {
         en: "Preview over http below, or upload {out}/ to any static host. (A web build needs an http origin — opening index.html directly won't stream the wasm.)",
@@ -100,9 +124,13 @@ export const projectMessages = defineMessages({
         zh: '在下方通过 http 预览（其真实运行环境是广告网络的 iframe）。注意：完整引擎通常会超出广告网络的体积限制。',
     },
 
-    'build.next.native': {
-        en: 'Package it into the app: node build-tools/cli.js native --package --content {out} (Android), or point the Xcode project at {out} (iOS).',
-        zh: '将其打进应用：node build-tools/cli.js native --package --content {out}（Android），或让 Xcode 工程指向 {out}（iOS）。',
+    'build.next.android': {
+        en: 'Build the signed APK around it: node build-tools/cli.js native --package --content {out} (see native/README.md for the one-time Dawn + QuickJS setup).',
+        zh: '据此构建签名 APK：node build-tools/cli.js native --package --content {out}（一次性的 Dawn + QuickJS 准备见 native/README.md）。',
+    },
+    'build.next.ios': {
+        en: 'On a Mac: node build-tools/cli.js native --target ios --content {out}, then cd native/ios && xcodegen — pick your Team in Xcode and Run.',
+        zh: '在 Mac 上运行：node build-tools/cli.js native --target ios --content {out}，然后 cd native/ios && xcodegen —— 在 Xcode 中选择你的 Team 并运行。',
     },
 
     // — Options —

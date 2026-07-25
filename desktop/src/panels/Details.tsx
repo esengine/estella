@@ -28,6 +28,8 @@ import {
   Monitor,
   MessageSquare,
   Play,
+  Smartphone,
+  Apple,
   Image as ImageIcon,
   MoreHorizontal,
   Move3d,
@@ -53,6 +55,7 @@ import { COMP_COLLIDER_SHAPE, type ColliderShapeKind } from '@/engine/colliderCo
 import { AudioWavePreview } from '@/components/AudioWavePreview';
 import { Toasts } from '@/store/Toasts';
 import { baseName, assetTypeOf, IMAGE_RE } from '@/project/assetMeta';
+import { BUILTIN_PLATFORMS, type BuiltinPlatform } from '@/project/platforms';
 import { revealAsset } from '@/project/assetReveal';
 import { useSelection } from '@/store/selectionStore';
 import { usePrefabConflicts } from '@/store/prefabConflicts';
@@ -3148,16 +3151,32 @@ function MetaRow({ k, v, mono }: { k: string; v: string; mono?: boolean }) {
 // GPU" pipeline: size cap + whether/how to compress (e.g. WeChat ships smaller /
 // ETC1S). Edits write to `overrides.<platform>.*` through the same importer `write`
 // seam, so save + dirty tracking are unchanged.
+//
+// The tabs are the BUILT-IN platform list itself, not a copy of it: this used to be
+// a hand-written four and had already drifted — it never offered the mobile targets,
+// which is where a texture budget bites hardest.
+const PLATFORM_TAB_ICON: Record<BuiltinPlatform, ReactNode> = {
+  web: <Globe size={13} />,
+  desktop: <Monitor size={13} />,
+  wechat: <MessageSquare size={13} />,
+  playable: <Play size={13} />,
+  android: <Smartphone size={13} />,
+  ios: <Apple size={13} />,
+};
+
+/** Labels come from the build dialog's catalog — one name per platform, editor-wide. */
+const PLATFORM_TAB_LABEL: Record<BuiltinPlatform, string> = {
+  web: t('build.plat.web'), desktop: t('build.plat.desktop'),
+  wechat: t('build.plat.wechat'), playable: t('build.plat.playable'),
+  android: t('build.plat.android'), ios: t('build.plat.ios'),
+};
+
 function TexturePlatformOverrides({ importer, write }: { importer: Record<string, unknown>; write: FieldWrite }) {
-  const [tab, setTab] = useState('wechat');
+  const [tab, setTab] = useState<BuiltinPlatform>('wechat');
   const overrides = (importer.overrides as Record<string, Record<string, unknown>> | undefined) ?? {};
   const ov = overrides[tab] ?? {};
   const enabled = !!ov.enabled;
   const def = readTextureCookSettings(importer); // true default (what an unset field inherits)
-  const platLabel: Record<string, string> = {
-    web: t('build.plat.web'), desktop: t('build.plat.desktop'),
-    wechat: t('build.plat.wechat'), playable: t('build.plat.playable'),
-  };
   const fields: InspectorField[] = [
     {
       key: `overrides.${tab}.maxSize`, label: 'Max Size', type: 'enum', category: '',
@@ -3182,16 +3201,13 @@ function TexturePlatformOverrides({ importer, write }: { importer: Record<string
         ariaLabel={t('det.platformOverrides')}
         value={tab}
         onChange={setTab}
-        options={[
-          { value: 'web', icon: <Globe size={13} />, title: platLabel.web },
-          { value: 'desktop', icon: <Monitor size={13} />, title: platLabel.desktop },
-          { value: 'wechat', icon: <MessageSquare size={13} />, title: platLabel.wechat },
-          { value: 'playable', icon: <Play size={13} />, title: platLabel.playable },
-        ]}
+        options={BUILTIN_PLATFORMS.map((id) => ({
+          value: id, icon: PLATFORM_TAB_ICON[id], title: PLATFORM_TAB_LABEL[id],
+        }))}
       />
       <label className="tex-plat__en">
         <input type="checkbox" checked={enabled} onChange={(e) => write(`overrides.${tab}.enabled`, 'bool', e.target.checked)} />
-        {t('det.overrideFor', { platform: platLabel[tab] })}
+        {t('det.overrideFor', { platform: PLATFORM_TAB_LABEL[tab] })}
       </label>
       {enabled ? (
         <div className="tex-plat__fields">

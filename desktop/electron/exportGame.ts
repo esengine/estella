@@ -37,7 +37,7 @@ import type { OnExportProgress } from './exportProgress';
 import { ESENGINE_EXTERNAL } from './esengineResolve';
 import { orientationCss, orientationOverlayHtml, orientationLockScript, type ScreenOrientation } from './orientationHtml';
 
-import type { ExportPlatform } from '../src/project/format';
+import { isNativePlatform, type ExportPlatform } from '../src/project/platforms';
 import { collectSubsystems, subsystemGapWarnings, targetGaps, type Subsystem } from '../src/project/targetSupport';
 export type { ExportPlatform };
 
@@ -90,8 +90,8 @@ export async function discoverProjectScenes(root: string, entryScene: string, sc
 /**
  * Warn about content this target cannot render. The editor authors every
  * subsystem the engine has, but a target may compile only some of them (the
- * native app leaves out tilemaps, particles, post-processing and text) — so an
- * export that says nothing writes a package quietly missing half a scene.
+ * native app leaves out tilemaps, particles and post-processing) — so an export
+ * that says nothing writes a package quietly missing half a scene.
  *
  * Scans the scenes and prefabs that were actually cooked, so the warning names
  * the files responsible and a project that never authors a tilemap hears
@@ -466,7 +466,9 @@ export async function exportGame(opts: {
   // The native app carries the runtime in its binary (engine core + SDK bundle),
   // so its export is CONTENT: cooked assets, manifests, scenes, config — no host
   // page, no SDK/wasm tree, and project scripts as a plain script the host evals.
-  const nativeContent = platform === 'native';
+  // iOS and Android write the SAME payload — what differs is the toolchain that
+  // wraps it — so this asks what KIND of target it is, not which one.
+  const nativeContent = isNativePlatform(platform);
   const warnings: string[] = [];
   const errors: string[] = [];
   await mkdir(payloadDir, { recursive: true });

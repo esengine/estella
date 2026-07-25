@@ -26,9 +26,9 @@
 import { useState, useEffect, useSyncExternalStore, type ReactNode } from 'react';
 import {
   Loader2, FolderOpen, CheckCircle2, AlertCircle, Boxes, Info, Copy, ExternalLink, Play,
-  Globe, Monitor, MessageSquare, ChevronRight, Smartphone, Package, TriangleAlert, Plus,
+  Globe, Monitor, MessageSquare, ChevronRight, Smartphone, Apple, Package, TriangleAlert, Plus,
 } from 'lucide-react';
-import type { ExportPlatform } from '@/project/format';
+import type { ExportPlatform, NativeToolchain, PlatformPrereq } from '@/project/platforms';
 import { Modal } from '@/components/Modal';
 import { Segmented } from '@/components/Segmented';
 import { Button } from '@/components/Button';
@@ -83,6 +83,9 @@ interface PlatformDef {
   sourceMaps: boolean;
   /** A build prerequisite to surface BEFORE packaging (missing toolchain/runtime). */
   prereq?: string;
+  /** What KIND of prerequisite — a missing engine runtime blocks the package, a
+   *  missing native toolchain only blocks the final app assembly. */
+  prereqKind?: PlatformPrereq['kind'];
   /** http-servable target → offer a loopback-http Preview (opening the build via
    *  file:// hits the browser's opaque-origin rules; http is its real surface). */
   httpPreview?: boolean;
@@ -119,21 +122,39 @@ const BUILTIN_PLATFORMS: PlatformDef[] = [
     defaultOut: 'dist-playable', sourceMaps: false, httpPreview: true,
     next: () => t('build.next.playable'),
   },
+  // The two mobile targets export the same content — a native app carries the
+  // engine and the SDK in its binary — but they are separate rows because
+  // everything AROUND that differs: the toolchain, whether this machine has it,
+  // and the command that turns the content into an installable app.
   {
-    id: 'native', label: t('build.plat.native'), ready: true, category: 'mobile', icon: <Smartphone size={17} />,
-    blurb: t('build.blurb.native'),
-    defaultOut: 'dist-native', sourceMaps: false,
-    prereq: t('build.prereq.native'),
-    next: (o) => t('build.next.native', { out: o }),
+    id: 'android', label: t('build.plat.android'), ready: true, category: 'mobile', icon: <Smartphone size={17} />,
+    blurb: t('build.blurb.android'),
+    defaultOut: 'dist-android', sourceMaps: false,
+    next: (o) => t('build.next.android', { out: o }),
+  },
+  {
+    id: 'ios', label: t('build.plat.ios'), ready: true, category: 'mobile', icon: <Apple size={17} />,
+    blurb: t('build.blurb.ios'),
+    defaultOut: 'dist-ios', sourceMaps: false,
+    next: (o) => t('build.next.ios', { out: o }),
   },
 ];
 
 const mb = (bytes: number): string => `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 
-/** The main process reports WHERE it looked and FOR WHAT; the sentence is written
- *  here, where the locale is. */
-function prereqText(r: { prereq?: { dir: string; looked: string[]; command?: string } }): string | undefined {
+/** Localized names for the native toolchain pieces the main process probes. */
+const TOOLCHAIN_TEXT: Record<NativeToolchain, string> = {
+  'android-sdk': t('build.needAndroidSdk'),
+  'android-ndk': t('build.needAndroidNdk'),
+  xcode: t('build.needXcode'),
+  macos: t('build.needMacos'),
+};
+
+/** The main process reports WHAT is missing; the sentence is written here, where
+ *  the locale is. */
+function prereqText(r: { prereq?: PlatformPrereq }): string | undefined {
   if (!r.prereq) return undefined;
+  if (r.prereq.kind === 'toolchain-missing') return TOOLCHAIN_TEXT[r.prereq.tool];
   // A built-in target comes with the command that fixes it, and WHERE the editor
   // keeps its runtime is not the developer's business — the command is. A project
   // platform has no command (only the project knows how it builds one), so there
@@ -204,9 +225,11 @@ export function BuildDialog() {
       const merged: PlatformDef[] = BUILTIN_PLATFORMS.map((p) => {
         const r = byId.get(p.id);
         if (!r) return p;
-        // A probed prerequisite replaces the static one; `prereq` survives only
-        // where there is nothing to probe (native's toolchain).
-        return { ...p, ready: r.ready, prereq: prereqText(r) ?? p.prereq, fixCommand: r.prereq?.command };
+        // A probed prerequisite replaces the static one.
+        return {
+          ...p, ready: r.ready, prereq: prereqText(r), prereqKind: r.prereq?.kind,
+          fixCommand: r.prereq?.kind === 'runtime-missing' ? r.prereq.command : undefined,
+        };
       });
       for (const r of rows) {
         if (r.source !== 'project') continue;
@@ -222,7 +245,10 @@ export function BuildDialog() {
           defaultOut: r.defaultOut ?? `dist-${r.id}`,
           sourceMaps: false,
           prereq: prereqText(r),
-          fixCommand: r.prereq?.command,
+          prereqKind: r.prereq?.kind,
+          // A project platform is always a runtime probe (it rides the mini-game
+          // pipeline), but read the kind rather than assume it.
+          fixCommand: r.prereq?.kind === 'runtime-missing' ? r.prereq.command : undefined,
           next: (o) => t('build.next.custom', { out: o }),
         });
       }
@@ -284,7 +310,8 @@ export function BuildDialog() {
           id: row.id, label: row.label ?? row.id, ready: row.ready, category: 'custom', custom: true,
           loadError: row.error, icon: <Package size={17} />, blurb: row.blurb ?? t('build.customHint'),
           defaultOut: row.defaultOut ?? `dist-${row.id}`, sourceMaps: false,
-          prereq: prereqText(row), fixCommand: row.prereq?.command,
+          prereq: prereqText(row), prereqKind: row.prereq?.kind,
+          fixCommand: row.prereq?.kind === 'runtime-missing' ? row.prereq.command : undefined,
           next: (o) => t('build.next.custom', { out: o }),
         },
       ]);
@@ -504,7 +531,12 @@ export function BuildDialog() {
               <TriangleAlert size={13} />
               <div className="build__prereq-body">
                 <span className="selectable">{def.prereq ?? t('build.notReady')}</span>
-                <span className="build__prereq-hint">{t('build.notReadyHint')}</span>
+                {/* A missing engine runtime means no package at all; a missing
+                    native toolchain still exports the app's content — only the
+                    assembly step (which may run on another machine) needs it. */}
+                <span className="build__prereq-hint">
+                  {def.prereqKind === 'toolchain-missing' ? t('build.toolchainHint') : t('build.notReadyHint')}
+                </span>
                 {def.fixCommand && (
                   <div className="build__fix">
                     <code className="selectable">{def.fixCommand}</code>
@@ -514,13 +546,6 @@ export function BuildDialog() {
                   </div>
                 )}
               </div>
-            </div>
-          )}
-
-          {/* Nothing to probe (native's toolchain) — advisory, and only when ready. */}
-          {def.ready && def.prereq && (
-            <div className="build__prereq">
-              <Info size={13} /> <span className="selectable">{def.prereq}</span>
             </div>
           )}
 

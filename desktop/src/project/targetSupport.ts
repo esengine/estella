@@ -4,11 +4,11 @@
  * @file  What a build target can render — and what it cannot.
  *
  * The editor authors every subsystem the engine has; a target does not
- * necessarily compile all of them. The native app builds a subset:
- * `native/CMakeLists.txt` sets ES_ENABLE_WEBGPU and nothing else, so
- * `cmake/ESEngineSources.cmake` leaves out the tilemap, particle, post-process
- * and text sources — and the optional emscripten side modules (Box2D, Spine,
- * video) have no native counterpart yet.
+ * necessarily compile all of them. The native app builds a subset: the flags
+ * `native/CMakeLists.txt` sets decide what `cmake/ESEngineSources.cmake` compiles
+ * in, and the optional emscripten side modules (Box2D, Spine, video) have no
+ * native counterpart yet. iOS and Android build from that same CMakeLists, so
+ * their gaps are one list.
  *
  * Without this, an export writes a package that is quietly missing half a
  * scene. This is the one declaration of that gap, so the export can name it
@@ -19,7 +19,7 @@
  * Deliberately free of node imports — the electron export and the renderer's
  * build dialog both read it.
  */
-import type { ExportPlatform } from './format';
+import { NATIVE_PLATFORMS, type ExportPlatform } from './platforms';
 
 /** An engine subsystem a build target may lack. */
 export type Subsystem = 'text' | 'tilemap' | 'particles' | 'postprocess' | 'physics' | 'spine' | 'video';
@@ -73,21 +73,25 @@ export interface SubsystemGap {
     why: string;
 }
 
+/** What the native app cannot render. ONE list: iOS and Android compile the same
+ *  `native/CMakeLists.txt`, so a flag flipped there closes the gap on both. */
+const NATIVE_GAPS: readonly SubsystemGap[] = [
+    { subsystem: 'tilemap', why: 'the native build leaves out the tilemap sources (ES_ENABLE_TILEMAP)' },
+    { subsystem: 'particles', why: 'the native build leaves out the particle sources (ES_ENABLE_PARTICLES)' },
+    { subsystem: 'postprocess', why: 'the native build leaves out the post-process pipeline (ES_ENABLE_POSTPROCESS)' },
+    { subsystem: 'physics', why: 'Box2D ships as an emscripten side module; the native host has no counterpart yet' },
+    { subsystem: 'spine', why: 'the Spine runtime ships as an emscripten side module; the native host has no counterpart yet' },
+    { subsystem: 'video', why: 'the video decoder ships as an emscripten side module; the native host has no counterpart yet' },
+];
+
 /**
  * Per-target gaps. A platform absent from this table has none *known*: only the
- * native target's feature set has been audited against the engine's, since it is
- * the one that compiles a subset.
+ * native targets' feature set has been audited against the engine's, since they
+ * are the ones that compile a subset.
  */
-const GAPS: Partial<Record<ExportPlatform, readonly SubsystemGap[]>> = {
-    native: [
-        { subsystem: 'tilemap', why: 'the native build leaves out the tilemap sources (ES_ENABLE_TILEMAP)' },
-        { subsystem: 'particles', why: 'the native build leaves out the particle sources (ES_ENABLE_PARTICLES)' },
-        { subsystem: 'postprocess', why: 'the native build leaves out the post-process pipeline (ES_ENABLE_POSTPROCESS)' },
-        { subsystem: 'physics', why: 'Box2D ships as an emscripten side module; the native host has no counterpart yet' },
-        { subsystem: 'spine', why: 'the Spine runtime ships as an emscripten side module; the native host has no counterpart yet' },
-        { subsystem: 'video', why: 'the video decoder ships as an emscripten side module; the native host has no counterpart yet' },
-    ],
-};
+const GAPS: Partial<Record<ExportPlatform, readonly SubsystemGap[]>> = Object.fromEntries(
+    NATIVE_PLATFORMS.map((platform) => [platform, NATIVE_GAPS]),
+);
 
 /** What `platform` cannot render, whether or not this project uses it. */
 export function targetGaps(platform: ExportPlatform): readonly SubsystemGap[] {
