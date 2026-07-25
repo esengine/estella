@@ -13,6 +13,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <vector>
 
 namespace esengine {
 
@@ -511,7 +512,9 @@ TextureHandle WebGPUDevice::createTexture(const TextureDesc& desc, const void* p
                                               desc.wrapS, desc.wrapT)};
 
     if (pixels && !isDepthFormat(td.format)) {
-        updateTexture(TextureHandle{id}, 0, 0, desc.width, desc.height, pixels, false);
+        // desc.flipY, not false: the caller's orientation request has to reach the
+        // upload, which is where the row reversal happens (see updateTexture).
+        updateTexture(TextureHandle{id}, 0, 0, desc.width, desc.height, pixels, desc.flipY);
     }
     return TextureHandle{id};
 }
@@ -601,12 +604,6 @@ void WebGPUDevice::updateTexture(TextureHandle texture, i32 x, i32 y, u32 width,
         ES_LOG_ERROR("WebGPUDevice::updateTexture: depth-stencil textures are attachment-only");
         return;
     }
-    if (flipY) {
-        // The GL backend flips via UNPACK_FLIP_Y_WEBGL; WebGPU has no upload flip.
-        // Slice 2 decides the single flip point (CPU pre-flip at the loader).
-        stubOnce("updateTexture(flipY)");
-    }
-
     WGPUTexelCopyTextureInfo dst{};
     dst.texture = it->second.texture;
     dst.origin = WGPUOrigin3D{static_cast<u32>(x), static_cast<u32>(y), 0};
@@ -616,9 +613,28 @@ void WebGPUDevice::updateTexture(TextureHandle texture, i32 x, i32 y, u32 width,
     layout.bytesPerRow = width * bpp;
     layout.rowsPerImage = height;
 
+    // Decoded images arrive top-first while the engine samples v upward, so an
+    // upload is flipped. GL does it with UNPACK_FLIP_Y_WEBGL; WebGPU has no such
+    // pixel-store parameter, so the rows are reversed here — the same bytes GL
+    // would have sent, which is what keeps the two backends pixel-identical.
+    // Without this every texture on the WebGPU backend was upside down: invisible
+    // on a symmetric sprite, and glaring on a tileset atlas, where row 0 sampled
+    // the atlas's last row.
+    const usize rowBytes = static_cast<usize>(width) * bpp;
+    std::vector<u8> flipped;
+    const void* src = pixels;
+    if (flipY && height > 1) {
+        flipped.resize(rowBytes * height);
+        const u8* in = static_cast<const u8*>(pixels);
+        for (u32 row = 0; row < height; ++row) {
+            std::memcpy(flipped.data() + rowBytes * row,
+                        in + rowBytes * (height - 1 - row), rowBytes);
+        }
+        src = flipped.data();
+    }
+
     WGPUExtent3D extent{width, height, 1};
-    wgpuQueueWriteTexture(queue_, &dst, pixels,
-                          static_cast<usize>(width) * height * bpp, &layout, &extent);
+    wgpuQueueWriteTexture(queue_, &dst, src, rowBytes * height, &layout, &extent);
 }
 
 void WebGPUDevice::setTextureParams(TextureHandle texture, TextureFilter minFilter,
