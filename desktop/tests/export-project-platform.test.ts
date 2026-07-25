@@ -123,8 +123,10 @@ describe('exportGame — a platform the project defines', () => {
     expect(bundle).toContain('acme-software');
     expect(bundle).toContain('initMiniGameRuntime');
 
-    // Scene + manifest assembled the same way as any other mini-game target.
-    expect(readFileSync(path.join(out, 'scenes', 'Main.json'), 'utf8')).toContain(TEX);
+    // Scene + manifest assembled the same way as any other mini-game target. The
+    // staged name comes from the source FILE ('scenes/main.esscene' → 'main'), which
+    // is what `SceneManager.switchTo` addresses — not the document's display name.
+    expect(readFileSync(path.join(out, 'scenes', 'main.json'), 'utf8')).toContain(TEX);
     expect(readFileSync(path.join(out, 'asset-manifest.json'), 'utf8')).toContain(TEX);
   }, 60_000);
 
