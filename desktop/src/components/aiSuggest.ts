@@ -22,6 +22,9 @@ const BUILTIN_DESC: Record<string, () => string> = {
   'spriteAnim.restart': () => t('ai.desc.spriteAnimRestart'),
   'spriteAnim.stop': () => t('ai.desc.spriteAnimStop'),
   'spriteAnim.finished': () => t('ai.desc.spriteAnimFinished'),
+  'fsm.fire': () => t('ai.desc.fsmFire'),
+  'blackboard.set': () => t('ai.desc.blackboardSet'),
+  'ui.setPage': () => t('ai.desc.uiSetPage'),
 };
 
 const decorate = (names: string[]): SuggestItem[] =>

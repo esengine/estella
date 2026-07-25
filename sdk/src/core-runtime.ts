@@ -288,6 +288,26 @@ export {
     type EventReaderDescriptor,
 } from './event';
 
+// The per-entity, string-named channel (the other half of the story above:
+// `defineEvent` is the global typed bus, this is "what happened to THIS
+// entity"). `ui/` re-exports the same objects as UIEventQueue / UIEvents.
+export {
+    EntityEventQueue,
+    EntityEvents,
+    type EntityEvent,
+    type EntityEventHandler,
+} from './entityEvents';
+
+// Authored event → action wiring (the data form of `events.on(e, 'click', …)`).
+export {
+    EventBinding,
+    eventBindingPlugin,
+    EventBindingPlugin,
+    resolveBindingTarget,
+    type EventBindingRow,
+    type EventBindingData,
+} from './eventBinding';
+
 // =============================================================================
 // Commands
 // =============================================================================

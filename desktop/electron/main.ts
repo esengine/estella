@@ -256,11 +256,24 @@ async function runScreenshot(w: BrowserWindow, out: string): Promise<void> {
     }
     const selectName = process.env.ESTELLA_SHOT_SELECT;
     if (selectName) {
-      await exec(`(() => {
+      // The tree is nested (getSceneTree returns ROOTS), so the walk has to
+      // recurse — a flat find only ever reached top-level entities, and picked
+      // nothing for a name a level down, silently leaving the default selection.
+      const selected = await exec(`(() => {
         const s = window.__estellaEditor.surface;
-        const hit = (s.getSceneTree() || []).find((n) => n.name === ${JSON.stringify(selectName)});
+        const walk = (nodes) => {
+          for (const n of nodes || []) {
+            if (n.name === ${JSON.stringify(selectName)}) return n;
+            const hit = walk(n.children);
+            if (hit) return hit;
+          }
+          return null;
+        };
+        const hit = walk(s.getSceneTree());
         if (hit) s.select(hit.id);
+        return hit ? hit.id : null;
       })()`);
+      if (selected == null) console.log(`[select] no entity named ${selectName}`);
       await waitFor('window.__estellaEditor.surface.getSelection() != null', 'entity selected'); // was sleep(800)
     }
     const selectAsset = process.env.ESTELLA_SHOT_ASSET;

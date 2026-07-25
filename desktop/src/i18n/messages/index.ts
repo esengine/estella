@@ -38,6 +38,7 @@ import { materialMessages } from './material';
 import { projectMessages } from './project';
 import { controllerMessages } from './controllers';
 import { animatorMessages } from './animator';
+import { eventMessages } from './events';
 
 /** Every per-area module, for the uniqueness guard in i18n.test.ts. */
 export const messageModules = {
@@ -61,6 +62,7 @@ export const messageModules = {
     project: projectMessages,
     controllers: controllerMessages,
     animator: animatorMessages,
+    events: eventMessages,
 } as const;
 
 export const editorMessages = {
@@ -84,4 +86,5 @@ export const editorMessages = {
     ...projectMessages,
     ...controllerMessages,
     ...animatorMessages,
+    ...eventMessages,
 } as const;

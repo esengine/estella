@@ -1,0 +1,408 @@
+{
+  "version": "1.0",
+  "name": "UI Events (no code)",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 10 } } },
+        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 300, "isActive": true, "priority": 0 } }
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "Canvas",
+      "parent": null,
+      "children": [2, 3, 5, 7, 10],
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "Canvas", "data": { "designResolution": { "x": 800, "y": 600 }, "scaleMode": 2 } },
+        { "type": "UINode", "data": {} },
+        {
+          "type": "UIController",
+          "data": {
+            "controllers": [
+              { "name": "tabs", "pages": ["home", "settings"], "current": "home" }
+            ]
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 2,
+      "name": "Title",
+      "parent": 1,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": { "value": 660, "unit": 0 },
+            "height": { "value": 40, "unit": 0 },
+            "insetLeft": { "value": 50, "unit": 1 },
+            "marginLeft": { "value": -330, "unit": 0 },
+            "insetTop": { "value": 36, "unit": 0 }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "These buttons run actions with no game code — the wires are Events rows",
+            "fontSize": 17,
+            "color": { "r": 0.9, "g": 0.92, "b": 0.96, "a": 1 },
+            "align": 1,
+            "verticalAlign": 1
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 3,
+      "name": "HomeButton",
+      "parent": 1,
+      "children": [4],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": { "value": 170, "unit": 0 },
+            "height": { "value": 44, "unit": 0 },
+            "insetLeft": { "value": 50, "unit": 1 },
+            "marginLeft": { "value": -180, "unit": 0 },
+            "insetTop": { "value": 108, "unit": 0 }
+          }
+        },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0.19, "g": 0.21, "b": 0.26, "a": 1 } } },
+        { "type": "Interactable", "data": { "enabled": true, "blockRaycast": true, "raycastTarget": true } },
+        {
+          "type": "UIController",
+          "data": {
+            "controllers": [
+              { "name": "$interaction", "pages": ["normal", "hover", "pressed", "disabled", "focused"], "current": "normal" }
+            ]
+          }
+        },
+        {
+          "type": "UIGear",
+          "data": {
+            "bindings": [
+              {
+                "controller": "$interaction",
+                "component": "UIVisual",
+                "property": "color",
+                "pages": {
+                  "normal": { "r": 0.19, "g": 0.21, "b": 0.26, "a": 1 },
+                  "hover": { "r": 0.26, "g": 0.29, "b": 0.36, "a": 1 },
+                  "pressed": { "r": 0.14, "g": 0.16, "b": 0.2, "a": 1 }
+                },
+                "tween": { "easing": 5, "duration": 0.12 }
+              }
+            ]
+          }
+        },
+        {
+          "type": "EventBinding",
+          "data": {
+            "rows": [
+              { "event": "click", "action": "ui.setPage", "arg": "tabs:home" },
+              { "event": "click", "action": "ui.setPage", "arg": "badge:off", "target": "Card" }
+            ]
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 4,
+      "name": "HomeLabel",
+      "parent": 3,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": { "value": 0, "unit": 0 },
+            "insetRight": { "value": 0, "unit": 0 },
+            "insetTop": { "value": 0, "unit": 0 },
+            "insetBottom": { "value": 0, "unit": 0 }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Home",
+            "fontSize": 16,
+            "color": { "r": 0.93, "g": 0.94, "b": 0.97, "a": 1 },
+            "align": 1,
+            "verticalAlign": 1
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 5,
+      "name": "SettingsButton",
+      "parent": 1,
+      "children": [6],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": { "value": 170, "unit": 0 },
+            "height": { "value": 44, "unit": 0 },
+            "insetLeft": { "value": 50, "unit": 1 },
+            "marginLeft": { "value": 10, "unit": 0 },
+            "insetTop": { "value": 108, "unit": 0 }
+          }
+        },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0.19, "g": 0.21, "b": 0.26, "a": 1 } } },
+        { "type": "Interactable", "data": { "enabled": true, "blockRaycast": true, "raycastTarget": true } },
+        {
+          "type": "UIController",
+          "data": {
+            "controllers": [
+              { "name": "$interaction", "pages": ["normal", "hover", "pressed", "disabled", "focused"], "current": "normal" }
+            ]
+          }
+        },
+        {
+          "type": "UIGear",
+          "data": {
+            "bindings": [
+              {
+                "controller": "$interaction",
+                "component": "UIVisual",
+                "property": "color",
+                "pages": {
+                  "normal": { "r": 0.19, "g": 0.21, "b": 0.26, "a": 1 },
+                  "hover": { "r": 0.26, "g": 0.29, "b": 0.36, "a": 1 },
+                  "pressed": { "r": 0.14, "g": 0.16, "b": 0.2, "a": 1 }
+                },
+                "tween": { "easing": 5, "duration": 0.12 }
+              }
+            ]
+          }
+        },
+        {
+          "type": "EventBinding",
+          "data": {
+            "rows": [
+              { "event": "click", "action": "ui.setPage", "arg": "tabs:settings" },
+              { "event": "click", "action": "ui.setPage", "arg": "badge:on", "target": "Card" }
+            ]
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 6,
+      "name": "SettingsLabel",
+      "parent": 5,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": { "value": 0, "unit": 0 },
+            "insetRight": { "value": 0, "unit": 0 },
+            "insetTop": { "value": 0, "unit": 0 },
+            "insetBottom": { "value": 0, "unit": 0 }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Settings",
+            "fontSize": 16,
+            "color": { "r": 0.93, "g": 0.94, "b": 0.97, "a": 1 },
+            "align": 1,
+            "verticalAlign": 1
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 7,
+      "name": "Card",
+      "parent": 1,
+      "children": [8, 9],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": { "value": 440, "unit": 0 },
+            "height": { "value": 230, "unit": 0 },
+            "insetLeft": { "value": 50, "unit": 1 },
+            "marginLeft": { "value": -220, "unit": 0 },
+            "insetTop": { "value": 186, "unit": 0 }
+          }
+        },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 0.22, "g": 0.45, "b": 0.78, "a": 1 } } },
+        {
+          "type": "UIController",
+          "data": {
+            "controllers": [
+              { "name": "badge", "pages": ["off", "on"], "current": "off" }
+            ]
+          }
+        },
+        {
+          "type": "UIGear",
+          "data": {
+            "bindings": [
+              {
+                "controller": "tabs",
+                "component": "UIVisual",
+                "property": "color",
+                "pages": {
+                  "home": { "r": 0.22, "g": 0.45, "b": 0.78, "a": 1 },
+                  "settings": { "r": 0.45, "g": 0.3, "b": 0.72, "a": 1 }
+                },
+                "tween": { "easing": 5, "duration": 0.2 }
+              }
+            ]
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 8,
+      "name": "CardLabel",
+      "parent": 7,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": { "value": 24, "unit": 0 },
+            "insetRight": { "value": 24, "unit": 0 },
+            "insetTop": { "value": 0, "unit": 0 },
+            "insetBottom": { "value": 0, "unit": 0 }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "HOME — the click switched the \"tabs\" controller, and this card's colour and text are gears reading it.",
+            "fontSize": 16,
+            "wordWrap": true,
+            "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+            "align": 1,
+            "verticalAlign": 1
+          }
+        },
+        {
+          "type": "UIGear",
+          "data": {
+            "bindings": [
+              {
+                "controller": "tabs",
+                "component": "Text",
+                "property": "content",
+                "pages": {
+                  "home": "HOME — the click switched the \"tabs\" controller, and this card's colour and text are gears reading it.",
+                  "settings": "SETTINGS — the same button also set a page on another entity, by name: that is the row's Target field."
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 9,
+      "name": "Badge",
+      "parent": 7,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": { "value": 18, "unit": 0 },
+            "height": { "value": 18, "unit": 0 },
+            "insetRight": { "value": 14, "unit": 0 },
+            "insetTop": { "value": 14, "unit": 0 }
+          }
+        },
+        { "type": "UIVisual", "data": { "visualType": 1, "color": { "r": 1, "g": 0.78, "b": 0.25, "a": 0 } } },
+        {
+          "type": "UIGear",
+          "data": {
+            "bindings": [
+              {
+                "controller": "badge",
+                "component": "UIVisual",
+                "property": "color",
+                "pages": {
+                  "off": { "r": 1, "g": 0.78, "b": 0.25, "a": 0 },
+                  "on": { "r": 1, "g": 0.78, "b": 0.25, "a": 1 }
+                },
+                "tween": { "easing": 5, "duration": 0.2 }
+              }
+            ]
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 10,
+      "name": "Hint",
+      "parent": 1,
+      "children": [],
+      "components": [
+        { "type": "Transform", "data": {} },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": { "value": 660, "unit": 0 },
+            "height": { "value": 46, "unit": 0 },
+            "insetLeft": { "value": 50, "unit": 1 },
+            "marginLeft": { "value": -330, "unit": 0 },
+            "insetTop": { "value": 448, "unit": 0 }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "src/main.ts is empty. Select a button and open Details → Events to see the wire.",
+            "fontSize": 14,
+            "wordWrap": true,
+            "color": { "r": 0.62, "g": 0.66, "b": 0.73, "a": 1 },
+            "align": 1,
+            "verticalAlign": 1
+          }
+        }
+      ],
+      "visible": true
+    }
+  ]
+}

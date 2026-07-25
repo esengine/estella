@@ -20,6 +20,7 @@ import { timerPlugin } from './timer';
 import { velocityPlugin } from './velocity';
 import { lifecyclePlugin } from './lifecycle';
 import { navPlugin, fsmPlugin, btPlugin, perceptionPlugin } from './ai';
+import { eventBindingPlugin } from './eventBinding';
 import { replicationPlugin } from './net/replication';
 import { SpinePlugin } from './spine';
 import { createFetchSideModuleHost, type SideModuleHost } from './sideModules';
@@ -36,7 +37,7 @@ export interface CreateWebAppOptions extends WebAppOptions {
     wasmBaseUrl?: string;
 }
 
-const basePlugins = [timerPlugin, velocityPlugin, lifecyclePlugin, animationPlugin, audioPlugin, videoPlugin, particlePlugin, trailPlugin, mesh2dPlugin, tilemapPlugin, postProcessPlugin, timelinePlugin, perceptionPlugin, fsmPlugin, btPlugin, navPlugin, replicationPlugin];
+const basePlugins = [timerPlugin, velocityPlugin, lifecyclePlugin, animationPlugin, audioPlugin, videoPlugin, particlePlugin, trailPlugin, mesh2dPlugin, tilemapPlugin, postProcessPlugin, timelinePlugin, perceptionPlugin, fsmPlugin, btPlugin, navPlugin, eventBindingPlugin, replicationPlugin];
 
 export function createWebApp(module: ESEngineModule, options?: CreateWebAppOptions): App {
     const sideModules: SideModuleHost | undefined = options?.sideModules
@@ -61,7 +62,7 @@ export interface HeadlessAppOptions {
  *  native factories, so neither drifts into its own plugin list. */
 export const headlessBasePlugins = (): Plugin[] => [
     timerPlugin, velocityPlugin, lifecyclePlugin, audioPlugin,
-    perceptionPlugin, fsmPlugin, btPlugin, navPlugin, replicationPlugin,
+    perceptionPlugin, fsmPlugin, btPlugin, navPlugin, eventBindingPlugin, replicationPlugin,
 ];
 
 /**

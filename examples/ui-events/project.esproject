@@ -1,0 +1,13 @@
+{
+  "formatVersion": "1",
+  "name": "UI Events (no code)",
+  "description": "Authored event wiring: buttons drive a UIController through EventBinding rows — the whole project ships zero gameplay code.",
+  "tag": "UI",
+  "version": "0.1.0",
+  "defaultScene": "assets/scenes/main.esscene",
+  "designResolution": {
+    "width": 800,
+    "height": 600
+  },
+  "spineVersion": "none"
+}

@@ -43,6 +43,9 @@ export {
     UIInteraction,
     UIEvents,
     UIEventQueue,
+    // The value too, not just the union type: the editor's event picker and
+    // authored data both need the canonical type strings.
+    UIEventType,
     UICameraInfo,
     screenToUiWorld,
     uiWorldToScreen,
@@ -65,7 +68,6 @@ export {
     type InteractableData,
     type UIInteractionData,
     type UIEvent,
-    type UIEventType,
     type UIEventHandler,
     type Unsubscribe,
     type UICameraData,

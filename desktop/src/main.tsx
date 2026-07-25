@@ -30,6 +30,7 @@ import './theme/flipbook.css';
 import './theme/tilemap.css';
 import './theme/ui-palette.css';
 import './theme/controllers.css';
+import './theme/events.css';
 import './theme/material.css';
 import './theme/nodegraph.css';
 import './theme/chrome.css';
@@ -45,7 +46,7 @@ import { dockApi } from './layout/dockApi';
 import { EditorControlSurface } from './engine/EditorSession';
 import { SceneModel } from './engine/SceneModel';
 import { EngineHost } from './engine/EngineHost';
-import { Particle, getComponent } from 'esengine';
+import { Particle, aiRegistry, getComponent } from 'esengine';
 import { applyFxPreview, initFxPreviewEditRestart } from './engine/fxPreview';
 import { commands } from './commands/registry';
 import { ENTITY_SOURCES, sourceById, createFromSource, type TileGridConfig } from './engine/entitySources';
@@ -128,6 +129,10 @@ if (new URLSearchParams(location.search).has('automation')) {
       const particle = EngineHost.getResource(Particle);
       return rt != null && particle ? particle.getAliveCount(rt) : -1;
     },
+    /** The names the action/condition palettes offer in THIS realm — the one
+     *  vocabulary `.esfsm` hooks, `.esbt` leaves and EventBinding rows share.
+     *  Empty means the palettes fall back to free text (nothing registered). */
+    aiVocabulary: () => ({ actions: aiRegistry.actionNames(), conditions: aiRegistry.conditionNames() }),
     /** Dispatch any registered editor command by id (the UI's own channel). */
     runCommand: (id: string) => commands.run(id),
     /** Save the open scene to disk (the toolbar Save, awaitable). */

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import type { SceneData, PrefabData, ControllerState, UIControllerData, GearBinding, GearTween, UIGearData, SyncPrefabResolver } from 'esengine';
+import type { SceneData, PrefabData, ControllerState, UIControllerData, GearBinding, GearTween, UIGearData, EventBindingData, EventBindingRow, SyncPrefabResolver } from 'esengine';
 import { TilemapAPI, TilemapLiveSync, UIPositionType, DimensionUnit, AnchorAxis, writeFieldPath, type AnchorPreset } from 'esengine';
 import type { EntityId, InspectorFieldType, InspectorFieldValue } from '@/types';
 import { EditorHistory, EditorHistoryImpl } from './EditorHistory';
@@ -1704,6 +1704,51 @@ export class SceneCommandsImpl {
     const cur = this.gearBindingsOf(id);
     this.writeGearBindings(id, 'Remove Gear',
       cur.filter((b) => !(b.controller === controller && b.component === component && b.property === property)));
+  }
+
+  // ── Authored event wires (EventBinding.rows) ──────────────────────────────
+  // Same shape as the gear commands above: read a cloned row list, write the
+  // whole list back as one undoable step. Emptying the list drops the component
+  // rather than leaving `{rows: []}` litter in the scene file.
+
+  private eventRowsOf(id: EntityId): EventBindingRow[] {
+    const d = this.model.entityBySource(id)?.components.find((c) => c.type === 'EventBinding')?.data as
+      | EventBindingData
+      | undefined;
+    return d?.rows ? structuredClone(d.rows) : [];
+  }
+
+  private writeEventRows(id: EntityId, label: string, next: EventBindingRow[]): void {
+    const cur = this.eventRowsOf(id);
+    if (valueEqual(cur, next)) return;
+    const apply = (list: EventBindingRow[]) => {
+      if (list.length === 0) this.model.removeComponent(id, 'EventBinding');
+      else this.model.setField(id, 'EventBinding', 'rows', structuredClone(list));
+    };
+    apply(next);
+    this.history.record(label, () => apply(next), () => apply(cur));
+  }
+
+  /** Append one authored wire. Undoable. */
+  addEventBinding(id: EntityId, row: EventBindingRow): void {
+    this.writeEventRows(id, 'Add Event Wire', [...this.eventRowsOf(id), row]);
+  }
+
+  /** Patch one row's fields (a key set to undefined is removed). Undoable. */
+  updateEventBinding(id: EntityId, index: number, patch: Partial<EventBindingRow>): void {
+    const cur = this.eventRowsOf(id);
+    if (index < 0 || index >= cur.length) return;
+    const merged = { ...cur[index], ...patch } as Record<string, unknown>;
+    for (const [k, v] of Object.entries(patch)) if (v === undefined || v === '') delete merged[k];
+    // `event` and `action` are the row's identity — never let a patch drop them.
+    if (patch.event !== undefined) merged.event = patch.event;
+    if (patch.action !== undefined) merged.action = patch.action;
+    this.writeEventRows(id, 'Edit Event Wire', cur.map((r, i) => (i === index ? (merged as unknown as EventBindingRow) : r)));
+  }
+
+  /** Remove one authored wire. Undoable. */
+  removeEventBinding(id: EntityId, index: number): void {
+    this.writeEventRows(id, 'Remove Event Wire', this.eventRowsOf(id).filter((_, i) => i !== index));
   }
 
   /** Set (or clear, with undefined) one gear binding's page-change transition. Undoable. */

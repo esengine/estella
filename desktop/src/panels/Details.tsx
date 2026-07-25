@@ -48,6 +48,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { AssetIcon } from '@/components/icons';
+import { EventBindingSection } from '@/events/EventBindingSection';
 import { COMP_COLLIDER_SHAPE, type ColliderShapeKind } from '@/engine/colliderConvert';
 import { AudioWavePreview } from '@/components/AudioWavePreview';
 import { Toasts } from '@/store/Toasts';
@@ -3729,6 +3730,12 @@ function EditorDetails() {
       <div className="insp-body">
         {ids.length === 1 && visible.some((c) => c.name === 'UINode' || c.name === 'Canvas') && (
           <ControllersInline entityId={ids[0]!} />
+        )}
+        {ids.length === 1 && (
+          <EventBindingSection
+            entityId={ids[0]!}
+            interactive={visible.some((c) => c.name === 'Interactable' || c.name === 'UINode' || c.name === 'Canvas')}
+          />
         )}
         {visible.map((comp) => (
           <ComponentSection
