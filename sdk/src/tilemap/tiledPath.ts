@@ -12,6 +12,34 @@
  * cook embeds one path and the runtime asks for another (the single-file playable then
  * 404s a tileset it did ship, or never shipped it at all).
  */
+/**
+ * Whether `ref` is already a LOGICAL project path rather than one relative to the
+ * document carrying it.
+ *
+ * The cook rewrites a map's document-relative refs into logical ones
+ * (`"../textures/x.png"` → `"assets/textures/x.png"`, see `rewriteTilemapRefs`),
+ * because a cooked payload has no directory structure left to be relative to. That
+ * only worked while such a map was loaded by `@uuid` — a base path with no
+ * directory, so joining was a no-op. Load the same map by its cooked FILE path (a
+ * native app reads files, not uuids) and joining doubles the prefix, which is how
+ * "assets/textures/tileset.png" became "assets/assets/textures/tileset.png" and
+ * every tile went invisible.
+ *
+ * So the shape the cook emits is recognized here, in the one place both sides
+ * share.
+ */
+export function isLogicalAssetRef(ref: string): boolean {
+    return ref.startsWith('/') || ref.startsWith('assets/');
+}
+
+/**
+ * Resolve a ref a Tiled document carries: a logical project path stands as it is,
+ * anything else is relative to the document.
+ */
+export function resolveTiledRef(documentPath: string, ref: string): string {
+    return isLogicalAssetRef(ref) ? ref : resolveRelativePath(documentPath, ref);
+}
+
 export function resolveRelativePath(basePath: string, relativePath: string): string {
     // Preserve a URL scheme+authority (e.g. "estella://project", "http://host")
     // before normalizing: the "//" after the scheme must survive, but the segment

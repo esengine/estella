@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { AssetLoader, LoadContext, TilemapResult } from '../AssetLoader';
 import {
-    packCollectionGrid, parseTmjWithExternals, resolveRelativePath,
+    packCollectionGrid, parseTmjWithExternals, resolveTiledRef,
     type TiledMapData, type TiledTilesetData,
 } from '../../tilemap/tiledLoader';
 import { registerTilemapSource, unregisterTilemapSource, type LoadedTilemapTileset } from '../../tilemap/tilesetCache';
@@ -26,7 +26,7 @@ export class TilemapAssetLoader implements AssetLoader<TilemapResult> {
         // External .tsj tilesets resolve relative to the map, through the same
         // text channel as the map itself.
         const mapData = await parseTmjWithExternals(JSON.parse(text), (source) =>
-            ctx.loadText(ctx.catalog.getBuildPath(resolveRelativePath(path, source))));
+            ctx.loadText(ctx.catalog.getBuildPath(resolveTiledRef(path, source))));
         if (!mapData) {
             throw new Error(`Failed to parse tilemap: ${path}`);
         }
@@ -39,7 +39,7 @@ export class TilemapAssetLoader implements AssetLoader<TilemapResult> {
                 tilesets.push(await this.foldCollection_(path, ts, mapData, ctx));
                 continue;
             }
-            const imagePath = resolveRelativePath(path, ts.image);
+            const imagePath = resolveTiledRef(path, ts.image);
             let textureHandle = 0;
             try {
                 const result = await ctx.loadTexture(imagePath, true);
@@ -108,7 +108,7 @@ export class TilemapAssetLoader implements AssetLoader<TilemapResult> {
                 + 'asset provider cannot decode/compose pixels — load it through the app Assets channel.');
         }
         const tiles = await Promise.all(ts.collectionTiles!.map(async (tile) => {
-            const decoded = await ctx.decodePixels!(resolveRelativePath(mapPath, tile.image));
+            const decoded = await ctx.decodePixels!(resolveTiledRef(mapPath, tile.image));
             if (decoded.width !== mapData.tileWidth || decoded.height !== mapData.tileHeight) {
                 throw new Error(
                     `[tilemap] "${mapPath}": collection tile "${tile.image}" is `

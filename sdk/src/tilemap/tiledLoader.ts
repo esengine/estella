@@ -44,7 +44,7 @@ import { mergeCollisionTiles } from './collisionMerge';
 import { CHUNK_SIZE } from './chunkCodec';
 import { tileIdOf, tileFlagsOf } from './tileBits';
 import { log } from '../logger';
-import { resolveRelativePath } from './tiledPath';
+import { resolveRelativePath, resolveTiledRef, isLogicalAssetRef } from './tiledPath';
 
 export interface TiledChunkData {
     x: number;
@@ -581,7 +581,7 @@ export async function parseTmjWithExternals(
             if (typeof ts.source !== 'string') return ts;
             let external = JSON.parse(await resolveExternal(ts.source)) as Record<string, unknown>;
             if (typeof external.image === 'string' && external.image) {
-                external = { ...external, image: resolveRelativePath(ts.source, external.image) };
+                external = { ...external, image: resolveTiledRef(ts.source, external.image) };
             }
             // Collection tilesets carry per-tile images — rewrite those too.
             if (Array.isArray(external.tiles)) {
@@ -589,7 +589,7 @@ export async function parseTmjWithExternals(
                     ...external,
                     tiles: (external.tiles as Array<Record<string, unknown>>).map((t) =>
                         typeof t?.image === 'string' && t.image
-                            ? { ...t, image: resolveRelativePath(ts.source as string, t.image) }
+                            ? { ...t, image: resolveTiledRef(ts.source as string, t.image) }
                             : t),
                 };
             }
@@ -603,7 +603,7 @@ export async function parseTmjWithExternals(
 // resolveRelativePath now lives in ./tiledPath (a dependency-free leaf) so the editor's
 // asset-dependency scan / cook can share the exact resolution the runtime loads with,
 // without pulling the loader's engine deps. Re-exported here for existing importers.
-export { resolveRelativePath };
+export { resolveRelativePath, resolveTiledRef, isLogicalAssetRef };
 
 export interface CollectionGridTile {
     /** Local tile id — also the grid slot, so gid → cell stays the identity
