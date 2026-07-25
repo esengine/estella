@@ -28,6 +28,7 @@ import { Select } from '@/components/Select';
 import { SuggestInput } from '@/components/SuggestInput';
 import { aiActionItems, aiConditionItems } from '@/components/aiSuggest';
 import { aiParamOptions } from '@/ai/paramOptions';
+import { actionParams, actionSeparator, subscribeActionCatalog, getActionCatalogRevision } from '@/ai/actionCatalog';
 import { SceneStore } from '@/engine/SceneStore';
 import { SceneCommands } from '@/engine/SceneCommands';
 import { prettyLabel } from '@/engine/schema';
@@ -35,7 +36,7 @@ import { readEventRows, resolveTargetName, sceneEntityNames } from '@/events/eve
 import { useInspectorCollapse, isSectionCollapsed } from '@/store/inspectorCollapse';
 import { t } from '@/i18n';
 import type { EntityId } from '@/types';
-import { UIEventType, aiRegistry, parseActionArg } from 'esengine';
+import { UIEventType, parseActionArg } from 'esengine';
 import type { AiParamDef, AiParamValue, EventBindingRow } from 'esengine';
 
 const SECTION_KEY = '__events';
@@ -46,6 +47,9 @@ const SELF = '';
 
 export function EventBindingSection({ entityId, interactive }: { entityId: EntityId; interactive: boolean }) {
   useSyncExternalStore(SceneStore.subscribe, SceneStore.getRevision);
+  // The project's own actions arrive with the schemas artifact, after open —
+  // re-render then, so their parameter controls appear without a reselect.
+  useSyncExternalStore(subscribeActionCatalog, getActionCatalogRevision);
   const collapseExplicit = useInspectorCollapse((s) => s.explicit);
   const toggleCollapse = useInspectorCollapse((s) => s.toggle);
   const collapsed = isSectionCollapsed(collapseExplicit, SECTION_KEY);
@@ -137,10 +141,10 @@ function EventRow({
   // What the chosen action takes. A row authored before the action declared its
   // parameters still shows them: the canonical string parses into the same
   // record the runtime would build (registry.ts owns that projection).
-  const defs = aiRegistry.getActionParams(row.action);
+  const defs = actionParams(row.action);
   const values: Record<string, AiParamValue> = row.params && Object.keys(row.params).length
     ? { ...row.params }
-    : parseActionArg(row.arg, defs, aiRegistry.getActionSeparator(row.action));
+    : parseActionArg(row.arg, defs, actionSeparator(row.action));
 
   // An authored value the built-in list doesn't know (a widget's own event, or
   // an entity renamed since) still has to be selectable — append it rather than

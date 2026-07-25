@@ -81,12 +81,36 @@ export interface SerializedFieldMeta {
   label?: string;
 }
 
+/**
+ * A project-registered action, as the editor's palettes need it: the name, and
+ * (when it declared them) the parameters that decide which controls to render.
+ * The editor's own realm never runs project code, so this artifact is the only
+ * way a game's `registerAction('game.startRun', …)` can appear in a dropdown.
+ */
+export interface ProjectActionSchema {
+  name: string;
+  /** Declared parameters, verbatim from the registry (see sdk registry.ts). */
+  params?: unknown[];
+  /** Separator of the canonical string form, when not the default ':'. */
+  separator?: string;
+}
+
+/** The whole artifact: what the editor knows about a project's declarations. */
+export interface SchemasArtifact {
+  components: ComponentSchema[];
+  actions: ProjectActionSchema[];
+  conditions: string[];
+}
+
 export interface ExtractSchemasResult {
   ok: boolean;
   /** Absolute path to the written schemas.json, or null on failure. */
   outputPath: string | null;
-  /** The extracted schemas (also written to outputPath). */
+  /** The extracted component schemas (also written to outputPath). */
   schemas: ComponentSchema[];
+  /** The project's own registered actions / conditions (same artifact). */
+  actions: ProjectActionSchema[];
+  conditions: string[];
   errors: string[];
   warnings: string[];
 }
@@ -117,12 +141,14 @@ function esengineAnchor(): Plugin {
 }
 
 /** Write the schemas artifact and return its absolute path. */
-function writeSchemas(root: string, schemas: ComponentSchema[]): string {
+function writeSchemas(root: string, artifact: SchemasArtifact): string {
   const outputPath = path.join(root, CACHE_DIR, OUTPUT);
   mkdirSync(path.dirname(outputPath), { recursive: true });
-  writeFileSync(outputPath, JSON.stringify(schemas, null, 2) + '\n');
+  writeFileSync(outputPath, JSON.stringify(artifact, null, 2) + '\n');
   return outputPath;
 }
+
+const EMPTY: SchemasArtifact = { components: [], actions: [], conditions: [] };
 
 /**
  * Extract the project's component schemas from `<root>/<entry>` (project-relative,
@@ -140,20 +166,38 @@ export async function extractProjectSchemas(
   const declPath = path.join(root, opts?.entry ?? DEFAULT_DECL_ENTRY);
   if (!existsSync(declPath)) {
     if (opts?.required) {
-      return { ok: false, outputPath: null, schemas: [], errors: [`declaration entry not found: ${declPath}`], warnings: [] };
+      return {
+        ok: false, outputPath: null, schemas: [], actions: [], conditions: [],
+        errors: [`declaration entry not found: ${declPath}`], warnings: [],
+      };
     }
-    return { ok: true, outputPath: writeSchemas(root, []), schemas: [], errors: [], warnings: [] };
+    return { ok: true, outputPath: writeSchemas(root, EMPTY), schemas: [], actions: [], conditions: [], errors: [], warnings: [] };
   }
 
   // Generated entry: install a fresh context FIRST (top-level, so it runs before
-  // any project code), then defer the declaration's `defineComponent` side
-  // effects to a dynamic import inside __extract() and hand back the registry.
+  // any project code), then defer the declaration's side effects to a dynamic
+  // import inside __extract() and hand back what it declared.
+  //
+  // Actions come from the SAME module for the same reason components do: a
+  // `registerAction` IS a declaration, and this is the one project module the
+  // editor may evaluate. The registry is diffed around the import so only the
+  // project's own names are reported — the engine's builtins register when their
+  // plugins build, which never happens here, but a diff keeps that an invariant
+  // rather than a coincidence.
   const entry =
-    `import { AppContext, setDefaultContext, getUserComponents } from 'esengine';\n` +
+    `import { AppContext, setDefaultContext, getUserComponents, aiRegistry } from 'esengine';\n` +
     `setDefaultContext(new AppContext());\n` +
     `export async function __extract() {\n` +
+    `  const before = new Set(aiRegistry.actionNames());\n` +
+    `  const beforeConds = new Set(aiRegistry.conditionNames());\n` +
     `  await import(${JSON.stringify(declPath)});\n` +
-    `  return getUserComponents();\n` +
+    `  const actions = aiRegistry.actionNames().filter((n) => !before.has(n)).map((name) => ({\n` +
+    `    name,\n` +
+    `    params: aiRegistry.getActionParams(name),\n` +
+    `    separator: aiRegistry.getActionSeparator(name),\n` +
+    `  }));\n` +
+    `  const conditions = aiRegistry.conditionNames().filter((n) => !beforeConds.has(n));\n` +
+    `  return { components: getUserComponents(), actions, conditions };\n` +
     `}\n`;
 
   const tmp = mkdtempSync(path.join(tmpdir(), 'estella-schema-'));
@@ -175,25 +219,54 @@ export async function extractProjectSchemas(
     });
     warnings.push(...result.warnings.map((w) => w.text));
 
-    const mod: { __extract(): Promise<Map<string, unknown>> } = await import(pathToFileURL(bundlePath).href);
-    const registry = await mod.__extract();
-    const schemas = [...registry.values()]
+    interface Extracted {
+      components: Map<string, unknown>;
+      actions: ProjectActionSchema[];
+      conditions: string[];
+    }
+    const mod: { __extract(): Promise<Extracted> } = await import(pathToFileURL(bundlePath).href);
+    const declared = await mod.__extract();
+    // Deterministic output throughout — the artifact is compared byte-wise by
+    // the incremental cache and read by humans in diffs.
+    const schemas = [...declared.components.values()]
       .map(toSchema)
-      .sort((a, b) => a.name.localeCompare(b.name)); // deterministic output
+      .sort((a, b) => a.name.localeCompare(b.name));
+    const actions = declared.actions
+      .map((a) => normalizeAction(a))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    const conditions = [...declared.conditions].sort();
 
-    return { ok: true, outputPath: writeSchemas(root, schemas), schemas, errors: [], warnings };
+    return {
+      ok: true,
+      outputPath: writeSchemas(root, { components: schemas, actions, conditions }),
+      schemas,
+      actions,
+      conditions,
+      errors: [],
+      warnings,
+    };
   } catch (err) {
     const e = err as { errors?: { text: string }[]; warnings?: { text: string }[]; message?: string };
     return {
       ok: false,
       outputPath: null,
       schemas: [],
+      actions: [],
+      conditions: [],
       errors: e.errors?.map((x) => x.text) ?? [String(e.message ?? err)],
       warnings: e.warnings?.map((x) => x.text) ?? warnings,
     };
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
+}
+
+/** Drop the fields that carry no information, so the artifact stays readable. */
+function normalizeAction(a: ProjectActionSchema): ProjectActionSchema {
+  const out: ProjectActionSchema = { name: a.name };
+  if (a.params && a.params.length) out.params = a.params;
+  if (a.separator && a.separator !== ':') out.separator = a.separator;
+  return out;
 }
 
 /** A user ComponentDef carries the field metadata; see sdk component.ts. */

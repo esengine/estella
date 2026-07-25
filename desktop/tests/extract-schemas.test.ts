@@ -12,7 +12,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { extractProjectSchemas, type ComponentSchema } from '../electron/extractSchemas';
+import { extractProjectSchemas, type ComponentSchema, type SchemasArtifact } from '../electron/extractSchemas';
 
 let root: string;
 
@@ -98,8 +98,10 @@ describe('extractProjectSchemas (P2)', () => {
 
     it('the written JSON matches the returned schemas (the artifact is the source of truth)', async () => {
         const res = await extractProjectSchemas(root);
-        const onDisk = JSON.parse(readFileSync(res.outputPath!, 'utf8')) as ComponentSchema[];
-        expect(onDisk).toEqual(res.schemas);
+        const onDisk = JSON.parse(readFileSync(res.outputPath!, 'utf8')) as SchemasArtifact;
+        expect(onDisk.components).toEqual(res.schemas);
+        expect(onDisk.actions).toEqual(res.actions);
+        expect(onDisk.conditions).toEqual(res.conditions);
     });
 
     it('treats a missing DEFAULT declaration as a component-less project (empty artifact, ok)', async () => {
@@ -109,7 +111,7 @@ describe('extractProjectSchemas (P2)', () => {
             expect(res.ok).toBe(true);
             expect(res.schemas).toEqual([]);
             expect(res.outputPath).toBe(path.join(empty, '.esengine/cache/schemas.json'));
-            expect(JSON.parse(readFileSync(res.outputPath!, 'utf8'))).toEqual([]);
+            expect(JSON.parse(readFileSync(res.outputPath!, 'utf8'))).toEqual({ components: [], actions: [], conditions: [] });
         } finally {
             rmSync(empty, { recursive: true, force: true });
         }
@@ -143,5 +145,58 @@ describe('extractProjectSchemas (P2)', () => {
         } finally {
             rmSync(proj, { recursive: true, force: true });
         }
+    });
+
+    // The palettes can only offer a game's own action names if they reach the
+    // editor as data — the main realm never runs project code.
+    describe('the project\'s registered actions', () => {
+        let proj: string;
+
+        beforeAll(() => {
+            proj = mkdtempSync(path.join(tmpdir(), 'estella-schema-actions-'));
+            mkdirSync(path.join(proj, 'src'), { recursive: true });
+            writeFileSync(
+                path.join(proj, 'src', 'components.ts'),
+                `import { defineComponent, registerAction, registerCondition } from 'esengine';\n` +
+                    `export const Score = defineComponent('Score', { points: 0 });\n` +
+                    `registerAction('game.startRun', () => {});\n` +
+                    `registerAction('game.award', {\n` +
+                    `  params: [{ name: 'kind', type: 'enum', options: [{ label: 'Coin', value: 'coin' }] }, { name: 'amount', type: 'number' }],\n` +
+                    `  run: () => {},\n` +
+                    `});\n` +
+                    `registerCondition('game.isBoss', () => false);\n`,
+            );
+        });
+        afterAll(() => rmSync(proj, { recursive: true, force: true }));
+
+        it('reports them with their declared parameters', async () => {
+            const res = await extractProjectSchemas(proj);
+            expect(res.ok).toBe(true);
+            expect(res.actions.map((a) => a.name)).toEqual(['game.award', 'game.startRun']); // sorted
+            expect(res.conditions).toEqual(['game.isBoss']);
+
+            const award = res.actions.find((a) => a.name === 'game.award')!;
+            expect(award.params).toEqual([
+                { name: 'kind', type: 'enum', options: [{ label: 'Coin', value: 'coin' }] },
+                { name: 'amount', type: 'number' },
+            ]);
+            // A parameterless action carries no empty arrays / default separator.
+            expect(res.actions.find((a) => a.name === 'game.startRun')).toEqual({ name: 'game.startRun' });
+        });
+
+        it('reports the components alongside them, in one artifact', async () => {
+            const res = await extractProjectSchemas(proj);
+            expect(res.schemas.map((s) => s.name)).toEqual(['Score']);
+            const onDisk = JSON.parse(readFileSync(res.outputPath!, 'utf8')) as SchemasArtifact;
+            expect(onDisk.components.map((c) => c.name)).toEqual(['Score']);
+            expect(onDisk.actions.map((a) => a.name)).toEqual(['game.award', 'game.startRun']);
+        });
+
+        it('reports only the PROJECT\'s names — engine builtins are the editor\'s own half', async () => {
+            const res = await extractProjectSchemas(proj);
+            for (const engineOwned of ['timeline.play', 'ui.setPage', 'fsm.fire']) {
+                expect(res.actions.map((a) => a.name)).not.toContain(engineOwned);
+            }
+        });
     });
 });

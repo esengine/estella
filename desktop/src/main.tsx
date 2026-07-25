@@ -46,7 +46,8 @@ import { dockApi } from './layout/dockApi';
 import { EditorControlSurface } from './engine/EditorSession';
 import { SceneModel } from './engine/SceneModel';
 import { EngineHost } from './engine/EngineHost';
-import { Particle, aiRegistry, getComponent } from 'esengine';
+import { Particle, getComponent } from 'esengine';
+import { actionNames, actionParams, conditionNames } from '@/ai/actionCatalog';
 import { applyFxPreview, initFxPreviewEditRestart } from './engine/fxPreview';
 import { commands } from './commands/registry';
 import { ENTITY_SOURCES, sourceById, createFromSource, type TileGridConfig } from './engine/entitySources';
@@ -129,10 +130,14 @@ if (new URLSearchParams(location.search).has('automation')) {
       const particle = EngineHost.getResource(Particle);
       return rt != null && particle ? particle.getAliveCount(rt) : -1;
     },
-    /** The names the action/condition palettes offer in THIS realm — the one
-     *  vocabulary `.esfsm` hooks, `.esbt` leaves and EventBinding rows share.
-     *  Empty means the palettes fall back to free text (nothing registered). */
-    aiVocabulary: () => ({ actions: aiRegistry.actionNames(), conditions: aiRegistry.conditionNames() }),
+    /** The names the action/condition palettes offer — the one vocabulary
+     *  `.esfsm` hooks, `.esbt` leaves and EventBinding rows share: the edit
+     *  realm's own registrations plus the open project's (schemas artifact). */
+    aiVocabulary: () => ({
+      actions: actionNames(),
+      conditions: conditionNames(),
+      params: Object.fromEntries(actionNames().map((n) => [n, actionParams(n).map((p) => p.name)])),
+    }),
     /** Dispatch any registered editor command by id (the UI's own channel). */
     runCommand: (id: string) => commands.run(id),
     /** Save the open scene to disk (the toolbar Save, awaitable). */

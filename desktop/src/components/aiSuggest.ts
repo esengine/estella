@@ -8,7 +8,7 @@
  *          registry) so they are bilingual via the editor's own i18n — the
  *          same display-side-label precedent as the asset importer.
  */
-import { aiRegistry } from 'esengine';
+import { actionNames, conditionNames } from '@/ai/actionCatalog';
 import { t } from '@/i18n';
 import type { SuggestItem } from './SuggestInput';
 
@@ -30,12 +30,12 @@ const BUILTIN_DESC: Record<string, () => string> = {
 const decorate = (names: string[]): SuggestItem[] =>
   names.map((value) => ({ value, desc: BUILTIN_DESC[value]?.() }));
 
-/** Action-name suggestions (FSM state hooks, BT action nodes). */
+/** Action-name suggestions (FSM state hooks, BT action nodes, event wires). */
 export function aiActionItems(): SuggestItem[] {
-  return decorate(aiRegistry.actionNames());
+  return decorate(actionNames());
 }
 
-/** Condition-name suggestions (FSM transitions, BT condition nodes). */
+/** Condition-name suggestions (FSM transitions, BT condition nodes, wire guards). */
 export function aiConditionItems(): SuggestItem[] {
-  return decorate(aiRegistry.conditionNames());
+  return decorate(conditionNames());
 }

@@ -18,6 +18,7 @@ import { Boxes } from 'lucide-react';
 import { spritePrefab, setCanvasDesignSeed, setProjectCameraFit, type EntitySource } from '@/engine/entitySources';
 import { setPrefabBaseResolver } from '@/engine/SceneQuery';
 import { setUserSchemas, userSchema, setBitmaskSource, setEnumSource, type UserComponentSchema } from '@/engine/schema';
+import { setProjectActions, type ProjectActionSchema } from '@/ai/actionCatalog';
 import { setAssetRefProblemResolver } from '@/engine/EditorControlSurface';
 import { installSpineSync, type SpineTransport } from '@/engine/spineSync';
 import { SceneStore } from '@/engine/SceneStore';
@@ -365,9 +366,17 @@ class ProjectStoreImpl {
   private async loadUserSchemas(): Promise<void> {
     try {
       const json = await window.estella.fs.read(`${WORKSPACE_DIR}/cache/schemas.json`);
-      setUserSchemas(JSON.parse(json) as UserComponentSchema[]);
+      const parsed = JSON.parse(json) as
+        | UserComponentSchema[]
+        | { components?: UserComponentSchema[]; actions?: ProjectActionSchema[]; conditions?: string[] };
+      // The artifact grew from a bare component array into `{components, actions,
+      // conditions}`; a cache written by an older editor still reads fine.
+      const artifact = Array.isArray(parsed) ? { components: parsed } : parsed;
+      setUserSchemas(artifact.components ?? []);
+      setProjectActions(artifact.actions ?? [], artifact.conditions ?? []);
     } catch {
       setUserSchemas([]);
+      setProjectActions([], []);
     }
   }
 
