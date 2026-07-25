@@ -104,13 +104,11 @@ fn vs_main(@location(0) a_position: vec2<f32>, @location(1) a_color: vec4<f32>, 
     a_texCoord_1 = a_texCoord;
     a_texIndex_1 = a_texIndex;
     main_1();
-    let _e14 = unnamed.gl_Position.y;
-    unnamed.gl_Position.y = -(_e14);
-    let _e16 = unnamed.gl_Position;
-    let _e17 = v_color;
-    let _e18 = v_texCoord;
-    let _e19 = v_worldPos;
-    return VertexOutput(_e16, _e17, _e18, _e19);
+    let _e13 = unnamed.gl_Position;
+    let _e14 = v_color;
+    let _e15 = v_texCoord;
+    let _e16 = v_worldPos;
+    return VertexOutput(_e13, _e14, _e15, _e16);
 }
 #pragma end
 

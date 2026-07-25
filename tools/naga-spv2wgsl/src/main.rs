@@ -5,8 +5,7 @@
 //! A deliberately tiny wrapper over naga's spv-in / wgsl-out so the whole
 //! program is stdin → stdout: no filesystem, no arguments — the shape that
 //! makes the wasm32-wasip1 build trivially runnable under node:wasi on any
-//! machine, with no cargo/naga-cli install. Options mirror naga-cli defaults
-//! (coordinate-space adjustment on, full validation).
+//! machine, with no cargo/naga-cli install.
 //!
 //! Build (artifact is committed, see build-tools/shader-twins/README.md):
 //!   rustup target add wasm32-wasip1
@@ -25,8 +24,12 @@ fn main() {
         fail("read stdin", e.to_string());
     }
 
+    // The input is SPIR-V that glslang produced from GLSL ES 300 WITHOUT --invert-y,
+    // so gl_Position still carries the GL clip space — which is WebGPU's. naga-cli's
+    // default assumes Vulkan-authored SPIR-V and emits `pos.y = -pos.y`; applied here
+    // that flip is spurious and every twin came out upside down on a WGSL backend.
     let options = naga::front::spv::Options {
-        adjust_coordinate_space: true,
+        adjust_coordinate_space: false,
         strict_capabilities: false,
         ..Default::default()
     };
