@@ -29,6 +29,9 @@ import { setNativeEngineApi, engineApi } from './engineApi';
 import { createNativeHeap } from './nativeHeap';
 import { createNativeSideModules } from './nativeSideModules';
 import { initPostProcessAPI } from '../postprocess';
+import { initDrawAPI } from '../draw';
+import { initGeometryAPI } from '../geometry';
+import type { ESEngineModule } from '../wasm';
 import { log } from '../logger';
 import { setRendererBackend } from '../renderer';
 import { RenderPipeline } from '../renderPipeline';
@@ -112,7 +115,7 @@ export function createNativeApp(
     // cannot draw them (it is the same C++) but because the plugins that drive them
     // reached the core as `app.wasmModule`. They go through `engineApi(app)` now, and
     // each one reports a core that compiles its subsystem out.
-    installNativePostProcess(app);
+    installNativeCoreApis(app);
     app.addPlugins(presentationBasePlugins());
     // Spine, like on the web, is a fresh plugin instance per App (it holds a
     // SpineManager keyed to this app's core) and builds its runtime backends from
@@ -122,18 +125,25 @@ export function createNativeApp(
 }
 
 /**
- * Post-processing needs one thing the other presentation plugins do not: the API
- * bound to the core before the plugin builds (on the web `corePlugin` does this,
- * and a native app does not run it). The engine's own passes then execute inside
- * the render pipeline exactly as they do on the web.
+ * The core-API facets `corePlugin` binds on the web — draw, geometry, post-process
+ * — need the API connected to the core before the plugins that use them build. A
+ * native app does not run corePlugin, so wire the ones this core compiles here,
+ * each guarded by an entry point it defines so a core built without one is skipped
+ * rather than half-connected. draw/geometry malloc their scratch buffers through
+ * the host arena the engine api carries as its heap (installNativeEngine), so the
+ * ESEngineModule they expect is satisfied at runtime.
  */
-function installNativePostProcess(app: App): void {
+function installNativeCoreApis(app: App): void {
     const engine = engineApi(app);
-    if (!engine || typeof engine.postprocess_init !== 'function') {
+    if (!engine) return;
+    const module = engine as unknown as ESEngineModule;
+    if (typeof engine.draw_begin === 'function') initDrawAPI(module);
+    if (typeof engine.geometry_create === 'function') initGeometryAPI(module);
+    if (typeof engine.postprocess_init === 'function') {
+        initPostProcessAPI(engine);
+    } else {
         log.info('postprocess', 'not available — this engine core was built without it');
-        return;
     }
-    initPostProcessAPI(engine);
 }
 
 /**
