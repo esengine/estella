@@ -6,8 +6,9 @@
  * @details Provides shader creation and material management for custom visual effects.
  */
 
+import type { EngineApi } from './ecs/engineApi';
 import type { ESEngineModule } from './wasm';
-import { CoreApiBridge } from './CoreApiBridge';
+import { WasmBridge } from './WasmBridge';
 import { requireResourceManager } from './resourceManager';
 import { awaitReadback, READBACK_READY } from './readback';
 import type { Vec2, Vec3, Vec4 } from './types';
@@ -136,8 +137,40 @@ export interface MaterialData {
 // Internal State
 // =============================================================================
 
-const bridge = new CoreApiBridge('material');
-let module: ESEngineModule | null = null;
+/**
+ * The material entry points as a core that HAS them answers them. Named, not
+ * re-declared: the signatures come from the generated engine surface, so this
+ * cannot drift from the C++ (MaterialBindings.hpp) that produced it.
+ */
+type MaterialCore = Required<Pick<NonNullable<EngineApi>,
+    'material_compileEsshader' | 'material_define' | 'material_setUniform'
+    | 'material_setTexture' | 'material_undefine'>>;
+
+/**
+ * What the material-ball thumbnail additionally needs: the renderer's preview
+ * readback plus the module heap it lands in. Editor-only — a device renders no
+ * thumbnails, and the readback pointer has no native wrapper — so it is narrowed
+ * here (and checked at the call) instead of being required of every core.
+ */
+type PreviewCore = MaterialCore & Pick<ESEngineModule,
+    'renderer_renderMaterialPreview' | 'renderer_pollPreviewReadback'
+    | 'renderer_getPreviewSize' | 'renderer_getPreviewWidth'
+    | 'renderer_getPreviewHeight' | 'renderer_getPreviewPtr' | 'HEAPU8'>;
+
+/** The connected core, when it answers the preview surface; null otherwise. */
+function previewCore(m: MaterialCore | null): PreviewCore | null {
+    const p = m as PreviewCore | null;
+    return typeof p?.renderer_renderMaterialPreview === 'function' ? p : null;
+}
+
+/** Guarded view of the core: after a wasm abort a call throws instead of reaching
+ *  a dead module; a native host's bindings never abort. */
+class MaterialBridge extends WasmBridge<NonNullable<EngineApi>> {
+    protected readonly label = 'material';
+}
+
+const bridge = new MaterialBridge();
+let module: MaterialCore | null = null;
 let nextMaterialId = 1;
 const materials = new Map<MaterialHandle, MaterialData>();
 // Reverse index parent -> instances, so editing a base material re-flushes its instances.
@@ -147,10 +180,15 @@ const childrenOf = new Map<MaterialHandle, Set<MaterialHandle>>();
 // Initialization
 // =============================================================================
 
-/** @internal Wired by the engine plugins — not part of the public API. */
-export function initMaterialAPI(wasmModule: ESEngineModule): void {
-    bridge.connect(wasmModule);
-    module = bridge.module;
+/**
+ * @internal Wired by the engine plugins — not part of the public API.
+ * Takes whichever core is present (see ecs/engineApi.ts). A core that compiles
+ * materials out answers none of these entry points; the caller checks that before
+ * connecting, which is what makes the narrowing here sound.
+ */
+export function initMaterialAPI(engine: NonNullable<EngineApi>): void {
+    bridge.connect(engine);
+    module = bridge.module as MaterialCore;
 }
 
 export function shutdownMaterialAPI(): void {
@@ -183,11 +221,11 @@ function unregisterChild(parent: MaterialHandle, child: MaterialHandle): void {
 function pushUniform(handle: MaterialHandle, name: string, value: UniformValue): void {
     if (!module) return;
     if (isTextureRef(value)) {
-        module.setMaterialTexture(handle, name, value.textureId);
+        module.material_setTexture(handle, name, value.textureId);
         return;
     }
     const { arity, values } = classifyUniformArity(value);
-    module.setMaterialUniform(handle, name, arity, values[0], values[1], values[2], values[3]);
+    module.material_setUniform(handle, name, arity, values[0], values[1], values[2], values[3]);
 }
 
 interface ResolvedMaterial {
@@ -229,7 +267,7 @@ function resolveMaterial(handle: MaterialHandle): ResolvedMaterial | null {
 function flushMaterial(handle: MaterialHandle): void {
     const resolved = resolveMaterial(handle);
     if (resolved && module) {
-        module.defineMaterial(handle, resolved.shader, resolved.blendMode,
+        module.material_define(handle, resolved.shader, resolved.blendMode,
             materialFlags(resolved.depthTest, resolved.depthWrite, resolved.cull));
         for (const [name, value] of resolved.uniforms) pushUniform(handle, name, value);
     }
@@ -321,7 +359,7 @@ export const Material = {
      * should reach the GPU. Returns a shader handle, or 0 on failure.
      */
     compileShader(esshaderSource: string, features: string[] = []): ShaderHandle {
-        return module?.compileEsshader(esshaderSource, features.join(',')) ?? 0;
+        return module?.material_compileEsshader(esshaderSource, features.join(',')) ?? 0;
     },
 
     /** Gets an enabled static switch (false when unset). */
@@ -447,7 +485,7 @@ export const Material = {
         if (data?.parent !== undefined) unregisterChild(data.parent, material);
         childrenOf.delete(material);  // orphaned instances fall back to their own values (resolve is defensive)
         materials.delete(material);
-        module?.undefineMaterial(material);
+        module?.material_undefine(material);
     },
 
     /**
@@ -468,7 +506,7 @@ export const Material = {
      * readback fails.
      */
     async renderPreview(material: MaterialHandle, w: number, h: number): Promise<ImageData | null> {
-        const m = module;
+        const m = previewCore(module);
         if (!m) return null;
         m.renderer_renderMaterialPreview(material, w, h);
         if (await awaitReadback(() => m.renderer_pollPreviewReadback()) !== READBACK_READY) {
@@ -490,7 +528,7 @@ export const Material = {
 
     releaseAll(): void {
         if (module) {
-            for (const handle of materials.keys()) module.undefineMaterial(handle);
+            for (const handle of materials.keys()) module.material_undefine(handle);
         }
         materials.clear();
         childrenOf.clear();

@@ -69,6 +69,9 @@ if(NOT ES_BUILD_WEB AND NOT ES_BUILD_WXGAME)
         ${ESENGINE_ROOT}/src/esengine/bindings/ImmediateDrawBindings.cpp
         # Tweens: portable C++ that used to live in the emscripten entry TU.
         ${ESENGINE_ROOT}/src/esengine/bindings/AnimationBindings.cpp
+        # Materials and .esshader compilation — the surface every custom material
+        # and every post-process pass gets its shader from.
+        ${ESENGINE_ROOT}/src/esengine/bindings/MaterialBindings.cpp
         # activeCtx()'s unset fallback. A host that installs its own context (the
         # native one does, at boot) never reaches it, but the inline accessor
         # references it, so the definition has to link.

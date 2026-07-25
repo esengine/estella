@@ -31,6 +31,7 @@ import { createNativeSideModules } from './nativeSideModules';
 import { initPostProcessAPI } from '../postprocess';
 import { initDrawAPI } from '../draw';
 import { initGeometryAPI } from '../geometry';
+import { initMaterialAPI } from '../material';
 import type { ESEngineModule } from '../wasm';
 import { log } from '../logger';
 import { setRendererBackend } from '../renderer';
@@ -125,8 +126,9 @@ export function createNativeApp(
 }
 
 /**
- * The core-API facets `corePlugin` binds on the web — draw, geometry, post-process
- * — need the API connected to the core before the plugins that use them build. A
+ * The core-API facets `corePlugin` binds on the web — draw, geometry, material,
+ * post-process — need the API connected to the core before the plugins that use
+ * them build. A
  * native app does not run corePlugin, so wire the ones this core compiles here,
  * each guarded by an entry point it defines so a core built without one is skipped
  * rather than half-connected. draw/geometry malloc their scratch buffers through
@@ -139,6 +141,14 @@ function installNativeCoreApis(app: App): void {
     const module = engine as unknown as ESEngineModule;
     if (typeof engine.draw_begin === 'function') initDrawAPI(module);
     if (typeof engine.geometry_create === 'function') initGeometryAPI(module);
+    // Materials feed both custom .esshader assets and every post-process pass
+    // (its effect shaders compile through material_compileEsshader), so this
+    // precedes the post-process wiring below.
+    if (typeof engine.material_compileEsshader === 'function') {
+        initMaterialAPI(engine);
+    } else {
+        log.info('material', 'not available — this engine core was built without it');
+    }
     if (typeof engine.postprocess_init === 'function') {
         initPostProcessAPI(engine);
     } else {

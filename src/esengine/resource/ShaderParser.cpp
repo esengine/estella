@@ -506,6 +506,19 @@ std::string ShaderParser::variantKey(const std::vector<std::string>& features) {
     return key;
 }
 
+std::vector<std::string> ShaderParser::splitFeatures(const std::string& csv) {
+    std::vector<std::string> features;
+    for (usize start = 0; start <= csv.size();) {
+        const usize comma = csv.find(',', start);
+        const usize end = comma == std::string::npos ? csv.size() : comma;
+        const std::string f = trim(csv.substr(start, end - start));
+        if (!f.empty()) features.push_back(f);
+        if (comma == std::string::npos) break;
+        start = comma + 1;
+    }
+    return features;
+}
+
 namespace {
 
 u32 countNewlines(const std::string& s) {

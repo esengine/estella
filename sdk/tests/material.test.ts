@@ -33,11 +33,11 @@ function createMaterialMockModule() {
         getResourceManager: vi.fn(() => resourceManager),
         resourceManager,
         // The engine-side material store push (replaces the old pull callback + cache).
-        compileEsshader: vi.fn().mockReturnValue(7),
-        defineMaterial: vi.fn(),
-        setMaterialUniform: vi.fn(),
-        setMaterialTexture: vi.fn(),
-        undefineMaterial: vi.fn(),
+        material_compileEsshader: vi.fn().mockReturnValue(7),
+        material_define: vi.fn(),
+        material_setUniform: vi.fn(),
+        material_setTexture: vi.fn(),
+        material_undefine: vi.fn(),
     };
 
     return mock;
@@ -45,7 +45,7 @@ function createMaterialMockModule() {
 
 type MockModule = ReturnType<typeof createMaterialMockModule>;
 
-// Render-state flags the SDK packs for defineMaterial: depthTest (bit 0),
+// Render-state flags the SDK packs for material_define: depthTest (bit 0),
 // depthWrite (bit 1), CullMode (bits 2-3).
 function flags(depthTest: boolean, depthWrite: boolean, cull: CullMode): number {
     return (depthTest ? 0x1 : 0) | (depthWrite ? 0x2 : 0) | ((cull & 0x3) << 2);
@@ -161,7 +161,7 @@ describe('Material API', () => {
                 depthTest: true,
                 cull: CullMode.Back,
             });
-            expect(mock.defineMaterial).toHaveBeenCalledWith(
+            expect(mock.material_define).toHaveBeenCalledWith(
                 h, 42, BlendMode.Additive, flags(true, true, CullMode.Back),
             );
         });
@@ -221,7 +221,7 @@ describe('Material API', () => {
             const h = Material.create({ shader: 1 as ShaderHandle });
             Material.release(h);
             expect(Material.isValid(h)).toBe(false);
-            expect(mock.undefineMaterial).toHaveBeenCalledWith(h);
+            expect(mock.material_undefine).toHaveBeenCalledWith(h);
         });
     });
 
@@ -232,8 +232,8 @@ describe('Material API', () => {
             Material.releaseAll();
             expect(Material.isValid(h1)).toBe(false);
             expect(Material.isValid(h2)).toBe(false);
-            expect(mock.undefineMaterial).toHaveBeenCalledWith(h1);
-            expect(mock.undefineMaterial).toHaveBeenCalledWith(h2);
+            expect(mock.material_undefine).toHaveBeenCalledWith(h1);
+            expect(mock.material_undefine).toHaveBeenCalledWith(h2);
         });
     });
 
@@ -296,9 +296,9 @@ describe('Material API', () => {
 
         it('should push the new state on setBlendMode', () => {
             const h = Material.create({ shader: 1 as ShaderHandle });
-            mock.defineMaterial.mockClear();
+            mock.material_define.mockClear();
             Material.setBlendMode(h, BlendMode.Additive);
-            expect(mock.defineMaterial).toHaveBeenCalledWith(
+            expect(mock.material_define).toHaveBeenCalledWith(
                 h, 1, BlendMode.Additive, flags(false, true, CullMode.None),
             );
         });
@@ -311,30 +311,30 @@ describe('Material API', () => {
     describe('DepthTest / DepthWrite / Cull', () => {
         it('should set depth test and push state', () => {
             const h = Material.create({ shader: 1 as ShaderHandle });
-            mock.defineMaterial.mockClear();
+            mock.material_define.mockClear();
             Material.setDepthTest(h, true);
             expect(Material.get(h)!.depthTest).toBe(true);
-            expect(mock.defineMaterial).toHaveBeenCalledWith(
+            expect(mock.material_define).toHaveBeenCalledWith(
                 h, 1, BlendMode.Normal, flags(true, true, CullMode.None),
             );
         });
 
         it('should set depth write and push state', () => {
             const h = Material.create({ shader: 1 as ShaderHandle });
-            mock.defineMaterial.mockClear();
+            mock.material_define.mockClear();
             Material.setDepthWrite(h, false);
             expect(Material.get(h)!.depthWrite).toBe(false);
-            expect(mock.defineMaterial).toHaveBeenCalledWith(
+            expect(mock.material_define).toHaveBeenCalledWith(
                 h, 1, BlendMode.Normal, flags(false, false, CullMode.None),
             );
         });
 
         it('should set cull mode and push state', () => {
             const h = Material.create({ shader: 1 as ShaderHandle });
-            mock.defineMaterial.mockClear();
+            mock.material_define.mockClear();
             Material.setCull(h, CullMode.Front);
             expect(Material.get(h)!.cull).toBe(CullMode.Front);
-            expect(mock.defineMaterial).toHaveBeenCalledWith(
+            expect(mock.material_define).toHaveBeenCalledWith(
                 h, 1, BlendMode.Normal, flags(false, true, CullMode.Front),
             );
         });
@@ -444,9 +444,9 @@ describe('Material API', () => {
 
         it('should push the flattened (inherited) instance to the engine store', () => {
             const src = Material.create({ shader: 5 as ShaderHandle, blendMode: BlendMode.Multiply });
-            mock.defineMaterial.mockClear();
+            mock.material_define.mockClear();
             const inst = Material.createInstance(src);
-            expect(mock.defineMaterial).toHaveBeenCalledWith(
+            expect(mock.material_define).toHaveBeenCalledWith(
                 inst, 5, BlendMode.Multiply, flags(false, true, CullMode.None),
             );
         });
@@ -489,11 +489,11 @@ describe('Material API', () => {
         it('a parent edit re-pushes the instance to the engine (propagation)', () => {
             const src = Material.create({ shader: 1 as ShaderHandle, uniforms: { u_val: 10 } });
             const inst = Material.createInstance(src);
-            mock.setMaterialUniform.mockClear();
+            mock.material_setUniform.mockClear();
             Material.setUniform(src, 'u_val', 99);
             // Both the parent and the inheriting instance are re-pushed with the new value.
-            expect(mock.setMaterialUniform).toHaveBeenCalledWith(src, 'u_val', 1, 99, 0, 0, 0);
-            expect(mock.setMaterialUniform).toHaveBeenCalledWith(inst, 'u_val', 1, 99, 0, 0, 0);
+            expect(mock.material_setUniform).toHaveBeenCalledWith(src, 'u_val', 1, 99, 0, 0, 0);
+            expect(mock.material_setUniform).toHaveBeenCalledWith(inst, 'u_val', 1, 99, 0, 0, 0);
         });
 
         it('should throw for invalid source', () => {
@@ -648,16 +648,16 @@ describe('Material API', () => {
     // =========================================================================
 
     describe('material parameter push', () => {
-        it('compileShader proxies to module.compileEsshader (no switches => empty features)', () => {
+        it('compileShader proxies to module.material_compileEsshader (no switches => empty features)', () => {
             const h = Material.compileShader('#pragma shader "x"');
             expect(h).toBe(7);
-            expect(mock.compileEsshader).toHaveBeenCalledWith('#pragma shader "x"', '');
+            expect(mock.material_compileEsshader).toHaveBeenCalledWith('#pragma shader "x"', '');
         });
 
         it('compileShader passes enabled switches as a CSV feature set', () => {
-            mock.compileEsshader.mockClear();
+            mock.material_compileEsshader.mockClear();
             Material.compileShader('src', ['USE_A', 'USE_B']);
-            expect(mock.compileEsshader).toHaveBeenCalledWith('src', 'USE_A,USE_B');
+            expect(mock.material_compileEsshader).toHaveBeenCalledWith('src', 'USE_A,USE_B');
         });
 
         it('stores static switches and round-trips them through toAssetData', () => {
@@ -673,23 +673,23 @@ describe('Material API', () => {
                 shader: 1 as ShaderHandle,
                 uniforms: { u_tint: { x: 1, y: 0, z: 0, w: 1 } },
             });
-            expect(mock.setMaterialUniform).toHaveBeenCalledWith(h, 'u_tint', 4, 1, 0, 0, 1);
+            expect(mock.material_setUniform).toHaveBeenCalledWith(h, 'u_tint', 4, 1, 0, 0, 1);
         });
 
         it('pushes the value on setUniform', () => {
             const h = Material.create({ shader: 1 as ShaderHandle });
-            mock.setMaterialUniform.mockClear();
+            mock.material_setUniform.mockClear();
             Material.setUniform(h, 'u_strength', 2.5);
-            expect(mock.setMaterialUniform).toHaveBeenCalledWith(h, 'u_strength', 1, 2.5, 0, 0, 0);
+            expect(mock.material_setUniform).toHaveBeenCalledWith(h, 'u_strength', 1, 2.5, 0, 0, 0);
         });
 
-        it('routes texture refs to setMaterialTexture (not the std140 uniform path)', () => {
+        it('routes texture refs to material_setTexture (not the std140 uniform path)', () => {
             const h = Material.create({ shader: 1 as ShaderHandle });
-            mock.setMaterialUniform.mockClear();
-            mock.setMaterialTexture.mockClear();
+            mock.material_setUniform.mockClear();
+            mock.material_setTexture.mockClear();
             Material.setUniform(h, 'u_tex', Material.tex(5));
-            expect(mock.setMaterialUniform).not.toHaveBeenCalled();
-            expect(mock.setMaterialTexture).toHaveBeenCalledWith(h, 'u_tex', 5);
+            expect(mock.material_setUniform).not.toHaveBeenCalled();
+            expect(mock.material_setTexture).toHaveBeenCalledWith(h, 'u_tex', 5);
         });
     });
 

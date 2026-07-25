@@ -54,6 +54,7 @@ export const ENGINE_BINDING_HEADERS = [
     'GeometryBindings.hpp',
     'ImmediateDrawBindings.hpp',
     'AnimationBindings.hpp',
+    'MaterialBindings.hpp',
 ];
 
 export const MODULE_BINDING_HEADERS = [

@@ -2227,8 +2227,6 @@ anim_resumeTween: (registry: CppRegistry, tweenEntity: number) => void
 anim_setSequenceNext: (registry: CppRegistry, tweenEntity: number, nextEntity: number) => void
 anim_setTweenBezier: (registry: CppRegistry, tweenEntity: number, p1x: number, p1y: number, p2x: number, p2y: number) => void
 anim_updateTweens: (registry: CppRegistry, deltaTime: number) => void
-compileEsshader: (source: string, featuresCsv: string) => number
-defineMaterial: (materialId: number, shader: number, blendMode: number, flags: number) => void
 draw_begin: (matrixPtr: number) => void
 draw_circle: (centerX: number, centerY: number, radius: number, r: number, g: number, b: number, a: number, filled: boolean, segments: number) => void
 draw_circleOutline: (centerX: number, centerY: number, radius: number, r: number, g: number, b: number, a: number, thickness: number, segments: number) => void
@@ -2277,6 +2275,11 @@ initRenderer: () => void
 initRendererWebGPU: (canvasSelector: string, width: number, height: number) => boolean
 initRendererWithCanvas: (canvasSelector: string) => boolean
 initRendererWithContext: (contextHandle: number) => boolean
+material_compileEsshader: (source: string, featuresCsv: string) => number
+material_define: (materialId: number, shaderHandle: number, blendMode: number, flags: number) => void
+material_setTexture: (materialId: number, name: string, textureHandle: number) => void
+material_setUniform: (materialId: number, name: string, arity: number, v0: number, v1: number, v2: number, v3: number) => void
+material_undefine: (materialId: number) => void
 mesh2d_setGeometry: ((registry: CppRegistry, entity: number, posUvPtr: number, vertexCount: number, colorsPtr: number, indicesPtr: number, indexCount: number) => void) | undefined
 particle_getAliveCount: ((entity: number) => number) | undefined
 particle_play: ((registry: CppRegistry, entity: number) => void) | undefined
@@ -2382,8 +2385,6 @@ renderer_submitUIElements: (registry: CppRegistry) => void
 renderer_updateTransforms: (registry: CppRegistry) => void
 sdfFromAlpha: ((alphaPtr: number, outPtr: number, width: number, height: number, spread: number) => void) | undefined
 setActiveContext: (ctx: CppEngineContext | null) => void
-setMaterialTexture: (materialId: number, name: string, textureHandle: number) => void
-setMaterialUniform: (materialId: number, name: string, arity: number, v0: number, v1: number, v2: number, v3: number) => void
 shutdownRenderer: () => void
 tilemap_destroyLayer: ((entity: number) => void) | undefined
 tilemap_exportChunks: ((entity: number) => string) | undefined
@@ -2414,7 +2415,6 @@ uiTree_markAllDirty: () => void
 uiTree_markDirty: (entity: number) => void
 uiTree_markStructureDirty: () => void
 ui_getRenderOrder: ((registry: CppRegistry, entity: number) => number) | undefined
-undefineMaterial: (materialId: number) => void
 ```
 
 ## EasingType — type

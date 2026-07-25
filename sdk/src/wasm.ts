@@ -205,19 +205,18 @@ export interface ESEngineModule {
         indicesPtr: number, indexCount: number
     ): void;
 
-    // Material store (engine-side resolved render state, keyed by material handle).
-    // flags packs depthTest (bit 0), depthWrite (bit 1), CullMode (bits 2-3).
-    // Compiles a .esshader through ShaderParser (auto-generating the MaterialConstants block +
-    // the enabled #pragma switch / feature permutation from featuresCsv) and registers its param
-    // layout; returns the shader resource handle (0 on failure).
-    compileEsshader(source: string, featuresCsv: string): number;
-    defineMaterial(materialId: number, shader: number, blendMode: number, flags: number): void;
-    // Packs a named param's components into the material's std140 UBO by reflected offset.
-    setMaterialUniform(materialId: number, name: string, arity: number,
-                       v0: number, v1: number, v2: number, v3: number): void;
-    // Binds a texture param to its sampler unit; textureHandle is a texture resource handle.
-    setMaterialTexture(materialId: number, name: string, textureHandle: number): void;
-    undefineMaterial(materialId: number): void;
+    // Material API. Materials are engine-side data: the SDK compiles a shader
+    // here, then pushes the resolved render state (flags pack depthTest bit 0,
+    // depthWrite bit 1, CullMode bits 2-3) and the param values. Reached through
+    // the generated engine surface rather than this interface (see material.ts),
+    // which is what makes them work on a device too; declared here because embind
+    // registers them by hand for the web.
+    material_compileEsshader(source: string, featuresCsv: string): number;
+    material_define(materialId: number, shaderHandle: number, blendMode: number, flags: number): void;
+    material_setUniform(materialId: number, name: string, arity: number,
+                        v0: number, v1: number, v2: number, v3: number): void;
+    material_setTexture(materialId: number, name: string, textureHandle: number): void;
+    material_undefine(materialId: number): void;
 
     // ImmediateDraw API
     draw_begin(matrixPtr: number): void;

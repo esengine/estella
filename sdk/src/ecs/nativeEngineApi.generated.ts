@@ -57,6 +57,11 @@ export interface NativeEngineApi {
     getUINodeHiddenInTree?(registry: unknown, entity: number): boolean;
     gl_checkErrors?(context: string): number;
     gl_enableErrorCheck?(enabled: boolean): void;
+    material_compileEsshader?(source: string, featuresCsv: string): number;
+    material_define?(materialId: number, shaderHandle: number, blendMode: number, flags: number): void;
+    material_setTexture?(materialId: number, name: string, textureHandle: number): void;
+    material_setUniform?(materialId: number, name: string, arity: number, v0: number, v1: number, v2: number, v3: number): void;
+    material_undefine?(materialId: number): void;
     mesh2d_setGeometry?(registry: unknown, entity: number, posUvPtr: number, vertexCount: number, colorsPtr: number, indicesPtr: number, indexCount: number): void;
     particle_getAliveCount?(entity: number): number;
     particle_play?(registry: unknown, entity: number): void;
@@ -282,6 +287,11 @@ export function createNativeEngineApi(
     bind('getUINodeHiddenInTree', 'es_getUINodeHiddenInTree', true);
     bind('gl_checkErrors', 'es_gl_checkErrors', false);
     bind('gl_enableErrorCheck', 'es_gl_enableErrorCheck', false);
+    bind('material_compileEsshader', 'es_material_compileEsshader', false);
+    bind('material_define', 'es_material_define', false);
+    bind('material_setTexture', 'es_material_setTexture', false);
+    bind('material_setUniform', 'es_material_setUniform', false);
+    bind('material_undefine', 'es_material_undefine', false);
     bind('mesh2d_setGeometry', 'es_mesh2d_setGeometry', true);
     bind('particle_getAliveCount', 'es_particle_getAliveCount', false);
     bind('particle_play', 'es_particle_play', true);

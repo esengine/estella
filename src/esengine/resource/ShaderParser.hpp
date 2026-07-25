@@ -279,6 +279,12 @@ public:
     static std::string variantKey(const std::vector<std::string>& features);
 
     /**
+     * @brief Split a comma-separated feature/switch list into trimmed, non-empty
+     *        entries — the form the boundary carries a permutation in.
+     */
+    static std::vector<std::string> splitFeatures(const std::string& csv);
+
+    /**
      * @brief Process-global color-space mode. When linear, every assembled
      *        stage compiles with ES_LINEAR defined (GLSL #define / WGSL
      *        assembly-time preprocessor). Set BEFORE the renderer compiles

@@ -25,6 +25,7 @@
 #include "ImmediateDrawBindings.hpp"
 #include "GeometryBindings.hpp"
 #include "AnimationBindings.hpp"
+#include "MaterialBindings.hpp"
 #ifdef ES_ENABLE_POSTPROCESS
 #include "PostProcessBindings.hpp"
 #endif
@@ -87,115 +88,6 @@ static EstellaContext& ctx() { return activeCtx(); }
 #define g_particleSystem (ctx().tryGet<particle::ParticleSystem>())
 #endif
 
-// Float component count for a std140 param type (textures have no block slot).
-static u32 materialParamArity(resource::ShaderPropertyType t) {
-    using PT = resource::ShaderPropertyType;
-    switch (t) {
-        case PT::Float: case PT::Int: return 1;
-        case PT::Vec2: return 2;
-        case PT::Vec3: return 3;
-        case PT::Vec4: case PT::Color: return 4;
-        default: return 0;
-    }
-}
-
-// Build the engine-side layout from a parsed shader's #pragma param reflection: non-texture
-// params into the std140 block (declared order == offset order), texture params into sampler
-// slots (their reflected units, >= MATERIAL_TEXTURE_UNIT_BASE).
-static MaterialUniformLayout buildMaterialLayout(const resource::ParsedShader& parsed,
-                                                 const RenderContext& rc) {
-    MaterialUniformLayout layout;
-    layout.blockSize = parsed.materialBlockSize;
-    for (const auto& p : parsed.properties) {
-        if (!p.fromParam) continue;
-        if (p.type == resource::ShaderPropertyType::Texture) {
-            if (p.textureUnit >= 0) {
-                // Resolve the param's `default(<name>)` to a built-in default texture, bound when
-                // a material leaves the param unset.
-                layout.textures.push_back({ p.name, static_cast<u32>(p.textureUnit),
-                                            rc.defaultTextureByName(p.defaultValue) });
-            }
-        } else if (p.std140Offset >= 0) {
-            MaterialParamSlot slot{ p.name, static_cast<u32>(p.std140Offset), materialParamArity(p.type) };
-            // default(a,b,c,d) csv → the slot's initial block value.
-            std::istringstream csv(p.defaultValue);
-            std::string tok;
-            for (u32 i = 0; i < slot.arity && std::getline(csv, tok, ','); ++i) {
-                slot.defaults[i] = std::strtof(tok.c_str(), nullptr);
-            }
-            layout.params.push_back(slot);
-        }
-    }
-    return layout;
-}
-
-// Compiles a .esshader (material shader) through the full ShaderParser path — assembling the
-// auto-generated MaterialConstants block + the requested feature/switch permutation (each
-// feature -> `#define NAME 1`) — and registers its param layout. @p featuresCsv is the enabled
-// `#pragma switch` set (comma-separated), so a material's static switches select a permutation;
-// the SDK loader caches one compiled program per (shader, switch-set). Returns the shader
-// resource handle (0 on failure). Reflection-aware replacement for the loader's old regex.
-// Split a comma-separated feature list into trimmed, non-empty entries.
-static std::vector<std::string> splitFeaturesCsv(const std::string& featuresCsv) {
-    std::vector<std::string> features;
-    for (usize start = 0; start <= featuresCsv.size();) {
-        const usize comma = featuresCsv.find(',', start);
-        const usize end = comma == std::string::npos ? featuresCsv.size() : comma;
-        std::string f = featuresCsv.substr(start, end - start);
-        // trim
-        const usize a = f.find_first_not_of(" \t");
-        const usize b = f.find_last_not_of(" \t");
-        if (a != std::string::npos) features.push_back(f.substr(a, b - a + 1));
-        if (comma == std::string::npos) break;
-        start = comma + 1;
-    }
-    return features;
-}
-
-u32 compileEsshader(const std::string& source, const std::string& featuresCsv) {
-    auto* rm = g_resourceManager;
-    if (!rm) return 0;
-    resource::ParsedShader parsed = resource::ShaderParser::parse(source);
-    if (!parsed.valid) {
-        ES_LOG_ERROR("compileEsshader: parse failed: {}", parsed.errorMessage);
-        return 0;
-    }
-    std::vector<std::string> features = splitFeaturesCsv(featuresCsv);
-    // Assemble both stages for the backend's language — a material .esshader
-    // carries its WGSL twin in-file, and a missing twin surfaces here as a
-    // descriptive assembly error rather than a backend compile failure.
-    const auto target = rm->preferredShaderTarget();
-    const std::string vert = resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Vertex, "", features, target);
-    const std::string frag = resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Fragment, "", features, target);
-    if (vert.empty() || frag.empty()) {
-        ES_LOG_ERROR("compileEsshader: stage assembly failed for '{}'", parsed.name);
-        return 0;
-    }
-    // No DrawParams rewrite: assembled material sources already carry their
-    // params in MaterialConstants; only sampler uniforms remain loose.
-    resource::ShaderHandle handle = rm->createShader(vert, frag, /*rewriteLoose=*/false,
-                                                     rm->preferredShaderLanguage());
-    if (!handle.isValid()) return 0;
-    if (auto* rc = g_renderContext) {
-        if (Shader* s = rm->getShader(handle)) {
-            rc->materials().registerLayout(s->getProgramId(), buildMaterialLayout(parsed, *rc));
-            // Point each texture param's sampler at its unit, once per program (GLSL ES 300 has
-            // no layout(binding=); mirrors the batch path's u_textures setup in RenderFrame).
-            // Sampler seeding is a GLSL concept; on WGSL the unit rides the bind group.
-            if (s->language() == GfxShaderLanguage::GLSL_ES300) {
-                s->bind();
-                for (const auto& p : parsed.properties) {
-                    if (p.fromParam && p.type == resource::ShaderPropertyType::Texture && p.textureUnit >= 0) {
-                        s->setUniform(p.name, static_cast<i32>(p.textureUnit));
-                    }
-                }
-                s->unbind();
-            }
-        }
-    }
-    return handle.id();
-}
-
 // Cook-time introspection: assembles both GLSL stages exactly as the runtime would
 // (same parser + injected headers), plus the reflection a GLSL→WGSL converter needs
 // (texture params → sampler units). The export cook feeds the assembled stages through
@@ -210,7 +102,7 @@ emscripten::val esshader_cookInfo(const std::string& source, const std::string& 
         out.set("error", parsed.errorMessage);
         return out;
     }
-    const std::vector<std::string> features = splitFeaturesCsv(featuresCsv);
+    const std::vector<std::string> features = resource::ShaderParser::splitFeatures(featuresCsv);
     const std::string vert = resource::ShaderParser::assembleStage(
         parsed, resource::ShaderStage::Vertex, "", features,
         resource::ShaderTargetLanguage::GLSL_ES300);
@@ -236,61 +128,6 @@ emscripten::val esshader_cookInfo(const std::string& source, const std::string& 
     }
     out.set("textures", textures);
     return out;
-}
-
-// Materials are engine-side data: the SDK pushes a material's resolved render state here when
-// it is created or edited, and the render path reads it by the handle a component carries
-// (Sprite::material, etc.). `shaderHandle` is the SDK shader resource handle, translated here
-// to the GL program id the render path binds. flags packs depthTest (bit 0), depthWrite
-// (bit 1) and CullMode (bits 2-3). Per-material uniform values arrive via setMaterialUniform.
-void defineMaterial(u32 materialId, u32 shaderHandle, u32 blendMode, u32 flags) {
-    auto* rc = g_renderContext;
-    if (!rc) return;
-    u32 programId = 0;
-    if (shaderHandle != 0) {
-        if (auto* rm = g_resourceManager) {
-            if (Shader* s = rm->getShader(resource::ShaderHandle(shaderHandle))) {
-                programId = s->getProgramId();
-            }
-        }
-    }
-    MaterialRecord rec;
-    rec.shader = programId;
-    rec.blend = static_cast<BlendMode>(blendMode);
-    rec.depthTest = (flags & 0x1u) != 0;
-    rec.depthWrite = (flags & 0x2u) != 0;
-    rec.cull = static_cast<CullMode>((flags >> 2) & 0x3u);
-    rc->materials().define(materialId, rec);
-}
-
-// Packs a named param's float components into the material's std140 buffer (by reflected
-// offset). A no-op for materials whose shader declares no matching #pragma param.
-void setMaterialUniform(u32 materialId, const std::string& name, u32 arity,
-                        f32 v0, f32 v1, f32 v2, f32 v3) {
-    auto* rc = g_renderContext;
-    if (!rc) return;
-    const f32 vals[4] = { v0, v1, v2, v3 };
-    rc->materials().setUniform(materialId, name, vals, arity);
-}
-
-// Binds a texture param to its sampler unit. `textureHandle` is the SDK texture resource
-// handle, resolved here to the GL texture id the render path binds. No-op for an unknown param.
-void setMaterialTexture(u32 materialId, const std::string& name, u32 textureHandle) {
-    auto* rc = g_renderContext;
-    if (!rc) return;
-    u32 glTex = 0;
-    if (textureHandle != 0) {
-        if (auto* rm = g_resourceManager) {
-            if (Texture* t = rm->getTexture(resource::TextureHandle(textureHandle))) {
-                glTex = t->getId();
-            }
-        }
-    }
-    rc->materials().setTexture(materialId, name, glTex);
-}
-
-void undefineMaterial(u32 materialId) {
-    if (auto* rc = g_renderContext) rc->materials().undefine(materialId);
 }
 
 // Build provenance signature — kept self-contained (not via the umbrella
@@ -541,12 +378,12 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_submitTextBatch", &esengine::renderer_submitTextBatch);
     emscripten::function("mesh2d_setGeometry", &esengine::mesh2d_setGeometry);
 
-    emscripten::function("compileEsshader", &esengine::compileEsshader);
+    emscripten::function("material_compileEsshader", &esengine::material_compileEsshader);
     emscripten::function("esshader_cookInfo", &esengine::esshader_cookInfo);
-    emscripten::function("defineMaterial", &esengine::defineMaterial);
-    emscripten::function("setMaterialUniform", &esengine::setMaterialUniform);
-    emscripten::function("setMaterialTexture", &esengine::setMaterialTexture);
-    emscripten::function("undefineMaterial", &esengine::undefineMaterial);
+    emscripten::function("material_define", &esengine::material_define);
+    emscripten::function("material_setUniform", &esengine::material_setUniform);
+    emscripten::function("material_setTexture", &esengine::material_setTexture);
+    emscripten::function("material_undefine", &esengine::material_undefine);
 
     emscripten::function("draw_begin", &esengine::draw_begin);
     emscripten::function("draw_end", &esengine::draw_end);
