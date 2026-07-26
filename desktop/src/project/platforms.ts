@@ -114,4 +114,4 @@ export type PlatformPrereq =
     };
 
 /** The native toolchain pieces the editor probes for. */
-export type NativeToolchain = 'android-sdk' | 'android-ndk' | 'xcode' | 'macos';
+export type NativeToolchain = 'xcode' | 'macos';

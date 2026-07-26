@@ -55,6 +55,8 @@ interface Result {
   errors: string[];
   /** iOS: the .xcodeproj the export wrote around its content. */
   xcodeProject?: string;
+  /** Android: the signed APK the export assembled. */
+  apkFile?: string;
 }
 
 /** Nav groupings. Order here is the order they appear. */
@@ -153,8 +155,6 @@ const mb = (bytes: number): string => `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 
 /** Localized names for the native toolchain pieces the main process probes. */
 const TOOLCHAIN_TEXT: Record<NativeToolchain, string> = {
-  'android-sdk': t('build.needAndroidSdk'),
-  'android-ndk': t('build.needAndroidNdk'),
   xcode: t('build.needXcode'),
   macos: t('build.needMacos'),
 };
@@ -873,9 +873,11 @@ export function BuildDialog() {
                 <div className="build__next selectable">
                   {result.xcodeProject
                     ? t('build.next.iosProject')
-                    : result.zipFile
-                      ? t('build.next.playableZip')
-                      : def.next(result.outDir)}
+                    : result.apkFile
+                      ? t('build.next.apk', { apk: result.apkFile })
+                      : result.zipFile
+                        ? t('build.next.playableZip')
+                        : def.next(result.outDir)}
                 </div>
                 {result.ok && (
                   <div className="build__actions">
@@ -887,6 +889,11 @@ export function BuildDialog() {
                     {result.xcodeProject && (
                       <Button variant="primary" onClick={() => void window.estella.shell?.openPath?.(result.xcodeProject!)}>
                         <ExternalLink size={13} /> {t('build.openXcode')}
+                      </Button>
+                    )}
+                    {result.apkFile && (
+                      <Button variant="primary" onClick={() => void window.estella.shell?.showItem?.(result.apkFile!)}>
+                        <FolderOpen size={13} /> {t('build.showApk')}
                       </Button>
                     )}
                     <Button onClick={() => void window.estella.shell?.openPath?.(result.outDir)}>

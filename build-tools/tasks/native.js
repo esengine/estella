@@ -15,13 +15,14 @@ import config from '../build.config.js';
 import * as logger from '../utils/logger.js';
 import { runCommand, getCpuCount, resolvePython } from '../utils/emscripten.js';
 import { requireSdk, requireNdk, sdkCmake } from '../utils/android.js';
-import { packageNativeApk } from './nativePackage.js';
 import { emitNativeTemplate, readEngineVersion } from './nativeTemplateEmit.js';
 import {
-    BYTECODE_FILE, findTemplate, iosTemplateSources, templateStoreDir,
+    BYTECODE_FILE, DEFAULT_ABI, findTemplate, iosTemplateSources, templateStoreDir,
 } from '../utils/nativeTemplate.js';
 import { readAppConfig, fillTemplate } from '../utils/nativeApp.js';
 import { emitIosXcodeProject } from '../utils/iosProject.js';
+import { assembleApk, apkFileName } from '../utils/apk.js';
+import { debugSigningKey, signingKeyFromPem } from '../utils/androidKeystore.js';
 
 // Generate the native (QuickJS) ECS bindings from the SAME reflection source EHT
 // uses for the web embind bindings — so the two surfaces can never drift. Written
@@ -303,12 +304,6 @@ async function buildAndroidHost(options) {
         });
     }
 
-    if (options.package) {
-        await packageNativeApk({
-            dawnBuild, abi, platform, keystore: options.keystore, jdk: options.jdk,
-            content: options.content,
-        });
-    }
 }
 
 // Xcode ships the iPhoneOS SDK; the Command Line Tools alone do not. Point the
@@ -468,29 +463,63 @@ async function buildIosHost(options) {
     logger.info('Next: cd native/ios && xcodegen && open EstellaiOS.xcodeproj — pick your Team, then Run.');
 }
 
+/** The export to package, resolved and checked. */
+function packagedContent(options) {
+    const rootDir = config.paths.root;
+    if (!options.content) {
+        throw new Error('--package needs the game to package: pass --content <dir> from '
+            + "the editor's export.");
+    }
+    const dir = path.isAbsolute(options.content) ? options.content : path.join(rootDir, options.content);
+    if (!existsSync(dir)) throw new Error(`--content dir not found: ${dir}`);
+    return dir;
+}
+
+/** The installed runtime template for @p platform, or a message naming how to get one. */
+function requireTemplate(platform, abi) {
+    const engineVersion = readEngineVersion(config.paths.root);
+    const template = findTemplate({ platform, engineVersion, abi });
+    if (!template || template.missing.length > 0) {
+        throw new Error(`No ${platform} runtime template for v${engineVersion}. Build one with `
+            + `\`cli native --target ${platform}\`, or install a release archive into `
+            + `${templateStoreDir()}.`);
+    }
+    return template;
+}
+
+/**
+ * Assemble a signed APK around an export — from the installed runtime template,
+ * with no Android SDK involved. The same call the editor's export makes.
+ */
+async function packageAndroidApk(options) {
+    const abi = options.abi || DEFAULT_ABI.android;
+    const template = requireTemplate('android', abi);
+    const contentDir = packagedContent(options);
+    const app = readAppConfig(contentDir, (m) => logger.warn(m));
+
+    const key = options.key
+        ? signingKeyFromPem({ key: options.key, cert: options.cert, passphrase: options.passphrase })
+        : debugSigningKey();
+    if (!options.key) logger.info('Signing with the development key (sideload only — not for a store).');
+
+    logger.step('Assembling the APK...');
+    const apk = assembleApk({ templateDir: template.dir, contentDir, app, abi, key });
+    const out = path.join(contentDir, apkFileName(app.id));
+    writeFileSync(out, apk);
+
+    logger.success(`APK: ${out} (${(apk.length / 1048576).toFixed(1)} MB)`);
+    logger.info(`App: ${app.name} (${app.id}) v${app.version} — ${app.orientation}, signed by ${key.name}`);
+    logger.info(`Install it with: adb install -r ${out}`);
+}
+
 /**
  * Wrap an iOS export in an Xcode project — from the installed runtime template,
  * with no compiler involved. The same call the editor's export makes, so a project
  * assembled here and one assembled there are the same project.
  */
 async function packageIosProject(options) {
-    const rootDir = config.paths.root;
-    if (!options.content) {
-        throw new Error('--package needs the game to package: pass --content <dir> from '
-            + "the editor's iOS export.");
-    }
-    const contentDir = path.isAbsolute(options.content)
-        ? options.content : path.join(rootDir, options.content);
-    if (!existsSync(contentDir)) throw new Error(`--content dir not found: ${contentDir}`);
-
-    const engineVersion = readEngineVersion(rootDir);
-    const template = findTemplate({ platform: 'ios', engineVersion });
-    if (!template || template.missing.length > 0) {
-        throw new Error(`No iOS runtime template for v${engineVersion}. Build one with `
-            + '`cli native --target ios`, or install a release archive into '
-            + `${templateStoreDir()}.`);
-    }
-
+    const template = requireTemplate('ios');
+    const contentDir = packagedContent(options);
     const app = readAppConfig(contentDir, (m) => logger.warn(m));
     const projectDir = await emitIosXcodeProject(
         contentDir, app, iosTemplateSources(template.dir),
@@ -525,9 +554,8 @@ export async function buildNative(options = {}) {
         throw new Error(`Unknown --target ${target} (expected android or ios).`);
     }
     if (options.templateOnly) return emitFromExistingBuild(target, options);
-    // On iOS, packaging is ASSEMBLY: the pieces come from the installed runtime
-    // template, so it needs no toolchain and never builds. (Android's assembler
-    // still reads the build tree — see docs/REARCH_NATIVE_DISTRIBUTION.md P1.)
-    if (options.package && target === 'ios') return packageIosProject(options);
+    // Packaging is ASSEMBLY: every piece comes from the installed runtime template,
+    // so it needs no toolchain and never builds.
+    if (options.package) return target === 'ios' ? packageIosProject(options) : packageAndroidApk(options);
     return target === 'ios' ? buildIosHost(options) : buildAndroidHost(options);
 }

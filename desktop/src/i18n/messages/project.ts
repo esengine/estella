@@ -33,14 +33,6 @@ export const projectMessages = defineMessages({
     // — Native toolchain readiness. A native target's export is app CONTENT, which
     //   always succeeds; only assembling the installable app needs these, and that
     //   step can run on another machine. —
-    'build.needAndroidSdk': {
-        en: 'Android SDK not found — set ANDROID_HOME, or install it with Android Studio.',
-        zh: '未找到 Android SDK——请设置 ANDROID_HOME，或通过 Android Studio 安装。',
-    },
-    'build.needAndroidNdk': {
-        en: 'No NDK in the Android SDK — install one from the SDK Manager (the app is cross-compiled with it).',
-        zh: 'Android SDK 中没有 NDK——请在 SDK Manager 中安装（应用由它交叉编译）。',
-    },
     'build.needXcode': {
         en: 'Xcode not found — the iOS app is built and signed by it.',
         zh: '未找到 Xcode——iOS 应用由它构建并签名。',
@@ -159,9 +151,14 @@ export const projectMessages = defineMessages({
     },
 
     'build.next.android': {
-        en: 'Build the signed APK around it: node build-tools/cli.js native --package --content {out} (see native/README.md for the one-time Dawn + QuickJS setup).',
-        zh: '据此构建签名 APK：node build-tools/cli.js native --package --content {out}（一次性的 Dawn + QuickJS 准备见 native/README.md）。',
+        en: 'The content is in {out}. Install the Android runtime template to get a signed APK assembled around it.',
+        zh: '内容已写入 {out}。安装 Android 运行时模板后，导出会围绕它装配出已签名的 APK。',
     },
+    'build.next.apk': {
+        en: 'Signed APK: {apk} — install it with adb install -r, or copy it to the device.',
+        zh: '已签名 APK：{apk} —— 用 adb install -r 安装，或直接拷到设备上。',
+    },
+    'build.showApk': { en: 'Show APK', zh: '显示 APK' },
     'build.next.ios': {
         en: 'The content is in {out}. Install the iOS runtime template to get an Xcode project written around it.',
         zh: '内容已写入 {out}。安装 iOS 运行时模板后，导出会围绕它写出 Xcode 工程。',

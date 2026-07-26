@@ -38,6 +38,8 @@ import type { OnExportProgress } from './exportProgress';
 import { ESENGINE_EXTERNAL } from './esengineResolve';
 import { orientationCss, orientationOverlayHtml, orientationLockScript, orientationLockCspHash, type ScreenOrientation } from './orientationHtml';
 import { emitIosXcodeProject, type IosProjectSources } from '../../build-tools/utils/iosProject.js';
+import { assembleApk, apkFileName } from '../../build-tools/utils/apk.js';
+import { debugSigningKey, type SigningKey } from '../../build-tools/utils/androidKeystore.js';
 import { isNativePlatform, type ExportPlatform } from '../src/project/platforms';
 import { collectSubsystems, subsystemGapWarnings, targetGaps, type Subsystem } from '../src/project/targetSupport';
 export type { ExportPlatform };
@@ -151,9 +153,12 @@ export interface ExportGameResult {
   included: number;
   warnings: string[];
   errors: string[];
-  /** iOS: the generated `.xcodeproj`, for the editor to open. Absent when the
-   *  engine is not built for iOS here (the export still carries its content). */
+  /** iOS: the generated `.xcodeproj`, for the editor to open. Absent when no iOS
+   *  runtime template is installed (the export still carries its content). */
   xcodeProject?: string;
+  /** Android: the signed APK. Absent when no Android runtime template is
+   *  installed (the export still carries its content). */
+  apkFile?: string;
   /** Playable, zip-delivery networks: the archive written beside the HTML — the file
    *  the network takes an upload of. */
   zipFile?: string;
@@ -417,6 +422,12 @@ export async function exportGame(opts: {
   /** iOS: where the prebuilt engine + app shell live, so the export can wrap
    *  itself in an Xcode project. Omitted (or null) exports content only. */
   iosSources?: IosProjectSources | null;
+  /** Android: the installed runtime template the APK is assembled from. Omitted
+   *  (or null) exports content only. */
+  androidTemplate?: { dir: string; abi: string } | null;
+  /** Android: the identity to sign with. Omitted uses the development key, which
+   *  installs on a device and is refused by every store. */
+  androidKey?: SigningKey;
 }): Promise<ExportGameResult> {
   const platform = opts.platform ?? 'web';
   const title = opts.title ?? 'Game';
@@ -521,6 +532,7 @@ export async function exportGame(opts: {
   const errors: string[] = [];
   /** iOS: set once the project is written around the content (see below). */
   let xcodeProject: string | undefined;
+  let apkFile: string | undefined;
   await mkdir(payloadDir, { recursive: true });
   const common: BuildOptions = {
     bundle: true,
@@ -644,10 +656,10 @@ export async function exportGame(opts: {
     };
     await writeFile(path.join(payloadDir, 'app.config.json'), JSON.stringify(appConfig, null, 2) + '\n');
 
-    // iOS: wrap the content in a project the user can open. Needs no compiler —
-    // the engine is a prebuilt xcframework — so it belongs here rather than behind
-    // a command the user has to find and type. An install that never built the
-    // engine for iOS still exports its content, and says what is missing.
+    // Both mobile targets finish the job here, out of the installed runtime
+    // template: assembling an app is copying files and writing two formats, so it
+    // belongs in the export rather than behind a command the user has to find. An
+    // install with no template still exports its content, and says so.
     if (platform === 'ios') {
       progress({ phase: 'Writing Xcode project' });
       const sources = opts.iosSources ?? null;
@@ -660,6 +672,22 @@ export async function exportGame(opts: {
           + 'Project, then export again.');
       }
     }
+
+    if (platform === 'android') {
+      progress({ phase: 'Assembling the APK' });
+      const template = opts.androidTemplate ?? null;
+      if (template) {
+        const key = opts.androidKey ?? debugSigningKey();
+        apkFile = path.join(absOut, apkFileName(appConfig.id));
+        await writeFile(apkFile, assembleApk({
+          templateDir: template.dir, contentDir: absOut, app: appConfig, abi: template.abi, key,
+        }));
+      } else {
+        warnings.push('No Android runtime template is installed for this editor version, so no APK '
+          + 'was assembled — the content is here. Install one from the Android row in Package '
+          + 'Project, then export again.');
+      }
+    }
   }
 
   // 6. Desktop: wrap the payload in a runnable Electron app.
@@ -667,6 +695,6 @@ export async function exportGame(opts: {
 
   return {
     ok: errors.length === 0, platform, outDir: absOut, included: cook.included.length,
-    warnings, errors, ...(xcodeProject ? { xcodeProject } : {}),
+    warnings, errors, ...(xcodeProject ? { xcodeProject } : {}), ...(apkFile ? { apkFile } : {}),
   };
 }

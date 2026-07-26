@@ -168,9 +168,11 @@ program
     .option('--platform <platform>', 'Android platform', 'android-33')
     .option('--ios-min <version>', 'iOS deployment target', '17.0')
     .option('--simulator', 'iOS: build the simulator slice (needs a simulator Dawn)', false)
-    .option('--package', 'Assemble the app around --content: Android a signed APK, iOS a self-contained Xcode project', false)
-    .option('--keystore <path>', 'Android --package: signing keystore (default: the debug one)')
-    .option('--jdk <dir>', 'JDK home for the APK step (else JAVA_HOME, or the JDK Android Studio bundles)')
+    .option('--package', 'Assemble the app around --content from the installed runtime template: Android a signed APK, iOS an Xcode project', false)
+    .option('--key <pem>', 'Android --package: PEM private key to sign with (default: the development key)')
+    .option('--cert <pem>', 'Android --package: PEM certificate for --key')
+    .option('--passphrase <text>', 'Passphrase for an encrypted --key')
+    .option('--jdk <dir>', 'JDK home for building a template (javac + d8), else JAVA_HOME or Android Studio\'s')
     .option('--content <dir>', 'Ship an exported project (Package Project -> Android / iOS) as the app content')
     .option('--no-template', 'Skip refreshing this machine\'s runtime template with the build')
     .option('--template-only', 'Emit the runtime template from an existing build, without rebuilding', false)
@@ -192,7 +194,9 @@ program
                 iosMin: options.iosMin,
                 simulator: options.simulator,
                 package: options.package,
-                keystore: options.keystore,
+                key: options.key,
+                cert: options.cert,
+                passphrase: options.passphrase,
                 jdk: options.jdk,
                 content: options.content,
             });

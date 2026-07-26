@@ -21,7 +21,7 @@
  *        vendor-neutral (exportMiniGame), so a project platform is a data literal
  *        merged over MINIGAME_PROFILE_DEFAULTS, not a fork of anything.
  */
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { readdir, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -77,29 +77,6 @@ export interface PlatformStatus {
  *  Windows `build\wasm\acme` reads worse than `build/wasm/acme`. */
 const posix = (p: string): string => p.split(path.sep).join('/');
 
-/**
- * The Android SDK, the way `build-tools/utils/android.js` finds it. Duplicated
- * rather than imported: build-tools is not shipped inside the packaged editor,
- * and the two answer different questions — that module locates a tool it is
- * about to RUN, this one reports whether the developer could run it at all.
- */
-function androidSdkDir(): string | null {
-  const env = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT;
-  if (env && existsSync(env)) return env;
-  const dflt = path.join(process.env.LOCALAPPDATA || process.env.HOME || '', 'Android', 'Sdk');
-  return existsSync(dflt) ? dflt : null;
-}
-
-/** Whether the SDK has an NDK — the APK's `.so` payload is cross-compiled with it. */
-function hasNdk(sdk: string): boolean {
-  const dir = path.join(sdk, 'ndk');
-  try {
-    return existsSync(dir) && readdirSync(dir).length > 0;
-  } catch {
-    return false;
-  }
-}
-
 /** A built-in target's runtime dependency, as a real file probe. */
 function builtinReadiness(
   id: string, dirs: PlatformRuntimeDirs, engineVersion: string,
@@ -126,14 +103,12 @@ function builtinReadiness(
         ? { ready: true }
         : { ready: false, prereq: { kind: 'runtime-missing', dir: posix(dirs.wechat), looked: ['esengine.wxgame.js'], command: 'node build-tools/cli.js build -t wechat' } };
 
-    case 'android': {
-      // The app is built from source with the NDK; there is no staged runtime to
-      // probe, so the honest question is whether this machine has the toolchain
-      // that assembles the APK.
-      const sdk = androidSdkDir();
-      if (!sdk) return { ready: false, prereq: { kind: 'toolchain-missing', tool: 'android-sdk' } };
-      return hasNdk(sdk) ? { ready: true } : { ready: false, prereq: { kind: 'toolchain-missing', tool: 'android-ndk' } };
-    }
+    case 'android':
+      // The runtime template is the whole prerequisite: the APK is assembled and
+      // signed here, on any OS, with nothing from the Android SDK.
+      return resolveNativeTemplate('android', engineVersion)
+        ? { ready: true }
+        : { ready: false, prereq: { kind: 'template-missing', id: templateId('android', DEFAULT_ABI.android), version: engineVersion } };
 
     case 'ios': {
       // The template comes first because it is the harder blocker: without it the

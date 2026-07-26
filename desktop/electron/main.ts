@@ -32,7 +32,7 @@ import { startProjectWatch, stopProjectWatch } from './projectWatcher';
 import { importAssets, createAsset, IMPORT_EXTENSIONS } from './importAssets';
 import { exportGame } from './exportGame';
 import {
-  iosSourcesFromTemplate, installNativeTemplate, listNativeTemplates, removeNativeTemplate,
+  iosSourcesFromTemplate, resolveNativeTemplate, installNativeTemplate, listNativeTemplates, removeNativeTemplate,
 } from './nativeTemplates';
 import { loopbackServer, closeAllLoopbackServers } from './loopbackServer';
 import { httpContentType } from './mimeTypes';
@@ -894,6 +894,14 @@ ipcMain.handle(
       // installed for this editor version — the export then says so instead of
       // writing a project that cannot link.
       iosSources: opts?.platform === 'ios' ? iosSourcesFromTemplate(app.getVersion()) : null,
+      // Android assembles the APK outright — the template carries everything the
+      // package needs, and signing is ours to do.
+      androidTemplate: opts?.platform === 'android'
+        ? (() => {
+          const template = resolveNativeTemplate('android', app.getVersion());
+          return template ? { dir: template.dir, abi: template.manifest.abi } : null;
+        })()
+        : null,
       onProgress: (p) => e.sender.send('project:exportProgress', p),
     });
   },
