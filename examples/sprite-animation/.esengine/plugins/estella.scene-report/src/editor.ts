@@ -136,6 +136,132 @@ export default definePlugin({
       },
     });
 
+    // — An inspector section. It renders through the editor's own property UI, so it
+    //   looks native without any styling; `write` receives edits to the rows it
+    //   built, and wrapping the scene write in transact() makes it one undo step. —
+    ctx.inspector.register({
+      kind: 'component',
+      id: 'transform-report',
+      component: 'Transform',
+      title: { en: 'Scene Report', 'zh-CN': '场景报告' },
+      build: (entity, ui) => {
+        const e = ctx.scene.getEntity(entity);
+        ui.info({ en: 'Components', 'zh-CN': '组件数' }, String(e?.components.length ?? 0));
+        ui.info({ en: 'Children', 'zh-CN': '子实体' }, String(countChildren(ctx, entity)));
+        ui.text('label', { en: 'Report label', 'zh-CN': '报告标签' }, e?.name ?? '');
+      },
+      action: {
+        label: { en: 'Log', 'zh-CN': '输出' },
+        run: (entity) => ctx.log.info(`entity ${entity}: ${ctx.scene.getEntity(entity)?.name}`),
+      },
+      // Renaming through ctx.scene means the edit is undoable like any other.
+      write: (entity, key, value) => {
+        if (key === 'label') ctx.scene.transact('Rename from Scene Report', () => ctx.scene.renameEntity(entity, String(value)));
+      },
+    });
+
+    // — A viewport overlay. Coordinates are WORLD space and the host projects them,
+    //   so this gizmo tracks the scene through pan and zoom with no camera math. —
+    ctx.overlays.register({
+      id: 'selection-ring',
+      render: (g) => {
+        const id = ctx.scene.getSelection();
+        if (id == null) return;
+        const p = ctx.scene.getFieldValue(id, 'Transform', 'position');
+        if (!Array.isArray(p)) return;
+        const at = { x: p[0], y: p[1] };
+        // A world-unit radius, so the ring scales with the scene rather than
+        // staying a fixed number of pixels.
+        g.circle(at, 48, { color: 'var(--star)', width: 1.5, dashed: true });
+        g.line({ x: at.x - 64, y: at.y }, { x: at.x + 64, y: at.y }, { color: 'var(--star)', opacity: 0.5 });
+        g.text({ x: at.x + 52, y: at.y + 52 }, ctx.scene.getEntity(id)?.name ?? '', { fontSize: 11 });
+      },
+    });
+
+    // — A viewport tool. Armed via its command; while armed it gets first refusal on
+    //   every stroke, and picking any built-in tool disarms it. —
+    let dragFrom: { x: number; y: number } | null = null;
+    ctx.overlays.register({
+      id: 'measure-line',
+      render: (g) => {
+        if (!dragFrom || !dragTo) return;
+        g.line(dragFrom, dragTo, { color: '#e0a35a', width: 2 });
+        const dx = dragTo.x - dragFrom.x;
+        const dy = dragTo.y - dragFrom.y;
+        g.text(dragTo, `${Math.hypot(dx, dy).toFixed(1)} wu`, { color: '#e0a35a' });
+      },
+    });
+    let dragTo: { x: number; y: number } | null = null;
+    ctx.tools.register({
+      id: 'estella.scene-report.measure',
+      title: { en: 'Measure', 'zh-CN': '测距' },
+      onPointerDown: (p, tc) => {
+        // Pointer input arrives in viewport space, the same space ctx.viewport
+        // projects from — no conversion needed.
+        dragFrom = ctx.viewport.viewportToWorld(p.x, p.y);
+        dragTo = dragFrom;
+        tc.capture(p.pointerId);
+        return true; // claim the stroke
+      },
+      onPointerMove: (p) => {
+        if (dragFrom) dragTo = ctx.viewport.viewportToWorld(p.x, p.y);
+      },
+      onPointerUp: (p, tc) => {
+        tc.release(p.pointerId);
+        if (dragFrom && dragTo) {
+          ctx.log.info(`measured ${Math.hypot(dragTo.x - dragFrom.x, dragTo.y - dragFrom.y).toFixed(2)} world units`);
+        }
+        dragFrom = dragTo = null;
+      },
+      cancel: () => {
+        dragFrom = dragTo = null;
+      },
+    });
+    ctx.commands.register({
+      id: 'estella.scene-report.measureTool',
+      title: { en: 'Measure Tool', 'zh-CN': '测距工具' },
+      category: { en: 'Scene Report', 'zh-CN': '场景报告' },
+      menu: 'tools',
+      isChecked: () => ctx.tools.activeId() === 'estella.scene-report.measure',
+      run: () =>
+        ctx.tools.activate(
+          ctx.tools.activeId() === 'estella.scene-report.measure' ? null : 'estella.scene-report.measure',
+        ),
+    });
+
+    // — An entity template. The host builds the prefab from these component specs,
+    //   so it appears in the Create picker beside the built-in ones. —
+    ctx.entities.registerTemplate({
+      id: 'estella.scene-report.marker',
+      label: { en: 'Report Marker', 'zh-CN': '报告标记' },
+      category: 'Scripts',
+      keywords: ['report', 'marker'],
+      components: [{ type: 'Transform' }, { type: 'Marker', data: { type: 'report' } }],
+    });
+
+    // — A context-menu row. `when` hides it for targets it doesn't apply to, and the
+    //   host drops the separator with it, so the menu never shows a stray divider. —
+    ctx.contextMenus.register({
+      id: 'estella.scene-report.logEntity',
+      location: 'outliner/item',
+      label: { en: 'Log to Scene Report', 'zh-CN': '输出到场景报告' },
+      when: (target) => target.entity != null,
+      run: (target) => ctx.log.info(`outliner: ${ctx.scene.getEntity(target.entity!)?.name}`),
+    });
+
     ctx.log.info('scene report ready');
   },
 });
+
+/** Direct children of an entity, from the scene tree. */
+function countChildren(ctx: PluginContext, entity: number): number {
+  const find = (nodes: ReturnType<PluginContext['scene']['getSceneTree']>): number | null => {
+    for (const n of nodes) {
+      if (n.id === entity) return n.children?.length ?? 0;
+      const hit = n.children ? find(n.children) : null;
+      if (hit !== null) return hit;
+    }
+    return null;
+  };
+  return find(ctx.scene.getSceneTree()) ?? 0;
+}

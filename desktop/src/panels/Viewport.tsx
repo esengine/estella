@@ -38,6 +38,7 @@ import { SceneStore } from '@/engine/SceneStore';
 import { StatsStore } from '@/engine/StatsStore';
 import { PerfMonitor } from '@/engine/PerfMonitor';
 import { PerfOverlay } from '@/components/PerfOverlay';
+import { PluginOverlays } from '@/plugins/PluginOverlays';
 import { Perf } from '@/components/Perf';
 import { Popover, usePopover } from '@/components/Popover';
 import { usePanelWindow, eventWindow } from '@/components/PanelWindow';
@@ -2592,6 +2593,9 @@ export function Viewport() {
         paintHint={inTilePaint && paintTool ? TILE_HINT[paintTool] : null}
       />
       {engine.status === 'ready' && showMinimap && <ViewportMinimap data={minimap} />}
+      {/* Contributed gizmos. Gated on `showGizmos` with the built-in ones — a plugin
+          overlay is a gizmo, so the same toggle has to silence it. */}
+      {engine.status === 'ready' && showGizmos && !isPlaying && <PluginOverlays />}
       {perfVisible && <Perf id="viewport.perfhud"><PerfOverlay /></Perf>}
 
       {mode.id !== 'scene' && !isPlaying && (

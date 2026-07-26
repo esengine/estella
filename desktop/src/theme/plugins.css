@@ -41,3 +41,16 @@
    only guarantees it fills the tab and scrolls, and that the theme tokens are in
    scope so a plugin styling against them matches the editor. */
 .plugin-panel { width: 100%; height: 100%; overflow: auto; }
+
+/* Contributed viewport gizmos. Sits over the engine canvas in the same stacking
+   context as the built-in gizmo layers, and never eats pointer events — a plugin
+   that wants input contributes a TOOL, which goes through the viewport's router
+   rather than intercepting clicks behind its back. */
+.viewport__plugin-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}

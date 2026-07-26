@@ -186,7 +186,12 @@ export interface InspectSource {
   override?: boolean;
 }
 
-export type AssetType =
+/**
+ * The asset types the editor ships. Kept as a closed union so `ASSET_TYPES` stays an
+ * exhaustive record — a built-in type with no badge/icon entry is a compile error,
+ * which is the guard that catches a half-added type.
+ */
+export type BuiltinAssetType =
   | 'folder'
   | 'scene'
   | 'sprite'
@@ -209,6 +214,9 @@ export type AssetType =
   | 'behaviortree'
   | 'locale'
   | 'file';
+
+/** A built-in asset type, or one a plugin contributed. */
+export type AssetType = BuiltinAssetType | (string & {});
 
 export interface AssetItem {
   id: string;

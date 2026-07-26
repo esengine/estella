@@ -123,6 +123,227 @@ export type SettingContribution =
   | StringSettingContribution
   | EnumSettingContribution;
 
+/** A point in scene (world) space. */
+export interface Vec2 {
+  x: number;
+  y: number;
+}
+
+// — Viewport tools ————————————————————————————————————————————————————————————
+
+/**
+ * A pointer event reduced to what a tool needs (no DOM coupling). `x`/`y` are in
+ * VIEWPORT space — CSS pixels from the viewport canvas's top-left — the same space
+ * {@link EditorViewportApi} and {@link OverlayGraphics} project to, so a tool can
+ * hand its input straight to `viewportToWorld` with no conversion.
+ */
+export interface PointerInput {
+  x: number;
+  y: number;
+  pointerId: number;
+  button: number;
+  shift: boolean;
+  alt: boolean;
+}
+
+/** Host services during a stroke. */
+export interface ToolContext {
+  /** Keep receiving move/up even when the pointer leaves the viewport. */
+  capture(pointerId: number): void;
+  release(pointerId: number): void;
+}
+
+/**
+ * A viewport tool. While ARMED (`ctx.tools.activate(id)`) it gets first refusal on
+ * every pointer-down; returning true claims the stroke and its move/up. Return
+ * false for a one-shot action or a click that shouldn't take over.
+ *
+ * Choosing any built-in tool (Select/Move/… or a tile brush) disarms it, so the
+ * user is never stuck in a plugin's tool.
+ */
+export interface ToolContribution {
+  /** Namespaced id, e.g. `acme.measure`. */
+  id: string;
+  title: LocalizedString;
+  /** Restrict to these editor modes ('scene' | 'ui' | 'tilemap'); omitted ⇒ all. */
+  modes?: readonly string[];
+  onPointerDown(p: PointerInput, ctx: ToolContext): boolean;
+  onPointerMove(p: PointerInput, ctx: ToolContext): void;
+  onPointerUp(p: PointerInput, ctx: ToolContext): void;
+  /** Roll back an in-progress stroke (Esc / tool switch). */
+  cancel?(ctx: ToolContext): void;
+}
+
+// — Viewport overlays —————————————————————————————————————————————————————————
+
+export interface GizmoStyle {
+  /** Any CSS color — including a theme token, e.g. `var(--acc)`, which is the way
+   *  to stay consistent with the editor's own gizmos in both light and dark. */
+  color?: string;
+  /** Stroke width in SCREEN pixels, so it stays legible at any zoom. */
+  width?: number;
+  dashed?: boolean;
+  fill?: string;
+  opacity?: number;
+  /** `text` only: font size in screen pixels. */
+  fontSize?: number;
+}
+
+/**
+ * Drawing surface for a viewport overlay, redrawn every frame.
+ *
+ * Every primitive takes WORLD coordinates and is projected by the host, so a gizmo
+ * tracks the scene through pan and zoom without the plugin doing camera math — and
+ * a radius in world units scales the way a scene-anchored circle should. Stroke
+ * widths and font sizes are in SCREEN pixels, which is what keeps a hairline a
+ * hairline when you zoom out.
+ */
+export interface OverlayGraphics {
+  /** World → viewport CSS pixels, for plugins that need screen-space math. */
+  worldToViewport(x: number, y: number): Vec2 | null;
+  /** Viewport CSS pixels → world (the exact inverse). */
+  viewportToWorld(x: number, y: number): Vec2 | null;
+  line(a: Vec2, b: Vec2, style?: GizmoStyle): void;
+  polyline(points: readonly Vec2[], style?: GizmoStyle): void;
+  /** `radius` is in world units. */
+  circle(center: Vec2, radius: number, style?: GizmoStyle): void;
+  /** Axis-aligned world rect (corners in any order). */
+  rect(a: Vec2, b: Vec2, style?: GizmoStyle): void;
+  /** Label anchored at a world point, drawn at a fixed screen size. */
+  text(at: Vec2, text: string, style?: GizmoStyle): void;
+}
+
+export interface OverlayContribution {
+  /** Namespaced id, e.g. `acme.spawn-radius`. */
+  id: string;
+  /** Restrict to these editor modes; omitted ⇒ drawn in all of them. */
+  modes?: readonly string[];
+  /** Draw this frame. Called on every viewport frame — keep it cheap. */
+  render(g: OverlayGraphics): void;
+}
+
+// — Inspector sections ————————————————————————————————————————————————————————
+
+/**
+ * Builds inspector rows. The host turns these calls into the same property UI the
+ * editor renders for its own components, so a contributed section is visually
+ * native and needs no styling — and the plugin never handles the editor's internal
+ * field vocabulary.
+ *
+ * A row's `key` identifies it in the contribution's `write` callback.
+ */
+export interface InspectorSectionBuilder {
+  /** A read-only labelled value. */
+  info(label: LocalizedString, value: string): void;
+  number(key: string, label: LocalizedString, value: number, opts?: { min?: number; max?: number; step?: number; unit?: string }): void;
+  bool(key: string, label: LocalizedString, value: boolean): void;
+  text(key: string, label: LocalizedString, value: string): void;
+  vec2(key: string, label: LocalizedString, value: Vec2): void;
+  /** `#rrggbb` / `#rrggbbaa`. */
+  color(key: string, label: LocalizedString, value: string): void;
+  select(key: string, label: LocalizedString, value: string, options: readonly string[]): void;
+}
+
+/** Extra section shown under a component, for entities that carry it. */
+export interface ComponentInspectorContribution {
+  kind: 'component';
+  /** Namespaced id, e.g. `acme.sprite-audit`. */
+  id: string;
+  /** The component type this attaches to, e.g. `Sprite`. */
+  component: string;
+  title: LocalizedString;
+  build(entity: EntityId, ui: InspectorSectionBuilder): void;
+  /** A button in the section header. */
+  action?: { label: LocalizedString; run(entity: EntityId): void };
+  /** An edit to one of the rows `build` produced. Wrap scene writes in
+   *  `ctx.scene.transact` if one edit should be one undo step. */
+  write?(entity: EntityId, key: string, value: FieldValue): void;
+}
+
+/** Section shown when an asset of `assetType` is selected in the Content Browser. */
+export interface AssetInspectorContribution {
+  kind: 'asset';
+  id: string;
+  /** Asset type id — a built-in one (`texture`, `scene`, …) or a contributed one. */
+  assetType: string;
+  title: LocalizedString;
+  build(path: string, ui: InspectorSectionBuilder): void;
+  action?: { label: LocalizedString; run(path: string): void };
+  write?(path: string, key: string, value: FieldValue): void;
+}
+
+export type InspectorContribution = ComponentInspectorContribution | AssetInspectorContribution;
+
+// — Asset types ———————————————————————————————————————————————————————————————
+
+export interface AssetTypeContribution {
+  /** Namespaced type id, e.g. `acme.dialogue`. */
+  id: string;
+  /** Extensions (lower-case, no dot) that resolve to this type. */
+  extensions: readonly string[];
+  /** Short uppercase badge on the Content Browser tile (e.g. `DLG`). */
+  badge?: string;
+  /** Tile tint — any CSS color. */
+  tint?: string;
+  /** Double-click action. */
+  open?(path: string): void;
+  /** A "New ▸ …" entry in the Content Browser's create menu. Returning the new
+   *  path makes the browser reveal it and drop into rename. */
+  create?: { label: LocalizedString; run(dir: string): Promise<string | void> | string | void };
+}
+
+// — Entity templates ——————————————————————————————————————————————————————————
+
+/** One component of a template: its type, and any non-default field values. */
+export interface ComponentSpec {
+  type: string;
+  data?: Record<string, unknown>;
+}
+
+/** A ready-made entity offered by the Create picker (and drag-drop, and the menu). */
+export interface EntityTemplateContribution {
+  /** Namespaced id, e.g. `acme.turret`. */
+  id: string;
+  label: LocalizedString;
+  /** Create-picker bucket; unknown categories fall under `Other`. */
+  category?: string;
+  /** Extra search terms for the picker. */
+  keywords?: readonly string[];
+  /** The entity's components, applied over their registered defaults. */
+  components: readonly ComponentSpec[];
+}
+
+// — Context menus ——————————————————————————————————————————————————————————————
+
+/**
+ * Where a contributed row can appear. Deliberately only the menus that EXIST — the
+ * viewport has no context menu to host rows, and declaring a location the editor
+ * never opens would be a seam that silently does nothing.
+ */
+export type ContextMenuLocation =
+  | 'outliner/item'
+  | 'outliner/background'
+  | 'content/item'
+  | 'content/background';
+
+/** What was right-clicked. Which fields are set depends on the location. */
+export interface ContextMenuTarget {
+  /** `outliner/item` — the entity whose row was clicked. */
+  entity?: EntityId | null;
+  /** `content/item` — the asset path; `content/background` — the current folder. */
+  path?: string | null;
+}
+
+export interface ContextMenuContribution {
+  /** Namespaced id, e.g. `acme.reveal-refs`. */
+  id: string;
+  location: ContextMenuLocation;
+  label: LocalizedString;
+  /** Hide the row entirely for this target (distinct from disabling it). */
+  when?(target: ContextMenuTarget): boolean;
+  run(target: ContextMenuTarget): void;
+}
+
 // =============================================================================
 // Editor APIs
 // =============================================================================
@@ -190,6 +411,17 @@ export interface PluginFs {
   writeProject(relPath: string, contents: string): Promise<void>;
 }
 
+/**
+ * The viewport's camera projection. A tool needs this to turn its pointer input into
+ * scene coordinates, so it lives on the context rather than only inside an overlay's
+ * draw call — both use the same VIEWPORT space (CSS pixels from the canvas top-left).
+ * Returns null before the viewport has a camera (no scene open yet).
+ */
+export interface EditorViewportApi {
+  viewportToWorld(x: number, y: number): Vec2 | null;
+  worldToViewport(x: number, y: number): Vec2 | null;
+}
+
 /** Editor events a plugin can observe. Handlers are dropped on unload. */
 export interface EditorEvents {
   on(event: 'selectionChanged' | 'sceneChanged' | 'playStateChanged', handler: () => void): Disposable;
@@ -241,9 +473,32 @@ export interface PluginContext {
     /** Current value of one of YOUR settings. */
     get<T extends boolean | number | string>(id: string): T | undefined;
   };
+  readonly tools: {
+    register(tool: ToolContribution): Disposable;
+    /** Arm one of your tools (null disarms). It then gets first refusal on strokes. */
+    activate(id: string | null): void;
+    /** The currently armed contributed tool, or null. */
+    activeId(): string | null;
+  };
+  readonly overlays: {
+    register(overlay: OverlayContribution): Disposable;
+  };
+  readonly inspector: {
+    register(section: InspectorContribution): Disposable;
+  };
+  readonly assets: {
+    registerType(type: AssetTypeContribution): Disposable;
+  };
+  readonly entities: {
+    registerTemplate(template: EntityTemplateContribution): Disposable;
+  };
+  readonly contextMenus: {
+    register(item: ContextMenuContribution): Disposable;
+  };
 
   readonly scene: EditorSceneApi;
   readonly project: EditorProjectApi;
+  readonly viewport: EditorViewportApi;
   readonly fs: PluginFs;
   readonly events: EditorEvents;
 }

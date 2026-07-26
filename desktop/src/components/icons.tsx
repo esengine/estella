@@ -21,7 +21,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import type { NodeKind, AssetType } from '@/types';
-import { ASSET_TYPES } from '@/project/assetTypes';
+import { assetTypeDef } from '@/project/assetTypes';
 
 // Scene-node kind → glyph. Keeps the outliner legible at a glance.
 const NODE_ICON: Record<NodeKind, LucideIcon> = {
@@ -42,12 +42,12 @@ export function NodeIcon({ kind, size = 14 }: { kind: NodeKind; size?: number })
 }
 
 export function AssetIcon({ type, size = 22 }: { type: AssetType; size?: number }) {
-  const { icon: Glyph, tint } = ASSET_TYPES[type];
+  const { icon: Glyph, tint } = assetTypeDef(type);
   return <Glyph size={size} strokeWidth={1.5} color={tint} />;
 }
 
 export function assetTint(type: AssetType): string {
-  return ASSET_TYPES[type].tint;
+  return assetTypeDef(type).tint;
 }
 
 // Component (by registry name) → glyph, for the Add-Component picker. Known

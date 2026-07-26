@@ -81,6 +81,19 @@ function preset(name: string, comps: CompSpec[]): PrefabData {
 }
 
 /**
+ * Build a one-entity prefab from `{ type, data? }` specs, layering each `data` over
+ * that component's registered defaults — the door contributed entity templates come
+ * through, so a plugin never hand-writes PrefabData (version, prefabEntityId, parent
+ * wiring) and cannot produce a malformed one.
+ */
+export function prefabFromSpecs(
+  name: string,
+  specs: readonly { type: string; data?: Record<string, unknown> }[],
+): PrefabData {
+  return preset(name, specs.map((s) => (s.data ? [s.type, s.data] : s.type) as CompSpec));
+}
+
+/**
  * A Transform + Sprite prefab referencing `textureRef`, sized to `size` (the model
  * side of "drag an image into the viewport"). Size is a plain vec2, so the preset
  * override replaces it cleanly. Instantiated through SceneCommands.create.

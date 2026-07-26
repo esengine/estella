@@ -14,7 +14,9 @@ import { ProjectStore } from '@/project/ProjectStore';
 import { Toasts } from '@/store/Toasts';
 import { useSelection } from '@/store/selectionStore';
 import { IMAGE_RE, assetTypeOf as assetType, baseName, TYPE_CODE } from '@/project/assetMeta';
-import { ASSET_OPEN } from '@/project/assetOpen';
+import { openAssetOfType } from '@/project/assetOpen';
+import { assetTypeRegistry } from '@/project/assetTypes';
+import { contributedContextRows } from '@/plugins/contextMenus';
 import { syncAssetPaths } from '@/project/assetPathSync';
 import { findAssetUsages, type AssetUsage } from '@/project/assetUsages';
 import { FindUsagesDialog } from '@/components/FindUsagesDialog';
@@ -464,7 +466,7 @@ export function ContentBrowser() {
       go(path);
       return;
     }
-    ASSET_OPEN[assetType(name)]?.(path, name);
+    openAssetOfType(assetType(name), path, name);
   };
 
   // After any fs mutation: re-read open directories + re-scan the asset registry
@@ -736,11 +738,20 @@ export function ContentBrowser() {
     }
   };
 
-  const newAssetItems: MenuItem[] = NEW_ASSET_TYPES.map((a) =>
-    a.templates
-      ? { label: t(a.labelKey), children: a.templates().map((tpl) => ({ label: tpl.label, onClick: () => void runNew(tpl.create) })) }
-      : { label: t(a.labelKey), onClick: () => void runNew(a.create!, a.errorKey) },
-  );
+  const newAssetItems: MenuItem[] = [
+    ...NEW_ASSET_TYPES.map((a) =>
+      a.templates
+        ? { label: t(a.labelKey), children: a.templates().map((tpl) => ({ label: tpl.label, onClick: () => void runNew(tpl.create) })) }
+        : { label: t(a.labelKey), onClick: () => void runNew(a.create!, a.errorKey) },
+    ),
+    // Contributed asset types that offer a creator, after the built-ins. They go
+    // through the SAME runNew path, so a contributed asset is revealed and dropped
+    // into rename exactly like a built-in one.
+    ...assetTypeRegistry
+      .all()
+      .filter((type) => type.create)
+      .map((type) => ({ label: type.create!.label, onClick: () => void runNew(type.create!.run) })),
+  ];
 
   const showInExplorer = async (path: string) => {
     try {
@@ -987,6 +998,7 @@ export function ContentBrowser() {
         ...newAssetItems,
         { sep: true },
         { label: t('cb.menuShowInExplorer'), onClick: () => void showInExplorer(cwd) },
+        ...contributedContextRows('content/background', { path: cwd }),
       ];
     }
     const { path, entry } = ctx.target;
@@ -1056,6 +1068,7 @@ export function ContentBrowser() {
       ...(ref ? [{ label: t('cb.menuCopyReference'), onClick: () => copy(ref, t('cb.copiedReference')) }] : []),
       ...(entry.isDir ? [] : [{ label: t('cb.menuFindUsages'), onClick: () => setUsagesPath(path) }]),
       { label: t('cb.menuShowInExplorer'), onClick: () => void showInExplorer(path) },
+      ...contributedContextRows('content/item', { path }),
       { sep: true },
       { label: t('ui.delete'), danger: true, onClick: () => void remove(selectedAssets.has(path) && selectedAssets.size > 1 ? [...selectedAssets] : [path]) },
     ];

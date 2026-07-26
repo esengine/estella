@@ -76,6 +76,9 @@ import { PlayInspect } from '@/engine/PlayInspect';
 import { DimensionUnit, AnchorAxis, detectAnchorAxes, UIPositionType, FlexDirection, FlexWrap, JustifyContent, AlignItems, INTERACTION_CONTROLLER, INTERACTION_PAGES, parseLocaleTable, EasingType, BUILTIN_SHADER_TEMPLATES, INVALID_ENTITY } from 'esengine';
 import type { SceneData, InputMapAsset, ActionType, Binding, LocaleTableAsset, PluralCategory, GearValue, GearTween, MaterialAssetData } from 'esengine';
 import { modelAddableComponentEntries, subscribeSchemas, getSchemaRevision, prettyLabel, hexToRgba, dynamicEnumOptions, boxGroupsFor, isRequiredEmpty, type BoxGroupDef } from '@/engine/schema';
+import { inspectorRegistry, buildContributedSection, isInfoRow } from '@/plugins/inspector';
+import { localizePlugin } from '@/plugins/localize';
+import type { AssetInspectorContribution, ComponentInspectorContribution } from '@/plugins/types';
 import * as imap from '@/project/inputMapDoc';
 import * as ldoc from '@/project/localeTableDoc';
 import { buildImporterComponent, applyImporterEdit, readTextureCookSettings } from '@/project/assetImporter';
@@ -2191,6 +2194,70 @@ function BoxSidesControl({
   );
 }
 
+/**
+ * Sections a plugin contributed for one component type (or one asset type), rendered
+ * through the SAME ComponentSection as everything else — so a contributed section is
+ * native by construction rather than by imitation.
+ *
+ * Single-entity only for the component case: multi-selection has real semantics here
+ * (mixed values, fan-out writes) that a plugin's `build(entity)` cannot express, and
+ * inventing an answer would be worse than not offering one.
+ */
+function ContributedSections({ target }: { target: { entity: EntityId } | { component: string; path: string } }) {
+  // Re-render when the section set changes (plugin load/unload) — and on the host's
+  // own revision, since a section's rows are rebuilt from live data each render.
+  useSyncExternalStore(inspectorRegistry.subscribe, inspectorRegistry.getRevision);
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+
+  const sections =
+    'entity' in target
+      ? SceneModel.entityBySource(target.entity)?.components.flatMap((c) => inspectorRegistry.forComponent(c.type)) ?? []
+      : inspectorRegistry.forAssetType(target.component);
+
+  return (
+    <>
+      {sections.map((section) => {
+        const built =
+          section.kind === 'component' && 'entity' in target
+            ? buildContributedSection(section, (v) => localizePlugin(v), (ui) => section.build(target.entity, ui))
+            : section.kind === 'asset' && 'path' in target
+              ? buildContributedSection(section, (v) => localizePlugin(v), (ui) => section.build(target.path, ui))
+              : null;
+        if (!built) return null;
+        const action = section.action
+          ? {
+              label: localizePlugin(section.action.label),
+              title: localizePlugin(section.action.label),
+              run: () =>
+                'entity' in target
+                  ? (section as ComponentInspectorContribution).action!.run(target.entity)
+                  : (section as AssetInspectorContribution).action!.run(target.path),
+            }
+          : undefined;
+        return (
+          <ComponentSection
+            key={section.id}
+            entities={[]}
+            comp={built}
+            collapsed={collapsed[section.id] ?? false}
+            onToggle={() => setCollapsed((s) => ({ ...s, [section.id]: !(s[section.id] ?? false) }))}
+            action={action}
+            write={
+              section.write
+                ? (key, _type, value) => {
+                    if (isInfoRow(key)) return; // a read-only row was never writable
+                    if ('entity' in target) (section as ComponentInspectorContribution).write!(target.entity, key, value as never);
+                    else (section as AssetInspectorContribution).write!(target.path, key, value as never);
+                  }
+                : undefined
+            }
+          />
+        );
+      })}
+    </>
+  );
+}
+
 function ComponentSection({
   entities,
   comp,
@@ -3391,6 +3458,8 @@ function GenericAssetInspector({ path }: { path: string }) {
           <TexturePlatformOverrides importer={importer} write={write} />
         )}
 
+        <ContributedSections target={{ component: type, path }} />
+
         <div className="cb-meta" style={{ padding: '8px 10px 0' }}>
           <MetaRow k={t('det.metaPath')} v={path} mono />
           {dims && <MetaRow k={t('det.metaDimensions')} v={dims} />}
@@ -3779,6 +3848,9 @@ function EditorDetails() {
             }
           />
         ))}
+        {/* Contributed sections come after the entity's own components — a plugin
+            adds to the inspector, it doesn't push the real properties down. */}
+        {ids.length === 1 && <ContributedSections target={{ entity: ids[0]! }} />}
         {query && visible.length === 0 && (
           <div className="empty-line">{t('det.noComponentsMatch', { query })}</div>
         )}

@@ -61,7 +61,7 @@ import { PerfMonitor } from './engine/PerfMonitor';
 import { LogStore } from './store/LogStore';
 import { initFsWatch } from './project/fsWatch';
 import { initPlugins } from './plugins/init';
-import { ASSET_OPEN } from './project/assetOpen';
+import { openAssetOfType } from './project/assetOpen';
 import { assetTypeOf } from './project/assetTypes';
 import { initBackgroundThrottle } from './engine/backgroundThrottle';
 // Register the built-in settings (side effect) and replay persisted ones.
@@ -222,7 +222,7 @@ if (new URLSearchParams(location.search).has('automation')) {
     /** Double-click-open an asset by project path (FSM/BT/tileset/clip editors…). */
     openAsset: (path: string) => {
       const name = path.split('/').pop() ?? path;
-      ASSET_OPEN[assetTypeOf(name)]?.(path, name);
+      openAssetOfType(assetTypeOf(name), path, name);
     },
     reveal: (id: string) => dockApi.revealAndExpand(id),
     /** Open a registered panel by id, docking it where its def says (reveal only

@@ -6,17 +6,23 @@
  *        type carries its file extensions, content-browser badge, and icon/tint;
  *        `assetTypeOf` (extension lookup), the `TYPE_CODE` badges, and the
  *        `AssetIcon`/`assetTint` glyphs all derive from it. Adding an asset type
- *        is this table + the `AssetType` union in types.ts (the `Record` keeps
+ *        is this table + the `BuiltinAssetType` union in types.ts (the `Record` keeps
  *        them in sync — a missing entry is a compile error). Double-click open
  *        actions live in assetOpen.ts, co-located with their editors to avoid
  *        import cycles.
+ *
+ * A CONTRIBUTED type is registered at runtime instead, and carries its open/create
+ * actions on the same object (a plugin has no import-cycle problem to design
+ * around). Lookups go through {@link assetTypeDef} / {@link assetTypeOf} so both
+ * kinds resolve identically; the built-in table keeps its exhaustiveness guard.
  */
 import {
   Folder, Film, Image, FileImage, PersonStanding, Music,
-  Component, Blend, FileCode2, Clapperboard, Grid3x3, File, Workflow, Gamepad2, GitBranch, ListTree, Languages, Images, Video, Waypoints, Sparkles,
+  Component, Blend, FileCode2, Clapperboard, Grid3x3, File, Workflow, Gamepad2, GitBranch, ListTree, Languages, Images, Video, Waypoints, Sparkles, Plug,
   type LucideIcon,
 } from 'lucide-react';
-import type { AssetType } from '@/types';
+import { ContributionRegistry, type Disposable, type Owner } from '@/contrib/ContributionRegistry';
+import type { AssetType, BuiltinAssetType } from '@/types';
 
 export interface AssetTypeDef {
   /** Extensions (lower-case, no dot) that resolve to this type. Omitted for the
@@ -30,7 +36,7 @@ export interface AssetTypeDef {
 
 // Desaturated tints (vs candy colors) so the content browser stays scannable by
 // type but reads as a professional tool.
-export const ASSET_TYPES: Record<AssetType, AssetTypeDef> = {
+export const ASSET_TYPES: Record<BuiltinAssetType, AssetTypeDef> = {
   folder: { badge: '', icon: Folder, tint: 'var(--star)' },
   scene: { extensions: ['esscene'], badge: 'SCN', icon: Film, tint: '#c98a93' },
   texture: { extensions: ['png', 'webp'], badge: 'TEX', icon: FileImage, tint: '#7fa6c4' },
@@ -66,8 +72,47 @@ for (const [type, def] of Object.entries(ASSET_TYPES) as [AssetType, AssetTypeDe
   for (const ext of def.extensions ?? []) byExt.set(ext, type);
 }
 
-/** Asset type from a file name's extension; unknown extensions fall back to `file`. */
+// — Contributed asset types ————————————————————————————————————————————————————
+
+/** A plugin-registered asset type: display data plus its own open/create actions. */
+export interface ContributedAssetType extends AssetTypeDef {
+  id: string;
+  open?: (path: string) => void;
+  create?: { label: string; run: (dir: string) => Promise<string | void> | string | void };
+}
+
+const contributed = new ContributionRegistry<ContributedAssetType>('asset type');
+
+export const assetTypeRegistry = {
+  register(owner: Owner, type: ContributedAssetType): Disposable {
+    return contributed.register(owner, type);
+  },
+  disposeOwner: (owner: Owner): void => contributed.disposeOwner(owner),
+  all: (): readonly ContributedAssetType[] => contributed.all(),
+  get: (id: string): ContributedAssetType | undefined => contributed.get(id),
+  subscribe: (fn: () => void): (() => void) => contributed.subscribe(fn),
+  getRevision: (): number => contributed.getRevision(),
+};
+
+/** Display data for any asset type — built-in or contributed. Unknown ⇒ the generic file look. */
+export function assetTypeDef(type: AssetType): AssetTypeDef {
+  return (ASSET_TYPES as Record<string, AssetTypeDef>)[type] ?? contributed.get(type) ?? ASSET_TYPES.file;
+}
+
+/**
+ * Asset type from a file name's extension; unknown extensions fall back to `file`.
+ * Built-ins are matched first, so a plugin cannot re-map `.png`.
+ */
 export function assetTypeOf(name: string): AssetType {
   const ext = name.split('.').pop()?.toLowerCase() ?? '';
-  return byExt.get(ext) ?? 'file';
+  const builtin = byExt.get(ext);
+  if (builtin) return builtin;
+  for (const type of contributed.all()) {
+    if (type.extensions?.includes(ext)) return type.id;
+  }
+  return 'file';
 }
+
+/** Icon assigned to a contributed type — one generic glyph, so a plugin needn't
+ *  ship an icon and the editor needn't bundle all of lucide to resolve a name. */
+export const CONTRIBUTED_ASSET_ICON: LucideIcon = Plug;

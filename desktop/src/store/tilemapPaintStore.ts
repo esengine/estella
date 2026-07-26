@@ -9,6 +9,7 @@
  *        selecting. Editor-session state — never serialized.
  */
 import { create } from 'zustand';
+import { toolRegistry } from '@/tools/toolRegistry';
 import {
     type TileStamp, type TilesetAsset,
     singleStamp, flipStampH, flipStampV, rotateStampCW, encodeTile,
@@ -132,6 +133,11 @@ export const useTilemapPaint = create<TilemapPaintState>((set) => ({
     flipH: () => set((s) => ({ stamp: flipStampH(s.stamp) })),
     flipV: () => set((s) => ({ stamp: flipStampV(s.stamp) })),
     rotateCW: () => set((s) => ({ stamp: rotateStampCW(s.stamp) })),
-    setTool: (tool) => set({ tool }),
+    // Same exclusivity as the transform tools: choosing a paint tool disarms any
+    // contributed tool holding the strokes.
+    setTool: (tool) => {
+      if (tool) toolRegistry.activate(null);
+      set({ tool });
+    },
     toggleRandomBrush: () => set((s) => ({ randomBrush: !s.randomBrush })),
 }));

@@ -14,6 +14,7 @@ import { PlayInspect } from '@/engine/PlayInspect';
 import { ProjectStore } from '@/project/ProjectStore';
 import { ContextMenu, type MenuItem } from '@/components/Menu';
 import { formatKeybinding } from '@/commands/keybinding';
+import { contributedContextRows } from '@/plugins/contextMenus';
 import { VirtualTree } from '@/components/VirtualTree';
 import { t } from '@/i18n';
 import { buildOutlinerItems, collectExpandableKeys, entityKey, folderKey, parseQuery, type OutlinerItem, type SortMode } from '@/outliner/OutlinerModel';
@@ -565,6 +566,7 @@ export function Outliner() {
         { sep: true },
         { label: t('out.expandAll'), onClick: expandAll },
         { label: t('out.collapseAll'), onClick: () => useOutliner.getState().setExpanded([]) },
+        ...contributedContextRows('outliner/background', {}),
       ];
     }
     if (ctx.item.kind === 'folder') {
@@ -618,6 +620,7 @@ export function Outliner() {
       // old "Add Entity" which jumped to root.
       { label: t('out.addChild'), onClick: () => addEntity(id) },
       { label: t('out.createChild'), onClick: () => setCreateFor({ parent: id }) },
+      ...contributedContextRows('outliner/item', { entity: id }),
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ctx]);

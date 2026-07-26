@@ -19,28 +19,32 @@ import { commands } from '@/commands/registry';
 import { registerPanel } from '@/layout/panels';
 import { registerMenuItem } from '@/layout/menus';
 import { dockApi } from '@/layout/dockApi';
+import { toolRegistry } from '@/tools/toolRegistry';
+import { assetTypeRegistry, CONTRIBUTED_ASSET_ICON } from '@/project/assetTypes';
+import { entitySourceRegistry, prefabFromSpecs } from '@/engine/entitySources';
+import { overlayRegistry, viewportProjection } from './overlays';
+import { inspectorRegistry } from './inspector';
+import { contextMenuRegistry } from './contextMenus';
+import { localizePlugin as localize } from './localize';
 import { settingsRegistry } from '@/settings/registry';
 import { useSettings } from '@/store/settingsStore';
 import { useSelection } from '@/store/selectionStore';
 import { useEditorStore } from '@/store/editorStore';
 import { EditorControlSurface } from '@/engine/EditorSession';
+import { EngineHost } from '@/engine/EngineHost';
 import { ProjectStore } from '@/project/ProjectStore';
 import { LogStore } from '@/store/LogStore';
 import { Toasts } from '@/store/Toasts';
-import { editorLocale } from '@/i18n';
 import type { InspectorFieldValue } from '@/types';
 import type { Owner, Disposable as CoreDisposable } from '@/contrib/ContributionRegistry';
+import type { PointerInput as CorePointerInput } from '@/tools/EditorTool';
 import type { PluginManifest, PluginCapability } from './manifest';
 import type {
-  CommandContribution, Disposable, EditorEvents, EditorPlugin, EditorProjectApi, EditorSceneApi,
-  FieldValue, LocalizedString, PanelContribution, PluginContext, PluginFs, SettingContribution,
+  AssetTypeContribution, CommandContribution, ContextMenuContribution, Disposable, EditorEvents,
+  EditorPlugin, EditorProjectApi, EditorSceneApi, EntityTemplateContribution, FieldValue,
+  InspectorContribution, OverlayContribution, PanelContribution, PluginContext,
+  PluginFs, SettingContribution, ToolContribution, PointerInput as PluginPointerInput,
 } from './types';
-
-const localize = (value: LocalizedString | undefined): string => {
-  if (value === undefined) return '';
-  if (typeof value === 'string') return value;
-  return value[editorLocale] ?? value.en ?? Object.values(value)[0] ?? '';
-};
 
 /** Per-plugin persisted state, kept out of the project (it's a user preference). */
 const stateKey = (id: string): string => `estella.plugin.state.${id}`;
@@ -104,6 +108,20 @@ function sceneApi(): EditorSceneApi {
     transact: (label, fn) => s.transact(label, fn),
     undo: () => s.undo(),
     redo: () => s.redo(),
+  };
+}
+
+/** Client-space pointer input → the viewport-space shape plugins are handed. */
+function toPluginPointer(p: CorePointerInput): PluginPointerInput {
+  const canvas = EngineHost.canvas;
+  const r = canvas?.getBoundingClientRect();
+  return {
+    x: p.clientX - (r?.left ?? 0),
+    y: p.clientY - (r?.top ?? 0),
+    pointerId: p.pointerId,
+    button: p.button,
+    shift: p.shift,
+    alt: p.alt,
   };
 }
 
@@ -259,6 +277,80 @@ export function buildPluginContext(
     return adopt(settingsRegistry.register(descriptor, owner));
   };
 
+  const registerTool = (tool: ToolContribution): Disposable =>
+    adopt(
+      toolRegistry.register(owner, {
+        id: tool.id,
+        title: localize(tool.title),
+        modes: tool.modes,
+        // Every stroke callback is guarded: a throw mid-drag must not wedge the
+        // viewport's pointer routing. onPointerDown's fallback is `false` — "I did
+        // not take the stroke" — so a broken tool degrades to no-op, not to a
+        // captured pointer nothing releases.
+        //
+        // Pointer coordinates are converted from CLIENT space (what the DOM and the
+        // built-in tools use) to VIEWPORT space here, so a plugin's input arrives in
+        // the same space `ctx.viewport` and overlays project to — one conversion, at
+        // the boundary, instead of every plugin repeating it.
+        onPointerDown: (p, c) => guard(`tool ${tool.id} down`, () => tool.onPointerDown(toPluginPointer(p), c), false),
+        onPointerMove: (p, c) => guard(`tool ${tool.id} move`, () => tool.onPointerMove(toPluginPointer(p), c), undefined),
+        onPointerUp: (p, c) => guard(`tool ${tool.id} up`, () => tool.onPointerUp(toPluginPointer(p), c), undefined),
+        cancel: tool.cancel ? (c) => guard(`tool ${tool.id} cancel`, () => tool.cancel!(c), undefined) : undefined,
+      }),
+    );
+
+  const registerOverlay = (overlay: OverlayContribution): Disposable =>
+    // Not guarded here: the overlay renderer's rAF calls PluginHost.guardOverlay
+    // itself, so a per-frame throw is attributed once, at the frame boundary.
+    adopt(overlayRegistry.register(owner, overlay));
+
+  const registerInspector = (section: InspectorContribution): Disposable =>
+    adopt(inspectorRegistry.register(owner, { ...section, id: `${id}.${section.id}` }));
+
+  const registerAssetType = (type: AssetTypeContribution): Disposable =>
+    adopt(
+      assetTypeRegistry.register(owner, {
+        id: type.id,
+        extensions: type.extensions,
+        badge: type.badge ?? '',
+        icon: CONTRIBUTED_ASSET_ICON,
+        tint: type.tint ?? 'var(--text-dim)',
+        open: type.open ? (path) => guard(`asset open ${type.id}`, () => type.open!(path), undefined) : undefined,
+        create: type.create
+          ? {
+              label: localize(type.create.label),
+              run: (dir) => guard(`asset create ${type.id}`, () => type.create!.run(dir), undefined),
+            }
+          : undefined,
+      }),
+    );
+
+  const registerTemplate = (template: EntityTemplateContribution): Disposable =>
+    adopt(
+      entitySourceRegistry.register(owner, {
+        id: template.id,
+        label: localize(template.label),
+        category: template.category ?? 'Scripts',
+        icon: CONTRIBUTED_ASSET_ICON,
+        keywords: template.keywords ? [...template.keywords] : undefined,
+        // The host builds the prefab from the component specs, so a plugin never
+        // hand-writes PrefabData (version, prefabEntityId, parent wiring).
+        build: () => prefabFromSpecs(localize(template.label), template.components),
+      }),
+    );
+
+  const registerContextMenuItem = (item: ContextMenuContribution): Disposable =>
+    adopt(
+      contextMenuRegistry.register(owner, {
+        ...item,
+        // A plain string is itself a LocalizedString, so resolving it here means
+        // every consumer reads one already-localized label.
+        label: localize(item.label),
+        when: item.when ? (target) => guard(`context ${item.id} when`, () => !!item.when!(target), false) : undefined,
+        run: (target) => guard(`context ${item.id}`, () => item.run(target), undefined),
+      }),
+    );
+
   const ctx: PluginContext = {
     id,
     version: manifest.version,
@@ -275,8 +367,19 @@ export function buildPluginContext(
       register: registerSetting,
       get: <T extends boolean | number | string>(sid: string) => useSettings.getState().getValue(sid) as T | undefined,
     },
+    tools: {
+      register: registerTool,
+      activate: (toolId) => toolRegistry.activate(toolId),
+      activeId: () => toolRegistry.activeId(),
+    },
+    overlays: { register: registerOverlay },
+    inspector: { register: registerInspector },
+    assets: { registerType: registerAssetType },
+    entities: { registerTemplate },
+    contextMenus: { register: registerContextMenuItem },
     scene: sceneApi(),
     project: projectApi(),
+    viewport: viewportProjection,
     fs: pluginFs(id, dir, capabilities),
     events: editorEvents(track),
   };

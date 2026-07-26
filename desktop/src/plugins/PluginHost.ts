@@ -29,6 +29,11 @@ import { settingsRegistry } from '@/settings/registry';
 import { dockApi } from '@/layout/dockApi';
 import { editorModeRegistry } from '@/mode/editorModes';
 import { entitySourceRegistry } from '@/engine/entitySources';
+import { toolRegistry } from '@/tools/toolRegistry';
+import { assetTypeRegistry } from '@/project/assetTypes';
+import { overlayRegistry } from './overlays';
+import { inspectorRegistry } from './inspector';
+import { contextMenuRegistry } from './contextMenus';
 import { LogStore } from '@/store/LogStore';
 import { Toasts } from '@/store/Toasts';
 import { PerfMonitor } from '@/engine/PerfMonitor';
@@ -88,6 +93,11 @@ const CONTRIBUTION_REGISTRIES = [
   { disposeOwner: (o: Owner) => settingsRegistry.disposeOwner(o) },
   editorModeRegistry,
   entitySourceRegistry,
+  toolRegistry,
+  overlayRegistry,
+  inspectorRegistry,
+  assetTypeRegistry,
+  contextMenuRegistry,
 ];
 
 interface LoadedPlugin {
@@ -127,6 +137,15 @@ class PluginHostImpl {
    * Timed through PerfMonitor so a slow plugin shows up in the profiler beside the
    * editor's own work, under `plugin.<id>.<what>`.
    */
+  /**
+   * Run one overlay's per-frame draw. Exposed because the overlay renderer's rAF
+   * calls plugin code directly, and a throw there must be attributed and counted
+   * like any other — not swallowed anonymously inside a render loop.
+   */
+  guardOverlay(id: string, draw: () => void): void {
+    this.guard(id, 'overlay render', draw, undefined);
+  }
+
   private guard<T>(id: string, what: string, fn: () => T, fallback: T): T {
     try {
       return PerfMonitor.measure(`plugin.${id}.${what}`, fn);

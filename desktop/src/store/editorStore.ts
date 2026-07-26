@@ -3,6 +3,7 @@
 import { create } from 'zustand';
 import type { ToolMode } from '@/types';
 import type { GizmoAxis } from '@/tools/gizmo';
+import { toolRegistry } from '@/tools/toolRegistry';
 
 // Global editor UI state (tools, viewport toggles, play state, launcher gate).
 // Entity selection lives in its own engine-anchored store — see selectionStore.ts;
@@ -121,7 +122,12 @@ interface EditorState {
 
 export const useEditorStore = create<EditorState>((set) => ({
   tool: 'move',
-  setTool: (tool) => set({ tool }),
+  // Picking a built-in tool disarms any contributed one — otherwise choosing Move
+  // would silently do nothing while a plugin tool held the strokes.
+  setTool: (tool) => {
+    toolRegistry.activate(null);
+    set({ tool });
+  },
 
   isPlaying: false,
   isPaused: false,
