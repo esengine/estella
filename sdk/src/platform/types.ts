@@ -151,6 +151,78 @@ export interface PlatformTextMetrics {
     readonly actualBoundingBoxDescent?: number;
 }
 
+// =============================================================================
+// Text editing
+// =============================================================================
+
+/**
+ * What an editing surface holds while a field has focus. Selection indices are
+ * UTF-16 code units, as every platform's text field counts them.
+ */
+export interface TextEditorState {
+    value: string;
+    selectionStart: number;
+    selectionEnd: number;
+    /** The caret sits at `selectionStart` — a shift-left / shift-up selection. */
+    backward: boolean;
+}
+
+/** What the surface needs to know about the field it is editing. */
+export interface TextEditorOptions {
+    /** Enter inserts a newline instead of submitting. */
+    multiline: boolean;
+    /** 0 = unlimited. The plugin enforces it too; a surface that can, should. */
+    maxLength: number;
+    /** The field renders its own bullets — this is for the keyboard's benefit
+     *  (no autocorrect / suggestion strip over a password). */
+    password: boolean;
+}
+
+export type TextEditorEvent =
+    /** The surface's value or selection changed — typing, paste, caret motion. */
+    | { kind: 'change' }
+    /** An IME composition began or ended; the preedit sits in `read().value`. */
+    | { kind: 'composition'; composing: boolean }
+    /** Enter on a single-line field, or the keyboard's done/go key. */
+    | { kind: 'submit' }
+    /** Escape, or the keyboard was dismissed without committing. */
+    | { kind: 'cancel' }
+    /** The surface gave up focus on its own. */
+    | { kind: 'blur' };
+
+/**
+ * The OS text-editing surface behind an editable field: a hidden textarea on the
+ * web, the soft keyboard and its IME on a device. It OWNS the value and the
+ * selection while focused — caret motion, native shift/Ctrl-A selection and the
+ * live IME preedit all land there — so the field renders what {@link read}
+ * answers and pushes its own edits back through {@link write}.
+ *
+ * One contract for every platform, so the text-input plugin is the same code
+ * everywhere; a host with no surface simply has none, and its fields render but
+ * do not type.
+ */
+export interface PlatformTextEditor {
+    /** Take focus with this state. On a device this opens the soft keyboard. */
+    focus(state: TextEditorState, options: TextEditorOptions): void;
+    /** Give up focus (and close the keyboard). */
+    blur(): void;
+    /** The surface's live state. */
+    read(): TextEditorState;
+    /** Push a state the app decided: a programmatic setValue, click-to-caret, a
+     *  maxLength truncation. */
+    write(state: TextEditorState): void;
+    /**
+     * Put the caret at this point in CSS px (y down from the top-left of the
+     * drawing surface), so an IME pops its candidate window there instead of in
+     * a screen corner. Optional — a platform whose IME is a fixed system panel
+     * has nowhere to put it.
+     */
+    setCaretAnchor?(left: number, top: number): void;
+    /** Listen for what the surface did. Returns an unsubscribe. */
+    subscribe(handler: (event: TextEditorEvent) => void): () => void;
+    dispose(): void;
+}
+
 /** The `getContext('2d', …)` options actually used. */
 export interface PlatformCanvasContextAttributes {
     willReadFrequently?: boolean;
@@ -325,6 +397,13 @@ export interface PlatformAdapter {
      * canvas miss.
      */
     rasterizeGlyph?(request: PlatformGlyphRequest): PlatformGlyph | null;
+
+    /**
+     * The OS text-editing surface for editable fields (see
+     * {@link PlatformTextEditor}). Optional — a host without one (a headless
+     * realm, the editor's edit mode) renders fields but cannot type into them.
+     */
+    createTextEditor?(): PlatformTextEditor | null;
 
     now(): number;
 

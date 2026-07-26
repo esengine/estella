@@ -40,6 +40,7 @@ export {
     platformCreateImage,
     platformHasGlyphRasterizer,
     platformRasterizeGlyph,
+    platformCreateTextEditor,
     platformNow,
     platformUnbindInputEvents,
     platformCreateAudioBackend,

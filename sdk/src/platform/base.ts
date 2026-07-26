@@ -150,6 +150,14 @@ export function platformRasterizeGlyph(
     return getPlatform().rasterizeGlyph?.(request) ?? null;
 }
 
+/** The platform's text-editing surface, or null where there is none (a headless
+ *  realm, the editor in edit mode) — fields then render but cannot be typed
+ *  into. Safe before a platform is set. */
+export function platformCreateTextEditor(): import('./types').PlatformTextEditor | null {
+    if (!isPlatformInitialized()) return null;
+    return getPlatform().createTextEditor?.() ?? null;
+}
+
 export function platformNow(): number {
     return getPlatform().now();
 }

@@ -17,7 +17,9 @@ import type {
     PlatformImage,
     PlatformSocket,
     PlatformSocketOptions,
+    PlatformTextEditor,
 } from './types';
+import { createWebTextEditor } from './webTextEditor';
 import { WebAudioBackend } from '../audio/WebAudioBackend';
 import type { PlatformAudioBackend } from '../audio/PlatformAudioBackend';
 import { WebVideoBackend } from '../video/WebVideoBackend';
@@ -121,6 +123,12 @@ class WebPlatformAdapter implements PlatformAdapter {
     }
     createImage(): PlatformImage {
         return new Image();
+    }
+
+    /** A hidden textarea: the browser's own field, borrowed for its keyboard
+     *  layouts, IME and selection gestures (see platform/webTextEditor.ts). */
+    createTextEditor(): PlatformTextEditor | null {
+        return createWebTextEditor();
     }
 
     createCanvas(width: number, height: number): PlatformCanvas {

@@ -13,6 +13,8 @@ import { textInputPlugin, TextInputPlugin } from '../src/ui/text/text-input-plug
 import { AppContext, setDefaultContext } from '../src/context';
 import { setEditorMode, setPlayMode } from '../src/env';
 import { createMockModule } from './mocks/wasm';
+import { setPlatform } from '../src/platform/base';
+import { webAdapter } from '../src/platform/web';
 
 describe('UIPlugin teardown', () => {
     it('forwards cleanup to sub-plugins in reverse build order', () => {
@@ -53,6 +55,9 @@ describe('UIPlugin teardown', () => {
         setDefaultContext(new AppContext());
         setEditorMode(false);
         setPlayMode(false);
+        // The field is edited through the platform's text-editing surface, which
+        // on the web IS that hidden textarea (platform/webTextEditor.ts).
+        setPlatform(webAdapter);
         const app = App.new();
         const module = createMockModule();
         app.connectCpp(module.getRegistry(), module);

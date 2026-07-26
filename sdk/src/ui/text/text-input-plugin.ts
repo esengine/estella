@@ -21,13 +21,14 @@ import { ensureComponent, getUINodeWidth, getUINodeHeight } from '../util/helper
 import { spawnUIEntity } from '../core/compose';
 import { px } from '../core/dimension';
 import { SdfTextRenderer } from './text-renderer';
+import type { ESEngineModule } from '../../wasm';
 import { measureWidth } from './layout';
 import {
     textFieldDisplay, maskedPrefix, fieldSelection, nearestCaretIndex,
     splitLines, caretLineCol, lineSelections, imeAnchorCss, type TextFieldDisplay,
 } from './text-input-view';
 import { uiWorldToScreen } from '../util/ui-pick';
-import { platformDevicePixelRatio } from '../../platform';
+import { platformCreateTextEditor, platformDevicePixelRatio } from '../../platform';
 import { CURSOR_BLINK_INTERVAL, TEXT_INPUT_LINE_HEIGHT_RATIO } from '../util/constants';
 import { SystemLabel, PluginName } from '../../systemLabels';
 import { log } from '../../logger';
@@ -56,18 +57,18 @@ export class TextInputPlugin implements Plugin {
 
         if (!playModeOnly()) return;
 
-        const moduleOrNull = app.wasmModule;
-        if (!moduleOrNull) {
-            // Editing needs two things this realm does not have: the module's glyph
-            // measurement and a DOM text field to take keystrokes and IME composition
-            // (a native app has neither — the OS supplies its own editing surface, and
-            // wiring that is its own piece of work). The component still renders through
-            // the shared SDF atlas, so a field shows its value; it just cannot be typed
-            // into. Stated as a fact about the realm, not as a missing dependency.
+        // The OS surface that holds the value + selection while a field is focused:
+        // a hidden textarea on the web, the soft keyboard and its IME on a device.
+        // A realm without one (headless) renders fields but cannot type into them.
+        const editor = platformCreateTextEditor();
+        if (!editor) {
             log.info('ui', 'TextInput: this realm has no text-editing surface — fields render, typing is off');
             return;
         }
-        const module = moduleOrNull;
+
+        // Null on the native core, whose glyphs come from the platform rasterizer
+        // rather than the wasm heap — the measurement atlas takes either.
+        const module = app.wasmModule as ESEngineModule | null;
 
         const world = app.world;
 
@@ -92,12 +93,6 @@ export class TextInputPlugin implements Plugin {
         let cursorTimer = 0;
         let lastTime = 0;
 
-        const textareaOrNull = createHiddenTextarea();
-        if (!textareaOrNull) {
-            return;
-        }
-        const textarea = textareaOrNull;
-
         function getFocusedTextInput(): Entity | null {
             const fm = app.getResource(FocusManager) as FocusManagerState | null;
             if (!fm || fm.focusedEntity === null) return null;
@@ -106,84 +101,45 @@ export class TextInputPlugin implements Plugin {
             return entity;
         }
 
-        const onInput = () => {
-            if (composing || getFocusedTextInput() === null) return;
-            syncFromTextarea();
-        };
-
-        const onCompositionStart = () => {
-            composing = true;
-            resetCursorBlink();
-        };
-
-        // While composing, the browser holds the preedit inside the textarea
-        // value with the caret after it. The render loop reads that live (see
-        // below), so no state is copied here — this only keeps the caret solid
-        // and the field marked dirty as the preedit changes each keystroke.
-        const onCompositionUpdate = () => {
+        const unsubscribe = editor.subscribe((event) => {
             const focused = getFocusedTextInput();
-            if (focused !== null) {
-                (world.get(focused, TextInput) as TextInputData).dirty = true;
+            switch (event.kind) {
+                case 'change':
+                    if (!composing && focused !== null) syncFromEditor();
+                    break;
+                case 'composition':
+                    // The preedit sits in the surface's value with the caret after
+                    // it, and the render loop reads that live — so nothing is copied
+                    // here. This keeps the caret solid and the field dirty while the
+                    // composition moves, and commits it when it ends.
+                    composing = event.composing;
+                    if (focused !== null) (world.get(focused, TextInput) as TextInputData).dirty = true;
+                    if (!event.composing && focused !== null) syncFromEditor();
+                    resetCursorBlink();
+                    break;
+                case 'submit':
+                    if (focused !== null) {
+                        (app.getResource(UIEvents) as UIEventQueue).emit(focused, 'submit');
+                        blurCurrent();
+                    }
+                    break;
+                case 'cancel':
+                    if (focused !== null) blurCurrent();
+                    break;
+                case 'blur':
+                    if (focused !== null) {
+                        const ti = world.get(focused, TextInput) as TextInputData;
+                        ti.focused = false;
+                        ti.dirty = true;
+                        (app.getResource(FocusManager) as FocusManagerState).blur();
+                    }
+                    break;
             }
-            resetCursorBlink();
-        };
-
-        const onCompositionEnd = () => {
-            composing = false;
-            syncFromTextarea();
-        };
-
-        const onKeyDown = (e: KeyboardEvent) => {
-            const focused = getFocusedTextInput();
-            if (focused === null) return;
-
-            if (e.key === 'Escape') {
-                blurCurrent();
-                return;
-            }
-
-            const ti = world.get(focused, TextInput) as TextInputData;
-            if (e.key === 'Enter' && !ti.multiline) {
-                e.preventDefault();
-                const events = app.getResource(UIEvents) as UIEventQueue;
-                events.emit(focused, 'submit');
-                blurCurrent();
-                return;
-            }
-
-            // Caret movement + selection (arrows, Home/End, Shift-select, Ctrl-A)
-            // are handled natively by the focused textarea — the render loop
-            // mirrors its selection each frame — so nothing to intercept here.
-            // A keystroke that moves the caret should re-show it solid.
-            resetCursorBlink();
-        };
-
-        const onBlur = () => {
-            const focused = getFocusedTextInput();
-            if (focused !== null) {
-                const ti = world.get(focused, TextInput) as TextInputData;
-                ti.focused = false;
-                ti.dirty = true;
-                const fm = app.getResource(FocusManager) as FocusManagerState;
-                fm.blur();
-            }
-        };
-
-        textarea.addEventListener('input', onInput);
-        textarea.addEventListener('compositionstart', onCompositionStart);
-        textarea.addEventListener('compositionupdate', onCompositionUpdate);
-        textarea.addEventListener('compositionend', onCompositionEnd);
-        textarea.addEventListener('keydown', onKeyDown);
-        textarea.addEventListener('blur', onBlur);
+        });
 
         this.cleanupListeners_ = () => {
-            textarea.removeEventListener('input', onInput);
-            textarea.removeEventListener('compositionstart', onCompositionStart);
-            textarea.removeEventListener('compositionupdate', onCompositionUpdate);
-            textarea.removeEventListener('compositionend', onCompositionEnd);
-            textarea.removeEventListener('keydown', onKeyDown);
-            textarea.removeEventListener('blur', onBlur);
-            textarea.remove();
+            unsubscribe();
+            editor.dispose();
             for (const ch of childrenOf.values()) {
                 if (world.valid(ch.sel)) world.despawn(ch.sel);
                 if (world.valid(ch.text)) world.despawn(ch.text);
@@ -192,16 +148,17 @@ export class TextInputPlugin implements Plugin {
             childrenOf.clear();
         };
 
-        function syncFromTextarea(): void {
+        function syncFromEditor(): void {
             const focused = getFocusedTextInput();
             if (focused === null) return;
             const ti = world.get(focused, TextInput) as TextInputData;
             if (ti.readOnly) return;
 
-            let val = textarea.value;
+            const state = editor!.read();
+            let val = state.value;
             if (ti.maxLength > 0 && val.length > ti.maxLength) {
                 val = val.substring(0, ti.maxLength);
-                textarea.value = val;
+                editor!.write({ ...state, value: val, selectionStart: val.length, selectionEnd: val.length });
             }
 
             if (val !== ti.value) {
@@ -209,7 +166,7 @@ export class TextInputPlugin implements Plugin {
                 const events = app.getResource(UIEvents) as UIEventQueue;
                 events.emit(focused, 'change');
             }
-            ti.cursorPos = textarea.selectionStart ?? val.length;
+            ti.cursorPos = Math.min(state.selectionStart, val.length);
             ti.dirty = true;
             resetCursorBlink();
         }
@@ -230,7 +187,7 @@ export class TextInputPlugin implements Plugin {
             // half a width to the left, top edge half a height above (world y-up).
             const tr = world.get(entity, Transform) as TransformData;
             const fieldLeft = tr.worldPosition.x - width / 2;
-            const val = textarea.value; // focused ⇒ the textarea is the value source
+            const val = editor!.read().value;   // focused ⇒ the surface is the value source
             const atlas = ensureMeasure().atlas;
             const mw = (s: string): number => measureWidth(s, atlas, ti.fontFamily, ti.fontSize, 0);
 
@@ -257,17 +214,17 @@ export class TextInputPlugin implements Plugin {
             return nearestCaretIndex(prefixes, textX);
         }
 
-        function activateTextarea(entity: Entity): void {
+        function activateEditor(entity: Entity): void {
             const ti = world.get(entity, TextInput) as TextInputData;
             if (ti.readOnly) return;
 
             ti.focused = true;
             ti.dirty = true;
 
-            textarea.value = ti.value;
-            textarea.selectionStart = ti.cursorPos;
-            textarea.selectionEnd = ti.cursorPos;
-            textarea.focus();
+            editor!.focus(
+                { value: ti.value, selectionStart: ti.cursorPos, selectionEnd: ti.cursorPos, backward: false },
+                { multiline: ti.multiline, maxLength: ti.maxLength, password: ti.password },
+            );
             resetCursorBlink();
         }
 
@@ -280,22 +237,14 @@ export class TextInputPlugin implements Plugin {
             }
             const fm = app.getResource(FocusManager) as FocusManagerState;
             fm.blur();
-            textarea.blur();
+            editor!.blur();
         }
 
-        /** Park the hidden textarea off-screen (no field focused). */
-        function parkTextarea(): void {
-            if (textarea.style.left !== '-9999px') {
-                textarea.style.left = '-9999px';
-                textarea.style.top = '-9999px';
-            }
-        }
-
-        /** Move the hidden textarea onto the caret's on-screen position so the OS
-         *  IME candidate window pops just under the caret, not at the screen
-         *  corner. `caretBottom` is the caret's bottom edge in field-local px
-         *  (y-down from the box top). */
-        function positionTextareaAtCaret(entity: Entity, caretX: number, caretBottom: number): void {
+        /** Put the surface's caret anchor at the caret's on-screen position, so the
+         *  OS IME pops its candidate window just under the text being typed rather
+         *  than in a screen corner. `caretBottom` is the caret's bottom edge in
+         *  field-local px (y-down from the box top). */
+        function anchorCaret(entity: Entity, caretX: number, caretBottom: number): void {
             const cam = app.getResource(UICameraInfo) as UICameraData | undefined;
             if (!cam || !cam.valid || !world.has(entity, Transform)) return;
             const tr = world.get(entity, Transform) as TransformData;
@@ -306,8 +255,7 @@ export class TextInputPlugin implements Plugin {
             const worldY = (tr.worldPosition.y + h / 2) - caretBottom; // world y-up
             const scr = uiWorldToScreen(cam, worldX, worldY);
             const css = imeAnchorCss(scr.x, scr.y, cam.screenH, platformDevicePixelRatio());
-            textarea.style.left = Math.round(css.left) + 'px';
-            textarea.style.top = Math.round(css.top) + 'px';
+            editor!.setCaretAnchor?.(css.left, css.top);
         }
 
         function resetCursorBlink(): void {
@@ -333,11 +281,11 @@ export class TextInputPlugin implements Plugin {
                         const ti = world.get(prevFocusedTextInput, TextInput) as TextInputData;
                         ti.focused = false;
                         ti.dirty = true;
-                        textarea.blur();
+                        editor.blur();
                     }
 
                     if (currentFocused !== null) {
-                        activateTextarea(currentFocused);
+                        activateEditor(currentFocused);
                     }
 
                     prevFocusedTextInput = currentFocused;
@@ -352,8 +300,7 @@ export class TextInputPlugin implements Plugin {
                     if (inter.justPressed) {
                         const idx = caretIndexFromPointer(currentFocused);
                         if (idx !== null) {
-                            textarea.selectionStart = idx;
-                            textarea.selectionEnd = idx;
+                            editor.write({ ...editor.read(), selectionStart: idx, selectionEnd: idx, backward: false });
                             const ti = world.get(currentFocused, TextInput) as TextInputData;
                             ti.cursorPos = idx;
                             ti.dirty = true;
@@ -384,8 +331,6 @@ export class TextInputPlugin implements Plugin {
                         cursorTimer -= CURSOR_BLINK_INTERVAL;
                         cursorVisible = !cursorVisible;
                     }
-                } else {
-                    parkTextarea();
                 }
 
                 // Reap the child entities of removed inputs.
@@ -406,20 +351,17 @@ export class TextInputPlugin implements Plugin {
 
                     ensureBackground(entity, ti);
                     const ch = ensureChildren(entity, ti);
-                    // While focused, the hidden textarea is the single source of
-                    // truth for editing — caret moves, native Shift/Ctrl-A
-                    // selection, and the live IME preedit all land there — so a
-                    // focused field renders the textarea's value + selection; a
-                    // blurred field renders its committed component value.
+                    // While focused, the editing surface is the single source of
+                    // truth — caret moves, native shift/Ctrl-A selection, and the
+                    // live IME preedit all land there — so a focused field renders
+                    // the surface's value + selection; a blurred field renders its
+                    // committed component value.
                     const editing = focused === entity;
-                    const val = editing ? textarea.value : ti.value;
+                    const state = editing ? editor.read() : null;
+                    const val = state ? state.value : ti.value;
                     const len = val.length;
-                    const sel = editing
-                        ? fieldSelection(
-                            textarea.selectionStart ?? len,
-                            textarea.selectionEnd ?? len,
-                            textarea.selectionDirection === 'backward',
-                            len)
+                    const sel = state
+                        ? fieldSelection(state.selectionStart, state.selectionEnd, state.backward, len)
                         : { lo: 0, hi: 0, caret: Math.max(0, Math.min(ti.cursorPos, len)), hasRange: false };
                     // Keep the component caret in step so a blur/refocus restores it.
                     if (editing && ti.cursorPos !== sel.caret) ti.cursorPos = sel.caret;
@@ -473,11 +415,10 @@ export class TextInputPlugin implements Plugin {
                     // The blinking caret hides while a highlight is drawn.
                     syncCaretChild(ch.caret, ti, caretX, caretTop, ti.focused && cursorVisible && !sshow);
 
-                    // Anchor the hidden textarea at the caret so the IME candidate
-                    // window pops there. Not while composing — moving it mid-
-                    // composition would yank an open candidate window.
+                    // Anchor the IME at the caret. Not while composing — moving it
+                    // mid-composition would yank an open candidate window.
                     if (editing && !composing) {
-                        positionTextareaAtCaret(entity, caretX, caretTop + ti.fontSize);
+                        anchorCaret(entity, caretX, caretTop + ti.fontSize);
                     }
                 }
             },
@@ -607,32 +548,6 @@ export class TextInputPlugin implements Plugin {
             }
         }
     }
-}
-
-function createHiddenTextarea(): HTMLTextAreaElement | null {
-    if (typeof document === 'undefined' || !document.body) {
-        return null;
-    }
-    const textarea = document.createElement('textarea');
-    textarea.style.position = 'fixed';
-    // Parked off-screen until a field focuses, then moved to the caret so the IME
-    // candidate window anchors there (see positionTextareaAtCaret). Invisible and
-    // click-through so the on-screen textarea never shows or steals a pointer.
-    textarea.style.left = '-9999px';
-    textarea.style.top = '-9999px';
-    textarea.style.width = '1px';
-    textarea.style.height = '1px';
-    textarea.style.opacity = '0';
-    textarea.style.zIndex = '-1';
-    textarea.style.pointerEvents = 'none';
-    textarea.style.border = '0';
-    textarea.style.padding = '0';
-    textarea.autocomplete = 'off';
-    textarea.setAttribute('autocorrect', 'off');
-    textarea.setAttribute('autocapitalize', 'off');
-    textarea.setAttribute('spellcheck', 'false');
-    document.body.appendChild(textarea);
-    return textarea;
 }
 
 export const textInputPlugin = new TextInputPlugin();

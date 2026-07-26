@@ -4833,6 +4833,7 @@ createAudioBackend: (() => PlatformAudioBackend) | undefined
 createCanvas: (width: number, height: number) => PlatformCanvas
 createImage: () => PlatformImage
 createSocket: ((options: PlatformSocketOptions) => PlatformSocket) | undefined
+createTextEditor: (() => PlatformTextEditor | null) | undefined
 createVideoBackend: ((ctx: VideoBackendContext) => PlatformVideoBackend) | undefined
 devicePixelRatio: () => number
 family: "minigame" | undefined
