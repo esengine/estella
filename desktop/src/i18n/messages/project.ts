@@ -56,6 +56,10 @@ export const projectMessages = defineMessages({
     'build.copyCommand': { en: 'Copy command', zh: '复制命令' },
     'build.copied': { en: 'Copied', zh: '已复制' },
     'build.platformBroken': { en: 'This platform profile failed to load', zh: '该平台配置加载失败' },
+    'build.platformNeedsTrust': {
+        en: 'Not approved yet — this profile runs with full system access. Approve it in the Plugins panel.',
+        zh: '尚未批准 —— 该配置以完整系统权限运行。请在插件面板中批准。',
+    },
     'build.customHint': {
         en: 'Defined by this project in .esengine/platforms/ — it rides the same mini-game pipeline as the built-in targets.',
         zh: '由本项目在 .esengine/platforms/ 中定义，与内置目标走同一条小游戏导出管线。',

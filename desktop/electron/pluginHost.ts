@@ -21,24 +21,19 @@
  *     reload to be trustworthy.
  *
  *  3. TRUST. A renderer plugin runs in the editor's own realm, so loading one is a
- *     decision only the user can make. Approval is keyed by `<id>@<version>` AND
- *     the folder it was approved from: publishing a new version re-asks, and so
- *     does a different folder claiming the same id.
- *
- *     Deliberately NOT keyed by a hash of the code. That would re-prompt on every
- *     save, which is fatal to the loop of actually writing a plugin — and it buys
- *     little, since the threat model here is "code I did not write", not "code I
- *     just edited". This is the same bargain every extension ecosystem strikes:
- *     approval is per identity, and an update rides on it.
+ *     decision only the user can make. The record itself lives in pluginTrust.ts,
+ *     shared with the platform catalog so every kind of project-supplied code
+ *     passes one gate.
  *
  * Pure Node apart from the userData path (injected), so it stays unit-testable.
  */
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { loadEsbuild } from './esbuildRuntime';
 import { validateManifest, type PluginManifest } from '../src/plugins/manifest';
 import { PROJECT_PLUGIN_REL } from '../src/plugins/paths';
+import { PROJECT_PLATFORM_DIR, platformTrustId } from './platformCatalog';
 
 /** Where a project keeps its own plugins (sibling of `.esengine/platforms/`),
  *  resolved to this OS's separator from the one shared spelling. */
@@ -49,11 +44,23 @@ export const USER_PLUGIN_DIR = 'plugins';
 /** Which scope a plugin was found in. Project shadows user on an id collision. */
 export type PluginScope = 'project' | 'user';
 
+/**
+ * What kind of project-supplied code an entry is.
+ *  - `plugin` — a folder with a plugin.json, compiled and run in the renderer.
+ *  - `project-platform` — a `.esengine/platforms/<id>.mjs` packaging profile,
+ *    imported into the MAIN process by the export pipeline. It has no activation
+ *    of its own; listing it here is what puts it behind the same trust gate and in
+ *    the same "what is this project asking the editor to run?" list.
+ */
+export type PluginKind = 'plugin' | 'project-platform';
+
 /** What the renderer needs to list one plugin. Serializable by construction. */
 export interface DiscoveredPlugin {
   id: string;
+  kind: PluginKind;
   scope: PluginScope;
-  /** Absolute plugin folder — shown in the UI and opened by "Reveal". */
+  /** Absolute plugin folder — shown in the UI and opened by "Reveal". For a
+   *  project platform, the profile FILE (it has no folder of its own). */
   dir: string;
   /** Present when the manifest parsed and validated. */
   manifest?: PluginManifest;
@@ -97,35 +104,75 @@ async function readPluginDir(dir: string, scope: PluginScope): Promise<Discovere
     const pluginDir = path.join(dir, name);
     const manifestFile = path.join(pluginDir, 'plugin.json');
     if (!existsSync(manifestFile)) {
-      out.push({ id: name, scope, dir: pluginDir, error: 'folder has no plugin.json' });
+      out.push({ id: name, kind: 'plugin', scope, dir: pluginDir, error: 'folder has no plugin.json' });
       continue;
     }
     try {
       const parsed: unknown = JSON.parse(await readFile(manifestFile, 'utf8'));
       const result = validateManifest(parsed);
       if ('error' in result) {
-        out.push({ id: name, scope, dir: pluginDir, error: result.error });
+        out.push({ id: name, kind: 'plugin', scope, dir: pluginDir, error: result.error });
       } else {
-        out.push({ id: result.manifest.id, scope, dir: pluginDir, manifest: result.manifest });
+        out.push({ id: result.manifest.id, kind: 'plugin', scope, dir: pluginDir, manifest: result.manifest });
       }
     } catch (e) {
-      out.push({ id: name, scope, dir: pluginDir, error: `plugin.json is not valid JSON (${String(e)})` });
+      out.push({ id: name, kind: 'plugin', scope, dir: pluginDir, error: `plugin.json is not valid JSON (${String(e)})` });
     }
   }
   return out;
 }
 
 /**
- * Every plugin visible right now, project scope first. A user plugin whose id a
- * project plugin also claims is listed with `shadowedBy`, so the UI can explain
- * why it isn't running instead of leaving the user wondering.
+ * Project platform profiles, as entries in the same list. They are not plugins and
+ * gain no lifecycle from being listed — the point is that "project code the editor
+ * will run" is ONE list with ONE trust decision, and this is the most privileged
+ * member of it (a main-process import, full Node).
+ *
+ * A synthesized manifest gives the row a name and version to display and to key
+ * approval by; there is no plugin.json to read because the file form predates
+ * plugins and keeping it is what spares every existing project a migration.
+ */
+async function readPlatformProfiles(root: string): Promise<DiscoveredPlugin[]> {
+  const dir = path.join(root, PROJECT_PLATFORM_DIR);
+  if (!existsSync(dir)) return [];
+  let files: string[];
+  try {
+    files = (await readdir(dir)).filter((n) => n.endsWith('.mjs')).sort();
+  } catch {
+    return [];
+  }
+  return files.map((name) => {
+    const file = path.join(dir, name);
+    const id = platformTrustId(file);
+    return {
+      id,
+      kind: 'project-platform' as const,
+      scope: 'project' as const,
+      dir: file,
+      manifest: {
+        id,
+        name: `${path.basename(name, '.mjs')} (platform)`,
+        version: '0.0.0',
+        main: { node: name },
+        capabilities: ['process'],
+      },
+    };
+  });
+}
+
+/**
+ * Every piece of project-supplied code visible right now, project scope first. A
+ * user plugin whose id a project plugin also claims is listed with `shadowedBy`, so
+ * the UI can explain why it isn't running instead of leaving the user wondering.
  */
 export async function discoverPlugins(root: string | null, userDataDir: string): Promise<DiscoveredPlugin[]> {
   const project = root ? await readPluginDir(path.join(root, PROJECT_PLUGIN_DIR), 'project') : [];
+  const platforms = root ? await readPlatformProfiles(root) : [];
   const user = await readPluginDir(path.join(userDataDir, USER_PLUGIN_DIR), 'user');
   const claimed = new Set(project.map((p) => p.id));
   return [
     ...project,
+    ...platforms,
     ...user.map((p) => (claimed.has(p.id) ? { ...p, shadowedBy: 'project' as PluginScope } : p)),
   ];
 }
@@ -182,74 +229,9 @@ export async function compilePlugin(dir: string, entryRel: string): Promise<Comp
   }
 }
 
-// =============================================================================
-// Trust + enablement (per-user, in userData)
-// =============================================================================
-
-interface TrustFile {
-  /** `<id>@<version>` → the absolute folder it was approved from. */
-  trusted: Record<string, string>;
-  /** ids the user switched off (independent of trust). */
-  disabled: string[];
-}
-
-/** Approval identity: a version bump or a different folder re-asks. */
-const trustKey = (id: string, version: string): string => `${id}@${version}`;
-
-const EMPTY: TrustFile = { trusted: {}, disabled: [] };
-
-const trustFile = (userDataDir: string): string => path.join(userDataDir, 'estella-plugin-trust.json');
-
-function readTrust(userDataDir: string): TrustFile {
-  try {
-    const raw: unknown = JSON.parse(readFileSync(trustFile(userDataDir), 'utf8'));
-    const f = raw as Partial<TrustFile>;
-    return {
-      trusted: f.trusted && typeof f.trusted === 'object' ? f.trusted : {},
-      disabled: Array.isArray(f.disabled) ? f.disabled : [],
-    };
-  } catch {
-    return { ...EMPTY };
-  }
-}
-
-function writeTrust(userDataDir: string, next: TrustFile): void {
-  try {
-    writeFileSync(trustFile(userDataDir), `${JSON.stringify(next, null, 2)}\n`);
-  } catch {
-    /* read-only profile — trust simply won't persist this session */
-  }
-}
-
-/** Whether the user approved this plugin id + version, from this folder. */
-export function isTrusted(userDataDir: string, id: string, version: string, dir: string): boolean {
-  return readTrust(userDataDir).trusted[trustKey(id, version)] === dir;
-}
-
-export function trustPlugin(userDataDir: string, id: string, version: string, dir: string): void {
-  const f = readTrust(userDataDir);
-  f.trusted[trustKey(id, version)] = dir;
-  writeTrust(userDataDir, f);
-}
-
-/** Withdraw approval for every version of a plugin; it stops loading until re-approved. */
-export function revokeTrust(userDataDir: string, id: string): void {
-  const f = readTrust(userDataDir);
-  for (const key of Object.keys(f.trusted)) {
-    if (key.startsWith(`${id}@`)) delete f.trusted[key];
-  }
-  writeTrust(userDataDir, f);
-}
-
-export function isDisabled(userDataDir: string, id: string): boolean {
-  return readTrust(userDataDir).disabled.includes(id);
-}
-
-export function setPluginEnabled(userDataDir: string, id: string, enabled: boolean): void {
-  const f = readTrust(userDataDir);
-  const set = new Set(f.disabled);
-  if (enabled) set.delete(id);
-  else set.add(id);
-  f.disabled = [...set].sort();
-  writeTrust(userDataDir, f);
-}
+// Trust + enablement live in pluginTrust.ts — shared with the project platform
+// catalog, which imports project code into the MAIN process and must pass the same
+// gate. Re-exported here so the plugin-facing call sites read as one host API.
+export {
+  isTrusted, trustPlugin, revokeTrust, isDisabled, setPluginEnabled,
+} from './pluginTrust';

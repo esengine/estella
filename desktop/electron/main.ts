@@ -44,7 +44,7 @@ import {
 } from './pluginHost';
 import { checkForUpdate } from './updateCheck';
 import {
-  listPlatforms, loadProjectPlatform, createProjectPlatform,
+  listPlatforms, loadProjectPlatform, createProjectPlatform, setPlatformTrustGate,
   listPlayableNetworks, loadPlayableProfile,
   type PlatformRuntimeDirs, type ProjectPlatformKind,
 } from './platformCatalog';
@@ -938,6 +938,12 @@ ipcMain.handle('recents:remove', (_e, root: string) => removeRecent(root));
 //   main never decides to run it. —
 const userData = (): string => app.getPath('userData');
 
+// Project platform profiles are imported into THIS process with full Node, so they
+// pass the same approval the plugin host applies. Injected rather than threaded
+// through the catalog's signatures (the setAssetRefProblemResolver pattern), which
+// also keeps the catalog unit-testable with no gate installed.
+setPlatformTrustGate((id, file) => isTrusted(userData(), id, '0.0.0', file));
+
 ipcMain.handle('plugins:list', async () => {
   const found = await discoverPlugins(projectRoot, userData());
   return found.map((p) => ({ ...p, disabled: isDisabled(userData(), p.id) }));
@@ -955,6 +961,14 @@ ipcMain.handle('plugins:load', async (_e, id: string) => {
 
 // The renderer says only "the user approved this id" — main resolves which version
 // and folder that means, so the approval can't be recorded against a stale pair.
+// Trust WITHOUT compiling — what a project platform profile needs, since it has no
+// renderer entry to build and approving it only permits a main-process import.
+ipcMain.handle('plugins:trustState', async (_e, id: string) => {
+  const found = await discoverPlugins(projectRoot, userData());
+  const entry = found.find((p) => p.id === id && p.manifest);
+  return !!entry && isTrusted(userData(), id, entry.manifest!.version, entry.dir);
+});
+
 ipcMain.handle('plugins:trust', async (_e, id: string) => {
   const found = await discoverPlugins(projectRoot, userData());
   const plugin = found.find((p) => p.id === id && p.manifest);

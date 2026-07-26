@@ -61,6 +61,10 @@ export interface PlatformStatus {
   /** Project platforms only — the module failed to load, and why. The row still
    *  appears (silently dropping a file the user wrote is worse than naming it). */
   error?: string;
+  /** Project platforms only — the profile hasn't been approved yet, so it was NOT
+   *  imported. The row appears so the user can see it exists and go approve it,
+   *  rather than wondering why the target never showed up. */
+  needsTrust?: boolean;
 }
 
 // =============================================================================
@@ -421,11 +425,37 @@ function playableIdProblem(id: unknown): string | null {
 }
 
 /**
- * Import one project platform module. Returns its raw export, or an error string
- * — never throws: a project that ships a broken profile must still be able to
- * open the dialog and package for every other target.
+ * Whether the user has approved a project platform profile. Injected (rather than
+ * threading a userData path through every catalog signature) the same way
+ * setAssetRefProblemResolver injects the editor's registry into the control surface.
+ *
+ * Unset means "not gated" — the pure-Node tests and any caller that has no user to
+ * ask see the pre-gate behaviour, which is what keeps this module unit-testable.
  */
-async function importPlatformModule(file: string): Promise<{ mod?: ProjectPlatformModule; error?: string }> {
+let trustGate: ((id: string, file: string) => boolean) | null = null;
+
+export function setPlatformTrustGate(fn: ((id: string, file: string) => boolean) | null): void {
+  trustGate = fn;
+}
+
+/** Id a platform profile file is approved under (shared with the Plugins panel). */
+export const platformTrustId = (file: string): string => `platform.${path.basename(file, '.mjs')}`;
+
+/**
+ * Import one project platform module. Returns its raw export, an error string, or
+ * `untrusted` when the user hasn't approved it — never throws: a project that ships
+ * a broken profile must still be able to open the dialog and package for every
+ * other target.
+ *
+ * The trust check comes FIRST and is the whole reason it exists here: this import
+ * runs project-supplied code in the MAIN process, with full Node — strictly more
+ * privileged than a renderer plugin, which the editor already gates. Leaving it open
+ * while gating the plugin would have the protection backwards.
+ */
+async function importPlatformModule(
+  file: string,
+): Promise<{ mod?: ProjectPlatformModule; error?: string; untrusted?: boolean }> {
+  if (trustGate && !trustGate(platformTrustId(file), file)) return { untrusted: true };
   try {
     // Cache-busted so editing the profile and re-opening the dialog picks it up
     // without restarting the editor.
@@ -521,10 +551,18 @@ export async function listPlayableNetworks(root: string | null): Promise<Playabl
     .map((p) => ({ id: p.id, label: p.label, source: 'builtin' as const }));
   if (!root) return out;
   for (const file of await projectPlatformFiles(root)) {
-    const { mod, error } = await importPlatformModule(file);
+    const { mod, error, untrusted } = await importPlatformModule(file);
     // A broken profile is NAMED rather than dropped — a project that wrote a file
     // and sees nothing cannot tell the difference between "not loaded" and "typo".
+    // The same applies to one awaiting approval.
     const rel = posix(path.relative(root, file));
+    if (untrusted) {
+      const id = path.basename(file, '.mjs');
+      if (!out.some((p) => p.id === id)) {
+        out.push({ id, label: path.basename(file), source: 'project', file: rel, error: 'awaiting approval in the Plugins panel' });
+      }
+      continue;
+    }
     if (error) {
       const id = path.basename(file, '.mjs');
       if (!out.some((p) => p.id === id)) out.push({ id, label: path.basename(file), source: 'project', file: rel, error });
@@ -585,7 +623,17 @@ export async function listPlatforms(root: string | null, dirs: PlatformRuntimeDi
   if (!root) return out;
 
   for (const file of await projectPlatformFiles(root)) {
-    const { mod, error } = await importPlatformModule(file);
+    const { mod, error, untrusted } = await importPlatformModule(file);
+    if (untrusted) {
+      out.push({
+        id: path.basename(file, '.mjs'),
+        source: 'project',
+        ready: false,
+        label: path.basename(file),
+        needsTrust: true,
+      });
+      continue;
+    }
     if (error || !mod) {
       out.push({
         id: path.basename(file, '.mjs'),

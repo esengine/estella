@@ -256,7 +256,9 @@ export function BuildDialog() {
           ready: r.ready,
           category: 'custom',
           custom: true,
-          loadError: r.error,
+          // An unapproved profile was NOT imported, so say why rather than
+          // showing an unexplained not-ready row.
+          loadError: r.needsTrust ? t('build.platformNeedsTrust') : r.error,
           icon: <Package size={17} />,
           blurb: r.blurb ?? t('build.customHint'),
           defaultOut: r.defaultOut ?? `dist-${r.id}`,

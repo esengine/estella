@@ -65,6 +65,9 @@ export interface PluginRecord {
   name: string;
   description: string;
   version: string;
+  /** What kind of project-supplied code this is. A `project-platform` row has no
+   *  activation — approving it only permits the export pipeline to import it. */
+  kind: 'plugin' | 'project-platform';
   scope: 'project' | 'user';
   dir: string;
   phase: PluginPhase;
@@ -132,12 +135,6 @@ class PluginHostImpl {
   }
 
   /**
-   * Wrap a plugin callback. Returns `fallback` if it throws, so the caller — a
-   * menu building its rows, a panel mounting — is never broken by a plugin bug.
-   * Timed through PerfMonitor so a slow plugin shows up in the profiler beside the
-   * editor's own work, under `plugin.<id>.<what>`.
-   */
-  /**
    * Run one overlay's per-frame draw. Exposed because the overlay renderer's rAF
    * calls plugin code directly, and a throw there must be attributed and counted
    * like any other — not swallowed anonymously inside a render loop.
@@ -146,6 +143,12 @@ class PluginHostImpl {
     this.guard(id, 'overlay render', draw, undefined);
   }
 
+  /**
+   * Wrap a plugin callback. Returns `fallback` if it throws, so the caller — a
+   * menu building its rows, a panel mounting — is never broken by a plugin bug.
+   * Timed through PerfMonitor so a slow plugin shows up in the profiler beside the
+   * editor's own work, under `plugin.<id>.<what>`.
+   */
   private guard<T>(id: string, what: string, fn: () => T, fallback: T): T {
     try {
       return PerfMonitor.measure(`plugin.${id}.${what}`, fn);
@@ -193,6 +196,7 @@ class PluginHostImpl {
         name,
         description: manifest ? resolveLocalized(manifest.description, editorLocale) : '',
         version: manifest?.version ?? '',
+        kind: p.kind,
         scope: p.scope,
         dir: p.dir,
         phase: 'discovered',
@@ -225,6 +229,19 @@ class PluginHostImpl {
           continue;
         }
       }
+      // A platform profile is not activated — approving it only permits the export
+      // pipeline to import it, so its phase IS its trust state and there is nothing
+      // to compile, evaluate, or reload.
+      if (p.kind === 'project-platform') {
+        const trusted = await window.estella.plugins.trustState(p.id);
+        this.records.set(p.id, {
+          ...base,
+          phase: trusted ? 'active' : 'needs-trust',
+          detail: trusted ? undefined : 'imported by the export pipeline with full system access',
+        });
+        continue;
+      }
+
       const changed = force.has(dirName(p.dir));
       // Already running and unchanged — leave it alone (refresh is idempotent).
       if (!changed && this.loaded.has(p.id) && this.records.get(p.id)?.phase === 'active') continue;

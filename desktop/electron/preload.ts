@@ -210,6 +210,9 @@ const api = {
     /** Compile a plugin's renderer entry and report whether the user approved this
      *  id+version from this folder. Compiling never runs the plugin. */
     load: (id: string): Promise<CompiledPlugin & { trusted: boolean }> => ipcRenderer.invoke('plugins:load', id),
+    /** Whether this entry is approved, without compiling anything — a project
+     *  platform profile has no renderer entry to build. */
+    trustState: (id: string): Promise<boolean> => ipcRenderer.invoke('plugins:trustState', id),
     /** Record the user's approval; main resolves the version + folder it applies to. */
     trust: (id: string): Promise<void> => ipcRenderer.invoke('plugins:trust', id),
     revokeTrust: (id: string): Promise<void> => ipcRenderer.invoke('plugins:revokeTrust', id),
