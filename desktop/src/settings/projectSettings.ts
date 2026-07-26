@@ -300,37 +300,6 @@ settingsRegistry.register({
   },
 });
 
-// The ad network a playable is packaged for. The choices are not knowable here: a
-// project can define its own network in `.esengine/platforms/<id>.mjs`, and those
-// stand beside the editor's own — so the list is read from the main process when the
-// dialog opens.
-let playableNetworks: { value: string; label: string }[] = [];
-
-settingsRegistry.register({
-  id: 'project.packaging.playable.network',
-  type: 'enum', scope: 'project', section: 'packaging', group: t('set.group.playable'),
-  label: t('set.project.packaging.playable.network'),
-  description: t('set.project.packaging.playable.network.desc'),
-  default: 'generic',
-  options: [{ value: 'generic', label: t('set.project.packaging.playable.network.generic') }],
-  optionsProvider: () => (playableNetworks.length > 0 ? playableNetworks : undefined) ?? [
-    { value: 'generic', label: t('set.project.packaging.playable.network.generic') },
-  ],
-  prepareOptions: async () => {
-    const rows = await window.estella.project.listPlayableNetworks();
-    // A profile that failed to load is still offered, labelled with its error —
-    // silently dropping a file the developer wrote is worse than naming it.
-    playableNetworks = rows.map((r) => ({
-      value: r.id,
-      label: r.error ? `${r.label} — ${r.error}` : r.label,
-    }));
-  },
-  bind: {
-    get: () => ProjectStore.platformPackaging().playable?.network ?? 'generic',
-    set: (v) => void ProjectStore.setPlatformPackaging('playable', { network: v }),
-  },
-});
-
 // The application identifier every installable target needs. One project ships as
 // one application, so it is declared once; a target that genuinely differs
 // overrides it below. Absent ⇒ derived from the project name, so a build always

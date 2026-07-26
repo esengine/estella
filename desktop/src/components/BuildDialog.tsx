@@ -29,8 +29,10 @@ import {
   Globe, Monitor, MessageSquare, ChevronRight, Smartphone, Apple, Package, TriangleAlert, Plus,
 } from 'lucide-react';
 import type { ExportPlatform, NativeToolchain, PlatformPrereq } from '@/project/platforms';
+import type { PlayableNetworkOption } from '../../electron/platformCatalog';
 import { Modal } from '@/components/Modal';
 import { Segmented } from '@/components/Segmented';
+import { Select } from '@/components/Select';
 import { Button } from '@/components/Button';
 import { ProjectStore } from '@/project/ProjectStore';
 import { useEditorStore } from '@/store/editorStore';
@@ -202,6 +204,12 @@ export function BuildDialog() {
   // compression entirely for fast iteration. The per-asset decisions live in the
   // Inspector; this only picks whether to apply them.
   const [assetCompression, setAssetCompression] = useState<AssetCompression>(saved.assetCompression ?? 'auto');
+  // Which ad network a playable is packaged for. It belongs HERE rather than in
+  // Project Settings: shipping the same game to several networks is a normal day, and
+  // that is a per-build decision, not a property of the project. The list arrives from
+  // the main process, since it includes the networks the PROJECT defines.
+  const [adNetwork, setAdNetwork] = useState<string>(saved.platforms?.playable?.network ?? 'generic');
+  const [adNetworks, setAdNetworks] = useState<PlayableNetworkOption[]>([]);
   const [advOpen, setAdvOpen] = useState(false);
   const [copiedFix, setCopiedFix] = useState(false);
   // The scaffolding pane: a pseudo-selection, so the nav keeps working while it shows.
@@ -284,6 +292,27 @@ export function BuildDialog() {
       a.path === project?.defaultScene ? -1 : b.path === project?.defaultScene ? 1 : a.path.localeCompare(b.path));
   const shippedScenes = sceneList.filter((s) => s.path === project?.defaultScene || !excludedScenes.has(s.path)).length;
 
+  useEffect(() => {
+    let live = true;
+    void window.estella.project?.listPlayableNetworks?.().then((rows) => {
+      if (live) setAdNetworks(rows ?? []);
+    });
+    return () => { live = false; };
+  }, []);
+
+  /** Each network gets its own output dir, so packaging for one does not overwrite
+   *  the last — except the unnamed default, which keeps the plain folder. */
+  const playableOut = (network: string): string => (network === 'generic' ? 'dist-playable' : `dist-playable/${network}`);
+
+  const pickNetwork = (network: string) => {
+    // Follow the output only while it is still a default; never overwrite a path the
+    // developer typed.
+    if (outDir === playableOut(adNetwork)) setOutDir(playableOut(network));
+    setAdNetwork(network);
+    setPhase('idle');
+    setResult(null);
+  };
+
   const pickPlatform = (p: PlatformDef) => {
     // A not-ready target is still selectable: seeing WHY it is not ready is the
     // point, and what a build may attempt is the developer's call.
@@ -291,7 +320,7 @@ export function BuildDialog() {
     setPhase('idle');
     setResult(null);
     // Restore this platform's saved output, else its suggested default.
-    setOutDir(saved.outDir?.[p.id] ?? p.defaultOut);
+    setOutDir(saved.outDir?.[p.id] ?? (p.id === 'playable' ? playableOut(adNetwork) : p.defaultOut));
   };
 
   const startCreate = () => {
@@ -359,6 +388,9 @@ export function BuildDialog() {
     setLog([]);
     // Persist the chosen settings to project.esproject (restored next time).
     void ProjectStore.setPackaging({ platform, config, sourceMaps, openFolder, assetCompression, outDir: { [platform]: outDir } });
+    // Awaited, not fired-and-forgotten: the export resolves the network from the
+    // manifest, so a race here would package for the previous one.
+    if (platform === 'playable') await ProjectStore.setPlatformPackaging('playable', { network: adNetwork });
     // 'auto' → honor each asset's Import Settings (the cook then reads per-asset
     // texture/audio compression + Max Size); 'skip' → ship everything raw.
     const compress = assetCompression === 'auto';
@@ -594,6 +626,23 @@ export function BuildDialog() {
           )}
 
         <Group title={t('build.secBuild')}>
+          {platform === 'playable' && (
+            <>
+              <div className="build__row">
+                <span className="build__label" title={t('build.adNetworkTip')}>{t('build.adNetwork')}</span>
+                <Select
+                  ariaLabel={t('build.adNetwork')}
+                  value={adNetwork}
+                  options={(adNetworks.length > 0 ? adNetworks : [{ id: adNetwork, label: adNetwork, source: 'builtin' as const }])
+                    .map((n) => ({ value: n.id, label: n.error ? `${n.label} — ${n.error}` : n.label }))}
+                  onChange={pickNetwork}
+                />
+              </div>
+              <div className="build__hint">
+                <Info size={11} /> {t('build.adNetworkHint')}
+              </div>
+            </>
+          )}
           <div className="build__row">
             <span className="build__label">{t('build.configuration')}</span>
             <Segmented

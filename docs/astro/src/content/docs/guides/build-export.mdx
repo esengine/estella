@@ -74,8 +74,11 @@ and opens it in your browser.
 
 Every network takes the same single HTML file but disagrees on three things: how big
 it may be, what must sit in `<head>`, and which function sends the player to the
-store. Pick the network in **Project Settings → Packaging → Playable → Ad network**
-and the export handles all three.
+store. Pick the network in the **Package Project** dialog — it sits with the Playable
+target's own settings — and the export handles all three. Shipping the same game to
+several networks is a normal day, so it is a per-build choice rather than a project
+property; each network also gets its own output folder (`dist-playable/<network>`), so
+packaging for one never overwrites the last.
 
 Your game code never names a network. Call the CTA once:
 
@@ -105,8 +108,8 @@ number to trust.
 ### A network we don't ship
 
 Define it yourself — the built-in networks are written against this exact contract,
-so nothing is out of reach. **Build → New platform** scaffolds one (pick *Playable ad
-network*), or write `.esengine/platforms/<id>.mjs` by hand:
+so nothing is out of reach. **Package Project → New platform** scaffolds one (pick
+*Playable ad network*), or write `.esengine/platforms/<id>.mjs` by hand:
 
 ```js
 export default {
@@ -127,8 +130,8 @@ export default {
 };
 ```
 
-It then appears in the Ad network list beside the built-in ones, and packages through
-the same pipeline.
+It then appears in the dialog's Ad network dropdown beside the built-in ones, and
+packages through the same pipeline.
 
 ## Runtime prerequisites
 

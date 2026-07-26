@@ -150,6 +150,15 @@ export const projectMessages = defineMessages({
     'build.openXcode': { en: 'Open in Xcode', zh: '在 Xcode 中打开' },
 
     // — Options —
+    'build.adNetwork': { en: 'Ad network', zh: '广告平台' },
+    'build.adNetworkTip': {
+        en: 'Decides the size limit, what goes in <head>, and the API playableCta() calls.',
+        zh: '决定体积上限、<head> 注入内容,以及 playableCta() 调用的接口。',
+    },
+    'build.adNetworkHint': {
+        en: 'Each network gets its own output folder. Add one we don\'t ship with a kind: \'playable\' profile in .esengine/platforms/.',
+        zh: '每个平台输出到各自的目录。我们没内置的平台,可在 .esengine/platforms/ 放一个 kind: \'playable\' 的配置来添加。',
+    },
     'build.configuration': { en: 'Configuration', zh: '配置' },
     'build.development': { en: 'Development', zh: '开发' },
     'build.shipping': { en: 'Shipping', zh: '发行' },

@@ -75,7 +75,6 @@ export const settingsMessages = defineMessages({
     'set.group.application': { en: 'Application', zh: '应用' },
     'set.group.wechat': { en: 'WeChat', zh: '微信' },
     'set.group.desktop': { en: 'Desktop', zh: '桌面' },
-    'set.group.playable': { en: 'Playable', zh: '试玩广告' },
 
     // — Editor settings —
     'set.appearance.language': { en: 'Language', zh: '语言' },
@@ -217,17 +216,6 @@ export const settingsMessages = defineMessages({
     'set.project.physics.enableContinuous.desc': {
         en: 'Anti-tunneling for fast bodies (Box2D default on).',
         zh: '高速刚体的防穿透（Box2D 默认开启）。',
-    },
-    'set.project.packaging.playable.network': { en: 'Ad network', zh: '广告平台' },
-    'set.project.packaging.playable.network.desc': {
-        en: 'Which network the single-file playable is packaged for: its size limit, its <head> markup, '
-            + 'and the API playableCta() calls. Define your own in .esengine/platforms/<id>.mjs '
-            + "with kind: 'playable'.",
-        zh: '单文件试玩包面向哪个平台：体积上限、<head> 注入内容,以及 playableCta() 调用的接口。'
-            + "可在 .esengine/platforms/<id>.mjs 中以 kind: 'playable' 自定义。",
-    },
-    'set.project.packaging.playable.network.generic': {
-        en: 'Generic (single-file HTML5)', zh: '通用(单文件 HTML5)',
     },
     'set.project.packaging.wechat.appid': { en: 'AppID', zh: 'AppID' },
     'set.project.packaging.wechat.appid.desc': {
