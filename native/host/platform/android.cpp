@@ -25,6 +25,7 @@
 #include <unistd.h>
 
 #include <chrono>
+#include <cstdarg>
 #include <thread>
 
 #include "Host.hpp"
@@ -341,6 +342,135 @@ struct PerformanceHints {
     }
 };
 
+// =============================================================================
+// The window a game gets: no system bars, and the display cutout included
+// =============================================================================
+//
+// Left to the platform default, the activity keeps the status bar (clock,
+// battery, signal) painted over the game and — since the window never asks for
+// the cutout — is letterboxed away from the notch edge, so a 2670px screen hands
+// the renderer 2530px. iOS states the same thing declaratively (UIStatusBarHidden
+// + prefersStatusBarHidden); this is the Android half of that one decision.
+//
+// The framework accepts these only on the UI thread, and NativeActivity's own
+// callbacks are the one place native code runs there — hence riding
+// onWindowFocusChanged, which is also exactly when a sticky-immersive window has
+// to hide the bars again (the user swipes them back, or another app hands focus
+// over). The glue's own handler is kept and called: it is what posts
+// APP_CMD_GAINED_FOCUS to the frame loop.
+
+void (*g_glueWindowFocusChanged)(ANativeActivity*, int) = nullptr;
+
+/** Call `method` on `obj` if this platform version has it; false if it does not
+ *  (a missing method leaves a pending exception, which the caller must clear). */
+bool callVoidIfPresent(JNIEnv* env, jobject obj, const char* name, const char* sig, ...) {
+    jclass cls = env->GetObjectClass(obj);
+    const jmethodID method = env->GetMethodID(cls, name, sig);
+    env->DeleteLocalRef(cls);
+    if (!method) {
+        env->ExceptionClear();
+        return false;
+    }
+    va_list args;
+    va_start(args, sig);
+    env->CallVoidMethodV(obj, method, args);
+    va_end(args);
+    return true;
+}
+
+/** Hide the system bars and take the cutout area, through whichever API this
+ *  platform version has: WindowInsetsController from 30, the deprecated
+ *  systemUiVisibility flags below it. */
+void hideSystemBars(JNIEnv* env, jobject window, jobject decorView) {
+    // API 30+. setDecorFitsSystemWindows(false) is what makes the window lay out
+    // edge to edge; without it the bars hide but the game keeps their space.
+    if (callVoidIfPresent(env, window, "setDecorFitsSystemWindows", "(Z)V", JNI_FALSE)) {
+        jclass viewCls = env->GetObjectClass(decorView);
+        const jmethodID getController = env->GetMethodID(
+            viewCls, "getWindowInsetsController", "()Landroid/view/WindowInsetsController;");
+        env->DeleteLocalRef(viewCls);
+        if (!getController) { env->ExceptionClear(); return; }
+        jobject controller = env->CallObjectMethod(decorView, getController);
+        if (!controller) return;
+
+        jclass typeCls = env->FindClass("android/view/WindowInsets$Type");
+        const jmethodID systemBars = env->GetStaticMethodID(typeCls, "systemBars", "()I");
+        const jint bars = env->CallStaticIntMethod(typeCls, systemBars);
+        env->DeleteLocalRef(typeCls);
+
+        callVoidIfPresent(env, controller, "hide", "(I)V", bars);
+        // BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE: a swipe from the edge shows the
+        // bars over the game for a moment, then they leave again on their own.
+        callVoidIfPresent(env, controller, "setSystemBarsBehavior", "(I)V", jint{2});
+        env->DeleteLocalRef(controller);
+        return;
+    }
+
+    // Below 30: View.setSystemUiVisibility. Deprecated, and the only way there.
+    constexpr jint LAYOUT_STABLE = 0x0100, LAYOUT_HIDE_NAVIGATION = 0x0200,
+                   LAYOUT_FULLSCREEN = 0x0400, HIDE_NAVIGATION = 0x0002,
+                   FULLSCREEN = 0x0004, IMMERSIVE_STICKY = 0x1000;
+    callVoidIfPresent(env, decorView, "setSystemUiVisibility", "(I)V",
+                      LAYOUT_STABLE | LAYOUT_HIDE_NAVIGATION | LAYOUT_FULLSCREEN
+                          | HIDE_NAVIGATION | FULLSCREEN | IMMERSIVE_STICKY);
+}
+
+/** Let the window lay out into the display cutout (API 28+), so the renderer is
+ *  handed the whole screen instead of the letterbox beside the notch. */
+void useDisplayCutout(JNIEnv* env, jobject window) {
+    jclass windowCls = env->GetObjectClass(window);
+    const jmethodID getAttributes = env->GetMethodID(
+        windowCls, "getAttributes", "()Landroid/view/WindowManager$LayoutParams;");
+    env->DeleteLocalRef(windowCls);
+    if (!getAttributes) { env->ExceptionClear(); return; }
+
+    jobject params = env->CallObjectMethod(window, getAttributes);
+    if (!params) return;
+    jclass paramsCls = env->GetObjectClass(params);
+    const jfieldID mode = env->GetFieldID(paramsCls, "layoutInDisplayCutoutMode", "I");
+    env->DeleteLocalRef(paramsCls);
+    if (mode) {
+        env->SetIntField(params, mode, 1);   // LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+        callVoidIfPresent(env, window, "setAttributes", "(Landroid/view/WindowManager$LayoutParams;)V", params);
+    } else {
+        env->ExceptionClear();   // pre-28: no such field, and no cutout to take
+    }
+    env->DeleteLocalRef(params);
+}
+
+void onWindowFocusChanged(ANativeActivity* activity, int hasFocus) {
+    // activity->env is the UI thread's JNI context, which is the thread this
+    // callback arrives on — no attach, and the locals below are freed on return.
+    if (hasFocus && activity->env) {
+        JNIEnv* env = activity->env;
+        jclass activityCls = env->GetObjectClass(activity->clazz);
+        const jmethodID getWindow = env->GetMethodID(activityCls, "getWindow", "()Landroid/view/Window;");
+        env->DeleteLocalRef(activityCls);
+        if (getWindow) {
+            jobject window = env->CallObjectMethod(activity->clazz, getWindow);
+            if (window) {
+                useDisplayCutout(env, window);
+                jclass windowCls = env->GetObjectClass(window);
+                const jmethodID getDecorView = env->GetMethodID(windowCls, "getDecorView", "()Landroid/view/View;");
+                env->DeleteLocalRef(windowCls);
+                if (getDecorView) {
+                    jobject decorView = env->CallObjectMethod(window, getDecorView);
+                    if (decorView) {
+                        hideSystemBars(env, window, decorView);
+                        env->DeleteLocalRef(decorView);
+                    }
+                } else {
+                    env->ExceptionClear();
+                }
+                env->DeleteLocalRef(window);
+            }
+        } else {
+            env->ExceptionClear();
+        }
+    }
+    if (g_glueWindowFocusChanged) g_glueWindowFocusChanged(activity, hasFocus);
+}
+
 }  // namespace
 
 void android_main(android_app* app) {
@@ -349,6 +479,11 @@ void android_main(android_app* app) {
     if (app->activity->internalDataPath) g_platform.cache = app->activity->internalDataPath;
     app->onAppCmd = onAppCmd;
     app->onInputEvent = onInput;
+    // Chained, not replaced: the glue's handler is what wakes the frame loop on
+    // focus. Installed before the activity can be focused, so the first callback
+    // already goes through ours.
+    g_glueWindowFocusChanged = app->activity->callbacks->onWindowFocusChanged;
+    app->activity->callbacks->onWindowFocusChanged = onWindowFocusChanged;
     PerformanceHints hints;
     hints.open();
     while (true) {

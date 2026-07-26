@@ -15,8 +15,12 @@
     <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="33" />
     <uses-feature android:name="android.hardware.vulkan.version" android:version="0x400003" android:required="true" />
     <application android:label="@APP_NAME@" android:hasCode="false" android:extractNativeLibs="true">
+        <!-- A game's window, stated before any code runs: no title, no status bar.
+             The host asks for the rest (navigation bar, display cutout) once it
+             has the UI thread — see onWindowFocusChanged in platform/android.cpp. -->
         <activity android:name="android.app.NativeActivity"
                   android:label="@APP_NAME@"
+                  android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
                   android:screenOrientation="@SCREEN_ORIENTATION@"
                   android:configChanges="orientation|keyboardHidden|screenSize|screenLayout|density"
                   android:exported="true">
