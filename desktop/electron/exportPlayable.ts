@@ -25,7 +25,7 @@ import type { OnExportProgress } from './exportProgress';
 import { esengineAlias } from './esengineResolve';
 import type { ScreenOrientation } from './orientationHtml';
 import { genericPlayableProfile, playableAdInjection, type PlayableAdProfile } from './playableAdProfile';
-import { makeZip } from './zipWriter';
+import { makeZip } from '../../build-tools/utils/zip.js';
 import {
   sceneUsesPhysics, detectSpineVersion, detectSpineVersionJson,
   spineModuleId, SIDE_MODULE_FILE, type SpineVersion,
