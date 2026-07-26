@@ -56,9 +56,6 @@ jobs:
     - name: Build Web target
       run: node build-tools/cli.js build -t web --no-sync
 
-    - name: Build Playable target
-      run: node build-tools/cli.js build -t playable --no-sync
-
     - name: Build WeChat target
       run: node build-tools/cli.js build -t wechat --no-sync
 
@@ -66,7 +63,6 @@ jobs:
       run: |
         test -f build/wasm/web/esengine.js && echo "✓ Web JS"
         test -f build/wasm/web/esengine.wasm && echo "✓ Web WASM"
-        test -f build/wasm/playable/esengine.single.js && echo "✓ Playable JS"
         test -f build/wasm/wechat/esengine.wxgame.js && echo "✓ WeChat JS"
         test -f build/wasm/wechat/esengine.wxgame.wasm && echo "✓ WeChat WASM"
 
