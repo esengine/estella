@@ -502,6 +502,10 @@ export interface PlayableNetworkOption {
   id: string;
   label: string;
   source: 'builtin' | 'project';
+  /** Project networks only — the profile that defines it, project-relative. A network
+   *  the project WROTE is a file it has to be able to find and edit, so the dialog can
+   *  point at it (and at the error, when one fails to load). */
+  file?: string;
   /** Present when a project profile failed to load, and why — the row still appears. */
   error?: string;
 }
@@ -520,13 +524,14 @@ export async function listPlayableNetworks(root: string | null): Promise<Playabl
     const { mod, error } = await importPlatformModule(file);
     // A broken profile is NAMED rather than dropped — a project that wrote a file
     // and sees nothing cannot tell the difference between "not loaded" and "typo".
+    const rel = posix(path.relative(root, file));
     if (error) {
       const id = path.basename(file, '.mjs');
-      if (!out.some((p) => p.id === id)) out.push({ id, label: path.basename(file), source: 'project', error });
+      if (!out.some((p) => p.id === id)) out.push({ id, label: path.basename(file), source: 'project', file: rel, error });
       continue;
     }
     if (!mod || mod.kind !== 'playable') continue;
-    out.push({ id: mod.id, label: mod.label, source: 'project' });
+    out.push({ id: mod.id, label: mod.label, source: 'project', file: rel });
   }
   return out;
 }

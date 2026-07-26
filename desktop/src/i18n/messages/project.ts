@@ -85,8 +85,8 @@ export const projectMessages = defineMessages({
         zh: '已创建 {packaging} 与 {runtime}。编辑它们来描述你的宿主，然后就可以打包。',
     },
     'build.createdNetwork': {
-        en: 'Created {file}. Fill in its limit and CTA bridge, then select "{label}" in Project Settings → Packaging → Playable.',
-        zh: '已创建 {file}。填好它的体积上限与 CTA 桥接后，在 项目设置 → 打包 → 试玩广告 里选择“{label}”。',
+        en: 'Created {file} and selected it below. Fill in its size limit and CTA bridge, then package.',
+        zh: '已创建 {file},并已在下方选中它。填好它的体积上限与 CTA 桥接后即可打包。',
     },
     'build.revealFiles': { en: 'Show files', zh: '显示文件' },
     'build.noCustomPlatforms': {
@@ -154,6 +154,10 @@ export const projectMessages = defineMessages({
     'build.adNetworkTip': {
         en: 'Decides the size limit, what goes in <head>, and the API playableCta() calls.',
         zh: '决定体积上限、<head> 注入内容,以及 playableCta() 调用的接口。',
+    },
+    'build.adNetworkFile': {
+        en: 'Defined by this project in {file}.',
+        zh: '由本项目在 {file} 中定义。',
     },
     'build.adNetworkHint': {
         en: 'Each network gets its own output folder. Add one we don\'t ship with a kind: \'playable\' profile in .esengine/platforms/.',

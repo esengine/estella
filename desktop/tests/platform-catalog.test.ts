@@ -306,7 +306,12 @@ describe('playable ad networks', () => {
     const rows = await listPlayableNetworks(root);
     expect(rows.filter((r) => r.source === 'builtin').map((r) => r.id))
       .toEqual(['generic', 'meta', 'google', 'mraid', 'unity', 'applovin']);
-    expect(rows.find((r) => r.id === 'acme-ads')).toMatchObject({ label: 'Acme Ads', source: 'project' });
+    // A project network names the file that defines it, so the dialog can point at it
+    // (and at the error, when one fails to load). Built-ins have no file.
+    expect(rows.find((r) => r.id === 'acme-ads')).toMatchObject({
+      label: 'Acme Ads', source: 'project', file: '.esengine/platforms/acme-ads.mjs',
+    });
+    expect(rows.find((r) => r.id === 'meta')!.file).toBeUndefined();
   });
 
   it('resolves a project network to a profile the export can run with', async () => {
@@ -370,6 +375,8 @@ describe('playable ad networks', () => {
     writePlatform('bad.mjs', "export default { id: 'bad', kind: 'playable', label: 'Bad' };");
     const row = (await listPlayableNetworks(root)).find((r) => r.id === 'bad');
     expect(row!.error).toMatch(/maxBytes/);
+    // Named WITH its file — an error you cannot locate is barely an error report.
+    expect(row!.file).toBe('.esengine/platforms/bad.mjs');
   });
 
   it('keeps networks out of the platform list, and platforms out of the network list', async () => {

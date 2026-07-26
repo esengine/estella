@@ -292,6 +292,12 @@ export function BuildDialog() {
       a.path === project?.defaultScene ? -1 : b.path === project?.defaultScene ? 1 : a.path.localeCompare(b.path));
   const shippedScenes = sceneList.filter((s) => s.path === project?.defaultScene || !excludedScenes.has(s.path)).length;
 
+  const refreshNetworks = async (): Promise<PlayableNetworkOption[]> => {
+    const rows = (await window.estella.project?.listPlayableNetworks?.()) ?? [];
+    setAdNetworks(rows);
+    return rows;
+  };
+
   useEffect(() => {
     let live = true;
     void window.estella.project?.listPlayableNetworks?.().then((rows) => {
@@ -303,6 +309,8 @@ export function BuildDialog() {
   /** Each network gets its own output dir, so packaging for one does not overwrite
    *  the last — except the unnamed default, which keeps the plain folder. */
   const playableOut = (network: string): string => (network === 'generic' ? 'dist-playable' : `dist-playable/${network}`);
+
+  const selectedNetwork = adNetworks.find((n) => n.id === adNetwork);
 
   const pickNetwork = (network: string) => {
     // Follow the output only while it is still a default; never overwrite a path the
@@ -340,8 +348,17 @@ export function BuildDialog() {
     // An ad network joins the playable target's network list, not the platform nav.
     if (newKind === 'playable') {
       setCreatedNetwork({ id, file: res.packagingFile! });
+      // Re-read the list so the new network is selectable NOW, and select it: it was
+      // just written, so it is what the developer means to package with.
+      const rows = await refreshNetworks();
       setCreating(false);
       setPlatform('playable');
+      if (rows.some((r) => r.id === id)) {
+        setAdNetwork(id);
+        setOutDir(playableOut(id));
+      }
+      setPhase('idle');
+      setResult(null);
       return;
     }
     setCreated({ id, packaging: res.packagingFile!, runtime: res.runtimeFile! });
@@ -570,11 +587,6 @@ export function BuildDialog() {
                 <span className="selectable">
                   {t('build.createdNetwork', { file: createdNetwork.file, label: createdNetwork.id })}
                 </span>
-                <div className="build__fix">
-                  <Button onClick={() => void window.estella.shell?.showItem?.(createdNetwork.file)}>
-                    <FolderOpen size={12} /> {t('build.revealFiles')}
-                  </Button>
-                </div>
               </div>
             </div>
           )}
@@ -634,10 +646,29 @@ export function BuildDialog() {
                   ariaLabel={t('build.adNetwork')}
                   value={adNetwork}
                   options={(adNetworks.length > 0 ? adNetworks : [{ id: adNetwork, label: adNetwork, source: 'builtin' as const }])
-                    .map((n) => ({ value: n.id, label: n.error ? `${n.label} — ${n.error}` : n.label }))}
+                    .map((n) => ({ value: n.id, label: n.error ? `${n.label} ⚠` : n.label }))}
                   onChange={pickNetwork}
                 />
               </div>
+              {/* A network the PROJECT wrote is a file it must be able to find again —
+                  the dialog is the only place that knows which file that is. */}
+              {selectedNetwork?.file && (
+                <div className={`build__prereq${selectedNetwork.error ? ' is-error' : ''}`}>
+                  {selectedNetwork.error ? <AlertCircle size={13} /> : <Info size={13} />}
+                  <div className="build__prereq-body">
+                    <span className="selectable">
+                      {selectedNetwork.error
+                        ? `${selectedNetwork.file} — ${selectedNetwork.error}`
+                        : t('build.adNetworkFile', { file: selectedNetwork.file })}
+                    </span>
+                    <div className="build__fix">
+                      <Button onClick={() => void window.estella.shell?.showItem?.(selectedNetwork.file!)}>
+                        <FolderOpen size={12} /> {t('build.revealFiles')}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
               <div className="build__hint">
                 <Info size={11} /> {t('build.adNetworkHint')}
               </div>
