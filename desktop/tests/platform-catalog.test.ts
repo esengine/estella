@@ -23,6 +23,10 @@ let root: string;
 let webDir: string;
 let wxDir: string;
 
+/** The editor version the probes run as. A native runtime template is matched
+ *  against it exactly, so the tests own both ends of that comparison. */
+const VERSION = '9.9.9';
+
 const dirs = () => ({ web: webDir, wechat: wxDir });
 
 function writePlatform(name: string, source: string): void {
@@ -37,15 +41,19 @@ beforeEach(() => {
   wxDir = path.join(root, 'rt-wechat');
   mkdirSync(webDir, { recursive: true });
   mkdirSync(wxDir, { recursive: true });
+  // The native probes read the machine's template store; point it at this test's
+  // own empty one, or the result would depend on what the developer has installed.
+  process.env.ESTELLA_NATIVE_TEMPLATES = path.join(root, 'templates');
 });
 
 afterEach(() => {
+  delete process.env.ESTELLA_NATIVE_TEMPLATES;
   rmSync(root, { recursive: true, force: true });
 });
 
 describe('listPlatforms — built-in readiness is probed', () => {
   it('web/desktop/playable are not ready without the web engine glue', async () => {
-    const rows = await listPlatforms(root, dirs());
+    const rows = await listPlatforms(root, dirs(), VERSION);
     const byId = Object.fromEntries(rows.map((r) => [r.id, r]));
 
     expect(byId.web.ready).toBe(false);
@@ -56,7 +64,7 @@ describe('listPlatforms — built-in readiness is probed', () => {
 
   it('the web glue makes playable ready too — it inlines the WEB runtime, not a -t playable one', async () => {
     writeFileSync(path.join(webDir, 'esengine.js'), '//');
-    const rows = await listPlatforms(root, dirs());
+    const rows = await listPlatforms(root, dirs(), VERSION);
     const byId = Object.fromEntries(rows.map((r) => [r.id, r]));
 
     expect(byId.web.ready).toBe(true);
@@ -69,15 +77,15 @@ describe('listPlatforms — built-in readiness is probed', () => {
 
   it('WeChat accepts either its own glue or a web-aligned one', async () => {
     writeFileSync(path.join(wxDir, 'esengine.wxgame.js'), '//');
-    expect((await listPlatforms(root, dirs())).find((r) => r.id === 'wechat')?.ready).toBe(true);
+    expect((await listPlatforms(root, dirs(), VERSION)).find((r) => r.id === 'wechat')?.ready).toBe(true);
 
     rmSync(path.join(wxDir, 'esengine.wxgame.js'));
     writeFileSync(path.join(wxDir, 'esengine.js'), '//');
-    expect((await listPlatforms(root, dirs())).find((r) => r.id === 'wechat')?.ready).toBe(true);
+    expect((await listPlatforms(root, dirs(), VERSION)).find((r) => r.id === 'wechat')?.ready).toBe(true);
   });
 
   it('reports paths with forward slashes, whatever the platform separator', async () => {
-    const wx = (await listPlatforms(root, dirs())).find((r) => r.id === 'wechat');
+    const wx = (await listPlatforms(root, dirs(), VERSION)).find((r) => r.id === 'wechat');
     expect(wx?.prereq?.dir).not.toContain('\\');
   });
 });
@@ -90,7 +98,7 @@ describe('listPlatforms — platforms the project defines', () => {
     };`);
     writeFileSync(path.join(webDir, 'esengine.js'), '//');
 
-    const rows = await listPlatforms(root, dirs());
+    const rows = await listPlatforms(root, dirs(), VERSION);
     const acme = rows.find((r) => r.id === 'acme');
     expect(acme).toBeDefined();
     expect(acme!.source).toBe('project');
@@ -107,7 +115,7 @@ describe('listPlatforms — platforms the project defines', () => {
     };`);
     writeFileSync(path.join(webDir, 'esengine.js'), '//');
 
-    const acme = (await listPlatforms(root, dirs())).find((r) => r.id === 'acme');
+    const acme = (await listPlatforms(root, dirs(), VERSION)).find((r) => r.id === 'acme');
     expect(acme!.ready).toBe(false);
     expect(acme!.prereq?.dir).toBe('build/wasm/acme');
     // The editor does not know how a project builds its own runtime, so it
@@ -117,7 +125,7 @@ describe('listPlatforms — platforms the project defines', () => {
 
   it('a broken profile is listed with its error, not silently dropped', async () => {
     writePlatform('bad.mjs', 'export default { this is not valid javascript');
-    const rows = await listPlatforms(root, dirs());
+    const rows = await listPlatforms(root, dirs(), VERSION);
     const bad = rows.find((r) => r.id === 'bad');
     expect(bad).toBeDefined();
     expect(bad!.ready).toBe(false);
@@ -132,7 +140,7 @@ describe('listPlatforms — platforms the project defines', () => {
     writePlatform('c.mjs', `export default { id: 'ok-id', emitConfigFiles: () => [] };`);
     writePlatform('d.mjs', `export default { id: 'ok-id2', label: 'X' };`);
 
-    const rows = await listPlatforms(root, dirs());
+    const rows = await listPlatforms(root, dirs(), VERSION);
     const errs = rows.filter((r) => r.source === 'project').map((r) => r.error);
     expect(errs).toHaveLength(4);
     expect(errs[0]).toContain('built-in');
@@ -144,7 +152,7 @@ describe('listPlatforms — platforms the project defines', () => {
   });
 
   it('lists only built-ins when no project is open', async () => {
-    const rows = await listPlatforms(null, dirs());
+    const rows = await listPlatforms(null, dirs(), VERSION);
     expect(rows.every((r) => r.source === 'builtin')).toBe(true);
   });
 });
@@ -170,7 +178,7 @@ describe('createProjectPlatform — scaffolding', () => {
 
     // What was scaffolded is immediately a real platform.
     writeFileSync(path.join(webDir, 'esengine.js'), '//');
-    const rows = await listPlatforms(root, dirs());
+    const rows = await listPlatforms(root, dirs(), VERSION);
     const acme = rows.find((r) => r.id === 'acme-play');
     expect(acme?.source).toBe('project');
     expect(acme?.label).toBe('ACME Play');
@@ -271,7 +279,7 @@ describe('loadProjectPlatform — the profile handed to exportMiniGame', () => {
       id: 'acme', label: 'ACME Play', runtimeProfile: 'src/missing.ts',
       emitConfigFiles: () => [],
     };`);
-    const acme = (await listPlatforms(root, dirs())).find((r) => r.id === 'acme');
+    const acme = (await listPlatforms(root, dirs(), VERSION)).find((r) => r.id === 'acme');
     expect(acme!.ready).toBe(false);
     expect(acme!.error).toContain('runtimeProfile');
   });
@@ -283,7 +291,7 @@ describe('loadProjectPlatform — the profile handed to exportMiniGame', () => {
       id: 'acme', label: 'A', runtimeProfile: 'src/rt', emitConfigFiles: () => [],
     };`);
     writeFileSync(path.join(webDir, 'esengine.js'), '//');
-    const acme = (await listPlatforms(root, dirs())).find((r) => r.id === 'acme');
+    const acme = (await listPlatforms(root, dirs(), VERSION)).find((r) => r.id === 'acme');
     expect(acme!.error).toBeUndefined();
     expect(acme!.ready).toBe(true);
   });
@@ -386,7 +394,7 @@ describe('playable ad networks', () => {
     writePlatform('acme-mini.mjs', `export default {
       id: 'acme-mini', label: 'Acme MiniGame', emitConfigFiles: () => [],
     };`);
-    expect((await listPlatforms(root, dirs())).map((r) => r.id)).not.toContain('acme-ads');
+    expect((await listPlatforms(root, dirs(), VERSION)).map((r) => r.id)).not.toContain('acme-ads');
     expect((await listPlayableNetworks(root)).map((r) => r.id)).not.toContain('acme-mini');
     // And a network id must not shadow a network the editor ships.
     writePlatform('meta.mjs', "export default { id: 'meta', kind: 'playable', label: 'Mine', maxBytes: 1, limitNote: 'x' };");

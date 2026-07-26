@@ -49,6 +49,25 @@ export const projectMessages = defineMessages({
         en: 'Building the iOS app needs a Mac with Xcode — Apple ships no toolchain for this OS.',
         zh: '构建 iOS 应用需要装有 Xcode 的 Mac——Apple 未在本系统提供工具链。',
     },
+    // — The runtime template: the prebuilt engine a native app is assembled around.
+    //   Not a toolchain and not something to build — an artifact of this release. —
+    'build.templateMissing': {
+        en: 'No {id} runtime template for v{version} on this machine.',
+        zh: '本机没有 v{version} 的 {id} 运行时模板。',
+    },
+    'build.templateHint': {
+        en: 'It is the prebuilt engine the app is assembled around — download it from this release and install it here, once per editor version. Building it yourself needs the engine sources.',
+        zh: '它是应用装配所围绕的预编译引擎——从本版本的发布页下载并在此安装，每个编辑器版本装一次即可。自行构建它需要引擎源码。',
+    },
+    'build.installTemplate': { en: 'Install from file…', zh: '从文件安装…' },
+    'build.templateInstalled': {
+        en: 'Installed the {id} runtime template (v{version}).',
+        zh: '已安装 {id} 运行时模板（v{version}）。',
+    },
+    'build.templateVersionMismatch': {
+        en: 'That template is built for v{version}; this editor is v{editor}. A template must match exactly — the SDK is compiled into the app binary.',
+        zh: '该模板面向 v{version} 构建，而当前编辑器是 v{editor}。模板必须精确匹配——SDK 是编译进应用二进制的。',
+    },
     'build.toolchainHint': {
         en: 'The export still writes the app\'s content here; assembling the installable app needs this toolchain, and that step can run on another machine.',
         zh: '导出仍会在此写出应用内容；将其装配成可安装的应用才需要该工具链，且这一步可以在另一台机器上完成。',
@@ -144,8 +163,8 @@ export const projectMessages = defineMessages({
         zh: '据此构建签名 APK：node build-tools/cli.js native --package --content {out}（一次性的 Dawn + QuickJS 准备见 native/README.md）。',
     },
     'build.next.ios': {
-        en: 'On a Mac: node build-tools/cli.js native --target ios --package --content {out} — that writes the Xcode project around this content.',
-        zh: '在 Mac 上运行：node build-tools/cli.js native --target ios --package --content {out} —— 它会围绕这份内容写出 Xcode 工程。',
+        en: 'The content is in {out}. Install the iOS runtime template to get an Xcode project written around it.',
+        zh: '内容已写入 {out}。安装 iOS 运行时模板后，导出会围绕它写出 Xcode 工程。',
     },
     'build.next.iosProject': {
         en: 'The Xcode project is written — open it, pick your Team under Signing & Capabilities, then Run.',

@@ -92,6 +92,9 @@ interface PlatformDef {
   /** What KIND of prerequisite — a missing engine runtime blocks the package, a
    *  missing native toolchain only blocks the final app assembly. */
   prereqKind?: PlatformPrereq['kind'];
+  /** The runtime template this target wants, when that is what is missing. Kept so
+   *  the install action can say which version a wrong archive should have been. */
+  templateWant?: { id: string; version: string };
   /** http-servable target → offer a loopback-http Preview (opening the build via
    *  file:// hits the browser's opaque-origin rules; http is its real surface). */
   httpPreview?: boolean;
@@ -161,6 +164,9 @@ const TOOLCHAIN_TEXT: Record<NativeToolchain, string> = {
 function prereqText(r: { prereq?: PlatformPrereq }): string | undefined {
   if (!r.prereq) return undefined;
   if (r.prereq.kind === 'toolchain-missing') return TOOLCHAIN_TEXT[r.prereq.tool];
+  if (r.prereq.kind === 'template-missing') {
+    return t('build.templateMissing', { id: r.prereq.id, version: r.prereq.version });
+  }
   // A built-in target comes with the command that fixes it, and WHERE the editor
   // keeps its runtime is not the developer's business — the command is. A project
   // platform has no command (only the project knows how it builds one), so there
@@ -232,6 +238,10 @@ export function BuildDialog() {
 
   const def = platforms.find((p) => p.id === platform) ?? platforms[0];
   const running = phase === 'running';
+  // Bumped when something the probes read changes on disk (a runtime template is
+  // installed), so the rows re-probe instead of the dialog having to be reopened.
+  const [probeTick, setProbeTick] = useState(0);
+  const [templateNote, setTemplateNote] = useState<{ text: string; error: boolean } | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -246,6 +256,8 @@ export function BuildDialog() {
         return {
           ...p, ready: r.ready, prereq: prereqText(r), prereqKind: r.prereq?.kind,
           fixCommand: r.prereq?.kind === 'runtime-missing' ? r.prereq.command : undefined,
+          templateWant: r.prereq?.kind === 'template-missing'
+            ? { id: r.prereq.id, version: r.prereq.version } : undefined,
         };
       });
       for (const r of rows) {
@@ -279,9 +291,10 @@ export function BuildDialog() {
       if (cur && !saved.outDir?.[platform]) setOutDir(cur.defaultOut);
     })();
     return () => { alive = false; };
-    // Runs once: the catalog is read when the dialog opens.
+    // The catalog is read when the dialog opens, and again when a probe's input
+    // changed (probeTick).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [probeTick]);
 
   // The build's scene set, mirroring the exporter's discovery: every scene
   // under the project's scenes dir (plus the entry wherever it lives), entry
@@ -394,6 +407,31 @@ export function BuildDialog() {
     void navigator.clipboard?.writeText(cmd);
     setCopiedFix(true);
     setTimeout(() => setCopiedFix(false), 1600);
+  };
+
+  /** Install a runtime template the user downloaded, then re-probe: the row that
+   *  asked for it becomes ready without reopening the dialog. */
+  const installTemplate = async () => {
+    const res = await window.estella.nativeTemplates?.install?.();
+    if (!res || res.canceled) return;
+    if (!res.ok) {
+      setTemplateNote({ text: res.error ?? '', error: true });
+      return;
+    }
+    if (res.versionMismatch) {
+      setTemplateNote({
+        text: t('build.templateVersionMismatch', {
+          version: res.engineVersion ?? '', editor: def.templateWant?.version ?? '',
+        }),
+        error: true,
+      });
+    } else {
+      setTemplateNote({
+        text: t('build.templateInstalled', { id: res.id ?? '', version: res.engineVersion ?? '' }),
+        error: false,
+      });
+    }
+    setProbeTick((n) => n + 1);
   };
 
   const browse = async () => {
@@ -625,8 +663,22 @@ export function BuildDialog() {
                     native toolchain still exports the app's content — only the
                     assembly step (which may run on another machine) needs it. */}
                 <span className="build__prereq-hint">
-                  {def.prereqKind === 'toolchain-missing' ? t('build.toolchainHint') : t('build.notReadyHint')}
+                  {def.prereqKind === 'toolchain-missing' ? t('build.toolchainHint')
+                    : def.prereqKind === 'template-missing' ? t('build.templateHint')
+                      : t('build.notReadyHint')}
                 </span>
+                {def.prereqKind === 'template-missing' && (
+                  <div className="build__fix">
+                    <Button onClick={() => void installTemplate()}>
+                      <Package size={12} /> {t('build.installTemplate')}
+                    </Button>
+                    {templateNote && (
+                      <span className={templateNote.error ? 'is-error selectable' : 'selectable'}>
+                        {templateNote.text}
+                      </span>
+                    )}
+                  </div>
+                )}
                 {def.fixCommand && (
                   <div className="build__fix">
                     <code className="selectable">{def.fixCommand}</code>

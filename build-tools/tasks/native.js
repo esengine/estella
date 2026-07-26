@@ -15,9 +15,13 @@ import config from '../build.config.js';
 import * as logger from '../utils/logger.js';
 import { runCommand, getCpuCount, resolvePython } from '../utils/emscripten.js';
 import { requireSdk, requireNdk, sdkCmake } from '../utils/android.js';
-import { packageNativeApk, BYTECODE_FILE } from './nativePackage.js';
-import { readAppConfig, iosInterfaceOrientations, fillTemplate } from '../utils/nativeApp.js';
-import { renderPbxproj, renderScheme } from '../utils/xcodeProject.js';
+import { packageNativeApk } from './nativePackage.js';
+import { emitNativeTemplate, readEngineVersion } from './nativeTemplateEmit.js';
+import {
+    BYTECODE_FILE, findTemplate, iosTemplateSources, templateStoreDir,
+} from '../utils/nativeTemplate.js';
+import { readAppConfig, fillTemplate } from '../utils/nativeApp.js';
+import { emitIosXcodeProject } from '../utils/iosProject.js';
 
 // Generate the native (QuickJS) ECS bindings from the SAME reflection source EHT
 // uses for the web embind bindings — so the two surfaces can never drift. Written
@@ -289,6 +293,16 @@ async function buildAndroidHost(options) {
 
     logger.success(`Host: ${path.join('build-native', 'libestella_js_host.so')}`);
 
+    // The binaries this machine just produced are the same for every game, so they
+    // are packed for everyone else's — see build-tools/utils/nativeTemplate.js. Only
+    // the JS host is one: the pure-C++ reference host is not what a game ships on.
+    if (quickjs && options.template !== false) {
+        await emitNativeTemplate({
+            platform: 'android', abi, root: rootDir, dawnBuild, ndk, sdk,
+            androidPlatform: platform, jdk: options.jdk, zipTo: options.templateOut,
+        });
+    }
+
     if (options.package) {
         await packageNativeApk({
             dawnBuild, abi, platform, keystore: options.keystore, jdk: options.jdk,
@@ -392,76 +406,6 @@ async function writeIosAppIdentity(rootDir, contentDir) {
     logger.info(`App: ${app.name} (${app.id}) v${app.version} — ${app.orientation}`);
 }
 
-/** A target/product name Xcode and the shell can both carry unquoted. */
-function xcodeTargetName(appName) {
-    const cleaned = appName.replace(/[^A-Za-z0-9]+/g, '');
-    return cleaned || 'EstellaGame';
-}
-
-/**
- * Turn an export into a self-contained Xcode project, in place — the iOS
- * counterpart of `--package`'s APK.
- *
- * The export directory BECOMES the project: its cooked files stay where they are
- * and join the resources phase directly (they land at the bundle root, which is
- * where the host looks), with the app shell, the engine xcframework and the
- * .xcodeproj written alongside. So "Build" in the editor hands back something to
- * double-click — no xcodegen, no shared project in the engine checkout that a
- * second game would overwrite.
- */
-async function emitIosXcodeProject(rootDir, contentDir, deploymentTarget) {
-    const app = readAppConfig(contentDir, (m) => logger.warn(m));
-    const name = xcodeTargetName(app.name);
-    const frameworkName = 'Estella.xcframework';
-    const projectDir = path.join(contentDir, `${name}.xcodeproj`);
-    const appDir = path.join(contentDir, 'App');
-    const frameworkDest = path.join(contentDir, frameworkName);
-
-    // Rewritten wholesale so a re-export never inherits the last one's stale
-    // slices, plist or object graph.
-    await rm(projectDir, { recursive: true, force: true });
-    await rm(appDir, { recursive: true, force: true });
-    await rm(frameworkDest, { recursive: true, force: true });
-
-    await cp(path.join(rootDir, XCFRAMEWORK), frameworkDest, { recursive: true });
-
-    await mkdir(appDir, { recursive: true });
-    const iosDir = path.join(rootDir, 'native', 'ios');
-    await cp(path.join(iosDir, 'App', 'main.m'), path.join(appDir, 'main.m'));
-    const orientations = iosInterfaceOrientations(app.orientation)
-        .map((o) => `\t\t<string>${o}</string>`).join('\n');
-    writeFileSync(path.join(appDir, 'Info.plist'), fillTemplate(
-        readFileSync(path.join(iosDir, 'App', 'Info.plist.in'), 'utf8'),
-        { APP_NAME: app.name, VERSION_NAME: app.version, VERSION_CODE: app.versionCode, ORIENTATIONS: orientations },
-    ), 'utf8');
-
-    // Everything the export wrote, minus what this function just added. Dotfiles
-    // stay out: .DS_Store in a resources phase is a code-signing failure.
-    const skip = new Set([`${name}.xcodeproj`, 'App', frameworkName]);
-    const resources = (await readdir(contentDir, { withFileTypes: true }))
-        .filter((e) => !skip.has(e.name) && !e.name.startsWith('.'))
-        .map((e) => ({ name: e.name, isDir: e.isDirectory() }))
-        .sort((a, b) => a.name.localeCompare(b.name));
-
-    await mkdir(path.join(projectDir, 'xcshareddata', 'xcschemes'), { recursive: true });
-    writeFileSync(path.join(projectDir, 'project.pbxproj'), renderPbxproj({
-        name,
-        bundleId: app.id,
-        version: app.version,
-        versionCode: app.versionCode,
-        deploymentTarget,
-        frameworkName,
-        resources,
-    }), 'utf8');
-    writeFileSync(
-        path.join(projectDir, 'xcshareddata', 'xcschemes', `${name}.xcscheme`),
-        renderScheme(name), 'utf8');
-
-    logger.success(`iOS project: ${path.join(contentDir, `${name}.xcodeproj`)}`);
-    logger.info(`App: ${app.name} (${app.id}) v${app.version} — ${app.orientation}`);
-    return { name, projectDir };
-}
-
 async function buildIosHost(options) {
     if (process.platform !== 'darwin') throw new Error('The iOS host builds on macOS only.');
     const rootDir = config.paths.root;
@@ -507,30 +451,83 @@ async function buildIosHost(options) {
     logger.success(`iOS host: ${path.join(slice.dir, 'libestella_ios.a')}`);
     await assembleXcframework(rootDir, env);
 
-    // --package: the export becomes a project of its own. Without it the engine's
-    // own native/ios shell is staged instead — that one is for working ON the
-    // host, where the Xcode project is checked in and the content is scratch.
-    if (options.package) {
-        if (!options.content) {
-            throw new Error('--package needs the game to package: pass --content <dir> from '
-                + 'the editor\'s iOS export.');
-        }
-        const contentDir = path.isAbsolute(options.content)
-            ? options.content : path.join(rootDir, options.content);
-        if (!existsSync(contentDir)) throw new Error(`--content dir not found: ${contentDir}`);
-        const { projectDir } = await emitIosXcodeProject(rootDir, contentDir, deploymentTarget);
-        logger.info(`Next: open ${projectDir} — pick your Team under Signing & Capabilities, then Run.`);
-        return;
+    // See buildAndroidHost: the compiled half is project-independent, so it is
+    // packed as a template the editor (and everyone without Xcode's dependencies)
+    // can consume.
+    if (options.template !== false) {
+        await emitNativeTemplate({
+            platform: 'ios', root: rootDir, deploymentTarget, zipTo: options.templateOut,
+        });
     }
 
+    // Without --package the engine's own native/ios shell is staged instead — that
+    // one is for working ON the host, where the Xcode project is checked in and the
+    // content is scratch.
     const staged = options.content ? await stageIosContent(rootDir, options.content) : null;
     await writeIosAppIdentity(rootDir, staged);
     logger.info('Next: cd native/ios && xcodegen && open EstellaiOS.xcodeproj — pick your Team, then Run.');
 }
 
+/**
+ * Wrap an iOS export in an Xcode project — from the installed runtime template,
+ * with no compiler involved. The same call the editor's export makes, so a project
+ * assembled here and one assembled there are the same project.
+ */
+async function packageIosProject(options) {
+    const rootDir = config.paths.root;
+    if (!options.content) {
+        throw new Error('--package needs the game to package: pass --content <dir> from '
+            + "the editor's iOS export.");
+    }
+    const contentDir = path.isAbsolute(options.content)
+        ? options.content : path.join(rootDir, options.content);
+    if (!existsSync(contentDir)) throw new Error(`--content dir not found: ${contentDir}`);
+
+    const engineVersion = readEngineVersion(rootDir);
+    const template = findTemplate({ platform: 'ios', engineVersion });
+    if (!template || template.missing.length > 0) {
+        throw new Error(`No iOS runtime template for v${engineVersion}. Build one with `
+            + '`cli native --target ios`, or install a release archive into '
+            + `${templateStoreDir()}.`);
+    }
+
+    const app = readAppConfig(contentDir, (m) => logger.warn(m));
+    const projectDir = await emitIosXcodeProject(
+        contentDir, app, iosTemplateSources(template.dir),
+        options.iosMin || template.manifest.deploymentTarget);
+    logger.success(`iOS project: ${projectDir}`);
+    logger.info(`App: ${app.name} (${app.id}) v${app.version} — ${app.orientation}`);
+    logger.info(`Next: open ${projectDir} — pick your Team under Signing & Capabilities, then Run.`);
+}
+
+/** Pack what a previous build left behind, without rebuilding — what CI runs after
+ *  its build step, and what re-stamps a template whose emit failed. */
+async function emitFromExistingBuild(target, options) {
+    const rootDir = config.paths.root;
+    if (target === 'ios') {
+        return emitNativeTemplate({
+            platform: 'ios', root: rootDir,
+            deploymentTarget: options.iosMin, zipTo: options.templateOut,
+        });
+    }
+    const sdk = requireSdk();
+    return emitNativeTemplate({
+        platform: 'android', abi: options.abi, root: rootDir,
+        dawnBuild: options.dawnBuild || process.env.ESTELLA_DAWN_BUILD,
+        ndk: requireNdk(sdk), sdk, androidPlatform: options.platform, jdk: options.jdk,
+        zipTo: options.templateOut,
+    });
+}
+
 export async function buildNative(options = {}) {
     const target = (options.target || 'android').toLowerCase();
-    if (target === 'ios') return buildIosHost(options);
-    if (target !== 'android') throw new Error(`Unknown --target ${target} (expected android or ios).`);
-    return buildAndroidHost(options);
+    if (target !== 'ios' && target !== 'android') {
+        throw new Error(`Unknown --target ${target} (expected android or ios).`);
+    }
+    if (options.templateOnly) return emitFromExistingBuild(target, options);
+    // On iOS, packaging is ASSEMBLY: the pieces come from the installed runtime
+    // template, so it needs no toolchain and never builds. (Android's assembler
+    // still reads the build tree — see docs/REARCH_NATIVE_DISTRIBUTION.md P1.)
+    if (options.package && target === 'ios') return packageIosProject(options);
+    return target === 'ios' ? buildIosHost(options) : buildAndroidHost(options);
 }

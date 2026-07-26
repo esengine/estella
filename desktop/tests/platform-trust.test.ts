@@ -22,6 +22,7 @@ import { discoverPlugins } from '../electron/pluginHost';
 let root: string;
 let userData: string;
 const dirs = { web: '/nonexistent-web', wechat: '/nonexistent-wechat' };
+const VERSION = '9.9.9';
 
 /** Set by a loaded profile, so a test can prove whether the import actually ran. */
 const IMPORT_MARKER = 'estella-platform-trust-test-imported';
@@ -29,6 +30,8 @@ const IMPORT_MARKER = 'estella-platform-trust-test-imported';
 beforeAll(() => {
   root = mkdtempSync(path.join(tmpdir(), 'estella-platform-'));
   userData = mkdtempSync(path.join(tmpdir(), 'estella-userdata-'));
+  // Keep the native probes off this machine's installed templates.
+  process.env.ESTELLA_NATIVE_TEMPLATES = path.join(root, 'templates');
   mkdirSync(path.join(root, PROJECT_PLATFORM_DIR), { recursive: true });
   writeFileSync(
     path.join(root, PROJECT_PLATFORM_DIR, 'acme.mjs'),
@@ -39,6 +42,7 @@ beforeAll(() => {
 
 afterAll(() => {
   setPlatformTrustGate(null);
+  delete process.env.ESTELLA_NATIVE_TEMPLATES;
   rmSync(root, { recursive: true, force: true });
   rmSync(userData, { recursive: true, force: true });
 });
@@ -48,7 +52,7 @@ afterEach(() => {
   delete (globalThis as Record<string, unknown>)[IMPORT_MARKER];
 });
 
-const acmeRow = async () => (await listPlatforms(root, dirs)).find((p) => p.id === 'acme');
+const acmeRow = async () => (await listPlatforms(root, dirs, VERSION)).find((p) => p.id === 'acme');
 
 describe('project platform trust gate', () => {
   it('does not import an unapproved profile', async () => {

@@ -97,6 +97,20 @@ export type PlatformPrereq =
         kind: 'toolchain-missing';
         /** Which piece is absent — the dialog maps it to a localized sentence. */
         tool: NativeToolchain;
+    }
+    | {
+        /**
+         * No RUNTIME TEMPLATE for this target: the prebuilt engine a native app is
+         * assembled around (see `build-tools/utils/nativeTemplate.js`). Its own kind
+         * because the fix is neither "build the engine" nor "install a toolchain" —
+         * it is an artifact this editor release ships, installed once.
+         */
+        kind: 'template-missing';
+        /** The template looked for (`ios-arm64`). */
+        id: string;
+        /** The version it must carry — this editor's. A template is matched exactly:
+         *  the SDK bundle is compiled into the app binary. */
+        version: string;
     };
 
 /** The native toolchain pieces the editor probes for. */

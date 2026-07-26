@@ -31,6 +31,8 @@ import {
   type PlayableAdProfile,
 } from './playableAdProfile';
 import { BUILTIN_PLATFORMS, type PlatformPrereq } from '../src/project/platforms';
+import { resolveNativeTemplate } from './nativeTemplates';
+import { templateId, DEFAULT_ABI } from '../../build-tools/utils/nativeTemplate.js';
 import type { MiniGameExportProfile, MiniGameConfigContext } from './miniGameExportProfile';
 
 /** Where a project keeps its own platform profiles. */
@@ -99,7 +101,9 @@ function hasNdk(sdk: string): boolean {
 }
 
 /** A built-in target's runtime dependency, as a real file probe. */
-function builtinReadiness(id: string, dirs: PlatformRuntimeDirs): { ready: boolean; prereq?: PlatformPrereq } {
+function builtinReadiness(
+  id: string, dirs: PlatformRuntimeDirs, engineVersion: string,
+): { ready: boolean; prereq?: PlatformPrereq } {
   const has = (dir: string, file: string) => existsSync(path.join(dir, file));
 
   switch (id) {
@@ -131,13 +135,19 @@ function builtinReadiness(id: string, dirs: PlatformRuntimeDirs): { ready: boole
       return hasNdk(sdk) ? { ready: true } : { ready: false, prereq: { kind: 'toolchain-missing', tool: 'android-ndk' } };
     }
 
-    case 'ios':
-      // Apple's toolchain is macOS-only, so this row is honest about the machine
-      // it is running on rather than pretending every editor can finish the job.
+    case 'ios': {
+      // The template comes first because it is the harder blocker: without it the
+      // export cannot even write the Xcode project. WITH it, a Windows editor
+      // writes a complete project (the xcframework included) to carry to a Mac —
+      // the artifact is portable even though Apple's toolchain is not.
+      if (!resolveNativeTemplate('ios', engineVersion)) {
+        return { ready: false, prereq: { kind: 'template-missing', id: templateId('ios', DEFAULT_ABI.ios), version: engineVersion } };
+      }
       if (process.platform !== 'darwin') return { ready: false, prereq: { kind: 'toolchain-missing', tool: 'macos' } };
       return existsSync('/Applications/Xcode.app')
         ? { ready: true }
         : { ready: false, prereq: { kind: 'toolchain-missing', tool: 'xcode' } };
+    }
 
     default:
       return { ready: true };
@@ -613,11 +623,13 @@ export async function loadPlayableProfile(root: string | null, id: string | unde
  * Every platform this project can target, built-ins first, then the project's
  * own — each with its readiness probed.
  */
-export async function listPlatforms(root: string | null, dirs: PlatformRuntimeDirs): Promise<PlatformStatus[]> {
+export async function listPlatforms(
+  root: string | null, dirs: PlatformRuntimeDirs, engineVersion: string,
+): Promise<PlatformStatus[]> {
   const out: PlatformStatus[] = BUILTIN_PLATFORMS.map((id) => ({
     id,
     source: 'builtin' as const,
-    ...builtinReadiness(id, dirs),
+    ...builtinReadiness(id, dirs, engineVersion),
   }));
 
   if (!root) return out;

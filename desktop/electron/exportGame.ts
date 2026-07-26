@@ -37,8 +37,7 @@ import type { PlayableAdProfile } from './playableAdProfile';
 import type { OnExportProgress } from './exportProgress';
 import { ESENGINE_EXTERNAL } from './esengineResolve';
 import { orientationCss, orientationOverlayHtml, orientationLockScript, orientationLockCspHash, type ScreenOrientation } from './orientationHtml';
-
-import { emitIosXcodeProject, type IosProjectSources } from './iosProject';
+import { emitIosXcodeProject, type IosProjectSources } from '../../build-tools/utils/iosProject.js';
 import { isNativePlatform, type ExportPlatform } from '../src/project/platforms';
 import { collectSubsystems, subsystemGapWarnings, targetGaps, type Subsystem } from '../src/project/targetSupport';
 export type { ExportPlatform };
@@ -656,9 +655,9 @@ export async function exportGame(opts: {
         const projectDir = await emitIosXcodeProject(absOut, appConfig, sources);
         xcodeProject = projectDir;
       } else {
-        warnings.push('The engine is not built for iOS on this machine, so no Xcode project was '
-          + 'written — the content is here. Build it once with `node build-tools/cli.js '
-          + '--target ios`, then export again.');
+        warnings.push('No iOS runtime template is installed for this editor version, so no Xcode '
+          + 'project was written — the content is here. Install one from the iOS row in Package '
+          + 'Project, then export again.');
       }
     }
   }

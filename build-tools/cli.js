@@ -172,12 +172,18 @@ program
     .option('--keystore <path>', 'Android --package: signing keystore (default: the debug one)')
     .option('--jdk <dir>', 'JDK home for the APK step (else JAVA_HOME, or the JDK Android Studio bundles)')
     .option('--content <dir>', 'Ship an exported project (Package Project -> Android / iOS) as the app content')
+    .option('--no-template', 'Skip refreshing this machine\'s runtime template with the build')
+    .option('--template-only', 'Emit the runtime template from an existing build, without rebuilding', false)
+    .option('--template-out <dir>', 'Also write the distributable template archive here (for a release)')
     .option('-v, --verbose', 'Verbose output', false)
     .action(async (options) => {
         logger.setVerbose(options.verbose);
         try {
             await buildNative({
                 target: options.target,
+                template: options.template,
+                templateOnly: options.templateOnly,
+                templateOut: options.templateOut,
                 dawn: options.dawn,
                 dawnBuild: options.dawnBuild,
                 quickjs: options.quickjs,

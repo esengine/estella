@@ -31,7 +31,9 @@ import { cookAssets } from './cookAssets';
 import { startProjectWatch, stopProjectWatch } from './projectWatcher';
 import { importAssets, createAsset, IMPORT_EXTENSIONS } from './importAssets';
 import { exportGame } from './exportGame';
-import { iosProjectSources } from './iosProject';
+import {
+  iosSourcesFromTemplate, installNativeTemplate, listNativeTemplates, removeNativeTemplate,
+} from './nativeTemplates';
 import { loopbackServer, closeAllLoopbackServers } from './loopbackServer';
 import { httpContentType } from './mimeTypes';
 import { buildPlayRealm } from './buildPlayRealm';
@@ -793,7 +795,9 @@ ipcMain.handle('project:cookAssets', async (_e, outDir?: string) => {
 // Every platform this project can package for, each with its engine runtime
 // probed on disk — so the Package dialog can say what is ready BEFORE a build
 // runs, and can list the platforms the project defines for itself.
-ipcMain.handle('project:listPlatforms', async () => listPlatforms(projectRoot, platformRuntimeDirs()));
+ipcMain.handle('project:listPlatforms', async () =>
+  listPlatforms(projectRoot, platformRuntimeDirs(), app.getVersion()),
+);
 
 // The ad networks a playable can target — built-ins plus the project's own, so the
 // Packaging page offers a network the editor never heard of on equal terms.
@@ -886,11 +890,10 @@ ipcMain.handle(
       compressAudio: opts?.compressAudio,
       atlasTextures: opts?.atlasTextures,
       // iOS wraps its content in an Xcode project; these are the prebuilt pieces
-      // it needs. Null on an install where the engine was never built for iOS —
-      // the export then says so instead of writing a project that cannot link.
-      iosSources: opts?.platform === 'ios'
-        ? iosProjectSources({ resourcesPath: app.isPackaged ? process.resourcesPath : undefined, repoRoot: REPO_ROOT })
-        : null,
+      // it needs, out of the installed runtime template. Null when none is
+      // installed for this editor version — the export then says so instead of
+      // writing a project that cannot link.
+      iosSources: opts?.platform === 'ios' ? iosSourcesFromTemplate(app.getVersion()) : null,
       onProgress: (p) => e.sender.send('project:exportProgress', p),
     });
   },
@@ -983,6 +986,23 @@ ipcMain.handle('plugins:reveal', async (_e, id: string) => {
   const dir = found.find((p) => p.id === id)?.dir;
   if (dir) shell.openPath(dir);
 });
+
+// — Native runtime templates. The prebuilt engine a mobile target is assembled
+//   around: the editor never compiles one, it installs the release's artifact. —
+ipcMain.handle('nativeTemplates:list', () => listNativeTemplates(app.getVersion()));
+ipcMain.handle('nativeTemplates:install', async () => {
+  if (!win) return { ok: false, error: 'no window' };
+  const res = await dialog.showOpenDialog(win, {
+    title: 'Install a runtime template',
+    filters: [{ name: 'Estella runtime template', extensions: ['zip'] }],
+    properties: ['openFile'],
+  });
+  if (res.canceled || res.filePaths.length === 0) return { ok: false, canceled: true };
+  return installNativeTemplate(res.filePaths[0], app.getVersion());
+});
+ipcMain.handle('nativeTemplates:remove', (_e, platform: 'android' | 'ios', abi: string, version: string) =>
+  removeNativeTemplate(platform, abi, version),
+);
 
 // New-project templates + creation (launcher New tab).
 ipcMain.handle('templates:list', () => listTemplates());

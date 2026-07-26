@@ -13,6 +13,7 @@ import type {
 import type { PlayRealmResult } from './buildPlayRealm';
 import type { LatestRelease } from './updateCheck';
 import type { DiscoveredPlugin, CompiledPlugin } from './pluginHost';
+import type { NativeTemplateEntry, InstallResult } from './nativeTemplates';
 
 // The privileged bridge the renderer is allowed to touch. Keep this surface small
 // and explicit — anything the editor needs from the OS or Node goes through here.
@@ -220,6 +221,16 @@ const api = {
       ipcRenderer.invoke('plugins:setEnabled', id, enabled),
     /** Reveal the plugin's folder in Finder / Explorer. */
     reveal: (id: string): Promise<void> => ipcRenderer.invoke('plugins:reveal', id),
+  },
+  // The prebuilt engine a mobile target is assembled around. The editor installs
+  // one; it never compiles one (see electron/nativeTemplates.ts).
+  nativeTemplates: {
+    list: (): Promise<NativeTemplateEntry[]> => ipcRenderer.invoke('nativeTemplates:list'),
+    /** Pick an archive and install it. Main owns the file dialog, so the renderer
+     *  never handles a path it could have made up. */
+    install: (): Promise<InstallResult & { canceled?: boolean }> => ipcRenderer.invoke('nativeTemplates:install'),
+    remove: (platform: 'android' | 'ios', abi: string, version: string): Promise<boolean> =>
+      ipcRenderer.invoke('nativeTemplates:remove', platform, abi, version),
   },
   // Recent projects (launcher), persisted in userData.
   recents: {
