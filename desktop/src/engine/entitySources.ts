@@ -9,11 +9,16 @@
  * SceneCommands.create pipeline via `createFromSource`. New items — including the
  * future async / asset-driven sources — slot in here without touching the picker
  * UI. (REARCH_ENTITY_CREATION E2.)
+ *
+ * {@link ENTITY_SOURCES} is this module's REGISTRATION input (and what the built-in
+ * catalog tests assert over); pickers read {@link entitySources} so a contributed
+ * template shows up everywhere an entity can be born.
  */
 import type { LucideIcon } from 'lucide-react';
 import { CircleDot, LayoutPanelTop, ToggleLeft, SlidersHorizontal, List, ChevronDown, SquareMousePointer, RectangleHorizontal, Box, Type, Image as ImageIcon, SquareDashed, ScrollText, AppWindow, TextCursorInput, Grid3x3, MapPin, Scan } from 'lucide-react';
 import { BUILTIN_UI_PREFABS, BUILTIN_UI_WIDGET_NAMES, PREFAB_FORMAT_VERSION, getUserComponents, applyThemeToWorld, type PrefabData } from 'esengine';
 import type { EntityId } from '@/types';
+import { ContributionRegistry } from '@/contrib/ContributionRegistry';
 import { componentByName, componentDefaults, prettyLabel, componentCategory } from './schema';
 import { componentGlyph } from '@/components/icons';
 import { SceneCommands } from './SceneCommands';
@@ -322,9 +327,21 @@ export function userComponentSources(): EntitySource[] {
  *  the viewport drop handler agree on one string. */
 export const SOURCE_DND_MIME = 'application/x-estella-source';
 
+const sourceContrib = new ContributionRegistry<EntitySource>('entity template');
+sourceContrib.registerAll('core', ENTITY_SOURCES);
+
+export const entitySourceRegistry = sourceContrib;
+
+/** Every static entity template — built-ins first, then contributed ones. The
+ *  DYNAMIC sources (user components, project prefabs) are separate generators the
+ *  Create popover concatenates, since they change with the project, not the session. */
+export function entitySources(): readonly EntitySource[] {
+  return sourceContrib.all();
+}
+
 /** The source with this id, or null. */
 export function sourceById(id: string): EntitySource | null {
-  return ENTITY_SOURCES.find((s) => s.id === id) ?? null;
+  return sourceContrib.get(id) ?? null;
 }
 
 /** Case-insensitive filter over label + category + keywords, for the Create popover. */
@@ -364,7 +381,7 @@ export async function createFromSource(source: EntitySource, ctx: CreateContext)
   // Canvas can't lay out or be positioned. If the scene has none, spin one up first
   // so the widget is hosted, not orphaned. (Canvas itself has no such placement.)
   if (source.placement === 'under-canvas' && parent == null) {
-    const canvasSrc = ENTITY_SOURCES.find((s) => s.id === 'canvas');
+    const canvasSrc = sourceById('canvas');
     if (canvasSrc) parent = await createFromSource(canvasSrc, { parent: null });
   }
   const id = SceneCommands.create(prefab, {

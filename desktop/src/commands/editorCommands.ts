@@ -266,7 +266,7 @@ commands.register({ id: 'tool.scale', label: t('cmd.tool.scale'), category: t('c
 for (const m of EDITOR_MODES) {
   commands.register({
     id: `mode.${m.id}`,
-    label: t(`cmd.mode.${m.id}`),
+    label: m.commandLabel,
     category: t('cat.tools'),
     isChecked: () => activeMode().id === m.id,
     run: () => {

@@ -6,19 +6,23 @@
  *        sections + settings; the store holds values, SettingsDialog renders from
  *        here. Holds no reactive state — the single source of ids, defaults, and
  *        schema. One place to add a setting; the UI follows automatically.
+ *
+ * Both sets live in a ContributionRegistry, so a plugin's sections + settings are
+ * owned and retractable as a group (the `plugin` nav category is where they land).
  */
 import type { Setting, SettingsSection, SettingCategory } from './types';
+import { ContributionRegistry, type Disposable, type Owner } from '@/contrib/ContributionRegistry';
 
 class SettingsRegistry {
-  private readonly settings = new Map<string, Setting>();
-  private readonly sections = new Map<string, SettingsSection>();
+  private readonly settings = new ContributionRegistry<Setting>('setting');
+  private readonly sections = new ContributionRegistry<SettingsSection>('settings section');
 
-  registerSection(section: SettingsSection): void {
-    this.sections.set(section.id, section);
+  registerSection(section: SettingsSection, owner: Owner = 'core'): Disposable {
+    return this.sections.register(owner, section);
   }
 
-  register(setting: Setting): void {
-    this.settings.set(setting.id, setting);
+  register(setting: Setting, owner: Owner = 'core'): Disposable {
+    return this.settings.register(owner, setting);
   }
 
   get(id: string): Setting | undefined {
@@ -26,7 +30,7 @@ class SettingsRegistry {
   }
 
   all(): Setting[] {
-    return [...this.settings.values()];
+    return [...this.settings.all()];
   }
 
   getSection(id: string): SettingsSection | undefined {
@@ -34,7 +38,8 @@ class SettingsRegistry {
   }
 
   allSections(): SettingsSection[] {
-    return [...this.sections.values()].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    // Stable sort: ties keep registration order (core before plugins).
+    return [...this.sections.all()].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   }
 
   /** Sections grouped by nav category, in declared order. */
@@ -51,6 +56,27 @@ class SettingsRegistry {
   /** Settings in a section, in declared registration order. */
   settingsForSection(sectionId: string): Setting[] {
     return this.all().filter((s) => s.section === sectionId);
+  }
+
+  /** Retract every section + setting of one owner (plugin unload / disable). */
+  disposeOwner(owner: Owner): void {
+    this.settings.disposeOwner(owner);
+    this.sections.disposeOwner(owner);
+  }
+
+  /** Subscribe to either set changing — the dialog re-derives its nav from it. */
+  subscribe(fn: () => void): () => void {
+    const offSettings = this.settings.subscribe(fn);
+    const offSections = this.sections.subscribe(fn);
+    return () => {
+      offSettings();
+      offSections();
+    };
+  }
+
+  /** Snapshot of both sets' identity, for useSyncExternalStore. */
+  getRevision(): number {
+    return this.settings.getRevision() + this.sections.getRevision();
   }
 }
 

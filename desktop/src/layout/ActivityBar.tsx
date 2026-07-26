@@ -2,11 +2,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 // Far-left icon rail (activity bar). Switches the editing mode, reveals docked
 // panels, and toggles the Content Drawer — the summoned quick-access surface.
+import { useSyncExternalStore } from 'react';
 import { ListTree, SlidersHorizontal, SlidersVertical, FolderOpen, Terminal, Clapperboard, Gauge, Settings } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { useEditorMode } from '@/store/editorModeStore';
 import { useSelection } from '@/store/selectionStore';
-import { EDITOR_MODES } from '@/mode/editorModes';
+import { editorModes, editorModeRegistry } from '@/mode/editorModes';
 import { activeMode } from '@/mode/activeMode';
 import { dockApi } from '@/layout/dockApi';
 import { commands } from '@/commands';
@@ -20,17 +21,20 @@ export function ActivityBar() {
   useEditorMode((s) => s.pinned);
   useSelection((s) => s.selectedId);
   const current = activeMode().id;
+  // The mode rail is derived from the registry, so a contributed mode appears
+  // (and a retracted one disappears) without a reload.
+  const modes = useSyncExternalStore(editorModeRegistry.subscribe.bind(editorModeRegistry), editorModes);
 
   return (
     <div className="activity">
-      {EDITOR_MODES.map((m) => {
+      {modes.map((m) => {
         const Icon = m.icon;
         return (
           <button
             key={m.id}
             type="button"
             className={`act${current === m.id ? ' active' : ''}`}
-            title={t(`cmd.mode.${m.id}` as const)}
+            title={m.commandLabel}
             onClick={() => commands.run(`mode.${m.id}`)}
           >
             <Icon size={19} strokeWidth={1.7} />

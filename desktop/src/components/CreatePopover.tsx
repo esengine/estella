@@ -12,7 +12,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ENTITY_SOURCES, userComponentSources, matchSources, CREATE_CATEGORY_ORDER, type EntitySource } from '@/engine/entitySources';
+import { entitySources, userComponentSources, matchSources, CREATE_CATEGORY_ORDER, type EntitySource } from '@/engine/entitySources';
 import { ProjectStore } from '@/project/ProjectStore';
 import { SearchField } from '@/components/SearchField';
 import { useDialogFocus } from '@/components/dialogFocus';
@@ -55,7 +55,7 @@ export function CreatePopover({
 
   // Static builtins + the user's own components + the project's prefab assets;
   // computed once when the popover opens.
-  const all = useMemo(() => [...ENTITY_SOURCES, ...userComponentSources(), ...ProjectStore.prefabSources()], []);
+  const all = useMemo(() => [...entitySources(), ...userComponentSources(), ...ProjectStore.prefabSources()], []);
   const results = useMemo(() => matchSources(all, query), [all, query]);
   const groups = useMemo(() => groupByCategory(results), [results]);
 

@@ -8,7 +8,7 @@
 import { SceneModel } from '@/engine/SceneModel';
 import { useSelection } from '@/store/selectionStore';
 import { useEditorMode } from '@/store/editorModeStore';
-import { EDITOR_MODES, EDITOR_MODE_BY_ID, type EditorModeDef, type SelectionProbe } from './editorModes';
+import { editorModes, modeById, FALLBACK_MODE, type EditorModeDef, type SelectionProbe } from './editorModes';
 
 /** The active selection's component membership, for a mode's `suggestFor`. */
 function probe(): SelectionProbe {
@@ -20,13 +20,14 @@ function probe(): SelectionProbe {
 /** The mode the current selection implies (first matching in priority order, else Scene). */
 export function suggestedMode(): EditorModeDef {
   const p = probe();
-  return EDITOR_MODES.find((m) => m.suggestFor?.(p)) ?? EDITOR_MODE_BY_ID.scene;
+  return editorModes().find((m) => m.suggestFor?.(p)) ?? FALLBACK_MODE;
 }
 
-/** The effective mode: an explicit pin wins, else the selection-suggested mode. */
+/** The effective mode: an explicit pin wins, else the selection-suggested mode. A pin
+ *  naming a mode that's gone (a plugin unloaded while pinned) falls back to derivation. */
 export function activeMode(): EditorModeDef {
   const pinned = useEditorMode.getState().pinned;
-  return pinned ? EDITOR_MODE_BY_ID[pinned] : suggestedMode();
+  return (pinned ? modeById(pinned) : undefined) ?? suggestedMode();
 }
 
 /** The active mode's overlay flags, never undefined (for the viewport rAF gate). */

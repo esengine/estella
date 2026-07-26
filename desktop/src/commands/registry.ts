@@ -2,15 +2,21 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    registry.ts
- * @brief   The editor command registry — one map of id → Command, plus the
- *          dispatch helpers every consumer shares: run by id, query enablement /
- *          checked state, resolve the command bound to a key event. Holds no
- *          reactive state of its own; enablement is derived on demand from the
- *          domain stores the UI already subscribes to.
+ * @brief   The editor command registry — the dispatch helpers every consumer
+ *          shares: run by id, query enablement / checked state, resolve the command
+ *          bound to a key event. Enablement is derived on demand from the domain
+ *          stores the UI already subscribes to, so the registry holds no reactive
+ *          state beyond the contribution set itself.
+ *
+ * The set lives in a ContributionRegistry, so a command carries an owner and a
+ * plugin's commands are retractable as a group. `register(cmd)` keeps its
+ * one-argument shape (implicitly `'core'`) — a built-in registration reads exactly
+ * as before, and there is no separate door for plugins to drift from.
  */
 import type { Command, Keybinding } from './types';
 import { chordMatches, normalizeChord } from './keybinding';
 import { PerfMonitor } from '@/engine/PerfMonitor';
+import { ContributionRegistry, type Disposable, type Owner } from '@/contrib/ContributionRegistry';
 
 const OVERRIDE_KEY = 'estella.keybindings';
 
@@ -18,7 +24,7 @@ const primaryChord = (kb: Keybinding | undefined): string =>
   (Array.isArray(kb) ? kb[0] : kb) ?? '';
 
 class CommandRegistry {
-  private readonly map = new Map<string, Command>();
+  private readonly contrib = new ContributionRegistry<Command>('command');
   // User keybinding overrides (commandId → chord), persisted per-user. The
   // effective binding is `override ?? command.keybinding`, resolved on demand.
   private readonly overrides = new Map<string, string>();
@@ -34,21 +40,43 @@ class CommandRegistry {
     }
   }
 
-  register(cmd: Command): void {
-    this.map.set(cmd.id, cmd);
+  /** Register a command. `owner` defaults to the editor itself; a plugin passes
+   *  its own owner so the returned Disposable (and disposeOwner) can retract it. */
+  register(cmd: Command, owner: Owner = 'core'): Disposable {
+    return this.contrib.register(owner, cmd);
   }
 
   get(id: string): Command | undefined {
-    return this.map.get(id);
+    return this.contrib.get(id);
   }
 
   all(): Command[] {
-    return [...this.map.values()];
+    return [...this.contrib.all()];
+  }
+
+  ownerOf(id: string): Owner | undefined {
+    return this.contrib.ownerOf(id);
+  }
+
+  /** Retract every command of one owner (plugin unload / disable / reload). */
+  disposeOwner(owner: Owner): void {
+    this.contrib.disposeOwner(owner);
+  }
+
+  /** Subscribe to the command SET changing (registrations, not enablement) —
+   *  menus and the palette re-derive from it. Returns an unsubscribe. */
+  subscribe(fn: () => void): () => void {
+    return this.contrib.subscribe(fn);
+  }
+
+  /** Snapshot of the command set's identity, for useSyncExternalStore. */
+  getRevision(): number {
+    return this.contrib.getRevision();
   }
 
   /** Effective keybinding: the user override if set, else the command default. */
   keybindingFor(id: string): Keybinding | undefined {
-    return this.overrides.has(id) ? this.overrides.get(id) : this.map.get(id)?.keybinding;
+    return this.overrides.has(id) ? this.overrides.get(id) : this.contrib.get(id)?.keybinding;
   }
 
   hasOverride(id: string): boolean {
@@ -62,7 +90,7 @@ class CommandRegistry {
   conflictsFor(chord: string, exceptId?: string): string[] {
     const target = normalizeChord(chord);
     const out: string[] = [];
-    for (const c of this.map.values()) {
+    for (const c of this.contrib.all()) {
       if (c.id === exceptId) continue;
       const kb = this.keybindingFor(c.id);
       if (!kb) continue;
@@ -74,7 +102,7 @@ class CommandRegistry {
 
   /** Rebind a command. Setting it back to the default clears the override. */
   setKeybinding(id: string, chord: string): void {
-    if (chord === primaryChord(this.map.get(id)?.keybinding)) this.overrides.delete(id);
+    if (chord === primaryChord(this.contrib.get(id)?.keybinding)) this.overrides.delete(id);
     else this.overrides.set(id, chord);
     this.persistOverrides();
   }
@@ -94,23 +122,23 @@ class CommandRegistry {
   }
 
   isEnabled(id: string): boolean {
-    const c = this.map.get(id);
+    const c = this.contrib.get(id);
     return c ? c.isEnabled?.() ?? true : false;
   }
 
   isChecked(id: string): boolean | undefined {
-    return this.map.get(id)?.isChecked?.();
+    return this.contrib.get(id)?.isChecked?.();
   }
 
   /** Run a command by id (no-op if missing or currently disabled). */
   run(id: string): void {
-    const c = this.map.get(id);
+    const c = this.contrib.get(id);
     if (c && (c.isEnabled?.() ?? true)) PerfMonitor.measure(`cmd.${id}`, () => c.run());
   }
 
   /** The enabled command bound to a key event, if any (honors overrides). */
   forEvent(e: KeyboardEvent): Command | undefined {
-    for (const c of this.map.values()) {
+    for (const c of this.contrib.all()) {
       const kb = this.keybindingFor(c.id);
       if (kb && chordMatches(e, kb) && (c.isEnabled?.() ?? true)) return c;
     }

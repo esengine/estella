@@ -71,7 +71,7 @@ import { SceneQuery, buildEntityInfo, buildInspector } from '@/engine/SceneQuery
 import { SceneModel } from '@/engine/SceneModel';
 import { InspectorClipboard } from '@/engine/inspectorClipboard';
 import { SceneCommands, toModelValue } from '@/engine/SceneCommands';
-import { ENTITY_SOURCES, createFromSource } from '@/engine/entitySources';
+import { sourceById, createFromSource } from '@/engine/entitySources';
 import { PlayInspect } from '@/engine/PlayInspect';
 import { DimensionUnit, AnchorAxis, detectAnchorAxes, UIPositionType, FlexDirection, FlexWrap, JustifyContent, AlignItems, INTERACTION_CONTROLLER, INTERACTION_PAGES, parseLocaleTable, EasingType, BUILTIN_SHADER_TEMPLATES, INVALID_ENTITY } from 'esengine';
 import type { SceneData, InputMapAsset, ActionType, Binding, LocaleTableAsset, PluralCategory, GearValue, GearTween, MaterialAssetData } from 'esengine';
@@ -1572,7 +1572,7 @@ const ADVANCED_FOLD = '__advanced__';
 async function addTextLayoutBox(sourceId: EntityId): Promise<void> {
   let canvas = SceneCommands.findCanvas();
   if (canvas == null) {
-    const src = ENTITY_SOURCES.find((s) => s.id === 'canvas');
+    const src = sourceById('canvas');
     canvas = src ? await createFromSource(src, { parent: null }) : null;
   }
   if (canvas != null) SceneCommands.attachUINodeBox(sourceId, canvas, 240, 80);
@@ -1602,7 +1602,7 @@ function hasCanvasAncestor(sourceId: EntityId): boolean {
 async function placeUnderCanvas(sourceIds: EntityId[]): Promise<void> {
   let canvas = SceneCommands.findCanvas();
   if (canvas == null) {
-    const src = ENTITY_SOURCES.find((s) => s.id === 'canvas');
+    const src = sourceById('canvas');
     canvas = src ? await createFromSource(src, { parent: null }) : null;
   }
   if (canvas == null) return;

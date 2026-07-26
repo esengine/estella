@@ -20,7 +20,7 @@ vi.mock('@/engine/SceneModel', () => ({
   },
 }));
 
-import { EDITOR_MODES, EDITOR_MODE_BY_ID } from '@/mode/editorModes';
+import { EDITOR_MODES, EDITOR_MODE_BY_ID, editorModes, modeById, editorModeRegistry } from '@/mode/editorModes';
 import { suggestedMode, activeMode } from '@/mode/activeMode';
 import { resolveActiveTool } from '@/tools';
 import { TILE_TOOLS } from '@/tools/tileTools';
@@ -109,5 +109,38 @@ describe('editor-mode registry + derivation', () => {
     useTilemapPaint.getState().setTool('brush');
     useEditorMode.getState().setMode('scene');
     expect(tileTools).not.toContain(resolveActiveTool());
+  });
+
+  it('the built-in table is exactly the core registration set', () => {
+    expect(editorModes().map((m) => m.id)).toEqual(EDITOR_MODES.map((m) => m.id));
+    expect(modeById('tilemap')).toBe(EDITOR_MODE_BY_ID.tilemap);
+    expect(modeById('nope')).toBeUndefined();
+  });
+
+  it('a contributed mode is visible, pinnable, and retracted with its owner', () => {
+    const contributed = {
+      id: 'acme.paint',
+      label: 'Paint',
+      commandLabel: 'Paint Mode',
+      icon: EDITOR_MODE_BY_ID.scene.icon,
+      toolset: 'transform' as const,
+      suggestFor: (s: { hasComponent(t: string): boolean }) => s.hasComponent('AcmeCanvas'),
+    };
+    const d = editorModeRegistry.register('plugin:acme', contributed);
+
+    // Built-ins keep priority: a contributed mode sorts after them.
+    expect(editorModes().map((m) => m.id)).toEqual([...EDITOR_MODES.map((m) => m.id), 'acme.paint']);
+    expect(modeById('acme.paint')).toBe(contributed);
+    withComponents('AcmeCanvas');
+    expect(suggestedMode().id).toBe('acme.paint');
+    useEditorMode.getState().setMode('acme.paint');
+    expect(activeMode().id).toBe('acme.paint');
+
+    // Unloading the plugin while its mode is pinned must not wedge the editor —
+    // resolution falls back to derivation rather than a dangling pin.
+    d.dispose();
+    expect(modeById('acme.paint')).toBeUndefined();
+    expect(activeMode().id).toBe('scene');
+    useEditorMode.getState().clearPin();
   });
 });

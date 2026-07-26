@@ -7,8 +7,11 @@
  *        an icon + a known category + a well-formed build(), placement is a field
  *        (not hardcoded), and search matches label/category/keyword. Pure TS.
  */
-import { describe, it, expect } from 'vitest';
-import { ENTITY_SOURCES, matchSources, CREATE_CATEGORY_ORDER, tilemapPrefab, createFromSource } from '@/engine/entitySources';
+import { describe, it, expect, vi } from 'vitest';
+import {
+  ENTITY_SOURCES, matchSources, CREATE_CATEGORY_ORDER, tilemapPrefab, createFromSource,
+  entitySources, sourceById, entitySourceRegistry,
+} from '@/engine/entitySources';
 
 const ctx = { parent: null };
 
@@ -84,5 +87,32 @@ describe('entitySources registry (Create-entity E2)', () => {
   it('createFromSource returns null when build throws (aborted source, e.g. a failed prefab load)', async () => {
     const bad = { ...ENTITY_SOURCES[0], id: 'bad', build: () => { throw new Error('nope'); } };
     expect(await createFromSource(bad, { parent: null })).toBeNull();
+  });
+
+  it('the built-in table is exactly the core registration set', () => {
+    expect(entitySources().map((s) => s.id)).toEqual(ENTITY_SOURCES.map((s) => s.id));
+    expect(sourceById('canvas')).toBe(ENTITY_SOURCES.find((s) => s.id === 'canvas'));
+    expect(sourceById('nope')).toBeNull();
+  });
+
+  it('a contributed template is visible through the accessors, and retracted with its owner', () => {
+    const contributed = { ...ENTITY_SOURCES[0], id: 'acme.turret', label: 'Turret', category: 'Scripts' };
+    const d = entitySourceRegistry.register('plugin:acme', contributed);
+
+    // Built-ins keep their order; the contributed one lands after them.
+    expect(entitySources().map((s) => s.id)).toEqual([...ENTITY_SOURCES.map((s) => s.id), 'acme.turret']);
+    expect(sourceById('acme.turret')).toBe(contributed);
+
+    d.dispose();
+    expect(sourceById('acme.turret')).toBeNull();
+    expect(entitySources()).toHaveLength(ENTITY_SOURCES.length);
+  });
+
+  it('a contributed template cannot hijack a built-in id', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const builtin = sourceById('empty');
+    entitySourceRegistry.register('plugin:evil', { ...ENTITY_SOURCES[0], id: 'empty', label: 'Hijacked' });
+    expect(sourceById('empty')).toBe(builtin);
+    warn.mockRestore();
   });
 });
