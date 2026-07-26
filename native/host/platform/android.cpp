@@ -20,8 +20,11 @@
 #include <android/font.h>
 #include <android/font_matcher.h>
 #include <android/native_window.h>
+#include <android/performance_hint.h>
 #include <jni.h>
+#include <unistd.h>
 
+#include <chrono>
 #include <thread>
 
 #include "Host.hpp"
@@ -294,6 +297,50 @@ void onAppCmd(android_app* app, int32_t cmd) {
     }
 }
 
+// Performance hints (ADPF)
+//
+// Left to itself the governor infers demand from trailing utilization, which it
+// samples over ~200ms — so a steady frame loop reads as ordinary background load
+// and settles at a fraction of the available clock, however hard it is working.
+// (A touch is what raises the floor, which is why one makes the frame rate jump.)
+// A hint session states the thing utilization cannot: this thread has a deadline.
+// The loop then reports what each frame actually cost, and the system ramps on
+// that instead of on a guess. Busy-waiting to fake demand is the alternative the
+// platform documentation explicitly warns against.
+struct PerformanceHints {
+    APerformanceHintSession* session = nullptr;
+
+    // The host steps the SDK at a fixed 60 Hz, so that is the deadline to state.
+    static constexpr int64_t kFrameBudgetNanos = 16'666'667;
+
+    void open() {
+        if (__builtin_available(android 31, *)) {
+            APerformanceHintManager* manager = APerformanceHint_getManager();
+            if (!manager) return;   // no session on a device (or emulator) without one
+            // The frame loop's own thread, and it lives as long as the app does —
+            // the session wants long-lived tids, not ones that come and go.
+            const int32_t tid = static_cast<int32_t>(gettid());
+            session = APerformanceHint_createSession(manager, &tid, 1, kFrameBudgetNanos);
+        }
+        __android_log_print(session ? ANDROID_LOG_INFO : ANDROID_LOG_WARN, LOG_TAG,
+                            "perf hints: %s", session ? "session up (ADPF)" : "unavailable");
+    }
+
+    void report(std::chrono::steady_clock::duration frame) {
+        if (!session) return;
+        const auto nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(frame).count();
+        if (nanos <= 0) return;   // the API rejects a non-positive duration
+        if (__builtin_available(android 31, *)) {
+            APerformanceHint_reportActualWorkDuration(session, nanos);
+        }
+    }
+
+    ~PerformanceHints() {
+        if (!session) return;
+        if (__builtin_available(android 31, *)) APerformanceHint_closeSession(session);
+    }
+};
+
 }  // namespace
 
 void android_main(android_app* app) {
@@ -302,6 +349,8 @@ void android_main(android_app* app) {
     if (app->activity->internalDataPath) g_platform.cache = app->activity->internalDataPath;
     app->onAppCmd = onAppCmd;
     app->onInputEvent = onInput;
+    PerformanceHints hints;
+    hints.open();
     while (true) {
         int events;
         android_poll_source* source;
@@ -313,6 +362,11 @@ void android_main(android_app* app) {
             if (app->destroyRequested) return;
             timeoutMs = 0;
         }
+        // Timed around the frame alone: the poll above blocks while the screen is
+        // off, and reporting that wait as work would tell the system this frame
+        // took seconds.
+        const auto begin = std::chrono::steady_clock::now();
         eshost::frame();
+        hints.report(std::chrono::steady_clock::now() - begin);
     }
 }
