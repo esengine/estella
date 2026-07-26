@@ -7,12 +7,15 @@
  * entity, for layout that must size to content up front — e.g. a ListView row
  * that grows with a wrapped chat bubble (`itemHeight(index)`).
  *
- * Metrics come from a hidden Canvas2D context, the SAME source the glyph atlas
- * draws advances from, so a measured wrap matches the rendered one. Word-wrapping
- * reuses {@link wrapByMeasure}, the one wrap algorithm the renderer uses. With no
- * DOM (headless/logic-only host) it falls back to an average-glyph estimate.
+ * Metrics come from the SAME source the glyph atlas draws advances from, so a
+ * measured wrap matches the rendered one: a hidden Canvas2D context on the web,
+ * the platform's own glyph rasterizer on a device. Word-wrapping reuses
+ * {@link wrapByMeasure}, the one wrap algorithm the renderer uses. Only a host
+ * with neither (headless/logic-only) falls back to an average-glyph estimate.
  */
 import { DEFAULT_FONT_FAMILY, DEFAULT_LINE_HEIGHT } from '../../defaults';
+import { platformHasGlyphRasterizer, platformRasterizeGlyph } from '../../platform';
+import { FONT_STYLE_BOLD, FONT_STYLE_ITALIC } from './glyph-rasterizer';
 import { wrapByMeasure } from './layout';
 
 export interface MeasureTextOptions {
@@ -43,8 +46,31 @@ type Measurer = (s: string) => number;
 
 let ctx_: CanvasRenderingContext2D | null | undefined;
 
-/** A width measurer for `opts`: Canvas2D `measureText` where a DOM exists, else
- *  an average-advance estimate (headless). */
+/** Pen advances from the platform's own glyph source, by
+ *  `family|style|size|codepoint`. A device rasterizes each glyph once here, as
+ *  the draw atlas does for the sizes it draws at. */
+const advances_ = new Map<string, number>();
+
+function platformAdvance(
+    codepoint: number, family: string, style: number, fontSize: number,
+): number {
+    const key = `${family}|${style}|${fontSize}|${codepoint}`;
+    const hit = advances_.get(key);
+    if (hit !== undefined) return hit;
+    // Plain coverage at the display size: the advance is all this wants, and a
+    // bitmap glyph is a fraction of the work an SDF one costs to produce.
+    const glyph = platformRasterizeGlyph({
+        codepoint, fontFamily: family, style, pixelSize: fontSize, sdf: false, padding: 0,
+    });
+    const advance = glyph ? glyph.advance : fontSize * 0.6;
+    advances_.set(key, advance);
+    return advance;
+}
+
+/** A width measurer for `opts`: Canvas2D `measureText` where a DOM exists, the
+ *  platform's glyph source where it does not (a device — the SAME font stack the
+ *  renderer draws with, so a measured wrap still matches the rendered one), and
+ *  an average-advance estimate only where there is neither (headless). */
 function measurer(opts: MeasureTextOptions): Measurer {
     const family = opts.fontFamily ?? DEFAULT_FONT_FAMILY;
     const spacing = opts.letterSpacing ?? 0;
@@ -57,6 +83,14 @@ function measurer(opts: MeasureTextOptions): Measurer {
         const ctx = ctx_;
         ctx.font = `${opts.italic ? 'italic ' : ''}${opts.bold ? 'bold ' : ''}${opts.fontSize}px ${family}`;
         return (s) => ctx.measureText(s).width + [...s].length * spacing;
+    }
+    if (platformHasGlyphRasterizer()) {
+        const style = (opts.bold ? FONT_STYLE_BOLD : 0) | (opts.italic ? FONT_STYLE_ITALIC : 0);
+        return (s) => {
+            let width = 0;
+            for (const ch of s) width += platformAdvance(ch.codePointAt(0)!, family, style, opts.fontSize) + spacing;
+            return width;
+        };
     }
     // Headless fallback: a wide-ish average so wraps don't under-count.
     const avg = opts.fontSize * 0.6 + spacing;
