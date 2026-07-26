@@ -271,9 +271,14 @@ export async function loadRuntimeScene(options: LoadRuntimeSceneOptions): Promis
     const sceneAssets = runtimeAssets;
     // Video source refs resolve through the SAME channel as every other asset
     // (the editor's play realm wires this too) — a cooked build maps the
-    // authored logical ref (clip.mp4 / @uuid) to its staged .esv.
+    // authored logical ref (clip.mp4 / @uuid) to its staged .esv. The staged path
+    // then goes through the realm's backend, because what a video element needs is
+    // a URL it can open: identity for http/filesystem realms, the inlined data URL
+    // for the single-file playable (where there is no file to fetch at all).
     if (source.resolveRef && app.hasResource(VideoPlayer)) {
-        app.getResource(VideoPlayer).setRefResolver(source.resolveRef);
+        const resolveRef = source.resolveRef;
+        const backend = source.backend;
+        app.getResource(VideoPlayer).setRefResolver((ref) => backend.resolveUrl(resolveRef(ref)));
     }
     mergeSceneTextureImportSettings(sceneAssets, sceneData, source.resolveRef ?? ((r) => r));
     const assetResult = await sceneAssets.preloadSceneAssets(sceneData, undefined, { skipSpine: true });

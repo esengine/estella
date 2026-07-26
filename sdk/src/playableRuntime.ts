@@ -105,9 +105,10 @@ export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promis
     // resolveRef contract; a ref with no known path (or already a path) passes
     // through, and the backend resolves both spellings off the same aliased map.
     const backend = new EmbeddedBackend(assets);
+    const resolveRefToPath = (ref: string): string => keyToPath[ref] ?? ref;
     const source: RuntimeAssetSource = {
         backend,
-        resolveRef: (ref) => keyToPath[ref] ?? ref,
+        resolveRef: resolveRefToPath,
         decodePixels: (path) => loadImagePixels(backend.resolveUrl(path)),
         // Map keys are the shippable paths (logical aliases included) — the
         // .eslocale discovery filters on extension, so aliases resolve fine.
@@ -122,12 +123,12 @@ export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promis
         });
     }
 
-    // Video source refs resolve through the SAME embedded map — the Video
-    // component's clip and VideoPlayer.play() both get the inlined data URL, so
-    // the single-file playable never fetches an external file (a `file://` page
-    // is a null origin and its sibling requests are CORS-blocked).
+    // A single-file playable makes NO external requests, so a video's ref has to
+    // come out as the inlined data URL — the path→URL step the backend owns. Same
+    // composition the scene loader installs (it re-binds this per scene load); both
+    // spell it out so a play() before the first scene resolves too.
     if (app.hasResource(VideoPlayer)) {
-        app.getResource(VideoPlayer).setRefResolver((ref) => assets[ref] ?? ref);
+        app.getResource(VideoPlayer).setRefResolver((ref) => backend.resolveUrl(resolveRefToPath(ref)));
     }
 
     await initRuntime({
