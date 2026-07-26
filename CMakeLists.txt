@@ -8,7 +8,6 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 option(ES_BUILD_WEB "Build for Web/Emscripten" OFF)
 option(ES_BUILD_WXGAME "Build for WeChat MiniGame" OFF)
 option(ES_BUILD_TESTS "Build tests" ON)
-option(ES_BUILD_SINGLE_FILE "Build single-file SDK (WASM inlined)" OFF)
 option(ES_ENABLE_SPINE "Enable Spine animation support" ON)
 option(ES_ENABLE_BOX2D "Enable Box2D physics support" OFF)
 option(ES_ENABLE_TILEMAP "Enable Tilemap support" ON)
@@ -284,87 +283,6 @@ if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
         OUTPUT_NAME "esengine"
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/sdk"
     )
-
-    # Single-file SDK (WASM inlined as Base64, for playable ads)
-    if(ES_BUILD_SINGLE_FILE)
-        add_executable(esengine_single ${SDK_BINDING_SOURCES})
-        target_link_libraries(esengine_single PRIVATE esengine)
-        es_apply_single_file_settings(esengine_single)
-
-        set_target_properties(esengine_single PROPERTIES
-            OUTPUT_NAME "esengine.single"
-            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/sdk"
-        )
-
-        # Generate playable ad HTML template
-        file(WRITE "${CMAKE_BINARY_DIR}/sdk/playable.html.in" [=[
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
-<meta name="ad.size" content="width=320,height=480">
-<title>Playable</title>
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-html,body{width:100%;height:100%;overflow:hidden;background:#1a1a1a}
-#canvas{display:block;width:100%;height:100%;touch-action:none}
-</style>
-</head>
-<body>
-<canvas id="canvas"></canvas>
-<script>
-// ESEngine Single-File SDK will be inlined here
-// SDK_PLACEHOLDER
-</script>
-<script>
-(function(){
-  function resizeCanvas(){
-    var c=document.getElementById('canvas');
-    var dpr=window.devicePixelRatio||1;
-    c.width=window.innerWidth*dpr;
-    c.height=window.innerHeight*dpr;
-  }
-  window.addEventListener('resize',resizeCanvas);
-  resizeCanvas();
-
-  ESEngineModule({
-    canvas:document.getElementById('canvas'),
-    print:function(t){console.log(t)},
-    printErr:function(t){console.error(t)}
-  }).then(function(Module){
-    var Registry=new Module.Registry();
-    Module.initRenderer();
-
-    // Create camera
-    var cam=Registry.create();
-    Registry.addCamera(cam,{projectionType:1,fov:60,orthoSize:400,nearPlane:0.1,farPlane:1000,aspectRatio:1,isActive:true,priority:0});
-    Registry.addLocalTransform(cam,{position:{x:0,y:0,z:10},rotation:{w:1,x:0,y:0,z:0},scale:{x:1,y:1,z:1}});
-
-    // Create sprite
-    var spr=Registry.create();
-    Registry.addSprite(spr,{texture:0,color:{x:1,y:0.5,z:0.2,w:1},size:{x:100,y:100},uvOffset:{x:0,y:0},uvScale:{x:1,y:1},layer:0,flipX:false,flipY:false});
-    Registry.addLocalTransform(spr,{position:{x:0,y:0,z:0},rotation:{w:1,x:0,y:0,z:0},scale:{x:1,y:1,z:1}});
-
-    var start=performance.now();
-    function loop(){
-      var t=(performance.now()-start)/1000;
-      var tr=Registry.getLocalTransform(spr);
-      tr.position.x=Math.sin(t)*100;
-      tr.position.y=Math.cos(t)*100;
-      var vp=window.innerWidth*(window.devicePixelRatio||1);
-      var vh=window.innerHeight*(window.devicePixelRatio||1);
-      Module.renderFrame(Registry,vp,vh);
-      requestAnimationFrame(loop);
-    }
-    loop();
-  });
-})();
-</script>
-</body>
-</html>
-]=])
-    endif()
 
     # Core-only SDK (no Spine, for modular builds)
     if(NOT ES_ENABLE_SPINE)

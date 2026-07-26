@@ -246,29 +246,6 @@ set(ES_EMSCRIPTEN_SDK_LINK_FLAGS
     --closure=0
 )
 
-# Single-file SDK link flags (WASM inlined as Base64, for playable ads)
-# Uses IIFE pattern instead of ES6 modules for maximum compatibility
-set(ES_EMSCRIPTEN_SINGLE_FILE_FLAGS
-    --bind
-    -sWASM=1
-    -sSINGLE_FILE=1
-    -sUSE_WEBGL2=1
-    -sFULL_ES3=1
-    -sALLOW_MEMORY_GROWTH=1
-    -sNO_EXIT_RUNTIME=1
-    -sENVIRONMENT=web
-    -sMODULARIZE=1
-    "-sEXPORT_NAME='ESEngineModule'"
-    -sFORCE_FILESYSTEM=1
-    "-sEXPORTED_FUNCTIONS=['_malloc','_free']"
-    # 'GL' is required for the WebGL2 context binding (module.GL.registerContext),
-    # same as the web/wechat SDK builds — the playable host registers its canvas GL.
-    "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32','GL','FS']"
-    -Oz
-    -flto
-    -Wl,--gc-sections
-)
-
 function(es_apply_sdk_settings TARGET_NAME)
     if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
         target_compile_options(${TARGET_NAME} PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS} -flto -fno-exceptions)
@@ -281,17 +258,6 @@ function(es_apply_sdk_settings TARGET_NAME)
     endif()
 endfunction()
 
-function(es_apply_single_file_settings TARGET_NAME)
-    if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
-        target_compile_options(${TARGET_NAME} PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS} -flto -fno-exceptions)
-
-        string(REPLACE ";" " " LINK_FLAGS_STR "${ES_EMSCRIPTEN_SINGLE_FILE_FLAGS}")
-        set_target_properties(${TARGET_NAME} PROPERTIES
-            SUFFIX ".js"
-            LINK_FLAGS "${LINK_FLAGS_STR}"
-        )
-    endif()
-endfunction()
 
 function(es_apply_wxgame_sdk_settings TARGET_NAME)
     if(ES_BUILD_WXGAME)

@@ -17,7 +17,6 @@ export default {
     optimization: {
         web: { cmakeOpt: '-O2', wasmOpt: '-O2' },
         wechat: { cmakeOpt: '-O2', wasmOpt: '-O2' },
-        playable: { cmakeOpt: '-Oz', wasmOpt: '-Oz' },
     },
 
     wasm: {
@@ -40,14 +39,6 @@ export default {
             outputs: {
                 'sdk/esengine.wxgame.js': 'wasm/wechat/esengine.wxgame.js',
                 'sdk/esengine.wxgame.wasm': 'wasm/wechat/esengine.wxgame.wasm',
-            },
-        },
-        playable: {
-            buildDir: 'build-playable',
-            cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_BUILD_SINGLE_FILE=ON'],
-            targets: ['esengine_single'],
-            outputs: {
-                'sdk/esengine.single.js': 'wasm/playable/esengine.single.js',
             },
         },
         physics: {
@@ -188,7 +179,6 @@ export default {
             // wasm-wechat first) — web-aligned filenames (physics.js, spine42.js, …)
             // would otherwise overwrite the web modules in desktop/public/wasm.
             'build/wasm/wechat': 'desktop/public/wasm-wechat',
-            'build/wasm/playable': 'desktop/public/wasm',
         },
         sdk: {
             'build/sdk/esm': 'desktop/public/sdk/esm',

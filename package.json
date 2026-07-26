@@ -8,7 +8,6 @@
     "build": "node build-tools/cli.js build",
     "build:web": "node build-tools/cli.js build -t web",
     "build:wechat": "node build-tools/cli.js build -t wechat",
-    "build:playable": "node build-tools/cli.js build -t playable",
     "build:sdk": "node build-tools/cli.js sdk",
     "build:all": "node build-tools/cli.js build -t all",
     "dev": "node build-tools/cli.js watch",
