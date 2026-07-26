@@ -60,6 +60,17 @@ export interface NumberSetting extends BaseSetting<number> {
 export interface EnumSetting extends BaseSetting<string> {
   type: 'enum';
   options: { value: string; label: string }[];
+  /**
+   * Choices discovered at open time rather than known when the descriptor was
+   * written — the playable's ad networks, for one, include whatever profiles the
+   * PROJECT defines on disk. Consulted first; `options` remains the fallback (and
+   * the answer while the provider's data is still loading).
+   */
+  optionsProvider?: () => { value: string; label: string }[];
+  /** Load whatever {@link optionsProvider} reads. The dialog awaits every setting's
+   *  on open and re-renders, so a descriptor can source its choices from disk
+   *  without the dialog knowing which setting did. */
+  prepareOptions?: () => Promise<void>;
   /** Render as a segmented control instead of a dropdown. */
   segmented?: boolean;
 }

@@ -255,14 +255,18 @@ function Control({ setting }: { setting: Setting }) {
           }}
         />
       );
-    case 'enum':
+    case 'enum': {
+      // A provider's choices come from disk (e.g. the project's own ad-network
+      // profiles), so they win over the descriptor's static list.
+      const options = (setting.optionsProvider?.() ?? setting.options)
+        .map((o) => ({ value: o.value, label: o.label }));
       if (setting.segmented) {
         return (
           <Segmented
             value={String(value)}
             onChange={(v) => setValue(setting.id, v)}
             ariaLabel={setting.label}
-            options={setting.options.map((o) => ({ value: o.value, label: o.label }))}
+            options={options}
           />
         );
       }
@@ -270,10 +274,11 @@ function Control({ setting }: { setting: Setting }) {
         <Select
           ariaLabel={setting.label}
           value={String(value)}
-          options={setting.options.map((o) => ({ value: o.value, label: o.label }))}
+          options={options}
           onChange={(v) => setValue(setting.id, v)}
         />
       );
+    }
     case 'number':
       return <NumberControl setting={setting} />;
     case 'color':
@@ -373,6 +378,20 @@ export function SettingsDialog() {
 
   // Subscribe so rows reflect live changes of bound (editorStore) settings too.
   useEditorStore((s) => `${s.showGrid}|${s.showGizmos}|${s.snapping}|${s.snapStep}`);
+
+  // Settings whose choices live on disk (the playable's ad networks, for one) load
+  // them here; the bump re-renders once they are in. Generic on purpose — the dialog
+  // asks every descriptor and never learns which one needed it.
+  const [, bumpOptions] = useState(0);
+  useEffect(() => {
+    const pending = settingsRegistry.all()
+      .map((s) => (s.type === 'enum' ? s.prepareOptions?.() : undefined))
+      .filter((p): p is Promise<void> => !!p);
+    if (pending.length === 0) return;
+    let live = true;
+    void Promise.allSettled(pending).then(() => { if (live) bumpOptions((n) => n + 1); });
+    return () => { live = false; };
+  }, []);
 
   useEffect(() => {
     const raf = requestAnimationFrame(() => setOpen(true));

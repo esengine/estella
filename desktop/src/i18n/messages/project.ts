@@ -67,9 +67,12 @@ export const projectMessages = defineMessages({
     'build.newPlatform': { en: 'New platform', zh: '新建平台' },
     'build.newPlatformTitle': { en: 'New project platform', zh: '新建项目平台' },
     'build.newPlatformBlurb': {
-        en: 'Estella writes both halves of the vendor — the packaging profile and the runtime profile it points at — already joined. Edit them to describe your host.',
-        zh: 'Estella 会把平台的两半都写好——打包配置，以及它指向的运行时配置——并且已经连接好。之后你只需编辑它们来描述你的宿主。',
+        en: 'A mini-game host gets both halves written and already joined — the packaging profile and the runtime profile it points at. An ad network is one file: a playable always runs in a browser, so only its size limit, its <head> markup and its click-through API differ.',
+        zh: '小游戏宿主会写好两半并连接完毕——打包配置，以及它指向的运行时配置。广告平台只需一个文件：试玩包始终跑在浏览器里，只有体积上限、<head> 注入内容与点击跳转接口不同。',
     },
+    'build.platformKind': { en: 'Kind', zh: '类型' },
+    'build.platformKind.minigame': { en: 'Mini-game host', zh: '小游戏宿主' },
+    'build.platformKind.playable': { en: 'Playable ad network', zh: '试玩广告平台' },
     'build.platformId': { en: 'Id', zh: '标识' },
     'build.platformIdTip': {
         en: 'Lowercase letters, digits and dashes. Also the per-texture Import Settings key for this platform.',
@@ -80,6 +83,10 @@ export const projectMessages = defineMessages({
     'build.created': {
         en: 'Created {packaging} and {runtime}. Edit them to describe your host, then package.',
         zh: '已创建 {packaging} 与 {runtime}。编辑它们来描述你的宿主，然后就可以打包。',
+    },
+    'build.createdNetwork': {
+        en: 'Created {file}. Fill in its limit and CTA bridge, then select "{label}" in Project Settings → Packaging → Playable.',
+        zh: '已创建 {file}。填好它的体积上限与 CTA 桥接后，在 项目设置 → 打包 → 试玩广告 里选择“{label}”。',
     },
     'build.revealFiles': { en: 'Show files', zh: '显示文件' },
     'build.noCustomPlatforms': {

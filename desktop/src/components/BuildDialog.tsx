@@ -207,7 +207,12 @@ export function BuildDialog() {
   const [newId, setNewId] = useState('my-platform');
   const [newLabel, setNewLabel] = useState('My Platform');
   const [createErr, setCreateErr] = useState<string | null>(null);
-  const [created, setCreated] = useState<{ id: string; packaging: string; runtime: string } | null>(null);
+  const [created, setCreated] = useState<{ id: string; packaging: string; runtime?: string } | null>(null);
+  // Mini-game vendor or playable ad network — two extension points, one form. A
+  // network is NOT a platform row (it is chosen inside the playable target), so
+  // creating one lands on a note rather than on a new selection.
+  const [newKind, setNewKind] = useState<'minigame' | 'playable'>('minigame');
+  const [createdNetwork, setCreatedNetwork] = useState<{ id: string; file: string } | null>(null);
   const [phase, setPhase] = useState<Phase>('idle');
   const [result, setResult] = useState<Result | null>(null);
   const [log, setLog] = useState<string[]>([]);
@@ -295,12 +300,19 @@ export function BuildDialog() {
 
   const createPlatform = async () => {
     setCreateErr(null);
-    const res = await window.estella.project?.createPlatform?.(newId.trim(), newLabel.trim());
+    const res = await window.estella.project?.createPlatform?.(newId.trim(), newLabel.trim(), newKind);
     if (!res?.ok) {
       setCreateErr(res?.error ?? t('build.packageFailed'));
       return;
     }
     const id = newId.trim();
+    // An ad network joins the playable target's network list, not the platform nav.
+    if (newKind === 'playable') {
+      setCreatedNetwork({ id, file: res.packagingFile! });
+      setCreating(false);
+      setPlatform('playable');
+      return;
+    }
     setCreated({ id, packaging: res.packagingFile!, runtime: res.runtimeFile! });
     // Re-read the catalog so the new platform joins the nav, then select it.
     const rows = (await window.estella.project?.listPlatforms?.()) ?? [];
@@ -478,6 +490,18 @@ export function BuildDialog() {
               </div>
               <Group title={t('build.newPlatform')}>
                 <div className="build__row">
+                  <span className="build__label">{t('build.platformKind')}</span>
+                  <Segmented
+                    value={newKind}
+                    onChange={(v) => setNewKind(v as 'minigame' | 'playable')}
+                    ariaLabel={t('build.platformKind')}
+                    options={[
+                      { value: 'minigame', label: t('build.platformKind.minigame') },
+                      { value: 'playable', label: t('build.platformKind.playable') },
+                    ]}
+                  />
+                </div>
+                <div className="build__row">
                   <span className="build__label" title={t('build.platformIdTip')}>{t('build.platformId')}</span>
                   <input value={newId} spellCheck={false} onChange={(e) => setNewId(e.target.value)} />
                 </div>
@@ -505,12 +529,28 @@ export function BuildDialog() {
             <span className="build__blurb">{def.blurb}</span>
           </div>
 
+          {createdNetwork && def.id === 'playable' && (
+            <div className="build__prereq">
+              <CheckCircle2 size={13} />
+              <div className="build__prereq-body">
+                <span className="selectable">
+                  {t('build.createdNetwork', { file: createdNetwork.file, label: createdNetwork.id })}
+                </span>
+                <div className="build__fix">
+                  <Button onClick={() => void window.estella.shell?.showItem?.(createdNetwork.file)}>
+                    <FolderOpen size={12} /> {t('build.revealFiles')}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {created?.id === def.id && (
             <div className="build__prereq">
               <CheckCircle2 size={13} />
               <div className="build__prereq-body">
                 <span className="selectable">
-                  {t('build.created', { packaging: created.packaging, runtime: created.runtime })}
+                  {t('build.created', { packaging: created.packaging, runtime: created.runtime ?? '' })}
                 </span>
                 <div className="build__fix">
                   <Button onClick={() => void window.estella.shell?.showItem?.(created.packaging)}>
