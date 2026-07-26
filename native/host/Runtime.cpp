@@ -378,6 +378,7 @@ void initRuntime(HostState& h) {
     registerAssetBindings(h, global);
     registerAudioBindings(h, global);
     registerNetBindings(h, global);
+    registerTextEditorBindings(h, global);
 
     // The generated halves: per-component accessors, then the engine's binding
     // entry points — both from the same reflection the web's embind bindings come

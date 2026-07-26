@@ -42,8 +42,10 @@ const exe = process.platform === 'win32' ? '.exe' : '';
 export function buildTool(sdk, name) {
     const dir = newest(path.join(sdk, 'build-tools'));
     if (!dir) throw new Error(`No build-tools under ${sdk}/build-tools. Install them via the SDK Manager.`);
-    // apksigner is a script (.bat on Windows), the rest are native binaries.
-    const suffix = name === 'apksigner' ? (process.platform === 'win32' ? '.bat' : '') : exe;
+    // apksigner and d8 are JVM launchers — a shell script, or a .bat on Windows;
+    // the rest are native binaries.
+    const script = name === 'apksigner' || name === 'd8';
+    const suffix = script ? (process.platform === 'win32' ? '.bat' : '') : exe;
     const tool = path.join(dir, name + suffix);
     if (!existsSync(tool)) throw new Error(`${name} not found at ${tool}.`);
     return tool;

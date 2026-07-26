@@ -51,8 +51,17 @@ void registerAudioBindings(HostState& h, JSValue global);
 /** es_fetch over the platform's native networking. */
 void registerNetBindings(HostState& h, JSValue global);
 
+/** es_textEditor_* over the platform's soft keyboard — bound ONLY when the
+ *  platform has one, so the SDK gates its editing surface on real availability
+ *  exactly as it does audio. */
+void registerTextEditorBindings(HostState& h, JSValue global);
+
 /** Run the JS callbacks for HTTP replies that arrived since the last frame. JS
  *  thread only; {@link deliverFetch} queued them from the completion thread. */
 void drainFetches(HostState& h);
+
+/** Push what the editing surface did since the last frame into JS. JS thread
+ *  only; the deliverTextEditor* calls queued it from the platform's UI thread. */
+void drainTextEditor(HostState& h);
 
 }  // namespace eshost

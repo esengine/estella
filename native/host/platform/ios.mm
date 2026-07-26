@@ -33,10 +33,40 @@ using esengine::WebGPUDevice;
 
 @class EstellaViewController;
 
+/** What the platform needs of whoever owns the keyboard's responder. A role, not
+ *  a class, so the C++ side names no view controller. */
+@protocol EstellaTextEditorHost <NSObject>
+- (void)textEditorFocus:(NSString*)value selectionStart:(NSInteger)selectionStart
+           selectionEnd:(NSInteger)selectionEnd multiline:(BOOL)multiline
+              maxLength:(NSInteger)maxLength password:(BOOL)password;
+- (void)textEditorBlur;
+- (void)textEditorWrite:(NSString*)value selectionStart:(NSInteger)selectionStart
+           selectionEnd:(NSInteger)selectionEnd;
+@end
+
 namespace {
 
 struct IOSPlatform final : eshost::Platform {
     CAMetalLayer* layer = nil;
+    // Whoever owns the responder the keyboard talks to (the view controller); set
+    // once it has loaded, which is also what makes hasTextEditor() true.
+    __weak id<EstellaTextEditorHost> editorHost = nil;
+
+    bool hasTextEditor() const override { return editorHost != nil; }
+
+    void textEditorFocus(const std::string& value, int selectionStart, int selectionEnd,
+                         bool multiline, int maxLength, bool password) override {
+        NSString* text = [NSString stringWithUTF8String:value.c_str()] ?: @"";
+        [editorHost textEditorFocus:text selectionStart:selectionStart selectionEnd:selectionEnd
+                          multiline:multiline maxLength:maxLength password:password];
+    }
+
+    void textEditorBlur() override { [editorHost textEditorBlur]; }
+
+    void textEditorWrite(const std::string& value, int selectionStart, int selectionEnd) override {
+        NSString* text = [NSString stringWithUTF8String:value.c_str()] ?: @"";
+        [editorHost textEditorWrite:text selectionStart:selectionStart selectionEnd:selectionEnd];
+    }
 
     // A file shipped inside the .app bundle — the packaged-asset analog of the
     // APK's assets/. Paths are project-relative ("game.config.json", "logo.png"),
@@ -197,12 +227,19 @@ IOSPlatform g_platform;
 + (Class)layerClass { return [CAMetalLayer class]; }
 @end
 
-@interface EstellaViewController : UIViewController
+// The app's editing surface: a real UITextView, invisible, that the keyboard and
+// its IME talk to. Core Text draws the field itself, but composition (pinyin,
+// kana, prediction) is delivered only to a UIKit responder — so the responder is
+// what this holds, and nothing else about the field lives here.
+@interface EstellaViewController : UIViewController <UITextViewDelegate, EstellaTextEditorHost>
 @end
 
 @implementation EstellaViewController {
     CADisplayLink* _displayLink;
     BOOL _booted;
+    UITextView* _editor;
+    BOOL _multiline;
+    BOOL _writing;      // set while adopting a value the app decided, so it is not echoed back
 }
 
 - (void)loadView {
@@ -212,6 +249,9 @@ IOSPlatform g_platform;
 
 - (void)viewDidLoad {
     [super viewDidLoad];
+    // Before boot: whether there is an editing surface decides whether the
+    // es_textEditor_* entry points are bound at all.
+    g_platform.editorHost = self;
     _displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(step:)];
     [_displayLink addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
 
@@ -284,6 +324,92 @@ IOSPlatform g_platform;
 }
 
 - (BOOL)prefersStatusBarHidden { return YES; }
+
+// -- The editing surface ------------------------------------------------------
+
+/** The responder, created on first use. Off-screen and clear: it must be a real,
+ *  attached view for the keyboard to attach to, but the game draws the field. */
+- (UITextView*)ensureEditor {
+    if (_editor) return _editor;
+    _editor = [[UITextView alloc] initWithFrame:CGRectMake(-100, -100, 1, 1)];
+    _editor.delegate = self;
+    _editor.backgroundColor = UIColor.clearColor;
+    _editor.textColor = UIColor.clearColor;
+    _editor.tintColor = UIColor.clearColor;   // no system caret; the game draws its own
+    _editor.autocorrectionType = UITextAutocorrectionTypeNo;
+    _editor.autocapitalizationType = UITextAutocapitalizationTypeNone;
+    [self.view addSubview:_editor];
+    return _editor;
+}
+
+- (void)textEditorFocus:(NSString*)value selectionStart:(NSInteger)selectionStart
+           selectionEnd:(NSInteger)selectionEnd multiline:(BOOL)multiline
+              maxLength:(NSInteger)maxLength password:(BOOL)password {
+    UITextView* editor = [self ensureEditor];
+    _multiline = multiline;
+    _writing = YES;
+    editor.text = value;
+    editor.returnKeyType = multiline ? UIReturnKeyDefault : UIReturnKeyDone;
+    // The field renders its own bullets; this is for the keyboard's benefit — no
+    // suggestion strip or autocorrect over a password.
+    editor.textContentType = password ? UITextContentTypePassword : nil;
+    editor.secureTextEntry = password;
+    [self setEditorSelectionStart:selectionStart end:selectionEnd];
+    _writing = NO;
+    [editor becomeFirstResponder];
+}
+
+- (void)textEditorBlur {
+    [_editor resignFirstResponder];
+}
+
+- (void)textEditorWrite:(NSString*)value selectionStart:(NSInteger)selectionStart
+           selectionEnd:(NSInteger)selectionEnd {
+    if (!_editor) return;
+    _writing = YES;
+    if (![_editor.text isEqualToString:value]) _editor.text = value;
+    [self setEditorSelectionStart:selectionStart end:selectionEnd];
+    _writing = NO;
+}
+
+- (void)setEditorSelectionStart:(NSInteger)start end:(NSInteger)end {
+    const NSInteger length = (NSInteger)_editor.text.length;
+    const NSInteger lo = MAX(0, MIN(start, length));
+    const NSInteger hi = MAX(lo, MIN(end, length));
+    _editor.selectedRange = NSMakeRange((NSUInteger)lo, (NSUInteger)(hi - lo));
+}
+
+/** Hand the responder's whole state to the engine. A marked range IS the IME
+ *  preedit, so that is what `composing` asks about. */
+- (void)reportEditorState {
+    if (_writing || !_editor) return;
+    const NSRange selection = _editor.selectedRange;
+    const BOOL composing = _editor.markedTextRange != nil;
+    eshost::deliverTextEditorState(_editor.text.UTF8String ?: "",
+                                   (int)selection.location,
+                                   (int)(selection.location + selection.length), composing);
+}
+
+- (void)textViewDidChange:(UITextView*)textView { [self reportEditorState]; }
+
+- (void)textViewDidChangeSelection:(UITextView*)textView { [self reportEditorState]; }
+
+- (BOOL)textView:(UITextView*)textView shouldChangeTextInRange:(NSRange)range
+                                           replacementText:(NSString*)text {
+    // Return on a single-line field submits instead of inserting a newline —
+    // the same rule the web's Enter follows.
+    if (!_multiline && [text isEqualToString:@"\n"]) {
+        eshost::deliverTextEditorSubmit();
+        return NO;
+    }
+    return YES;
+}
+
+- (void)textViewDidEndEditing:(UITextView*)textView {
+    // The keyboard went away (done, or another responder took over): for a UI
+    // field that is losing focus, which is what Escape does on the web.
+    eshost::deliverTextEditorCancel();
+}
 
 @end
 

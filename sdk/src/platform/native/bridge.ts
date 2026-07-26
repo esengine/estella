@@ -49,6 +49,41 @@ export interface NativeInputListener {
     onKeyUp?(code: string): void;
 }
 
+/** What the OS editing surface reports back. `state` carries the surface's whole
+ *  value + selection (it is the owner while focused); `composing` is absent on a
+ *  host that cannot tell whether an IME preedit is in flight. */
+export type NativeTextEditorPush =
+    | {
+        kind: 'state';
+        value: string;
+        selectionStart: number;
+        selectionEnd: number;
+        composing?: boolean;
+    }
+    | { kind: 'submit' }
+    | { kind: 'cancel' };
+
+/**
+ * The host's text-editing surface: the OS soft keyboard and its IME. Present only
+ * when the host bound it — a host without one omits `NativeBridge.textEditor`
+ * and editable fields render but do not type, the way a host without a sound
+ * device stays silent.
+ *
+ * `focus` opens the keyboard on the field's current value; `write` pushes an edit
+ * the app made (a programmatic setValue, a tap that moved the caret); everything
+ * the user does comes back through `subscribe`.
+ */
+export interface NativeTextEditorBridge {
+    focus(
+        value: string, selectionStart: number, selectionEnd: number,
+        multiline: boolean, maxLength: number, password: boolean,
+    ): void;
+    blur(): void;
+    write(value: string, selectionStart: number, selectionEnd: number): void;
+    /** Returns an unsubscribe. */
+    subscribe(handler: (push: NativeTextEditorPush) => void): () => void;
+}
+
 /**
  * The host's native audio engine, wrapped as a small object so {@link
  * NativeAudioBackend} stays a thin adapter over it (mirroring the WeChat backend
@@ -138,6 +173,11 @@ export interface NativeBridge {
     /** The native audio engine, when the host has a sound device. Absent → silent
      *  Null backend. See {@link NativeAudioBridge}. */
     audio?: NativeAudioBridge;
+
+    /** The OS text-editing surface (soft keyboard + IME), when the host has wired
+     *  one. Absent → fields render but cannot be typed into, exactly as a host
+     *  with no audio device stays silent. See {@link NativeTextEditorBridge}. */
+    textEditor?: NativeTextEditorBridge;
 
     /** App foreground/background signals (no DOM visibility on native): the shell
      *  pushes them, the adapter surfaces them as `onAppShow`/`onAppHide`, and the

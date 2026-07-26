@@ -246,9 +246,139 @@ struct AndroidPlatform final : eshost::Platform {
             eshost::deliverFetch(std::move(r));
         }).detach();
     }
+
+    // -- The editing surface: com.estella.host.TextEditor ---------------------
+    //
+    // An IME commits composed text through an InputConnection, which only a Java
+    // View has — so the keyboard's own side of a field is a small Java class in
+    // the APK, and this is the call across. The class handles its own threading
+    // (every method posts to the UI thread), so these can be called from the
+    // frame loop like any other platform call.
+
+    /** Set once the shim class is loaded and its natives registered (UI thread). */
+    jobject editor = nullptr;          // global ref to the TextEditor instance
+    jmethodID editorFocus = nullptr;
+    jmethodID editorBlur = nullptr;
+    jmethodID editorWrite = nullptr;
+
+    bool hasTextEditor() const override { return editor != nullptr; }
+
+    void textEditorFocus(const std::string& value, int selectionStart, int selectionEnd,
+                         bool multiline, int maxLength, bool password) override {
+        withEditor([&](JNIEnv* env) {
+            jstring text = env->NewStringUTF(value.c_str());
+            env->CallVoidMethod(editor, editorFocus, text, (jint)selectionStart, (jint)selectionEnd,
+                                (jboolean)multiline, (jint)maxLength, (jboolean)password);
+            env->DeleteLocalRef(text);
+        });
+    }
+
+    void textEditorBlur() override {
+        withEditor([&](JNIEnv* env) { env->CallVoidMethod(editor, editorBlur); });
+    }
+
+    void textEditorWrite(const std::string& value, int selectionStart, int selectionEnd) override {
+        withEditor([&](JNIEnv* env) {
+            jstring text = env->NewStringUTF(value.c_str());
+            env->CallVoidMethod(editor, editorWrite, text, (jint)selectionStart, (jint)selectionEnd);
+            env->DeleteLocalRef(text);
+        });
+    }
+
+    /** Run `body` with a JNIEnv for THIS thread (the frame loop's, which is not
+     *  the UI thread — the shim posts from there). */
+    template <typename F>
+    void withEditor(F&& body) {
+        if (!editor || !vm) return;
+        JNIEnv* env = nullptr;
+        if (vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK) {
+            if (vm->AttachCurrentThread(&env, nullptr) != JNI_OK || !env) return;
+        }
+        body(env);
+        if (env->ExceptionCheck()) {
+            env->ExceptionDescribe();
+            env->ExceptionClear();
+        }
+    }
 };
 
 AndroidPlatform g_platform;
+
+// -- The shim's reports, on the UI thread -------------------------------------
+// Queued as POD; the frame loop hands them to JS (see TextEditorBindings.cpp).
+
+void jniTextState(JNIEnv* env, jclass, jstring value, jint selectionStart, jint selectionEnd,
+                  jboolean composing) {
+    const char* utf8 = value ? env->GetStringUTFChars(value, nullptr) : nullptr;
+    eshost::deliverTextEditorState(utf8 ? utf8 : "", (int)selectionStart, (int)selectionEnd,
+                                   composing != JNI_FALSE);
+    if (utf8) env->ReleaseStringUTFChars(value, utf8);
+}
+
+void jniTextSubmit(JNIEnv*, jclass) { eshost::deliverTextEditorSubmit(); }
+void jniTextCancel(JNIEnv*, jclass) { eshost::deliverTextEditorCancel(); }
+
+/**
+ * Load com.estella.host.TextEditor, register its natives and construct it.
+ *
+ * Runs on the frame-loop thread, before boot binds the es_textEditor_* entry
+ * points — the surface has to exist by then or the SDK correctly concludes there
+ * is none. FindClass would fail here (off the UI thread it resolves through the
+ * SYSTEM class loader, which knows nothing of the APK), so the app's own loader
+ * is asked by name instead. Nothing touches a View: the shim posts all of that
+ * to the UI thread itself.
+ */
+void attachTextEditor(ANativeActivity* activity) {
+    if (g_platform.editor || !activity->vm) return;
+    JNIEnv* env = nullptr;
+    if (activity->vm->AttachCurrentThread(&env, nullptr) != JNI_OK || !env) return;
+
+    jclass activityCls = env->GetObjectClass(activity->clazz);
+    const jmethodID getClassLoader =
+        env->GetMethodID(activityCls, "getClassLoader", "()Ljava/lang/ClassLoader;");
+    env->DeleteLocalRef(activityCls);
+    if (!getClassLoader) { env->ExceptionClear(); return; }
+    jobject loader = env->CallObjectMethod(activity->clazz, getClassLoader);
+    jclass loaderCls = env->FindClass("java/lang/ClassLoader");
+    const jmethodID loadClass =
+        env->GetMethodID(loaderCls, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;");
+    env->DeleteLocalRef(loaderCls);
+    jstring name = env->NewStringUTF("com.estella.host.TextEditor");
+    jclass cls = (jclass)env->CallObjectMethod(loader, loadClass, name);
+    env->DeleteLocalRef(name);
+    env->DeleteLocalRef(loader);
+    if (!cls || env->ExceptionCheck()) {
+        env->ExceptionClear();
+        __android_log_print(ANDROID_LOG_WARN, LOG_TAG,
+                            "text editor: com.estella.host.TextEditor not in the APK — typing is off");
+        return;
+    }
+    const JNINativeMethod natives[] = {
+        {"nativeState", "(Ljava/lang/String;IIZ)V", (void*)jniTextState},
+        {"nativeSubmit", "()V", (void*)jniTextSubmit},
+        {"nativeCancel", "()V", (void*)jniTextCancel},
+    };
+    if (env->RegisterNatives(cls, natives, 3) != JNI_OK) {
+        env->ExceptionClear();
+        env->DeleteLocalRef(cls);
+        return;
+    }
+
+    const jmethodID ctor = env->GetMethodID(cls, "<init>", "(Landroid/app/Activity;)V");
+    g_platform.editorFocus = env->GetMethodID(cls, "focus", "(Ljava/lang/String;IIZIZ)V");
+    g_platform.editorBlur = env->GetMethodID(cls, "blur", "()V");
+    g_platform.editorWrite = env->GetMethodID(cls, "write", "(Ljava/lang/String;II)V");
+    if (!ctor || !g_platform.editorFocus || !g_platform.editorBlur || !g_platform.editorWrite) {
+        env->ExceptionClear();
+        env->DeleteLocalRef(cls);
+        return;
+    }
+    jobject instance = env->NewObject(cls, ctor, activity->clazz);
+    if (instance) g_platform.editor = env->NewGlobalRef(instance);
+    if (instance) env->DeleteLocalRef(instance);
+    env->DeleteLocalRef(cls);
+    __android_log_print(ANDROID_LOG_INFO, LOG_TAG, "text editor: soft keyboard up (IME)");
+}
 
 int32_t onInput(android_app*, AInputEvent* ev) {
     if (!eshost::booted() || AInputEvent_getType(ev) != AINPUT_EVENT_TYPE_MOTION) return 0;
@@ -476,6 +606,9 @@ void onWindowFocusChanged(ANativeActivity* activity, int hasFocus) {
 void android_main(android_app* app) {
     g_platform.assets = app->activity->assetManager;   // APK assets/ (the exported project)
     g_platform.vm = app->activity->vm;                  // for JNI HttpURLConnection (es_fetch)
+    // Before boot: whether there is an editing surface decides whether the
+    // es_textEditor_* entry points are bound at all.
+    attachTextEditor(app->activity);
     if (app->activity->internalDataPath) g_platform.cache = app->activity->internalDataPath;
     app->onAppCmd = onAppCmd;
     app->onInputEvent = onInput;

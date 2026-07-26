@@ -13,7 +13,10 @@
  */
 
 import { log } from '../../logger';
-import type { NativeAudioBridge, NativeBridge, NativeFetchResult, NativeInputListener } from './bridge';
+import type {
+    NativeAudioBridge, NativeBridge, NativeFetchResult, NativeInputListener,
+    NativeTextEditorBridge, NativeTextEditorPush,
+} from './bridge';
 import type { PlatformGlyph, PlatformGlyphRequest, PlatformRequestOptions } from '../types';
 import { assertHostEnvironment } from './hostEnvironment';
 import { hasAudioBindings } from '../../ecs/nativeBindings';
@@ -73,6 +76,17 @@ export interface NativeHostBindings {
 
     /** The native audio engine, all-or-nothing (see {@link AUDIO_BINDINGS}). A
      *  host without a sound device binds none and stays silent. */
+    // The OS text-editing surface (soft keyboard + IME). Optional as a group:
+    // hasTextEditorBindings gates them, so a host that wired none simply has no
+    // editing surface. The host pushes what the user did through
+    // es_onNativeTextEditor, installed here.
+    es_textEditor_focus?(
+        value: string, selectionStart: number, selectionEnd: number,
+        multiline: boolean, maxLength: number, password: boolean,
+    ): void;
+    es_textEditor_blur?(): void;
+    es_textEditor_write?(value: string, selectionStart: number, selectionEnd: number): void;
+
     es_audioLoad?(bytes: ArrayBuffer): { id: number; duration: number; bytes: number } | null;
     es_audioUnload?(bufferId: number): void;
     es_audioPlay?(bufferId: number, volume: number, pan: number, loop: boolean, rate: number): number;
@@ -120,6 +134,7 @@ export function createHostBridge(
 
     const storage = hostStorage(bindings);
     const audio = hostAudio(bindings, scope);
+    const textEditor = hostTextEditor(bindings, scope);
     const lifecycle = hostLifecycle(scope);
 
     return {
@@ -156,6 +171,7 @@ export function createHostBridge(
         },
         devicePixelRatio: () => bindings.es_devicePixelRatio?.() ?? 1,
         ...(audio ? { audio } : {}),
+        ...(textEditor ? { textEditor } : {}),
         ...lifecycle,
     };
 }
@@ -244,6 +260,37 @@ function hostAudio(
         suspendAll: () => bindings.es_audioSuspendAll!(),
         resumeAll: () => bindings.es_audioResumeAll!(),
         onEnded: (cb) => { ended = cb; return () => { if (ended === cb) ended = null; }; },
+    };
+}
+
+/**
+ * The host's editing surface, when it bound one: calls out through its
+ * `es_textEditor_*` entry points, and takes what the user did through
+ * `es_onNativeTextEditor`, installed here the way the lifecycle signals are.
+ * All-or-nothing — a host with only some of the entry points has no surface,
+ * rather than one that opens a keyboard it cannot read.
+ */
+function hostTextEditor(
+    bindings: NativeHostBindings,
+    scope: Record<string, unknown>,
+): NativeTextEditorBridge | undefined {
+    if (!bindings.es_textEditor_focus || !bindings.es_textEditor_blur || !bindings.es_textEditor_write) {
+        return undefined;
+    }
+    let subs: ((push: NativeTextEditorPush) => void)[] = [];
+    scope.es_onNativeTextEditor = (push: NativeTextEditorPush): void => {
+        for (const cb of subs) cb(push);
+    };
+    return {
+        focus: (value, selectionStart, selectionEnd, multiline, maxLength, password) =>
+            bindings.es_textEditor_focus!(value, selectionStart, selectionEnd, multiline, maxLength, password),
+        blur: () => bindings.es_textEditor_blur!(),
+        write: (value, selectionStart, selectionEnd) =>
+            bindings.es_textEditor_write!(value, selectionStart, selectionEnd),
+        subscribe: (handler) => {
+            subs.push(handler);
+            return () => { subs = subs.filter((s) => s !== handler); };
+        },
     };
 }
 

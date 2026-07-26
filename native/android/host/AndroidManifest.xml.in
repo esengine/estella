@@ -4,9 +4,10 @@
   the exported project's app.config.json: an installed app has one identity, one
   version and one orientation, and none of them can be decided here.
 
-  Everything left alone is the host itself: a NativeActivity (no Java, so hasCode
-  is false), Vulkan 1.0.3 as a hard requirement, and the config changes the host
-  handles rather than being restarted for.
+  Everything left alone is the host itself: a NativeActivity, Vulkan 1.0.3 as a
+  hard requirement, and the config changes the host handles rather than being
+  restarted for. `hasCode` follows whether the Java shim compiled — the game is
+  native, and the only Java in the package is the IME's side of a text field.
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
           package="@APP_ID@"
@@ -14,7 +15,7 @@
           android:versionName="@VERSION_NAME@">
     <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="33" />
     <uses-feature android:name="android.hardware.vulkan.version" android:version="0x400003" android:required="true" />
-    <application android:label="@APP_NAME@" android:hasCode="false" android:extractNativeLibs="true">
+    <application android:label="@APP_NAME@" android:hasCode="@HAS_CODE@" android:extractNativeLibs="true">
         <!-- A game's window, stated before any code runs: no title, no status bar.
              The host asks for the rest (navigation bar, display cutout) once it
              has the UI thread — see onWindowFocusChanged in platform/android.cpp. -->

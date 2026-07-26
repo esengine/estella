@@ -4088,6 +4088,7 @@ registerInput: (listener: NativeInputListener) => () => void
 removeStorageItem: (key: string) => void
 setStorageItem: (key: string, value: string) => void
 storageKeys: () => string[]
+textEditor: NativeTextEditorBridge | undefined
 writeCacheFile: ((key: string, bytes: ArrayBuffer) => Promise<void>) | undefined
 ```
 
@@ -4146,6 +4147,9 @@ es_readCacheFile: ((key: string) => ArrayBuffer | null) | undefined
 es_removeStorageItem: ((key: string) => void) | undefined
 es_setStorageItem: ((key: string, value: string) => void) | undefined
 es_storageKeys: (() => string[]) | undefined
+es_textEditor_blur: (() => void) | undefined
+es_textEditor_focus: ((value: string, selectionStart: number, selectionEnd: number, multiline: boolean, maxLength: number, password: boolean) => void) | undefined
+es_textEditor_write: ((value: string, selectionStart: number, selectionEnd: number) => void) | undefined
 es_writeCacheFile: ((key: string, bytes: ArrayBuffer | Uint8Array | string) => boolean) | undefined
 ```
 
@@ -4173,6 +4177,7 @@ clearStorage: (prefix: string) => void
 createAudioBackend: (() => PlatformAudioBackend) | undefined
 createCanvas: (_width: number, _height: number) => PlatformCanvas
 createImage: () => PlatformImage
+createTextEditor: () => PlatformTextEditor | null
 createVideoBackend: (ctx: VideoBackendContext) => PlatformVideoBackend
 devicePixelRatio: () => number
 fetch: (url: string, options?: PlatformRequestOptions) => Promise<PlatformResponse>

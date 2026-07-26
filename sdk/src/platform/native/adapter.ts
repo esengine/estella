@@ -25,6 +25,7 @@ import type {
     PlatformImage,
     PlatformGlyph,
     PlatformGlyphRequest,
+    PlatformTextEditor,
 } from '../types';
 import type { PlatformAudioBackend } from '../../audio/PlatformAudioBackend';
 import type { PlatformVideoBackend, VideoBackendContext } from '../../video/PlatformVideoBackend';
@@ -32,6 +33,7 @@ import { WasmVideoBackend } from '../../video/WasmVideoBackend';
 import { setPlatform } from '../base';
 import { createPrimaryPointer } from '../primaryPointer';
 import { NativeAudioBackend } from '../../audio/NativeAudioBackend';
+import { createNativeTextEditor } from './textEditor';
 import type { NativeBridge, NativeInputListener } from './bridge';
 
 export class NativePlatformAdapter implements PlatformAdapter {
@@ -115,6 +117,13 @@ export class NativePlatformAdapter implements PlatformAdapter {
 
     createImage(): PlatformImage {
         throw new Error('[native] no DOM images — decode via loadImagePixels');
+    }
+
+    /** The OS soft keyboard + IME, when the host wired one. Null → editable
+     *  fields render but cannot be typed into (platform/native/textEditor.ts). */
+    createTextEditor(): PlatformTextEditor | null {
+        const editor = this.bridge_.textEditor;
+        return editor ? createNativeTextEditor(editor) : null;
     }
 
     now(): number {

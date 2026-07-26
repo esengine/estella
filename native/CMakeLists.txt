@@ -207,6 +207,7 @@ if(ESTELLA_QUICKJS_DIR)
         host/bindings/AssetBindings.cpp
         host/bindings/AudioBindings.cpp
         host/bindings/NetBindings.cpp
+        host/bindings/TextEditorBindings.cpp
         host/media/native_audio.cpp
         host/media/ktx2_decode.cpp
         host/media/glyph_raster.cpp

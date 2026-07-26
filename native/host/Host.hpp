@@ -110,12 +110,41 @@ struct Platform {
      *  with the same `req.id`. The OS owns the TLS stack, so this is where native
      *  networking necessarily differs between iOS and Android. */
     virtual void startFetch(const FetchRequest& req) = 0;
+
+    /**
+     * The OS text-editing surface: a soft keyboard with its IME. A platform that
+     * has one overrides these and reports what the user did through
+     * {@link deliverTextEditorState} / Submit / Cancel; one that does not leaves
+     * the defaults, `hasTextEditor()` stays false, the es_textEditor_* entry
+     * points are never bound, and the SDK sees a realm where fields render but
+     * cannot be typed into.
+     *
+     * The surface OWNS the value and the selection while a field is focused —
+     * an IME composes into it, and the app's own edits go through `write`.
+     */
+    virtual bool hasTextEditor() const { return false; }
+    virtual void textEditorFocus(const std::string& /*value*/, int /*selectionStart*/,
+                                 int /*selectionEnd*/, bool /*multiline*/,
+                                 int /*maxLength*/, bool /*password*/) {}
+    virtual void textEditorBlur() {}
+    virtual void textEditorWrite(const std::string& /*value*/, int /*selectionStart*/,
+                                 int /*selectionEnd*/) {}
 };
 
 /** Deliver an HTTP reply for a {@link Platform::startFetch}. Thread-safe: the
  *  platform calls it from whatever thread its completion runs on; the result is
  *  queued and the JS callback runs on the next frame, on the JS thread. */
 void deliverFetch(FetchResult result);
+
+/** The editing surface's whole state, after the user (or its IME) changed it.
+ *  Thread-safe, like {@link deliverFetch}: the platform calls it from its UI
+ *  thread and the JS side is told on the next frame. `composing` is true while an
+ *  IME preedit sits inside `value`. */
+void deliverTextEditorState(std::string value, int selectionStart, int selectionEnd, bool composing);
+/** The keyboard's done/go key on a single-line field. Thread-safe. */
+void deliverTextEditorSubmit();
+/** The keyboard was dismissed without committing (back gesture, done). Thread-safe. */
+void deliverTextEditorCancel();
 
 /** @brief Boots Dawn, EstellaContext, QuickJS, the SDK bundle and the packaged
  *         project. Call once, when a window first exists; @p platform must
