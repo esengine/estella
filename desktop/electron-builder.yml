@@ -63,6 +63,10 @@ extraResources:
   # projects, staged as real directories (createFromTemplate copies a template
   # with fs.cp, which cannot source from inside the asar). The launcher reads
   # resources/templates then resources/examples — see electron/launcher.ts.
+  # The dist-* exclusions matter as much as the others: a package a developer
+  # exported (dist-playable/, dist-wechat/, dist-game/ … — `dist-<platform>`) sits
+  # inside the example it came from, and `**/dist/**` never matched those names, so
+  # local export output rode into the installer.
   - from: templates
     to: templates
     filter:
@@ -70,6 +74,7 @@ extraResources:
       - "!**/.esengine/**"
       - "!**/node_modules/**"
       - "!**/dist/**"
+      - "!**/dist-*/**"
   - from: ../examples
     to: examples
     filter:
@@ -77,6 +82,7 @@ extraResources:
       - "!**/.esengine/**"
       - "!**/node_modules/**"
       - "!**/dist/**"
+      - "!**/dist-*/**"
 win:
   target: nsis
 # Assisted (non-oneClick) installer: electron-builder derives the oneClick
