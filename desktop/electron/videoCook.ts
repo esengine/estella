@@ -10,7 +10,7 @@
  *        lazily and only when a cook actually ships video.
  */
 import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -26,9 +26,36 @@ export async function resolveFfmpeg(): Promise<string | null> {
     const mod = await import('ffmpeg-static');
     const p = (mod.default ?? mod) as unknown as string | null;
     const real = p ? p.replace(`app.asar${path.sep}`, `app.asar.unpacked${path.sep}`) : null;
-    return real && existsSync(real) ? real : null;
-  } catch {
-    return null;
+    if (real && existsSync(real)) return real;
+  } catch { /* not resolvable from here — try the workspace below */ }
+  return resolveFfmpegFromWorkspace();
+}
+
+/**
+ * The binary the workspace installed, found by walking up from the working
+ * directory. The bundled import above answers with a path derived from its own
+ * __dirname, which a bundle rebases onto the bundle's directory — so in the
+ * headless export (esbuild) it dangles, and the cook would ship an untranscoded
+ * video that cannot play. This is the same binary, located the way a shell
+ * would.
+ */
+function resolveFfmpegFromWorkspace(): string | null {
+  const exe = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
+  for (let dir = process.cwd(); ; dir = path.dirname(dir)) {
+    const modules = path.join(dir, 'node_modules');
+    const direct = path.join(modules, 'ffmpeg-static', exe);
+    if (existsSync(direct)) return direct;
+    // pnpm keeps the real package under .pnpm/<name>@<version>/node_modules/.
+    const store = path.join(modules, '.pnpm');
+    if (existsSync(store)) {
+      for (const entry of readdirSync(store)) {
+        if (!entry.startsWith('ffmpeg-static@')) continue;
+        const nested = path.join(store, entry, 'node_modules', 'ffmpeg-static', exe);
+        if (existsSync(nested)) return nested;
+      }
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) return null;
   }
 }
 
