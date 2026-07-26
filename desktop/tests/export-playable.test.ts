@@ -93,11 +93,12 @@ describe('exportGame (playable)', () => {
     expect(html).toContain('"main"');                                // first scene name
     expect(html).toContain('__GAME_SCENES__');
     expect(html).toContain('<title>Playable Demo</title>');
-    // Orientation pin: no explicit setting ⇒ landscape default (rotate-to-fit + lock).
-    expect(html).toContain('id="rotate-hint"');
-    expect(html).toContain('Rotate your device to landscape');
-    expect(html).toContain('@media (orientation:portrait)');            // hide canvas when wrong way
-    expect(html).toMatch(/screen\.orientation[\s\S]*lock\("landscape"\)/);
+    // NO rotate-to-fit overlay, unlike the web export. Inside an ad SDK the media
+    // query reports the CONTAINER's aspect, which turning the phone need not change,
+    // so an overlay keyed on it hid the canvas forever — a playable nobody could play.
+    expect(html).not.toContain('rotate-hint');
+    expect(html).not.toContain('@media (orientation');
+    expect(html).not.toContain('screen.orientation');
   }, 60_000);
 
   // The ad network is a PROFILE, not a branch: what it contributes is head markup, a
@@ -189,19 +190,27 @@ describe('exportGame (playable)', () => {
     expect(html).toMatch(/"designWidth":750/);
   }, 60_000);
 
-  it('pins the single file to an explicit portrait orientation', async () => {
+  // A portrait project must ALSO stay playable in a landscape container: the page
+  // adapts rather than demanding a rotation the SDK may not honour. The orientation
+  // reaches the network profile, which is free to declare it to the platform.
+  it('does not pin the page even when the project is portrait', async () => {
     const o = path.join(root, 'dist-playable-portrait');
     const res = await exportGame({
       root, entryScene: 'scenes/main.esscene', gameHostEntry: 'unused-for-playable',
       playableHostEntry: PLAYABLE_HOST, scriptsEntry: 'src/main.ts',
       sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wasm'),
       outDir: o, title: 'Playable Demo', platform: 'playable', orientation: 'portrait',
+      playableAdProfile: {
+        id: 'declares', label: 'Declares Orientation', maxBytes: 5 * 1024 * 1024,
+        limitNote: 'test', emitHead: (ctx) => `<meta name="ad.orientation" content="${ctx.orientation}">`,
+      },
     });
     expect(res.ok).toBe(true);
     const html = readFileSync(path.join(o, 'index.html'), 'utf8');
-    expect(html).toContain('Rotate your device to portrait');
-    expect(html).toContain('@media (orientation:landscape)');           // hide canvas when wrong way
-    expect(html).toMatch(/screen\.orientation[\s\S]*lock\("portrait"\)/);
+    expect(html).not.toContain('rotate-hint');
+    expect(html).not.toContain('@media (orientation');
+    // Declared to the platform, not enforced on the player.
+    expect(html).toContain('<meta name="ad.orientation" content="portrait">');
   }, 60_000);
 });
 

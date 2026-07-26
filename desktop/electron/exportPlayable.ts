@@ -23,7 +23,7 @@ import path from 'node:path';
 import { cookAssets } from './cookAssets';
 import type { OnExportProgress } from './exportProgress';
 import { esengineAlias } from './esengineResolve';
-import { orientationCss, orientationOverlayHtml, orientationLockScript, type ScreenOrientation } from './orientationHtml';
+import type { ScreenOrientation } from './orientationHtml';
 import { genericPlayableProfile, playableAdInjection, type PlayableAdProfile } from './playableAdProfile';
 import { makeZip } from './zipWriter';
 import {
@@ -63,14 +63,27 @@ const mimeOf = (p: string): string => MIME[path.extname(p).slice(1).toLowerCase(
 /** Escape `</script` so inlined content can't close the host <script> early. */
 const inlineSafe = (s: string): string => s.replace(/<\/script/gi, '<\\/script');
 
-/** `network` is what the chosen ad-network profile contributes: markup for `<head>`
- *  and the bridge script that gives `playableCta()` somewhere to go. The bridge runs
- *  BEFORE the game bundle, so a CTA fired during boot still resolves. */
+/**
+ * The playable page. Deliberately WITHOUT the web export's rotate-to-fit overlay:
+ * inside an ad SDK the container's size is the SDK's business, so `@media
+ * (orientation:portrait)` reports the container's aspect and not the device's —
+ * turning the phone need not change it. An overlay keyed on that hides the canvas
+ * and never comes back, which is a playable that cannot be played. Every network
+ * asks for a responsive creative instead (Unity spells out both orientations), and
+ * the host already resizes the canvas to whatever container it is given.
+ *
+ * `orientation` therefore only reaches the network profile, which may still DECLARE
+ * it (Google wants an `ad.orientation` meta tag) — a declaration to the platform, not
+ * a demand on the player.
+ *
+ * `network` is what the chosen profile contributes: markup for `<head>` and the
+ * bridge that gives `playableCta()` somewhere to go. The bridge runs BEFORE the game
+ * bundle, so a CTA fired during boot still resolves.
+ */
 function indexHtml(
   title: string,
   globals: string,
   bundle: string,
-  orientation: ScreenOrientation,
   network: { head: string; bridge: string },
 ): string {
   return `<!doctype html>
@@ -83,13 +96,10 @@ function indexHtml(
       * { margin: 0; padding: 0; box-sizing: border-box; }
       html, body { width: 100%; height: 100%; overflow: hidden; background: #0e121b; }
       #canvas { display: block; width: 100%; height: 100%; touch-action: none; }
-      ${orientationCss(orientation)}
     </style>
   </head>
   <body>
-    <canvas id="canvas"></canvas>
-    ${orientationOverlayHtml(orientation)}
-    ${orientationLockScript(orientation)}${network.bridge ? `\n    <script>${inlineSafe(network.bridge)}</script>` : ''}
+    <canvas id="canvas"></canvas>${network.bridge ? `\n    <script>${inlineSafe(network.bridge)}</script>` : ''}
     <script>${inlineSafe(globals)}</script>
     <script>${inlineSafe(bundle)}</script>
   </body>
@@ -165,8 +175,9 @@ export async function exportPlayable(opts: {
   wasmDir: string;
   outDir: string;
   title?: string;
-  /** Screen orientation (format.ts resolveOrientation) → rotate-to-fit overlay +
-   *  best-effort lock in the single-file HTML. Default landscape. */
+  /** Project orientation (format.ts resolveOrientation). The page itself does NOT
+   *  pin it — a playable must fit whatever container the SDK gives it — this only
+   *  reaches the ad-network profile, which may declare it to the platform. */
   orientation?: ScreenOrientation;
   minify?: boolean;
   /** Bitmask of render layers (0..31) that y-sort (Project Settings → Rendering). */
@@ -309,7 +320,7 @@ export async function exportPlayable(opts: {
   const adProfile = opts.adProfile ?? genericPlayableProfile;
   const network = playableAdInjection(adProfile, { title, orientation });
   const outFile = path.join(absOut, 'index.html');
-  await writeFile(outFile, indexHtml(title, globals, bundle, orientation, network));
+  await writeFile(outFile, indexHtml(title, globals, bundle, network));
   await rm(cookDir, { recursive: true, force: true });
 
   const htmlBytes = (await stat(outFile)).size;

@@ -216,11 +216,19 @@ project:
 
 Orientation is **one project-wide setting**, not per-target: **Project Settings →
 Display → Orientation** (portrait or landscape), right beside the design resolution.
-Every target honors it — the WeChat `game.json` `deviceOrientation`, the web and
-playable builds' rotate-to-fit prompt (and a best-effort `screen.orientation.lock`),
-and the desktop window's aspect. Left unset, it's **derived from the design
-resolution's aspect** (wider-or-square ⇒ landscape, taller ⇒ portrait), so a
-landscape design ships landscape everywhere with zero configuration.
+Every target honors it — the WeChat `game.json` `deviceOrientation`, the web build's
+rotate-to-fit prompt (and a best-effort `screen.orientation.lock`), and the desktop
+window's aspect. Left unset, it's **derived from the design resolution's aspect**
+(wider-or-square ⇒ landscape, taller ⇒ portrait), so a landscape design ships
+landscape everywhere with zero configuration.
+
+A **playable is the exception, deliberately**: it never pins the page. Inside an ad
+SDK the container's size is the SDK's business, so a rotate-to-fit overlay can hide
+the game for good — the player turns the phone and nothing changes, because the media
+query was reading the container all along. Playables stay responsive (every network
+asks for that), and the orientation is only *declared* to the platform where one wants
+it, e.g. Google's `ad.orientation` meta tag. Design for both aspects, or letterbox
+with [a camera fit](#) so the framing survives either one.
 
 See [The Editor](/docs/guides/editor/) for the settings UI.
 
