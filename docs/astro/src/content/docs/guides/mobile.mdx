@@ -57,14 +57,15 @@ are not the same severity:
 <Steps>
 
 1. **Get the runtime for your target.**
-   - *iOS* — install the **runtime template**: the engine, prebuilt for arm64,
-     published with each release. The iOS row offers *Install from file…*; point it
-     at the archive from this version's release page. It is matched **exactly**
-     against the editor's version (the SDK is compiled into the app binary), so it
-     is one install per editor upgrade — and none of the engine's own build
-     dependencies come with it.
-   - *Android* — the same, with its own template. Nothing else: the APK is
-     compiled, aligned and signed by the editor, on whatever OS it is running on.
+   Install the **runtime template**: the engine, prebuilt for arm64 and published
+   with each release. The target's row offers **Download** — or *Install from
+   file…* if you already have the archive (offline, a mirror, a company share).
+   It is matched **exactly** against the editor's version, because the SDK is
+   compiled into the app binary, so it is one download per editor upgrade — and
+   none of the engine's own build dependencies come with it.
+
+   Android needs nothing else: the APK is compiled, aligned and signed by the
+   editor, on whatever OS it is running on.
 
 2. **Install the platform toolchain — iOS only.**
    - *Android* — none. There is no Android SDK, NDK or JDK in this path.

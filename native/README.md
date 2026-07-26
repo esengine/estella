@@ -28,8 +28,9 @@ This directory holds the host and the build recipe:
   - `platform/android.cpp` — NativeActivity, APK assets, Vulkan, the ALooper loop.
   - `platform/ios.mm` — a CAMetalLayer view, bundle assets, Metal, CADisplayLink.
 - **`android/`** — the APK manifest, packaged by `--package`.
-- **`ios/`** — the Xcode app shell (xcodegen) that signs and packages the iOS
-  build. It is only an entry point; the app lives in the static library.
+- **`ios/`** — the Xcode app shell (`main.m` + an Info.plist template) that signs
+  and packages the iOS build. It is only an entry point; the app lives in the
+  static library, and the project around it is generated.
 
 There is no built-in demo game and no second, JS-free host. What runs is an editor
 export, always: a parallel content path drifts from the one every real game takes,
@@ -56,6 +57,11 @@ a build machine's problem, not a user's. Every native build emits one into this
 machine's store (`--no-template` opts out); `--template-out <dir>` also writes the
 distributable archive, and `--template-only` re-emits from an existing build
 without rebuilding.
+
+A release publishes those archives plus `native-templates.json`, written by
+`--template-index <dir>` over the set — one digest per template, which is what the
+editor checks a download against. The release workflow's `native-templates` job
+runs exactly the commands below; nothing about producing a template is CI-only.
 
 ### The optional runtimes are compiled IN, not side-loaded
 
@@ -109,48 +115,29 @@ takes for the device to have it.
 
 ## Build (Android arm64)
 
-Toolchain: Android SDK + NDK r28 (`android.toolchain.cmake`), SDK CMake ≥ 3.22.
-`cli native` locates the SDK / NDK / CMake automatically (`ANDROID_HOME`, or
-Android Studio's default install) and drives `native/CMakeLists.txt`.
+Toolchain: Android SDK + NDK r28, SDK CMake ≥ 3.22 (`cli native` locates the SDK /
+NDK / CMake automatically — `ANDROID_HOME`, `ANDROID_NDK_HOME`, or Android
+Studio's default install), a JDK for the Java shim, and the SDK bundle
+(`pnpm --filter ./sdk build`) — the host embeds it.
 
-**One-time: build Dawn for arm64** (Vulkan). Multi-GB; kept out of the tree.
-
-```sh
-git clone --depth 1 https://github.com/google/dawn "$DAWN"
-python "$DAWN/tools/fetch_dawn_dependencies.py" --shallow   # NOT depot_tools
-cmake -S "$DAWN" -B "$DAWN/out-android" -G Ninja \
-  -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake" \
-  -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-33 -DANDROID_STL=c++_shared \
-  -DDAWN_ENABLE_VULKAN=ON -DDAWN_ENABLE_D3D12=OFF -DDAWN_ENABLE_METAL=OFF \
-  -DDAWN_ENABLE_NULL=OFF -DDAWN_ENABLE_OPENGLES=OFF -DDAWN_ENABLE_DESKTOP_GL=OFF \
-  -DDAWN_BUILD_SAMPLES=OFF -DDAWN_BUILD_TESTS=OFF -DTINT_BUILD_TESTS=OFF \
-  -DDAWN_BUILD_PROTOBUF=OFF -DTINT_BUILD_IR_BINARY=OFF \
-  -DDAWN_BUILD_MONOLITHIC_LIBRARY=SHARED -DDAWN_FETCH_DEPENDENCIES=OFF
-cmake --build "$DAWN/out-android" --target webgpu_dawn
-```
-
-**Build the host** through the orchestrated task. Build the SDK bundle first (it
-produces the QuickJS-loadable `dist/index.native.bundled.js`), clone QuickJS-ng
-(core is dtoa/libregexp/libunicode/quickjs.c), and pass `--quickjs`:
+**One-time: fetch the dependencies.** Dawn and QuickJS-ng are multi-GB / separate
+projects, PINNED in `toolchain.manifest.json` rather than vendored or tracked as
+submodules — a `--depth 1` clone of a branch makes a template unreproducible, and
+Dawn fetches its own dependencies with a script anyway, so a submodule would save
+nobody the fetch while putting a huge clone in front of everyone who only builds
+for the web.
 
 ```sh
-(cd sdk && pnpm run build)
-git clone --depth 1 https://github.com/quickjs-ng/quickjs "$QJS"
-node build-tools/cli.js native --dawn "$DAWN" --dawn-build "$DAWN/out-android" --quickjs "$QJS"
+node build-tools/cli.js native --fetch-deps
 ```
 
-The task generates, into `build-native/gen/` (never committed, so nothing can
-drift from its source):
+**Then build.** Dawn is built for the target the first time it is needed (a few
+minutes, cached in the checkout afterwards); the recipe lives in
+`build-tools/tasks/nativeDeps.js`, so CI runs exactly what you run:
 
-* `NativeBindings.generated.cpp` — per-component accessors, from the SAME
-  reflection as the web bindings (`eht --native-output ... --native-only`)
-* `NativeFunctionBindings.generated.cpp` — the engine's binding entry points, from
-  the same `bindings/*.hpp` declarations embind registers (`eht --native-functions`)
-* `esengine_bundle.h` / `host_bootstrap.h` — the real SDK bundle and the host
-  bootstrap, embedded as C strings
-
-Paths may also come from `ESTELLA_DAWN_DIR` / `ESTELLA_DAWN_BUILD` /
-`ESTELLA_QUICKJS_DIR`. Output: `build-native/libestella_js_host.so`.
+```sh
+node build-tools/cli.js native
+```
 
 The build emits this machine's Android runtime template on the way out (the
 `.so` payload, the Java shim's `classes.dex`, the SDK bytecode and the manifest
@@ -160,43 +147,24 @@ above. See *Shipping a project*.
 ## Build (iOS arm64)
 
 Toolchain: Xcode (the Command Line Tools alone have no iPhoneOS SDK — `cli native`
-falls back to `/Applications/Xcode.app` automatically), CMake ≥ 3.22, Ninja, and
-[xcodegen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`).
+falls back to `/Applications/Xcode.app` automatically), CMake ≥ 3.22 and Ninja.
+No xcodegen: the Xcode project is generated directly (`utils/xcodeProject.js`).
 
-**One-time: build Dawn for iOS arm64** (Metal, *static* — an app embeds it). Same
-checkout as the Android build; only the output dir differs. ~5 min, 744 targets,
-a 19 MB `libwebgpu_dawn.a`:
-
-```sh
-cmake -S "$DAWN" -B "$DAWN/out-ios" -G Ninja \
-  -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_ARCHITECTURES=arm64 \
-  -DCMAKE_OSX_DEPLOYMENT_TARGET=17.0 -DCMAKE_OSX_SYSROOT=iphoneos \
-  -DDAWN_ENABLE_METAL=ON -DDAWN_ENABLE_VULKAN=OFF -DDAWN_ENABLE_D3D12=OFF \
-  -DDAWN_ENABLE_NULL=OFF -DDAWN_ENABLE_OPENGLES=OFF -DDAWN_ENABLE_DESKTOP_GL=OFF \
-  -DDAWN_BUILD_SAMPLES=OFF -DDAWN_BUILD_TESTS=OFF -DTINT_BUILD_TESTS=OFF \
-  -DDAWN_BUILD_PROTOBUF=OFF -DTINT_BUILD_IR_BINARY=OFF \
-  -DDAWN_BUILD_MONOLITHIC_LIBRARY=STATIC -DDAWN_FETCH_DEPENDENCIES=OFF
-cmake --build "$DAWN/out-ios" --target webgpu_dawn
-```
-
-**Build the host, then run it from Xcode.** There is no pure-C++ reference host on
-iOS — the app *is* the host, so `--quickjs` is required:
+**Build the host, then run it from Xcode.** Dawn is built for the iOS SDK on
+first use (~5 min, a 19 MB static `libwebgpu_dawn.a`, kept in the pinned
+checkout), and there is no pure-C++ reference host here — the app *is* the host:
 
 ```sh
-(cd sdk && pnpm run build)
-node build-tools/cli.js native --target ios \
-  --dawn "$DAWN" --dawn-build "$DAWN/out-ios" --quickjs "$QJS"
-
-cd native/ios && xcodegen && open EstellaiOS.xcodeproj
+pnpm --filter ./sdk build
+node build-tools/cli.js native --fetch-deps      # once
+node build-tools/cli.js native --target ios
 ```
 
 **To run in the simulator** — a different target triple, so it needs its own Dawn
-and its own slice (`-DCMAKE_OSX_SYSROOT=iphonesimulator` on the Dawn command
-above, into `$DAWN/out-ios-sim`):
+and its own slice:
 
 ```sh
-node build-tools/cli.js native --target ios --simulator \
-  --dawn "$DAWN" --dawn-build "$DAWN/out-ios-sim" --quickjs "$QJS"
+node build-tools/cli.js native --target ios --simulator
 ```
 
 Both slices land in `build-native-ios/Estella.xcframework`, which is what the app

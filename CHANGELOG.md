@@ -16,6 +16,16 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **Runtime templates are published with the release, and the editor downloads
+  them.** The Android and iOS rows offer **Download** (with progress) beside
+  *Install from file…* for offline installs and mirrors. What is downloaded is
+  checked against the digest in `native-templates.json`, which the release
+  publishes beside the archives — a truncated download, a proxy's cached copy or a
+  captive-portal login page fails by name instead of installing as a broken
+  template. Dawn and QuickJS-ng are now **pinned** in `toolchain.manifest.json`
+  and fetched by `cli native --fetch-deps`, which also removes the hand-run cmake
+  recipes from `native/README.md`: the build produces Dawn for a target the first
+  time it needs it, so CI and a contributor run the same two commands.
 - **Android: Package Project hands back a signed APK, with no Android SDK.** With
   the Android runtime template installed, the editor compiles the manifest to
   binary XML, writes the aligned zip and signs it with **APK Signature Scheme v2**
