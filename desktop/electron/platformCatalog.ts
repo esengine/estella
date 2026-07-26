@@ -271,8 +271,8 @@ export default {
 function playableTemplate(id: string, label: string): string {
   return `// Ad-network profile for "${label}" — how Estella packages a playable for it.
 //
-// Selected in Project Settings → Packaging → Playable. The editor's own networks
-// are written against this same contract, so anything they can do, this can.
+// Selected in Package Project → Playable → Ad network. The editor's own networks are
+// written against this same contract, so anything they can do, this can.
 export default {
   id: '${id}',
   kind: 'playable',
