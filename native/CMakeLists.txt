@@ -107,7 +107,8 @@ set(ESTELLA_PHYSICS_SOURCES
     "${SRC}/esengine/bindings/PhysicsShapes.cpp"
     "${SRC}/esengine/bindings/PhysicsJoints.cpp"
     "${SRC}/esengine/bindings/PhysicsQueries.cpp"
-    "${SRC}/esengine/bindings/PhysicsReadback.cpp")
+    "${SRC}/esengine/bindings/PhysicsReadback.cpp"
+    "${SRC}/esengine/bindings/PhysicsTaskPool.cpp")
 add_library(estella_physics STATIC ${ESTELLA_PHYSICS_SOURCES})
 target_include_directories(estella_physics PUBLIC "${SRC}" "${TP}/box2d/include")
 target_link_libraries(estella_physics PUBLIC box2d)

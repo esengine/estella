@@ -495,6 +495,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#1a1a1a}
             src/esengine/bindings/PhysicsShapes.cpp
             src/esengine/bindings/PhysicsJoints.cpp
             src/esengine/bindings/PhysicsQueries.cpp
+            src/esengine/bindings/PhysicsTaskPool.cpp
         )
         if(ES_PHYSICS_ESM)
             # ESM variant (EXPORT_ES6=1) for the web editor's estella:// ESM host —
@@ -552,6 +553,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#1a1a1a}
             src/esengine/bindings/PhysicsShapes.cpp
             src/esengine/bindings/PhysicsJoints.cpp
             src/esengine/bindings/PhysicsQueries.cpp
+            src/esengine/bindings/PhysicsTaskPool.cpp
         )
         target_link_libraries(physics_side_module PRIVATE box2d)
         target_include_directories(physics_side_module PRIVATE

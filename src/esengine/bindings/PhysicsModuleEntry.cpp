@@ -1,9 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 #include "PhysicsContext.hpp"
+#include "PhysicsTaskPool.hpp"
 
 #include <algorithm>
 #include <cmath>
+
+#ifndef __EMSCRIPTEN__
+namespace {
+/// The pool the world solves across, built with the first world and torn down at
+/// exit. A wasm side module has no threads, so this exists only off the web.
+esengine::physics::TaskPool& taskPool() {
+    static esengine::physics::TaskPool pool;
+    return pool;
+}
+}  // namespace
+#endif
 
 // How closely the contact normal must align with a platform's solid normal for the
 // contact to survive (matches Box2D's own one-sided-platform sample).
@@ -49,6 +61,12 @@ void physics_init(float gx, float gy, float timestep, int substeps,
     worldDef.contactHertz = contactHertz;
     worldDef.contactDampingRatio = contactDampingRatio;
     worldDef.contactSpeed = contactSpeed;
+#ifndef __EMSCRIPTEN__
+    // Solve across the cores a device has and the web build does not. The result
+    // is the same either way — Box2D is deterministic under multithreading — so
+    // this changes only how long a step takes, never what it produces.
+    taskPool().configure(worldDef);
+#endif
     g_ctx.worldId = b2CreateWorld(&worldDef);
     b2World_SetPreSolveCallback(g_ctx.worldId, preSolveOneWayPlatform, nullptr);
 
