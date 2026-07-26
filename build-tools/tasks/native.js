@@ -15,7 +15,8 @@ import config from '../build.config.js';
 import * as logger from '../utils/logger.js';
 import { runCommand, getCpuCount, resolvePython } from '../utils/emscripten.js';
 import { requireSdk, requireNdk, sdkCmake } from '../utils/android.js';
-import { emitNativeTemplate, readEngineVersion } from './nativeTemplateEmit.js';
+import { emitNativeTemplate, writeTemplateIndex, readEngineVersion } from './nativeTemplateEmit.js';
+import { fetchNativeDeps, pinnedDep, ensureDawnBuild } from './nativeDeps.js';
 import {
     BYTECODE_FILE, DEFAULT_ABI, findTemplate, iosTemplateSources, templateStoreDir,
 } from '../utils/nativeTemplate.js';
@@ -232,14 +233,38 @@ async function prepareGenerated(rootDir, buildDir, quickjs) {
     return genDir;
 }
 
-function dawnPaths(options) {
-    const dawnDir = options.dawn || process.env.ESTELLA_DAWN_DIR;
-    const dawnBuild = options.dawnBuild || process.env.ESTELLA_DAWN_BUILD;
-    if (!dawnDir || !dawnBuild) {
-        throw new Error('Dawn not configured. Pass --dawn <src> --dawn-build <arm64 build>, or set '
-            + 'ESTELLA_DAWN_DIR / ESTELLA_DAWN_BUILD. Build Dawn per native/README.md.');
+/**
+ * Dawn, for one target: where its source is and where its build is — building it
+ * if it is not built yet.
+ *
+ * Nothing has to be passed. The pinned checkout (`--fetch-deps`) is the default
+ * source, its `out-<target>` the default build, and a missing build is produced
+ * rather than reported — so `cli native --target ios` works from a clean tree
+ * once the dependencies are fetched, and CI runs the same two commands a
+ * contributor does.
+ */
+async function dawnPaths(options, target, toolchain = {}) {
+    const dawnDir = options.dawn || process.env.ESTELLA_DAWN_DIR || pinnedDep('dawn');
+    if (!dawnDir) {
+        throw new Error('Dawn not configured. Run `node build-tools/cli.js native --fetch-deps` '
+            + '(it checks out the pinned commit), or pass --dawn <src> / set ESTELLA_DAWN_DIR.');
     }
+    const dawnBuild = await ensureDawnBuild({
+        dawn: dawnDir,
+        target,
+        buildDir: options.dawnBuild || process.env.ESTELLA_DAWN_BUILD,
+        abi: options.abi,
+        androidPlatform: options.platform,
+        iosMin: options.iosMin,
+        ...toolchain,
+    });
     return { dawnDir, dawnBuild };
+}
+
+/** The QuickJS source the host is built against. Same rule as Dawn: the pinned
+ *  checkout unless something says otherwise. */
+function quickjsDir(options) {
+    return options.quickjs || process.env.ESTELLA_QUICKJS_DIR || pinnedDep('quickjs');
 }
 
 // CMake parses backslashes in -D string values as escapes (F:\estella -> \e), so
@@ -253,17 +278,16 @@ async function buildAndroidHost(options) {
     const sdk = requireSdk();
     const ndk = requireNdk(sdk);
     const toolchain = path.join(ndk, 'build', 'cmake', 'android.toolchain.cmake');
-
-    const { dawnDir, dawnBuild } = dawnPaths(options);
-
     const { cmake, ninja } = sdkCmake(sdk);
+
+    const { dawnDir, dawnBuild } = await dawnPaths(options, 'android', { ndk, cmake, ninja });
     const buildDir = path.join(rootDir, 'build-native');
     await mkdir(buildDir, { recursive: true });
 
     // JS host (opt-in): pass --quickjs <dir> (or ESTELLA_QUICKJS_DIR) to also build
     // the QuickJS host — a game script driving the engine through the generated
     // bindings + the real SDK ptrAccessors.
-    const quickjs = options.quickjs || process.env.ESTELLA_QUICKJS_DIR;
+    const quickjs = quickjsDir(options);
     const genDir = quickjs ? await prepareGenerated(rootDir, buildDir, quickjs) : null;
 
     logger.step(`Configuring native host (${abi}, ${platform})...`);
@@ -404,19 +428,22 @@ async function writeIosAppIdentity(rootDir, contentDir) {
 async function buildIosHost(options) {
     if (process.platform !== 'darwin') throw new Error('The iOS host builds on macOS only.');
     const rootDir = config.paths.root;
-    const { dawnDir, dawnBuild } = dawnPaths(options);
     const slice = options.simulator ? IOS_SLICES.simulator : IOS_SLICES.device;
 
     // Unlike Android there is no pure-C++ reference host for iOS: the app IS the
     // JS host, so QuickJS is required rather than opt-in.
-    const quickjs = options.quickjs || process.env.ESTELLA_QUICKJS_DIR;
+    const quickjs = quickjsDir(options);
     if (!quickjs) {
-        throw new Error('The iOS host needs QuickJS: pass --quickjs <dir> (or set ESTELLA_QUICKJS_DIR).');
+        throw new Error('The iOS host needs QuickJS: run `node build-tools/cli.js native --fetch-deps`, '
+            + 'or pass --quickjs <dir> (or set ESTELLA_QUICKJS_DIR).');
     }
 
     const developerDir = await iosDeveloperDir();
     const env = developerDir ? { DEVELOPER_DIR: developerDir } : undefined;
     if (developerDir) logger.info(`Using DEVELOPER_DIR=${developerDir} (the active one has no iPhoneOS SDK)`);
+
+    const { dawnDir, dawnBuild } = await dawnPaths(
+        options, options.simulator ? 'ios-sim' : 'ios', { env });
 
     const buildDir = path.join(rootDir, slice.dir);
     await mkdir(buildDir, { recursive: true });
@@ -549,6 +576,11 @@ async function emitFromExistingBuild(target, options) {
 }
 
 export async function buildNative(options = {}) {
+    if (options.fetchDeps) return fetchNativeDeps(options);
+    if (options.templateIndex) {
+        return writeTemplateIndex(path.isAbsolute(options.templateIndex)
+            ? options.templateIndex : path.join(config.paths.root, options.templateIndex));
+    }
     const target = (options.target || 'android').toLowerCase();
     if (target !== 'ios' && target !== 'android') {
         throw new Error(`Unknown --target ${target} (expected android or ios).`);

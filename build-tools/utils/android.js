@@ -31,8 +31,16 @@ export function requireSdk() {
 }
 
 export function requireNdk(sdk) {
+    // An NDK installed outside the SDK (a CI action, a manual unzip) exports one
+    // of these; Android Studio's lives under the SDK.
+    const explicit = [process.env.ANDROID_NDK_HOME, process.env.ANDROID_NDK_ROOT].find(
+        (dir) => dir && existsSync(dir));
+    if (explicit) return explicit;
     const ndk = newest(path.join(sdk, 'ndk'));
-    if (!ndk) throw new Error(`No NDK under ${sdk}/ndk. Install one via Android Studio's SDK Manager.`);
+    if (!ndk) {
+        throw new Error(`No NDK under ${sdk}/ndk and no ANDROID_NDK_HOME. `
+            + "Install one via Android Studio's SDK Manager.");
+    }
     return ndk;
 }
 

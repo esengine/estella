@@ -26,6 +26,24 @@
             ]
         }
     },
+    "native": {
+        "$comment": [
+            "The two projects the native host links that are too large to vendor. PINNED, not",
+            "tracked: `--depth 1` of a moving branch makes a runtime template unreproducible, and",
+            "webgpu.h is a moving target. Not submodules either — Dawn fetches its own dependencies",
+            "with a script rather than submodules, so tracking it that way saves nobody the fetch",
+            "while putting a multi-GB clone in front of everyone who only builds for the web.",
+            "`node build-tools/cli.js native --fetch-deps` checks both out at these commits."
+        ],
+        "dawn": {
+            "repo": "https://dawn.googlesource.com/dawn",
+            "commit": "296a00d20c4324d0a0363096ab23da4bf4f26d35"
+        },
+        "quickjs": {
+            "repo": "https://github.com/quickjs-ng/quickjs",
+            "commit": "3d3cf3d86b66551403745a5b06acbed2b0f31dfd"
+        }
+    },
     "cmake": {
         "version": "3.31.7",
         "platforms": {

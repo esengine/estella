@@ -161,9 +161,10 @@ program
     .command('native')
     .description('Build the native (embedded-Dawn) host for Android or iOS arm64')
     .option('--target <target>', 'android or ios', 'android')
-    .option('--dawn <dir>', 'Dawn source dir (or ESTELLA_DAWN_DIR); see native/README.md')
-    .option('--dawn-build <dir>', 'Dawn arm64 build dir for this target (or ESTELLA_DAWN_BUILD)')
-    .option('--quickjs <dir>', 'QuickJS-ng source dir (or ESTELLA_QUICKJS_DIR)')
+    .option('--fetch-deps', 'Check out Dawn + QuickJS-ng at the pinned commits, then stop', false)
+    .option('--dawn <dir>', 'Dawn source dir (default: the pinned checkout; or ESTELLA_DAWN_DIR)')
+    .option('--dawn-build <dir>', 'Dawn build dir for this target (default: <dawn>/out-<target>, built if absent)')
+    .option('--quickjs <dir>', 'QuickJS-ng source dir (default: the pinned checkout; or ESTELLA_QUICKJS_DIR)')
     .option('--abi <abi>', 'Android ABI', 'arm64-v8a')
     .option('--platform <platform>', 'Android platform', 'android-33')
     .option('--ios-min <version>', 'iOS deployment target', '17.0')
@@ -177,15 +178,18 @@ program
     .option('--no-template', 'Skip refreshing this machine\'s runtime template with the build')
     .option('--template-only', 'Emit the runtime template from an existing build, without rebuilding', false)
     .option('--template-out <dir>', 'Also write the distributable template archive here (for a release)')
+    .option('--template-index <dir>', 'Write native-templates.json describing the archives in this dir, then stop')
     .option('-v, --verbose', 'Verbose output', false)
     .action(async (options) => {
         logger.setVerbose(options.verbose);
         try {
             await buildNative({
                 target: options.target,
+                fetchDeps: options.fetchDeps,
                 template: options.template,
                 templateOnly: options.templateOnly,
                 templateOut: options.templateOut,
+                templateIndex: options.templateIndex,
                 dawn: options.dawn,
                 dawnBuild: options.dawnBuild,
                 quickjs: options.quickjs,
