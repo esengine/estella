@@ -23,14 +23,14 @@ const shaderPathOf = (graphPath: string) => graphPath.replace(/\.esmatgraph$/, '
 export async function openMaterialGraph(path: string): Promise<void> {
   // Already-open file: just front the panel — a reload would clobber unsaved edits.
   if (MaterialGraphDocument.isOpen && MaterialGraphDocument.filePath === path) {
-    dockApi.openDocument('materialgraph', 'materialgraph', t('mat.panelTitle'));
+    dockApi.openPanel('materialgraph');
     return;
   }
   if (!(await confirmDiscardDoc(MaterialGraphDocument.dirty, t('discard.openAsset', { name: baseName(path) })))) return;
   try {
     const text = await window.estella.fs.read(path);
     MaterialGraphDocument.openJson(JSON.parse(text), path);
-    dockApi.openDocument('materialgraph', 'materialgraph', t('mat.panelTitle'));
+    dockApi.openPanel('materialgraph');
   } catch (e) {
     Toasts.push(t('mat.openGraphFailed', { error: String(e) }), 'error');
   }

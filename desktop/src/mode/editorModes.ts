@@ -30,16 +30,17 @@ export interface SelectionProbe {
   hasComponent(type: string): boolean;
 }
 
-/** A companion panel a mode reveals when entered (routed through dockApi.openSidePanel). */
+/**
+ * A companion panel a mode reveals when entered — a REFERENCE into the panel
+ * registry, which owns the panel's component key, title, side, and width. A mode
+ * only says "reveal that panel, maybe tabbed behind this one".
+ */
 export interface ModePanel {
-  id: string;
-  component: string;
-  title: string;
-  side?: 'left' | 'right';
-  width?: number;
-  /** Dock as a TAB in another mode-panel's group (by id) instead of its own column —
-   *  keeps a companion (e.g. Controllers) one click away without eating a second column
-   *  of viewport width. Falls back to `side` if that panel isn't open. */
+  /** Registered panel id (see layout/panels.ts). */
+  panel: string;
+  /** Dock as a TAB in another mode-panel's group instead of its own column — keeps
+   *  a companion (e.g. Controllers) one click away without eating a second column
+   *  of viewport width. Falls back to its own placement if that panel isn't open. */
   tabWith?: string;
 }
 
@@ -70,7 +71,7 @@ const tilemapMode: EditorModeDef = {
   commandLabel: t('cmd.mode.tilemap'),
   icon: Grid3x3,
   toolset: 'tilemap',
-  panels: [{ id: 'tilemap', component: 'tilemap', title: t('panel.tilemap'), side: 'left', width: 300 }],
+  panels: [{ panel: 'tilemap' }],
   suggestFor: (s) => s.hasComponent('TilemapLayer'),
 };
 
@@ -81,11 +82,11 @@ const uiMode: EditorModeDef = {
   icon: LayoutPanelTop,
   toolset: 'transform',
   panels: [
-    { id: 'ui-widgets', component: 'uiWidgets', title: t('panel.uiWidgets'), side: 'left', width: 240 },
+    { panel: 'ui-widgets' },
     // The Controllers panel is node-scoped and reached occasionally — tab it behind the
     // widget palette (one left column, two tabs) so entering UI mode doesn't eat a second
     // column of the viewport you're laying out in.
-    { id: 'controllers', component: 'controllers', title: t('panel.controllers'), tabWith: 'ui-widgets', side: 'left', width: 240 },
+    { panel: 'controllers', tabWith: 'ui-widgets' },
   ],
   overlays: { designFrame: true, safeArea: true, letterbox: true },
   suggestFor: (s) => s.hasComponent('Canvas') || s.hasComponent('UINode'),

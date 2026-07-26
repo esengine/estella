@@ -21,6 +21,7 @@ vi.mock('@/engine/SceneModel', () => ({
 }));
 
 import { EDITOR_MODES, EDITOR_MODE_BY_ID, editorModes, modeById, editorModeRegistry } from '@/mode/editorModes';
+import { panelDef } from '@/layout/panels';
 import { suggestedMode, activeMode } from '@/mode/activeMode';
 import { resolveActiveTool } from '@/tools';
 import { TILE_TOOLS } from '@/tools/tileTools';
@@ -54,9 +55,20 @@ describe('editor-mode registry + derivation', () => {
 
   it('UI mode reveals the widget palette + controllers panels on entry', () => {
     expect(EDITOR_MODE_BY_ID.ui.panels).toEqual([
-      expect.objectContaining({ component: 'uiWidgets', side: 'left' }),
-      expect.objectContaining({ component: 'controllers', side: 'left' }),
+      { panel: 'ui-widgets' },
+      { panel: 'controllers', tabWith: 'ui-widgets' },
     ]);
+  });
+
+  it('every mode panel reference resolves in the panel registry', () => {
+    // A mode names panels by id only; a typo would silently reveal nothing, so the
+    // reference is checked here rather than at runtime.
+    for (const mode of editorModes()) {
+      for (const p of mode.panels ?? []) {
+        expect(panelDef(p.panel), `mode "${mode.id}" panel "${p.panel}"`).toBeDefined();
+        if (p.tabWith) expect(panelDef(p.tabWith), `mode "${mode.id}" tabWith "${p.tabWith}"`).toBeDefined();
+      }
+    }
   });
 
   it('suggests the mode implied by the selection', () => {

@@ -41,7 +41,7 @@ function tilesetSource(
       useTilemapPaint.getState().setTool('brush');
       // Dock the painter to the side so the Viewport stays visible (a center tab would
       // hide what you paint on).
-      dockApi.openSidePanel('tilemap', 'tilemap', t('panel.tilemap'), 'left', 300);
+      dockApi.openPanel('tilemap');
       Toasts.push(t('tile.toast.created'), 'info');
     },
   };
@@ -87,7 +87,7 @@ export async function createCollisionLayer(): Promise<void> {
       // Start on the solid brush (palette gid 1) with the brush tool, painter open.
       useTilemapPaint.getState().setBrushTile(1);
       useTilemapPaint.getState().setTool('brush');
-      dockApi.openSidePanel('tilemap', 'tilemap', t('panel.tilemap'), 'left', 300);
+      dockApi.openPanel('tilemap');
       Toasts.push(t('tile.toast.collisionCreated'), 'info');
     },
   }, { parent: null });

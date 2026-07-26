@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { useEffect, useState, useSyncExternalStore, type FC, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore, type FC, type ReactNode } from 'react';
 import {
   DockviewReact,
   type DockviewReadyEvent,
@@ -13,73 +13,47 @@ import { ChevronDown, X, SquareArrowOutUpRight } from 'lucide-react';
 import { DirtyDot } from '@/components/DirtyDot';
 import { panelDirtySource } from '@/layout/panelDirty';
 import { confirmDiscardDoc } from '@/project/discardGuard';
-import { Outliner } from '@/panels/Outliner';
-import { Viewport } from '@/panels/Viewport';
-import { Details } from '@/panels/Details';
-import { ContentBrowser } from '@/panels/ContentBrowser';
-import { OutputLog } from '@/panels/OutputLog';
-import { GamePanel, GameClientPanel } from '@/panels/GamePanel';
-import { Sequencer } from '@/panels/Sequencer';
-import { TilesetEditor } from '@/panels/TilesetEditor';
-import { FlipbookEditor } from '@/panels/FlipbookEditor';
-import { AudioMixerPanel } from '@/panels/AudioMixerPanel';
-import { TilemapPainter } from '@/panels/TilemapPainter';
-import { UIWidgetsPanel } from '@/panels/UIWidgetsPanel';
-import { ControllersPanel } from '@/panels/ControllersPanel';
-import { MaterialGraphEditor } from '@/panels/MaterialGraphEditor';
-import { StateMachineEditor } from '@/panels/StateMachineEditor';
-import { AnimatorEditor } from '@/panels/AnimatorEditor';
-import { BtTreeEditor } from '@/panels/BtTreeEditor';
-import { ProfilerPanel } from '@/panels/ProfilerPanel';
 import { Perf } from '@/components/Perf';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { PanelWindowProvider } from '@/components/PanelWindow';
 import { dockApi, applyPopoutTheme } from '@/layout/dockApi';
 import { addEditorWindow, removeEditorWindow } from '@/layout/editorWindows';
+import {
+  panelDef, panelDefs, panelComponent, isPanelClosable, ensuredPanels,
+  panelRegistry, panelTitle,
+} from '@/layout/panels';
+import { PANEL_RENDERERS } from '@/layout/panelComponents';
 import { t } from '@/i18n';
 
 // Each dock panel is a thin wrapper so dockview owns mount/unmount. The
 // PanelWindowProvider hands the panel's live window down the tree so floating UI
 // (menus, popovers, tooltips) lands in the right OS window once it's popped out.
-const panel = (id: string, api: DockviewPanelApi, node: ReactNode) => (
+// The wrapper keys off the LIVE panel id (api.id), which is also what the profiler
+// and error boundary label — so a multi-instance panel needs no bespoke wiring.
+const panel = (api: DockviewPanelApi, node: ReactNode, noPerf?: boolean) => (
   <PanelWindowProvider api={api}>
-    <Perf id={id}>
-      <ErrorBoundary label={id}>{node}</ErrorBoundary>
-    </Perf>
+    {noPerf ? (
+      <ErrorBoundary label={api.id}>{node}</ErrorBoundary>
+    ) : (
+      <Perf id={api.id}>
+        <ErrorBoundary label={api.id}>{node}</ErrorBoundary>
+      </Perf>
+    )}
   </PanelWindowProvider>
 );
 
-const components: Record<string, FC<IDockviewPanelProps>> = {
-  outliner: (p) => panel('outliner', p.api, <Outliner />),
-  viewport: (p) => panel('viewport', p.api, <Viewport />),
-  details: (p) => panel('details', p.api, <Details />),
-  content: (p) => panel('content', p.api, <ContentBrowser />),
-  log: (p) => panel('log', p.api, <OutputLog />),
-  sequencer: (p) => panel('sequencer', p.api, <Sequencer />),
-  tileset: (p) => panel('tileset', p.api, <TilesetEditor />),
-  flipbook: (p) => panel('flipbook', p.api, <FlipbookEditor />),
-  audiomixer: (p) => panel('audiomixer', p.api, <AudioMixerPanel />),
-  tilemap: (p) => panel('tilemap', p.api, <TilemapPainter />),
-  uiWidgets: (p) => panel('uiWidgets', p.api, <UIWidgetsPanel />),
-  controllers: (p) => panel('controllers', p.api, <ControllersPanel />),
-  materialgraph: (p) => panel('materialgraph', p.api, <MaterialGraphEditor />),
-  statemachine: (p) => panel('statemachine', p.api, <StateMachineEditor />),
-  animatorcontroller: (p) => panel('animatorcontroller', p.api, <AnimatorEditor />),
-  behaviortree: (p) => panel('behaviortree', p.api, <BtTreeEditor />),
-  // Profiler skips the Perf wrapper (it must not profile its own render).
-  profiler: (p) => (
-    <PanelWindowProvider api={p.api}>
-      <ErrorBoundary label="profiler"><ProfilerPanel /></ErrorBoundary>
-    </PanelWindowProvider>
-  ),
-  // The "Game" view (isolated play realm) — added on Play, removed on Stop.
-  game: (p) => panel('game', p.api, <GamePanel />),
-  // Multiplayer client realms ("Game P2..N") — session-scoped, keyed by realmId.
-  gameClient: (props) => {
-    const realmId = Number((props.params as { realmId?: number } | undefined)?.realmId ?? 0);
-    return panel(`game-client-${realmId}`, props.api, <GameClientPanel realmId={realmId} />);
-  },
-};
+/** dockview's component map, derived from the panel registry. */
+function buildComponents(): Record<string, FC<IDockviewPanelProps>> {
+  const out: Record<string, FC<IDockviewPanelProps>> = {};
+  for (const def of panelDefs()) {
+    const key = panelComponent(def);
+    const render = PANEL_RENDERERS[key];
+    if (!render) continue; // registered with no renderer — nothing to mount
+    out[key] = (p) =>
+      panel(p.api, render({ panelId: p.api.id, params: p.params as Record<string, unknown> | undefined }), def.noPerf);
+  }
+  return out;
+}
 
 // Bumped to v6 (document-area editors): Viewport center, right column Outliner-
 // over-Details, Content Browser + Output Log + Sequencer as bottom tabs. The big
@@ -107,106 +81,51 @@ export function resetLayout() {
   api.getPanel('content')?.api.setActive();
 }
 
+// The default ARRANGEMENT — a layout recipe (who anchors whom, at what size),
+// which is why it stays here rather than in the panel registry. Titles and
+// component keys still come from the registry, so they can't drift from it.
 function buildDefaultLayout(api: DockviewReadyEvent['api']) {
+  const add = (id: string, position?: Parameters<typeof api.addPanel>[0]['position'], size?: { initialWidth?: number; initialHeight?: number }) => {
+    const def = panelDef(id);
+    if (!def) return;
+    api.addPanel({ id, component: panelComponent(def), title: def.title(), position, ...size });
+  };
+
   // Viewport is the anchor; the right column stacks Outliner over Details.
-  api.addPanel({ id: 'viewport', component: 'viewport', title: t('layout.panel.viewport') });
-
-  api.addPanel({
-    id: 'outliner',
-    component: 'outliner',
-    title: t('layout.panel.worldOutliner'),
-    position: { referencePanel: 'viewport', direction: 'right' },
-    initialWidth: 366, // --w-rightdock
-  });
-
-  api.addPanel({
-    id: 'details',
-    component: 'details',
-    title: t('layout.panel.details'),
-    position: { referencePanel: 'outliner', direction: 'below' },
-  });
-
-  api.addPanel({
-    id: 'content',
-    component: 'content',
-    title: t('layout.panel.contentBrowser'),
-    position: { referencePanel: 'viewport', direction: 'below' },
-    initialHeight: 300,
-  });
-
+  add('viewport');
+  add('outliner', { referencePanel: 'viewport', direction: 'right' }, { initialWidth: 366 }); // --w-rightdock
+  add('details', { referencePanel: 'outliner', direction: 'below' });
+  add('content', { referencePanel: 'viewport', direction: 'below' }, { initialHeight: 300 });
   // Output Log shares the bottom group as a sibling tab of the Content Browser.
-  api.addPanel({
-    id: 'log',
-    component: 'log',
-    title: t('layout.panel.outputLog'),
-    position: { referencePanel: 'content', direction: 'within' },
-  });
+  add('log', { referencePanel: 'content', direction: 'within' });
 }
 
 // Bottom-dock utility tabs added on both fresh builds and restored layouts, so a
 // saved layout predating a tab gains it without resetting the user's arrangement.
-// Each docks next to the first of `refs` that exists. The big editing canvases
-// (Material Graph / Tilemap / Tileset) are intentionally NOT here — they open as
-// center document tabs on demand (dockApi.openDocument); only the timeline-shaped
-// Sequencer belongs in the bottom utility row (UE convention).
-const BOTTOM_TABS: { id: string; component: string; title: string; refs: string[] }[] = [
-  { id: 'sequencer', component: 'sequencer', title: t('layout.panel.sequencer'), refs: ['content', 'log'] },
-  { id: 'profiler', component: 'profiler', title: t('layout.panel.profiler'), refs: ['log', 'content'] },
-  { id: 'audiomixer', component: 'audiomixer', title: t('mix.panelTitle'), refs: ['log', 'content'] },
-];
-
+// Each docks next to the first of its `refs` that exists.
 function ensureBottomTabs(api: DockviewReadyEvent['api']) {
-  for (const tab of BOTTOM_TABS) {
-    if (api.getPanel(tab.id)) continue;
-    const ref = tab.refs.find((r) => api.getPanel(r));
+  for (const def of ensuredPanels()) {
+    if (api.getPanel(def.id)) continue;
+    const ref = def.refs?.find((r) => api.getPanel(r));
     api.addPanel({
-      id: tab.id,
-      component: tab.component,
-      title: tab.title,
+      id: def.id,
+      component: panelComponent(def),
+      title: def.title(),
       position: ref ? { referencePanel: ref, direction: 'within' } : undefined,
     });
   }
 }
 
 // dockview persists panel TITLES inside the saved layout JSON, in whatever
-// language wrote them — so a restored layout would pin the old language on
-// every tab. All our panel ids are stable, so re-title the known ones from
-// the live catalog after a restore. Ids not listed (game clients) are
-// session-scoped and never usefully restored.
-const PANEL_TITLES: Record<string, () => string> = {
-  viewport: () => t('layout.panel.viewport'),
-  outliner: () => t('layout.panel.worldOutliner'),
-  details: () => t('layout.panel.details'),
-  content: () => t('layout.panel.contentBrowser'),
-  log: () => t('layout.panel.outputLog'),
-  sequencer: () => t('layout.panel.sequencer'),
-  profiler: () => t('layout.panel.profiler'),
-  game: () => t('layout.panel.game'),
-  tileset: () => t('tile.panelTileset'),
-  flipbook: () => t('fb.panelTitle'),
-  audiomixer: () => t('mix.panelTitle'),
-  tilemap: () => t('panel.tilemap'),
-  'ui-widgets': () => t('panel.uiWidgets'),
-  controllers: () => t('panel.controllers'),
-  materialgraph: () => t('mat.panelTitle'),
-  statemachine: () => t('fsm.tabTitle'),
-  animatorcontroller: () => t('anim.tabTitle'),
-  behaviortree: () => t('bt.tabTitle'),
-};
-
+// language wrote them — so a restored layout would pin the old language on every
+// tab. Panel ids are stable, so re-title from the registry after a restore. A
+// panel with no registered def (a session-scoped game client) is skipped.
 function retitleRestoredPanels(api: DockviewReadyEvent['api']) {
   for (const panel of api.panels) {
-    const title = PANEL_TITLES[panel.id];
-    if (title) panel.api.setTitle(title());
+    const title = panelTitle(panel.id);
+    if (title) panel.api.setTitle(title);
   }
 }
-
-// The essential editing panels have no reopen path (only the nuke-everything Reset
-// Layout), and the Viewport is the structural anchor other panels dock against — so
-// closing any is a dead-end. They stay open; resize or collapse-to-header for space.
-// The dockable extras (sequencer/profiler/mixer) keep their X — the activity bar
-// re-adds them.
-const NON_CLOSABLE_PANELS = new Set(['viewport', 'outliner', 'details', 'content', 'log']);
 
 // Custom tab content: title + the shared dirty dot (asset editors) + a close
 // button that only shows on hover / on the active tab, so the strip stays calm.
@@ -242,7 +161,7 @@ function EstellaTab(props: IDockviewPanelHeaderProps) {
           <SquareArrowOutUpRight size={11} strokeWidth={2} />
         </button>
       )}
-      {!NON_CLOSABLE_PANELS.has(props.api.id) && (
+      {isPanelClosable(props.api.id) && (
         <button
           type="button"
           className="tab-x"
@@ -298,6 +217,14 @@ function CollapseHeaderAction(props: IDockviewHeaderActionsProps) {
 }
 
 export function DockLayout() {
+  // Rebuilt when the panel set changes, so a contributed panel's component key
+  // exists by the time something opens it.
+  const revision = useSyncExternalStore(
+    panelRegistry.subscribe.bind(panelRegistry),
+    panelRegistry.getRevision.bind(panelRegistry),
+  );
+  const components = useMemo(() => buildComponents(), [revision]);
+
   const onReady = (event: DockviewReadyEvent) => {
     const { api } = event;
     dockApi.set(api); // expose to the activity bar (reveal/focus panels)

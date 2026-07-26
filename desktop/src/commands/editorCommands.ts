@@ -279,13 +279,7 @@ for (const m of EDITOR_MODES) {
         return;
       }
       modeStore.setMode(m.id);
-      for (const p of m.panels ?? []) {
-        if (p.tabWith) {
-          dockApi.openTabbedPanel(p.id, p.component, p.title, p.tabWith, p.side ?? 'left', p.width ?? 300);
-        } else {
-          dockApi.openSidePanel(p.id, p.component, p.title, p.side ?? 'left', p.width ?? 300);
-        }
-      }
+      for (const p of m.panels ?? []) dockApi.openPanel(p.panel, { tabWith: p.tabWith });
       // A mode with a design frame (UI) is entered to work against the authored screen;
       // the free editor camera never adopts the design aspect, so frame it on entry so
       // the design resolution (e.g. a portrait 750×1334) reads at once instead of hiding

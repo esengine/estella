@@ -46,7 +46,7 @@ export interface GraphAssetKind {
 
 /** Open an existing graph asset into its editor and reveal the panel. */
 export async function openGraphAsset(kind: GraphAssetKind, path: string): Promise<void> {
-  const front = (): void => dockApi.openDocument(kind.panelId, kind.panelId, t(kind.titleKey));
+  const front = (): void => dockApi.openPanel(kind.panelId);
   // Already-open file: just front the panel — a reload would clobber unsaved edits.
   if (kind.document.isOpen && kind.document.filePath === path) {
     front();

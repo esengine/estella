@@ -20,7 +20,7 @@ import { t } from '@/i18n';
 export async function openFlipbook(path: string): Promise<void> {
   // Already-open file: just front the panel — a reload would clobber unsaved edits.
   if (AnimClipDocument.isOpen && AnimClipDocument.filePath === path) {
-    dockApi.openDocument('flipbook', 'flipbook', t('fb.panelTitle'));
+    dockApi.openPanel('flipbook');
     useSelection.getState().selectAsset(path);
     return;
   }
@@ -28,7 +28,7 @@ export async function openFlipbook(path: string): Promise<void> {
   try {
     const text = await window.estella.fs.read(path);
     AnimClipDocument.openJson(JSON.parse(text), path);
-    dockApi.openDocument('flipbook', 'flipbook', t('fb.panelTitle'));
+    dockApi.openPanel('flipbook');
     useSelection.getState().selectAsset(path);
   } catch (e) {
     Toasts.push(t('fb.toast.openFailed', { error: String(e) }), 'error');

@@ -8,6 +8,7 @@
  */
 import type { DockviewApi, DockviewGroupPanelApi } from 'dockview';
 import { t } from '@/i18n';
+import { panelDef, panelComponent, isPanelPoppable } from '@/layout/panels';
 
 let api: DockviewApi | null = null;
 // Remembered pre-collapse sizes, per panel id (so a re-expand restores them).
@@ -34,12 +35,13 @@ const prefersReducedMotion = (): boolean =>
   typeof window.matchMedia === 'function' &&
   window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-// The Game view hosts the play-realm iframe, and re-parenting an iframe across
-// documents reloads it (its wasm/GL would restart) — so it stays put. The Viewport
-// CAN pop out: a same-origin canvas move preserves the live WebGL context, so its
-// single engine canvas rides the move into the new window (EngineHost.rebindResize
-// re-binds sizing). Everything else is model/store-driven and pops out cleanly.
-const NON_POPPABLE = new Set(['game']);
+// Whether a panel may pop out is a per-panel FACT, so it lives on the panel def
+// (`poppable`). The Game views host the play-realm iframe, and re-parenting an
+// iframe across documents reloads it (its wasm/GL would restart) — so they stay
+// put. The Viewport CAN pop out: a same-origin canvas move preserves the live
+// WebGL context, so its single engine canvas rides the move into the new window
+// (EngineHost.rebindResize re-binds sizing). Everything else is model/store-driven
+// and pops out cleanly.
 
 // dockview's getDockviewTheme copies only the FIRST `dockview-theme-*` class onto
 // the popout container (our root carries `dockview-theme-abyss dockview-theme-estella`,
@@ -75,9 +77,9 @@ export const dockApi = {
   setPanelSize(id: string, size: { width?: number; height?: number }) {
     api?.getPanel(id)?.api.setSize(size);
   },
-  /** True when a panel may be popped out into its own OS window (see NON_POPPABLE). */
+  /** True when a panel may be popped out into its own OS window (per its panel def). */
   canPopout(id: string): boolean {
-    return !NON_POPPABLE.has(id) && !id.startsWith('game-client-');
+    return isPanelPoppable(id);
   },
   /**
    * Move a docked panel into its own OS window (dockview addPopoutGroup → a real
@@ -148,18 +150,66 @@ export const dockApi = {
     // Keep the reference tab (the primary companion) foremost so the mode opens showing it.
     ref.api.setActive();
   },
+  /**
+   * Open (or front) a registered panel, docked where its def says it belongs — the
+   * ONE door for "show me panel X". Call sites name a panel id and nothing else, so
+   * a panel's component key, title, side, and width can't drift per call site the
+   * way they did when every opener repeated the triple.
+   *
+   * `tabWith` overrides the def's placement to tab the panel inside another one's
+   * group (a mode companion that shouldn't claim its own column).
+   */
+  openPanel(id: string, opts?: { tabWith?: string }) {
+    const def = panelDef(id);
+    if (!api || !def) return;
+    const side = def.placement === 'side-right' ? 'right' : 'left';
+    if (opts?.tabWith) {
+      this.openTabbedPanel(id, panelComponent(def), def.title(), opts.tabWith, side, def.width ?? 300);
+      return;
+    }
+    switch (def.placement) {
+      case 'document':
+        this.openDocument(id, panelComponent(def), def.title());
+        return;
+      case 'side-left':
+      case 'side-right':
+        this.openSidePanel(id, panelComponent(def), def.title(), side, def.width ?? 300);
+        return;
+      case 'bottom': {
+        if (!api.getPanel(id)) {
+          const ref = def.refs?.find((r) => api?.getPanel(r));
+          api.addPanel({
+            id,
+            component: panelComponent(def),
+            title: def.title(),
+            position: ref ? { referencePanel: ref, direction: 'within' } : undefined,
+          });
+        }
+        api.getPanel(id)?.api.setActive();
+        return;
+      }
+      case 'viewport-tab': {
+        if (!api.getPanel(id)) {
+          api.addPanel({
+            id,
+            component: panelComponent(def),
+            title: def.title(),
+            position: api.getPanel('viewport') ? { referencePanel: 'viewport', direction: 'within' } : undefined,
+          });
+        }
+        api.getPanel(id)?.api.setActive();
+        return;
+      }
+      case 'structural':
+        // Placed by the default layout; "opening" it means bringing it forward.
+        this.revealAndExpand(id);
+        return;
+    }
+  },
+
   /** Open (or reveal) the Game view as a tab beside the Viewport — used on Play. */
   openGame() {
-    if (!api) return;
-    if (!api.getPanel('game')) {
-      api.addPanel({
-        id: 'game',
-        component: 'game',
-        title: t('layout.panel.game'),
-        position: api.getPanel('viewport') ? { referencePanel: 'viewport', direction: 'within' } : undefined,
-      });
-    }
-    api.getPanel('game')?.api.setActive();
+    this.openPanel('game');
   },
   /** Close the Game view — used on Stop. */
   closeGame() {
@@ -168,14 +218,16 @@ export const dockApi = {
   /** Open the multiplayer client views ("Game P2..N") beside the primary Game
    *  view — used on multiplayer Play. Splits right so players sit side by side. */
   openGameClients(realmIds: number[]) {
-    if (!api) return;
+    const def = panelDef('gameClient');
+    if (!api || !def) return;
     for (const realmId of realmIds) {
-      const id = `game-client-${realmId}`;
+      const id = `${def.instanceIdPrefix}${realmId}`;
       if (!api.getPanel(id)) {
         const anchor = api.getPanel('game') ?? api.getPanel('viewport');
         api.addPanel({
           id,
-          component: 'gameClient',
+          component: panelComponent(def),
+          // Per-instance title (the def's is the generic one) — players are 1-based.
           title: t('layout.panel.gamePlayer', { n: realmId + 1 }),
           params: { realmId },
           position: anchor ? { referencePanel: anchor.id, direction: 'right' } : undefined,

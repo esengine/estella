@@ -20,14 +20,14 @@ import { t } from '@/i18n';
 export async function openTileset(path: string): Promise<void> {
   // Already-open file: just front the panel — a reload would clobber unsaved edits.
   if (TilesetDocument.isOpen && TilesetDocument.filePath === path) {
-    dockApi.openDocument('tileset', 'tileset', t('tile.panelTileset'));
+    dockApi.openPanel('tileset');
     return;
   }
   if (!(await confirmDiscardDoc(TilesetDocument.dirty, t('discard.openAsset', { name: baseName(path) })))) return;
   try {
     const text = await window.estella.fs.read(path);
     TilesetDocument.openJson(JSON.parse(text), path);
-    dockApi.openDocument('tileset', 'tileset', t('tile.panelTileset'));
+    dockApi.openPanel('tileset');
   } catch (e) {
     Toasts.push(t('tile.toast.openFailed', { error: String(e) }), 'error');
   }
