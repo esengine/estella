@@ -296,9 +296,19 @@ void WebGPUDevice::stubOnce(const char* what) {
 // Dynamic state (recorded in slice 2's pass encoder)
 // =============================================================================
 
+// The RHI states a rectangle the way GL does: origin bottom-left, y up. WebGPU
+// measures from the top-left, so any rect that is not the whole target arrives
+// upside down here — a UI mask's scissor, a camera viewport sharing the target,
+// a region clear. A full-target rect flips to itself, which is why only masked
+// content showed it.
+i32 WebGPUDevice::flipRectY(i32 y, i32 height) const {
+    return static_cast<i32>(pass_height_) - (y + height);
+}
+
 void WebGPUDevice::setViewport(i32 x, i32 y, u32 w, u32 h) {
     if (pass_) {
-        wgpuRenderPassEncoderSetViewport(pass_, static_cast<f32>(x), static_cast<f32>(y),
+        wgpuRenderPassEncoderSetViewport(pass_, static_cast<f32>(x),
+                                         static_cast<f32>(flipRectY(y, static_cast<i32>(h))),
                                          static_cast<f32>(w), static_cast<f32>(h), 0.0f, 1.0f);
     }
 }
@@ -326,10 +336,17 @@ void WebGPUDevice::setScissorTest(bool enabled) {
 }
 
 void WebGPUDevice::setScissor(i32 x, i32 y, i32 w, i32 h) {
-    if (pass_ && w > 0 && h > 0) {
-        wgpuRenderPassEncoderSetScissorRect(pass_, static_cast<u32>(x), static_cast<u32>(y),
-                                            static_cast<u32>(w), static_cast<u32>(h));
-    }
+    if (!pass_ || w <= 0 || h <= 0) return;
+    // Clamped to the attachment: WebGPU rejects a rect that leaves it, where GL
+    // simply clips — and a mask scrolled half off screen is ordinary.
+    const i32 top = flipRectY(y, h);
+    const i32 x0 = std::clamp(x, 0, static_cast<i32>(pass_width_));
+    const i32 y0 = std::clamp(top, 0, static_cast<i32>(pass_height_));
+    const i32 x1 = std::clamp(x + w, 0, static_cast<i32>(pass_width_));
+    const i32 y1 = std::clamp(top + h, 0, static_cast<i32>(pass_height_));
+    wgpuRenderPassEncoderSetScissorRect(pass_, static_cast<u32>(x0), static_cast<u32>(y0),
+                                        static_cast<u32>(std::max(0, x1 - x0)),
+                                        static_cast<u32>(std::max(0, y1 - y0)));
 }
 
 // =============================================================================
@@ -1030,9 +1047,8 @@ void WebGPUDevice::drawInternalClear(bool color, bool depth, bool stencil,
     // (mid-pass stencil reset) the currently active scissor applies — the same
     // rectangle glClear would have honored.
     if (region) {
-        wgpuRenderPassEncoderSetScissorRect(pass_, static_cast<u32>(region->clearX),
-                                            static_cast<u32>(region->clearY),
-                                            region->clearW, region->clearH);
+        setScissor(region->clearX, region->clearY,
+                   static_cast<i32>(region->clearW), static_cast<i32>(region->clearH));
     }
     wgpuRenderPassEncoderSetPipeline(pass_, pipeline);
     wgpuRenderPassEncoderSetBindGroup(pass_, 0, clear_bind_group_, 0, nullptr);

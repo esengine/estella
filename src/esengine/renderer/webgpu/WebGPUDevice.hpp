@@ -199,6 +199,10 @@ public:
     const PipelineDesc* pipelineDesc(PipelineHandle handle) const;
 
 private:
+    /** A GL-style rect's y (origin bottom-left) in this pass' coordinates
+     *  (origin top-left). See the definition. */
+    i32 flipRectY(i32 y, i32 height) const;
+
     struct BufferRec {
         WGPUBuffer buffer = nullptr;
         u32 size = 0;
