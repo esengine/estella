@@ -237,6 +237,7 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
         Entity transformEntity = (layer.origin_entity != INVALID_ENTITY)
             ? layer.origin_entity : entity;
         if (auto* transform = registry.tryGet<ecs::Transform>(transformEntity)) {
+            transform->ensureDecomposed();   // lazily derived; see Transform.hpp
             originX = transform->worldPosition.x;
             originY = transform->worldPosition.y;
         }

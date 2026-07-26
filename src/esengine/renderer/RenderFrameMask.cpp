@@ -49,7 +49,10 @@ ScreenRect computeMaskScreenRect(
         return {0, 0, 0, 0};
     }
     const auto& node = registry.get<ecs::UINode>(entity);
-    const auto& transform = registry.get<ecs::Transform>(entity);
+    auto& transform = registry.get<ecs::Transform>(entity);
+    // The world TRS below is decomposed on demand, so a mask whose transform no
+    // other pass has read this frame would be clipped to where it used to be.
+    transform.ensureDecomposed();
 
     f32 worldW = node.computed_size_.x * transform.worldScale.x;
     f32 worldH = node.computed_size_.y * transform.worldScale.y;
