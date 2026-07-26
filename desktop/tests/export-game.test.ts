@@ -9,6 +9,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, copyFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -111,6 +112,28 @@ describe('exportGame', () => {
     expect(html).toContain('Rotate your device to landscape');
     expect(html).toMatch(/screen\.orientation[\s\S]*lock\("landscape"\)/);
     expect(JSON.parse(readFileSync(path.join(out, 'game.config.json'), 'utf8')).entryScene).toBe('scenes/main.esscene');
+  }, 60_000);
+
+  it('lists every inline script in the page CSP, for either orientation', async () => {
+    for (const orientation of ['landscape', 'portrait'] as const) {
+      const cspOut = path.join(root, `dist-game-csp-${orientation}`);
+      const res = await exportGame({
+        root, entryScene: 'scenes/main.esscene', gameHostEntry: GAME_HOST, scriptsEntry: 'src/main.ts',
+        sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wasm'), outDir: cspOut, orientation,
+      });
+      expect(res.ok).toBe(true);
+
+      const html = readFileSync(path.join(cspOut, 'index.html'), 'utf8');
+      const csp = /http-equiv="Content-Security-Policy"\s*\n?\s*content="([^"]+)"/.exec(html)?.[1];
+      expect(csp).toBeTruthy();
+      // A hash the policy omits means the browser blocks that script — which is how
+      // the orientation lock came to be dead in a shipped build.
+      const inline = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+      expect(inline.length).toBe(2); // the import map + the orientation lock
+      for (const body of inline) {
+        expect(csp).toContain(`sha256-${createHash('sha256').update(body).digest('base64')}`);
+      }
+    }
   }, 60_000);
 
   it('writes the project camera fit into game.config.json (only when opted in)', async () => {

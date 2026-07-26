@@ -11,6 +11,8 @@
  *        via game.json deviceOrientation, and desktop sizes its window instead — this
  *        is only the browser surfaces.
  */
+import { createHash } from 'node:crypto';
+
 export type ScreenOrientation = 'portrait' | 'landscape';
 
 /** CSS pinning the canvas to `orientation`: the `#rotate-hint` overlay replaces the
@@ -32,8 +34,18 @@ export function orientationOverlayHtml(orientation: ScreenOrientation): string {
   return `<div id="rotate-hint" role="alert"><div class="rotate-glyph">📱</div><p>Rotate your device to ${orientation}</p></div>`;
 }
 
+function orientationLockJs(orientation: ScreenOrientation): string {
+  return `try{var o=screen.orientation;o&&o.lock&&o.lock(${JSON.stringify(orientation)}).catch(function(){});}catch(e){}`;
+}
+
 /** Best-effort orientation lock. Silently ignored where unsupported (the CSS overlay
  *  covers those cases); a raw <script> so both the web and inlined-playable pages use it. */
 export function orientationLockScript(orientation: ScreenOrientation): string {
-  return `<script>try{var o=screen.orientation;o&&o.lock&&o.lock(${JSON.stringify(orientation)}).catch(function(){});}catch(e){}</script>`;
+  return `<script>${orientationLockJs(orientation)}</script>`;
+}
+
+/** The lock script's CSP hash. A page that pins `script-src` MUST list it, or the
+ *  browser blocks the inline script and the lock silently never runs. */
+export function orientationLockCspHash(orientation: ScreenOrientation): string {
+  return `sha256-${createHash('sha256').update(orientationLockJs(orientation)).digest('base64')}`;
 }

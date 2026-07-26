@@ -35,7 +35,7 @@ import type { MiniGameExportProfile } from './miniGameExportProfile';
 import { exportPlayable } from './exportPlayable';
 import type { OnExportProgress } from './exportProgress';
 import { ESENGINE_EXTERNAL } from './esengineResolve';
-import { orientationCss, orientationOverlayHtml, orientationLockScript, type ScreenOrientation } from './orientationHtml';
+import { orientationCss, orientationOverlayHtml, orientationLockScript, orientationLockCspHash, type ScreenOrientation } from './orientationHtml';
 
 import { emitIosXcodeProject, type IosProjectSources } from './iosProject';
 import { isNativePlatform, type ExportPlatform } from '../src/project/platforms';
@@ -160,13 +160,17 @@ export interface ExportGameResult {
  *  to-fit overlay + best-effort lock) — set for the mobile-facing web target, omitted
  *  for desktop (the Electron shell sizes its own window). */
 function indexHtml(title: string, orientation?: ScreenOrientation): string {
+  // Every inline script on this page needs its hash listed, or the browser blocks it.
+  const inlineScripts = [IMPORT_MAP_CSP_HASH, ...(orientation ? [orientationLockCspHash(orientation)] : [])]
+    .map((h) => `'${h}'`)
+    .join(' ');
   return `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self' 'unsafe-eval' blob: '${IMPORT_MAP_CSP_HASH}'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' data: blob:; worker-src 'self' blob:;"
+      content="default-src 'self'; script-src 'self' 'unsafe-eval' blob: ${inlineScripts}; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' data: blob:; worker-src 'self' blob:;"
     />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
     <title>${title}</title>
