@@ -36,6 +36,13 @@ export interface PlayableAdProfile {
     /** Where {@link maxBytes} comes from, quoted in the warning so a developer can
      *  check it against the network's current docs rather than trusting us. */
     readonly limitNote: string;
+    /**
+     * Something the developer must still do by hand before this package can be
+     * uploaded — Google takes a ZIP, and the export writes a bare index.html.
+     * Reported as a warning, because an export that looks finished but is not
+     * uploadable is worse than one that says so.
+     */
+    readonly deliveryNote?: string;
     /** Markup for `<head>`: an orientation meta tag, the network's own SDK script. */
     emitHead?(ctx: PlayableAdContext): string;
     /**
@@ -76,10 +83,78 @@ export const metaPlayableProfile: PlayableAdProfile = {
         + '}};',
 };
 
-/** The networks the editor ships, by id. */
+/**
+ * Google App campaigns. Two things are unlike every other network: the store exit
+ * goes through Google's own hosted script — which the docs require as a LITERAL
+ * `<script>` in `<head>`, not one added by JS — and the upload is a ZIP, which this
+ * export does not produce, so it says so rather than looking finished.
+ * @see https://support.google.com/google-ads/answer/9981650
+ */
+export const googlePlayableProfile: PlayableAdProfile = {
+    id: 'google',
+    label: 'Google Ads (App campaigns)',
+    maxBytes: 5 * 1024 * 1024,
+    limitNote: 'Google accepts a .ZIP up to 5MB',
+    deliveryNote: 'Google uploads a .ZIP — compress this index.html before uploading.',
+    // The orientation meta tag is required alongside the exit API.
+    emitHead: (ctx) => '<script src="https://tpc.googlesyndication.com/pagead/gadgets/html5/api/exitapi.js"></script>\n'
+        + `    <meta name="ad.orientation" content="${ctx.orientation}">`,
+    emitBridge: () => 'window.__ESTELLA_PLAYABLE__={cta:function(){'
+        + 'if(typeof ExitApi!=="undefined"&&ExitApi.exit)ExitApi.exit();'
+        + '}};',
+};
+
+/**
+ * The MRAID networks. `mraid` is injected by the host webview, so nothing goes in
+ * `<head>` — and `mraid.open()` is what the spec requires for a click-through
+ * (an `<a href>` or `window.open` breaks click tracking, and some exchanges reject
+ * it outright).
+ *
+ * Note for the game: MRAID hosts expect the playable to wait for the
+ * `viewableChange` event before it starts, which is the game's call to make.
+ * @see https://mraid.io/
+ */
+const mraidBridge = (): string => 'window.__ESTELLA_PLAYABLE__={cta:function(){'
+    + 'if(typeof mraid!=="undefined"&&mraid.open)mraid.open();'
+    + '}};';
+
+export const mraidPlayableProfile: PlayableAdProfile = {
+    id: 'mraid',
+    label: 'MRAID network (generic)',
+    maxBytes: 5 * 1024 * 1024,
+    limitNote: 'MRAID networks commonly cap a single-file playable at 5MB — check yours',
+    emitBridge: mraidBridge,
+};
+
+/** @see https://docs.unity.com/acquire/en-us/manual/playable-ads-specifications */
+export const unityPlayableProfile: PlayableAdProfile = {
+    id: 'unity',
+    label: 'Unity Ads',
+    maxBytes: 5 * 1024 * 1024,
+    limitNote: 'Unity requires a single inlined index.html under 5MB',
+    emitBridge: mraidBridge,
+};
+
+/** AppLovin additionally forbids EXTERNAL resources, which a single-file playable
+ *  satisfies by construction — every asset here is already inlined.
+ *  @see https://support.applovin.com/en/growth/promoting-your-apps/welcome-to-applovin/creative-specs-and-guidelines */
+export const applovinPlayableProfile: PlayableAdProfile = {
+    id: 'applovin',
+    label: 'AppLovin',
+    maxBytes: 5 * 1024 * 1024,
+    limitNote: 'AppLovin caps a single HTML file at 5MB, with every resource embedded',
+    emitBridge: mraidBridge,
+};
+
+/** The networks the editor ships, by id. A network absent here is not unsupported:
+ *  a project defines its own with the same contract (`kind: 'playable'`). */
 export const BUILTIN_PLAYABLE_PROFILES: readonly PlayableAdProfile[] = [
     genericPlayableProfile,
     metaPlayableProfile,
+    googlePlayableProfile,
+    mraidPlayableProfile,
+    unityPlayableProfile,
+    applovinPlayableProfile,
 ];
 
 export function builtinPlayableProfile(id: string | undefined): PlayableAdProfile | null {

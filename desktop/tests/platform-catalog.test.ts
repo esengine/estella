@@ -304,7 +304,8 @@ describe('playable ad networks', () => {
       maxBytes: 3145728, limitNote: 'Acme docs say 3MB',
     };`);
     const rows = await listPlayableNetworks(root);
-    expect(rows.filter((r) => r.source === 'builtin').map((r) => r.id)).toEqual(['generic', 'meta']);
+    expect(rows.filter((r) => r.source === 'builtin').map((r) => r.id))
+      .toEqual(['generic', 'meta', 'google', 'mraid', 'unity', 'applovin']);
     expect(rows.find((r) => r.id === 'acme-ads')).toMatchObject({ label: 'Acme Ads', source: 'project' });
   });
 
@@ -324,6 +325,21 @@ describe('playable ad networks', () => {
   it('resolves the built-ins, and nothing for an unknown id', async () => {
     expect((await loadPlayableProfile(root, 'meta'))!.emitBridge!({ title: 'T', orientation: 'landscape' }))
       .toContain('FbPlayableAd.onCTAClick');
+    // Google's exit API must be a LITERAL head script (its docs forbid injecting it
+    // from JS), and its upload is a ZIP this export does not produce — hence the note.
+    const google = (await loadPlayableProfile(root, 'google'))!;
+    expect(google.emitHead!({ title: 'T', orientation: 'portrait' }))
+      .toContain('<script src="https://tpc.googlesyndication.com/pagead/gadgets/html5/api/exitapi.js"></script>');
+    expect(google.emitHead!({ title: 'T', orientation: 'portrait' })).toContain('content="portrait"');
+    expect(google.emitBridge!({ title: 'T', orientation: 'portrait' })).toContain('ExitApi.exit');
+    expect(google.deliveryNote).toMatch(/ZIP/);
+    // The MRAID family clicks through with mraid.open() and needs nothing in head —
+    // the host webview injects mraid itself.
+    for (const id of ['mraid', 'unity', 'applovin']) {
+      const p = (await loadPlayableProfile(root, id))!;
+      expect(p.emitBridge!({ title: 'T', orientation: 'landscape' })).toContain('mraid.open()');
+      expect(p.emitHead).toBeUndefined();
+    }
     // No selection ⇒ generic, so a project that never chose still exports.
     expect((await loadPlayableProfile(root, undefined))!.id).toBe('generic');
     // An id naming nothing is NOT silently generic — the caller reports it.

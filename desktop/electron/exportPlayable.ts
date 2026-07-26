@@ -313,6 +313,7 @@ export async function exportPlayable(opts: {
       + `${(adProfile.maxBytes / 1024 / 1024).toFixed(1)}MB limit for ${adProfile.label} `
       + `(${adProfile.limitNote}).`);
   }
+  if (adProfile.deliveryNote) warnings.push(adProfile.deliveryNote);
 
   return { ok: errors.length === 0, platform: 'playable', outDir: absOut, included: cook.included.length, bytes, warnings, errors };
 }
