@@ -119,15 +119,19 @@ way it can:
 - **Compress textures** — encode PNGs to GPU-ready **KTX2** (Basis Universal),
   which the runtime transcodes to the best format the device supports (ASTC → ETC2
   → S3TC, falling back to RGBA8), mip chain included. Per-asset **Import Settings**
-  decide this, with a tab per platform, so a texture can be compressed harder for a
-  phone than for the web; the Package dialog's **Compression** switch only chooses
-  whether to honor those settings or skip them all.
+  decide this, with a tab per platform (below), so a texture can be compressed
+  harder for a phone than for the web; the Package dialog's **Compression** switch
+  only chooses whether to honor those settings or skip them all.
 - **Content-address** — name each shipped file by a hash of its bytes, so URLs
   are immutable and identical files dedupe to a single copy. On by default for
   Web/Desktop.
 - **Auto-atlas** — put loose PNGs in a `<name>.atlas/` folder and the cook packs
   them into atlas pages (with the frame UVs written into the manifest), so many
   small sprites ship as one texture and batch in one draw call.
+
+![The Inspector's Platform Overrides strip — a tab per platform, Android selected with Max Size, Compress and Format](../../../assets/guides/en/import-platform-overrides.png)
+
+*A texture's **Platform Overrides**: each target gets its own tab, and a platform that overrides nothing follows the Default settings above it.*
 
 ### Shipping what only code names
 

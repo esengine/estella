@@ -64,11 +64,11 @@ Estella 的热更新是**内容寻址**、**原子**（要么全成、要么回�
 
 ### 设置 CDN 根地址
 
-远端组资产需要一个**根 URL** 来拉取——你的 CDN。它是一个**构建 profile** 设置，因此 `dev` 与 `prod` 可以指向不同的 CDN，导出时会把活动 profile 的根地址烘进发布的游戏里。在**构建**对话框（**文件 → 构建…**）中设置：
+远端组资产需要一个**根 URL** 来拉取——你的 CDN。它是一个**构建 profile** 设置，因此 `dev` 与 `prod` 可以指向不同的 CDN，导出时会把活动 profile 的根地址烘进发布的游戏里。在**打包项目**对话框（**文件 → 构建…**）的**高级**里设置：
 
-![构建对话框中的「CDN 地址（热更）」字段](../../../../assets/guides/zh/hot-update-build-cdn.png)
+![打包对话框的「高级」分组——CDN 地址、源码映射与完成后打开输出文件夹](../../../../assets/guides/zh/hot-update-build-cdn.png)
 
-*构建对话框中的 **CDN 地址（热更）** 字段会把活动 profile 的 `remoteRoot` 写入 `asset-groups.json`。留空则远端资产从游戏同源加载（例如本地测试时）。*
+***CDN 地址** 字段会把活动 profile 的 `remoteRoot` 写入 `asset-groups.json`。留空则远端资产从游戏同源加载（例如本地测试时）。*
 
 ### `.esengine/asset-groups.json`
 

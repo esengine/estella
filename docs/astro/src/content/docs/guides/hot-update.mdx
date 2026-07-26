@@ -91,11 +91,11 @@ fallback when a project has no `asset-groups.json`.)
 Remote-group assets need a **root URL** to fetch from — your CDN. It's a **build
 profile** setting, so `dev` and `prod` can point at different CDNs, and the
 export bakes the active profile's root into the shipped game. Set it in the
-**Build** dialog (**File → Build…**):
+**Package Project** dialog (**File → Build…**), under **Advanced**:
 
-![The Build dialog's CDN root (hot-update) field](../../../assets/guides/en/hot-update-build-cdn.png)
+![The Package dialog's Advanced group — the CDN root field, source maps, and open-output-folder](../../../assets/guides/en/hot-update-build-cdn.png)
 
-*The **CDN root (hot-update)** field in the Build dialog writes the active profile's `remoteRoot` to `asset-groups.json`. Leave it empty to load remote assets same-origin (e.g. for local testing).*
+*The **CDN root** field writes the active profile's `remoteRoot` to `asset-groups.json`. Leave it empty to load remote assets same-origin (e.g. for local testing).*
 
 ### `.esengine/asset-groups.json`
 
