@@ -184,11 +184,27 @@ bool WebGPUDevice::configureSurface(const NativeSurface& window, u32 width, u32 
         return false;
     }
 
-    // Re-entrant: an Android screen-off/on (or a rotation) destroys the window and
-    // hands back a new one, so drop the previous surface + depth before rebinding.
+    // The SAME window, a new size — a rotation, insets changing, the system bars
+    // leaving — is a reconfigure, not a new surface. Creating a second surface for
+    // a window the first one still holds leaves every getCurrentTexture in error
+    // on Vulkan (the old swapchain owns it), which is a black screen with nothing
+    // else wrong.
+    if (surface_ && surface_window_ == window.handle) {
+        endFrame();   // a held texture belongs to the swapchain being replaced
+        return configureSwapchain(width, height);
+    }
+
+    // A genuinely new window (an Android screen-off/on destroys it and hands back
+    // another): let go of the old swapchain before building one on the new one.
+    if (surface_) {
+        endFrame();
+        wgpuSurfaceUnconfigure(surface_);
+        wgpuSurfaceRelease(surface_);
+        surface_ = nullptr;
+    }
     if (surface_depth_view_) { wgpuTextureViewRelease(surface_depth_view_); surface_depth_view_ = nullptr; }
     if (surface_depth_texture_) { wgpuTextureRelease(surface_depth_texture_); surface_depth_texture_ = nullptr; }
-    if (surface_) { wgpuSurfaceRelease(surface_); surface_ = nullptr; }
+    surface_depth_width_ = surface_depth_height_ = 0;
 
     WGPUSurfaceDescriptor sd{};
     switch (window.kind) {
@@ -213,12 +229,18 @@ bool WebGPUDevice::configureSurface(const NativeSurface& window, u32 width, u32 
         ES_LOG_ERROR("WebGPUDevice::configureSurface(native): surface creation failed");
         return false;
     }
+    surface_window_ = window.handle;
 
     return configureSwapchain(width, height);
 }
 
 void WebGPUDevice::present() {
-    if (surface_) wgpuSurfacePresent(surface_);
+    if (!surface_) return;
+    wgpuSurfacePresent(surface_);
+    // Also the frame's end, for a frame the renderer never finished (the host's
+    // fallback frame, or a tick that drew nothing): a swapchain texture must
+    // never outlive the present it belongs to.
+    endFrame();
 }
 #endif  // !__EMSCRIPTEN__
 
@@ -255,9 +277,20 @@ bool WebGPUDevice::configureSwapchain(u32 width, u32 height) {
     surface_width_ = width;
     surface_height_ = height;
 
-    // The default target's companion depth-stencil planes — the WebGL canvas has
-    // them implicitly, and engine stencil masks / depth-tested draws target the
-    // backbuffer expecting both.
+    return ensureSurfaceDepth(width, height);
+}
+
+/**
+ * The default target's companion depth-stencil planes — the WebGL canvas has
+ * them implicitly, and engine stencil masks / depth-tested draws target the
+ * backbuffer expecting both. Recreated whenever the size it must match changes;
+ * a pass whose attachments disagree is rejected outright, and every draw after
+ * that is dropped.
+ */
+bool WebGPUDevice::ensureSurfaceDepth(u32 width, u32 height) {
+    if (surface_depth_view_ && width == surface_depth_width_ && height == surface_depth_height_) {
+        return true;
+    }
     if (surface_depth_view_) { wgpuTextureViewRelease(surface_depth_view_); surface_depth_view_ = nullptr; }
     if (surface_depth_texture_) { wgpuTextureRelease(surface_depth_texture_); surface_depth_texture_ = nullptr; }
     WGPUTextureDescriptor dd{};
@@ -270,6 +303,8 @@ bool WebGPUDevice::configureSwapchain(u32 width, u32 height) {
     surface_depth_texture_ = wgpuDeviceCreateTexture(device_, &dd);
     if (surface_depth_texture_) {
         surface_depth_view_ = wgpuTextureCreateView(surface_depth_texture_, nullptr);
+        surface_depth_width_ = width;
+        surface_depth_height_ = height;
     }
     return surface_depth_view_ != nullptr;
 }
@@ -1367,16 +1402,36 @@ void WebGPUDevice::beginRenderPass(const RenderPassDesc& desc) {
             ES_LOG_ERROR("WebGPUDevice::beginRenderPass: no surface configured");
             return;
         }
-        WGPUSurfaceTexture st{};
-        wgpuSurfaceGetCurrentTexture(surface_, &st);
-        if (st.status != WGPUSurfaceGetCurrentTextureStatus_SuccessOptimal &&
-            st.status != WGPUSurfaceGetCurrentTextureStatus_SuccessSuboptimal) {
-            ES_LOG_ERROR("WebGPUDevice::beginRenderPass: surface texture unavailable ({})",
-                         static_cast<u32>(st.status));
-            return;
+        // The swapchain texture belongs to the FRAME, not to one pass: WebGPU
+        // hands it out once and takes it back at present. A frame that opens a
+        // second pass on it — a post-process blit over the captured scene, a
+        // second camera — must reuse the one it already holds; re-acquiring
+        // after releasing it returns an error, and every draw after that is
+        // dropped, which is a black screen with nothing else wrong.
+        if (!frame_view_) {
+            WGPUSurfaceTexture st{};
+            wgpuSurfaceGetCurrentTexture(surface_, &st);
+            if (st.status != WGPUSurfaceGetCurrentTextureStatus_SuccessOptimal &&
+                st.status != WGPUSurfaceGetCurrentTextureStatus_SuccessSuboptimal) {
+                ES_LOG_ERROR("WebGPUDevice::beginRenderPass: surface texture unavailable ({})",
+                             static_cast<u32>(st.status));
+                return;
+            }
+            frame_texture_ = st.texture;
+            frame_view_ = wgpuTextureCreateView(frame_texture_, nullptr);
+            // The texture the surface hands back is the truth about its size: a
+            // native surface may ignore the configured extent (a window mid-
+            // rotation still reports the old one), and a depth companion built
+            // for the size we ASKED for is then the wrong shape, which invalidates
+            // the pass and takes the whole frame with it.
+            const u32 texW = wgpuTextureGetWidth(frame_texture_);
+            const u32 texH = wgpuTextureGetHeight(frame_texture_);
+            if (texW > 0 && texH > 0) {
+                surface_width_ = texW;
+                surface_height_ = texH;
+                ensureSurfaceDepth(texW, texH);
+            }
         }
-        frame_texture_ = st.texture;
-        frame_view_ = wgpuTextureCreateView(frame_texture_, nullptr);
         targetView = frame_view_;
         pass_width_ = surface_width_;
         pass_height_ = surface_height_;
@@ -1481,7 +1536,11 @@ void WebGPUDevice::endRenderPass() {
     }
     pass_timed_ = false;
     gpu_time_slot_ = kGpuTimeRing;
+}
 
+/** Give the swapchain texture back: the frame is over (see GfxDevice::endFrame).
+ *  A frame may have opened several passes on it, so no single pass may do this. */
+void WebGPUDevice::endFrame() {
     if (frame_view_) { wgpuTextureViewRelease(frame_view_); frame_view_ = nullptr; }
     if (frame_texture_) { wgpuTextureRelease(frame_texture_); frame_texture_ = nullptr; }
 }

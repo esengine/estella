@@ -374,6 +374,9 @@ void RenderFrame::end() {
     // not ride into the next one (the swapchain recycles it at task end). On
     // GL this is just the default-framebuffer rebind.
     device_.endRenderPass();
+    // ...and the frame itself ends here, which is when a borrowed swapchain
+    // image goes back. Not at the pass: this frame may have opened several.
+    device_.endFrame();
 
     frame_capture_.endCapture();
     in_frame_ = false;

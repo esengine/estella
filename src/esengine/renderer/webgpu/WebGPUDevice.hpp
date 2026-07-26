@@ -191,6 +191,13 @@ public:
      *         endRenderPass. No-op until a surface is configured. */
     void present();
 #endif
+    void endFrame() override;
+
+private:
+    /** Match the backbuffer's depth-stencil companion to @p width x @p height. */
+    bool ensureSurfaceDepth(u32 width, u32 height);
+
+public:
     usize bufferCount() const { return buffers_.size(); }
     usize textureCount() const { return textures_.size(); }
     usize layoutCount() const { return layouts_.size(); }
@@ -338,7 +345,10 @@ private:
     WGPUTextureFormat pass_color_format_ = WGPUTextureFormat_RGBA8Unorm;
     WGPUCommandEncoder encoder_ = nullptr;
     WGPURenderPassEncoder pass_ = nullptr;
-    WGPUTexture frame_texture_ = nullptr;   ///< Acquired surface texture (released at end).
+    void* surface_window_ = nullptr;        ///< Native window the surface was made for.
+    u32 surface_depth_width_ = 0;           ///< Size the depth companion was built for.
+    u32 surface_depth_height_ = 0;
+    WGPUTexture frame_texture_ = nullptr;   ///< The frame's swapchain texture (released at endFrame).
     WGPUTextureView frame_view_ = nullptr;
     u32 current_pipeline_ = 0;
     u32 bound_index_buffer_ = 0;

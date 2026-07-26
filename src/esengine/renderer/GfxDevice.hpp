@@ -334,6 +334,18 @@ public:
     virtual void endRenderPass() = 0;
 
     /**
+     * @brief The frame is over — everything drawn for it has been submitted.
+     * @details A backend that borrows the swapchain image for the duration of a
+     *          frame gives it back here (WebGPU hands one out per frame and takes
+     *          it back at present), which is why the boundary has to be stated
+     *          rather than inferred from the last pass: a frame may open several
+     *          passes on the swapchain — a post-process blit over the captured
+     *          scene, a second camera — and each of those is NOT the end.
+     *          Default: nothing to do (GL presents through the platform).
+     */
+    virtual void endFrame() {}
+
+    /**
      * @brief Resizes the default backbuffer to the viewport size.
      * @details GL tracks the canvas drawing buffer implicitly (default no-op);
      *          WebGPU swapchains are fixed-size, so its backend reconfigures
