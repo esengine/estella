@@ -1,24 +1,25 @@
 ---
 title: 构建与导出
-description: 从编辑器的"打包项目"对话框把一个项目发布到 Web、桌面、微信小游戏或单文件 Playable 广告——构建配置、输出目录、打包设置与运行时前置条件。
+description: 从编辑器的"打包项目"对话框把一个项目发布到 Web、桌面、微信小游戏、单文件 Playable 广告,或原生 Android / iOS 应用——构建配置、输出目录、打包设置与运行时前置条件。
 ---
 
 import { Aside, Steps } from '@astrojs/starlight/components';
 
-一个 Estella 项目可发布到四个目标——**Web**、**桌面**、**微信小游戏**和单文件 **Playable 广告**
-——全部从编辑器完成。导出用的是**你在编辑器里运行的同一套运行时**,所以你发布的就是你测过的
-(*play == ship*)。
+一个 Estella 项目可发布到六个目标——**Web**、**桌面**、**微信小游戏**、单文件 **Playable 广告**,
+以及原生 **Android** / **iOS** 应用——全部从编辑器完成。导出用的是**你在编辑器里运行的同一套运行时**,
+所以你发布的就是你测过的(*play == ship*)。
 
 ## 从编辑器导出
 
-![打包对话框——平台选择器、配置、输出与 cook 选项](../../../../assets/guides/zh/build-dialog.png)
+![打包项目对话框——目标列表、构建配置、输出目录与构建场景](../../../../assets/guides/zh/build-dialog.png)
 
-*打包对话框:选一个**平台**(Web / 桌面 / 微信 / Playable)、一个配置、输出目录,以及 cook 选项——然后构建。*
+*打包项目对话框:从分组的列表里选一个**目标**、一个配置、输出目录,以及 [cook 选项](#资产烘焙选项)——然后 Package。*
 
 <Steps>
 
 1. 打开 **文件 → Build…** 调出 **打包项目(Package Project)** 对话框。
-2. 选一个**平台**(Web / 桌面 / 微信 / Playable)。
+2. 从列表里选一个**目标**——分为*通用*(Web / 桌面 / Playable)、*小游戏*
+   (微信,以及项目自己添加的)、*移动*(Android / iOS)。
 3. 选一个**构建配置**——*Development* 或 *Shipping*(Shipping 会压缩)——一个**输出目录**、
    source map,以及[资产烘焙选项](#资产烘焙选项)。
 4. 检查**构建场景(Scenes in build)**列表——取消勾选不想发布的场景,需要的话换一个
@@ -60,6 +61,11 @@ import { Aside, Steps } from '@astrojs/starlight/components';
 | **桌面** | 一棵 Electron 应用源码树。 | `dist-desktop/` | `cd dist-desktop && npm install && npm start`——或 `npm run dist` 出原生 `.dmg` / `.exe` / AppImage 安装包。 |
 | **微信** | 一个微信小游戏包。 | `dist-wechat/` | 在微信开发者工具里打开该文件夹并设置你的 AppID。见 [微信小游戏](/docs/zh-cn/guides/wechat/)。 |
 | **Playable** | 一个自包含的 `index.html`,一切内联——无外部请求(广告平台的要求)。 | `dist-playable/` | **Preview over http**(它的真实宿主是广告平台的 iframe)。先选好[广告平台](#试玩广告平台),CTA 与体积检查才对得上投放目标。 |
+| **Android** | **原生** arm64 应用(Vulkan)的内容——真 APK,不是 WebView。 | `dist-android/` | `node build-tools/cli.js native --package --content dist-android` 把它包成已签名的 APK。见 [Android 与 iOS](/docs/zh-cn/guides/mobile/)。 |
+| **iOS** | **原生** arm64 应用(Metal)的内容;若本机已为 iOS 构建过引擎,还会附带 Xcode 工程。 | `dist-ios/` | 打开生成的 Xcode 工程,选签名 Team,Run。见 [Android 与 iOS](/docs/zh-cn/guides/mobile/)。 |
+
+移动目标导出的是应用**内容**而非可直接运行的载荷:引擎、SDK 和游戏运行时都住在应用二进制里。
+这也是它们需要另外四个目标不需要的工具链的原因——见下文的[前置条件](#运行时前置条件)。
 
 ## 试玩广告平台
 
@@ -120,8 +126,8 @@ export default {
 ## 运行时前置条件
 
 Web、桌面与 **Playable** 都复用随编辑器附带的引擎运行时,所以导出无需准备——试玩包内联的
-就是同一份 web 运行时(glue 作为 blob 模块、wasm 以 base64 传入),不需要单独构建。**微信**是
-例外:它的 WebAssembly 加载器不同,运行时需先构建一次:
+就是同一份 web 运行时(glue 作为 blob 模块、wasm 以 base64 传入),不需要单独构建。在这些基于
+网页的目标里 **微信**是例外:它的 WebAssembly 加载器不同,运行时需先构建一次:
 
 ```bash
 # 仅在首次微信导出前
@@ -132,6 +138,28 @@ node build-tools/cli.js build -t wechat
 构建命令——而不是产出一个运行时才崩的包。微信还需要为游戏用到的每个引擎特性构建对应的
 侧模块(`physics-wechat`、`spine-wechat`,压缩纹理用 `basis-wechat`)——见
 [微信小游戏](/docs/zh-cn/guides/wechat/)。
+
+对话框区分**两类**缺失的前置条件,因为它们挡住的程度并不一样:
+
+- 缺**引擎运行时**(Web / Playable / 微信)意味着根本产不出包。
+- 缺**原生工具链**(Android / iOS)则不然。导出照样把应用内容写出来;只有最后组装成
+  可安装应用那一步需要工具链,而那一步可以在另一台机器上跑——编辑器在 Windows 上时,
+  iOS 构建本来就得如此。
+
+<Aside type="caution" title="移动端需要引擎源码检出">
+  Android 和 iOS 是唯一一对编辑器下载包没有端到端自带的目标:原生宿主需要先从引擎源码
+  检出构建一次(Dawn + QuickJS),再加上 Android SDK/NDK,或装有 Xcode 的 macOS。见
+  [Android 与 iOS](/docs/zh-cn/guides/mobile/)。
+</Aside>
+
+## 目标渲染不了的内容
+
+一个目标未必编译了编辑器能创作的每个子系统。当它确实缺某个子系统时,导出会**点名这个缺口
+以及踩到它的场景**,而不是写出一个悄悄少了半个场景的包——警告会列出子系统(瓦片地图、粒子、
+后处理、物理、Spine、视频、文本)和创作它的文件。
+
+目前没有任何目标存在缺口:原生应用编译整份引擎源码清单,网页端作为独立侧模块的那三个子系统
+在这里是编进二进制的。这项检查保留着,因为情况可能变。
 
 ## 侧模块
 
@@ -164,27 +192,41 @@ node build-tools/cli.js build -t wechat
 
 ## 资产烘焙选项
 
-打包对话框还控制**烘焙**如何处理你的资产:
+烘焙如何处理**某一个**资产,是那个资产自己的事——在检视面板的逐资产**导入设置**里,
+每个平台一个页签,所以一张纹理可以为手机压得比网页端更狠。构建这一层只决定是否遵循这些设置:
 
-- **压缩音频** —— 打包时把 WAV 源重编码为 MP3(可在资产的导入设置中单独关闭或选码率;
-  其他音频格式原样通过)。
-- **压缩纹理** —— 把 PNG 编码为 GPU 就绪的 **KTX2**(Basis Universal),运行时再转码为
-  设备支持的最佳格式(ASTC → ETC2 → S3TC,最后回退 RGBA8)。下载更小、显存更省;关掉则
-  发布原始 PNG。
-- **打包 `.atlas` 文件夹** —— 烘焙时把每个 `<name>.atlas/` 文件夹里零散的 PNG 打包成图集页,
+- **资源压缩 → 按导入设置** —— 每张纹理与每段音频按各自的导入设置压缩
+  (PNG → **KTX2** Basis Universal、Max Size、WAV → MP3),`<name>.atlas/` 文件夹打包成图集页,
   于是许多小精灵作为一张纹理发布、在一次绘制里合批。
-- **内容寻址** 对 Web/桌面默认开启(每个文件按字节哈希命名——URL 不可变、自动去重)。
+- **资源压缩 → 全部跳过** —— 一律原样输出,便于快速迭代。
+
+KTX2 纹理由运行时转码为设备支持的最佳格式(ASTC → ETC2 → S3TC,最后回退 RGBA8),并带上
+mip 链——下载更小、显存更省。
+
+**内容寻址** 对 Web/桌面默认开启(每个文件按字节哈希命名——URL 不可变、自动去重)。
+**高级**里放着[热更新](/docs/zh-cn/guides/hot-update/)的 CDN 根地址、source map,
+以及构建结束后是否打开输出目录。
+
+<Aside type="caution" title="只有代码点名的资产会被剔除">
+  cook 发布的是它能从构建场景**可达**的东西。只在代码里点名的东西——富文本标记里的纹理、
+  按 url 播放的音频、按路径 spawn 的预制体——会被剔除,而编辑器直接从磁盘伺服项目,
+  根本不会察觉。请在内容浏览器里把那个文件夹标记为 **交付方式 → 总是打进构建**。见
+  [资源](/docs/zh-cn/guides/assets/#只有代码点名的资产)。
+</Aside>
 
 ## 打包设置
 
 每个目标的元数据在 **项目设置 → 打包(Packaging)** 里,并随项目保存:
 
+- **应用 ID** —— 已安装应用的反向域名 id:Android 的 manifest package、iOS 的 bundle id、
+  桌面安装包的 id。留空则按项目名推导;正式发布的应用应当自己指定,因为应用商店会永久沿用它。
 - **微信** —— AppID。
-- **桌面** —— 应用 id 和产品名(用于命名安装包)。
+- **桌面** —— 应用 id 覆盖和产品名(用于命名安装包)。
+- **Android** —— 版本号,Google Play 用来排序构建的整数。
 
 ### 屏幕方向
 
-方向是**一个项目级设置**,而非逐平台:**项目设置 → 显示(Display) → 屏幕方向**(竖屏或横屏),就在设计分辨率旁边。所有目标都遵循它——微信 `game.json` 的 `deviceOrientation`、Web 构建的"请旋转设备"提示(以及尽力而为的 `screen.orientation.lock`)、桌面窗口的宽高比。留空则**从设计分辨率的宽高比推导**(更宽或方形 ⇒ 横屏,更高 ⇒ 竖屏),因此横屏设计零配置即在各处横屏发布。
+方向是**一个项目级设置**,而非逐平台:**项目设置 → 显示(Display) → 屏幕方向**(竖屏或横屏),就在设计分辨率旁边。所有目标都遵循它——微信 `game.json` 的 `deviceOrientation`、Web 构建的"请旋转设备"提示(以及尽力而为的 `screen.orientation.lock`)、桌面窗口的宽高比,以及原生应用的 `app.config.json`(引擎能 letterbox,却转不动手机)。留空则**从设计分辨率的宽高比推导**(更宽或方形 ⇒ 横屏,更高 ⇒ 竖屏),因此横屏设计零配置即在各处横屏发布。
 
 **试玩包是有意的例外**:它从不锁定页面方向。在广告 SDK 里,容器尺寸由 SDK 决定,因此"请旋转设备"这类遮罩可能把游戏永久挡住——玩家转了手机却毫无变化,因为那条 media query 一直在读容器而不是设备。试玩包保持自适应(各平台都要求如此),方向只在平台需要时**声明**出去,例如 Google 的 `ad.orientation` meta 标签。请为两种比例都设计,或用[相机适配](#)做 letterbox,让构图在任一比例下都成立。
 
@@ -200,15 +242,18 @@ node build-tools/cli.js build -t web        # 构建引擎(web 目标)
 node build-tools/cli.js build -t wechat     # …微信运行时
 node build-tools/cli.js sdk                 # 只构建 SDK
 node build-tools/cli.js watch               # 改动即重建(引擎开发)
+node build-tools/cli.js native --target ios # …原生移动宿主
 ```
 
 <Aside type="note">
-  大多数游戏开发者除了那一次性的微信 / Playable 运行时构建外,从不需要动构建 CLI——日常工作都在
-  编辑器和 SDK 里。
+  大多数游戏开发者除了那一次性的微信运行时构建外,从不需要动构建 CLI——日常工作都在
+  编辑器和 SDK 里。例外是[移动端](/docs/zh-cn/guides/mobile/):在那里,围绕导出组装应用
+  也由这个 CLI 完成。
 </Aside>
 
 ## 参见
 
+- [Android 与 iOS](/docs/zh-cn/guides/mobile/) —— 原生应用:前置条件、如何组装,以及只在真机上才咬人的那些事。
 - [微信小游戏](/docs/zh-cn/guides/wechat/) —— 分包布局与平台差异。
 - [资源](/docs/zh-cn/guides/assets/) —— cook 步骤如何打包与内容寻址资产。
 - [性能剖析与诊断](/docs/zh-cn/guides/profiling/) —— 发布前检查帧时间与 draw call。

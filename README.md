@@ -10,7 +10,7 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/esengine/estella)](https://github.com/esengine/estella/releases)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://isocpp.org/)
-[![Platform](https://img.shields.io/badge/Platform-Web%20%7C%20WeChat-green.svg)]()
+[![Platform](https://img.shields.io/badge/Platform-Web%20%7C%20Desktop%20%7C%20WeChat%20%7C%20Android%20%7C%20iOS-green.svg)]()
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/esengine/estella)
 
 [Website](https://estellaengine.com) • [Getting Started](#getting-started) • [Documentation](#documentation) • [Discord](https://discord.gg/sAX6PXZ9) • [QQ群: 481923584](https://qm.qq.com/q/BONa5LXQ0U)
@@ -21,7 +21,7 @@
 
 ## What is Estella?
 
-Estella is a **2D game engine** with a TypeScript SDK driven by a high-performance **C++/WebAssembly** backend. It ships with a visual editor for scene editing and project management, and outputs games that run in **web browsers** and **WeChat MiniGames**.
+Estella is a **2D game engine** with a TypeScript SDK driven by a high-performance **C++/WebAssembly** backend. It ships with a visual editor for scene editing and project management, and outputs games that run in **web browsers**, on the **desktop**, in **WeChat MiniGames**, as single-file **playable ads**, and as native **Android / iOS** apps.
 
 <div align="center">
   <img src="docs/assets/editor-hero-c5bfd2f3.png" alt="An action-RPG scene open in the Estella editor" width="900" />
@@ -35,7 +35,7 @@ Estella is a **2D game engine** with a TypeScript SDK driven by a high-performan
 - **Type-safe** — First-class TypeScript SDK with `defineSystem`, `defineComponent`, and `Query`
 - **Data-oriented** — Entity-Component-System architecture for scalable game logic
 - **Visual editor** — Scene hierarchy, inspector, asset browser — no JSON editing
-- **Cross-platform** — One codebase, deploy to web browsers and WeChat MiniGames
+- **Cross-platform** — One codebase, deploy to web, desktop, WeChat MiniGames, playable ads, and native mobile
 - **Spine & Physics** — Built-in Spine animation and physics support
 
 ## Features
@@ -44,9 +44,10 @@ Estella is a **2D game engine** with a TypeScript SDK driven by a high-performan
 |---------|-------------|
 | **Visual Editor** | Scene editor with hierarchy, inspector, and asset management |
 | **ECS Architecture** | Compose entities from reusable components, drive behavior with systems |
-| **WebGL Rendering** | Sprites, cameras, Spine animations, custom shaders — all in WebAssembly |
+| **WebGL / WebGPU Rendering** | Sprites, cameras, Spine animations, custom shaders — all in WebAssembly |
 | **TypeScript SDK** | Type-safe API: `defineSystem`, `defineComponent`, `Query`, `Commands` |
-| **Cross-Platform** | Single codebase targeting web browsers and WeChat MiniGames |
+| **Cross-Platform** | One project → web, desktop, WeChat MiniGames, playable ads, and native Android / iOS |
+| **Native mobile** | A real arm64 app rendering through an embedded Dawn (Metal / Vulkan) — not a WebView |
 
 ## Getting Started
 
@@ -95,6 +96,8 @@ Full documentation: [estellaengine.com/docs](https://estellaengine.com/docs)
 - [ECS Architecture](https://estellaengine.com/docs/core-concepts/ecs/)
 - [Components](https://estellaengine.com/docs/core-concepts/components/)
 - [Systems](https://estellaengine.com/docs/core-concepts/systems/)
+- [Building & Exporting](https://estellaengine.com/docs/guides/build-export/)
+- [Android & iOS](https://estellaengine.com/docs/guides/mobile/)
 
 ## Contributing
 

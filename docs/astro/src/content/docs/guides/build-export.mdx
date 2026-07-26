@@ -1,25 +1,27 @@
 ---
 title: Building & Exporting
-description: Ship one project to Web, Desktop, WeChat MiniGame, or a single-file Playable Ad from the editor's Package Project dialog — build configs, output folders, packaging settings, and the runtime prerequisites.
+description: Ship one project to Web, Desktop, WeChat MiniGame, a single-file Playable Ad, or a native Android / iOS app from the editor's Package Project dialog — build configs, output folders, packaging settings, and the runtime prerequisites.
 ---
 
 import { Aside, Steps } from '@astrojs/starlight/components';
 
-One Estella project ships to four targets — **Web**, **Desktop**, **WeChat
-MiniGame**, and a single-file **Playable Ad** — all from the editor. The export uses
-the **same runtime you played in the editor**, so what you shipped is what you tested
-(*play == ship*).
+One Estella project ships to six targets — **Web**, **Desktop**, **WeChat
+MiniGame**, a single-file **Playable Ad**, and native **Android** / **iOS** apps —
+all from the editor. The export uses the **same runtime you played in the editor**,
+so what you shipped is what you tested (*play == ship*).
 
 ## Exporting from the editor
 
-![The Build dialog — platform picker, configuration, output, and cook options](../../../assets/guides/en/build-dialog.png)
+![The Package Project dialog — the target list, build configuration, output folder, and scenes in build](../../../assets/guides/en/build-dialog.png)
 
-*The Build dialog: pick a **platform** (Web / Desktop / WeChat / Playable), a configuration, the output folder, and the cook options — then Build.*
+*The Package Project dialog: pick a **target** from the categorized list, a configuration, the output folder, and the [cook options](#asset-cook-options) — then Package.*
 
 <Steps>
 
 1. Open **File → Build…** to bring up the **Package Project** dialog.
-2. Pick a **platform** (Web / Desktop / WeChat / Playable).
+2. Pick a **target** from the list — grouped as *General* (Web / Desktop /
+   Playable), *Mini-games* (WeChat and any the project added), and *Mobile*
+   (Android / iOS).
 3. Choose a **build config** — *Development* or *Shipping* (Shipping minifies) — an
    **output folder**, source maps, and the [asset cook options](#asset-cook-options).
 4. Check the **Scenes in build** list — untick scenes you don't want to ship, and
@@ -69,6 +71,12 @@ and opens it in your browser.
 | **Desktop** | An Electron app source tree. | `dist-desktop/` | `cd dist-desktop && npm install && npm start` — or `npm run dist` for a native `.dmg` / `.exe` / AppImage installer. |
 | **WeChat** | A WeChat MiniGame package. | `dist-wechat/` | Open the folder in WeChat DevTools and set your AppID. See [WeChat MiniGame](/docs/guides/wechat/). |
 | **Playable** | One self-contained `index.html` with everything inlined — no external requests, as ad networks require. | `dist-playable/` | **Preview over http** (its real surface is an ad-network iframe). Pick the [ad network](#playable-ad-networks) so the CTA and the size check match where it ships. |
+| **Android** | Content for a **native** arm64 app (Vulkan) — a real APK, not a WebView. | `dist-android/` | `node build-tools/cli.js native --package --content dist-android` wraps it in a signed APK. See [Android & iOS](/docs/guides/mobile/). |
+| **iOS** | Content for a **native** arm64 app (Metal), plus the Xcode project when the engine is built for iOS here. | `dist-ios/` | Open the generated Xcode project, pick a signing team, Run. See [Android & iOS](/docs/guides/mobile/). |
+
+The mobile targets export app **content**, not a runnable payload: the engine, the
+SDK and the game runtime live in the app binary. That is also why they need a
+toolchain the other four do not — see [prerequisites](#runtime-prerequisites) below.
 
 ## Playable ad networks
 
@@ -138,8 +146,8 @@ packages through the same pipeline.
 Web, Desktop and **Playable** all reuse the engine runtime that ships with the
 editor, so they export with no setup — a playable inlines that same web runtime
 (glue as a blob module, wasm as base64) rather than needing a build of its own.
-**WeChat** is the exception: its WebAssembly loader differs, so its runtime is built
-once:
+**WeChat** is the exception among the web-based targets: its WebAssembly loader
+differs, so its runtime is built once:
 
 ```bash
 # only before the first WeChat export
@@ -152,6 +160,35 @@ producing a package that breaks at runtime. WeChat also needs a matching side
 module for each engine feature the game uses (`physics-wechat`, `spine-wechat`,
 `basis-wechat` for compressed textures) — see
 [WeChat MiniGame](/docs/guides/wechat/).
+
+The dialog distinguishes **two kinds** of missing prerequisite, because they don't
+block the same amount:
+
+- A missing **engine runtime** (Web / Playable / WeChat) means the package cannot
+  be produced at all.
+- A missing **native toolchain** (Android / iOS) does not. The export still writes
+  the app's content; only the final assembly into an installable app needs the
+  toolchain, and that step can run on another machine — an iOS build always does
+  when the editor is on Windows.
+
+<Aside type="caution" title="Mobile needs an engine checkout">
+  Android and iOS are the one pair of targets the editor download does not carry
+  end to end: the native host is built once from an engine source checkout (Dawn +
+  QuickJS), plus the Android SDK/NDK or macOS with Xcode. See
+  [Android & iOS](/docs/guides/mobile/).
+</Aside>
+
+## Content a target cannot render
+
+A target does not necessarily compile every subsystem the editor can author. When
+one doesn't, the export **names the gap and the scenes that hit it** rather than
+writing a package that is quietly missing half a scene — the warning lists the
+subsystem (tilemaps, particles, post-processing, physics, Spine, video, text) and
+the files that authored it.
+
+No target currently has a gap: the native app compiles the whole engine source
+list, and the three subsystems that are separate side modules on the web are
+compiled into its binary instead. The check stays because that can change.
 
 ## Side modules
 
@@ -193,35 +230,56 @@ runtime API.
 
 ## Asset cook options
 
-The Package dialog also drives what the **cook** does to your assets:
+What the **cook** does to an individual asset is that asset's own business —
+per-asset **Import Settings** in the Inspector, with a tab per platform, so a
+texture can be compressed harder for a phone than for the web. The build only
+picks whether to honor those settings at all:
 
-- **Compress audio** — re-encode WAV sources to MP3 at cook (per-asset Import
-  Settings can opt a clip out or pick a bitrate; other audio formats pass
-  through unchanged).
-- **Compress textures** — encode PNGs to GPU-ready **KTX2** (Basis Universal), which
-  the runtime transcodes to the best format each device supports (ASTC → ETC2 → S3TC,
-  falling back to RGBA8). Smaller downloads and less VRAM; leave off to ship raw PNGs.
-- **Pack `.atlas` folders** — pack the loose PNGs in each `<name>.atlas/` folder into
-  atlas pages at cook time, so many small sprites ship as one texture and batch in one
-  draw call.
-- **Content addressing** is on by default for Web/Desktop (each file named by a hash of
-  its bytes — immutable URLs, automatic dedupe).
+- **Compression → By import settings** — each texture and audio clip compresses per
+  its Import Settings (PNG → **KTX2** Basis Universal, Max Size, WAV → MP3), and
+  `<name>.atlas/` folders pack into atlas pages so many small sprites ship as one
+  texture and batch in one draw call.
+- **Compression → Skip all** — ship everything raw, for fast iteration.
+
+KTX2 textures are transcoded by the runtime to the best format each device
+supports (ASTC → ETC2 → S3TC, falling back to RGBA8), with their mip chains —
+smaller downloads and less VRAM.
+
+**Content addressing** is on by default for Web/Desktop (each file named by a hash
+of its bytes — immutable URLs, automatic dedupe). **Advanced** holds the CDN root
+for [hot update](/docs/guides/hot-update/), source maps, and whether to open the
+output folder when the build finishes.
+
+<Aside type="caution" title="Assets only your code names are culled">
+  The cook ships what it can **reach** from the scenes in the build. Anything named
+  only in code — a texture in rich-text markup, a clip played by url, a prefab
+  spawned by path — is culled, and the editor never notices because it serves the
+  project straight off disk. Mark that folder **Delivery → Always include in
+  builds** in the Content Browser. See
+  [Assets](/docs/guides/assets/#shipping-what-only-code-names).
+</Aside>
 
 ## Packaging settings
 
 Per-target metadata lives in **Project Settings → Packaging** and is saved with the
 project:
 
+- **Application ID** — the reverse-DNS id the installed app is known by: the
+  Android manifest package, the iOS bundle id, the desktop installer id. Empty
+  derives one from the project name; a published app should set its own, because a
+  store keeps it forever.
 - **WeChat** — AppID.
-- **Desktop** — application id and product name (used to name the installer).
+- **Desktop** — application id override and product name (used to name the installer).
+- **Android** — version code, the integer Google Play orders builds by.
 
 ### Screen orientation
 
 Orientation is **one project-wide setting**, not per-target: **Project Settings →
 Display → Orientation** (portrait or landscape), right beside the design resolution.
 Every target honors it — the WeChat `game.json` `deviceOrientation`, the web build's
-rotate-to-fit prompt (and a best-effort `screen.orientation.lock`), and the desktop
-window's aspect. Left unset, it's **derived from the design resolution's aspect**
+rotate-to-fit prompt (and a best-effort `screen.orientation.lock`), the desktop
+window's aspect, and the native app's `app.config.json` (the engine can letterbox
+but cannot rotate a phone). Left unset, it's **derived from the design resolution's aspect**
 (wider-or-square ⇒ landscape, taller ⇒ portrait), so a landscape design ships
 landscape everywhere with zero configuration.
 
@@ -246,15 +304,19 @@ node build-tools/cli.js build -t web        # build the engine (web target)
 node build-tools/cli.js build -t wechat     # …the WeChat runtime
 node build-tools/cli.js sdk                 # build the SDK only
 node build-tools/cli.js watch               # rebuild on change (engine dev)
+node build-tools/cli.js native --target ios # …the native mobile host
 ```
 
 <Aside type="note">
   Most game developers never run the build CLI beyond the one-time WeChat
-  runtime builds — day-to-day work happens in the editor and the SDK.
+  runtime build — day-to-day work happens in the editor and the SDK. The
+  exception is [mobile](/docs/guides/mobile/), where the CLI is also what
+  assembles the app around an export.
 </Aside>
 
 ## See also
 
+- [Android & iOS](/docs/guides/mobile/) — the native app: prerequisites, assembling it, and what only bites on a device.
 - [WeChat MiniGame](/docs/guides/wechat/) — subpackage layout and platform-specific quirks.
 - [Assets](/docs/guides/assets/) — how the cook step bundles and content-addresses assets.
 - [Profiling & Diagnostics](/docs/guides/profiling/) — check frame time and draw calls before you ship.

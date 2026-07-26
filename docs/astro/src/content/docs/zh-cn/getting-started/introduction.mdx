@@ -5,7 +5,7 @@ description: Estella 是什么，以及它为什么存在。
 
 Estella 是一个 **2D 游戏引擎**：上层是 TypeScript SDK，底层由高性能的
 **C++/WebAssembly** 内核驱动。它自带一个用于场景编辑与项目管理的可视化编辑器，
-把一个项目导出到 **Web、桌面、微信小游戏和 Playable 广告**。
+把一个项目导出到 **Web、桌面、微信小游戏、Playable 广告，以及原生 Android / iOS 应用**。
 
 ## 为什么选择 Estella？
 
@@ -14,7 +14,8 @@ Estella 是一个 **2D 游戏引擎**：上层是 TypeScript SDK，底层由高�
   `Query`。
 - **数据导向** —— Entity-Component-System 架构，游戏逻辑可规模化扩展。
 - **可视化编辑器** —— 场景层级、检视面板、资源浏览器，无需手写 JSON。
-- **跨平台** —— 一个项目，导出到 Web、桌面、微信小游戏和单文件 Playable 广告。
+- **跨平台** —— 一个项目，导出到 Web、桌面、微信小游戏、单文件 Playable 广告，
+  以及原生 Android / iOS 应用（arm64 + 内嵌 Dawn，不是 WebView）。
 - **开箱即用** —— 物理、瓦片地图、粒子、材质与 2D 光照、动画、Spine、音频、UI，
   以及一套游戏 AI 层。
 
@@ -24,7 +25,7 @@ Estella 是一个 **2D 游戏引擎**：上层是 TypeScript SDK，底层由高�
 |----|------|
 | **TypeScript SDK**（`esengine`） | 你编写的界面：`App`、`World`、系统、组件、查询、插件。 |
 | **WasmBridge** | SDK 与引擎之间的唯一边界，内存布局由生成器产出并经哈希校验。 |
-| **C++ / WebAssembly** | 引擎内核：ECS 存储、渲染器（`GfxDevice`）、资源、粒子、瓦片地图、文本。 |
+| **C++ / WebAssembly** | 引擎内核：ECS 存储、渲染器（`GfxDevice`）、资源、粒子、瓦片地图、文本。在[移动端](/docs/zh-cn/guides/mobile/)，同一份内核改为编译到 arm64。 |
 
 完整架构见
 [`ARCHITECTURE.md`](https://github.com/esengine/estella/blob/master/docs/ARCHITECTURE.md)。
