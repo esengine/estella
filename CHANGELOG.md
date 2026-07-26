@@ -14,6 +14,87 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.33.0] - 2026-07-26
+
+Shipping to ad networks. 0.32 extended where an Estella game runs; this release
+makes the **playable** target something you can actually upload. Every network
+disagrees on three things — how big the file may be, what must sit in `<head>`,
+and which function sends the player to the store — so those three are now a
+per-network **profile**, and the networks the editor ships are written against the
+same contract a project uses to add one we don't. The rest came out of packaging
+all 41 examples for web and playable and booting every single one, which is how
+the bugs below were found rather than shipped. No project/asset format or WASM ABI
+break.
+
+### Added
+
+- **Playable ad networks.** A network is a `PlayableAdProfile` — data plus two
+  emit hooks — chosen in **Package Project → Playable → Ad network**, where the
+  other per-build decisions already live (shipping the same game to several
+  networks is an ordinary week, not a project property). Each network gets its own
+  output folder, so packaging for one no longer overwrites the last. Ships Meta,
+  Google App campaigns, Unity Ads, AppLovin and a generic MRAID profile, each
+  written from that network's published spec with its size cap attributed to where
+  the number came from — a stale figure is then checkable rather than folklore.
+- **A network the editor doesn't ship.** Drop `kind: 'playable'` in
+  `.esengine/platforms/<id>.mjs` (or scaffold it from the dialog) and it appears in
+  the same dropdown, resolved by the same loader, packaged by the same pipeline —
+  supporting a network is never a privileged path. The selected profile names the
+  file that defines it with a reveal button, and one that fails to load reports why.
+- **`playableCta()` / `hasPlayableCta()`.** The one call a game makes when the
+  player takes the call to action. Game code never names a network: the export
+  injects the bridge this dispatches through, and with no network selected it is a
+  no-op, so the same scene still runs in the editor and on the web.
+- **ZIP delivery.** A profile can declare `delivery: 'zip'` (Google accepts only an
+  archive); the export writes `playable.zip` with `index.html` at the root and
+  measures the LIMIT against the archive, since that is the file being uploaded.
+  The writer is deterministic — a fixed timestamp, so the same input yields
+  byte-identical output — and is tested against the system `unzip`.
+
+### Changed
+
+- **A playable no longer pins screen orientation.** Inside an ad SDK the container
+  is the SDK's business, so `@media (orientation:portrait)` reports the container
+  and turning the phone need not change it — the rotate-to-fit overlay could hide
+  the canvas for good. Playables stay responsive (every network asks for that);
+  the orientation is only *declared* where a platform wants it, e.g. Google's
+  `ad.orientation` meta tag. The web export keeps the overlay, where a player
+  opened the page themselves and the query really does track the device.
+- **The `-t playable` engine target is retired.** It built `esengine.single.js` and
+  an inline demo HTML template that nothing had read for a long time — the playable
+  export inlines the WEB runtime (glue as a blob module, wasm as base64). Its sync
+  mapping was also what `wasm.manifest.json` derived its variant list from, so the
+  manifest now names the two variants that exist. The guides stop telling you to
+  run it before a first playable export.
+- The Package dialog no longer resizes under the cursor when you switch target: its
+  height came from its content while the dialog is centred, so every switch jumped
+  the window. Fixed height with a viewport cap, content column scrolls — the way
+  the settings dialog already worked.
+
+### Fixed
+
+- **A playable's video played nothing.** The scene loader installed the realm's
+  `resolveRef` as the video resolver, so a clip ref resolved only to a logical
+  path. On the web that path IS the URL, so it played; a single-file playable has
+  no such file, so every clip drew a blank white quad. Ref → path → the backend's
+  URL for that path, which is the inlined data URL for an embedded realm.
+- **A web build's own orientation-lock script was blocked by its CSP.** The policy
+  listed the import map's hash only, so the browser refused the sibling inline
+  script: every export logged a violation and shipped without the lock. Both hashes
+  are now derived from the source that emits them, gated by a test that hashes
+  whatever inline scripts the page actually has.
+- **The installer carried local export output.** The examples/templates filters
+  excluded `**/dist/**`, but an export writes `dist-<platform>` — so whatever a
+  developer had exported rode along inside the example it came from (57MB of
+  examples, 43MB of it stale packages). CI escaped it because those dirs are
+  gitignored, which is why it went unnoticed.
+- **`dist` claimed to build installers but skipped `bundle-mcp`**, so a locally
+  built installer declared `dist-electron/mcp` in `asarUnpack` with nothing behind
+  it. Both dist scripts now go through `build`, the single producer. (CI runs
+  `build` separately, so published releases were intact.)
+- A playable ad network created from the dialog is selectable immediately instead
+  of only after reopening it, and stays findable afterwards.
+
 ## [0.32.0] - 2026-07-23
 
 Reaching further. Where 0.31 was about authoring gameplay over your art, this
@@ -1483,6 +1564,7 @@ not kept before this file was introduced — see the Git history at
 commit on 2026-01-25.
 
 [Unreleased]: https://github.com/esengine/estella/compare/v0.32.0...HEAD
+[0.33.0]: https://github.com/esengine/estella/compare/v0.32.0...v0.33.0
 [0.32.0]: https://github.com/esengine/estella/compare/v0.31.0...v0.32.0
 [0.31.0]: https://github.com/esengine/estella/compare/v0.30.0...v0.31.0
 [0.30.0]: https://github.com/esengine/estella/compare/v0.29.0...v0.30.0
