@@ -51,6 +51,19 @@ export function templateStoreDir(): string;
 export function installedTemplateDir(
     engineVersion: string, platform: NativePlatform, abi: string, storeDir?: string): string;
 export function findTemplate(want: TemplateWant, storeDir?: string): FoundTemplate | null;
+export interface PublishedTemplate {
+    id: string;
+    platform: NativePlatform;
+    abi: string;
+    /** Archive filename, resolved against the release's asset base. */
+    file: string;
+    bytes: number;
+    sha256: string;
+}
+
+export const TEMPLATE_INDEX: string;
+export function releaseAssetBase(engineVersion: string): string;
+export function parseTemplateIndex(doc: unknown, engineVersion?: string): PublishedTemplate[] | null;
 export function iosTemplateSources(dir: string): {
     xcframework: string;
     mainM: string;

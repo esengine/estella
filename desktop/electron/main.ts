@@ -32,7 +32,8 @@ import { startProjectWatch, stopProjectWatch } from './projectWatcher';
 import { importAssets, createAsset, IMPORT_EXTENSIONS } from './importAssets';
 import { exportGame } from './exportGame';
 import {
-  iosSourcesFromTemplate, resolveNativeTemplate, installNativeTemplate, listNativeTemplates, removeNativeTemplate,
+  iosSourcesFromTemplate, resolveNativeTemplate, installNativeTemplate, listNativeTemplates,
+  removeNativeTemplate, downloadNativeTemplate,
 } from './nativeTemplates';
 import { loopbackServer, closeAllLoopbackServers } from './loopbackServer';
 import { httpContentType } from './mimeTypes';
@@ -1010,6 +1011,13 @@ ipcMain.handle('nativeTemplates:install', async () => {
 });
 ipcMain.handle('nativeTemplates:remove', (_e, platform: 'android' | 'ios', abi: string, version: string) =>
   removeNativeTemplate(platform, abi, version),
+);
+// Download + install this editor version's template. Progress is pushed rather
+// than polled: the renderer drew the button, so it owns the progress bar.
+ipcMain.handle('nativeTemplates:download', (e, platform: 'android' | 'ios') =>
+  downloadNativeTemplate(platform, app.getVersion(), {
+    onProgress: (p) => e.sender.send('nativeTemplates:downloadProgress', { platform, ...p }),
+  }),
 );
 
 // New-project templates + creation (launcher New tab).

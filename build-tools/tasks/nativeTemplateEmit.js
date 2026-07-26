@@ -11,6 +11,7 @@
 
 import path from 'path';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { createHash } from 'crypto';
 import { mkdir, rm, cp, readdir } from 'fs/promises';
 import config from '../build.config.js';
 import * as logger from '../utils/logger.js';
@@ -19,7 +20,7 @@ import { buildTool, platformJar, ndkTool, ndkLibcxxShared, jdkTool } from '../ut
 import { makeZip, zipTree } from '../utils/zip.js';
 import {
     templateLayout, templateId, DEFAULT_ABI, writeTemplateManifest, missingTemplateFiles,
-    installedTemplateDir, templateZipName,
+    installedTemplateDir, templateZipName, TEMPLATE_INDEX, TEMPLATE_FORMAT,
 } from '../utils/nativeTemplate.js';
 
 /** The Java shim's sources — the IME's own side of an editable field, which has to
@@ -73,6 +74,52 @@ export async function compileJavaShim(outDir, { sdk, androidPlatform, jdk, root 
     await runCommand(buildTool(sdk, 'd8'), ['--lib', platformJar(sdk, androidPlatform), '--output', outDir, ...classFiles]);
     await rm(classes, { recursive: true, force: true });
     return existsSync(path.join(outDir, 'classes.dex'));
+}
+
+/**
+ * Write the index a release publishes beside its template archives: what exists
+ * for this version, and what each archive must hash to.
+ *
+ * A separate step from emitting, because the set spans machines — the iOS archive
+ * is built on a Mac and the Android one is not — so only the job that has both
+ * can describe them.
+ *
+ * @param {string} dir Directory holding the archives.
+ * @returns {Promise<{file: string, templates: object[]}>}
+ */
+export async function writeTemplateIndex(dir, options = {}) {
+    const engineVersion = options.engineVersion || readEngineVersion(options.root);
+    const suffix = `-${engineVersion}.zip`;
+    const archives = (await readdir(dir))
+        .filter((f) => f.startsWith('estella-native-') && f.endsWith(suffix))
+        .sort();
+    if (archives.length === 0) {
+        throw new Error(`No template archives for v${engineVersion} in ${dir}.`);
+    }
+
+    const templates = archives.map((file) => {
+        const bytes = readFileSync(path.join(dir, file));
+        const id = file.slice('estella-native-'.length, -suffix.length);
+        const dash = id.indexOf('-');
+        return {
+            id,
+            platform: id.slice(0, dash),
+            abi: id.slice(dash + 1),
+            file,
+            bytes: bytes.length,
+            sha256: createHash('sha256').update(bytes).digest('hex'),
+        };
+    });
+
+    const out = path.join(dir, TEMPLATE_INDEX);
+    writeFileSync(out, `${JSON.stringify({
+        kind: 'estella-native-templates',
+        formatVersion: TEMPLATE_FORMAT,
+        engineVersion,
+        templates,
+    }, null, 2)}\n`, 'utf8');
+    logger.success(`Template index: ${out} (${templates.map((t) => t.id).join(', ')})`);
+    return { file: out, templates };
 }
 
 /**

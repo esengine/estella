@@ -156,6 +156,40 @@ export function templateZipName(platform, abi, engineVersion) {
 }
 
 // =============================================================================
+// The published index
+// =============================================================================
+
+/** What a release publishes beside the archives: which templates exist for that
+ *  version, and what each one must hash to. */
+export const TEMPLATE_INDEX = 'native-templates.json';
+
+/**
+ * Where a release's assets live. Composed rather than stored in the index, so the
+ * same index works from a mirror, a local directory or a company file share — the
+ * editor is told a base, not a set of absolute URLs.
+ */
+export function releaseAssetBase(engineVersion) {
+    return `https://github.com/esengine/estella/releases/download/v${engineVersion}`;
+}
+
+/**
+ * Validate a published index. Returns its entries, or null when the document is
+ * not one — a 404 page and a truncated download are both "no index", and neither
+ * should reach the code that decides what to install.
+ */
+export function parseTemplateIndex(doc, engineVersion) {
+    if (doc?.kind !== 'estella-native-templates' || doc.formatVersion !== TEMPLATE_FORMAT) return null;
+    if (engineVersion && doc.engineVersion !== engineVersion) return null;
+    if (!Array.isArray(doc.templates)) return null;
+    const entries = doc.templates.filter((t) => typeof t?.id === 'string'
+        && typeof t.platform === 'string' && typeof t.abi === 'string'
+        && typeof t.file === 'string' && /^[\w.-]+$/.test(t.file)
+        && typeof t.sha256 === 'string' && /^[0-9a-f]{64}$/.test(t.sha256)
+        && Number.isInteger(t.bytes) && t.bytes > 0);
+    return entries.length > 0 ? entries : null;
+}
+
+// =============================================================================
 // Where templates live
 // =============================================================================
 

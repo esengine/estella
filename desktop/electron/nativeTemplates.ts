@@ -16,11 +16,13 @@
  */
 
 import path from 'node:path';
-import { existsSync, readFileSync, rmSync, renameSync, mkdirSync, readdirSync } from 'node:fs';
-import { randomUUID } from 'node:crypto';
+import { existsSync, readFileSync, rmSync, renameSync, mkdirSync, readdirSync, createWriteStream } from 'node:fs';
+import { once } from 'node:events';
+import { randomUUID, createHash } from 'node:crypto';
 import {
     findTemplate, readTemplateManifest, missingTemplateFiles, installedTemplateDir,
-    templateStoreDir, iosTemplateSources, DEFAULT_ABI,
+    templateStoreDir, iosTemplateSources, DEFAULT_ABI, releaseAssetBase, parseTemplateIndex,
+    TEMPLATE_INDEX,
     type NativePlatform, type NativeTemplateManifest,
 } from '../../build-tools/utils/nativeTemplate.js';
 import { extractZip } from '../../build-tools/utils/zip.js';
@@ -136,6 +138,80 @@ export function installNativeTemplate(zipPath: string, engineVersion: string): I
             dir: dest,
             versionMismatch: manifest.engineVersion !== engineVersion,
         };
+    } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    } finally {
+        rmSync(staging, { recursive: true, force: true });
+    }
+}
+
+/** How far a download has got, for the row that asked for it. */
+export interface TemplateDownloadProgress {
+    received: number;
+    total: number;
+}
+
+/**
+ * Download this editor version's runtime template for @p platform and install it.
+ *
+ * The release publishes an index beside the archives, so the editor asks what
+ * exists for its own version rather than guessing a filename — and the index
+ * carries a digest, which is checked before anything is unpacked. A download that
+ * was truncated, cached wrong by a proxy or served as somebody's captive-portal
+ * login page fails here, named, instead of installing as a broken template.
+ *
+ * Never throws: every failure is a message on the row that offered the button.
+ */
+export async function downloadNativeTemplate(
+    platform: NativePlatform,
+    engineVersion: string,
+    options: {
+        onProgress?: (progress: TemplateDownloadProgress) => void;
+        fetchImpl?: typeof fetch;
+        /** Where the archives live. Overridable for tests and for an offline mirror. */
+        baseUrl?: string;
+    } = {},
+): Promise<InstallResult> {
+    const fetchImpl = options.fetchImpl ?? fetch;
+    const base = options.baseUrl ?? releaseAssetBase(engineVersion);
+    const staging = path.join(templateStoreDir(), `.download-${randomUUID()}`);
+
+    try {
+        const indexRes = await fetchImpl(`${base}/${TEMPLATE_INDEX}`);
+        if (!indexRes.ok) {
+            return { ok: false, error: `no template index for v${engineVersion} (HTTP ${indexRes.status})` };
+        }
+        const entries = parseTemplateIndex(await indexRes.json(), engineVersion);
+        if (!entries) return { ok: false, error: `the template index for v${engineVersion} is not readable` };
+
+        const abi = DEFAULT_ABI[platform];
+        const entry = entries.find((t) => t.platform === platform && t.abi === abi);
+        if (!entry) return { ok: false, error: `v${engineVersion} publishes no ${platform}-${abi} template` };
+
+        const res = await fetchImpl(`${base}/${entry.file}`);
+        if (!res.ok || !res.body) return { ok: false, error: `download failed (HTTP ${res.status})` };
+
+        mkdirSync(staging, { recursive: true });
+        const file = path.join(staging, entry.file);
+        const digest = createHash('sha256');
+        let received = 0;
+        const sink = createWriteStream(file);
+        for await (const chunk of res.body as AsyncIterable<Uint8Array>) {
+            digest.update(chunk);
+            received += chunk.byteLength;
+            options.onProgress?.({ received, total: entry.bytes });
+            if (!sink.write(chunk)) await once(sink, 'drain');
+        }
+        await new Promise<void>((resolve, reject) => sink.end((err?: Error) => (err ? reject(err) : resolve())));
+
+        if (received !== entry.bytes) {
+            return { ok: false, error: `download is ${received} bytes, the index says ${entry.bytes}` };
+        }
+        const got = digest.digest('hex');
+        if (got !== entry.sha256) {
+            return { ok: false, error: `checksum mismatch — got ${got.slice(0, 16)}…, expected ${entry.sha256.slice(0, 16)}…` };
+        }
+        return installNativeTemplate(file, engineVersion);
     } catch (err) {
         return { ok: false, error: err instanceof Error ? err.message : String(err) };
     } finally {

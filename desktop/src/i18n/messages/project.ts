@@ -48,9 +48,12 @@ export const projectMessages = defineMessages({
         zh: '本机没有 v{version} 的 {id} 运行时模板。',
     },
     'build.templateHint': {
-        en: 'It is the prebuilt engine the app is assembled around — download it from this release and install it here, once per editor version. Building it yourself needs the engine sources.',
-        zh: '它是应用装配所围绕的预编译引擎——从本版本的发布页下载并在此安装，每个编辑器版本装一次即可。自行构建它需要引擎源码。',
+        en: 'It is the prebuilt engine the app is assembled around, downloaded once per editor version. Already have the archive? Install it from a file instead.',
+        zh: '它是应用装配所围绕的预编译引擎，每个编辑器版本下载一次即可。已经有归档文件了？也可以直接从文件安装。',
     },
+    'build.downloadTemplate': { en: 'Download', zh: '下载' },
+    'build.downloadingTemplate': { en: 'Downloading…', zh: '下载中…' },
+    'build.downloadingTemplatePct': { en: 'Downloading {pct}% of {size}', zh: '下载中 {pct}%（共 {size}）' },
     'build.installTemplate': { en: 'Install from file…', zh: '从文件安装…' },
     'build.templateInstalled': {
         en: 'Installed the {id} runtime template (v{version}).',

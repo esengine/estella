@@ -242,6 +242,12 @@ export function BuildDialog() {
   // installed), so the rows re-probe instead of the dialog having to be reopened.
   const [probeTick, setProbeTick] = useState(0);
   const [templateNote, setTemplateNote] = useState<{ text: string; error: boolean } | null>(null);
+  const [downloading, setDownloading] = useState<{ received: number; total: number } | null>(null);
+
+  // Progress is pushed from main while a template downloads.
+  useEffect(() => window.estella.nativeTemplates?.onDownloadProgress?.((p) => {
+    setDownloading({ received: p.received, total: p.total });
+  }), []);
 
   useEffect(() => {
     let alive = true;
@@ -409,11 +415,9 @@ export function BuildDialog() {
     setTimeout(() => setCopiedFix(false), 1600);
   };
 
-  /** Install a runtime template the user downloaded, then re-probe: the row that
-   *  asked for it becomes ready without reopening the dialog. */
-  const installTemplate = async () => {
-    const res = await window.estella.nativeTemplates?.install?.();
-    if (!res || res.canceled) return;
+  /** Report the outcome of getting a template, and re-probe when it worked: the
+   *  row that asked for it becomes ready without reopening the dialog. */
+  const afterTemplate = (res: { ok: boolean; id?: string; engineVersion?: string; versionMismatch?: boolean; error?: string }) => {
     if (!res.ok) {
       setTemplateNote({ text: res.error ?? '', error: true });
       return;
@@ -432,6 +436,26 @@ export function BuildDialog() {
       });
     }
     setProbeTick((n) => n + 1);
+  };
+
+  /** Install an archive the user already has (offline, a mirror, a company share). */
+  const installTemplate = async () => {
+    const res = await window.estella.nativeTemplates?.install?.();
+    if (!res || res.canceled) return;
+    afterTemplate(res);
+  };
+
+  /** Fetch it from this version's release. */
+  const downloadTemplate = async (platform: string) => {
+    if (platform !== 'android' && platform !== 'ios') return;
+    setTemplateNote(null);
+    setDownloading({ received: 0, total: 0 });
+    try {
+      const res = await window.estella.nativeTemplates?.download?.(platform);
+      if (res) afterTemplate(res);
+    } finally {
+      setDownloading(null);
+    }
   };
 
   const browse = async () => {
@@ -669,8 +693,18 @@ export function BuildDialog() {
                 </span>
                 {def.prereqKind === 'template-missing' && (
                   <div className="build__fix">
-                    <Button onClick={() => void installTemplate()}>
-                      <Package size={12} /> {t('build.installTemplate')}
+                    <Button variant="primary" disabled={!!downloading} onClick={() => void downloadTemplate(def.id)}>
+                      {downloading
+                        ? <><Loader2 size={12} className="spin" /> {downloading.total > 0
+                          ? t('build.downloadingTemplatePct', {
+                            pct: String(Math.round((downloading.received / downloading.total) * 100)),
+                            size: mb(downloading.total),
+                          })
+                          : t('build.downloadingTemplate')}</>
+                        : <><Package size={12} /> {t('build.downloadTemplate')}</>}
+                    </Button>
+                    <Button disabled={!!downloading} onClick={() => void installTemplate()}>
+                      {t('build.installTemplate')}
                     </Button>
                     {templateNote && (
                       <span className={templateNote.error ? 'is-error selectable' : 'selectable'}>

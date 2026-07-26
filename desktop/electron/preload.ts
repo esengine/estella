@@ -231,6 +231,15 @@ const api = {
     install: (): Promise<InstallResult & { canceled?: boolean }> => ipcRenderer.invoke('nativeTemplates:install'),
     remove: (platform: 'android' | 'ios', abi: string, version: string): Promise<boolean> =>
       ipcRenderer.invoke('nativeTemplates:remove', platform, abi, version),
+    /** Fetch this editor version's template from the release and install it. */
+    download: (platform: 'android' | 'ios'): Promise<InstallResult> =>
+      ipcRenderer.invoke('nativeTemplates:download', platform),
+    /** Subscribe to download progress; returns an unsubscribe. */
+    onDownloadProgress: (cb: (p: { platform: string; received: number; total: number }) => void): (() => void) => {
+      const h = (_e: unknown, p: { platform: string; received: number; total: number }) => cb(p);
+      ipcRenderer.on('nativeTemplates:downloadProgress', h);
+      return () => ipcRenderer.removeListener('nativeTemplates:downloadProgress', h);
+    },
   },
   // Recent projects (launcher), persisted in userData.
   recents: {

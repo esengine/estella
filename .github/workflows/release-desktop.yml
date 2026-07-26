@@ -84,6 +84,118 @@ jobs:
             desktop/public/wasm-wechat
           retention-days: 3
 
+  # The native app's compiled half — the engine, Dawn, QuickJS, the linked-in
+  # runtimes — carries no project data, so it is built ONCE per release and
+  # published as a runtime template the editor installs. This is what frees a
+  # developer from cloning the engine and building Dawn to ship to a phone.
+  #
+  # Dawn is the expensive part (gigabytes to fetch, minutes to build, three
+  # targets), and it is pinned in toolchain.manifest.json — so the fetch AND the
+  # build cache on that commit, and a release that does not move the pin pays for
+  # neither.
+  native-templates:
+    name: Build runtime template (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: ios
+            os: macos-latest
+          - name: android
+            os: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup
+
+      # The SDK bundle is compiled INTO the host binary, which is why a template
+      # is matched exactly against the editor version that ships with it.
+      - name: Build SDK
+        run: pnpm --filter ./sdk build
+
+      - name: Read the native dependency pins
+        id: pins
+        shell: bash
+        run: |
+          node -e "const p=require('./toolchain.manifest.json').native;\
+            console.log('dawn='+p.dawn.commit);console.log('quickjs='+p.quickjs.commit)" >> "$GITHUB_OUTPUT"
+
+      # Keyed on the pins and the target: the checkout and the Dawn builds are
+      # reproducible for a given commit, so this is warm on every release that
+      # does not move it.
+      - name: Cache the pinned checkouts + Dawn builds
+        uses: actions/cache@v4
+        with:
+          path: build/native-deps
+          key: native-deps-${{ matrix.name }}-${{ steps.pins.outputs.dawn }}-${{ steps.pins.outputs.quickjs }}
+
+      # Dawn and the host both build with Ninja; neither tool is guaranteed on a
+      # macOS runner (the Android SDK carries its own pair).
+      - name: Set up CMake + Ninja
+        if: matrix.name == 'ios'
+        run: brew install cmake ninja
+
+      - name: Set up the Android NDK
+        if: matrix.name == 'android'
+        uses: nttld/setup-ndk@v1
+        id: ndk
+        with:
+          ndk-version: r28
+
+      - name: Fetch Dawn + QuickJS at their pinned commits
+        run: node build-tools/cli.js native --fetch-deps
+
+      # `native` builds Dawn for the target if the cache did not carry it, then
+      # the host, then emits the template — the same command a contributor runs.
+      - name: Build the iOS template (device + simulator)
+        if: matrix.name == 'ios'
+        run: |
+          node build-tools/cli.js native --target ios --simulator --no-template
+          node build-tools/cli.js native --target ios --template-out artifacts
+
+      - name: Build the Android template
+        if: matrix.name == 'android'
+        env:
+          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+        run: node build-tools/cli.js native --template-out artifacts
+
+      - name: Upload template artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-template-${{ matrix.name }}
+          path: artifacts/*.zip
+          retention-days: 3
+
+  # One job holds every archive, so only it can describe the set: the index
+  # carries a digest per template, and the editor refuses a download that does not
+  # match it.
+  publish-templates:
+    needs: [draft, native-templates]
+    if: github.event_name == 'push' && needs.draft.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Download every template archive
+        uses: actions/download-artifact@v8
+        with:
+          pattern: native-template-*
+          merge-multiple: true
+          path: artifacts
+
+      - name: Write native-templates.json
+        run: node build-tools/cli.js native --template-index artifacts
+
+      - name: Upload the templates to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "$GITHUB_REF_NAME" artifacts/* --repo "$GITHUB_REPOSITORY" --clobber
+
   release:
     # Platform jobs only package: SDK + renderer builds are quick TS/JS work,
     # and electron-builder needs the native OS. No emsdk, no C++ here.

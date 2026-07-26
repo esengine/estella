@@ -10,16 +10,18 @@
 //   2. An archive is untrusted input, and an incomplete one must not replace a
 //      working install.
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
   resolveNativeTemplate, iosSourcesFromTemplate, installNativeTemplate,
-  listNativeTemplates, removeNativeTemplate,
+  listNativeTemplates, removeNativeTemplate, downloadNativeTemplate,
 } from '../electron/nativeTemplates';
 import { listPlatforms } from '../electron/platformCatalog';
 import {
-  requiredTemplateFiles, installedTemplateDir, TEMPLATE_FORMAT, TEMPLATE_MANIFEST,
+  requiredTemplateFiles, installedTemplateDir, parseTemplateIndex,
+  TEMPLATE_FORMAT, TEMPLATE_MANIFEST, TEMPLATE_INDEX,
 } from '../../build-tools/utils/nativeTemplate.js';
 import { makeZip } from '../../build-tools/utils/zip.js';
 
@@ -137,6 +139,109 @@ describe('installing a runtime template', () => {
     expect(removeNativeTemplate('ios', 'arm64', VERSION)).toBe(true);
     expect(resolveNativeTemplate('ios', VERSION)).toBeNull();
     expect(removeNativeTemplate('ios', 'arm64', VERSION)).toBe(false);
+  });
+});
+
+describe('downloading a template from a release', () => {
+  /** A stand-in release: the published index plus the archive it describes. */
+  function release(overrides: { sha256?: string; bytes?: number; templates?: unknown[] } = {}) {
+    const zip = readFileSync(writeTemplateZip(VERSION));
+    const index = {
+      kind: 'estella-native-templates',
+      formatVersion: TEMPLATE_FORMAT,
+      engineVersion: VERSION,
+      templates: overrides.templates ?? [{
+        id: 'ios-arm64', platform: 'ios', abi: 'arm64',
+        file: `estella-native-ios-arm64-${VERSION}.zip`,
+        bytes: overrides.bytes ?? zip.length,
+        sha256: overrides.sha256 ?? createHash('sha256').update(zip).digest('hex'),
+      }],
+    };
+    const served: string[] = [];
+    const fetchImpl = (async (url: string) => {
+      served.push(url);
+      if (url.endsWith(TEMPLATE_INDEX)) {
+        return { ok: true, status: 200, json: async () => index } as unknown as Response;
+      }
+      return {
+        ok: true,
+        status: 200,
+        // Two chunks, so progress is reported more than once.
+        body: (async function* () {
+          yield zip.subarray(0, 100);
+          yield zip.subarray(100);
+        })(),
+      } as unknown as Response;
+    }) as unknown as typeof fetch;
+    return { fetchImpl, served, zip };
+  }
+
+  it('installs what the index describes, and reports progress on the way', async () => {
+    const { fetchImpl, served, zip } = release();
+    const progress: number[] = [];
+
+    const res = await downloadNativeTemplate('ios', VERSION, {
+      fetchImpl, baseUrl: 'https://example.test/r', onProgress: (p) => progress.push(p.received),
+    });
+
+    expect(res).toMatchObject({ ok: true, id: 'ios-arm64', versionMismatch: false });
+    expect(resolveNativeTemplate('ios', VERSION)).not.toBeNull();
+    expect(served).toEqual([
+      `https://example.test/r/${TEMPLATE_INDEX}`,
+      `https://example.test/r/estella-native-ios-arm64-${VERSION}.zip`,
+    ]);
+    expect(progress).toEqual([100, zip.length]);
+  });
+
+  it('refuses an archive whose checksum does not match the index', async () => {
+    const { fetchImpl } = release({ sha256: 'f'.repeat(64) });
+
+    const res = await downloadNativeTemplate('ios', VERSION, { fetchImpl, baseUrl: 'https://example.test/r' });
+
+    expect(res.ok).toBe(false);
+    expect(res.error).toContain('checksum mismatch');
+    expect(resolveNativeTemplate('ios', VERSION)).toBeNull();
+  });
+
+  it('refuses a truncated download before it is unpacked', async () => {
+    const { fetchImpl } = release({ bytes: 999_999 });
+
+    const res = await downloadNativeTemplate('ios', VERSION, { fetchImpl, baseUrl: 'https://example.test/r' });
+
+    expect(res.error).toContain('999999');
+    expect(resolveNativeTemplate('ios', VERSION)).toBeNull();
+  });
+
+  it('says so when this version publishes no template for the platform', async () => {
+    const { fetchImpl } = release();
+
+    const res = await downloadNativeTemplate('android', VERSION, { fetchImpl, baseUrl: 'https://example.test/r' });
+
+    expect(res.error).toContain('no android-arm64-v8a template');
+  });
+
+  it('treats an unreadable index as no index — a 404 page is not a template list', async () => {
+    const fetchImpl = (async () => ({
+      ok: true, status: 200, json: async () => ({ error: 'Not Found' }),
+    } as unknown as Response)) as unknown as typeof fetch;
+
+    const res = await downloadNativeTemplate('ios', VERSION, { fetchImpl, baseUrl: 'https://example.test/r' });
+
+    expect(res.error).toContain('not readable');
+  });
+
+  it('rejects an index published for another version', () => {
+    expect(parseTemplateIndex({
+      kind: 'estella-native-templates', formatVersion: TEMPLATE_FORMAT, engineVersion: '1.0.0',
+      templates: [{ id: 'ios-arm64', platform: 'ios', abi: 'arm64', file: 'x.zip', bytes: 1, sha256: 'a'.repeat(64) }],
+    }, VERSION)).toBeNull();
+  });
+
+  it('drops an entry whose filename could escape the download directory', () => {
+    expect(parseTemplateIndex({
+      kind: 'estella-native-templates', formatVersion: TEMPLATE_FORMAT, engineVersion: VERSION,
+      templates: [{ id: 'ios-arm64', platform: 'ios', abi: 'arm64', file: '../evil.zip', bytes: 1, sha256: 'a'.repeat(64) }],
+    }, VERSION)).toBeNull();
   });
 });
 
