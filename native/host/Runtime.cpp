@@ -202,39 +202,70 @@ uint64_t hashBytes(const char* p, size_t n) {
 }
 
 /**
- * Evaluate a global script, reusing a cached bytecode compile. QuickJS is an
- * interpreter: parsing the ~700 KB SDK bundle costs ~8 s every launch. So compile
- * once (JS_WriteObject the bytecode, tagged with the bundle hash), and on later
- * launches JS_ReadObject it — skipping the parse. The same QuickJS build writes and
- * reads it, so the format always matches; the hash guards against a stale bundle,
- * and a bad read just recompiles. Cache file: [8-byte hash][bytecode].
+ * Read a [8-byte hash][bytecode] blob, if its hash is the one we want. A blob that
+ * does not match, or does not load, is simply not used — the caller falls through
+ * to the next source and ultimately to compiling.
+ */
+bool tryBytecode(HostState& h, const u8* blob, size_t size, uint64_t want,
+                 const char* origin, JSValue& out) {
+    if (size <= sizeof(uint64_t)) return false;
+    uint64_t got = 0;
+    std::memcpy(&got, blob, sizeof(got));
+    if (got != want) return false;   // built against a different bundle
+
+    JSValue fn = JS_ReadObject(h.js, blob + sizeof(got), size - sizeof(got), JS_READ_OBJ_BYTECODE);
+    if (JS_IsException(fn)) {
+        JSValue e = JS_GetException(h.js);
+        JS_FreeValue(h.js, e);
+        return false;
+    }
+    ESHOST_LOGI("SDK bundle: loaded from %s", origin);
+    out = JS_EvalFunction(h.js, fn);
+    return true;
+}
+
+/**
+ * Evaluate a global script, skipping the parse whenever bytecode for it exists.
+ * QuickJS is an interpreter: parsing the ~700 KB SDK bundle costs ~14 s on a
+ * device, and that parse is the black screen after an install. Three sources, in
+ * order of how early they are available:
+ *
+ *   1. Bytecode built with the app (`assets/esengine.native.bc`), so the FIRST
+ *      launch is already fast. Present only if the build machine could produce it.
+ *   2. Bytecode this device compiled on an earlier launch.
+ *   3. The source, parsed — and cached on the way out, so step 2 works next time.
+ *
+ * Every source is tagged with a hash of the bundle it was built from, so a stale
+ * one is skipped rather than trusted. Cache file: [8-byte hash][bytecode].
  */
 JSValue evalCachedScript(HostState& h, const char* src, size_t srcLen, const char* filename,
-                         const std::string& cachePath) {
+                         const std::string& cachePath, const char* shippedAsset) {
     const uint64_t want = hashBytes(src, srcLen);
+    JSValue out;
+
+    if (shippedAsset) {
+        const std::vector<u8> blob = readAsset(h, shippedAsset);
+        if (!blob.empty() && tryBytecode(h, blob.data(), blob.size(), want,
+                                         "bytecode shipped with the app", out)) {
+            return out;
+        }
+    }
 
     if (!cachePath.empty()) {
         FILE* f = fopen(cachePath.c_str(), "rb");
         if (f) {
-            uint64_t got = 0;
-            std::vector<u8> bc;
-            if (fread(&got, sizeof(got), 1, f) == 1 && got == want) {
-                fseek(f, 0, SEEK_END);
-                long sz = ftell(f);
-                fseek(f, (long)sizeof(got), SEEK_SET);
-                if (sz > (long)sizeof(got)) {
-                    bc.resize((size_t)sz - sizeof(got));
-                    if (fread(bc.data(), 1, bc.size(), f) != bc.size()) bc.clear();
-                }
+            std::vector<u8> blob;
+            fseek(f, 0, SEEK_END);
+            const long sz = ftell(f);
+            fseek(f, 0, SEEK_SET);
+            if (sz > 0) {
+                blob.resize((size_t)sz);
+                if (fread(blob.data(), 1, blob.size(), f) != blob.size()) blob.clear();
             }
             fclose(f);
-            if (!bc.empty()) {
-                JSValue obj = JS_ReadObject(h.js, bc.data(), bc.size(), JS_READ_OBJ_BYTECODE);
-                if (!JS_IsException(obj)) {
-                    ESHOST_LOGI("SDK bundle: loaded from bytecode cache");
-                    return JS_EvalFunction(h.js, obj);
-                }
-                JSValue e = JS_GetException(h.js); JS_FreeValue(h.js, e);  // stale/corrupt -> recompile
+            if (!blob.empty() && tryBytecode(h, blob.data(), blob.size(), want,
+                                             "bytecode cache", out)) {
+                return out;
             }
         }
     }
@@ -358,7 +389,8 @@ void initRuntime(HostState& h) {
     // Layer 1: the real SDK bundle, embedded — installs `ESEngine`.
     const double tCtx = nowMs();
     std::string bcPath = h.cacheDir.empty() ? std::string() : (h.cacheDir + "/esengine.native.bc");
-    JSValue br = evalCachedScript(h, kSdkBundleJS, strlen(kSdkBundleJS), "esengine.native.js", bcPath);
+    JSValue br = evalCachedScript(h, kSdkBundleJS, strlen(kSdkBundleJS), "esengine.native.js",
+                                  bcPath, "esengine.native.qjsbc");
     if (JS_IsException(br)) logJsError(h.js, "SDK bundle");
     JS_FreeValue(h.js, br);
     const double tBundle = nowMs();

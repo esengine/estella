@@ -15,7 +15,7 @@ import config from '../build.config.js';
 import * as logger from '../utils/logger.js';
 import { runCommand, getCpuCount, resolvePython } from '../utils/emscripten.js';
 import { requireSdk, requireNdk, sdkCmake } from '../utils/android.js';
-import { packageNativeApk } from './nativePackage.js';
+import { packageNativeApk, BYTECODE_FILE } from './nativePackage.js';
 import { readAppConfig, iosInterfaceOrientations, fillTemplate } from '../utils/nativeApp.js';
 import { renderPbxproj, renderScheme } from '../utils/xcodeProject.js';
 
@@ -108,16 +108,71 @@ async function generateSdkBundle(rootDir, genDir) {
             + '(cd sdk && pnpm run build) — it produces the QuickJS-loadable index.native.bundled.js.');
     }
     const js = readFileSync(bundlePath, 'utf8');
+    // The raw literal opens with a newline, so what the host compiles — and hashes
+    // its bytecode cache against — is that newline plus the bundle. It is written
+    // out as a file too, because the bytecode step must compile these exact bytes
+    // for the host to accept the result (see precompileBundleBytecode).
+    const embedded = '\n' + js;
     const header =
         '// The real esengine SDK, bundled (dist/index.native.bundled.js) — installs\n'
         + '// globalThis.ESEngine. Embedded by `cli native --quickjs` — DO NOT EDIT.\n'
         + '#pragma once\n'
-        + 'static const char* kSdkBundleJS = R"ESJS(\n'
-        + js
+        + 'static const char* kSdkBundleJS = R"ESJS('
+        + embedded
         + ')ESJS";\n';
     const headerPath = path.join(genDir, 'esengine_bundle.h');
     writeFileSync(headerPath, header, 'utf8');
+    writeFileSync(path.join(genDir, 'esengine_bundle.embedded.js'), embedded, 'utf8');
     return headerPath;
+}
+
+/**
+ * Build the SDK bundle's bytecode now, so the first launch does not have to.
+ *
+ * QuickJS parses the bundle in about fourteen seconds on a device. The host
+ * caches that compile, but the cache does not exist until one launch has paid
+ * for it — which is exactly the black screen after an install. Shipping the
+ * bytecode makes the first launch as fast as the rest.
+ *
+ * Best effort by design: it needs a compiler for THIS machine (the NDK's targets
+ * the device), and a build machine without one still produces a working app —
+ * one that compiles the bundle on first run, as before. So a failure here is
+ * logged and returns null rather than failing the build.
+ *
+ * @returns Path to the bytecode, or null if it could not be produced.
+ */
+async function precompileBundleBytecode(rootDir, genDir, quickjs) {
+    const source = path.join(genDir, 'esengine_bundle.embedded.js');
+    const out = path.join(genDir, BYTECODE_FILE);
+    const exe = process.platform === 'win32' ? '.exe' : '';
+    const tool = path.join(genDir, `mkbc${exe}`);
+
+    // The very sources the host links, so the bytecode it writes is the bytecode
+    // the host reads. Anything else is a format gamble.
+    const qjsSources = ['quickjs.c', 'dtoa.c', 'libregexp.c', 'libunicode.c']
+        .map((f) => path.join(quickjs, f));
+    const missing = qjsSources.find((f) => !existsSync(f));
+    if (missing) {
+        logger.warn(`Bytecode precompile skipped: ${path.basename(missing)} not in ${quickjs}.`);
+        return null;
+    }
+
+    const cc = process.platform === 'win32' ? 'gcc' : 'cc';
+    try {
+        await runCommand(cc, [
+            '-std=c11', '-O2', '-w',
+            '-I', quickjs,
+            '-o', tool,
+            path.join(rootDir, 'native', 'tools', 'mkbc.c'),
+            ...qjsSources,
+        ], { cwd: rootDir, silent: true });
+        await runCommand(tool, [source, out], { cwd: rootDir, silent: true });
+    } catch (err) {
+        logger.warn('Bytecode precompile skipped (no host compiler?) — the app will '
+            + `compile the bundle on first launch instead: ${err.message}`);
+        return null;
+    }
+    return existsSync(out) ? out : null;
 }
 
 // Embed the host bootstrap (native/host/bootstrap.js) the same way. It is real
@@ -166,6 +221,8 @@ async function prepareGenerated(rootDir, buildDir, quickjs) {
     await generateSdkBundle(rootDir, genDir);
     logger.step('Embedding the host bootstrap (native/host/bootstrap.js)...');
     await generateBootstrap(rootDir, genDir);
+    logger.step('Precompiling the bundle to bytecode (so the first launch need not)...');
+    await precompileBundleBytecode(rootDir, genDir, quickjs);
     await stageEditorHeaders(rootDir, quickjs);
     return genDir;
 }

@@ -15,7 +15,16 @@ import { runCommand } from '../utils/emscripten.js';
 import { requireSdk, requireNdk, buildTool, platformJar, ndkTool, ndkLibcxxShared, javaHome, jdkTool } from '../utils/android.js';
 import { readAppConfig, androidScreenOrientation, fillTemplate } from '../utils/nativeApp.js';
 
+
 const HOST_LIBRARY = 'libestella_js_host.so';
+
+/**
+ * The shipped bytecode's filename. NOT `.bc`: that is LLVM bitcode's extension, and
+ * aapt2 treats a `.bc` asset as RenderScript output — which silently drops the APK's
+ * native-code declaration, so the package installs nowhere. Cost a long hunt; the
+ * only symptom is INSTALL_FAILED_NO_MATCHING_ABIS on a device whose ABI matches.
+ */
+export const BYTECODE_FILE = 'esengine.native.qjsbc';
 const MANIFEST_TEMPLATE = path.join('native', 'android', 'host', 'AndroidManifest.xml.in');
 
 /** The APK is named after the app it contains, so packaging a second project does
@@ -75,12 +84,16 @@ export async function packageNativeApk(options = {}) {
     await mkdir(libDir, { recursive: true });
 
     logger.step('Staging the native libraries...');
-    await copyFile(library, path.join(libDir, HOST_LIBRARY));
     await copyFile(ndkLibcxxShared(ndk), path.join(libDir, 'libc++_shared.so'));
-    // Dawn carries debug info an APK does not need — it dominates the payload.
-    await runCommand(ndkTool(ndk, 'llvm-strip'), [
-        '--strip-all', '-o', path.join(libDir, 'libwebgpu_dawn.so'), dawnLib,
-    ]);
+    // Both carry debug info an APK does not need, and the host's is most of its
+    // size. Shipping it unstripped also broke installing onto a clean device --
+    // the extract step gave up on the payload -- which only reproduced on a first
+    // install, since replacing an existing package never re-extracted it.
+    for (const [src, dst] of [[library, HOST_LIBRARY], [dawnLib, 'libwebgpu_dawn.so']]) {
+        await runCommand(ndkTool(ndk, 'llvm-strip'), [
+            '--strip-all', '-o', path.join(libDir, dst), src,
+        ]);
+    }
 
     // assets/ is what the host's readAsset() sees, and what goes in is an editor
     // export — cooked assets + manifests + scenes + game.config.json. A whole-
@@ -97,6 +110,19 @@ export async function packageNativeApk(options = {}) {
     if (!existsSync(content)) throw new Error(`--content dir not found: ${content}`);
     await cp(content, path.join(staging, 'assets'), { recursive: true });
     logger.step(`Staging exported content from ${path.relative(rootDir, content)}...`);
+
+    // The bundle's bytecode, if this machine could build it. Without it the first
+    // launch spends ~14 s parsing the bundle before anything is drawn; with it the
+    // host reads the compile straight off and the first launch matches the rest.
+    // Absent is a valid state — the host falls back to compiling (see Runtime.cpp).
+    const bytecode = path.join(rootDir, 'build-native', 'gen', BYTECODE_FILE);
+    if (existsSync(bytecode)) {
+        await cp(bytecode, path.join(staging, 'assets', BYTECODE_FILE));
+        logger.step('Staging the precompiled SDK bytecode...');
+    } else {
+        logger.warn('No precompiled bytecode: the first launch will compile the bundle '
+            + '(~14 s of black screen). Install a host C compiler to avoid it.');
+    }
 
     // The app the content asks to be: identity, version, and the orientation the
     // OS must lock the window to. The manifest is a template because all four vary
