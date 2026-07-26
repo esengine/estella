@@ -210,7 +210,11 @@
 /* Two panes: the platform nav (which only grows) and that platform's settings.
    The nav deliberately speaks the Settings dialog's language — same sizes, same
    --acc-soft + rail active state — so the two read as one editor. */
-.build { display: flex; gap: 0; min-height: 392px; }
+/* A FIXED height, like the settings dialog: the dialog is centred, so letting content
+   set its height made it grow and shrink under the cursor every time you switched
+   platform (or opened the scaffolding pane) — the panes differ by a hundred pixels.
+   The content column scrolls instead. */
+.build { display: flex; gap: 0; height: 460px; max-height: 74vh; }
 .build__nav {
   width: 176px;
   flex-shrink: 0;
