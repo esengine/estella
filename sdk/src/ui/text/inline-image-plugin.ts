@@ -45,8 +45,10 @@ export class InlineImagePlugin implements Plugin {
     }
 
     build(app: App): void {
-        const module = app.wasmModule as ESEngineModule | undefined;
-        if (!module) return; // logic-only host → nothing to draw
+        if (!app.pipeline) return; // logic-only host → nothing to draw
+        // Null on the native core, which rasterizes glyphs through the platform
+        // instead of the wasm heap — the measurement atlas below takes either.
+        const module = app.wasmModule as ESEngineModule | null;
         const world = app.world;
 
         // A measurement atlas for the shared layout — its glyph advances position
