@@ -67,8 +67,28 @@ const jump = defineSystem([Query(Mut(SpriteAnimator)), Res(SpriteAnimation)], (q
 | `registerClip(clip)` | Register a `SpriteAnimClip` at runtime. |
 | `getClip(name)` | Look up a registered clip. |
 
-Clips can carry **frame events** (`SpriteAnimEvent`) that fire when playback
-reaches a frame — use them for footstep sounds or hit frames.
+### Frame events
+
+Clips carry **frame events** (`SpriteAnimEvent` — `{ frame, name, data? }`) that
+fire when playback reaches a frame: a footstep sound, the hit frame of an attack,
+the moment a coin flips. Author them on the **Events** track of the Flipbook
+editor — pick a frame, **Add event**, name it; the frame strip marks which frames
+carry one. Then subscribe:
+
+```typescript
+import { defineSystem, Res, SpriteAnimation } from 'esengine';
+
+const listen = defineSystem([Res(SpriteAnimation)], (anim) => {
+  anim.onEvent(playerEntity, (e) => {
+    if (e.name === 'footstep') audio.playSFX('sfx/step.wav');
+  });
+});
+```
+
+| Method | Description |
+|---|---|
+| `onEvent(entity, handler)` | Listen to one entity's frame events. Returns an unsubscribe function. |
+| `onEventGlobal(handler)` | Listen to every entity's — the handler receives the entity too. |
 
 ### Authoring clips in the editor
 
@@ -264,7 +284,15 @@ For character animation, an **animator controller** holds states, transitions, a
 1D blend trees driven by named **parameters**. Author it in the editor (or
 register one in code), attach an `Animator` component naming the controller, then
 set parameters each frame through `Res(AnimatorController)` — the controller
-resolves the current state, clip, and blend:
+resolves the current state, clip, and blend.
+
+A controller is an **`.esanimator` asset**: create one from the Content Browser's
+**New** menu, double-click to open the graph editor above — states with positions,
+transitions with conditions, and a **Parameters** panel — and point the `Animator`
+component's `controller` field at it with the asset picker. The scene preloads it,
+so it is registered before the first tick. Assigning a plain string instead
+resolves against controllers `registerController(...)` put there from code; both
+kinds coexist.
 
 ```typescript
 import { defineSystem, Query, Res, Animator, AnimatorController } from 'esengine';
@@ -281,7 +309,7 @@ const drive = defineSystem([Query(Animator), Res(AnimatorController)], (q, anim)
 
 | `Animator` field | Type | Default | Description |
 |---|---|---|---|
-| `controller` | string | `''` | Registered controller name. |
+| `controller` | string | `''` | An `.esanimator` asset ref (what the editor writes) or a name passed to `registerController` in code. |
 | `currentState` | string | `''` | Active state, as a `/`-separated path for nested machines (seeded from the controller's initial state). |
 | `enabled` | boolean | `true` | Disable to freeze the state machine. |
 

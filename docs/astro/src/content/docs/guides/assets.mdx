@@ -118,14 +118,54 @@ way it can:
 
 - **Compress textures** — encode PNGs to GPU-ready **KTX2** (Basis Universal),
   which the runtime transcodes to the best format the device supports (ASTC → ETC2
-  → S3TC, falling back to RGBA8). Toggle **Compress textures** in the Package dialog.
+  → S3TC, falling back to RGBA8), mip chain included. Per-asset **Import Settings**
+  decide this, with a tab per platform, so a texture can be compressed harder for a
+  phone than for the web; the Package dialog's **Compression** switch only chooses
+  whether to honor those settings or skip them all.
 - **Content-address** — name each shipped file by a hash of its bytes, so URLs
   are immutable and identical files dedupe to a single copy. On by default for
   Web/Desktop.
 - **Auto-atlas** — put loose PNGs in a `<name>.atlas/` folder and the cook packs
   them into atlas pages (with the frame UVs written into the manifest), so many
-  small sprites ship as one texture and batch in one draw call. Toggle **Pack .atlas
-  folders** in the Package dialog.
+  small sprites ship as one texture and batch in one draw call.
+
+### Shipping what only code names
+
+Reachability is what keeps a build from shipping everything — and it is **blind to
+anything your code names at runtime**: a texture in rich-text markup, a clip played
+by url, a prefab spawned by path. Those get culled, and nothing warns you, because
+the editor serves the project straight off disk and never needs the manifest. The
+first symptom is a silent button or a missing image in a real build.
+
+Declare the folder instead. In the **Content Browser**, right-click it and pick
+**Delivery → Always include in builds** — the same menu that sets local /
+subpackage / remote delivery, writing to the same `.esengine/asset-groups.json`:
+
+![The Content Browser folder menu — Delivery, with Local / Subpackage / Remote and Always include in builds](../../../assets/guides/en/hot-update-delivery-menu.png)
+
+*Right-click a folder → **Delivery**. The three modes decide where an asset ships from; **Always include in builds** decides whether it ships at all.*
+
+```json
+{
+  "version": "1.0",
+  "groups": {
+    "markup-images": {
+      "folder": "assets/textures",
+      "mode": "local",
+      "alwaysInclude": true
+    }
+  }
+}
+```
+
+It is Unity's `Resources` folder and Unreal's additional cook directory, in the
+model this project already had. **Off by default**, deliberately.
+
+<Aside type="tip">
+  Assets under `subpackages/` are always included even when unreachable — only
+  their group assignment differs. `alwaysInclude` is what gives any other folder
+  the same guarantee.
+</Aside>
 
 ## Lifetime & reference counting
 
@@ -200,13 +240,15 @@ parameters (pixel-art nearest vs. smooth linear) are covered in the
   (and a WeChat subpackage) instead of bloating the main bundle.
 - **Let cooking cull + compress** — reachable-only staging and PNG→KTX2 keep the
   shipped bundle small; don't ship raw PNGs you can cook.
+- **Mark folders your code loads by name** as **Delivery → Always include in
+  builds**, or reachability culling will drop them from the build the editor never
+  needed a manifest to run.
 - **Set a texture budget** on memory-constrained targets and trust reference
   counting for the rest.
 
 <Aside type="note">
   Content hashing runs on the **staged** bytes (after PNG→KTX2 encoding), so the
-  manifest hash identifies the shipped artifact. Assets under `subpackages/` are
-  always included even if unreachable — only their group assignment differs.
+  manifest hash identifies the shipped artifact.
 </Aside>
 
 ## See also

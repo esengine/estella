@@ -61,6 +61,7 @@ it once ready.
 | `preload(url)` | Decode and cache a clip ahead of time (async). |
 | `preloadAll(urls)` | Preload an array of clips (async). |
 | `getBufferHandle(url)` | The cached buffer for `url`, or `undefined`. |
+| `getSpectrum(out)` | Fill a `Uint8Array` with the master output's frequency spectrum (0–255 per bin, low→high) for a visualizer. Returns `false` on backends without analysis (WeChat) — treat that as silence. |
 | `setBufferBudget(bytes)` | Override the warm-cache byte budget (`null` returns to the RuntimeConfig value; `0` disables the cache). |
 | `getBufferStats()` | Residency counters: `bufferCount`, `bufferBytes`, `bufferBudget`, `evictableCount`. |
 | `trimBufferCache()` | Free every unused cached buffer now (the engine calls this on OS memory warnings). |

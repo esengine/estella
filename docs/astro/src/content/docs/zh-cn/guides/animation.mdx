@@ -65,7 +65,26 @@ const jump = defineSystem([Query(Mut(SpriteAnimator)), Res(SpriteAnimation)], (q
 | `registerClip(clip)` | 在运行时注册一个 `SpriteAnimClip`。 |
 | `getClip(name)` | 查找一个已注册的片段。 |
 
-片段可以携带**帧事件**(`SpriteAnimEvent`),播放到某帧时触发——用于脚步声或命中帧。
+### 帧事件
+
+片段携带**帧事件**(`SpriteAnimEvent`——`{ frame, name, data? }`),播放到某帧时触发:
+脚步声、攻击的命中帧、金币翻面的那一刻。在 Flipbook 编辑器的 **Events** 轨道上编辑它们——
+选中一帧,**添加事件**,起个名字;帧条会标出哪些帧带事件。然后订阅:
+
+```typescript
+import { defineSystem, Res, SpriteAnimation } from 'esengine';
+
+const listen = defineSystem([Res(SpriteAnimation)], (anim) => {
+  anim.onEvent(playerEntity, (e) => {
+    if (e.name === 'footstep') audio.playSFX('sfx/step.wav');
+  });
+});
+```
+
+| 方法 | 说明 |
+|---|---|
+| `onEvent(entity, handler)` | 监听某个实体的帧事件。返回一个取消订阅的函数。 |
+| `onEventGlobal(handler)` | 监听所有实体的帧事件——回调还会收到实体本身。 |
 
 ### 在编辑器中创作剪辑
 
@@ -246,8 +265,13 @@ tween.sequence([
 *动画控制器:状态(Idle / Move / Hop)、带条件的转移(`speed>20`、`hop` 触发器),以及驱动它们的**参数**面板。*
 
 角色动画用一个**动画控制器**:它持有状态、转移和由命名**参数**驱动的 1D 混合树。在编辑器
-里编辑它(或用代码注册),给实体加一个指明控制器名的 `Animator` 组件,然后每帧通过
-`Res(AnimatorController)` 设置参数——控制器会解析出当前状态、片段与混合:
+里编辑它(或用代码注册),给实体加一个指明控制器的 `Animator` 组件,然后每帧通过
+`Res(AnimatorController)` 设置参数——控制器会解析出当前状态、片段与混合。
+
+控制器是一份 **`.esanimator` 资产**:在内容浏览器的 **新建** 菜单里创建,双击打开上图的
+图编辑器——带位置的状态、带条件的转移,以及**参数**面板——再用资产选择器把 `Animator`
+组件的 `controller` 字段指向它。场景会预加载它,所以第一帧之前它就已注册好。若直接填一个
+普通字符串,则解析为代码里 `registerController(...)` 注册的控制器;两种方式可以共存:
 
 ```typescript
 import { defineSystem, Query, Res, Animator, AnimatorController } from 'esengine';
@@ -264,7 +288,7 @@ const drive = defineSystem([Query(Animator), Res(AnimatorController)], (q, anim)
 
 | `Animator` 字段 | 类型 | 默认 | 说明 |
 |---|---|---|---|
-| `controller` | string | `''` | 已注册的控制器名。 |
+| `controller` | string | `''` | 一个 `.esanimator` 资产引用(编辑器写入的),或代码里传给 `registerController` 的名字。 |
 | `currentState` | string | `''` | 活动状态;嵌套状态机时是 `/` 分隔的路径(从控制器的初始状态种入)。 |
 | `enabled` | boolean | `true` | 关掉即冻结状态机。 |
 

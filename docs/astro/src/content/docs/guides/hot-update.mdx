@@ -69,6 +69,10 @@ In the **Content Browser**, right-click any folder and pick **Delivery → Remot
 
 *Content Browser → right-click a folder → **Delivery** → **Local / Subpackage / Remote (CDN / hot-update)**. The choice is written to `.esengine/asset-groups.json`.*
 
+The same submenu carries **Always include in builds** — an independent toggle that
+keeps the folder in a build even when nothing in it is reachable from a scene. See
+[Assets](/docs/guides/assets/#shipping-what-only-code-names).
+
 A folder assigned to a Subpackage or Remote group carries a corner **badge** so
 you can see the delivery layout at a glance — `CDN` (blue) for remote, `PKG`
 (purple) for subpackage.
@@ -119,6 +123,7 @@ never disagree about where an asset ships):
 | `groups` | `Record<name, {folder, mode}>` | Folder → delivery assignments. |
 | `groups.<name>.folder` | `string` | Project-relative folder; every asset under it (recursively) joins the group. The **longest** matching prefix wins when folders nest. |
 | `groups.<name>.mode` | `'local' \| 'subpackage' \| 'remote'` | Delivery mode. |
+| `groups.<name>.alwaysInclude` | `boolean` | Ship the group even when nothing in the build *reaches* it — for assets only your code names (a url, a path, rich-text markup). Off by default. See [Assets](/docs/guides/assets/#shipping-what-only-code-names). |
 | `activeProfile` | `string` | Which profile the build uses (key into `profiles`). |
 | `profiles.<name>.remoteRoot` | `string` | CDN root that this profile's remote-group assets are served from. Empty ⇒ same-origin. |
 

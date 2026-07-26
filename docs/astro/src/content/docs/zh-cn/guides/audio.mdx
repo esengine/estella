@@ -56,6 +56,7 @@ const play = defineSystem([Res(Audio)], (audio) => {
 | `preload(url)` | 提前解码并缓存一个片段(异步)。 |
 | `preloadAll(urls)` | 预加载一组片段(异步)。 |
 | `getBufferHandle(url)` | `url` 的已缓存缓冲区,或 `undefined`。 |
+| `getSpectrum(out)` | 用主输出的频谱填充一个 `Uint8Array`(每个频段 0–255,从低频到高频),供可视化用。在没有分析能力的后端(微信)上返回 `false`——按静音处理。 |
 | `setBufferBudget(bytes)` | 覆盖热缓存字节预算(`null` 回到 RuntimeConfig 的值;`0` 关闭缓存)。 |
 | `getBufferStats()` | 驻留计数:`bufferCount`、`bufferBytes`、`bufferBudget`、`evictableCount`。 |
 | `trimBufferCache()` | 立即释放所有未使用的缓存缓冲区(引擎在系统内存警告时会自动调用)。 |

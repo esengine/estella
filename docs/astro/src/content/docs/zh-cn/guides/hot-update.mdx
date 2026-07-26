@@ -51,6 +51,9 @@ Estella 的热更新是**内容寻址**、**原子**（要么全成、要么回�
 
 *内容浏览器 → 右键文件夹 → **交付方式** → **本地 / 分包 / 远端（CDN / 热更）**。选择会写入 `.esengine/asset-groups.json`。*
 
+同一个子菜单里还有**总是打进构建**——一个独立开关，即使文件夹里没有任何东西能从场景可达，
+也让它留在构建里。见[资源](/docs/zh-cn/guides/assets/#只有代码点名的资产)。
+
 被指派到分包或远端组的文件夹会带一个角标**徽标**，让你一眼看清交付布局——`CDN`（蓝）表示远端，`分包`（紫）表示分包。
 
 ![内容浏览器中一个文件夹图块，带蓝色 CDN 交付徽标](../../../../assets/guides/zh/hot-update-cdn-badge.png)
@@ -91,6 +94,7 @@ Estella 的热更新是**内容寻址**、**原子**（要么全成、要么回�
 | `groups` | `Record<name, {folder, mode}>` | 文件夹 → 交付方式的指派。 |
 | `groups.<name>.folder` | `string` | 项目相对文件夹；其下（递归）每个资产都归入该组。文件夹嵌套时，**最长**匹配前缀胜出。 |
 | `groups.<name>.mode` | `'local' \| 'subpackage' \| 'remote'` | 交付模式。 |
+| `groups.<name>.alwaysInclude` | `boolean` | 即使构建里没有任何东西*可达*到它，也照样发布这个组——用于只有你的代码点名的资产（url、路径、富文本标记）。默认关闭。见[资源](/docs/zh-cn/guides/assets/#只有代码点名的资产)。 |
 | `activeProfile` | `string` | 构建使用哪个 profile（`profiles` 的键）。 |
 | `profiles.<name>.remoteRoot` | `string` | 该 profile 的远端组资产的 CDN 根地址。留空 ⇒ 同源。 |
 
