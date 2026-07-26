@@ -13,7 +13,7 @@ for the ``esn_*`` readers, the entity lookup, and the component includes.
 """
 
 from typing import List
-from ..data import Component, Enum
+from ..data import Component, Enum, READ_HOOKS
 from ..type_system import TypeSystem
 
 # Numeric primitives written straight through (via a double), by cleaned type.
@@ -78,6 +78,9 @@ class NativeBindingsGenerator:
         out.append('    if (argc < 1) return JS_UNDEFINED;')
         out.append('    esengine::Entity e = esn_entity(ctx, argv[0]);')
         out.append(f'    auto& c = esn_reg().getOrEmplace<{full}>(e);')
+        read_hook = READ_HOOKS.get(comp.name)
+        if read_hook:
+            out.append(f'    c.{read_hook}();   // lazily derived fields, see READ_HOOKS')
         out.append(f'    return esn_arraybuffer(ctx, &c, sizeof({full}));')
         out.append('}')
         # Lifecycle: the native siblings of the embind Registry's has/remove. With

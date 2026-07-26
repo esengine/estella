@@ -1791,9 +1791,9 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             auto entity = static_cast<Entity>(e);
             static esengine::ecs::Transform s_dummy{};
             if (!r.valid(entity) || !r.has<esengine::ecs::Transform>(entity)) return s_dummy;
-            auto& t = r.get<esengine::ecs::Transform>(entity);
-            t.ensureDecomposed();
-            return t;
+            auto& c = r.get<esengine::ecs::Transform>(entity);
+            c.ensureDecomposed();
+            return c;
         }), allow_raw_pointers())
         .function("addTransform", optional_override([](Registry& r, u32 e, const esengine::ecs::Transform& c) {
             auto entity = static_cast<Entity>(e);

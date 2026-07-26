@@ -1,7 +1,7 @@
 """Emscripten embind C++ bindings generator."""
 
 from typing import List, Set
-from ..data import Component, Enum
+from ..data import Component, Enum, READ_HOOKS
 from ..type_system import TypeSystem
 
 
@@ -328,11 +328,18 @@ class EmbindGenerator:
             lines.append(f'            return r.has<{full}>(static_cast<Entity>(e));')
             lines.append('        }))')
 
+            read_hook = READ_HOOKS.get(name)
+
             if needs_wrap:
                 lines.append(f'        .function("get{name}", optional_override([](Registry& r, u32 e) {{')
                 lines.append(f'            auto entity = static_cast<Entity>(e);')
                 lines.append(f'            if (!r.valid(entity) || !r.has<{full}>(entity)) return {js}{{}};')
-                lines.append(f'            return {to_js}(r.get<{full}>(entity));')
+                if read_hook:
+                    lines.append(f'            auto& c = r.get<{full}>(entity);')
+                    lines.append(f'            c.{read_hook}();')
+                    lines.append(f'            return {to_js}(c);')
+                else:
+                    lines.append(f'            return {to_js}(r.get<{full}>(entity));')
                 lines.append('        }))')
                 lines.append(f'        .function("add{name}", optional_override([](Registry& r, u32 e, const {js}& js) {{')
                 lines.append(f'            auto entity = static_cast<Entity>(e);')
@@ -344,10 +351,10 @@ class EmbindGenerator:
                 lines.append(f'            auto entity = static_cast<Entity>(e);')
                 lines.append(f'            static {full} s_dummy{{}};')
                 lines.append(f'            if (!r.valid(entity) || !r.has<{full}>(entity)) return s_dummy;')
-                if name == 'Transform':
-                    lines.append(f'            auto& t = r.get<{full}>(entity);')
-                    lines.append(f'            t.ensureDecomposed();')
-                    lines.append(f'            return t;')
+                if read_hook:
+                    lines.append(f'            auto& c = r.get<{full}>(entity);')
+                    lines.append(f'            c.{read_hook}();')
+                    lines.append(f'            return c;')
                 else:
                     lines.append(f'            return r.get<{full}>(entity);')
                 lines.append('        }), allow_raw_pointers())')

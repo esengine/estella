@@ -22,6 +22,15 @@ class Component:
     header_path: str = ""
 
 
+# A C++ method every JS read of the component must run first. Transform's world
+# TRS is decomposed lazily from the cached matrix, so the fields sitting in memory
+# are stale until it is — a reader that skips this sees the last decomposed value
+# (zero for a UI node that nothing else drew). Declared once here because BOTH
+# binding surfaces expose the read: embind returns the struct, the native buffer
+# binding hands JS its memory, and the two must not drift.
+READ_HOOKS: Dict[str, str] = {'Transform': 'ensureDecomposed'}
+
+
 @dataclass
 class Enum:
     """An ES_ENUM enum class."""
