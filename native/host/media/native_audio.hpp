@@ -43,6 +43,13 @@ public:
     Loaded load(const uint8_t* bytes, size_t n);
     void unload(int bufferId);
 
+    /**
+     * Fill @p bins byte magnitudes of what is playing, 0..Nyquist — the device's
+     * answer to a WebAudio AnalyserNode (see media/audio_spectrum.hpp). False
+     * when nothing has played yet or the tap could not be built.
+     */
+    bool spectrum(uint8_t* out, size_t bins);
+
     /** Start a voice on a loaded buffer. Returns its id, or -1 if unknown. */
     int play(int bufferId, float volume, float pan, bool loop, float rate);
     void stop(int voiceId);

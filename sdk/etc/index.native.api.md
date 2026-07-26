@@ -4135,6 +4135,7 @@ es_audioSetLoop: ((voiceId: number, loop: boolean) => void) | undefined
 es_audioSetPan: ((voiceId: number, pan: number) => void) | undefined
 es_audioSetRate: ((voiceId: number, rate: number) => void) | undefined
 es_audioSetVolume: ((voiceId: number, volume: number) => void) | undefined
+es_audioSpectrum: ((bins: number) => ArrayBuffer | null) | undefined
 es_audioStop: ((voiceId: number) => void) | undefined
 es_audioSuspendAll: (() => void) | undefined
 es_audioUnload: ((bufferId: number) => void) | undefined

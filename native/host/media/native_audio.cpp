@@ -16,6 +16,8 @@
 
 #include "native_audio.hpp"
 
+#include "audio_spectrum.hpp"
+
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -40,9 +42,36 @@ struct Voice {
     bool loop = false;
 };
 
+// The analyser's tap: a node the voices play into, which passes their frames
+// through unchanged and keeps a copy for the FFT. Attaching voices HERE rather
+// than straight to the endpoint is what gives the game a spectrum without the
+// audio thread ever waiting on it (AudioSpectrum::write is wait-free).
+struct SpectrumTap {
+    ma_node_base base{};
+    AudioSpectrum* spectrum = nullptr;
+    ma_uint32 channels = 2;
+};
+
+void spectrumTapProcess(ma_node* node, const float** framesIn, ma_uint32* frameCountIn,
+                        float** framesOut, ma_uint32* frameCountOut) {
+    auto* tap = reinterpret_cast<SpectrumTap*>(node);
+    const ma_uint32 frames = frameCountIn && frameCountOut
+        ? (*frameCountIn < *frameCountOut ? *frameCountIn : *frameCountOut) : 0;
+    if (frames > 0 && framesIn && framesIn[0] && framesOut && framesOut[0]) {
+        const size_t samples = (size_t)frames * tap->channels;
+        for (size_t i = 0; i < samples; i++) framesOut[0][i] = framesIn[0][i];
+        if (tap->spectrum) tap->spectrum->write(framesIn[0], frames, tap->channels);
+    }
+    if (frameCountOut) *frameCountOut = frames;
+    if (frameCountIn) *frameCountIn = frames;
+}
+
 struct AudioEngine::Impl {
     ma_context context{};
     ma_engine engine{};
+    SpectrumTap tap{};
+    bool tapReady = false;
+    AudioSpectrum spectrum;
     bool contextReady = false;
     bool ready = false;
     ma_uint32 sampleRate = 0;
@@ -109,6 +138,27 @@ bool AudioEngine::init() {
     impl_->ready = true;
     impl_->sampleRate = ma_engine_get_sample_rate(&impl_->engine);
     impl_->channels = ma_engine_get_channels(&impl_->engine);
+
+    // The analyser tap, between the voices and the endpoint. Optional: a failure
+    // here costs the spectrum, not the sound.
+    static ma_node_vtable vtable{};
+    vtable.onProcess = spectrumTapProcess;
+    vtable.onGetRequiredInputFrameCount = nullptr;
+    vtable.inputBusCount = 1;
+    vtable.outputBusCount = 1;
+    vtable.flags = MA_NODE_FLAG_PASSTHROUGH;
+    ma_node_config tapCfg = ma_node_config_init();
+    tapCfg.vtable = &vtable;
+    tapCfg.pInputChannels = &impl_->channels;
+    tapCfg.pOutputChannels = &impl_->channels;
+    impl_->tap.spectrum = &impl_->spectrum;
+    impl_->tap.channels = impl_->channels;
+    if (ma_node_init(ma_engine_get_node_graph(&impl_->engine), &tapCfg, nullptr,
+                     &impl_->tap.base) == MA_SUCCESS
+        && ma_node_attach_output_bus(&impl_->tap.base, 0,
+                                     ma_engine_get_endpoint(&impl_->engine), 0) == MA_SUCCESS) {
+        impl_->tapReady = true;
+    }
     return true;
 }
 
@@ -116,6 +166,7 @@ void AudioEngine::shutdown() {
     if (!impl_) return;
     for (auto& [id, voice] : impl_->voices) ma_sound_uninit(&voice.sound);
     impl_->voices.clear();
+    if (impl_->tapReady) { ma_node_uninit(&impl_->tap.base, nullptr); impl_->tapReady = false; }
     if (impl_->ready) ma_engine_uninit(&impl_->engine);
     if (impl_->contextReady) ma_context_uninit(&impl_->context);
     for (auto& [id, buf] : impl_->buffers) ma_free(buf.pcm, nullptr);
@@ -188,6 +239,11 @@ int AudioEngine::play(int bufferId, float volume, float pan, bool loop, float ra
         impl_->voices.erase(id);
         return -1;
     }
+    // Into the tap when there is one, so the analyser sees this voice; straight
+    // to the endpoint otherwise (identical audio either way).
+    if (impl_->tapReady) {
+        ma_node_attach_output_bus(&voice.sound, 0, &impl_->tap.base, 0);
+    }
     ma_sound_set_volume(&voice.sound, volume);
     ma_sound_set_pan(&voice.sound, pan);
     ma_sound_set_pitch(&voice.sound, rate > 0 ? rate : 1.0f);
@@ -195,6 +251,11 @@ int AudioEngine::play(int bufferId, float volume, float pan, bool loop, float ra
     ma_sound_start(&voice.sound);
     bit->second.refs++;
     return id;
+}
+
+bool AudioEngine::spectrum(uint8_t* out, size_t bins) {
+    if (!impl_ || !impl_->tapReady) return false;
+    return impl_->spectrum.read(out, bins);
 }
 
 void AudioEngine::stop(int voiceId) {

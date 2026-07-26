@@ -96,6 +96,9 @@ export interface NativeTextEditorBridge {
  * it. Both are non-negative host handles; a failed load or play returns null / -1.
  */
 export interface NativeAudioBridge {
+    /** `bins` byte magnitudes of what is playing (0..Nyquist), or null when the
+     *  host has no analyser / nothing has played. The device's AnalyserNode. */
+    spectrum?(bins: number): ArrayBuffer | null;
     /** Decode + register a clip from its (compressed) file bytes. Returns the
      *  buffer handle, its length in seconds and its decoded size in bytes (for the
      *  residency budget), or null on decode failure. */

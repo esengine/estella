@@ -87,6 +87,7 @@ export interface NativeHostBindings {
     es_textEditor_blur?(): void;
     es_textEditor_write?(value: string, selectionStart: number, selectionEnd: number): void;
 
+    es_audioSpectrum?(bins: number): ArrayBuffer | null;
     es_audioLoad?(bytes: ArrayBuffer): { id: number; duration: number; bytes: number } | null;
     es_audioUnload?(bufferId: number): void;
     es_audioPlay?(bufferId: number, volume: number, pan: number, loop: boolean, rate: number): number;
@@ -260,6 +261,12 @@ function hostAudio(
         suspendAll: () => bindings.es_audioSuspendAll!(),
         resumeAll: () => bindings.es_audioResumeAll!(),
         onEnded: (cb) => { ended = cb; return () => { if (ended === cb) ended = null; }; },
+        // Optional: a host without the analyser tap simply has no spectrum, and
+        // a visualizer falls back to flat bars (as it does on any backend
+        // without analysis).
+        ...(bindings.es_audioSpectrum
+            ? { spectrum: (bins: number) => bindings.es_audioSpectrum!(bins) }
+            : {}),
     };
 }
 

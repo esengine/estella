@@ -65,6 +65,9 @@ export class NativeAudioBackend implements PlatformAudioBackend {
     readonly isReady = true;
 
     private readonly voices_ = new Map<number, NativeAudioHandle>();
+    /** Reused across frames: a visualizer asks every frame, and a fresh view per
+     *  ask would be garbage the interpreter has to collect at 60 Hz. */
+    private spectrumView_: Uint8Array | null = null;
     private readonly offEnded_: () => void;
 
     constructor(private readonly audio_: NativeAudioBridge) {
@@ -113,6 +116,22 @@ export class NativeAudioBackend implements PlatformAudioBackend {
         );
         this.voices_.set(voiceId, handle);
         return handle;
+    }
+
+    /**
+     * The host's analyser, in the layout the web's getByteFrequencyData uses —
+     * so a visualizer written against the web reads the same bytes here. False
+     * when the host has no analyser tap, which the caller treats exactly as it
+     * treats a backend with no analysis at all.
+     */
+    getFrequencyData(out: Uint8Array): boolean {
+        const bytes = this.audio_.spectrum?.(out.length);
+        if (!bytes) return false;
+        if (!this.spectrumView_ || this.spectrumView_.buffer !== bytes) {
+            this.spectrumView_ = new Uint8Array(bytes);
+        }
+        out.set(this.spectrumView_.subarray(0, out.length));
+        return true;
     }
 
     suspend(): void { this.audio_.suspendAll(); }

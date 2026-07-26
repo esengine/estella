@@ -21,6 +21,8 @@
  */
 #include "Bindings.hpp"
 
+#include <vector>
+
 using namespace esengine;
 
 namespace eshost {
@@ -106,6 +108,18 @@ JSValue js_audioResumeAll(JSContext* ctx, JSValueConst, int, JSValueConst*) {
 
 }  // namespace
 
+// es_audioSpectrum(bins) -> ArrayBuffer of `bins` magnitude bytes, or null when
+// nothing has played yet. The device's answer to a WebAudio AnalyserNode.
+JSValue js_audioSpectrum(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
+    if (argc < 1 || !hostAlive()) return JS_NULL;
+    int32_t bins = 0;
+    JS_ToInt32(ctx, &bins, argv[0]);
+    if (bins <= 0 || bins > 4096) return JS_NULL;
+    std::vector<uint8_t> out((size_t)bins, 0);
+    if (!host().audio.spectrum(out.data(), out.size())) return JS_NULL;
+    return JS_NewArrayBufferCopy(ctx, out.data(), out.size());
+}
+
 void registerAudioBindings(HostState& h, JSValue global) {
     if (!h.audio.ready()) return;
     bindGlobal(h, global, "es_audioLoad", js_audioLoad, 1);
@@ -117,6 +131,7 @@ void registerAudioBindings(HostState& h, JSValue global) {
     bindGlobal(h, global, "es_audioSetVolume", js_audioSetVolume, 2);
     bindGlobal(h, global, "es_audioSetPan", js_audioSetPan, 2);
     bindGlobal(h, global, "es_audioSetLoop", js_audioSetLoop, 2);
+    bindGlobal(h, global, "es_audioSpectrum", js_audioSpectrum, 1);
     bindGlobal(h, global, "es_audioSetRate", js_audioSetRate, 2);
     bindGlobal(h, global, "es_audioVoiceState", js_audioVoiceState, 1);
     bindGlobal(h, global, "es_audioSuspendAll", js_audioSuspendAll, 0);

@@ -209,6 +209,7 @@ if(ESTELLA_QUICKJS_DIR)
         host/bindings/NetBindings.cpp
         host/bindings/TextEditorBindings.cpp
         host/media/native_audio.cpp
+        host/media/audio_spectrum.cpp
         host/media/ktx2_decode.cpp
         host/media/glyph_raster.cpp
         "${BASIS_TRANSCODER}" "${BASIS_ZSTD}" "${NATIVE_BINDINGS}" "${NATIVE_FN_BINDINGS}")
@@ -221,7 +222,8 @@ if(ESTELLA_QUICKJS_DIR)
         # be Objective-C++ on Apple; it also forces MA_NO_RUNTIME_LINKING there, so
         # the audio frameworks are linked at build time (the app links the merged
         # archive, so these also live in native/ios/project.yml).
-        set_source_files_properties(host/media/native_audio.cpp PROPERTIES
+        set_source_files_properties(host/media/native_audio.cpp
+        host/media/audio_spectrum.cpp PROPERTIES
             COMPILE_OPTIONS "-x;objective-c++")
         target_link_libraries(estella_js_host esengine estella_physics estella_video estella_spine qjs
             "-framework UIKit" "-framework QuartzCore" "-framework Foundation"
