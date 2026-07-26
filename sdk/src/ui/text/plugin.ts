@@ -24,6 +24,7 @@ import { applyTextLocalization, type TextWorldView } from './localize';
 import { UICameraInfo, type UICameraData } from '../core/ui-camera-info';
 import { getUINodeWidth, getUINodeHeight, ensureUIVisual } from '../util/helpers';
 import { platformDevicePixelRatio } from '../../platform';
+import { engineApi } from '../../ecs/engineApi';
 
 // Base glyph rasterization size in CSS px; the real source is this × DPR so text
 // stays crisp on HiDPI displays. 64 covers common UI sizes at 1:1 or finer.
@@ -85,12 +86,13 @@ export class TextPlugin implements Plugin {
         const pipeline = app.pipeline;
         if (!pipeline) return; // logic-only host → nothing to draw
 
-        // Null on the native core (no wasm): the optional engine queries below
-        // simply do not answer there, and the text still lays out and submits.
-        const module = app.wasmModule as ESEngineModule | null;
         const registry = world.getCppRegistry() as CppRegistry;
 
         pipeline.addPreFlushCallback(() => {
+            // The engine queries below go through engineApi, not app.wasmModule: a
+            // device has no wasm module, so asking for one left every Text at the
+            // base UI layer — beneath any sibling panel — and hid it (ecs/engineApi.ts).
+            const api = engineApi(app);
             // Design→device scale beyond DPR (vpW is device px); the bitmap
             // atlas folds it into rasterization. Resolved per frame — the
             // camera plugin may build after this one.
@@ -108,7 +110,7 @@ export class TextPlugin implements Plugin {
                 // enabled === false: pre-upgrade data lacks the field → visible.
                 if (!t.content || t.enabled === false) continue;
                 // display:none anywhere up the UI tree hides this text too.
-                if (module?.getUINodeHiddenInTree?.(registry, entity)) continue;
+                if (api?.getUINodeHiddenInTree?.(registry, entity)) continue;
                 seen.add(entity as number);
 
                 const tr = world.get(entity, Transform) as TransformData;
@@ -147,9 +149,7 @@ export class TextPlugin implements Plugin {
                     boxHeight = box.boxHeight;
                     if (t.wordWrap) maxWidth = box.maxWidth; // wrap only when enabled
 
-                    const order = module?.ui_getRenderOrder
-                        ? module.ui_getRenderOrder(registry, entity as number)
-                        : -1;
+                    const order = api?.ui_getRenderOrder?.(registry, entity as number) ?? -1;
                     layer = order >= 0 ? UI_BASE_LAYER + order : UI_BASE_LAYER;
                 }
 
