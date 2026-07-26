@@ -41,6 +41,22 @@ Dawn and QuickJS are **not vendored** (multi-GB / separate project); the recipe
 fetches them, the way Dawn fetches its own deps. Nothing here is compiled by the
 web/emscripten build or CI — it is inert until you run the native build below.
 
+## Who this directory is for
+
+**Not the developer shipping a game.** The binaries built here carry no project
+data — `CMakeLists.txt` takes no project input, every `ES_ENABLE_*` is on, and an
+export is content only — so the compiled half is the SAME for every game. It is
+built once and shipped as a **runtime template** the editor installs
+(`build-tools/utils/nativeTemplate.js` defines what one holds and where it lives).
+Packaging a game is then: install the template, **Package Project → iOS /
+Android**.
+
+So what follows is the recipe for **producing** a template: the toolchain below is
+a build machine's problem, not a user's. Every native build emits one into this
+machine's store (`--no-template` opts out); `--template-out <dir>` also writes the
+distributable archive, and `--template-only` re-emits from an existing build
+without rebuilding.
+
 ### The optional runtimes are compiled IN, not side-loaded
 
 On the web, Box2D, the Spine runtime and the MPEG-1 decoder ship as standalone wasm
@@ -198,7 +214,8 @@ node build-tools/cli.js native --target ios --simulator \
 
 Both slices land in `build-native-ios/Estella.xcframework`, which is what the app
 links — Xcode picks the one matching the toolbar. arm64 only, so an Intel Mac's
-simulator would need a third Dawn.
+simulator would need a third Dawn. The framework and the app shell are then packed
+into the iOS runtime template, which is what an editor export reads.
 
 Then pick your Team under *Signing & Capabilities*, select your device and Run.
 The CMake build merges host + engine + QuickJS + Dawn into one archive
@@ -214,17 +231,24 @@ A game comes out of the editor. **Package Project → Android** (or **→ iOS**,
 the scenes and `game.config.json` — content only, since the engine, the SDK and
 the game runtime all ship inside the app binary. Both platforms write the SAME
 payload; what differs is the toolchain that wraps it, which is why they are two
-rows in the dialog rather than one "mobile". Pass that directory to the build and
-it becomes the app's content:
+rows in the dialog rather than one "mobile".
+
+**iOS needs nothing else.** With the runtime template installed, the export
+directory *becomes* an Xcode project — the xcframework, the app shell and a
+generated `.pbxproj` are written around the content, so it is open-and-Run. The
+CLI does the same from a content dir someone sent you:
 
 ```sh
-# Android: it becomes the APK's assets/
+node build-tools/cli.js native --target ios --package --content dist-ios
+```
+
+**Android** still assembles through the SDK's tools on a machine that has them
+(the editor-side assembler is next — see `docs/REARCH_NATIVE_DISTRIBUTION.md`):
+
+```sh
+# it becomes the APK's assets/
 node build-tools/cli.js native --dawn "$DAWN" --dawn-build "$DAWN/out-android" \
   --quickjs "$QJS" --package --content dist-android
-
-# iOS: it stages into native/ios/Content (a folder reference), then rebuild in Xcode
-node build-tools/cli.js native --target ios --dawn "$DAWN" \
-  --dawn-build "$DAWN/out-ios" --quickjs "$QJS" --content dist-ios
 ```
 
 An export for a native target writes a second file beside the content:

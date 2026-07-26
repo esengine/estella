@@ -42,7 +42,7 @@ Android 和 iOS 是**两个目标而不是一个"Mobile"**,因为它们经由完
 
 打包对话框区分**两类**缺失的前置条件,二者严重程度并不相同:
 
-- 缺**引擎运行时**意味着根本产不出包。
+- 缺**引擎运行时**——对移动目标来说就是缺它的**运行时模板**——意味着根本产不出包。
 - 缺**原生工具链**则不然。导出照样把应用内容写出来;只有最后的组装步骤需要工具链,
   而**那一步可以在另一台机器上跑**——编辑器在 Windows 上时,iOS 构建本来就得如此。
 
@@ -52,15 +52,21 @@ Android 和 iOS 是**两个目标而不是一个"Mobile"**,因为它们经由完
 
 <Steps>
 
-1. **把原生宿主构建一次。** Dawn 和 QuickJS 体量数 GB、又是独立项目,所以是按需拉取而不是
-   vendored 进来。一次性的构建配方(以及确切的 `cmake` 调用)见
-   [`native/README.md`](https://github.com/esengine/estella/blob/master/native/README.md)。
+1. **拿到该目标的运行时。**
+   - *iOS* —— 安装**运行时模板**:随每个版本发布的、已为 arm64 预编译好的引擎。
+     iOS 那一行提供*从文件安装…*,指向本版本发布页里的归档即可。它与编辑器版本
+     **精确匹配**(SDK 是编译进应用二进制的),所以每次升级编辑器装一次——引擎自己
+     那一堆构建依赖一样都不用装。
+   - *Android* —— 宿主目前仍需从引擎源码构建。Dawn 和 QuickJS 体量数 GB、又是独立项目,
+     所以是按需拉取而不是 vendored 进来;一次性的构建配方见
+     [`native/README.md`](https://github.com/esengine/estella/blob/master/native/README.md)。
 
 2. **装好平台工具链。**
    - *Android* —— Android SDK + **NDK r28**。编辑器通过 `ANDROID_HOME` 或
      Android Studio 的默认安装位置找到它。
-   - *iOS* —— **装有 Xcode 的 macOS**。Apple 不为其他操作系统提供工具链,
-     所以对话框直说,而不是假装可以。
+   - *iOS* —— **装有 Xcode 的 macOS**,仅此而已:不需要 CMake、Ninja、xcodegen,
+     也不需要 Dawn 源码。Apple 不为其他操作系统提供工具链,所以对话框直说,而不是
+     假装可以——但导出照样会写出一份完整的工程,你可以拷到 Mac 上打开。
 
 3. **看对话框。** 探测通过之前,该目标那一行会一直带着警告三角,面板里会点名缺什么。
 
@@ -79,21 +85,22 @@ Android 和 iOS 是**两个目标而不是一个"Mobile"**,因为它们经由完
 
 </Steps>
 
-然后围绕这份内容组装应用:
+**iOS 到这一步就完事了**:装好运行时模板后,输出目录本身*就是*一个 Xcode 工程——
+`.xcframework`、应用外壳和生成好的 `.pbxproj` 都已围绕你的内容写出。打开它,在
+*Signing & Capabilities* 下选好签名 Team,Run。
+
+Android 还需要再跑一条命令来组装:
 
 ```bash
-# Android —— 写出已签名的 APK(未用 --keystore 指定时用 debug keystore)
+# 写出已签名的 APK(未用 --keystore 指定时用 debug keystore)
 node build-tools/cli.js native --package --content dist-android
-
-# iOS(在 Mac 上)—— 围绕内容写出 Xcode 工程
-node build-tools/cli.js native --target ios --package --content dist-ios
 ```
 
-<Aside type="tip" title="iOS:导出可以直接帮你写出 Xcode 工程">
-  当引擎已经在同一台机器上为 iOS 构建过时,**导出本身**就会生成 Xcode 工程——生成它不需要
-  编译器(引擎是预构建的 `.xcframework`,应用外壳只是一个 `main.m` 加一份 plist),
-  所以它属于导出流程,而不该藏在一条你得自己找到的命令后面。打开它,选好签名 Team,Run。
-  如果这台机器从未为 iOS 构建过引擎,导出仍会写出内容,并告诉你哪条命令能补上缺的那块。
+<Aside type="tip" title="导出为什么能不带编译器就做到这些">
+  应用被编译的那一半不含任何项目数据——每个游戏装的都是同一份引擎二进制,而导出只有内容。
+  所以它每个版本构建一次、以模板形式分发,组装一个应用不过是拷文件加写工程文件。这正是它
+  属于导出流程、而不该藏在一条命令后面的原因;也正因如此,没装模板的编辑器会直说这件事,
+  而不是写出一个链接不起来的工程。
 </Aside>
 
 ## 应用身份

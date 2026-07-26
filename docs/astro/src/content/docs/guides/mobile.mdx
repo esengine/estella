@@ -48,7 +48,8 @@ package the way `dist-web/` is.
 The Package dialog distinguishes **two kinds** of missing prerequisite, and they
 are not the same severity:
 
-- A missing **engine runtime** means the package cannot be produced at all.
+- A missing **engine runtime** — for a mobile target, its **runtime template** —
+  means the package cannot be produced at all.
 - A missing **native toolchain** does not. The export still writes the app's
   content; only the final assembly needs the toolchain, and **that step can run on
   another machine** — an iOS build always does when the editor is on Windows.
@@ -59,16 +60,25 @@ are not the same severity:
 
 <Steps>
 
-1. **Build the native host once.** Dawn and QuickJS are multi-GB / separate
-   projects, so they are fetched rather than vendored. The one-time recipe (and
-   the exact `cmake` invocations) is in
-   [`native/README.md`](https://github.com/esengine/estella/blob/master/native/README.md).
+1. **Get the runtime for your target.**
+   - *iOS* — install the **runtime template**: the engine, prebuilt for arm64,
+     published with each release. The iOS row offers *Install from file…*; point it
+     at the archive from this version's release page. It is matched **exactly**
+     against the editor's version (the SDK is compiled into the app binary), so it
+     is one install per editor upgrade — and none of the engine's own build
+     dependencies come with it.
+   - *Android* — the host is still built from the engine sources for now. Dawn and
+     QuickJS are multi-GB / separate projects, so they are fetched rather than
+     vendored; the one-time recipe is in
+     [`native/README.md`](https://github.com/esengine/estella/blob/master/native/README.md).
 
 2. **Install the platform toolchain.**
    - *Android* — Android SDK + **NDK r28**. The editor finds it via `ANDROID_HOME`
      or Android Studio's default install location.
-   - *iOS* — **macOS with Xcode**. Apple ships no toolchain for other operating
-     systems, so the dialog says so rather than pretending otherwise.
+   - *iOS* — **macOS with Xcode**, and nothing else: no CMake, no Ninja, no
+     xcodegen, no Dawn checkout. Apple ships no toolchain for other operating
+     systems, so the dialog says so rather than pretending otherwise — but the
+     export still writes a complete project you can carry to a Mac.
 
 3. **Check the dialog.** The target's row carries a warning triangle until the
    probe passes, and the panel names what is missing.
@@ -89,23 +99,25 @@ are not the same severity:
 
 </Steps>
 
-Then assemble the app around that content:
+**On iOS that is the whole export**: with the runtime template installed, the
+output folder *is* an Xcode project — the `.xcframework`, the app shell and a
+generated `.pbxproj` are written around your content. Open it, pick your signing
+team under *Signing & Capabilities*, and Run.
+
+Android is assembled by one more command:
 
 ```bash
-# Android — writes a signed APK (debug keystore unless --keystore says otherwise)
+# writes a signed APK (debug keystore unless --keystore says otherwise)
 node build-tools/cli.js native --package --content dist-android
-
-# iOS (on a Mac) — writes the Xcode project around the content
-node build-tools/cli.js native --target ios --package --content dist-ios
 ```
 
-<Aside type="tip" title="iOS: the export can write the Xcode project for you">
-  When the engine has been built for iOS on the same machine, the **export itself**
-  emits the Xcode project — generating one needs no compiler (the engine is a
-  prebuilt `.xcframework`, and the app shell is a `main.m` plus a plist), so it
-  belongs in the export rather than behind a command you have to find. Open it,
-  pick your signing team, and Run. If the engine was never built for iOS here, the
-  export still writes the content and says which command produces the missing piece.
+<Aside type="tip" title="Why the export can do this without a compiler">
+  The app's compiled half carries no project data — every game ships the same
+  engine binary, and an export is content only. So it is built once per release and
+  distributed as a template, and assembling an app is copying files and writing a
+  project file. That is why it belongs in the export rather than behind a command
+  you have to find, and why an editor with no template says exactly that instead of
+  writing a project that cannot link.
 </Aside>
 
 ## App identity

@@ -16,6 +16,21 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **iOS runtime templates — shipping to a phone no longer needs the engine
+  sources.** A native app's compiled half (the engine, Dawn, QuickJS, the linked-in
+  Box2D / Spine / video runtimes) carries no project data, so it is now built once
+  per release and shipped as a **runtime template** you install into the editor,
+  instead of every developer cloning the engine, building Dawn (multi-GB) and
+  installing a CMake/Ninja/xcodegen toolchain to package a game. **Package Project
+  → iOS** with one installed writes a complete, double-clickable Xcode project
+  around the exported content — the only thing left is Xcode itself, which Apple
+  requires. The iOS row says which template it wants and installs one from a file;
+  a template is matched **exactly** against the editor's version, because the SDK
+  bundle is compiled into the app binary. `cli native --target ios` emits the
+  template for the machine it built on (`--template-out` writes the distributable
+  archive), so an engine checkout is now only what *produces* a template, never
+  what consumes one.
+
 - **Editor plugins.** Extend the editor with your own TypeScript: commands (with
   keybindings, palette and menu entries), dock panels, Inspector sections,
   viewport gizmos and tools, asset types, entity templates, settings, and
