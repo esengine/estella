@@ -40,9 +40,16 @@ const DOS_TIME = 0;
 const DOS_DATE = 0x0021;
 
 /**
- * Build a ZIP archive holding `entries` ({ name, data }), each deflated.
+ * Build a ZIP archive holding `entries`, each deflated unless it asks to be
+ * stored.
  *
- * @param {ReadonlyArray<{name: string, data: Buffer}>} entries
+ * `store` and `align` are what an APK needs: an entry the OS wants to mmap out of
+ * the package (an uncompressed `.so`, a resource table) must be stored AND start
+ * at an aligned offset, which is achieved by padding the local header's extra
+ * field — the same thing `zipalign` does, done while writing rather than by
+ * rewriting the archive afterwards.
+ *
+ * @param {ReadonlyArray<{name: string, data: Buffer, store?: boolean, align?: number}>} entries
  * @returns {Buffer}
  */
 export function makeZip(entries) {
@@ -52,36 +59,44 @@ export function makeZip(entries) {
 
     for (const entry of entries) {
         const name = Buffer.from(entry.name, 'utf8');
-        const compressed = deflateRawSync(entry.data, { level: 9 });
+        const stored = entry.store === true;
+        const payload = stored ? entry.data : deflateRawSync(entry.data, { level: 9 });
         const crc = crc32(entry.data);
+
+        // Padding goes in the extra field, so the entry's DATA lands on the
+        // boundary. Only meaningful for stored entries — nothing can mmap a
+        // deflated one — so alignment is not silently promised where it is a lie.
+        const align = stored ? (entry.align ?? 0) : 0;
+        const dataAt = offset + 30 + name.length;
+        const extra = align > 1 ? Buffer.alloc((align - (dataAt % align)) % align) : Buffer.alloc(0);
 
         const local = Buffer.alloc(30);
         local.writeUInt32LE(0x04034b50, 0);
         local.writeUInt16LE(20, 4);      // version needed
         local.writeUInt16LE(0x0800, 6);  // UTF-8 names
-        local.writeUInt16LE(8, 8);       // deflate
+        local.writeUInt16LE(stored ? 0 : 8, 8);
         local.writeUInt16LE(DOS_TIME, 10);
         local.writeUInt16LE(DOS_DATE, 12);
         local.writeUInt32LE(crc, 14);
-        local.writeUInt32LE(compressed.length, 18);
+        local.writeUInt32LE(payload.length, 18);
         local.writeUInt32LE(entry.data.length, 22);
         local.writeUInt16LE(name.length, 26);
-        local.writeUInt16LE(0, 28);      // no extra field
-        locals.push(local, name, compressed);
+        local.writeUInt16LE(extra.length, 28);
+        locals.push(local, name, extra, payload);
 
         const central = Buffer.alloc(46);
         central.writeUInt32LE(0x02014b50, 0);
         central.writeUInt16LE(20, 4);    // version made by
         central.writeUInt16LE(20, 6);    // version needed
         central.writeUInt16LE(0x0800, 8);
-        central.writeUInt16LE(8, 10);
+        central.writeUInt16LE(stored ? 0 : 8, 10);
         central.writeUInt16LE(DOS_TIME, 12);
         central.writeUInt16LE(DOS_DATE, 14);
         central.writeUInt32LE(crc, 16);
-        central.writeUInt32LE(compressed.length, 20);
+        central.writeUInt32LE(payload.length, 20);
         central.writeUInt32LE(entry.data.length, 24);
         central.writeUInt16LE(name.length, 28);
-        central.writeUInt16LE(0, 30);    // extra
+        central.writeUInt16LE(0, 30);    // extra — local only; the reader uses the local header's
         central.writeUInt16LE(0, 32);    // comment
         central.writeUInt16LE(0, 34);    // disk
         central.writeUInt16LE(0, 36);    // internal attrs
@@ -89,7 +104,7 @@ export function makeZip(entries) {
         central.writeUInt32LE(offset, 42);
         centrals.push(central, name);
 
-        offset += local.length + name.length + compressed.length;
+        offset += local.length + name.length + extra.length + payload.length;
     }
 
     const centralSize = centrals.reduce((n, b) => n + b.length, 0);
@@ -130,6 +145,30 @@ export function zipTree(dir, prefix = '') {
 }
 
 /**
+ * Where an archive's three sections are.
+ *
+ * The APK signature covers them separately (and rewrites the central directory's
+ * offset), so the layout has to be readable rather than assumed.
+ *
+ * @param {Buffer} buf
+ * @returns {{eocdOffset: number, centralDirOffset: number, centralDirSize: number, entryCount: number}}
+ */
+export function zipLayout(buf) {
+    // The end-of-central-directory record is last, but a comment may follow it.
+    let eocd = -1;
+    for (let i = buf.length - 22; i >= 0 && i >= buf.length - 22 - 0xffff; i--) {
+        if (buf.readUInt32LE(i) === 0x06054b50) { eocd = i; break; }
+    }
+    if (eocd < 0) throw new Error('not a ZIP archive (no end-of-central-directory record)');
+    return {
+        eocdOffset: eocd,
+        centralDirOffset: buf.readUInt32LE(eocd + 16),
+        centralDirSize: buf.readUInt32LE(eocd + 12),
+        entryCount: buf.readUInt16LE(eocd + 10),
+    };
+}
+
+/**
  * Read an archive's entries, through its central directory (the authority on what
  * an archive contains — trailing local headers may be stale).
  *
@@ -137,15 +176,8 @@ export function zipTree(dir, prefix = '') {
  * @returns {Array<{name: string, data: Buffer}>}
  */
 export function readZip(buf) {
-    // The end-of-central-directory record is last, but a comment may follow it.
-    let eocd = -1;
-    for (let i = buf.length - 22; i >= 0 && i >= buf.length - 22 - 0xffff; i--) {
-        if (buf.readUInt32LE(i) === 0x06054b50) { eocd = i; break; }
-    }
-    if (eocd < 0) throw new Error('not a ZIP archive (no end-of-central-directory record)');
-
-    const count = buf.readUInt16LE(eocd + 10);
-    let p = buf.readUInt32LE(eocd + 16);
+    const { centralDirOffset, entryCount: count } = zipLayout(buf);
+    let p = centralDirOffset;
     const out = [];
     for (let i = 0; i < count; i++) {
         if (buf.readUInt32LE(p) !== 0x02014b50) throw new Error('corrupt ZIP central directory');

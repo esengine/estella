@@ -8,9 +8,21 @@ export interface ZipEntry {
     /** Path inside the archive, with forward slashes. */
     name: string;
     data: Buffer;
+    /** Store uncompressed — for an entry the OS mmaps out of the package. */
+    store?: boolean;
+    /** Byte boundary the entry's data must start on (stored entries only). */
+    align?: number;
+}
+
+export interface ZipLayout {
+    eocdOffset: number;
+    centralDirOffset: number;
+    centralDirSize: number;
+    entryCount: number;
 }
 
 export function makeZip(entries: readonly ZipEntry[]): Buffer;
+export function zipLayout(buf: Buffer): ZipLayout;
 export function zipTree(dir: string, prefix?: string): ZipEntry[];
 export function readZip(buf: Buffer): ZipEntry[];
 export function extractZip(buf: Buffer, destDir: string): string[];
