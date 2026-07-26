@@ -12,11 +12,42 @@ import { ProjectStore } from '@/project/ProjectStore';
 import { EditorHistory } from '@/engine/EditorHistory';
 import { MenuItems, handleMenuListKey, type MenuItem } from '@/components/Menu';
 import { commands, formatKeybinding } from '@/commands';
+import { menuBarMenus, menuItemGroups, menuRegistry, menuItemRegistry } from '@/layout/menus';
 import { t } from '@/i18n';
 
-interface MenuDef {
-  title: string;
-  items: MenuItem[];
+/**
+ * One menu's rows, built from the menu registry at render time — so enablement and
+ * checked state read fresh from the domain stores every time a menu opens, exactly
+ * as the hand-written array's cmdItem() calls did.
+ *
+ * Separators are derived from the item groups, never authored: a gated or retracted
+ * row can't leave a dangling separator behind.
+ */
+function menuItemsFor(location: string): MenuItem[] {
+  const out: MenuItem[] = [];
+  for (const group of menuItemGroups(location)) {
+    const rows: MenuItem[] = [];
+    for (const item of group) {
+      if (!item.command) {
+        if (item.label && item.run) rows.push({ label: item.label(), onClick: item.run });
+        continue;
+      }
+      const command = commands.get(item.command);
+      if (!command) continue; // the command went away with its plugin
+      const chord = commands.keybindingFor(item.command);
+      rows.push({
+        label: item.label?.() ?? command.label,
+        shortcut: chord ? formatKeybinding(chord) : undefined,
+        onClick: () => commands.run(item.command!),
+        disabled: !commands.isEnabled(item.command),
+        checked: commands.isChecked(item.command),
+      });
+    }
+    if (!rows.length) continue;
+    if (out.length) out.push({ sep: true });
+    out.push(...rows);
+  }
+  return out;
 }
 
 function Mark() {
@@ -43,19 +74,10 @@ export function MenuBar() {
   const project = useSyncExternalStore(ProjectStore.subscribe, ProjectStore.getSnapshot);
   // Unsaved-changes star next to the scene name (UE's modified-document indicator).
   const dirty = useSyncExternalStore(EditorHistory.subscribe, EditorHistory.isDirty);
-
-  // Build a menu item from a registered command — one source for label, shortcut
-  // hint, action, enablement, and checked state.
-  const cmdItem = (id: string): MenuItem => {
-    const c = commands.get(id)!;
-    return {
-      label: c.label,
-      shortcut: c.keybinding ? formatKeybinding(c.keybinding) : undefined,
-      onClick: () => commands.run(id),
-      disabled: !commands.isEnabled(id),
-      checked: commands.isChecked(id),
-    };
-  };
+  // Re-render when the menu set changes, so a contributed row appears (and a
+  // retracted one disappears) without waiting for some other store to tick.
+  useSyncExternalStore(menuItemRegistry.subscribe.bind(menuItemRegistry), menuItemRegistry.getRevision.bind(menuItemRegistry));
+  useSyncExternalStore(menuRegistry.subscribe.bind(menuRegistry), menuRegistry.getRevision.bind(menuRegistry));
 
   // Close the open menu on an outside click or Escape (Escape hands focus back
   // to the menu's own button so keyboard flow continues at the menubar).
@@ -78,102 +100,11 @@ export function MenuBar() {
     };
   }, [open]);
 
-  const menus: MenuDef[] = [
-    {
-      title: t('menu.file'),
-      items: [
-        cmdItem('scene.new'),
-        { sep: true },
-        cmdItem('project.open'),
-        { sep: true },
-        cmdItem('project.save'),
-        cmdItem('project.saveAs'),
-        { sep: true },
-        cmdItem('project.close'),
-      ],
-    },
-    {
-      title: t('menu.edit'),
-      items: [
-        cmdItem('edit.undo'),
-        cmdItem('edit.redo'),
-        { sep: true },
-        cmdItem('entity.cut'),
-        cmdItem('entity.copy'),
-        cmdItem('entity.paste'),
-        cmdItem('entity.delete'),
-        { sep: true },
-        cmdItem('edit.selectAll'),
-        cmdItem('entity.deselect'),
-      ],
-    },
-    {
-      title: t('menu.entity'),
-      items: [
-        cmdItem('entity.add'),
-        cmdItem('tilemap.new'),
-        cmdItem('tilemap.newCollisionLayer'),
-        { sep: true },
-        cmdItem('entity.duplicate'),
-        cmdItem('entity.delete'),
-        { sep: true },
-        cmdItem('entity.deselect'),
-      ],
-    },
-    {
-      title: t('menu.view'),
-      items: [
-        cmdItem('view.toggleGrid'),
-        cmdItem('view.toggleGizmos'),
-        cmdItem('view.toggleColliders'),
-        cmdItem('view.toggleTileCollision'),
-        cmdItem('view.togglePreviewFx'),
-        { sep: true },
-        cmdItem('view.toggleMinimap'),
-        cmdItem('view.toggleStats'),
-        cmdItem('view.toggleCoords'),
-        cmdItem('view.togglePerf'),
-        { sep: true },
-        cmdItem('view.toggleCoordSpace'),
-        cmdItem('view.togglePivotMode'),
-        cmdItem('view.toggleSnapping'),
-      ],
-    },
-    {
-      title: t('menu.build'),
-      items: [
-        cmdItem('project.export'),
-        { sep: true },
-        cmdItem('build.scripts'),
-        cmdItem('project.extractSchemas'),
-      ],
-    },
-    {
-      title: t('menu.window'),
-      items: [
-        // Reset only the dock layout — rebuild in place (keeps scene/engine/undo),
-        // guarded so a wedged dirty asset-editor tab can't vanish unwarned. A real
-        // command, so it's in the palette + rebindable.
-        cmdItem('view.resetLayout'),
-        { sep: true },
-        // Same destination as File ▸ Close Project — run the guarded command so
-        // leaving a project can't silently drop unsaved scene + asset edits.
-        { label: t('menu.backToLauncher'), onClick: () => commands.run('project.close') },
-      ],
-    },
-    {
-      title: t('menu.help'),
-      items: [
-        cmdItem('help.about'),
-        cmdItem('help.checkUpdates'),
-        { sep: true },
-        cmdItem('palette.open'),
-        cmdItem('help.shortcuts'),
-        { sep: true },
-        cmdItem('help.openLogs'),
-      ],
-    },
-  ];
+  // Menus and their rows both come from the registry; a menu holding no visible
+  // rows is dropped, so an empty dropdown can never open.
+  const menus = menuBarMenus()
+    .map((m) => ({ id: m.id, title: m.title(), items: menuItemsFor(m.id) }))
+    .filter((m) => m.items.length > 0);
 
   return (
     <div className="menubar" ref={barRef}>
@@ -186,17 +117,17 @@ export function MenuBar() {
       <nav className="menus">
         {menus.map((m) => (
           <div
-            key={m.title}
+            key={m.id}
             className="menubar__menu"
             style={{ position: 'relative', display: 'flex' }}
             onKeyDown={(e) => {
-              if (open !== m.title) return;
+              if (open !== m.id) return;
               // ←/→ walk the menubar while a menu is open; ↓/↑ and typeahead
               // navigate the open dropdown (the shared menu-list handler).
               if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
                 e.preventDefault();
-                const i = menus.findIndex((mm) => mm.title === open);
-                const next = menus[(i + (e.key === 'ArrowRight' ? 1 : -1) + menus.length) % menus.length].title;
+                const i = menus.findIndex((mm) => mm.id === open);
+                const next = menus[(i + (e.key === 'ArrowRight' ? 1 : -1) + menus.length) % menus.length].id;
                 setOpen(next);
                 btnRefs.current.get(next)?.focus();
                 return;
@@ -206,19 +137,19 @@ export function MenuBar() {
           >
             <button
               ref={(el) => {
-                if (el) btnRefs.current.set(m.title, el);
-                else btnRefs.current.delete(m.title);
+                if (el) btnRefs.current.set(m.id, el);
+                else btnRefs.current.delete(m.id);
               }}
-              className={`menu${open === m.title ? ' is-open' : ''}`}
+              className={`menu${open === m.id ? ' is-open' : ''}`}
               type="button"
               aria-haspopup="menu"
-              aria-expanded={open === m.title}
-              onClick={() => setOpen((o) => (o === m.title ? null : m.title))}
-              onMouseEnter={() => setOpen((o) => (o ? m.title : o))}
+              aria-expanded={open === m.id}
+              onClick={() => setOpen((o) => (o === m.id ? null : m.id))}
+              onMouseEnter={() => setOpen((o) => (o ? m.id : o))}
             >
               {m.title}
             </button>
-            {open === m.title && (
+            {open === m.id && (
               <div className="menu-dropdown" role="menu">
                 <MenuItems items={m.items} onSelect={() => setOpen(null)} />
               </div>

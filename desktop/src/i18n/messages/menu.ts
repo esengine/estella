@@ -13,6 +13,8 @@ export const menuMessages = defineMessages({
     'menu.entity': { en: 'Entity', zh: '实体' },
     'menu.view': { en: 'View', zh: '视图' },
     'menu.build': { en: 'Build', zh: '构建' },
+    // Where contributed commands land; the strip hides it while it holds nothing.
+    'menu.tools': { en: 'Tools', zh: '工具' },
     'menu.window': { en: 'Window', zh: '窗口' },
     'menu.help': { en: 'Help', zh: '帮助' },
 
