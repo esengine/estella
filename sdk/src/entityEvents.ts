@@ -47,6 +47,57 @@ export type EntityEventHandler<TData = unknown> = (event: EntityEvent<TData>) =>
 export type Unsubscribe = () => void;
 
 /**
+ * The event objects handed to handlers.
+ *
+ * A class rather than an object literal because the literal's two methods were
+ * fresh closures on every emit. Under a JIT that costs nothing; on the
+ * interpreter a device runs, a busy frame (physics republishes every contact to
+ * both participants) allocated them by the tens of thousands and threw them
+ * straight away. On the prototype they are allocated once.
+ */
+class EmittedEvent<TData> implements EntityEvent<TData> {
+    propagationStopped = false;
+    defaultPrevented = false;
+
+    constructor(
+        readonly type: string,
+        readonly target: Entity,
+        readonly currentTarget: Entity,
+        readonly data: TData,
+    ) {}
+
+    stopPropagation(): void {
+        this.propagationStopped = true;
+    }
+
+    preventDefault(): void {
+        this.defaultPrevented = true;
+    }
+}
+
+/**
+ * A bubbled copy, which shares its propagation state with the event that
+ * started the walk — stopping it stops the root, so the caller's walk halts.
+ */
+class BubbledEvent<TData> extends EmittedEvent<TData> {
+    constructor(type: string, target: Entity, currentTarget: Entity, data: TData,
+                private readonly root_: EntityEvent) {
+        super(type, target, currentTarget, data);
+        this.defaultPrevented = root_.defaultPrevented;
+    }
+
+    override stopPropagation(): void {
+        this.propagationStopped = true;
+        this.root_.propagationStopped = true;
+    }
+
+    override preventDefault(): void {
+        this.defaultPrevented = true;
+        this.root_.defaultPrevented = true;
+    }
+}
+
+/**
  * Entity event queue: pub/sub with bubbling support.
  *
  * @example
@@ -149,20 +200,7 @@ export class EntityEventQueue {
         type: string,
         data?: TData,
     ): EntityEvent<TData> {
-        const event: EntityEvent<TData> = {
-            type,
-            target: entity,
-            currentTarget: entity,
-            data: data as TData,
-            propagationStopped: false,
-            defaultPrevented: false,
-            stopPropagation() {
-                this.propagationStopped = true;
-            },
-            preventDefault() {
-                this.defaultPrevented = true;
-            },
-        };
+        const event = new EmittedEvent<TData>(type, entity, entity, data as TData);
         this.pending_.push(event);
         this.dispatch_(entity, event);
         return event;
@@ -179,22 +217,8 @@ export class EntityEventQueue {
     emitBubbled(ancestor: Entity, rootEvent: EntityEvent): EntityEvent {
         if (rootEvent.propagationStopped) return rootEvent;
 
-        const bubbled: EntityEvent = {
-            type: rootEvent.type,
-            target: rootEvent.target,
-            currentTarget: ancestor,
-            data: rootEvent.data,
-            propagationStopped: false,
-            defaultPrevented: rootEvent.defaultPrevented,
-            stopPropagation() {
-                this.propagationStopped = true;
-                rootEvent.propagationStopped = true;
-            },
-            preventDefault() {
-                this.defaultPrevented = true;
-                (rootEvent as { defaultPrevented: boolean }).defaultPrevented = true;
-            },
-        };
+        const bubbled = new BubbledEvent(
+            rootEvent.type, rootEvent.target, ancestor, rootEvent.data, rootEvent);
         this.pending_.push(bubbled);
         this.dispatch_(ancestor, bubbled);
         return bubbled;
