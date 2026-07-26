@@ -37,8 +37,11 @@ struct Font {
  *  path we have not seen costs a read + parse. */
 std::unordered_map<std::string, std::unique_ptr<Font>> g_fonts;
 
-Font* loadFont(Platform& platform, const std::string& family, uint32_t codepoint, int style) {
+Font* loadFont(Platform& platform, const std::string& family, uint32_t codepoint, int style,
+               bool& syntheticBold, bool& syntheticItalic) {
     FontFile file = platform.loadFont(family, codepoint, style);
+    syntheticBold = file.syntheticBold;
+    syntheticItalic = file.syntheticItalic;
     if (file.path.empty()) return nullptr;
 
     auto it = g_fonts.find(file.path);
@@ -75,6 +78,45 @@ std::vector<uint8_t> downsample(const std::vector<uint8_t>& src, int width, int 
     return out;
 }
 
+// Faux styles, for a file that does not carry the one that was asked for. The
+// oblique shear is FreeType's (12 degrees); the emboldening radius scales with
+// the size so it reads the same at every font size. A browser does exactly this
+// for a family with no bold or italic face, which is why text on the web looks
+// styled even where the font has only one weight.
+constexpr float OBLIQUE_SHEAR = 0.2126f;
+
+/** Widen the ink: each pixel takes the max of itself and its left neighbours,
+ *  which is a horizontal dilation — the classic synthetic bold. */
+void embolden(std::vector<uint8_t>& alpha, int width, int height, int radius) {
+    if (radius <= 0) return;
+    std::vector<uint8_t> src = alpha;
+    for (int y = 0; y < height; y++) {
+        const uint8_t* in = src.data() + (size_t)y * width;
+        uint8_t* out = alpha.data() + (size_t)y * width;
+        for (int x = 0; x < width; x++) {
+            uint8_t v = in[x];
+            for (int d = 1; d <= radius && x - d >= 0; d++) v = std::max(v, in[x - d]);
+            out[x] = v;
+        }
+    }
+}
+
+/** Lean the ink to the right, about the baseline: row y shifts by
+ *  `shear * (baseline - y)` px, so the bottom stays put and the top leans. */
+void oblique(std::vector<uint8_t>& alpha, int width, int height, int baselineRow) {
+    std::vector<uint8_t> src = alpha;
+    std::fill(alpha.begin(), alpha.end(), (uint8_t)0);
+    for (int y = 0; y < height; y++) {
+        const int shift = (int)std::lround(OBLIQUE_SHEAR * (float)(baselineRow - y));
+        const uint8_t* in = src.data() + (size_t)y * width;
+        uint8_t* out = alpha.data() + (size_t)y * width;
+        for (int x = 0; x < width; x++) {
+            const int sx = x - shift;
+            if (sx >= 0 && sx < width) out[x] = in[sx];
+        }
+    }
+}
+
 /** Expand single-channel coverage into the atlas' RGBA tile (RGB = 255, A = it). */
 std::vector<uint8_t> toAtlasRgba(const std::vector<uint8_t>& coverage, int width, int height) {
     std::vector<uint8_t> out((size_t)width * height * 4);
@@ -94,7 +136,8 @@ GlyphBitmap rasterizeGlyph(Platform& platform, uint32_t codepoint, const std::st
     GlyphBitmap out;
     if (pixelSize <= 0.0f) return out;
 
-    Font* font = loadFont(platform, family, codepoint, style);
+    bool syntheticBold = false, syntheticItalic = false;
+    Font* font = loadFont(platform, family, codepoint, style, syntheticBold, syntheticItalic);
     if (!font) return out;
 
     const int glyph = stbtt_FindGlyphIndex(&font->info, (int)codepoint);
@@ -117,8 +160,16 @@ GlyphBitmap rasterizeGlyph(Platform& platform, uint32_t codepoint, const std::st
     const int inkHss = y1 - y0;
     if (inkWss <= 0 || inkHss <= 0) return out;   // whitespace: advance only, no cell
 
+    // Room for what the file does not provide: emboldening widens the ink to the
+    // right, the oblique shear leans its top right — both need the tile to grow,
+    // or the synthesis is clipped by the very box it is drawn in.
+    const int boldRadius = syntheticBold
+        ? std::max(1, (int)std::lround((double)pixelSize * (double)ss / 24.0)) : 0;
+    const int leanRoom = syntheticItalic
+        ? (int)std::ceil(OBLIQUE_SHEAR * (float)(inkHss - y1)) + 1 : 0;   // y1 = rows below the baseline
+
     // Stored (post-downsample) tile, padded; the supersampled grid tiles it exactly.
-    const int inkW = (inkWss + ss - 1) / ss;
+    const int inkW = (inkWss + boldRadius + leanRoom + ss - 1) / ss;
     const int inkH = (inkHss + ss - 1) / ss;
     const int w = inkW + pad * 2;
     const int h = inkH + pad * 2;
@@ -128,6 +179,16 @@ GlyphBitmap rasterizeGlyph(Platform& platform, uint32_t codepoint, const std::st
     std::vector<uint8_t> alpha((size_t)wss * hss, 0);
     stbtt_MakeGlyphBitmap(&font->info, alpha.data() + (size_t)pad * ss * wss + (size_t)pad * ss,
                           inkWss, inkHss, wss, scale, scale, glyph);
+
+    if (boldRadius > 0) {
+        embolden(alpha, wss, hss, boldRadius);
+        out.advance += (float)boldRadius / (float)ss;   // wider ink needs a wider step
+    }
+    if (leanRoom > 0) {
+        // The baseline sits at ink row (-y0) inside the ink box, itself `pad*ss`
+        // into the tile: rows below it must not move.
+        oblique(alpha, wss, hss, pad * ss - y0);
+    }
 
     std::vector<uint8_t> coverage;
     if (sdf) {

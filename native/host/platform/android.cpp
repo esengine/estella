@@ -204,6 +204,14 @@ struct AndroidPlatform final : eshost::Platform {
         AFontMatcher_destroy(matcher);
         if (!font) return out;
 
+        // What the matcher actually gave us: the system font is a single variable
+        // file, so a bold request comes back as the regular instance and the
+        // rasterizer has to embolden it itself.
+        const bool wantBold = (style & eshost::GLYPH_BOLD) != 0;
+        const bool wantItalic = (style & eshost::GLYPH_ITALIC) != 0;
+        out.syntheticBold = wantBold && AFont_getWeight(font) < AFONT_WEIGHT_SEMI_BOLD;
+        out.syntheticItalic = wantItalic && !AFont_isItalic(font);
+
         if (const char* path = AFont_getFontFilePath(font)) {
             out.path = path;
             out.faceIndex = (int)AFont_getCollectionIndex(font);

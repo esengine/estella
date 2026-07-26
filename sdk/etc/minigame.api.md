@@ -538,6 +538,7 @@ static prototype: ArrayDataSource<any>
 
 ## AssetGroupDef — interface
 ```
+alwaysInclude: boolean | undefined
 folder: string
 mode: "local" | "subpackage" | "remote"
 ```
@@ -5652,6 +5653,7 @@ static prototype: ResMutInstance<any>
 
 ## ResolvedAssetGroup — interface
 ```
+alwaysInclude: boolean
 delivery: BundleMode
 name: string
 ```

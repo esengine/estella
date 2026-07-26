@@ -30,39 +30,39 @@ describe('resolveAssetGroup — explicit config decouples delivery from folder n
     };
 
     it('assigns an ordinarily-named folder to a remote group', () => {
-        expect(resolveAssetGroup('assets/dlc/boss.png', config)).toEqual({ name: 'dlc', delivery: 'remote' });
+        expect(resolveAssetGroup('assets/dlc/boss.png', config)).toEqual({ name: 'dlc', delivery: 'remote', alwaysInclude: false });
     });
 
     it('maps a subpackage-mode group to lazy delivery', () => {
-        expect(resolveAssetGroup('assets/level2/map.png', config)).toEqual({ name: 'level2', delivery: 'lazy' });
+        expect(resolveAssetGroup('assets/level2/map.png', config)).toEqual({ name: 'level2', delivery: 'lazy', alwaysInclude: false });
     });
 
     it('longest folder prefix wins for nested groups', () => {
-        expect(resolveAssetGroup('assets/dlc/hd/boss@2x.png', config)).toEqual({ name: 'hd', delivery: 'lazy' });
-        expect(resolveAssetGroup('assets/dlc/boss.png', config)).toEqual({ name: 'dlc', delivery: 'remote' });
+        expect(resolveAssetGroup('assets/dlc/hd/boss@2x.png', config)).toEqual({ name: 'hd', delivery: 'lazy', alwaysInclude: false });
+        expect(resolveAssetGroup('assets/dlc/boss.png', config)).toEqual({ name: 'dlc', delivery: 'remote', alwaysInclude: false });
     });
 
     it('unconfigured paths fall through to main/local', () => {
-        expect(resolveAssetGroup('assets/hero.png', config)).toEqual({ name: 'main', delivery: 'local' });
+        expect(resolveAssetGroup('assets/hero.png', config)).toEqual({ name: 'main', delivery: 'local', alwaysInclude: false });
     });
 
     it('normalizes backslashes and a trailing folder slash', () => {
         const cfg: AssetGroupsConfig = { version: '1.0', groups: { g: { folder: 'assets/g/', mode: 'remote' } } };
-        expect(resolveAssetGroup('assets\\g\\a.png', cfg)).toEqual({ name: 'g', delivery: 'remote' });
+        expect(resolveAssetGroup('assets\\g\\a.png', cfg)).toEqual({ name: 'g', delivery: 'remote', alwaysInclude: false });
     });
 });
 
 describe('resolveAssetGroup — legacy folder-name convention (fallback / back-compat)', () => {
     it('still honors subpackages/<name>/ and remote/<name>/ with no config', () => {
-        expect(resolveAssetGroup('subpackages/level1/a.png', null)).toEqual({ name: 'level1', delivery: 'lazy' });
-        expect(resolveAssetGroup('remote/cdn/a.png', null)).toEqual({ name: 'cdn', delivery: 'remote' });
-        expect(resolveAssetGroup('assets/a.png', null)).toEqual({ name: 'main', delivery: 'local' });
+        expect(resolveAssetGroup('subpackages/level1/a.png', null)).toEqual({ name: 'level1', delivery: 'lazy', alwaysInclude: false });
+        expect(resolveAssetGroup('remote/cdn/a.png', null)).toEqual({ name: 'cdn', delivery: 'remote', alwaysInclude: false });
+        expect(resolveAssetGroup('assets/a.png', null)).toEqual({ name: 'main', delivery: 'local', alwaysInclude: false });
     });
 
     it('explicit config takes priority over the folder-name convention', () => {
         const cfg: AssetGroupsConfig = { version: '1.0', groups: { pack: { folder: 'remote/cdn', mode: 'subpackage' } } };
         // The path is under remote/cdn/, but the config re-declares it a subpackage.
-        expect(resolveAssetGroup('remote/cdn/a.png', cfg)).toEqual({ name: 'pack', delivery: 'lazy' });
+        expect(resolveAssetGroup('remote/cdn/a.png', cfg)).toEqual({ name: 'pack', delivery: 'lazy', alwaysInclude: false });
     });
 });
 
@@ -146,5 +146,19 @@ describe('activeRemoteRoot', () => {
         expect(activeRemoteRoot({ version: '1.0' })).toBeUndefined();
         expect(activeRemoteRoot({ version: '1.0', activeProfile: 'x', profiles: { x: {} } })).toBeUndefined();
         expect(activeRemoteRoot({ version: '1.0', activeProfile: 'missing', profiles: { dev: { remoteRoot: 'u' } } })).toBeUndefined();
+    });
+
+    it('carries a group\'s always-include declaration through to the cook', () => {
+        const cfg: AssetGroupsConfig = {
+            version: '1.0',
+            groups: {
+                markup: { folder: 'assets/markup', mode: 'local', alwaysInclude: true },
+                plain: { folder: 'assets/plain', mode: 'local' },
+            },
+        };
+        // What only code names (a rich-text <img>, a path built at run time) ships
+        // because the project said so — reachability from a scene would cull it.
+        expect(resolveAssetGroup('assets/markup/heart.png', cfg).alwaysInclude).toBe(true);
+        expect(resolveAssetGroup('assets/plain/hero.png', cfg).alwaysInclude).toBe(false);
     });
 });

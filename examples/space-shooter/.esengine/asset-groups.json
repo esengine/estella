@@ -1,0 +1,10 @@
+{
+  "version": "1.0",
+  "groups": {
+    "spawnables": {
+      "folder": "assets/prefabs",
+      "mode": "local",
+      "alwaysInclude": true
+    }
+  }
+}

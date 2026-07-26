@@ -1,0 +1,10 @@
+{
+  "version": "1.0",
+  "groups": {
+    "clips": {
+      "folder": "assets/audio",
+      "mode": "local",
+      "alwaysInclude": true
+    }
+  }
+}

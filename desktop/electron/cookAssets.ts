@@ -296,9 +296,15 @@ export async function cookAssets(
   // shared dep that lives outside subpackages/ resolves to group 'main' below, so
   // it lands in the always-present main package, not duplicated per subpackage.
   for (const e of index.entries) {
+    const group = resolveAssetGroup(e.path, groupsConfig);
     // …and every non-local (subpackage / remote-CDN) asset: never scene-
     // referenced, but must be cooked + staged for its group's delivery.
-    if (resolveAssetGroup(e.path, groupsConfig).delivery !== 'local') seed(e.uuid);
+    if (group.delivery !== 'local') seed(e.uuid);
+    // …and every asset in a group the project declared always-include: what a
+    // scene cannot reference because only code names it (a path built at run
+    // time, a texture in rich-text markup). Reachability would cull it, and the
+    // first anyone would hear of that is a missing image on a device.
+    else if (group.alwaysInclude) seed(e.uuid);
   }
   // Force-include locale string tables: translations load by code / plugin
   // option (a scene never references them — Text carries KEYS, not paths), so

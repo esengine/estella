@@ -126,6 +126,11 @@ struct IOSPlatform final : eshost::Platform {
                 font = styled;
             }
         }
+        // A family without a real bold or italic face leaves the trait unset; the
+        // rasterizer then synthesizes it, as a browser does for the same family.
+        const CTFontSymbolicTraits actual = CTFontGetSymbolicTraits(font);
+        out.syntheticBold = (traits & kCTFontTraitBold) && !(actual & kCTFontTraitBold);
+        out.syntheticItalic = (traits & kCTFontTraitItalic) && !(actual & kCTFontTraitItalic);
 
         // Does this face have the glyph? If not, let Core Text find one that does.
         if (codepoint) {

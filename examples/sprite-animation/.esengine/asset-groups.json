@@ -1,0 +1,10 @@
+{
+  "version": "1.0",
+  "groups": {
+    "clips": {
+      "folder": "assets/animations",
+      "mode": "local",
+      "alwaysInclude": true
+    }
+  }
+}

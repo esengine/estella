@@ -71,6 +71,15 @@ struct FontFile {
     std::string path;
     std::vector<esengine::u8> bytes;
     int faceIndex = 0;
+    /**
+     * What the matched file does NOT provide of the style that was asked for, so
+     * the rasterizer can synthesize it — which is what a browser does when a
+     * family has no bold or no italic. Android's system font is one VARIABLE file
+     * for every weight and stb_truetype renders its default instance, so a bold
+     * request comes back regular and this is how anyone finds out.
+     */
+    bool syntheticBold = false;
+    bool syntheticItalic = false;
 };
 
 /**

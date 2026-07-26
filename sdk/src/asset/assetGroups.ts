@@ -29,6 +29,20 @@ export interface AssetGroupDef {
     /** Project-relative folder whose assets belong to this group. */
     folder: string;
     mode: AssetGroupMode;
+    /**
+     * Ship every asset in this folder whether or not a scene references it.
+     *
+     * A build cooks what it can REACH from the entry scenes, which is right for
+     * anything a scene names — and blind to anything named only in code: a path
+     * built at runtime, a texture in rich-text markup, a clip picked by id. This
+     * is where a project says so, rather than discovering at run time on a device
+     * that the file was culled. (Unity's Resources folder and Unreal's additional
+     * cook directories are the same declaration.)
+     *
+     * Off by default: reachability is what keeps a build from shipping the whole
+     * project.
+     */
+    alwaysInclude?: boolean;
 }
 
 /** A build environment's variables — currently just the CDN root remote groups
@@ -52,6 +66,8 @@ export interface AssetGroupsConfig {
 export interface ResolvedAssetGroup {
     name: string;
     delivery: BundleMode;
+    /** See {@link AssetGroupDef.alwaysInclude}. */
+    alwaysInclude: boolean;
 }
 
 /** Map a user-facing mode to the manifest bundle mode (`subpackage` → `lazy`). */
@@ -80,23 +96,29 @@ export function resolveAssetGroup(
     const path = projectRelPath.replace(/\\/g, '/');
 
     if (config?.groups) {
-        let best: { name: string; mode: AssetGroupMode; len: number } | null = null;
+        let best: { name: string; def: AssetGroupDef; len: number } | null = null;
         for (const [name, def] of Object.entries(config.groups)) {
             const folder = def.folder.replace(/\\/g, '/').replace(/\/+$/, '');
             if (folder === '' ) continue;
             if (path === folder || path.startsWith(`${folder}/`)) {
-                if (!best || folder.length > best.len) best = { name, mode: def.mode, len: folder.length };
+                if (!best || folder.length > best.len) best = { name, def, len: folder.length };
             }
         }
-        if (best) return { name: best.name, delivery: modeToDelivery(best.mode) };
+        if (best) {
+            return {
+                name: best.name,
+                delivery: modeToDelivery(best.def.mode),
+                alwaysInclude: best.def.alwaysInclude === true,
+            };
+        }
     }
 
     const sub = SUBPACKAGE_RE.exec(path);
-    if (sub) return { name: sub[1], delivery: 'lazy' };
+    if (sub) return { name: sub[1], delivery: 'lazy', alwaysInclude: false };
     const rem = REMOTE_RE.exec(path);
-    if (rem) return { name: rem[1], delivery: 'remote' };
+    if (rem) return { name: rem[1], delivery: 'remote', alwaysInclude: false };
 
-    return { name: 'main', delivery: 'local' };
+    return { name: 'main', delivery: 'local', alwaysInclude: false };
 }
 
 /** The CDN root of the active build profile (the value the export bakes into the
