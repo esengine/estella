@@ -20,6 +20,7 @@
 #include "Bindings.hpp"
 
 #include "esengine/bindings/ActiveContext.hpp"   // g_activeContext — the context the generated bindings act on
+#include "esengine/core/Log.hpp"
 #include "esengine/core/World.hpp"
 #include "esengine/ecs/TransformSystem.hpp"
 #include "esengine/renderer/RenderContext.hpp"
@@ -139,6 +140,14 @@ bool surfaceBound() { return hostAlive() && host().surfaceReady; }
 bool boot(Platform& platform) {
     createHost(platform);
     HostState& h = host();
+
+    // The engine logs to stdout/stderr, which a browser shows and a phone throws
+    // away — so on a device every ES_LOG_ERROR it ever wrote went nowhere, and a
+    // renderer that refused to draw said so to no one. Forward it to the
+    // platform's log, so there is ONE log wherever the engine runs.
+    esengine::Log::addSink([](const esengine::LogEntry& entry) {
+        hostLog(entry.level >= esengine::LogLevel::Error, "[engine] %s", entry.message.c_str());
+    });
 
     const double t0 = nowMs();
     if (!createDevice(h)) return false;
