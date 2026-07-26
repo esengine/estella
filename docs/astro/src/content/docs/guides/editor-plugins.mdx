@@ -1,0 +1,258 @@
+---
+title: Editor Plugins
+description: Extend the Estella editor with your own TypeScript — commands, panels, inspector sections, viewport gizmos and tools, asset types and context-menu actions — with no build step and hot reload while you write.
+---
+
+import { Aside, Steps, FileTree } from '@astrojs/starlight/components';
+
+A plugin adds your own tools to the editor: a command in the Tools menu, a docked
+panel, an extra section in the Inspector, a gizmo drawn in the viewport, a new
+asset type. Plugins are TypeScript, they live in your project, and there is **no
+build step** — the editor compiles them, and re-compiles the moment you save.
+
+Everything a plugin registers goes through the same registries the editor's own
+features use. A contributed command is a command; a contributed panel is a dock
+panel with a tab, a close button and pop-out. There is no reduced "plugin version"
+of anything.
+
+## Your first plugin
+
+<Steps>
+
+1. Create the folder — the id is `<publisher>.<name>`:
+
+   <FileTree>
+   - .esengine/
+     - plugins/
+       - acme.level-tools/
+         - plugin.json
+         - src/
+           - editor.ts
+   </FileTree>
+
+2. Write `plugin.json`:
+
+   ```json
+   {
+     "id": "acme.level-tools",
+     "name": { "en": "Level Tools", "zh-CN": "关卡工具" },
+     "version": "1.0.0",
+     "engines": { "editor": "^0.33" },
+     "main": { "editor": "src/editor.ts" }
+   }
+   ```
+
+3. Write `src/editor.ts`:
+
+   ```ts
+   import { definePlugin, type PluginContext } from '@estella/editor-api';
+
+   export default definePlugin({
+     activate(ctx: PluginContext) {
+       ctx.commands.register({
+         id: 'acme.level-tools.countEntities',
+         title: { en: 'Count Entities', 'zh-CN': '统计实体' },
+         menu: 'tools',
+         run: () => ctx.ui.toast(`${ctx.scene.getSceneTree().length} root entities`),
+       });
+     },
+   });
+   ```
+
+4. Open **Window ▸ Plugins**, find your plugin, and choose **Trust and load**.
+
+</Steps>
+
+Your command is now in the Tools menu and the command palette. Edit `editor.ts`
+and save: the editor recompiles and re-activates it, and any panel it contributed
+reopens on the new build.
+
+<Aside type="caution" title="Trust">
+A plugin runs with the same access the editor has — your project files and
+anything the editor can reach. That is why nothing loads until you approve it, and
+why you should only load plugins whose source you trust. The prompt lists what the
+plugin declared, but declared capabilities describe *intent*: they are not a
+sandbox.
+
+Approval covers that version from that folder. A new version, or a different
+folder claiming the same id, asks again.
+</Aside>
+
+## Typings
+
+The editor writes `@estella/editor-api`'s typings into your project at
+`.esengine/plugins/.types/editor-api.d.ts` every time it opens the project, so they
+always match the editor you're running. Point your plugin's `tsconfig.json` at
+them:
+
+```json
+{
+  "compilerOptions": {
+    "strict": true,
+    "moduleResolution": "bundler",
+    "paths": { "@estella/editor-api": ["../.types/editor-api.d.ts"] }
+  },
+  "include": ["src"]
+}
+```
+
+Nothing to install, and no copy that can go stale.
+
+## What a plugin can contribute
+
+Every `register` returns a disposable, and everything is retracted automatically
+when the plugin unloads — you rarely need to keep the handle.
+
+### Commands
+
+Land in the command palette, and optionally a menu. Label, shortcut hint,
+enablement and checked state all come from this one declaration.
+
+```ts
+ctx.commands.register({
+  id: 'acme.level-tools.bake',
+  title: { en: 'Bake Occlusion' },
+  keybinding: 'mod+alt+b',
+  menu: 'tools',
+  isEnabled: () => ctx.scene.getSelectionIds().length > 0,
+  run: () => { /* … */ },
+});
+```
+
+### Panels
+
+`mount` gets a plain host element and returns its teardown. The editor owns the
+tab, the error boundary and pop-out. Style against the editor's CSS variables
+(`--bg`, `--text`, `--text-dim`, `--accent`, …) and the panel matches the
+surrounding chrome in both light and dark.
+
+```ts
+ctx.panels.register({
+  id: 'acme.level-tools.budget',
+  title: { en: 'Level Budget' },
+  placement: 'bottom',
+  mount: (host) => {
+    host.textContent = 'hello';
+    return () => { /* teardown */ };
+  },
+});
+```
+
+You may use React — the editor injects its own instance, so hooks work and there
+is no second copy:
+
+```ts
+import { createRoot } from 'react-dom/client';
+```
+
+### Inspector sections
+
+Adds a section under a component (or for an asset type), built from rows the
+editor renders with its own property UI — so it looks native with no styling.
+
+```ts
+ctx.inspector.register({
+  kind: 'component',
+  id: 'budget',
+  component: 'Sprite',
+  title: { en: 'Budget' },
+  build: (entity, ui) => {
+    ui.info({ en: 'Texture' }, String(ctx.scene.getFieldValue(entity, 'Sprite', 'texture') ?? '—'));
+    ui.number('weight', { en: 'Weight' }, 1, { min: 0, max: 10 });
+  },
+  write: (entity, key, value) => { /* an edit to a row you built */ },
+});
+```
+
+### Viewport gizmos
+
+Drawn every frame, in **world coordinates** — the editor projects them, so a gizmo
+follows the scene through pan and zoom, and a radius in world units scales with
+it. Stroke widths and text stay in screen pixels.
+
+```ts
+ctx.overlays.register({
+  id: 'acme.spawn-radius',
+  render: (g) => {
+    const id = ctx.scene.getSelection();
+    if (id == null) return;
+    const p = ctx.scene.getFieldValue(id, 'Transform', 'position');
+    if (!Array.isArray(p)) return;
+    g.circle({ x: p[0], y: p[1] }, 120, { color: 'var(--accent)', dashed: true });
+  },
+});
+```
+
+### Viewport tools
+
+While *armed*, a tool gets first refusal on every pointer stroke. Returning `true`
+from `onPointerDown` claims the stroke and its move/up. Picking any built-in tool
+disarms it, so you can never get stuck in a plugin's tool.
+
+```ts
+ctx.tools.register({
+  id: 'acme.measure',
+  title: { en: 'Measure' },
+  onPointerDown: (p, tc) => { tc.capture(p.pointerId); return true; },
+  onPointerMove: (p) => { const w = ctx.viewport.viewportToWorld(p.x, p.y); },
+  onPointerUp: (p, tc) => tc.release(p.pointerId),
+});
+ctx.tools.activate('acme.measure');
+```
+
+### The rest
+
+- `ctx.settings.register(…)` — a row under **Settings ▸ Plugins ▸ your plugin**.
+- `ctx.assets.registerType(…)` — a new asset type: extensions, tile badge,
+  double-click action, and a **New ▸ …** entry.
+- `ctx.entities.registerTemplate(…)` — a ready-made entity in the Create picker.
+- `ctx.contextMenus.register(…)` — a row in the Outliner or Content Browser
+  right-click menu, gated by the thing that was clicked.
+
+## Editing the scene
+
+Always go through `ctx.scene`. Those writes run through the editor's command
+layer, which means they land in the undo history and survive Play → Stop. Reaching
+around it to the live engine loses both.
+
+```ts
+ctx.scene.transact('Rename Markers', () => {
+  for (const node of ctx.scene.getSceneTree()) {
+    if (node.name === 'Entity') ctx.scene.renameEntity(node.id, 'Marker');
+  }
+});
+```
+
+Everything inside one `transact` is a single undo step, however many edits it
+makes.
+
+## When something goes wrong
+
+Open **Window ▸ Plugins**. Every plugin the editor found is listed — including the
+broken ones, with the reason: a manifest that failed to parse, a compile error, or
+an id another plugin already claimed. Errors thrown by your plugin appear in the
+**Output Log** tagged `plugin:<your-id>`, with a stack.
+
+If a plugin keeps throwing, the editor disables it rather than letting it break a
+surface on every render. Fix it and press **Reload**.
+
+<Aside type="tip">
+A plugin's own timings show up in the profiler under `plugin.<id>.<what>`, next to
+the editor's own work — so a slow overlay or command is visible rather than
+mysterious.
+</Aside>
+
+## Where plugins live
+
+- **`<project>/.esengine/plugins/<id>/`** — versioned with the project and shared
+  with your team. This is the usual place.
+- **`<userData>/plugins/<id>/`** — your own tools, across every project. A project
+  plugin with the same id takes precedence, and the shadowed one says so.
+
+## Project platform profiles
+
+A `.esengine/platforms/<id>.mjs` packaging profile (see
+[Mini-Game Platforms](/guides/minigame-platforms/)) is imported into the editor's
+main process with full system access. It is listed in the Plugins panel and needs
+the same approval — until you approve it, its target shows as not ready in the
+Package dialog.

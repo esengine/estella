@@ -1,0 +1,241 @@
+---
+title: 编辑器插件
+description: 用你自己的 TypeScript 扩展 Estella 编辑器——命令、面板、检查器分区、视口 gizmo 与工具、资产类型、右键菜单项——无需构建步骤，边写边热重载。
+---
+
+import { Aside, Steps, FileTree } from '@astrojs/starlight/components';
+
+插件把你自己的工具加进编辑器：工具菜单里的一条命令、一个停靠面板、检查器里
+多出来的一段、视口里画的 gizmo、一种新的资产类型。插件是 TypeScript，放在你的
+项目里，而且**不需要构建步骤**——编辑器负责编译，你一保存就重新编译。
+
+插件注册的一切都走编辑器自己功能所用的同一套注册表。贡献的命令就是命令；贡献
+的面板就是带标签页、关闭按钮和弹出功能的停靠面板。不存在任何东西的"插件简化版"。
+
+## 你的第一个插件
+
+<Steps>
+
+1. 建目录——id 形如 `<发布者>.<名字>`：
+
+   <FileTree>
+   - .esengine/
+     - plugins/
+       - acme.level-tools/
+         - plugin.json
+         - src/
+           - editor.ts
+   </FileTree>
+
+2. 写 `plugin.json`：
+
+   ```json
+   {
+     "id": "acme.level-tools",
+     "name": { "en": "Level Tools", "zh-CN": "关卡工具" },
+     "version": "1.0.0",
+     "engines": { "editor": "^0.33" },
+     "main": { "editor": "src/editor.ts" }
+   }
+   ```
+
+3. 写 `src/editor.ts`：
+
+   ```ts
+   import { definePlugin, type PluginContext } from '@estella/editor-api';
+
+   export default definePlugin({
+     activate(ctx: PluginContext) {
+       ctx.commands.register({
+         id: 'acme.level-tools.countEntities',
+         title: { en: 'Count Entities', 'zh-CN': '统计实体' },
+         menu: 'tools',
+         run: () => ctx.ui.toast(`${ctx.scene.getSceneTree().length} 个根实体`),
+       });
+     },
+   });
+   ```
+
+4. 打开**窗口 ▸ 插件**，找到你的插件，点**信任并加载**。
+
+</Steps>
+
+你的命令现在出现在工具菜单和命令面板里。改一下 `editor.ts` 再保存：编辑器会
+重新编译并重新激活它，它贡献的面板也会以新构建重新打开。
+
+<Aside type="caution" title="信任">
+插件与编辑器拥有同等权限——你的项目文件，以及编辑器能触及的一切。所以在你批准
+之前什么都不会加载，也所以你只应加载来源可信的插件。提示框会列出插件声明的能力，
+但**声明的能力表达的是意图：它不是沙箱**。
+
+批准只对应那个版本、那个目录。新版本，或另一个目录声称同一 id，都会重新询问。
+</Aside>
+
+## 类型定义
+
+编辑器每次打开项目时，都会把 `@estella/editor-api` 的类型写进
+`.esengine/plugins/.types/editor-api.d.ts`，因此它永远与你正在运行的编辑器一致。
+在插件的 `tsconfig.json` 里指过去：
+
+```json
+{
+  "compilerOptions": {
+    "strict": true,
+    "moduleResolution": "bundler",
+    "paths": { "@estella/editor-api": ["../.types/editor-api.d.ts"] }
+  },
+  "include": ["src"]
+}
+```
+
+无需安装任何东西，也不存在会过期的副本。
+
+## 插件能贡献什么
+
+每个 `register` 都返回一个 disposable，插件卸载时全部自动撤回——你通常不需要
+自己保存这些句柄。
+
+### 命令
+
+进入命令面板，也可以进菜单。标签、快捷键提示、可用性与勾选态都来自这一处声明。
+
+```ts
+ctx.commands.register({
+  id: 'acme.level-tools.bake',
+  title: { en: 'Bake Occlusion', 'zh-CN': '烘焙遮挡' },
+  keybinding: 'mod+alt+b',
+  menu: 'tools',
+  isEnabled: () => ctx.scene.getSelectionIds().length > 0,
+  run: () => { /* … */ },
+});
+```
+
+### 面板
+
+`mount` 拿到一个普通的宿主元素，返回它的拆卸函数。标签页、错误边界和弹出窗口由
+编辑器负责。用编辑器的 CSS 变量（`--bg`、`--text`、`--text-dim`、`--accent` …）
+写样式，面板在明暗两种主题下都与周围的界面一致。
+
+```ts
+ctx.panels.register({
+  id: 'acme.level-tools.budget',
+  title: { en: 'Level Budget', 'zh-CN': '关卡预算' },
+  placement: 'bottom',
+  mount: (host) => {
+    host.textContent = 'hello';
+    return () => { /* 拆卸 */ };
+  },
+});
+```
+
+你可以用 React——编辑器会注入它自己的实例，所以 hooks 正常工作，也不会出现第二份
+副本：
+
+```ts
+import { createRoot } from 'react-dom/client';
+```
+
+### 检查器分区
+
+在某个组件下（或某种资产类型下）加一段，由编辑器用它自己的属性 UI 渲染你声明的
+行——所以不用写样式就是原生外观。
+
+```ts
+ctx.inspector.register({
+  kind: 'component',
+  id: 'budget',
+  component: 'Sprite',
+  title: { en: 'Budget', 'zh-CN': '预算' },
+  build: (entity, ui) => {
+    ui.info({ en: 'Texture', 'zh-CN': '纹理' }, String(ctx.scene.getFieldValue(entity, 'Sprite', 'texture') ?? '—'));
+    ui.number('weight', { en: 'Weight', 'zh-CN': '权重' }, 1, { min: 0, max: 10 });
+  },
+  write: (entity, key, value) => { /* 你建的某一行被编辑了 */ },
+});
+```
+
+### 视口 gizmo
+
+每帧绘制，坐标是**世界坐标**——由编辑器投影，所以 gizmo 会随平移缩放跟随场景，
+以世界单位给的半径也会随之缩放。线宽和文字则保持屏幕像素。
+
+```ts
+ctx.overlays.register({
+  id: 'acme.spawn-radius',
+  render: (g) => {
+    const id = ctx.scene.getSelection();
+    if (id == null) return;
+    const p = ctx.scene.getFieldValue(id, 'Transform', 'position');
+    if (!Array.isArray(p)) return;
+    g.circle({ x: p[0], y: p[1] }, 120, { color: 'var(--accent)', dashed: true });
+  },
+});
+```
+
+### 视口工具
+
+处于 **armed** 状态时，工具对每一笔指针操作有优先接管权。`onPointerDown` 返回
+`true` 即接管这一笔及其后续 move/up。选择任何内建工具都会解除 arming，所以你不会
+被卡在插件的工具里。
+
+```ts
+ctx.tools.register({
+  id: 'acme.measure',
+  title: { en: 'Measure', 'zh-CN': '测距' },
+  onPointerDown: (p, tc) => { tc.capture(p.pointerId); return true; },
+  onPointerMove: (p) => { const w = ctx.viewport.viewportToWorld(p.x, p.y); },
+  onPointerUp: (p, tc) => tc.release(p.pointerId),
+});
+ctx.tools.activate('acme.measure');
+```
+
+### 其余
+
+- `ctx.settings.register(…)`——**设置 ▸ 插件 ▸ 你的插件**下的一行。
+- `ctx.assets.registerType(…)`——一种新资产类型：扩展名、图块徽章、双击动作，
+  以及一条**新建 ▸ …**菜单项。
+- `ctx.entities.registerTemplate(…)`——创建选择器里的一个现成实体。
+- `ctx.contextMenus.register(…)`——大纲或内容浏览器右键菜单里的一行，可按被点击
+  的对象决定是否出现。
+
+## 编辑场景
+
+一律走 `ctx.scene`。这些写入经过编辑器的命令层，因此会进入撤销历史，并且能扛过
+Play → Stop。绕开它直接改活的引擎，这两点都会失去。
+
+```ts
+ctx.scene.transact('Rename Markers', () => {
+  for (const node of ctx.scene.getSceneTree()) {
+    if (node.name === 'Entity') ctx.scene.renameEntity(node.id, 'Marker');
+  }
+});
+```
+
+一次 `transact` 里的全部改动是**一个**撤销步骤，不管它改了多少东西。
+
+## 出问题的时候
+
+打开**窗口 ▸ 插件**。编辑器找到的每个插件都在列表里——包括坏掉的，并附上原因：
+清单解析失败、编译报错，或 id 被另一个插件占用。你的插件抛出的错误会出现在
+**输出日志**里，带 `plugin:<你的-id>` 标记和堆栈。
+
+如果一个插件反复抛错，编辑器会停用它，而不是让它每帧都弄坏某个界面。修好后点
+**重新加载**。
+
+<Aside type="tip">
+插件自身的耗时会出现在性能分析器的 `plugin.<id>.<什么>` 下，与编辑器自己的工作
+并排——所以慢的覆盖层或命令是看得见的，而不是一团迷雾。
+</Aside>
+
+## 插件放在哪
+
+- **`<项目>/.esengine/plugins/<id>/`**——随项目版本管理，与团队共享。通常放这里。
+- **`<userData>/plugins/<id>/`**——你个人的工具，跨所有项目。同 id 时项目里的那个
+  优先，被遮蔽的那个会说明原因。
+
+## 项目平台配置
+
+`.esengine/platforms/<id>.mjs` 打包配置（见
+[小游戏平台](/zh-cn/guides/minigame-platforms/)）会以完整系统权限被导入编辑器主
+进程。它同样列在插件面板里、同样需要批准——在你批准之前，它对应的目标在打包对话框
+里显示为未就绪。

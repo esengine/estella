@@ -14,6 +14,36 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Added
+
+- **Editor plugins.** Extend the editor with your own TypeScript: commands (with
+  keybindings, palette and menu entries), dock panels, Inspector sections,
+  viewport gizmos and tools, asset types, entity templates, settings, and
+  Outliner/Content-Browser context-menu rows. Plugins live in
+  `.esengine/plugins/<id>/` (or per-user, across projects), need **no build
+  step** — the editor compiles them and re-compiles on save, re-activating the
+  plugin and reopening its panels — and get full typings with nothing to install:
+  the editor writes `@estella/editor-api`'s declarations into the project so they
+  always match the running editor. A plugin registers through the same registries
+  the editor's own features use, so a contributed command *is* a command and a
+  contributed panel *is* a dock panel; scene edits go through the editor's command
+  layer, so they are undoable and survive Play → Stop. Errors are attributed in
+  the Output Log, timed in the profiler, and a repeatedly-failing plugin is
+  disabled rather than allowed to break a surface. See the
+  [Editor Plugins](https://esengine.github.io/estella/guides/editor-plugins/) guide.
+
+### Security
+
+- **Project platform profiles now require approval.** A `.esengine/platforms/*.mjs`
+  packaging profile is imported into the editor's main process with full system
+  access, and used to be loaded with no prompt the moment anything asked what
+  platforms a project could package for — while the *less* privileged renderer
+  plugins were gated. Both now pass one trust prompt and appear in one list
+  (Window ▸ Plugins). An unapproved profile is not imported at all, and says so in
+  the Package dialog instead of showing an unexplained not-ready target. The file
+  format is unchanged; existing projects need no migration, only a one-time
+  approval.
+
 ## [0.33.0] - 2026-07-26
 
 Shipping. Two targets stopped being foundations and became things you can
