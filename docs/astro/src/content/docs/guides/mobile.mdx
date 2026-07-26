@@ -15,20 +15,20 @@ not a wrapper around the web build — there is no browser in the process.
 The authoring model is identical to every other target. The same scenes, the same
 components, the same TypeScript. Nothing in a project is mobile-specific.
 
-<Aside type="caution" title="Pre-1.0 — needs an engine checkout">
-  Unlike Web / Desktop / WeChat / Playable, the mobile targets are **not
-  self-contained in the editor download**. Assembling the installable app needs
-  the native host built once from an engine source checkout, plus the platform's
-  own toolchain (see [Prerequisites](#prerequisites)). The editor still exports
-  the app's *content* from any install — that half never needs a toolchain.
+<Aside type="note" title="One download per editor version">
+  The engine's compiled half is not in the editor download — it is a **runtime
+  template** you install once per editor version (see
+  [Prerequisites](#prerequisites)), because most projects never ship to a phone and
+  it is tens of megabytes. With one installed, packaging needs no engine sources
+  and no Android SDK; iOS additionally needs Xcode, which only Apple can supply.
 </Aside>
 
 ## Two platforms, one runtime
 
 Android and iOS are offered as **two targets, not one "Mobile"**, because they
-package through entirely different toolchains (Android SDK + NDK vs. Xcode) — one
-row could not tell you what to run, whether this machine can run it, or where the
-package comes out.
+are assembled into entirely different things — a signed `.apk` here, an Xcode
+project there — and only one of them can be finished on any OS. One row could not
+tell you whether this machine can finish the job, or what comes out.
 
 They do share **one runtime and one export payload**. The engine, the SDK and the
 game runtime all live in the app binary, so what an export writes is app
@@ -39,7 +39,7 @@ package the way `dist-web/` is.
 |---|---|---|
 | Graphics | Vulkan (via Dawn) | Metal (via Dawn) |
 | Export output | `dist-android/` | `dist-ios/` |
-| Assembled by | `aapt2` + `apksigner` (Android SDK/NDK) | Xcode |
+| Assembled by | the editor (no Android SDK) | the editor, then Xcode |
 | Assembly host OS | any desktop OS | **macOS only** |
 | Result | a signed `.apk` | an Xcode project you open, sign and run |
 
@@ -54,10 +54,6 @@ are not the same severity:
   content; only the final assembly needs the toolchain, and **that step can run on
   another machine** — an iOS build always does when the editor is on Windows.
 
-![The Package Project dialog with the Android target selected, warning that the Android SDK was not found](../../../assets/guides/en/build-mobile.png)
-
-*Package Project → **MOBILE → Android**. The warning names the missing piece and says exactly how much it blocks: the content is written either way.*
-
 <Steps>
 
 1. **Get the runtime for your target.**
@@ -67,14 +63,11 @@ are not the same severity:
      against the editor's version (the SDK is compiled into the app binary), so it
      is one install per editor upgrade — and none of the engine's own build
      dependencies come with it.
-   - *Android* — the host is still built from the engine sources for now. Dawn and
-     QuickJS are multi-GB / separate projects, so they are fetched rather than
-     vendored; the one-time recipe is in
-     [`native/README.md`](https://github.com/esengine/estella/blob/master/native/README.md).
+   - *Android* — the same, with its own template. Nothing else: the APK is
+     compiled, aligned and signed by the editor, on whatever OS it is running on.
 
-2. **Install the platform toolchain.**
-   - *Android* — Android SDK + **NDK r28**. The editor finds it via `ANDROID_HOME`
-     or Android Studio's default install location.
+2. **Install the platform toolchain — iOS only.**
+   - *Android* — none. There is no Android SDK, NDK or JDK in this path.
    - *iOS* — **macOS with Xcode**, and nothing else: no CMake, no Ninja, no
      xcodegen, no Dawn checkout. Apple ships no toolchain for other operating
      systems, so the dialog says so rather than pretending otherwise — but the
@@ -99,17 +92,17 @@ are not the same severity:
 
 </Steps>
 
-**On iOS that is the whole export**: with the runtime template installed, the
-output folder *is* an Xcode project — the `.xcframework`, the app shell and a
-generated `.pbxproj` are written around your content. Open it, pick your signing
-team under *Signing & Capabilities*, and Run.
+**That is the whole export.** With the runtime template installed, the output
+folder holds the finished app:
 
-Android is assembled by one more command:
-
-```bash
-# writes a signed APK (debug keystore unless --keystore says otherwise)
-node build-tools/cli.js native --package --content dist-android
-```
+- **Android** — a signed `.apk`, ready for `adb install -r` or a copy to the
+  device. It is signed with a development key the editor generates on first use
+  (the same standing as Android Studio's debug key: fine for a device, refused by
+  every store). To sign with your own, pass `--key`/`--cert` to
+  `node build-tools/cli.js native --package --content dist-android`.
+- **iOS** — an Xcode project: the `.xcframework`, the app shell and a generated
+  `.pbxproj`, written around your content. Open it, pick your signing team under
+  *Signing & Capabilities*, and Run.
 
 <Aside type="tip" title="Why the export can do this without a compiler">
   The app's compiled half carries no project data — every game ships the same

@@ -16,6 +16,19 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **Android: Package Project hands back a signed APK, with no Android SDK.** With
+  the Android runtime template installed, the editor compiles the manifest to
+  binary XML, writes the aligned zip and signs it with **APK Signature Scheme v2**
+  — so packaging needs no aapt2, no zipalign, no apksigner and no JDK, on whatever
+  OS the editor is running on. Signing uses a development key generated on first
+  use (an RSA key and a self-signed certificate in PEM, inspectable with
+  `openssl`); `--key`/`--cert` sign with your own. Native libraries now ship
+  **uncompressed and 16 KiB-aligned** (`extractNativeLibs=false`), which the OS
+  maps straight out of the package — a smaller install, and the posture Android
+  15's page size wants. Each of the three formats is verified against an
+  implementation that is not ours: the signature by a from-spec Python verifier,
+  the manifest by androguard and its resource ids by AOSP's own table, the archive
+  by a real `unzip`.
 - **iOS runtime templates — shipping to a phone no longer needs the engine
   sources.** A native app's compiled half (the engine, Dawn, QuickJS, the linked-in
   Box2D / Spine / video runtimes) carries no project data, so it is now built once

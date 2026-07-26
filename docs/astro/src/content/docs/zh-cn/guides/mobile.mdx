@@ -14,17 +14,17 @@ Android 上是 **Vulkan**),游戏脚本跑在内嵌的 JS 引擎
 创作模型和其他任何目标完全一致。同样的场景、同样的组件、同样的 TypeScript。
 项目里没有任何东西是"移动端专用"的。
 
-<Aside type="caution" title="Pre-1.0——需要引擎源码检出">
-  和 Web / 桌面 / 微信 / Playable 不同,移动目标**并不是编辑器下载包里自带齐全的**。
-  组装可安装的应用需要先从引擎源码检出把原生宿主构建一次,再加上该平台自己的工具链
-  (见[前置条件](#前置条件))。编辑器在任何安装下都仍然能导出应用的*内容*——那一半从来不需要工具链。
+<Aside type="note" title="每个编辑器版本装一次">
+  引擎被编译的那一半不在编辑器下载包里,而是一份**运行时模板**,每个编辑器版本装一次
+  (见[前置条件](#前置条件))——因为绝大多数项目从不发到手机上,而它有几十 MB。
+  装好之后,打包既不需要引擎源码,也不需要 Android SDK;iOS 另需 Xcode,那只有 Apple 能提供。
 </Aside>
 
 ## 两个平台,一套运行时
 
-Android 和 iOS 是**两个目标而不是一个"Mobile"**,因为它们经由完全不同的工具链打包
-(Android SDK + NDK 对 Xcode)——一行说不清该运行什么、这台机器能不能运行、
-以及包会出在哪里。
+Android 和 iOS 是**两个目标而不是一个"Mobile"**,因为它们被组装成的东西完全不同——
+这边是已签名的 `.apk`,那边是 Xcode 工程——而且只有其中一个能在任意系统上收尾。
+一行说不清这台机器能不能把活干完,也说不清出来的是什么。
 
 它们确实共享**同一套运行时和同一份导出载荷**。引擎、SDK 和游戏运行时都住在应用二进制里,
 所以导出写出的是应用**内容**——你的场景、脚本和烘焙后的资产——而不是像 `dist-web/`
@@ -34,7 +34,7 @@ Android 和 iOS 是**两个目标而不是一个"Mobile"**,因为它们经由完
 |---|---|---|
 | 图形 | Vulkan(经 Dawn) | Metal(经 Dawn) |
 | 导出产物 | `dist-android/` | `dist-ios/` |
-| 组装工具 | `aapt2` + `apksigner`(Android SDK/NDK) | Xcode |
+| 组装方 | 编辑器(不需要 Android SDK) | 编辑器,然后 Xcode |
 | 组装所需系统 | 任意桌面系统 | **仅 macOS** |
 | 结果 | 一个已签名的 `.apk` | 一个可打开、签名并运行的 Xcode 工程 |
 
@@ -46,10 +46,6 @@ Android 和 iOS 是**两个目标而不是一个"Mobile"**,因为它们经由完
 - 缺**原生工具链**则不然。导出照样把应用内容写出来;只有最后的组装步骤需要工具链,
   而**那一步可以在另一台机器上跑**——编辑器在 Windows 上时,iOS 构建本来就得如此。
 
-![打包项目对话框选中 Android 目标,提示未找到 Android SDK](../../../../assets/guides/zh/build-mobile.png)
-
-*打包项目 → **移动 → Android**。警告会点名缺的是哪一块,并说清它到底挡住了多少:内容无论如何都会写出来。*
-
 <Steps>
 
 1. **拿到该目标的运行时。**
@@ -57,13 +53,11 @@ Android 和 iOS 是**两个目标而不是一个"Mobile"**,因为它们经由完
      iOS 那一行提供*从文件安装…*,指向本版本发布页里的归档即可。它与编辑器版本
      **精确匹配**(SDK 是编译进应用二进制的),所以每次升级编辑器装一次——引擎自己
      那一堆构建依赖一样都不用装。
-   - *Android* —— 宿主目前仍需从引擎源码构建。Dawn 和 QuickJS 体量数 GB、又是独立项目,
-     所以是按需拉取而不是 vendored 进来;一次性的构建配方见
-     [`native/README.md`](https://github.com/esengine/estella/blob/master/native/README.md)。
+   - *Android* —— 同理,装它自己的模板。此外别无所需:APK 的编译、对齐与签名都由编辑器
+     在它所运行的任何操作系统上完成。
 
-2. **装好平台工具链。**
-   - *Android* —— Android SDK + **NDK r28**。编辑器通过 `ANDROID_HOME` 或
-     Android Studio 的默认安装位置找到它。
+2. **装好平台工具链——只有 iOS 需要。**
+   - *Android* —— 不需要。这条路径上没有 Android SDK、NDK 或 JDK。
    - *iOS* —— **装有 Xcode 的 macOS**,仅此而已:不需要 CMake、Ninja、xcodegen,
      也不需要 Dawn 源码。Apple 不为其他操作系统提供工具链,所以对话框直说,而不是
      假装可以——但导出照样会写出一份完整的工程,你可以拷到 Mac 上打开。
@@ -85,16 +79,14 @@ Android 和 iOS 是**两个目标而不是一个"Mobile"**,因为它们经由完
 
 </Steps>
 
-**iOS 到这一步就完事了**:装好运行时模板后,输出目录本身*就是*一个 Xcode 工程——
-`.xcframework`、应用外壳和生成好的 `.pbxproj` 都已围绕你的内容写出。打开它,在
-*Signing & Capabilities* 下选好签名 Team,Run。
+**导出到这一步就完事了。** 装好运行时模板后,输出目录里放的就是成品应用:
 
-Android 还需要再跑一条命令来组装:
-
-```bash
-# 写出已签名的 APK(未用 --keystore 指定时用 debug keystore)
-node build-tools/cli.js native --package --content dist-android
-```
+- **Android** —— 一个已签名的 `.apk`,可直接 `adb install -r` 或拷到设备上。它由编辑器
+  首次使用时生成的开发密钥签名(与 Android Studio 的 debug key 同等地位:装设备够用,
+  任何应用商店都不收)。要用你自己的密钥,给
+  `node build-tools/cli.js native --package --content dist-android` 传 `--key`/`--cert`。
+- **iOS** —— 一个 Xcode 工程:`.xcframework`、应用外壳和生成好的 `.pbxproj` 都已围绕你的
+  内容写出。打开它,在 *Signing & Capabilities* 下选好签名 Team,Run。
 
 <Aside type="tip" title="导出为什么能不带编译器就做到这些">
   应用被编译的那一半不含任何项目数据——每个游戏装的都是同一份引擎二进制,而导出只有内容。

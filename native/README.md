@@ -152,23 +152,10 @@ drift from its source):
 Paths may also come from `ESTELLA_DAWN_DIR` / `ESTELLA_DAWN_BUILD` /
 `ESTELLA_QUICKJS_DIR`. Output: `build-native/libestella_js_host.so`.
 
-**Package a signed APK** by adding `--package` — the Android counterpart of what
-Xcode does for `native/ios`, and still no gradle (a NativeActivity has no Java):
-
-```sh
-node build-tools/cli.js native --dawn "$DAWN" --dawn-build "$DAWN/out-android" \
-  --quickjs "$QJS" --package --content dist-android
-adb install -r build-native/estella-js-host.apk
-```
-
-It runs `aapt2 link` over `native/android/host/AndroidManifest.xml` to produce the
-base APK from the manifest, then adds the payload with `jar`:
-`lib/arm64-v8a/{libestella*_host.so,libwebgpu_dawn.so,libc++_shared.so}` (Dawn
-stripped with the NDK's `llvm-strip`) and the exported project under `assets/`,
-where the host's `readAsset()` looks. Then `zipalign -f 4` and `apksigner sign`.
-Signing uses the Android debug keystore — created on first use — unless you pass
-`--keystore`. The JDK those steps need is located the way the SDK and NDK are
-(`JAVA_HOME`, or the one Android Studio bundles); `--jdk <dir>` overrides.
+The build emits this machine's Android runtime template on the way out (the
+`.so` payload, the Java shim's `classes.dex`, the SDK bytecode and the manifest
+template); packaging a game then reads that template and needs none of the tools
+above. See *Shipping a project*.
 
 ## Build (iOS arm64)
 
@@ -233,23 +220,34 @@ the game runtime all ship inside the app binary. Both platforms write the SAME
 payload; what differs is the toolchain that wraps it, which is why they are two
 rows in the dialog rather than one "mobile".
 
-**iOS needs nothing else.** With the runtime template installed, the export
-directory *becomes* an Xcode project — the xcframework, the app shell and a
-generated `.pbxproj` are written around the content, so it is open-and-Run. The
-CLI does the same from a content dir someone sent you:
+**Neither target needs a toolchain to package.** With the runtime template
+installed, the export finishes the job: Android gets a signed APK, iOS an Xcode
+project (the xcframework, the app shell and a generated `.pbxproj` written around
+the content, open-and-Run). The CLI does the same from a content dir someone sent
+you — no Android SDK, no JDK, no Xcode for the Android one:
 
 ```sh
+node build-tools/cli.js native --package --content dist-android
 node build-tools/cli.js native --target ios --package --content dist-ios
 ```
 
-**Android** still assembles through the SDK's tools on a machine that has them
-(the editor-side assembler is next — see `docs/REARCH_NATIVE_DISTRIBUTION.md`):
+An APK is a compiled manifest, four kinds of file in a zip, and a signature, so
+all three formats are written directly (`build-tools/utils/{androidBinaryXml,zip,apk}.js`):
 
-```sh
-# it becomes the APK's assets/
-node build-tools/cli.js native --dawn "$DAWN" --dawn-build "$DAWN/out-android" \
-  --quickjs "$QJS" --package --content dist-android
-```
+* **AndroidManifest.xml** is compiled to binary XML here. The platform resolves a
+  framework attribute by its RESOURCE ID rather than its name — a wrong id is
+  ignored, not rejected — so the ids are pinned against AOSP's `public.xml` by a
+  test rather than trusted.
+* **Native libraries are stored, 16 KiB-aligned**, with `extractNativeLibs=false`:
+  the OS maps them out of the package, which halves the install and is the posture
+  Android 15's page size wants.
+* **Signing is APK Signature Scheme v2** (minSdk 26 is well past the API 24 that
+  introduced it, so v1's PKCS#7 would be dead weight), with an RSA key and a
+  self-signed certificate in PEM under `<data>/android-keys`, generated on first
+  use. `--key`/`--cert` sign with your own. A second, independent implementation
+  of the scheme (`build-tools/tests/verify-apk.py`, Python stdlib only) verifies
+  what we write, because checking our own signature with our own code proves
+  nothing.
 
 An export for a native target writes a second file beside the content:
 `app.config.json` — the app's **identity**, as opposed to what the runtime needs
