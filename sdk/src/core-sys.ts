@@ -232,6 +232,12 @@ export {
 } from './playableRuntime';
 
 export {
+    playableCta,
+    hasPlayableCta,
+    type PlayableAdBridge,
+} from './playableCta';
+
+export {
     initPlayRealmRuntime,
     type PlayRealmRuntimeConfig,
 } from './playRealmRuntime';
