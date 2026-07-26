@@ -16,18 +16,46 @@ published separately; it ships inside the editor.
 
 ## [0.33.0] - 2026-07-26
 
-Shipping to ad networks. 0.32 extended where an Estella game runs; this release
-makes the **playable** target something you can actually upload. Every network
-disagrees on three things — how big the file may be, what must sit in `<head>`,
-and which function sends the player to the store — so those three are now a
-per-network **profile**, and the networks the editor ships are written against the
-same contract a project uses to add one we don't. The rest came out of packaging
-all 41 examples for web and playable and booting every single one, which is how
-the bugs below were found rather than shipped. No project/asset format or WASM ABI
-break.
+Shipping. Two targets stopped being foundations and became things you can
+actually upload: 0.32's native mobile host became **Android** and **iOS** rows in
+the Package dialog with no subsystem left un-ported, and the **playable** target
+grew per-network profiles. Every ad network disagrees on three things — how big
+the file may be, what must sit in `<head>`, and which function sends the player to
+the store — so those three are now a per-network **profile**, and the networks the
+editor ships are written against the same contract a project uses to add one we
+don't. The rest came out of packaging all 41 examples for web and playable and
+booting every single one, which is how the bugs below were found rather than
+shipped. No project/asset format or WASM ABI break.
 
 ### Added
 
+- **Android and iOS package from the editor.** 0.32 shipped the native platform
+  seam; this release makes it a target you pick. Two rows, not one "Mobile": they
+  package through different toolchains (aapt2 + apksigner vs Xcode), so a single
+  row could not say what to run, whether this machine can run it, or where the
+  package comes out. The export writes app **content** (the engine, SDK and game
+  runtime live in the app binary) plus an `app.config.json` carrying the identity
+  the OS needs; `cli native --package` assembles it, and an iOS export writes the
+  **Xcode project** itself when the engine is built for iOS on that machine.
+  A missing native toolchain is reported as a *different severity* from a missing
+  engine runtime — the content is written either way, and assembly can run on
+  another machine.
+- **Every subsystem now runs on a device.** Physics, Spine, video, text (OS-font
+  glyph rasterization), materials and `.esshader`, KTX2 with mip chains, audio
+  (miniaudio), the platform soft keyboard, HTTP over the OS stack, app lifecycle
+  and memory warnings. The three that ship as WebAssembly side modules on the web
+  are compiled into the host binary instead, and `app.sideModules` still answers
+  for them, so the runtime's feature gating is unchanged. The export names any
+  subsystem a target cannot render, with the scenes that use it, rather than
+  quietly shipping half a scene — no target currently has a gap.
+- **`alwaysInclude` asset groups.** A build ships what it can *reach* from the
+  entry scenes, which is blind to anything only code names: a texture in rich-text
+  markup, a clip played by url, a prefab spawned by path. Those were culled, and
+  the first anyone heard of it was on a device, because the editor serves the
+  project straight off disk. A folder can now say `alwaysInclude`
+  (**Content Browser → right-click → Delivery**), in the same `asset-groups.json`
+  that already decides local / subpackage / remote. Off by default: reachability
+  is what keeps a build from shipping everything.
 - **Playable ad networks.** A network is a `PlayableAdProfile` — data plus two
   emit hooks — chosen in **Package Project → Playable → Ad network**, where the
   other per-build decisions already live (shipping the same game to several
@@ -94,6 +122,20 @@ break.
   `build` separately, so published releases were intact.)
 - A playable ad network created from the dialog is selectable immediately instead
   of only after reopening it, and stays findable afterwards.
+
+### Performance
+
+- **Fresh-install-to-first-frame on a device: 14.4s → 0.6s.** QuickJS is an
+  interpreter and parsing the SDK bundle costs about fourteen seconds; the host
+  cached that compile, but a cache does not exist until one launch has paid for it
+  — and that launch is the one right after an install. The bytecode is now built
+  with the app and rides along in its assets, each source carrying a hash of the
+  bundle it came from so a stale one is skipped rather than trusted. Best effort:
+  a build machine without a compiler still produces a working app.
+- **Physics on a device solves across worker threads**, syncs transforms in bulk
+  and interpolates in the module, and recomputes parented membership with the
+  reconcile rather than per step. Android is told the frame loop has a deadline
+  (ADPF).
 
 ## [0.32.0] - 2026-07-23
 
