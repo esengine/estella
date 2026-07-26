@@ -30,6 +30,7 @@ import { spawnUIEntity } from '../core/compose';
 import { px } from '../core/dimension';
 import { getUINodeWidth, getUINodeHeight } from '../util/helpers';
 import { Assets } from '../../asset/AssetPlugin';
+import { log } from '../../logger';
 import type { Assets as AssetsApi } from '../../asset/Assets';
 
 const WHITE = { r: 1, g: 1, b: 1, a: 1 };
@@ -70,7 +71,13 @@ export class InlineImagePlugin implements Plugin {
                 const assets = app.getResource(Assets) as AssetsApi;
                 assets.loadTexture(src)
                     .then((r) => textureOf.set(src, r.handle))
-                    .catch(() => textureOf.set(src, 0));
+                    .catch((err: unknown) => {
+                        // Cached as failed so it is attempted once — and SAID once:
+                        // an image the build culled (nothing but this markup names
+                        // it) otherwise just silently is not there.
+                        textureOf.set(src, 0);
+                        log.warn('ui', `inline image failed to load: ${src}`, err);
+                    });
             }
             return null;
         };
