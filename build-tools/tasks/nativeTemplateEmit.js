@@ -1,0 +1,160 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+//
+// Emitting a runtime template — the ONLY step that knows about build trees.
+//
+// Everything downstream (the editor's iOS project, the APK assembler) reads a
+// template and never a build directory, so the toolchain that produced these
+// binaries has to exist on exactly one machine: this one. Shipping the result is
+// what frees a user from cloning the engine, building Dawn and installing an NDK
+// to put a game on a phone.
+
+import path from 'path';
+import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { mkdir, rm, cp, readdir } from 'fs/promises';
+import config from '../build.config.js';
+import * as logger from '../utils/logger.js';
+import { runCommand } from '../utils/emscripten.js';
+import { buildTool, platformJar, ndkTool, ndkLibcxxShared, jdkTool } from '../utils/android.js';
+import { makeZip, zipTree } from '../utils/zip.js';
+import {
+    templateLayout, templateId, DEFAULT_ABI, writeTemplateManifest, missingTemplateFiles,
+    installedTemplateDir, templateZipName,
+} from '../utils/nativeTemplate.js';
+
+/** The Java shim's sources — the IME's own side of an editable field, which has to
+ *  be Java because only a Java View gets an InputConnection to compose into. */
+const JAVA_DIR = path.join('native', 'android', 'java');
+
+/** The NDK triple an ABI's sysroot lives under. */
+const ABI_TRIPLE = {
+    'arm64-v8a': 'aarch64-linux-android',
+    'x86_64': 'x86_64-linux-android',
+};
+
+/**
+ * The version a template is stamped with — `desktop/package.json`, which is also
+ * what `app.getVersion()` reports in the editor. The two must be the same number:
+ * matching them is how the editor refuses a template built for another release.
+ */
+export function readEngineVersion(root = config.paths.root) {
+    return JSON.parse(readFileSync(path.join(root, 'desktop', 'package.json'), 'utf8')).version;
+}
+
+/**
+ * Compile the Java shim to a `classes.dex` in @p outDir. javac + d8 come from the
+ * JDK and the build-tools this machine already needed to produce the binaries, so
+ * the template carries the dex and no user needs a JDK to package.
+ *
+ * @returns Whether a dex was produced — false leaves an app whose host reports no
+ *          editing surface, rather than one that cannot be built at all.
+ */
+export async function compileJavaShim(outDir, { sdk, androidPlatform, jdk, root }) {
+    const sourceDir = path.join(root, JAVA_DIR);
+    if (!existsSync(sourceDir)) return false;
+    const sources = (await readdir(sourceDir, { recursive: true }))
+        .filter((f) => String(f).endsWith('.java'))
+        .map((f) => path.join(sourceDir, String(f)));
+    if (sources.length === 0) return false;
+
+    const classes = path.join(outDir, 'classes');
+    await mkdir(classes, { recursive: true });
+    // Java 8 bytecode: d8 accepts it everywhere, and the shim uses nothing newer.
+    await runCommand(jdkTool('javac', jdk), [
+        // The sources are UTF-8; javac otherwise reads them in the platform's
+        // default charset, which on a Windows build machine is not.
+        '-encoding', 'UTF-8', '-source', '8', '-target', '8', '-nowarn',
+        '-bootclasspath', platformJar(sdk, androidPlatform),
+        '-d', classes, ...sources,
+    ]);
+    const classFiles = (await readdir(classes, { recursive: true }))
+        .filter((f) => String(f).endsWith('.class'))
+        .map((f) => path.join(classes, String(f)));
+    await runCommand(buildTool(sdk, 'd8'), ['--lib', platformJar(sdk, androidPlatform), '--output', outDir, ...classFiles]);
+    await rm(classes, { recursive: true, force: true });
+    return existsSync(path.join(outDir, 'classes.dex'));
+}
+
+/**
+ * Pack a finished native build into a runtime template.
+ *
+ * @param {object} options
+ * @param {'android'|'ios'} options.platform
+ * @param {string}  [options.abi]
+ * @param {string}  [options.dawnBuild]   Android: the Dawn build whose .so ships.
+ * @param {string}  [options.ndk]         Android: for llvm-strip and libc++_shared.
+ * @param {string}  [options.sdk]         Android: for d8 (the Java shim).
+ * @param {string}  [options.outDir]      Defaults to this machine's template store.
+ * @param {string}  [options.zipTo]       Also write the distributable archive here.
+ * @returns {Promise<{dir: string, manifest: object, zip: string|null}>}
+ */
+export async function emitNativeTemplate(options) {
+    const root = options.root || config.paths.root;
+    const platform = options.platform;
+    const abi = options.abi || DEFAULT_ABI[platform];
+    const engineVersion = readEngineVersion(root);
+    const dir = options.outDir || installedTemplateDir(engineVersion, platform, abi);
+
+    const ctx = {
+        root,
+        dawnBuild: options.dawnBuild,
+        libcxxShared: platform === 'android' && options.ndk
+            ? ndkLibcxxShared(options.ndk, ABI_TRIPLE[abi] || ABI_TRIPLE['arm64-v8a'])
+            : null,
+    };
+
+    // Rewritten wholesale: a template that inherited one file from the previous
+    // release is the exact failure the version stamp exists to prevent.
+    await rm(dir, { recursive: true, force: true });
+    await mkdir(dir, { recursive: true });
+
+    for (const entry of templateLayout(platform, { abi })) {
+        if (entry.produced) continue;
+        const src = entry.from(ctx);
+        const dest = path.join(dir, entry.rel);
+        if (!src || !existsSync(src)) {
+            if (entry.optional) {
+                logger.warn(`Template omits ${entry.rel} (not built): ${src ?? 'no source'}`);
+                continue;
+            }
+            throw new Error(`Cannot emit the ${platform} template: ${entry.rel} is missing at ${src ?? '<unset>'}.`);
+        }
+        await mkdir(path.dirname(dest), { recursive: true });
+        if (entry.strip) {
+            await runCommand(ndkTool(options.ndk, 'llvm-strip'), ['--strip-all', '-o', dest, src]);
+        } else {
+            await cp(src, dest, { recursive: entry.kind === 'dir' });
+        }
+    }
+
+    if (platform === 'android') {
+        if (!await compileJavaShim(dir, { sdk: options.sdk, androidPlatform: options.androidPlatform, jdk: options.jdk, root })) {
+            throw new Error('Cannot emit the android template: the Java shim produced no classes.dex '
+                + '(the packaged app would have no soft keyboard).');
+        }
+    }
+
+    const manifest = writeTemplateManifest(dir, {
+        platform,
+        abi,
+        engineVersion,
+        spineVersion: options.spineVersion || '4.2',
+        ...(platform === 'ios' ? { deploymentTarget: options.deploymentTarget || '17.0' } : {}),
+        ...(platform === 'android' ? { androidPlatform: options.androidPlatform || 'android-33' } : {}),
+    });
+
+    const missing = missingTemplateFiles(dir, platform, { abi });
+    if (missing.length) throw new Error(`Emitted template is incomplete: ${missing.join(', ')}`);
+
+    logger.success(`Runtime template: ${dir}`);
+
+    let zip = null;
+    if (options.zipTo) {
+        await mkdir(options.zipTo, { recursive: true });
+        zip = path.join(options.zipTo, templateZipName(platform, abi, engineVersion));
+        writeFileSync(zip, makeZip(zipTree(dir)));
+        logger.success(`Template archive: ${zip} (${(readFileSync(zip).length / 1048576).toFixed(1)} MB)`);
+    }
+    logger.info(`The editor picks it up as ${templateId(platform, abi)} for v${engineVersion}.`);
+    return { dir, manifest, zip };
+}

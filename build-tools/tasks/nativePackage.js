@@ -8,29 +8,19 @@
 
 import path from 'path';
 import { existsSync, readFileSync } from 'fs';
-import { mkdir, copyFile, cp, rm, writeFile, readdir } from 'fs/promises';
+import { mkdir, copyFile, cp, rm, writeFile } from 'fs/promises';
 import config from '../build.config.js';
 import * as logger from '../utils/logger.js';
 import { runCommand } from '../utils/emscripten.js';
 import { requireSdk, requireNdk, buildTool, platformJar, ndkTool, ndkLibcxxShared, javaHome, jdkTool } from '../utils/android.js';
 import { readAppConfig, androidScreenOrientation, fillTemplate } from '../utils/nativeApp.js';
+import { BYTECODE_FILE } from '../utils/nativeTemplate.js';
+import { compileJavaShim } from './nativeTemplateEmit.js';
 
 
 const HOST_LIBRARY = 'libestella_js_host.so';
 
-/**
- * The shipped bytecode's filename. NOT `.bc`: that is LLVM bitcode's extension, and
- * aapt2 treats a `.bc` asset as RenderScript output — which silently drops the APK's
- * native-code declaration, so the package installs nowhere. Cost a long hunt; the
- * only symptom is INSTALL_FAILED_NO_MATCHING_ABIS on a device whose ABI matches.
- */
-export const BYTECODE_FILE = 'esengine.native.qjsbc';
 const MANIFEST_TEMPLATE = path.join('native', 'android', 'host', 'AndroidManifest.xml.in');
-
-/** The Java shim's sources — the IME's own side of an editable field, which has
- *  to be Java because only a Java View gets an InputConnection to compose into
- *  (see native/android/java/.../TextEditor.java). */
-const JAVA_DIR = path.join('native', 'android', 'java');
 
 /** The APK is named after the app it contains, so packaging a second project does
  *  not quietly replace the first one's file. */
@@ -60,41 +50,6 @@ async function debugKeystore(jdk) {
 // a zip entry name must use forward slashes — so AAssetManager could not open
 // anything in a subdirectory. Invisible while the packaged content was a handful
 // of flat files; every real project export has directories.
-/**
- * Compile the Java shim to a classes.dex in `staging`. javac + d8 are already
- * beside the tools packaging uses (the JDK apksigner needs, the build-tools aapt2
- * comes from), so this stays a plain APK build with no Gradle. Returns false when
- * there is nothing to compile, which leaves an APK whose host reports no editing
- * surface rather than one that fails to build.
- */
-async function compileJavaShim(staging, sdk, platform, jdk, rootDir) {
-    const sourceDir = path.join(rootDir, JAVA_DIR);
-    if (!existsSync(sourceDir)) return false;
-    const sources = (await readdir(sourceDir, { recursive: true }))
-        .filter((f) => String(f).endsWith('.java'))
-        .map((f) => path.join(sourceDir, String(f)));
-    if (sources.length === 0) return false;
-
-    const classes = path.join(staging, 'classes');
-    await mkdir(classes, { recursive: true });
-    // Java 8 bytecode: d8 accepts it everywhere, and the shim uses nothing newer.
-    await runCommand(jdkTool('javac', jdk), [
-        // The sources are UTF-8; javac otherwise reads them in the platform's
-        // default charset, which on a Windows build machine is not.
-        '-encoding', 'UTF-8', '-source', '8', '-target', '8', '-nowarn',
-        '-bootclasspath', platformJar(sdk, platform),
-        '-d', classes, ...sources,
-    ]);
-    const classFiles = (await readdir(classes, { recursive: true }))
-        .filter((f) => String(f).endsWith('.class'))
-        .map((f) => path.join(classes, String(f)));
-    await runCommand(buildTool(sdk, 'd8'), [
-        '--lib', platformJar(sdk, platform),
-        '--output', staging, ...classFiles,
-    ]);
-    return existsSync(path.join(staging, 'classes.dex'));
-}
-
 async function addToApk(apk, stagingDir, entries, jdk) {
     await runCommand(jdkTool('jar', jdk), ['ufM', apk, ...entries.flatMap((e) => ['-C', stagingDir, e])]);
 }
@@ -168,7 +123,9 @@ export async function packageNativeApk(options = {}) {
     // OS must lock the window to. The manifest is a template because all four vary
     // per project — a static one is why every example installed over the last.
     logger.step('Compiling the Java shim (javac + d8)...');
-    const hasDex = await compileJavaShim(staging, sdk, platform, options.jdk, rootDir);
+    const hasDex = await compileJavaShim(staging, {
+        sdk, androidPlatform: platform, jdk: options.jdk, root: rootDir,
+    });
     if (!hasDex) logger.warn('No classes.dex: the app will have no soft keyboard (typing is off).');
 
     const app = readAppConfig(content, (m) => logger.warn(m));
