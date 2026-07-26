@@ -25,6 +25,7 @@ import type { OnExportProgress } from './exportProgress';
 import { esengineAlias } from './esengineResolve';
 import { orientationCss, orientationOverlayHtml, orientationLockScript, type ScreenOrientation } from './orientationHtml';
 import { genericPlayableProfile, playableAdInjection, type PlayableAdProfile } from './playableAdProfile';
+import { makeZip } from './zipWriter';
 import {
   sceneUsesPhysics, detectSpineVersion, detectSpineVersionJson,
   spineModuleId, SIDE_MODULE_FILE, type SpineVersion,
@@ -35,8 +36,13 @@ export interface ExportPlayableResult {
   platform: 'playable';
   outDir: string;
   included: number;
-  /** Final index.html size in bytes (for ad-network size limits). */
+  /** Size of the file that gets UPLOADED, which the network's limit applies to: the
+   *  archive for a zip-delivery network, else index.html itself. */
   bytes: number;
+  /** index.html on its own — the same as {@link bytes} unless a zip was written. */
+  htmlBytes: number;
+  /** The archive written for a zip-delivery network (absolute path). */
+  zipFile?: string;
   warnings: string[];
   errors: string[];
 }
@@ -306,7 +312,21 @@ export async function exportPlayable(opts: {
   await writeFile(outFile, indexHtml(title, globals, bundle, orientation, network));
   await rm(cookDir, { recursive: true, force: true });
 
-  const bytes = (await stat(outFile)).size;
+  const htmlBytes = (await stat(outFile)).size;
+
+  // A network that uploads an archive gets one, with index.html at the root. The HTML
+  // stays beside it: it is what "Preview over http" serves, and what a developer opens
+  // to look at the thing.
+  let zipFile: string | undefined;
+  let bytes = htmlBytes;
+  if (adProfile.delivery === 'zip') {
+    progress({ phase: 'Archiving' });
+    zipFile = path.join(absOut, 'playable.zip');
+    await writeFile(zipFile, makeZip([{ name: 'index.html', data: await readFile(outFile) }]));
+    // The archive is the file being sent, so it is the one the limit applies to.
+    bytes = (await stat(zipFile)).size;
+  }
+
   // A full WASM engine + assets routinely exceeds what a network accepts, and each
   // network caps differently — say which cap and where it comes from, so this reads
   // as a fact to check rather than a number to trust.
@@ -317,5 +337,8 @@ export async function exportPlayable(opts: {
   }
   if (adProfile.deliveryNote) warnings.push(adProfile.deliveryNote);
 
-  return { ok: errors.length === 0, platform: 'playable', outDir: absOut, included: cook.included.length, bytes, warnings, errors };
+  return {
+    ok: errors.length === 0, platform: 'playable', outDir: absOut,
+    included: cook.included.length, bytes, htmlBytes, zipFile, warnings, errors,
+  };
 }

@@ -126,6 +126,10 @@ export const projectMessages = defineMessages({
         en: 'Open {out}/ in WeChat DevTools, then set your appid in project.config.json.',
         zh: '在微信开发者工具中打开 {out}/，然后在 project.config.json 中设置 appid。',
     },
+    'build.next.playableZip': {
+        en: 'Upload playable.zip (this network takes an archive). Preview over http below — its real surface is an ad-network iframe.',
+        zh: '上传 playable.zip(该平台收的是归档包)。可在下方通过 http 预览——它的真实宿主是广告平台的 iframe。',
+    },
     'build.next.playable': {
         en: 'Preview over http below (its real surface is an ad-network iframe). Note: a full engine usually exceeds ad-network size limits.',
         zh: '在下方通过 http 预览（其真实运行环境是广告网络的 iframe）。注意：完整引擎通常会超出广告网络的体积限制。',

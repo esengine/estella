@@ -332,7 +332,8 @@ describe('playable ad networks', () => {
       .toContain('<script src="https://tpc.googlesyndication.com/pagead/gadgets/html5/api/exitapi.js"></script>');
     expect(google.emitHead!({ title: 'T', orientation: 'portrait' })).toContain('content="portrait"');
     expect(google.emitBridge!({ title: 'T', orientation: 'portrait' })).toContain('ExitApi.exit');
-    expect(google.deliveryNote).toMatch(/ZIP/);
+    // Google takes an archive, and the export writes one for it.
+    expect(google.delivery).toBe('zip');
     // The MRAID family clicks through with mraid.open() and needs nothing in head —
     // the host webview injects mraid itself.
     for (const id of ['mraid', 'unity', 'applovin']) {
@@ -344,6 +345,25 @@ describe('playable ad networks', () => {
     expect((await loadPlayableProfile(root, undefined))!.id).toBe('generic');
     // An id naming nothing is NOT silently generic — the caller reports it.
     expect(await loadPlayableProfile(root, 'nope')).toBeNull();
+  });
+
+  it('carries a project profile\'s zip delivery through to the export', async () => {
+    writePlatform('zipnet.mjs', `export default {
+      id: 'zipnet', kind: 'playable', label: 'Zip Net',
+      maxBytes: 5242880, limitNote: 'Zip Net docs', delivery: 'zip',
+      deliveryNote: 'name the archive after the campaign',
+    };`);
+    const profile = await loadPlayableProfile(root, 'zipnet');
+    expect(profile).toMatchObject({ delivery: 'zip', deliveryNote: 'name the archive after the campaign' });
+  });
+
+  it('rejects a delivery mode that is neither shape', async () => {
+    writePlatform('oddnet.mjs', `export default {
+      id: 'oddnet', kind: 'playable', label: 'Odd Net',
+      maxBytes: 1, limitNote: 'x', delivery: 'tarball',
+    };`);
+    const row = (await listPlayableNetworks(root)).find((r) => r.id === 'oddnet');
+    expect(row!.error).toMatch(/delivery/);
   });
 
   it('rejects a playable profile missing the facts the warning needs', async () => {

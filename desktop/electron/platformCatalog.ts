@@ -446,6 +446,9 @@ async function importPlatformModule(file: string): Promise<{ mod?: ProjectPlatfo
       if (typeof candidate.limitNote !== 'string' || !candidate.limitNote) {
         return { error: 'playable profile needs a `limitNote` saying where `maxBytes` comes from' };
       }
+      if (candidate.delivery !== undefined && candidate.delivery !== 'single-html' && candidate.delivery !== 'zip') {
+        return { error: `\`delivery\` must be 'single-html' or 'zip' (got ${JSON.stringify(candidate.delivery)})` };
+      }
       return { mod: candidate };
     }
     if (typeof candidate.emitConfigFiles !== 'function') return { error: 'profile has no `emitConfigFiles(ctx)`' };
@@ -542,11 +545,16 @@ export async function loadPlayableProfile(root: string | null, id: string | unde
   for (const file of await projectPlatformFiles(root)) {
     const { mod } = await importPlatformModule(file);
     if (!mod || mod.kind !== 'playable' || mod.id !== id) continue;
+    // Field by field rather than a spread: this object crosses into the export as a
+    // profile, and a project module carrying stray keys (or a mini-game field) must
+    // not become part of one.
     return {
       id: mod.id,
       label: mod.label,
       maxBytes: mod.maxBytes as number,
       limitNote: mod.limitNote as string,
+      delivery: mod.delivery,
+      deliveryNote: mod.deliveryNote,
       emitHead: mod.emitHead,
       emitBridge: mod.emitBridge,
     };

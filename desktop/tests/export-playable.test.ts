@@ -12,6 +12,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { execFileSync } from 'node:child_process';
 import { exportGame } from '../electron/exportGame';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -126,6 +127,36 @@ describe('exportGame (playable)', () => {
     expect(html.indexOf('__ESTELLA_PLAYABLE__')).toBeLessThan(html.indexOf('__ENGINE_GLUE__'));
     // The warning cites this network's cap and where it came from — not a constant.
     expect(res.warnings.join('\n')).toMatch(/over the 0\.0MB limit for Acme Ads \(Acme caps playables at 16 bytes\)/);
+  }, 60_000);
+
+  // A zip-delivery network gets an archive with index.html at the root, and the cap
+  // then applies to the ARCHIVE — the file actually being uploaded.
+  it('writes playable.zip for a zip-delivery network and measures that', async () => {
+    const o = path.join(root, 'dist-playable-zip');
+    const res = await exportGame({
+      root, entryScene: 'scenes/main.esscene', gameHostEntry: 'unused-for-playable',
+      playableHostEntry: PLAYABLE_HOST, scriptsEntry: 'src/main.ts',
+      sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wasm'),
+      outDir: o, platform: 'playable',
+      playableAdProfile: {
+        id: 'zipnet', label: 'Zip Net', maxBytes: 5 * 1024 * 1024,
+        limitNote: 'Zip Net docs', delivery: 'zip',
+      },
+    });
+    expect(res.ok).toBe(true);
+
+    const zip = path.join(o, 'playable.zip');
+    expect(existsSync(zip)).toBe(true);
+    // The HTML stays: it is what "Preview over http" serves.
+    expect(existsSync(path.join(o, 'index.html'))).toBe(true);
+    expect(execFileSync('unzip', ['-t', zip], { encoding: 'utf8' })).toContain('No errors detected');
+    expect(execFileSync('unzip', ['-Z1', zip], { encoding: 'utf8' }).trim()).toBe('index.html');
+    // What the entry unpacks to IS the exported page, byte for byte.
+    const unpacked = execFileSync('unzip', ['-p', zip, 'index.html'], { encoding: 'utf8', maxBuffer: 1 << 26 });
+    expect(unpacked).toBe(readFileSync(path.join(o, 'index.html'), 'utf8'));
+    // `bytes` is the upload, not the page — they differ, and the compressed one is smaller.
+    expect(res.zipFile).toBe(zip);
+    expect(res.bytes).toBeLessThan(res.htmlBytes!);
   }, 60_000);
 
   it('injects nothing and keeps the default cap with no network selected', async () => {

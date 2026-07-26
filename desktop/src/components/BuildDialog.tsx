@@ -45,8 +45,10 @@ interface Result {
   ok: boolean;
   outDir: string;
   included: number;
-  /** Final size in bytes (playable single-file export). */
+  /** Size of the file that gets uploaded (playable: the archive, else the HTML). */
   bytes?: number;
+  /** The archive a zip-delivery ad network needs (playable). */
+  zipFile?: string;
   warnings: string[];
   errors: string[];
   /** iOS: the .xcodeproj the export wrote around its content. */
@@ -735,7 +737,11 @@ export function BuildDialog() {
                   <CheckCircle2 size={14} /> {t('build.packagedSummary', { count: result.included, size: result.bytes ? ` · ${mb(result.bytes)}` : '', out: result.outDir })}
                 </span>
                 <div className="build__next selectable">
-                  {result.xcodeProject ? t('build.next.iosProject') : def.next(result.outDir)}
+                  {result.xcodeProject
+                    ? t('build.next.iosProject')
+                    : result.zipFile
+                      ? t('build.next.playableZip')
+                      : def.next(result.outDir)}
                 </div>
                 {result.ok && (
                   <div className="build__actions">

@@ -155,6 +155,9 @@ export interface ExportGameResult {
   /** iOS: the generated `.xcodeproj`, for the editor to open. Absent when the
    *  engine is not built for iOS here (the export still carries its content). */
   xcodeProject?: string;
+  /** Playable, zip-delivery networks: the archive written beside the HTML — the file
+   *  the network takes an upload of. */
+  zipFile?: string;
 }
 
 /** The web host page. `orientation` pins the canvas to a screen orientation (rotate-

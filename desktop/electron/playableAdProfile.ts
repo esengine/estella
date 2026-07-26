@@ -37,11 +37,14 @@ export interface PlayableAdProfile {
      *  check it against the network's current docs rather than trusting us. */
     readonly limitNote: string;
     /**
-     * Something the developer must still do by hand before this package can be
-     * uploaded — Google takes a ZIP, and the export writes a bare index.html.
-     * Reported as a warning, because an export that looks finished but is not
-     * uploadable is worse than one that says so.
+     * What the network actually takes an upload of. `'zip'` also writes
+     * `playable.zip` beside the HTML — Google accepts only an archive — and is what
+     * the size limit is then measured against, since that is the file being sent.
+     * Default `'single-html'`.
      */
+    readonly delivery?: 'single-html' | 'zip';
+    /** Anything else the developer must know before uploading. Reported as a
+     *  warning, because an export that looks finished but isn't is worse. */
     readonly deliveryNote?: string;
     /** Markup for `<head>`: an orientation meta tag, the network's own SDK script. */
     emitHead?(ctx: PlayableAdContext): string;
@@ -95,7 +98,7 @@ export const googlePlayableProfile: PlayableAdProfile = {
     label: 'Google Ads (App campaigns)',
     maxBytes: 5 * 1024 * 1024,
     limitNote: 'Google accepts a .ZIP up to 5MB',
-    deliveryNote: 'Google uploads a .ZIP — compress this index.html before uploading.',
+    delivery: 'zip',
     // The orientation meta tag is required alongside the exit API.
     emitHead: (ctx) => '<script src="https://tpc.googlesyndication.com/pagead/gadgets/html5/api/exitapi.js"></script>\n'
         + `    <meta name="ad.orientation" content="${ctx.orientation}">`,
