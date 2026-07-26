@@ -890,11 +890,15 @@ export function registerPhysicsSystem(
 
                 // Membership decides batch-vs-parented writeback; a runtime
                 // reparent of a live body would otherwise stay on the batch path
-                // and get its world pose written as a local one. Refreshed per
-                // fixed step, so a reparent takes effect on the next physics tick.
-                for (const entity of trackedEntities) {
-                    if (world.has(entity, Parent)) parentedBodies.add(entity);
-                    else parentedBodies.delete(entity);
+                // and get its world pose written as a local one. Only gaining or
+                // losing a Parent changes the answer, and that is a structural
+                // edit, so this rides the reconcile gate rather than walking
+                // every body every step.
+                if (needReconcile) {
+                    for (const entity of trackedEntities) {
+                        if (world.has(entity, Parent)) parentedBodies.add(entity);
+                        else parentedBodies.delete(entity);
+                    }
                 }
             },
             { name: 'PhysicsStepSystem' }
