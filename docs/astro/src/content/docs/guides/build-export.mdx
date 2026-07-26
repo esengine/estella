@@ -68,20 +68,79 @@ and opens it in your browser.
 | **Web** | A static, self-contained web build. | `dist-web/` | **Preview over http**, or upload the folder to any static host. |
 | **Desktop** | An Electron app source tree. | `dist-desktop/` | `cd dist-desktop && npm install && npm start` — or `npm run dist` for a native `.dmg` / `.exe` / AppImage installer. |
 | **WeChat** | A WeChat MiniGame package. | `dist-wechat/` | Open the folder in WeChat DevTools and set your AppID. See [WeChat MiniGame](/docs/guides/wechat/). |
-| **Playable** | One self-contained `index.html` with everything inlined — no external requests, as ad networks require. | `dist-playable/` | **Preview over http** (its real surface is an ad-network iframe). Note a full engine usually exceeds ad-network size limits. |
+| **Playable** | One self-contained `index.html` with everything inlined — no external requests, as ad networks require. | `dist-playable/` | **Preview over http** (its real surface is an ad-network iframe). Pick the [ad network](#playable-ad-networks) so the CTA and the size check match where it ships. |
+
+## Playable ad networks
+
+Every network takes the same single HTML file but disagrees on three things: how big
+it may be, what must sit in `<head>`, and which function sends the player to the
+store. Pick the network in **Project Settings → Packaging → Playable → Ad network**
+and the export handles all three.
+
+Your game code never names a network. Call the CTA once:
+
+```ts
+import { playableCta } from 'esengine';
+
+// on your end-card button, after the win — wherever the call to action is
+playableCta();
+```
+
+The export installs the bridge `playableCta()` dispatches through. With no network
+selected it is a no-op, so the same scene still runs in the editor and on the web.
+
+| Network | Limit | Click-through | Notes |
+|---|---|---|---|
+| **Generic** | 2MB | — | No network API. The cap is the strictest we know of, since an unnamed target could be any of them. |
+| **Meta** (Facebook / Instagram) | 2MB for `index.html` | `FbPlayableAd.onCTAClick()` | Meta's 5MB figure is the total for a ZIP bundle; a single-file playable is capped by the `index.html` rule. Forbids any HTTP request. |
+| **Google Ads** (App campaigns) | 5MB | `ExitApi.exit()` | Its exit API is a Google-hosted script, which the docs require as a literal `<script>` in `<head>` — the export writes it for you. Google uploads a **ZIP**, so compress the `index.html` before uploading. |
+| **MRAID network** (generic) | 5MB | `mraid.open()` | For any MRAID host. `mraid` is injected by the webview, so nothing goes in `<head>`. |
+| **Unity Ads** | 5MB | `mraid.open()` | Expects the playable to wait for MRAID's `viewableChange` before starting. |
+| **AppLovin** | 5MB | `mraid.open()` | Requires every resource embedded — which a single-file playable already is. |
+
+Limits move, so each one is reported against the network it came from: an oversized
+export names the cap it used and where that number is published, rather than a bare
+number to trust.
+
+### A network we don't ship
+
+Define it yourself — the built-in networks are written against this exact contract,
+so nothing is out of reach. **Build → New platform** scaffolds one (pick *Playable ad
+network*), or write `.esengine/platforms/<id>.mjs` by hand:
+
+```js
+export default {
+  id: 'acme-ads',
+  kind: 'playable',
+  label: 'Acme Ads',
+
+  // The size this network accepts, and where that number is published — the export
+  // quotes the note in its warning.
+  maxBytes: 5 * 1024 * 1024,
+  limitNote: 'Acme docs, Creative specs § playable',
+
+  // Optional: markup for <head> (an orientation meta tag, the network's SDK script).
+  emitHead: (ctx) => `<meta name="ad.orientation" content="${ctx.orientation}">`,
+
+  // Installs the bridge playableCta() dispatches through. Runs before the game.
+  emitBridge: () => `window.__ESTELLA_PLAYABLE__={cta:function(){AcmeSDK.openStore();}};`,
+};
+```
+
+It then appears in the Ad network list beside the built-in ones, and packages through
+the same pipeline.
 
 ## Runtime prerequisites
 
-Web and Desktop reuse the engine runtime that ships with the editor, so they export
-with no setup. **WeChat** and **Playable** each need their own engine runtime built
-once, because they use a different WebAssembly loader / single-file packaging:
+Web, Desktop and **Playable** all reuse the engine runtime that ships with the
+editor, so they export with no setup — a playable inlines that same web runtime
+(glue as a blob module, wasm as base64) rather than needing a build of its own.
+**WeChat** is the exception: its WebAssembly loader differs, so its runtime is built
+once:
 
 ```bash
 # only before the first WeChat export
 node build-tools/cli.js build -t wechat
-
-# only before the first Playable export
-node build-tools/cli.js build -t playable
 ```
 
 The Package Project dialog reminds you when a target's runtime is missing, and a
@@ -168,19 +227,18 @@ See [The Editor](/docs/guides/editor/) for the settings UI.
 ## The build CLI (advanced)
 
 The editor packages your **game**. The `build-tools/cli.js` command builds the
-**engine and SDK** themselves — you only need it to produce the WeChat / Playable
-runtimes above, or when working on the engine. Common commands:
+**engine and SDK** themselves — you only need it to produce the WeChat runtime above,
+or when working on the engine. Common commands:
 
 ```bash
 node build-tools/cli.js build -t web        # build the engine (web target)
 node build-tools/cli.js build -t wechat     # …the WeChat runtime
-node build-tools/cli.js build -t playable   # …the single-file runtime
 node build-tools/cli.js sdk                 # build the SDK only
 node build-tools/cli.js watch               # rebuild on change (engine dev)
 ```
 
 <Aside type="note">
-  Most game developers never run the build CLI beyond the one-time WeChat / Playable
+  Most game developers never run the build CLI beyond the one-time WeChat
   runtime builds — day-to-day work happens in the editor and the SDK.
 </Aside>
 

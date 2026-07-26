@@ -3,11 +3,12 @@
 /**
  * @file  playableHost.ts — the exported playable ad's host (single-HTML build).
  *        esbuilt to an IIFE by exportPlayable with esengine + the project scripts
- *        INLINED. The engine runs from the SINGLE_FILE glue (esengine.single.js —
- *        a global `ESEngineModule` factory with the wasm embedded as base64), which
- *        is a sibling inline <script>; assets + scenes are inlined globals. Boots
- *        the SAME shipping runtime via initPlayableRuntime (play == ship). Nothing
- *        is fetched — the whole game is one self-contained .html (ad-network ready).
+ *        INLINED. The engine is the shipped WEB glue, handed over as the inline
+ *        `__ENGINE_GLUE__` global and evaluated as a blob module (it is ESM), with
+ *        the wasm arriving base64 in `__ENGINE_WASM__`; assets + scenes are inlined
+ *        globals too. Boots the SAME shipping runtime via initPlayableRuntime
+ *        (play == ship). Nothing is fetched — the whole game is one self-contained
+ *        .html (ad-network ready).
  */
 import { createWebApp, setEditorMode, setPlayMode, initPlayableRuntime, createEmbeddedSideModuleHost, parseThemeOverrides } from 'esengine';
 import type { ESEngineModule as EngineModule, SceneData, EmbeddedSideModuleRegistry } from 'esengine';

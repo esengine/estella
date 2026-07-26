@@ -59,19 +59,72 @@ import { Aside, Steps } from '@astrojs/starlight/components';
 | **Web** | 一个静态、自包含的 Web 构建。 | `dist-web/` | **Preview over http**,或把文件夹上传到任意静态托管。 |
 | **桌面** | 一棵 Electron 应用源码树。 | `dist-desktop/` | `cd dist-desktop && npm install && npm start`——或 `npm run dist` 出原生 `.dmg` / `.exe` / AppImage 安装包。 |
 | **微信** | 一个微信小游戏包。 | `dist-wechat/` | 在微信开发者工具里打开该文件夹并设置你的 AppID。见 [微信小游戏](/docs/zh-cn/guides/wechat/)。 |
-| **Playable** | 一个自包含的 `index.html`,一切内联——无外部请求(广告网络的要求)。 | `dist-playable/` | **Preview over http**(它的真实宿主是广告网络的 iframe)。注意完整引擎通常超出广告网络的体积限制。 |
+| **Playable** | 一个自包含的 `index.html`,一切内联——无外部请求(广告平台的要求)。 | `dist-playable/` | **Preview over http**(它的真实宿主是广告平台的 iframe)。先选好[广告平台](#试玩广告平台),CTA 与体积检查才对得上投放目标。 |
+
+## 试玩广告平台
+
+各家平台收的都是同一个单文件 HTML,但在三件事上不一致:体积上限、`<head>` 里必须放什么、
+以及用哪个函数把玩家送去商店。在 **项目设置 → 打包 → 试玩广告 → 广告平台** 选好平台,
+导出会把这三件事都处理掉。
+
+游戏代码里不出现任何平台名字,只调一次 CTA:
+
+```ts
+import { playableCta } from 'esengine';
+
+// 结束卡的按钮、通关之后——凡是"号召点击"的地方
+playableCta();
+```
+
+导出会注入 `playableCta()` 要分发到的桥接层。未选平台时它是空操作,所以同一个场景在编辑器里
+和网页上照样能跑。
+
+| 平台 | 上限 | 点击跳转 | 说明 |
+|---|---|---|---|
+| **通用** | 2MB | — | 不接任何平台接口。上限取我们已知里最严的一档——毕竟未指名的目标可能是其中任何一家。 |
+| **Meta**(Facebook / Instagram) | `index.html` 2MB | `FbPlayableAd.onCTAClick()` | Meta 的 5MB 是 ZIP 包的总量;单文件试玩受 `index.html` 那条约束。禁止任何 HTTP 请求。 |
+| **Google Ads**(应用广告系列) | 5MB | `ExitApi.exit()` | 它的退出接口是 Google 托管的脚本,官方要求以字面 `<script>` 写在 `<head>` 里——导出会帮你写好。Google 上传 **ZIP**,所以要先把 `index.html` 压缩。 |
+| **MRAID 平台**(通用) | 5MB | `mraid.open()` | 适用于任何 MRAID 宿主。`mraid` 由宿主 webview 注入,`<head>` 无需任何内容。 |
+| **Unity Ads** | 5MB | `mraid.open()` | 要求试玩包等到 MRAID 的 `viewableChange` 之后再开始。 |
+| **AppLovin** | 5MB | `mraid.open()` | 要求所有资源内嵌——单文件试玩本来就是。 |
+
+上限会变,所以每条警告都指名它用的是哪一家的上限、以及这个数字出自哪里,而不是丢一个
+让你盲信的数字。
+
+### 我们没内置的平台
+
+自己定义就行——内置的那几家写的就是这份契约,没有做不到的事。**构建 → 新建平台** 可以
+生成脚手架(类型选*试玩广告平台*),也可以手写 `.esengine/platforms/<id>.mjs`:
+
+```js
+export default {
+  id: 'acme-ads',
+  kind: 'playable',
+  label: 'Acme Ads',
+
+  // 这家接受的体积,以及这个数字出自哪里——导出的警告会引用这条说明。
+  maxBytes: 5 * 1024 * 1024,
+  limitNote: 'Acme 文档,创意规格 § playable',
+
+  // 可选:注入 <head>(方向 meta、平台自己的 SDK 脚本)。
+  emitHead: (ctx) => `<meta name="ad.orientation" content="${ctx.orientation}">`,
+
+  // 注入 playableCta() 要分发到的桥接层,在游戏代码之前执行。
+  emitBridge: () => `window.__ESTELLA_PLAYABLE__={cta:function(){AcmeSDK.openStore();}};`,
+};
+```
+
+它随后就会和内置平台并列出现在"广告平台"列表里,并走同一条导出管线。
 
 ## 运行时前置条件
 
-Web 和桌面复用随编辑器附带的引擎运行时,所以导出无需准备。**微信**和 **Playable** 各需先构建一次
-自己的引擎运行时,因为它们用不同的 WebAssembly 加载器 / 单文件打包方式:
+Web、桌面与 **Playable** 都复用随编辑器附带的引擎运行时,所以导出无需准备——试玩包内联的
+就是同一份 web 运行时(glue 作为 blob 模块、wasm 以 base64 传入),不需要单独构建。**微信**是
+例外:它的 WebAssembly 加载器不同,运行时需先构建一次:
 
 ```bash
 # 仅在首次微信导出前
 node build-tools/cli.js build -t wechat
-
-# 仅在首次 Playable 导出前
-node build-tools/cli.js build -t playable
 ```
 
 当某个目标的运行时缺失时,打包项目对话框会提醒你,而微信导出会**直接失败**并给出确切的
@@ -137,12 +190,11 @@ node build-tools/cli.js build -t playable
 ## 构建 CLI(进阶)
 
 编辑器打包你的**游戏**。而 `build-tools/cli.js` 命令构建的是**引擎和 SDK 本身**——你只在要产出上面
-的微信 / Playable 运行时、或开发引擎时才需要它。常用命令:
+的微信运行时、或开发引擎时才需要它。常用命令:
 
 ```bash
 node build-tools/cli.js build -t web        # 构建引擎(web 目标)
 node build-tools/cli.js build -t wechat     # …微信运行时
-node build-tools/cli.js build -t playable   # …单文件运行时
 node build-tools/cli.js sdk                 # 只构建 SDK
 node build-tools/cli.js watch               # 改动即重建(引擎开发)
 ```

@@ -2,17 +2,19 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  Playable-ad export (REARCH_EXPORT E3). Produces ONE self-contained
- *        `index.html` (no external requests — ad networks require single-file):
- *          - the SINGLE_FILE engine glue (esengine.single.js, global ESEngineModule
- *            with the wasm embedded as base64) inlined as a <script>;
+ *        `index.html` (single-file, no fetches — what ad networks require):
+ *          - the shipped WEB engine glue (esengine.js) inlined as a global, run by
+ *            the host as a blob module, with esengine.wasm inlined as base64 and fed
+ *            through instantiateWasm — so no separate single-file engine build;
  *          - assets as base64 data URLs + scenes inlined as <script> globals
  *            (keyed by the scene's @uuid: refs — EmbeddedAssetProvider resolves them);
- *          - the playable host + esengine + project scripts esbuilt to ONE IIFE.
+ *          - the playable host + esengine + project scripts esbuilt to ONE IIFE;
+ *          - whatever the chosen ad network's profile injects (playableAdProfile.ts).
  *        Boots the SAME shipping runtime via initPlayableRuntime (play == ship).
  *
- *        Correct-by-construction against initPlayableRuntime + the SINGLE_FILE glue
- *        contract (no playable simulator here — runtime is validated by the user in
- *        a browser / ad preview). Pure Node (esbuild + fs); IPC wiring in main.ts.
+ *        Correct-by-construction against initPlayableRuntime (no playable simulator
+ *        here — runtime is validated in a browser / ad preview). Pure Node (esbuild
+ *        + fs); IPC wiring in main.ts.
  */
 import { loadEsbuild } from './esbuildRuntime';
 import { writeFile, mkdir, readFile, stat, rm } from 'node:fs/promises';
