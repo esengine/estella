@@ -120,6 +120,7 @@ const BUILTIN_ITEMS: MenuContribution[] = [
   // Resets only the dock layout, rebuilt in place (keeps scene/engine/undo), and
   // guarded so a wedged dirty asset-editor tab can't vanish unwarned.
   cmd('window', 'layout', 'view.resetLayout'),
+  cmd('window', 'layout', 'plugins.open'),
   {
     // The same guarded command as File ▸ Close Project, worded for where it leads —
     // never a second exit path that could skip the unsaved-changes prompt.

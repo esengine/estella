@@ -1,0 +1,43 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team */
+
+/* Plugins panel (PluginsPanel): what's installed, what's running, what broke —
+   plus the trust gate. Built from the same surface/border/radius tokens the other
+   panels use, so it reads as part of the editor rather than a settings page. */
+.plug-panel { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+.plug-toolbar { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+.plug-list { display: flex; flex-direction: column; gap: 8px; padding: 8px; overflow-y: auto; }
+
+.plug-row { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; background: var(--srf-3); border: 1px solid var(--border); border-radius: var(--r-sm); }
+.plug-row__head { display: flex; align-items: center; gap: 8px; }
+.plug-row__name { font-size: var(--fs-xs); font-weight: 600; color: var(--text-hi); }
+.plug-row__version { font-family: var(--mono); font-size: var(--fs-2xs); color: var(--text-faint); }
+.plug-row__scope { font-size: var(--fs-2xs); color: var(--text-faint); padding: 1px 6px; border: 1px solid var(--border); border-radius: 999px; }
+.plug-row__spacer { flex: 1; }
+.plug-row__desc { font-size: var(--fs-2xs); color: var(--text-dim); line-height: 1.5; }
+.plug-row__detail { display: flex; align-items: flex-start; gap: 5px; font-size: var(--fs-2xs); color: #e0a35a; line-height: 1.5; }
+.plug-row__detail.is-warn { color: var(--text-dim); }
+.plug-row__actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+
+/* Status chip. Only "active" gets colour — a list of green badges would make the
+   one row that needs attention harder to find, not easier. */
+.plug-chip { font-size: var(--fs-2xs); padding: 1px 7px; border-radius: 999px; border: 1px solid var(--border); color: var(--text-dim); white-space: nowrap; }
+.plug-chip.is-active { color: #7fbf8f; border-color: #7fbf8f; }
+.plug-chip.is-failed, .plug-chip.is-incompatible { color: #e0736a; border-color: #e0736a; }
+.plug-chip.is-needs-trust { color: #e0a35a; border-color: #e0a35a; }
+.plug-chip.is-disabled, .plug-chip.is-shadowed { color: var(--text-faint); }
+
+/* Trust gate — inset and bordered so it reads as a decision, not a description. */
+.plug-trust { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; margin: 2px 0; background: var(--srf-2); border: 1px solid var(--border); border-left: 2px solid #e0a35a; border-radius: var(--r-sm); }
+.plug-trust__title { display: flex; align-items: center; gap: 6px; font-size: var(--fs-xs); font-weight: 600; color: var(--text-hi); }
+.plug-trust__body { font-size: var(--fs-2xs); color: var(--text-dim); line-height: 1.55; margin: 0; }
+.plug-trust__caps { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.plug-trust__capsLabel { font-size: var(--fs-2xs); color: var(--text-faint); }
+.plug-cap { font-size: var(--fs-2xs); color: var(--text); padding: 1px 6px; background: var(--srf-4); border-radius: var(--r-sm); }
+.plug-muted { font-size: var(--fs-2xs); color: var(--text-faint); line-height: 1.5; margin: 0; }
+.plug-trust .btn-soft { align-self: flex-start; margin-top: 2px; }
+
+/* A contributed panel's host element. The plugin owns everything inside; the frame
+   only guarantees it fills the tab and scrolls, and that the theme tokens are in
+   scope so a plugin styling against them matches the editor. */
+.plugin-panel { width: 100%; height: 100%; overflow: auto; }

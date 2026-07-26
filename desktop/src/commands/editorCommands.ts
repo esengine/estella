@@ -354,6 +354,14 @@ commands.register({
   run: () => dockApi.toggleMaximizePanel('viewport'),
 });
 commands.register({
+  id: 'plugins.open',
+  label: t('plug.panelTitle'),
+  category: t('cat.view'),
+  // The Plugins panel isn't ensured in the layout (most sessions have none), so a
+  // command is how it's reached — palette, Window menu, and rebindable like any other.
+  run: () => dockApi.openPanel('plugins'),
+});
+commands.register({
   id: 'view.resetLayout',
   label: t('menu.resetLayout'),
   category: t('cat.view'),

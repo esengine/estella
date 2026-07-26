@@ -1,0 +1,12 @@
+{
+  "id": "estella.scene-report",
+  "name": { "en": "Scene Report", "zh-CN": "场景报告" },
+  "version": "1.0.0",
+  "publisher": "estella",
+  "description": {
+    "en": "A worked example of an editor plugin: a command, a panel, and a setting.",
+    "zh-CN": "编辑器插件的完整示例:一条命令、一个面板、一项设置。"
+  },
+  "engines": { "editor": "^0.33" },
+  "main": { "editor": "src/editor.ts" }
+}

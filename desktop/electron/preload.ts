@@ -12,6 +12,7 @@ import type {
 } from './platformCatalog';
 import type { PlayRealmResult } from './buildPlayRealm';
 import type { LatestRelease } from './updateCheck';
+import type { DiscoveredPlugin, CompiledPlugin } from './pluginHost';
 
 // The privileged bridge the renderer is allowed to touch. Keep this surface small
 // and explicit — anything the editor needs from the OS or Node goes through here.
@@ -199,6 +200,23 @@ const api = {
   },
   workspace: {
     save: (ws: WorkspaceState): Promise<void> => ipcRenderer.invoke('workspace:save', ws),
+  },
+  // Editor plugins. Main finds + compiles them and owns the trust record; the
+  // renderer decides nothing about trust, it only reports what main says.
+  plugins: {
+    /** Every plugin on disk (project scope first), each with its manifest or the
+     *  reason it failed to load, plus whether the user switched it off. */
+    list: (): Promise<(DiscoveredPlugin & { disabled: boolean })[]> => ipcRenderer.invoke('plugins:list'),
+    /** Compile a plugin's renderer entry and report whether the user approved this
+     *  id+version from this folder. Compiling never runs the plugin. */
+    load: (id: string): Promise<CompiledPlugin & { trusted: boolean }> => ipcRenderer.invoke('plugins:load', id),
+    /** Record the user's approval; main resolves the version + folder it applies to. */
+    trust: (id: string): Promise<void> => ipcRenderer.invoke('plugins:trust', id),
+    revokeTrust: (id: string): Promise<void> => ipcRenderer.invoke('plugins:revokeTrust', id),
+    setEnabled: (id: string, enabled: boolean): Promise<void> =>
+      ipcRenderer.invoke('plugins:setEnabled', id, enabled),
+    /** Reveal the plugin's folder in Finder / Explorer. */
+    reveal: (id: string): Promise<void> => ipcRenderer.invoke('plugins:reveal', id),
   },
   // Recent projects (launcher), persisted in userData.
   recents: {

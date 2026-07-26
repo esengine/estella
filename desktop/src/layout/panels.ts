@@ -63,6 +63,13 @@ export interface PanelDef {
   /** Skip the Perf wrapper (the profiler must not profile its own render). */
   noPerf?: boolean;
   /**
+   * A CONTRIBUTED panel's contents: build into `host`, return a teardown. Built-in
+   * panels omit this and are rendered by the component map instead. Plain DOM
+   * rather than a React element so a plugin isn't forced into our render tree —
+   * it may still use the host's React, which the loader injects.
+   */
+  mount?(host: HTMLElement): () => void;
+  /**
    * Set for a MULTI-INSTANCE panel: `id` is then only a component key, and its live
    * panels are `${instanceIdPrefix}<n>`. Such a panel has no static title/layout
    * entry (it is session-scoped), but its closable/poppable rules still resolve
@@ -89,6 +96,9 @@ const BOTTOM: PanelDef[] = [
   { id: 'sequencer', title: () => t('layout.panel.sequencer'), placement: 'bottom', refs: ['content', 'log'], ensure: true },
   { id: 'profiler', title: () => t('layout.panel.profiler'), placement: 'bottom', refs: ['log', 'content'], ensure: true, noPerf: true },
   { id: 'audiomixer', title: () => t('mix.panelTitle'), placement: 'bottom', refs: ['log', 'content'], ensure: true },
+  // Opened on demand rather than ensured: most sessions have no plugins, and a
+  // permanent tab for an empty list is noise.
+  { id: 'plugins', title: () => t('plug.panelTitle'), placement: 'bottom', refs: ['log', 'content'] },
 ];
 
 // Full editing canvases — opened on demand as center tabs beside the Viewport.

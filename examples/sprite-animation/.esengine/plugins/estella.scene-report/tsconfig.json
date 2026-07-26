@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2020", "DOM"],
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "jsx": "react-jsx",
+    // The editor writes these typings and keeps them matching the running version,
+    // so there is nothing to install and no copy that can go stale.
+    "paths": {
+      "@estella/editor-api": ["../.types/editor-api.d.ts"]
+    }
+  },
+  "include": ["src"]
+}

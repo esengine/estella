@@ -16,13 +16,15 @@
  */
 import { watch, type FSWatcher } from 'node:fs';
 import type { WebContents } from 'electron';
-import { isNonContentPath } from './contentPolicy';
+import { isWatchedPath } from './contentPolicy';
 
 // Our own cache writes (assets.json / schemas.json / scripts.mjs under
 // `.esengine`) MUST be ignored — refreshing on them would loop; contentPolicy's
-// dot rule covers that plus the usual heavy noise dirs.
-/** True if a project-relative path is watcher noise (outside content space). */
-export const isIgnoredPath = isNonContentPath;
+// dot rule covers that plus the usual heavy noise dirs. Editor-plugin sources are
+// the one dot-dir exception (they drive plugin hot reload), which is why the
+// predicate is "watched" rather than plain "is content".
+/** True if a project-relative path is watcher noise (nothing subscribes to it). */
+export const isIgnoredPath = (rel: string): boolean => !isWatchedPath(rel);
 
 const DEBOUNCE_MS = 180;
 

@@ -10,6 +10,7 @@
  */
 import { ProjectStore } from './ProjectStore';
 import { PlayRealm, PlayRealms } from '../engine/PlayRealm';
+import { pluginPathsChanged, isPluginPath } from '../plugins/init';
 
 const listeners = new Set<() => void>();
 let version = 0;
@@ -40,6 +41,8 @@ let sceneDebounce: ReturnType<typeof setTimeout> | null = null;
 // filename unknown) forces a full rescan for the window.
 let pendingPaths = new Set<string>();
 let sawOverflow = false;
+let pluginDebounce: ReturnType<typeof setTimeout> | null = null;
+let pendingPluginPaths = new Set<string>();
 
 // A project source module under src/ — a change here can alter a project
 // component's field schema, so the inspector must re-extract (esbuild, ~100ms).
@@ -67,10 +70,16 @@ async function rebuildScriptsAndReloadPlay(): Promise<void> {
 export function initFsWatch(): void {
   if (inited || !window.estella?.fs?.onChange) return;
   inited = true;
-  window.estella.fs.onChange((paths) => {
+  window.estella.fs.onChange((allPaths) => {
+    // Plugin sources are watched but are NOT project content: they must never
+    // reach the asset registry (which would try to index them) — they only drive
+    // plugin hot reload. Split them off before anything else looks at the batch.
+    const paths = allPaths.filter((p) => !isPluginPath(p));
+    const pluginPaths = allPaths.filter(isPluginPath);
+
     // Coalesce back-to-back bursts; one incremental update + one bump per quiet
     // window. Accumulate the precise paths so none is lost across bursts.
-    if (paths.length === 0) sawOverflow = true;
+    if (allPaths.length === 0) sawOverflow = true;
     else for (const p of paths) pendingPaths.add(p);
     if (debounce) clearTimeout(debounce);
     debounce = setTimeout(() => {
@@ -93,6 +102,19 @@ export function initFsWatch(): void {
       sceneDebounce = setTimeout(() => void ProjectStore.reloadOpenSceneFromDisk(), 120);
     }
 
+    // An editor-plugin source edit → recompile + re-activate that plugin. Its own
+    // window (a plugin's save burst is unrelated to the asset registry's), and its
+    // own accumulation so a path isn't lost between bursts.
+    if (pluginPaths.length > 0) {
+      for (const p of pluginPaths) pendingPluginPaths.add(p);
+      if (pluginDebounce) clearTimeout(pluginDebounce);
+      pluginDebounce = setTimeout(() => {
+        const batch = [...pendingPluginPaths];
+        pendingPluginPaths = new Set();
+        pluginPathsChanged(batch);
+      }, 200);
+    }
+
     // A component-source edit → re-extract schemas so the inspector reflects the
     // new fields live (separate, longer window: extraction bundles with esbuild).
     if (paths.some(isSourceModule)) {
@@ -112,10 +134,11 @@ export function initFsWatch(): void {
 /** Drop pending debounced work + accumulated paths. Call on project switch so a
  *  burst captured for the old project can't flush against the new one. */
 export function resetFsWatch(): void {
-  for (const t of [debounce, schemaDebounce, scriptsDebounce, sceneDebounce]) {
+  for (const t of [debounce, schemaDebounce, scriptsDebounce, sceneDebounce, pluginDebounce]) {
     if (t) clearTimeout(t);
   }
-  debounce = schemaDebounce = scriptsDebounce = sceneDebounce = null;
+  debounce = schemaDebounce = scriptsDebounce = sceneDebounce = pluginDebounce = null;
   pendingPaths = new Set();
+  pendingPluginPaths = new Set();
   sawOverflow = false;
 }

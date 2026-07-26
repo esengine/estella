@@ -47,7 +47,9 @@ describe('menu registry', () => {
       'view.toggleCoordSpace', 'view.togglePivotMode', 'view.toggleSnapping',
     ]);
     expect(layout('build')).toEqual(['project.export', null, 'build.scripts', 'project.extractSchemas']);
-    expect(layout('window')).toEqual(['view.resetLayout', null, 'project.close']);
+    // `plugins.open` joined the layout group after the migration — the Plugins panel
+    // is opened on demand, so a menu row is how it's reached.
+    expect(layout('window')).toEqual(['view.resetLayout', 'plugins.open', null, 'project.close']);
     expect(layout('help')).toEqual([
       'help.about', 'help.checkUpdates', null, 'palette.open', 'help.shortcuts', null, 'help.openLogs',
     ]);

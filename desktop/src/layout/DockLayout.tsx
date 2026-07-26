@@ -22,7 +22,7 @@ import {
   panelDef, panelDefs, panelComponent, isPanelClosable, ensuredPanels,
   panelRegistry, panelTitle,
 } from '@/layout/panels';
-import { PANEL_RENDERERS } from '@/layout/panelComponents';
+import { PANEL_RENDERERS, MountedPanel, type PanelRenderer } from '@/layout/panelComponents';
 import { t } from '@/i18n';
 
 // Each dock panel is a thin wrapper so dockview owns mount/unmount. The
@@ -47,7 +47,10 @@ function buildComponents(): Record<string, FC<IDockviewPanelProps>> {
   const out: Record<string, FC<IDockviewPanelProps>> = {};
   for (const def of panelDefs()) {
     const key = panelComponent(def);
-    const render = PANEL_RENDERERS[key];
+    const { mount } = def;
+    const render: PanelRenderer | undefined = mount
+      ? () => <MountedPanel mount={mount} />
+      : PANEL_RENDERERS[key];
     if (!render) continue; // registered with no renderer — nothing to mount
     out[key] = (p) =>
       panel(p.api, render({ panelId: p.api.id, params: p.params as Record<string, unknown> | undefined }), def.noPerf);

@@ -39,6 +39,7 @@ import { projectMessages } from './project';
 import { controllerMessages } from './controllers';
 import { animatorMessages } from './animator';
 import { eventMessages } from './events';
+import { pluginMessages } from './plugins';
 
 /** Every per-area module, for the uniqueness guard in i18n.test.ts. */
 export const messageModules = {
@@ -63,6 +64,7 @@ export const messageModules = {
     controllers: controllerMessages,
     animator: animatorMessages,
     events: eventMessages,
+    plugins: pluginMessages,
 } as const;
 
 export const editorMessages = {
@@ -87,4 +89,5 @@ export const editorMessages = {
     ...controllerMessages,
     ...animatorMessages,
     ...eventMessages,
+    ...pluginMessages,
 } as const;

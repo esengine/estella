@@ -39,6 +39,9 @@ import { ensureSdkTypes } from './syncSdkTypes';
 import { ensureProjectShaderTwins } from './shaderTwins';
 import { installCrashCapture, logsDir } from './resilience';
 import { mcpMode, startMcpEndpoint } from './mcpEndpoint';
+import {
+  discoverPlugins, compilePlugin, isTrusted, trustPlugin, revokeTrust, isDisabled, setPluginEnabled,
+} from './pluginHost';
 import { checkForUpdate } from './updateCheck';
 import {
   listPlatforms, loadProjectPlatform, createProjectPlatform,
@@ -927,6 +930,45 @@ ipcMain.handle('project:preparePlayRealm', async () => {
 ipcMain.handle('recents:list', () => listRecents());
 ipcMain.handle('recents:add', (_e, root: string, name: string) => addRecent(root, name));
 ipcMain.handle('recents:remove', (_e, root: string) => removeRecent(root));
+
+// — Editor plugins. Discovery, compilation, and the trust record live in main
+//   (disk + userData); activation lives in the renderer, which is the realm the
+//   contributions land in. A renderer plugin runs in the editor's own realm, so
+//   `load` hands back code + its hash and whether the user approved THAT build —
+//   main never decides to run it. —
+const userData = (): string => app.getPath('userData');
+
+ipcMain.handle('plugins:list', async () => {
+  const found = await discoverPlugins(projectRoot, userData());
+  return found.map((p) => ({ ...p, disabled: isDisabled(userData(), p.id) }));
+});
+
+ipcMain.handle('plugins:load', async (_e, id: string) => {
+  const found = await discoverPlugins(projectRoot, userData());
+  const plugin = found.find((p) => p.id === id && !p.shadowedBy);
+  if (!plugin) return { ok: false, errors: [`plugin "${id}" not found`], warnings: [] };
+  const entry = plugin.manifest?.main?.editor;
+  if (!entry) return { ok: false, errors: [`plugin "${id}" has no renderer entry`], warnings: [] };
+  const built = await compilePlugin(plugin.dir, entry);
+  return { ...built, trusted: isTrusted(userData(), id, plugin.manifest!.version, plugin.dir) };
+});
+
+// The renderer says only "the user approved this id" — main resolves which version
+// and folder that means, so the approval can't be recorded against a stale pair.
+ipcMain.handle('plugins:trust', async (_e, id: string) => {
+  const found = await discoverPlugins(projectRoot, userData());
+  const plugin = found.find((p) => p.id === id && p.manifest);
+  if (plugin) trustPlugin(userData(), id, plugin.manifest!.version, plugin.dir);
+});
+ipcMain.handle('plugins:revokeTrust', (_e, id: string) => revokeTrust(userData(), id));
+ipcMain.handle('plugins:setEnabled', (_e, id: string, enabled: boolean) =>
+  setPluginEnabled(userData(), id, enabled),
+);
+ipcMain.handle('plugins:reveal', async (_e, id: string) => {
+  const found = await discoverPlugins(projectRoot, userData());
+  const dir = found.find((p) => p.id === id)?.dir;
+  if (dir) shell.openPath(dir);
+});
 
 // New-project templates + creation (launcher New tab).
 ipcMain.handle('templates:list', () => listTemplates());

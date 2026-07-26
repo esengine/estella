@@ -207,6 +207,16 @@ export const dockApi = {
     }
   },
 
+  /** Close a panel if it's open (a retracted contribution must not leave its tab). */
+  closePanel(id: string) {
+    api?.getPanel(id)?.api.close();
+  },
+
+  /** Whether a panel currently exists in the dock. */
+  isPanelOpen(id: string): boolean {
+    return !!api?.getPanel(id);
+  },
+
   /** Open (or reveal) the Game view as a tab beside the Viewport — used on Play. */
   openGame() {
     this.openPanel('game');

@@ -1,0 +1,303 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+ * @file  context.ts
+ * @brief Builds the {@link PluginContext} handed to one plugin's `activate`.
+ *
+ * This is where the design's central claim is cashed in: every `register` here
+ * forwards to the SAME registry a built-in uses, tagged with this plugin's owner.
+ * There is no plugin-specific implementation of commands, panels, menus, or
+ * settings to drift from the built-in one — only an attribution.
+ *
+ * Two things the context adds on top of attribution:
+ *  - Localized strings are resolved here, so contributions reach the registries in
+ *    the editor's own `string` vocabulary and every consumer stays locale-agnostic.
+ *  - Plugin callbacks are wrapped (see PluginHost.guard) so a throw is attributed,
+ *    logged, and counted toward quarantine instead of breaking an editor surface.
+ */
+import { commands } from '@/commands/registry';
+import { registerPanel } from '@/layout/panels';
+import { registerMenuItem } from '@/layout/menus';
+import { dockApi } from '@/layout/dockApi';
+import { settingsRegistry } from '@/settings/registry';
+import { useSettings } from '@/store/settingsStore';
+import { useSelection } from '@/store/selectionStore';
+import { useEditorStore } from '@/store/editorStore';
+import { EditorControlSurface } from '@/engine/EditorSession';
+import { ProjectStore } from '@/project/ProjectStore';
+import { LogStore } from '@/store/LogStore';
+import { Toasts } from '@/store/Toasts';
+import { editorLocale } from '@/i18n';
+import type { InspectorFieldValue } from '@/types';
+import type { Owner, Disposable as CoreDisposable } from '@/contrib/ContributionRegistry';
+import type { PluginManifest, PluginCapability } from './manifest';
+import type {
+  CommandContribution, Disposable, EditorEvents, EditorPlugin, EditorProjectApi, EditorSceneApi,
+  FieldValue, LocalizedString, PanelContribution, PluginContext, PluginFs, SettingContribution,
+} from './types';
+
+const localize = (value: LocalizedString | undefined): string => {
+  if (value === undefined) return '';
+  if (typeof value === 'string') return value;
+  return value[editorLocale] ?? value.en ?? Object.values(value)[0] ?? '';
+};
+
+/** Per-plugin persisted state, kept out of the project (it's a user preference). */
+const stateKey = (id: string): string => `estella.plugin.state.${id}`;
+
+function pluginState(id: string) {
+  const read = (): Record<string, unknown> => {
+    try {
+      return JSON.parse(localStorage.getItem(stateKey(id)) ?? '{}') as Record<string, unknown>;
+    } catch {
+      return {};
+    }
+  };
+  return {
+    get<T>(key: string, fallback: T): T {
+      const v = read()[key];
+      return v === undefined ? fallback : (v as T);
+    },
+    set(key: string, value: unknown): void {
+      const next = { ...read(), [key]: value };
+      try {
+        localStorage.setItem(stateKey(id), JSON.stringify(next));
+      } catch {
+        /* quota / private mode — state just won't persist */
+      }
+    },
+  };
+}
+
+/**
+ * The curated scene door. Delegates to the editor's own control surface, which
+ * routes writes through SceneCommands — so a plugin's edits are undoable and
+ * survive a play→stop rebuild without the plugin knowing either exists.
+ */
+function sceneApi(): EditorSceneApi {
+  const s = EditorControlSurface;
+  return {
+    getSelection: () => s.getSelection(),
+    getSelectionIds: () => s.getSelectionIds(),
+    select: (id) => s.select(id),
+    selectMany: (ids, primary) => s.selectMany(ids, primary),
+    getSceneTree: () => s.getSceneTree(),
+    getEntity: (id) => {
+      const e = s.getEntity(id);
+      return e ? { name: e.name, components: e.components } : null;
+    },
+    getFieldValue: (entity, component, key) => s.getFieldValue(entity, component, key) as FieldValue | null,
+    addEntity: () => s.addEntity(),
+    deleteEntity: (id) => s.deleteEntity(id),
+    duplicateEntity: (id) => s.duplicateEntity(id),
+    renameEntity: (id, name) => s.renameEntity(id, name),
+    setParent: (id, parent) => s.setParent(id, parent),
+    // The surface resolves the field's DECLARED inspector type and coerces against
+    // it (rejecting a wrong shape or arity loudly), so a plugin never has to know
+    // or state a field's type — the type argument here is advisory and ignored, and
+    // the cast is safe because that runtime check is stricter than this signature.
+    setField: (entity, component, key, value) =>
+      s.setField(entity, component, key, 'string', value as InspectorFieldValue),
+    addComponent: (entity, component) => s.addComponent(entity, component),
+    removeComponent: (entity, component) => s.removeComponent(entity, component),
+    setEntityXY: (id, x, y) => s.setEntityXY(id, x, y),
+    transact: (label, fn) => s.transact(label, fn),
+    undo: () => s.undo(),
+    redo: () => s.redo(),
+  };
+}
+
+function projectApi(): EditorProjectApi {
+  return {
+    root: () => ProjectStore.getSnapshot()?.root ?? null,
+    currentScene: () => ProjectStore.getSnapshot()?.currentScene ?? null,
+    save: () => ProjectStore.save(),
+    listAssets: () => ProjectStore.listAssets().map((a) => a.path),
+    refreshAssets: () => ProjectStore.refreshAssets(),
+  };
+}
+
+/**
+ * Filesystem access, gated on declared capabilities. The plugin's own folder is
+ * always readable/writable; the project needs `fs:project`. Note this is a gate on
+ * the CONVENIENCE API, not a sandbox — a renderer plugin shares the editor's realm
+ * and could reach the bridge directly. The real boundary is the trust prompt; this
+ * keeps honest plugins honest and makes their intent visible to the user.
+ */
+function pluginFs(id: string, dir: string, capabilities: PluginCapability[]): PluginFs {
+  const denied = (what: string) => (): never => {
+    throw new Error(`plugin "${id}" needs the "fs:project" capability in plugin.json to ${what}`);
+  };
+  // The plugin dir is absolute; the bridge is project-relative, so plugin-local
+  // paths only resolve for a project-scoped plugin. A user-scoped plugin lives
+  // outside the project root the bridge sandboxes to, and says so.
+  const root = ProjectStore.getSnapshot()?.root;
+  const local = (relPath: string): string => {
+    if (!root || !dir.startsWith(root)) {
+      throw new Error(`plugin "${id}" is outside the open project, so its own files aren't reachable yet`);
+    }
+    return `${dir.slice(root.length).replace(/^[/\\]/, '')}/${relPath}`.replace(/\\/g, '/');
+  };
+  const canProject = capabilities.includes('fs:project');
+  return {
+    read: (relPath) => window.estella.fs.read(local(relPath)),
+    write: (relPath, contents) => window.estella.fs.write(local(relPath), contents),
+    readProject: canProject ? (relPath) => window.estella.fs.read(relPath) : denied('read project files'),
+    writeProject: canProject ? (relPath, contents) => window.estella.fs.write(relPath, contents) : denied('write project files'),
+  };
+}
+
+function editorEvents(track: (d: Disposable) => Disposable): EditorEvents {
+  return {
+    on: (event, handler) => {
+      switch (event) {
+        case 'selectionChanged':
+          return track({ dispose: useSelection.subscribe(handler) });
+        case 'sceneChanged':
+          return track({ dispose: ProjectStore.subscribe(handler) });
+        case 'playStateChanged':
+          // Fires only on an actual edit↔play transition, not on every store touch.
+          return track({
+            dispose: useEditorStore.subscribe((s, prev) => {
+              if (s.isPlaying !== prev.isPlaying || s.isPaused !== prev.isPaused) handler();
+            }),
+          });
+      }
+    },
+  };
+}
+
+/** What PluginHost needs back to tear a plugin down. */
+export interface BuiltContext {
+  ctx: PluginContext;
+  /** Retract everything this plugin registered, in reverse order. */
+  dispose(): void;
+}
+
+/**
+ * Build the context for one plugin. `guard` wraps every callback the plugin hands
+ * us; PluginHost supplies it so the throw-attribution and quarantine policy live in
+ * one place rather than being re-implemented per contribution kind.
+ */
+export function buildPluginContext(
+  manifest: PluginManifest,
+  dir: string,
+  owner: Owner,
+  guard: <T>(what: string, fn: () => T, fallback: T) => T,
+): BuiltContext {
+  const id = manifest.id;
+  const capabilities = manifest.capabilities ?? [];
+  const disposables: Disposable[] = [];
+  const track = <T extends Disposable>(d: T): T => {
+    disposables.push(d);
+    return d;
+  };
+  const adopt = (d: CoreDisposable): Disposable => track({ dispose: () => d.dispose() });
+
+  const log = {
+    info: (...args: unknown[]) => LogStore.push('info', `plugin:${id}`, args.map(String).join(' ')),
+    warn: (...args: unknown[]) => LogStore.push('warn', `plugin:${id}`, args.map(String).join(' ')),
+    error: (...args: unknown[]) => LogStore.push('error', `plugin:${id}`, args.map(String).join(' ')),
+  };
+
+  const registerCommand = (c: CommandContribution): Disposable => {
+    const disposals: CoreDisposable[] = [
+      commands.register(
+        {
+          id: c.id,
+          label: localize(c.title),
+          category: localize(c.category) || localize(manifest.name),
+          keybinding: c.keybinding,
+          run: () => guard(`command ${c.id}`, () => c.run(), undefined),
+          isEnabled: c.isEnabled ? () => guard(`command ${c.id} isEnabled`, () => !!c.isEnabled!(), false) : undefined,
+          isChecked: c.isChecked ? () => guard(`command ${c.id} isChecked`, () => !!c.isChecked!(), false) : undefined,
+        },
+        owner,
+      ),
+    ];
+    // A menu row is a separate contribution pointing at the command, exactly as the
+    // built-in menus are — so a contributed row can't restate label or enablement.
+    if (c.menu) {
+      disposals.push(
+        registerMenuItem({ id: `${c.menu}/${c.id}`, location: c.menu, group: c.menu === 'tools' ? 'tools' : 'plugins', command: c.id }, owner),
+      );
+    }
+    return track({ dispose: () => disposals.forEach((d) => d.dispose()) });
+  };
+
+  const registerPluginPanel = (p: PanelContribution): Disposable =>
+    adopt(
+      registerPanel(
+        {
+          id: p.id,
+          title: () => localize(p.title),
+          placement: p.placement ?? 'bottom',
+          width: p.width,
+          refs: ['log', 'content'],
+          mount: (host) => guard(`panel ${p.id} mount`, () => p.mount(host), () => {}),
+        },
+        owner,
+      ),
+    );
+
+  const registerSetting = (s: SettingContribution): Disposable => {
+    const section = `plugin:${id}`;
+    // One section per plugin, created on its first setting so a plugin with none
+    // doesn't leave an empty page in the dialog's nav.
+    if (!settingsRegistry.getSection(section)) {
+      adopt(settingsRegistry.registerSection({ id: section, label: localize(manifest.name), category: 'plugin' }, owner));
+    }
+    const base = { id: s.id, scope: 'editor' as const, section, label: localize(s.label), description: localize(s.description) || undefined };
+    const descriptor =
+      s.type === 'enum'
+        ? { ...base, type: 'enum' as const, default: s.default, options: s.options.map((o) => ({ value: o.value, label: localize(o.label) })) }
+        : s.type === 'number'
+          ? { ...base, type: 'number' as const, default: s.default, min: s.min, max: s.max, step: s.step }
+          : s.type === 'string'
+            ? { ...base, type: 'string' as const, default: s.default, placeholder: s.placeholder }
+            : { ...base, type: 'boolean' as const, default: s.default };
+    return adopt(settingsRegistry.register(descriptor, owner));
+  };
+
+  const ctx: PluginContext = {
+    id,
+    version: manifest.version,
+    subscriptions: [],
+    log,
+    ui: { toast: (message, level = 'info') => Toasts.push(message, level) },
+    state: pluginState(id),
+    commands: { register: registerCommand, run: (cid) => commands.run(cid) },
+    panels: {
+      register: registerPluginPanel,
+      open: (pid) => dockApi.openPanel(pid),
+    },
+    settings: {
+      register: registerSetting,
+      get: <T extends boolean | number | string>(sid: string) => useSettings.getState().getValue(sid) as T | undefined,
+    },
+    scene: sceneApi(),
+    project: projectApi(),
+    fs: pluginFs(id, dir, capabilities),
+    events: editorEvents(track),
+  };
+
+  return {
+    ctx,
+    dispose() {
+      // The plugin's own subscriptions first (they may reference contributions),
+      // then ours in reverse registration order.
+      for (const d of [...ctx.subscriptions].reverse()) {
+        try {
+          d.dispose();
+        } catch (e) {
+          log.error(`subscription cleanup failed: ${String(e)}`);
+        }
+      }
+      ctx.subscriptions.length = 0;
+      for (const d of [...disposables].reverse()) d.dispose();
+      disposables.length = 0;
+    },
+  };
+}
+
+export type { EditorPlugin };
