@@ -165,6 +165,19 @@ bool boot(Platform& platform) {
 void frame() {
     if (!booted() || !host().surfaceReady) return;
     HostState& h = host();
+
+    // A window can change size without being recreated: a rotation, an insets
+    // change (the system bars leaving on the frame after launch), a layout on
+    // iOS. The bound size is what the swapchain is configured to AND what the
+    // camera maps a touch through, so a stale one both stretches the picture and
+    // puts every hit test a proportion of a screen away from the finger.
+    u32 liveW = 0, liveH = 0;
+    h.platform->surfaceSize(liveW, liveH);
+    if (liveW > 0 && liveH > 0 && ((f32)liveW != h.w || (f32)liveH != h.h)) {
+        ESHOST_LOGI("surface resized: %dx%d -> %dx%d", (int)h.w, (int)h.h, (int)liveW, (int)liveH);
+        if (!bindSurface()) return;
+    }
+
     JSValue dt = JS_NewFloat64(h.js, 1.0 / 60.0);
     callJs(h, "update", 1, &dt);
     JS_FreeValue(h.js, dt);
@@ -182,6 +195,7 @@ void frame() {
     // Run the callbacks for any HTTP replies that landed since last frame, then
     // let their .then() continuations run.
     drainFetches(h);
+    drainTextEditor(h);
     pumpJs(h);
 
     // app.tick above ran the SDK's render system, which resolved the scene's
