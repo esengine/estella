@@ -96,6 +96,14 @@ bool createDevice(HostState& h) {
     WGPUDeviceDescriptor dd = {};
     dd.requiredFeatureCount = compCount;
     dd.requiredFeatures = compCount ? compFeats : nullptr;
+    // Without this, a validation failure is silent: WebGPU does not throw, the
+    // offending call is dropped, and all that reaches anyone is a black frame.
+    dd.uncapturedErrorCallbackInfo.callback =
+        [](WGPUDevice const*, WGPUErrorType, WGPUStringView message, void*, void*) {
+            ESHOST_LOGE("WebGPU: %.*s", (int)(message.length == WGPU_STRLEN
+                                                  ? strlen(message.data) : message.length),
+                        message.data ? message.data : "");
+        };
     WGPURequestDeviceCallbackInfo dci = {};
     dci.mode = WGPUCallbackMode_WaitAnyOnly; dci.callback = onDevice; dci.userdata1 = &h.device;
     WGPUFutureWaitInfo df = {wgpuAdapterRequestDevice(h.adapter, &dd, dci), 0};
