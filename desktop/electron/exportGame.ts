@@ -33,6 +33,7 @@ import { exportWeChat } from './exportWeChat';
 import { exportMiniGame } from './exportMiniGame';
 import type { MiniGameExportProfile } from './miniGameExportProfile';
 import { exportPlayable } from './exportPlayable';
+import type { PlayableAdProfile } from './playableAdProfile';
 import type { OnExportProgress } from './exportProgress';
 import { ESENGINE_EXTERNAL } from './esengineResolve';
 import { orientationCss, orientationOverlayHtml, orientationLockScript, orientationLockCspHash, type ScreenOrientation } from './orientationHtml';
@@ -366,6 +367,9 @@ export async function exportGame(opts: {
   platform?: ExportPlatform;
   /** Playable host source (src/playableHost.ts). */
   playableHostEntry?: string;
+  /** The ad network a playable targets (`packaging.platforms.playable.network`),
+   *  resolved by the caller since a project can define its own. Absent ⇒ generic. */
+  playableAdProfile?: PlayableAdProfile;
   /** Desktop installer id (Project Settings → Packaging → Desktop); default com.estella.<slug>. */
   desktopAppId?: string;
   /** Desktop product/display name (Project Settings); default the project title. */
@@ -497,6 +501,7 @@ export async function exportGame(opts: {
       screenFit: opts.screenFit,
       uiTheme: opts.uiTheme,
       uiThemeColors: opts.uiThemeColors,
+      adProfile: opts.playableAdProfile,
       onProgress: opts.onProgress,
     });
   }

@@ -40,7 +40,11 @@ import { ensureProjectShaderTwins } from './shaderTwins';
 import { installCrashCapture, logsDir } from './resilience';
 import { mcpMode, startMcpEndpoint } from './mcpEndpoint';
 import { checkForUpdate } from './updateCheck';
-import { listPlatforms, loadProjectPlatform, createProjectPlatform, type PlatformRuntimeDirs } from './platformCatalog';
+import {
+  listPlatforms, loadProjectPlatform, createProjectPlatform,
+  listPlayableNetworks, loadPlayableProfile,
+  type PlatformRuntimeDirs, type ProjectPlatformKind,
+} from './platformCatalog';
 import { resolveLayout, resolveScripts, resolveOrientation, resolveScreenFit, resolveAppId, type ExportPlatform } from '../src/project/format';
 import type { WorkspaceState } from '../src/project/format';
 
@@ -788,15 +792,19 @@ ipcMain.handle('project:cookAssets', async (_e, outDir?: string) => {
 // runs, and can list the platforms the project defines for itself.
 ipcMain.handle('project:listPlatforms', async () => listPlatforms(projectRoot, platformRuntimeDirs()));
 
+// The ad networks a playable can target — built-ins plus the project's own, so the
+// Packaging page offers a network the editor never heard of on equal terms.
+ipcMain.handle('project:listPlayableNetworks', async () => listPlayableNetworks(projectRoot));
+
 // Scaffold a project platform — both halves, already joined. The editor writes
 // them because the SHAPE of a vendor (two files linked by runtimeProfile) is the
 // part that is hard to know before you have seen one.
-ipcMain.handle('project:createPlatform', async (_e, id: string, label: string) => {
+ipcMain.handle('project:createPlatform', async (_e, id: string, label: string, kind?: ProjectPlatformKind) => {
   const root = requireRoot();
   const manifest = await readManifest(root);
   // The runtime half is game code, so it belongs beside the project's scripts.
   const scriptsDir = path.dirname(resolveScripts(manifest).main ?? 'src/main.ts');
-  return createProjectPlatform(root, id, label, scriptsDir);
+  return createProjectPlatform(root, id, label, scriptsDir, kind);
 });
 
 // Export a runnable web build (play == ship): cook + game host + wasm + index.html.
@@ -819,6 +827,17 @@ ipcMain.handle(
       ? await loadProjectPlatform(root, opts.platform, dirs)
       : null;
     const plat = manifest.packaging?.platforms;
+    // The playable's ad network: a built-in profile or one the project defined. An id
+    // that resolves to nothing does not fail the export — it ships generic and says so,
+    // because a package with no click-through still previews and still installs.
+    const playableAdProfile = opts?.platform === 'playable'
+      ? await loadPlayableProfile(root, plat?.playable?.network)
+      : null;
+    if (opts?.platform === 'playable' && !playableAdProfile) {
+      e.sender.send('project:exportProgress', {
+        phase: `ad network "${plat?.playable?.network}" not found — packaging generic`,
+      });
+    }
     const ySortLayers =
       (manifest.features?.rendering?.ySortLayers ?? []).reduce((m, i) => m | (1 << i), 0) >>> 0;
     const colorSpace = manifest.features?.rendering?.colorSpace === 'linear' ? 'linear' as const : undefined;
@@ -847,6 +866,7 @@ ipcMain.handle(
       title: manifest.name,
       platform: opts?.platform,
       miniGameProfile: projectPlatform?.profile,
+      playableAdProfile: playableAdProfile ?? undefined,
       desktopAppId: plat?.desktop?.appId,
       desktopProductName: plat?.desktop?.productName,
       wechatAppid: plat?.wechat?.appid,

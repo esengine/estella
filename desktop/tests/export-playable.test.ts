@@ -99,6 +99,50 @@ describe('exportGame (playable)', () => {
     expect(html).toMatch(/screen\.orientation[\s\S]*lock\("landscape"\)/);
   }, 60_000);
 
+  // The ad network is a PROFILE, not a branch: what it contributes is head markup, a
+  // CTA bridge, and the size it accepts. A project profile and a built-in one reach
+  // the pipeline the same way, so this exercises the contract with a bespoke one.
+  it('injects the ad network profile head + CTA bridge, and warns against ITS limit', async () => {
+    const o = path.join(root, 'dist-playable-network');
+    const res = await exportGame({
+      root, entryScene: 'scenes/main.esscene', gameHostEntry: 'unused-for-playable',
+      playableHostEntry: PLAYABLE_HOST, scriptsEntry: 'src/main.ts',
+      sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wasm'),
+      outDir: o, platform: 'playable',
+      playableAdProfile: {
+        id: 'acme', label: 'Acme Ads',
+        // Tiny cap so this fixture's few KB trip the warning.
+        maxBytes: 16, limitNote: 'Acme caps playables at 16 bytes',
+        emitHead: (ctx) => `<meta name="acme.orientation" content="${ctx.orientation}">`,
+        emitBridge: () => 'window.__ESTELLA_PLAYABLE__={cta:function(){AcmeSDK.openStore();}};',
+      },
+    });
+    expect(res.ok).toBe(true);
+
+    const html = readFileSync(path.join(o, 'index.html'), 'utf8');
+    expect(html).toContain('<meta name="acme.orientation" content="landscape">');
+    expect(html).toContain('AcmeSDK.openStore()');
+    // The bridge must precede the game bundle, or a CTA fired during boot finds nothing.
+    expect(html.indexOf('__ESTELLA_PLAYABLE__')).toBeLessThan(html.indexOf('__ENGINE_GLUE__'));
+    // The warning cites this network's cap and where it came from — not a constant.
+    expect(res.warnings.join('\n')).toMatch(/over the 0\.0MB limit for Acme Ads \(Acme caps playables at 16 bytes\)/);
+  }, 60_000);
+
+  it('injects nothing and keeps the default cap with no network selected', async () => {
+    const o = path.join(root, 'dist-playable-generic');
+    const res = await exportGame({
+      root, entryScene: 'scenes/main.esscene', gameHostEntry: 'unused-for-playable',
+      playableHostEntry: PLAYABLE_HOST, scriptsEntry: 'src/main.ts',
+      sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wasm'),
+      outDir: o, platform: 'playable',
+    });
+    expect(res.ok).toBe(true);
+    const html = readFileSync(path.join(o, 'index.html'), 'utf8');
+    expect(html).not.toContain('__ESTELLA_PLAYABLE__');
+    // A fixture this small is under every cap, so nothing to report.
+    expect(res.warnings).toEqual([]);
+  }, 60_000);
+
   it('inlines the project camera fit as __GAME_SCREENFIT__ (only when opted in)', async () => {
     const o = path.join(root, 'dist-playable-fit');
     const res = await exportGame({

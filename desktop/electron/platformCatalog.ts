@@ -26,6 +26,10 @@ import { readdir, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { defaultMiniGameEntry } from './miniGameExportProfile';
+import {
+  BUILTIN_PLAYABLE_PROFILES, builtinPlayableProfile, genericPlayableProfile,
+  type PlayableAdProfile,
+} from './playableAdProfile';
 import { BUILTIN_PLATFORMS, type PlatformPrereq } from '../src/project/platforms';
 import type { MiniGameExportProfile, MiniGameConfigContext } from './miniGameExportProfile';
 
@@ -159,11 +163,21 @@ export const MINIGAME_PROFILE_DEFAULTS = {
   emitEntry: defaultMiniGameEntry,
 };
 
+/**
+ * What a project profile declares itself to be. A mini-game vendor is a whole
+ * PLATFORM (its own host, packaging and runtime); a playable ad network is a
+ * variant of the built-in `playable` target (same browser host, same single-file
+ * pipeline — only the network's cap, head markup and click-through API differ).
+ * Absent ⇒ mini-game, which is what every profile written before this meant.
+ */
+export type ProjectPlatformKind = 'minigame' | 'playable';
+
 /** The shape a `.esengine/platforms/<id>.mjs` default-exports. */
-export interface ProjectPlatformModule extends Partial<MiniGameExportProfile> {
+export interface ProjectPlatformModule extends Partial<MiniGameExportProfile>, Partial<PlayableAdProfile> {
   id: string;
   /** Shown in the platform list (the project names its own platforms). */
   label: string;
+  kind?: ProjectPlatformKind;
   blurb?: string;
   defaultOut?: string;
   /** Engine runtime dir for this platform, relative to the project root.
@@ -179,7 +193,8 @@ export interface ProjectPlatformModule extends Partial<MiniGameExportProfile> {
    * half. Naming it here is what joins them.
    */
   runtimeProfile?: string;
-  emitConfigFiles(ctx: MiniGameConfigContext): Array<{ file: string; content: string }>;
+  /** Mini-game kind only — a playable network has no vendor config files. */
+  emitConfigFiles?(ctx: MiniGameConfigContext): Array<{ file: string; content: string }>;
 }
 
 /** A loaded project platform: the export profile plus where its runtime lives. */
@@ -244,6 +259,40 @@ export default {
   // Uncomment if your host needs its own engine build; the default is the
   // editor's web runtime.
   // wasmDir: 'build/wasm/${id}',
+};
+`;
+}
+
+/**
+ * A playable ad network. One file: the pipeline and the host are unchanged (a
+ * playable always runs in a browser), so all a network can differ in is the size
+ * it accepts, what it wants in `<head>`, and the API its click-through calls.
+ */
+function playableTemplate(id: string, label: string): string {
+  return `// Ad-network profile for "${label}" — how Estella packages a playable for it.
+//
+// Selected in Project Settings → Packaging → Playable. The editor's own networks
+// are written against this same contract, so anything they can do, this can.
+export default {
+  id: '${id}',
+  kind: 'playable',
+  label: '${label}',
+
+  // The size this network accepts for the delivered index.html, and where that
+  // number comes from — the export quotes the note in its size warning, so keep it
+  // pointing at the network's docs rather than at a guess.
+  maxBytes: 5 * 1024 * 1024,
+  limitNote: 'TODO: cite this network\\'s published limit',
+
+  // Optional. Markup for <head> — an orientation meta tag, this network's SDK
+  // script. Note that some networks forbid ANY external request in a playable.
+  // emitHead: (ctx) => \`<meta name="ad.orientation" content="\${ctx.orientation}">\`,
+
+  // Optional. Installs the bridge the SDK's playableCta() dispatches through, so
+  // game code never names this network. Runs before the game bundle.
+  emitBridge: () => \`window.__ESTELLA_PLAYABLE__={cta:function(){
+    // TODO: call this network's click-through API.
+  }};\`,
 };
 `;
 }
@@ -315,10 +364,25 @@ export async function createProjectPlatform(
   id: string,
   label: string,
   scriptsDir: string,
+  kind: ProjectPlatformKind = 'minigame',
 ): Promise<CreatePlatformResult> {
-  const bad = idProblem(id);
+  const bad = kind === 'playable' ? playableIdProblem(id) : idProblem(id);
   if (bad) return { ok: false, error: bad };
   if (!label.trim()) return { ok: false, error: 'platform needs a label' };
+
+  // A playable network has no runtime half: the host is the browser, unchanged.
+  if (kind === 'playable') {
+    const rel = path.join(PROJECT_PLATFORM_DIR, `${id}.mjs`);
+    const abs = path.join(root, rel);
+    if (existsSync(abs)) return { ok: false, error: `${rel} already exists` };
+    try {
+      await mkdir(path.dirname(abs), { recursive: true });
+      await writeFile(abs, playableTemplate(id, label), 'utf8');
+      return { ok: true, packagingFile: posix(rel) };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  }
 
   const packagingRel = path.join(PROJECT_PLATFORM_DIR, `${id}.mjs`);
   const runtimeRel = runtimeHalfPath(scriptsDir, id);
@@ -347,6 +411,15 @@ function idProblem(id: unknown): string | null {
   return null;
 }
 
+/** A playable network's id: same spelling rules, but it competes with the networks
+ *  the editor ships rather than with the platform list. */
+function playableIdProblem(id: unknown): string | null {
+  if (typeof id !== 'string' || id.length === 0) return 'profile has no string `id`';
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(id)) return `id "${id}" must be lowercase letters, digits and dashes`;
+  if (builtinPlayableProfile(id)) return `id "${id}" is a built-in ad network`;
+  return null;
+}
+
 /**
  * Import one project platform module. Returns its raw export, or an error string
  * — never throws: a project that ships a broken profile must still be able to
@@ -361,9 +434,20 @@ async function importPlatformModule(file: string): Promise<{ mod?: ProjectPlatfo
     const mod = ns.default;
     if (!mod || typeof mod !== 'object') return { error: 'module has no default export object' };
     const candidate = mod as ProjectPlatformModule;
-    const bad = idProblem(candidate.id);
+    // A playable network shares the `playable` target's id space (it is a variant of
+    // it, not a rival platform), so only a mini-game platform must avoid built-in ids.
+    const bad = candidate.kind === 'playable' ? playableIdProblem(candidate.id) : idProblem(candidate.id);
     if (bad) return { error: bad };
     if (typeof candidate.label !== 'string' || !candidate.label) return { error: 'profile has no `label`' };
+    if (candidate.kind === 'playable') {
+      if (typeof candidate.maxBytes !== 'number' || !(candidate.maxBytes > 0)) {
+        return { error: 'playable profile needs a positive `maxBytes` (the size this network accepts)' };
+      }
+      if (typeof candidate.limitNote !== 'string' || !candidate.limitNote) {
+        return { error: 'playable profile needs a `limitNote` saying where `maxBytes` comes from' };
+      }
+      return { mod: candidate };
+    }
     if (typeof candidate.emitConfigFiles !== 'function') return { error: 'profile has no `emitConfigFiles(ctx)`' };
     return { mod: candidate };
   } catch (err) {
@@ -390,7 +474,7 @@ async function projectPlatformFiles(root: string): Promise<string[]> {
 export async function loadProjectPlatform(root: string, id: string, dirs: PlatformRuntimeDirs): Promise<ProjectPlatform | null> {
   for (const file of await projectPlatformFiles(root)) {
     const { mod } = await importPlatformModule(file);
-    if (!mod || mod.id !== id) continue;
+    if (!mod || mod.id !== id || mod.kind === 'playable') continue;
     // The runtime half is resolved to an absolute path here: the generated entry
     // is bundled with `resolveDir` at the project root, but an absolute specifier
     // is unambiguous whatever the profile wrote.
@@ -402,6 +486,70 @@ export async function loadProjectPlatform(root: string, id: string, dirs: Platfo
       ? (path.isAbsolute(mod.wasmDir) ? mod.wasmDir : path.join(root, mod.wasmDir))
       : dirs.web;
     return { profile, wasmDir, defaultOut: mod.defaultOut ?? `dist-${id}` };
+  }
+  return null;
+}
+
+// =============================================================================
+// Playable ad networks
+// =============================================================================
+
+/** One row of the network picker. Serializable by construction (it crosses IPC). */
+export interface PlayableNetworkOption {
+  id: string;
+  label: string;
+  source: 'builtin' | 'project';
+  /** Present when a project profile failed to load, and why — the row still appears. */
+  error?: string;
+}
+
+/**
+ * Every ad network this project can package a playable for: the ones the editor
+ * ships, then the project's own. One list, one contract — a network the editor
+ * never heard of appears here on equal terms, which is the whole point of the
+ * `kind: 'playable'` profile.
+ */
+export async function listPlayableNetworks(root: string | null): Promise<PlayableNetworkOption[]> {
+  const out: PlayableNetworkOption[] = BUILTIN_PLAYABLE_PROFILES
+    .map((p) => ({ id: p.id, label: p.label, source: 'builtin' as const }));
+  if (!root) return out;
+  for (const file of await projectPlatformFiles(root)) {
+    const { mod, error } = await importPlatformModule(file);
+    // A broken profile is NAMED rather than dropped — a project that wrote a file
+    // and sees nothing cannot tell the difference between "not loaded" and "typo".
+    if (error) {
+      const id = path.basename(file, '.mjs');
+      if (!out.some((p) => p.id === id)) out.push({ id, label: path.basename(file), source: 'project', error });
+      continue;
+    }
+    if (!mod || mod.kind !== 'playable') continue;
+    out.push({ id: mod.id, label: mod.label, source: 'project' });
+  }
+  return out;
+}
+
+/**
+ * Resolve a network id to the profile the playable export runs with. Built-ins
+ * first, then the project's; an id that resolves to nothing falls back to generic
+ * rather than failing the export — a package that ships without a click-through is
+ * still a package, and the missing network is reported as a warning by the caller.
+ */
+export async function loadPlayableProfile(root: string | null, id: string | undefined): Promise<PlayableAdProfile | null> {
+  if (!id) return genericPlayableProfile;
+  const builtin = builtinPlayableProfile(id);
+  if (builtin) return builtin;
+  if (!root) return null;
+  for (const file of await projectPlatformFiles(root)) {
+    const { mod } = await importPlatformModule(file);
+    if (!mod || mod.kind !== 'playable' || mod.id !== id) continue;
+    return {
+      id: mod.id,
+      label: mod.label,
+      maxBytes: mod.maxBytes as number,
+      limitNote: mod.limitNote as string,
+      emitHead: mod.emitHead,
+      emitBridge: mod.emitBridge,
+    };
   }
   return null;
 }
@@ -435,6 +583,9 @@ export async function listPlatforms(root: string | null, dirs: PlatformRuntimeDi
       });
       continue;
     }
+    // A playable network is not a platform row — it is chosen inside the built-in
+    // `playable` target (Project Settings → Packaging → Playable).
+    if (mod.kind === 'playable') continue;
     const wasmDir = mod.wasmDir
       ? (path.isAbsolute(mod.wasmDir) ? mod.wasmDir : path.join(root, mod.wasmDir))
       : dirs.web;

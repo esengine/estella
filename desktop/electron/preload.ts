@@ -7,7 +7,9 @@ import type { ExtractSchemasResult } from './extractSchemas';
 import type { ScanAssetsResult, AssetIndex, IncrementalScanResult } from './assetDb';
 import type { CookResult } from './cookAssets';
 import type { ExportGameResult } from './exportGame';
-import type { PlatformStatus, CreatePlatformResult } from './platformCatalog';
+import type {
+  PlatformStatus, CreatePlatformResult, PlayableNetworkOption, ProjectPlatformKind,
+} from './platformCatalog';
 import type { PlayRealmResult } from './buildPlayRealm';
 import type { LatestRelease } from './updateCheck';
 
@@ -97,10 +99,15 @@ const api = {
     /** The platforms this project can package for — built-ins plus any the project
      *  defines in `.esengine/platforms/` — each with its engine runtime probed. */
     listPlatforms: (): Promise<PlatformStatus[]> => ipcRenderer.invoke('project:listPlatforms'),
+    /** The ad networks a playable can target — the editor's plus any the project
+     *  defines with `kind: 'playable'`. A profile that failed to load is listed with
+     *  its `error` rather than dropped. */
+    listPlayableNetworks: (): Promise<PlayableNetworkOption[]> =>
+      ipcRenderer.invoke('project:listPlayableNetworks'),
     /** Scaffold a project platform: the packaging profile + the runtime profile it
      *  points at, both written and already joined. */
-    createPlatform: (id: string, label: string): Promise<CreatePlatformResult> =>
-      ipcRenderer.invoke('project:createPlatform', id, label),
+    createPlatform: (id: string, label: string, kind?: ProjectPlatformKind): Promise<CreatePlatformResult> =>
+      ipcRenderer.invoke('project:createPlatform', id, label, kind),
     /** Export a runnable web build (play==ship) → self-contained `outDir` (default dist-game/). */
     exportGame: (opts?: { outDir?: string; minify?: boolean; sourcemap?: boolean; platform?: ExportPlatform; compressTextures?: boolean; compressAudio?: boolean; atlasTextures?: boolean }): Promise<ExportGameResult> =>
       ipcRenderer.invoke('project:exportGame', opts),

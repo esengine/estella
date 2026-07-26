@@ -22,6 +22,7 @@ import { cookAssets } from './cookAssets';
 import type { OnExportProgress } from './exportProgress';
 import { esengineAlias } from './esengineResolve';
 import { orientationCss, orientationOverlayHtml, orientationLockScript, type ScreenOrientation } from './orientationHtml';
+import { genericPlayableProfile, playableAdInjection, type PlayableAdProfile } from './playableAdProfile';
 import {
   sceneUsesPhysics, detectSpineVersion, detectSpineVersionJson,
   spineModuleId, SIDE_MODULE_FILE, type SpineVersion,
@@ -54,13 +55,22 @@ const mimeOf = (p: string): string => MIME[path.extname(p).slice(1).toLowerCase(
 /** Escape `</script` so inlined content can't close the host <script> early. */
 const inlineSafe = (s: string): string => s.replace(/<\/script/gi, '<\\/script');
 
-function indexHtml(title: string, globals: string, bundle: string, orientation: ScreenOrientation): string {
+/** `network` is what the chosen ad-network profile contributes: markup for `<head>`
+ *  and the bridge script that gives `playableCta()` somewhere to go. The bridge runs
+ *  BEFORE the game bundle, so a CTA fired during boot still resolves. */
+function indexHtml(
+  title: string,
+  globals: string,
+  bundle: string,
+  orientation: ScreenOrientation,
+  network: { head: string; bridge: string },
+): string {
   return `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-    <title>${title}</title>
+    <title>${title}</title>${network.head ? `\n    ${network.head}` : ''}
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
       html, body { width: 100%; height: 100%; overflow: hidden; background: #0e121b; }
@@ -71,7 +81,7 @@ function indexHtml(title: string, globals: string, bundle: string, orientation: 
   <body>
     <canvas id="canvas"></canvas>
     ${orientationOverlayHtml(orientation)}
-    ${orientationLockScript(orientation)}
+    ${orientationLockScript(orientation)}${network.bridge ? `\n    <script>${inlineSafe(network.bridge)}</script>` : ''}
     <script>${inlineSafe(globals)}</script>
     <script>${inlineSafe(bundle)}</script>
   </body>
@@ -162,6 +172,9 @@ export async function exportPlayable(opts: {
   uiTheme?: 'light';
   /** Project theme color overrides (role → #rrggbbaa hex) — the host parses them. */
   uiThemeColors?: Record<string, string>;
+  /** The ad network this package targets (Project Settings → Packaging → Playable):
+   *  its size cap, its `<head>` markup and its click-through API. Absent ⇒ generic. */
+  adProfile?: PlayableAdProfile;
   onProgress?: OnExportProgress;
 }): Promise<ExportPlayableResult> {
   const title = opts.title ?? 'Game';
@@ -285,15 +298,20 @@ export async function exportPlayable(opts: {
     (opts.screenFit && opts.screenFit.scaleMode >= 0 ? `window.__GAME_SCREENFIT__=${JSON.stringify(opts.screenFit)};` : '') +
     (opts.uiTheme === 'light' ? `window.__GAME_UITHEME__='light';` : '') +
     (opts.uiThemeColors && Object.keys(opts.uiThemeColors).length > 0 ? `window.__GAME_UITHEMECOLORS__=${JSON.stringify(opts.uiThemeColors)};` : '');
+  const adProfile = opts.adProfile ?? genericPlayableProfile;
+  const network = playableAdInjection(adProfile, { title, orientation });
   const outFile = path.join(absOut, 'index.html');
-  await writeFile(outFile, indexHtml(title, globals, bundle, orientation));
+  await writeFile(outFile, indexHtml(title, globals, bundle, orientation, network));
   await rm(cookDir, { recursive: true, force: true });
 
   const bytes = (await stat(outFile)).size;
-  // Ad networks cap playable size (Facebook ~2MB, Google ~5MB). A full WASM engine
-  // + assets typically exceeds this — surface it rather than silently ship a reject.
-  if (bytes > 2 * 1024 * 1024) {
-    warnings.push(`playable is ~${(bytes / 1024 / 1024).toFixed(1)}MB — likely over ad-network limits (Facebook ~2MB, Google ~5MB).`);
+  // A full WASM engine + assets routinely exceeds what a network accepts, and each
+  // network caps differently — say which cap and where it comes from, so this reads
+  // as a fact to check rather than a number to trust.
+  if (bytes > adProfile.maxBytes) {
+    warnings.push(`playable is ~${(bytes / 1024 / 1024).toFixed(1)}MB, over the `
+      + `${(adProfile.maxBytes / 1024 / 1024).toFixed(1)}MB limit for ${adProfile.label} `
+      + `(${adProfile.limitNote}).`);
   }
 
   return { ok: errors.length === 0, platform: 'playable', outDir: absOut, included: cook.included.length, bytes, warnings, errors };

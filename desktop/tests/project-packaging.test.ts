@@ -80,6 +80,14 @@ describe('parseManifest — orientation (unified, project-wide)', () => {
     expect(parseManifest({ name: 'X', packaging: { orientation: 'portrait' } }).packaging?.orientation).toBe('portrait');
   });
 
+  it('parses the playable ad network, and drops an empty one', () => {
+    expect(parseManifest({ name: 'X', packaging: { platforms: { playable: { network: 'meta' } } } })
+      .packaging?.platforms?.playable?.network).toBe('meta');
+    // An empty string is not a selection — it must fall through to generic.
+    expect(parseManifest({ name: 'X', packaging: { platforms: { playable: { network: '' } } } })
+      .packaging?.platforms).toBeUndefined();
+  });
+
   it('drops an invalid top-level orientation', () => {
     expect(parseManifest({ name: 'X', packaging: { orientation: 'diagonal' } }).packaging).toBeUndefined();
   });

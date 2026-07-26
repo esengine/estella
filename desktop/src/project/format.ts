@@ -131,6 +131,13 @@ export interface AndroidPackaging { appId?: string; versionCode?: number; }
 /** iOS's slice: the bundle identifier Xcode signs against. */
 export interface IosPackaging { appId?: string; }
 
+/** Playable's slice: which ad network the single-file package targets. The id names
+ *  a profile — one the editor ships, or one the project defines in
+ *  `.esengine/platforms/<id>.mjs` with `kind: 'playable'` — which decides the size
+ *  cap, the `<head>` markup, and the API `playableCta()` calls. Absent ⇒ generic
+ *  (no network API, strictest cap). */
+export interface PlayablePackaging { network?: string; }
+
 /** A packaging target — defined in `./platforms`, where the built-in vocabulary
  *  lives, and re-exported here because the manifest is what persists it. */
 export type { ExportPlatform } from './platforms';
@@ -188,6 +195,7 @@ export interface ProjectPackaging {
     desktop?: DesktopPackaging;
     android?: AndroidPackaging;
     ios?: IosPackaging;
+    playable?: PlayablePackaging;
   };
 }
 
@@ -452,11 +460,16 @@ export function parseManifest(raw: unknown): ProjectManifest {
         if (typeof io.appId === 'string') i.appId = io.appId;
         if (Object.keys(i).length > 0) platforms.ios = i;
       }
-      // Legacy playable.orientation (its only field) also migrates; the platform
-      // block itself is gone (playable has no per-platform config anymore).
       const pa = pl.playable as Record<string, unknown> | undefined;
-      if (!orientation && pa && typeof pa === 'object' && (pa.orientation === 'portrait' || pa.orientation === 'landscape')) {
-        orientation = pa.orientation;
+      if (pa && typeof pa === 'object') {
+        // A legacy playable.orientation migrates to the project-wide field; `network`
+        // is what the block carries today.
+        if (!orientation && (pa.orientation === 'portrait' || pa.orientation === 'landscape')) {
+          orientation = pa.orientation;
+        }
+        const p: PlayablePackaging = {};
+        if (typeof pa.network === 'string' && pa.network !== '') p.network = pa.network;
+        if (Object.keys(p).length > 0) platforms.playable = p;
       }
       if (Object.keys(platforms).length > 0) pkg.platforms = platforms;
     }

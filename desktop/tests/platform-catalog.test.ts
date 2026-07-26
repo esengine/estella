@@ -13,7 +13,10 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { listPlatforms, loadProjectPlatform, createProjectPlatform, PROJECT_PLATFORM_DIR } from '../electron/platformCatalog';
+import {
+  listPlatforms, loadProjectPlatform, createProjectPlatform, PROJECT_PLATFORM_DIR,
+  listPlayableNetworks, loadPlayableProfile,
+} from '../electron/platformCatalog';
 import { BUILTIN_PLATFORMS } from '../src/project/platforms';
 
 let root: string;
@@ -288,5 +291,75 @@ describe('loadProjectPlatform — the profile handed to exportMiniGame', () => {
   it('is null for a built-in id, so the built-in pipeline keeps it', async () => {
     expect(await loadProjectPlatform(root, 'wechat', dirs())).toBeNull();
     expect(await loadProjectPlatform(root, 'nope', dirs())).toBeNull();
+  });
+});
+
+// A playable ad network is a variant of the built-in `playable` target, not a rival
+// platform: it is chosen inside that target, and a project-defined one must reach the
+// export through exactly the path a built-in does.
+describe('playable ad networks', () => {
+  it('lists the built-ins, then the project\'s own', async () => {
+    writePlatform('acme-ads.mjs', `export default {
+      id: 'acme-ads', kind: 'playable', label: 'Acme Ads',
+      maxBytes: 3145728, limitNote: 'Acme docs say 3MB',
+    };`);
+    const rows = await listPlayableNetworks(root);
+    expect(rows.filter((r) => r.source === 'builtin').map((r) => r.id)).toEqual(['generic', 'meta']);
+    expect(rows.find((r) => r.id === 'acme-ads')).toMatchObject({ label: 'Acme Ads', source: 'project' });
+  });
+
+  it('resolves a project network to a profile the export can run with', async () => {
+    writePlatform('acme-ads.mjs', `export default {
+      id: 'acme-ads', kind: 'playable', label: 'Acme Ads',
+      maxBytes: 3145728, limitNote: 'Acme docs say 3MB',
+      emitHead: (ctx) => '<meta name="acme" content="' + ctx.orientation + '">',
+      emitBridge: () => 'window.__ESTELLA_PLAYABLE__={cta:function(){}};',
+    };`);
+    const profile = await loadPlayableProfile(root, 'acme-ads');
+    expect(profile).toMatchObject({ id: 'acme-ads', maxBytes: 3145728 });
+    expect(profile!.emitHead!({ title: 'T', orientation: 'portrait' })).toBe('<meta name="acme" content="portrait">');
+    expect(profile!.emitBridge!({ title: 'T', orientation: 'portrait' })).toContain('__ESTELLA_PLAYABLE__');
+  });
+
+  it('resolves the built-ins, and nothing for an unknown id', async () => {
+    expect((await loadPlayableProfile(root, 'meta'))!.emitBridge!({ title: 'T', orientation: 'landscape' }))
+      .toContain('FbPlayableAd.onCTAClick');
+    // No selection ⇒ generic, so a project that never chose still exports.
+    expect((await loadPlayableProfile(root, undefined))!.id).toBe('generic');
+    // An id naming nothing is NOT silently generic — the caller reports it.
+    expect(await loadPlayableProfile(root, 'nope')).toBeNull();
+  });
+
+  it('rejects a playable profile missing the facts the warning needs', async () => {
+    writePlatform('bad.mjs', "export default { id: 'bad', kind: 'playable', label: 'Bad' };");
+    const row = (await listPlayableNetworks(root)).find((r) => r.id === 'bad');
+    expect(row!.error).toMatch(/maxBytes/);
+  });
+
+  it('keeps networks out of the platform list, and platforms out of the network list', async () => {
+    writePlatform('acme-ads.mjs', `export default {
+      id: 'acme-ads', kind: 'playable', label: 'Acme Ads', maxBytes: 100, limitNote: 'x',
+    };`);
+    writePlatform('acme-mini.mjs', `export default {
+      id: 'acme-mini', label: 'Acme MiniGame', emitConfigFiles: () => [],
+    };`);
+    expect((await listPlatforms(root, dirs())).map((r) => r.id)).not.toContain('acme-ads');
+    expect((await listPlayableNetworks(root)).map((r) => r.id)).not.toContain('acme-mini');
+    // And a network id must not shadow a network the editor ships.
+    writePlatform('meta.mjs', "export default { id: 'meta', kind: 'playable', label: 'Mine', maxBytes: 1, limitNote: 'x' };");
+    expect((await listPlayableNetworks(root)).find((r) => r.label === 'Mine')).toBeUndefined();
+  });
+
+  it('scaffolds a playable network as one file (the host is still the browser)', async () => {
+    const res = await createProjectPlatform(root, 'acme-ads', 'Acme Ads', 'src', 'playable');
+    expect(res.ok).toBe(true);
+    expect(res.runtimeFile).toBeUndefined();
+    const written = readFileSync(path.join(root, res.packagingFile!), 'utf8');
+    expect(written).toContain("kind: 'playable'");
+    expect(written).toContain('__ESTELLA_PLAYABLE__');
+    // The scaffold must satisfy its own contract, or the first export after
+    // scaffolding reports an error the developer did not write.
+    const row = (await listPlayableNetworks(root)).find((r) => r.id === 'acme-ads');
+    expect(row?.error).toBeUndefined();
   });
 });
