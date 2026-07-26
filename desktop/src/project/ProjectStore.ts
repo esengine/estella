@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { createStore } from 'zustand/vanilla';
-import { getComponent, getEditorType, Assets, migratePrefabData, extractPrefab, flattenPrefab, collectExternalEntityRefs, collapseInstance, applyDeltaToSource, buildVariant, validateOverrides, setTextureParams, TextureFilter, TextureWrap, Renderer, RETIRED_COMPONENT_TYPES, parseThemeOverrides, resolveAssetGroup, folderGroupMode, withFolderGroup, withActiveRemoteRoot } from 'esengine';
+import { getComponent, getEditorType, Assets, migratePrefabData, extractPrefab, flattenPrefab, collectExternalEntityRefs, collapseInstance, applyDeltaToSource, buildVariant, validateOverrides, setTextureParams, TextureFilter, TextureWrap, Renderer, RETIRED_COMPONENT_TYPES, parseThemeOverrides, resolveAssetGroup, folderGroupMode, withFolderGroup, folderAlwaysInclude, withFolderAlwaysInclude, withActiveRemoteRoot } from 'esengine';
 import { readTextureImportSettings } from './assetImporter';
 import type { SceneData, PrefabData, ExtractEntity, ProcessedEntity, PhysicsPluginConfig, AudioProjectConfig, AssetsData, ThemeOverrides, StaleOverride, PrefabOverride, AddressableManifest, AssetGroupsConfig, AssetGroupMode } from 'esengine';
 import { EngineHost } from '@/engine/EngineHost';
@@ -1742,6 +1742,12 @@ class ProjectStoreImpl {
     return folderGroupMode(this.assetGroupsConfig, folder);
   }
 
+  /** Whether a folder is marked always-include (ships whether or not a scene
+   *  references it) — the Content Browser's menu check. */
+  folderAlwaysInclude(folder: string): boolean {
+    return folderAlwaysInclude(this.assetGroupsConfig, folder);
+  }
+
   /** The active build profile's CDN root ('' when unset) — the Build dialog field. */
   activeProfileRemoteRoot(): string {
     const cfg = this.assetGroupsConfig;
@@ -1755,6 +1761,13 @@ class ProjectStoreImpl {
    *  the next cook / Play. */
   async setFolderDeliveryMode(folder: string, mode: AssetGroupMode): Promise<void> {
     await this.writeAssetGroups(withFolderGroup(this.assetGroupsConfig, folder, mode));
+  }
+
+  /** Mark a folder always-include, or clear it: a build cooks what it can reach
+   *  from the entry scenes, and this is how a project ships what only its CODE
+   *  names (a path built at run time, a texture in rich-text markup). */
+  async setFolderAlwaysInclude(folder: string, on: boolean): Promise<void> {
+    await this.writeAssetGroups(withFolderAlwaysInclude(this.assetGroupsConfig, folder, on));
   }
 
   /** Set the active build profile's CDN root (empty → remote groups load same-origin). */

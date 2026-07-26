@@ -144,30 +144,75 @@ export function folderGroupMode(config: AssetGroupsConfig | null | undefined, fo
     return 'local';
 }
 
+/** Whether `folder` has its own group marked {@link AssetGroupDef.alwaysInclude}
+ *  — the per-folder authoring state, for a menu check / badge. */
+export function folderAlwaysInclude(
+    config: AssetGroupsConfig | null | undefined,
+    folder: string,
+): boolean {
+    const norm = normFolder(folder);
+    for (const def of Object.values(config?.groups ?? {})) {
+        if (normFolder(def.folder) === norm) return def.alwaysInclude === true;
+    }
+    return false;
+}
+
+/** Write `folder`'s own group definition (or drop it when `def` is null), keeping
+ *  every other group. The name of a new group is the folder's last path segment,
+ *  deduped. Shared by the two authoring mutations below. */
+function withFolderDef(
+    config: AssetGroupsConfig | null | undefined,
+    folder: string,
+    def: AssetGroupDef | null,
+): AssetGroupsConfig {
+    const norm = normFolder(folder);
+    const groups: Record<string, AssetGroupDef> = { ...(config?.groups ?? {}) };
+    let existingName: string | null = null;
+    for (const [name, g] of Object.entries(groups)) {
+        if (normFolder(g.folder) === norm) { existingName = name; delete groups[name]; }
+    }
+    if (norm !== '' && def) {
+        let name = existingName ?? (norm.split('/').pop() || 'group');
+        let i = 2;
+        while (groups[name]) name = `${norm.split('/').pop() || 'group'}${i++}`;
+        groups[name] = def;
+    }
+    return { version: '1.0', ...config, groups };
+}
+
 /**
  * A copy of `config` with `folder` assigned delivery `mode` — the pure authoring
- * mutation the editor writes to `.esengine/asset-groups.json`. `local` removes any
- * group for the folder; otherwise the group name is the folder's last path segment
- * (deduped against existing names).
+ * mutation the editor writes to `.esengine/asset-groups.json`. `local` drops the
+ * group, unless it is carrying an `alwaysInclude` that must outlive the mode
+ * change (a folder can be ordinary local delivery AND always shipped).
  */
 export function withFolderGroup(
     config: AssetGroupsConfig | null | undefined,
     folder: string,
     mode: AssetGroupMode,
 ): AssetGroupsConfig {
+    const always = folderAlwaysInclude(config, folder);
+    if (mode === 'local' && !always) return withFolderDef(config, folder, null);
+    return withFolderDef(config, normFolder(folder), {
+        folder: normFolder(folder), mode, ...(always ? { alwaysInclude: true } : {}),
+    });
+}
+
+/**
+ * A copy of `config` with `folder` marked (or unmarked) always-include: ship its
+ * assets whether or not a scene references them. Clearing it on an otherwise
+ * ordinary local folder drops the group entirely — a local group with nothing to
+ * say is the same as no group.
+ */
+export function withFolderAlwaysInclude(
+    config: AssetGroupsConfig | null | undefined,
+    folder: string,
+    on: boolean,
+): AssetGroupsConfig {
     const norm = normFolder(folder);
-    const groups: Record<string, AssetGroupDef> = { ...(config?.groups ?? {}) };
-    for (const [name, def] of Object.entries(groups)) {
-        if (normFolder(def.folder) === norm) delete groups[name];
-    }
-    if (norm !== '' && mode !== 'local') {
-        const base = norm.split('/').pop() || 'group';
-        let name = base;
-        let i = 2;
-        while (groups[name]) name = `${base}${i++}`;
-        groups[name] = { folder: norm, mode };
-    }
-    return { version: '1.0', ...config, groups };
+    const mode = folderGroupMode(config, folder);
+    if (!on && mode === 'local') return withFolderDef(config, norm, null);
+    return withFolderDef(config, norm, { folder: norm, mode, ...(on ? { alwaysInclude: true } : {}) });
 }
 
 /** A copy of `config` with the active build profile's CDN root set (creating the

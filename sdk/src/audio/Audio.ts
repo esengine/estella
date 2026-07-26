@@ -39,6 +39,26 @@ export interface AudioBufferStats {
  * Consumed as a resource: declare `Res(Audio)` as a system param or
  * grab it with `app.getResource(Audio)` outside ECS code.
  */
+/** A playing voice this API owns the volume of: base × bus gain × fade. */
+interface SoftVoice {
+    handle: AudioHandle;
+    bus: string;
+    base: number;
+    fade: number;
+}
+
+/** One volume ramp in flight: a linear interpolation the frame loop advances. */
+interface Fade {
+    voice: SoftVoice;
+    /** Fade FACTORS (0..1), multiplied onto the voice's base volume. */
+    from: number;
+    to: number;
+    duration: number;
+    elapsed: number;
+    /** A fade-out stops its track when it reaches silence. */
+    stopAtEnd: boolean;
+}
+
 export class AudioAPI {
     private readonly backend_: PlatformAudioBackend;
     private readonly mixer_: AudioMixer | null;
@@ -50,7 +70,21 @@ export class AudioAPI {
     private bufferBudgetOverride_: number | null = null;
     private bgmHandle_: AudioHandle | null = null;
     private bgmVolume_ = 1.0;
-    private readonly fadeAnimIds_ = new Set<number>();
+    /** Volume ramps in flight, advanced by {@link updateFades} from the frame
+     *  loop — NOT by requestAnimationFrame, which is a browser global a device
+     *  does not have (and which would keep ramping while the game is paused). */
+    private readonly fades_: Fade[] = [];
+
+    /**
+     * Bus volume / mute for a backend with no mixer GRAPH (a device, WeChat):
+     * the mixer's gain nodes are one way to apply a bus, not the meaning of one,
+     * so where there are no nodes the gain is folded into each voice instead —
+     * at play, and again on every voice already playing when a bus changes. The
+     * mixer stays authoritative wherever it exists.
+     */
+    private readonly softBuses_ = new Map<string, { volume: number; muted: boolean }>();
+    /** Voices whose volume this API computes: base × bus gain × fade. */
+    private softVoices_: SoftVoice[] = [];
     // Handles mid fade-out. A cancelled fade RAF never reaches its handle.stop(),
     // so a rapid crossfade would orphan the outgoing track (playing forever) —
     // {@link cancelFades_} stops these when it tears the animations down.
@@ -280,7 +314,7 @@ export class AudioAPI {
         const buffer = this.lookupBuffer_(url);
         if (!buffer) return null;
         if (config.bus) this.ensureBus(config.bus);
-        return this.backend_.play(buffer, config);
+        return this.playVoice_(buffer, config);
     }
 
     playSFX(url: string, config?: {
@@ -303,14 +337,14 @@ export class AudioAPI {
                 if (this.disposed_) return;
                 const buf = this.lookupBuffer_(url);
                 if (buf) {
-                    pending.resolve(this.backend_.play(buf, playConfig));
+                    pending.resolve(this.playVoice_(buf, playConfig));
                 }
             }).catch(err => {
                 log.warn('audio', `Failed to preload audio: ${url}`, err);
             });
             return pending;
         }
-        return this.backend_.play(buffer, playConfig);
+        return this.playVoice_(buffer, playConfig);
     }
 
     playBGM(url: string, config?: {
@@ -332,9 +366,9 @@ export class AudioAPI {
             }
             const fadeInDuration = config?.fadeIn ?? config?.crossFade;
 
-            this.bgmHandle_ = this.backend_.play(buffer, {
+            this.bgmHandle_ = this.playVoice_(buffer, {
                 bus: 'music',
-                volume: fadeInDuration ? 0 : targetVolume,
+                volume: targetVolume,
                 loop: true,
             });
 
@@ -383,25 +417,33 @@ export class AudioAPI {
     setMasterVolume(volume: number): void {
         if (this.mixer_) {
             this.mixer_.master.volume = volume;
+            return;
         }
+        this.setSoftBus_('master', { volume });
     }
 
     setMusicVolume(volume: number): void {
         if (this.mixer_) {
             this.mixer_.music.volume = volume;
+            return;
         }
+        this.setSoftBus_('music', { volume });
     }
 
     setSFXVolume(volume: number): void {
         if (this.mixer_) {
             this.mixer_.sfx.volume = volume;
+            return;
         }
+        this.setSoftBus_('sfx', { volume });
     }
 
     setUIVolume(volume: number): void {
         if (this.mixer_) {
             this.mixer_.ui.volume = volume;
+            return;
         }
+        this.setSoftBus_('ui', { volume });
     }
 
     /** Mixerless backends (WeChat/Null) report unity volume and unmuted —
@@ -422,17 +464,74 @@ export class AudioAPI {
         return this.mixer_?.ui.volume ?? 1;
     }
 
-    /** Unity (1) for an unknown bus or a mixerless backend. */
+    /** Unity (1) for an unknown bus. */
     getBusVolume(busName: string): number {
-        return this.mixer_?.getBus(busName)?.volume ?? 1;
+        if (this.mixer_) return this.mixer_.getBus(busName)?.volume ?? 1;
+        return this.softBuses_.get(busName)?.volume ?? 1;
     }
 
     isBusMuted(busName: string): boolean {
-        return this.mixer_?.getBus(busName)?.muted ?? false;
+        if (this.mixer_) return this.mixer_.getBus(busName)?.muted ?? false;
+        return this.softBuses_.get(busName)?.muted ?? false;
+    }
+
+    /** Record a bus change for a mixerless backend and push it to live voices —
+     *  what a gain node would have done to the tracks already playing. */
+    private setSoftBus_(busName: string, change: { volume?: number; muted?: boolean }): void {
+        const bus = this.softBuses_.get(busName) ?? { volume: 1, muted: false };
+        if (change.volume !== undefined) bus.volume = change.volume;
+        if (change.muted !== undefined) bus.muted = change.muted;
+        this.softBuses_.set(busName, bus);
+        this.applyBus_(busName);
+    }
+
+    /** The gain a mixerless backend folds into a voice: its bus, times master. */
+    private softGain_(busName: string): number {
+        if (this.mixer_) return 1;   // the graph already applies it
+        const gainOf = (name: string): number => {
+            const bus = this.softBuses_.get(name);
+            if (!bus) return 1;
+            return bus.muted ? 0 : bus.volume;
+        };
+        return busName === 'master' ? gainOf('master') : gainOf(busName) * gainOf('master');
+    }
+
+    /** Push a voice's computed volume to the backend. */
+    private applyVoice_(voice: SoftVoice): void {
+        voice.handle.setVolume(voice.base * this.softGain_(voice.bus) * voice.fade);
+    }
+
+    /** Re-apply after a bus (or master) changed, and forget voices that ended. */
+    private applyBus_(busName: string): void {
+        this.softVoices_ = this.softVoices_.filter((v) => v.handle.isPlaying || this.fadeOf_(v) !== null);
+        for (const voice of this.softVoices_) {
+            if (busName === 'master' || voice.bus === busName) this.applyVoice_(voice);
+        }
+    }
+
+    private fadeOf_(voice: SoftVoice): Fade | null {
+        return this.fades_.find((f) => f.voice === voice) ?? null;
+    }
+
+    /** Play through the backend as a tracked voice, so bus gain and fades have
+     *  one place to act — on every platform, mixer graph or not. */
+    private playVoice_(buffer: AudioBufferHandle, config: PlayConfig): AudioHandle {
+        const bus = config.bus ?? 'sfx';
+        const base = config.volume ?? 1;
+        const handle = this.backend_.play(buffer, { ...config, volume: base * this.softGain_(bus) });
+        this.softVoices_.push({ handle, bus, base, fade: 1 });
+        if (this.softVoices_.length > 64) {
+            this.softVoices_ = this.softVoices_.filter((v) => v.handle.isPlaying);
+        }
+        return handle;
     }
 
     muteBus(busName: string, muted: boolean): void {
-        const bus = this.mixer_?.getBus(busName);
+        if (!this.mixer_) {
+            this.setSoftBus_(busName, { muted });
+            return;
+        }
+        const bus = this.mixer_.getBus(busName);
         if (bus) {
             bus.muted = muted;
         }
@@ -449,7 +548,11 @@ export class AudioAPI {
     }
 
     setBusVolume(busName: string, volume: number): void {
-        const bus = this.mixer_?.getBus(busName);
+        if (!this.mixer_) {
+            this.setSoftBus_(busName, { volume });
+            return;
+        }
+        const bus = this.mixer_.getBus(busName);
         if (bus) {
             bus.volume = volume;
         }
@@ -510,53 +613,60 @@ export class AudioAPI {
         this.backend_?.dispose();
     }
 
-    private fadeIn_(handle: AudioHandle, duration: number, targetVolume: number): void {
-        handle.setVolume(0);
-        const startTime = performance.now();
-        let animId = 0;
-        const tick = () => {
-            const elapsed = (performance.now() - startTime) / 1000;
-            const t = Math.min(elapsed / duration, 1);
-            handle.setVolume(t * targetVolume);
-            if (t < 1 && handle.isPlaying) {
-                animId = requestAnimationFrame(tick);
-                this.fadeAnimIds_.add(animId);
-            } else {
-                this.fadeAnimIds_.delete(animId);
+    /**
+     * Advance every fade by `dt` seconds — called once a frame by the audio
+     * system, which is what makes a fade the game's clock rather than the
+     * browser's: it pauses when the game does, and it exists on a device.
+     */
+    updateFades(dt: number): void {
+        if (this.fades_.length === 0 || !(dt > 0)) return;
+        for (let i = this.fades_.length - 1; i >= 0; i--) {
+            const fade = this.fades_[i];
+            fade.elapsed += dt;
+            const t = fade.duration > 0 ? Math.min(fade.elapsed / fade.duration, 1) : 1;
+            fade.voice.fade = fade.from + (fade.to - fade.from) * t;
+            this.applyVoice_(fade.voice);
+            // A track that ended (or was stopped) mid-ramp takes its fade with it.
+            if (t >= 1 || !fade.voice.handle.isPlaying) {
+                if (fade.stopAtEnd) {
+                    fade.voice.handle.stop();
+                    this.fadingOut_.delete(fade.voice.handle);
+                }
+                this.fades_.splice(i, 1);
             }
-        };
-        animId = requestAnimationFrame(tick);
-        this.fadeAnimIds_.add(animId);
+        }
+    }
+
+    private fadeIn_(handle: AudioHandle, duration: number, targetVolume: number): void {
+        const voice = this.voiceOf_(handle, targetVolume, 'music');
+        voice.base = targetVolume;
+        voice.fade = 0;
+        this.applyVoice_(voice);
+        this.fades_.push({ voice, from: 0, to: 1, duration, elapsed: 0, stopAtEnd: false });
+    }
+
+    /** The tracked voice for a handle, registering one if it came from outside
+     *  the play path (a deferred handle resolved later). */
+    private voiceOf_(handle: AudioHandle, base: number, bus: string): SoftVoice {
+        const found = this.softVoices_.find((v) => v.handle === handle);
+        if (found) return found;
+        const voice: SoftVoice = { handle, bus, base, fade: 1 };
+        this.softVoices_.push(voice);
+        return voice;
     }
 
     /** Cancel every in-flight fade AND stop the tracks that were fading out — a
-     *  cancelled fade RAF would otherwise never reach their `stop()`. */
+     *  cancelled fade would otherwise never reach their `stop()`. */
     private cancelFades_(): void {
-        for (const id of this.fadeAnimIds_) cancelAnimationFrame(id);
-        this.fadeAnimIds_.clear();
+        this.fades_.length = 0;
         for (const h of this.fadingOut_) h.stop();
         this.fadingOut_.clear();
     }
 
     private fadeOut_(handle: AudioHandle, duration: number, startVolume: number): void {
         this.fadingOut_.add(handle);
-        const startTime = performance.now();
-        let animId = 0;
-        const tick = () => {
-            const elapsed = (performance.now() - startTime) / 1000;
-            const t = Math.min(elapsed / duration, 1);
-            handle.setVolume(startVolume * (1 - t));
-            if (t < 1 && handle.isPlaying) {
-                animId = requestAnimationFrame(tick);
-                this.fadeAnimIds_.add(animId);
-            } else {
-                handle.stop();
-                this.fadeAnimIds_.delete(animId);
-                this.fadingOut_.delete(handle);
-            }
-        };
-        animId = requestAnimationFrame(tick);
-        this.fadeAnimIds_.add(animId);
+        const voice = this.voiceOf_(handle, startVolume, 'music');
+        this.fades_.push({ voice, from: voice.fade, to: 0, duration, elapsed: 0, stopAtEnd: true });
     }
 
     private createDeferredHandle_(): AudioHandle & { resolve(real: AudioHandle): void } {

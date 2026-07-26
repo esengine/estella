@@ -78,6 +78,7 @@ export const contentMessages = defineMessages({
     'cb.deliveryLocal': { en: 'Local (in package)', zh: '本地（打进包）' },
     'cb.deliverySubpackage': { en: 'Subpackage (on-demand)', zh: '分包（按需）' },
     'cb.deliveryRemote': { en: 'Remote (CDN / hot-update)', zh: '远端（CDN / 热更）' },
+    'cb.alwaysInclude': { en: 'Always include in builds', zh: '总是打进构建（即使无人引用）' },
     'cb.badgeSubpackage': { en: 'PKG', zh: '分包' },
     'cb.badgeRemote': { en: 'CDN', zh: 'CDN' },
     'cb.menuOpen': { en: 'Open', zh: '打开' },

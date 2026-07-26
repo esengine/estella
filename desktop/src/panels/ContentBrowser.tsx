@@ -1031,11 +1031,22 @@ export function ContentBrowser() {
       ...(entry.isDir
         ? [{
             label: t('cb.delivery'),
-            children: ASSET_GROUP_MODES.map((m) => ({
-              label: t(DELIVERY_MODE_META[m].labelKey),
-              checked: ProjectStore.folderDeliveryMode(path) === m,
-              onClick: () => void ProjectStore.setFolderDeliveryMode(path, m),
-            })),
+            children: [
+              ...ASSET_GROUP_MODES.map((m) => ({
+                label: t(DELIVERY_MODE_META[m].labelKey),
+                checked: ProjectStore.folderDeliveryMode(path) === m,
+                onClick: () => void ProjectStore.setFolderDeliveryMode(path, m),
+              })),
+              { sep: true } as MenuItem,
+              // A build cooks what it can REACH from the entry scenes; this is how
+              // a folder says "ship me anyway" — for what only code names.
+              {
+                label: t('cb.alwaysInclude'),
+                checked: ProjectStore.folderAlwaysInclude(path),
+                onClick: () => void ProjectStore.setFolderAlwaysInclude(
+                  path, !ProjectStore.folderAlwaysInclude(path)),
+              },
+            ],
           }]
         : []),
       { label: t('ui.rename'), onClick: () => startRename(path, !!ctx?.target?.inTree) },

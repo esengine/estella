@@ -80,7 +80,7 @@ export class AudioPlugin implements Plugin {
             Schedule.PreUpdate,
             defineSystem(
                 [Res(Time), Res(Audio)],
-                (_time: TimeData, audioAPI: AudioAPI) => {
+                (time: TimeData, audioAPI: AudioAPI) => {
                     const playMode = !isEditor() || isPlayMode();
 
                     if (!playMode) {
@@ -92,6 +92,9 @@ export class AudioPlugin implements Plugin {
                     }
                     wasPlayMode = true;
 
+                    // Volume ramps ride the frame, not the browser's rAF: a device
+                    // has no such global, and a fade should pause with the game.
+                    audioAPI.updateFades(time.delta);
                     audioAPI.updateDucking();
 
                     const world = app.world;

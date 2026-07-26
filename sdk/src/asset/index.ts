@@ -18,6 +18,8 @@ export {
     modeToDelivery,
     folderGroupMode,
     withFolderGroup,
+    folderAlwaysInclude,
+    withFolderAlwaysInclude,
     withActiveRemoteRoot,
     ASSET_GROUP_MODES,
     type AssetGroupMode,
