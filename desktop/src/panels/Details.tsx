@@ -62,7 +62,7 @@ import { usePrefabConflicts } from '@/store/prefabConflicts';
 import { useEditorStore } from '@/store/editorStore';
 import { useControllerStore } from '@/store/controllerStore';
 import { useInspectorCollapse, isSectionCollapsed } from '@/store/inspectorCollapse';
-import { isGeared, controllerCurrentPage, readModelField, readGearBindings, resolveControllers } from '@/controller/controllerModel';
+import { controllerCurrentPage, drivenField, readComponentData, readModelField, readGearBindings, resolveControllers } from '@/controller/controllerModel';
 import { useOutliner } from '@/outliner/OutlinerController';
 import { isFolderUnder, folderName } from '@/outliner/folders';
 import { EngineHost } from '@/engine/EngineHost';
@@ -75,7 +75,7 @@ import { sourceById, createFromSource } from '@/engine/entitySources';
 import { PlayInspect } from '@/engine/PlayInspect';
 import { DimensionUnit, AnchorAxis, detectAnchorAxes, UIPositionType, FlexDirection, FlexWrap, JustifyContent, AlignItems, INTERACTION_CONTROLLER, INTERACTION_PAGES, parseLocaleTable, EasingType, BUILTIN_SHADER_TEMPLATES, INVALID_ENTITY } from 'esengine';
 import type { SceneData, InputMapAsset, ActionType, Binding, LocaleTableAsset, PluralCategory, GearValue, GearTween, MaterialAssetData } from 'esengine';
-import { modelAddableComponentEntries, subscribeSchemas, getSchemaRevision, prettyLabel, hexToRgba, dynamicEnumOptions, boxGroupsFor, isRequiredEmpty, type BoxGroupDef } from '@/engine/schema';
+import { modelAddableComponentEntries, subscribeSchemas, getSchemaRevision, prettyLabel, hexToRgba, dynamicEnumOptions, boxGroupsFor, isRequiredEmpty, inspectorFields, type BoxGroupDef } from '@/engine/schema';
 import { inspectorRegistry, buildContributedSection, isInfoRow } from '@/plugins/inspector';
 import { localizePlugin } from '@/plugins/localize';
 import type { AssetInspectorContribution, ComponentInspectorContribution } from '@/plugins/types';
@@ -1275,12 +1275,22 @@ function useGearDot(entities: EntityId[], comp: string, key: string, write?: Fie
   const recording = useControllerStore((s) => s.recording);
   const gearPop = usePopover();
   const gearEntity = entities[0];
-  const gearPage = entities.length === 1 && !write && activeController != null
+  const single = entities.length === 1 && !write;
+
+  // A DRIVEN field always shows its dot, whatever the strip has selected: being
+  // driven is a fact about the scene, and hiding the only sign of it is what let a
+  // driven field pass for an ordinary one — you could edit it and watch nothing
+  // happen. The strip still decides where a NEW binding would go, so the
+  // bind-on-click affordance keeps needing an active controller.
+  const driven = single ? drivenField(gearEntity, comp, key) : null;
+  const gearPage = single && activeController != null
     ? controllerCurrentPage(gearEntity, activeController)
     : null;
-  const gearable = gearPage != null && activeController != null;
-  const geared = gearable && isGeared(gearEntity, activeController, comp, key);
-  if (!gearable || activeController == null || gearPage == null) return null;
+  const bindable = gearPage != null && activeController != null;
+  if (!driven && !bindable) return null;
+
+  const controller = driven?.controller ?? activeController!;
+  const geared = driven != null;
 
   const onGearClick = (e: ReactMouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
@@ -1288,7 +1298,7 @@ function useGearDot(entities: EntityId[], comp: string, key: string, write?: Fie
       gearPop.open(e.currentTarget);
     } else {
       const value = readModelField(gearEntity, comp, key);
-      if (value === undefined) return;
+      if (value === undefined || activeController == null || gearPage == null) return;
       SceneCommands.addGearBinding(gearEntity, {
         controller: activeController,
         component: comp,
@@ -1298,13 +1308,21 @@ function useGearDot(entities: EntityId[], comp: string, key: string, write?: Fie
     }
   };
 
+  // Naming the page is the whole point of the title: "driven, and by which state"
+  // is what turns a surprise into an explanation.
+  const title = geared
+    ? (driven!.page != null
+        ? t('ctrl.gearDrivenBy', { controller: driven!.controller, page: driven!.page })
+        : t('ctrl.gearSettings'))
+    : t('ctrl.gearBind');
+
   return (
     <>
       <button
         type="button"
         className={`prop-gear${geared ? ' on' : ''}${geared && recording ? ' rec' : ''}`}
         tabIndex={-1}
-        title={geared ? t('ctrl.gearSettings') : t('ctrl.gearBind')}
+        title={title}
         onClick={onGearClick}
       >
         <Cog size={11} strokeWidth={2} />
@@ -1314,7 +1332,7 @@ function useGearDot(entities: EntityId[], comp: string, key: string, write?: Fie
           anchor={gearPop.anchor}
           onClose={gearPop.close}
           entity={gearEntity}
-          controller={activeController}
+          controller={controller}
           component={comp}
           property={key}
         />
@@ -1323,7 +1341,36 @@ function useGearDot(entities: EntityId[], comp: string, key: string, write?: Fie
   );
 }
 
-function FieldRow({ entities, comp, field, write }: { entities: EntityId[]; comp: string; field: InspectorField; write?: FieldWrite }) {
+/**
+ * Swap in the value a gear will actually apply.
+ *
+ * A driven field's own component value is dead — gear-apply overwrites it from the
+ * current page — so showing it means showing a number that has no effect on
+ * anything. Reads through the SAME `inspectorFields` conversion the row was built
+ * with (by patching the page value into a copy of the component data) rather than
+ * re-deriving colour/vector shapes here, so the two can never disagree.
+ *
+ * Kept in this panel because buildInspector is a pure model reader with no business
+ * knowing about controllers — and this panel already renders the gear dot.
+ */
+function drivenFieldValue(
+  entities: EntityId[],
+  comp: string,
+  field: InspectorField,
+  write?: FieldWrite,
+): InspectorField {
+  if (entities.length !== 1 || write) return field;
+  const driven = drivenField(entities[0], comp, field.key);
+  if (!driven || driven.pageValue === undefined) return field;
+  const data = readComponentData(entities[0], comp);
+  if (!data) return field;
+  const patched = inspectorFields(comp, { ...data, [field.key]: driven.pageValue })
+    .find((f) => f.key === field.key);
+  return patched ? { ...field, value: patched.value } : field;
+}
+
+function FieldRow({ entities, comp, field: rawField, write }: { entities: EntityId[]; comp: string; field: InspectorField; write?: FieldWrite }) {
+  const field = drivenFieldValue(entities, comp, rawField, write);
   const mixed = field.mixed === true;
   const { apply, begin, end, cancel } = fieldWriter(entities, comp, field, write);
   const gearDot = useGearDot(entities, comp, field.key, write);

@@ -54,6 +54,12 @@ export const controllerMessages = defineMessages({
 
   'ctrl.gearBind': { en: 'Gear this field to the active controller', zh: '将该字段绑定到活动控制器' },
   'ctrl.gearSettings': { en: 'Gear settings (transition / unbind)', zh: '绑定设置（过渡 / 解绑）' },
+  // Names the page, because "driven, and by WHICH state" is what turns a field
+  // that seems to ignore your edits into one that explains itself.
+  'ctrl.gearDrivenBy': {
+    en: 'Driven by {controller} · {page} — edits go to that page',
+    zh: '由 {controller} · {page} 驱动 —— 编辑将写入该页',
+  },
   'ctrl.gearUnbind': { en: 'Remove gear (unbind from controller)', zh: '移除绑定（从控制器解绑）' },
   'ctrl.gearDuration': { en: 'Duration (s)', zh: '时长（秒）' },
   'ctrl.gearEasing': { en: 'Easing', zh: '缓动' },

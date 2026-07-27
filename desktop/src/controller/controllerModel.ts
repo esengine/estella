@@ -96,3 +96,38 @@ export function readModelField(id: EntityId, component: string, property: string
 export function isGeared(id: EntityId, controller: string, component: string, property: string): boolean {
   return readGearBindings(id).some((b) => b.controller === controller && b.component === component && b.property === property);
 }
+
+/** A field a gear writes, and the value that actually reaches the component. */
+export interface DrivenField {
+  binding: GearBinding;
+  /** Controller driving it (the binding's own — not whatever the strip selected). */
+  controller: string;
+  /** That controller's current page, or null if it no longer resolves. */
+  page: string | null;
+  /** What `page` authors for this field. `undefined` = that page leaves it alone. */
+  pageValue: unknown;
+}
+
+/**
+ * The gear binding that drives (component, property) on `id`, or null.
+ *
+ * Asked of the DATA. Being driven is a fact about the scene — a binding exists —
+ * not about whatever the Controllers strip happens to have selected, and reading it
+ * from the strip is how a driven field came to look like an ordinary one: the
+ * component still holds a value, Details showed it, and the gear overwrote it every
+ * frame with the page's. Editing it changed nothing anyone could see.
+ *
+ * The first match wins if two controllers claim one field — the same order the
+ * runtime's apply loop walks, so the editor shows what the game will do.
+ */
+export function drivenField(id: EntityId, component: string, property: string): DrivenField | null {
+  const binding = readGearBindings(id).find((b) => b.component === component && b.property === property);
+  if (!binding) return null;
+  const page = controllerCurrentPage(id, binding.controller);
+  return {
+    binding,
+    controller: binding.controller,
+    page,
+    pageValue: page != null ? binding.pages[page] : undefined,
+  };
+}

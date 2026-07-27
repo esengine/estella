@@ -2,16 +2,21 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    ControllerRecorder.ts
- * @brief   Record mode for UI gears — auto-write a field edit into the active
- *          controller's current page.
+ * @brief   Route a field edit into the gear page it belongs to.
  *
  * Mirrors TimelineRecorder's edit-hook shape: one hook on the single SceneCommands
- * field-edit door. When recording is armed and the edited entity resolves the
- * active controller, the edited value is stored under the controller's current
- * page — into the field's existing gear binding, or AUTO-KEY: a field with no
- * binding yet gears itself on the spot (whole-field, seeded with the edit). So
- * "record → switch page → change things" just works, no per-field opt-in dance;
- * the Details gear dot remains the explicit path (and the settings door).
+ * field-edit door. Two rules, and the first is not conditional on anything:
+ *
+ *  1. A field a gear ALREADY drives takes its edit into that binding's own
+ *     controller + current page. Always. The component value underneath is dead —
+ *     gear-apply overwrites it every time the page changes — so writing there and
+ *     nowhere else is how "I changed it and nothing happened" used to happen.
+ *  2. A field NOT yet geared is left alone, unless recording is armed: then
+ *     AUTO-KEY gears it on the spot (whole-field, seeded with the edit, other pages
+ *     left sparse). So "record → switch page → change things" still just works.
+ *
+ * That leaves recording responsible for exactly one thing — creating bindings —
+ * rather than also being the switch that decides whether existing ones respond.
  * Observe-only (returns false) so the scene edit still lands and the gear-apply
  * system re-projects the same value — a burst (drag) coalesces into one undo step.
  */
@@ -65,23 +70,32 @@ class ControllerRecorderImpl {
     value: InspectorFieldValue,
   ): boolean {
     const { recording, activeController } = useControllerStore.getState();
-    if (!recording || !activeController) return false;
-
-    const page = controllerCurrentPage(sourceId, activeController);
-    if (page == null) return false;
     const cur = readComponentData(sourceId, compName);
     if (!cur) return false;
     const modelValue = toModelValue(cur, type, key, value);
 
+    const bindings = readGearBindings(sourceId);
+    // Does a gear ALREADY drive this field? If so the edit belongs in its page, and
+    // that is true whether or not recording is armed and whichever controller the
+    // strip has selected — the binding names its own. Without this, editing a driven
+    // field wrote a value the gear overwrote on the next frame: the edit landed, and
+    // nothing anyone could see ever changed.
+    const alreadyDriven = bindings.some(
+      (b) => b.component === compName && (b.property === key || b.property.startsWith(`${key}.`)),
+    );
+    if (!alreadyDriven && (!recording || !activeController)) return false;
+
     // A new burst on a different entity flushes the previous one first.
     if (this.burst && this.burst.entity !== sourceId) this.flush();
 
-    const bindings = readGearBindings(sourceId);
     const next = clone(bindings);
     let wrote = 0;
     for (const b of next) {
-      if (b.controller !== activeController || b.component !== compName) continue;
+      if (b.component !== compName) continue;
       if (b.property !== key && !b.property.startsWith(`${key}.`)) continue;
+      // Each binding's OWN controller decides which page this lands in.
+      const page = controllerCurrentPage(sourceId, b.controller);
+      if (page == null) continue;
       const gv = gearValueFor(modelValue, b.property, key);
       if (gv == null) continue;
       b.pages[page] = gv;
@@ -90,7 +104,9 @@ class ControllerRecorderImpl {
     if (wrote === 0) {
       // Auto-key: recording an un-geared field gears it on the spot, seeding the
       // current page with the edited value (other pages stay unauthored/sparse).
-      if (modelValue == null) return false;
+      if (!recording || !activeController || modelValue == null) return false;
+      const page = controllerCurrentPage(sourceId, activeController);
+      if (page == null) return false;
       next.push({
         controller: activeController,
         component: compName,
