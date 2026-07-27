@@ -99,6 +99,15 @@ export default {
                 'sdk/spine41.wasm': 'wasm/web/spine41.wasm',
             },
         },
+        spine21: {
+            buildDir: 'build-web',
+            cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_WEBGPU=ON'],
+            targets: ['spine_module_21'],
+            outputs: {
+                'sdk/spine21.js': 'wasm/web/spine21.js',
+                'sdk/spine21.wasm': 'wasm/web/spine21.wasm',
+            },
+        },
         spine43: {
             buildDir: 'build-web',
             cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_WEBGPU=ON'],
@@ -143,7 +152,7 @@ export default {
         'spine-wechat': {
             buildDir: 'build-spine-wechat',
             cmakeFlags: ['-DES_BUILD_WXGAME=ON', '-DES_BUILD_TESTS=OFF'],
-            targets: ['spine_module', 'spine_module_43', 'spine_module_41', 'spine_module_38'],
+            targets: ['spine_module', 'spine_module_43', 'spine_module_41', 'spine_module_38', 'spine_module_21'],
             outputs: {
                 'sdk/spine42.js': 'wasm/wechat/spine42.js',
                 'sdk/spine42.wasm': 'wasm/wechat/spine42.wasm',
@@ -153,6 +162,8 @@ export default {
                 'sdk/spine41.wasm': 'wasm/wechat/spine41.wasm',
                 'sdk/spine38.js': 'wasm/wechat/spine38.js',
                 'sdk/spine38.wasm': 'wasm/wechat/spine38.wasm',
+                'sdk/spine21.js': 'wasm/wechat/spine21.js',
+                'sdk/spine21.wasm': 'wasm/wechat/spine21.wasm',
             },
         },
     },

@@ -18,6 +18,7 @@
         ],
         "partial": {
             "glm": ["glm"],
+            "spine-runtimes-2.1": ["spine-c/src", "spine-c/include"],
             "spine-runtimes-3.8": ["spine-c/spine-c/src", "spine-c/spine-c/include"],
             "spine-runtimes-4.1": ["spine-c/spine-c/src", "spine-c/spine-c/include"],
             "spine-runtimes-4.2": [

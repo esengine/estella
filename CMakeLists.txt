@@ -312,6 +312,7 @@ if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
         es_add_spine_module(spine_module_43 4.3 spine43)
         es_add_spine_module(spine_module_41 4.1 spine41)
         es_add_spine_module(spine_module_38 3.8 spine38)
+        es_add_spine_module(spine_module_21 2.1 spine21)
     endif()
 
     # Basis Universal KTX2 transcoder module (compressed textures — RC6)

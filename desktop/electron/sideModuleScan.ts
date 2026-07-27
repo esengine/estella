@@ -46,7 +46,7 @@ export function sceneUsesVideo(scene: SceneLike): boolean {
   return false;
 }
 
-export type SpineVersion = '3.8' | '4.1' | '4.2' | '4.3';
+export type SpineVersion = '2.1' | '3.8' | '4.1' | '4.2' | '4.3';
 
 /**
  * Which runtime reads a skeleton's reported version, newest prefix first — the same
@@ -58,6 +58,7 @@ const VERSION_PREFIXES: ReadonlyArray<readonly [string, SpineVersion]> = [
   ['4.2', '4.2'],
   ['4.1', '4.1'],
   ['3.', '3.8'],
+  ['2.1', '2.1'],
 ];
 
 function runtimeFor(reported: string): SpineVersion | null {
@@ -72,6 +73,7 @@ export const SIDE_MODULE_FILE: Record<string, string> = {
   physics: 'physics',
   basis: 'basis',
   videodec: 'videodec',
+  'spine:2.1': 'spine21',
   'spine:3.8': 'spine38',
   'spine:4.1': 'spine41',
   'spine:4.2': 'spine42',
@@ -83,6 +85,7 @@ export const WECHAT_MODULE_BUILD_TARGET: Record<string, string> = {
   physics: 'physics-wechat',
   basis: 'basis-wechat',
   videodec: 'videodec-wechat',
+  'spine:2.1': 'spine-wechat',
   'spine:3.8': 'spine-wechat',
   'spine:4.1': 'spine-wechat',
   'spine:4.2': 'spine-wechat',
@@ -136,5 +139,5 @@ function tryRead3xVersion(data: Uint8Array): SpineVersion | null {
   pos += vb;
   if (verLen <= 1 || pos + verLen - 1 > data.length) return null;
   const ver = new TextDecoder().decode(data.subarray(pos, pos + verLen - 1));
-  return ver.startsWith('3.') ? runtimeFor(ver) : null;
+  return (ver.startsWith('3.') || ver.startsWith('2.')) ? runtimeFor(ver) : null;
 }

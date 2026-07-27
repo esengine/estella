@@ -25,6 +25,7 @@ const VERSION_PREFIXES: ReadonlyArray<readonly [string, SpineVersion]> = [
     ['4.2', '4.2'],
     ['4.1', '4.1'],
     ['3.', '3.8'],
+    ['2.1', '2.1'],
 ];
 
 function runtimeFor(reported: string): SpineVersion | null {
@@ -353,7 +354,7 @@ function tryRead4xVersion(data: Uint8Array): SpineVersion | null {
     return ver.startsWith('4.') ? runtimeFor(ver) : null;
 }
 
-/** 3.x length-prefixed the hash too, so the version string sits just after it. */
+/** 3.x and 2.1 both length-prefix the hash, so the version string sits just after it. */
 function tryRead3xVersion(data: Uint8Array): SpineVersion | null {
     if (data.length < 4) return null;
     let pos = 0;
@@ -365,5 +366,5 @@ function tryRead3xVersion(data: Uint8Array): SpineVersion | null {
     pos += vb;
     if (verLen <= 1 || pos + verLen - 1 > data.length) return null;
     const ver = new TextDecoder().decode(data.subarray(pos, pos + verLen - 1));
-    return ver.startsWith('3.') ? runtimeFor(ver) : null;
+    return (ver.startsWith('3.') || ver.startsWith('2.')) ? runtimeFor(ver) : null;
 }

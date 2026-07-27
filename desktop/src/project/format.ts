@@ -234,7 +234,7 @@ export interface ProjectManifest {
   defaultScene?: string;
   /** Design resolution for the viewport / camera. */
   designResolution?: DesignResolution;
-  /** Spine runtime the project needs ('none' | '3.8' | '4.1' | '4.2' | '4.3' …). */
+  /** Spine runtime the project needs ('none' | '2.1' | '3.8' | '4.1' | '4.2' | '4.3' …). */
   spineVersion?: string;
   /** Per-path overrides of {@link DEFAULT_LAYOUT}. */
   layout?: Partial<ProjectLayout>;

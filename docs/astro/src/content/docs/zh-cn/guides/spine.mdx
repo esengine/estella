@@ -129,8 +129,9 @@ const onSpine = defineSystem([Res(SpineEvents)], (spineEvents) => {
 - **用 [Animator](/docs/zh-cn/guides/animation/) 状态机驱动整个角色**,它既能驱动 Spine 也能驱动精灵。
 
 <Aside type="note">
-  Estella 支持 Spine **3.8 / 4.1 / 4.2**——每个骨骼版本按需加载自己的 WebAssembly 后端
-  (按需付费),这也是 `Spine` 与 `SpineEvents` 位于 `esengine/spine` 子路径的原因。
+  Estella 支持 Spine **2.1 / 3.8 / 4.1 / 4.2 / 4.3**——每个骨骼版本按需加载自己的
+  WebAssembly 后端(按需付费),这也是 `Spine` 与 `SpineEvents` 位于 `esengine/spine`
+  子路径的原因。2.1 的骨骼需导出为 JSON:该版本的运行时没有附带自己二进制格式的读取器。
 </Aside>
 
 <Aside type="caution">

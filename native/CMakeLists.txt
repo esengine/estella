@@ -79,8 +79,9 @@ add_subdirectory("${TP}/box2d" "${CMAKE_BINARY_DIR}/box2d" EXCLUDE_FROM_ALL)
 #
 # Which backend goes with which release is the tree's shape, exactly as the web build
 # reads it (es_add_spine_module in cmake/Emscripten.cmake): 3.8 - 4.2 vendor the pure-C
-# runtime, 4.3 replaced it with a generated wrapper so we bind spine-cpp instead.
-set(ESTELLA_SPINE_VERSION "4.2" CACHE STRING "Spine runtime to link (4.3 / 4.2 / 4.1 / 3.8)")
+# runtime nested a level deep, 2.1 the same runtime flat and in a dialect of its own,
+# and 4.3 replaced it with a generated wrapper so we bind spine-cpp instead.
+set(ESTELLA_SPINE_VERSION "4.2" CACHE STRING "Spine runtime to link (4.3 / 4.2 / 4.1 / 3.8 / 2.1)")
 set(SPINE_ROOT "${TP}/spine-runtimes-${ESTELLA_SPINE_VERSION}")
 if(EXISTS "${SPINE_ROOT}/spine-c/spine-c/include")
     set(SPINE_BACKEND "${SRC}/esengine/bindings/SpineRuntimeC.cpp")
@@ -90,9 +91,13 @@ elseif(EXISTS "${SPINE_ROOT}/spine-cpp/include")
     set(SPINE_BACKEND "${SRC}/esengine/bindings/SpineRuntimeCpp.cpp")
     set(SPINE_INCLUDE "${SPINE_ROOT}/spine-cpp/include")
     file(GLOB SPINE_SOURCES "${SPINE_ROOT}/spine-cpp/src/spine/*.cpp")
+elseif(EXISTS "${SPINE_ROOT}/spine-c/include/spine")
+    set(SPINE_BACKEND "${SRC}/esengine/bindings/SpineRuntime21.cpp")
+    set(SPINE_INCLUDE "${SPINE_ROOT}/spine-c/include")
+    file(GLOB SPINE_SOURCES "${SPINE_ROOT}/spine-c/src/spine/*.c")
 else()
     message(FATAL_ERROR "Spine runtime ${ESTELLA_SPINE_VERSION} not vendored at ${SPINE_ROOT}. "
-        "Pass -DESTELLA_SPINE_VERSION=<4.3|4.2|4.1|3.8>.")
+        "Pass -DESTELLA_SPINE_VERSION=<4.3|4.2|4.1|3.8|2.1>.")
 endif()
 
 add_library(spine_runtime STATIC ${SPINE_SOURCES})

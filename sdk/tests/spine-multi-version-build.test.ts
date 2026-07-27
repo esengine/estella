@@ -90,7 +90,9 @@ describe('Spine multi-version build pipeline', () => {
             ['{"spine":"4.2.10"}', '4.2'],
             ['{"spine":"4.1.20"}', '4.1'],
             ['{"spine":"3.8.99"}', '3.8'],
+            ['{"spine":"2.1.27"}', '2.1'],
             ['{"spine":"3.7.94"}', '3.8'],  // pre-3.8 data loads on the 3.8 runtime
+            ['{"spine":"2.0.18"}', null],   // 2.0 is its own format; 2.1 will not read it
             ['{"spine":"5.0.0"}', null],    // no runtime vendored: fail, don't guess
             ['{"skeleton":{}}', null],
         ];

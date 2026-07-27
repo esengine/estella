@@ -141,9 +141,10 @@ const onSpine = defineSystem([Res(SpineEvents)], (spineEvents) => {
   machine**, which can target Spine as well as sprites.
 
 <Aside type="note">
-  Estella supports Spine **3.8 / 4.1 / 4.2** — each skeleton version loads its own
-  WebAssembly backend on demand (pay-for-use), which is why `Spine` and
-  `SpineEvents` live on the `esengine/spine` subpath.
+  Estella supports Spine **2.1 / 3.8 / 4.1 / 4.2 / 4.3** — each skeleton version loads
+  its own WebAssembly backend on demand (pay-for-use), which is why `Spine` and
+  `SpineEvents` live on the `esengine/spine` subpath. A 2.1 skeleton must be exported
+  as JSON: that release's runtime shipped no reader for its own binary format.
 </Aside>
 
 <Aside type="caution">

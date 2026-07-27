@@ -15,7 +15,7 @@
  */
 
 /** Spine skeleton format versions Estella ships a dedicated runtime for. */
-export type SpineVersion = '3.8' | '4.1' | '4.2' | '4.3';
+export type SpineVersion = '2.1' | '3.8' | '4.1' | '4.2' | '4.3';
 
 /** Identifies an optional native module across every realm and transport. */
 export type SideModuleId = 'physics' | 'basis' | 'videodec' | `spine:${SpineVersion}`;
@@ -40,13 +40,14 @@ export const SIDE_MODULES: Record<SideModuleId, SideModuleDescriptor> = {
     // MPEG-1 software video decoder (pl_mpeg) — the engine-owned decode path
     // behind the wasm video backend on runtimes without a reliable native decoder.
     videodec: { file: 'videodec', globalName: 'ESVideoModule' },
+    'spine:2.1': { file: 'spine21', globalName: 'ESSpineModule' },
     'spine:3.8': { file: 'spine38', globalName: 'ESSpineModule' },
     'spine:4.1': { file: 'spine41', globalName: 'ESSpineModule' },
     'spine:4.2': { file: 'spine42', globalName: 'ESSpineModule' },
     'spine:4.3': { file: 'spine43', globalName: 'ESSpineModule' },
 };
 
-export const SPINE_VERSIONS: readonly SpineVersion[] = ['3.8', '4.1', '4.2', '4.3'];
+export const SPINE_VERSIONS: readonly SpineVersion[] = ['2.1', '3.8', '4.1', '4.2', '4.3'];
 
 /** The {@link SideModuleId} carrying a given spine skeleton version. */
 export function spineModuleId(version: SpineVersion): SideModuleId {

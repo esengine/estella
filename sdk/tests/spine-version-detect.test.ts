@@ -48,6 +48,11 @@ describe('SpineManager.detectVersion', () => {
         expect(SpineManager.detectVersion(data)).toBe('4.1');
     });
 
+    it('detects a 2.1 binary header, which is shaped like 3.x', () => {
+        const data = make3xSkel('abc123', '2.1.27');
+        expect(SpineManager.detectVersion(data)).toBe('2.1');
+    });
+
     it('detects 3.8 binary', () => {
         const data = make3xSkel('abc123', '3.8.99');
         expect(SpineManager.detectVersion(data)).toBe('3.8');
@@ -78,6 +83,10 @@ describe('SpineManager.detectVersionJson', () => {
 
     it('detects 3.8 json', () => {
         expect(SpineManager.detectVersionJson('{"spine": "3.8.99"}')).toBe('3.8');
+    });
+
+    it('detects 2.1 json', () => {
+        expect(SpineManager.detectVersionJson('{"spine": "2.1.27"}')).toBe('2.1');
     });
 
     it('returns null for missing spine field', () => {

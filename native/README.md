@@ -81,13 +81,14 @@ their binding headers. `app.sideModules` still answers them, so the runtime's ow
 gating installs physics or spine exactly as it does in a browser (see
 `sdk/src/ecs/nativeSideModules.ts`).
 
-Spine is the one build-time choice: the vendored runtimes (3.8 / 4.1 / 4.2 / 4.3)
+Spine is the one build-time choice: the vendored runtimes (2.1 / 3.8 / 4.1 / 4.2 / 4.3)
 export the same symbol names, so a binary carries exactly one.
 `-DESTELLA_SPINE_VERSION=4.1` picks another; `spine_runtimeVersion()` reports what
 was linked, and content authored against a different release is told so by name
 instead of being decoded by the wrong parser. Which runtime backend a release uses
-follows from its tree: 3.8 through 4.2 vendor the pure-C runtime, while 4.3 replaced
-it with a generated wrapper, so that one binds spine-cpp (and picks up spine's own
+follows from its tree: 3.8 through 4.2 vendor the pure-C runtime, 2.1 vendors it flat
+and in a dialect old enough to warrant its own backend, and 4.3 replaced it with a
+generated wrapper, so that one binds spine-cpp (and picks up spine's own
 SkeletonRenderer with it).
 
 ## Why this works (the architecture, proven on device)

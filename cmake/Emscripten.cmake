@@ -317,7 +317,9 @@ endfunction()
 # exported ABI are shared across releases; what differs is the runtime's own sources
 # and the backend that speaks to them — and the tree's shape says which:
 #
-#   3.8 / 4.1 / 4.2   spine-c/spine-c/{src,include}   the pure-C runtime
+#   2.1               spine-c/{src,include}           the pure-C runtime, before it
+#                                                     was nested a level deeper
+#   3.8 / 4.1 / 4.2   spine-c/spine-c/{src,include}   the same runtime, nested
 #   4.3+              spine-cpp/{src,include}         4.3 regenerated spine-c as a
 #                                                     wrapper over C++, so bind C++
 #
@@ -347,6 +349,13 @@ function(es_add_spine_module TARGET_NAME VERSION OUTPUT_NAME)
         # so -Os halves the module (615 KB -> 333 KB) with no measurable frame cost:
         # 50 skeletons x 400 frames came out at 0.71 ms/frame against -O3's 0.76.
         set(_opt -Os)
+    elseif(EXISTS "${_root}/spine-c/include/spine")
+        # 2.1: the same C runtime one directory up, and a dialect far enough from 3.8
+        # that it gets its own backend rather than an `#if` through that one.
+        set(_backend "${_bindings}/SpineRuntime21.cpp")
+        set(_include "${_root}/spine-c/include")
+        file(GLOB_RECURSE _runtime "${_root}/spine-c/src/spine/*.c")
+        set(_opt -O3)
     else()
         message(FATAL_ERROR
             "Spine ${VERSION} is checked out at ${_root} but neither spine-c nor "

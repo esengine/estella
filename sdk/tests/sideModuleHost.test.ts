@@ -22,7 +22,7 @@ describe('side-module registry', () => {
 
   it('spineModuleId covers every shipped version', () => {
     expect(SPINE_VERSIONS.map(spineModuleId))
-      .toEqual(['spine:3.8', 'spine:4.1', 'spine:4.2', 'spine:4.3']);
+      .toEqual(['spine:2.1', 'spine:3.8', 'spine:4.1', 'spine:4.2', 'spine:4.3']);
     // Every id the versions produce has to be a module the loader knows how to fetch.
     for (const version of SPINE_VERSIONS) {
       expect(SIDE_MODULES[spineModuleId(version)]).toBeDefined();
