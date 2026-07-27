@@ -209,6 +209,11 @@ all three formats are written directly (`build-tools/utils/{androidBinaryXml,zip
 * **Native libraries are stored, 16 KiB-aligned**, with `extractNativeLibs=false`:
   the OS maps them out of the package, which halves the install and is the posture
   Android 15's page size wants.
+* **The App Bundle** (`--aab`, or the checkbox in the dialog) is the same content
+  again: the manifest re-encoded as aapt2 protobuf (`androidProtoXml.js` — the same
+  parsed tree and the same resource ids as the binary XML, so the two cannot
+  disagree), laid out under `base/`, and signed as a JAR (`jarSign.js`). Play takes
+  it; nothing else does, since a bundle is not installable.
 * **Signing is APK Signature Scheme v2** (minSdk 26 is well past the API 24 that
   introduced it, so v1's PKCS#7 would be dead weight), with an RSA key and a
   self-signed certificate in PEM under `<data>/android-keys`, generated on first

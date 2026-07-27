@@ -85,6 +85,10 @@ Android 和 iOS 是**两个目标而不是一个"Mobile"**,因为它们被组装
   首次使用时生成的开发密钥签名(与 Android Studio 的 debug key 同等地位:装设备够用,
   任何应用商店都不收)。要用你自己的密钥,给
   `node build-tools/cli.js native --package --content dist-android` 传 `--key`/`--cert`。
+
+  要发 **Google Play**,在 Android 分区勾上 *Google Play App Bundle(.aab)*:导出会在
+  APK 旁边再写一份。Play 自 2021 年起对新应用强制要求 bundle 而非 APK——它是上传格式,
+  无法直接装到设备上,所以你测试用的仍然是那个 APK。
 - **iOS** —— 一个 Xcode 工程:`.xcframework`、应用外壳和生成好的 `.pbxproj` 都已围绕你的
   内容写出。打开它,在 *Signing & Capabilities* 下选好签名 Team,Run。
 

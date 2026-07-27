@@ -16,6 +16,15 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **Google Play: Package Project writes the App Bundle (`.aab`) too.** Play has
+  required a bundle rather than an APK for new apps since 2021, so packaging for
+  Android stopped at sideloading. Tick **Google Play App Bundle** in the Android
+  section (or `cli native --package --aab`) and the export writes one beside the
+  installable APK — the same content from the same template, with the manifest in
+  aapt2's protobuf encoding and a JAR signature, which is what a bundle is. Still
+  no JDK: the PKCS#7 block is written directly. The manifest is parsed once and
+  written twice, so the bundle and the APK cannot describe different apps — a test
+  decodes both and compares them, and CI validates the bundle with `bundletool`.
 - **Runtime templates are published with the release, and the editor downloads
   them.** The Android and iOS rows offer **Download** (with progress) beside
   *Install from file…* for offline installs and mirrors. What is downloaded is

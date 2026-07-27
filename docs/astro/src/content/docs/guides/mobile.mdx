@@ -101,6 +101,11 @@ folder holds the finished app:
   (the same standing as Android Studio's debug key: fine for a device, refused by
   every store). To sign with your own, pass `--key`/`--cert` to
   `node build-tools/cli.js native --package --content dist-android`.
+
+  For **Google Play**, tick *Google Play App Bundle (.aab)* in the Android section:
+  the export writes one beside the APK. Play has required a bundle rather than an
+  APK for new apps since 2021 — it is the upload format, and cannot be installed on
+  a device, which is why the APK is still what you test with.
 - **iOS** — an Xcode project: the `.xcframework`, the app shell and a generated
   `.pbxproj`, written around your content. Open it, pick your signing team under
   *Signing & Capabilities*, and Run.
