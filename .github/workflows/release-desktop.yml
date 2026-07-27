@@ -279,6 +279,48 @@ jobs:
             desktop/release/*.dmg
           retention-days: 3
 
+  # Publishing is the last step, and the one that has to be sure. A release missing
+  # a runtime template is a Download button that 404s — which is what 0.33.0
+  # shipped, because the templates were not built yet and nothing checked. So the
+  # draft is only flipped public once it carries everything this pipeline produces,
+  # and the check names what is missing rather than failing blank.
+  #
+  # Publishing is also what starts the mirror: mirror-release.yml runs on
+  # `release: published`, when the assets are final and downloadable by tag.
+  publish:
+    name: Publish the release
+    needs: [draft, release, publish-templates]
+    if: >-
+      github.event_name == 'push' &&
+      needs.release.result == 'success' &&
+      needs.publish-templates.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Check the release carries everything
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          assets=$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json assets -q '.assets[].name')
+          echo "$assets"
+          missing=""
+          for want in 'Estella-Editor-Setup-.*[.]exe' 'Estella-Editor-.*[.]dmg' 'latest[.]yml' 'latest-mac[.]yml' 'native-templates[.]json' 'estella-native-android-.*[.]zip' 'estella-native-ios-.*[.]zip'; do
+            printf '%s\n' "$assets" | grep -qE "^$want$" || missing="$missing $want"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::the draft is missing:$missing"
+            exit 1
+          fi
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+          echo "### Published $GITHUB_REF_NAME" >> "$GITHUB_STEP_SUMMARY"
+
   # The mirror is NOT here: it follows `release: published`, because the assets it
-  # copies live in a draft until a maintainer publishes it, and a draft cannot be
-  # downloaded by tag. See mirror-release.yml.
+  # copies live in a draft until the publish job above flips it, and a draft cannot
+  # be downloaded by tag. See mirror-release.yml.
