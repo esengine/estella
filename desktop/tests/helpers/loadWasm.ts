@@ -25,6 +25,19 @@ export const WASM_DIR = resolveWasmDir();
 export const WASM_FILE = resolve(WASM_DIR, 'esengine.wasm');
 export const HAS_WASM = existsSync(WASM_FILE);
 
+// A skip is the right answer on a machine that has not built the engine, and the
+// WRONG one in CI: a job meant to cover these tests would report success having
+// run none of them, which is how 25 files stayed green-by-absence while the code
+// under them changed. The job that provides the wasm sets ESTELLA_REQUIRE_WASM,
+// and here that turns a silent skip into a loud failure.
+if (!HAS_WASM && process.env.ESTELLA_REQUIRE_WASM) {
+    throw new Error(
+        `ESTELLA_REQUIRE_WASM is set but no engine build was found at ${WASM_FILE}. ` +
+        'The wasm artifact did not reach this job — these tests would have been skipped.',
+    );
+}
+
+
 let cached: ESEngineModule | null = null;
 export async function loadWasmModule(): Promise<ESEngineModule> {
     if (cached) return cached;

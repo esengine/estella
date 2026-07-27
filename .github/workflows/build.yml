@@ -149,6 +149,46 @@ jobs:
     - name: Run Desktop tests
       run: pnpm --filter @estella/editor exec vitest run
 
+  # The engine-coupled half of both suites. 25 test files load the built wasm and
+  # `skipIf` themselves out when it is absent — which, in a job that never built
+  # or downloaded one, meant they had never run in CI at all. They reported as
+  # skipped, the run reported success, and a scene-order regression could only be
+  # noticed by whoever happened to have a stale local build.
+  #
+  # Separate from `test` on purpose: type-checks and the pure-TS suites are the
+  # fast feedback on a push, and making them wait for Emscripten would trade a
+  # real gap for a slower one. ESTELLA_REQUIRE_WASM makes the skip an error here,
+  # so if the artifact ever stops arriving this fails instead of going quiet again.
+  test-engine:
+    name: Tests (engine-coupled)
+    runs-on: ubuntu-latest
+    needs: build-emscripten
+    timeout-minutes: 25
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - uses: ./.github/actions/setup
+
+    - name: Download web wasm artifact
+      uses: actions/download-artifact@v8
+      with:
+        name: wasm-web
+        path: build/wasm/web/
+
+    - name: Build SDK
+      run: pnpm --filter ./sdk build
+
+    - name: Run SDK tests (engine-coupled)
+      env:
+        ESTELLA_REQUIRE_WASM: '1'
+      run: pnpm --filter ./sdk exec vitest run
+
+    - name: Run Desktop tests (engine-coupled)
+      env:
+        ESTELLA_REQUIRE_WASM: '1'
+      run: pnpm --filter @estella/editor exec vitest run
+
   # Headless pixel verification: real scenes rendered by the editor's electron
   # host under xvfb (SwiftShader WebGL), asserted pixel-by-pixel.
   verify-render:
