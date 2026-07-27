@@ -96,6 +96,9 @@ merge_output() {
     # does not exist.
     if [ -d "$DOCS_ROOT/landing" ]; then
         cp -r "$DOCS_ROOT/landing/." "$OUTPUT_DIR/"
+        # The page states the version it was built from — see docs.yml.
+        version=$(node -p "require('$DOCS_ROOT/../desktop/package.json').version")
+        sed -i "s/__ESTELLA_VERSION__/$version/g" "$OUTPUT_DIR/index.html"
     fi
 
     # Copy Astro output

@@ -110,6 +110,15 @@ function Merge-Output {
     # does not exist.
     if (Test-Path "$DocsRoot\landing") {
         Copy-Item -Recurse "$DocsRoot\landing\*" $OutputDir
+        # The page states the version it was built from — see docs.yml. Read and
+        # written as UTF-8 through .NET: Get-Content/Set-Content on this host
+        # decode as the ANSI codepage, which turns every non-ASCII character in
+        # the page (the 中文 link, the arrows) into mojibake on the way through.
+        $version = (Get-Content "$DocsRoot\..\desktop\package.json" -Raw | ConvertFrom-Json).version
+        $index = "$OutputDir\index.html"
+        $utf8 = New-Object System.Text.UTF8Encoding($false)
+        $html = [System.IO.File]::ReadAllText($index, $utf8)
+        [System.IO.File]::WriteAllText($index, $html.Replace('__ESTELLA_VERSION__', $version), $utf8)
     }
 
     # Copy Astro output

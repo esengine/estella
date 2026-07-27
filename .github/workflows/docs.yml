@@ -59,6 +59,12 @@ jobs:
           # page's fonts and mark now, and a copy step that has to be edited when
           # the page grows an asset is a broken page waiting to be deployed.
           cp -r docs/landing/. docs/dist/
+
+          # The page states the version it was built from, so the download
+          # section is labelled with no JavaScript and no cross-origin request.
+          # The links themselves are the mirror's stable `latest/` names, which
+          # stay correct for releases published after this deploy.
+          sed -i "s/__ESTELLA_VERSION__/$(node -p "require('./desktop/package.json').version")/g" docs/dist/index.html
           echo 'estellaengine.com' > docs/dist/CNAME
           touch docs/dist/.nojekyll
 

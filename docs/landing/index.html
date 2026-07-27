@@ -296,15 +296,6 @@
     .dl-foot p { margin: 8px 0 0; }
     .dl-foot .warnmark { color: var(--sel); }
 
-    /* skeleton while the mirror is being asked */
-    .meta[data-loading] .size {
-      display: inline-block; width: 62px; height: 9px; vertical-align: middle;
-      border-radius: 999px; background: var(--srf-4);
-      animation: pulse 1.4s var(--e-out) infinite;
-    }
-    .meta[data-loading] .size::after { content: none; }
-    @keyframes pulse { 50% { opacity: 0.45; } }
-
     /* ── features ───────────────────────────────────────────────────────── */
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
     .card {
@@ -420,9 +411,13 @@
         <path d="M42 42 L50 50 L58 42" fill="none" stroke="#9fd2f7" stroke-width="0.7" opacity="0.6" />
       </svg>
 
-      <a class="chip" id="release-chip" href="https://github.com/esengine/estella/releases">
+      <!-- The version token below is substituted when the site is merged
+           (docs.yml, build.sh, build.ps1) from desktop/package.json, the one
+           place the app version lives. The mirror refreshes it at runtime when
+           it is allowed to answer. -->
+      <a class="chip" id="release-chip" href="https://github.com/esengine/estella/releases/tag/v__ESTELLA_VERSION__">
         <span class="dot" aria-hidden="true"></span>
-        <span id="release-label">Latest release</span>
+        <span id="release-label">v__ESTELLA_VERSION__</span>
         <span class="sep">·</span>
         <span>changelog</span>
       </a>
@@ -481,7 +476,7 @@
             <a class="btn primary" id="btn-win" href="https://dl.estella.games/latest/Estella-Editor-Setup.exe" download>
               Download for Windows
             </a>
-            <div class="meta" id="meta-win" data-loading><span class="size"></span><span class="name">Estella-Editor-Setup.exe</span></div>
+            <div class="meta" id="meta-win"><span class="size"></span><span class="name">Estella-Editor-Setup-__ESTELLA_VERSION__.exe</span></div>
           </div>
 
           <div class="dl-card" id="card-mac">
@@ -493,7 +488,7 @@
             <a class="btn primary" id="btn-mac" href="https://dl.estella.games/latest/Estella-Editor-arm64.dmg" download>
               Download for macOS
             </a>
-            <div class="meta" id="meta-mac" data-loading><span class="size"></span><span class="name">Estella-Editor-arm64.dmg</span></div>
+            <div class="meta" id="meta-mac"><span class="size"></span><span class="name">Estella-Editor-__ESTELLA_VERSION__-arm64.dmg</span></div>
           </div>
         </div>
 
@@ -618,11 +613,26 @@
   </footer>
 
   <script>
-    // Progressive enhancement only. The download buttons already point at stable
-    // mirror aliases that always resolve to the newest release, so everything
-    // below is decoration: which card is yours, and what you are about to get.
+    // Progressive enhancement only. The download buttons point at stable mirror
+    // aliases that always resolve to the newest release, and the version beside
+    // them is substituted when the site is built — so everything below is a
+    // refinement: which card is yours, and the exact size and name of the file
+    // if the mirror can be asked. It cannot be, from a browser, until the bucket
+    // states a CORS rule; the page is written to not care either way.
     (function () {
       var MIRROR = 'https://dl.estella.games/latest.json';
+
+      // Opened as a file rather than through the site build: show nothing rather
+      // than the placeholder the build would have replaced.
+      var label = document.getElementById('release-label');
+      if (label.textContent.indexOf('__') >= 0) {
+        label.textContent = 'Latest release';
+        document.getElementById('release-chip').href =
+          'https://github.com/esengine/estella/releases';
+        [].forEach.call(document.querySelectorAll('.meta .name'), function (el) {
+          if (el.textContent.indexOf('__') >= 0) el.textContent = '';
+        });
+      }
 
       function detectOS() {
         var ua = navigator.userAgent;
@@ -666,17 +676,12 @@
           [['win', d.win], ['mac', d['mac-arm64']]].forEach(function (pair) {
             var meta = document.getElementById('meta-' + pair[0]);
             var info = pair[1];
-            meta.removeAttribute('data-loading');
             if (!info) return;
             if (info.size) meta.querySelector('.size').textContent = mb(info.size);
             if (info.name) meta.querySelector('.name').textContent = info.name;
           });
         })
-        .catch(function () {
-          ['meta-win', 'meta-mac'].forEach(function (id) {
-            document.getElementById(id).removeAttribute('data-loading');
-          });
-        });
+        .catch(function () { /* the built-in labels stand */ });
     })();
   </script>
 </body>
